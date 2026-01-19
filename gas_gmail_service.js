@@ -219,6 +219,8 @@ class GmailService {
   }
 
   _extractEmailAddress(fromField) {
+    if (typeof fromField !== 'string') return '';
+
     const angleMatch = fromField.match(/<(.+?)>/);
     if (angleMatch) {
       return angleMatch[1];

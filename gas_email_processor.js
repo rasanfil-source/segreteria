@@ -148,7 +148,10 @@ class EmailProcessor {
       // NOTA: Se senderEmail è null/vacante (es. extraction fallita), lo lasciamo passare
       // per evitare drop silenziosi. Sarà gestito/validato negli step successivi.
       const externalUnread = unlabeledUnread.filter(message => {
-        const senderEmail = this.gmailService.extractMessageDetails(message).senderEmail;
+        const details = this.gmailService.extractMessageDetails(message);
+        // Navigazione sicura
+        const senderEmail = (details.senderEmail || '');
+
         // Se non riusciamo ad estrarre l'email, assumiamo che NON sia noi (fail open)
         if (!senderEmail) return true;
         return senderEmail.toLowerCase() !== myEmail.toLowerCase();
@@ -175,13 +178,14 @@ class EmailProcessor {
       candidate = externalUnread[externalUnread.length - 1];
       const messageDetails = this.gmailService.extractMessageDetails(candidate);
 
-      console.log(`\n📧 Elaborazione: ${messageDetails.subject.substring(0, 50)}...`);
+      console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
       console.log(`   Da: ${messageDetails.senderEmail}`);
 
       // ═══════════════════════════════════════════════════════════════
       // STEP 0: ANTI-SELF-REPLY
       // ═══════════════════════════════════════════════════════════════
-      if (messageDetails.senderEmail.toLowerCase() === myEmail.toLowerCase()) {
+      const safeSenderEmail = (messageDetails.senderEmail || '').toLowerCase();
+      if (safeSenderEmail === myEmail.toLowerCase()) {
         console.log('   ⊘ Saltato: messaggio auto-inviato');
         this._markMessageAsProcessed(candidate);
         result.status = 'skipped';
@@ -243,10 +247,13 @@ class EmailProcessor {
       // ═══════════════════════════════════════════════════════════════
       // STEP 2: CLASSIFY - Filtro ack/greeting ultra-semplice
       // ═══════════════════════════════════════════════════════════════
+      const safeSubject = (messageDetails.subject || '');
+      const safeBody = (messageDetails.body || '');
+
       const classification = this.classifier.classifyEmail(
-        messageDetails.subject,
-        messageDetails.body,
-        messageDetails.subject.toLowerCase().startsWith('re:')
+        safeSubject,
+        safeBody,
+        safeSubject.toLowerCase().startsWith('re:')
       );
 
       if (!classification.shouldReply) {

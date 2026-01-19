@@ -240,9 +240,13 @@ Output JSON:
     // Detection locale per fallback lingua
     const detection = this.detectEmailLanguage(emailContent, emailSubject);
 
+    // Normalizzazione sicura booleano/stringa
+    const replyNeeded = data.reply_needed;
+    const isFalse = replyNeeded === false || (typeof replyNeeded === 'string' && replyNeeded.toLowerCase() === 'false');
+
     return {
-      // Fail-open: se reply_needed è assente/null/undefined, rispondi comunque
-      shouldRespond: data.reply_needed !== false,
+      // Gestione fail-open: se reply_needed non è esplicitamente falso, procedi
+      shouldRespond: !isFalse,
       language: this._resolveLanguage(data.language, detection.lang, detection.safetyGrade),
       reason: data.reason || 'quick_check',
       classification: {
