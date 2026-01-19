@@ -467,13 +467,24 @@ class GeminiRateLimiter {
 
     const now = Date.now();
 
-    // Pulisci vecchie entry
-    this.cache.rpmWindow = rpmWindow.filter(function (e) {
+    // 1. Pulisci vecchie entry e applica limite massimo su RPM
+    // PropertiesService ha limiti di dimensione (~9KB)
+    let newRpm = rpmWindow.filter(function (e) {
       return now - e.timestamp < 60000;
     });
-    this.cache.tpmWindow = tpmWindow.filter(function (e) {
+    if (newRpm.length > 100) {
+      newRpm = newRpm.slice(-100);
+    }
+    this.cache.rpmWindow = newRpm;
+
+    // 2. Pulisci vecchie entry e applica limite massimo su TPM
+    let newTpm = tpmWindow.filter(function (e) {
       return now - e.timestamp < 60000;
     });
+    if (newTpm.length > 100) {
+      newTpm = newTpm.slice(-100);
+    }
+    this.cache.tpmWindow = newTpm;
 
     this.cache.lastCacheUpdate = now;
   }

@@ -365,22 +365,17 @@ class MemoryService {
   // ========================================================================
 
   /**
-   * Trova riga per threadId
-   * Ritorna { rowIndex, values } o null
-   */
-  /**
-   * Trova riga per threadId usando TextFinder
+   * Trova riga per threadId (OTTIMIZZATO con TextFinder)
    * Ritorna { rowIndex, values } o null
    */
   _findRowByThreadId(threadId) {
     if (!this._sheet) return null;
 
-    // Usa TextFinder per cercare l'ID direttamente
+    // Usa TextFinder per cercare l'ID direttamente (Operazione O(1) lato script)
     const finder = this._sheet.createTextFinder(threadId)
       .matchEntireCell(true)      // Corrispondenza esatta
-      .matchCase(true)            // Case sensitive (ID Gmail lo sono)
-      .matchFormulaText(false)    // Cerca solo nei valori
-      .ignoreDiacritics(false);
+      .matchCase(true)            // Case sensitive
+      .matchFormulaText(false);   // Cerca solo nei valori
 
     const result = finder.findNext();
 
@@ -388,10 +383,9 @@ class MemoryService {
       const rowIndex = result.getRow();
       const colIndex = result.getColumn();
 
-      // Verifica di sicurezza: l'ID deve essere nella colonna A (indice 1)
+      // Verifica sicurezza: l'ID deve essere nella colonna A (indice 1)
       if (colIndex === 1 && rowIndex > 1) {
-        // Leggi solo la riga trovata
-        // Leggiamo 8 colonne (A:H) come definito in _initializeSheet
+        // Leggi SOLO la riga trovata (molto efficiente)
         const rowValues = this._sheet.getRange(rowIndex, 1, 1, 8).getValues()[0];
 
         // Doppio controllo per sicurezza
@@ -403,7 +397,6 @@ class MemoryService {
         }
       }
     }
-
     return null;
   }
 
