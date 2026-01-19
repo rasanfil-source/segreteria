@@ -532,7 +532,7 @@ Dettaglio: ${v.reason}
         if (!validation.isValid) {
           console.warn(`   ❌ Validazione FALLITA (punteggio: ${validation.score.toFixed(2)})`);
 
-          // FALLBACK SPECIFICO PER THINKING LEAK
+          // Gestione errore validazione critica
           if (validation.details && validation.details.exposedReasoning && validation.details.exposedReasoning.score === 0.0) {
             console.warn("⚠️ Risposta bloccata per Thinking Leak. Invio a etichetta 'Verifica'.");
             // Qui potremmo tentare un retry con temperatura più bassa o altro modello

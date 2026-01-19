@@ -450,8 +450,7 @@ class GeminiRateLimiter {
       return now - e.timestamp < 60000;
     });
 
-    // CONTROLLO SICUREZZA: Se, nonostante il filtro temporale, ci sono troppe entry (es. attacco DoS), taglia.
-    // PropertiesService ha limiti di dimensione (~9kb).
+    // Limita dimensioni array per rispettare limiti PropertiesService (~9kb)
     if (this.cache[cacheKey].length > 100) {
       this.cache[cacheKey] = this.cache[cacheKey].slice(-100);
     }

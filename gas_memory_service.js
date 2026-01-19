@@ -375,8 +375,7 @@ class MemoryService {
   _findRowByThreadId(threadId) {
     if (!this._sheet) return null;
 
-    // OTTIMIZZAZIONE: Usa TextFinder invece di leggere tutti i valori in memoria
-    // TextFinder è nativamente ottimizzato e più veloce su fogli grandi
+    // Usa TextFinder per cercare l'ID specificato
     const finder = this._sheet.createTextFinder(threadId)
       .matchEntireCell(true)      // Corrispondenza esatta
       .matchCase(true)            // Case sensitive (ID Gmail lo sono)
