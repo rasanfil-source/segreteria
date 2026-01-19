@@ -548,7 +548,7 @@ class ResponseValidator {
       );
       score = 0.0;
       // Log speciale per monitoraggio immediato
-      console.error(`🚨 AI THINKING LEAK DETECTED. Prompt injection risk or Model verbosity high.`);
+      console.error(`🚨 RILEVAMENTO THINKING LEAK. Rischio prompt injection o verbosità modello elevata.`);
     }
 
     return { score, errors, warnings, foundPatterns };
