@@ -445,19 +445,16 @@ class GeminiRateLimiter {
     const cacheKey = windowType + 'Window';
     this.cache[cacheKey].push(entry);
 
-    // CONTROLLO SICUREZZA: Se la finestra ha troppi elementi, tronca i più vecchi
-    // PropertiesService ha limite ~9KB. Evitiamo saturazione.
-    const MAX_WINDOW_ENTRIES = 50;
-
-    if (this.cache[cacheKey].length > MAX_WINDOW_ENTRIES) {
-      // Mantieni solo i più recenti
-      this.cache[cacheKey] = this.cache[cacheKey].slice(-MAX_WINDOW_ENTRIES);
-    }
-
     // Pulisci vecchie entry (>60 secondi)
     this.cache[cacheKey] = this.cache[cacheKey].filter(function (e) {
       return now - e.timestamp < 60000;
     });
+
+    // CONTROLLO SICUREZZA: Se, nonostante il filtro temporale, ci sono troppe entry (es. attacco DoS), taglia.
+    // PropertiesService ha limiti di dimensione (~9kb).
+    if (this.cache[cacheKey].length > 100) {
+      this.cache[cacheKey] = this.cache[cacheKey].slice(-100);
+    }
 
     // Persist ogni 10 secondi (batch writes)
     if (now - this.cache.lastCacheUpdate > 10000) {

@@ -378,9 +378,10 @@ class MemoryService {
     // OTTIMIZZAZIONE: Usa TextFinder invece di leggere tutti i valori in memoria
     // TextFinder è nativamente ottimizzato e più veloce su fogli grandi
     const finder = this._sheet.createTextFinder(threadId)
-      .matchEntireCell(true)
-      .useRegularExpression(false)
-      .matchCase(true); // ID sono case-sensitive
+      .matchEntireCell(true)      // Corrispondenza esatta
+      .matchCase(true)            // Case sensitive (ID Gmail lo sono)
+      .matchFormulaText(false)    // Cerca solo nei valori
+      .ignoreDiacritics(false);   // Cerca esattamente
 
     // Cerca
     const result = finder.findNext();
