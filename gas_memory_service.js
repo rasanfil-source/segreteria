@@ -368,15 +368,37 @@ class MemoryService {
    * Trova riga per threadId
    * Ritorna { rowIndex, values } o null
    */
+  /**
+   * Trova riga per threadId
+   * Ritorna { rowIndex, values } o null
+   */
   _findRowByThreadId(threadId) {
-    const data = this._sheet.getDataRange().getValues();
+    if (!this._sheet) return null;
 
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0] === threadId) {
-        return {
-          rowIndex: i + 1, // 1-indexed per Sheets
-          values: data[i]
-        };
+    // OTTIMIZZAZIONE: Usa TextFinder invece di leggere tutti i valori in memoria
+    // TextFinder è nativamente ottimizzato e più veloce su fogli grandi
+    const finder = this._sheet.createTextFinder(threadId)
+      .matchEntireCell(true)
+      .useRegularExpression(false)
+      .matchCase(true); // ID sono case-sensitive
+
+    // Cerca
+    const result = finder.findNext();
+
+    if (result) {
+      const rowIndex = result.getRow();
+      // Verifica che sia nella colonna A (indice 1) e non sia l'intestazione
+      if (result.getColumn() === 1 && rowIndex > 1) {
+        // Leggiamo solo la riga specifica (8 colonne)
+        const rowValues = this._sheet.getRange(rowIndex, 1, 1, 8).getValues()[0];
+
+        // Controllo aggiuntivo per confermare corrispondenza esatta
+        if (rowValues[0] === threadId) {
+          return {
+            rowIndex: rowIndex,
+            values: rowValues
+          };
+        }
       }
     }
 

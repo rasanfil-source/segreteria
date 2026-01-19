@@ -531,6 +531,16 @@ Dettaglio: ${v.reason}
 
         if (!validation.isValid) {
           console.warn(`   ❌ Validazione FALLITA (punteggio: ${validation.score.toFixed(2)})`);
+
+          // FALLBACK SPECIFICO PER THINKING LEAK
+          if (validation.details && validation.details.exposedReasoning && validation.details.exposedReasoning.score === 0.0) {
+            console.warn("⚠️ Risposta bloccata per Thinking Leak. Invio a etichetta 'Verifica'.");
+            // Qui potremmo tentare un retry con temperatura più bassa o altro modello
+            // Per ora marchiamo per revisione umana
+            result.status = 'validation_failed';
+            result.reason = 'thinking_leak';
+          }
+
           this._addValidationErrorLabel(thread);
           this._markMessageAsProcessed(candidate);
           result.status = 'validation_failed';

@@ -544,10 +544,11 @@ class ResponseValidator {
     // Se trovati pattern critici, blocca la risposta
     if (foundPatterns.length > 0) {
       errors.push(
-        `THINKING LEAK RILEVATO: la risposta contiene ragionamento esposto ("${foundPatterns[0]}..."). ` +
-        `L'IA NON deve mostrare il suo processo di pensiero agli utenti.`
+        `RAGIONAMENTO ESPOSTO RILEVATO: "${foundPatterns[0]}..."`
       );
-      score = 0.0; // Blocco totale - questa risposta NON deve essere inviata
+      score = 0.0;
+      // Log speciale per monitoraggio immediato
+      console.error(`🚨 AI THINKING LEAK DETECTED. Prompt injection risk or Model verbosity high.`);
     }
 
     return { score, errors, warnings, foundPatterns };
