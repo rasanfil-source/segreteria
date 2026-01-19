@@ -668,6 +668,65 @@ testSpecificEmail(
 
 ---
 
+## 🐛 Known Issues (Problemi Noti)
+
+### Issue #1: Race Condition su Thread Lunghi ✅ RISOLTO v2.3.9
+
+**Sintomo:** Stesso thread risposto 2 volte  
+**Causa:** Lock non acquisito correttamente  
+**Fix:** Implementato double-check locking in `gas_email_processor.js` funzione `_processThread`  
+**Workaround Temporaneo:** Aumentare `CACHE_LOCK_TTL` a 60s
+
+---
+
+### Issue #2: Gemini 2.5 Thinking Leak ⚠️ MITIGATO v2.4.0
+
+**Sintomo:** Risposte contengono "Rivedendo la KB...", "Verificando le informazioni..."  
+**Causa:** Gemini 2.5 espone ragionamento se prompt ambiguo  
+**Fix:** Validatore rileva e blocca (score=0.0) in `gas_response_validator.js`  
+**Workaround:** Prompt più specifici con "NON esporre ragionamento"
+
+```javascript
+// Pattern rilevati e bloccati:
+const thinkingPatterns = [
+  'rivedendo la knowledge base',
+  'verificando le informazioni',
+  'devo correggere',
+  'nota:',
+  'le date del 2025 sono passate'
+];
+```
+
+---
+
+### Issue #3: Limite PropertiesService 9KB 🏗️ ARCHITETTURALE
+
+**Sintomo:** Errore "Property too large" in Rate Limiter  
+**Causa:** Google limita singola property a 9KB  
+**Fix:** Cache trimming automatico a 100 entry in `gas_rate_limiter.js`  
+**Nessun Workaround:** Limite hard di Google, gestito internamente
+
+```javascript
+// Safety cap implementato:
+if (window.length > 100) {
+  window = window.slice(-100);
+}
+```
+
+---
+
+### Issue #4: Sheet API Timeout su KB Grosse 📋 NOTO
+
+**Sintomo:** Timeout caricamento KB >1000 righe  
+**Causa:** Google Sheets API ha timeout su letture massive  
+**Fix Pianificato:** Paginazione caricamento KB (v2.5.0)  
+**Workaround Attuale:** 
+- Ridurre KB a <800 righe
+- Usare cache più aggressiva: `CONFIG.KB_CACHE_TTL = 7200000` (2 ore)
+- Preferire profilo `lite` per email semplici
+
+---
+
 ## 📞 Quando Contattare il Supporto
 
 **Contatta supporto SE:**
@@ -693,4 +752,4 @@ testSpecificEmail(
 
 ---
 
-**Buona risoluzione! 🔧**
+**[English Version](TROUBLESHOOTING.md)** | **[Quick Decision Tree](docs/QUICK_DECISION_TREE_IT.md)** | **[Runbooks](docs/runbooks/)**

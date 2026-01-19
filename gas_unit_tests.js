@@ -66,8 +66,9 @@ function testPromptEngine() {
         "Prompt inglese NON deve avere istruzioni italiano");
 
     // Test 4: Troncamento token
-    // Simuliamo KB gigante
-    const hugeKB = "A".repeat(200000);
+    // Simuliamo KB gigante che supera 100k token limit
+    // 100k token ~ 400k caratteri, quindi usiamo 450k per essere sicuri
+    const hugeKB = "A".repeat(450000);
     const hugeOptions = { ...basicOptions, knowledgeBase: hugeKB };
 
     // Mock console.error/warn per evitare spam nel test output
@@ -80,8 +81,10 @@ function testPromptEngine() {
 
     try {
         const truncatedPrompt = engine.buildPrompt(hugeOptions);
-        assert(truncatedPrompt.length < 200000,
-            "Il prompt deve essere troncato se supera limiti");
+        // Il prompt troncato dovrebbe essere significativamente più piccolo
+        // della KB originale + overhead (~460k sarebbe senza troncamento)
+        assert(truncatedPrompt.length < 420000,
+            "Il prompt deve essere troncato se supera limiti (attuale: " + truncatedPrompt.length + ")");
     } finally {
         // Ripristina console
         console.error = originalError;

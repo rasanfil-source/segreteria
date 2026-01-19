@@ -666,6 +666,65 @@ testSpecificEmail(
 
 ---
 
+## 🐛 Known Issues
+
+### Issue #1: Race Condition on Long Threads ✅ FIXED v2.3.9
+
+**Symptom:** Same thread answered 2 times  
+**Cause:** Lock not acquired correctly  
+**Fix:** Implemented double-check locking in `gas_email_processor.js` function `_processThread`  
+**Temporary Workaround:** Increase `CACHE_LOCK_TTL` to 60s
+
+---
+
+### Issue #2: Gemini 2.5 Thinking Leak ⚠️ MITIGATED v2.4.0
+
+**Symptom:** Responses contain "Reviewing the KB...", "Verifying the information..."  
+**Cause:** Gemini 2.5 exposes reasoning if prompt is ambiguous  
+**Fix:** Validator detects and blocks (score=0.0) in `gas_response_validator.js`  
+**Workaround:** More specific prompts with "DO NOT expose reasoning"
+
+```javascript
+// Detected and blocked patterns:
+const thinkingPatterns = [
+  'reviewing the knowledge base',
+  'verifying the information',
+  'I need to correct',
+  'note:',
+  'the 2025 dates have passed'
+];
+```
+
+---
+
+### Issue #3: PropertiesService 9KB Limit 🏗️ ARCHITECTURAL
+
+**Symptom:** Error "Property too large" in Rate Limiter  
+**Cause:** Google limits single property to 9KB  
+**Fix:** Automatic cache trimming to 100 entries in `gas_rate_limiter.js`  
+**No Workaround:** Hard Google limit, handled internally
+
+```javascript
+// Safety cap implemented:
+if (window.length > 100) {
+  window = window.slice(-100);
+}
+```
+
+---
+
+### Issue #4: Sheet API Timeout on Large KB 📋 KNOWN
+
+**Symptom:** Timeout loading KB >1000 rows  
+**Cause:** Google Sheets API has timeout on massive reads  
+**Planned Fix:** KB loading pagination (v2.5.0)  
+**Current Workaround:** 
+- Reduce KB to <800 rows
+- Use more aggressive cache: `CONFIG.KB_CACHE_TTL = 7200000` (2 hours)
+- Prefer `lite` profile for simple emails
+
+---
+
 ## 📞 When to Contact Support
 
 **Contact support IF:**
@@ -691,4 +750,4 @@ testSpecificEmail(
 
 ---
 
-**Happy troubleshooting! 🔧**
+**[Versione Italiana](TROUBLESHOOTING_IT.md)** | **[Quick Decision Tree](docs/QUICK_DECISION_TREE.md)** | **[Runbooks](docs/runbooks/)**

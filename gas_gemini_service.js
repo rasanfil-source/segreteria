@@ -145,8 +145,14 @@ Testo: ${emailContent.substring(0, 800)}
 
 Compiti:
 1. Decidi se richiede risposta (reply_needed):
-   - TRUE se l'utente pone domande, esprime dubbi o fornisce informazioni
-   - FALSE solo se è ringraziamento finale senza nuove info, newsletter/spam
+   - TRUE se l'utente pone domande, anche se l'informazione era già stata fornita prima
+   - TRUE se l'utente esprime dubbi o fornisce informazioni nuove
+   - TRUE se l'utente ripete una domanda (risponderemo facendo riferimento alla risposta precedente)
+   - FALSE solo se è ringraziamento finale senza domande né nuove info, oppure newsletter/spam
+   
+   IMPORTANTE: Se l'utente chiede qualcosa che era già stato detto, NON è motivo per non rispondere.
+   In quel caso risponderemo educatamente (es. "Come le indicavamo...").
+   
 2. Rileva la lingua (language) - codice ISO 639-1 (es: "it", "en", "es", "fr", "de")
 3. Classifica la richiesta (category):
    - "TECHNICAL": orari, documenti, info pratiche, iscrizioni

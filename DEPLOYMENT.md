@@ -266,6 +266,68 @@ Visibility: Private (NOT public)
 
 ---
 
+## 🤖 Gemini Model Selection Guide
+
+### Decision Matrix
+
+| Scenario | Recommended Model | RPD Budget | Estimated Cost/Month |
+|----------|-------------------|------------|----------------------|
+| Small parish (<50 emails/week) | Flash Lite | 1000 | €5-8 |
+| Medium parish (100-200 emails/week) | Flash 2.5 | 250 | €10-15 |
+| Large parish (>300 emails/week) | Flash 2.5 + Lite fallback | 250+1000 | €15-25 |
+| Development/Test | Flash Lite | 1000 | €0-2 |
+
+### When to Use Fallback Chain?
+
+```javascript
+// Recommended configuration for production
+CONFIG.MODEL_STRATEGY = {
+  'quick_check': ['flash-lite'],             // Economy for quick checks
+  'generation': ['flash-2.5', 'flash-lite'], // Quality → Fallback
+  'fallback': ['flash-lite', 'flash-2.0']    // Last resort
+};
+```
+
+### Pros/Cons per Model
+
+| Model | ✅ Pros | ❌ Cons |
+|-------|---------|---------|
+| **Flash 2.5** | Maximum quality, fewer hallucinations, better reasoning | Limited RPD (250/day) |
+| **Flash Lite** | Generous RPD (1000), economical, fast | Sometimes generic responses |
+| **Flash 2.0** | Stable, well tested | Less capable than 2.5, legacy |
+
+### Configuration by Scenario
+
+**Small Parish (economical):**
+```javascript
+CONFIG.MODEL_STRATEGY = {
+  'quick_check': ['flash-lite'],
+  'generation': ['flash-lite']
+};
+CONFIG.MAX_EMAILS_PER_RUN = 5;
+```
+
+**Medium Parish (balanced):**
+```javascript
+CONFIG.MODEL_STRATEGY = {
+  'quick_check': ['flash-lite'],
+  'generation': ['flash-2.5', 'flash-lite']
+};
+CONFIG.MAX_EMAILS_PER_RUN = 10;
+```
+
+**Large Parish (maximum quality):**
+```javascript
+CONFIG.MODEL_STRATEGY = {
+  'quick_check': ['flash-lite'],
+  'generation': ['flash-2.5']
+};
+CONFIG.MAX_EMAILS_PER_RUN = 15;
+// Consider trigger every 5 minutes instead of 10
+```
+
+---
+
 ## 📈 Scaling and Performance
 
 ### When to Increase Resources
