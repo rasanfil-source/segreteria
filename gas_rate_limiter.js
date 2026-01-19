@@ -471,6 +471,13 @@ class GeminiRateLimiter {
     this.cache.rpmWindow = rpmWindow.filter(function (e) {
       return now - e.timestamp < 60000;
     });
+
+    // SAFETY CAP: Se ci sono troppe entry (es. attacco DoS o loop), taglia l'array.
+    // PropertiesService ha limiti di dimensione (~9KB).
+    if (this.cache[cacheKey].length > 100) {
+      this.cache[cacheKey] = this.cache[cacheKey].slice(-100);
+    }
+
     this.cache.tpmWindow = tpmWindow.filter(function (e) {
       return now - e.timestamp < 60000;
     });
