@@ -14,6 +14,90 @@ var TEST_RESULTS = {
 /**
  * Entry point per l'esecuzione di tutti i test
  */
+
+/**
+ * Test per PromptEngine
+ */
+function testPromptEngine() {
+    console.log("\n🧪 Testing PromptEngine...");
+
+    if (typeof PromptEngine === 'undefined') {
+        console.warn("PromptEngine not found. Skipping.");
+        return;
+    }
+
+    const engine = new PromptEngine();
+
+    // Mock data
+    const basicOptions = {
+        emailContent: "Vorrei sapere gli orari",
+        emailSubject: "Orari",
+        knowledgeBase: "Messe feriali: 18:00",
+        senderName: "Mario",
+        detectedLanguage: "it"
+    };
+
+    // Test 1: Costruzione base
+    const prompt = engine.buildPrompt(basicOptions);
+    assert(prompt.includes("18:00"),
+        "Il prompt deve includere la knowledge base");
+    assert(prompt.includes("Mario"),
+        "Il prompt deve includere il nome del mittente");
+    assert(prompt.includes("MANDATO DOTTRINALE"),
+        "Il prompt deve includere il System Role");
+
+    // Test 2: Contesto Stagionale
+    const winterOptions = { ...basicOptions, currentSeason: 'invernale' };
+    const winterPrompt = engine.buildPrompt(winterOptions);
+    assert(winterPrompt.includes("Siamo nel periodo INVERNALE"),
+        "Il prompt deve specificare la stagione invernale");
+
+    const summerOptions = { ...basicOptions, currentSeason: 'estivo' };
+    const summerPrompt = engine.buildPrompt(summerOptions);
+    assert(summerPrompt.includes("Siamo nel periodo ESTIVO"),
+        "Il prompt deve specificare la stagione estiva");
+
+    // Test 3: Language Instructions
+    const enOptions = { ...basicOptions, detectedLanguage: 'en' };
+    const enPrompt = engine.buildPrompt(enOptions);
+    assert(enPrompt.includes("CRITICAL LANGUAGE REQUIREMENT - ENGLISH"),
+        "Prompt inglese deve avere istruzioni bloccanti");
+    assertFalse(enPrompt.includes("Rispondi in italiano"),
+        "Prompt inglese NON deve avere istruzioni italiano");
+
+    // Test 4: Troncamento token
+    // Simuliamo KB gigante
+    const hugeKB = "A".repeat(200000);
+    const hugeOptions = { ...basicOptions, knowledgeBase: hugeKB };
+
+    // Mock console.error/warn per evitare spam nel test output
+    const originalError = console.error;
+    const originalWarn = console.warn;
+    const originalLog = console.log;
+    console.error = function () { };
+    console.warn = function () { };
+    console.log = function () { };
+
+    try {
+        const truncatedPrompt = engine.buildPrompt(hugeOptions);
+        assert(truncatedPrompt.length < 200000,
+            "Il prompt deve essere troncato se supera limiti");
+    } finally {
+        // Ripristina console
+        console.error = originalError;
+        console.warn = originalWarn;
+        console.log = originalLog;
+    }
+
+    // Test 5: No Reply Rules
+    const noReplyPrompt = engine.buildPrompt(basicOptions);
+    assert(noReplyPrompt.includes("QUANDO NON RISPONDERE"),
+        "Il prompt deve includere le regole NO_REPLY");
+}
+
+/**
+ * Entry point aggiornato
+ */
 function runAllTests() {
     TEST_RESULTS = { passed: 0, failed: 0, errors: [] };
     console.log("🚀 AVVIO TEST SUITE...");
@@ -29,12 +113,15 @@ function runAllTests() {
         testRateLimiter();
         testGmailService();
         testConfiguration();
+        testPromptEngine(); // aggiunto
 
     } catch (e) {
         console.error("❌ ERRORE CRITICO DURANTE I TEST: " + e.toString());
         TEST_RESULTS.errors.push("CRITICAL EXCEPTION: " + e.toString());
         TEST_RESULTS.failed++;
     }
+    // ... rest of runAllTests logica rimane uguale ...
+
 
     console.log("\n📊 RIEPILOGO TEST:");
     console.log("✅ Passed: " + TEST_RESULTS.passed);

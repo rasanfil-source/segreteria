@@ -1,13 +1,14 @@
-# File di configurazione locale (non tracciare)
-PLACEHOLDERS_GAS.txt
-gas_config_template.js
+# File di configurazione sensibili (non tracciare su git)
+gas_config.js
 
 # Credenziali e configurazione clasp/GAS
 .clasp.json
 .clasprc.json
 .claspignore
-appsscript.json
+# appsscript.json è necessario per clasp, ma attento se lo pubblichi
+# appsscript.json 
 
 # File di sistema
 .DS_Store
 Thumbs.db
+
