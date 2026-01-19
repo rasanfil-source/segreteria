@@ -66,12 +66,12 @@ class TerritoryValidator {
 
     /**
      * Estrae indirizzi da un testo
-     * Protezione ReDoS: limita lunghezza input e usa pattern ottimizzati
+     * Estrazione sicura: limita lunghezza input e usa pattern efficienti
      */
     extractAddressFromText(text) {
-        // Limita lunghezza input per prevenire ReDoS
-        if (text && text.length > 5000) {
-            text = text.substring(0, 5000);
+        // Limita lunghezza input per sicurezza
+        if (text && text.length > 1000) {
+            text = text.substring(0, 1000);
         }
 
         // Pattern ottimizzati per sicurezza (backtracking limitato)

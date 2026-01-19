@@ -721,9 +721,9 @@ Dettaglio: ${v.reason}
       ignoreKeywords = CONFIG.IGNORE_KEYWORDS;
     }
 
-    const email = messageDetails.senderEmail.toLowerCase();
-    const subject = messageDetails.subject.toLowerCase();
-    const body = messageDetails.body.toLowerCase();
+    const email = (messageDetails.senderEmail || '').toLowerCase();
+    const subject = (messageDetails.subject || '').toLowerCase();
+    const body = (messageDetails.body || '').toLowerCase();
 
     for (const domain of ignoreDomains) {
       if (email.includes(domain.toLowerCase())) {

@@ -299,9 +299,16 @@ function loadResources() {
 
   try {
     // Tenta di acquisire lock per 10 secondi
+    // Gestione concorrenza: Se il lock fallisce, prosegue se la cache è vuota.
+    // L'istanza corrente necessita dei dati per procedere.
     if (!lock.tryLock(10000)) {
-      console.warn('⚠️ Impossibile acquisire lock per loadResources, uso cache esistente');
-      return;
+      console.warn('⚠️ Impossibile acquisire lock per loadResources (timeout 10s)');
+      if (!GLOBAL_CACHE.loaded) {
+        console.warn('⚠️ Cache locale vuota: procedo comunque al caricamento (ignoro lock fallito)');
+      } else {
+        console.log('ℹ️ Cache già carica, salto reload');
+        return;
+      }
     }
 
     // Verifica se risorse già caricate (double-checked locking)

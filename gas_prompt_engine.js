@@ -67,7 +67,7 @@ class PromptEngine {
       topic = '',
       detectedLanguage = 'it',
       currentSeason = 'invernale',
-      currentDate = new Date().toISOString().split('T')[0],
+      currentDate = Utilities.formatDate(new Date(), 'Europe/Rome', 'yyyy-MM-dd'),
       salutation = 'Buongiorno.',
       closing = 'Cordiali saluti,',
       subIntents = {},

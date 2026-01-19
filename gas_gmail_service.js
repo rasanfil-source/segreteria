@@ -393,7 +393,7 @@ class GmailService {
 
         const fromEmail = messageDetails.recipientEmail || Session.getActiveUser().getEmail();
 
-        const boundary = 'boundary_' + Date.now();
+        const boundary = 'boundary_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
         const rawMessage = [
           'MIME-Version: 1.0',
           `From: ${fromEmail}`,
