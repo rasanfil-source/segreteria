@@ -241,7 +241,8 @@ Output JSON:
     const detection = this.detectEmailLanguage(emailContent, emailSubject);
 
     return {
-      shouldRespond: data.reply_needed === true,
+      // Fail-open: se reply_needed è assente/null/undefined, rispondi comunque
+      shouldRespond: data.reply_needed !== false,
       language: this._resolveLanguage(data.language, detection.lang, detection.safetyGrade),
       reason: data.reason || 'quick_check',
       classification: {

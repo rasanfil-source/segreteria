@@ -30,6 +30,8 @@ class EmailProcessor {
     this.gmailService = options.gmailService || new GmailService();
     this.promptEngine = options.promptEngine || new PromptEngine();
     this.memoryService = options.memoryService || new MemoryService();
+    // Integrazione TerritoryValidator
+    this.territoryValidator = options.territoryValidator || (typeof TerritoryValidator !== 'undefined' ? new TerritoryValidator() : null);
 
     // Configurazione
     this.config = {
@@ -389,6 +391,70 @@ ${GLOBAL_CACHE.doctrineBase}
         greeting = '[Inizia con breve frase di riaggancio cordiale]';
       }
 
+      // ═══════════════════════════════════════════════════════════════
+      // STEP 7.1: TERRITORY CHECK (se TerritoryValidator disponibile)
+      // ═══════════════════════════════════════════════════════════════
+      let territoryResult = { addressFound: false };
+      if (this.territoryValidator) {
+        territoryResult = this.territoryValidator.analyzeEmailForAddress(
+          messageDetails.body,
+          messageDetails.subject
+        );
+        if (territoryResult.addressFound) {
+          const v = territoryResult.verification;
+          const sanitizedStreet = (territoryResult.street || '').replace(/[═─]/g, '-');
+          const territoryContext = `
+════════════════════════════════════════════════════════════════════════
+🎯 VERIFICA TERRITORIO AUTOMATICA
+════════════════════════════════════════════════════════════════════════
+Indirizzo: ${sanitizedStreet} n. ${territoryResult.civic}
+Risultato: ${v.inParish ? '✅ RIENTRA' : '❌ NON RIENTRA'}
+Dettaglio: ${v.reason}
+════════════════════════════════════════════════════════════════════════
+`;
+          knowledgeSections.unshift(territoryContext);
+          console.log(`   🎯 Territory check: ${v.inParish ? 'IN PARROCCHIA' : 'FUORI PARROCCHIA'}`);
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // STEP 7.2: PROMPT CONTEXT (profilo e concern dinamici)
+      // ═══════════════════════════════════════════════════════════════
+      let promptProfile = 'standard';
+      let activeConcerns = [];
+      if (typeof createPromptContext === 'function') {
+        const promptContext = createPromptContext({
+          email: {
+            subject: messageDetails.subject,
+            body: messageDetails.body,
+            isReply: messageDetails.subject.toLowerCase().startsWith('re:'),
+            detectedLanguage: detectedLanguage
+          },
+          classification: {
+            category: classification.category,
+            subIntents: classification.subIntents || {},
+            confidence: classification.confidence || 0.8
+          },
+          requestType: requestType,
+          memory: {
+            exists: Object.keys(memoryContext).length > 0,
+            providedInfoCount: (memoryContext.providedInfo || []).length,
+            lastUpdated: memoryContext.lastUpdated || null
+          },
+          conversation: { messageCount: memoryContext.messageCount || messages.length },
+          territory: { addressFound: territoryResult.addressFound },
+          knowledgeBase: { length: enrichedKnowledgeBase.length, containsDates: /\d{4}/.test(enrichedKnowledgeBase) },
+          temporal: {
+            mentionsDates: /\b(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre|\d{1,2}\/\d{1,2})\b/i.test(messageDetails.body),
+            mentionsTimes: /\d{1,2}[:.]\d{2}/.test(messageDetails.body)
+          },
+          salutationMode: salutationMode
+        });
+        promptProfile = promptContext.profile;
+        activeConcerns = promptContext.concerns;
+        console.log(`   🧠 PromptContext: profilo=${promptProfile}`);
+      }
+
       const promptOptions = {
         emailContent: messageDetails.body,
         emailSubject: messageDetails.subject,
@@ -405,7 +471,9 @@ ${GLOBAL_CACHE.doctrineBase}
         closing: closing,
         subIntents: classification.subIntents || {},
         memoryContext: memoryContext,
-        salutationMode: salutationMode
+        salutationMode: salutationMode,
+        promptProfile: promptProfile,
+        activeConcerns: activeConcerns
       };
 
       const prompt = this.promptEngine.buildPrompt(promptOptions);
@@ -476,12 +544,15 @@ ${GLOBAL_CACHE.doctrineBase}
         console.log('   🔴 DRY RUN - Risposta non inviata');
         console.log(`   📝 Invierebbe: ${response.substring(0, 100)}...`);
         result.dryRun = true;
-      } else {
-        this.gmailService.sendHtmlReply(candidate, response, messageDetails);
+        // In DRY_RUN non aggiorniamo memoria né label per non avere effetti permanenti
+        result.status = 'replied';
+        return result;
       }
 
+      this.gmailService.sendHtmlReply(candidate, response, messageDetails);
+
       // ═══════════════════════════════════════════════════════════════
-      // STEP 11: AGGIORNA MEMORIA
+      // STEP 11: AGGIORNA MEMORIA (solo se non DRY_RUN)
       // ═══════════════════════════════════════════════════════════════
       const providedTopics = this._detectProvidedTopics(response);
 
