@@ -369,30 +369,32 @@ class MemoryService {
    * Ritorna { rowIndex, values } o null
    */
   /**
-   * Trova riga per threadId
+   * Trova riga per threadId usando TextFinder
    * Ritorna { rowIndex, values } o null
    */
   _findRowByThreadId(threadId) {
     if (!this._sheet) return null;
 
-    // Usa TextFinder per cercare l'ID specificato
+    // Usa TextFinder per cercare l'ID direttamente
     const finder = this._sheet.createTextFinder(threadId)
       .matchEntireCell(true)      // Corrispondenza esatta
       .matchCase(true)            // Case sensitive (ID Gmail lo sono)
       .matchFormulaText(false)    // Cerca solo nei valori
-      .ignoreDiacritics(false);   // Cerca esattamente
+      .ignoreDiacritics(false);
 
-    // Cerca
     const result = finder.findNext();
 
     if (result) {
       const rowIndex = result.getRow();
-      // Verifica che sia nella colonna A (indice 1) e non sia l'intestazione
-      if (result.getColumn() === 1 && rowIndex > 1) {
-        // Leggiamo solo la riga specifica (8 colonne)
+      const colIndex = result.getColumn();
+
+      // Verifica di sicurezza: l'ID deve essere nella colonna A (indice 1)
+      if (colIndex === 1 && rowIndex > 1) {
+        // Leggi solo la riga trovata
+        // Leggiamo 8 colonne (A:H) come definito in _initializeSheet
         const rowValues = this._sheet.getRange(rowIndex, 1, 1, 8).getValues()[0];
 
-        // Controllo aggiuntivo per confermare corrispondenza esatta
+        // Doppio controllo per sicurezza
         if (rowValues[0] === threadId) {
           return {
             rowIndex: rowIndex,
