@@ -1,0 +1,11 @@
+# File di configurazione locale (non tracciare)
+PLACEHOLDERS_GAS.txt
+gas_config_template.js
+
+# Credenziali e configurazione clasp
+.clasp.json
+.clasprc.json
+
+# File di sistema
+.DS_Store
+Thumbs.db
