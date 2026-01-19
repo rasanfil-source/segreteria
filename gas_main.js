@@ -186,7 +186,7 @@ function getSpecialMassTimeRule(date = new Date()) {
   if (weekDay === 0) return null;
 
   // Giorni festivi fissi con messa alle 19:00
-  const specialFixed = [
+  const giorniFissiSpeciali = [
     [4, 25],  // Anniversario Liberazione
     [5, 1],   // Festa del Lavoro
     [6, 2],   // Festa della Repubblica
@@ -195,7 +195,7 @@ function getSpecialMassTimeRule(date = new Date()) {
 
   let isSpecial = false;
 
-  for (const [m, d] of specialFixed) {
+  for (const [m, d] of giorniFissiSpeciali) {
     if (month === m && day === d) {
       isSpecial = true;
       break;
@@ -294,6 +294,59 @@ function _parseSheetToStructured(data) {
  * Carica tutte le risorse necessarie (Knowledge Base, sostituzioni, ferie)
  * Usa lock per prevenire race condition tra esecuzioni parallele
  */
+/**
+ * Carica periodi ferie dal foglio Controllo
+ * @param {Spreadsheet} spreadsheet
+ */
+function _loadVacationPeriodsFromSheet(spreadsheet) {
+  try {
+    const controlSheet = spreadsheet.getSheetByName('Controllo');
+    if (controlSheet) {
+      const ferieRows = controlSheet.getRange('A6:C10').getValues();
+      const validPeriods = [];
+
+      for (const row of ferieRows) {
+        if (!row[1] || !row[2]) continue;
+
+        let startDate, endDate;
+        try {
+          startDate = new Date(row[1]);
+          endDate = new Date(row[2]);
+
+          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            console.warn(`⚠️ Formato data non valido: ${row[1]} - ${row[2]}`);
+            continue;
+          }
+
+          if (endDate < startDate) {
+            console.warn(`⚠️ Data fine precedente a data inizio: ${startDate.toLocaleDateString()} > ${endDate.toLocaleDateString()}`);
+            continue;
+          }
+
+          validPeriods.push({ start: startDate, end: endDate });
+        } catch (parsingErr) {
+          console.warn(`⚠️ Errore parsing date ferie: ${parsingErr.message}`);
+          continue;
+        }
+      }
+
+      if (validPeriods.length > 0) {
+        console.log(`✓ Periodi ferie caricati: ${validPeriods.length} periodo/i`);
+        return validPeriods;
+      }
+    } else {
+      console.warn('⚠️ Foglio "Controllo" non trovato - periodi ferie non caricati');
+    }
+  } catch (ferieErr) {
+    console.warn(`⚠️ Impossibile caricare periodi ferie: ${ferieErr.message}`);
+  }
+  return [];
+}
+
+/**
+ * Carica tutte le risorse necessarie (Knowledge Base, sostituzioni, ferie)
+ * Usa lock per prevenire race condition tra esecuzioni parallele
+ */
 function loadResources() {
   const lock = LockService.getScriptLock();
 
@@ -319,6 +372,25 @@ function loadResources() {
     GLOBAL_CACHE.vacationPeriods = [];
     console.log('📦 Caricamento risorse...');
 
+    const cache = CacheService.getScriptCache();
+    const cachedKB = cache.get('KB_CONTENT');
+
+    // CACHE HIT - FAST PATH
+    if (cachedKB && !CONFIG.FORCE_RELOAD) {
+      GLOBAL_CACHE.knowledgeBase = cachedKB;
+      console.log('📦 KB caricata da ScriptCache (Fast)');
+
+      // Carichiamo solo le ferie (leggero)
+      withSheetsRetry(() => {
+        const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+        GLOBAL_CACHE.vacationPeriods = _loadVacationPeriodsFromSheet(spreadsheet);
+      }, 'Caricamento Ferie (Cache)');
+
+      GLOBAL_CACHE.loaded = true;
+      return;
+    }
+
+    // CACHE MISS - FULL LOAD
     withSheetsRetry(() => {
       const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
 
@@ -329,57 +401,20 @@ function loadResources() {
         GLOBAL_CACHE.knowledgeBase = kbData.map(row => row.join(' | ')).join('\n');
         GLOBAL_CACHE.knowledgeStructured = _parseSheetToStructured(kbData);
         console.log(`✓ Knowledge Base caricata: ${GLOBAL_CACHE.knowledgeBase.length} caratteri`);
+
+        // SALVATAGGIO IN CACHE DOPO IL CARICAMENTO
+        if (GLOBAL_CACHE.knowledgeBase) {
+          // CacheService ha limite 100KB per valore
+          if (GLOBAL_CACHE.knowledgeBase.length < 100000) {
+            cache.put('KB_CONTENT', GLOBAL_CACHE.knowledgeBase, 21600); // 6 ore
+          }
+        }
       } else {
         console.warn(`⚠️ Foglio '${CONFIG.KB_SHEET_NAME}' non trovato`);
       }
 
-      // Carica periodi ferie dal foglio Controllo (righe 6-10)
-      try {
-        const controlSheet = spreadsheet.getSheetByName('Controllo');
-        if (controlSheet) {
-          const ferieRows = controlSheet.getRange('A6:C10').getValues();
-          const validPeriods = [];
-
-          for (const row of ferieRows) {
-            // Considera il periodo solo se ci sono date valide in B e C
-            // La colonna A è opzionale (etichetta descrittiva)
-            if (!row[1] || !row[2]) continue; // Salta se mancano date
-
-            let startDate, endDate;
-            try {
-              startDate = new Date(row[1]);
-              endDate = new Date(row[2]);
-
-              if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-                console.warn(`⚠️ Formato data non valido: ${row[1]} - ${row[2]}`);
-                continue;
-              }
-
-              if (endDate < startDate) {
-                console.warn(`⚠️ Data fine precedente a data inizio: ${startDate.toLocaleDateString()} > ${endDate.toLocaleDateString()}`);
-                continue;
-              }
-
-              validPeriods.push({ start: startDate, end: endDate });
-            } catch (parsingErr) {
-              console.warn(`⚠️ Errore parsing date ferie: ${parsingErr.message}`);
-              continue;
-            }
-          }
-
-          if (validPeriods.length > 0) {
-            GLOBAL_CACHE.vacationPeriods = validPeriods;
-            console.log(`✓ Periodi ferie caricati: ${validPeriods.length} periodo/i`);
-            validPeriods.forEach((p, i) => {
-              console.log(`   ${i + 1}. ${p.start.toLocaleDateString('it-IT')} - ${p.end.toLocaleDateString('it-IT')}`);
-            });
-          }
-        } else {
-          console.warn('⚠️ Foglio "Controllo" non trovato - periodi ferie non caricati');
-        }
-      } catch (ferieErr) {
-        console.warn(`⚠️ Impossibile caricare periodi ferie: ${ferieErr.message}`);
-      }
+      // Carica periodi ferie
+      GLOBAL_CACHE.vacationPeriods = _loadVacationPeriodsFromSheet(spreadsheet);
 
       // Carica AI_CORE_LITE (principi pastorali base)
       const liteSheet = spreadsheet.getSheetByName(CONFIG.AI_CORE_LITE_SHEET);
@@ -570,7 +605,7 @@ function setupTrigger() {
 
 /**
  * Rimuove tutti i trigger per main
- * Utile per manutenzione o debugging
+ * Utile per manutenzione o risoluzione problemi
  */
 function removeTriggers() {
   const triggers = ScriptApp.getProjectTriggers();

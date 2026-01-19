@@ -911,32 +911,36 @@ function createGeminiService() {
 function parseGeminiJsonLenient(text) {
   if (!text) throw new Error('Risposta vuota');
 
-  // 1. Rimuovi blocchi codice markdown
+  // 1. Pulizia Markdown
   let cleaned = text
     .replace(/```json/gi, '')
     .replace(/```/g, '')
     .trim();
 
-  // 2. Isola solo il contenuto tra { e }
-  const match = cleaned.match(/\{[\s\S]*\}/);
-  if (!match) {
+  // 2. Estrazione blocco graffe più esterno
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+
+  if (start === -1 || end === -1) {
     throw new Error('Nessun oggetto JSON trovato');
   }
 
-  cleaned = match[0];
+  cleaned = cleaned.substring(start, end + 1);
 
   // 3. Tentativo parsing diretto
   try {
     return JSON.parse(cleaned);
   } catch (e) {
-    // Continua con normalizzazione
+    console.warn('⚠️ Parsing JSON diretto fallito, tentativo di correzione manuale...');
   }
 
-  // 4. Normalizzazione JS-like → JSON (solo chiavi non quotate)
-  const normalized = cleaned.replace(
-    /([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*(?!")/g,
-    '$1"$2": '
-  );
+  // 4. Correzione comune: chiavi non quotate (es. { key: "value" })
+  // Questa regex è più sicura: cerca parole a inizio riga o dopo virgola/graffa seguite da :
+  const jsonCorretto = cleaned.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
 
-  return JSON.parse(normalized);
+  try {
+    return JSON.parse(jsonCorretto);
+  } catch (e) {
+    throw new Error(`Impossibile parsare JSON da Gemini: ${e.message}`);
+  }
 }

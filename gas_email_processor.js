@@ -1,3 +1,4 @@
+
 /**
  * EmailProcessor.gs - Orchestratore Pipeline Email
  * 
@@ -61,7 +62,7 @@ class EmailProcessor {
     const threadId = thread.getId();
 
     // ═══════════════════════════════════════════════════════════════
-    // ACQUISIZIONE LOCK (THREAD-LEVEL) - Previene race conditions
+    // ACQUISIZIONE LOCK (LIVELLO-THREAD) - Previene condizioni di conflitto
     // ═══════════════════════════════════════════════════════════════
 
     var lockAcquired = false;
@@ -76,7 +77,7 @@ class EmailProcessor {
       const lockTtlMs = ttlSeconds * 1000;
       lockValue = Date.now().toString();
 
-      // 1. Check preliminare (fast fail)
+      // 1. Controllo preliminare (fallimento rapido)
       const existingLock = scriptCache.get(threadLockKey);
       if (existingLock) {
         const existingTimestamp = Number(existingLock);
@@ -95,11 +96,11 @@ class EmailProcessor {
       try {
         scriptCache.put(threadLockKey, lockValue, ttlSeconds);
 
-        // 3. Sleep per rilevare race conditions
+        // 3. Pausa per rilevare conflitti
         const raceSleep = (typeof CONFIG !== 'undefined' && CONFIG.CACHE_RACE_SLEEP_MS) ? CONFIG.CACHE_RACE_SLEEP_MS : 50;
         Utilities.sleep(raceSleep);
 
-        // 4. Double-Check
+        // 4. Doppio controllo
         const checkValue = scriptCache.get(threadLockKey);
         if (checkValue !== lockValue) {
           console.warn(`🔒 Race rilevata per thread ${threadId}: atteso ${lockValue}, ottenuto ${checkValue}`);
@@ -145,8 +146,8 @@ class EmailProcessor {
       });
 
       // Solo messaggi da mittenti esterni
-      // NOTA: Se senderEmail è null/vacante (es. extraction fallita), lo lasciamo passare
-      // per evitare drop silenziosi. Sarà gestito/validato negli step successivi.
+      // NOTA: Se senderEmail è null/vacante (es. estrazione fallita), lo lasciamo passare
+      // per evitare perdite silenziose. Sarà gestito/validato negli step successivi.
       const externalUnread = unlabeledUnread.filter(message => {
         const details = this.gmailService.extractMessageDetails(message);
         // Navigazione sicura
@@ -182,7 +183,7 @@ class EmailProcessor {
       console.log(`   Da: ${messageDetails.senderEmail}`);
 
       // ═══════════════════════════════════════════════════════════════
-      // STEP 0: ANTI-SELF-REPLY
+      // STEP 0: ANTI-AUTO-RISPOSTA
       // ═══════════════════════════════════════════════════════════════
       const safeSenderEmail = (messageDetails.senderEmail || '').toLowerCase();
       if (safeSenderEmail === myEmail.toLowerCase()) {
@@ -194,7 +195,7 @@ class EmailProcessor {
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // STEP 0.5: ANTI-LOOP (smart detection)
+      // STEP 0.5: ANTI-LOOP (rilevamento intelligente)
       // ═══════════════════════════════════════════════════════════════
       const MAX_THREAD_LENGTH = (typeof CONFIG !== 'undefined' && CONFIG.MAX_THREAD_LENGTH) ? CONFIG.MAX_THREAD_LENGTH : 10;
       const MAX_CONSECUTIVE_EXTERNAL = 5;
@@ -224,7 +225,7 @@ class EmailProcessor {
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // STEP 0.8: ANTI-NOREPLY SENDER
+      // STEP 0.8: ANTI-MITTENTE-NOREPLY
       // ═══════════════════════════════════════════════════════════════
       if (/no-reply|do-not-reply|noreply/i.test(messageDetails.senderEmail)) {
         console.log('   ⊘ Saltato: mittente no-reply');
@@ -235,7 +236,7 @@ class EmailProcessor {
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // STEP 1: FILTER - Dominio/keyword ignores
+      // STEP 1: FILTRO - Domini/parole chiave ignorati
       // ═══════════════════════════════════════════════════════════════
       if (this._shouldIgnoreEmail(messageDetails)) {
         console.log('   ⊘ Filtrato: domain/keyword ignore');
@@ -245,7 +246,7 @@ class EmailProcessor {
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // STEP 2: CLASSIFY - Filtro ack/greeting ultra-semplice
+      // STEP 2: CLASSIFICAZIONE - Filtro ack/greeting ultra-semplice
       // ═══════════════════════════════════════════════════════════════
       const safeSubject = (messageDetails.subject || '');
       const safeBody = (messageDetails.body || '');
@@ -264,7 +265,7 @@ class EmailProcessor {
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // STEP 3: QUICK CHECK - Gemini decide se serve risposta
+      // STEP 3: CONTROLLO RAPIDO - Gemini decide se serve risposta
       // ═══════════════════════════════════════════════════════════════
       const quickCheck = this.geminiService.shouldRespondToEmail(
         messageDetails.body,
@@ -653,7 +654,17 @@ Dettaglio: ${v.reason}
     };
 
     // Processa ogni thread
-    threads.forEach((thread, index) => {
+    const startTime = Date.now();
+    const MAX_EXECUTION_TIME = 280 * 1000; // 280 secondi (margine su 360s limite GAS)
+
+    for (let index = 0; index < threads.length; index++) {
+      const thread = threads[index];
+
+      // CHECK TEMPO RESIDUO
+      if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+        console.warn(`⏳ Tempo esecuzione in esaurimento. Interrompo dopo ${index} thread.`);
+        break;
+      }
       console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
 
       const result = this.processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds);
@@ -675,7 +686,7 @@ Dettaglio: ${v.reason}
       } else if (result.status === 'error') {
         stats.errors++;
       }
-    });
+    }
 
     // Stampa riepilogo
     console.log('\n' + '='.repeat(70));
