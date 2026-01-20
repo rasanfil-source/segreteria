@@ -297,7 +297,7 @@ Click the **"Save"** button (disk icon)
 
 ### Step 6.2: Check response
 
-**After ~5-10 minutes** (trigger time):
+**After ~5 minutes** (trigger time):
 
 1. Check parish inbox
 2. You should see the automatic reply
@@ -369,7 +369,7 @@ The system is active!
 
 ### What Happens Now
 
-**Every 10 minutes**, the system:
+**Every 5 minutes**, the system:
 1. ✅ Checks unread emails
 2. ✅ Filters spam and automatic emails
 3. ✅ Classifies requests
@@ -424,7 +424,7 @@ To see examples of emails the system answered:
 
 **Solution:**
 1. Apps Script → Menu → **Triggers**
-2. Verify there is `main` every 10 minutes
+2. Verify there is `main` every 5 minutes
 3. If missing, run `setupTrigger` again
 
 ### "Response in wrong language"

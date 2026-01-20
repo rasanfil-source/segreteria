@@ -101,10 +101,10 @@ function setupProductionTrigger() {
     ScriptApp.deleteTrigger(trigger);
   });
   
-  // Crea trigger ogni 10 minuti (raccomandato)
+  // Crea trigger ogni 5 minuti (raccomandato)
   ScriptApp.newTrigger('main')
     .timeBased()
-    .everyMinutes(10)
+    .everyMinutes(5)
     .create();
   
   // Trigger cleanup memoria (settimanale)
@@ -323,7 +323,8 @@ CONFIG.MODEL_STRATEGY = {
   'generation': ['flash-2.5']
 };
 CONFIG.MAX_EMAILS_PER_RUN = 15;
-// Considera trigger ogni 5 minuti invece di 10
+// Considera trigger ogni 5 minuti
+
 ```
 
 ---
@@ -338,7 +339,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 15;
 // Aumenta frequenza trigger
 ScriptApp.newTrigger('main')
   .timeBased()
-  .everyMinutes(5)  // Era 10
+  .everyMinutes(5)  // Frequenza standard
   .create();
 
 // Aumenta email per esecuzione
@@ -381,7 +382,7 @@ CONFIG.MODEL_STRATEGY = {
 | UrlFetch/giorno | 20000 | 20000 |
 
 **💡 Soluzione:** Se superi i limiti, considera:
-- Aumentare intervallo trigger (es. ogni 15 min invece di 10)
+- Aumentare intervallo trigger (es. ogni 10 min invece di 5)
 - Ridurre MAX_EMAILS_PER_RUN
 - Passare a Google Workspace (più quota email)
 

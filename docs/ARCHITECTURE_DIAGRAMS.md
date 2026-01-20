@@ -65,7 +65,7 @@ sequenceDiagram
     Note over G: Unread email in Inbox
     
     rect rgb(240, 248, 255)
-        Note over M: Trigger every 10 minutes
+        Note over M: Trigger every 5 minutes
         M->>G: Search unread emails
         G->>M: Thread list
     end

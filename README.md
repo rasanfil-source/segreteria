@@ -58,7 +58,7 @@ graph LR
 
 - ✅ **Parish Gmail Account** (e.g. `info@parishexample.org` on Gmail)
 - ✅ **Google Drive** (free, to store information)
-- ✅ **10 minutes** for initial configuration
+- ✅ **5 minutes** for initial configuration
 - ✅ **No technical skills** (we have step-by-step guides)
 
 ### Costs
@@ -79,7 +79,7 @@ graph LR
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  📧 EMAIL ARRIVES                                       │
-│  └─► 🤖 System reads every 10 minutes                   │
+│  └─► 🤖 System reads every 5 minutes                    │
 └─────────────────────────────────────────────────────────┘
                         │
                         ▼
@@ -155,7 +155,7 @@ graph LR
 
 ### To Start
 
-1. 📖 **[Complete Setup Guide](Setup_Guide_Non_Technical.md)** ← **Start here!**
+1. 📖 **[Complete Setup Guide](docs/Setup_Guide_Non_Technical.md)** ← **Start here!**
    - Step-by-step installation with screenshots
    - No technical skills required
    - Time: ~15 minutes
@@ -165,24 +165,24 @@ graph LR
    - Configure parish territory
    - Holiday management
 
-3. 📚 **[Knowledge Base Population](KNOWLEDGE_BASE_GUIDE.md)**
+3. 📚 **[Knowledge Base Population](docs/KNOWLEDGE_BASE_GUIDE.md)**
    - How to insert mass times, events, documents
    - Ready-made templates
    - Best practices
 
 ### For Technical Users
 
-4. 🏗️ **[System Architecture](ARCHITECTURE.md)**
+4. 🏗️ **[System Architecture](docs/ARCHITECTURE.md)**
    - Design patterns and technical decisions
    - Processing flow
    - APIs and integrations
 
-5. 🧪 **[Testing and Debug](TROUBLESHOOTING.md)**
+5. 🧪 **[Testing and Debug](docs/TROUBLESHOOTING.md)**
    - Unit and integration tests
    - Troubleshooting common scenarios
    - Performance monitoring
 
-6. 🔒 **[Security and Privacy](SECURITY.md)**
+6. 🔒 **[Security and Privacy](docs/SECURITY.md)**
    - Sensitive data management
    - GDPR compliance
    - Backup and disaster recovery
@@ -326,7 +326,7 @@ Every response is **automatically validated** before sending:
 **Q: The system does not reply to emails**
 ```
 Check:
-1. Is trigger active? (Trigger → must have "main" every 10 min)
+1. Is trigger active? (Trigger → must have "main" every 5 min)
 2. Office hours configured? (System suspends outside office hours)
 3. Check Executions → look for errors
 ```
@@ -361,7 +361,7 @@ This project is **open source** and welcomes contributions from:
 - 🌍 **Translators** → New language support
 - 📚 **Documenters** → Guides, tutorials, examples
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details.
 
 ---
 
@@ -423,4 +423,4 @@ Helps other communities discover it.
 
 ---
 
-**[Versione Italiana](README_IT.md)** | **[Troubleshooting](TROUBLESHOOTING.md)** | **[Deployment](DEPLOYMENT.md)** | **[Architecture](ARCHITECTURE.md)**
+**[Versione Italiana](README_IT.md)** | **[Troubleshooting](docs/TROUBLESHOOTING.md)** | **[Deployment](docs/DEPLOYMENT.md)** | **[Architecture](docs/ARCHITECTURE.md)**

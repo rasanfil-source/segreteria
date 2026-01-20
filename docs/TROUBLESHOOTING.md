@@ -750,4 +750,4 @@ if (window.length > 100) {
 
 ---
 
-**[Versione Italiana](TROUBLESHOOTING_IT.md)** | **[Quick Decision Tree](docs/QUICK_DECISION_TREE.md)** | **[Runbooks](docs/runbooks/)**
+**[Versione Italiana](TROUBLESHOOTING_IT.md)** | **[Quick Decision Tree](QUICK_DECISION_TREE.md)** | **[Runbooks](runbooks/)**

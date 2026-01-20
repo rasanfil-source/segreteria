@@ -59,7 +59,7 @@ graph LR
 
 - ✅ **Account Gmail della parrocchia** (es. `info@parrocchiaexample.it` su Gmail)
 - ✅ **Google Drive** (gratis, per memorizzare le informazioni)
-- ✅ **10 minuti** per la configurazione iniziale
+- ✅ **5 minuti** per la configurazione iniziale
 - ✅ **Nessuna competenza tecnica** (abbiamo guide passo-passo)
 
 ### Costi
@@ -80,7 +80,7 @@ graph LR
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  📧 EMAIL ARRIVA                                        │
-│  └─► 🤖 Sistema legge ogni 10 minuti                    │
+│  └─► 🤖 Sistema legge ogni 5 minuti                     │
 └─────────────────────────────────────────────────────────┘
                         │
                         ▼
@@ -156,7 +156,7 @@ graph LR
 
 ### Per Iniziare
 
-1. 📖 **[Guida Setup Completa](Guida_Setup_Completa_Per_non_tecnici.md)** ← **Parti da qui!**
+1. 📖 **[Guida Setup Completa](docs/Guida_Setup_Completa_Per_non_tecnici.md)** ← **Parti da qui!**
    - Installazione passo-passo con screenshot
    - Nessuna competenza tecnica richiesta
    - Tempo: ~15 minuti
@@ -166,24 +166,24 @@ graph LR
    - Configura territorio parrocchiale
    - Gestione festività
 
-3. 📚 **[Popolamento Knowledge Base](KNOWLEDGE_BASE_GUIDE_IT.md)**
+3. 📚 **[Popolamento Knowledge Base](docs/KNOWLEDGE_BASE_GUIDE_IT.md)**
    - Come inserire orari messe, eventi, documenti
    - Template già pronti
    - Best practices
 
 ### Per Utenti Tecnici
 
-4. 🏗️ **[Architettura Sistema](ARCHITECTURE_IT.md)**
+4. 🏗️ **[Architettura Sistema](docs/ARCHITECTURE_IT.md)**
    - Design pattern e decisioni tecniche
    - Flusso elaborazione
    - API e integrazioni
 
-5. 🧪 **[Testing e Debug](TROUBLESHOOTING_IT.md)**
+5. 🧪 **[Testing e Debug](docs/TROUBLESHOOTING_IT.md)**
    - Test unitari e integrazione
    - Troubleshooting scenari comuni
    - Performance monitoring
 
-6. 🔒 **[Sicurezza e Privacy](SECURITY_IT.md)**
+6. 🔒 **[Sicurezza e Privacy](docs/SECURITY_IT.md)**
    - Gestione dati sensibili
    - Conformità GDPR
    - Backup e disaster recovery
@@ -327,7 +327,7 @@ Ogni risposta viene **validata automaticamente** prima dell'invio:
 **Q: Il sistema non risponde alle email**
 ```
 Verifica:
-1. Il trigger è attivo? (Trigger → deve esserci "main" ogni 10 min)
+1. Il trigger è attivo? (Trigger → deve esserci "main" ogni 5 min)
 2. Orario di lavoro configurato? (Sistema si sospende fuori orari ufficio)
 3. Controlla Esecuzioni → cerca errori
 ```
@@ -362,7 +362,7 @@ Questo progetto è **open source** e accoglie contributi da:
 - 🌍 **Traduttori** → Supporto nuove lingue
 - 📚 **Documentatori** → Guide, tutorial, esempi
 
-Vedi [CONTRIBUTING_IT.md](CONTRIBUTING_IT.md) per dettagli.
+Vedi [CONTRIBUTING_IT.md](docs/CONTRIBUTING_IT.md) per dettagli.
 
 ---
 
@@ -424,4 +424,4 @@ Aiuta altre comunità a scoprirlo.
 
 ---
 
-**[English Version](README.md)** | **[Troubleshooting](TROUBLESHOOTING_IT.md)** | **[Deployment](DEPLOYMENT_IT.md)** | **[Architettura](ARCHITECTURE_IT.md)**
+**[English Version](README.md)** | **[Troubleshooting](docs/TROUBLESHOOTING_IT.md)** | **[Deployment](docs/DEPLOYMENT_IT.md)** | **[Architettura](docs/ARCHITECTURE_IT.md)**

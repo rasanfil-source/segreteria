@@ -597,10 +597,10 @@ function setupTrigger() {
   // Crea nuovo trigger ogni 10 minuti
   ScriptApp.newTrigger('main')
     .timeBased()
-    .everyMinutes(10)
+    .everyMinutes(5)
     .create();
 
-  console.log('✓ Trigger configurato (ogni 10 minuti)');
+  console.log('✓ Trigger configurato (ogni 5 minuti)');
 }
 
 /**

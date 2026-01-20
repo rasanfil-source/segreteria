@@ -60,7 +60,7 @@ Email Arrives
      v
 ┌─────────────────────────────────────────────────────────┐
 │  TRIGGER (Time-based)                                   │
-│  - Every 10 minutes                                     │
+│  - Every 5 minutes                                      │
 │  - Max 5 minutes execution                              │
 └──────────────┬──────────────────────────────────────────┘
                │
@@ -249,7 +249,7 @@ if (checkValue !== lockValue) return; // Race detected
 ```
 
 **Why needed:**
-- Trigger every 10 mins → possible overlap
+- Trigger every 5 mins → possible overlap
 - Same thread could be processed twice
 - Lock guarantees atomic processing
 
@@ -480,14 +480,59 @@ if (rpdUsage > 0.8 * rpdLimit) {
 - **TPM** → Rolling window (last 60 seconds)
 - **RPD** → Daily counter (reset 9:00 AM IT)
 
-**Cache Optimization:**
+**Cache Optimization (WAL Pattern):**
 ```javascript
 // Batch writes every 10 seconds (reduces PropertiesService I/O)
-cache.lastCacheUpdate = now;
+// Uses Write-Ahead Log (WAL) pattern for crash recovery
 if (now - cache.lastCacheUpdate > 10000) {
-  this._persistCache(); // Write to PropertiesService
+  this._persistCacheWithWAL(); // Safe persistent write
 }
 ```
+
+**Robust Persistence:**
+to prevent data loss, the system:
+1. Writes accurate data to a temporary WAL property
+2. Updates the main cache properties
+3. Deletes the WAL property on success
+4. Recovers from WAL automatically on next startup if a crash occurred
+
+---
+
+### Observability - Daily Metrics Dashboard
+
+The system automatically exports operational metrics to a Google Sheet daily.
+
+**Metrics Tracked:**
+- **Date/Time** of export
+- **RPD%** (Requests Per Day usage) for each model
+- **Total Quota Used**
+
+**Implementation:**
+- `exportMetricsToSheet()` in `gas_main.js`
+- Triggered daily (e.g., 23:55)
+- Appends a new row to `METRICS_SHEET_ID`
+
+---
+
+### Token Estimation - Component-Level Analysis
+
+Instead of a simple length check, the `PromptEngine` performs a detailed token estimation before generation.
+
+**Logic:**
+```javascript
+tokenComponents = {
+  systemRole: 500,
+  kb: length / 4,
+  conversation: length / 4,
+  email: length / 4,
+  formatting: profile === 'heavy' ? 1500 : 300,
+  examples: profile === 'heavy' ? 2000 : 0
+};
+```
+
+**Thresholds:**
+- **> 70%**: Info log
+- **> 90%**: Warning log + suggestion to optimize KB budget
 
 #### Cross-Key Quality First Strategy
 

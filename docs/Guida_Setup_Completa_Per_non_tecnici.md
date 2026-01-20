@@ -297,7 +297,7 @@ Clicca il pulsante **"Salva"** (icona disco)
 
 ### Passo 6.2: Controlla risposta
 
-**Dopo ~5-10 minuti** (tempo del trigger):
+3. Oltre 5-10 minuti (tempo del trigger):
 
 1. Controlla inbox parrocchia
 2. Dovresti vedere la risposta automatica
@@ -369,7 +369,7 @@ Il sistema è attivo!
 
 ### Cosa Succede Ora
 
-**Ogni 10 minuti**, il sistema:
+**Ogni 5 minuti**, il sistema:
 1. ✅ Controlla email non lette
 2. ✅ Filtra spam e email automatiche
 3. ✅ Classifica le richieste
@@ -424,7 +424,7 @@ Per vedere esempi di email a cui il sistema ha risposto:
 
 **Soluzione:**
 1. Apps Script → Menu → **Trigger**
-2. Verifica che ci sia `main` ogni 10 minuti
+2. Verifica che ci sia `main` ogni 5 minuti
 3. Se manca, esegui di nuovo `setupTrigger`
 
 ### "Risposta in lingua sbagliata"

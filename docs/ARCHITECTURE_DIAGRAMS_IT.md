@@ -65,7 +65,7 @@ sequenceDiagram
     Note over G: Email non letta in Inbox
     
     rect rgb(240, 248, 255)
-        Note over M: Trigger ogni 10 minuti
+        Note over M: Trigger ogni 5 minuti
         M->>G: Cerca email non lette
         G->>M: Lista thread
     end

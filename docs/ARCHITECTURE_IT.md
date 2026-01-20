@@ -60,7 +60,7 @@ Email Arriva
      v
 ┌─────────────────────────────────────────────────────────┐
 │  TRIGGER (Time-based)                                   │
-│  - Ogni 10 minuti                                       │
+│  - Ogni 5 minuti                                        │
 │  - Max 5 minuti esecuzione                              │
 └──────────────┬──────────────────────────────────────────┘
                │
@@ -249,7 +249,7 @@ if (checkValue !== lockValue) return; // Race rilevata
 ```
 
 **Perché necessario:**
-- Trigger ogni 10 minuti → possibile overlap
+- Trigger ogni 5 minuti → possibile overlap
 - Stesso thread potrebbe essere processato 2 volte
 - Lock garantisce elaborazione atomica
 
@@ -481,14 +481,59 @@ if (rpdUsage > 0.8 * rpdLimit) {
 - **TPM** → Rolling window (ultimi 60 secondi)
 - **RPD** → Counter giornaliero (reset 9:00 AM IT)
 
-**Cache Ottimizzazione:**
+**Cache Ottimizzazione (WAL Pattern):**
 ```javascript
 // Batch writes ogni 10 secondi (riduce I/O PropertiesService)
-cache.lastCacheUpdate = now;
+// Usa Write-Ahead Log (WAL) pattern per crash recovery
 if (now - cache.lastCacheUpdate > 10000) {
-  this._persistCache(); // Write to PropertiesService
+  this._persistCacheWithWAL(); // Scrittura persistente sicura
 }
 ```
+
+**Persistenza Robusta:**
+per prevenire la perdita di dati, il sistema:
+1. Scrive i dati accurati in una proprietà WAL temporanea
+2. Aggiorna le proprietà della cache principale
+3. Elimina la proprietà WAL in caso di successo
+4. Recupera automaticamente dal WAL al riavvio successivo se si è verificato un arresto anomalo
+
+---
+
+### Observability - Dashboard Metriche Giornaliere
+
+Il sistema esporta automaticamente le metriche operative su un Google Sheet ogni giorno.
+
+**Metriche Tracciate:**
+- **Data/Ora** dell'esportazione
+- **RPD%** (Utilizzo Richieste Per Giorno) per ogni modello
+- **Quota Totale Usata**
+
+**Implementazione:**
+- `exportMetricsToSheet()` in `gas_main.js`
+- Triggerato giornalmente (es. 23:55)
+- Aggiunge una nuova riga a `METRICS_SHEET_ID`
+
+---
+
+### Stima Token - Analisi a Livello di Componente
+
+Invece di un semplice controllo della lunghezza, il `PromptEngine` esegue una stima dettagliata dei token prima della generazione.
+
+**Logica:**
+```javascript
+tokenComponents = {
+  systemRole: 500,
+  kb: length / 4,
+  conversation: length / 4,
+  email: length / 4,
+  formatting: profile === 'heavy' ? 1500 : 300,
+  examples: profile === 'heavy' ? 2000 : 0
+};
+```
+
+**Soglie:**
+- **> 70%**: Log informativo
+- **> 90%**: Log di avviso + suggerimento per ottimizzare il budget KB
 
 #### Strategia Cross-Key Quality First
 
