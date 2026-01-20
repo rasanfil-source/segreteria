@@ -116,7 +116,8 @@ function runAllTests() {
         testRateLimiter();
         testGmailService();
         testConfiguration();
-        testPromptEngine(); // aggiunto
+        testPromptEngine();
+        testHighVolumeScenario(); // Test alto volume
 
     } catch (e) {
         console.error("❌ ERRORE CRITICO DURANTE I TEST: " + e.toString());
@@ -389,6 +390,80 @@ function testRateLimiter() {
         assert(typeof pacificDate === 'string' && pacificDate.match(/^\d{4}-\d{2}-\d{2}$/),
             "_getPacificDate deve restituire formato YYYY-MM-DD");
     }
+
+    // Test WAL recovery (non deve crashare)
+    if (typeof limiter._recoverFromWAL === 'function') {
+        try {
+            limiter._recoverFromWAL();
+            TEST_RESULTS.passed++;
+        } catch (e) {
+            TEST_RESULTS.failed++;
+            TEST_RESULTS.errors.push("FAIL: _recoverFromWAL ha generato eccezione: " + e.message);
+        }
+    }
+}
+
+/**
+ * Test scenario ad alto volume
+ * Verifica che la classificazione di 50 email avvenga in tempo ragionevole
+ */
+function testHighVolumeScenario() {
+    console.log("\n🧪 Testing High Volume Scenario (50 email)...");
+
+    if (typeof Classifier === 'undefined') {
+        console.warn("Classifier not found. Skipping high volume test.");
+        return;
+    }
+
+    // Mock 50 thread email con contenuti variati
+    const mockEmails = [];
+    const templates = [
+        { body: "A che ora è la messa domenicale?", subject: "Orari", shouldReply: true },
+        { body: "Grazie mille per le informazioni", subject: "Re: Info", shouldReply: false },
+        { body: "Vorrei prenotare il battesimo per mio figlio", subject: "Battesimo", shouldReply: true },
+        { body: "Ok va bene", subject: "Re: Conferma", shouldReply: false },
+        { body: "Potrei parlare con il parroco?", subject: "Incontro", shouldReply: true },
+        { body: "Quali documenti servono per il matrimonio?", subject: "Matrimonio", shouldReply: true },
+        { body: "Buongiorno", subject: "Saluto", shouldReply: false },
+        { body: "Quando si può fare la confessione?", subject: "Confessione", shouldReply: true },
+        { body: "Info sulla catechesi per bambini", subject: "Catechismo", shouldReply: true },
+        { body: "Ricevuto, grazie", subject: "Re: Documenti", shouldReply: false }
+    ];
+
+    for (let i = 0; i < 50; i++) {
+        const template = templates[i % templates.length];
+        mockEmails.push({
+            body: template.body,
+            subject: template.subject + " " + i,
+            expectedReply: template.shouldReply
+        });
+    }
+
+    const classifier = new Classifier();
+    const startTime = Date.now();
+    let replied = 0;
+    let correct = 0;
+
+    for (const email of mockEmails) {
+        const result = classifier.classifyEmail(email.body, email.subject);
+        if (result.shouldReply) replied++;
+        if (result.shouldReply === email.expectedReply) correct++;
+    }
+
+    const duration = Date.now() - startTime;
+    const automationRate = (replied / mockEmails.length) * 100;
+    const accuracy = (correct / mockEmails.length) * 100;
+
+    console.log(`   Tempo: ${duration}ms`);
+    console.log(`   Risposte: ${replied}/50 (${automationRate.toFixed(1)}%)`);
+    console.log(`   Accuratezza: ${accuracy.toFixed(1)}%`);
+
+    assert(duration < 30000,
+        `Classificazione 50 email deve stare sotto 30s (attuale: ${duration}ms)`);
+    assert(automationRate >= 50,
+        `Almeno 50% automazione (attuale: ${automationRate.toFixed(1)}%)`);
+    assert(accuracy >= 70,
+        `Almeno 70% accuratezza (attuale: ${accuracy.toFixed(1)}%)`);
 }
 
 /**

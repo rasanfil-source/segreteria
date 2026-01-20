@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.0] - 2026-01-20
+
+### 🎉 Added
+- **WAL (Write-Ahead Log) Pattern**: Crash-safe cache persistence in `GeminiRateLimiter`
+  - `_persistCacheWithWAL()`: Writes checkpoint before full data
+  - `_recoverFromWAL()`: Automatic recovery after crash
+  - `_mergeWindowData()`: Safe merge avoiding duplicates
+- **High-Volume Test**: `testHighVolumeScenario()` validates 50-email classification performance
+- **Daily Metrics Dashboard**: Export quota stats to Google Sheets
+  - `exportMetricsToSheet()`: Writes daily metrics row
+  - `setupMetricsTrigger()`: Configures daily trigger at 23:00
+  - New config: `METRICS_SHEET_ID`, `METRICS_SHEET_NAME`
+- **Enhanced Token Estimation**: Component-level analysis in `PromptEngine.buildPrompt()`
+  - Estimates tokens for: systemRole, KB, conversation, email, formatting, examples
+  - Proactive warning at 90% threshold with breakdown
+
+### 🔧 Changed
+- `gas_config.js`: Added metrics configuration section
+- `gas_unit_tests.js`: Added `testHighVolumeScenario()` to test runner
+
+---
+
 ## [2.4.0] - UNRELEASED
 
 ### 🎉 Added

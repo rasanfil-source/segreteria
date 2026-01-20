@@ -21,7 +21,9 @@ const CONFIG = {
   LABEL_NAME: 'IA',                    // Label per email processate
   ERROR_LABEL_NAME: 'Errore',          // Label per errori
   VALIDATION_ERROR_LABEL: 'Verifica',  // Label per risposte da rivedere
-  MAX_EMAILS_PER_RUN: 10,
+  // Ridotto a 3 per supportare strategia "Cross-Key Quality First"
+  // Fino a 4 chiamate API per email → batch ridotto per prevenire timeout GAS (6 min)
+  MAX_EMAILS_PER_RUN: 3,
   GMAIL_LABEL_CACHE_TTL: 3600000,      // 1 ora in millisecondi
   MAX_HISTORY_MESSAGES: 10,            // Massimo messaggi in cronologia thread
 
@@ -62,6 +64,11 @@ const CONFIG = {
     SEND_ERROR_NOTIFICATIONS: false,   // Invia email per errori critici
     ADMIN_EMAIL: ''                    // Email admin per notifiche
   },
+
+  // === Metriche Giornaliere ===
+  // Configurare METRICS_SHEET_ID in Script Properties per abilitare export
+  METRICS_SHEET_ID: PropertiesService.getScriptProperties().getProperty('METRICS_SHEET_ID'),
+  METRICS_SHEET_NAME: 'DailyMetrics',
 
   // === Modelli Gemini (configurazione centralizzata) ===
   // Aggiornato: Gennaio 2026

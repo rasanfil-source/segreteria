@@ -80,16 +80,41 @@ class PromptEngine {
     let sections = [];
     let skippedCount = 0;
 
-    // Pre-stima budget token per KB (usa CONFIG se disponibile)
+    // ════════════════════════════════════════════════════════════════════════
+    // PRE-STIMA TOKEN PER COMPONENTE (Enhanced Token Estimation)
+    // ════════════════════════════════════════════════════════════════════════
     const MAX_SAFE_TOKENS = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS
       ? CONFIG.MAX_SAFE_TOKENS : 100000;
-    const KB_TOKEN_BUDGET_RATIO = typeof CONFIG !== 'undefined' && CONFIG.KB_TOKEN_BUDGET_RATIO
-      ? CONFIG.KB_TOKEN_BUDGET_RATIO : 0.5;
-    const KB_TOKEN_BUDGET = MAX_SAFE_TOKENS * KB_TOKEN_BUDGET_RATIO;
-    const kbEstimatedTokens = Math.round((knowledgeBase || '').length / 4);
 
-    if (kbEstimatedTokens > KB_TOKEN_BUDGET) {
-      console.warn(`⚠️ KB pre-check: ~${kbEstimatedTokens} token (>${KB_TOKEN_BUDGET} budget). Verrà troncata.`);
+    // Stima token per ogni componente del prompt
+    const tokenComponents = {
+      systemRole: 500,  // Fisso ~500 token per system role
+      kb: Math.ceil((knowledgeBase || '').length / 4),
+      conversation: Math.ceil((conversationHistory || '').length / 4),
+      email: Math.ceil((emailContent || '').length / 4),
+      formatting: promptProfile === 'heavy' ? 1500 : (promptProfile === 'standard' ? 800 : 300),
+      examples: promptProfile === 'heavy' ? 2000 : 0,
+      overhead: 1000  // Intestazioni, separatori, ecc.
+    };
+
+    const totalEstimated = Object.values(tokenComponents).reduce((a, b) => a + b, 0);
+
+    // Warning proattivo al 90% del limite
+    if (totalEstimated > MAX_SAFE_TOKENS * 0.9) {
+      this.logger.warn(`⚠️ Prompt vicino al limite token (${totalEstimated}/${MAX_SAFE_TOKENS})`, {
+        components: tokenComponents,
+        percentUsed: ((totalEstimated / MAX_SAFE_TOKENS) * 100).toFixed(1) + '%'
+      });
+
+      // Calcola budget KB ottimizzato
+      const excess = totalEstimated - (MAX_SAFE_TOKENS * 0.8);
+      if (excess > 0 && tokenComponents.kb > excess) {
+        const suggestedKbBudget = tokenComponents.kb - excess;
+        this.logger.info(`   → Budget KB suggerito: ${suggestedKbBudget} token (riduzione ${excess})`);
+      }
+    } else if (totalEstimated > MAX_SAFE_TOKENS * 0.7) {
+      // Info log quando siamo tra 70-90%
+      console.log(`📊 Token stimati: ${totalEstimated}/${MAX_SAFE_TOKENS} (${((totalEstimated / MAX_SAFE_TOKENS) * 100).toFixed(0)}%)`);
     }
 
     // Helper per aggiungere template condizionalmente

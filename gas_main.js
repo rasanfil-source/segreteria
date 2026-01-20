@@ -690,3 +690,89 @@ function runHealthCheck() {
   console.log('📋 Risultati Health Check:', JSON.stringify(health, null, 2));
   return health;
 }
+
+// ====================================================================
+// METRICHE GIORNALIERE
+// ====================================================================
+
+/**
+ * Esporta metriche giornaliere su foglio Google Sheets
+ * Configurare METRICS_SHEET_ID in Script Properties per abilitare
+ */
+function exportMetricsToSheet() {
+  console.log('📊 Esportazione metriche giornaliere...');
+
+  if (!CONFIG.METRICS_SHEET_ID) {
+    console.warn('⚠️ METRICS_SHEET_ID non configurato in Script Properties, salto export');
+    return;
+  }
+
+  try {
+    const spreadsheet = SpreadsheetApp.openById(CONFIG.METRICS_SHEET_ID);
+    let metricsSheet = spreadsheet.getSheetByName(CONFIG.METRICS_SHEET_NAME || 'DailyMetrics');
+
+    // Crea foglio se non esiste con intestazioni
+    if (!metricsSheet) {
+      metricsSheet = spreadsheet.insertSheet(CONFIG.METRICS_SHEET_NAME || 'DailyMetrics');
+      metricsSheet.appendRow(['Data', 'OraExport', 'QuotaRPD_Max%', 'Modello', 'TokenTotali']);
+      metricsSheet.getRange(1, 1, 1, 5).setFontWeight('bold');
+      console.log('✓ Foglio DailyMetrics creato');
+    }
+
+    // Raccogli statistiche quota
+    const limiter = new GeminiRateLimiter();
+    const quotaStats = limiter.getUsageStats();
+
+    // Trova modello con max RPD%
+    let maxRpdPercent = 0;
+    let maxModel = '';
+    let totalTokens = 0;
+
+    for (const modelKey in quotaStats.models) {
+      const model = quotaStats.models[modelKey];
+      const percent = parseFloat(model.rpd.percent);
+      if (percent > maxRpdPercent) {
+        maxRpdPercent = percent;
+        maxModel = modelKey;
+      }
+      totalTokens += model.tokensToday || 0;
+    }
+
+    // Prepara riga metriche
+    const stats = {
+      date: new Date().toISOString().split('T')[0],
+      time: Utilities.formatDate(new Date(), 'Europe/Rome', 'HH:mm'),
+      quotaRpd: maxRpdPercent.toFixed(1) + '%',
+      model: maxModel,
+      tokens: totalTokens
+    };
+
+    metricsSheet.appendRow(Object.values(stats));
+    console.log(`✓ Metriche esportate: ${stats.date} - RPD max ${stats.quotaRpd} (${stats.model})`);
+
+  } catch (error) {
+    console.error(`❌ Errore export metriche: ${error.message}`);
+  }
+}
+
+/**
+ * Configura trigger giornaliero per export metriche alle 23:00
+ * Eseguire manualmente una volta per attivare
+ */
+function setupMetricsTrigger() {
+  // Rimuovi trigger esistenti per questa funzione
+  ScriptApp.getProjectTriggers().forEach(trigger => {
+    if (trigger.getHandlerFunction() === 'exportMetricsToSheet') {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+
+  // Crea trigger giornaliero alle 23:00
+  ScriptApp.newTrigger('exportMetricsToSheet')
+    .timeBased()
+    .atHour(23)
+    .everyDays(1)
+    .create();
+
+  console.log('✓ Trigger metriche configurato (ogni giorno alle 23:00)');
+}
