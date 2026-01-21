@@ -199,8 +199,13 @@ class EmailProcessor {
       // STEP 0.1: ANTI-AUTO-RISPOSTA (Safe Sender Check)
       // ═══════════════════════════════════════════════════════════════
       const safeSenderEmail = (messageDetails.senderEmail || '').toLowerCase();
-      if (safeSenderEmail === myEmail.toLowerCase()) {
-        console.log('   ⊘ Saltato: messaggio auto-inviato');
+
+      // Controllo esteso per alias conosciuti oltre a getActiveUser()
+      const knownAliases = (typeof CONFIG !== 'undefined' && CONFIG.KNOWN_ALIASES) ? CONFIG.KNOWN_ALIASES : [];
+      const isMe = safeSenderEmail === myEmail.toLowerCase() || knownAliases.some(alias => safeSenderEmail === alias.toLowerCase());
+
+      if (isMe) {
+        console.log('   ⊘ Saltato: messaggio auto-inviato (o da alias conosciuto)');
         this._markMessageAsProcessed(candidate);
         result.status = 'skipped';
         result.reason = 'self_sent';

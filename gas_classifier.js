@@ -264,13 +264,13 @@ class Classifier {
   _isUltraSimpleAcknowledgment(text) {
     if (!text || text.trim().length === 0) return false;
 
+    // Controllo presenza domanda prima della normalizzazione
+    if (text.includes('?')) return false;
+
     // Normalizza
     let normalized = text.toLowerCase().trim();
-    normalized = normalized.replace(/[^\w\sàèéìòù?!]/g, '');
+    normalized = normalized.replace(/[^\w\sàèéìòù!]/g, '');
     normalized = normalized.replace(/\s+/g, ' ');
-
-    // Se contiene punto interrogativo, NON è un semplice ack
-    if (text.includes('?')) return false;
 
     // Conta parole
     const wordCount = normalized.split(' ').filter(w => w.length > 0).length;
@@ -289,6 +289,9 @@ class Classifier {
    * Verifica se solo saluto
    */
   _isGreetingOnly(text) {
+    // Controllo presenza domanda prima della normalizzazione
+    if (text.includes('?')) return false;
+
     let normalized = text.toLowerCase().trim();
     normalized = normalized.replace(/[^\w\sàèéìòù]/g, '');
 

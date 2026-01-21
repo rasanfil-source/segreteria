@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.4] - 2026-01-21
+
+### 🐛 Fixed
+- **Critical Race Condition**: Fixed premature global lock release in `GeminiRateLimiter` which allowed overlapping executions.
+- **Memory Atomicity**: Migrated from `CacheService` to `LockService` (global) in `MemoryService` to ensure atomic writes and data integrity.
+- **Cache Inconsistency**: Implemented forced local cache invalidation on version mismatch errors (concurrency), preventing failed retry loops.
+- **Classifier False Positives**: Corrected greeting/acknowledgment detection logic which ignored question marks (`?`), erroneously silencing short questions (e.g., "All good?").
+- **Auto-Loop Detection**: Extended sender check to include configured aliases (`KNOWN_ALIASES`) in addition to the active user.
+
 ## [2.5.3] - 2026-01-21
 
 ### 🔧 Changed

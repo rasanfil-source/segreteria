@@ -134,7 +134,9 @@ class GeminiRateLimiter {
     } catch (e) {
       console.error(`❌ Errore durante lock inizializzazione quota: ${e.message}`);
     } finally {
-      try { lock.releaseLock(); } catch (e) { console.warn(`⚠️ Errore rilascio lock (QuotaReset): ${e.message}`); }
+      // Gestione Lock: Non rilasciamo il lock qui per preservare il lock globale
+      // acquisito da main(). Il rilascio avverrà al termine dell'esecuzione dello script.
+      // try { lock.releaseLock(); } catch (e) { console.warn(`⚠️ Errore rilascio lock (QuotaReset): ${e.message}`); }
     }
   }
 
@@ -538,18 +540,18 @@ class GeminiRateLimiter {
         rpm: this.cache.rpmWindow.slice(-10),
         tpm: this.cache.tpmWindow.slice(-10)
       };
-      
+
       // 2. Scrivi WAL prima (checkpoint di sicurezza)
       this.props.setProperty('rate_limit_wal', JSON.stringify(wal));
-      
+
       // 3. Scrivi dati completi
       this.props.setProperty('rpm_window', JSON.stringify(this.cache.rpmWindow));
       this.props.setProperty('tpm_window', JSON.stringify(this.cache.tpmWindow));
-      
+
       // 4. Rimuovi WAL solo dopo successo completo
       this.props.deleteProperty('rate_limit_wal');
       this.cache.lastCacheUpdate = Date.now();
-      
+
     } catch (error) {
       console.error(`❌ Errore persistenza cache: ${error.message}`);
       // WAL rimane per recovery al prossimo avvio
@@ -567,7 +569,7 @@ class GeminiRateLimiter {
 
       console.warn('⚠️ WAL trovato - recupero dati dopo crash...');
       const wal = JSON.parse(walData);
-      
+
       // Verifica che il WAL non sia troppo vecchio (> 5 minuti)
       const age = Date.now() - wal.timestamp;
       if (age > 300000) {
@@ -587,15 +589,15 @@ class GeminiRateLimiter {
       // Salva dati recuperati
       this.props.setProperty('rpm_window', JSON.stringify(mergedRpm));
       this.props.setProperty('tpm_window', JSON.stringify(mergedTpm));
-      
+
       // Rimuovi WAL dopo recovery
       this.props.deleteProperty('rate_limit_wal');
       console.log('✓ Dati recuperati da WAL con successo');
-      
+
     } catch (error) {
       console.error(`❌ Errore recovery WAL: ${error.message}`);
       // Rimuovi WAL corrotto
-      try { this.props.deleteProperty('rate_limit_wal'); } catch (e) {}
+      try { this.props.deleteProperty('rate_limit_wal'); } catch (e) { }
     }
   }
 
@@ -605,13 +607,13 @@ class GeminiRateLimiter {
   _mergeWindowData(existing, walData) {
     const existingTimestamps = new Set(existing.map(e => e.timestamp));
     const merged = [...existing];
-    
+
     for (const entry of walData) {
       if (!existingTimestamps.has(entry.timestamp)) {
         merged.push(entry);
       }
     }
-    
+
     // Ordina per timestamp e limita
     return merged
       .sort((a, b) => a.timestamp - b.timestamp)

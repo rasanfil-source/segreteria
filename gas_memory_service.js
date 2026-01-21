@@ -129,23 +129,20 @@ class MemoryService {
     }
 
     const MAX_RETRIES = 3;
-    const cache = CacheService.getScriptCache();
-    const lockKey = `memory_lock_${threadId}`;
-    const lockTTL = (typeof CONFIG !== 'undefined' && CONFIG.MEMORY_LOCK_TTL) ? CONFIG.MEMORY_LOCK_TTL : 10;
+    // MODIFICATO: Uso ScriptLock atomico invece di CacheService non-atomico
+    const lock = LockService.getScriptLock();
+    // Nota: ScriptLock è globale per lo script, garantisce sequenzialità assoluta per le scritture
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      // 1. Check lock esistente
-      if (cache.get(lockKey)) {
-        console.warn(`🔒 Memoria bloccata per thread ${threadId}, attesa (Tentativo ${attempt + 1})`);
-        Utilities.sleep(Math.pow(2, attempt) * 200);
-        continue;
-      }
-
+      // 1. Acquisisci Lock (Wait max 5s)
       try {
-        // 2. Acquisisci lock
-        cache.put(lockKey, 'LOCKED', lockTTL);
+        if (!lock.tryLock(5000)) {
+          console.warn(`🔒 Timeout lock memoria (Tentativo ${attempt + 1})`);
+          Utilities.sleep(Math.pow(2, attempt) * 200);
+          continue;
+        }
 
-        // 3. Rileggi dati freschi dallo Sheet
+        // 2. Rileggi dati freschi dallo Sheet
         const existingRow = this._findRowByThreadId(threadId);
         const now = new Date().toISOString();
 
@@ -155,6 +152,8 @@ class MemoryService {
 
           // Optimistic locking check
           if (newData._expectedVersion !== undefined && newData._expectedVersion !== currentVersion) {
+            // INVALIDAZIONE CACHE CRITICA
+            this._invalidateCache(`memory_${threadId}`);
             console.warn(`🔒 Version mismatch thread ${threadId}: atteso ${newData._expectedVersion}, ottenuto ${currentVersion}`);
             newData._expectedVersion = currentVersion;
             throw new Error('VERSION_MISMATCH');
@@ -198,6 +197,8 @@ class MemoryService {
       } catch (error) {
         if (error.message === 'VERSION_MISMATCH') {
           console.warn(`⚠️ Conflitto concorrenza, retry... (Tentativo ${attempt + 1})`);
+          // Forziamo invalidazione cache anche qui per sicurezza
+          this._invalidateCache(`memory_${threadId}`);
         } else {
           console.warn(`Aggiornamento memoria fallito (Tentativo ${attempt + 1}): ${error.message}`);
         }
@@ -207,7 +208,7 @@ class MemoryService {
         }
         Utilities.sleep(Math.pow(2, attempt) * 200);
       } finally {
-        try { cache.remove(lockKey); } catch (e) { }
+        lock.releaseLock();
       }
     }
     throw new Error(`Aggiornamento memoria fallito per thread ${threadId} dopo ${MAX_RETRIES} tentativi`);
@@ -227,18 +228,16 @@ class MemoryService {
       return false;
     }
 
-    const cache = CacheService.getScriptCache();
-    const lockKey = `memory_lock_${threadId}`;
-    const lockTTL = (typeof CONFIG !== 'undefined' && CONFIG.MEMORY_LOCK_TTL) ? CONFIG.MEMORY_LOCK_TTL : 10;
+    // MODIFICATO: Uso ScriptLock atomico invece di CacheService non-atomico
+    const lock = LockService.getScriptLock();
 
-    // Prova max 3 volte
+    // Prova max 3 volte (retry interni al lock acquisition)
     for (let i = 0; i < 3; i++) {
-      if (cache.get(lockKey)) {
-        Utilities.sleep(200);
-        continue;
-      }
       try {
-        cache.put(lockKey, 'LOCKED', lockTTL);
+        if (!lock.tryLock(5000)) { // 5s timeout
+          if (i < 2) Utilities.sleep(500);
+          continue;
+        }
 
         // --- SEZIONE CRITICA ---
         const existingRow = this._findRowByThreadId(threadId);
@@ -290,9 +289,11 @@ class MemoryService {
 
       } catch (error) {
         console.warn(`⚠️ Errore aggiornamento atomico (tentativo ${i + 1}): ${error.message}`);
+        // Invalida cache per sicurezza se c'è stato un fallimento parziale
+        this._invalidateCache(`memory_${threadId}`);
         Utilities.sleep(Math.pow(2, i) * 200);
       } finally {
-        try { cache.remove(lockKey); } catch (e) { console.warn(`⚠️ Errore rimozione lock (Atomic): ${e.message}`); }
+        lock.releaseLock();
       }
     }
     return false; // Timeout
@@ -307,16 +308,10 @@ class MemoryService {
       return;
     }
 
-    const cache = CacheService.getScriptCache();
-    const lockKey = `memory_lock_${threadId}`;
-    const lockTTL = (typeof CONFIG !== 'undefined' && CONFIG.MEMORY_LOCK_TTL) ? CONFIG.MEMORY_LOCK_TTL : 10;
+    const lock = LockService.getScriptLock();
 
     try {
-      if (cache.get(lockKey)) {
-        Utilities.sleep(500);
-        if (cache.get(lockKey)) return;
-      }
-      cache.put(lockKey, 'LOCKED', lockTTL);
+      if (!lock.tryLock(3000)) return; // Rinuncia se lockato
 
       const existingRow = this._findRowByThreadId(threadId);
       if (existingRow) {
@@ -342,7 +337,7 @@ class MemoryService {
     } catch (error) {
       console.error(`❌ Errore aggiunta provided info: ${error.message}`);
     } finally {
-      try { cache.remove(lockKey); } catch (e) { console.warn(`⚠️ Errore rimozione lock (Topics): ${e.message}`); }
+      lock.releaseLock();
     }
   }
 

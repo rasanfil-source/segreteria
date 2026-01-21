@@ -7,6 +7,15 @@ e questo progetto aderisce a [Semantic Versioning](https://semver.org/lang/it/).
 
 ---
 
+## [2.5.4] - 2026-01-21
+
+### 🐛 Corretto (Bug Fixes)
+- **Race Condition Critica**: Risolto rilascio prematuro del lock globale in `GeminiRateLimiter` che permetteva esecuzioni sovrapposte.
+- **Atomicità Memoria**: Migrazione da `CacheService` a `LockService` (globale) in `MemoryService` per garantire scritture atomiche e integrità dati.
+- **Inconsistenza Cache**: Introdotta invalidazione forzata della cache locale in caso di errore di versione (concorrenza), prevenendo loop di retry falliti.
+- **Falsi Positivi Classifier**: Corretta logica di rilevamento saluti/ringraziamenti che ignorava i punti di domanda (`?`), silenziando erroneamente domande brevi (es. "Tutto bene?").
+- **Auto-Loop Detection**: Esteso il controllo mittente per includere alias configurati (`KNOWN_ALIASES`) oltre all'utente attivo.
+
 ## [2.5.3] - 2026-01-21
 
 ### 🔧 Modificato
