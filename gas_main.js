@@ -1,5 +1,5 @@
 /**
- * Main.gs - Entry point del sistema autoresponder
+ * Main.js - Entry point del sistema autoresponder
  * Gestisce trigger, inizializzazione e orchestrazione principale
  * Include logica sospensione oraria e festività italiane
  */

@@ -1,5 +1,5 @@
 /**
- * Config.gs - Configurazione centralizzata del sistema
+ * Config.js - Configurazione centralizzata del sistema
  * Tutti i parametri configurabili sono definiti qui
  */
 

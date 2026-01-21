@@ -1,6 +1,5 @@
-
 /**
- * EmailProcessor.gs - Orchestratore Pipeline Email
+ * EmailProcessor.js - Orchestratore Pipeline Email
  * 
  * PIPELINE ELABORAZIONE:
  * 1. FILTRA: Dobbiamo processare questa email?
@@ -12,7 +11,7 @@
  * FUNZIONALITÀ AVANZATE:
  * - Lock a livello thread (anti race condition)
  * - Anti-loop detection
- * - Saluation mode (full/soft/none_or_continuity)
+ * - Salutation mode (full/soft/none_or_continuity)
  * - KB enrichment condizionale
  * - Memory tracking
  */
