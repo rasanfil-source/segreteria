@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](README_IT.md)
-[![Status: Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)]()
+[![Status: Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)](https://github.com/dizzighittola-sudo/autorisponditore/releases)
 
 > **An intelligent AI assistant that manages your parish emails with pastoral sensitivity, doctrinal accuracy, and operational efficiency.**
 
@@ -358,10 +358,10 @@ Solution: In Config.gs, change VALIDATION_MIN_SCORE from 0.6 to 0.5
 
 ### Contacts
 
-- 📧 **Email:** support@exnovobots.com
-- 💬 **Community:** [GitHub Discussions](https://github.com/yourrepo/discussions)
-- 📚 **Wiki:** [Complete Documentation](https://github.com/yourrepo/wiki)
-- 🐛 **Bug Report:** [GitHub Issues](https://github.com/yourrepo/issues)
+- 📧 **Email:** dizzighittola@gmail.com
+- 💬 **Community:** [GitHub Discussions](https://github.com/dizzighittola-sudo/autorisponditore/discussions)
+- 📚 **Wiki:** [Complete Documentation](docs/)
+- 🐛 **Bug Report:** [GitHub Issues](https://github.com/dizzighittola-sudo/autorisponditore/issues)
 
 ---
 
