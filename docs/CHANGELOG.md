@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.1] - 2026-01-21
+
+### 🔧 Improved
+- **Rigorous Reply Logic (Fail-Closed)**: The system now requires explicit confirmation to send a reply. In case of uncertainty, it prioritizes silence to avoid user disturbance.
+- **Last Speaker Check**: Added automatic thread ownership verification. If the last message was sent by the secretary/bot, processing is suspended to prevent repetitions.
+- **Continuous Conversation Support**: Search optimization to process new user replies even in previously managed threads, maintaining dialogue consistency.
+- **Optimized Sender Filter**: System sender recognition (no-reply) now includes display name analysis in addition to the email address.
+
 ## [2.5.0] - 2026-01-20
 
 ### 🎉 Added

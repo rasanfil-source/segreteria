@@ -153,7 +153,7 @@ class EmailProcessor {
         // Navigazione sicura
         const senderEmail = (details.senderEmail || '');
 
-        // Se non riusciamo ad estrarre l'email, assumiamo che NON sia noi (fail open)
+        // Se non riusciamo ad estrarre l'email, consideriamo il mittente come esterno per sicurezza
         if (!senderEmail) return true;
         return senderEmail.toLowerCase() !== myEmail.toLowerCase();
       });
@@ -180,10 +180,24 @@ class EmailProcessor {
       const messageDetails = this.gmailService.extractMessageDetails(candidate);
 
       console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
-      console.log(`   Da: ${messageDetails.senderEmail}`);
+      console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
 
       // ═══════════════════════════════════════════════════════════════
-      // STEP 0: ANTI-AUTO-RISPOSTA
+      // STEP 0: CONTROLLO ULTIMO MITTENTE (Anti-Loop & Ownership)
+      // ═══════════════════════════════════════════════════════════════
+      const lastMessage = messages[messages.length - 1];
+      const lastSender = (lastMessage.getFrom() || '').toLowerCase();
+
+      if (lastSender.includes(myEmail.toLowerCase())) {
+        console.log('   ⊘ Saltato: l\'ultimo messaggio del thread è già nostro (bot o segreteria)');
+        // Non marchiamo nulla, semplicemente ci fermiamo finché l'utente non risponde
+        result.status = 'skipped';
+        result.reason = 'last_speaker_is_me';
+        return result;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // STEP 0.1: ANTI-AUTO-RISPOSTA (Safe Sender Check)
       // ═══════════════════════════════════════════════════════════════
       const safeSenderEmail = (messageDetails.senderEmail || '').toLowerCase();
       if (safeSenderEmail === myEmail.toLowerCase()) {
@@ -227,8 +241,9 @@ class EmailProcessor {
       // ═══════════════════════════════════════════════════════════════
       // STEP 0.8: ANTI-MITTENTE-NOREPLY
       // ═══════════════════════════════════════════════════════════════
-      if (/no-reply|do-not-reply|noreply/i.test(messageDetails.senderEmail)) {
-        console.log('   ⊘ Saltato: mittente no-reply');
+      const senderInfo = `${messageDetails.senderEmail} ${messageDetails.senderName}`.toLowerCase();
+      if (/no-reply|do-not-reply|noreply/i.test(senderInfo)) {
+        console.log('   ⊘ Saltato: mittente o nome no-reply');
         this._markMessageAsProcessed(candidate);
         result.status = 'filtered';
         result.reason = 'no_reply_sender';
@@ -702,7 +717,9 @@ Dettaglio: ${v.reason}
       console.warn('🔴 MODALITÀ DRY_RUN ATTIVA - Email NON inviate!');
     }
 
-    // Cerca thread non letti
+    // Cerca thread non letti nella inbox
+    // NOTA: Non escludiamo label 'IA' per permettere follow-up su thread già iniziati
+    // La logica 'Last Speaker' e 'Labeled Message' gestirà la sicurezza
     const searchQuery = `in:inbox is:unread`;
     const threads = GmailApp.search(
       searchQuery,

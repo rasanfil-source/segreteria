@@ -7,6 +7,14 @@ e questo progetto aderisce a [Semantic Versioning](https://semver.org/lang/it/).
 
 ---
 
+## [2.5.1] - 2026-01-21
+
+### 🔧 Migliorato
+- **Logica di Risposta Rigorosa (Fail-Closed)**: Il sistema ora richiede una conferma esplicita per inviare una risposta. In caso di incertezza, privilegia il silenzio per evitare disturbi all'utente.
+- **Controllo Ultimo Mittente**: Aggiunta verifica automatica della proprietà del thread. Se l'ultimo messaggio è stato inviato dalla segreteria, il sistema sospende l'elaborazione per evitare ripetizioni.
+- **Supporto Conversazioni Continue**: Ottimizzazione della ricerca per elaborare nuove repliche dell'utente anche in thread precedentemente gestiti, mantenendo la coerenza del dialogo.
+- **Filtro Mittenti Ottimizzato**: Il riconoscimento dei mittenti di sistema (no-reply) ora include l'analisi del nome visualizzato oltre all'indirizzo email.
+
 ## [2.5.0] - 2026-01-20
 
 ### 🎉 Aggiunto

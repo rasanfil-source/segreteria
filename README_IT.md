@@ -266,6 +266,13 @@ Il sistema **ricorda** le conversazioni precedenti:
 - Adatta il saluto (primo contatto vs follow-up)
 - Mantiene il contesto della discussione
 
+### 🛡️ Logiche di Sicurezza e Anti-Loop
+
+Il sistema implementa protocolli rigorosi per garantire risposte pertinenti ed evitare ripetizioni:
+- **Filosofia Fail-Closed**: In caso di incertezza sulla necessità di rispondere, il sistema privilegia il silenzio per evitare di disturbare l'utente con messaggi non necessari o ripetitivi.
+- **Controllo "Last Speaker"**: Prima di ogni elaborazione, il bot verifica chi ha inviato l'ultimo messaggio nel thread. Se l'ultimo messaggio è già della segreteria (o del bot), l'elaborazione si ferma, evitando loop infiniti.
+- **Rilevamento No-Reply avanzato**: Filtra automaticamente le email provenienti da sistemi automatizzati analizzando sia l'indirizzo che il nome del mittente.
+
 ### ⚙️ Safety Valve Automatica
 
 Se l'API usage supera l'80%, il sistema:

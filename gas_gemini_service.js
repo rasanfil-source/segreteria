@@ -162,16 +162,13 @@ Email:
 Oggetto: ${emailSubject}
 Testo: ${emailContent.substring(0, 800)}
 
-Compiti:
+COMPITI:
 1. Decidi se richiede risposta (reply_needed):
-   - TRUE se l'utente pone domande, anche se l'informazione era già stata fornita prima
-   - TRUE se l'utente esprime dubbi o fornisce informazioni nuove
-   - TRUE se l'utente ripete una domanda (risponderemo facendo riferimento alla risposta precedente)
-   - FALSE solo se è ringraziamento finale senza domande né nuove info, oppure newsletter/spam
-   
-   IMPORTANTE: Se l'utente chiede qualcosa che era già stato detto, NON è motivo per non rispondere.
-   In quel caso risponderemo educatamente (es. "Come le indicavamo...").
-   
+ - TRUE se l'utente pone domande, esprime dubbi o fornisce informazioni nuove/utili (appuntamenti, dati, modifiche).
+ - FALSE se è solo un ringraziamento finale (es: \"Grazie mille\", \"Perfetto grazie\", \"Ricevuto\") senza nuove domande o info.
+ - FALSE se è newsletter, spam o messaggi di sistema.
+ - IMPORTANTE: Se l'utente chiede qualcosa già detto, rispondi TRUE ma con riferimento cordiale alla risposta precedente.
+
 2. Rileva la lingua (language) - codice ISO 639-1 (es: "it", "en", "es", "fr", "de")
 3. Classifica la richiesta (category):
    - "TECHNICAL": orari, documenti, info pratiche, iscrizioni
@@ -222,9 +219,9 @@ Output JSON:
 
     // Risultato default in caso di errori
     const defaultResult = {
-      shouldRespond: true, // Fail open per non perdere email legittime
+      shouldRespond: false, // In caso di errore API, non rispondere per sicurezza
       language: 'it',
-      reason: 'quick_check_failed_fallback',
+      reason: 'errore_chiamata_fallback',
       classification: {
         category: 'TECHNICAL',
         topic: 'unknown',
@@ -265,13 +262,13 @@ Output JSON:
     // Detection locale per fallback lingua
     const detection = this.detectEmailLanguage(emailContent, emailSubject);
 
-    // Normalizzazione sicura booleano/stringa
+    // Normalizzazione sicura booleano
     const replyNeeded = data.reply_needed;
-    const isFalse = replyNeeded === false || (typeof replyNeeded === 'string' && replyNeeded.toLowerCase() === 'false');
+    const isTrue = replyNeeded === true || (typeof replyNeeded === 'string' && replyNeeded.toLowerCase() === 'true');
 
     return {
-      // Gestione fail-open: se reply_needed non è esplicitamente falso, procedi
-      shouldRespond: !isFalse,
+      // Rispondi solo se la richiesta è esplicita e necessaria
+      shouldRespond: isTrue,
       language: this._resolveLanguage(data.language, detection.lang, detection.safetyGrade),
       reason: data.reason || 'quick_check',
       classification: {
