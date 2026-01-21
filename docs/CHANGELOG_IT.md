@@ -7,6 +7,13 @@ e questo progetto aderisce a [Semantic Versioning](https://semver.org/lang/it/).
 
 ---
 
+## [2.5.3] - 2026-01-21
+
+### 🔧 Modificato
+- **Rafforzamento Logica Prompt**: Implementate regole rigorose "Rispondi SOLO a quanto chiesto" per evitare risposte eccessive (infodumping).
+- **Prevenzione Loop "Contattaci"**: Aggiunto Errore Critico #5 che vieta al bot di suggerire di "contattare la segreteria" se l'utente sta già scrivendo alla segreteria.
+- **Ascolto Attivo Migliorato**: Il bot ora integra le informazioni fornite dall'utente invece di ripeterle a pappagallo ("eco").
+
 ## [2.5.2] - 2026-01-21
 
 ### 🎉 Aggiunto

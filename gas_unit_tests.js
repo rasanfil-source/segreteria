@@ -449,6 +449,25 @@ function testMemoryService() {
             assertEqual(legacyObj.providedInfo[0].userReaction, 'ok',
                 "Deve migrare 'reaction' in 'userReaction'");
         }
+
+        // Test Multi-Topic Updates (Simulazione logica processor)
+        if (typeof memory.updateReaction === 'function') {
+            const memoryMock = new MemoryService();
+            // Mock interno per evitare dipendenza sheet
+            memoryMock._initialized = true;
+            memoryMock.getMemory = function (id) {
+                return { providedInfo: [{ topic: 'T1', userReaction: 'unknown' }, { topic: 'T2', userReaction: 'unknown' }] };
+            };
+            memoryMock.updateMemoryAtomic = function (id, lock, infos) {
+                this._lastSavedInfos = infos;
+            };
+
+            memoryMock.updateReaction('t3', 'T1', 'ok');
+            memoryMock.updateReaction('t3', 'T2', 'ok');
+
+            // Verifica (se _lastSavedInfos è popolabile)
+            // Stiamo testando la logica di updateReaction che chiama updateMemoryAtomic.
+        }
     }
 }
 

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.5.3] - 2026-01-21
+
+### 🔧 Changed
+- **Prompt Logic Reinforcement**: Implemented strict "Answer ONLY what is asked" rules to prevent excessive responses (infodumping).
+- **"Contact Us" Loop Prevention**: Added Critical Error #5 forbidding the bot from suggesting to "contact the office" if the user is already writing to the office.
+- **Enhanced Active Listening**: The bot now integrates user-provided information instead of just repeating it (echoing).
+
 ## [2.5.2] - 2026-01-21
 
 ### 🎉 Added
