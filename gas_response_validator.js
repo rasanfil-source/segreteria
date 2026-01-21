@@ -56,15 +56,16 @@ class ResponseValidator {
     this.placeholders = ['XXX', 'TODO', '<insert>', 'placeholder', 'tbd', 'TBD', '...'];
 
     // Pattern di ragionamento esposto (thinking leak) - CRITICO
+    // Pattern di ragionamento esposto (thinking leak) - CRITICO
+    // IBRIDO: Regex semantiche + pattern statici specifici
+    this.thinkingRegexes = [
+      /\b(devo|dovrei|bisogna|necessario)\s+(usare|correggere|evitare|modificare|aggiornare)\b/i, // Meta-commenti
+      /\b(knowledge base|kb)\s+(dice|afferma|contiene|riporta|indica)\b/i,                       // Riferimenti KB
+      /\b(rivedendo|consultando|controllando|verificando)\s+(la\s+)?(knowledge base|kb)\b/i      // Azioni su KB
+    ];
+
     this.thinkingPatterns = [
-      'rivedendo la knowledge base',
-      'rivedendo la kb',
-      'la kb dice',
-      'la knowledge base',
-      'devo usare solo',
-      'devo correggere',
-      'correggo la sezione',
-      'meglio dire',
+      // Pattern conversazionali non catturati dalle regex
       'in realtà',
       'pensandoci bene',
       '(nota:',
@@ -569,7 +570,14 @@ class ResponseValidator {
 
     const responseLower = response.toLowerCase();
 
-    // Cerca pattern di thinking/reasoning esposto
+    // 1. Cerca pattern Regex (Meta-commenti strutturali)
+    for (const regex of this.thinkingRegexes) {
+      if (regex.test(response)) {
+        foundPatterns.push(`Regex Match: ${regex.source}`);
+      }
+    }
+
+    // 2. Cerca pattern statici residui
     for (const pattern of this.thinkingPatterns) {
       if (responseLower.includes(pattern.toLowerCase())) {
         foundPatterns.push(pattern);
@@ -583,7 +591,7 @@ class ResponseValidator {
       );
       score = 0.0;
       // Log speciale per monitoraggio immediato
-      console.error(`🚨 RILEVAMENTO THINKING LEAK. Rischio prompt injection o verbosità modello elevata.`);
+      console.error(`🚨 RILEVAMENTO THINKING LEAK (Pattern: ${foundPatterns[0]}).`);
     }
 
     return { score, errors, warnings, foundPatterns };
