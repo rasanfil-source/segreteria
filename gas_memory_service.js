@@ -636,7 +636,7 @@ class MemoryService {
     return covered / requests.length;
   }
 }
-}
+
 
 // Funzione factory
 function createMemoryService() {
