@@ -956,15 +956,21 @@ Dettaglio: ${v.reason}
 
     if (!inferredReaction) return;
 
-    // Preferisci topic menzionati esplicitamente; fallback all'ultimo topic noto
+    // 1. Trova TUTTI i topic menzionati esplicitamente
     const normalizedTopics = previousTopics.map(info => (typeof info === 'object' ? info.topic : info));
-    let targetTopic = normalizedTopics.find(topic => bodyLower.includes(topic.toLowerCase()));
+    const mentionedTopics = normalizedTopics.filter(topic => bodyLower.includes(topic.toLowerCase()));
 
-    if (!targetTopic) {
-      targetTopic = normalizedTopics[normalizedTopics.length - 1];
+    let targetTopics = [];
+
+    if (mentionedTopics.length > 0) {
+      // Se l'utente cita esplicitamente dei topic, applica a tutti quelli trovati
+      targetTopics = mentionedTopics;
+    } else {
+      // Fallback: applica all'ultimo topic discusso
+      targetTopics = [normalizedTopics[normalizedTopics.length - 1]];
     }
 
-    if (!targetTopic) return;
+    if (targetTopics.length === 0) return;
 
     const context = {
       source: 'user_reply',
@@ -972,8 +978,10 @@ Dettaglio: ${v.reason}
       excerpt: userBody.substring(0, 160)
     };
 
-    console.log(`🧠 Inferred Reaction: ${inferredReaction.type.toUpperCase()} su topic '${targetTopic}'`);
-    this.memoryService.updateReaction(threadId, targetTopic, inferredReaction.type, context);
+    targetTopics.forEach(topic => {
+      console.log(`🧠 Inferred Reaction: ${inferredReaction.type.toUpperCase()} su topic '${topic}'`);
+      this.memoryService.updateReaction(threadId, topic, inferredReaction.type, context);
+    });
   }
 }
 
