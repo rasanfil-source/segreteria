@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.6.0] - 2026-01-24
+
+### 🚀 Enhancements
+- **Natural Conversion**: Introduced sophisticated prompt engineering to prevent robotic repetitions. The AI now recognizes ongoing conversations (`salutationMode`) and avoids re-introducing itself or repeating previously provided information (Continuity Guidelines).
+- **Adaptive Empathy**: Implemented "Measured Humanity" logic. The AI is now instructed to be empathetic *only* when specific emotional or pastoral signals are detected, maintaining a professional and direct tone for standard administrative requests.
+- **Smart Focus**: Enforced a "Main Topic First" policy to ensure answers are direct and efficient.
+- **Advanced Classification**: Upgraded `RequestTypeClassifier` with:
+  - **Text Sanitization**: Strips quoted replies and signatures to prevent false positives.
+  - **Confidence Scoring**: Calculates a confidence metric (0-1) for every classification.
+  - **Safety Downgrade**: Automatically downgrades low-confidence (< 35%) classifications to 'technical' to avoid inappropriate pastoral tones.
+  - **Blended Hints**: Provides rich, multi-dimensional classification hints to the prompt engine.
+
+### 🔧 Changed
+- **Config**: Updated `gas_prompt_engine.js` and `gas_request_classifier.js` to support the new features.
+
 ## [2.5.4] - 2026-01-21
 
 ### 🐛 Fixed

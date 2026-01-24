@@ -142,23 +142,19 @@ class RequestTypeClassifier {
 
   /**
    * Classifica la richiesta email
-   * Supporta override da classificazione Gemini (approccio ibrido)
-   */
-  /**
-   * Classifica la richiesta email
    * Restituisce dimensioni continue, complessità e tono suggerito.
    */
   classify(subject, body, externalHint = null) {
     // Smart Truncation (primi 1500 + ultimi 1500 caratteri)
     const MAX_ANALYSIS_LENGTH = 3000;
-    const fullText = `${subject} ${body}`;
-    const text = fullText.length > MAX_ANALYSIS_LENGTH
+    const sanitizedText = this._sanitizeText(subject, body);
+    const text = sanitizedText.length > MAX_ANALYSIS_LENGTH
       ? (
-        fullText.substring(0, 1500) +
+        sanitizedText.substring(0, 1500) +
         ' ... ' +
-        fullText.substring(fullText.length - 1500)
+        sanitizedText.substring(sanitizedText.length - 1500)
       ).toLowerCase()
-      : fullText.toLowerCase();
+      : sanitizedText.toLowerCase();
 
     // 1. Calcola punteggi grezzi
     const technicalResult = this._calculateScore(text, this.TECHNICAL_INDICATORS);
@@ -178,7 +174,8 @@ class RequestTypeClassifier {
 
     // 3. Logica Ibrida (Integrazione Gemini se disponibile)
     let source = 'regex';
-    if (externalHint && externalHint.category && externalHint.confidence >= 0.75) {
+    const hasExternalHint = Boolean(externalHint && externalHint.category && externalHint.confidence >= 0.75);
+    if (hasExternalHint) {
       // Boost dimensionale basato su Gemini
       const categoryMap = {
         'technical': 'technical',
@@ -214,6 +211,28 @@ class RequestTypeClassifier {
 
     // Override specifico per sbattezzo (Critical logic)
     if (formalResult.score >= 4) requestType = 'formal';
+
+    // 4b. Confidenza e criteri di sicurezza (anti-falsi positivi)
+    const confidence = this._estimateConfidence({
+      dimensions,
+      results: [technicalResult, pastoralResult, doctrineResult, formalResult],
+      textLength: text.length,
+      hasExternalHint
+    });
+
+    const safetyFlags = this._buildSafetyFlags({
+      confidence,
+      dimensions,
+      results: [technicalResult, pastoralResult, doctrineResult, formalResult],
+      textLength: text.length,
+      hasExternalHint
+    });
+
+    // Downgrade conservativo: evita etichette forti con segnali deboli
+    if (confidence < 0.35 && requestType !== 'formal' && !hasExternalHint) {
+      requestType = 'technical';
+      safetyFlags.push('low_confidence_downgrade');
+    }
 
     // 5. Calcolo Metriche Derivate
 
@@ -252,6 +271,9 @@ class RequestTypeClassifier {
       doctrineScore: dimensions.doctrinal,
       formalScore: dimensions.formal,
 
+      confidence: confidence,
+      safetyFlags: safetyFlags,
+
       needsDiscernment: needsDiscernment,
       needsDoctrine: needsDoctrine,
       detectedIndicators: [
@@ -275,16 +297,115 @@ class RequestTypeClassifier {
   _calculateScore(text, indicators) {
     let total = 0;
     const matched = [];
+    let matchCount = 0;
 
     for (const indicator of indicators) {
       const matches = text.match(indicator.pattern);
       if (matches) {
         total += indicator.weight * matches.length;
+        matchCount += matches.length;
         matched.push(indicator.pattern.source);
       }
     }
 
-    return { score: total, matched: matched };
+    return { score: total, matched: matched, matchCount: matchCount };
+  }
+
+  /**
+   * Sanitizza il testo evitando falsi positivi da quote e firme
+   */
+  _sanitizeText(subject, body) {
+    let text = `${subject || ''}\n${body || ''}`;
+
+    text = text.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
+    text = text.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*?<\/div>/gi, '');
+    text = text.replace(/<div\s+id=["']?divRplyFwdMsg["']?[^>]*>[\s\S]*?$/gi, '');
+
+    const lines = text.split('\n');
+    const cleaned = [];
+    let inQuotedSection = false;
+    let inSignature = false;
+
+    for (const line of lines) {
+      const stripped = line.trim();
+
+      if (stripped === '') {
+        cleaned.push('');
+        continue;
+      }
+
+      if (/^--\s*$/.test(stripped) || /^__+$/.test(stripped) || /^inviato da/i.test(stripped)) {
+        inSignature = true;
+      }
+
+      if (inSignature) {
+        continue;
+      }
+
+      if (
+        /^>/.test(stripped) ||
+        /^On .* wrote:.*$/i.test(stripped) ||
+        /^Il giorno .* ha scritto:.*$/i.test(stripped) ||
+        /^Il .* alle .* ha scritto:.*$/i.test(stripped) ||
+        /^-{3,}.*Messaggio originale.*$/i.test(stripped) ||
+        /^-{3,}.*Original Message.*$/i.test(stripped)
+      ) {
+        inQuotedSection = true;
+      }
+
+      if (inQuotedSection) {
+        continue;
+      }
+
+      cleaned.push(stripped);
+    }
+
+    return cleaned.join(' ').replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * Stima confidenza classificazione (0.0 - 1.0) in modo conservativo
+   */
+  _estimateConfidence({ dimensions, results, textLength, hasExternalHint }) {
+    const totalMatches = results.reduce((acc, res) => acc + (res.matchCount || 0), 0);
+    const sortedDims = Object.values(dimensions).slice().sort((a, b) => b - a);
+    const maxDim = sortedDims[0] || 0;
+    const gap = (sortedDims[0] || 0) - (sortedDims[1] || 0);
+
+    let confidence = 0.2;
+    if (totalMatches > 0) {
+      confidence += Math.min(totalMatches / 6, 0.4);
+    }
+    confidence += Math.min(gap / 0.5, 0.2);
+    if (maxDim >= 0.8) {
+      confidence += 0.1;
+    }
+    if (textLength < 80) {
+      confidence -= 0.1;
+    }
+    if (hasExternalHint) {
+      confidence = Math.max(confidence, 0.7);
+    }
+
+    return Math.max(0.1, Math.min(confidence, 1.0));
+  }
+
+  /**
+   * Flag di sicurezza per trasparenza (non bloccanti)
+   */
+  _buildSafetyFlags({ confidence, dimensions, results, textLength, hasExternalHint }) {
+    const flags = [];
+    const totalMatches = results.reduce((acc, res) => acc + (res.matchCount || 0), 0);
+    const sortedDims = Object.values(dimensions).slice().sort((a, b) => b - a);
+    const gap = (sortedDims[0] || 0) - (sortedDims[1] || 0);
+
+    if (totalMatches === 0) flags.push('low_signal');
+    if (textLength < 80) flags.push('short_text');
+    if (gap < 0.2 && (sortedDims[0] || 0) > 0.3) flags.push('ambiguous');
+    if (confidence < 0.35) flags.push('low_confidence');
+    if (hasExternalHint) flags.push('external_hint');
+
+    return flags;
   }
 
   /**

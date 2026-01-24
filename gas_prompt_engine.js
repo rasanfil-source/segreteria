@@ -143,6 +143,16 @@ class PromptEngine {
     const memorySection = this._renderMemoryContext(memoryContext);
     if (memorySection) sections.push(memorySection);
 
+    // 4.5 CONTINUITÀ + UMANITÀ + FOCUS (condizionale, leggero)
+    const shouldAddContinuityFocus =
+      (memoryContext && Object.keys(memoryContext).length > 0) ||
+      (salutationMode && salutationMode !== 'full') ||
+      activeConcerns.emotional_sensitivity ||
+      activeConcerns.repetition_risk;
+    if (shouldAddContinuityFocus) {
+      sections.push(this._renderContinuityHumanFocus());
+    }
+
     // 5. KNOWLEDGE BASE - SEMPRE INCLUSO
     sections.push(this._renderKnowledgeBase(knowledgeBase));
 
@@ -376,6 +386,22 @@ Riconosci QUALSIASI modo in cui l'utente comunica di avere già qualcosa:
 Quando lo riconosci → salta quel contenuto e vai al passo successivo.
 
 ═══════════════════════════════════════════════════════════════════════════`;
+  }
+
+  // ========================================================================
+  // TEMPLATE 1.5: CONTINUITÀ + UMANITÀ + FOCUS (leggero)
+  // ========================================================================
+
+  _renderContinuityHumanFocus() {
+    return `════════════════════════════════════════════════════════════════════════
+🧭 CONTINUITÀ, UMANITÀ E FOCUS (LINEE GUIDA ESSENZIALI)
+════════════════════════════════════════════════════════════════════════
+1) CONTINUITÀ: Se emerge che l’utente ha già ricevuto una risposta su questo tema, evita di ripetere informazioni identiche. Usa al massimo 1 frase di continuità (es. "Riprendo volentieri da quanto detto..."), poi vai al punto.
+2) UMANITÀ MISURATA: Usa una frase empatica SOLO se il messaggio mostra un chiaro segnale emotivo o pastorale. Altrimenti rispondi in modo diretto e sobrio.
+3) FOCUS: Rispondi prima al tema principale (topic). Aggiungi solo informazioni secondarie se strettamente utili.
+4) COERENZA LINGUISTICA: Mantieni la stessa lingua e livello di formalità dell’email ricevuta.
+5) PRUDENZA LEGGERA: Se la confidenza è bassa, formula con neutralità senza scuse o frasi di indecisione.
+════════════════════════════════════════════════════════════════════════`;
   }
 
   // ========================================================================
