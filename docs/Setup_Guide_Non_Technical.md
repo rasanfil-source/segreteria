@@ -163,7 +163,7 @@ In **`AI_CORE`** (for more complex situations):
 
 ### Step 3.2: Download system files
 
-1. Go to the GitHub repository: https://github.com/rasanfil-source/risponditore
+1. Go to the GitHub repository: https://github.com/rasanfil-source/segreteria
 2. Click on the green **"Code"** button → **"Download ZIP"**
 3. Extract the ZIP to your desktop
 

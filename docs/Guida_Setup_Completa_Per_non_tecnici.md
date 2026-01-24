@@ -163,7 +163,7 @@ Nel foglio **`AI_CORE`** (per situazioni più complesse):
 
 ### Passo 3.2: Scarica i file del sistema
 
-1. Vai alla repository GitHub: https://github.com/rasanfil-source/risponditore
+1. Vai alla repository GitHub: https://github.com/rasanfil-source/segreteria
 2. Clicca sul pulsante verde **"Code"** → **"Download ZIP"**
 3. Estrai lo ZIP sul desktop
 

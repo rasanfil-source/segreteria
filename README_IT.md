@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) 
 [![Language: IT](https://img.shields.io/badge/Language-Italian-green?style=flat-square)](README_IT.md)
 [![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](README.md)
-[![Status: Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)](https://github.com/rasanfil-source/risponditore/releases)
+[![Status: Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)](https://github.com/rasanfil-source/segreteria/releases)
 
 > **Un assistente AI intelligente che gestisce le email della tua parrocchia con sensibilità pastorale, accuratezza dottrinale ed efficienza operativa.**
 
@@ -362,9 +362,9 @@ Soluzione: In Config.gs, cambia VALIDATION_MIN_SCORE da 0.6 a 0.5
 ### Contatti
 
 - 📧 **Email:** rasanfil@gmail.com
-- 💬 **Community:** [GitHub Discussions](https://github.com/rasanfil-source/risponditore/discussions)
+- 💬 **Community:** [GitHub Discussions](https://github.com/rasanfil-source/segreteria/discussions)
 - 📚 **Wiki:** [Documentazione Completa](docs/)
-- 🐛 **Bug Report:** [GitHub Issues](https://github.com/rasanfil-source/risponditore/issues)
+- 🐛 **Bug Report:** [GitHub Issues](https://github.com/rasanfil-source/segreteria/issues)
 
 ---
 

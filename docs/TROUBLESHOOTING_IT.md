@@ -748,7 +748,7 @@ if (window.length > 100) {
 
 **Contatti:**
 - 📧 rasanfil@gmail.com
-- 💬 GitHub Issues: https://github.com/rasanfil-source/risponditore/issues
+- 💬 GitHub Issues: https://github.com/rasanfil-source/segreteria/issues
 
 ---
 
