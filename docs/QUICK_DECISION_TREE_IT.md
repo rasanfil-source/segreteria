@@ -28,13 +28,13 @@ graph TD
 
 | Sintomo | Causa Probabile | Fix Immediato | Doc Riferimento |
 |---------|-----------------|---------------|-----------------|
-| Nessuna email processata | Trigger inattivo | `setupTrigger()` | [DEPLOYMENT_IT.md](../DEPLOYMENT_IT.md) |
+| Nessuna email processata | Trigger inattivo | `setupTrigger()` | [DEPLOYMENT_IT.md](DEPLOYMENT_IT.md) |
 | Email tutte in "Verifica" | Soglia troppo alta | `VALIDATION_MIN_SCORE=0.5` | [TROUBLESHOOTING_IT.md](../TROUBLESHOOTING_IT.md#4) |
 | API 429 errors | Quota esaurita | Attendi reset 9:00 AM | [gas_rate_limiter.js L.234](../gas_rate_limiter.js) |
 | Risposte in lingua sbagliata | Detection fallita | Verifica `detectEmailLanguage()` | [TROUBLESHOOTING_IT.md](../TROUBLESHOOTING_IT.md#5) |
 | Sistema risponde a newsletter | Filtri insufficienti | Aggiungi domini a `IGNORE_DOMAINS` | [gas_config.js](../gas_config.js) |
-| Allucinazioni (dati inventati) | KB incompleta | Arricchisci Knowledge Base | [KNOWLEDGE_BASE_GUIDE_IT.md](../KNOWLEDGE_BASE_GUIDE_IT.md) |
-| Tono inappropriato | AI_CORE mancante | Popola foglio AI_CORE | [KNOWLEDGE_BASE_GUIDE_IT.md](../KNOWLEDGE_BASE_GUIDE_IT.md) |
+| Allucinazioni (dati inventati) | KB incompleta | Arricchisci Knowledge Base | [KNOWLEDGE_BASE_GUIDE_IT.md](KNOWLEDGE_BASE_GUIDE_IT.md) |
+| Tono inappropriato | AI_CORE mancante | Popola foglio AI_CORE | [KNOWLEDGE_BASE_GUIDE_IT.md](KNOWLEDGE_BASE_GUIDE_IT.md) |
 | Memoria non funziona | Foglio corrotto | Verifica struttura `ConversationMemory` | [TROUBLESHOOTING_IT.md](../TROUBLESHOOTING_IT.md#8) |
 
 ---
@@ -169,11 +169,11 @@ Prima di contattare il supporto, verifica:
 
 | Funzione | Uso | Documentazione |
 |----------|-----|----------------|
-| `setupTrigger()` | Ricrea trigger principale | [DEPLOYMENT_IT.md](../DEPLOYMENT_IT.md) |
-| `emergencyDiagnostic()` | Diagnosi completa sistema | [TROUBLESHOOTING_IT.md](../TROUBLESHOOTING_IT.md) |
-| `dailyHealthCheck()` | Report stato quotidiano | [DEPLOYMENT_IT.md](../DEPLOYMENT_IT.md) |
-| `testGeminiConnection()` | Test connessione API | [DEPLOYMENT_IT.md](../DEPLOYMENT_IT.md) |
-| `fullDiagnostic()` | Diagnostica completa | [TROUBLESHOOTING_IT.md](../TROUBLESHOOTING_IT.md) |
+| `setupTrigger()` | Ricrea trigger principale | [DEPLOYMENT_IT.md](DEPLOYMENT_IT.md) |
+| `emergencyDiagnostic()` | Diagnosi completa sistema | [TROUBLESHOOTING_IT.md](TROUBLESHOOTING_IT.md) |
+| `dailyHealthCheck()` | Report stato quotidiano | [DEPLOYMENT_IT.md](DEPLOYMENT_IT.md) |
+| `testGeminiConnection()` | Test connessione API | [DEPLOYMENT_IT.md](DEPLOYMENT_IT.md) |
+| `fullDiagnostic()` | Diagnostica completa | [TROUBLESHOOTING_IT.md](TROUBLESHOOTING_IT.md) |
 
 ---
 

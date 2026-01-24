@@ -745,8 +745,8 @@ if (window.length > 100) {
 4. Examples of problematic emails (anonymized)
 
 **Contacts:**
-- 📧 support@exnovobots.com
-- 💬 GitHub Issues: github.com/yourrepo/issues
+- 📧 rasanfil@gmail.com
+- 💬 GitHub Issues: https://github.com/rasanfil-source/risponditore/issues
 
 ---
 

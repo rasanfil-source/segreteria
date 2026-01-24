@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](README_IT.md)
-[![Status: Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)](https://github.com/dizzighittola-sudo/autorisponditore/releases)
+[![Status: Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)](https://github.com/rasanfil-source/risponditore/releases)
 
 > **An intelligent AI assistant that manages your parish emails with pastoral sensitivity, doctrinal accuracy, and operational efficiency.**
 
@@ -24,6 +24,8 @@
 *   **Self-Healing**: Automatically fixes common errors (typos, duplicate links) before sending.
 *   **Multi-Dimensional Analysis**: Understands not just the topic, but the **emotional load** and **complexity**.
 *   **Reactive Memory**: Remembers if you understood ("Thanks!") or are confused ("I don't get it") and adapts the next reply.
+*   **Smart Active Listening (Anti-Redundancy)**: If the user says "I already have the form", the AI avoids sending the link again.
+*   **Linguistic Correctness & Style**: The AI always uses correct grammar (e.g. "il canale") even if the user makes a typo ("la canale"), silently ignoring the error.
 
 ---
 
@@ -358,10 +360,10 @@ Solution: In Config.gs, change VALIDATION_MIN_SCORE from 0.6 to 0.5
 
 ### Contacts
 
-- 📧 **Email:** dizzighittola@gmail.com
-- 💬 **Community:** [GitHub Discussions](https://github.com/dizzighittola-sudo/autorisponditore/discussions)
+- 📧 **Email:** rasanfil@gmail.com
+- 💬 **Community:** [GitHub Discussions](https://github.com/rasanfil-source/risponditore/discussions)
 - 📚 **Wiki:** [Complete Documentation](docs/)
-- 🐛 **Bug Report:** [GitHub Issues](https://github.com/dizzighittola-sudo/autorisponditore/issues)
+- 🐛 **Bug Report:** [GitHub Issues](https://github.com/rasanfil-source/risponditore/issues)
 
 ---
 

@@ -692,13 +692,13 @@ CONFIG.MODEL_STRATEGY = {
 1. **Consulta prima** questa guida e TROUBLESHOOTING.md
 2. **Esegui** `emergencyDiagnostic()`
 3. **Raccogli** log errori da Esecuzioni
-4. **Contatta** support@exnovobots.com con:
+4. **Contatta** rasanfil@gmail.com con:
    - Descrizione problema
    - Log relevanti
    - Configurazione (mascherata)
 
 **Canali supporto:**
-- 📧 Email: support@exnovobots.com (risposta entro 24h)
+- 📧 Email: rasanfil@gmail.com (risposta entro 24h)
 - 💬 Community: GitHub Discussions (peer support)
 - 🆘 Urgenze: Telegram @exnovobot_support
 

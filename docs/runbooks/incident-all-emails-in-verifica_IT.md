@@ -223,7 +223,7 @@ Se problema persiste dopo tutti i fix:
 
 1. Documenta pattern errori più frequenti
 2. Esporta 5 esempi email problematiche (anonimizzate)
-3. Contatta support@exnovobots.com
+3. Contatta rasanfil@gmail.com
 
 ---
 

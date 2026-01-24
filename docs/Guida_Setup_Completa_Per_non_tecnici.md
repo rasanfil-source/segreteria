@@ -163,7 +163,7 @@ Nel foglio **`AI_CORE`** (per situazioni più complesse):
 
 ### Passo 3.2: Scarica i file del sistema
 
-1. Vai alla repository GitHub: https://github.com/[tuorepo]/exnovoGAS
+1. Vai alla repository GitHub: https://github.com/rasanfil-source/risponditore
 2. Clicca sul pulsante verde **"Code"** → **"Download ZIP"**
 3. Estrai lo ZIP sul desktop
 
@@ -463,7 +463,7 @@ VALIDATION_MIN_SCORE: 0.5  // Era 0.6
 
 **Hai bisogno di aiuto?**
 
-1. 📧 Email: support@exnovobots.com
+1. 📧 Email: rasanfil@gmail.com
 2. 💬 Community: [GitHub Discussions](...)
 3. 🐛 Bug: [GitHub Issues](...)
 

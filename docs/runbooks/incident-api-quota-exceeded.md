@@ -194,7 +194,7 @@ If after quota reset (9:00 AM) the problem persists:
 
 1. Verify API credentials on [Google Cloud Console](https://console.cloud.google.com)
 2. Check for any API key restrictions
-3. Contact support@exnovobots.com with quota screenshot
+3. Contact rasanfil@gmail.com with quota screenshot
 
 ---
 

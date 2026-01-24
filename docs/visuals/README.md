@@ -38,4 +38,4 @@ possono essere esportati come SVG usando il Mermaid Live Editor.
 
 ---
 
-**[Torna a Documentazione](../README.md)**
+**[Torna a Documentazione](../../README.md)**

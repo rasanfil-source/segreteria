@@ -109,10 +109,22 @@ const CONFIG = {
     // === Liste di esclusione ===
     IGNORE_DOMAINS: [
         'noreply', 'no-reply', 'newsletter', 'marketing',
-        'promo', 'ads', 'notifications'
+        'promo', 'ads', 'notifications',
+        // Imported from deprecated Python system (CFAG)
+        'amazon.com', 'eventbrite.com', 'paypal.com', 'ebay.com',
+        'subito.it', 'mailchimp.com', 'mailup.com',
+        'unclickperlascuolaelosport.it', 'sendinblue.com',
+        'miqueldg63@gmail.com', 'rego.juan@gmail.com'
     ],
     IGNORE_KEYWORDS: [
-        'unsubscribe', 'opt-out', 'newsletter'
+        'unsubscribe', 'opt-out', 'newsletter',
+        // Imported from deprecated Python system (CFAG)
+        'disiscriviti', 'disiscrizione', 'annulla iscrizione',
+        'annulla l\'iscrizione', 'gestisci la tua iscrizione',
+        'gestisci le tue preferenze', 'aggiorna le tue preferenze',
+        'cancella iscrizione', 'mailing list', 'inviato con mailup',
+        'messaggio inviato con', 'non rispondere a questo messaggio',
+        'avviso di sicurezza'
     ]
 };
 

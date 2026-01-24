@@ -619,6 +619,30 @@ function removeTriggers() {
 }
 
 /**
+ * Pulisce manualmente la cache di sistema (utile per forzare aggiornamento KB)
+ * Da eseguire manualmente se si modificano i Fogli Google e si vuole effetto immediato.
+ */
+function clearSystemCache() {
+  try {
+    const cache = CacheService.getScriptCache();
+    cache.remove('KB_CONTENT');
+    // Rimuoviamo anche eventuali lock appesi per sicurezza
+    cache.removeAll(['thread_lock', 'global_lock']);
+
+    // Resetta variabile globale
+    if (typeof GLOBAL_CACHE !== 'undefined') {
+      GLOBAL_CACHE.loaded = false;
+      GLOBAL_CACHE.knowledgeBase = '';
+    }
+
+    console.log('🧹 Cache di sistema svuotata con successo.');
+    console.log('   Al prossimo avvio le risorse verranno ricaricate fresche dai Fogli Google.');
+  } catch (error) {
+    console.error(`❌ Errore durante svuotamento cache: ${error.message}`);
+  }
+}
+
+/**
  * Test connessione API Gemini
  */
 function testGeminiConnection() {

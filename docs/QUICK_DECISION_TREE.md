@@ -28,13 +28,13 @@ graph TD
 
 | Symptom | Probable Cause | Immediate Fix | Reference Doc |
 |---------|----------------|---------------|---------------|
-| No emails processed | Trigger inactive | `setupTrigger()` | [DEPLOYMENT.md](../DEPLOYMENT.md) |
+| No emails processed | Trigger inactive | `setupTrigger()` | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | All emails in "Verifica" | Threshold too high | `VALIDATION_MIN_SCORE=0.5` | [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#4) |
 | API 429 errors | Quota exhausted | Wait for reset 9:00 AM PT | [gas_rate_limiter.js](../gas_rate_limiter.js) |
 | Wrong language responses | Detection failed | Check `detectEmailLanguage()` | [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#5) |
 | System responds to newsletters | Insufficient filters | Add domains to `IGNORE_DOMAINS` | [gas_config.js](../gas_config.js) |
-| Hallucinations (invented data) | Incomplete KB | Enrich Knowledge Base | [KNOWLEDGE_BASE_GUIDE.md](../KNOWLEDGE_BASE_GUIDE.md) |
-| Inappropriate tone | AI_CORE missing | Populate AI_CORE sheet | [KNOWLEDGE_BASE_GUIDE.md](../KNOWLEDGE_BASE_GUIDE.md) |
+| Hallucinations (invented data) | Incomplete KB | Enrich Knowledge Base | [KNOWLEDGE_BASE_GUIDE.md](KNOWLEDGE_BASE_GUIDE.md) |
+| Inappropriate tone | AI_CORE missing | Populate AI_CORE sheet | [KNOWLEDGE_BASE_GUIDE.md](KNOWLEDGE_BASE_GUIDE.md) |
 | Memory not working | Corrupted sheet | Verify `ConversationMemory` structure | [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#8) |
 
 ---
@@ -169,11 +169,11 @@ Before contacting support, verify:
 
 | Function | Use | Documentation |
 |----------|-----|---------------|
-| `setupTrigger()` | Recreate main trigger | [DEPLOYMENT.md](../DEPLOYMENT.md) |
-| `emergencyDiagnostic()` | Complete system diagnosis | [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) |
-| `dailyHealthCheck()` | Daily status report | [DEPLOYMENT.md](../DEPLOYMENT.md) |
-| `testGeminiConnection()` | Test API connection | [DEPLOYMENT.md](../DEPLOYMENT.md) |
-| `fullDiagnostic()` | Complete diagnostic | [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) |
+| `setupTrigger()` | Recreate main trigger | [DEPLOYMENT.md](DEPLOYMENT.md) |
+| `emergencyDiagnostic()` | Complete system diagnosis | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
+| `dailyHealthCheck()` | Daily status report | [DEPLOYMENT.md](DEPLOYMENT.md) |
+| `testGeminiConnection()` | Test API connection | [DEPLOYMENT.md](DEPLOYMENT.md) |
+| `fullDiagnostic()` | Complete diagnostic | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
 
 ---
 

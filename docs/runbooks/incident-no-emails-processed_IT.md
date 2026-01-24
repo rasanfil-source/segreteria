@@ -180,7 +180,7 @@ function verifyResolution() {
 
 Se dopo 1 ora il problema persiste:
 
-1. **Contatta supporto tecnico:** support@exnovobots.com
+1. **Contatta supporto tecnico:** rasanfil@gmail.com
 2. **Allega:**
    - Output di `emergencyDiagnostic()`
    - Log ultimi 5 errori da Esecuzioni

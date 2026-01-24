@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) 
 [![Language: IT](https://img.shields.io/badge/Language-Italian-green?style=flat-square)](README_IT.md)
 [![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](README.md)
-[![Status: Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)](https://github.com/dizzighittola-sudo/autorisponditore/releases)
+[![Status: Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)](https://github.com/rasanfil-source/risponditore/releases)
 
 > **Un assistente AI intelligente che gestisce le email della tua parrocchia con sensibilità pastorale, accuratezza dottrinale ed efficienza operativa.**
 
@@ -25,6 +25,8 @@
 *   **Self-Healing**: Corregge errori comuni (maiuscole, link duplicati) automaticamente.
 *   **Analisi Multi-Dimensionale**: Capisce non solo l'argomento ma anche il **carico emotivo** e la **complessità**.
 *   **Memoria Reattiva**: Ricorda se hai capito ("Grazie!") o se sei confuso ("Non ho capito") e adatta la risposta successiva.
+*   **Ascolto Attivo Intelligente (Anti-Ridondanza)**: Se l'utente dice "Ho già scaricato il modulo", l'IA evita di inviargli di nuovo il link.
+*   **Correttezza Linguistica & Stile**: L'IA usa sempre la grammatica corretta (es. "il canale") anche se l'utente la sbaglia ("la canale"), ignorando silenziosamente gli errori di battitura.
 
 ---
 
@@ -359,10 +361,10 @@ Soluzione: In Config.gs, cambia VALIDATION_MIN_SCORE da 0.6 a 0.5
 
 ### Contatti
 
-- 📧 **Email:** dizzighittola@gmail.com
-- 💬 **Community:** [GitHub Discussions](https://github.com/dizzighittola-sudo/autorisponditore/discussions)
+- 📧 **Email:** rasanfil@gmail.com
+- 💬 **Community:** [GitHub Discussions](https://github.com/rasanfil-source/risponditore/discussions)
 - 📚 **Wiki:** [Documentazione Completa](docs/)
-- 🐛 **Bug Report:** [GitHub Issues](https://github.com/dizzighittola-sudo/autorisponditore/issues)
+- 🐛 **Bug Report:** [GitHub Issues](https://github.com/rasanfil-source/risponditore/issues)
 
 ---
 

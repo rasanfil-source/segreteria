@@ -401,4 +401,4 @@ graph TD
 
 ---
 
-**[English Version](ARCHITECTURE_DIAGRAMS.md)** | **[Architettura Dettagliata](../ARCHITECTURE_IT.md)** | **[Torna a README](../README_IT.md)**
+**[English Version](ARCHITECTURE_DIAGRAMS.md)** | **[Architettura Dettagliata](ARCHITECTURE_IT.md)** | **[Torna a README](../README_IT.md)**
