@@ -76,6 +76,25 @@ class MemoryService {
   }
 
   /**
+   * Verifica ed eventualmente aggiunge la colonna 'memorySummary'
+   * Utile per migrazione da versioni precedenti
+   */
+  _ensureMemorySummaryColumn() {
+    try {
+      const headers = this._sheet.getRange('A1:I1').getValues()[0];
+      // La colonna I è la nona colonna (indice 8)
+      if (headers.length < 9 || headers[8] !== 'memorySummary') {
+        console.log('🔄 Aggiunta colonna mancante: memorySummary');
+        const cell = this._sheet.getRange('I1');
+        cell.setValue('memorySummary');
+        cell.setFontWeight('bold');
+      }
+    } catch (e) {
+      console.warn('⚠️ Errore verifica colonna memorySummary:', e.message);
+    }
+  }
+
+  /**
    * Ottiene memoria per un thread
    */
   getMemory(threadId) {
