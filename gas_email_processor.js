@@ -644,12 +644,17 @@ Dettaglio: ${v.reason}
           return result;
         }
 
-        // Se ci sono WARNING, aggiungi etichetta "verifica"
-        if (validation.warnings && validation.warnings.length > 0) {
+        // Se ci sono WARNING e il punteggio è sotto la soglia di sicurezza, aggiungi etichetta "verifica"
+        // Ignoriamo i warning per punteggi alti (es. >= 0.90) assumendo siano nits minori (es. firma)
+        const warningThreshold = this.config.validationWarningThreshold || 0.90;
+
+        if (validation.warnings && validation.warnings.length > 0 && validation.score < warningThreshold) {
           console.log(
-            `   ⚠️ Validazione PASSATA con ${validation.warnings.length} warning - aggiungo etichetta '${this.config.validationErrorLabel}'`
+            `   ⚠️ Validazione: Punteggio ${validation.score.toFixed(2)} < ${warningThreshold} con warning - Aggiungo etichetta '${this.config.validationErrorLabel}'`
           );
           this.gmailService.addLabelToMessage(candidate.getId(), this.config.validationErrorLabel);
+        } else if (validation.warnings && validation.warnings.length > 0) {
+          console.log(`   ℹ️ Validazione: Punteggio alto (${validation.score.toFixed(2)}). Warning ignorati: ${validation.warnings.join(', ')}`);
         }
 
         if (validation.fixedResponse) {
@@ -756,12 +761,15 @@ Dettaglio: ${v.reason}
     }
 
     // Cerca thread non letti nella inbox
-    // Escludiamo etichetta IA per garantire la paginazione sui nuovi risultati
-    const searchQuery = `in:inbox is:unread -label:${this.config.labelName}`;
+    // Utilizziamo un buffer di ricerca più ampio per gestire thread saltati (es. loop interni)
+    // Rimuoviamo il filtro etichetta per permettere la gestione dei follow-up in thread già elaborati
+    const searchQuery = 'in:inbox is:unread';
+    const searchLimit = (this.config.searchPageSize || 50);
+
     const threads = GmailApp.search(
       searchQuery,
       0,
-      this.config.maxEmailsPerRun
+      searchLimit
     );
 
     if (threads.length === 0) {
@@ -790,14 +798,21 @@ Dettaglio: ${v.reason}
       skipped_loop: 0
     };
 
-    // Processa ogni thread
+    // Processa ogni thread fino a raggiungere il limite di elaborazione
     const startTime = Date.now();
-    const MAX_EXECUTION_TIME = 280 * 1000; // 280 secondi (margine su 360s limite GAS)
+    const MAX_EXECUTION_TIME = 280 * 1000; // 280 secondi
+    let processedCount = 0; // Contatore thread effettivamente elaborati
 
     for (let index = 0; index < threads.length; index++) {
+      // Stop se abbiamo raggiunto il target di elaborazione effettiva
+      if (processedCount >= this.config.maxEmailsPerRun) {
+        console.log(`🛑 Raggiunti ${this.config.maxEmailsPerRun} thread elaborati. Stop.`);
+        break;
+      }
+
       const thread = threads[index];
 
-      // CHECK TEMPO RESIDUO
+      // Controllo tempo residuo
       if (Date.now() - startTime > MAX_EXECUTION_TIME) {
         console.warn(`⏳ Tempo esecuzione in esaurimento. Interrompo dopo ${index} thread.`);
         break;
@@ -806,6 +821,18 @@ Dettaglio: ${v.reason}
 
       const result = this.processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds);
       stats.total++;
+
+      // Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI
+      const isEffectiveWork = (
+        result.status === 'replied' ||
+        result.status === 'error' ||
+        result.status === 'validation_failed' ||
+        result.status === 'filtered'
+      );
+
+      if (isEffectiveWork) {
+        processedCount++;
+      }
 
       if (result.validationFailed) {
         stats.validationFailed++;
@@ -829,16 +856,12 @@ Dettaglio: ${v.reason}
     console.log('\n' + '='.repeat(70));
     console.log('📊 RIEPILOGO ELABORAZIONE');
     console.log('='.repeat(70));
-    console.log(`   Totale processate: ${stats.total}`);
+    console.log(`   Totale analizzate (buffer): ${stats.total}`);
     console.log(`   ✓ Risposte inviate: ${stats.replied}`);
     if (stats.dryRun > 0) console.warn(`   🔴 DRY RUN: ${stats.dryRun}`);
 
     if (stats.skipped > 0) {
       console.log(`   ⊘ Saltate (Totale): ${stats.skipped}`);
-      if (stats.skipped_locked > 0) console.log(`     - Blocchi (altre istanze): ${stats.skipped_locked}`);
-      if (stats.skipped_processed > 0) console.log(`     - Già elaborate: ${stats.skipped_processed}`);
-      if (stats.skipped_internal > 0) console.log(`     - Interne/Self-sent: ${stats.skipped_internal}`);
-      if (stats.skipped_loop > 0) console.warn(`     - Loop rilevati: ${stats.skipped_loop}`);
     }
 
     console.log(`   ⊘ Filtrate (AI/Regole): ${stats.filtered}`);
