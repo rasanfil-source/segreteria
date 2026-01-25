@@ -619,9 +619,9 @@ REGOLE OBBLIGATORIE:
 ✅ Evita preamboli o ripetizioni
 
 ESEMPI DI APERTURA CORRETTA:
-• "Certo."
-• "Ecco le info essenziali."
-• "Sì, ti confermo quanto segue."
+• "Ricevuto."
+• "Grazie per la precisazione."
+• "In merito a quanto chiede:"
 
 ═══════════════════════════════════════════════════════════════════════════`;
     }
@@ -642,8 +642,8 @@ REGOLE OBBLIGATORIE:
 
 FRASI DI CONTINUITÀ CORRETTE:
 • "Grazie per il messaggio."
-• "Certo, ecco le informazioni richieste."
-• "Volentieri, vediamo insieme."
+• "Ecco le informazioni richieste."
+• "Riguardo alla sua domanda..."
 • "In merito a quanto ci chiede..."
 
 ⚠️ DIVIETO: Ripetere lo stesso saluto è percepito come MECCANICO e non umano.
