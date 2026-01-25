@@ -176,8 +176,10 @@ COMPITI:
    - "DOCTRINAL": dubbi di fede, domande teologiche
    - "FORMAL": richieste di sbattezzo, cancellazione registri, apostasia
    - "MIXED": mix di tecnica e pastorale
-4. Estrai l'argomento principale (topic)
-5. Fornisci un breve ragionamento (reason)
+4. Fornisci punteggi continui (0.0-1.0) per ogni dimensione:
+   - technical, pastoral, doctrinal, formal
+5. Estrai l'argomento principale (topic)
+6. Fornisci un breve ragionamento (reason)
 
 ⚠️ REGOLA CRITICA "SBATTEZZO":
 Se l'utente esprime la volontà di non essere più cristiano, essere cancellato dai registri o "sbattezzarsi":
@@ -190,6 +192,12 @@ Output JSON:
   "reply_needed": boolean,
   "language": "string (codice ISO 639-1)",
   "category": "TECHNICAL" | "PASTORAL" | "DOCTRINAL" | "FORMAL" | "MIXED",
+  "dimensions": {
+    "technical": number (0.0-1.0),
+    "pastoral": number (0.0-1.0),
+    "doctrinal": number (0.0-1.0),
+    "formal": number (0.0-1.0)
+  },
   "topic": "string",
   "confidence": number (0.0-1.0),
   "reason": "string"
@@ -281,7 +289,8 @@ Output JSON:
       classification: {
         category: data.category || 'TECHNICAL',
         topic: data.topic || '',
-        confidence: data.confidence || 0.8
+        confidence: data.confidence || 0.8,
+        dimensions: data.dimensions || null
       }
     };
   }

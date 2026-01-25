@@ -420,7 +420,7 @@ ${GLOBAL_CACHE.doctrineBase}
       );
 
       // Override strutturale: nessun saluto in conversazioni attive
-      if (salutationMode === 'none_or_continuity') {
+      if (salutationMode === 'none_or_continuity' || salutationMode === 'session') {
         greeting = '';
       } else if (salutationMode === 'soft') {
         greeting = '[Inizia con breve frase di riaggancio cordiale]';
@@ -679,7 +679,7 @@ Dettaglio: ${v.reason}
       // ═══════════════════════════════════════════════════════════════
       const providedTopics = this._detectProvidedTopics(response);
 
-      // Costruisci array di oggetti topic (nuovo formato)
+      // Strutturazione Oggetti Topic
       const topicsWithObjects = providedTopics.map(topic => ({
         topic: topic,
         userReaction: 'unknown',
@@ -687,15 +687,27 @@ Dettaglio: ${v.reason}
         timestamp: new Date().toISOString()
       }));
 
+      const memorySummary = this._buildMemorySummary({
+        existingSummary: memoryContext.memorySummary || '',
+        responseText: response,
+        providedTopics: providedTopics
+      });
+
       // Inferisci reazione utente su topic precedenti (se presenti)
       if (memoryContext.providedInfo && memoryContext.providedInfo.length > 0) {
         this._inferUserReaction(messageDetails.body, memoryContext.providedInfo, threadId);
       }
 
-      this.memoryService.updateMemoryAtomic(threadId, {
+      const memoryUpdate = {
         language: detectedLanguage,
         category: classification.category || requestType.type
-      }, topicsWithObjects.length > 0 ? topicsWithObjects : null);
+      };
+
+      if (memorySummary) {
+        memoryUpdate.memorySummary = memorySummary;
+      }
+
+      this.memoryService.updateMemoryAtomic(threadId, memoryUpdate, topicsWithObjects.length > 0 ? topicsWithObjects : null);
 
       if (candidate) {
         this._markMessageAsProcessed(candidate);
@@ -896,6 +908,66 @@ Dettaglio: ${v.reason}
     this.gmailService.addLabelToThread(thread, this.config.validationErrorLabel);
   }
 
+  _buildMemorySummary({ existingSummary, responseText, providedTopics }) {
+    const maxBullets = (typeof CONFIG !== 'undefined' && CONFIG.MAX_MEMORY_SUMMARY_BULLETS) || 4;
+    const maxChars = (typeof CONFIG !== 'undefined' && CONFIG.MAX_MEMORY_SUMMARY_CHARS) || 600;
+    const sanitizedSummary = existingSummary ? String(existingSummary) : '';
+    const summaryLines = sanitizedSummary
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean);
+
+    if (!responseText) {
+      return summaryLines.slice(-maxBullets).join('\n') || null;
+    }
+
+    const plainText = responseText
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const sentenceMatches = plainText.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [];
+    const ignorePatterns = [
+      /^ciao\b/i,
+      /^buongiorno/i,
+      /^buonasera/i,
+      /^gentile/i,
+      /^salve\b/i,
+      /^grazie\b/i,
+      /^cordiali saluti/i,
+      /^saluti\b/i
+    ];
+
+    const candidateSentences = sentenceMatches
+      .map(sentence => sentence.trim())
+      .filter(sentence => sentence.length > 20)
+      .filter(sentence => !ignorePatterns.some(pattern => pattern.test(sentence)));
+
+    let summarySentence = candidateSentences.slice(0, 2).join(' ');
+    if (!summarySentence && providedTopics && providedTopics.length > 0) {
+      summarySentence = `Ho fornito informazioni su: ${providedTopics.join(', ')}.`;
+    }
+    if (!summarySentence) {
+      summarySentence = plainText.slice(0, 200);
+    }
+
+    const newBullet = summarySentence ? `• ${summarySentence}` : '';
+    if (newBullet && !summaryLines.some(line => line.toLowerCase() === newBullet.toLowerCase())) {
+      summaryLines.push(newBullet);
+    }
+
+    const trimmedLines = summaryLines.slice(-maxBullets);
+    let summary = trimmedLines.join('\n').trim();
+
+    if (summary.length > maxChars) {
+      const truncated = summary.slice(0, maxChars);
+      const lastBreak = truncated.lastIndexOf('\n');
+      summary = (lastBreak > 0 ? truncated.slice(0, lastBreak) : truncated).trim();
+    }
+
+    return summary || null;
+  }
+
   /**
    * Rileva topic forniti nella risposta (per anti-ripetizione memoria)
    */
@@ -1000,6 +1072,7 @@ Dettaglio: ${v.reason}
  * @returns {'full'|'soft'|'none_or_continuity'}
  */
 function computeSalutationMode({ isReply, messageCount, memoryExists, lastUpdated, now = new Date() }) {
+  const SESSION_WINDOW_MINUTES = 15;
   // 1️⃣ Primo messaggio assoluto
   if (!isReply && !memoryExists && messageCount <= 1) {
     return 'full';
@@ -1012,11 +1085,18 @@ function computeSalutationMode({ isReply, messageCount, memoryExists, lastUpdate
     }
 
     const parsedLastUpdated = new Date(lastUpdated);
-    const hoursSinceLast = (now.getTime() - parsedLastUpdated.getTime()) / (1000 * 60 * 60);
+    const timeSinceLastMs = now.getTime() - parsedLastUpdated.getTime();
+    const minutesSinceLast = timeSinceLastMs / (1000 * 60);
+    const hoursSinceLast = timeSinceLastMs / (1000 * 60 * 60);
 
     if (isNaN(hoursSinceLast)) {
       console.warn('⚠️ computeSalutationMode: timestamp lastUpdated non valido, default a none_or_continuity');
       return 'none_or_continuity';
+    }
+
+    // Sessione conversazionale ravvicinata (entro 15 minuti)
+    if (minutesSinceLast <= SESSION_WINDOW_MINUTES) {
+      return 'session';
     }
 
     // Follow-up ravvicinato (entro 48h)

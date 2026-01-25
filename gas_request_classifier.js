@@ -165,7 +165,7 @@ class RequestTypeClassifier {
     // 2. Normalizzazione Punteggi (0.0 - 1.0)
     // Soglia saturazione arbitraria: 5 match = 1.0
     const SATURATION_POINT = 5;
-    const dimensions = {
+    let dimensions = {
       technical: Math.min(technicalResult.score / SATURATION_POINT, 1.0),
       pastoral: Math.min(pastoralResult.score / SATURATION_POINT, 1.0),
       doctrinal: Math.min(doctrineResult.score / SATURATION_POINT, 1.0),
@@ -174,9 +174,17 @@ class RequestTypeClassifier {
 
     // 3. Logica Ibrida (Integrazione Gemini se disponibile)
     let source = 'regex';
-    const hasExternalHint = Boolean(externalHint && externalHint.category && externalHint.confidence >= 0.75);
-    if (hasExternalHint) {
-      // Boost dimensionale basato su Gemini
+    const externalDims = this._extractExternalDimensions(externalHint);
+    const hasExternalHint = Boolean(
+      (externalDims && externalHint && externalHint.confidence >= 0.6) ||
+      (externalHint && externalHint.category && externalHint.confidence >= 0.75)
+    );
+
+    if (externalDims && hasExternalHint) {
+      dimensions = { ...dimensions, ...externalDims };
+      source = 'llm';
+    } else if (hasExternalHint) {
+      // Boost dimensionale basato su Gemini (fallback a categoria)
       const categoryMap = {
         'technical': 'technical',
         'appointment': 'technical',
@@ -193,7 +201,7 @@ class RequestTypeClassifier {
       }
     }
 
-    // 4. Determinazione Tipo Primario (Backward Compatibility)
+    // 4. Determinazione Tipo Primario (Compatibilità Base)
     let requestType = 'technical';
 
     // Priorità gerarchica
@@ -203,13 +211,13 @@ class RequestTypeClassifier {
       requestType = 'doctrinal';
     } else if (dimensions.pastoral >= 0.6 && dimensions.pastoral > dimensions.technical) {
       requestType = 'pastoral';
-    } else if (dimensions.pastoral >= 0.4 && dimensions.technical >= 0.4) {
-      requestType = 'mixed';
-    } else {
+    } else if (dimensions.technical >= 0.6) {
       requestType = 'technical';
+    } else {
+      // Analisi mista/bassa confidenza
+      requestType = 'technical'; // Default prudenziale
     }
-
-    // Override specifico per sbattezzo (Critical logic)
+    // Override specifico per sbattezzo (Logica critica)
     if (formalResult.score >= 4) requestType = 'formal';
 
     // 4b. Confidenza e criteri di sicurezza (anti-falsi positivi)
@@ -254,19 +262,19 @@ class RequestTypeClassifier {
     else if (dimensions.doctrinal > 0.5) suggestedTone = 'Istruttivo e Chiaro';
     else if (complexity === 'High') suggestedTone = 'Strutturato e Dettagliato';
 
-    // Flag legacy
+    // Indicatori di necessità
     const needsDiscernment = dimensions.pastoral > 0.3 || requestType === 'mixed';
     const needsDoctrine = dimensions.doctrinal > 0.3 || (dimensions.doctrinal > 0 && requestType !== 'technical');
 
     const result = {
-      type: requestType, // Legacy
+      type: requestType, // Categoria classica
       source: source,
-      dimensions: dimensions, // New
-      complexity: complexity, // New
-      emotionalLoad: emotionalLoad, // New
-      suggestedTone: suggestedTone, // New
+      dimensions: dimensions, // Nuova metrica
+      complexity: complexity,
+      emotionalLoad: emotionalLoad,
+      suggestedTone: suggestedTone,
 
-      technicalScore: dimensions.technical, // Normalized
+      technicalScore: dimensions.technical, // Normalizzati
       pastoralScore: dimensions.pastoral,
       doctrineScore: dimensions.doctrinal,
       formalScore: dimensions.formal,
@@ -409,13 +417,35 @@ class RequestTypeClassifier {
   }
 
   /**
+   * Estrae dimensioni continue da hint esterno (0.0 - 1.0)
+   */
+  _extractExternalDimensions(externalHint) {
+    if (!externalHint || !externalHint.dimensions) return null;
+
+    const dims = externalHint.dimensions;
+    const keys = ['technical', 'pastoral', 'doctrinal', 'formal'];
+    const normalized = {};
+    let found = false;
+
+    for (const key of keys) {
+      const value = dims[key];
+      if (typeof value === 'number' && !Number.isNaN(value)) {
+        normalized[key] = Math.max(0, Math.min(value, 1));
+        found = true;
+      }
+    }
+
+    return found ? normalized : null;
+  }
+
+  /**
    * Ottiene suggerimento tipo richiesta per iniezione nel prompt
-   * Supporta sia stringa legacy che oggetto classificazione completo
+   * Supporta sia stringa pura che oggetto classificazione completo
    */
   getRequestTypeHint(classificationOrType) {
-    // Normalizzazione input: se è stringa (legacy), usa solo switch base
+    // Normalizzazione input: se è stringa, usa solo switch base
     if (typeof classificationOrType === 'string') {
-      return this._getLegacyHint(classificationOrType);
+      return this._getSimpleHint(classificationOrType);
     }
 
     // Input oggetto completo (Nuovo sistema blended)
@@ -423,7 +453,6 @@ class RequestTypeClassifier {
     if (!cls || !cls.dimensions) return '';
 
     // Costruzione Hint Composito
-    // Costruzione Hint Composito (Evoluzione 4: Blended Hints)
     const hints = [];
     const dims = cls.dimensions;
 
@@ -433,54 +462,59 @@ class RequestTypeClassifier {
     // 2. Mix Dimensionale Graduale
     if (dims.formal > 0.6) {
       hints.push(`⚖️ FORMALE (${(dims.formal * 100).toFixed(0)}%):
-       - Usa template rigidi e tono istituzionale
-       - Evita commenti personali non richiesti`);
+Richiesta ufficiale o giuridica. Usa tono distaccato e preciso. Evita familiarità.`);
     }
 
-    // Componente Tecnica
-    if (dims.technical >= 0.3) {
-      const intensity = dims.technical >= 0.8 ? 'PRIMARIO' : 'IMPORTANTE';
-      hints.push(`⚙️ COMPONENTE TECNICA (${intensity}):
-       - Fornisci informazioni concrete e verificabili
-       - Usa bullet point se 3+ elementi
-       - Specifica orari/date/luoghi esatti`);
+    if (dims.doctrinal > 0.6) {
+      hints.push(`✝️ DOTTRINALE (${(dims.doctrinal * 100).toFixed(0)}%):
+Richiede precisione teologica. Usa "Dottrina" come riferimento primario.`);
     }
 
     // Componente Pastorale
-    if (dims.pastoral >= 0.3) {
+    if (dims.pastoral > 0.4) {
       const intensity = dims.pastoral >= 0.8 ? 'PRIMARIA' : 'PRESENTE';
       const emoContext = cls.emotionalLoad === 'High' ? 'massima priorità empatica' : 'tono cordiale';
       hints.push(`💙 COMPONENTE PASTORALE (${intensity}):
-       - Riconosci la situazione personale espressa (${emoContext})
-       - ${cls.emotionalLoad === 'High' ? 'Offri disponibilità al dialogo umano' : 'Mostra comprensione e calore'}`);
+- Riconosci la situazione personale espressa (${emoContext})
+- ${cls.emotionalLoad === 'High' ? 'Offri disponibilità al dialogo umano' : 'Mostra comprensione e calore'}`);
     }
 
-    // Componente Dottrinale
-    if (dims.doctrinal >= 0.3) {
-      hints.push(`📖 COMPONENTE DOTTRINALE (RILEVANTE):
-       - Spiega l'insegnamento della Chiesa con chiarezza
-       - Cita fonti se utile (Catechismo, etc.)`);
+    // Componente Tecnica
+    if (dims.technical > 0.4) {
+      const intensity = dims.technical >= 0.8 ? 'PRIMARIO' : 'IMPORTANTE';
+      hints.push(`⚙️ COMPONENTE TECNICA (${intensity}):
+- Fornisci informazioni concrete e verificabili
+- Usa bullet point se 3+ elementi
+- Specifica orari/date/luoghi esatti`);
     }
 
     // Istruzioni di Bilanciamento (Core Logic)
     if (dims.technical >= 0.4 && dims.pastoral >= 0.4) {
       hints.push(`⚖️ BILANCIAMENTO RICHIESTO:
-       Questa email richiede ENTRAMBI gli approcci (Tecnico + Pastorale).
-       1. Inizia riconoscendo la situazione personale (Empatia)
-       2. Poi fornisci le informazioni concrete richieste (Efficienza)
-       3. Chiudi con disponibilità umana`);
+Questa email richiede ENTRAMBI gli approcci (Tecnico + Pastorale).
+1. Inizia riconoscendo la situazione personale (Empatia)
+2. Poi fornisci le informazioni concrete richieste (Efficienza)
+3. Chiudi con disponibilità umana`);
     }
 
-    // 3. Tono Consigliato
+    // Assemblaggio Prompt
+    if (hints.length === 0) return ''; // Nessun segnale forte
+
     const toneInstruction = `\n🗣️ TONO SUGGERITO: ${cls.suggestedTone.toUpperCase()}`;
 
-    return `${header}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${hints.join('\n\n')}\n${toneInstruction}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    return `
+${header}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RILEVAMENTI DIMENSIONALI:
+${hints.join('\n\n')}
+${toneInstruction}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
   }
 
   /**
-   * Metodo privato per backward compatibility con chiamate legacy (solo stringa)
+   * Metodo privato per compatibilità con chiamate semplici (solo stringa)
    */
-  _getLegacyHint(requestType) {
+  _getSimpleHint(requestType) {
     if (requestType === 'technical') {
       return `
 🎯 TIPO RICHIESTA RILEVATO: TECNICA
@@ -504,7 +538,7 @@ Il rinvio è riservato SOLO ai casi di discernimento personale.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Linee guida per la risposta:
 - Rispondi in modo ACCOGLIENTE e PERSONALE
-- Riconosci la situazione/sentimento espresso
+- Riconosci la situazione / sentimento espresso
 - Accompagna la persona, non giudicare
 - Non fermarti solo alla norma
 - Invita al dialogo personale se opportuno
@@ -533,7 +567,7 @@ Linee guida per la risposta:
 Questa è una richiesta di SPIEGAZIONE dottrinale generale.
 ✅ DEVI: Spiegare l'insegnamento della Chiesa
 ✅ DEVI: Essere chiaro, fedele, informativo
-❌ NON: Rimandare al sacerdote per domande teorie
+❌ NON: Rimandare al sacerdote per domande teoriche
 ❌ NON: Evitare di rispondere per "prudenza"
 
 Il rinvio al sacerdote è riservato SOLO a:

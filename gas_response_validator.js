@@ -319,8 +319,8 @@ class ResponseValidator {
     const warnings = [];
     let score = 1.0;
 
-    // Nei follow-up ravvicinati la firma è opzionale
-    if (salutationMode === 'none_or_continuity') {
+    // Nei follow-up ravvicinati o in sessione la firma è opzionale
+    if (salutationMode === 'none_or_continuity' || salutationMode === 'session') {
       return { score, errors, warnings };
     }
 

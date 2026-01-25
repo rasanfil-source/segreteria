@@ -55,13 +55,15 @@ class MemoryService {
       if (!this._sheet) {
         // Crea nuovo foglio con intestazioni
         this._sheet = spreadsheet.insertSheet(this.sheetName);
-        this._sheet.getRange('A1:H1').setValues([[
+        this._sheet.getRange('A1:I1').setValues([[
           'threadId', 'language', 'category', 'tone',
-          'providedInfo', 'lastUpdated', 'messageCount', 'version'
+          'providedInfo', 'lastUpdated', 'messageCount', 'version', 'memorySummary'
         ]]);
-        this._sheet.getRange('A1:H1').setFontWeight('bold');
+        this._sheet.getRange('A1:I1').setFontWeight('bold');
         this._sheet.setFrozenRows(1);
         console.log(`✓ Creato nuovo foglio: ${this.sheetName}`);
+      } else {
+        this._ensureMemorySummaryColumn();
       }
 
       this._initialized = true;
@@ -419,7 +421,7 @@ class MemoryService {
       // Verifica sicurezza: l'ID deve essere nella colonna A (indice 1)
       if (colIndex === 1 && rowIndex > 1) {
         // Leggi SOLO la riga trovata (molto efficiente)
-        const rowValues = this._sheet.getRange(rowIndex, 1, 1, 8).getValues()[0];
+        const rowValues = this._sheet.getRange(rowIndex, 1, 1, this._getColumnCount()).getValues()[0];
 
         // Doppio controllo per sicurezza
         if (rowValues[0] === threadId) {
@@ -443,10 +445,10 @@ class MemoryService {
     try {
       if (values[4]) {
         const raw = JSON.parse(values[4]);
-        // Normalizzazione retrocompatibile: converte stringhe o oggetti vecchi
+        // Normalizzazione dati: converte stringhe semplici in oggetti strutturati
         providedInfo = Array.isArray(raw) ? raw.map(item => {
           if (typeof item === 'string') return { topic: item, userReaction: 'unknown', context: null, timestamp: Date.now() };
-          // Migration: se c'era 'reaction' (vecchio) ma non 'userReaction', mappalo
+          // Standardizzazione: allinea la nomenclatura dei campi
           if (item.reaction && !item.userReaction) item.userReaction = item.reaction;
           return item;
         }) : [];

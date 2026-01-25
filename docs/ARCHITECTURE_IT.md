@@ -273,6 +273,28 @@ if (messages.length > MAX_THREAD_LENGTH) {
 - Conversazioni circolari
 - Spam attacks
 
+### MemoryService.gs - Memoria & Continuità
+**Novità Fondamentale: Memoria Semantica Ibrida**
+
+Il sistema utilizza una doppia strategia di memoria per garantire continuità naturale:
+
+1.  **Dati Strutturati (`providedInfo`)**:
+    *   Array JSON tecnico di argomenti trattati (es. `orari_messe`, `battesimo_info`).
+    *   Usato per logiche *hard* (anti-ripetizione rigorosa: "Non ripetere ciò che l'utente ha già capito").
+
+2.  **Riassunto Semantico (`memorySummary`)**:
+    *   Testo narrativo compatto (max 600 caratteri).
+    *   Generato dinamicamente analizzando le risposte del bot.
+    *   Esempio: *"Ho fornito gli orari delle messe feriali. Ho spiegato che per il Battesimo serve il nulla osta."*
+    *   Iniettato nel Prompt come contesto "umano", permette a Gemini di capire le sfumature della conversazione.
+
+#### Struttura Dati (Google Sheet)
+Il foglio `ConversationMemory` funge da database persistence.
+- **A (threadId)**: ID univoco conversazione Gmail.
+- **...**
+- **E (providedInfo)**: JSON array strutturato.
+- **I (memorySummary)**: Sintesi narrativa semantica.
+
 #### 3. Salutation Mode Computing
 ```javascript
 computeSalutationMode({
@@ -288,32 +310,41 @@ computeSalutationMode({
 - **`full`** → Primo contatto (saluto completo)
 - **`soft`** → Ripresa dopo pausa (saluto cordiale)
 - **`none_or_continuity`** → Follow-up ravvicinato (nessun saluto)
+- **`session`** → Sessione ravvicinata (tono più secco/conciso)
 
 **Logica:**
+- Se ultimo messaggio <= 15 min fa → `session`
 - Se ultimo messaggio < 48h fa → `none_or_continuity`
 - Se ultimo messaggio 48h-4gg fa → `soft`
 - Se >4 giorni o primo contatto → `full`
 
 ---
 
-### Classifier.gs - Smart Filtering
+### RequestTypeClassifier.gs - Classificazione "Dimensionale" (Nuova Gen)
 
-**Filosofia: "Minimal Filtering, Gemini Decides"**
+**Problema Risolto:**
+La vecchia classificazione "a binari" (Tech vs Pastoral) perdeva sfumature cruciali. Se un'email era tecnica ma con tono angosciato, il vecchio sistema la trattava come fredda burocrazia.
+
+**Nuovo Approccio: Analisi Dimensionale Continua**
+Il classifier non restituisce più solo un'etichetta, ma un profilo a 4 dimensioni con punteggi continui (0.0 - 1.0):
 
 ```javascript
-// STRICT: Max 3 parole per acknowledgment
-_isUltraSimpleAcknowledgment(text) {
-  const wordCount = text.split(' ').length;
-  if (wordCount > 3) return false;
-  const hasThanks = ['grazie', 'ricevuto', 'ok'].some(...);
-  return hasThanks && text.includes('?') === false;
+dimensions = {
+  technical: 0.2,
+  pastoral:  0.9,  // Dominante
+  doctrinal: 0.1,
+  formal:    0.0
 }
 ```
 
-**Filtri Applicati:**
-1. ❌ Acknowledgment ≤3 parole SENZA domande
-2. ❌ Solo saluto standalone
-3. ✅ TUTTO IL RESTO → Passa a Gemini
+**Sorgenti del dato:**
+1.  **Regex Engine (Fallback):** Punteggi basati su keyword pesate.
+2.  **LLM (Gemini Flash-Lite):** Punteggi semantici estratti direttamente dall'analisi AI.
+    *   *Logica Hybrid:* Se l'LLM è confidente (>0.6), i suoi punteggi "vincono" su quelli regex.
+
+**Blended Hints (Suggerimenti Sfumati):**
+Al Prompt Engine non viene più passato "Sei un pastore", ma un hint ricco:
+> *"70% Pastorale, 30% Tecnico. L'utente chiede orari ma esprime solitudine. Rispondi ai dati precisi MA con grande calore umano."*
 
 **Rationale:**
 - Zero falsi negativi → Mai perdere email legittima

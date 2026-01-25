@@ -545,15 +545,20 @@ This is MANDATORY.The sender may not understand Italian.
       sections.push(`• LINGUA STABILITA: ${memoryContext.language.toUpperCase()} `);
     }
 
+    if (memoryContext.memorySummary) {
+      sections.push('• RIASSUNTO CONVERSAZIONE:');
+      sections.push(memoryContext.memorySummary);
+    }
+
     if (memoryContext.providedInfo && memoryContext.providedInfo.length > 0) {
       const infoList = [];
       const questionedTopics = [];
       const acknowledgedTopics = [];
 
       memoryContext.providedInfo.forEach(item => {
-        // Gestione retrocompatibile (stringa o oggetto)
+        // Normalizzazione formato (supporto stringa semplice o oggetto)
         const topic = (typeof item === 'object') ? item.topic : item;
-        const reaction = (typeof item === 'object') ? item.reaction : 'unknown';
+        const reaction = (typeof item === 'object') ? item.userReaction || item.reaction : 'unknown';
 
         if (reaction === 'questioned') {
           questionedTopics.push(topic);
@@ -596,6 +601,29 @@ ${sections.join('\n')}
   _renderConversationContinuity(salutationMode) {
     if (!salutationMode || salutationMode === 'full') {
       return null; // Primo contatto: nessuna istruzione speciale
+    }
+
+    if (salutationMode === 'session') {
+      return `═══════════════════════════════════════════════════════════════════════════
+🧠 CONTINUITÀ CONVERSAZIONALE - REGOLA VINCOLANTE
+═══════════════════════════════════════════════════════════════════════════
+
+📌 MODALITÀ SALUTO: SESSIONE CONVERSAZIONALE (chat rapida)
+
+La conversazione è in corso e ravvicinata nel tempo.
+
+REGOLE OBBLIGATORIE:
+✅ NON usare saluti rituali o formule introduttive
+✅ Rispondi in modo DIRETTO e più SECCO del normale
+✅ Usa frasi brevi, concrete e orientate alla richiesta
+✅ Evita preamboli o ripetizioni
+
+ESEMPI DI APERTURA CORRETTA:
+• "Certo."
+• "Ecco le info essenziali."
+• "Sì, ti confermo quanto segue."
+
+═══════════════════════════════════════════════════════════════════════════`;
     }
 
     if (salutationMode === 'none_or_continuity') {
