@@ -344,6 +344,66 @@ function _loadVacationPeriodsFromSheet(spreadsheet) {
 }
 
 /**
+ * Carica risorse complementari alla KB (ferie, AI Core, dottrina, sostituzioni)
+ * @param {Spreadsheet} spreadsheet
+ */
+function _loadSupplementaryResources(spreadsheet) {
+  GLOBAL_CACHE.vacationPeriods = _loadVacationPeriodsFromSheet(spreadsheet);
+
+  GLOBAL_CACHE.aiCoreLite = '';
+  GLOBAL_CACHE.aiCoreLiteStructured = [];
+  GLOBAL_CACHE.aiCore = '';
+  GLOBAL_CACHE.aiCoreStructured = [];
+  GLOBAL_CACHE.doctrineBase = '';
+  GLOBAL_CACHE.doctrineStructured = [];
+  GLOBAL_CACHE.replacements = {};
+
+  // Carica AI_CORE_LITE (principi pastorali base)
+  const liteSheet = spreadsheet.getSheetByName(CONFIG.AI_CORE_LITE_SHEET);
+  if (liteSheet) {
+    const liteData = liteSheet.getDataRange().getValues();
+    GLOBAL_CACHE.aiCoreLite = liteData.map(row => row.join(' | ')).join('\n');
+    GLOBAL_CACHE.aiCoreLiteStructured = _parseSheetToStructured(liteData);
+    console.log(`✓ AI_CORE_LITE caricato: ${GLOBAL_CACHE.aiCoreLite.length} caratteri`);
+  }
+
+  // Carica AI_CORE (principi pastorali estesi)
+  const coreSheet = spreadsheet.getSheetByName(CONFIG.AI_CORE_SHEET);
+  if (coreSheet) {
+    const coreData = coreSheet.getDataRange().getValues();
+    GLOBAL_CACHE.aiCore = coreData.map(row => row.join(' | ')).join('\n');
+    GLOBAL_CACHE.aiCoreStructured = _parseSheetToStructured(coreData);
+    console.log(`✓ AI_CORE caricato: ${GLOBAL_CACHE.aiCore.length} caratteri`);
+  }
+
+  // Carica Dottrina (base dottrinale completa)
+  const doctrineSheet = spreadsheet.getSheetByName(CONFIG.DOCTRINE_SHEET);
+  if (doctrineSheet) {
+    const doctrineData = doctrineSheet.getDataRange().getValues();
+    GLOBAL_CACHE.doctrineBase = doctrineData.map(row => row.join(' | ')).join('\n');
+    GLOBAL_CACHE.doctrineStructured = _parseSheetToStructured(doctrineData);
+    console.log(`✓ Dottrina caricata: ${GLOBAL_CACHE.doctrineBase.length} caratteri`);
+  }
+
+  // Carica Sostituzioni (correzioni automatiche testo)
+  try {
+    const replSheet = spreadsheet.getSheetByName(CONFIG.REPLACEMENTS_SHEET_NAME);
+    if (replSheet) {
+      const replData = replSheet.getDataRange().getValues();
+      for (let i = 1; i < replData.length; i++) {
+        const [badText, goodText] = replData[i];
+        if (badText && goodText) {
+          GLOBAL_CACHE.replacements[String(badText).trim()] = String(goodText).trim();
+        }
+      }
+      console.log(`✓ Sostituzioni caricate: ${Object.keys(GLOBAL_CACHE.replacements).length}`);
+    }
+  } catch (replError) {
+    console.warn(`⚠️ Impossibile caricare sostituzioni: ${replError.message}`);
+  }
+}
+
+/**
  * Carica tutte le risorse necessarie (Knowledge Base, sostituzioni, ferie)
  * Usa lock per prevenire race condition tra esecuzioni parallele
  */
@@ -380,11 +440,11 @@ function loadResources() {
       GLOBAL_CACHE.knowledgeBase = cachedKB;
       console.log('📦 KB caricata da ScriptCache (Fast)');
 
-      // Carichiamo solo le ferie (leggero)
+      // Carichiamo tutte le risorse restanti (dottrina, AI core, sostituzioni, ferie)
       withSheetsRetry(() => {
         const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-        GLOBAL_CACHE.vacationPeriods = _loadVacationPeriodsFromSheet(spreadsheet);
-      }, 'Caricamento Ferie (Cache)');
+        _loadSupplementaryResources(spreadsheet);
+      }, 'Caricamento risorse (Cache)');
 
       GLOBAL_CACHE.loaded = true;
       return;
@@ -413,52 +473,7 @@ function loadResources() {
         console.warn(`⚠️ Foglio '${CONFIG.KB_SHEET_NAME}' non trovato`);
       }
 
-      // Carica periodi ferie
-      GLOBAL_CACHE.vacationPeriods = _loadVacationPeriodsFromSheet(spreadsheet);
-
-      // Carica AI_CORE_LITE (principi pastorali base)
-      const liteSheet = spreadsheet.getSheetByName(CONFIG.AI_CORE_LITE_SHEET);
-      if (liteSheet) {
-        const liteData = liteSheet.getDataRange().getValues();
-        GLOBAL_CACHE.aiCoreLite = liteData.map(row => row.join(' | ')).join('\n');
-        GLOBAL_CACHE.aiCoreLiteStructured = _parseSheetToStructured(liteData);
-        console.log(`✓ AI_CORE_LITE caricato: ${GLOBAL_CACHE.aiCoreLite.length} caratteri`);
-      }
-
-      // Carica AI_CORE (principi pastorali estesi)
-      const coreSheet = spreadsheet.getSheetByName(CONFIG.AI_CORE_SHEET);
-      if (coreSheet) {
-        const coreData = coreSheet.getDataRange().getValues();
-        GLOBAL_CACHE.aiCore = coreData.map(row => row.join(' | ')).join('\n');
-        GLOBAL_CACHE.aiCoreStructured = _parseSheetToStructured(coreData);
-        console.log(`✓ AI_CORE caricato: ${GLOBAL_CACHE.aiCore.length} caratteri`);
-      }
-
-      // Carica Dottrina (base dottrinale completa)
-      const doctrineSheet = spreadsheet.getSheetByName(CONFIG.DOCTRINE_SHEET);
-      if (doctrineSheet) {
-        const doctrineData = doctrineSheet.getDataRange().getValues();
-        GLOBAL_CACHE.doctrineBase = doctrineData.map(row => row.join(' | ')).join('\n');
-        GLOBAL_CACHE.doctrineStructured = _parseSheetToStructured(doctrineData);
-        console.log(`✓ Dottrina caricata: ${GLOBAL_CACHE.doctrineBase.length} caratteri`);
-      }
-
-      // Carica Sostituzioni (correzioni automatiche testo)
-      try {
-        const replSheet = spreadsheet.getSheetByName(CONFIG.REPLACEMENTS_SHEET_NAME);
-        if (replSheet) {
-          const replData = replSheet.getDataRange().getValues();
-          for (let i = 1; i < replData.length; i++) {
-            const [badText, goodText] = replData[i];
-            if (badText && goodText) {
-              GLOBAL_CACHE.replacements[String(badText).trim()] = String(goodText).trim();
-            }
-          }
-          console.log(`✓ Sostituzioni caricate: ${Object.keys(GLOBAL_CACHE.replacements).length}`);
-        }
-      } catch (replError) {
-        console.warn(`⚠️ Impossibile caricare sostituzioni: ${replError.message}`);
-      }
+      _loadSupplementaryResources(spreadsheet);
     }, 'loadResources');
 
     GLOBAL_CACHE.loaded = true;
