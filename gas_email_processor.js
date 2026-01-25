@@ -497,7 +497,7 @@ Dettaglio: ${v.reason}
         senderName: messageDetails.senderName,
         senderEmail: messageDetails.senderEmail,
         conversationHistory: conversationHistory,
-        category: classification.category,
+        category: requestType.type,
         topic: quickCheck.classification ? quickCheck.classification.topic : '',
         detectedLanguage: detectedLanguage,
         currentSeason: this._getCurrentSeason(),

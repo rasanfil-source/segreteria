@@ -136,9 +136,11 @@ class MemoryService {
     // Nota: ScriptLock è globale per lo script, garantisce sequenzialità assoluta per le scritture
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      let lockAcquired = false;
       // 1. Acquisisci Lock (Wait max 5s)
       try {
-        if (!lock.tryLock(5000)) {
+        lockAcquired = lock.tryLock(5000);
+        if (!lockAcquired) {
           console.warn(`🔒 Timeout lock memoria (Tentativo ${attempt + 1})`);
           Utilities.sleep(Math.pow(2, attempt) * 200);
           continue;
@@ -210,7 +212,9 @@ class MemoryService {
         }
         Utilities.sleep(Math.pow(2, attempt) * 200);
       } finally {
-        lock.releaseLock();
+        if (lockAcquired) {
+          lock.releaseLock();
+        }
       }
     }
     throw new Error(`Aggiornamento memoria fallito per thread ${threadId} dopo ${MAX_RETRIES} tentativi`);
@@ -235,8 +239,10 @@ class MemoryService {
 
     // Prova max 3 volte (retry interni al lock acquisition)
     for (let i = 0; i < 3; i++) {
+      let lockAcquired = false;
       try {
-        if (!lock.tryLock(5000)) { // 5s timeout
+        lockAcquired = lock.tryLock(5000); // 5s timeout
+        if (!lockAcquired) {
           if (i < 2) Utilities.sleep(500);
           continue;
         }
@@ -295,7 +301,9 @@ class MemoryService {
         this._invalidateCache(`memory_${threadId}`);
         Utilities.sleep(Math.pow(2, i) * 200);
       } finally {
-        lock.releaseLock();
+        if (lockAcquired) {
+          lock.releaseLock();
+        }
       }
     }
     return false; // Timeout
@@ -312,8 +320,10 @@ class MemoryService {
 
     const lock = LockService.getScriptLock();
 
+    let lockAcquired = false;
     try {
-      if (!lock.tryLock(3000)) return; // Rinuncia se lockato
+      lockAcquired = lock.tryLock(3000);
+      if (!lockAcquired) return; // Rinuncia se lockato
 
       const existingRow = this._findRowByThreadId(threadId);
       if (existingRow) {
@@ -339,7 +349,9 @@ class MemoryService {
     } catch (error) {
       console.error(`❌ Errore aggiunta provided info: ${error.message}`);
     } finally {
-      lock.releaseLock();
+      if (lockAcquired) {
+        lock.releaseLock();
+      }
     }
   }
 
