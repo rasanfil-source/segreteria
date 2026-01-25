@@ -756,9 +756,8 @@ Dettaglio: ${v.reason}
     }
 
     // Cerca thread non letti nella inbox
-    // NOTA: Non escludiamo label 'IA' per permettere follow-up su thread già iniziati
-    // La logica 'Last Speaker' e 'Labeled Message' gestirà la sicurezza
-    const searchQuery = `in:inbox is:unread`;
+    // Escludiamo etichetta IA per garantire la paginazione sui nuovi risultati
+    const searchQuery = `in:inbox is:unread -label:${this.config.labelName}`;
     const threads = GmailApp.search(
       searchQuery,
       0,
@@ -770,11 +769,11 @@ Dettaglio: ${v.reason}
       return { total: 0, replied: 0, filtered: 0, errors: 0 };
     }
 
-    console.log(`📬 Trovate ${threads.length} email da elaborare`);
+    console.log(`📬 Trovate ${threads.length} email da elaborare (query: ${searchQuery})`);
 
     // Carica etichette una sola volta
     const labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
-    console.log(`📦 Trovati ${labeledMessageIds.size} messaggi con etichetta '${this.config.labelName}'`);
+    console.log(`📦 Trovati in cache ${labeledMessageIds.size} messaggi già elaborati`);
 
     // Statistiche
     const stats = {
