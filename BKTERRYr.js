@@ -65,45 +65,6 @@ class TerritoryValidator {
     }
 
     /**
-     * Cerca una corrispondenza nel DB territorio usando matching flessibile (fuzzy)
-     * Es. "Via Cancani" deve matchare "Via Adolfo Cancani"
-     */
-    findTerritoryMatch(inputStreet) {
-        const normalizedInput = this.normalizeStreetName(inputStreet);
-
-        // 1. Match Esatto
-        if (this.territory[normalizedInput]) {
-            console.log(`🔍 Match esatto trovato: '${normalizedInput}'`);
-            return { key: normalizedInput, rules: this.territory[normalizedInput] };
-        }
-
-        // 2. Match per Token (es. "via cancani" -> "via adolfo cancani")
-        // Dividi input in parole (token)
-        const inputTokens = normalizedInput.split(' ').filter(t => t.length > 0);
-
-        // Se l'input è troppo breve (es. solo "via"), evita falsi positivi
-        if (inputTokens.length < 2 && inputTokens[0] === 'via') {
-            return null;
-        }
-
-        // Cerca nelle chiavi del territorio
-        for (const dbKey of Object.keys(this.territory)) {
-            const dbTokens = dbKey.split(' ');
-
-            // Verifica se TUTTI i token dell'input sono presenti nella chiave DB
-            // (ordine non importante)
-            const isMatch = inputTokens.every(token => dbTokens.includes(token));
-
-            if (isMatch) {
-                console.log(`🔍 Match fuzzy trovato: '${inputStreet}' -> '${dbKey}'`);
-                return { key: dbKey, rules: this.territory[dbKey] };
-            }
-        }
-
-        return null; // Nessun match trovato
-    }
-
-    /**
      * Estrae indirizzi da un testo
      * Estrazione sicura: limita lunghezza input e usa pattern efficienti
      */
@@ -156,48 +117,13 @@ class TerritoryValidator {
     }
 
     /**
-     * Estrae vie dal testo quando manca il numero civico
-     */
-    extractStreetOnlyFromText(text) {
-        if (text && text.length > 1000) {
-            text = text.substring(0, 1000);
-        }
-
-        // Fix: Aggiunto \b prima del lookahead negativo per evitare che il regex
-        // "mangi" l'ultima lettera della via (es. "Cancani" -> "Cancan") per soddisfare
-        // la condizione "non seguito da numero".
-        const pattern = /((?:via|viale|piazza|piazzale|largo|lungotevere|salita)\s+(?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,6}?[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)\b(?!\s*(?:n\.?\s*|civico\s+)?\d+)/gi;
-        const streets = [];
-
-        let match;
-        try {
-            while ((match = pattern.exec(text)) !== null) {
-                const street = match[1].trim();
-                const isDuplicate = streets.some(existing =>
-                    existing.toLowerCase() === street.toLowerCase()
-                );
-
-                if (!isDuplicate) {
-                    streets.push(street);
-                    console.log(`📍 Via rilevata senza civico: ${street}`);
-                }
-            }
-        } catch (e) {
-            console.warn(`⚠️ Pattern match fallito (street-only): ${e.message}`);
-        }
-
-        return streets.length > 0 ? streets : null;
-    }
-
-    /**
      * Verifica se un indirizzo appartiene al territorio parrocchiale
      */
     verifyAddress(street, civicNumber) {
-        // Usa il nuovo metodo di ricerca match
-        const match = this.findTerritoryMatch(street);
+        const streetKey = this.normalizeStreetName(street);
 
         // Controlla se la via esiste nel territorio
-        if (!match) {
+        if (!this.territory[streetKey]) {
             return {
                 inParish: false,
                 reason: `'${street}' non è nel territorio della nostra parrocchia`,
@@ -205,8 +131,7 @@ class TerritoryValidator {
             };
         }
 
-        const rules = match.rules;
-        // const normalizedStreet = match.key; // Non usato ma disponibile
+        const rules = this.territory[streetKey];
 
         // Caso 1: Tutti i numeri civici accettati
         if (rules.tutti === true) {
@@ -264,83 +189,35 @@ class TerritoryValidator {
     }
 
     /**
-     * Verifica una via senza numero civico
-     */
-    verifyStreetWithoutCivic(street) {
-        // Usa il nuovo metodo di ricerca match
-        const match = this.findTerritoryMatch(street);
-
-        if (!match) {
-            return {
-                inParish: false,
-                needsCivic: false,
-                reason: `'${street}' non è nel territorio della nostra parrocchia`,
-                details: 'street_not_found'
-            };
-        }
-
-        const rules = match.rules;
-
-        if (rules.tutti === true) {
-            return {
-                inParish: true,
-                needsCivic: false,
-                reason: `'${street}' è completamente nel territorio parrocchiale`,
-                details: 'all_numbers'
-            };
-        }
-
-        return {
-            inParish: null,
-            needsCivic: true,
-            reason: `'${street}' è solo parzialmente compresa nel territorio parrocchiale: serve il numero civico`,
-            details: 'civic_required'
-        };
-    }
-
-    /**
      * Analizza un'email per trovare e verificare indirizzi
      */
     analyzeEmailForAddress(emailContent, emailSubject) {
         const fullText = `${emailSubject} ${emailContent}`;
-        const addressesInfo = this.extractAddressFromText(fullText) || [];
-        const streetsOnly = this.extractStreetOnlyFromText(fullText) || [];
-        const addresses = [];
+        const addressesInfo = this.extractAddressFromText(fullText);
 
-        addressesInfo.forEach(addrInfo => {
-            const verification = this.verifyAddress(addrInfo.street, addrInfo.civic);
-            addresses.push({
-                street: addrInfo.street,
-                civic: addrInfo.civic,
-                verification: verification
-            });
-        });
-
-        streetsOnly.forEach(street => {
-            const isDuplicate = addresses.some(addr =>
-                addr.street.toLowerCase() === street.toLowerCase()
-            );
-            if (!isDuplicate) {
-                const verification = this.verifyStreetWithoutCivic(street);
-                addresses.push({
-                    street: street,
-                    civic: null,
+        if (addressesInfo && addressesInfo.length > 0) {
+            // Valida tutti gli indirizzi trovati
+            const verifications = addressesInfo.map(addrInfo => {
+                const verification = this.verifyAddress(addrInfo.street, addrInfo.civic);
+                return {
+                    street: addrInfo.street,
+                    civic: addrInfo.civic,
                     verification: verification
-                });
-            }
-        });
+                };
+            });
 
-        if (addresses.length > 0) {
-            addresses.forEach(v => {
+            // Log ogni risultato
+            verifications.forEach(v => {
                 console.log(`🏘️ Territorio: ${v.verification.reason}`);
             });
 
             return {
                 addressFound: true,
-                addresses: addresses,
-                street: addresses[0].street,
-                civic: addresses[0].civic,
-                verification: addresses[0].verification
+                addresses: verifications,
+                // Compatibilità: ritorna info primo indirizzo
+                street: verifications[0].street,
+                civic: verifications[0].civic,
+                verification: verifications[0].verification
             };
         }
 
