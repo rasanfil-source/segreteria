@@ -436,19 +436,25 @@ ${GLOBAL_CACHE.doctrineBase}
           messageDetails.subject
         );
         if (territoryResult.addressFound) {
-          const v = territoryResult.verification;
-          const sanitizedStreet = (territoryResult.street || '').replace(/[═─]/g, '-');
+          const addressLines = (territoryResult.addresses || []).map((entry) => {
+            const v = entry.verification;
+            const sanitizedStreet = (entry.street || '').replace(/[═─]/g, '-');
+            return [
+              `Indirizzo: ${sanitizedStreet} n. ${entry.civic}`,
+              `Risultato: ${v.inParish ? '✅ RIENTRA' : '❌ NON RIENTRA'}`,
+              `Dettaglio: ${v.reason}`
+            ].join('\n');
+          });
           const territoryContext = `
 ════════════════════════════════════════════════════════════════════════
 🎯 VERIFICA TERRITORIO AUTOMATICA
 ════════════════════════════════════════════════════════════════════════
-Indirizzo: ${sanitizedStreet} n. ${territoryResult.civic}
-Risultato: ${v.inParish ? '✅ RIENTRA' : '❌ NON RIENTRA'}
-Dettaglio: ${v.reason}
+${addressLines.join('\n\n')}
 ════════════════════════════════════════════════════════════════════════
 `;
           knowledgeSections.unshift(territoryContext);
-          console.log(`   🎯 Territory check: ${v.inParish ? 'IN PARROCCHIA' : 'FUORI PARROCCHIA'}`);
+          const summary = addressLines.length > 1 ? `${addressLines.length} indirizzi` : '1 indirizzo';
+          console.log(`   🎯 Territory check: ${summary}`);
         }
       }
 

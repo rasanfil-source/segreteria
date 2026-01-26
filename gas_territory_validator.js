@@ -120,18 +120,39 @@ class TerritoryValidator {
      * Verifica se un indirizzo appartiene al territorio parrocchiale
      */
     verifyAddress(street, civicNumber) {
-        const streetKey = this.normalizeStreetName(street);
+        // Controlla se la via esiste nel territorio (ricerca esatta)
+        let streetKey = this.normalizeStreetName(street);
+        let rules = this.territory[streetKey];
 
-        // Controlla se la via esiste nel territorio
-        if (!this.territory[streetKey]) {
+        // Ricerca per corrispondenza parziale se il nome non è completo
+        if (!rules) {
+            console.log(`🔍 Nome via non trovato esattamente: "${streetKey}", provo ricerca avanzata...`);
+            const normalizedInput = streetKey.replace(/^(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+/i, '').trim();
+
+            // Cerca tra le vie registrate
+            const matches = Object.keys(this.territory).filter(key => {
+                const normalizedKey = key.replace(/^(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+/i, '').trim();
+                return normalizedKey.includes(normalizedInput) || normalizedInput.includes(normalizedKey);
+            });
+
+            if (matches.length === 1) {
+                streetKey = matches[0];
+                rules = this.territory[streetKey];
+                console.log(`🎯 Corrispondenza trovata: "${streetKey}"`);
+            } else if (matches.length > 1) {
+                console.warn(`⚠️ Più corrispondenze trovate per "${street}": ${matches.join(', ')}. Scelgo la prima.`);
+                streetKey = matches[0];
+                rules = this.territory[streetKey];
+            }
+        }
+
+        if (!rules) {
             return {
                 inParish: false,
                 reason: `'${street}' non è nel territorio della nostra parrocchia`,
                 details: 'street_not_found'
             };
         }
-
-        const rules = this.territory[streetKey];
 
         // Caso 1: Tutti i numeri civici accettati
         if (rules.tutti === true) {
