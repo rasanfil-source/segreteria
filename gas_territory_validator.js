@@ -117,6 +117,37 @@ class TerritoryValidator {
     }
 
     /**
+     * Estrae vie dal testo quando manca il numero civico
+     */
+    extractStreetOnlyFromText(text) {
+        if (text && text.length > 1000) {
+            text = text.substring(0, 1000);
+        }
+
+        const pattern = /((?:via|viale|piazza|piazzale|largo|lungotevere|salita)\s+(?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,6}?[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)(?!\s*(?:n\.?\s*|civico\s+)?\d+)/gi;
+        const streets = [];
+
+        let match;
+        try {
+            while ((match = pattern.exec(text)) !== null) {
+                const street = match[1].trim();
+                const isDuplicate = streets.some(existing =>
+                    existing.toLowerCase() === street.toLowerCase()
+                );
+
+                if (!isDuplicate) {
+                    streets.push(street);
+                    console.log(`📍 Via rilevata senza civico: ${street}`);
+                }
+            }
+        } catch (e) {
+            console.warn(`⚠️ Pattern match fallito (street-only): ${e.message}`);
+        }
+
+        return streets.length > 0 ? streets : null;
+    }
+
+    /**
      * Verifica se un indirizzo appartiene al territorio parrocchiale
      */
     verifyAddress(street, civicNumber) {
@@ -189,35 +220,82 @@ class TerritoryValidator {
     }
 
     /**
+     * Verifica una via senza numero civico
+     */
+    verifyStreetWithoutCivic(street) {
+        const streetKey = this.normalizeStreetName(street);
+
+        if (!this.territory[streetKey]) {
+            return {
+                inParish: false,
+                needsCivic: false,
+                reason: `'${street}' non è nel territorio della nostra parrocchia`,
+                details: 'street_not_found'
+            };
+        }
+
+        const rules = this.territory[streetKey];
+
+        if (rules.tutti === true) {
+            return {
+                inParish: true,
+                needsCivic: false,
+                reason: `'${street}' è completamente nel territorio parrocchiale`,
+                details: 'all_numbers'
+            };
+        }
+
+        return {
+            inParish: null,
+            needsCivic: true,
+            reason: `'${street}' è solo parzialmente compresa nel territorio parrocchiale: serve il numero civico`,
+            details: 'civic_required'
+        };
+    }
+
+    /**
      * Analizza un'email per trovare e verificare indirizzi
      */
     analyzeEmailForAddress(emailContent, emailSubject) {
         const fullText = `${emailSubject} ${emailContent}`;
-        const addressesInfo = this.extractAddressFromText(fullText);
+        const addressesInfo = this.extractAddressFromText(fullText) || [];
+        const streetsOnly = this.extractStreetOnlyFromText(fullText) || [];
+        const addresses = [];
 
-        if (addressesInfo && addressesInfo.length > 0) {
-            // Valida tutti gli indirizzi trovati
-            const verifications = addressesInfo.map(addrInfo => {
-                const verification = this.verifyAddress(addrInfo.street, addrInfo.civic);
-                return {
-                    street: addrInfo.street,
-                    civic: addrInfo.civic,
-                    verification: verification
-                };
+        addressesInfo.forEach(addrInfo => {
+            const verification = this.verifyAddress(addrInfo.street, addrInfo.civic);
+            addresses.push({
+                street: addrInfo.street,
+                civic: addrInfo.civic,
+                verification: verification
             });
+        });
 
-            // Log ogni risultato
-            verifications.forEach(v => {
+        streetsOnly.forEach(street => {
+            const isDuplicate = addresses.some(addr =>
+                addr.street.toLowerCase() === street.toLowerCase()
+            );
+            if (!isDuplicate) {
+                const verification = this.verifyStreetWithoutCivic(street);
+                addresses.push({
+                    street: street,
+                    civic: null,
+                    verification: verification
+                });
+            }
+        });
+
+        if (addresses.length > 0) {
+            addresses.forEach(v => {
                 console.log(`🏘️ Territorio: ${v.verification.reason}`);
             });
 
             return {
                 addressFound: true,
-                addresses: verifications,
-                // Compatibilità: ritorna info primo indirizzo
-                street: verifications[0].street,
-                civic: verifications[0].civic,
-                verification: verifications[0].verification
+                addresses: addresses,
+                street: addresses[0].street,
+                civic: addresses[0].civic,
+                verification: addresses[0].verification
             };
         }
 

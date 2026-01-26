@@ -648,6 +648,15 @@ function clearSystemCache() {
     if (typeof GLOBAL_CACHE !== 'undefined') {
       GLOBAL_CACHE.loaded = false;
       GLOBAL_CACHE.knowledgeBase = '';
+      GLOBAL_CACHE.knowledgeStructured = [];
+      GLOBAL_CACHE.aiCoreLite = '';
+      GLOBAL_CACHE.aiCoreLiteStructured = [];
+      GLOBAL_CACHE.aiCore = '';
+      GLOBAL_CACHE.aiCoreStructured = [];
+      GLOBAL_CACHE.doctrineBase = '';
+      GLOBAL_CACHE.doctrineStructured = [];
+      GLOBAL_CACHE.replacements = {};
+      GLOBAL_CACHE.vacationPeriods = [];
     }
 
     console.log('🧹 Cache di sistema svuotata con successo.');
@@ -655,6 +664,13 @@ function clearSystemCache() {
   } catch (error) {
     console.error(`❌ Errore durante svuotamento cache: ${error.message}`);
   }
+}
+
+/**
+ * Alias case-insensitive per compatibilità con chiamate "clearsystemcache".
+ */
+function clearsystemcache() {
+  return clearSystemCache();
 }
 
 /**

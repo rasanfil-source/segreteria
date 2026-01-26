@@ -427,7 +427,7 @@ ${GLOBAL_CACHE.doctrineBase}
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // STEP 7.1: TERRITORY CHECK (se TerritoryValidator disponibile)
+      // PASSO 7.1: VERIFICA TERRITORIO (se TerritoryValidator disponibile)
       // ═══════════════════════════════════════════════════════════════
       let territoryResult = { addressFound: false };
       if (this.territoryValidator) {
@@ -435,28 +435,39 @@ ${GLOBAL_CACHE.doctrineBase}
           messageDetails.body,
           messageDetails.subject
         );
-        if (territoryResult.addressFound) {
-          const addressLines = (territoryResult.addresses || []).map((entry) => {
-            const v = entry.verification;
-            const sanitizedStreet = (entry.street || '').replace(/[═─]/g, '-');
-            return [
-              `Indirizzo: ${sanitizedStreet} n. ${entry.civic}`,
-              `Risultato: ${v.inParish ? '✅ RIENTRA' : '❌ NON RIENTRA'}`,
-              `Dettaglio: ${v.reason}`
-            ].join('\n');
-          });
-          const territoryContext = `
+      }
+
+      const addressLines = territoryResult.addressFound
+        ? (territoryResult.addresses || []).map((entry) => {
+          const v = entry.verification || {};
+          const sanitizedStreet = (entry.street || '').replace(/[═─]/g, '-');
+          const civicLabel = entry.civic ? `n. ${entry.civic}` : 'senza numero civico';
+          const resultLabel = v.needsCivic
+            ? '⚠️ CIVICO NECESSARIO'
+            : (v.inParish ? '✅ RIENTRA' : '❌ NON RIENTRA');
+          const actionLabel = v.needsCivic ? 'Azione: richiedere il numero civico.' : null;
+          return [
+            `Indirizzo: ${sanitizedStreet} ${civicLabel}`,
+            `Risultato: ${resultLabel}`,
+            `Dettaglio: ${v.reason || 'Nessun dettaglio disponibile'}`,
+            actionLabel
+          ].filter(Boolean).join('\n');
+        })
+        : ['Nessun indirizzo rilevato nel testo.'];
+
+      const territoryContext = `
 ════════════════════════════════════════════════════════════════════════
 🎯 VERIFICA TERRITORIO AUTOMATICA
 ════════════════════════════════════════════════════════════════════════
 ${addressLines.join('\n\n')}
 ════════════════════════════════════════════════════════════════════════
 `;
-          knowledgeSections.unshift(territoryContext);
-          const summary = addressLines.length > 1 ? `${addressLines.length} indirizzi` : '1 indirizzo';
-          console.log(`   🎯 Territory check: ${summary}`);
-        }
-      }
+      knowledgeSections.unshift(territoryContext);
+
+      const summary = territoryResult.addressFound
+        ? (addressLines.length > 1 ? `${addressLines.length} indirizzi` : '1 indirizzo')
+        : 'nessun indirizzo';
+      console.log(`   🎯 Verifica territorio: ${summary}`);
 
       // ═══════════════════════════════════════════════════════════════
       // STEP 7.2: PROMPT CONTEXT (profilo e concern dinamici)

@@ -693,9 +693,23 @@ SALUTI SOFT CORRETTI:
   _renderTerritoryVerification() {
     return `** VERIFICA TERRITORIO PARROCCHIALE:**
 
-      Se trovi il blocco "VERIFICA TERRITORIO AUTOMATICA":
+      Se trovi il blocco "VERIFICA TERRITORIO AUTOMATICA" (sempre presente):
 ✅ Usa ESATTAMENTE quelle informazioni
 ✅ Sono verificate programmaticamente al 100 %
+✅ Risposta DETERMINISTICA: solo SÌ / NO / richiesta numero civico motivata
+
+CASI OBBLIGATORI:
+A) Via completamente inclusa → "Sì, la via [Nome via] rientra nel territorio della parrocchia."
+B) Via completamente esclusa → "No, la via [Nome via] non rientra nel territorio della parrocchia."
+C) Via parzialmente inclusa:
+   • Se c'è il numero civico → SÌ/NO in base al civico
+   • Se manca il numero civico → chiedilo con motivazione chiara:
+     "La via [Nome via] è solo parzialmente compresa nel territorio della parrocchia.
+      Per poterle rispondere con certezza abbiamo bisogno di conoscere il numero civico,
+      perché il territorio parrocchiale comprende solo alcuni tratti della via (ad esempio
+      solo numeri pari/dispari oppure un intervallo di numeri)."
+
+🚫 Non usare mai: forse, potrebbe, non sono sicuro, sembra che
 ❌ NON fare supposizioni personali`;
   }
 

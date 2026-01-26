@@ -431,6 +431,13 @@ class MemoryService {
   // ========================================================================
 
   /**
+   * Restituisce il numero di colonne da leggere
+   */
+  _getColumnCount() {
+    return 9; // A:threadId ... I:memorySummary
+  }
+
+  /**
    * Trova riga per threadId (OTTIMIZZATO con TextFinder)
    * Ritorna { rowIndex, values } o null
    */
