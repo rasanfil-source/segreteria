@@ -1,0 +1,1 @@
+ren *.js *.txt
