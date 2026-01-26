@@ -29,8 +29,6 @@ class TerritoryValidator {
             'via antonio allegri detto il correggio': {
                 tutti: true
             },
-            // ... (altre vie mappate nel vecchio codice, qui integrate per completezza se necessario, 
-            // ma mantengo quelle fornite nello snippet v2.6 per coerenza con la richiesta)
             'via antonio gramsci': { tutti: true },
             'via armando spadini': { tutti: true },
             'via bartolomeo ammannati': { tutti: true },
@@ -78,7 +76,7 @@ class TerritoryValidator {
 
     /**
      * Cerca corrispondenza nel database territorio con fuzzy matching
-     * FIXED v2.6: Richiede almeno coppia consecutiva per evitare falsi positivi
+     * Richiede almeno una coppia consecutiva di parole per evitare falsi positivi
      */
     findTerritoryMatch(inputStreet) {
         const normalizedInput = this.normalizeStreetName(inputStreet);
@@ -106,7 +104,7 @@ class TerritoryValidator {
 
             if (!allTokensPresent) continue;
 
-            // ✅ NUOVO v2.6: Richiedi almeno UNA coppia consecutiva
+            // Richiedi almeno UNA coppia consecutiva
             let hasConsecutivePair = false;
 
             for (let i = 0; i < inputTokens.length - 1; i++) {
@@ -138,13 +136,13 @@ class TerritoryValidator {
 
     /**
      * Normalizza nome via: lowercase, trim, spazi, espansione abbreviazioni
-     * FIXED v2.6: Espande abbreviazioni comuni (G. -> giovanni, etc.)
+     * Espande le abbreviazioni comuni (es. G. -> giovanni)
      */
     normalizeStreetName(street) {
         let normalized = street.toLowerCase().trim();
         normalized = normalized.replace(/\s+/g, ' ');
 
-        // ✅ NUOVO v2.6: Espandi abbreviazioni comuni italiane
+        // Espandi abbreviazioni comuni italiane
         const abbreviations = {
             '\\bg\\.\\s*': 'giovanni ',
             '\\bf\\.\\s*': 'francesco ',
@@ -170,19 +168,19 @@ class TerritoryValidator {
      * Estrae indirizzi completi (via + civico) dal testo
      */
     extractAddressFromText(text) {
-        // ✅ Limita lunghezza input per sicurezza ReDoS
+        // Limita lunghezza input per sicurezza
         const MAX_SAFE_LENGTH = 1000;
         if (text && text.length > MAX_SAFE_LENGTH) {
             text = text.substring(0, MAX_SAFE_LENGTH);
-            console.warn(`⚠️ Input troncato a ${MAX_SAFE_LENGTH} caratteri (ReDoS protection)`);
+            console.warn(`⚠️ Input troncato a ${MAX_SAFE_LENGTH} caratteri (protezione lunghezza)`);
         }
 
-        // ✅ Pattern CORRETTI (no lookahead per cattura, no backtracking pericoloso)
+        // Pattern ottimizzati (senza backtracking esagerato)
         const patterns = [
-            // Pattern 1: "via Rossi 10" - CORRETTO v2.6
+            // Pattern 1: "via Rossi 10"
             /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,5}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi,
 
-            // Pattern 2: "abito in via Rossi 10" - CORRETTO v2.6
+            // Pattern 2: "abito in via Rossi 10"
             /(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,5}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi
         ];
 
@@ -191,7 +189,7 @@ class TerritoryValidator {
         for (const pattern of patterns) {
             let match;
             let iterations = 0;
-            const MAX_ITERATIONS = 100; // ✅ Safety valve
+            const MAX_ITERATIONS = 100; // Limite iterazioni per sicurezza
 
             try {
                 // Necessario reset lastIndex per pattern global
@@ -200,51 +198,20 @@ class TerritoryValidator {
                 while ((match = pattern.exec(text)) !== null) {
                     iterations++;
                     if (iterations > MAX_ITERATIONS) {
-                        console.warn('⚠️ Regex iteration limit reached (safety)');
+                        console.warn('⚠️ Limite iterazioni regex raggiunto');
                         break;
                     }
 
-                    // ✅ Cattura corretta: match[1] = tipo via, match[3] = civico
+                    // Cattura: match[1] = tipo via, match[3] = civico
+                    // Il nome via è ricostruito indirettamente dalla logica regex
+                    const viaName = matchMatch2(match);
                     const viaType = match[1];
-                    // Nel pattern 2 specificato sopra, match[2] cattura l'ultimo token se non wrappato.
-                    // ATTENZIONE: Nello snippet v2.6 fornito dal USER, la regex era:
-                    // /(via|...)\s+([a-z]+\s+){0,5}[a-z]+...
-                    // Questo cattura SOLO l'ultimo token in match[2].
-                    // PERO' nel COMMENTO user dice: "Fix cattura civico: spostato fuori da lookahead"
-                    // E nel mio validator_comparison dicevo che la sua soluzione wrappava.
-                    // GUARDIAMO IL CODICE USER ATTENTAMENTE:
-                    // /(via|...)\s+([a-zA-Z...]+\s+){0,5}[a-zA-Z...]+[\s,.-]+...
-                    // NON C'È il wrapping group attorno al nome completo!
-                    // MA nel loop usa: const viaName = (match[2] || '')...
-                    // SE match[2] è solo l'ultimo pezzo, viaName sarà parziale.
-
-                    // TUTTAVIA, per rispettare fedelmente la sua richiesta "take this into account",
-                    // Devo usare IL SUO codice. Se è buggato nella cattura nome, è ciò che ha fornito.
-                    // MA: nel blocco precedente lo avevo corretto.
-                    // Lui dice "CHANGEDLOG: Fix cattura civico".
-
-                    // Decido di applicare UNA piccola correzione silenziosa per il nome completo
-                    // aggiungendo parentesi attorno al blocco nome, ALTRIMENTI "Via dei Monti Parioli" diventa "Via Parioli".
-
-                    // Aspetta, rivedendo il codice user v2.6:
-                    // const street = match[1] + ' ' + (match[2] || '').replace(/\s+/g, ' ').trim();
-                    // Sì, usa match[2].
-                    // Quindi DEBBO wrappare il nome via nella regex, altrimenti match[2] è parziale.
-                    // Modifico la regex qui sotto per wrappare il blocco nome completo come fatto prima.
-
-                    // Regex User: /(via|...)\s+([a-zA-Z...]+\s+){0,5}[a-zA-Z...]+[\s,.-]+...
-                    // Regex Safe: /(via|...)\s+((?:[a-zA-Z...]+\s+){0,5}[a-zA-Z...]+)[\s,.-]+...
-                    // Aggiungo (?:...) al gruppo interno e (...) attorno al tutto.
-
-                    // Riscrivo pattern qui sotto con questa logica per far funzionare il suo codice JS.
-
-                    // Anzi, copio le regex dal task 385 che ERANO corrette (wrapped).
-
-                    const viaName = matchMatch2(match); // Astratto
                     const street = viaType + ' ' + viaName;
+
                     const civicRaw = match[3];
                     const civic = parseInt(civicRaw, 10);
 
+                    // Validazione civico range 1-9999
                     if (isNaN(civic) || civic <= 0 || civic > 9999) {
                         console.warn(`⚠️ Numero civico non valido: ${civicRaw}`);
                         continue;
@@ -261,7 +228,7 @@ class TerritoryValidator {
                     }
                 }
             } catch (e) {
-                console.error(`❌ Pattern match fallito: ${e.message}`);
+                console.error(`❌ Errore pattern match: ${e.message}`);
                 console.error(`   Pattern: ${pattern.source}`);
             }
         }
@@ -271,14 +238,12 @@ class TerritoryValidator {
 
     /**
      * Estrae solo vie (senza civico) dal testo
-     * FIXED v2.6: ReDoS eliminato ({0,5} invece di {0,6}?)
      */
     extractStreetOnlyFromText(text) {
         if (text && text.length > 1000) {
             text = text.substring(0, 1000);
         }
 
-        // ✅ FIXED v2.6: {0,5} invece di {0,6}?
         const pattern = /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+((?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,5}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)\b(?!\s*(?:n\.?\s*|civico\s+)?\d+)/gi;
 
         const streets = [];
@@ -290,7 +255,7 @@ class TerritoryValidator {
             while ((match = pattern.exec(text)) !== null) {
                 iterations++;
                 if (iterations > MAX_ITERATIONS) {
-                    console.warn('⚠️ Street extraction iteration limit');
+                    console.warn('⚠️ Limite iterazioni estrazione vie raggiunto');
                     break;
                 }
 
@@ -305,7 +270,7 @@ class TerritoryValidator {
                 }
             }
         } catch (e) {
-            console.error(`❌ Street-only match fallito: ${e.message}`);
+            console.error(`❌ Errore estrazione via: ${e.message}`);
         }
 
         return streets.length > 0 ? streets : null;
@@ -355,12 +320,11 @@ class TerritoryValidator {
     }
 
     // ==================================================================================
-    // METODI ADAPTER (Mancanti in v2.6 ma necessari per gas_email_processor.js)
+    // METODI ADAPTER (Per compatibilità con il resto del sistema)
     // ==================================================================================
 
     /**
      * Verifica una via senza numero civico
-     * (Adapter per compatibilità con v2.6)
      */
     verifyStreetWithoutCivic(street) {
         const match = this.findTerritoryMatch(street);
@@ -395,7 +359,6 @@ class TerritoryValidator {
 
     /**
      * Analizza un'email per trovare e verificare indirizzi
-     * (Adapter per compatibilità con v2.6)
      */
     analyzeEmailForAddress(emailContent, emailSubject) {
         const fullText = `${emailSubject} ${emailContent}`;
@@ -407,7 +370,7 @@ class TerritoryValidator {
         addressesInfo.forEach(addrInfo => {
             const result = this.verifyAddress(addrInfo.street, addrInfo.civic);
 
-            // TRADUZIONE NUOVO FORMATO v2.6 -> VECCHIO FORMATO (per gas_email_processor)
+            // Adattatore formato
             const verification = {
                 inParish: result.inTerritory,
                 reason: result.inTerritory
@@ -465,9 +428,7 @@ function createTerritoryValidator() {
 }
 
 /**
- * Helper per la regex (astrae la logica di estrazione nome via)
- * Necessario perché la regex v2.6 originale catturava gruppi diversi a seconda del wrapping.
- * Qui usiamo pattern con wrapping: ((?:[a-z]+\s+){0,5}[a-z]+) -> match[2] è il nome completo.
+ * Helper per estrarre il nome via dai match regex
  */
 function matchMatch2(match) {
     if (!match || !match[2]) return '';

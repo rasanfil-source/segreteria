@@ -1,6 +1,11 @@
 /**
  * gas_unit_tests.js - Test suite completa per TerritoryValidator
  * 
+ * Contiene test per:
+ * - Protezione ReDoS
+ * - Matching fuzzy e consecutività
+ * - Espansione abbreviazioni
+ * - Validazione civici
  */
 
 // Semplice funzione assert
@@ -14,10 +19,10 @@ const assert = (condition, message) => {
 };
 
 /**
- * Test completo edge cases TerritoryValidator
+ * Test completo casi limite TerritoryValidator
  */
 function testTerritoryValidatorEdgeCases() {
-    console.log("\n🧪 Testing TerritoryValidator Edge Cases...");
+    console.log("\n🧪 Test Casi Limite TerritoryValidator...");
 
     const validator = new TerritoryValidator();
 
@@ -39,7 +44,7 @@ function testTerritoryValidatorEdgeCases() {
     assert(addr3 !== null && addr3[0].civic === 15, "Pattern 2 deve catturare civico");
 
     // ========================================
-    // TEST 2a: ReDoS protection extractAddressFromText
+    // TEST 2a: Protezione ReDoS extractAddressFromText
     // ========================================
     console.log("\n--- Test 2a: ReDoS extractAddressFromText ---");
     const start1 = Date.now();
@@ -49,7 +54,7 @@ function testTerritoryValidatorEdgeCases() {
     assert(elapsed1 < 500, `extractAddressFromText ReDoS deve completare <500ms (attuale: ${elapsed1}ms)`);
 
     // ========================================
-    // TEST 2b: ReDoS protection extractStreetOnlyFromText
+    // TEST 2b: Protezione ReDoS extractStreetOnlyFromText
     // ========================================
     console.log("\n--- Test 2b: ReDoS extractStreetOnlyFromText ---");
     const start2 = Date.now();
@@ -59,7 +64,7 @@ function testTerritoryValidatorEdgeCases() {
     assert(elapsed2 < 500, `extractStreetOnlyFromText ReDoS deve completare <500ms (attuale: ${elapsed2}ms)`);
 
     // ========================================
-    // TEST 3: Fuzzy match non troppo aggressivo
+    // TEST 3: Matching Fuzzy non aggressivo
     // ========================================
     console.log("\n--- Test 3: Fuzzy match consecutività ---");
 
@@ -85,7 +90,7 @@ function testTerritoryValidatorEdgeCases() {
         `Fuzzy match deve trovare 'via dei monti parioli' (trovato: ${match3 ? match3.key : 'null'})`);
 
     // ========================================
-    // TEST 4: Abbreviazioni espanse
+    // TEST 4: Espansione abbreviazioni
     // ========================================
     console.log("\n--- Test 4: Espansione abbreviazioni ---");
 
@@ -102,7 +107,7 @@ function testTerritoryValidatorEdgeCases() {
         `Abbreviazione 'P.' deve espandersi in 'piazza' (trovato: ${normalized3})`);
 
     // ========================================
-    // TEST 5: Limiti civico
+    // TEST 5: Limiti e validità civico
     // ========================================
     console.log("\n--- Test 5: Validazione civico ---");
 
@@ -171,7 +176,7 @@ function testTerritoryValidatorEdgeCases() {
         "via del Sarto 20 (pari) deve essere nel territorio");
 
     // ========================================
-    // TEST 8: Input edge cases
+    // TEST 8: Casi input limite
     // ========================================
     console.log("\n--- Test 8: Input edge cases ---");
 
@@ -199,7 +204,7 @@ function testTerritoryValidatorEdgeCases() {
  * Test performance regex pattern
  */
 function testRegexPerformance() {
-    console.log("\n🚀 Testing Regex Performance...");
+    console.log("\n🚀 Testing Performance Regex...");
 
     const validator = new TerritoryValidator();
 
@@ -230,7 +235,7 @@ function testRegexPerformance() {
  */
 function runAllTests() {
     console.log("╔══════════════════════════════════════════════════════════════╗");
-    console.log("║        TEST SUITE TERRITORY VALIDATOR v2.6                   ║");
+    console.log("║        TEST SUITE TERRITORY VALIDATOR                        ║");
     console.log("╚══════════════════════════════════════════════════════════════╝");
 
     try {
@@ -238,7 +243,7 @@ function runAllTests() {
         testRegexPerformance();
 
         console.log("\n╔══════════════════════════════════════════════════════════════╗");
-        console.log("║  🎉 TUTTI I TEST PASSATI! Sistema pronto per produzione     ║");
+        console.log("║  🎉 TUTTI I TEST PASSATI! Sistema pronto                     ║");
         console.log("╚══════════════════════════════════════════════════════════════╝");
 
     } catch (e) {
