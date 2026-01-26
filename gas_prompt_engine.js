@@ -157,8 +157,8 @@ class PromptEngine {
     // 5. KNOWLEDGE BASE - SEMPRE INCLUSO
     sections.push(this._renderKnowledgeBase(knowledgeBase));
 
-    // 6. VERIFICA TERRITORIO
-    sections.push(this._renderTerritoryVerification(territoryContext));
+    // 6. VERIFICA TERRITORIO (SPOSTATO ALLA FINE PER RECENCY BIAS)
+    // sections.push(this._renderTerritoryVerification(territoryContext));
 
     // 7. CONTESTO STAGIONALE
     sections.push(this._renderSeasonalContext(currentSeason));
@@ -215,6 +215,13 @@ class PromptEngine {
 
     // 18. CHECKLIST FINALE (ultimo - rinforzo) - SEMPRE INCLUSO
     sections.push(this._renderFinalChecklist());
+
+    // 19. VERIFICA TERRITORIO (RECENCY BIAS - IMPERATIVO FINALE)
+    // Inserito qui per override su qualsiasi altra istruzione
+    const territorySection = this._renderTerritoryVerification(territoryContext);
+    if (territorySection) {
+      sections.push(territorySection);
+    }
 
     // Componi prompt finale
     let prompt = sections.join('\n\n');
