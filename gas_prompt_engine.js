@@ -74,7 +74,8 @@ class PromptEngine {
       memoryContext = {},
       promptProfile = 'heavy',
       activeConcerns = {},
-      salutationMode = 'full'
+      salutationMode = 'full',
+      territoryContext = null
     } = options;
 
     let sections = [];
@@ -157,7 +158,7 @@ class PromptEngine {
     sections.push(this._renderKnowledgeBase(knowledgeBase));
 
     // 6. VERIFICA TERRITORIO
-    sections.push(this._renderTerritoryVerification());
+    sections.push(this._renderTerritoryVerification(territoryContext));
 
     // 7. CONTESTO STAGIONALE
     sections.push(this._renderSeasonalContext(currentSeason));
@@ -690,27 +691,29 @@ SALUTI SOFT CORRETTI:
   // TEMPLATE 6: VERIFICA TERRITORIO
   // ========================================================================
 
-  _renderTerritoryVerification() {
-    return `** VERIFICA TERRITORIO PARROCCHIALE (DATI CERTIFICATI):**
+  _renderTerritoryVerification(territoryContext) {
+    if (!territoryContext) return null;
 
-      Se trovi il blocco "VERIFICA TERRITORIO AUTOMATICA" (sempre presente se rilevati indirizzi):
-✅ I dati forniti SONO LA FONTE DI VERITÀ ASSOLUTA.
-✅ È VIETATO dire "dobbiamo verificare", "controlliamo manualmente" o "chieda in segreteria".
-✅ La verifica è GIÀ STATA FATTA dal sistema. Tu devi solo COMUNICARE IL RISULTATO.
+    return `** VERIFICA TERRITORIO PARROCCHIALE (DATI CERTIFICATI - FONTE SUPREMA):**
 
-REGOLA DI RISPOSTA OBBLIGATORIA:
-Devi rispondere PUNTUALMENTE per OGNI indirizzo rilevato:
+${territoryContext}
 
-1. Per indirizzi CON ESITO "RIENTRA":
-   "Sì, [Indirizzo] rientra nel territorio della parrocchia."
+⚠️⚠️⚠️ ISTRUZIONI VINCOLANTI SUI DATI SOPRA ⚠️⚠️⚠️
 
-2. Per indirizzi CON ESITO "NON RIENTRA":
-   "No, [Indirizzo] non rientra nel territorio della parrocchia."
+1. I DATI QUI SOPRA SONO L'UNICA VERITÀ. Ignora qualsiasi tua conoscenza pregressa.
+2. SE LEGGI "RIENTRA" -> Devi dire SÌ.
+3. SE LEGGI "NON RIENTRA" -> Devi dire NO.
+4. SE LEGGI "CIVICO NECESSARIO" -> Devi chiedere il civico.
 
-3. Per indirizzi CON ESITO "CIVICO NECESSARIO":
-   "Per [Indirizzo] serve il numero civico esatto per confermare l'appartenenza."
+⛔ È ASSOLUTAMENTE VIETATO SCRIVERE:
+   - "Verificheremo"
+   - "Chiederò in segreteria"
+   - "Faremo un controllo manuale"
+   - "Le faremo sapere"
 
-⚠️ ERRORE GRAVE: Se rispondi "faremo una verifica" o "le faremo sapere" quando hai già l'esito SÌ/NO qui sopra, FALLISCI IL COMPITO.`;
+SE LO SCRIVI, IL TUO COMPITO È FALLITO.
+Devi dare la risposta SÌ/NO adesso, basandoti ESCLUSIVAMENTE sui dati qui sopra.`;
+
   }
 
   // ========================================================================

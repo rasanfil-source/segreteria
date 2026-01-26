@@ -462,7 +462,7 @@ ${GLOBAL_CACHE.doctrineBase}
 ${addressLines.join('\n\n')}
 ════════════════════════════════════════════════════════════════════════
 `;
-      knowledgeSections.unshift(territoryContext);
+      // knowledgeSections.unshift(territoryContext); // RIMOSSO: Passato separatamente per evidenza critica
 
       const summary = territoryResult.addressFound
         ? (addressLines.length > 1 ? `${addressLines.length} indirizzi` : '1 indirizzo')
@@ -525,7 +525,8 @@ ${addressLines.join('\n\n')}
         memoryContext: memoryContext,
         salutationMode: salutationMode,
         promptProfile: promptProfile,
-        activeConcerns: activeConcerns
+        activeConcerns: activeConcerns,
+        territoryContext: territoryContext // Passiamo il contesto separatamente per rendering prioritario
       };
 
       const prompt = this.promptEngine.buildPrompt(promptOptions);
