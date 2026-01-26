@@ -498,7 +498,7 @@ ${addressLines.join('\n\n')}
           territory: { addressFound: territoryResult.addressFound },
           knowledgeBase: { length: enrichedKnowledgeBase.length, containsDates: /\d{4}/.test(enrichedKnowledgeBase) },
           temporal: {
-            mentionsDates: /\b(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre|\d{1,2}\/\d{1,2})\b/i.test(messageDetails.body),
+            mentionsDates: this._detectTemporalMentions(messageDetails.body, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(messageDetails.body),
             mentionsTimes: /\d{1,2}[:.]\d{2}/.test(messageDetails.body)
           },
           salutationMode: salutationMode
@@ -1100,6 +1100,20 @@ ${addressLines.join('\n\n')}
       console.log(`🧠 Inferred Reaction: ${inferredReaction.type.toUpperCase()} su topic '${topic}'`);
       this.memoryService.updateReaction(threadId, topic, inferredReaction.type, context);
     });
+  }
+  /**
+   * Rileva riferimenti temporali (mesi) in varie lingue
+   */
+  _detectTemporalMentions(text, language) {
+    const monthPatterns = {
+      'it': /\b(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\b/i,
+      'en': /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/i,
+      'es': /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i
+    };
+
+    // Fallback su italiano se lingua non supportata
+    const pattern = monthPatterns[language] || monthPatterns['it'];
+    return pattern.test(text);
   }
 }
 

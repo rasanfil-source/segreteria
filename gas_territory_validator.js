@@ -115,8 +115,10 @@ class TerritoryValidator {
 
         // Pattern ottimizzati per sicurezza (backtracking limitato)
         const patterns = [
-            // Pattern 1: "via Rossi 10", "via Rossi, 10", "via Rossi n° 10"
-            /((?:via|viale|piazza|piazzale|largo|lungotevere|salita)\s+(?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,6}?[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi,
+            // Pattern 1: "via Rossi 10" (Ottimizzato con Atomic Group simulation / Lookahead)
+            // Vecchio pattern vulnerabile: /((?:via|...)\s+(?:[a-zA-Z...]+\s+){0,6}?[a-zA-Z...]+)[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi
+            // Nuovo pattern sicuro:
+            /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,5}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+(?=[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*\d+)/gi,
 
             // Pattern 2: "abito in... via Rossi 10", "abito in... via Rossi, 10"
             /(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+((?:via|viale|piazza|piazzale|largo|lungotevere|salita)\s+(?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,6}?[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi
@@ -163,7 +165,7 @@ class TerritoryValidator {
             text = text.substring(0, 1000);
         }
 
-        // Fix: Aggiunto \b prima del lookahead negativo per evitare che il regex
+        // Ottimizzazione: Aggiunto \b prima del lookahead negativo per evitare che il regex
         // "mangi" l'ultima lettera della via (es. "Cancani" -> "Cancan") per soddisfare
         // la condizione "non seguito da numero".
         const pattern = /((?:via|viale|piazza|piazzale|largo|lungotevere|salita)\s+(?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,6}?[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)\b(?!\s*(?:n\.?\s*|civico\s+)?\d+)/gi;

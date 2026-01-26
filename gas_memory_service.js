@@ -150,7 +150,7 @@ class MemoryService {
     }
 
     const MAX_RETRIES = 3;
-    // MODIFICATO: Uso ScriptLock atomico invece di CacheService non-atomico
+    // Implementazione: Uso ScriptLock atomico invece di CacheService non-atomico
     const lock = LockService.getScriptLock();
     // Nota: ScriptLock è globale per lo script, garantisce sequenzialità assoluta per le scritture
 

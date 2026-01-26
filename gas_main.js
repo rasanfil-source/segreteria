@@ -406,15 +406,23 @@ function _loadSupplementaryResources(spreadsheet) {
 /**
  * Carica tutte le risorse necessarie (Knowledge Base, sostituzioni, ferie)
  * Usa lock per prevenire race condition tra esecuzioni parallele
+ * @param {boolean} acquireLock - Se true, acquisisce il lock in autonomia.
  */
-function loadResources() {
+function loadResources(acquireLock = true) {
+  if (!acquireLock) {
+    _loadResourcesInternal();
+    return;
+  }
+
   const lock = LockService.getScriptLock();
+  let lockAcquired = false;
 
   try {
     // Tenta di acquisire lock per 10 secondi
     // Gestione concorrenza: Se il lock fallisce, prosegue se la cache è vuota.
     // L'istanza corrente necessita dei dati per procedere.
-    if (!lock.tryLock(10000)) {
+    lockAcquired = lock.tryLock(10000);
+    if (!lockAcquired) {
       console.warn('⚠️ Impossibile acquisire lock per loadResources (timeout 10s)');
       if (!GLOBAL_CACHE.loaded) {
         console.warn('⚠️ Cache locale vuota: procedo comunque al caricamento (ignoro lock fallito)');
@@ -424,70 +432,78 @@ function loadResources() {
       }
     }
 
-    // Verifica se risorse già caricate (double-checked locking)
-    if (GLOBAL_CACHE.loaded) {
-      return;
-    }
-
-    GLOBAL_CACHE.vacationPeriods = [];
-    console.log('📦 Caricamento risorse...');
-
-    const cache = CacheService.getScriptCache();
-    const cachedKB = cache.get('KB_CONTENT');
-
-    // CACHE HIT - FAST PATH
-    if (cachedKB && !CONFIG.FORCE_RELOAD) {
-      GLOBAL_CACHE.knowledgeBase = cachedKB;
-      console.log('📦 KB caricata da ScriptCache (Fast)');
-
-      // Carichiamo tutte le risorse restanti (dottrina, AI core, sostituzioni, ferie)
-      withSheetsRetry(() => {
-        const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-        _loadSupplementaryResources(spreadsheet);
-      }, 'Caricamento risorse (Cache)');
-
-      GLOBAL_CACHE.loaded = true;
-      return;
-    }
-
-    // CACHE MISS - FULL LOAD
-    withSheetsRetry(() => {
-      const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-
-      // Carica Knowledge Base (Istruzioni)
-      const kbSheet = spreadsheet.getSheetByName(CONFIG.KB_SHEET_NAME);
-      if (kbSheet) {
-        const kbData = kbSheet.getDataRange().getValues();
-        GLOBAL_CACHE.knowledgeBase = kbData.map(row => row.join(' | ')).join('\n');
-        GLOBAL_CACHE.knowledgeStructured = _parseSheetToStructured(kbData);
-        console.log(`✓ Knowledge Base caricata: ${GLOBAL_CACHE.knowledgeBase.length} caratteri`);
-
-        // SALVATAGGIO IN CACHE DOPO IL CARICAMENTO
-        if (GLOBAL_CACHE.knowledgeBase) {
-          // CacheService ha limite 100KB per valore
-          if (GLOBAL_CACHE.knowledgeBase.length < 100000) {
-            cache.put('KB_CONTENT', GLOBAL_CACHE.knowledgeBase, 21600); // 6 ore
-          }
-        }
-      } else {
-        console.warn(`⚠️ Foglio '${CONFIG.KB_SHEET_NAME}' non trovato`);
-      }
-
-      _loadSupplementaryResources(spreadsheet);
-    }, 'loadResources');
-
-    GLOBAL_CACHE.loaded = true;
-    console.log('✓ Tutte le risorse caricate con successo');
-
+    _loadResourcesInternal();
   } catch (error) {
     console.error(`❌ Errore caricamento risorse: ${error.message}`);
   } finally {
-    try {
-      lock.releaseLock();
-    } catch (e) {
-      console.warn(`⚠️ Errore rilascio ScriptLock: ${e.message}`);
+    if (lockAcquired) {
+      try {
+        lock.releaseLock();
+      } catch (e) {
+        console.warn(`⚠️ Errore rilascio ScriptLock: ${e.message}`);
+      }
     }
   }
+}
+
+/**
+ * Logica interna di caricamento risorse (senza gestione lock).
+ */
+function _loadResourcesInternal() {
+  // Verifica se risorse già caricate (double-checked locking)
+  if (GLOBAL_CACHE.loaded) {
+    return;
+  }
+
+  GLOBAL_CACHE.vacationPeriods = [];
+  console.log('📦 Caricamento risorse...');
+
+  const cache = CacheService.getScriptCache();
+  const cachedKB = cache.get('KB_CONTENT');
+
+  // CACHE HIT - FAST PATH
+  if (cachedKB && !CONFIG.FORCE_RELOAD) {
+    GLOBAL_CACHE.knowledgeBase = cachedKB;
+    console.log('📦 KB caricata da ScriptCache (Fast)');
+
+    // Carichiamo tutte le risorse restanti (dottrina, AI core, sostituzioni, ferie)
+    withSheetsRetry(() => {
+      const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+      _loadSupplementaryResources(spreadsheet);
+    }, 'Caricamento risorse (Cache)');
+
+    GLOBAL_CACHE.loaded = true;
+    return;
+  }
+
+  // CACHE MISS - FULL LOAD
+  withSheetsRetry(() => {
+    const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+
+    // Carica Knowledge Base (Istruzioni)
+    const kbSheet = spreadsheet.getSheetByName(CONFIG.KB_SHEET_NAME);
+    if (kbSheet) {
+      const kbData = kbSheet.getDataRange().getValues();
+      GLOBAL_CACHE.knowledgeBase = kbData.map(row => row.join(' | ')).join('\n');
+      GLOBAL_CACHE.knowledgeStructured = _parseSheetToStructured(kbData);
+      console.log(`✓ Knowledge Base caricata: ${GLOBAL_CACHE.knowledgeBase.length} caratteri`);
+
+      // SALVATAGGIO IN CACHE DOPO IL CARICAMENTO
+      if (GLOBAL_CACHE.knowledgeBase) {
+        // CacheService ha limite 100KB per valore
+        if (GLOBAL_CACHE.knowledgeBase.length < 100000) {
+          cache.put('KB_CONTENT', GLOBAL_CACHE.knowledgeBase, 21600); // 6 ore
+        }
+      }
+    } else {
+      console.warn(`⚠️ Foglio '${CONFIG.KB_SHEET_NAME}' non trovato`);
+    }
+
+    _loadSupplementaryResources(spreadsheet);
+  }, 'loadResources');
+
+  GLOBAL_CACHE.loaded = true;
+  console.log('✓ Tutte le risorse caricate con successo');
 }
 
 // ====================================================================
@@ -535,7 +551,7 @@ function main() {
 
     // Carica risorse PRIMA di controllare sospensione
     // (Altrimenti i periodi ferie non sono ancora in cache)
-    loadResources();
+    loadResources(false);
 
     // Controlla sospensione (ORA le ferie sono caricate)
     if (isInSuspensionTime()) {
