@@ -691,26 +691,26 @@ SALUTI SOFT CORRETTI:
   // ========================================================================
 
   _renderTerritoryVerification() {
-    return `** VERIFICA TERRITORIO PARROCCHIALE:**
+    return `** VERIFICA TERRITORIO PARROCCHIALE (DATI CERTIFICATI):**
 
-      Se trovi il blocco "VERIFICA TERRITORIO AUTOMATICA" (sempre presente):
-✅ Usa ESATTAMENTE quelle informazioni
-✅ Sono verificate programmaticamente al 100 %
-✅ Risposta DETERMINISTICA: solo SÌ / NO / richiesta numero civico motivata
+      Se trovi il blocco "VERIFICA TERRITORIO AUTOMATICA" (sempre presente se rilevati indirizzi):
+✅ I dati forniti SONO LA FONTE DI VERITÀ ASSOLUTA.
+✅ È VIETATO dire "dobbiamo verificare", "controlliamo manualmente" o "chieda in segreteria".
+✅ La verifica è GIÀ STATA FATTA dal sistema. Tu devi solo COMUNICARE IL RISULTATO.
 
-CASI OBBLIGATORI:
-A) Via completamente inclusa → "Sì, la via [Nome via] rientra nel territorio della parrocchia."
-B) Via completamente esclusa → "No, la via [Nome via] non rientra nel territorio della parrocchia."
-C) Via parzialmente inclusa:
-   • Se c'è il numero civico → SÌ/NO in base al civico
-   • Se manca il numero civico → chiedilo con motivazione chiara:
-     "La via [Nome via] è solo parzialmente compresa nel territorio della parrocchia.
-      Per poterle rispondere con certezza abbiamo bisogno di conoscere il numero civico,
-      perché il territorio parrocchiale comprende solo alcuni tratti della via (ad esempio
-      solo numeri pari/dispari oppure un intervallo di numeri)."
+REGOLA DI RISPOSTA OBBLIGATORIA:
+Devi rispondere PUNTUALMENTE per OGNI indirizzo rilevato:
 
-🚫 Non usare mai: forse, potrebbe, non sono sicuro, sembra che
-❌ NON fare supposizioni personali`;
+1. Per indirizzi CON ESITO "RIENTRA":
+   "Sì, [Indirizzo] rientra nel territorio della parrocchia."
+
+2. Per indirizzi CON ESITO "NON RIENTRA":
+   "No, [Indirizzo] non rientra nel territorio della parrocchia."
+
+3. Per indirizzi CON ESITO "CIVICO NECESSARIO":
+   "Per [Indirizzo] serve il numero civico esatto per confermare l'appartenenza."
+
+⚠️ ERRORE GRAVE: Se rispondi "faremo una verifica" o "le faremo sapere" quando hai già l'esito SÌ/NO qui sopra, FALLISCI IL COMPITO.`;
   }
 
   // ========================================================================
