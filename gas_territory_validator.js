@@ -61,7 +61,24 @@ class TerritoryValidator {
 
     normalizeStreetName(street) {
         let normalized = street.toLowerCase().trim();
-        return normalized.replace(/\s+/g, ' ');
+        normalized = normalized.replace(/\s+/g, ' ');
+
+        const abbreviations = {
+            'g.': 'giovanni',
+            'f.': 'francesco',
+            'a.': 'antonio',
+            's.': 'san',
+            'v.': 'via',
+            'p.': 'piazza',
+            'l.': 'largo'
+        };
+
+        for (const [abbr, full] of Object.entries(abbreviations)) {
+            const regex = new RegExp(`\\b${abbr}\\s*`, 'gi');
+            normalized = normalized.replace(regex, `${full} `);
+        }
+
+        return normalized.replace(/\s+/g, ' ').trim();
     }
 
     /**
@@ -81,8 +98,8 @@ class TerritoryValidator {
         // Dividi input in parole (token)
         const inputTokens = normalizedInput.split(' ').filter(t => t.length > 0);
 
-        // Se l'input è troppo breve (es. solo "via"), evita falsi positivi
-        if (inputTokens.length < 2 && inputTokens[0] === 'via') {
+        // Se l'input è troppo breve, evita falsi positivi
+        if (inputTokens.length < 2) {
             return null;
         }
 
@@ -91,10 +108,27 @@ class TerritoryValidator {
             const dbTokens = dbKey.split(' ');
 
             // Verifica se TUTTI i token dell'input sono presenti nella chiave DB
-            // (ordine non importante)
-            const isMatch = inputTokens.every(token => dbTokens.includes(token));
+            const allTokensPresent = inputTokens.every(token => dbTokens.includes(token));
 
-            if (isMatch) {
+            if (!allTokensPresent) {
+                continue;
+            }
+
+            // Verifica almeno una coppia consecutiva
+            let hasConsecutivePair = false;
+            for (let i = 0; i < inputTokens.length - 1; i++) {
+                const idx1 = dbTokens.indexOf(inputTokens[i]);
+                const idx2 = dbTokens.indexOf(inputTokens[i + 1]);
+                if (idx1 !== -1 && idx2 !== -1 && idx2 === idx1 + 1) {
+                    hasConsecutivePair = true;
+                    break;
+                }
+            }
+
+            const significantTokens = inputTokens.filter(t => t.length > 3);
+            const matchScore = significantTokens.length / dbTokens.length;
+
+            if (hasConsecutivePair || inputTokens.length === dbTokens.length || matchScore > 0.6) {
                 console.log(`🔍 Match fuzzy trovato: '${inputStreet}' -> '${dbKey}'`);
                 return { key: dbKey, rules: this.territory[dbKey] };
             }
@@ -109,19 +143,20 @@ class TerritoryValidator {
      */
     extractAddressFromText(text) {
         // Limita lunghezza input per sicurezza
-        if (text && text.length > 1000) {
-            text = text.substring(0, 1000);
+        const MAX_SAFE_LENGTH = 1000;
+        if (text && text.length > MAX_SAFE_LENGTH) {
+            text = text.substring(0, MAX_SAFE_LENGTH);
+            console.warn(`⚠️ Input troncato a ${MAX_SAFE_LENGTH} caratteri (ReDoS protection)`);
         }
 
         // Pattern ottimizzati per sicurezza (backtracking limitato)
         const patterns = [
-            // Pattern 1: "via Rossi 10" (Ottimizzato con Atomic Group simulation / Lookahead)
-            // Vecchio pattern vulnerabile: /((?:via|...)\s+(?:[a-zA-Z...]+\s+){0,6}?[a-zA-Z...]+)[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi
-            // Nuovo pattern sicuro:
-            /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,5}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+(?=[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*\d+)/gi,
+            // Pattern 1: "via Rossi 10"
+            // Cattura: 1=Tipo, 2=Nome(completo), 3=Civico
+            /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+((?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,5}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi,
 
-            // Pattern 2: "abito in... via Rossi 10", "abito in... via Rossi, 10"
-            /(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+((?:via|viale|piazza|piazzale|largo|lungotevere|salita)\s+(?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,6}?[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi
+            // Pattern 2: "abito in... via Rossi 10"
+            /(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+((?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,5}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi
         ];
 
         const addresses = [];
@@ -129,12 +164,19 @@ class TerritoryValidator {
         for (const pattern of patterns) {
             let match;
             try {
+                let iterations = 0;
+                const MAX_ITERATIONS = 100;
                 while ((match = pattern.exec(text)) !== null) {
-                    const street = match[1].trim();
-                    const civicRaw = match[2];
+                    iterations++;
+                    if (iterations > MAX_ITERATIONS) {
+                        console.warn('⚠️ Regex iteration limit reached (safety)');
+                        break;
+                    }
+                    const street = `${match[1]} ${match[2]}`.replace(/\s+/g, ' ').trim();
+                    const civicRaw = match[3];
                     const civic = parseInt(civicRaw, 10);
 
-                    if (isNaN(civic) || civic <= 0) {
+                    if (isNaN(civic) || civic <= 0 || civic > 9999) {
                         console.warn(`⚠️ Numero civico non valido: ${civicRaw} per via ${street}`);
                         continue;
                     }
@@ -165,16 +207,20 @@ class TerritoryValidator {
             text = text.substring(0, 1000);
         }
 
-        // Ottimizzazione: Aggiunto \b prima del lookahead negativo per evitare che il regex
-        // "mangi" l'ultima lettera della via (es. "Cancani" -> "Cancan") per soddisfare
-        // la condizione "non seguito da numero".
-        const pattern = /((?:via|viale|piazza|piazzale|largo|lungotevere|salita)\s+(?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,6}?[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)\b(?!\s*(?:n\.?\s*|civico\s+)?\d+)/gi;
+        const pattern = /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+((?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,5}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)\b(?!\s*(?:n\.?\s*|civico\s+)?\d+)/gi;
         const streets = [];
 
         let match;
         try {
+            let iterations = 0;
+            const MAX_ITERATIONS = 100;
             while ((match = pattern.exec(text)) !== null) {
-                const street = match[1].trim();
+                iterations++;
+                if (iterations > MAX_ITERATIONS) {
+                    console.warn('⚠️ Street extraction iteration limit');
+                    break;
+                }
+                const street = `${match[1]} ${match[2]}`.replace(/\s+/g, ' ').trim();
                 const isDuplicate = streets.some(existing =>
                     existing.toLowerCase() === street.toLowerCase()
                 );
@@ -195,7 +241,7 @@ class TerritoryValidator {
      * Verifica se un indirizzo appartiene al territorio parrocchiale
      */
     verifyAddress(street, civicNumber) {
-        // Usa il nuovo metodo di ricerca match
+        // Usa il nuovo metodo di ricerca match con fuzzy logic avanzata
         const match = this.findTerritoryMatch(street);
 
         // Controlla se la via esiste nel territorio
@@ -208,7 +254,6 @@ class TerritoryValidator {
         }
 
         const rules = match.rules;
-        // const normalizedStreet = match.key; // Non usato ma disponibile
 
         // Caso 1: Tutti i numeri civici accettati
         if (rules.tutti === true) {
@@ -269,7 +314,6 @@ class TerritoryValidator {
      * Verifica una via senza numero civico
      */
     verifyStreetWithoutCivic(street) {
-        // Usa il nuovo metodo di ricerca match
         const match = this.findTerritoryMatch(street);
 
         if (!match) {
@@ -322,11 +366,8 @@ class TerritoryValidator {
         // 2. Aggiunge le vie parziali SOLO se non sovrapposte agli indirizzi già trovati
         streetsOnly.forEach(street => {
             const streetLower = street.toLowerCase();
-
-            // Controlla se questa via parziale è già "coperta" da un indirizzo completo
             const isCovered = addresses.some(addr => {
                 const addrStreetLower = addr.street.toLowerCase();
-                // Verifica sovrapposizione significativa (es. "Via Cancan" in "Via Cancani")
                 return addrStreetLower.includes(streetLower) || streetLower.includes(addrStreetLower);
             });
 
