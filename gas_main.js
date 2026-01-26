@@ -506,23 +506,7 @@ function _loadResourcesInternal() {
   console.log('✓ Tutte le risorse caricate con successo');
 }
 
-// ====================================================================
-// ASSERZIONE CONFIGURAZIONE CRITICA
-// ====================================================================
 
-/**
- * Verifica presenza configurazione critica (fail-fast)
- * @throws {Error} Se manca configurazione essenziale
- */
-function assertCriticalConfig() {
-  const props = PropertiesService.getScriptProperties();
-  if (!props.getProperty('GEMINI_API_KEY')) {
-    throw new Error('❌ GEMINI_API_KEY mancante in Script Properties');
-  }
-  if (!props.getProperty('SPREADSHEET_ID')) {
-    throw new Error('❌ SPREADSHEET_ID mancante in Script Properties');
-  }
-}
 
 // ====================================================================
 // ENTRY POINT PRINCIPALE
@@ -546,8 +530,13 @@ function main() {
       return;
     }
 
-    // Fail-fast su configurazione mancante
-    assertCriticalConfig();
+    // Validazione config PRIMA di tutto
+    const configCheck = validateConfig();
+    if (!configCheck.valid) {
+      console.error('🚨 CONFIGURAZIONE NON VALIDA - ARRESTO SISTEMA');
+      configCheck.errors.forEach(e => console.error(`   ${e}`));
+      throw new Error('Invalid configuration');
+    }
 
     // Carica risorse PRIMA di controllare sospensione
     // (Altrimenti i periodi ferie non sono ancora in cache)
