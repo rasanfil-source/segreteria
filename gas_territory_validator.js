@@ -307,6 +307,7 @@ class TerritoryValidator {
         const streetsOnly = this.extractStreetOnlyFromText(fullText) || [];
         const addresses = [];
 
+        // 1. Aggiungi prima gli indirizzi completi (più affidabili)
         addressesInfo.forEach(addrInfo => {
             const verification = this.verifyAddress(addrInfo.street, addrInfo.civic);
             addresses.push({
@@ -316,17 +317,26 @@ class TerritoryValidator {
             });
         });
 
+        // 2. Aggiunge le vie parziali SOLO se non sovrapposte agli indirizzi già trovati
         streetsOnly.forEach(street => {
-            const isDuplicate = addresses.some(addr =>
-                addr.street.toLowerCase() === street.toLowerCase()
-            );
-            if (!isDuplicate) {
+            const streetLower = street.toLowerCase();
+
+            // Controlla se questa via parziale è già "coperta" da un indirizzo completo
+            const isCovered = addresses.some(addr => {
+                const addrStreetLower = addr.street.toLowerCase();
+                // Verifica sovrapposizione significativa (es. "Via Cancan" in "Via Cancani")
+                return addrStreetLower.includes(streetLower) || streetLower.includes(addrStreetLower);
+            });
+
+            if (!isCovered) {
                 const verification = this.verifyStreetWithoutCivic(street);
                 addresses.push({
                     street: street,
                     civic: null,
                     verification: verification
                 });
+            } else {
+                console.log(`ℹ️ Via parziale ignorata perché sovrapposta: '${street}'`);
             }
         });
 
