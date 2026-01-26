@@ -103,6 +103,7 @@ graph LR
         │ • Technical → KB Lite         │
         │ • Pastoral → KB Heavy         │
         │ • Doctrinal → KB + Doctrine   │
+        │ • Territory → Address Check   │
         └───────────────┬───────────────┘
                         │
                         ▼

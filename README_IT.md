@@ -104,6 +104,7 @@ graph LR
         │ • Tecnica → KB Lite           │
         │ • Pastorale → KB Heavy        │
         │ • Dottrinale → KB + Dottrina  │
+        │ • Territorio → Verifica Ind.  │
         └───────────────┬───────────────┘
                         │
                         ▼
