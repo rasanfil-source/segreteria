@@ -26,6 +26,7 @@
 *   **Analisi Multi-Dimensionale**: Capisce non solo l'argomento ma anche il **carico emotivo** e la **complessità**.
 *   **Memoria Reattiva**: Ricorda se hai capito ("Grazie!") o se sei confuso ("Non ho capito") e adatta la risposta successiva.
 *   **Ascolto Attivo Intelligente (Anti-Ridondanza)**: Se l'utente dice "Ho già scaricato il modulo", l'IA evita di inviargli di nuovo il link.
+*   **Gestione Automatica Ritardi**: Se l'email è vecchia di oltre 3 giorni, il sistema istruisce l'IA a iniziare scusandosi per il ritardo, mantenendo poi un tono professionale.
 *   **Correttezza Linguistica & Stile**: L'IA usa sempre la grammatica corretta (es. "il canale") anche se l'utente la sbaglia ("la canale"), ignorando silenziosamente gli errori di battitura.
 
 ---
@@ -112,6 +113,7 @@ graph LR
         │ 🤖 GENERA RISPOSTA (Gemini)   │
         │ • Usa Knowledge Base          │
         │ • Rispetta lingua email       │
+        │ • Gestisce ritardi (>3gg)     │
         │ • Tono professionale/caloroso │
         └───────────────┬───────────────┘
                         │

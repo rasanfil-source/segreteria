@@ -401,7 +401,7 @@ ${GLOBAL_CACHE.doctrineBase}
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // STEP 6.6: CALCOLA MODALITÀ SALUTO
+      // STEP 6.6: CALCOLO DINAMICO SALUTO E RITARDO
       // ═══════════════════════════════════════════════════════════════
       const salutationMode = computeSalutationMode({
         isReply: safeSubjectLower.startsWith('re:'),
@@ -411,6 +411,14 @@ ${GLOBAL_CACHE.doctrineBase}
         now: new Date()
       });
       console.log(`   📝 Modalità saluto: ${salutationMode}`);
+
+      const responseDelay = computeResponseDelay({
+        messageDate: messageDetails.date,
+        now: new Date()
+      });
+      if (responseDelay.shouldApologize) {
+        console.log(`   ⏱️ Ritardo risposta: ${responseDelay.days} giorni`);
+      }
 
       // ═══════════════════════════════════════════════════════════════
       // STEP 7: COSTRUISCI PROMPT
@@ -525,6 +533,7 @@ ${addressLines.join('\n\n')}
         subIntents: classification.subIntents || {},
         memoryContext: memoryContext,
         salutationMode: salutationMode,
+        responseDelay: responseDelay,
         promptProfile: promptProfile,
         activeConcerns: activeConcerns,
         territoryContext: territoryContext // Passiamo il contesto separatamente per rendering prioritario
@@ -1175,6 +1184,33 @@ function computeSalutationMode({ isReply, messageCount, memoryExists, lastUpdate
 // Funzione factory
 function createEmailProcessor(options) {
   return new EmailProcessor(options);
+}
+
+/**
+ * Calcola ritardo risposta rispetto alla data del messaggio
+ * @param {Object} params
+ * @returns {{shouldApologize: boolean, hours: number, days: number}}
+ */
+function computeResponseDelay({ messageDate, now = new Date(), thresholdHours = 72 }) {
+  if (!messageDate) {
+    return { shouldApologize: false, hours: 0, days: 0 };
+  }
+
+  const parsedMessageDate = new Date(messageDate);
+  const diffMs = now.getTime() - parsedMessageDate.getTime();
+
+  if (isNaN(diffMs) || diffMs < 0) {
+    return { shouldApologize: false, hours: 0, days: 0 };
+  }
+
+  const hours = diffMs / (1000 * 60 * 60);
+  const days = Math.floor(hours / 24);
+
+  return {
+    shouldApologize: hours >= thresholdHours,
+    hours: Math.round(hours),
+    days: days
+  };
 }
 
 // ====================================================================

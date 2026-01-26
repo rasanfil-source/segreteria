@@ -22,7 +22,7 @@ class PromptEngine {
       'ExamplesTemplate'
     ];
 
-    this.logger.info('PromptEngine inizializzato', { templates: 19 });
+    this.logger.info('PromptEngine inizializzato', { templates: 20 });
   }
 
   /**
@@ -75,6 +75,7 @@ class PromptEngine {
       promptProfile = 'heavy',
       activeConcerns = {},
       salutationMode = 'full',
+      responseDelay = null,
       territoryContext = null
     } = options;
 
@@ -139,6 +140,9 @@ class PromptEngine {
     // 3.5. CONTINUITÀ CONVERSAZIONALE
     const continuitySection = this._renderConversationContinuity(salutationMode);
     if (continuitySection) sections.push(continuitySection);
+
+    const responseDelaySection = this._renderResponseDelay(responseDelay, detectedLanguage);
+    if (responseDelaySection) sections.push(responseDelaySection);
 
     // 4. CONTESTO MEMORIA - SEMPRE INCLUSO
     const memorySection = this._renderMemoryContext(memoryContext);
@@ -222,6 +226,9 @@ class PromptEngine {
     if (territorySection) {
       sections.push(territorySection);
     }
+
+    // 20. SCUSE PER RITARDO (MASSIMA PRIORITÀ APERTURA)
+    // Rimosso da qui e spostato sopra (Step 4.6) per coerenza temporale
 
     // Componi prompt finale
     let prompt = sections.join('\n\n');
@@ -679,6 +686,38 @@ SALUTI SOFT CORRETTI:
     }
 
     return null;
+  }
+
+  // ========================================================================
+  // TEMPLATE: GESTIONE RITARDO RISPOSTA
+  // ========================================================================
+
+  _renderResponseDelay(responseDelay, detectedLanguage = 'it') {
+    if (!responseDelay || !responseDelay.shouldApologize) {
+      return null;
+    }
+
+    const apologyByLanguage = {
+      it: 'Ci scusiamo per il ritardo con cui rispondiamo.',
+      en: 'We apologize for the delay in responding.',
+      es: 'Pedimos disculpas por la demora en nuestra respuesta.'
+    };
+
+    const apologyLine = apologyByLanguage[detectedLanguage] || apologyByLanguage.it;
+
+    return `═══════════════════════════════════════════════════════════════════════════
+⏱️ RISPOSTA IN RITARDO - REGOLA VINCOLANTE
+═══════════════════════════════════════════════════════════════════════════
+
+Il messaggio è arrivato da alcuni giorni.
+
+REGOLE OBBLIGATORIE:
+✅ Apri la risposta con una breve frase di scuse per il ritardo
+✅ Mantieni il resto della risposta diretto e professionale
+✅ Non attribuire colpe o dettagli tecnici (niente "spam", "problemi tecnici")
+
+ESEMPIO DI APERTURA:
+• "${apologyLine}"`;
   }
 
   // ========================================================================
@@ -1364,6 +1403,7 @@ Segreteria Parrocchia Sant'Eugenio
 ═══════════════════════════════════════════════════════════════════════════`;
   }
 }
+
 
 // Funzione factory
 function createPromptEngine() {
