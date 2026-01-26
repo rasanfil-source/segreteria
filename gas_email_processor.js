@@ -269,11 +269,12 @@ class EmailProcessor {
       // ═══════════════════════════════════════════════════════════════
       const safeSubject = (messageDetails.subject || '');
       const safeBody = (messageDetails.body || '');
+      const safeSubjectLower = safeSubject.toLowerCase();
 
       const classification = this.classifier.classifyEmail(
         safeSubject,
         safeBody,
-        safeSubject.toLowerCase().startsWith('re:')
+        safeSubjectLower.startsWith('re:')
       );
 
       if (!classification.shouldReply) {
@@ -403,7 +404,7 @@ ${GLOBAL_CACHE.doctrineBase}
       // STEP 6.6: CALCOLA MODALITÀ SALUTO
       // ═══════════════════════════════════════════════════════════════
       const salutationMode = computeSalutationMode({
-        isReply: messageDetails.subject.toLowerCase().startsWith('re:'),
+        isReply: safeSubjectLower.startsWith('re:'),
         messageCount: memoryContext.messageCount || messages.length,
         memoryExists: Object.keys(memoryContext).length > 0,
         lastUpdated: memoryContext.lastUpdated || null,
@@ -477,9 +478,9 @@ ${addressLines.join('\n\n')}
       if (typeof createPromptContext === 'function') {
         const promptContext = createPromptContext({
           email: {
-            subject: messageDetails.subject,
+            subject: safeSubject,
             body: messageDetails.body,
-            isReply: messageDetails.subject.toLowerCase().startsWith('re:'),
+            isReply: safeSubjectLower.startsWith('re:'),
             detectedLanguage: detectedLanguage
           },
           classification: {
