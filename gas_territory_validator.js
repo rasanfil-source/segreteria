@@ -115,11 +115,11 @@ class TerritoryValidator {
 
         // Pattern ottimizzati per sicurezza (backtracking limitato)
         const patterns = [
-            // Pattern 1: "via Rossi 10"
-            /((?:via|viale|piazza|piazzale|largo|lungotevere|salita)\s+(?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,6}?[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)\s+(?:n\.?\s*|civico\s+)?(\d+)/gi,
+            // Pattern 1: "via Rossi 10", "via Rossi, 10", "via Rossi n° 10"
+            /((?:via|viale|piazza|piazzale|largo|lungotevere|salita)\s+(?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,6}?[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi,
 
-            // Pattern 2: "abito in... via Rossi 10"
-            /(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+((?:via|viale|piazza|piazzale|largo|lungotevere|salita)\s+(?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,6}?[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)\s+(?:n\.?\s*|civico\s+)?(\d+)/gi
+            // Pattern 2: "abito in... via Rossi 10", "abito in... via Rossi, 10"
+            /(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+((?:via|viale|piazza|piazzale|largo|lungotevere|salita)\s+(?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,6}?[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi
         ];
 
         const addresses = [];
