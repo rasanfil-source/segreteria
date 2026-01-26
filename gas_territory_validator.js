@@ -65,6 +65,45 @@ class TerritoryValidator {
     }
 
     /**
+     * Cerca una corrispondenza nel DB territorio usando matching flessibile (fuzzy)
+     * Es. "Via Cancani" deve matchare "Via Adolfo Cancani"
+     */
+    findTerritoryMatch(inputStreet) {
+        const normalizedInput = this.normalizeStreetName(inputStreet);
+
+        // 1. Match Esatto
+        if (this.territory[normalizedInput]) {
+            console.log(`🔍 Match esatto trovato: '${normalizedInput}'`);
+            return { key: normalizedInput, rules: this.territory[normalizedInput] };
+        }
+
+        // 2. Match per Token (es. "via cancani" -> "via adolfo cancani")
+        // Dividi input in parole (token)
+        const inputTokens = normalizedInput.split(' ').filter(t => t.length > 0);
+
+        // Se l'input è troppo breve (es. solo "via"), evita falsi positivi
+        if (inputTokens.length < 2 && inputTokens[0] === 'via') {
+            return null;
+        }
+
+        // Cerca nelle chiavi del territorio
+        for (const dbKey of Object.keys(this.territory)) {
+            const dbTokens = dbKey.split(' ');
+
+            // Verifica se TUTTI i token dell'input sono presenti nella chiave DB
+            // (ordine non importante)
+            const isMatch = inputTokens.every(token => dbTokens.includes(token));
+
+            if (isMatch) {
+                console.log(`🔍 Match fuzzy trovato: '${inputStreet}' -> '${dbKey}'`);
+                return { key: dbKey, rules: this.territory[dbKey] };
+            }
+        }
+
+        return null; // Nessun match trovato
+    }
+
+    /**
      * Estrae indirizzi da un testo
      * Estrazione sicura: limita lunghezza input e usa pattern efficienti
      */
@@ -151,10 +190,11 @@ class TerritoryValidator {
      * Verifica se un indirizzo appartiene al territorio parrocchiale
      */
     verifyAddress(street, civicNumber) {
-        const streetKey = this.normalizeStreetName(street);
+        // Usa il nuovo metodo di ricerca match
+        const match = this.findTerritoryMatch(street);
 
         // Controlla se la via esiste nel territorio
-        if (!this.territory[streetKey]) {
+        if (!match) {
             return {
                 inParish: false,
                 reason: `'${street}' non è nel territorio della nostra parrocchia`,
@@ -162,7 +202,8 @@ class TerritoryValidator {
             };
         }
 
-        const rules = this.territory[streetKey];
+        const rules = match.rules;
+        // const normalizedStreet = match.key; // Non usato ma disponibile
 
         // Caso 1: Tutti i numeri civici accettati
         if (rules.tutti === true) {
@@ -223,9 +264,10 @@ class TerritoryValidator {
      * Verifica una via senza numero civico
      */
     verifyStreetWithoutCivic(street) {
-        const streetKey = this.normalizeStreetName(street);
+        // Usa il nuovo metodo di ricerca match
+        const match = this.findTerritoryMatch(street);
 
-        if (!this.territory[streetKey]) {
+        if (!match) {
             return {
                 inParish: false,
                 needsCivic: false,
@@ -234,7 +276,7 @@ class TerritoryValidator {
             };
         }
 
-        const rules = this.territory[streetKey];
+        const rules = match.rules;
 
         if (rules.tutti === true) {
             return {
