@@ -300,18 +300,26 @@ class TerritoryValidator {
         // Caso 2: Solo pari
         if (rules.pari && civic % 2 === 0) {
             const [min, max] = rules.pari;
-            if (civic >= min && civic <= max) {
-                console.log(`✅ ${matchedKey} n. ${civic}: nel range PARI [${min}, ${max}]`);
-                return { inTerritory: true, matchedKey: matchedKey, rule: `pari [${min}-${max}]` };
+            const minValue = (min === null || min === undefined) ? 0 : min;
+            const maxValue = (max === null || max === undefined) ? Infinity : max;
+            const maxLabel = maxValue === Infinity ? '∞' : maxValue;
+
+            if (civic >= minValue && civic <= maxValue) {
+                console.log(`✅ ${matchedKey} n. ${civic}: nel range PARI [${minValue}, ${maxLabel}]`);
+                return { inTerritory: true, matchedKey: matchedKey, rule: `pari [${minValue}-${maxLabel}]` };
             }
         }
 
         // Caso 3: Solo dispari
         if (rules.dispari && civic % 2 !== 0) {
             const [min, max] = rules.dispari;
-            if (civic >= min && civic <= max) {
-                console.log(`✅ ${matchedKey} n. ${civic}: nel range DISPARI [${min}, ${max}]`);
-                return { inTerritory: true, matchedKey: matchedKey, rule: `dispari [${min}-${max}]` };
+            const minValue = (min === null || min === undefined) ? 0 : min;
+            const maxValue = (max === null || max === undefined) ? Infinity : max;
+            const maxLabel = maxValue === Infinity ? '∞' : maxValue;
+
+            if (civic >= minValue && civic <= maxValue) {
+                console.log(`✅ ${matchedKey} n. ${civic}: nel range DISPARI [${minValue}, ${maxLabel}]`);
+                return { inTerritory: true, matchedKey: matchedKey, rule: `dispari [${minValue}-${maxLabel}]` };
             }
         }
 
