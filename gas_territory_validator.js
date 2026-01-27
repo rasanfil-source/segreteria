@@ -291,8 +291,7 @@ class TerritoryValidator {
         const rules = match.rules;
         const matchedKey = match.key;
 
-        // Caso 1: Tutti i numeri civici
-        // Caso 1: Tutti i numeri civici (o range specifico)
+
         if (rules.tutti) {
             // Gestione range specifico anche per 'tutti' (es. Lungotevere)
             if (Array.isArray(rules.tutti)) {
