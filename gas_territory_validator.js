@@ -303,6 +303,8 @@ class TerritoryValidator {
                 if (civic >= minValue && civic <= maxValue) {
                     console.log(`✅ ${matchedKey} n. ${civic}: nel range parziale [${minValue}, ${maxLabel}]`);
                     return { inTerritory: true, matchedKey: matchedKey, rule: `range [${minValue}-${maxLabel}]` };
+                } else {
+                    console.log(`❌ ${matchedKey} n. ${civic}: fuori dal range [${minValue}, ${maxLabel}]`);
                 }
             } else if (rules.tutti === true) {
                 console.log(`✅ ${matchedKey} n. ${civic}: TUTTI i civici nel territorio`);
