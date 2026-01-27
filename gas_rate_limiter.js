@@ -113,9 +113,11 @@ class GeminiRateLimiter {
   _initializeCounters() {
     // Usa ScriptLock per sincronizzare il reset tra esecuzioni parallele
     const lock = LockService.getScriptLock();
+    let lockAcquired = false;
     try {
       // Tenta di acquisire il lock per 5 secondi
       if (lock.tryLock(5000)) {
+        lockAcquired = true;
         // Usa data Pacific per allinearsi al reset reale delle quote Google
         // Il reset Google avviene a mezzanotte Pacific = 9:00 AM italiana
         const pacificDate = this._getPacificDate();
@@ -134,7 +136,7 @@ class GeminiRateLimiter {
     } catch (e) {
       console.error(`❌ Errore durante lock inizializzazione quota: ${e.message}`);
     } finally {
-      if (lock.hasLock()) {
+      if (lockAcquired) {
         try {
           lock.releaseLock();
         } catch (e) {
