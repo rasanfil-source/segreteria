@@ -140,6 +140,7 @@ Email Arriva
 │  - 18 template modulari componibili                      │
 │  - Filtering dinamico basato su profilo (lite/std/heavy)│
 │  - Token budget management (~100k max)                   │
+│  - Retrieval Selettivo Dottrina (riduzione 83% token)    │
 │  - Semantic truncation se KB troppo grande               │
 └──────────────┬──────────────────────────────────────────┘
                │
@@ -447,10 +448,17 @@ const profile = computeProfile({
 - **Standard** → Skip: Examples (se no formatting_risk)
 - **Heavy** → Include tutto
 
-**Token Management:**
+**Token Management & Retrieval Selettivo:**
 ```javascript
 MAX_SAFE_TOKENS = 100000;
 KB_TOKEN_BUDGET = 50000; // 50%
+
+// Unified Smart RAG (Dottrina + Direttive)
+// Sostituisce i vecchi metodi di retrieval separati
+// 1. Scoring basato su Topic, Keyword e Dimensioni (es. pastoral boost)
+// 2. Tono Matching: Boost per righe con tono allineato a suggestedTone
+// 3. Volume Adattivo: Max righe in base a promptProfile (Lite=3, Std=5, Heavy=8)
+// 4. Output Unificato: Dottrina + Note AI + Warning in un unico blocco
 
 if (estimatedTokens > MAX_SAFE_TOKENS) {
   // 1. Rimuovi Examples

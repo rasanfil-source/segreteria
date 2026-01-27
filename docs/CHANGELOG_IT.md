@@ -7,6 +7,13 @@ e questo progetto aderisce a [Semantic Versioning](https://semver.org/lang/it/).
 
 ---
 
+## [2.5.5] - 2026-01-27
+
+### 🔧 Ottimizzato
+- **Smart RAG Unificato**: Nuovo sistema `PromptEngine` che unifica il recupero dottrinale e direttivo. Utilizza Dimensioni (PhD/Pastorale), Tono suggerito e Profilo (Lite/Heavy) per selezionare il contesto perfetto. Rimossi layer ridondanti.
+- **Struttura Prompt**: Riorganizzazione delle sezioni per massimizzare l'attenzione del modello sulle istruzioni più recenti (Recency Bias).
+- **Checklist Contestuale**: Generazione dinamica dei controlli finali basata sulla lingua e sul tipo di richiesta.
+
 ## [2.5.4] - 2026-01-21
 
 ### 🐛 Corretto (Bug Fixes)

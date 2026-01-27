@@ -603,7 +603,8 @@ ${addressLines.join('\n\n')}
         responseDelay: responseDelay,
         promptProfile: promptProfile,
         activeConcerns: activeConcerns,
-        territoryContext: territoryContext // Passiamo il contesto separatamente per rendering prioritario
+        territoryContext: territoryContext, // Passiamo il contesto separatamente per rendering prioritario
+        requestType: requestType // Aggiunto per recupero selettivo Dottrina
       };
 
       const prompt = this.promptEngine.buildPrompt(promptOptions);

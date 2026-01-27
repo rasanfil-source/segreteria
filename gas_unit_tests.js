@@ -125,6 +125,120 @@ function testResponseValidatorSuite() {
 }
 
 /**
+ * TEST SUITE 4: PromptEngine (Smart RAG Unificato)
+ */
+function testSmartRAGSuite() {
+    console.log("\n🧪 [[[ TEST SUITE: Smart RAG Unificato ]]]");
+    const engine = new PromptEngine();
+
+    // Mock GLOBAL_CACHE
+    if (typeof GLOBAL_CACHE === 'undefined') {
+        GLOBAL_CACHE = {
+            doctrineStructured: [
+                {
+                    'Categoria': 'Sacramenti',
+                    'Sotto-tema': 'Confessione e perdono',
+                    'Principio dottrinale': 'Dio perdona sempre chi è pentito',
+                    'Tono consigliato': 'Istruttivo e Chiaro',
+                    'Indicazioni operative AI': 'Spiega la differenza tra contrizione e attrizione'
+                },
+                {
+                    'Categoria': 'Morale cristiana',
+                    'Sotto-tema': 'Peccato mortale',
+                    'Principio dottrinale': 'Rottura grave della relazione con Dio',
+                    'Tono consigliato': 'Serio e Dottrinale',
+                    'Indicazioni operative AI': 'Non banalizzare, invita alla confessione'
+                },
+                {
+                    'Categoria': 'Pastorale matrimoniale',
+                    'Sotto-tema': 'Divorziati risposati',
+                    'Principio dottrinale': 'Non possono accedere alla comunione sacramentale',
+                    'Criterio pastorale': 'Accogliere con amore, non escludere dalla vita comunitaria',
+                    'Tono consigliato': 'Empatico e Accogliente',
+                    'Indicazioni operative AI': 'Evita toni giudicanti, focus su cammino spirituale'
+                },
+                {
+                    'Categoria': 'Pastorale matrimoniale',
+                    'Sotto-tema': 'Battesimo figli coppie irregolari',
+                    'Principio dottrinale': 'Il battesimo è diritto del bambino',
+                    'Criterio pastorale': 'Richiede fondata speranza di educazione cristiana',
+                    'Tono consigliato': 'Accogliente ma Chiaro'
+                },
+                {
+                    'Categoria': 'Amministrativo',
+                    'Sotto-tema': 'Sbattezzo',
+                    'Tono consigliato': 'Istituzionale e Neutro'
+                }
+            ],
+            doctrineBase: "DUMP COMPLETO DOTTRINA (FALLBACK)"
+        };
+    }
+
+    // --- TEST 1: Caso DOTTRINALE puro ---
+    console.log("\n> check 1: Dottrinale Puro (Teologico)");
+    const req1 = {
+        type: 'doctrinal',
+        dimensions: { doctoral: 0.9, pastoral: 0.2 },
+        suggestedTone: 'Istruttivo e Chiaro'
+    };
+    const out1 = engine._renderSelectiveDoctrine(req1, 'Confessione', 'Cos’è la confessione?', 'Domanda', 'standard');
+    assert(out1 !== null, "Deve restituire contenuto");
+    if (out1) {
+        assert(out1.includes("Principio"), "Deve includere il principio");
+        assert(out1.includes("CONFESSIONE"), "Deve selezionare tema Confessione");
+    }
+
+    // --- TEST 2: Caso PASTORALE (Empatico) ---
+    console.log("\n> check 2: Pastorale (Divorziati)");
+    const req2 = {
+        type: 'pastoral',
+        dimensions: { pastoral: 0.9, doctrinal: 0.3 },
+        suggestedTone: 'Empatico e Accogliente'
+    };
+    const out2 = engine._renderSelectiveDoctrine(req2, 'Divorziati', 'Sono divorziato...', 'Aiuto', 'standard');
+    if (out2) {
+        assert(out2.includes("Accogliere con amore") || out2.includes("Leva Pastorale"), "Deve includere criterio pastorale accogliente");
+        assert(out2.includes("Empatico"), "Deve mostrare tono consigliato empatico");
+    }
+
+    // --- TEST 3: Caso TECNICO (Orari) ---
+    console.log("\n> check 3: Tecnico (Orari)");
+    const req3 = {
+        type: 'technical',
+        dimensions: { technical: 0.9, pastoral: 0.1 },
+        suggestedTone: 'Professionale'
+    };
+    // Non dovrebbe matchare nulla di dottrinale specifico se non c'è topic pertinente
+    const out3 = engine._renderSelectiveDoctrine(req3, '', 'Quali sono gli orari?', 'Orari', 'standard');
+    assert(out3 === null, "Non deve iniettare dottrina se non pertinente");
+
+    // --- TEST 4: Caso MISTO (Battesimo irregolare) ---
+    console.log("\n> check 4: Misto (Battesimo)");
+    const req4 = {
+        type: 'mixed',
+        dimensions: { pastoral: 0.7, technical: 0.5 },
+        suggestedTone: 'Accogliente ma Chiaro'
+    };
+    const out4 = engine._renderSelectiveDoctrine(req4, 'Battesimo', 'Vorrei battezzare...', 'Info', 'standard');
+    if (out4) {
+        assert(out4.includes("BATTESIMO"), "Deve trovare tema battesimo");
+        assert(out4.includes("speranza") || out4.includes("Leva Pastorale"), "Deve includere criteri specifici");
+    }
+
+    // --- TEST 5: Fallback ---
+    console.log("\n> check 5: Fallback su Cache Vuota");
+    const originalCache = GLOBAL_CACHE.doctrineStructured;
+    GLOBAL_CACHE.doctrineStructured = []; // Svuota
+
+    const out5 = engine._renderSelectiveDoctrine(req1, 'Confessione', '...', '...', 'standard');
+    assert(out5 === null, "Deve tornare null per triggerare fallback al dump completo");
+
+    GLOBAL_CACHE.doctrineStructured = originalCache; // Ripristina
+
+    console.log("✅ Smart RAG Unificato Suite completata.");
+}
+
+/**
  * Esegui tutti i test
  */
 function runAllTests() {
@@ -137,6 +251,7 @@ function runAllTests() {
         testTerritoryValidatorSuite();
         testGmailServiceSuite();
         testResponseValidatorSuite();
+        testSmartRAGSuite();
 
         console.log("\n╔══════════════════════════════════════════════════════════════╗");
         console.log(`║  🎉 TUTTI I TEST COMPLETATI in ${Date.now() - start}ms                 ║`);
