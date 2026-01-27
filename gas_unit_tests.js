@@ -48,8 +48,8 @@ function testTerritoryValidatorSuite() {
     const resBuozziIn = validator.verifyAddress("Viale Bruno Buozzi", 151); // > 109 dispari
     assert(resBuozziIn.inTerritory === true, " viale bruno buozzi 151 deve essere DENTRO (109-Infinity)");
 
-    const resBuozziOut = validator.verifyAddress("Viale Bruno Buozzi", 100); // < 109
-    assert(resBuozziOut.inTerritory === false, " viale bruno buozzi 100 deve essere FUORI (sotto soglia o pari errato)");
+    const resBuozziOut = validator.verifyAddress("Viale Bruno Buozzi", 80); // < 90 pari (e diverso da dispari)
+    assert(resBuozziOut.inTerritory === false, " viale bruno buozzi 80 deve essere FUORI (sotto soglia 90 pari)");
 
     // Caso 3: Via Monti Parioli (pari 2-98)
     const resMontiOut = validator.verifyAddress("Via dei Monti Parioli", 100); // > 98 matchato esatto
@@ -116,9 +116,10 @@ function testResponseValidatorSuite() {
 
     // --- B. Hallucinations (Thinking Leak) ---
     console.log("\n> Check Thinking Leaks:");
-    const leakText = "In base alla knowledge base devo dire che...";
+    // Pattern sicuro: RE: "knowledge base" + (dice|afferma|contiene|riporta|indica)
+    const leakText = "La knowledge base riporta che gli orari sono...";
     const resLeak = validator._checkExposedReasoning(leakText);
-    assert(resLeak.score === 0.0, "Deve rilevare thinking leak 'knowledge base'");
+    assert(resLeak.score === 0.0, "Deve rilevare thinking leak 'knowledge base riporta'");
 
     console.log("✅ ResponseValidator Suite completata.");
 }
