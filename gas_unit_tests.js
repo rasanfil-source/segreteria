@@ -117,9 +117,9 @@ function testResponseValidatorSuite() {
     // --- B. Hallucinations (Thinking Leak) ---
     console.log("\n> Check Thinking Leaks:");
     // Pattern sicuro: RE: "knowledge base" + (dice|afferma|contiene|riporta|indica)
-    const leakText = "La knowledge base riporta che gli orari sono...";
+    const leakText = "La knowledge base o kb contiene indicazioni...";
     const resLeak = validator._checkExposedReasoning(leakText);
-    assert(resLeak.score === 0.0, "Deve rilevare thinking leak 'knowledge base riporta'");
+    assert(resLeak.score === 0.0, "Deve rilevare thinking leak 'kb contiene'");
 
     console.log("✅ ResponseValidator Suite completata.");
 }
