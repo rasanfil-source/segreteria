@@ -101,7 +101,7 @@ class GeminiRateLimiter {
     this.backoffMultiplier = 2;
     this.maxBackoff = 60000;
 
-    console.log('✓ GeminiRateLimiter v2.1 inizializzato');
+    console.log('✓ GeminiRateLimiter inizializzato');
     console.log(`   Modelli: ${Object.keys(this.models).join(', ')}`);
     console.log(`   Default: ${this.defaultModel}`);
   }

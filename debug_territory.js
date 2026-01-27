@@ -2,7 +2,7 @@
 function debugTerritoryLogic() {
     const validator = new TerritoryValidator();
 
-    console.log("=== TEST VALIDAZIONE TERRITORIO (V2.1 - Range & Tutti) ===");
+    console.log("=== TEST VALIDAZIONE TERRITORIO (Range & Tutti) ===");
 
     // Test Case 1: Range aperto (Viale Bruno Buozzi dispari: 109+)
     const test1 = "Viale Bruno Buozzi 150";

@@ -1,5 +1,5 @@
 /**
- * gas_unit_tests.js - Test suite completa per il sistema (v2.5)
+ * gas_unit_tests.js - Test suite completa per il sistema
  * 
  * Copre:
  * 1. TerritoryValidator (inclusi range 'tutti' e 'Infinity')
@@ -131,48 +131,49 @@ function testSmartRAGSuite() {
     console.log("\n🧪 [[[ TEST SUITE: Smart RAG Unificato ]]]");
     const engine = new PromptEngine();
 
-    // Mock GLOBAL_CACHE
-    if (typeof GLOBAL_CACHE === 'undefined') {
-        GLOBAL_CACHE = {
-            doctrineStructured: [
-                {
-                    'Categoria': 'Sacramenti',
-                    'Sotto-tema': 'Confessione e perdono',
-                    'Principio dottrinale': 'Dio perdona sempre chi è pentito',
-                    'Tono consigliato': 'Istruttivo e Chiaro',
-                    'Indicazioni operative AI': 'Spiega la differenza tra contrizione e attrizione'
-                },
-                {
-                    'Categoria': 'Morale cristiana',
-                    'Sotto-tema': 'Peccato mortale',
-                    'Principio dottrinale': 'Rottura grave della relazione con Dio',
-                    'Tono consigliato': 'Serio e Dottrinale',
-                    'Indicazioni operative AI': 'Non banalizzare, invita alla confessione'
-                },
-                {
-                    'Categoria': 'Pastorale matrimoniale',
-                    'Sotto-tema': 'Divorziati risposati',
-                    'Principio dottrinale': 'Non possono accedere alla comunione sacramentale',
-                    'Criterio pastorale': 'Accogliere con amore, non escludere dalla vita comunitaria',
-                    'Tono consigliato': 'Empatico e Accogliente',
-                    'Indicazioni operative AI': 'Evita toni giudicanti, focus su cammino spirituale'
-                },
-                {
-                    'Categoria': 'Pastorale matrimoniale',
-                    'Sotto-tema': 'Battesimo figli coppie irregolari',
-                    'Principio dottrinale': 'Il battesimo è diritto del bambino',
-                    'Criterio pastorale': 'Richiede fondata speranza di educazione cristiana',
-                    'Tono consigliato': 'Accogliente ma Chiaro'
-                },
-                {
-                    'Categoria': 'Amministrativo',
-                    'Sotto-tema': 'Sbattezzo',
-                    'Tono consigliato': 'Istituzionale e Neutro'
-                }
-            ],
-            doctrineBase: "DUMP COMPLETO DOTTRINA (FALLBACK)"
-        };
-    }
+    // Force Mock GLOBAL_CACHE for testing
+    // Sovrascriviamo temporaneamente per garantire dati di test coerenti
+    const originalCache = typeof GLOBAL_CACHE !== 'undefined' ? GLOBAL_CACHE : undefined;
+    GLOBAL_CACHE = {
+        doctrineStructured: [
+            {
+                'Categoria': 'Sacramenti',
+                'Sotto-tema': 'Confessione e perdono',
+                'Principio dottrinale': 'Dio perdona sempre chi è pentito',
+                'Tono consigliato': 'Istruttivo e Chiaro',
+                'Indicazioni operative AI': 'Spiega la differenza tra contrizione e attrizione'
+            },
+            {
+                'Categoria': 'Morale cristiana',
+                'Sotto-tema': 'Peccato mortale',
+                'Principio dottrinale': 'Rottura grave della relazione con Dio',
+                'Tono consigliato': 'Serio e Dottrinale',
+                'Indicazioni operative AI': 'Non banalizzare, invita alla confessione'
+            },
+            {
+                'Categoria': 'Pastorale matrimoniale',
+                'Sotto-tema': 'Divorziati risposati',
+                'Principio dottrinale': 'Non possono accedere alla comunione sacramentale',
+                'Criterio pastorale': 'Accogliere con amore, non escludere dalla vita comunitaria',
+                'Tono consigliato': 'Empatico e Accogliente',
+                'Indicazioni operative AI': 'Evita toni giudicanti, focus su cammino spirituale'
+            },
+            {
+                'Categoria': 'Pastorale matrimoniale',
+                'Sotto-tema': 'Battesimo figli coppie irregolari',
+                'Principio dottrinale': 'Il battesimo è diritto del bambino',
+                'Criterio pastorale': 'Richiede fondata speranza di educazione cristiana',
+                'Tono consigliato': 'Accogliente ma Chiaro'
+            },
+            {
+                'Categoria': 'Amministrativo',
+                'Sotto-tema': 'Sbattezzo',
+                'Tono consigliato': 'Istituzionale e Neutro'
+            }
+        ],
+        doctrineBase: "DUMP COMPLETO DOTTRINA (FALLBACK)"
+    };
+
 
     // --- TEST 1: Caso DOTTRINALE puro ---
     console.log("\n> check 1: Dottrinale Puro (Teologico)");
@@ -227,13 +228,23 @@ function testSmartRAGSuite() {
 
     // --- TEST 5: Fallback ---
     console.log("\n> check 5: Fallback su Cache Vuota");
-    const originalCache = GLOBAL_CACHE.doctrineStructured;
+    // Salviamo la strutturata corrente (che è il nostro mock)
+    const mockStructured = GLOBAL_CACHE.doctrineStructured;
     GLOBAL_CACHE.doctrineStructured = []; // Svuota
 
     const out5 = engine._renderSelectiveDoctrine(req1, 'Confessione', '...', '...', 'standard');
     assert(out5 === null, "Deve tornare null per triggerare fallback al dump completo");
 
-    GLOBAL_CACHE.doctrineStructured = originalCache; // Ripristina
+    // Restore Mock per coerenza (opzionale qui, ma buona pratica)
+    GLOBAL_CACHE.doctrineStructured = mockStructured;
+
+    // Restore Original Global Cache (se esisteva)
+    if (originalCache) {
+        GLOBAL_CACHE = originalCache;
+    } else {
+        // Se non esisteva, possiamo lasciarla o cancellarla, dipende dall'ambiente.
+        // In GAS meglio non cancellare globali se possibile, ma qui stiamo solo testando.
+    }
 
     console.log("✅ Smart RAG Unificato Suite completata.");
 }
@@ -244,7 +255,7 @@ function testSmartRAGSuite() {
 function runAllTests() {
     const start = Date.now();
     console.log("╔══════════════════════════════════════════════════════════════╗");
-    console.log("║           SYSTEM INTEGRATION TESTS (v2.5)                    ║");
+    console.log("║           SYSTEM INTEGRATION TESTS                           ║");
     console.log("╚══════════════════════════════════════════════════════════════╝");
 
     try {
