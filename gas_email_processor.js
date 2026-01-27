@@ -397,47 +397,6 @@ class EmailProcessor {
         }
       }
 
-      const needsPastoralSupport = requestType.needsDiscernment || requestType.needsDoctrine;
-
-      // AI_CORE_LITE: solo se c'è componente pastorale
-      if (needsPastoralSupport && typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.aiCoreLite) {
-        const liteSection = `
-════════════════════════════════════════════════════════════════════════
-📋 PRINCIPI PASTORALI FONDAMENTALI (AI_CORE_LITE)
-════════════════════════════════════════════════════════════════════════
-${GLOBAL_CACHE.aiCoreLite}
-════════════════════════════════════════════════════════════════════════
-`;
-        knowledgeSections.push(liteSection);
-        console.log('   ✓ AI_CORE_LITE iniettato (domanda pastorale/dottrinale)');
-      }
-
-      // AI_CORE esteso: solo se needsDiscernment
-      if (requestType.needsDiscernment && typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.aiCore) {
-        const coreSection = `
-════════════════════════════════════════════════════════════════════════
-🧭 PRINCIPI PASTORALI ESTESI (AI_CORE) - Accompagnamento Personale
-════════════════════════════════════════════════════════════════════════
-${GLOBAL_CACHE.aiCore}
-════════════════════════════════════════════════════════════════════════
-`;
-        knowledgeSections.push(coreSection);
-        console.log('   ✓ AI_CORE iniettato (needsDiscernment=true)');
-      }
-
-      // Dottrina: solo se needsDoctrine
-      if (requestType.needsDoctrine && typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.doctrineBase) {
-        const doctrineSection = `
-════════════════════════════════════════════════════════════════════════
-📖 BASE DOTTRINALE (Dottrina) - Spiegazione Dottrinale
-════════════════════════════════════════════════════════════════════════
-${GLOBAL_CACHE.doctrineBase}
-════════════════════════════════════════════════════════════════════════
-`;
-        knowledgeSections.push(doctrineSection);
-        console.log('   ✓ Doctrine Base iniettato (needsDoctrine=true)');
-      }
-
       knowledgeSections.push(knowledgeBase);
       enrichedKnowledgeBase = knowledgeSections.filter(Boolean).join('\n\n');
 

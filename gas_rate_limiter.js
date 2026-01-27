@@ -134,9 +134,13 @@ class GeminiRateLimiter {
     } catch (e) {
       console.error(`❌ Errore durante lock inizializzazione quota: ${e.message}`);
     } finally {
-      // Gestione Lock: Non rilasciamo il lock qui per preservare il lock globale
-      // acquisito da main(). Il rilascio avverrà al termine dell'esecuzione dello script.
-      // try { lock.releaseLock(); } catch (e) { console.warn(`⚠️ Errore rilascio lock (QuotaReset): ${e.message}`); }
+      if (lock.hasLock()) {
+        try {
+          lock.releaseLock();
+        } catch (e) {
+          console.warn(`⚠️ Errore rilascio lock (QuotaReset): ${e.message}`);
+        }
+      }
     }
   }
 

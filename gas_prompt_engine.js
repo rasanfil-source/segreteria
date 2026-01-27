@@ -946,7 +946,13 @@ Non mostrare mai entrambi i set di orari.`;
   // ========================================================================
 
   _renderTemporalAwareness(currentDate) {
-    const dateObj = new Date(currentDate);
+    let dateObj;
+    if (typeof currentDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(currentDate)) {
+      const [year, month, day] = currentDate.split('-').map(Number);
+      dateObj = new Date(year, month - 1, day);
+    } else {
+      dateObj = new Date(currentDate);
+    }
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const humanDate = dateObj.toLocaleDateString('it-IT', options);
 

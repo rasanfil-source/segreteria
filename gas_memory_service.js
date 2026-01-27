@@ -245,7 +245,7 @@ class MemoryService {
    * 
    * @param {string} threadId - ID del thread
    * @param {Object} newData - Dati da aggiornare (language, category, tone, etc.)
-   * @param {string[]} providedTopics - Topic da aggiungere (opzionale)
+   * @param {(string|Object)[]} providedTopics - Topic da aggiungere (opzionale)
    * @returns {boolean} - true se l'operazione è riuscita
    */
   updateMemoryAtomic(threadId, newData, providedTopics = null) {
@@ -280,18 +280,20 @@ class MemoryService {
           mergedData.version = currentVersion + 1;
 
           if (providedTopics && providedTopics.length > 0) {
-            const existingTopics = existingData.providedInfo || [];
-            let mergedTopics = [...new Set([...existingTopics, ...providedTopics])];
+            const normalizedTopics = this._normalizeProvidedTopics(providedTopics);
+            const existingTopics = this._normalizeProvidedTopics(existingData.providedInfo || []);
+            const mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
 
             // Limita providedInfo per evitare memory bloat
             const maxTopics = (typeof CONFIG !== 'undefined' && CONFIG.MAX_PROVIDED_TOPICS) || 50;
-            if (mergedTopics.length > maxTopics) {
-              console.log(`🧠 Memoria: Trim providedInfo da ${mergedTopics.length} a ${maxTopics} topic`);
-              mergedTopics = mergedTopics.slice(-maxTopics);
+            let trimmedTopics = mergedTopics;
+            if (trimmedTopics.length > maxTopics) {
+              console.log(`🧠 Memoria: Trim providedInfo da ${trimmedTopics.length} a ${maxTopics} topic`);
+              trimmedTopics = trimmedTopics.slice(-maxTopics);
             }
 
-            mergedData.providedInfo = mergedTopics;
-            console.log(`🧠 Memoria: Aggiunti atomicamente topic ${JSON.stringify(providedTopics)}`);
+            mergedData.providedInfo = trimmedTopics;
+            console.log(`🧠 Memoria: Aggiunti atomicamente topic ${JSON.stringify(normalizedTopics)}`);
           }
 
           this._updateRow(existingRow.rowIndex, mergedData);
@@ -303,7 +305,7 @@ class MemoryService {
           newData.version = 1;
 
           if (providedTopics && providedTopics.length > 0) {
-            newData.providedInfo = providedTopics;
+            newData.providedInfo = this._normalizeProvidedTopics(providedTopics);
           }
 
           this._appendRow(newData);
@@ -347,8 +349,9 @@ class MemoryService {
       const existingRow = this._findRowByThreadId(threadId);
       if (existingRow) {
         const existingData = this._rowToObject(existingRow.values);
-        const existingTopics = existingData.providedInfo || [];
-        let mergedTopics = [...new Set([...existingTopics, ...topics])];
+        const existingTopics = this._normalizeProvidedTopics(existingData.providedInfo || []);
+        const normalizedTopics = this._normalizeProvidedTopics(topics);
+        let mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
 
         const maxTopics = (typeof CONFIG !== 'undefined' && CONFIG.MAX_PROVIDED_TOPICS) || 50;
         if (mergedTopics.length > maxTopics) {
@@ -471,6 +474,60 @@ class MemoryService {
       }
     }
     return null;
+  }
+
+  /**
+   * Normalizza i topic forniti in formato oggetto.
+   */
+  _normalizeProvidedTopics(topics) {
+    if (!Array.isArray(topics)) return [];
+
+    return topics
+      .map(topic => {
+        if (typeof topic === 'string') {
+          const trimmed = topic.trim();
+          if (!trimmed) return null;
+          return {
+            topic: trimmed,
+            userReaction: 'unknown',
+            context: null,
+            timestamp: new Date().toISOString()
+          };
+        }
+        if (topic && typeof topic === 'object' && typeof topic.topic === 'string') {
+          const trimmed = topic.topic.trim();
+          if (!trimmed) return null;
+          return {
+            topic: trimmed,
+            userReaction: topic.userReaction || topic.reaction || 'unknown',
+            context: topic.context || null,
+            timestamp: topic.timestamp || new Date().toISOString()
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }
+
+  /**
+   * Merge topic evitando duplicati per chiave "topic".
+   */
+  _mergeProvidedTopics(existingTopics, newTopics) {
+    const mergedMap = new Map();
+
+    existingTopics.forEach(item => {
+      if (item && item.topic) {
+        mergedMap.set(item.topic, item);
+      }
+    });
+
+    newTopics.forEach(item => {
+      if (item && item.topic) {
+        mergedMap.set(item.topic, item);
+      }
+    });
+
+    return Array.from(mergedMap.values());
   }
 
   /**
