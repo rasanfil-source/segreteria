@@ -292,9 +292,23 @@ class TerritoryValidator {
         const matchedKey = match.key;
 
         // Caso 1: Tutti i numeri civici
-        if (rules.tutti === true) {
-            console.log(`✅ ${matchedKey} n. ${civic}: TUTTI i civici nel territorio`);
-            return { inTerritory: true, matchedKey: matchedKey, rule: 'tutti' };
+        // Caso 1: Tutti i numeri civici (o range specifico)
+        if (rules.tutti) {
+            // Gestione range specifico anche per 'tutti' (es. Lungotevere)
+            if (Array.isArray(rules.tutti)) {
+                const [min, max] = rules.tutti;
+                const minValue = (min === null || min === undefined) ? 0 : min;
+                const maxValue = (max === null || max === undefined) ? Infinity : max;
+                const maxLabel = maxValue === Infinity ? '∞' : maxValue;
+
+                if (civic >= minValue && civic <= maxValue) {
+                    console.log(`✅ ${matchedKey} n. ${civic}: nel range parziale [${minValue}, ${maxLabel}]`);
+                    return { inTerritory: true, matchedKey: matchedKey, rule: `range [${minValue}-${maxLabel}]` };
+                }
+            } else if (rules.tutti === true) {
+                console.log(`✅ ${matchedKey} n. ${civic}: TUTTI i civici nel territorio`);
+                return { inTerritory: true, matchedKey: matchedKey, rule: 'tutti' };
+            }
         }
 
         // Caso 2: Solo pari

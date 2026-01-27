@@ -652,19 +652,32 @@ class ResponseValidator {
    * Corregge maiuscole post-virgola per parole vietate
    */
   _fixCapitalAfterComma(text, language) {
-    // Ri-utilizza la lista delle parole vietate (definita internalmente o spostata a proprietà classe)
-    // Per semplicità, ridefinisco qui quelle critiche italiane
-    // TODO: Centralizzare la lista 'forbiddenCaps' come proprietà di classe in refactoring futuro
-    const targets = [
-      'Siamo', 'Restiamo', 'Sono', 'È', "E'", 'Era', 'Sarà',
-      'Ho', 'Hai', 'Ha', 'Abbiamo', 'Avete', 'Hanno',
-      'Vorrei', 'Vorremmo', 'Volevamo', 'Desideriamo', 'Informiamo',
-      'Il', 'Lo', 'La', 'I', 'Gli', 'Le', 'Un', 'Uno', 'Una', "Un'",
-      'Per', 'Con', 'In', 'Su', 'Tra', 'Fra', 'Da', 'Di', 'A',
-      'Ma', 'Se', 'Che', 'Non', 'Sì', 'No', 'E', 'Ed', 'O', 'Oppure',
-      'Vi', 'Ti', 'Mi', 'Ci', 'Si', 'Li',
-      'Ecco', 'Gentile', 'Caro', 'Cara', 'Spettabile'
-    ];
+    // Ri-utilizza la lista delle parole vietate appropriata in base alla lingua
+    let targets = [];
+
+    // Definiamo le regole per lingua
+    if (language === 'it') {
+      targets = [
+        'Siamo', 'Restiamo', 'Sono', 'È', "E'", 'Era', 'Sarà',
+        'Ho', 'Hai', 'Ha', 'Abbiamo', 'Avete', 'Hanno',
+        'Vorrei', 'Vorremmo', 'Volevamo', 'Desideriamo', 'Informiamo',
+        'Il', 'Lo', 'La', 'I', 'Gli', 'Le', 'Un', 'Uno', 'Una', "Un'",
+        'Per', 'Con', 'In', 'Su', 'Tra', 'Fra', 'Da', 'Di', 'A',
+        'Ma', 'Se', 'Che', 'Non', 'Sì', 'No', 'E', 'Ed', 'O', 'Oppure',
+        'Vi', 'Ti', 'Mi', 'Ci', 'Si', 'Li',
+        'Ecco', 'Gentile', 'Caro', 'Cara', 'Spettabile'
+      ];
+    } else if (language === 'en') {
+      // Lista minima per inglese
+      targets = ['The', 'An', 'For', 'With', 'On', 'At', 'If', 'Or', 'And', 'But', 'To', 'In'];
+    } else if (language === 'es') {
+      // Lista minima per spagnolo
+      targets = ['Estamos', 'Somos', 'El', 'Los', 'Las', 'Una', 'Por', 'En', 'De', 'Pero', 'Que'];
+    } else {
+      // Se lingua sconosciuta o non supportata, NON applicare fix rischiosi
+      console.log(`   ⚠️ Autofix maiuscole disabilitato per lingua '${language}'`);
+      return text;
+    }
 
     let result = text;
 

@@ -440,7 +440,21 @@ class GmailService {
           referencesHeader = messageDetails.existingReferences + ' ' + messageDetails.rfc2822MessageId;
         }
 
-        const fromEmail = messageDetails.recipientEmail || Session.getActiveUser().getEmail();
+        let fromEmailRaw = messageDetails.recipientEmail || Session.getActiveUser().getEmail();
+        let fromEmail = fromEmailRaw;
+
+        // Sanificazione campo From per estrarre solo indirizzo puro
+        const emailMatch = fromEmailRaw.match(/<(.+?)>/);
+        if (emailMatch && emailMatch[1]) {
+          fromEmail = emailMatch[1];
+        } else {
+          // Fallback semplice per rimuovere eventuale nome display
+          const parts = fromEmailRaw.split(/\s+/);
+          const lastPart = parts[parts.length - 1];
+          if (lastPart.includes('@')) {
+            fromEmail = lastPart.replace(/[<>]/g, '');
+          }
+        }
 
         const boundary = 'boundary_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
         const rawMessage = [
