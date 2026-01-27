@@ -128,27 +128,26 @@ class PromptEngine {
       }
     };
 
-    // 1. ERRORI CRITICI (primo - rinforzo) - SEMPRE INCLUSO
-    sections.push(this._renderCriticalErrors());
-
-    // 2. RUOLO SISTEMA - SEMPRE INCLUSO
+    // BLOCCO 1: SETUP CRITICO
     sections.push(this._renderSystemRole());
-
-    // 3. ISTRUZIONI LINGUA - SEMPRE INCLUSO
     sections.push(this._renderLanguageInstruction(detectedLanguage));
+    sections.push(this._renderKnowledgeBase(knowledgeBase));
 
-    // 3.5. CONTINUITÀ CONVERSAZIONALE
+    const territorySection = this._renderTerritoryVerification(territoryContext);
+    if (territorySection) {
+      sections.push(territorySection);
+    }
+
+    // BLOCCO 2: CONTESTO
+    const memorySection = this._renderMemoryContext(memoryContext);
+    if (memorySection) sections.push(memorySection);
+
     const continuitySection = this._renderConversationContinuity(salutationMode);
     if (continuitySection) sections.push(continuitySection);
 
     const responseDelaySection = this._renderResponseDelay(responseDelay, detectedLanguage);
     if (responseDelaySection) sections.push(responseDelaySection);
 
-    // 4. CONTESTO MEMORIA - SEMPRE INCLUSO
-    const memorySection = this._renderMemoryContext(memoryContext);
-    if (memorySection) sections.push(memorySection);
-
-    // 4.5 CONTINUITÀ + UMANITÀ + FOCUS (condizionale, leggero)
     const shouldAddContinuityFocus =
       (memoryContext && Object.keys(memoryContext).length > 0) ||
       (salutationMode && salutationMode !== 'full') ||
@@ -158,77 +157,47 @@ class PromptEngine {
       sections.push(this._renderContinuityHumanFocus());
     }
 
-    // 5. KNOWLEDGE BASE - SEMPRE INCLUSO
-    sections.push(this._renderKnowledgeBase(knowledgeBase));
+    if (conversationHistory) {
+      sections.push(this._renderConversationHistory(conversationHistory));
+    }
 
-    // 6. VERIFICA TERRITORIO (SPOSTATO ALLA FINE PER RECENCY BIAS)
-    // sections.push(this._renderTerritoryVerification(territoryContext));
+    sections.push(this._renderEmailContent(emailContent, emailSubject, senderName, senderEmail, detectedLanguage));
 
-    // 7. CONTESTO STAGIONALE
+    // BLOCCO 3: GUIDELINES
     sections.push(this._renderSeasonalContext(currentSeason));
-
-    // 7b. CONSAPEVOLEZZA TEMPORALE
     sections.push(this._renderTemporalAwareness(currentDate));
 
-    // 8. SUGGERIMENTO CATEGORIA
     const categoryHint = this._renderCategoryHint(category);
     if (categoryHint) sections.push(categoryHint);
 
-    // 8b. DIRETTIVE DINAMICHE (Smart RAG)
     const dynamicDirectives = this._renderDynamicDirectives(topic);
     if (dynamicDirectives) sections.push(dynamicDirectives);
 
-    // 9. LINEE GUIDA FORMATTAZIONE - FILTRABILE
     addTemplate('FormattingGuidelinesTemplate', this._renderFormattingGuidelines());
 
-    // 10. STRUTTURA RISPOSTA - SEMPRE INCLUSO
     const structureHint = this._renderResponseStructure(category, subIntents);
     if (structureHint) sections.push(structureHint);
 
-    // 10.5 TEMPLATE SBATTEZZO (PRIORITÀ MASSIMA)
     const normalizedTopic = (topic || '').toLowerCase();
     if (normalizedTopic.includes('sbattezzo') || category === 'formal' || (category === 'sbattezzo')) {
       sections.push(this._renderSbattezzoTemplate(senderName));
     }
 
-    // 11. CRONOLOGIA CONVERSAZIONE - SEMPRE INCLUSO
-    if (conversationHistory) {
-      sections.push(this._renderConversationHistory(conversationHistory));
-    }
-
-    // 12. CONTENUTO EMAIL - SEMPRE INCLUSO
-    sections.push(this._renderEmailContent(emailContent, emailSubject, senderName, senderEmail, detectedLanguage));
-
-    // 13. REGOLE NO REPLY - SEMPRE INCLUSO
     sections.push(this._renderNoReplyRules());
 
-    // 14. LINEE GUIDA TONO UMANO - FILTRABILE
     addTemplate('HumanToneGuidelinesTemplate', this._renderHumanToneGuidelines());
-
-    // 15. ESEMPI - FILTRABILE
     addTemplate('ExamplesTemplate', this._renderExamples(category));
 
-    // 16. LINEE GUIDA RISPOSTA - SEMPRE INCLUSO
     sections.push(this._renderResponseGuidelines(detectedLanguage, currentSeason, salutation, closing));
 
-    // 17. CASI SPECIALI - FILTRABILE
-    // Inibisci casi speciali se è uno sbattezzo per evitare interferenze pastorali
     if (!normalizedTopic.includes('sbattezzo') && category !== 'formal') {
       addTemplate('SpecialCasesTemplate', this._renderSpecialCases());
     }
 
-    // 18. CHECKLIST FINALE (ultimo - rinforzo) - SEMPRE INCLUSO
-    sections.push(this._renderFinalChecklist());
-
-    // 19. VERIFICA TERRITORIO (RECENCY BIAS - IMPERATIVO FINALE)
-    // Inserito qui per override su qualsiasi altra istruzione
-    const territorySection = this._renderTerritoryVerification(territoryContext);
-    if (territorySection) {
-      sections.push(territorySection);
-    }
-
-    // 20. SCUSE PER RITARDO (MASSIMA PRIORITÀ APERTURA)
-    // Rimosso da qui e spostato sopra (Step 4.6) per coerenza temporale
+    // BLOCCO 4: RINFORZO FINALE (recency bias)
+    sections.push(this._renderCriticalErrorsReminder());
+    sections.push(this._renderContextualChecklist(detectedLanguage, territoryContext));
+    sections.push(this._renderFinalChecklist(detectedLanguage, territoryContext));
 
     // Componi prompt finale
     let prompt = sections.join('\n\n');
@@ -272,133 +241,47 @@ class PromptEngine {
   }
 
   // ========================================================================
-  // TEMPLATE 1: ERRORI CRITICI (mostrati PRIMA e rinforzati)
+  // TEMPLATE 16.5: PROMEMORIA ERRORI CRITICI (CONDENSATO)
   // ========================================================================
 
-  _renderCriticalErrors() {
+  _renderCriticalErrorsReminder() {
     return `═══════════════════════════════════════════════════════════════════════════
-🚨🚨🚨 ERRORI CRITICI DA EVITARE ASSOLUTAMENTE 🚨🚨🚨
+🚨 PROMEMORIA ERRORI CRITICI (CONDENSATO)
 ═══════════════════════════════════════════════════════════════════════════
 
-❌ ERRORE #1: MAIUSCOLA DOPO LA VIRGOLA
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1) Minuscola dopo la virgola (non "Buonasera, Siamo...")
+2) Link markdown senza URL ripetuto ([Descrizione](URL), non [URL](URL))
+3) Nomi propri con iniziale maiuscola
+4) Nessun thinking leak o meta-commenti
+5) Mai dire "contattaci" se l'utente ci ha già scritto
 
-SBAGLIATO ❌: "Buonasera Federica, Siamo lieti di..."
-SBAGLIATO ❌: "Buongiorno, Restiamo a disposizione..."
-SBAGLIATO ❌: "Grazie, Vi contatteremo..."
+═══════════════════════════════════════════════════════════════════════════`;
+  }
 
-GIUSTO ✅: "Buonasera Federica, siamo lieti di..."
-GIUSTO ✅: "Buongiorno, restiamo a disposizione..."
-GIUSTO ✅: "Grazie, vi contatteremo..."
+  // ========================================================================
+  // TEMPLATE 16.6: CHECKLIST CONTESTUALE
+  // ========================================================================
 
-📌 REGOLA: Dopo una virgola, la frase CONTINUA con la minuscola.
-   La virgola NON è un punto. Non inizia una nuova frase.
+  _renderContextualChecklist(lang, territoryContext) {
+    const languageMap = {
+      it: 'Italiano',
+      en: 'Inglese',
+      es: 'Spagnolo'
+    };
+    const languageLabel = languageMap[lang] || 'Lingua originale';
+    const territoryLine = territoryContext
+      ? '□ Ho rispettato eventuali vincoli territoriali (se presenti nel contesto).'
+      : '□ Nessun vincolo territoriale rilevato.';
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-❌ ERRORE #2: LINK CON URL RIPETUTO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-SBAGLIATO ❌: [tinyurl.com/santiago26](https://tinyurl.com/santiago26)
-SBAGLIATO ❌: [https://tinyurl.com/santiago26](https://tinyurl.com/santiago26)
-
-GIUSTO ✅: Iscrizione online: https://tinyurl.com/santiago26
-GIUSTO ✅: Programma completo: https://tinyurl.com/cammino26
-
-📌 REGOLA: MAI ripetere l'URL sia dentro [] che dentro ()
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-❌ ERRORE #3: NOME PROPRIO IN MINUSCOLO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-SBAGLIATO ❌: "In merito a quanto ci chiede, federica, comprendiamo..."
-GIUSTO ✅: "In merito a quanto ci chiede, Federica, comprendiamo..."
-
-📌 REGOLA: I nomi propri di persona SEMPRE con la prima lettera MAIUSCOLA.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-❌ ERRORE #4: RAGIONAMENTO ESPOSTO (THINKING LEAK)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-MAI includere nella risposta finale:
-• Riflessioni sulla knowledge base ("Rivedendo la KB...", "La KB dice...")
-• Auto-correzioni ("Correggo...", "Meglio dire...", "Devo correggere...")
-• Note mentali ("Nota:", "N.B.:", "Devo usare solo...")
-• Commenti su date/info ("le date del 2025 sono passate...")
-• Meta-commenti ("Pensandoci bene...", "In realtà...")
-
-📌 REGOLA: La risposta deve essere PULITA, FINALE, PRONTA PER L'UTENTE.
-   NON mostrare MAI il tuo processo di pensiero.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-❌ ERRORE #5: IL LOOP "CONTATTACI" (CRITICO)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-SITUAZIONE: L'utente chiede qualcosa (es. "C'è posto?") che richiede verifica.
-SBAGLIATO ❌: "La invitiamo a contattare la segreteria per verificare."
-Perché è sbagliato? L'utente HA GIÀ contattato la segreteria scrivendoci!
-
-GIUSTO ✅: "Inoltrerò la sua richiesta alla segreteria per una verifica puntuale."
-GIUSTO ✅: "Dobbiamo verificare la disponibilità attuale. Al momento..."
-
-📌 REGOLA: Se ci stanno scrivendo, NON dire di scriverci.
-   Prendi in carico la richiesta o spiega che serve una verifica manuale NOSTRA.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-⚠️ QUESTI ERRORI SONO INACCETTABILI. CONTROLLA SEMPRE PRIMA DI RISPONDERE.
-
+    return `═══════════════════════════════════════════════════════════════════════════
+✅ CHECKLIST CONTESTUALE (ULTIMO PASSAGGIO)
 ═══════════════════════════════════════════════════════════════════════════
 
-═══════════════════════════════════════════════════════════════════════════
-🧠 PRINCIPIO ANTI-RIDONDANZA - ASCOLTO ATTIVO INTELLIGENTE
-═══════════════════════════════════════════════════════════════════════════
-
-📌 REGOLA FONDAMENTALE:
-Se l'utente comunica di possedere già una risorsa, informazione o documento,
-NON fornirlo di nuovo. Procedi direttamente al passo successivo.
-
-QUESTO VALE PER QUALSIASI FORMULAZIONE, non solo le frasi esatte.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-ESEMPIO 1 - MODULI:
-
-Utente: "Ho già scaricato i moduli sul vostro sito. Devo fare altro?"
-
-❌ SBAGLIATO:
-   "Il modulo è disponibile qui: https://tinyurl.com/..."
-   → Sta fornendo qualcosa che l'utente ha detto di avere già!
-
-✅ GIUSTO:
-   "Perfetto, avendo già il modulo, il passo successivo è consegnarlo 
-    compilato via email o a mano in segreteria."
-   → Procede direttamente al PASSO SUCCESSIVO
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-ESEMPIO 2 - ORARI:
-
-Utente: "Ho visto gli orari sul sito. Posso venire di giovedì?"
-
-❌ SBAGLIATO: "Gli orari sono: lunedì 8-12, martedì..."
-✅ GIUSTO: "Sì, il giovedì siamo aperti dalle 8 alle 12."
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-💡 APPLICAZIONE:
-Riconosci QUALSIASI modo in cui l'utente comunica di avere già qualcosa:
-- "Ho già scaricato..."
-- "Ho trovato sul sito..."
-- "L'ho già preso..."
-- "Ce l'ho..."
-- "Ho visto che..."
-- Qualsiasi altra formulazione simile
-
-Quando lo riconosci → salta quel contenuto e vai al passo successivo.
+□ Lingua risposta: ${languageLabel}
+□ Ho risposto esattamente alla domanda senza infodumping
+□ Se 3+ elementi/orari → formatto in markdown; se 1-2 → testo semplice
+□ Non ho inventato informazioni
+${territoryLine}
 
 ═══════════════════════════════════════════════════════════════════════════`;
   }
@@ -863,8 +746,8 @@ Non mostrare mai entrambi i set di orari.`;
 
     if (relevantRows.length === 0) return null;
 
-    // Limita a max 3 risultati
-    const topRows = relevantRows.slice(0, 3);
+    // Limita a max 5 risultati
+    const topRows = relevantRows.slice(0, 5);
 
     // Estrai direttive con fallback sicuri
     const directives = topRows.map(row => {
@@ -873,12 +756,23 @@ Non mostrare mai entrambi i set di orari.`;
       const criterio = String(row['Criterio pastorale'] || 'N/A');
       const limiti = String(row['Limiti da non superare'] || 'N/A');
       const note = String(row['Indicazioni operative AI'] || 'N/A');
+      const esempi = String(row['Esempi contestuali'] || row['Esempi'] || row['Esempio risposta'] || '').trim();
+      const warnings = String(row['Warning personalizzati'] || row['Avvertenze'] || row['Warning'] || '').trim();
+
+      const extraLines = [];
+      if (esempi) {
+        extraLines.push(`- Esempi: ${esempi}`);
+      }
+      if (warnings) {
+        extraLines.push(`- Warning: ${warnings}`);
+      }
 
       return `📌 ** ${sottotema.toUpperCase()}**:
     - Tono: ${tono}
     - Fai: ${criterio}
     - Evita: ${limiti}
-    - Note: ${note} `;
+    - Note: ${note}
+${extraLines.length ? `    ${extraLines.join('\n    ')}` : ''}`.trim();
     }).join('\n\n');
 
     return `═══════════════════════════════════════════════════════════════════════════
@@ -1093,15 +987,49 @@ Contenuto:
   // ========================================================================
 
   _renderExamples(category) {
-    if (!category || !['sacrament', 'information', 'appointment'].includes(category)) {
+    if (!category) {
       return null;
     }
 
-    return `═══════════════════════════════════════════════════════════════════════════
+    const examplesByCategory = {
+      sacrament: `═══════════════════════════════════════════════════════════════════════════
 📚 ESEMPI CON FORMATTAZIONE CORRETTA
 ═══════════════════════════════════════════════════════════════════════════
 
-** ESEMPIO 1 - CAMMINO DI SANTIAGO(con link corretti):**
+** ESEMPIO - BATTESIMO (FORMATTAZIONE):**
+
+✅ VERSIONE CORRETTA:
+    \`\`\`markdown
+Buongiorno, ecco i requisiti per il Battesimo.
+
+### ✝️ Requisiti principali
+
+**📌 Documenti:**
+• Certificato di nascita
+• Nomi di padrino e madrina
+
+**📅 Incontri preparatori:**
+• 2 incontri nel mese precedente
+
+Per ulteriori dettagli, siamo a disposizione.
+
+Cordiali saluti,
+Segreteria Parrocchia Sant'Eugenio
+\`\`\`
+
+❌ VERSIONE SBAGLIATA (DA EVITARE):
+\`\`\`markdown
+Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
+
+• Iscrizione: [tinyurl.com/santiago26](https://tinyurl.com/santiago26) ← ERRORE: URL ripetuto
+\`\`\`
+
+═══════════════════════════════════════════════════════════════════════════`,
+      information: `═══════════════════════════════════════════════════════════════════════════
+📚 ESEMPI CON FORMATTAZIONE CORRETTA
+═══════════════════════════════════════════════════════════════════════════
+
+** ESEMPIO - PELLEGRINAGGIO (LINK CORRETTI):**
 
 ✅ VERSIONE CORRETTA:
     \`\`\`markdown
@@ -1120,7 +1048,7 @@ Restiamo a disposizione per qualsiasi chiarimento.
 
 Cordiali saluti,
 Segreteria Parrocchia Sant'Eugenio
-\`\`\`
+    \`\`\`
 
 ❌ VERSIONE SBAGLIATA (DA EVITARE):
 \`\`\`markdown
@@ -1130,14 +1058,72 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
 \`\`\`
 
 ═══════════════════════════════════════════════════════════════════════════
+`,
+      appointment: `═══════════════════════════════════════════════════════════════════════════
+📚 ESEMPI CON FORMATTAZIONE CORRETTA
+═══════════════════════════════════════════════════════════════════════════
 
-**QUANDO NON FORMATTARE:**
+** ESEMPIO - APPUNTAMENTO (CHIARO E BREVE):**
 
-✅ ESEMPIO CORRETTO (senza formattazione):
-"Buongiorno, la catechesi inizia domenica 21 settembre alle ore 10:00."
+✅ VERSIONE CORRETTA:
+    \`\`\`markdown
+Buongiorno, per fissare un appuntamento in segreteria:
 
-→ Info singola, breve, chiara = no formattazione necessaria.
+### 🗓️ Orari disponibili
+• Martedì: 16:00–18:00
+• Giovedì: 10:00–12:00
 
+Indichi la fascia preferita e le confermeremo l’orario.
+    \`\`\`
+
+═══════════════════════════════════════════════════════════════════════════`
+    };
+
+    return examplesByCategory[category] || null;
+  }
+
+  _sanitizeSenderName(senderName) {
+    return (senderName || 'Utente')
+      .replace(/[<>]/g, '')
+      .substring(0, 50)
+      .trim() || 'Utente';
+  }
+
+  // ========================================================================
+  // TEMPLATE 17b: SBATTEZZO (TESTO BLINDATO)
+  // ========================================================================
+
+  _renderSbattezzoTemplate(senderName) {
+    const sanitizedName = this._sanitizeSenderName(senderName);
+
+    return `═══════════════════════════════════════════════════════════════════════════
+🚨 TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI (SBATTEZZO) 🚨
+═══════════════════════════════════════════════════════════════════════════
+
+USA ESATTAMENTE QUESTA STRUTTURA E QUESTO TONO. NON AGGIUNGERE ALTRO.
+
+Gentile ${sanitizedName},
+
+con la presente confermiamo di aver ricevuto la Sua richiesta.
+
+Come primo passo, questa parrocchia verificherà i propri registri per accertare se il Suo Battesimo sia stato celebrato presso questa sede.
+
+* Se il Battesimo risulterà registrato in questa parrocchia, trasmetteremo prontamente la Sua richiesta all’Ordinario Diocesano, allegando il certificato di Battesimo. La Curia diocesana La contatterà per un colloquio personale, volto a chiarire le conseguenze canoniche della decisione espressa. Qualora la Sua volontà resti confermata, l’Ordinario emetterà un apposito Decreto e questa parrocchia provvederà all’annotazione sul registro di Battesimo.
+
+* Se invece il Battesimo non risulterà nei registri di questa parrocchia, Le comunicheremo l’impossibilità di procedere oltre in questa sede e Le indicheremo la parrocchia alla quale rivolgersi.
+
+Conclusa la verifica, sarà nostra cura informarLa dell’esito.
+
+Ci preme ricordarle che la Chiesa non "cancella" il dato storico del sacramento (che resta un fatto avvenuto), ma annota formalmente la volontà di non appartenere più alla Chiesa cattolica.
+
+Cordiali saluti,
+Segreteria Parrocchia Sant'Eugenio
+
+⚠️ REGOLE CRITICHE:
+1. NON invitare a telefonare.
+2. NON invitare a fissare un appuntamento in segreteria (sarà la Curia a farlo).
+3. NON aggiungere commenti pastorali o teologici oltre a quanto scritto sopra.
+4. Mantieni rigorosamente la terza persona o il "noi" istituzionale.
 ═══════════════════════════════════════════════════════════════════════════`;
   }
 
@@ -1146,7 +1132,7 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
   // ========================================================================
 
   _renderResponseGuidelines(lang, season, salutation, closing) {
-    let formatSection, contentSection, languageReminder, criticalSection;
+    let formatSection, contentSection, languageReminder;
 
     if (lang === 'en') {
       formatSection = `1. **Response Format (ENGLISH REQUIRED):**
@@ -1162,12 +1148,6 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
       languageReminder = `4. **LANGUAGE: ⚠️ RESPOND IN ENGLISH ONLY**
    • NO Italian words allowed
    • Use English for everything: greeting, body, closing`;
-      criticalSection = `5. **🚨 CRITICAL ERRORS TO AVOID:**
-   ❌ Capital after comma: "Hello, We are..." → WRONG
-   ✅ Lowercase after comma: "Hello, we are..." → CORRECT
-   
-   ❌ Repeated URL in link: [tinyurl.com/x](https://tinyurl.com/x) → WRONG
-   ✅ Description in link: Registration form: https://tinyurl.com/x → CORRECT`;
     } else if (lang === 'es') {
       formatSection = `1. **Formato de respuesta (ESPAÑOL REQUERIDO):**
    ${salutation}
@@ -1182,12 +1162,6 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
       languageReminder = `4. **IDIOMA: ⚠️ RESPONDE SOLO EN ESPAÑOL**
    • NO se permiten palabras italianas
    • Usa español para todo: saludo, cuerpo, despedida`;
-      criticalSection = `5. **🚨 ERRORES CRÍTICOS A EVITAR:**
-   ❌ Mayúscula tras coma: "Hola, Estamos..." → MAL
-   ✅ Minúscula tras coma: "Hola, estamos..." → BIEN
-   
-   ❌ URL repetida: [tinyurl.com/x](https://tinyurl.com/x) → MAL
-   ✅ Descripción: Formulario: https://tinyurl.com/x → BIEN`;
     } else {
       formatSection = `1. **Formato risposta:**
    ${salutation}
@@ -1200,12 +1174,6 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
    • ✅ Formatta elegantemente se 3+ elementi/orari
    • Follow-up (Re:): sii più diretto e conciso`;
       languageReminder = `4. **Lingua:** Rispondi in italiano`;
-      criticalSection = `5. **🚨 ERRORI CRITICI DA EVITARE:**
-   ❌ Maiuscola dopo virgola: "Buonasera, Siamo..." → SBAGLIATO
-   ✅ Minuscola dopo virgola: "Buonasera, siamo..." → GIUSTO
-   
-   ❌ URL ripetuto: [tinyurl.com/x](https://tinyurl.com/x) → SBAGLIATO
-   ✅ Descrizione: Iscrizione: https://tinyurl.com/x → GIUSTO`;
     }
 
     return `**LINEE GUIDA RISPOSTA:**
@@ -1216,9 +1184,7 @@ ${contentSection}
 
 3. **Orari:** Mostra SOLO orari del periodo corrente (${season})
 
-${languageReminder}
-
-${criticalSection}`;
+${languageReminder}`;
   }
 
   // ========================================================================
@@ -1264,33 +1230,33 @@ Restiamo a disposizione."
   // TEMPLATE 18: CHECKLIST FINALE
   // ========================================================================
 
-  _renderFinalChecklist() {
+  _renderFinalChecklist(detectedLanguage = 'it', territoryContext = null) {
+    const checks = [];
+
+    // Controlli universali
+    checks.push('□ Ho risposto SOLO alla domanda');
+    checks.push('□ Ho usato SOLO info dalla KB');
+
+    // Controlli lingua-specifici
+    if (detectedLanguage === 'it') {
+      checks.push('□ Minuscola dopo virgola (es: "Ciao, siamo")');
+      checks.push('□ Nomi propri maiuscoli');
+    }
+
+    // Controlli territorio (se rilevante)
+    if (territoryContext) {
+      checks.push('□ Ho dato risposta SÌ/NO sul territorio (non "verificheremo")');
+    }
+
+    // Controlli anti-thinking-leak
+    checks.push('□ NO ragionamento esposto (es: "la KB dice...")');
+    checks.push('□ NO meta-commenti (es: "devo correggere...")');
+
     return `═══════════════════════════════════════════════════════════════════════════
-✅ CHECKLIST FINALE - CONTROLLA PRIMA DI GENERARE
+✅ CHECKLIST FINALE - VERIFICA PRIMA DI RISPONDERE
 ═══════════════════════════════════════════════════════════════════════════
 
-Prima di generare la risposta, verifica mentalmente:
-
-□ Dopo ogni virgola uso MINUSCOLA (non "Ciao, Siamo" ma "Ciao, siamo")
-□ I NOMI PROPRI sono MAIUSCOLI (se firma "federica" → scrivo "Federica")
-□ Ho corretto gli errori dell'utente (es. "il canale" non "la canale") invece di copiarli
-□ Se l'utente ha detto "Ho già [risorsa]", NON ho fornito quella risorsa
-□ Nei link markdown uso [DESCRIZIONE](URL) non [URL](URL)
-□ Ho usato solo info dalla knowledge base
-□ Ho risposto alla lingua dell'email (IT/EN/ES)
-□ Se 3+ elementi/orari → ho usato formattazione markdown
-□ Se 1-2 info → ho evitato formattazione eccessiva
-□ Ho usato prima persona plurale (siamo/restiamo)
-□ Non ho inventato informazioni
-
-═══════════════════════════════════════════════════════════════════════════
-🧠 COERENZA LOGICA - PENSA COME UN UMANO
-═══════════════════════════════════════════════════════════════════════════
-
-□ NON menziono date/eventi già passati (controlla DATA ODIERNA sopra)
-□ Se l'utente ha GIÀ fornito informazioni, NON chiederle di nuovo
-□ Le mie affermazioni rispondono ESATTAMENTE a ciò che è stato chiesto
-□ Un essere umano scriverebbe questa risposta? Se sembra meccanica, riformula.
+${checks.join('\n')}
 
 ═══════════════════════════════════════════════════════════════════════════`;
   }
@@ -1367,41 +1333,7 @@ Prima di generare la risposta, verifica mentalmente:
 
     return truncatedContent + truncationMarker;
   }
-  // ========================================================================
-  // TEMPLATE 17b: SBATTEZZO (TESTO BLINDATO)
-  // ========================================================================
 
-  _renderSbattezzoTemplate(senderName) {
-    return `═══════════════════════════════════════════════════════════════════════════
-🚨 TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI (SBATTEZZO) 🚨
-═══════════════════════════════════════════════════════════════════════════
-
-USA ESATTAMENTE QUESTA STRUTTURA E QUESTO TONO. NON AGGIUNGERE ALTRO.
-
-Gentile ${senderName},
-
-con la presente confermiamo di aver ricevuto la Sua richiesta.
-
-Come primo passo, questa parrocchia verificherà i propri registri per accertare se il Suo Battesimo sia stato celebrato presso questa sede.
-
-* Se il Battesimo risulterà registrato in questa parrocchia, trasmetteremo prontamente la Sua richiesta all’Ordinario Diocesano, allegando il certificato di Battesimo. La Curia diocesana La contatterà per un colloquio personale, volto a chiarire le conseguenze canoniche della decisione espressa. Qualora la Sua volontà resti confermata, l’Ordinario emetterà un apposito Decreto e questa parrocchia provvederà all’annotazione sul registro di Battesimo.
-
-* Se invece il Battesimo non risulterà nei registri di questa parrocchia, Le comunicheremo l’impossibilità di procedere oltre in questa sede e Le indicheremo la parrocchia alla quale rivolgersi.
-
-Conclusa la verifica, sarà nostra cura informarLa dell’esito.
-
-Ci preme ricordarle che la Chiesa non "cancella" il dato storico del sacramento (che resta un fatto avvenuto), ma annota formalmente la volontà di non appartenere più alla Chiesa cattolica.
-
-Cordiali saluti,
-Segreteria Parrocchia Sant'Eugenio
-
-⚠️ REGOLE CRITICHE:
-1. NON invitare a telefonare.
-2. NON invitare a fissare un appuntamento in segreteria (sarà la Curia a farlo).
-3. NON aggiungere commenti pastorali o teologici oltre a quanto scritto sopra.
-4. Mantieni rigorosamente la terza persona o il "noi" istituzionale.
-═══════════════════════════════════════════════════════════════════════════`;
-  }
 }
 
 

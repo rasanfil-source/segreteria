@@ -59,18 +59,28 @@ class GmailService {
   }
 
   addLabelToThread(thread, labelName) {
-    const label = this.getOrCreateLabel(labelName);
-    thread.addLabel(label);
-    console.log(`✓ Aggiunta label '${labelName}' al thread`);
+    try {
+      const label = this.getOrCreateLabel(labelName);
+      thread.addLabel(label);
+      console.log(`✓ Aggiunta label '${labelName}' al thread`);
+    } catch (e) {
+      console.warn(`⚠️ addLabelToThread fallito per '${labelName}': ${e.message}`);
+      if (this._isLabelNotFoundError(e)) {
+        this.clearLabelCache();
+        const label = this.getOrCreateLabel(labelName);
+        thread.addLabel(label);
+        console.log(`✓ Aggiunta label '${labelName}' al thread (retry dopo cache reset)`);
+      }
+    }
   }
 
   /**
    * Aggiunge etichetta a un messaggio specifico (Gmail API avanzata)
    */
   addLabelToMessage(messageId, labelName) {
-    const label = this.getOrCreateLabel(labelName);
-    const labelId = label.getId();
     try {
+      const label = this.getOrCreateLabel(labelName);
+      const labelId = label.getId();
       Gmail.Users.Messages.modify({
         addLabelIds: [labelId],
         removeLabelIds: []
@@ -78,7 +88,22 @@ class GmailService {
       console.log(`✓ Aggiunta label '${labelName}' al messaggio ${messageId}`);
     } catch (e) {
       console.warn(`⚠️ addLabelToMessage fallito per messaggio ${messageId}: ${e.message}`);
+      if (this._isLabelNotFoundError(e)) {
+        this.clearLabelCache();
+        const label = this.getOrCreateLabel(labelName);
+        const labelId = label.getId();
+        Gmail.Users.Messages.modify({
+          addLabelIds: [labelId],
+          removeLabelIds: []
+        }, 'me', messageId);
+        console.log(`✓ Aggiunta label '${labelName}' al messaggio ${messageId} (retry dopo cache reset)`);
+      }
     }
+  }
+
+  _isLabelNotFoundError(error) {
+    const message = (error && error.message) ? error.message.toLowerCase() : '';
+    return message.includes('label') && message.includes('not found');
   }
 
   /**
@@ -128,13 +153,30 @@ class GmailService {
     const body = message.getPlainBody() || this._htmlToPlainText(message.getBody());
     const messageId = message.getId();
 
-    // Estrai RFC 2822 Message-ID per header In-Reply-To
+    // Estrai RFC 2822 Message-ID e header utili per filtraggio
     let rfc2822MessageId = null;
     let existingReferences = null;
+    let isNewsletter = false;
+    const headers = {};
     try {
-      const rawMessage = Gmail.Users.Messages.get('me', messageId, { format: 'metadata', metadataHeaders: ['Message-ID', 'References'] });
+      const rawMessage = Gmail.Users.Messages.get('me', messageId, {
+        format: 'metadata',
+        metadataHeaders: [
+          'Message-ID',
+          'References',
+          'Auto-Submitted',
+          'Precedence',
+          'X-Autoreply',
+          'X-Auto-Response-Suppress',
+          'Reply-To',
+          'List-Unsubscribe'
+        ]
+      });
       if (rawMessage && rawMessage.payload && rawMessage.payload.headers) {
         for (const header of rawMessage.payload.headers) {
+          if (header && header.name) {
+            headers[header.name.toLowerCase()] = header.value || '';
+          }
           if (header.name === 'Message-ID' || header.name === 'Message-Id') {
             rfc2822MessageId = header.value;
           }
@@ -142,6 +184,11 @@ class GmailService {
             existingReferences = header.value;
           }
         }
+      }
+
+      // Calcolo flag newsletter basato su header raccolti
+      if (headers['list-unsubscribe'] || /bulk|list/i.test(headers['precedence'] || '')) {
+        isNewsletter = true;
       }
     } catch (e) {
       console.warn(`⚠️ Impossibile estrarre RFC 2822 Message-ID: ${e.message}`);
@@ -182,7 +229,9 @@ class GmailService {
       hasReplyTo: hasReplyTo,
       rfc2822MessageId: rfc2822MessageId,
       existingReferences: existingReferences,
-      recipientEmail: recipientEmail
+      recipientEmail: recipientEmail,
+      headers: headers,
+      isNewsletter: isNewsletter
     };
   }
 

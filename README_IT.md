@@ -21,6 +21,12 @@
 ✅ **"Ho un problema personale e vorrei parlare con un sacerdote"** → Tono empatico + contatti diretti  
 ✅ **Email in inglese/spagnolo** → Risposta nella stessa lingua  
 
+### ✨ NOVITÀ v2.5: Ottimizzazione Prompt Engine & Smart RAG
+*   **Prompt Dinamico Modulare**: Il prompt viene costruito "al volo" assemblando solo i blocchi necessari (es. inutile includere regole per i Sacramenti se si parla di Orari), risparmiando token e aumentando la precisione.
+*   **Smart RAG (Dottrina)**: Integrazione avanzata con la Dottrina. Direttive specifiche, esempi e warning vengono caricati dinamicamente in base al topic, permettendo una guida pastorale millimetrica.
+*   **Checklist Contestuali**: Ogni risposta viene verificata contro una checklist che si adatta alla lingua e al territorio (es. controlli specifici per indirizzi romani).
+*   **Anti-Leak & Sanificazione**: Protezione avanzata contro la fuoriuscita di "pensieri" dell'AI e sanificazione automatica degli input utente per template sensibili (es. Sbattezzo).
+
 ### ✨ NOVITÀ v2.4: Intelligenza Avanzata
 *   **Self-Healing**: Corregge errori comuni (maiuscole, link duplicati) automaticamente.
 *   **Analisi Multi-Dimensionale**: Capisce non solo l'argomento ma anche il **carico emotivo** e la **complessità**.

@@ -181,6 +181,14 @@ class EmailProcessor {
       console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
       console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
 
+      if (messageDetails.isNewsletter) {
+        console.log('   ⊘ Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
+        this._markMessageAsProcessed(candidate);
+        result.status = 'filtered';
+        result.reason = 'newsletter_header';
+        return result;
+      }
+
       // ═══════════════════════════════════════════════════════════════
       // STEP 0: CONTROLLO ULTIMO MITTENTE (Anti-Loop & Ownership)
       // ═══════════════════════════════════════════════════════════════
@@ -210,6 +218,65 @@ class EmailProcessor {
         result.status = 'skipped';
         result.reason = 'self_sent';
         return result;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // STEP 0.2: AUTO-REPLY / OUT-OF-OFFICE DETECTION
+      // ═══════════════════════════════════════════════════════════════
+      const headers = messageDetails.headers || {};
+      const autoSubmitted = headers['auto-submitted'] || '';
+      const precedence = headers['precedence'] || '';
+      const xAutoReply = headers['x-autoreply'] || '';
+      const xAutoResponseSuppress = headers['x-auto-response-suppress'] || '';
+
+      if (
+        /auto-replied/i.test(autoSubmitted) ||
+        /bulk|auto_reply/i.test(precedence) ||
+        /auto-reply|autoreply/i.test(xAutoReply) ||
+        /oof|all|dr|rn|nri|auto/i.test(xAutoResponseSuppress)
+      ) {
+        console.log('   ⊘ Saltato: risposta automatica (header SMTP)');
+        this._markMessageAsProcessed(candidate);
+        result.status = 'filtered';
+        result.reason = 'out_of_office';
+        return result;
+      }
+
+      const outOfOfficePatterns = [
+        /\b(out of office|away from office|fuori ufficio|assente)\b/i,
+        /\b(automatic reply|risposta automatica)\b/i,
+        /\breturn(ing)? on\b/i,
+        /\bdi ritorno (il|dal)\b/i,
+        /\b(thank you for your message|mailbox monitored periodically|messaggio ricevuto)\b/i
+      ];
+
+      if (outOfOfficePatterns.some(p => p.test(`${messageDetails.subject} ${messageDetails.body}`))) {
+        console.log('   ⊘ Saltato: risposta automatica out-of-office (testo)');
+        this._markMessageAsProcessed(candidate);
+        result.status = 'filtered';
+        result.reason = 'out_of_office';
+        return result;
+      }
+
+      const candidateIndex = messages.findIndex(msg => msg.getId() === candidate.getId());
+      if (candidateIndex > 0) {
+        const previousMessage = messages[candidateIndex - 1];
+        const previousSender = (previousMessage.getFrom() || '').toLowerCase();
+        const candidateDate = messageDetails.date ? messageDetails.date.getTime() : null;
+        const previousDate = previousMessage.getDate() ? previousMessage.getDate().getTime() : null;
+        const arrivedSoonAfterUs = candidateDate && previousDate
+          ? (candidateDate - previousDate) <= 10 * 60 * 1000
+          : false;
+        const previousIsUs = previousSender.includes(myEmail.toLowerCase());
+        const hasQuestion = /\?/.test(messageDetails.body || '');
+
+        if (previousIsUs && arrivedSoonAfterUs && !hasQuestion) {
+          console.log('   ⊘ Saltato: probabile risposta automatica (pattern temporale)');
+          this._markMessageAsProcessed(candidate);
+          result.status = 'filtered';
+          result.reason = 'out_of_office';
+          return result;
+        }
       }
 
       // ═══════════════════════════════════════════════════════════════

@@ -20,6 +20,12 @@
 ✅ **"I have a personal problem and would like to speak with a priest"** → Empathetic tone + direct contacts  
 ✅ **Email in English/Spanish** → Response in the same language  
 
+### ✨ NEW in v2.5: Prompt Engine Optimization & Smart RAG
+*   **Modular Dynamic Prompt**: The prompt is built "on the fly" assembling only necessary blocks (e.g., no Sacrament rules if talking about Mass Times), saving tokens and increasing precision.
+*   **Smart RAG (Doctrine)**: Advanced integration with Doctrine. Specific directives, examples, and warnings are loaded dynamically based on the topic, allowing pinpoint pastoral guidance.
+*   **Contextual Checklists**: Every response is verified against a checklist that adapts to the language and territory (e.g., specific checks for Roman addresses).
+*   **Anti-Leak & Sanitization**: Advanced protection against AI "thought" leaks and automatic input sanitization for sensitive templates (e.g., Formal requests).
+
 ### ✨ NEW in v2.4: Advanced Intelligence
 *   **Self-Healing**: Automatically fixes common errors (typos, duplicate links) before sending.
 *   **Multi-Dimensional Analysis**: Understands not just the topic, but the **emotional load** and **complexity**.
