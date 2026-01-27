@@ -10,12 +10,12 @@
  * E: providedInfo (JSON array)
  * F: lastUpdated (timestamp)
  * G: messageCount
- * H: version (per optimistic locking)
+ * H: version (per controllo concorrenza ottimistico)
  * 
  * FUNZIONALITÀ:
  * - Cache locale per performance
  * - Lock granulare (per thread) con CacheService
- * - Optimistic locking con versione
+ * - Controllo concorrenza ottimistico con versione
  * - Topic tracking (anti-ripetizione)
  * - Operazioni atomiche
  */
@@ -173,7 +173,7 @@ class MemoryService {
           const existingData = this._rowToObject(existingRow.values);
           const currentVersion = existingData.version || 0;
 
-          // Optimistic locking check
+          // Verifica controllo concorrenza ottimistico
           if (newData._expectedVersion !== undefined && newData._expectedVersion !== currentVersion) {
             // INVALIDAZIONE CACHE CRITICA
             this._invalidateCache(`memory_${threadId}`);
@@ -514,7 +514,8 @@ class MemoryService {
       providedInfo: providedInfo,
       lastUpdated: lastUpdated,
       messageCount: parseInt(values[6]) || 0,
-      version: parseInt(values[7]) || 0
+      version: parseInt(values[7]) || 0,
+      memorySummary: values[8] || ''
     };
   }
 
@@ -524,7 +525,7 @@ class MemoryService {
   _updateRow(rowIndex, data) {
     const providedInfoJson = JSON.stringify(data.providedInfo || []);
 
-    this._sheet.getRange(rowIndex, 1, 1, 8).setValues([[
+    this._sheet.getRange(rowIndex, 1, 1, 9).setValues([[
       data.threadId,
       data.language || 'it',
       data.category || '',
@@ -532,7 +533,8 @@ class MemoryService {
       providedInfoJson,
       data.lastUpdated,
       data.messageCount || 1,
-      data.version || 1
+      data.version || 1,
+      data.memorySummary || ''
     ]]);
   }
 
@@ -550,7 +552,8 @@ class MemoryService {
       providedInfoJson,
       data.lastUpdated,
       data.messageCount || 1,
-      data.version || 1
+      data.version || 1,
+      data.memorySummary || ''
     ]);
   }
 
@@ -645,7 +648,7 @@ class MemoryService {
   }
 
   // ========================================================================
-  // EVOLUZIONE 2: COMPLETENESS SCORING (Metodi Sperimentali)
+  // EVOLUZIONE 2: VALUTAZIONE COMPLETEZZA (Metodi Sperimentali)
   // ========================================================================
 
   /**

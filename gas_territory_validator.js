@@ -177,11 +177,11 @@ class TerritoryValidator {
 
         // Pattern ottimizzati (senza backtracking esagerato)
         const patterns = [
-            // Pattern 1: "via Rossi 10"
-            /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,5}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi,
+            // Pattern 1: "via Rossi 10" - Cattura nome completo della via (anche multi-parola)
+            /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+((?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,5}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi,
 
-            // Pattern 2: "abito in via Rossi 10"
-            /(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,5}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi
+            // Pattern 2: "abito in via Rossi 10" - Cattura nome completo della via (anche multi-parola)
+            /(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+((?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,5}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi
         ];
 
         const addresses = [];
@@ -202,9 +202,8 @@ class TerritoryValidator {
                         break;
                     }
 
-                    // Cattura: match[1] = tipo via, match[3] = civico
-                    // Il nome via è ricostruito indirettamente dalla logica regex
-                    const viaName = matchMatch2(match);
+                    // Cattura: match[1] = tipo via, match[2] = nome via (completo), match[3] = civico
+                    const viaName = match[2].trim();
                     const viaType = match[1];
                     const street = viaType + ' ' + viaName;
 

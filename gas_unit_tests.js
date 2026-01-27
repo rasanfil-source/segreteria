@@ -4,7 +4,7 @@
  * Copre:
  * 1. TerritoryValidator (inclusi range 'tutti' e 'Infinity')
  * 2. GmailService (sanificazione header, punteggiatura)
- * 3. ResponseValidator (autofix multilingua, allucinazioni)
+ * 3. ResponseValidator (perfezionamento multilingua, allucinazioni)
  */
 
 // Semplice funzione assert
@@ -32,6 +32,9 @@ function testTerritoryValidatorSuite() {
 
     const addr2 = validator.extractAddressFromText("via Bruno Buozzi 200"); // Range infinito
     assert(addr2 && addr2[0].civic === 200, "Estrazione civico alto");
+
+    const addr3 = validator.extractAddressFromText("Abito in via Giuseppe De Notaris 15"); // Multi-parola
+    assert(addr3 && addr3[0].street.toLowerCase().includes("de notaris"), "Estrazione via multi-parola corretta");
 
     // --- B. Test Range Avanzati (Tutti & Infinity) ---
     console.log("\n> Check Range Avanzati:");
@@ -71,9 +74,9 @@ function testGmailServiceSuite() {
     // Simulo logica _sanitizeHeaders o sendHtmlReply logic (che è privata/interna, 
     // quindi testo i metodi pubblici di utility se esposti o logica simile)
 
-    // Testiamo fixPunctuation che è pubblico
+    // Testiamo la correzione automatica della punteggiatura
     const txtFix = service.fixPunctuation("Salve, Vorrei sapere...", "Mario Rossi");
-    assert(txtFix.includes("Salve, vorrei"), "Correzione maiuscola dopo virgola (fixPunctuation)");
+    assert(txtFix.includes("Salve, vorrei"), "Correzione maiuscola dopo virgola");
 
     // --- B. Pulizia HTML ---
     const htmlText = "Ciao **mondo** questo è un [link](http://test)";
@@ -91,8 +94,8 @@ function testResponseValidatorSuite() {
     console.log("\n🧪 [[[ TEST SUITE: ResponseValidator ]]]");
     const validator = new ResponseValidator();
 
-    // --- A. Autofix Multilingua ---
-    console.log("\n> Check Autofix Multilingua:");
+    // --- A. Perfezionamento Multilingua ---
+    console.log("\n> Check Perfezionamento Multilingua:");
 
     // IT: Deve correggere
     const itText = "Ciao, Sono Mario";

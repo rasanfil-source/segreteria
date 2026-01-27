@@ -12,16 +12,17 @@ const LogLevel = {
 class Logger {
   constructor(context = 'System') {
     this.context = context;
-    this.config = getConfig();
-    this.minLevel = LogLevel[this.config.LOGGING.LEVEL] || LogLevel.INFO;
+    this.config = typeof getConfig === 'function' ? getConfig() : (typeof CONFIG !== 'undefined' ? CONFIG : {});
+    const levelStr = (this.config.LOGGING && this.config.LOGGING.LEVEL) || 'INFO';
+    this.minLevel = LogLevel[levelStr] || LogLevel.INFO;
   }
-  
+
   /**
    * Log generico
    */
   _log(level, message, data = {}) {
     if (LogLevel[level] < this.minLevel) return;
-    
+
     const logEntry = {
       timestamp: new Date().toISOString(),
       level: level,
@@ -29,7 +30,7 @@ class Logger {
       message: message,
       ...data
     };
-    
+
     if (this.config.LOGGING.STRUCTURED) {
       console.log(JSON.stringify(logEntry));
     } else {
@@ -38,29 +39,29 @@ class Logger {
         console.log(JSON.stringify(data, null, 2));
       }
     }
-    
+
     // Invia notifica per errori critici
     if (level === 'ERROR' && this.config.LOGGING.SEND_ERROR_NOTIFICATIONS) {
       this._sendErrorNotification(logEntry);
     }
   }
-  
+
   debug(message, data) {
     this._log('DEBUG', message, data);
   }
-  
+
   info(message, data) {
     this._log('INFO', message, data);
   }
-  
+
   warn(message, data) {
     this._log('WARN', message, data);
   }
-  
+
   error(message, data) {
     this._log('ERROR', message, data);
   }
-  
+
   /**
    * Log specifico per thread email
    */
@@ -72,14 +73,14 @@ class Logger {
       ...details
     });
   }
-  
+
   /**
    * Log metriche di esecuzione
    */
   logMetrics(metrics) {
-    this.info('Execution metrics', metrics);
+    this.info('Metriche di esecuzione', metrics);
   }
-  
+
   /**
    * Invia notifica email per errori critici
    */
@@ -87,8 +88,8 @@ class Logger {
     try {
       const adminEmail = this.config.LOGGING.ADMIN_EMAIL;
       if (!adminEmail || adminEmail.includes('[')) return;
-      
-      const subject = `[${this.config.PROJECT_NAME}] Error Alert: ${logEntry.message}`;
+
+      const subject = `[${this.config.PROJECT_NAME}] Avviso Errore: ${logEntry.message}`;
       const body = `
 Errore nel sistema autoresponder:
 
@@ -96,29 +97,29 @@ Timestamp: ${logEntry.timestamp}
 Context: ${logEntry.context}
 Message: ${logEntry.message}
 
-Details:
+Dettagli:
 ${JSON.stringify(logEntry, null, 2)}
 
 ---
 Sistema: ${this.config.PROJECT_NAME}
 Script ID: ${this.config.SCRIPT_ID}
       `.trim();
-      
+
       // Rate limit: max 1 email ogni 5 minuti
       const lastNotification = PropertiesService.getScriptProperties()
         .getProperty('last_error_notification');
       const now = Date.now();
-      
+
       if (!lastNotification || (now - parseInt(lastNotification)) > 300000) {
         GmailApp.sendEmail(adminEmail, subject, body);
         PropertiesService.getScriptProperties()
           .setProperty('last_error_notification', now.toString());
       }
     } catch (e) {
-      console.error('Failed to send error notification:', e.message);
+      console.error('Invio notifica errore fallito:', e.message);
     }
   }
-  
+
   /**
    * Crea logger con contesto specifico
    */

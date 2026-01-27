@@ -9,7 +9,6 @@
  * ✅ Placeholder (risposta incompleta)
  * ✅ Firma obbligatoria (identità brand)
  * ✅ Dati allucinati (email, telefoni, orari non in KB)
- * ✅ Maiuscola dopo virgola (errore grammaticale)
  * ✅ Ragionamento esposto (thinking leak)
  */
 class ResponseValidator {
@@ -106,25 +105,25 @@ class ResponseValidator {
     const details = {};
     let score = 1.0;
 
-    // Variabile per gestire la risposta (che potrebbe essere fixata)
+    // Variabile per gestire la risposta (che potrebbe essere perfezionata)
     let currentResponse = response;
-    let wasFixed = false;
+    let wasRefined = false;
 
     console.log(`🔍 Validazione risposta (${currentResponse.length} caratteri, lingua=${detectedLanguage})...`);
 
     // --- PRIMO PASSAGGIO DI VALIDAZIONE ---
     let validationResult = this._runValidationChecks(currentResponse, detectedLanguage, knowledgeBase, salutationMode);
 
-    // --- AUTOCORREZIONE (SELF-HEALING) ---
+    // --- AUTOCORREZIONE (PERFEZIONAMENTO) ---
     if (!validationResult.isValid && attemptFix) {
-      console.log('🩹 Tentativo Autocorrezione (Self-Healing)...');
+      console.log('🩹 Tentativo perfezionamento automatico...');
 
       const fixResult = this._attemptAutoFix(currentResponse, validationResult.errors, detectedLanguage);
 
       if (fixResult.fixed) {
-        console.log('   ✨ Applicati fix automatici. Ri-validazione...');
+        console.log('   ✨ Applicati perfezionamenti automatici. Ri-validazione...');
         currentResponse = fixResult.text;
-        wasFixed = true;
+        wasRefined = true;
 
         // Ri-esegui validazione sul testo corretto
         validationResult = this._runValidationChecks(currentResponse, detectedLanguage, knowledgeBase, salutationMode);
@@ -132,10 +131,10 @@ class ResponseValidator {
         if (validationResult.isValid) {
           console.log('   ✅ Autocorrezione ha risolto i problemi!');
         } else {
-          console.warn('   ⚠️ Autocorrezione insufficiente. Errori residui.');
+          console.warn('   ⚠️ Perfezionamento insufficiente. Errori residui.');
         }
       } else {
-        console.log('   🚫 Nessun fix automatico applicabile.');
+        console.log('   🚫 Nessun perfezionamento automatico applicabile.');
       }
     }
 
@@ -155,12 +154,12 @@ class ResponseValidator {
       errors: validationResult.errors,
       warnings: validationResult.warnings,
       details: validationResult.details,
-      fixedResponse: wasFixed ? currentResponse : null, // Restituisci testo corretto se modificato
+      fixedResponse: wasRefined ? currentResponse : null, // Restituisci testo corretto se modificato
       metadata: {
         responseLength: currentResponse.length,
         expectedLanguage: detectedLanguage,
         threshold: this.MIN_VALID_SCORE,
-        wasFixed: wasFixed
+        wasRefined: wasRefined
       }
     };
   }
@@ -614,7 +613,7 @@ class ResponseValidator {
     if (fixedLinks !== fixedText) {
       fixedText = fixedLinks;
       modified = true;
-      console.log('   🩹 Fix Links applicato');
+      console.log('   🩹 Correzione Link applicata');
     }
 
     // 2. Correzione Maiuscole dopo virgola
@@ -625,7 +624,7 @@ class ResponseValidator {
       if (fixedCaps !== fixedText) {
         fixedText = fixedCaps;
         modified = true;
-        console.log('   🩹 Fix Maiuscole applicato');
+        console.log('   🩹 Correzione Maiuscole applicata');
       }
     }
 
@@ -674,8 +673,8 @@ class ResponseValidator {
       // Lista minima per spagnolo
       targets = ['Estamos', 'Somos', 'El', 'Los', 'Las', 'Una', 'Por', 'En', 'De', 'Pero', 'Que'];
     } else {
-      // Se lingua sconosciuta o non supportata, NON applicare fix rischiosi
-      console.log(`   ⚠️ Autofix maiuscole disabilitato per lingua '${language}'`);
+      // Se lingua sconosciuta o non supportata, NON applicare correzioni rischiose
+      console.log(`   ⚠️ Correzione automatica maiuscole disabilitata per lingua '${language}'`);
       return text;
     }
 
@@ -707,8 +706,7 @@ class ResponseValidator {
       maxLengthWarning: this.WARNING_MAX_LENGTH,
       forbiddenPhrasesCount: this.forbiddenPhrases.length,
       supportedLanguages: Object.keys(this.languageMarkers),
-      placeholdersCount: this.placeholders.length,
-      version: '2.1'
+      placeholdersCount: this.placeholders.length
     };
   }
 }
