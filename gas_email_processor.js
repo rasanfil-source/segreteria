@@ -542,6 +542,8 @@ ${addressLines.join('\n\n')}
         console.log(`   🧠 PromptContext: profilo=${promptProfile}`);
       }
 
+      const categoryHintSource = classification.category || requestType.type;
+
       const promptOptions = {
         emailContent: messageDetails.body,
         emailSubject: messageDetails.subject,
@@ -549,7 +551,7 @@ ${addressLines.join('\n\n')}
         senderName: messageDetails.senderName,
         senderEmail: messageDetails.senderEmail,
         conversationHistory: conversationHistory,
-        category: requestType.type,
+        category: categoryHintSource,
         topic: quickCheck.classification ? quickCheck.classification.topic : '',
         detectedLanguage: detectedLanguage,
         currentSeason: this._getCurrentSeason(),

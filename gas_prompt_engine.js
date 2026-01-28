@@ -1000,10 +1000,21 @@ Non mostrare mai entrambi i set di orari.`;
       'quotation': '📌 PREVENTIVO/OFFERTA RICEVUTA: Ringrazia, conferma ricezione, comunica che esaminerai e risponderai. ⚠️ NON dire "restiamo a disposizione per chiarimenti" - siamo noi i destinatari!'
     };
 
-    if (!hints[category]) return null;
-
-    return `**CATEGORIA IDENTIFICATA:**
+    if (hints[category]) {
+      return `**CATEGORIA IDENTIFICATA:**
 ${hints[category]}`;
+    }
+
+    // Mappatura predefinita per categorie generali
+    const fallbackMap = {
+      'technical': 'information',
+      'pastoral': 'collaboration',
+      'doctrinal': 'information'
+    };
+
+    const effectiveCategory = fallbackMap[category] || null;
+    return effectiveCategory ? `**CATEGORIA IDENTIFICATA:**
+${hints[effectiveCategory]}` : null;
   }
 
   // ========================================================================

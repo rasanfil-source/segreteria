@@ -222,7 +222,7 @@ class RequestTypeClassifier {
       if (activeDims.length >= 2) {
         requestType = 'mixed';
       } else {
-        requestType = 'technical'; // Fallback
+        requestType = 'technical'; // Valore predefinito
       }
     }
     // Override specifico per sbattezzo (Logica critica)
@@ -316,7 +316,7 @@ class RequestTypeClassifier {
     let matchCount = 0;
 
     for (const indicator of indicators) {
-      // ✅ Aggiungi flag 'g' se non presente (Fix per matches.length)
+      // ✅ Aggiunge flag 'g' per conteggio completo occorrenze
       const pattern = indicator.pattern.global
         ? indicator.pattern
         : new RegExp(indicator.pattern.source, indicator.pattern.flags + 'g');

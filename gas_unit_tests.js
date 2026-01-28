@@ -253,14 +253,14 @@ function testSmartRAGSuite() {
 }
 
 /**
- * TEST SUITE 5: RequestTypeClassifier (Regex Fix Check)
+ * TEST SUITE 5: RequestTypeClassifier (Verifica Logica Avanzata)
  */
 function testRequestTypeClassifierSuite() {
     console.log("\n🧪 [[[ TEST SUITE: RequestTypeClassifier ]]]");
     const classifier = new RequestTypeClassifier();
 
-    // --- A. Test Ripetizione Keyword (Regex /g check) ---
-    console.log("\n> Check Ripetizione Keyword (Global Flag):");
+    // --- A. Verifica Ripetizione Keyword (Conteggio Multiplo) ---
+    console.log("\n> Verifica Ripetizione Keyword (Flag Globale):");
     const repeatText = "vorrei sapere gli orari, anche gli orari della messa, e gli orari ufficio";
     // 'orari' ha peso 2. Appare 3 volte.
     // Senza /g: score = 2 * 1 = 2
@@ -291,8 +291,8 @@ function testRequestTypeClassifierSuite() {
     assert(result.matchCount >= 3, "Deve contare tutte le 3 occorrenze di 'orari'");
     assert(result.score >= 6, "Il punteggio deve riflettere 3 occorrenze (3 * 2 = 6)");
 
-    // --- B. Test Mixed Type (via External Hint per valori precisi) ---
-    console.log("\n> Check Mixed Type (Logic > 0.4):");
+    // --- B. Verifica Tipo Misto (Logica Dimensionale) ---
+    console.log("\n> Verifica Tipo Misto (Soglia > 0.4):");
     const mixedHint = {
         dimensions: { technical: 0.5, pastoral: 0.5 },
         confidence: 0.8
