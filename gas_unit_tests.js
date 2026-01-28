@@ -291,6 +291,19 @@ function testRequestTypeClassifierSuite() {
     assert(result.matchCount >= 3, "Deve contare tutte le 3 occorrenze di 'orari'");
     assert(result.score >= 6, "Il punteggio deve riflettere 3 occorrenze (3 * 2 = 6)");
 
+    // --- B. Test Mixed Type (via External Hint per valori precisi) ---
+    console.log("\n> Check Mixed Type (Logic > 0.4):");
+    const mixedHint = {
+        dimensions: { technical: 0.5, pastoral: 0.5 },
+        confidence: 0.8
+    };
+    const mixedRes = classifier.classify("Testo generico", "", mixedHint);
+
+    console.log(`   Dimensions: T=${mixedRes.dimensions.technical}, P=${mixedRes.dimensions.pastoral}`);
+    console.log(`   Type: ${mixedRes.type}`);
+
+    assert(mixedRes.type === 'mixed', "Deve essere classificato come 'mixed' (0.5/0.5 > 0.4)");
+
     console.log("✅ RequestTypeClassifier Suite completata.");
 }
 

@@ -214,8 +214,16 @@ class RequestTypeClassifier {
     } else if (dimensions.technical >= 0.6) {
       requestType = 'technical';
     } else {
-      // Analisi mista/bassa confidenza
-      requestType = 'technical'; // Default prudenziale
+      // Caso misto: due dimensioni sopra 0.4
+      const activeDims = Object.entries(dimensions)
+        .filter(([k, v]) => v > 0.4)
+        .sort((a, b) => b[1] - a[1]);
+
+      if (activeDims.length >= 2) {
+        requestType = 'mixed';
+      } else {
+        requestType = 'technical'; // Fallback
+      }
     }
     // Override specifico per sbattezzo (Logica critica)
     if (formalResult.score >= 4) requestType = 'formal';
