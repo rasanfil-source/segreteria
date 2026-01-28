@@ -316,13 +316,16 @@ class RequestTypeClassifier {
     let matchCount = 0;
 
     for (const indicator of indicators) {
-      // ✅ Aggiunge flag 'g' per conteggio completo occorrenze
-      const pattern = indicator.pattern.global
-        ? indicator.pattern
-        : new RegExp(indicator.pattern.source, indicator.pattern.flags + 'g');
+      // Forza flag globale per conteggio corretto di tutte le occorrenze
+      const flags = indicator.pattern.flags.includes('g')
+        ? indicator.pattern.flags
+        : indicator.pattern.flags + 'g';
+
+      const pattern = new RegExp(indicator.pattern.source, flags);
 
       const matches = text.match(pattern);
       if (matches) {
+        // match() con global flag ritorna array di stringhe matchate, non gruppi
         total += indicator.weight * matches.length;
         matchCount += matches.length;
         matched.push(indicator.pattern.source);

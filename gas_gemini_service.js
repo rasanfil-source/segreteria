@@ -209,23 +209,50 @@ Output JSON:
 
     console.log(`🔍 Quick check via ${modelName}...`);
 
-    const response = UrlFetchApp.fetch(`${url}?key=${this.apiKey}`, {
-      method: 'POST',
-      contentType: 'application/json',
-      payload: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 1024
-        }
-      }),
-      muteHttpExceptions: true
-    });
+    // Gestione con tentativo su chiave primaria e fallback su secondaria
+    let activeKey = this.primaryKey;
+    let response;
+
+    try {
+      response = UrlFetchApp.fetch(`${url}?key=${activeKey}`, {
+        method: 'POST',
+        contentType: 'application/json',
+        payload: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0,
+            maxOutputTokens: 1024
+          }
+        }),
+        muteHttpExceptions: true
+      });
+
+      // Se fallisce per quota o errore server, prova chiave di riserva se disponibile
+      if ((response.getResponseCode() === 429 || response.getResponseCode() === 503) && this.backupKey) {
+        console.warn(`⚠️ Chiave primaria esaurita/errore (${response.getResponseCode()}). Tentativo con chiave di riserva...`);
+        activeKey = this.backupKey;
+        response = UrlFetchApp.fetch(`${url}?key=${activeKey}`, {
+          method: 'POST',
+          contentType: 'application/json',
+          payload: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0,
+              maxOutputTokens: 1024
+            }
+          }),
+          muteHttpExceptions: true
+        });
+      }
+
+    } catch (e) {
+      throw new Error(`Errore connessione API: ${e.message}`);
+    }
 
     const responseCode = response.getResponseCode();
 
     if (responseCode === 429 || responseCode === 503) {
-      throw new Error(`rate limit o servizio non disponibile: ${responseCode}`);
+      throw new Error(`Limite quota raggiunto o servizio non disponibile: ${responseCode}`);
     }
 
     if (responseCode !== 200) {
