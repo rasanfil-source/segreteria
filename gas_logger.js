@@ -14,7 +14,9 @@ class Logger {
     this.context = context;
     this.config = typeof getConfig === 'function' ? getConfig() : (typeof CONFIG !== 'undefined' ? CONFIG : {});
     const levelStr = (this.config.LOGGING && this.config.LOGGING.LEVEL) || 'INFO';
-    this.minLevel = LogLevel[levelStr] || LogLevel.INFO;
+    this.minLevel = Object.prototype.hasOwnProperty.call(LogLevel, levelStr)
+      ? LogLevel[levelStr]
+      : LogLevel.INFO;
   }
 
   /**

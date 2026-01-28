@@ -222,7 +222,11 @@ class EmailProcessor {
 
       // Controllo esteso per alias conosciuti oltre a getActiveUser()
       const knownAliases = (typeof CONFIG !== 'undefined' && CONFIG.KNOWN_ALIASES) ? CONFIG.KNOWN_ALIASES : [];
-      const isMe = safeSenderEmail === myEmail.toLowerCase() || knownAliases.some(alias => safeSenderEmail === alias.toLowerCase());
+      const normalizedMyEmail = myEmail ? myEmail.toLowerCase() : '';
+      const isMe = Boolean(normalizedMyEmail) && (
+        safeSenderEmail === normalizedMyEmail ||
+        knownAliases.some(alias => safeSenderEmail === alias.toLowerCase())
+      );
 
       if (isMe) {
         console.log('   ⊘ Saltato: messaggio auto-inviato (o da alias conosciuto)');
