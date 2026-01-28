@@ -253,6 +253,48 @@ function testSmartRAGSuite() {
 }
 
 /**
+ * TEST SUITE 5: RequestTypeClassifier (Regex Fix Check)
+ */
+function testRequestTypeClassifierSuite() {
+    console.log("\n🧪 [[[ TEST SUITE: RequestTypeClassifier ]]]");
+    const classifier = new RequestTypeClassifier();
+
+    // --- A. Test Ripetizione Keyword (Regex /g check) ---
+    console.log("\n> Check Ripetizione Keyword (Global Flag):");
+    const repeatText = "vorrei sapere gli orari, anche gli orari della messa, e gli orari ufficio";
+    // 'orari' ha peso 2. Appare 3 volte.
+    // Senza /g: score = 2 * 1 = 2
+    // Con /g: score = 2 * 3 = 6
+
+    // Accediamo a _calculateScore che è 'private' ma testabile in JS
+    // Usiamo TECHNICAL_INDICATORS dove 'orari' è presente
+    const result = classifier._calculateScore(repeatText, classifier.TECHNICAL_INDICATORS);
+
+    // Cerchiamo specifico match su 'orari' per debug preciso se fallisce
+    const orariMatches = result.matched.filter(m => m.includes("orari"));
+
+    // Se la logica è corretta, il punteggio deve riflettere tutte le occorrenze
+    // Nota: 'orari' peso 2. Ci sono 3 occorrenze -> 6 punti solo per questo.
+    // Potrebbero esserci altri match (es 'sapere' non è in lista, ma controlliamo).
+
+    // Verifica che matchCount sia almeno 3 (o esattamente 3 se non ci sono altre keyword)
+    // Nel testo "vorrei sapere gli orari..."
+    // "vorrei" -> no
+    // "sapere" -> no
+    // "orari" -> si (2)
+    // "messa" -> no
+    // "ufficio" -> no
+
+    console.log(`   Text: "${repeatText}"`);
+    console.log(`   Score: ${result.score}, Matches: ${result.matchCount}`);
+
+    assert(result.matchCount >= 3, "Deve contare tutte le 3 occorrenze di 'orari'");
+    assert(result.score >= 6, "Il punteggio deve riflettere 3 occorrenze (3 * 2 = 6)");
+
+    console.log("✅ RequestTypeClassifier Suite completata.");
+}
+
+/**
  * Esegui tutti i test
  */
 function runAllTests() {
@@ -266,6 +308,7 @@ function runAllTests() {
         testGmailServiceSuite();
         testResponseValidatorSuite();
         testSmartRAGSuite();
+        testRequestTypeClassifierSuite();
 
         console.log("\n╔══════════════════════════════════════════════════════════════╗");
         console.log(`║  🎉 TUTTI I TEST COMPLETATI in ${Date.now() - start}ms                 ║`);

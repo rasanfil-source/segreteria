@@ -308,7 +308,12 @@ class RequestTypeClassifier {
     let matchCount = 0;
 
     for (const indicator of indicators) {
-      const matches = text.match(indicator.pattern);
+      // ✅ Aggiungi flag 'g' se non presente (Fix per matches.length)
+      const pattern = indicator.pattern.global
+        ? indicator.pattern
+        : new RegExp(indicator.pattern.source, indicator.pattern.flags + 'g');
+
+      const matches = text.match(pattern);
       if (matches) {
         total += indicator.weight * matches.length;
         matchCount += matches.length;
