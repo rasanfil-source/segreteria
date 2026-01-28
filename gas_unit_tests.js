@@ -19,6 +19,38 @@ const assert = (condition, message) => {
 };
 
 /**
+ * TEST SUITE: Verifica Lock Annidati (ScriptLock Re-entrancy)
+ * Scopo: Verificare se acquisire due lock consecutivi nello stesso thread causa deadlock.
+ * Se GAS ScriptLock è re-entrant per stesso thread, deve passare.
+ */
+function testNestedLockSuite() {
+    console.log("\n🧪 [[[ TEST SUITE: System Locks ]]]");
+    const lock1 = LockService.getScriptLock();
+    const lock2 = LockService.getScriptLock(); // Nuova istanza o singleton?
+
+    console.log("> Tentativo acquisizione Lock 1...");
+    if (lock1.tryLock(2000)) {
+        console.log("✅ Lock 1 acquisito.");
+
+        console.log("> Tentativo acquisizione Lock 2 (Annidato)...");
+        // Se il lock non è re-entrant, questo tryLock fallirà o attenderà il timeout
+        const start = Date.now();
+        if (lock2.tryLock(2000)) {
+            console.log("✅ Lock 2 acquisito! (Comportamento Re-entrant confermato)");
+            lock2.releaseLock();
+        } else {
+            console.warn("❌ Lock 2 Fallito/Timeout! (Possibile Deadlock se non re-entrant)");
+        }
+        console.log(`> Tempo trascorso: ${Date.now() - start}ms`);
+
+        lock1.releaseLock();
+        console.log("> Lock 1 rilasciato.");
+    } else {
+        console.error("❌ Impossibile acquisire Lock 1 iniziale.");
+    }
+}
+
+/**
  * TEST SUITE 1: TerritoryValidator
  */
 function testTerritoryValidatorSuite() {

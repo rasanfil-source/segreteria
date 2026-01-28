@@ -192,8 +192,9 @@ class MemoryService {
           mergedData.messageCount = (existingData.messageCount || 0) + 1;
           mergedData.version = currentVersion + 1;
 
-          if (isNaN(new Date(mergedData.lastUpdated).getTime())) {
-            console.error(`🚨 CRITICO: lastUpdated INVALIDO! Reset a NOW.`);
+          const testDate = new Date(mergedData.lastUpdated);
+          if (!testDate || isNaN(testDate.getTime()) || testDate.getTime() < 0) {
+            console.error(`🚨 CRITICO: lastUpdated NON VALIDO (${mergedData.lastUpdated}). Ripristino a ORA.`);
             mergedData.lastUpdated = now;
           }
 
@@ -207,8 +208,9 @@ class MemoryService {
           insertData.messageCount = 1;
           insertData.version = 1;
 
-          if (isNaN(new Date(insertData.lastUpdated).getTime())) {
-            console.error(`🚨 CRITICO: lastUpdated invalido su INSERT. Reset.`);
+          const testDateInsert = new Date(insertData.lastUpdated);
+          if (!testDateInsert || isNaN(testDateInsert.getTime()) || testDateInsert.getTime() < 0) {
+            console.error(`🚨 CRITICO: lastUpdated non valido su INSERT. Ripristino.`);
             insertData.lastUpdated = now;
           }
 
@@ -561,8 +563,8 @@ class MemoryService {
     let lastUpdated = values[5] || null;
     if (lastUpdated) {
       const testDate = new Date(lastUpdated);
-      if (isNaN(testDate.getTime())) {
-        console.warn(`⚠️ Data invalida in memoria per thread ${values[0]}: ${lastUpdated}`);
+      if (!testDate || isNaN(testDate.getTime()) || testDate.getTime() < 0) {
+        console.warn(`⚠️ Data non valida in memoria per thread ${values[0]}: ${lastUpdated}`);
         lastUpdated = null;
       }
     }
