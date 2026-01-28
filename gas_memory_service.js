@@ -153,19 +153,18 @@ class MemoryService {
       }
     }
 
-    const MAX_RETRIES = 3;
-    // Implementazione: Uso ScriptLock atomico invece di CacheService non-atomico
-    const lock = LockService.getScriptLock();
-    // Nota: ScriptLock è globale per lo script, garantisce sequenzialità assoluta per le scritture
+    const MAX_RETRIES = 5;
+    // Workaround: Hash del threadId per sharding (riduce contention)
+    const lockKey = this._getShardedLockKey(threadId);
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       let lockAcquired = false;
-      // 1. Acquisisci Lock (Wait max 5s)
+      // 1. Acquisisci Lock Sharded (CacheService)
       try {
-        lockAcquired = lock.tryLock(5000);
+        lockAcquired = this._tryAcquireShardedLock(lockKey);
         if (!lockAcquired) {
-          console.warn(`🔒 Timeout lock memoria (Tentativo ${attempt + 1})`);
-          Utilities.sleep(Math.pow(2, attempt) * 200);
+          console.warn(`🔒 Timeout lock memoria sharded (Tentativo ${attempt + 1})`);
+          Utilities.sleep(Math.pow(2, attempt) * 200 + Math.random() * 100);
           continue;
         }
 
@@ -238,7 +237,7 @@ class MemoryService {
         Utilities.sleep(Math.pow(2, attempt) * 200);
       } finally {
         if (lockAcquired) {
-          lock.releaseLock();
+          this._releaseShardedLock(lockKey);
         }
       }
     }
@@ -259,16 +258,15 @@ class MemoryService {
       return false;
     }
 
-    // MODIFICATO: Uso ScriptLock atomico invece di CacheService non-atomico
-    const lock = LockService.getScriptLock();
+    const lockKey = this._getShardedLockKey(threadId);
 
-    // Prova max 3 volte (retry interni al lock acquisition)
+    // Prova max 3 volte
     for (let i = 0; i < 3; i++) {
       let lockAcquired = false;
       try {
-        lockAcquired = lock.tryLock(5000); // 5s timeout
+        lockAcquired = this._tryAcquireShardedLock(lockKey);
         if (!lockAcquired) {
-          if (i < 2) Utilities.sleep(500);
+          if (i < 2) Utilities.sleep(500 + Math.random() * 100);
           continue;
         }
 
@@ -329,7 +327,7 @@ class MemoryService {
         Utilities.sleep(Math.pow(2, i) * 200);
       } finally {
         if (lockAcquired) {
-          lock.releaseLock();
+          this._releaseShardedLock(lockKey);
         }
       }
     }
@@ -345,11 +343,11 @@ class MemoryService {
       return;
     }
 
-    const lock = LockService.getScriptLock();
+    const lockKey = this._getShardedLockKey(threadId);
 
     let lockAcquired = false;
     try {
-      lockAcquired = lock.tryLock(3000);
+      lockAcquired = this._tryAcquireShardedLock(lockKey);
       if (!lockAcquired) return; // Rinuncia se lockato
 
       const existingRow = this._findRowByThreadId(threadId);
@@ -378,7 +376,7 @@ class MemoryService {
       console.error(`❌ Errore aggiunta provided info: ${error.message}`);
     } finally {
       if (lockAcquired) {
-        lock.releaseLock();
+        this._releaseShardedLock(lockKey);
       }
     }
   }
@@ -542,11 +540,11 @@ class MemoryService {
   _updateProvidedInfoWithoutIncrement(threadId, providedInfo) {
     if (!this._initialized || !threadId) return;
 
-    const lock = LockService.getScriptLock();
+    const lockKey = this._getShardedLockKey(threadId);
     let lockAcquired = false;
 
     try {
-      lockAcquired = lock.tryLock(3000);
+      lockAcquired = this._tryAcquireShardedLock(lockKey);
       if (!lockAcquired) return;
 
       const existingRow = this._findRowByThreadId(threadId);
@@ -565,13 +563,62 @@ class MemoryService {
       console.warn(`⚠️ Aggiornamento reazione fallito: ${error.message}`);
     } finally {
       if (lockAcquired) {
-        lock.releaseLock();
+        this._releaseShardedLock(lockKey);
       }
     }
   }
 
+  // ========================================================================
+  // METODI HELPER PRIVATI
+  // ========================================================================
+
   /**
-   * Converte array riga in oggetto
+   * Genera chiave lock sharded basata su hash threadId
+   */
+  _getShardedLockKey(threadId) {
+    // Workaround: sharding per ridurre contention globale
+    const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, threadId);
+    // Usa primi caratteri dell'array digest convertito in stringa come bucket
+    const shard = digest.toString().substr(0, 4);
+    return `mem_lock_${shard}`;
+  }
+
+  /**
+   * Tenta acquisizione lock sharded (simulato con CacheService + Global Guard breve)
+   */
+  _tryAcquireShardedLock(key) {
+    const cache = CacheService.getScriptCache();
+    const globalLock = LockService.getScriptLock();
+
+    // Pattern: Global Guard per operazione Cache Atomica
+    // Prendi lock globale per pochissimo tempo, solo per check-and-set su Cache
+    if (globalLock.tryLock(1000)) {
+      try {
+        if (cache.get(key) != null) {
+          return false; // Già lockato
+        }
+        cache.put(key, '1', 30); // Lock 30 sec
+        return true;
+      } finally {
+        globalLock.releaseLock();
+      }
+    }
+    return false; // Fallito acquisizione guard
+  }
+
+  /**
+   * Rilascia lock sharded
+   */
+  _releaseShardedLock(key) {
+    try {
+      CacheService.getScriptCache().remove(key);
+    } catch (e) {
+      console.warn('Errore release lock:', e);
+    }
+  }
+
+  /**
+   * Restituisce il numero di colonne da leggere
    */
   _rowToObject(row) {
     const values = Array.isArray(row) ? row : row.values || row;
