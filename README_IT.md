@@ -187,6 +187,14 @@ graph LR
    - Template già pronti
    - Best practices
 
+### ⚠️ Note Importanti sulla Configurazione
+
+   > **PRIORITÀ CONFIGURAZIONE:**
+   > In ambiente di produzione, le **Script Properties** hanno la priorità assoluta su `gas_config.js`.
+   >
+   > Se imposti `GEMINI_API_KEY` o `SPREADSHEET_ID` nelle **Impostazioni Progetto > Proprietà dello script**, questi valori sovrascriveranno quanto scritto nel codice `CONFIG`.
+   > Questo è fondamentale per la sicurezza (non salvare mai chiavi reali nel file `gas_config.js`).
+
 ### Per Utenti Tecnici
 
 4. 🏗️ **[Architettura Sistema](docs/ARCHITECTURE_IT.md)**
