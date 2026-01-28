@@ -94,145 +94,136 @@ class PromptEngine {
     let skippedCount = 0;
 
     // ════════════════════════════════════════════════════════════════════════
-    // PRE-STIMA TOKEN PER COMPONENTE (Enhanced Token Estimation)
+    // PRE-STIMA E BUDGETING TOKEN (Protezione Miglioramento #6 - Memory Growth)
     // ════════════════════════════════════════════════════════════════════════
     const MAX_SAFE_TOKENS = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS
       ? CONFIG.MAX_SAFE_TOKENS : 100000;
 
-    // Stima token per ogni componente del prompt
-    const tokenComponents = {
-      systemRole: 500,  // Fisso ~500 token per system role
-      kb: Math.ceil((knowledgeBase || '').length / 4),
-      conversation: Math.ceil((conversationHistory || '').length / 4),
-      email: Math.ceil((emailContent || '').length / 4),
-      formatting: promptProfile === 'heavy' ? 1500 : (promptProfile === 'standard' ? 800 : 300),
-      examples: promptProfile === 'heavy' ? 2000 : 0,
-      overhead: 1000  // Intestazioni, separatori, ecc.
-    };
+    const OVERHEAD_TOKENS = 15000; // Riserva per istruzioni e sistema
+    const KB_BUDGET_RATIO = 0.5; // La KB può occupare max il 50% dello spazio rimanente
+    const availableForKB = Math.max(0, (MAX_SAFE_TOKENS - OVERHEAD_TOKENS) * KB_BUDGET_RATIO);
+    const kbCharsLimit = Math.round(availableForKB * 4);
 
-    const totalEstimated = Object.values(tokenComponents).reduce((a, b) => a + b, 0);
+    let workingKnowledgeBase = knowledgeBase;
 
-    // Warning proattivo al 90% del limite
-    if (totalEstimated > MAX_SAFE_TOKENS * 0.9) {
-      this.logger.warn(`⚠️ Prompt vicino al limite token (${totalEstimated}/${MAX_SAFE_TOKENS})`, {
-        components: tokenComponents,
-        percentUsed: ((totalEstimated / MAX_SAFE_TOKENS) * 100).toFixed(1) + '%'
-      });
-
-      // Calcola budget KB ottimizzato
-      const excess = totalEstimated - (MAX_SAFE_TOKENS * 0.8);
-      if (excess > 0 && tokenComponents.kb > excess) {
-        const suggestedKbBudget = tokenComponents.kb - excess;
-        this.logger.info(`   → Budget KB suggerito: ${suggestedKbBudget} token (riduzione ${excess})`);
-      }
-    } else if (totalEstimated > MAX_SAFE_TOKENS * 0.7) {
-      // Info log quando siamo tra 70-90%
-      console.log(`📊 Token stimati: ${totalEstimated}/${MAX_SAFE_TOKENS} (${((totalEstimated / MAX_SAFE_TOKENS) * 100).toFixed(0)}%)`);
+    // Troncamento proattivo della KB PRIMA di assemblare il prompt
+    if (workingKnowledgeBase && workingKnowledgeBase.length > kbCharsLimit) {
+      console.warn(`⚠️ KB eccede il budget (${workingKnowledgeBase.length} chars), tronco a ${kbCharsLimit}`);
+      workingKnowledgeBase = this._truncateKbSemantically(
+        workingKnowledgeBase,
+        Math.max(1, Math.round(availableForKB))
+      );
     }
 
-    // Helper per aggiungere template condizionalmente
-    const addTemplate = (templateName, content) => {
+    let usedTokens = 0;
+
+    /**
+     * Helper per aggiungere sezioni tracciando il budget token
+     */
+    const addSection = (section, label, options = {}) => {
+      if (!section) return;
+      const sectionTokens = this.estimateTokens(section);
+
+      // Se superiamo il budget, saltiamo a meno che non sia forzato (es. istruzioni critiche)
+      if (!options.force && usedTokens + sectionTokens > MAX_SAFE_TOKENS) {
+        console.warn(`⚠️ Budget esaurito, sezione saltata: ${label}`);
+        skippedCount++;
+        return;
+      }
+
+      sections.push(section);
+      usedTokens += sectionTokens;
+    };
+
+    /**
+     * Helper per aggiungere template condizionali
+     */
+    const addTemplate = (templateName, content, label) => {
       if (this._shouldIncludeTemplate(templateName, promptProfile, activeConcerns)) {
-        if (content) sections.push(content);
+        addSection(content, label || templateName);
       } else {
         skippedCount++;
       }
     };
 
     // ════════════════════════════════════════════════════════════════════════
-    // BLOCCO 1: SETUP CRITICO (Prime 5000 token - Massima Priorità)
+    // BLOCCO 1: SETUP CRITICO (Priorità Massima)
     // ════════════════════════════════════════════════════════════════════════
 
-    // 1. RUOLO SISTEMA - SEMPRE INCLUSO
-    sections.push(this._renderSystemRole());
+    // 1. RUOLO SISTEMA
+    addSection(this._renderSystemRole(), 'SystemRole', { force: true });
 
-    // 2. ISTRUZIONI LINGUA - SEMPRE INCLUSO
-    sections.push(this._renderLanguageInstruction(detectedLanguage));
+    // 2. ISTRUZIONI LINGUA
+    addSection(this._renderLanguageInstruction(detectedLanguage), 'LanguageInstruction', { force: true });
 
-    // 3. KNOWLEDGE BASE - SEMPRE INCLUSO
-    sections.push(this._renderKnowledgeBase(knowledgeBase));
+    // 3. KNOWLEDGE BASE (Già troncata se necessario)
+    addSection(this._renderKnowledgeBase(workingKnowledgeBase), 'KnowledgeBase');
 
-    // 4. VERIFICA TERRITORIO - SPOSTATO QUI PER PRIORITÀ
-    // Posizionato subito dopo la KB per maggiore visibilità
+    // 4. VERIFICA TERRITORIO
     const territorySection = this._renderTerritoryVerification(territoryContext);
     if (territorySection) {
-      sections.push(territorySection);
+      addSection(territorySection, 'TerritoryVerification');
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // BLOCCO 2: CONTESTO (5000-10000 token)
+    // BLOCCO 2: CONTESTO E CONTINUITÀ
     // ════════════════════════════════════════════════════════════════════════
 
-    // 5. CONTESTO MEMORIA - SEMPRE INCLUSO
-    const memorySection = this._renderMemoryContext(memoryContext);
-    if (memorySection) sections.push(memorySection);
+    // 5. CONTESTO MEMORIA
+    addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
 
     // 6. CONTINUITÀ CONVERSAZIONALE
-    const continuitySection = this._renderConversationContinuity(salutationMode);
-    if (continuitySection) sections.push(continuitySection);
+    addSection(this._renderConversationContinuity(salutationMode), 'ConversationContinuity');
 
-    // 7. SCUSE PER RITARDO (se necessario)
-    const responseDelaySection = this._renderResponseDelay(responseDelay, detectedLanguage);
-    if (responseDelaySection) sections.push(responseDelaySection);
+    // 7. SCUSE PER RITARDO
+    addSection(this._renderResponseDelay(responseDelay, detectedLanguage), 'ResponseDelay');
 
-    // 8. CONTINUITÀ + UMANITÀ + FOCUS (condizionale, leggero)
+    // 8. FOCUS UMANO (Condizionale)
     const shouldAddContinuityFocus =
       (memoryContext && Object.keys(memoryContext).length > 0) ||
       (salutationMode && salutationMode !== 'full') ||
       activeConcerns.emotional_sensitivity ||
       activeConcerns.repetition_risk;
     if (shouldAddContinuityFocus) {
-      sections.push(this._renderContinuityHumanFocus());
+      addSection(this._renderContinuityHumanFocus(), 'ContinuityHumanFocus');
     }
 
-    // 9. CONTESTO STAGIONALE
-    sections.push(this._renderSeasonalContext(currentSeason));
+    // 9. CONTESTO STAGIONALE E TEMPORALE
+    addSection(this._renderSeasonalContext(currentSeason), 'SeasonalContext');
+    addSection(this._renderTemporalAwareness(currentDate), 'TemporalAwareness');
 
-    // 10. CONSAPEVOLEZZA TEMPORALE
-    sections.push(this._renderTemporalAwareness(currentDate));
-
-    // 11. SUGGERIMENTO CATEGORIA
-    const categoryHint = this._renderCategoryHint(category);
-    if (categoryHint) sections.push(categoryHint);
+    // 10. SUGGERIMENTO CATEGORIA
+    addSection(this._renderCategoryHint(category), 'CategoryHint');
 
     // ════════════════════════════════════════════════════════════════════════
-    // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (RECUPERO SELETTIVO)
+    // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)
     // ════════════════════════════════════════════════════════════════════════
-
-    // AI_CORE_LITE: solo se c'è componente pastorale
     const requestTypeObj = options.requestType || { needsDiscernment: false, needsDoctrine: false };
-    const needsPastoralSupport = requestTypeObj.needsDiscernment || requestTypeObj.needsDoctrine;
 
-    if (needsPastoralSupport && typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.aiCoreLite) {
+    // AI_CORE_LITE: solo se componente pastorale
+    if ((requestTypeObj.needsDiscernment || requestTypeObj.needsDoctrine) && typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.aiCoreLite) {
       const liteSection = `
 ════════════════════════════════════════════════════════════════════════
 📋 PRINCIPI PASTORALI FONDAMENTALI (AI_CORE_LITE)
 ════════════════════════════════════════════════════════════════════════
 ${GLOBAL_CACHE.aiCoreLite}
-════════════════════════════════════════════════════════════════════════
-`;
-      sections.push(liteSection);
-      console.log('   ✓ AI_CORE_LITE iniettato (domanda pastorale/dottrinale)');
+════════════════════════════════════════════════════════════════════════\n`;
+      addSection(liteSection, 'AICoreLite');
     }
 
-    // AI_CORE esteso: solo se needsDiscernment
+    // AI_CORE esteso: solo se discernimento
     if (requestTypeObj.needsDiscernment && typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.aiCore) {
       const coreSection = `
 ════════════════════════════════════════════════════════════════════════
 🧭 PRINCIPI PASTORALI ESTESI (AI_CORE) - Accompagnamento Personale
 ════════════════════════════════════════════════════════════════════════
 ${GLOBAL_CACHE.aiCore}
-════════════════════════════════════════════════════════════════════════
-`;
-      sections.push(coreSection);
-      console.log('   ✓ AI_CORE iniettato (needsDiscernment=true)');
+════════════════════════════════════════════════════════════════════════\n`;
+      addSection(coreSection, 'AICore');
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // DOTTRINA: RECUPERO SELETTIVO (UNIFICATO CON DIRETTIVE)
-    // ════════════════════════════════════════════════════════════════════════
-    // Recupero mirato per ottimizzare l'uso dei token
-    if (requestTypeObj.needsDoctrine || topic) { // Trigger anche per topic per direttive
+    // 11. ARRICCHIMENTO DOTTRINALE (Selettivo)
+    if (requestTypeObj.needsDoctrine || topic) {
       const selectiveDoctrine = this._renderSelectiveDoctrine(
         requestTypeObj,
         topic,
@@ -240,117 +231,68 @@ ${GLOBAL_CACHE.aiCore}
         emailSubject,
         promptProfile
       );
-
       if (selectiveDoctrine) {
-        sections.push(selectiveDoctrine);
-      } else {
-        // Fallback: se retrieval fallisce, usa dump completo (backward compatibility)
-        if (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.doctrineBase) {
-          const doctrineSection = `
+        addSection(selectiveDoctrine, 'SelectiveDoctrine');
+      } else if (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.doctrineBase) {
+        const doctrineSection = `
 ════════════════════════════════════════════════════════════════════════
 📖 BASE DOTTRINALE (Dottrina) - Fallback Completo
 ════════════════════════════════════════════════════════════════════════
 ${GLOBAL_CACHE.doctrineBase}
-════════════════════════════════════════════════════════════════════════
-`;
-          sections.push(doctrineSection);
-          console.log('   ⚠️ Doctrine Base iniettato (fallback completo - retrieval non disponibile)');
-        }
+════════════════════════════════════════════════════════════════════════\n`;
+        addSection(doctrineSection, 'DoctrineFallback');
       }
     }
 
-    // 13. CRONOLOGIA CONVERSAZIONE - SEMPRE INCLUSO
+    // 12. CRONOLOGIA E CONTENUTO EMAIL
     if (conversationHistory) {
-      sections.push(this._renderConversationHistory(conversationHistory));
+      addSection(this._renderConversationHistory(conversationHistory), 'ConversationHistory');
     }
-
-    // 14. CONTENUTO EMAIL - SEMPRE INCLUSO
-    sections.push(this._renderEmailContent(emailContent, emailSubject, senderName, senderEmail, detectedLanguage));
+    addSection(this._renderEmailContent(emailContent, emailSubject, senderName, senderEmail, detectedLanguage), 'EmailContent');
 
     // ════════════════════════════════════════════════════════════════════════
-    // BLOCCO 3: GUIDELINES (10000-15000 token)
+    // BLOCCO 3: LINEE GUIDA E TEMPLATE
     // ════════════════════════════════════════════════════════════════════════
 
-    // 15. REGOLE NO REPLY - SEMPRE INCLUSO
-    sections.push(this._renderNoReplyRules());
+    // 13. REGOLE NO REPLY
+    addSection(this._renderNoReplyRules(), 'NoReplyRules');
 
-    // 16. LINEE GUIDA FORMATTAZIONE - FILTRABILE
-    addTemplate('FormattingGuidelinesTemplate', this._renderFormattingGuidelines());
+    // 14. LINEE GUIDA (Filtrabili per profilo)
+    addTemplate('FormattingGuidelinesTemplate', this._renderFormattingGuidelines(), 'FormattingGuidelines');
 
-    // 17. STRUTTURA RISPOSTA - SEMPRE INCLUSO
-    const structureHint = this._renderResponseStructure(category, subIntents);
-    if (structureHint) sections.push(structureHint);
+    // 15. STRUTTURA RISPOSTA
+    addSection(this._renderResponseStructure(category, subIntents), 'ResponseStructure');
 
-    // 18. TEMPLATE SBATTEZZO (PRIORITÀ MASSIMA)
+    // 16. TEMPLATE SPECIALI (Sbattezzo ecc.)
     const normalizedTopic = (topic || '').toLowerCase();
     if (normalizedTopic.includes('sbattezzo') || category === 'formal' || (category === 'sbattezzo')) {
-      sections.push(this._renderSbattezzoTemplate(senderName));
+      addSection(this._renderSbattezzoTemplate(senderName), 'SbattezzoTemplate');
     }
 
-    // 19. LINEE GUIDA TONO UMANO - FILTRABILE
-    addTemplate('HumanToneGuidelinesTemplate', this._renderHumanToneGuidelines());
+    addTemplate('HumanToneGuidelinesTemplate', this._renderHumanToneGuidelines(), 'HumanToneGuidelines');
+    addTemplate('ExamplesTemplate', this._renderExamples(category), 'Examples');
 
-    // 20. ESEMPI - FILTRABILE
-    addTemplate('ExamplesTemplate', this._renderExamples(category));
+    // 17. REGOLE FINALI
+    addSection(this._renderResponseGuidelines(detectedLanguage, currentSeason, salutation, closing), 'ResponseGuidelines');
 
-    // 21. LINEE GUIDA RISPOSTA - SEMPRE INCLUSO
-    sections.push(this._renderResponseGuidelines(detectedLanguage, currentSeason, salutation, closing));
-
-    // 22. CASI SPECIALI - FILTRABILE
-    // Inibisci casi speciali se è uno sbattezzo per evitare interferenze pastorali
     if (!normalizedTopic.includes('sbattezzo') && category !== 'formal') {
-      addTemplate('SpecialCasesTemplate', this._renderSpecialCases());
+      addTemplate('SpecialCasesTemplate', this._renderSpecialCases(), 'SpecialCases');
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // BLOCCO 4: RINFORZO FINALE (ultimi 2000 token - Recency Bias)
+    // BLOCCO 4: RINFORZO FINALE
     // ════════════════════════════════════════════════════════════════════════
 
-    // 23. ERRORI CRITICI - VERSIONE CONDENSATA
-    // Una sola ripetizione per efficienza
-    sections.push(this._renderCriticalErrorsReminder());
+    addSection(this._renderCriticalErrorsReminder(), 'CriticalErrorsReminder');
+    addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode), 'ContextualChecklist');
 
-    // 24. CHECKLIST CONTESTUALE
-    // Sostituisce checklist generica con versione mirata per lingua/territorio
-    sections.push(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode));
+    addSection('**Genera la risposta completa seguendo le linee guida sopra:**', 'FinalInstruction', { force: true });
 
     // Componi prompt finale
-    let prompt = sections.join('\n\n');
-    prompt += '\n\n**Genera la risposta completa seguendo le linee guida sopra:**';
+    const prompt = sections.join('\n\n');
+    const finalTokens = this.estimateTokens(prompt);
 
-    // Verifica limite token
-    const estimatedTokens = Math.round(prompt.length / 4);
-
-    if (estimatedTokens > MAX_SAFE_TOKENS) {
-      console.error(`❌ Prompt troppo lungo (~${estimatedTokens} token > ${MAX_SAFE_TOKENS}). Applico troncamento.`);
-
-      // Strategia 1: Rimuovi esempi
-      if (this._shouldIncludeTemplate('ExamplesTemplate', promptProfile, activeConcerns)) {
-        console.log('Troncamento: rimozione sezione esempi.');
-        sections = sections.filter(s => !s.includes('📚 ESEMPI'));
-        prompt = sections.join('\n\n') + '\n\n**Genera la risposta completa seguendo le linee guida sopra:**';
-      }
-
-      // Ri-verifica dimensione
-      if (Math.round(prompt.length / 4) > MAX_SAFE_TOKENS) {
-        // Strategia 2: Tronca Knowledge Base semanticamente
-        console.log('Troncamento: troncamento semantico Knowledge Base.');
-        const kbIndex = sections.findIndex(s => s.includes('INFORMAZIONI DI RIFERIMENTO'));
-        if (kbIndex !== -1) {
-          const truncatedKB = this._truncateKbSemantically(knowledgeBase, MAX_SAFE_TOKENS);
-          sections[kbIndex] = this._renderKnowledgeBase(truncatedKB);
-          prompt = sections.join('\n\n') + '\n\n**Genera la risposta completa seguendo le linee guida sopra:**';
-        }
-      }
-    } else {
-      if (estimatedTokens > MAX_SAFE_TOKENS * 0.8) {
-        console.warn(`⚠️ Prompt vicino al limite: ~${estimatedTokens} token`);
-      }
-    }
-
-    // Log finale con info profilo
-    const finalTokens = Math.round(prompt.length / 4);
-    console.log(`📝 Prompt: ${prompt.length} caratteri (~${finalTokens} token) | profilo=${promptProfile} | saltati=${skippedCount}`);
+    console.log(`📝 Prompt generato: ${prompt.length} caratteri (~${finalTokens} token) | Profilo: ${promptProfile} | Saltati: ${skippedCount}`);
 
     return prompt;
   }

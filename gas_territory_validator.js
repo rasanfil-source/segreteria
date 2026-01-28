@@ -172,17 +172,16 @@ class TerritoryValidator {
         const MAX_SAFE_LENGTH = 1000;
         if (text && text.length > MAX_SAFE_LENGTH) {
             text = text.substring(0, MAX_SAFE_LENGTH);
-            console.warn(`⚠️ Input troncato a ${MAX_SAFE_LENGTH} caratteri (protezione lunghezza)`);
+            console.warn(`⚠️ Input troncato a ${MAX_SAFE_LENGTH} caratteri (protezione memoria)`);
         }
 
-        // Pattern ottimizzati (senza backtracking esagerato)
+        // Pattern ottimizzati con lazy matching per prevenire ReDoS
         const patterns = [
-            // Pattern 1: "via Rossi 10" - Cattura nome completo della via
-            // ReDoS Fix: Rimosso nesting quantifiers ((...){0,5}+)
-            /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']+){0,5})[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi,
+            // Pattern 1: "via Rossi 10"
+            /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ'\s]+?)(?:\s+|,|\.|-)+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi,
 
             // Pattern 2: "abito in via Rossi 10"
-            /(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']+){0,5})[\s,.-]+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi
+            /(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ'\s]+?)(?:\s+|,|\.|-)+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi
         ];
 
         const addresses = [];
@@ -190,35 +189,31 @@ class TerritoryValidator {
         for (const pattern of patterns) {
             let match;
             let iterations = 0;
-            const MAX_ITERATIONS = 100; // Limite iterazioni per sicurezza
+            const MAX_ITERATIONS = 100;
 
             try {
-                // Necessario reset lastIndex per pattern global
                 pattern.lastIndex = 0;
-
                 while ((match = pattern.exec(text)) !== null) {
                     iterations++;
                     if (iterations > MAX_ITERATIONS) {
-                        console.warn('⚠️ Limite iterazioni regex raggiunto');
+                        console.warn('⚠️ Limite iterazioni regex raggiunto (timeout sicurezza)');
                         break;
                     }
 
-                    // Cattura: match[1] = tipo via, match[2] = nome via (completo), match[3] = civico
-                    const viaName = match[2].trim();
                     const viaType = match[1];
-                    const street = viaType + ' ' + viaName;
+                    const viaName = match[2].trim();
 
+                    // Validazione lunghezza nome via
+                    if (viaName.length < 2 || viaName.length > 100) continue;
+
+                    const street = viaType + ' ' + viaName;
                     const civicRaw = match[3];
                     const civic = parseInt(civicRaw, 10);
 
-                    // Validazione civico range 1-9999
-                    if (isNaN(civic) || civic <= 0 || civic > 9999) {
-                        console.warn(`⚠️ Numero civico non valido: ${civicRaw}`);
-                        continue;
-                    }
+                    if (isNaN(civic) || civic <= 0 || civic > 9999) continue;
 
                     const isDuplicate = addresses.some(addr =>
-                        addr.street.toLowerCase().trim() === street.toLowerCase().trim() &&
+                        addr.street.toLowerCase() === street.toLowerCase() &&
                         addr.civic === civic
                     );
 
@@ -228,8 +223,7 @@ class TerritoryValidator {
                     }
                 }
             } catch (e) {
-                console.error(`❌ Errore pattern match: ${e.message}`);
-                console.error(`   Pattern: ${pattern.source}`);
+                console.error(`❌ Errore analisi indirizzo: ${e.message}`);
             }
         }
 
@@ -244,7 +238,8 @@ class TerritoryValidator {
             text = text.substring(0, 1000);
         }
 
-        const pattern = /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+((?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,5}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)\b(?!\s*(?:n\.?\s*|civico\s+)?\d+)/gi;
+        // Pattern sicuro con lazy match
+        const pattern = /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ'\s]+?)\b(?!\s*(?:n\.?\s*|civico\s+)?\d+)/gi;
 
         const streets = [];
         let match;
@@ -259,7 +254,12 @@ class TerritoryValidator {
                     break;
                 }
 
-                const street = match[0].trim();
+                const viaType = match[1];
+                const viaName = match[2].trim();
+
+                if (viaName.length < 2 || viaName.length > 100) continue;
+
+                const street = viaType + ' ' + viaName;
                 const isDuplicate = streets.some(existing =>
                     existing.toLowerCase() === street.toLowerCase()
                 );
