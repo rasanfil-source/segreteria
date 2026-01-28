@@ -85,6 +85,12 @@ class ResponseValidator {
       /secretar[ií]a\s+parroquial/i                                    // ES
     ];
 
+    // Semantic Validator (opzionale)
+    const semanticEnabled = typeof CONFIG !== 'undefined' &&
+      CONFIG.SEMANTIC_VALIDATION &&
+      CONFIG.SEMANTIC_VALIDATION.enabled === true;
+    this.semanticValidator = semanticEnabled ? new SemanticValidator() : null;
+
     console.log('✓ ResponseValidator inizializzato');
     console.log(`   Soglia minima validità: ${this.MIN_VALID_SCORE}`);
   }
@@ -136,6 +142,37 @@ class ResponseValidator {
       } else {
         console.log('   🚫 Nessun perfezionamento automatico applicabile.');
       }
+    }
+
+    // === SEMANTIC VALIDATION (solo se necessario) ===
+    if (this.semanticValidator && this.semanticValidator.shouldRun(validationResult.score)) {
+      console.log('🧠 Attivazione Semantic Validation (score sotto soglia)...');
+
+      const semHalluc = this.semanticValidator.validateHallucinations(
+        currentResponse,
+        knowledgeBase,
+        validationResult.details.hallucinations
+      );
+
+      const semThinking = this.semanticValidator.validateThinkingLeak(
+        currentResponse,
+        validationResult.details.exposedReasoning
+      );
+
+      const semanticValid = semHalluc.isValid && semThinking.isValid;
+      const semanticConfidence = Math.min(semHalluc.confidence, semThinking.confidence);
+
+      if (!semanticValid && semanticConfidence > validationResult.score) {
+        console.warn('❌ Semantic validator ha rilevato problemi non catturati da regex');
+        validationResult.isValid = false;
+        validationResult.score = semanticConfidence;
+        validationResult.errors.push(`Semantic: ${semHalluc.reason || semThinking.reason}`);
+      }
+
+      validationResult.details.semantic = {
+        hallucinations: semHalluc,
+        thinkingLeak: semThinking
+      };
     }
 
     // Log finale
@@ -714,4 +751,262 @@ class ResponseValidator {
 // Funzione factory per compatibilità
 function createResponseValidator() {
   return new ResponseValidator();
+}
+
+/**
+ * SemanticValidator.gs - Validazione semantica con Gemini
+ *
+ * FILOSOFIA:
+ * - Usato SOLO quando regex non è sicura (score < soglia)
+ * - Chiamate API leggere
+ * - Fallback automatico a regex se API fallisce
+ * - Cache risultati (stesso thread)
+ */
+class SemanticValidator {
+  constructor() {
+    console.log('🧠 Inizializzazione SemanticValidator...');
+
+    const semanticConfig = typeof CONFIG !== 'undefined' && CONFIG.SEMANTIC_VALIDATION
+      ? CONFIG.SEMANTIC_VALIDATION
+      : {};
+
+    this.enabled = semanticConfig.enabled === true;
+    this.activationThreshold = semanticConfig.activationThreshold || 0.9;
+    this.cacheEnabled = semanticConfig.cacheEnabled !== false;
+    this.cacheTTL = semanticConfig.cacheTTL || 300;
+    this.taskType = semanticConfig.taskType || 'semantic';
+    this.fallbackOnError = semanticConfig.fallbackOnError !== false;
+    this.maxRetries = semanticConfig.maxRetries || 1;
+
+    this.geminiService = new GeminiService();
+
+    this.cache = this.cacheEnabled ? CacheService.getScriptCache() : null;
+
+    console.log('✓ SemanticValidator inizializzato');
+  }
+
+  shouldRun(validationScore) {
+    return this.enabled && validationScore < this.activationThreshold;
+  }
+
+  /**
+   * Valida allucinazioni usando semantic similarity
+   */
+  validateHallucinations(response, knowledgeBase, regexResult) {
+    if (!this.shouldRun(regexResult.score) && regexResult.errors.length === 0) {
+      console.log('   ⚡ Semantic hallucination check skippato (confidence alta)');
+      return { isValid: true, confidence: regexResult.score, skipped: true };
+    }
+
+    const cacheKey = this._cacheKey('halluc', response + knowledgeBase);
+    const cached = this._readCache(cacheKey);
+    if (cached) return cached;
+
+    console.log('   🧠 Eseguo semantic hallucination check...');
+
+    try {
+      const prompt = this._buildHallucinationPrompt(response, knowledgeBase);
+      const apiResponse = this._generateSemantic(prompt);
+      const result = this._parseSemanticResponse(apiResponse);
+      this._writeCache(cacheKey, result);
+      return result;
+    } catch (error) {
+      console.warn(`⚠️ Semantic API fallita: ${error.message}`);
+      if (!this.fallbackOnError) throw error;
+      return {
+        isValid: regexResult.score >= 0.6,
+        confidence: regexResult.score,
+        fallback: true,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Valida thinking leaks usando semantic understanding
+   */
+  validateThinkingLeak(response, regexResult) {
+    if (!this.shouldRun(regexResult.score)) {
+      return { isValid: true, confidence: 1.0, skipped: true };
+    }
+
+    const cacheKey = this._cacheKey('thinking', response);
+    const cached = this._readCache(cacheKey);
+    if (cached) return cached;
+
+    console.log('   🧠 Eseguo semantic thinking leak check...');
+
+    try {
+      const prompt = this._buildThinkingLeakPrompt(response);
+      const apiResponse = this._generateSemantic(prompt);
+      const result = this._parseSemanticResponse(apiResponse);
+      this._writeCache(cacheKey, result);
+      return result;
+    } catch (error) {
+      console.warn(`⚠️ Semantic thinking check fallito: ${error.message}`);
+      if (!this.fallbackOnError) throw error;
+      return { isValid: regexResult.score >= 0.7, confidence: regexResult.score, fallback: true };
+    }
+  }
+
+  // ========================================================================
+  // COSTRUTTORI PROMPT (ottimizzati per brevità)
+  // ========================================================================
+
+  _buildHallucinationPrompt(response, knowledgeBase) {
+    const kbTruncated = knowledgeBase && knowledgeBase.length > 2000
+      ? knowledgeBase.substring(0, 2000) + '...[TRUNCATED]'
+      : knowledgeBase;
+
+    return `Sei un validatore. Verifica se la RISPOSTA contiene informazioni NON presenti nella BASE CONOSCENZA.
+
+BASE CONOSCENZA (fonte verità):
+"""
+${kbTruncated || ''}
+"""
+
+RISPOSTA DA VALIDARE:
+"""
+${response}
+"""
+
+COMPITO:
+Estrai dalla RISPOSTA:
+1. Orari menzionati (formato HH:MM)
+2. Email menzionate
+3. Numeri telefono menzionati
+
+Per ciascuno, verifica se è presente (anche con sinonimi/varianti) nella BASE CONOSCENZA.
+
+Rispondi SOLO con questo JSON (senza markdown):
+{
+  "hallucinations": {
+    "times": ["10:30", "18:00"],
+    "emails": ["fake@test.com"],
+    "phones": ["1234567890"]
+  },
+  "isValid": true,
+  "confidence": 0.95,
+  "reason": "Tutti gli orari sono presenti nella KB con varianti simili"
+}`;
+  }
+
+  _buildThinkingLeakPrompt(response) {
+    return `Sei un validatore. Verifica se la RISPOSTA espone ragionamento interno dell'AI.
+
+RISPOSTA:
+"""
+${response}
+"""
+
+THINKING LEAK = frasi che mostrano il processo di pensiero dell'AI, come:
+- "Consultando la knowledge base..."
+- "Rivedendo le istruzioni..."
+- "Devo correggere..."
+- "La KB dice che..."
+- "Secondo le linee guida interne..."
+- "Verificando i dati forniti..."
+
+Rispondi SOLO con questo JSON (senza markdown):
+{
+  "thinkingLeakDetected": false,
+  "examples": [],
+  "isValid": true,
+  "confidence": 0.98,
+  "reason": "La risposta è naturale, senza meta-commenti"
+}`;
+  }
+
+  // ========================================================================
+  // PARSING E UTILITY
+  // ========================================================================
+
+  _generateSemantic(prompt) {
+    const estimatedTokens = this.geminiService._estimateTokens(prompt);
+
+    if (this.geminiService.useRateLimiter && this.geminiService.rateLimiter) {
+      const result = this.geminiService.rateLimiter.executeRequest(
+        this.taskType,
+        (modelName) => this.geminiService._generateWithModel(prompt, modelName),
+        {
+          estimatedTokens: estimatedTokens,
+          preferQuality: false
+        }
+      );
+
+      if (result && result.success) {
+        console.log(`✓ Semantic via Rate Limiter (modello: ${result.modelUsed})`);
+        return result.result;
+      }
+    }
+
+    const originalRetries = this.geminiService.maxRetries;
+    this.geminiService.maxRetries = this.maxRetries;
+    try {
+      return this.geminiService._withRetry(
+        () => this.geminiService._generateWithModel(prompt, this.geminiService.modelName),
+        'Semantic validation'
+      );
+    } finally {
+      this.geminiService.maxRetries = originalRetries;
+    }
+  }
+
+  _parseSemanticResponse(apiResponse) {
+    try {
+      if (typeof parseGeminiJsonLenient === 'function') {
+        const parsed = parseGeminiJsonLenient(apiResponse);
+        return this._normalizeSemanticPayload(parsed);
+      }
+
+      let cleaned = apiResponse
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
+
+      const parsed = JSON.parse(cleaned);
+      return this._normalizeSemanticPayload(parsed);
+    } catch (error) {
+      console.error(`❌ Parse semantic response failed: ${error.message}`);
+      throw new Error('Invalid JSON from semantic validator');
+    }
+  }
+
+  _normalizeSemanticPayload(parsed) {
+    return {
+      isValid: parsed.isValid === true,
+      confidence: Math.max(0, Math.min(parsed.confidence || 0.5, 1.0)),
+      details: parsed.hallucinations || parsed.examples || {},
+      reason: parsed.reason || 'No reason provided'
+    };
+  }
+
+  _cacheKey(prefix, text) {
+    return `${prefix}_${this._hashText(text)}`;
+  }
+
+  _readCache(cacheKey) {
+    if (!this.cache) return null;
+    const cached = this.cache.get(cacheKey);
+    return cached ? JSON.parse(cached) : null;
+  }
+
+  _writeCache(cacheKey, value) {
+    if (!this.cache) return;
+    this.cache.put(cacheKey, JSON.stringify(value), this.cacheTTL);
+  }
+
+  _hashText(text) {
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) {
+      const char = text.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash |= 0;
+    }
+    return Math.abs(hash).toString(36);
+  }
+}
+
+function createSemanticValidator() {
+  return new SemanticValidator();
 }

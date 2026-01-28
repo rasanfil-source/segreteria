@@ -20,6 +20,15 @@ const CONFIG = {
     VALIDATION_ENABLED: true,
     VALIDATION_MIN_SCORE: 0.6,
     VALIDATION_STRICT_MODE: false,
+    SEMANTIC_VALIDATION: {
+        enabled: true,
+        activationThreshold: 0.9,
+        cacheEnabled: true,
+        cacheTTL: 300,
+        taskType: 'semantic',
+        maxRetries: 1,
+        fallbackOnError: true
+    },
 
     // === Gmail ===
     LABEL_NAME: 'IA',                    // Label per email processate
@@ -87,7 +96,7 @@ const CONFIG = {
             rpm: 15,
             tpm: 250000,
             rpd: 1000,
-            useCases: ['quick_check', 'classification', 'fallback']
+            useCases: ['quick_check', 'classification', 'semantic', 'fallback']
         },
         // Modello legacy: backup se tutto esaurito
         'flash-2.0': {
@@ -103,6 +112,7 @@ const CONFIG = {
     MODEL_STRATEGY: {
         'quick_check': ['flash-lite', 'flash-2.0'],
         'generation': ['flash-2.5', 'flash-lite', 'flash-2.0'],
+        'semantic': ['flash-lite', 'flash-2.0'],
         'fallback': ['flash-lite', 'flash-2.0']
     },
 

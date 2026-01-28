@@ -24,6 +24,7 @@
 ### ✨ NOVITÀ v2.5: Ottimizzazione Prompt Engine & Smart RAG
 *   **Prompt Dinamico Modulare**: Il prompt viene costruito "al volo" assemblando solo i blocchi necessari (es. inutile includere regole per i Sacramenti se si parla di Orari), risparmiando token e aumentando la precisione.
 *   **Smart RAG (Dottrina)**: Integrazione avanzata con la Dottrina. Direttive specifiche, esempi e warning vengono caricati dinamicamente in base al topic, permettendo una guida pastorale millimetrica.
+*   **Validazione Semantica (Gemini)**: Quando i controlli standard (regex) non sono sicuri, il sistema chiede un "secondo parere" a Gemini stesso per stanare allucinazioni sottili o ragionamenti esposti ("Thinking Leak").
 *   **Checklist Contestuali**: Ogni risposta viene verificata contro una checklist che si adatta alla lingua e al territorio (es. controlli specifici per indirizzi romani).
 *   **Anti-Leak & Sanificazione**: Protezione avanzata contro la fuoriuscita di "pensieri" dell'AI e sanificazione automatica degli input utente per template sensibili (es. Sbattezzo).
 

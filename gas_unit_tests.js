@@ -172,6 +172,49 @@ function testResponseValidatorSuite() {
 }
 
 /**
+ * TEST SUITE 3B: SemanticValidator (richiede API Gemini configurata)
+ */
+function testSemanticValidator() {
+    console.log("\n🧪 [[[ TEST SUITE: SemanticValidator ]]]");
+    const validator = new SemanticValidator();
+
+    if (!validator.enabled) {
+        console.warn("⚠️ SemanticValidator disabilitato da CONFIG, skip test.");
+        return;
+    }
+
+    const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY') ||
+        (typeof CONFIG !== 'undefined' ? CONFIG.GEMINI_API_KEY : null);
+
+    if (!apiKey || apiKey.includes('YOUR_GEMINI_API_KEY_HERE')) {
+        console.warn("⚠️ API key Gemini non configurata, skip test SemanticValidator.");
+        return;
+    }
+
+    const kb = "Messa domenicale: 10:00 e 18:00. Tel: 06-1234567";
+    const responseOk = "La messa domenicale è alle 10:00 e 18:00.";
+    const responseBad = "La messa è alle 11:30 e potete chiamare il 06-9999999.";
+    const regexUncertain = { errors: [], score: 0.85 };
+
+    const semOk = validator.validateHallucinations(responseOk, kb, regexUncertain);
+    assert(semOk.isValid === true, "Semantic dovrebbe validare risposta corretta");
+
+    const semBad = validator.validateHallucinations(responseBad, kb, regexUncertain);
+    assert(semBad.isValid === false, "Semantic dovrebbe rilevare orario inventato");
+
+    const cleanResponse = "Ecco le informazioni richieste: ...";
+    const leakyResponse = "Consultando la knowledge base, vedo che...";
+
+    const semClean = validator.validateThinkingLeak(cleanResponse, regexUncertain);
+    assert(semClean.isValid === true, "Risposta pulita dovrebbe passare");
+
+    const semLeaky = validator.validateThinkingLeak(leakyResponse, regexUncertain);
+    assert(semLeaky.isValid === false, "Thinking leak dovrebbe essere rilevato");
+
+    console.log("✅ SemanticValidator test completati.");
+}
+
+/**
  * TEST SUITE 4: PromptEngine (Smart RAG Unificato)
  */
 function testSmartRAGSuite() {
@@ -364,6 +407,7 @@ function runAllTests() {
         testTerritoryValidatorSuite();
         testGmailServiceSuite();
         testResponseValidatorSuite();
+        testSemanticValidator();
         testSmartRAGSuite();
         testRequestTypeClassifierSuite();
 
