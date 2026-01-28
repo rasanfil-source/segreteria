@@ -157,6 +157,7 @@ class GeminiService {
    * @returns {Object} Risultato controllo rapido
    */
   _quickCheckWithModel(emailContent, emailSubject, modelName) {
+    const detection = this.detectEmailLanguage(emailContent, emailSubject);
     const prompt = `Analizza questa email.
 Rispondi ESCLUSIVAMENTE con un oggetto JSON.
 
@@ -263,9 +264,9 @@ Output JSON:
 
     // Risultato default in caso di errori
     const defaultResult = {
-      shouldRespond: false, // In caso di errore API, non rispondere per sicurezza
-      language: 'it',
-      reason: 'errore_chiamata_alternativa',
+      shouldRespond: true, // Failsafe: evita perdita silenziosa di richieste valide
+      language: detection.lang,
+      reason: 'quick_check_failed',
       classification: {
         category: 'TECHNICAL',
         topic: 'unknown',
@@ -304,7 +305,6 @@ Output JSON:
     }
 
     // Detection locale come lingua alternativa
-    const detection = this.detectEmailLanguage(emailContent, emailSubject);
 
     // Normalizzazione sicura booleano
     const replyNeeded = data.reply_needed;
