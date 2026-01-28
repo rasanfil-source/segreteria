@@ -1263,6 +1263,13 @@ function computeResponseDelay({ messageDate, now = new Date(), thresholdHours = 
 
 function processUnreadEmailsMain() {
   try {
+    const configCheck = typeof validateConfig === 'function' ? validateConfig() : { valid: true, errors: [] };
+    if (!configCheck.valid) {
+      console.error('🚨 CONFIGURAZIONE NON VALIDA - ARRESTO SISTEMA');
+      configCheck.errors.forEach(e => console.error(`   ${e}`));
+      return;
+    }
+
     // Controlla orario sospensione
     if (typeof isInSuspensionTime === 'function' && isInSuspensionTime()) {
       console.log('Servizio sospeso per orario di lavoro.');
@@ -1279,6 +1286,11 @@ function processUnreadEmailsMain() {
       GLOBAL_CACHE.knowledgeBase || '' : '';
     const doctrineBase = typeof GLOBAL_CACHE !== 'undefined' ?
       GLOBAL_CACHE.doctrineBase || '' : '';
+
+    if (!knowledgeBase) {
+      console.error('❌ Knowledge Base non caricata, esco');
+      return;
+    }
 
     // Crea processore ed esegui
     const processor = new EmailProcessor();

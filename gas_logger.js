@@ -31,7 +31,9 @@ class Logger {
       ...data
     };
 
-    if (this.config.LOGGING.STRUCTURED) {
+    const loggingConfig = (this.config && this.config.LOGGING) ? this.config.LOGGING : {};
+
+    if (loggingConfig.STRUCTURED) {
       console.log(JSON.stringify(logEntry));
     } else {
       console.log(`[${logEntry.timestamp}] [${level}] [${this.context}] ${message}`);
@@ -41,7 +43,7 @@ class Logger {
     }
 
     // Invia notifica per errori critici
-    if (level === 'ERROR' && this.config.LOGGING.SEND_ERROR_NOTIFICATIONS) {
+    if (level === 'ERROR' && loggingConfig.SEND_ERROR_NOTIFICATIONS) {
       this._sendErrorNotification(logEntry);
     }
   }
@@ -86,10 +88,11 @@ class Logger {
    */
   _sendErrorNotification(logEntry) {
     try {
-      const adminEmail = this.config.LOGGING.ADMIN_EMAIL;
+      const loggingConfig = (this.config && this.config.LOGGING) ? this.config.LOGGING : {};
+      const adminEmail = loggingConfig.ADMIN_EMAIL;
       if (!adminEmail || adminEmail.includes('[')) return;
 
-      const subject = `[${this.config.PROJECT_NAME}] Avviso Errore: ${logEntry.message}`;
+      const subject = `[${this.config.PROJECT_NAME || 'GAS_BOT'}] Avviso Errore: ${logEntry.message}`;
       const body = `
 Errore nel sistema autoresponder:
 
@@ -101,8 +104,8 @@ Dettagli:
 ${JSON.stringify(logEntry, null, 2)}
 
 ---
-Sistema: ${this.config.PROJECT_NAME}
-Script ID: ${this.config.SCRIPT_ID}
+Sistema: ${this.config.PROJECT_NAME || 'GAS_BOT'}
+Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
       `.trim();
 
       // Rate limit: max 1 email ogni 5 minuti

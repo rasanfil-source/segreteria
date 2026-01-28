@@ -395,6 +395,43 @@ function testRequestTypeClassifierSuite() {
 }
 
 /**
+ * TEST SUITE 6: Logger Robustness (Partial/Missing Config)
+ */
+function testLoggerRobustnessSuite() {
+    console.log("\n🧪 [[[ TEST SUITE: Logger Robustness ]]]");
+
+    // 1. Test con Config Vuoto
+    console.log("> Check 1: Logger con Config Vuoto");
+    const safeLogger = new Logger("SafeTest");
+    // Simuliamo config vuoto (sovrascrivendo temporaneamente this.config se accessibile, 
+    // ma dato che è nel costruttore, creiamo una istanza e forziamo la proprietà se necessario,
+    // oppure ci affidiamo al fatto che il test runner potrebbe non avere CONFIG completo)
+
+    // Per testare veramente, forziamo 'config' interno a {}
+    safeLogger.config = {};
+
+    try {
+        safeLogger.info("Test messaggio info (No Config)");
+        safeLogger.error("Test messaggio error (No Config)");
+        console.log("✅ Logger gestisce config vuoto senza errori.");
+    } catch (e) {
+        console.error(`❌ FAIL: Logger crashato con config vuoto: ${e.message}`);
+    }
+
+    // 2. Test con Config Parziale (LOGGING esiste ma vuoto)
+    console.log("\n> Check 2: Logger con Config Parziale");
+    safeLogger.config = { LOGGING: {} };
+    try {
+        safeLogger.warn("Test warning (Partial Config)");
+        console.log("✅ Logger gestisce config parziale senza errori.");
+    } catch (e) {
+        console.error(`❌ FAIL: Logger crashato con config parziale: ${e.message}`);
+    }
+
+    console.log("✅ Logger Robustness Suite completata.");
+}
+
+/**
  * Esegui tutti i test
  */
 function runAllTests() {
@@ -410,6 +447,7 @@ function runAllTests() {
         testSemanticValidator();
         testSmartRAGSuite();
         testRequestTypeClassifierSuite();
+        testLoggerRobustnessSuite();
 
         console.log("\n╔══════════════════════════════════════════════════════════════╗");
         console.log(`║  🎉 TUTTI I TEST COMPLETATI in ${Date.now() - start}ms                 ║`);
