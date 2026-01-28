@@ -177,8 +177,9 @@ class Classifier {
   _extractMainContent(body) {
     let processedBody = body;
 
-    // Rimuove tag <blockquote> e contenuto
-    processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
+    // Rimuove solo i tag <blockquote> mantenendo il contenuto (evita perdita info)
+    processedBody = processedBody.replace(/<blockquote[^>]*>/gi, '');
+    processedBody = processedBody.replace(/<\/blockquote>/gi, '');
 
     // Rimuove div.gmail_quote
     processedBody = processedBody.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*?<\/div>/gi, '');
