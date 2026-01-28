@@ -5,7 +5,7 @@
  * FUNZIONALITÀ:
  * - Retry con exponential backoff
  * - Rilevamento lingua centralizzato
- * - Quick check per decisione risposta
+ * - Controllo rapido per decisione risposta
  * - Saluto adattivo (ora + calendario liturgico)
  * - Rate Limiter integrato con gestione quota
  */
@@ -27,7 +27,7 @@ class GeminiService {
     this.primaryKey = (propKey && propKey.length > 20) ? propKey :
       (typeof CONFIG !== 'undefined' ? CONFIG.GEMINI_API_KEY : null);
 
-    // Chiave di Riserva (opzionale, per fallback quando quota primaria esaurita)
+    // Chiave di Riserva (opzionale, per alternativa quando quota primaria esaurita)
     this.backupKey = this.props.getProperty('GEMINI_API_KEY_BACKUP');
 
     // Manteniamo apiKey per retrocompatibilità
@@ -150,11 +150,11 @@ class GeminiService {
   }
 
   /**
-   * Quick check con modello specifico
+   * Controllo rapido con modello specifico
    * @param {string} emailContent - Contenuto email
    * @param {string} emailSubject - Oggetto email
    * @param {string} modelName - Nome modello API
-   * @returns {Object} Risultato quick check
+   * @returns {Object} Risultato controllo rapido
    */
   _quickCheckWithModel(emailContent, emailSubject, modelName) {
     const prompt = `Analizza questa email.
@@ -207,9 +207,9 @@ Output JSON:
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
 
-    console.log(`🔍 Quick check via ${modelName}...`);
+    console.log(`🔍 Controllo rapido via ${modelName}...`);
 
-    // Gestione con tentativo su chiave primaria e fallback su secondaria
+    // Gestione con tentativo su chiave primaria e alternativa su secondaria
     let activeKey = this.primaryKey;
     let response;
 
@@ -265,7 +265,7 @@ Output JSON:
     const defaultResult = {
       shouldRespond: false, // In caso di errore API, non rispondere per sicurezza
       language: 'it',
-      reason: 'errore_chiamata_fallback',
+      reason: 'errore_chiamata_alternativa',
       classification: {
         category: 'TECHNICAL',
         topic: 'unknown',
@@ -274,14 +274,14 @@ Output JSON:
     };
 
     if (!result.candidates || !result.candidates[0]) {
-      console.error('❌ Nessun candidato nella risposta Gemini Quick Check');
+      console.error('❌ Nessun candidato nella risposta Controllo Rapido Gemini');
       return defaultResult;
     }
 
     const candidate = result.candidates[0];
 
     if (candidate.finishReason && ['SAFETY', 'RECITATION', 'OTHER', 'BLOCKLIST'].includes(candidate.finishReason)) {
-      console.warn(`⚠️ Quick check bloccato: ${candidate.finishReason}`);
+      console.warn(`⚠️ Controllo rapido bloccato: ${candidate.finishReason}`);
       return defaultResult;
     }
 
@@ -303,7 +303,7 @@ Output JSON:
       return defaultResult;
     }
 
-    // Detection locale per fallback lingua
+    // Detection locale come lingua alternativa
     const detection = this.detectEmailLanguage(emailContent, emailSubject);
 
     // Normalizzazione sicura booleano
@@ -522,7 +522,7 @@ Output JSON:
 
     // 1. Se Gemini non ha restituito lingua → usa locale
     if (!normalizedGemini) {
-      console.log(`   🌍 Lingua: ${normalizedLocal.toUpperCase()} (Gemini silente, fallback locale)`);
+      console.log(`   🌍 Lingua: ${normalizedLocal.toUpperCase()} (Gemini silente, alternativa locale)`);
       return normalizedLocal;
     }
 
@@ -563,7 +563,7 @@ Output JSON:
     if (specialGreeting) {
       greeting = specialGreeting;
     } else {
-      // Fallback a saluto standard basato sull'ora
+      // Alternativa a saluto standard basato sull'ora
       const minutes = now.getMinutes();
       const isNightTime = (hour >= 0 && hour < 5) || (hour === 23 && minutes >= 30);
 
@@ -764,15 +764,15 @@ Output JSON:
   }
 
   // ========================================================================
-  // QUICK CHECK (Decisione risposta + Rilevamento lingua)
+  // CONTROLLO RAPIDO (Decisione risposta + Rilevamento lingua)
   // ========================================================================
 
   /**
    * Chiamata rapida Gemini per decidere se email richiede risposta E rilevare lingua
-   * Supporta Rate Limiter + fallback originale
+   * Supporta Rate Limiter + alternativa originale
    */
   shouldRespondToEmail(emailContent, emailSubject) {
-    // Detection locale per fallback lingua
+    // Detection locale per lingua alternativa
     const detection = this.detectEmailLanguage(emailContent, emailSubject);
     const fallbackLang = detection.lang;
     const defaultResult = { shouldRespond: true, language: fallbackLang, reason: 'failsafe_local_detection' };
@@ -781,16 +781,16 @@ Output JSON:
     if (this.useRateLimiter) {
       try {
         const result = this.rateLimiter.executeRequest(
-          'quick_check',
+          'controllo_rapido',
           (modelName) => this._quickCheckWithModel(emailContent, emailSubject, modelName),
           {
             estimatedTokens: 500,
-            preferQuality: false  // Economia > qualità per quick check
+            preferQuality: false  // Economia > qualità per controllo rapido
           }
         );
 
         if (result.success) {
-          console.log(`✓ Quick check via Rate Limiter (modello: ${result.modelUsed})`);
+          console.log(`✓ Controllo rapido via Rate Limiter (modello: ${result.modelUsed})`);
           return result.result;
         }
       } catch (error) {

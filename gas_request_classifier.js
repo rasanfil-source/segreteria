@@ -184,7 +184,7 @@ class RequestTypeClassifier {
       dimensions = { ...dimensions, ...externalDims };
       source = 'llm';
     } else if (hasExternalHint) {
-      // Boost dimensionale basato su Gemini (fallback a categoria)
+      // Boost dimensionale basato su Gemini (alternativa a categoria)
       const categoryMap = {
         'technical': 'technical',
         'appointment': 'technical',
@@ -603,7 +603,7 @@ Linee guida per la risposta:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
     }
 
-    // Fallback predefinito
+    // Valore predefinito
     return '';
   }
 }

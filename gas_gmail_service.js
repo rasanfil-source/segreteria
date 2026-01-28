@@ -448,7 +448,7 @@ class GmailService {
         if (emailMatch && emailMatch[1]) {
           fromEmail = emailMatch[1];
         } else {
-          // Fallback semplice per rimuovere eventuale nome display
+          // Alternativa semplice per rimuovere eventuale nome display
           const parts = fromEmailRaw.split(/\s+/);
           const lastPart = parts[parts.length - 1];
           if (lastPart.includes('@')) {
@@ -493,25 +493,25 @@ class GmailService {
         return;
 
       } catch (apiError) {
-        console.warn(`⚠️ Gmail API fallita, fallback a GmailApp: ${apiError.message}`);
+        console.warn(`⚠️ Gmail API fallita, ripiego su GmailApp: ${apiError.message}`);
       }
     }
 
-    // Fallback: metodo tradizionale
+    // Alternativa: metodo tradizionale
     const mailEntity = typeof resource === 'string'
       ? GmailApp.getThreadById(resource)
       : resource;
 
     try {
       mailEntity.reply('', { htmlBody: htmlBody });
-      console.log(`✓ Risposta HTML inviata a ${messageDetails.senderEmail} (metodo fallback)`);
+      console.log(`✓ Risposta HTML inviata a ${messageDetails.senderEmail} (metodo alternativo)`);
     } catch (error) {
       console.error(`❌ Risposta fallita: ${error.message}`);
       try {
         mailEntity.reply(finalResponse);
-        console.log(`✓ Risposta plain text inviata a ${messageDetails.senderEmail} (fallback)`);
+        console.log(`✓ Risposta plain text inviata a ${messageDetails.senderEmail} (alternativa)`);
       } catch (fallbackError) {
-        console.error(`❌ CRITICO: Fallback risposta fallito: ${fallbackError.message}`);
+        console.error(`❌ CRITICO: Invio risposta alternativo fallito: ${fallbackError.message}`);
         const errorLabel = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME) ? CONFIG.ERROR_LABEL_NAME : 'Errore';
         if (mailEntity && typeof mailEntity.getMessages === 'function') {
           this.addLabelToThread(mailEntity, errorLabel);
