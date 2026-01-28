@@ -244,8 +244,8 @@ NON citare orari feriali standard.
  * @returns {*} Risultato della funzione
  */
 function withSheetsRetry(fn, context = 'Operazione Sheets') {
-  const maxRetries = CONFIG.SHEETS_RETRY_MAX || 3;
-  const baseBackoff = CONFIG.SHEETS_RETRY_BACKOFF_MS || 1000;
+  const maxRetries = (typeof CONFIG !== 'undefined' && CONFIG.SHEETS_RETRY_MAX) ? CONFIG.SHEETS_RETRY_MAX : 3;
+  const baseBackoff = (typeof CONFIG !== 'undefined' && CONFIG.SHEETS_RETRY_BACKOFF_MS) ? CONFIG.SHEETS_RETRY_BACKOFF_MS : 1000;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {

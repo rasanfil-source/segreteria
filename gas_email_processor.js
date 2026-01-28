@@ -131,7 +131,19 @@ class EmailProcessor {
       const messages = thread.getMessages();
       const unreadMessages = messages.filter(m => m.isUnread());
 
-      const myEmail = Session.getActiveUser().getEmail();
+      // Recupero indirizzo email corrente con fallback
+      let myEmail = '';
+      try {
+        const effectiveUser = Session.getEffectiveUser();
+        myEmail = effectiveUser ? effectiveUser.getEmail() : '';
+
+        if (!myEmail) {
+          const activeUser = Session.getActiveUser();
+          myEmail = activeUser ? activeUser.getEmail() : '';
+        }
+      } catch (e) {
+        console.warn(`⚠️ Impossibile recuperare email utente: ${e.message}`);
+      }
 
       // ═══════════════════════════════════════════════════════════════
       // FILTRO A LIVELLO MESSAGGIO
@@ -195,7 +207,7 @@ class EmailProcessor {
       const lastMessage = messages[messages.length - 1];
       const lastSender = (lastMessage.getFrom() || '').toLowerCase();
 
-      if (lastSender.includes(myEmail.toLowerCase())) {
+      if (myEmail && lastSender.includes(myEmail.toLowerCase())) {
         console.log('   ⊘ Saltato: l\'ultimo messaggio del thread è già nostro (bot o segreteria)');
         // Non marchiamo nulla, semplicemente ci fermiamo finché l'utente non risponde
         result.status = 'skipped';

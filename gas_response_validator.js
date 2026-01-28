@@ -394,7 +394,7 @@ class ResponseValidator {
     const normalizeTime = (t) => {
       // Escludi pattern che potrebbero essere URL o nomi file
       if (/[a-z]{2,}\.\d{1,2}\.[a-z]{2,}/i.test(t)) return t;
-      if (/\/([\\w-]+\.\d{1,2}\.\w+)$/i.test(t)) return t;
+      if (/\/([\w-]+\.\d{1,2}\.\w+)$/i.test(t)) return t;
 
       t = t.replace(/\b(\d{1,2})\.([0-5]\d)\b/g, (match, h, m) => {
         const hour = parseInt(h, 10);

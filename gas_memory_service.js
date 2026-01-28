@@ -430,7 +430,7 @@ class MemoryService {
     });
 
     if (modified) {
-      this.updateMemoryAtomic(threadId, {}, newInfos);
+      this._updateProvidedInfoWithoutIncrement(threadId, newInfos);
       console.log(`🧠 Reazione aggiornata per topic '${topic}': ${reaction}`);
     }
   }
@@ -534,6 +534,40 @@ class MemoryService {
     });
 
     return Array.from(mergedMap.values());
+  }
+
+  /**
+   * Aggiorna providedInfo senza incrementare messageCount.
+   */
+  _updateProvidedInfoWithoutIncrement(threadId, providedInfo) {
+    if (!this._initialized || !threadId) return;
+
+    const lock = LockService.getScriptLock();
+    let lockAcquired = false;
+
+    try {
+      lockAcquired = lock.tryLock(3000);
+      if (!lockAcquired) return;
+
+      const existingRow = this._findRowByThreadId(threadId);
+      if (!existingRow) return;
+
+      const existingData = this._rowToObject(existingRow.values);
+      const normalizedTopics = this._normalizeProvidedTopics(providedInfo || []);
+
+      existingData.providedInfo = normalizedTopics;
+      existingData.lastUpdated = new Date().toISOString();
+      existingData.version = (existingData.version || 0) + 1;
+
+      this._updateRow(existingRow.rowIndex, existingData);
+      this._invalidateCache(`memory_${threadId}`);
+    } catch (error) {
+      console.warn(`⚠️ Aggiornamento reazione fallito: ${error.message}`);
+    } finally {
+      if (lockAcquired) {
+        lock.releaseLock();
+      }
+    }
   }
 
   /**

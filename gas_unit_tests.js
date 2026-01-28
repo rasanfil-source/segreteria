@@ -156,6 +156,18 @@ function testResponseValidatorSuite() {
     const resLeak = validator._checkExposedReasoning(leakText);
     assert(resLeak.score === 0.0, "Deve rilevare thinking leak 'kb contiene'");
 
+    // --- C. checkHallucinations (Regex File Path Bug) ---
+    console.log("\n> Check Regex File Path (Bug Fix):");
+    // Se la regex è errata ([\\w-] invece di [\\w-]), "documento.10.30.pdf" 
+    // non viene riconosciuto come file e "10.30" diventa orario 10:30.
+    const fileText = "Allego il file documento.10.30.pdf per revisione.";
+    const resFile = validator._checkHallucinations(fileText, ""); // KB vuota
+
+    // Se il fix funziona, "10.30" viene ignorato perché parte di un file path.
+    // Quindi non deve esserci 'times' nei warnings o hallucinations.
+    const foundTimes = resFile.hallucinations && resFile.hallucinations.times ? resFile.hallucinations.times : [];
+    assert(foundTimes.length === 0, `Non deve rilevare orari in file path (Trovati: ${foundTimes.join(', ')})`);
+
     console.log("✅ ResponseValidator Suite completata.");
 }
 
