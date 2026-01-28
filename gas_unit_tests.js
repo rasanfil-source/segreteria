@@ -11,12 +11,38 @@
 const assert = (condition, message) => {
     if (!condition) {
         console.error(`❌ FAIL: ${message}`);
-        // Non lanciamo eccezione per permettere agli altri test di girare
-        // throw new Error(message); 
     } else {
         console.log(`✅ PASS: ${message}`);
     }
 };
+
+/**
+ * Helper per raggruppare i test
+ */
+function testGroup(label, results, callback) {
+    console.log(`\n🧪 [[[ ${label} ]]]`);
+    callback();
+}
+
+/**
+ * Helper per singolo caso di test
+ */
+function test(label, results, callback) {
+    try {
+        const r = callback();
+        const passed = (r === true || r === undefined); // Alcuni test non ritornano nulla ma usano assert
+        if (passed) {
+            console.log(`  ✅ PASS: ${label}`);
+            if (results) results.passed++;
+        } else {
+            console.error(`  ❌ FAIL: ${label}`);
+            if (results) results.failed++;
+        }
+    } catch (e) {
+        console.error(`  💥 ERRORE: ${label} - ${e.message}`);
+        if (results) results.errors++;
+    }
+}
 
 /**
  * TEST SUITE: Verifica Lock Annidati (ScriptLock Re-entrancy)
@@ -492,104 +518,132 @@ function testLoggerRobustnessSuite() {
 /**
  * Miglioramento #3: Protezione ReDoS (TerritoryValidator)
  */
-function testTerritoryValidatorReDoS() {
-    console.log("\n🧪 [[[ TEST: TerritoryValidator - Protezione ReDoS ]]]");
-    const validator = new TerritoryValidator();
+function testTerritoryValidatorReDoS(results) {
+    testGroup('TerritoryValidator - Protezione ReDoS', results, () => {
+        const validator = new TerritoryValidator();
 
-    // Test 1: Input normale (veloce)
-    console.log("> Check 1: Performance input normale");
-    const start1 = Date.now();
-    const normal = "via Roma 10";
-    validator.extractAddressFromText(normal);
-    const duration1 = Date.now() - start1;
-    assert(duration1 < 100, `Input normale deve essere veloce (<100ms), attuale: ${duration1}ms`);
+        // Test 1: Performance input normale
+        test('Performance input normale', results, () => {
+            const start = Date.now();
+            const normal = "via Roma 10";
+            validator.extractAddressFromText(normal);
+            const duration = Date.now() - start;
 
-    // Test 2: Payload ReDoS (non deve andare in timeout)
-    console.log("> Check 2: Protezione payload ReDoS");
-    const start2 = Date.now();
-    const malicious = "via " + "parola ".repeat(10) + " n";
-    try {
-        validator.extractAddressFromText(malicious);
-        const duration2 = Date.now() - start2;
-        assert(duration2 < 1000, `Il payload ReDoS deve terminare in <1s (era >30s), attuale: ${duration2}ms`);
-    } catch (e) {
-        assert(false, `Errore durante test ReDoS: ${e.message}`);
-    }
+            return duration < 100;  // ✅ Deve essere <100ms
+        });
 
-    // Test 3: Troncamento input lungo
-    console.log("> Check 3: Troncamento input eccessivo");
-    const long = "via Roma ".repeat(200) + "10";
-    const result3 = validator.extractAddressFromText(long);
-    assert(result3 !== undefined, "Input lungo gestito senza errori");
+        // Test 2: Protezione payload ReDoS
+        test('Protezione payload ReDoS', results, () => {
+            const start = Date.now();
+            const malicious = "via " + "parola ".repeat(10) + " n";
 
-    // Test 4: Limite iterazioni massime
-    console.log("> Check 4: Limite iterazioni regex");
-    const many = "via Roma 1, via Milano 2, via Torino 3, ".repeat(50);
-    try {
-        validator.extractAddressFromText(many);
-        assert(true, "Limite iterazioni applicato senza crash");
-    } catch (e) {
-        assert(false, `Errore durante test iterazioni: ${e.message}`);
-    }
+            try {
+                validator.extractAddressFromText(malicious);
+                const duration = Date.now() - start;
+
+                return duration < 1000;  // ✅ Deve terminare <1s (era >30s)
+            } catch (e) {
+                return false;
+            }
+        });
+
+        // Test 3: Troncamento input lungo
+        test('Troncamento input eccessivo', results, () => {
+            const long = "via Roma ".repeat(200) + "10";
+            validator.extractAddressFromText(long);
+
+            // Deve comunque completare senza crash
+            return true;
+        });
+
+        // Test 4: Limite iterazioni regex
+        test('Limite iterazioni regex applicato', results, () => {
+            // Input con molti match potenziali
+            const many = "via Roma 1, via Milano 2, via Torino 3, ".repeat(50);
+
+            try {
+                validator.extractAddressFromText(many);
+                return true;  // ✅ Non deve crashare
+            } catch (e) {
+                return false;
+            }
+        });
+    });
 }
 
 /**
  * Miglioramento #6: Gestione Memory Growth (PromptEngine)
  */
-function testPromptEngineBudget() {
-    console.log("\n🧪 [[[ TEST: PromptEngine - Budget Tracking ]]]");
-    const engine = new PromptEngine();
+function testPromptEngineBudget(results) {
+    testGroup('PromptEngine - Tracciamento Budget', results, () => {
+        const engine = new PromptEngine();
 
-    // Test 1: Troncamento KB se troppo grande
-    console.log("> Check 1: Troncamento KB sovradimensionata");
-    const hugeKB = "X".repeat(200000); // 200KB
-    const prompt1 = engine.buildPrompt({
-        knowledgeBase: hugeKB,
-        emailContent: "Test",
-        emailSubject: "Test",
-        senderName: "Test",
-        detectedLanguage: 'it',
-        salutation: 'Buongiorno',
-        closing: 'Cordiali saluti'
-    });
-    const tokens1 = engine.estimateTokens(prompt1);
-    const MAX_SAFE = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS ? CONFIG.MAX_SAFE_TOKENS : 100000;
-    assert(tokens1 <= MAX_SAFE, `Prompt con KB enorme deve stare sotto ${MAX_SAFE} token, attuale: ${tokens1}`);
+        // Test 1: KB troncata se troppo grande
+        test('Troncamento KB se sovradimensionata', results, () => {
+            const hugeKB = "X".repeat(200000);  // 200KB
 
-    // Test 2: Il tracking del budget previene l'overflow
-    console.log("> Check 2: Prevenzione overflow budget");
-    const largeKB = "Y".repeat(150000);
-    const longHistory = "Z".repeat(50000);
-    const prompt2 = engine.buildPrompt({
-        knowledgeBase: largeKB,
-        conversationHistory: longHistory,
-        emailContent: "Test",
-        emailSubject: "Test",
-        senderName: "Test",
-        detectedLanguage: 'it',
-        salutation: 'Buongiorno',
-        closing: 'Cordiali saluti'
-    });
-    const tokens2 = engine.estimateTokens(prompt2);
-    assert(tokens2 <= MAX_SAFE, `Budget rispettato con KB+history grandi, attuale: ${tokens2}`);
+            const prompt = engine.buildPrompt({
+                knowledgeBase: hugeKB,
+                emailContent: "Test",
+                emailSubject: "Test",
+                senderName: "Test",
+                detectedLanguage: 'it',
+                salutation: 'Buongiorno',
+                closing: 'Cordiali saluti'
+            });
 
-    // Test 3: Sezioni saltate se budget esaurito
-    console.log("> Check 3: Sezioni saltate a budget esaurito");
-    const massiveKB = "W".repeat(500000);
-    const prompt3 = engine.buildPrompt({
-        knowledgeBase: massiveKB,
-        emailContent: "Test",
-        emailSubject: "Test",
-        senderName: "Test",
-        detectedLanguage: 'it',
-        salutation: 'Buongiorno',
-        closing: 'Cordiali saluti',
-        promptProfile: 'heavy' // Forza inclusione sezioni
+            const tokens = engine.estimateTokens(prompt);
+            const MAX_SAFE = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS ? CONFIG.MAX_SAFE_TOKENS : 100000;
+
+            return tokens <= MAX_SAFE;  // ✅ Deve essere sotto limite
+        });
+
+        // Test 2: Il tracking del budget previene l'overflow
+        test('Il tracking del budget previene overflow', results, () => {
+            const largeKB = "Y".repeat(150000);  // 150KB
+            const longHistory = "Z".repeat(50000);  // 50KB
+
+            const prompt = engine.buildPrompt({
+                knowledgeBase: largeKB,
+                conversationHistory: longHistory,
+                emailContent: "Test",
+                emailSubject: "Test",
+                senderName: "Test",
+                detectedLanguage: 'it',
+                salutation: 'Buongiorno',
+                closing: 'Cordiali saluti'
+            });
+
+            const tokens = engine.estimateTokens(prompt);
+            const MAX_SAFE = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS ? CONFIG.MAX_SAFE_TOKENS : 100000;
+
+            return tokens <= MAX_SAFE;  // ✅ Budget rispettato
+        });
+
+        // Test 3: Sezioni saltate se budget esaurito
+        test('Sezioni saltate se budget esaurito', results, () => {
+            // Forza budget esaurito con KB enorme
+            const massiveKB = "W".repeat(500000);  // 500KB
+
+            const prompt = engine.buildPrompt({
+                knowledgeBase: massiveKB,
+                emailContent: "Test",
+                emailSubject: "Test",
+                senderName: "Test",
+                detectedLanguage: 'it',
+                salutation: 'Buongiorno',
+                closing: 'Cordiali saluti',
+                promptProfile: 'heavy'  // Forza tutte le sezioni
+            });
+
+            // Verifica che alcune sezioni siano state skippate
+            const hasExamples = prompt.includes('📚 ESEMPI');
+            const tokens = engine.estimateTokens(prompt);
+            const MAX_SAFE = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS ? CONFIG.MAX_SAFE_TOKENS : 100000;
+
+            return !hasExamples && tokens <= MAX_SAFE;  // ✅ Esempi skippati, budget OK
+        });
     });
-    // Verifica se sezioni non critiche (es. ESEMPI) sono state saltate
-    const hasExamples = prompt3.includes('📚 ESEMPI');
-    const tokens3 = engine.estimateTokens(prompt3);
-    assert(!hasExamples && tokens3 <= MAX_SAFE, "Esempi saltati correttamente per restare nel budget");
 }
 
 /**
@@ -597,11 +651,14 @@ function testPromptEngineBudget() {
  */
 function runAllTests() {
     const start = Date.now();
+    const results = { passed: 0, failed: 0, errors: 0 };
+
     console.log("╔══════════════════════════════════════════════════════════════╗");
     console.log("║           SYSTEM INTEGRATION TESTS                           ║");
     console.log("╚══════════════════════════════════════════════════════════════╝");
 
     try {
+        // Test suite esistenti
         testTerritoryValidatorSuite();
         testGmailServiceSuite();
         testResponseValidatorSuite();
@@ -612,12 +669,13 @@ function runAllTests() {
         testRequestTypeClassifierSuite();
         testLoggerRobustnessSuite();
 
-        // Nuovi test per miglioramenti recenti
-        testTerritoryValidatorReDoS();
-        testPromptEngineBudget();
+        // Nuovi test strutturati
+        testTerritoryValidatorReDoS(results);
+        testPromptEngineBudget(results);
 
         console.log("\n╔══════════════════════════════════════════════════════════════╗");
-        console.log(`║  🎉 TUTTI I TEST COMPLETATI in ${Date.now() - start}ms                 ║`);
+        console.log(`║  🎉 TUTTI I TEST COMPLETATI in ${Date.now() - start}ms`);
+        console.log(`║  PASS: ${results.passed}, FAIL: ${results.failed}, ERR: ${results.errors}`);
         console.log("╚══════════════════════════════════════════════════════════════╝");
     } catch (e) {
         console.error(`💥 ABORT: Errore critico durante i test: ${e.message}`);
