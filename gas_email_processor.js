@@ -279,7 +279,7 @@ class EmailProcessor {
         const arrivedSoonAfterUs = candidateDate && previousDate
           ? (candidateDate - previousDate) <= 10 * 60 * 1000
           : false;
-        const previousIsUs = previousSender.includes(myEmail.toLowerCase());
+        const previousIsUs = myEmail ? previousSender.includes(myEmail.toLowerCase()) : false;
         const hasQuestion = /\?/.test(messageDetails.body || '');
 
         if (previousIsUs && arrivedSoonAfterUs && !hasQuestion) {
@@ -298,19 +298,22 @@ class EmailProcessor {
       const MAX_CONSECUTIVE_EXTERNAL = 5;
 
       if (messages.length > MAX_THREAD_LENGTH) {
-        const ourEmail = Session.getActiveUser().getEmail().toLowerCase();
+        const ourEmail = Session.getActiveUser().getEmail();
+        if (!ourEmail) {
+          console.warn('   ⚠️ Email utente non disponibile: skip controllo anti-loop basato su mittente');
+        }
         let consecutiveExternal = 0;
 
         for (let i = messages.length - 1; i >= 0; i--) {
           const msgFrom = messages[i].getFrom().toLowerCase();
-          if (!msgFrom.includes(ourEmail)) {
+          if (ourEmail && !msgFrom.includes(ourEmail.toLowerCase())) {
             consecutiveExternal++;
           } else {
             break;
           }
         }
 
-        if (consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
+        if (ourEmail && consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
           console.log(`   ⊘ Saltato: probabile loop email (${consecutiveExternal} esterni consecutivi)`);
           this._markMessageAsProcessed(candidate);
           result.status = 'skipped';
