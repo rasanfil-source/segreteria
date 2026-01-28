@@ -24,7 +24,11 @@ class MemoryService {
     console.log('🧠 Inizializzazione MemoryService (basato su Sheet)...');
 
     // Configurazione
-    this.spreadsheetId = typeof CONFIG !== 'undefined' ? CONFIG.SPREADSHEET_ID : null;
+    const props = PropertiesService.getScriptProperties();
+    const propId = props.getProperty('SPREADSHEET_ID');
+
+    this.spreadsheetId = (propId && !propId.includes('PLACEHOLDER')) ? propId :
+      (typeof CONFIG !== 'undefined' ? CONFIG.SPREADSHEET_ID : null);
     this.sheetName = typeof CONFIG !== 'undefined' ?
       (CONFIG.MEMORY_SHEET_NAME || 'ConversationMemory') :
       'ConversationMemory';

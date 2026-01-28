@@ -73,6 +73,10 @@ function isInVacationPeriod(date = new Date()) {
     return false;
   }
 
+  if (typeof GLOBAL_CACHE === 'undefined' || !GLOBAL_CACHE.vacationPeriods) {
+    return false;
+  }
+
   const periods = GLOBAL_CACHE.vacationPeriods;
   if (!periods || periods.length === 0) {
     return false;
@@ -468,7 +472,9 @@ function _loadResourcesInternal() {
 
     // Carichiamo tutte le risorse restanti (dottrina, AI core, sostituzioni, ferie)
     withSheetsRetry(() => {
-      const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+      const props = PropertiesService.getScriptProperties();
+      const sheetId = props.getProperty('SPREADSHEET_ID') || CONFIG.SPREADSHEET_ID;
+      const spreadsheet = SpreadsheetApp.openById(sheetId);
       _loadSupplementaryResources(spreadsheet);
     }, 'Caricamento risorse (Cache)');
 
@@ -478,7 +484,15 @@ function _loadResourcesInternal() {
 
   // CACHE MISS - FULL LOAD
   withSheetsRetry(() => {
-    const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    // Risoluzione ID foglio: priorità a Script Properties
+    const props = PropertiesService.getScriptProperties();
+    const sheetId = props.getProperty('SPREADSHEET_ID') || CONFIG.SPREADSHEET_ID;
+
+    if (!sheetId || sheetId.includes('PLACEHOLDER')) {
+      throw new Error('SPREADSHEET_ID non valido (controllare Script Properties)');
+    }
+
+    const spreadsheet = SpreadsheetApp.openById(sheetId);
 
     // Carica Knowledge Base (Istruzioni)
     const kbSheet = spreadsheet.getSheetByName(CONFIG.KB_SHEET_NAME);

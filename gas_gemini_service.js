@@ -22,8 +22,10 @@ class GeminiService {
     this.props = PropertiesService.getScriptProperties();
 
     // Chiave Primaria
-    this.primaryKey = typeof CONFIG !== 'undefined' ? CONFIG.GEMINI_API_KEY :
-      this.props.getProperty('GEMINI_API_KEY');
+    // Priorità: 1. Script Properties (Produzione) 2. CONFIG (Sviluppo locale/Hardcoded)
+    const propKey = this.props.getProperty('GEMINI_API_KEY');
+    this.primaryKey = (propKey && propKey.length > 20) ? propKey :
+      (typeof CONFIG !== 'undefined' ? CONFIG.GEMINI_API_KEY : null);
 
     // Chiave di Riserva (opzionale, per fallback quando quota primaria esaurita)
     this.backupKey = this.props.getProperty('GEMINI_API_KEY_BACKUP');
