@@ -644,7 +644,8 @@ class MemoryService {
     let lastUpdated = values[5] || null;
     if (lastUpdated) {
       const testDate = new Date(lastUpdated);
-      if (!testDate || isNaN(testDate.getTime()) || testDate.getTime() < 0) {
+      // Validazione: data valida, non negativa e non nel futuro (> 24h)
+      if (!testDate || isNaN(testDate.getTime()) || testDate.getTime() < 0 || testDate.getTime() > (Date.now() + 86400000)) {
         console.warn(`⚠️ Data non valida in memoria per thread ${values[0]}: ${lastUpdated}`);
         lastUpdated = null;
       }
