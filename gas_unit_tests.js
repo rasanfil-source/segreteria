@@ -51,6 +51,64 @@ function testNestedLockSuite() {
 }
 
 /**
+ * TEST SUITE: Verifica Sicurezza (URL Sanitization & ReDoS)
+ * Scopo: Verificare che le protezioni contro XSS e ReDoS funzionino.
+ */
+function testSecuritySuite() {
+    console.log("\n🧪 [[[ TEST SUITE: Security & Protection ]]]");
+
+    // 1. URL Sanitization (GmailService)
+    console.log("\n> Check URL Sanitization:");
+    // Nota: sanitizeUrl è una funzione globale nel file gas_gmail_service.js
+    assert(sanitizeUrl("https://google.com") !== null, "https:// deve passare");
+    assert(sanitizeUrl("mailto:test@test.com") !== null, "mailto: deve passare");
+    assert(sanitizeUrl("javascript:alert(1)") === null, "javascript: deve essere BLOCATO");
+    assert(sanitizeUrl("data:text/html,base64...") === null, "data: deve essere BLOCATO");
+    assert(sanitizeUrl("https://localhost/admin") === null, "SSRF (localhost) deve essere BLOCATO");
+    assert(sanitizeUrl("https://127.0.0.1/test") === null, "SSRF (IP loopback) deve essere BLOCATO");
+
+    // 2. ReDoS Protection (TerritoryValidator)
+    console.log("\n> Check ReDoS Protection:");
+    const validator = new TerritoryValidator();
+
+    // Test input molto lungo (DoS protection)
+    const longInput = "via " + "A".repeat(2000) + " 10";
+    const start = Date.now();
+    const resLong = validator.extractAddressFromText(longInput);
+    const duration = Date.now() - start;
+    console.log(`> Test input lungo completato in ${duration}ms`);
+    assert(duration < 500, "La regex deve gestire input lungo velocemente (no backtracking catastrofico)");
+
+    // Test pattern potenzialmente pericoloso (se la regex fosse vulnerabile)
+    const maliciousInput = "via " + "rossi ".repeat(50) + "10";
+    const start2 = Date.now();
+    validator.extractAddressFromText(maliciousInput);
+    const duration2 = Date.now() - start2;
+    console.log(`> Test pattern ripetitivo completato in ${duration2}ms`);
+    assert(duration2 < 500, "La regex deve gestire pattern ripetuti velocemente");
+}
+
+/**
+ * TEST SUITE: Verifica Robustezza Memoria (Timestamp Validation)
+ * Scopo: Verificare che i timestamp siano sempre validi e sicuri.
+ */
+function testMemoryRobustnessSuite() {
+    console.log("\n🧪 [[[ TEST SUITE: Memory Robustness ]]]");
+    const memService = new MemoryService();
+
+    console.log("\n> Check Timestamp Validation:");
+    const now = new Date().toISOString();
+
+    assert(memService._validateAndNormalizeTimestamp(now) === now, "Timestamp valido deve passare");
+    assert(memService._validateAndNormalizeTimestamp(null).length > 20, "Timestamp null deve tornare fallback (ISO string)");
+    assert(memService._validateAndNormalizeTimestamp("invalid-date").length > 20, "Timestamp non valido deve tornare fallback");
+
+    const futureDate = new Date(Date.now() + 1000000000).toISOString();
+    assert(memService._validateAndNormalizeTimestamp(futureDate).length > 20, "Timestamp futuro deve tornare fallback");
+    assert(memService._validateAndNormalizeTimestamp(futureDate) !== futureDate, "Timestamp futuro DEVE essere resettato");
+}
+
+/**
  * TEST SUITE 1: TerritoryValidator
  */
 function testTerritoryValidatorSuite() {
@@ -444,6 +502,8 @@ function runAllTests() {
         testTerritoryValidatorSuite();
         testGmailServiceSuite();
         testResponseValidatorSuite();
+        testSecuritySuite();
+        testMemoryRobustnessSuite();
         testSemanticValidator();
         testSmartRAGSuite();
         testRequestTypeClassifierSuite();

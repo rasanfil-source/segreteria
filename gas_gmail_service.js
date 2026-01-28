@@ -664,6 +664,52 @@ function createGmailService() {
 // MARKDOWN → HTML
 // ====================================================================
 
+/**
+ * Sanitizzazione URL robusta con whitelist di protocolli
+ */
+function sanitizeUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+
+  let decoded = url
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+
+  try {
+    decoded = decodeURIComponent(decoded);
+  } catch (e) {
+    console.warn('⚠️ URL decode fallito, uso raw');
+  }
+
+  decoded = decoded.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+  const normalized = decoded.toLowerCase().trim();
+
+  const FORBIDDEN_PROTOCOLS = /^\s*(javascript|vbscript|data|file):/i;
+  const ALLOWED_PROTOCOLS = /^\s*(https?|mailto):/i;
+
+  if (FORBIDDEN_PROTOCOLS.test(normalized)) {
+    console.warn(`🛑 Bloccato protocollo pericoloso: ${decoded}`);
+    return null;
+  }
+
+  if (!ALLOWED_PROTOCOLS.test(normalized)) {
+    console.warn(`🛑 Bloccato protocollo non whitelisted: ${decoded}`);
+    return null;
+  }
+
+  const INTERNAL_IP_PATTERN = /^(https?:\/\/)?(localhost|127\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.)/i;
+
+  if (INTERNAL_IP_PATTERN.test(normalized)) {
+    console.warn(`🛑 Bloccato tentativo SSRF: ${decoded}`);
+    return null;
+  }
+
+  return decoded
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function markdownToHtml(text) {
   if (!text) return '';
 
@@ -683,35 +729,14 @@ function markdownToHtml(text) {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
-    const escapedUrl = url
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+    const sanitizedUrl = sanitizeUrl(url);
 
-    let decodedUrl = escapedUrl;
-    try {
-      decodedUrl = decodeURIComponent(escapedUrl);
-    } catch (e) { }
-    decodedUrl = decodedUrl.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
-
-    // Protezione SSRF
-    const INTERNAL_IP_PATTERN = /^(https?:\/\/)?(localhost|127\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.)/i;
-
-    if (INTERNAL_IP_PATTERN.test(decodedUrl)) {
-      console.warn(`🛑 Bloccato tentativo SSRF: ${escapedUrl}`);
+    if (!sanitizedUrl) {
+      console.warn(`⚠️ URL bloccato per sicurezza: ${url}`);
       return escapedText;
     }
 
-    const isDangerous = /^\s*(javascript|vbscript|data|file):/i.test(decodedUrl);
-    const isSafeProtocol = /^\s*(https?|mailto):/i.test(decodedUrl);
-
-    if (isDangerous || !isSafeProtocol) {
-      console.warn(`⚠️ Bloccato URL sospetto: ${escapedUrl}`);
-      return escapedText;
-    }
-
-    return `<a href="${escapedUrl}" style="color:#351c75;">${escapedText}</a>`;
+    return `<a href="${sanitizedUrl}" style="color:#351c75;">${escapedText}</a>`;
   });
 
   // Headers

@@ -539,10 +539,18 @@ class GeminiRateLimiter {
    * Previene perdita dati in caso di crash durante la scrittura
    */
   _persistCacheWithWAL() {
+    const lock = LockService.getScriptLock();
+    const lockAcquired = lock.tryLock(2000);
+    if (!lockAcquired) {
+      console.warn('⚠️ Impossibile acquisire lock per persist cache');
+      return;
+    }
+
     try {
+      const walTimestamp = Date.now();
       // 1. Crea checkpoint WAL con ultimi dati critici
       const wal = {
-        timestamp: Date.now(),
+        timestamp: walTimestamp,
         rpm: this.cache.rpmWindow.slice(-10),
         tpm: this.cache.tpmWindow.slice(-10)
       };
@@ -554,13 +562,27 @@ class GeminiRateLimiter {
       this.props.setProperty('rpm_window', JSON.stringify(this.cache.rpmWindow));
       this.props.setProperty('tpm_window', JSON.stringify(this.cache.tpmWindow));
 
-      // 4. Rimuovi WAL solo dopo successo completo
-      this.props.deleteProperty('rate_limit_wal');
+      // 4. Rimuovi WAL solo se è ancora il nostro
+      const currentWal = this.props.getProperty('rate_limit_wal');
+      if (currentWal) {
+        try {
+          const parsedWal = JSON.parse(currentWal);
+          if (parsedWal && parsedWal.timestamp === walTimestamp) {
+            this.props.deleteProperty('rate_limit_wal');
+          } else {
+            console.warn('⚠️ WAL sovrascritto da altro thread, skip delete');
+          }
+        } catch (parseError) {
+          console.warn('⚠️ WAL corrotto, impossibile verificare timestamp');
+        }
+      }
       this.cache.lastCacheUpdate = Date.now();
 
     } catch (error) {
       console.error(`❌ Errore persistenza cache: ${error.message}`);
       // WAL rimane per recovery al prossimo avvio
+    } finally {
+      lock.releaseLock();
     }
   }
 

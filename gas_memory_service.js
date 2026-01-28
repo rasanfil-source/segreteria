@@ -156,21 +156,23 @@ class MemoryService {
     const MAX_RETRIES = 5;
     // Workaround: Hash del threadId per sharding (riduce contention)
     const lockKey = this._getShardedLockKey(threadId);
+    let lockOwned = false;
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      let lockAcquired = false;
-      // 1. Acquisisci Lock Sharded (CacheService)
       try {
-        lockAcquired = this._tryAcquireShardedLock(lockKey);
-        if (!lockAcquired) {
-          console.warn(`🔒 Timeout lock memoria sharded (Tentativo ${attempt + 1})`);
-          Utilities.sleep(Math.pow(2, attempt) * 200 + Math.random() * 100);
-          continue;
+        // 1. Acquisisci Lock Sharded (CacheService)
+        if (!lockOwned) {
+          lockOwned = this._tryAcquireShardedLock(lockKey);
+          if (!lockOwned) {
+            console.warn(`🔒 Timeout lock memoria sharded (Tentativo ${attempt + 1})`);
+            Utilities.sleep(Math.pow(2, attempt) * 200 + Math.random() * 100);
+            continue;
+          }
         }
 
         // 2. Rileggi dati freschi dallo Sheet
         const existingRow = this._findRowByThreadId(threadId);
-        const now = new Date().toISOString();
+        const now = this._validateAndNormalizeTimestamp(new Date().toISOString());
 
         if (existingRow) {
           const existingData = this._rowToObject(existingRow.values);
@@ -191,12 +193,6 @@ class MemoryService {
           mergedData.messageCount = (existingData.messageCount || 0) + 1;
           mergedData.version = currentVersion + 1;
 
-          const testDate = new Date(mergedData.lastUpdated);
-          if (!testDate || isNaN(testDate.getTime()) || testDate.getTime() < 0) {
-            console.error(`🚨 CRITICO: lastUpdated NON VALIDO (${mergedData.lastUpdated}). Ripristino a ORA.`);
-            mergedData.lastUpdated = now;
-          }
-
           this._updateRow(existingRow.rowIndex, mergedData);
           console.log(`🧠 Memoria aggiornata per thread ${threadId} (v${mergedData.version}, Tentativo ${attempt + 1})`);
         } else {
@@ -207,12 +203,6 @@ class MemoryService {
           insertData.messageCount = 1;
           insertData.version = 1;
 
-          const testDateInsert = new Date(insertData.lastUpdated);
-          if (!testDateInsert || isNaN(testDateInsert.getTime()) || testDateInsert.getTime() < 0) {
-            console.error(`🚨 CRITICO: lastUpdated non valido su INSERT. Ripristino.`);
-            insertData.lastUpdated = now;
-          }
-
           this._appendRow(insertData);
           console.log(`🧠 Memoria creata per thread ${threadId} (v1)`);
         }
@@ -220,6 +210,10 @@ class MemoryService {
         // Invalida cache locale
         this._invalidateCache(`memory_${threadId}`);
 
+        if (lockOwned) {
+          this._releaseShardedLock(lockKey);
+          lockOwned = false;
+        }
         return; // Successo
 
       } catch (error) {
@@ -227,19 +221,26 @@ class MemoryService {
           console.warn(`⚠️ Conflitto concorrenza, retry... (Tentativo ${attempt + 1})`);
           // Forziamo invalidazione cache anche qui per sicurezza
           this._invalidateCache(`memory_${threadId}`);
+          if (lockOwned) {
+            this._releaseShardedLock(lockKey);
+            lockOwned = false;
+          }
         } else {
           console.warn(`Aggiornamento memoria fallito (Tentativo ${attempt + 1}): ${error.message}`);
+          if (lockOwned) {
+            this._releaseShardedLock(lockKey);
+            lockOwned = false;
+          }
         }
 
         if (attempt === MAX_RETRIES - 1) {
           console.error(`❌ Aggiornamento memoria finale fallito: ${error.message}`);
         }
         Utilities.sleep(Math.pow(2, attempt) * 200);
-      } finally {
-        if (lockAcquired) {
-          this._releaseShardedLock(lockKey);
-        }
       }
+    }
+    if (lockOwned) {
+      this._releaseShardedLock(lockKey);
     }
     throw new Error(`Aggiornamento memoria fallito per thread ${threadId} dopo ${MAX_RETRIES} tentativi`);
   }
@@ -272,7 +273,7 @@ class MemoryService {
 
         // --- SEZIONE CRITICA ---
         const existingRow = this._findRowByThreadId(threadId);
-        const now = new Date().toISOString();
+        const now = this._validateAndNormalizeTimestamp(new Date().toISOString());
 
         if (existingRow) {
           const existingData = this._rowToObject(existingRow.values);
@@ -365,7 +366,7 @@ class MemoryService {
 
         const currentVersion = existingData.version || 0;
         existingData.providedInfo = mergedTopics;
-        existingData.lastUpdated = new Date().toISOString();
+        existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
         existingData.version = currentVersion + 1;
 
         this._updateRow(existingRow.rowIndex, existingData);
@@ -495,7 +496,7 @@ class MemoryService {
             topic: trimmed,
             userReaction: 'unknown',
             context: null,
-            timestamp: new Date().toISOString()
+            timestamp: this._validateAndNormalizeTimestamp(new Date().toISOString())
           };
         }
         if (topic && typeof topic === 'object' && typeof topic.topic === 'string') {
@@ -505,7 +506,7 @@ class MemoryService {
             topic: trimmed,
             userReaction: topic.userReaction || topic.reaction || 'unknown',
             context: topic.context || null,
-            timestamp: topic.timestamp || new Date().toISOString()
+            timestamp: this._validateAndNormalizeTimestamp(topic.timestamp || new Date().toISOString())
           };
         }
         return null;
@@ -554,7 +555,7 @@ class MemoryService {
       const normalizedTopics = this._normalizeProvidedTopics(providedInfo || []);
 
       existingData.providedInfo = normalizedTopics;
-      existingData.lastUpdated = new Date().toISOString();
+      existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
       existingData.version = (existingData.version || 0) + 1;
 
       this._updateRow(existingRow.rowIndex, existingData);
@@ -618,6 +619,40 @@ class MemoryService {
   }
 
   /**
+   * Valida e normalizza timestamp ISO
+   * @param {string} timestamp
+   * @returns {string} timestamp valido
+   */
+  _validateAndNormalizeTimestamp(timestamp) {
+    const fallback = new Date().toISOString();
+    if (!timestamp) {
+      return fallback;
+    }
+
+    if (typeof timestamp !== 'string') {
+      console.warn(`⚠️ Timestamp non-string: ${typeof timestamp}, reset`);
+      return fallback;
+    }
+
+    const parsed = new Date(timestamp);
+    if (!parsed || isNaN(parsed.getTime())) {
+      console.warn(`⚠️ Timestamp parsing failed: "${timestamp}", reset`);
+      return fallback;
+    }
+
+    const now = Date.now();
+    const minAllowed = new Date('2020-01-01T00:00:00Z').getTime();
+    const maxAllowed = now + 86400000;
+
+    if (parsed.getTime() < minAllowed || parsed.getTime() > maxAllowed) {
+      console.warn(`⚠️ Timestamp fuori range: ${timestamp}, reset`);
+      return fallback;
+    }
+
+    return timestamp;
+  }
+
+  /**
    * Restituisce il numero di colonne da leggere
    */
   _rowToObject(row) {
@@ -640,16 +675,7 @@ class MemoryService {
       providedInfo = values[4] ? [{ topic: String(values[4]), reaction: 'unknown' }] : [];
     }
 
-    // Valida timestamp PRIMA della costruzione oggetto
-    let lastUpdated = values[5] || null;
-    if (lastUpdated) {
-      const testDate = new Date(lastUpdated);
-      // Validazione: data valida, non negativa e non nel futuro (> 24h)
-      if (!testDate || isNaN(testDate.getTime()) || testDate.getTime() < 0 || testDate.getTime() > (Date.now() + 86400000)) {
-        console.warn(`⚠️ Data non valida in memoria per thread ${values[0]}: ${lastUpdated}`);
-        lastUpdated = null;
-      }
-    }
+    const lastUpdated = this._validateAndNormalizeTimestamp(values[5]);
 
     return {
       threadId: values[0],

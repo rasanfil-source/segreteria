@@ -606,38 +606,43 @@ ${addressLines.join('\n\n')}
       let generationError = null;
       let strategyUsed = null;
 
-      // Definizione Strategia (4 Livelli)
-      const attemptStrategy = [
-        // 1. TENTATIVO STANDARD (Alta Qualità - Chiave Principale)
-        {
-          name: 'Primary High-Quality',
-          key: this.geminiService.primaryKey,
-          model: 'gemini-2.5-flash',
-          skipRateLimit: false
-        },
-        // 2. FALLBACK QUALITÀ (Alta Qualità - Chiave di Riserva)
-        // Usiamo la riserva pur di non degradare l'intelligenza del bot
-        {
-          name: 'Backup High-Quality',
-          key: this.geminiService.backupKey,
-          model: 'gemini-2.5-flash',
-          skipRateLimit: true // Bypassiamo i controlli locali
-        },
-        // 3. DEGRADO PERFORMANCE (Bassa Qualità - Chiave Principale)
-        {
-          name: 'Primary Lite',
-          key: this.geminiService.primaryKey,
-          model: 'gemini-2.5-flash-lite',
-          skipRateLimit: false
-        },
-        // 4. ULTIMA RISORSA (Bassa Qualità - Chiave di Riserva)
-        {
-          name: 'Backup Lite',
-          key: this.geminiService.backupKey,
-          model: 'gemini-2.5-flash-lite',
-          skipRateLimit: true
+      /**
+       * Classifica l'errore per decidere se un nuovo tentativo ha senso
+       */
+      const classifyError = (error) => {
+        const msg = (error && error.message) ? error.message : '';
+
+        const RETRYABLE_ERRORS = [
+          '429',
+          'rate limit',
+          'quota',
+          'RESOURCE_EXHAUSTED'
+        ];
+
+        const FATAL_ERRORS = [
+          'INVALID_ARGUMENT',
+          'PERMISSION_DENIED',
+          'UNAUTHENTICATED'
+        ];
+
+        for (const fatal of FATAL_ERRORS) {
+          if (msg.includes(fatal)) {
+            return 'FATAL';
+          }
         }
-      ];
+
+        for (const retryable of RETRYABLE_ERRORS) {
+          if (msg.includes(retryable)) {
+            return 'QUOTA';
+          }
+        }
+
+        if (msg.includes('timeout') || msg.includes('ECONNRESET') || msg.includes('503')) {
+          return 'NETWORK';
+        }
+
+        return 'UNKNOWN';
+      };
 
       // Esecuzione Loop Strategico
       for (const plan of attemptStrategy) {
@@ -660,19 +665,32 @@ ${addressLines.join('\n\n')}
           }
 
         } catch (err) {
-          console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message}`);
           generationError = err; // Salva l'ultimo errore
-          // Continua al prossimo step del loop...
+          const errorClass = classifyError(err);
+          console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass}]`);
+
+          if (errorClass === 'FATAL') {
+            console.error('❌ Errore fatale rilevato, interrompo strategia.');
+            break;
+          }
+
+          if (errorClass === 'NETWORK') {
+            console.warn('🌐 Errore di rete, continuo con prossima strategia.');
+            continue;
+          }
+          // QUOTA e UNKNOWN: continua
         }
       }
 
       // Verifiche finali post-loop
       if (!response) {
+        const errorClass = generationError ? classifyError(generationError) : 'UNKNOWN';
         console.error('❌ TUTTE le strategie di generazione sono fallite.');
         this._addErrorLabel(thread);
         this._markMessageAsProcessed(candidate);
         result.status = 'error';
         result.error = generationError ? generationError.message : 'Generation strategies exhausted';
+        result.errorClass = errorClass;
         return result;
       }
 
