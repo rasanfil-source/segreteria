@@ -781,7 +781,7 @@ Output JSON:
     if (this.useRateLimiter) {
       try {
         const result = this.rateLimiter.executeRequest(
-          'controllo_rapido',
+          'quick_check',
           (modelName) => this._quickCheckWithModel(emailContent, emailSubject, modelName),
           {
             estimatedTokens: 500,
