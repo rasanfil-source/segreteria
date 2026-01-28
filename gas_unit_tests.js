@@ -490,6 +490,109 @@ function testLoggerRobustnessSuite() {
 }
 
 /**
+ * Miglioramento #3: Protezione ReDoS (TerritoryValidator)
+ */
+function testTerritoryValidatorReDoS() {
+    console.log("\n🧪 [[[ TEST: TerritoryValidator - Protezione ReDoS ]]]");
+    const validator = new TerritoryValidator();
+
+    // Test 1: Input normale (veloce)
+    console.log("> Check 1: Performance input normale");
+    const start1 = Date.now();
+    const normal = "via Roma 10";
+    validator.extractAddressFromText(normal);
+    const duration1 = Date.now() - start1;
+    assert(duration1 < 100, `Input normale deve essere veloce (<100ms), attuale: ${duration1}ms`);
+
+    // Test 2: Payload ReDoS (non deve andare in timeout)
+    console.log("> Check 2: Protezione payload ReDoS");
+    const start2 = Date.now();
+    const malicious = "via " + "parola ".repeat(10) + " n";
+    try {
+        validator.extractAddressFromText(malicious);
+        const duration2 = Date.now() - start2;
+        assert(duration2 < 1000, `Il payload ReDoS deve terminare in <1s (era >30s), attuale: ${duration2}ms`);
+    } catch (e) {
+        assert(false, `Errore durante test ReDoS: ${e.message}`);
+    }
+
+    // Test 3: Troncamento input lungo
+    console.log("> Check 3: Troncamento input eccessivo");
+    const long = "via Roma ".repeat(200) + "10";
+    const result3 = validator.extractAddressFromText(long);
+    assert(result3 !== undefined, "Input lungo gestito senza errori");
+
+    // Test 4: Limite iterazioni massime
+    console.log("> Check 4: Limite iterazioni regex");
+    const many = "via Roma 1, via Milano 2, via Torino 3, ".repeat(50);
+    try {
+        validator.extractAddressFromText(many);
+        assert(true, "Limite iterazioni applicato senza crash");
+    } catch (e) {
+        assert(false, `Errore durante test iterazioni: ${e.message}`);
+    }
+}
+
+/**
+ * Miglioramento #6: Gestione Memory Growth (PromptEngine)
+ */
+function testPromptEngineBudget() {
+    console.log("\n🧪 [[[ TEST: PromptEngine - Budget Tracking ]]]");
+    const engine = new PromptEngine();
+
+    // Test 1: Troncamento KB se troppo grande
+    console.log("> Check 1: Troncamento KB sovradimensionata");
+    const hugeKB = "X".repeat(200000); // 200KB
+    const prompt1 = engine.buildPrompt({
+        knowledgeBase: hugeKB,
+        emailContent: "Test",
+        emailSubject: "Test",
+        senderName: "Test",
+        detectedLanguage: 'it',
+        salutation: 'Buongiorno',
+        closing: 'Cordiali saluti'
+    });
+    const tokens1 = engine.estimateTokens(prompt1);
+    const MAX_SAFE = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS ? CONFIG.MAX_SAFE_TOKENS : 100000;
+    assert(tokens1 <= MAX_SAFE, `Prompt con KB enorme deve stare sotto ${MAX_SAFE} token, attuale: ${tokens1}`);
+
+    // Test 2: Il tracking del budget previene l'overflow
+    console.log("> Check 2: Prevenzione overflow budget");
+    const largeKB = "Y".repeat(150000);
+    const longHistory = "Z".repeat(50000);
+    const prompt2 = engine.buildPrompt({
+        knowledgeBase: largeKB,
+        conversationHistory: longHistory,
+        emailContent: "Test",
+        emailSubject: "Test",
+        senderName: "Test",
+        detectedLanguage: 'it',
+        salutation: 'Buongiorno',
+        closing: 'Cordiali saluti'
+    });
+    const tokens2 = engine.estimateTokens(prompt2);
+    assert(tokens2 <= MAX_SAFE, `Budget rispettato con KB+history grandi, attuale: ${tokens2}`);
+
+    // Test 3: Sezioni saltate se budget esaurito
+    console.log("> Check 3: Sezioni saltate a budget esaurito");
+    const massiveKB = "W".repeat(500000);
+    const prompt3 = engine.buildPrompt({
+        knowledgeBase: massiveKB,
+        emailContent: "Test",
+        emailSubject: "Test",
+        senderName: "Test",
+        detectedLanguage: 'it',
+        salutation: 'Buongiorno',
+        closing: 'Cordiali saluti',
+        promptProfile: 'heavy' // Forza inclusione sezioni
+    });
+    // Verifica se sezioni non critiche (es. ESEMPI) sono state saltate
+    const hasExamples = prompt3.includes('📚 ESEMPI');
+    const tokens3 = engine.estimateTokens(prompt3);
+    assert(!hasExamples && tokens3 <= MAX_SAFE, "Esempi saltati correttamente per restare nel budget");
+}
+
+/**
  * Esegui tutti i test
  */
 function runAllTests() {
@@ -508,6 +611,10 @@ function runAllTests() {
         testSmartRAGSuite();
         testRequestTypeClassifierSuite();
         testLoggerRobustnessSuite();
+
+        // Nuovi test per miglioramenti recenti
+        testTerritoryValidatorReDoS();
+        testPromptEngineBudget();
 
         console.log("\n╔══════════════════════════════════════════════════════════════╗");
         console.log(`║  🎉 TUTTI I TEST COMPLETATI in ${Date.now() - start}ms                 ║`);
