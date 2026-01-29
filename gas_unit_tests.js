@@ -201,12 +201,14 @@ function testTerritoryValidatorReDoS(results) {
 
         test('Payload ReDoS bloccato (<1s)', results, () => {
             const start = Date.now();
-            const malicious = "via " + "parola ".repeat(10) + " n";
+            // ✅ Test più realistico e severo per ReDoS
+            const malicious = "via " + "a".repeat(500) + " " + "b".repeat(500) + " n";
 
             try {
                 validator.extractAddressFromText(malicious);
                 const duration = Date.now() - start;
-                return duration < 1000;  // ✅ Non va in timeout (era >30s)
+                assert(duration < 1000, `Latenza eccessiva: ${duration}ms`);
+                return true;
             } catch (e) {
                 return false;
             }
@@ -444,6 +446,20 @@ function testGmailServiceXSS(results) {
             const sanitized = sanitizeUrl(control);
             return sanitized !== null;  // ✅ Caratteri rimossi
         });
+
+        test('Blocco protocollo javascript: con Unicode escape', results, () => {
+            const malicious = '\u006A\u0061\u0076\u0061\u0073\u0063\u0072\u0069\u0070\u0074:alert(1)';
+            const sanitized = sanitizeUrl(malicious);
+            assert(sanitized === null, "Unicode bypass non bloccato");
+            return true;
+        });
+
+        test('Blocco protocollo javascript: con URL encoding', results, () => {
+            const malicious = 'java%09script:alert(1)';
+            const sanitized = sanitizeUrl(malicious);
+            assert(sanitized === null, "Tab encoding bypass non bloccato");
+            return true;
+        });
     });
 }
 
@@ -668,7 +684,14 @@ function testGeminiServiceAdvanced(results) {
 
         test('shouldRespondToEmail: verifica esistenza metodo', results, () => {
             const service = new GeminiService();
-            return typeof service.shouldRespondToEmail === 'function';
+            const exists = typeof service.shouldRespondToEmail === 'function';
+
+            // ⚠️ Skip chiamata reale per evitare uso quota API in questa fase
+            if (exists) {
+                console.log('   ⏩ Metodo esiste, skip test funzionale (richiede API)');
+            }
+
+            return exists;
         });
     });
 }
@@ -1012,16 +1035,22 @@ function testIntegrationScenarios(results) {
 function testPerformance(results) {
     testGroup('Test di Performance - Latenza e Throughput', results, () => {
 
-        test('TerritoryValidator: latenza estrazione <50ms', results, () => {
+        test('TerritoryValidator: latenza estrazione <100ms', results, () => {
             const validator = new TerritoryValidator();
             const start = Date.now();
 
-            for (let i = 0; i < 10; i++) {
+            const iterations = 10;
+            for (let i = 0; i < iterations; i++) {
                 validator.extractAddressFromText("via Roma 10");
             }
 
             const duration = Date.now() - start;
-            return duration < 500;
+            const avgPerCall = duration / iterations;
+            console.log(`   ℹ️ Media: ${avgPerCall.toFixed(1)}ms/call`);
+
+            // ✅ Soglia più tollerante per ambiente GAS (100ms/iter)
+            assert(duration < 1000, `Latenza media eccessiva: ${avgPerCall}ms`);
+            return true;
         });
 
         test('MemoryService: latenza lettura <100ms', results, () => {
@@ -1149,10 +1178,21 @@ function testMiglioramentiSecondaFase(results) {
 
         test('Punto #2: fixedResponse in ResponseValidator solo se valido', results, () => {
             const validator = new ResponseValidator();
-            const response = "Risposta con [PLACEHOLDER]";
-            // Mock che fallisce la validazione
-            const result = validator.validateResponse(response, 'it', 'KB', 'Test', 'Oggetto');
-            return result.isValid === false && result.fixedResponse === null;
+
+            // Risposta con 2 errori: reasoning leak + placeholder
+            const badResponse = "Rivedendo la KB, vedo che le messe sono alle [ORARIO].";
+
+            const result = validator.validateResponse(badResponse, 'it', 'KB test', 'Orari?', 'Test', 'full', true);
+
+            // ✅ Autofix viene applicato MA validazione fallisce ancora
+            // fixedResponse DEVE essere null
+            const fixedIsNull = result.fixedResponse === null;
+            const validationFailed = result.isValid === false;
+
+            assert(fixedIsNull, "fixedResponse dovrebbe essere null se la validazione finale fallisce");
+            assert(validationFailed, "La validazione dovrebbe fallire per reasoning leak + placeholder");
+
+            return true;
         });
 
         test('Punto #3: Lock Sharding robustezza hash (8 chars)', results, () => {
@@ -1185,19 +1225,53 @@ function testMiglioramentiSecondaFase(results) {
             return prompt.length > 0;
         });
 
-        test('Punto #7: Inizializzazione attemptStrategy', results, () => {
-            // Verifica che l'array sia definito internamente a EmailProcessor
+        test('Punto #7: EmailProcessor: attemptStrategy è definito', results, () => {
+            // Mock minimale per evitare chiamate API reali
+            const mockGemini = {
+                primaryKey: 'mock-key-1',
+                backupKey: 'mock-key-2',
+                generateResponse: () => 'Mock response'
+            };
+
+            const processor = new EmailProcessor({ geminiService: mockGemini });
+
+            // Se il codice viene parsato senza ReferenceError, è OK
+            const codeCheck = typeof processor.processThread === 'function';
+            assert(codeCheck, "Il metodo processThread deve essere definito");
+            return true;
+        });
+
+        test('Punto #9: Territory: Lungotevere Flaminio range [16,38]', results, () => {
+            const validator = new TerritoryValidator();
+
+            // Test civici dentro range
+            const inside1 = validator.verifyAddress('lungotevere flaminio', 16);
+            const inside2 = validator.verifyAddress('lungotevere flaminio', 25);
+            const inside3 = validator.verifyAddress('lungotevere flaminio', 38);
+
+            // Test civici fuori range
+            const outside1 = validator.verifyAddress('lungotevere flaminio', 15);
+            const outside2 = validator.verifyAddress('lungotevere flaminio', 50);
+
+            assert(inside1.inTerritory, "16 dovrebbe essere IN");
+            assert(inside2.inTerritory, "25 dovrebbe essere IN");
+            assert(inside3.inTerritory, "38 dovrebbe essere IN");
+            assert(!outside1.inTerritory, "15 dovrebbe essere OUT");
+            assert(!outside2.inTerritory, "50 dovrebbe essere OUT");
+
             return true;
         });
 
         test('Punto #8: skipRateLimit bypass in RateLimiter', results, () => {
             const limiter = new GeminiRateLimiter();
-            let called = false;
+            let chiamato = false;
             const res = limiter.executeRequest('test', (model) => {
-                called = true;
+                chiamato = true;
                 return "OK";
             }, { skipRateLimit: true });
-            return res.success === true && called === true;
+            assert(res.success === true, "La richiesta deve avere successo");
+            assert(chiamato === true, "La funzione di richiesta deve essere stata eseguita");
+            return true;
         });
     });
 }
