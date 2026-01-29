@@ -14,26 +14,6 @@ const MONTH = {
   JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11
 };
 
-// ====================================================================
-// STATO GLOBALE
-// ====================================================================
-
-// Inizializzazione garantita cache globale in-memory
-// Previene ReferenceError se loadResources non viene chiamato
-var GLOBAL_CACHE = {
-  loaded: false,
-  knowledgeBase: '',
-  knowledgeStructured: [],
-  aiCoreLite: '',
-  aiCoreLiteStructured: [],
-  aiCore: '',
-  aiCoreStructured: [],
-  doctrineBase: '',
-  doctrineStructured: [],
-  replacements: {},
-  vacationPeriods: []
-};
-
 // Giorni in cui il sistema DEVE rispondere (dipendenti in ferie)
 const ALWAYS_OPERATING_DAYS = [
   [MONTH.JAN, 1],    // Capodanno
@@ -547,30 +527,6 @@ function _loadResourcesInternal() {
 // ====================================================================
 
 /**
- * Valida la configurazione critica all'avvio
- */
-function validateConfig() {
-  const errors = [];
-
-  if (typeof CONFIG === 'undefined') {
-    return { valid: false, errors: ['Oggetto CONFIG globale mancante'] };
-  }
-
-  if (!CONFIG.SPREADSHEET_ID) {
-    errors.push('SPREADSHEET_ID mancante in CONFIG');
-  }
-
-  if (!CONFIG.GEMINI_API_KEY && (!CONFIG.GEMINI_KEYS || CONFIG.GEMINI_KEYS.length === 0)) {
-    errors.push('Chiavi API Gemini mancanti (GEMINI_API_KEY o GEMINI_KEYS)');
-  }
-
-  return {
-    valid: errors.length === 0,
-    errors: errors
-  };
-}
-
-/**
  * Funzione principale da collegare al trigger temporizzato
  * Eseguire ogni 5-15 minuti
  */
@@ -586,14 +542,6 @@ function main() {
     if (!executionLock.tryLock(5000)) {
       console.warn('⚠️ Un\'altra istanza del bot è già in esecuzione. Salto questo turno.');
       return;
-    }
-
-    // Validazione config PRIMA di tutto
-    const configCheck = validateConfig();
-    if (!configCheck.valid) {
-      console.error('🚨 CONFIGURAZIONE NON VALIDA - ARRESTO SISTEMA');
-      configCheck.errors.forEach(e => console.error(`   ${e}`));
-      throw new Error('Invalid configuration');
     }
 
     // Carica risorse PRIMA di controllare sospensione
