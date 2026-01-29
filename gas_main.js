@@ -698,7 +698,8 @@ function removeTriggers() {
 
 /**
  * Pulisce manualmente la cache di sistema (utile per forzare aggiornamento KB)
- * Da eseguire manualmente se si modificano i Fogli Google e si vuole effetto immediato.
+ * Eseguire MANUALMENTE questa funzione se si modificano i Fogli Google e si vuole effetto immediato.
+ * Questa è l'UNICA funzione da utilizzare per la pulizia della cache.
  */
 function clearSystemCache() {
   try {
@@ -729,12 +730,7 @@ function clearSystemCache() {
   }
 }
 
-/**
- * Alias case-insensitive per compatibilità con chiamate "clearsystemcache".
- */
-function clearsystemcache() {
-  return clearSystemCache();
-}
+
 
 /**
  * Test connessione API Gemini
