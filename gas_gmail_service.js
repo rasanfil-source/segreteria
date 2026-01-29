@@ -460,6 +460,9 @@ class GmailService {
           fromEmail = Session.getActiveUser().getEmail();
         }
 
+        // Punto: Protezione Header Injection (rimozione caratteri controllo)
+        fromEmail = fromEmail.replace(/[\r\n]+/g, '').trim();
+
         const boundary = 'boundary_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
         const rawMessage = [
           'MIME-Version: 1.0',

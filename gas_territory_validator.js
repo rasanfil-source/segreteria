@@ -229,7 +229,7 @@ class TerritoryValidator {
                     // Normalizziamo solo spazi extra
                     const fullCivic = civicRaw.replace(/\s+/, '').toUpperCase();
 
-                    if (isNaN(civic) || civic <= 0 || civic > 9999) continue;
+                    if (isNaN(civicNum) || civicNum <= 0 || civicNum > 9999) continue;
 
                     const isDuplicate = addresses.some(addr =>
                         addr.street.toLowerCase() === street.toLowerCase() &&
@@ -312,29 +312,27 @@ class TerritoryValidator {
         const matchedKey = match.key;
 
 
-        if (rules.tutti) {
-            // Gestione range specifico anche per 'tutti' (es. Lungotevere)
-            if (Array.isArray(rules.tutti)) {
-                const [min, max] = rules.tutti;
-                if (min === null && max === null) {
-                    console.warn(`⚠️ Range invalido [null, null] per ${matchedKey}, tratto come "tutti"`);
-                    return { inTerritory: true, matchedKey: matchedKey, rule: 'tutti (default)' };
-                }
-                const minValue = (min === null || min === undefined) ? 0 : min;
-                const maxValue = (max === null || max === undefined) ? Infinity : max;
-                const maxLabel = maxValue === Infinity ? '∞' : maxValue;
-
-                if (civic >= minValue && civic <= maxValue) {
-                    console.log(this._sanitize(`✅ ${matchedKey} n. ${civic}: nel range [${minValue}, ${maxLabel}]`));
-                    return { inTerritory: true, matchedKey: matchedKey, rule: `range [${minValue}-${maxLabel}]` };
-                } else {
-                    console.log(this._sanitize(`❌ ${matchedKey} n. ${civic}: fuori dal range [${minValue}, ${maxLabel}]`));
-                    return { inTerritory: false, matchedKey: matchedKey, rule: 'fuori range tutti' };
-                }
-            } else if (rules.tutti === true) {
-                console.log(`✅ ${matchedKey} n. ${civic}: TUTTI i civici nel territorio`);
-                return { inTerritory: true, matchedKey: matchedKey, rule: 'tutti' };
+        // Punto: Gestione esplicita tipo Array vs Boolean per 'tutti'
+        if (Array.isArray(rules.tutti)) {
+            const [min, max] = rules.tutti;
+            if (min === null && max === null) {
+                console.warn(`⚠️ Range invalido [null, null] per ${matchedKey}, trattato come "tutti"`);
+                return { inTerritory: true, matchedKey: matchedKey, rule: 'tutti (default)' };
             }
+            const minValue = (min === null || min === undefined) ? 0 : min;
+            const maxValue = (max === null || max === undefined) ? Infinity : max;
+            const maxLabel = maxValue === Infinity ? '∞' : maxValue;
+
+            if (civic >= minValue && civic <= maxValue) {
+                console.log(this._sanitize(`✅ ${matchedKey} n. ${civic}: nel range [${minValue}, ${maxLabel}]`));
+                return { inTerritory: true, matchedKey: matchedKey, rule: `range [${minValue}-${maxLabel}]` };
+            } else {
+                console.log(this._sanitize(`❌ ${matchedKey} n. ${civic}: fuori dal range [${minValue}, ${maxLabel}]`));
+                return { inTerritory: false, matchedKey: matchedKey, rule: 'fuori range tutti' };
+            }
+        } else if (rules.tutti === true) {
+            console.log(`✅ ${matchedKey} n. ${civic}: TUTTI i civici nel territorio`);
+            return { inTerritory: true, matchedKey: matchedKey, rule: 'tutti' };
         }
 
         // Caso 2: Solo pari

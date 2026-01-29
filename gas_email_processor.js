@@ -941,8 +941,25 @@ ${addressLines.join('\n\n')}
     return stats;
   }
 
+  /**
+   * Classifica errori per strategia di retry
+   */
+  _classifyError(error, context) {
+    const msg = (error.message || '').toUpperCase();
+    if (msg.includes('429') || msg.includes('QUOTA') || msg.includes('RATE LIMIT')) {
+      return { type: 'QUOTA', message: msg, retry: true };
+    }
+    if (msg.includes('500') || msg.includes('502') || msg.includes('503')) {
+      return { type: 'SERVER', message: msg, retry: true };
+    }
+    if (msg.includes('SAFETY') || msg.includes('BLOCKED')) {
+      return { type: 'SAFETY', message: msg, retry: false };
+    }
+    return { type: 'GENERIC', message: msg, retry: false };
+  }
+
   // ========================================================================
-  // METODI HELPER
+  // RILEVAMENTO TEMPORALE (Date/Orari)
   // ========================================================================
 
   _shouldIgnoreEmail(messageDetails) {
