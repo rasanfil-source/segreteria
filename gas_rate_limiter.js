@@ -619,19 +619,10 @@ class GeminiRateLimiter {
       this.props.setProperty('rpm_window', JSON.stringify(this.cache.rpmWindow));
       this.props.setProperty('tpm_window', JSON.stringify(this.cache.tpmWindow));
 
+      // 4. Rimuovi WAL solo dopo la scrittura completa
+      this.props.deleteProperty('rate_limit_wal');
     } finally {
       lock.releaseLock();
-    }
-
-    const cleanupLock = LockService.getScriptLock();
-    if (cleanupLock.tryLock(1000)) {
-      try {
-        this.props.deleteProperty('rate_limit_wal');
-      } finally {
-        cleanupLock.releaseLock();
-      }
-    } else {
-      console.warn('⚠️ Cleanup WAL non riuscito, verrà gestito al prossimo avvio');
     }
   }
 

@@ -602,7 +602,11 @@ class MemoryService {
     // Workaround: sharding per ridurre contention globale
     const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, threadId);
     // Usa più caratteri dell'array digest (8 invece di 4) per minimizzare collisioni
-    const shard = digest.toString().substr(0, 8);
+    const hex = Array.prototype.map.call(digest, (byte) => {
+      const unsigned = byte < 0 ? byte + 256 : byte;
+      return unsigned.toString(16).padStart(2, '0');
+    }).join('');
+    const shard = hex.substring(0, 8);
     return `mem_lock_${shard}`;
   }
 

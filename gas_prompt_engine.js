@@ -34,7 +34,7 @@ class PromptEngine {
    * Stima token (approx 4 char/token per l'italiano/inglese)
    */
   estimateTokens(text) {
-    if (!text) return 0;
+    if (!text || typeof text !== 'string') return 0;
     return Math.ceil(text.length / 4);
   }
 
@@ -1439,16 +1439,6 @@ Segreteria Parrocchia Sant'Eugenio
   // ========================================================================
   // METODI UTILITÀ
   // ========================================================================
-
-  /**
-   * Stima numero di token dal testo
-   * @param {string} text - Testo da stimare
-   * @returns {number} Numero stimato di token
-   */
-  estimateTokens(text) {
-    if (!text || typeof text !== 'string') return 0; // Punto 13: Protezione contro input nulli o non validi
-    return Math.round(text.length / 4);
-  }
 
   /**
    * Tronca KB semanticamente per paragrafi preservando il contesto

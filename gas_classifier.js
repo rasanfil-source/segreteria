@@ -324,7 +324,7 @@ class Classifier {
     const greetingWord = words[0];
     const greetingSet = new Set(['buongiorno', 'buonasera', 'salve', 'ciao']);
 
-    return greetingSet.has(greetingWord) && words.length <= 3;
+    return greetingSet.has(greetingWord) && words.length <= 5;
   }
 
   /**

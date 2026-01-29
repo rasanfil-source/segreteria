@@ -28,7 +28,8 @@ class GeminiService {
       (typeof CONFIG !== 'undefined' ? CONFIG.GEMINI_API_KEY : null);
 
     // Chiave di Riserva (opzionale, per alternativa quando quota primaria esaurita)
-    this.backupKey = this.props.getProperty('GEMINI_API_KEY_BACKUP');
+    const propBackupKey = this.props.getProperty('GEMINI_API_KEY_BACKUP');
+    this.backupKey = (propBackupKey && propBackupKey.length > 20) ? propBackupKey : null;
 
     // Manteniamo apiKey per retrocompatibilità
     this.apiKey = this.primaryKey;
