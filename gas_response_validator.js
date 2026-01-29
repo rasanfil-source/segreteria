@@ -118,7 +118,7 @@ class ResponseValidator {
     console.log(`🔍 Validazione risposta (${currentResponse.length} caratteri, lingua=${detectedLanguage})...`);
 
     // --- PRIMO PASSAGGIO DI VALIDAZIONE ---
-    let validationResult = this._runValidationChecks(currentResponse, detectedLanguage, knowledgeBase, salutationMode);
+    let validationResult = this._runValidationChecks(currentResponse, detectedLanguage, knowledgeBase, salutationMode, emailContent);
 
     // --- AUTOCORREZIONE (PERFEZIONAMENTO) ---
     if (!validationResult.isValid && attemptPerfezionamento) {
@@ -132,7 +132,7 @@ class ResponseValidator {
         wasRefined = true;
 
         // Ri-esegui validazione sul testo corretto
-        validationResult = this._runValidationChecks(currentResponse, detectedLanguage, knowledgeBase, salutationMode);
+        validationResult = this._runValidationChecks(currentResponse, detectedLanguage, knowledgeBase, salutationMode, emailContent);
 
         if (validationResult.isValid) {
           console.log('   ✅ Autocorrezione ha risolto i problemi!');
@@ -204,7 +204,7 @@ class ResponseValidator {
   /**
    * Esegue i check effettivi (estratto per riutilizzo)
    */
-  _runValidationChecks(response, detectedLanguage, knowledgeBase, salutationMode) {
+  _runValidationChecks(response, detectedLanguage, knowledgeBase, salutationMode, originalMessage = '') {
     const errors = [];
     const warnings = [];
     const details = {};
@@ -238,7 +238,7 @@ class ResponseValidator {
     score *= contentResult.score;
 
     // === CONTROLLO 5: Allucinazioni ===
-    const hallucResult = this._checkHallucinations(response, knowledgeBase);
+    const hallucResult = this._checkHallucinations(response, knowledgeBase, originalMessage);
     errors.push(...hallucResult.errors);
     warnings.push(...hallucResult.warnings);
     details.hallucinations = hallucResult;
@@ -420,7 +420,7 @@ class ResponseValidator {
   /**
    * Controllo 5: Allucinazioni (dati inventati non in KB)
    */
-  _checkHallucinations(response, knowledgeBase) {
+  _checkHallucinations(response, knowledgeBase, originalMessage = '') {
     const errors = [];
     const warnings = [];
     let score = 1.0;
@@ -500,7 +500,15 @@ class ResponseValidator {
     const kbPhones = new Set(
       kbPhonesRaw.map(normalizePhone).filter(p => p.length >= 8)
     );
-    const inventedPhones = [...responsePhones].filter(p => !kbPhones.has(p));
+
+    // Escludi numeri presenti nella whitelist (es. mittente, thread) o nel messaggio originale
+    const whitelistText = (originalMessage || '') + ' ' + (kbData.whitelist || '');
+    const inventedPhones = [...responsePhones].filter(p => {
+      if (kbPhones.has(p)) return false;
+      // Se il numero è presente nel testo originale, è legittimo ripeterlo
+      if (whitelistText.replace(/\s+/g, '').includes(p)) return false;
+      return true;
+    });
 
     if (inventedPhones.length > 0) {
       errors.push(`Numeri telefono non in KB: ${inventedPhones.join(', ')}`);

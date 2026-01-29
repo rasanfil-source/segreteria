@@ -188,11 +188,11 @@ class TerritoryValidator {
 
         // Punto 6: Pattern ottimizzati per prevenire ReDoS eliminando quantificatori sovrapposti e lazy matching eccessivo
         const patterns = [
-            // Pattern 1: "via Rossi 10" - Struttura più rigida per evitare backtracking catastrofico
-            /\b(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']+){0,5})\s*(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s*(\d{1,4})\b/gi,
+            // Pattern 1: "via Rossi 10" - Supporto alfanumerico (es. 10A, 10/B)
+            /\b(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']+){0,5})\s*(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s*(\d{1,4}(?:\s*[a-zA-Z]|\/[a-zA-Z0-9]+)?)\b/gi,
 
             // Pattern 2: "abito in via Rossi 10"
-            /\b(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']+){0,5})\s*(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s*(\d{1,4})\b/gi
+            /\b(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']+){0,5})\s*(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s*(\d{1,4}(?:\s*[a-zA-Z]|\/[a-zA-Z0-9]+)?)\b/gi
         ];
 
         const addresses = [];
@@ -219,7 +219,15 @@ class TerritoryValidator {
 
                     const street = viaType + ' ' + viaName;
                     const civicRaw = match[3];
-                    const civic = parseInt(civicRaw, 10);
+                    // Parsifica parte numerica principale per validazione range
+                    const civicNum = parseInt(civicRaw.match(/\d+/)[0], 10);
+
+                    // Consenti 0 solo se parte di indirizzo speciale, altrimenti 1-9999
+                    if (isNaN(civicNum) || civicNum <= 0 || civicNum > 9999) continue;
+
+                    // Mantieni il civico completo (es. "10A") per l'output
+                    // Normalizziamo solo spazi extra
+                    const fullCivic = civicRaw.replace(/\s+/, '').toUpperCase();
 
                     if (isNaN(civic) || civic <= 0 || civic > 9999) continue;
 
@@ -229,8 +237,8 @@ class TerritoryValidator {
                     );
 
                     if (!isDuplicate) {
-                        addresses.push({ street: street.trim(), civic: civic });
-                        console.log(`📍 Indirizzo rilevato: ${street.trim()} n. ${civic}`);
+                        addresses.push({ street: street.trim(), civic: civicNum, fullCivic: fullCivic });
+                        console.log(`📍 Indirizzo rilevato: ${street.trim()} n. ${fullCivic}`);
                     }
                 }
             } catch (e) {

@@ -448,17 +448,16 @@ class GmailService {
         let fromEmailRaw = messageDetails.recipientEmail || Session.getActiveUser().getEmail();
         let fromEmail = fromEmailRaw;
 
-        // Sanificazione campo From per estrarre solo indirizzo puro
-        const emailMatch = fromEmailRaw.match(/<(.+?)>/);
-        if (emailMatch && emailMatch[1]) {
-          fromEmail = emailMatch[1];
+        // Sanificazione robusta campo From (gestisce destinatari multipli e formati complessi)
+        const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi;
+        const matches = fromEmailRaw.match(emailRegex);
+
+        if (matches && matches.length > 0) {
+          // Prendi il primo indirizzo email valido trovato (corrisponde al mittente effettivo in caso di risposta)
+          fromEmail = matches[0];
         } else {
-          // Alternativa semplice per rimuovere eventuale nome display
-          const parts = fromEmailRaw.split(/\s+/);
-          const lastPart = parts[parts.length - 1];
-          if (lastPart.includes('@')) {
-            fromEmail = lastPart.replace(/[<>]/g, '');
-          }
+          // Fallback sicuro
+          fromEmail = Session.getActiveUser().getEmail();
         }
 
         const boundary = 'boundary_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
