@@ -556,6 +556,7 @@ class MemoryService {
       if (!existingRow) return;
 
       const existingData = this._rowToObject(existingRow.values);
+      const normalizedTopics = this._normalizeProvidedTopics(providedInfo);
       const maxTopics = typeof CONFIG !== 'undefined' ? (CONFIG.MAX_PROVIDED_TOPICS || 50) : 50;
       const limitedTopics = normalizedTopics.slice(-maxTopics);
 
