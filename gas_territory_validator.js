@@ -125,10 +125,8 @@ class TerritoryValidator {
                 }
             }
 
-            // Match se:
-            // - Coppia consecutiva trovata, OPPURE
-            // - Input ha stesso numero di token del DB (match completo)
-            if (hasConsecutivePair || inputTokens.length === dbTokens.length) {
+            // Match solo se esiste almeno una coppia consecutiva
+            if (hasConsecutivePair) {
                 console.log(`🔍 Match fuzzy trovato: '${inputStreet}' -> '${dbKey}'`);
                 return { key: dbKey, rules: this.territory[dbKey] };
             }
