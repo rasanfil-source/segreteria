@@ -390,7 +390,8 @@ class GeminiRateLimiter {
       }
     }
 
-    // 1. Selezione modello standard
+    // 1. Selezione modello standard (se non bypassato)
+    const selection = this.selectModel(taskType, { preferQuality: preferQuality });
 
     if (!selection.available) {
       console.error(`❌ Nessun modello disponibile: ${selection.reason}`);
