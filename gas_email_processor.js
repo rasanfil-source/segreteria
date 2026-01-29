@@ -165,7 +165,7 @@ class EmailProcessor {
         const senderEmail = (details.senderEmail || '');
 
         // Se non riusciamo ad estrarre l'email, consideriamo il mittente come esterno per sicurezza
-        if (!senderEmail) return false;
+        if (!senderEmail) return true;
         return senderEmail.toLowerCase() !== myEmail.toLowerCase();
       });
 
