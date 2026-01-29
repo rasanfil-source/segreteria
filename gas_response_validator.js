@@ -502,7 +502,7 @@ class ResponseValidator {
     );
 
     // Escludi numeri presenti nella whitelist (es. mittente, thread) o nel messaggio originale
-    const whitelistText = (originalMessage || '') + ' ' + (kbData.whitelist || '');
+    const whitelistText = (originalMessage || '');
     const inventedPhones = [...responsePhones].filter(p => {
       if (kbPhones.has(p)) return false;
       // Se il numero è presente nel testo originale, è legittimo ripeterlo
