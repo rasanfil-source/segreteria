@@ -572,10 +572,15 @@ ${checks.join('\n')}
     // Threshold dinamico basato su profilo
     let threshold = (promptProfile === 'lite') ? 5.0 : (promptProfile === 'standard') ? 3.0 : 1.0;
 
-    const selected = candidates.filter(c => c.score > threshold).slice(0, MAX_ROWS);
+    const selected = candidates.filter(c => c.score >= threshold).slice(0, MAX_ROWS);
 
     if (selected.length === 0) {
-      console.warn(`⚠️ Nessuna riga supera threshold ${threshold} (top: ${candidates[0]?.score.toFixed(1)}). Fallback dump.`);
+      const topScore = typeof candidates[0]?.score === 'number' ? candidates[0].score : 0;
+      if (topScore <= 0) {
+        console.info(`ℹ️ Nessuna riga rilevante (top: ${topScore.toFixed(1)}). Uso fallback dottrinale completo.`);
+      } else {
+        console.warn(`⚠️ Nessuna riga supera threshold ${threshold} (top: ${topScore.toFixed(1)}). Fallback dump.`);
+      }
       return null;
     }
 
