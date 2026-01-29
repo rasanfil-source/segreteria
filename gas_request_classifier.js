@@ -194,7 +194,10 @@ class RequestTypeClassifier {
         'sbattezzo': 'formal'
       };
 
-      const mappedDim = categoryMap[externalHint.category.toLowerCase()];
+      const normalizedCategory = typeof externalHint.category === 'string'
+        ? externalHint.category.toLowerCase()
+        : '';
+      const mappedDim = categoryMap[normalizedCategory];
       if (mappedDim) {
         dimensions[mappedDim] = Math.max(dimensions[mappedDim], 0.8); // Trust Gemini
         source = 'hybrid';

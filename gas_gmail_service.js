@@ -236,6 +236,10 @@ class GmailService {
   }
 
   _extractSenderName(fromField) {
+    if (!fromField || typeof fromField !== 'string') {
+      return 'Utente';
+    }
+
     const match = fromField.match(/^"?(.+?)"?\s*</);
     let name = null;
 

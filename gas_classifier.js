@@ -96,15 +96,17 @@ class Classifier {
    * Classifica email - filtro minimale
    */
   classifyEmail(subject, body, isReply = false) {
-    console.log(`   🔍 Classificando: '${subject.substring(0, 50)}...'`);
+    const safeSubject = typeof subject === 'string' ? subject : '';
+    const safeBody = typeof body === 'string' ? body : '';
+    console.log(`   🔍 Classificando: '${safeSubject.substring(0, 50)}...'`);
 
     // Estrai contenuto principale
-    const mainContent = this._extractMainContent(body);
+    const mainContent = this._extractMainContent(safeBody);
     console.log(`      Contenuto principale: ${mainContent.length} caratteri`);
 
     // Body vuoto + subject generico (es. "Re: Orari messe") → passa a Gemini
     if ((!mainContent || !mainContent.trim()) && isReply) {
-      const subjectClean = subject.replace(/^re:\s*/i, '').trim();
+      const subjectClean = safeSubject.replace(/^re:\s*/i, '').trim();
       if (subjectClean.length > 3 && subjectClean.length < 50) {
         console.log('      ✓ Body vuoto ma subject ragionevole -> Passa a Gemini');
         return {
@@ -118,7 +120,7 @@ class Classifier {
     }
 
     // Se il body è vuoto e NON soddisfa criterio sopra, usa subject per filtri rapidi
-    const contentForQuickChecks = this._isTrivialReplyBody(mainContent) ? subject : mainContent;
+    const contentForQuickChecks = this._isTrivialReplyBody(mainContent) ? safeSubject : mainContent;
 
     // FILTRO 1: Acknowledgment ultra-semplice
     if (this._isUltraSimpleAcknowledgment(contentForQuickChecks)) {
@@ -145,7 +147,7 @@ class Classifier {
     }
 
     // TUTTO IL RESTO: Passa a Gemini
-    const fullText = `${subject} ${mainContent}`;
+    const fullText = `${safeSubject} ${mainContent}`;
     const category = this._categorizeContent(fullText);
     const subIntents = this._detectSubIntents(fullText);
 
@@ -175,7 +177,7 @@ class Classifier {
    * Gestisce blockquote HTML e vari formati client email
    */
   _extractMainContent(body) {
-    let processedBody = body;
+    let processedBody = typeof body === 'string' ? body : '';
 
     // Rimuove solo i tag <blockquote> mantenendo il contenuto (evita perdita info)
     processedBody = processedBody.replace(/<blockquote[^>]*>/gi, '');
