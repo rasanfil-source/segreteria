@@ -212,14 +212,23 @@ class GeminiRateLimiter {
         this._refreshCache();
       }
 
+      let selectedResult = null;
       for (var i = 0; i < candidates.length; i++) {
         const modelKey = candidates[i];
         const result = this._validateModelAvailability(modelKey, estimatedTokens);
         if (result.available) {
           console.log(`✓ Selezionato: ${modelKey} per ${taskType}`);
-          return result;
+          selectedResult = result;
+          break;
         }
       }
+
+      return selectedResult || {
+        available: false,
+        modelKey: null,
+        reason: 'all_quotas_exhausted',
+        nextResetTime: this._getNextResetTime()
+      };
     } finally {
       if (lockAcquired) lock.releaseLock();
     }

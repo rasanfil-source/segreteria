@@ -124,7 +124,7 @@ class EmailProcessor {
     let candidate = null;
     try {
       // Raccogli informazioni su thread e messaggi
-      const currentLabels = thread.getLabels().map(l => l.getName());
+      const currentLabels = (thread.getLabels() || []).map(l => l.getName());
       const hasProcessedLabel = currentLabels.includes(this.config.labelName);
 
       // Ottieni ultimo messaggio NON LETTO nel thread

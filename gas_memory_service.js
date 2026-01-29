@@ -766,15 +766,18 @@ class MemoryService {
    */
   _gcCache() {
     const now = Date.now();
-    let count = 0;
+    const keysToDelete = [];
+
     for (const key in this._cache) {
       if (now - this._cache[key].timestamp > this._cacheExpiry) {
-        delete this._cache[key];
-        count++;
+        keysToDelete.push(key);
       }
     }
-    if (count > 0) {
-      console.log(`🧹 Cache GC: rimossi ${count} elementi scaduti`);
+
+    keysToDelete.forEach(key => delete this._cache[key]);
+
+    if (keysToDelete.length > 0) {
+      console.log(`🧹 Cache GC: rimossi ${keysToDelete.length} elementi scaduti`);
     }
   }
 

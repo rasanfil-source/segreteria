@@ -251,6 +251,7 @@ class TerritoryValidator {
         const MAX_ITERATIONS = 100;
 
         try {
+            pattern.lastIndex = 0;
             while ((match = pattern.exec(text)) !== null) {
                 iterations++;
                 if (iterations > MAX_ITERATIONS) {
