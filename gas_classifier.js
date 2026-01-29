@@ -179,7 +179,21 @@ class Classifier {
   _extractMainContent(body) {
     let processedBody = typeof body === 'string' ? body : '';
 
-    // Rimuove solo i tag <blockquote> mantenendo il contenuto (evita perdita info)
+    const MAX_LENGTH = 50000;
+    if (processedBody.length > MAX_LENGTH) {
+      processedBody = processedBody.substring(0, MAX_LENGTH);
+    }
+
+    // Rimuove blockquote con limite iterazioni per evitare loop su HTML malformato
+    let iterations = 0;
+    const MAX_ITERATIONS = 10;
+    while (/<blockquote/i.test(processedBody) && iterations < MAX_ITERATIONS) {
+      processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
+      iterations++;
+    }
+    if (iterations >= MAX_ITERATIONS) {
+      console.warn('⚠️ Raggiunto limite rimozione blockquote');
+    }
     processedBody = processedBody.replace(/<blockquote[^>]*>/gi, '');
     processedBody = processedBody.replace(/<\/blockquote>/gi, '');
 

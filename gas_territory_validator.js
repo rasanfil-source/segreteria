@@ -189,10 +189,10 @@ class TerritoryValidator {
         // Punto 6: Pattern ottimizzati per prevenire ReDoS eliminando quantificatori sovrapposti e lazy matching eccessivo
         const patterns = [
             // Pattern 1: "via Rossi 10" - Supporto alfanumerico (es. 10A, 10/B)
-            /\b(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']+){0,5})\s*(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s*(\d{1,4}(?:\s*[a-zA-Z]|\/[a-zA-Z0-9]+)?)\b/gi,
+            /\b(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\s{0,3}(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s{0,3}(\d{1,4}[a-zA-Z]?)\b/gi,
 
             // Pattern 2: "abito in via Rossi 10"
-            /\b(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']+){0,5})\s*(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s*(\d{1,4}(?:\s*[a-zA-Z]|\/[a-zA-Z0-9]+)?)\b/gi
+            /\b(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\s{0,3}(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s{0,3}(\d{1,4}[a-zA-Z]?)\b/gi
         ];
 
         const addresses = [];
@@ -233,7 +233,7 @@ class TerritoryValidator {
 
                     const isDuplicate = addresses.some(addr =>
                         addr.street.toLowerCase() === street.toLowerCase() &&
-                        addr.civic === civic
+                        addr.civic === civicNum
                     );
 
                     if (!isDuplicate) {
@@ -316,6 +316,10 @@ class TerritoryValidator {
             // Gestione range specifico anche per 'tutti' (es. Lungotevere)
             if (Array.isArray(rules.tutti)) {
                 const [min, max] = rules.tutti;
+                if (min === null && max === null) {
+                    console.warn(`⚠️ Range invalido [null, null] per ${matchedKey}, tratto come "tutti"`);
+                    return { inTerritory: true, matchedKey: matchedKey, rule: 'tutti (default)' };
+                }
                 const minValue = (min === null || min === undefined) ? 0 : min;
                 const maxValue = (max === null || max === undefined) ? Infinity : max;
                 const maxLabel = maxValue === Infinity ? '∞' : maxValue;
@@ -359,8 +363,8 @@ class TerritoryValidator {
             }
         }
 
-        console.log(`❌ ${matchedKey} n. ${civic}: civico FUORI dal territorio parrocchiale`);
-        return { inTerritory: false, matchedKey: matchedKey, rule: 'fuori range' };
+        console.warn(`❌ Nessuna regola matchata per ${matchedKey} n. ${civic}`);
+        return { inTerritory: false, matchedKey: matchedKey, rule: 'no_match' };
     }
 
     // ==================================================================================

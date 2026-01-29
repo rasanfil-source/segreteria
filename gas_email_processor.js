@@ -1158,7 +1158,16 @@ ${addressLines.join('\n\n')}
    * Determina se un errore è fatale, legato alla quota o alla rete.
    */
   _classifyError(error) {
-    const msg = (error && error.message) ? error.message : '';
+    if (!error) {
+      console.warn('⚠️ _classifyError chiamato con errore nullo');
+      return 'UNKNOWN';
+    }
+
+    const msg = String(error.message || error.toString() || '');
+    if (!msg) {
+      console.warn('⚠️ Errore senza messaggio utile:', error);
+      return 'UNKNOWN';
+    }
 
     const RETRYABLE_ERRORS = ['429', 'rate limit', 'quota', 'RESOURCE_EXHAUSTED'];
     const FATAL_ERRORS = ['INVALID_ARGUMENT', 'PERMISSION_DENIED', 'UNAUTHENTICATED'];

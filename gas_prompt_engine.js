@@ -132,6 +132,13 @@ class PromptEngine {
         return;
       }
 
+      // Protezione memoria: Limita numero massimo sezioni
+      if (sections.length >= 30) {
+        console.warn(`⚠️ Limite sezioni raggiunto (30), salto sezione non critica: ${label}`);
+        skippedCount++;
+        return;
+      }
+
       sections.push(section);
       usedTokens += sectionTokens;
     };

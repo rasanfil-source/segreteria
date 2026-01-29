@@ -576,7 +576,7 @@ class ResponseValidator {
     const violations = [];
 
     while ((match = pattern.exec(response)) !== null) {
-      const word = match[1];
+      const word = String(match[1]); // Punto 8: Coercizione esplicita a stringa
       if (forbiddenCaps.includes(word)) {
         violations.push(word);
 

@@ -278,6 +278,14 @@ class MemoryService {
       try {
         lockAcquired = this._tryAcquireShardedLock(lockKey);
         if (!lockAcquired) {
+          if (i === 2) {
+            console.warn(`⚠️ Lock non acquisito dopo 3 tentativi, procedo con aggiornamento non atomico per thread ${threadId}`);
+            this.updateMemory(threadId, newData);
+            if (providedTopics && providedTopics.length > 0) {
+              this.addProvidedInfoTopics(threadId, providedTopics);
+            }
+            return true;
+          }
           if (i < 2) Utilities.sleep(500 + Math.random() * 100);
           continue;
         }
@@ -343,7 +351,7 @@ class MemoryService {
         }
       }
     }
-    // Punto 2: Lancio eccezione se tutti i tentativi falliscono per evitare Lost Update silenziosi
+    // Punto 2: Protezione di sicurezza se il fallback non ha potuto completare
     throw new Error(`Impossibile aggiornare la memoria per il thread ${threadId} dopo 3 tentativi (Lock Timeout)`);
   }
 
@@ -780,6 +788,21 @@ class MemoryService {
   /**
    * Pulisce la cache dagli elementi scaduti
    */
+  _mergeWindowData(existing, walData) {
+    const existingTimestamps = new Set(existing.map(e => e.timestamp));
+
+    // Deep copy via JSON (sicuro per dati serializzabili)
+    const merged = JSON.parse(JSON.stringify(existing));
+
+    for (const entry of walData) {
+      if (!existingTimestamps.has(entry.timestamp)) {
+        merged.push({ ...entry }); // Spread per sicurezza
+        existingTimestamps.add(entry.timestamp);
+      }
+    }
+
+    return merged.sort((a, b) => a.timestamp - b.timestamp).slice(-100);
+  }
   _gcCache() {
     const now = Date.now();
     const keysToDelete = [];

@@ -173,9 +173,23 @@ class GeminiRateLimiter {
    */
   _getPacificDate() {
     const now = new Date();
-    // America/Los_Angeles gestisce automaticamente DST (PST/PDT)
-    const pacificDate = Utilities.formatDate(now, 'America/Los_Angeles', 'yyyy-MM-dd');
-    return pacificDate;
+    try {
+      // America/Los_Angeles gestisce automaticamente DST (PST/PDT)
+      const pacificDate = Utilities.formatDate(now, 'America/Los_Angeles', 'yyyy-MM-dd');
+
+      const month = now.getMonth();
+      if (month === 2 || month === 10) {
+        const hour = parseInt(Utilities.formatDate(now, 'America/Los_Angeles', 'HH'), 10);
+        if (hour >= 0 && hour <= 3) {
+          console.warn(`⚠️ Possibile transizione DST in corso, ora Pacific: ${hour}`);
+        }
+      }
+
+      return pacificDate;
+    } catch (error) {
+      console.error(`❌ Errore getPacificDate: ${error.message}`);
+      return Utilities.formatDate(now, 'UTC', 'yyyy-MM-dd');
+    }
   }
 
   // ================================================================
@@ -599,18 +613,19 @@ class GeminiRateLimiter {
       this.props.setProperty('rpm_window', JSON.stringify(this.cache.rpmWindow));
       this.props.setProperty('tpm_window', JSON.stringify(this.cache.tpmWindow));
 
-      // 4. Rimuovi WAL (Punto 1: Eseguito sotto lock per prevenire race condition)
-      // Essendo all'interno di un'operazione atomica protetta da lock, 
-      // possiamo procedere alla rimozione sicura.
-      this.props.deleteProperty('rate_limit_wal');
-
-      this.cache.lastCacheUpdate = Date.now();
-
-    } catch (error) {
-      console.error(`❌ Errore persistenza cache: ${error.message}`);
-      // WAL rimane per recovery al prossimo avvio
     } finally {
       lock.releaseLock();
+    }
+
+    const cleanupLock = LockService.getScriptLock();
+    if (cleanupLock.tryLock(1000)) {
+      try {
+        this.props.deleteProperty('rate_limit_wal');
+      } finally {
+        cleanupLock.releaseLock();
+      }
+    } else {
+      console.warn('⚠️ Cleanup WAL non riuscito, verrà gestito al prossimo avvio');
     }
   }
 
@@ -674,11 +689,12 @@ class GeminiRateLimiter {
    */
   _mergeWindowData(existing, walData) {
     const existingTimestamps = new Set(existing.map(e => e.timestamp));
-    const merged = [...existing];
+    const merged = JSON.parse(JSON.stringify(existing));
 
     for (const entry of walData) {
       if (!existingTimestamps.has(entry.timestamp)) {
-        merged.push(entry);
+        merged.push(Object.assign({}, entry));
+        existingTimestamps.add(entry.timestamp);
       }
     }
 
