@@ -622,8 +622,8 @@ class MemoryService {
           if (cache.get(key) != null) {
             return false; // Già lockato
           }
-          cache.put(key, '1', 30); // Lock 30 sec
-          return true;
+          // cache.put(key, '1', 30); // Lock 30 sec - RIMOSSO per affidarsi a LockService globale
+          return true; // Consideriamo acquisito poiché protetto globalmente per operazione breve
         } catch (cacheError) {
           console.warn(`⚠️ Errore CacheService durante lock: ${cacheError.message}`);
           return false;
@@ -673,7 +673,8 @@ class MemoryService {
     const now = Date.now();
     const minAllowed = new Date('2020-01-01T00:00:00Z').getTime();
     // Punto 7: Intervallo di validità futuro esteso a 7 giorni per compensare drift dell'orologio
-    const maxAllowed = now + (7 * 24 * 60 * 60 * 1000);
+    // Punto 8: Intervallo di validità futuro ridotto a 10 minuti
+    const maxAllowed = now + (10 * 60 * 1000);
 
     if (parsed.getTime() < minAllowed || parsed.getTime() > maxAllowed) {
       console.warn(`⚠️ Timestamp fuori range: ${timestamp}, reset`);

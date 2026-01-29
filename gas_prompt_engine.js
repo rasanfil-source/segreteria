@@ -237,7 +237,9 @@ ${GLOBAL_CACHE.aiCore}
         topic,
         emailContent,
         emailSubject,
-        promptProfile
+        emailSubject,
+        promptProfile,
+        subIntents
       );
       if (selectiveDoctrine) {
         addSection(selectiveDoctrine, 'SelectiveDoctrine');
@@ -393,7 +395,7 @@ ${checks.join('\n')}
    * Recupero selettivo UNIFICATO (Dottrina + Direttive)
    * Integra logica dimensionale, tono consigliato e volume adattivo
    */
-  _renderSelectiveDoctrine(requestType, topic, emailContent, emailSubject, promptProfile) {
+  _renderSelectiveDoctrine(requestType, topic, emailContent, emailSubject, promptProfile, subIntents) {
     if (typeof GLOBAL_CACHE === 'undefined' || !GLOBAL_CACHE.doctrineStructured) {
       console.warn('⚠️ Cache dottrina non disponibile');
       return null;

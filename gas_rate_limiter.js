@@ -37,6 +37,11 @@ class GeminiRateLimiter {
           name: 'gemini-2.5-flash-lite',
           rpm: 30, tpm: 1000000, rpd: 1000,
           useCases: ['fallback', 'high_volume', 'quick_check']
+        },
+        'flash-2.0': {
+          name: 'gemini-2.0-flash',
+          rpm: 15, tpm: 250000, rpd: 250,
+          useCases: ['generation', 'all']
         }
       };
     }
@@ -218,7 +223,8 @@ class GeminiRateLimiter {
 
     // Trova primo modello disponibile (Punto 11: Protezione con lock per atomicità check+use)
     const lock = LockService.getScriptLock();
-    const lockAcquired = lock.tryLock(2000);
+    // Aumentato timeout acquisizione per gestione alta concorrenza
+    const lockAcquired = lock.tryLock(5000);
 
     try {
       if (lockAcquired) {
