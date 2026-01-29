@@ -1369,7 +1369,9 @@ Segreteria Parrocchia Sant'Eugenio
    */
   _truncateKbSemantically(kbContent, maxTokens) {
     // Budget: ~50% dei token max per KB (in caratteri, ~4 caratteri/token)
-    const budgetChars = maxTokens * 4 * 0.5;
+    // Se maxTokens non è definito, assume un valore sicuro di default (10000)
+    const effectiveMaxTokens = maxTokens || 10000;
+    const budgetChars = effectiveMaxTokens * 4 * 0.5;
 
     // Se già entro il budget, restituisci così com'è
     if (kbContent.length <= budgetChars) {

@@ -1061,6 +1061,7 @@ ${addressLines.join('\n\n')}
    * Rileva topic forniti nella risposta (per anti-ripetizione memoria)
    */
   _detectProvidedTopics(response) {
+    if (!response || typeof response !== 'string') return [];
     const topics = [];
     const lower = response.toLowerCase();
 
@@ -1072,7 +1073,7 @@ ${addressLines.join('\n\n')}
       'cresima_info': /cresima.*percorso|percorso.*cresima/i,
       'matrimonio_info': /matrimonio.*corso|corso.*matrimonio/i,
       'territorio': /rientra|non rientra|parrocchia.*competenza/i,
-      'indirizzo': /(?:via|viale|corso|piazza|largo|circonvallazione)\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']+(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']+)*\s*,?\s*\d+/i
+      'indirizzo': /(?:via|viale|corso|piazza|largo|circonvallazione)\s+(?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,10}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s*,?\s*\d+/i
     };
 
     for (const [topic, pattern] of Object.entries(patterns)) {
@@ -1088,6 +1089,7 @@ ${addressLines.join('\n\n')}
    */
   _inferUserReaction(userBody, previousTopics, threadId) {
     if (!previousTopics || previousTopics.length === 0) return;
+    if (!userBody || typeof userBody !== 'string') return;
 
     const bodyLower = userBody.toLowerCase();
 
