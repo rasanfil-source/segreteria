@@ -31,6 +31,14 @@ class PromptEngine {
   }
 
   /**
+   * Stima token (approx 4 char/token per l'italiano/inglese)
+   */
+  estimateTokens(text) {
+    if (!text) return 0;
+    return Math.ceil(text.length / 4);
+  }
+
+  /**
    * Determina se un template deve essere incluso in base a profilo e concern
    */
   _shouldIncludeTemplate(templateName, promptProfile, activeConcerns = {}) {
@@ -168,9 +176,12 @@ class PromptEngine {
     addSection(this._renderKnowledgeBase(workingKnowledgeBase), 'KnowledgeBase');
 
     // 4. VERIFICA TERRITORIO
-    const territorySection = this._renderTerritoryVerification(territoryContext);
-    if (territorySection) {
-      addSection(territorySection, 'TerritoryVerification');
+    // (Aggiunto context check per evitare undefined)
+    if (territoryContext) {
+      const territorySection = this._renderTerritoryVerification(territoryContext);
+      if (territorySection) {
+        addSection(territorySection, 'TerritoryVerification');
+      }
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -384,6 +395,55 @@ ${GLOBAL_CACHE.doctrineBase}
 ════════════════════════════════════════════════════════════════════════
 ${checks.join('\n')}
 ════════════════════════════════════════════════════════════════════════`;
+  }
+
+  /**
+   * Tronca la KB semanticamente rispettando il budget di token
+   * Cerca di preservare intere sezioni o paragrafi
+   */
+  _truncateKbSemantically(kbText, charLimit) {
+    if (!kbText || kbText.length <= charLimit) return kbText;
+
+    console.log(`✂️ Troncamento KB richiesto: ${kbText.length} -> ${charLimit} chars`);
+
+    // Tenta di tagliare a un'intestazione di sezione importante
+    const markers = [
+      '\n# ', '\n## ', '\n### ', // Markdown headers
+      '\n════', '\n----'          // Separatori
+    ];
+
+    let cutIndex = -1;
+
+    // Cerca il miglior punto di taglio prima del limite
+    // Idealmente ultimo marker prima del limite
+    let bestMarkerPos = -1;
+
+    for (const marker of markers) {
+      const lastPos = kbText.lastIndexOf(marker, charLimit);
+      if (lastPos > bestMarkerPos) {
+        bestMarkerPos = lastPos;
+      }
+    }
+
+    if (bestMarkerPos > charLimit * 0.5) {
+      // Se abbiamo trovato un buon punto di taglio (almeno a metà del budget)
+      cutIndex = bestMarkerPos;
+    } else {
+      // Fallback: cerca fine paragrafo
+      const lastPeriod = kbText.lastIndexOf('.\n', charLimit);
+      if (lastPeriod > charLimit * 0.5) {
+        cutIndex = lastPeriod + 1;
+      } else {
+        // Fallback estremo: cerca ultimo spazio
+        cutIndex = kbText.lastIndexOf(' ', charLimit);
+      }
+    }
+
+    if (cutIndex > 0) {
+      return kbText.substring(0, cutIndex) + '\n\n[... KB troncata per limiti di lunghezza ...]';
+    }
+
+    return kbText.substring(0, charLimit) + '...';
   }
 
   // ========================================================================

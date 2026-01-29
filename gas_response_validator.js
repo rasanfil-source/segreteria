@@ -613,7 +613,11 @@ class ResponseValidator {
     let score = 1.0;
     const foundPatterns = [];
 
-    const responseLower = response.toLowerCase();
+    // Ottimizzazione: Scansiona solo i primi 500 caratteri (dove solitamente appare il ragionamento)
+    // per evitare ReDoS su risposte molto lunghe
+    const scanLimit = 500;
+    const textToScan = response.substring(0, scanLimit);
+    const responseLower = textToScan.toLowerCase();
 
     // 1. Cerca pattern Regex (Meta-commenti strutturali)
     for (const regex of this.thinkingRegexes) {

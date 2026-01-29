@@ -147,6 +147,8 @@ class TerritoryValidator {
             return '';
         }
         let normalized = street.toLowerCase().trim();
+        // Rimuovi caratteri speciali non ammessi in nomi vie (mantiene lettere, numeri, spazi, apostrofi)
+        normalized = normalized.replace(/[^a-z0-9\s'àèéìòù]/g, '');
         normalized = normalized.replace(/\s+/g, ' ');
 
         // Espandi abbreviazioni comuni italiane
@@ -179,6 +181,8 @@ class TerritoryValidator {
      * Estrae indirizzi completi (via + civico) dal testo
      */
     extractAddressFromText(text) {
+        if (!text || typeof text !== 'string') return null;
+
         // Limita lunghezza input per sicurezza
         const MAX_SAFE_LENGTH = 1000;
         if (text && text.length > MAX_SAFE_LENGTH) {

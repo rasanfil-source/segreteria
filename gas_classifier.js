@@ -225,11 +225,12 @@ class Classifier {
     const cleanLines = [];
 
     for (const line of lines) {
-      const stripped = line.trim();
+      const safeLine = line == null ? '' : String(line);
+      const stripped = safeLine.trim();
 
       // Mantieni righe vuote per separazione paragrafi
       if (stripped === '') {
-        cleanLines.push(line);
+        cleanLines.push(safeLine);
         continue;
       }
 
@@ -248,7 +249,7 @@ class Classifier {
       }
       if (isQuote) break;
 
-      cleanLines.push(line);
+      cleanLines.push(safeLine);
     }
 
     let content = cleanLines.join('\n').trim();

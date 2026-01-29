@@ -101,18 +101,23 @@ class GeminiService {
 
     console.log(`🤖 Chiamata ${modelName} (prompt: ${prompt.length} caratteri)...`);
 
-    const response = UrlFetchApp.fetch(`${url}?key=${activeKey}`, {
-      method: 'POST',
-      contentType: 'application/json',
-      payload: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: temperature,
-          maxOutputTokens: maxTokens
-        }
-      }),
-      muteHttpExceptions: true
-    });
+    let response;
+    try {
+      response = UrlFetchApp.fetch(`${url}?key=${activeKey}`, {
+        method: 'POST',
+        contentType: 'application/json',
+        payload: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: temperature,
+            maxOutputTokens: maxTokens
+          }
+        }),
+        muteHttpExceptions: true
+      });
+    } catch (error) {
+      throw new Error(`Errore rete/timeout durante chiamata Gemini: ${error.message}`);
+    }
 
     const responseCode = response.getResponseCode();
 
@@ -125,7 +130,12 @@ class GeminiService {
       throw new Error(`Errore API: ${responseCode} - ${response.getContentText().substring(0, 200)}`);
     }
 
-    const result = JSON.parse(response.getContentText());
+    let result;
+    try {
+      result = JSON.parse(response.getContentText());
+    } catch (error) {
+      throw new Error(`Risposta Gemini non JSON valida: ${error.message}`);
+    }
 
     if (!result.candidates || !result.candidates[0]) {
       throw new Error('Risposta Gemini non valida: nessun candidato');

@@ -725,8 +725,13 @@ function markdownToHtml(text) {
   // Proteggi code blocks
   const codeBlocks = [];
   html = html.replace(/```[\s\S]*?```/g, (match) => {
-    codeBlocks.push(match);
-    return `__CODEBLOCK_${codeBlocks.length - 1}__`;
+    const sanitized = match.replace(/```/g, '').trim()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    const token = `__CODEBLOCK_${codeBlocks.length}__`;
+    codeBlocks.push(sanitized);
+    return token;
   });
 
   // Links con sanitizzazione
@@ -771,13 +776,9 @@ function markdownToHtml(text) {
 
   // Restore code blocks
   codeBlocks.forEach((block, i) => {
-    const code = block.replace(/```/g, '').trim()
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
     html = html.replace(
       `__CODEBLOCK_${i}__`,
-      `<pre style="background:#f4f4f4;padding:10px;border-radius:4px;font-family:monospace;">${code}</pre>`
+      `<pre style="background:#f4f4f4;padding:10px;border-radius:4px;font-family:monospace;">${block}</pre>`
     );
   });
 

@@ -38,6 +38,9 @@ class EmailProcessor {
       validationEnabled: typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_ENABLED : true,
       dryRun: typeof CONFIG !== 'undefined' ? CONFIG.DRY_RUN : false,
       maxEmailsPerRun: typeof CONFIG !== 'undefined' ? CONFIG.MAX_EMAILS_PER_RUN : 10,
+      maxExecutionTimeMs: typeof CONFIG !== 'undefined' && CONFIG.MAX_EXECUTION_TIME_MS
+        ? CONFIG.MAX_EXECUTION_TIME_MS
+        : 280 * 1000,
       labelName: typeof CONFIG !== 'undefined' ? CONFIG.LABEL_NAME : 'IA',
       errorLabelName: typeof CONFIG !== 'undefined' ? CONFIG.ERROR_LABEL_NAME : 'Errore',
       validationErrorLabel: typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica'
@@ -869,7 +872,7 @@ ${addressLines.join('\n\n')}
 
     // Processa ogni thread fino a raggiungere il limite di elaborazione
     const startTime = Date.now();
-    const MAX_EXECUTION_TIME = 280 * 1000; // 280 secondi
+    const MAX_EXECUTION_TIME = this.config.maxExecutionTimeMs;
     let processedCount = 0; // Contatore thread effettivamente elaborati
 
     for (let index = 0; index < threads.length; index++) {

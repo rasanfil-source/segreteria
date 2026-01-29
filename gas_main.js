@@ -629,8 +629,9 @@ function main() {
     }
 
     if (!GLOBAL_CACHE.knowledgeBase) {
-      console.error('❌ Knowledge Base non caricata, esco');
-      return;
+      const error = new Error('Knowledge Base non caricata');
+      console.error(`❌ ${error.message}`);
+      throw error;
     }
 
     // Crea ed esegui processore email
@@ -646,6 +647,7 @@ function main() {
 
     } catch (error) {
       console.error(`❌ Errore fatale: ${error.message}`);
+      throw error;
     }
   } finally {
     // Rilascia sempre il lock globale

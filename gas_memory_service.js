@@ -681,6 +681,13 @@ class MemoryService {
       return fallback;
     }
 
+    // Consenti timestamp nel futuro fino a 24 ore (per differenze fuso orario o clock drift)
+    const ts = parsed.getTime();
+    if (ts > now + 86400000) {
+      console.warn(`⚠️ Timestamp futuro rilevato: ${ts} (Now: ${now})`);
+      return fallback; // Changed from false to fallback to align with other warnings
+    }
+
     return timestamp;
   }
 
@@ -895,6 +902,30 @@ class MemoryService {
   // ========================================================================
   // EVOLUZIONE 2: VALUTAZIONE COMPLETEZZA (Metodi Sperimentali)
   // ========================================================================
+
+  /**
+   * Tenta di acquisire un lock distribuito (simulato)
+   */
+  _tryAcquireShardedLock(lockKey, waitMs = 2000, lockTTL = 10000) {
+    try {
+      const lock = LockService.getScriptLock();
+      // ... logica simulata per sharded lock (useremo lock globale per semplicità in GAS standard)
+      // In ambiente reale ad alto volume, qui useremmo un lease su PropertiesService o CacheService
+
+      // Acquisizione lock
+      const acquired = lock.tryLock(waitMs);
+      if (acquired) {
+        // Imposta un TTL implicito rilasciando il lock dopo un timeout se non fatto manualmente
+        // Nota: LockService rilascia automaticamente al termine dell'esecuzione,
+        // ma per sicurezza possiamo usare un timestamp in CacheService se volessimo persistenza cross-execution.
+        return lock;
+      }
+      return null;
+    } catch (e) {
+      console.warn(`⚠️ Errore acquisizione lock: ${e.message}`);
+      return null;
+    }
+  }
 
   /**
    * Calcola quanto della domanda originale è stato coperto
