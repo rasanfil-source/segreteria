@@ -1356,6 +1356,7 @@ Segreteria Parrocchia Sant'Eugenio
    * @returns {number} Numero stimato di token
    */
   estimateTokens(text) {
+    if (!text || typeof text !== 'string') return 0; // Punto 13: Protezione contro input nulli o non validi
     return Math.round(text.length / 4);
   }
 

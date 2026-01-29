@@ -116,8 +116,9 @@ class GeminiService {
 
     const responseCode = response.getResponseCode();
 
-    if (responseCode === 429 || responseCode === 503) {
-      throw new Error(`rate limit o servizio non disponibile: ${responseCode}`);
+    // Punto 4: Estesa gestione errori ritentabili includendo 500, 502 e 504
+    if ([429, 500, 502, 503, 504].includes(responseCode)) {
+      throw new Error(`Errore server o quota (${responseCode}). Richiesto retry.`);
     }
 
     if (responseCode !== 200) {
@@ -228,8 +229,9 @@ Output JSON:
         muteHttpExceptions: true
       });
 
-      // Se fallisce per quota o errore server, prova chiave di riserva se disponibile
-      if ((response.getResponseCode() === 429 || response.getResponseCode() === 503) && this.backupKey) {
+      // Punto 4: Estesa gestione errori con switch alla chiave di riserva
+      const responseCode = response.getResponseCode();
+      if ([429, 500, 502, 503, 504].includes(responseCode) && this.backupKey) {
         console.warn(`⚠️ Chiave primaria esaurita/errore (${response.getResponseCode()}). Tentativo con chiave di riserva...`);
         activeKey = this.backupKey;
         response = UrlFetchApp.fetch(`${url}?key=${activeKey}`, {
@@ -252,8 +254,8 @@ Output JSON:
 
     const responseCode = response.getResponseCode();
 
-    if (responseCode === 429 || responseCode === 503) {
-      throw new Error(`Limite quota raggiunto o servizio non disponibile: ${responseCode}`);
+    if ([429, 500, 502, 503, 504].includes(responseCode)) {
+      throw new Error(`Errore server o quota Gemini (${responseCode})`);
     }
 
     if (responseCode !== 200) {
@@ -340,7 +342,10 @@ Output JSON:
         const msg = error && error.message ? error.message : '';
         const isRetryable = msg && (
           msg.includes('timeout') ||
+          msg.includes('500') ||
+          msg.includes('502') ||
           msg.includes('503') ||
+          msg.includes('504') ||
           msg.includes('429') ||
           msg.includes('rate limit')
         );

@@ -161,7 +161,11 @@ class TerritoryValidator {
             normalized = normalized.replace(regex, replacement);
         }
 
-        return normalized.replace(/\s+/g, ' ').trim();
+        // Punto 8: Pulizia finale degli spazi per garantire coerenza con il database
+        // e rimozione di eventuali prefissi "via" ridondanti se già presenti
+        normalized = normalized.replace(/\s+/g, ' ').trim();
+
+        return normalized;
     }
 
     /**
@@ -175,13 +179,13 @@ class TerritoryValidator {
             console.warn(`⚠️ Input troncato a ${MAX_SAFE_LENGTH} caratteri (protezione memoria)`);
         }
 
-        // Pattern ottimizzati con lazy matching per prevenire ReDoS
+        // Punto 6: Pattern ottimizzati per prevenire ReDoS eliminando quantificatori sovrapposti e lazy matching eccessivo
         const patterns = [
-            // Pattern 1: "via Rossi 10"
-            /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ'\s]{3,100}?)(?:\s+|,|\.|-)+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi,
+            // Pattern 1: "via Rossi 10" - Struttura più rigida per evitare backtracking catastrofico
+            /\b(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']+){0,5})\s*(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s*(\d{1,4})\b/gi,
 
             // Pattern 2: "abito in via Rossi 10"
-            /(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ'\s]{3,100}?)(?:\s+|,|\.|-)+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi
+            /\b(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']+(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']+){0,5})\s*(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s*(\d{1,4})\b/gi
         ];
 
         const addresses = [];

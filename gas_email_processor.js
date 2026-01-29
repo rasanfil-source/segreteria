@@ -611,43 +611,8 @@ ${addressLines.join('\n\n')}
       let generationError = null;
       let strategyUsed = null;
 
-      /**
-       * Classifica l'errore per decidere se un nuovo tentativo ha senso
-       */
-      const classifyError = (error) => {
-        const msg = (error && error.message) ? error.message : '';
+      // Punto 12: Utilizzo del metodo di classe centralizzato per la classificazione degli errori
 
-        const RETRYABLE_ERRORS = [
-          '429',
-          'rate limit',
-          'quota',
-          'RESOURCE_EXHAUSTED'
-        ];
-
-        const FATAL_ERRORS = [
-          'INVALID_ARGUMENT',
-          'PERMISSION_DENIED',
-          'UNAUTHENTICATED'
-        ];
-
-        for (const fatal of FATAL_ERRORS) {
-          if (msg.includes(fatal)) {
-            return 'FATAL';
-          }
-        }
-
-        for (const retryable of RETRYABLE_ERRORS) {
-          if (msg.includes(retryable)) {
-            return 'QUOTA';
-          }
-        }
-
-        if (msg.includes('timeout') || msg.includes('ECONNRESET') || msg.includes('503')) {
-          return 'NETWORK';
-        }
-
-        return 'UNKNOWN';
-      };
 
       // Definizione strategie di generazione (Punti di robustezza cross-key)
       const attemptStrategy = [
@@ -678,7 +643,7 @@ ${addressLines.join('\n\n')}
 
         } catch (err) {
           generationError = err; // Salva l'ultimo errore
-          const errorClass = classifyError(err);
+          const errorClass = this._classifyError(err);
           console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass}]`);
 
           if (errorClass === 'FATAL') {
@@ -1185,9 +1150,35 @@ ${addressLines.join('\n\n')}
     });
   }
   /**
+   * Punto 12: Classificazione centralizzata degli errori API
+   * Determina se un errore è fatale, legato alla quota o alla rete.
+   */
+  _classifyError(error) {
+    const msg = (error && error.message) ? error.message : '';
+
+    const RETRYABLE_ERRORS = ['429', 'rate limit', 'quota', 'RESOURCE_EXHAUSTED'];
+    const FATAL_ERRORS = ['INVALID_ARGUMENT', 'PERMISSION_DENIED', 'UNAUTHENTICATED'];
+
+    for (const fatal of FATAL_ERRORS) {
+      if (msg.includes(fatal)) return 'FATAL';
+    }
+
+    for (const retryable of RETRYABLE_ERRORS) {
+      if (msg.includes(retryable)) return 'QUOTA';
+    }
+
+    if (msg.includes('timeout') || msg.includes('ECONNRESET') || msg.includes('503') || msg.includes('500') || msg.includes('502') || msg.includes('504')) {
+      return 'NETWORK';
+    }
+
+    return 'UNKNOWN';
+  }
+
+  /**
    * Rileva riferimenti temporali (mesi) in varie lingue
    */
   _detectTemporalMentions(text, language) {
+    // Punto 15: Protezione contro input nulli o non validi
     if (!text || typeof text !== 'string') return false;
     const monthPatterns = {
       'it': /\b(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\b/i,

@@ -36,6 +36,7 @@ class MemoryService {
     // Cache per performance (evita lookup ripetuti)
     this._cache = {};
     this._cacheExpiry = 5 * 60 * 1000; // 5 minuti
+    this._opCount = 0; // Punto 9: Contatore per Garbage Collection periodica
 
     // Inizializza foglio
     this._sheet = null;
@@ -334,7 +335,8 @@ class MemoryService {
         }
       }
     }
-    return false; // Timeout
+    // Punto 2: Lancio eccezione se tutti i tentativi falliscono per evitare Lost Update silenziosi
+    throw new Error(`Impossibile aggiornare la memoria per il thread ${threadId} dopo 3 tentativi (Lock Timeout)`);
   }
 
   /**
@@ -454,8 +456,8 @@ class MemoryService {
   _findRowByThreadId(threadId) {
     if (!this._sheet) return null;
 
-    // Usa TextFinder per cercare l'ID direttamente (Operazione O(1) lato script)
-    const finder = this._sheet.createTextFinder(threadId)
+    // Punto 5: Ottimizzazione TextFinder limitando il range alla colonna A (Thread ID)
+    const finder = this._sheet.getRange('A:A').createTextFinder(threadId)
       .matchEntireCell(true)      // Corrispondenza esatta
       .matchCase(true)            // Case sensitive
       .matchFormulaText(false);   // Cerca solo nei valori
@@ -596,7 +598,8 @@ class MemoryService {
 
     // Pattern: Global Guard per operazione Cache Atomica
     // Prendi lock globale per pochissimo tempo, solo per check-and-set su Cache
-    if (globalLock.tryLock(1000)) {
+    // Punto 14: Aumentato timeout acquisizione lock a 5 secondi per gestire carichi elevati
+    if (globalLock.tryLock(5000)) {
       try {
         if (cache.get(key) != null) {
           return false; // Già lockato
@@ -645,7 +648,8 @@ class MemoryService {
 
     const now = Date.now();
     const minAllowed = new Date('2020-01-01T00:00:00Z').getTime();
-    const maxAllowed = now + 86400000;
+    // Punto 7: Intervallo di validità futuro esteso a 7 giorni per compensare drift dell'orologio
+    const maxAllowed = now + (7 * 24 * 60 * 60 * 1000);
 
     if (parsed.getTime() < minAllowed || parsed.getTime() > maxAllowed) {
       console.warn(`⚠️ Timestamp fuori range: ${timestamp}, reset`);
@@ -744,10 +748,34 @@ class MemoryService {
   }
 
   _setCache(key, data) {
+    // Punto 9: Implementazione Garbage Collection periodica della cache in-memory
+    this._opCount++;
+    if (this._opCount >= 100) {
+      this._gcCache();
+      this._opCount = 0;
+    }
+
     this._cache[key] = {
       data: data,
       timestamp: Date.now()
     };
+  }
+
+  /**
+   * Pulisce la cache dagli elementi scaduti
+   */
+  _gcCache() {
+    const now = Date.now();
+    let count = 0;
+    for (const key in this._cache) {
+      if (now - this._cache[key].timestamp > this._cacheExpiry) {
+        delete this._cache[key];
+        count++;
+      }
+    }
+    if (count > 0) {
+      console.log(`🧹 Cache GC: rimossi ${count} elementi scaduti`);
+    }
   }
 
   _invalidateCache(key) {

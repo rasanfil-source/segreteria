@@ -202,15 +202,26 @@ class GeminiRateLimiter {
 
     const candidates = taskStrategies[taskType] || taskStrategies['fallback'] || ['flash-2.5', 'flash-lite'];
 
-    // Trova primo modello disponibile
-    for (var i = 0; i < candidates.length; i++) {
-      const modelKey = candidates[i];
-      const result = this._validateModelAvailability(modelKey, estimatedTokens);
-      if (result.available) {
-        console.log(`✓ Selezionato: ${modelKey} per ${taskType}`);
-        console.log(`   RPD rimanenti: ${result.quotaLeft.rpd}/${this.models[modelKey].rpd}`);
-        return result;
+    // Trova primo modello disponibile (Punto 11: Protezione con lock per atomicità check+use)
+    const lock = LockService.getScriptLock();
+    const lockAcquired = lock.tryLock(2000);
+
+    try {
+      if (lockAcquired) {
+        // Rinfresca i contatori per avere dati aggiornati sotto lock
+        this._refreshCache();
       }
+
+      for (var i = 0; i < candidates.length; i++) {
+        const modelKey = candidates[i];
+        const result = this._validateModelAvailability(modelKey, estimatedTokens);
+        if (result.available) {
+          console.log(`✓ Selezionato: ${modelKey} per ${taskType}`);
+          return result;
+        }
+      }
+    } finally {
+      if (lockAcquired) lock.releaseLock();
     }
 
     // Nessun modello disponibile
@@ -578,20 +589,11 @@ class GeminiRateLimiter {
       this.props.setProperty('rpm_window', JSON.stringify(this.cache.rpmWindow));
       this.props.setProperty('tpm_window', JSON.stringify(this.cache.tpmWindow));
 
-      // 4. Rimuovi WAL solo se è ancora il nostro
-      const currentWal = this.props.getProperty('rate_limit_wal');
-      if (currentWal) {
-        try {
-          const parsedWal = JSON.parse(currentWal);
-          if (parsedWal && Number(parsedWal.timestamp) === Number(walTimestamp)) {
-            this.props.deleteProperty('rate_limit_wal');
-          } else {
-            console.warn('⚠️ WAL sovrascritto da altro thread, skip delete');
-          }
-        } catch (parseError) {
-          console.warn('⚠️ WAL corrotto, impossibile verificare timestamp');
-        }
-      }
+      // 4. Rimuovi WAL (Punto 1: Eseguito sotto lock per prevenire race condition)
+      // Essendo all'interno di un'operazione atomica protetta da lock, 
+      // possiamo procedere alla rimozione sicura.
+      this.props.deleteProperty('rate_limit_wal');
+
       this.cache.lastCacheUpdate = Date.now();
 
     } catch (error) {
@@ -607,6 +609,10 @@ class GeminiRateLimiter {
    * Chiamato nel constructor prima di inizializzare i contatori
    */
   _recoverFromWAL() {
+    // Punto 1: Aggiunto lock per garantire atomicità durante il recovery
+    const lock = LockService.getScriptLock();
+    const lockAcquired = lock.tryLock(5000);
+
     try {
       const walData = this.props.getProperty('rate_limit_wal');
       if (!walData) return;
@@ -637,7 +643,7 @@ class GeminiRateLimiter {
       // Rimuovi WAL dopo recovery
       this.props.deleteProperty('rate_limit_wal');
 
-      // Aggiorna cache in-memory (Miglioramento Punto 5)
+      // Aggiorna cache in-memory
       this.cache.rpmWindow = mergedRpm;
       this.cache.tpmWindow = mergedTpm;
       this.cache.lastCacheUpdate = Date.now();
@@ -648,6 +654,8 @@ class GeminiRateLimiter {
       console.error(`❌ Errore recovery WAL: ${error.message}`);
       // Rimuovi WAL corrotto
       try { this.props.deleteProperty('rate_limit_wal'); } catch (e) { }
+    } finally {
+      if (lockAcquired) lock.releaseLock();
     }
   }
 

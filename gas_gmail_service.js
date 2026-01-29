@@ -275,7 +275,8 @@ class GmailService {
       return angleMatch[1];
     }
 
-    const emailMatch = fromField.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    // Punto 3: Regex più robusta per l'estrazione degli indirizzi email
+    const emailMatch = fromField.match(/\b[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b/i);
     if (emailMatch) {
       return emailMatch[0];
     }
@@ -724,10 +725,13 @@ function markdownToHtml(text) {
 
   // Links con sanitizzazione
   html = html.replace(/\[(.+?)\]\((.+?)\)/g, (match, linkText, url) => {
+    // Punto 10: Encoding completo delle entità HTML per prevenire XSS nel testo del link
     const escapedText = linkText
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
 
     const sanitizedUrl = sanitizeUrl(url);
 
