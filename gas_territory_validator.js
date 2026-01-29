@@ -79,6 +79,10 @@ class TerritoryValidator {
      * Richiede almeno una coppia consecutiva di parole per evitare falsi positivi
      */
     findTerritoryMatch(inputStreet) {
+        if (!inputStreet || typeof inputStreet !== 'string') {
+            console.log(`⚠️ Input via non valido per findTerritoryMatch: '${inputStreet}'`);
+            return null;
+        }
         const normalizedInput = this.normalizeStreetName(inputStreet);
 
         // 1. Match Esatto (priorità massima)
@@ -139,6 +143,9 @@ class TerritoryValidator {
      * Espande le abbreviazioni comuni (es. G. -> giovanni)
      */
     normalizeStreetName(street) {
+        if (!street || typeof street !== 'string') {
+            return '';
+        }
         let normalized = street.toLowerCase().trim();
         normalized = normalized.replace(/\s+/g, ' ');
 
