@@ -872,7 +872,7 @@ ${addressLines.join('\n\n')}
 
     for (let index = 0; index < threads.length; index++) {
       // Stop se abbiamo raggiunto il target di elaborazione effettiva
-      if (processedCount >= this.config.maxEmailsPerRun) {
+      if (processedCount >= parseInt(this.config.maxEmailsPerRun, 10)) {
         console.log(`🛑 Raggiunti ${this.config.maxEmailsPerRun} thread elaborati. Stop.`);
         break;
       }

@@ -472,7 +472,8 @@ class ResponseValidator {
     }
 
     // === Controllo email ===
-    const emailPattern = /\b[A-Za-z0-9][A-Za-z0-9._%+-]*@[A-Za-z0-9-]+\.[A-Za-z]{2,}\b/gi;
+    // Punto 6: Protezione ReDoS con limite esplicito sulla parte locale dell'email
+    const emailPattern = /\b[A-Za-z0-9](?:[A-Za-z0-9._%+-]{0,64})@[A-Za-z0-9-]+\.[A-Za-z]{2,}\b/gi;
     const responseEmails = new Set(
       (response.match(emailPattern) || []).map(e => e.toLowerCase())
     );

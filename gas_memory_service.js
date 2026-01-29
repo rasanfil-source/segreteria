@@ -609,8 +609,10 @@ class MemoryService {
       } finally {
         globalLock.releaseLock();
       }
+    } else {
+      console.warn(`⚠️ Timeout acquisizione GlobalLock per sharded key: ${key}`);
+      return false; // Fallito acquisizione guard
     }
-    return false; // Fallito acquisizione guard
   }
 
   /**
