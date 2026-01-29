@@ -165,7 +165,7 @@ class EmailProcessor {
         const senderEmail = (details.senderEmail || '');
 
         // Se non riusciamo ad estrarre l'email, consideriamo il mittente come esterno per sicurezza
-        if (!senderEmail) return true;
+        if (!senderEmail) return false;
         return senderEmail.toLowerCase() !== myEmail.toLowerCase();
       });
 
@@ -353,7 +353,8 @@ class EmailProcessor {
       // ═══════════════════════════════════════════════════════════════
       // STEP 2: CLASSIFICAZIONE - Filtro ack/greeting ultra-semplice
       // ═══════════════════════════════════════════════════════════════
-      const safeSubject = (messageDetails.subject || '');
+      const MAX_SUBJECT_LENGTH = 1000;
+      const safeSubject = (messageDetails.subject || '').substring(0, MAX_SUBJECT_LENGTH);
       const safeBody = (messageDetails.body || '');
       const safeSubjectLower = safeSubject.toLowerCase();
 
@@ -647,6 +648,13 @@ ${addressLines.join('\n\n')}
 
         return 'UNKNOWN';
       };
+
+      // Definizione strategie di generazione (Punti di robustezza cross-key)
+      const attemptStrategy = [
+        { name: 'Primary-Flash2.5', key: this.geminiService.primaryKey, model: 'gemini-1.5-flash', skipRateLimit: false },
+        { name: 'Backup-Flash2.5', key: this.geminiService.backupKey, model: 'gemini-1.5-flash', skipRateLimit: true },
+        { name: 'Fallback-Lite', key: this.geminiService.primaryKey, model: 'gemini-1.5-flash-lite', skipRateLimit: false }
+      ];
 
       // Esecuzione Loop Strategico
       for (const plan of attemptStrategy) {
@@ -1027,7 +1035,7 @@ ${addressLines.join('\n\n')}
   _buildMemorySummary({ existingSummary, responseText, providedTopics }) {
     const maxBullets = (typeof CONFIG !== 'undefined' && CONFIG.MAX_MEMORY_SUMMARY_BULLETS) || 4;
     const maxChars = (typeof CONFIG !== 'undefined' && CONFIG.MAX_MEMORY_SUMMARY_CHARS) || 600;
-    const sanitizedSummary = existingSummary ? String(existingSummary) : '';
+    const sanitizedSummary = (typeof existingSummary === 'string') ? existingSummary : '';
     const summaryLines = sanitizedSummary
       .split('\n')
       .map(line => line.trim())
@@ -1180,6 +1188,7 @@ ${addressLines.join('\n\n')}
    * Rileva riferimenti temporali (mesi) in varie lingue
    */
   _detectTemporalMentions(text, language) {
+    if (!text || typeof text !== 'string') return false;
     const monthPatterns = {
       'it': /\b(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\b/i,
       'en': /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/i,
@@ -1215,6 +1224,10 @@ function computeSalutationMode({ isReply, messageCount, memoryExists, lastUpdate
     }
 
     const parsedLastUpdated = new Date(lastUpdated);
+    if (isNaN(parsedLastUpdated.getTime())) {
+      return 'none_or_continuity';
+    }
+
     const timeSinceLastMs = now.getTime() - parsedLastUpdated.getTime();
     const minutesSinceLast = timeSinceLastMs / (1000 * 60);
     const hoursSinceLast = timeSinceLastMs / (1000 * 60 * 60);

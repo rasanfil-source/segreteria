@@ -349,12 +349,28 @@ class GeminiRateLimiter {
     const estimatedTokens = options.estimatedTokens || 1000;
     const maxRetries = options.maxRetries || 3;
     const preferQuality = options.preferQuality || false;
+    const skipRateLimit = options.skipRateLimit || false;
 
-    // 1. Selezione modello
-    const selection = this.selectModel(taskType, {
-      estimatedTokens: estimatedTokens,
-      preferQuality: preferQuality
-    });
+    // 0. Bypass esplicito (cross-key quality strategy)
+    if (skipRateLimit) {
+      console.log('⚡ skipRateLimit attivo: bypasso controlli disponibilità');
+      // Inizializza variabili minime per il tracking
+      const defaultSelection = this.selectModel(taskType, { preferQuality: preferQuality });
+      const model = defaultSelection.model;
+      const modelKey = defaultSelection.modelKey;
+
+      try {
+        const startTime = Date.now();
+        const result = requestFn(model.name);
+        const duration = Date.now() - startTime;
+        this._trackRequest(modelKey, estimatedTokens, duration);
+        return { success: true, result: result, modelUsed: model.name, modelKey: modelKey, duration: duration };
+      } catch (e) {
+        throw e;
+      }
+    }
+
+    // 1. Selezione modello standard
 
     if (!selection.available) {
       console.error(`❌ Nessun modello disponibile: ${selection.reason}`);
@@ -567,7 +583,7 @@ class GeminiRateLimiter {
       if (currentWal) {
         try {
           const parsedWal = JSON.parse(currentWal);
-          if (parsedWal && parsedWal.timestamp === walTimestamp) {
+          if (parsedWal && Number(parsedWal.timestamp) === Number(walTimestamp)) {
             this.props.deleteProperty('rate_limit_wal');
           } else {
             console.warn('⚠️ WAL sovrascritto da altro thread, skip delete');
@@ -620,7 +636,13 @@ class GeminiRateLimiter {
 
       // Rimuovi WAL dopo recovery
       this.props.deleteProperty('rate_limit_wal');
-      console.log('✓ Dati recuperati da WAL con successo');
+
+      // Aggiorna cache in-memory (Miglioramento Punto 5)
+      this.cache.rpmWindow = mergedRpm;
+      this.cache.tpmWindow = mergedTpm;
+      this.cache.lastCacheUpdate = Date.now();
+
+      console.log('✓ Dati recuperati da WAL con successo e cache aggiornata');
 
     } catch (error) {
       console.error(`❌ Errore recovery WAL: ${error.message}`);

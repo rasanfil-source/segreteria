@@ -178,10 +178,10 @@ class TerritoryValidator {
         // Pattern ottimizzati con lazy matching per prevenire ReDoS
         const patterns = [
             // Pattern 1: "via Rossi 10"
-            /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ'\s]+?)(?:\s+|,|\.|-)+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi,
+            /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ'\s]{3,100}?)(?:\s+|,|\.|-)+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi,
 
             // Pattern 2: "abito in via Rossi 10"
-            /(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ'\s]+?)(?:\s+|,|\.|-)+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi
+            /(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ'\s]{3,100}?)(?:\s+|,|\.|-)+(?:n\.?|n[°º]|numero|civico)?\s*(\d+)/gi
         ];
 
         const addresses = [];
@@ -301,10 +301,11 @@ class TerritoryValidator {
                 const maxLabel = maxValue === Infinity ? '∞' : maxValue;
 
                 if (civic >= minValue && civic <= maxValue) {
-                    console.log(`✅ ${matchedKey} n. ${civic}: nel range parziale [${minValue}, ${maxLabel}]`);
+                    console.log(this._sanitize(`✅ ${matchedKey} n. ${civic}: nel range [${minValue}, ${maxLabel}]`));
                     return { inTerritory: true, matchedKey: matchedKey, rule: `range [${minValue}-${maxLabel}]` };
                 } else {
-                    console.log(`❌ ${matchedKey} n. ${civic}: fuori dal range [${minValue}, ${maxLabel}]`);
+                    console.log(this._sanitize(`❌ ${matchedKey} n. ${civic}: fuori dal range [${minValue}, ${maxLabel}]`));
+                    return { inTerritory: false, matchedKey: matchedKey, rule: 'fuori range tutti' };
                 }
             } else if (rules.tutti === true) {
                 console.log(`✅ ${matchedKey} n. ${civic}: TUTTI i civici nel territorio`);
@@ -442,6 +443,14 @@ class TerritoryValidator {
             addresses: [],
             verification: null
         };
+    }
+
+    /**
+     * Sanitizza le stringhe per i log (Punto 10)
+     */
+    _sanitize(text) {
+        if (typeof text !== 'string') return text;
+        return text.replace(/[\r\n\t]/g, ' ').trim();
     }
 }
 

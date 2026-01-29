@@ -105,7 +105,7 @@ class ResponseValidator {
    * @param {string} salutationMode - Modalità saluto ('full'|'soft'|'none_or_continuity')
    * @returns {Object} Risultato validazione
    */
-  validateResponse(response, detectedLanguage, knowledgeBase, emailContent, emailSubject, salutationMode = 'full', attemptFix = true) {
+  validateResponse(response, detectedLanguage, knowledgeBase, emailContent, emailSubject, salutationMode = 'full', attemptPerfezionamento = true) {
     const errors = [];
     const warnings = [];
     const details = {};
@@ -121,14 +121,14 @@ class ResponseValidator {
     let validationResult = this._runValidationChecks(currentResponse, detectedLanguage, knowledgeBase, salutationMode);
 
     // --- AUTOCORREZIONE (PERFEZIONAMENTO) ---
-    if (!validationResult.isValid && attemptFix) {
+    if (!validationResult.isValid && attemptPerfezionamento) {
       console.log('🩹 Tentativo perfezionamento automatico...');
 
-      const fixResult = this._attemptAutoFix(currentResponse, validationResult.errors, detectedLanguage);
+      const perfezionamentoResult = this._perfezionamentoAutomatico(currentResponse, validationResult.errors, detectedLanguage);
 
-      if (fixResult.fixed) {
+      if (perfezionamentoResult.fixed) {
         console.log('   ✨ Applicati perfezionamenti automatici. Ri-validazione...');
-        currentResponse = fixResult.text;
+        currentResponse = perfezionamentoResult.text;
         wasRefined = true;
 
         // Ri-esegui validazione sul testo corretto
@@ -191,7 +191,7 @@ class ResponseValidator {
       errors: validationResult.errors,
       warnings: validationResult.warnings,
       details: validationResult.details,
-      fixedResponse: wasRefined ? currentResponse : null, // Restituisci testo corretto se modificato
+      fixedResponse: (wasRefined && validationResult.isValid) ? currentResponse : null, // Restituisci testo perfezionato SOLO se valido
       metadata: {
         responseLength: currentResponse.length,
         expectedLanguage: detectedLanguage,
@@ -640,39 +640,39 @@ class ResponseValidator {
   /**
    * Tenta di correggere automaticamente gli errori rilevati
    */
-  _attemptAutoFix(response, errors, language) {
-    let fixedText = response;
+  _perfezionamentoAutomatico(response, errors, language) {
+    let textPerfezionato = response;
     let modified = false;
 
     // 1. Correzione Link duplicati (Markdown)
     // Cerca [url](url) o [url](url...) e semplifica
-    const fixedLinks = this._fixDuplicateLinks(fixedText);
-    if (fixedLinks !== fixedText) {
-      fixedText = fixedLinks;
+    const linksOttimizzati = this._ottimizzaLinkDuplicati(textPerfezionato);
+    if (linksOttimizzati !== textPerfezionato) {
+      textPerfezionato = linksOttimizzati;
       modified = true;
-      console.log('   🩹 Correzione Link applicata');
+      console.log('   🩹 Ottimizzazione Link applicata');
     }
 
     // 2. Correzione Maiuscole dopo virgola
     // Applicabile solo se non è un errore di Thinking Leak (che richiede rigenerazione)
     // e se non ci sono placeholder
     if (!errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('placeholder'))) {
-      const fixedCaps = this._fixCapitalAfterComma(fixedText, language);
-      if (fixedCaps !== fixedText) {
-        fixedText = fixedCaps;
+      const capsOttimizzate = this._ottimizzaCapitalAfterComma(textPerfezionato, language);
+      if (capsOttimizzate !== textPerfezionato) {
+        textPerfezionato = capsOttimizzate;
         modified = true;
-        console.log('   🩹 Correzione Maiuscole applicata');
+        console.log('   🩹 Ottimizzazione Maiuscole applicata');
       }
     }
 
-    return { fixed: modified, text: fixedText };
+    return { fixed: modified, text: textPerfezionato };
   }
 
   /**
-   * Corregge link markdown ridondanti
+   * Ottimizza link markdown ridondanti
    * Es. [https://example.com](https://example.com) -> https://example.com
    */
-  _fixDuplicateLinks(text) {
+  _ottimizzaLinkDuplicati(text) {
     // Caso 1: [URL](URL) -> URL
     // Regex cattura: [ (gruppo1) ] ( (gruppo2) )
     // Verifica se gruppo1 == gruppo2 (o molto simile)
@@ -687,7 +687,7 @@ class ResponseValidator {
   /**
    * Corregge maiuscole post-virgola per parole vietate
    */
-  _fixCapitalAfterComma(text, language) {
+  _ottimizzaCapitalAfterComma(text, language) {
     // Ri-utilizza la lista delle parole vietate appropriata in base alla lingua
     let targets = [];
 
@@ -722,7 +722,7 @@ class ResponseValidator {
     targets.forEach(word => {
       const regex = new RegExp(`,\\s+(${word})\\b`, 'g');
       result = result.replace(regex, (match, p1) => {
-        return match.replace(p1, p1.toLowerCase());
+        return `, ${p1.toLowerCase()}`;
       });
     });
 

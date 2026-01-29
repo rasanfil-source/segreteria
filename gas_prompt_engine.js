@@ -99,7 +99,8 @@ class PromptEngine {
     const MAX_SAFE_TOKENS = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS
       ? CONFIG.MAX_SAFE_TOKENS : 100000;
 
-    const OVERHEAD_TOKENS = 15000; // Riserva per istruzioni e sistema
+    const OVERHEAD_TOKENS = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS)
+      ? CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS : 15000; // Riserva per istruzioni e sistema
     const KB_BUDGET_RATIO = 0.5; // La KB può occupare max il 50% dello spazio rimanente
     const availableForKB = Math.max(0, (MAX_SAFE_TOKENS - OVERHEAD_TOKENS) * KB_BUDGET_RATIO);
     const kbCharsLimit = Math.round(availableForKB * 4);
@@ -288,8 +289,12 @@ ${GLOBAL_CACHE.doctrineBase}
 
     addSection('**Genera la risposta completa seguendo le linee guida sopra:**', 'FinalInstruction', { force: true });
 
-    // Componi prompt finale
-    const prompt = sections.join('\n\n');
+    // Componi prompt finale tramite concatenazione efficiente
+    let promptAccumulator = '';
+    for (let i = 0; i < sections.length; i++) {
+      promptAccumulator += sections[i] + (i < sections.length - 1 ? '\n\n' : '');
+    }
+    const prompt = promptAccumulator;
     const finalTokens = this.estimateTokens(prompt);
 
     console.log(`📝 Prompt generato: ${prompt.length} caratteri (~${finalTokens} token) | Profilo: ${promptProfile} | Saltati: ${skippedCount}`);

@@ -165,7 +165,9 @@ class MemoryService {
           lockOwned = this._tryAcquireShardedLock(lockKey);
           if (!lockOwned) {
             console.warn(`🔒 Timeout lock memoria sharded (Tentativo ${attempt + 1})`);
-            Utilities.sleep(Math.pow(2, attempt) * 200 + Math.random() * 100);
+            // Backoff più morbido: 100ms base con crescita 1.5x + jitter
+            const delay = Math.pow(1.5, attempt) * 100 + Math.random() * 50;
+            Utilities.sleep(delay);
             continue;
           }
         }
@@ -552,9 +554,10 @@ class MemoryService {
       if (!existingRow) return;
 
       const existingData = this._rowToObject(existingRow.values);
-      const normalizedTopics = this._normalizeProvidedTopics(providedInfo || []);
+      const maxTopics = typeof CONFIG !== 'undefined' ? (CONFIG.MAX_PROVIDED_TOPICS || 50) : 50;
+      const limitedTopics = normalizedTopics.slice(-maxTopics);
 
-      existingData.providedInfo = normalizedTopics;
+      existingData.providedInfo = limitedTopics;
       existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
       existingData.version = (existingData.version || 0) + 1;
 
@@ -579,8 +582,8 @@ class MemoryService {
   _getShardedLockKey(threadId) {
     // Workaround: sharding per ridurre contention globale
     const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, threadId);
-    // Usa primi caratteri dell'array digest convertito in stringa come bucket
-    const shard = digest.toString().substr(0, 4);
+    // Usa più caratteri dell'array digest (8 invece di 4) per minimizzare collisioni
+    const shard = digest.toString().substr(0, 8);
     return `mem_lock_${shard}`;
   }
 
