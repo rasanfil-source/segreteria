@@ -143,10 +143,11 @@ class TerritoryValidator {
      * Espande le abbreviazioni comuni (es. G. -> giovanni)
      */
     normalizeStreetName(street) {
-        if (!street || typeof street !== 'string') {
+        if (!street) {
             return '';
         }
-        let normalized = street.toLowerCase().trim();
+        const safeStreet = String(street);
+        let normalized = safeStreet.toLowerCase().trim();
         // Rimuovi caratteri speciali non ammessi in nomi vie (mantiene lettere, numeri, spazi, apostrofi)
         normalized = normalized.replace(/[^a-z0-9\s'àèéìòù]/g, '');
         normalized = normalized.replace(/\s+/g, ' ');

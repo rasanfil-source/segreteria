@@ -449,7 +449,7 @@ class GmailService {
         let fromEmail = fromEmailRaw;
 
         // Sanificazione robusta campo From (gestisce destinatari multipli e formati complessi)
-        const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi;
+        const emailRegex = /\b[A-Za-z0-9](?:[A-Za-z0-9._%+-]{0,64})@[A-Za-z0-9-]+\.[A-Za-z]{2,}\b/gi;
         const matches = fromEmailRaw.match(emailRegex);
 
         if (matches && matches.length > 0) {

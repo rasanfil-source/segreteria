@@ -650,6 +650,15 @@ class GeminiRateLimiter {
 
       console.warn('⚠️ WAL trovato - recupero dati dopo crash...');
       const wal = JSON.parse(walData);
+      if (!wal || typeof wal !== 'object' || !wal.timestamp) {
+        console.error('❌ WAL corrotto, ignoro');
+        this.props.deleteProperty('rate_limit_wal');
+        return;
+      }
+      if (!Array.isArray(wal.rpm) || !Array.isArray(wal.tpm)) {
+        console.error('❌ WAL con array invalidi');
+        return;
+      }
 
       // Verifica che il WAL non sia troppo vecchio (> 5 minuti)
       const age = Date.now() - wal.timestamp;

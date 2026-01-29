@@ -280,7 +280,7 @@ class EmailProcessor {
       }
 
       const candidateIndex = messages.findIndex(msg => msg.getId() === candidate.getId());
-      if (candidateIndex > 0) {
+      if (candidateIndex > 0 && messages[candidateIndex - 1]) {
         const previousMessage = messages[candidateIndex - 1];
         const previousSender = (previousMessage.getFrom() || '').toLowerCase();
         const candidateDate = messageDetails.date ? messageDetails.date.getTime() : null;
@@ -1256,9 +1256,9 @@ function computeSalutationMode({ isReply, messageCount, memoryExists, lastUpdate
     const minutesSinceLast = timeSinceLastMs / (1000 * 60);
     const hoursSinceLast = timeSinceLastMs / (1000 * 60 * 60);
 
-    if (isNaN(hoursSinceLast)) {
-      console.warn('⚠️ computeSalutationMode: timestamp lastUpdated non valido, default a none_or_continuity');
-      return 'none_or_continuity';
+    if (isNaN(hoursSinceLast) || hoursSinceLast < 0) {
+      console.warn('⚠️ Timestamp futuro o invalido');
+      return 'full';
     }
 
     // Sessione conversazionale ravvicinata (entro 15 minuti)

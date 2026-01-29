@@ -310,11 +310,7 @@ ${GLOBAL_CACHE.doctrineBase}
     addSection('**Genera la risposta completa seguendo le linee guida sopra:**', 'FinalInstruction', { force: true });
 
     // Componi prompt finale tramite concatenazione efficiente
-    let promptAccumulator = '';
-    for (let i = 0; i < sections.length; i++) {
-      promptAccumulator += sections[i] + (i < sections.length - 1 ? '\n\n' : '');
-    }
-    const prompt = promptAccumulator;
+    const prompt = sections.join('\n\n');
     const finalTokens = this.estimateTokens(prompt);
 
     console.log(`📝 Prompt generato: ${prompt.length} caratteri (~${finalTokens} token) | Profilo: ${promptProfile} | Saltati: ${skippedCount}`);

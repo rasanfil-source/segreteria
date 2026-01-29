@@ -193,6 +193,8 @@ class Classifier {
     }
     if (iterations >= MAX_ITERATIONS) {
       console.warn('⚠️ Raggiunto limite rimozione blockquote');
+      // Rimuove eventuali blockquote non chiusi rimasti dopo il limite
+      processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*$/gi, '');
     }
     processedBody = processedBody.replace(/<blockquote[^>]*>/gi, '');
     processedBody = processedBody.replace(/<\/blockquote>/gi, '');

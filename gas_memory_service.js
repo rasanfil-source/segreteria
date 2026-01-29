@@ -622,8 +622,8 @@ class MemoryService {
           if (cache.get(key) != null) {
             return false; // Già lockato
           }
-          // cache.put(key, '1', 30); // Lock 30 sec - RIMOSSO per affidarsi a LockService globale
-          return true; // Consideriamo acquisito poiché protetto globalmente per operazione breve
+          cache.put(key, '1', 30); // Lock 30 sec per evitare race concorrenti
+          return true;
         } catch (cacheError) {
           console.warn(`⚠️ Errore CacheService durante lock: ${cacheError.message}`);
           return false;
@@ -813,18 +813,17 @@ class MemoryService {
   }
   _gcCache() {
     const now = Date.now();
-    const keysToDelete = [];
+    let deletedCount = 0;
 
     for (const key in this._cache) {
+      if (!this._cache[key]) continue;
       if (now - this._cache[key].timestamp > this._cacheExpiry) {
-        keysToDelete.push(key);
+        delete this._cache[key];
+        deletedCount++;
       }
     }
-
-    keysToDelete.forEach(key => delete this._cache[key]);
-
-    if (keysToDelete.length > 0) {
-      console.log(`🧹 Cache GC: rimossi ${keysToDelete.length} elementi scaduti`);
+    if (deletedCount > 0) {
+      console.log(`🧹 Cache GC: rimossi ${deletedCount} elementi scaduti`);
     }
   }
 
