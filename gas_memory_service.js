@@ -279,12 +279,8 @@ class MemoryService {
         lockAcquired = this._tryAcquireShardedLock(lockKey);
         if (!lockAcquired) {
           if (i === 2) {
-            console.warn(`⚠️ Lock non acquisito dopo 3 tentativi, procedo con aggiornamento non atomico per thread ${threadId}`);
-            this.updateMemory(threadId, newData);
-            if (providedTopics && providedTopics.length > 0) {
-              this.addProvidedInfoTopics(threadId, providedTopics);
-            }
-            return true;
+            console.warn(`⚠️ Lock non acquisito dopo 3 tentativi, annullo aggiornamento atomico per thread ${threadId}`);
+            return false;
           }
           if (i < 2) Utilities.sleep(500 + Math.random() * 100);
           continue;
