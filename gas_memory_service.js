@@ -145,6 +145,10 @@ class MemoryService {
     if (!this._initialized || !threadId) {
       return;
     }
+    if (!newData || typeof newData !== 'object') {
+      console.warn(`⚠️ updateMemory chiamato con dati non validi per thread ${threadId}`);
+      return;
+    }
 
     // Filtra campi interni
     const dataToUpdate = {};
@@ -259,6 +263,10 @@ class MemoryService {
    */
   updateMemoryAtomic(threadId, newData, providedTopics = null) {
     if (!this._initialized || !threadId) {
+      return false;
+    }
+    if (!newData || typeof newData !== 'object') {
+      console.warn(`⚠️ updateMemoryAtomic chiamato con dati non validi per thread ${threadId}`);
       return false;
     }
 
@@ -602,11 +610,16 @@ class MemoryService {
     // Punto 14: Aumentato timeout acquisizione lock a 5 secondi per gestire carichi elevati
     if (globalLock.tryLock(5000)) {
       try {
-        if (cache.get(key) != null) {
-          return false; // Già lockato
+        try {
+          if (cache.get(key) != null) {
+            return false; // Già lockato
+          }
+          cache.put(key, '1', 30); // Lock 30 sec
+          return true;
+        } catch (cacheError) {
+          console.warn(`⚠️ Errore CacheService durante lock: ${cacheError.message}`);
+          return false;
         }
-        cache.put(key, '1', 30); // Lock 30 sec
-        return true;
       } finally {
         globalLock.releaseLock();
       }
