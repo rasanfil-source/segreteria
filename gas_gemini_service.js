@@ -182,7 +182,7 @@ COMPITI:
    - "MIXED": mix di tecnica e pastorale
 4. Fornisci punteggi continui (0.0-1.0) per ogni dimensione:
    - technical, pastoral, doctrinal, formal
-5. Estrai l'argomento principale (topic)
+5. Estrai l'argomento principale (topic) in ITALIANO (usando termini coerenti con la richiesta)
 6. Fornisci un breve ragionamento (reason)
 
 ⚠️ REGOLA CRITICA "SBATTEZZO":
