@@ -661,7 +661,7 @@ ${addressLines.join('\n\n')}
 
       // Verifiche finali post-loop
       if (!response) {
-        const errorClass = generationError ? classifyError(generationError) : 'UNKNOWN';
+        const errorClass = generationError ? this._classifyError(generationError) : 'UNKNOWN';
         console.error('❌ TUTTE le strategie di generazione sono fallite.');
         this._addErrorLabel(thread);
         this._markMessageAsProcessed(candidate);
