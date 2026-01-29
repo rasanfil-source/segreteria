@@ -672,20 +672,12 @@ class MemoryService {
 
     const now = Date.now();
     const minAllowed = new Date('2020-01-01T00:00:00Z').getTime();
-    // Punto 7: Intervallo di validità futuro esteso a 7 giorni per compensare drift dell'orologio
-    // Punto 8: Intervallo di validità futuro ridotto a 10 minuti
-    const maxAllowed = now + (10 * 60 * 1000);
+    // Intervallo di validità futuro: consenti fino a 24h per compensare drift/fusi orari
+    const maxAllowed = now + 86400000;
 
     if (parsed.getTime() < minAllowed || parsed.getTime() > maxAllowed) {
       console.warn(`⚠️ Timestamp fuori range: ${timestamp}, reset`);
       return fallback;
-    }
-
-    // Consenti timestamp nel futuro fino a 24 ore (per differenze fuso orario o clock drift)
-    const ts = parsed.getTime();
-    if (ts > now + 86400000) {
-      console.warn(`⚠️ Timestamp futuro rilevato: ${ts} (Now: ${now})`);
-      return fallback; // Changed from false to fallback to align with other warnings
     }
 
     return timestamp;
