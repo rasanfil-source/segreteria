@@ -437,7 +437,32 @@ ${checks.join('\n')}
     else if (promptProfile === 'heavy') MAX_ROWS = 8;
 
     // 3. Scoring System Unificato
-    const topicLower = (topic || '').toLowerCase();
+    // Mappa di fallback per sub-intents (EN -> IT)
+    const subIntentMap = {
+      'bereavement': 'lutto',
+      'emotional_distress': 'ascolto',
+      'gratitude': 'ringraziamento',
+      'confusion': 'chiarimento',
+      'appointment': 'appuntamento',
+      'information': 'informazioni',
+      'sacrament': 'sacramenti',
+      'complaint': 'lamentela'
+    };
+
+    // Se topic è vuoto o inglese, tenta recupero da sub-intents o traduzione
+    let topicLower = (topic || '').toLowerCase();
+
+    // Fallback su subIntents se topic manca
+    if (!topicLower && subIntents) {
+      for (const [key, val] of Object.entries(subIntents)) {
+        if (val === true && subIntentMap[key]) {
+          topicLower = subIntentMap[key];
+          console.log(`   🔄 Fallback topic da subIntent: ${key} -> ${topicLower}`);
+          break;
+        }
+      }
+    }
+
     const fullTextLower = `${emailSubject} ${emailContent}`.toLowerCase();
 
     // Keywords critiche
