@@ -43,7 +43,10 @@ class EmailProcessor {
         : 280 * 1000,
       labelName: typeof CONFIG !== 'undefined' ? CONFIG.LABEL_NAME : 'IA',
       errorLabelName: typeof CONFIG !== 'undefined' ? CONFIG.ERROR_LABEL_NAME : 'Errore',
-      validationErrorLabel: typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica'
+      validationErrorLabel: typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica',
+      validationWarningThreshold: typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_WARNING_THRESHOLD === 'number'
+        ? CONFIG.VALIDATION_WARNING_THRESHOLD
+        : 0.9
     };
 
     this.logger.info('EmailProcessor inizializzato', {
@@ -307,7 +310,7 @@ class EmailProcessor {
       const MAX_CONSECUTIVE_EXTERNAL = 5;
 
       if (messages.length > MAX_THREAD_LENGTH) {
-        const ourEmail = Session.getActiveUser().getEmail();
+        const ourEmail = Session.getActiveUser()?.getEmail() || '';
         if (!ourEmail) {
           console.warn('   ⚠️ Email utente non disponibile: skip controllo anti-loop basato su mittente');
         }
@@ -620,10 +623,14 @@ ${addressLines.join('\n\n')}
 
 
       // Definizione strategie di generazione (Punti di robustezza cross-key)
+      const geminiModels = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_MODELS) ? CONFIG.GEMINI_MODELS : {};
+      const flashModel = (geminiModels['flash-2.5'] && geminiModels['flash-2.5'].name) ? geminiModels['flash-2.5'].name : 'gemini-1.5-flash';
+      const liteModel = (geminiModels['flash-lite'] && geminiModels['flash-lite'].name) ? geminiModels['flash-lite'].name : 'gemini-1.5-flash-lite';
+
       const attemptStrategy = [
-        { name: 'Primary-Flash2.5', key: this.geminiService.primaryKey, model: 'gemini-1.5-flash', skipRateLimit: false },
-        { name: 'Backup-Flash2.5', key: this.geminiService.backupKey, model: 'gemini-1.5-flash', skipRateLimit: true },
-        { name: 'Fallback-Lite', key: this.geminiService.primaryKey, model: 'gemini-1.5-flash-lite', skipRateLimit: false }
+        { name: 'Primary-Flash2.5', key: this.geminiService.primaryKey, model: flashModel, skipRateLimit: false },
+        { name: 'Backup-Flash2.5', key: this.geminiService.backupKey, model: flashModel, skipRateLimit: true },
+        { name: 'Fallback-Lite', key: this.geminiService.primaryKey, model: liteModel, skipRateLimit: false }
       ];
 
       // Esecuzione Loop Strategico
@@ -942,23 +949,6 @@ ${addressLines.join('\n\n')}
     console.log('='.repeat(70));
 
     return stats;
-  }
-
-  /**
-   * Classifica errori per strategia di retry
-   */
-  _classifyError(error, context) {
-    const msg = (error.message || '').toUpperCase();
-    if (msg.includes('429') || msg.includes('QUOTA') || msg.includes('RATE LIMIT')) {
-      return { type: 'QUOTA', message: msg, retry: true };
-    }
-    if (msg.includes('500') || msg.includes('502') || msg.includes('503')) {
-      return { type: 'SERVER', message: msg, retry: true };
-    }
-    if (msg.includes('SAFETY') || msg.includes('BLOCKED')) {
-      return { type: 'SAFETY', message: msg, retry: false };
-    }
-    return { type: 'GENERIC', message: msg, retry: false };
   }
 
   // ========================================================================

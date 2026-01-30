@@ -622,7 +622,7 @@ function setupTrigger() {
     }
   });
 
-  // Crea nuovo trigger ogni 10 minuti
+  // Crea nuovo trigger ogni 5 minuti
   ScriptApp.newTrigger('main')
     .timeBased()
     .everyMinutes(5)
