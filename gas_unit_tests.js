@@ -1195,18 +1195,18 @@ function testMiglioramentiSecondaFase(results) {
             return true;
         });
 
-        test('Punto #3: Lock Sharding robustezza hash (8 chars)', results, () => {
+        test('Punto #3: Robustezza Hash Sharding Lock (8 caratteri)', results, () => {
             const service = new MemoryService();
             const key = service._getShardedLockKey('thread-123');
             return key.startsWith('mem_lock_') && key.length >= 17;
         });
 
-        test('Punto #4: ReDoS Subject Protection', results, () => {
+        test('Punto #4: Protezione ReDoS Oggetto', results, () => {
             // Verifica che il processore carichi senza errori con subject lungo
             return true;
         });
 
-        test('Punto #5: Null Check _detectTemporalMentions', results, () => {
+        test('Punto #5: Controllo Null _detectTemporalMentions', results, () => {
             const processor = new EmailProcessor();
             try {
                 const res = processor._detectTemporalMentions(null, 'it');
@@ -1216,7 +1216,7 @@ function testMiglioramentiSecondaFase(results) {
             }
         });
 
-        test('Punto #6: Efficienza concatenazione PromptEngine', results, () => {
+        test('Punto #6: Efficienza Concatenazione PromptEngine', results, () => {
             const engine = new PromptEngine();
             const prompt = engine.buildPrompt({
                 knowledgeBase: "test", emailContent: "test", emailSubject: "test",
@@ -1283,7 +1283,7 @@ function testMiglioramentiSecondaFase(results) {
 function testMiglioramentiGennaio2026(results) {
     testGroup('Miglioramenti Gennaio 2026 - 12 Punti di Robustezza', results, () => {
 
-        test('Punto 1: Race Condition Reset Quota (Lock Check)', results, () => {
+        test('Punto 1: Condizione di Corsa Reset Quota (Controllo Lock)', results, () => {
             const limiter = new GeminiRateLimiter();
             try {
                 limiter._initializeCounters();
@@ -1305,7 +1305,7 @@ function testMiglioramentiGennaio2026(results) {
             return memory && memory.providedInfo.length <= max;
         });
 
-        test('Punto 3: Logical Flow TerritoryValidator (Range Out)', results, () => {
+        test('Punto 3: Flusso Logico TerritoryValidator (Fuori Range)', results, () => {
             const validator = new TerritoryValidator();
             const rules = { tutti: [1, 10] };
             validator.rules.set('via test', rules);
@@ -1314,7 +1314,7 @@ function testMiglioramentiGennaio2026(results) {
             return res.inTerritory === false;
         });
 
-        test('Punto 4: Validazione Mittente Gmail (Null/Empty)', results, () => {
+        test('Punto 4: Validazione Mittente Gmail (Nullo/Vuoto)', results, () => {
             const myEmail = 'test@example.com';
             const filter = (senderEmail) => {
                 if (!senderEmail) return false;
@@ -1324,7 +1324,7 @@ function testMiglioramentiGennaio2026(results) {
             return filter(null) === false && filter('') === false && filter('other@test.com') === true;
         });
 
-        test('Punto 5: Cache Invalidation dopo WAL Recovery', results, () => {
+        test('Punto 5: Invalidazione Cache dopo Ripristino WAL', results, () => {
             const limiter = new GeminiRateLimiter();
             const crashWal = {
                 timestamp: Date.now(),
@@ -1337,19 +1337,19 @@ function testMiglioramentiGennaio2026(results) {
             return limiter.cache.rpmWindow.length > 0 && limiter.cache.lastCacheUpdate > 0;
         });
 
-        test('Punto 6: Regex ReDoS Protection (Min Length)', results, () => {
+        test('Punto 6: Protezione ReDoS Regex (Lunghezza Minima)', results, () => {
             const validator = new TerritoryValidator();
             const result = validator.extractAddressFromText("via a 10");
             return result === null || result.length === 0;
         });
 
-        test('Punto 7: Explicit Timestamp Comparison (Number Coercion)', results, () => {
+        test('Punto 7: Confronto Esplicito Timestamp (Coercizione Numero)', results, () => {
             const val1 = "1706512345678";
             const val2 = 1706512345678;
             return Number(val1) === Number(val2);
         });
 
-        test('Punto 8: Memory Summary Error Handling (Object check)', results, () => {
+        test('Punto 8: Gestione Errori Riepilogo Memoria (Controllo Oggetto)', results, () => {
             const processor = new EmailProcessor();
             const summary = processor._buildMemorySummary({
                 existingSummary: { key: 'value' },
@@ -1359,20 +1359,20 @@ function testMiglioramentiGennaio2026(results) {
             return !summary.includes('[object Object]');
         });
 
-        test('Punto 9: Ottimizzazione Capital After Comma (Regex)', results, () => {
+        test('Punto 9: Ottimizzazione Maiuscole dopo Virgola (Regex)', results, () => {
             const validator = new ResponseValidator();
             const res = validator._ottimizzaCapitalAfterComma("Buongiorno, Le messe", "it");
             return res === "Buongiorno, le messe";
         });
 
-        test('Punto 10: Log Sanitization Helper', results, () => {
+        test('Punto 10: Helper Sanificazione Log', results, () => {
             const validator = new TerritoryValidator();
             const dirty = "Log\ncon\rnewline\t!";
             const clean = validator._sanitize(dirty);
             return !/[\n\r\t]/.test(clean);
         });
 
-        test('Punto 11: Magic Numbers Parameterization', results, () => {
+        test('Punto 11: Parametrizzazione Numeri Magici', results, () => {
             const engine = new PromptEngine();
             const prompt = engine.buildPrompt({
                 knowledgeBase: "test", emailContent: "test", emailSubject: "test",
@@ -1381,7 +1381,7 @@ function testMiglioramentiGennaio2026(results) {
             return prompt.length > 0;
         });
 
-        test('Punto 12: Null Check computeSalutationMode', results, () => {
+        test('Punto 12: Controllo Null computeSalutationMode', results, () => {
             const res = computeSalutationMode({
                 isReply: true, messageCount: 2, memoryExists: true, lastUpdated: null
             });

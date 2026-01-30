@@ -597,9 +597,22 @@ class GeminiRateLimiter {
    */
   _persistCacheWithWAL() {
     const lock = LockService.getScriptLock();
-    const lockAcquired = lock.tryLock(2000);
+    let lockAcquired = false;
+
+    // Tentativo di acquisizione lock con retry (backoff esponenziale)
+    for (let i = 0; i < 3; i++) {
+      if (lock.tryLock(2000)) {
+        lockAcquired = true;
+        break;
+      }
+      // Attesa crescente (500ms, 1000ms, 1500ms) se lock occupato
+      if (i < 2) {
+        Utilities.sleep(500 * (i + 1));
+      }
+    }
+
     if (!lockAcquired) {
-      console.warn('⚠️ Impossibile acquisire lock per persist cache');
+      console.warn('⚠️ Impossibile acquisire lock per salvataggio cache dopo 3 tentativi. Dati mantenuti in memoria.');
       return;
     }
 
