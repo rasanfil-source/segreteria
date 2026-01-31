@@ -745,8 +745,7 @@ if (window.length > 100) {
 4. Examples of problematic emails (anonymized)
 
 **Contacts:**
-- 📧 rasanfil@gmail.com
-- 💬 GitHub Issues: https://github.com/rasanfil-source/segreteria/issues
+- 📧 info@parrocchiasanteugenio.it
 
 ---
 

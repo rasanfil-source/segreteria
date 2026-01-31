@@ -163,9 +163,8 @@ In **`AI_CORE`** (for more complex situations):
 
 ### Step 3.2: Download system files
 
-1. Go to the GitHub repository: https://github.com/rasanfil-source/segreteria
-2. Click on the green **"Code"** button → **"Download ZIP"**
-3. Extract the ZIP to your desktop
+1. Request the system files from the administrator (info@parrocchiasanteugenio.it)
+2. Extract the ZIP to your desktop
 
 ### Step 3.3: Upload files to the project
 
@@ -463,9 +462,7 @@ VALIDATION_MIN_SCORE: 0.5  // Was 0.6
 
 **Need help?**
 
-1. 📧 Email: rasanfil@gmail.com
-2. 💬 Community: [GitHub Discussions](...)
-3. 🐛 Bug: [GitHub Issues](...)
+- 📧 Email: info@parrocchiasanteugenio.it
 
 **Before writing:**
 - Check this guide

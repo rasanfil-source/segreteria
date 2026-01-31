@@ -224,7 +224,7 @@ If problem persists after all fixes:
 
 1. Document most frequent error patterns
 2. Export 5 example problematic emails (anonymized)
-3. Contact rasanfil@gmail.com
+3. Contact info@parrocchiasanteugenio.it
 
 ---
 

@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](README_IT.md)
-[![Status: Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)](https://github.com/rasanfil-source/segreteria/releases)
+[![Status: Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)]
 
 > **An intelligent AI assistant that manages your parish emails with pastoral sensitivity, doctrinal accuracy, and operational efficiency.**
 
@@ -367,10 +367,8 @@ Solution: In Config.gs, change VALIDATION_MIN_SCORE from 0.6 to 0.5
 
 ### Contacts
 
-- 📧 **Email:** rasanfil@gmail.com
-- 💬 **Community:** [GitHub Discussions](https://github.com/rasanfil-source/segreteria/discussions)
+- 📧 **Email:** info@parrocchiasanteugenio.it
 - 📚 **Wiki:** [Complete Documentation](docs/)
-- 🐛 **Bug Report:** [GitHub Issues](https://github.com/rasanfil-source/segreteria/issues)
 
 ---
 

@@ -163,9 +163,8 @@ Nel foglio **`AI_CORE`** (per situazioni più complesse):
 
 ### Passo 3.2: Scarica i file del sistema
 
-1. Vai alla repository GitHub: https://github.com/rasanfil-source/segreteria
-2. Clicca sul pulsante verde **"Code"** → **"Download ZIP"**
-3. Estrai lo ZIP sul desktop
+1. Richiedi i file del sistema all'amministratore (info@parrocchiasanteugenio.it)
+2. Estrai lo ZIP sul desktop
 
 ### Passo 3.3: Carica i file nel progetto
 
@@ -463,9 +462,7 @@ VALIDATION_MIN_SCORE: 0.5  // Era 0.6
 
 **Hai bisogno di aiuto?**
 
-1. 📧 Email: rasanfil@gmail.com
-2. 💬 Community: [GitHub Discussions](...)
-3. 🐛 Bug: [GitHub Issues](...)
+- 📧 Email: info@parrocchiasanteugenio.it
 
 **Prima di scrivere:**
 - Controlla questa guida

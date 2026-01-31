@@ -180,7 +180,7 @@ function verifyResolution() {
 
 If after 1 hour the problem persists:
 
-1. **Contact technical support:** rasanfil@gmail.com
+1. **Contact technical support:** info@parrocchiasanteugenio.it
 2. **Attach:**
    - Output of `emergencyDiagnostic()`
    - Last 5 error logs from Executions

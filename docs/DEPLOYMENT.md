@@ -691,15 +691,13 @@ CONFIG.MODEL_STRATEGY = {
 1. **Consult first** this guide and TROUBLESHOOTING.md
 2. **Run** `emergencyDiagnostic()`
 3. **Collect** error logs from Executions
-4. **Contact** rasanfil@gmail.com with:
+4. **Contact** info@parrocchiasanteugenio.it with:
    - Problem description
    - Relevant logs
    - Configuration (masked)
 
 **Support Channels:**
-- 📧 Email: rasanfil@gmail.com (response within 24h)
-- 💬 Community: GitHub Discussions (peer support)
-- 🆘 Urgencies: Telegram @exnovobot_support
+- 📧 Email: info@parrocchiasanteugenio.it (response within 24h)
 
 ---
 
