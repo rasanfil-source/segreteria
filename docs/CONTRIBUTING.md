@@ -1,8 +1,8 @@
-# Contributing to exnovoGAS
+# Contributing to SPA (Segreteria Parrocchiale Automatica)
 
 [![Language: IT](https://img.shields.io/badge/Language-Italian-green?style=flat-square)](CONTRIBUTING_IT.md)
 
-Thank you for your interest in contributing to exnovoGAS! We welcome contributions from developers, pastoral workers, and anyone interested in the intersection of faith and technology.
+Thank you for your interest in contributing to SPA! We welcome contributions from developers, pastoral workers, and anyone interested in the intersection of faith and technology.
 
 ## How to Contribute
 

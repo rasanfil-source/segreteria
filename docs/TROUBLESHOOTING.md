@@ -1,5 +1,7 @@
 # 🔧 Troubleshooting
 
+[![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](TROUBLESHOOTING_IT.md)
+
 > **Complete guide to resolving common system problems**
 
 ---
@@ -426,7 +428,7 @@ function testMemory() {
 
 1. **Verify Memory sheet exists:**
    - Must exist "ConversationMemory" sheet
-   - With columns: threadId, language, category, tone, providedInfo, lastUpdated, messageCount, version
+   - With 9 columns: threadId, language, category, tone, providedInfo, lastUpdated, messageCount, version, memorySummary
 
 2. **Verify permissions:**
    - Script must have access to sheet
@@ -525,37 +527,30 @@ function testTerritoryValidation() {
 
 ---
 
-### 11. System Does Not Handle Holidays
+### 11. System Not Responding During Holidays
 
 **Symptom:**
-- Responds during Christmas/Easter when it should suspend
-- Weekday mass times provided on holiday
+- System does not respond during Christmas/Easter when it should be active
+- Users receive no response when human secretariat is closed
+
+**Cause:** The system should be **ACTIVE** during holidays because the human secretariat is closed. The AI provides coverage when humans are unavailable.
 
 **Solution:**
 
-Verify in **gas_main.js**:
+Verify that the system is **NOT** suspended during holidays. In **gas_main.js**, ensure holidays are in the "always operating" list:
 
 ```javascript
-// Fixed holidays must be present
+// Holidays when the system SHOULD respond (human secretariat closed)
 const ALWAYS_OPERATING_DAYS = [
   [MONTH.DEC, 25],  // Christmas
   [MONTH.DEC, 26],  // St Stephen
   [MONTH.JAN, 1],   // New Year
   [MONTH.JAN, 6],   // Epiphany
-  // ... ADD MISSING
+  // ... ADD OTHER HOLIDAYS
 ];
 ```
 
-For **special mass times** on weekday holidays:
-
-```javascript
-// In gas_main.js, in getSpecialMassTimeRule()
-const fixedSpecialDays = [
-  [4, 25],   // April 25
-  [5, 1],    // May 1
-  [12, 26]   // December 26
-];
-```
+**Note:** The system should suspend only during human secretariat working hours (e.g., weekday mornings) to allow staff to respond personally. During holidays and outside working hours, the AI handles all emails.
 
 ---
 
@@ -668,16 +663,7 @@ testSpecificEmail(
 
 ## 🐛 Known Issues
 
-### Issue #1: Race Condition on Long Threads ✅ FIXED v2.3.9
-
-**Symptom:** Same thread answered 2 times  
-**Cause:** Lock not acquired correctly  
-**Fix:** Implemented double-check locking in `gas_email_processor.js` function `_processThread`  
-**Temporary Workaround:** Increase `CACHE_LOCK_TTL` to 60s
-
----
-
-### Issue #2: Gemini 2.5 Thinking Leak ⚠️ MITIGATED v2.4.0
+### Issue #1: Gemini 2.5 Thinking Leak ⚠️ MITIGATED v2.4.0
 
 **Symptom:** Responses contain "Reviewing the KB...", "Verifying the information..."  
 **Cause:** Gemini 2.5 exposes reasoning if prompt is ambiguous  
@@ -694,34 +680,6 @@ const thinkingPatterns = [
   'the 2025 dates have passed'
 ];
 ```
-
----
-
-### Issue #3: PropertiesService 9KB Limit 🏗️ ARCHITECTURAL
-
-**Symptom:** Error "Property too large" in Rate Limiter  
-**Cause:** Google limits single property to 9KB  
-**Fix:** Automatic cache trimming to 100 entries in `gas_rate_limiter.js`  
-**No Workaround:** Hard Google limit, handled internally
-
-```javascript
-// Safety cap implemented:
-if (window.length > 100) {
-  window = window.slice(-100);
-}
-```
-
----
-
-### Issue #4: Sheet API Timeout on Large KB 📋 KNOWN
-
-**Symptom:** Timeout loading KB >1000 rows  
-**Cause:** Google Sheets API has timeout on massive reads  
-**Planned Fix:** KB loading pagination (v2.5.0)  
-**Current Workaround:** 
-- Reduce KB to <800 rows
-- Use more aggressive cache: `CONFIG.KB_CACHE_TTL = 7200000` (2 hours)
-- Prefer `lite` profile for simple emails
 
 ---
 

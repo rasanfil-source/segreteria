@@ -1,5 +1,7 @@
 # ❓ Frequently Asked Questions (FAQ)
 
+[![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](FAQ_IT.md)
+
 > **Answers to common questions for non-technical users and administrators**
 
 ---

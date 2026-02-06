@@ -950,6 +950,19 @@ function testResponseValidatorAdvanced(results) {
             return result.checks.capitalAfterComma === false;
         });
 
+        test('Nomi doppi: capitalizzazione preservata', results, () => {
+            // Euristica nomi doppi: due parole maiuscole consecutive = nomi propri
+            const response = "Buon giorno, Maria Isabella. Le messe sono alle 9:00.";
+            const result = validator.validateResponse(response, {
+                detectedLanguage: 'it',
+                emailContent: "Orari?",
+                senderName: "Maria Isabella"
+            });
+            // Il validator NON deve segnalare "Maria" come errore (seguito da "Isabella")
+            // perché riconosce il pattern nome doppio
+            return result.warnings.filter(w => w.includes('Maria')).length === 0;
+        });
+
         test('Calcolo punteggio totale', results, () => {
             const response = "Buongiorno, le messe domenicali sono alle ore 9:00, 11:00 e 18:00. Cordiali saluti, Segreteria.";
             const result = validator.validateResponse(response, {
@@ -958,6 +971,29 @@ function testResponseValidatorAdvanced(results) {
                 senderName: "Test"
             });
             return result.score >= 0.8;
+        });
+
+        test('Saluto temporale: metodo _checkTimeBasedGreeting esiste', results, () => {
+            const hasMethod = typeof validator._checkTimeBasedGreeting === 'function';
+            return hasMethod;
+        });
+
+        test('Saluto temporale: self-healing _ottimizzaSalutoTemporale esiste', results, () => {
+            const hasMethod = typeof validator._ottimizzaSalutoTemporale === 'function';
+            return hasMethod;
+        });
+
+        test('Saluto temporale: saluti liturgici non generano warning', results, () => {
+            const response = "Buon Natale a lei e famiglia! Segreteria Parrocchia Sant'Eugenio";
+            const greetingResult = validator._checkTimeBasedGreeting(response, 'it');
+            // Saluti liturgici non devono generare warning indipendentemente dall'orario
+            return greetingResult.isLiturgical === true || greetingResult.warnings.length === 0;
+        });
+
+        test('Saluto temporale: lingua non supportata non genera errore', results, () => {
+            const greetingResult = validator._checkTimeBasedGreeting("Bonjour", 'fr');
+            // Lingua non supportata deve restituire score 1.0 senza errori
+            return greetingResult.score === 1.0;
         });
     });
 }

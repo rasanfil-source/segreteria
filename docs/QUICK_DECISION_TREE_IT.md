@@ -1,5 +1,7 @@
 # 🌳 Albero Decisionale Rapido - Cosa Fare Se...
 
+[![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](QUICK_DECISION_TREE.md)
+
 > **Guida visiva per risolvere rapidamente i problemi più comuni del sistema**
 
 ---

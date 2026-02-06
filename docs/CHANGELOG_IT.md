@@ -1,5 +1,7 @@
 # Changelog
 
+[![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](CHANGELOG.md)
+
 Modifiche significative a questo progetto saranno documentate in questo file.
 
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/),

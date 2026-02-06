@@ -1,5 +1,7 @@
 # 🔧 Troubleshooting - Risoluzione Problemi
 
+[![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](TROUBLESHOOTING.md)
+
 > **Guida completa per risolvere i problemi più comuni del sistema**
 
 ---
@@ -426,7 +428,7 @@ function testMemory() {
 
 1. **Verifica foglio Memoria esiste:**
    - Deve esistere foglio "ConversationMemory"
-   - Con colonne: threadId, language, category, tone, providedInfo, lastUpdated, messageCount, version
+   - Con 9 colonne: threadId, language, category, tone, providedInfo, lastUpdated, messageCount, version, memorySummary
 
 2. **Verifica permessi:**
    - Script deve avere accesso al foglio
@@ -526,38 +528,30 @@ function testTerritoryValidation() {
 
 ---
 
-### 11. Sistema Non Gestisce Festività
+### 11. Sistema Non Risponde Durante le Festività
 
 **Sintomo:**
-- Risponde durante Natale/Pasqua quando dovrebbe sospendersi
-- Orari messe feriali forniti in giorno festivo
+- Il sistema non risponde durante Natale/Pasqua quando dovrebbe essere attivo
+- Gli utenti non ricevono risposta quando la segreteria umana è chiusa
+
+**Causa:** Il sistema deve essere **ATTIVO** durante le festività perché la segreteria umana è chiusa. L'AI fornisce copertura quando gli umani non sono disponibili.
 
 **Soluzione:**
 
-Verifica in **gas_main.js**:
+Verifica che il sistema **NON** sia sospeso durante le festività. In **gas_main.js**, assicurati che le festività siano nella lista "sempre operativo":
 
 ```javascript
-// Festività fisse devono essere presenti
+// Festività quando il sistema DEVE rispondere (segreteria umana chiusa)
 const ALWAYS_OPERATING_DAYS = [
   [MONTH.DEC, 25],  // Natale
   [MONTH.DEC, 26],  // Santo Stefano
   [MONTH.JAN, 1],   // Capodanno
   [MONTH.JAN, 6],   // Epifania
-  // ... AGGIUNGI MANCANTI
+  // ... AGGIUNGI ALTRE FESTIVITÀ
 ];
 ```
 
-Per **orari messe speciali** in festivi infrasettimanali:
-
-```javascript
-// In gas_main.js, in getSpecialMassTimeRule()
-const giorniFissiSpeciali = [
-  [4, 25],   // 25 Aprile
-  [5, 1],    // 1 Maggio
-  [6, 2],    // 2 Giugno (se parrocchia celebra)
-  [12, 26]   // Santo Stefano
-];
-```
+**Nota:** Il sistema dovrebbe sospendersi solo durante gli orari di lavoro della segreteria umana (es. mattina feriali) per permettere allo staff di rispondere personalmente. Durante le festività e fuori orario, l'AI gestisce tutte le email.
 
 ---
 
@@ -670,16 +664,7 @@ testSpecificEmail(
 
 ## 🐛 Known Issues (Problemi Noti)
 
-### Issue #1: Race Condition su Thread Lunghi ✅ RISOLTO v2.3.9
-
-**Sintomo:** Stesso thread risposto 2 volte  
-**Causa:** Lock non acquisito correttamente  
-**Fix:** Implementato double-check locking in `gas_email_processor.js` funzione `_processThread`  
-**Workaround Temporaneo:** Aumentare `CACHE_LOCK_TTL` a 60s
-
----
-
-### Issue #2: Gemini 2.5 Thinking Leak ⚠️ MITIGATO v2.4.0
+### Issue #1: Gemini 2.5 Thinking Leak ⚠️ MITIGATO v2.4.0
 
 **Sintomo:** Risposte contengono "Rivedendo la KB...", "Verificando le informazioni..."  
 **Causa:** Gemini 2.5 espone ragionamento se prompt ambiguo  
@@ -696,34 +681,6 @@ const thinkingPatterns = [
   'le date del 2025 sono passate'
 ];
 ```
-
----
-
-### Issue #3: Limite PropertiesService 9KB 🏗️ ARCHITETTURALE
-
-**Sintomo:** Errore "Property too large" in Rate Limiter  
-**Causa:** Google limita singola property a 9KB  
-**Fix:** Cache trimming automatico a 100 entry in `gas_rate_limiter.js`  
-**Nessun Workaround:** Limite hard di Google, gestito internamente
-
-```javascript
-// Safety cap implementato:
-if (window.length > 100) {
-  window = window.slice(-100);
-}
-```
-
----
-
-### Issue #4: Sheet API Timeout su KB Grosse 📋 NOTO
-
-**Sintomo:** Timeout caricamento KB >1000 righe  
-**Causa:** Google Sheets API ha timeout su letture massive  
-**Fix Pianificato:** Paginazione caricamento KB (v2.5.0)  
-**Workaround Attuale:** 
-- Ridurre KB a <800 righe
-- Usare cache più aggressiva: `CONFIG.KB_CACHE_TTL = 7200000` (2 ore)
-- Preferire profilo `lite` per email semplici
 
 ---
 

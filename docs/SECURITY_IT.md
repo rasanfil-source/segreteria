@@ -1,5 +1,7 @@
 # 🔐 Sicurezza e Conformità GDPR
 
+[![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](SECURITY.md)
+
 > **Guida alle best practices di sicurezza e alla protezione dei dati personali per la Segreteria Email Parrocchiale**
 
 ---

@@ -1,8 +1,10 @@
 # 📖 Guida Setup Completa - Segreteria Email AI
 
+[![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](Setup_Guide_Non_Technical.md)
+
 > **Tempo necessario:** 20-30 minuti  
 > **Competenze richieste:** Nessuna (seguire i passaggi)  
-> **Costo:** ~€8/mese
+> **Costo:** Gratuito (entro i limiti del piano gratuito)
 
 ---
 
@@ -125,6 +127,12 @@ Esempio:
 ### Passo 2.4: Popola i fogli AI_CORE
 
 **Questi fogli contengono le "istruzioni pastorali" per l'AI.**
+
+> **💡 Quando il sistema usa ogni foglio?**
+> - **AI_CORE_LITE** → Usato per tutte le richieste con aspetti pastorali/dottrinali (la maggior parte delle email)
+> - **AI_CORE** → Usato SOLO per situazioni complesse: lutti, questioni canoniche, divorziati risposati, malattie gravi
+> 
+> Il sistema seleziona automaticamente il livello giusto in base all'analisi del contenuto dell'email.
 
 Nel foglio **`AI_CORE_LITE`** inserisci:
 
@@ -329,7 +337,7 @@ WORKING_HOURS_END: 18,   // Ora fine (24h)
 
 **Modifica** con gli orari della tua segreteria.
 
-**💡 Cosa fa:** Fuori da questi orari, il sistema NON si sospende (continua a rispondere). Serve solo per statistiche.
+**💡 Cosa fa:** Il sistema può essere configurato per sospendersi durante questi orari (quando lo staff umano è disponibile a rispondere). Fuori da questi orari e nelle festività, l'AI risponde sempre.
 
 ### Passo 7.2: Configura lingue supportate
 

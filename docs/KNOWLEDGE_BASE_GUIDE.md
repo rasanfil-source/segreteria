@@ -1,5 +1,7 @@
 # 📚 Knowledge Base Guide - How to Populate Effectively
 
+[![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](KNOWLEDGE_BASE_GUIDE_IT.md)
+
 > **How to organize your parish information to get the best AI responses**
 
 ---

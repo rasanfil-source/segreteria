@@ -84,9 +84,9 @@ graph LR
 | Gmail | Gratis | Account esistente |
 | Google Drive | Gratis | Quota standard sufficiente |
 | Google Apps Script | Gratis | Hosting incluso |
-| API Gemini AI | ~€5-15/mese | Dipende dal volume email (~1000 email/mese = €10) |
+| API Gemini AI | **Gratis** | Fino a 50 email/giorno con la free tier |
 
-💡 **Stima realistica:** Per una parrocchia media (50-100 email/settimana), costo totale **~€8/mese**.
+💡 **Nota:** Entro i limiti della free tier (50 email/giorno), il sistema è **completamente gratuito**.
 
 ---
 
@@ -142,12 +142,6 @@ graph LR
         │ + Label "IA" │  │ Umana Needed │
         └──────────────┘  └──────────────┘
 ```
-
-**Statistiche Reali (Caso Studio Roma)**
-- ⚡ Tempo medio risposta: **< 5 minuti** (era 2-3 giorni)
-- 📊 Email automatizzate: **78%** (target: >70%)
-- ⏱️ Tempo segreteria risparmiato: **12 ore/settimana**
-- 😊 Soddisfazione utenti: **94%** (+22 punti)
 
 ---
 
@@ -307,27 +301,6 @@ Se l'API usage supera l'80%, il sistema:
 
 ---
 
-## 📊 Statistiche Reali (Caso Studio)
-
-**Parrocchia San Giovanni Battista - Roma (3000 famiglie)**
-
-| Metrica | Prima | Dopo | Miglioramento |
-|---------|-------|------|---------------|
-| Tempo medio risposta | 2-3 giorni | < 5 minuti | **99% più veloce** |
-| Email processate/settimana | ~80 | ~85 | Stesso volume |
-| Tempo segreteria su email | 15 ore/settimana | 3 ore/settimana | **-80% tempo** |
-| Soddisfazione utenti | 72% | 94% | **+22 punti** |
-| Email che richiedono intervento umano | 100% | 23% | **-77%** |
-
-**Tipologia email automatizzate con successo:**
-- ✅ 95% richieste orari/contatti
-- ✅ 88% info sacramenti (requisiti generali)
-- ✅ 92% verifiche territorio
-- ✅ 78% richieste eventi/attività
-- ❌ 15% situazioni pastorali complesse (rimangono umane - **corretto!**)
-
----
-
 ## 🛡️ Sicurezza e Privacy
 
 ### Conformità GDPR
@@ -418,16 +391,13 @@ Sviluppato con ❤️ per le comunità parrocchiali da volontari e professionist
 
 ## 📈 Roadmap
 
-**In sviluppo (Q1 2026):**
-- [ ] Dashboard web per statistiche
-- [ ] Integrazione WhatsApp Business
-- [ ] Export automatico report mensili
-- [ ] Supporto lingue asiatiche (中文, 日本語)
-
 **Idee future:**
+- [ ] OCR allegati (PDF e immagini)
 - [ ] Integrazione calendario Google per prenotazioni
 - [ ] SMS notifications per urgenze
 - [ ] App mobile per gestione segreteria
+- [ ] Dashboard web per statistiche
+- [ ] Integrazione WhatsApp Business
 
 ---
 

@@ -1,5 +1,7 @@
 # 📚 Guida Knowledge Base - Come Popolarla Efficacemente
 
+[![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](KNOWLEDGE_BASE_GUIDE.md)
+
 > **Come organizzare le informazioni della tua parrocchia per ottenere le migliori risposte AI**
 
 ---

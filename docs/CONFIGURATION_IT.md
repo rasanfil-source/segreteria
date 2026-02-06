@@ -1,5 +1,7 @@
 # Configurazione Avanzata
 
+[![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](CONFIGURATION.md)
+
 Questo documento descrive i parametri di configurazione disponibili nel file `gas_config.js`.
 
 ## Configurazione Principale (`CONFIG`)

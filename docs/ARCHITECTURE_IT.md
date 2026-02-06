@@ -1,10 +1,10 @@
 # 🏗️ System Architecture - Parish Email AI
 
-[![Language: IT](https://img.shields.io/badge/Language-Italian-green?style=flat-square)](ARCHITECTURE_IT.md)
+[![Language: EN](https://img.shields.io/badge/Language-English-blue?style=flat-square)](ARCHITECTURE.md)
 
 ## 📖 Overview
 
-ExnovoGAS è un sistema di autorisponditore intelligente progettato specificamente per **gestire le email parrocchiali** con:
+SPA (Segreteria Parrocchiale Automatica) è un sistema di autorisponditore intelligente progettato specificamente per **gestire le email parrocchiali** con:
 - Sensibilità pastorale
 - Accuratezza dottrinale  
 - Efficienza operativa

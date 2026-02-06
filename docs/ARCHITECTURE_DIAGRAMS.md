@@ -1,6 +1,8 @@
 # 📐 System Architecture Diagrams
 
-> **Complete visual representation of ExnovoGAS architecture**
+[![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](ARCHITECTURE_DIAGRAMS_IT.md)
+
+> **Complete visual representation of SPA (Segreteria Parrocchiale Automatica) architecture**
 
 ---
 

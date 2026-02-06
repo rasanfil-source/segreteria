@@ -1,5 +1,7 @@
 # ❓ Domande Frequenti (FAQ)
 
+[![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](FAQ.md)
+
 > **Risposte alle domande più comuni per utenti non tecnici e amministratori**
 
 ---

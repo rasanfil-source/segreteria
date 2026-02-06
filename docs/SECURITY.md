@@ -1,5 +1,7 @@
 # 🔐 Security and GDPR Compliance
 
+[![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](SECURITY_IT.md)
+
 > **Guide to security best practices and personal data protection for the Parish Email Secretariat**
 
 ---

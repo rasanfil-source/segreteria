@@ -457,10 +457,10 @@ setupTrigger()
 - [ ] Log indica motivo skip
 
 ### Test Festività
-**Se `PAUSE_ON_HOLIDAYS: true` e calendario configurato**:
+**Verifica che `ALWAYS_OPERATING_DAYS` includa le festività principali**:
 
-- [ ] Durante festività: sistema salta
-- [ ] Log indica festività
+- [ ] Durante festività: sistema ATTIVO (segreteria umana chiusa)
+- [ ] Log indica che è giorno festivo e sistema risponde
 
 ---
 

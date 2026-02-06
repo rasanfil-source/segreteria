@@ -1,8 +1,10 @@
 # 📖 Complete Setup Guide - AI Email Secretary
 
+[![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](Guida_Setup_Completa_Per_non_tecnici.md)
+
 > **Time required:** 20-30 minutes  
 > **Skills required:** None (just follow the steps)  
-> **Cost:** ~€8/month
+> **Cost:** Free (within free tier limits)
 
 ---
 
@@ -125,6 +127,12 @@ Example:
 ### Step 2.4: Populate the AI_CORE sheets
 
 **These sheets contain the "pastoral instructions" for the AI.**
+
+> **💡 When does the system use each sheet?**
+> - **AI_CORE_LITE** → Used for all requests with pastoral/doctrinal aspects (most emails)
+> - **AI_CORE** → Used ONLY for complex situations: bereavement, canonical issues, divorced/remarried, serious illness
+> 
+> The system automatically selects the right level based on email content analysis.
 
 In **`AI_CORE_LITE`** insert:
 
@@ -329,7 +337,7 @@ WORKING_HOURS_END: 18,   // End hour (24h)
 
 **Modify** with your office hours.
 
-**💡 What it does:** Outside these hours, the system DOES NOT suspend (continues to reply). Only serves for statistics.
+**💡 What it does:** The system can be configured to suspend during these hours (when human staff is available to respond). Outside these hours and on holidays, the AI always responds.
 
 ### Step 7.2: Configure supported languages
 

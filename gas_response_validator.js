@@ -85,6 +85,32 @@ class ResponseValidator {
       /secretar[ií]a\s+parroquial/i                                    // ES
     ];
 
+    // Pattern saluti per fasce orarie (Controllo #8)
+    this.greetingPatterns = {
+      'it': {
+        morning: ['buongiorno', 'buon giorno'],
+        afternoon: ['buon pomeriggio'],
+        evening: ['buonasera', 'buona sera']
+      },
+      'en': {
+        morning: ['good morning'],
+        afternoon: ['good afternoon'],
+        evening: ['good evening']
+      },
+      'es': {
+        morning: ['buenos días', 'buen día'],
+        afternoon: ['buenas tardes'],
+        evening: ['buenas noches']
+      }
+    };
+
+    // Saluti liturgici speciali (eccezione al check orario)
+    this.liturgicalGreetings = {
+      'it': ['buon natale', 'buona pasqua', 'buon avvento', 'buona quaresima', 'buona pentecoste'],
+      'en': ['merry christmas', 'happy easter', 'happy advent', 'happy pentecost'],
+      'es': ['feliz navidad', 'feliz pascua', 'feliz adviento', 'feliz pentecostés']
+    };
+
     // Semantic Validator (opzionale)
     const semanticEnabled = typeof CONFIG !== 'undefined' &&
       CONFIG.SEMANTIC_VALIDATION &&
@@ -257,6 +283,12 @@ class ResponseValidator {
     warnings.push(...reasoningResult.warnings);
     details.exposedReasoning = reasoningResult;
     score *= reasoningResult.score;
+
+    // === CONTROLLO 8: Saluto temporalmente incongruente ===
+    const greetingResult = this._checkTimeBasedGreeting(response, detectedLanguage);
+    warnings.push(...greetingResult.warnings);
+    details.greeting = greetingResult;
+    score *= greetingResult.score;
 
     // Determina validità
     const isValid = errors.length === 0 && score >= this.MIN_VALID_SCORE;
@@ -578,6 +610,15 @@ class ResponseValidator {
     while ((match = pattern.exec(response)) !== null) {
       if (!match[1]) continue;
       const word = String(match[1]); // Punto 8: Coercizione esplicita a stringa
+
+      // Euristica nomi doppi: se la parola è seguita da un'altra maiuscola,
+      // probabilmente sono nomi propri (es. "Maria Isabella", "Gian Luca")
+      const afterMatchPos = match.index + match[0].length;
+      const textAfter = response.substring(afterMatchPos);
+      if (textAfter.match(/^\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]+/)) {
+        continue; // Salta: probabile nome doppio
+      }
+
       if (forbiddenCaps.includes(word)) {
         violations.push(word);
 
@@ -647,6 +688,105 @@ class ResponseValidator {
     return { score, errors, warnings, foundPatterns };
   }
 
+  /**
+   * Controllo 8: Saluto temporalmente incongruente
+   * Rileva se il saluto nella risposta è appropriato per l'orario corrente
+   */
+  _checkTimeBasedGreeting(response, language) {
+    const warnings = [];
+    let score = 1.0;
+
+    // Verifica lingua supportata
+    if (!this.greetingPatterns[language]) {
+      return { score, warnings, message: 'Lingua non supportata per check saluti' };
+    }
+
+    // Determina fascia oraria corrente
+    const currentHour = new Date().getHours();
+    let expectedTimeSlot;
+    if (currentHour >= 5 && currentHour < 12) {
+      expectedTimeSlot = 'morning';
+    } else if (currentHour >= 12 && currentHour < 18) {
+      expectedTimeSlot = 'afternoon';
+    } else {
+      expectedTimeSlot = 'evening';
+    }
+
+    // Estrai saluto dai primi 100 caratteri della risposta
+    const responseStart = response.substring(0, 100).toLowerCase();
+
+    // Cerca pattern di saluto
+    const patterns = this.greetingPatterns[language];
+    let detectedGreeting = null;
+    let detectedTimeSlot = null;
+
+    for (const [timeSlot, greetings] of Object.entries(patterns)) {
+      for (const greeting of greetings) {
+        if (responseStart.includes(greeting)) {
+          detectedGreeting = greeting;
+          detectedTimeSlot = timeSlot;
+          break;
+        }
+      }
+      if (detectedGreeting) break;
+    }
+
+    // Se nessun saluto rilevato, OK (potrebbe essere modalità continuity)
+    if (!detectedGreeting) {
+      return {
+        score,
+        warnings,
+        message: 'Nessun saluto rilevato (OK per modalità continuity)',
+        detectedGreeting: null,
+        expectedTimeSlot,
+        currentHour
+      };
+    }
+
+    // Verifica se è un saluto liturgico speciale (eccezione)
+    const liturgical = this.liturgicalGreetings[language] || [];
+    const isLiturgical = liturgical.some(lg => responseStart.includes(lg));
+    if (isLiturgical) {
+      return {
+        score,
+        warnings,
+        message: 'Saluto liturgico speciale (Natale, Pasqua, etc.)',
+        detectedGreeting,
+        isLiturgical: true
+      };
+    }
+
+    // Controlla congruenza saluto-orario
+    if (detectedTimeSlot !== expectedTimeSlot) {
+      const timeSlotNames = { morning: 'mattina', afternoon: 'pomeriggio', evening: 'sera' };
+      warnings.push(
+        `Saluto incongruente: "${detectedGreeting}" usato alle ore ${currentHour}:00 ` +
+        `(dovrebbe essere ${timeSlotNames[expectedTimeSlot]})`
+      );
+      score *= 0.95; // Penalità lieve (errore di cortesia, non sostanziale)
+
+      return {
+        score,
+        warnings,
+        detectedGreeting,
+        detectedTimeSlot,
+        expectedTimeSlot,
+        currentHour,
+        canAutoFix: true
+      };
+    }
+
+    return {
+      score,
+      warnings,
+      message: 'Saluto congruente con orario',
+      detectedGreeting,
+      detectedTimeSlot,
+      expectedTimeSlot,
+      currentHour
+    };
+  }
+
   // ========================================================================
   // METODI DI AUTO-CORREZIONE (SELF-HEALING)
   // ========================================================================
@@ -679,6 +819,16 @@ class ResponseValidator {
       }
     }
 
+    // 3. Correzione Saluto temporalmente incongruente
+    if (!errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('placeholder'))) {
+      const salutoOttimizzato = this._ottimizzaSalutoTemporale(textPerfezionato, language);
+      if (salutoOttimizzato !== textPerfezionato) {
+        textPerfezionato = salutoOttimizzato;
+        modified = true;
+        console.log('   🩹 Ottimizzazione Saluto applicata');
+      }
+    }
+
     return { fixed: modified, text: textPerfezionato };
   }
 
@@ -696,6 +846,65 @@ class ResponseValidator {
       }
       return match;
     });
+  }
+
+  /**
+   * Corregge saluto temporalmente incongruente
+   * Es. "Buongiorno" alle 20:00 → "Buonasera"
+   */
+  _ottimizzaSalutoTemporale(text, language) {
+    if (!this.greetingPatterns[language]) return text;
+
+    // Determina fascia oraria corrente
+    const currentHour = new Date().getHours();
+    let correctTimeSlot;
+    if (currentHour >= 5 && currentHour < 12) {
+      correctTimeSlot = 'morning';
+    } else if (currentHour >= 12 && currentHour < 18) {
+      correctTimeSlot = 'afternoon';
+    } else {
+      correctTimeSlot = 'evening';
+    }
+
+    // Ottieni saluto corretto per l'orario
+    const correctGreeting = this.greetingPatterns[language][correctTimeSlot][0];
+    const correctGreetingCapitalized = correctGreeting.charAt(0).toUpperCase() + correctGreeting.slice(1);
+
+    // Cerca saluto errato nei primi 80 caratteri
+    const firstPart = text.substring(0, 80);
+    let fixedText = text;
+
+    // Itera su tutte le fasce orarie per trovare saluti errati
+    const patterns = this.greetingPatterns[language];
+    for (const [timeSlot, greetings] of Object.entries(patterns)) {
+      if (timeSlot === correctTimeSlot) continue; // Salta la fascia corretta
+
+      for (const greeting of greetings) {
+        const regex = new RegExp(`^(\\s*)(${greeting})\\b`, 'i');
+        const match = firstPart.match(regex);
+
+        if (match) {
+          const originalGreeting = match[2];
+          let replacement;
+
+          // Preserva capitalizzazione originale
+          if (originalGreeting === originalGreeting.toUpperCase()) {
+            replacement = correctGreetingCapitalized.toUpperCase();
+          } else if (originalGreeting[0] === originalGreeting[0].toUpperCase()) {
+            replacement = correctGreetingCapitalized;
+          } else {
+            replacement = correctGreeting;
+          }
+
+          // Sostituisci solo la prima occorrenza all'inizio
+          fixedText = text.replace(regex, `$1${replacement}`);
+          console.log(`   🔄 Saluto "${originalGreeting}" → "${replacement}" (ore ${currentHour}:00)`);
+          return fixedText;
+        }
+      }
+    }
+
+    return fixedText;
   }
 
   /**
@@ -733,9 +942,16 @@ class ResponseValidator {
 
     // Per ogni parola vietata, cerca ", Parola" e sostituisci con ", parola"
     // Usa word boundary \b per evitare match parziali
+    // Ma rispetta i nomi doppi: non correggere se seguito da altra maiuscola
     targets.forEach(word => {
       const regex = new RegExp(`,\\s+(${word})\\b`, 'g');
-      result = result.replace(regex, (match, p1) => {
+      result = result.replace(regex, (fullMatch, p1, offset) => {
+        // Euristica nomi doppi: se seguito da un'altra parola maiuscola, non correggere
+        const afterMatchPos = offset + fullMatch.length;
+        const textAfter = result.substring(afterMatchPos);
+        if (textAfter.match(/^\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]+/)) {
+          return fullMatch; // Mantieni maiuscola: probabile nome doppio
+        }
         return `, ${p1.toLowerCase()}`;
       });
     });

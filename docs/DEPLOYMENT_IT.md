@@ -1,5 +1,7 @@
 # 🚀 Deployment in Produzione
 
+[![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](DEPLOYMENT.md)
+
 > **Guida completa per mettere in produzione il sistema in modo sicuro e professionale**
 
 ---

@@ -1,5 +1,7 @@
 # 🌳 Quick Decision Tree - What To Do If...
 
+[![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](QUICK_DECISION_TREE_IT.md)
+
 > **Visual guide for quickly solving the most common system problems**
 
 ---

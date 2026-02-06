@@ -543,6 +543,7 @@ class GmailService {
 
   /**
    * Corregge errori comuni di punteggiatura
+   * Gestisce eccezioni per nomi doppi (es. "Maria Isabella")
    */
   fixPunctuation(text, senderName = '') {
     if (!text) return text;
@@ -567,8 +568,19 @@ class GmailService {
 
       const afterMatch = text.substring(offset + match.length);
 
-      if (afterMatch.match(/^\s*[,.]/) ||
-        afterMatch.match(/^\s+e\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]*\s*[,.]/)) {
+      // Eccezione per virgola/punto successivo
+      if (afterMatch.match(/^\s*[,.]/)) {
+        return match;
+      }
+
+      // Eccezione per congiunzione "e" seguita da nome (es. "Maria e Giovanni,")
+      if (afterMatch.match(/^\s+e\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]*\s*[,.]/)) {
+        return match;
+      }
+
+      // Euristica nomi doppi: se la parola è seguita da un'altra parola maiuscola,
+      // probabilmente sono nomi propri (es. "Maria Isabella", "Gian Luca", "Carlo Alberto")
+      if (afterMatch.match(/^\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]+/)) {
         return match;
       }
 

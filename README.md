@@ -81,9 +81,9 @@ graph LR
 | Gmail | Free | Existing account |
 | Google Drive | Free | Standard quota sufficient |
 | Google Apps Script | Free | Hosting included |
-| Gemini AI API | ~€5-15/month | Depends on email volume (~1000 emails/month = €10) |
+| Gemini AI API | **Free** | Up to 50 emails/day with free tier |
 
-💡 **Realistic estimate:** For an average parish (50-100 emails/week), total cost **~€8/month**.
+💡 **Note:** Within the free tier limits (50 emails/day), the system is **completely free**.
 
 ---
 
@@ -138,12 +138,6 @@ graph LR
         │ + Label "IA" │  │ Human Needed │
         └──────────────┘  └──────────────┘
 ```
-
-**Real Statistics (Rome Case Study)**
-- ⚡ Average response time: **< 5 minutes** (was 2-3 days)
-- 📊 Automated emails: **78%** (target: >70%)
-- ⏱️ Secretariat time saved: **12 hours/week**
-- 😊 User satisfaction: **94%** (+22 points)
 
 ---
 
@@ -295,27 +289,6 @@ If API usage exceeds 80%, the system:
 
 ---
 
-## 📊 Real Statistics (Case Study)
-
-**St. John the Baptist Parish - Rome (3000 families)**
-
-| Metric | Before | After | Improvement |
-|---------|-------|------|---------------|
-| Avg Response Time | 2-3 days | < 5 minutes | **99% faster** |
-| Processed Emails/Week | ~80 | ~85 | Same volume |
-| Secretariat Time on Emails | 15 hours/week | 3 hours/week | **-80% time** |
-| User Satisfaction | 72% | 94% | **+22 points** |
-| Emails Requiring Human Intervention | 100% | 23% | **-77%** |
-
-**Successfully automated email types:**
-- ✅ 95% schedule/contact requests
-- ✅ 88% sacrament info (general requirements)
-- ✅ 92% territory verifications
-- ✅ 78% event/activity requests
-- ❌ 15% complex pastoral situations (remain human - **correct!**)
-
----
-
 ## 🛡️ Security and Privacy
 
 ### GDPR Compliance
@@ -405,16 +378,13 @@ Developed with ❤️ for parish communities by volunteers and professionals.
 
 ## 📈 Roadmap
 
-**In development (Q1 2026):**
-- [ ] Web dashboard for statistics
-- [ ] WhatsApp Business Integration
-- [ ] Automatic monthly report export
-- [ ] Asian language support (中文, 日本語)
-
 **Future ideas:**
+- [ ] OCR attachments processing (PDF and images)
 - [ ] Google Calendar integration for bookings
 - [ ] SMS notifications for urgency
 - [ ] Mobile app for secretariat management
+- [ ] Web dashboard for statistics
+- [ ] WhatsApp Business Integration
 
 ---
 

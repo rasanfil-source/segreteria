@@ -1,5 +1,7 @@
 # Advanced Configuration
 
+[![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](CONFIGURATION_IT.md)
+
 This document details the configuration parameters available in `gas_config.js`.
 
 ## Core Configuration (`CONFIG`)
