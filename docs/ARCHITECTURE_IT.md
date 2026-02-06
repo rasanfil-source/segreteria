@@ -213,7 +213,7 @@ Email Arriva
 **Key Functions:**
 ```javascript
 main()                  // Entry point trigger
-loadResources()         // Carica KB + ferie + replacements
+loadResources()         // Carica KB + ferie (Cache 6 ore per KB < 100KB)
 isInSuspensionTime()    // Verifica sospensione
 getSpecialMassTimeRule()// Regole messe giorni festivi
 ```
