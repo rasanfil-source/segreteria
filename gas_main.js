@@ -303,49 +303,47 @@ function _parseSheetToStructured(data) {
  * @param {Spreadsheet} spreadsheet
  */
 function _loadVacationPeriodsFromSheet(spreadsheet) {
-  // Rimosso try-catch interno per permettere all'errore di risalire (fail loudly)
-  const controlSheet = spreadsheet.getSheetByName('Controllo');
+  try {
+    const controlSheet = spreadsheet.getSheetByName('Controllo');
+    if (controlSheet) {
+      const ferieRows = controlSheet.getRange('A6:C10').getValues();
+      const validPeriods = [];
 
-  if (!controlSheet) {
-    // ERRORE CRITICO: Se manca il foglio Controllo, la logica ferie non può funzionare.
-    // Lanciamo un errore per notificare l'amministratore (via log/email errore standard).
-    throw new Error('CRITICO: Foglio "Controllo" non trovato nel file Google Sheets. Impossibile caricare periodi ferie.');
-  }
+      for (const row of ferieRows) {
+        if (!row[1] || !row[2]) continue;
 
-  const ferieRows = controlSheet.getRange('A6:C10').getValues();
-  const validPeriods = [];
+        let startDate, endDate;
+        try {
+          startDate = new Date(row[1]);
+          endDate = new Date(row[2]);
 
-  for (const row of ferieRows) {
-    if (!row[1] || !row[2]) continue;
+          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            console.warn(`⚠️ Formato data non valido: ${row[1]} - ${row[2]}`);
+            continue;
+          }
 
-    let startDate, endDate;
-    try {
-      startDate = new Date(row[1]);
-      endDate = new Date(row[2]);
+          if (endDate < startDate) {
+            console.warn(`⚠️ Data fine precedente a data inizio: ${startDate.toLocaleDateString()} > ${endDate.toLocaleDateString()}`);
+            continue;
+          }
 
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        console.warn(`⚠️ Formato data non valido in foglio Controllo: ${row[1]} - ${row[2]}`);
-        continue;
+          validPeriods.push({ start: startDate, end: endDate });
+        } catch (parsingErr) {
+          console.warn(`⚠️ Errore parsing date ferie: ${parsingErr.message}`);
+          continue;
+        }
       }
 
-      if (endDate < startDate) {
-        console.warn(`⚠️ Data fine precedente a data inizio in foglio Controllo: ${startDate.toLocaleDateString()} > ${endDate.toLocaleDateString()}`);
-        continue;
+      if (validPeriods.length > 0) {
+        console.log(`✓ Periodi ferie caricati: ${validPeriods.length} periodo/i`);
+        return validPeriods;
       }
-
-      validPeriods.push({ start: startDate, end: endDate });
-    } catch (parsingErr) {
-      console.warn(`⚠️ Errore parsing date ferie: ${parsingErr.message}`);
-      continue;
+    } else {
+      console.warn('⚠️ Foglio "Controllo" non trovato - periodi ferie non caricati (assumo Nessuna Ferie)');
     }
+  } catch (ferieErr) {
+    console.warn(`⚠️ Impossibile caricare periodi ferie: ${ferieErr.message}`);
   }
-
-  if (validPeriods.length > 0) {
-    console.log(`✓ Periodi ferie caricati: ${validPeriods.length} periodo/i`);
-    return validPeriods;
-  }
-
-  // Se il foglio c'è ma non ci sono ferie, va bene.
   return [];
 }
 
