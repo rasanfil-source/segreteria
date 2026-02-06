@@ -248,7 +248,6 @@ ${GLOBAL_CACHE.aiCore}
         topic,
         emailContent,
         emailSubject,
-        emailSubject,
         promptProfile,
         subIntents
       );
