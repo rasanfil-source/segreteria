@@ -95,7 +95,8 @@ class PromptEngine {
       activeConcerns = {},
       salutationMode = 'full',
       responseDelay = null,
-      territoryContext = null
+      territoryContext = null,
+      attachmentsContext = ''
     } = options;
 
     let sections = [];
@@ -269,6 +270,7 @@ ${GLOBAL_CACHE.doctrineBase}
       addSection(this._renderConversationHistory(conversationHistory), 'ConversationHistory');
     }
     addSection(this._renderEmailContent(emailContent, emailSubject, senderName, senderEmail, detectedLanguage), 'EmailContent');
+    addSection(this._renderAttachmentContext(attachmentsContext), 'AttachmentsContext');
 
     // ════════════════════════════════════════════════════════════════════════
     // BLOCCO 3: LINEE GUIDA E TEMPLATE
@@ -1177,6 +1179,16 @@ Contenuto:
 <user_email>
 ${emailContent}
 </user_email>`;
+  }
+
+  // ========================================================================
+  // TEMPLATE 18: CONTENUTO ALLEGATI (OCR/PDF)
+  // ========================================================================
+
+  _renderAttachmentContext(attachmentsContext) {
+    if (!attachmentsContext) return '';
+    return `**ALLEGATI (TESTO OCR/PDF):**
+${attachmentsContext}`;
   }
 
   // ========================================================================

@@ -195,9 +195,13 @@ class EmailProcessor {
       // Seleziona ultimo messaggio non letto non etichettato da esterni
       candidate = externalUnread[externalUnread.length - 1];
       const messageDetails = this.gmailService.extractMessageDetails(candidate);
+      const attachmentContext = this.gmailService.extractAttachmentContext(candidate);
 
       console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
       console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
+      if (attachmentContext && attachmentContext.items && attachmentContext.items.length > 0) {
+        console.log(`   📎 Allegati OCR: ${attachmentContext.items.length} file inclusi nel contesto`);
+      }
 
       if (messageDetails.isNewsletter) {
         console.log('   ⊘ Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
@@ -593,7 +597,8 @@ ${addressLines.join('\n\n')}
         promptProfile: promptProfile,
         activeConcerns: activeConcerns,
         territoryContext: territoryContext, // Passiamo il contesto separatamente per rendering prioritario
-        requestType: requestType // Aggiunto per recupero selettivo Dottrina
+        requestType: requestType, // Aggiunto per recupero selettivo Dottrina
+        attachmentsContext: attachmentContext ? attachmentContext.text : ''
       };
 
       const prompt = this.promptEngine.buildPrompt(promptOptions);

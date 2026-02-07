@@ -226,13 +226,13 @@ class GeminiRateLimiter {
     // Aumentato timeout acquisizione per gestione alta concorrenza
     const lockAcquired = lock.tryLock(5000);
 
+    let selectedResult = null;
     try {
       if (lockAcquired) {
         // Rinfresca i contatori per avere dati aggiornati sotto lock
         this._refreshCache();
       }
 
-      let selectedResult = null;
       for (var i = 0; i < candidates.length; i++) {
         const modelKey = candidates[i];
         const result = this._validateModelAvailability(modelKey, estimatedTokens);
@@ -243,19 +243,11 @@ class GeminiRateLimiter {
         }
       }
 
-      return selectedResult || {
-        available: false,
-        modelKey: null,
-        reason: 'all_quotas_exhausted',
-        nextResetTime: this._getNextResetTime()
-      };
     } finally {
       if (lockAcquired) lock.releaseLock();
     }
 
-    // Nessun modello disponibile
-    console.error('❌ NESSUN MODELLO DISPONIBILE');
-    return {
+    return selectedResult || {
       available: false,
       modelKey: null,
       reason: 'all_quotas_exhausted',
@@ -389,28 +381,8 @@ class GeminiRateLimiter {
     const estimatedTokens = options.estimatedTokens || 1000;
     const maxRetries = options.maxRetries || 3;
     const preferQuality = options.preferQuality || false;
-    const skipRateLimit = options.skipRateLimit || false;
 
-    // 0. Bypass esplicito (cross-key quality strategy)
-    if (skipRateLimit) {
-      console.log('⚡ skipRateLimit attivo: bypasso controlli disponibilità');
-      // Inizializza variabili minime per il tracking
-      const defaultSelection = this.selectModel(taskType, { preferQuality: preferQuality });
-      const model = defaultSelection.model;
-      const modelKey = defaultSelection.modelKey;
-
-      try {
-        const startTime = Date.now();
-        const result = requestFn(model.name);
-        const duration = Date.now() - startTime;
-        this._trackRequest(modelKey, estimatedTokens, duration);
-        return { success: true, result: result, modelUsed: model.name, modelKey: modelKey, duration: duration };
-      } catch (e) {
-        throw e;
-      }
-    }
-
-    // 1. Selezione modello standard (se non bypassato)
+    // 1. Selezione modello standard
     const selection = this.selectModel(taskType, { preferQuality: preferQuality });
 
     if (!selection.available) {

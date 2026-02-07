@@ -42,5 +42,34 @@ Questi valori devono essere impostati in **Impostazioni Progetto > Proprietà de
 - `SPREADSHEET_ID`
 - `METRICS_SHEET_ID` (Opzionale, per statistiche giornaliere)
 
+## OCR Allegati (`ATTACHMENT_CONTEXT`)
+
+> **Prerequisito**: Abilitare il **Drive Advanced Service** nell'editor dello script e la **Drive API** nel progetto GCP collegato.
+
+Questa funzionalità estrae il testo da allegati PDF e immagini utilizzando l'OCR integrato di Google Drive, includendo poi il testo nel prompt per l'analisi.
+
+### Parametri
+| Parametro | Default | Descrizione |
+|-----------|---------|-------------|
+| `enabled` | `true` | Abilita/disabilita l'elaborazione OCR degli allegati |
+| `maxFiles` | `4` | Numero massimo di allegati da processare per email |
+| `maxBytesPerFile` | `5MB` | Dimensione massima per allegato |
+| `maxCharsPerFile` | `4000` | Caratteri massimi estratti per file |
+| `maxTotalChars` | `12000` | Caratteri totali massimi da tutti gli allegati |
+| `ocrLanguage` | `'it'` | Codice lingua OCR (Italiano) |
+| `pdfMaxPages` | `2` | Limite pagine stimato per PDF |
+| `pdfCharsPerPage` | `1800` | Caratteri stimati per pagina PDF |
+
+### Tipi di File Supportati
+- **Documenti PDF** (`.pdf`)
+- **Immagini** (`.jpg`, `.png`, `.gif`, `.bmp`, ecc.)
+
+### Funzionamento
+1. Il sistema carica l'allegato su Google Drive con OCR abilitato
+2. Drive converte automaticamente il file in un Google Doc con testo estratto
+3. Il testo viene recuperato e il file temporaneo eliminato
+4. Il testo estratto viene incluso nel prompt come contesto
+
 ## Soglie di Validazione
 - **VALIDATION_MIN_SCORE**: `0.6` (Punteggio minimo per invio automatico). Abbassalo a 0.5 se troppe email vengono marcate come "Verifica".
+

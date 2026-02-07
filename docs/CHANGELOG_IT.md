@@ -9,6 +9,26 @@ e questo progetto aderisce a [Semantic Versioning](https://semver.org/lang/it/).
 
 ---
 
+## [2.7.0] - 2026-02-07
+
+### 🎉 Aggiunto
+- **OCR Allegati (PDF e Immagini)**: Estrazione testo da allegati PDF e immagini tramite OCR integrato di Google Drive
+  - Nuova sezione di configurazione `ATTACHMENT_CONTEXT` con limiti e impostazioni lingua
+  - `GmailService.extractAttachmentContext()`: Elabora gli allegati del messaggio
+  - `GmailService._extractOcrTextFromAttachment()`: OCR via Drive Advanced Service
+  - `PromptEngine._renderAttachmentContext()`: Include il testo estratto nel prompt
+  - 11 nuovi test unitari per la funzionalità OCR
+
+### 🔧 Modificato
+- `gas_email_processor.js`: Integrazione dell'estrazione contesto allegati nella pipeline di elaborazione email
+- `gas_prompt_engine.js`: Nuovo parametro `attachmentsContext` in `buildPrompt()`
+
+### 📚 Documentazione
+- Aggiornati `CONFIGURATION.md` e `CONFIGURATION_IT.md` con sezione OCR Allegati
+- Aggiunto prerequisito: Drive Advanced Service deve essere abilitato
+
+---
+
 ## [2.5.5] - 2026-01-27
 
 ### 🔧 Ottimizzato

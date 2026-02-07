@@ -235,6 +235,168 @@ class GmailService {
     };
   }
 
+  // ========================================================================
+  // ALLEGATI: OCR PDF/IMMAGINI PER CONTESTO PROMPT
+  // ========================================================================
+
+  /**
+   * Estrae testo OCR dagli allegati (PDF/immagini) per contesto prompt.
+   * Richiede Drive Advanced Service abilitato.
+   * @param {GmailMessage} message
+   * @param {object} options
+   * @returns {{text: string, items: Array, skipped: Array}}
+   */
+  extractAttachmentContext(message, options = {}) {
+    const defaults = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT)
+      ? CONFIG.ATTACHMENT_CONTEXT
+      : {};
+    const settings = Object.assign({
+      enabled: true,
+      maxFiles: 4,
+      maxBytesPerFile: 5 * 1024 * 1024,
+      maxCharsPerFile: 4000,
+      maxTotalChars: 12000,
+      ocrLanguage: 'it',
+      pdfMaxPages: 2,
+      pdfCharsPerPage: 1800
+    }, defaults, options);
+
+    if (!settings.enabled) {
+      return { text: '', items: [], skipped: [] };
+    }
+
+    let attachments = [];
+    try {
+      attachments = message.getAttachments({ includeInlineImages: false, includeAttachments: true }) || [];
+    } catch (e) {
+      console.warn(`⚠️ Impossibile leggere allegati: ${e.message}`);
+      return { text: '', items: [], skipped: [{ reason: 'read_error', error: e.message }] };
+    }
+
+    if (attachments.length === 0) {
+      return { text: '', items: [], skipped: [] };
+    }
+
+    const items = [];
+    const skipped = [];
+    let totalChars = 0;
+
+    for (const attachment of attachments) {
+      if (items.length >= settings.maxFiles) {
+        skipped.push({ name: attachment.getName(), reason: 'max_files' });
+        continue;
+      }
+
+      const contentType = (attachment.getContentType() || '').toLowerCase();
+      const isPdf = contentType.includes('pdf');
+      const isImage = contentType.startsWith('image/');
+
+      if (!isPdf && !isImage) {
+        skipped.push({ name: attachment.getName(), reason: 'unsupported_type' });
+        continue;
+      }
+
+      const size = attachment.getSize ? attachment.getSize() : 0;
+      if (size > settings.maxBytesPerFile) {
+        skipped.push({ name: attachment.getName(), reason: 'too_large', size: size });
+        continue;
+      }
+
+      const ocrText = this._extractOcrTextFromAttachment(attachment, settings);
+      const normalized = this._normalizeAttachmentText(ocrText);
+      if (!normalized) {
+        skipped.push({ name: attachment.getName(), reason: 'empty_ocr' });
+        continue;
+      }
+
+      let perFileLimit = settings.maxCharsPerFile;
+      if (isPdf && settings.pdfMaxPages && settings.pdfCharsPerPage) {
+        const estimatedPages = Math.ceil(normalized.length / settings.pdfCharsPerPage);
+        if (estimatedPages > settings.pdfMaxPages) {
+          const estimatedLimit = settings.pdfMaxPages * settings.pdfCharsPerPage;
+          perFileLimit = Math.min(perFileLimit, estimatedLimit);
+        }
+      }
+
+      let clipped = normalized.slice(0, perFileLimit).trim();
+      if (!clipped) {
+        skipped.push({ name: attachment.getName(), reason: 'empty_after_clip' });
+        continue;
+      }
+
+      const remaining = settings.maxTotalChars - totalChars;
+      if (remaining <= 0) {
+        skipped.push({ name: attachment.getName(), reason: 'total_limit' });
+        break;
+      }
+
+      if (clipped.length > remaining) {
+        clipped = clipped.slice(0, Math.max(0, remaining - 1)).trim() + '…';
+      }
+
+      items.push({
+        name: attachment.getName(),
+        contentType: contentType,
+        size: size,
+        text: clipped
+      });
+
+      totalChars += clipped.length;
+    }
+
+    if (items.length === 0) {
+      return { text: '', items: [], skipped: skipped };
+    }
+
+    const text = items.map((item, idx) => {
+      const sizeKb = item.size ? `${Math.round(item.size / 1024)}KB` : 'n/a';
+      return `(${idx + 1}) ${item.name} [${item.contentType || 'tipo sconosciuto'}, ${sizeKb}]\n${item.text}`;
+    }).join('\n\n');
+
+    return { text: text, items: items, skipped: skipped };
+  }
+
+  _extractOcrTextFromAttachment(attachment, settings) {
+    let fileId = null;
+    try {
+      if (typeof Drive === 'undefined' || !Drive.Files || !Drive.Files.insert) {
+        throw new Error('Drive Advanced Service non abilitato');
+      }
+
+      const blob = attachment.copyBlob();
+      const resource = {
+        title: `OCR_${attachment.getName() || 'allegato'}`,
+        mimeType: blob.getContentType()
+      };
+
+      const file = Drive.Files.insert(resource, blob, {
+        ocr: true,
+        ocrLanguage: settings.ocrLanguage || 'it',
+        convert: true
+      });
+      fileId = file.id;
+
+      const doc = DocumentApp.openById(fileId);
+      return doc.getBody().getText();
+    } catch (e) {
+      console.warn(`⚠️ OCR allegato fallito: ${e.message}`);
+      return '';
+    } finally {
+      if (fileId) {
+        try {
+          Drive.Files.remove(fileId);
+        } catch (e) {
+          console.warn(`⚠️ Cleanup OCR allegato fallito (${fileId}): ${e.message}`);
+        }
+      }
+    }
+  }
+
+  _normalizeAttachmentText(text) {
+    if (!text || typeof text !== 'string') return '';
+    return text.replace(/\s+/g, ' ').trim();
+  }
+
   _extractSenderName(fromField) {
     if (!fromField || typeof fromField !== 'string') {
       return 'Utente';

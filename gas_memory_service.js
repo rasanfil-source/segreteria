@@ -786,7 +786,7 @@ class MemoryService {
   }
 
   /**
-   * Pulisce la cache dagli elementi scaduti
+   * Unisce dati di finestra (WAL) con esistenti, de-duplica per timestamp
    */
   _mergeWindowData(existing, walData) {
     const existingTimestamps = new Set(existing.map(e => e.timestamp));
@@ -803,6 +803,10 @@ class MemoryService {
 
     return merged.sort((a, b) => a.timestamp - b.timestamp).slice(-100);
   }
+
+  /**
+   * Pulisce la cache dagli elementi scaduti
+   */
   _gcCache() {
     const now = Date.now();
     let deletedCount = 0;

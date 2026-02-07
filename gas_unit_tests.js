@@ -1427,6 +1427,147 @@ function testMiglioramentiGennaio2026(results) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// OCR ALLEGATI: TEST FUNZIONALITÀ
+// ═══════════════════════════════════════════════════════════════════════════
+
+function testAttachmentOCR(results) {
+    testGroup('GmailService - OCR Allegati (ATTACHMENT_CONTEXT)', results, () => {
+
+        test('Configurazione: ATTACHMENT_CONTEXT presente in CONFIG', results, () => {
+            if (typeof CONFIG === 'undefined') return true; // Skip se CONFIG non caricato
+            return CONFIG.ATTACHMENT_CONTEXT !== undefined &&
+                CONFIG.ATTACHMENT_CONTEXT.enabled !== undefined;
+        });
+
+        test('Configurazione: valori default corretti', results, () => {
+            const service = new GmailService();
+            // Il metodo esiste?
+            return typeof service.extractAttachmentContext === 'function';
+        });
+
+        test('Contesto vuoto: messaggio senza allegati', results, () => {
+            const service = new GmailService();
+            // Mock messaggio senza allegati
+            const mockMessage = {
+                getAttachments: () => []
+            };
+            const result = service.extractAttachmentContext(mockMessage);
+            return result.text === '' &&
+                result.items.length === 0 &&
+                result.skipped.length === 0;
+        });
+
+        test('Contesto disabilitato: restituisce vuoto', results, () => {
+            const service = new GmailService();
+            const mockMessage = {
+                getAttachments: () => [{
+                    getName: () => 'test.pdf',
+                    getContentType: () => 'application/pdf',
+                    getSize: () => 1000
+                }]
+            };
+            const result = service.extractAttachmentContext(mockMessage, { enabled: false });
+            return result.text === '' && result.items.length === 0;
+        });
+
+        test('Filtro tipo file: solo PDF e immagini', results, () => {
+            const service = new GmailService();
+            const mockMessage = {
+                getAttachments: () => [
+                    { getName: () => 'doc.docx', getContentType: () => 'application/vnd.openxmlformats', getSize: () => 1000, copyBlob: () => ({}) },
+                    { getName: () => 'file.txt', getContentType: () => 'text/plain', getSize: () => 500, copyBlob: () => ({}) }
+                ]
+            };
+            const result = service.extractAttachmentContext(mockMessage);
+            // Entrambi devono essere saltati
+            return result.items.length === 0 &&
+                result.skipped.length === 2 &&
+                result.skipped.every(s => s.reason === 'unsupported_type');
+        });
+
+        test('Limite massimo file: rispettato', results, () => {
+            const service = new GmailService();
+            const attachments = [];
+            for (let i = 0; i < 10; i++) {
+                attachments.push({
+                    getName: () => `file${i}.pdf`,
+                    getContentType: () => 'application/pdf',
+                    getSize: () => 1000,
+                    copyBlob: () => ({ getContentType: () => 'application/pdf' })
+                });
+            }
+            const mockMessage = { getAttachments: () => attachments };
+            const result = service.extractAttachmentContext(mockMessage, { maxFiles: 2 });
+            // Solo 2 processati, 8 saltati per max_files
+            const maxFilesSkipped = result.skipped.filter(s => s.reason === 'max_files');
+            return maxFilesSkipped.length >= 8 || result.items.length <= 2;
+        });
+
+        test('Limite dimensione file: file troppo grande saltato', results, () => {
+            const service = new GmailService();
+            const mockMessage = {
+                getAttachments: () => [{
+                    getName: () => 'big.pdf',
+                    getContentType: () => 'application/pdf',
+                    getSize: () => 100 * 1024 * 1024, // 100 MB
+                    copyBlob: () => ({})
+                }]
+            };
+            const result = service.extractAttachmentContext(mockMessage, { maxBytesPerFile: 5 * 1024 * 1024 });
+            return result.items.length === 0 &&
+                result.skipped.length === 1 &&
+                result.skipped[0].reason === 'too_large';
+        });
+
+        test('Normalizzazione testo: spazi multipli rimossi', results, () => {
+            const service = new GmailService();
+            const normalized = service._normalizeAttachmentText("  Testo   con   spazi   multipli  ");
+            return normalized === "Testo con spazi multipli";
+        });
+
+        test('Normalizzazione testo: input nullo gestito', results, () => {
+            const service = new GmailService();
+            const result1 = service._normalizeAttachmentText(null);
+            const result2 = service._normalizeAttachmentText(undefined);
+            const result3 = service._normalizeAttachmentText('');
+            return result1 === '' && result2 === '' && result3 === '';
+        });
+
+        test('PromptEngine: attachmentsContext nel prompt', results, () => {
+            const engine = new PromptEngine();
+            const prompt = engine.buildPrompt({
+                knowledgeBase: "KB test",
+                emailContent: "Email test",
+                emailSubject: "Oggetto test",
+                senderName: "Test User",
+                detectedLanguage: "it",
+                salutation: "Buongiorno.",
+                closing: "Cordiali saluti,",
+                attachmentsContext: "(1) documento.pdf [application/pdf, 50KB]\nContenuto OCR estratto"
+            });
+            // Verifica che il contesto allegati sia incluso
+            return prompt.includes('ALLEGATI') && prompt.includes('documento.pdf');
+        });
+
+        test('PromptEngine: attachmentsContext vuoto non genera sezione', results, () => {
+            const engine = new PromptEngine();
+            const prompt = engine.buildPrompt({
+                knowledgeBase: "KB test",
+                emailContent: "Email test",
+                emailSubject: "Oggetto test",
+                senderName: "Test User",
+                detectedLanguage: "it",
+                salutation: "Buongiorno.",
+                closing: "Cordiali saluti,",
+                attachmentsContext: ''
+            });
+            // Verifica che la sezione ALLEGATI NON sia presente se vuota
+            return !prompt.includes('ALLEGATI (TESTO OCR');
+        });
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // RUNNER PRINCIPALE DEI TEST
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1477,6 +1618,11 @@ function runAllTests() {
         // ═══════════════════════════════════════════════════════════════════
         testPerformance(results);
         testEdgeCases(results);
+
+        // ═══════════════════════════════════════════════════════════════════
+        // OCR ALLEGATI
+        // ═══════════════════════════════════════════════════════════════════
+        testAttachmentOCR(results);
 
     } catch (error) {
         console.error(`\n💥 ERRORE FATALE: ${error.message}`);

@@ -42,5 +42,34 @@ These values must be set in **Project Settings > Script Properties**:
 - `SPREADSHEET_ID`
 - `METRICS_SHEET_ID` (Optional, for daily stats)
 
+## Attachment OCR (`ATTACHMENT_CONTEXT`)
+
+> **Prerequisite**: Enable the **Drive Advanced Service** in the script editor and the **Drive API** in the linked GCP project.
+
+This feature extracts text from PDF and image attachments using Google Drive's built-in OCR, then includes that text in the prompt for analysis.
+
+### Parameters
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `enabled` | `true` | Enable/disable attachment OCR processing |
+| `maxFiles` | `4` | Maximum number of attachments to process per email |
+| `maxBytesPerFile` | `5MB` | Maximum file size per attachment |
+| `maxCharsPerFile` | `4000` | Maximum characters extracted per file |
+| `maxTotalChars` | `12000` | Maximum total characters from all attachments |
+| `ocrLanguage` | `'it'` | OCR language code (Italian) |
+| `pdfMaxPages` | `2` | Estimated page limit for PDFs |
+| `pdfCharsPerPage` | `1800` | Estimated characters per PDF page |
+
+### Supported File Types
+- **PDF documents** (`.pdf`)
+- **Images** (`.jpg`, `.png`, `.gif`, `.bmp`, etc.)
+
+### How It Works
+1. The system uploads the attachment to Google Drive with OCR enabled
+2. Drive automatically converts the file to a Google Doc with extracted text
+3. The text is retrieved and the temporary file is deleted
+4. Extracted text is included in the prompt as context
+
 ## Validation Thresholds
 - **VALIDATION_MIN_SCORE**: `0.6` (Minimum quality score to send automatically). Lower this if too many emails are marked as "Verifica".
+
