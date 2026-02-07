@@ -267,7 +267,7 @@ class GmailService {
 
     let attachments = [];
     try {
-      attachments = message.getAttachments({ includeInlineImages: false, includeAttachments: true }) || [];
+      attachments = message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
     } catch (e) {
       console.warn(`⚠️ Impossibile leggere allegati: ${e.message}`);
       return { text: '', items: [], skipped: [{ reason: 'read_error', error: e.message }] };
