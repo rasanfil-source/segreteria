@@ -121,19 +121,29 @@ class GeminiService {
     }
 
     const responseCode = response.getResponseCode();
+    const responseBody = response.getContentText();
 
-    // Punto 4: Estesa gestione errori ritentabili includendo 500, 502 e 504
+    // Separazione errori di rete/quota vs contenuto con semplici if
     if ([429, 500, 502, 503, 504].includes(responseCode)) {
-      throw new Error(`Errore server o quota (${responseCode}). Richiesto retry.`);
+      throw new Error(`Errore rete/server o quota (${responseCode}). Richiesto retry.`);
+    }
+
+    if (responseCode === 400) {
+      const bodyLower = responseBody.toLowerCase();
+      const isTokenLimit = bodyLower.includes('token') && (bodyLower.includes('limit') || bodyLower.includes('exceed'));
+      if (isTokenLimit) {
+        throw new Error('Errore contenuto: prompt supera il limite token del modello.');
+      }
+      throw new Error(`Errore contenuto: richiesta non valida (${responseCode}).`);
     }
 
     if (responseCode !== 200) {
-      throw new Error(`Errore API: ${responseCode} - ${response.getContentText().substring(0, 200)}`);
+      throw new Error(`Errore API: ${responseCode} - ${responseBody.substring(0, 200)}`);
     }
 
     let result;
     try {
-      result = JSON.parse(response.getContentText());
+      result = JSON.parse(responseBody);
     } catch (error) {
       throw new Error(`Risposta Gemini non JSON valida: ${error.message}`);
     }
