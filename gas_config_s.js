@@ -40,6 +40,16 @@ const CONFIG = {
     MAX_EMAILS_PER_RUN: 3,
     GMAIL_LABEL_CACHE_TTL: 3600000,      // 1 ora in millisecondi
     MAX_HISTORY_MESSAGES: 10,            // Massimo messaggi in cronologia thread
+    ATTACHMENT_CONTEXT: {
+        enabled: true,                   // Includi OCR allegati (PDF e immagini) nel prompt
+        maxFiles: 4,                     // Numero massimo di allegati da processare
+        maxBytesPerFile: 5 * 1024 * 1024,// 5 MB per file
+        maxCharsPerFile: 4000,           // Limite testo per singolo allegato
+        maxTotalChars: 12000,            // Limite totale testo allegati
+        ocrLanguage: 'it',               // Lingua OCR (Drive Advanced API)
+        pdfMaxPages: 2,                  // Limite pagine PDF (stima via OCR)
+        pdfCharsPerPage: 1800            // Stima caratteri per pagina PDF
+    },
 
     // === Cache e Lock ===
     CACHE_LOCK_TTL: 30,                  // Secondi (CacheService usa secondi)
