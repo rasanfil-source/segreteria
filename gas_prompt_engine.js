@@ -1192,7 +1192,7 @@ ${attachmentsContext}`;
   }
 
   // ========================================================================
-  // TEMPLATE 18: REGOLE NO REPLY
+  // TEMPLATE 19: REGOLE NO REPLY
   // ========================================================================
 
   _renderNoReplyRules() {
@@ -1213,7 +1213,7 @@ ${attachmentsContext}`;
   }
 
   // ========================================================================
-  // TEMPLATE 19: LINEE GUIDA TONO UMANO
+  // TEMPLATE 20: LINEE GUIDA TONO UMANO
   // ========================================================================
 
   _renderHumanToneGuidelines() {
@@ -1259,7 +1259,7 @@ ${attachmentsContext}`;
   }
 
   // ========================================================================
-  // TEMPLATE 20: ESEMPI
+  // TEMPLATE 21: ESEMPI
   // ========================================================================
 
   _renderExamples(category) {
@@ -1312,7 +1312,7 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
   }
 
   // ========================================================================
-  // TEMPLATE 21: LINEE GUIDA RISPOSTA
+  // TEMPLATE 22: LINEE GUIDA RISPOSTA
   // ========================================================================
 
   _renderResponseGuidelines(lang, season, salutation, closing) {
@@ -1372,7 +1372,7 @@ ${languageReminder}`;
   }
 
   // ========================================================================
-  // TEMPLATE 22: CASI SPECIALI
+  // TEMPLATE 23: CASI SPECIALI
   // ========================================================================
 
   _renderSpecialCases() {
@@ -1411,7 +1411,7 @@ Restiamo a disposizione."
   }
 
   // ========================================================================
-  // TEMPLATE 23: TEMPLATE SBATTEZZO
+  // TEMPLATE 24: TEMPLATE SBATTEZZO
   // ========================================================================
 
   _renderSbattezzoTemplate(senderName) {

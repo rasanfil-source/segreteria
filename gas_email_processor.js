@@ -201,6 +201,8 @@ class EmailProcessor {
       console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
       if (attachmentContext && attachmentContext.items && attachmentContext.items.length > 0) {
         console.log(`   📎 Allegati OCR: ${attachmentContext.items.length} file inclusi nel contesto`);
+      } else if (attachmentContext && attachmentContext.skipped && attachmentContext.skipped.length > 0) {
+        console.log(`   📎 Allegati OCR saltati: ${attachmentContext.skipped.length} (controlla dimensioni/servizi)`);
       }
 
       if (messageDetails.isNewsletter) {
