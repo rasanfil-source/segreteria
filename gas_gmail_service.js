@@ -276,14 +276,16 @@ class GmailService {
     if (attachments.length === 0) {
       return { text: '', items: [], skipped: [] };
     }
+    console.log(`   📎 Allegati trovati: ${attachments.length}`);
 
     const items = [];
     const skipped = [];
     let totalChars = 0;
 
     for (const attachment of attachments) {
+      const attachmentName = attachment.getName ? attachment.getName() : 'allegato';
       if (items.length >= settings.maxFiles) {
-        skipped.push({ name: attachment.getName(), reason: 'max_files' });
+        skipped.push({ name: attachmentName, reason: 'max_files' });
         continue;
       }
 
@@ -292,20 +294,20 @@ class GmailService {
       const isImage = contentType.startsWith('image/');
 
       if (!isPdf && !isImage) {
-        skipped.push({ name: attachment.getName(), reason: 'unsupported_type' });
+        skipped.push({ name: attachmentName, reason: 'unsupported_type', contentType: contentType });
         continue;
       }
 
       const size = attachment.getSize ? attachment.getSize() : 0;
       if (size > settings.maxBytesPerFile) {
-        skipped.push({ name: attachment.getName(), reason: 'too_large', size: size });
+        skipped.push({ name: attachmentName, reason: 'too_large', size: size });
         continue;
       }
 
       const ocrText = this._extractOcrTextFromAttachment(attachment, settings);
       const normalized = this._normalizeAttachmentText(ocrText);
       if (!normalized) {
-        skipped.push({ name: attachment.getName(), reason: 'empty_ocr' });
+        skipped.push({ name: attachmentName, reason: 'empty_ocr' });
         continue;
       }
 
@@ -320,13 +322,13 @@ class GmailService {
 
       let clipped = normalized.slice(0, perFileLimit).trim();
       if (!clipped) {
-        skipped.push({ name: attachment.getName(), reason: 'empty_after_clip' });
+        skipped.push({ name: attachmentName, reason: 'empty_after_clip' });
         continue;
       }
 
       const remaining = settings.maxTotalChars - totalChars;
       if (remaining <= 0) {
-        skipped.push({ name: attachment.getName(), reason: 'total_limit' });
+        skipped.push({ name: attachmentName, reason: 'total_limit' });
         break;
       }
 
@@ -335,7 +337,7 @@ class GmailService {
       }
 
       items.push({
-        name: attachment.getName(),
+        name: attachmentName,
         contentType: contentType,
         size: size,
         text: clipped

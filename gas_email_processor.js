@@ -200,9 +200,11 @@ class EmailProcessor {
       console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
       console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
       if (attachmentContext && attachmentContext.items && attachmentContext.items.length > 0) {
-        console.log(`   📎 Allegati OCR: ${attachmentContext.items.length} file inclusi nel contesto`);
+        const attachmentNames = attachmentContext.items.map(item => item.name).join(', ');
+        console.log(`   📎 Allegati OCR: ${attachmentContext.items.length} file inclusi nel contesto (${attachmentNames})`);
       } else if (attachmentContext && attachmentContext.skipped && attachmentContext.skipped.length > 0) {
-        console.log(`   📎 Allegati OCR saltati: ${attachmentContext.skipped.length} (controlla dimensioni/servizi)`);
+        const skippedNames = attachmentContext.skipped.map(item => item.name || item.reason).join(', ');
+        console.log(`   📎 Allegati OCR saltati: ${attachmentContext.skipped.length} (${skippedNames})`);
       }
 
       if (messageDetails.isNewsletter) {
