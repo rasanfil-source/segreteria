@@ -177,7 +177,8 @@ class ResponseValidator {
       const semHalluc = this.semanticValidator.validateHallucinations(
         currentResponse,
         knowledgeBase,
-        validationResult.details.hallucinations
+        validationResult.details.hallucinations,
+        emailContent
       );
 
       const semThinking = this.semanticValidator.validateThinkingLeak(
@@ -470,6 +471,12 @@ class ResponseValidator {
         if (hour >= 0 && hour <= 23) return `${h}:${m}`;
         return match;
       });
+      if (/^\d{1,2}$/.test(t)) {
+        const hour = parseInt(t, 10);
+        if (!isNaN(hour) && hour >= 0 && hour <= 23) {
+          return `${hour.toString().padStart(2, '0')}:00`;
+        }
+      }
       const parts = t.split(':');
       if (parts.length === 2) {
         try {
@@ -490,12 +497,15 @@ class ResponseValidator {
 
     // === Controllo orari ===
     const timePattern = /(?<![a-z]\.)\b\d{1,2}[:.]\d{2}\b(?!\.[a-z])/gi;
+    const timeOrHourPattern = /\b\d{1,2}(?:[:.]\d{2})?\b/g;
     const responseTimesRaw = response.match(timePattern) || [];
     const kbTimesRaw = safeKnowledgeBase.match(timePattern) || [];
+    const originalTimesRaw = (originalMessage || '').match(timeOrHourPattern) || [];
 
     const responseTimes = new Set(responseTimesRaw.map(normalizeTime));
     const kbTimes = new Set(kbTimesRaw.map(normalizeTime));
-    const inventedTimes = [...responseTimes].filter(t => !kbTimes.has(t));
+    const originalTimes = new Set(originalTimesRaw.map(normalizeTime));
+    const inventedTimes = [...responseTimes].filter(t => !kbTimes.has(t) && !originalTimes.has(t));
 
     if (inventedTimes.length > 0) {
       warnings.push(`Orari non in KB: ${inventedTimes.join(', ')}`);
@@ -1022,7 +1032,7 @@ class SemanticValidator {
   /**
    * Valida allucinazioni usando semantic similarity
    */
-  validateHallucinations(response, knowledgeBase, regexResult) {
+  validateHallucinations(response, knowledgeBase, regexResult, emailContent) {
     if (!this.shouldRun(regexResult.score) && regexResult.errors.length === 0) {
       console.log('   ⚡ Semantic hallucination check skippato (confidence alta)');
       return { isValid: true, confidence: regexResult.score, skipped: true };
@@ -1035,7 +1045,7 @@ class SemanticValidator {
     console.log('   🧠 Eseguo semantic hallucination check...');
 
     try {
-      const prompt = this._buildHallucinationPrompt(response, knowledgeBase);
+      const prompt = this._buildHallucinationPrompt(response, knowledgeBase, emailContent);
       const apiResponse = this._generateSemantic(prompt);
       const result = this._parseSemanticResponse(apiResponse);
       this._writeCache(cacheKey, result);
@@ -1083,16 +1093,24 @@ class SemanticValidator {
   // COSTRUTTORI PROMPT (ottimizzati per brevità)
   // ========================================================================
 
-  _buildHallucinationPrompt(response, knowledgeBase) {
+  _buildHallucinationPrompt(response, knowledgeBase, emailContent) {
     const kbTruncated = knowledgeBase && knowledgeBase.length > 2000
       ? knowledgeBase.substring(0, 2000) + '...[TRUNCATED]'
       : knowledgeBase;
+    const emailTruncated = emailContent && emailContent.length > 2000
+      ? emailContent.substring(0, 2000) + '...[TRUNCATED]'
+      : emailContent;
 
-    return `Sei un validatore. Verifica se la RISPOSTA contiene informazioni NON presenti nella BASE CONOSCENZA.
+    return `Sei un validatore. Verifica se la RISPOSTA contiene informazioni NON presenti nella BASE CONOSCENZA o nell'EMAIL ORIGINALE.
 
 BASE CONOSCENZA (fonte verità):
 """
 ${kbTruncated || ''}
+"""
+
+EMAIL ORIGINALE:
+"""
+${emailTruncated || ''}
 """
 
 RISPOSTA DA VALIDARE:
@@ -1106,7 +1124,7 @@ Estrai dalla RISPOSTA:
 2. Email menzionate
 3. Numeri telefono menzionati
 
-Per ciascuno, verifica se è presente (anche con sinonimi/varianti) nella BASE CONOSCENZA.
+Per ciascuno, verifica se è presente (anche con sinonimi/varianti) nella BASE CONOSCENZA o nell'EMAIL ORIGINALE.
 
 Rispondi SOLO con questo JSON (senza markdown):
 {

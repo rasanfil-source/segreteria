@@ -1465,6 +1465,7 @@ function runAllTests() {
         testClassifierEdgeCases(results);
         testRequestTypeClassifierAdvanced(results);
         testResponseValidatorAdvanced(results);
+        testResponseValidatorSemantic(results);
 
         // ═══════════════════════════════════════════════════════════════════
         // INTEGRAZIONE E SCENARI
@@ -1515,6 +1516,61 @@ function runAllTests() {
     }
 
     return results;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RESPONSE VALIDATOR: SEMANTIC CHECKS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function testResponseValidatorSemantic(results) {
+    testGroup('ResponseValidator - Semantic Validation & Hallucinations', results, () => {
+        test('Semantic Validator riceve email content per contesto', results, () => {
+            const validator = new ResponseValidator();
+            // Mock SemanticValidator
+            validator.semanticValidator = {
+                shouldRun: () => true,
+                validateHallucinations: (resp, kb, regex, email) => {
+                    if (email === 'Original Email Body') return { isValid: true, confidence: 1.0 };
+                    return { isValid: false, confidence: 0.0, reason: 'Email content missing' };
+                },
+                validateThinkingLeak: () => ({ isValid: true, confidence: 1.0 })
+            };
+
+            const result = validator.validateResponse(
+                "Test response", 'it', "KB", "Original Email Body", "Sub", 'full', false
+            );
+
+            return result.isValid === true;
+        });
+
+        test('Normalizzazione Orari: "18" corrisponde a "18:00" in email', results, () => {
+            const validator = new ResponseValidator();
+            validator.semanticValidator = null; // Solo regex
+
+            const email = "Puoi venire alle 18:00?";
+            const response = "Sì, vengo alle 18."; // "18" deve essere normalizzato a "18:00"
+            const kb = ""; // Vuota, quindi deve trovarlo nell'email
+
+            const result = validator.validateResponse(response, 'it', kb, email, "Sub", 'full', false);
+
+            // Non deve esserci errore di allucinazione orario
+            const hallucError = result.errors.find(e => e.includes('Orari non in KB'));
+            return !hallucError;
+        });
+
+        test('Normalizzazione Orari: "18.30" corrisponde a "18:30" in email', results, () => {
+            const validator = new ResponseValidator();
+            validator.semanticValidator = null;
+
+            const email = "Appuntamento alle 18:30";
+            const response = "Confermato per le 18.30";
+            const kb = "";
+
+            const result = validator.validateResponse(response, 'it', kb, email, "Sub", 'full', false);
+            const hallucError = result.errors.find(e => e.includes('Orari non in KB'));
+            return !hallucError;
+        });
+    });
 }
 
 // Entry point per GAS
