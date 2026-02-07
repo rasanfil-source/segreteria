@@ -7,6 +7,10 @@
 
 class TerritoryValidator {
     constructor() {
+        // Pre-compila le regex per riuso (ottimizzazione performance)
+        this._addressPatterns = this._buildAddressPatterns();
+        this._streetOnlyPattern = this._buildStreetOnlyPattern();
+
         // Database territorio parrocchiale
         this.territory = {
             'via adolfo cancani': {
@@ -72,6 +76,27 @@ class TerritoryValidator {
             'via di villa giulia': { tutti: true },
             'piazzale di villa giulia': { tutti: true }
         };
+    }
+
+    /**
+     * Pre-compila regex per indirizzi completi (via + civico)
+     */
+    _buildAddressPatterns() {
+        return [
+            // Pattern 1: "via Rossi 10" - Supporto alfanumerico (es. 10A, 10/B)
+            /\b(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\s{0,3}(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s{0,3}(\d{1,4}[a-zA-Z]?)\b/gi,
+
+            // Pattern 2: "abito in via Rossi 10"
+            /\b(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\s{0,3}(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s{0,3}(\d{1,4}[a-zA-Z]?)\b/gi
+        ];
+    }
+
+    /**
+     * Pre-compila regex per vie senza civico
+     */
+    _buildStreetOnlyPattern() {
+        // Pattern sicuro con lazy match
+        return /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ'\s]+?)\b(?!\s*(?:n\.?\s*|civico\s+)?\d+)/gi;
     }
 
     /**
@@ -189,14 +214,8 @@ class TerritoryValidator {
             console.warn(`⚠️ Input troncato a ${MAX_SAFE_LENGTH} caratteri (protezione memoria)`);
         }
 
-        // Punto 6: Pattern ottimizzati per prevenire ReDoS eliminando quantificatori sovrapposti e lazy matching eccessivo
-        const patterns = [
-            // Pattern 1: "via Rossi 10" - Supporto alfanumerico (es. 10A, 10/B)
-            /\b(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\s{0,3}(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s{0,3}(\d{1,4}[a-zA-Z]?)\b/gi,
-
-            // Pattern 2: "abito in via Rossi 10"
-            /\b(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\s{0,3}(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s{0,3}(\d{1,4}[a-zA-Z]?)\b/gi
-        ];
+        // Punto 6: Usa regex pre-compilate (ottimizzazione performance)
+        const patterns = this._addressPatterns;
 
         const addresses = [];
 
@@ -260,8 +279,8 @@ class TerritoryValidator {
             text = text.substring(0, 1000);
         }
 
-        // Pattern sicuro con lazy match
-        const pattern = /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ'\s]+?)\b(?!\s*(?:n\.?\s*|civico\s+)?\d+)/gi;
+        // Usa regex pre-compilata (ottimizzazione performance)
+        const pattern = this._streetOnlyPattern;
 
         const streets = [];
         let match;
