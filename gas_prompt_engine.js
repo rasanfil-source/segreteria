@@ -115,6 +115,7 @@ class PromptEngine {
     const kbCharsLimit = Math.round(availableForKB * 4);
 
     let workingKnowledgeBase = knowledgeBase;
+    let kbWasTruncated = false;
 
     // Troncamento proattivo della KB PRIMA di assemblare il prompt
     if (workingKnowledgeBase && workingKnowledgeBase.length > kbCharsLimit) {
@@ -123,6 +124,19 @@ class PromptEngine {
         workingKnowledgeBase,
         Math.max(1, Math.round(availableForKB))
       );
+      kbWasTruncated = true;
+    }
+
+    let workingAttachmentsContext = attachmentsContext;
+    if (kbWasTruncated && workingAttachmentsContext) {
+      const attachmentSettings = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT)
+        ? CONFIG.ATTACHMENT_CONTEXT
+        : {};
+      const attachmentLimit = attachmentSettings.maxCharsWhenKbTruncated || 2000;
+      if (workingAttachmentsContext.length > attachmentLimit) {
+        console.warn(`⚠️ KB troncata: riduco allegati da ${workingAttachmentsContext.length} a ${attachmentLimit} chars`);
+        workingAttachmentsContext = workingAttachmentsContext.slice(0, Math.max(0, attachmentLimit - 1)).trim() + '…';
+      }
     }
 
     let usedTokens = 0;
@@ -270,7 +284,7 @@ ${GLOBAL_CACHE.doctrineBase}
       addSection(this._renderConversationHistory(conversationHistory), 'ConversationHistory');
     }
     addSection(this._renderEmailContent(emailContent, emailSubject, senderName, senderEmail, detectedLanguage), 'EmailContent');
-    addSection(this._renderAttachmentContext(attachmentsContext), 'AttachmentsContext');
+    addSection(this._renderAttachmentContext(workingAttachmentsContext), 'AttachmentsContext');
 
     // ════════════════════════════════════════════════════════════════════════
     // BLOCCO 3: LINEE GUIDA E TEMPLATE

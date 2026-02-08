@@ -576,7 +576,17 @@ ${addressLines.join('\n\n')}
       // ═══════════════════════════════════════════════════════════════
       // STEP 7.1: ESTRAZIONE CONTESTO ALLEGATI (OCR) - Eseguita SOLO ORA
       // ═══════════════════════════════════════════════════════════════
-      const attachmentContext = this.gmailService.extractAttachmentContext(candidate);
+      let attachmentContext = { text: '', items: [], skipped: [] };
+      if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
+        if (this._shouldTryOcr(messageDetails.body, messageDetails.subject)) {
+          attachmentContext = this.gmailService.extractAttachmentContext(candidate);
+        } else {
+          attachmentContext.skipped.push({ reason: 'precheck_no_ocr' });
+          console.log('   📎 Allegati OCR saltati: pre-check negativo (keyword non trovate)');
+        }
+      } else {
+        // OCR disabilitato da config
+      }
       if (attachmentContext && attachmentContext.items && attachmentContext.items.length > 0) {
         const attachmentNames = attachmentContext.items.map(item => item.name).join(', ');
         console.log(`   📎 Allegati OCR: ${attachmentContext.items.length} file inclusi nel contesto (${attachmentNames})`);
@@ -1004,6 +1014,28 @@ ${addressLines.join('\n\n')}
     }
 
     return false;
+  }
+
+  _shouldTryOcr(body, subject) {
+    const settings = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT)
+      ? CONFIG.ATTACHMENT_CONTEXT
+      : {};
+
+    // Se trigger keywords non sono definite, default a true (comportamento legacy)
+    // Ma nel config nuovo sono definite, quindi userà quelle.
+    const triggerKeywords = settings.ocrTriggerKeywords || [];
+
+    // Se la lista è vuota, significa "OCR sempre attivo se enabled=true"
+    if (triggerKeywords.length === 0) return true;
+
+    const normalizedBody = (body || '').toLowerCase().replace(/\s+/g, ' ');
+    const normalizedSubject = (subject || '').toLowerCase().replace(/\s+/g, ' ');
+
+    return triggerKeywords.some(keyword => {
+      const needle = (keyword || '').toLowerCase();
+      // startWith, includes, o regex word boundary? Includes è più sicuro per ora.
+      return needle && (normalizedBody.includes(needle) || normalizedSubject.includes(needle));
+    });
   }
 
   _getCurrentSeason() {

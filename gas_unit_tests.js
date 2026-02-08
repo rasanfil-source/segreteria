@@ -1702,6 +1702,41 @@ function testOCRQualityFilters(results) {
             const long = "Questo testo è sicuramente più lungo di cinquanta caratteri e dovrebbe passare.";
             return service._isMeaningfulOCR(long, true) === true;
         });
+
+        test('Focus IBAN: Estrazione contesto corretta', results, () => {
+            const text = "Spett.le Parrocchia, allego ricevuta bonifico di euro 50.00 effettuato su IT00X1234567890123456789012 per l'iscrizione.";
+            const focused = service._focusTextAroundIban(text, 20); // +/- 20 chars
+            // Context: "su IT...12 per l'is"
+            return focused.matched === true && focused.text.includes('IT00X') && focused.text.length < text.length;
+        });
+
+        test('Focus IBAN: Nessun IBAN -> testo originale', results, () => {
+            const text = "Nessun codice bancario qui.";
+            const result = service._focusTextAroundIban(text, 20);
+            return result.matched === false && result.text === text;
+        });
+    });
+}
+
+function testEmailProcessorOCRTriggers(results) {
+    testGroup('Punto #10: EmailProcessor - Trigger Keywords', results, () => {
+        // Mock parziale
+        const processor = new EmailProcessor();
+        // Inject fake setting se necessario (ma _shouldTryOcr legge CONFIG globale)
+        // Se CONFIG è globale in GAS, qui in test potremmo doverlo mockare o assumere default.
+        // Assumiamo che CONFIG standard sia caricato o mockato.
+
+        test('Keyword "bonifico" attiva OCR', results, () => {
+            return processor._shouldTryOcr("Ti mando la ricevuta del bonifico effettuato", "Oggetto") === true;
+        });
+
+        test('Nessuna keyword rilevante -> OCR inattivo', results, () => {
+            return processor._shouldTryOcr("Ciao, volevo sapere gli orari della messa", "Info orari") === false;
+        });
+
+        test('Keyword in oggetto attiva OCR', results, () => {
+            return processor._shouldTryOcr("Corpo vuoto", "Invio modulo compilato") === true;
+        });
     });
 }
 
@@ -1732,6 +1767,7 @@ function runAllTests() {
         testEmailProcessorErrorClassification(results);
         testEmailProcessorOCRFlow(results);
         testOCRQualityFilters(results);
+        testEmailProcessorOCRTriggers(results);
         testMiglioramentiGennaio2026(results);
         testMiglioramentiSecondaFase(results);
 

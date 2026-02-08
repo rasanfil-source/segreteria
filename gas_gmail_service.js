@@ -317,7 +317,14 @@ class GmailService {
         continue;
       }
 
-      const normalized = this._normalizeAttachmentText(ocrText);
+      let normalized = this._normalizeAttachmentText(ocrText);
+      if (settings.ibanFocusEnabled) {
+        const focused = this._focusTextAroundIban(normalized, settings.ibanContextChars || 300);
+        if (focused.matched) {
+          console.log(`   💳 IBAN rilevato nell'allegato. Estraggo contesto focalizzato.`);
+          normalized = `[FOCUS IBAN DETECTED]\n...${focused.text}...`;
+        }
+      }
 
       let perFileLimit = settings.maxCharsPerFile;
       if (isPdf && settings.pdfMaxPages && settings.pdfCharsPerPage) {
@@ -433,9 +440,30 @@ class GmailService {
     return true;
   }
 
-  _normalizeAttachmentText(text) {
+  _normalizeAttachmentText(text, settings) {
     if (!text || typeof text !== 'string') return '';
-    return text.replace(/\s+/g, ' ').trim();
+    let cleaned = text.replace(/\s+/g, ' ').trim();
+
+    // Logica Focus IBAN
+    if (settings && settings.ibanFocusEnabled) {
+      // Regex IBAN IT (semplificata: IT + 2 cifre + 1 lettera + 22 alfanumerici)
+      // O generica: IT\d{2}[A-Z]\d{10}[A-Z0-9]{12}
+      // Usiamo una regex che cattura 'IT' seguito da 25 chars circa
+      const ibanRegex = /\bIT\d{2}[A-Z]\d{22}\b/i;
+      const match = cleaned.match(ibanRegex);
+
+      if (match) {
+        const ibanIndex = match.index;
+        const contextChars = settings.ibanContextChars || 300;
+        const start = Math.max(0, ibanIndex - contextChars);
+        const end = Math.min(cleaned.length, ibanIndex + match[0].length + contextChars);
+
+        console.log(`   💳 IBAN rilevato nell'allegato. Estraggo contesto focalizzato.`);
+        return `[FOCUS IBAN DETECTED]\n...${cleaned.slice(start, end)}...`;
+      }
+    }
+
+    return cleaned;
   }
 
   _extractSenderName(fromField) {
