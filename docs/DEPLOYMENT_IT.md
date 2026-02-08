@@ -59,7 +59,6 @@ CONFIG = {
   // Validazione in produzione
   VALIDATION_ENABLED: true,
   VALIDATION_MIN_SCORE: 0.6,  // Soglia consigliata
-  VALIDATION_STRICT_MODE: false,  // Evita blocchi eccessivi
   
   // Rate limiting (importante!)
   USE_RATE_LIMITER: true,

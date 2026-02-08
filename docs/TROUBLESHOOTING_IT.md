@@ -382,7 +382,7 @@ function checkHallucinations(response, knowledgeBase) {
 
 3. **Aumenta severità validazione:**
    ```javascript
-   CONFIG.VALIDATION_STRICT_MODE = true;  // Blocca anche dubbi
+   CONFIG.VALIDATION_MIN_SCORE = 0.7;  // Soglia più alta per validazione più severa
    ```
 
 ---

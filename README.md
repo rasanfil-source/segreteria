@@ -156,7 +156,7 @@ graph LR
 
 **2.3.x → 2.4.x**
 - ⚠️ `CONFIG.GEMINI_MODELS` now mandatory
-- ⚠️ `VALIDATION_STRICT_MODE` deprecated (use `VALIDATION_MIN_SCORE`)
+- ⚠️ `VALIDATION_STRICT_MODE` removed (use `VALIDATION_MIN_SCORE` instead)
 
 ---
 

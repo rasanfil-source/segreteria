@@ -59,7 +59,6 @@ CONFIG = {
   // Production validation
   VALIDATION_ENABLED: true,
   VALIDATION_MIN_SCORE: 0.6,  // Recommended threshold
-  VALIDATION_STRICT_MODE: false,  // Avoid excessive blocking
   
   // Rate limiting (important!)
   USE_RATE_LIMITER: true,
