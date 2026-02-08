@@ -1034,7 +1034,7 @@ function parseGeminiJsonLenient(text) {
 
   // 1. Pulizia Markdown
   let cleaned = text
-    .replace(/```json / gi, '')
+    .replace(/```json /gi, '')
     .replace(/```/g, '')
     .trim();
 
