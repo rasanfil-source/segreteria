@@ -44,7 +44,9 @@ class ResponseValidator {
     this.languageMarkers = typeof LANGUAGE_MARKERS !== 'undefined' ? LANGUAGE_MARKERS : {
       'it': ['grazie', 'cordiali', 'saluti', 'gentile', 'parrocchia', 'messa', 'vorrei', 'quando'],
       'en': ['thank', 'regards', 'dear', 'parish', 'mass', 'church', 'would', 'could'],
-      'es': ['gracias', 'saludos', 'estimado', 'parroquia', 'misa', 'iglesia', 'querría']
+      'es': ['gracias', 'saludos', 'estimado', 'parroquia', 'misa', 'iglesia', 'querría'],
+      'fr': ['merci', 'cordialement', 'cher', 'paroisse', 'messe', 'église', 'voudrais'],
+      'de': ['danke', 'grüße', 'liebe', 'pfarrei', 'messe', 'kirche', 'möchte']
     };
 
     // Placeholder da rilevare
@@ -97,6 +99,16 @@ class ResponseValidator {
         morning: ['buenos días', 'buen día'],
         afternoon: ['buenas tardes'],
         evening: ['buenas noches']
+      },
+      'fr': {
+        morning: ['bonjour'],
+        afternoon: ['bon après-midi'],
+        evening: ['bonsoir']
+      },
+      'de': {
+        morning: ['guten morgen'],
+        afternoon: ['guten tag'],
+        evening: ['guten abend']
       }
     };
 
@@ -104,7 +116,9 @@ class ResponseValidator {
     this.liturgicalGreetings = {
       'it': ['buon natale', 'buona pasqua', 'buon avvento', 'buona quaresima', 'buona pentecoste'],
       'en': ['merry christmas', 'happy easter', 'happy advent', 'happy pentecost'],
-      'es': ['feliz navidad', 'feliz pascua', 'feliz adviento', 'feliz pentecostés']
+      'es': ['feliz navidad', 'feliz pascua', 'feliz adviento', 'feliz pentecostés'],
+      'fr': ['joyeux noël', 'joyeuses pâques', 'joyeux avent', 'joyeuse pentecôte'],
+      'de': ['frohe weihnachten', 'frohe ostern', 'schönen advent', 'frohe pfingsten']
     };
 
     // Semantic Validator (opzionale)
