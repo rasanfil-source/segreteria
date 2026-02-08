@@ -16,12 +16,8 @@ class ResponseValidator {
     console.log('🔍 Inizializzazione ResponseValidator...');
 
     // Ottieni config - fallback a default se CONFIG non definito
-    const strictMode = typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_STRICT_MODE : false;
-    const minScore = typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_MIN_SCORE : 0.6;
-
     // Soglia minima accettabile
-    this.MIN_VALID_SCORE = strictMode ? 0.8 : minScore;
-    this.STRICT_MODE_SCORE = 0.8;
+    this.MIN_VALID_SCORE = minScore;
 
     // Soglie lunghezza
     this.MIN_LENGTH_CHARS = 25;
@@ -138,19 +134,22 @@ class ResponseValidator {
     let score = 1.0;
 
     // Variabile per gestire la risposta (che potrebbe essere perfezionata)
-    let currentResponse = response;
+    let currentResponse = typeof response === 'string' ? response : (response == null ? '' : String(response));
     let wasRefined = false;
 
-    console.log(`🔍 Validazione risposta (${currentResponse.length} caratteri, lingua=${detectedLanguage})...`);
+    const safeDetectedLanguage = typeof detectedLanguage === 'string' && detectedLanguage.length > 0
+      ? detectedLanguage
+      : 'it';
+    console.log(`🔍 Validazione risposta (${currentResponse.length} caratteri, lingua=${safeDetectedLanguage})...`);
 
     // --- PRIMO PASSAGGIO DI VALIDAZIONE ---
-    let validationResult = this._runValidationChecks(currentResponse, detectedLanguage, knowledgeBase, salutationMode, emailContent);
+    let validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent);
 
     // --- AUTOCORREZIONE (PERFEZIONAMENTO) ---
     if (!validationResult.isValid && attemptPerfezionamento) {
       console.log('🩹 Tentativo perfezionamento automatico...');
 
-      const perfezionamentoResult = this._perfezionamentoAutomatico(currentResponse, validationResult.errors, detectedLanguage);
+      const perfezionamentoResult = this._perfezionamentoAutomatico(currentResponse, validationResult.errors, safeDetectedLanguage);
 
       if (perfezionamentoResult.fixed) {
         console.log('   ✨ Applicati perfezionamenti automatici. Ri-validazione...');
@@ -158,7 +157,7 @@ class ResponseValidator {
         wasRefined = true;
 
         // Ri-esegui validazione sul testo corretto
-        validationResult = this._runValidationChecks(currentResponse, detectedLanguage, knowledgeBase, salutationMode, emailContent);
+        validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent);
 
         if (validationResult.isValid) {
           console.log('   ✅ Autocorrezione ha risolto i problemi!');
@@ -221,7 +220,7 @@ class ResponseValidator {
       fixedResponse: (wasRefined && validationResult.isValid) ? currentResponse : null, // Restituisci testo perfezionato SOLO se valido
       metadata: {
         responseLength: currentResponse.length,
-        expectedLanguage: detectedLanguage,
+        expectedLanguage: safeDetectedLanguage,
         threshold: this.MIN_VALID_SCORE,
         wasRefined: wasRefined
       }

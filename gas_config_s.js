@@ -19,7 +19,6 @@ const CONFIG = {
     // === Validazione ===
     VALIDATION_ENABLED: true,
     VALIDATION_MIN_SCORE: 0.6,
-    VALIDATION_STRICT_MODE: false,
     VALIDATION_WARNING_THRESHOLD: 0.9,
     SEMANTIC_VALIDATION: {
         enabled: true,

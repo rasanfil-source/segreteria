@@ -179,13 +179,15 @@ class GeminiService {
    * @returns {Object} Risultato controllo rapido
    */
   _quickCheckWithModel(emailContent, emailSubject, modelName) {
-    const detection = this.detectEmailLanguage(emailContent, emailSubject);
+    const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
+    const safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
+    const detection = this.detectEmailLanguage(safeContent, safeSubject);
     const prompt = `Analizza questa email.
 Rispondi ESCLUSIVAMENTE con un oggetto JSON.
 
 Email:
-Oggetto: ${emailSubject}
-Testo: ${emailContent.substring(0, 800)}
+Oggetto: ${safeSubject}
+Testo: ${safeContent.substring(0, 800)}
 
 COMPITI:
 1. Decidi se richiede risposta (reply_needed):
@@ -396,8 +398,10 @@ Output JSON:
    * Supporta IT, EN, ES con scoring e safety grade
    */
   detectEmailLanguage(emailContent, emailSubject) {
-    const text = `${emailSubject} ${emailContent}`.toLowerCase();
-    const originalText = `${emailSubject} ${emailContent}`;
+    const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
+    const safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
+    const text = `${safeSubject} ${safeContent}`.toLowerCase();
+    const originalText = `${safeSubject} ${safeContent}`;
 
     // Rilevamento caratteri specifici spagnoli
     let spanishCharScore = 0;

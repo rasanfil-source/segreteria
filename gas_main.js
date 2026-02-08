@@ -124,11 +124,7 @@ function isInSuspensionTime(checkDate = new Date()) {
     }
   }
 
-  // Periodo speciale: 24 e 31 dicembre dalle 14:00
-  if (month1Based === 12 && ((date === 24 && hour >= 14) || date === 25 || date === 26 || (date === 31 && hour >= 14))) {
-    console.log('📅 Periodo speciale attivo (Natale/Capodanno)');
-    return false;
-  }
+
 
   // B. Date mobili: Pasqua e giorni correlati
   const easter = calculateEaster(year);
