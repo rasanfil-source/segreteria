@@ -178,10 +178,11 @@ class GeminiService {
    * @param {string} modelName - Nome modello API
    * @returns {Object} Risultato controllo rapido
    */
-  const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
-  const safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
-  const detection = this.detectEmailLanguage(safeContent, safeSubject);
-  const prompt = `Analizza questa email.
+  _quickCheckWithModel(emailContent, emailSubject, modelName) {
+    const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
+    const safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
+    const detection = this.detectEmailLanguage(safeContent, safeSubject);
+    const prompt = `Analizza questa email.
 Rispondi ESCLUSIVAMENTE con un oggetto JSON.
 
 Email:
@@ -229,7 +230,7 @@ Output JSON:
   "reason": "string"
 }`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
 
     console.log(`🔍 Controllo rapido via ${modelName}...`);
 
@@ -238,7 +239,7 @@ Output JSON:
     let response;
 
     try {
-      response = UrlFetchApp.fetch(`${ url }?key = ${ activeKey } `, {
+      response = UrlFetchApp.fetch(`${url}?key = ${activeKey} `, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
@@ -254,9 +255,9 @@ Output JSON:
       // Punto 4: Estesa gestione errori con switch alla chiave di riserva
       const responseCode = response.getResponseCode();
       if ([429, 500, 502, 503, 504].includes(responseCode) && this.backupKey) {
-        console.warn(`⚠️ Chiave primaria esaurita / errore(${ response.getResponseCode() }).Tentativo con chiave di riserva...`);
+        console.warn(`⚠️ Chiave primaria esaurita / errore(${response.getResponseCode()}).Tentativo con chiave di riserva...`);
         activeKey = this.backupKey;
-        response = UrlFetchApp.fetch(`${ url }?key = ${ activeKey } `, {
+        response = UrlFetchApp.fetch(`${url}?key = ${activeKey} `, {
           method: 'POST',
           contentType: 'application/json',
           payload: JSON.stringify({
@@ -271,17 +272,17 @@ Output JSON:
       }
 
     } catch (e) {
-      throw new Error(`Errore connessione API: ${ e.message } `);
+      throw new Error(`Errore connessione API: ${e.message} `);
     }
 
     const responseCode = response.getResponseCode();
 
     if ([429, 500, 502, 503, 504].includes(responseCode)) {
-      throw new Error(`Errore server o quota Gemini(${ responseCode })`);
+      throw new Error(`Errore server o quota Gemini(${responseCode})`);
     }
 
     if (responseCode !== 200) {
-      throw new Error(`Errore API: ${ responseCode } `);
+      throw new Error(`Errore API: ${responseCode} `);
     }
 
     const result = JSON.parse(response.getContentText());
@@ -306,7 +307,7 @@ Output JSON:
     const candidate = result.candidates[0];
 
     if (candidate.finishReason && ['SAFETY', 'RECITATION', 'OTHER', 'BLOCKLIST'].includes(candidate.finishReason)) {
-      console.warn(`⚠️ Controllo rapido bloccato: ${ candidate.finishReason } `);
+      console.warn(`⚠️ Controllo rapido bloccato: ${candidate.finishReason} `);
       return defaultResult;
     }
 
@@ -324,7 +325,7 @@ Output JSON:
     try {
       data = parseGeminiJsonLenient(textResponse);
     } catch (parseError) {
-      console.warn(`⚠️ parseGeminiJsonLenient fallito: ${ parseError.message } `);
+      console.warn(`⚠️ parseGeminiJsonLenient fallito: ${parseError.message} `);
       return defaultResult;
     }
 
@@ -374,11 +375,11 @@ Output JSON:
 
         if (isRetryable && attempt < this.maxRetries - 1) {
           const waitTime = this.retryDelay * Math.pow(this.backoffFactor, attempt);
-          console.warn(`⚠️ ${ context } fallito(tentativo ${ attempt + 1}/${this.maxRetries}): ${ error.message } `);
-          console.log(`   Retry tra ${ waitTime / 1000 }s...`);
+          console.warn(`⚠️ ${context} fallito(tentativo ${attempt + 1}/${this.maxRetries}): ${error.message} `);
+          console.log(`   Retry tra ${waitTime / 1000}s...`);
           Utilities.sleep(waitTime);
         } else if (attempt === this.maxRetries - 1) {
-          console.error(`❌ Tutti i ${ this.maxRetries } tentativi ${ context } falliti`);
+          console.error(`❌ Tutti i ${this.maxRetries} tentativi ${context} falliti`);
           throw error;
         } else {
           // Errore non ritentabile
@@ -399,8 +400,8 @@ Output JSON:
   detectEmailLanguage(emailContent, emailSubject) {
     const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
     const safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
-    const text = `${ safeSubject } ${ safeContent } `.toLowerCase();
-    const originalText = `${ safeSubject } ${ safeContent } `;
+    const text = `${safeSubject} ${safeContent} `.toLowerCase();
+    const originalText = `${safeSubject} ${safeContent} `;
 
     // Rilevamento caratteri specifici spagnoli
     let spanishCharScore = 0;
@@ -461,7 +462,7 @@ Output JSON:
           count += weight * matches;
         } else {
           const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const pattern = new RegExp(`\\b${ escaped } \\b`, 'gi');
+          const pattern = new RegExp(`\\b${escaped} \\b`, 'gi');
           const matches = (txt.match(pattern) || []).length;
           count += weight * matches;
         }
@@ -478,7 +479,7 @@ Output JSON:
       'it': countMatches(italianKeywords, text, 1)
     };
 
-    console.log(`   Punteggi lingua: EN = ${ scores['en'] }, ES = ${ scores['es'] }, IT = ${ scores['it'] } `);
+    console.log(`   Punteggi lingua: EN = ${scores['en']}, ES = ${scores['es']}, IT = ${scores['it']} `);
 
     // Determina lingua rilevata
     let detectedLang = 'it';
@@ -492,12 +493,12 @@ Output JSON:
 
     // Logica soglia confidenza
     if (spanishCharScore > 0 && scores['es'] >= scores['it'] && scores['es'] >= scores['en']) {
-      console.log(`   ✓ Rilevato: SPAGNOLO(punteggio: ${ scores['es']}, include caratteri speciali)`);
+      console.log(`   ✓ Rilevato: SPAGNOLO(punteggio: ${scores['es']}, include caratteri speciali)`);
       return { lang: 'es', confidence: scores['es'], safetyGrade: this._computeSafetyGrade('es', scores['es'], scores) };
     }
 
     if (scores['en'] >= 2 && scores['en'] >= scores['it'] && scores['en'] >= scores['es']) {
-      console.log(`   ✓ Rilevato: INGLESE(punteggio: ${ scores['en']})`);
+      console.log(`   ✓ Rilevato: INGLESE(punteggio: ${scores['en']})`);
       return { lang: 'en', confidence: scores['en'], safetyGrade: this._computeSafetyGrade('en', scores['en'], scores) };
     }
 
@@ -506,7 +507,7 @@ Output JSON:
       return { lang: 'it', confidence: maxScore, safetyGrade: 0 };
     }
 
-    console.log(`   ✓ Rilevato: ${ detectedLang.toUpperCase() } (punteggio: ${ maxScore })`);
+    console.log(`   ✓ Rilevato: ${detectedLang.toUpperCase()} (punteggio: ${maxScore})`);
     return { lang: detectedLang, confidence: maxScore, safetyGrade: this._computeSafetyGrade(detectedLang, maxScore, scores) };
   }
 
@@ -551,24 +552,24 @@ Output JSON:
 
     // 1. Se Gemini non ha restituito lingua → usa locale
     if (!normalizedGemini) {
-      console.log(`   🌍 Lingua: ${ normalizedLocal.toUpperCase() } (Gemini silente, alternativa locale)`);
+      console.log(`   🌍 Lingua: ${normalizedLocal.toUpperCase()} (Gemini silente, alternativa locale)`);
       return normalizedLocal;
     }
 
     // 2. Se Gemini restituisce lingua ESOTICA (non IT/EN/ES) → USA GEMINI
     if (!supportedLangs.includes(normalizedGemini)) {
-      console.log(`   🌍 Lingua: ${ normalizedGemini.toUpperCase() } (esotica, Gemini autoritativo)`);
+      console.log(`   🌍 Lingua: ${normalizedGemini.toUpperCase()} (esotica, Gemini autoritativo)`);
       return normalizedGemini;
     }
 
     // 3. Lingua principale: alta sicurezza locale conferma
     if (localSafetyGrade >= 4 && normalizedLocal === normalizedGemini) {
-      console.log(`   🌍 Lingua: ${ normalizedGemini.toUpperCase() } (confermata da locale, grado ${ localSafetyGrade })`);
+      console.log(`   🌍 Lingua: ${normalizedGemini.toUpperCase()} (confermata da locale, grado ${localSafetyGrade})`);
       return normalizedGemini;
     }
 
     // 4. Default: fidati di Gemini per le 3 principali
-    console.log(`   🌍 Lingua: ${ normalizedGemini.toUpperCase() } (Gemini primario, grado locale ${ localSafetyGrade })`);
+    console.log(`   🌍 Lingua: ${normalizedGemini.toUpperCase()} (Gemini primario, grado locale ${localSafetyGrade})`);
     return normalizedGemini;
   }
 
@@ -598,7 +599,7 @@ Output JSON:
 
       if (language === 'it') {
         if (isNightTime) {
-          greeting = `Gentile ${ senderName }, `;
+          greeting = `Gentile ${senderName}, `;
         } else if (day === 0) {
           greeting = 'Buona domenica.';
         } else if (hour >= 5 && hour < 13) {
@@ -622,7 +623,7 @@ Output JSON:
         }
       } else if (language === 'es') {
         if (isNightTime) {
-          greeting = `Estimado / a ${ senderName }, `;
+          greeting = `Estimado / a ${senderName}, `;
         } else if (day === 0) {
           greeting = 'Feliz domingo,';
         } else if (hour >= 5 && hour < 13) {
@@ -819,7 +820,7 @@ Output JSON:
         );
 
         if (result.success) {
-          console.log(`✓ Controllo rapido via Rate Limiter(modello: ${ result.modelUsed })`);
+          console.log(`✓ Controllo rapido via Rate Limiter(modello: ${result.modelUsed})`);
           return result.result;
         }
       } catch (error) {
@@ -827,20 +828,20 @@ Output JSON:
           console.error('❌ Quota esaurita, uso solo detection locale');
           return defaultResult;
         }
-        console.warn(`⚠️ Rate Limiter quick check fallito: ${ error.message } `);
+        console.warn(`⚠️ Rate Limiter quick check fallito: ${error.message} `);
         // Prosegui con implementazione originale
       }
     }
 
     // IMPLEMENTAZIONE ORIGINALE (fallback o quando Rate Limiter disabilitato)
     try {
-      console.log(`🔍 Gemini quick check per: ${ emailSubject.substring(0, 40) }...`);
+      console.log(`🔍 Gemini quick check per: ${emailSubject.substring(0, 40)}...`);
       return this._withRetry(
         () => this._quickCheckWithModel(emailContent, emailSubject, this.modelName),
         'Quick check'
       );
     } catch (error) {
-      console.warn(`⚠️ Quick check fallito: ${ error.message }, uso detection locale`);
+      console.warn(`⚠️ Quick check fallito: ${error.message}, uso detection locale`);
       return defaultResult;
     }
   }
@@ -882,7 +883,7 @@ Output JSON:
         );
 
         if (result.success) {
-          console.log(`✓ Generato via Rate Limiter(modello: ${ result.modelUsed }, token: ~${ estimatedTokens })`);
+          console.log(`✓ Generato via Rate Limiter(modello: ${result.modelUsed}, token: ~${estimatedTokens})`);
           return result.result;
         }
       } catch (error) {
@@ -890,7 +891,7 @@ Output JSON:
           console.warn('⚠️ Quota primaria esaurita (intercettato da RateLimiter)');
           throw error; // Rilancia per gestione strategia nel Processor
         }
-        console.warn(`⚠️ Rate Limiter generazione fallito: ${ error.message } `);
+        console.warn(`⚠️ Rate Limiter generazione fallito: ${error.message} `);
         // Prosegui con implementazione originale
       }
     }
@@ -899,7 +900,7 @@ Output JSON:
     // CHIAMATA DIRETTA (quando RateLimiter disabilitato O skippato per backup key)
     // ═══════════════════════════════════════════════════════════════════
     if (skipRateLimit) {
-      console.log(`⏩ Chiamata diretta(bypass RateLimiter) con ${ targetModel } `);
+      console.log(`⏩ Chiamata diretta(bypass RateLimiter) con ${targetModel} `);
       return this._withRetry(
         () => this._generateWithModel(prompt, targetModel, targetKey),
         'Generazione diretta (Chiave di Riserva)'
@@ -908,12 +909,12 @@ Output JSON:
 
     // IMPLEMENTAZIONE ORIGINALE
     return this._withRetry(() => {
-      console.log(`🤖 Chiamata Gemini API(prompt: ${ prompt.length } caratteri)...`);
+      console.log(`🤖 Chiamata Gemini API(prompt: ${prompt.length} caratteri)...`);
 
       const temperature = typeof CONFIG !== 'undefined' ? CONFIG.TEMPERATURE : 0.5;
       const maxTokens = typeof CONFIG !== 'undefined' ? CONFIG.MAX_OUTPUT_TOKENS : 6000;
 
-      const response = UrlFetchApp.fetch(`${ this.baseUrl }?key = ${ this.apiKey } `, {
+      const response = UrlFetchApp.fetch(`${this.baseUrl}?key = ${this.apiKey} `, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
@@ -929,12 +930,12 @@ Output JSON:
       const responseCode = response.getResponseCode();
 
       if (responseCode === 429 || responseCode === 503) {
-        throw new Error(`rate limit o servizio non disponibile: ${ responseCode } `);
+        throw new Error(`rate limit o servizio non disponibile: ${responseCode} `);
       }
 
       if (responseCode !== 200) {
-        console.error(`❌ Errore Gemini API: ${ responseCode } `);
-        console.error(`   Risposta: ${ response.getContentText().substring(0, 500) } `);
+        console.error(`❌ Errore Gemini API: ${responseCode} `);
+        console.error(`   Risposta: ${response.getContentText().substring(0, 500)} `);
         return null;
       }
 
@@ -961,7 +962,7 @@ Output JSON:
         return null;
       }
 
-      console.log(`✓ Risposta generata(${ generatedText.length } caratteri)`);
+      console.log(`✓ Risposta generata(${generatedText.length} caratteri)`);
       return generatedText;
 
     }, 'Generazione risposta');
@@ -984,7 +985,7 @@ Output JSON:
     try {
       const testPrompt = 'Rispondi con una sola parola: OK';
 
-      const response = UrlFetchApp.fetch(`${ this.baseUrl }?key = ${ this.apiKey } `, {
+      const response = UrlFetchApp.fetch(`${this.baseUrl}?key = ${this.apiKey} `, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
@@ -1007,11 +1008,11 @@ Output JSON:
           results.errors.push('API non ha restituito candidati');
         }
       } else {
-        results.errors.push(`API ha restituito status ${ response.getResponseCode() } `);
+        results.errors.push(`API ha restituito status ${response.getResponseCode()} `);
       }
 
     } catch (error) {
-      results.errors.push(`Errore connessione: ${ error.message } `);
+      results.errors.push(`Errore connessione: ${error.message} `);
     }
 
     results.isHealthy = results.connectionOk && results.canGenerate;
@@ -1035,32 +1036,32 @@ function parseGeminiJsonLenient(text) {
   let cleaned = text
     .replace(/```json / gi, '')
     .replace(/```/g, '')
-  .trim();
+    .trim();
 
-// 2. Estrazione blocco graffe più esterno
-const start = cleaned.indexOf('{');
-const end = cleaned.lastIndexOf('}');
+  // 2. Estrazione blocco graffe più esterno
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
 
-if (start === -1 || end === -1) {
-  throw new Error('Nessun oggetto JSON trovato');
-}
+  if (start === -1 || end === -1) {
+    throw new Error('Nessun oggetto JSON trovato');
+  }
 
-cleaned = cleaned.substring(start, end + 1);
+  cleaned = cleaned.substring(start, end + 1);
 
-// 3. Tentativo parsing diretto
-try {
-  return JSON.parse(cleaned);
-} catch (e) {
-  console.warn('⚠️ Parsing JSON diretto fallito, tentativo di correzione manuale...');
-}
+  // 3. Tentativo parsing diretto
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.warn('⚠️ Parsing JSON diretto fallito, tentativo di correzione manuale...');
+  }
 
-// 4. Correzione comune: chiavi non quotate (es. { key: "value" })
-// Questa regex è più sicura: cerca parole a inizio riga o dopo virgola/graffa seguite da :
-const jsonCorretto = cleaned.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
+  // 4. Correzione comune: chiavi non quotate (es. { key: "value" })
+  // Questa regex è più sicura: cerca parole a inizio riga o dopo virgola/graffa seguite da :
+  const jsonCorretto = cleaned.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
 
-try {
-  return JSON.parse(jsonCorretto);
-} catch (e) {
-  throw new Error(`Impossibile parsare JSON da Gemini: ${e.message}`);
-}
+  try {
+    return JSON.parse(jsonCorretto);
+  } catch (e) {
+    throw new Error(`Impossibile parsare JSON da Gemini: ${e.message}`);
+  }
 }
