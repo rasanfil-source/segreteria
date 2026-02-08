@@ -666,6 +666,7 @@ o richiede discernimento pastorale.
 • RISPONDI SOLO A QUANTO CHIESTO. Essenziale.
 • Conciso ma completo rispetto ALLA DOMANDA (non all'argomento generale).
 • Istituzionale (usa "restiamo", "siamo lieti") ma umano.
+• Forma di cortesia: usa SEMPRE il registro formale; in italiano usa il "Lei" ed eviti il "tu".
 • Empatico verso le esigenze delle persone.
 
 🚫 DIVIETO DI INFODUMPING:
@@ -723,6 +724,7 @@ YOU MUST:
 ✅ Write your ENTIRE response in ENGLISH
 ✅ Use English greetings: "Good morning," "Good afternoon," "Good evening,"
 ✅ Use English closings: "Kind regards," "Best regards,"
+✅ Maintain a formal, courteous register throughout
 ✅ Translate any Italian information into English
 
 YOU MUST NOT:
@@ -741,6 +743,7 @@ DEBES:
 ✅ Escribir TODA tu respuesta en ESPAÑOL
 ✅ Usar saludos españoles: "Buenos días," "Buenas tardes,"
 ✅ Usar despedidas españolas: "Cordiales saludos," "Un saludo,"
+✅ Mantener un registro formal; utilizar "usted" y evitar "tú"
 
 NO DEBES:
 ❌ Usar NINGUNA palabra italiana
@@ -761,6 +764,7 @@ The incoming email is written in language code: "${lang.toUpperCase()}"
 YOU MUST:
 ✅ Write your ENTIRE response in the SAME LANGUAGE as the incoming email
 ✅ Use appropriate greetings and closings for that language
+✅ Maintain a formal, courteous register in that language
 ✅ Translate any Italian information into the sender's language
 
 YOU MUST NOT:
@@ -796,6 +800,7 @@ This is MANDATORY. The sender may not understand Italian.
       const infoList = [];
       const questionedTopics = [];
       const acknowledgedTopics = [];
+      const needsExpansionTopics = [];
 
       memoryContext.providedInfo.forEach(item => {
         // Normalizzazione formato (supporto stringa semplice o oggetto)
@@ -806,6 +811,8 @@ This is MANDATORY. The sender may not understand Italian.
           questionedTopics.push(topic);
         } else if (reaction === 'acknowledged') {
           acknowledgedTopics.push(topic);
+        } else if (reaction === 'needs_expansion') {
+          needsExpansionTopics.push(topic);
         } else {
           infoList.push(topic);
         }
@@ -824,6 +831,11 @@ This is MANDATORY. The sender may not understand Italian.
       if (questionedTopics.length > 0) {
         sections.push(`❓ UTENTE NON HA CAPITO: ${questionedTopics.join(', ')}`);
         sections.push('⚡ URGENTE: Spiega questi punti di nuovo MA con parole diverse, più semplici e chiare. Usa esempi.');
+      }
+
+      if (needsExpansionTopics.length > 0) {
+        sections.push(`🧾 UTENTE CHIEDE PIÙ DETTAGLI: ${needsExpansionTopics.join(', ')}`);
+        sections.push('➕ Fornisci dettagli aggiuntivi e passaggi pratici, mantenendo il tono formale (Lei).');
       }
     }
 

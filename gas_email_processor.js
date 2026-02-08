@@ -1154,16 +1154,30 @@ ${addressLines.join('\n\n')}
     // Pattern semplici di reazione
     const patterns = {
       questioned: [
-        'non ho capito', 'non capisco', 'spiegarmi meglio', 'chiarimento',
-        'cosa significa', 'dubbio', 'non è chiaro', 'confuso'
+        'non ho capito', 'non capisco', 'mi scusi non ho capito', 'non mi è chiaro',
+        'non è chiaro', 'può chiarire', 'potrebbe chiarire', 'potrebbe spiegare',
+        'cosa significa', 'dubbio', 'confuso', 'mi aiuta a capire',
+        'i did not understand', 'i don\'t understand', 'not clear',
+        'could you clarify', 'could you please clarify', 'could you explain',
+        'no entiendo', 'no entendí', 'no me queda claro', 'podría aclarar',
+        'podría explicar', 'podría ayudarme a entender'
       ],
       acknowledged: [
         'ho capito', 'tutto chiaro', 'grazie per la spiegazione', 'ok grazie',
-        'perfetto', 'chiarissimo', 'ricevuto'
+        'perfetto', 'chiarissimo', 'ricevuto', 'la ringrazio', 'grazie',
+        'gentilissimi', 'va benissimo', 'compreso',
+        'thank you', 'thanks', 'understood', 'all clear', 'received',
+        'gracias', 'entendido', 'entendida', 'recibido', 'recibida', 'perfecto', 'clarísimo'
       ],
       needs_expansion: [
-        'puoi aggiungere', 'maggiori dettagli', 'più dettagli', 'approfondire',
-        'puoi spiegare meglio', 'serve più', 'potresti ampliare'
+        'potrebbe aggiungere', 'potrebbe fornire maggiori dettagli', 'maggiori dettagli',
+        'più dettagli', 'approfondire', 'potrebbe spiegare meglio', 'potrebbe ampliare',
+        'sarebbe possibile avere più informazioni', 'servirebbero più informazioni',
+        'potrebbe indicare i passaggi',
+        'could you provide more details', 'more details', 'could you elaborate',
+        'would it be possible to have more information', 'could you outline the steps',
+        'podría ampliar', 'más detalles', 'podría proporcionar más información',
+        'sería posible tener más información', 'podría indicar los pasos'
       ]
     };
 
