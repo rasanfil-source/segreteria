@@ -181,7 +181,6 @@ class GeminiService {
   _quickCheckWithModel(emailContent, emailSubject, modelName) {
     const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
     const safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
-    const detection = this.detectEmailLanguage(safeContent, safeSubject);
     const prompt = `Analizza questa email.
 Rispondi ESCLUSIVAMENTE con un oggetto JSON.
 
