@@ -130,6 +130,7 @@ Email Arriva
 │  ├─ Storico conversazione (ultimi 10 msg thread)        │
 │  ├─ Memoria conversazionale (topics già forniti)        │
 │  ├─ Territory check (se indirizzo nell'email)           │
+│  ├─ OCR Analysis (PDF/Images)                           │
 │  ├─ Modalità saluto (full/soft/none_or_continuity)     │
 │  └─ Prompt context dinamico (profile + concerns)        │
 └──────────────┬──────────────────────────────────────────┘

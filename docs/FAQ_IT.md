@@ -18,7 +18,7 @@ Il sistema ha un controllo interno ("autovalutazione"). Se non è sicuro della r
 Basta scrivere l'informazione nel Foglio Google (Knowledge Base). Ad esempio, se cambiano gli orari delle messe, basta aggiornare il foglio "Istruzioni" e il sistema userà subito i nuovi orari. Non serve toccare il codice.
 
 ### 4. Può gestire gli allegati?
-Attualmente il sistema **legge** le email ma risponde solo con testo. Se deve inviare un modulo (es. per battesimo), invia il *link* per scaricarlo (che avremo inserito nella Knowledge Base), non il file fisico.
+**Sì e No.** Il sistema **LEGGE** il contenuto di allegati PDF e immagini (scontrini, documenti, IBAN) grazie all'OCR integrato, usandoli per capire meglio la richiesta. Tuttavia, risponde sempre e solo con **testo**. Se deve inviare un modulo, manda il link per scaricarlo.
 
 ### 5. Risponde a tutti? Anche allo spam?
 No. Il sistema ha filtri intelligenti. Ignora newsletter, pubblicità e spam. Risponde solo a email che sembrano scritte da persone reali con richieste legittime.

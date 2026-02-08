@@ -25,6 +25,7 @@
 *   **Smart RAG (Doctrine)**: Advanced integration with Doctrine. Specific directives, examples, and warnings are loaded dynamically based on the topic, allowing pinpoint pastoral guidance.
 *   **Contextual Checklists**: Every response is verified against a checklist that adapts to the language and territory (e.g., specific checks for Roman addresses).
 *   **Anti-Leak & Sanitization**: Advanced protection against AI "thought" leaks and automatic input sanitization for sensitive templates (e.g., Formal requests).
+*   **OCR Attachment Support**: Automatic reading and understanding of attached PDFs and images (e.g., IBANs, documents) to enrich response context.
 
 ### ✨ NEW in v2.4: Advanced Intelligence
 *   **Self-Healing**: Automatically fixes common errors (typos, duplicate links) before sending.
@@ -379,7 +380,7 @@ Developed with ❤️ for parish communities by volunteers and professionals.
 ## 📈 Roadmap
 
 **Future ideas:**
-- [ ] OCR attachments processing (PDF and images)
+- [x] OCR attachments processing (PDF and images) - **IMPLEMENTED v2.5**
 - [ ] Google Calendar integration for bookings
 - [ ] SMS notifications for urgency
 - [ ] Mobile app for secretariat management

@@ -34,7 +34,7 @@
 - [ ] **Test emails sent and responses verified**
   - Test in Italian ✓
   - Test in English ✓ (if necessary)
-  - Test with attachments ✓
+  - Test with attachments ✓ (Verify OCR reading)
   - Test pastoral situations ✓
 
 - [ ] **Validation functioning**

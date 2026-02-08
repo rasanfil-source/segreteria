@@ -27,6 +27,7 @@
 *   **Validazione Semantica (Gemini)**: Quando i controlli standard (regex) non sono sicuri, il sistema chiede un "secondo parere" a Gemini stesso per stanare allucinazioni sottili o ragionamenti esposti ("Thinking Leak").
 *   **Checklist Contestuali**: Ogni risposta viene verificata contro una checklist che si adatta alla lingua e al territorio (es. controlli specifici per indirizzi romani).
 *   **Anti-Leak & Sanificazione**: Protezione avanzata contro la fuoriuscita di "pensieri" dell'AI e sanificazione automatica degli input utente per template sensibili (es. Sbattezzo).
+*   **Supporto OCR Allegati**: Lettura e comprensione automatica di PDF e immagini allegate (es. IBAN, documenti) per arricchire il contesto della risposta.
 
 ### ✨ NOVITÀ v2.4: Intelligenza Avanzata
 *   **Self-Healing**: Corregge errori comuni (maiuscole, link duplicati) automaticamente.
@@ -392,7 +393,7 @@ Sviluppato con ❤️ per le comunità parrocchiali da volontari e professionist
 ## 📈 Roadmap
 
 **Idee future:**
-- [ ] OCR allegati (PDF e immagini)
+- [x] OCR allegati (PDF e immagini) - **IMPLEMENTATO v2.5**
 - [ ] Integrazione calendario Google per prenotazioni
 - [ ] SMS notifications per urgenze
 - [ ] App mobile per gestione segreteria

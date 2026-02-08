@@ -130,6 +130,7 @@ Email Arrives
 │  ├─ Conversation history (last 10 thread msgs)          │
 │  ├─ Conversational memory (topics already provided)     │
 │  ├─ Territory check (if address in email)               │
+│  ├─ OCR Analysis (PDF/Images)                           │
 │  ├─ Salutation mode (full/soft/none_or_continuity/session) │
 │  └─ Dynamic prompt context (profile + concerns)         │
 └──────────────┬──────────────────────────────────────────┘

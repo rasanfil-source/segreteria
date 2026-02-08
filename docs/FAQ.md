@@ -18,7 +18,7 @@ The system has an internal check ("self-evaluation"). If it is not sure of the a
 Just write the information in the Google Sheet (Knowledge Base). For example, if mass times change, just update the "Instructions" sheet and the system will immediately use the new times. No need to touch the code.
 
 ### 4. Can it handle attachments?
-Currently, the system **reads** emails but responds only with text. If it needs to send a form (e.g., for baptism), it sends the *link* to download it (which we will have inserted in the Knowledge Base), not the physical file.
+**Yes and No.** The system **READS** the content of PDF and image attachments (receipts, documents, IBANs) using built-in OCR to better understand the request. However, it responds only with **text**. If it needs to send a form, it sends the download link.
 
 ### 5. Does it reply to everyone? Even spam?
 No. The system has intelligent filters. It ignores newsletters, advertising, and spam. It only responds to emails that seem written by real people with legitimate requests.

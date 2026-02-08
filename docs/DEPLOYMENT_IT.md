@@ -34,7 +34,7 @@
 - [ ] **Email di test inviate e risposte verificate**
   - Test in italiano ✓
   - Test in inglese ✓ (se necessario)
-  - Test con allegati ✓
+  - Test con allegati ✓ (Verifica lettura OCR)
   - Test situazioni pastorali ✓
 
 - [ ] **Validazione funzionante**
