@@ -9,6 +9,13 @@ e questo progetto aderisce a [Semantic Versioning](https://semver.org/lang/it/).
 
 ---
 
+
+## [2.7.0b] - 2026-02-08
+### Ottimizzazioni
+- **OCR Intelligente**: Esecuzione OCR posticipata dopo i filtri.
+- **Filtri Qualità**: Scarto allegati non significativi (testo < 30 caratteri, rumore).
+- **Sicurezza**: Batch ridotto a 3 email.
+
 ## [2.7.0] - 2026-02-07
 
 ### 🎉 Aggiunto

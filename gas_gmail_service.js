@@ -298,18 +298,26 @@ class GmailService {
         continue;
       }
 
+
       const size = attachment.getSize ? attachment.getSize() : 0;
       if (size > settings.maxBytesPerFile) {
         skipped.push({ name: attachmentName, reason: 'too_large', size: size });
         continue;
       }
 
+      // Check Nome File Generico (Segnale Debole)
+      const fileNameLower = attachmentName.toLowerCase();
+      const suspiciousNames = ["img_", "dsc_", "photo", "whatsapp image", "image", "screenshot"];
+      const isGenericName = suspiciousNames.some(name => fileNameLower.includes(name));
+
       const ocrText = this._extractOcrTextFromAttachment(attachment, settings);
-      const normalized = this._normalizeAttachmentText(ocrText);
-      if (!normalized) {
-        skipped.push({ name: attachmentName, reason: 'empty_ocr' });
+      // Logica Filtro Qualità OCR
+      if (!this._isMeaningfulOCR(ocrText, isGenericName)) {
+        skipped.push({ name: attachmentName, reason: 'ocr_quality_low' });
         continue;
       }
+
+      const normalized = this._normalizeAttachmentText(ocrText);
 
       let perFileLimit = settings.maxCharsPerFile;
       if (isPdf && settings.pdfMaxPages && settings.pdfCharsPerPage) {
@@ -392,6 +400,37 @@ class GmailService {
         }
       }
     }
+  }
+
+  /**
+   * Valuta se il testo OCR è significativo o spazzatura/vuoto.
+   * @param {string} text - Testo grezzo OCR
+   * @param {boolean} isGenericName - Se il nome file è generico (es. IMG_1234.jpg)
+   * @returns {boolean} - True se il testo è valido
+   */
+  _isMeaningfulOCR(text, isGenericName) {
+    if (!text) return false;
+
+    // Pulizia base: spazi multipli -> singolo spazio
+    const cleaned = text.replace(/\s+/g, ' ').trim();
+
+    // 1. Filtro Lunghezza Minima Assoluta
+    // Se meno di 30 caratteri, è probabilmente rumore o intestazioni vuote
+    if (cleaned.length < 30) return false;
+
+    // 2. Filtro Contenuto Alfabetico (Immagini nere/rumore)
+    // Conta le lettere effettive (a-z, A-Z)
+    const letters = (cleaned.match(/[a-zA-Z]/g) || []).length;
+    if (letters < 5) return false; // Meno di 5 lettere = spazzatura (es. "|||||--")
+
+    // 3. Filtro Combinato per Nomi Generici
+    // Se il file ha nome generico (es. IMG_...), richiediamo più testo (50 caratteri)
+    // per evitare di includere screenshot accidentali o foto sfocate con poco testo.
+    if (isGenericName && cleaned.length < 50) {
+      return false;
+    }
+
+    return true;
   }
 
   _normalizeAttachmentText(text) {

@@ -1571,6 +1571,140 @@ function testAttachmentOCR(results) {
 // RUNNER PRINCIPALE DEI TEST
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PUNTO #8: OTTIMIZZAZIONE OCR (EmailProcessor)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function testEmailProcessorOCRFlow(results) {
+    testGroup('Punto #8: EmailProcessor - Ottimizzazione Flusso OCR', results, () => {
+
+        // Mock parziali
+        const mockThread = {
+            getId: () => 'thread-123',
+            getLabels: () => [],
+            getMessages: () => []
+        };
+
+        const mockMessage = {
+            getId: () => 'msg-123',
+            isUnread: () => true,
+            getFrom: () => 'sender@example.com', // External
+            getDate: () => new Date()
+        };
+
+        // Setup mock messaggio nel thread
+        mockThread.getMessages = () => [mockMessage];
+
+        test('Newsletter -> OCR NON eseguito (Risparmio API)', results, () => {
+            let ocrCalled = false;
+
+            const mockGmailService = {
+                getMessageIdsWithLabel: () => new Set(),
+                extractMessageDetails: () => ({
+                    senderEmail: 'newsletter@example.com',
+                    isNewsletter: true, // Triggera skip
+                    body: 'test',
+                    subject: 'Newsletter'
+                }),
+                extractAttachmentContext: () => {
+                    ocrCalled = true;
+                    return { text: '', items: [] };
+                }
+            };
+
+            const processor = new EmailProcessor({
+                gmailService: mockGmailService,
+                geminiService: { generateResponse: () => 'Response' },
+                classifier: { classify: () => ({ category: 'info', confidence: 0.9 }) },
+                requestClassifier: { classifyRequest: () => ({ type: 'info' }) },
+                promptEngine: { buildPrompt: () => 'Prompt' },
+                validator: { validateResponse: () => ({ isValid: true }) },
+                memoryService: { getMemory: () => ({}), updateMemory: () => { } },
+                territoryValidator: { extractAddressFromText: () => [] }
+            });
+
+            // Override per test
+            processor.config.dryRun = true;
+            processor._markMessageAsProcessed = () => { };
+
+            processor.processThread(mockThread, 'KB', []);
+
+            return ocrCalled === false; // ✅ Deve essere false
+        });
+
+        test('Email valida -> OCR eseguito', results, () => {
+            let ocrCalled = false;
+
+            const mockGmailService = {
+                getMessageIdsWithLabel: () => new Set(),
+                extractMessageDetails: () => ({
+                    senderEmail: 'realuser@example.com',
+                    isNewsletter: false,
+                    body: 'Richiesta battesimo',
+                    subject: 'Info'
+                }),
+                extractAttachmentContext: () => {
+                    ocrCalled = true;
+                    return { text: 'OCR Content', items: [{ name: 'doc.pdf' }] };
+                }
+            };
+
+            const processor = new EmailProcessor({
+                gmailService: mockGmailService,
+                geminiService: { generateResponse: () => ({ text: 'Risposta' }) },
+                classifier: { classify: () => ({ category: 'sacrament', confidence: 0.9 }) },
+                requestClassifier: { classifyRequest: () => ({ type: 'sacrament' }) },
+                promptEngine: { buildPrompt: () => 'Prompt' },
+                validator: { validateResponse: () => ({ isValid: true }) },
+                memoryService: { getMemory: () => ({}), updateMemory: () => { } },
+                territoryValidator: { extractAddressFromText: () => [] }
+            });
+
+            processor.config.dryRun = true;
+            processor._markMessageAsProcessed = () => { };
+
+            processor.processThread(mockThread, 'KB', []);
+
+            return ocrCalled === true; // ✅ Deve essere true
+        });
+    });
+}
+
+function testOCRQualityFilters(results) {
+    testGroup('Punto #9: GmailService - Filtri Qualità OCR', results, () => {
+        const service = new GmailService();
+
+        test('Testo vuoto -> scartato', results, () => {
+            return service._isMeaningfulOCR('', false) === false;
+        });
+
+        test('Testo troppo corto (<30 chars) -> scartato', results, () => {
+            const short = "Questo è un testo corto"; // 23 chars
+            return service._isMeaningfulOCR(short, false) === false;
+        });
+
+        test('Testo solo simboli/numeri -> scartato', results, () => {
+            const symbols = "------------------ |||||||||||| 1234567890";
+            return service._isMeaningfulOCR(symbols, false) === false;
+        });
+
+        test('Testo valido -> accettato', results, () => {
+            const valid = "Questo è un testo sufficientemente lungo e significativo per essere processato.";
+            return service._isMeaningfulOCR(valid, false) === true;
+        });
+
+        test('Nome generico (IMG_) con testo medio -> scartato', results, () => {
+            const medium = "Testo di quaranta caratteri circa..."; // 36 chars
+            return service._isMeaningfulOCR(medium, true) === false;
+        });
+
+        test('Nome generico (IMG_) con testo lungo -> accettato', results, () => {
+            const long = "Questo testo è sicuramente più lungo di cinquanta caratteri e dovrebbe passare.";
+            return service._isMeaningfulOCR(long, true) === true;
+        });
+    });
+}
+
 function runAllTests() {
     console.log('╔' + '═'.repeat(68) + '╗');
     console.log('║' + ' '.repeat(15) + '🧪 TEST SUITE ESTESA - 100% COVERAGE' + ' '.repeat(17) + '║');
@@ -1596,6 +1730,8 @@ function runAllTests() {
         testGmailServiceXSS(results);
         testPromptEngineBudget(results);
         testEmailProcessorErrorClassification(results);
+        testEmailProcessorOCRFlow(results);
+        testOCRQualityFilters(results);
         testMiglioramentiGennaio2026(results);
         testMiglioramentiSecondaFase(results);
 

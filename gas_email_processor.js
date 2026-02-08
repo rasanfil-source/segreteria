@@ -195,17 +195,10 @@ class EmailProcessor {
       // Seleziona ultimo messaggio non letto non etichettato da esterni
       candidate = externalUnread[externalUnread.length - 1];
       const messageDetails = this.gmailService.extractMessageDetails(candidate);
-      const attachmentContext = this.gmailService.extractAttachmentContext(candidate);
 
       console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
       console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
-      if (attachmentContext && attachmentContext.items && attachmentContext.items.length > 0) {
-        const attachmentNames = attachmentContext.items.map(item => item.name).join(', ');
-        console.log(`   📎 Allegati OCR: ${attachmentContext.items.length} file inclusi nel contesto (${attachmentNames})`);
-      } else if (attachmentContext && attachmentContext.skipped && attachmentContext.skipped.length > 0) {
-        const skippedNames = attachmentContext.skipped.map(item => item.name || item.reason).join(', ');
-        console.log(`   📎 Allegati OCR saltati: ${attachmentContext.skipped.length} (${skippedNames})`);
-      }
+
 
       if (messageDetails.isNewsletter) {
         console.log('   ⊘ Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
@@ -579,6 +572,18 @@ ${addressLines.join('\n\n')}
       }
 
       const categoryHintSource = classification.category || requestType.type;
+
+      // ═══════════════════════════════════════════════════════════════
+      // STEP 7.1: ESTRAZIONE CONTESTO ALLEGATI (OCR) - Eseguita SOLO ORA
+      // ═══════════════════════════════════════════════════════════════
+      const attachmentContext = this.gmailService.extractAttachmentContext(candidate);
+      if (attachmentContext && attachmentContext.items && attachmentContext.items.length > 0) {
+        const attachmentNames = attachmentContext.items.map(item => item.name).join(', ');
+        console.log(`   📎 Allegati OCR: ${attachmentContext.items.length} file inclusi nel contesto (${attachmentNames})`);
+      } else if (attachmentContext && attachmentContext.skipped && attachmentContext.skipped.length > 0) {
+        const skippedNames = attachmentContext.skipped.map(item => item.name || item.reason).join(', ');
+        console.log(`   📎 Allegati OCR saltati: ${attachmentContext.skipped.length} (${skippedNames})`);
+      }
 
       const promptOptions = {
         emailContent: messageDetails.body,
