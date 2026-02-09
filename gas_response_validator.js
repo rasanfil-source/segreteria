@@ -17,7 +17,9 @@ class ResponseValidator {
 
     // Ottieni config - fallback a default se CONFIG non definito
     // Soglia minima accettabile
-    this.MIN_VALID_SCORE = minScore;
+    this.MIN_VALID_SCORE = typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_MIN_SCORE 
+      ? CONFIG.VALIDATION_MIN_SCORE 
+      : 0.6;
 
     // Soglie lunghezza
     this.MIN_LENGTH_CHARS = 25;
