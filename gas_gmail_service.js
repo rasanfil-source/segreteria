@@ -466,6 +466,35 @@ class GmailService {
     return cleaned;
   }
 
+  /**
+   * Estrae contesto focalizzato attorno a un IBAN rilevato nel testo.
+   * @param {string} text - Testo da analizzare
+   * @param {number} contextChars - Caratteri di contesto prima/dopo IBAN
+   * @returns {{matched: boolean, text: string}} Risultato con flag e testo estratto
+   */
+  _focusTextAroundIban(text, contextChars = 300) {
+    if (!text || typeof text !== 'string') {
+      return { matched: false, text: '' };
+    }
+
+    // Regex IBAN italiano (IT + 2 cifre controllo + 1 lettera CIN + 22 alfanumerici)
+    const ibanRegex = /\bIT\d{2}[A-Z]\d{22}\b/i;
+    const match = text.match(ibanRegex);
+
+    if (!match) {
+      return { matched: false, text: text };
+    }
+
+    const ibanIndex = match.index;
+    const start = Math.max(0, ibanIndex - contextChars);
+    const end = Math.min(text.length, ibanIndex + match[0].length + contextChars);
+
+    return {
+      matched: true,
+      text: text.slice(start, end)
+    };
+  }
+
   _extractSenderName(fromField) {
     if (!fromField || typeof fromField !== 'string') {
       return 'Utente';
