@@ -56,7 +56,8 @@ Questa funzionalità estrae il testo da allegati PDF e immagini utilizzando l'OC
 | `maxBytesPerFile` | `5MB` | Dimensione massima per allegato |
 | `maxCharsPerFile` | `4000` | Caratteri massimi estratti per file |
 | `maxTotalChars` | `12000` | Caratteri totali massimi da tutti gli allegati |
-| `ocrLanguage` | `'it'` | Codice lingua OCR (Italiano) |
+| `ocrLanguage` | `'it'` | Codice lingua OCR (può essere sovrascritto dinamicamente con lingua email rilevata) |
+| `ocrConfidenceWarningThreshold` | `0.8` | Soglia minima di affidabilità OCR per aggiungere una nota di leggibilità in risposta |
 | `pdfMaxPages` | `2` | Limite pagine stimato per PDF |
 | `pdfCharsPerPage` | `1800` | Caratteri stimati per pagina PDF |
 

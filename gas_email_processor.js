@@ -579,7 +579,9 @@ ${addressLines.join('\n\n')}
       let attachmentContext = { text: '', items: [], skipped: [] };
       if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
         if (this._shouldTryOcr(messageDetails.body, messageDetails.subject)) {
-          attachmentContext = this.gmailService.extractAttachmentContext(candidate);
+          attachmentContext = this.gmailService.extractAttachmentContext(candidate, {
+            detectedLanguage: detectedLanguage
+          });
         } else {
           attachmentContext.skipped.push({ reason: 'precheck_no_ocr' });
           console.log('   📎 Allegati OCR saltati: pre-check negativo (keyword non trovate)');
@@ -713,6 +715,15 @@ ${addressLines.join('\n\n')}
         this._markMessageAsProcessed(candidate);
         result.status = 'filtered';
         return result;
+      }
+
+      // Nota OCR bassa confidenza: avviso leggibilità allegato
+      if (attachmentContext && attachmentContext.ocrConfidenceLow) {
+        const ocrLowConfidenceNote = this._getOcrLowConfidenceNote(detectedLanguage);
+        if (ocrLowConfidenceNote && !response.includes(ocrLowConfidenceNote)) {
+          response = `${response.trim()}\n\n${ocrLowConfidenceNote}`;
+          console.log(`   ⚠️ Nota OCR aggiunta (confidenza media: ${attachmentContext.ocrConfidence})`);
+        }
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -1041,6 +1052,18 @@ ${addressLines.join('\n\n')}
   _getCurrentSeason() {
     const month = new Date().getMonth() + 1;
     return (month >= 6 && month <= 9) ? 'estivo' : 'invernale';
+  }
+
+  _getOcrLowConfidenceNote(languageCode) {
+    const lang = ((languageCode || 'it') + '').toLowerCase().split(/[-_]/)[0];
+    const notes = {
+      it: 'Nota: Il documento allegato era di difficile lettura.',
+      en: 'Note: The attached document was difficult to read.',
+      es: 'Nota: El documento adjunto era difícil de leer.',
+      fr: 'Remarque : Le document joint était difficile à lire.',
+      de: 'Hinweis: Das angehängte Dokument war schwer lesbar.'
+    };
+    return notes[lang] || notes.it;
   }
 
   _markMessageAsProcessed(message) {

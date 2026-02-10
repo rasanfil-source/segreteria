@@ -1740,6 +1740,96 @@ function testEmailProcessorOCRTriggers(results) {
     });
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// OCR LINGUA DINAMICA + STIMA CONFIDENZA
+// ═══════════════════════════════════════════════════════════════════════════
+
+function testOcrDynamicLanguageAndConfidence(results) {
+    testGroup('OCR: Lingua Dinamica e Stima Confidenza', results, () => {
+        const service = new GmailService();
+
+        // ── _resolveOcrLanguage ──
+        test('_resolveOcrLanguage: codice supportato restituito direttamente', results, () => {
+            return service._resolveOcrLanguage('en') === 'en';
+        });
+
+        test('_resolveOcrLanguage: codice regionale en-US -> en', results, () => {
+            return service._resolveOcrLanguage('en-US') === 'en';
+        });
+
+        test('_resolveOcrLanguage: codice regionale it_IT -> it', results, () => {
+            return service._resolveOcrLanguage('it_IT') === 'it';
+        });
+
+        test('_resolveOcrLanguage: lingua non supportata -> fallback it', results, () => {
+            return service._resolveOcrLanguage('zh') === 'it';
+        });
+
+        test('_resolveOcrLanguage: stringa vuota -> fallback it', results, () => {
+            return service._resolveOcrLanguage('') === 'it';
+        });
+
+        test('_resolveOcrLanguage: null -> fallback it', results, () => {
+            return service._resolveOcrLanguage(null) === 'it';
+        });
+
+        test('_resolveOcrLanguage: maiuscole normalizzate', results, () => {
+            return service._resolveOcrLanguage('FR') === 'fr';
+        });
+
+        // ── _estimateOcrConfidence ──
+        test('_estimateOcrConfidence: testo nullo -> 0', results, () => {
+            return service._estimateOcrConfidence(null, false) === 0;
+        });
+
+        test('_estimateOcrConfidence: testo vuoto -> 0', results, () => {
+            return service._estimateOcrConfidence('', false) === 0;
+        });
+
+        test('_estimateOcrConfidence: testo lungo con molte lettere -> alta confidenza', results, () => {
+            const text = 'Questo documento contiene molte informazioni utili e leggibili che indicano un buon OCR del PDF inviato via email con coordinate bancarie e riferimenti importanti per il pagamento del contributo parrocchiale annuale previsto dal regolamento interno della comunità parrocchiale di riferimento sul territorio diocesano competente per la zona assegnata dal vescovo in carica attualmente in servizio pastorale attivo presso la sede vescovile della diocesi di appartenenza regionale e nazionale della conferenza episcopale italiana sede di Roma capitale della chiesa cattolica universale.';
+            const confidence = service._estimateOcrConfidence(text, false);
+            return confidence >= 0.8;
+        });
+
+        test('_estimateOcrConfidence: testo breve con rumore -> bassa confidenza', results, () => {
+            const text = '|||---###...***';
+            const confidence = service._estimateOcrConfidence(text, false);
+            return confidence < 0.5;
+        });
+
+        test('_estimateOcrConfidence: penalità per nome generico', results, () => {
+            const text = 'Testo ragionevolmente lungo con parole normali per un documento che contiene informazioni utili';
+            const confNormal = service._estimateOcrConfidence(text, false);
+            const confGeneric = service._estimateOcrConfidence(text, true);
+            return confGeneric < confNormal;
+        });
+
+        // ── _getOcrLowConfidenceNote (EmailProcessor) ──
+        const processor = new EmailProcessor();
+
+        test('_getOcrLowConfidenceNote: italiano default', results, () => {
+            const note = processor._getOcrLowConfidenceNote('it');
+            return note.includes('difficile lettura');
+        });
+
+        test('_getOcrLowConfidenceNote: inglese', results, () => {
+            const note = processor._getOcrLowConfidenceNote('en');
+            return note.includes('difficult to read');
+        });
+
+        test('_getOcrLowConfidenceNote: codice regionale es-MX -> spagnolo', results, () => {
+            const note = processor._getOcrLowConfidenceNote('es-MX');
+            return note.includes('difícil de leer');
+        });
+
+        test('_getOcrLowConfidenceNote: lingua sconosciuta -> fallback italiano', results, () => {
+            const note = processor._getOcrLowConfidenceNote('ja');
+            return note.includes('difficile lettura');
+        });
+    });
+}
+
 function runAllTests() {
     console.log('╔' + '═'.repeat(68) + '╗');
     console.log('║' + ' '.repeat(15) + '🧪 TEST SUITE ESTESA - 100% COVERAGE' + ' '.repeat(17) + '║');
@@ -1795,6 +1885,7 @@ function runAllTests() {
         // OCR ALLEGATI
         // ═══════════════════════════════════════════════════════════════════
         testAttachmentOCR(results);
+        testOcrDynamicLanguageAndConfidence(results);
 
     } catch (error) {
         console.error(`\n💥 ERRORE FATALE: ${error.message}`);

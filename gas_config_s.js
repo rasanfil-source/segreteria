@@ -46,6 +46,7 @@ const CONFIG = {
         maxCharsPerFile: 4000,           // Limite testo per singolo allegato
         maxTotalChars: 12000,            // Limite totale testo allegati
         ocrLanguage: 'it',               // Lingua OCR (Drive Advanced API)
+        ocrConfidenceWarningThreshold: 0.8, // Soglia warning leggibilità OCR in risposta
         pdfMaxPages: 2,                  // Limite pagine PDF (stima via OCR)
         pdfCharsPerPage: 1800            // Stima caratteri per pagina PDF
     },

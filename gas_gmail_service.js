@@ -257,12 +257,15 @@ class GmailService {
       maxCharsPerFile: 4000,
       maxTotalChars: 12000,
       ocrLanguage: 'it',
+      ocrConfidenceWarningThreshold: 0.8,
       pdfMaxPages: 2,
       pdfCharsPerPage: 1800
     }, defaults, options);
 
+    settings.ocrLanguage = this._resolveOcrLanguage(options.detectedLanguage || settings.ocrLanguage || 'it');
+
     if (!settings.enabled) {
-      return { text: '', items: [], skipped: [] };
+      return { text: '', items: [], skipped: [], ocrConfidence: null, ocrConfidenceLow: false };
     }
 
     let attachments = [];
@@ -270,11 +273,11 @@ class GmailService {
       attachments = message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
     } catch (e) {
       console.warn(`⚠️ Impossibile leggere allegati: ${e.message}`);
-      return { text: '', items: [], skipped: [{ reason: 'read_error', error: e.message }] };
+      return { text: '', items: [], skipped: [{ reason: 'read_error', error: e.message }], ocrConfidence: null, ocrConfidenceLow: false };
     }
 
     if (attachments.length === 0) {
-      return { text: '', items: [], skipped: [] };
+      return { text: '', items: [], skipped: [], ocrConfidence: null, ocrConfidenceLow: false };
     }
     console.log(`   📎 Allegati trovati: ${attachments.length}`);
 
@@ -311,9 +314,10 @@ class GmailService {
       const isGenericName = suspiciousNames.some(name => fileNameLower.includes(name));
 
       const ocrText = this._extractOcrTextFromAttachment(attachment, settings);
+      const ocrConfidence = this._estimateOcrConfidence(ocrText, isGenericName);
       // Logica Filtro Qualità OCR
       if (!this._isMeaningfulOCR(ocrText, isGenericName)) {
-        skipped.push({ name: attachmentName, reason: 'ocr_quality_low' });
+        skipped.push({ name: attachmentName, reason: 'ocr_quality_low', ocrConfidence: ocrConfidence });
         continue;
       }
 
@@ -355,6 +359,7 @@ class GmailService {
         name: attachmentName,
         contentType: contentType,
         size: size,
+        ocrConfidence: ocrConfidence,
         text: clipped
       });
 
@@ -362,7 +367,7 @@ class GmailService {
     }
 
     if (items.length === 0) {
-      return { text: '', items: [], skipped: skipped };
+      return { text: '', items: [], skipped: skipped, ocrConfidence: null, ocrConfidenceLow: false };
     }
 
     const text = items.map((item, idx) => {
@@ -370,7 +375,17 @@ class GmailService {
       return `(${idx + 1}) ${item.name} [${item.contentType || 'tipo sconosciuto'}, ${sizeKb}]\n${item.text}`;
     }).join('\n\n');
 
-    return { text: text, items: items, skipped: skipped };
+    const averageConfidence = items.length > 0
+      ? items.reduce((acc, item) => acc + (item.ocrConfidence || 0), 0) / items.length
+      : null;
+
+    return {
+      text: text,
+      items: items,
+      skipped: skipped,
+      ocrConfidence: averageConfidence,
+      ocrConfidenceLow: averageConfidence !== null && averageConfidence < (settings.ocrConfidenceWarningThreshold || 0.8)
+    };
   }
 
   _extractOcrTextFromAttachment(attachment, settings) {
@@ -438,6 +453,41 @@ class GmailService {
     }
 
     return true;
+  }
+
+  _resolveOcrLanguage(languageCode) {
+    const normalized = (languageCode || 'it').toString().toLowerCase().trim();
+    if (!normalized) return 'it';
+
+    const supported = new Set(['it', 'en', 'es', 'fr', 'de', 'pt', 'nl']);
+    if (supported.has(normalized)) {
+      return normalized;
+    }
+
+    // Gestione codici regionali tipo en-US -> en
+    const base = normalized.split(/[-_]/)[0];
+    return supported.has(base) ? base : 'it';
+  }
+
+  _estimateOcrConfidence(text, isGenericName) {
+    if (!text || typeof text !== 'string') return 0;
+
+    const cleaned = text.replace(/\s+/g, ' ').trim();
+    if (!cleaned) return 0;
+
+    const letters = (cleaned.match(/[a-zA-ZÀ-ÿ]/g) || []).length;
+    const chars = cleaned.length;
+    const letterRatio = Math.min(1, letters / Math.max(1, chars * 0.45));
+
+    let score = 0.3;
+    score += Math.min(cleaned.length / 600, 0.35);
+    score += letterRatio * 0.3;
+
+    if (isGenericName) {
+      score -= 0.1;
+    }
+
+    return Math.max(0, Math.min(1, Number(score.toFixed(2))));
   }
 
   _normalizeAttachmentText(text, settings) {

@@ -56,7 +56,8 @@ This feature extracts text from PDF and image attachments using Google Drive's b
 | `maxBytesPerFile` | `5MB` | Maximum file size per attachment |
 | `maxCharsPerFile` | `4000` | Maximum characters extracted per file |
 | `maxTotalChars` | `12000` | Maximum total characters from all attachments |
-| `ocrLanguage` | `'it'` | OCR language code (Italian) |
+| `ocrLanguage` | `'it'` | OCR language code (can be dynamically overridden by detected email language) |
+| `ocrConfidenceWarningThreshold` | `0.8` | Minimum OCR confidence before appending a readability warning note |
 | `pdfMaxPages` | `2` | Estimated page limit for PDFs |
 | `pdfCharsPerPage` | `1800` | Estimated characters per PDF page |
 
