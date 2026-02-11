@@ -104,7 +104,7 @@ class GeminiService {
 
     let response;
     try {
-      response = UrlFetchApp.fetch(`${url}?key=${activeKey}`, {
+      response = UrlFetchApp.fetch(`${url}?key=${encodeURIComponent(activeKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
@@ -135,6 +135,10 @@ class GeminiService {
         throw new Error('Errore contenuto: prompt supera il limite token del modello.');
       }
       throw new Error(`Errore contenuto: richiesta non valida (${responseCode}).`);
+    }
+
+    if (responseCode === 403) {
+      throw new Error(`Errore API 403 (chiave non valida/restrizioni referrer-IP-API): ${responseBody.substring(0, 200)}`);
     }
 
     if (responseCode !== 200) {
@@ -239,7 +243,7 @@ Output JSON:
     let response;
 
     try {
-      response = UrlFetchApp.fetch(`${url}?key = ${activeKey} `, {
+      response = UrlFetchApp.fetch(`${url}?key=${encodeURIComponent(activeKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
@@ -257,7 +261,7 @@ Output JSON:
       if ([429, 500, 502, 503, 504].includes(responseCode) && this.backupKey) {
         console.warn(`⚠️ Chiave primaria esaurita / errore(${response.getResponseCode()}).Tentativo con chiave di riserva...`);
         activeKey = this.backupKey;
-        response = UrlFetchApp.fetch(`${url}?key = ${activeKey} `, {
+        response = UrlFetchApp.fetch(`${url}?key=${encodeURIComponent(activeKey)}`, {
           method: 'POST',
           contentType: 'application/json',
           payload: JSON.stringify({
@@ -279,6 +283,10 @@ Output JSON:
 
     if ([429, 500, 502, 503, 504].includes(responseCode)) {
       throw new Error(`Errore server o quota Gemini(${responseCode})`);
+    }
+
+    if (responseCode === 403) {
+      throw new Error(`Errore API 403 (chiave non valida/restrizioni referrer-IP-API): ${response.getContentText().substring(0, 200)}`);
     }
 
     if (responseCode !== 200) {
@@ -395,7 +403,7 @@ Output JSON:
 
   /**
    * Rileva lingua email con detection avanzata
-   * Supporta IT, EN, ES con scoring e safety grade
+   * Supporta IT, EN, ES, PT con scoring e safety grade
    */
   detectEmailLanguage(emailContent, emailSubject) {
     const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
@@ -453,6 +461,15 @@ Output JSON:
       ' nel ', ' della ', ' degli ', ' delle '
     ];
 
+    const portugueseKeywords = [
+      'olá', 'obrigado', 'obrigada', 'agradecemos', 'agradeço',
+      'orçamento', 'cotação', 'viatura', 'portagens', 'reserva',
+      'estamos ao dispor', 'com os melhores cumprimentos', 'cumprimentos',
+      'bom dia', 'boa tarde', 'boa noite',
+      ' por ', ' para ', ' com ', ' não ', ' uma ', ' seu ', ' sua ',
+      ' dos ', ' das ', ' ao ', ' aos '
+    ];
+
     // Conta corrispondenze con limiti di parola
     const countMatches = (keywords, txt, weight = 1) => {
       let count = 0;
@@ -476,10 +493,11 @@ Output JSON:
     const scores = {
       'en': englishScore,
       'es': countMatches(spanishKeywords, text, 1) + spanishCharScore,
-      'it': countMatches(italianKeywords, text, 1)
+      'it': countMatches(italianKeywords, text, 1),
+      'pt': countMatches(portugueseKeywords, text, 1)
     };
 
-    console.log(`   Punteggi lingua: EN = ${scores['en']}, ES = ${scores['es']}, IT = ${scores['it']} `);
+    console.log(`   Punteggi lingua: EN = ${scores['en']}, ES = ${scores['es']}, IT = ${scores['it']}, PT = ${scores['pt']} `);
 
     // Determina lingua rilevata
     let detectedLang = 'it';
@@ -497,9 +515,14 @@ Output JSON:
       return { lang: 'es', confidence: scores['es'], safetyGrade: this._computeSafetyGrade('es', scores['es'], scores) };
     }
 
-    if (scores['en'] >= 2 && scores['en'] >= scores['it'] && scores['en'] >= scores['es']) {
+    if (scores['en'] >= 2 && scores['en'] >= scores['it'] && scores['en'] >= scores['es'] && scores['en'] >= scores['pt']) {
       console.log(`   ✓ Rilevato: INGLESE(punteggio: ${scores['en']})`);
       return { lang: 'en', confidence: scores['en'], safetyGrade: this._computeSafetyGrade('en', scores['en'], scores) };
+    }
+
+    if (scores['pt'] >= 2 && scores['pt'] >= scores['it'] && scores['pt'] >= scores['es'] && scores['pt'] >= scores['en']) {
+      console.log(`   ✓ Rilevato: PORTOGHESE(punteggio: ${scores['pt']})`);
+      return { lang: 'pt', confidence: scores['pt'], safetyGrade: this._computeSafetyGrade('pt', scores['pt'], scores) };
     }
 
     if (maxScore < 2) {
@@ -517,10 +540,10 @@ Output JSON:
 
   /**
    * Calcola grado di sicurezza (0-5) per la detection locale
-   * Solo IT/EN/ES possono avere grado alto - lingue esotiche → grado 0
+   * Solo IT/EN/ES/PT possono avere grado alto - lingue esotiche → grado 0
    */
   _computeSafetyGrade(detectedLang, maxScore, allScores) {
-    const supportedLangs = ['it', 'en', 'es'];
+    const supportedLangs = ['it', 'en', 'es', 'pt'];
     if (!supportedLangs.includes(detectedLang)) {
       return 0; // Lingua non supportata → affidati a Gemini
     }
@@ -631,6 +654,18 @@ Output JSON:
         } else {
           greeting = 'Buenas tardes,';
         }
+      } else if (language === 'pt') {
+        if (isNightTime) {
+          greeting = `Caro(a) ${senderName},`;
+        } else if (day === 0) {
+          greeting = 'Feliz domingo,';
+        } else if (hour >= 5 && hour < 12) {
+          greeting = 'Bom dia,';
+        } else if (hour >= 12 && hour < 19) {
+          greeting = 'Boa tarde,';
+        } else {
+          greeting = 'Boa noite,';
+        }
       } else {
         // Altre lingue: saluto neutro
         greeting = 'Good day,';
@@ -644,6 +679,8 @@ Output JSON:
       closing = 'Kind regards,';
     } else if (language === 'es') {
       closing = 'Cordiales saludos,';
+    } else if (language === 'pt') {
+      closing = 'Com os melhores cumprimentos,';
     } else {
       closing = 'Cordiali saluti,';
     }
@@ -914,7 +951,7 @@ Output JSON:
       const temperature = typeof CONFIG !== 'undefined' ? CONFIG.TEMPERATURE : 0.5;
       const maxTokens = typeof CONFIG !== 'undefined' ? CONFIG.MAX_OUTPUT_TOKENS : 6000;
 
-      const response = UrlFetchApp.fetch(`${this.baseUrl}?key = ${this.apiKey} `, {
+      const response = UrlFetchApp.fetch(`${this.baseUrl}?key=${encodeURIComponent(this.apiKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
@@ -985,7 +1022,7 @@ Output JSON:
     try {
       const testPrompt = 'Rispondi con una sola parola: OK';
 
-      const response = UrlFetchApp.fetch(`${this.baseUrl}?key = ${this.apiKey} `, {
+      const response = UrlFetchApp.fetch(`${this.baseUrl}?key=${encodeURIComponent(this.apiKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
@@ -1034,7 +1071,7 @@ function parseGeminiJsonLenient(text) {
 
   // 1. Pulizia Markdown
   let cleaned = text
-    .replace(/```json /gi, '')
+    .replace(/```json\s*/gi, '')
     .replace(/```/g, '')
     .trim();
 

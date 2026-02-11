@@ -750,6 +750,24 @@ NO DEBES:
 ❌ Mezclar idiomas
 
 Esto es OBLIGATORIO. El remitente habla español y no entenderá italiano.
+═══════════════════════════════════════════════════════════════════════════`,
+      'pt': `═══════════════════════════════════════════════════════════════════════════
+🚨🚨🚨 REQUISITO CRÍTICO DE IDIOMA - PORTUGUÊS 🚨🚨🚨
+═══════════════════════════════════════════════════════════════════════════
+
+O email recebido está escrito em PORTUGUÊS.
+
+DEVE:
+✅ Escrever TODA a resposta em PORTUGUÊS
+✅ Usar saudações portuguesas: "Bom dia," "Boa tarde," "Boa noite,"
+✅ Usar despedidas portuguesas: "Com os melhores cumprimentos," "Atenciosamente,"
+✅ Manter um registo formal e cordial
+
+NÃO DEVE:
+❌ Usar palavras italianas
+❌ Misturar idiomas
+
+Isto é OBRIGATÓRIO. O remetente pode não entender italiano.
 ═══════════════════════════════════════════════════════════════════════════`
     };
 
@@ -1372,6 +1390,20 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
       languageReminder = `4. **IDIOMA: ⚠️ RESPONDE SOLO EN ESPAÑOL**
    • NO se permiten palabras italianas
    • Usa español para todo: saludo, cuerpo, despedida`;
+    } else if (lang === 'pt') {
+      formatSection = `1. **Formato de resposta (PORTUGUÊS OBRIGATÓRIO):**
+   ${salutation}
+   [Corpo conciso e relevante - ✅ USE FORMATAÇÃO SE APROPRIADO]
+   ${closing}
+   Secretaria Paróquia Sant'Eugenio`;
+      contentSection = `2. **Conteúdo:**
+   • Responda APENAS ao que foi perguntado
+   • Use APENAS informações da base de conhecimento
+   • ✅ Formate de forma elegante se houver 3+ elementos/horários
+   • Seguimento (Re:): seja mais direto e conciso`;
+      languageReminder = `4. **IDIOMA: ⚠️ RESPONDA SOMENTE EM PORTUGUÊS**
+   • NÃO use palavras italianas
+   • Use português em tudo: saudação, corpo, despedida`;
     } else {
       formatSection = `1. **Formato risposta:**
    ${salutation}

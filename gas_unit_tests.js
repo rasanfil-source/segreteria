@@ -664,6 +664,12 @@ function testGeminiServiceAdvanced(results) {
             return lang === 'es';
         });
 
+        test('Rilevamento lingua: Portoghese', results, () => {
+            const service = new GeminiService();
+            const detected = service.detectEmailLanguage("Bom dia, agradecemos o orçamento para viatura.", "ORÇAMENTO 499/2026");
+            return detected.lang === 'pt';
+        });
+
         test('Rilevamento lingua: Mista (prevalenza)', results, () => {
             const service = new GeminiService();
             const lang = service.detectLanguage("Buongiorno hello ciao grazie");
