@@ -239,7 +239,7 @@ Output JSON:
     let response;
 
     try {
-      response = UrlFetchApp.fetch(`${url}?key = ${activeKey} `, {
+      response = UrlFetchApp.fetch(`${url}?key=${activeKey}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
@@ -257,7 +257,7 @@ Output JSON:
       if ([429, 500, 502, 503, 504].includes(responseCode) && this.backupKey) {
         console.warn(`⚠️ Chiave primaria esaurita / errore(${response.getResponseCode()}).Tentativo con chiave di riserva...`);
         activeKey = this.backupKey;
-        response = UrlFetchApp.fetch(`${url}?key = ${activeKey} `, {
+        response = UrlFetchApp.fetch(`${url}?key=${activeKey}`, {
           method: 'POST',
           contentType: 'application/json',
           payload: JSON.stringify({
@@ -272,7 +272,7 @@ Output JSON:
       }
 
     } catch (e) {
-      throw new Error(`Errore connessione API: ${e.message} `);
+      throw new Error(`Errore connessione API: ${e.message}`);
     }
 
     const responseCode = response.getResponseCode();
@@ -282,7 +282,7 @@ Output JSON:
     }
 
     if (responseCode !== 200) {
-      throw new Error(`Errore API: ${responseCode} `);
+      throw new Error(`Errore API: ${responseCode}`);
     }
 
     const result = JSON.parse(response.getContentText());
@@ -307,7 +307,7 @@ Output JSON:
     const candidate = result.candidates[0];
 
     if (candidate.finishReason && ['SAFETY', 'RECITATION', 'OTHER', 'BLOCKLIST'].includes(candidate.finishReason)) {
-      console.warn(`⚠️ Controllo rapido bloccato: ${candidate.finishReason} `);
+      console.warn(`⚠️ Controllo rapido bloccato: ${candidate.finishReason}`);
       return defaultResult;
     }
 
@@ -325,7 +325,7 @@ Output JSON:
     try {
       data = parseGeminiJsonLenient(textResponse);
     } catch (parseError) {
-      console.warn(`⚠️ parseGeminiJsonLenient fallito: ${parseError.message} `);
+      console.warn(`⚠️ parseGeminiJsonLenient fallito: ${parseError.message}`);
       return defaultResult;
     }
 
@@ -375,7 +375,7 @@ Output JSON:
 
         if (isRetryable && attempt < this.maxRetries - 1) {
           const waitTime = this.retryDelay * Math.pow(this.backoffFactor, attempt);
-          console.warn(`⚠️ ${context} fallito(tentativo ${attempt + 1}/${this.maxRetries}): ${error.message} `);
+          console.warn(`⚠️ ${context} fallito(tentativo ${attempt + 1}/${this.maxRetries}): ${error.message}`);
           console.log(`   Retry tra ${waitTime / 1000}s...`);
           Utilities.sleep(waitTime);
         } else if (attempt === this.maxRetries - 1) {
@@ -395,7 +395,7 @@ Output JSON:
 
   /**
    * Rileva lingua email con detection avanzata
-   * Supporta IT, EN, ES con scoring e safety grade
+   * Supporta IT, EN, ES, PT con scoring e safety grade
    */
   detectEmailLanguage(emailContent, emailSubject) {
     const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
@@ -403,8 +403,10 @@ Output JSON:
     const text = `${safeSubject} ${safeContent} `.toLowerCase();
     const originalText = `${safeSubject} ${safeContent} `;
 
-    // Rilevamento caratteri specifici spagnoli
+    // Rilevamento caratteri specifici
     let spanishCharScore = 0;
+    let portugueseCharScore = 0;
+
     if (originalText.includes('¿') || originalText.includes('¡')) {
       spanishCharScore = 3;
       console.log('   Trovata punteggiatura spagnola (¿ o ¡)');
@@ -412,6 +414,10 @@ Output JSON:
     if (text.includes('ñ')) {
       spanishCharScore += 2;
       console.log('   Trovato carattere spagnolo (ñ)');
+    }
+    if (text.includes('ã') || text.includes('õ') || text.includes('ç')) {
+      portugueseCharScore += 2;
+      console.log('   Trovato carattere portoghese (ã, õ, ç)');
     }
 
     // Parole chiave per rilevamento
@@ -441,6 +447,16 @@ Output JSON:
       'querido', 'estimado', 'saludos',
       ' no ', ' un ', ' unos ', ' unas ',
       ' del ', ' con el ', ' en el ', ' es '
+    ];
+
+    const portugueseKeywords = [
+      'obrigado', 'obrigada', 'bom dia', 'boa tarde', 'boa noite',
+      'com os melhores cumprimentos', 'cumprimentos', 'atentamente',
+      'agradecemos', 'interesse', 'orçamento', 'cotação',
+      'para', 'com', 'não', 'sim', 'por favor',
+      ' o ', ' a ', ' os ', ' as ', ' um ', ' uma ',
+      ' do ', ' da ', ' dos ', ' das ', ' no ', ' na ',
+      'eu', 'nós', 'você', 'senhor', 'senhora'
     ];
 
     const italianKeywords = [
@@ -476,10 +492,11 @@ Output JSON:
     const scores = {
       'en': englishScore,
       'es': countMatches(spanishKeywords, text, 1) + spanishCharScore,
+      'pt': countMatches(portugueseKeywords, text, 1) + portugueseCharScore,
       'it': countMatches(italianKeywords, text, 1)
     };
 
-    console.log(`   Punteggi lingua: EN = ${scores['en']}, ES = ${scores['es']}, IT = ${scores['it']} `);
+    console.log(`   Punteggi lingua: EN = ${scores['en']}, ES = ${scores['es']}, PT = ${scores['pt']}, IT = ${scores['it']}`);
 
     // Determina lingua rilevata
     let detectedLang = 'it';
@@ -497,9 +514,20 @@ Output JSON:
       return { lang: 'es', confidence: scores['es'], safetyGrade: this._computeSafetyGrade('es', scores['es'], scores) };
     }
 
-    if (scores['en'] >= 2 && scores['en'] >= scores['it'] && scores['en'] >= scores['es']) {
+    if (portugueseCharScore > 0 && scores['pt'] >= scores['it'] && scores['pt'] >= scores['en'] && scores['pt'] >= scores['es']) {
+      console.log(`   ✓ Rilevato: PORTOGHESE(punteggio: ${scores['pt']}, include caratteri speciali)`);
+      return { lang: 'pt', confidence: scores['pt'], safetyGrade: this._computeSafetyGrade('pt', scores['pt'], scores) };
+    }
+
+    if (scores['en'] >= 2 && scores['en'] >= scores['it'] && scores['en'] >= scores['es'] && scores['en'] >= scores['pt']) {
       console.log(`   ✓ Rilevato: INGLESE(punteggio: ${scores['en']})`);
       return { lang: 'en', confidence: scores['en'], safetyGrade: this._computeSafetyGrade('en', scores['en'], scores) };
+    }
+
+    // Check Portoghese senza caratteri speciali ma con score alto
+    if (scores['pt'] > scores['en'] && scores['pt'] > scores['it'] && scores['pt'] > scores['es']) {
+      console.log(`   ✓ Rilevato: PORTOGHESE(punteggio: ${scores['pt']})`);
+      return { lang: 'pt', confidence: scores['pt'], safetyGrade: this._computeSafetyGrade('pt', scores['pt'], scores) };
     }
 
     if (maxScore < 2) {
@@ -517,10 +545,10 @@ Output JSON:
 
   /**
    * Calcola grado di sicurezza (0-5) per la detection locale
-   * Solo IT/EN/ES possono avere grado alto - lingue esotiche → grado 0
+   * Solo IT/EN/ES/PT possono avere grado alto - lingue esotiche → grado 0
    */
   _computeSafetyGrade(detectedLang, maxScore, allScores) {
-    const supportedLangs = ['it', 'en', 'es'];
+    const supportedLangs = ['it', 'en', 'es', 'pt'];
     if (!supportedLangs.includes(detectedLang)) {
       return 0; // Lingua non supportata → affidati a Gemini
     }
@@ -548,7 +576,7 @@ Output JSON:
   _resolveLanguage(geminiLang, localLang, localSafetyGrade) {
     const normalizedGemini = (geminiLang || '').toLowerCase().trim();
     const normalizedLocal = (localLang || 'it').toLowerCase();
-    const supportedLangs = ['it', 'en', 'es'];
+    const supportedLangs = ['it', 'en', 'es', 'pt'];
 
     // 1. Se Gemini non ha restituito lingua → usa locale
     if (!normalizedGemini) {
@@ -556,7 +584,7 @@ Output JSON:
       return normalizedLocal;
     }
 
-    // 2. Se Gemini restituisce lingua ESOTICA (non IT/EN/ES) → USA GEMINI
+    // 2. Se Gemini restituisce lingua ESOTICA (non IT/EN/ES/PT) → USA GEMINI
     if (!supportedLangs.includes(normalizedGemini)) {
       console.log(`   🌍 Lingua: ${normalizedGemini.toUpperCase()} (esotica, Gemini autoritativo)`);
       return normalizedGemini;
@@ -568,7 +596,7 @@ Output JSON:
       return normalizedGemini;
     }
 
-    // 4. Default: fidati di Gemini per le 3 principali
+    // 4. Default: fidati di Gemini per le principali
     console.log(`   🌍 Lingua: ${normalizedGemini.toUpperCase()} (Gemini primario, grado locale ${localSafetyGrade})`);
     return normalizedGemini;
   }
@@ -631,6 +659,18 @@ Output JSON:
         } else {
           greeting = 'Buenas tardes,';
         }
+      } else if (language === 'pt') {
+        if (isNightTime) {
+          greeting = `Prezado(a) ${senderName}, `;
+        } else if (day === 0) {
+          greeting = 'Bom domingo,';
+        } else if (hour >= 5 && hour < 13) {
+          greeting = 'Bom dia,';
+        } else if (hour >= 13 && hour < 19) {
+          greeting = 'Boa tarde,';
+        } else {
+          greeting = 'Boa noite,';
+        }
       } else {
         // Altre lingue: saluto neutro
         greeting = 'Good day,';
@@ -644,6 +684,8 @@ Output JSON:
       closing = 'Kind regards,';
     } else if (language === 'es') {
       closing = 'Cordiales saludos,';
+    } else if (language === 'pt') {
+      closing = 'Com os melhores cumprimentos,';
     } else {
       closing = 'Cordiali saluti,';
     }
