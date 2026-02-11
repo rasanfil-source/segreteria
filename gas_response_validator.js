@@ -17,8 +17,8 @@ class ResponseValidator {
 
     // Ottieni config - fallback a default se CONFIG non definito
     // Soglia minima accettabile
-    this.MIN_VALID_SCORE = typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_MIN_SCORE 
-      ? CONFIG.VALIDATION_MIN_SCORE 
+    this.MIN_VALID_SCORE = typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_MIN_SCORE
+      ? CONFIG.VALIDATION_MIN_SCORE
       : 0.6;
 
     // Soglie lunghezza
@@ -48,7 +48,8 @@ class ResponseValidator {
       'en': ['thank', 'regards', 'dear', 'parish', 'mass', 'church', 'would', 'could'],
       'es': ['gracias', 'saludos', 'estimado', 'parroquia', 'misa', 'iglesia', 'querría'],
       'fr': ['merci', 'cordialement', 'cher', 'paroisse', 'messe', 'église', 'voudrais'],
-      'de': ['danke', 'grüße', 'liebe', 'pfarrei', 'messe', 'kirche', 'möchte']
+      'de': ['danke', 'grüße', 'liebe', 'pfarrei', 'messe', 'kirche', 'möchte'],
+      'pt': ['obrigado', 'obrigada', 'cumprimentos', 'paróquia', 'missa', 'igreja', 'orçamento']
     };
 
     // Placeholder da rilevare
@@ -82,7 +83,8 @@ class ResponseValidator {
     this.signaturePatterns = [
       /segreteria\s+parrocchia\s+sant['\u2018\u2019]?eugenio/i,        // IT
       /parish\s+secretariat\s+(of\s+)?sant['\u2018\u2019]?eugenio/i,   // EN
-      /secretar[ií]a\s+parroquial/i                                    // ES
+      /secretar[ií]a\s+parroquial/i,                                   // ES
+      /secretaria\s+par[oó]quia(l)?\s+sant['\u2018\u2019]?eugenio/i    // PT
     ];
 
     // Pattern saluti per fasce orarie (Controllo #8)
@@ -111,6 +113,11 @@ class ResponseValidator {
         morning: ['guten morgen'],
         afternoon: ['guten tag'],
         evening: ['guten abend']
+      },
+      'pt': {
+        morning: ['bom dia'],
+        afternoon: ['boa tarde'],
+        evening: ['boa noite']
       }
     };
 
@@ -957,6 +964,9 @@ class ResponseValidator {
     } else if (language === 'es') {
       // Lista minima per spagnolo
       targets = ['Estamos', 'Somos', 'El', 'Los', 'Las', 'Una', 'Por', 'En', 'De', 'Pero', 'Que'];
+    } else if (language === 'pt') {
+      // Lista minima per portoghese
+      targets = ['Estamos', 'Somos', 'Uma', 'Por', 'Com', 'De', 'Que', 'Para', 'Em'];
     } else {
       // Se lingua sconosciuta o non supportata, NON applicare correzioni rischiose
       console.log(`   ⚠️ Correzione automatica maiuscole disabilitata per lingua '${language}'`);

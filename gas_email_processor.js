@@ -1289,7 +1289,8 @@ ${addressLines.join('\n\n')}
     const monthPatterns = {
       'it': /\b(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\b/i,
       'en': /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/i,
-      'es': /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i
+      'es': /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i,
+      'pt': /\b(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i
     };
 
     // Fallback su italiano se lingua non supportata

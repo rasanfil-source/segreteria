@@ -104,7 +104,7 @@ class GeminiService {
 
     let response;
     try {
-      response = UrlFetchApp.fetch(`${url}?key=${activeKey}`, {
+      response = UrlFetchApp.fetch(`${url}?key=${encodeURIComponent(activeKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
@@ -135,6 +135,10 @@ class GeminiService {
         throw new Error('Errore contenuto: prompt supera il limite token del modello.');
       }
       throw new Error(`Errore contenuto: richiesta non valida (${responseCode}).`);
+    }
+
+    if (responseCode === 403) {
+      throw new Error(`Errore API 403 (chiave non valida/restrizioni referrer-IP-API): ${responseBody.substring(0, 200)}`);
     }
 
     if (responseCode !== 200) {
@@ -239,7 +243,7 @@ Output JSON:
     let response;
 
     try {
-      response = UrlFetchApp.fetch(`${url}?key=${activeKey}`, {
+      response = UrlFetchApp.fetch(`${url}?key=${encodeURIComponent(activeKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
@@ -252,12 +256,13 @@ Output JSON:
         muteHttpExceptions: true
       });
 
+
       // Punto 4: Estesa gestione errori con switch alla chiave di riserva
       const responseCode = response.getResponseCode();
       if ([429, 500, 502, 503, 504].includes(responseCode) && this.backupKey) {
         console.warn(`⚠️ Chiave primaria esaurita / errore(${response.getResponseCode()}).Tentativo con chiave di riserva...`);
         activeKey = this.backupKey;
-        response = UrlFetchApp.fetch(`${url}?key=${activeKey}`, {
+        response = UrlFetchApp.fetch(`${url}?key=${encodeURIComponent(activeKey)}`, {
           method: 'POST',
           contentType: 'application/json',
           payload: JSON.stringify({
@@ -450,13 +455,12 @@ Output JSON:
     ];
 
     const portugueseKeywords = [
-      'obrigado', 'obrigada', 'bom dia', 'boa tarde', 'boa noite',
-      'com os melhores cumprimentos', 'cumprimentos', 'atentamente',
-      'agradecemos', 'interesse', 'orçamento', 'cotação',
-      'para', 'com', 'não', 'sim', 'por favor',
-      ' o ', ' a ', ' os ', ' as ', ' um ', ' uma ',
-      ' do ', ' da ', ' dos ', ' das ', ' no ', ' na ',
-      'eu', 'nós', 'você', 'senhor', 'senhora'
+      'olá', 'obrigado', 'obrigada', 'agradecemos', 'agradeço',
+      'orçamento', 'cotação', 'viatura', 'portagens', 'reserva',
+      'estamos ao dispor', 'com os melhores cumprimentos', 'cumprimentos',
+      'bom dia', 'boa tarde', 'boa noite',
+      ' por ', ' para ', ' com ', ' não ', ' uma ', ' seu ', ' sua ',
+      ' dos ', ' das ', ' ao ', ' aos '
     ];
 
     const italianKeywords = [
@@ -492,8 +496,8 @@ Output JSON:
     const scores = {
       'en': englishScore,
       'es': countMatches(spanishKeywords, text, 1) + spanishCharScore,
-      'pt': countMatches(portugueseKeywords, text, 1) + portugueseCharScore,
-      'it': countMatches(italianKeywords, text, 1)
+      'it': countMatches(italianKeywords, text, 1),
+      'pt': countMatches(portugueseKeywords, text, 1)
     };
 
     console.log(`   Punteggi lingua: EN = ${scores['en']}, ES = ${scores['es']}, PT = ${scores['pt']}, IT = ${scores['it']}`);
@@ -514,8 +518,9 @@ Output JSON:
       return { lang: 'es', confidence: scores['es'], safetyGrade: this._computeSafetyGrade('es', scores['es'], scores) };
     }
 
-    if (portugueseCharScore > 0 && scores['pt'] >= scores['it'] && scores['pt'] >= scores['en'] && scores['pt'] >= scores['es']) {
-      console.log(`   ✓ Rilevato: PORTOGHESE(punteggio: ${scores['pt']}, include caratteri speciali)`);
+    // Check Portoghese senza caratteri speciali ma con score alto
+    if (scores['pt'] > scores['en'] && scores['pt'] > scores['it'] && scores['pt'] > scores['es']) {
+      console.log(`   ✓ Rilevato: PORTOGHESE(punteggio: ${scores['pt']})`);
       return { lang: 'pt', confidence: scores['pt'], safetyGrade: this._computeSafetyGrade('pt', scores['pt'], scores) };
     }
 
@@ -524,11 +529,7 @@ Output JSON:
       return { lang: 'en', confidence: scores['en'], safetyGrade: this._computeSafetyGrade('en', scores['en'], scores) };
     }
 
-    // Check Portoghese senza caratteri speciali ma con score alto
-    if (scores['pt'] > scores['en'] && scores['pt'] > scores['it'] && scores['pt'] > scores['es']) {
-      console.log(`   ✓ Rilevato: PORTOGHESE(punteggio: ${scores['pt']})`);
-      return { lang: 'pt', confidence: scores['pt'], safetyGrade: this._computeSafetyGrade('pt', scores['pt'], scores) };
-    }
+
 
     if (maxScore < 2) {
       console.log('   Confidenza bassa, default a italiano');
@@ -661,12 +662,12 @@ Output JSON:
         }
       } else if (language === 'pt') {
         if (isNightTime) {
-          greeting = `Prezado(a) ${senderName}, `;
+          greeting = `Caro(a) ${senderName},`;
         } else if (day === 0) {
-          greeting = 'Bom domingo,';
-        } else if (hour >= 5 && hour < 13) {
+          greeting = 'Feliz domingo,';
+        } else if (hour >= 5 && hour < 12) {
           greeting = 'Bom dia,';
-        } else if (hour >= 13 && hour < 19) {
+        } else if (hour >= 12 && hour < 19) {
           greeting = 'Boa tarde,';
         } else {
           greeting = 'Boa noite,';
@@ -956,7 +957,7 @@ Output JSON:
       const temperature = typeof CONFIG !== 'undefined' ? CONFIG.TEMPERATURE : 0.5;
       const maxTokens = typeof CONFIG !== 'undefined' ? CONFIG.MAX_OUTPUT_TOKENS : 6000;
 
-      const response = UrlFetchApp.fetch(`${this.baseUrl}?key = ${this.apiKey} `, {
+      const response = UrlFetchApp.fetch(`${this.baseUrl}?key=${encodeURIComponent(this.apiKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
@@ -1027,7 +1028,7 @@ Output JSON:
     try {
       const testPrompt = 'Rispondi con una sola parola: OK';
 
-      const response = UrlFetchApp.fetch(`${this.baseUrl}?key = ${this.apiKey} `, {
+      const response = UrlFetchApp.fetch(`${this.baseUrl}?key=${encodeURIComponent(this.apiKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
@@ -1076,7 +1077,7 @@ function parseGeminiJsonLenient(text) {
 
   // 1. Pulizia Markdown
   let cleaned = text
-    .replace(/```json /gi, '')
+    .replace(/```json\s*/gi, '')
     .replace(/```/g, '')
     .trim();
 

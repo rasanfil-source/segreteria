@@ -750,6 +750,24 @@ NO DEBES:
 ❌ Mezclar idiomas
 
 Esto es OBLIGATORIO. El remitente habla español y no entenderá italiano.
+═══════════════════════════════════════════════════════════════════════════`,
+      'pt': `═══════════════════════════════════════════════════════════════════════════
+🚨🚨🚨 REQUISITO CRÍTICO DE IDIOMA - PORTUGUÊS 🚨🚨🚨
+═══════════════════════════════════════════════════════════════════════════
+
+O email recebido está escrito em PORTUGUÊS.
+
+DEVE:
+✅ Escrever TODA a resposta em PORTUGUÊS
+✅ Usar saudações portuguesas: "Bom dia," "Boa tarde," "Boa noite,"
+✅ Usar despedidas portuguesas: "Com os melhores cumprimentos," "Atenciosamente,"
+✅ Manter um registo formal e cordial
+
+NÃO DEVE:
+❌ Usar palavras italianas
+❌ Misturar idiomas
+
+Isto é OBRIGATÓRIO. O remetente pode não entender italiano.
 ═══════════════════════════════════════════════════════════════════════════`
     };
 
