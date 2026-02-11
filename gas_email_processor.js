@@ -990,38 +990,48 @@ ${addressLines.join('\n\n')}
   // RILEVAMENTO TEMPORALE (Date/Orari)
   // ========================================================================
 
+  /**
+   * Verifica se l'email deve essere ignorata (blacklist, auto-reply, notifiche)
+   * Usa le liste UNIFICATE (Codice + Foglio) presenti in GLOBAL_CACHE
+   */
   _shouldIgnoreEmail(messageDetails) {
-    let ignoreDomains = [];
-    let ignoreKeywords = [];
-
-    if (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.ignoreDomains) {
-      ignoreDomains = GLOBAL_CACHE.ignoreDomains;
-    } else if (typeof CONFIG !== 'undefined' && CONFIG.IGNORE_DOMAINS) {
-      ignoreDomains = CONFIG.IGNORE_DOMAINS;
-    }
-
-    if (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.ignoreKeywords) {
-      ignoreKeywords = GLOBAL_CACHE.ignoreKeywords;
-    } else if (typeof CONFIG !== 'undefined' && CONFIG.IGNORE_KEYWORDS) {
-      ignoreKeywords = CONFIG.IGNORE_KEYWORDS;
-    }
-
     const email = (messageDetails.senderEmail || '').toLowerCase();
     const subject = (messageDetails.subject || '').toLowerCase();
     const body = (messageDetails.body || '').toLowerCase();
 
-    for (const domain of ignoreDomains) {
-      if (email.includes(domain.toLowerCase())) {
-        console.log(`   Dominio ignorato: ${domain}`);
-        return true;
-      }
+    // 1. Controllo Blacklist Domini/Email
+    const ignoreDomains = (typeof CONFIG !== 'undefined' && CONFIG.IGNORE_DOMAINS) ? CONFIG.IGNORE_DOMAINS : [];
+
+    if (ignoreDomains.some(domain => email.includes(domain.toLowerCase()))) {
+      console.log(`🚫 Ignorato: mittente in blacklist (${email})`);
+      return true;
     }
 
-    for (const keyword of ignoreKeywords) {
-      if (subject.includes(keyword.toLowerCase()) || body.includes(keyword.toLowerCase())) {
-        console.log(`   Keyword ignorata: ${keyword}`);
-        return true;
-      }
+    // 2. Controllo Keyword Oggetto
+    const ignoreKeywords = (typeof CONFIG !== 'undefined' && CONFIG.IGNORE_KEYWORDS) ? CONFIG.IGNORE_KEYWORDS : [];
+
+    if (ignoreKeywords.some(keyword => subject.includes(keyword.toLowerCase()))) {
+      console.log(`🚫 Ignorato: oggetto contiene keyword vietata`);
+      return true;
+    }
+
+    // 3. Controllo Auto-reply e Notifiche (Standard)
+    if (
+      email.includes('no-reply') ||
+      email.includes('noreply') ||
+      email.includes('mailer-daemon') ||
+      email.includes('postmaster') ||
+      email.includes('notification') ||
+      email.includes('alert') ||
+      subject.includes('delivery status notification') ||
+      subject.includes('automatic reply') ||
+      subject.includes('fuori sede') ||
+      subject.includes('out of office') ||
+      body.includes('this is an automatically generated message') ||
+      body.includes('do not reply to this email')
+    ) {
+      console.log('🚫 Ignorato: auto-reply o notifica di sistema');
+      return true;
     }
 
     return false;

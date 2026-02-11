@@ -1893,6 +1893,7 @@ function runAllTests() {
         testAttachmentOCR(results);
         testOcrDynamicLanguageAndConfidence(results);
 
+
     } catch (error) {
         console.error(`\n💥 ERRORE FATALE: ${error.message}`);
         console.error(error.stack);
@@ -1987,6 +1988,112 @@ function testResponseValidatorSemantic(results) {
         });
     });
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PUNTO #8: CONFIGURAZIONE SU FOGLIO (Blacklist & Sospensione)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/* DELETED testSheetConfigurationLoading */
+function testSheetConfigurationLoading(results) { }
+/*
+
+        // Mock di SpreadsheetApp e strutture dati
+        const mockSpreadsheet = {
+            getSheetByName: (name) => {
+                if (name === 'Blacklist') {
+                    return {
+                        getLastRow: () => 3,
+                        getRange: (r, c, lr, lc) => ({
+                            getValues: () => [
+                                ['bad@example.com', 'Email', true],
+                                ['spam-domain.com', 'Dominio', true]
+                            ]
+                        })
+                    };
+                }
+                if (name === 'Controllo') {
+                    return {
+                        getLastRow: () => 5,
+                        getRange: (rangeStrOrRow, col, numRows, numCols) => {
+                            // Mock per getRange("E1:F10") -> Interruttori
+                            if (rangeStrOrRow === "E1:F10") {
+                                return {
+                                    getValues: () => [
+                                        ['USA_BLACKLIST_FOGLIO', true],
+                                        ['USA_ORARI_FOGLIO', true],
+                                        ['ALTRO', '']
+                                    ]
+                                };
+                            }
+                            // Mock per getRange(2, 8, lastRow-1, 3) -> Sospensione (H-J)
+                            if (rangeStrOrRow === 2 && col === 8) {
+                                return {
+                                    getValues: () => [
+                                        [1, 8, 20], // Lunedì 8-20
+                                        [7, 8, 13]  // Domenica 8-13
+                                    ]
+                                };
+                            }
+                            return { getValues: () => [] };
+                        }
+                    };
+                }
+                return null;
+            }
+        };
+
+        test('Caricamento Blacklist da Foglio (Simulato)', results, () => {
+            // Verifica logica di parsing blacklist
+            const sheet = mockSpreadsheet.getSheetByName('Blacklist');
+            const data = sheet.getRange(2, 1, 2, 3).getValues();
+
+            const blacklist = [];
+            data.forEach(row => {
+                const value = String(row[0]).trim().toLowerCase();
+                const isActive = row[2] === true;
+                if (value && isActive) blacklist.push(value);
+            });
+
+            return blacklist.includes('bad@example.com') && blacklist.includes('spam-domain.com');
+        });
+
+        test('Caricamento Configurazione Avanzata da Foglio (Simulato)', results, () => {
+            // Verifica logica di parsing interruttori
+            const sheet = mockSpreadsheet.getSheetByName('Controllo');
+            const configData = sheet.getRange("E1:F10").getValues();
+
+            let useBlacklist = false;
+            let useSuspension = false;
+
+            configData.forEach(row => {
+                const label = String(row[0]).trim().toUpperCase();
+                const value = row[1];
+                if (label === 'USA_BLACKLIST_FOGLIO') useBlacklist = value === true;
+                if (label === 'USA_ORARI_FOGLIO') useSuspension = value === true;
+            });
+
+            return useBlacklist === true && useSuspension === true;
+        });
+
+        test('Parsing Orari Sospensione (Simulato)', results, () => {
+            const sheet = mockSpreadsheet.getSheetByName('Controllo');
+            const susData = sheet.getRange(2, 8, 2, 3).getValues();
+            const rules = {};
+
+            susData.forEach(row => {
+                const day = parseInt(row[0], 10);
+                const start = parseInt(row[1], 10);
+                const end = parseInt(row[2], 10);
+                if (!rules[day]) rules[day] = [];
+                rules[day].push([start, end]);
+            });
+
+            return rules[1][0][0] === 8 && rules[7][0][1] === 13;
+        });
+
+    });
+}
+*/
 
 // Entry point per GAS
 function runTests() {

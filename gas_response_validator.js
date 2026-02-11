@@ -175,7 +175,7 @@ class ResponseValidator {
       const perfezionamentoResult = this._perfezionamentoAutomatico(currentResponse, validationResult.errors, safeDetectedLanguage);
 
       if (perfezionamentoResult.fixed) {
-        console.log('   ✨ Applicati perfezionamenti automatici. Ri-validazione...');
+        console.log('   ✨ Risposta perfezionata (migliorata qualità o rimozione allucinazioni)');
         currentResponse = perfezionamentoResult.text;
         wasRefined = true;
 

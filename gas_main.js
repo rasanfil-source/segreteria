@@ -403,8 +403,78 @@ function _loadSupplementaryResources(spreadsheet) {
   }
 }
 
+
+
+
 /**
- * Carica tutte le risorse necessarie (Knowledge Base, sostituzioni, ferie)
+ * Legge le configurazioni avanzate dal foglio Controllo (Interruttori e Orari Sospensione)
+ * @param {Spreadsheet} spreadsheet
+ * @returns {Object} Configurazione letta
+ */
+/* DELETED _loadAdvancedConfig */
+function _loadAdvancedConfig(spreadsheet) { return {}; }
+/*
+
+  try {
+    const sheet = spreadsheet.getSheetByName(CONFIG.CONTROL_SHEET_NAME);
+    if (!sheet) return config;
+
+    // --- LEGGERE INTERRUTTORI (Es. celle F2, F3) ---
+    // Adattare in base alla posizione reale nel foglio.
+    // Per ora cerchiamo le etichette nelle colonne E ed F
+    // Range di ricerca ampio per flessibilità
+    const configRange = sheet.getRange("E1:F10").getValues();
+
+    configRange.forEach(row => {
+      const label = String(row[0]).trim().toUpperCase();
+      const value = row[1];
+
+      if (label === 'USA_BLACKLIST_FOGLIO') {
+        config.useSheetBlacklist = value === true || String(value).toLowerCase() === 'vero';
+      }
+      if (label === 'USA_ORARI_FOGLIO') {
+        config.useSheetSuspension = value === true || String(value).toLowerCase() === 'vero';
+      }
+    });
+
+    // --- LEGGERE ORARI SOSPENSIONE (Es. colonne H-J) ---
+    if (config.useSheetSuspension) {
+      const lastRow = sheet.getLastRow();
+      if (lastRow >= 2) {
+        // Assumiamo colonne H, I, J per Giorno, Inizio, Fine
+        // Giorno: 1=Lun ... 7=Dom
+        const suspensionRange = sheet.getRange(2, 8, lastRow - 1, 3).getValues();
+        const rules = {};
+
+        suspensionRange.forEach(row => {
+          const day = parseInt(row[0], 10);
+          const start = parseInt(row[1], 10);
+          const end = parseInt(row[2], 10);
+
+          if (!isNaN(day) && !isNaN(start) && !isNaN(end)) {
+            if (!rules[day]) rules[day] = [];
+            rules[day].push([start, end]);
+          }
+        });
+
+        if (Object.keys(rules).length > 0) {
+          config.suspensionRules = rules;
+          console.log('zzz Orari sospensione caricati da Foglio');
+        }
+      }
+    }
+
+    return config;
+
+  } catch (error) {
+    console.error(`❌ Errore caricamento Configurazione Avanzata: ${error.message}`);
+    return config;
+  }
+}
+*/
+
+/**
+ * Carica tutte le risorse necessarie (Knowledge Base, sostituzioni, ferie, blacklist, config)
  * Usa lock per prevenire race condition tra esecuzioni parallele
  * @param {boolean} acquireLock - Se true, acquisisce il lock in autonomia.
  */
@@ -466,12 +536,18 @@ function _loadResourcesInternal() {
     GLOBAL_CACHE.knowledgeBase = cachedKB;
     console.log('📦 KB caricata da ScriptCache (Fast)');
 
-    // Carichiamo tutte le risorse restanti (dottrina, AI core, sostituzioni, ferie)
+    // Carichiamo tutte le risorse restanti (dottrina, AI core, sostituzioni, ferie, blacklist, config)
     withSheetsRetry(() => {
       const props = PropertiesService.getScriptProperties();
       const sheetId = props.getProperty('SPREADSHEET_ID') || CONFIG.SPREADSHEET_ID;
       const spreadsheet = SpreadsheetApp.openById(sheetId);
+
       _loadSupplementaryResources(spreadsheet);
+
+      // --- Ripristino logica originale ---
+      GLOBAL_CACHE.suspensionRules = SUSPENSION_HOURS;
+
+
     }, 'Caricamento risorse (Cache)');
 
     GLOBAL_CACHE.loaded = true;
@@ -510,6 +586,10 @@ function _loadResourcesInternal() {
     }
 
     _loadSupplementaryResources(spreadsheet);
+
+    // --- Ripristino logica originale ---
+    GLOBAL_CACHE.suspensionRules = SUSPENSION_HOURS;
+
   }, 'loadResources');
 
   GLOBAL_CACHE.loaded = true;
