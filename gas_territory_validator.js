@@ -174,16 +174,16 @@ class TerritoryValidator {
 
         // Espandi abbreviazioni comuni italiane
         const abbreviations = {
-            '\\bg(?:\\.)?\\s+': 'giovanni ',
-            '\\bf(?:\\.)?\\s+': 'francesco ',
-            '\\ba(?:\\.)?\\s+': 'antonio ',
-            '\\bs(?:\\.)?\\s+': 'san ',
-            '\\bp(?:\\.)?\\s+': 'piazza ',
-            '\\bl(?:\\.)?\\s+': 'largo ',
-            '\\bv(?:\\.)?\\s+': 'via ',
-            '\\bc(?:\\.)?\\s+': 'corso ',
-            '\\bu(?:\\.)?\\s+': 'ulisse ',
-            '\\bm(?:\\.)?\\s+': 'maria '
+            '(?:\\bg\\.\\s*|\\bg\\s+)': 'giovanni ',
+            '(?:\\bf\\.\\s*|\\bf\\s+)': 'francesco ',
+            '(?:\\ba\\.\\s*|\\ba\\s+)': 'antonio ',
+            '(?:\\bs\\.\\s*|\\bs\\s+)': 'san ',
+            '(?:\\bp\\.\\s*|\\bp\\s+)': 'piazza ',
+            '(?:\\bl\\.\\s*|\\bl\\s+)': 'largo ',
+            '(?:\\bv\\.\\s*|\\bv\\s+)': 'via ',
+            '(?:\\bc\\.\\s*|\\bc\\s+)': 'corso ',
+            '(?:\\bu\\.\\s*|\\bu\\s+)': 'ulisse ',
+            '(?:\\bm\\.\\s*|\\bm\\s+)': 'maria '
         };
 
         for (const [pattern, replacement] of Object.entries(abbreviations)) {
