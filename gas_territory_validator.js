@@ -171,28 +171,29 @@ class TerritoryValidator {
         }
         const safeStreet = String(street);
         let normalized = safeStreet.toLowerCase().trim();
-        // Rimuovi caratteri speciali non ammessi in nomi vie (mantiene lettere, numeri, spazi, apostrofi)
-        normalized = normalized.replace(/[^a-z0-9\s'àèéìòù]/g, '');
-        normalized = normalized.replace(/\s+/g, ' ');
 
         // Espandi abbreviazioni comuni italiane
         const abbreviations = {
-            '\\bg\\.\\s*': 'giovanni ',
-            '\\bf\\.\\s*': 'francesco ',
-            '\\ba\\.\\s*': 'antonio ',
-            '\\bs\\.\\s*': 'san ',
-            '\\bp\\.\\s*': 'piazza ',
-            '\\bl\\.\\s*': 'largo ',
-            '\\bv\\.\\s*': 'via ',
-            '\\bc\\.\\s*': 'corso ',
-            '\\bu\\.\\s*': 'ulisse ',
-            '\\bm\\.\\s*': 'maria '
+            '\\bg(?:\\.)?\\s+': 'giovanni ',
+            '\\bf(?:\\.)?\\s+': 'francesco ',
+            '\\ba(?:\\.)?\\s+': 'antonio ',
+            '\\bs(?:\\.)?\\s+': 'san ',
+            '\\bp(?:\\.)?\\s+': 'piazza ',
+            '\\bl(?:\\.)?\\s+': 'largo ',
+            '\\bv(?:\\.)?\\s+': 'via ',
+            '\\bc(?:\\.)?\\s+': 'corso ',
+            '\\bu(?:\\.)?\\s+': 'ulisse ',
+            '\\bm(?:\\.)?\\s+': 'maria '
         };
 
         for (const [pattern, replacement] of Object.entries(abbreviations)) {
             const regex = new RegExp(pattern, 'gi');
             normalized = normalized.replace(regex, replacement);
         }
+
+        // Rimuovi caratteri speciali non ammessi in nomi vie (mantiene lettere, numeri, spazi, apostrofi)
+        normalized = normalized.replace(/[^a-z0-9\s'àèéìòù]/g, '');
+        normalized = normalized.replace(/\s+/g, ' ');
 
         // Punto 8: Pulizia finale degli spazi per garantire coerenza con il database
         // e rimozione di eventuali prefissi "via" ridondanti se già presenti
