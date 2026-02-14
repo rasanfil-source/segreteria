@@ -12,7 +12,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
-const MIN_EXPECTED_TESTS = 16;
+const MIN_EXPECTED_TESTS = 19;
 
 const loadedScripts = new Set();
 
@@ -387,6 +387,53 @@ function testShouldIgnoreEmail() {
 }
 
 // ========================================================================
+// TEST SICUREZZA (escapeHtml, sanitizeUrl, markdownToHtml)
+// ========================================================================
+
+function testEscapeHtml() {
+    loadScript('gas_gmail_service.js');
+
+    const xss = escapeHtml('<script>alert("xss")</script>');
+    assert(!xss.includes('<script>'), `escapeHtml deve neutralizzare tag script, ottenuto: "${xss}"`);
+    assert(xss.includes('&lt;script&gt;'), 'escapeHtml deve convertire < e > in entità');
+
+    const amp = escapeHtml('A & B');
+    assert(amp === 'A &amp; B', `escapeHtml deve convertire &, ottenuto: "${amp}"`);
+}
+
+function testSanitizeUrlIPv6() {
+    loadScript('gas_gmail_service.js');
+
+    // IPv6 loopback → null
+    const ipv6 = sanitizeUrl('http://[::1]/admin');
+    assert(ipv6 === null, 'sanitizeUrl deve bloccare IPv6 loopback [::1]');
+
+    // IP decimale → null
+    const decimal = sanitizeUrl('http://2130706433/');
+    assert(decimal === null, `sanitizeUrl deve bloccare IP decimale, ottenuto: ${decimal}`);
+
+    // Userinfo bypass → null
+    const userinfo = sanitizeUrl('http://localhost@evil.com/path');
+    assert(userinfo === null, 'sanitizeUrl deve bloccare userinfo bypass');
+
+    // URL legittimo → passa
+    const legit = sanitizeUrl('https://www.example.com/page');
+    assert(legit !== null, 'sanitizeUrl deve permettere URL legittimi');
+}
+
+function testMarkdownToHtmlXss() {
+    loadScript('gas_gmail_service.js');
+
+    // Script injection nel testo deve essere escaped
+    const result = markdownToHtml('Ciao <script>alert(1)</script> mondo');
+    assert(!result.includes('<script>'), `markdownToHtml NON deve contenere tag script, ottenuto snippet: ${result.substring(0, 200)}`);
+
+    // Test bold funziona ancora
+    const bold = markdownToHtml('Testo **grassetto** qui');
+    assert(bold.includes('<strong>grassetto</strong>'), 'markdownToHtml deve convertire **bold** in <strong>');
+}
+
+// ========================================================================
 // MAIN: runner con contatore e soglia minima
 // ========================================================================
 
@@ -413,6 +460,10 @@ function main() {
         ['computeSalutationMode: primo/reply/vecchio', testComputeSalutationMode],
         ['computeResponseDelay: recente/vecchio/nullo', testComputeResponseDelay],
         ['_shouldIgnoreEmail: no-reply/reale/ooo', testShouldIgnoreEmail],
+        // Sicurezza
+        ['escapeHtml: neutralizza XSS', testEscapeHtml],
+        ['sanitizeUrl: blocca IPv6/decimale/userinfo', testSanitizeUrlIPv6],
+        ['markdownToHtml: escape-first previene XSS', testMarkdownToHtmlXss],
     ];
 
     let passed = 0;

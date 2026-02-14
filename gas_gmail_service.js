@@ -662,9 +662,9 @@ class GmailService {
     let result = content;
 
     for (const marker of markers) {
-      const match = content.search(marker);
+      const match = result.search(marker);
       if (match !== -1) {
-        result = content.substring(0, match);
+        result = result.substring(0, match);
         break;
       }
     }
@@ -728,7 +728,7 @@ class GmailService {
     finalResponse = this.ensureGreetingLineBreak(finalResponse);
 
     const htmlBody = markdownToHtml(finalResponse);
-    const plainText = this._stripHtmlTags(finalResponse);
+    const plainText = this._htmlToPlainText(htmlBody);
 
     const hasThreadingInfo = messageDetails.rfc2822MessageId;
 
@@ -755,28 +755,25 @@ class GmailService {
           referencesHeader = messageDetails.existingReferences + ' ' + messageDetails.rfc2822MessageId;
         }
 
-        let fromEmailRaw = messageDetails.recipientEmail || Session.getActiveUser().getEmail();
-        let fromEmail = fromEmailRaw;
+        // From stabile: usa sempre l'account attivo (evita errori "non autorizzato")
+        const stableFrom = Session.getActiveUser().getEmail();
 
-        // Sanificazione robusta campo From (gestisce destinatari multipli e formati complessi)
-        const emailRegex = /\b[A-Za-z0-9](?:[A-Za-z0-9._%+-]{0,64})@[A-Za-z0-9-]+\.[A-Za-z]{2,}\b/gi;
-        const matches = fromEmailRaw.match(emailRegex);
-
-        if (matches && matches.length > 0) {
-          // Prendi il primo indirizzo email valido trovato (corrisponde al mittente effettivo in caso di risposta)
-          fromEmail = matches[0];
-        } else {
-          // Fallback sicuro
-          fromEmail = Session.getActiveUser().getEmail();
+        // Reply-To: indirizzo recipiente originale (se diverso, gestisce alias)
+        let replyToEmail = stableFrom;
+        const fromEmailRaw = messageDetails.recipientEmail || '';
+        if (fromEmailRaw) {
+          const emailRegex = /\b[A-Za-z0-9](?:[A-Za-z0-9._%+-]{0,64})@[A-Za-z0-9-]+\.[A-Za-z]{2,}\b/gi;
+          const matches = fromEmailRaw.match(emailRegex);
+          if (matches && matches.length > 0) {
+            replyToEmail = matches[0].replace(/[\r\n]+/g, '').trim();
+          }
         }
-
-        // Punto: Protezione Header Injection (rimozione caratteri controllo)
-        fromEmail = fromEmail.replace(/[\r\n]+/g, '').trim();
 
         const boundary = 'boundary_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
         const rawMessage = [
           'MIME-Version: 1.0',
-          `From: ${fromEmail}`,
+          `From: ${stableFrom}`,
+          `Reply-To: ${replyToEmail}`,
           `To: ${messageDetails.senderEmail}`,
           `Subject: =?UTF-8?B?${Utilities.base64Encode(replySubject, Utilities.Charset.UTF_8)}?=`,
           `In-Reply-To: ${messageDetails.rfc2822MessageId}`,
@@ -1027,9 +1024,18 @@ function sanitizeUrl(url) {
     return null;
   }
 
+  // SSRF: blocco IP interni, IPv6 loopback/link-local, IP decimali
   const INTERNAL_IP_PATTERN = /^(https?:\/\/)?(localhost|127\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.)/i;
+  const IPV6_LOOPBACK = /\[?::1\]?/;
+  const IPV6_LINKLOCAL = /\[?fe80:/i;
+  const DECIMAL_IP = /^https?:\/\/\d{8,10}(\/|$)/i;
+  const USERINFO_BYPASS = /^https?:\/\/[^@]+@/i;
 
-  if (INTERNAL_IP_PATTERN.test(normalized)) {
+  if (INTERNAL_IP_PATTERN.test(normalized) ||
+    IPV6_LOOPBACK.test(normalized) ||
+    IPV6_LINKLOCAL.test(normalized) ||
+    DECIMAL_IP.test(normalized) ||
+    USERINFO_BYPASS.test(normalized)) {
     console.warn(`🛑 Bloccato tentativo SSRF: ${decoded}`);
     return null;
   }
@@ -1039,64 +1045,70 @@ function sanitizeUrl(url) {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * Escape HTML per prevenire XSS.
+ * Applicato PRIMA delle trasformazioni markdown.
+ */
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Converte Markdown in HTML sicuro.
+ * Strategia: escape-first, poi trasformazioni markdown.
+ */
 function markdownToHtml(text) {
   if (!text) return '';
 
-  let html = text;
-
-  // Proteggi code blocks
+  // 1. Proteggi code blocks (prima dell'escape globale)
   const codeBlocks = [];
-  html = html.replace(/```[\s\S]*?```/g, (match) => {
-    const sanitized = match.replace(/```/g, '').trim()
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+  let html = text.replace(/```[\s\S]*?```/g, (match) => {
+    const sanitized = escapeHtml(match.replace(/```/g, '').trim());
     const token = `__CODEBLOCK_${codeBlocks.length}__`;
     codeBlocks.push(sanitized);
     return token;
   });
 
-  // Links con sanitizzazione
+  // 2. Proteggi link markdown (prima dell'escape globale)
+  const links = [];
   html = html.replace(/\[(.+?)\]\((.+?)\)/g, (match, linkText, url) => {
-    // Punto 10: Encoding completo delle entità HTML per prevenire XSS nel testo del link
-    const escapedText = linkText
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-
     const sanitizedUrl = sanitizeUrl(url);
-
-    if (!sanitizedUrl) {
+    const escapedText = escapeHtml(linkText);
+    const token = `__LINK_${links.length}__`;
+    if (sanitizedUrl) {
+      links.push(`<a href="${sanitizedUrl}" style="color:#351c75;">${escapedText}</a>`);
+    } else {
       console.warn(`⚠️ URL bloccato per sicurezza: ${url}`);
-      return escapedText;
+      links.push(escapedText);
     }
-
-    return `<a href="${sanitizedUrl}" style="color:#351c75;">${escapedText}</a>`;
+    return token;
   });
 
+  // 3. Escape globale (tutto il testo rimanente diventa sicuro)
+  html = escapeHtml(html);
+
+  // 4. Trasformazioni markdown su testo già escaped
   // Headers
   html = html.replace(/^####\s+(.+)$/gm, '<p style="font-size:14px;font-weight:bold;">$1</p>');
   html = html.replace(/^###\s+(.+)$/gm, '<p style="font-size:16px;font-weight:bold;">$1</p>');
   html = html.replace(/^##\s+(.+)$/gm, '<p style="font-size:18px;font-weight:bold;">$1</p>');
   html = html.replace(/^#\s+(.+)$/gm, '<p style="font-size:20px;font-weight:bold;">$1</p>');
 
-  // Bold / Italic
+  // Bold / Italic (asterischi già escaped come testo, usiamo la versione escaped)
+  // Nota: gli asterischi NON vengono escaped da escapeHtml(), quindi funzionano normalmente
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/(?<!\*)\*(?!\*)(.+?)\*(?!\*)/g, '<em>$1</em>');
 
-  // Escape testo
-  html = html.replace(/>[^<]+</g, (match) => {
-    return match.slice(0, 1) +
-      match.slice(1, -1)
-        .replace(/&(?!amp;|lt;|gt;|quot;|#\d+;)/g, '&amp;')
-        .replace(/<(?![^>]*>)/g, '&lt;')
-        .replace(/(?<![^<]*)>/g, '&gt;') +
-      match.slice(-1);
+  // 5. Ripristina link e code blocks
+  links.forEach((link, i) => {
+    html = html.replace(`__LINK_${i}__`, link);
   });
 
-  // Restore code blocks
   codeBlocks.forEach((block, i) => {
     html = html.replace(
       `__CODEBLOCK_${i}__`,
@@ -1104,11 +1116,11 @@ function markdownToHtml(text) {
     );
   });
 
-  // Paragraphs e line breaks
+  // 6. Paragraphs e line breaks
   html = html.replace(/\n\n+/g, '</p><p>');
   html = html.replace(/\n/g, '<br>');
 
-  // Emoji to HTML entities
+  // 7. Emoji to HTML entities
   html = Array.from(html).map(char => {
     const codePoint = char.codePointAt(0);
     if (codePoint > 0x7F) {
