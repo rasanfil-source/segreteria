@@ -12,7 +12,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
-const MIN_EXPECTED_TESTS = 10;
+const MIN_EXPECTED_TESTS = 16;
 
 const loadedScripts = new Set();
 
@@ -33,6 +33,11 @@ global.calculateEaster = function (year) {
     const month = Math.floor((h + l - 7 * m + 114) / 31);
     const day = ((h + l - 7 * m + 114) % 31) + 1;
     return new Date(year, month - 1, day);
+};
+
+// Mock createLogger (necessario per EmailProcessor)
+global.createLogger = function (name) {
+    return { info: () => { }, warn: () => { }, debug: () => { }, error: () => { } };
 };
 
 function loadScript(path) {
@@ -191,10 +196,7 @@ function testGeminiRetryOn429() {
         service._generateWithModel('Prompt test', 'gemini-2.5-flash');
     } catch (e) {
         threw = true;
-        assert(
-            e.message.includes('429'),
-            `Errore atteso contiene "429", ottenuto: "${e.message}"`
-        );
+        assert(e.message.includes('429'), `Errore atteso contiene "429", ottenuto: "${e.message}"`);
     }
     assert(threw, '_generateWithModel deve lanciare errore su risposta 429');
 }
@@ -214,10 +216,7 @@ function testGeminiMalformedJson() {
         service._generateWithModel('Prompt test', 'gemini-2.5-flash');
     } catch (e) {
         threw = true;
-        assert(
-            e.message.includes('non JSON valida'),
-            `Errore atteso contiene "non JSON valida", ottenuto: "${e.message}"`
-        );
+        assert(e.message.includes('non JSON valida'), `Errore atteso contiene "non JSON valida", ottenuto: "${e.message}"`);
     }
     assert(threw, '_generateWithModel deve lanciare errore su JSON malformato');
 }
@@ -237,12 +236,154 @@ function testGeminiNoCandidates() {
         service._generateWithModel('Prompt test', 'gemini-2.5-flash');
     } catch (e) {
         threw = true;
-        assert(
-            e.message.includes('nessun candidato'),
-            `Errore atteso contiene "nessun candidato", ottenuto: "${e.message}"`
-        );
+        assert(e.message.includes('nessun candidato'), `Errore atteso contiene "nessun candidato", ottenuto: "${e.message}"`);
     }
     assert(threw, '_generateWithModel deve lanciare errore senza candidati');
+}
+
+// ========================================================================
+// TEST RESPONSE VALIDATOR
+// ========================================================================
+
+function testResponseValidatorCheckLength() {
+    loadScript('gas_response_validator.js');
+
+    const validator = new ResponseValidator();
+
+    // Troppo corta → errore
+    const short = validator._checkLength('Ciao');
+    assert(short.score === 0.0, `Risposta corta: score atteso 0.0, ottenuto ${short.score}`);
+    assert(short.errors.length > 0, 'Risposta corta deve generare errori');
+
+    // Lunghezza ottimale → score pieno
+    const good = validator._checkLength('Gentile signora, la informo che gli orari delle Sante Messe festive sono i seguenti: sabato ore 18:00, domenica ore 8:00, 10:00 e 11:30. Cordiali saluti.');
+    assert(good.score === 1.0, `Risposta buona: score atteso 1.0, ottenuto ${good.score}`);
+    assert(good.errors.length === 0, 'Risposta buona non deve generare errori');
+
+    // Sotto soglia ottimale → warning
+    const medium = validator._checkLength('Buongiorno, le messe sono alle 10 e alle 18.');
+    assert(medium.score < 1.0, 'Risposta media deve avere score ridotto');
+}
+
+function testResponseValidatorForbiddenContent() {
+    loadScript('gas_response_validator.js');
+
+    const validator = new ResponseValidator();
+
+    // Frase vietata presente
+    const forbidden = validator._checkForbiddenContent('Non sono sicuro degli orari, forse è alle 10.');
+    assert(forbidden.score < 1.0, 'Contenuto con frasi vietate deve avere score ridotto');
+    assert(forbidden.foundForbidden.length > 0, 'Deve rilevare frasi vietate');
+
+    // Placeholder presente
+    const placeholder = validator._checkForbiddenContent('Gentile signore, la sua richiesta è TBD.');
+    assert(placeholder.score === 0.0, 'Contenuto con placeholder deve avere score 0');
+
+    // Contenuto pulito
+    const clean = validator._checkForbiddenContent('Gentile signora, le confermo che la Santa Messa festiva è celebrata ogni domenica alle ore 10:00.');
+    assert(clean.score === 1.0, `Contenuto pulito: score atteso 1.0, ottenuto ${clean.score}`);
+    assert(clean.foundForbidden.length === 0, 'Contenuto pulito non deve avere frasi vietate');
+}
+
+function testResponseValidatorLanguageCheck() {
+    loadScript('gas_response_validator.js');
+
+    const validator = new ResponseValidator();
+
+    // Italiano corretto
+    const it = validator._checkLanguage(
+        'Gentile signora, grazie per la sua email. Le confermo la messa nella nostra parrocchia. Cordiali saluti dalla segreteria.',
+        'it'
+    );
+    assert(it.errors.length === 0, `Check lingua IT non deve generare errori, ottenuti: ${it.errors.join('; ')}`);
+
+    // Inglese corretto
+    const en = validator._checkLanguage(
+        'Dear Sir, thank you for your email regarding the parish. We would be happy to help with the mass schedule. Kind regards.',
+        'en'
+    );
+    assert(en.errors.length === 0, `Check lingua EN non deve generare errori, ottenuti: ${en.errors.join('; ')}`);
+}
+
+// ========================================================================
+// TEST EMAIL PROCESSOR (pure functions)
+// ========================================================================
+
+function testComputeSalutationMode() {
+    loadScript('gas_email_processor.js');
+
+    // Primo messaggio → full
+    const first = computeSalutationMode({ isReply: false, messageCount: 1, memoryExists: false, lastUpdated: null });
+    assert(first === 'full', `Primo messaggio: atteso "full", ottenuto "${first}"`);
+
+    // Reply con memoria senza timestamp → none_or_continuity
+    const reply = computeSalutationMode({ isReply: true, messageCount: 2, memoryExists: true, lastUpdated: null });
+    assert(reply === 'none_or_continuity', `Reply senza timestamp: atteso "none_or_continuity", ottenuto "${reply}"`);
+
+    // Reply dopo 5 giorni → full (nuovo contatto)
+    const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+    const old = computeSalutationMode({ isReply: true, messageCount: 3, memoryExists: true, lastUpdated: fiveDaysAgo });
+    assert(old === 'full', `Reply dopo 5 giorni: atteso "full", ottenuto "${old}"`);
+}
+
+function testComputeResponseDelay() {
+    loadScript('gas_email_processor.js');
+
+    // Messaggio recente → no scuse
+    const now = new Date();
+    const recent = computeResponseDelay({ messageDate: now, now: now });
+    assert(recent.shouldApologize === false, 'Messaggio recente non deve generare scuse');
+    assert(recent.hours === 0, `Ore attese 0, ottenute ${recent.hours}`);
+
+    // Messaggio di 4 giorni fa → scuse
+    const fourDaysAgo = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000);
+    const delayed = computeResponseDelay({ messageDate: fourDaysAgo, now: now });
+    assert(delayed.shouldApologize === true, 'Messaggio di 4 giorni fa deve generare scuse');
+    assert(delayed.days >= 3, `Giorni attesi >= 3, ottenuti ${delayed.days}`);
+
+    // Messaggio nullo → nessuna scusa
+    const noDate = computeResponseDelay({ messageDate: null });
+    assert(noDate.shouldApologize === false, 'Messaggio senza data non deve generare scuse');
+}
+
+function testShouldIgnoreEmail() {
+    loadScript('gas_email_processor.js');
+
+    // Mock minimo per EmailProcessor
+    const processor = new EmailProcessor({
+        geminiService: {},
+        classifier: {},
+        requestClassifier: {},
+        validator: {},
+        gmailService: {},
+        promptEngine: {},
+        memoryService: {},
+        territoryValidator: null
+    });
+
+    // Auto-reply → ignora
+    const autoReply = processor._shouldIgnoreEmail({
+        senderEmail: 'no-reply@example.com',
+        subject: 'Test',
+        body: 'Content'
+    });
+    assert(autoReply === true, 'Email da no-reply deve essere ignorata');
+
+    // Email reale → non ignorare
+    const realEmail = processor._shouldIgnoreEmail({
+        senderEmail: 'mario.rossi@gmail.com',
+        subject: 'Informazioni messe',
+        body: 'Buongiorno, vorrei sapere gli orari.'
+    });
+    assert(realEmail === false, 'Email reale non deve essere ignorata');
+
+    // Out of office → ignora
+    const ooo = processor._shouldIgnoreEmail({
+        senderEmail: 'user@example.com',
+        subject: 'Out of office: Re: Info',
+        body: 'Sono fuori sede.'
+    });
+    assert(ooo === true, 'Out of office deve essere ignorata');
 }
 
 // ========================================================================
@@ -264,6 +405,14 @@ function main() {
         ['gemini contract: 429 → errore propagato', testGeminiRetryOn429],
         ['gemini contract: malformed JSON → errore parse', testGeminiMalformedJson],
         ['gemini contract: no candidates → errore semantico', testGeminiNoCandidates],
+        // ResponseValidator
+        ['validator: check lunghezza', testResponseValidatorCheckLength],
+        ['validator: contenuto vietato + placeholder', testResponseValidatorForbiddenContent],
+        ['validator: consistenza lingua', testResponseValidatorLanguageCheck],
+        // EmailProcessor
+        ['computeSalutationMode: primo/reply/vecchio', testComputeSalutationMode],
+        ['computeResponseDelay: recente/vecchio/nullo', testComputeResponseDelay],
+        ['_shouldIgnoreEmail: no-reply/reale/ooo', testShouldIgnoreEmail],
     ];
 
     let passed = 0;
