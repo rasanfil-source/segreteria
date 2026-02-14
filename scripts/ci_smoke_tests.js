@@ -12,7 +12,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
-const MIN_EXPECTED_TESTS = 8;
+const MIN_EXPECTED_TESTS = 10;
 
 const loadedScripts = new Set();
 
@@ -109,6 +109,38 @@ function testCivicDeduplicationExplicit() {
 
     const civicSpaced = TerritoryValidator.normalizeCivic('10 A');
     assert(civicSpaced === civicA, `normalizeCivic("10 A") deve normalizzare a "${civicA}", ottenuto "${civicSpaced}"`);
+}
+
+// ========================================================================
+// TEST ERROR TYPES (classificazione centralizzata)
+// ========================================================================
+
+function testClassifyErrorQuota() {
+    loadScript('gas_error_types.js');
+
+    const result = classifyError(new Error('429 rate limit exceeded'));
+    assert(result.type === 'QUOTA_EXCEEDED', `Atteso QUOTA_EXCEEDED, ottenuto "${result.type}"`);
+    assert(result.retryable === true, 'Errore quota deve essere retryable');
+
+    const result2 = classifyError(new Error('RESOURCE_EXHAUSTED: Quota exceeded'));
+    assert(result2.type === 'QUOTA_EXCEEDED', `Atteso QUOTA_EXCEEDED, ottenuto "${result2.type}"`);
+    assert(result2.retryable === true, 'Errore RESOURCE_EXHAUSTED deve essere retryable');
+}
+
+function testClassifyErrorNonRetryable() {
+    loadScript('gas_error_types.js');
+
+    const apiKey = classifyError(new Error('API key unauthorized'));
+    assert(apiKey.type === 'INVALID_API_KEY', `Atteso INVALID_API_KEY, ottenuto "${apiKey.type}"`);
+    assert(apiKey.retryable === false, 'Errore API key NON deve essere retryable');
+
+    const invalidResp = classifyError(new Error('Risposta Gemini non JSON valida'));
+    assert(invalidResp.type === 'INVALID_RESPONSE', `Atteso INVALID_RESPONSE, ottenuto "${invalidResp.type}"`);
+    assert(invalidResp.retryable === false, 'Errore INVALID_RESPONSE NON deve essere retryable');
+
+    const unknown = classifyError(new Error('Qualcosa di strano'));
+    assert(unknown.type === 'UNKNOWN', `Atteso UNKNOWN, ottenuto "${unknown.type}"`);
+    assert(unknown.retryable === false, 'Errore UNKNOWN NON deve essere retryable');
 }
 
 // ========================================================================
@@ -223,6 +255,9 @@ function main() {
         ['territory abbreviations', testTerritoryAbbreviations],
         ['civic normalization (normalizeCivic)', testCivicNormalization],
         ['civic deduplication (10A vs 10B)', testCivicDeduplicationExplicit],
+        // Error Types (classificazione centralizzata)
+        ['classifyError: quota/429 → retryable', testClassifyErrorQuota],
+        ['classifyError: API key/invalid → non-retryable', testClassifyErrorNonRetryable],
         // GeminiService
         ['portuguese special greeting', testPortugueseSpecialGreeting],
         ['gemini DI + mock fetch', testGeminiDependencyInjectionAndMockFetch],

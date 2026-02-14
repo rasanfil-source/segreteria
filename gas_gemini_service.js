@@ -372,24 +372,16 @@ Output JSON:
       try {
         return fn();
       } catch (error) {
-        const msg = error && error.message ? error.message : '';
-        const isRetryable = msg && (
-          msg.includes('timeout') ||
-          msg.includes('500') ||
-          msg.includes('502') ||
-          msg.includes('503') ||
-          msg.includes('504') ||
-          msg.includes('429') ||
-          msg.includes('rate limit')
-        );
+        const classified = classifyError(error);
+        const isRetryable = classified.retryable;
 
         if (isRetryable && attempt < this.maxRetries - 1) {
           const waitTime = this.retryDelay * Math.pow(this.backoffFactor, attempt);
-          console.warn(`⚠️ ${context} fallito(tentativo ${attempt + 1}/${this.maxRetries}): ${error.message}`);
+          console.warn(`⚠️ ${context} fallito(tentativo ${attempt + 1}/${this.maxRetries}): [${classified.type}] ${error.message}`);
           console.log(`   Retry tra ${waitTime / 1000}s...`);
           Utilities.sleep(waitTime);
         } else if (attempt === this.maxRetries - 1) {
-          console.error(`❌ Tutti i ${this.maxRetries} tentativi ${context} falliti`);
+          console.error(`❌ Tutti i ${this.maxRetries} tentativi ${context} falliti [${classified.type}]`);
           throw error;
         } else {
           // Errore non ritentabile

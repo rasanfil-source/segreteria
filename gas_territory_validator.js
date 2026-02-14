@@ -261,8 +261,6 @@ class TerritoryValidator {
                     // Mantieni il civico completo (es. "10A") per l'output
                     const fullCivic = TerritoryValidator.normalizeCivic(civicRaw);
 
-                    if (isNaN(civicNum) || civicNum <= 0 || civicNum > 9999) continue;
-
                     // Deduplica basandosi anche sul suffisso (fullCivic) per distinguere 10A da 10B
                     const isDuplicate = addresses.some(addr =>
                         addr.street.toLowerCase() === street.toLowerCase() &&
