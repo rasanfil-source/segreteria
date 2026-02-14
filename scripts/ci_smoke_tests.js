@@ -28,9 +28,13 @@ global.calculateEaster = function (year) {
     return new Date(year, month - 1, day);
 };
 
+const loadedScripts = new Set();
+
 function loadScript(path) {
+    if (loadedScripts.has(path)) return;
     const code = fs.readFileSync(path, 'utf8');
     vm.runInThisContext(code, { filename: path });
+    loadedScripts.add(path);
 }
 
 function assert(condition, message) {
@@ -62,6 +66,38 @@ function testTerritoryAbbreviations() {
     console.log('✓ OK');
 }
 
+function testCivicDeduplication() {
+    console.log('--- Test Civic Deduplication & Normalization ---');
+    loadScript('gas_territory_validator.js');
+    const validator = new TerritoryValidator();
+
+    // Test 1: Deduplication (10A != 10B)
+    const text = "Abitiamo in Via Roma 10A e anche in Via Roma 10B.";
+    // Mock territory match to ensure regex extraction works (TerritoryValidator requires valid territory via name? No, extractAddressFromText works on any text)
+    // Wait, extractAddressFromText logic:
+    // "if (viaName.length < 2 ...)" -> OK
+    // It doesn't check territory existence, just extracts.
+
+    const addresses = validator.extractAddressFromText(text);
+
+    assert(addresses && addresses.length === 2,
+        `Dedup fallito: attesi 2 indirizzi (10A, 10B), trovati ${addresses ? addresses.length : 0}`
+    );
+
+    if (addresses && addresses.length === 2) {
+        assert(addresses[0].fullCivic === '10A', `Atteso 10A, ottenuto ${addresses[0].fullCivic}`);
+        assert(addresses[1].fullCivic === '10B', `Atteso 10B, ottenuto ${addresses[1].fullCivic}`);
+    }
+
+    // Test 2: Normalization (5 B -> 5B)
+    const text2 = "Abito in Via Napoli 5   B";
+    const addresses2 = validator.extractAddressFromText(text2);
+    assert(addresses2 && addresses2[0].fullCivic === '5B',
+        `Normalizzazione fallita: atteso '5B', ottenuto '${addresses2 ? addresses2[0].fullCivic : 'null'}'`
+    );
+    console.log('✓ OK');
+}
+
 function testPortugueseSpecialGreeting() {
     console.log('--- Test Portuguese Special Greeting ---');
     loadScript('gas_gemini_service.js');
@@ -83,6 +119,7 @@ function main() {
     try {
         const tests = [
             ['territory abbreviations', testTerritoryAbbreviations],
+            ['civic deduplication', testCivicDeduplication],
             ['portuguese special greeting', testPortugueseSpecialGreeting]
         ];
 

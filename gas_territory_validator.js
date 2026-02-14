@@ -83,11 +83,11 @@ class TerritoryValidator {
      */
     _buildAddressPatterns() {
         return [
-            // Pattern 1: "via Rossi 10" - Supporto alfanumerico (es. 10A, 10/B)
-            /\b(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\s{0,3}(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s{0,3}(\d{1,4}[a-zA-Z]?)\b/gi,
+            // Pattern 1: "via Rossi 10" - Supporto alfanumerico (es. 10A, 10/B, 10 B)
+            /\b(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\s{0,3}(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s{0,3}(\d{1,4}(?:\s*[a-zA-Z])?)\b/gi,
 
             // Pattern 2: "abito in via Rossi 10"
-            /\b(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\s{0,3}(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s{0,3}(\d{1,4}[a-zA-Z]?)\b/gi
+            /\b(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\s{0,3}(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s{0,3}(\d{1,4}(?:\s*[a-zA-Z])?)\b/gi
         ];
     }
 
@@ -249,14 +249,15 @@ class TerritoryValidator {
                     if (isNaN(civicNum) || civicNum <= 0 || civicNum > 9999) continue;
 
                     // Mantieni il civico completo (es. "10A") per l'output
-                    // Normalizziamo solo spazi extra
-                    const fullCivic = civicRaw.replace(/\s+/, '').toUpperCase();
+                    // Normalizziamo solo spazi extra (GLOBAL flag aggiunto per rimuovere tutti gli spazi)
+                    const fullCivic = civicRaw.replace(/\s+/g, '').toUpperCase();
 
                     if (isNaN(civicNum) || civicNum <= 0 || civicNum > 9999) continue;
 
+                    // Deduplica basandosi anche sul suffisso (fullCivic) per distinguere 10A da 10B
                     const isDuplicate = addresses.some(addr =>
                         addr.street.toLowerCase() === street.toLowerCase() &&
-                        addr.civic === civicNum
+                        addr.fullCivic === fullCivic
                     );
 
                     if (!isDuplicate) {
