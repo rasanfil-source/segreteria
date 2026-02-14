@@ -6,7 +6,8 @@
  */
 
 class TerritoryValidator {
-    constructor() {
+    constructor(options = {}) {
+        this.logger = options.logger || console;
         // Pre-compila le regex per riuso (ottimizzazione performance)
         this._addressPatterns = this._buildAddressPatterns();
         this._streetOnlyPattern = this._buildStreetOnlyPattern();
@@ -162,6 +163,15 @@ class TerritoryValidator {
     }
 
     /**
+     * Normalizza civico grezzo: rimuove tutti gli spazi e converte in maiuscolo
+     * @param {string} raw - Civico grezzo (es. "10 A", "5   B")
+     * @returns {string} Civico normalizzato (es. "10A", "5B")
+     */
+    static normalizeCivic(raw) {
+        return String(raw).replace(/\s+/g, '').toUpperCase();
+    }
+
+    /**
      * Normalizza nome via: lowercase, trim, spazi, espansione abbreviazioni
      * Espande le abbreviazioni comuni (es. G. -> giovanni)
      */
@@ -249,8 +259,7 @@ class TerritoryValidator {
                     if (isNaN(civicNum) || civicNum <= 0 || civicNum > 9999) continue;
 
                     // Mantieni il civico completo (es. "10A") per l'output
-                    // Normalizziamo solo spazi extra (GLOBAL flag aggiunto per rimuovere tutti gli spazi)
-                    const fullCivic = civicRaw.replace(/\s+/g, '').toUpperCase();
+                    const fullCivic = TerritoryValidator.normalizeCivic(civicRaw);
 
                     if (isNaN(civicNum) || civicNum <= 0 || civicNum > 9999) continue;
 

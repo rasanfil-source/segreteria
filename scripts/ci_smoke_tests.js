@@ -4,10 +4,15 @@
  * Smoke tests eseguibili in CI Node.js
  * - Carica file GAS in VM Node per verifiche di regressione pure-JS
  * - NON tocca servizi Google (PropertiesService, UrlFetchApp, ...)
+ *
+ * SOGLIA MINIMA: se il numero di test scende sotto MIN_EXPECTED_TESTS
+ * il processo esce con errore (protezione contro rimozione accidentale).
  */
 
 const fs = require('fs');
 const vm = require('vm');
+
+const MIN_EXPECTED_TESTS = 8;
 
 const loadedScripts = new Set();
 
@@ -43,6 +48,23 @@ function assert(condition, message) {
     }
 }
 
+// Helper: crea GeminiService mockato con fetchFn personalizzata
+function createMockGeminiService(fetchFn) {
+    const mockProps = { getProperty: () => null };
+    const mockLogger = { info: () => { }, warn: () => { }, debug: () => { }, error: () => { } };
+    return new GeminiService({
+        primaryKey: 'abcdefghijklmnopqrstuvwxyz123456',
+        config: { TEMPERATURE: 0.2, MAX_OUTPUT_TOKENS: 128, USE_RATE_LIMITER: false },
+        fetchFn: fetchFn,
+        props: mockProps,
+        logger: mockLogger
+    });
+}
+
+// ========================================================================
+// TEST TERRITORY VALIDATOR
+// ========================================================================
+
 function testTerritoryAbbreviations() {
     loadScript('gas_territory_validator.js');
 
@@ -65,6 +87,34 @@ function testTerritoryAbbreviations() {
     assert(extracted[0].fullCivic !== extracted[1].fullCivic, 'fullCivic deve distinguere suffissi diversi');
 }
 
+function testCivicNormalization() {
+    loadScript('gas_territory_validator.js');
+
+    const result = TerritoryValidator.normalizeCivic('10 A');
+    assert(result === '10A', `normalizeCivic("10 A") atteso "10A", ottenuto "${result}"`);
+
+    const result2 = TerritoryValidator.normalizeCivic('5   B');
+    assert(result2 === '5B', `normalizeCivic("5   B") atteso "5B", ottenuto "${result2}"`);
+
+    const result3 = TerritoryValidator.normalizeCivic('  12 ');
+    assert(result3 === '12', `normalizeCivic("  12 ") atteso "12", ottenuto "${result3}"`);
+}
+
+function testCivicDeduplicationExplicit() {
+    loadScript('gas_territory_validator.js');
+
+    const civicA = TerritoryValidator.normalizeCivic('10A');
+    const civicB = TerritoryValidator.normalizeCivic('10B');
+    assert(civicA !== civicB, `normalizeCivic deve distinguere 10A (${civicA}) da 10B (${civicB})`);
+
+    const civicSpaced = TerritoryValidator.normalizeCivic('10 A');
+    assert(civicSpaced === civicA, `normalizeCivic("10 A") deve normalizzare a "${civicA}", ottenuto "${civicSpaced}"`);
+}
+
+// ========================================================================
+// TEST GEMINI SERVICE
+// ========================================================================
+
 function testPortugueseSpecialGreeting() {
     loadScript('gas_gemini_service.js');
 
@@ -77,7 +127,6 @@ function testPortugueseSpecialGreeting() {
     );
 }
 
-
 function testGeminiDependencyInjectionAndMockFetch() {
     loadScript('gas_gemini_service.js');
 
@@ -88,35 +137,130 @@ function testGeminiDependencyInjectionAndMockFetch() {
         })
     };
 
-    const mockFetch = () => fakeResponse;
-    const mockProps = { getProperty: () => null };
-    const mockLogger = { info: () => { }, warn: () => { }, debug: () => { }, error: () => { } };
-
-    const service = new GeminiService({
-        primaryKey: 'abcdefghijklmnopqrstuvwxyz123456',
-        config: { TEMPERATURE: 0.2, MAX_OUTPUT_TOKENS: 128, USE_RATE_LIMITER: false },
-        fetchFn: mockFetch,
-        props: mockProps,
-        logger: mockLogger
-    });
-
+    const service = createMockGeminiService(() => fakeResponse);
     const text = service._generateWithModel('Prompt test', 'gemini-2.5-flash');
     assert(text === 'OK-DI', `Atteso "OK-DI", ottenuto "${text}"`);
 }
 
+// --- Contract Tests: error handling ---
+
+function testGeminiRetryOn429() {
+    loadScript('gas_gemini_service.js');
+
+    const mock429 = {
+        getResponseCode: () => 429,
+        getContentText: () => 'Rate limit exceeded'
+    };
+
+    const service = createMockGeminiService(() => mock429);
+
+    let threw = false;
+    try {
+        service._generateWithModel('Prompt test', 'gemini-2.5-flash');
+    } catch (e) {
+        threw = true;
+        assert(
+            e.message.includes('429'),
+            `Errore atteso contiene "429", ottenuto: "${e.message}"`
+        );
+    }
+    assert(threw, '_generateWithModel deve lanciare errore su risposta 429');
+}
+
+function testGeminiMalformedJson() {
+    loadScript('gas_gemini_service.js');
+
+    const mockBadJson = {
+        getResponseCode: () => 200,
+        getContentText: () => 'questo non è JSON valido {{{}'
+    };
+
+    const service = createMockGeminiService(() => mockBadJson);
+
+    let threw = false;
+    try {
+        service._generateWithModel('Prompt test', 'gemini-2.5-flash');
+    } catch (e) {
+        threw = true;
+        assert(
+            e.message.includes('non JSON valida'),
+            `Errore atteso contiene "non JSON valida", ottenuto: "${e.message}"`
+        );
+    }
+    assert(threw, '_generateWithModel deve lanciare errore su JSON malformato');
+}
+
+function testGeminiNoCandidates() {
+    loadScript('gas_gemini_service.js');
+
+    const mockNoCandidates = {
+        getResponseCode: () => 200,
+        getContentText: () => JSON.stringify({ candidates: [] })
+    };
+
+    const service = createMockGeminiService(() => mockNoCandidates);
+
+    let threw = false;
+    try {
+        service._generateWithModel('Prompt test', 'gemini-2.5-flash');
+    } catch (e) {
+        threw = true;
+        assert(
+            e.message.includes('nessun candidato'),
+            `Errore atteso contiene "nessun candidato", ottenuto: "${e.message}"`
+        );
+    }
+    assert(threw, '_generateWithModel deve lanciare errore senza candidati');
+}
+
+// ========================================================================
+// MAIN: runner con contatore e soglia minima
+// ========================================================================
+
 function main() {
     const tests = [
+        // Territory Validator
         ['territory abbreviations', testTerritoryAbbreviations],
+        ['civic normalization (normalizeCivic)', testCivicNormalization],
+        ['civic deduplication (10A vs 10B)', testCivicDeduplicationExplicit],
+        // GeminiService
         ['portuguese special greeting', testPortugueseSpecialGreeting],
-        ['gemini dependency injection + mock fetch', testGeminiDependencyInjectionAndMockFetch]
+        ['gemini DI + mock fetch', testGeminiDependencyInjectionAndMockFetch],
+        ['gemini contract: 429 → errore propagato', testGeminiRetryOn429],
+        ['gemini contract: malformed JSON → errore parse', testGeminiMalformedJson],
+        ['gemini contract: no candidates → errore semantico', testGeminiNoCandidates],
     ];
 
+    let passed = 0;
+    let failed = 0;
+
     for (const [name, fn] of tests) {
-        fn();
-        console.log(`✅ ${name}`);
+        try {
+            fn();
+            passed++;
+            console.log(`✅ ${name}`);
+        } catch (e) {
+            failed++;
+            console.error(`❌ ${name}: ${e.message}`);
+        }
     }
 
-    console.log('\nSmoke tests completati con successo.');
+    const total = passed + failed;
+
+    console.log('');
+    console.log(`SUMMARY: ${passed}/${total} passed (min: ${MIN_EXPECTED_TESTS})`);
+
+    if (failed > 0) {
+        console.error(`\n❌ ${failed} test falliti.`);
+        process.exit(1);
+    }
+
+    if (total < MIN_EXPECTED_TESTS) {
+        console.error(`\n❌ Soglia minima non raggiunta: ${total} test eseguiti, minimo atteso ${MIN_EXPECTED_TESTS}.`);
+        process.exit(1);
+    }
+
+    console.log('\n✅ Smoke tests completati con successo.');
 }
 
 main();
