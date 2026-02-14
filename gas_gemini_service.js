@@ -712,6 +712,7 @@ Output JSON:
     if (m === 1 && d === 1) {
       if (language === 'en') return 'Happy New Year!';
       if (language === 'es') return '¡Feliz Año Nuevo!';
+      if (language === 'pt') return 'Feliz Ano Novo!';
       return 'Buon Capodanno!';
     }
 
@@ -719,6 +720,7 @@ Output JSON:
     if (m === 1 && d === 6) {
       if (language === 'en') return 'Happy Epiphany!';
       if (language === 'es') return '¡Feliz Epifanía!';
+      if (language === 'pt') return 'Feliz Epifania!';
       return 'Buona Epifania!';
     }
 
@@ -726,6 +728,7 @@ Output JSON:
     if (m === 8 && d === 15) {
       if (language === 'en') return 'Happy Assumption Day!';
       if (language === 'es') return '¡Feliz día de la Asunción!';
+      if (language === 'pt') return 'Feliz dia da Assunção!';
       return 'Buona festa!';
     }
 
@@ -733,6 +736,7 @@ Output JSON:
     if (m === 11 && d === 1) {
       if (language === 'en') return 'Happy All Saints Day!';
       if (language === 'es') return '¡Feliz día de Todos los Santos!';
+      if (language === 'pt') return 'Feliz Dia de Todos os Santos!';
       return 'Buona festa di Ognissanti!';
     }
 
@@ -740,6 +744,7 @@ Output JSON:
     if (m === 12 && d === 8) {
       if (language === 'en') return 'Happy Feast of the Immaculate Conception!';
       if (language === 'es') return '¡Feliz día de la Inmaculada!';
+      if (language === 'pt') return 'Feliz Imaculada Conceição!';
       return 'Buona Immacolata!';
     }
 
@@ -747,6 +752,7 @@ Output JSON:
     if (m === 12 && d === 25) {
       if (language === 'en') return 'Merry Christmas!';
       if (language === 'es') return '¡Feliz Navidad!';
+      if (language === 'pt') return 'Feliz Natal!';
       return 'Buon Natale!';
     }
 
@@ -760,6 +766,7 @@ Output JSON:
     if (this._isBetweenInclusive(dateObj, pasquaStart, pasquaEnd)) {
       if (language === 'en') return 'Happy Easter!';
       if (language === 'es') return '¡Feliz Pascua!';
+      if (language === 'pt') return 'Feliz Páscoa!';
       return 'Buona Pasqua!';
     }
 
@@ -768,6 +775,7 @@ Output JSON:
     if (this._isSameDate(dateObj, pentecoste)) {
       if (language === 'en') return 'Happy Pentecost!';
       if (language === 'es') return '¡Feliz Pentecostés!';
+      if (language === 'pt') return 'Feliz Pentecostes!';
       return 'Buona Pentecoste!';
     }
 
@@ -776,6 +784,7 @@ Output JSON:
     if (this._isSameDate(dateObj, corpusDominiIT)) {
       if (language === 'en') return 'Happy Corpus Christi!';
       if (language === 'es') return '¡Feliz Corpus Christi!';
+      if (language === 'pt') return 'Feliz Corpus Christi!';
       return 'Buona festa!';
     }
 
@@ -784,6 +793,7 @@ Output JSON:
     if (sacraFamiglia && this._isSameDate(dateObj, sacraFamiglia)) {
       if (language === 'en') return 'Happy Feast of the Holy Family!';
       if (language === 'es') return '¡Feliz Fiesta de la Sagrada Familia!';
+      if (language === 'pt') return 'Feliz Festa da Sagrada Família!';
       return 'Buona Festa della Sacra Famiglia.';
     }
 
