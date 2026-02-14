@@ -448,6 +448,7 @@ class ResponseValidator {
     // Rilevamento placeholder intelligente
     const foundPlaceholders = [];
     for (const p of this.placeholders) {
+      if (!p || !p.trim()) continue; // Guardia difensiva: ignora stringhe vuote
       // Per '...', verifica se usato come placeholder (non ellissi nel testo)
       if (p === '...') {
         if (/\[\.\.\.]/g.test(response) || /\.\.\.\s*$/g.test(response)) {

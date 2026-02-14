@@ -480,6 +480,12 @@ function _loadAdvancedConfig(spreadsheet) { return {}; }
  */
 function loadResources(acquireLock = true) {
   if (!acquireLock) {
+    // NOTA: chi invoca con acquireLock=false DEVE detenere già un lock esterno
+    // (es. executionLock in main()). Mai richiamare senza lock in contesti concorrenti.
+    if (GLOBAL_CACHE.loaded) {
+      console.log('ℹ️ Risorse già caricate, salto reload (fast-path senza lock)');
+      return;
+    }
     _loadResourcesInternal();
     return;
   }
