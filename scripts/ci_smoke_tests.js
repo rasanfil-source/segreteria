@@ -9,8 +9,8 @@
 const fs = require('fs');
 const vm = require('vm');
 
-// Helper necessario per gas_gemini_service.js (normalmente in gas_main.js)
-function calculateEaster(year) {
+// Helper calculateEaster (simulato perché GAS non esporta globali tra file in Node)
+global.calculateEaster = function (year) {
     const a = year % 19;
     const b = Math.floor(year / 100);
     const c = year % 100;
@@ -26,50 +26,11 @@ function calculateEaster(year) {
     const month = Math.floor((h + l - 7 * m + 114) / 31);
     const day = ((h + l - 7 * m + 114) % 31) + 1;
     return new Date(year, month - 1, day);
-}
+};
 
-function loadScript(path, existingContext = null) {
+function loadScript(path) {
     const code = fs.readFileSync(path, 'utf8');
-
-    let context;
-    if (existingContext) {
-        context = existingContext;
-    } else {
-        context = {
-            console: console,
-            calculateEaster: calculateEaster,
-            // Mock minimi per prevenire errori ReferenceError durante caricamento
-            GeminiService: null,
-            TerritoryValidator: null,
-            PropertiesService: {
-                getScriptProperties: () => ({
-                    getProperty: () => 'MOCK_KEY_LONGER_THAN_20_CHARS_FOR_VALIDATION'
-                })
-            },
-            UrlFetchApp: {
-                fetch: () => ({})
-            },
-            Utilities: {
-                sleep: () => { }
-            },
-            CacheService: {
-                getScriptCache: () => ({ get: () => null, put: () => { } })
-            },
-            // Mock del logger globale usato in GeminiService
-            createLogger: () => ({
-                info: () => { },
-                warn: () => { },
-                error: () => { },
-                debug: () => { }
-            }),
-            BaseLogger: class { }, // Disponibile nel contesto globale per 'class GeminiService extends BaseLogger'
-        };
-        vm.createContext(context);
-    }
-
-    vm.runInContext(code, context, { filename: path });
-
-    return context;
+    vm.runInThisContext(code, { filename: path });
 }
 
 function assert(condition, message) {
@@ -80,42 +41,36 @@ function assert(condition, message) {
 
 function testTerritoryAbbreviations() {
     console.log('--- Test Territory Abbreviations ---');
-    // Carica script nel contesto
-    const context = loadScript('gas_territory_validator.js');
+    loadScript('gas_territory_validator.js');
 
-    // In VM Node, le classi definite con 'class X {}' non vengono automaticamente messe su 'global' o 'context' 
-    // se non sono esplicitamente assegnate.
-    // Tuttavia, 'runInContext' dovrebbe definire la classe nello scope del contesto.
-    // Verifichiamo se possiamo istanziarla valutando codice nel contesto.
-
-    const validator = vm.runInContext('new TerritoryValidator()', context);
+    const validator = new TerritoryValidator();
 
     const inputStreet = 'via g.vincenzo gravina';
-    const expectedNormalized = 'via giovanni vincenzo gravina';
+    const expected = 'via giovanni vincenzo gravina';
 
     const compact = validator.normalizeStreetName(inputStreet);
     assert(
-        compact === expectedNormalized,
-        `Atteso "${expectedNormalized}", ottenuto "${compact}"`
+        compact === expected,
+        `Atteso "${expected}", ottenuto "${compact}"`
     );
 
     const matched = validator.findTerritoryMatch(inputStreet);
     assert(
-        matched && matched.key === expectedNormalized,
-        'findTerritoryMatch non risolve correttamente la via abbreviata'
+        matched && matched.key === expected,
+        `findTerritoryMatch non risolve correttamente la via abbreviata. Ottenuto: ${JSON.stringify(matched)}`
     );
     console.log('✓ OK');
 }
 
 function testPortugueseSpecialGreeting() {
     console.log('--- Test Portuguese Special Greeting ---');
-    // Riutilizza o crea contesto con mock
-    const context = loadScript('gas_gemini_service.js');
+    loadScript('gas_gemini_service.js');
 
-    const greeting = vm.runInContext(`
-    const service = new GeminiService();
-    service._getSpecialDayGreeting(new Date('2026-01-01T10:00:00Z'), 'pt');
-  `, context);
+    // Bypass costruttore che richiederebbe dipendenze GAS (PropertiesService, ecc.)
+    const service = Object.create(GeminiService.prototype);
+
+    // Test data specifica (Capodanno)
+    const greeting = service._getSpecialDayGreeting(new Date('2026-01-01T10:00:00Z'), 'pt');
 
     assert(
         greeting === 'Feliz Ano Novo!',
@@ -137,7 +92,7 @@ function main() {
 
         console.log('\nSmoke tests completati con successo.');
     } catch (e) {
-        console.error(`\n❌ Errore nei smoke tests: ${e.message}`);
+        console.error(`\n❌ FALLITO: ${e.message}`);
         process.exit(1);
     }
 }

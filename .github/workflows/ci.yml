@@ -4,6 +4,7 @@ on:
   push:
     branches: ["**"]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   validate:
@@ -19,12 +20,8 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Syntax check (all GAS JS files)
-        run: |
-          set -euo pipefail
-          for f in *.js; do
-            node --check "$f"
-          done
+      - name: Syntax check (tracked JS files)
+        run: bash scripts/check_js_syntax.sh
 
       - name: CI smoke tests
         run: node scripts/ci_smoke_tests.js
