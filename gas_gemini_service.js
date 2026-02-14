@@ -11,30 +11,35 @@
  */
 
 class GeminiService {
-  constructor() {
-    // Logger strutturato
-    this.logger = createLogger('GeminiService');
+  constructor(options = {}) {
+    const sharedConfig = (typeof CONFIG !== 'undefined') ? CONFIG : {};
+    this.config = Object.assign({}, sharedConfig, options.config || {});
+
+    // Logger strutturato (DI opzionale)
+    this.logger = options.logger || createLogger('GeminiService');
     this.logger.info('Inizializzazione GeminiService');
+
+    // Dipendenze esterne iniettabili (testabilità)
+    this.fetchFn = options.fetchFn || ((url, requestOptions) => UrlFetchApp.fetch(url, requestOptions));
+    this.props = options.props || PropertiesService.getScriptProperties();
 
     // ═══════════════════════════════════════════════════════════════════
     // CONFIGURAZIONE CHIAVI API (Strategia Cross-Key Quality First)
     // ═══════════════════════════════════════════════════════════════════
-    this.props = PropertiesService.getScriptProperties();
 
     // Chiave Primaria
-    // Priorità: 1. Script Properties (Produzione) 2. CONFIG (Sviluppo locale/Hardcoded)
+    // Priorità: 1. override DI 2. Script Properties 3. CONFIG
     const propKey = this.props.getProperty('GEMINI_API_KEY');
-    this.primaryKey = (propKey && propKey.length > 20) ? propKey :
-      (typeof CONFIG !== 'undefined' ? CONFIG.GEMINI_API_KEY : null);
+    this.primaryKey = options.primaryKey || ((propKey && propKey.length > 20) ? propKey : this.config.GEMINI_API_KEY);
 
     // Chiave di Riserva (opzionale, per alternativa quando quota primaria esaurita)
     const propBackupKey = this.props.getProperty('GEMINI_API_KEY_BACKUP');
-    this.backupKey = (propBackupKey && propBackupKey.length > 20) ? propBackupKey : null;
+    this.backupKey = options.backupKey || ((propBackupKey && propBackupKey.length > 20) ? propBackupKey : null);
 
     // Manteniamo apiKey per retrocompatibilità
     this.apiKey = this.primaryKey;
 
-    this.modelName = typeof CONFIG !== 'undefined' ? CONFIG.MODEL_NAME : 'gemini-2.5-flash';
+    this.modelName = this.config.MODEL_NAME || 'gemini-2.5-flash';
     this.baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent`;
 
     if (!this.primaryKey || this.primaryKey.length < 20) {
@@ -51,7 +56,7 @@ class GeminiService {
     this.backoffFactor = 1.5; // crescita graduale: 2s → 3s → 4.5s
 
     // Rate Limiter (abilitato da CONFIG.USE_RATE_LIMITER)
-    this.useRateLimiter = typeof CONFIG !== 'undefined' && CONFIG.USE_RATE_LIMITER === true;
+    this.useRateLimiter = this.config.USE_RATE_LIMITER === true;
     if (this.useRateLimiter) {
       try {
         this.rateLimiter = new GeminiRateLimiter();
@@ -97,14 +102,14 @@ class GeminiService {
     // Usa chiave override se fornita, altrimenti chiave primaria
     const activeKey = apiKeyOverride || this.primaryKey;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
-    const temperature = typeof CONFIG !== 'undefined' ? CONFIG.TEMPERATURE : 0.5;
-    const maxTokens = typeof CONFIG !== 'undefined' ? CONFIG.MAX_OUTPUT_TOKENS : 6000;
+    const temperature = this.config.TEMPERATURE || 0.5;
+    const maxTokens = this.config.MAX_OUTPUT_TOKENS || 6000;
 
     console.log(`🤖 Chiamata ${modelName} (prompt: ${prompt.length} caratteri)...`);
 
     let response;
     try {
-      response = UrlFetchApp.fetch(`${url}?key=${encodeURIComponent(activeKey)}`, {
+      response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
@@ -243,7 +248,7 @@ Output JSON:
     let response;
 
     try {
-      response = UrlFetchApp.fetch(`${url}?key=${encodeURIComponent(activeKey)}`, {
+      response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
@@ -262,7 +267,7 @@ Output JSON:
       if ([429, 500, 502, 503, 504].includes(responseCode) && this.backupKey) {
         console.warn(`⚠️ Chiave primaria esaurita / errore(${response.getResponseCode()}).Tentativo con chiave di riserva...`);
         activeKey = this.backupKey;
-        response = UrlFetchApp.fetch(`${url}?key=${encodeURIComponent(activeKey)}`, {
+        response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
           method: 'POST',
           contentType: 'application/json',
           payload: JSON.stringify({
@@ -964,10 +969,10 @@ Output JSON:
     return this._withRetry(() => {
       console.log(`🤖 Chiamata Gemini API(prompt: ${prompt.length} caratteri)...`);
 
-      const temperature = typeof CONFIG !== 'undefined' ? CONFIG.TEMPERATURE : 0.5;
-      const maxTokens = typeof CONFIG !== 'undefined' ? CONFIG.MAX_OUTPUT_TOKENS : 6000;
+      const temperature = this.config.TEMPERATURE || 0.5;
+      const maxTokens = this.config.MAX_OUTPUT_TOKENS || 6000;
 
-      const response = UrlFetchApp.fetch(`${this.baseUrl}?key=${encodeURIComponent(this.apiKey)}`, {
+      const response = this.fetchFn(`${this.baseUrl}?key=${encodeURIComponent(this.apiKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
@@ -1038,7 +1043,7 @@ Output JSON:
     try {
       const testPrompt = 'Rispondi con una sola parola: OK';
 
-      const response = UrlFetchApp.fetch(`${this.baseUrl}?key=${encodeURIComponent(this.apiKey)}`, {
+      const response = this.fetchFn(`${this.baseUrl}?key=${encodeURIComponent(this.apiKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({

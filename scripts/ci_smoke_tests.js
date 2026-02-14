@@ -9,6 +9,8 @@
 const fs = require('fs');
 const vm = require('vm');
 
+const loadedScripts = new Set();
+
 // Helper calculateEaster (necessario per gas_gemini_service.js)
 global.calculateEaster = function (year) {
     const a = year % 19;
@@ -27,8 +29,6 @@ global.calculateEaster = function (year) {
     const day = ((h + l - 7 * m + 114) % 31) + 1;
     return new Date(year, month - 1, day);
 };
-
-const loadedScripts = new Set();
 
 function loadScript(path) {
     if (loadedScripts.has(path)) return;
@@ -77,10 +77,38 @@ function testPortugueseSpecialGreeting() {
     );
 }
 
+
+function testGeminiDependencyInjectionAndMockFetch() {
+    loadScript('gas_gemini_service.js');
+
+    const fakeResponse = {
+        getResponseCode: () => 200,
+        getContentText: () => JSON.stringify({
+            candidates: [{ content: { parts: [{ text: 'OK-DI' }] } }]
+        })
+    };
+
+    const mockFetch = () => fakeResponse;
+    const mockProps = { getProperty: () => null };
+    const mockLogger = { info: () => { }, warn: () => { }, debug: () => { }, error: () => { } };
+
+    const service = new GeminiService({
+        primaryKey: 'abcdefghijklmnopqrstuvwxyz123456',
+        config: { TEMPERATURE: 0.2, MAX_OUTPUT_TOKENS: 128, USE_RATE_LIMITER: false },
+        fetchFn: mockFetch,
+        props: mockProps,
+        logger: mockLogger
+    });
+
+    const text = service._generateWithModel('Prompt test', 'gemini-2.5-flash');
+    assert(text === 'OK-DI', `Atteso "OK-DI", ottenuto "${text}"`);
+}
+
 function main() {
     const tests = [
         ['territory abbreviations', testTerritoryAbbreviations],
-        ['portuguese special greeting', testPortugueseSpecialGreeting]
+        ['portuguese special greeting', testPortugueseSpecialGreeting],
+        ['gemini dependency injection + mock fetch', testGeminiDependencyInjectionAndMockFetch]
     ];
 
     for (const [name, fn] of tests) {
