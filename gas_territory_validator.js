@@ -257,7 +257,7 @@ class TerritoryValidator {
                     // Deduplica basandosi anche sul suffisso (fullCivic) per distinguere 10A da 10B
                     const isDuplicate = addresses.some(addr =>
                         addr.street.toLowerCase() === street.toLowerCase() &&
-                        addr.fullCivic === fullCivic
+                        (addr.fullCivic || String(addr.civic)).toUpperCase() === fullCivic
                     );
 
                     if (!isDuplicate) {

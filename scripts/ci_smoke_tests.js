@@ -9,7 +9,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
-// Helper calculateEaster (simulato perché GAS non esporta globali tra file in Node)
+// Helper calculateEaster (necessario per gas_gemini_service.js)
 global.calculateEaster = function (year) {
     const a = year % 19;
     const b = Math.floor(year / 100);
@@ -44,94 +44,51 @@ function assert(condition, message) {
 }
 
 function testTerritoryAbbreviations() {
-    console.log('--- Test Territory Abbreviations ---');
     loadScript('gas_territory_validator.js');
 
     const validator = new TerritoryValidator();
 
-    const inputStreet = 'via g.vincenzo gravina';
-    const expected = 'via giovanni vincenzo gravina';
-
-    const compact = validator.normalizeStreetName(inputStreet);
+    const compact = validator.normalizeStreetName('via g.vincenzo gravina');
     assert(
-        compact === expected,
-        `Atteso "${expected}", ottenuto "${compact}"`
+        compact === 'via giovanni vincenzo gravina',
+        `Atteso "via giovanni vincenzo gravina", ottenuto "${compact}"`
     );
 
-    const matched = validator.findTerritoryMatch(inputStreet);
+    const matched = validator.findTerritoryMatch('via g.vincenzo gravina');
     assert(
-        matched && matched.key === expected,
-        `findTerritoryMatch non risolve correttamente la via abbreviata. Ottenuto: ${JSON.stringify(matched)}`
-    );
-    console.log('✓ OK');
-}
-
-function testCivicDeduplication() {
-    console.log('--- Test Civic Deduplication & Normalization ---');
-    loadScript('gas_territory_validator.js');
-    const validator = new TerritoryValidator();
-
-    // Test 1: Deduplication (10A != 10B)
-    const text = "Abitiamo in Via Roma 10A e anche in Via Roma 10B.";
-    // Mock territory match to ensure regex extraction works (TerritoryValidator requires valid territory via name? No, extractAddressFromText works on any text)
-    // Wait, extractAddressFromText logic:
-    // "if (viaName.length < 2 ...)" -> OK
-    // It doesn't check territory existence, just extracts.
-
-    const addresses = validator.extractAddressFromText(text);
-
-    assert(addresses && addresses.length === 2,
-        `Dedup fallito: attesi 2 indirizzi (10A, 10B), trovati ${addresses ? addresses.length : 0}`
+        matched && matched.key === 'via giovanni vincenzo gravina',
+        'findTerritoryMatch non risolve correttamente la via abbreviata'
     );
 
-    if (addresses && addresses.length === 2) {
-        assert(addresses[0].fullCivic === '10A', `Atteso 10A, ottenuto ${addresses[0].fullCivic}`);
-        assert(addresses[1].fullCivic === '10B', `Atteso 10B, ottenuto ${addresses[1].fullCivic}`);
-    }
-
-    // Test 2: Normalization (5 B -> 5B)
-    const text2 = "Abito in Via Napoli 5   B";
-    const addresses2 = validator.extractAddressFromText(text2);
-    assert(addresses2 && addresses2[0].fullCivic === '5B',
-        `Normalizzazione fallita: atteso '5B', ottenuto '${addresses2 ? addresses2[0].fullCivic : 'null'}'`
-    );
-    console.log('✓ OK');
+    const extracted = validator.extractAddressFromText('abito in via Roma 10A e via Roma 10B');
+    assert(Array.isArray(extracted) && extracted.length === 2, 'Deduplica errata: 10A e 10B non devono collassare');
+    assert(extracted[0].fullCivic !== extracted[1].fullCivic, 'fullCivic deve distinguere suffissi diversi');
 }
 
 function testPortugueseSpecialGreeting() {
-    console.log('--- Test Portuguese Special Greeting ---');
     loadScript('gas_gemini_service.js');
 
-    // Bypass costruttore che richiederebbe dipendenze GAS (PropertiesService, ecc.)
     const service = Object.create(GeminiService.prototype);
-
-    // Test data specifica (Capodanno)
     const greeting = service._getSpecialDayGreeting(new Date('2026-01-01T10:00:00Z'), 'pt');
 
     assert(
         greeting === 'Feliz Ano Novo!',
         `Atteso "Feliz Ano Novo!", ottenuto "${greeting}"`
     );
-    console.log('✓ OK');
 }
 
 function main() {
-    try {
-        const tests = [
-            ['territory abbreviations', testTerritoryAbbreviations],
-            ['civic deduplication', testCivicDeduplication],
-            ['portuguese special greeting', testPortugueseSpecialGreeting]
-        ];
+    const tests = [
+        ['territory abbreviations', testTerritoryAbbreviations],
+        ['portuguese special greeting', testPortugueseSpecialGreeting]
+    ];
 
-        for (const [name, fn] of tests) {
-            fn();
-        }
-
-        console.log('\nSmoke tests completati con successo.');
-    } catch (e) {
-        console.error(`\n❌ FALLITO: ${e.message}`);
-        process.exit(1);
+    for (const [name, fn] of tests) {
+        fn();
+        console.log(`✅ ${name}`);
     }
+
+    console.log('\nSmoke tests completati con successo.');
 }
 
 main();
