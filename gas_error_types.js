@@ -1,4 +1,4 @@
-/**
+﻿/**
  * gas_error_types.js - Classificazione centralizzata errori API
  *
  * Fornisce ErrorTypes e classifyError() per categorizzare

@@ -1,8 +1,8 @@
-/**
+﻿/**
  * Config.gs - Configurazione centralizzata del sistema
  * Tutti i parametri configurabili sono definiti qui
  * 
- * NOTA: Questa è una versione SANITIZZATA per GitHub.
+ * NOTA: Questa Ã¨ una versione SANITIZZATA per GitHub.
  * Le chiavi sensibili (API Key, Spreadsheet ID) sono rimosse o mascherate.
  */
 
@@ -35,7 +35,7 @@ const CONFIG = {
     ERROR_LABEL_NAME: 'Errore',          // Label per errori
     VALIDATION_ERROR_LABEL: 'Verifica',  // Label per risposte da rivedere
     // Ridotto a 3 per supportare strategia "Cross-Key Quality First"
-    // Fino a 4 chiamate API per email → batch ridotto per prevenire timeout GAS (6 min)
+    // Fino a 4 chiamate API per email â†’ batch ridotto per prevenire timeout GAS (6 min)
     MAX_EMAILS_PER_RUN: 3,
     GMAIL_LABEL_CACHE_TTL: 3600000,      // 1 ora in millisecondi
     MAX_HISTORY_MESSAGES: 10,            // Massimo messaggi in cronologia thread
@@ -46,7 +46,7 @@ const CONFIG = {
         maxCharsPerFile: 4000,           // Limite testo per singolo allegato
         maxTotalChars: 12000,            // Limite totale testo allegati
         ocrLanguage: 'it',               // Lingua OCR (Drive Advanced API)
-        ocrConfidenceWarningThreshold: 0.8, // Soglia warning leggibilità OCR in risposta
+        ocrConfidenceWarningThreshold: 0.8, // Soglia warning leggibilitÃ  OCR in risposta
         pdfMaxPages: 2,                  // Limite pagine PDF (stima via OCR)
         pdfCharsPerPage: 1800            // Stima caratteri per pagina PDF
     },
@@ -71,7 +71,7 @@ const CONFIG = {
     SHEETS_RETRY_MAX: 3,                 // Tentativi massimi
     SHEETS_RETRY_BACKOFF_MS: 1000,       // Backoff iniziale (raddoppia ad ogni retry)
 
-    // === Modalità ===
+    // === ModalitÃ  ===
     DRY_RUN: false,                      // True per test senza invio email
     USE_RATE_LIMITER: true,              // Rate limiter intelligente abilitato
 
@@ -93,7 +93,7 @@ const CONFIG = {
     // === Modelli Gemini (configurazione centralizzata) ===
     // Aggiornato: Gennaio 2026
     GEMINI_MODELS: {
-        // Modello premium: qualità massima per generazione risposte
+        // Modello premium: qualitÃ  massima per generazione risposte
         'flash-2.5': {
             name: 'gemini-2.5-flash',
             rpm: 10,        // Richieste per minuto
@@ -119,7 +119,7 @@ const CONFIG = {
         }
     },
 
-    // Strategia selezione modelli per task (ordine = priorità)
+    // Strategia selezione modelli per task (ordine = prioritÃ )
     MODEL_STRATEGY: {
         'quick_check': ['flash-lite', 'flash-2.0'],
         'generation': ['flash-2.5', 'flash-lite', 'flash-2.0'],
@@ -154,7 +154,7 @@ const CONFIG = {
 const LANGUAGE_MARKERS = {
     'it': ['grazie', 'cordiali', 'saluti', 'gentile', 'parrocchia', 'messa', 'vorrei', 'quando', 'buongiorno', 'buonasera'],
     'en': ['thank', 'regards', 'dear', 'parish', 'mass', 'church', 'would', 'could', 'please', 'sincerely'],
-    'es': ['gracias', 'saludos', 'estimado', 'parroquia', 'misa', 'iglesia', 'querría', 'buenos', 'días'],
-    'fr': ['merci', 'cordialement', 'cher', 'paroisse', 'messe', 'église', 'voudrais', 'pourrais', 'bonjour', 'bonsoir'],
-    'de': ['danke', 'grüße', 'liebe', 'pfarrei', 'messe', 'kirche', 'möchte', 'könnte', 'bitte', 'guten']
+    'es': ['gracias', 'saludos', 'estimado', 'parroquia', 'misa', 'iglesia', 'querrÃ­a', 'buenos', 'dÃ­as'],
+    'fr': ['merci', 'cordialement', 'cher', 'paroisse', 'messe', 'Ã©glise', 'voudrais', 'pourrais', 'bonjour', 'bonsoir'],
+    'de': ['danke', 'grÃ¼ÃŸe', 'liebe', 'pfarrei', 'messe', 'kirche', 'mÃ¶chte', 'kÃ¶nnte', 'bitte', 'guten']
 };

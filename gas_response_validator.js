@@ -1,19 +1,19 @@
-/**
+﻿/**
  * ResponseValidator.gs - Validazione risposte AI
- * Controlla qualità e sicurezza delle risposte generate
+ * Controlla qualitÃ  e sicurezza delle risposte generate
  * 
  * CONTROLLI CRITICI:
- * ✅ Lunghezza (troppo corta/lunga = UX negativa)
- * ✅ Consistenza lingua (critico per multilingua)
- * ✅ Frasi vietate (indicatori allucinazione)
- * ✅ Placeholder (risposta incompleta)
- * ✅ Firma obbligatoria (identità brand)
- * ✅ Dati allucinati (email, telefoni, orari non in KB)
- * ✅ Ragionamento esposto (thinking leak)
+ * âœ… Lunghezza (troppo corta/lunga = UX negativa)
+ * âœ… Consistenza lingua (critico per multilingua)
+ * âœ… Frasi vietate (indicatori allucinazione)
+ * âœ… Placeholder (risposta incompleta)
+ * âœ… Firma obbligatoria (identitÃ  brand)
+ * âœ… Dati allucinati (email, telefoni, orari non in KB)
+ * âœ… Ragionamento esposto (thinking leak)
  */
 class ResponseValidator {
   constructor() {
-    console.log('🔍 Inizializzazione ResponseValidator...');
+    console.log('ðŸ” Inizializzazione ResponseValidator...');
 
     // Ottieni config - fallback a default se CONFIG non definito
     // Soglia minima accettabile
@@ -46,10 +46,10 @@ class ResponseValidator {
     this.languageMarkers = typeof LANGUAGE_MARKERS !== 'undefined' ? LANGUAGE_MARKERS : {
       'it': ['grazie', 'cordiali', 'saluti', 'gentile', 'parrocchia', 'messa', 'vorrei', 'quando'],
       'en': ['thank', 'regards', 'dear', 'parish', 'mass', 'church', 'would', 'could'],
-      'es': ['gracias', 'saludos', 'estimado', 'parroquia', 'misa', 'iglesia', 'querría'],
-      'fr': ['merci', 'cordialement', 'cher', 'paroisse', 'messe', 'église', 'voudrais'],
-      'de': ['danke', 'grüße', 'liebe', 'pfarrei', 'messe', 'kirche', 'möchte'],
-      'pt': ['obrigado', 'obrigada', 'cumprimentos', 'paróquia', 'missa', 'igreja', 'orçamento']
+      'es': ['gracias', 'saludos', 'estimado', 'parroquia', 'misa', 'iglesia', 'querrÃ­a'],
+      'fr': ['merci', 'cordialement', 'cher', 'paroisse', 'messe', 'Ã©glise', 'voudrais'],
+      'de': ['danke', 'grÃ¼ÃŸe', 'liebe', 'pfarrei', 'messe', 'kirche', 'mÃ¶chte'],
+      'pt': ['obrigado', 'obrigada', 'cumprimentos', 'parÃ³quia', 'missa', 'igreja', 'orÃ§amento']
     };
 
     // Placeholder da rilevare
@@ -66,7 +66,7 @@ class ResponseValidator {
 
     this.thinkingPatterns = [
       // Pattern conversazionali non catturati dalle regex
-      'in realtà',
+      'in realtÃ ',
       'pensandoci bene',
       '(nota:',
       'nota:',
@@ -83,8 +83,8 @@ class ResponseValidator {
     this.signaturePatterns = [
       /segreteria\s+parrocchia\s+sant['\u2018\u2019]?eugenio/i,        // IT
       /parish\s+secretariat\s+(of\s+)?sant['\u2018\u2019]?eugenio/i,   // EN
-      /secretar[ií]a\s+parroquial/i,                                   // ES
-      /secretaria\s+par[oó]quia(l)?\s+sant['\u2018\u2019]?eugenio/i    // PT
+      /secretar[iÃ­]a\s+parroquial/i,                                   // ES
+      /secretaria\s+par[oÃ³]quia(l)?\s+sant['\u2018\u2019]?eugenio/i    // PT
     ];
 
     // Pattern saluti per fasce orarie (Controllo #8)
@@ -100,13 +100,13 @@ class ResponseValidator {
         evening: ['good evening']
       },
       'es': {
-        morning: ['buenos días', 'buen día'],
+        morning: ['buenos dÃ­as', 'buen dÃ­a'],
         afternoon: ['buenas tardes'],
         evening: ['buenas noches']
       },
       'fr': {
         morning: ['bonjour'],
-        afternoon: ['bon après-midi'],
+        afternoon: ['bon aprÃ¨s-midi'],
         evening: ['bonsoir']
       },
       'de': {
@@ -125,9 +125,9 @@ class ResponseValidator {
     this.liturgicalGreetings = {
       'it': ['buon natale', 'buona pasqua', 'buon avvento', 'buona quaresima', 'buona pentecoste'],
       'en': ['merry christmas', 'happy easter', 'happy advent', 'happy pentecost'],
-      'es': ['feliz navidad', 'feliz pascua', 'feliz adviento', 'feliz pentecostés'],
-      'fr': ['joyeux noël', 'joyeuses pâques', 'joyeux avent', 'joyeuse pentecôte'],
-      'de': ['frohe weihnachten', 'frohe ostern', 'schönen advent', 'frohe pfingsten']
+      'es': ['feliz navidad', 'feliz pascua', 'feliz adviento', 'feliz pentecostÃ©s'],
+      'fr': ['joyeux noÃ«l', 'joyeuses pÃ¢ques', 'joyeux avent', 'joyeuse pentecÃ´te'],
+      'de': ['frohe weihnachten', 'frohe ostern', 'schÃ¶nen advent', 'frohe pfingsten']
     };
 
     // Semantic Validator (opzionale)
@@ -136,8 +136,8 @@ class ResponseValidator {
       CONFIG.SEMANTIC_VALIDATION.enabled === true;
     this.semanticValidator = semanticEnabled ? new SemanticValidator() : null;
 
-    console.log('✓ ResponseValidator inizializzato');
-    console.log(`   Soglia minima validità: ${this.MIN_VALID_SCORE}`);
+    console.log('âœ“ ResponseValidator inizializzato');
+    console.log(`   Soglia minima validitÃ : ${this.MIN_VALID_SCORE}`);
   }
 
   /**
@@ -147,7 +147,7 @@ class ResponseValidator {
    * @param {string} knowledgeBase - KB per confronto allucinazioni
    * @param {string} emailContent - Contenuto email originale
    * @param {string} emailSubject - Oggetto email
-   * @param {string} salutationMode - Modalità saluto ('full'|'soft'|'none_or_continuity')
+   * @param {string} salutationMode - ModalitÃ  saluto ('full'|'soft'|'none_or_continuity')
    * @returns {Object} Risultato validazione
    */
   validateResponse(response, detectedLanguage, knowledgeBase, emailContent, emailSubject, salutationMode = 'full', attemptPerfezionamento = true) {
@@ -163,19 +163,19 @@ class ResponseValidator {
     const safeDetectedLanguage = typeof detectedLanguage === 'string' && detectedLanguage.length > 0
       ? detectedLanguage
       : 'it';
-    console.log(`🔍 Validazione risposta (${currentResponse.length} caratteri, lingua=${safeDetectedLanguage})...`);
+    console.log(`ðŸ” Validazione risposta (${currentResponse.length} caratteri, lingua=${safeDetectedLanguage})...`);
 
     // --- PRIMO PASSAGGIO DI VALIDAZIONE ---
     let validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent);
 
     // --- AUTOCORREZIONE (PERFEZIONAMENTO) ---
     if (!validationResult.isValid && attemptPerfezionamento) {
-      console.log('🩹 Tentativo perfezionamento automatico...');
+      console.log('ðŸ©¹ Tentativo perfezionamento automatico...');
 
       const perfezionamentoResult = this._perfezionamentoAutomatico(currentResponse, validationResult.errors, safeDetectedLanguage);
 
       if (perfezionamentoResult.fixed) {
-        console.log('   ✨ Risposta perfezionata (migliorata qualità o rimozione allucinazioni)');
+        console.log('   âœ¨ Risposta perfezionata (migliorata qualitÃ  o rimozione allucinazioni)');
         currentResponse = perfezionamentoResult.text;
         wasRefined = true;
 
@@ -183,18 +183,18 @@ class ResponseValidator {
         validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent);
 
         if (validationResult.isValid) {
-          console.log('   ✅ Autocorrezione ha risolto i problemi!');
+          console.log('   âœ… Autocorrezione ha risolto i problemi!');
         } else {
-          console.warn('   ⚠️ Perfezionamento insufficiente. Errori residui.');
+          console.warn('   âš ï¸ Perfezionamento insufficiente. Errori residui.');
         }
       } else {
-        console.log('   🚫 Nessun perfezionamento automatico applicabile.');
+        console.log('   ðŸš« Nessun perfezionamento automatico applicabile.');
       }
     }
 
     // === SEMANTIC VALIDATION (solo se necessario) ===
     if (this.semanticValidator && this.semanticValidator.shouldRun(validationResult.score)) {
-      console.log('🧠 Attivazione Semantic Validation (score sotto soglia)...');
+      console.log('ðŸ§  Attivazione Semantic Validation (score sotto soglia)...');
 
       const semHalluc = this.semanticValidator.validateHallucinations(
         currentResponse,
@@ -212,7 +212,7 @@ class ResponseValidator {
       const semanticConfidence = Math.min(semHalluc.confidence, semThinking.confidence);
 
       if (!semanticValid && semanticConfidence > validationResult.score) {
-        console.warn('❌ Semantic validator ha rilevato problemi non catturati da regex');
+        console.warn('âŒ Semantic validator ha rilevato problemi non catturati da regex');
         validationResult.isValid = false;
         validationResult.score = semanticConfidence;
         validationResult.errors.push(`Semantic: ${semHalluc.reason || semThinking.reason}`);
@@ -226,12 +226,12 @@ class ResponseValidator {
 
     // Log finale
     if (validationResult.errors.length > 0) {
-      console.warn(`❌ Validazione FALLITA: ${validationResult.errors.length} errore/i`);
+      console.warn(`âŒ Validazione FALLITA: ${validationResult.errors.length} errore/i`);
       validationResult.errors.forEach((err, i) => console.warn(`   ${i + 1}. ${err}`));
     }
 
     if (validationResult.isValid) {
-      console.log(`✓ Validazione SUPERATA (punteggio: ${validationResult.score.toFixed(2)})`);
+      console.log(`âœ“ Validazione SUPERATA (punteggio: ${validationResult.score.toFixed(2)})`);
     }
 
     return {
@@ -313,7 +313,7 @@ class ResponseValidator {
     details.greeting = greetingResult;
     score *= greetingResult.score;
 
-    // Determina validità
+    // Determina validitÃ 
     const isValid = errors.length === 0 && score >= this.MIN_VALID_SCORE;
 
     return { isValid, score, errors, warnings, details };
@@ -365,7 +365,7 @@ class ResponseValidator {
       }, 0);
     }
 
-    // Scegli lingua con punteggio più alto
+    // Scegli lingua con punteggio piÃ¹ alto
     let detectedLang = expectedLanguage;
     let maxScore = 0;
     for (const lang in markerScores) {
@@ -410,7 +410,7 @@ class ResponseValidator {
     const warnings = [];
     let score = 1.0;
 
-    // Nei follow-up ravvicinati o in sessione la firma è opzionale
+    // Nei follow-up ravvicinati o in sessione la firma Ã¨ opzionale
     if (salutationMode === 'none_or_continuity' || salutationMode === 'session') {
       return { score, errors, warnings };
     }
@@ -570,7 +570,7 @@ class ResponseValidator {
     const whitelistText = (originalMessage || '');
     const inventedPhones = [...responsePhones].filter(p => {
       if (kbPhones.has(p)) return false;
-      // Se il numero è presente nel testo originale, è legittimo ripeterlo
+      // Se il numero Ã¨ presente nel testo originale, Ã¨ legittimo ripeterlo
       if (whitelistText.replace(/\s+/g, '').includes(p)) return false;
       return true;
     });
@@ -595,7 +595,7 @@ class ResponseValidator {
     // Parole italiane che NON devono essere maiuscole dopo una virgola
     const italianForbiddenCaps = [
       // Verbi
-      'Siamo', 'Restiamo', 'Sono', 'È', "E'", 'Era', 'Sarà',
+      'Siamo', 'Restiamo', 'Sono', 'Ãˆ', "E'", 'Era', 'SarÃ ',
       'Ho', 'Hai', 'Ha', 'Abbiamo', 'Avete', 'Hanno',
       'Vorrei', 'Vorremmo', 'Volevamo', 'Desideriamo', 'Informiamo',
       // Articoli
@@ -603,7 +603,7 @@ class ResponseValidator {
       // Preposizioni
       'Per', 'Con', 'In', 'Su', 'Tra', 'Fra', 'Da', 'Di', 'A',
       // Congiunzioni e particelle (AGGIUNTE "E", "Ed")
-      'Ma', 'Se', 'Che', 'Non', 'Sì', 'No', 'E', 'Ed', 'O', 'Oppure',
+      'Ma', 'Se', 'Che', 'Non', 'SÃ¬', 'No', 'E', 'Ed', 'O', 'Oppure',
       // Pronomi
       'Vi', 'Ti', 'Mi', 'Ci', 'Si', 'Li',
       // Altre parole comuni
@@ -636,7 +636,7 @@ class ResponseValidator {
     }
 
     // Regex per trovare ", Parola"
-    const pattern = /,\s+([A-ZÀÈÉÌÒÙ][a-zàèéìòù]*)/g;
+    const pattern = /,\s+([A-ZÃ€ÃˆÃ‰ÃŒÃ’Ã™][a-zÃ Ã¨Ã©Ã¬Ã²Ã¹]*)/g;
     let match;
     const violations = [];
 
@@ -644,11 +644,11 @@ class ResponseValidator {
       if (!match[1]) continue;
       const word = String(match[1]); // Punto 8: Coercizione esplicita a stringa
 
-      // Euristica nomi doppi: se la parola è seguita da un'altra maiuscola,
+      // Euristica nomi doppi: se la parola Ã¨ seguita da un'altra maiuscola,
       // probabilmente sono nomi propri (es. "Maria Isabella", "Gian Luca")
       const afterMatchPos = match.index + match[0].length;
       const textAfter = response.substring(afterMatchPos);
-      if (textAfter.match(/^\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]+/)) {
+      if (textAfter.match(/^\s+[A-ZÃ€ÃˆÃ‰ÃŒÃ’Ã™][a-zÃ Ã¨Ã©Ã¬Ã²Ã¹]+/)) {
         continue; // Salta: probabile nome doppio
       }
 
@@ -715,7 +715,7 @@ class ResponseValidator {
       );
       score = 0.0;
       // Log speciale per monitoraggio immediato
-      console.error(`🚨 RILEVAMENTO THINKING LEAK (Pattern: ${foundPatterns[0]}).`);
+      console.error(`ðŸš¨ RILEVAMENTO THINKING LEAK (Pattern: ${foundPatterns[0]}).`);
     }
 
     return { score, errors, warnings, foundPatterns };
@@ -723,7 +723,7 @@ class ResponseValidator {
 
   /**
    * Controllo 8: Saluto temporalmente incongruente
-   * Rileva se il saluto nella risposta è appropriato per l'orario corrente
+   * Rileva se il saluto nella risposta Ã¨ appropriato per l'orario corrente
    */
   _checkTimeBasedGreeting(response, language) {
     const warnings = [];
@@ -764,19 +764,19 @@ class ResponseValidator {
       if (detectedGreeting) break;
     }
 
-    // Se nessun saluto rilevato, OK (potrebbe essere modalità continuity)
+    // Se nessun saluto rilevato, OK (potrebbe essere modalitÃ  continuity)
     if (!detectedGreeting) {
       return {
         score,
         warnings,
-        message: 'Nessun saluto rilevato (OK per modalità continuity)',
+        message: 'Nessun saluto rilevato (OK per modalitÃ  continuity)',
         detectedGreeting: null,
         expectedTimeSlot,
         currentHour
       };
     }
 
-    // Verifica se è un saluto liturgico speciale (eccezione)
+    // Verifica se Ã¨ un saluto liturgico speciale (eccezione)
     const liturgical = this.liturgicalGreetings[language] || [];
     const isLiturgical = liturgical.some(lg => responseStart.includes(lg));
     if (isLiturgical) {
@@ -796,7 +796,7 @@ class ResponseValidator {
         `Saluto incongruente: "${detectedGreeting}" usato alle ore ${currentHour}:00 ` +
         `(dovrebbe essere ${timeSlotNames[expectedTimeSlot]})`
       );
-      score *= 0.95; // Penalità lieve (errore di cortesia, non sostanziale)
+      score *= 0.95; // PenalitÃ  lieve (errore di cortesia, non sostanziale)
 
       return {
         score,
@@ -837,18 +837,18 @@ class ResponseValidator {
     if (linksOttimizzati !== textPerfezionato) {
       textPerfezionato = linksOttimizzati;
       modified = true;
-      console.log('   🩹 Ottimizzazione Link applicata');
+      console.log('   ðŸ©¹ Ottimizzazione Link applicata');
     }
 
     // 2. Correzione Maiuscole dopo virgola
-    // Applicabile solo se non è un errore di Thinking Leak (che richiede rigenerazione)
+    // Applicabile solo se non Ã¨ un errore di Thinking Leak (che richiede rigenerazione)
     // e se non ci sono placeholder
     if (!errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('placeholder'))) {
       const capsOttimizzate = this._ottimizzaCapitalAfterComma(textPerfezionato, language);
       if (capsOttimizzate !== textPerfezionato) {
         textPerfezionato = capsOttimizzate;
         modified = true;
-        console.log('   🩹 Ottimizzazione Maiuscole applicata');
+        console.log('   ðŸ©¹ Ottimizzazione Maiuscole applicata');
       }
     }
 
@@ -858,7 +858,7 @@ class ResponseValidator {
       if (salutoOttimizzato !== textPerfezionato) {
         textPerfezionato = salutoOttimizzato;
         modified = true;
-        console.log('   🩹 Ottimizzazione Saluto applicata');
+        console.log('   ðŸ©¹ Ottimizzazione Saluto applicata');
       }
     }
 
@@ -883,7 +883,7 @@ class ResponseValidator {
 
   /**
    * Corregge saluto temporalmente incongruente
-   * Es. "Buongiorno" alle 20:00 → "Buonasera"
+   * Es. "Buongiorno" alle 20:00 â†’ "Buonasera"
    */
   _ottimizzaSalutoTemporale(text, language) {
     if (!this.greetingPatterns[language]) return text;
@@ -931,7 +931,7 @@ class ResponseValidator {
 
           // Sostituisci solo la prima occorrenza all'inizio
           fixedText = text.replace(regex, `$1${replacement}`);
-          console.log(`   🔄 Saluto "${originalGreeting}" → "${replacement}" (ore ${currentHour}:00)`);
+          console.log(`   ðŸ”„ Saluto "${originalGreeting}" â†’ "${replacement}" (ore ${currentHour}:00)`);
           return fixedText;
         }
       }
@@ -950,12 +950,12 @@ class ResponseValidator {
     // Definiamo le regole per lingua
     if (language === 'it') {
       targets = [
-        'Siamo', 'Restiamo', 'Sono', 'È', "E'", 'Era', 'Sarà',
+        'Siamo', 'Restiamo', 'Sono', 'Ãˆ', "E'", 'Era', 'SarÃ ',
         'Ho', 'Hai', 'Ha', 'Abbiamo', 'Avete', 'Hanno',
         'Vorrei', 'Vorremmo', 'Volevamo', 'Desideriamo', 'Informiamo',
         'Il', 'Lo', 'La', 'I', 'Gli', 'Le', 'Un', 'Uno', 'Una', "Un'",
         'Per', 'Con', 'In', 'Su', 'Tra', 'Fra', 'Da', 'Di', 'A',
-        'Ma', 'Se', 'Che', 'Non', 'Sì', 'No', 'E', 'Ed', 'O', 'Oppure',
+        'Ma', 'Se', 'Che', 'Non', 'SÃ¬', 'No', 'E', 'Ed', 'O', 'Oppure',
         'Vi', 'Ti', 'Mi', 'Ci', 'Si', 'Li',
         'Ecco', 'Gentile', 'Caro', 'Cara', 'Spettabile'
       ];
@@ -970,7 +970,7 @@ class ResponseValidator {
       targets = ['Estamos', 'Somos', 'Uma', 'Por', 'Com', 'De', 'Que', 'Para', 'Em'];
     } else {
       // Se lingua sconosciuta o non supportata, NON applicare correzioni rischiose
-      console.log(`   ⚠️ Correzione automatica maiuscole disabilitata per lingua '${language}'`);
+      console.log(`   âš ï¸ Correzione automatica maiuscole disabilitata per lingua '${language}'`);
       return text;
     }
 
@@ -985,7 +985,7 @@ class ResponseValidator {
         // Euristica nomi doppi: se seguito da un'altra parola maiuscola, non correggere
         const afterMatchPos = offset + fullMatch.length;
         const textAfter = result.substring(afterMatchPos);
-        if (textAfter.match(/^\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]+/)) {
+        if (textAfter.match(/^\s+[A-ZÃ€ÃˆÃ‰ÃŒÃ’Ã™][a-zÃ Ã¨Ã©Ã¬Ã²Ã¹]+/)) {
           return fullMatch; // Mantieni maiuscola: probabile nome doppio
         }
         return `, ${p1.toLowerCase()}`;
@@ -996,7 +996,7 @@ class ResponseValidator {
   }
 
   // ========================================================================
-  // METODI UTILITÀ
+  // METODI UTILITÃ€
   // ========================================================================
 
   /**
@@ -1014,7 +1014,7 @@ class ResponseValidator {
   }
 }
 
-// Funzione factory per compatibilità
+// Funzione factory per compatibilitÃ 
 function createResponseValidator() {
   return new ResponseValidator();
 }
@@ -1023,14 +1023,14 @@ function createResponseValidator() {
  * SemanticValidator.gs - Validazione semantica con Gemini
  *
  * FILOSOFIA:
- * - Usato SOLO quando regex non è sicura (score < soglia)
+ * - Usato SOLO quando regex non Ã¨ sicura (score < soglia)
  * - Chiamate API leggere
  * - Fallback automatico a regex se API fallisce
  * - Cache risultati (stesso thread)
  */
 class SemanticValidator {
   constructor() {
-    console.log('🧠 Inizializzazione SemanticValidator...');
+    console.log('ðŸ§  Inizializzazione SemanticValidator...');
 
     const semanticConfig = typeof CONFIG !== 'undefined' && CONFIG.SEMANTIC_VALIDATION
       ? CONFIG.SEMANTIC_VALIDATION
@@ -1048,7 +1048,7 @@ class SemanticValidator {
 
     this.cache = this.cacheEnabled ? CacheService.getScriptCache() : null;
 
-    console.log('✓ SemanticValidator inizializzato');
+    console.log('âœ“ SemanticValidator inizializzato');
   }
 
   shouldRun(validationScore) {
@@ -1060,7 +1060,7 @@ class SemanticValidator {
    */
   validateHallucinations(response, knowledgeBase, regexResult, emailContent) {
     if (!this.shouldRun(regexResult.score) && regexResult.errors.length === 0) {
-      console.log('   ⚡ Semantic hallucination check skippato (confidence alta)');
+      console.log('   âš¡ Semantic hallucination check skippato (confidence alta)');
       return { isValid: true, confidence: regexResult.score, skipped: true };
     }
 
@@ -1068,7 +1068,7 @@ class SemanticValidator {
     const cached = this._readCache(cacheKey);
     if (cached) return cached;
 
-    console.log('   🧠 Eseguo semantic hallucination check...');
+    console.log('   ðŸ§  Eseguo semantic hallucination check...');
 
     try {
       const prompt = this._buildHallucinationPrompt(response, knowledgeBase, emailContent);
@@ -1077,7 +1077,7 @@ class SemanticValidator {
       this._writeCache(cacheKey, result);
       return result;
     } catch (error) {
-      console.warn(`⚠️ Semantic API fallita: ${error.message}`);
+      console.warn(`âš ï¸ Semantic API fallita: ${error.message}`);
       if (!this.fallbackOnError) throw error;
       return {
         isValid: regexResult.score >= 0.6,
@@ -1100,7 +1100,7 @@ class SemanticValidator {
     const cached = this._readCache(cacheKey);
     if (cached) return cached;
 
-    console.log('   🧠 Eseguo semantic thinking leak check...');
+    console.log('   ðŸ§  Eseguo semantic thinking leak check...');
 
     try {
       const prompt = this._buildThinkingLeakPrompt(response);
@@ -1109,14 +1109,14 @@ class SemanticValidator {
       this._writeCache(cacheKey, result);
       return result;
     } catch (error) {
-      console.warn(`⚠️ Semantic thinking check fallito: ${error.message}`);
+      console.warn(`âš ï¸ Semantic thinking check fallito: ${error.message}`);
       if (!this.fallbackOnError) throw error;
       return { isValid: regexResult.score >= 0.7, confidence: regexResult.score, fallback: true };
     }
   }
 
   // ========================================================================
-  // COSTRUTTORI PROMPT (ottimizzati per brevità)
+  // COSTRUTTORI PROMPT (ottimizzati per brevitÃ )
   // ========================================================================
 
   _buildHallucinationPrompt(response, knowledgeBase, emailContent) {
@@ -1129,7 +1129,7 @@ class SemanticValidator {
 
     return `Sei un validatore. Verifica se la RISPOSTA contiene informazioni NON presenti nella BASE CONOSCENZA o nell'EMAIL ORIGINALE.
 
-BASE CONOSCENZA (fonte verità):
+BASE CONOSCENZA (fonte veritÃ ):
 """
 ${kbTruncated || ''}
 """
@@ -1150,7 +1150,7 @@ Estrai dalla RISPOSTA:
 2. Email menzionate
 3. Numeri telefono menzionati
 
-Per ciascuno, verifica se è presente (anche con sinonimi/varianti) nella BASE CONOSCENZA o nell'EMAIL ORIGINALE.
+Per ciascuno, verifica se Ã¨ presente (anche con sinonimi/varianti) nella BASE CONOSCENZA o nell'EMAIL ORIGINALE.
 
 Rispondi SOLO con questo JSON (senza markdown):
 {
@@ -1187,7 +1187,7 @@ Rispondi SOLO con questo JSON (senza markdown):
   "examples": [],
   "isValid": true,
   "confidence": 0.98,
-  "reason": "La risposta è naturale, senza meta-commenti"
+  "reason": "La risposta Ã¨ naturale, senza meta-commenti"
 }`;
   }
 
@@ -1209,7 +1209,7 @@ Rispondi SOLO con questo JSON (senza markdown):
       );
 
       if (result && result.success) {
-        console.log(`✓ Semantic via Rate Limiter (modello: ${result.modelUsed})`);
+        console.log(`âœ“ Semantic via Rate Limiter (modello: ${result.modelUsed})`);
         return result.result;
       }
     }
@@ -1241,7 +1241,7 @@ Rispondi SOLO con questo JSON (senza markdown):
       const parsed = JSON.parse(cleaned);
       return this._normalizeSemanticPayload(parsed);
     } catch (error) {
-      console.error(`❌ Parse semantic response failed: ${error.message}`);
+      console.error(`âŒ Parse semantic response failed: ${error.message}`);
       throw new Error('Invalid JSON from semantic validator');
     }
   }

@@ -40,6 +40,13 @@ global.createLogger = function (name) {
     return { info: () => { }, warn: () => { }, debug: () => { }, error: () => { } };
 };
 
+if (!global.Utilities) {
+    global.Utilities = {
+        formatDate: (date) => new Date(date).toISOString().slice(0, 10),
+        sleep: () => { }
+    };
+}
+
 function loadScript(path) {
     if (loadedScripts.has(path)) return;
     const code = fs.readFileSync(path, 'utf8');
@@ -311,6 +318,7 @@ function testResponseValidatorLanguageCheck() {
 
 function testComputeSalutationMode() {
     loadScript('gas_email_processor.js');
+    const NOW = new Date('2026-02-15T10:00:00Z');
 
     // Primo messaggio → full
     const first = computeSalutationMode({ isReply: false, messageCount: 1, memoryExists: false, lastUpdated: null });
@@ -321,9 +329,220 @@ function testComputeSalutationMode() {
     assert(reply === 'none_or_continuity', `Reply senza timestamp: atteso "none_or_continuity", ottenuto "${reply}"`);
 
     // Reply dopo 5 giorni → full (nuovo contatto)
-    const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
-    const old = computeSalutationMode({ isReply: true, messageCount: 3, memoryExists: true, lastUpdated: fiveDaysAgo });
+    const fiveDaysAgo = new Date(NOW.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString();
+    const old = computeSalutationMode({ isReply: true, messageCount: 3, memoryExists: true, lastUpdated: fiveDaysAgo, now: NOW });
     assert(old === 'full', `Reply dopo 5 giorni: atteso "full", ottenuto "${old}"`);
+}
+
+function testAntiLoopDetection() {
+    loadScript('gas_email_processor.js');
+
+    const originalSession = global.Session;
+    const originalCacheService = global.CacheService;
+
+    global.Session = {
+        getEffectiveUser: () => ({ getEmail: () => 'me@parrocchia.it' }),
+        getActiveUser: () => ({ getEmail: () => 'me@parrocchia.it' })
+    };
+
+    const store = new Map();
+    global.CacheService = {
+        getScriptCache: () => ({
+            get: (k) => store.get(k) || null,
+            put: (k, v) => store.set(k, v),
+            remove: (k) => store.delete(k)
+        })
+    };
+
+    const buildMessage = (id, from, date) => ({
+        getId: () => id,
+        isUnread: () => true,
+        getFrom: () => from,
+        getDate: () => date
+    });
+
+    const baseDate = new Date('2026-02-15T09:00:00Z');
+    const messages = Array.from({ length: 12 }, (_, i) =>
+        buildMessage(`m-${i}`, 'utente@example.com', new Date(baseDate.getTime() + (i * 60 * 1000)))
+    );
+
+    const labeled = [];
+    const processor = new EmailProcessor({
+        geminiService: {},
+        classifier: {},
+        requestClassifier: {},
+        validator: {},
+        promptEngine: {},
+        memoryService: {},
+        territoryValidator: null,
+        gmailService: {
+            getMessageIdsWithLabel: () => new Set(),
+            extractMessageDetails: (message) => ({
+                subject: 'Info',
+                body: 'Vorrei un chiarimento',
+                senderEmail: 'utente@example.com',
+                senderName: 'Utente',
+                headers: {},
+                isNewsletter: false,
+                date: message.getDate()
+            }),
+            addLabelToMessage: (messageId) => labeled.push(messageId),
+            addLabelToThread: () => { }
+        }
+    });
+
+    const thread = {
+        getId: () => 'thread-loop',
+        getLabels: () => [],
+        getMessages: () => messages
+    };
+
+    try {
+        const result = processor.processThread(thread, '', [], new Set(), true);
+        assert(result.status === 'skipped', `Atteso status=skipped, ottenuto ${result.status}`);
+        assert(result.reason === 'email_loop_detected', `Atteso reason=email_loop_detected, ottenuto ${result.reason}`);
+        assert(labeled.length > 0, 'Il messaggio candidato deve essere etichettato come processato');
+    } finally {
+        global.Session = originalSession;
+        global.CacheService = originalCacheService;
+    }
+}
+
+function testPromptLiteTokenBudget() {
+    loadScript('gas_prompt_engine.js');
+    const engine = new PromptEngine();
+
+    const prompt = engine.buildPrompt({
+        knowledgeBase: 'A'.repeat(80000),
+        emailContent: 'Mi servono gli orari delle messe domenicali.',
+        emailSubject: 'Orari messe',
+        senderName: 'Mario',
+        detectedLanguage: 'it',
+        salutation: 'Buongiorno',
+        closing: 'Cordiali saluti',
+        promptProfile: 'lite',
+        salutationMode: 'none_or_continuity'
+    });
+
+    const tokens = engine.estimateTokens(prompt);
+    assert(!prompt.includes('📚 ESEMPI CON FORMATTAZIONE CORRETTA'), 'In profilo lite non devono apparire gli esempi estesi');
+    assert(tokens < 25000, `Prompt lite deve restare compatto, ottenuti ~${tokens} token`);
+}
+
+function runGoldenCases() {
+    const cases = JSON.parse(fs.readFileSync('tests/golden_cases.json', 'utf8'));
+    assert(Array.isArray(cases) && cases.length >= 50, 'golden_cases.json deve contenere almeno 50 casi');
+
+    const sandbox = {
+        console,
+        Date,
+        JSON,
+        Math,
+        CONFIG: { MAX_SAFE_TOKENS: 100000 },
+        Utilities: {
+            formatDate: (date) => new Date(date).toISOString().slice(0, 10),
+            sleep: () => { }
+        },
+        calculateEaster,
+        createLogger,
+        setTimeout,
+        clearTimeout
+    };
+    vm.createContext(sandbox);
+
+    const scripts = [
+        'gas_config_s.js',
+        'gas_error_types.js',
+        'gas_request_classifier.js',
+        'gas_prompt_engine.js',
+        'gas_response_validator.js',
+        'gas_email_processor.js'
+    ];
+    scripts.forEach((path) => {
+        const code = fs.readFileSync(path, 'utf8');
+        vm.runInContext(code, sandbox, { filename: path });
+    });
+
+    vm.runInContext(`if (typeof CONFIG !== 'undefined') { CONFIG.SEMANTIC_VALIDATION = { enabled: false }; }`, sandbox);
+
+    const RequestTypeClassifier = vm.runInContext('RequestTypeClassifier', sandbox);
+    const PromptEngine = vm.runInContext('PromptEngine', sandbox);
+    const ResponseValidator = vm.runInContext('ResponseValidator', sandbox);
+    const computeSalutationModeFn = vm.runInContext('computeSalutationMode', sandbox);
+
+    const classifier = new RequestTypeClassifier();
+    const promptEngine = new PromptEngine();
+    const validator = new ResponseValidator();
+
+    const runCase = (testCase) => {
+        const body = testCase.input.body;
+        const subject = testCase.input.subject;
+        const salutationMode = computeSalutationModeFn({
+            isReply: testCase.memory?.isReply || false,
+            messageCount: testCase.memory?.messageCount || 1,
+            memoryExists: testCase.memory?.exists || false,
+            lastUpdated: testCase.memory?.lastUpdated || null,
+            now: new Date(testCase.input.now || '2026-02-15T10:00:00Z')
+        });
+
+        if (testCase.expected.salutationMode) {
+            assert(
+                salutationMode === testCase.expected.salutationMode,
+                `[${testCase.id}] salutationMode atteso ${testCase.expected.salutationMode}, ottenuto ${salutationMode}`
+            );
+        }
+
+        const classification = classifier.classify(subject, body);
+        if (testCase.expected.requestTypeIn) {
+            assert(
+                testCase.expected.requestTypeIn.includes(classification.type),
+                `[${testCase.id}] requestType inatteso: ${classification.type}`
+            );
+        }
+
+        const prompt = promptEngine.buildPrompt({
+            emailContent: body,
+            emailSubject: subject,
+            knowledgeBase: testCase.input.knowledgeBase || 'Orari messe: domenica 9:00 e 11:00.',
+            senderName: testCase.input.senderName || 'Utente',
+            detectedLanguage: testCase.input.language || 'it',
+            promptProfile: testCase.input.promptProfile || 'standard',
+            salutationMode,
+            territoryContext: testCase.input.territoryContext || null
+        });
+
+        (testCase.expected.promptMustInclude || []).forEach((needle) => {
+            assert(prompt.includes(needle), `[${testCase.id}] prompt deve includere "${needle}"`);
+        });
+        (testCase.expected.promptMustNotInclude || []).forEach((needle) => {
+            assert(!prompt.includes(needle), `[${testCase.id}] prompt NON deve includere "${needle}"`);
+        });
+
+        const maxPromptChars = testCase.expected.maxPromptChars || 120000;
+        assert(prompt.length <= maxPromptChars, `[${testCase.id}] prompt troppo lungo: ${prompt.length}`);
+
+        const response = testCase.candidateResponse;
+        (testCase.expected.responseMustInclude || []).forEach((pattern) => {
+            assert(new RegExp(pattern, 'i').test(response), `[${testCase.id}] response deve matchare /${pattern}/i`);
+        });
+        (testCase.expected.responseMustNotInclude || []).forEach((pattern) => {
+            assert(!new RegExp(pattern, 'i').test(response), `[${testCase.id}] response NON deve matchare /${pattern}/i`);
+        });
+
+        const validation = validator.validateResponse(
+            response,
+            testCase.input.language || 'it',
+            testCase.input.knowledgeBase || '',
+            body,
+            subject,
+            salutationMode,
+            false
+        );
+        const minScore = typeof testCase.expected.minValidatorScore === 'number' ? testCase.expected.minValidatorScore : 0;
+        assert(validation.score >= minScore, `[${testCase.id}] validator score ${validation.score} < ${minScore}`);
+    };
+
+    cases.forEach(runCase);
 }
 
 function testComputeResponseDelay() {
@@ -462,8 +681,11 @@ function main() {
         ['validator: consistenza lingua', testResponseValidatorLanguageCheck],
         // EmailProcessor
         ['computeSalutationMode: primo/reply/vecchio', testComputeSalutationMode],
+        ['anti-loop: thread lungo con esterni consecutivi', testAntiLoopDetection],
         ['computeResponseDelay: recente/vecchio/nullo', testComputeResponseDelay],
         ['_shouldIgnoreEmail: no-reply/reale/ooo', testShouldIgnoreEmail],
+        ['prompt lite: budget token e sezioni ridotte', testPromptLiteTokenBudget],
+        ['golden set: regressione output strutturale', runGoldenCases],
         // Sicurezza
         ['escapeHtml: neutralizza XSS', testEscapeHtml],
         ['sanitizeUrl: blocca IPv6/decimale/userinfo', testSanitizeUrlIPv6],
@@ -477,10 +699,10 @@ function main() {
         try {
             fn();
             passed++;
-            console.log(`✅ ${name}`);
+            console.log(`PASS ${name}`);
         } catch (e) {
             failed++;
-            console.error(`❌ ${name}: ${e.message}`);
+            console.error(`FAIL ${name}: ${e.message}`);
         }
     }
 

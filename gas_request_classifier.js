@@ -1,8 +1,8 @@
-/**
+﻿/**
  * RequestTypeClassifier.gs - Classificazione Tecnica/Pastorale/Mista
  * 
  * TIPI RICHIESTA:
- * - TECHNICAL: domande procedurali ("si può", "quanti", "quando")
+ * - TECHNICAL: domande procedurali ("si puÃ²", "quanti", "quando")
  * - PASTORAL: coinvolgimento personale ("mi sento", emozioni, ferite)
  * - MIXED: entrambi gli aspetti
  * - DOCTRINAL: richieste spiegazione teologica/dottrinale
@@ -14,23 +14,23 @@
  */
 class RequestTypeClassifier {
   constructor() {
-    console.log('📊 Inizializzazione RequestTypeClassifier...');
+    console.log('ðŸ“Š Inizializzazione RequestTypeClassifier...');
 
     // ========================================================================
     // INDICATORI TECNICI
     // Domande procedurali, normative, su numeri, condizioni formali
     // ========================================================================
     this.TECHNICAL_INDICATORS = [
-      // Possibilità/obbligo (peso 2)
-      { pattern: /\bsi può\b/i, weight: 2 },
-      { pattern: /\bnon si può\b/i, weight: 2 },
-      { pattern: /\bè possibile\b/i, weight: 2 },
-      { pattern: /\bè obbligatorio\b/i, weight: 2 },
+      // PossibilitÃ /obbligo (peso 2)
+      { pattern: /\bsi puÃ²\b/i, weight: 2 },
+      { pattern: /\bnon si puÃ²\b/i, weight: 2 },
+      { pattern: /\bÃ¨ possibile\b/i, weight: 2 },
+      { pattern: /\bÃ¨ obbligatorio\b/i, weight: 2 },
       { pattern: /\bbisogna\b/i, weight: 2 },
       { pattern: /\bdeve\b/i, weight: 1 },
       { pattern: /\bdevono\b/i, weight: 1 },
 
-      // Domande su numeri/quantità (peso 2)
+      // Domande su numeri/quantitÃ  (peso 2)
       { pattern: /\bquanti\b/i, weight: 2 },
       { pattern: /\bquante\b/i, weight: 2 },
       { pattern: /\bquanto costa\b/i, weight: 2 },
@@ -43,7 +43,7 @@ class RequestTypeClassifier {
       // Domande procedurali (peso 2)
       { pattern: /\bcome (?:si )?fa\b/i, weight: 2 },
       { pattern: /\bcome funziona\b/i, weight: 2 },
-      { pattern: /\bqual è la procedura\b/i, weight: 2 },
+      { pattern: /\bqual Ã¨ la procedura\b/i, weight: 2 },
       { pattern: /\bche documenti?\b/i, weight: 2 },
 
       // Riferimenti a ruoli formali (peso 1-2)
@@ -69,7 +69,7 @@ class RequestTypeClassifier {
 
       // Emozioni (peso 2)
       { pattern: /\bsoffr\w+\b/i, weight: 2 },
-      { pattern: /\bdifficolt[àa]\b/i, weight: 2 },
+      { pattern: /\bdifficolt[Ã a]\b/i, weight: 2 },
       { pattern: /\bferit[oa]\b/i, weight: 2 },
       { pattern: /\besclus[oa]\b/i, weight: 2 },
       { pattern: /\bsol[oa]\b/i, weight: 2 },
@@ -102,8 +102,8 @@ class RequestTypeClassifier {
       { pattern: /\bprevious marriage\b/i, weight: 2 },
 
       // Richieste di senso (peso 3)
-      { pattern: /\bperché la chiesa\b/i, weight: 3 },
-      { pattern: /\bperché dio\b/i, weight: 3 },
+      { pattern: /\bperchÃ© la chiesa\b/i, weight: 3 },
+      { pattern: /\bperchÃ© dio\b/i, weight: 3 },
       { pattern: /\bche senso ha\b/i, weight: 3 },
       { pattern: /\bcome vivere\b/i, weight: 3 },
       { pattern: /\bcome affrontare\b/i, weight: 2 }
@@ -115,7 +115,7 @@ class RequestTypeClassifier {
     this.DOCTRINE_INDICATORS = [
       { pattern: /\bspiegazione\b/i, weight: 2 },
       { pattern: /\bspiegami\b/i, weight: 2 },
-      { pattern: /\bperché la chiesa (?:insegna|dice|crede)\b/i, weight: 3 },
+      { pattern: /\bperchÃ© la chiesa (?:insegna|dice|crede)\b/i, weight: 3 },
       { pattern: /\bfondamento teologic\w+\b/i, weight: 3 },
       { pattern: /\bdottrina\b/i, weight: 2 },
       { pattern: /\bmagistero\b/i, weight: 3 },
@@ -131,18 +131,18 @@ class RequestTypeClassifier {
       { pattern: /\bapostasia\b/i, weight: 4 },
       { pattern: /\bapostatare\b/i, weight: 4 },
       { pattern: /\bcancellazione dal registro\b/i, weight: 4 },
-      { pattern: /\bnon mi ritengo più cristiano\b/i, weight: 4 },
-      { pattern: /\bnon voglio più risultare\b/i, weight: 3 },
+      { pattern: /\bnon mi ritengo piÃ¹ cristiano\b/i, weight: 4 },
+      { pattern: /\bnon voglio piÃ¹ risultare\b/i, weight: 3 },
       { pattern: /\babbandonare la fede\b/i, weight: 3 },
       { pattern: /\babbandonare la religione\b/i, weight: 3 }
     ];
 
-    console.log('✓ RequestTypeClassifier inizializzato');
+    console.log('âœ“ RequestTypeClassifier inizializzato');
   }
 
   /**
    * Classifica la richiesta email
-   * Restituisce dimensioni continue, complessità e tono suggerito.
+   * Restituisce dimensioni continue, complessitÃ  e tono suggerito.
    */
   classify(subject, body, externalHint = null) {
     // Smart Truncation (primi 1500 + ultimi 1500 caratteri)
@@ -204,10 +204,10 @@ class RequestTypeClassifier {
       }
     }
 
-    // 4. Determinazione Tipo Primario (Compatibilità Base)
+    // 4. Determinazione Tipo Primario (CompatibilitÃ  Base)
     let requestType = 'technical';
 
-    // Priorità gerarchica
+    // PrioritÃ  gerarchica
     if (dimensions.formal >= 0.6) {
       requestType = 'formal';
     } else if (dimensions.doctrinal >= 0.6) {
@@ -255,7 +255,7 @@ class RequestTypeClassifier {
 
     // 5. Calcolo Metriche Derivate
 
-    // Complessità: Somma delle dimensioni attive (> 0.2)
+    // ComplessitÃ : Somma delle dimensioni attive (> 0.2)
     const activeDims = Object.values(dimensions).filter(v => v > 0.2).length;
     let complexity = 'Low';
     if (activeDims >= 3 || Math.max(...Object.values(dimensions)) > 0.8) complexity = 'High';
@@ -273,7 +273,7 @@ class RequestTypeClassifier {
     else if (dimensions.doctrinal > 0.5) suggestedTone = 'Istruttivo e Chiaro';
     else if (complexity === 'High') suggestedTone = 'Strutturato e Dettagliato';
 
-    // Indicatori di necessità
+    // Indicatori di necessitÃ 
     const needsDiscernment = dimensions.pastoral > 0.3 || requestType === 'mixed';
     const needsDoctrine = dimensions.doctrinal > 0.3 || (dimensions.doctrinal > 0 && requestType !== 'technical');
 
@@ -303,7 +303,7 @@ class RequestTypeClassifier {
       ]
     };
 
-    console.log(`   📊 Classificazione: ${requestType.toUpperCase()} (Tono: ${suggestedTone})`);
+    console.log(`   ðŸ“Š Classificazione: ${requestType.toUpperCase()} (Tono: ${suggestedTone})`);
     console.log(`      Dims: T=${dimensions.technical.toFixed(2)} P=${dimensions.pastoral.toFixed(2)} D=${dimensions.doctrinal.toFixed(2)} F=${dimensions.formal.toFixed(2)}`);
     console.log(`      Emotion=${emotionalLoad}, Complex=${complexity}`);
 
@@ -462,7 +462,7 @@ class RequestTypeClassifier {
    * Supporta sia stringa pura che oggetto classificazione completo
    */
   getRequestTypeHint(classificationOrType) {
-    // Normalizzazione input: se è stringa, usa solo switch base
+    // Normalizzazione input: se Ã¨ stringa, usa solo switch base
     if (typeof classificationOrType === 'string') {
       return this._getSimpleHint(classificationOrType);
     }
@@ -476,32 +476,32 @@ class RequestTypeClassifier {
     const dims = cls.dimensions;
 
     // 1. Header Dinamico
-    let header = `🎯 ANALISI RICHIESTA (Complessità: ${cls.complexity}, Emotività: ${cls.emotionalLoad})`;
+    let header = `ðŸŽ¯ ANALISI RICHIESTA (ComplessitÃ : ${cls.complexity}, EmotivitÃ : ${cls.emotionalLoad})`;
 
     // 2. Mix Dimensionale Graduale
     if (dims.formal > 0.6) {
-      hints.push(`⚖️ FORMALE (${(dims.formal * 100).toFixed(0)}%):
-Richiesta ufficiale o giuridica. Usa tono distaccato e preciso. Evita familiarità.`);
+      hints.push(`âš–ï¸ FORMALE (${(dims.formal * 100).toFixed(0)}%):
+Richiesta ufficiale o giuridica. Usa tono distaccato e preciso. Evita familiaritÃ .`);
     }
 
     if (dims.doctrinal > 0.6) {
-      hints.push(`✝️ DOTTRINALE (${(dims.doctrinal * 100).toFixed(0)}%):
+      hints.push(`âœï¸ DOTTRINALE (${(dims.doctrinal * 100).toFixed(0)}%):
 Richiede precisione teologica. Usa "Dottrina" come riferimento primario.`);
     }
 
     // Componente Pastorale
     if (dims.pastoral > 0.4) {
       const intensity = dims.pastoral >= 0.8 ? 'PRIMARIA' : 'PRESENTE';
-      const emoContext = cls.emotionalLoad === 'High' ? 'massima priorità empatica' : 'tono cordiale';
-      hints.push(`💙 COMPONENTE PASTORALE (${intensity}):
+      const emoContext = cls.emotionalLoad === 'High' ? 'massima prioritÃ  empatica' : 'tono cordiale';
+      hints.push(`ðŸ’™ COMPONENTE PASTORALE (${intensity}):
 - Riconosci la situazione personale espressa (${emoContext})
-- ${cls.emotionalLoad === 'High' ? 'Offri disponibilità al dialogo umano' : 'Mostra comprensione e calore'}`);
+- ${cls.emotionalLoad === 'High' ? 'Offri disponibilitÃ  al dialogo umano' : 'Mostra comprensione e calore'}`);
     }
 
     // Componente Tecnica
     if (dims.technical > 0.4) {
       const intensity = dims.technical >= 0.8 ? 'PRIMARIO' : 'IMPORTANTE';
-      hints.push(`⚙️ COMPONENTE TECNICA (${intensity}):
+      hints.push(`âš™ï¸ COMPONENTE TECNICA (${intensity}):
 - Fornisci informazioni concrete e verificabili
 - Usa bullet point se 3+ elementi
 - Specifica orari/date/luoghi esatti`);
@@ -509,101 +509,101 @@ Richiede precisione teologica. Usa "Dottrina" come riferimento primario.`);
 
     // Istruzioni di Bilanciamento (Core Logic)
     if (dims.technical >= 0.4 && dims.pastoral >= 0.4) {
-      hints.push(`⚖️ BILANCIAMENTO RICHIESTO:
+      hints.push(`âš–ï¸ BILANCIAMENTO RICHIESTO:
 Questa email richiede ENTRAMBI gli approcci (Tecnico + Pastorale).
 1. Inizia riconoscendo la situazione personale (Empatia)
 2. Poi fornisci le informazioni concrete richieste (Efficienza)
-3. Chiudi con disponibilità umana`);
+3. Chiudi con disponibilitÃ  umana`);
     }
 
     // Assemblaggio Prompt
     if (hints.length === 0) return ''; // Nessun segnale forte
 
-    const toneInstruction = `\n🗣️ TONO SUGGERITO: ${cls.suggestedTone.toUpperCase()}`;
+    const toneInstruction = `\nðŸ—£ï¸ TONO SUGGERITO: ${cls.suggestedTone.toUpperCase()}`;
 
     return `
 ${header}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 RILEVAMENTI DIMENSIONALI:
 ${hints.join('\n\n')}
 ${toneInstruction}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”`;
   }
 
   /**
-   * Metodo privato per compatibilità con chiamate semplici (solo stringa)
+   * Metodo privato per compatibilitÃ  con chiamate semplici (solo stringa)
    */
   _getSimpleHint(requestType) {
     if (requestType === 'technical') {
       return `
-🎯 TIPO RICHIESTA RILEVATO: TECNICA
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ðŸŽ¯ TIPO RICHIESTA RILEVATO: TECNICA
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Linee guida per la risposta:
 - Rispondi in modo CHIARO e BREVE
 - Fornisci l'informazione richiesta direttamente
 - Non eccedere in empatia o moralizzazione
 - Evita lunghe introduzioni emotive
 
-📖 REGOLA DOTTRINALE (GAS-02):
-Se il contenuto richiesto è dottrinale o canonico generale
+ðŸ“– REGOLA DOTTRINALE (GAS-02):
+Se il contenuto richiesto Ã¨ dottrinale o canonico generale
 e NON coinvolge una situazione personale o discernimento,
 SPIEGA direttamente l'insegnamento della Chiesa.
 NON rimandare al sacerdote per domande informative.
-Il rinvio è riservato SOLO ai casi di discernimento personale.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+Il rinvio Ã¨ riservato SOLO ai casi di discernimento personale.
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”`;
     } else if (requestType === 'pastoral') {
       return `
-🎯 TIPO RICHIESTA RILEVATO: PASTORALE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ðŸŽ¯ TIPO RICHIESTA RILEVATO: PASTORALE
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Linee guida per la risposta:
 - Rispondi in modo ACCOGLIENTE e PERSONALE
 - Riconosci la situazione / sentimento espresso
 - Accompagna la persona, non giudicare
 - Non fermarti solo alla norma
 - Invita al dialogo personale se opportuno
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”`;
     } else if (requestType === 'mixed') {
       return `
-🎯 TIPO RICHIESTA RILEVATO: MISTA
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ðŸŽ¯ TIPO RICHIESTA RILEVATO: MISTA
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Linee guida per la risposta:
 - Rispondi TECNICAMENTE (chiarezza) ma con TONO pastorale
 - Non fermarti alla sola regola
 - Non scivolare nel permissivismo
 - Bilancia informazione e accoglienza
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”`;
     } else if (requestType === 'doctrinal') {
       return `
-🎯 TIPO RICHIESTA RILEVATO: DOTTRINALE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ðŸŽ¯ TIPO RICHIESTA RILEVATO: DOTTRINALE
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Linee guida per la risposta:
 - RISPONDI DIRETTAMENTE alle domande di fede
 - Spiega la dottrina in modo chiaro e accessibile
 - Usa fonti: Catechismo, Magistero, Scrittura
 - NON rimandare al sacerdote per domande informative
 
-📖 REGOLA DOTTRINALE (GAS-02):
-Questa è una richiesta di SPIEGAZIONE dottrinale generale.
-✅ DEVI: Spiegare l'insegnamento della Chiesa
-✅ DEVI: Essere chiaro, fedele, informativo
-❌ NON: Rimandare al sacerdote per domande teoriche
-❌ NON: Evitare di rispondere per "prudenza"
+ðŸ“– REGOLA DOTTRINALE (GAS-02):
+Questa Ã¨ una richiesta di SPIEGAZIONE dottrinale generale.
+âœ… DEVI: Spiegare l'insegnamento della Chiesa
+âœ… DEVI: Essere chiaro, fedele, informativo
+âŒ NON: Rimandare al sacerdote per domande teoriche
+âŒ NON: Evitare di rispondere per "prudenza"
 
-Il rinvio al sacerdote è riservato SOLO a:
+Il rinvio al sacerdote Ã¨ riservato SOLO a:
 - Situazioni personali concrete
 - Discernimento su stati di vita
 - Accompagnamento spirituale individuale
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”`;
     } else if (requestType === 'formal') {
       return `
-🎯 TIPO RICHIESTA RILEVATO: FORMALE / AMMINISTRATIVA (SBATTEZZO)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ðŸŽ¯ TIPO RICHIESTA RILEVATO: FORMALE / AMMINISTRATIVA (SBATTEZZO)
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Linee guida per la risposta:
 - USA ESCLUSIVAMENTE IL TEMPLATE "SBATTEZZO"
 - NON aggiungere consigli pastorali o inviti al colloquio non previsti nel template
 - Tono professionale, neutro e formale
 - Non fare moralismi o commenti teologici extra
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”`;
     }
 
     // Valore predefinito
