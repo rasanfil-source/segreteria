@@ -19,6 +19,14 @@ class PromptContext {
             }
         }
 
+        // Fix: Normalizza knowledgeBase se passato come stringa invece che oggetto
+        if (input.knowledgeBase && typeof input.knowledgeBase === 'string') {
+            input.knowledgeBase = {
+                length: input.knowledgeBase.length,
+                containsDates: /\d{4}/.test(input.knowledgeBase)
+            };
+        }
+
         this.input = input;
         this.concerns = this._computeConcerns();
         this.profile = this._computeProfile();

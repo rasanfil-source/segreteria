@@ -521,7 +521,32 @@ class ResponseValidator {
     // === Controllo orari ===
     const timePattern = /(?<![a-z]\.)\b\d{1,2}[:.]\d{2}\b(?!\.[a-z])/gi;
     const timeOrHourPattern = /\b\d{1,2}(?:[:.]\d{2})?\b/g;
-    const responseTimesRaw = response.match(timePattern) || [];
+    const responseTimesRaw = [];
+    let match;
+    // Reset lastIndex per sicurezza se regex Ã¨ globale
+    timePattern.lastIndex = 0;
+    while ((match = timePattern.exec(response)) !== null) {
+      const timeStr = match[0];
+      const index = match.index;
+      // Controlla contesto (20 caratteri prima e dopo)
+      const prefix = response.substring(Math.max(0, index - 20), index).toLowerCase();
+      const suffix = response.substring(index + timeStr.length, Math.min(response.length, index + timeStr.length + 10)).toLowerCase();
+
+      // Whitelist: Escludi indirizzi (es. "Civico 12.30" raro ma possibile intero, o "n. 10")
+      if (/(?:via|viale|piazza|corso|largo|vicolo|civico|n\.|num\.|int\.|scala)\s*$/i.test(prefix)) {
+        continue;
+      }
+      // Whitelist: Escludi prezzi (es. 10.50 euro)
+      if (/^\s*(?:euro|€|eur)/i.test(suffix)) {
+        continue;
+      }
+      // Whitelist: Escludi versetti biblici (es. Gv 10,10 o Mt 10.10)
+      if (/(?:gv|mt|mc|lc|gen|es|lv|nm|dt|is|ger|ez)\.?\s*$/i.test(prefix)) {
+        continue;
+      }
+
+      responseTimesRaw.push(timeStr);
+    }
     const kbTimesRaw = safeKnowledgeBase.match(timePattern) || [];
     const originalTimesRaw = (originalMessage || '').match(timeOrHourPattern) || [];
 

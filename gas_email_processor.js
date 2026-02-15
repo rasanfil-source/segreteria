@@ -1300,7 +1300,7 @@ ${addressLines.join('\n\n')}
       'it': /\b(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\b/i,
       'en': /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/i,
       'es': /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i,
-      'pt': /\b(janeiro|fevereiro|marÃ§o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i
+      'pt': /\b(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i
     };
 
     // Fallback su italiano se lingua non supportata
@@ -1316,8 +1316,8 @@ ${addressLines.join('\n\n')}
 /**
  * Calcola modalitÃ  saluto basata su segnali strutturali
  * @param {Object} params - Parametri di input
- * @returns {'full'|'soft'|'none_or_continuity'}
- */
+ * @returns {'full'|'soft'|'none_or_continuity'|'session'}
+ */ // Fix: added 'session' to contract
 function computeSalutationMode({ isReply, messageCount, memoryExists, lastUpdated, now = new Date() }) {
   const SESSION_WINDOW_MINUTES = 15;
   // 1ï¸âƒ£ Primo messaggio assoluto
