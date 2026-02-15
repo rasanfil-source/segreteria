@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PromptEngine.gs - Generazione prompt modulare
  * 19 classi template per composizione prompt
  * Supporta filtro dinamico basato su profilo
@@ -355,7 +355,7 @@ ${GLOBAL_CACHE.doctrineBase}
 ❌ Ragionamento esposto: "La KB dice...", "Devo correggere..." → BLOCCA RISPOSTA
 ✅ Risposta pulita: solo contenuto finale → GIUSTO
 
-❌ Loop "contattaci": L'utente ci ha già scritto! Non dire "scrivici a info@..."
+❌ Loop "contattaci": L'utente ci ha gi\u00E0 scritto! Non dire "scrivici a info@..."
 ✅ Presa in carico: "Inoltrerò la richiesta", "Verificheremo"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
@@ -397,7 +397,7 @@ ${GLOBAL_CACHE.doctrineBase}
     }
 
     // Controlli anti-ridondanza
-    checks.push('□ Se l\'utente ha detto "Ho già X", NON ho fornito X di nuovo');
+    checks.push('□ Se l\'utente ha detto "Ho gi\u00E0 X", NON ho fornito X di nuovo');
     checks.push('□ Link formato: "Descrizione: https://url" NON "[url](url)"');
 
     return `
@@ -638,7 +638,7 @@ sempre in modo concreto alla domanda posta.
     return `══════════════════════════════════════════════════════
 🧭 CONTINUITÀ, UMANITÀ E FOCUS (LINEE GUIDA ESSENZIALI)
 ══════════════════════════════════════════════════════
-1) CONTINUITÀ: Se emerge che l'utente ha già ricevuto una risposta su questo tema, evita di ripetere informazioni identiche. Usa al massimo 1 frase di continuità (es. "Riprendo volentieri da quanto detto..."), poi vai al punto.
+1) CONTINUITÀ: Se emerge che l'utente ha gi\u00E0 ricevuto una risposta su questo tema, evita di ripetere informazioni identiche. Usa al massimo 1 frase di continuità (es. "Riprendo volentieri da quanto detto..."), poi vai al punto.
 2) UMANITÀ MISURATA: Usa una frase empatica SOLO se il messaggio mostra un chiaro segnale emotivo o pastorale. Altrimenti rispondi in modo diretto e sobrio.
 3) FOCUS: Rispondi prima al tema principale (topic). Aggiungi solo informazioni secondarie se strettamente utili.
 4) COERENZA LINGUISTICA: Mantieni la stessa lingua e livello di formalità dell'email ricevuta.
@@ -675,10 +675,10 @@ NON incollare tutto il programma, tutti gli orari, tutti i costi.
 Rispondi SOLO alla domanda. Aggiungi dettagli extra SOLO se strettamente correlati.
 
 🧠 CONSAPEVOLEZZA DEL CONTESTO:
-La persona ti sta già scrivendo via email. Sei già in contatto con lei.
+La persona ti sta gi\u00E0 scrivendo via email. Sei gi\u00E0 in contatto con lei.
 Quindi:
-• Evita di dire "contattare la segreteria" - la sta già contattando!
-• Evita di dare l'indirizzo email della parrocchia - ci ha già scritto!
+• Evita di dire "contattare la segreteria" - la sta gi\u00E0 contattando!
+• Evita di dare l'indirizzo email della parrocchia - ci ha gi\u00E0 scritto!
 • Se serve un contatto ulteriore, suggerisci di telefonare o venire in segreteria.
 • Frasi corrette: "può chiamarci al...", "può venire a trovarci", "risponda a questa email".
 • Frasi da evitare: "può scriverci a info@...", "contatti la segreteria via email".
@@ -696,7 +696,7 @@ SE nel TESTO dell'email c'è una FIRMA esplicita (es. "Mario e Giulia", "Romuald
 
 NON sei un chatbot freddo - sei una persona reale della segreteria che vuole aiutare (efficacemente).
 
-⚖️ CORRETTEZZA LINGUISTICA & STILE (PRIORITÀ ALTA):
+⚖️ CORRETTEZZA LINGUISTICA & STILE (PRIORIT\u00C0 ALTA):
 1. **GRAMMATICA IMPECCABILE**: Usa SEMPRE la grammatica italiana corretta.
    - Se l'utente sbaglia ("la canale", "i orari"), tu rispondi CORRETTAMENTE ("il canale", "gli orari").
    - NON imitare MAI gli errori dell'utente.
@@ -763,7 +763,7 @@ DEVE:
 ✅ Usar despedidas portuguesas: "Com os melhores cumprimentos," "Atenciosamente,"
 ✅ Manter um registo formal e cordial
 
-NÃO DEVE:
+N\u00C3O DEVE:
 ❌ Usar palavras italianas
 ❌ Misturar idiomas
 
@@ -905,11 +905,11 @@ ESEMPI DI APERTURA CORRETTA:
 
 📌 MODALITÀ SALUTO: FOLLOW-UP RECENTE (conversazione in corso)
 
-La conversazione è già avviata. Questa NON è la prima interazione.
+La conversazione è gi\u00E0 avviata. Questa NON è la prima interazione.
 
 REGOLE OBBLIGATORIE:
 ✅ NON usare saluti rituali completi (Buongiorno, Buon Natale, ecc.)
-✅ NON ripetere saluti festivi già usati nel thread
+✅ NON ripetere saluti festivi gi\u00E0 usati nel thread
 ✅ Inizia DIRETTAMENTE dal contenuto OPPURE usa una frase di continuità
 
 FRASI DI CONTINUITÀ CORRETTE:
@@ -1060,7 +1060,7 @@ Non mostrare mai entrambi i set di orari.`;
 
 3. **EVENTI GIÀ PASSATI - COMUNICALO CHIARAMENTE**
    Se l'utente chiede di un evento ANNUALE e la data è GIÀ PASSATA:
-   ✅ DÌ che l'evento di quest'anno si è già svolto
+   ✅ DÌ che l'evento di quest'anno si è gi\u00E0 svolto
    ✅ Indica QUANDO si è svolto
    ✅ Suggerisci QUANDO chiedere info per l'anno prossimo
 
@@ -1203,7 +1203,7 @@ ${hints[effectiveCategory]}` : null;
 
   _renderConversationHistory(conversationHistory) {
     return `**CRONOLOGIA CONVERSAZIONE:**
-Messaggi precedenti per contesto. Non ripetere info già fornite.
+Messaggi precedenti per contesto. Non ripetere info gi\u00E0 fornite.
 <conversation_history>
 ${conversationHistory}
 </conversation_history>`;
@@ -1513,7 +1513,7 @@ Segreteria Parrocchia Sant'Eugenio
     const effectiveMaxTokens = maxTokens || 10000;
     const budgetChars = effectiveMaxTokens * 4 * 0.5;
 
-    // Se già entro il budget, restituisci così com'è
+    // Se gi\u00E0 entro il budget, restituisci così com'è
     if (kbContent.length <= budgetChars) {
       return kbContent;
     }

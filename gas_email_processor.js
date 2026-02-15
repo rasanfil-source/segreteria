@@ -1,4 +1,4 @@
-﻿/**
+/**
  * EmailProcessor.js - Orchestratore Pipeline Email
  * 
  * PIPELINE ELABORAZIONE:
@@ -11,7 +11,7 @@
  * FUNZIONALITÃ€ AVANZATE:
  * - Lock a livello thread (anti race condition)
  * - Anti-loop detection
- * - Salutation mode (full/soft/none_or_continuity)
+ * - Salutation mode (full/soft/none_or_continuity/session)
  * - KB enrichment condizionale
  * - Memory tracking
  */
@@ -1300,7 +1300,7 @@ ${addressLines.join('\n\n')}
       'it': /\b(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\b/i,
       'en': /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/i,
       'es': /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i,
-      'pt': /\b(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i
+      'pt': /\b(janeiro|fevereiro|mar\u00E7o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i
     };
 
     // Fallback su italiano se lingua non supportata
