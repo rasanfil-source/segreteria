@@ -14,7 +14,7 @@ function createValidator(context) {
     return vm.runInContext('new TerritoryValidator()', context);
 }
 
-function assert(condition, message) {
+function assertCivicBug(condition, message) {
     if (!condition) {
         console.error(`❌ FAIL: ${message}`);
         process.exit(1);
@@ -36,12 +36,12 @@ const addresses = validator.extractAddressFromText(text);
 
 console.log("Extracted addresses:", JSON.stringify(addresses, null, 2));
 
-assert(addresses && addresses.length === 2,
+assertCivicBug(addresses && addresses.length === 2,
     `Expected 2 addresses, found ${addresses ? addresses.length : 0}`);
 
 if (addresses && addresses.length === 2) {
-    assert(addresses[0].fullCivic === '10A', 'First address should be 10A');
-    assert(addresses[1].fullCivic === '10B', 'Second address should be 10B');
+    assertCivicBug(addresses[0].fullCivic === '10A', 'First address should be 10A');
+    assertCivicBug(addresses[1].fullCivic === '10B', 'Second address should be 10B');
 }
 
 // TEST 2: Whitespace Normalization
@@ -67,7 +67,7 @@ const text2 = "Abito in Via Napoli 5   B";
 const addresses2 = validator.extractAddressFromText(text2);
 if (addresses2 && addresses2.length > 0) {
     console.log(`Via Napoli 5   B -> fullCivic: '${addresses2[0].fullCivic}'`);
-    assert(addresses2[0].fullCivic === '5B', `Expected '5B', got '${addresses2[0].fullCivic}'`);
+    assertCivicBug(addresses2[0].fullCivic === '5B', `Expected '5B', got '${addresses2[0].fullCivic}'`);
 }
 
 // Case with multiple space groups if possible?
