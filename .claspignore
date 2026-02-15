@@ -1,0 +1,44 @@
+# Ignora file git
+.git/
+.gitignore
+
+# Ignora documentazione (opzionale, ma risparmia spazio su GAS)
+# README.md
+# README_IT.md
+# CHANGELOG.md
+# CHANGELOG_IT.md
+# ARCHITECTURE.md
+# ARCHITECTURE_IT.md
+# CONTRIBUTING.md
+# CONTRIBUTING_IT.md
+# gas_usage_examples.md
+
+# Ignora la configurazione sanitizzata (su GAS usiamo quella vera)
+gas_config_s.js
+*_s.js
+*.js.template
+
+ID dei due progetti.txt
+tests/simulate*_node.js
+tests/output.log
+
+t e s t _ l e a k _ d e t e c t i o n . j s  
+
+# File di debug/riproduzione da non deployare
+debug_syntax.js
+debug_tests.js
+debug_territory.js
+reproduce_civic_bug.js
+final_cleanup.js
+fix_*.js
+sanitize_files.js
+
+# Folder da ignorare
+2. Evoluzione/**
+scripts/**
+docs/**
+node_modules/**
+.github/**
+.agent/**
+.gemini/**
+package*.json
