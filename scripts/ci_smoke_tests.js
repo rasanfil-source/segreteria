@@ -12,7 +12,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
-const MIN_EXPECTED_TESTS = 19;
+const MIN_EXPECTED_TESTS = 20;
 
 const loadedScripts = new Set();
 
@@ -415,6 +415,10 @@ function testSanitizeUrlIPv6() {
     // Userinfo bypass → null
     const userinfo = sanitizeUrl('http://localhost@evil.com/path');
     assert(userinfo === null, 'sanitizeUrl deve bloccare userinfo bypass');
+
+    // Dotted quad in notazione hex → null
+    const hexDotted = sanitizeUrl('http://0x7f.0x0.0x0.0x1/admin');
+    assert(hexDotted === null, `sanitizeUrl deve bloccare dotted-quad hex, ottenuto: ${hexDotted}`);
 
     // URL legittimo → passa
     const legit = sanitizeUrl('https://www.example.com/page');

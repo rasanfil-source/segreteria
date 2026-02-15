@@ -1031,12 +1031,43 @@ function sanitizeUrl(url) {
   const DECIMAL_IP = /^https?:\/\/\d{8,10}(\/|$)/i;
   const USERINFO_BYPASS = /^https?:\/\/[^@]+@/i;
 
+  // Blocca rappresentazioni numeriche alternative localhost (hex/octal/miste)
+  // es: 0x7f000001, 0177.0.0.1, 0x7f.0.0.1
+  const ALT_LOCALHOST_NUMERIC = /^https?:\/\/(?:0x[0-9a-f]+|0[0-7]+|\d+)(?::\d+)?(?:\/|$)/i;
+
   if (INTERNAL_IP_PATTERN.test(normalized) ||
     IPV6_LOOPBACK.test(normalized) ||
     IPV6_LINKLOCAL.test(normalized) ||
     DECIMAL_IP.test(normalized) ||
+    ALT_LOCALHOST_NUMERIC.test(normalized) ||
     USERINFO_BYPASS.test(normalized)) {
     console.warn(`🛑 Bloccato tentativo SSRF: ${decoded}`);
+    return null;
+  }
+
+  // Validazione hostname post-parse per bloccare dotted-quad in notazione esadecimale/ottale
+  // es: http://0x7f.0x0.0x0.0x1/
+  try {
+    const parsed = new URL(decoded);
+    const host = (parsed.hostname || '').toLowerCase();
+    const parts = host.split('.');
+
+    if (parts.length === 4) {
+      const parsedOctets = parts.map(part => {
+        if (/^0x[0-9a-f]+$/i.test(part)) return parseInt(part, 16);
+        if (/^0[0-7]+$/.test(part)) return parseInt(part, 8);
+        if (/^\d+$/.test(part)) return parseInt(part, 10);
+        return NaN;
+      });
+
+      const isNumericHost = parsedOctets.every(v => Number.isInteger(v) && v >= 0 && v <= 255);
+      if (isNumericHost && parsedOctets[0] === 127) {
+        console.warn(`🛑 Bloccato tentativo SSRF hostname numerico: ${decoded}`);
+        return null;
+      }
+    }
+  } catch (e) {
+    console.warn(`⚠️ URL parse fallito, blocco prudenziale: ${decoded}`);
     return null;
   }
 
