@@ -1,7 +1,8 @@
 const fs = require('fs');
+const path = require('path');
 
-const PROCESSOR = 'gas_email_processor.js';
-const PROMPT = 'gas_prompt_engine.js';
+const PROCESSOR = path.join(__dirname, '..', 'gas_email_processor.js');
+const PROMPT = path.join(__dirname, '..', 'gas_prompt_engine.js');
 
 function fixProcessor() {
     console.log(`Fixing ${PROCESSOR}...`);

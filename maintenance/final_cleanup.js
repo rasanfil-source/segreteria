@@ -1,8 +1,9 @@
 const fs = require('fs');
+const path = require('path');
 
 const FILES = [
-    'c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\exnovoGAS\\gas_prompt_engine.js',
-    'c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\exnovoGAS\\gas_email_processor.js'
+    path.join(__dirname, '..', 'gas_prompt_engine.js'),
+    path.join(__dirname, '..', 'gas_email_processor.js')
 ];
 
 function toUnicode(str) {

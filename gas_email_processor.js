@@ -3,12 +3,12 @@
  * 
  * PIPELINE ELABORAZIONE:
  * 1. FILTRA: Dobbiamo processare questa email?
- * 2. CLASSIFICA: Che tipo di richiesta Ã¨?
+ * 2. CLASSIFICA: Che tipo di richiesta è?
  * 3. GENERA: Crea risposta AI
- * 4. VALIDA: Controlla qualitÃ  risposta
+ * 4. VALIDA: Controlla qualità risposta
  * 5. INVIA: Rispondi all'email
  * 
- * FUNZIONALITÃ€ AVANZATE:
+ * FUNZIONALITÀ AVANZATE:
  * - Lock a livello thread (anti race condition)
  * - Anti-loop detection
  * - Salutation mode (full/soft/none_or_continuity/session)
@@ -60,7 +60,7 @@ class EmailProcessor {
    * @param {GmailThread} thread 
    * @param {string} knowledgeBase - KB testo semplice
    * @param {Array} doctrineBase - KB strutturata
-   * @param {Set} labeledMessageIds - ID messaggi giÃ  etichettati (opzionale)
+   * @param {Set} labeledMessageIds - ID messaggi già etichettati (opzionale)
    * @param {boolean} skipLock - Se true, salta acquisizione lock
    */
   processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds = new Set(), skipLock = false) {
@@ -76,7 +76,7 @@ class EmailProcessor {
     var lockValue = null;
 
     if (skipLock) {
-      console.log(`ðŸ”’ Lock saltato per thread ${threadId} (chiamante ha giÃ  lock)`);
+      console.log(`🔒 Lock saltato per thread ${threadId} (chiamante ha già lock)`);
     } else {
       const ttlSeconds = (typeof CONFIG !== 'undefined' && CONFIG.CACHE_LOCK_TTL) ? CONFIG.CACHE_LOCK_TTL : 30;
       const lockTtlMs = ttlSeconds * 1000;
@@ -89,10 +89,10 @@ class EmailProcessor {
         const isStale = !isNaN(existingTimestamp) && (Date.now() - existingTimestamp) > lockTtlMs;
 
         if (isStale) {
-          console.warn(`ðŸ”“ Lock stale rilevato per thread ${threadId}, pulizia`);
+          console.warn(`🔓 Lock stale rilevato per thread ${threadId}, pulizia`);
           scriptCache.remove(threadLockKey);
         } else {
-          console.warn(`ðŸ”’ Thread ${threadId} lockato da altro processo, salto`);
+          console.warn(`🔒 Thread ${threadId} lockato da altro processo, salto`);
           return { status: 'skipped', reason: 'thread_locked' };
         }
       }
@@ -108,12 +108,12 @@ class EmailProcessor {
         // 4. Doppio controllo
         const checkValue = scriptCache.get(threadLockKey);
         if (checkValue !== lockValue) {
-          console.warn(`ðŸ”’ Race rilevata per thread ${threadId}: atteso ${lockValue}, ottenuto ${checkValue}`);
+          console.warn(`🔒 Race rilevata per thread ${threadId}: atteso ${lockValue}, ottenuto ${checkValue}`);
           return { status: 'skipped', reason: 'thread_locked_race' };
         }
 
         lockAcquired = true;
-        console.log(`ðŸ”’ Lock acquisito per thread ${threadId}`);
+        console.log(`🔒 Lock acquisito per thread ${threadId}`);
       } catch (e) {
         console.warn(`âš ï¸ Errore acquisizione lock: ${e.message}`);
         return { status: 'error', error: 'Lock acquisition failed' };
@@ -163,8 +163,8 @@ class EmailProcessor {
       });
 
       // Solo messaggi da mittenti esterni
-      // NOTA: Se senderEmail Ã¨ null/vacante (es. estrazione fallita), lo lasciamo passare
-      // per evitare perdite silenziose. SarÃ  gestito/validato negli step successivi.
+      // NOTA: Se senderEmail è null/vacante (es. estrazione fallita), lo lasciamo passare
+      // per evitare perdite silenziose. Sarà gestito/validato negli step successivi.
       const externalUnread = unlabeledUnread.filter(message => {
         const details = this.gmailService.extractMessageDetails(message);
         // Navigazione sicura
@@ -177,7 +177,7 @@ class EmailProcessor {
 
       // Se non ci sono messaggi non letti non ancora etichettati â†’ skip
       if (unlabeledUnread.length === 0) {
-        console.log('   âŠ˜ Thread giÃ  elaborato (nessun nuovo messaggio non letto)');
+        console.log('   âŠ˜ Thread già elaborato (nessun nuovo messaggio non letto)');
         result.status = 'skipped';
         result.reason = 'already_labeled_no_new_unread';
         return result;
@@ -196,7 +196,7 @@ class EmailProcessor {
       candidate = externalUnread[externalUnread.length - 1];
       const messageDetails = this.gmailService.extractMessageDetails(candidate);
 
-      console.log(`\nðŸ“§ Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
+      console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
       console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
 
 
@@ -215,8 +215,8 @@ class EmailProcessor {
       const lastSender = (lastMessage.getFrom() || '').toLowerCase();
 
       if (myEmail && lastSender.includes(myEmail.toLowerCase())) {
-        console.log('   âŠ˜ Saltato: l\'ultimo messaggio del thread Ã¨ giÃ  nostro (bot o segreteria)');
-        // Non marchiamo nulla, semplicemente ci fermiamo finchÃ© l'utente non risponde
+        console.log('   âŠ˜ Saltato: l\'ultimo messaggio del thread è già nostro (bot o segreteria)');
+        // Non marchiamo nulla, semplicemente ci fermiamo finché l'utente non risponde
         result.status = 'skipped';
         result.reason = 'last_speaker_is_me';
         return result;
@@ -409,7 +409,7 @@ class EmailProcessor {
 
       // Estrai dati dalla nuova struttura classificazione
       const categoryHint = this.requestClassifier.getRequestTypeHint(requestType);
-      const isPastoral = requestType.dimensions ? (requestType.dimensions.pastoral > 0.6) : (requestType.type === 'pastoral'); // CompatibilitÃ 
+      const isPastoral = requestType.dimensions ? (requestType.dimensions.pastoral > 0.6) : (requestType.type === 'pastoral'); // Compatibilità
 
       // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
       // STEP 5: KB ENRICHMENT CONDIZIONALE
@@ -421,7 +421,7 @@ class EmailProcessor {
       if (typeof getSpecialMassTimeRule === 'function') {
         const specialMassRule = getSpecialMassTimeRule(new Date());
         if (specialMassRule) {
-          console.log('   ðŸš¨ Regola Messe Speciali iniettata nel Prompt');
+          console.log('   🚨 Regola Messe Speciali iniettata nel Prompt');
           knowledgeSections.push(specialMassRule);
         }
       }
@@ -452,7 +452,7 @@ class EmailProcessor {
       const memoryContext = this.memoryService.getMemory(threadId);
 
       if (Object.keys(memoryContext).length > 0) {
-        console.log(`   ðŸ§  Memoria trovata: lang=${memoryContext.language}, topics=${(memoryContext.providedInfo || []).length}`);
+        console.log(`   🧠 Memoria trovata: lang=${memoryContext.language}, topics=${(memoryContext.providedInfo || []).length}`);
       }
 
       // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -465,7 +465,7 @@ class EmailProcessor {
         lastUpdated: memoryContext.lastUpdated || null,
         now: new Date()
       });
-      console.log(`   ðŸ“ ModalitÃ  saluto: ${salutationMode}`);
+      console.log(`   ðŸ“ Modalità saluto: ${salutationMode}`);
 
       const responseDelay = computeResponseDelay({
         messageDate: messageDetails.date,
@@ -504,11 +504,11 @@ class EmailProcessor {
       const addressLines = territoryResult.addressFound
         ? (territoryResult.addresses || []).map((entry) => {
           const v = entry.verification || {};
-          const sanitizedStreet = (entry.street || '').replace(/[â•â”€]/g, '-');
+          const sanitizedStreet = (entry.street || '').replace(/[â•─]/g, '-');
           const civicLabel = entry.civic ? `n. ${entry.civic}` : 'senza numero civico';
           const resultLabel = v.needsCivic
             ? 'âš ï¸ CIVICO NECESSARIO'
-            : (v.inParish ? 'âœ… RIENTRA' : 'âŒ NON RIENTRA');
+            : (v.inParish ? '✅ RIENTRA' : 'âŒ NON RIENTRA');
           const actionLabel = v.needsCivic ? 'Azione: richiedere il numero civico.' : null;
           return [
             `Indirizzo: ${sanitizedStreet} ${civicLabel}`,
@@ -521,7 +521,7 @@ class EmailProcessor {
 
       const territoryContext = `
 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-ðŸŽ¯ VERIFICA TERRITORIO AUTOMATICA
+🎯 VERIFICA TERRITORIO AUTOMATICA
 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ${addressLines.join('\n\n')}
 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -531,7 +531,7 @@ ${addressLines.join('\n\n')}
       const summary = territoryResult.addressFound
         ? (addressLines.length > 1 ? `${addressLines.length} indirizzi` : '1 indirizzo')
         : 'nessun indirizzo';
-      console.log(`   ðŸŽ¯ Verifica territorio: ${summary}`);
+      console.log(`   🎯 Verifica territorio: ${summary}`);
 
       // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
       // STEP 7.2: PROMPT CONTEXT (profilo e concern dinamici)
@@ -568,7 +568,7 @@ ${addressLines.join('\n\n')}
         });
         promptProfile = promptContext.profile;
         activeConcerns = promptContext.concerns;
-        console.log(`   ðŸ§  PromptContext: profilo=${promptProfile}`);
+        console.log(`   🧠 PromptContext: profilo=${promptProfile}`);
       }
 
       const categoryHintSource = classification.category || requestType.type;
@@ -584,17 +584,17 @@ ${addressLines.join('\n\n')}
           });
         } else {
           attachmentContext.skipped.push({ reason: 'precheck_no_ocr' });
-          console.log('   ðŸ“Ž Allegati OCR saltati: pre-check negativo (keyword non trovate)');
+          console.log('   📎 Allegati OCR saltati: pre-check negativo (keyword non trovate)');
         }
       } else {
         // OCR disabilitato da config
       }
       if (attachmentContext && attachmentContext.items && attachmentContext.items.length > 0) {
         const attachmentNames = attachmentContext.items.map(item => item.name).join(', ');
-        console.log(`   ðŸ“Ž Allegati OCR: ${attachmentContext.items.length} file inclusi nel contesto (${attachmentNames})`);
+        console.log(`   📎 Allegati OCR: ${attachmentContext.items.length} file inclusi nel contesto (${attachmentNames})`);
       } else if (attachmentContext && attachmentContext.skipped && attachmentContext.skipped.length > 0) {
         const skippedNames = attachmentContext.skipped.map(item => item.name || item.reason).join(', ');
-        console.log(`   ðŸ“Ž Allegati OCR saltati: ${attachmentContext.skipped.length} (${skippedNames})`);
+        console.log(`   📎 Allegati OCR saltati: ${attachmentContext.skipped.length} (${skippedNames})`);
       }
 
       const promptOptions = {
@@ -632,13 +632,13 @@ ${addressLines.join('\n\n')}
       // STEP 8: GENERA RISPOSTA (STRATEGIA "CROSS-KEY QUALITY FIRST")
       // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
       // NOTA ARCHITETTURALE:
-      // Questa fase puÃ² richiedere piÃ¹ tempo del normale (fino a 4 tentativi API).
-      // SCELTA DELIBERATA: Privilegiamo la qualitÃ  della risposta (Modello Flash 2.5)
-      // rispetto alla velocitÃ . 
+      // Questa fase può richiedere più tempo del normale (fino a 4 tentativi API).
+      // SCELTA DELIBERATA: Privilegiamo la qualità della risposta (Modello Flash 2.5)
+      // rispetto alla velocità. 
       // 1. Proviamo Flash 2.5 sulla chiave primaria.
       // 2. Se fallisce, proviamo Flash 2.5 sulla chiave di RISERVA.
-      // 3. Solo se entrambe falliscono, degradiamo al modello Lite (piÃ¹ economico).
-      // Questo "costo" in termini di tempo Ã¨ gestito riducendo MAX_EMAILS_PER_RUN a 3.
+      // 3. Solo se entrambe falliscono, degradiamo al modello Lite (più economico).
+      // Questo "costo" in termini di tempo è gestito riducendo MAX_EMAILS_PER_RUN a 3.
       // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
       let response = null;
@@ -675,7 +675,7 @@ ${addressLines.join('\n\n')}
 
           if (response) {
             strategyUsed = plan.name;
-            console.log(`âœ… Generazione riuscita con strategia: ${plan.name}`);
+            console.log(`✅ Generazione riuscita con strategia: ${plan.name}`);
             break; // Successo! Esci dal loop
           }
 
@@ -717,7 +717,7 @@ ${addressLines.join('\n\n')}
         return result;
       }
 
-      // Nota OCR bassa confidenza: avviso leggibilitÃ  allegato
+      // Nota OCR bassa confidenza: avviso leggibilità allegato
       if (attachmentContext && attachmentContext.ocrConfidenceLow) {
         const ocrLowConfidenceNote = this._getOcrLowConfidenceNote(detectedLanguage);
         if (ocrLowConfidenceNote && !response.includes(ocrLowConfidenceNote)) {
@@ -745,7 +745,7 @@ ${addressLines.join('\n\n')}
           // Gestione errore validazione critica
           if (validation.details && validation.details.exposedReasoning && validation.details.exposedReasoning.score === 0.0) {
             console.warn("âš ï¸ Risposta bloccata per Thinking Leak. Invio a etichetta 'Verifica'.");
-            // Qui potremmo tentare un retry con temperatura piÃ¹ bassa o altro modello
+            // Qui potremmo tentare un retry con temperatura più bassa o altro modello
             // Per ora marchiamo per revisione umana
             result.status = 'validation_failed';
             result.reason = 'thinking_leak';
@@ -758,7 +758,7 @@ ${addressLines.join('\n\n')}
           return result;
         }
 
-        // Se ci sono WARNING e il punteggio Ã¨ sotto la soglia di sicurezza, aggiungi etichetta "verifica"
+        // Se ci sono WARNING e il punteggio è sotto la soglia di sicurezza, aggiungi etichetta "verifica"
         // Ignoriamo i warning per punteggi alti (es. >= 0.90) assumendo siano nits minori (es. firma)
         const warningThreshold = this.config.validationWarningThreshold || 0.90;
 
@@ -776,7 +776,7 @@ ${addressLines.join('\n\n')}
           response = validation.fixedResponse;
         }
 
-        console.log(`   âœ“ Validazione PASSATA (punteggio: ${validation.score.toFixed(2)})`);
+        console.log(`   ✓ Validazione PASSATA (punteggio: ${validation.score.toFixed(2)})`);
       }
 
       // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -786,7 +786,7 @@ ${addressLines.join('\n\n')}
         console.log('   ðŸ”´ DRY RUN - Risposta non inviata');
         console.log(`   ðŸ“ Invierebbe: ${response.substring(0, 100)}...`);
         result.dryRun = true;
-        // In DRY_RUN non aggiorniamo memoria nÃ© label per non avere effetti permanenti
+        // In DRY_RUN non aggiorniamo memoria né label per non avere effetti permanenti
         result.status = 'replied';
         return result;
       }
@@ -851,7 +851,7 @@ ${addressLines.join('\n\n')}
           const currentLockValue = scriptCache.get(threadLockKey);
           if (!currentLockValue || currentLockValue === lockValue) {
             scriptCache.remove(threadLockKey);
-            console.log(`ðŸ”“ Lock rilasciato per thread ${threadId}`);
+            console.log(`🔓 Lock rilasciato per thread ${threadId}`);
           } else {
             console.warn(`âš ï¸ Rilascio lock saltato per thread ${threadId} (lock di altro processo)`);
           }
@@ -867,16 +867,16 @@ ${addressLines.join('\n\n')}
    */
   processUnreadEmails(knowledgeBase, doctrineBase = '') {
     console.log('\n' + '='.repeat(70));
-    console.log('ðŸ“¬ Inizio elaborazione email...');
+    console.log('📬 Inizio elaborazione email...');
     console.log('='.repeat(70));
 
     if (this.config.dryRun) {
-      console.warn('ðŸ”´ MODALITÃ€ DRY_RUN ATTIVA - Email NON inviate!');
+      console.warn('ðŸ”´ MODALITÀ DRY_RUN ATTIVA - Email NON inviate!');
     }
 
     // Cerca thread non letti nella inbox
-    // Utilizziamo un buffer di ricerca piÃ¹ ampio per gestire thread saltati (es. loop interni)
-    // Rimuoviamo il filtro etichetta per permettere la gestione dei follow-up in thread giÃ  elaborati
+    // Utilizziamo un buffer di ricerca più ampio per gestire thread saltati (es. loop interni)
+    // Rimuoviamo il filtro etichetta per permettere la gestione dei follow-up in thread già elaborati
     const searchQuery = 'in:inbox is:unread';
     const searchLimit = (this.config.searchPageSize || 50);
 
@@ -891,11 +891,11 @@ ${addressLines.join('\n\n')}
       return { total: 0, replied: 0, filtered: 0, errors: 0 };
     }
 
-    console.log(`ðŸ“¬ Trovate ${threads.length} email da elaborare (query: ${searchQuery})`);
+    console.log(`📬 Trovate ${threads.length} email da elaborare (query: ${searchQuery})`);
 
     // Carica etichette una sola volta
     const labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
-    console.log(`ðŸ“¦ Trovati in cache ${labeledMessageIds.size} messaggi giÃ  elaborati`);
+    console.log(`📦 Trovati in cache ${labeledMessageIds.size} messaggi già elaborati`);
 
     // Statistiche
     const stats = {
@@ -920,7 +920,7 @@ ${addressLines.join('\n\n')}
     for (let index = 0; index < threads.length; index++) {
       // Stop se abbiamo raggiunto il target di elaborazione effettiva
       if (processedCount >= parseInt(this.config.maxEmailsPerRun, 10)) {
-        console.log(`ðŸ›‘ Raggiunti ${this.config.maxEmailsPerRun} thread elaborati. Stop.`);
+        console.log(`🛑 Raggiunti ${this.config.maxEmailsPerRun} thread elaborati. Stop.`);
         break;
       }
 
@@ -936,7 +936,7 @@ ${addressLines.join('\n\n')}
       const result = this.processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds);
       stats.total++;
 
-      // Incrementa contatore solo se c'Ã¨ stata un'azione significativa o decisione esplicita dell'AI
+      // Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI
       const isEffectiveWork = (
         result.status === 'replied' ||
         result.status === 'error' ||
@@ -968,10 +968,10 @@ ${addressLines.join('\n\n')}
 
     // Stampa riepilogo
     console.log('\n' + '='.repeat(70));
-    console.log('ðŸ“Š RIEPILOGO ELABORAZIONE');
+    console.log('📊 RIEPILOGO ELABORAZIONE');
     console.log('='.repeat(70));
     console.log(`   Totale analizzate (buffer): ${stats.total}`);
-    console.log(`   âœ“ Risposte inviate: ${stats.replied}`);
+    console.log(`   ✓ Risposte inviate: ${stats.replied}`);
     if (stats.dryRun > 0) console.warn(`   ðŸ”´ DRY RUN: ${stats.dryRun}`);
 
     if (stats.skipped > 0) {
@@ -1003,7 +1003,7 @@ ${addressLines.join('\n\n')}
     const ignoreDomains = (typeof CONFIG !== 'undefined' && CONFIG.IGNORE_DOMAINS) ? CONFIG.IGNORE_DOMAINS : [];
 
     if (ignoreDomains.some(domain => email.includes(domain.toLowerCase()))) {
-      console.log(`ðŸš« Ignorato: mittente in blacklist (${email})`);
+      console.log(`🚫 Ignorato: mittente in blacklist (${email})`);
       return true;
     }
 
@@ -1011,7 +1011,7 @@ ${addressLines.join('\n\n')}
     const ignoreKeywords = (typeof CONFIG !== 'undefined' && CONFIG.IGNORE_KEYWORDS) ? CONFIG.IGNORE_KEYWORDS : [];
 
     if (ignoreKeywords.some(keyword => subject.includes(keyword.toLowerCase()))) {
-      console.log(`ðŸš« Ignorato: oggetto contiene keyword vietata`);
+      console.log(`🚫 Ignorato: oggetto contiene keyword vietata`);
       return true;
     }
 
@@ -1030,7 +1030,7 @@ ${addressLines.join('\n\n')}
       body.includes('this is an automatically generated message') ||
       body.includes('do not reply to this email')
     ) {
-      console.log('ðŸš« Ignorato: auto-reply o notifica di sistema');
+      console.log('🚫 Ignorato: auto-reply o notifica di sistema');
       return true;
     }
 
@@ -1043,10 +1043,10 @@ ${addressLines.join('\n\n')}
       : {};
 
     // Se trigger keywords non sono definite, default a true (comportamento legacy)
-    // Ma nel config nuovo sono definite, quindi userÃ  quelle.
+    // Ma nel config nuovo sono definite, quindi userà quelle.
     const triggerKeywords = settings.ocrTriggerKeywords || [];
 
-    // Se la lista Ã¨ vuota, significa "OCR sempre attivo se enabled=true"
+    // Se la lista è vuota, significa "OCR sempre attivo se enabled=true"
     if (triggerKeywords.length === 0) return true;
 
     const normalizedBody = (body || '').toLowerCase().replace(/\s+/g, ' ');
@@ -1054,7 +1054,7 @@ ${addressLines.join('\n\n')}
 
     return triggerKeywords.some(keyword => {
       const needle = (keyword || '').toLowerCase();
-      // startWith, includes, o regex word boundary? Includes Ã¨ piÃ¹ sicuro per ora.
+      // startWith, includes, o regex word boundary? Includes è più sicuro per ora.
       return needle && (normalizedBody.includes(needle) || normalizedSubject.includes(needle));
     });
   }
@@ -1069,9 +1069,9 @@ ${addressLines.join('\n\n')}
     const notes = {
       it: 'Nota: Il documento allegato era di difficile lettura.',
       en: 'Note: The attached document was difficult to read.',
-      es: 'Nota: El documento adjunto era difÃ­cil de leer.',
-      fr: 'Remarque : Le document joint Ã©tait difficile Ã  lire.',
-      de: 'Hinweis: Das angehÃ¤ngte Dokument war schwer lesbar.'
+      es: 'Nota: El documento adjunto era difícil de leer.',
+      fr: 'Remarque : Le document joint était difficile à lire.',
+      de: 'Hinweis: Das angehängte Dokument war schwer lesbar.'
     };
     return notes[lang] || notes.it;
   }
@@ -1164,7 +1164,7 @@ ${addressLines.join('\n\n')}
       'cresima_info': /cresima.*percorso|percorso.*cresima/i,
       'matrimonio_info': /matrimonio.*corso|corso.*matrimonio/i,
       'territorio': /rientra|non rientra|parrocchia.*competenza/i,
-      'indirizzo': /(?:via|viale|corso|piazza|largo|circonvallazione)\s+(?:[a-zA-ZÃ Ã¨Ã©Ã¬Ã²Ã¹Ã€ÃˆÃ‰ÃŒÃ’Ã™']+\s+){0,10}[a-zA-ZÃ Ã¨Ã©Ã¬Ã²Ã¹Ã€ÃˆÃ‰ÃŒÃ’Ã™']+\s*,?\s*\d+/i
+      'indirizzo': /(?:via|viale|corso|piazza|largo|circonvallazione)\s+(?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,10}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s*,?\s*\d+/i
     };
 
     for (const [topic, pattern] of Object.entries(patterns)) {
@@ -1187,30 +1187,30 @@ ${addressLines.join('\n\n')}
     // Pattern semplici di reazione
     const patterns = {
       questioned: [
-        'non ho capito', 'non capisco', 'mi scusi non ho capito', 'non mi Ã¨ chiaro',
-        'non Ã¨ chiaro', 'puÃ² chiarire', 'potrebbe chiarire', 'potrebbe spiegare',
+        'non ho capito', 'non capisco', 'mi scusi non ho capito', 'non mi è chiaro',
+        'non è chiaro', 'può chiarire', 'potrebbe chiarire', 'potrebbe spiegare',
         'cosa significa', 'dubbio', 'confuso', 'mi aiuta a capire',
         'i did not understand', 'i don\'t understand', 'not clear',
         'could you clarify', 'could you please clarify', 'could you explain',
-        'no entiendo', 'no entendÃ­', 'no me queda claro', 'podrÃ­a aclarar',
-        'podrÃ­a explicar', 'podrÃ­a ayudarme a entender'
+        'no entiendo', 'no entendí', 'no me queda claro', 'podría aclarar',
+        'podría explicar', 'podría ayudarme a entender'
       ],
       acknowledged: [
         'ho capito', 'tutto chiaro', 'grazie per la spiegazione', 'ok grazie',
         'perfetto', 'chiarissimo', 'ricevuto', 'la ringrazio', 'grazie',
         'gentilissimi', 'va benissimo', 'compreso',
         'thank you', 'thanks', 'understood', 'all clear', 'received',
-        'gracias', 'entendido', 'entendida', 'recibido', 'recibida', 'perfecto', 'clarÃ­simo'
+        'gracias', 'entendido', 'entendida', 'recibido', 'recibida', 'perfecto', 'clarísimo'
       ],
       needs_expansion: [
         'potrebbe aggiungere', 'potrebbe fornire maggiori dettagli', 'maggiori dettagli',
-        'piÃ¹ dettagli', 'approfondire', 'potrebbe spiegare meglio', 'potrebbe ampliare',
-        'sarebbe possibile avere piÃ¹ informazioni', 'servirebbero piÃ¹ informazioni',
+        'più dettagli', 'approfondire', 'potrebbe spiegare meglio', 'potrebbe ampliare',
+        'sarebbe possibile avere più informazioni', 'servirebbero più informazioni',
         'potrebbe indicare i passaggi',
         'could you provide more details', 'more details', 'could you elaborate',
         'would it be possible to have more information', 'could you outline the steps',
-        'podrÃ­a ampliar', 'mÃ¡s detalles', 'podrÃ­a proporcionar mÃ¡s informaciÃ³n',
-        'serÃ­a posible tener mÃ¡s informaciÃ³n', 'podrÃ­a indicar los pasos'
+        'podría ampliar', 'más detalles', 'podría proporcionar más información',
+        'sería posible tener más información', 'podría indicar los pasos'
       ]
     };
 
@@ -1252,13 +1252,13 @@ ${addressLines.join('\n\n')}
     };
 
     targetTopics.forEach(topic => {
-      console.log(`ðŸ§  Inferred Reaction: ${inferredReaction.type.toUpperCase()} su topic '${topic}'`);
+      console.log(`🧠 Inferred Reaction: ${inferredReaction.type.toUpperCase()} su topic '${topic}'`);
       this.memoryService.updateReaction(threadId, topic, inferredReaction.type, context);
     });
   }
   /**
    * Punto 12: Classificazione centralizzata degli errori API
-   * Determina se un errore Ã¨ fatale, legato alla quota o alla rete.
+   * Determina se un errore è fatale, legato alla quota o alla rete.
    */
   _classifyError(error) {
     if (!error) {
@@ -1310,11 +1310,11 @@ ${addressLines.join('\n\n')}
 }
 
 // ====================================================================
-// CALCOLATORE MODALITÃ€ SALUTO
+// CALCOLATORE MODALITÀ SALUTO
 // ====================================================================
 
 /**
- * Calcola modalitÃ  saluto basata su segnali strutturali
+ * Calcola modalità saluto basata su segnali strutturali
  * @param {Object} params - Parametri di input
  * @returns {'full'|'soft'|'none_or_continuity'|'session'}
  */ // Fix: added 'session' to contract
@@ -1408,7 +1408,7 @@ function processUnreadEmailsMain() {
   try {
     const configCheck = typeof validateConfig === 'function' ? validateConfig() : { valid: true, errors: [] };
     if (!configCheck.valid) {
-      console.error('ðŸš¨ CONFIGURAZIONE NON VALIDA - ARRESTO SISTEMA');
+      console.error('🚨 CONFIGURAZIONE NON VALIDA - ARRESTO SISTEMA');
       configCheck.errors.forEach(e => console.error(`   ${e}`));
       return;
     }

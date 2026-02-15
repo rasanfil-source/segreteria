@@ -2,7 +2,7 @@
  * Config.gs - Configurazione centralizzata del sistema
  * Tutti i parametri configurabili sono definiti qui
  * 
- * NOTA: Questa Ã¨ una versione SANITIZZATA per GitHub.
+ * NOTA: Questa è una versione SANITIZZATA per GitHub.
  * Le chiavi sensibili (API Key, Spreadsheet ID) sono rimosse o mascherate.
  */
 
@@ -46,7 +46,7 @@ const CONFIG = {
         maxCharsPerFile: 4000,           // Limite testo per singolo allegato
         maxTotalChars: 12000,            // Limite totale testo allegati
         ocrLanguage: 'it',               // Lingua OCR (Drive Advanced API)
-        ocrConfidenceWarningThreshold: 0.8, // Soglia warning leggibilitÃ  OCR in risposta
+        ocrConfidenceWarningThreshold: 0.8, // Soglia warning leggibilità OCR in risposta
         pdfMaxPages: 2,                  // Limite pagine PDF (stima via OCR)
         pdfCharsPerPage: 1800            // Stima caratteri per pagina PDF
     },
@@ -71,7 +71,7 @@ const CONFIG = {
     SHEETS_RETRY_MAX: 3,                 // Tentativi massimi
     SHEETS_RETRY_BACKOFF_MS: 1000,       // Backoff iniziale (raddoppia ad ogni retry)
 
-    // === ModalitÃ  ===
+    // === Modalità ===
     DRY_RUN: false,                      // True per test senza invio email
     USE_RATE_LIMITER: true,              // Rate limiter intelligente abilitato
 
@@ -93,7 +93,7 @@ const CONFIG = {
     // === Modelli Gemini (configurazione centralizzata) ===
     // Aggiornato: Gennaio 2026
     GEMINI_MODELS: {
-        // Modello premium: qualitÃ  massima per generazione risposte
+        // Modello premium: qualità massima per generazione risposte
         'flash-2.5': {
             name: 'gemini-2.5-flash',
             rpm: 10,        // Richieste per minuto
@@ -119,7 +119,7 @@ const CONFIG = {
         }
     },
 
-    // Strategia selezione modelli per task (ordine = prioritÃ )
+    // Strategia selezione modelli per task (ordine = priorità)
     MODEL_STRATEGY: {
         'quick_check': ['flash-lite', 'flash-2.0'],
         'generation': ['flash-2.5', 'flash-lite', 'flash-2.0'],
@@ -154,7 +154,7 @@ const CONFIG = {
 const LANGUAGE_MARKERS = {
     'it': ['grazie', 'cordiali', 'saluti', 'gentile', 'parrocchia', 'messa', 'vorrei', 'quando', 'buongiorno', 'buonasera'],
     'en': ['thank', 'regards', 'dear', 'parish', 'mass', 'church', 'would', 'could', 'please', 'sincerely'],
-    'es': ['gracias', 'saludos', 'estimado', 'parroquia', 'misa', 'iglesia', 'querrÃ­a', 'buenos', 'dÃ­as'],
-    'fr': ['merci', 'cordialement', 'cher', 'paroisse', 'messe', 'Ã©glise', 'voudrais', 'pourrais', 'bonjour', 'bonsoir'],
-    'de': ['danke', 'grÃ¼ÃŸe', 'liebe', 'pfarrei', 'messe', 'kirche', 'mÃ¶chte', 'kÃ¶nnte', 'bitte', 'guten']
+    'es': ['gracias', 'saludos', 'estimado', 'parroquia', 'misa', 'iglesia', 'querría', 'buenos', 'días'],
+    'fr': ['merci', 'cordialement', 'cher', 'paroisse', 'messe', 'église', 'voudrais', 'pourrais', 'bonjour', 'bonsoir'],
+    'de': ['danke', 'grüße', 'liebe', 'pfarrei', 'messe', 'kirche', 'möchte', 'könnte', 'bitte', 'guten']
 };

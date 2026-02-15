@@ -1,6 +1,6 @@
 const fs = require('fs');
 
-const FILE = 'tests/golden_cases.json';
+const FILE = path.join(__dirname, '..', 'tests', 'golden_cases.json');
 
 const REPLACEMENTS = [
     { pattern: /Ã¨/g, replacement: 'è' },

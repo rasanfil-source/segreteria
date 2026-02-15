@@ -25,13 +25,11 @@ tests/output.log
 t e s t _ l e a k _ d e t e c t i o n . j s  
 
 # File di debug/riproduzione da non deployare
-debug_syntax.js
-debug_tests.js
-debug_territory.js
-reproduce_civic_bug.js
-final_cleanup.js
-fix_*.js
-sanitize_files.js
+maintenance/
+maintenance/**
+**/maintenance/**
+
+
 
 # Folder da ignorare
 2. Evoluzione/**
