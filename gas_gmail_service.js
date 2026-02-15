@@ -499,7 +499,8 @@ class GmailService {
       // Regex IBAN IT (semplificata: IT + 2 cifre + 1 lettera + 22 alfanumerici)
       // O generica: IT\d{2}[A-Z]\d{10}[A-Z0-9]{12}
       // Usiamo una regex che cattura 'IT' seguito da 25 chars circa
-      const ibanRegex = /\bIT\d{2}[A-Z]\d{22}\b/i;
+      // Regex IBAN universale (27 paesi EU + altri SEPA)
+      const ibanRegex = /\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b/i;
       const match = cleaned.match(ibanRegex);
 
       if (match) {
@@ -528,7 +529,8 @@ class GmailService {
     }
 
     // Regex IBAN italiano (IT + 2 cifre controllo + 1 lettera CIN + 22 alfanumerici)
-    const ibanRegex = /\bIT\d{2}[A-Z]\d{22}\b/i;
+    // Regex IBAN universale (27 paesi EU + altri SEPA)
+    const ibanRegex = /\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b/i;
     const match = text.match(ibanRegex);
 
     if (!match) {

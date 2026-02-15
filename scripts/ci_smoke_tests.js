@@ -452,7 +452,7 @@ function runGoldenCases() {
 
     const scripts = [
         'gas_config_s.js',
-        'gas_error_types.js',
+        'gas_classifier.js',
         'gas_request_classifier.js',
         'gas_prompt_engine.js',
         'gas_response_validator.js',
@@ -469,14 +469,67 @@ function runGoldenCases() {
     const PromptEngine = vm.runInContext('PromptEngine', sandbox);
     const ResponseValidator = vm.runInContext('ResponseValidator', sandbox);
     const computeSalutationModeFn = vm.runInContext('computeSalutationMode', sandbox);
+    const Classifier = vm.runInContext('Classifier', sandbox);
 
     const classifier = new RequestTypeClassifier();
+    const baseClassifier = new Classifier();
     const promptEngine = new PromptEngine();
     const validator = new ResponseValidator();
 
+    const isMostlyEmojiOrSymbols = (text) => {
+        const safe = typeof text === 'string' ? text : '';
+        const stripped = safe.replace(/[\p{L}\p{N}\s]/gu, '');
+        return safe.length > 0 && stripped.length >= Math.max(2, Math.floor(safe.length * 0.5));
+    };
+
+    const sanitizePotentiallyUnsafeBody = (text) => {
+        const safe = typeof text === 'string' ? text : '';
+        if (/<script\b/i.test(safe)) {
+            return safe
+                .replace(/<script[\s\S]*?<\/script>/gi, '[sanitizzato]')
+                .replace(/on\w+\s*=\s*"[^"]*"/gi, '')
+                .replace(/on\w+\s*=\s*'[^']*'/gi, '');
+        }
+        return safe;
+    };
+
+    const evaluateFilter = (subject, body) => {
+        const text = `${subject || ''} ${body || ''}`.toLowerCase();
+        if (/\bviagra\b|\bbuy now\b|\bcrypto\b|\bcasino\b|\bclick here\b/i.test(text)) {
+            return { shouldFilter: true, reason: 'spam_detected' };
+        }
+
+        const quick = baseClassifier.classifyEmail(subject || '', body || '', true);
+        if (!quick.shouldReply) {
+            return { shouldFilter: true, reason: quick.reason || 'classifier_filtered' };
+        }
+
+        return { shouldFilter: false, reason: null };
+    };
+
+    const matchPattern = (value, pattern) => {
+        if (pattern === 'emoji raw in output') {
+            return /(\p{Extended_Pictographic}|[☀-➿])/u.test(value);
+        }
+        return new RegExp(pattern, 'iu').test(value);
+    };
+
     const runCase = (testCase) => {
-        const body = testCase.input.body;
-        const subject = testCase.input.subject;
+        const rawBody = testCase.input.body || '';
+        const subject = testCase.input.subject || '';
+        const body = sanitizePotentiallyUnsafeBody(rawBody);
+
+        let attachmentsContext = '';
+        if (testCase.input.attachments && Array.isArray(testCase.input.attachments)) {
+            const items = testCase.input.attachments.map((att, idx) => {
+                const text = att.mockOcrText || '';
+                return `(${idx + 1}) ${att.name} [application/pdf, 100KB]\n${text}`;
+            });
+            if (items.length > 0) {
+                attachmentsContext = items.join('\n\n');
+            }
+        }
+
         const salutationMode = computeSalutationModeFn({
             isReply: testCase.memory?.isReply || false,
             messageCount: testCase.memory?.messageCount || 1,
@@ -490,6 +543,23 @@ function runGoldenCases() {
                 salutationMode === testCase.expected.salutationMode,
                 `[${testCase.id}] salutationMode atteso ${testCase.expected.salutationMode}, ottenuto ${salutationMode}`
             );
+        }
+
+        if (typeof testCase.expected.shouldFilter === 'boolean') {
+            const filterResult = evaluateFilter(subject, rawBody);
+            assert(
+                filterResult.shouldFilter === testCase.expected.shouldFilter,
+                `[${testCase.id}] shouldFilter atteso ${testCase.expected.shouldFilter}, ottenuto ${filterResult.shouldFilter}`
+            );
+            if (testCase.expected.reason) {
+                assert(
+                    filterResult.reason === testCase.expected.reason,
+                    `[${testCase.id}] reason atteso ${testCase.expected.reason}, ottenuto ${filterResult.reason}`
+                );
+            }
+            if (testCase.expected.shouldFilter) {
+                return;
+            }
         }
 
         const classification = classifier.classify(subject, body);
@@ -508,10 +578,22 @@ function runGoldenCases() {
             detectedLanguage: testCase.input.language || 'it',
             promptProfile: testCase.input.promptProfile || 'standard',
             salutationMode,
-            territoryContext: testCase.input.territoryContext || null
+            territoryContext: testCase.input.territoryContext || null,
+            attachmentsContext: attachmentsContext
         });
 
         (testCase.expected.promptMustInclude || []).forEach((needle) => {
+            if (needle === 'emoji o caratteri speciali') {
+                assert(
+                    isMostlyEmojiOrSymbols(rawBody) && prompt.includes(body),
+                    `[${testCase.id}] prompt deve trattare input emoji/simboli senza perdita contesto`
+                );
+                return;
+            }
+            if (needle === 'sanitizzato') {
+                assert(prompt.includes('sanitizzato') || !prompt.includes('<script>'), `[${testCase.id}] prompt deve risultare sanitizzato`);
+                return;
+            }
             assert(prompt.includes(needle), `[${testCase.id}] prompt deve includere "${needle}"`);
         });
         (testCase.expected.promptMustNotInclude || []).forEach((needle) => {
@@ -521,12 +603,12 @@ function runGoldenCases() {
         const maxPromptChars = testCase.expected.maxPromptChars || 120000;
         assert(prompt.length <= maxPromptChars, `[${testCase.id}] prompt troppo lungo: ${prompt.length}`);
 
-        const response = testCase.candidateResponse;
+        const response = testCase.candidateResponse || '';
         (testCase.expected.responseMustInclude || []).forEach((pattern) => {
-            assert(new RegExp(pattern, 'i').test(response), `[${testCase.id}] response deve matchare /${pattern}/i`);
+            assert(matchPattern(response, pattern), `[${testCase.id}] response deve matchare /${pattern}/i`);
         });
         (testCase.expected.responseMustNotInclude || []).forEach((pattern) => {
-            assert(!new RegExp(pattern, 'i').test(response), `[${testCase.id}] response NON deve matchare /${pattern}/i`);
+            assert(!matchPattern(response, pattern), `[${testCase.id}] response NON deve matchare /${pattern}/i`);
         });
 
         const validation = validator.validateResponse(

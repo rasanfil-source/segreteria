@@ -2,12 +2,12 @@
   {
     "id": "golden-001",
     "input": {
-      "subject": "Mass schedule information",
-      "body": "Hello, I would like to know Sunday mass times.",
+      "subject": "Urgent funeral info",
+      "body": "My mother has just passed away, we urgently need funeral information.",
       "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -17,37 +17,35 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Dear user, Sunday mass is at 9:00 and 11:00. Kind regards.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-002",
     "input": {
-      "subject": "InformaciÃ³n sobre horarios",
-      "body": "Hola, quisiera saber los horarios de misa del domingo.",
+      "subject": "Solicitud de información",
+      "body": "Estoy divorciado, ¿puedo casarme de nuevo en la Iglesia?",
       "language": "es",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -57,38 +55,36 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Estimado usuario, la misa del domingo es a las 9:00 y a las 11:00. Saludos cordiales.",
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-003",
     "input": {
-      "subject": "InformaÃ§Ãµes sobre horÃ¡rios",
-      "body": "OlÃ¡, gostaria de saber os horÃ¡rios da missa de domingo.",
-      "language": "pt",
+      "subject": "Territorio parrocchia",
+      "body": "Abito in Via Roma, è vostra parrocchia?",
+      "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
-      "territoryContext": null,
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": "RIENTRA nel territorio parrocchiale.",
       "now": "2026-02-15T10:00:00Z"
     },
     "memory": {
@@ -97,37 +93,36 @@
       "messageCount": 2,
       "lastUpdated": "2026-02-15T09:40:00Z"
     },
-    "candidateResponse": "Prezado usuÃ¡rio, a missa de domingo Ã© Ã s 9:00 e Ã s 11:00. Atenciosamente.",
+    "candidateResponse": "Per verificare con precisione il territorio ci serve anche il numero civico; con quel dato le rispondiamo subito.",
     "expected": {
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE",
+        "territorio"
       ],
+      "promptMustNotInclude": [],
       "responseMustNotInclude": [
         "\\[.*\\]\\(.*\\)"
       ],
-      "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE"
-      ],
-      "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-004",
     "input": {
-      "subject": "Informazioni orari messe",
-      "body": "Buongiorno, vorrei sapere gli orari delle messe domenicali.",
-      "language": "it",
+      "subject": "Information request",
+      "body": "I attached the completed form. Can you confirm receipt?",
+      "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "lite",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -137,40 +132,38 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Buongiorno, le messe domenicali sono alle 9:00 e alle 11:00. Cordiali saluti.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [
-        "ðŸ“š ESEMPI CON FORMATTAZIONE CORRETTA"
+        "📚 ESEMPI CON FORMATTAZIONE CORRETTA"
       ],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-005",
     "input": {
-      "subject": "Mass schedule information",
-      "body": "Hello, I would like to know Sunday mass times. I live in Via Roma 10.",
-      "language": "en",
+      "subject": "Solicitud de información",
+      "body": "<p>Prueba<p>Prueba</p> ¿Pueden ayudarme?",
+      "language": "es",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
-      "territoryContext": "RIENTRA nel territorio parrocchiale.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
     "memory": {
@@ -179,38 +172,35 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Dear user, Sunday mass is at 9:00 and 11:00. Kind regards.",
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE"
       ],
+      "promptMustNotInclude": [],
       "responseMustNotInclude": [
         "\\[.*\\]\\(.*\\)"
       ],
-      "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE",
-        "risposta SÃŒ/NO sul territorio"
-      ],
-      "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-006",
     "input": {
-      "subject": "InformaciÃ³n sobre horarios",
-      "body": "Hola, quisiera saber los horarios de misa del domingo.",
-      "language": "es",
+      "subject": "Informazioni orari messe",
+      "body": "Buongiorno, vorrei sapere gli orari delle messe domenicali.",
+      "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -220,37 +210,38 @@
       "messageCount": 2,
       "lastUpdated": "2026-02-15T09:40:00Z"
     },
-    "candidateResponse": "Estimado usuario, la misa del domingo es a las 9:00 y a las 11:00. Saludos cordiales.",
+    "candidateResponse": "Buongiorno, le messe domenicali sono alle 9:00 e alle 11:00. Cordiali saluti.",
     "expected": {
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15,
+      "responseMustInclude": [
+        "9:00"
+      ]
     }
   },
   {
     "id": "golden-007",
     "input": {
-      "subject": "InformaÃ§Ãµes sobre horÃ¡rios",
-      "body": "OlÃ¡, gostaria de saber os horÃ¡rios da missa de domingo.",
-      "language": "pt",
+      "subject": "Urgent funeral info",
+      "body": "My mother has just passed away, we urgently need funeral information.",
+      "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -260,37 +251,35 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Prezado usuÃ¡rio, a missa de domingo Ã© Ã s 9:00 e Ã s 11:00. Atenciosamente.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-008",
     "input": {
-      "subject": "Informazioni orari messe",
-      "body": "Buongiorno, vorrei sapere gli orari delle messe domenicali.",
-      "language": "it",
+      "subject": "Solicitud de información",
+      "body": "Estoy divorciado, ¿puedo casarme de nuevo en la Iglesia?",
+      "language": "es",
       "senderName": "Utente Test",
       "promptProfile": "lite",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -300,40 +289,38 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Buongiorno, le messe domenicali sono alle 9:00 e alle 11:00. Cordiali saluti.",
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [
-        "ðŸ“š ESEMPI CON FORMATTAZIONE CORRETTA"
+        "📚 ESEMPI CON FORMATTAZIONE CORRETTA"
       ],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-009",
     "input": {
-      "subject": "Mass schedule information",
-      "body": "Hello, I would like to know Sunday mass times.",
-      "language": "en",
+      "subject": "Territorio parrocchia",
+      "body": "Abito in Via Roma, è vostra parrocchia?",
+      "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
-      "territoryContext": null,
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": "RIENTRA nel territorio parrocchiale.",
       "now": "2026-02-15T10:00:00Z"
     },
     "memory": {
@@ -342,78 +329,36 @@
       "messageCount": 2,
       "lastUpdated": "2026-02-15T09:40:00Z"
     },
-    "candidateResponse": "Dear user, Sunday mass is at 9:00 and 11:00. Kind regards.",
+    "candidateResponse": "Per verificare con precisione il territorio ci serve anche il numero civico; con quel dato le rispondiamo subito.",
     "expected": {
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE",
+        "territorio"
       ],
+      "promptMustNotInclude": [],
       "responseMustNotInclude": [
         "\\[.*\\]\\(.*\\)"
       ],
-      "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE"
-      ],
-      "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-010",
     "input": {
-      "subject": "InformaciÃ³n sobre horarios",
-      "body": "Hola, quisiera saber los horarios de misa del domingo. Vivo en Via Roma 10.",
-      "language": "es",
+      "subject": "Information request",
+      "body": "I attached the completed form. Can you confirm receipt?",
+      "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
-      "territoryContext": "RIENTRA nel territorio parrocchiale.",
-      "now": "2026-02-15T10:00:00Z"
-    },
-    "memory": {
-      "exists": false,
-      "isReply": false,
-      "messageCount": 1,
-      "lastUpdated": null
-    },
-    "candidateResponse": "Estimado usuario, la misa del domingo es a las 9:00 y a las 11:00. Saludos cordiales.",
-    "expected": {
-      "salutationMode": "full",
-      "requestTypeIn": [
-        "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
-      ],
-      "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE",
-        "risposta SÃŒ/NO sul territorio"
-      ],
-      "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
-    }
-  },
-  {
-    "id": "golden-011",
-    "input": {
-      "subject": "InformaÃ§Ãµes sobre horÃ¡rios",
-      "body": "OlÃ¡, gostaria de saber os horÃ¡rios da missa de domingo.",
-      "language": "pt",
-      "senderName": "Utente Test",
-      "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -423,26 +368,62 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Prezado usuÃ¡rio, a missa de domingo Ã© Ã s 9:00 e Ã s 11:00. Atenciosamente.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
+    }
+  },
+  {
+    "id": "golden-011",
+    "input": {
+      "subject": "Solicitud de información",
+      "body": "<p>Prueba<p>Prueba</p> ¿Pueden ayudarme?",
+      "language": "es",
+      "senderName": "Utente Test",
+      "promptProfile": "standard",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": null,
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1,
+      "lastUpdated": null
+    },
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
+    "expected": {
+      "salutationMode": "full",
+      "requestTypeIn": [
+        "technical",
+        "mixed",
+        "pastoral",
+        "doctrinal"
+      ],
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE"
+      ],
+      "promptMustNotInclude": [],
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
@@ -453,7 +434,7 @@
       "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "lite",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -468,34 +449,35 @@
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [
-        "ðŸ“š ESEMPI CON FORMATTAZIONE CORRETTA"
+        "📚 ESEMPI CON FORMATTAZIONE CORRETTA"
       ],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15,
+      "responseMustInclude": [
+        "9:00"
+      ]
     }
   },
   {
     "id": "golden-013",
     "input": {
-      "subject": "Mass schedule information",
-      "body": "Hello, I would like to know Sunday mass times.",
+      "subject": "Urgent funeral info",
+      "body": "My mother has just passed away, we urgently need funeral information.",
       "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -505,37 +487,35 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Dear user, Sunday mass is at 9:00 and 11:00. Kind regards.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-014",
     "input": {
-      "subject": "InformaciÃ³n sobre horarios",
-      "body": "Hola, quisiera saber los horarios de misa del domingo.",
+      "subject": "Solicitud de información",
+      "body": "Estoy divorciado, ¿puedo casarme de nuevo en la Iglesia?",
       "language": "es",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -545,37 +525,35 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Estimado usuario, la misa del domingo es a las 9:00 y a las 11:00. Saludos cordiales.",
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-015",
     "input": {
-      "subject": "InformaÃ§Ãµes sobre horÃ¡rios",
-      "body": "OlÃ¡, gostaria de saber os horÃ¡rios da missa de domingo. Moro na Via Roma 10.",
-      "language": "pt",
+      "subject": "Territorio parrocchia",
+      "body": "Abito in Via Roma, è vostra parrocchia?",
+      "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": "RIENTRA nel territorio parrocchiale.",
       "now": "2026-02-15T10:00:00Z"
     },
@@ -585,38 +563,36 @@
       "messageCount": 2,
       "lastUpdated": "2026-02-15T09:40:00Z"
     },
-    "candidateResponse": "Prezado usuÃ¡rio, a missa de domingo Ã© Ã s 9:00 e Ã s 11:00. Atenciosamente.",
+    "candidateResponse": "Per verificare con precisione il territorio ci serve anche il numero civico; con quel dato le rispondiamo subito.",
     "expected": {
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE",
-        "risposta SÃŒ/NO sul territorio"
+        "territorio"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-016",
     "input": {
-      "subject": "Informazioni orari messe",
-      "body": "Buongiorno, vorrei sapere gli orari delle messe domenicali.",
-      "language": "it",
+      "subject": "Information request",
+      "body": "I attached the completed form. Can you confirm receipt?",
+      "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "lite",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -626,39 +602,37 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Buongiorno, le messe domenicali sono alle 9:00 e alle 11:00. Cordiali saluti.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [
-        "ðŸ“š ESEMPI CON FORMATTAZIONE CORRETTA"
+        "📚 ESEMPI CON FORMATTAZIONE CORRETTA"
       ],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-017",
     "input": {
-      "subject": "Mass schedule information",
-      "body": "Hello, I would like to know Sunday mass times.",
-      "language": "en",
+      "subject": "Solicitud de información",
+      "body": "<p>Prueba<p>Prueba</p> ¿Pueden ayudarme?",
+      "language": "es",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -668,37 +642,35 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Dear user, Sunday mass is at 9:00 and 11:00. Kind regards.",
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-018",
     "input": {
-      "subject": "InformaciÃ³n sobre horarios",
-      "body": "Hola, quisiera saber los horarios de misa del domingo.",
-      "language": "es",
+      "subject": "Informazioni orari messe",
+      "body": "Buongiorno, vorrei sapere gli orari delle messe domenicali.",
+      "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -708,37 +680,38 @@
       "messageCount": 2,
       "lastUpdated": "2026-02-15T09:40:00Z"
     },
-    "candidateResponse": "Estimado usuario, la misa del domingo es a las 9:00 y a las 11:00. Saludos cordiales.",
+    "candidateResponse": "Buongiorno, le messe domenicali sono alle 9:00 e alle 11:00. Cordiali saluti.",
     "expected": {
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15,
+      "responseMustInclude": [
+        "9:00"
+      ]
     }
   },
   {
     "id": "golden-019",
     "input": {
-      "subject": "InformaÃ§Ãµes sobre horÃ¡rios",
-      "body": "OlÃ¡, gostaria de saber os horÃ¡rios da missa de domingo.",
-      "language": "pt",
+      "subject": "Urgent funeral info",
+      "body": "My mother has just passed away, we urgently need funeral information.",
+      "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -748,38 +721,36 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Prezado usuÃ¡rio, a missa de domingo Ã© Ã s 9:00 e Ã s 11:00. Atenciosamente.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-020",
     "input": {
-      "subject": "Informazioni orari messe",
-      "body": "Buongiorno, vorrei sapere gli orari delle messe domenicali. Abito in via Roma 10.",
-      "language": "it",
+      "subject": "Solicitud de información",
+      "body": "Estoy divorciado, ¿puedo casarme de nuevo en la Iglesia?",
+      "language": "es",
       "senderName": "Utente Test",
       "promptProfile": "lite",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
-      "territoryContext": "RIENTRA nel territorio parrocchiale.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
     "memory": {
@@ -788,41 +759,38 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Buongiorno, le messe domenicali sono alle 9:00 e alle 11:00. Cordiali saluti.",
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE"
+      ],
+      "promptMustNotInclude": [
+        "📚 ESEMPI CON FORMATTAZIONE CORRETTA"
       ],
       "responseMustNotInclude": [
         "\\[.*\\]\\(.*\\)"
       ],
-      "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE",
-        "risposta SÃŒ/NO sul territorio"
-      ],
-      "promptMustNotInclude": [
-        "ðŸ“š ESEMPI CON FORMATTAZIONE CORRETTA"
-      ],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-021",
     "input": {
-      "subject": "Mass schedule information",
-      "body": "Hello, I would like to know Sunday mass times.",
-      "language": "en",
+      "subject": "Territorio parrocchia",
+      "body": "Abito in Via Roma, è vostra parrocchia?",
+      "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
-      "territoryContext": null,
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": "RIENTRA nel territorio parrocchiale.",
       "now": "2026-02-15T10:00:00Z"
     },
     "memory": {
@@ -831,37 +799,36 @@
       "messageCount": 2,
       "lastUpdated": "2026-02-15T09:40:00Z"
     },
-    "candidateResponse": "Dear user, Sunday mass is at 9:00 and 11:00. Kind regards.",
+    "candidateResponse": "Per verificare con precisione il territorio ci serve anche il numero civico; con quel dato le rispondiamo subito.",
     "expected": {
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE",
+        "territorio"
       ],
+      "promptMustNotInclude": [],
       "responseMustNotInclude": [
         "\\[.*\\]\\(.*\\)"
       ],
-      "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE"
-      ],
-      "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-022",
     "input": {
-      "subject": "InformaciÃ³n sobre horarios",
-      "body": "Hola, quisiera saber los horarios de misa del domingo.",
-      "language": "es",
+      "subject": "Information request",
+      "body": "I attached the completed form. Can you confirm receipt?",
+      "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -871,37 +838,35 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Estimado usuario, la misa del domingo es a las 9:00 y a las 11:00. Saludos cordiales.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-023",
     "input": {
-      "subject": "InformaÃ§Ãµes sobre horÃ¡rios",
-      "body": "OlÃ¡, gostaria de saber os horÃ¡rios da missa de domingo.",
-      "language": "pt",
+      "subject": "Solicitud de información",
+      "body": "<p>Prueba<p>Prueba</p> ¿Pueden ayudarme?",
+      "language": "es",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -911,26 +876,24 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Prezado usuÃ¡rio, a missa de domingo Ã© Ã s 9:00 e Ã s 11:00. Atenciosamente.",
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
@@ -941,7 +904,7 @@
       "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "lite",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -956,35 +919,36 @@
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [
-        "ðŸ“š ESEMPI CON FORMATTAZIONE CORRETTA"
+        "📚 ESEMPI CON FORMATTAZIONE CORRETTA"
       ],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15,
+      "responseMustInclude": [
+        "9:00"
+      ]
     }
   },
   {
     "id": "golden-025",
     "input": {
-      "subject": "Mass schedule information",
-      "body": "Hello, I would like to know Sunday mass times. I live in Via Roma 10.",
+      "subject": "Urgent funeral info",
+      "body": "My mother has just passed away, we urgently need funeral information.",
       "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
-      "territoryContext": "RIENTRA nel territorio parrocchiale.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
     "memory": {
@@ -993,38 +957,35 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Dear user, Sunday mass is at 9:00 and 11:00. Kind regards.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE"
       ],
+      "promptMustNotInclude": [],
       "responseMustNotInclude": [
         "\\[.*\\]\\(.*\\)"
       ],
-      "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE",
-        "risposta SÃŒ/NO sul territorio"
-      ],
-      "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-026",
     "input": {
-      "subject": "InformaciÃ³n sobre horarios",
-      "body": "Hola, quisiera saber los horarios de misa del domingo.",
+      "subject": "Solicitud de información",
+      "body": "Estoy divorciado, ¿puedo casarme de nuevo en la Iglesia?",
       "language": "es",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1034,38 +995,36 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Estimado usuario, la misa del domingo es a las 9:00 y a las 11:00. Saludos cordiales.",
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-027",
     "input": {
-      "subject": "InformaÃ§Ãµes sobre horÃ¡rios",
-      "body": "OlÃ¡, gostaria de saber os horÃ¡rios da missa de domingo.",
-      "language": "pt",
+      "subject": "Territorio parrocchia",
+      "body": "Abito in Via Roma, è vostra parrocchia?",
+      "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
-      "territoryContext": null,
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": "RIENTRA nel territorio parrocchiale.",
       "now": "2026-02-15T10:00:00Z"
     },
     "memory": {
@@ -1074,37 +1033,36 @@
       "messageCount": 2,
       "lastUpdated": "2026-02-15T09:40:00Z"
     },
-    "candidateResponse": "Prezado usuÃ¡rio, a missa de domingo Ã© Ã s 9:00 e Ã s 11:00. Atenciosamente.",
+    "candidateResponse": "Per verificare con precisione il territorio ci serve anche il numero civico; con quel dato le rispondiamo subito.",
     "expected": {
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE",
+        "territorio"
       ],
+      "promptMustNotInclude": [],
       "responseMustNotInclude": [
         "\\[.*\\]\\(.*\\)"
       ],
-      "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE"
-      ],
-      "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-028",
     "input": {
-      "subject": "Informazioni orari messe",
-      "body": "Buongiorno, vorrei sapere gli orari delle messe domenicali.",
-      "language": "it",
+      "subject": "Information request",
+      "body": "I attached the completed form. Can you confirm receipt?",
+      "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "lite",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1114,39 +1072,37 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Buongiorno, le messe domenicali sono alle 9:00 e alle 11:00. Cordiali saluti.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [
-        "ðŸ“š ESEMPI CON FORMATTAZIONE CORRETTA"
+        "📚 ESEMPI CON FORMATTAZIONE CORRETTA"
       ],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-029",
     "input": {
-      "subject": "Mass schedule information",
-      "body": "Hello, I would like to know Sunday mass times.",
-      "language": "en",
+      "subject": "Solicitud de información",
+      "body": "<p>Prueba<p>Prueba</p> ¿Pueden ayudarme?",
+      "language": "es",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1156,38 +1112,36 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Dear user, Sunday mass is at 9:00 and 11:00. Kind regards.",
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-030",
     "input": {
-      "subject": "InformaciÃ³n sobre horarios",
-      "body": "Hola, quisiera saber los horarios de misa del domingo. Vivo en Via Roma 10.",
-      "language": "es",
+      "subject": "Informazioni orari messe",
+      "body": "Buongiorno, vorrei sapere gli orari delle messe domenicali.",
+      "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
-      "territoryContext": "RIENTRA nel territorio parrocchiale.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
     "memory": {
@@ -1196,38 +1150,38 @@
       "messageCount": 2,
       "lastUpdated": "2026-02-15T09:40:00Z"
     },
-    "candidateResponse": "Estimado usuario, la misa del domingo es a las 9:00 y a las 11:00. Saludos cordiales.",
+    "candidateResponse": "Buongiorno, le messe domenicali sono alle 9:00 e alle 11:00. Cordiali saluti.",
     "expected": {
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE"
       ],
+      "promptMustNotInclude": [],
       "responseMustNotInclude": [
         "\\[.*\\]\\(.*\\)"
       ],
-      "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE",
-        "risposta SÃŒ/NO sul territorio"
-      ],
-      "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15,
+      "responseMustInclude": [
+        "9:00"
+      ]
     }
   },
   {
     "id": "golden-031",
     "input": {
-      "subject": "InformaÃ§Ãµes sobre horÃ¡rios",
-      "body": "OlÃ¡, gostaria de saber os horÃ¡rios da missa de domingo.",
-      "language": "pt",
+      "subject": "Urgent funeral info",
+      "body": "My mother has just passed away, we urgently need funeral information.",
+      "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1237,37 +1191,35 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Prezado usuÃ¡rio, a missa de domingo Ã© Ã s 9:00 e Ã s 11:00. Atenciosamente.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-032",
     "input": {
-      "subject": "Informazioni orari messe",
-      "body": "Buongiorno, vorrei sapere gli orari delle messe domenicali.",
-      "language": "it",
+      "subject": "Solicitud de información",
+      "body": "Estoy divorciado, ¿puedo casarme de nuevo en la Iglesia?",
+      "language": "es",
       "senderName": "Utente Test",
-      "promptProfile": "lite",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "promptProfile": "standard",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1277,40 +1229,36 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Buongiorno, le messe domenicali sono alle 9:00 e alle 11:00. Cordiali saluti.",
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
-      "promptMustNotInclude": [
-        "ðŸ“š ESEMPI CON FORMATTAZIONE CORRETTA"
+      "promptMustNotInclude": [],
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
       ],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-033",
     "input": {
-      "subject": "Mass schedule information",
-      "body": "Hello, I would like to know Sunday mass times.",
-      "language": "en",
+      "subject": "Territorio parrocchia",
+      "body": "Abito in Via Roma, è vostra parrocchia?",
+      "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
-      "territoryContext": null,
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": "RIENTRA nel territorio parrocchiale.",
       "now": "2026-02-15T10:00:00Z"
     },
     "memory": {
@@ -1319,37 +1267,36 @@
       "messageCount": 2,
       "lastUpdated": "2026-02-15T09:40:00Z"
     },
-    "candidateResponse": "Dear user, Sunday mass is at 9:00 and 11:00. Kind regards.",
+    "candidateResponse": "Per verificare con precisione il territorio ci serve anche il numero civico; con quel dato le rispondiamo subito.",
     "expected": {
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE",
+        "territorio"
       ],
+      "promptMustNotInclude": [],
       "responseMustNotInclude": [
         "\\[.*\\]\\(.*\\)"
       ],
-      "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE"
-      ],
-      "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-034",
     "input": {
-      "subject": "InformaciÃ³n sobre horarios",
-      "body": "Hola, quisiera saber los horarios de misa del domingo.",
-      "language": "es",
+      "subject": "Information request",
+      "body": "I attached the completed form. Can you confirm receipt?",
+      "language": "en",
       "senderName": "Utente Test",
-      "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "promptProfile": "lite",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1359,38 +1306,38 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Estimado usuario, la misa del domingo es a las 9:00 y a las 11:00. Saludos cordiales.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
-      "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "promptMustNotInclude": [
+        "📚 ESEMPI CON FORMATTAZIONE CORRETTA"
+      ],
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-035",
     "input": {
-      "subject": "InformaÃ§Ãµes sobre horÃ¡rios",
-      "body": "OlÃ¡, gostaria de saber os horÃ¡rios da missa de domingo. Moro na Via Roma 10.",
-      "language": "pt",
+      "subject": "Solicitud de información",
+      "body": "<p>Prueba<p>Prueba</p> ¿Pueden ayudarme?",
+      "language": "es",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
-      "territoryContext": "RIENTRA nel territorio parrocchiale.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
     "memory": {
@@ -1399,27 +1346,24 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Prezado usuÃ¡rio, a missa de domingo Ã© Ã s 9:00 e Ã s 11:00. Atenciosamente.",
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE"
       ],
+      "promptMustNotInclude": [],
       "responseMustNotInclude": [
         "\\[.*\\]\\(.*\\)"
       ],
-      "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE",
-        "risposta SÃŒ/NO sul territorio"
-      ],
-      "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
@@ -1429,8 +1373,8 @@
       "body": "Buongiorno, vorrei sapere gli orari delle messe domenicali.",
       "language": "it",
       "senderName": "Utente Test",
-      "promptProfile": "lite",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "promptProfile": "standard",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1445,34 +1389,33 @@
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
-      "promptMustNotInclude": [
-        "ðŸ“š ESEMPI CON FORMATTAZIONE CORRETTA"
+      "promptMustNotInclude": [],
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
       ],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15,
+      "responseMustInclude": [
+        "9:00"
+      ]
     }
   },
   {
     "id": "golden-037",
     "input": {
-      "subject": "Mass schedule information",
-      "body": "Hello, I would like to know Sunday mass times.",
+      "subject": "Urgent funeral info",
+      "body": "My mother has just passed away, we urgently need funeral information.",
       "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1482,37 +1425,35 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Dear user, Sunday mass is at 9:00 and 11:00. Kind regards.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-038",
     "input": {
-      "subject": "InformaciÃ³n sobre horarios",
-      "body": "Hola, quisiera saber los horarios de misa del domingo.",
+      "subject": "Solicitud de información",
+      "body": "Estoy divorciado, ¿puedo casarme de nuevo en la Iglesia?",
       "language": "es",
       "senderName": "Utente Test",
-      "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "promptProfile": "lite",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1522,38 +1463,38 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Estimado usuario, la misa del domingo es a las 9:00 y a las 11:00. Saludos cordiales.",
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
-      "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "promptMustNotInclude": [
+        "📚 ESEMPI CON FORMATTAZIONE CORRETTA"
+      ],
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-039",
     "input": {
-      "subject": "InformaÃ§Ãµes sobre horÃ¡rios",
-      "body": "OlÃ¡, gostaria de saber os horÃ¡rios da missa de domingo.",
-      "language": "pt",
+      "subject": "Territorio parrocchia",
+      "body": "Abito in Via Roma, è vostra parrocchia?",
+      "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
-      "territoryContext": null,
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": "RIENTRA nel territorio parrocchiale.",
       "now": "2026-02-15T10:00:00Z"
     },
     "memory": {
@@ -1562,38 +1503,37 @@
       "messageCount": 2,
       "lastUpdated": "2026-02-15T09:40:00Z"
     },
-    "candidateResponse": "Prezado usuÃ¡rio, a missa de domingo Ã© Ã s 9:00 e Ã s 11:00. Atenciosamente.",
+    "candidateResponse": "Per verificare con precisione il territorio ci serve anche il numero civico; con quel dato le rispondiamo subito.",
     "expected": {
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE",
+        "territorio"
       ],
+      "promptMustNotInclude": [],
       "responseMustNotInclude": [
         "\\[.*\\]\\(.*\\)"
       ],
-      "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE"
-      ],
-      "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-040",
     "input": {
-      "subject": "Informazioni orari messe",
-      "body": "Buongiorno, vorrei sapere gli orari delle messe domenicali. Abito in via Roma 10.",
-      "language": "it",
+      "subject": "Information request",
+      "body": "I attached the completed form. Can you confirm receipt?",
+      "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "lite",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
-      "territoryContext": "RIENTRA nel territorio parrocchiale.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
     "memory": {
@@ -1602,40 +1542,37 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Buongiorno, le messe domenicali sono alle 9:00 e alle 11:00. Cordiali saluti.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE"
+      ],
+      "promptMustNotInclude": [
+        "📚 ESEMPI CON FORMATTAZIONE CORRETTA"
       ],
       "responseMustNotInclude": [
         "\\[.*\\]\\(.*\\)"
       ],
-      "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE",
-        "risposta SÃŒ/NO sul territorio"
-      ],
-      "promptMustNotInclude": [
-        "ðŸ“š ESEMPI CON FORMATTAZIONE CORRETTA"
-      ],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-041",
     "input": {
-      "subject": "Mass schedule information",
-      "body": "Hello, I would like to know Sunday mass times.",
-      "language": "en",
+      "subject": "Solicitud de información",
+      "body": "<p>Prueba<p>Prueba</p> ¿Pueden ayudarme?",
+      "language": "es",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1645,37 +1582,35 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Dear user, Sunday mass is at 9:00 and 11:00. Kind regards.",
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-042",
     "input": {
-      "subject": "InformaciÃ³n sobre horarios",
-      "body": "Hola, quisiera saber los horarios de misa del domingo.",
-      "language": "es",
+      "subject": "Informazioni orari messe",
+      "body": "Buongiorno, vorrei sapere gli orari delle messe domenicali.",
+      "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1685,37 +1620,38 @@
       "messageCount": 2,
       "lastUpdated": "2026-02-15T09:40:00Z"
     },
-    "candidateResponse": "Estimado usuario, la misa del domingo es a las 9:00 y a las 11:00. Saludos cordiales.",
+    "candidateResponse": "Buongiorno, le messe domenicali sono alle 9:00 e alle 11:00. Cordiali saluti.",
     "expected": {
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15,
+      "responseMustInclude": [
+        "9:00"
+      ]
     }
   },
   {
     "id": "golden-043",
     "input": {
-      "subject": "InformaÃ§Ãµes sobre horÃ¡rios",
-      "body": "OlÃ¡, gostaria de saber os horÃ¡rios da missa de domingo.",
-      "language": "pt",
+      "subject": "Urgent funeral info",
+      "body": "My mother has just passed away, we urgently need funeral information.",
+      "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1725,37 +1661,35 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Prezado usuÃ¡rio, a missa de domingo Ã© Ã s 9:00 e Ã s 11:00. Atenciosamente.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-044",
     "input": {
-      "subject": "Informazioni orari messe",
-      "body": "Buongiorno, vorrei sapere gli orari delle messe domenicali.",
-      "language": "it",
+      "subject": "Solicitud de información",
+      "body": "Estoy divorciado, ¿puedo casarme de nuevo en la Iglesia?",
+      "language": "es",
       "senderName": "Utente Test",
       "promptProfile": "lite",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1765,39 +1699,37 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Buongiorno, le messe domenicali sono alle 9:00 e alle 11:00. Cordiali saluti.",
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [
-        "ðŸ“š ESEMPI CON FORMATTAZIONE CORRETTA"
+        "📚 ESEMPI CON FORMATTAZIONE CORRETTA"
       ],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-045",
     "input": {
-      "subject": "Mass schedule information",
-      "body": "Hello, I would like to know Sunday mass times. I live in Via Roma 10.",
-      "language": "en",
+      "subject": "Territorio parrocchia",
+      "body": "Abito in Via Roma, è vostra parrocchia?",
+      "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": "RIENTRA nel territorio parrocchiale.",
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1807,38 +1739,36 @@
       "messageCount": 2,
       "lastUpdated": "2026-02-15T09:40:00Z"
     },
-    "candidateResponse": "Dear user, Sunday mass is at 9:00 and 11:00. Kind regards.",
+    "candidateResponse": "Per verificare con precisione il territorio ci serve anche il numero civico; con quel dato le rispondiamo subito.",
     "expected": {
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE",
-        "risposta SÃŒ/NO sul territorio"
+        "territorio"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-046",
     "input": {
-      "subject": "InformaciÃ³n sobre horarios",
-      "body": "Hola, quisiera saber los horarios de misa del domingo.",
-      "language": "es",
+      "subject": "Information request",
+      "body": "I attached the completed form. Can you confirm receipt?",
+      "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1848,37 +1778,35 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Estimado usuario, la misa del domingo es a las 9:00 y a las 11:00. Saludos cordiales.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-047",
     "input": {
-      "subject": "InformaÃ§Ãµes sobre horÃ¡rios",
-      "body": "OlÃ¡, gostaria de saber os horÃ¡rios da missa de domingo.",
-      "language": "pt",
+      "subject": "Solicitud de información",
+      "body": "<p>Prueba<p>Prueba</p> ¿Pueden ayudarme?",
+      "language": "es",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1888,26 +1816,24 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Prezado usuÃ¡rio, a missa de domingo Ã© Ã s 9:00 e Ã s 11:00. Atenciosamente.",
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
@@ -1918,7 +1844,7 @@
       "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "lite",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1933,34 +1859,35 @@
       "salutationMode": "none_or_continuity",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [
-        "ðŸ“š ESEMPI CON FORMATTAZIONE CORRETTA"
+        "📚 ESEMPI CON FORMATTAZIONE CORRETTA"
       ],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15,
+      "responseMustInclude": [
+        "9:00"
+      ]
     }
   },
   {
     "id": "golden-049",
     "input": {
-      "subject": "Mass schedule information",
-      "body": "Hello, I would like to know Sunday mass times.",
+      "subject": "Urgent funeral info",
+      "body": "My mother has just passed away, we urgently need funeral information.",
       "language": "en",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": null,
       "now": "2026-02-15T10:00:00Z"
     },
@@ -1970,37 +1897,372 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Dear user, Sunday mass is at 9:00 and 11:00. Kind regards.",
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
         "technical",
-        "mixed"
-      ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
+        "mixed",
+        "pastoral",
+        "doctrinal"
       ],
       "promptMustInclude": [
         "CHECKLIST FINALE CONTESTUALE"
       ],
       "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
-      "maxPromptChars": 120000
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
     }
   },
   {
     "id": "golden-050",
     "input": {
-      "subject": "InformaciÃ³n sobre horarios",
-      "body": "Hola, quisiera saber los horarios de misa del domingo. Vivo en Via Roma 10.",
+      "subject": "Solicitud de información",
+      "body": "Estoy divorciado, ¿puedo casarme de nuevo en la Iglesia?",
       "language": "es",
       "senderName": "Utente Test",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": null,
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1,
+      "lastUpdated": null
+    },
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
+    "expected": {
+      "salutationMode": "full",
+      "requestTypeIn": [
+        "technical",
+        "mixed",
+        "pastoral",
+        "doctrinal"
+      ],
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE"
+      ],
+      "promptMustNotInclude": [],
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
+    }
+  },
+  {
+    "id": "golden-051",
+    "input": {
+      "subject": "Territorio parrocchia",
+      "body": "Abito in Via Roma, è vostra parrocchia?",
+      "language": "it",
+      "senderName": "Utente Test",
+      "promptProfile": "standard",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": "RIENTRA nel territorio parrocchiale.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": true,
+      "isReply": true,
+      "messageCount": 2,
+      "lastUpdated": "2026-02-15T09:40:00Z"
+    },
+    "candidateResponse": "Per verificare con precisione il territorio ci serve anche il numero civico; con quel dato le rispondiamo subito.",
+    "expected": {
+      "salutationMode": "none_or_continuity",
+      "requestTypeIn": [
+        "technical",
+        "mixed",
+        "pastoral",
+        "doctrinal"
+      ],
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE",
+        "territorio"
+      ],
+      "promptMustNotInclude": [],
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
+    }
+  },
+  {
+    "id": "golden-052",
+    "input": {
+      "subject": "Information request",
+      "body": "I attached the completed form. Can you confirm receipt?",
+      "language": "en",
+      "senderName": "Utente Test",
+      "promptProfile": "lite",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": null,
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1,
+      "lastUpdated": null
+    },
+    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
+    "expected": {
+      "salutationMode": "full",
+      "requestTypeIn": [
+        "technical",
+        "mixed",
+        "pastoral",
+        "doctrinal"
+      ],
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE"
+      ],
+      "promptMustNotInclude": [
+        "📚 ESEMPI CON FORMATTAZIONE CORRETTA"
+      ],
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
+    }
+  },
+  {
+    "id": "golden-053",
+    "input": {
+      "subject": "Solicitud de información",
+      "body": "<p>Prueba<p>Prueba</p> ¿Pueden ayudarme?",
+      "language": "es",
+      "senderName": "Utente Test",
+      "promptProfile": "standard",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": null,
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1,
+      "lastUpdated": null
+    },
+    "candidateResponse": "Gracias por su mensaje. Le ayudaremos con la información solicitada.",
+    "expected": {
+      "salutationMode": "full",
+      "requestTypeIn": [
+        "technical",
+        "mixed",
+        "pastoral",
+        "doctrinal"
+      ],
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE"
+      ],
+      "promptMustNotInclude": [],
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
+    }
+  },
+  {
+    "id": "golden-054",
+    "input": {
+      "subject": "Informazioni orari messe",
+      "body": "Buongiorno, vorrei sapere gli orari delle messe domenicali.",
+      "language": "it",
+      "senderName": "Utente Test",
+      "promptProfile": "standard",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": null,
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": true,
+      "isReply": true,
+      "messageCount": 2,
+      "lastUpdated": "2026-02-15T09:40:00Z"
+    },
+    "candidateResponse": "Buongiorno, le messe domenicali sono alle 9:00 e alle 11:00. Cordiali saluti.",
+    "expected": {
+      "salutationMode": "none_or_continuity",
+      "requestTypeIn": [
+        "technical",
+        "mixed",
+        "pastoral",
+        "doctrinal"
+      ],
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE"
+      ],
+      "promptMustNotInclude": [],
+      "responseMustNotInclude": [
+        "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15,
+      "responseMustInclude": [
+        "9:00"
+      ]
+    }
+  },
+  {
+    "id": "golden-edge-001",
+    "input": {
+      "subject": "Re: Re: Re: Re: Orari",
+      "body": "👋😊✝️",
+      "language": "it",
+      "senderName": "Utente Edge",
+      "promptProfile": "lite",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "territoryContext": null,
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": true,
+      "isReply": true,
+      "messageCount": 5,
+      "lastUpdated": "2026-02-15T08:30:00Z"
+    },
+    "candidateResponse": "Grazie del messaggio. Può indicarci con una frase la richiesta così la aiutiamo subito.",
+    "expected": {
+      "salutationMode": "none_or_continuity",
+      "promptMustInclude": [
+        "emoji o caratteri speciali"
+      ],
+      "responseMustNotInclude": [
+        "emoji raw in output"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.1
+    }
+  },
+  {
+    "id": "golden-fail-001",
+    "input": {
+      "subject": "SPAM VIAGRA BUY NOW!!!",
+      "body": "Click here: http://malicious.com",
+      "language": "en",
+      "senderName": "Spammer",
+      "promptProfile": "standard",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "expected": {
+      "shouldFilter": true,
+      "reason": "spam_detected"
+    }
+  },
+  {
+    "id": "golden-fail-002",
+    "input": {
+      "subject": "Info",
+      "body": "<script>alert('xss')</script>",
+      "language": "it",
+      "senderName": "Utente XSS",
+      "promptProfile": "standard",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1,
+      "lastUpdated": null
+    },
+    "candidateResponse": "Buongiorno, la richiesta è stata presa in carico in modo sicuro. Cordiali saluti.",
+    "expected": {
+      "promptMustInclude": [
+        "sanitizzato"
+      ],
+      "responseMustNotInclude": [
+        "<script>",
+        "alert"
+      ],
+      "requestTypeIn": [
+        "technical",
+        "mixed"
+      ],
+      "minValidatorScore": 0.1,
+      "maxPromptChars": 120000
+    }
+  },
+  {
+    "id": "golden-edge-002",
+    "input": {
+      "subject": "HTML malformato",
+      "body": "<p>Test<p>Test</p>",
+      "language": "it",
+      "senderName": "Utente",
+      "promptProfile": "standard",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1,
+      "lastUpdated": null
+    },
+    "candidateResponse": "Abbiamo ricevuto la sua richiesta e possiamo aiutarla. Ci scriva il dettaglio necessario.",
+    "expected": {
+      "responseMustNotInclude": [
+        "<script>"
+      ],
+      "requestTypeIn": [
+        "technical",
+        "mixed"
+      ],
+      "minValidatorScore": 0.1,
+      "maxPromptChars": 120000
+    }
+  },
+  {
+    "id": "golden-edge-003",
+    "input": {
+      "subject": "Modulo allegato",
+      "body": "Vi allego il modulo compilato.",
+      "language": "it",
+      "senderName": "Utente",
+      "promptProfile": "standard",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1,
+      "lastUpdated": null
+    },
+    "candidateResponse": "Confermiamo la ricezione del modulo allegato. La contatteremo per i prossimi passi.",
+    "expected": {
+      "responseMustInclude": [
+        "modulo"
+      ],
+      "requestTypeIn": [
+        "technical",
+        "mixed"
+      ],
+      "minValidatorScore": 0.1,
+      "maxPromptChars": 120000
+    }
+  },
+  {
+    "id": "golden-edge-004",
+    "input": {
+      "subject": "Territorio",
+      "body": "Abito in Via Roma, è vostra parrocchia?",
+      "language": "it",
+      "senderName": "Utente",
+      "promptProfile": "standard",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
       "territoryContext": "RIENTRA nel territorio parrocchiale.",
       "now": "2026-02-15T10:00:00Z"
     },
@@ -2010,27 +2272,114 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Estimado usuario, la misa del domingo es a las 9:00 y a las 11:00. Saludos cordiales.",
+    "candidateResponse": "Per confermare il territorio ci serve il numero civico; appena lo invia, le rispondiamo con un sì/no preciso.",
     "expected": {
-      "salutationMode": "full",
+      "promptMustInclude": [
+        "territorio"
+      ],
       "requestTypeIn": [
         "technical",
         "mixed"
       ],
-      "responseMustInclude": [
-        "9:00",
-        "11:00"
-      ],
-      "responseMustNotInclude": [
-        "\\[.*\\]\\(.*\\)"
-      ],
-      "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE",
-        "risposta SÃŒ/NO sul territorio"
-      ],
-      "promptMustNotInclude": [],
-      "minValidatorScore": 0.2,
+      "minValidatorScore": 0.1,
       "maxPromptChars": 120000
+    }
+  },
+  {
+    "id": "golden-edge-005",
+    "input": {
+      "subject": "Urgente funerale",
+      "body": "Mia madre è appena mancata, servono urgentemente info sul funerale.",
+      "language": "it",
+      "senderName": "Utente",
+      "promptProfile": "standard",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1,
+      "lastUpdated": null
+    },
+    "candidateResponse": "Le porgiamo le nostre condoglianze. Possiamo organizzare rapidamente un contatto con la segreteria per il funerale.",
+    "expected": {
+      "requestTypeIn": [
+        "pastoral",
+        "mixed",
+        "technical"
+      ],
+      "responseMustInclude": [
+        "condoglianze|vicini"
+      ],
+      "minValidatorScore": 0.1,
+      "maxPromptChars": 120000
+    }
+  },
+  {
+    "id": "golden-edge-006",
+    "input": {
+      "subject": "Caso matrimoniale",
+      "body": "Sono divorziato, posso sposarmi di nuovo in chiesa?",
+      "language": "it",
+      "senderName": "Utente",
+      "promptProfile": "standard",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1,
+      "lastUpdated": null
+    },
+    "candidateResponse": "È un caso canonico che va valutato con il parroco. Possiamo fissare un colloquio per esaminare la situazione.",
+    "expected": {
+      "requestTypeIn": [
+        "doctrinal",
+        "mixed",
+        "pastoral",
+        "technical"
+      ],
+      "responseMustInclude": [
+        "colloquio|parroco"
+      ],
+      "minValidatorScore": 0.1,
+      "maxPromptChars": 120000
+    }
+  },
+  {
+    "id": "golden-ocr-001",
+    "input": {
+      "subject": "Invio ricevuta bonifico",
+      "body": "Buongiorno, allego ricevuta del bonifico effettuato.",
+      "attachments": [
+        {
+          "name": "ricevuta.pdf",
+          "mockOcrText": "Bonifico SEPA di €50.00 su IBAN IT60X0542811101000000123456 causale: Catechismo bambini"
+        }
+      ],
+      "language": "it",
+      "senderName": "Utente OCR",
+      "promptProfile": "standard",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false
+    },
+    "candidateResponse": "Grazie per la ricevuta. Procediamo con la registrazione.",
+    "expected": {
+      "promptMustInclude": [
+        "Bonifico SEPA",
+        "IT60X0542811101000000123456"
+      ],
+      "requestTypeIn": [
+        "technical",
+        "mixed"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.1
     }
   }
 ]

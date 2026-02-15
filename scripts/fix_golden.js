@@ -1,37 +1,19 @@
 const fs = require('fs');
 
 try {
-    let raw = fs.readFileSync('tests/golden_cases.json', 'utf8');
-    // Strip BOM if present
-    raw = raw.replace(/^\uFEFF/, '');
-    const data = JSON.parse(raw);
+    const partA = JSON.parse(fs.readFileSync('tests/golden_part_a.json', 'utf8').replace(/^\uFEFF/, ''));
+    const partB = JSON.parse(fs.readFileSync('tests/golden_part_b.json', 'utf8').replace(/^\uFEFF/, ''));
 
-    let flat = [];
-    if (Array.isArray(data)) {
-        data.forEach(item => {
-            if (item.value && Array.isArray(item.value)) {
-                flat.push(...item.value);
-            } else if (Array.isArray(item)) {
-                flat.push(...item);
-            } else {
-                flat.push(item);
-            }
-        });
-    }
+    const merged = [...partA, ...partB];
 
-    console.log(`Read ${data.length} items/groups. Flattened to ${flat.length} cases.`);
+    console.log(`Part A: ${partA.length} cases`);
+    console.log(`Part B: ${partB.length} cases`);
+    console.log(`Merged: ${merged.length} cases`);
 
-    if (flat.length === 50) {
-        fs.writeFileSync('tests/golden_cases.json', JSON.stringify(flat, null, 2));
-        console.log('Fixed tests/golden_cases.json');
-    } else {
-        console.error('Unexpected count after flattening:', flat.length);
-        // Fallback: maybe data IS the flat array?
-        // Check first item.
-        if (data[0] && data[0].id === 'golden-001') {
-            console.log('Data seems already correct?');
-        }
-    }
+    fs.writeFileSync('tests/golden_cases.json', JSON.stringify(merged, null, 2));
+    console.log('Successfully created tests/golden_cases.json');
+
 } catch (e) {
-    console.error('Error fixing golden cases:', e);
+    console.error('Error merging golden cases:', e);
+    process.exit(1);
 }
