@@ -217,6 +217,13 @@ class GmailService {
       recipientEmail = Session.getActiveUser().getEmail();
     }
 
+    let recipientCc = '';
+    try {
+      recipientCc = message.getCc() || '';
+    } catch (e) {
+      recipientCc = '';
+    }
+
     return {
       id: messageId,
       subject: subject,
@@ -230,6 +237,7 @@ class GmailService {
       rfc2822MessageId: rfc2822MessageId,
       existingReferences: existingReferences,
       recipientEmail: recipientEmail,
+      recipientCc: recipientCc,
       headers: headers,
       isNewsletter: isNewsletter
     };
@@ -760,27 +768,38 @@ class GmailService {
         // From stabile: usa sempre l'account attivo (evita errori "non autorizzato")
         const stableFrom = Session.getActiveUser().getEmail();
 
-        // Reply-To: indirizzo recipiente originale (se diverso, gestisce alias)
-        let replyToEmail = stableFrom;
-        const fromEmailRaw = messageDetails.recipientEmail || '';
-        if (fromEmailRaw) {
-          const emailRegex = /\b[A-Za-z0-9](?:[A-Za-z0-9._%+-]{0,64})@[A-Za-z0-9-]+\.[A-Za-z]{2,}\b/gi;
-          const matches = fromEmailRaw.match(emailRegex);
-          if (matches && matches.length > 0) {
-            replyToEmail = matches[0].replace(/[\r\n]+/g, '').trim();
-          }
+        // Reply-To: usa alias solo se presente in To/Cc del messaggio originale
+        let replyToEmail = null;
+        const recipientHeaders = `${messageDetails.recipientEmail || ''},${messageDetails.recipientCc || ''}`;
+        const emailRegex = /\b[A-Za-z0-9](?:[A-Za-z0-9._%+-]{0,64})@[A-Za-z0-9-]+\.[A-Za-z]{2,}\b/gi;
+        const recipientAddresses = (recipientHeaders.match(emailRegex) || [])
+          .map(addr => addr.replace(/[\r\n]+/g, '').trim().toLowerCase());
+        const knownAliases = (typeof CONFIG !== 'undefined' && CONFIG.KNOWN_ALIASES)
+          ? CONFIG.KNOWN_ALIASES.map(alias => (alias || '').toLowerCase())
+          : [];
+
+        const matchedAlias = recipientAddresses.find(addr => knownAliases.includes(addr));
+        if (matchedAlias && matchedAlias !== stableFrom.toLowerCase()) {
+          replyToEmail = matchedAlias;
         }
 
         const boundary = 'boundary_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
-        const rawMessage = [
+        const rawHeaders = [
           'MIME-Version: 1.0',
           `From: ${stableFrom}`,
-          `Reply-To: ${replyToEmail}`,
           `To: ${messageDetails.senderEmail}`,
           `Subject: =?UTF-8?B?${Utilities.base64Encode(replySubject, Utilities.Charset.UTF_8)}?=`,
           `In-Reply-To: ${messageDetails.rfc2822MessageId}`,
           `References: ${referencesHeader}`,
-          `Content-Type: multipart/alternative; boundary="${boundary}"`,
+          `Content-Type: multipart/alternative; boundary="${boundary}"`
+        ];
+
+        if (replyToEmail) {
+          rawHeaders.splice(2, 0, `Reply-To: ${replyToEmail}`);
+        }
+
+        const rawMessage = [
+          ...rawHeaders,
           '',
           `--${boundary}`,
           'Content-Type: text/plain; charset=UTF-8',

@@ -293,13 +293,16 @@ class EmailProcessor {
           ? (candidateDate - previousDate) <= 10 * 60 * 1000
           : false;
         const previousIsUs = myEmail ? previousSender.includes(myEmail.toLowerCase()) : false;
-        const hasQuestion = /\?/.test(messageDetails.body || '');
+        const candidateBody = messageDetails.body || '';
+        const candidateWords = candidateBody.trim().split(/\s+/).filter(Boolean);
+        const isShortClosureReply = candidateWords.length > 0 && candidateWords.length < 10 &&
+          /\b(grazie|ok|perfetto)\b/i.test(candidateBody);
 
-        if (previousIsUs && arrivedSoonAfterUs && !hasQuestion) {
-          console.log('   âŠ˜ Saltato: probabile risposta automatica (pattern temporale)');
+        if (previousIsUs && arrivedSoonAfterUs && isShortClosureReply) {
+          console.log('   âŠ˜ Saltato: risposta breve di chiusura (grazie/ok/perfetto)');
           this._markMessageAsProcessed(candidate);
           result.status = 'filtered';
-          result.reason = 'out_of_office';
+          result.reason = 'short_closure_reply';
           return result;
         }
       }
