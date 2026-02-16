@@ -86,8 +86,8 @@ const CONFIG = {
     LOGGING: {
         LEVEL: 'INFO',                     // DEBUG, INFO, WARN, ERROR
         STRUCTURED: true,                  // Log in formato JSON
-        SEND_ERROR_NOTIFICATIONS: false,   // Invia email per errori critici
-        ADMIN_EMAIL: 'admin@example.com'   // Email admin per notifiche
+        SEND_ERROR_NOTIFICATIONS: true,    // Invia email per errori critici
+        ADMIN_EMAIL: 'rasanfil@gmail.com'  // Email admin per notifiche
     },
 
     // === Modelli Gemini (configurazione centralizzata) ===

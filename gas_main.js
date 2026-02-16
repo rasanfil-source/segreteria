@@ -610,6 +610,7 @@ function _loadResourcesInternal() {
  * Eseguire ogni 5-15 minuti
  */
 function main() {
+  const logger = createLogger('Main');
   console.log('\n' + '═'.repeat(70));
   console.log('🚀 AVVIO ELABORAZIONE EMAIL');
   console.log('═'.repeat(70));
@@ -649,6 +650,7 @@ function main() {
           const originalLimit = CONFIG.MAX_EMAILS_PER_RUN;
           CONFIG.MAX_EMAILS_PER_RUN = Math.max(1, Math.floor(originalLimit / 2));
           console.warn(`🚨 SAFETY VALVE ATTIVA (quota RPD max: ${maxPercent}%): ridotto MAX_EMAILS_PER_RUN a ${CONFIG.MAX_EMAILS_PER_RUN}`);
+          logger.warn(`Safety Valve attiva: quota ${maxPercent}%`);
         }
       } catch (e) {
         console.warn(`⚠️ Errore calcolo Safety Valve: ${e.message}`);
@@ -676,6 +678,13 @@ function main() {
       console.error(`❌ Errore fatale: ${error.message}`);
       throw error;
     }
+  } catch (fatalError) {
+    // CATTURA ERRORI CRITICI E INVIA NOTIFICA
+    logger.error(`Errore Critico Sistema: ${fatalError.message}`, {
+      stack: fatalError.stack
+    });
+    console.error('🔥 CRASH SISTEMA GESTITO DALLA CATCH GLOBALE 🔥');
+    throw fatalError; // Rilancia per far fallire l'esecuzione in GAS Console
   } finally {
     // Rilascia sempre il lock globale
     try {
