@@ -8,6 +8,7 @@
 class TerritoryValidator {
     constructor(options = {}) {
         this.logger = options.logger || console;
+        this._streetTypePatternSource = this._buildStreetTypePatternSource();
         // Pre-compila le regex per riuso (ottimizzazione performance)
         this._addressPatterns = this._buildAddressPatterns();
         this._streetOnlyPattern = this._buildStreetOnlyPattern();
@@ -80,15 +81,53 @@ class TerritoryValidator {
     }
 
     /**
+     * Costruisce il pattern regex tollerante per i tipi strada.
+     * Esempi accettati: "Via", "V i a", "V.ia", "Vía".
+     */
+    _buildStreetTypePatternSource() {
+        return [
+            'v[\\s.]*[iìíï][\\s.]*a(?:[\\s.]*l[\\s.]*e)?', // via / viale
+            'p[\\s.]*[iìíï][\\s.]*a[\\s.]*z[\\s.]*z[\\s.]*a(?:[\\s.]*l[\\s.]*e)?', // piazza / piazzale
+            'l[\\s.]*a[\\s.]*r[\\s.]*g[\\s.]*o', // largo
+            'l[\\s.]*u[\\s.]*n[\\s.]*g[\\s.]*o[\\s.]*t[\\s.]*e[\\s.]*v[\\s.]*e[\\s.]*r[\\s.]*e', // lungotevere
+            's[\\s.]*a[\\s.]*l[\\s.]*[iìíï][\\s.]*t[\\s.]*a' // salita
+        ].join('|');
+    }
+
+    /**
+     * Normalizza il tipo strada estratto dalla regex in una forma canonica.
+     */
+    _normalizeStreetType(rawType) {
+        if (!rawType) return null;
+
+        const canonical = String(rawType)
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z]/g, '');
+
+        if (canonical.startsWith('piazzale')) return 'piazzale';
+        if (canonical.startsWith('piazza')) return 'piazza';
+        if (canonical.startsWith('viale')) return 'viale';
+        if (canonical.startsWith('via')) return 'via';
+        if (canonical.startsWith('lungotevere')) return 'lungotevere';
+        if (canonical.startsWith('salita')) return 'salita';
+        if (canonical.startsWith('largo')) return 'largo';
+
+        return null;
+    }
+
+    /**
      * Pre-compila regex per indirizzi completi (via + civico)
      */
     _buildAddressPatterns() {
+        const streetType = this._streetTypePatternSource;
         return [
             // Pattern 1: "via Rossi 10" - Supporto alfanumerico (es. 10A, 10/B, 10 B)
-            /\b(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\s{0,3}(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s{0,3}(\d{1,4}(?:\s*[a-zA-Z])?)\b/gi,
+            new RegExp(`\\b(${streetType})\\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(\\d{1,4}(?:\\s*[a-zA-Z])?)\\b`, 'gi'),
 
             // Pattern 2: "abito in via Rossi 10"
-            /\b(?:in|abito\s+in|abito\s+al|abito\s+alle|abito\s+a|al|alle)\s+(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\s{0,3}(?:,|\.|\-|numero|civico|n\.?|n[°º])?\s{0,3}(\d{1,4}(?:\s*[a-zA-Z])?)\b/gi
+            new RegExp(`\\b(?:in|abito\\s+in|abito\\s+al|abito\\s+alle|abito\\s+a|al|alle)\\s+(${streetType})\\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(\\d{1,4}(?:\\s*[a-zA-Z])?)\\b`, 'gi')
         ];
     }
 
@@ -97,7 +136,8 @@ class TerritoryValidator {
      */
     _buildStreetOnlyPattern() {
         // Pattern sicuro con lazy match
-        return /(via|viale|piazza|piazzale|largo|lungotevere|salita)\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ'\s]+?)\b(?!\s*(?:n\.?\s*|civico\s+)?\d+)/gi;
+        const streetType = this._streetTypePatternSource;
+        return new RegExp(`(${streetType})\\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ'\\s]+?)\\b(?!\\s*(?:n\\.?\\s*|civico\\s+)?\\d+)`, 'gi');
     }
 
     /**
@@ -244,7 +284,8 @@ class TerritoryValidator {
                         break;
                     }
 
-                    const viaType = match[1];
+                    const viaType = this._normalizeStreetType(match[1]);
+                    if (!viaType) continue;
                     const viaName = match[2].trim();
 
                     // Validazione lunghezza nome via
@@ -305,7 +346,8 @@ class TerritoryValidator {
                     break;
                 }
 
-                const viaType = match[1];
+                const viaType = this._normalizeStreetType(match[1]);
+                if (!viaType) continue;
                 const viaName = match[2].trim();
 
                 if (viaName.length < 2 || viaName.length > 100) continue;
