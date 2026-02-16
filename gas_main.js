@@ -290,10 +290,7 @@ function _parseSheetToStructured(data) {
   return result;
 }
 
-/**
- * Carica tutte le risorse necessarie (Knowledge Base, sostituzioni, ferie)
- * Usa lock per prevenire race condition tra esecuzioni parallele
- */
+
 /**
  * Carica periodi ferie dal foglio Controllo
  * @param {Spreadsheet} spreadsheet

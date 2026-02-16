@@ -120,10 +120,7 @@ class PromptEngine {
     // Troncamento proattivo della KB PRIMA di assemblare il prompt
     if (workingKnowledgeBase && workingKnowledgeBase.length > kbCharsLimit) {
       console.warn(`⚠️ KB eccede il budget (${workingKnowledgeBase.length} chars), tronco a ${kbCharsLimit}`);
-      workingKnowledgeBase = this._truncateKbSemantically(
-        workingKnowledgeBase,
-        Math.max(1, Math.round(availableForKB))
-      );
+      workingKnowledgeBase = this._truncateKbSemantically(workingKnowledgeBase, kbCharsLimit);
       kbWasTruncated = true;
     }
 
@@ -408,54 +405,7 @@ ${checks.join('\n')}
 ══════════════════════════════════════════════════════`;
   }
 
-  /**
-   * Tronca la KB semanticamente rispettando il budget di token
-   * Cerca di preservare intere sezioni o paragrafi
-   */
-  _truncateKbSemantically(kbText, charLimit) {
-    if (!kbText || kbText.length <= charLimit) return kbText;
 
-    console.log(`✂️ Troncamento KB richiesto: ${kbText.length} -> ${charLimit} chars`);
-
-    // Tenta di tagliare a un'intestazione di sezione importante
-    const markers = [
-      '\n# ', '\n## ', '\n### ', // Markdown headers
-      '\n════', '\n----'          // Separatori
-    ];
-
-    let cutIndex = -1;
-
-    // Cerca il miglior punto di taglio prima del limite
-    // Idealmente ultimo marker prima del limite
-    let bestMarkerPos = -1;
-
-    for (const marker of markers) {
-      const lastPos = kbText.lastIndexOf(marker, charLimit);
-      if (lastPos > bestMarkerPos) {
-        bestMarkerPos = lastPos;
-      }
-    }
-
-    if (bestMarkerPos > charLimit * 0.5) {
-      // Se abbiamo trovato un buon punto di taglio (almeno a metà del budget)
-      cutIndex = bestMarkerPos;
-    } else {
-      // Fallback: cerca fine paragrafo
-      const lastPeriod = kbText.lastIndexOf('.\n', charLimit);
-      if (lastPeriod > charLimit * 0.5) {
-        cutIndex = lastPeriod + 1;
-      } else {
-        // Fallback estremo: cerca ultimo spazio
-        cutIndex = kbText.lastIndexOf(' ', charLimit);
-      }
-    }
-
-    if (cutIndex > 0) {
-      return kbText.substring(0, cutIndex) + '\n\n[... KB troncata per limiti di lunghezza ...]';
-    }
-
-    return kbText.substring(0, charLimit) + '...';
-  }
 
   // ========================================================================
   // TEMPLATE 2: RECUPERO SELETTIVO DOTTRINA
@@ -577,7 +527,7 @@ ${checks.join('\n')}
 
       // D. Penalità 'Noise' (sottotemi troppo generici)
       if (sottotema.length < 5) score -= 5;
-      
+
       return { row, score };
     });
 
@@ -1504,14 +1454,11 @@ Segreteria Parrocchia Sant'Eugenio
    * Tronca KB semanticamente per paragrafi preservando il contesto
    * Invece di tagliare a metà frase, mantiene paragrafi completi fino al budget
    * @param {string} kbContent - Contenuto KB originale
-   * @param {number} maxTokens - Token massimi per l'intero prompt
+   * @param {number} charLimit - Limite massimo caratteri già calcolato a monte
    * @returns {string} KB troncata
    */
-  _truncateKbSemantically(kbContent, maxTokens) {
-    // Budget: ~50% dei token max per KB (in caratteri, ~4 caratteri/token)
-    // Se maxTokens non è definito, assume un valore sicuro di default (10000)
-    const effectiveMaxTokens = maxTokens || 10000;
-    const budgetChars = effectiveMaxTokens * 4 * 0.5;
+  _truncateKbSemantically(kbContent, charLimit) {
+    const budgetChars = Math.max(1, Number(charLimit) || 0);
 
     // Se gi\u00E0 entro il budget, restituisci così com'è
     if (kbContent.length <= budgetChars) {
