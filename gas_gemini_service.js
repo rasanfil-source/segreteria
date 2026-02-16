@@ -964,7 +964,9 @@ Output JSON:
       const temperature = this.config.TEMPERATURE || 0.5;
       const maxTokens = this.config.MAX_OUTPUT_TOKENS || 6000;
 
-      const response = this.fetchFn(`${this.baseUrl}?key=${encodeURIComponent(this.apiKey)}`, {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent`;
+
+      const response = this.fetchFn(`${url}?key=${encodeURIComponent(targetKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({

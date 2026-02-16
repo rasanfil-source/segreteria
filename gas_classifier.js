@@ -319,12 +319,7 @@ class Classifier {
       return true;
     }
 
-    // Permette saluti con titolo/nome breve (es. "Buongiorno don")
-    const words = normalized.split(/\s+/).filter(Boolean);
-    const greetingWord = words[0];
-    const greetingSet = new Set(['buongiorno', 'buonasera', 'salve', 'ciao']);
-
-    return greetingSet.has(greetingWord) && words.length <= 5;
+    return false;
   }
 
   /**
