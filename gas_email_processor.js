@@ -89,11 +89,11 @@ class EmailProcessor {
         const isStale = !isNaN(existingTimestamp) && (Date.now() - existingTimestamp) > lockTtlMs;
 
         if (isStale) {
-          console.warn(`🔓 Lock stale rilevato per thread ${threadId}, pulizia`);
-          scriptCache.remove(threadLockKey);
+====================================================================================================
+====================================================================================================
         } else {
-          console.warn(`🔒 Thread ${threadId} lockato da altro processo, salto`);
-          return { status: 'skipped', reason: 'thread_locked' };
+====================================================================================================
+====================================================================================================
         }
       }
 
@@ -108,8 +108,8 @@ class EmailProcessor {
         // 4. Doppio controllo
         const checkValue = scriptCache.get(threadLockKey);
         if (checkValue !== lockValue) {
-          console.warn(`🔒 Race rilevata per thread ${threadId}: atteso ${lockValue}, ottenuto ${checkValue}`);
-          return { status: 'skipped', reason: 'thread_locked_race' };
+====================================================================================================
+====================================================================================================
         }
 
         lockAcquired = true;
@@ -291,19 +291,19 @@ class EmailProcessor {
         const previousDate = previousMessage.getDate() ? previousMessage.getDate().getTime() : null;
         const arrivedSoonAfterUs = candidateDate && previousDate
           ? (candidateDate - previousDate) <= 10 * 60 * 1000
-          : false;
+====================================================================================================
         const previousIsUs = myEmail ? previousSender.includes(myEmail.toLowerCase()) : false;
         const candidateBody = messageDetails.body || '';
         const candidateWords = candidateBody.trim().split(/\s+/).filter(Boolean);
         const isShortClosureReply = candidateWords.length > 0 && candidateWords.length < 10 &&
-          /\b(grazie|ok|perfetto)\b/i.test(candidateBody);
+====================================================================================================
 
         if (previousIsUs && arrivedSoonAfterUs && isShortClosureReply) {
-          console.log('   âŠ˜ Saltato: risposta breve di chiusura (grazie/ok/perfetto)');
-          this._markMessageAsProcessed(candidate);
+====================================================================================================
+====================================================================================================
           result.status = 'filtered';
           result.reason = 'short_closure_reply';
-          return result;
+====================================================================================================
         }
       }
 
@@ -316,25 +316,25 @@ class EmailProcessor {
       if (messages.length > MAX_THREAD_LENGTH) {
         const ourEmail = Session.getActiveUser()?.getEmail() || '';
         if (!ourEmail) {
-          console.warn('   âš ï¸ Email utente non disponibile: skip controllo anti-loop basato su mittente');
+====================================================================================================
         }
         let consecutiveExternal = 0;
 
         for (let i = messages.length - 1; i >= 0; i--) {
           const msgFrom = messages[i].getFrom().toLowerCase();
-          if (ourEmail && !msgFrom.includes(ourEmail.toLowerCase())) {
-            consecutiveExternal++;
-          } else {
-            break;
-          }
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
         }
 
         if (ourEmail && consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
-          console.log(`   âŠ˜ Saltato: probabile loop email (${consecutiveExternal} esterni consecutivi)`);
-          this._markMessageAsProcessed(candidate);
+====================================================================================================
+====================================================================================================
           result.status = 'skipped';
           result.reason = 'email_loop_detected';
-          return result;
+====================================================================================================
         }
 
         console.warn(`   âš ï¸ Thread lungo (${messages.length} messaggi) ma non loop - elaboro`);
@@ -424,8 +424,8 @@ class EmailProcessor {
       if (typeof getSpecialMassTimeRule === 'function') {
         const specialMassRule = getSpecialMassTimeRule(new Date());
         if (specialMassRule) {
-          console.log('   🚨 Regola Messe Speciali iniettata nel Prompt');
-          knowledgeSections.push(specialMassRule);
+====================================================================================================
+====================================================================================================
         }
       }
 
@@ -442,10 +442,10 @@ class EmailProcessor {
 
         if (historyMessages.length > 0) {
           conversationHistory = this.gmailService.buildConversationHistory(
-            historyMessages,
-            10,
-            myEmail
-          );
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
         }
       }
 
@@ -499,8 +499,8 @@ class EmailProcessor {
       let territoryResult = { addressFound: false };
       if (this.territoryValidator) {
         territoryResult = this.territoryValidator.analyzeEmailForAddress(
-          messageDetails.body,
-          messageDetails.subject
+====================================================================================================
+====================================================================================================
         );
       }
 
@@ -510,15 +510,15 @@ class EmailProcessor {
           const sanitizedStreet = (entry.street || '').replace(/[â•─]/g, '-');
           const civicLabel = entry.civic ? `n. ${entry.civic}` : 'senza numero civico';
           const resultLabel = v.needsCivic
-            ? 'âš ï¸ CIVICO NECESSARIO'
-            : (v.inParish ? '✅ RIENTRA' : 'âŒ NON RIENTRA');
+====================================================================================================
+====================================================================================================
           const actionLabel = v.needsCivic ? 'Azione: richiedere il numero civico.' : null;
-          return [
-            `Indirizzo: ${sanitizedStreet} ${civicLabel}`,
-            `Risultato: ${resultLabel}`,
-            `Dettaglio: ${v.reason || 'Nessun dettaglio disponibile'}`,
-            actionLabel
-          ].filter(Boolean).join('\n');
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
         })
         : ['Nessun indirizzo rilevato nel testo.'];
 
@@ -543,31 +543,31 @@ ${addressLines.join('\n\n')}
       let activeConcerns = [];
       if (typeof createPromptContext === 'function') {
         const promptContext = createPromptContext({
-          email: {
-            subject: safeSubject,
-            body: messageDetails.body,
-            isReply: safeSubjectLower.startsWith('re:'),
-            detectedLanguage: detectedLanguage
-          },
-          classification: {
-            category: classification.category,
-            subIntents: classification.subIntents || {},
-            confidence: classification.confidence || 0.8
-          },
-          requestType: requestType,
-          memory: {
-            exists: Object.keys(memoryContext).length > 0,
-            providedInfoCount: (memoryContext.providedInfo || []).length,
-            lastUpdated: memoryContext.lastUpdated || null
-          },
-          conversation: { messageCount: memoryContext.messageCount || messages.length },
-          territory: { addressFound: territoryResult.addressFound },
-          knowledgeBase: { length: enrichedKnowledgeBase.length, containsDates: /\d{4}/.test(enrichedKnowledgeBase) },
-          temporal: {
-            mentionsDates: this._detectTemporalMentions(messageDetails.body, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(messageDetails.body),
-            mentionsTimes: /\d{1,2}[:.]\d{2}/.test(messageDetails.body)
-          },
-          salutationMode: salutationMode
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
         });
         promptProfile = promptContext.profile;
         activeConcerns = promptContext.concerns;
@@ -583,11 +583,11 @@ ${addressLines.join('\n\n')}
       if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
         if (this._shouldTryOcr(messageDetails.body, messageDetails.subject)) {
           attachmentContext = this.gmailService.extractAttachmentContext(candidate, {
-            detectedLanguage: detectedLanguage
-          });
+====================================================================================================
+====================================================================================================
         } else {
-          attachmentContext.skipped.push({ reason: 'precheck_no_ocr' });
-          console.log('   📎 Allegati OCR saltati: pre-check negativo (keyword non trovate)');
+====================================================================================================
+====================================================================================================
         }
       } else {
         // OCR disabilitato da config
@@ -668,35 +668,34 @@ ${addressLines.join('\n\n')}
         if (!plan.key) continue;
 
         try {
-          console.log(`ðŸ”„ Tentativo Generazione: ${plan.name}...`);
+====================================================================================================
 
           response = this.geminiService.generateResponse(fullPrompt, {
-            apiKey: plan.key,
-            modelName: plan.model,
-            skipRateLimit: plan.skipRateLimit
-          });
-
-          if (response) {
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
             strategyUsed = plan.name;
-            console.log(`✅ Generazione riuscita con strategia: ${plan.name}`);
-            break; // Successo! Esci dal loop
-          }
+====================================================================================================
+====================================================================================================
+====================================================================================================
 
         } catch (err) {
           generationError = err; // Salva l'ultimo errore
           const errorClass = this._classifyError(err);
-          console.warn(`âš ï¸ Strategia '${plan.name}' fallita: ${err.message} [${errorClass}]`);
+====================================================================================================
 
           if (errorClass === 'FATAL') {
-            console.error('âŒ Errore fatale rilevato, interrompo strategia.');
-            break;
-          }
+====================================================================================================
+====================================================================================================
+====================================================================================================
 
           if (errorClass === 'NETWORK') {
-            console.warn('ðŸŒ Errore di rete, continuo con prossima strategia.');
-            continue;
-          }
-          // QUOTA e UNKNOWN: continua
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
         }
       }
 
@@ -725,7 +724,7 @@ ${addressLines.join('\n\n')}
         const ocrLowConfidenceNote = this._getOcrLowConfidenceNote(detectedLanguage);
         if (ocrLowConfidenceNote && !response.includes(ocrLowConfidenceNote)) {
           response = `${response.trim()}\n\n${ocrLowConfidenceNote}`;
-          console.log(`   âš ï¸ Nota OCR aggiunta (confidenza media: ${attachmentContext.ocrConfidence})`);
+====================================================================================================
         }
       }
 
@@ -734,31 +733,29 @@ ${addressLines.join('\n\n')}
       // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
       if (this.config.validationEnabled) {
         const validation = this.validator.validateResponse(
-          response,
-          detectedLanguage,
-          enrichedKnowledgeBase,
-          messageDetails.body,
-          messageDetails.subject,
-          salutationMode
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
         );
 
         if (!validation.isValid) {
-          console.warn(`   âŒ Validazione FALLITA (punteggio: ${validation.score.toFixed(2)})`);
-
-          // Gestione errore validazione critica
+====================================================================================================
+====================================================================================================
           if (validation.details && validation.details.exposedReasoning && validation.details.exposedReasoning.score === 0.0) {
-            console.warn("âš ï¸ Risposta bloccata per Thinking Leak. Invio a etichetta 'Verifica'.");
-            // Qui potremmo tentare un retry con temperatura più bassa o altro modello
-            // Per ora marchiamo per revisione umana
+====================================================================================================
+====================================================================================================
+====================================================================================================
             result.status = 'validation_failed';
             result.reason = 'thinking_leak';
-          }
-
-          this._addValidationErrorLabel(thread);
-          this._markMessageAsProcessed(candidate);
+====================================================================================================
+====================================================================================================
+====================================================================================================
           result.status = 'validation_failed';
           result.validationFailed = true;
-          return result;
+====================================================================================================
         }
 
         // Se ci sono WARNING e il punteggio è sotto la soglia di sicurezza, aggiungi etichetta "verifica"
@@ -766,16 +763,16 @@ ${addressLines.join('\n\n')}
         const warningThreshold = this.config.validationWarningThreshold || 0.90;
 
         if (validation.warnings && validation.warnings.length > 0 && validation.score < warningThreshold) {
-          console.log(
-            `   âš ï¸ Validazione: Punteggio ${validation.score.toFixed(2)} < ${warningThreshold} con warning - Aggiungo etichetta '${this.config.validationErrorLabel}'`
-          );
-          this.gmailService.addLabelToMessage(candidate.getId(), this.config.validationErrorLabel);
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
         } else if (validation.warnings && validation.warnings.length > 0) {
-          console.log(`   â„¹ï¸ Validazione: Punteggio alto (${validation.score.toFixed(2)}). Warning ignorati: ${validation.warnings.join(', ')}`);
+====================================================================================================
         }
 
         if (validation.fixedResponse) {
-          console.log('   ðŸ©¹ Usa risposta corretta automaticamente (Self-Healing)');
+====================================================================================================
           response = validation.fixedResponse;
         }
 
@@ -853,13 +850,13 @@ ${addressLines.join('\n\n')}
         try {
           const currentLockValue = scriptCache.get(threadLockKey);
           if (!currentLockValue || currentLockValue === lockValue) {
-            scriptCache.remove(threadLockKey);
-            console.log(`🔓 Lock rilasciato per thread ${threadId}`);
-          } else {
-            console.warn(`âš ï¸ Rilascio lock saltato per thread ${threadId} (lock di altro processo)`);
-          }
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
+====================================================================================================
         } catch (e) {
-          console.warn('âš ï¸ Errore rilascio lock:', e.message);
+====================================================================================================
         }
       }
     }
