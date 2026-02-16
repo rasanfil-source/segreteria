@@ -1,10 +1,10 @@
 import os
 import re
 
-# Define the target directory relative to the script location or hardcoded
-# We assume we run this from the project root
-target_dir = os.getcwd()
-target_file = os.path.join(target_dir, "gas_email_processor.js")
+# Define the target directory (project root)
+# Assumes script is in `scripts/` so we go up one level
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
 
 def fix_file(file_path):
     if not os.path.exists(file_path):
@@ -13,42 +13,72 @@ def fix_file(file_path):
 
     try:
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            content = f.read()
+            lines = f.readlines()
 
         separator_solid = '===================================================================================================='
-
-        # 1. Replace spaced equals "= = = =" with solid "========"
-        # Matches any sequence of "=" followed by space, repeated at least 3 times, ending with optional "="
-        # matches: "= = = " or "= = = ="
-        content = re.sub(r'(?:=\s){3,}=?', separator_solid, content)
-
-        # 2. Replace lines that are just "= = =..." even if they don't have spaces in a weird way
-        # Just to be sure, any line that is mostly "=" and spaces and length > 10
-        def replace_separator_line(match):
-            line = match.group(0)
-            if re.search(r'[a-zA-Z0-9]', line): # content line
-                return line
-            return separator_solid
+        garbage_char = '\u0090' 
         
-        # Regex for lines that look like separators (allow spaces, dashes, equals)
-        # We need to be careful not to break code like "x = y"
-        # We target lines that are comment-like `// = = ...` or string literal separators
+        new_lines = []
+        changes = 0
         
-        # match `//` followed by space/equals sequence
-        content = re.sub(r'//\s*[= ]{5,}', f'// {separator_solid}', content)
+        for line in lines:
+            original_line = line
+            
+            # 1. Remove specific garbage characters
+            if garbage_char in line:
+                line = line.replace(garbage_char, '')
+                changes += 1
 
-        # match literal separators in backticks (multiline strings)
-        # These usually appear as newlines followed by separator
-        # We'll stick to the specific patterns we saw.
-        content = re.sub(r'(?:\r?\n)[= ]{10,}(?:\r?\n)', f'\n{separator_solid}\n', content)
+            # 2. Fix spaced separators in comments: // = = = =
+            # Regex: start of line, optional indent, //, spaces, sequence of = and spaces (at least 5 =), optional end
+            comment_match = re.search(r'^(\s*)//\s*([= ]{5,})\s*$', line)
+            if comment_match:
+                content = comment_match.group(2)
+                if '=' in content and ' ' in content: # Only if mixed with spaces
+                    indent = comment_match.group(1)
+                    line = f"{indent}// {separator_solid}\n"
+                    changes += 1
 
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        
-        print(f"Fixed {file_path} visual style to solid lines.")
+            # 3. Fix spaced separators in string literals/content: = = = =
+            # Regex: start of line, optional indent, sequence of = and spaces
+            literal_match = re.search(r'^(\s*)([= ]{10,})\s*$', line)
+            if literal_match:
+                content = literal_match.group(2)
+                if '=' in content and ' ' in content:
+                    # heuristic: at least 10 chars, mixed = and space
+                    indent = literal_match.group(1)
+                    line = f"{indent}{separator_solid}\n"
+                    changes += 1
+
+            new_lines.append(line)
+
+        if changes > 0:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.writelines(new_lines)
+            print(f"Fixed {changes} issues in {os.path.basename(file_path)}")
+        else:
+            print(f"Clean: {os.path.basename(file_path)}")
 
     except Exception as e:
         print(f"Error fixing {file_path}: {e}")
 
+def main():
+    print(f"Scanning project root: {project_root}")
+    # Walk through the directory
+    for root, dirs, files in os.walk(project_root):
+        # Skip .git, node_modules, etc.
+        if '.git' in dirs:
+            dirs.remove('.git')
+        if 'node_modules' in dirs:
+            dirs.remove('node_modules')
+        if 'scripts' in dirs:
+             # Don't scan scripts folder itself if we don't want to fix the fixer
+             pass
+
+        for file in files:
+            if file.endswith(".js"):
+                file_path = os.path.join(root, file)
+                fix_file(file_path)
+
 if __name__ == "__main__":
-    fix_file(target_file)
+    main()
