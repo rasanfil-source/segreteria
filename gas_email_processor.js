@@ -148,7 +148,7 @@ class EmailProcessor {
           myEmail = activeUser ? activeUser.getEmail() : '';
         }
       } catch (e) {
-        console.warn(`âš ï¸ Impossibile recuperare email utente: ${e.message}`);
+        console.warn(`⚠️ Impossibile recuperare email utente: ${e.message}`);
       }
 
       // ====================================================================================================
@@ -177,7 +177,7 @@ class EmailProcessor {
 
       // Se non ci sono messaggi non letti non ancora etichettati â†’ skip
       if (unlabeledUnread.length === 0) {
-        console.log('   âŠ˜ Thread già elaborato (nessun nuovo messaggio non letto)');
+        console.log('   ⊖ Thread già elaborato (nessun nuovo messaggio non letto)');
         result.status = 'skipped';
         result.reason = 'already_labeled_no_new_unread';
         return result;
@@ -185,7 +185,7 @@ class EmailProcessor {
 
       // Se non ci sono messaggi da esterni â†’ skip
       if (externalUnread.length === 0) {
-        console.log('   âŠ˜ Saltato: nessun nuovo messaggio esterno non letto');
+        console.log('   ⊖ Saltato: nessun nuovo messaggio esterno non letto');
         unlabeledUnread.forEach(message => this._markMessageAsProcessed(message));
         result.status = 'skipped';
         result.reason = 'no_external_unread';

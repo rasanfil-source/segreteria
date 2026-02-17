@@ -480,12 +480,12 @@ class RequestTypeClassifier {
 
     // 2. Mix Dimensionale Graduale
     if (dims.formal > 0.6) {
-      hints.push(`⚖️ FORMALE (${(dims.formal * 100).toFixed(0)}%):
+      hints.push(`⚖️ FORMALE (${(dims.formal * 100).toFixed(0)}%):
 Richiesta ufficiale o giuridica. Usa tono distaccato e preciso. Evita familiarità.`);
     }
 
     if (dims.doctrinal > 0.6) {
-      hints.push(`âœï¸ DOTTRINALE (${(dims.doctrinal * 100).toFixed(0)}%):
+      hints.push(`✝️ DOTTRINALE (${(dims.doctrinal * 100).toFixed(0)}%):
 Richiede precisione teologica. Usa "Dottrina" come riferimento primario.`);
     }
 
@@ -493,7 +493,7 @@ Richiede precisione teologica. Usa "Dottrina" come riferimento primario.`);
     if (dims.pastoral > 0.4) {
       const intensity = dims.pastoral >= 0.8 ? 'PRIMARIA' : 'PRESENTE';
       const emoContext = cls.emotionalLoad === 'High' ? 'massima priorità empatica' : 'tono cordiale';
-      hints.push(`ðŸ’™ COMPONENTE PASTORALE (${intensity}):
+      hints.push(`💙 COMPONENTE PASTORALE (${intensity}):
 - Riconosci la situazione personale espressa (${emoContext})
 - ${cls.emotionalLoad === 'High' ? 'Offri disponibilità al dialogo umano' : 'Mostra comprensione e calore'}`);
     }
@@ -501,7 +501,7 @@ Richiede precisione teologica. Usa "Dottrina" come riferimento primario.`);
     // Componente Tecnica
     if (dims.technical > 0.4) {
       const intensity = dims.technical >= 0.8 ? 'PRIMARIO' : 'IMPORTANTE';
-      hints.push(`âš™ï¸ COMPONENTE TECNICA (${intensity}):
+      hints.push(`⚙️ COMPONENTE TECNICA (${intensity}):
 - Fornisci informazioni concrete e verificabili
 - Usa bullet point se 3+ elementi
 - Specifica orari/date/luoghi esatti`);
@@ -509,7 +509,7 @@ Richiede precisione teologica. Usa "Dottrina" come riferimento primario.`);
 
     // Istruzioni di Bilanciamento (Core Logic)
     if (dims.technical >= 0.4 && dims.pastoral >= 0.4) {
-      hints.push(`⚖️ BILANCIAMENTO RICHIESTO:
+      hints.push(`⚖️ BILANCIAMENTO RICHIESTO:
 Questa email richiede ENTRAMBI gli approcci (Tecnico + Pastorale).
 1. Inizia riconoscendo la situazione personale (Empatia)
 2. Poi fornisci le informazioni concrete richieste (Efficienza)
@@ -519,7 +519,7 @@ Questa email richiede ENTRAMBI gli approcci (Tecnico + Pastorale).
     // Assemblaggio Prompt
     if (hints.length === 0) return ''; // Nessun segnale forte
 
-    const toneInstruction = `\nðŸ—£ï¸ TONO SUGGERITO: ${cls.suggestedTone.toUpperCase()}`;
+    const toneInstruction = `\n🗣️ TONO SUGGERITO: ${cls.suggestedTone.toUpperCase()}`;
 
     return `
 ${header}
