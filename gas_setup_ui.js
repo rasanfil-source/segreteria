@@ -1,208 +1,233 @@
 /**
  * @file gas_setup_ui.js
- * @description Script per generare e configurare automaticamente l'interfaccia utente (fogli, formattazione, named ranges)
+ * @description Script per generare e configurare automaticamente l'interfaccia utente (fogli, formattazione, validazioni e named ranges)
  * secondo le specifiche del PIANO_UI_CONFIGURAZIONE_CONTROLLO_IT.md.
  */
 
+const UI_CONFIG = {
+  CONTROLLO_SHEET: 'Controllo',
+  ASSENZE_SHEET: 'Assenze',
+  FILTRI_SHEET: 'Filtri',
+  SHEET_RESET_RANGE: 'A1:Z300',
+  DAYS: ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
+};
+
 /**
  * Funzione principale per impostare l'intera configurazione dei fogli.
- * Esegui questa funzione una volta sola (o per aggiornare la struttura).
+ * È idempotente: se eseguita più volte riallinea struttura e formule.
  */
 function setupConfigurationSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
-  // 1. Setup foglio Controllo
+
   setupControlloSheet(ss);
-  
-  // 2. Setup foglio Assenze
   setupAssenzeSheet(ss);
-  
-  // 3. Setup foglio Filtri
   setupFiltriSheet(ss);
-  
-  // 4. Creazione Named Ranges
   createNamedRanges(ss);
-  
+
   SpreadsheetApp.getUi().alert('Configurazione completata con successo! Verifica i fogli Controllo, Assenze e Filtri.');
 }
 
 /**
- * Configura il foglio "Controllo" (Dashboard Principale)
- * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss 
+ * Configura il foglio "Controllo" (Dashboard principale)
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
  */
 function setupControlloSheet(ss) {
-  let sheet = ss.getSheetByName('Controllo');
-  if (!sheet) {
-    sheet = ss.insertSheet('Controllo');
-  } else {
-    sheet.activate();
-  }
-  
-  sheet.setTabColor('#4285F4'); // Google Blue
+  const sheet = getOrCreateSheet(ss, UI_CONFIG.CONTROLLO_SHEET, '#4285F4');
+  resetSheetLayout(sheet);
 
-  // --- SEZIONE A: EROE (A1:F4) ---
-  sheet.getRange('A1:F4').setBackground('white');
-  
-  // Titolo Stato
-  const titleRange = sheet.getRange('A2:C2');
-  try {
-    titleRange.merge();
-  } catch (e) {} // Ignora se già unito
-  titleRange.setValue('STATO DEL SISTEMA');
-  titleRange.setFontWeight('bold').setFontSize(14).setHorizontalAlignment('center').setVerticalAlignment('middle');
-  titleRange.setBackground('#E8F0FE'); // Light blue
-  
-  // Master Switch (B3) - Spostato in B3 per non confliggere con merge A2:C2.
-  // Nel piano originale era B2 ma A2:C2 era unito. Risolviamo mettendo Toggle sotto il titolo.
-  
-  const toggleLabel = sheet.getRange('A3');
-  toggleLabel.setValue('Interruttore:').setFontWeight('bold');
+  // --- Sezione A: Hero (A1:F4) ---
+  sheet.getRange('A1:F4').setBackground('#FFFFFF');
 
-  const toggleCell = sheet.getRange('B3');
-  const rule = SpreadsheetApp.newDataValidation()
+  safeMerge(sheet.getRange('A1:C1'));
+  sheet.getRange('A1:C1')
+    .setValue('STATO DEL SISTEMA')
+    .setFontWeight('bold')
+    .setFontSize(14)
+    .setHorizontalAlignment('center')
+    .setVerticalAlignment('middle')
+    .setBackground('#E8F0FE');
+
+  sheet.getRange('A2').setValue('Interruttore:').setFontWeight('bold');
+  const masterRule = SpreadsheetApp.newDataValidation()
     .requireValueInList(['Acceso', 'Spento'], true)
     .setAllowInvalid(false)
+    .setHelpText('Scegli Acceso o Spento.')
     .build();
-  toggleCell.setDataValidation(rule);
-  if (toggleCell.getValue() === '') toggleCell.setValue('Acceso');
-  toggleCell.setFontWeight('bold').setHorizontalAlignment('center');
-  
-  // Badge E2:F2
-  const badgeRange = sheet.getRange('E2:F2');
-  try {
-    badgeRange.merge();
-  } catch (e) {}
-  badgeRange.setFormula(`=IF(B3="Spento"; "🔴 Spenta"; IF(OR(F6="Assente"; F9=""); "🟡 Sospesa"; "🟢 Attiva"))`);
-  badgeRange.setHorizontalAlignment('center').setFontWeight('bold').setFontSize(12);
-  
-  // Descrizione A4:F4
-  const descRange = sheet.getRange('A4:F4');
-  try {
-    descRange.merge();
-  } catch (e) {}
-  descRange.setValue('Il sistema risponde automaticamente solo quando è ATTIVO (verde).');
-  descRange.setFontStyle('italic').setFontColor('#666666');
 
-  // --- SEZIONE B: MINI DASHBOARD (E5:F9) ---
-  const dashboardColor = '#F1F3F4'; // Light Grey
-  sheet.getRange('E5:F9').setBackground(dashboardColor).setBorder(true, true, true, true, true, true);
-  
+  const toggleCell = sheet.getRange('B2');
+  toggleCell
+    .setDataValidation(masterRule)
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center');
+  if (!toggleCell.getValue()) {
+    toggleCell.setValue('Acceso');
+  }
+
+  safeMerge(sheet.getRange('E2:F2'));
+  sheet.getRange('E2:F2')
+    .setFormula('=IF(B2="Spento";"🔴 Spenta";IF(OR(F6="Assente";F9="Nessuna");"🟡 Sospesa";"🟢 Attiva"))')
+    .setHorizontalAlignment('center')
+    .setFontWeight('bold')
+    .setFontSize(12)
+    .setBackground('#F1F3F4');
+
+  safeMerge(sheet.getRange('A3:F3'));
+  sheet.getRange('A3:F3')
+    .setValue('Il sistema risponde automaticamente solo quando è ATTIVO (verde).')
+    .setFontStyle('italic')
+    .setFontColor('#666666');
+
+  sheet.getRange('A4').setValue('Timezone:').setFontWeight('bold');
+  sheet.getRange('B4').setValue('Europe/Rome');
+  sheet.getRange('A5').setValue('Festivi:').setFontWeight('bold');
+
+  const holidaysRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['Considera Festivi', 'Ignora Festivi'], true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange('B5').setDataValidation(holidaysRule);
+  if (!sheet.getRange('B5').getValue()) {
+    sheet.getRange('B5').setValue('Considera Festivi');
+  }
+
+  // --- Sezione B: Mini dashboard (E5:F9) ---
+  sheet.getRange('E5:F9')
+    .setBackground('#F1F3F4')
+    .setBorder(true, true, true, true, true, true);
+
   sheet.getRange('E5').setValue('Risposta automatica:').setFontWeight('bold');
   sheet.getRange('E6').setValue('Segretario:').setFontWeight('bold');
   sheet.getRange('E7').setValue('Motivo:').setFontWeight('bold');
   sheet.getRange('E8').setValue('Oggi:').setFontWeight('bold');
-  sheet.getRange('E9').setValue('Fascia oraria:').setFontWeight('bold');
-  
-  // Formule Dashboard
-  sheet.getRange('F5').setFormula('=E2'); // Copia lo stato dal badge
-  // F6 e F7 richiedono dati Assenze non ancora popolati, mettiamo placeholder robusti
-  sheet.getRange('F6').setValue('In servizio'); 
-  sheet.getRange('F7').setValue('OK');
-  sheet.getRange('F8').setValue(new Date()).setNumberFormat('dd/MM/yyyy');
-  sheet.getRange('F9').setValue('Calcolato da Script'); 
+  sheet.getRange('E9').setValue('Fascia oraria attuale:').setFontWeight('bold');
 
-  // --- SEZIONE C: ORARI SETTIMANALI (B10:D16) ---
-  sheet.getRange('B10:D16').setBorder(true, true, true, true, false, false);
-  
-  // Giorni precompilati
-  const days = [['Lunedì'], ['Martedì'], ['Mercoledì'], ['Giovedì'], ['Venerdì'], ['Sabato'], ['Domenica']];
-  sheet.getRange('B10:B16').setValues(days).setBackground('#EFEFEF').setFontWeight('bold');
-  
-  // Intestazioni tabella orari
-  sheet.getRange('B9').setValue('Giorno').setFontWeight('bold');
-  sheet.getRange('C9').setValue('Dalle').setFontWeight('bold');
-  sheet.getRange('D9').setValue('Alle').setFontWeight('bold');
-  
-  // Formattazione Orari
-  sheet.getRange('C10:D16').setNumberFormat('HH:mm');
-  
-  // --- PULIZIA VISIVA ---
-  sheet.setColumnWidth(1, 50); // A
-  sheet.setColumnWidth(2, 100); // B
-  sheet.setColumnWidth(3, 80); // C
-  sheet.setColumnWidth(4, 80); // D
-  sheet.setColumnWidth(5, 150); // E
-  sheet.setColumnWidth(6, 150); // F
+  sheet.getRange('F5').setFormula('=IF(B2="Spento";"🔴 Spenta";IF(OR(F6="Assente";F9="Nessuna");"🟡 Sospesa";"🟢 Attiva"))');
+  sheet.getRange('F6').setFormula('=IF(COUNTIF(Assenze!G2:G;TRUE)>0;"Assente";"In servizio")');
+  sheet.getRange('F7').setFormula('=IF(B2="Spento";"Spento manualmente";IF(F6="Assente";"Assenza segretario";IF(F9="Nessuna";"Fuori orario";"OK")))');
+  sheet.getRange('F8').setFormula('=TODAY()').setNumberFormat('dd/MM/yyyy');
+  sheet.getRange('F9').setFormula('=IF(OR(INDEX(C10:C16;WEEKDAY(TODAY();2))="";INDEX(D10:D16;WEEKDAY(TODAY();2))="");"Nessuna";RIGHT("0"&HOUR(INDEX(C10:C16;WEEKDAY(TODAY();2)));2)&"."&RIGHT("0"&MINUTE(INDEX(C10:C16;WEEKDAY(TODAY();2)));2)&"–"&RIGHT("0"&HOUR(INDEX(D10:D16;WEEKDAY(TODAY();2)));2)&"."&RIGHT("0"&MINUTE(INDEX(D10:D16;WEEKDAY(TODAY();2)));2))');
+
+  // --- Sezione C: Orari settimanali (B9:D16) ---
+  sheet.getRange('B9:D9').setValues([['Giorno', 'Dalle', 'Alle']]).setFontWeight('bold').setBackground('#E8F0FE');
+  sheet.getRange('B10:B16').setValues(UI_CONFIG.DAYS.map(day => [day])).setBackground('#EFEFEF').setFontWeight('bold');
+  setSafeTimeNumberFormat(sheet.getRange('C10:D16'));
+  sheet.getRange('B9:D16').setBorder(true, true, true, true, true, true);
+
+  const scheduleRule = SpreadsheetApp.newDataValidation()
+    .requireFormulaSatisfied('=OR(AND($C10="";$D10="");$C10<$D10)')
+    .setAllowInvalid(false)
+    .setHelpText('Inserisci un orario valido e verifica che "dalle" sia minore di "alle".')
+    .build();
+  sheet.getRange('C10:D16').setDataValidation(scheduleRule);
+
+  // --- Sezione D: Link rapidi (A18:F22) ---
+  safeMerge(sheet.getRange('A18:F18'));
+  sheet.getRange('A18:F18')
+    .setValue('DATI AVANZATI')
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center')
+    .setBackground('#FFF2CC');
+
+  sheet.getRange('A19').setValue('Vai al foglio Assenze →');
+  sheet.getRange('B19').setValue('Apri la scheda \"Assenze\" in basso').setFontStyle('italic');
+  sheet.getRange('A20').setValue('Vai al foglio Filtri →');
+  sheet.getRange('B20').setValue('Apri la scheda \"Filtri\" in basso').setFontStyle('italic');
+
+  // Larghezze e blocchi visuali
+  sheet.setColumnWidth(1, 155); // A
+  sheet.setColumnWidth(2, 170); // B
+  sheet.setColumnWidth(3, 90); // C
+  sheet.setColumnWidth(4, 90); // D
+  sheet.setColumnWidth(5, 180); // E
+  sheet.setColumnWidth(6, 190); // F
+
+  sheet.setFrozenRows(1);
 }
 
 /**
  * Configura il foglio "Assenze"
- * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss 
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
  */
 function setupAssenzeSheet(ss) {
-  let sheet = ss.getSheetByName('Assenze');
-  if (!sheet) {
-    sheet = ss.insertSheet('Assenze');
-  }
-  
-  sheet.setTabColor('#EA4335'); // Google Red
-  
+  const sheet = getOrCreateSheet(ss, UI_CONFIG.ASSENZE_SHEET, '#EA4335');
+  resetSheetLayout(sheet);
+
   const headers = [['id_assenza', 'tipo', 'data_dal', 'data_al', 'intera_giornata', 'note', 'attiva_oggi']];
-  const headerRange = sheet.getRange('A1:G1');
-  headerRange.setValues(headers);
-  headerRange.setFontWeight('bold').setBackground('#f3f3f3').setBorder(false, false, true, false, false, false);
-  
+  sheet.getRange('A1:G1')
+    .setValues(headers)
+    .setFontWeight('bold')
+    .setBackground('#F3F3F3')
+    .setBorder(false, false, true, false, false, false);
+
   sheet.setFrozenRows(1);
-  
-  // Validazione Tipo (Colonna B)
-  const ruleTipo = SpreadsheetApp.newDataValidation()
-    .requireValueInList(['Ferie', 'Permesso', 'Malattia', 'Chiusura Ufficio', 'Altro'], true)
+
+  const tipoRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['Ferie', 'Permesso', 'Malattia', 'Altro'], true)
+    .setAllowInvalid(false)
     .build();
-  sheet.getRange('B2:B100').setDataValidation(ruleTipo);
-  
-  // Validazione Date (C e D)
-  const ruleDate = SpreadsheetApp.newDataValidation()
+  sheet.getRange('B2:B1000').setDataValidation(tipoRule);
+
+  const dateRule = SpreadsheetApp.newDataValidation()
     .requireDate()
     .setAllowInvalid(false)
     .setHelpText('Inserisci una data valida.')
     .build();
-  sheet.getRange('C2:D100').setDataValidation(ruleDate);
-  sheet.getRange('C2:D100').setNumberFormat('dd/MM/yyyy');
-  
-  // Checkbox Intera Giornata (Colonna E)
-  sheet.getRange('E2:E100').insertCheckboxes();
-  
-  // Esempio formula in G2 (non trascinata per non appesantire, l'utente dovrà copiarla)
-  // sheet.getRange('G2').setFormula('=...')... lo lascio vuoto per ora o metto una nota.
-  
+  sheet.getRange('C2:D1000').setDataValidation(dateRule).setNumberFormat('dd/MM/yyyy');
+
+  const startEndRule = SpreadsheetApp.newDataValidation()
+    .requireFormulaSatisfied('=OR($C2="";$D2="";$C2<=$D2)')
+    .setAllowInvalid(false)
+    .setHelpText('La data di fine deve essere uguale o successiva alla data di inizio.')
+    .build();
+  sheet.getRange('D2:D1000').setDataValidation(startEndRule);
+
+  sheet.getRange('E2:E1000').insertCheckboxes();
+
+  sheet.getRange('G2').setFormula('=ARRAYFORMULA(IF(A2:A="";;IF((C2:C="")+(D2:D="");FALSE;(TODAY()>=C2:C)*(TODAY()<=D2:D))))');
+
   sheet.autoResizeColumns(1, 7);
 }
 
 /**
  * Configura il foglio "Filtri"
- * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss 
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
  */
 function setupFiltriSheet(ss) {
-  let sheet = ss.getSheetByName('Filtri');
-  if (!sheet) {
-    sheet = ss.insertSheet('Filtri');
-  }
-  
-  sheet.setTabColor('#FBBC04'); // Google Yellow
-  
+  const sheet = getOrCreateSheet(ss, UI_CONFIG.FILTRI_SHEET, '#FBBC04');
+  resetSheetLayout(sheet);
+
   sheet.getRange('A1').setValue('DOMINI DA IGNORARE').setFontWeight('bold').setBackground('#FFF2CC');
   sheet.getRange('C1').setValue('PAROLE CHIAVE DA IGNORARE').setFontWeight('bold').setBackground('#FFF2CC');
-  
-  // Esempi
-  sheet.getRange('A2').setValue('amazon.com').setFontStyle('italic').setFontColor('#999');
-  sheet.getRange('C2').setValue('newsletter').setFontStyle('italic').setFontColor('#999');
-  
-  sheet.setColumnWidth(1, 200);
-  sheet.setColumnWidth(2, 50); // Spaziatore B
-  sheet.setColumnWidth(3, 200);
-  
+
+  sheet.getRange('A2').setValue('amazon.com').setFontStyle('italic').setFontColor('#999999');
+  sheet.getRange('C2').setValue('newsletter').setFontStyle('italic').setFontColor('#999999');
+
+  const domainRule = SpreadsheetApp.newDataValidation()
+    .requireFormulaSatisfied('=OR(A2="";REGEXMATCH(A2;"^(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}$"))')
+    .setAllowInvalid(false)
+    .setHelpText('Inserisci solo il dominio (es. example.com), senza https://')
+    .build();
+  sheet.getRange('A2:A1000').setDataValidation(domainRule);
+
+  const keywordRule = SpreadsheetApp.newDataValidation()
+    .requireFormulaSatisfied('=OR(C2="";LEN(TRIM(C2))>0)')
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange('C2:C1000').setDataValidation(keywordRule);
+
+  sheet.setColumnWidth(1, 260);
+  sheet.setColumnWidth(2, 50);
+  sheet.setColumnWidth(3, 260);
   sheet.setFrozenRows(1);
 }
 
 /**
- * Crea e aggiorna i Named Ranges
- * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss 
+ * Crea e aggiorna i Named Ranges.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
  */
 function createNamedRanges(ss) {
-  // Nota: I nomi dei range devono riferirsi ai fogli creati.
-  // Assicuro che se B3 è il toggle, il named range punti a B3.
   const ranges = [
-    { name: 'cfg_system_master', range: "'Controllo'!B3" }, // Aggiornato a B3
+    { name: 'cfg_system_master', range: "'Controllo'!B2" },
     { name: 'sum_auto_status', range: "'Controllo'!F5" },
     { name: 'sum_secretary_status', range: "'Controllo'!F6" },
     { name: 'sum_today_reason', range: "'Controllo'!F7" },
@@ -212,24 +237,81 @@ function createNamedRanges(ss) {
     { name: 'tbl_week_days', range: "'Controllo'!B10:B16" },
     { name: 'tbl_week_from', range: "'Controllo'!C10:C16" },
     { name: 'tbl_week_to', range: "'Controllo'!D10:D16" },
-    { name: 'tbl_absences', range: "'Assenze'!A2:G100" }, // Limitato per evitare errori su fogli vuoti infiniti
-    { name: 'lst_ignore_domains', range: "'Filtri'!A2:A100" },
-    { name: 'lst_ignore_keywords', range: "'Filtri'!C2:C100" },
+    { name: 'tbl_absences', range: "'Assenze'!A2:G" },
+    { name: 'lst_ignore_domains', range: "'Filtri'!A2:A" },
+    { name: 'lst_ignore_keywords', range: "'Filtri'!C2:C" },
     { name: 'cfg_timezone', range: "'Controllo'!B4" },
     { name: 'cfg_holidays_mode', range: "'Controllo'!B5" }
   ];
 
   ranges.forEach(def => {
-    try {
-      // Prova a cancellare se esiste (non lancia errore se non esiste in GAS moderno solitamente, ma per sicurezza catch)
-      ss.removeNamedRange(def.name); 
-    } catch(e) {}
-    
-    try {
-      const range = ss.getRange(def.range);
-      ss.setNamedRange(def.name, range);
-    } catch (e) {
-      Logger.log(`Errore creazione range ${def.name}: ${e.message}`);
-    }
+    removeNamedRangeIfExists(ss, def.name);
+    const range = ss.getRange(def.range);
+    ss.setNamedRange(def.name, range);
   });
+}
+
+/**
+ * Restituisce un foglio esistente o lo crea.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
+ * @param {string} name
+ * @param {string} tabColor
+ * @returns {GoogleAppsScript.Spreadsheet.Sheet}
+ */
+function getOrCreateSheet(ss, name, tabColor) {
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+  }
+  sheet.setTabColor(tabColor);
+  return sheet;
+}
+
+/**
+ * Reset completo della zona usata dallo script per renderlo idempotente.
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ */
+function resetSheetLayout(sheet) {
+  const range = sheet.getRange(UI_CONFIG.SHEET_RESET_RANGE);
+  range.breakApart();
+  range.clear();
+}
+
+/**
+ * Merge sicuro: elimina merge preesistenti nel range e poi unisce.
+ * @param {GoogleAppsScript.Spreadsheet.Range} range
+ */
+function safeMerge(range) {
+  range.breakApart();
+  range.merge();
+}
+
+
+/**
+ * Applica un formato orario con fallback per locale diversi.
+ * @param {GoogleAppsScript.Spreadsheet.Range} range
+ */
+function setSafeTimeNumberFormat(range) {
+  const formats = ['H.MM', 'HH.MM', 'H.mm', 'HH.mm', 'H:mm', 'HH:mm', 'H'];
+  for (let i = 0; i < formats.length; i++) {
+    try {
+      range.setNumberFormat(formats[i]);
+      return;
+    } catch (e) {
+      // fallback al formato successivo
+    }
+  }
+  Logger.log('Formato orario non applicato: locale non compatibile.');
+}
+
+/**
+ * Elimina un named range se esiste.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss
+ * @param {string} name
+ */
+function removeNamedRangeIfExists(ss, name) {
+  const existing = ss.getNamedRanges().find(namedRange => namedRange.getName() === name);
+  if (existing) {
+    ss.removeNamedRange(name);
+  }
 }
