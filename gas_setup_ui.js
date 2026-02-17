@@ -21,7 +21,7 @@ const UI_CONFIG = {
     FILTRI: '#FBBC04',
     HISTORY: '#9E9E9E'
   },
-  VERSION: '2.0.2'
+  VERSION: '2.0.3'
 };
 
 // Logger wrapper (usa console.log invece di Logger.log)
