@@ -110,7 +110,7 @@ function setupControlloSheet(ss) {
   // --- Sezione C: Orari settimanali (B9:D16) ---
   sheet.getRange('B9:D9').setValues([['Giorno', 'Dalle', 'Alle']]).setFontWeight('bold').setBackground('#E8F0FE');
   sheet.getRange('B10:B16').setValues(UI_CONFIG.DAYS.map(day => [day])).setBackground('#EFEFEF').setFontWeight('bold');
-  setSafeTimeNumberFormat(sheet.getRange('C10:D16'));
+  // Evito formattazione oraria forzata: in alcuni locale GAS genera eccezione bloccante.
   sheet.getRange('B9:D16').setBorder(true, true, true, true, true, true);
 
   const scheduleRule = SpreadsheetApp.newDataValidation()
@@ -286,23 +286,6 @@ function safeMerge(range) {
   range.merge();
 }
 
-
-/**
- * Applica un formato orario con fallback per locale diversi.
- * @param {GoogleAppsScript.Spreadsheet.Range} range
- */
-function setSafeTimeNumberFormat(range) {
-  const formats = ['H.MM', 'HH.MM', 'H.mm', 'HH.mm', 'H:mm', 'HH:mm', 'H'];
-  for (let i = 0; i < formats.length; i++) {
-    try {
-      range.setNumberFormat(formats[i]);
-      return;
-    } catch (e) {
-      // fallback al formato successivo
-    }
-  }
-  Logger.log('Formato orario non applicato: locale non compatibile.');
-}
 
 /**
  * Elimina un named range se esiste.
