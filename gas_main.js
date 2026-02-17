@@ -4,6 +4,16 @@
  * Include logica sospensione oraria e festività italiane
  */
 
+/**
+ * Trigger speciale per creare menu personalizzato all'apertura del foglio
+ */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('Parocchia GAS')
+    .addItem('⚙️ Setup Configurazione UI', 'setupConfigurationSheets')
+    .addToUi();
+}
+
 // ====================================================================
 // FESTIVITÀ E SOSPENSIONE
 // ====================================================================

@@ -1313,44 +1313,85 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
     let formatSection, contentSection, languageReminder;
 
     if (lang === 'en') {
-      formatSection = `1. **Response Format (ENGLISH REQUIRED):**
+      formatSection = `1. **MANDATORY GREETING:**
+   • You MUST start the email with EXACTLY: "${salutation}"
+   • Do NOT change this greeting based on the user's email.
+
+2. **Response Format (ENGLISH REQUIRED):**
    ${salutation}
    [Concise and relevant body - ✅ USE FORMATTING IF APPROPRIATE]
    ${closing}
    Parish Secretariat of Sant'Eugenio`;
-      contentSection = `2. **Content:**
+
+      contentSection = `3. **Content:**
    • Answer ONLY what is asked
    • Use ONLY information from the knowledge base
    • ✅ Format elegantly if 3+ elements/times
    • Follow-up (Re:): be more direct and concise`;
+
       languageReminder = `4. **LANGUAGE: ⚠️ RESPOND IN ENGLISH ONLY**
    • NO Italian words allowed
    • Use English for everything: greeting, body, closing`;
+
     } else if (lang === 'es') {
-      formatSection = `1. **Formato de respuesta (ESPAÑOL REQUERIDO):**
+      formatSection = `1. **SALUDO OBLIGATORIO:**
+   • Debes comenzar el correo EXACTAMENTE con: "${salutation}"
+   • NO cambies este saludo.
+
+2. **Formato de respuesta (ESPAÑOL REQUERIDO):**
    ${salutation}
    [Cuerpo conciso y pertinente - ✅ USA FORMATO SI ES APROPIADO]
    ${closing}
    Secretaría Parroquia Sant'Eugenio`;
-      contentSection = `2. **Contenido:**
+
+      contentSection = `3. **Contenido:**
    • Responde SOLO lo que se pregunta
    • Usa SOLO información de la base de conocimientos
    • ✅ Formatea elegantemente si 3+ elementos/horarios
    • Seguimiento (Re:): sé más directo y conciso`;
+
       languageReminder = `4. **IDIOMA: ⚠️ RESPONDE SOLO EN ESPAÑOL**
    • NO se permiten palabras italianas
    • Usa español para todo: saludo, cuerpo, despedida`;
+
+    } else if (lang === 'pt') {
+      formatSection = `1. **SAUDAÇÃO OBRIGATÓRIA:**
+   • Deves começar o email EXATAMENTE com: "${salutation}"
+   • NÃO alteres esta saudação.
+
+2. **Formato da resposta (PORTUGUÊS REQUERIDO):**
+   ${salutation}
+   [Corpo conciso e pertinente - ✅ USE FORMATAÇÃO SE APROPRIADO]
+   ${closing}
+   Secretaria Paróquia Sant'Eugenio`;
+
+      contentSection = `3. **Conteúdo:**
+   • Responde APENAS ao que é perguntado
+   • Usa APENAS informações da base de conhecimento
+   • ✅ Formata elegantemente se 3+ elementos/horários
+   • Seguimiento (Re:): sê mais direto e conciso`;
+
+      languageReminder = `4. **IDIOMA: ⚠️ RESPONDE APENAS EM PORTUGUÊS**
+   • NÃO são permitidas palavras italianas
+   • Usa português para tudo: saudação, corpo, despedida`;
+
     } else {
-      formatSection = `1. **Formato risposta:**
+      formatSection = `1. **SALUTO OBBLIGATORIO:**
+   • Inizia l'email ESATTAMENTE con: "${salutation}"
+   • NON cambiare questo saluto.
+
+2. **Formato risposta:**
    ${salutation}
    [Corpo conciso e pertinente - ✅ USA FORMATTAZIONE SE APPROPRIATO]
    ${closing}
    Segreteria Parrocchia Sant'Eugenio`;
-      contentSection = `2. **Contenuto:**
+
+      contentSection = `3. **Contenuto:**
    • Rispondi SOLO a ciò che è chiesto
    • Usa SOLO info dalla knowledge base
    • ✅ Formatta elegantemente se 3+ elementi/orari
    • Follow-up (Re:): sii più diretto e conciso`;
+
       languageReminder = `4. **Lingua:** Rispondi in italiano`;
     }
 
@@ -1360,7 +1401,7 @@ ${formatSection}
 
 ${contentSection}
 
-3. **Orari:** Mostra SOLO orari del periodo corrente (${season})
+5. **Orari:** Mostra SOLO orari del periodo corrente (${season})
 
 ${languageReminder}`;
   }

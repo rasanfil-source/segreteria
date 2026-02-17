@@ -760,6 +760,7 @@ class ResponseValidator {
     }
 
     // Determina fascia oraria corrente
+    // Determina fascia oraria corrente
     const currentHour = new Date().getHours();
     let expectedTimeSlot;
     if (currentHour >= 5 && currentHour < 12) {
@@ -913,6 +914,7 @@ class ResponseValidator {
   _ottimizzaSalutoTemporale(text, language) {
     if (!this.greetingPatterns[language]) return text;
 
+    // Determina fascia oraria corrente
     // Determina fascia oraria corrente
     const currentHour = new Date().getHours();
     let correctTimeSlot;
