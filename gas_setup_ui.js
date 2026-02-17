@@ -104,7 +104,7 @@ function setupControlloSheet(ss) {
   sheet.getRange('F5').setFormula('=IF(B2="Spento";"🔴 Spenta";IF(OR(F6="Assente";F9="Nessuna");"🟡 Sospesa";"🟢 Attiva"))');
   sheet.getRange('F6').setFormula('=IF(COUNTIF(Assenze!G2:G;TRUE)>0;"Assente";"In servizio")');
   sheet.getRange('F7').setFormula('=IF(B2="Spento";"Spento manualmente";IF(F6="Assente";"Assenza segretario";IF(F9="Nessuna";"Fuori orario";"OK")))');
-  sheet.getRange('F8').setFormula('=TODAY()').setNumberFormat('dd/MM/yyyy');
+  sheet.getRange('F8').setFormula('=TODAY()');
   sheet.getRange('F9').setFormula('=IF(OR(INDEX(C10:C16;WEEKDAY(TODAY();2))="";INDEX(D10:D16;WEEKDAY(TODAY();2))="");"Nessuna";RIGHT("0"&HOUR(INDEX(C10:C16;WEEKDAY(TODAY();2)));2)&"."&RIGHT("0"&MINUTE(INDEX(C10:C16;WEEKDAY(TODAY();2)));2)&"–"&RIGHT("0"&HOUR(INDEX(D10:D16;WEEKDAY(TODAY();2)));2)&"."&RIGHT("0"&MINUTE(INDEX(D10:D16;WEEKDAY(TODAY();2)));2))');
 
   // --- Sezione C: Orari settimanali (B9:D16) ---
@@ -172,7 +172,7 @@ function setupAssenzeSheet(ss) {
     .setAllowInvalid(false)
     .setHelpText('Inserisci una data valida.')
     .build();
-  sheet.getRange('C2:D1000').setDataValidation(dateRule).setNumberFormat('dd/MM/yyyy');
+  sheet.getRange('C2:D1000').setDataValidation(dateRule);
 
   const startEndRule = SpreadsheetApp.newDataValidation()
     .requireFormulaSatisfied('=OR($C2="";$D2="";$C2<=$D2)')
