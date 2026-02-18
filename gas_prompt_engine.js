@@ -65,6 +65,39 @@ class PromptEngine {
   }
 
   /**
+   * Genera un saluto adattivo basato sull'ora del giorno e il tipo di richiesta.
+   * @param {string} senderName - Nome del mittente.
+   * @param {string} language - Lingua desiderata per il saluto (es. 'it', 'en').
+   * @param {string} requestType - Tipo di richiesta ('technical', 'pastoral', 'general').
+   * @returns {string} Il saluto adattivo.
+   */
+  getAdaptiveGreeting(senderName, language, requestType = 'technical') {
+    const hour = new Date().getHours();
+
+    // Determina momento giornata
+    let timeGreeting = '';
+    if (hour >= 5 && hour < 12) {
+      timeGreeting = (language === 'it') ? 'Buongiorno' : 'Good morning';
+    } else if (hour >= 12 && hour < 18) {
+      timeGreeting = (language === 'it') ? 'Buon pomeriggio' : 'Good afternoon';
+    } else {
+      timeGreeting = (language === 'it') ? 'Buonasera' : 'Good evening';
+    }
+
+    // Aggiungi un tocco specifico in base al tipo di richiesta
+    let specificGreeting = '';
+    if (requestType === 'pastoral') {
+      specificGreeting = (language === 'it') ? 'con la pace del Signore' : 'with the peace of the Lord';
+    } else if (requestType === 'technical') {
+      specificGreeting = (language === 'it') ? 'per la sua richiesta tecnica' : 'regarding your technical request';
+    } else {
+      specificGreeting = (language === 'it') ? 'per la sua comunicazione' : 'regarding your communication';
+    }
+
+    return `${timeGreeting}, ${senderName}, ${specificGreeting}.`;
+  }
+
+  /**
   * Costruisce il prompt completo dal contesto
   * Supporta filtro dinamico template basato su profilo
   * 

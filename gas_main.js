@@ -313,90 +313,13 @@ function _parseSheetToStructured(data) {
 }
 
 
-/**
- * Carica periodi ferie dal foglio Controllo
- * @param {Spreadsheet} spreadsheet
- */
-function _loadVacationPeriodsFromSheet(spreadsheet) {
-  try {
-    const controlSheet = spreadsheet.getSheetByName('Controllo');
-    if (controlSheet) {
-      // Range corretto: A5:D7 (Ferie, Permesso, Malattia)
-      // A=Tipo, B=Inizio, C=Spacer, D=Fine
-      const ferieRows = controlSheet.getRange('A5:D7').getValues();
-      const validPeriods = [];
 
-      for (const row of ferieRows) {
-        // row[1] = Col B (Start), row[3] = Col D (End)
-        // Ignora se mancano le date
-        if (!row[1] || !row[3]) continue;
-
-        let startDate, endDate;
-        try {
-          const parseDate = (d) => {
-            if (d instanceof Date) return d;
-            if (typeof d === 'string') {
-              // Supporto DD/MM/YYYY
-              const parts = d.split(/[/-]/);
-              if (parts.length === 3 && parts[1]) { // check parts[1] to avoid index error
-                // Basic heuristic for DD/MM/YYYY vs YYYY-MM-DD
-                // If first part > 31 it's YYYY. If last > 31 it's YYYY.
-                // Assuming Italian locale DD/MM/YYYY as primary
-                const p0 = parseInt(parts[0], 10);
-                const p2 = parseInt(parts[2], 10);
-                if (p2 > 1900) {
-                  return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`); // YYYY-MM-DD
-                }
-              }
-              return new Date(d); // Fallback
-            }
-            return new Date(d);
-          };
-
-          startDate = parseDate(row[1]);
-          endDate = parseDate(row[3]); // Uso Col D (Index 3)
-
-          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-            // Log solo se c'è qualcosa che sembra una data ma fallisce,
-            // evitando falsi positivi su celle vuote o con formattazione
-            if (String(row[1]).length > 0 || String(row[3]).length > 0) {
-              console.warn(`\u26A0\uFE0F Formato data non valido in ${row[0] || 'riga'}: ${row[1]} - ${row[3]} (Usa GG/MM/AAAA)`);
-            }
-            continue;
-          }
-
-          if (endDate < startDate) {
-            console.warn(`\u26A0\uFE0F Periodo ${row[0] || ''}: Data fine precedente a data inizio (${startDate.toLocaleDateString()} > ${endDate.toLocaleDateString()})`);
-            continue;
-          }
-
-          validPeriods.push({ start: startDate, end: endDate, type: row[0] });
-        } catch (parsingErr) {
-          console.warn(`\u26A0\uFE0F Errore parsing date ferie: ${parsingErr.message}`);
-          continue;
-        }
-      }
-
-      if (validPeriods.length > 0) {
-        console.log(`\u2713 Periodi assenza caricati: ${validPeriods.length}`);
-        return validPeriods;
-      }
-    } else {
-      console.warn('\u26A0\uFE0F Foglio "Controllo" non trovato - periodi ferie non caricati');
-    }
-  } catch (ferieErr) {
-    console.warn(`\u26A0\uFE0F Impossibile caricare periodi ferie: ${ferieErr.message}`);
-  }
-  return [];
-}
 
 /**
  * Carica risorse complementari alla KB (ferie, AI Core, dottrina, sostituzioni)
  * @param {Spreadsheet} spreadsheet
  */
 function _loadSupplementaryResources(spreadsheet) {
-  GLOBAL_CACHE.vacationPeriods = _loadVacationPeriodsFromSheet(spreadsheet);
-
   GLOBAL_CACHE.aiCoreLite = '';
   GLOBAL_CACHE.aiCoreLiteStructured = [];
   GLOBAL_CACHE.aiCore = '';
@@ -533,7 +456,7 @@ function _loadAdvancedConfig(spreadsheet) {
     // 4. BLACKLIST DOMINI e KEYWORD (Righe 11-50, Colonne E ed F)
     // E11:E50 -> Domini
     // F11:F50 -> Keyword
-    const blacklistRange = sheet.getRange("E11:F50").getValues();
+    const blacklistRange = sheet.getRange("E11:F120").getValues();
 
     blacklistRange.forEach(row => {
       const domain = String(row[0]).trim();
@@ -560,6 +483,29 @@ function _loadAdvancedConfig(spreadsheet) {
     console.error(`❌ Errore caricamento Configurazione Avanzata: ${error.message}`);
     return config; // Ritorna quello che ha trovato finora (o default)
   }
+}
+
+/**
+ * Applica la configurazione avanzata letta dal foglio Controllo alla cache globale.
+ * @param {Object} advancedConfig
+ */
+function _applyAdvancedConfigToCache(advancedConfig) {
+  GLOBAL_CACHE.systemEnabled = advancedConfig.systemEnabled;
+  GLOBAL_CACHE.vacationPeriods = advancedConfig.vacationPeriods;
+
+  if (Object.keys(advancedConfig.suspensionRules).length > 0) {
+    GLOBAL_CACHE.suspensionRules = advancedConfig.suspensionRules;
+    console.log('🗓️ Usate regole sospensione da Foglio Controllo');
+  } else {
+    GLOBAL_CACHE.suspensionRules = SUSPENSION_HOURS;
+    console.log('🗓️ Usate regole sospensione di default (Codice)');
+  }
+
+  const uniqueDomains = new Set([...CONFIG.IGNORE_DOMAINS, ...advancedConfig.ignoreDomains]);
+  GLOBAL_CACHE.ignoreDomains = Array.from(uniqueDomains);
+
+  const uniqueKeywords = new Set([...CONFIG.IGNORE_KEYWORDS, ...advancedConfig.ignoreKeywords]);
+  GLOBAL_CACHE.ignoreKeywords = Array.from(uniqueKeywords);
 }
 
 /**
@@ -639,9 +585,8 @@ function _loadResourcesInternal() {
 
       _loadSupplementaryResources(spreadsheet);
 
-      // --- Ripristino logica originale ---
-      GLOBAL_CACHE.suspensionRules = SUSPENSION_HOURS;
-
+      const advancedConfig = _loadAdvancedConfig(spreadsheet);
+      _applyAdvancedConfigToCache(advancedConfig);
 
     }, 'Caricamento risorse (Cache)');
 
@@ -684,38 +629,7 @@ function _loadResourcesInternal() {
 
     // --- Caricamento Configurazione Avanzata (Controllo) ---
     const advancedConfig = _loadAdvancedConfig(spreadsheet);
-
-    // 1. Interruttore Sistema (Se false, bloccherà il main)
-    GLOBAL_CACHE.systemEnabled = advancedConfig.systemEnabled;
-
-    // 2. Periodi Ferie (Merge: Sheet + Eventuali esistenti se ci fossero, ma qui ricreiamo)
-    // NOTA: _loadSupplementaryResources chiamava _loadVacationPeriodsFromSheet che era un vecchio metodo.
-    // Ora usiamo quello unificato in _loadAdvancedConfig o manteniamo compatibilità?
-    // _loadSupplementaryResources usa A6:C10. _loadAdvancedConfig usa B5:D7.
-    // Il requisito è B5:D7 per "inizio e fine periodi".
-    // Sovrascriviamo con i dati nuovi (più affidabili secondo richiesta utente)
-    if (advancedConfig.vacationPeriods.length > 0) {
-      GLOBAL_CACHE.vacationPeriods = advancedConfig.vacationPeriods;
-    }
-
-    // 3. Orari Sospensione (Override o Fallback)
-    // Se il foglio ha regole, USIAMO QUELLE. Se vuoto, usiamo SUSPENSION_HOURS (codice)
-    if (Object.keys(advancedConfig.suspensionRules).length > 0) {
-      GLOBAL_CACHE.suspensionRules = advancedConfig.suspensionRules;
-      console.log('🗓️ Usate regole sospensione da Foglio Controllo');
-    } else {
-      GLOBAL_CACHE.suspensionRules = SUSPENSION_HOURS; // Fallback su codice
-      console.log('🗓️ Usate regole sospensione di default (Codice)');
-    }
-
-    // 4. Blacklist (Merge)
-    // Uniamo le liste del codice (CONFIG) con quelle del foglio
-    // Set per unicità
-    const uniqueDomains = new Set([...CONFIG.IGNORE_DOMAINS, ...advancedConfig.ignoreDomains]);
-    GLOBAL_CACHE.ignoreDomains = Array.from(uniqueDomains);
-
-    const uniqueKeywords = new Set([...CONFIG.IGNORE_KEYWORDS, ...advancedConfig.ignoreKeywords]);
-    GLOBAL_CACHE.ignoreKeywords = Array.from(uniqueKeywords);
+    _applyAdvancedConfigToCache(advancedConfig);
 
   }, 'loadResources');
 

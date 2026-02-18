@@ -394,6 +394,11 @@ class TerritoryValidator {
         const rules = match.rules;
         const matchedKey = match.key;
 
+        if (!rules) {
+            console.warn(`\u26A0 Rules undefined for matched key: ${matchedKey}`);
+            return { inTerritory: false, matchedKey: matchedKey, rule: 'error_undefined_rules' };
+        }
+
 
         // Punto: Gestione esplicita tipo Array vs Boolean per 'tutti'
         if (Array.isArray(rules.tutti)) {

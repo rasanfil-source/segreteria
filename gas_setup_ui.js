@@ -171,10 +171,12 @@ function setupControlloSheet(ss) {
 }
 
 function createNamedRanges(ss) {
+  ['cfg_timezone', 'cfg_holidays_mode'].forEach(name => removeNamedRangeIfExists(ss, name));
+
   const ranges = [
     { name: 'cfg_system_master', range: "'Controllo'!B2" },
-    { name: 'cfg_timezone', range: "'Controllo'!B4" },
-    { name: 'cfg_holidays_mode', range: "'Controllo'!B5" }, // Inizio ferie (B5)
+    { name: 'cfg_absence_start_1', range: "'Controllo'!B5" },
+    { name: 'cfg_absence_end_1', range: "'Controllo'!D5" },
     { name: 'sum_auto_status', range: "'Controllo'!F5" },
     { name: 'sum_secretary_status', range: "'Controllo'!F6" },
     { name: 'sum_today_date', range: "'Controllo'!F7" },
@@ -182,8 +184,8 @@ function createNamedRanges(ss) {
     { name: 'sum_today_slot', range: "'Controllo'!F9" },
     { name: 'tbl_week_schedule', range: "'Controllo'!A10:D16" }, // Schedule da A10 a D16
     { name: 'tbl_absences', range: "'Controllo'!A5:D7" }, // Assenze da A5 a D7
-    { name: 'lst_ignore_domains', range: "'Controllo'!E11:E" },
-    { name: 'lst_ignore_keywords', range: "'Controllo'!F11:F" }
+    { name: 'lst_ignore_domains', range: "'Controllo'!E11:E120" },
+    { name: 'lst_ignore_keywords', range: "'Controllo'!F11:F120" }
   ];
 
   ranges.forEach(def => {
@@ -256,6 +258,8 @@ function removeNamedRangeIfExists(ss, name) {
  * Applica validazioni e protezioni input sul foglio Controllo
  * (Logica suggerita dall'utente)
  */
+// Applica validazioni e protezioni input sul foglio Controllo
+// (Logica suggerita dall'utente)
 function applyControlloInputConstraints_(sheet) {
   // B2: interruttore
   const switchRule = SpreadsheetApp.newDataValidation()
@@ -281,11 +285,13 @@ function applyControlloInputConstraints_(sheet) {
   });
 
   // Coerenza data inizio <= data fine per ogni riga 5..7
-  applyFormulaValidationWithFallback_(
-    sheet.getRange('D5:D7'),
-    ['=OR($B5="";$D5="";$B5<=$D5)', '=OR($B5="",$D5="",$B5<=$D5)'],
-    'La data fine deve essere uguale o successiva alla data inizio.'
-  );
+  for (let row = 5; row <= 7; row++) {
+    applyFormulaValidationWithFallback_(
+      sheet.getRange(`D${row}`),
+      [`=OR(B${row}="";D${row}="";B${row}<=D${row})`, `=OR(B${row}="",D${row}="",B${row}<=D${row})`],
+      'La data fine deve essere uguale o successiva alla data inizio.'
+    );
+  }
 
   // Orari sospensione: B10 e D10...B16 e D16 (Interi 0-24)
   const timeRule = SpreadsheetApp.newDataValidation()
@@ -298,11 +304,13 @@ function applyControlloInputConstraints_(sheet) {
   sheet.getRange('D10:D16').setDataValidation(timeRule).setNumberFormat('0');
 
   // Controllo orario B < D
-  applyFormulaValidationWithFallback_(
-    sheet.getRange('D10:D16'),
-    ['=OR(AND($B10="";$D10="");$B10<$D10)', '=OR(AND($B10="",$D10=""),$B10<$D10)'],
-    'Inserisci orari validi (0-24) e assicurati che inizio < fine.'
-  );
+  for (let row = 10; row <= 16; row++) {
+    applyFormulaValidationWithFallback_(
+      sheet.getRange(`D${row}`),
+      [`=OR(AND(B${row}="";D${row}="");B${row}<D${row})`, `=OR(AND(B${row}="",D${row}=""),B${row}<D${row})`],
+      'Inserisci orari validi (0-24) e assicurati che inizio < fine.'
+    );
+  }
 
   // Filtri domini/keyword direttamente su Controllo
   const domainRule = SpreadsheetApp.newDataValidation()
@@ -320,7 +328,7 @@ function applyControlloInputConstraints_(sheet) {
   sheet.getRange('F11:F120').setDataValidation(keywordRule);
 
   // Protezioni Warning Only sulle etichette
-  protectRangesWithWarning_(sheet, ['A1:F1', 'A3:A16', 'C4:D4', 'C5:C7', 'E4:F10']);
+  protectRangesWithWarning_(sheet, ['A1:F1', 'A3:A16', 'C4:D4', 'E4:F10']);
 }
 
 /**

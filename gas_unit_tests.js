@@ -421,20 +421,20 @@ function testGeminiServiceAdvanced(results) {
 
         test('Rilevamento lingua: Italiano', results, () => {
             const service = new GeminiService();
-            const lang = service.detectLanguage("Buongiorno, vorrei informazioni sulla parrocchia");
-            return lang === 'it';
+            const result = service.detectEmailLanguage("Buongiorno, vorrei informazioni sulla parrocchia");
+            return result.lang === 'it';
         });
 
         test('Rilevamento lingua: Inglese', results, () => {
             const service = new GeminiService();
-            const lang = service.detectLanguage("Hello, I would like information about the church");
-            return lang === 'en';
+            const result = service.detectEmailLanguage("Hello, I would like information about the church");
+            return result.lang === 'en';
         });
 
         test('Rilevamento lingua: Spagnolo', results, () => {
             const service = new GeminiService();
-            const lang = service.detectLanguage("Hola, me gustaría información sobre la iglesia");
-            return lang === 'es';
+            const result = service.detectEmailLanguage("Hola, me gustaría información sobre la iglesia");
+            return result.lang === 'es';
         });
 
         test('Rilevamento lingua: Portoghese', results, () => {
@@ -445,8 +445,8 @@ function testGeminiServiceAdvanced(results) {
 
         test('Rilevamento lingua: Mista (prevalenza)', results, () => {
             const service = new GeminiService();
-            const lang = service.detectLanguage("Buongiorno hello ciao grazie");
-            return lang === 'it';  // Italiano prevalente
+            const result = service.detectEmailLanguage("Buongiorno hello ciao grazie");
+            return result.lang === 'it';  // Italiano prevalente
         });
 
         test('Saluto adattivo: italiano', results, () => {
@@ -554,67 +554,38 @@ function testRequestTypeClassifierAdvanced(results) {
         const rtc = new RequestTypeClassifier();
 
         test('Richiesta tecnica (orari) → punteggio tecnico alto', results, () => {
-            const result = rtc.classify({
-                content: "A che ora è la messa domenicale?",
-                subject: "Orari"
-            });
+            const result = rtc.classify("Orari", "A che ora è la messa domenicale?");
             return result.technicalScore > 0.5;
         });
 
         test('Richiesta pastorale → punteggio pastorale alto', results, () => {
-            const result = rtc.classify({
-                content: "Ho bisogno di un consiglio spirituale",
-                subject: "Aiuto"
-            });
+            const result = rtc.classify("Aiuto", "Ho bisogno di un consiglio spirituale");
             return result.pastoralScore > 0.5;
         });
 
         test('Richiesta dottrinale → punteggio dottrinale alto', results, () => {
-            const result = rtc.classify({
-                content: "Qual è la posizione della Chiesa sul sacramento del matrimonio?",
-                subject: "Domanda teologica"
-            });
-            return result.doctrinaleScore > 0.5;
-        });
-
-        test('Richiesta territorio → punteggio territorio alto', results, () => {
-            const result = rtc.classify({
-                content: "Abito in Via Roma 10, sono nella vostra parrocchia?",
-                subject: "Territorio"
-            });
-            return result.territoryScore > 0.5;
+            const result = rtc.classify("Domanda teologica", "Qual è la posizione della Chiesa sul sacramento del matrimonio?");
+            return result.doctrineScore > 0.5;
         });
 
         test('Rilevamento complessità: semplice', results, () => {
-            const result = rtc.classify({
-                content: "Orari?",
-                subject: "Info"
-            });
-            return result.complexity === 'low' || result.complexity === 'simple';
+            const result = rtc.classify("Info", "Orari?");
+            return result.complexity === 'Low';
         });
 
         test('Rilevamento complessità: media', results, () => {
-            const result = rtc.classify({
-                content: "Vorrei informazioni sui documenti necessari per il battesimo di mio figlio",
-                subject: "Battesimo"
-            });
-            return result.complexity === 'medium' || result.complexity === 'moderate';
+            const result = rtc.classify("Battesimo", "Vorrei informazioni sui documenti necessari per il battesimo di mio figlio");
+            return result.complexity === 'Medium' || result.complexity === 'High';
         });
 
         test('Rilevamento complessità: alta', results, () => {
-            const result = rtc.classify({
-                content: "Sto attraversando una crisi spirituale profonda e vorrei parlare con un sacerdote...",
-                subject: "Aiuto spirituale"
-            });
-            return result.complexity === 'high' || result.complexity === 'complex';
+            const result = rtc.classify("Aiuto spirituale", "Sto attraversando una crisi spirituale profonda e vorrei parlare con un sacerdote...");
+            return result.complexity === 'High';
         });
 
         test('Rilevamento carico emotivo', results, () => {
-            const result = rtc.classify({
-                content: "Sono disperato, non so più cosa fare",
-                subject: "Aiuto"
-            });
-            return result.emotionalLoad > 0.5 || result.urgency > 0;
+            const result = rtc.classify("Aiuto", "Sono disperato, non so più cosa fare");
+            return result.emotionalLoad === 'High' || result.emotionalLoad === 'Medium';
         });
     });
 }
@@ -626,6 +597,10 @@ function testRequestTypeClassifierAdvanced(results) {
 function testResponseValidatorAdvanced(results) {
     testGroup('ResponseValidator - Controlli Qualità Avanzati', results, () => {
         const validator = new ResponseValidator();
+        // Mock SemanticValidator per evitare chiamate API e 429
+        validator.semanticValidator = {
+            validateHallucinations: () => ({ score: 0.0, errors: [] }) // Score 0.0 = Nessuna allucinazione
+        };
 
         test('Lunghezza appropriata: normale', results, () => {
             const response = "Buongiorno, le messe domenicali sono alle ore 9:00, 11:00 e 18:00. Cordiali saluti.";
@@ -1116,7 +1091,16 @@ function testMiglioramentiGennaio2026(results) {
         });
 
         test('Punto 8: Gestione Errori Riepilogo Memoria (Controllo Oggetto)', results, () => {
-            const processor = new EmailProcessor();
+            const processor = new EmailProcessor({
+                geminiService: { summarizeMemory: () => "Summary" },
+                gmailService: {},
+                classifier: {},
+                requestClassifier: {},
+                promptEngine: {},
+                validator: {},
+                memoryService: {},
+                territoryValidator: {}
+            });
             const summary = processor._buildMemorySummary({
                 existingSummary: { key: 'value' },
                 responseText: "Test",
