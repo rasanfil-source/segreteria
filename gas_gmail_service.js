@@ -90,14 +90,21 @@ class GmailService {
       console.warn(`⚠️ addLabelToMessage fallito per messaggio ${messageId}: ${e.message}`);
       if (this._isLabelNotFoundError(e)) {
         this.clearLabelCache();
-        const label = this.getOrCreateLabel(labelName);
-        const labelId = label.getId();
-        Gmail.Users.Messages.modify({
-          addLabelIds: [labelId],
-          removeLabelIds: []
-        }, 'me', messageId);
-        console.log(`✓ Aggiunta label '${labelName}' al messaggio ${messageId} (retry dopo cache reset)`);
+        try {
+          const label = this.getOrCreateLabel(labelName);
+          const labelId = label.getId();
+          Gmail.Users.Messages.modify({
+            addLabelIds: [labelId],
+            removeLabelIds: []
+          }, 'me', messageId);
+          console.log(`✓ Aggiunta label '${labelName}' al messaggio ${messageId} (retry dopo cache reset)`);
+        } catch (retryError) {
+          console.warn(`⚠️ Retry addLabelToMessage fallito per messaggio ${messageId}: ${retryError.message}`);
+          throw retryError;
+        }
+        return;
       }
+      throw e;
     }
   }
 
@@ -1121,8 +1128,8 @@ function markdownToHtml(text) {
   const codeBlocks = [];
   let html = text.replace(/```[\s\S]*?```/g, (match) => {
     const sanitized = escapeHtml(match.replace(/```/g, '').trim());
-    const token = `__CODEBLOCK_${codeBlocks.length}__`;
-    codeBlocks.push(sanitized);
+    const token = `@@CODEBLOCK_PLACEHOLDER_${codeBlocks.length}_${Utilities.getUuid()}@@`;
+    codeBlocks.push({ token: token, value: sanitized });
     return token;
   });
 
@@ -1131,12 +1138,12 @@ function markdownToHtml(text) {
   html = html.replace(/\[(.+?)\]\((.+?)\)/g, (match, linkText, url) => {
     const sanitizedUrl = sanitizeUrl(url);
     const escapedText = escapeHtml(linkText);
-    const token = `__LINK_${links.length}__`;
+    const token = `@@LINK_PLACEHOLDER_${links.length}_${Utilities.getUuid()}@@`;
     if (sanitizedUrl) {
-      links.push(`<a href="${sanitizedUrl}" style="color:#351c75;">${escapedText}</a>`);
+      links.push({ token: token, value: `<a href="${sanitizedUrl}" style="color:#351c75;">${escapedText}</a>` });
     } else {
       console.warn(`⚠️ URL bloccato per sicurezza: ${url}`);
-      links.push(escapedText);
+      links.push({ token: token, value: escapedText });
     }
     return token;
   });
@@ -1157,14 +1164,13 @@ function markdownToHtml(text) {
   html = html.replace(/(?<!\*)\*(?!\*)(.+?)\*(?!\*)/g, '<em>$1</em>');
 
   // 5. Ripristina link e code blocks
-  links.forEach((link, i) => {
-    html = html.replace(`__LINK_${i}__`, link);
+  links.forEach((entry) => {
+    html = html.split(entry.token).join(entry.value);
   });
 
-  codeBlocks.forEach((block, i) => {
-    html = html.replace(
-      `__CODEBLOCK_${i}__`,
-      `<pre style="background:#f4f4f4;padding:10px;border-radius:4px;font-family:monospace;">${block}</pre>`
+  codeBlocks.forEach((entry) => {
+    html = html.split(entry.token).join(
+      `<pre style="background:#f4f4f4;padding:10px;border-radius:4px;font-family:monospace;">${entry.value}</pre>`
     );
   });
 

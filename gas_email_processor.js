@@ -181,7 +181,9 @@ class EmailProcessor {
           myEmail = activeUser ? activeUser.getEmail() : '';
         }
 
-        if (myEmail) myIdentities.add(myEmail.toLowerCase());
+        if (myEmail && String(myEmail).trim()) {
+          myIdentities.add(String(myEmail).toLowerCase());
+        }
 
         const knownAliases = (typeof CONFIG !== 'undefined' && CONFIG.KNOWN_ALIASES) ? CONFIG.KNOWN_ALIASES : [];
         knownAliases.forEach(alias => myIdentities.add(String(alias).toLowerCase()));
@@ -795,8 +797,12 @@ ${addressLines.join('\n\n')}
             console.warn("\u26A0\uFE0F Risposta bloccata per Thinking Leak. Invio a etichetta 'Verifica'.");
             // Qui potremmo tentare un retry con temperatura più bassa o altro modello
             // Per ora marchiamo per revisione umana
+            this._addValidationErrorLabel(thread);
+            this._markMessageAsProcessed(candidate);
             result.status = 'validation_failed';
             result.reason = 'thinking_leak';
+            result.validationFailed = true;
+            return result;
           }
 
           this._addValidationErrorLabel(thread);
