@@ -321,11 +321,15 @@ function _loadVacationPeriodsFromSheet(spreadsheet) {
   try {
     const controlSheet = spreadsheet.getSheetByName('Controllo');
     if (controlSheet) {
-      const ferieRows = controlSheet.getRange('A6:C10').getValues();
+      // Range corretto: A5:D7 (Ferie, Permesso, Malattia)
+      // A=Tipo, B=Inizio, C=Spacer, D=Fine
+      const ferieRows = controlSheet.getRange('A5:D7').getValues();
       const validPeriods = [];
 
       for (const row of ferieRows) {
-        if (!row[1] || !row[2]) continue;
+        // row[1] = Col B (Start), row[3] = Col D (End)
+        // Ignora se mancano le date
+        if (!row[1] || !row[3]) continue;
 
         let startDate, endDate;
         try {
@@ -334,28 +338,39 @@ function _loadVacationPeriodsFromSheet(spreadsheet) {
             if (typeof d === 'string') {
               // Supporto DD/MM/YYYY
               const parts = d.split(/[/-]/);
-              if (parts.length === 3 && parts[0].length <= 2) {
-                return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`); // YYYY-MM-DD
+              if (parts.length === 3 && parts[1]) { // check parts[1] to avoid index error
+                // Basic heuristic for DD/MM/YYYY vs YYYY-MM-DD
+                // If first part > 31 it's YYYY. If last > 31 it's YYYY.
+                // Assuming Italian locale DD/MM/YYYY as primary
+                const p0 = parseInt(parts[0], 10);
+                const p2 = parseInt(parts[2], 10);
+                if (p2 > 1900) {
+                  return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`); // YYYY-MM-DD
+                }
               }
-              return new Date(d); // Fallback standard
+              return new Date(d); // Fallback
             }
             return new Date(d);
           };
 
           startDate = parseDate(row[1]);
-          endDate = parseDate(row[2]);
+          endDate = parseDate(row[3]); // Uso Col D (Index 3)
 
           if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-            console.warn(`\u26A0\uFE0F Formato data non valido: ${row[1]} - ${row[2]} (Usa GG/MM/AAAA)`);
+            // Log solo se c'è qualcosa che sembra una data ma fallisce,
+            // evitando falsi positivi su celle vuote o con formattazione
+            if (String(row[1]).length > 0 || String(row[3]).length > 0) {
+              console.warn(`\u26A0\uFE0F Formato data non valido in ${row[0] || 'riga'}: ${row[1]} - ${row[3]} (Usa GG/MM/AAAA)`);
+            }
             continue;
           }
 
           if (endDate < startDate) {
-            console.warn(`\u26A0\uFE0F Data fine precedente a data inizio: ${startDate.toLocaleDateString()} > ${endDate.toLocaleDateString()}`);
+            console.warn(`\u26A0\uFE0F Periodo ${row[0] || ''}: Data fine precedente a data inizio (${startDate.toLocaleDateString()} > ${endDate.toLocaleDateString()})`);
             continue;
           }
 
-          validPeriods.push({ start: startDate, end: endDate });
+          validPeriods.push({ start: startDate, end: endDate, type: row[0] });
         } catch (parsingErr) {
           console.warn(`\u26A0\uFE0F Errore parsing date ferie: ${parsingErr.message}`);
           continue;
@@ -363,11 +378,11 @@ function _loadVacationPeriodsFromSheet(spreadsheet) {
       }
 
       if (validPeriods.length > 0) {
-        console.log(`\u2713 Periodi ferie caricati: ${validPeriods.length} periodo/i`);
+        console.log(`\u2713 Periodi assenza caricati: ${validPeriods.length}`);
         return validPeriods;
       }
     } else {
-      console.warn('\u26A0\uFE0F Foglio "Controllo" non trovato - periodi ferie non caricati (assumo Nessuna Ferie)');
+      console.warn('\u26A0\uFE0F Foglio "Controllo" non trovato - periodi ferie non caricati');
     }
   } catch (ferieErr) {
     console.warn(`\u26A0\uFE0F Impossibile caricare periodi ferie: ${ferieErr.message}`);
