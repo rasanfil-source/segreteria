@@ -568,11 +568,16 @@ class MemoryService {
       if (!existingRow) return;
 
       const existingData = this._rowToObject(existingRow.values);
+      const existingTopics = this._normalizeProvidedTopics(existingData.providedInfo || []);
       const normalizedTopics = this._normalizeProvidedTopics(providedInfo);
       const maxTopics = typeof CONFIG !== 'undefined' ? (CONFIG.MAX_PROVIDED_TOPICS || 50) : 50;
-      const limitedTopics = normalizedTopics.slice(-maxTopics);
 
-      existingData.providedInfo = limitedTopics;
+      let mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
+      if (mergedTopics.length > maxTopics) {
+        mergedTopics = mergedTopics.slice(-maxTopics);
+      }
+
+      existingData.providedInfo = mergedTopics;
       existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
       existingData.version = (existingData.version || 0) + 1;
 

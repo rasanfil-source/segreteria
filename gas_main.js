@@ -30,6 +30,7 @@ const ALWAYS_OPERATING_DAYS = [
   [MONTH.JAN, 6],    // Epifania
   [MONTH.APR, 25],   // Liberazione
   [MONTH.MAY, 1],    // Festa del Lavoro
+  [MONTH.JUN, 2],    // Festa della Repubblica
   [MONTH.JUN, 29],   // SS. Pietro e Paolo
   [MONTH.AUG, 15],   // Assunzione (Ferragosto)
   [MONTH.NOV, 1],    // Ognissanti
@@ -207,6 +208,7 @@ function getSpecialMassTimeRule(date = new Date()) {
     '25-04', // 🇮🇹 Liberazione
     '01-05', // 👷 Lavoro
     '02-06', // 🇮🇹 Repubblica
+    '29-06', // ⛪ SS. Pietro e Paolo
     '15-08', // 🏖️ Ferragosto
     '01-11', // 🕯️ Ognissanti
     '08-12', // ⛪ Immacolata
@@ -453,10 +455,10 @@ function _loadAdvancedConfig(spreadsheet) {
       }
     });
 
-    // 4. BLACKLIST DOMINI e KEYWORD (Righe 11-50, Colonne E ed F)
-    // E11:E50 -> Domini
-    // F11:F50 -> Keyword
-    const blacklistRange = sheet.getRange("E11:F120").getValues();
+    // 4. BLACKLIST DOMINI e KEYWORD (da riga 17 per evitare overlap con orari)
+    // E17:E120 -> Domini
+    // F17:F120 -> Keyword
+    const blacklistRange = sheet.getRange("E17:F120").getValues();
 
     blacklistRange.forEach(row => {
       const domain = String(row[0]).trim();

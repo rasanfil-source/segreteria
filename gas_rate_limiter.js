@@ -633,6 +633,7 @@ class GeminiRateLimiter {
       }
       if (!Array.isArray(wal.rpm) || !Array.isArray(wal.tpm)) {
         console.error('❌ WAL con array invalidi');
+        this.props.deleteProperty('rate_limit_wal');
         return;
       }
 
@@ -799,15 +800,25 @@ class GeminiRateLimiter {
   }
 
   _getNextResetTime() {
-    const now = new Date();
-    const hour = parseInt(Utilities.formatDate(now, 'Europe/Rome', 'HH'));
+    const nowMs = Date.now();
+    const currentPacificDate = this._getPacificDate();
 
-    const resetTime = new Date(now);
-    if (hour >= 9) {
-      resetTime.setDate(resetTime.getDate() + 1);
+    // Trova il primo istante in cui cambia la data Pacific (mezzanotte locale Pacific)
+    let low = nowMs;
+    let high = nowMs + (36 * 60 * 60 * 1000); // margine abbondante per DST
+
+    while (high - low > 1000) {
+      const mid = Math.floor((low + high) / 2);
+      const midPacificDate = Utilities.formatDate(new Date(mid), 'America/Los_Angeles', 'yyyy-MM-dd');
+
+      if (midPacificDate === currentPacificDate) {
+        low = mid;
+      } else {
+        high = mid;
+      }
     }
-    resetTime.setHours(9, 0, 0, 0);
-    return resetTime.toISOString();
+
+    return new Date(high).toISOString();
   }
 
   /**
