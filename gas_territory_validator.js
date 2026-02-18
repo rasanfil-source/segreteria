@@ -169,6 +169,9 @@ class TerritoryValidator {
         for (const dbKey of Object.keys(this.territory)) {
             const dbTokens = dbKey.split(' ');
 
+            // Evita conflitti tra tipologie diverse (es. "via" vs "viale")
+            if (inputTokens[0] !== dbTokens[0]) continue;
+
             // Verifica che TUTTI i token input siano presenti
             const allTokensPresent = inputTokens.every(token => dbTokens.includes(token));
 
@@ -192,8 +195,10 @@ class TerritoryValidator {
             }
 
             // Match solo se esiste almeno una coppia consecutiva
-            if (hasConsecutivePair) {
-                console.log(`🔍 Match fuzzy trovato: '${inputStreet}' -> '${dbKey}'`);
+            // e con buona copertura dei token (riduce falsi positivi su strade simili)
+            const overlapRatio = inputTokens.length / dbTokens.length;
+            if (hasConsecutivePair && overlapRatio >= 0.7) {
+                console.log(`\uD83D\uDD0D Match fuzzy trovato: '${inputStreet}' -> '${dbKey}'`);
                 return { key: dbKey, rules: this.territory[dbKey] };
             }
         }
@@ -374,6 +379,11 @@ class TerritoryValidator {
      * @returns {Object} {inTerritory: boolean, matchedKey: string|null, rule: string|null}
      */
     verifyAddress(street, civic) {
+        if (typeof civic !== 'number' || !isFinite(civic) || civic < 1) {
+            console.warn(`\u26A0 Civico non valido per verifica territorio: ${civic}`);
+            return { inTerritory: false, matchedKey: null, rule: 'invalid_civic' };
+        }
+
         const match = this.findTerritoryMatch(street);
 
         if (!match) {
@@ -389,10 +399,10 @@ class TerritoryValidator {
         if (Array.isArray(rules.tutti)) {
             const [min, max] = rules.tutti;
             if (min === null && max === null) {
-                console.warn(`⚠️ Range invalido [null, null] per ${matchedKey}, trattato come "tutti"`);
+                console.warn(`\u26A0 Range invalido [null, null] per ${matchedKey}, trattato come "tutti"`);
                 return { inTerritory: true, matchedKey: matchedKey, rule: 'tutti (default)' };
             }
-            const minValue = (min === null || min === undefined) ? 0 : min;
+            const minValue = (min === null || min === undefined) ? 1 : min;
             const maxValue = (max === null || max === undefined) ? Infinity : max;
             const maxLabel = maxValue === Infinity ? '∞' : maxValue;
 
@@ -411,7 +421,7 @@ class TerritoryValidator {
         // Caso 2: Solo pari
         if (rules.pari && civic % 2 === 0) {
             const [min, max] = rules.pari;
-            const minValue = (min === null || min === undefined) ? 0 : min;
+            const minValue = (min === null || min === undefined) ? 1 : min;
             const maxValue = (max === null || max === undefined) ? Infinity : max;
             const maxLabel = maxValue === Infinity ? '∞' : maxValue;
 
@@ -424,7 +434,7 @@ class TerritoryValidator {
         // Caso 3: Solo dispari
         if (rules.dispari && civic % 2 !== 0) {
             const [min, max] = rules.dispari;
-            const minValue = (min === null || min === undefined) ? 0 : min;
+            const minValue = (min === null || min === undefined) ? 1 : min;
             const maxValue = (max === null || max === undefined) ? Infinity : max;
             const maxLabel = maxValue === Infinity ? '∞' : maxValue;
 

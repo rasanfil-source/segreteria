@@ -201,17 +201,24 @@ function getSpecialMassTimeRule(date = new Date()) {
   if (weekDay === 0) return null;
 
   // Giorni festivi fissi con messa alle 19:00
-  const giorniFissiSpeciali = [
-    [4, 25],  // Anniversario Liberazione
-    [5, 1],   // Festa del Lavoro
-    [6, 2],   // Festa della Repubblica
-    [12, 26]  // Santo Stefano
+  const HOLIDAYS = [
+    '01-01', // 🥳 Capodanno
+    '06-01', // 👑 Epifania
+    '25-04', // 🇮🇹 Liberazione
+    '01-05', // 👷 Lavoro
+    '02-06', // 🇮🇹 Repubblica
+    '15-08', // 🏖️ Ferragosto
+    '01-11', // 🕯️ Ognissanti
+    '08-12', // ⛪ Immacolata
+    '25-12', // 🎄 Natale
+    '26-12'  // 🎁 Santo Stefano
   ];
 
   let isSpecial = false;
 
-  for (const [m, d] of giorniFissiSpeciali) {
-    if (month === m && day === d) {
+  for (const holiday of HOLIDAYS) {
+    const [hDay, hMonth] = holiday.split('-').map(Number);
+    if (month === hMonth && day === hDay) {
       isSpecial = true;
       break;
     }
@@ -322,35 +329,48 @@ function _loadVacationPeriodsFromSheet(spreadsheet) {
 
         let startDate, endDate;
         try {
-          startDate = new Date(row[1]);
-          endDate = new Date(row[2]);
+          const parseDate = (d) => {
+            if (d instanceof Date) return d;
+            if (typeof d === 'string') {
+              // Supporto DD/MM/YYYY
+              const parts = d.split(/[/-]/);
+              if (parts.length === 3 && parts[0].length <= 2) {
+                return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`); // YYYY-MM-DD
+              }
+              return new Date(d); // Fallback standard
+            }
+            return new Date(d);
+          };
+
+          startDate = parseDate(row[1]);
+          endDate = parseDate(row[2]);
 
           if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-            console.warn(`⚠️ Formato data non valido: ${row[1]} - ${row[2]}`);
+            console.warn(`\u26A0\uFE0F Formato data non valido: ${row[1]} - ${row[2]} (Usa GG/MM/AAAA)`);
             continue;
           }
 
           if (endDate < startDate) {
-            console.warn(`⚠️ Data fine precedente a data inizio: ${startDate.toLocaleDateString()} > ${endDate.toLocaleDateString()}`);
+            console.warn(`\u26A0\uFE0F Data fine precedente a data inizio: ${startDate.toLocaleDateString()} > ${endDate.toLocaleDateString()}`);
             continue;
           }
 
           validPeriods.push({ start: startDate, end: endDate });
         } catch (parsingErr) {
-          console.warn(`⚠️ Errore parsing date ferie: ${parsingErr.message}`);
+          console.warn(`\u26A0\uFE0F Errore parsing date ferie: ${parsingErr.message}`);
           continue;
         }
       }
 
       if (validPeriods.length > 0) {
-        console.log(`✓ Periodi ferie caricati: ${validPeriods.length} periodo/i`);
+        console.log(`\u2713 Periodi ferie caricati: ${validPeriods.length} periodo/i`);
         return validPeriods;
       }
     } else {
-      console.warn('⚠️ Foglio "Controllo" non trovato - periodi ferie non caricati (assumo Nessuna Ferie)');
+      console.warn('\u26A0\uFE0F Foglio "Controllo" non trovato - periodi ferie non caricati (assumo Nessuna Ferie)');
     }
   } catch (ferieErr) {
-    console.warn(`⚠️ Impossibile caricare periodi ferie: ${ferieErr.message}`);
+    console.warn(`\u26A0\uFE0F Impossibile caricare periodi ferie: ${ferieErr.message}`);
   }
   return [];
 }
@@ -376,7 +396,7 @@ function _loadSupplementaryResources(spreadsheet) {
     const liteData = liteSheet.getDataRange().getValues();
     GLOBAL_CACHE.aiCoreLite = liteData.map(row => row.join(' | ')).join('\n');
     GLOBAL_CACHE.aiCoreLiteStructured = _parseSheetToStructured(liteData);
-    console.log(`✓ AI_CORE_LITE caricato: ${GLOBAL_CACHE.aiCoreLite.length} caratteri`);
+    console.log(`\u2713 AI_CORE_LITE caricato: ${GLOBAL_CACHE.aiCoreLite.length} caratteri`);
   }
 
   // Carica AI_CORE (principi pastorali estesi)
@@ -385,7 +405,7 @@ function _loadSupplementaryResources(spreadsheet) {
     const coreData = coreSheet.getDataRange().getValues();
     GLOBAL_CACHE.aiCore = coreData.map(row => row.join(' | ')).join('\n');
     GLOBAL_CACHE.aiCoreStructured = _parseSheetToStructured(coreData);
-    console.log(`✓ AI_CORE caricato: ${GLOBAL_CACHE.aiCore.length} caratteri`);
+    console.log(`\u2713 AI_CORE caricato: ${GLOBAL_CACHE.aiCore.length} caratteri`);
   }
 
   // Carica Dottrina (base dottrinale completa)
@@ -394,7 +414,7 @@ function _loadSupplementaryResources(spreadsheet) {
     const doctrineData = doctrineSheet.getDataRange().getValues();
     GLOBAL_CACHE.doctrineBase = doctrineData.map(row => row.join(' | ')).join('\n');
     GLOBAL_CACHE.doctrineStructured = _parseSheetToStructured(doctrineData);
-    console.log(`✓ Dottrina caricata: ${GLOBAL_CACHE.doctrineBase.length} caratteri`);
+    console.log(`\u2713 Dottrina caricata: ${GLOBAL_CACHE.doctrineBase.length} caratteri`);
   }
 
   // Carica Sostituzioni (correzioni automatiche testo)
@@ -408,7 +428,7 @@ function _loadSupplementaryResources(spreadsheet) {
           GLOBAL_CACHE.replacements[String(badText).trim()] = String(goodText).trim();
         }
       }
-      console.log(`✓ Sostituzioni caricate: ${Object.keys(GLOBAL_CACHE.replacements).length}`);
+      console.log(`\u2713 Sostituzioni caricate: ${Object.keys(GLOBAL_CACHE.replacements).length}`);
     }
   } catch (replError) {
     console.warn(`⚠️ Impossibile caricare sostituzioni: ${replError.message}`);

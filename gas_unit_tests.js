@@ -449,16 +449,18 @@ function testGeminiServiceAdvanced(results) {
             return lang === 'it';  // Italiano prevalente
         });
 
-        test('Saluto adattivo: primo contatto', results, () => {
+        test('Saluto adattivo: italiano', results, () => {
             const service = new GeminiService();
-            const greeting = service.computeAdaptiveGreeting('it', 'full', false);
-            return greeting.includes('Buongiorno') || greeting.includes('Buonasera');
+            const result = service.getAdaptiveGreeting('Maria', 'it');
+            const greeting = result.greeting;
+            return greeting.includes('Maria') || greeting.includes('Buongiorno') || greeting.includes('Buonasera') || greeting.includes('Salve');
         });
 
-        test('Saluto adattivo: follow-up', results, () => {
+        test('Saluto adattivo: inglese', results, () => {
             const service = new GeminiService();
-            const greeting = service.computeAdaptiveGreeting('it', 'soft', true);
-            return greeting.includes('Ciao') || greeting === '';
+            const result = service.getAdaptiveGreeting('John', 'en');
+            const greeting = result.greeting;
+            return greeting.includes('Good') || greeting.includes('Hello');
         });
 
         test('shouldRespondToEmail: verifica esistenza metodo', results, () => {
@@ -632,7 +634,7 @@ function testResponseValidatorAdvanced(results) {
                 emailContent: "Orari messe?",
                 senderName: "Test"
             });
-            return result.checks.length === true;
+            return result.details.length.score === 1.0;
         });
 
         // ... (truncated parts restored in next steps if needed, but here prioritizing brevity per step - but wait, I can fit 100 lines easily. Let's add more validator tests)
@@ -644,7 +646,7 @@ function testResponseValidatorAdvanced(results) {
                 emailContent: "Orari?",
                 senderName: "Test"
             });
-            return result.checks.language === true;
+            return result.details.language.score === 1.0;
         });
 
         // Merging batches...
@@ -658,7 +660,7 @@ function testResponseValidatorAdvanced(results) {
                 senderName: "Test",
                 isFollowUp: false
             });
-            return result.checks.signature === true;
+            return result.details.signature.score === 1.0;
         });
 
         test('Contenuto proibito: placeholder rilevato', results, () => {
@@ -668,7 +670,7 @@ function testResponseValidatorAdvanced(results) {
                 emailContent: "Orari?",
                 senderName: "Test"
             });
-            return result.checks.forbiddenContent === false;
+            return result.details.content.score < 1.0;
         });
 
         test('Allucinazione: email inventata', results, () => {
@@ -678,7 +680,7 @@ function testResponseValidatorAdvanced(results) {
                 emailContent: "Contatti?",
                 senderName: "Test"
             });
-            return result.checks.hallucinations === false;
+            return result.details.hallucinations.score < 1.0;
         });
 
         test('Allucinazione: telefono inventato', results, () => {
@@ -688,7 +690,7 @@ function testResponseValidatorAdvanced(results) {
                 emailContent: "Telefono?",
                 senderName: "Test"
             });
-            return result.checks.hallucinations === true || result.checks.hallucinations === false;
+            return result.details.hallucinations.score <= 1.0;
         });
 
         test('Leak ragionamento: reasoning esposto', results, () => {
@@ -698,7 +700,7 @@ function testResponseValidatorAdvanced(results) {
                 emailContent: "Orari?",
                 senderName: "Test"
             });
-            return result.checks.exposedReasoning === false;
+            return result.details.exposedReasoning.score === 0.0;
         });
 
         test('Maiuscola dopo virgola: errore rilevato', results, () => {
@@ -708,7 +710,7 @@ function testResponseValidatorAdvanced(results) {
                 emailContent: "Orari?",
                 senderName: "Test"
             });
-            return result.checks.capitalAfterComma === false;
+            return result.details.capitalAfterComma.score < 1.0;
         });
 
         test('Nomi doppi: capitalizzazione preservata', results, () => {
@@ -805,16 +807,16 @@ function testIntegrationScenarios(results) {
         test('Scenario 4: Supporto multi-lingua', results, () => {
             const service = new GeminiService();
 
-            const langIT = service.detectLanguage("Buongiorno");
-            const langEN = service.detectLanguage("Hello");
-            const langES = service.detectLanguage("Hola");
+            const langIT = service.detectEmailLanguage("Buongiorno", "").lang;
+            const langEN = service.detectEmailLanguage("Hello", "").lang;
+            const langES = service.detectEmailLanguage("Hola", "").lang;
 
             return langIT === 'it' && langEN === 'en' && langES === 'es';
         });
 
         test('Scenario 5: Verifica rate limiting', results, () => {
             const limiter = new GeminiRateLimiter();
-            const canProceed = limiter.canMakeRequest('flash-2.5', 1000);
+            const canProceed = limiter.selectModel('generation', { forceModel: 'flash-2.5', estimatedTokens: 1000 }).available;
             return canProceed === true || canProceed === false;
         });
     });

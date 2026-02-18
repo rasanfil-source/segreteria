@@ -33,4 +33,4 @@ Abbiamo esteso `gas_unit_tests.js` aggiungendo test specifici per le funzioni cr
 
 -   `gas_setup_ui.js`: Refactoring completo setup e validazione.
 -   `gas_main.js`: Aggiornamento lettura config da nuovi range (B/D).
--   `gas_unit_tests.js`: Aggiunta suite `testCoreLogicMocked`.
+-   `gas_unit_tests.js`: Aggiunta suite `testCoreLogicMocked` e ripristino intera suite di regressione (1500+ righe).

@@ -42,8 +42,8 @@ class GeminiService {
     this.modelName = this.config.MODEL_NAME || 'gemini-2.5-flash';
     this.baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent`;
 
-    if (!this.primaryKey || this.primaryKey.length < 20) {
-      throw new Error('GEMINI_API_KEY non configurata correttamente');
+    if (!this.primaryKey || this.primaryKey.length < 20 || /YOUR_[A-Z0-9_]+_HERE/.test(this.primaryKey)) {
+      throw new Error('GEMINI_API_KEY non configurata correttamente (usa Script Properties, non placeholder)');
     }
 
     if (this.backupKey) {
@@ -105,7 +105,7 @@ class GeminiService {
     const temperature = this.config.TEMPERATURE || 0.5;
     const maxTokens = this.config.MAX_OUTPUT_TOKENS || 6000;
 
-    console.log(`🤖 Chiamata ${modelName} (prompt: ${prompt.length} caratteri)...`);
+    console.log(`\uD83E\uDD16 Chiamata ${modelName} (prompt: ${prompt.length} caratteri)...`);
 
     let response;
     try {
@@ -176,7 +176,7 @@ class GeminiService {
       throw new Error('Gemini ha restituito testo vuoto');
     }
 
-    console.log(`✓ Generati ${generatedText.length} caratteri (da ${parts.length} parti)`);
+    console.log(`\u2713 Generati ${generatedText.length} caratteri (da ${parts.length} parti)`);
     return generatedText;
   }
 
@@ -241,7 +241,7 @@ Output JSON:
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
 
-    console.log(`🔍 Controllo rapido via ${modelName}...`);
+    console.log(`\uD83D\uDD0D Controllo rapido via ${modelName}...`);
 
     // Gestione con tentativo su chiave primaria e alternativa su secondaria
     let activeKey = this.primaryKey;
@@ -265,7 +265,7 @@ Output JSON:
       // Punto 4: Estesa gestione errori con switch alla chiave di riserva
       const responseCode = response.getResponseCode();
       if ([429, 500, 502, 503, 504].includes(responseCode) && this.backupKey) {
-        console.warn(`⚠️ Chiave primaria esaurita / errore(${response.getResponseCode()}).Tentativo con chiave di riserva...`);
+        console.warn(`\u26A0\uFE0F Chiave primaria esaurita / errore(${response.getResponseCode()}).Tentativo con chiave di riserva...`);
         activeKey = this.backupKey;
         response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
           method: 'POST',
@@ -310,14 +310,14 @@ Output JSON:
     };
 
     if (!result.candidates || !result.candidates[0]) {
-      console.error('❌ Nessun candidato nella risposta Controllo Rapido Gemini');
+      console.error('\u274C Nessun candidato nella risposta Controllo Rapido Gemini');
       return defaultResult;
     }
 
     const candidate = result.candidates[0];
 
     if (candidate.finishReason && ['SAFETY', 'RECITATION', 'OTHER', 'BLOCKLIST'].includes(candidate.finishReason)) {
-      console.warn(`⚠️ Controllo rapido bloccato: ${candidate.finishReason}`);
+      console.warn(`\u26A0\uFE0F Controllo rapido bloccato: ${candidate.finishReason}`);
       return defaultResult;
     }
 
@@ -326,7 +326,7 @@ Output JSON:
     const textResponse = parts.map(p => p.text || '').join('').trim();
 
     if (!textResponse) {
-      console.error('❌ Risposta non valida: testo vuoto');
+      console.error('\u274C Risposta non valida: testo vuoto');
       return defaultResult;
     }
 
@@ -335,7 +335,7 @@ Output JSON:
     try {
       data = parseGeminiJsonLenient(textResponse);
     } catch (parseError) {
-      console.warn(`⚠️ parseGeminiJsonLenient fallito: ${parseError.message}`);
+      console.warn(`\u26A0\uFE0F parseGeminiJsonLenient fallito: ${parseError.message}`);
       return defaultResult;
     }
 
@@ -377,11 +377,11 @@ Output JSON:
 
         if (isRetryable && attempt < this.maxRetries - 1) {
           const waitTime = this.retryDelay * Math.pow(this.backoffFactor, attempt);
-          console.warn(`⚠️ ${context} fallito(tentativo ${attempt + 1}/${this.maxRetries}): [${classified.type}] ${error.message}`);
+          console.warn(`\u26A0\uFE0F ${context} fallito(tentativo ${attempt + 1}/${this.maxRetries}): [${classified.type}] ${error.message}`);
           console.log(`   Retry tra ${waitTime / 1000}s...`);
           Utilities.sleep(waitTime);
         } else if (attempt === this.maxRetries - 1) {
-          console.error(`❌ Tutti i ${this.maxRetries} tentativi ${context} falliti [${classified.type}]`);
+          console.error(`\u274C Tutti i ${this.maxRetries} tentativi ${context} falliti [${classified.type}]`);
           throw error;
         } else {
           // Errore non ritentabile
@@ -410,7 +410,7 @@ Output JSON:
     let portugueseCharScore = 0;
 
     if (originalText.includes('¿') || originalText.includes('¡')) {
-      spanishCharScore = 3;
+      spanishCharScore = 1;
       console.log('   Trovata punteggiatura spagnola (¿ o ¡)');
     }
     if (text.includes('ñ')) {
@@ -510,19 +510,19 @@ Output JSON:
     }
 
     // Logica soglia confidenza
-    if (spanishCharScore > 0 && scores['es'] >= scores['it'] && scores['es'] >= scores['en']) {
-      console.log(`   ✓ Rilevato: SPAGNOLO(punteggio: ${scores['es']}, include caratteri speciali)`);
+    if (spanishCharScore > 0 && scores['es'] >= 2 && scores['es'] > scores['it'] && scores['es'] > scores['en']) {
+      console.log(`   \u2713 Rilevato: SPAGNOLO (punteggio: ${scores['es']}, supportato da segnali lessicali)`);
       return { lang: 'es', confidence: scores['es'], safetyGrade: this._computeSafetyGrade('es', scores['es'], scores) };
     }
 
     // Check Portoghese senza caratteri speciali ma con score alto
     if (scores['pt'] > scores['en'] && scores['pt'] > scores['it'] && scores['pt'] > scores['es']) {
-      console.log(`   ✓ Rilevato: PORTOGHESE(punteggio: ${scores['pt']})`);
+      console.log(`   \u2713 Rilevato: PORTOGHESE(punteggio: ${scores['pt']})`);
       return { lang: 'pt', confidence: scores['pt'], safetyGrade: this._computeSafetyGrade('pt', scores['pt'], scores) };
     }
 
     if (scores['en'] >= 2 && scores['en'] >= scores['it'] && scores['en'] >= scores['es'] && scores['en'] >= scores['pt']) {
-      console.log(`   ✓ Rilevato: INGLESE(punteggio: ${scores['en']})`);
+      console.log(`   \u2713 Rilevato: INGLESE(punteggio: ${scores['en']})`);
       return { lang: 'en', confidence: scores['en'], safetyGrade: this._computeSafetyGrade('en', scores['en'], scores) };
     }
 
@@ -533,7 +533,7 @@ Output JSON:
       return { lang: 'it', confidence: maxScore, safetyGrade: 0 };
     }
 
-    console.log(`   ✓ Rilevato: ${detectedLang.toUpperCase()} (punteggio: ${maxScore})`);
+    console.log(`   \u2713 Rilevato: ${detectedLang.toUpperCase()} (punteggio: ${maxScore})`);
     return { lang: detectedLang, confidence: maxScore, safetyGrade: this._computeSafetyGrade(detectedLang, maxScore, scores) };
   }
 
@@ -578,24 +578,24 @@ Output JSON:
 
     // 1. Se Gemini non ha restituito lingua → usa locale
     if (!normalizedGemini) {
-      console.log(`   🌍 Lingua: ${normalizedLocal.toUpperCase()} (Gemini silente, alternativa locale)`);
+      console.log(`   \uD83C\uDF0D Lingua: ${normalizedLocal.toUpperCase()} (Gemini silente, alternativa locale)`);
       return normalizedLocal;
     }
 
     // 2. Se Gemini restituisce lingua ESOTICA (non IT/EN/ES/PT) → USA GEMINI
     if (!supportedLangs.includes(normalizedGemini)) {
-      console.log(`   🌍 Lingua: ${normalizedGemini.toUpperCase()} (esotica, Gemini autoritativo)`);
+      console.log(`   \uD83C\uDF0D Lingua: ${normalizedGemini.toUpperCase()} (esotica, Gemini autoritativo)`);
       return normalizedGemini;
     }
 
     // 3. Lingua principale: alta sicurezza locale conferma
     if (localSafetyGrade >= 4 && normalizedLocal === normalizedGemini) {
-      console.log(`   🌍 Lingua: ${normalizedGemini.toUpperCase()} (confermata da locale, grado ${localSafetyGrade})`);
+      console.log(`   \uD83C\uDF0D Lingua: ${normalizedGemini.toUpperCase()} (confermata da locale, grado ${localSafetyGrade})`);
       return normalizedGemini;
     }
 
     // 4. Default: fidati di Gemini per le principali
-    console.log(`   🌍 Lingua: ${normalizedGemini.toUpperCase()} (Gemini primario, grado locale ${localSafetyGrade})`);
+    console.log(`   \uD83C\uDF0D Lingua: ${normalizedGemini.toUpperCase()} (Gemini primario, grado locale ${localSafetyGrade})`);
     return normalizedGemini;
   }
 

@@ -14,7 +14,7 @@
  */
 class GeminiRateLimiter {
   constructor() {
-    console.log('🚦 Inizializzazione GeminiRateLimiter...');
+    console.log('\uD83D\uDEA6 Inizializzazione GeminiRateLimiter...');
 
     // ================================================================
     // CONFIGURAZIONE MODELLI (Legge da CONFIG)
@@ -23,10 +23,10 @@ class GeminiRateLimiter {
     // Legge modelli da CONFIG.GEMINI_MODELS (centralizzato)
     if (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_MODELS) {
       this.models = CONFIG.GEMINI_MODELS;
-      console.log('   ✓ Modelli caricati da CONFIG.GEMINI_MODELS');
+      console.log('   \u2713 Modelli caricati da CONFIG.GEMINI_MODELS');
     } else {
       // Fallback se CONFIG non disponibile
-      console.warn('   ⚠️ CONFIG.GEMINI_MODELS non trovato, uso default');
+      console.warn('   \u26A0\uFE0F CONFIG.GEMINI_MODELS non trovato, uso default');
       this.models = {
         'flash-2.5': {
           name: 'gemini-2.5-flash',
@@ -49,7 +49,7 @@ class GeminiRateLimiter {
     // Legge strategia da CONFIG.MODEL_STRATEGY (centralizzato)
     if (typeof CONFIG !== 'undefined' && CONFIG.MODEL_STRATEGY) {
       this.strategies = CONFIG.MODEL_STRATEGY;
-      console.log('   ✓ Strategia caricata da CONFIG.MODEL_STRATEGY');
+      console.log('   \u2713 Strategia caricata da CONFIG.MODEL_STRATEGY');
     } else {
       // Fallback default
       this.strategies = {
@@ -357,7 +357,7 @@ class GeminiRateLimiter {
     // sul Rate Limiter locale per non inquinare le statistiche della chiave principale
     // ═══════════════════════════════════════════════════════════════════
     if (options.skipRateLimit) {
-      console.warn('⏩ RateLimiter BYPASSED (Chiave di Riserva in uso)');
+      console.warn('\u23E9 RateLimiter BYPASSED (Chiave di Riserva in uso)');
       try {
         const startTime = Date.now();
         // Esecuzione diretta senza controlli quota
@@ -386,7 +386,7 @@ class GeminiRateLimiter {
     const selection = this.selectModel(taskType, { preferQuality: preferQuality });
 
     if (!selection.available) {
-      console.error(`❌ Nessun modello disponibile: ${selection.reason}`);
+      console.error(`\u274C Nessun modello disponibile: ${selection.reason}`);
       throw new Error('QUOTA_EXHAUSTED: ' + selection.reason);
     }
 
@@ -396,7 +396,7 @@ class GeminiRateLimiter {
 
     // 2. Throttling
     if (shouldThrottle && shouldThrottle.needed) {
-      console.warn(`⏸️  Throttling (${shouldThrottle.reason}): ${shouldThrottle.delay}ms`);
+      console.warn(`\u23F8\uFE0F Throttling (${shouldThrottle.reason}): ${shouldThrottle.delay}ms`);
       Utilities.sleep(shouldThrottle.delay);
     }
 
@@ -584,7 +584,7 @@ class GeminiRateLimiter {
     }
 
     if (!lockAcquired) {
-      console.warn('⚠️ Impossibile acquisire lock per salvataggio cache dopo 3 tentativi. Dati mantenuti in memoria.');
+      console.warn('\u26A0\uFE0F Impossibile acquisire lock per salvataggio cache dopo 3 tentativi. Dati mantenuti in memoria.');
       return;
     }
 

@@ -61,7 +61,9 @@ class ResponseValidator {
     this.thinkingRegexes = [
       /\b(devo|dovrei|bisogna|necessario)\s+(usare|correggere|evitare|modificare|aggiornare)\b/i, // Meta-commenti
       /\b(knowledge base|kb)\s+(dice|afferma|contiene|riporta|indica)\b/i,                       // Riferimenti KB
-      /\b(rivedendo|consultando|controllando|verificando)\s+(la\s+)?(knowledge base|kb)\b/i      // Azioni su KB
+      /\b(rivedendo|consultando|controllando|verificando)\s+(la\s+)?(knowledge base|kb)\b/i,     // Azioni su KB
+      /\b(dalle\s+)?(informazioni|istruzioni|linee\s+guida)\s+(in\s+mio\s+possesso|fornite|ricevute)\b/i,
+      /\b(come\s+da|secondo\s+le)\s+(istruzioni|linee\s+guida)\b/i
     ];
 
     this.thinkingPatterns = [
@@ -172,7 +174,7 @@ class ResponseValidator {
     if (!validationResult.isValid && attemptPerfezionamento) {
       console.log('🩺 Tentativo perfezionamento automatico...');
 
-      const perfezionamentoResult = this._perfezionamentoAutomatico(currentResponse, validationResult.errors, safeDetectedLanguage);
+      const perfezionamentoResult = this._perfezionamentoAutomatico(currentResponse, validationResult.errors, safeDetectedLanguage, salutationMode);
 
       if (perfezionamentoResult.fixed) {
         console.log('   ✨ Risposta perfezionata (migliorata qualità o rimozione allucinazioni)');
@@ -853,7 +855,7 @@ class ResponseValidator {
   /**
    * Tenta di correggere automaticamente gli errori rilevati
    */
-  _perfezionamentoAutomatico(response, errors, language) {
+  _perfezionamentoAutomatico(response, errors, language, salutationMode = 'full') {
     let textPerfezionato = response;
     let modified = false;
 
@@ -879,7 +881,10 @@ class ResponseValidator {
     }
 
     // 3. Correzione Saluto temporalmente incongruente
-    if (!errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('placeholder'))) {
+    if (
+      salutationMode !== 'none_or_continuity' &&
+      !errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('placeholder'))
+    ) {
       const salutoOttimizzato = this._ottimizzaSalutoTemporale(textPerfezionato, language);
       if (salutoOttimizzato !== textPerfezionato) {
         textPerfezionato = salutoOttimizzato;
