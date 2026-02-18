@@ -166,8 +166,13 @@ function isInSuspensionTime(checkDate = new Date()) {
   // Se non è festivo, verifica se i dipendenti stanno lavorando
   // ────────────────────────────────────────────────────────────────
 
-  if (SUSPENSION_HOURS[day]) {
-    for (const [startH, endH] of SUSPENSION_HOURS[day]) {
+  // Usa regole dinamiche se caricate, altrimenti fallback (anche se loadResources dovrebbe aver gestito il fallback)
+  const rules = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.suspensionRules)
+    ? GLOBAL_CACHE.suspensionRules
+    : SUSPENSION_HOURS;
+
+  if (rules[day]) {
+    for (const [startH, endH] of rules[day]) {
       if (hour >= startH && hour < endH) {
         return true; // SOSPESO (segreteria operativa)
       }
@@ -418,67 +423,109 @@ function _loadSupplementaryResources(spreadsheet) {
  * @param {Spreadsheet} spreadsheet
  * @returns {Object} Configurazione letta
  */
-/* DELETED _loadAdvancedConfig */
-function _loadAdvancedConfig(spreadsheet) { return {}; }
-/*
+function _loadAdvancedConfig(spreadsheet) {
+  const config = {
+    systemEnabled: true,          // Default: ACCESO
+    vacationPeriods: [],           // Default: Nessun periodo ferie extra
+    suspensionRules: {},           // Default: Nessuna regola sospensione (usa hardcoded)
+    ignoreDomains: [],             // Default: Nessun dominio extra
+    ignoreKeywords: []             // Default: Nessuna keyword extra
+  };
 
   try {
-    const sheet = spreadsheet.getSheetByName(CONFIG.CONTROL_SHEET_NAME);
-    if (!sheet) return config;
+    const sheet = spreadsheet.getSheetByName('Controllo');
 
-    // --- LEGGERE INTERRUTTORI (Es. celle F2, F3) ---
-    // Adattare in base alla posizione reale nel foglio.
-    // Per ora cerchiamo le etichette nelle colonne E ed F
-    // Range di ricerca ampio per flessibilità
-    const configRange = sheet.getRange("E1:F10").getValues();
+    // Se il foglio non esiste, ritorna config vuota (userà i fallback hardcoded)
+    if (!sheet) {
+      console.warn("⚠️ Foglio 'Controllo' non trovato. Uso configurazione di riserva (codice).");
+      return config;
+    }
 
-    configRange.forEach(row => {
-      const label = String(row[0]).trim().toUpperCase();
-      const value = row[1];
+    // 1. INTERRUTTORE GENERALE (Cella unita B2-D2 -> leggiamo B2)
+    // Valori attesi: "ACCESO" / "SPENTO" (o simili)
+    const systemStatus = sheet.getRange("B2").getValue();
+    if (String(systemStatus).toUpperCase().includes("SPENTO") ||
+      String(systemStatus).toUpperCase().includes("OFF")) {
+      config.systemEnabled = false;
+      console.log("🛑 SISTEMA SPENTO da Foglio Controllo (Cella B2)");
+    } else {
+      console.log("✅ SISTEMA ACCESO da Foglio Controllo");
+    }
 
-      if (label === 'USA_BLACKLIST_FOGLIO') {
-        config.useSheetBlacklist = value === true || String(value).toLowerCase() === 'vero';
-      }
-      if (label === 'USA_ORARI_FOGLIO') {
-        config.useSheetSuspension = value === true || String(value).toLowerCase() === 'vero';
+    // 2. PERIODI ATTIVI H24 (Ferie Segretario) - B5:D7
+    // Celle B5, B6, B7 (Inizio) e D5, D6, D7 (Fine)
+    // range B5:E7 -> B=0, C=1, D=2, E=3.
+    const activePeriodsRange = sheet.getRange("B5:E7").getValues();
+
+    activePeriodsRange.forEach((row, index) => {
+      const start = row[0]; // Colonna B
+      const end = row[2];   // Colonna D
+
+      if (start && end && start instanceof Date && end instanceof Date) {
+        // Validazione date
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+          config.vacationPeriods.push({ start: start, end: end });
+          console.log(`📅 Periodo H24 rilevato: ${start.toLocaleDateString()} - ${end.toLocaleDateString()}`);
+        }
       }
     });
 
-    // --- LEGGERE ORARI SOSPENSIONE (Es. colonne H-J) ---
-    if (config.useSheetSuspension) {
-      const lastRow = sheet.getLastRow();
-      if (lastRow >= 2) {
-        // Assumiamo colonne H, I, J per Giorno, Inizio, Fine
-        // Giorno: 1=Lun ... 7=Dom
-        const suspensionRange = sheet.getRange(2, 8, lastRow - 1, 3).getValues();
-        const rules = {};
+    // 3. ORARI SOSPENSIONE (Righe 10-16)
+    // Caselle B (Inizio) e D (Fine)
+    // range B10:E16 -> B=0, C=1, D=2, E=3.
 
-        suspensionRange.forEach(row => {
-          const day = parseInt(row[0], 10);
-          const start = parseInt(row[1], 10);
-          const end = parseInt(row[2], 10);
+    const suspensionRange = sheet.getRange("B10:E16").getValues();
 
-          if (!isNaN(day) && !isNaN(start) && !isNaN(end)) {
-            if (!rules[day]) rules[day] = [];
-            rules[day].push([start, end]);
-          }
-        });
+    suspensionRange.forEach((row, index) => {
+      const startHour = parseInt(row[0]); // Colonna B (indice 0)
+      const endHour = parseInt(row[2]);   // Colonna D (indice 2)
 
-        if (Object.keys(rules).length > 0) {
-          config.suspensionRules = rules;
-          console.log('zzz Orari sospensione caricati da Foglio');
+      // Mappatura giorno corretta
+      let dayOfWeek = index + 1;
+      if (dayOfWeek === 7) dayOfWeek = 0; // Domenica
+
+      if (!isNaN(startHour) && !isNaN(endHour)) {
+        // Se c'è un orario valido (es. 8 e 20)
+        // Sovrascriviamo la regola per quel giorno
+        if (!config.suspensionRules[dayOfWeek]) {
+          config.suspensionRules[dayOfWeek] = [];
         }
+        config.suspensionRules[dayOfWeek].push([startHour, endHour]);
+        console.log(`zzz Sospensione caricata per Giorno ${dayOfWeek}: ${startHour}:00 - ${endHour}:00`);
       }
-    }
+    });
+
+    // 4. BLACKLIST DOMINI e KEYWORD (Righe 11-50, Colonne E ed F)
+    // E11:E50 -> Domini
+    // F11:F50 -> Keyword
+    const blacklistRange = sheet.getRange("E11:F50").getValues();
+
+    blacklistRange.forEach(row => {
+      const domain = String(row[0]).trim();
+      const keyword = String(row[1]).trim();
+
+      // Normalizzazione apostrofi: converte ’ e ‘ in ' standard
+      if (domain && domain.length > 3) {
+        config.ignoreDomains.push(domain.toLowerCase()); // I domini non hanno apostrofi di solito, ma ok per sicurezza
+      }
+
+      if (keyword && keyword.length > 3) {
+        // Normalizza keyword: toglie apostrofi curvi
+        const normalizedKeyword = keyword.replace(/[\u2018\u2019]/g, "'").toLowerCase();
+        config.ignoreKeywords.push(normalizedKeyword);
+      }
+    });
+
+    if (config.ignoreDomains.length > 0) console.log(`🚫 Caricati ${config.ignoreDomains.length} domini extra da blacklist`);
+    if (config.ignoreKeywords.length > 0) console.log(`🚫 Caricate ${config.ignoreKeywords.length} keyword extra da blacklist`);
 
     return config;
 
   } catch (error) {
     console.error(`❌ Errore caricamento Configurazione Avanzata: ${error.message}`);
-    return config;
+    return config; // Ritorna quello che ha trovato finora (o default)
   }
 }
-*/
 
 /**
  * Carica tutte le risorse necessarie (Knowledge Base, sostituzioni, ferie, blacklist, config)
@@ -600,8 +647,40 @@ function _loadResourcesInternal() {
 
     _loadSupplementaryResources(spreadsheet);
 
-    // --- Ripristino logica originale ---
-    GLOBAL_CACHE.suspensionRules = SUSPENSION_HOURS;
+    // --- Caricamento Configurazione Avanzata (Controllo) ---
+    const advancedConfig = _loadAdvancedConfig(spreadsheet);
+
+    // 1. Interruttore Sistema (Se false, bloccherà il main)
+    GLOBAL_CACHE.systemEnabled = advancedConfig.systemEnabled;
+
+    // 2. Periodi Ferie (Merge: Sheet + Eventuali esistenti se ci fossero, ma qui ricreiamo)
+    // NOTA: _loadSupplementaryResources chiamava _loadVacationPeriodsFromSheet che era un vecchio metodo.
+    // Ora usiamo quello unificato in _loadAdvancedConfig o manteniamo compatibilità?
+    // _loadSupplementaryResources usa A6:C10. _loadAdvancedConfig usa B5:D7.
+    // Il requisito è B5:D7 per "inizio e fine periodi".
+    // Sovrascriviamo con i dati nuovi (più affidabili secondo richiesta utente)
+    if (advancedConfig.vacationPeriods.length > 0) {
+      GLOBAL_CACHE.vacationPeriods = advancedConfig.vacationPeriods;
+    }
+
+    // 3. Orari Sospensione (Override o Fallback)
+    // Se il foglio ha regole, USIAMO QUELLE. Se vuoto, usiamo SUSPENSION_HOURS (codice)
+    if (Object.keys(advancedConfig.suspensionRules).length > 0) {
+      GLOBAL_CACHE.suspensionRules = advancedConfig.suspensionRules;
+      console.log('🗓️ Usate regole sospensione da Foglio Controllo');
+    } else {
+      GLOBAL_CACHE.suspensionRules = SUSPENSION_HOURS; // Fallback su codice
+      console.log('🗓️ Usate regole sospensione di default (Codice)');
+    }
+
+    // 4. Blacklist (Merge)
+    // Uniamo le liste del codice (CONFIG) con quelle del foglio
+    // Set per unicità
+    const uniqueDomains = new Set([...CONFIG.IGNORE_DOMAINS, ...advancedConfig.ignoreDomains]);
+    GLOBAL_CACHE.ignoreDomains = Array.from(uniqueDomains);
+
+    const uniqueKeywords = new Set([...CONFIG.IGNORE_KEYWORDS, ...advancedConfig.ignoreKeywords]);
+    GLOBAL_CACHE.ignoreKeywords = Array.from(uniqueKeywords);
 
   }, 'loadResources');
 
@@ -635,10 +714,15 @@ function main() {
     }
 
     // Carica risorse PRIMA di controllare sospensione
-    // (Altrimenti i periodi ferie non sono ancora in cache)
     loadResources(false);
 
-    // Controlla sospensione (ORA le ferie sono caricate)
+    // 0. SAFETY CHECK: Sistema Abilitato?
+    if (GLOBAL_CACHE.systemEnabled === false) {
+      console.warn('⛔ SISTEMA DISABILITATO DA FOGLIO CONTROLLO (Cella B2)');
+      return;
+    }
+
+    // Controlla sospensione (ORA le ferie e orari sono caricati)
     if (isInSuspensionTime()) {
       console.log('⏸️ Servizio sospeso: orario di lavoro segreteria');
       return;

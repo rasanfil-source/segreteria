@@ -1020,11 +1020,20 @@ ${addressLines.join('\n\n')}
    */
   _shouldIgnoreEmail(messageDetails) {
     const email = (messageDetails.senderEmail || '').toLowerCase();
-    const subject = (messageDetails.subject || '').toLowerCase();
-    const body = (messageDetails.body || '').toLowerCase();
+
+    // Normalizzazione apostrofi nel contenuto email (smart quotes -> straight quotes)
+    // Questo permette il match anche se l'email usa apostrofi diversi dal config
+    const rawSubject = (messageDetails.subject || '').toLowerCase();
+    const rawBody = (messageDetails.body || '').toLowerCase();
+
+    const subject = rawSubject.replace(/[\u2018\u2019]/g, "'");
+    const body = rawBody.replace(/[\u2018\u2019]/g, "'");
 
     // 1. Controllo Blacklist Domini/Email
-    const ignoreDomains = (typeof CONFIG !== 'undefined' && CONFIG.IGNORE_DOMAINS) ? CONFIG.IGNORE_DOMAINS : [];
+    // Usa GLOBAL_CACHE se disponibile (che contiene già il merge), altrimenti fallback su CONFIG
+    const ignoreDomains = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.ignoreDomains && GLOBAL_CACHE.ignoreDomains.length > 0)
+      ? GLOBAL_CACHE.ignoreDomains
+      : ((typeof CONFIG !== 'undefined' && CONFIG.IGNORE_DOMAINS) ? CONFIG.IGNORE_DOMAINS : []);
 
     if (ignoreDomains.some(domain => email.includes(domain.toLowerCase()))) {
       console.log(`🚫 Ignorato: mittente in blacklist (${email})`);
@@ -1032,7 +1041,9 @@ ${addressLines.join('\n\n')}
     }
 
     // 2. Controllo Keyword Oggetto
-    const ignoreKeywords = (typeof CONFIG !== 'undefined' && CONFIG.IGNORE_KEYWORDS) ? CONFIG.IGNORE_KEYWORDS : [];
+    const ignoreKeywords = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.ignoreKeywords && GLOBAL_CACHE.ignoreKeywords.length > 0)
+      ? GLOBAL_CACHE.ignoreKeywords
+      : ((typeof CONFIG !== 'undefined' && CONFIG.IGNORE_KEYWORDS) ? CONFIG.IGNORE_KEYWORDS : []);
 
     if (ignoreKeywords.some(keyword => subject.includes(keyword.toLowerCase()))) {
       console.log(`🚫 Ignorato: oggetto contiene keyword vietata`);
