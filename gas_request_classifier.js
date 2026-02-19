@@ -91,6 +91,14 @@ class RequestTypeClassifier {
       { pattern: /\blutto\b/i, weight: 2 },
       { pattern: /\bdefunt[oa]\b/i, weight: 2 },
       { pattern: /\bmalattia\b/i, weight: 2 },
+      { pattern: /\bmort[oa]\b/i, weight: 2 },
+      { pattern: /\bdecesso\b/i, weight: 2 },
+      { pattern: /\bscompars[oa]\b/i, weight: 2 },
+      { pattern: /\bfuneral[ei]?\b/i, weight: 2 },
+      { pattern: /\besequie\b/i, weight: 2 },
+      { pattern: /\bmancat[oa]\b/i, weight: 2 },
+      { pattern: /\brisposarmi\b/i, weight: 3 },
+      { pattern: /\bsposarmi di nuovo\b/i, weight: 3 },
 
       // Situazioni di vita complesse - ENGLISH (peso 2)
       { pattern: /\bdivorced\b/i, weight: 2 },
@@ -100,6 +108,12 @@ class RequestTypeClassifier {
       { pattern: /\banglican\b/i, weight: 2 },
       { pattern: /\bprotestant\b/i, weight: 2 },
       { pattern: /\bprevious marriage\b/i, weight: 2 },
+      { pattern: /\bdeath\b/i, weight: 2 },
+      { pattern: /\bdead\b/i, weight: 2 },
+      { pattern: /\bpassed away\b/i, weight: 2 },
+      { pattern: /\bfuneral\b/i, weight: 2 },
+      { pattern: /\bbereavement\b/i, weight: 2 },
+      { pattern: /\bdeceased\b/i, weight: 2 },
 
       // Richieste di senso (peso 3)
       { pattern: /\bperché la chiesa\b/i, weight: 3 },

@@ -2390,7 +2390,7 @@
       "language": "it",
       "senderName": "Maria Rossi",
       "promptProfile": "standard",
-      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00. Tel: 06-12345678.",
       "now": "2026-02-15T10:00:00Z"
     },
     "memory": {
@@ -2398,7 +2398,7 @@
       "isReply": false,
       "messageCount": 1
     },
-    "candidateResponse": "Siamo vicini a lei in questo momento di dolore. Il parroco è disponibile per un colloquio: può chiamare il 06-XXXXXXX.",
+    "candidateResponse": "Siamo vicini a lei in questo momento di dolore. Il parroco è disponibile per un colloquio: può chiamare il 06-12345678.",
     "expected": {
       "requestTypeIn": [
         "pastoral"
@@ -2488,7 +2488,7 @@
       "language": "en",
       "senderName": "James Smith",
       "promptProfile": "standard",
-      "knowledgeBase": "Parish office: Mon-Fri 9:00-12:00.",
+      "knowledgeBase": "Parish office: Mon-Fri 9:00-12:00. Tel: 06-12345678.",
       "now": "2026-02-15T10:00:00Z"
     },
     "memory": {
@@ -2496,7 +2496,7 @@
       "isReply": false,
       "messageCount": 1
     },
-    "candidateResponse": "We are deeply sorry for your loss. A priest is available to assist you. Please call us at 06-XXXXXXX.",
+    "candidateResponse": "We are deeply sorry for your loss. A priest is available to assist you. Please call us at 06-12345678.",
     "expected": {
       "requestTypeIn": [
         "pastoral"
@@ -2520,7 +2520,7 @@
       "language": "es",
       "senderName": "Carlos García",
       "promptProfile": "standard",
-      "knowledgeBase": "Oficina parroquial: lun-vie 9:00-12:00.",
+      "knowledgeBase": "Oficina parroquial: lun-vie 9:00-12:00. Tel: 06-12345678.",
       "now": "2026-02-15T10:00:00Z"
     },
     "memory": {
@@ -2528,7 +2528,7 @@
       "isReply": false,
       "messageCount": 1
     },
-    "candidateResponse": "Lamentamos profundamente su pérdida. Hay un sacerdote disponible para acompañarle. Por favor llámenos al 06-XXXXXXX.",
+    "candidateResponse": "Lamentamos profundamente su pérdida. Hay un sacerdote disponible para acompañarle. Por favor llámenos al 06-12345678.",
     "expected": {
       "requestTypeIn": [
         "pastoral"
