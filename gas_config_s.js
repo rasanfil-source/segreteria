@@ -53,7 +53,7 @@ const CONFIG = {
     },
 
     // === Cache e Lock ===
-    CACHE_LOCK_TTL: 30,                  // Secondi (CacheService usa secondi)
+    CACHE_LOCK_TTL: 240,                 // Secondi (copre OCR + AI + validazione semantica)
     CACHE_RACE_SLEEP_MS: 50,             // Attesa anti-race condition
 
     // === Knowledge Base ===

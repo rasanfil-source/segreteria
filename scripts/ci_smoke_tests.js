@@ -736,6 +736,12 @@ function runGoldenCases() {
         );
         const minScore = typeof testCase.expected.minValidatorScore === 'number' ? testCase.expected.minValidatorScore : 0;
         assert(validation.score >= minScore, `[${testCase.id}] validator score ${validation.score} < ${minScore}`);
+        if (typeof testCase.expected.maxValidatorScore === 'number') {
+            assert(
+                validation.score <= testCase.expected.maxValidatorScore,
+                `[${testCase.id}] validator score ${validation.score} > ${testCase.expected.maxValidatorScore}`
+            );
+        }
     };
 
     cases.forEach(runCase);

@@ -448,6 +448,12 @@ function testGeminiServiceAdvanced(results) {
             return result.lang === 'it';  // Italiano prevalente
         });
 
+        test('Rilevamento lingua: punteggiatura spagnola isolata non forza ES', results, () => {
+            const service = new GeminiService();
+            const result = service.detectEmailLanguage("Ciao ¡che bello!", "Info messe");
+            return result.lang === 'it';
+        });
+
         test('Saluto adattivo: italiano', results, () => {
             const service = new GeminiService();
             const result = service.getAdaptiveGreeting('Maria', 'it');
@@ -801,7 +807,7 @@ function testEmotionalLoadHandling(results) {
                 emotionalLoad: 'high'
             };
             const result = validator.validate(coldResponse, 'test KB', context);
-            return result.score < 0.6 || result.warnings.length > 0;
+            return result.score < 0.6;
         });
 
         test('Lutto: risposta empatica => score alto', results, () => {
@@ -813,7 +819,7 @@ function testEmotionalLoadHandling(results) {
                 emotionalLoad: 'high'
             };
             const result = validator.validate(warmResponse, 'KB: tel 06-XXXXXXX', context);
-            return result.score >= 0.7;
+            return result.score >= 0.75;
         });
 
         test('Disagio spirituale: risposta non deve dare certezze teologiche assolute', results, () => {
@@ -825,7 +831,7 @@ function testEmotionalLoadHandling(results) {
                 emotionalLoad: 'high'
             };
             const result = validator.validate(dogmaticResponse, 'KB', context);
-            return result.warnings.length > 0 || result.score < 0.75;
+            return result.score < 0.75;
         });
 
         test('Email emotiva in inglese: risposta deve essere in inglese', results, () => {
@@ -1190,6 +1196,13 @@ function testMiglioramentiGennaio2026(results) {
             const validator = new ResponseValidator();
             const res = validator._ottimizzaCapitalAfterComma("Buongiorno, Le messe", "it");
             return res === "Buongiorno, le messe";
+        });
+
+        test('Punto 9b: Thinking leak rilevato anche oltre 500 caratteri', results, () => {
+            const validator = new ResponseValidator();
+            const longResponse = `${'A'.repeat(520)} Nota: ho dedotto questi orari dalla knowledge base.`;
+            const check = validator._checkExposedReasoning(longResponse);
+            return check.errors.length > 0;
         });
 
         test('Punto 10: Helper Sanificazione Log', results, () => {

@@ -861,6 +861,20 @@ class MemoryService {
     if (cached && (Date.now() - cached.timestamp) < this._cacheExpiry) {
       return cached.data;
     }
+
+    // Fast-path persistente cross-execution (CacheService)
+    try {
+      const cache = CacheService.getScriptCache();
+      const serialized = cache.get(key);
+      if (serialized) {
+        const parsed = JSON.parse(serialized);
+        this._setLocalCache(key, parsed);
+        return parsed;
+      }
+    } catch (e) {
+      // best effort
+    }
+
     return null;
   }
 
@@ -872,6 +886,18 @@ class MemoryService {
       this._opCount = 0;
     }
 
+    this._setLocalCache(key, data);
+
+    // CacheService per riuso tra esecuzioni del trigger
+    try {
+      const cache = CacheService.getScriptCache();
+      cache.put(key, JSON.stringify(data), Math.floor(this._cacheExpiry / 1000));
+    } catch (e) {
+      // best effort
+    }
+  }
+
+  _setLocalCache(key, data) {
     this._cache[key] = {
       data: data,
       timestamp: Date.now()
@@ -918,19 +944,19 @@ class MemoryService {
 
   _invalidateCache(key) {
     delete this._cache[key];
+    try {
+      const cache = CacheService.getScriptCache();
+      cache.remove(key);
 
-    // Invalida anche cache veloce (CacheService) usata da getMemoryRobust.
-    // Evita stale reads quando updateMemory/updateMemoryAtomic invalidano solo cache locale.
-    if (typeof key === 'string' && key.indexOf('memory_') === 0) {
-      const threadId = key.substring('memory_'.length);
-      if (threadId) {
-        try {
-          const cache = CacheService.getScriptCache();
+      // Compatibilità con getMemoryRobust/updateMemoryRobust: rimuovi anche MEM_ prefix
+      if (typeof key === 'string' && key.startsWith('memory_')) {
+        const threadId = key.substring('memory_'.length);
+        if (threadId) {
           cache.remove(`MEM_${threadId}`);
-        } catch (e) {
-          // Cache secondaria: invalidazione best-effort, mai bloccante.
         }
       }
+    } catch (e) {
+      // best effort
     }
   }
 
@@ -938,7 +964,15 @@ class MemoryService {
    * Svuota tutta la cache
    */
   clearCache() {
+    const keys = Object.keys(this._cache);
     this._cache = {};
+    try {
+      if (keys.length > 0) {
+        CacheService.getScriptCache().removeAll(keys);
+      }
+    } catch (e) {
+      // best effort
+    }
     console.log('🗑️ Cache memoria svuotata');
   }
 

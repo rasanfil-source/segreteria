@@ -718,7 +718,8 @@ function main() {
       const processor = new EmailProcessor();
       const stats = processor.processUnreadEmails(
         GLOBAL_CACHE.knowledgeBase,
-        GLOBAL_CACHE.doctrineBase
+        GLOBAL_CACHE.doctrineBase,
+        true
       );
 
       console.log('\n✓ Elaborazione completata');

@@ -491,10 +491,11 @@ Output JSON:
 
     const englishScore = countMatches(englishUniqueKeywords, text, 2) +
       countMatches(englishStandardKeywords, text, 1);
+    const spanishLexicalScore = countMatches(spanishKeywords, text, 1);
 
     const scores = {
       'en': englishScore,
-      'es': countMatches(spanishKeywords, text, 1) + spanishCharScore,
+      'es': spanishLexicalScore + Math.min(spanishCharScore, 2),
       'it': countMatches(italianKeywords, text, 1),
       'pt': countMatches(portugueseKeywords, text, 1)
     };
@@ -503,8 +504,9 @@ Output JSON:
 
     // Determina lingua rilevata
     let detectedLang = 'it';
-    let maxScore = 0;
-    for (const lang in scores) {
+    let maxScore = scores.it || 0;
+    const langPriority = ['it', 'en', 'pt', 'es'];
+    for (const lang of langPriority) {
       if (scores[lang] > maxScore) {
         maxScore = scores[lang];
         detectedLang = lang;
@@ -512,7 +514,7 @@ Output JSON:
     }
 
     // Logica soglia confidenza
-    if (spanishCharScore > 0 && scores['es'] >= 2 && scores['es'] > scores['it'] && scores['es'] > scores['en']) {
+    if (spanishCharScore > 0 && spanishLexicalScore >= 1 && scores['es'] >= 2 && scores['es'] > scores['it'] && scores['es'] > scores['en']) {
       console.log(`   \u2713 Rilevato: SPAGNOLO (punteggio: ${scores['es']}, supportato da segnali lessicali)`);
       return { lang: 'es', confidence: scores['es'], safetyGrade: this._computeSafetyGrade('es', scores['es'], scores) };
     }

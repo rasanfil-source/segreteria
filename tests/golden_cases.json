@@ -2542,5 +2542,53 @@
       "emotionalTone": "empathic",
       "minValidatorScore": 0.6
     }
+  },
+  {
+    "id": "CASE-014",
+    "description": "Negative case: Bereavement with cold bureaucratic response",
+    "input": {
+      "subject": "Funerale mio padre",
+      "body": "Buongiorno, \u00E8 mancato mio padre stanotte. Come dobbiamo procedere?",
+      "language": "it",
+      "senderName": "Mario Rossi",
+      "promptProfile": "standard",
+      "knowledgeBase": "Ufficio parrocchiale: Lun-Ven 9-12. Tel: 06-12345678. Per i funerali serve il modulo A.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "isReply": false,
+      "messageCount": 1
+    },
+    "candidateResponse": "Per il funerale deve venire in segreteria e compilare il modulo A. Siamo aperti dalle 9 alle 12.",
+    "expected": {
+      "requestTypeIn": [
+        "pastoral"
+      ],
+      "maxValidatorScore": 0.6
+    }
+  },
+  {
+    "id": "CASE-015",
+    "description": "Positive case: Bereavement with empathetic response",
+    "input": {
+      "subject": "Lutto in famiglia",
+      "body": "Vi scrivo per il decesso di mia zia. Vorremmo organizzare il funerale.",
+      "language": "it",
+      "senderName": "Anna Bianchi",
+      "promptProfile": "standard",
+      "knowledgeBase": "Ufficio parrocchiale: Lun-Ven 9-12. Tel: 06-12345678.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "isReply": false,
+      "messageCount": 1
+    },
+    "candidateResponse": "Le siamo vicini in questo momento di dolore per la perdita di sua zia. Un sacerdote \u00E8 a sua disposizione. Pu\u00F2 contattarci allo 06-12345678 per concordare i dettagli.",
+    "expected": {
+      "requestTypeIn": [
+        "pastoral"
+      ],
+      "minValidatorScore": 0.8
+    }
   }
 ]

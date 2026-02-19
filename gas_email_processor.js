@@ -47,7 +47,10 @@ class EmailProcessor {
       validationWarningThreshold: typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_WARNING_THRESHOLD === 'number'
         ? CONFIG.VALIDATION_WARNING_THRESHOLD
         : 0.9,
-      cacheLockTtl: typeof CONFIG !== 'undefined' ? (CONFIG.CACHE_LOCK_TTL || 90) : 90
+      cacheLockTtl: Math.max(
+        180,
+        typeof CONFIG !== 'undefined' ? (CONFIG.CACHE_LOCK_TTL || 90) : 90
+      )
     };
 
     this.logger.info('EmailProcessor inizializzato', {
@@ -893,19 +896,19 @@ ${addressLines.join('\n\n')}
   /**
    * Processa tutte le email non lette
    */
-  processUnreadEmails(knowledgeBase, doctrineBase = '') {
+  processUnreadEmails(knowledgeBase, doctrineBase = '', hasExecutionLock = false) {
     console.log('\n' + '='.repeat(70));
     console.log('\uD83D\uDCEB Inizio elaborazione email...');
     console.log('='.repeat(70));
 
     // Lock globale run-level: evita che due trigger simultanei scarichino la stessa inbox
     // prima che entri in gioco il lock per-thread.
-    const executionLock = LockService.getScriptLock();
+    const executionLock = hasExecutionLock ? null : LockService.getScriptLock();
     const lockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
       ? CONFIG.EXECUTION_LOCK_WAIT_MS
       : 5000;
 
-    if (!executionLock.tryLock(lockWaitMs)) {
+    if (!hasExecutionLock && !executionLock.tryLock(lockWaitMs)) {
       console.warn('\u26A0\uFE0F Un\'altra esecuzione è già attiva: salto questo turno per evitare doppie risposte.');
       return { total: 0, replied: 0, filtered: 0, errors: 0, skipped: 1, reason: 'execution_locked' };
     }
@@ -1040,10 +1043,12 @@ ${addressLines.join('\n\n')}
 
       return stats;
     } finally {
-      try {
-        executionLock.releaseLock();
-      } catch (e) {
-        console.warn(`⚠️ Errore rilascio execution lock: ${e.message}`);
+      if (!hasExecutionLock && executionLock) {
+        try {
+          executionLock.releaseLock();
+        } catch (e) {
+          console.warn(`⚠️ Errore rilascio execution lock: ${e.message}`);
+        }
       }
     }
   }
