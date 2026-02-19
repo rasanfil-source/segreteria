@@ -1786,3 +1786,29 @@ function runAllTests() {
 function runTests() {
     return runAllTests();
 }
+
+// ====================================================================
+// ESECUZIONE AUTOMATICA IN AMBIENTE NODE.JS (CI/Locale)
+// ====================================================================
+if (typeof process !== 'undefined' && require.main === module) {
+    console.log("🏃 Esecuzione automatica test in ambiente Node...");
+    try {
+        // Rileva la funzione di avvio test (runAllTests o runTests)
+        if (typeof runAllTests === 'function') {
+            const results = runAllTests();
+            // Verifichiamo il successo controllando se ci sono fallimenti
+            const hasFailures = results.some(r => r.status === 'FAIL');
+            process.exit(hasFailures ? 1 : 0);
+        } else if (typeof runTests === 'function') {
+            const results = runTests();
+            const hasFailures = results.some(r => r.status === 'FAIL');
+            process.exit(hasFailures ? 1 : 0);
+        } else {
+            console.error("❌ Nessuna funzione runAllTests() o runTests() trovata.");
+            process.exit(1);
+        }
+    } catch (err) {
+        console.error("❌ Eccezione non gestita durante i test:", err);
+        process.exit(1);
+    }
+}

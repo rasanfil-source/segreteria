@@ -1545,8 +1545,9 @@ function processUnreadEmailsMain() {
       GLOBAL_CACHE.doctrineBase || '' : '';
 
     if (!knowledgeBase) {
-      console.error('âŒ Knowledge Base non caricata, esco');
-      return;
+      console.error('❌ Knowledge Base non caricata, esco');
+      // BUG 3 FIX: Lanciare eccezione per evitare failure silenziose
+      throw new Error('Knowledge Base non caricata: possibile timeout lock o cache vuota');
     }
 
     // Crea processore ed esegui
@@ -1554,6 +1555,8 @@ function processUnreadEmailsMain() {
     processor.processUnreadEmails(knowledgeBase, doctrineBase);
 
   } catch (error) {
-    console.error(`âŒ Errore nel processo principale: ${error.message}`);
+    console.error(`❌ Errore nel processo principale: ${error.message}`);
+    // Rilancio per segnalare il fallimento dell'esecuzione alla dashboard GAS
+    throw error;
   }
 }
