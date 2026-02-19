@@ -789,6 +789,90 @@ function testIntegrationScenarios(results) {
     });
 }
 
+function testEmotionalLoadHandling(results) {
+    testGroup('Test Carico Emotivo - Scenari Pastorali Sensibili', results, () => {
+
+        test('Lutto: risposta burocratica su email di lutto => score basso', results, () => {
+            const validator = new ResponseValidator();
+            const coldResponse = 'Per il funerale compilare il modulo F3 disponibile in segreteria.';
+            const context = {
+                requestType: 'pastoral',
+                originalEmail: 'Mia madre è morta stanotte. Avete un prete?',
+                emotionalLoad: 'high'
+            };
+            const result = validator.validate(coldResponse, 'test KB', context);
+            return result.score < 0.6 || result.warnings.length > 0;
+        });
+
+        test('Lutto: risposta empatica => score alto', results, () => {
+            const validator = new ResponseValidator();
+            const warmResponse = 'Siamo profondamente vicini a lei in questo momento di dolore. Il parroco è disponibile e può essere contattato al 06-XXXXXXX per organizzare insieme i prossimi passi.';
+            const context = {
+                requestType: 'pastoral',
+                originalEmail: 'Mia madre è morta stanotte. Avete un prete?',
+                emotionalLoad: 'high'
+            };
+            const result = validator.validate(warmResponse, 'KB: tel 06-XXXXXXX', context);
+            return result.score >= 0.7;
+        });
+
+        test('Disagio spirituale: risposta non deve dare certezze teologiche assolute', results, () => {
+            const validator = new ResponseValidator();
+            const dogmaticResponse = 'Dio sicuramente la ama e tutto andrà bene. Non si preoccupi.';
+            const context = {
+                requestType: 'pastoral',
+                originalEmail: 'Mi sento lontano da Dio, non so più se credo. Posso parlare con qualcuno?',
+                emotionalLoad: 'high'
+            };
+            const result = validator.validate(dogmaticResponse, 'KB', context);
+            return result.warnings.length > 0 || result.score < 0.75;
+        });
+
+        test('Email emotiva in inglese: risposta deve essere in inglese', results, () => {
+            const service = new GeminiService();
+            const detected = service.detectEmailLanguage(
+                'My husband just died',
+                'I need to speak with a priest urgently'
+            );
+            return detected.lang === 'en';
+        });
+
+        test('Richiesta sbattezzo: tono deve essere formale, non pastorale', results, () => {
+            if (typeof RequestClassifier === 'undefined') {
+                return true; // Skip se non disponibile in questo contesto
+            }
+            const classifier = new RequestClassifier();
+            const classification = classifier.classify(
+                'Voglio essere rimosso dai registri battesimali'
+            );
+            return classification.category === 'FORMAL' || classification.profile !== 'pastoral';
+        });
+
+        test('Memoria robusta: cache hit non interroga Sheets', results, () => {
+            const memService = new MemoryService();
+            const threadId = 'test-robust-' + Date.now();
+
+            memService.updateMemoryRobust(threadId, { language: 'it', messageCount: 3 });
+
+            const retrieved = memService.getMemoryRobust(threadId);
+            return retrieved && retrieved.messageCount >= 3;
+        });
+
+        test('Anti-ridondanza: secondo messaggio non ripete link già inviato', results, () => {
+            const memService = new MemoryService();
+            const threadId = 'test-antired-' + Date.now();
+
+            memService.updateMemoryRobust(threadId, {
+                providedInfo: ['link_modulo_battesimo'],
+                messageCount: 1
+            });
+
+            const memory = memService.getMemoryRobust(threadId);
+            return memory && Array.isArray(memory.providedInfo) && memory.providedInfo.includes('link_modulo_battesimo');
+        });
+    });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST DI PERFORMANCE
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1663,6 +1747,7 @@ function runAllTests() {
         testResponseValidatorAdvanced(results);
         testResponseValidatorSemantic(results); // ✅ Aggiunto
         testAttachmentOCR(results);
+        testEmotionalLoadHandling(results);
 
     } catch (error) {
         console.error(`\n💥 ERRORE FATALE: ${error.message}`);

@@ -141,6 +141,47 @@ class MemoryService {
   }
 
   /**
+   * Legge la memoria con doppio livello: Cache veloce → Sheets come fallback.
+   * Riduce la dipendenza dalla latenza di Sheets e previene la perdita di contesto.
+   */
+  getMemoryRobust(threadId) {
+    if (!threadId) {
+      return { providedInfo: [] };
+    }
+
+    const cacheKey = `MEM_${threadId}`;
+    const cache = CacheService.getScriptCache();
+
+    // PERCORSO RAPIDO: prova prima la cache in memoria
+    try {
+      const cached = cache.get(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (!Array.isArray(parsed.providedInfo)) {
+          parsed.providedInfo = [];
+        }
+        return parsed;
+      }
+    } catch (e) {
+      console.warn(`Cache miss per thread ${threadId}: ${e.message}`);
+    }
+
+    // ALTERNATIVA: leggi da Sheets
+    const fromSheets = this.getMemory(threadId);
+
+    // Riscalda la cache per le prossime letture
+    if (fromSheets) {
+      try {
+        cache.put(cacheKey, JSON.stringify(fromSheets), 1800); // 30 minuti
+      } catch (e) {
+        // cache write non bloccante
+      }
+    }
+
+    return fromSheets;
+  }
+
+  /**
    * Aggiorna memoria per un thread (merge con esistente)
    * Usa lock granulare + retry + optimistic locking
    */
@@ -256,6 +297,32 @@ class MemoryService {
   }
 
   /**
+   * Scrive su entrambi i livelli in modo non bloccante.
+   */
+  updateMemoryRobust(threadId, data) {
+    if (!threadId || !data || typeof data !== 'object') {
+      return;
+    }
+
+    // Scrivi su Sheets (fonte di verità)
+    this.updateMemory(threadId, data);
+
+    // Aggiorna anche la cache veloce
+    const cacheKey = `MEM_${threadId}`;
+    try {
+      const cache = CacheService.getScriptCache();
+      const existing = this.getMemory(threadId) || { providedInfo: [] };
+      const merged = Object.assign({}, existing, data);
+      if (!Array.isArray(merged.providedInfo)) {
+        merged.providedInfo = [];
+      }
+      cache.put(cacheKey, JSON.stringify(merged), 1800);
+    } catch (e) {
+      // non bloccante
+    }
+  }
+
+  /**
    * Aggiorna memoria E topic in un'unica operazione atomica
    * Previene inconsistenze: tutto o niente in un singolo lock
    * 
@@ -268,8 +335,12 @@ class MemoryService {
     if (!this._initialized || !threadId) {
       return false;
     }
-    if (!newData || typeof newData !== 'object') {
-      console.warn(`⚠️ updateMemoryAtomic chiamato con dati non validi per thread ${threadId}`);
+    // Accetta anche solo topic (se newData è nullo o vuoto ma providedTopics è presente)
+    const hasData = newData && typeof newData === 'object' && Object.keys(newData).length > 0;
+    const hasTopics = providedTopics && (Array.isArray(providedTopics) || (typeof providedTopics === 'string' && providedTopics.length > 0));
+
+    if (!hasData && !hasTopics) {
+      console.warn(`⚠️ updateMemoryAtomic chiamato senza dati né topic validi per thread ${threadId}`);
       return false;
     }
 

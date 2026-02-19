@@ -2381,5 +2381,166 @@
       "maxPromptChars": 120000,
       "minValidatorScore": 0.1
     }
+  },
+  {
+    "id": "golden-pastoral-lutto-001",
+    "input": {
+      "subject": "Funerale mio padre",
+      "body": "Buongiorno, mio padre è mancato ieri sera. Non so da dove cominciare. Avete un sacerdote disponibile?",
+      "language": "it",
+      "senderName": "Maria Rossi",
+      "promptProfile": "standard",
+      "knowledgeBase": "Orari messe: domenica 9:00 e 11:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1
+    },
+    "candidateResponse": "Siamo vicini a lei in questo momento di dolore. Il parroco è disponibile per un colloquio: può chiamare il 06-XXXXXXX.",
+    "expected": {
+      "requestTypeIn": [
+        "pastoral"
+      ],
+      "responseMustInclude": [
+        "vicin|condoglian|dolore|sacerdote|parroco"
+      ],
+      "responseMustNotInclude": [
+        "modulo",
+        "link",
+        "allegat"
+      ],
+      "emotionalTone": "empathic",
+      "minValidatorScore": 0.7
+    }
+  },
+  {
+    "id": "golden-pastoral-matrimonio-irregolare-001",
+    "input": {
+      "subject": "Risposarmi in chiesa",
+      "body": "Ho divorziato cinque anni fa e ora vorrei sposarmi di nuovo in chiesa con il mio nuovo compagno. È possibile?",
+      "language": "it",
+      "senderName": "Laura Bianchi",
+      "promptProfile": "standard",
+      "knowledgeBase": "Ufficio parrocchiale lun-ven 9:00-12:00.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1
+    },
+    "candidateResponse": "La situazione richiede un discernimento canonico personalizzato. Le consiglio un colloquio con il parroco per valutare insieme i passi possibili.",
+    "expected": {
+      "requestTypeIn": [
+        "doctrinal",
+        "pastoral",
+        "mixed"
+      ],
+      "responseMustInclude": [
+        "colloquio|parroco|discernimento|canonico"
+      ],
+      "responseMustNotInclude": [
+        "sì, è possibile",
+        "nessun problema"
+      ],
+      "minValidatorScore": 0.6
+    }
+  },
+  {
+    "id": "golden-territorio-civico-ambiguo-001",
+    "input": {
+      "subject": "Sono della vostra parrocchia?",
+      "body": "Abito in Via Flaminia ma non so il numero civico esatto, siamo verso il 150.",
+      "language": "it",
+      "senderName": "Giovanni Verdi",
+      "promptProfile": "standard",
+      "knowledgeBase": "Territorio: Via Flaminia dal 109 al 217 (dispari).",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1
+    },
+    "candidateResponse": "Il numero 150 è pari: potrebbe non rientrare nel nostro territorio che comprende solo i dispari. Le chiediamo conferma del civico esatto per darle una risposta precisa.",
+    "expected": {
+      "requestTypeIn": [
+        "technical",
+        "mixed"
+      ],
+      "responseMustInclude": [
+        "civico|numero|conferma|pari|dispari"
+      ],
+      "responseMustNotInclude": [
+        "rientra certamente",
+        "sì, lei è nella nostra parrocchia"
+      ],
+      "minValidatorScore": 0.5
+    }
+  },
+  {
+    "id": "golden-multilingual-pastoral-en-001",
+    "input": {
+      "subject": "My mother passed away",
+      "body": "Good morning, my mother passed away this morning. Could a priest be available for the funeral arrangements?",
+      "language": "en",
+      "senderName": "James Smith",
+      "promptProfile": "standard",
+      "knowledgeBase": "Parish office: Mon-Fri 9:00-12:00.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1
+    },
+    "candidateResponse": "We are deeply sorry for your loss. A priest is available to assist you. Please call us at 06-XXXXXXX.",
+    "expected": {
+      "requestTypeIn": [
+        "pastoral"
+      ],
+      "responseMustInclude": [
+        "sorry|condolen|loss|priest|available"
+      ],
+      "responseMustNotInclude": [
+        "modulo",
+        "allegato"
+      ],
+      "emotionalTone": "empathic",
+      "minValidatorScore": 0.6
+    }
+  },
+  {
+    "id": "golden-multilingual-pastoral-es-001",
+    "input": {
+      "subject": "Fallecimiento de mi madre",
+      "body": "Buenos días, mi madre falleció esta mañana. ¿Hay un sacerdote disponible para el funeral?",
+      "language": "es",
+      "senderName": "Carlos García",
+      "promptProfile": "standard",
+      "knowledgeBase": "Oficina parroquial: lun-vie 9:00-12:00.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1
+    },
+    "candidateResponse": "Lamentamos profundamente su pérdida. Hay un sacerdote disponible para acompañarle. Por favor llámenos al 06-XXXXXXX.",
+    "expected": {
+      "requestTypeIn": [
+        "pastoral"
+      ],
+      "responseMustInclude": [
+        "lament|pérdida|sacerdote|acompañ"
+      ],
+      "responseMustNotInclude": [
+        "formulario"
+      ],
+      "emotionalTone": "empathic",
+      "minValidatorScore": 0.6
+    }
   }
 ]

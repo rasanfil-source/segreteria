@@ -76,7 +76,7 @@ class EmailProcessor {
       : 12000;
 
     const sanitized = raw
-      .replace(/```/g, '```\u200B')
+      .replace(/```/g, '```\u200B') // Carattere ZWSP letterale per neutralizzare i blocchi
       .replace(/<\/?\s*(system|assistant|developer|tool)\s*>/gi, '[redacted-role-tag]')
       .replace(/\b(ignore|ignora)\s+(all|tutte|tutti|precedenti|previous)\b/gi, '[redacted-instruction]');
 
