@@ -104,894 +104,791 @@ class EmailProcessor {
     // ====================================================================================================
 
     let lockAcquired = false;
-    var scriptCache = CacheService.getScriptCache();
-    var threadLockKey = `thread_lock_${threadId}`;
-    var lockValue = null;
+    const scriptCache = CacheService.getScriptCache();
+    const threadLockKey = `thread_lock_${threadId}`;
+    const lockValue = Date.now().toString();
 
-    if (skipLock) {
-      console.log(`🔒 Lock saltato per thread ${threadId} (chiamante ha già lock)`);
-    } else {
-      // Tenta di acquisire lock distribuito tramite CacheService (più veloce di PropertiesService)
-      // TTL 5 minuti (durata max esecuzione)
-      try {
-        lockValue = String(Date.now());
-        // lock "atomico" (se key non esiste, la crea. Se esiste, fallisce?)
-        // CacheService non ha put-if-absent atomico, ma ScriptLock è globale.
-        // Qui usiamo ScriptLock per coordinare l'accesso alla risorsa "thread"
+    if (!skipLock) {
+      // 1. Acquisizione lock (con TTL dinamico dalla config)
+      scriptCache.put(threadLockKey, lockValue, this.config.cacheLockTtl);
 
-        // NOTA: Per semplicità e robustezza, usiamo LockService globale per la fase critica di check
-        // Se si vuole parallelismo su thread diversi, servirebbe un lock nominale.
-        // Google Apps Script non ha Named Locks.
-        // Simuliamo Named Lock con CacheService + sleep loop (spin lock)
-
-        const TIMEOUT_MS = 10000;
-        const START = Date.now();
-
-        while (Date.now() - START < TIMEOUT_MS) {
-          const currentLock = scriptCache.get(threadLockKey);
-          if (!currentLock) {
-            scriptCache.put(threadLockKey, lockValue, this.config.cacheLockTtl); // TTL dinamico (es. 90 sec)
-            // Verifica double-check (race condition rara ma possibile)
-            Utilities.sleep(50);
-            if (scriptCache.get(threadLockKey) === lockValue) {
-              lockAcquired = true;
-              console.log(`🔒 Lock acquisito per thread ${threadId}`);
-              break;
-            }
-          }
-          Utilities.sleep(500); // Attesa prima di riprovare
-        }
-
-        if (!lockAcquired) {
-          console.warn(`⏳ Impossibile acquisire lock per thread ${threadId} (in uso da altra istanza)`);
-          // Se non otteniamo il lock, assumiamo che un altro worker ci stia lavorando.
-          // Ritorniamo status speciale per non fare nulla
-          return {
-            status: 'skipped',
-            reason: 'thread_locked_by_other_process',
-            threadId: threadId
-          };
-        }
-      } catch (e) {
-        console.warn(`⚠️ Errore gestione lock thread: ${e.message}. Procedo comunque.`);
+      // 2. Double-check anti-race
+      Utilities.sleep(50);
+      if (scriptCache.get(threadLockKey) !== lockValue) {
+        console.warn(`🔒 Thread ${threadId} lockato da altro processo, salto`);
+        return {
+          status: 'skipped',
+          reason: 'thread_locked_by_other_process',
+          threadId: threadId
+        };
       }
+      lockAcquired = true;
+      console.log(`🔒 Lock acquisito per thread ${threadId}`);
     }
 
+    const result = {
+      status: 'unknown',
+      validationFailed: false,
+      dryRun: false,
+      error: null
+    };
+
+    let candidate = null;
     try {
-      // CORPO PRINCIPALE (dentro try per garantire rilascio lock)
+      // Raccogli informazioni su thread e messaggi
+      const currentLabels = (thread.getLabels() || []).map(l => l.getName());
+      const hasProcessedLabel = currentLabels.includes(this.config.labelName);
 
-      // ====================================================================================================
-      // ACQUISIZIONE LOCK (LIVELLO-THREAD) - Previene condizioni di conflitto
-      // ====================================================================================================
+      // Ottieni ultimo messaggio NON LETTO nel thread
+      const messages = thread.getMessages();
+      const unreadMessages = messages.filter(m => m.isUnread());
 
-      lockAcquired = false;
-      var scriptCache = CacheService.getScriptCache();
-      var threadLockKey = `thread_lock_${threadId}`;
-      var lockValue = null;
+      // Recupero indirizzo email corrente con fallback + alias
+      let myEmail = '';
+      const myIdentities = new Set();
+      try {
+        const effectiveUser = Session.getEffectiveUser();
+        myEmail = effectiveUser ? effectiveUser.getEmail() : '';
 
-      if (skipLock) {
-        console.log(`🔒 Lock saltato per thread ${threadId} (chiamante ha già lock)`);
-      } else {
-        const ttlSeconds = (typeof CONFIG !== 'undefined' && CONFIG.CACHE_LOCK_TTL) ? CONFIG.CACHE_LOCK_TTL : 30;
-        const lockTtlMs = ttlSeconds * 1000;
-        lockValue = Date.now().toString();
-
-        // 1. Controllo preliminare (fallimento rapido)
-        const existingLock = scriptCache.get(threadLockKey);
-        if (existingLock) {
-          const existingTimestamp = Number(existingLock);
-          const isStale = !isNaN(existingTimestamp) && (Date.now() - existingTimestamp) > lockTtlMs;
-
-          if (isStale) {
-            console.warn(`🔓 Lock stale rilevato per thread ${threadId}, pulizia`);
-            scriptCache.remove(threadLockKey);
-          } else {
-            console.warn(`🔒 Thread ${threadId} lockato da altro processo, salto`);
-            return { status: 'skipped', reason: 'thread_locked' };
-          }
+        if (!myEmail) {
+          const activeUser = Session.getActiveUser();
+          myEmail = activeUser ? activeUser.getEmail() : '';
         }
 
-        // 2. Acquisizione lock
+        if (myEmail && String(myEmail).trim()) {
+          myIdentities.add(String(myEmail).toLowerCase());
+        }
+
+        const knownAliases = (typeof CONFIG !== 'undefined' && CONFIG.KNOWN_ALIASES) ? CONFIG.KNOWN_ALIASES : [];
+        knownAliases.forEach(alias => myIdentities.add(String(alias).toLowerCase()));
+
         try {
-          scriptCache.put(threadLockKey, lockValue, ttlSeconds);
+          const gmailAliases = GmailApp.getAliases() || [];
+          gmailAliases.forEach(alias => myIdentities.add(String(alias).toLowerCase()));
+        } catch (aliasErr) {
+          console.warn(`\u26A0\uFE0F Impossibile leggere alias Gmail: ${aliasErr.message}`);
+        }
+      } catch (e) {
+        console.warn(`\u26A0\uFE0F Impossibile recuperare email utente: ${e.message}`);
+      }
 
-          // 3. Pausa per rilevare conflitti
-          const raceSleep = (typeof CONFIG !== 'undefined' && CONFIG.CACHE_RACE_SLEEP_MS) ? CONFIG.CACHE_RACE_SLEEP_MS : 50;
-          Utilities.sleep(raceSleep);
+      // ====================================================================================================
+      // FILTRO A LIVELLO MESSAGGIO
+      // ====================================================================================================
+      const effectiveLabeledIds = (labeledMessageIds && labeledMessageIds.size > 0)
+        ? labeledMessageIds
+        : this.gmailService.getMessageIdsWithLabel(this.config.labelName);
 
-          // 4. Doppio controllo
-          const checkValue = scriptCache.get(threadLockKey);
-          if (checkValue !== lockValue) {
-            console.warn(`\uD83D\uDD12 Race rilevata per thread ${threadId}: atteso ${lockValue}, ottenuto ${checkValue}`);
-            return { status: 'skipped', reason: 'thread_locked_race' };
-          }
+      const unlabeledUnread = unreadMessages.filter(message => {
+        return !effectiveLabeledIds.has(message.getId());
+      });
 
-          lockAcquired = true;
-          console.log(`\uD83D\uDD12 Lock acquisito per thread ${threadId}`);
-        } catch (e) {
-          console.warn(`\u26A0\uFE0F Errore acquisizione lock: ${e.message}`);
-          return { status: 'error', error: 'Lock acquisition failed' };
+      // Solo messaggi da mittenti esterni
+      // NOTA: Se senderEmail è null/vacante (es. estrazione fallita), lo lasciamo passare
+      // per evitare perdite silenziose. Sarà gestito/validato negli step successivi.
+      const externalUnread = unlabeledUnread.filter(message => {
+        const details = this.gmailService.extractMessageDetails(message);
+        // Navigazione sicura
+        const senderEmail = (details.senderEmail || '');
+
+        // Se non riusciamo ad estrarre l'email, consideriamo il mittente come esterno per sicurezza
+        if (!senderEmail) return true;
+        return !myIdentities.has(senderEmail.toLowerCase());
+      });
+
+      // Se non ci sono messaggi non letti non ancora etichettati â†’ skip
+      if (unlabeledUnread.length === 0) {
+        console.log('   \u2296 Thread già elaborato (nessun nuovo messaggio non letto)');
+        result.status = 'skipped';
+        result.reason = 'already_labeled_no_new_unread';
+        return result;
+      }
+
+      // Se non ci sono messaggi da esterni â†’ skip
+      if (externalUnread.length === 0) {
+        console.log('   \u2296 Saltato: nessun nuovo messaggio esterno non letto');
+        unlabeledUnread.forEach(message => this._markMessageAsProcessed(message));
+        result.status = 'skipped';
+        result.reason = 'no_external_unread';
+        return result;
+      }
+
+      // Seleziona ultimo messaggio non letto non etichettato da esterni
+      candidate = externalUnread[externalUnread.length - 1];
+      const messageDetails = this.gmailService.extractMessageDetails(candidate);
+
+      console.log(`\n\uD83D\uDCE7 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
+      console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
+
+
+      if (messageDetails.isNewsletter) {
+        console.log('   \u2296 Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
+        this._markMessageAsProcessed(candidate);
+        result.status = 'filtered';
+        result.reason = 'newsletter_header';
+        return result;
+      }
+
+      // ====================================================================================================
+      // STEP 0: CONTROLLO ULTIMO MITTENTE (Anti-Loop & Ownership)
+      // ====================================================================================================
+      const lastMessage = messages[messages.length - 1];
+      const lastSender = (lastMessage.getFrom() || '').toLowerCase();
+
+      if (myEmail && lastSender.includes(myEmail.toLowerCase())) {
+        console.log('   \u2296 Saltato: l\'ultimo messaggio del thread è già nostro (bot o segreteria)');
+        // Non marchiamo nulla, semplicemente ci fermiamo finché l'utente non risponde
+        result.status = 'skipped';
+        result.reason = 'last_speaker_is_me';
+        return result;
+      }
+
+      // ====================================================================================================
+      // STEP 0.1: ANTI-AUTO-RISPOSTA (Safe Sender Check)
+      // ====================================================================================================
+      const safeSenderEmail = (messageDetails.senderEmail || '').toLowerCase();
+
+      // Controllo esteso per alias conosciuti
+      const knownAliases = (typeof CONFIG !== 'undefined' && CONFIG.KNOWN_ALIASES) ? CONFIG.KNOWN_ALIASES : [];
+      const normalizedMyEmail = myEmail ? myEmail.toLowerCase() : '';
+
+      // Verifica mittente: usa myEmail calcolata in modo sicuro
+      const isMe = Boolean(normalizedMyEmail) && (
+        safeSenderEmail === normalizedMyEmail ||
+        knownAliases.some(alias => safeSenderEmail === alias.toLowerCase())
+      );
+
+      if (isMe) {
+        console.log('   \u2296 Saltato: messaggio auto-inviato (o da alias conosciuto)');
+        this._markMessageAsProcessed(candidate);
+        result.status = 'skipped';
+        result.reason = 'self_sent';
+        return result;
+      }
+
+      // ====================================================================================================
+      // STEP 0.2: AUTO-REPLY / OUT-OF-OFFICE DETECTION
+      // ====================================================================================================
+      const headers = messageDetails.headers || {};
+      const autoSubmitted = headers['auto-submitted'] || '';
+      const precedence = headers['precedence'] || '';
+      const xAutoReply = headers['x-autoreply'] || '';
+      const xAutoResponseSuppress = headers['x-auto-response-suppress'] || '';
+
+      if (
+        /auto-replied/i.test(autoSubmitted) ||
+        /bulk|auto_reply/i.test(precedence) ||
+        /auto-reply|autoreply/i.test(xAutoReply) ||
+        /oof|all|dr|rn|nri|auto/i.test(xAutoResponseSuppress)
+      ) {
+        console.log('   \u2296 Saltato: risposta automatica (header SMTP)');
+        this._markMessageAsProcessed(candidate);
+        result.status = 'filtered';
+        result.reason = 'out_of_office';
+        return result;
+      }
+
+      const outOfOfficePatterns = [
+        /\b(out of office|away from office|fuori ufficio|assente)\b/i,
+        /\b(automatic reply|risposta automatica)\b/i,
+        /\breturn(ing)? on\b/i,
+        /\bdi ritorno (il|dal)\b/i,
+        /\b(thank you for your message|mailbox monitored periodically|messaggio ricevuto)\b/i
+      ];
+
+      if (outOfOfficePatterns.some(p => p.test(`${messageDetails.subject} ${messageDetails.body}`))) {
+        console.log('   \u2296 Saltato: risposta automatica out-of-office (testo)');
+        this._markMessageAsProcessed(candidate);
+        result.status = 'filtered';
+        result.reason = 'out_of_office';
+        return result;
+      }
+
+      const candidateIndex = messages.findIndex(msg => msg.getId() === candidate.getId());
+      if (candidateIndex > 0 && messages[candidateIndex - 1]) {
+        const previousMessage = messages[candidateIndex - 1];
+        const previousSender = (previousMessage.getFrom() || '').toLowerCase();
+        const candidateDate = messageDetails.date ? messageDetails.date.getTime() : null;
+        const previousDate = previousMessage.getDate() ? previousMessage.getDate().getTime() : null;
+        const arrivedSoonAfterUs = candidateDate && previousDate
+          ? (candidateDate - previousDate) <= 10 * 60 * 1000
+          : false;
+        const previousIsUs = myEmail ? previousSender.includes(myEmail.toLowerCase()) : false;
+        const candidateBody = messageDetails.body || '';
+        const candidateWords = candidateBody.trim().split(/\s+/).filter(Boolean);
+        const isShortClosureReply = candidateWords.length > 0 && candidateWords.length < 10 &&
+          /\b(grazie|ok|perfetto)\b/i.test(candidateBody);
+
+        if (previousIsUs && arrivedSoonAfterUs && isShortClosureReply) {
+          console.log('   \u2296 Saltato: risposta breve di chiusura (grazie/ok/perfetto)');
+          this._markMessageAsProcessed(candidate);
+          result.status = 'filtered';
+          result.reason = 'short_closure_reply';
+          return result;
         }
       }
 
-      const result = {
-        status: 'unknown',
-        validationFailed: false,
-        dryRun: false,
-        error: null
-      };
+      // ====================================================================================================
+      // STEP 0.5: ANTI-LOOP (rilevamento intelligente)
+      // ====================================================================================================
+      const MAX_THREAD_LENGTH = (typeof CONFIG !== 'undefined' && CONFIG.MAX_THREAD_LENGTH) ? CONFIG.MAX_THREAD_LENGTH : 10;
+      const MAX_CONSECUTIVE_EXTERNAL = 5;
 
-      let candidate = null;
-      try {
-        // Raccogli informazioni su thread e messaggi
-        const currentLabels = (thread.getLabels() || []).map(l => l.getName());
-        const hasProcessedLabel = currentLabels.includes(this.config.labelName);
+      if (messages.length > MAX_THREAD_LENGTH) {
+        const ourEmail = Session.getActiveUser()?.getEmail() || '';
+        if (!ourEmail) {
+          console.warn('   \u26A0\uFE0F Email utente non disponibile: skip controllo anti-loop basato su mittente');
+        }
+        let consecutiveExternal = 0;
 
-        // Ottieni ultimo messaggio NON LETTO nel thread
-        const messages = thread.getMessages();
-        const unreadMessages = messages.filter(m => m.isUnread());
-
-        // Recupero indirizzo email corrente con fallback + alias
-        let myEmail = '';
-        const myIdentities = new Set();
-        try {
-          const effectiveUser = Session.getEffectiveUser();
-          myEmail = effectiveUser ? effectiveUser.getEmail() : '';
-
-          if (!myEmail) {
-            const activeUser = Session.getActiveUser();
-            myEmail = activeUser ? activeUser.getEmail() : '';
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const msgFrom = messages[i].getFrom().toLowerCase();
+          if (ourEmail && !msgFrom.includes(ourEmail.toLowerCase())) {
+            consecutiveExternal++;
+          } else {
+            break;
           }
-
-          if (myEmail && String(myEmail).trim()) {
-            myIdentities.add(String(myEmail).toLowerCase());
-          }
-
-          const knownAliases = (typeof CONFIG !== 'undefined' && CONFIG.KNOWN_ALIASES) ? CONFIG.KNOWN_ALIASES : [];
-          knownAliases.forEach(alias => myIdentities.add(String(alias).toLowerCase()));
-
-          try {
-            const gmailAliases = GmailApp.getAliases() || [];
-            gmailAliases.forEach(alias => myIdentities.add(String(alias).toLowerCase()));
-          } catch (aliasErr) {
-            console.warn(`\u26A0\uFE0F Impossibile leggere alias Gmail: ${aliasErr.message}`);
-          }
-        } catch (e) {
-          console.warn(`\u26A0\uFE0F Impossibile recuperare email utente: ${e.message}`);
         }
 
-        // ====================================================================================================
-        // FILTRO A LIVELLO MESSAGGIO
-        // ====================================================================================================
-        const effectiveLabeledIds = (labeledMessageIds && labeledMessageIds.size > 0)
-          ? labeledMessageIds
-          : this.gmailService.getMessageIdsWithLabel(this.config.labelName);
-
-        const unlabeledUnread = unreadMessages.filter(message => {
-          return !effectiveLabeledIds.has(message.getId());
-        });
-
-        // Solo messaggi da mittenti esterni
-        // NOTA: Se senderEmail è null/vacante (es. estrazione fallita), lo lasciamo passare
-        // per evitare perdite silenziose. Sarà gestito/validato negli step successivi.
-        const externalUnread = unlabeledUnread.filter(message => {
-          const details = this.gmailService.extractMessageDetails(message);
-          // Navigazione sicura
-          const senderEmail = (details.senderEmail || '');
-
-          // Se non riusciamo ad estrarre l'email, consideriamo il mittente come esterno per sicurezza
-          if (!senderEmail) return true;
-          return !myIdentities.has(senderEmail.toLowerCase());
-        });
-
-        // Se non ci sono messaggi non letti non ancora etichettati â†’ skip
-        if (unlabeledUnread.length === 0) {
-          console.log('   \u2296 Thread già elaborato (nessun nuovo messaggio non letto)');
-          result.status = 'skipped';
-          result.reason = 'already_labeled_no_new_unread';
-          return result;
-        }
-
-        // Se non ci sono messaggi da esterni â†’ skip
-        if (externalUnread.length === 0) {
-          console.log('   \u2296 Saltato: nessun nuovo messaggio esterno non letto');
-          unlabeledUnread.forEach(message => this._markMessageAsProcessed(message));
-          result.status = 'skipped';
-          result.reason = 'no_external_unread';
-          return result;
-        }
-
-        // Seleziona ultimo messaggio non letto non etichettato da esterni
-        candidate = externalUnread[externalUnread.length - 1];
-        const messageDetails = this.gmailService.extractMessageDetails(candidate);
-
-        console.log(`\n\uD83D\uDCE7 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
-        console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
-
-
-        if (messageDetails.isNewsletter) {
-          console.log('   \u2296 Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
-          this._markMessageAsProcessed(candidate);
-          result.status = 'filtered';
-          result.reason = 'newsletter_header';
-          return result;
-        }
-
-        // ====================================================================================================
-        // STEP 0: CONTROLLO ULTIMO MITTENTE (Anti-Loop & Ownership)
-        // ====================================================================================================
-        const lastMessage = messages[messages.length - 1];
-        const lastSender = (lastMessage.getFrom() || '').toLowerCase();
-
-        if (myEmail && lastSender.includes(myEmail.toLowerCase())) {
-          console.log('   \u2296 Saltato: l\'ultimo messaggio del thread è già nostro (bot o segreteria)');
-          // Non marchiamo nulla, semplicemente ci fermiamo finché l'utente non risponde
-          result.status = 'skipped';
-          result.reason = 'last_speaker_is_me';
-          return result;
-        }
-
-        // ====================================================================================================
-        // STEP 0.1: ANTI-AUTO-RISPOSTA (Safe Sender Check)
-        // ====================================================================================================
-        const safeSenderEmail = (messageDetails.senderEmail || '').toLowerCase();
-
-        // Controllo esteso per alias conosciuti
-        const knownAliases = (typeof CONFIG !== 'undefined' && CONFIG.KNOWN_ALIASES) ? CONFIG.KNOWN_ALIASES : [];
-        const normalizedMyEmail = myEmail ? myEmail.toLowerCase() : '';
-
-        // Verifica mittente: usa myEmail calcolata in modo sicuro
-        const isMe = Boolean(normalizedMyEmail) && (
-          safeSenderEmail === normalizedMyEmail ||
-          knownAliases.some(alias => safeSenderEmail === alias.toLowerCase())
-        );
-
-        if (isMe) {
-          console.log('   \u2296 Saltato: messaggio auto-inviato (o da alias conosciuto)');
+        if (ourEmail && consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
+          console.log(`   \u2296 Saltato: probabile loop email (${consecutiveExternal} esterni consecutivi)`);
           this._markMessageAsProcessed(candidate);
           result.status = 'skipped';
-          result.reason = 'self_sent';
+          result.reason = 'email_loop_detected';
           return result;
         }
 
-        // ====================================================================================================
-        // STEP 0.2: AUTO-REPLY / OUT-OF-OFFICE DETECTION
-        // ====================================================================================================
-        const headers = messageDetails.headers || {};
-        const autoSubmitted = headers['auto-submitted'] || '';
-        const precedence = headers['precedence'] || '';
-        const xAutoReply = headers['x-autoreply'] || '';
-        const xAutoResponseSuppress = headers['x-auto-response-suppress'] || '';
+        console.warn(`   \u26A0\uFE0F Thread lungo (${messages.length} messaggi) ma non loop - elaboro`);
+      }
 
-        if (
-          /auto-replied/i.test(autoSubmitted) ||
-          /bulk|auto_reply/i.test(precedence) ||
-          /auto-reply|autoreply/i.test(xAutoReply) ||
-          /oof|all|dr|rn|nri|auto/i.test(xAutoResponseSuppress)
-        ) {
-          console.log('   \u2296 Saltato: risposta automatica (header SMTP)');
-          this._markMessageAsProcessed(candidate);
-          result.status = 'filtered';
-          result.reason = 'out_of_office';
-          return result;
+      // ====================================================================================================
+      // STEP 0.8: ANTI-MITTENTE-NOREPLY
+      // ====================================================================================================
+      const senderInfo = `${messageDetails.senderEmail} ${messageDetails.senderName}`.toLowerCase();
+      if (/no-reply|do-not-reply|noreply/i.test(senderInfo)) {
+        console.log('   \u2296 Saltato: mittente o nome no-reply');
+        this._markMessageAsProcessed(candidate);
+        result.status = 'filtered';
+        result.reason = 'no_reply_sender';
+        return result;
+      }
+
+      // ====================================================================================================
+      // STEP 1: FILTRO - Domini/parole chiave ignorati
+      // ====================================================================================================
+      if (this._shouldIgnoreEmail(messageDetails)) {
+        console.log('   \u2296 Filtrato: domain/keyword ignore');
+        this._markMessageAsProcessed(candidate);
+        result.status = 'filtered';
+        return result;
+      }
+
+      // ====================================================================================================
+      // STEP 2: CLASSIFICAZIONE - Filtro ack/greeting ultra-semplice
+      // ====================================================================================================
+      const MAX_SUBJECT_LENGTH = 1000;
+      const safeSubject = (messageDetails.subject || '').substring(0, MAX_SUBJECT_LENGTH);
+      const safeBody = (messageDetails.body || '');
+      const safeSubjectLower = safeSubject.toLowerCase();
+
+      const classification = this.classifier.classifyEmail(
+        safeSubject,
+        safeBody,
+        safeSubjectLower.startsWith('re:')
+      );
+
+      if (!classification.shouldReply) {
+        console.log(`   \u2296 Filtrato dal classifier: ${classification.reason}`);
+        this._markMessageAsProcessed(candidate);
+        result.status = 'filtered';
+        return result;
+      }
+
+      // ====================================================================================================
+      // STEP 3: CONTROLLO RAPIDO - Gemini decide se serve risposta
+      // ====================================================================================================
+      const quickCheck = this.geminiService.shouldRespondToEmail(
+        messageDetails.body,
+        messageDetails.subject
+      );
+
+      if (!quickCheck.shouldRespond) {
+        console.log(`   \u2296 Gemini quick check: nessuna risposta necessaria (${quickCheck.reason})`);
+        this._markMessageAsProcessed(candidate);
+        result.status = 'filtered';
+        return result;
+      }
+
+      const detectedLanguage = quickCheck.language;
+      console.log(`   \uD83C\uDF0D Lingua: ${detectedLanguage.toUpperCase()}`);
+
+      // ====================================================================================================
+      // STEP 4: CLASSIFICAZIONE TIPO RICHIESTA (Multi-dimensionale)
+      // ====================================================================================================
+      const requestType = this.requestClassifier.classify(
+        messageDetails.subject,
+        messageDetails.body,
+        quickCheck.classification
+      );
+
+      // Estrai dati dalla nuova struttura classificazione
+      const categoryHint = this.requestClassifier.getRequestTypeHint(requestType);
+      const isPastoral = requestType.dimensions ? (requestType.dimensions.pastoral > 0.6) : (requestType.type === 'pastoral'); // Compatibilità
+
+      // ====================================================================================================
+      // STEP 5: KB ENRICHMENT CONDIZIONALE
+      // ====================================================================================================
+      const knowledgeSections = [];
+      let enrichedKnowledgeBase = knowledgeBase;
+
+      // Regola messe speciali
+      if (typeof getSpecialMassTimeRule === 'function') {
+        const specialMassRule = getSpecialMassTimeRule(new Date());
+        if (specialMassRule) {
+          console.log('   \uD83D\uDEA8 Regola Messe Speciali iniettata nel Prompt');
+          knowledgeSections.push(specialMassRule);
         }
+      }
 
-        const outOfOfficePatterns = [
-          /\b(out of office|away from office|fuori ufficio|assente)\b/i,
-          /\b(automatic reply|risposta automatica)\b/i,
-          /\breturn(ing)? on\b/i,
-          /\bdi ritorno (il|dal)\b/i,
-          /\b(thank you for your message|mailbox monitored periodically|messaggio ricevuto)\b/i
-        ];
+      knowledgeSections.push(knowledgeBase);
+      enrichedKnowledgeBase = knowledgeSections.filter(Boolean).join('\n\n');
 
-        if (outOfOfficePatterns.some(p => p.test(`${messageDetails.subject} ${messageDetails.body}`))) {
-          console.log('   \u2296 Saltato: risposta automatica out-of-office (testo)');
-          this._markMessageAsProcessed(candidate);
-          result.status = 'filtered';
-          result.reason = 'out_of_office';
-          return result;
+      // ====================================================================================================
+      // STEP 6: STORICO CONVERSAZIONE
+      // ====================================================================================================
+      let conversationHistory = '';
+      if (messages.length > 1) {
+        const candidateId = candidate.getId();
+        const historyMessages = messages.filter(m => m.getId() !== candidateId);
+
+        if (historyMessages.length > 0) {
+          conversationHistory = this.gmailService.buildConversationHistory(
+            historyMessages,
+            10,
+            myEmail
+          );
         }
+      }
 
-        const candidateIndex = messages.findIndex(msg => msg.getId() === candidate.getId());
-        if (candidateIndex > 0 && messages[candidateIndex - 1]) {
-          const previousMessage = messages[candidateIndex - 1];
-          const previousSender = (previousMessage.getFrom() || '').toLowerCase();
-          const candidateDate = messageDetails.date ? messageDetails.date.getTime() : null;
-          const previousDate = previousMessage.getDate() ? previousMessage.getDate().getTime() : null;
-          const arrivedSoonAfterUs = candidateDate && previousDate
-            ? (candidateDate - previousDate) <= 10 * 60 * 1000
-            : false;
-          const previousIsUs = myEmail ? previousSender.includes(myEmail.toLowerCase()) : false;
-          const candidateBody = messageDetails.body || '';
-          const candidateWords = candidateBody.trim().split(/\s+/).filter(Boolean);
-          const isShortClosureReply = candidateWords.length > 0 && candidateWords.length < 10 &&
-            /\b(grazie|ok|perfetto)\b/i.test(candidateBody);
+      // ====================================================================================================
+      // STEP 6.5: CONTESTO MEMORIA
+      // ====================================================================================================
+      const memoryContext = this.memoryService.getMemory(threadId);
 
-          if (previousIsUs && arrivedSoonAfterUs && isShortClosureReply) {
-            console.log('   \u2296 Saltato: risposta breve di chiusura (grazie/ok/perfetto)');
-            this._markMessageAsProcessed(candidate);
-            result.status = 'filtered';
-            result.reason = 'short_closure_reply';
-            return result;
-          }
-        }
+      if (Object.keys(memoryContext).length > 0) {
+        console.log(`   \uD83E\uDDE0 Memoria trovata: lang=${memoryContext.language}, topics=${(memoryContext.providedInfo || []).length}`);
+      }
 
-        // ====================================================================================================
-        // STEP 0.5: ANTI-LOOP (rilevamento intelligente)
-        // ====================================================================================================
-        const MAX_THREAD_LENGTH = (typeof CONFIG !== 'undefined' && CONFIG.MAX_THREAD_LENGTH) ? CONFIG.MAX_THREAD_LENGTH : 10;
-        const MAX_CONSECUTIVE_EXTERNAL = 5;
+      // ====================================================================================================
+      // STEP 6.6: CALCOLO DINAMICO SALUTO E RITARDO
+      // ====================================================================================================
+      const salutationMode = computeSalutationMode({
+        isReply: safeSubjectLower.startsWith('re:'),
+        messageCount: memoryContext.messageCount || messages.length,
+        memoryExists: Object.keys(memoryContext).length > 0,
+        lastUpdated: memoryContext.lastUpdated || null,
+        now: new Date()
+      });
+      console.log(`   \uD83D\uDCE3 Modalità saluto: ${salutationMode}`);
 
-        if (messages.length > MAX_THREAD_LENGTH) {
-          const ourEmail = Session.getActiveUser()?.getEmail() || '';
-          if (!ourEmail) {
-            console.warn('   \u26A0\uFE0F Email utente non disponibile: skip controllo anti-loop basato su mittente');
-          }
-          let consecutiveExternal = 0;
+      const responseDelay = computeResponseDelay({
+        messageDate: messageDetails.date,
+        now: new Date()
+      });
+      if (responseDelay.shouldApologize) {
+        console.log(`   \u23F3 Ritardo risposta: ${responseDelay.days} giorni`);
+      }
 
-          for (let i = messages.length - 1; i >= 0; i--) {
-            const msgFrom = messages[i].getFrom().toLowerCase();
-            if (ourEmail && !msgFrom.includes(ourEmail.toLowerCase())) {
-              consecutiveExternal++;
-            } else {
-              break;
-            }
-          }
+      // ====================================================================================================
+      // STEP 7: COSTRUISCI PROMPT
+      // ====================================================================================================
+      let { greeting, closing } = this.geminiService.getAdaptiveGreeting(
+        messageDetails.senderName,
+        detectedLanguage
+      );
 
-          if (ourEmail && consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
-            console.log(`   \u2296 Saltato: probabile loop email (${consecutiveExternal} esterni consecutivi)`);
-            this._markMessageAsProcessed(candidate);
-            result.status = 'skipped';
-            result.reason = 'email_loop_detected';
-            return result;
-          }
+      // Override strutturale: nessun saluto in conversazioni attive
+      if (salutationMode === 'none_or_continuity' || salutationMode === 'session') {
+        greeting = '';
+      } else if (salutationMode === 'soft') {
+        greeting = '[Inizia con breve frase di riaggancio cordiale]';
+      }
 
-          console.warn(`   \u26A0\uFE0F Thread lungo (${messages.length} messaggi) ma non loop - elaboro`);
-        }
-
-        // ====================================================================================================
-        // STEP 0.8: ANTI-MITTENTE-NOREPLY
-        // ====================================================================================================
-        const senderInfo = `${messageDetails.senderEmail} ${messageDetails.senderName}`.toLowerCase();
-        if (/no-reply|do-not-reply|noreply/i.test(senderInfo)) {
-          console.log('   \u2296 Saltato: mittente o nome no-reply');
-          this._markMessageAsProcessed(candidate);
-          result.status = 'filtered';
-          result.reason = 'no_reply_sender';
-          return result;
-        }
-
-        // ====================================================================================================
-        // STEP 1: FILTRO - Domini/parole chiave ignorati
-        // ====================================================================================================
-        if (this._shouldIgnoreEmail(messageDetails)) {
-          console.log('   \u2296 Filtrato: domain/keyword ignore');
-          this._markMessageAsProcessed(candidate);
-          result.status = 'filtered';
-          return result;
-        }
-
-        // ====================================================================================================
-        // STEP 2: CLASSIFICAZIONE - Filtro ack/greeting ultra-semplice
-        // ====================================================================================================
-        const MAX_SUBJECT_LENGTH = 1000;
-        const safeSubject = (messageDetails.subject || '').substring(0, MAX_SUBJECT_LENGTH);
-        const safeBody = (messageDetails.body || '');
-        const safeSubjectLower = safeSubject.toLowerCase();
-
-        const classification = this.classifier.classifyEmail(
-          safeSubject,
-          safeBody,
-          safeSubjectLower.startsWith('re:')
-        );
-
-        if (!classification.shouldReply) {
-          console.log(`   \u2296 Filtrato dal classifier: ${classification.reason}`);
-          this._markMessageAsProcessed(candidate);
-          result.status = 'filtered';
-          return result;
-        }
-
-        // ====================================================================================================
-        // STEP 3: CONTROLLO RAPIDO - Gemini decide se serve risposta
-        // ====================================================================================================
-        const quickCheck = this.geminiService.shouldRespondToEmail(
+      // ====================================================================================================
+      // PASSO 7.1: VERIFICA TERRITORIO (se TerritoryValidator disponibile)
+      // ====================================================================================================
+      let territoryResult = { addressFound: false };
+      if (this.territoryValidator) {
+        territoryResult = this.territoryValidator.analyzeEmailForAddress(
           messageDetails.body,
           messageDetails.subject
         );
+      }
 
-        if (!quickCheck.shouldRespond) {
-          console.log(`   \u2296 Gemini quick check: nessuna risposta necessaria (${quickCheck.reason})`);
-          this._markMessageAsProcessed(candidate);
-          result.status = 'filtered';
-          return result;
-        }
+      const addressLines = territoryResult.addressFound
+        ? (territoryResult.addresses || []).map((entry) => {
+          const v = entry.verification || {};
+          const sanitizedStreet = (entry.street || '').replace(/[=─]/g, '-');
+          const civicLabel = entry.civic ? `n. ${entry.civic}` : 'senza numero civico';
+          const resultLabel = v.needsCivic
+            ? '\u26A0\uFE0F CIVICO NECESSARIO'
+            : (v.inParish ? '\u2705 RIENTRA' : '\u274C NON RIENTRA');
+          const actionLabel = v.needsCivic ? 'Azione: richiedere il numero civico.' : null;
+          return [
+            `Indirizzo: ${sanitizedStreet} ${civicLabel}`,
+            `Risultato: ${resultLabel}`,
+            `Dettaglio: ${v.reason || 'Nessun dettaglio disponibile'}`,
+            actionLabel
+          ].filter(Boolean).join('\n');
+        })
+        : ['Nessun indirizzo rilevato nel testo.'];
 
-        const detectedLanguage = quickCheck.language;
-        console.log(`   \uD83C\uDF0D Lingua: ${detectedLanguage.toUpperCase()}`);
-
-        // ====================================================================================================
-        // STEP 4: CLASSIFICAZIONE TIPO RICHIESTA (Multi-dimensionale)
-        // ====================================================================================================
-        const requestType = this.requestClassifier.classify(
-          messageDetails.subject,
-          messageDetails.body,
-          quickCheck.classification
-        );
-
-        // Estrai dati dalla nuova struttura classificazione
-        const categoryHint = this.requestClassifier.getRequestTypeHint(requestType);
-        const isPastoral = requestType.dimensions ? (requestType.dimensions.pastoral > 0.6) : (requestType.type === 'pastoral'); // Compatibilità
-
-        // ====================================================================================================
-        // STEP 5: KB ENRICHMENT CONDIZIONALE
-        // ====================================================================================================
-        const knowledgeSections = [];
-        let enrichedKnowledgeBase = knowledgeBase;
-
-        // Regola messe speciali
-        if (typeof getSpecialMassTimeRule === 'function') {
-          const specialMassRule = getSpecialMassTimeRule(new Date());
-          if (specialMassRule) {
-            console.log('   \uD83D\uDEA8 Regola Messe Speciali iniettata nel Prompt');
-            knowledgeSections.push(specialMassRule);
-          }
-        }
-
-        knowledgeSections.push(knowledgeBase);
-        enrichedKnowledgeBase = knowledgeSections.filter(Boolean).join('\n\n');
-
-        // ====================================================================================================
-        // STEP 6: STORICO CONVERSAZIONE
-        // ====================================================================================================
-        let conversationHistory = '';
-        if (messages.length > 1) {
-          const candidateId = candidate.getId();
-          const historyMessages = messages.filter(m => m.getId() !== candidateId);
-
-          if (historyMessages.length > 0) {
-            conversationHistory = this.gmailService.buildConversationHistory(
-              historyMessages,
-              10,
-              myEmail
-            );
-          }
-        }
-
-        // ====================================================================================================
-        // STEP 6.5: CONTESTO MEMORIA
-        // ====================================================================================================
-        const memoryContext = this.memoryService.getMemory(threadId);
-
-        if (Object.keys(memoryContext).length > 0) {
-          console.log(`   \uD83E\uDDE0 Memoria trovata: lang=${memoryContext.language}, topics=${(memoryContext.providedInfo || []).length}`);
-        }
-
-        // ====================================================================================================
-        // STEP 6.6: CALCOLO DINAMICO SALUTO E RITARDO
-        // ====================================================================================================
-        const salutationMode = computeSalutationMode({
-          isReply: safeSubjectLower.startsWith('re:'),
-          messageCount: memoryContext.messageCount || messages.length,
-          memoryExists: Object.keys(memoryContext).length > 0,
-          lastUpdated: memoryContext.lastUpdated || null,
-          now: new Date()
-        });
-        console.log(`   \uD83D\uDCE3 Modalità saluto: ${salutationMode}`);
-
-        const responseDelay = computeResponseDelay({
-          messageDate: messageDetails.date,
-          now: new Date()
-        });
-        if (responseDelay.shouldApologize) {
-          console.log(`   \u23F3 Ritardo risposta: ${responseDelay.days} giorni`);
-        }
-
-        // ====================================================================================================
-        // STEP 7: COSTRUISCI PROMPT
-        // ====================================================================================================
-        let { greeting, closing } = this.geminiService.getAdaptiveGreeting(
-          messageDetails.senderName,
-          detectedLanguage
-        );
-
-        // Override strutturale: nessun saluto in conversazioni attive
-        if (salutationMode === 'none_or_continuity' || salutationMode === 'session') {
-          greeting = '';
-        } else if (salutationMode === 'soft') {
-          greeting = '[Inizia con breve frase di riaggancio cordiale]';
-        }
-
-        // ====================================================================================================
-        // PASSO 7.1: VERIFICA TERRITORIO (se TerritoryValidator disponibile)
-        // ====================================================================================================
-        let territoryResult = { addressFound: false };
-        if (this.territoryValidator) {
-          territoryResult = this.territoryValidator.analyzeEmailForAddress(
-            messageDetails.body,
-            messageDetails.subject
-          );
-        }
-
-        const addressLines = territoryResult.addressFound
-          ? (territoryResult.addresses || []).map((entry) => {
-            const v = entry.verification || {};
-            const sanitizedStreet = (entry.street || '').replace(/[=─]/g, '-');
-            const civicLabel = entry.civic ? `n. ${entry.civic}` : 'senza numero civico';
-            const resultLabel = v.needsCivic
-              ? '\u26A0\uFE0F CIVICO NECESSARIO'
-              : (v.inParish ? '\u2705 RIENTRA' : '\u274C NON RIENTRA');
-            const actionLabel = v.needsCivic ? 'Azione: richiedere il numero civico.' : null;
-            return [
-              `Indirizzo: ${sanitizedStreet} ${civicLabel}`,
-              `Risultato: ${resultLabel}`,
-              `Dettaglio: ${v.reason || 'Nessun dettaglio disponibile'}`,
-              actionLabel
-            ].filter(Boolean).join('\n');
-          })
-          : ['Nessun indirizzo rilevato nel testo.'];
-
-        const territoryContext = `
+      const territoryContext = `
 ====================================================================================================
 🎯 VERIFICA TERRITORIO AUTOMATICA
 ====================================================================================================
 ${addressLines.join('\n\n')}
 ====================================================================================================
 `;
-        // knowledgeSections.unshift(territoryContext); // RIMOSSO: Passato separatamente per evidenza critica
+      // knowledgeSections.unshift(territoryContext); // RIMOSSO: Passato separatamente per evidenza critica
 
-        const summary = territoryResult.addressFound
-          ? (addressLines.length > 1 ? `${addressLines.length} indirizzi` : '1 indirizzo')
-          : 'nessun indirizzo';
-        console.log(`   \uD83C\uDFAF Verifica territorio: ${summary}`);
+      const summary = territoryResult.addressFound
+        ? (addressLines.length > 1 ? `${addressLines.length} indirizzi` : '1 indirizzo')
+        : 'nessun indirizzo';
+      console.log(`   \uD83C\uDFAF Verifica territorio: ${summary}`);
 
-        // ====================================================================================================
-        // STEP 7.2: PROMPT CONTEXT (profilo e concern dinamici)
-        // ====================================================================================================
-        let promptProfile = 'standard';
-        let activeConcerns = [];
-        if (typeof createPromptContext === 'function') {
-          const promptContext = createPromptContext({
-            email: {
-              subject: safeSubject,
-              body: messageDetails.body,
-              isReply: safeSubjectLower.startsWith('re:'),
-              detectedLanguage: detectedLanguage
-            },
-            classification: {
-              category: classification.category,
-              subIntents: classification.subIntents || {},
-              confidence: classification.confidence || 0.8
-            },
-            requestType: requestType,
-            memory: {
-              exists: Object.keys(memoryContext).length > 0,
-              providedInfoCount: (memoryContext.providedInfo || []).length,
-              lastUpdated: memoryContext.lastUpdated || null
-            },
-            conversation: { messageCount: memoryContext.messageCount || messages.length },
-            territory: { addressFound: territoryResult.addressFound },
-            knowledgeBase: { length: enrichedKnowledgeBase.length, containsDates: /\d{4}/.test(enrichedKnowledgeBase) },
-            temporal: {
-              mentionsDates: this._detectTemporalMentions(messageDetails.body, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(messageDetails.body),
-              mentionsTimes: /\d{1,2}[:.]\d{2}/.test(messageDetails.body)
-            },
-            salutationMode: salutationMode
+      // ====================================================================================================
+      // STEP 7.2: PROMPT CONTEXT (profilo e concern dinamici)
+      // ====================================================================================================
+      let promptProfile = 'standard';
+      let activeConcerns = [];
+      if (typeof createPromptContext === 'function') {
+        const promptContext = createPromptContext({
+          email: {
+            subject: safeSubject,
+            body: messageDetails.body,
+            isReply: safeSubjectLower.startsWith('re:'),
+            detectedLanguage: detectedLanguage
+          },
+          classification: {
+            category: classification.category,
+            subIntents: classification.subIntents || {},
+            confidence: classification.confidence || 0.8
+          },
+          requestType: requestType,
+          memory: {
+            exists: Object.keys(memoryContext).length > 0,
+            providedInfoCount: (memoryContext.providedInfo || []).length,
+            lastUpdated: memoryContext.lastUpdated || null
+          },
+          conversation: { messageCount: memoryContext.messageCount || messages.length },
+          territory: { addressFound: territoryResult.addressFound },
+          knowledgeBase: { length: enrichedKnowledgeBase.length, containsDates: /\d{4}/.test(enrichedKnowledgeBase) },
+          temporal: {
+            mentionsDates: this._detectTemporalMentions(messageDetails.body, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(messageDetails.body),
+            mentionsTimes: /\d{1,2}[:.]\d{2}/.test(messageDetails.body)
+          },
+          salutationMode: salutationMode
+        });
+        promptProfile = promptContext.profile;
+        activeConcerns = promptContext.concerns;
+        console.log(`   \uD83E\uDDE0 PromptContext: profilo=${promptProfile}`);
+      }
+
+      const categoryHintSource = classification.category || requestType.type;
+
+      // ====================================================================================================
+      // STEP 7.1: ESTRAZIONE CONTESTO ALLEGATI (OCR) - Eseguita SOLO ORA
+      // ====================================================================================================
+      let attachmentContext = { text: '', items: [], skipped: [] };
+      if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
+        if (this._shouldTryOcr(messageDetails.body, messageDetails.subject)) {
+          attachmentContext = this.gmailService.extractAttachmentContext(candidate, {
+            detectedLanguage: detectedLanguage
           });
-          promptProfile = promptContext.profile;
-          activeConcerns = promptContext.concerns;
-          console.log(`   \uD83E\uDDE0 PromptContext: profilo=${promptProfile}`);
-        }
-
-        const categoryHintSource = classification.category || requestType.type;
-
-        // ====================================================================================================
-        // STEP 7.1: ESTRAZIONE CONTESTO ALLEGATI (OCR) - Eseguita SOLO ORA
-        // ====================================================================================================
-        let attachmentContext = { text: '', items: [], skipped: [] };
-        if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
-          if (this._shouldTryOcr(messageDetails.body, messageDetails.subject)) {
-            attachmentContext = this.gmailService.extractAttachmentContext(candidate, {
-              detectedLanguage: detectedLanguage
-            });
-          } else {
-            attachmentContext.skipped.push({ reason: 'precheck_no_ocr' });
-            console.log('   \uD83D\uDCCE Allegati OCR saltati: pre-check negativo (keyword non trovate)');
-          }
         } else {
-          // OCR disabilitato da config
+          attachmentContext.skipped.push({ reason: 'precheck_no_ocr' });
+          console.log('   \uD83D\uDCCE Allegati OCR saltati: pre-check negativo (keyword non trovate)');
         }
-        if (attachmentContext && attachmentContext.items && attachmentContext.items.length > 0) {
-          const attachmentNames = attachmentContext.items.map(item => item.name).join(', ');
-          console.log(`   \uD83D\uDCCE Allegati OCR: ${attachmentContext.items.length} file inclusi nel contesto (${attachmentNames})`);
-        } else if (attachmentContext && attachmentContext.skipped && attachmentContext.skipped.length > 0) {
-          const skippedNames = attachmentContext.skipped.map(item => item.name || item.reason).join(', ');
-          console.log(`   \uD83D\uDCCE Allegati OCR saltati: ${attachmentContext.skipped.length} (${skippedNames})`);
-        }
+      } else {
+        // OCR disabilitato da config
+      }
+      if (attachmentContext && attachmentContext.items && attachmentContext.items.length > 0) {
+        const attachmentNames = attachmentContext.items.map(item => item.name).join(', ');
+        console.log(`   \uD83D\uDCCE Allegati OCR: ${attachmentContext.items.length} file inclusi nel contesto (${attachmentNames})`);
+      } else if (attachmentContext && attachmentContext.skipped && attachmentContext.skipped.length > 0) {
+        const skippedNames = attachmentContext.skipped.map(item => item.name || item.reason).join(', ');
+        console.log(`   \uD83D\uDCCE Allegati OCR saltati: ${attachmentContext.skipped.length} (${skippedNames})`);
+      }
 
-        const promptOptions = {
-          emailContent: messageDetails.body,
-          emailSubject: messageDetails.subject,
-          knowledgeBase: enrichedKnowledgeBase,
-          senderName: messageDetails.senderName,
-          senderEmail: messageDetails.senderEmail,
-          conversationHistory: conversationHistory,
-          category: categoryHintSource,
-          topic: quickCheck.classification ? quickCheck.classification.topic : '',
-          detectedLanguage: detectedLanguage,
-          currentSeason: this._getCurrentSeason(),
-          currentDate: new Date().toISOString().split('T')[0],
-          salutation: greeting,
-          closing: closing,
-          subIntents: classification.subIntents || {},
-          memoryContext: memoryContext,
-          salutationMode: salutationMode,
-          responseDelay: responseDelay,
-          promptProfile: promptProfile,
-          activeConcerns: activeConcerns,
-          territoryContext: territoryContext, // Passiamo il contesto separatamente per rendering prioritario
-          requestType: requestType, // Aggiunto per recupero selettivo Dottrina
-          attachmentsContext: attachmentContext ? this._sanitizeAttachmentContext(attachmentContext.text) : ''
-        };
+      const promptOptions = {
+        emailContent: messageDetails.body,
+        emailSubject: messageDetails.subject,
+        knowledgeBase: enrichedKnowledgeBase,
+        senderName: messageDetails.senderName,
+        senderEmail: messageDetails.senderEmail,
+        conversationHistory: conversationHistory,
+        category: categoryHintSource,
+        topic: quickCheck.classification ? quickCheck.classification.topic : '',
+        detectedLanguage: detectedLanguage,
+        currentSeason: this._getCurrentSeason(),
+        currentDate: new Date().toISOString().split('T')[0],
+        salutation: greeting,
+        closing: closing,
+        subIntents: classification.subIntents || {},
+        memoryContext: memoryContext,
+        salutationMode: salutationMode,
+        responseDelay: responseDelay,
+        promptProfile: promptProfile,
+        activeConcerns: activeConcerns,
+        territoryContext: territoryContext, // Passiamo il contesto separatamente per rendering prioritario
+        requestType: requestType, // Aggiunto per recupero selettivo Dottrina
+        attachmentsContext: attachmentContext ? this._sanitizeAttachmentContext(attachmentContext.text) : ''
+      };
 
-        const prompt = this.promptEngine.buildPrompt(promptOptions);
+      const prompt = this.promptEngine.buildPrompt(promptOptions);
 
-        // Aggiungi hint tipo richiesta (nuovo metodo blended)
-        const typeHint = this.requestClassifier.getRequestTypeHint(requestType);
-        const fullPrompt = typeHint + '\n\n' + prompt;
+      // Aggiungi hint tipo richiesta (nuovo metodo blended)
+      const typeHint = this.requestClassifier.getRequestTypeHint(requestType);
+      const fullPrompt = typeHint + '\n\n' + prompt;
 
-        // ====================================================================================================
-        // STEP 8: GENERA RISPOSTA (STRATEGIA "CROSS-KEY QUALITY FIRST")
-        // ====================================================================================================
-        // NOTA ARCHITETTURALE:
-        // Questa fase può richiedere più tempo del normale (fino a 4 tentativi API).
-        // SCELTA DELIBERATA: Privilegiamo la qualità della risposta (Modello Flash 2.5)
-        // rispetto alla velocità. 
-        // 1. Proviamo Flash 2.5 sulla chiave primaria.
-        // 2. Se fallisce, proviamo Flash 2.5 sulla chiave di RISERVA.
-        // 3. Solo se entrambe falliscono, degradiamo al modello Lite (più economico).
-        // Questo "costo" in termini di tempo è gestito riducendo MAX_EMAILS_PER_RUN a 3.
-        // ====================================================================================================
+      // ====================================================================================================
+      // STEP 8: GENERA RISPOSTA (STRATEGIA "CROSS-KEY QUALITY FIRST")
+      // ====================================================================================================
+      // NOTA ARCHITETTURALE:
+      // Questa fase può richiedere più tempo del normale (fino a 4 tentativi API).
+      // SCELTA DELIBERATA: Privilegiamo la qualità della risposta (Modello Flash 2.5)
+      // rispetto alla velocità. 
+      // 1. Proviamo Flash 2.5 sulla chiave primaria.
+      // 2. Se fallisce, proviamo Flash 2.5 sulla chiave di RISERVA.
+      // 3. Solo se entrambe falliscono, degradiamo al modello Lite (più economico).
+      // Questo "costo" in termini di tempo è gestito riducendo MAX_EMAILS_PER_RUN a 3.
+      // ====================================================================================================
 
-        let response = null;
-        let generationError = null;
-        let strategyUsed = null;
+      let response = null;
+      let generationError = null;
+      let strategyUsed = null;
 
-        // Punto 12: Utilizzo del metodo di classe centralizzato per la classificazione degli errori
+      // Punto 12: Utilizzo del metodo di classe centralizzato per la classificazione degli errori
 
 
-        // Definizione strategie di generazione (Punti di robustezza cross-key)
-        const geminiModels = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_MODELS) ? CONFIG.GEMINI_MODELS : {};
-        const flashModel = (geminiModels['flash-2.5'] && geminiModels['flash-2.5'].name) ? geminiModels['flash-2.5'].name : 'gemini-1.5-flash';
-        const liteModel = (geminiModels['flash-lite'] && geminiModels['flash-lite'].name) ? geminiModels['flash-lite'].name : 'gemini-1.5-flash-lite';
+      // Definizione strategie di generazione (Punti di robustezza cross-key)
+      const geminiModels = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_MODELS) ? CONFIG.GEMINI_MODELS : {};
+      const flashModel = (geminiModels['flash-2.5'] && geminiModels['flash-2.5'].name) ? geminiModels['flash-2.5'].name : 'gemini-1.5-flash';
+      const liteModel = (geminiModels['flash-lite'] && geminiModels['flash-lite'].name) ? geminiModels['flash-lite'].name : 'gemini-1.5-flash-lite';
 
-        const attemptStrategy = [
-          { name: 'Primary-Flash2.5', key: this.geminiService.primaryKey, model: flashModel, skipRateLimit: false },
-          { name: 'Backup-Flash2.5', key: this.geminiService.backupKey, model: flashModel, skipRateLimit: true },
-          { name: 'Fallback-Lite', key: this.geminiService.primaryKey, model: liteModel, skipRateLimit: false }
-        ];
+      const attemptStrategy = [
+        { name: 'Primary-Flash2.5', key: this.geminiService.primaryKey, model: flashModel, skipRateLimit: false },
+        { name: 'Backup-Flash2.5', key: this.geminiService.backupKey, model: flashModel, skipRateLimit: true },
+        { name: 'Fallback-Lite', key: this.geminiService.primaryKey, model: liteModel, skipRateLimit: false }
+      ];
 
-        // Esecuzione Loop Strategico
-        for (const plan of attemptStrategy) {
-          // Salta se manca la chiave (es. backupKey non configurata)
-          if (!plan.key) continue;
+      // Esecuzione Loop Strategico
+      for (const plan of attemptStrategy) {
+        // Salta se manca la chiave (es. backupKey non configurata)
+        if (!plan.key) continue;
 
-          try {
-            console.log(`\uD83D\uDD04 Tentativo Generazione: ${plan.name}...`);
+        try {
+          console.log(`\uD83D\uDD04 Tentativo Generazione: ${plan.name}...`);
 
-            response = this.geminiService.generateResponse(fullPrompt, {
-              apiKey: plan.key,
-              modelName: plan.model,
-              skipRateLimit: plan.skipRateLimit
-            });
+          response = this.geminiService.generateResponse(fullPrompt, {
+            apiKey: plan.key,
+            modelName: plan.model,
+            skipRateLimit: plan.skipRateLimit
+          });
 
-            if (response) {
-              strategyUsed = plan.name;
-              console.log(`\u2705 Generazione riuscita con strategia: ${plan.name}`);
-              break; // Successo! Esci dal loop
-            }
-
-          } catch (err) {
-            generationError = err; // Salva l'ultimo errore
-            const errorClass = typeof classifyError === 'function' ? classifyError(err).type : 'UNKNOWN';
-            console.warn(`\u26A0\uFE0F Strategia '${plan.name}' fallita: ${err.message} [${errorClass}]`);
-
-            if (errorClass === 'FATAL') {
-              console.error('\u274C Errore fatale rilevato, interrompo strategia.');
-              break;
-            }
-
-            if (errorClass === 'NETWORK') {
-              console.warn('\uD83C\uDF0D Errore di rete, continuo con prossima strategia.');
-              continue;
-            }
-            // QUOTA e UNKNOWN: continua
+          if (response) {
+            strategyUsed = plan.name;
+            console.log(`\u2705 Generazione riuscita con strategia: ${plan.name}`);
+            break; // Successo! Esci dal loop
           }
-        }
 
-        // Verifiche finali post-loop
-        if (!response) {
-          const errorClass = generationError ? (typeof classifyError === 'function' ? classifyError(generationError).type : 'UNKNOWN') : 'UNKNOWN';
-          console.error('❌ TUTTE le strategie di generazione sono fallite.');
-          this._addErrorLabel(thread);
-          this._markMessageAsProcessed(candidate);
-          result.status = 'error';
-          result.error = generationError ? generationError.message : 'Generation strategies exhausted';
-          result.errorClass = errorClass;
-          return result;
-        }
+        } catch (err) {
+          generationError = err; // Salva l'ultimo errore
+          const errorClass = typeof classifyError === 'function' ? classifyError(err).type : 'UNKNOWN';
+          console.warn(`\u26A0\uFE0F Strategia '${plan.name}' fallita: ${err.message} [${errorClass}]`);
 
-        // Controlla marcatore NO_REPLY
-        if (response.trim() === 'NO_REPLY') {
-          console.log('   \u2296 AI ha restituito NO_REPLY');
-          this._markMessageAsProcessed(candidate);
-          result.status = 'filtered';
-          return result;
-        }
-
-        // Nota OCR bassa confidenza: avviso leggibilità allegato
-        if (attachmentContext && attachmentContext.ocrConfidenceLow) {
-          const ocrLowConfidenceNote = this._getOcrLowConfidenceNote(detectedLanguage);
-          if (ocrLowConfidenceNote && !response.includes(ocrLowConfidenceNote)) {
-            response = `${response.trim()}\n\n${ocrLowConfidenceNote}`;
-            console.log(`   \u26A0\uFE0F Nota OCR aggiunta (confidenza media: ${attachmentContext.ocrConfidence})`);
+          if (errorClass === 'FATAL') {
+            console.error('\u274C Errore fatale rilevato, interrompo strategia.');
+            break;
           }
+
+          if (errorClass === 'NETWORK') {
+            console.warn('\uD83C\uDF0D Errore di rete, continuo con prossima strategia.');
+            continue;
+          }
+          // QUOTA e UNKNOWN: continua
         }
+      }
 
-        // ====================================================================================================
-        // STEP 9: VALIDA RISPOSTA
-        // ====================================================================================================
-        if (this.config.validationEnabled) {
-          const validation = this.validator.validateResponse(
-            response,
-            detectedLanguage,
-            enrichedKnowledgeBase,
-            messageDetails.body,
-            messageDetails.subject,
-            salutationMode
-          );
+      // Verifiche finali post-loop
+      if (!response) {
+        const errorClass = generationError ? (typeof classifyError === 'function' ? classifyError(generationError).type : 'UNKNOWN') : 'UNKNOWN';
+        console.error('❌ TUTTE le strategie di generazione sono fallite.');
+        this._addErrorLabel(thread);
+        this._markMessageAsProcessed(candidate);
+        result.status = 'error';
+        result.error = generationError ? generationError.message : 'Generation strategies exhausted';
+        result.errorClass = errorClass;
+        return result;
+      }
 
-          if (!validation.isValid) {
-            console.warn(`   \u274C Validazione FALLITA (punteggio: ${validation.score.toFixed(2)})`);
+      // Controlla marcatore NO_REPLY
+      if (response.trim() === 'NO_REPLY') {
+        console.log('   \u2296 AI ha restituito NO_REPLY');
+        this._markMessageAsProcessed(candidate);
+        result.status = 'filtered';
+        return result;
+      }
 
-            // Gestione errore validazione critica
-            if (validation.details && validation.details.exposedReasoning && validation.details.exposedReasoning.score === 0.0) {
-              console.warn("\u26A0\uFE0F Risposta bloccata per Thinking Leak. Invio a etichetta 'Verifica'.");
-              // Qui potremmo tentare un retry con temperatura più bassa o altro modello
-              // Per ora marchiamo per revisione umana
-              this._addValidationErrorLabel(thread);
-              this._markMessageAsProcessed(candidate);
-              result.status = 'validation_failed';
-              result.reason = 'thinking_leak';
-              result.validationFailed = true;
-              return result;
-            }
+      // Nota OCR bassa confidenza: avviso leggibilità allegato
+      if (attachmentContext && attachmentContext.ocrConfidenceLow) {
+        const ocrLowConfidenceNote = this._getOcrLowConfidenceNote(detectedLanguage);
+        if (ocrLowConfidenceNote && !response.includes(ocrLowConfidenceNote)) {
+          response = `${response.trim()}\n\n${ocrLowConfidenceNote}`;
+          console.log(`   \u26A0\uFE0F Nota OCR aggiunta (confidenza media: ${attachmentContext.ocrConfidence})`);
+        }
+      }
 
+      // ====================================================================================================
+      // STEP 9: VALIDA RISPOSTA
+      // ====================================================================================================
+      if (this.config.validationEnabled) {
+        const validation = this.validator.validateResponse(
+          response,
+          detectedLanguage,
+          enrichedKnowledgeBase,
+          messageDetails.body,
+          messageDetails.subject,
+          salutationMode
+        );
+
+        if (!validation.isValid) {
+          console.warn(`   \u274C Validazione FALLITA (punteggio: ${validation.score.toFixed(2)})`);
+
+          // Gestione errore validazione critica
+          if (validation.details && validation.details.exposedReasoning && validation.details.exposedReasoning.score === 0.0) {
+            console.warn("\u26A0\uFE0F Risposta bloccata per Thinking Leak. Invio a etichetta 'Verifica'.");
+            // Qui potremmo tentare un retry con temperatura più bassa o altro modello
+            // Per ora marchiamo per revisione umana
             this._addValidationErrorLabel(thread);
             this._markMessageAsProcessed(candidate);
             result.status = 'validation_failed';
+            result.reason = 'thinking_leak';
             result.validationFailed = true;
             return result;
           }
 
-          // Se ci sono WARNING e il punteggio è sotto la soglia di sicurezza, aggiungi etichetta "verifica"
-          // Ignoriamo i warning per punteggi alti (es. >= 0.90) assumendo siano nits minori (es. firma)
-          const warningThreshold = this.config.validationWarningThreshold || 0.90;
-
-          if (validation.warnings && validation.warnings.length > 0 && validation.score < warningThreshold) {
-            console.log(
-              `   \u26A0\uFE0F Validazione: Punteggio ${validation.score.toFixed(2)} < ${warningThreshold} con warning - Aggiungo etichetta '${this.config.validationErrorLabel}'`
-            );
-            this.gmailService.addLabelToMessage(candidate.getId(), this.config.validationErrorLabel);
-          } else if (validation.warnings && validation.warnings.length > 0) {
-            console.log(`   \u2139\uFE0F Validazione: Punteggio alto (${validation.score.toFixed(2)}). Warning ignorati: ${validation.warnings.join(', ')}`);
-          }
-
-          if (validation.fixedResponse) {
-            console.log('   \uD83E\uDE79 Usa risposta corretta automaticamente (Self-Healing)');
-            response = validation.fixedResponse;
-          }
-
-          console.log(`   \u2713 Validazione PASSATA (punteggio: ${validation.score.toFixed(2)})`);
-        }
-
-        // ====================================================================================================
-        // STEP 10: INVIA RISPOSTA
-        // ====================================================================================================
-        if (this.config.dryRun) {
-          console.log('   \uD83D\uDD34 DRY RUN - Risposta non inviata');
-          console.log(`   \uD83D\uDCE3 Invierebbe: ${response.substring(0, 100)}...`);
-          result.dryRun = true;
-          // In DRY_RUN non aggiorniamo memoria né label per non avere effetti permanenti
-          result.status = 'replied';
+          this._addValidationErrorLabel(thread);
+          this._markMessageAsProcessed(candidate);
+          result.status = 'validation_failed';
+          result.validationFailed = true;
           return result;
         }
 
-        this.gmailService.sendHtmlReply(candidate, response, messageDetails);
+        // Se ci sono WARNING e il punteggio è sotto la soglia di sicurezza, aggiungi etichetta "verifica"
+        // Ignoriamo i warning per punteggi alti (es. >= 0.90) assumendo siano nits minori (es. firma)
+        const warningThreshold = this.config.validationWarningThreshold || 0.90;
 
-        // ====================================================================================================
-        // STEP 11: AGGIORNA MEMORIA (solo se non DRY_RUN)
-        // ====================================================================================================
-        const providedTopics = this._detectProvidedTopics(response);
-
-        // Strutturazione Oggetti Topic
-        const topicsWithObjects = providedTopics.map(topic => ({
-          topic: topic,
-          userReaction: 'unknown',
-          context: null,
-          timestamp: new Date().toISOString()
-        }));
-
-        const memorySummary = this._buildMemorySummary({
-          existingSummary: memoryContext.memorySummary || '',
-          responseText: response,
-          providedTopics: providedTopics
-        });
-
-        // Inferisci reazione utente su topic precedenti (se presenti)
-        if (memoryContext.providedInfo && memoryContext.providedInfo.length > 0) {
-          this._inferUserReaction(messageDetails.body, memoryContext.providedInfo, threadId);
+        if (validation.warnings && validation.warnings.length > 0 && validation.score < warningThreshold) {
+          console.log(
+            `   \u26A0\uFE0F Validazione: Punteggio ${validation.score.toFixed(2)} < ${warningThreshold} con warning - Aggiungo etichetta '${this.config.validationErrorLabel}'`
+          );
+          this.gmailService.addLabelToMessage(candidate.getId(), this.config.validationErrorLabel);
+        } else if (validation.warnings && validation.warnings.length > 0) {
+          console.log(`   \u2139\uFE0F Validazione: Punteggio alto (${validation.score.toFixed(2)}). Warning ignorati: ${validation.warnings.join(', ')}`);
         }
 
-        const memoryUpdate = {
-          language: detectedLanguage,
-          category: classification.category || requestType.type
-        };
-
-        if (memorySummary) {
-          memoryUpdate.memorySummary = memorySummary;
+        if (validation.fixedResponse) {
+          console.log('   \uD83E\uDE79 Usa risposta corretta automaticamente (Self-Healing)');
+          response = validation.fixedResponse;
         }
 
-        this.memoryService.updateMemoryAtomic(threadId, memoryUpdate, topicsWithObjects.length > 0 ? topicsWithObjects : null);
+        console.log(`   \u2713 Validazione PASSATA (punteggio: ${validation.score.toFixed(2)})`);
+      }
 
-        if (candidate) {
-          this._markMessageAsProcessed(candidate);
-        }
+      // ====================================================================================================
+      // STEP 10: INVIA RISPOSTA
+      // ====================================================================================================
+      if (this.config.dryRun) {
+        console.log('   \uD83D\uDD34 DRY RUN - Risposta non inviata');
+        console.log(`   \uD83D\uDCE3 Invierebbe: ${response.substring(0, 100)}...`);
+        result.dryRun = true;
+        // In DRY_RUN non aggiorniamo memoria né label per non avere effetti permanenti
         result.status = 'replied';
         return result;
-
-      } catch (error) {
-        console.error(`   \u274C Errore elaborazione thread: ${error.message}`);
-        this._addErrorLabel(thread);
-        if (candidate) {
-          this._markMessageAsProcessed(candidate);
-        }
-        result.status = 'error';
-        result.error = error.message;
-        return result;
-
-      } finally {
-        // Rilascia lock (solo se acquisito)
-        if (lockAcquired && scriptCache && threadLockKey) {
-          try {
-            const currentLockValue = scriptCache.get(threadLockKey);
-            if (!currentLockValue || currentLockValue === lockValue) {
-              scriptCache.remove(threadLockKey);
-              console.log(`\uD83D\uDD13 Lock rilasciato per thread ${threadId}`);
-            } else {
-              console.warn(`\u26A0\uFE0F Rilascio lock saltato per thread ${threadId} (lock di altro processo)`);
-            }
-          } catch (e) {
-            console.warn('\u26A0\uFE0F Errore rilascio lock:', e.message);
-          }
-        }
       }
+
+      this.gmailService.sendHtmlReply(candidate, response, messageDetails);
+
+      // ====================================================================================================
+      // STEP 11: AGGIORNA MEMORIA (solo se non DRY_RUN)
+      // ====================================================================================================
+      const providedTopics = this._detectProvidedTopics(response);
+
+      // Strutturazione Oggetti Topic
+      const topicsWithObjects = providedTopics.map(topic => ({
+        topic: topic,
+        userReaction: 'unknown',
+        context: null,
+        timestamp: new Date().toISOString()
+      }));
+
+      const memorySummary = this._buildMemorySummary({
+        existingSummary: memoryContext.memorySummary || '',
+        responseText: response,
+        providedTopics: providedTopics
+      });
+
+      // Inferisci reazione utente su topic precedenti (se presenti)
+      if (memoryContext.providedInfo && memoryContext.providedInfo.length > 0) {
+        this._inferUserReaction(messageDetails.body, memoryContext.providedInfo, threadId);
+      }
+
+      const memoryUpdate = {
+        language: detectedLanguage,
+        category: classification.category || requestType.type
+      };
+
+      if (memorySummary) {
+        memoryUpdate.memorySummary = memorySummary;
+      }
+
+      this.memoryService.updateMemoryAtomic(threadId, memoryUpdate, topicsWithObjects.length > 0 ? topicsWithObjects : null);
+
+      if (candidate) {
+        this._markMessageAsProcessed(candidate);
+      }
+      result.status = 'replied';
+      return result;
+
     } catch (error) {
-      console.error(`❌ Errore processThread ${threadId}: ${error.message}`);
-      throw error;
+      console.error(`   \u274C Errore elaborazione thread: ${error.message}`);
+      this._addErrorLabel(thread);
+      if (candidate) {
+        this._markMessageAsProcessed(candidate);
+      }
+      result.status = 'error';
+      result.error = error.message;
+      return result;
+
     } finally {
-      if (lockAcquired && lockValue) {
+      // Rilascia lock (solo se acquisito)
+      if (lockAcquired && scriptCache && threadLockKey) {
         try {
-          const currentLock = scriptCache.get(threadLockKey);
-          if (currentLock === lockValue) {
+          const currentLockValue = scriptCache.get(threadLockKey);
+          if (!currentLockValue || currentLockValue === lockValue) {
             scriptCache.remove(threadLockKey);
-            console.log(`🔓 Lock rilasciato per thread ${threadId}`);
+            console.log(`\uD83D\uDD13 Lock rilasciato per thread ${threadId}`);
+          } else {
+            console.warn(`\u26A0\uFE0F Rilascio lock saltato per thread ${threadId} (lock di altro processo)`);
           }
         } catch (e) {
-          console.warn(`⚠️ Errore rilascio lock: ${e.message}`);
+          console.warn('\u26A0\uFE0F Errore rilascio lock:', e.message);
         }
       }
     }
+
   }
   /**
    * Processa tutte le email non lette
