@@ -395,17 +395,16 @@ function testPromptEngineBudget(results) {
 function testEmailProcessorErrorClassification(results) {
     testGroup('Punto #7: EmailProcessor - Classificazione Errori', results, () => {
         // ... (test esistenti) ...
-        const classifyError = (error) => {
-            const msg = error.message || '';
-            if (msg.includes('INVALID_ARGUMENT')) return 'FATAL';
-            if (msg.includes('rate limit')) return 'QUOTA';
-            if (msg.includes('timeout')) return 'NETWORK';
-            return 'UNKNOWN';
-        };
-
         test('Classifica INVALID_ARGUMENT come FATAL', results, () => {
+            // Usa una istanza reale (mock dependencies minime)
+            const processor = new EmailProcessor({ geminiService: {}, gmailService: {} });
             const error = new Error('INVALID_ARGUMENT: Bad prompt');
-            return classifyError(error) === 'FATAL';
+
+            // Accesso al metodo privato tramite bracket o call se necessario, 
+            // ma qui possiamo testare _classifyError se accessibile o tramite public interface.
+            // Poiché è _classifyError, assumiamo sia "private" ma testabile in GAS o usiamo wrapper.
+            // In unit test JS semplice, _methods sono accessibili.
+            return processor._classifyError(error) === 'FATAL';
         });
     });
 }
@@ -599,16 +598,27 @@ function testResponseValidatorAdvanced(results) {
         const validator = new ResponseValidator();
         // Mock SemanticValidator per evitare chiamate API e 429
         validator.semanticValidator = {
-            validateHallucinations: () => ({ score: 0.0, errors: [] }) // Score 0.0 = Nessuna allucinazione
+            validateHallucinations: () => ({ score: 0.0, errors: [] }), // Score 0.0 = Nessuna allucinazione
+            validateThinkingLeak: () => ({ score: 0.0, errors: [] }),
+            shouldRun: () => false
+        };
+
+        // Helper per chiamare validateResponse con firma corretta
+        const validate = (response, detectedLanguage, emailContent, senderName) => {
+            return validator.validateResponse(
+                response,
+                detectedLanguage,
+                "KB Mock", // knowledgeBase
+                emailContent,
+                "Subject Mock", // emailSubject
+                'full', // salutationMode
+                false // attemptPerfezionamento
+            );
         };
 
         test('Lunghezza appropriata: normale', results, () => {
             const response = "Buongiorno, le messe domenicali sono alle ore 9:00, 11:00 e 18:00. Cordiali saluti.";
-            const result = validator.validateResponse(response, {
-                detectedLanguage: 'it',
-                emailContent: "Orari messe?",
-                senderName: "Test"
-            });
+            const result = validate(response, 'it', "Orari messe?", "Test");
             return result.details.length.score === 1.0;
         });
 
@@ -616,11 +626,7 @@ function testResponseValidatorAdvanced(results) {
 
         test('Coerenza linguistica: Italiano corretto', results, () => {
             const response = "Buongiorno, le messe sono alle 9:00. Cordiali saluti.";
-            const result = validator.validateResponse(response, {
-                detectedLanguage: 'it',
-                emailContent: "Orari?",
-                senderName: "Test"
-            });
+            const result = validate(response, 'it', "Orari?", "Test");
             return result.details.language.score === 1.0;
         });
 
@@ -629,82 +635,68 @@ function testResponseValidatorAdvanced(results) {
 
         test('Firma presente (primo contatto)', results, () => {
             const response = "Buongiorno, le messe sono alle 9:00.\n\nCordiali saluti,\nSegreteria Parrocchiale";
-            const result = validator.validateResponse(response, {
-                detectedLanguage: 'it',
-                emailContent: "Orari?",
-                senderName: "Test",
-                isFollowUp: false
-            });
+            const result = validator.validateResponse(
+                response,
+                'it',
+                "KB",
+                "Orari?",
+                "Sub",
+                'full', // salutationMode
+                false
+            );
             return result.details.signature.score === 1.0;
         });
 
         test('Contenuto proibito: placeholder rilevato', results, () => {
             const response = "Le messe sono alle [ORARIO]. Cordiali saluti.";
-            const result = validator.validateResponse(response, {
-                detectedLanguage: 'it',
-                emailContent: "Orari?",
-                senderName: "Test"
-            });
+            const result = validate(response, 'it', "Orari?", "Test");
             return result.details.content.score < 1.0;
         });
 
         test('Allucinazione: email inventata', results, () => {
             const response = "Per info scriva a info@email-inventata.com";
-            const result = validator.validateResponse(response, {
-                detectedLanguage: 'it',
-                emailContent: "Contatti?",
-                senderName: "Test"
-            });
+            const result = validate(response, 'it', "Contatti?", "Test");
             return result.details.hallucinations.score < 1.0;
         });
 
         test('Allucinazione: telefono inventato', results, () => {
             const response = "Ci chiami al 06-12345678";
-            const result = validator.validateResponse(response, {
-                detectedLanguage: 'it',
-                emailContent: "Telefono?",
-                senderName: "Test"
-            });
-            return result.details.hallucinations.score <= 1.0;
+            const result = validate(response, 'it', "Telefono?", "Test");
+            return result.details.hallucinations.score < 1.0;
         });
 
         test('Leak ragionamento: reasoning esposto', results, () => {
             const response = "Rivedendo la Knowledge Base, vedo che le messe sono alle 9:00.";
-            const result = validator.validateResponse(response, {
-                detectedLanguage: 'it',
-                emailContent: "Orari?",
-                senderName: "Test"
-            });
+            const result = validate(response, 'it', "Orari?", "Test");
             return result.details.exposedReasoning.score === 0.0;
         });
 
         test('Maiuscola dopo virgola: errore rilevato', results, () => {
             const response = "Buongiorno, Le messe sono alle 9:00.";
-            const result = validator.validateResponse(response, {
-                detectedLanguage: 'it',
-                emailContent: "Orari?",
-                senderName: "Test"
-            });
+            const result = validate(response, 'it', "Orari?", "Test");
             return result.details.capitalAfterComma.score < 1.0;
         });
 
         test('Nomi doppi: capitalizzazione preservata', results, () => {
             const response = "Buon giorno, Maria Isabella. Le messe sono alle 9:00.";
-            const result = validator.validateResponse(response, {
-                detectedLanguage: 'it',
-                emailContent: "Orari?",
-                senderName: "Maria Isabella"
-            });
-            return result.warnings.filter(w => w.includes('Maria')).length === 0;
+            const result = validator.validateResponse(
+                response,
+                'it',
+                "KB",
+                "Orari?",
+                "Sub",
+                'full',
+                false
+            );
+            // Non possiamo testare warning su nome senderName perché validateResponse non lo usa direttamente per logic check
+            // ma ResponseValidator preserva casing. 
+            // Qui testiamo che non ci siano warning generici.
+            return result.warnings.length === 0;
         });
 
         test('Calcolo punteggio totale', results, () => {
             const response = "Buongiorno, le messe domenicali sono alle ore 9:00, 11:00 e 18:00. Cordiali saluti, Segreteria.";
-            const result = validator.validateResponse(response, {
-                detectedLanguage: 'it',
-                emailContent: "Orari messe domenica?",
-                senderName: "Test"
-            });
+            const result = validate(response, 'it', "Orari messe domenica?", "Test");
             return result.score >= 0.8;
         });
 
@@ -772,7 +764,7 @@ function testIntegrationScenarios(results) {
             const addresses = validator.extractAddressFromText("Abito in Via Roma 10");
 
             if (!addresses || addresses.length === 0) {
-                return true;
+                return false; // DEVE estrarre indirizzo
             }
 
             const verification = validator.verifyAddress(addresses[0].street, addresses[0].civic);
@@ -851,11 +843,7 @@ function testPerformance(results) {
             const start = Date.now();
 
             for (let i = 0; i < 10; i++) {
-                validator.validateResponse(response, {
-                    detectedLanguage: 'it',
-                    emailContent: "Test",
-                    senderName: "Test"
-                });
+                validator.validateResponse(response, 'it', "KB", "Test", "Subject", 'full', false);
             }
 
             const duration = Date.now() - start;
@@ -881,7 +869,7 @@ function testEdgeCases(results) {
             const classifier = new Classifier();
             const longContent = "A".repeat(15000);
             const result = classifier.classifyEmail(longContent, "Test", "test@example.com");
-            return result.shouldReply === true || result.shouldReply === false;
+            return result.shouldReply === false; // Deve rifiutare o gestire gracefully
         });
 
         test('Email con emoji', results, () => {
@@ -918,7 +906,7 @@ function testEdgeCases(results) {
         test('Null safety: validator con input null', results, () => {
             const validator = new ResponseValidator();
             try {
-                validator.validateResponse(null, {});
+                validator.validateResponse(null, 'it', 'KB', 'Body', 'Sub');
                 return false;
             } catch (e) {
                 return true;
@@ -959,7 +947,12 @@ function testMiglioramentiSecondaFase(results) {
         });
 
         test('Punto #4: Protezione ReDoS Oggetto', results, () => {
-            return true;
+            const validator = new TerritoryValidator();
+            // Test input malevolo o struttura complessa
+            const malicious = "via " + "a".repeat(100) + " 10";
+            const start = Date.now();
+            validator.extractAddressFromText(malicious);
+            return (Date.now() - start) < 500;
         });
 
         test('Punto #5: Controllo Null _detectTemporalMentions', results, () => {
@@ -1597,7 +1590,7 @@ function testCoreLogicMocked(results) {
                             ['', '', '', '']
                         ]
                     };
-                    if (a1 === 'E11:F50') return {
+                    if (a1 === 'E17:F120') return {
                         getValues: () => [
                             ['bad.com', 'spam'],
                             ['', '']
@@ -1668,6 +1661,7 @@ function runAllTests() {
         testClassifierEdgeCases(results);
         testRequestTypeClassifierAdvanced(results);
         testResponseValidatorAdvanced(results);
+        testResponseValidatorSemantic(results); // ✅ Aggiunto
         testAttachmentOCR(results);
 
     } catch (error) {
