@@ -93,12 +93,21 @@ function isInVacationPeriod(date = new Date()) {
     return false;
   }
 
-  // Normalizza a mezzanotte per confronto corretto
-  const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  // Normalizza input a inizio giornata per confronto date-only
+  const checkDate = new Date(date);
+  checkDate.setHours(0, 0, 0, 0);
 
   for (const vp of periods) {
-    const start = new Date(vp.start.getFullYear(), vp.start.getMonth(), vp.start.getDate());
-    const end = new Date(vp.end.getFullYear(), vp.end.getMonth(), vp.end.getDate());
+    // Accetta sia oggetti Date che stringhe serializzate
+    const start = new Date(vp.start);
+    const end = new Date(vp.end);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      continue;
+    }
+
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
 
     if (checkDate >= start && checkDate <= end) {
       return true;

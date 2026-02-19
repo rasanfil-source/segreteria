@@ -1088,7 +1088,7 @@ class ResponseValidator {
   }
 
   _isBereavementContext(originalMessage) {
-    const text = (originalMessage || '').toLowerCase();
+    const text = String(originalMessage || '').toLowerCase();
     return /\blutto\b|mancat[oa]\b|decesso|morto|morta|funeral|condoglianz/.test(text);
   }
 
