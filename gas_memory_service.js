@@ -918,6 +918,20 @@ class MemoryService {
 
   _invalidateCache(key) {
     delete this._cache[key];
+
+    // Invalida anche cache veloce (CacheService) usata da getMemoryRobust.
+    // Evita stale reads quando updateMemory/updateMemoryAtomic invalidano solo cache locale.
+    if (typeof key === 'string' && key.indexOf('memory_') === 0) {
+      const threadId = key.substring('memory_'.length);
+      if (threadId) {
+        try {
+          const cache = CacheService.getScriptCache();
+          cache.remove(`MEM_${threadId}`);
+        } catch (e) {
+          // Cache secondaria: invalidazione best-effort, mai bloccante.
+        }
+      }
+    }
   }
 
   /**

@@ -445,6 +445,30 @@ function testMemoryGetUsesRowValues() {
     assert(result.threadId === 'thread-1', 'getMemory deve restituire threadId corretto');
 }
 
+function testInvalidateCacheAlsoClearsRobustCache() {
+    loadScript('gas_memory_service.js');
+
+    const removedKeys = [];
+    const originalCacheService = global.CacheService;
+    global.CacheService = {
+        getScriptCache: () => ({
+            remove: (key) => removedKeys.push(key)
+        })
+    };
+
+    try {
+        const service = Object.create(MemoryService.prototype);
+        service._cache = { 'memory_thread-42': { data: {}, timestamp: Date.now() } };
+
+        service._invalidateCache('memory_thread-42');
+
+        assert(!service._cache['memory_thread-42'], '_invalidateCache deve rimuovere la cache locale');
+        assert(removedKeys.includes('MEM_thread-42'), '_invalidateCache deve rimuovere anche la cache robusta');
+    } finally {
+        global.CacheService = originalCacheService;
+    }
+}
+
 function testRateLimiterRecoverRequiresLock() {
     loadScript('gas_rate_limiter.js');
 
@@ -856,6 +880,7 @@ function main() {
         ['computeSalutationMode: primo/reply/vecchio', testComputeSalutationMode],
         ['anti-loop: thread lungo con esterni consecutivi', testAntiLoopDetection],
         ['memory get: usa row.values in parsing', testMemoryGetUsesRowValues],
+        ['memory invalidate: pulizia cache robusta', testInvalidateCacheAlsoClearsRobustCache],
         ['rate limiter WAL: recovery bloccato senza lock', testRateLimiterRecoverRequiresLock],
         ['computeResponseDelay: recente/vecchio/nullo', testComputeResponseDelay],
         ['_shouldIgnoreEmail: no-reply/reale/ooo', testShouldIgnoreEmail],
