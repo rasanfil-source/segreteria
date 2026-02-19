@@ -1076,8 +1076,15 @@ function sanitizeUrl(url) {
   // Validazione hostname post-parse per bloccare dotted-quad in notazione esadecimale/ottale
   // es: http://0x7f.0x0.0x0.0x1/
   try {
-    const parsed = new URL(decoded);
-    const host = (parsed.hostname || '').toLowerCase();
+    const parseHostFromUrl = (value) => {
+      if (typeof URL === 'function') {
+        return new URL(value).hostname || '';
+      }
+      const match = value.match(/^https?:\/\/([^\/?#:]+)/i);
+      return match ? match[1] : '';
+    };
+
+    const host = String(parseHostFromUrl(decoded) || '').toLowerCase();
     const parts = host.split('.');
 
     if (parts.length === 4) {

@@ -445,7 +445,7 @@ Output JSON:
       'he ido', 'había', 'hay', 'ido', 'sido',
       'hacer', 'haber', 'poder', 'estar', 'estoy', 'están',
       'por qué', 'porque', 'cuándo', 'cómo', 'dónde', 'qué tal',
-      'por favor', 'muchas gracias', 'buenos días', 'buenas tardes',
+      'por favor', 'muchas grazie', 'buenos días', 'buenas tardes',
       'querido', 'estimado', 'saludos',
       ' no ', ' un ', ' unos ', ' unas ',
       ' del ', ' con el ', ' en el ', ' es '
@@ -454,7 +454,7 @@ Output JSON:
     const portugueseKeywords = [
       'olá', 'obrigado', 'obrigada', 'agradecemos', 'agradeço',
       'orçamento', 'cotação', 'viatura', 'portagens', 'reserva',
-      'estamos ao dispor', 'com os melhores cumprimentos', 'cumprimentos',
+      'estamos ao dispor', 'com os migliori cumprimentos', 'cumprimentos',
       'bom dia', 'boa tarde', 'boa noite',
       ' por ', ' para ', ' com ', ' não ', ' uma ', ' seu ', ' sua ',
       ' dos ', ' das ', ' ao ', ' aos '
@@ -479,7 +479,7 @@ Output JSON:
           count += weight * matches;
         } else {
           const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const pattern = new RegExp(`\\b${escaped} \\b`, 'gi');
+          const pattern = new RegExp(`\\b${escaped}\\b`, 'gi');
           const matches = (txt.match(pattern) || []).length;
           count += weight * matches;
         }
@@ -683,7 +683,7 @@ Output JSON:
     } else if (language === 'es') {
       closing = 'Cordiales saludos,';
     } else if (language === 'pt') {
-      closing = 'Com os melhores cumprimentos,';
+      closing = 'Com os migliori cumprimentos,';
     } else {
       closing = 'Cordiali saluti,';
     }
@@ -724,7 +724,7 @@ Output JSON:
     // Assunzione (15 Agosto)
     if (m === 8 && d === 15) {
       if (language === 'en') return 'Happy Assumption Day!';
-      if (language === 'es') return '¡Feliz día de la Asunción!';
+      if (language === 'es') return '¡Feliz dìa de la Asunción!';
       if (language === 'pt') return 'Feliz dia da Assunção!';
       return 'Buona festa!';
     }
@@ -732,7 +732,7 @@ Output JSON:
     // Tutti i Santi (1 Novembre)
     if (m === 11 && d === 1) {
       if (language === 'en') return 'Happy All Saints Day!';
-      if (language === 'es') return '¡Feliz día de Todos los Santos!';
+      if (language === 'es') return '¡Feliz dìa de Todos los Santos!';
       if (language === 'pt') return 'Feliz Dia de Todos os Santos!';
       return 'Buona festa di Ognissanti!';
     }
@@ -740,7 +740,7 @@ Output JSON:
     // Immacolata Concezione (8 Dicembre)
     if (m === 12 && d === 8) {
       if (language === 'en') return 'Happy Feast of the Immaculate Conception!';
-      if (language === 'es') return '¡Feliz día de la Inmaculada!';
+      if (language === 'es') return '¡Feliz dìa de la Inmaculada!';
       if (language === 'pt') return 'Feliz Imaculada Conceição!';
       return 'Buona Immacolata!';
     }
@@ -1022,8 +1022,7 @@ Output JSON:
 
   // ========================================================================
   // METODI UTILITÀ
-  // ========================================================================
-
+  // ===================================
   /**
    * Costruisce URL API per modello specifico
    */
