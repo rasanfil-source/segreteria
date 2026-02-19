@@ -364,7 +364,14 @@ class RequestTypeClassifier {
   _sanitizeText(subject, body) {
     let text = `${subject || ''}\n${body || ''}`;
 
-    text = text.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
+    let iterations = 0;
+    while (/<blockquote/i.test(text) && iterations < 10) {
+      text = text.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
+      iterations++;
+    }
+    if (iterations >= 10) {
+      text = text.replace(/<blockquote[^>]*>[\s\S]*$/gi, '');
+    }
     text = text.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*?<\/div>/gi, '');
     text = text.replace(/<div\s+id=["']?divRplyFwdMsg["']?[^>]*>[\s\S]*?$/gi, '');
 
@@ -539,7 +546,8 @@ Questa email richiede ENTRAMBI gli approcci (Tecnico + Pastorale).
     // Assemblaggio Prompt
     if (hints.length === 0) return ''; // Nessun segnale forte
 
-    const toneInstruction = `\n🗣️ TONO SUGGERITO: ${cls.suggestedTone.toUpperCase()}`;
+    const safeTone = cls.suggestedTone || 'Professionale';
+    const toneInstruction = `\n🗣️ TONO SUGGERITO: ${safeTone.toUpperCase()}`;
 
     return `
 ${header}

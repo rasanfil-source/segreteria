@@ -1626,7 +1626,7 @@ function testCoreLogicMocked(results) {
 
         // Setup GLOBAL_CACHE mock
         if (typeof GLOBAL_CACHE === 'undefined') {
-            GLOBAL_CACHE = {};
+            var GLOBAL_CACHE = {};
         }
 
         // Test isInSuspensionTime con dati mockati
