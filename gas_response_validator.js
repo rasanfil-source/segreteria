@@ -35,9 +35,6 @@ class ResponseValidator {
       'purtroppo non posso',
       'non sono sicuro',
       'non sono sicura',
-      'potrebbe essere',
-      'probabilmente',
-      'forse',
       'suppongo',
       'immagino'
     ];

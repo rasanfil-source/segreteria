@@ -619,6 +619,10 @@ class GeminiRateLimiter {
     // Punto 1: Aggiunto lock per garantire atomicità durante il recovery
     const lock = LockService.getScriptLock();
     const lockAcquired = lock.tryLock(5000);
+    if (!lockAcquired) {
+      console.warn('⚠️ Recovery WAL saltato: impossibile acquisire lock entro 5s');
+      return;
+    }
 
     try {
       const walData = this.props.getProperty('rate_limit_wal');

@@ -135,9 +135,10 @@ class TerritoryValidator {
      * Pre-compila regex per vie senza civico
      */
     _buildStreetOnlyPattern() {
-        // Pattern sicuro con lazy match
+        // Pattern bounded (max 6 token) per evitare backtracking eccessivo su input malevoli
         const streetType = this._streetTypePatternSource;
-        return new RegExp(`(${streetType})\\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ'\\s]+?)\\b(?!\\s*(?:n\\.?\\s*|civico\\s+)?\\d+)`, 'gi');
+        const streetName = `[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5}`;
+        return new RegExp(`(${streetType})\\s+(${streetName})\\b(?!\\s*(?:n\\.?\\s*|civico\\s+)?\\d+)`, 'gi');
     }
 
     /**

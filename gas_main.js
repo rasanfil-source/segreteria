@@ -515,10 +515,13 @@ function _applyAdvancedConfigToCache(advancedConfig) {
  * Usa lock per prevenire race condition tra esecuzioni parallele
  * @param {boolean} acquireLock - Se true, acquisisce il lock in autonomia.
  */
-function loadResources(acquireLock = true) {
+function loadResources(acquireLock = true, hasExternalLock = false) {
   if (!acquireLock) {
     // NOTA: chi invoca con acquireLock=false DEVE detenere già un lock esterno
-    // (es. executionLock in main()). Mai richiamare senza lock in contesti concorrenti.
+    // (es. executionLock in main()). Verifica runtime per evitare refactor pericolosi.
+    if (!hasExternalLock) {
+      throw new Error('loadResources(false) richiede hasExternalLock=true');
+    }
     if (GLOBAL_CACHE.loaded) {
       console.log('ℹ️ Risorse già caricate, salto reload (fast-path senza lock)');
       return;
@@ -665,7 +668,7 @@ function main() {
     }
 
     // Carica risorse PRIMA di controllare sospensione
-    loadResources(false);
+    loadResources(false, true);
 
     // 0. SAFETY CHECK: Sistema Abilitato?
     if (GLOBAL_CACHE.systemEnabled === false) {

@@ -120,7 +120,7 @@ class MemoryService {
       const row = this._findRowByThreadId(threadId);
 
       if (row) {
-        const data = this._rowToObject(row);
+        const data = this._rowToObject(row.values);
         console.log(`🧠 Memory hit per thread ${threadId} (Lingua: ${data.language})`);
 
         // Memorizza in cache

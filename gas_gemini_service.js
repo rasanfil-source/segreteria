@@ -40,7 +40,7 @@ class GeminiService {
     this.apiKey = this.primaryKey;
 
     this.modelName = this.config.MODEL_NAME || 'gemini-2.5-flash';
-    this.baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent`;
+    this.baseUrl = this._buildGenerateUrl(this.modelName);
 
     if (!this.primaryKey || this.primaryKey.length < 20 || /YOUR_[A-Z0-9_]+_HERE/.test(this.primaryKey)) {
       throw new Error('GEMINI_API_KEY non configurata correttamente (usa Script Properties, non placeholder)');
@@ -101,7 +101,7 @@ class GeminiService {
   _generateWithModel(prompt, modelName, apiKeyOverride = null) {
     // Usa chiave override se fornita, altrimenti chiave primaria
     const activeKey = apiKeyOverride || this.primaryKey;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+    const url = this._buildGenerateUrl(modelName);
     const temperature = this.config.TEMPERATURE || 0.5;
     const maxTokens = this.config.MAX_OUTPUT_TOKENS || 6000;
 
@@ -239,9 +239,9 @@ Output JSON:
   "reason": "string"
 }`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+    const url = this._buildGenerateUrl(modelName);
 
-    console.log(`\uD83D\uDD0D Controllo rapido via ${modelName}...`);
+    console.log(`🔍 Controllo rapido via ${modelName}...`);
 
     // Gestione con tentativo su chiave primaria e alternativa su secondaria
     let activeKey = this.primaryKey;
@@ -964,7 +964,7 @@ Output JSON:
       const temperature = this.config.TEMPERATURE || 0.5;
       const maxTokens = this.config.MAX_OUTPUT_TOKENS || 6000;
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent`;
+      const url = this._buildGenerateUrl(targetModel);
 
       const response = this.fetchFn(`${url}?key=${encodeURIComponent(targetKey)}`, {
         method: 'POST',
@@ -1025,6 +1025,14 @@ Output JSON:
   // ========================================================================
 
   /**
+   * Costruisce URL API per modello specifico
+   */
+  _buildGenerateUrl(modelName) {
+    const safeModel = modelName || this.modelName;
+    return `https://generativelanguage.googleapis.com/v1beta/models/${safeModel}:generateContent`;
+  }
+
+  /**
    * Testa connessione API Gemini
    */
   testConnection() {
@@ -1037,7 +1045,8 @@ Output JSON:
     try {
       const testPrompt = 'Rispondi con una sola parola: OK';
 
-      const response = this.fetchFn(`${this.baseUrl}?key=${encodeURIComponent(this.apiKey)}`, {
+      const url = this._buildGenerateUrl(this.modelName);
+      const response = this.fetchFn(`${url}?key=${encodeURIComponent(this.apiKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
