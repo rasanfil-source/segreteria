@@ -850,7 +850,7 @@ class GmailService {
     } catch (error) {
       console.error(`❌ Risposta fallita: ${error.message}`);
       try {
-        mailEntity.reply(finalResponse);
+        mailEntity.reply(plainText || this._stripHtmlTags(finalResponse));
         console.log(`✓ Risposta plain text inviata a ${messageDetails.senderEmail} (alternativa)`);
       } catch (fallbackError) {
         console.error(`❌ CRITICO: Invio risposta alternativo fallito: ${fallbackError.message}`);
@@ -865,6 +865,7 @@ class GmailService {
   _stripHtmlTags(text) {
     if (!text) return '';
     return text
+      .replace(/<[^>]+>/g, ' ')
       .replace(/\*\*(.+?)\*\*/g, '$1')
       .replace(/\*(.+?)\*/g, '$1')
       .replace(/#{1,4}\s+/g, '')
@@ -1096,7 +1097,16 @@ function sanitizeUrl(url) {
       });
 
       const isNumericHost = parsedOctets.every(v => Number.isInteger(v) && v >= 0 && v <= 255);
-      if (isNumericHost && parsedOctets[0] === 127) {
+      const firstOctet = parsedOctets[0];
+      const secondOctet = parsedOctets[1];
+
+      const isLoopback = firstOctet === 127;
+      const isPrivate10 = firstOctet === 10;
+      const isPrivate172 = firstOctet === 172 && secondOctet >= 16 && secondOctet <= 31;
+      const isPrivate192 = firstOctet === 192 && secondOctet === 168;
+      const isLinkLocal = firstOctet === 169 && secondOctet === 254;
+
+      if (isNumericHost && (isLoopback || isPrivate10 || isPrivate172 || isPrivate192 || isLinkLocal)) {
         console.warn(`🛑 Bloccato tentativo SSRF hostname numerico: ${decoded}`);
         return null;
       }
@@ -1188,7 +1198,7 @@ function markdownToHtml(text) {
   // 7. Emoji to HTML entities
   html = Array.from(html).map(char => {
     const codePoint = char.codePointAt(0);
-    if (codePoint > 0x7F) {
+    if (codePoint > 0xFFFF) {
       return '&#' + codePoint + ';';
     }
     return char;
