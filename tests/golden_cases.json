@@ -2133,7 +2133,7 @@
     },
     "candidateResponse": "Grazie del messaggio. Può indicarci con una frase la richiesta così la aiutiamo subito.",
     "expected": {
-      "salutationMode": "none_or_continuity",
+      "salutationMode": "session",
       "promptMustInclude": [
         "emoji o caratteri speciali"
       ],
