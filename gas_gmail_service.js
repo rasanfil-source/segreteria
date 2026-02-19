@@ -840,13 +840,14 @@ class GmailService {
     }
 
     // Alternativa: metodo tradizionale
-    const mailEntity = typeof resource === 'string'
-      ? GmailApp.getThreadById(resource)
-      : resource;
+    // Nel fallback nativo prediligiamo il cast esplicito a GmailMessage (se disponibile)
+    // affinché la libreria interna mantenga al meglio il riferimento al messaggio specifico
+    const isMessage = resource && typeof resource.reply === 'function' && typeof resource.getThread === 'function';
+    const mailEntity = isMessage ? resource : (typeof resource === 'string' ? GmailApp.getThreadById(resource) : resource);
 
     try {
       mailEntity.reply('', { htmlBody: htmlBody });
-      console.log(`✓ Risposta HTML inviata a ${messageDetails.senderEmail} (metodo alternativo)`);
+      console.log(`✓ Risposta HTML inviata a ${messageDetails.senderEmail} (metodo alternativo nativo)`);
     } catch (error) {
       console.error(`❌ Risposta fallita: ${error.message}`);
       try {

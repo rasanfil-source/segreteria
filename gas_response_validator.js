@@ -161,7 +161,7 @@ class ResponseValidator {
     const safeDetectedLanguage = typeof detectedLanguage === 'string' && detectedLanguage.length > 0
       ? detectedLanguage
       : 'it';
-    console.log(`🔍\u008D Validazione risposta (${currentResponse.length} caratteri, lingua=${safeDetectedLanguage})...`);
+    console.log(`🔍 Validazione risposta (${currentResponse.length} caratteri, lingua=${safeDetectedLanguage})...`);
 
     // --- PRIMO PASSAGGIO DI VALIDAZIONE ---
     let validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent);
@@ -183,7 +183,7 @@ class ResponseValidator {
         if (validationResult.isValid) {
           console.log('   ✅ Autocorrezione ha risolto i problemi!');
         } else {
-          console.warn('   ⚠️\u008F Perfezionamento insufficiente. Errori residui.');
+          console.warn('   ⚠️ Perfezionamento insufficiente. Errori residui.');
         }
       } else {
         console.log('   🚫 Nessun perfezionamento automatico applicabile.');
@@ -210,7 +210,7 @@ class ResponseValidator {
       const semanticConfidence = Math.min(semHalluc.confidence, semThinking.confidence);
 
       if (!semanticValid && semanticConfidence > validationResult.score) {
-        console.warn('\u00E2\u009D\u0152 Semantic validator ha rilevato problemi non catturati da regex');
+        console.warn('❌ Semantic validator ha rilevato problemi non catturati da regex');
         validationResult.isValid = false;
         validationResult.score = semanticConfidence;
         validationResult.errors.push(`Semantic: ${semHalluc.reason || semThinking.reason}`);
@@ -224,7 +224,7 @@ class ResponseValidator {
 
     // Log finale
     if (validationResult.errors.length > 0) {
-      console.warn(`\u00E2\u009D\u0152 Validazione FALLITA: ${validationResult.errors.length} errore/i`);
+      console.warn(`❌ Validazione FALLITA: ${validationResult.errors.length} errore/i`);
       validationResult.errors.forEach((err, i) => console.warn(`   ${i + 1}. ${err}`));
     }
 
@@ -1004,7 +1004,7 @@ class ResponseValidator {
       targets = ['Estamos', 'Somos', 'Uma', 'Por', 'Com', 'De', 'Que', 'Para', 'Em'];
     } else {
       // Se lingua sconosciuta o non supportata, NON applicare correzioni rischiose
-      console.log(`   ⚠️\u008F Correzione automatica maiuscole disabilitata per lingua '${language}'`);
+      console.log(`   ⚠️ Correzione automatica maiuscole disabilitata per lingua '${language}'`);
       return text;
     }
 
@@ -1150,7 +1150,7 @@ class SemanticValidator {
       this._writeCache(cacheKey, result);
       return result;
     } catch (error) {
-      console.warn(`⚠️\u008F Semantic API fallita: ${error.message}`);
+      console.warn(`⚠️ Semantic API fallita: ${error.message}`);
       if (!this.fallbackOnError) throw error;
       return {
         isValid: regexResult.score >= 0.6,
@@ -1182,7 +1182,7 @@ class SemanticValidator {
       this._writeCache(cacheKey, result);
       return result;
     } catch (error) {
-      console.warn(`⚠️\u008F Semantic thinking ✅ fallito: ${error.message}`);
+      console.warn(`⚠️ Semantic thinking fallito: ${error.message}`);
       if (!this.fallbackOnError) throw error;
       return { isValid: regexResult.score >= 0.7, confidence: regexResult.score, fallback: true };
     }
@@ -1314,7 +1314,7 @@ Rispondi SOLO con questo JSON (senza markdown):
       const parsed = JSON.parse(cleaned);
       return this._normalizeSemanticPayload(parsed);
     } catch (error) {
-      console.error(`\u00E2\u009D\u0152 Parse semantic response failed: ${error.message}`);
+      console.error(`❌ Parse semantic response failed: ${error.message}`);
       throw new Error('Invalid JSON from semantic validator');
     }
   }

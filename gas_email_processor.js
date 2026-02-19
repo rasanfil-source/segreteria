@@ -278,11 +278,15 @@ class EmailProcessor {
       const xAutoReply = headers['x-autoreply'] || '';
       const xAutoResponseSuppress = headers['x-auto-response-suppress'] || '';
 
+      // Estrazione esatta dei token per evitare falsi positivi con "all"
+      const suppressTokens = xAutoResponseSuppress.toLowerCase().split(',').map(t => t.trim());
+      const hasSuppress = suppressTokens.some(t => ['oof', 'all', 'dr', 'rn', 'nri', 'auto'].includes(t));
+
       if (
         /auto-replied/i.test(autoSubmitted) ||
         /bulk|auto_reply/i.test(precedence) ||
         /auto-reply|autoreply/i.test(xAutoReply) ||
-        /oof|all|dr|rn|nri|auto/i.test(xAutoResponseSuppress)
+        hasSuppress
       ) {
         console.log('   \u2296 Saltato: risposta automatica (header SMTP)');
         this._markMessageAsProcessed(candidate);
@@ -354,11 +358,19 @@ class EmailProcessor {
         }
 
         if (ourEmail && consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
-          console.log(`   \u2296 Saltato: probabile loop email (${consecutiveExternal} esterni consecutivi)`);
-          this._markMessageAsProcessed(candidate);
-          result.status = 'skipped';
-          result.reason = 'email_loop_detected';
-          return result;
+          const lastMsgDate = messages[messages.length - 1].getDate().getTime();
+          const firstConsecMsgDate = messages[messages.length - consecutiveExternal].getDate().getTime();
+          const timeDiffMinutes = (lastMsgDate - firstConsecMsgDate) / (1000 * 60);
+
+          if (timeDiffMinutes < 15) {
+            console.log(`   ⊘ Saltato: probabile loop email (${consecutiveExternal} esterni in ${Math.round(timeDiffMinutes)} min)`);
+            this._markMessageAsProcessed(candidate);
+            result.status = 'skipped';
+            result.reason = 'email_loop_detected';
+            return result;
+          } else {
+            console.warn(`   ⚠️ Thread lungo (${messages.length} msg) con ${consecutiveExternal} esterni distanziati (${Math.round(timeDiffMinutes)} min). Elaboro.`);
+          }
         }
 
         console.warn(`   \u26A0\uFE0F Thread lungo (${messages.length} messaggi) ma non loop - elaboro`);
