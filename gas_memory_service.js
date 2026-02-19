@@ -104,7 +104,7 @@ class MemoryService {
    */
   getMemory(threadId) {
     if (!this._initialized || !threadId) {
-      return {};
+      return { providedInfo: [] };
     }
 
     // Verifica cache
@@ -121,6 +121,9 @@ class MemoryService {
 
       if (row) {
         const data = this._rowToObject(row.values);
+        if (!Array.isArray(data.providedInfo)) {
+          data.providedInfo = [];
+        }
         console.log(`🧠 Memory hit per thread ${threadId} (Lingua: ${data.language})`);
 
         // Memorizza in cache
@@ -128,12 +131,12 @@ class MemoryService {
         return data;
       } else {
         console.log(`🧠 Memory miss per thread ${threadId} (Nuova conversazione)`);
-        return {};
+        return { providedInfo: [] };
       }
 
     } catch (error) {
       console.error(`❌ Errore recupero memoria: ${error.message}`);
-      return {};
+      return { providedInfo: [] };
     }
   }
 
@@ -565,10 +568,20 @@ class MemoryService {
       if (!lockAcquired) return;
 
       const existingRow = this._findRowByThreadId(threadId);
-      if (!existingRow) return;
-
-      const existingData = this._rowToObject(existingRow.values);
-      const existingTopics = this._normalizeProvidedTopics(existingData.providedInfo || []);
+      const existingData = existingRow
+        ? this._rowToObject(existingRow.values)
+        : {
+          threadId: threadId,
+          language: 'it',
+          category: null,
+          tone: 'standard',
+          providedInfo: [],
+          lastUpdated: this._validateAndNormalizeTimestamp(new Date().toISOString()),
+          messageCount: 1,
+          version: 1,
+          memorySummary: ''
+        };
+      const existingTopics = this._normalizeProvidedTopics(Array.isArray(existingData.providedInfo) ? existingData.providedInfo : []);
       const normalizedTopics = this._normalizeProvidedTopics(providedInfo);
       const maxTopics = typeof CONFIG !== 'undefined' ? (CONFIG.MAX_PROVIDED_TOPICS || 50) : 50;
 
@@ -581,7 +594,11 @@ class MemoryService {
       existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
       existingData.version = (existingData.version || 0) + 1;
 
-      this._updateRow(existingRow.rowIndex, existingData);
+      if (existingRow) {
+        this._updateRow(existingRow.rowIndex, existingData);
+      } else {
+        this._appendRow(existingData);
+      }
       this._invalidateCache(`memory_${threadId}`);
     } catch (error) {
       console.warn(`⚠️ Aggiornamento reazione fallito: ${error.message}`);

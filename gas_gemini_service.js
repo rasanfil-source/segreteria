@@ -445,7 +445,9 @@ Output JSON:
       'he ido', 'había', 'hay', 'ido', 'sido',
       'hacer', 'haber', 'poder', 'estar', 'estoy', 'están',
       'por qué', 'porque', 'cuándo', 'cómo', 'dónde', 'qué tal',
-      'por favor', 'muchas grazie', 'buenos días', 'buenas tardes',
+      'por favor', 'muchas gracias', 'buenos días', 'buenas tardes',
+      'misa', 'misas', 'iglesia', 'parroquia',
+      'hola', 'gracias', 'necesito', 'quiero',
       'querido', 'estimado', 'saludos',
       ' no ', ' un ', ' unos ', ' unas ',
       ' del ', ' con el ', ' en el ', ' es '

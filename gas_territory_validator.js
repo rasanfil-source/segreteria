@@ -78,6 +78,9 @@ class TerritoryValidator {
             'via di villa giulia': { tutti: true },
             'piazzale di villa giulia': { tutti: true }
         };
+
+        // Compatibilità con test legacy: espone le regole come Map mutabile
+        this.rules = new Map(Object.entries(this.territory));
     }
 
     /**
@@ -153,9 +156,9 @@ class TerritoryValidator {
         const normalizedInput = this.normalizeStreetName(inputStreet);
 
         // 1. Match Esatto (priorità massima)
-        if (this.territory[normalizedInput]) {
+        if (this.rules.has(normalizedInput)) {
             console.log(`🔍 Match esatto trovato: '${normalizedInput}'`);
-            return { key: normalizedInput, rules: this.territory[normalizedInput] };
+            return { key: normalizedInput, rules: this.rules.get(normalizedInput) };
         }
 
         // 2. Match Fuzzy con controllo consecutività
@@ -167,7 +170,7 @@ class TerritoryValidator {
             return null;
         }
 
-        for (const dbKey of Object.keys(this.territory)) {
+        for (const [dbKey, dbRules] of this.rules.entries()) {
             const dbTokens = dbKey.split(' ');
 
             // Evita conflitti tra tipologie diverse (es. "via" vs "viale")
@@ -200,7 +203,7 @@ class TerritoryValidator {
             const overlapRatio = inputTokens.length / dbTokens.length;
             if (hasConsecutivePair && overlapRatio >= 0.7) {
                 console.log(`\uD83D\uDD0D Match fuzzy trovato: '${inputStreet}' -> '${dbKey}'`);
-                return { key: dbKey, rules: this.territory[dbKey] };
+                return { key: dbKey, rules: dbRules };
             }
         }
 

@@ -1199,8 +1199,13 @@ ${addressLines.join('\n\n')}
       email.includes('alert') ||
       subject.includes('delivery status notification') ||
       subject.includes('automatic reply') ||
+      subject.includes('auto-reply') ||
+      subject.includes('autoreply') ||
+      subject.includes('messaggio automatico') ||
       subject.includes('fuori sede') ||
       subject.includes('out of office') ||
+      subject.includes('in ferie') ||
+      subject.includes('assenza') ||
       body.includes('this is an automatically generated message') ||
       body.includes('do not reply to this email')
     ) {
