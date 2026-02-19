@@ -903,7 +903,7 @@ function testPerformance(results) {
             return true;
         });
 
-        test('MemoryService: latenza lettura <100ms', results, () => {
+        test('MemoryService: latenza lettura <500ms', results, () => {
             const service = new MemoryService();
             const start = Date.now();
 
@@ -912,6 +912,7 @@ function testPerformance(results) {
             }
 
             const duration = Date.now() - start;
+            // Sheets API in GAS oscilla tra 150ms e 400ms. 500ms è una soglia sana.
             return duration < 500;
         });
 

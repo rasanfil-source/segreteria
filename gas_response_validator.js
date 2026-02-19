@@ -149,13 +149,27 @@ class ResponseValidator {
    * @returns {Object} Risultato validazione
    */
   validateResponse(response, detectedLanguage, knowledgeBase, emailContent, emailSubject, salutationMode = 'full', attemptPerfezionamento = true) {
+    // FIX NULL SAFETY: Blocca subito se la risposta è nulla o vuota
+    if (!response || typeof response !== 'string' || response.trim() === '') {
+      console.error('❌ Null safety: validator con input null o vuoto');
+      return {
+        isValid: false,
+        score: 0.0,
+        errors: ["Risposta troppo corta (0 caratteri, minimo 25)"],
+        warnings: [],
+        details: {},
+        fixedResponse: null,
+        metadata: { responseLength: 0, expectedLanguage: detectedLanguage || 'it' }
+      };
+    }
+
     const errors = [];
     const warnings = [];
     const details = {};
     let score = 1.0;
 
     // Variabile per gestire la risposta (che potrebbe essere perfezionata)
-    let currentResponse = typeof response === 'string' ? response : (response == null ? '' : String(response));
+    let currentResponse = response;
     let wasRefined = false;
 
     const safeDetectedLanguage = typeof detectedLanguage === 'string' && detectedLanguage.length > 0
@@ -488,6 +502,11 @@ class ResponseValidator {
     const hallucinations = {};
     const safeKnowledgeBase = typeof knowledgeBase === 'string' ? knowledgeBase : '';
 
+    // FIX: Estrazione sicura del testo dall'oggetto messaggio per evitare ".match is not a function"
+    const safeOriginalMessage = typeof originalMessage === 'string'
+      ? originalMessage
+      : (originalMessage && originalMessage.body ? String(originalMessage.body) : String(originalMessage || ''));
+
     // Helper normalizzazione orari
     const normalizeTime = (t) => {
       // Escludi pattern che potrebbero essere URL o nomi file
@@ -553,7 +572,7 @@ class ResponseValidator {
       responseTimesRaw.push(timeStr);
     }
     const kbTimesRaw = safeKnowledgeBase.match(timePattern) || [];
-    const originalTimesRaw = (originalMessage || '').match(timeOrHourPattern) || [];
+    const originalTimesRaw = safeOriginalMessage.match(timeOrHourPattern) || [];
 
     const responseTimes = new Set(responseTimesRaw.map(normalizeTime));
     const kbTimes = new Set(kbTimesRaw.map(normalizeTime));
@@ -597,7 +616,7 @@ class ResponseValidator {
     );
 
     // Escludi numeri presenti nella whitelist (es. mittente, thread) o nel messaggio originale
-    const whitelistText = (originalMessage || '');
+    const whitelistText = safeOriginalMessage;
     const inventedPhones = [...responsePhones].filter(p => {
       if (kbPhones.has(p)) return false;
       // Se il numero è presente nel testo originale, è legittimo ripeterlo

@@ -97,7 +97,19 @@ class Classifier {
    */
   classifyEmail(subject, body, isReply = false) {
     const safeSubject = typeof subject === 'string' ? subject : '';
-    const safeBody = typeof body === 'string' ? body : '';
+    let safeBody = typeof body === 'string' ? body : '';
+
+    // FIX NULL SAFETY & LENGTH LIMIT
+    if (safeSubject.trim() === '' && safeBody.trim() === '') {
+      console.error('  ❌ Contenuto email vuoto');
+      return { shouldReply: false, reason: 'empty_email', category: null, subIntents: {}, confidence: 1.0 };
+    }
+
+    if (safeBody.length > 10000) {
+      console.error('  ❌ Email molto lunga (>10000 caratteri)');
+      safeBody = safeBody.substring(0, 10000); // Tronca e prosegue
+    }
+
     console.log(`   🔍 Classificando: '${safeSubject.substring(0, 50)}...'`);
 
     // Estrai contenuto principale
