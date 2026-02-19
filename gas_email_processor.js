@@ -46,7 +46,8 @@ class EmailProcessor {
       validationErrorLabel: typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica',
       validationWarningThreshold: typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_WARNING_THRESHOLD === 'number'
         ? CONFIG.VALIDATION_WARNING_THRESHOLD
-        : 0.9
+        : 0.9,
+      cacheLockTtl: typeof CONFIG !== 'undefined' ? (CONFIG.CACHE_LOCK_TTL || 90) : 90
     };
 
     this.logger.info('EmailProcessor inizializzato', {
@@ -129,8 +130,7 @@ class EmailProcessor {
         while (Date.now() - START < TIMEOUT_MS) {
           const currentLock = scriptCache.get(threadLockKey);
           if (!currentLock) {
-            lockAcquired = false;
-            scriptCache.put(threadLockKey, lockValue, 300); // 5 min
+            scriptCache.put(threadLockKey, lockValue, this.config.cacheLockTtl); // TTL dinamico (es. 90 sec)
             // Verifica double-check (race condition rara ma possibile)
             Utilities.sleep(50);
             if (scriptCache.get(threadLockKey) === lockValue) {
@@ -1014,6 +1014,8 @@ ${addressLines.join('\n\n')}
     }
 
     try {
+      // Release proattiva dei lock per i thread non letti (Recovery)
+      this._releaseStaleLocks();
 
       if (this.config.dryRun) {
         console.warn('\uD83D\uDD34 MODALITÀ DRY_RUN ATTIVA - Email NON inviate!');
@@ -1485,6 +1487,25 @@ ${addressLines.join('\n\n')}
     // Fallback su italiano se lingua non supportata
     const pattern = monthPatterns[language] || monthPatterns['it'];
     return pattern.test(text);
+  }
+
+  /**
+   * Release proattiva dei lock per i thread non letti nella inbox.
+   * Utile per recuperare da crash o timeout precedenti.
+   */
+  _releaseStaleLocks() {
+    const cache = CacheService.getScriptCache();
+    try {
+      // Recupera i primi thread non letti per sbloccarli proattivamente
+      const threads = GmailApp.search('in:inbox is:unread', 0, 20);
+      threads.forEach(thread => {
+        const key = `thread_lock_${thread.getId()}`;
+        cache.remove(key);
+      });
+      console.log(`\uD83D\uDD13 Lock proattivamente rimossi per ${threads.length} thread`);
+    } catch (e) {
+      console.warn(`\u26A0\uFE0F Errore release proattiva lock: ${e.message}`);
+    }
   }
 }
 
