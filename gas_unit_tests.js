@@ -806,7 +806,7 @@ function testEmotionalLoadHandling(results) {
                 originalEmail: 'Mia madre è morta stanotte. Avete un prete?',
                 emotionalLoad: 'high'
             };
-            const result = validator.validate(coldResponse, 'test KB', context);
+            const result = validator.validateResponse(coldResponse, 'it', 'test KB', context, 'Sub', 'full', false);
             return result.score < 0.6;
         });
 
@@ -818,7 +818,7 @@ function testEmotionalLoadHandling(results) {
                 originalEmail: 'Mia madre è morta stanotte. Avete un prete?',
                 emotionalLoad: 'high'
             };
-            const result = validator.validate(warmResponse, 'KB: tel 06-XXXXXXX', context);
+            const result = validator.validateResponse(warmResponse, 'it', 'KB: tel 06-XXXXXXX', context, 'Sub', 'full', false);
             return result.score >= 0.75;
         });
 
@@ -830,7 +830,7 @@ function testEmotionalLoadHandling(results) {
                 originalEmail: 'Mi sento lontano da Dio, non so più se credo. Posso parlare con qualcuno?',
                 emotionalLoad: 'high'
             };
-            const result = validator.validate(dogmaticResponse, 'KB', context);
+            const result = validator.validateResponse(dogmaticResponse, 'it', 'KB', context, 'Sub', 'full', false);
             return result.score < 0.75;
         });
 

@@ -325,6 +325,11 @@ Output JSON:
     const parts = candidate.content?.parts || [];
     const textResponse = parts.map(p => p.text || '').join('').trim();
 
+    console.log('=========================================');
+    console.log('🤖 RAW GEMINI CLASSIFIER JSON:');
+    console.log(textResponse);
+    console.log('=========================================');
+
     if (!textResponse) {
       console.error('\u274C Risposta non valida: testo vuoto');
       return defaultResult;

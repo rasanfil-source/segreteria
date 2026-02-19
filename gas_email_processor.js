@@ -279,7 +279,7 @@ class EmailProcessor {
       const xAutoResponseSuppress = headers['x-auto-response-suppress'] || '';
 
       // Estrazione esatta dei token per evitare falsi positivi con "all"
-      const suppressTokens = xAutoResponseSuppress.toLowerCase().split(',').map(t => t.trim());
+      const suppressTokens = (headers['x-auto-response-suppress'] || '').toLowerCase().split(',').map(t => t.trim());
       const hasSuppress = suppressTokens.some(t => ['oof', 'all', 'dr', 'rn', 'nri', 'auto'].includes(t));
 
       if (
@@ -369,7 +369,7 @@ class EmailProcessor {
             result.reason = 'email_loop_detected';
             return result;
           } else {
-            console.warn(`   ⚠️ Thread lungo (${messages.length} msg) con ${consecutiveExternal} esterni distanziati (${Math.round(timeDiffMinutes)} min). Elaboro.`);
+            console.warn(`   ⚠️ Thread lungo (${messages.length} msg) con ${consecutiveExternal} esterni dilazionati in ${Math.round(timeDiffMinutes)} min. Elaboro comunque.`);
           }
         }
 

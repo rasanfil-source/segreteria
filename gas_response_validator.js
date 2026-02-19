@@ -1012,16 +1012,17 @@ class ResponseValidator {
 
     // Per ogni parola vietata, cerca ", Parola" e sostituisci con ", parola"
     // Usa word boundary \b per evitare match parziali
-    // L'euristica "nome doppio" si applica solo fuori dalla blacklist rigida
-    const hardLowercaseWords = new Set(targets.map(w => String(w).toLowerCase()));
 
     targets.forEach(word => {
       const regex = new RegExp(`,\\s+(${word})\\b`, 'g');
       result = result.replace(regex, (fullMatch, p1, offset) => {
-        const normalizedWord = String(p1).toLowerCase();
+        const firstLetter = p1.charAt(0);
+        const rest = p1.slice(1);
 
-        if (hardLowercaseWords.has(normalizedWord)) {
-          return `, ${normalizedWord}`;
+        // Prima di preservare la maiuscola per nome doppio, forziamo i casi vietati
+        const forbiddenWords = ['Siamo', 'Sono', 'Ho', 'Hai', 'Abbiamo', 'Il', 'La', 'I', 'Le', 'Un', 'Una', 'In', 'Con', 'Per', 'Su'];
+        if (forbiddenWords.includes(p1)) {
+          return `, ${firstLetter.toLowerCase()}${rest}`;
         }
 
         // Euristica nomi doppi: se seguito da un'altra parola maiuscola, non correggere
@@ -1030,7 +1031,7 @@ class ResponseValidator {
         if (textAfter.match(/^\s+[A-Z\u00C3\u20AC\u00C3\u02C6\u00C3\u2030\u00C3\u0152\u00C3\u2019\u00C3\u2122][a-zàèéìòù]+/)) {
           return fullMatch; // Mantieni maiuscola: probabile nome doppio
         }
-        return `, ${normalizedWord}`;
+        return `, ${firstLetter.toLowerCase()}${rest}`;
       });
     });
 
