@@ -102,7 +102,7 @@ class EmailProcessor {
     // ACQUISIZIONE LOCK (LIVELLO-THREAD) - Previene condizioni di conflitto
     // ====================================================================================================
 
-    var lockAcquired = false;
+    let lockAcquired = false;
     var scriptCache = CacheService.getScriptCache();
     var threadLockKey = `thread_lock_${threadId}`;
     var lockValue = null;
@@ -129,6 +129,7 @@ class EmailProcessor {
         while (Date.now() - START < TIMEOUT_MS) {
           const currentLock = scriptCache.get(threadLockKey);
           if (!currentLock) {
+            lockAcquired = false;
             scriptCache.put(threadLockKey, lockValue, 300); // 5 min
             // Verifica double-check (race condition rara ma possibile)
             Utilities.sleep(50);
@@ -163,7 +164,7 @@ class EmailProcessor {
       // ACQUISIZIONE LOCK (LIVELLO-THREAD) - Previene condizioni di conflitto
       // ====================================================================================================
 
-      var lockAcquired = false;
+      lockAcquired = false;
       var scriptCache = CacheService.getScriptCache();
       var threadLockKey = `thread_lock_${threadId}`;
       var lockValue = null;
@@ -792,7 +793,7 @@ ${addressLines.join('\n\n')}
 
           } catch (err) {
             generationError = err; // Salva l'ultimo errore
-            const errorClass = this._classifyError(err);
+            const errorClass = typeof classifyError === 'function' ? classifyError(err).type : 'UNKNOWN';
             console.warn(`\u26A0\uFE0F Strategia '${plan.name}' fallita: ${err.message} [${errorClass}]`);
 
             if (errorClass === 'FATAL') {
@@ -810,8 +811,8 @@ ${addressLines.join('\n\n')}
 
         // Verifiche finali post-loop
         if (!response) {
-          const errorClass = generationError ? this._classifyError(generationError) : 'UNKNOWN';
-          console.error('\u274C TUTTE le strategie di generazione sono fallite.');
+          const errorClass = generationError ? (typeof classifyError === 'function' ? classifyError(generationError).type : 'UNKNOWN') : 'UNKNOWN';
+          console.error('❌ TUTTE le strategie di generazione sono fallite.');
           this._addErrorLabel(thread);
           this._markMessageAsProcessed(candidate);
           result.status = 'error';

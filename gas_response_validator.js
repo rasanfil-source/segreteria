@@ -53,7 +53,6 @@ class ResponseValidator {
     this.placeholders = ['XXX', 'TODO', '<insert>', 'placeholder', 'tbd', 'TBD', '...'];
 
     // Pattern di ragionamento esposto (thinking leak) - CRITICO
-    // Pattern di ragionamento esposto (thinking leak) - CRITICO
     // IBRIDO: Regex semantiche + pattern statici specifici
     this.thinkingRegexes = [
       /\b(devo|dovrei|bisogna|necessario)\s+(usare|correggere|evitare|modificare|aggiornare)\b/i, // Meta-commenti

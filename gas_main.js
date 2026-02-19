@@ -566,6 +566,7 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
  * Logica interna di caricamento risorse (senza gestione lock).
  */
 function _loadResourcesInternal() {
+  // Il lock esterno in loadResources garantisce la sicurezza durante il caricamento fisico.
   // Verifica se risorse già caricate (double-checked locking)
   if (GLOBAL_CACHE.loaded) {
     return;
@@ -791,8 +792,7 @@ function clearSystemCache() {
   try {
     const cache = CacheService.getScriptCache();
     cache.remove('KB_CONTENT');
-    // Rimuoviamo anche eventuali lock appesi per sicurezza
-    cache.removeAll(['thread_lock', 'global_lock']);
+    // NOTA: I lock dei thread (thread_lock_ID) scadono automaticamente tramite TTL.
 
     // Resetta variabile globale
     if (typeof GLOBAL_CACHE !== 'undefined') {
