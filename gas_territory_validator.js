@@ -251,6 +251,7 @@ class TerritoryValidator {
         }
 
         // Rimuovi caratteri speciali non ammessi in nomi vie (mantiene lettere, numeri, spazi, apostrofi)
+        normalized = normalized.replace(/[\u2018\u2019\u201B]/g, "'");
         normalized = normalized.replace(/[^a-z0-9\s'àèéìòù]/g, '');
         normalized = normalized.replace(/\s+/g, ' ');
 
@@ -270,8 +271,10 @@ class TerritoryValidator {
         // Limita lunghezza input per sicurezza
         const MAX_SAFE_LENGTH = 1000;
         if (text && text.length > MAX_SAFE_LENGTH) {
-            text = text.substring(0, MAX_SAFE_LENGTH);
-            console.warn(`⚠️ Input troncato a ${MAX_SAFE_LENGTH} caratteri (protezione memoria)`);
+            const truncated = text.substring(0, MAX_SAFE_LENGTH);
+            const lastBoundary = Math.max(truncated.lastIndexOf(' '), truncated.lastIndexOf('\n'));
+            text = lastBoundary > 800 ? truncated.substring(0, lastBoundary) : truncated;
+            console.warn(`⚠️ Input troncato a ${text.length}/${MAX_SAFE_LENGTH} caratteri (protezione memoria)`);
         }
 
         // Punto 6: Usa regex pre-compilate (ottimizzazione performance)
@@ -428,7 +431,11 @@ class TerritoryValidator {
         }
 
         // Caso 2: Solo pari
-        if (rules.pari && civic % 2 === 0) {
+        if (rules.pari === true && civic % 2 === 0) {
+            console.log(`✅ ${matchedKey} n. ${civic}: regola PARI (tutti i civici pari)`);
+            return { inTerritory: true, matchedKey: matchedKey, rule: 'pari (tutti)' };
+        }
+        if (Array.isArray(rules.pari) && civic % 2 === 0) {
             const [min, max] = rules.pari;
             const minValue = (min === null || min === undefined) ? 1 : min;
             const maxValue = (max === null || max === undefined) ? Infinity : max;
@@ -441,7 +448,11 @@ class TerritoryValidator {
         }
 
         // Caso 3: Solo dispari
-        if (rules.dispari && civic % 2 !== 0) {
+        if (rules.dispari === true && civic % 2 !== 0) {
+            console.log(`✅ ${matchedKey} n. ${civic}: regola DISPARI (tutti i civici dispari)`);
+            return { inTerritory: true, matchedKey: matchedKey, rule: 'dispari (tutti)' };
+        }
+        if (Array.isArray(rules.dispari) && civic % 2 !== 0) {
             const [min, max] = rules.dispari;
             const minValue = (min === null || min === undefined) ? 1 : min;
             const maxValue = (max === null || max === undefined) ? Infinity : max;

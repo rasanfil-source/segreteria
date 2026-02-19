@@ -299,7 +299,7 @@ Output JSON:
 
     // Risultato default in caso di errori
     const defaultResult = {
-      shouldRespond: true, // Failsafe: evita perdita silenziosa di richieste valide
+      shouldRespond: false, // Failsafe conservativo: evita risposte massive in caso di errore
       language: detection.lang,
       reason: 'quick_check_failed',
       classification: {
@@ -857,7 +857,7 @@ Output JSON:
     // Detection locale per lingua alternativa
     const detection = this.detectEmailLanguage(emailContent, emailSubject);
     const fallbackLang = detection.lang;
-    const defaultResult = { shouldRespond: true, language: fallbackLang, reason: 'failsafe_local_detection' };
+    const defaultResult = { shouldRespond: false, language: fallbackLang, reason: 'failsafe_local_detection' };
 
     // RATE LIMITER PATH
     if (this.useRateLimiter) {

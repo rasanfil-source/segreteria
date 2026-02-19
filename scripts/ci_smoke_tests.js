@@ -496,7 +496,7 @@ function testAttachmentContextSanitizationFormatting() {
     assert(!sanitized.includes('\\n[UNTRUSTED_ATTACHMENT_TEXT_END]'), 'Non deve contenere newline letterali escaped');
     assert(sanitized.includes('[redacted-role-tag]'), 'Role tags devono essere redatti');
     assert(sanitized.includes('[redacted-instruction]'), 'Istruzioni di override devono essere redatte');
-    assert(sanitized.includes('```\\u200Bcodice```\\u200B'), 'Fence markdown deve essere neutralizzato con marker anti-injection');
+    assert(sanitized.includes('```\u200Bcodice```\u200B'), 'Fence markdown deve essere neutralizzato con marker anti-injection');
 }
 
 

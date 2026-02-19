@@ -541,7 +541,8 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
     if (!lockAcquired) {
       console.warn('⚠️ Impossibile acquisire lock per loadResources (timeout 10s)');
       if (!GLOBAL_CACHE.loaded) {
-        console.warn('⚠️ Cache locale vuota: procedo comunque al caricamento (ignoro lock fallito)');
+        console.error('🚨 Cache locale vuota ma lock non acquisito: skip caricamento per evitare race condition');
+        return;
       } else {
         console.log('ℹ️ Cache già carica, salto reload');
         return;
