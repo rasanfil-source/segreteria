@@ -124,7 +124,7 @@ class ResponseValidator {
       'it': ['buon natale', 'buona pasqua', 'buon avvento', 'buona quaresima', 'buona pentecoste'],
       'en': ['merry christmas', 'happy easter', 'happy advent', 'happy pentecost'],
       'es': ['feliz navidad', 'feliz pascua', 'feliz adviento', 'feliz pentecostés'],
-      'fr': ['joyeux no\u00C3\u00ABl', 'joyeuses p\u00C3\u00A2ques', 'joyeux avent', 'joyeuse pentec\u00C3\u00B4te'],
+      'fr': ['joyeux noël', 'joyeuses pâques', 'joyeux avent', 'joyeuse pentecôte'],
       'de': ['frohe weihnachten', 'frohe ostern', 'schönen advent', 'frohe pfingsten']
     };
 
@@ -788,6 +788,20 @@ class ResponseValidator {
       if (detectedGreeting) break;
     }
 
+    // Verifica se è un saluto liturgico speciale (eccezione),
+    // anche quando non è presente un saluto standard (es. "Joyeux Noël")
+    const liturgical = this.liturgicalGreetings[language] || [];
+    const detectedLiturgical = liturgical.find(lg => responseStart.includes(lg));
+    if (detectedLiturgical) {
+      return {
+        score,
+        warnings,
+        message: 'Saluto liturgico speciale (Natale, Pasqua, etc.)',
+        detectedGreeting: detectedGreeting || detectedLiturgical,
+        isLiturgical: true
+      };
+    }
+
     // Se nessun saluto rilevato, OK (potrebbe essere modalità continuity)
     if (!detectedGreeting) {
       return {
@@ -797,19 +811,6 @@ class ResponseValidator {
         detectedGreeting: null,
         expectedTimeSlot,
         currentHour
-      };
-    }
-
-    // Verifica se è un saluto liturgico speciale (eccezione)
-    const liturgical = this.liturgicalGreetings[language] || [];
-    const isLiturgical = liturgical.some(lg => responseStart.includes(lg));
-    if (isLiturgical) {
-      return {
-        score,
-        warnings,
-        message: 'Saluto liturgico speciale (Natale, Pasqua, etc.)',
-        detectedGreeting,
-        isLiturgical: true
       };
     }
 

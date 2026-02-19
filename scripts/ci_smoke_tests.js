@@ -312,6 +312,19 @@ function testResponseValidatorLanguageCheck() {
     assert(en.errors.length === 0, `Check lingua EN non deve generare errori, ottenuti: ${en.errors.join('; ')}`);
 }
 
+function testResponseValidatorFrenchLiturgicalGreeting() {
+    loadScript('gas_response_validator.js');
+
+    const validator = new ResponseValidator();
+    const result = validator._checkTimeBasedGreeting(
+        'Joyeux Noël! Merci pour votre message et à bientôt.',
+        'fr'
+    );
+
+    assert(result.isLiturgical === true, 'Il saluto liturgico francese deve essere riconosciuto');
+    assert(result.warnings.length === 0, 'Un saluto liturgico non deve generare warning orari');
+}
+
 // ========================================================================
 // TEST EMAIL PROCESSOR (pure functions)
 // ========================================================================
@@ -840,6 +853,7 @@ function main() {
         ['validator: check lunghezza', testResponseValidatorCheckLength],
         ['validator: contenuto vietato + placeholder', testResponseValidatorForbiddenContent],
         ['validator: consistenza lingua', testResponseValidatorLanguageCheck],
+        ['validator: saluto liturgico FR', testResponseValidatorFrenchLiturgicalGreeting],
         // EmailProcessor
         ['computeSalutationMode: primo/reply/vecchio', testComputeSalutationMode],
         ['anti-loop: thread lungo con esterni consecutivi', testAntiLoopDetection],
