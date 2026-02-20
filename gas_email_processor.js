@@ -84,7 +84,9 @@ class EmailProcessor {
     // ====================================================================================================
 
     var lockAcquired = false;
-    var scriptCache = CacheService.getScriptCache();
+    var scriptCache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
+      ? CacheService.getScriptCache()
+      : null;
     var threadLockKey = `thread_lock_${threadId}`;
     var lockValue = null;
 
@@ -358,7 +360,7 @@ class EmailProcessor {
         if (ourEmail && consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
           console.log(`   ⊖ Saltato: probabile loop email (${consecutiveExternal} esterni consecutivi)`);
           this._markMessageAsProcessed(candidate);
-          result.status = 'skipped';
+          result.status = 'filtered';
           result.reason = 'email_loop_detected';
           return result;
         }
@@ -1056,6 +1058,7 @@ ${addressLines.join('\n\n')}
           if (result.reason === 'email_loop_detected') stats.skipped_loop++;
         } else if (result.status === 'filtered') {
           stats.filtered++;
+          if (result.reason === 'email_loop_detected') stats.skipped_loop++;
         } else if (result.status === 'error') {
           stats.errors++;
         }

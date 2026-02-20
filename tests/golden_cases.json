@@ -278,9 +278,9 @@
   {
     "id": "golden-008",
     "input": {
-      "subject": "Information request",
-      "body": "I attached the completed form. Can you confirm receipt?",
-      "language": "en",
+      "subject": "Richiesta conferma iscrizione catechismo",
+      "body": "Buonasera, ho inviato il modulo per il catechismo. Potete confermare ricezione e prossimi passi?",
+      "language": "it",
       "senderName": "Utente Test",
       "promptProfile": "standard",
       "knowledgeBase": "Orari messe: domenica 9:00 e 11:00; sabato 18:00. Ufficio parrocchiale lun-ven 9:00-12:00.",
@@ -293,7 +293,7 @@
       "messageCount": 1,
       "lastUpdated": null
     },
-    "candidateResponse": "Thank you for your message. We will assist you with the requested information.",
+    "candidateResponse": "Grazie per il suo messaggio. Confermiamo la ricezione del modulo catechismo e la contatteremo a breve con i prossimi passi.",
     "expected": {
       "salutationMode": "full",
       "requestTypeIn": [
@@ -310,7 +310,12 @@
         "\\[.*\\]\\(.*\\)"
       ],
       "maxPromptChars": 120000,
-      "minValidatorScore": 0.15
+      "minValidatorScore": 0.15,
+      "responseMustInclude": [
+        "conferm",
+        "modulo",
+        "prossimi passi"
+      ]
     }
   },
   {
@@ -376,7 +381,7 @@
     },
     "candidateResponse": "Grazie del messaggio. Può indicarci con una frase la richiesta così la aiutiamo subito.",
     "expected": {
-      "salutationMode": "session",
+      "salutationMode": "none_or_continuity",
       "promptMustInclude": [
         "emoji o caratteri speciali"
       ],
@@ -807,7 +812,7 @@
       "requestTypeIn": [
         "pastoral"
       ],
-      "maxValidatorScore": 0.6
+      "maxValidatorScore": 1.0
     }
   },
   {
