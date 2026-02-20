@@ -10,7 +10,7 @@ const CONFIG = {
     // === API ===
     // In produzione: PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY')
     GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY_HERE',
-    MODEL_NAME: 'gemini-1.5-flash',
+    MODEL_NAME: 'gemini-2.5-flash',
 
     // === Generazione ===
     TEMPERATURE: 0.5,
@@ -99,7 +99,7 @@ const CONFIG = {
     GEMINI_MODELS: {
         // Modello premium: qualità massima per generazione risposte
         'flash-2.5': {
-            name: 'gemini-1.5-flash',
+            name: 'gemini-2.5-flash',
             rpm: 15,
             tpm: 1000000,
             rpd: 1500,
