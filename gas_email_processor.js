@@ -87,46 +87,46 @@ class EmailProcessor {
 
     if (skipLock) {
       console.log(`🔒 Lock saltato per thread ${threadId} (chiamante ha già lock)`);
+    } else if (!scriptCache || typeof LockService === 'undefined' || !LockService || typeof LockService.getScriptLock !== 'function') {
+      console.warn(`⚠️ Lock service/cache non disponibili per thread ${threadId}: procedo senza lock`);
     } else {
       const ttlSeconds = (typeof CONFIG !== 'undefined' && CONFIG.CACHE_LOCK_TTL) ? CONFIG.CACHE_LOCK_TTL : 30;
       const lockTtlMs = ttlSeconds * 1000;
       lockValue = Date.now().toString();
+      const scriptLock = LockService.getScriptLock();
 
-      // 1. Controllo preliminare (fallimento rapido)
-      const existingLock = scriptCache.get(threadLockKey);
-      if (existingLock) {
-        const existingTimestamp = Number(existingLock);
-        const isStale = !isNaN(existingTimestamp) && (Date.now() - existingTimestamp) > lockTtlMs;
-
-        if (isStale) {
-          console.warn(`🔓 Lock stale rilevato per thread ${threadId}, pulizia`);
-          scriptCache.remove(threadLockKey);
-        } else {
-          console.warn(`🔒 Thread ${threadId} lockato da altro processo, salto`);
-          return { status: 'skipped', reason: 'thread_locked' };
-        }
-      }
-
-      // 2. Acquisizione lock
       try {
-        scriptCache.put(threadLockKey, lockValue, ttlSeconds);
-
-        // 3. Pausa per rilevare conflitti
-        const raceSleep = (typeof CONFIG !== 'undefined' && CONFIG.CACHE_RACE_SLEEP_MS) ? CONFIG.CACHE_RACE_SLEEP_MS : 200;
-        Utilities.sleep(raceSleep);
-
-        // 4. Doppio controllo
-        const checkValue = scriptCache.get(threadLockKey);
-        if (checkValue !== lockValue) {
-          console.warn(`🔒 Race rilevata per thread ${threadId}: atteso ${lockValue}, ottenuto ${checkValue}`);
-          return { status: 'skipped', reason: 'thread_locked_race' };
+        if (!scriptLock.tryLock(2000)) {
+          console.warn(`🔒 Impossibile acquisire script lock per thread ${threadId}, salto`);
+          return { status: 'skipped', reason: 'thread_lock_contention' };
         }
 
+        const existingLock = scriptCache.get(threadLockKey);
+        if (existingLock) {
+          const existingTimestamp = Number(existingLock);
+          const isStale = !isNaN(existingTimestamp) && (Date.now() - existingTimestamp) > lockTtlMs;
+
+          if (isStale) {
+            console.warn(`🔓 Lock stale rilevato per thread ${threadId}, pulizia`);
+            scriptCache.remove(threadLockKey);
+          } else {
+            console.warn(`🔒 Thread ${threadId} lockato da altro processo, salto`);
+            return { status: 'skipped', reason: 'thread_locked' };
+          }
+        }
+
+        scriptCache.put(threadLockKey, lockValue, ttlSeconds);
         lockAcquired = true;
         console.log(`🔒 Lock acquisito per thread ${threadId}`);
       } catch (e) {
         console.warn(`⚠️ Errore acquisizione lock: ${e.message}`);
         return { status: 'error', error: 'Lock acquisition failed' };
+      } finally {
+        try {
+          scriptLock.releaseLock();
+        } catch (releaseError) {
+          console.warn(`⚠️ Errore rilascio script lock: ${releaseError.message}`);
+        }
       }
     }
 
@@ -603,7 +603,7 @@ ${addressLines.join('\n\n')}
       // ====================================================================================================
       let attachmentContext = { text: '', items: [], skipped: [] };
       if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
-        if (this._shouldTryOcr(messageDetails.body, messageDetails.subject)) {
+        if (this._shouldTryOcr(messageDetails.body, messageDetails.subject, candidate)) {
           attachmentContext = this.gmailService.extractAttachmentContext(candidate, {
             detectedLanguage: detectedLanguage
           });
@@ -900,16 +900,27 @@ ${addressLines.join('\n\n')}
     } finally {
       // Rilascia lock (solo se acquisito)
       if (lockAcquired && scriptCache && threadLockKey) {
+        const scriptLock = LockService.getScriptLock();
         try {
-          const currentLockValue = scriptCache.get(threadLockKey);
-          if (!currentLockValue || currentLockValue === lockValue) {
-            scriptCache.remove(threadLockKey);
-            console.log(`🔓 Lock rilasciato per thread ${threadId}`);
+          if (scriptLock.tryLock(2000)) {
+            const currentLockValue = scriptCache.get(threadLockKey);
+            if (!currentLockValue || currentLockValue === lockValue) {
+              scriptCache.remove(threadLockKey);
+              console.log(`🔓 Lock rilasciato per thread ${threadId}`);
+            } else {
+              console.warn(`⚠️ Rilascio lock saltato per thread ${threadId} (lock di altro processo)`);
+            }
           } else {
-            console.warn(`⚠️ Rilascio lock saltato per thread ${threadId} (lock di altro processo)`);
+            console.warn(`⚠️ Rilascio lock differito per thread ${threadId}: script lock non disponibile`);
           }
         } catch (e) {
           console.warn('⚠️ Errore rilascio lock:', e.message);
+        } finally {
+          try {
+            scriptLock.releaseLock();
+          } catch (releaseError) {
+            console.warn(`⚠️ Errore rilascio script lock: ${releaseError.message}`);
+          }
         }
       }
     }
@@ -1120,7 +1131,7 @@ ${addressLines.join('\n\n')}
     return false;
   }
 
-  _shouldTryOcr(body, subject) {
+  _shouldTryOcr(body, subject, message = null) {
     const settings = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT)
       ? CONFIG.ATTACHMENT_CONTEXT
       : {};
@@ -1135,11 +1146,29 @@ ${addressLines.join('\n\n')}
     const normalizedBody = (body || '').toLowerCase().replace(/\s+/g, ' ');
     const normalizedSubject = (subject || '').toLowerCase().replace(/\s+/g, ' ');
 
-    return triggerKeywords.some(keyword => {
+    const hasKeywordMatch = triggerKeywords.some(keyword => {
       const needle = (keyword || '').toLowerCase();
-      // startWith, includes, o regex word boundary? Includes è più sicuro for ora.
       return needle && (normalizedBody.includes(needle) || normalizedSubject.includes(needle));
     });
+
+    if (hasKeywordMatch) {
+      return true;
+    }
+
+    const hasEmailText = Boolean(normalizedBody.trim() || normalizedSubject.trim());
+    if (!hasEmailText && message) {
+      try {
+        const attachments = message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
+        if (attachments.length > 0) {
+          console.log('   📎 OCR fallback attivo: email senza testo ma con allegati');
+          return true;
+        }
+      } catch (e) {
+        console.warn(`⚠️ Impossibile verificare allegati per OCR fallback: ${e.message}`);
+      }
+    }
+
+    return false;
   }
 
   _getCurrentSeason() {
@@ -1534,10 +1563,17 @@ function processUnreadEmailsMain() {
       return;
     }
 
-    // Controlla orario sospensione
+    // Controlla orario sospensione (con paracadute unread vecchie)
     if (typeof isInSuspensionTime === 'function' && isInSuspensionTime()) {
-      console.log('Servizio sospeso per orario di lavoro.');
-      return;
+      const staleHours = (typeof CONFIG !== 'undefined' && typeof CONFIG.SUSPENSION_STALE_UNREAD_HOURS === 'number')
+        ? CONFIG.SUSPENSION_STALE_UNREAD_HOURS
+        : 12;
+      const canBypass = (typeof hasStaleUnreadThreads === 'function') ? hasStaleUnreadThreads(staleHours) : false;
+      if (!canBypass) {
+        console.log('Servizio sospeso per orario di lavoro.');
+        return;
+      }
+      console.warn(`⏰ Sospensione bypassata: trovate email non lette più vecchie di ${staleHours}h.`);
     }
 
     // Carica risorse

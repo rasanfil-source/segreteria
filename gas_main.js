@@ -438,8 +438,16 @@ function processEmailsMain() {
     }
 
     if (isInSuspensionTime()) {
-      console.log('💤 Sistema in sospensione (orario ufficio/festività).');
-      return;
+      const staleHours = (typeof CONFIG !== 'undefined' && typeof CONFIG.SUSPENSION_STALE_UNREAD_HOURS === 'number')
+        ? CONFIG.SUSPENSION_STALE_UNREAD_HOURS
+        : 12;
+
+      if (!hasStaleUnreadThreads(staleHours)) {
+        console.log('💤 Sistema in sospensione (orario ufficio/festività).');
+        return;
+      }
+
+      console.warn(`⏰ Sospensione bypassata: trovate email non lette più vecchie di ${staleHours}h.`);
     }
 
     // 4. Orchestrazione Pipeline

@@ -170,8 +170,20 @@ class Classifier {
       };
     }
 
-    // TUTTO IL RESTO: Passa a Gemini
+    // PRIORITÀ LEGALE/PRIVACY: richieste formali (es. sbattezzo/apostasia)
     const fullText = `${safeSubject} ${mainContent}`;
+    if (/\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|cancellazione\s+(?:dal|dai|dei)\s+registr/i.test(fullText)) {
+      console.log('      ⚠️ Richiesta formale rilevata (sbattezzo/apostasia)');
+      return {
+        shouldReply: true,
+        reason: 'formal_request_detected',
+        category: 'FORMAL',
+        subIntents: {},
+        confidence: 1.0
+      };
+    }
+
+    // TUTTO IL RESTO: Passa a Gemini
     const category = this._categorizeContent(fullText);
     const subIntents = this._detectSubIntents(fullText);
 
