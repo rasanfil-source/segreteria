@@ -192,6 +192,38 @@ function _loadResourcesInternal() {
     GLOBAL_CACHE.doctrineBase = _parseSheetToStructured(data);
   }
 
+  // Prompt resources aggiuntive (usate da PromptEngine)
+  const aiCoreLiteSheet = ss.getSheetByName(CONFIG.AI_CORE_LITE_SHEET);
+  if (aiCoreLiteSheet) {
+    GLOBAL_CACHE.aiCoreLite = aiCoreLiteSheet
+      .getDataRange()
+      .getValues()
+      .map(r => r.filter(Boolean).join(' | ').trim())
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  const aiCoreSheet = ss.getSheetByName(CONFIG.AI_CORE_SHEET);
+  if (aiCoreSheet) {
+    GLOBAL_CACHE.aiCore = aiCoreSheet
+      .getDataRange()
+      .getValues()
+      .map(r => r.filter(Boolean).join(' | ').trim())
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  const doctrineSheet = ss.getSheetByName(CONFIG.DOCTRINE_SHEET);
+  if (doctrineSheet) {
+    const doctrineData = doctrineSheet.getDataRange().getValues();
+    GLOBAL_CACHE.doctrineStructured = _parseSheetToStructured(doctrineData);
+
+    // Compatibilità con codice legacy che usa doctrineBase testuale
+    if (!GLOBAL_CACHE.doctrineBase || GLOBAL_CACHE.doctrineBase.length === 0) {
+      GLOBAL_CACHE.doctrineBase = doctrineData.map(r => r.join(' | ')).join('\n');
+    }
+  }
+
   // Config Avanzata
   const adv = _loadAdvancedConfig(ss);
   GLOBAL_CACHE.systemEnabled = adv.systemEnabled;
@@ -223,10 +255,12 @@ function _loadAdvancedConfig(ss) {
   const status = sheet.getRange("B2").getValue();
   if (String(status).toUpperCase().includes("SPENTO")) config.systemEnabled = false;
 
-  // Ferie (B5:D7)
+  // Ferie (B5:E7): data inizio in B, data fine in C
   const periods = sheet.getRange("B5:E7").getValues();
   periods.forEach(r => {
-    if (r[0] instanceof Date && r[2] instanceof Date) config.vacationPeriods.push({ start: r[0], end: r[2] });
+    if (r[0] instanceof Date && r[1] instanceof Date) {
+      config.vacationPeriods.push({ start: r[0], end: r[1] });
+    }
   });
 
   // Sospensione (B10:E16)
@@ -237,6 +271,23 @@ function _loadAdvancedConfig(ss) {
       config.suspensionRules[day] = [[parseInt(r[0]), parseInt(r[2])]];
     }
   });
+
+  // Filtri anti-spam (layout single-sheet: E11:F)
+  const maxRows = Math.max(sheet.getLastRow(), 11);
+  const filterRows = Math.max(maxRows - 10, 1);
+  const filters = sheet.getRange(11, 5, filterRows, 2).getValues();
+  filters.forEach(row => {
+    const domain = String(row[0] || '').trim().toLowerCase();
+    const keyword = String(row[1] || '').trim().toLowerCase();
+    if (domain) config.ignoreDomains.push(domain);
+    if (keyword) config.ignoreKeywords.push(keyword);
+  });
+
+  // Dedup + fallback su config statica
+  const staticDomains = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_DOMAINS)) ? CONFIG.IGNORE_DOMAINS : [];
+  const staticKeywords = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_KEYWORDS)) ? CONFIG.IGNORE_KEYWORDS : [];
+  config.ignoreDomains = Array.from(new Set([...staticDomains, ...config.ignoreDomains].map(v => String(v).trim().toLowerCase()).filter(Boolean)));
+  config.ignoreKeywords = Array.from(new Set([...staticKeywords, ...config.ignoreKeywords].map(v => String(v).trim().toLowerCase()).filter(Boolean)));
 
   return config;
 }
