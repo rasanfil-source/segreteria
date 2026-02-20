@@ -1171,10 +1171,10 @@ function markdownToHtml(text) {
 
   // 4. Trasformazioni markdown su testo già escaped
   // Headers
-  html = html.replace(/^####\s+(.+)$/gm, '<p style="font-size:14px;font-weight:bold;">$1</p>');
-  html = html.replace(/^###\s+(.+)$/gm, '<p style="font-size:16px;font-weight:bold;">$1</p>');
-  html = html.replace(/^##\s+(.+)$/gm, '<p style="font-size:18px;font-weight:bold;">$1</p>');
-  html = html.replace(/^#\s+(.+)$/gm, '<p style="font-size:20px;font-weight:bold;">$1</p>');
+  html = html.replace(/^####\s+(.+)$/gm, '<p style="font-size:1em;font-weight:bold;margin:8px 0 4px;">$1</p>');
+  html = html.replace(/^###\s+(.+)$/gm, '<p style="font-size:1.15em;font-weight:bold;margin:10px 0 4px;">$1</p>');
+  html = html.replace(/^##\s+(.+)$/gm, '<p style="font-size:1.3em;font-weight:bold;margin:12px 0 4px;">$1</p>');
+  html = html.replace(/^#\s+(.+)$/gm, '<p style="font-size:1.5em;font-weight:bold;margin:14px 0 6px;">$1</p>');
 
   // Bold / Italic (asterischi già escaped come testo, usiamo la versione escaped)
   // Nota: gli asterischi NON vengono escaped da escapeHtml(), quindi funzionano normalmente
