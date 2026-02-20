@@ -918,7 +918,7 @@ Output JSON:
    * @param {string} options.apiKey - Chiave API specifica (opzionale)
    * @param {string} options.modelName - Nome modello specifico (opzionale)
    * @param {boolean} options.skipRateLimit - Se true, bypassa Rate Limiter locale
-   * @returns {string|null} Testo generato
+   * @returns {Object} { success: boolean, text: string, error?: string, modelUsed?: string }
    */
   generateResponse(prompt, options = {}) {
     const targetKey = options.apiKey || this.primaryKey;
@@ -943,7 +943,7 @@ Output JSON:
 
         if (result.success) {
           console.log(`✓ Generato via Rate Limiter(modello: ${result.modelUsed}, token: ~${estimatedTokens})`);
-          return result.result;
+          return { success: true, text: result.result, modelUsed: result.modelUsed };
         }
       } catch (error) {
         if (error.message && error.message.includes('QUOTA_EXHAUSTED')) {
@@ -960,14 +960,15 @@ Output JSON:
     // ═══════════════════════════════════════════════════════════════════
     if (skipRateLimit) {
       console.log(`⏩ Chiamata diretta(bypass RateLimiter) con ${targetModel} `);
-      return this._withRetry(
+      const text = this._withRetry(
         () => this._generateWithModel(prompt, targetModel, targetKey),
         'Generazione diretta (Chiave di Riserva)'
       );
+      return { success: !!text, text: text, modelUsed: targetModel };
     }
 
     // IMPLEMENTAZIONE ORIGINALE
-    return this._withRetry(() => {
+    const result = this._withRetry(() => {
       console.log(`🤖 Chiamata Gemini API(prompt: ${prompt.length} caratteri)...`);
 
       const temperature = this.config.TEMPERATURE || 0.5;
@@ -1000,21 +1001,19 @@ Output JSON:
         return null;
       }
 
-      const result = JSON.parse(response.getContentText());
+      const resJson = JSON.parse(response.getContentText());
 
-      if (!result.candidates || !result.candidates[0] || !result.candidates[0].content) {
+      if (!resJson.candidates || !resJson.candidates[0] || !resJson.candidates[0].content) {
         console.error('❌ Risposta Gemini non valida: nessun candidato o contenuto');
         return null;
       }
 
-      const candidate = result.candidates[0];
+      const candidate = resJson.candidates[0];
 
-      // Controllo troncamento per limite token
       if (candidate.finishReason === 'MAX_TOKENS') {
         console.warn('⚠️ Risposta troncata per limite MAX_TOKENS');
       }
 
-      // Estrazione contenuto robusta
       const parts = candidate.content?.parts || [];
       const generatedText = parts.map(p => p.text || '').join('').trim();
 
@@ -1027,6 +1026,13 @@ Output JSON:
       return generatedText;
 
     }, 'Generazione risposta');
+
+    return {
+      success: !!result,
+      text: result,
+      modelUsed: targetModel,
+      error: result ? null : 'Risposta vuota o errore'
+    };
   }
 
   // ========================================================================
