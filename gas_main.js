@@ -359,6 +359,62 @@ function main() {
 }
 
 /**
+ * Configura tutti i trigger necessari al sistema.
+ * Eseguire manualmente una volta per ripristinare i trigger principali.
+ */
+function setupAllTriggers() {
+  // 1. Trigger Principale (Autoresponder)
+  setupMainTrigger(5);
+
+  // 2. Trigger Pulizia Memoria (Settimanale)
+  setupWeeklyCleanupTrigger();
+
+  // 3. Trigger Metriche/Statistiche (Giornaliero)
+  setupMetricsTrigger();
+
+  SpreadsheetApp.getUi().alert('✅ Tutti i trigger sono stati riattivati correttamente.');
+}
+
+/**
+ * Configura il trigger di elaborazione email.
+ */
+function setupMainTrigger(minutes) {
+  const intervalMinutes = parseInt(minutes, 10) || 5;
+  deleteTriggersByHandler_('main');
+  deleteTriggersByHandler_('processEmailsMain');
+
+  ScriptApp.newTrigger('processEmailsMain')
+    .timeBased()
+    .everyMinutes(intervalMinutes)
+    .create();
+}
+
+/**
+ * Configura il trigger per l'export delle metriche (ore 23:00).
+ */
+function setupMetricsTrigger() {
+  deleteTriggersByHandler_('exportMetricsToSheet');
+
+  ScriptApp.newTrigger('exportMetricsToSheet')
+    .timeBased()
+    .atHour(23)
+    .everyDays(1)
+    .create();
+}
+
+/**
+ * Elimina trigger esistenti per uno specifico handler, evitando duplicati.
+ */
+function deleteTriggersByHandler_(handlerName) {
+  const triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach(trigger => {
+    if (trigger.getHandlerFunction() === handlerName) {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+}
+
+/**
  * Funzione principale invocata dal trigger temporale (es. ogni 5 min)
  */
 function processEmailsMain() {
