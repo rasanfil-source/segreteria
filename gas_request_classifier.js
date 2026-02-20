@@ -331,6 +331,14 @@ class RequestTypeClassifier {
   }
 
   /**
+   * Compatibilità retroattiva con la vecchia interfaccia.
+   * @deprecated Usare classify(subject, body, externalHint)
+   */
+  classifyRequest(body, subject, externalHint = null) {
+    return this.classify(subject, body, externalHint);
+  }
+
+  /**
    * Calcola punteggio ponderato per set di indicatori
    */
   _calculateScore(text, indicators) {
