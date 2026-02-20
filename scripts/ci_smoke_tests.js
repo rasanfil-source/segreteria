@@ -420,7 +420,7 @@ function testAntiLoopDetection() {
             classifyEmail: () => ({ shouldReply: true, reason: 'ok' })
         },
         requestClassifier: {
-            classifyRequest: () => ({ type: 'INFO', complexity: 'low' })
+            classify: () => ({ type: 'INFO', complexity: 'low' })
         },
         validator: {
             validateResponse: () => ({ isValid: true, score: 1.0, errors: [] })
@@ -860,7 +860,7 @@ function testShouldIgnoreEmail() {
     // Mockiamo il resto per farlo finire bene
     processor.geminiService.generateResponse = () => ({ success: true, text: 'Ok' });
     processor.validator.validateResponse = () => ({ isValid: true, score: 1.0, errors: [] });
-    processor.requestClassifier.classifyRequest = () => ({ type: 'INFO' });
+    processor.requestClassifier.classify = () => ({ type: 'INFO' });
     processor.promptEngine.buildPrompt = () => 'Prompt';
     processor.gmailService.sendReply = () => { };
 

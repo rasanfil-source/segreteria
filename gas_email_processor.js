@@ -192,7 +192,7 @@ class EmailProcessor {
       }
 
       // 6. Categorizzazione Richiesta
-      const requestType = this.requestClassifier.classifyRequest(details.body, details.subject);
+      const requestType = this.requestClassifier.classify(details.subject, details.body);
       this.logger.debug('Categorizzazione richiesta', { type: requestType.type, complexity: requestType.complexity });
 
       // 7. Estrazione Indirizzo (Territorio)
