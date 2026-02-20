@@ -368,13 +368,25 @@ class EmailProcessor {
   _markMessageAsProcessed(message, labelName) {
     if (!message) return;
 
+    const messageId = (typeof message.getId === 'function') ? message.getId() : null;
+
     try {
-      message.markRead();
-      // Usa gmailService per l'etichettatura (così è mockabile e consistente)
-      const messageId = message.getId();
-      this.gmailService.addLabelToMessage(messageId, labelName);
+      if (typeof message.markRead === 'function') {
+        message.markRead();
+      }
     } catch (e) {
-      this.logger.error('Impossibile etichettare messaggio', { error: e.message });
+      this.logger.error('Impossibile segnare messaggio come letto', { error: e.message, messageId });
+    }
+
+    try {
+      if (!messageId) return;
+
+      // Usa gmailService per l'etichettatura (così è mockabile e consistente)
+      if (this.gmailService && typeof this.gmailService.addLabelToMessage === 'function') {
+        this.gmailService.addLabelToMessage(messageId, labelName);
+      }
+    } catch (e) {
+      this.logger.error('Impossibile etichettare messaggio', { error: e.message, messageId, labelName });
     }
   }
 
