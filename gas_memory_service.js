@@ -361,7 +361,10 @@ class MemoryService {
             console.warn(`⚠️ Lock non acquisito dopo 3 tentativi, annullo aggiornamento atomico per thread ${threadId}`);
             return false;
           }
-          if (i < 2) Utilities.sleep(500 + Math.random() * 100);
+          if (i < 2) {
+            const baseSleepMs = (typeof CONFIG !== 'undefined' && CONFIG.CACHE_RACE_SLEEP_MS) || 200;
+            Utilities.sleep(baseSleepMs + Math.random() * 100);
+          }
           continue;
         }
 
