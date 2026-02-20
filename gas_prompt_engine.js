@@ -298,7 +298,7 @@ ${GLOBAL_CACHE.doctrineBase}
 
     // 16. TEMPLATE SPECIALI (Sbattezzo ecc.)
     const normalizedTopic = (topic || '').toLowerCase();
-    if (normalizedTopic.includes('sbattezzo') || category === 'formal' || (category === 'sbattezzo')) {
+    if (normalizedTopic.includes('sbattezzo') || category === 'sbattezzo') {
       addSection(this._renderSbattezzoTemplate(senderName), 'SbattezzoTemplate');
     }
 

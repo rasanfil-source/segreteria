@@ -947,15 +947,34 @@ class MemoryService {
 
   _invalidateCache(key) {
     delete this._cache[key];
+
+    // Mantieni coerenza tra i due namespace cache locali: memory_ <-> MEM_
+    if (typeof key === 'string' && key.startsWith('memory_')) {
+      const threadId = key.substring('memory_'.length);
+      if (threadId) {
+        delete this._cache[`MEM_${threadId}`];
+      }
+    } else if (typeof key === 'string' && key.startsWith('MEM_')) {
+      const threadId = key.substring('MEM_'.length);
+      if (threadId) {
+        delete this._cache[`memory_${threadId}`];
+      }
+    }
+
     try {
       const cache = CacheService.getScriptCache();
       cache.remove(key);
 
-      // Compatibilità con getMemoryRobust/updateMemoryRobust: rimuovi anche MEM_ prefix
+      // Compatibilità con getMemoryRobust/updateMemoryRobust: rimuovi anche prefisso correlato
       if (typeof key === 'string' && key.startsWith('memory_')) {
         const threadId = key.substring('memory_'.length);
         if (threadId) {
           cache.remove(`MEM_${threadId}`);
+        }
+      } else if (typeof key === 'string' && key.startsWith('MEM_')) {
+        const threadId = key.substring('MEM_'.length);
+        if (threadId) {
+          cache.remove(`memory_${threadId}`);
         }
       }
     } catch (e) {

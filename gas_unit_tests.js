@@ -420,7 +420,10 @@ function testGeminiServiceAdvanced(results) {
 
         test('Rilevamento lingua: Portoghese', results, () => {
             const service = new GeminiService();
-            const detected = service.detectEmailLanguage("Bom dia, agradecemos o orçamento per viatura.", "ORÇAMENTO 499/2026");
+            const detected = service.detectEmailLanguage(
+                "Bom dia, agradecemos o orçamento para a viatura e aguardamos confermação.",
+                "Pedido de orçamento"
+            );
             return detected.lang === 'pt';
         });
 
@@ -447,24 +450,24 @@ function testClassifierEdgeCases(results) {
         const classifier = new Classifier();
 
         test('Rilevamento ringraziamento semplice', results, () => {
-            const result = classifier.classifyEmail("Grazie!", "Re: Info", "user@example.com");
+            const result = classifier.classifyEmail("Re: Info", "Grazie!", true);
             return result.shouldReply === false;
         });
 
         test('Rilevamento OOO (Out of Office)', results, () => {
             const result = classifier.classifyEmail(
-                "Sono in ferie fino al 15/01",
                 "Out of Office",
-                "user@example.com"
+                "Sono in ferie fino al 15/01",
+                false
             );
             return result.shouldReply === false;
         });
 
         test('Email valida con domanda', results, () => {
             const result = classifier.classifyEmail(
-                "Buongiorno, vorrei sapere gli orari delle messe domenicali",
                 "Info orari",
-                "user@example.com"
+                "Buongiorno, vorrei sapere gli orari delle messe domenicali",
+                false
             );
             return result.shouldReply === true;
         });
