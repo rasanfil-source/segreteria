@@ -1242,11 +1242,11 @@ ${response}
 
 THINKING LEAK = frasi che mostrano il processo di pensiero dell'AI, come:
 - "Consultando la knowledge base..."
-$- "Rivedendo le istruzioni..."
-$- "Devo correggere..."
-$- "La KB dice che..."
-$- "Secondo le linee guida interne..."
-$- "Verificando i dati forniti..."
+- "Rivedendo le istruzioni..."
+- "Devo correggere..."
+- "La KB dice che..."
+- "Secondo le linee guida interne..."
+- "Verificando i dati forniti..."
 
 Rispondi SOLO con questo JSON (senza markdown):
 {

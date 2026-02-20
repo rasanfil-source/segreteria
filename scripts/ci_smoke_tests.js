@@ -329,6 +329,16 @@ function testResponseValidatorLanguageCheck() {
     assert(resEn.errors.length === 0, `Check lingua EN non deve generare errori, ottenuti: ${resEn.errors.join('; ')}`);
 }
 
+function testSemanticThinkingPromptBullets() {
+    loadScript('gas_response_validator.js');
+
+    const semantic = Object.create(SemanticValidator.prototype);
+    const prompt = semantic._buildThinkingLeakPrompt('Risposta di test');
+
+    assert(!prompt.includes('$- '), 'Il prompt semantico non deve contenere prefissi "$-"');
+    assert(prompt.includes('- "Rivedendo le istruzioni..."'), 'Bullet atteso non trovato nel prompt semantico');
+}
+
 function testResponseValidatorFrenchLiturgicalGreeting() {
     loadScript('gas_response_validator.js');
 
@@ -928,6 +938,7 @@ function main() {
         ['validator: check lunghezza', testResponseValidatorCheckLength],
         ['validator: contenuto vietato + placeholder', testResponseValidatorForbiddenContent],
         ['validator: consistenza lingua', testResponseValidatorLanguageCheck],
+        ['validator: semantic prompt bullets puliti', testSemanticThinkingPromptBullets],
         // EmailProcessor
         ['computeSalutationMode: primo/reply/vecchio', testComputeSalutationMode],
         ['anti-loop: thread lungo con esterni consecutivi', testAntiLoopDetection],
