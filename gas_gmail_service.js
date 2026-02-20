@@ -14,9 +14,11 @@ class GmailService {
   constructor() {
     console.log('📧 Inizializzazione GmailService...');
 
-    // Cache etichette per evitare chiamate API ripetute
+    // Cache etichette: in-memory (stessa esecuzione) + CacheService (cross-esecuzione)
     this._labelCache = new Map();
     this._cacheTTL = (typeof CONFIG !== 'undefined' && CONFIG.GMAIL_LABEL_CACHE_TTL) ? CONFIG.GMAIL_LABEL_CACHE_TTL : 3600000;
+    this._cacheTtlSeconds = Math.max(60, Math.floor(this._cacheTTL / 1000));
+    this._scriptCache = CacheService.getScriptCache();
 
     console.log('✓ GmailService inizializzato con cache etichette (TTL 1h)');
   }
@@ -29,6 +31,7 @@ class GmailService {
    * Ottiene o crea un'etichetta Gmail con caching
    */
   getOrCreateLabel(labelName) {
+    const cacheKey = `gmail_label_exists:${labelName}`;
     const cachedEntry = this._labelCache.get(labelName);
     const now = Date.now();
     if (cachedEntry && (now - cachedEntry.ts) < this._cacheTTL) {
@@ -38,10 +41,22 @@ class GmailService {
       this._labelCache.delete(labelName);
     }
 
+    const cachedExists = this._scriptCache.get(cacheKey);
+    if (cachedExists) {
+      const label = GmailApp.getUserLabelByName(labelName);
+      if (label) {
+        this._labelCache.set(labelName, { label: label, ts: now });
+        console.log(`📦 Label '${labelName}' trovata in cache persistente`);
+        return label;
+      }
+      this._scriptCache.remove(cacheKey);
+    }
+
     const labels = GmailApp.getUserLabels();
     for (const label of labels) {
       if (label.getName() === labelName) {
         this._labelCache.set(labelName, { label: label, ts: now });
+        this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
         console.log(`✓ Label '${labelName}' trovata`);
         return label;
       }
@@ -49,6 +64,7 @@ class GmailService {
 
     const newLabel = GmailApp.createLabel(labelName);
     this._labelCache.set(labelName, { label: newLabel, ts: now });
+    this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
     console.log(`✓ Creata nuova label: ${labelName}`);
     return newLabel;
   }
@@ -56,6 +72,11 @@ class GmailService {
   clearLabelCache() {
     this._labelCache.clear();
     console.log('🗑️ Cache label svuotata');
+  }
+
+  _clearPersistentLabelCache(labelName) {
+    if (!labelName) return;
+    this._scriptCache.remove(`gmail_label_exists:${labelName}`);
   }
 
   addLabelToThread(thread, labelName) {
@@ -66,6 +87,7 @@ class GmailService {
     } catch (e) {
       console.warn(`⚠️ addLabelToThread fallito per '${labelName}': ${e.message}`);
       if (this._isLabelNotFoundError(e)) {
+        this._clearPersistentLabelCache(labelName);
         this.clearLabelCache();
         const label = this.getOrCreateLabel(labelName);
         thread.addLabel(label);
@@ -89,6 +111,7 @@ class GmailService {
     } catch (e) {
       console.warn(`⚠️ addLabelToMessage fallito per messaggio ${messageId}: ${e.message}`);
       if (this._isLabelNotFoundError(e)) {
+        this._clearPersistentLabelCache(labelName);
         this.clearLabelCache();
         try {
           const label = this.getOrCreateLabel(labelName);
@@ -431,22 +454,37 @@ class GmailService {
         return '';
       }
 
-      if (typeof Drive === 'undefined' || !Drive.Files || !Drive.Files.insert) {
+      if (typeof Drive === 'undefined' || !Drive.Files) {
         throw new Error('Drive Advanced Service non abilitato');
       }
 
       const blob = attachment.copyBlob();
-      const resource = {
-        title: `OCR_${attachment.getName() || 'allegato'}`,
-        mimeType: blob.getContentType()
-      };
+      const fileName = attachment.getName() || 'allegato';
 
-      const file = Drive.Files.insert(resource, blob, {
-        ocr: true,
-        ocrLanguage: settings.ocrLanguage || 'it',
-        convert: true
-      });
-      fileId = file.id;
+      if (typeof Drive.Files.insert === 'function') {
+        const resource = {
+          title: `OCR_${fileName}`,
+          mimeType: blob.getContentType()
+        };
+
+        const file = Drive.Files.insert(resource, blob, {
+          ocr: true,
+          ocrLanguage: settings.ocrLanguage || 'it',
+          convert: true
+        });
+        fileId = file.id;
+      } else if (typeof Drive.Files.create === 'function') {
+        const resource = {
+          name: `OCR_${fileName}`,
+          mimeType: blob.getContentType()
+        };
+        const file = Drive.Files.create(resource, blob, {
+          ocrLanguage: settings.ocrLanguage || 'it'
+        });
+        fileId = file.id;
+      } else {
+        throw new Error('Drive.Files non espone metodi OCR compatibili (insert/create)');
+      }
 
       const doc = DocumentApp.openById(fileId);
       return doc.getBody().getText();
@@ -456,7 +494,13 @@ class GmailService {
     } finally {
       if (fileId) {
         try {
-          Drive.Files.remove(fileId);
+          if (typeof Drive.Files.remove === 'function') {
+            Drive.Files.remove(fileId);
+          } else if (typeof Drive.Files.delete === 'function') {
+            Drive.Files.delete(fileId);
+          } else if (typeof Drive.Files.trash === 'function') {
+            Drive.Files.trash(fileId);
+          }
         } catch (e) {
           console.warn(`⚠️ Cleanup OCR allegato fallito (${fileId}): ${e.message}`);
         }

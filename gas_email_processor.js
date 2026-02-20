@@ -925,9 +925,11 @@ ${addressLines.join('\n\n')}
         try {
           if (scriptLock.tryLock(2000)) {
             const currentLockValue = scriptCache.get(threadLockKey);
-            if (!currentLockValue || currentLockValue === lockValue) {
+            if (currentLockValue === lockValue) {
               scriptCache.remove(threadLockKey);
               console.log(`🔓 Lock rilasciato per thread ${threadId}`);
+            } else if (!currentLockValue) {
+              console.log(`ℹ️ Lock già scaduto/rilasciato per thread ${threadId}`);
             } else {
               console.warn(`⚠️ Rilascio lock saltato per thread ${threadId} (lock di altro processo)`);
             }

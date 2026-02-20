@@ -1136,13 +1136,11 @@ function createGeminiService() {
 function parseGeminiJsonLenient(text) {
   if (!text) throw new Error('Risposta vuota');
 
-  // 1. Pulizia Markdown
   let cleaned = text
-    .replace(/```json\s*/gi, '')
+    .replace(/```(?:json)?\s*/gi, '')
     .replace(/```/g, '')
     .trim();
 
-  // 2. Estrazione blocco graffe più esterno
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
 
@@ -1152,20 +1150,27 @@ function parseGeminiJsonLenient(text) {
 
   cleaned = cleaned.substring(start, end + 1);
 
-  // 3. Tentativo parsing diretto
   try {
     return JSON.parse(cleaned);
   } catch (e) {
-    console.warn('⚠️ Parsing JSON diretto fallito, tentativo di correzione manuale...');
+    console.warn('⚠️ Parsing JSON diretto fallito, tentativo di correzione sicura chiavi...');
   }
 
-  // 4. Correzione comune: chiavi non quotate (es. { key: "value" })
-  // Questa regex è più sicura: cerca parole a inizio riga o dopo virgola/graffa seguite da :
-  const jsonCorretto = cleaned.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
-
+  const safeFixed = _quoteUnquotedJsonKeysSafely(cleaned);
   try {
-    return JSON.parse(jsonCorretto);
+    return JSON.parse(safeFixed);
   } catch (e) {
-    throw new Error(`Impossibile parsare JSON da Gemini: ${e.message}`);
+    throw new Error(`JSON irreparabile: ${e.message}`);
   }
+}
+
+function _quoteUnquotedJsonKeysSafely(jsonText) {
+  const segments = jsonText.split(/("(?:\\.|[^"\\])*")/g);
+
+  for (let i = 0; i < segments.length; i += 2) {
+    segments[i] = segments[i]
+      .replace(/([{,]\s*)([a-zA-Z0-9_]+)(\s*:)/g, '$1"$2"$3');
+  }
+
+  return segments.join('');
 }
