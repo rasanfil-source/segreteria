@@ -68,7 +68,6 @@ class ResponseValidator {
     this.thinkingPatterns = [
       // Pattern conversazionali non catturati dalle regex
       'rivedendo la knowledge base',
-      'in realtà',
       'pensandoci bene',
       '(nota:',
       'nota:',
@@ -749,14 +748,28 @@ class ResponseValidator {
       }
     }
 
-    // Se trovati pattern critici, blocca la risposta
+    // Se trovati pattern, applica penalizzazione graduata
     if (foundPatterns.length > 0) {
-      errors.push(
-        `RAGIONAMENTO ESPOSTO RILEVATO: "${foundPatterns[0]}..."`
-      );
-      score = 0.0;
-      // Log speciale per monitoraggio immediato
-      console.error(`🚨 RILEVAMENTO THINKING LEAK (Pattern: ${foundPatterns[0]}).`);
+      const firstPattern = String(foundPatterns[0] || '').toLowerCase();
+      const hardPatterns = [
+        'rivedendo la knowledge base',
+        'consultando la knowledge base',
+        'come da istruzioni',
+        'secondo le linee guida'
+      ];
+
+      const isRegexMatch = firstPattern.startsWith('regex match:');
+      const isHardMatch = isRegexMatch || hardPatterns.some(pattern => firstPattern.includes(pattern));
+
+      if (isHardMatch) {
+        errors.push(`RAGIONAMENTO ESPOSTO CRITICO: "${foundPatterns[0]}..."`);
+        score = 0.0;
+      } else {
+        warnings.push(`Possibile meta-commento: "${foundPatterns[0]}..."`);
+        score = Math.min(score, 0.75);
+      }
+
+      console.error(`🚨 THINKING LEAK CHECK (Pattern: ${foundPatterns[0]}).`);
     }
 
     return { score, errors, warnings, foundPatterns };

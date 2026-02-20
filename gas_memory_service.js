@@ -549,7 +549,7 @@ class MemoryService {
     const normalizedThreadId = String(threadId);
 
     // Punto 5: Ottimizzazione TextFinder limitando il range alla colonna A (Thread ID)
-    const finder = this._sheet.getRange('A:A').createTextFinder(normalizedThreadId)
+    const finder = this._sheet.getRange('A2:A').createTextFinder(normalizedThreadId)
       .matchEntireCell(true)      // Corrispondenza esatta
       .matchCase(true)            // Case sensitive
       .matchFormulaText(false);   // Cerca solo nei valori

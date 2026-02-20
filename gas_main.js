@@ -199,6 +199,10 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
     throw new Error('loadResources richiede un lock preventivo.');
   }
 
+  if (typeof GLOBAL_CACHE === 'undefined' || !GLOBAL_CACHE) {
+    throw new Error('GLOBAL_CACHE non inizializzata: impossibile caricare risorse in sicurezza.');
+  }
+
   const now = Date.now();
   const cacheIsFresh = GLOBAL_CACHE.loaded && GLOBAL_CACHE.lastLoadedAt && ((now - GLOBAL_CACHE.lastLoadedAt) < RESOURCE_CACHE_TTL_MS);
   if (cacheIsFresh) return;
