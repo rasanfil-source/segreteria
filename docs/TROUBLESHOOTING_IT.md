@@ -23,11 +23,11 @@ function diagnoseNoProcessing() {
   
   // 1. Trigger attivo?
   const triggers = ScriptApp.getProjectTriggers();
-  const mainTrigger = triggers.find(t => t.getHandlerFunction() === 'main');
+  const mainTrigger = triggers.find(t => t.getHandlerFunction() === 'processEmailsMain');
   
   if (!mainTrigger) {
-    console.error('❌ Trigger "main" NON trovato!');
-    console.log('Soluzione: Esegui setupTrigger()');
+    console.error('❌ Trigger "processEmailsMain" NON trovato!');
+    console.log('Soluzione: Esegui setupProductionTrigger()');
     return;
   }
   
@@ -35,7 +35,7 @@ function diagnoseNoProcessing() {
   
   // 2. Ultime esecuzioni?
   console.log('\nControlla manualmente:');
-  console.log('Apps Script → Esecuzioni → Guarda se "main" è stato eseguito');
+  console.log('Apps Script → Esecuzioni → Guarda se "processEmailsMain" è stato eseguito');
   
   // 3. Orario sospensione?
   if (isInSuspensionTime()) {
@@ -56,9 +56,9 @@ function diagnoseNoProcessing() {
 
 | Causa | Soluzione |
 |-------|-----------|
-| Trigger mancante | Esegui `setupTrigger()` |
+| Trigger mancante | Esegui `setupProductionTrigger()` |
 | Trigger disabilitato | Apps Script → Trigger → Abilita |
-| Autorizzazioni scadute | Re-esegui `setupTrigger()` e autorizza |
+| Autorizzazioni scadute | Re-esegui `setupProductionTrigger()` e autorizza |
 | Orario sospensione | Attendi fine orario ufficio o modifica SUSPENSION_HOURS |
 | Script bloccato | Controlla "Esecuzioni" per errori |
 

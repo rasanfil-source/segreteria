@@ -182,7 +182,7 @@ function reviewConfiguration() {
 ### 3.3 Verifica Trigger
 
 **Checklist:**
-- [ ] Trigger `main` attivo (ogni 10 min)
+- [ ] Trigger `processEmailsMain` attivo (ogni 10 min)
 - [ ] Trigger `cleanupOldMemory` attivo (settimanale)
 - [ ] Trigger `dailyHealthCheck` attivo (ogni mattina)
 

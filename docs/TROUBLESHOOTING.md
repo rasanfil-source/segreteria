@@ -23,11 +23,11 @@ function diagnoseNoProcessing() {
   
   // 1. Trigger active?
   const triggers = ScriptApp.getProjectTriggers();
-  const mainTrigger = triggers.find(t => t.getHandlerFunction() === 'main');
+  const mainTrigger = triggers.find(t => t.getHandlerFunction() === 'processEmailsMain');
   
   if (!mainTrigger) {
-    console.error('❌ Trigger "main" NOT found!');
-    console.log('Solution: Run setupTrigger()');
+    console.error('❌ Trigger "processEmailsMain" NOT found!');
+    console.log('Solution: Run setupProductionTrigger()');
     return;
   }
   
@@ -35,7 +35,7 @@ function diagnoseNoProcessing() {
   
   // 2. Last executions?
   console.log('\nCheck manually:');
-  console.log('Apps Script → Executions → See if "main" ran');
+  console.log('Apps Script → Executions → See if "processEmailsMain" ran');
   
   // 3. Time suspension?
   if (isInSuspensionTime()) {
@@ -56,9 +56,9 @@ function diagnoseNoProcessing() {
 
 | Cause | Solution |
 |-------|-----------|
-| Missing Trigger | Run `setupTrigger()` |
+| Missing Trigger | Run `setupProductionTrigger()` |
 | Trigger Disabled | Apps Script → Triggers → Enable |
-| Expired Permissions | Re-run `setupTrigger()` and authorize |
+| Expired Permissions | Re-run `setupProductionTrigger()` and authorize |
 | Suspension Time | Wait for end of office hours or modify SUSPENSION_HOURS |
 | Script Crashed | Check "Executions" for errors |
 

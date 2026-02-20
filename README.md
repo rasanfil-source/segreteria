@@ -321,7 +321,7 @@ Every response is **automatically validated** before sending:
 **Q: The system does not reply to emails**
 ```
 Check:
-1. Is trigger active? (Trigger → must have "main" every 5 min)
+1. Is trigger active? (Trigger → must have "processEmailsMain" every 5 min)
 2. Office hours configured? (System suspends outside office hours)
 3. Check Executions → look for errors
 ```
@@ -336,7 +336,7 @@ Solution: System uses "linguistic prevalence". If email has
 **Q: Too many emails marked "Verifica"**
 ```
 Cause: Validation threshold too high
-Solution: In Config.gs, change VALIDATION_MIN_SCORE from 0.6 to 0.5
+Solution: In gas_config_s.js, change VALIDATION_MIN_SCORE from 0.6 to 0.5
 ```
 
 ### Contacts

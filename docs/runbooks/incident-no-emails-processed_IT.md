@@ -22,7 +22,7 @@
 ```javascript
 function checkTrigger() {
   const triggers = ScriptApp.getProjectTriggers();
-  const mainTrigger = triggers.find(t => t.getHandlerFunction() === 'main');
+  const mainTrigger = triggers.find(t => t.getHandlerFunction() === 'processEmailsMain');
   
   if (!mainTrigger) {
     console.error('❌ TRIGGER MANCANTE');
@@ -38,7 +38,7 @@ function checkTrigger() {
 **Azione:**
 1. Apri [Apps Script](https://script.google.com)
 2. Menu: ⏰ Trigger
-3. Verifica presenza trigger "main"
+3. Verifica presenza trigger "processEmailsMain"
 
 ### Step 2: Verifica API Key (2 min)
 
@@ -96,13 +96,13 @@ function checkSuspension() {
 function fixTrigger() {
   // Rimuovi trigger esistenti
   ScriptApp.getProjectTriggers().forEach(t => {
-    if (t.getHandlerFunction() === 'main') {
+    if (t.getHandlerFunction() === 'processEmailsMain') {
       ScriptApp.deleteTrigger(t);
     }
   });
   
   // Ricrea trigger
-  ScriptApp.newTrigger('main')
+  ScriptApp.newTrigger('processEmailsMain')
     .timeBased()
     .everyMinutes(10)
     .create();
@@ -114,7 +114,7 @@ function fixTrigger() {
 ### Causa B: Autorizzazioni Scadute
 
 **Fix:**
-1. Esegui manualmente `main()` dall'editor
+1. Esegui manualmente `processEmailsMain()` dall'editor
 2. Accetta i permessi richiesti
 3. Verifica esecuzione corretta
 
@@ -152,7 +152,7 @@ function verifyResolution() {
   console.log('═══════════════════════════════════');
   
   // Esegui main manualmente
-  main();
+  processEmailsMain();
   
   // Controlla ultime email
   const label = GmailApp.getUserLabelByName('IA');

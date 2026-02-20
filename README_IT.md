@@ -333,7 +333,7 @@ Ogni risposta viene **validata automaticamente** prima dell'invio:
 **Q: Il sistema non risponde alle email**
 ```
 Verifica:
-1. Il trigger è attivo? (Trigger → deve esserci "main" ogni 5 min)
+1. Il trigger è attivo? (Trigger → deve esserci "processEmailsMain" ogni 5 min)
 2. Orario di lavoro configurato? (Sistema si sospende fuori orari ufficio)
 3. Controlla Esecuzioni → cerca errori
 ```
@@ -348,7 +348,7 @@ Soluzione: Sistema usa "prevalenza linguistica". Se email ha
 **Q: Troppe email marcate "Verifica"**
 ```
 Causa: Soglia validazione troppo alta
-Soluzione: In Config.gs, cambia VALIDATION_MIN_SCORE da 0.6 a 0.5
+Soluzione: In gas_config_s.js, cambia VALIDATION_MIN_SCORE da 0.6 a 0.5
 ```
 
 ### Contatti

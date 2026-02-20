@@ -103,7 +103,7 @@ function setupProductionTrigger() {
   });
   
   // Crea trigger ogni 5 minuti (raccomandato)
-  ScriptApp.newTrigger('main')
+  ScriptApp.newTrigger('processEmailsMain')
     .timeBased()
     .everyMinutes(5)
     .create();
@@ -338,7 +338,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 15;
 
 ```javascript
 // Aumenta frequenza trigger
-ScriptApp.newTrigger('main')
+ScriptApp.newTrigger('processEmailsMain')
   .timeBased()
   .everyMinutes(5)  // Frequenza standard
   .create();

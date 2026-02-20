@@ -158,6 +158,18 @@ class Classifier {
       };
     }
 
+    // FILTRO 3: Auto-risposte esplicite (OOO/ferie)
+    if (this._isOutOfOfficeAutoReply(safeSubject, safeBody)) {
+      console.log('      ✗ Auto-risposta Out of Office rilevata');
+      return {
+        shouldReply: false,
+        reason: 'out_of_office_auto_reply',
+        category: null,
+        subIntents: {},
+        confidence: 0.98
+      };
+    }
+
     // TUTTO IL RESTO: Passa a Gemini
     const fullText = `${safeSubject} ${mainContent}`;
     const category = this._categorizeContent(fullText);
@@ -315,6 +327,26 @@ class Classifier {
     const hasThanks = thankWords.some(word => normalized.includes(word));
 
     return hasThanks && wordCount <= 3;
+  }
+
+  /**
+   * Rileva pattern espliciti di auto-risposta (OOO/ferie)
+   */
+  _isOutOfOfficeAutoReply(subject, body) {
+    const normalized = `${subject || ''} ${body || ''}`.toLowerCase();
+    const oooPatterns = [
+      /\bout\s+of\s+office\b/i,
+      /\bout\s+of\s+the\s+office\b/i,
+      /\bauto(?:matic)?\s*reply\b/i,
+      /\brisposta\s+automatica\b/i,
+      /\bsono\s+in\s+ferie\b/i,
+      /\bassen[tz]a\s+per\s+ferie\b/i,
+      /\bnon\s+sono\s+in\s+ufficio\b/i,
+      /\bmalattia\b/i,
+      /\bvacc?anze\b/i
+    ];
+
+    return oooPatterns.some(pattern => pattern.test(normalized));
   }
 
   /**

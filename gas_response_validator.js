@@ -24,6 +24,7 @@ class ResponseValidator {
     // Parole chiave che indicano "thinking leak" (ragionamento esposto)
     this.reasoningKeywords = [
       'basandomi sulla knowledge base',
+      'rivedendo la knowledge base',
       'rivedendo le informazioni',
       'ho trovato che',
       'dalla kb risulta',
@@ -216,7 +217,7 @@ class ResponseValidator {
 
     // Cerca virgola seguita da spazio e lettera maiuscola (escluso "Le", "Voi" se formali, ma qui siamo severi)
     // Non cattura nomi propri o sigle
-    const p = /,\s([A-Z][a-z]{3,})/g;
+    const p = /,\s([A-Z][a-z]{1,})/g;
     const matches = text.match(p);
 
     if (matches) {
@@ -277,7 +278,7 @@ class ResponseValidator {
    */
   _ottimizzaCapitalAfterComma(text, lang) {
     if (lang !== 'it') return text;
-    return text.replace(/, ([A-Z][a-z]{3,})/g, (match, p1) => {
+    return text.replace(/, ([A-Z][a-z]{1,})/g, (match, p1) => {
       // Eccezioni per nomi propri comuni o parole che devono restare maiuscole
       const exceptions = ['Dio', 'Gesù', 'Maria', 'Santo', 'Padre'];
       if (exceptions.includes(p1)) return match;
