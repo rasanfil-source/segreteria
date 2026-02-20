@@ -191,11 +191,7 @@ class MemoryService {
    * Usa lock granulare + retry + optimistic locking
    */
   updateMemory(threadId, newData) {
-    if (!this._initialized || !threadId) {
-      return;
-    }
-    if (!newData || typeof newData !== 'object') {
-      console.warn(`⚠️ updateMemory chiamato con dati non validi per thread ${threadId}`);
+    if (!this._initialized || !threadId || !newData || typeof newData !== 'object') {
       return;
     }
 
@@ -210,20 +206,18 @@ class MemoryService {
     const MAX_RETRIES = 5;
     // Workaround: Hash del threadId per sharding (riduce contention)
     const lockKey = this._getShardedLockKey(threadId);
-    let lockOwned = false;
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      let lockOwned = false;
+      let shouldRetry = false;
+
       try {
         // 1. Acquisisci Lock Sharded (CacheService)
+        lockOwned = this._tryAcquireShardedLock(lockKey);
         if (!lockOwned) {
-          lockOwned = this._tryAcquireShardedLock(lockKey);
-          if (!lockOwned) {
-            console.warn(`🔒 Timeout lock memoria sharded (Tentativo ${attempt + 1})`);
-            // Backoff più morbido: 100ms base con crescita 1.5x + jitter
-            const delay = Math.pow(1.5, attempt) * 100 + Math.random() * 50;
-            Utilities.sleep(delay);
-            continue;
-          }
+          console.warn(`🔒 Timeout lock memoria sharded (Tentativo ${attempt + 1})`);
+          shouldRetry = true;
+          continue;
         }
 
         // 2. Rileggi dati freschi dallo Sheet
@@ -265,11 +259,6 @@ class MemoryService {
 
         // Invalida cache locale
         this._invalidateCache(`memory_${threadId}`);
-
-        if (lockOwned) {
-          this._releaseShardedLock(lockKey);
-          lockOwned = false;
-        }
         return; // Successo
 
       } catch (error) {
@@ -277,26 +266,30 @@ class MemoryService {
           console.warn(`⚠️ Conflitto concorrenza, retry... (Tentativo ${attempt + 1})`);
           // Forziamo invalidazione cache anche qui per sicurezza
           this._invalidateCache(`memory_${threadId}`);
-          if (lockOwned) {
-            this._releaseShardedLock(lockKey);
-            lockOwned = false;
-          }
         } else {
           console.warn(`Aggiornamento memoria fallito (Tentativo ${attempt + 1}): ${error.message}`);
-          if (lockOwned) {
-            this._releaseShardedLock(lockKey);
-            lockOwned = false;
-          }
         }
+
+        shouldRetry = true;
 
         if (attempt === MAX_RETRIES - 1) {
           console.error(`❌ Aggiornamento memoria finale fallito: ${error.message}`);
         }
-        Utilities.sleep(Math.pow(2, attempt) * 200);
+      } finally {
+        if (lockOwned) {
+          this._releaseShardedLock(lockKey);
+        }
       }
-    }
-    if (lockOwned) {
-      this._releaseShardedLock(lockKey);
+
+      if (shouldRetry) {
+        if (!lockOwned) {
+          // Backoff più morbido su lock non acquisito: 100ms base con crescita 1.5x + jitter
+          const delay = Math.pow(1.5, attempt) * 100 + Math.random() * 50;
+          Utilities.sleep(delay);
+        } else {
+          Utilities.sleep(Math.pow(2, attempt) * 200);
+        }
+      }
     }
     throw new Error(`Aggiornamento memoria fallito per thread ${threadId} dopo ${MAX_RETRIES} tentativi`);
   }

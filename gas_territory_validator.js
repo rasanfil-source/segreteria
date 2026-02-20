@@ -309,7 +309,9 @@ class TerritoryValidator {
                     const street = viaType + ' ' + viaName;
                     const civicRaw = match[3];
                     // Parsifica parte numerica principale per validazione range
-                    const civicNum = parseInt(civicRaw.match(/\d+/)[0], 10);
+                    const civicMatch = civicRaw.match(/\d+/);
+                    if (!civicMatch) continue;
+                    const civicNum = parseInt(civicMatch[0], 10);
 
                     // Consenti anche civico 0 (presente in alcuni catasti), range valido 0-9999
                     if (isNaN(civicNum) || civicNum < 0 || civicNum > 9999) continue;
@@ -596,4 +598,3 @@ class TerritoryValidator {
 function createTerritoryValidator() {
     return new TerritoryValidator();
 }
-

@@ -127,8 +127,11 @@ function setupControlloSheet(ss) {
   // Nota: B2 viene gestito da applyControlloInputConstraints_
 
   safeMerge(sheet.getRange('E2:F2'));
+  applyFormulaWithLocaleFallback_(
+    sheet.getRange('E2:F2'),
+    '=IF($B$2="Spento";"🔴 Spento";IF(SUMPRODUCT((TODAY()>=$B$5:$B$7)*(TODAY()<=$D$5:$D$7)*($B$5:$B$7<>""))>0;"🟢 Attiva (Ferie/H24)";IFERROR(IF(AND(HOUR(NOW())>=INDEX($B$10:$B$16;MATCH(LOWER(TEXT(TODAY();"dddd"));LOWER($A$10:$A$16);0));HOUR(NOW())<INDEX($D$10:$D$16;MATCH(LOWER(TEXT(TODAY();"dddd"));LOWER($A$10:$A$16);0)));"🟡 Sospesa (orari)";"🟢 Attiva");"🟢 Attiva")))'
+  );
   sheet.getRange('E2:F2')
-    .setFormula('=IF($B$2="Spento";"🔴 Spento";IF(SUMPRODUCT((TODAY()>=$B$5:$B$7)*(TODAY()<=$D$5:$D$7)*($B$5:$B$7<>""))>0;"🟢 Attiva (Ferie/H24)";IFERROR(IF(AND(HOUR(NOW())>=INDEX($B$10:$B$16;MATCH(LOWER(TEXT(TODAY();"dddd"));LOWER($A$10:$A$16);0));HOUR(NOW())<INDEX($D$10:$D$16;MATCH(LOWER(TEXT(TODAY();"dddd"));LOWER($A$10:$A$16);0)));"🟡 Sospesa (orari)";"🟢 Attiva");"🟢 Attiva")))')
     .setFontWeight('bold')
     .setHorizontalAlignment('center')
     .setBackground('#E6F4EA');
@@ -153,14 +156,14 @@ function setupControlloSheet(ss) {
   sheet.getRange('E8').setValue('Motivo:').setFontWeight('bold');
   sheet.getRange('E9').setValue('Fascia attuale:').setFontWeight('bold');
 
-  sheet.getRange('F5').setFormula('=IF($B$2="Spento";"🔴 Spento";IF(SUMPRODUCT((TODAY()>=$B$5:$B$7)*(TODAY()<=$D$5:$D$7)*($B$5:$B$7<>""))>0;"🟢 Attiva (Ferie/H24)";IFERROR(IF(AND(HOUR(NOW())>=INDEX($B$10:$B$16;MATCH(LOWER(TEXT(TODAY();"dddd"));LOWER($A$10:$A$16);0));HOUR(NOW())<INDEX($D$10:$D$16;MATCH(LOWER(TEXT(TODAY();"dddd"));LOWER($A$10:$A$16);0)));"🟡 Sospesa (orari)";"🟢 Attiva");"🟢 Attiva")))');
+  applyFormulaWithLocaleFallback_(sheet.getRange('F5'), '=IF($B$2="Spento";"🔴 Spento";IF(SUMPRODUCT((TODAY()>=$B$5:$B$7)*(TODAY()<=$D$5:$D$7)*($B$5:$B$7<>""))>0;"🟢 Attiva (Ferie/H24)";IFERROR(IF(AND(HOUR(NOW())>=INDEX($B$10:$B$16;MATCH(LOWER(TEXT(TODAY();"dddd"));LOWER($A$10:$A$16);0));HOUR(NOW())<INDEX($D$10:$D$16;MATCH(LOWER(TEXT(TODAY();"dddd"));LOWER($A$10:$A$16);0)));"🟡 Sospesa (orari)";"🟢 Attiva");"🟢 Attiva")))');
   // Formula aggiornata per B/D
-  sheet.getRange('F6').setFormula('=IF(COUNTIFS(B5:B7;"<="&TODAY();D5:D7;">="&TODAY())>0;"Assente";"In servizio")');
+  applyFormulaWithLocaleFallback_(sheet.getRange('F6'), '=IF(COUNTIFS(B5:B7;"<="&TODAY();D5:D7;">="&TODAY())>0;"Assente";"In servizio")');
 
-  sheet.getRange('F7').setFormula('=TODAY()');
-  sheet.getRange('F8').setFormula('=IF(B2="Spento";"Spento manualmente";IF(F6="Assente";"Assenza segretario";"OK"))');
+  applyFormulaWithLocaleFallback_(sheet.getRange('F7'), '=TODAY()');
+  applyFormulaWithLocaleFallback_(sheet.getRange('F8'), '=IF(B2="Spento";"Spento manualmente";IF(F6="Assente";"Assenza segretario";"OK"))');
   // Formula aggiornata per B/D
-  sheet.getRange('F9').setFormula('=IF(OR(INDEX(B10:B16;WEEKDAY(TODAY();2))="";INDEX(D10:D16;WEEKDAY(TODAY();2))="");"Nessuna";RIGHT("0"&HOUR(INDEX(B10:B16;WEEKDAY(TODAY();2)));2)&"."&RIGHT("0"&MINUTE(INDEX(B10:B16;WEEKDAY(TODAY();2)));2)&"-"&RIGHT("0"&HOUR(INDEX(D10:D16;WEEKDAY(TODAY();2)));2)&"."&RIGHT("0"&MINUTE(INDEX(D10:D16;WEEKDAY(TODAY();2)));2))');
+  applyFormulaWithLocaleFallback_(sheet.getRange('F9'), '=IF(OR(INDEX(B10:B16;WEEKDAY(TODAY();2))="";INDEX(D10:D16;WEEKDAY(TODAY();2))="");"Nessuna";RIGHT("0"&HOUR(INDEX(B10:B16;WEEKDAY(TODAY();2)));2)&"."&RIGHT("0"&MINUTE(INDEX(B10:B16;WEEKDAY(TODAY();2)));2)&"-"&RIGHT("0"&HOUR(INDEX(D10:D16;WEEKDAY(TODAY();2)));2)&"."&RIGHT("0"&MINUTE(INDEX(D10:D16;WEEKDAY(TODAY();2)));2))');
 
   // Sospensione oraria
   sheet.getRange('A9').setValue('🟡 Risposta automatica sospesa:').setFontWeight('bold');
@@ -185,6 +188,19 @@ function setupControlloSheet(ss) {
 
   // Applica le constraints GUIDATE dall'utente
   applyControlloInputConstraints_(sheet);
+}
+
+function applyFormulaWithLocaleFallback_(range, formula) {
+  if (!range || typeof range.setFormula !== 'function') return;
+  const safeFormula = typeof formula === 'string' ? formula : '';
+
+  try {
+    range.setFormula(safeFormula);
+  } catch (err) {
+    if (!safeFormula.includes(';')) throw err;
+    const fallbackFormula = safeFormula.replace(/;/g, ',');
+    range.setFormula(fallbackFormula);
+  }
 }
 
 function createNamedRanges(ss, warningsCollector) {

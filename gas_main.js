@@ -117,11 +117,29 @@ function isInVacationPeriod(date = new Date()) {
  */
 function isInSuspensionTime(checkDate = new Date()) {
   const now = checkDate;
-  const year = now.getFullYear();
-  const monthIndex = now.getMonth();
-  const date = now.getDate();
-  const day = now.getDay();
-  const hour = now.getHours();
+
+  let year = now.getFullYear();
+  let monthIndex = now.getMonth();
+  let date = now.getDate();
+  let day = now.getDay();
+  let hour = now.getHours();
+
+  const scriptTimeZone = (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function')
+    ? Session.getScriptTimeZone()
+    : '';
+
+  if (scriptTimeZone && typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+    try {
+      year = parseInt(Utilities.formatDate(now, scriptTimeZone, 'yyyy'), 10);
+      monthIndex = parseInt(Utilities.formatDate(now, scriptTimeZone, 'M'), 10) - 1;
+      date = parseInt(Utilities.formatDate(now, scriptTimeZone, 'd'), 10);
+      const isoDay = parseInt(Utilities.formatDate(now, scriptTimeZone, 'u'), 10);
+      day = isNaN(isoDay) ? day : (isoDay % 7);
+      hour = parseInt(Utilities.formatDate(now, scriptTimeZone, 'H'), 10);
+    } catch (e) {
+      console.warn(`⚠️ Impossibile applicare timezone script (${scriptTimeZone}): ${e.message}`);
+    }
+  }
 
   // 1. GESTIONE FESTIVI (Priorità: Sistema ATTIVO)
   for (const [hMonth, hDay] of ALWAYS_OPERATING_DAYS) {
@@ -131,10 +149,10 @@ function isInSuspensionTime(checkDate = new Date()) {
   // Pasquetta, Sabato Santo
   const easter = calculateEaster(year);
   const pasquetta = new Date(easter); pasquetta.setDate(easter.getDate() + 1);
-  if (now.getMonth() === pasquetta.getMonth() && date === pasquetta.getDate()) return false;
+  if (monthIndex === pasquetta.getMonth() && date === pasquetta.getDate()) return false;
 
   const holySaturday = new Date(easter); holySaturday.setDate(easter.getDate() - 1);
-  if (now.getMonth() === holySaturday.getMonth() && date === holySaturday.getDate()) return false;
+  if (monthIndex === holySaturday.getMonth() && date === holySaturday.getDate()) return false;
 
   // Ferie Segretario (Sheet)
   if (isInVacationPeriod(now)) return false;
@@ -484,7 +502,17 @@ function processEmailsMain() {
 
   } catch (error) {
     console.error(`💥 Errore fatale in processEmailsMain: ${error.message}`);
-    // Qui potremmo inviare un alert email all'admin
+
+    if (typeof createLogger === 'function') {
+      try {
+        const logger = createLogger('Main');
+        logger.error(`Errore fatale in processEmailsMain: ${error.message}`, {
+          stack: error && error.stack ? error.stack : null
+        });
+      } catch (logError) {
+        console.warn(`⚠️ Logger errore fatale non disponibile: ${logError.message}`);
+      }
+    }
   } finally {
     if (hasExecutionLock) {
       executionLock.releaseLock();
