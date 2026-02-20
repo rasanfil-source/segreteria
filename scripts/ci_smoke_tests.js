@@ -397,11 +397,13 @@ function testAntiLoopDetection() {
         })
     };
 
+    const readMessageIds = [];
     const buildMessage = (id, from, date) => ({
         getId: () => id,
         isUnread: () => true,
         getFrom: () => from,
-        getDate: () => date
+        getDate: () => date,
+        markRead: () => readMessageIds.push(id)
     });
 
     const baseDate = new Date('2026-02-15T09:00:00Z');
@@ -464,8 +466,8 @@ function testAntiLoopDetection() {
         assert(result.status === 'FILTERED', `Atteso status=FILTERED, ottenuto ${result.status}`);
         assert(result.reason === 'LOOP_PROTECTION', `Atteso reason=LOOP_PROTECTION, ottenuto ${result.reason}`);
 
-        const hasId = labeled.includes('m-11') || (global.__labeled && global.__labeled.includes('m-11'));
-        assert(hasId, `Il messaggio candidato deve essere etichettato come processato. Labeled: [${labeled.join(', ')}]. Global Labeled: [${(global.__labeled || []).join(', ')}]`);
+        const markedAsRead = readMessageIds.includes('m-11');
+        assert(markedAsRead, `Il messaggio candidato deve essere segnato come letto (processed). Read IDs: [${readMessageIds.join(', ')}]`);
     } finally {
         global.Session = originalSession;
         global.CacheService = originalCacheService;
