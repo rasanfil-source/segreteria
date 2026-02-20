@@ -18,6 +18,7 @@ Il sistema è progettato per:
 - ✅ **Mai dare informazioni sbagliate** → Se incerto, suggerisce contatto umano
 - ✅ **Mai tono inappropriato** → Validazione multi-livello del tono
 - ✅ **Sempre sotto controllo** → Tutto marcato con etichette Gmail per revisione
+- ✅ **Resilienza v2.2.x** → Caching persistente, lock sharded e parsing JSON ultra-robusto
 
 ---
 
@@ -164,6 +165,13 @@ Email Arriva
                │
                v
 ┌──────────────────────────────────────────────────────────┐
+│  JSON REPAIR (v2.2.1+)                                   │
+│  - _quoteUnquotedJsonKeysSafely: recupero chiavi malformate│
+│  - Markdown cleaning avanzato                             │
+└──────────────┬──────────────────────────────────────────┘
+               │
+               v
+┌──────────────────────────────────────────────────────────┐
 │  RESPONSE VALIDATION (7 Controlli)                       │
 │  1. Lunghezza (25-3000 caratteri)                        │
 │  2. Lingua consistente (IT/EN/ES)                        │
@@ -254,6 +262,7 @@ if (checkValue !== lockValue) return; // Race rilevata
 - Trigger ogni 5 minuti → possibile overlap
 - Stesso thread potrebbe essere processato 2 volte
 - Lock garantisce elaborazione atomica
+- v2.2.0+: Rilascio lock difensivo (gestione lock orfani o scaduti)
 
 #### 2. Anti-Loop Detection
 ```javascript

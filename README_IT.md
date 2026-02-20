@@ -32,6 +32,12 @@
 *   **Eccellenza Linguistica**: Gestione raffinata di grammatica e stili formali (es. nomi sacri).
 *   **Analisi Multi-Dimensionale**: Comprensione del carico emotivo e della complessità delle richieste.
 *   **Supporto OCR Integrato**: Elaborazione automatica di allegati e immagini per un contesto arricchito.
+*   **Resilienza v2.2.x (Hardening)**:
+    *   **Cache Persistente Label**: Riduzione drastica delle chiamate API Gmail tramite caching intelligente degli stati delle etichette.
+    *   **JSON Parsing Robusto**: Algoritmi di recupero per risposte LLM malformate (Safe Key Quoting).
+    *   **Gestione Lock Avanzata**: Lock sharded e retry con backoff per una concorrenza sicura su grandi volumi.
+    *   **Compatibilità Drive API**: Supporto trasparente per diverse versioni del servizio OCR di Google Drive.
+    *   **Timezone-Awareness**: Sincronizzazione perfetta degli orari di sospensione con il fuso orario dello script.
 
 ---
 
