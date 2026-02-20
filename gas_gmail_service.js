@@ -1208,7 +1208,7 @@ function markdownToHtml(text) {
   return `
     <div style="
       font-family: Arial, Helvetica, sans-serif;
-      font-size: 14px;
+      font-size: 20px;
       color: #351c75;
       line-height: 1.6;
     ">
