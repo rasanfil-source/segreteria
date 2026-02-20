@@ -546,9 +546,10 @@ class MemoryService {
    */
   _findRowByThreadId(threadId) {
     if (!this._sheet) return null;
+    const normalizedThreadId = String(threadId);
 
     // Punto 5: Ottimizzazione TextFinder limitando il range alla colonna A (Thread ID)
-    const finder = this._sheet.getRange('A:A').createTextFinder(threadId)
+    const finder = this._sheet.getRange('A:A').createTextFinder(normalizedThreadId)
       .matchEntireCell(true)      // Corrispondenza esatta
       .matchCase(true)            // Case sensitive
       .matchFormulaText(false);   // Cerca solo nei valori
@@ -565,7 +566,7 @@ class MemoryService {
         const rowValues = this._sheet.getRange(rowIndex, 1, 1, this._getColumnCount()).getValues()[0];
 
         // Doppio controllo per sicurezza
-        if (rowValues[0] === threadId) {
+        if (String(rowValues[0]) === normalizedThreadId) {
           return {
             rowIndex: rowIndex,
             values: rowValues

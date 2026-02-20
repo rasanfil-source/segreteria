@@ -609,7 +609,11 @@ ${addressLines.join('\n\n')}
       // ====================================================================================================
       let attachmentContext = { text: '', items: [], skipped: [] };
       if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
-        if (this._shouldTryOcr(messageDetails.body, messageDetails.subject, candidate)) {
+        // OCR può essere costoso: se siamo vicini alla deadline, preferiamo degradare e proseguire.
+        if (this._isNearDeadline(this.config.maxExecutionTimeMs)) {
+          attachmentContext.skipped.push({ reason: 'near_deadline' });
+          console.warn('   ⏳ OCR allegati saltato: tempo residuo insufficiente.');
+        } else if (this._shouldTryOcr(messageDetails.body, messageDetails.subject, candidate)) {
           attachmentContext = this.gmailService.extractAttachmentContext(candidate, {
             detectedLanguage: detectedLanguage,
             shouldContinue: () => !this._isNearDeadline(this.config.maxExecutionTimeMs)
@@ -676,6 +680,13 @@ ${addressLines.join('\n\n')}
       let response = null;
       let generationError = null;
       let strategyUsed = null;
+
+      if (this._isNearDeadline(this.config.maxExecutionTimeMs)) {
+        console.warn('⏳ Tempo residuo insufficiente prima della generazione AI: rimando il thread al prossimo turno.');
+        result.status = 'skipped';
+        result.reason = 'near_deadline_before_generation';
+        return result;
+      }
 
       // Punto 12: Utilizzo del metodo di classe centralizzato per la classificazione degli errori
 
@@ -1011,9 +1022,10 @@ ${addressLines.join('\n\n')}
 
         const thread = threads[index];
 
-        // Controllo tempo residuo
-        if (this._isNearDeadline(MAX_EXECUTION_TIME)) {
-          console.warn(`⏳ Tempo esecuzione in esaurimento. Interrompo dopo ${index} thread.`);
+        // Controllo tempo residuo (rigoroso): evita avvio di un nuovo thread senza buffer minimo
+        const remainingTimeMs = this._getRemainingTimeMs(MAX_EXECUTION_TIME);
+        if (remainingTimeMs < this.config.minRemainingTimeMs || this._isNearDeadline(MAX_EXECUTION_TIME)) {
+          console.warn(`⏳ Tempo insufficiente per un nuovo thread (${Math.round(remainingTimeMs / 1000)}s restanti). Stop preventivo.`);
           break;
         }
 
@@ -1225,6 +1237,13 @@ ${addressLines.join('\n\n')}
     const start = Number(this._startTime) || Date.now();
     const elapsed = Date.now() - start;
     return elapsed > Math.max(0, budgetMs - minRemainingMs);
+  }
+
+  _getRemainingTimeMs(maxExecutionTimeMs) {
+    const budgetMs = Number(maxExecutionTimeMs) || 330000;
+    const start = Number(this._startTime) || Date.now();
+    const elapsed = Date.now() - start;
+    return Math.max(0, budgetMs - elapsed);
   }
 
   _hasUnreadMessagesToProcess(thread, labeledMessageIds) {

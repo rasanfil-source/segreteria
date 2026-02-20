@@ -440,13 +440,14 @@ function processEmailsMain() {
 
   try {
     // 1. Sincronizzazione Esecuzione (Prevenzione concurrency selvaggia)
-    if (!executionLock.tryLock(5000)) {
+    hasExecutionLock = executionLock.tryLock(5000);
+    if (!hasExecutionLock) {
       console.warn('⚠️ Esecuzione già in corso o lock bloccato. Salto turno.');
       return;
     }
 
     // 2. Caricamento Risorse (Config, KB, Blacklist)
-    loadResources(false, true);
+    withSheetsRetry(() => loadResources(false, true), 'loadResources(processEmailsMain)');
 
     // 3. Controllo Stato Sistema
     if (!GLOBAL_CACHE.systemEnabled) {
@@ -481,6 +482,8 @@ function processEmailsMain() {
     console.error(`💥 Errore fatale in processEmailsMain: ${error.message}`);
     // Qui potremmo inviare un alert email all'admin
   } finally {
-    executionLock.releaseLock();
+    if (hasExecutionLock) {
+      executionLock.releaseLock();
+    }
   }
 }

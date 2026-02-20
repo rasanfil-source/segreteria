@@ -627,7 +627,11 @@ class ResponseValidator {
     const errors = [];
     const warnings = [];
     let score = 1.0;
-    const capitalizationExceptions = ['Dio', 'Gesù', 'Maria', 'Santo', 'Padre', 'Lei', 'La', 'Ella'];
+    const capitalizationExceptions = [
+      'Dio', 'Gesù', 'Maria', 'Santo', 'Padre', 'Lei', 'La', 'Ella',
+      // Titoli e forme onorifiche (specialmente in contesto ecclesiastico)
+      'Don', 'Monsignore', 'Mons', 'Suor', 'Fra', 'Frate', 'Reverendo', 'Cardinale', 'Vescovo'
+    ];
 
     // Parole italiane che NON devono essere maiuscole dopo una virgola
     const italianForbiddenCaps = [
