@@ -459,6 +459,7 @@ function deleteTriggersByHandler_(handlerName) {
 function processEmailsMain() {
   console.log('🚀 Avvio processEmailsMain - v2.0');
   const executionLock = LockService.getScriptLock();
+  let hasExecutionLock = false;
 
   try {
     // 1. Sincronizzazione Esecuzione (Prevenzione concurrency selvaggia)
