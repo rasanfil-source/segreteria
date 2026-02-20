@@ -56,7 +56,10 @@ class EmailProcessor {
       validationErrorLabel: typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica',
       validationWarningThreshold: typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_WARNING_THRESHOLD === 'number'
         ? CONFIG.VALIDATION_WARNING_THRESHOLD
-        : 0.9
+        : 0.9,
+      maxConsecutiveExternal: typeof CONFIG !== 'undefined' && typeof CONFIG.MAX_CONSECUTIVE_EXTERNAL === 'number'
+        ? CONFIG.MAX_CONSECUTIVE_EXTERNAL
+        : 5
     };
 
     this.logger.info('EmailProcessor inizializzato', {
@@ -333,7 +336,7 @@ class EmailProcessor {
       // STEP 0.5: ANTI-LOOP (rilevamento intelligente)
       // ====================================================================================================
       const MAX_THREAD_LENGTH = (typeof CONFIG !== 'undefined' && CONFIG.MAX_THREAD_LENGTH) ? CONFIG.MAX_THREAD_LENGTH : 10;
-      const MAX_CONSECUTIVE_EXTERNAL = 5;
+      const MAX_CONSECUTIVE_EXTERNAL = this.config.maxConsecutiveExternal;
 
       if (messages.length > MAX_THREAD_LENGTH) {
         const effectiveUser = Session.getEffectiveUser ? Session.getEffectiveUser() : null;
