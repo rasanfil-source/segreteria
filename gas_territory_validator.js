@@ -201,7 +201,10 @@ class TerritoryValidator {
             // Match solo se esiste almeno una coppia consecutiva
             // e con buona copertura dei token (riduce falsi positivi su strade simili)
             const overlapRatio = inputTokens.length / dbTokens.length;
-            if (hasConsecutivePair && overlapRatio >= 0.7) {
+            const missingTokenCount = dbTokens.length - inputTokens.length;
+            const acceptableAbbreviatedMatch = inputTokens.length >= 2 && missingTokenCount === 1;
+
+            if (hasConsecutivePair && (overlapRatio >= 0.7 || acceptableAbbreviatedMatch)) {
                 console.log(`\uD83D\uDD0D Match fuzzy trovato: '${inputStreet}' -> '${dbKey}'`);
                 return { key: dbKey, rules: dbRules };
             }
@@ -239,7 +242,7 @@ class TerritoryValidator {
             '(?:\\bs\\.\\s*|\\bs\\s+)': 'san ',
             '(?:\\bp\\.\\s*|\\bp\\s+)': 'piazza ',
             '(?:\\bl\\.\\s*|\\bl\\s+)': 'largo ',
-            '(?:\\bv\\.\\s*|\\bv\\s+)': 'via ',
+            '(?:^\\s*v\\.\\s*|^\\s*v\\s+)': 'via ',
             '(?:\\bc\\.\\s*|\\bc\\s+)': 'corso ',
             '(?:\\bu\\.\\s*|\\bu\\s+)': 'ulisse ',
             '(?:\\bm\\.\\s*|\\bm\\s+)': 'maria '
