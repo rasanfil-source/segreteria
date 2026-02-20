@@ -415,8 +415,8 @@ class ResponseValidator {
     const warnings = [];
     let score = 1.0;
 
-    // Nei follow-up ravvicinati o in sessione la firma è opzionale
-    if (salutationMode === 'none_or_continuity' || salutationMode === 'session') {
+    // Nei follow-up ravvicinati la firma è opzionale
+    if (salutationMode === 'none_or_continuity') {
       return { score, errors, warnings };
     }
 
@@ -627,6 +627,7 @@ class ResponseValidator {
     const errors = [];
     const warnings = [];
     let score = 1.0;
+    const capitalizationExceptions = ['Dio', 'Gesù', 'Maria', 'Santo', 'Padre', 'Lei', 'La', 'Ella'];
 
     // Parole italiane che NON devono essere maiuscole dopo una virgola
     const italianForbiddenCaps = [
@@ -679,6 +680,10 @@ class ResponseValidator {
     while ((match = pattern.exec(response)) !== null) {
       if (!match[1]) continue;
       const word = String(match[1]); // Punto 8: Coercizione esplicita a stringa
+
+      if (capitalizationExceptions.includes(word)) {
+        continue;
+      }
 
       // Euristica nomi doppi: se la parola è seguita da un'altra maiuscola,
       // probabilmente sono nomi propri (es. "Maria Isabella", "Gian Luca")
@@ -1008,6 +1013,7 @@ class ResponseValidator {
       return text;
     }
 
+    const capitalizationExceptions = ['Dio', 'Gesù', 'Maria', 'Santo', 'Padre', 'Lei', 'La', 'Ella'];
     let result = text;
 
     // Per ogni parola vietata, cerca ", Parola" e sostituisci con ", parola"
@@ -1016,6 +1022,9 @@ class ResponseValidator {
     targets.forEach(word => {
       const regex = new RegExp(`,\\s+(${word})\\b`, 'g');
       result = result.replace(regex, (fullMatch, p1, offset) => {
+        if (capitalizationExceptions.includes(p1)) {
+          return fullMatch;
+        }
         // Euristica nomi doppi: se seguito da un'altra parola maiuscola, non correggere
         const afterMatchPos = offset + fullMatch.length;
         const textAfter = result.substring(afterMatchPos);

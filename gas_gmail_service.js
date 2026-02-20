@@ -1192,11 +1192,18 @@ function markdownToHtml(text) {
     );
   });
 
-  // 6. Paragraphs e line breaks
+  // 6. Liste markdown (bullet) -> <ul><li>
+  html = html.replace(/^[•\-*]\s+(.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(?:<li>.*?<\/li>\s*)+/gs, (block) => {
+    const cleaned = block.replace(/\n+/g, '');
+    return `<ul style="margin:8px 0;padding-left:20px;">${cleaned}</ul>`;
+  });
+
+  // 7. Paragraphs e line breaks
   html = html.replace(/\n\n+/g, '</p><p>');
   html = html.replace(/\n/g, '<br>');
 
-  // 7. Emoji to HTML entities
+  // 8. Emoji to HTML entities
   html = Array.from(html).map(char => {
     const codePoint = char.codePointAt(0);
     if (codePoint > 0xFFFF) {

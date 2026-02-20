@@ -498,6 +498,16 @@ class TerritoryValidator {
             };
         }
 
+        if (Array.isArray(rules.tutti)) {
+            const [min, max] = rules.tutti;
+            return {
+                inParish: null,
+                needsCivic: true,
+                reason: `'${street}' ha copertura parziale (${min}-${max}): serve il numero civico per la verifica`,
+                details: 'range_civic_required'
+            };
+        }
+
         return {
             inParish: null,
             needsCivic: true,
