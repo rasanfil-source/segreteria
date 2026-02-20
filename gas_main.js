@@ -256,6 +256,7 @@ function main() {
  * Funzione principale invocata dal trigger temporale (es. ogni 5 min)
  */
 function processEmailsMain() {
+  console.log('🚀 Avvio processEmailsMain - v2.8.6.1');
   const executionLock = LockService.getScriptLock();
 
   try {

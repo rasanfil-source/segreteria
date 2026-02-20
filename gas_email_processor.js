@@ -326,8 +326,13 @@ class EmailProcessor {
     }
 
     // Ricerca thread non letti
-    const threads = GmailApp.search(`is:unread label:${this.config.labelName}`, 0, this.config.maxEmailsPerRun);
-    this.logger.info(`Trovati ${threads.length} thread da elaborare`);
+    const defaultQuery = `in:inbox is:unread -label:${this.config.labelName} -label:${this.config.errorLabelName} -label:${this.config.validationErrorLabel}`;
+    const searchQuery = (typeof CONFIG !== 'undefined' && CONFIG.GMAIL_UNREAD_QUERY)
+      ? CONFIG.GMAIL_UNREAD_QUERY
+      : defaultQuery;
+
+    const threads = GmailApp.search(searchQuery, 0, this.config.maxEmailsPerRun);
+    this.logger.info(`Trovati ${threads.length} thread da elaborare`, { query: searchQuery });
 
     const results = {
       processed: 0,
@@ -458,11 +463,4 @@ function computeSalutationMode(ctx) {
   return 'session';
 }
 
-function createLogger(context) {
-  return {
-    info: (msg, data) => console.log(`[INFO][${context}] ${msg}`, data || ''),
-    warn: (msg, data) => console.log(`[WARN][${context}] ${msg}`, data || ''),
-    error: (msg, data) => console.error(`[ERROR][${context}] ${msg}`, data || ''),
-    debug: (msg, data) => console.log(`[DEBUG][${context}] ${msg}`, data || '')
-  };
-}
+
