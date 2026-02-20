@@ -683,6 +683,12 @@ ${addressLines.join('\n\n')}
             skipRateLimit: plan.skipRateLimit
           });
 
+          // Compatibilità: GeminiService può restituire stringa (legacy) oppure
+          // oggetto strutturato { success, text, modelUsed }.
+          if (response && typeof response === 'object') {
+            response = response.text;
+          }
+
           if (response) {
             strategyUsed = plan.name;
             console.log(`✅ Generazione riuscita con strategia: ${plan.name}`);
@@ -720,6 +726,16 @@ ${addressLines.join('\n\n')}
       }
 
       // Controlla marcatore NO_REPLY
+      if (typeof response !== 'string') {
+        console.error(`🛑 Risposta non valida da Gemini: tipo ricevuto '${typeof response}'`);
+        this._addErrorLabel(thread);
+        this._markMessageAsProcessed(candidate);
+        result.status = 'error';
+        result.error = 'Invalid response type from GeminiService';
+        result.errorClass = 'DATA';
+        return result;
+      }
+
       if (response.trim() === 'NO_REPLY') {
         console.log('   ⊖ AI ha restituito NO_REPLY');
         this._markMessageAsProcessed(candidate);
