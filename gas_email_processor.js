@@ -19,7 +19,14 @@
 class EmailProcessor {
   constructor(options = {}) {
     // Logger strutturato
-    this.logger = createLogger('EmailProcessor');
+    this.logger = (typeof createLogger === 'function')
+      ? createLogger('EmailProcessor')
+      : {
+        info: (...args) => console.log(...args),
+        warn: (...args) => console.warn(...args),
+        error: (...args) => console.error(...args),
+        debug: (...args) => console.log(...args)
+      };
     this.logger.info('Inizializzazione EmailProcessor');
 
     // Inietta dipendenze o crea default
@@ -102,7 +109,7 @@ class EmailProcessor {
         scriptCache.put(threadLockKey, lockValue, ttlSeconds);
 
         // 3. Pausa per rilevare conflitti
-        const raceSleep = (typeof CONFIG !== 'undefined' && CONFIG.CACHE_RACE_SLEEP_MS) ? CONFIG.CACHE_RACE_SLEEP_MS : 50;
+        const raceSleep = (typeof CONFIG !== 'undefined' && CONFIG.CACHE_RACE_SLEEP_MS) ? CONFIG.CACHE_RACE_SLEEP_MS : 200;
         Utilities.sleep(raceSleep);
 
         // 4. Doppio controllo
@@ -817,7 +824,19 @@ ${addressLines.join('\n\n')}
         return result;
       }
 
-      this.gmailService.sendHtmlReply(candidate, response, messageDetails);
+      try {
+        this.gmailService.sendHtmlReply(candidate, response, messageDetails);
+      } catch (e) {
+        const errorMessage = e && e.message ? e.message : String(e);
+        console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
+        this._addErrorLabel(thread);
+        if (candidate) {
+          this._markMessageAsProcessed(candidate);
+        }
+        result.status = 'error';
+        result.error = `gmail_send_failed: ${errorMessage}`;
+        return result;
+      }
 
       // ====================================================================================================
       // STEP 11: AGGIORNA MEMORIA (solo se non DRY_RUN)

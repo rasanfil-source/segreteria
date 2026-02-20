@@ -4,6 +4,18 @@
  * Include logica sospensione oraria e festività italiane
  */
 
+// Inizializzazione difensiva cache globale condivisa tra moduli
+var GLOBAL_CACHE = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBAL_CACHE : {
+  loaded: false,
+  knowledgeBase: '',
+  doctrineBase: [],
+  systemEnabled: true,
+  vacationPeriods: [],
+  suspensionRules: {},
+  ignoreDomains: [],
+  ignoreKeywords: []
+};
+
 // ====================================================================
 // FESTIVITÀ E SOSPENSIONE
 // ====================================================================

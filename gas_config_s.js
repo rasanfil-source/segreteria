@@ -10,7 +10,7 @@ const CONFIG = {
     // === API ===
     // In produzione: PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY')
     GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY_HERE',
-    MODEL_NAME: 'gemini-2.5-flash',
+    MODEL_NAME: 'gemini-1.5-flash',
 
     // === Generazione ===
     TEMPERATURE: 0.5,
@@ -54,7 +54,7 @@ const CONFIG = {
 
     // === Cache e Lock ===
     CACHE_LOCK_TTL: 240,                 // Secondi (copre OCR + AI + validazione semantica)
-    CACHE_RACE_SLEEP_MS: 50,             // Attesa anti-race condition
+    CACHE_RACE_SLEEP_MS: 200,             // Attesa anti-race condition
 
     // === Knowledge Base ===
     // In produzione: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID')
@@ -96,7 +96,7 @@ const CONFIG = {
     GEMINI_MODELS: {
         // Modello premium: qualità massima per generazione risposte
         'flash-2.5': {
-            name: 'gemini-2.5-flash',
+            name: 'gemini-1.5-flash',
             rpm: 10,        // Richieste per minuto
             tpm: 250000,    // Token per minuto
             rpd: 250,       // Richieste per giorno
@@ -104,7 +104,7 @@ const CONFIG = {
         },
         // Modello workhorse: quick check e fallback
         'flash-lite': {
-            name: 'gemini-2.5-flash-lite',
+            name: 'gemini-2.0-flash-exp',
             rpm: 15,
             tpm: 250000,
             rpd: 1000,

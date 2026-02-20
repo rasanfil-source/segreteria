@@ -196,6 +196,54 @@ class Classifier {
   // METODI HELPER
   // ========================================================================
 
+  _stripBlockquotesSafely(input) {
+    const text = typeof input === 'string' ? input : '';
+    if (!text) return '';
+
+    const openTag = /<blockquote\b[^>]*>/gi;
+    const closeTag = /<\/blockquote>/gi;
+    let result = '';
+    let cursor = 0;
+    let depth = 0;
+    let openMatch = openTag.exec(text);
+    let closeMatch = closeTag.exec(text);
+
+    while (openMatch || closeMatch) {
+      let nextMatch = null;
+      let isOpenTag = false;
+
+      if (openMatch && (!closeMatch || openMatch.index <= closeMatch.index)) {
+        nextMatch = openMatch;
+        isOpenTag = true;
+      } else {
+        nextMatch = closeMatch;
+      }
+
+      if (depth === 0 && nextMatch.index > cursor) {
+        result += text.slice(cursor, nextMatch.index);
+      }
+
+      cursor = nextMatch.index + nextMatch[0].length;
+      if (isOpenTag) {
+        depth++;
+        openMatch = openTag.exec(text);
+      } else {
+        depth = Math.max(0, depth - 1);
+        closeMatch = closeTag.exec(text);
+      }
+    }
+
+    if (depth === 0 && cursor < text.length) {
+      result += text.slice(cursor);
+    }
+
+    if (depth > 0) {
+      console.warn('⚠️ Blockquote HTML non bilanciato: tronco la sezione quotata residua');
+    }
+
+    return result.replace(/<blockquote\b[^>]*>/gi, '').replace(/<\/blockquote>/gi, '');
+  }
+
   /**
    * Estrae contenuto principale, rimuovendo citazioni e firme
    * Gestisce blockquote HTML e vari formati client email
@@ -208,20 +256,8 @@ class Classifier {
       processedBody = processedBody.substring(0, MAX_LENGTH);
     }
 
-    // Rimuove blockquote con limite iterazioni per evitare loop su HTML malformato
-    let iterations = 0;
-    const MAX_ITERATIONS = 10;
-    while (/<blockquote/i.test(processedBody) && iterations < MAX_ITERATIONS) {
-      processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
-      iterations++;
-    }
-    if (iterations >= MAX_ITERATIONS) {
-      console.warn('⚠️ Raggiunto limite rimozione blockquote');
-      // Rimuove eventuali blockquote non chiusi rimasti dopo il limite
-      processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*$/gi, '');
-    }
-    processedBody = processedBody.replace(/<blockquote[^>]*>/gi, '');
-    processedBody = processedBody.replace(/<\/blockquote>/gi, '');
+    // Rimuove blockquote in modo lineare per evitare backtracking catastrofico su HTML malformato
+    processedBody = this._stripBlockquotesSafely(processedBody);
 
     // Rimuove div.gmail_quote
     processedBody = processedBody.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*?<\/div>/gi, '');
