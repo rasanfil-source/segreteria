@@ -242,9 +242,18 @@ class EmailProcessor {
       // il bot NON deve inviare un'altra risposta. Si attende il prossimo messaggio utente.
       // ====================================================================================================
       const lastMessage = messages[messages.length - 1];
-      const lastSender = (lastMessage.getFrom() || '').toLowerCase();
+      const lastSenderRaw = lastMessage.getFrom() || '';
+      const lastSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
+        ? this.gmailService._extractEmailAddress(lastSenderRaw).toLowerCase()
+        : '';
+      const knownAliases = (typeof CONFIG !== 'undefined' && CONFIG.KNOWN_ALIASES) ? CONFIG.KNOWN_ALIASES : [];
+      const normalizedMyEmail = myEmail ? myEmail.toLowerCase() : '';
+      const lastSpeakerIsUs = Boolean(lastSenderEmail) && Boolean(normalizedMyEmail) && (
+        lastSenderEmail === normalizedMyEmail ||
+        knownAliases.some(alias => lastSenderEmail === alias.toLowerCase())
+      );
 
-      if (myEmail && lastSender.includes(myEmail.toLowerCase())) {
+      if (lastSpeakerIsUs) {
         console.log('   ⊖ Saltato: l\'ultimo messaggio del thread è già nostro (bot o segreteria)');
         // Non marchiamo nulla, semplicemente ci fermiamo finché l'utente non risponde
         result.status = 'skipped';

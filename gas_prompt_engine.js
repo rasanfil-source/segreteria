@@ -110,7 +110,9 @@ class PromptEngine {
 
     const OVERHEAD_TOKENS = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS)
       ? CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS : 15000; // Riserva per istruzioni e sistema
-    const KB_BUDGET_RATIO = 0.5; // La KB può occupare max il 50% dello spazio rimanente
+    const KB_BUDGET_RATIO = (typeof CONFIG !== 'undefined' && typeof CONFIG.KB_TOKEN_BUDGET_RATIO === 'number')
+      ? CONFIG.KB_TOKEN_BUDGET_RATIO
+      : 0.5; // La KB può occupare max il 50% dello spazio rimanente
     const availableForKB = Math.max(0, (MAX_SAFE_TOKENS - OVERHEAD_TOKENS) * KB_BUDGET_RATIO);
     const kbCharsLimit = Math.round(availableForKB * 4);
 
