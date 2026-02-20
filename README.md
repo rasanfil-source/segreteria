@@ -20,6 +20,12 @@
 ✅ **"I have a personal problem and would like to speak with a priest"** → Empathetic tone + direct contacts  
 ✅ **Email in English/Spanish** → Response in the same language  
 
+### ✨ NEW v2.6: Hardening & Performance
+*   **Sharded Lock Management (TTL)**: Atomic lock optimization with dynamic Time-To-Live to reduce contention and increase speed under high load.
+*   **Semantic KB Truncation**: The Knowledge Base is truncated while preserving paragraph integrity, avoiding mid-sentence cuts and ensuring token budgets are strictly respected.
+*   **WAL Resilience (Write-Ahead Log)**: Extended recovery window for the Rate Limiter, ensuring quota counters are preserved even during timeouts or execution crashes.
+*   **Validator Hardening**: Improved defensive checks on KB availability and extended support for specific address formats (e.g., civic number 0).
+
 ### ✨ NEW in v2.5: Prompt Engine Optimization & Smart RAG
 *   **Modular Dynamic Prompt**: The prompt is built "on the fly" assembling only necessary blocks (e.g., no Sacrament rules if talking about Mass Times), saving tokens and increasing precision.
 *   **Smart RAG (Doctrine)**: Advanced integration with Doctrine. Specific directives, examples, and warnings are loaded dynamically based on the topic, allowing pinpoint pastoral guidance.

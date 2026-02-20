@@ -21,6 +21,12 @@
 ✅ **"Ho un problema personale e vorrei parlare con un sacerdote"** → Tono empatico + contatti diretti  
 ✅ **Email in inglese/spagnolo** → Risposta nella stessa lingua  
 
+### ✨ NOVITÀ v2.6: Hardening & Performance
+*   **Gestione Lock Sharded (TTL)**: Ottimizzazione dei lock atomici con Time-To-Live dinamico per ridurre la contention e aumentare la velocità in caso di carichi elevati.
+*   **Troncamento KB Semantico**: La Knowledge Base viene troncata preservando l'integrità dei paragrafi, evitando interruzioni a metà frase e garantendo che il budget di token sia sempre rispettato con precisione.
+*   **Resilienza WAL (Write-Ahead Log)**: Finestra di recovery estesa per il Rate Limiter, garantendo che i contatori delle quote siano preservati anche in caso di timeout o crash durante l'esecuzione.
+*   **Validator Hardening**: Controlli difensivi migliorati sulla disponibilità della KB e supporto esteso per indirizzi particolari (es. civici numero 0).
+
 ### ✨ NOVITÀ v2.5: Ottimizzazione Prompt Engine & Smart RAG
 *   **Prompt Dinamico Modulare**: Il prompt viene costruito "al volo" assemblando solo i blocchi necessari (es. inutile includere regole per i Sacramenti se si parla di Orari), risparmiando token e aumentando la precisione.
 *   **Smart RAG (Dottrina)**: Integrazione avanzata con la Dottrina. Direttive specifiche, esempi e warning vengono caricati dinamicamente in base al topic, permettendo una guida pastorale millimetrica.
