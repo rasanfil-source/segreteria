@@ -169,7 +169,7 @@ class EmailProcessor {
 
       if (senderLower.includes('no-reply') || senderLower.includes('noreply') || autoResponseHeader.toLowerCase().includes('all')) {
         this.logger.info(`Messaggio ignorato (Auto-Reply/No-Reply): ${senderEmail}`, { threadId });
-        this._markMessageAsProcessed(lastMessage, 'Ignorato');
+        this._markMessageAsProcessed(lastMessage, null); // Segna solo come letto senza etichetta
         return { status: 'FILTERED', reason: 'AUTO_REPLY' };
       }
 
@@ -178,7 +178,7 @@ class EmailProcessor {
 
       if (!classification.shouldReply) {
         this.logger.info(`Messaggio scartato dal classificatore: ${classification.reason}`, { threadId });
-        this._markMessageAsProcessed(lastMessage, 'Scartato');
+        this._markMessageAsProcessed(lastMessage, null); // Segna solo come letto senza etichetta
         return { status: 'FILTERED', reason: classification.reason };
       }
 
@@ -187,7 +187,7 @@ class EmailProcessor {
       const memDate = memory.lastUpdated ? new Date(memory.lastUpdated) : null;
       if (memory.messageCount >= 6 && memDate && (lastMsgDate - memDate < 15 * 60 * 1000)) {
         this.logger.warn(`Possibile loop rilevato per ${senderEmail}`, { threadId, count: memory.messageCount });
-        this._markMessageAsProcessed(lastMessage, 'Loop-Detected');
+        this._markMessageAsProcessed(lastMessage, null); // Segna solo come letto senza etichetta
         return { status: 'FILTERED', reason: 'LOOP_PROTECTION' };
       }
 
@@ -382,7 +382,7 @@ class EmailProcessor {
       if (!messageId) return;
 
       // Usa gmailService per l'etichettatura (così è mockabile e consistente)
-      if (this.gmailService && typeof this.gmailService.addLabelToMessage === 'function') {
+      if (labelName && this.gmailService && typeof this.gmailService.addLabelToMessage === 'function') {
         this.gmailService.addLabelToMessage(messageId, labelName);
       }
     } catch (e) {
