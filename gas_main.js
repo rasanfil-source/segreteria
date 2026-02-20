@@ -246,6 +246,13 @@ function _loadAdvancedConfig(ss) {
 // ====================================================================
 
 /**
+ * Compatibilità: Entry point storico per i trigger GAS
+ */
+function main() {
+  processEmailsMain();
+}
+
+/**
  * Funzione principale invocata dal trigger temporale (es. ogni 5 min)
  */
 function processEmailsMain() {
