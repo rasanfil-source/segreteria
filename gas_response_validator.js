@@ -23,7 +23,7 @@ class ResponseValidator {
 
     // Soglie lunghezza
     this.MIN_LENGTH_CHARS = 25;
-    this.OPTIMAL_MIN_LENGTH = 100;
+    this.OPTIMAL_MIN_LENGTH = 80;
     this.WARNING_MAX_LENGTH = 3000;
 
     // Frasi vietate (indicatori di incertezza/allucinazione)
@@ -61,7 +61,8 @@ class ResponseValidator {
     this.thinkingRegexes = [
       /\b(devo|dovrei|bisogna|necessario)\s+(usare|correggere|evitare|modificare|aggiornare)\b/i, // Meta-commenti
       /\b(knowledge base|kb)\s+(dice|afferma|contiene|riporta|indica)\b/i,                       // Riferimenti KB
-      /\b(rivedendo|consultando|controllando|verificando)\s+(la\s+)?(knowledge base|kb)\b/i      // Azioni su KB
+      /\b(rivedendo|consultando|controllando|verificando)\s+(la\s+)?(knowledge base|kb)\b/i,     // Azioni su KB
+      /\b(ho\s+)?dedott[oaie]?\b[^.\n]{0,120}\b(knowledge base|kb)\b/i                          // Deduzioni esplicite da KB
     ];
 
     this.thinkingPatterns = [
@@ -462,6 +463,12 @@ class ResponseValidator {
       }
     }
 
+    const bracketPlaceholderPattern = /\[[A-Z][A-Z0-9_\s-]{1,30}\]/g;
+    const bracketPlaceholders = response.match(bracketPlaceholderPattern) || [];
+    if (bracketPlaceholders.length > 0) {
+      foundPlaceholders.push(...bracketPlaceholders);
+    }
+
     if (foundPlaceholders.length > 0) {
       errors.push(`Contiene placeholder: ${foundPlaceholders.join(', ')}`);
       score = 0.0;
@@ -716,11 +723,7 @@ class ResponseValidator {
     let score = 1.0;
     const foundPatterns = [];
 
-    // Ottimizzazione: Scansiona solo i primi 500 caratteri (dove solitamente appare il ragionamento)
-    // per evitare ReDoS su risposte molto lunghe
-    const scanLimit = 500;
-    const textToScan = response.substring(0, scanLimit);
-    const responseLower = textToScan.toLowerCase();
+    const responseLower = response.toLowerCase();
 
     // 1. Cerca pattern Regex (Meta-commenti strutturali)
     for (const regex of this.thinkingRegexes) {
