@@ -240,7 +240,6 @@ function _loadResourcesInternal() {
   if (kbSheet) {
     const data = kbSheet.getDataRange().getValues();
     GLOBAL_CACHE.knowledgeBase = data.map(r => r.join(' | ')).join('\n');
-    GLOBAL_CACHE.doctrineBase = _parseSheetToStructured(data);
   }
 
   // Prompt resources aggiuntive (usate da PromptEngine)
@@ -268,11 +267,7 @@ function _loadResourcesInternal() {
   if (doctrineSheet) {
     const doctrineData = doctrineSheet.getDataRange().getValues();
     GLOBAL_CACHE.doctrineStructured = _parseSheetToStructured(doctrineData);
-
-    // Compatibilità con codice legacy che usa doctrineBase testuale
-    if (!GLOBAL_CACHE.doctrineBase || GLOBAL_CACHE.doctrineBase.length === 0) {
-      GLOBAL_CACHE.doctrineBase = doctrineData.map(r => r.join(' | ')).join('\n');
-    }
+    GLOBAL_CACHE.doctrineBase = doctrineData.map(r => r.join(' | ')).join('\n');
   }
 
   // Config Avanzata

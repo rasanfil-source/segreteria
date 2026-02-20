@@ -86,9 +86,14 @@ class MemoryService {
    */
   _ensureMemorySummaryColumn() {
     try {
+      const maxCols = this._sheet.getMaxColumns();
+      if (maxCols < 9) {
+        this._sheet.insertColumnsAfter(maxCols, 9 - maxCols);
+      }
+
       const headers = this._sheet.getRange('A1:I1').getValues()[0];
       // La colonna I è la nona colonna (indice 8)
-      if (headers.length < 9 || headers[8] !== 'memorySummary') {
+      if (headers[8] !== 'memorySummary') {
         console.log('🔄 Aggiunta colonna mancante: memorySummary');
         const cell = this._sheet.getRange('I1');
         cell.setValue('memorySummary');

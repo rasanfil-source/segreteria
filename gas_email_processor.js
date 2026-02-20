@@ -336,7 +336,8 @@ class EmailProcessor {
       const MAX_CONSECUTIVE_EXTERNAL = 5;
 
       if (messages.length > MAX_THREAD_LENGTH) {
-        const ourEmail = Session.getActiveUser()?.getEmail() || '';
+        const effectiveUser = Session.getEffectiveUser ? Session.getEffectiveUser() : null;
+        const ourEmail = myEmail || (effectiveUser ? effectiveUser.getEmail() : '');
         if (!ourEmail) {
           console.warn('   ⚠️ Email utente non disponibile: skip controllo anti-loop basato su mittente');
         }
