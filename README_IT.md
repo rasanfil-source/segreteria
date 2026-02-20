@@ -28,6 +28,7 @@
 *   **Raffinamento Validazione**: Controlli qualitativi estesi per una precisione millimetrica nell'interazione.
 *   **Prompt Engine Modulare**: Assemblaggio dinamico del contesto per massimizzare la pertinenza di ogni risposta.
 *   **Smart RAG (Dottrina)**: Integrazione profonda con il magistero e le direttive parrocchiali.
+> ℹ️ **Nota operativa**: il blocco Dottrina è caricato in cache ma viene incluso nel prompt solo quando il classifier rileva una necessità dottrinale (`needsDoctrine`) o un topic pertinente. È normale che, in casistiche reali, le email dottrinali siano una minoranza.
 *   **Eccellenza Linguistica**: Gestione raffinata di grammatica e stili formali (es. nomi sacri).
 *   **Analisi Multi-Dimensionale**: Comprensione del carico emotivo e della complessità delle richieste.
 *   **Supporto OCR Integrato**: Elaborazione automatica di allegati e immagini per un contesto arricchito.

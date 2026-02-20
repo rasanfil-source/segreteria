@@ -395,7 +395,7 @@ classify(subject, body, externalHint) {
 
 **Flags Attivazione:**
 - `needsDiscernment` → Attiva AI_CORE (principi pastorali estesi)
-- `needsDoctrine` → Attiva foglio Dottrina (Catechismo, Magistero)
+- `needsDoctrine` → Attiva foglio Dottrina (Catechismo, Magistero). In produzione può attivarsi raramente: è atteso se la maggior parte delle email è amministrativa/pratica.
 
 ---
 
