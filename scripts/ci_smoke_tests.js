@@ -523,6 +523,34 @@ function testInvalidateCacheAlsoClearsRobustCache() {
     }
 }
 
+function testMainDoesNotLeakHasExecutionLockGlobal() {
+    loadScript('gas_main.js');
+
+    const originalLockService = global.LockService;
+    const hadHasExecutionLock = Object.prototype.hasOwnProperty.call(global, 'hasExecutionLock');
+    const originalHasExecutionLock = global.hasExecutionLock;
+
+    global.LockService = {
+        getScriptLock: () => ({
+            tryLock: () => false,
+            releaseLock: () => { throw new Error('releaseLock non deve essere chiamato se tryLock fallisce'); }
+        })
+    };
+
+    try {
+        processEmailsMain();
+        const leaked = Object.prototype.hasOwnProperty.call(global, 'hasExecutionLock');
+        assert(!leaked, 'processEmailsMain non deve creare una variabile globale hasExecutionLock');
+    } finally {
+        global.LockService = originalLockService;
+        if (hadHasExecutionLock) {
+            global.hasExecutionLock = originalHasExecutionLock;
+        } else {
+            delete global.hasExecutionLock;
+        }
+    }
+}
+
 function testRateLimiterRecoverRequiresLock() {
     loadScript('gas_rate_limiter.js');
 
