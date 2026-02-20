@@ -1005,6 +1005,7 @@ ${addressLines.join('\n\n')}
       console.log(`   ⊖ Filtrate (AI/Regole): ${stats.filtered}`);
       if (stats.validationFailed > 0) console.warn(`   🛑 Validazione fallita: ${stats.validationFailed}`);
       if (stats.errors > 0) console.error(`   🛑 Errori: ${stats.errors}`);
+      stats.processed = processedCount;
       console.log('='.repeat(70));
 
       return stats;

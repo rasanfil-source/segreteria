@@ -282,7 +282,7 @@ function processEmailsMain() {
 
     // 4. Orchestrazione Pipeline
     const processor = new EmailProcessor();
-    const results = processor.processUnreadEmailsMain();
+    const results = processor.processUnreadEmails(GLOBAL_CACHE.kbText, GLOBAL_CACHE.kbStructured || []);
 
     console.log(`📊 Batch completato: ${results.processed} processati, ${results.errors} errori.`);
 

@@ -994,7 +994,7 @@ Non mostrare mai entrambi i set di orari.`;
     const humanDate = dateObj.toLocaleDateString('it-IT', options);
 
     return `══════════════════════════════════════════════════════
-📅 DATA ODIERNA: ${currentDate} (${humanDate})
+🗓️ DATA ODIERNA: ${currentDate} (${humanDate})
 ══════════════════════════════════════════════════════
 
 ⚠️ REGOLE TEMPORALI CRITICHE - PENSA COME UN UMANO:
@@ -1073,7 +1073,7 @@ ${hints[effectiveCategory]}` : null;
 📋 ICONE CONSIGLIATE PER CATEGORIA:
 
 **ORARI E DATE:**
-• 📅 Date specifiche | ⏰ Orari | 🕒 Orari Messe
+• 🗓️ Date specifiche | ⏰ Orari | 🕒 Orari Messe
 
 **LUOGHI E CONTATTI:**
 • 📍 Indirizzo / Luogo | 📞 Telefono | 📧 Email
