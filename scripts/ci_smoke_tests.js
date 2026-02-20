@@ -598,7 +598,28 @@ function testPromptLiteTokenBudget() {
 
 function runGoldenCases() {
     const cases = JSON.parse(fs.readFileSync('tests/golden_cases.json', 'utf8'));
-    assert(Array.isArray(cases) && cases.length >= 50, 'golden_cases.json deve contenere almeno 50 casi');
+    assert(Array.isArray(cases) && cases.length >= 20, 'golden_cases.json deve contenere almeno 20 casi');
+
+    const canonicalize = (value) => {
+        if (Array.isArray(value)) return value.map(canonicalize);
+        if (value && typeof value === 'object') {
+            return Object.keys(value).sort().reduce((acc, key) => {
+                if (key === 'id') return acc;
+                acc[key] = canonicalize(value[key]);
+                return acc;
+            }, {});
+        }
+        return value;
+    };
+
+    const signatures = new Map();
+    for (const testCase of cases) {
+        const signature = JSON.stringify(canonicalize(testCase));
+        if (signatures.has(signature)) {
+            throw new Error(`golden_cases.json contiene casi duplicati: ${signatures.get(signature)} e ${testCase.id}`);
+        }
+        signatures.set(signature, testCase.id);
+    }
 
     const sandbox = {
         console,

@@ -221,7 +221,7 @@ class PromptEngine {
 
     // 9. CONTESTO STAGIONALE E TEMPORALE
     addSection(this._renderSeasonalContext(currentSeason), 'SeasonalContext');
-    addSection(this._renderTemporalAwareness(currentDate), 'TemporalAwareness');
+    addSection(this._renderTemporalAwareness(currentDate, detectedLanguage), 'TemporalAwareness');
 
     // 10. SUGGERIMENTO CATEGORIA
     addSection(this._renderCategoryHint(category), 'CategoryHint');
@@ -907,7 +907,8 @@ SALUTI SOFT CORRETTI:
     const apologyByLanguage = {
       it: 'Ci scusiamo per il ritardo con cui rispondiamo.',
       en: 'We apologize for the delay in responding.',
-      es: 'Pedimos disculpas por la demora en nuestra respuesta.'
+      es: 'Pedimos disculpas por la demora en nuestra risposta.',
+      pt: 'Pedimos desculpas pelo atraso na nossa resposta.'
     };
 
     const apologyLine = apologyByLanguage[detectedLanguage] || apologyByLanguage.it;
@@ -982,7 +983,7 @@ Non mostrare mai entrambi i set di orari.`;
   // TEMPLATE 11: CONSAPEVOLEZZA TEMPORALE
   // ========================================================================
 
-  _renderTemporalAwareness(currentDate) {
+  _renderTemporalAwareness(currentDate, detectedLanguage = 'it') {
     let dateObj;
     if (typeof currentDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(currentDate)) {
       const [year, month, day] = currentDate.split('-').map(Number);
@@ -991,7 +992,9 @@ Non mostrare mai entrambi i set di orari.`;
       dateObj = new Date(currentDate);
     }
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    const humanDate = dateObj.toLocaleDateString('it-IT', options);
+    const localeByLanguage = { it: 'it-IT', en: 'en-GB', es: 'es-ES', pt: 'pt-PT' };
+    const locale = localeByLanguage[detectedLanguage] || localeByLanguage.it;
+    const humanDate = dateObj.toLocaleDateString(locale, options);
 
     return `══════════════════════════════════════════════════════
 🗓️ DATA ODIERNA: ${currentDate} (${humanDate})
