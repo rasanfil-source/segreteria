@@ -41,3 +41,7 @@ node_modules/**
 .gemini/**
 package*.json
 scripts/**
+*.txt
+*.log
+*.md
+!appsscript.json
