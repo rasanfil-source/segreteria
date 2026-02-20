@@ -29,7 +29,7 @@ class GeminiRateLimiter {
       console.warn('   \u26A0\uFE0F CONFIG.GEMINI_MODELS non trovato, uso default');
       this.models = {
         'flash-2.5': {
-          name: 'gemini-1.5-flash',
+          name: 'gemini-2.5-flash',
           rpm: 15, tpm: 1000000, rpd: 1500,
           useCases: ['generation', 'all']
         },
