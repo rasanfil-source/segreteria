@@ -52,7 +52,14 @@ const CONFIG = {
         ocrLanguage: 'it',               // Lingua OCR (Drive Advanced API)
         ocrConfidenceWarningThreshold: 0.8, // Soglia warning leggibilità OCR in risposta
         pdfMaxPages: 2,                  // Limite pagine PDF (stima via OCR)
-        pdfCharsPerPage: 1800            // Stima caratteri per pagina PDF
+        pdfCharsPerPage: 1800,           // Stima caratteri per pagina PDF
+        ocrTriggerKeywords: [            // Attiva OCR solo se il contenuto è rilevante
+            'iban', 'bonifico', 'ricevuta', 'documento',
+            'allego', 'in allegato', 'coordinate', 'modulo'
+        ],
+        ibanFocusEnabled: true,          // Focus OCR se viene trovato un IBAN
+        ibanContextChars: 300,           // Finestra +/- per testo attorno all'IBAN
+        maxCharsWhenKbTruncated: 2000    // Riduzione allegati se KB è troncata
     },
 
     // === Cache e Lock ===
@@ -77,6 +84,7 @@ const CONFIG = {
 
     // === Modalità ===
     DRY_RUN: false,                      // True per test senza invio email
+    FORCE_RELOAD: false,                 // Forza ricaricamento cache KB
     USE_RATE_LIMITER: true,              // Rate limiter intelligente abilitato
 
     // === Limiti Token (Prompt Engine) ===
@@ -93,6 +101,11 @@ const CONFIG = {
         SEND_ERROR_NOTIFICATIONS: true,    // Invia email per errori critici
         ADMIN_EMAIL: 'rasanfil@gmail.com'  // Email admin per notifiche
     },
+
+    // === Metriche Giornaliere ===
+    // Configurare METRICS_SHEET_ID in Script Properties per abilitare export
+    METRICS_SHEET_ID: 'YOUR_METRICS_SHEET_ID_HERE',
+    METRICS_SHEET_NAME: 'DailyMetrics',
 
     // === Modelli Gemini (configurazione centralizzata) ===
     // Aggiornato: Gennaio 2026
