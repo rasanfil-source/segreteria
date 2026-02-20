@@ -1,4 +1,4 @@
-# 🔧 Troubleshooting
+# 🔧 Diagnostics and Operational Scenarios
 
 [![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](TROUBLESHOOTING_IT.md)
 
@@ -441,7 +441,7 @@ function testMemory() {
 
 ---
 
-## 🐛 Specific Parish Problems
+## ⛪ Specific Parish Scenarios
 
 ### 9. Inappropriate Tone for Pastoral Situations
 
@@ -661,7 +661,7 @@ testSpecificEmail(
 
 ---
 
-## 🐛 Known Issues
+## 🔍 Model Characteristics
 
 ### Issue #1: Gemini 2.5 Thinking Leak ⚠️ MITIGATED v2.4.0
 

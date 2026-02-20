@@ -21,27 +21,16 @@
 ✅ **"Ho un problema personale e vorrei parlare con un sacerdote"** → Tono empatico + contatti diretti  
 ✅ **Email in inglese/spagnolo** → Risposta nella stessa lingua  
 
-### ✨ NOVITÀ v2.6: Hardening & Performance
-*   **Gestione Lock Sharded (TTL)**: Ottimizzazione dei lock atomici con Time-To-Live dinamico per ridurre la contention e aumentare la velocità in caso di carichi elevati.
-*   **Troncamento KB Semantico**: La Knowledge Base viene troncata preservando l'integrità dei paragrafi, evitando interruzioni a metà frase e garantendo che il budget di token sia sempre rispettato con precisione.
-*   **Resilienza WAL (Write-Ahead Log)**: Finestra di recovery estesa per il Rate Limiter, garantendo che i contatori delle quote siano preservati anche in caso di timeout o crash durante l'esecuzione.
-*   **Validator Hardening**: Controlli difensivi migliorati sulla disponibilità della KB e supporto esteso per indirizzi particolari (es. civici numero 0).
-
-### ✨ NOVITÀ v2.5: Ottimizzazione Prompt Engine & Smart RAG
-*   **Prompt Dinamico Modulare**: Il prompt viene costruito "al volo" assemblando solo i blocchi necessari (es. inutile includere regole per i Sacramenti se si parla di Orari), risparmiando token e aumentando la precisione.
-*   **Smart RAG (Dottrina)**: Integrazione avanzata con la Dottrina. Direttive specifiche, esempi e warning vengono caricati dinamicamente in base al topic, permettendo una guida pastorale millimetrica.
-*   **Validazione Semantica (Gemini)**: Quando i controlli standard (regex) non sono sicuri, il sistema chiede un "secondo parere" a Gemini stesso per stanare allucinazioni sottili o ragionamenti esposti ("Thinking Leak").
-*   **Checklist Contestuali**: Ogni risposta viene verificata contro una checklist che si adatta alla lingua e al territorio (es. controlli specifici per indirizzi romani).
-*   **Anti-Leak & Sanificazione**: Protezione avanzata contro la fuoriuscita di "pensieri" dell'AI e sanificazione automatica degli input utente per template sensibili (es. Sbattezzo).
-*   **Supporto OCR Allegati**: Lettura e comprensione automatica di PDF e immagini allegate (es. IBAN, documenti) per arricchire il contesto della risposta.
-
-### ✨ NOVITÀ v2.4: Intelligenza Avanzata
-*   **Self-Healing**: Corregge errori comuni (maiuscole, link duplicati) automaticamente.
-*   **Analisi Multi-Dimensionale**: Capisce non solo l'argomento ma anche il **carico emotivo** e la **complessità**.
-*   **Memoria Reattiva**: Ricorda se hai capito ("Grazie!") o se sei confuso ("Non ho capito") e adatta la risposta successiva.
-*   **Ascolto Attivo Intelligente (Anti-Ridondanza)**: Se l'utente dice "Ho già scaricato il modulo", l'IA evita di inviargli di nuovo il link.
-*   **Gestione Automatica Ritardi**: Se l'email è vecchia di oltre 3 giorni, il sistema istruisce l'IA a iniziare scusandosi per il ritardo, mantenendo poi un tono professionale.
-*   **Correttezza Linguistica & Stile**: L'IA usa sempre la grammatica corretta (es. "il canale") anche se l'utente la sbaglia ("la canale"), ignorando silenziosamente gli errori di battitura.
+### ✨ Versione 2.0: Solidità & Affidabilità
+*   **Gestione Lock Avanzata**: Ottimizzazione dei lock atomici per una coordinazione perfetta dei processi.
+*   **Gestione Semantica KB**: Troncamento intelligente della Knowledge Base per garantire risposte sempre complete e coerenti.
+*   **Resilienza Operativa**: Sistema di monitoraggio delle quote integrato per una continuità di servizio costante.
+*   **Raffinamento Validazione**: Controlli qualitativi estesi per una precisione millimetrica nell'interazione.
+*   **Prompt Engine Modulare**: Assemblaggio dinamico del contesto per massimizzare la pertinenza di ogni risposta.
+*   **Smart RAG (Dottrina)**: Integrazione profonda con il magistero e le direttive parrocchiali.
+*   **Eccellenza Linguistica**: Gestione raffinata di grammatica e stili formali (es. nomi sacri).
+*   **Analisi Multi-Dimensionale**: Comprensione del carico emotivo e della complessità delle richieste.
+*   **Supporto OCR Integrato**: Elaborazione automatica di allegati e immagini per un contesto arricchito.
 
 ---
 
@@ -73,7 +62,7 @@ graph LR
 **Nessuna email viene cancellata.** Il sistema aggiunge solo delle etichette:
 - 🟢 **"IA"** = Risposta inviata con successo
 - 🟡 **"Verifica"** = Risposta generata ma da controllare prima dell'invio
-- 🔴 **"Errore"** = Problema tecnico, controllare manualmente
+- 🔴 **"Errore"** = Richiesta di intervento manuale
 
 ---
 

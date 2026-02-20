@@ -65,7 +65,7 @@ Controlla i log in **Apps Script → Esecuzioni** per pattern comuni:
 | "Firma mancante" | Pattern firma errato |
 | "Contenuto vietato rilevato" | Frasi proibite |
 | "Allucinazione rilevata" | Dati non in KB |
-| "Thinking leak" | Gemini 2.5 bug |
+| "Thinking leak" | Caratteristica Gemini |
 
 ### Step 3: Analisi Dettagliata
 

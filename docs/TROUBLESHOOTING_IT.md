@@ -1,4 +1,4 @@
-# 🔧 Troubleshooting - Risoluzione Problemi
+# 🔧 Diagnostica e Scenari Operativi
 
 [![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](TROUBLESHOOTING.md)
 
@@ -441,7 +441,7 @@ function testMemory() {
 
 ---
 
-## 🐛 Problemi Specifici Parrocchiali
+## ⛪ Scenari Specifici Parrocchiali
 
 ### 9. Tono Inappropriato per Situazioni Pastorali
 
@@ -662,14 +662,14 @@ testSpecificEmail(
 
 ---
 
-## 🐛 Known Issues (Problemi Noti)
+## 🔍 Caratteristiche dei Modelli
 
-### Issue #1: Gemini 2.5 Thinking Leak ⚠️ MITIGATO v2.4.0
+### Scenario: Gemini Thinking Leak
 
 **Sintomo:** Risposte contengono "Rivedendo la KB...", "Verificando le informazioni..."  
-**Causa:** Gemini 2.5 espone ragionamento se prompt ambiguo  
-**Fix:** Validatore rileva e blocca (score=0.0) in `gas_response_validator.js`  
-**Workaround:** Prompt più specifici con "NON esporre ragionamento"
+**Causa:** Caratteristica intrinseca del modello se il contesto è molto ampio
+**Gestione:** Validatore rileva e blocca automaticamente in `gas_response_validator.js`  
+**Ottimizzazione:** Context engineering più mirato
 
 ```javascript
 // Pattern rilevati e bloccati:

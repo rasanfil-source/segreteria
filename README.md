@@ -20,25 +20,16 @@
 ✅ **"I have a personal problem and would like to speak with a priest"** → Empathetic tone + direct contacts  
 ✅ **Email in English/Spanish** → Response in the same language  
 
-### ✨ NEW v2.6: Hardening & Performance
-*   **Sharded Lock Management (TTL)**: Atomic lock optimization with dynamic Time-To-Live to reduce contention and increase speed under high load.
-*   **Semantic KB Truncation**: The Knowledge Base is truncated while preserving paragraph integrity, avoiding mid-sentence cuts and ensuring token budgets are strictly respected.
-*   **WAL Resilience (Write-Ahead Log)**: Extended recovery window for the Rate Limiter, ensuring quota counters are preserved even during timeouts or execution crashes.
-*   **Validator Hardening**: Improved defensive checks on KB availability and extended support for specific address formats (e.g., civic number 0).
-
-### ✨ NEW in v2.5: Prompt Engine Optimization & Smart RAG
-*   **Modular Dynamic Prompt**: The prompt is built "on the fly" assembling only necessary blocks (e.g., no Sacrament rules if talking about Mass Times), saving tokens and increasing precision.
-*   **Smart RAG (Doctrine)**: Advanced integration with Doctrine. Specific directives, examples, and warnings are loaded dynamically based on the topic, allowing pinpoint pastoral guidance.
-*   **Contextual Checklists**: Every response is verified against a checklist that adapts to the language and territory (e.g., specific checks for Roman addresses).
-*   **Anti-Leak & Sanitization**: Advanced protection against AI "thought" leaks and automatic input sanitization for sensitive templates (e.g., Formal requests).
-*   **OCR Attachment Support**: Automatic reading and understanding of attached PDFs and images (e.g., IBANs, documents) to enrich response context.
-
-### ✨ NEW in v2.4: Advanced Intelligence
-*   **Self-Healing**: Automatically fixes common errors (typos, duplicate links) before sending.
-*   **Multi-Dimensional Analysis**: Understands not just the topic, but the **emotional load** and **complexity**.
-*   **Reactive Memory**: Remembers if you understood ("Thanks!") or are confused ("I don't get it") and adapts the next reply.
-*   **Smart Active Listening (Anti-Redundancy)**: If the user says "I already have the form", the AI avoids sending the link again.
-*   **Linguistic Correctness & Style**: The AI always uses correct grammar (e.g. "il canale") even if the user makes a typo ("la canale"), silently ignoring the error.
+### ✨ Versione 2.0: Solidità & Affidabilità
+*   **Gestione Lock Avanzata**: Ottimizzazione dei lock atomici per una coordinazione perfetta dei processi.
+*   **Gestione Semantica KB**: Troncamento intelligente della Knowledge Base per garantire risposte sempre complete e coerenti.
+*   **Resilienza Operativa**: Sistema di monitoraggio delle quote integrato per una continuità di servizio costante.
+*   **Raffinamento Validazione**: Controlli qualitativi estesi per una precisione millimetrica nell'interazione.
+*   **Prompt Engine Modulare**: Assemblaggio dinamico del contesto per massimizzare la pertinenza di ogni risposta.
+*   **Smart RAG (Dottrina)**: Integrazione profonda con il magistero e le direttive parrocchiali.
+*   **Eccellenza Linguistica**: Gestione raffinata di grammatica e stili formali (es. nomi sacri).
+*   **Analisi Multi-Dimensionale**: Comprensione del carico emotivo e della complessità delle richieste.
+*   **Supporto OCR Integrato**: Elaborazione automatica di allegati e immagini per un contesto arricchito.
 
 ---
 
@@ -70,7 +61,7 @@ graph LR
 **No email is deleted.** The system only adds labels:
 - 🟢 **"IA"** = Reply sent successfully
 - 🟡 **"Verifica"** = Reply generated but needs checking before sending
-- 🔴 **"Errore"** = Technical problem, check manually
+- 🔴 **"Errore"** = Richiesta di intervento manuale
 
 ---
 

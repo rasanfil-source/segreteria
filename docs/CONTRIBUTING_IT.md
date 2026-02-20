@@ -24,13 +24,13 @@ Grazie per il tuo interesse nel contribuire a SPA! Accogliamo contributi da svil
 *   **Sicurezza**: Assicurati che le tue modifiche non compromettano la "Safety Valve" o la logica di Rate Limiting.
 *   **Sensibilità Pastorale**: Ogni modifica che influenza la generazione delle risposte deve essere testata contro scenari pastorali (es. lutto, disagio spirituale) per garantire che il tono rimanga appropriato.
 
-## Segnalare Bug
+## Suggerimenti e Feedback
 
-Per favore apri una issue su GitHub con:
-1.  Descrizione del bug.
-2.  Step per riprodurre.
-3.  Log rilevanti (sanitizzati).
-4.  Comportamento Atteso vs Reale.
+Per proporre evoluzioni o segnalare comportamenti inattesi, apri una issue su GitHub con:
+1. Descrizione del comportamento osservato.
+2. Step per riprodurre lo scenario.
+3. Log rilevanti (sanitizzati).
+4. Risultato desiderato vs Risultato attuale.
 
 ## Licenza
 

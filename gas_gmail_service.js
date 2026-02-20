@@ -274,7 +274,8 @@ class GmailService {
       ocrLanguage: 'it',
       ocrConfidenceWarningThreshold: 0.8,
       pdfMaxPages: 2,
-      pdfCharsPerPage: 1800
+      pdfCharsPerPage: 1800,
+      shouldContinue: null
     }, defaults, options);
 
     settings.ocrLanguage = this._resolveOcrLanguage(options.detectedLanguage || settings.ocrLanguage || 'it');
@@ -301,6 +302,12 @@ class GmailService {
     let totalChars = 0;
 
     for (const attachment of attachments) {
+      if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) {
+        skipped.push({ reason: 'near_deadline' });
+        console.warn('   ⏳ OCR interrotto: tempo residuo insufficiente');
+        break;
+      }
+
       const attachmentName = attachment.getName ? attachment.getName() : 'allegato';
       if (items.length >= settings.maxFiles) {
         skipped.push({ name: attachmentName, reason: 'max_files' });
@@ -406,6 +413,10 @@ class GmailService {
   _extractOcrTextFromAttachment(attachment, settings) {
     let fileId = null;
     try {
+      if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) {
+        return '';
+      }
+
       if (typeof Drive === 'undefined' || !Drive.Files || !Drive.Files.insert) {
         throw new Error('Drive Advanced Service non abilitato');
       }

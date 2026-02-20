@@ -28,7 +28,7 @@ graph TD
 
 ## 📊 Quick Decision Matrix
 
-| Symptom | Probable Cause | Immediate Fix | Reference Doc |
+| Symptom | Probable Cause | Immediate Action | Reference Doc |
 |---------|----------------|---------------|---------------|
 | No emails processed | Trigger inactive | `setupTrigger()` | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | All emails in "Verifica" | Threshold too high | `VALIDATION_MIN_SCORE=0.5` | [TROUBLESHOOTING.md](../TROUBLESHOOTING.md#4) |
@@ -109,11 +109,11 @@ setupTrigger();
 ### Scenario 2: Too Many Emails in "Verifica" (>30%)
 
 ```javascript
-// Temporary fix: lower threshold
+// Temporary action: lower threshold
 // In gas_config.js:
 CONFIG.VALIDATION_MIN_SCORE = 0.5;  // Was 0.6
 
-// Permanent fix: analyze logs for error patterns
+// Permanent action: analyze logs for error patterns
 function analyzeVerificaPatterns() {
   const verifyLabel = GmailApp.getUserLabelByName('Verifica');
   const threads = verifyLabel.getThreads(0, 20);
@@ -124,7 +124,7 @@ function analyzeVerificaPatterns() {
 ### Scenario 3: API Quota Exhausted (Error 429)
 
 ```javascript
-// Immediate fix: use only economical model
+// Immediate action: use only economical model
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
   'generation': ['flash-lite']  // Avoid flash-2.5

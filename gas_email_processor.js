@@ -606,7 +606,8 @@ ${addressLines.join('\n\n')}
       if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
         if (this._shouldTryOcr(messageDetails.body, messageDetails.subject, candidate)) {
           attachmentContext = this.gmailService.extractAttachmentContext(candidate, {
-            detectedLanguage: detectedLanguage
+            detectedLanguage: detectedLanguage,
+            shouldContinue: () => !this._isNearDeadline(this.config.maxExecutionTimeMs)
           });
         } else {
           attachmentContext.skipped.push({ reason: 'precheck_no_ocr' });
@@ -1010,6 +1011,18 @@ ${addressLines.join('\n\n')}
           console.warn(`⏳ Tempo esecuzione in esaurimento. Interrompo dopo ${index} thread.`);
           break;
         }
+
+        // Fast-skip: evita pipeline completa/lock quando i non letti sono già etichettati.
+        // Riduce overhead su thread marcati manualmente come "non letto" ma già gestiti.
+        if (!this._hasUnreadMessagesToProcess(thread, labeledMessageIds)) {
+          console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
+          console.log('   ⊖ Fast-skip: thread con soli non letti già etichettati IA');
+          stats.total++;
+          stats.skipped++;
+          stats.skipped_processed++;
+          continue;
+        }
+
         console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
 
         const result = this.processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds);
@@ -1206,6 +1219,28 @@ ${addressLines.join('\n\n')}
     const start = Number(this._startTime) || Date.now();
     const elapsed = Date.now() - start;
     return elapsed > Math.max(0, budgetMs - minRemainingMs);
+  }
+
+  _hasUnreadMessagesToProcess(thread, labeledMessageIds) {
+    try {
+      const messages = thread.getMessages() || [];
+      const unreadMessages = messages.filter(m => m.isUnread());
+
+      // Nessun non letto: non c'è lavoro da fare.
+      if (unreadMessages.length === 0) {
+        return false;
+      }
+
+      const effectiveLabeledIds = (labeledMessageIds && labeledMessageIds.size > 0)
+        ? labeledMessageIds
+        : this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+
+      return unreadMessages.some(message => !effectiveLabeledIds.has(message.getId()));
+    } catch (e) {
+      // Fallback sicuro: in caso di errore non bloccare il thread, lasciamo decidere a processThread.
+      this.logger.warn(`⚠️ Fast-skip check fallito: ${e.message}`);
+      return true;
+    }
   }
 
   _addErrorLabel(thread) {

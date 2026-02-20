@@ -24,13 +24,13 @@ Thank you for your interest in contributing to SPA! We welcome contributions fro
 *   **Safety**: Ensure that your changes do not compromise the "Safety Valve" or Rate Limiting logic.
 *   **Pastoral Sensitivity**: Any change affecting response generation must be tested against pastoral scenarios (e.g., bereavement, spiritual distress) to ensure tone remains appropriate.
 
-## Reporting Bugs
+## Feedback and Suggestions
 
-Please open an issue on GitHub with:
-1.  Description of the bug.
-2.  Steps to reproduce.
+To propose features or report unexpected behavior, please open an issue on GitHub with:
+1.  Description of the observed behavior.
+2.  Steps to reproduce the scenario.
 3.  Relevant logs (sanitized).
-4.  Expected vs Actual behavior.
+4.  Expected vs Actual outcome.
 
 ## License
 
