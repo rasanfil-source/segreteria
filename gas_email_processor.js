@@ -59,6 +59,9 @@ class EmailProcessor {
         : 0.9,
       maxConsecutiveExternal: typeof CONFIG !== 'undefined' && typeof CONFIG.MAX_CONSECUTIVE_EXTERNAL === 'number'
         ? CONFIG.MAX_CONSECUTIVE_EXTERNAL
+        : 5,
+      emptyInboxWarningThreshold: typeof CONFIG !== 'undefined' && typeof CONFIG.EMPTY_INBOX_WARNING_THRESHOLD === 'number'
+        ? CONFIG.EMPTY_INBOX_WARNING_THRESHOLD
         : 5
     };
 
@@ -983,10 +986,17 @@ ${addressLines.join('\n\n')}
       );
 
       if (threads.length === 0) {
-        console.log('Nessuna email da elaborare.');
-        return { total: 0, replied: 0, filtered: 0, errors: 0 };
+        const emptyStreak = this._trackEmptyInboxStreak(true);
+        console.log(`Nessuna email da elaborare (query: ${searchQuery}).`);
+
+        if (emptyStreak >= this.config.emptyInboxWarningThreshold) {
+          console.warn(`⚠️ Inbox vuota da ${emptyStreak} esecuzioni consecutive. Verificare filtri Gmail/trigger in ingresso.`);
+        }
+
+        return { total: 0, replied: 0, filtered: 0, errors: 0, emptyStreak: emptyStreak };
       }
 
+      this._trackEmptyInboxStreak(false);
       console.log(`📬 Trovate ${threads.length} email da elaborare (query: ${searchQuery})`);
 
       // Carica etichette una sola volta
@@ -1499,6 +1509,21 @@ ${addressLines.join('\n\n')}
   /**
    * Rileva riferimenti temporali (mesi) in varie lingue
    */
+  _trackEmptyInboxStreak(isEmpty) {
+    const cache = CacheService.getScriptCache();
+    const key = 'empty_inbox_streak';
+    let streak = parseInt(cache.get(key) || '0');
+
+    if (isEmpty) {
+      streak++;
+      cache.put(key, streak.toString(), 21600); // 6 ore
+    } else {
+      streak = 0;
+      cache.remove(key);
+    }
+    return streak;
+  }
+
   _detectTemporalMentions(text, language) {
     // Punto 15: Protezione contro input nulli o non validi
     if (!text || typeof text !== 'string') return false;

@@ -29,18 +29,18 @@ class GeminiRateLimiter {
       console.warn('   \u26A0\uFE0F CONFIG.GEMINI_MODELS non trovato, uso default');
       this.models = {
         'flash-2.5': {
-          name: 'gemini-2.5-flash',
-          rpm: 15, tpm: 250000, rpd: 250,
-          useCases: ['generation', 'quick_check', 'all']
+          name: 'gemini-1.5-flash',
+          rpm: 15, tpm: 1000000, rpd: 1500,
+          useCases: ['generation', 'all']
         },
         'flash-lite': {
-          name: 'gemini-2.5-flash-lite',
-          rpm: 30, tpm: 1000000, rpd: 1000,
-          useCases: ['fallback', 'high_volume', 'quick_check']
+          name: 'gemini-2.0-flash-exp',
+          rpm: 10, tpm: 1000000, rpd: 1500,
+          useCases: ['fallback', 'classification', 'quick_check']
         },
         'flash-2.0': {
           name: 'gemini-2.0-flash',
-          rpm: 15, tpm: 250000, rpd: 250,
+          rpm: 10, tpm: 1000000, rpd: 1500,
           useCases: ['generation', 'all']
         }
       };
@@ -54,8 +54,8 @@ class GeminiRateLimiter {
       // Fallback default
       this.strategies = {
         'quick_check': ['flash-lite', 'flash-2.5'],
-        'generation': ['flash-2.5', 'flash-lite'],
-        'fallback': ['flash-lite', 'flash-2.5']
+        'generation': ['flash-2.5', 'flash-2.0', 'flash-lite'],
+        'fallback': ['flash-lite', 'flash-2.0']
       };
     }
 

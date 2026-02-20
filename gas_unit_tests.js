@@ -240,6 +240,19 @@ function runAllTests() {
         });
     });
 
+    // 6. GmailService OCR document parsing
+    testGroup('Punto #6: GmailService - OCR document hints', results, () => {
+        const service = new GmailService();
+        test('Riconosce certificato di battesimo', results, () => {
+            const t = service._detectDocumentType('certificato_battesimo.pdf', 'certificato di battesimo');
+            return t === 'Certificato di battesimo';
+        });
+        test('Maschera codice fiscale estratto', results, () => {
+            const fields = service._extractDocumentFields('Codice fiscale: RSSMRA80A01H501U', true);
+            return fields.length > 0 && fields[0].includes('*') && !fields[0].includes('RSSMRA80A01H501U');
+        });
+    });
+
     const duration = Date.now() - start;
     const successRate = results.total > 0 ? ((results.passed / results.total) * 100).toFixed(1) : 0;
 

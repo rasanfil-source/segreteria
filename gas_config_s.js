@@ -10,7 +10,7 @@ const CONFIG = {
     // === API ===
     // In produzione: PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY')
     GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY_HERE',
-    MODEL_NAME: 'gemini-2.5-flash',
+    MODEL_NAME: 'gemini-1.5-flash',
 
     // === Generazione ===
     TEMPERATURE: 0.5,
@@ -37,6 +37,8 @@ const CONFIG = {
     // Ridotto a 3 per supportare strategia "Cross-Key Quality First"
     // Fino a 4 chiamate API per email → batch ridotto per prevenire timeout GAS (6 min)
     MAX_EMAILS_PER_RUN: 3,
+    MAX_CONSECUTIVE_EXTERNAL: 5,        // Soglia per rilevamento email loop
+    EMPTY_INBOX_WARNING_THRESHOLD: 5,   // Soglia per warning inbox vuota
     SUSPENSION_STALE_UNREAD_HOURS: 12,    // Paracadute: processa unread vecchie anche in fascia sospesa
     MIN_REMAINING_TIME_MS: 90000,      // Stop preventivo se resta meno di 90 secondi
     GMAIL_LABEL_CACHE_TTL: 3600000,      // 1 ora in millisecondi
@@ -97,34 +99,34 @@ const CONFIG = {
     GEMINI_MODELS: {
         // Modello premium: qualità massima per generazione risposte
         'flash-2.5': {
-            name: 'gemini-2.5-flash',
-            rpm: 10,        // Richieste per minuto
-            tpm: 250000,    // Token per minuto
-            rpd: 250,       // Richieste per giorno
+            name: 'gemini-1.5-flash',
+            rpm: 15,
+            tpm: 1000000,
+            rpd: 1500,
             useCases: ['generation']
         },
         // Modello workhorse: quick check e fallback
         'flash-lite': {
             name: 'gemini-2.0-flash-exp',
-            rpm: 15,
-            tpm: 250000,
-            rpd: 1000,
+            rpm: 10,
+            tpm: 1000000,
+            rpd: 1500,
             useCases: ['quick_check', 'classification', 'semantic', 'fallback']
         },
         // Modello legacy: backup se tutto esaurito
         'flash-2.0': {
             name: 'gemini-2.0-flash',
-            rpm: 5,
-            tpm: 250000,
-            rpd: 100,
+            rpm: 10,
+            tpm: 1000000,
+            rpd: 1500,
             useCases: ['fallback']
         }
     },
 
     // Strategia selezione modelli per task (ordine = priorità)
     MODEL_STRATEGY: {
-        'quick_check': ['flash-lite', 'flash-2.0'],
-        'generation': ['flash-2.5', 'flash-lite', 'flash-2.0'],
+        'quick_check': ['flash-lite', 'flash-2.5'],
+        'generation': ['flash-2.5', 'flash-2.0', 'flash-lite'],
         'semantic': ['flash-lite', 'flash-2.0'],
         'fallback': ['flash-lite', 'flash-2.0']
     },

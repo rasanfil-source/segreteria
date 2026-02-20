@@ -377,11 +377,16 @@ class GmailService {
         clipped = clipped.slice(0, Math.max(0, remaining - 1)).trim() + '…';
       }
 
+      const documentType = this._detectDocumentType(attachmentName, clipped);
+      const extractedFields = this._extractDocumentFields(clipped, settings.documentFieldMasking !== false);
+
       items.push({
         name: attachmentName,
         contentType: contentType,
         size: size,
         ocrConfidence: ocrConfidence,
+        documentType: documentType,
+        extractedFields: extractedFields,
         text: clipped
       });
 
@@ -394,7 +399,16 @@ class GmailService {
 
     const text = items.map((item, idx) => {
       const sizeKb = item.size ? `${Math.round(item.size / 1024)}KB` : 'n/a';
-      return `(${idx + 1}) ${item.name} [${item.contentType || 'tipo sconosciuto'}, ${sizeKb}]\n${item.text}`;
+      const docTypeLine = item.documentType ? `Tipo documento stimato: ${item.documentType}` : '';
+      const extractedFieldsLine = (item.extractedFields && item.extractedFields.length > 0)
+        ? `Campi rilevati: ${item.extractedFields.join(' | ')}`
+        : '';
+      return [
+        `(${idx + 1}) ${item.name} [${item.contentType || 'tipo sconosciuto'}, ${sizeKb}]`,
+        docTypeLine,
+        extractedFieldsLine,
+        item.text
+      ].filter(Boolean).join('\n');
     }).join('\n\n');
 
     const averageConfidence = items.length > 0
@@ -1020,6 +1034,64 @@ class GmailService {
     results.isHealthy = results.connectionOk && results.canListMessages;
     return results;
   }
+
+  _detectDocumentType(fileName, text) {
+    const source = `${fileName || ''}\n${text || ''}`.toLowerCase();
+    const docPatterns = [
+      { type: 'Modulo iscrizione cresima', patterns: ['cresima', 'confermazione'], minMatches: 1 },
+      { type: 'Modulo iscrizione prima comunione/catechesi', patterns: ['prima comunione', 'catechesi', 'catechismo'], minMatches: 1 },
+      { type: 'Modulo corso prematrimoniale', patterns: ['prematrimonial', 'fidanzati', 'matrimonio'], minMatches: 1 },
+      { type: 'Certificato di battesimo', patterns: ['certificato', 'battesimo', 'battezz'], minMatches: 2 },
+      { type: 'Certificato di cresima', patterns: ['certificato', 'cresima', 'confermazion'], minMatches: 2 },
+      { type: 'Documento identità/passaporto', patterns: ['carta d\'identit', 'documento di identit', 'passaporto'], minMatches: 1 },
+      { type: 'Tessera sanitaria/codice fiscale', patterns: ['tessera sanitaria', 'codice fiscale'], minMatches: 1 }
+    ];
+
+    for (const rule of docPatterns) {
+      const matches = rule.patterns.reduce((acc, pattern) => acc + (source.includes(pattern) ? 1 : 0), 0);
+      if (matches >= (rule.minMatches || rule.patterns.length)) {
+        return rule.type;
+      }
+    }
+
+    if (source.includes('certificato')) return 'Certificato (non specificato)';
+    if (source.includes('modulo') || source.includes('iscrizione')) return 'Modulo parrocchiale';
+    return 'Documento generico';
+  }
+
+  _extractDocumentFields(text, shouldMask = true) {
+    const value = `${text || ''}`;
+    if (!value) return [];
+
+    const extract = [];
+    const patterns = [
+      { label: 'Nome e cognome', regex: /(?:nome\s*(?:e\s*cognome)?|cognome\s*e\s*nome)\s*[:\-]\s*([^\n,;]{3,80})/i },
+      { label: 'Data di nascita', regex: /(?:data\s*di\s*nascita|nato\/a\s*il)\s*[:\-]?\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i },
+      { label: 'Luogo di nascita', regex: /(?:luogo\s*di\s*nascita|nato\/a\s*a)\s*[:\-]\s*([^\n,;]{2,80})/i },
+      { label: 'Codice fiscale', regex: /\b([A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z])\b/i },
+      { label: 'Documento', regex: /(?:numero\s*(?:documento|doc\.)|n\.\s*documento)\s*[:\-]?\s*([A-Z0-9\-]{5,20})/i },
+      { label: 'Contatto email', regex: /\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b/i },
+      { label: 'Telefono', regex: /(?:tel(?:efono)?|cell(?:ulare)?)\s*[:\-]?\s*(\+?[0-9\s]{7,16})/i }
+    ];
+
+    for (const p of patterns) {
+      const m = value.match(p.regex);
+      if (!m || !m[1]) continue;
+      const normalized = m[1].trim();
+      extract.push(`${p.label}: ${shouldMask ? this._maskSensitiveValue(normalized) : normalized}`);
+    }
+
+    return extract.slice(0, 8);
+  }
+
+  _maskSensitiveValue(raw) {
+    const value = `${raw || ''}`.trim();
+    if (!value) return '';
+    if (value.length <= 4) return '****';
+    const visiblePrefix = value.slice(0, 2);
+    const visibleSuffix = value.slice(-2);
+    return `${visiblePrefix}${'*'.repeat(Math.max(4, value.length - 4))}${visibleSuffix}`;
+  }
 }
 
 // Funzione factory
@@ -1153,6 +1225,58 @@ function escapeHtml(text) {
 function markdownToHtml(text) {
   if (!text) return '';
 
+  const replaceMarkdownLinks = (input, replacer) => {
+    let result = '';
+    let cursor = 0;
+
+    while (cursor < input.length) {
+      const openBracket = input.indexOf('[', cursor);
+      if (openBracket === -1) {
+        result += input.slice(cursor);
+        break;
+      }
+
+      result += input.slice(cursor, openBracket);
+
+      const closeBracket = input.indexOf(']', openBracket + 1);
+      if (closeBracket === -1 || input[closeBracket + 1] !== '(') {
+        result += input.slice(openBracket, closeBracket === -1 ? input.length : closeBracket + 1);
+        cursor = closeBracket === -1 ? input.length : closeBracket + 1;
+        continue;
+      }
+
+      const linkText = input.slice(openBracket + 1, closeBracket);
+      let i = closeBracket + 2;
+      let depth = 0;
+      let foundClosingParen = false;
+
+      while (i < input.length) {
+        const ch = input[i];
+        if (ch === '(') {
+          depth++;
+        } else if (ch === ')') {
+          if (depth === 0) {
+            foundClosingParen = true;
+            break;
+          }
+          depth--;
+        }
+        i++;
+      }
+
+      if (!foundClosingParen) {
+        result += input.slice(openBracket);
+        break;
+      }
+
+      const url = input.slice(closeBracket + 2, i);
+      result += replacer(linkText, url);
+      cursor = i + 1;
+    }
+
+    return result;
+  };
+
   // 1. Proteggi code blocks (prima dell'escape globale)
   const codeBlocks = [];
   let html = text.replace(/```[\s\S]*?```/g, (match) => {
@@ -1164,7 +1288,7 @@ function markdownToHtml(text) {
 
   // 2. Proteggi link markdown (prima dell'escape globale)
   const links = [];
-  html = html.replace(/\[(.+?)\]\((.+?)\)/g, (match, linkText, url) => {
+  html = replaceMarkdownLinks(html, (linkText, url) => {
     const sanitizedUrl = sanitizeUrl(url);
     const escapedText = escapeHtml(linkText);
     const token = `@@LINK_PLACEHOLDER_${links.length}_${Utilities.getUuid()}@@`;

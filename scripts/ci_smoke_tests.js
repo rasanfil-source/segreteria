@@ -44,6 +44,7 @@ global.Utilities = {
     formatDate: (date) => new Date(date).toISOString().slice(0, 10),
     sleep: () => { },
     computeDigest: () => [0, 1, 2, 3],
+    getUuid: () => 'uuid-mock',
     DigestAlgorithm: { MD5: 'MD5' }
 };
 
@@ -894,6 +895,16 @@ function testMarkdownToHtmlXss() {
     assert(bold.includes('<strong>grassetto</strong>'), 'markdownToHtml deve convertire **bold** in <strong>');
 }
 
+function testMarkdownLinkWithParentheses() {
+    loadScript('gas_gmail_service.js');
+
+    const result = markdownToHtml('Link: [Wikipedia](https://en.wikipedia.org/wiki/A_(B))');
+    assert(
+        result.includes('href="https://en.wikipedia.org/wiki/A_(B)"'),
+        `URL con parentesi non gestito correttamente, ottenuto: ${result}`
+    );
+}
+
 // ========================================================================
 // MAIN: runner con contatore e soglia minima
 // ========================================================================
@@ -931,6 +942,7 @@ function main() {
         ['escapeHtml: neutralizza XSS', testEscapeHtml],
         ['sanitizeUrl: blocca IPv6/decimale/userinfo', testSanitizeUrlIPv6],
         ['markdownToHtml: escape-first previene XSS', testMarkdownToHtmlXss],
+        ['markdownToHtml: supporta URL con parentesi', testMarkdownLinkWithParentheses],
     ];
 
     let passed = 0;
