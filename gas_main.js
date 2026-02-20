@@ -188,8 +188,8 @@ function _loadResourcesInternal() {
   const kbSheet = ss.getSheetByName(CONFIG.KB_SHEET_NAME);
   if (kbSheet) {
     const data = kbSheet.getDataRange().getValues();
-    GLOBAL_CACHE.kbText = data.map(r => r.join(' | ')).join('\n');
-    GLOBAL_CACHE.kbStructured = _parseSheetToStructured(data);
+    GLOBAL_CACHE.knowledgeBase = data.map(r => r.join(' | ')).join('\n');
+    GLOBAL_CACHE.doctrineBase = _parseSheetToStructured(data);
   }
 
   // Config Avanzata
@@ -282,9 +282,13 @@ function processEmailsMain() {
 
     // 4. Orchestrazione Pipeline
     const processor = new EmailProcessor();
-    const results = processor.processUnreadEmails(GLOBAL_CACHE.kbText, GLOBAL_CACHE.kbStructured || []);
+    const knowledgeBase = GLOBAL_CACHE.knowledgeBase || '';
+    const doctrineBase = GLOBAL_CACHE.doctrineBase || '';
+    const results = processor.processUnreadEmails(knowledgeBase, doctrineBase);
 
-    console.log(`📊 Batch completato: ${results.processed} processati, ${results.errors} errori.`);
+    if (results) {
+      console.log(`📊 Batch completato: ${results.total || 0} analizzati, ${results.replied || 0} risposte, ${results.errors || 0} errori.`);
+    }
 
   } catch (error) {
     console.error(`💥 Errore fatale in processEmailsMain: ${error.message}`);
