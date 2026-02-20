@@ -7,6 +7,7 @@
 // Inizializzazione difensiva cache globale condivisa tra moduli
 var GLOBAL_CACHE = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBAL_CACHE : {
   loaded: false,
+  lastLoadedAt: 0,
   knowledgeBase: '',
   doctrineBase: [],
   systemEnabled: true,
@@ -15,6 +16,8 @@ var GLOBAL_CACHE = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBA
   ignoreDomains: [],
   ignoreKeywords: []
 };
+
+const RESOURCE_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 ore
 
 // ====================================================================
 // FESTIVITÀ E SOSPENSIONE
@@ -174,7 +177,9 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
     throw new Error('loadResources richiede un lock preventivo.');
   }
 
-  if (GLOBAL_CACHE.loaded) return;
+  const now = Date.now();
+  const cacheIsFresh = GLOBAL_CACHE.loaded && GLOBAL_CACHE.lastLoadedAt && ((now - GLOBAL_CACHE.lastLoadedAt) < RESOURCE_CACHE_TTL_MS);
+  if (cacheIsFresh) return;
 
   const lock = LockService.getScriptLock();
   let lockAcquired = false;
@@ -245,7 +250,33 @@ function _loadResourcesInternal() {
   GLOBAL_CACHE.ignoreKeywords = adv.ignoreKeywords;
 
   GLOBAL_CACHE.loaded = true;
+  GLOBAL_CACHE.lastLoadedAt = Date.now();
   console.log('✓ Risorse caricate correttamente.');
+}
+
+/**
+ * Svuota manualmente la cache globale (knowledge/config) per forzare reload.
+ * Utile come comando da eseguire a mano dall'editor Apps Script.
+ */
+function clearKnowledgeCache() {
+  GLOBAL_CACHE.loaded = false;
+  GLOBAL_CACHE.lastLoadedAt = 0;
+  GLOBAL_CACHE.knowledgeBase = '';
+  GLOBAL_CACHE.doctrineBase = [];
+  GLOBAL_CACHE.systemEnabled = true;
+  GLOBAL_CACHE.vacationPeriods = [];
+  GLOBAL_CACHE.suspensionRules = {};
+  GLOBAL_CACHE.ignoreDomains = [];
+  GLOBAL_CACHE.ignoreKeywords = [];
+  GLOBAL_CACHE.aiCoreLite = '';
+  GLOBAL_CACHE.aiCore = '';
+  GLOBAL_CACHE.doctrineStructured = [];
+  console.log('🗑️ Cache conoscenza/config svuotata manualmente');
+}
+
+// Compatibilità con nome storico usato manualmente in alcuni ambienti.
+function clearCache() {
+  clearKnowledgeCache();
 }
 
 function _parseSheetToStructured(data) {

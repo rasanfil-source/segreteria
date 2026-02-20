@@ -24,6 +24,7 @@ function onOpen() {
     .createMenu('Parrocchia AI')
     .addItem('Configura foglio Controllo (Reset Layout)', 'setupConfigurationSheets')
     .addItem('🔧 Applica regole validazione e basta', 'applyValidationOnly')
+    .addItem('🗑️ Svuota cache conoscenza', 'clearKnowledgeCache')
     .addItem('Test configurazione', 'testConfiguration')
     .addToUi();
 }
