@@ -219,7 +219,8 @@ class ResponseValidator {
         console.warn('❌ Semantic validator ha rilevato problemi non catturati da regex');
         validationResult.isValid = false;
         validationResult.score = Math.min(validationResult.score, semanticConfidence);
-        validationResult.errors.push(`Semantic: ${semHalluc.reason || semThinking.reason}`);
+        const semanticReason = semHalluc.reason || semThinking.reason || 'Semantic validation failed without explicit reason';
+        validationResult.errors.push(`Semantic: ${semanticReason}`);
       }
 
       validationResult.details.semantic = {
@@ -1171,7 +1172,13 @@ class SemanticValidator {
     } catch (error) {
       console.warn(`⚠️ Semantic thinking ✅ fallito: ${error.message}`);
       if (!this.fallbackOnError) throw error;
-      return { isValid: regexResult.score >= 0.7, confidence: regexResult.score, fallback: true };
+      const fallbackThreshold = 0.85;
+      return {
+        isValid: regexResult.score >= fallbackThreshold,
+        confidence: regexResult.score,
+        fallback: true,
+        reason: `Semantic thinking validation unavailable: ${error.message || 'unknown error'}`
+      };
     }
   }
 
