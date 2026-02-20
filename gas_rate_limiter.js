@@ -724,7 +724,9 @@ class GeminiRateLimiter {
 
     // Usa cache
     if (now - this.cache.lastCacheUpdate < this.cache.cacheTTL) {
-      return this.cache.tpmWindow
+      const cacheKey = windowType + 'Window';
+      const cachedWindow = Array.isArray(this.cache[cacheKey]) ? this.cache[cacheKey] : [];
+      return cachedWindow
         .filter(function (e) {
           return e.modelKey === modelKey && (now - e.timestamp < 60000);
         })
@@ -732,7 +734,7 @@ class GeminiRateLimiter {
     }
 
     // Fallback PropertiesService
-    const window = JSON.parse(this.props.getProperty('tpm_window') || '[]');
+    const window = JSON.parse(this.props.getProperty(windowType + '_window') || '[]');
     return window
       .filter(function (e) {
         return e.modelKey === modelKey && (now - e.timestamp < 60000);

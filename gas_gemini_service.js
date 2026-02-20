@@ -840,7 +840,10 @@ Output JSON:
 
   /**
    * Ottieni la data della Domenica della Sacra Famiglia
-   * (Domenica tra 25 Dic e 1 Gen, o 30 Dic se nessuna domenica)
+   * (Domenica tra 25 Dic e 1 Gen, o 30 Dic se nessuna domenica).
+   * Nota: se il 25 dicembre cade di domenica, nel range 26-31 non c'è
+   * alcuna domenica; in quel caso il fallback al 30 dicembre è intenzionale
+   * (prassi liturgica del rito romano).
    */
   _getHolyFamilySunday(year) {
     for (let day = 26; day <= 31; day++) {
