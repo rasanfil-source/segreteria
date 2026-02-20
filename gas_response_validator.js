@@ -67,6 +67,7 @@ class ResponseValidator {
 
     this.thinkingPatterns = [
       // Pattern conversazionali non catturati dalle regex
+      'rivedendo la knowledge base',
       'in realtà',
       'pensandoci bene',
       '(nota:',

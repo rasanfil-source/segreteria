@@ -1364,6 +1364,24 @@ ${addressLines.join('\n\n')}
       return 'UNKNOWN';
     }
 
+    // Se disponibile, usa il classificatore centralizzato per mantenere
+    // coerenza tra orchestratore e servizi API.
+    if (typeof classifyError === 'function' && typeof ErrorTypes !== 'undefined') {
+      const normalized = classifyError(error);
+      switch (normalized.type) {
+        case ErrorTypes.QUOTA_EXCEEDED:
+          return 'QUOTA';
+        case ErrorTypes.TIMEOUT:
+        case ErrorTypes.NETWORK:
+          return 'NETWORK';
+        case ErrorTypes.INVALID_API_KEY:
+        case ErrorTypes.INVALID_RESPONSE:
+          return 'FATAL';
+        default:
+          return 'UNKNOWN';
+      }
+    }
+
     const msg = String(error.message || error.toString() || '');
     if (!msg) {
       console.warn('⚠️ Errore senza messaggio utile:', error);
