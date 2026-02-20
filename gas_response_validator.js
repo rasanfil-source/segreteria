@@ -53,7 +53,7 @@ class ResponseValidator {
     };
 
     // Placeholder da rilevare
-    this.placeholders = ['XXX', 'TODO', '<insert>', 'placeholder', 'tbd', 'TBD', '...'];
+    this.placeholders = ['XXX', 'TODO', '<insert>', 'placeholder', 'tbd', 'TBD'];
 
     // Pattern di ragionamento esposto (thinking leak) - CRITICO
     // Pattern di ragionamento esposto (thinking leak) - CRITICO
@@ -216,10 +216,10 @@ class ResponseValidator {
       const semanticValid = semHalluc.isValid && semThinking.isValid;
       const semanticConfidence = Math.min(semHalluc.confidence, semThinking.confidence);
 
-      if (!semanticValid && semanticConfidence > validationResult.score) {
+      if (!semanticValid) {
         console.warn('❌ Semantic validator ha rilevato problemi non catturati da regex');
         validationResult.isValid = false;
-        validationResult.score = semanticConfidence;
+        validationResult.score = Math.min(validationResult.score, semanticConfidence);
         validationResult.errors.push(`Semantic: ${semHalluc.reason || semThinking.reason}`);
       }
 

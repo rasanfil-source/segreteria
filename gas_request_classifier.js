@@ -159,11 +159,18 @@ class RequestTypeClassifier {
    * Restituisce dimensioni continue, complessità e tono suggerito.
    */
   classify(subject, body, externalHint = null) {
-    // DEBUG: Stampa il JSON esatto fornito da Gemini o dal Mock
-    console.log("=========================================");
-    console.log("🤖 DEBUG EXTERNAL HINT (GEMINI RAW):");
-    console.log(JSON.stringify(externalHint, null, 2));
-    console.log("=========================================");
+    // Debug logging solo in modalità esplicita (evita leak dati sensibili nei log)
+    const logLevel = (typeof CONFIG !== 'undefined' && CONFIG.LOGGING && CONFIG.LOGGING.LEVEL)
+      ? String(CONFIG.LOGGING.LEVEL).toUpperCase()
+      : 'INFO';
+    const shouldLogRawHint = logLevel === 'DEBUG';
+
+    if (shouldLogRawHint) {
+      console.log('=========================================');
+      console.log('🤖 DEBUG EXTERNAL HINT (GEMINI RAW):');
+      console.log(JSON.stringify(externalHint, null, 2));
+      console.log('=========================================');
+    }
 
     // Smart Truncation (primi 1500 + ultimi 1500 caratteri)
     const MAX_ANALYSIS_LENGTH = 3000;

@@ -37,6 +37,7 @@ function onOpen() {
 function applyValidationOnly() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(UI_CONFIG.CONTROLLO_SHEET);
+  const setupWarnings = [];
 
   if (!sheet) {
     SpreadsheetApp.getUi().alert('Errore: Foglio "Controllo" non trovato.');
@@ -46,7 +47,14 @@ function applyValidationOnly() {
   // PULIZIA Totale delle validazioni per evitare conflitti
   const rangesToClean = ['B2', 'B5:B7', 'D5:D7', 'B10:B16', 'D10:D16', 'E11:E120', 'F11:F120'];
   rangesToClean.forEach(a1 => {
-    try { sheet.getRange(a1).clearDataValidations(); } catch (e) { }
+    try {
+      sheet.getRange(a1).clearDataValidations();
+    } catch (e) {
+      const msg = e && e.message ? e.message : String(e);
+      const warning = `clearDataValidations ${a1}: ${msg}`;
+      setupWarnings.push(warning);
+      console.warn('⚠️ ' + warning);
+    }
   });
 
   SpreadsheetApp.flush();
@@ -55,9 +63,17 @@ function applyValidationOnly() {
   applyControlloInputConstraints_(sheet);
 
   // CRUCIALE: Ricrea i Named Ranges se mancano!
-  createNamedRanges(ss);
+  createNamedRanges(ss, setupWarnings);
 
   SpreadsheetApp.flush();
+
+  if (setupWarnings.length > 0) {
+    SpreadsheetApp.getUi().alert(
+      '⚠️ Regole applicate con avvisi:\n\n' +
+      setupWarnings.map(w => '• ' + w).join('\n')
+    );
+    return;
+  }
 
   SpreadsheetApp.getUi().alert('✅ Regole di validazione applicate e Named Ranges ripristinati!');
 }
@@ -171,7 +187,7 @@ function setupControlloSheet(ss) {
   applyControlloInputConstraints_(sheet);
 }
 
-function createNamedRanges(ss) {
+function createNamedRanges(ss, warningsCollector) {
   const ranges = [
     { name: 'cfg_system_master', range: "'Controllo'!B2" },
     { name: 'cfg_timezone', range: "'Controllo'!B4" },
@@ -190,7 +206,12 @@ function createNamedRanges(ss) {
   ranges.forEach(def => {
     removeNamedRangeIfExists(ss, def.name);
     try { ss.setNamedRange(def.name, ss.getRange(def.range)); } catch (e) {
-      console.warn('Errore creazione named range ' + def.name + ': ' + e.message);
+      const msg = e && e.message ? e.message : String(e);
+      const warning = 'Errore creazione named range ' + def.name + ': ' + msg;
+      console.warn(warning);
+      if (Array.isArray(warningsCollector)) {
+        warningsCollector.push(warning);
+      }
     }
   });
 }

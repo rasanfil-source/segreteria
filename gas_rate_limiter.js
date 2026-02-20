@@ -470,15 +470,8 @@ class GeminiRateLimiter {
   _trackRequest(modelKey, tokensUsed, duration) {
     const now = Date.now();
 
-    // 1. Contatore RPD
-    const rpdKey = 'rpd_' + modelKey;
-    const currentRpd = parseInt(this.props.getProperty(rpdKey) || '0');
-    this.props.setProperty(rpdKey, (currentRpd + 1).toString());
-
-    // 2. Contatore Token
-    const tokensKey = 'tokens_' + modelKey;
-    const currentTokens = parseInt(this.props.getProperty(tokensKey) || '0');
-    this.props.setProperty(tokensKey, (currentTokens + tokensUsed).toString());
+    // 1-2. Contatori RPD/Tokens con incremento atomico (evita race condition)
+    const counters = this._incrementCountersAtomic(modelKey, tokensUsed);
 
     // 3. Finestra RPM (con cache)
     this._updateWindow('rpm', {
@@ -495,7 +488,42 @@ class GeminiRateLimiter {
 
     // Log
     console.log(`📊 Tracciato: ${modelKey}`);
-    console.log(`   RPD: ${currentRpd + 1}/${this.models[modelKey].rpd}`);
+    console.log(`   RPD: ${counters.rpd}/${this.models[modelKey].rpd}`);
+  }
+
+  /**
+   * Incrementa contatori persistenti con lock script-level.
+   */
+  _incrementCountersAtomic(modelKey, tokensUsed) {
+    const lock = LockService.getScriptLock();
+    const gotLock = lock.tryLock(5000);
+
+    if (!gotLock) {
+      console.warn('⚠️ Impossibile acquisire lock contatori: fallback a incremento non atomico');
+      const rpdKey = 'rpd_' + modelKey;
+      const tokensKey = 'tokens_' + modelKey;
+      const fallbackRpd = parseInt(this.props.getProperty(rpdKey) || '0') + 1;
+      const fallbackTokens = parseInt(this.props.getProperty(tokensKey) || '0') + (tokensUsed || 0);
+      this.props.setProperty(rpdKey, String(fallbackRpd));
+      this.props.setProperty(tokensKey, String(fallbackTokens));
+      return { rpd: fallbackRpd, tokens: fallbackTokens };
+    }
+
+    try {
+      const rpdKey = 'rpd_' + modelKey;
+      const tokensKey = 'tokens_' + modelKey;
+      const currentRpd = parseInt(this.props.getProperty(rpdKey) || '0');
+      const currentTokens = parseInt(this.props.getProperty(tokensKey) || '0');
+      const nextRpd = currentRpd + 1;
+      const nextTokens = currentTokens + (tokensUsed || 0);
+
+      this.props.setProperty(rpdKey, String(nextRpd));
+      this.props.setProperty(tokensKey, String(nextTokens));
+
+      return { rpd: nextRpd, tokens: nextTokens };
+    } finally {
+      lock.releaseLock();
+    }
   }
 
   /**
