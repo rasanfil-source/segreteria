@@ -19,19 +19,26 @@ class PromptContext {
             }
         }
 
-        // Fix: Normalizza knowledgeBase se passato come stringa invece che oggetto
-        if (input.knowledgeBase && typeof input.knowledgeBase === 'string') {
-            input.knowledgeBaseRaw = input.knowledgeBase; // Salva originale
-            input.knowledgeBase = {
-                length: input.knowledgeBase.length,
-                containsDates: /\d{4}/.test(input.knowledgeBase)
-            };
-        }
-
-        this.input = input;
+        this.input = this._normalizeInput(input);
         this.concerns = this._computeConcerns();
         this.profile = this._computeProfile();
         this.meta = this._buildMeta();
+    }
+
+    _normalizeInput(input) {
+        const normalizedInput = Object.assign({}, input);
+
+        // Mantiene knowledgeBase originale inalterata e crea metadati separati
+        if (typeof normalizedInput.knowledgeBase === 'string') {
+            const knowledgeBaseRaw = normalizedInput.knowledgeBase;
+            normalizedInput.knowledgeBaseRaw = knowledgeBaseRaw;
+            normalizedInput.knowledgeBaseMeta = {
+                length: knowledgeBaseRaw.length,
+                containsDates: /\d{4}/.test(knowledgeBaseRaw)
+            };
+        }
+
+        return normalizedInput;
     }
 
     _computeConcerns() {
@@ -43,7 +50,7 @@ class PromptContext {
                 (i.classification?.confidence ?? 1) < 0.8,
 
             hallucination_risk:
-                (i.knowledgeBase?.length ?? 0) > 800 ||
+                (i.knowledgeBaseMeta?.length ?? i.knowledgeBase?.length ?? 0) > 800 ||
                 i.temporal?.mentionsDates ||
                 i.temporal?.mentionsTimes,
 
@@ -53,7 +60,7 @@ class PromptContext {
 
             temporal_risk:
                 i.temporal?.mentionsDates ||
-                i.knowledgeBase?.containsDates,
+                i.knowledgeBaseMeta?.containsDates,
 
             discernment_risk:
                 i.requestType?.needsDiscernment ||

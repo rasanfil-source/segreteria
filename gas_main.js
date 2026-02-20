@@ -310,8 +310,8 @@ function _loadAdvancedConfig(ss) {
   const status = sheet.getRange("B2").getValue();
   if (String(status).toUpperCase().includes("SPENTO")) config.systemEnabled = false;
 
-  // Ferie (B5:E7): data inizio in B, data fine in C
-  const periods = sheet.getRange("B5:E7").getValues();
+  // Ferie (B5:D7): data inizio in B, data fine in C
+  const periods = sheet.getRange("B5:D7").getValues();
   periods.forEach(r => {
     if (r[0] instanceof Date && r[1] instanceof Date) {
       config.vacationPeriods.push({ start: r[0], end: r[1] });
