@@ -435,7 +435,7 @@ function deleteTriggersByHandler_(handlerName) {
  * Funzione principale invocata dal trigger temporale (es. ogni 5 min)
  */
 function processEmailsMain() {
-  console.log('🚀 Avvio processEmailsMain - v2.8.6.1');
+  console.log('🚀 Avvio processEmailsMain - v2.0');
   const executionLock = LockService.getScriptLock();
 
   try {
