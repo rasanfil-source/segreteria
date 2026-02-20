@@ -953,7 +953,7 @@ ${addressLines.join('\n\n')}
       };
 
       // Processa ogni thread fino a raggiungere il limite di elaborazione
-      const startTime = Date.now();
+      this._startTime = Date.now();
       const MAX_EXECUTION_TIME = this.config.maxExecutionTimeMs;
       let processedCount = 0; // Contatore thread effettivamente elaborati
 
@@ -967,7 +967,7 @@ ${addressLines.join('\n\n')}
         const thread = threads[index];
 
         // Controllo tempo residuo
-        if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+        if (this._isNearDeadline(MAX_EXECUTION_TIME)) {
           console.warn(`⏳ Tempo esecuzione in esaurimento. Interrompo dopo ${index} thread.`);
           break;
         }
@@ -1048,7 +1048,11 @@ ${addressLines.join('\n\n')}
     const body = (messageDetails.body || '').toLowerCase();
 
     // 1. Controllo Blacklist Domini/Email
-    const ignoreDomains = (typeof CONFIG !== 'undefined' && CONFIG.IGNORE_DOMAINS) ? CONFIG.IGNORE_DOMAINS : [];
+    const configDomains = (typeof CONFIG !== 'undefined' && CONFIG.IGNORE_DOMAINS) ? CONFIG.IGNORE_DOMAINS : [];
+    const cacheDomains = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreDomains))
+      ? GLOBAL_CACHE.ignoreDomains
+      : [];
+    const ignoreDomains = Array.from(new Set([...configDomains, ...cacheDomains].map(d => String(d).toLowerCase())));
 
     if (ignoreDomains.some(domain => email.includes(domain.toLowerCase()))) {
       console.log(`🚫 Ignorato: mittente in blacklist (${email})`);
@@ -1056,7 +1060,11 @@ ${addressLines.join('\n\n')}
     }
 
     // 2. Controllo Keyword Oggetto
-    const ignoreKeywords = (typeof CONFIG !== 'undefined' && CONFIG.IGNORE_KEYWORDS) ? CONFIG.IGNORE_KEYWORDS : [];
+    const configKeywords = (typeof CONFIG !== 'undefined' && CONFIG.IGNORE_KEYWORDS) ? CONFIG.IGNORE_KEYWORDS : [];
+    const cacheKeywords = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreKeywords))
+      ? GLOBAL_CACHE.ignoreKeywords
+      : [];
+    const ignoreKeywords = Array.from(new Set([...configKeywords, ...cacheKeywords].map(k => String(k).toLowerCase())));
 
     if (ignoreKeywords.some(keyword => subject.includes(keyword.toLowerCase()))) {
       console.log(`🚫 Ignorato: oggetto contiene keyword vietata`);
@@ -1131,6 +1139,12 @@ ${addressLines.join('\n\n')}
     // Motivo: il segretario deve vedere a colpo d'occhio i non letti, anche se già gestiti da IA.
     // Cambiare questo comportamento altera la triage operativa.
     this.gmailService.addLabelToMessage(message.getId(), this.config.labelName);
+  }
+
+  _isNearDeadline(maxExecutionTimeMs) {
+    const budgetMs = Number(maxExecutionTimeMs) || 330000;
+    const start = Number(this._startTime) || Date.now();
+    return (Date.now() - start) > budgetMs;
   }
 
   _addErrorLabel(thread) {
@@ -1474,7 +1488,16 @@ function processUnreadEmailsMain() {
 
     // Carica risorse
     if (typeof loadResources === 'function') {
-      loadResources();
+      try {
+        loadResources(true, false);
+      } catch (resourceError) {
+        console.warn(`⚠️ loadResources standard fallita: ${resourceError.message}`);
+
+        // Fallback operativo: tentativo diretto senza lock esterno.
+        if (typeof _loadResourcesInternal === 'function') {
+          _loadResourcesInternal();
+        }
+      }
     }
 
     // Ottieni knowledge base
