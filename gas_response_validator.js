@@ -163,7 +163,13 @@ class ResponseValidator {
    * Rileva dati potenzialmente inventati
    */
   _checkHallucinations(text, kb, result) {
-    const kbLower = String(kb).toLowerCase();
+    if (typeof kb !== 'string' || kb.trim() === '') {
+      result.warnings.push('Knowledge Base non disponibile: controllo allucinazioni parziale');
+      result.details.hallucinations.score = Math.min(result.details.hallucinations.score, 0.7);
+      return;
+    }
+
+    const kbLower = kb.toLowerCase();
 
     // Controlla email nel testo ma non in KB
     const emails = text.match(this.hallucinationPatterns.email) || [];

@@ -705,6 +705,9 @@ class MemoryService {
   _tryAcquireShardedLock(key) {
     const cache = CacheService.getScriptCache();
     const globalLock = LockService.getScriptLock();
+    const lockTtlSeconds = (typeof CONFIG !== 'undefined' && Number(CONFIG.MEMORY_LOCK_TTL) > 0)
+      ? Number(CONFIG.MEMORY_LOCK_TTL)
+      : 30;
 
     // Pattern: Global Guard per operazione Cache Atomica
     // Prendi lock globale per pochissimo tempo, solo per check-and-set su Cache
@@ -715,7 +718,7 @@ class MemoryService {
           if (cache.get(key) != null) {
             return false; // Già lockato
           }
-          cache.put(key, '1', 30); // Lock 30 sec per evitare race concorrenti
+          cache.put(key, '1', lockTtlSeconds);
           return true;
         } catch (cacheError) {
           console.warn(`⚠️ Errore CacheService durante lock: ${cacheError.message}`);
@@ -1042,7 +1045,7 @@ class MemoryService {
   /**
    * Tenta di acquisire un lock distribuito (simulato)
    */
-  _tryAcquireShardedLock(lockKey, waitMs = 2000, lockTTL = 10000) {
+  _tryAcquireShardedLockExperimental(lockKey, waitMs = 2000, lockTTL = 10000) {
     try {
       const lock = LockService.getScriptLock();
       // ... logica simulata per sharded lock (useremo lock globale per semplicità in GAS standard)

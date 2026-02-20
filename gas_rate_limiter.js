@@ -593,8 +593,9 @@ class GeminiRateLimiter {
       // 1. Crea checkpoint WAL con ultimi dati critici
       const wal = {
         timestamp: walTimestamp,
-        rpm: this.cache.rpmWindow.slice(-10),
-        tpm: this.cache.tpmWindow.slice(-10)
+        // Mantieni finestra completa di sicurezza (max 100) per recovery coerente
+        rpm: this.cache.rpmWindow.slice(-100),
+        tpm: this.cache.tpmWindow.slice(-100)
       };
 
       // 2. Scrivi WAL prima (checkpoint di sicurezza)

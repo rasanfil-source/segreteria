@@ -308,8 +308,8 @@ class TerritoryValidator {
                     // Parsifica parte numerica principale per validazione range
                     const civicNum = parseInt(civicRaw.match(/\d+/)[0], 10);
 
-                    // Consenti 0 solo se parte di indirizzo speciale, altrimenti 1-9999
-                    if (isNaN(civicNum) || civicNum <= 0 || civicNum > 9999) continue;
+                    // Consenti anche civico 0 (presente in alcuni catasti), range valido 0-9999
+                    if (isNaN(civicNum) || civicNum < 0 || civicNum > 9999) continue;
 
                     // Mantieni il civico completo (es. "10A") per l'output
                     const fullCivic = TerritoryValidator.normalizeCivic(civicRaw);
@@ -386,7 +386,7 @@ class TerritoryValidator {
      * @returns {Object} {inTerritory: boolean, matchedKey: string|null, rule: string|null}
      */
     verifyAddress(street, civic) {
-        if (typeof civic !== 'number' || !isFinite(civic) || civic < 1) {
+        if (typeof civic !== 'number' || !isFinite(civic) || civic < 0) {
             console.warn(`\u26A0 Civico non valido per verifica territorio: ${civic}`);
             return { inTerritory: false, matchedKey: null, rule: 'invalid_civic' };
         }
@@ -584,10 +584,3 @@ function createTerritoryValidator() {
     return new TerritoryValidator();
 }
 
-/**
- * Helper per estrarre il nome via dai match regex
- */
-function matchMatch2(match) {
-    if (!match || !match[2]) return '';
-    return match[2].trim();
-}

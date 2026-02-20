@@ -143,7 +143,10 @@ class PromptEngine {
 
     const OVERHEAD_TOKENS = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS)
       ? CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS : 15000; // Riserva per istruzioni e sistema
-    const KB_BUDGET_RATIO = 0.5; // La KB può occupare max il 50% dello spazio rimanente
+    const kbRatioFromConfig = (typeof CONFIG !== 'undefined' && typeof CONFIG.KB_TOKEN_BUDGET_RATIO === 'number')
+      ? CONFIG.KB_TOKEN_BUDGET_RATIO : 0.5;
+    // Clamp difensivo: evita valori invalidi (<0 o >1)
+    const KB_BUDGET_RATIO = Math.min(1, Math.max(0, kbRatioFromConfig));
     const availableForKB = Math.max(0, (MAX_SAFE_TOKENS - OVERHEAD_TOKENS) * KB_BUDGET_RATIO);
     const kbCharsLimit = Math.round(availableForKB * 4);
 
@@ -1548,8 +1551,9 @@ Segreteria Parrocchia Sant'Eugenio
     const truncationMarker = '\n\n... [SEZIONI OMESSE PER LIMITI LUNGHEZZA - INFO PRINCIPALI PRESERVATE] ...\n\n';
     const markerLength = truncationMarker.length;
 
-    // Aggiungi paragrafi fino a ~80% del budget (lascia spazio per il marcatore)
-    const targetLength = budgetChars * 0.8;
+    // Aggiungi paragrafi fino a ~80% del budget netto (lascia spazio per il marcatore)
+    const netBudget = Math.max(1, budgetChars - markerLength);
+    const targetLength = Math.floor(netBudget * 0.8);
 
     for (const para of paragraphs) {
       const trimmedPara = para.trim();
@@ -1577,7 +1581,10 @@ Segreteria Parrocchia Sant'Eugenio
     const keptParagraphs = result.length;
     console.log(`📦 KB troncata: ${keptParagraphs}/${originalParagraphs} paragrafi (${truncatedContent.length}/${kbContent.length} caratteri)`);
 
-    return truncatedContent + truncationMarker;
+    const finalContent = truncatedContent + truncationMarker;
+    return finalContent.length > budgetChars
+      ? finalContent.substring(0, budgetChars)
+      : finalContent;
   }
 }
 
