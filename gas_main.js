@@ -153,6 +153,28 @@ function isInSuspensionTime(checkDate = new Date()) {
   return false;
 }
 
+/**
+ * Paracadute operativo: se esistono email non lette molto vecchie,
+ * permette un ciclo di lavorazione anche durante la sospensione.
+ */
+function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 20) {
+  const cutoffMs = Date.now() - (maxAgeHours * 60 * 60 * 1000);
+  const threads = GmailApp.search('in:inbox is:unread', 0, searchLimit);
+
+  for (const thread of threads) {
+    const messages = thread.getMessages();
+    for (const message of messages) {
+      if (!message.isUnread()) continue;
+      const messageDate = message.getDate();
+      if (messageDate && messageDate.getTime() <= cutoffMs) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 // ====================================================================
 // CARICAMENTO RISORSE
 // ====================================================================
