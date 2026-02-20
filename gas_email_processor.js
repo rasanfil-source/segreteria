@@ -134,6 +134,11 @@ class EmailProcessor {
       error: null
     };
 
+    // Snapshot robusto del classificatore errori per evitare dipendenze implicite da `this`
+    const classifyError = (this && typeof this._classifyError === 'function')
+      ? this._classifyError.bind(this)
+      : function fallbackClassifyError() { return 'UNKNOWN'; };
+
     let candidate = null;
     try {
       // Raccogli informazioni su thread e messaggi
@@ -704,7 +709,7 @@ ${addressLines.join('\n\n')}
 
         } catch (err) {
           generationError = err; // Salva l'ultimo errore
-          const errorClass = this._classifyError(err);
+          const errorClass = classifyError(err);
           console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass}]`);
 
           if (errorClass === 'FATAL') {
@@ -722,7 +727,7 @@ ${addressLines.join('\n\n')}
 
       // Verifiche finali post-loop
       if (!response) {
-        const errorClass = generationError ? this._classifyError(generationError) : 'UNKNOWN';
+        const errorClass = generationError ? classifyError(generationError) : 'UNKNOWN';
         console.error('🛑 TUTTE le strategie di generazione sono fallite.');
         this._addErrorLabel(thread);
         this._markMessageAsProcessed(candidate);
@@ -1404,7 +1409,7 @@ ${addressLines.join('\n\n')}
  * @param {Object} params - Parametri di input
  * @returns {'full'|'soft'|'none_or_continuity'|'session'}
  */ // Fix: added 'session' to contract
-function computeSalutationMode({ isReply, messageCount, memoryExists, lastUpdated, now = new Date() }) {
+function computeSalutationMode({ isReply = false, messageCount = 0, memoryExists = false, lastUpdated = null, now = new Date() } = {}) {
   const SESSION_WINDOW_MINUTES = 15;
   // 1️⃣ Primo messaggio assoluto
   if (!isReply && !memoryExists && messageCount <= 1) {
@@ -1452,6 +1457,11 @@ function computeSalutationMode({ isReply, messageCount, memoryExists, lastUpdate
 
   // Fallback
   return 'full';
+}
+
+// Compatibilità: rende la funzione disponibile anche in runtime che usano moduli/isolamento
+if (typeof globalThis !== 'undefined' && typeof globalThis.computeSalutationMode !== 'function') {
+  globalThis.computeSalutationMode = computeSalutationMode;
 }
 
 // Funzione factory

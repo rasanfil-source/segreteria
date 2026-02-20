@@ -201,8 +201,20 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
 function _loadResourcesInternal() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
+  // Hardening: evita crash se CONFIG non è ancora inizializzato (ordine file GAS)
+  const cfg = (typeof CONFIG !== 'undefined' && CONFIG) ? CONFIG : {
+    KB_SHEET_NAME: 'Istruzioni',
+    AI_CORE_LITE_SHEET: 'AI_CORE_LITE',
+    AI_CORE_SHEET: 'AI_CORE',
+    DOCTRINE_SHEET: 'Dottrina'
+  };
+
+  if (typeof CONFIG === 'undefined') {
+    console.warn('⚠️ CONFIG non disponibile in _loadResourcesInternal: uso nomi sheet di fallback.');
+  }
+
   // KB Base
-  const kbSheet = ss.getSheetByName(CONFIG.KB_SHEET_NAME);
+  const kbSheet = ss.getSheetByName(cfg.KB_SHEET_NAME);
   if (kbSheet) {
     const data = kbSheet.getDataRange().getValues();
     GLOBAL_CACHE.knowledgeBase = data.map(r => r.join(' | ')).join('\n');
@@ -210,7 +222,7 @@ function _loadResourcesInternal() {
   }
 
   // Prompt resources aggiuntive (usate da PromptEngine)
-  const aiCoreLiteSheet = ss.getSheetByName(CONFIG.AI_CORE_LITE_SHEET);
+  const aiCoreLiteSheet = ss.getSheetByName(cfg.AI_CORE_LITE_SHEET);
   if (aiCoreLiteSheet) {
     GLOBAL_CACHE.aiCoreLite = aiCoreLiteSheet
       .getDataRange()
@@ -220,7 +232,7 @@ function _loadResourcesInternal() {
       .join('\n');
   }
 
-  const aiCoreSheet = ss.getSheetByName(CONFIG.AI_CORE_SHEET);
+  const aiCoreSheet = ss.getSheetByName(cfg.AI_CORE_SHEET);
   if (aiCoreSheet) {
     GLOBAL_CACHE.aiCore = aiCoreSheet
       .getDataRange()
@@ -230,7 +242,7 @@ function _loadResourcesInternal() {
       .join('\n');
   }
 
-  const doctrineSheet = ss.getSheetByName(CONFIG.DOCTRINE_SHEET);
+  const doctrineSheet = ss.getSheetByName(cfg.DOCTRINE_SHEET);
   if (doctrineSheet) {
     const doctrineData = doctrineSheet.getDataRange().getValues();
     GLOBAL_CACHE.doctrineStructured = _parseSheetToStructured(doctrineData);
