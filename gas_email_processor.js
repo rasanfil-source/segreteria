@@ -1235,7 +1235,8 @@ ${addressLines.join('\n\n')}
       en: 'Note: The attached document was difficult to read.',
       es: 'Nota: El documento adjunto era difícil de leer.',
       fr: 'Remarque : Le document joint était difficile à lire.',
-      de: 'Hinweis: Das angehängte Dokument war schwer lesbar.'
+      de: 'Hinweis: Das angehängte Dokument war schwer lesbar.',
+      pt: 'Nota: O documento em anexo estava difficile de ler. Posso ter omitido alguns detalhes.'
     };
     return notes[lang] || notes.it;
   }
