@@ -1014,6 +1014,21 @@ function testAddLabelToThreadPropagatesNonLabelErrors() {
     assert(threw, 'addLabelToThread deve propagare errori non riconducibili a label missing');
 }
 
+
+function testRequestClassifierExternalHintCategoryTrim() {
+    loadScript('gas_request_classifier.js');
+
+    const classifier = new RequestTypeClassifier();
+    const result = classifier.classify(
+        'Domanda',
+        'Vorrei alcune informazioni generiche.',
+        { category: '  Pastoral  ', confidence: 0.9 }
+    );
+
+    assert(result.type === 'pastoral' || result.type === 'mixed', `Categoria con spazi non valorizzata: ${result.type}`);
+    assert(result.pastoralScore >= 0.8, `pastoralScore atteso >= 0.8 con hint esterno, ottenuto ${result.pastoralScore}`);
+}
+
 // ========================================================================
 // MAIN: runner con contatore e soglia minima
 // ========================================================================
@@ -1048,6 +1063,7 @@ function main() {
         ['_shouldIgnoreEmail: no-reply/reale/ooo', testShouldIgnoreEmail],
         ['attachment context: sanitizzazione + newline reali', testAttachmentContextSanitizationFormatting],
         ['prompt lite: budget token e sezioni ridotte', testPromptLiteTokenBudget],
+        ['request classifier: external hint category trim', testRequestClassifierExternalHintCategoryTrim],
         ['golden set: regressione output strutturale', runGoldenCases],
         // Sicurezza
         ['escapeHtml: neutralizza XSS', testEscapeHtml],

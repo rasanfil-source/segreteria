@@ -222,7 +222,7 @@ class RequestTypeClassifier {
       };
 
       const normalizedCategory = typeof externalHint.category === 'string'
-        ? externalHint.category.toLowerCase()
+        ? externalHint.category.trim().toLowerCase()
         : '';
       const mappedDim = categoryMap[normalizedCategory];
       if (mappedDim) {
