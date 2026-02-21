@@ -902,6 +902,7 @@ class GmailService {
           rawHeaders.splice(2, 0, `Reply-To: ${replyToEmail}`);
         }
 
+        // Manteniamo `rawHeaders` come array e lo espandiamo nel payload MIME.
         const rawMessage = [
           ...rawHeaders,
           '',
