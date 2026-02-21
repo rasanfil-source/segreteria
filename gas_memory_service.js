@@ -243,7 +243,9 @@ class MemoryService {
           mergedData.messageCount = (existingData.messageCount || 0) + 1;
           mergedData.version = currentVersion + 1;
 
-          this._updateRow(existingRow.rowIndex, mergedData);
+          this._withSheetWriteLock(() => {
+            this._updateRow(existingRow.rowIndex, mergedData);
+          });
           console.log(`🧠 Memoria aggiornata per thread ${threadId} (v${mergedData.version}, Tentativo ${attempt + 1})`);
         } else {
           // Nuova riga
@@ -253,7 +255,9 @@ class MemoryService {
           insertData.messageCount = 1;
           insertData.version = 1;
 
-          this._appendRow(insertData);
+          this._withSheetWriteLock(() => {
+            this._appendRow(insertData);
+          });
           console.log(`🧠 Memoria creata per thread ${threadId} (v1)`);
         }
 
@@ -391,7 +395,9 @@ class MemoryService {
             console.log(`🧠 Memoria: Aggiunti atomicamente topic ${JSON.stringify(normalizedTopics)}`);
           }
 
-          this._updateRow(existingRow.rowIndex, mergedData);
+          this._withSheetWriteLock(() => {
+            this._updateRow(existingRow.rowIndex, mergedData);
+          });
           console.log(`🧠 Memoria aggiornata atomicamente per thread ${threadId} (v${mergedData.version})`);
         } else {
           newData.threadId = threadId;
@@ -403,7 +409,9 @@ class MemoryService {
             newData.providedInfo = this._normalizeProvidedTopics(providedTopics);
           }
 
-          this._appendRow(newData);
+          this._withSheetWriteLock(() => {
+            this._appendRow(newData);
+          });
           console.log(`🧠 Memoria creata atomicamente per thread ${threadId} (v1)`);
         }
 
@@ -571,6 +579,29 @@ class MemoryService {
       }
     }
     return null;
+  }
+
+  /**
+   * Serializza le scritture su Spreadsheet con ScriptLock globale.
+   * Riduce race condition tra thread diversi durante update/append riga.
+   * @param {Function} writeOperation callback con la scrittura effettiva
+   */
+  _withSheetWriteLock(writeOperation) {
+    const sheetLock = LockService.getScriptLock();
+    const timeoutMs = (typeof CONFIG !== 'undefined' && CONFIG.SHEET_WRITE_LOCK_TIMEOUT_MS) || 10000;
+
+    try {
+      sheetLock.waitLock(timeoutMs);
+      writeOperation();
+    } catch (e) {
+      throw new Error(`Lock del foglio non acquisito: ${e.message}`);
+    } finally {
+      try {
+        sheetLock.releaseLock();
+      } catch (releaseError) {
+        // Lock già rilasciato o non acquisito: ignora
+      }
+    }
   }
 
   /**
