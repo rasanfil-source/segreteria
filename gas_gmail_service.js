@@ -133,7 +133,10 @@ class GmailService {
 
   _isLabelNotFoundError(error) {
     const message = (error && error.message) ? error.message.toLowerCase() : '';
-    return message.includes('label') && message.includes('not found');
+    return (message.includes('label') && message.includes('not found')) ||
+      message.includes('etichetta non trovata') ||
+      message.includes('invalid label') ||
+      message.includes('404');
   }
 
   /**
@@ -1214,7 +1217,8 @@ function sanitizeUrl(url) {
     };
 
     const host = String(parseHostFromUrl(decoded) || '').toLowerCase();
-    const parts = host.split('.');
+    const hostNoBrackets = host.replace(/^\[|\]$/g, '');
+    const parts = hostNoBrackets.split('.');
 
     if (parts.length === 4) {
       const parsedOctets = parts.map(part => {
@@ -1237,6 +1241,43 @@ function sanitizeUrl(url) {
       if (isNumericHost && (isLoopback || isPrivate10 || isPrivate172 || isPrivate192 || isLinkLocal)) {
         console.warn(`🛑 Bloccato tentativo SSRF hostname numerico: ${decoded}`);
         return null;
+      }
+    }
+
+    // Blocca IPv4-mapped IPv6 verso reti locali/loopback
+    // es: http://[::ffff:127.0.0.1]/, http://[::ffff:7f00:1]/
+    const mappedMatch = hostNoBrackets.match(/^::ffff:(.+)$/i);
+    if (mappedMatch && mappedMatch[1]) {
+      const mapped = mappedMatch[1].replace(/^\[|\]$/g, '');
+      let mappedOctets = null;
+
+      if (/^\d+\.\d+\.\d+\.\d+$/.test(mapped)) {
+        mappedOctets = mapped.split('.').map(v => parseInt(v, 10));
+      } else if (/^[0-9a-f]{1,4}:[0-9a-f]{1,4}$/i.test(mapped)) {
+        const [highHex, lowHex] = mapped.split(':');
+        const high = parseInt(highHex, 16);
+        const low = parseInt(lowHex, 16);
+        mappedOctets = [
+          (high >> 8) & 0xff,
+          high & 0xff,
+          (low >> 8) & 0xff,
+          low & 0xff
+        ];
+      }
+
+      if (mappedOctets && mappedOctets.length === 4 && mappedOctets.every(v => Number.isInteger(v) && v >= 0 && v <= 255)) {
+        const firstOctet = mappedOctets[0];
+        const secondOctet = mappedOctets[1];
+        const isLoopback = firstOctet === 127;
+        const isPrivate10 = firstOctet === 10;
+        const isPrivate172 = firstOctet === 172 && secondOctet >= 16 && secondOctet <= 31;
+        const isPrivate192 = firstOctet === 192 && secondOctet === 168;
+        const isLinkLocal = firstOctet === 169 && secondOctet === 254;
+
+        if (isLoopback || isPrivate10 || isPrivate172 || isPrivate192 || isLinkLocal) {
+          console.warn(`🛑 Bloccato tentativo SSRF IPv4-mapped IPv6: ${decoded}`);
+          return null;
+        }
       }
     }
   } catch (e) {

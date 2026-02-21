@@ -349,8 +349,7 @@ class EmailProcessor {
       const MAX_CONSECUTIVE_EXTERNAL = this.config.maxConsecutiveExternal;
 
       if (messages.length > MAX_THREAD_LENGTH) {
-        const effectiveUser = Session.getEffectiveUser ? Session.getEffectiveUser() : null;
-        const ourEmail = myEmail || (effectiveUser ? effectiveUser.getEmail() : '');
+        const ourEmail = myEmail || '';
         if (!ourEmail) {
           console.warn('   ⚠️ Email utente non disponibile: skip controllo anti-loop basato su mittente');
         }
@@ -926,29 +925,16 @@ ${addressLines.join('\n\n')}
     } finally {
       // Rilascia lock (solo se acquisito)
       if (lockAcquired && scriptCache && threadLockKey) {
-        const scriptLock = LockService.getScriptLock();
         try {
-          if (scriptLock.tryLock(2000)) {
-            const currentLockValue = scriptCache.get(threadLockKey);
-            if (currentLockValue === lockValue) {
-              scriptCache.remove(threadLockKey);
-              console.log(`🔓 Lock rilasciato per thread ${threadId}`);
-            } else if (!currentLockValue) {
-              console.log(`ℹ️ Lock già scaduto/rilasciato per thread ${threadId}`);
-            } else {
-              console.warn(`⚠️ Rilascio lock saltato per thread ${threadId} (lock di altro processo)`);
-            }
+          const currentLockValue = scriptCache.get(threadLockKey);
+          if (currentLockValue === lockValue) {
+            scriptCache.remove(threadLockKey);
+            console.log(`🔓 Lock rilasciato per thread ${threadId}`);
           } else {
-            console.warn(`⚠️ Rilascio lock differito per thread ${threadId}: script lock non disponibile`);
+            console.warn(`⚠️ Rilascio lock saltato per thread ${threadId} (lock scaduto o di altro processo)`);
           }
         } catch (e) {
           console.warn('⚠️ Errore rilascio lock:', e.message);
-        } finally {
-          try {
-            scriptLock.releaseLock();
-          } catch (releaseError) {
-            console.warn(`⚠️ Errore rilascio script lock: ${releaseError.message}`);
-          }
         }
       }
     }
