@@ -139,6 +139,12 @@ function testCivicNormalization() {
 
     const result3 = TerritoryValidator.normalizeCivic('  12 ');
     assert(result3 === '12', `normalizeCivic("  12 ") atteso "12", ottenuto "${result3}"`);
+
+    const result4 = TerritoryValidator.normalizeCivic(null);
+    assert(result4 === '', `normalizeCivic(null) atteso stringa vuota, ottenuto "${result4}"`);
+
+    const result5 = TerritoryValidator.normalizeCivic(undefined);
+    assert(result5 === '', `normalizeCivic(undefined) atteso stringa vuota, ottenuto "${result5}"`);
 }
 
 function testCivicDeduplicationExplicit() {

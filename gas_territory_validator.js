@@ -220,6 +220,9 @@ class TerritoryValidator {
      * @returns {string} Civico normalizzato (es. "10A", "5B")
      */
     static normalizeCivic(raw) {
+        if (raw === null || raw === undefined) {
+            return '';
+        }
         return String(raw).replace(/\s+/g, '').toUpperCase();
     }
 
