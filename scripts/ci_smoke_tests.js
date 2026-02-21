@@ -145,6 +145,12 @@ function testCivicNormalization() {
 
     const result5 = TerritoryValidator.normalizeCivic(undefined);
     assert(result5 === '', `normalizeCivic(undefined) atteso stringa vuota, ottenuto "${result5}"`);
+
+    const result6 = TerritoryValidator.normalizeCivic('10/A');
+    assert(result6 === '10A', `normalizeCivic("10/A") atteso "10A", ottenuto "${result6}"`);
+
+    const result7 = TerritoryValidator.normalizeCivic('10-B');
+    assert(result7 === '10B', `normalizeCivic("10-B") atteso "10B", ottenuto "${result7}"`);
 }
 
 function testCivicDeduplicationExplicit() {
@@ -156,6 +162,17 @@ function testCivicDeduplicationExplicit() {
 
     const civicSpaced = TerritoryValidator.normalizeCivic('10 A');
     assert(civicSpaced === civicA, `normalizeCivic("10 A") deve normalizzare a "${civicA}", ottenuto "${civicSpaced}"`);
+}
+
+function testAddressExtractionWithSlashAndDashSuffix() {
+    loadScript('gas_territory_validator.js');
+
+    const validator = new TerritoryValidator();
+    const extracted = validator.extractAddressFromText('abito in via Roma 10/A e via Roma 10-B');
+
+    assert(Array.isArray(extracted) && extracted.length === 2, 'Estrazione civici con slash/dash fallita');
+    assert(extracted[0].fullCivic === '10A', `Atteso 10A, ottenuto ${extracted[0].fullCivic}`);
+    assert(extracted[1].fullCivic === '10B', `Atteso 10B, ottenuto ${extracted[1].fullCivic}`);
 }
 
 // ========================================================================
@@ -999,6 +1016,7 @@ function main() {
         ['territory abbreviations', testTerritoryAbbreviations],
         ['civic normalization (normalizeCivic)', testCivicNormalization],
         ['civic deduplication (10A vs 10B)', testCivicDeduplicationExplicit],
+        ['civic extraction with slash/dash suffix', testAddressExtractionWithSlashAndDashSuffix],
         // Error Types (classificazione centralizzata)
         ['classifyError: quota/429 → retryable', testClassifyErrorQuota],
         ['classifyError: API key/invalid → non-retryable', testClassifyErrorNonRetryable],
