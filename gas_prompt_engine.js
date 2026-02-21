@@ -912,6 +912,8 @@ SALUTI SOFT CORRETTI:
       it: 'Ci scusiamo per il ritardo con cui rispondiamo.',
       en: 'We apologize for the delay in responding.',
       es: 'Pedimos disculpas por la demora en nuestra risposta.',
+      fr: 'Nous vous prions de nous excuser pour le retard de notre réponse.',
+      de: 'Wir entschuldigen uns für die verspätete Antwort.',
       pt: 'Pedimos desculpas pelo atraso na nossa resposta.'
     };
 

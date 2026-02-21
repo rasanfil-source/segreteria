@@ -328,23 +328,28 @@ class Classifier {
 
     let content = cleanLines.join('\n').trim();
 
-    // Rimuovi firme
-    const signatureMarkers = [
-      /cordiali saluti/i,
-      /distinti saluti/i,
-      /in fede/i,
-      /best regards/i,
-      /sincerely/i,
-      /sent from my iphone/i,
-      /inviato da/i
+    // Rimuovi firme solo quando appaiono come riga dedicata.
+    // Evita troncamenti su frasi di contenuto come:
+    // "Cordiali saluti da tutta la famiglia, vorrei sapere se..."
+    const signatureLineMarkers = [
+      /^cordiali\s+saluti[\s,!.-]*$/i,
+      /^distinti\s+saluti[\s,!.-]*$/i,
+      /^in\s+fede[\s,!.-]*$/i,
+      /^best\s+regards[\s,!.-]*$/i,
+      /^sincerely[\s,!.-]*$/i,
+      /^sent\s+from\s+my\s+iphone[\s,!.-]*$/i,
+      /^inviato\s+da\b.*$/i
     ];
 
-    for (const marker of signatureMarkers) {
-      const match = content.search(marker);
-      if (match !== -1) {
-        content = content.substring(0, match).trim();
-        break;
-      }
+    const contentLines = content.split('\n');
+    const signatureStartIndex = contentLines.findIndex((line) => {
+      const trimmedLine = (line || '').trim();
+      if (!trimmedLine) return false;
+      return signatureLineMarkers.some((marker) => marker.test(trimmedLine));
+    });
+
+    if (signatureStartIndex !== -1) {
+      content = contentLines.slice(0, signatureStartIndex).join('\n').trim();
     }
 
     return content;
@@ -361,7 +366,7 @@ class Classifier {
 
     // Normalizza
     let normalized = text.toLowerCase().trim();
-    normalized = normalized.replace(/[^\w\sàèéìòù!]/g, '');
+    normalized = normalized.replace(/[^\p{L}\p{N}\s!]/gu, '');
     normalized = normalized.replace(/\s+/g, ' ');
 
     // Conta parole
