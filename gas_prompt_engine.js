@@ -664,6 +664,8 @@ NON sei un chatbot freddo - sei una persona reale della segreteria che vuole aiu
   // ========================================================================
 
   _renderLanguageInstruction(lang) {
+    const safeLang = (lang && typeof lang === 'string') ? lang.toLowerCase() : 'it';
+
     const instructions = {
       'it': "Rispondi in italiano, la lingua dell'email ricevuta.",
       'en': `══════════════════════════════════════════════════════
@@ -724,15 +726,15 @@ Isto é OBRIGATÓRIO. O remetente pode não entender italiano.
     };
 
     // Per lingue non specificate, genera istruzione generica
-    if (!instructions[lang]) {
+    if (!instructions[safeLang]) {
       return `══════════════════════════════════════════════════════
 🚨🚨🚨 CRITICAL LANGUAGE REQUIREMENT 🚨🚨🚨
 ══════════════════════════════════════════════════════
 
-The incoming email is written in language code: "${lang.toUpperCase()}"
+The incoming email is written in language code: "${safeLang.toUpperCase()}"
 
 YOU MUST:
-✅ Write your ENTIRE response in the SAME LANGUAGE as the incoming email
+✅ Write your ENTIRE response in THE SAME LANGUAGE as the incoming email
 ✅ Use appropriate greetings and closings for that language
 ✅ Maintain a formal, courteous register in that language
 ✅ Translate any Italian information into the sender's language
@@ -745,7 +747,7 @@ This is MANDATORY. The sender may not understand Italian.
 ══════════════════════════════════════════════════════`;
     }
 
-    return instructions[lang];
+    return instructions[safeLang];
   }
 
   // ========================================================================

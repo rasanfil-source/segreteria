@@ -1038,7 +1038,7 @@ class ResponseValidator {
     // Usa word boundary \b per evitare match parziali
     // Ma rispetta i nomi doppi: non correggere se seguito da altra maiuscola
     targets.forEach(word => {
-      const regex = new RegExp(`,\\s+(${word})\\b`, 'g');
+      const regex = new RegExp(`,\\s+(${word})(?:\\b|(?=\\s|$))`, 'g');
       result = result.replace(regex, (fullMatch, p1, offset) => {
         if (capitalizationExceptions.includes(p1)) {
           return fullMatch;

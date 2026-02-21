@@ -499,14 +499,13 @@ class GeminiRateLimiter {
     const gotLock = lock.tryLock(5000);
 
     if (!gotLock) {
-      console.warn('⚠️ Impossibile acquisire lock contatori: fallback a incremento non atomico');
+      console.warn(`⚠️ Impossibile tracciare RPD/Token per ${modelKey} (Lock Timeout)`);
       const rpdKey = 'rpd_' + modelKey;
       const tokensKey = 'tokens_' + modelKey;
-      const fallbackRpd = parseInt(this.props.getProperty(rpdKey) || '0') + 1;
-      const fallbackTokens = parseInt(this.props.getProperty(tokensKey) || '0') + (tokensUsed || 0);
-      this.props.setProperty(rpdKey, String(fallbackRpd));
-      this.props.setProperty(tokensKey, String(fallbackTokens));
-      return { rpd: fallbackRpd, tokens: fallbackTokens };
+      return {
+        rpd: parseInt(this.props.getProperty(rpdKey) || '0'),
+        tokens: parseInt(this.props.getProperty(tokensKey) || '0')
+      };
     }
 
     try {
@@ -618,20 +617,31 @@ class GeminiRateLimiter {
 
     try {
       const walTimestamp = Date.now();
+      // Rilegge lo stato persistito dentro lock ed esegue merge con cache locale
+      const currentRpm = JSON.parse(this.props.getProperty('rpm_window') || '[]');
+      const currentTpm = JSON.parse(this.props.getProperty('tpm_window') || '[]');
+
+      const mergedRpm = this._mergeWindowData(currentRpm, this.cache.rpmWindow);
+      const mergedTpm = this._mergeWindowData(currentTpm, this.cache.tpmWindow);
+
+      // Aggiorna cache locale dell'istanza con stato merged
+      this.cache.rpmWindow = mergedRpm;
+      this.cache.tpmWindow = mergedTpm;
+
       // 1. Crea checkpoint WAL con ultimi dati critici
       const wal = {
         timestamp: walTimestamp,
         // Mantieni finestra completa di sicurezza (max 100) per recovery coerente
-        rpm: this.cache.rpmWindow.slice(-100),
-        tpm: this.cache.tpmWindow.slice(-100)
+        rpm: mergedRpm.slice(-100),
+        tpm: mergedTpm.slice(-100)
       };
 
       // 2. Scrivi WAL prima (checkpoint di sicurezza)
       this.props.setProperty('rate_limit_wal', JSON.stringify(wal));
 
       // 3. Scrivi dati completi
-      this.props.setProperty('rpm_window', JSON.stringify(this.cache.rpmWindow));
-      this.props.setProperty('tpm_window', JSON.stringify(this.cache.tpmWindow));
+      this.props.setProperty('rpm_window', JSON.stringify(mergedRpm));
+      this.props.setProperty('tpm_window', JSON.stringify(mergedTpm));
 
       // 4. Rimuovi WAL solo dopo la scrittura completa
       this.props.deleteProperty('rate_limit_wal');
