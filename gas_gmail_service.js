@@ -483,6 +483,9 @@ class GmailService {
           ocrLanguage: settings.ocrLanguage || 'it',
           convert: true
         });
+        if (!file || !file.id) {
+          throw new Error('Drive API ha restituito un file OCR non valido (id assente)');
+        }
         fileId = file.id;
       } else if (typeof Drive.Files.create === 'function') {
         const resource = {
@@ -492,6 +495,9 @@ class GmailService {
         const file = Drive.Files.create(resource, blob, {
           ocrLanguage: settings.ocrLanguage || 'it'
         });
+        if (!file || !file.id) {
+          throw new Error('Drive API ha restituito un file OCR non valido (id assente)');
+        }
         fileId = file.id;
       } else {
         throw new Error('Drive.Files non espone metodi OCR compatibili (insert/create)');
@@ -869,7 +875,7 @@ class GmailService {
         // Reply-To: usa alias solo se presente in To/Cc del messaggio originale
         let replyToEmail = null;
         const recipientHeaders = `${messageDetails.recipientEmail || ''},${messageDetails.recipientCc || ''}`;
-        const emailRegex = /\b[A-Za-z0-9](?:[A-Za-z0-9._%+-]{0,64})@[A-Za-z0-9-]+\.[A-Za-z]{2,}\b/gi;
+        const emailRegex = /\b[A-Za-z0-9][A-Za-z0-9._%+-]{0,63}@(?!-)(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}\b/gi;
         const recipientAddresses = (recipientHeaders.match(emailRegex) || [])
           .map(addr => addr.replace(/[\r\n]+/g, '').trim().toLowerCase());
         const knownAliases = (typeof CONFIG !== 'undefined' && CONFIG.KNOWN_ALIASES)

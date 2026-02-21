@@ -283,10 +283,16 @@ class EmailProcessor {
       // ====================================================================================================
       const safeSenderEmail = (messageDetails.senderEmail || '').toLowerCase();
 
-      // Verifica mittente: usa myEmail calcolata in modo sicuro
-      const isMe = Boolean(normalizedMyEmail) && (
-        safeSenderEmail === normalizedMyEmail ||
-        knownAliases.some(alias => safeSenderEmail === alias.toLowerCase())
+      const candidateTo = (candidate && typeof candidate.getTo === 'function') ? candidate.getTo() : '';
+      const recipientHeaders = `${messageDetails.recipientEmail || ''},${messageDetails.recipientCc || ''},${candidateTo}`;
+      const recipientAddresses = (recipientHeaders.match(/\b[A-Za-z0-9][A-Za-z0-9._%+-]{0,63}@(?!-)(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}\b/gi) || [])
+        .map(addr => addr.replace(/[\r\n]+/g, '').trim().toLowerCase());
+
+      // Verifica mittente: usa myEmail, alias noti e destinatari effettivi del messaggio
+      const isMe = Boolean(safeSenderEmail) && (
+        (Boolean(normalizedMyEmail) && safeSenderEmail === normalizedMyEmail) ||
+        knownAliases.some(alias => safeSenderEmail === alias.toLowerCase()) ||
+        recipientAddresses.includes(safeSenderEmail)
       );
 
       if (isMe) {
