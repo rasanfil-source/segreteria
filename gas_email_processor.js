@@ -477,7 +477,11 @@ class EmailProcessor {
         return result;
       }
 
-      const detectedLanguage = quickCheck.language;
+      const languageDetection = this.geminiService.detectEmailLanguage(
+        messageDetails.body,
+        messageDetails.subject
+      ) || {};
+      const detectedLanguage = (quickCheck.language || languageDetection.lang || 'it').toLowerCase();
       console.log(`   🌐 Lingua: ${detectedLanguage.toUpperCase()}`);
 
       // ====================================================================================================
@@ -531,7 +535,7 @@ class EmailProcessor {
       // ====================================================================================================
       // STEP 6.5: CONTESTO MEMORIA
       // ====================================================================================================
-      const memoryContext = this.memoryService.getMemory(threadId);
+      const memoryContext = this.memoryService.getMemory(threadId) || {};
 
       if (Object.keys(memoryContext).length > 0) {
         console.log(`   🧠 Memoria trovata: lang=${memoryContext.language}, topics=${(memoryContext.providedInfo || []).length}`);
