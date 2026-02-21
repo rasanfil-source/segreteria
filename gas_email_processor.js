@@ -366,22 +366,21 @@ class EmailProcessor {
       const MAX_CONSECUTIVE_EXTERNAL = this.config.maxConsecutiveExternal;
 
       if (messages.length > MAX_THREAD_LENGTH) {
-        const ourEmail = myEmail || '';
-        if (!ourEmail) {
+        if (!myEmail) {
           console.warn('   ⚠️ Email utente non disponibile: skip controllo anti-loop basato su mittente');
         }
         let consecutiveExternal = 0;
 
         for (let i = messages.length - 1; i >= 0; i--) {
           const msgFrom = messages[i].getFrom().toLowerCase();
-          if (ourEmail && !msgFrom.includes(ourEmail.toLowerCase())) {
+          if (myEmail && !msgFrom.includes(myEmail.toLowerCase())) {
             consecutiveExternal++;
           } else {
             break;
           }
         }
 
-        if (ourEmail && consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
+        if (myEmail && consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
           console.log(`   ⊖ Saltato: probabile loop email (${consecutiveExternal} esterni consecutivi)`);
           this._markMessageAsProcessed(candidate);
           result.status = 'filtered';
@@ -986,7 +985,7 @@ ${addressLines.join('\n\n')}
       // Cerca thread non letti nella inbox
       // Utilizziamo un buffer di ricerca più ampio per gestire thread saltati (es. loop interni)
       // Rimuoviamo il filtro etichetta per permettere la gestione dei follow-up in thread già elaborati
-      const searchQuery = 'in:inbox is:unread';
+      const searchQuery = `is:unread -label:${this.config.labelName} -label:${this.config.errorLabelName} in:inbox`;
       const searchLimit = (this.config.searchPageSize || 50);
 
       const threads = GmailApp.search(

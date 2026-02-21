@@ -767,9 +767,9 @@ class GmailService {
     }
 
     const sigMarkers = [
-      /cordiali saluti/i,
-      /distinti saluti/i,
-      /in fede/i,
+      /^cordiali saluti\b/im,
+      /^distinti saluti\b/im,
+      /^in fede\b/im,
       /best regards/i,
       /sincerely/i,
       /sent from my iphone/i,
@@ -804,7 +804,9 @@ class GmailService {
     const gmailThread = typeof thread === 'string' ?
       GmailApp.getThreadById(thread) : thread;
 
-    gmailThread.reply(replyText);
+    const messages = gmailThread.getMessages();
+    const lastMsg = messages[messages.length - 1];
+    lastMsg.reply(replyText);
 
     console.log(`✓ Risposta inviata a ${messageDetails.senderEmail}`);
 
