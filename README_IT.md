@@ -41,6 +41,12 @@
     *   **Hardening Normalizzazione (v2.2.6)**: Normalizzazione dei numeri civici resa sicura contro valori `null` o `undefined`.
     *   **Compatibilità Drive API**: Supporto trasparente per diverse versioni del servizio OCR di Google Drive.
     *   **Timezone-Awareness**: Sincronizzazione perfetta degli orari di sospensione con il fuso orario dello script.
+*   **Cycle v2.3.1 (Security Hardening)**:
+    *   **SSRF Protection v2**: Protezione avanzata contro bypass IPv6 (forme estese ed IPv4-mapped).
+    *   **JSON Resilience**: Migliorata estrazione da blocchi markdown e autocorrezione virgole pendenti.
+    *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
+    *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
+    *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
 
 ---
 
