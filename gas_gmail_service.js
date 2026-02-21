@@ -1456,7 +1456,18 @@ function markdownToHtml(text) {
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/(?<!\*)\*(?!\*)(.+?)\*(?!\*)/g, '<em>$1</em>');
 
-  // 5. Ripristina link e code blocks
+  // 5. Liste markdown (bullet) -> <ul><li>
+  html = html.replace(/^[•\-*]\s+(.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(?:<li>.*?<\/li>\s*)+/gs, (block) => {
+    const cleaned = block.replace(/\n+/g, '');
+    return `<ul style="margin:8px 0;padding-left:20px;">${cleaned}</ul>`;
+  });
+
+  // 6. Paragraphs e line breaks (prima del ripristino placeholder)
+  html = html.replace(/\n\n+/g, '</p><p>');
+  html = html.replace(/\n/g, '<br>');
+
+  // 7. Ripristina link e code blocks
   links.forEach((entry) => {
     html = html.split(entry.token).join(entry.value);
   });
@@ -1466,17 +1477,6 @@ function markdownToHtml(text) {
       `<pre style="background:#f4f4f4;padding:10px;border-radius:4px;font-family:monospace;">${entry.value}</pre>`
     );
   });
-
-  // 6. Liste markdown (bullet) -> <ul><li>
-  html = html.replace(/^[•\-*]\s+(.+)$/gm, '<li>$1</li>');
-  html = html.replace(/(?:<li>.*?<\/li>\s*)+/gs, (block) => {
-    const cleaned = block.replace(/\n+/g, '');
-    return `<ul style="margin:8px 0;padding-left:20px;">${cleaned}</ul>`;
-  });
-
-  // 7. Paragraphs e line breaks
-  html = html.replace(/\n\n+/g, '</p><p>');
-  html = html.replace(/\n/g, '<br>');
 
   // 8. Emoji to HTML entities
   html = Array.from(html).map(char => {

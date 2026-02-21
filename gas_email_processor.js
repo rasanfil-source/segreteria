@@ -105,9 +105,18 @@ class EmailProcessor {
     } else if (!scriptCache || typeof LockService === 'undefined' || !LockService || typeof LockService.getScriptLock !== 'function') {
       console.warn(`⚠️ Lock service/cache non disponibili per thread ${threadId}: procedo senza lock`);
     } else {
-      const ttlSeconds = (typeof CONFIG !== 'undefined' && CONFIG.CACHE_LOCK_TTL) ? CONFIG.CACHE_LOCK_TTL : 30;
+      const configuredTtl = (typeof CONFIG !== 'undefined' && Number(CONFIG.CACHE_LOCK_TTL))
+        ? Number(CONFIG.CACHE_LOCK_TTL)
+        : null;
+      // Fallback robusto: se CACHE_LOCK_TTL non è configurato, allineiamo il lock
+      // al budget massimo run (in secondi) con floor minimo di 180s.
+      const computedFallbackTtl = Math.max(180, Math.ceil((this.config.maxExecutionTimeMs || 280000) / 1000));
+      const ttlSeconds = configuredTtl || computedFallbackTtl;
       const lockTtlMs = ttlSeconds * 1000;
-      lockValue = Date.now().toString();
+      const uniqueSuffix = (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.getUuid === 'function')
+        ? Utilities.getUuid()
+        : Math.random().toString(36).slice(2, 10);
+      lockValue = `${Date.now()}_${uniqueSuffix}`;
       const scriptLock = LockService.getScriptLock();
 
       try {
@@ -118,7 +127,7 @@ class EmailProcessor {
 
         const existingLock = scriptCache.get(threadLockKey);
         if (existingLock) {
-          const existingTimestamp = Number(existingLock);
+          const existingTimestamp = Number(String(existingLock).split('_')[0]);
           const isStale = !isNaN(existingTimestamp) && (Date.now() - existingTimestamp) > lockTtlMs;
 
           if (isStale) {
@@ -1043,11 +1052,13 @@ ${addressLines.join('\n\n')}
     this._startTime = Date.now();
     const MAX_EXECUTION_TIME = this.config.maxExecutionTimeMs;
     let processedCount = 0; // Contatore thread effettivamente elaborati
+    const maxLimit = parseInt(this.config.maxEmailsPerRun, 10);
+    const safeLimit = Number.isNaN(maxLimit) ? 10 : maxLimit;
 
     for (let index = 0; index < threads.length; index++) {
       // Stop se abbiamo raggiunto il target di elaborazione effettiva
-      if (processedCount >= parseInt(this.config.maxEmailsPerRun, 10)) {
-        console.log(`🛑 Raggiunti ${this.config.maxEmailsPerRun} thread elaborati. Stop.`);
+      if (processedCount >= safeLimit) {
+        console.log(`🛑 Raggiunti ${safeLimit} thread elaborati. Stop.`);
         break;
       }
 
