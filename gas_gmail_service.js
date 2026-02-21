@@ -1187,7 +1187,9 @@ function sanitizeUrl(url) {
   // SSRF: blocco IP interni, IPv6 loopback/link-local, IP decimali
   const INTERNAL_IP_PATTERN = /^(https?:\/\/)?(localhost|127\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.)/i;
   const IPV6_LOOPBACK = /\[?::1\]?/;
+  const IPV6_MAPPED_LOOPBACK = /\[?::ffff:127\./i;
   const IPV6_LINKLOCAL = /\[?fe80:/i;
+  const IPV6_UNIQUE_LOCAL = /\[?fc[0-9a-f]{2}:|\[?fd[0-9a-f]{2}:/i;
   const DECIMAL_IP = /^https?:\/\/\d{8,10}(\/|$)/i;
   const USERINFO_BYPASS = /^https?:\/\/[^@]+@/i;
 
@@ -1197,7 +1199,9 @@ function sanitizeUrl(url) {
 
   if (INTERNAL_IP_PATTERN.test(normalized) ||
     IPV6_LOOPBACK.test(normalized) ||
+    IPV6_MAPPED_LOOPBACK.test(normalized) ||
     IPV6_LINKLOCAL.test(normalized) ||
+    IPV6_UNIQUE_LOCAL.test(normalized) ||
     DECIMAL_IP.test(normalized) ||
     ALT_LOCALHOST_NUMERIC.test(normalized) ||
     USERINFO_BYPASS.test(normalized)) {
