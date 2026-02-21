@@ -938,6 +938,10 @@ function testSanitizeUrlIPv6() {
     const cgnat = sanitizeUrl('http://100.64.0.10/internal');
     assert(cgnat === null, `sanitizeUrl deve bloccare rete CGNAT, ottenuto: ${cgnat}`);
 
+    // IPv6 pubblico compresso → passa
+    const publicIpv6 = sanitizeUrl('https://[2001:4860:4860::8888]/dns-query');
+    assert(publicIpv6 !== null, `sanitizeUrl deve permettere IPv6 pubblico, ottenuto: ${publicIpv6}`);
+
     // URL legittimo → passa
     const legit = sanitizeUrl('https://www.example.com/page');
     assert(legit !== null, 'sanitizeUrl deve permettere URL legittimi');

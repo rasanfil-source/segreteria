@@ -1203,11 +1203,6 @@ function sanitizeUrl(url) {
 
   // SSRF: blocco IP interni, IPv6 loopback/link-local, IP decimali
   const INTERNAL_IP_PATTERN = /^(https?:\/\/)?(localhost|127\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.)/i;
-  const IPV6_LOOPBACK = /\[?::1\]?/;
-  const IPV6_UNSPECIFIED = /\[?::\]?/;
-  const IPV6_MAPPED_LOOPBACK = /\[?::ffff:127\./i;
-  const IPV6_LINKLOCAL = /\[?fe80:/i;
-  const IPV6_UNIQUE_LOCAL = /\[?fc[0-9a-f]{2}:|\[?fd[0-9a-f]{2}:/i;
   const DECIMAL_IP = /^https?:\/\/\d{8,10}(\/|$)/i;
   const USERINFO_BYPASS = /^https?:\/\/[^@]+@/i;
 
@@ -1216,11 +1211,6 @@ function sanitizeUrl(url) {
   const ALT_LOCALHOST_NUMERIC = /^https?:\/\/(?:0x[0-9a-f]+|0[0-7]+|\d+)(?::\d+)?(?:\/|$)/i;
 
   if (INTERNAL_IP_PATTERN.test(normalized) ||
-    IPV6_LOOPBACK.test(normalized) ||
-    IPV6_UNSPECIFIED.test(normalized) ||
-    IPV6_MAPPED_LOOPBACK.test(normalized) ||
-    IPV6_LINKLOCAL.test(normalized) ||
-    IPV6_UNIQUE_LOCAL.test(normalized) ||
     DECIMAL_IP.test(normalized) ||
     ALT_LOCALHOST_NUMERIC.test(normalized) ||
     USERINFO_BYPASS.test(normalized)) {
@@ -1241,6 +1231,25 @@ function sanitizeUrl(url) {
 
     const host = String(parseHostFromUrl(decoded) || '').toLowerCase();
     const hostNoBrackets = host.replace(/^\[|\]$/g, '');
+
+    const isBlockedIpv6Host = (ipv6Host) => {
+      if (!ipv6Host || !ipv6Host.includes(':')) return false;
+
+      const normalizedIpv6 = ipv6Host.toLowerCase();
+      // Block loopback and unspecified
+      if (normalizedIpv6 === '::' || normalizedIpv6 === '::1') return true;
+      // Block link-local
+      if (normalizedIpv6.startsWith('fe80:')) return true;
+      // Block unique-local (ULA)
+      if (normalizedIpv6.startsWith('fc') || normalizedIpv6.startsWith('fd')) return true;
+
+      return false;
+    };
+
+    if (isBlockedIpv6Host(hostNoBrackets)) {
+      console.warn(`🛑 Bloccato tentativo SSRF IPv6 locale: ${decoded}`);
+      return null;
+    }
     const parts = hostNoBrackets.split('.');
 
     if (parts.length === 4) {
