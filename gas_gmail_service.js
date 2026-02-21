@@ -1187,6 +1187,7 @@ function sanitizeUrl(url) {
   // SSRF: blocco IP interni, IPv6 loopback/link-local, IP decimali
   const INTERNAL_IP_PATTERN = /^(https?:\/\/)?(localhost|127\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.)/i;
   const IPV6_LOOPBACK = /\[?::1\]?/;
+  const IPV6_UNSPECIFIED = /\[?::\]?/;
   const IPV6_MAPPED_LOOPBACK = /\[?::ffff:127\./i;
   const IPV6_LINKLOCAL = /\[?fe80:/i;
   const IPV6_UNIQUE_LOCAL = /\[?fc[0-9a-f]{2}:|\[?fd[0-9a-f]{2}:/i;
@@ -1199,6 +1200,7 @@ function sanitizeUrl(url) {
 
   if (INTERNAL_IP_PATTERN.test(normalized) ||
     IPV6_LOOPBACK.test(normalized) ||
+    IPV6_UNSPECIFIED.test(normalized) ||
     IPV6_MAPPED_LOOPBACK.test(normalized) ||
     IPV6_LINKLOCAL.test(normalized) ||
     IPV6_UNIQUE_LOCAL.test(normalized) ||
@@ -1241,8 +1243,11 @@ function sanitizeUrl(url) {
       const isPrivate172 = firstOctet === 172 && secondOctet >= 16 && secondOctet <= 31;
       const isPrivate192 = firstOctet === 192 && secondOctet === 168;
       const isLinkLocal = firstOctet === 169 && secondOctet === 254;
+      const isZeroNet = firstOctet === 0;
+      const isCgnat = firstOctet === 100 && secondOctet >= 64 && secondOctet <= 127;
+      const isBenchmarkNet = firstOctet === 198 && (secondOctet === 18 || secondOctet === 19);
 
-      if (isNumericHost && (isLoopback || isPrivate10 || isPrivate172 || isPrivate192 || isLinkLocal)) {
+      if (isNumericHost && (isLoopback || isPrivate10 || isPrivate172 || isPrivate192 || isLinkLocal || isZeroNet || isCgnat || isBenchmarkNet)) {
         console.warn(`🛑 Bloccato tentativo SSRF hostname numerico: ${decoded}`);
         return null;
       }
@@ -1277,8 +1282,11 @@ function sanitizeUrl(url) {
         const isPrivate172 = firstOctet === 172 && secondOctet >= 16 && secondOctet <= 31;
         const isPrivate192 = firstOctet === 192 && secondOctet === 168;
         const isLinkLocal = firstOctet === 169 && secondOctet === 254;
+        const isZeroNet = firstOctet === 0;
+        const isCgnat = firstOctet === 100 && secondOctet >= 64 && secondOctet <= 127;
+        const isBenchmarkNet = firstOctet === 198 && (secondOctet === 18 || secondOctet === 19);
 
-        if (isLoopback || isPrivate10 || isPrivate172 || isPrivate192 || isLinkLocal) {
+        if (isLoopback || isPrivate10 || isPrivate172 || isPrivate192 || isLinkLocal || isZeroNet || isCgnat || isBenchmarkNet) {
           console.warn(`🛑 Bloccato tentativo SSRF IPv4-mapped IPv6: ${decoded}`);
           return null;
         }

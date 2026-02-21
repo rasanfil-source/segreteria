@@ -930,6 +930,14 @@ function testSanitizeUrlIPv6() {
     const ula = sanitizeUrl('http://[fd00::1]/admin');
     assert(ula === null, `sanitizeUrl deve bloccare IPv6 ULA, ottenuto: ${ula}`);
 
+    // IPv6 unspecified → null
+    const unspecified = sanitizeUrl('http://[::]/admin');
+    assert(unspecified === null, `sanitizeUrl deve bloccare IPv6 unspecified, ottenuto: ${unspecified}`);
+
+    // Carrier-grade NAT → null
+    const cgnat = sanitizeUrl('http://100.64.0.10/internal');
+    assert(cgnat === null, `sanitizeUrl deve bloccare rete CGNAT, ottenuto: ${cgnat}`);
+
     // URL legittimo → passa
     const legit = sanitizeUrl('https://www.example.com/page');
     assert(legit !== null, 'sanitizeUrl deve permettere URL legittimi');
