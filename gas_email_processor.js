@@ -994,7 +994,10 @@ ${addressLines.join('\n\n')}
     // Cerca thread non letti nella inbox
     // Utilizziamo un buffer di ricerca più ampio per gestire thread saltati (es. loop interni)
     // Rimuoviamo il filtro etichetta per permettere la gestione dei follow-up in thread già elaborati
-    const searchQuery = `is:unread -label:${this.config.labelName} -label:${this.config.errorLabelName} -label:${this.config.validationErrorLabel} in:inbox`;
+    const processedLabelQuery = this._formatLabelQueryValue(this.config.labelName);
+    const errorLabelQuery = this._formatLabelQueryValue(this.config.errorLabelName);
+    const validationLabelQuery = this._formatLabelQueryValue(this.config.validationErrorLabel);
+    const searchQuery = `is:unread -label:${processedLabelQuery} -label:${errorLabelQuery} -label:${validationLabelQuery} in:inbox`;
     const searchLimit = (this.config.searchPageSize || 50);
 
     const threads = GmailApp.search(
@@ -1265,6 +1268,12 @@ ${addressLines.join('\n\n')}
     const start = Number(this._startTime) || Date.now();
     const elapsed = Date.now() - start;
     return Math.max(0, budgetMs - elapsed);
+  }
+
+  _formatLabelQueryValue(labelName) {
+    const raw = String(labelName || '').trim();
+    if (!raw) return '""';
+    return `"${raw.replace(/"/g, '\\"')}"`;
   }
 
   _hasUnreadMessagesToProcess(thread, labeledMessageIds) {
