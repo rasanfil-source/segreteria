@@ -160,7 +160,7 @@ class EmailProcessor {
       const messages = thread.getMessages();
       const unreadMessages = messages.filter(m => m.isUnread());
 
-      // Recupero indirizzo email corrente con fallback
+      // Recupero indirizzo email corrente con fallback robusto
       let myEmail = '';
       try {
         const effectiveUser = Session.getEffectiveUser();
@@ -172,6 +172,23 @@ class EmailProcessor {
         }
       } catch (e) {
         console.warn(`⚠️ Impossibile recuperare email utente: ${e.message}`);
+      }
+
+      if (!myEmail) {
+        const adminEmail = (typeof CONFIG !== 'undefined' && CONFIG.LOGGING && CONFIG.LOGGING.ADMIN_EMAIL)
+          ? CONFIG.LOGGING.ADMIN_EMAIL
+          : '';
+        const botEmailProperty = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
+          ? PropertiesService.getScriptProperties().getProperty('BOT_EMAIL')
+          : '';
+
+        myEmail = adminEmail || botEmailProperty || '';
+
+        if (myEmail) {
+          console.warn(`⚠️ Session email non disponibile: uso fallback anti-loop (${myEmail})`);
+        } else {
+          console.warn('⚠️ Session email non disponibile e nessun fallback configurato (CONFIG.LOGGING.ADMIN_EMAIL/BOT_EMAIL)');
+        }
       }
 
       // ====================================================================================================

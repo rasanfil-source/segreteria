@@ -503,7 +503,7 @@ Output JSON:
       ' nel ', ' della ', ' degli ', ' delle '
     ];
 
-    // Conta corrispondenze con limiti di parola
+    // Conta corrispondenze con limiti di parola Unicode-safe
     const countMatches = (keywords, txt, weight = 1) => {
       let count = 0;
       for (const kw of keywords) {
@@ -512,7 +512,7 @@ Output JSON:
           count += weight * matches;
         } else {
           const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const pattern = new RegExp(`\\b${escaped}\\b`, 'gi');
+          const pattern = new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'giu');
           const matches = (txt.match(pattern) || []).length;
           count += weight * matches;
         }
@@ -913,8 +913,16 @@ Output JSON:
         }
       } catch (error) {
         if (error.message && error.message.includes('QUOTA_EXHAUSTED')) {
-          console.error('❌ Quota esaurita, uso solo detection locale');
-          return defaultResult;
+          console.warn('⚠️ Rate Limiter in QUOTA_EXHAUSTED nel quick check, provo fallback diretto con retry');
+          try {
+            return this._withRetry(
+              () => this._quickCheckWithModel(emailContent, emailSubject, this.modelName),
+              'Quick check fallback dopo QUOTA_EXHAUSTED'
+            );
+          } catch (directError) {
+            console.error(`❌ Fallback diretto quick check fallito: ${directError.message}. Uso detection locale.`);
+            return defaultResult;
+          }
         }
         console.warn(`⚠️ Rate Limiter quick check fallito: ${error.message} `);
         // Prosegui con implementazione originale
