@@ -266,10 +266,6 @@ class EmailProcessor {
       // ====================================================================================================
       const safeSenderEmail = (messageDetails.senderEmail || '').toLowerCase();
 
-      // Controllo esteso per alias conosciuti
-      const knownAliases = (typeof CONFIG !== 'undefined' && CONFIG.KNOWN_ALIASES) ? CONFIG.KNOWN_ALIASES : [];
-      const normalizedMyEmail = myEmail ? myEmail.toLowerCase() : '';
-
       // Verifica mittente: usa myEmail calcolata in modo sicuro
       const isMe = Boolean(normalizedMyEmail) && (
         safeSenderEmail === normalizedMyEmail ||
