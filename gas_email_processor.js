@@ -69,6 +69,10 @@ class EmailProcessor {
       validazione: this.config.validationEnabled,
       dryRun: this.config.dryRun
     });
+
+    // Timestamp run corrente (usato da _isNearDeadline/_getRemainingTimeMs).
+    // Viene poi resettato all'avvio di ogni batch in processUnreadEmails.
+    this._startTime = Date.now();
   }
 
   /**
@@ -991,7 +995,7 @@ ${addressLines.join('\n\n')}
       // Cerca thread non letti nella inbox
       // Utilizziamo un buffer di ricerca più ampio per gestire thread saltati (es. loop interni)
       // Rimuoviamo il filtro etichetta per permettere la gestione dei follow-up in thread già elaborati
-      const searchQuery = `is:unread -label:${this.config.labelName} -label:${this.config.errorLabelName} in:inbox`;
+      const searchQuery = `is:unread -label:${this.config.labelName} -label:${this.config.errorLabelName} -label:${this.config.validationErrorLabel} in:inbox`;
       const searchLimit = (this.config.searchPageSize || 50);
 
       const threads = GmailApp.search(
