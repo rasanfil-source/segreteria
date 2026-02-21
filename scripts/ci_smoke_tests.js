@@ -965,6 +965,26 @@ function testMarkdownLinkWithParentheses() {
     );
 }
 
+function testAddLabelToThreadPropagatesNonLabelErrors() {
+    loadScript('gas_gmail_service.js');
+
+    const service = Object.create(GmailService.prototype);
+    service.getOrCreateLabel = () => {
+        throw new Error('Permission denied');
+    };
+    service._isLabelNotFoundError = () => false;
+
+    let threw = false;
+    try {
+        service.addLabelToThread({ addLabel: () => { } }, 'IA');
+    } catch (error) {
+        threw = true;
+        assert(error.message.includes('Permission denied'), 'Errore inatteso propagato da addLabelToThread');
+    }
+
+    assert(threw, 'addLabelToThread deve propagare errori non riconducibili a label missing');
+}
+
 // ========================================================================
 // MAIN: runner con contatore e soglia minima
 // ========================================================================
@@ -1004,6 +1024,7 @@ function main() {
         ['sanitizeUrl: blocca IPv6/decimale/userinfo', testSanitizeUrlIPv6],
         ['markdownToHtml: escape-first previene XSS', testMarkdownToHtmlXss],
         ['markdownToHtml: supporta URL con parentesi', testMarkdownLinkWithParentheses],
+        ['gmail labels: errori non-label vengono propagati', testAddLabelToThreadPropagatesNonLabelErrors],
         ['main: nessun leak globale hasExecutionLock', testMainDoesNotLeakHasExecutionLockGlobal],
     ];
 

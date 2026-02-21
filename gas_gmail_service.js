@@ -92,7 +92,11 @@ class GmailService {
         const label = this.getOrCreateLabel(labelName);
         thread.addLabel(label);
         console.log(`✓ Aggiunta label '${labelName}' al thread (retry dopo cache reset)`);
+        return;
       }
+
+      // Non nascondere errori non correlati alla cache etichette (permessi, quota, thread invalido...)
+      throw e;
     }
   }
 
