@@ -943,9 +943,13 @@ function testSanitizeUrlIPv6() {
     const hexDotted = sanitizeUrl('http://0x7f.0x0.0x0.0x1/admin');
     assert(hexDotted === null, `sanitizeUrl deve bloccare dotted-quad hex, ottenuto: ${hexDotted}`);
 
-    // IPv4-mapped IPv6 loopback → null
+    // IPv4-mapped IPv6 loopback (forma compressa) → null
     const mappedLoopback = sanitizeUrl('http://[::ffff:127.0.0.1]/admin');
     assert(mappedLoopback === null, `sanitizeUrl deve bloccare IPv4-mapped loopback, ottenuto: ${mappedLoopback}`);
+
+    // IPv4-mapped IPv6 loopback (forma estesa) → null
+    const mappedExpanded = sanitizeUrl('http://[0:0:0:0:0:ffff:7f00:1]/admin');
+    assert(mappedExpanded === null, `sanitizeUrl deve bloccare IPv4-mapped loopback esteso, ottenuto: ${mappedExpanded}`);
 
     // IPv6 unique local (ULA) → null
     const ula = sanitizeUrl('http://[fd00::1]/admin');

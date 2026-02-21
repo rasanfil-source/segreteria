@@ -59,14 +59,18 @@ class GeminiService {
     this.useRateLimiter = this.config.USE_RATE_LIMITER === true;
     if (this.useRateLimiter) {
       try {
-        this.rateLimiter = new GeminiRateLimiter();
-        this.logger.info('Rate Limiter abilitato');
+        if (typeof GeminiRateLimiter !== 'undefined') {
+          this.rateLimiter = new GeminiRateLimiter();
+          this.logger.info('Rate Limiter abilitato');
+        } else {
+          throw new Error('Classe GeminiRateLimiter non trovata nel bundle di script.');
+        }
       } catch (e) {
-        this.logger.warn('Inizializzazione Rate Limiter fallita', { errore: e.message });
+        this.logger.warn('Inizializzazione Rate Limiter fallita, fallback a chiamate dirette', { errore: e.message });
         this.useRateLimiter = false;
       }
     } else {
-      this.logger.debug('Rate Limiter disabilitato');
+      this.logger.debug('Rate Limiter disabilitato via config');
     }
 
     this.logger.info('GeminiService inizializzato', { modello: this.modelName });
@@ -264,7 +268,7 @@ Output JSON:
 
 
       // Punto 4: Estesa gestione errori con switch alla chiave di riserva
-      const responseCode = response.getResponseCode();
+      let responseCode = response.getResponseCode();
       if ([429, 500, 502, 503, 504].includes(responseCode) && this.backupKey) {
         console.warn(`\u26A0\uFE0F Chiave primaria esaurita / errore(${response.getResponseCode()}).Tentativo con chiave di riserva...`);
         activeKey = this.backupKey;
@@ -1145,11 +1149,14 @@ function createGeminiService() {
 function parseGeminiJsonLenient(text) {
   if (!text) throw new Error('Risposta vuota');
 
-  let cleaned = text
-    .replace(/```(?:json)?\s*/gi, '')
-    .replace(/```/g, '')
-    .trim();
+  // 1) Estrazione markdown robusta: usa il primo blocco fenced se presente
+  let cleaned = text;
+  const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fencedMatch && fencedMatch[1]) {
+    cleaned = fencedMatch[1];
+  }
 
+  // 2) Estrazione oggetto JSON esterno
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
 
@@ -1157,19 +1164,23 @@ function parseGeminiJsonLenient(text) {
     throw new Error('Nessun oggetto JSON trovato');
   }
 
-  cleaned = cleaned.substring(start, end + 1);
+  cleaned = cleaned.substring(start, end + 1).trim();
 
+  // 3) Parsing diretto
   try {
     return JSON.parse(cleaned);
   } catch (e) {
-    console.warn('⚠️ Parsing JSON diretto fallito, tentativo di correzione sicura chiavi...');
+    console.warn('⚠️ Parsing JSON diretto fallito, tentativo di autocorrezione...');
   }
 
+  // 4) Correzioni conservative: quote chiavi non quotate + trailing commas
   const safeFixed = _quoteUnquotedJsonKeysSafely(cleaned);
+  const withoutTrailingCommas = safeFixed.replace(/,\s*([\]}])/g, '$1');
+
   try {
-    return JSON.parse(safeFixed);
+    return JSON.parse(withoutTrailingCommas);
   } catch (e) {
-    throw new Error(`JSON irreparabile: ${e.message}`);
+    throw new Error(`Impossibile parsare JSON da Gemini dopo autocorrezione: ${e.message}`);
   }
 }
 

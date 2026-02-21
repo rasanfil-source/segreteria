@@ -1289,7 +1289,16 @@ function sanitizeUrl(url) {
 
     // Blocca IPv4-mapped IPv6 verso reti locali/loopback
     // es: http://[::ffff:127.0.0.1]/, http://[::ffff:7f00:1]/
-    const mappedMatch = hostNoBrackets.match(/^::ffff:(.+)$/i);
+    const mappedPatterns = [
+      /^::ffff:(.+)$/i,
+      /^0:0:0:0:0:ffff:(.+)$/i,
+      /^0000:0000:0000:0000:0000:ffff:(.+)$/i
+    ];
+
+    const mappedMatch = mappedPatterns
+      .map(pattern => hostNoBrackets.match(pattern))
+      .find(match => match && match[1]);
+
     if (mappedMatch && mappedMatch[1]) {
       const mapped = mappedMatch[1].replace(/^\[|\]$/g, '');
       let mappedOctets = null;

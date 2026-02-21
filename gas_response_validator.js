@@ -59,7 +59,7 @@ class ResponseValidator {
     // Pattern di ragionamento esposto (thinking leak) - CRITICO
     // IBRIDO: Regex semantiche + pattern statici specifici
     this.thinkingRegexes = [
-      /\b(devo|dovrei|bisogna|necessario)\s+(usare|correggere|evitare|modificare|aggiornare)\b/i, // Meta-commenti
+      /\b(devo|dovrei)\s+(correggere|modificare|aggiornare)\s+(la\s+risposta|il\s+prompt|il\s+testo)\b/i, // Meta-commenti AI (ristretto)
       /\b(knowledge base|kb)\s+(dice|afferma|contiene|riporta|indica)\b/i,                       // Riferimenti KB
       /\b(rivedendo|consultando|controllando|verificando)\s+(la\s+)?(knowledge base|kb)\b/i,     // Azioni su KB
       /\b(ho\s+)?dedott[oaie]?\b[^.\n]{0,120}\b(knowledge base|kb)\b/i                          // Deduzioni esplicite da KB
@@ -594,9 +594,11 @@ class ResponseValidator {
     const responsePhonesRaw = response.match(phonePattern) || [];
     const kbPhonesRaw = safeKnowledgeBase.match(phonePattern) || [];
 
-    // 8+ cifre minimo per evitare falsi positivi
+    // 8+ cifre minimo per evitare falsi positivi. Escludi esplicitamente date YYYYMMDD (B18).
+    const datePattern = /^\d{4}[01]\d[0-3]\d$/;
     const responsePhones = new Set(
-      responsePhonesRaw.map(normalizePhone).filter(p => p.length >= 8)
+      responsePhonesRaw.map(normalizePhone)
+        .filter(p => p.length >= 8 && !datePattern.test(p))
     );
     const kbPhones = new Set(
       kbPhonesRaw.map(normalizePhone).filter(p => p.length >= 8)

@@ -1147,19 +1147,19 @@ ${addressLines.join('\n\n')}
       ? GLOBAL_CACHE.ignoreDomains.map(d => String(d).toLowerCase())
       : ((typeof CONFIG !== 'undefined' && CONFIG.IGNORE_DOMAINS) ? CONFIG.IGNORE_DOMAINS.map(d => String(d).toLowerCase()) : []);
 
-    if (ignoreDomains.some(domain => email.includes(domain.toLowerCase()))) {
+    if (ignoreDomains.some(domain => email.includes(domain))) {
       console.log(`🚫 Ignorato: mittente in blacklist (${email})`);
       return true;
     }
 
-    // 2. Controllo Keyword Oggetto
+    // 2. Controllo Keyword Oggetto/Corpo
     // NOTA: GLOBAL_CACHE.ignoreKeywords include già CONFIG.IGNORE_KEYWORDS (merge in _loadAdvancedConfig)
     const ignoreKeywords = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreKeywords))
       ? GLOBAL_CACHE.ignoreKeywords.map(k => String(k).toLowerCase())
       : ((typeof CONFIG !== 'undefined' && CONFIG.IGNORE_KEYWORDS) ? CONFIG.IGNORE_KEYWORDS.map(k => String(k).toLowerCase()) : []);
 
-    if (ignoreKeywords.some(keyword => subject.includes(keyword.toLowerCase()))) {
-      console.log(`🚫 Ignorato: oggetto contiene keyword vietata`);
+    if (ignoreKeywords.some(keyword => subject.includes(keyword) || body.includes(keyword))) {
+      console.log(`🚫 Ignorato: oggetto o corpo contiene keyword vietata`);
       return true;
     }
 

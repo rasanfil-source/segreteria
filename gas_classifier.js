@@ -95,9 +95,15 @@ class Classifier {
   /**
    * Classifica email - filtro minimale
    */
-  classifyEmail(subject, body, isReply = false) {
+  classifyEmail(subject, body, isReply = false, senderEmail = null) {
     const safeSubject = typeof subject === 'string' ? subject : '';
     let safeBody = typeof body === 'string' ? body : '';
+
+    // Retrocompatibilità: in alcune chiamate legacy il 3° parametro era senderEmail.
+    if (typeof isReply === 'string' && senderEmail === null) {
+      senderEmail = isReply;
+      isReply = false;
+    }
 
     // FIX NULL SAFETY & LENGTH LIMIT
     if (safeSubject.trim() === '' && safeBody.trim() === '') {
