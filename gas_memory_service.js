@@ -518,7 +518,7 @@ class MemoryService {
         modified = true;
         // Aggiorna userReaction e context se fornito
         return {
-          ...info, // spread corretto dell'oggetto esistente
+          ...info,
           userReaction: reaction,
           context: context || info.context || null,
           lastInteraction: Date.now()

@@ -293,7 +293,6 @@ class ResponseValidator {
 
     // === CONTROLLO 5: Allucinazioni ===
     const hallucResult = this._checkHallucinations(response, knowledgeBase, originalMessage);
-    // Usiamo spread per evitare array annidati in errors/warnings.
     errors.push(...hallucResult.errors);
     warnings.push(...hallucResult.warnings);
     details.hallucinations = hallucResult;

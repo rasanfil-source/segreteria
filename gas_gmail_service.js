@@ -904,7 +904,7 @@ class GmailService {
 
         // Manteniamo `rawHeaders` come array e lo espandiamo nel payload MIME.
         const rawMessage = [
-          ...rawHeaders,
+          rawHeaders.join('\r\n'),
           '',
           `--${boundary}`,
           'Content-Type: text/plain; charset=UTF-8',
