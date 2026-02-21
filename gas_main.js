@@ -243,7 +243,17 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
 }
 
 function _loadResourcesInternal() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    // Fallback per esecuzioni trigger-centriche dove getActiveSpreadsheet() è null
+    const spreadsheetId = (typeof CONFIG !== 'undefined' && CONFIG.SPREADSHEET_ID) ? CONFIG.SPREADSHEET_ID : null;
+    if (spreadsheetId) {
+      console.warn('⚠️ getActiveSpreadsheet() null — fallback a openById(CONFIG.SPREADSHEET_ID)');
+      ss = SpreadsheetApp.openById(spreadsheetId);
+    } else {
+      throw new Error('Impossibile accedere allo Spreadsheet: getActiveSpreadsheet() null e CONFIG.SPREADSHEET_ID non configurato.');
+    }
+  }
 
   // Hardening: evita crash se CONFIG non è ancora inizializzato (ordine file GAS)
   const cfg = (typeof CONFIG !== 'undefined' && CONFIG) ? CONFIG : {

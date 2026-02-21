@@ -41,6 +41,8 @@ const CONFIG = {
     EMPTY_INBOX_WARNING_THRESHOLD: 5,   // Soglia per warning inbox vuota
     SUSPENSION_STALE_UNREAD_HOURS: 12,    // Paracadute: processa unread vecchie anche in fascia sospesa
     MIN_REMAINING_TIME_MS: 90000,      // Stop preventivo se resta meno di 90 secondi
+    EXECUTION_LOCK_WAIT_MS: 5000,      // Timeout acquisizione lock esecuzione (ms)
+    SEARCH_PAGE_SIZE: 50,              // Numero massimo thread restituiti da GmailApp.search
     MAX_EXECUTION_TIME_MS: 280000,    // Budget massimo per run (default GAS trigger ~6 minuti)
     GMAIL_LABEL_CACHE_TTL: 3600000,      // 1 ora in millisecondi
     MAX_HISTORY_MESSAGES: 10,            // Massimo messaggi in cronologia thread
@@ -66,6 +68,9 @@ const CONFIG = {
     // === Cache e Lock ===
     CACHE_LOCK_TTL: 240,                 // Secondi (copre OCR + AI + validazione semantica)
     CACHE_RACE_SLEEP_MS: 200,             // Attesa anti-race condition
+
+    // === Alias noti (anti-loop) ===
+    KNOWN_ALIASES: ['YOUR_SENDING_ALIAS@example.com'],
 
     // === Knowledge Base ===
     // In produzione: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID')

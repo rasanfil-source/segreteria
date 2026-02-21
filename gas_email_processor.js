@@ -62,7 +62,10 @@ class EmailProcessor {
         : 5,
       emptyInboxWarningThreshold: typeof CONFIG !== 'undefined' && typeof CONFIG.EMPTY_INBOX_WARNING_THRESHOLD === 'number'
         ? CONFIG.EMPTY_INBOX_WARNING_THRESHOLD
-        : 5
+        : 5,
+      searchPageSize: typeof CONFIG !== 'undefined' && typeof CONFIG.SEARCH_PAGE_SIZE === 'number'
+        ? CONFIG.SEARCH_PAGE_SIZE
+        : 50
     };
 
     this.logger.info('EmailProcessor inizializzato', {
@@ -206,17 +209,23 @@ class EmailProcessor {
         return !effectiveLabeledIds.has(message.getId());
       });
 
-      // Solo messaggi da mittenti esterni
-      // NOTA: Se senderEmail è null/vacante (es. estrazione fallita), lo lasciamo passare
-      // per evitare perdite silenziose. Sarà gestito/validato negli step successivi.
+      // Build set of our own addresses (primary + aliases) per filtro early-stage
+      const ownAddresses = new Set();
+      if (myEmail) ownAddresses.add(myEmail.toLowerCase());
+      const knownAliasesArray = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES))
+        ? CONFIG.KNOWN_ALIASES : [];
+      knownAliasesArray.forEach(alias => {
+        if (alias) ownAddresses.add(String(alias).toLowerCase());
+      });
+
       const externalUnread = unlabeledUnread.filter(message => {
-        const details = this.gmailService.extractMessageDetails(message);
-        // Navigazione sicura
-        const senderEmail = (details.senderEmail || '');
+        // B07: Usa getFrom() leggero anziché la costosa extractMessageDetails()
+        const rawFrom = (message.getFrom() || '');
+        const senderEmail = this.gmailService._extractEmailAddress(rawFrom);
 
         // Se non riusciamo ad estrarre l'email, consideriamo il mittente come esterno per sicurezza
         if (!senderEmail) return true;
-        return senderEmail.toLowerCase() !== myEmail.toLowerCase();
+        return !ownAddresses.has(senderEmail.toLowerCase());
       });
 
       // GUARDRAIL (critico): se un messaggio è già stato etichettati IA, non deve
@@ -267,7 +276,7 @@ class EmailProcessor {
       const lastSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
         ? this.gmailService._extractEmailAddress(lastSenderRaw).toLowerCase()
         : '';
-      const knownAliases = (typeof CONFIG !== 'undefined' && CONFIG.KNOWN_ALIASES) ? CONFIG.KNOWN_ALIASES : [];
+      const knownAliases = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES)) ? CONFIG.KNOWN_ALIASES : [];
       const normalizedMyEmail = myEmail ? myEmail.toLowerCase() : '';
       const lastSpeakerIsUs = Boolean(lastSenderEmail) && Boolean(normalizedMyEmail) && (
         lastSenderEmail === normalizedMyEmail ||
@@ -317,7 +326,7 @@ class EmailProcessor {
       const xAutoResponseSuppress = headers['x-auto-response-suppress'] || '';
 
       if (
-        /auto-replied/i.test(autoSubmitted) ||
+        /auto-replied|auto-generated/i.test(autoSubmitted) ||
         /bulk|auto_reply/i.test(precedence) ||
         /auto-reply|autoreply/i.test(xAutoReply) ||
         /oof|all|dr|rn|nri|auto/i.test(xAutoResponseSuppress)
@@ -974,163 +983,146 @@ ${addressLines.join('\n\n')}
     console.log('📬 Inizio elaborazione email...');
     console.log('='.repeat(70));
 
-    // Lock globale run-level: evita che due trigger simultanei scarichino la stessa inbox
-    // prima che entri in gioco il lock per-thread.
-    const executionLock = LockService.getScriptLock();
-    const lockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
-      ? CONFIG.EXECUTION_LOCK_WAIT_MS
-      : 5000;
+    // NOTA: Il lock run-level viene gestito dal chiamante (processEmailsMain in gas_main.js).
+    // NON acquisire qui un secondo LockService.getScriptLock() per evitare lock starvation.
 
-    if (!executionLock.tryLock(lockWaitMs)) {
-      console.warn('⚠️ Un\'altra esecuzione è già attiva: salto questo turno per evitare doppie risposte.');
-      return { total: 0, replied: 0, filtered: 0, errors: 0, skipped: 1, reason: 'execution_locked' };
+
+    if (this.config.dryRun) {
+      console.warn('🔴 MODALITÀ DRY_RUN ATTIVA - Email NON inviate!');
     }
 
-    try {
+    // Cerca thread non letti nella inbox
+    // Utilizziamo un buffer di ricerca più ampio per gestire thread saltati (es. loop interni)
+    // Rimuoviamo il filtro etichetta per permettere la gestione dei follow-up in thread già elaborati
+    const searchQuery = `is:unread -label:${this.config.labelName} -label:${this.config.errorLabelName} -label:${this.config.validationErrorLabel} in:inbox`;
+    const searchLimit = (this.config.searchPageSize || 50);
 
-      if (this.config.dryRun) {
-        console.warn('🔴 MODALITÀ DRY_RUN ATTIVA - Email NON inviate!');
+    const threads = GmailApp.search(
+      searchQuery,
+      0,
+      searchLimit
+    );
+
+    if (threads.length === 0) {
+      const emptyStreak = this._trackEmptyInboxStreak(true);
+      console.log(`Nessuna email da elaborare (query: ${searchQuery}).`);
+
+      if (emptyStreak >= this.config.emptyInboxWarningThreshold) {
+        console.warn(`⚠️ Inbox vuota da ${emptyStreak} esecuzioni consecutive. Verificare filtri Gmail/trigger in ingresso.`);
       }
 
-      // Cerca thread non letti nella inbox
-      // Utilizziamo un buffer di ricerca più ampio per gestire thread saltati (es. loop interni)
-      // Rimuoviamo il filtro etichetta per permettere la gestione dei follow-up in thread già elaborati
-      const searchQuery = `is:unread -label:${this.config.labelName} -label:${this.config.errorLabelName} -label:${this.config.validationErrorLabel} in:inbox`;
-      const searchLimit = (this.config.searchPageSize || 50);
+      return { total: 0, replied: 0, filtered: 0, errors: 0, emptyStreak: emptyStreak };
+    }
 
-      const threads = GmailApp.search(
-        searchQuery,
-        0,
-        searchLimit
+    this._trackEmptyInboxStreak(false);
+    console.log(`📬 Trovate ${threads.length} email da elaborare (query: ${searchQuery})`);
+
+    // Carica etichette una sola volta
+    const labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+    console.log(`📦 Trovati in cache ${labeledMessageIds.size} messaggi già elaborati`);
+
+    // Statistiche
+    const stats = {
+      total: 0,
+      replied: 0,
+      filtered: 0,
+      validationFailed: 0,
+      errors: 0,
+      dryRun: 0,
+      skipped: 0,
+      skipped_locked: 0,
+      skipped_processed: 0,
+      skipped_internal: 0,
+      skipped_loop: 0
+    };
+
+    // Processa ogni thread fino a raggiungere il limite di elaborazione
+    this._startTime = Date.now();
+    const MAX_EXECUTION_TIME = this.config.maxExecutionTimeMs;
+    let processedCount = 0; // Contatore thread effettivamente elaborati
+
+    for (let index = 0; index < threads.length; index++) {
+      // Stop se abbiamo raggiunto il target di elaborazione effettiva
+      if (processedCount >= parseInt(this.config.maxEmailsPerRun, 10)) {
+        console.log(`🛑 Raggiunti ${this.config.maxEmailsPerRun} thread elaborati. Stop.`);
+        break;
+      }
+
+      const thread = threads[index];
+
+      // Controllo tempo residuo (rigoroso): evita avvio di un nuovo thread senza buffer minimo
+      const remainingTimeMs = this._getRemainingTimeMs(MAX_EXECUTION_TIME);
+      if (remainingTimeMs < this.config.minRemainingTimeMs || this._isNearDeadline(MAX_EXECUTION_TIME)) {
+        console.warn(`⏳ Tempo insufficiente per un nuovo thread (${Math.round(remainingTimeMs / 1000)}s restanti). Stop preventivo.`);
+        break;
+      }
+
+      // Fast-skip: evita pipeline completa/lock quando i non letti sono già etichettati.
+      // Riduce overhead su thread marcati manualmente come "non letto" ma già gestiti.
+      if (!this._hasUnreadMessagesToProcess(thread, labeledMessageIds)) {
+        console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
+        console.log('   ⊖ Fast-skip: thread con soli non letti già etichettati IA');
+        stats.total++;
+        stats.skipped++;
+        stats.skipped_processed++;
+        continue;
+      }
+
+      console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
+
+      const result = this.processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds);
+      stats.total++;
+
+      // Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI
+      const isEffectiveWork = (
+        result.status === 'replied' ||
+        result.status === 'error' ||
+        result.status === 'validation_failed' ||
+        result.status === 'filtered'
       );
 
-      if (threads.length === 0) {
-        const emptyStreak = this._trackEmptyInboxStreak(true);
-        console.log(`Nessuna email da elaborare (query: ${searchQuery}).`);
-
-        if (emptyStreak >= this.config.emptyInboxWarningThreshold) {
-          console.warn(`⚠️ Inbox vuota da ${emptyStreak} esecuzioni consecutive. Verificare filtri Gmail/trigger in ingresso.`);
-        }
-
-        return { total: 0, replied: 0, filtered: 0, errors: 0, emptyStreak: emptyStreak };
+      if (isEffectiveWork) {
+        processedCount++;
       }
 
-      this._trackEmptyInboxStreak(false);
-      console.log(`📬 Trovate ${threads.length} email da elaborare (query: ${searchQuery})`);
-
-      // Carica etichette una sola volta
-      const labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
-      console.log(`📦 Trovati in cache ${labeledMessageIds.size} messaggi già elaborati`);
-
-      // Statistiche
-      const stats = {
-        total: 0,
-        replied: 0,
-        filtered: 0,
-        validationFailed: 0,
-        errors: 0,
-        dryRun: 0,
-        skipped: 0,
-        skipped_locked: 0,
-        skipped_processed: 0,
-        skipped_internal: 0,
-        skipped_loop: 0
-      };
-
-      // Processa ogni thread fino a raggiungere il limite di elaborazione
-      this._startTime = Date.now();
-      const MAX_EXECUTION_TIME = this.config.maxExecutionTimeMs;
-      let processedCount = 0; // Contatore thread effettivamente elaborati
-
-      for (let index = 0; index < threads.length; index++) {
-        // Stop se abbiamo raggiunto il target di elaborazione effettiva
-        if (processedCount >= parseInt(this.config.maxEmailsPerRun, 10)) {
-          console.log(`🛑 Raggiunti ${this.config.maxEmailsPerRun} thread elaborati. Stop.`);
-          break;
-        }
-
-        const thread = threads[index];
-
-        // Controllo tempo residuo (rigoroso): evita avvio di un nuovo thread senza buffer minimo
-        const remainingTimeMs = this._getRemainingTimeMs(MAX_EXECUTION_TIME);
-        if (remainingTimeMs < this.config.minRemainingTimeMs || this._isNearDeadline(MAX_EXECUTION_TIME)) {
-          console.warn(`⏳ Tempo insufficiente per un nuovo thread (${Math.round(remainingTimeMs / 1000)}s restanti). Stop preventivo.`);
-          break;
-        }
-
-        // Fast-skip: evita pipeline completa/lock quando i non letti sono già etichettati.
-        // Riduce overhead su thread marcati manualmente come "non letto" ma già gestiti.
-        if (!this._hasUnreadMessagesToProcess(thread, labeledMessageIds)) {
-          console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
-          console.log('   ⊖ Fast-skip: thread con soli non letti già etichettati IA');
-          stats.total++;
-          stats.skipped++;
-          stats.skipped_processed++;
-          continue;
-        }
-
-        console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
-
-        const result = this.processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds);
-        stats.total++;
-
-        // Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI
-        const isEffectiveWork = (
-          result.status === 'replied' ||
-          result.status === 'error' ||
-          result.status === 'validation_failed' ||
-          result.status === 'filtered'
-        );
-
-        if (isEffectiveWork) {
-          processedCount++;
-        }
-
-        if (result.validationFailed) {
-          stats.validationFailed++;
-        } else if (result.status === 'replied') {
-          stats.replied++;
-          if (result.dryRun) stats.dryRun++;
-        } else if (result.status === 'skipped') {
-          stats.skipped++;
-          if (result.reason === 'thread_locked' || result.reason === 'thread_locked_race') stats.skipped_locked++;
-          if (result.reason === 'already_labeled_no_new_unread') stats.skipped_processed++;
-          if (result.reason === 'no_external_unread' || result.reason === 'self_sent') stats.skipped_internal++;
-          if (result.reason === 'email_loop_detected') stats.skipped_loop++;
-        } else if (result.status === 'filtered') {
-          stats.filtered++;
-          if (result.reason === 'email_loop_detected') stats.skipped_loop++;
-        } else if (result.status === 'error') {
-          stats.errors++;
-        }
-      }
-
-      // Stampa riepilogo
-      console.log('\n' + '='.repeat(70));
-      console.log('📊 RIEPILOGO ELABORAZIONE');
-      console.log('='.repeat(70));
-      console.log(`   Totale analizzate (buffer): ${stats.total}`);
-      console.log(`   ✓ Risposte inviate: ${stats.replied}`);
-      if (stats.dryRun > 0) console.warn(`   🔴 DRY RUN: ${stats.dryRun}`);
-
-      if (stats.skipped > 0) {
-        console.log(`   ⊖ Saltate (Totale): ${stats.skipped}`);
-      }
-
-      console.log(`   ⊖ Filtrate (AI/Regole): ${stats.filtered}`);
-      if (stats.validationFailed > 0) console.warn(`   🛑 Validazione fallita: ${stats.validationFailed}`);
-      if (stats.errors > 0) console.error(`   🛑 Errori: ${stats.errors}`);
-      stats.processed = processedCount;
-      console.log('='.repeat(70));
-
-      return stats;
-    } finally {
-      try {
-        executionLock.releaseLock();
-      } catch (e) {
-        console.warn(`⚠️ Errore rilascio execution lock: ${e.message}`);
+      if (result.validationFailed) {
+        stats.validationFailed++;
+      } else if (result.status === 'replied') {
+        stats.replied++;
+        if (result.dryRun) stats.dryRun++;
+      } else if (result.status === 'skipped') {
+        stats.skipped++;
+        if (result.reason === 'thread_locked' || result.reason === 'thread_locked_race') stats.skipped_locked++;
+        if (result.reason === 'already_labeled_no_new_unread') stats.skipped_processed++;
+        if (result.reason === 'no_external_unread' || result.reason === 'self_sent') stats.skipped_internal++;
+        if (result.reason === 'email_loop_detected') stats.skipped_loop++;
+      } else if (result.status === 'filtered') {
+        stats.filtered++;
+        if (result.reason === 'email_loop_detected') stats.skipped_loop++;
+      } else if (result.status === 'error') {
+        stats.errors++;
       }
     }
+
+    // Stampa riepilogo
+    console.log('\n' + '='.repeat(70));
+    console.log('📊 RIEPILOGO ELABORAZIONE');
+    console.log('='.repeat(70));
+    console.log(`   Totale analizzate (buffer): ${stats.total}`);
+    console.log(`   ✓ Risposte inviate: ${stats.replied}`);
+    if (stats.dryRun > 0) console.warn(`   🔴 DRY RUN: ${stats.dryRun}`);
+
+    if (stats.skipped > 0) {
+      console.log(`   ⊖ Saltate (Totale): ${stats.skipped}`);
+    }
+
+    console.log(`   ⊖ Filtrate (AI/Regole): ${stats.filtered}`);
+    if (stats.validationFailed > 0) console.warn(`   🛑 Validazione fallita: ${stats.validationFailed}`);
+    if (stats.errors > 0) console.error(`   🛑 Errori: ${stats.errors}`);
+    stats.processed = processedCount;
+    console.log('='.repeat(70));
+
+    return stats;
   }
 
   // ====================================================================================================
@@ -1147,11 +1139,10 @@ ${addressLines.join('\n\n')}
     const body = (messageDetails.body || '').toLowerCase();
 
     // 1. Controllo Blacklist Domini/Email
-    const configDomains = (typeof CONFIG !== 'undefined' && CONFIG.IGNORE_DOMAINS) ? CONFIG.IGNORE_DOMAINS : [];
-    const cacheDomains = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreDomains))
-      ? GLOBAL_CACHE.ignoreDomains
-      : [];
-    const ignoreDomains = Array.from(new Set([...configDomains, ...cacheDomains].map(d => String(d).toLowerCase())));
+    // NOTA: GLOBAL_CACHE.ignoreDomains include già CONFIG.IGNORE_DOMAINS (merge in _loadAdvancedConfig)
+    const ignoreDomains = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreDomains))
+      ? GLOBAL_CACHE.ignoreDomains.map(d => String(d).toLowerCase())
+      : ((typeof CONFIG !== 'undefined' && CONFIG.IGNORE_DOMAINS) ? CONFIG.IGNORE_DOMAINS.map(d => String(d).toLowerCase()) : []);
 
     if (ignoreDomains.some(domain => email.includes(domain.toLowerCase()))) {
       console.log(`🚫 Ignorato: mittente in blacklist (${email})`);
@@ -1159,11 +1150,10 @@ ${addressLines.join('\n\n')}
     }
 
     // 2. Controllo Keyword Oggetto
-    const configKeywords = (typeof CONFIG !== 'undefined' && CONFIG.IGNORE_KEYWORDS) ? CONFIG.IGNORE_KEYWORDS : [];
-    const cacheKeywords = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreKeywords))
-      ? GLOBAL_CACHE.ignoreKeywords
-      : [];
-    const ignoreKeywords = Array.from(new Set([...configKeywords, ...cacheKeywords].map(k => String(k).toLowerCase())));
+    // NOTA: GLOBAL_CACHE.ignoreKeywords include già CONFIG.IGNORE_KEYWORDS (merge in _loadAdvancedConfig)
+    const ignoreKeywords = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreKeywords))
+      ? GLOBAL_CACHE.ignoreKeywords.map(k => String(k).toLowerCase())
+      : ((typeof CONFIG !== 'undefined' && CONFIG.IGNORE_KEYWORDS) ? CONFIG.IGNORE_KEYWORDS.map(k => String(k).toLowerCase()) : []);
 
     if (ignoreKeywords.some(keyword => subject.includes(keyword.toLowerCase()))) {
       console.log(`🚫 Ignorato: oggetto contiene keyword vietata`);
@@ -1171,6 +1161,7 @@ ${addressLines.join('\n\n')}
     }
 
     // 3. Controllo Auto-reply e Notifiche (Standard)
+    // NOTA: no-reply/noreply sono anche controllati in STEP 0.8 (defense-in-depth)
     if (
       email.includes('no-reply') ||
       email.includes('noreply') ||
@@ -1667,58 +1658,16 @@ function computeResponseDelay({ messageDate, now = new Date(), thresholdHours = 
 // ENTRY POINT PRINCIPALE
 // ====================================================================================================
 
+/**
+ * Entry point legacy — delegata a processEmailsMain() (gas_main.js).
+ * Mantenuta per retrocompatibilità con eventuali trigger esistenti.
+ * @deprecated Utilizzare processEmailsMain() come entry point.
+ */
 function processUnreadEmailsMain() {
-  try {
-    const configCheck = typeof validateConfig === 'function' ? validateConfig() : { valid: true, errors: [] };
-    if (!configCheck.valid) {
-      console.error('🚨 CONFIGURAZIONE NON VALIDA - ARRESTO SISTEMA');
-      configCheck.errors.forEach(e => console.error(`   ${e}`));
-      return;
-    }
-
-    // Controlla orario sospensione (con paracadute unread vecchie)
-    if (typeof isInSuspensionTime === 'function' && isInSuspensionTime()) {
-      const staleHours = (typeof CONFIG !== 'undefined' && typeof CONFIG.SUSPENSION_STALE_UNREAD_HOURS === 'number')
-        ? CONFIG.SUSPENSION_STALE_UNREAD_HOURS
-        : 12;
-      const canBypass = (typeof hasStaleUnreadThreads === 'function') ? hasStaleUnreadThreads(staleHours) : false;
-      if (!canBypass) {
-        console.log('Servizio sospeso per orario di lavoro.');
-        return;
-      }
-      console.warn(`⏰ Sospensione bypassata: trovate email non lette più vecchie di ${staleHours}h.`);
-    }
-
-    // Carica risorse
-    if (typeof loadResources === 'function') {
-      try {
-        loadResources(true, false);
-      } catch (resourceError) {
-        console.warn(`⚠️ loadResources standard fallita: ${resourceError.message}`);
-
-        // Fallback operativo: tentativo diretto senza lock esterno.
-        if (typeof _loadResourcesInternal === 'function') {
-          _loadResourcesInternal();
-        }
-      }
-    }
-
-    // Ottieni knowledge base
-    const knowledgeBase = typeof GLOBAL_CACHE !== 'undefined' ?
-      GLOBAL_CACHE.knowledgeBase || '' : '';
-    const doctrineBase = typeof GLOBAL_CACHE !== 'undefined' ?
-      GLOBAL_CACHE.doctrineBase || '' : '';
-
-    if (!knowledgeBase) {
-      console.error('🛑 Knowledge Base non caricata, esco');
-      return;
-    }
-
-    // Crea processore ed esegui
-    const processor = new EmailProcessor();
-    processor.processUnreadEmails(knowledgeBase, doctrineBase);
-
-  } catch (error) {
-    console.error(`🛑 Errore nel processo principale: ${error.message}`);
+  console.warn('⚠️ processUnreadEmailsMain() è deprecata. Usa processEmailsMain().');
+  if (typeof processEmailsMain === 'function') {
+    processEmailsMain();
+  } else {
+    console.error('🛑 processEmailsMain non trovata — impossibile delegare.');
   }
 }

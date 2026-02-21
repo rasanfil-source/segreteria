@@ -185,12 +185,13 @@ class GeminiService {
    * @param {string} emailContent - Contenuto email
    * @param {string} emailSubject - Oggetto email
    * @param {string} modelName - Nome modello API
+   * @param {Object} [precomputedDetection] - Risultato detectEmailLanguage già calcolato (evita doppia chiamata)
    * @returns {Object} Risultato controllo rapido
    */
-  _quickCheckWithModel(emailContent, emailSubject, modelName) {
+  _quickCheckWithModel(emailContent, emailSubject, modelName, precomputedDetection = null) {
     const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
     const safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
-    const detection = this.detectEmailLanguage(safeContent, safeSubject);
+    const detection = precomputedDetection || this.detectEmailLanguage(safeContent, safeSubject);
     const prompt = `Analizza questa email.
 Rispondi ESCLUSIVAMENTE con un oggetto JSON.
 
@@ -718,7 +719,7 @@ Output JSON:
     } else if (language === 'es') {
       closing = 'Cordiales saludos,';
     } else if (language === 'pt') {
-      closing = 'Com os migliori cumprimentos,';
+      closing = 'Com os melhores cumprimentos,';
     } else {
       closing = 'Cordiali saluti,';
     }
@@ -900,7 +901,7 @@ Output JSON:
       try {
         const result = this.rateLimiter.executeRequest(
           'quick_check',
-          (modelName) => this._quickCheckWithModel(emailContent, emailSubject, modelName),
+          (modelName) => this._quickCheckWithModel(emailContent, emailSubject, modelName, detection),
           {
             estimatedTokens: 500,
             preferQuality: false  // Economia > qualità per controllo rapido
@@ -916,7 +917,7 @@ Output JSON:
           console.warn('⚠️ Rate Limiter in QUOTA_EXHAUSTED nel quick check, provo fallback diretto con retry');
           try {
             return this._withRetry(
-              () => this._quickCheckWithModel(emailContent, emailSubject, this.modelName),
+              () => this._quickCheckWithModel(emailContent, emailSubject, this.modelName, detection),
               'Quick check fallback dopo QUOTA_EXHAUSTED'
             );
           } catch (directError) {
@@ -933,7 +934,7 @@ Output JSON:
     try {
       console.log(`🔍 Gemini quick check per: ${emailSubject.substring(0, 40)}...`);
       return this._withRetry(
-        () => this._quickCheckWithModel(emailContent, emailSubject, this.modelName),
+        () => this._quickCheckWithModel(emailContent, emailSubject, this.modelName, detection),
         'Quick check'
       );
     } catch (error) {

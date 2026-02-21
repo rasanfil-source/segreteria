@@ -460,6 +460,10 @@ function testAntiLoopDetection() {
         territoryValidator: null,
         gmailService: {
             getMessageIdsWithLabel: () => new Set(),
+            _extractEmailAddress: (fromField) => {
+                const match = (fromField || '').match(/<([^>]+)>/) || (fromField || '').match(/([^\s<]+@[^\s>]+)/);
+                return match ? match[1] : fromField;
+            },
             extractMessageDetails: (message) => ({
                 subject: 'Info',
                 body: 'Vorrei un chiarimento',

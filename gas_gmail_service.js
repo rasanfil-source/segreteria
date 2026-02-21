@@ -878,7 +878,7 @@ class GmailService {
         const emailRegex = /\b[A-Za-z0-9][A-Za-z0-9._%+-]{0,63}@(?!-)(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}\b/gi;
         const recipientAddresses = (recipientHeaders.match(emailRegex) || [])
           .map(addr => addr.replace(/[\r\n]+/g, '').trim().toLowerCase());
-        const knownAliases = (typeof CONFIG !== 'undefined' && CONFIG.KNOWN_ALIASES)
+        const knownAliases = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES))
           ? CONFIG.KNOWN_ALIASES.map(alias => (alias || '').toLowerCase())
           : [];
 
