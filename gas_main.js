@@ -243,16 +243,16 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
 }
 
 function _loadResourcesInternal() {
-  let ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!ss) {
-    // Fallback per esecuzioni trigger-centriche dove getActiveSpreadsheet() è null
-    const spreadsheetId = (typeof CONFIG !== 'undefined' && CONFIG.SPREADSHEET_ID) ? CONFIG.SPREADSHEET_ID : null;
-    if (spreadsheetId) {
-      console.warn('⚠️ getActiveSpreadsheet() null — fallback a openById(CONFIG.SPREADSHEET_ID)');
-      ss = SpreadsheetApp.openById(spreadsheetId);
-    } else {
-      throw new Error('Impossibile accedere allo Spreadsheet: getActiveSpreadsheet() null e CONFIG.SPREADSHEET_ID non configurato.');
-    }
+  const spreadsheetId = (typeof CONFIG !== 'undefined' && CONFIG.SPREADSHEET_ID) ? CONFIG.SPREADSHEET_ID : null;
+  if (!spreadsheetId) {
+    throw new Error('Impossibile aprire il foglio: CONFIG.SPREADSHEET_ID non configurato.');
+  }
+
+  let ss;
+  try {
+    ss = SpreadsheetApp.openById(spreadsheetId);
+  } catch (e) {
+    throw new Error('Impossibile aprire il foglio. Verifica CONFIG.SPREADSHEET_ID. Dettaglio: ' + e.message);
   }
 
   // Hardening: evita crash se CONFIG non è ancora inizializzato (ordine file GAS)

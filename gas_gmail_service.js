@@ -255,7 +255,7 @@ class GmailService {
     try {
       recipientEmail = message.getTo();
     } catch (e) {
-      recipientEmail = Session.getActiveUser().getEmail();
+      recipientEmail = Session.getEffectiveUser().getEmail();
     }
 
     let recipientCc = '';
@@ -723,7 +723,7 @@ class GmailService {
    */
   buildConversationHistory(messages, maxMessages = 10, ourEmail = '') {
     if (!ourEmail) {
-      ourEmail = Session.getActiveUser().getEmail();
+      ourEmail = Session.getEffectiveUser().getEmail();
     }
 
     if (messages.length > maxMessages) {
@@ -870,7 +870,7 @@ class GmailService {
         }
 
         // From stabile: usa sempre l'account attivo (evita errori "non autorizzato")
-        const stableFrom = Session.getActiveUser().getEmail();
+        const stableFrom = Session.getEffectiveUser().getEmail();
 
         // Reply-To: usa alias solo se presente in To/Cc del messaggio originale
         let replyToEmail = null;

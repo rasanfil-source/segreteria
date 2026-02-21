@@ -32,11 +32,27 @@ class EmailProcessor {
     // Inietta dipendenze o crea default
     this.geminiService = options.geminiService || new GeminiService();
     this.classifier = options.classifier || new Classifier();
-    this.requestClassifier = options.requestClassifier || new RequestTypeClassifier();
+    this.requestClassifier = options.requestClassifier ||
+      (typeof RequestTypeClassifier !== 'undefined'
+        ? new RequestTypeClassifier()
+        : {
+          classify: () => ({ type: 'technical' }),
+          getRequestTypeHint: () => ''
+        });
     this.validator = options.validator || new ResponseValidator();
     this.gmailService = options.gmailService || new GmailService();
-    this.promptEngine = options.promptEngine || new PromptEngine();
-    this.memoryService = options.memoryService || new MemoryService();
+    this.promptEngine = options.promptEngine ||
+      (typeof PromptEngine !== 'undefined'
+        ? new PromptEngine()
+        : { buildPrompt: (opts) => (opts && opts.emailContent) ? opts.emailContent : '' });
+    this.memoryService = options.memoryService ||
+      (typeof MemoryService !== 'undefined'
+        ? new MemoryService()
+        : {
+          getMemory: () => ({}),
+          updateMemoryAtomic: () => { },
+          updateReaction: () => { }
+        });
     // Integrazione TerritoryValidator
     this.territoryValidator = options.territoryValidator || (typeof TerritoryValidator !== 'undefined' ? new TerritoryValidator() : null);
 
