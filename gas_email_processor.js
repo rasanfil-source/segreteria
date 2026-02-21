@@ -104,6 +104,7 @@ class EmailProcessor {
    */
   processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds = new Set(), skipLock = false) {
     const threadId = thread.getId();
+    const startTime = Date.now();
 
     // ====================================================================================================
     // ACQUISIZIONE LOCK (LIVELLO-THREAD) - Previene condizioni di conflitto
@@ -269,7 +270,7 @@ class EmailProcessor {
       // Se non ci sono messaggi da esterni → skip
       if (externalUnread.length === 0) {
         console.log('   ⊖ Saltato: nessun nuovo messaggio esterno non letto');
-        unlabeledUnread.forEach(message => this._markMessageAsProcessed(message));
+        unlabeledUnread.forEach(message => this._markMessageAsProcessed(message, labeledMessageIds));
         result.status = 'skipped';
         result.reason = 'no_external_unread';
         return result;
@@ -285,7 +286,7 @@ class EmailProcessor {
 
       if (messageDetails.isNewsletter) {
         console.log('   ⊖ Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
-        this._markMessageAsProcessed(candidate);
+        this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'filtered';
         result.reason = 'newsletter_header';
         return result;
@@ -335,7 +336,7 @@ class EmailProcessor {
 
       if (isMe) {
         console.log('   ⊖ Saltato: messaggio auto-inviato (o da alias conosciuto)');
-        this._markMessageAsProcessed(candidate);
+        this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'skipped';
         result.reason = 'self_sent';
         return result;
@@ -348,7 +349,7 @@ class EmailProcessor {
       const autoSubmitted = headers['auto-submitted'] || '';
       const precedence = headers['precedence'] || '';
       const xAutoReply = headers['x-autoreply'] || '';
-      const xAutoResponseSuppress = headers['x-auto-response-suppress'] || '';
+      const xAutoResponseSuppress = headers['x-auto-response-suppress'] || headers['X-Auto-Response-Suppress'] || '';
 
       if (
         /auto-replied|auto-generated/i.test(autoSubmitted) ||
@@ -357,7 +358,7 @@ class EmailProcessor {
         /oof|all|dr|rn|nri|auto/i.test(xAutoResponseSuppress)
       ) {
         console.log('   ⊖ Saltato: risposta automatica (header SMTP)');
-        this._markMessageAsProcessed(candidate);
+        this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'filtered';
         result.reason = 'out_of_office';
         return result;
@@ -373,7 +374,7 @@ class EmailProcessor {
 
       if (outOfOfficePatterns.some(p => p.test(`${messageDetails.subject} ${messageDetails.body}`))) {
         console.log('   ⊖ Saltato: risposta automatica out-of-office (testo)');
-        this._markMessageAsProcessed(candidate);
+        this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'filtered';
         result.reason = 'out_of_office';
         return result;
@@ -396,7 +397,7 @@ class EmailProcessor {
 
         if (previousIsUs && arrivedSoonAfterUs && isShortClosureReply) {
           console.log('   ⊖ Saltato: risposta breve di chiusura (grazie/ok/perfetto)');
-          this._markMessageAsProcessed(candidate);
+          this._markMessageAsProcessed(candidate, labeledMessageIds);
           result.status = 'filtered';
           result.reason = 'short_closure_reply';
           return result;
@@ -426,7 +427,7 @@ class EmailProcessor {
 
         if (myEmail && consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
           console.log(`   ⊖ Saltato: probabile loop email (${consecutiveExternal} esterni consecutivi)`);
-          this._markMessageAsProcessed(candidate);
+          this._markMessageAsProcessed(candidate, labeledMessageIds);
           result.status = 'filtered';
           result.reason = 'email_loop_detected';
           return result;
@@ -441,7 +442,7 @@ class EmailProcessor {
       const senderInfo = `${messageDetails.senderEmail} ${messageDetails.senderName}`.toLowerCase();
       if (/no-reply|do-not-reply|noreply/i.test(senderInfo)) {
         console.log('   ⊖ Saltato: mittente o nome no-reply');
-        this._markMessageAsProcessed(candidate);
+        this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'filtered';
         result.reason = 'no_reply_sender';
         return result;
@@ -452,7 +453,7 @@ class EmailProcessor {
       // ====================================================================================================
       if (this._shouldIgnoreEmail(messageDetails)) {
         console.log('   ⊖ Filtrato: domain/keyword ignore');
-        this._markMessageAsProcessed(candidate);
+        this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'filtered';
         return result;
       }
@@ -473,7 +474,7 @@ class EmailProcessor {
 
       if (!classification.shouldReply) {
         console.log(`   ⊖ Filtrato dal classifier: ${classification.reason}`);
-        this._markMessageAsProcessed(candidate);
+        this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'filtered';
         return result;
       }
@@ -488,7 +489,7 @@ class EmailProcessor {
 
       if (!quickCheck.shouldRespond) {
         console.log(`   ⊖ Gemini quick check: nessuna risposta necessaria (${quickCheck.reason})`);
-        this._markMessageAsProcessed(candidate);
+        this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'filtered';
         return result;
       }
@@ -822,7 +823,7 @@ ${addressLines.join('\n\n')}
         const errorClass = generationError ? classifyError(generationError) : 'UNKNOWN';
         console.error('🛑 TUTTE le strategie di generazione sono fallite.');
         this._addErrorLabel(thread);
-        this._markMessageAsProcessed(candidate);
+        this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'error';
         result.error = generationError ? generationError.message : 'Generation strategies exhausted';
         result.errorClass = errorClass;
@@ -833,7 +834,7 @@ ${addressLines.join('\n\n')}
       if (typeof response !== 'string') {
         console.error(`🛑 Risposta non valida da Gemini: tipo ricevuto '${typeof response}'`);
         this._addErrorLabel(thread);
-        this._markMessageAsProcessed(candidate);
+        this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'error';
         result.error = 'Invalid response type from GeminiService';
         result.errorClass = 'DATA';
@@ -842,7 +843,7 @@ ${addressLines.join('\n\n')}
 
       if (response.trim() === 'NO_REPLY') {
         console.log('   ⊖ AI ha restituito NO_REPLY');
-        this._markMessageAsProcessed(candidate);
+        this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'filtered';
         return result;
       }
@@ -882,7 +883,7 @@ ${addressLines.join('\n\n')}
           }
 
           this._addValidationErrorLabel(thread);
-          this._markMessageAsProcessed(candidate);
+          this._markMessageAsProcessed(candidate, labeledMessageIds);
           result.status = 'validation_failed';
           result.validationFailed = true;
           return result;
@@ -918,6 +919,8 @@ ${addressLines.join('\n\n')}
         result.dryRun = true;
         // In DRY_RUN non aggiorniamo memoria né label per non avere effetti permanenti
         result.status = 'replied';
+        result.durationMs = Date.now() - startTime;
+        this.logger.info(`Thread processato in ${result.durationMs}ms`, { threadId: threadId, duration: result.durationMs });
         return result;
       }
 
@@ -928,7 +931,7 @@ ${addressLines.join('\n\n')}
         console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
         this._addErrorLabel(thread);
         if (candidate) {
-          this._markMessageAsProcessed(candidate);
+          this._markMessageAsProcessed(candidate, labeledMessageIds);
         }
         result.status = 'error';
         result.error = `gmail_send_failed: ${errorMessage}`;
@@ -971,16 +974,18 @@ ${addressLines.join('\n\n')}
       this.memoryService.updateMemoryAtomic(threadId, memoryUpdate, topicsWithObjects.length > 0 ? topicsWithObjects : null);
 
       if (candidate) {
-        this._markMessageAsProcessed(candidate);
+        this._markMessageAsProcessed(candidate, labeledMessageIds);
       }
       result.status = 'replied';
+      result.durationMs = Date.now() - startTime;
+      this.logger.info(`Thread processato in ${result.durationMs}ms`, { threadId: threadId, duration: result.durationMs });
       return result;
 
     } catch (error) {
       console.error(`   🛑 Errore elaborazione thread: ${error.message}`);
       this._addErrorLabel(thread);
       if (candidate) {
-        this._markMessageAsProcessed(candidate);
+        this._markMessageAsProcessed(candidate, labeledMessageIds);
       }
       result.status = 'error';
       result.error = error.message;
@@ -1275,13 +1280,17 @@ ${addressLines.join('\n\n')}
     return notes[lang] || notes.it;
   }
 
-  _markMessageAsProcessed(message) {
+  _markMessageAsProcessed(message, labeledMessageIds = null) {
     // SCELTA OPERATIVA INTENZIONALE:
     // - etichetta IA a livello *messaggio* (non thread), usando Gmail Advanced Service;
     // - NON marcare come letto qui.
     // Motivo: il segretario deve vedere a colpo d'occhio i non letti, anche se già gestiti da IA.
     // Cambiare questo comportamento altera la triage operativa.
-    this.gmailService.addLabelToMessage(message.getId(), this.config.labelName);
+    const messageId = message.getId();
+    this.gmailService.addLabelToMessage(messageId, this.config.labelName);
+    if (labeledMessageIds && typeof labeledMessageIds.add === 'function') {
+      labeledMessageIds.add(messageId);
+    }
   }
 
   _isNearDeadline(maxExecutionTimeMs) {
