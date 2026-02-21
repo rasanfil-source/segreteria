@@ -577,7 +577,8 @@ class MemoryService {
    * Normalizza i topic forniti in formato oggetto.
    */
   _normalizeProvidedTopics(topics) {
-    if (!Array.isArray(topics)) return [];
+    if (!topics) return [];
+    if (!Array.isArray(topics)) topics = [topics];
 
     return topics
       .map(topic => {

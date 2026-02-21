@@ -191,13 +191,25 @@ function setupControlloSheet(ss) {
 }
 
 function applyFormulaWithLocaleFallback_(range, formula) {
-  if (!range || typeof range.setFormula !== 'function') return;
+  if (!range) return;
   const safeFormula = typeof formula === 'string' ? formula : '';
+  const hasLocalSeparators = safeFormula.includes(';');
+
+  if (hasLocalSeparators && typeof range.setFormulaLocal === 'function') {
+    try {
+      range.setFormulaLocal(safeFormula);
+      return;
+    } catch (err) {
+      logMessage_('[applyFormulaWithLocaleFallback_] setFormulaLocal fallita, provo fallback US: ' + (err && err.message ? err.message : String(err)));
+    }
+  }
+
+  if (typeof range.setFormula !== 'function') return;
 
   try {
     range.setFormula(safeFormula);
   } catch (err) {
-    if (!safeFormula.includes(';')) throw err;
+    if (!hasLocalSeparators) throw err;
     const fallbackFormula = safeFormula.replace(/;/g, ',');
     range.setFormula(fallbackFormula);
   }

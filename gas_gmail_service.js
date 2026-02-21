@@ -224,7 +224,11 @@ class GmailService {
       }
 
       // Calcolo flag newsletter basato su header raccolti
-      if (headers['list-unsubscribe'] || /bulk|list/i.test(headers['precedence'] || '')) {
+      if (
+        headers['list-unsubscribe'] ||
+        /bulk|list/i.test(headers['precedence'] || '') ||
+        /auto-generated|auto-replied/i.test(headers['auto-submitted'] || '')
+      ) {
         isNewsletter = true;
       }
     } catch (e) {
@@ -772,10 +776,19 @@ class GmailService {
       /inviato da/i
     ];
 
+    const signatureSearchStart = Math.floor(result.length * 0.7);
+    const signatureTail = result.substring(signatureSearchStart);
+
     for (const marker of sigMarkers) {
-      const match = result.search(marker);
-      if (match !== -1) {
-        result = result.substring(0, match);
+      const match = signatureTail.search(marker);
+      if (match === -1) continue;
+
+      const absoluteMatch = signatureSearchStart + match;
+      const prefix = result.substring(0, absoluteMatch);
+
+      // Tronca solo se la firma è su una nuova sezione (dopo riga vuota)
+      if (/\n\s*\n\s*$/.test(prefix) || absoluteMatch === 0) {
+        result = result.substring(0, absoluteMatch);
         break;
       }
     }
