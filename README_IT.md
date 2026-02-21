@@ -36,6 +36,9 @@
     *   **Cache Persistente Label**: Riduzione drastica delle chiamate API Gmail tramite caching intelligente degli stati delle etichette.
     *   **JSON Parsing Robusto**: Algoritmi di recupero per risposte LLM malformate (Safe Key Quoting).
     *   **Gestione Lock Avanzata**: Lock sharded e retry con backoff per una concorrenza sicura su grandi volumi.
+    *   **Resource Budgeting (v2.2.4)**: Controllo granulare del tempo di esecuzione (`MAX_EXECUTION_TIME_MS`) e del budget dei token Knowledge Base.
+    *   **Alias-Aware Loop Prevention (v2.2.4)**: Rilevamento intelligente dei loop email considerando anche gli alias configurati della segreteria.
+    *   **Hardening Normalizzazione (v2.2.6)**: Normalizzazione dei numeri civici resa sicura contro valori `null` o `undefined`.
     *   **Compatibilità Drive API**: Supporto trasparente per diverse versioni del servizio OCR di Google Drive.
     *   **Timezone-Awareness**: Sincronizzazione perfetta degli orari di sospensione con il fuso orario dello script.
 

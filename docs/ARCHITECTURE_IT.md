@@ -18,7 +18,7 @@ Il sistema è progettato per:
 - ✅ **Mai dare informazioni sbagliate** → Se incerto, suggerisce contatto umano
 - ✅ **Mai tono inappropriato** → Validazione multi-livello del tono
 - ✅ **Sempre sotto controllo** → Tutto marcato con etichette Gmail per revisione
-- ✅ **Resilienza v2.2.x** → Caching persistente, lock sharded e parsing JSON ultra-robusto
+- ✅ **Resilienza v2.2.x** → Caching persistente, lock sharded, parsing JSON ultra-robusto e budgeting risorse (v2.2.4+).
 
 ---
 
@@ -70,7 +70,8 @@ Email Arriva
 │  PRE-CHECKS                                              │
 │  ├─ Orario sospensione? (fuori orari ufficio)          │
 │  ├─ Festività? (calendario + override dinamico)        │
-│  └─ Safety Valve? (quota API >80%)                      │
+│  ├─ Safety Valve? (quota API >80%)                      │
+│  └─ Budget Time? (check MAX_EXECUTION_TIME_MS)          │
 └──────────────┬──────────────────────────────────────────┘
                │
                v
@@ -87,7 +88,7 @@ Email Arriva
 │  2. Mittente ignorato? (noreply, newsletter)            │
 │  3. Keyword ignorata? (unsubscribe, opt-out)            │
 │  4. Auto-sent? (dal nostro stesso account)                   │
-│  5. Loop rilevato? (>10 msg nello stesso thread)        │
+│  5. Loop rilevato? (>10 msg o alias in last speaker)    │
 └──────────────┬──────────────────────────────────────────┘
                │
                v
@@ -142,6 +143,7 @@ Email Arriva
 │  - 18 template modulari componibili                      │
 │  - Filtering dinamico basato su profilo (lite/std/heavy)│
 │  - Token budget management (~100k max)                   │
+│  - KB_TOKEN_BUDGET_RATIO modulare (v2.2.4)               │
 │  - Retrieval Selettivo Dottrina (riduzione 83% token)    │
 │  - Semantic truncation se KB troppo grande               │
 └──────────────┬──────────────────────────────────────────┘
