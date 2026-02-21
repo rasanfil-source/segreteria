@@ -51,7 +51,8 @@ class TerritoryValidator {
             'via enrico pessina': { tutti: true },
             'via filippo lippi': { tutti: true },
             'via flaminia': { dispari: [109, 217], pari: [158, 162] },
-            'lungotevere flaminio': { tutti: [16, 38] },
+            // Civici reali nel tratto parrocchiale: solo pari 16-38
+            'lungotevere flaminio': { pari: [16, 38] },
             'via francesco jacovacci': { tutti: true },
             'via giovanni vincenzo gravina': { tutti: true },
             'via giuseppe ceracchi': { tutti: true },

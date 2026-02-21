@@ -1544,8 +1544,15 @@ ${addressLines.join('\n\n')}
  */ // Fix: added 'session' to contract
 function computeSalutationMode({ isReply = false, messageCount = 0, memoryExists = false, lastUpdated = null, now = new Date() } = {}) {
   const SESSION_WINDOW_MINUTES = 15;
+  // 0️⃣ Nuovo contatto (non reply): privilegia sempre un saluto completo.
+  // Anche in presenza di memoria pregressa, un nuovo thread/messaggio iniziale
+  // deve evitare modalità "none_or_continuity".
+  if (!isReply) {
+    return 'full';
+  }
+
   // 1️⃣ Primo messaggio assoluto
-  if (!isReply && !memoryExists && messageCount <= 1) {
+  if (!memoryExists && messageCount <= 1) {
     return 'full';
   }
 

@@ -723,13 +723,21 @@ class GeminiRateLimiter {
    * Merge dati finestra evitando duplicati
    */
   _mergeWindowData(existing, walData) {
-    const existingTimestamps = new Set(existing.map(e => e.timestamp));
+    const toKey = (entry) => {
+      const ts = entry && typeof entry.timestamp !== 'undefined' ? entry.timestamp : 'na';
+      const model = entry && entry.modelKey ? entry.modelKey : 'na';
+      const tokens = entry && typeof entry.tokens !== 'undefined' ? entry.tokens : 0;
+      return `${ts}|${model}|${tokens}`;
+    };
+
+    const existingEntries = new Set(existing.map(toKey));
     const merged = JSON.parse(JSON.stringify(existing));
 
     for (const entry of walData) {
-      if (!existingTimestamps.has(entry.timestamp)) {
+      const entryKey = toKey(entry);
+      if (!existingEntries.has(entryKey)) {
         merged.push(Object.assign({}, entry));
-        existingTimestamps.add(entry.timestamp);
+        existingEntries.add(entryKey);
       }
     }
 
