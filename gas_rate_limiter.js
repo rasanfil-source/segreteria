@@ -183,8 +183,10 @@ class GeminiRateLimiter {
   }
 
   _resetDailyCounters() {
+    const todayPacific = this._getPacificDate();
     for (const modelKey in this.models) {
       this.props.setProperty(`rpd_${modelKey}`, '0');
+      this.props.setProperty(`rpd_date_${modelKey}`, todayPacific);
       this.props.setProperty(`tokens_${modelKey}`, '0');
     }
     // Reset anche cache
@@ -541,8 +543,15 @@ class GeminiRateLimiter {
 
     try {
       const rpdKey = 'rpd_' + modelKey;
+      const rpdDateKey = 'rpd_date_' + modelKey;
       const tokensKey = 'tokens_' + modelKey;
-      const currentRpd = parseInt(this.props.getProperty(rpdKey) || '0');
+      const todayPacific = this._getPacificDate();
+      const lastRpdDate = this.props.getProperty(rpdDateKey) || '';
+      let currentRpd = parseInt(this.props.getProperty(rpdKey) || '0');
+      if (lastRpdDate !== todayPacific) {
+        currentRpd = 0;
+        this.props.setProperty(rpdDateKey, todayPacific);
+      }
       const currentTokens = parseInt(this.props.getProperty(tokensKey) || '0');
       const nextRpd = currentRpd + 1;
       const nextTokens = currentTokens + (tokensUsed || 0);

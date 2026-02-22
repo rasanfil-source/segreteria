@@ -392,7 +392,7 @@ class EmailProcessor {
         const candidateDate = messageDetails.date ? messageDetails.date.getTime() : null;
         const previousDate = previousMessage.getDate() ? previousMessage.getDate().getTime() : null;
         const arrivedSoonAfterUs = candidateDate && previousDate
-          ? (candidateDate - previousDate) <= 10 * 60 * 1000
+          ? Math.abs(candidateDate - previousDate) <= 10 * 60 * 1000
           : false;
         const previousIsUs = myEmail ? previousSender.includes(myEmail.toLowerCase()) : false;
         const candidateBody = messageDetails.body || '';

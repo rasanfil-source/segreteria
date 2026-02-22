@@ -704,12 +704,23 @@ class GmailService {
   _htmlToPlainText(html) {
     if (!html) return '';
 
-    let text = html.replace(/<[^>]+>/g, ' ');
+    let text = html;
+    // Preserva separatori strutturali per evitare blocchi di testo illeggibili
+    text = text.replace(/<br\s*\/?\s*>/gi, '\n');
+    text = text.replace(/<\/p\s*>/gi, '\n\n');
+    text = text.replace(/<\/div\s*>/gi, '\n');
+
+    text = text.replace(/<[^>]+>/g, ' ');
     text = text.replace(/&nbsp;/g, ' ')
       .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>');
-    text = text.replace(/\s+/g, ' ').trim();
+    // Riduce spazi/tabs senza distruggere i newline significativi
+    text = text
+      .replace(/\r\n?/g, '\n')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
 
     return text;
   }
@@ -1231,10 +1242,7 @@ function sanitizeUrl(url) {
   // es: http://0x7f.0x0.0x0.0x1/
   try {
     const parseHostFromUrl = (value) => {
-      if (typeof URL === 'function') {
-        return new URL(value).hostname || '';
-      }
-      const match = value.match(/^https?:\/\/([^\/?#:]+)/i);
+      const match = value.match(/^https?:\/\/(\[[^\]]+\]|[^\/?#:]+)/i);
       return match ? match[1] : '';
     };
 
@@ -1347,7 +1355,10 @@ function sanitizeUrl(url) {
     return null;
   }
 
-  return decoded;
+  return decoded
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /**
