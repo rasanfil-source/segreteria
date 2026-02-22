@@ -381,8 +381,6 @@ Output JSON:
   /**
    * Esegue una funzione con retry temporizzati
    * Usa ritardi crescenti tra i tentativi
-   * 
-   * BUG FIX: La logica di classifyError() non esiste in questo scope, uso classificazione inline.
    */
   _withRetry(fn, context = 'Chiamata API', maxRetries = 3) {
     let lastError = null;
@@ -392,14 +390,14 @@ Output JSON:
         return fn();
       } catch (error) {
         lastError = error;
-        const msg = String(error.message || '').toLowerCase();
 
-        // Determina se l'errore è ritentabile
-        const isRetryable = ['401', '403', '429', '500', '502', '503', '504', 'quota', 'timeout', 'deadline', 'econnreset'].some(term => msg.includes(term));
+        // Centralizza classificazione errore per logica retry
+        const classified = this._classifyError(error);
+        const isRetryable = classified.retryable;
 
         if (isRetryable && attempt < maxRetries - 1) {
           const waitTime = this.retryDelay * Math.pow(this.backoffFactor, attempt);
-          console.warn(`\u26A0\uFE0F ${context} fallito (tentativo ${attempt + 1}/${maxRetries}): ${error.message} - Attendendo ${waitTime}ms...`);
+          console.warn(`\u26A0\uFE0F ${context} fallito (tentativo ${attempt + 1}/${maxRetries}): [${classified.type}] ${error.message} - Attendendo ${waitTime}ms...`);
           Utilities.sleep(waitTime);
         } else {
           // Errore fatale o esaurimento tentativi
@@ -409,6 +407,25 @@ Output JSON:
     }
 
     throw lastError || new Error(`Fallimento definitivo dopo ${maxRetries} tentativi`);
+  }
+
+  /**
+   * Categorizza l'errore internamente al GeminiService per la logica di retry.
+   * @param {Error} error 
+   * @returns {{type: string, retryable: boolean}}
+   */
+  _classifyError(error) {
+    const msg = String(error.message || error.toString() || '').toLowerCase();
+    const RETRYABLE_ERRORS = ['401', '403', '429', '500', '502', '503', '504', 'quota', 'timeout', 'deadline', 'econnreset'];
+
+    let retryable = false;
+    for (const kw of RETRYABLE_ERRORS) {
+      if (msg.includes(kw)) {
+        retryable = true;
+        break;
+      }
+    }
+    return { type: retryable ? 'RETRYABLE' : 'FATAL', retryable: retryable };
   }
 
   // ========================================================================

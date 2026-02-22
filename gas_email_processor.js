@@ -133,14 +133,7 @@ class EmailProcessor {
       const entropy = Math.random().toString(36).substring(2, 8);
       lockValue = `${Date.now()}_${entropy}`;
 
-      const scriptLock = LockService.getScriptLock();
-
       try {
-        if (!scriptLock.tryLock(2000)) {
-          console.warn(`🔒 Impossibile acquisire script lock per thread ${threadId}, salto`);
-          return { status: 'skipped', reason: 'thread_lock_contention' };
-        }
-
         const existingLock = scriptCache.get(threadLockKey);
         if (existingLock) {
           const existingTimestamp = Number(String(existingLock).split('_')[0]);
@@ -159,14 +152,8 @@ class EmailProcessor {
         lockAcquired = true;
         console.log(`🔒 Lock acquisito per thread ${threadId}`);
       } catch (e) {
-        console.warn(`⚠️ Errore acquisizione lock: ${e.message}`);
+        console.warn(`⚠️ Errore acquisizione lock thread: ${e.message}`);
         return { status: 'error', error: 'Lock acquisition failed' };
-      } finally {
-        try {
-          scriptLock.releaseLock();
-        } catch (releaseError) {
-          console.warn(`⚠️ Errore rilascio script lock: ${releaseError.message}`);
-        }
       }
     }
 

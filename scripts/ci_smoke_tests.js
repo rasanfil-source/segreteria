@@ -12,7 +12,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
-const MIN_EXPECTED_TESTS = 36;
+const MIN_EXPECTED_TESTS = 37;
 
 const loadedScripts = new Set();
 
@@ -710,6 +710,17 @@ function testPromptLiteTokenBudget() {
     assert(tokens < 25000, `Prompt lite deve restare compatto, ottenuti ~${tokens} token`);
 }
 
+function testPromptKbSemanticTruncationRespectsHardLimit() {
+    loadScript('gas_prompt_engine.js');
+    const engine = new PromptEngine();
+
+    const hugeKb = ['Paragrafo 1: ' + 'A'.repeat(180), 'Paragrafo 2: ' + 'B'.repeat(180)].join('\n\n');
+    const tightBudget = 40;
+    const truncated = engine._truncateKbSemantically(hugeKb, tightBudget);
+
+    assert(truncated.length <= tightBudget, `KB troncata non deve superare il budget (${truncated.length} > ${tightBudget})`);
+}
+
 function runGoldenCases() {
     const cases = JSON.parse(fs.readFileSync('tests/golden_cases.json', 'utf8'));
     assert(Array.isArray(cases) && cases.length >= 20, 'golden_cases.json deve contenere almeno 20 casi');
@@ -1215,6 +1226,7 @@ function main() {
         ['main: serializzazione robusta righe KB', testSheetRowsToTextRemovesEmptyCellsAndRows],
         ['prompt context: temporal risk with object KB', testPromptContextTemporalRiskWithObjectKnowledgeBase],
         ['prompt context: circular object KB fallback', testPromptContextKnowledgeBaseCircularObjectDoesNotCrash],
+        ['prompt KB truncation: hard limit chars rispettato', testPromptKbSemanticTruncationRespectsHardLimit],
         ['gemini: portuguese detection refinement', testPortugueseDetectionRefinement],
     ];
 

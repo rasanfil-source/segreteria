@@ -1519,6 +1519,7 @@ Segreteria Parrocchia Sant'Eugenio
    */
   _truncateKbSemantically(kbContent, charLimit) {
     const budgetChars = Math.max(1, Number(charLimit) || 0);
+    const truncationMarker = '\n\n... [SEZIONI OMESSE PER LIMITI LUNGHEZZA - INFO PRINCIPALI PRESERVATE] ...\n\n';
 
     // Se già entro il budget, restituisci così com'è
     if (kbContent.length <= budgetChars) {
@@ -1530,7 +1531,6 @@ Segreteria Parrocchia Sant'Eugenio
 
     let result = [];
     let currentLength = 0;
-    const truncationMarker = '\n\n... [SEZIONI OMESSE PER LIMITI LUNGHEZZA - INFO PRINCIPALI PRESERVATE] ...\n\n';
     const markerLength = truncationMarker.length;
 
     // Aggiungi paragrafi fino a ~80% del budget (lascia spazio per il marcatore)
@@ -1554,15 +1554,31 @@ Segreteria Parrocchia Sant'Eugenio
       currentLength += trimmedPara.length + 2; // +2 per riunire con \n\n
     }
 
-    // Costruisci KB troncata
-    const truncatedContent = result.join('\n\n');
+    // Costruisci KB troncata (hard-cap: non superare mai budgetChars)
+    const truncatedContent = result.join('\n\n').slice(0, budgetChars);
 
     // Log statistiche troncamento
     const originalParagraphs = paragraphs.filter(p => p.trim()).length;
     const keptParagraphs = result.length;
     console.log(`📦 KB troncata: ${keptParagraphs}/${originalParagraphs} paragrafi (${truncatedContent.length}/${kbContent.length} caratteri)`);
 
-    return truncatedContent + truncationMarker;
+    const hasRealTruncation = truncatedContent.length < kbContent.length;
+    if (!hasRealTruncation) {
+      return truncatedContent;
+    }
+
+    const roomForMarker = budgetChars - truncatedContent.length;
+    if (roomForMarker >= markerLength) {
+      return truncatedContent + truncationMarker;
+    }
+
+    // Fallback stretto: conserva sempre il limite caratteri senza sforare
+    const fallbackMarker = ' ...[omesso]';
+    const suffix = roomForMarker > fallbackMarker.length
+      ? fallbackMarker
+      : '…'.repeat(Math.max(0, roomForMarker));
+
+    return (truncatedContent.slice(0, Math.max(0, budgetChars - suffix.length)) + suffix).slice(0, budgetChars);
   }
 }
 
