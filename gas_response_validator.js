@@ -346,8 +346,9 @@ class ResponseValidator {
       warnings.push(`Risposta piuttosto corta (${length} caratteri)`);
       score *= 0.85;
     } else if (length > this.WARNING_MAX_LENGTH) {
-      warnings.push(`Risposta molto lunga (${length} caratteri, potrebbe essere prolissa)`);
-      score *= 0.95;
+      // BUG FIX 8.2: Se sfora la max length è un ERRORE, non solo un warning (simmetria)
+      errors.push(`Risposta troppo lunga e prolissa (${length} caratteri, limite ${this.WARNING_MAX_LENGTH})`);
+      score *= 0.50; // Penalizza fortemente o azzera, invalidando via errors.length > 0
     }
 
     return { score, errors, warnings, length };
@@ -501,11 +502,8 @@ class ResponseValidator {
       if (/[a-z]{2,}\.\d{1,2}\.[a-z]{2,}/i.test(t)) return t;
       if (/\/([\w-]+\.\d{1,2}\.\w+)$/i.test(t)) return t;
 
-      t = t.replace(/\b(\d{1,2})\.([0-5]\d)\b/g, (match, h, m) => {
-        const hour = parseInt(h, 10);
-        if (hour >= 0 && hour <= 23) return `${h}:${m}`;
-        return match;
-      });
+      // BUG FIX 7.2: Replace globale di TUTTI i punti in due punti (per gestire formati anomali tipo 18.00.00)
+      t = t.replace(/\./g, ':');
       if (/^\d{1,2}$/.test(t)) {
         const hour = parseInt(t, 10);
         if (!isNaN(hour) && hour >= 0 && hour <= 23) {

@@ -44,8 +44,12 @@ const ALWAYS_OPERATING_DAYS = [
   [MONTH.DEC, 26]    // Santo Stefano
 ];
 
+// ====================================================================
+// ⚠️ WARNING: NON CANCELLARE QUESTO BLOCCO STATIC (Fallback Sicurezza)
 // Orari di sospensione per giorno della settimana
-// Sistema SOSPESO durante questi orari (la segreteria è operativa)
+// Sistema SOSPESO durante questi orari. 
+// Usato come FALLBACK SICURO se il Foglio "Controllo" è irraggiungibile o formattato male.
+// Qualsiasi sviluppatore intenda rimuoverlo causerà malfunzionamenti fuori orario in caso di failure API.
 const SUSPENSION_HOURS = {
   1: [[8, 20]],    // Lunedì: 8–20
   2: [[8, 14]],    // Martedì: 8–14
@@ -160,7 +164,9 @@ function isInSuspensionTime(checkDate = new Date()) {
   if (isInVacationPeriod(now)) return false;
 
   // 2. ORARI UFFICIO (Sistema SOSPESO)
-  const rules = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.suspensionRules)
+  // Utilizza i dati caricati dal foglio Controllo in (A10:D16/B10:E16) durante il loadResources
+  // Se non presenti, usa il fallback definito via codice in SUSPENSION_HOURS
+  const rules = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.suspensionRules && Object.keys(GLOBAL_CACHE.suspensionRules).length > 0)
     ? GLOBAL_CACHE.suspensionRules
     : SUSPENSION_HOURS;
 
@@ -434,7 +440,7 @@ function setupMainTrigger(minutes) {
   deleteTriggersByHandler_('main');
   deleteTriggersByHandler_('processEmailsMain');
 
-  ScriptApp.newTrigger('processEmailsMain')
+  ScriptApp.newTrigger('main')
     .timeBased()
     .everyMinutes(intervalMinutes)
     .create();
@@ -468,13 +474,22 @@ function deleteTriggersByHandler_(handlerName) {
 /**
  * Funzione principale invocata dal trigger temporale (es. ogni 5 min)
  */
-function processEmailsMain() {
-  console.log('🚀 Avvio processEmailsMain - v2.0');
+function main() {
+  console.log('🚀 Avvio main pipeline - v3.0');
+
+  // 0. Controllo Preventivo API Avanzate
+  try {
+    const probe = GmailApp.getAliases(); // Chiamata leggera per testare abilitazione servizio
+  } catch (apiError) {
+    console.error(`💥 CRITICO: Servizi Avanzati (Gmail API) non abilitati nel progetto GAS. Impossibile procedere.`);
+    return;
+  }
+
   const executionLock = LockService.getScriptLock();
   let hasExecutionLock = false;
 
   try {
-    // 1. Sincronizzazione Esecuzione (Prevenzione concurrency selvaggia)
+    // 1. Sincronizzazione Esecuzione (Prevenzione concurrency)
     hasExecutionLock = executionLock.tryLock(5000);
     if (!hasExecutionLock) {
       console.warn('⚠️ Esecuzione già in corso o lock bloccato. Salto turno.');
@@ -482,7 +497,7 @@ function processEmailsMain() {
     }
 
     // 2. Caricamento Risorse (Config, KB, Blacklist)
-    withSheetsRetry(() => loadResources(false, true), 'loadResources(processEmailsMain)');
+    withSheetsRetry(() => loadResources(false, true), 'loadResources(main)');
 
     // 3. Controllo Stato Sistema
     if (!GLOBAL_CACHE.systemEnabled) {
@@ -499,14 +514,15 @@ function processEmailsMain() {
         console.log('💤 Sistema in sospensione (orario ufficio/festività).');
         return;
       }
-
       console.warn(`⏰ Sospensione bypassata: trovate email non lette più vecchie di ${staleHours}h.`);
     }
 
-    // 4. Orchestrazione Pipeline
+    // 4. Orchestrazione Pipeline (Delegato alle classi di servizio)
     const processor = new EmailProcessor();
     const knowledgeBase = GLOBAL_CACHE.knowledgeBase || '';
     const doctrineBase = GLOBAL_CACHE.doctrineBase || '';
+
+    // Passaggio della dottrina strutturata e testo piatto per retrocompatibilita
     const results = processor.processUnreadEmails(knowledgeBase, doctrineBase);
 
     if (results) {
@@ -514,16 +530,15 @@ function processEmailsMain() {
     }
 
   } catch (error) {
-    console.error(`💥 Errore fatale in processEmailsMain: ${error.message}`);
-
+    console.error(`💥 Errore fatale in main: ${error.message}`);
     if (typeof createLogger === 'function') {
       try {
         const logger = createLogger('Main');
-        logger.error(`Errore fatale in processEmailsMain: ${error.message}`, {
+        logger.error(`Errore fatale in main: ${error.message}`, {
           stack: error && error.stack ? error.stack : null
         });
       } catch (logError) {
-        console.warn(`⚠️ Logger errore fatale non disponibile: ${logError.message}`);
+        // Fallback silente
       }
     }
   } finally {
@@ -531,4 +546,11 @@ function processEmailsMain() {
       executionLock.releaseLock();
     }
   }
+}
+
+/**
+ * Hook retrocompatibile rimosso o allineato
+ */
+function processEmailsMain() {
+  main();
 }

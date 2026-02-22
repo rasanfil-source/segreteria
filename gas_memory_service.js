@@ -307,6 +307,10 @@ class MemoryService {
       return;
     }
 
+    // BUG FIX 6.2: Prevenzione data staling tra Sheet e Cache
+    console.log(`🧹 Invalidazione preventiva cache per thread ${threadId} pre-lettura di allineamento`);
+    this._invalidateCache(`memory_${threadId}`);
+
     // updateMemory gestisce già retry, lock e invalidazione/aggiornamento cache
     this.updateMemory(threadId, data);
   }
@@ -417,8 +421,10 @@ class MemoryService {
         }
       }
     }
-    // Punto 2: Protezione di sicurezza se il fallback non ha potuto completare
-    throw new Error(`Impossibile aggiornare la memoria per il thread ${threadId} dopo 3 tentativi (Lock Timeout)`);
+    // BUG FIX 3.1: Protezione best-effort. Non distruggere il batch fallendo e gettando il thread in LOOP infinito.
+    // Invece di throw, logghiamo l'errore e ritorniamo false per permettere all'email_processor di finire il job (labeling).
+    console.error(`❌ CRITICO: Lock Memory Service irrisolvibile per thread ${threadId} (Loop Timeout dopo 3 retry). Fallback best-effort a batch bypass.`);
+    return false;
   }
 
   /**

@@ -177,11 +177,12 @@ class TerritoryValidator {
             // Evita conflitti tra tipologie diverse (es. "via" vs "viale")
             if (inputTokens[0] !== dbTokens[0]) continue;
 
-            // Verifica che una buona parte dei token input sia presente
-            const matchCount = inputTokens.filter(token => dbTokens.includes(token)).length;
-            const extraTokens = inputTokens.length - matchCount;
+            // Filtra tokens corti inessenziali dall'input (es. "di", "la", "del") per il conto degli extra
+            const significantInputTokens = inputTokens.filter(t => t.length > 2 || dbTokens.includes(t));
+            const matchCount = significantInputTokens.filter(token => dbTokens.includes(token)).length;
+            const extraTokens = significantInputTokens.length - matchCount;
 
-            // Tolleriamo al massimo 1 parola extra (es. "via roma alta" -> "via roma")
+            // Tolleriamo al massimo 1 parola extra significativa (es. "via roma alta" -> "via roma")
             if (extraTokens > 1) continue;
 
             // Richiedi almeno UNA coppia consecutiva (tra i token input) present nel DB

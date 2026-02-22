@@ -568,7 +568,7 @@ class EmailProcessor {
       // ====================================================================================================
       const salutationMode = computeSalutationMode({
         isReply: safeSubjectLower.startsWith('re:'),
-        messageCount: memoryContext.messageCount || messages.length,
+        messageCount: memoryContext.messageCount || messages.length, // Il conteggio include già mess.length attuali
         memoryExists: Object.keys(memoryContext).length > 0,
         lastUpdated: memoryContext.lastUpdated || null,
         now: new Date()
@@ -1043,6 +1043,8 @@ ${addressLines.join('\n\n')}
     const processedLabelQuery = this._formatLabelQueryValue(this.config.labelName);
     const errorLabelQuery = this._formatLabelQueryValue(this.config.errorLabelName);
     const validationLabelQuery = this._formatLabelQueryValue(this.config.validationErrorLabel);
+
+    // BUG FIX 2.2: La query corretta è -label:IA (!IMPORTANTE il MENO davanti)
     const searchQuery = `is:unread -label:${processedLabelQuery} -label:${errorLabelQuery} -label:${validationLabelQuery} in:inbox`;
     const searchLimit = (this.config.searchPageSize || 50);
 
@@ -1309,13 +1311,16 @@ ${addressLines.join('\n\n')}
     }
   }
 
+  // BUG FIX 1.2: Calcolo corretto tempo rimanente rispetto a _startTime
   _isNearDeadline(maxExecutionTimeMs) {
     const budgetMs = Number(maxExecutionTimeMs) || 330000;
     const minRemainingMs = (typeof this.config.minRemainingTimeMs === 'number')
       ? this.config.minRemainingTimeMs
-      : 90000;
-    const start = Number(this._startTime) || Date.now();
-    const elapsed = Date.now() - start;
+      : 90000; // 90 secondi margine sicurezza
+
+    if (!this._startTime) return false;
+
+    const elapsed = Date.now() - this._startTime;
     return elapsed > Math.max(0, budgetMs - minRemainingMs);
   }
 
@@ -1362,14 +1367,18 @@ ${addressLines.join('\n\n')}
     this.gmailService.addLabelToThread(thread, this.config.validationErrorLabel);
   }
 
+  // BUG FIX 4.2: Evitare "Ultima risposta inviata" statico, appendere vero sommario
   _buildMemorySummary({ existingSummary, responseText, providedTopics }) {
-    const maxBullets = (typeof CONFIG !== 'undefined' && CONFIG.MAX_MEMORY_SUMMARY_BULLETS) || 4;
-    const maxChars = (typeof CONFIG !== 'undefined' && CONFIG.MAX_MEMORY_SUMMARY_CHARS) || 600;
-    const sanitizedSummary = (typeof existingSummary === 'string') ? existingSummary : '';
-    const summaryLines = sanitizedSummary
-      .split('\n')
-      .map(line => line.trim())
-      .filter(Boolean);
+    const maxChars = 2000;
+    const maxBullets = 5;
+
+    let summaryLines = [];
+    if (existingSummary && typeof existingSummary === 'string') {
+      summaryLines = existingSummary
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean);
+    }
 
     if (!responseText) {
       return summaryLines.slice(-maxBullets).join('\n') || null;
@@ -1398,14 +1407,18 @@ ${addressLines.join('\n\n')}
       .filter(sentence => !ignorePatterns.some(pattern => pattern.test(sentence)));
 
     let summarySentence = candidateSentences.slice(0, 2).join(' ');
+
     if (!summarySentence && providedTopics && providedTopics.length > 0) {
-      summarySentence = `Ho fornito informazioni su: ${providedTopics.join(', ')}.`;
+      summarySentence = `Risposta con informazioni su: ${providedTopics.join(', ')}.`;
     }
     if (!summarySentence) {
       summarySentence = plainText.slice(0, 200);
     }
 
-    const newBullet = summarySentence ? `• ${summarySentence}` : '';
+    // Aggiungiamo data contestuale per non collassare topic se esauditi in momenti diversi
+    const newBullet = summarySentence ? `• [${new Date().toISOString().split('T')[0]}] ${summarySentence}` : '';
+
+    // Controlliamo l'overlap ma con tolleranza (data aiuta l'unicità)
     if (newBullet && !summaryLines.some(line => line.toLowerCase() === newBullet.toLowerCase())) {
       summaryLines.push(newBullet);
     }

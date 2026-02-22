@@ -166,10 +166,7 @@ class RequestTypeClassifier {
     const shouldLogRawHint = logLevel === 'DEBUG';
 
     if (shouldLogRawHint) {
-      console.log('=========================================');
-      console.log('🤖 DEBUG EXTERNAL HINT (GEMINI RAW):');
-      console.log(JSON.stringify(externalHint, null, 2));
-      console.log('=========================================');
+      console.log(`🤖 DEBUG EXTERNAL HINT (GEMINI RAW):\n`, JSON.stringify(externalHint, null, 2));
     }
 
     // Smart Truncation (primi 1500 + ultimi 1500 caratteri)
@@ -255,8 +252,9 @@ class RequestTypeClassifier {
         requestType = 'technical'; // Valore predefinito
       }
     }
-    // Override specifico per sbattezzo (Logica critica)
-    if (formalResult.score >= 4) requestType = 'formal';
+    // Override prioritari (Logica critica)
+    if (formalResult.score >= 4 || dimensions.formal >= 0.8) requestType = 'formal'; // Sbattezzo prevale
+    if (dimensions.doctrinal >= 0.8 && dimensions.pastoral < 0.4) requestType = 'doctrinal'; // Pura dottrina
 
     // 4b. Confidenza e criteri di sicurezza (anti-falsi positivi)
     const confidence = this._estimateConfidence({

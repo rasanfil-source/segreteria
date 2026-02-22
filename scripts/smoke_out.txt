@@ -1,0 +1,245 @@
+🔍 Match esatto trovato: 'via giovanni vincenzo gravina'
+📍 Indirizzo rilevato: via Roma n. 10A
+📍 Indirizzo rilevato: via Roma n. 10B
+PASS territory abbreviations
+PASS civic normalization (normalizeCivic)
+PASS civic deduplication (10A vs 10B)
+📍 Indirizzo rilevato: via Roma n. 10A
+📍 Indirizzo rilevato: via Roma n. 10B
+PASS civic extraction with slash/dash suffix
+PASS classifyError: quota/429 → retryable
+PASS classifyError: API key/invalid → non-retryable
+PASS portuguese special greeting
+🤖 Chiamata gemini-2.5-flash (prompt: 11 caratteri)...
+✓ Generati 5 caratteri (da 1 parti)
+PASS gemini DI + mock fetch
+🤖 Chiamata gemini-2.5-flash (prompt: 11 caratteri)...
+PASS gemini contract: 429 → errore propagato
+🤖 Chiamata gemini-2.5-flash (prompt: 11 caratteri)...
+PASS gemini contract: malformed JSON → errore parse
+🤖 Chiamata gemini-2.5-flash (prompt: 11 caratteri)...
+PASS gemini contract: no candidates → errore semantico
+🔍 Inizializzazione ResponseValidator...
+✓ ResponseValidator inizializzato
+   Soglia minima validità: 0.6
+FAIL validator: check lunghezza: Risposta troppo lunga deve avere score 0.95, ottenuto 0.5
+Error: Risposta troppo lunga deve avere score 0.95, ottenuto 0.5
+    at assert (C:\Users\romolo\OneDrive\Documenti\SCRIPT\GMAIL AUTOMATICA\GMAIL PARROCCHIA\exnovoGAS\scripts\ci_smoke_tests.js:88:15)
+    at testResponseValidatorCheckLength (C:\Users\romolo\OneDrive\Documenti\SCRIPT\GMAIL AUTOMATICA\GMAIL PARROCCHIA\exnovoGAS\scripts\ci_smoke_tests.js:321:5)
+    at main (C:\Users\romolo\OneDrive\Documenti\SCRIPT\GMAIL AUTOMATICA\GMAIL PARROCCHIA\exnovoGAS\scripts\ci_smoke_tests.js:1086:13)
+    at Object.<anonymous> (C:\Users\romolo\OneDrive\Documenti\SCRIPT\GMAIL AUTOMATICA\GMAIL PARROCCHIA\exnovoGAS\scripts\ci_smoke_tests.js:1113:1)
+    at Module._compile (node:internal/modules/cjs/loader:1761:14)
+    at Object..js (node:internal/modules/cjs/loader:1893:10)
+    at Module.load (node:internal/modules/cjs/loader:1481:32)
+    at Module._load (node:internal/modules/cjs/loader:1300:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+🔍 Inizializzazione ResponseValidator...
+✓ ResponseValidator inizializzato
+   Soglia minima validità: 0.6
+PASS validator: contenuto vietato + placeholder
+🔍 Inizializzazione ResponseValidator...
+✓ ResponseValidator inizializzato
+   Soglia minima validità: 0.6
+PASS validator: consistenza lingua
+PASS validator: semantic prompt bullets puliti
+PASS computeSalutationMode: primo/reply/vecchio
+🔒 Lock saltato per thread thread-loop (chiamante ha già lock)
+
+📧 Elaborazione: Info...
+   Da: utente@example.com (Utente)
+   ⊖ Saltato: probabile loop email (12 esterni consecutivi)
+PASS anti-loop: thread lungo con esterni consecutivi
+🧠 Memory hit per thread thread-1 (Lingua: it)
+PASS memory get: usa row.values in parsing
+PASS memory invalidate: pulizia cache robusta
+⚠️ Recovery WAL saltato: impossibile acquisire lock entro 5s
+PASS rate limiter WAL: recovery bloccato senza lock
+🚫 Ignorato: auto-reply o notifica di sistema
+🚫 Ignorato: auto-reply o notifica di sistema
+PASS _shouldIgnoreEmail: no-reply/reale/ooo
+PASS attachment context: sanitizzazione + newline reali
+📝 Prompt generato: 89108 caratteri (~22277 token) | Profilo: lite | Saltati: 4
+PASS prompt lite: budget token e sezioni ridotte
+📊 Inizializzazione RequestTypeClassifier...
+✓ RequestTypeClassifier inizializzato
+   📊 Classificazione: PASTORAL (Tono: Empatico e Accogliente)
+      Dims: T=0.00 P=0.80 D=0.00 F=0.00
+      Emotion=High, Complex=Low
+PASS request classifier: external hint category trim
+📊 Inizializzazione RequestTypeClassifier...
+✓ RequestTypeClassifier inizializzato
+🧠 Inizializzazione Classifier...
+✓ Classifier inizializzato
+   Filosofia: Filtra solo casi ovvi, delega il resto a Gemini
+🔍 Inizializzazione ResponseValidator...
+✓ ResponseValidator inizializzato
+   Soglia minima validità: 0.6
+   📊 Classificazione: TECHNICAL (Tono: Professionale)
+      Dims: T=0.80 P=0.00 D=0.00 F=0.00
+      Emotion=Low, Complex=Low
+📝 Prompt generato: 11279 caratteri (~2820 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (140 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.95)
+   📊 Classificazione: PASTORAL (Tono: Empatico e Accogliente)
+      Dims: T=0.00 P=1.00 D=0.00 F=0.00
+      Emotion=High, Complex=High
+📝 Prompt generato: 11957 caratteri (~2990 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (78 caratteri, lingua=en)...
+✓ Validazione SUPERATA (punteggio: 0.69)
+   📊 Classificazione: TECHNICAL (Tono: Professionale)
+      Dims: T=0.00 P=0.00 D=0.00 F=0.00
+      Emotion=Low, Complex=Low
+📝 Prompt generato: 13823 caratteri (~3456 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (133 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 1.00)
+   📊 Classificazione: TECHNICAL (Tono: Professionale)
+      Dims: T=0.00 P=0.00 D=0.00 F=0.00
+      Emotion=Low, Complex=Low
+📝 Prompt generato: 11943 caratteri (~2986 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (78 caratteri, lingua=en)...
+✓ Validazione SUPERATA (punteggio: 0.69)
+   📊 Classificazione: TECHNICAL (Tono: Professionale)
+      Dims: T=0.00 P=0.00 D=0.00 F=0.00
+      Emotion=Low, Complex=Low
+📝 Prompt generato: 11858 caratteri (~2965 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (68 caratteri, lingua=es)...
+✓ Validazione SUPERATA (punteggio: 0.81)
+   📊 Classificazione: TECHNICAL (Tono: Professionale)
+      Dims: T=0.80 P=0.00 D=0.00 F=0.00
+      Emotion=Low, Complex=Low
+📝 Prompt generato: 13068 caratteri (~3267 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (77 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.81)
+   📊 Classificazione: TECHNICAL (Tono: Professionale)
+      Dims: T=0.00 P=0.00 D=0.00 F=0.00
+      Emotion=Low, Complex=Low
+📝 Prompt generato: 8041 caratteri (~2011 token) | Profilo: lite | Saltati: 4
+🔍 Validazione risposta (68 caratteri, lingua=es)...
+✓ Validazione SUPERATA (punteggio: 0.81)
+   📊 Classificazione: DOCTRINAL (Tono: Istruttivo e Chiaro)
+      Dims: T=0.40 P=0.00 D=0.80 F=0.00
+      Emotion=Low, Complex=Medium
+📝 Prompt generato: 11332 caratteri (~2833 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (123 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.95)
+   📊 Classificazione: TECHNICAL (Tono: Professionale)
+      Dims: T=0.80 P=0.00 D=0.00 F=0.00
+      Emotion=Low, Complex=Low
+📝 Prompt generato: 9235 caratteri (~2309 token) | Profilo: lite | Saltati: 4
+🔍 Validazione risposta (77 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.81)
+   📊 Classificazione: TECHNICAL (Tono: Professionale)
+      Dims: T=0.40 P=0.00 D=0.00 F=0.00
+      Emotion=Low, Complex=Low
+📝 Prompt generato: 9179 caratteri (~2295 token) | Profilo: lite | Saltati: 4
+🔍 Validazione risposta (87 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 1.00)
+   📊 Classificazione: TECHNICAL (Tono: Professionale)
+      Dims: T=0.00 P=0.00 D=0.00 F=0.00
+      Emotion=Low, Complex=Low
+📝 Prompt generato: 11212 caratteri (~2803 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (81 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.90)
+   📊 Classificazione: TECHNICAL (Tono: Professionale)
+      Dims: T=0.00 P=0.00 D=0.00 F=0.00
+      Emotion=Low, Complex=Low
+📝 Prompt generato: 11224 caratteri (~2806 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (89 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.95)
+   📊 Classificazione: TECHNICAL (Tono: Professionale)
+      Dims: T=0.40 P=0.00 D=0.00 F=0.00
+      Emotion=Low, Complex=Low
+📝 Prompt generato: 11236 caratteri (~2809 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (83 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.95)
+   📊 Classificazione: TECHNICAL (Tono: Professionale)
+      Dims: T=0.00 P=0.00 D=0.00 F=0.00
+      Emotion=Low, Complex=Low
+📝 Prompt generato: 12018 caratteri (~3005 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (133 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.95)
+   📊 Classificazione: PASTORAL (Tono: Empatico e Accogliente)
+      Dims: T=0.00 P=1.00 D=0.00 F=0.00
+      Emotion=High, Complex=High
+📝 Prompt generato: 11274 caratteri (~2819 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (115 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.95)
+   📊 Classificazione: PASTORAL (Tono: Empatico e Accogliente)
+      Dims: T=0.00 P=1.00 D=0.00 F=0.00
+      Emotion=High, Complex=High
+📝 Prompt generato: 11259 caratteri (~2815 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (109 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.95)
+   📊 Classificazione: TECHNICAL (Tono: Professionale)
+      Dims: T=0.00 P=0.00 D=0.00 F=0.00
+      Emotion=Low, Complex=Low
+📝 Prompt generato: 11835 caratteri (~2959 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (56 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.81)
+   📊 Classificazione: PASTORAL (Tono: Empatico e Accogliente)
+      Dims: T=0.00 P=0.80 D=0.00 F=0.00
+      Emotion=High, Complex=Low
+📝 Prompt generato: 11319 caratteri (~2830 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (119 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.95)
+   📊 Classificazione: PASTORAL (Tono: Empatico e Accogliente)
+      Dims: T=0.00 P=1.00 D=0.00 F=0.00
+      Emotion=High, Complex=High
+📝 Prompt generato: 11277 caratteri (~2820 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (145 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.95)
+   📊 Classificazione: TECHNICAL (Tono: Professionale)
+      Dims: T=0.00 P=0.00 D=0.00 F=0.00
+      Emotion=Low, Complex=Low
+📝 Prompt generato: 11264 caratteri (~2816 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (168 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.95)
+   📊 Classificazione: PASTORAL (Tono: Empatico e Accogliente)
+      Dims: T=0.00 P=1.00 D=0.00 F=0.00
+      Emotion=High, Complex=High
+📝 Prompt generato: 11959 caratteri (~2990 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (102 caratteri, lingua=en)...
+✓ Validazione SUPERATA (punteggio: 0.95)
+   📊 Classificazione: PASTORAL (Tono: Empatico e Accogliente)
+      Dims: T=0.00 P=0.80 D=0.00 F=0.00
+      Emotion=High, Complex=Low
+📝 Prompt generato: 11877 caratteri (~2970 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (117 caratteri, lingua=es)...
+✓ Validazione SUPERATA (punteggio: 0.95)
+   📊 Classificazione: PASTORAL (Tono: Empatico e Accogliente)
+      Dims: T=0.00 P=0.80 D=0.00 F=0.00
+      Emotion=High, Complex=Low
+📝 Prompt generato: 11277 caratteri (~2820 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (96 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.95)
+   📊 Classificazione: PASTORAL (Tono: Empatico e Accogliente)
+      Dims: T=0.00 P=1.00 D=0.00 F=0.00
+      Emotion=High, Complex=High
+📝 Prompt generato: 11247 caratteri (~2812 token) | Profilo: standard | Saltati: 1
+🔍 Validazione risposta (165 caratteri, lingua=it)...
+✓ Validazione SUPERATA (punteggio: 0.95)
+PASS golden set: regressione output strutturale
+PASS escapeHtml: neutralizza XSS
+🛑 Bloccato tentativo SSRF IPv6 locale: http://[::1]/admin
+🛑 Bloccato tentativo SSRF: http://2130706433/
+🛑 Bloccato tentativo SSRF: http://localhost@evil.com/path
+🛑 Bloccato tentativo SSRF: http://localhost./admin
+🛑 Bloccato tentativo SSRF hostname numerico: http://0x7f.0x0.0x0.0x1/admin
+🛑 Bloccato tentativo SSRF IPv4-mapped IPv6: http://[::ffff:127.0.0.1]/admin
+🛑 Bloccato tentativo SSRF IPv4-mapped IPv6: http://[0:0:0:0:0:ffff:7f00:1]/admin
+🛑 Bloccato tentativo SSRF IPv6 locale: http://[fd00::1]/admin
+🛑 Bloccato tentativo SSRF IPv6 locale: http://[::]/admin
+🛑 Bloccato tentativo SSRF hostname numerico: http://100.64.0.10/internal
+PASS sanitizeUrl: blocca IPv6/decimale/userinfo
+PASS markdownToHtml: escape-first previene XSS
+PASS markdownToHtml: supporta URL con parentesi
+⚠️ addLabelToThread fallito per 'IA': Permission denied
+PASS gmail labels: errori non-label vengono propagati
+🚀 Avvio main pipeline - v3.0
+💥 CRITICO: Servizi Avanzati (Gmail API) non abilitati nel progetto GAS. Impossibile procedere.
+PASS main: nessun leak globale hasExecutionLock
+
+SUMMARY: 30/31 passed (min: 20)
+
+❌ 1 test falliti.

@@ -318,7 +318,8 @@ function testResponseValidatorCheckLength() {
     assert(resGood.errors.length === 0, 'Risposta buona non deve generare errori');
 
     const resLong = validator._checkLength('A'.repeat(3001));
-    assert(resLong.score === 0.95, `Risposta troppo lunga deve avere score 0.95, ottenuto ${resLong.score}`);
+    assert(resLong.score === 0.50, `Risposta troppo lunga deve avere score 0.50, ottenuto ${resLong.score}`);
+    assert(resLong.errors.length > 0, `Risposta troppo lunga deve generare un errore`);
 }
 
 function testResponseValidatorForbiddenContent() {
