@@ -251,6 +251,25 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
 }
 
 function _loadResourcesInternal() {
+  const cache = (typeof CacheService !== 'undefined') ? CacheService.getScriptCache() : null;
+  const CACHE_KEY = 'SPA_KNOWLEDGE_BASE_V1';
+
+  // 1. Prova a leggere dalla vera Cache di Apps Script
+  if (cache) {
+    const cachedData = cache.get(CACHE_KEY);
+    if (cachedData) {
+      try {
+        const parsedData = JSON.parse(cachedData);
+        Object.assign(GLOBAL_CACHE, parsedData);
+        GLOBAL_CACHE.loaded = true;
+        console.log('✓ Risorse caricate dalla Cache veloce.');
+        return;
+      } catch (e) {
+        console.warn('⚠️ Cache corrotta o obsoleta, ricaricamento dai fogli...');
+      }
+    }
+  }
+
   const spreadsheetId = (typeof CONFIG !== 'undefined' && CONFIG.SPREADSHEET_ID) ? CONFIG.SPREADSHEET_ID : null;
   if (!spreadsheetId) {
     throw new Error('Impossibile aprire il foglio: CONFIG.SPREADSHEET_ID non configurato.');
@@ -271,20 +290,17 @@ function _loadResourcesInternal() {
     DOCTRINE_SHEET: 'Dottrina'
   };
 
-  if (typeof CONFIG === 'undefined') {
-    console.warn('⚠️ CONFIG non disponibile in _loadResourcesInternal: uso nomi sheet di fallback.');
-  }
+  const newCacheData = {};
 
   // KB Base
   const kbSheet = ss.getSheetByName(cfg.KB_SHEET_NAME);
-  if (kbSheet) {
-    const data = kbSheet.getDataRange().getValues();
-    GLOBAL_CACHE.knowledgeBase = data.map(r => r.join(' | ')).join('\n');
-  }
+  newCacheData.knowledgeBase = kbSheet
+    ? kbSheet.getDataRange().getValues().map(r => r.join(' | ')).join('\n')
+    : '';
 
   // Prompt resources aggiuntive (usate da PromptEngine)
   const aiCoreLiteSheet = ss.getSheetByName(cfg.AI_CORE_LITE_SHEET);
-  GLOBAL_CACHE.aiCoreLite = aiCoreLiteSheet
+  newCacheData.aiCoreLite = aiCoreLiteSheet
     ? aiCoreLiteSheet
       .getDataRange()
       .getValues()
@@ -294,7 +310,7 @@ function _loadResourcesInternal() {
     : '';
 
   const aiCoreSheet = ss.getSheetByName(cfg.AI_CORE_SHEET);
-  GLOBAL_CACHE.aiCore = aiCoreSheet
+  newCacheData.aiCore = aiCoreSheet
     ? aiCoreSheet
       .getDataRange()
       .getValues()
@@ -306,24 +322,35 @@ function _loadResourcesInternal() {
   const doctrineSheet = ss.getSheetByName(cfg.DOCTRINE_SHEET);
   if (doctrineSheet) {
     const doctrineData = doctrineSheet.getDataRange().getValues();
-    GLOBAL_CACHE.doctrineStructured = _parseSheetToStructured(doctrineData);
-    GLOBAL_CACHE.doctrineBase = doctrineData.map(r => r.join(' | ')).join('\n');
+    newCacheData.doctrineStructured = _parseSheetToStructured(doctrineData);
+    newCacheData.doctrineBase = doctrineData.map(r => r.join(' | ')).join('\n');
   } else {
-    GLOBAL_CACHE.doctrineStructured = [];
-    GLOBAL_CACHE.doctrineBase = '';
+    newCacheData.doctrineStructured = [];
+    newCacheData.doctrineBase = '';
   }
 
   // Config Avanzata
   const adv = _loadAdvancedConfig(ss);
-  GLOBAL_CACHE.systemEnabled = adv.systemEnabled;
-  GLOBAL_CACHE.vacationPeriods = adv.vacationPeriods;
-  GLOBAL_CACHE.suspensionRules = adv.suspensionRules;
-  GLOBAL_CACHE.ignoreDomains = adv.ignoreDomains;
-  GLOBAL_CACHE.ignoreKeywords = adv.ignoreKeywords;
+  newCacheData.systemEnabled = adv.systemEnabled;
+  newCacheData.vacationPeriods = adv.vacationPeriods;
+  newCacheData.suspensionRules = adv.suspensionRules;
+  newCacheData.ignoreDomains = adv.ignoreDomains;
+  newCacheData.ignoreKeywords = adv.ignoreKeywords;
+  newCacheData.loaded = true;
+  newCacheData.lastLoadedAt = Date.now();
 
-  GLOBAL_CACHE.loaded = true;
-  GLOBAL_CACHE.lastLoadedAt = Date.now();
-  console.log('✓ Risorse caricate correttamente.');
+  // 3. Salva nella RAM dell'esecuzione corrente
+  Object.assign(GLOBAL_CACHE, newCacheData);
+
+  // 4. Salva nel CacheService (6 ore)
+  if (cache) {
+    try {
+      cache.put(CACHE_KEY, JSON.stringify(newCacheData), 21600);
+      console.log('✓ Risorse caricate da Fogli e salvate in Cache.');
+    } catch (e) {
+      console.warn('⚠️ Impossibile salvare in cache (limite 100KB?): ' + e.message);
+    }
+  }
 }
 
 /**
@@ -343,7 +370,16 @@ function clearKnowledgeCache() {
   GLOBAL_CACHE.aiCoreLite = '';
   GLOBAL_CACHE.aiCore = '';
   GLOBAL_CACHE.doctrineStructured = [];
-  console.log('🗑️ Cache conoscenza/config svuotata manualmente');
+
+  // Invalida anche la cache di sistema (CacheService)
+  try {
+    const cache = CacheService.getScriptCache();
+    cache.remove('SPA_KNOWLEDGE_BASE_V1');
+  } catch (e) {
+    // best effort
+  }
+
+  console.log('🗑️ Cache conoscenza/config svuotata manualmente (RAM + ScriptCache)');
 }
 
 // Compatibilità con nome storico usato manualmente in alcuni ambienti.

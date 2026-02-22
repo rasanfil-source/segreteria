@@ -12,7 +12,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
-const MIN_EXPECTED_TESTS = 33;
+const MIN_EXPECTED_TESTS = 34;
 
 const loadedScripts = new Set();
 
@@ -1115,6 +1115,23 @@ function testPromptContextTemporalRiskWithObjectKnowledgeBase() {
     assert(pc.profile === 'standard', "Profilo deve essere almeno standard per temporal_risk");
 }
 
+function testPromptContextKnowledgeBaseCircularObjectDoesNotCrash() {
+    console.log('--- Test: PromptContext Circular KB Object ---');
+    loadScript('gas_prompt_context.js');
+
+    const circularKb = { item: 'dato' };
+    circularKb.self = circularKb;
+
+    const pc = new PromptContext({
+        knowledgeBase: circularKb,
+        temporal: { mentionsDates: false }
+    });
+
+    assert(typeof pc.input.knowledgeBaseRaw === 'string', 'knowledgeBaseRaw deve essere valorizzata anche con oggetti circolari');
+    assert(pc.input.knowledgeBaseMeta.length > 0, 'knowledgeBaseMeta.length deve essere > 0 con fallback stringa');
+    assert(pc.concerns.temporal_risk === true, 'temporal_risk deve restare true per KB oggetto');
+}
+
 // ========================================================================
 // MAIN: runner con contatore e soglia minima
 // ========================================================================
@@ -1160,6 +1177,7 @@ function main() {
         ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
         ['main: nessun leak globale hasExecutionLock', testMainDoesNotLeakHasExecutionLockGlobal],
         ['prompt context: temporal risk with object KB', testPromptContextTemporalRiskWithObjectKnowledgeBase],
+        ['prompt context: circular object KB fallback', testPromptContextKnowledgeBaseCircularObjectDoesNotCrash],
     ];
 
     let passed = 0;

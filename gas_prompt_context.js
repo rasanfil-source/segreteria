@@ -31,7 +31,19 @@ class PromptContext {
         // Mantiene knowledgeBase originale inalterata e crea metadati separati
         if (normalizedInput.knowledgeBase) {
             const isString = typeof normalizedInput.knowledgeBase === 'string';
-            const knowledgeBaseRaw = isString ? normalizedInput.knowledgeBase : JSON.stringify(normalizedInput.knowledgeBase);
+            let knowledgeBaseRaw = '';
+
+            if (isString) {
+                knowledgeBaseRaw = normalizedInput.knowledgeBase;
+            } else {
+                try {
+                    knowledgeBaseRaw = JSON.stringify(normalizedInput.knowledgeBase);
+                } catch (e) {
+                    console.warn('⚠️ PromptContext: knowledgeBase non serializzabile, uso fallback stringa');
+                    knowledgeBaseRaw = String(normalizedInput.knowledgeBase);
+                }
+            }
+
             normalizedInput.knowledgeBaseRaw = knowledgeBaseRaw;
             normalizedInput.knowledgeBaseMeta = {
                 length: knowledgeBaseRaw.length,

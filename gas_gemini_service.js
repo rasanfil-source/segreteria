@@ -1091,11 +1091,16 @@ Output JSON:
       results.connectionOk = response.getResponseCode() === 200;
 
       if (results.connectionOk) {
-        const result = JSON.parse(response.getContentText());
-        if (result.candidates) {
-          results.canGenerate = true;
-        } else {
-          results.errors.push('API non ha restituito candidati');
+        try {
+          const result = JSON.parse(response.getContentText());
+          if (result.candidates) {
+            results.canGenerate = true;
+          } else {
+            results.errors.push('API non ha restituito candidati');
+          }
+        } catch (e) {
+          results.connectionOk = false;
+          results.errors.push(`Risposta API non è JSON valido: ${e.message}`);
         }
       } else {
         results.errors.push(`API ha restituito status ${response.getResponseCode()} `);
