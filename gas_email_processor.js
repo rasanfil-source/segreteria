@@ -807,15 +807,15 @@ ${addressLines.join('\n\n')}
 
         } catch (err) {
           generationError = err; // Salva l'ultimo errore
-          const errorClass = classifyError(err);
+          const errorClass = this._classifyError(err);
           console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass.type}]`);
 
-          if (errorClass.type === 'INVALID_API_KEY') {
+          if (errorClass.type === 'FATAL') {
             console.error('🛑 Errore fatale rilevato, interrompo strategia.');
             break;
           }
 
-          if (errorClass.type === 'NETWORK' || errorClass.type === 'TIMEOUT') {
+          if (errorClass.type === 'NETWORK') {
             console.warn('🌐 Errore di rete/timeout, continuo con prossima strategia.');
             continue;
           }
@@ -825,7 +825,7 @@ ${addressLines.join('\n\n')}
 
       // Verifiche finali post-loop
       if (!response) {
-        const errorClass = generationError ? classifyError(generationError) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
+        const errorClass = generationError ? this._classifyError(generationError) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
         console.error('🛑 TUTTE le strategie di generazione sono fallite.');
         this._addErrorLabel(thread);
         this._markMessageAsProcessed(candidate, labeledMessageIds);
