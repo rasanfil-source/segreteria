@@ -819,7 +819,7 @@ class MemoryService {
         const raw = JSON.parse(values[4]);
         // Normalizzazione dati: converte stringhe semplici in oggetti strutturati
         providedInfo = Array.isArray(raw) ? raw.map(item => {
-          if (typeof item === 'string') return { topic: item, userReaction: 'unknown', context: null, timestamp: Date.now() };
+          if (typeof item === 'string') return { topic: item, userReaction: 'unknown', context: null, timestamp: new Date().toISOString() };
           // Standardizzazione: allinea la nomenclatura dei campi
           if (item.reaction && !item.userReaction) item.userReaction = item.reaction;
           return item;
@@ -1046,7 +1046,7 @@ class MemoryService {
       // Vai all'indietro per evitare problemi di shifting indici
       for (let i = data.length - 1; i >= 1; i--) {
         const lastUpdated = new Date(data[i][5]);
-        if (!(lastUpdated instanceof Date) || isNaN(lastUpdated.getTime()) || lastUpdated < cutoffDate) {
+        if (!data[i][5] || isNaN(lastUpdated.getTime()) || lastUpdated < cutoffDate) {
           this._sheet.deleteRow(i + 1);
           deletedCount++;
         }

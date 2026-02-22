@@ -525,7 +525,7 @@ Output JSON:
 
     console.log(`   Punteggi lingua: EN = ${scores['en']}, ES = ${scores['es']}, PT = ${scores['pt']}, IT = ${scores['it']}`);
 
-    // Determina lingua rilevata
+    // Determina lingua rilevata e punteggio massimo
     let detectedLang = 'it';
     let maxScore = scores.it || 0;
     const langPriority = ['it', 'en', 'pt', 'es'];
@@ -536,36 +536,87 @@ Output JSON:
       }
     }
 
-    // Logica soglia confidenza
-    if (spanishCharScore > 0 && spanishLexicalScore >= 1 && scores['es'] >= 2 && scores['es'] > scores['it'] && scores['es'] > scores['en']) {
-      console.log(`   \u2713 Rilevato: SPAGNOLO (punteggio: ${scores['es']}, supportato da segnali lessicali)`);
-      return { lang: 'es', confidence: scores['es'], safetyGrade: this._computeSafetyGrade('es', scores['es'], scores) };
+    // Default: IT se punteggi nulli o trascurabili
+    if (maxScore < 2) {
+      console.log('   \u2713 Default: ITALIANO (punteggio basso o nullo)');
+      return { lang: 'it', confidence: maxScore, safetyGrade: 5 };
     }
 
-    // Check Portoghese senza caratteri speciali ma con score alto
-    if (scores['pt'] > scores['en'] && scores['pt'] > scores['it'] && scores['pt'] > scores['es']) {
-      console.log(`   \u2713 Rilevato: PORTOGHESE(punteggio: ${scores['pt']})`);
-      return { lang: 'pt', confidence: scores['pt'], safetyGrade: this._computeSafetyGrade('pt', scores['pt'], scores) };
+    const safetyGrade = this._computeSafetyGrade(detectedLang, maxScore, scores);
+    console.log(`   \u2713 Rilevato: ${detectedLang.toUpperCase()} (punteggio: ${maxScore}, grado sicurezza: ${safetyGrade})`);
+
+    return {
+      lang: detectedLang,
+      confidence: maxScore,
+      safetyGrade: safetyGrade
+    };
+  }
+
+  /**
+   * Calcola il grado di sicurezza del rilevamento locale (1-5)
+   * Basato su punteggio assoluto e distacco dal secondo classificato
+   */
+  _computeSafetyGrade(detectedLang, score, allScores) {
+    let secondScore = 0;
+    for (const lang in allScores) {
+      if (lang !== detectedLang && allScores[lang] > secondScore) {
+        secondScore = allScores[lang];
+      }
     }
 
-    if (scores['en'] >= 2 && scores['en'] >= scores['it'] && scores['en'] >= scores['es'] && scores['en'] >= scores['pt']) {
-      console.log(`   \u2713 Rilevato: INGLESE(punteggio: ${scores['en']})`);
-    }
+    const gap = score - secondScore;
 
-    // 3. Lingua principale: alta sicurezza locale conferma
-    if (localSafetyGrade >= 4 && normalizedLocal === normalizedGemini) {
-      console.log(`   \uD83C\uDF0D Lingua: ${normalizedGemini.toUpperCase()} (confermata da locale, grado ${localSafetyGrade})`);
+    // Grado 5: Dominio assoluto (es. 10 vs 1 o gap > 6)
+    if (score >= 8 && gap >= 5) return 5;
+
+    // Grado 4: Molto sicuro (gap netto)
+    if (score >= 5 && gap >= 3) return 4;
+
+    // Grado 3: Abbastanza sicuro
+    if (gap >= 2) return 3;
+
+    // Grado 2: Incertezza (punteggi vicini)
+    if (gap >= 1) return 2;
+
+    // Grado 1: Bassissima sicurezza (tie o quasi)
+    return 1;
+  }
+
+  /**
+   * Risolve il conflitto tra detection Gemini (API) e Locale (Regex)
+   */
+  _resolveLanguage(geminiLang, localLang, localSafetyGrade) {
+    if (!geminiLang) return localLang || 'it';
+
+    const normalizedGemini = String(geminiLang).toLowerCase().substring(0, 2);
+    const normalizedLocal = String(localLang).toLowerCase().substring(0, 2);
+
+    // 1. Se coincidono, massima sicurezza
+    if (normalizedGemini === normalizedLocal) return normalizedGemini;
+
+    // 2. Lingue "esotiche": Se Gemini rileva qualcosa che NON è IT/EN/ES/PT, 
+    // ci fidiamo di Gemini prima del locale (che è ottimizzato solo per quelle 4).
+    const supportedLocally = ['it', 'en', 'es', 'pt'];
+    if (!supportedLocally.includes(normalizedGemini)) {
+      console.log(`   \uD83C\uDF0D Lingua: ${normalizedGemini.toUpperCase()} (Gemini ha rilevato lingua non supportata localmente)`);
       return normalizedGemini;
     }
 
-    // 4. Default: fidati di Gemini per le principali
-    console.log(`   \uD83C\uDF0D Lingua: ${normalizedGemini.toUpperCase()} (Gemini primario, grado locale ${localSafetyGrade})`);
+    // 3. Lingua principale: Se il locale è MOLTO sicuro (grado >= 4), 
+    // prevale sulla detection API (che a volte si confonde con nomi propri o citazioni).
+    if (localSafetyGrade >= 4) {
+      console.log(`   \uD83C\uDF0D Lingua: ${normalizedLocal.toUpperCase()} (Locale vince per grado sicurezza ${localSafetyGrade})`);
+      return normalizedLocal;
+    }
+
+    // 4. Default: Se c'è incertezza, ci fidiamo del rilevamento del modello Large
+    console.log(`   \uD83C\uDF0D Lingua: ${normalizedGemini.toUpperCase()} (Gemini prioritario su locale incerto)`);
     return normalizedGemini;
   }
 
-  // ========================================================================
+  // ===================================
   // SALUTO ADATTIVO
-  // ========================================================================
+  // ===================================
 
   /**
    * Ottieni saluto e chiusura adattati a lingua, ora E giorni speciali
