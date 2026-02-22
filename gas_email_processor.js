@@ -803,18 +803,18 @@ ${addressLines.join('\n\n')}
         } catch (err) {
           generationError = err; // Salva l'ultimo errore
           const errorClass = classifyError(err);
-          console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass}]`);
+          console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass.type}]`);
 
-          if (errorClass === 'FATAL') {
+          if (errorClass.type === 'INVALID_API_KEY') {
             console.error('🛑 Errore fatale rilevato, interrompo strategia.');
             break;
           }
 
-          if (errorClass === 'NETWORK') {
-            console.warn('🌐 Errore di rete, continuo con prossima strategia.');
+          if (errorClass.type === 'NETWORK' || errorClass.type === 'TIMEOUT') {
+            console.warn('🌐 Errore di rete/timeout, continuo con prossima strategia.');
             continue;
           }
-          // QUOTA e UNKNOWN: continua
+          // QUOTA_EXCEEDED, INVALID_RESPONSE, UNKNOWN: continua
         }
       }
 

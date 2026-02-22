@@ -251,6 +251,7 @@ Output JSON:
     // Gestione con tentativo su chiave primaria e alternativa su secondaria
     let activeKey = this.primaryKey;
     let response;
+    let responseCode;
 
     try {
       response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
@@ -268,7 +269,7 @@ Output JSON:
 
 
       // Punto 4: Estesa gestione errori con switch alla chiave di riserva
-      let responseCode = response.getResponseCode();
+      responseCode = response.getResponseCode();
       if ([429, 500, 502, 503, 504].includes(responseCode) && this.backupKey) {
         console.warn(`\u26A0\uFE0F Chiave primaria esaurita / errore(${response.getResponseCode()}).Tentativo con chiave di riserva...`);
         activeKey = this.backupKey;
@@ -290,7 +291,7 @@ Output JSON:
       throw new Error(`Errore connessione API: ${e.message}`);
     }
 
-    const responseCode = response.getResponseCode();
+    responseCode = response.getResponseCode();
 
     if ([429, 500, 502, 503, 504].includes(responseCode)) {
       throw new Error(`Errore server o quota Gemini(${responseCode})`);

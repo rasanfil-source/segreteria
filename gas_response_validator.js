@@ -791,9 +791,8 @@ class ResponseValidator {
       return { score, warnings, message: 'Lingua non supportata per ✅ saluti' };
     }
 
-    // Determina fascia oraria corrente
-    // Determina fascia oraria corrente
-    const currentHour = new Date().getHours();
+    // Determina fascia oraria corrente (fuso orario italiano)
+    const currentHour = parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'HH'), 10);
     let expectedTimeSlot;
     if (currentHour >= 5 && currentHour < 12) {
       expectedTimeSlot = 'morning';
@@ -946,9 +945,8 @@ class ResponseValidator {
   _ottimizzaSalutoTemporale(text, language) {
     if (!this.greetingPatterns[language]) return text;
 
-    // Determina fascia oraria corrente
-    // Determina fascia oraria corrente
-    const currentHour = new Date().getHours();
+    // Determina fascia oraria corrente (fuso orario italiano)
+    const currentHour = parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'HH'), 10);
     let correctTimeSlot;
     if (currentHour >= 5 && currentHour < 12) {
       correctTimeSlot = 'morning';

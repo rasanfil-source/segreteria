@@ -1341,9 +1341,7 @@ function sanitizeUrl(url) {
     return null;
   }
 
-  return decoded
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  return decoded;
 }
 
 /**
