@@ -1037,10 +1037,12 @@ class ResponseValidator {
     let result = text;
 
     // Per ogni parola vietata, cerca ", Parola" e sostituisci con ", parola"
-    // Usa word boundary \b per evitare match parziali
+    // Usa lookahead negativo per evitare match parziali anche con apostrofi finali (es. "E'" / "E\u2019")
     // Ma rispetta i nomi doppi: non correggere se seguito da altra maiuscola
     targets.forEach(word => {
-      const regex = new RegExp(`,\\s+(${word})(?:\\b|(?=\\s|$))`, 'g');
+      const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const apostropheAgnosticWord = escapedWord.replace(/'/g, "['\u2019]");
+      const regex = new RegExp(`,\\s+(${apostropheAgnosticWord})(?!\\w)`, 'g');
       result = result.replace(regex, (fullMatch, p1, offset) => {
         if (capitalizationExceptions.includes(p1)) {
           return fullMatch;

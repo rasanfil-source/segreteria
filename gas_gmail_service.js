@@ -1434,7 +1434,8 @@ function markdownToHtml(text) {
     const escapedText = escapeHtml(linkText);
     const token = `@@LINK_PLACEHOLDER_${links.length}_${Utilities.getUuid()}@@`;
     if (sanitizedUrl) {
-      links.push({ token: token, value: `<a href="${sanitizedUrl}" style="color:#351c75;">${escapedText}</a>` });
+      const escapedUrl = sanitizedUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+      links.push({ token: token, value: `<a href="${escapedUrl}" style="color:#351c75;">${escapedText}</a>` });
     } else {
       console.warn(`⚠️ URL bloccato per sicurezza: ${url}`);
       links.push({ token: token, value: escapedText });

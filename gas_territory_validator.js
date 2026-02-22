@@ -261,7 +261,7 @@ class TerritoryValidator {
 
         // Rimuovi caratteri speciali non ammessi in nomi vie (mantiene lettere, numeri, spazi, apostrofi)
         normalized = normalized.replace(/[\u2018\u2019\u201B]/g, "'");
-        normalized = normalized.replace(/[^a-z0-9\s'àèéìòù]/g, '');
+        normalized = normalized.replace(/[^a-z0-9\s'àáâãäåæçèéêëìíîïòóôõöùúûüý]/g, '');
         normalized = normalized.replace(/\s+/g, ' ');
 
         // Punto 8: Pulizia finale degli spazi per garantire coerenza con il database
@@ -348,6 +348,8 @@ class TerritoryValidator {
      * Estrae solo vie (senza civico) dal testo
      */
     extractStreetOnlyFromText(text) {
+        if (!text || typeof text !== 'string') return null;
+
         if (text && text.length > 1000) {
             text = text.substring(0, 1000);
         }
@@ -539,19 +541,21 @@ class TerritoryValidator {
         // 1. Aggiungi prima gli indirizzi completi (più affidabili)
         addressesInfo.forEach(addrInfo => {
             const result = this.verifyAddress(addrInfo.street, addrInfo.civic);
+            const civicLabel = addrInfo.fullCivic || addrInfo.civic;
 
             // Adattatore formato
             const verification = {
                 inParish: result.inTerritory,
                 reason: result.inTerritory
-                    ? `'${addrInfo.street}' n. ${addrInfo.civic} è nel territorio (${result.rule})`
-                    : `'${addrInfo.street}' n. ${addrInfo.civic} non è nel territorio`,
+                    ? `'${addrInfo.street}' n. ${civicLabel} è nel territorio (${result.rule})`
+                    : `'${addrInfo.street}' n. ${civicLabel} non è nel territorio`,
                 details: result.rule
             };
 
             addresses.push({
                 street: addrInfo.street,
                 civic: addrInfo.civic,
+                fullCivic: addrInfo.fullCivic || null,
                 verification: verification
             });
         });

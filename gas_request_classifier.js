@@ -381,7 +381,11 @@ class RequestTypeClassifier {
 
     let iterations = 0;
     while (/<blockquote/i.test(text) && iterations < 10) {
+      const previousText = text;
       text = text.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
+      if (text === previousText) {
+        break;
+      }
       iterations++;
     }
     if (iterations >= 10) {
