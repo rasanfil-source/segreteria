@@ -1511,7 +1511,7 @@ function markdownToHtml(text) {
       color: #351c75;
       line-height: 1.6;
     ">
-      <p>${html}</p>
+      ${(html.trim().startsWith('<p') || html.trim().startsWith('<ul') || html.trim().startsWith('<pre')) ? html : `<p>${html}</p>`}
     </div>
   `;
 }

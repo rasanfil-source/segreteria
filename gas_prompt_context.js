@@ -29,12 +29,13 @@ class PromptContext {
         const normalizedInput = Object.assign({}, input);
 
         // Mantiene knowledgeBase originale inalterata e crea metadati separati
-        if (typeof normalizedInput.knowledgeBase === 'string') {
-            const knowledgeBaseRaw = normalizedInput.knowledgeBase;
+        if (normalizedInput.knowledgeBase) {
+            const isString = typeof normalizedInput.knowledgeBase === 'string';
+            const knowledgeBaseRaw = isString ? normalizedInput.knowledgeBase : JSON.stringify(normalizedInput.knowledgeBase);
             normalizedInput.knowledgeBaseRaw = knowledgeBaseRaw;
             normalizedInput.knowledgeBaseMeta = {
                 length: knowledgeBaseRaw.length,
-                containsDates: /\d{4}/.test(knowledgeBaseRaw)
+                containsDates: (isString && /\d{4}/.test(knowledgeBaseRaw)) || (typeof normalizedInput.knowledgeBase === 'object' && normalizedInput.knowledgeBase !== null)
             };
         }
 

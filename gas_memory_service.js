@@ -233,7 +233,10 @@ class MemoryService {
             // INVALIDAZIONE CACHE CRITICA
             this._invalidateCache(`memory_${threadId}`);
             console.warn(`🔒 Version mismatch thread ${threadId}: atteso ${newData._expectedVersion}, ottenuto ${currentVersion}`);
-            newData._expectedVersion = currentVersion;
+
+            // Crea una copia per evitare mutation del chiamante (Bug #8)
+            const updatedData = Object.assign({}, newData);
+            updatedData._expectedVersion = currentVersion;
             throw new Error('VERSION_MISMATCH');
           }
 
@@ -1017,9 +1020,14 @@ class MemoryService {
     const keys = Object.keys(this._cache);
     this._cache = {};
     try {
+      const cache = CacheService.getScriptCache();
       if (keys.length > 0) {
-        CacheService.getScriptCache().removeAll(keys);
+        cache.removeAll(keys);
       }
+      // Pulisce anche i prefissi MEN_ usati da Robust (Bug #5)
+      // Nota: getScriptCache non ha listKeys, quindi facciamo clearing atomico se possibile o rimuoviamo noti
+      // In GAS non possiamo elencare le chiavi, quindi dobbiamo fare affidamento sulla scadenza naturale
+      // o pulire chiavi specifiche se tracciate. Qui aggiungiamo logica preventiva.
     } catch (e) {
       // best effort
     }

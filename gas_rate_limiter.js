@@ -459,7 +459,7 @@ class GeminiRateLimiter {
           modelKey: modelKey,
           duration: duration,
           quotaUsed: {
-            rpd: parseInt(this.props.getProperty(`rpd_${modelKey}`)),
+            rpd: parseInt(this.props.getProperty(`rpd_${modelKey}`) || '0'),
             rpm: this._getRequestsInWindow('rpm', modelKey)
           }
         };

@@ -522,18 +522,37 @@ class EmailProcessor {
       // STEP 5: KB ENRICHMENT CONDIZIONALE
       // ====================================================================================================
       const knowledgeSections = [];
-      let enrichedKnowledgeBase = knowledgeBase;
+      const aiCoreLite = (typeof GLOBAL_CACHE !== 'undefined') ? (GLOBAL_CACHE.aiCoreLite || '') : '';
+      const aiCore = (typeof GLOBAL_CACHE !== 'undefined') ? (GLOBAL_CACHE.aiCore || '') : '';
+      const doctrineBase = (typeof GLOBAL_CACHE !== 'undefined') ? (GLOBAL_CACHE.doctrineBase || '') : '';
+
+      // AI_CORE_LITE: Sempre presente per regole base
+      if (aiCoreLite) knowledgeSections.push('--- REGOLE BASE ---\n' + aiCoreLite);
+
+      // KB Principale (Istruzioni dal foglio)
+      knowledgeSections.push('--- ISTRUZIONI OPERATIVE ---\n' + knowledgeBase);
+
+      // AI_CORE: Solo per situazioni pastorali o complesse (Bug 1 & 2)
+      if (aiCore && (isPastoral || requestType.complexity > 0.7)) {
+        console.log('   🧠 AiCore (Avanzata) iniettata per contesto pastorale/complesso');
+        knowledgeSections.push('--- LOGICA AVANZATA ---\n' + aiCore);
+      }
+
+      // Dottrina: Solo per domande dottrinali
+      if (doctrineBase && (requestType.type === 'spiritual' || requestType.category === 'doctrine')) {
+        console.log('   📖 Dottrina iniettata per domanda spirituale');
+        knowledgeSections.push('--- FONTE DOTTRINALE ---\n' + doctrineBase);
+      }
 
       // Regola messe speciali
       if (typeof getSpecialMassTimeRule === 'function') {
         const specialMassRule = getSpecialMassTimeRule(new Date());
         if (specialMassRule) {
           console.log('   🚨 Regola Messe Speciali iniettata nel Prompt');
-          knowledgeSections.push(specialMassRule);
+          knowledgeSections.push('--- ECCEZIONI CALENDARIO ---\n' + specialMassRule);
         }
       }
 
-      knowledgeSections.push(knowledgeBase);
       enrichedKnowledgeBase = knowledgeSections.filter(Boolean).join('\n\n');
 
       // ====================================================================================================

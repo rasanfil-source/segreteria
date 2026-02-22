@@ -12,7 +12,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
-const MIN_EXPECTED_TESTS = 20;
+const MIN_EXPECTED_TESTS = 33;
 
 const loadedScripts = new Set();
 
@@ -1102,6 +1102,19 @@ function testRequestClassifierExternalHintCategoryTrim() {
     assert(result.pastoralScore >= 0.8, `pastoralScore atteso >= 0.8 con hint esterno, ottenuto ${result.pastoralScore}`);
 }
 
+function testPromptContextTemporalRiskWithObjectKnowledgeBase() {
+    console.log('--- Test: PromptContext Temporal Risk with Object KB ---');
+    loadScript('gas_prompt_context.js');
+    const pc = new PromptContext({
+        knowledgeBase: { some: 'structured_data' },
+        temporal: { mentionsDates: false }
+    });
+
+    assert(pc.input.knowledgeBaseMeta.containsDates === true, "KB oggetto deve forzare containsDates: true");
+    assert(pc.concerns.temporal_risk === true, "temporal_risk deve essere true per KB oggetto");
+    assert(pc.profile === 'standard', "Profilo deve essere almeno standard per temporal_risk");
+}
+
 // ========================================================================
 // MAIN: runner con contatore e soglia minima
 // ========================================================================
@@ -1146,6 +1159,7 @@ function main() {
         ['gmail labels: errori non-label vengono propagati', testAddLabelToThreadPropagatesNonLabelErrors],
         ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
         ['main: nessun leak globale hasExecutionLock', testMainDoesNotLeakHasExecutionLockGlobal],
+        ['prompt context: temporal risk with object KB', testPromptContextTemporalRiskWithObjectKnowledgeBase],
     ];
 
     let passed = 0;
