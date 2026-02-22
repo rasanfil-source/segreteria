@@ -22,7 +22,7 @@ class GeminiRateLimiter {
 
     // Legge modelli da CONFIG.GEMINI_MODELS (centralizzato)
     if (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_MODELS) {
-      this.models = CONFIG.GEMINI_MODELS;
+      this.models = this._normalizeDeprecatedModelNames(CONFIG.GEMINI_MODELS);
       console.log('   \u2713 Modelli caricati da CONFIG.GEMINI_MODELS');
     } else {
       // Fallback se CONFIG non disponibile
@@ -34,12 +34,12 @@ class GeminiRateLimiter {
           useCases: ['generation', 'all']
         },
         'flash-lite': {
-          name: 'gemini-2.0-flash-exp',
+          name: 'gemini-2.5-flash-lite',
           rpm: 10, tpm: 1000000, rpd: 1500,
           useCases: ['fallback', 'classification', 'quick_check']
         },
         'flash-2.0': {
-          name: 'gemini-2.0-flash',
+          name: 'gemini-2.5-flash',
           rpm: 10, tpm: 1000000, rpd: 1500,
           useCases: ['generation', 'all']
         }
@@ -109,6 +109,37 @@ class GeminiRateLimiter {
     console.log('✓ GeminiRateLimiter inizializzato');
     console.log(`   Modelli: ${Object.keys(this.models).join(', ')}`);
     console.log(`   Default: ${this.defaultModel}`);
+  }
+
+  /**
+   * Sostituisce nomi modello deprecati/ritirati con equivalenti supportati.
+   * Mantiene la stessa struttura dell'oggetto modelli.
+   *
+   * @param {Object<string, {name: string}>} models
+   * @returns {Object<string, {name: string}>}
+   */
+  _normalizeDeprecatedModelNames(models) {
+    const deprecatedMap = {
+      'gemini-2.0-flash-exp': 'gemini-2.5-flash-lite',
+      'gemini-2.0-flash': 'gemini-2.5-flash'
+    };
+
+    const normalized = {};
+    Object.keys(models || {}).forEach(modelKey => {
+      const modelConfig = models[modelKey] || {};
+      const currentName = modelConfig.name;
+      const replacement = deprecatedMap[currentName];
+
+      if (replacement) {
+        console.warn(`⚠️ Modello deprecato rilevato per '${modelKey}': ${currentName} → ${replacement}`);
+      }
+
+      normalized[modelKey] = Object.assign({}, modelConfig, {
+        name: replacement || currentName
+      });
+    });
+
+    return normalized;
   }
 
   // ================================================================
