@@ -214,13 +214,14 @@ class EmailProcessor {
         const botEmailProperty = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
           ? PropertiesService.getScriptProperties().getProperty('BOT_EMAIL')
           : '';
+        const botEmailConfig = (typeof CONFIG !== 'undefined' && CONFIG.BOT_EMAIL) ? CONFIG.BOT_EMAIL : '';
 
-        myEmail = adminEmail || botEmailProperty || '';
+        myEmail = adminEmail || botEmailProperty || botEmailConfig || '';
 
         if (myEmail) {
           console.warn(`⚠️ Session email non disponibile: uso fallback anti-loop (${myEmail})`);
         } else {
-          console.warn('⚠️ Session email non disponibile e nessun fallback configurato (CONFIG.LOGGING.ADMIN_EMAIL/BOT_EMAIL)');
+          console.warn('⚠️ Session email non disponibile e nessun fallback configurato (CONFIG.LOGGING.ADMIN_EMAIL/BOT_EMAIL/CONFIG.BOT_EMAIL)');
         }
       }
 
@@ -732,6 +733,7 @@ ${addressLines.join('\n\n')}
         emailContent: messageDetails.body,
         emailSubject: messageDetails.subject,
         knowledgeBase: enrichedKnowledgeBase,
+        doctrineBase: doctrineBase,
         senderName: messageDetails.senderName,
         senderEmail: messageDetails.senderEmail,
         conversationHistory: conversationHistory,
@@ -1762,8 +1764,13 @@ function computeResponseDelay({ messageDate, now = new Date(), thresholdHours = 
  * Mantenuta per retrocompatibilità con eventuali trigger esistenti.
  * @deprecated Utilizzare processEmailsMain() come entry point.
  */
+/**
+ * Entry point legacy — DEPRECATA in Ciclo 9.
+ * Delegata a processEmailsMain() (gas_main.js).
+ * @deprecated Utilizzare processEmailsMain() come unico entry point per i trigger.
+ */
 function processUnreadEmailsMain() {
-  console.warn('⚠️ processUnreadEmailsMain() è deprecata. Usa processEmailsMain().');
+  console.warn('🛑 processUnreadEmailsMain() è DEPRECATA. Usa processEmailsMain().');
   if (typeof processEmailsMain === 'function') {
     processEmailsMain();
   } else {

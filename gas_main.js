@@ -295,7 +295,7 @@ function _loadResourcesInternal() {
   // KB Base
   const kbSheet = ss.getSheetByName(cfg.KB_SHEET_NAME);
   newCacheData.knowledgeBase = kbSheet
-    ? kbSheet.getDataRange().getValues().map(r => r.join(' | ')).join('\n')
+    ? _sheetRowsToText(kbSheet.getDataRange().getValues())
     : '';
 
   // Prompt resources aggiuntive (usate da PromptEngine)
@@ -326,7 +326,7 @@ function _loadResourcesInternal() {
   if (doctrineSheet) {
     const doctrineData = doctrineSheet.getDataRange().getValues();
     newCacheData.doctrineStructured = _parseSheetToStructured(doctrineData);
-    newCacheData.doctrineBase = doctrineData.map(r => r.join(' | ')).join('\n');
+    newCacheData.doctrineBase = _sheetRowsToText(doctrineData);
   } else {
     newCacheData.doctrineStructured = [];
     newCacheData.doctrineBase = '';
@@ -597,4 +597,25 @@ function main() {
  */
 function processEmailsMain() {
   main();
+}
+
+/**
+ * Serializza righe foglio in testo robusto per prompt/validator.
+ * - converte in stringa e trimma ogni cella
+ * - rimuove celle vuote
+ * - rimuove righe completamente vuote
+ */
+function _sheetRowsToText(rows) {
+  if (!Array.isArray(rows)) return '';
+
+  return rows
+    .map(row => {
+      const safeRow = Array.isArray(row) ? row : [row];
+      return safeRow
+        .map(cell => (cell == null ? '' : String(cell)).trim())
+        .filter(Boolean)
+        .join(' | ');
+    })
+    .filter(Boolean)
+    .join('\n');
 }

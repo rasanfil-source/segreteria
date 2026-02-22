@@ -12,7 +12,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
-const MIN_EXPECTED_TESTS = 35;
+const MIN_EXPECTED_TESTS = 36;
 
 const loadedScripts = new Set();
 
@@ -1132,6 +1132,27 @@ function testPromptContextKnowledgeBaseCircularObjectDoesNotCrash() {
     assert(pc.concerns.temporal_risk === true, 'temporal_risk deve restare true per KB oggetto');
 }
 
+function testSheetRowsToTextRemovesEmptyCellsAndRows() {
+    console.log('--- Test: Sheet Rows To Text Polish ---');
+    loadScript('gas_main.js');
+
+    const rows = [
+        [' Categoria ', ' Dettaglio ', ''],
+        ['', '   ', null],
+        ['Orari Messe Festive', 'Sabato 18:00', undefined],
+        ['Contatti', 12345, false]
+    ];
+
+    const text = _sheetRowsToText(rows);
+    const expected = [
+        'Categoria | Dettaglio',
+        'Orari Messe Festive | Sabato 18:00',
+        'Contatti | 12345 | false'
+    ].join('\n');
+
+    assert(text === expected, `Serializzazione righe non valida. Atteso "${expected}", ottenuto "${text}"`);
+}
+
 function testPortugueseDetectionRefinement() {
     console.log('--- Test: Portuguese Detection Refinement ---');
     loadScript('gas_gemini_service.js');
@@ -1191,6 +1212,7 @@ function main() {
         ['gmail labels: errori non-label vengono propagati', testAddLabelToThreadPropagatesNonLabelErrors],
         ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
         ['main: nessun leak globale hasExecutionLock', testMainDoesNotLeakHasExecutionLockGlobal],
+        ['main: serializzazione robusta righe KB', testSheetRowsToTextRemovesEmptyCellsAndRows],
         ['prompt context: temporal risk with object KB', testPromptContextTemporalRiskWithObjectKnowledgeBase],
         ['prompt context: circular object KB fallback', testPromptContextKnowledgeBaseCircularObjectDoesNotCrash],
         ['gemini: portuguese detection refinement', testPortugueseDetectionRefinement],
