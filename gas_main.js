@@ -98,6 +98,8 @@ function isInVacationPeriod(date = new Date()) {
   checkDate.setHours(0, 0, 0, 0);
 
   for (const vp of periods) {
+    if (!vp || !vp.start || !vp.end) continue;
+
     const start = new Date(vp.start);
     const end = new Date(vp.end);
 

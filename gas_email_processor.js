@@ -756,6 +756,7 @@ ${addressLines.join('\n\n')}
 
       let response = null;
       let generationError = null;
+      let initialError = null;
       let strategyUsed = null;
 
       if (this._isNearDeadline(this.config.maxExecutionTimeMs)) {
@@ -807,6 +808,7 @@ ${addressLines.join('\n\n')}
 
         } catch (err) {
           generationError = err; // Salva l'ultimo errore
+          if (!initialError) initialError = err; // Salva il primo errore per il reporting
           const errorClass = this._classifyError(err);
           console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass.type}]`);
 
@@ -825,12 +827,16 @@ ${addressLines.join('\n\n')}
 
       // Verifiche finali post-loop
       if (!response) {
-        const errorClass = generationError ? this._classifyError(generationError) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
+        const errorToReport = initialError || generationError;
+        const errorClass = errorToReport ? this._classifyError(errorToReport) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
         console.error('🛑 TUTTE le strategie di generazione sono fallite.');
         this._addErrorLabel(thread);
         this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'error';
-        result.error = generationError ? generationError.message : 'Generation strategies exhausted';
+        result.error = errorToReport ? errorToReport.message : 'Generation strategies exhausted';
+        if (initialError && generationError && initialError !== generationError) {
+          result.error += ` (Ultimo fallback: ${generationError.message})`;
+        }
         result.errorClass = errorClass.type;
         return result;
       }
@@ -1189,7 +1195,11 @@ ${addressLines.join('\n\n')}
       ? GLOBAL_CACHE.ignoreDomains.map(d => String(d).toLowerCase())
       : ((typeof CONFIG !== 'undefined' && CONFIG.IGNORE_DOMAINS) ? CONFIG.IGNORE_DOMAINS.map(d => String(d).toLowerCase()) : []);
 
-    if (ignoreDomains.some(domain => email.includes(domain))) {
+    if (ignoreDomains.some(domain => {
+      const isExactMatch = email === domain;
+      const isDomainMatch = email.endsWith(domain.startsWith('@') ? domain : '@' + domain);
+      return isExactMatch || isDomainMatch;
+    })) {
       console.log(`🚫 Ignorato: mittente in blacklist (${email})`);
       return true;
     }

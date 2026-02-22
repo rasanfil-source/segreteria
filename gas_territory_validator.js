@@ -177,12 +177,14 @@ class TerritoryValidator {
             // Evita conflitti tra tipologie diverse (es. "via" vs "viale")
             if (inputTokens[0] !== dbTokens[0]) continue;
 
-            // Verifica che TUTTI i token input siano presenti
-            const allTokensPresent = inputTokens.every(token => dbTokens.includes(token));
+            // Verifica che una buona parte dei token input sia presente
+            const matchCount = inputTokens.filter(token => dbTokens.includes(token)).length;
+            const extraTokens = inputTokens.length - matchCount;
 
-            if (!allTokensPresent) continue;
+            // Tolleriamo al massimo 1 parola extra (es. "via roma alta" -> "via roma")
+            if (extraTokens > 1) continue;
 
-            // Richiedi almeno UNA coppia consecutiva
+            // Richiedi almeno UNA coppia consecutiva (tra i token input) present nel DB
             let hasConsecutivePair = false;
 
             for (let i = 0; i < inputTokens.length - 1; i++) {
@@ -201,9 +203,9 @@ class TerritoryValidator {
 
             // Match solo se esiste almeno una coppia consecutiva
             // e con buona copertura dei token (riduce falsi positivi su strade simili)
-            const overlapRatio = inputTokens.length / dbTokens.length;
-            const missingTokenCount = dbTokens.length - inputTokens.length;
-            const acceptableAbbreviatedMatch = inputTokens.length >= 2 && missingTokenCount === 1;
+            const overlapRatio = matchCount / Math.max(inputTokens.length, dbTokens.length);
+            const missingTokenCount = dbTokens.length - matchCount;
+            const acceptableAbbreviatedMatch = matchCount >= 2 && missingTokenCount <= 1;
 
             if (hasConsecutivePair && (overlapRatio >= 0.7 || acceptableAbbreviatedMatch)) {
                 console.log(`\uD83D\uDD0D Match fuzzy trovato: '${inputStreet}' -> '${dbKey}'`);
@@ -251,7 +253,8 @@ class TerritoryValidator {
             '(?:^\\s*v\\.\\s*|^\\s*v\\s+)': 'via ',
             '(?:\\bc\\.\\s*|\\bc\\s+)': 'corso ',
             '(?:\\bu\\.\\s*|\\bu\\s+)': 'ulisse ',
-            '(?:\\bm\\.\\s*|\\bm\\s+)': 'maria '
+            '(?:\\bm\\.\\s*|\\bm\\s+)': 'maria ',
+            '(?:\\bl\\.?\\s*tevere\\b)': 'lungotevere '
         };
 
         for (const [pattern, replacement] of Object.entries(abbreviations)) {

@@ -752,7 +752,7 @@ Output JSON:
     // Assunzione (15 Agosto)
     if (m === 8 && d === 15) {
       if (language === 'en') return 'Happy Assumption Day!';
-      if (language === 'es') return '¡Feliz dìa de la Asunción!';
+      if (language === 'es') return '¡Feliz día de la Asunción!';
       if (language === 'pt') return 'Feliz dia da Assunção!';
       return 'Buona festa!';
     }
@@ -760,7 +760,7 @@ Output JSON:
     // Tutti i Santi (1 Novembre)
     if (m === 11 && d === 1) {
       if (language === 'en') return 'Happy All Saints Day!';
-      if (language === 'es') return '¡Feliz dìa de Todos los Santos!';
+      if (language === 'es') return '¡Feliz día de Todos los Santos!';
       if (language === 'pt') return 'Feliz Dia de Todos os Santos!';
       return 'Buona festa di Ognissanti!';
     }
@@ -768,7 +768,7 @@ Output JSON:
     // Immacolata Concezione (8 Dicembre)
     if (m === 12 && d === 8) {
       if (language === 'en') return 'Happy Feast of the Immaculate Conception!';
-      if (language === 'es') return '¡Feliz dìa de la Inmaculada!';
+      if (language === 'es') return '¡Feliz día de la Inmaculada!';
       if (language === 'pt') return 'Feliz Imaculada Conceição!';
       return 'Buona Immacolata!';
     }

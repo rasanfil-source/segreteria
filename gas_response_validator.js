@@ -128,7 +128,8 @@ class ResponseValidator {
       'en': ['merry christmas', 'happy easter', 'happy advent', 'happy pentecost'],
       'es': ['feliz navidad', 'feliz pascua', 'feliz adviento', 'feliz pentecostés'],
       'fr': ['joyeux noël', 'joyeuses pâques', 'joyeux avent', 'joyeuse pentecôte'],
-      'de': ['frohe weihnachten', 'frohe ostern', 'schönen advent', 'frohe pfingsten']
+      'de': ['frohe weihnachten', 'frohe ostern', 'schönen advent', 'frohe pfingsten'],
+      'pt': ['feliz natal', 'feliz páscoa', 'feliz advento', 'feliz quaresma', 'feliz pentecostes']
     };
 
     // Semantic Validator (opzionale)
@@ -664,6 +665,12 @@ class ResponseValidator {
       'El', 'Los', 'Las', 'Una', 'Por', 'En', 'De', 'Pero', 'Que'
     ];
 
+    // Parole portoghesi
+    const portugueseForbiddenCaps = [
+      'Estamos', 'Somos', 'Estaremos', 'Seremos',
+      'O', 'A', 'Os', 'As', 'Um', 'Uma', 'Por', 'Em', 'De', 'Mas', 'Que', 'E', 'Ou'
+    ];
+
     // Seleziona lista in base alla lingua
     let forbiddenCaps;
     const isStrictMode = false; // Solo warning, non blocca l'invio
@@ -674,6 +681,8 @@ class ResponseValidator {
       forbiddenCaps = englishForbiddenCaps;
     } else if (expectedLanguage === 'es') {
       forbiddenCaps = spanishForbiddenCaps;
+    } else if (expectedLanguage === 'pt') {
+      forbiddenCaps = portugueseForbiddenCaps;
     } else {
       forbiddenCaps = italianForbiddenCaps;
     }

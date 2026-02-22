@@ -299,29 +299,16 @@ class MemoryService {
   }
 
   /**
-   * Scrive su entrambi i livelli in modo non bloccante.
+   * Scrive su entrambi i livelli (Sheets e Cache).
+   * Aggiornato per utilizzare updateMemory che è transazionale e gestisce già inv. cache e lock.
    */
   updateMemoryRobust(threadId, data) {
     if (!threadId || !data || typeof data !== 'object') {
       return;
     }
 
-    // Scrivi su Sheets (fonte di verità)
+    // updateMemory gestisce già retry, lock e invalidazione/aggiornamento cache
     this.updateMemory(threadId, data);
-
-    // Aggiorna anche la cache veloce
-    const cacheKey = `MEM_${threadId}`;
-    try {
-      const cache = CacheService.getScriptCache();
-      const existing = this.getMemory(threadId) || { providedInfo: [] };
-      const merged = Object.assign({}, existing, data);
-      if (!Array.isArray(merged.providedInfo)) {
-        merged.providedInfo = [];
-      }
-      cache.put(cacheKey, JSON.stringify(merged), 1800);
-    } catch (e) {
-      // non bloccante
-    }
   }
 
   /**
@@ -1096,28 +1083,8 @@ class MemoryService {
   // ========================================================================
 
   /**
-   * Tenta di acquisire un lock distribuito (simulato)
+   * (Rimossa definizione sperimentale di lock per evitare conflitti e lock scorretti)
    */
-  _tryAcquireShardedLockExperimental(lockKey, waitMs = 2000, lockTTL = 10000) {
-    try {
-      const lock = LockService.getScriptLock();
-      // ... logica simulata per sharded lock (useremo lock globale per semplicità in GAS standard)
-      // In ambiente reale ad alto volume, qui useremmo un lease su PropertiesService o CacheService
-
-      // Acquisizione lock
-      const acquired = lock.tryLock(waitMs);
-      if (acquired) {
-        // Imposta un TTL implicito rilasciando il lock dopo un timeout se non fatto manualmente
-        // Nota: LockService rilascia automaticamente al termine dell'esecuzione,
-        // ma per sicurezza possiamo usare un timestamp in CacheService se volessimo persistenza cross-execution.
-        return lock;
-      }
-      return null;
-    } catch (e) {
-      console.warn(`⚠️ Errore acquisizione lock: ${e.message}`);
-      return null;
-    }
-  }
 
   /**
    * Calcola quanto della domanda originale è stato coperto
