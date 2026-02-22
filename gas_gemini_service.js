@@ -476,11 +476,14 @@ Output JSON:
       ' del ', ' con el ', ' en el ', ' es '
     ];
 
-    const portugueseKeywords = [
+    const portugueseUniqueKeywords = [
       'olá', 'obrigado', 'obrigada', 'agradecemos', 'agradeço',
       'orçamento', 'cotação', 'viatura', 'portagens', 'reserva',
-      'estamos ao dispor', 'com os migliori cumprimentos', 'cumprimentos',
-      'bom dia', 'boa tarde', 'boa noite',
+      'estamos ao dispor', 'cumprimentos',
+      'bom dia', 'boa tarde', 'boa noite'
+    ];
+
+    const portugueseStandardKeywords = [
       ' por ', ' para ', ' com ', ' não ', ' uma ', ' seu ', ' sua ',
       ' dos ', ' das ', ' ao ', ' aos '
     ];
@@ -520,7 +523,7 @@ Output JSON:
       'en': englishScore,
       'es': spanishLexicalScore + Math.min(spanishCharScore, 2),
       'it': countMatches(italianKeywords, text, 1),
-      'pt': countMatches(portugueseKeywords, text, 1)
+      'pt': countMatches(portugueseUniqueKeywords, text, 2) + countMatches(portugueseStandardKeywords, text, 1) + Math.min(portugueseCharScore, 2)
     };
 
     console.log(`   Punteggi lingua: EN = ${scores['en']}, ES = ${scores['es']}, PT = ${scores['pt']}, IT = ${scores['it']}`);

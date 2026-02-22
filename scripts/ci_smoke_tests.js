@@ -12,7 +12,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
-const MIN_EXPECTED_TESTS = 34;
+const MIN_EXPECTED_TESTS = 35;
 
 const loadedScripts = new Set();
 
@@ -1132,6 +1132,21 @@ function testPromptContextKnowledgeBaseCircularObjectDoesNotCrash() {
     assert(pc.concerns.temporal_risk === true, 'temporal_risk deve restare true per KB oggetto');
 }
 
+function testPortugueseDetectionRefinement() {
+    console.log('--- Test: Portuguese Detection Refinement ---');
+    loadScript('gas_gemini_service.js');
+
+    // Usa l'helper mock per evitare errori di configurazione API Key
+    const gemini = createMockGeminiService(() => ({}));
+
+    // Test con keyword "não" (prima confusa con "non" italiano) e punteggiatura portoghese
+    const ptContent = "Olá, não recebi o orçamento da viatura. Muito obrigado.";
+    const result = gemini.detectEmailLanguage(ptContent, "Reserva");
+
+    assert(result.lang === 'pt', `Atteso PT per contenuto portoghese, ottenuto ${result.lang}`);
+    assert(result.confidence >= 2, `Punteggio PT atteso >= 2, ottenuto ${result.confidence}`);
+}
+
 // ========================================================================
 // MAIN: runner con contatore e soglia minima
 // ========================================================================
@@ -1178,6 +1193,7 @@ function main() {
         ['main: nessun leak globale hasExecutionLock', testMainDoesNotLeakHasExecutionLockGlobal],
         ['prompt context: temporal risk with object KB', testPromptContextTemporalRiskWithObjectKnowledgeBase],
         ['prompt context: circular object KB fallback', testPromptContextKnowledgeBaseCircularObjectDoesNotCrash],
+        ['gemini: portuguese detection refinement', testPortugueseDetectionRefinement],
     ];
 
     let passed = 0;

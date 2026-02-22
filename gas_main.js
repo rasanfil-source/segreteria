@@ -310,14 +310,17 @@ function _loadResourcesInternal() {
     : '';
 
   const aiCoreSheet = ss.getSheetByName(cfg.AI_CORE_SHEET);
-  newCacheData.aiCore = aiCoreSheet
-    ? aiCoreSheet
-      .getDataRange()
-      .getValues()
+  if (aiCoreSheet) {
+    const aiCoreData = aiCoreSheet.getDataRange().getValues();
+    newCacheData.aiCoreStructured = _parseSheetToStructured(aiCoreData);
+    newCacheData.aiCore = aiCoreData
       .map(r => r.filter(Boolean).join(' | ').trim())
       .filter(Boolean)
-      .join('\n')
-    : '';
+      .join('\n');
+  } else {
+    newCacheData.aiCoreStructured = [];
+    newCacheData.aiCore = '';
+  }
 
   const doctrineSheet = ss.getSheetByName(cfg.DOCTRINE_SHEET);
   if (doctrineSheet) {
@@ -369,6 +372,7 @@ function clearKnowledgeCache() {
   GLOBAL_CACHE.ignoreKeywords = [];
   GLOBAL_CACHE.aiCoreLite = '';
   GLOBAL_CACHE.aiCore = '';
+  GLOBAL_CACHE.aiCoreStructured = [];
   GLOBAL_CACHE.doctrineStructured = [];
 
   // Invalida anche la cache di sistema (CacheService)
