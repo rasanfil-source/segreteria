@@ -197,7 +197,8 @@ class GeminiService {
     const safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
     const detection = precomputedDetection || this.detectEmailLanguage(safeContent, safeSubject);
     const prompt = `Analizza questa email.
-Rispondi ESCLUSIVAMENTE con un oggetto JSON.
+Rispondi ESCLUSIVAMENTE con un oggetto JSON valido e completo.
+NON usare blocchi markdown e NON aggiungere testo extra prima o dopo il JSON.
 
 Email:
 Oggetto: ${safeSubject}
@@ -261,7 +262,8 @@ Output JSON:
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
             temperature: 0,
-            maxOutputTokens: 1024
+            maxOutputTokens: 1024,
+            responseMimeType: 'application/json'
           }
         }),
         muteHttpExceptions: true
@@ -280,7 +282,8 @@ Output JSON:
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
               temperature: 0,
-              maxOutputTokens: 1024
+              maxOutputTokens: 1024,
+              responseMimeType: 'application/json'
             }
           }),
           muteHttpExceptions: true
@@ -1039,9 +1042,7 @@ Output JSON:
       }
 
       if (responseCode !== 200) {
-        console.error(`❌ Errore Gemini API: ${responseCode} `);
-        console.error(`   Risposta: ${response.getContentText().substring(0, 500)} `);
-        return null;
+        throw new Error(`Errore API Gemini: ${responseCode} - ${response.getContentText().substring(0, 200)}`);
       }
 
       const resJson = JSON.parse(response.getContentText());
@@ -1159,30 +1160,98 @@ function parseGeminiJsonLenient(text) {
 
   // 2) Estrazione oggetto JSON esterno
   const start = cleaned.indexOf('{');
-  const end = cleaned.lastIndexOf('}');
-
-  if (start === -1 || end === -1) {
+  if (start === -1) {
     throw new Error('Nessun oggetto JSON trovato');
   }
 
-  cleaned = cleaned.substring(start, end + 1).trim();
+  cleaned = cleaned.substring(start).trim();
 
-  // 3) Parsing diretto
+  // 3) Recupero troncamenti: bilancia parentesi graffe mancanti
+  cleaned = _tryBalanceJsonBraces(cleaned);
+
+  // 4) Parsing diretto
   try {
     return JSON.parse(cleaned);
   } catch (e) {
     console.warn('⚠️ Parsing JSON diretto fallito, tentativo di autocorrezione...');
   }
 
-  // 4) Correzioni conservative: quote chiavi non quotate + trailing commas
+  // 5) Correzioni conservative: quote chiavi non quotate + trailing commas
   const safeFixed = _quoteUnquotedJsonKeysSafely(cleaned);
   const withoutTrailingCommas = safeFixed.replace(/,\s*([\]}])/g, '$1');
 
   try {
     return JSON.parse(withoutTrailingCommas);
   } catch (e) {
+    // 6) Fallback estremo: estrazione campi minimi da JSON parziale/troncato
+    const partial = _extractQuickCheckFieldsFromPartialJson(cleaned);
+    if (partial) {
+      console.warn('⚠️ JSON parziale recuperato con fallback regex');
+      return partial;
+    }
     throw new Error(`Impossibile parsare JSON da Gemini dopo autocorrezione: ${e.message}`);
   }
+}
+
+/**
+ * Bilancia graffe mancanti in JSON troncato da MAX_TOKENS.
+ * Aggiunge quote di chiusura e graffe di bilanciamento se necessario.
+ */
+function _tryBalanceJsonBraces(text) {
+  if (!text) return text;
+
+  let inString = false;
+  let escaped = false;
+  let depth = 0;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    if (ch === '}') depth = Math.max(depth - 1, 0);
+  }
+
+  let balanced = text;
+  if (inString) balanced += '"';
+  if (depth > 0) balanced += '}'.repeat(depth);
+  return balanced;
+}
+
+/**
+ * Estrae campi minimi del quick-check da JSON gravemente troncato.
+ * Usa regex per recuperare reply_needed, language, category, topic, confidence.
+ */
+function _extractQuickCheckFieldsFromPartialJson(text) {
+  if (!text) return null;
+
+  const replyMatch = text.match(/"reply_needed"\s*:\s*(true|false|"true"|"false")/i);
+  if (!replyMatch) return null;
+
+  const languageMatch = text.match(/"language"\s*:\s*"([a-z]{2})"/i);
+  const categoryMatch = text.match(/"category"\s*:\s*"(TECHNICAL|PASTORAL|DOCTRINAL|FORMAL|MIXED)"/i);
+  const topicMatch = text.match(/"topic"\s*:\s*"([^"\n\r]{1,120})"/i);
+  const confidenceMatch = text.match(/"confidence"\s*:\s*(0(?:\.\d+)?|1(?:\.0+)?)/i);
+
+  return {
+    reply_needed: String(replyMatch[1]).toLowerCase().includes('true'),
+    language: languageMatch ? languageMatch[1].toLowerCase() : 'it',
+    category: categoryMatch ? categoryMatch[1] : 'TECHNICAL',
+    topic: topicMatch ? topicMatch[1].trim() : 'unknown',
+    confidence: confidenceMatch ? Number(confidenceMatch[1]) : 0.5,
+    reason: 'quick_check_partial_json_recovered'
+  };
 }
 
 function _quoteUnquotedJsonKeysSafely(jsonText) {

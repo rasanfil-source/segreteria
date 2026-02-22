@@ -240,8 +240,20 @@ function runAllTests() {
         });
     });
 
-    // 6. GmailService OCR document parsing
-    testGroup('Punto #6: GmailService - OCR document hints', results, () => {
+    // 6. Gemini JSON parser recovery
+    testGroup('Punto #6: Gemini JSON Parser - Recovery', results, () => {
+        test('Parsa JSON in blocco markdown', results, () => {
+            const parsed = parseGeminiJsonLenient('```json\n{"reply_needed":true,"language":"it","category":"MIXED"}\n```');
+            return parsed.reply_needed === true && parsed.language === 'it' && parsed.category === 'MIXED';
+        });
+        test('Recupera campi minimi da JSON troncato', results, () => {
+            const parsed = parseGeminiJsonLenient('{"reply_needed": true, "language": "it", "category": "MIXED", "dimensions": {"technical": 0.6');
+            return parsed.reply_needed === true && parsed.language === 'it' && parsed.category === 'MIXED';
+        });
+    });
+
+    // 7. GmailService OCR document parsing
+    testGroup('Punto #7: GmailService - OCR document hints', results, () => {
         const service = new GmailService();
         test('Riconosce certificato di battesimo', results, () => {
             const t = service._detectDocumentType('certificato_battesimo.pdf', 'certificato di battesimo');

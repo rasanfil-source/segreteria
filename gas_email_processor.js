@@ -178,10 +178,11 @@ class EmailProcessor {
       error: null
     };
 
-    // Snapshot robusto del classificatore errori per evitare dipendenze implicite da `this`
+    // Snapshot robusto del classificatore errori — restituisce sempre { type, retryable, message }
+    // per coerenza con il contratto di gas_error_types.classifyError
     const classifyError = (this && typeof this._classifyError === 'function')
       ? this._classifyError.bind(this)
-      : function fallbackClassifyError() { return 'UNKNOWN'; };
+      : function fallbackClassifyError(err) { return { type: 'UNKNOWN', retryable: false, message: String(err) }; };
 
     let candidate = null;
     try {
@@ -322,16 +323,12 @@ class EmailProcessor {
       // ====================================================================================================
       const safeSenderEmail = (messageDetails.senderEmail || '').toLowerCase();
 
-      const candidateTo = (candidate && typeof candidate.getTo === 'function') ? candidate.getTo() : '';
-      const recipientHeaders = `${messageDetails.recipientEmail || ''},${messageDetails.recipientCc || ''},${candidateTo}`;
-      const recipientAddresses = (recipientHeaders.match(/\b[A-Za-z0-9][A-Za-z0-9._%+-]{0,63}@(?!-)(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}\b/gi) || [])
-        .map(addr => addr.replace(/[\r\n]+/g, '').trim().toLowerCase());
-
-      // Verifica mittente: usa myEmail, alias noti e destinatari effettivi del messaggio
+      // Verifica mittente: confronta solo con email proprie e alias configurati.
+      // Il confronto con i destinatari (To/CC) è stato rimosso perché genera
+      // falsi positivi su mailing list e thread con CC multipli.
       const isMe = Boolean(safeSenderEmail) && (
         (Boolean(normalizedMyEmail) && safeSenderEmail === normalizedMyEmail) ||
-        knownAliases.some(alias => safeSenderEmail === alias.toLowerCase()) ||
-        recipientAddresses.includes(safeSenderEmail)
+        knownAliases.some(alias => safeSenderEmail === alias.toLowerCase())
       );
 
       if (isMe) {
@@ -346,10 +343,18 @@ class EmailProcessor {
       // STEP 0.2: AUTO-REPLY / OUT-OF-OFFICE DETECTION
       // ====================================================================================================
       const headers = messageDetails.headers || {};
-      const autoSubmitted = headers['auto-submitted'] || '';
-      const precedence = headers['precedence'] || '';
-      const xAutoReply = headers['x-autoreply'] || '';
-      const xAutoResponseSuppress = headers['x-auto-response-suppress'] || headers['X-Auto-Response-Suppress'] || '';
+      // Lookup case-insensitive: i server SMTP possono restituire header in casing arbitrario
+      const getHeader = (name) => {
+        const lower = name.toLowerCase();
+        for (const key in headers) {
+          if (key.toLowerCase() === lower) return headers[key];
+        }
+        return '';
+      };
+      const autoSubmitted = getHeader('auto-submitted');
+      const precedence = getHeader('precedence');
+      const xAutoReply = getHeader('x-autoreply');
+      const xAutoResponseSuppress = getHeader('x-auto-response-suppress');
 
       if (
         /auto-replied|auto-generated/i.test(autoSubmitted) ||
@@ -820,13 +825,13 @@ ${addressLines.join('\n\n')}
 
       // Verifiche finali post-loop
       if (!response) {
-        const errorClass = generationError ? classifyError(generationError) : 'UNKNOWN';
+        const errorClass = generationError ? classifyError(generationError) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
         console.error('🛑 TUTTE le strategie di generazione sono fallite.');
         this._addErrorLabel(thread);
         this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'error';
         result.error = generationError ? generationError.message : 'Generation strategies exhausted';
-        result.errorClass = errorClass;
+        result.errorClass = errorClass.type;
         return result;
       }
 
@@ -876,9 +881,6 @@ ${addressLines.join('\n\n')}
           // Gestione errore validazione critica
           if (validation.details && validation.details.exposedReasoning && validation.details.exposedReasoning.score === 0.0) {
             console.warn("⚠️ Risposta bloccata per Thinking Leak. Invio a etichetta 'Verifica'.");
-            // Qui potremmo tentare un retry con temperatura più bassa o altro modello
-            // Per ora marchiamo per revisione umana
-            result.status = 'validation_failed';
             result.reason = 'thinking_leak';
           }
 
@@ -886,6 +888,10 @@ ${addressLines.join('\n\n')}
           this._markMessageAsProcessed(candidate, labeledMessageIds);
           result.status = 'validation_failed';
           result.validationFailed = true;
+          // Garantisce che ogni rifiuto abbia un motivo tracciabile
+          if (!result.reason) {
+            result.reason = 'validation_score_below_threshold';
+          }
           return result;
         }
 
@@ -1412,7 +1418,8 @@ ${addressLines.join('\n\n')}
   _detectProvidedTopics(response) {
     if (!response || typeof response !== 'string') return [];
     const topics = [];
-    const lower = response.toLowerCase();
+    // I pattern usano già il flag /i, nessuna normalizzazione necessaria
+    const lower = response;
 
     const patterns = {
       'orari_messe': /messe?\b.*\d{1,2}[:.]\d{2}|orari\w*\s+messe/i,
@@ -1519,55 +1526,57 @@ ${addressLines.join('\n\n')}
    * Determina se un errore è fatale, legato alla quota o alla rete.
    */
   _classifyError(error) {
+    const mkResult = (type, retryable, message) => ({ type, retryable, message });
+
     if (!error) {
       console.warn('⚠️ _classifyError chiamato con errore nullo');
-      return 'UNKNOWN';
+      return mkResult('UNKNOWN', false, '');
     }
 
-    // Se disponibile, usa il classificatore centralizzato per mantenere
-    // coerenza tra orchestratore e servizi API.
+    // Delega al classificatore centralizzato se disponibile
     if (typeof classifyError === 'function' && typeof ErrorTypes !== 'undefined') {
       const normalized = classifyError(error);
       switch (normalized.type) {
         case ErrorTypes.QUOTA_EXCEEDED:
-          return 'QUOTA';
+          return mkResult('QUOTA', true, normalized.message);
         case ErrorTypes.TIMEOUT:
         case ErrorTypes.NETWORK:
-          return 'NETWORK';
+          return mkResult('NETWORK', true, normalized.message);
         case ErrorTypes.INVALID_API_KEY:
         case ErrorTypes.INVALID_RESPONSE:
-          return 'FATAL';
+          return mkResult('FATAL', false, normalized.message);
         default:
-          return 'UNKNOWN';
+          return mkResult('UNKNOWN', false, normalized.message);
       }
     }
 
+    // Classificazione locale (standalone) — stesso contratto { type, retryable, message }
     const msg = String(error.message || error.toString() || '');
     if (!msg) {
       console.warn('⚠️ Errore senza messaggio utile:', error);
-      return 'UNKNOWN';
+      return mkResult('UNKNOWN', false, '');
     }
 
     const RETRYABLE_ERRORS = ['429', 'rate limit', 'quota', 'RESOURCE_EXHAUSTED'];
     const FATAL_ERRORS = ['INVALID_ARGUMENT', 'PERMISSION_DENIED', 'UNAUTHENTICATED'];
 
     for (const fatal of FATAL_ERRORS) {
-      if (msg.includes(fatal)) return 'FATAL';
+      if (msg.includes(fatal)) return mkResult('FATAL', false, msg);
     }
 
     for (const retryable of RETRYABLE_ERRORS) {
-      if (msg.includes(retryable)) return 'QUOTA';
+      if (msg.includes(retryable)) return mkResult('QUOTA', true, msg);
     }
 
     if (msg.includes('timeout') || msg.includes('ECONNRESET') || msg.includes('503') || msg.includes('500') || msg.includes('502') || msg.includes('504')) {
-      return 'NETWORK';
+      return mkResult('NETWORK', true, msg);
     }
 
-    return 'UNKNOWN';
+    return mkResult('UNKNOWN', false, msg);
   }
 
   /**
-   * Rileva riferimenti temporali (mesi) in varie lingue
+   * Traccia il contatore di inbox vuote consecutive (per avvisi diagnostici)
    */
   _trackEmptyInboxStreak(isEmpty) {
     const cache = CacheService.getScriptCache();

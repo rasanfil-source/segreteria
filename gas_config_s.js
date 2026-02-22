@@ -126,15 +126,15 @@ const CONFIG = {
         },
         // Modello workhorse: quick check e fallback
         'flash-lite': {
-            name: 'gemini-2.0-flash-exp',
+            name: 'gemini-2.5-flash-lite',
             rpm: 10,
             tpm: 1000000,
             rpd: 1500,
             useCases: ['quick_check', 'classification', 'semantic', 'fallback']
         },
-        // Modello legacy: backup se tutto esaurito
-        'flash-2.0': {
-            name: 'gemini-2.0-flash',
+        // Modello backup: variante 2.5 Lite
+        'flash-2.5-lite-backup': {
+            name: 'gemini-2.5-flash-lite',
             rpm: 10,
             tpm: 1000000,
             rpd: 1500,
@@ -145,9 +145,9 @@ const CONFIG = {
     // Strategia selezione modelli per task (ordine = priorità)
     MODEL_STRATEGY: {
         'quick_check': ['flash-lite', 'flash-2.5'],
-        'generation': ['flash-2.5', 'flash-2.0', 'flash-lite'],
-        'semantic': ['flash-lite', 'flash-2.0'],
-        'fallback': ['flash-lite', 'flash-2.0']
+        'generation': ['flash-2.5', 'flash-lite', 'flash-2.5-lite-backup'],
+        'semantic': ['flash-lite', 'flash-2.5-lite-backup'],
+        'fallback': ['flash-lite', 'flash-2.5-lite-backup']
     },
 
     // === Liste di esclusione ===
