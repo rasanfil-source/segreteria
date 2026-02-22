@@ -391,17 +391,18 @@ class MemoryService {
           });
           console.log(`🧠 Memoria aggiornata atomicamente per thread ${threadId} (v${mergedData.version})`);
         } else {
-          newData.threadId = threadId;
-          newData.lastUpdated = now;
-          newData.messageCount = 1;
-          newData.version = 1;
+          const insertData = Object.assign({}, newData);
+          insertData.threadId = threadId;
+          insertData.lastUpdated = now;
+          insertData.messageCount = 1;
+          insertData.version = 1;
 
           if (providedTopics && providedTopics.length > 0) {
-            newData.providedInfo = this._normalizeProvidedTopics(providedTopics);
+            insertData.providedInfo = this._normalizeProvidedTopics(providedTopics);
           }
 
           this._withSheetWriteLock(() => {
-            this._appendRow(newData);
+            this._appendRow(insertData);
           });
           console.log(`🧠 Memoria creata atomicamente per thread ${threadId} (v1)`);
         }

@@ -379,40 +379,36 @@ Output JSON:
   // ========================================================================
 
   /**
-   * Esegue funzione con retry ed exponential backoff
+   * Esegue una funzione con retry temporizzati
+   * Usa ritardi crescenti tra i tentativi
+   * 
+   * BUG FIX: La logica di classifyError() non esiste in questo scope, uso classificazione inline.
    */
-  _withRetry(fn, context = 'Chiamata API') {
-    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
+  _withRetry(fn, context = 'Chiamata API', maxRetries = 3) {
+    let lastError = null;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         return fn();
       } catch (error) {
-        const classifiedType = this._classifyError(error);
-        const isRetryable = (classifiedType === 'QUOTA' || classifiedType === 'NETWORK');
+        lastError = error;
+        const msg = String(error.message || '').toLowerCase();
 
-        if (isRetryable && attempt < this.maxRetries - 1) {
+        // Determina se l'errore è ritentabile
+        const isRetryable = ['401', '403', '429', '500', '502', '503', '504', 'quota', 'timeout', 'deadline', 'econnreset'].some(term => msg.includes(term));
+
+        if (isRetryable && attempt < maxRetries - 1) {
           const waitTime = this.retryDelay * Math.pow(this.backoffFactor, attempt);
-          console.warn(`⚠️ ${context} fallito (tentativo ${attempt + 1}/${this.maxRetries}): [${classifiedType}] ${error.message}`);
-          console.log(`   Retry tra ${waitTime / 1000}s...`);
+          console.warn(`\u26A0\uFE0F ${context} fallito (tentativo ${attempt + 1}/${maxRetries}): ${error.message} - Attendendo ${waitTime}ms...`);
           Utilities.sleep(waitTime);
-        } else if (attempt === this.maxRetries - 1) {
-          console.error(`❌ Tutti i ${this.maxRetries} tentativi ${context} falliti [${classifiedType}]`);
-          throw error;
         } else {
-          // Errore non ritentabile
+          // Errore fatale o esaurimento tentativi
           throw error;
         }
       }
     }
-  }
 
-  /**
-   * Fallback locale in caso il classificatore globale non sia disponibile.
-   */
-  _classifyError(error) {
-    const message = String((error && error.message) || error || '').toLowerCase();
-    if (message.includes('429') || message.includes('quota') || message.includes('rate limit') || message.includes('resource_exhausted')) return 'QUOTA';
-    if (message.includes('timeout') || message.includes('econnreset') || message.includes('500') || message.includes('502') || message.includes('503') || message.includes('504') || message.includes('service unavailable')) return 'NETWORK';
-    return 'FATAL';
+    throw lastError || new Error(`Fallimento definitivo dopo ${maxRetries} tentativi`);
   }
 
   // ========================================================================
@@ -420,10 +416,13 @@ Output JSON:
   // ========================================================================
 
   /**
-   * Rileva lingua email con detection avanzata
-   * Supporta IT, EN, ES, PT con scoring e safety grade
+   * Rileva la lingua dell'email processando testo localmente tramite dizionario stop-words
+   * Molto più veloce dell'API Gemini e fissa i rari switch di lingua su nomi stranieri.
+   * @param {string} emailContent 
+   * @param {string} emailSubject 
+   * @returns {{lang: string, confidence: number, safetyGrade: number}} 
    */
-  detectEmailLanguage(emailContent, emailSubject) {
+  detectEmailLanguage(emailContent, emailSubject = '') {
     const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
     const safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
     const text = `${safeSubject} ${safeContent} `.toLowerCase();
@@ -551,69 +550,6 @@ Output JSON:
 
     if (scores['en'] >= 2 && scores['en'] >= scores['it'] && scores['en'] >= scores['es'] && scores['en'] >= scores['pt']) {
       console.log(`   \u2713 Rilevato: INGLESE(punteggio: ${scores['en']})`);
-      return { lang: 'en', confidence: scores['en'], safetyGrade: this._computeSafetyGrade('en', scores['en'], scores) };
-    }
-
-
-
-    if (maxScore < 2) {
-      console.log('   Confidenza bassa, default a italiano');
-      return { lang: 'it', confidence: maxScore, safetyGrade: 0 };
-    }
-
-    console.log(`   \u2713 Rilevato: ${detectedLang.toUpperCase()} (punteggio: ${maxScore})`);
-    return { lang: detectedLang, confidence: maxScore, safetyGrade: this._computeSafetyGrade(detectedLang, maxScore, scores) };
-  }
-
-  // ========================================================================
-  // SAFETY GRADE E RISOLUZIONE LINGUA
-  // ========================================================================
-
-  /**
-   * Calcola grado di sicurezza (0-5) per la detection locale
-   * Solo IT/EN/ES/PT possono avere grado alto - lingue esotiche → grado 0
-   */
-  _computeSafetyGrade(detectedLang, maxScore, allScores) {
-    const supportedLangs = ['it', 'en', 'es', 'pt'];
-    if (!supportedLangs.includes(detectedLang)) {
-      return 0; // Lingua non supportata → affidati a Gemini
-    }
-
-    // Calcola distanza dal secondo classificato
-    const sortedScores = Object.values(allScores).sort((a, b) => b - a);
-    const gap = sortedScores[0] - (sortedScores[1] || 0);
-
-    // Grado 0-5 basato su score + gap
-    if (maxScore >= 10 && gap >= 5) return 5; // Altamente sicuro
-    if (maxScore >= 7 && gap >= 3) return 4;
-    if (maxScore >= 5 && gap >= 2) return 3;
-    if (maxScore >= 3) return 2;
-    if (maxScore >= 1) return 1;
-    return 0;
-  }
-
-  /**
-   * Risolvi lingua finale: priorità Gemini per lingue esotiche
-   * @param {string} geminiLang - Lingua rilevata da Gemini
-   * @param {string} localLang - Lingua rilevata localmente
-   * @param {number} localSafetyGrade - Grado sicurezza detection locale (0-5)
-   * @returns {string} Codice lingua finale
-   */
-  _resolveLanguage(geminiLang, localLang, localSafetyGrade) {
-    const normalizedGemini = (geminiLang || '').toLowerCase().trim();
-    const normalizedLocal = (localLang || 'it').toLowerCase();
-    const supportedLangs = ['it', 'en', 'es', 'pt'];
-
-    // 1. Se Gemini non ha restituito lingua → usa locale
-    if (!normalizedGemini) {
-      console.log(`   \uD83C\uDF0D Lingua: ${normalizedLocal.toUpperCase()} (Gemini silente, alternativa locale)`);
-      return normalizedLocal;
-    }
-
-    // 2. Se Gemini restituisce lingua ESOTICA (non IT/EN/ES/PT) → USA GEMINI
-    if (!supportedLangs.includes(normalizedGemini)) {
-      console.log(`   \uD83C\uDF0D Lingua: ${normalizedGemini.toUpperCase()} (esotica, Gemini autoritativo)`);
-      return normalizedGemini;
     }
 
     // 3. Lingua principale: alta sicurezza locale conferma

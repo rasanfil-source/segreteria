@@ -551,6 +551,74 @@ function testInvalidateCacheAlsoClearsRobustCache() {
     }
 }
 
+function testLoadResourcesResetsMissingPromptSheets() {
+    loadScript('gas_main.js');
+
+    const originalSpreadsheetApp = global.SpreadsheetApp;
+    const originalGlobalCache = global.GLOBAL_CACHE;
+
+    const fakeSheet = {
+        getDataRange: () => ({
+            getValues: () => [['Header1', 'Header2'], ['Valore', 'Dettaglio']]
+        })
+    };
+
+    global.SpreadsheetApp = {
+        openById: () => ({
+            getSheetByName: (name) => {
+                if (name === 'Istruzioni') return fakeSheet;
+                return null;
+            }
+        })
+    };
+
+    global.GLOBAL_CACHE = {
+        loaded: false,
+        lastLoadedAt: 0,
+        knowledgeBase: '',
+        doctrineBase: 'STALE_DOCTRINE',
+        doctrineStructured: [{ stale: true }],
+        aiCoreLite: 'STALE_LITE',
+        aiCore: 'STALE_CORE',
+        systemEnabled: true,
+        vacationPeriods: [],
+        suspensionRules: {},
+        ignoreDomains: [],
+        ignoreKeywords: []
+    };
+
+    const originalLoadAdvancedConfig = global._loadAdvancedConfig;
+    const originalConfig = global.CONFIG;
+    global.CONFIG = {
+        SPREADSHEET_ID: 'abc-123',
+        KB_SHEET_NAME: 'Istruzioni',
+        AI_CORE_LITE_SHEET: 'AI_CORE_LITE',
+        AI_CORE_SHEET: 'AI_CORE',
+        DOCTRINE_SHEET: 'Dottrina'
+    };
+    global._loadAdvancedConfig = () => ({
+        systemEnabled: true,
+        vacationPeriods: [],
+        suspensionRules: {},
+        ignoreDomains: [],
+        ignoreKeywords: []
+    });
+
+    try {
+        _loadResourcesInternal();
+        assert(global.GLOBAL_CACHE.aiCoreLite === '', 'aiCoreLite deve essere resettato se il foglio manca');
+        assert(global.GLOBAL_CACHE.aiCore === '', 'aiCore deve essere resettato se il foglio manca');
+        assert(global.GLOBAL_CACHE.doctrineBase === '', 'doctrineBase deve essere stringa vuota se il foglio manca');
+        assert(Array.isArray(global.GLOBAL_CACHE.doctrineStructured) && global.GLOBAL_CACHE.doctrineStructured.length === 0,
+            'doctrineStructured deve essere svuotato se il foglio manca');
+    } finally {
+        global.SpreadsheetApp = originalSpreadsheetApp;
+        global._loadAdvancedConfig = originalLoadAdvancedConfig;
+        global.GLOBAL_CACHE = originalGlobalCache;
+        global.CONFIG = originalConfig;
+    }
+}
+
 function testMainDoesNotLeakHasExecutionLockGlobal() {
     loadScript('gas_main.js');
 
@@ -1076,6 +1144,7 @@ function main() {
         ['markdownToHtml: escape-first previene XSS', testMarkdownToHtmlXss],
         ['markdownToHtml: supporta URL con parentesi', testMarkdownLinkWithParentheses],
         ['gmail labels: errori non-label vengono propagati', testAddLabelToThreadPropagatesNonLabelErrors],
+        ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
         ['main: nessun leak globale hasExecutionLock', testMainDoesNotLeakHasExecutionLockGlobal],
     ];
 

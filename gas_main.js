@@ -9,7 +9,7 @@ var GLOBAL_CACHE = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBA
   loaded: false,
   lastLoadedAt: 0,
   knowledgeBase: '',
-  doctrineBase: [],
+  doctrineBase: '',
   systemEnabled: true,
   vacationPeriods: [],
   suspensionRules: {},
@@ -284,30 +284,33 @@ function _loadResourcesInternal() {
 
   // Prompt resources aggiuntive (usate da PromptEngine)
   const aiCoreLiteSheet = ss.getSheetByName(cfg.AI_CORE_LITE_SHEET);
-  if (aiCoreLiteSheet) {
-    GLOBAL_CACHE.aiCoreLite = aiCoreLiteSheet
+  GLOBAL_CACHE.aiCoreLite = aiCoreLiteSheet
+    ? aiCoreLiteSheet
       .getDataRange()
       .getValues()
       .map(r => r.filter(Boolean).join(' | ').trim())
       .filter(Boolean)
-      .join('\n');
-  }
+      .join('\n')
+    : '';
 
   const aiCoreSheet = ss.getSheetByName(cfg.AI_CORE_SHEET);
-  if (aiCoreSheet) {
-    GLOBAL_CACHE.aiCore = aiCoreSheet
+  GLOBAL_CACHE.aiCore = aiCoreSheet
+    ? aiCoreSheet
       .getDataRange()
       .getValues()
       .map(r => r.filter(Boolean).join(' | ').trim())
       .filter(Boolean)
-      .join('\n');
-  }
+      .join('\n')
+    : '';
 
   const doctrineSheet = ss.getSheetByName(cfg.DOCTRINE_SHEET);
   if (doctrineSheet) {
     const doctrineData = doctrineSheet.getDataRange().getValues();
     GLOBAL_CACHE.doctrineStructured = _parseSheetToStructured(doctrineData);
     GLOBAL_CACHE.doctrineBase = doctrineData.map(r => r.join(' | ')).join('\n');
+  } else {
+    GLOBAL_CACHE.doctrineStructured = [];
+    GLOBAL_CACHE.doctrineBase = '';
   }
 
   // Config Avanzata
@@ -331,7 +334,7 @@ function clearKnowledgeCache() {
   GLOBAL_CACHE.loaded = false;
   GLOBAL_CACHE.lastLoadedAt = 0;
   GLOBAL_CACHE.knowledgeBase = '';
-  GLOBAL_CACHE.doctrineBase = [];
+  GLOBAL_CACHE.doctrineBase = '';
   GLOBAL_CACHE.systemEnabled = true;
   GLOBAL_CACHE.vacationPeriods = [];
   GLOBAL_CACHE.suspensionRules = {};
@@ -367,11 +370,12 @@ function _loadAdvancedConfig(ss) {
   const status = sheet.getRange("B2").getValue();
   if (String(status).toUpperCase().includes("SPENTO")) config.systemEnabled = false;
 
-  // Ferie (B5:D7): data inizio in B, data fine in C
-  const periods = sheet.getRange("B5:D7").getValues();
+  // Ferie (B5:D7): data inizio in B, data fine in D (Bug 7)
+  const periods = sheet.getRange("B5:E7").getValues();
   periods.forEach(r => {
-    if (r[0] instanceof Date && r[1] instanceof Date) {
-      config.vacationPeriods.push({ start: r[0], end: r[1] });
+    // r[0] è Colonna B (inizio), r[2] è Colonna D (fine)
+    if (r[0] instanceof Date && r[2] instanceof Date) {
+      config.vacationPeriods.push({ start: r[0], end: r[2] });
     }
   });
 
@@ -542,7 +546,7 @@ function main() {
       }
     }
   } finally {
-    if (hasExecutionLock) {
+    if (typeof hasExecutionLock !== 'undefined' && hasExecutionLock && executionLock) {
       executionLock.releaseLock();
     }
   }

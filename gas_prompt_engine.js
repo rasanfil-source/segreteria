@@ -1047,6 +1047,7 @@ Non mostrare mai entrambi i set di orari.`;
       'sacrament': '📌 Email su SACRAMENTI: fornisci info dettagliate. ✅ USA FORMATTAZIONE per requisiti/date.',
       'collaboration': '📌 Proposta COLLABORAZIONE: ringrazia e spiega come procedere.',
       'complaint': '📌 Possibile RECLAMO: rispondi con empatia e professionalità.',
+      'emotional_support': '📌 Supporto PASTORALE: usa un tono estremamente delicato, empatico e umano, privo di ogni meccanicità robotica.',
       'quotation': '📌 PREVENTIVO/OFFERTA RICEVUTA: Ringrazia, conferma ricezione, comunica che esaminerai e risponderai. ⚠️ NON dire "restiamo a disposizione per chiarimenti" - siamo noi i destinatari!'
     };
 
@@ -1058,7 +1059,7 @@ ${hints[category]}`;
     // Mappatura predefinita per categorie generali
     const fallbackMap = {
       'technical': 'information',
-      'pastoral': 'collaboration',
+      'pastoral': 'emotional_support',
       'doctrinal': 'information'
     };
 

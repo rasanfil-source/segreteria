@@ -400,13 +400,15 @@ class TerritoryValidator {
 
     /**
      * Verifica se un indirizzo appartiene al territorio parrocchiale
-     * @returns {Object} {inTerritory: boolean, matchedKey: string|null, rule: string|null}
+     * @returns {Object} {inTerritory: boolean, matchedKey: string|null, rule: string|null, needsReview: boolean}
      */
-    verifyAddress(street, civic) {
+    verifyAddress(street, civic, fullCivic = null) {
         if (typeof civic !== 'number' || !isFinite(civic) || civic < 0) {
             console.warn(`\u26A0 Civico non valido per verifica territorio: ${civic}`);
-            return { inTerritory: false, matchedKey: null, rule: 'invalid_civic' };
+            return { inTerritory: false, matchedKey: null, rule: 'invalid_civic', needsReview: false };
         }
+
+        const hasSuffix = fullCivic && String(fullCivic).length > String(civic).length;
 
         const match = this.findTerritoryMatch(street);
 
@@ -436,11 +438,11 @@ class TerritoryValidator {
             const maxLabel = maxValue === Infinity ? '∞' : maxValue;
 
             if (civic >= minValue && civic <= maxValue) {
-                console.log(this._sanitize(`✅ ${matchedKey} n. ${civic}: nel range [${minValue}, ${maxLabel}]`));
-                return { inTerritory: true, matchedKey: matchedKey, rule: `range [${minValue}-${maxLabel}]` };
+                console.log(this._sanitize(`✅ ${matchedKey} n. ${fullCivic || civic}: nel range [${minValue}, ${maxLabel}]`));
+                return { inTerritory: true, matchedKey: matchedKey, rule: `range [${minValue}-${maxLabel}]`, needsReview: hasSuffix };
             } else {
-                console.log(this._sanitize(`❌ ${matchedKey} n. ${civic}: fuori dal range [${minValue}, ${maxLabel}]`));
-                return { inTerritory: false, matchedKey: matchedKey, rule: 'fuori range tutti' };
+                console.log(this._sanitize(`❌ ${matchedKey} n. ${fullCivic || civic}: fuori dal range [${minValue}, ${maxLabel}]`));
+                return { inTerritory: false, matchedKey: matchedKey, rule: 'fuori range tutti', needsReview: false };
             }
         } else if (rules.tutti === true) {
             console.log(`✅ ${matchedKey} n. ${civic}: TUTTI i civici nel territorio`);
@@ -476,13 +478,13 @@ class TerritoryValidator {
             const maxLabel = maxValue === Infinity ? '∞' : maxValue;
 
             if (civic >= minValue && civic <= maxValue) {
-                console.log(`✅ ${matchedKey} n. ${civic}: nel range DISPARI [${minValue}, ${maxLabel}]`);
-                return { inTerritory: true, matchedKey: matchedKey, rule: `dispari [${minValue}-${maxLabel}]` };
+                console.log(`✅ ${matchedKey} n. ${fullCivic || civic}: nel range DISPARI [${minValue}, ${maxLabel}]`);
+                return { inTerritory: true, matchedKey: matchedKey, rule: `dispari [${minValue}-${maxLabel}]`, needsReview: hasSuffix };
             }
         }
 
-        console.warn(`❌ Nessuna regola matchata per ${matchedKey} n. ${civic}`);
-        return { inTerritory: false, matchedKey: matchedKey, rule: 'no_match' };
+        console.warn(`❌ Nessuna regola matchata per ${matchedKey} n. ${fullCivic || civic}`);
+        return { inTerritory: false, matchedKey: matchedKey, rule: 'no_match', needsReview: false };
     }
 
     // ==================================================================================
@@ -544,14 +546,15 @@ class TerritoryValidator {
 
         // 1. Aggiungi prima gli indirizzi completi (più affidabili)
         addressesInfo.forEach(addrInfo => {
-            const result = this.verifyAddress(addrInfo.street, addrInfo.civic);
+            const result = this.verifyAddress(addrInfo.street, addrInfo.civic, addrInfo.fullCivic);
             const civicLabel = addrInfo.fullCivic || addrInfo.civic;
 
-            // Adattatore formato
+            // Adattatore formato con awareness del suffisso ambiguo
+            const suffixWarning = result.needsReview ? ' (Attenzione: Verifica il suffisso alfanumerico se incide nei confini del sub-civico)' : '';
             const verification = {
                 inParish: result.inTerritory,
                 reason: result.inTerritory
-                    ? `'${addrInfo.street}' n. ${civicLabel} è nel territorio (${result.rule})`
+                    ? `'${addrInfo.street}' n. ${civicLabel} è nel territorio (${result.rule})${suffixWarning}`
                     : `'${addrInfo.street}' n. ${civicLabel} non è nel territorio`,
                 details: result.rule
             };

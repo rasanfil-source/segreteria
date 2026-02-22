@@ -124,16 +124,15 @@ class EmailProcessor {
     } else {
       const configuredTtl = (typeof CONFIG !== 'undefined' && Number(CONFIG.CACHE_LOCK_TTL))
         ? Number(CONFIG.CACHE_LOCK_TTL)
-        : null;
-      // Fallback robusto: se CACHE_LOCK_TTL non è configurato, allineiamo il lock
-      // al budget massimo run (in secondi) con floor minimo di 180s.
-      const computedFallbackTtl = Math.max(180, Math.ceil((this.config.maxExecutionTimeMs || 280000) / 1000));
-      const ttlSeconds = configuredTtl || computedFallbackTtl;
+        : 45; // Default lowered to 45s to avoid orphaned locks preventing subsequent rapid retries
+
+      const ttlSeconds = configuredTtl;
       const lockTtlMs = ttlSeconds * 1000;
-      const uniqueSuffix = (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.getUuid === 'function')
-        ? Utilities.getUuid()
-        : Math.random().toString(36).slice(2, 10);
-      lockValue = `${Date.now()}_${uniqueSuffix}`;
+
+      // Aggiunge entropia per evitare collisioni se due thread identici partono nello stesso Ms 
+      const entropy = Math.random().toString(36).substring(2, 8);
+      lockValue = `${Date.now()}_${entropy}`;
+
       const scriptLock = LockService.getScriptLock();
 
       try {
