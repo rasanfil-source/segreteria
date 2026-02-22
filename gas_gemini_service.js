@@ -386,19 +386,16 @@ Output JSON:
       try {
         return fn();
       } catch (error) {
-        const classifier = (typeof classifyError === 'function')
-          ? classifyError
-          : this._classifyErrorFallback.bind(this);
-        const classified = classifier(error);
-        const isRetryable = classified.retryable;
+        const classifiedType = this._classifyError(error);
+        const isRetryable = (classifiedType === 'QUOTA' || classifiedType === 'NETWORK');
 
         if (isRetryable && attempt < this.maxRetries - 1) {
           const waitTime = this.retryDelay * Math.pow(this.backoffFactor, attempt);
-          console.warn(`⚠️ ${context} fallito (tentativo ${attempt + 1}/${this.maxRetries}): [${classified.type}] ${error.message}`);
+          console.warn(`⚠️ ${context} fallito (tentativo ${attempt + 1}/${this.maxRetries}): [${classifiedType}] ${error.message}`);
           console.log(`   Retry tra ${waitTime / 1000}s...`);
           Utilities.sleep(waitTime);
         } else if (attempt === this.maxRetries - 1) {
-          console.error(`❌ Tutti i ${this.maxRetries} tentativi ${context} falliti [${classified.type}]`);
+          console.error(`❌ Tutti i ${this.maxRetries} tentativi ${context} falliti [${classifiedType}]`);
           throw error;
         } else {
           // Errore non ritentabile
@@ -411,24 +408,11 @@ Output JSON:
   /**
    * Fallback locale in caso il classificatore globale non sia disponibile.
    */
-  _classifyErrorFallback(error) {
+  _classifyError(error) {
     const message = String((error && error.message) || error || '').toLowerCase();
-    const isRetryable = (
-      message.includes('429') ||
-      message.includes('quota') ||
-      message.includes('500') ||
-      message.includes('502') ||
-      message.includes('503') ||
-      message.includes('504') ||
-      message.includes('timeout') ||
-      message.includes('service unavailable') ||
-      message.includes('resource_exhausted')
-    );
-    return {
-      type: isRetryable ? 'NETWORK_OR_QUOTA' : 'FATAL',
-      retryable: isRetryable,
-      message
-    };
+    if (message.includes('429') || message.includes('quota') || message.includes('rate limit') || message.includes('resource_exhausted')) return 'QUOTA';
+    if (message.includes('timeout') || message.includes('econnreset') || message.includes('500') || message.includes('502') || message.includes('503') || message.includes('504') || message.includes('service unavailable')) return 'NETWORK';
+    return 'FATAL';
   }
 
   // ========================================================================

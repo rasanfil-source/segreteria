@@ -935,9 +935,13 @@ function testSanitizeUrlIPv6() {
     const decimal = sanitizeUrl('http://2130706433/');
     assert(decimal === null, `sanitizeUrl deve bloccare IP decimale, ottenuto: ${decimal}`);
 
-    // Userinfo bypass → null
+    // userinfo bypass → null
     const userinfo = sanitizeUrl('http://localhost@evil.com/path');
     assert(userinfo === null, 'sanitizeUrl deve bloccare userinfo bypass');
+
+    // localhost con trailing dot → null
+    const localhostTrailingDot = sanitizeUrl('http://localhost./admin');
+    assert(localhostTrailingDot === null, 'sanitizeUrl deve bloccare localhost con trailing dot');
 
     // Dotted quad in notazione hex → null
     const hexDotted = sanitizeUrl('http://0x7f.0x0.0x0.0x1/admin');
