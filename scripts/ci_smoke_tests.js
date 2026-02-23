@@ -12,7 +12,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
-const MIN_EXPECTED_TESTS = 38;
+const MIN_EXPECTED_TESTS = 39;
 
 const loadedScripts = new Set();
 
@@ -1308,6 +1308,47 @@ function testClassifierBackwardQuoteScan() {
     assert(result.trim() === "Testo principale importante.\n" + "A".repeat(1000), "Dovrebbe troncare alla citazione trovata via backward scan");
 }
 
+function testLoadResourcesReplacements() {
+    console.log('--- Test: Load Resources Replacements ---');
+    loadScript('gas_main.js');
+
+    const originalSpreadsheetApp = global.SpreadsheetApp;
+    const originalConfig = global.CONFIG;
+
+    const makeSheet = (matrix) => ({
+        getDataRange: () => ({ getValues: () => matrix }),
+        getRange: () => ({
+            getValue: () => '',
+            getValues: () => [[null, null, null, null]]
+        }),
+        getLastRow: () => 11
+    });
+
+    global.CONFIG = {
+        SPREADSHEET_ID: 'repl-test-id',
+        REPLACEMENTS_SHEET_NAME: 'Sostituzioni'
+    };
+
+    global.SpreadsheetApp = {
+        openById: () => ({
+            getSheetByName: (name) => {
+                if (name === 'Sostituzioni') return makeSheet([['Originale', 'Sostituzione'], ['Roma', 'ROMA CAPUT MUNDI'], ['IA', 'Intelligenza Artificiale']]);
+                return makeSheet([[null]]);
+            }
+        })
+    };
+
+    try {
+        GLOBAL_CACHE.loaded = false;
+        _loadResourcesInternal();
+        assert(GLOBAL_CACHE.replacements['Roma'] === 'ROMA CAPUT MUNDI', 'La sostituzione per "Roma" deve essere corretta');
+        assert(GLOBAL_CACHE.replacements['IA'] === 'Intelligenza Artificiale', 'La sostituzione per "IA" deve essere corretta');
+    } finally {
+        global.SpreadsheetApp = originalSpreadsheetApp;
+        global.CONFIG = originalConfig;
+    }
+}
+
 // MAIN: runner con contatore e soglia minima
 // ========================================================================
 
@@ -1362,6 +1403,7 @@ function main() {
         ['prompt KB truncation: hard limit chars rispettato', testPromptKbSemanticTruncationRespectsHardLimit],
         ['gemini: portuguese detection refinement', testPortugueseDetectionRefinement],
         ['classifier: backward quote scan', testClassifierBackwardQuoteScan],
+        ['main: caricamento sostituzioni', testLoadResourcesReplacements],
     ];
 
     let passed = 0;

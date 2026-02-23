@@ -14,7 +14,8 @@ var GLOBAL_CACHE = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBA
   vacationPeriods: [],
   suspensionRules: {},
   ignoreDomains: [],
-  ignoreKeywords: []
+  ignoreKeywords: [],
+  replacements: {}
 };
 
 const RESOURCE_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 ore
@@ -287,7 +288,8 @@ function _loadResourcesInternal() {
     KB_SHEET_NAME: 'Istruzioni',
     AI_CORE_LITE_SHEET: 'AI_CORE_LITE',
     AI_CORE_SHEET: 'AI_CORE',
-    DOCTRINE_SHEET: 'Dottrina'
+    DOCTRINE_SHEET: 'Dottrina',
+    REPLACEMENTS_SHEET_NAME: 'Sostituzioni'
   };
 
   const newCacheData = {};
@@ -329,6 +331,20 @@ function _loadResourcesInternal() {
     newCacheData.doctrineBase = '';
   }
 
+  const replacementsSheetName = cfg.REPLACEMENTS_SHEET_NAME || 'Sostituzioni';
+  const replacementsSheet = ss.getSheetByName(replacementsSheetName);
+  newCacheData.replacements = {};
+  if (replacementsSheet) {
+    const replacementRows = replacementsSheet.getDataRange().getValues();
+    replacementRows.forEach(row => {
+      const from = String((row && row[0]) || '').trim();
+      const to = String((row && row[1]) || '').trim();
+      if (from) {
+        newCacheData.replacements[from] = to;
+      }
+    });
+  }
+
   // Config Avanzata
   const adv = _loadAdvancedConfig(ss);
   newCacheData.systemEnabled = adv.systemEnabled;
@@ -367,6 +383,7 @@ function clearKnowledgeCache() {
   GLOBAL_CACHE.suspensionRules = {};
   GLOBAL_CACHE.ignoreDomains = [];
   GLOBAL_CACHE.ignoreKeywords = [];
+  GLOBAL_CACHE.replacements = {};
   GLOBAL_CACHE.aiCoreLite = '';
   GLOBAL_CACHE.aiCore = '';
   GLOBAL_CACHE.aiCoreStructured = [];
