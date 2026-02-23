@@ -251,7 +251,7 @@ class Classifier {
     processedBody = processedBody.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*?<\/div>/gi, '');
 
     // Rimuove quote stile Outlook
-    processedBody = processedBody.replace(/<div\s+id=["']?divRplyFwdMsg["']?[^>]*>[\s\S]*?$/gi, '');
+    processedBody = processedBody.replace(/<div\s+id=["']?divRplyFwdMsg["']?[^>]*>[\s\S]*$/gi, '');
 
     // Marcatori citazione per vari client email
     const quoteMarkers = [

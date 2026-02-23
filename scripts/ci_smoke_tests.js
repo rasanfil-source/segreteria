@@ -1228,6 +1228,59 @@ function testSheetRowsToTextFormatsDatesStably() {
     assert(lines[1] === 'Incontro | 2026-05-10 18:30', `Data con orario non stabile: ottenuto "${lines[1]}"`);
 }
 
+function testLoadResourcesKeepsFalseyValuesInAiCoreSheets() {
+    console.log('--- Test: Load Resources AI_CORE falsey values ---');
+    loadScript('gas_main.js');
+
+    const originalSpreadsheetApp = global.SpreadsheetApp;
+    const originalCacheService = global.CacheService;
+    const originalConfig = global.CONFIG;
+
+    const makeSheet = (matrix) => ({
+        getDataRange: () => ({ getValues: () => matrix }),
+        getRange: () => ({
+            getValue: () => '',
+            getValues: () => [[null, null, null, null]]
+        }),
+        getLastRow: () => 11
+    });
+
+    global.CacheService = { getScriptCache: () => ({ get: () => null, put: () => { } }) };
+    global.CONFIG = {
+        SPREADSHEET_ID: 'kb-test-id',
+        KB_SHEET_NAME: 'Istruzioni',
+        AI_CORE_LITE_SHEET: 'AI_CORE_LITE',
+        AI_CORE_SHEET: 'AI_CORE',
+        DOCTRINE_SHEET: 'Dottrina'
+    };
+
+    global.SpreadsheetApp = {
+        openById: () => ({
+            getSheetByName: (name) => {
+                if (name === 'Istruzioni') return makeSheet([['Categoria', 'Dettaglio'], ['Info', 'Aperto']]);
+                if (name === 'AI_CORE_LITE') return makeSheet([['Principio', 'Istruzione'], ['Tempistiche', 0], ['Conferma', false]]);
+                if (name === 'AI_CORE') return makeSheet([['Principio', 'Istruzione'], ['Quote', 0], ['Escalation', false]]);
+                if (name === 'Dottrina') return makeSheet([['Tema', 'Spiegazione'], ['Battesimo', 'Valido']]);
+                if (name === 'Controllo') return makeSheet([[null, null, null, null]]);
+                return null;
+            }
+        })
+    };
+
+    try {
+        GLOBAL_CACHE.loaded = false;
+        _loadResourcesInternal();
+        assert(GLOBAL_CACHE.aiCoreLite.includes('Tempistiche | 0'), 'AI_CORE_LITE deve preservare il valore numerico 0');
+        assert(GLOBAL_CACHE.aiCoreLite.includes('Conferma | false'), 'AI_CORE_LITE deve preservare il valore booleano false');
+        assert(GLOBAL_CACHE.aiCore.includes('Quote | 0'), 'AI_CORE deve preservare il valore numerico 0');
+        assert(GLOBAL_CACHE.aiCore.includes('Escalation | false'), 'AI_CORE deve preservare il valore booleano false');
+    } finally {
+        global.SpreadsheetApp = originalSpreadsheetApp;
+        global.CacheService = originalCacheService;
+        global.CONFIG = originalConfig;
+    }
+}
+
 function testPortugueseDetectionRefinement() {
     console.log('--- Test: Portuguese Detection Refinement ---');
     loadScript('gas_gemini_service.js');
@@ -1292,6 +1345,7 @@ function main() {
         ['main: nessun leak globale hasExecutionLock', testMainDoesNotLeakHasExecutionLockGlobal],
         ['main: serializzazione robusta righe KB', testSheetRowsToTextRemovesEmptyCellsAndRows],
         ['main: serializzazione date KB stabile', testSheetRowsToTextFormatsDatesStably],
+        ['main: ai_core preserva valori falsey', testLoadResourcesKeepsFalseyValuesInAiCoreSheets],
         ['prompt context: temporal risk with object KB', testPromptContextTemporalRiskWithObjectKnowledgeBase],
         ['prompt context: circular object KB fallback', testPromptContextKnowledgeBaseCircularObjectDoesNotCrash],
         ['prompt KB truncation: hard limit chars rispettato', testPromptKbSemanticTruncationRespectsHardLimit],

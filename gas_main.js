@@ -301,22 +301,14 @@ function _loadResourcesInternal() {
   // Prompt resources aggiuntive (usate da PromptEngine)
   const aiCoreLiteSheet = ss.getSheetByName(cfg.AI_CORE_LITE_SHEET);
   newCacheData.aiCoreLite = aiCoreLiteSheet
-    ? aiCoreLiteSheet
-      .getDataRange()
-      .getValues()
-      .map(r => r.filter(Boolean).join(' | ').trim())
-      .filter(Boolean)
-      .join('\n')
+    ? _sheetRowsToText(aiCoreLiteSheet.getDataRange().getValues())
     : '';
 
   const aiCoreSheet = ss.getSheetByName(cfg.AI_CORE_SHEET);
   if (aiCoreSheet) {
     const aiCoreData = aiCoreSheet.getDataRange().getValues();
     newCacheData.aiCoreStructured = _parseSheetToStructured(aiCoreData);
-    newCacheData.aiCore = aiCoreData
-      .map(r => r.filter(Boolean).join(' | ').trim())
-      .filter(Boolean)
-      .join('\n');
+    newCacheData.aiCore = _sheetRowsToText(aiCoreData);
   } else {
     newCacheData.aiCoreStructured = [];
     newCacheData.aiCore = '';
