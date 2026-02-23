@@ -1078,6 +1078,14 @@ class ResponseValidator {
    */
   _rimuoviThinkingLeak(text) {
     let cleaned = text;
+
+    // Patch rapida: rimuove prefissi meta-ragionamento comuni in apertura frase
+    // senza attendere rigenerazione completa.
+    cleaned = cleaned.replace(
+      /^(?:in base alla knowledge base|consultando i dati|consultando la knowledge base|rivedendo le istruzioni),?\s*/i,
+      ''
+    );
+
     // Usa thinkingPatterns come sorgente per le keyword di ragionamento
     const keywords = this.thinkingPatterns || [];
     keywords.forEach(kw => {
