@@ -893,7 +893,17 @@ Output JSON:
     // Detection locale per lingua alternativa
     const detection = this.detectEmailLanguage(emailContent, emailSubject);
     const fallbackLang = detection.lang;
-    const defaultResult = { shouldRespond: false, language: fallbackLang, reason: 'failsafe_local_detection' };
+    const defaultResult = {
+      shouldRespond: false,
+      language: fallbackLang,
+      reason: 'failsafe_local_detection',
+      classification: {
+        category: 'TECHNICAL',
+        topic: 'unknown',
+        confidence: 0.0,
+        dimensions: null
+      }
+    };
 
     // RATE LIMITER PATH
     if (this.useRateLimiter) {

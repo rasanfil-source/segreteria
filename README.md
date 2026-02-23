@@ -151,6 +151,11 @@ graph LR
 
 ### Breaking Changes Between Versions
 
+**2.3.4 → 2.3.5**
+- ✅ Alignment of `classification` object in fallbacks
+- ✅ Enforced hard-cap for KB semantic truncation
+- ✅ Redundant ScriptLock removal for improved stability
+
 **2.3.x → 2.4.x**
 - ⚠️ `CONFIG.GEMINI_MODELS` now mandatory
 - ⚠️ `VALIDATION_STRICT_MODE` removed (use `VALIDATION_MIN_SCORE` instead)
