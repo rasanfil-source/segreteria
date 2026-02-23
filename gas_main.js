@@ -294,9 +294,14 @@ function _loadResourcesInternal() {
 
   // KB Base
   const kbSheet = ss.getSheetByName(cfg.KB_SHEET_NAME);
-  newCacheData.knowledgeBase = kbSheet
-    ? _sheetRowsToText(kbSheet.getDataRange().getValues())
-    : '';
+  if (kbSheet) {
+    withSheetsRetry(() => {
+      const kbData = kbSheet.getDataRange().getValues();
+      newCacheData.knowledgeBase = _sheetRowsToText(kbData);
+    }, 'Lettura KB Base');
+  } else {
+    newCacheData.knowledgeBase = '';
+  }
 
   // Prompt resources aggiuntive (usate da PromptEngine)
   const aiCoreLiteSheet = ss.getSheetByName(cfg.AI_CORE_LITE_SHEET);
@@ -386,9 +391,16 @@ function clearCache() {
 function _parseSheetToStructured(data) {
   if (!data || data.length < 2) return [];
   const headers = data[0].map(h => String(h).trim());
+  const firstEmptyHeaderIndex = headers.findIndex(h => !h || h === 'null' || h === 'undefined');
+  const usedHeaders = (firstEmptyHeaderIndex === -1)
+    ? headers
+    : headers.slice(0, firstEmptyHeaderIndex);
+
   return data.slice(1).map(row => {
     const obj = {};
-    headers.forEach((h, i) => obj[h] = row[i]);
+    usedHeaders.forEach((h, i) => {
+      if (h) obj[h] = row[i];
+    });
     return obj;
   });
 }
@@ -398,38 +410,39 @@ function _loadAdvancedConfig(ss) {
   const sheet = ss.getSheetByName('Controllo');
   if (!sheet) return config;
 
-  // Interruttore
-  const status = sheet.getRange("B2").getValue();
-  if (String(status).toUpperCase().includes("SPENTO")) config.systemEnabled = false;
+  withSheetsRetry(() => {
+    // Interruttore
+    const status = sheet.getRange('B2').getValue();
+    if (String(status).toUpperCase().includes('SPENTO')) config.systemEnabled = false;
 
-  // Ferie (B5:D7): data inizio in B, data fine in D (Bug 7)
-  const periods = sheet.getRange("B5:E7").getValues();
-  periods.forEach(r => {
-    // r[0] è Colonna B (inizio), r[2] è Colonna D (fine)
-    if (r[0] instanceof Date && r[2] instanceof Date) {
-      config.vacationPeriods.push({ start: r[0], end: r[2] });
-    }
-  });
+    // Ferie (B5:E7): B=data inizio, C=separatore, D=data fine, E=riepilogo (ignorato)
+    const periods = sheet.getRange('B5:E7').getValues();
+    periods.forEach(r => {
+      if (r[0] instanceof Date && r[2] instanceof Date) {
+        config.vacationPeriods.push({ start: r[0], end: r[2] });
+      }
+    });
 
-  // Sospensione (B10:E16)
-  const susp = sheet.getRange("B10:E16").getValues();
-  susp.forEach((r, i) => {
-    const day = (i + 1) % 7;
-    if (!isNaN(parseInt(r[0])) && !isNaN(parseInt(r[2]))) {
-      config.suspensionRules[day] = [[parseInt(r[0]), parseInt(r[2])]];
-    }
-  });
+    // Sospensione (B10:E16)
+    const susp = sheet.getRange('B10:E16').getValues();
+    susp.forEach((r, i) => {
+      const day = (i + 1) % 7;
+      if (!isNaN(parseInt(r[0])) && !isNaN(parseInt(r[2]))) {
+        config.suspensionRules[day] = [[parseInt(r[0]), parseInt(r[2])]];
+      }
+    });
 
-  // Filtri anti-spam (layout single-sheet: E11:F)
-  const maxRows = Math.max(sheet.getLastRow(), 11);
-  const filterRows = Math.max(maxRows - 10, 1);
-  const filters = sheet.getRange(11, 5, filterRows, 2).getValues();
-  filters.forEach(row => {
-    const domain = String(row[0] || '').trim().toLowerCase();
-    const keyword = String(row[1] || '').trim().toLowerCase();
-    if (domain) config.ignoreDomains.push(domain);
-    if (keyword) config.ignoreKeywords.push(keyword);
-  });
+    // Filtri anti-spam (layout single-sheet: E11:F)
+    const maxRows = Math.max(sheet.getLastRow(), 11);
+    const filterRows = Math.max(maxRows - 10, 1);
+    const filters = sheet.getRange(11, 5, filterRows, 2).getValues();
+    filters.forEach(row => {
+      const domain = String(row[0] || '').trim().toLowerCase();
+      const keyword = String(row[1] || '').trim().toLowerCase();
+      if (domain) config.ignoreDomains.push(domain);
+      if (keyword) config.ignoreKeywords.push(keyword);
+    });
+  }, 'Lettura configurazione avanzata');
 
   // Dedup + fallback su config statica
   const staticDomains = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_DOMAINS)) ? CONFIG.IGNORE_DOMAINS : [];

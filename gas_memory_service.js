@@ -92,6 +92,13 @@ class MemoryService {
       }
 
       const headers = this._sheet.getRange('A1:I1').getValues()[0];
+      if (headers.length < 8 || !headers[7]) {
+        console.log('🔄 Aggiunta colonna mancante: version');
+        const versionCell = this._sheet.getRange('H1');
+        versionCell.setValue('version');
+        versionCell.setFontWeight('bold');
+      }
+
       // La colonna I è la nona colonna (indice 8)
       if (headers[8] !== 'memorySummary') {
         console.log('🔄 Aggiunta colonna mancante: memorySummary');
