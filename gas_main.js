@@ -567,7 +567,7 @@ function main() {
     const doctrineBase = GLOBAL_CACHE.doctrineBase || '';
 
     // Passaggio della dottrina strutturata e testo piatto per retrocompatibilita
-    const results = processor.processUnreadEmails(knowledgeBase, doctrineBase);
+    const results = processor.processUnreadEmails(knowledgeBase, doctrineBase, true); // true = skip double lock
 
     if (results) {
       console.log(`📊 Batch completato: ${results.total || 0} analizzati, ${results.replied || 0} risposte, ${results.errors || 0} errori.`);

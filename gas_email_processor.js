@@ -1039,159 +1039,183 @@ ${addressLines.join('\n\n')}
 
   /**
    * Processa tutte le email non lette
+   * @param {string} knowledgeBase
+   * @param {string} doctrineBase
+   * @param {boolean} skipExecutionLock - Evita il double-locking se chiamato da main()
    */
-  processUnreadEmails(knowledgeBase, doctrineBase = '') {
+  processUnreadEmails(knowledgeBase, doctrineBase = '', skipExecutionLock = true) {
     console.log('\n' + '='.repeat(70));
     console.log('📬 Inizio elaborazione email...');
     console.log('='.repeat(70));
 
-    // NOTA: Il lock run-level viene gestito dal chiamante (processEmailsMain in gas_main.js).
-    // NON acquisire qui un secondo LockService.getScriptLock() per evitare lock starvation.
+    const executionLock = LockService.getScriptLock();
+    let lockAcquiredHere = false;
 
+    if (!skipExecutionLock) {
+      const lockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
+        ? CONFIG.EXECUTION_LOCK_WAIT_MS : 5000;
 
-    if (this.config.dryRun) {
-      console.warn('🔴 MODALITÀ DRY_RUN ATTIVA - Email NON inviate!');
+      if (!executionLock.tryLock(lockWaitMs)) {
+        console.warn('⚠️ Un\'altra esecuzione è già attiva: salto questo turno per evitare doppie risposte.');
+        return { total: 0, replied: 0, filtered: 0, errors: 0, skipped: 1, reason: 'execution_locked' };
+      }
+      lockAcquiredHere = true;
     }
 
-    // Cerca thread non letti nella inbox
-    // Utilizziamo un buffer di ricerca più ampio per gestire thread saltati (es. loop interni)
-    // Rimuoviamo il filtro etichetta per permettere la gestione dei follow-up in thread già elaborati
-    const processedLabelQuery = this._formatLabelQueryValue(this.config.labelName);
-    const errorLabelQuery = this._formatLabelQueryValue(this.config.errorLabelName);
-    const validationLabelQuery = this._formatLabelQueryValue(this.config.validationErrorLabel);
-
-    // BUG FIX 2.2: La query corretta è -label:IA (!IMPORTANTE il MENO davanti)
-    const searchQuery = `is:unread -label:${processedLabelQuery} -label:${errorLabelQuery} -label:${validationLabelQuery} in:inbox`;
-    const searchLimit = (this.config.searchPageSize || 50);
-
-    const threads = GmailApp.search(
-      searchQuery,
-      0,
-      searchLimit
-    );
-
-    if (threads.length === 0) {
-      const emptyStreak = this._trackEmptyInboxStreak(true);
-      console.log(`Nessuna email da elaborare (query: ${searchQuery}).`);
-
-      if (emptyStreak >= this.config.emptyInboxWarningThreshold) {
-        console.warn(`⚠️ Inbox vuota da ${emptyStreak} esecuzioni consecutive. Verificare filtri Gmail/trigger in ingresso.`);
+    try {
+      if (this.config.dryRun) {
+        console.warn('🔴 MODALITÀ DRY_RUN ATTIVA - Email NON inviate!');
       }
 
-      return { total: 0, replied: 0, filtered: 0, errors: 0, emptyStreak: emptyStreak };
-    }
+      // Cerca thread non letti nella inbox
+      // Utilizziamo un buffer di ricerca più ampio per gestire thread saltati (es. loop interni)
+      // Rimuoviamo il filtro etichetta per permettere la gestione dei follow-up in thread già elaborati
+      const processedLabelQuery = this._formatLabelQueryValue(this.config.labelName);
+      const errorLabelQuery = this._formatLabelQueryValue(this.config.errorLabelName);
+      const validationLabelQuery = this._formatLabelQueryValue(this.config.validationErrorLabel);
 
-    this._trackEmptyInboxStreak(false);
-    console.log(`📬 Trovate ${threads.length} email da elaborare (query: ${searchQuery})`);
+      // BUG FIX 2.2: La query corretta è -label:IA (!IMPORTANTE il MENO davanti)
+      const searchQuery = `is:unread -label:${processedLabelQuery} -label:${errorLabelQuery} -label:${validationLabelQuery} in:inbox`;
+      const searchLimit = (this.config.searchPageSize || 50);
 
-    // Carica etichette una sola volta
-    const labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
-    console.log(`📦 Trovati in cache ${labeledMessageIds.size} messaggi già elaborati`);
-
-    // Statistiche
-    const stats = {
-      total: 0,
-      replied: 0,
-      filtered: 0,
-      validationFailed: 0,
-      errors: 0,
-      dryRun: 0,
-      skipped: 0,
-      skipped_locked: 0,
-      skipped_processed: 0,
-      skipped_internal: 0,
-      skipped_loop: 0
-    };
-
-    // Processa ogni thread fino a raggiungere il limite di elaborazione
-    this._startTime = Date.now();
-    const MAX_EXECUTION_TIME = this.config.maxExecutionTimeMs;
-    let processedCount = 0; // Contatore thread effettivamente elaborati
-    const maxLimit = parseInt(this.config.maxEmailsPerRun, 10);
-    const safeLimit = Number.isNaN(maxLimit) ? 10 : maxLimit;
-
-    for (let index = 0; index < threads.length; index++) {
-      // Stop se abbiamo raggiunto il target di elaborazione effettiva
-      if (processedCount >= safeLimit) {
-        console.log(`🛑 Raggiunti ${safeLimit} thread elaborati. Stop.`);
-        break;
-      }
-
-      const thread = threads[index];
-
-      // Controllo tempo residuo (rigoroso): evita avvio di un nuovo thread senza buffer minimo
-      const remainingTimeMs = this._getRemainingTimeMs(MAX_EXECUTION_TIME);
-      if (remainingTimeMs < this.config.minRemainingTimeMs || this._isNearDeadline(MAX_EXECUTION_TIME)) {
-        console.warn(`⏳ Tempo insufficiente per un nuovo thread (${Math.round(remainingTimeMs / 1000)}s restanti). Stop preventivo.`);
-        break;
-      }
-
-      // Fast-skip: evita pipeline completa/lock quando i non letti sono già etichettati.
-      // Riduce overhead su thread marcati manualmente come "non letto" ma già gestiti.
-      if (!this._hasUnreadMessagesToProcess(thread, labeledMessageIds)) {
-        console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
-        console.log('   ⊖ Fast-skip: thread con soli non letti già etichettati IA');
-        stats.total++;
-        stats.skipped++;
-        stats.skipped_processed++;
-        continue;
-      }
-
-      console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
-
-      const result = this.processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds);
-      stats.total++;
-
-      // Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI
-      const isEffectiveWork = (
-        result.status === 'replied' ||
-        result.status === 'error' ||
-        result.status === 'validation_failed' ||
-        result.status === 'filtered'
+      const threads = GmailApp.search(
+        searchQuery,
+        0,
+        searchLimit
       );
 
-      if (isEffectiveWork) {
-        processedCount++;
+      if (threads.length === 0) {
+        const emptyStreak = this._trackEmptyInboxStreak(true);
+        console.log(`Nessuna email da elaborare (query: ${searchQuery}).`);
+
+        if (emptyStreak >= this.config.emptyInboxWarningThreshold) {
+          console.warn(`⚠️ Inbox vuota da ${emptyStreak} esecuzioni consecutive. Verificare filtri Gmail/trigger in ingresso.`);
+        }
+
+        return { total: 0, replied: 0, filtered: 0, errors: 0, emptyStreak: emptyStreak };
       }
 
-      if (result.validationFailed) {
-        stats.validationFailed++;
-      } else if (result.status === 'replied') {
-        stats.replied++;
-        if (result.dryRun) stats.dryRun++;
-      } else if (result.status === 'skipped') {
-        stats.skipped++;
-        if (result.reason === 'thread_locked' || result.reason === 'thread_locked_race') stats.skipped_locked++;
-        if (result.reason === 'already_labeled_no_new_unread') stats.skipped_processed++;
-        if (result.reason === 'no_external_unread' || result.reason === 'self_sent') stats.skipped_internal++;
-        if (result.reason === 'email_loop_detected') stats.skipped_loop++;
-      } else if (result.status === 'filtered') {
-        stats.filtered++;
-        if (result.reason === 'email_loop_detected') stats.skipped_loop++;
-      } else if (result.status === 'error') {
-        stats.errors++;
+      this._trackEmptyInboxStreak(false);
+      console.log(`📬 Trovate ${threads.length} email da elaborare (query: ${searchQuery})`);
+
+      // Carica etichette una sola volta
+      const labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+      console.log(`📦 Trovati in cache ${labeledMessageIds.size} messaggi già elaborati`);
+
+      // Statistiche
+      const stats = {
+        total: 0,
+        replied: 0,
+        filtered: 0,
+        validationFailed: 0,
+        errors: 0,
+        dryRun: 0,
+        skipped: 0,
+        skipped_locked: 0,
+        skipped_processed: 0,
+        skipped_internal: 0,
+        skipped_loop: 0
+      };
+
+      // Processa ogni thread fino a raggiungere il limite di elaborazione
+      this._startTime = Date.now();
+      const MAX_EXECUTION_TIME = this.config.maxExecutionTimeMs;
+      let processedCount = 0; // Contatore thread effettivamente elaborati
+      const maxLimit = parseInt(this.config.maxEmailsPerRun, 10);
+      const safeLimit = Number.isNaN(maxLimit) ? 10 : maxLimit;
+
+      for (let index = 0; index < threads.length; index++) {
+        // Stop se abbiamo raggiunto il target di elaborazione effettiva
+        if (processedCount >= safeLimit) {
+          console.log(`🛑 Raggiunti ${safeLimit} thread elaborati. Stop.`);
+          break;
+        }
+
+        const thread = threads[index];
+
+        // Controllo tempo residuo (rigoroso): evita avvio di un nuovo thread senza buffer minimo
+        const remainingTimeMs = this._getRemainingTimeMs(MAX_EXECUTION_TIME);
+        if (remainingTimeMs < this.config.minRemainingTimeMs || this._isNearDeadline(MAX_EXECUTION_TIME)) {
+          console.warn(`⏳ Tempo insufficiente per un nuovo thread (${Math.round(remainingTimeMs / 1000)}s restanti). Stop preventivo.`);
+          break;
+        }
+
+        // Fast-skip: evita pipeline completa/lock quando i non letti sono già etichettati.
+        // Riduce overhead su thread marcati manualmente come "non letto" ma già gestiti.
+        if (!this._hasUnreadMessagesToProcess(thread, labeledMessageIds)) {
+          console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
+          console.log('   ⊖ Fast-skip: thread con soli non letti già etichettati IA');
+          stats.total++;
+          stats.skipped++;
+          stats.skipped_processed++;
+          continue;
+        }
+
+        console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
+
+        const result = this.processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds);
+        stats.total++;
+
+        // Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI
+        const isEffectiveWork = (
+          result.status === 'replied' ||
+          result.status === 'error' ||
+          result.status === 'validation_failed' ||
+          result.status === 'filtered'
+        );
+
+        if (isEffectiveWork) {
+          processedCount++;
+        }
+
+        if (result.validationFailed) {
+          stats.validationFailed++;
+        } else if (result.status === 'replied') {
+          stats.replied++;
+          if (result.dryRun) stats.dryRun++;
+        } else if (result.status === 'skipped') {
+          stats.skipped++;
+          if (result.reason === 'thread_locked' || result.reason === 'thread_locked_race') stats.skipped_locked++;
+          if (result.reason === 'already_labeled_no_new_unread') stats.skipped_processed++;
+          if (result.reason === 'no_external_unread' || result.reason === 'self_sent') stats.skipped_internal++;
+          if (result.reason === 'email_loop_detected') stats.skipped_loop++;
+        } else if (result.status === 'filtered') {
+          stats.filtered++;
+          if (result.reason === 'email_loop_detected') stats.skipped_loop++;
+        } else if (result.status === 'error') {
+          stats.errors++;
+        }
+      }
+
+      // Stampa riepilogo
+      console.log('\n' + '='.repeat(70));
+      console.log('📊 RIEPILOGO ELABORAZIONE');
+      console.log('='.repeat(70));
+      console.log(`   Totale analizzate (buffer): ${stats.total}`);
+      console.log(`   ✓ Risposte inviate: ${stats.replied}`);
+      if (stats.dryRun > 0) console.warn(`   🔴 DRY RUN: ${stats.dryRun}`);
+
+      if (stats.skipped > 0) {
+        console.log(`   ⊖ Saltate (Totale): ${stats.skipped}`);
+      }
+
+      console.log(`   ⊖ Filtrate (AI/Regole): ${stats.filtered}`);
+      if (stats.validationFailed > 0) console.warn(`   🛑 Validazione fallita: ${stats.validationFailed}`);
+      if (stats.errors > 0) console.error(`   🛑 Errori: ${stats.errors}`);
+      stats.processed = processedCount;
+      console.log('='.repeat(70));
+
+      return stats;
+
+    } finally {
+      if (lockAcquiredHere) {
+        try {
+          executionLock.releaseLock();
+        } catch (e) {
+          console.warn(`⚠️ Errore rilascio execution lock: ${e.message}`);
+        }
       }
     }
-
-    // Stampa riepilogo
-    console.log('\n' + '='.repeat(70));
-    console.log('📊 RIEPILOGO ELABORAZIONE');
-    console.log('='.repeat(70));
-    console.log(`   Totale analizzate (buffer): ${stats.total}`);
-    console.log(`   ✓ Risposte inviate: ${stats.replied}`);
-    if (stats.dryRun > 0) console.warn(`   🔴 DRY RUN: ${stats.dryRun}`);
-
-    if (stats.skipped > 0) {
-      console.log(`   ⊖ Saltate (Totale): ${stats.skipped}`);
-    }
-
-    console.log(`   ⊖ Filtrate (AI/Regole): ${stats.filtered}`);
-    if (stats.validationFailed > 0) console.warn(`   🛑 Validazione fallita: ${stats.validationFailed}`);
-    if (stats.errors > 0) console.error(`   🛑 Errori: ${stats.errors}`);
-    stats.processed = processedCount;
-    console.log('='.repeat(70));
-
-    return stats;
   }
 
   // ====================================================================================================

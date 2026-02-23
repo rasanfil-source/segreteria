@@ -214,53 +214,6 @@ class Classifier {
   // METODI HELPER
   // ========================================================================
 
-  _stripBlockquotesSafely(input) {
-    const text = typeof input === 'string' ? input : '';
-    if (!text) return '';
-
-    const openTag = /<blockquote\b[^>]*>/gi;
-    const closeTag = /<\/blockquote>/gi;
-    let result = '';
-    let cursor = 0;
-    let depth = 0;
-    let openMatch = openTag.exec(text);
-    let closeMatch = closeTag.exec(text);
-
-    while (openMatch || closeMatch) {
-      let nextMatch = null;
-      let isOpenTag = false;
-
-      if (openMatch && (!closeMatch || openMatch.index <= closeMatch.index)) {
-        nextMatch = openMatch;
-        isOpenTag = true;
-      } else {
-        nextMatch = closeMatch;
-      }
-
-      if (depth === 0 && nextMatch.index > cursor) {
-        result += text.slice(cursor, nextMatch.index);
-      }
-
-      cursor = nextMatch.index + nextMatch[0].length;
-      if (isOpenTag) {
-        depth++;
-        openMatch = openTag.exec(text);
-      } else {
-        depth = Math.max(0, depth - 1);
-        closeMatch = closeTag.exec(text);
-      }
-    }
-
-    if (depth === 0 && cursor < text.length) {
-      result += text.slice(cursor);
-    }
-
-    if (depth > 0) {
-      console.warn('⚠️ Blockquote HTML non bilanciato: tronco la sezione quotata residua');
-    }
-
-    return result.replace(/<blockquote\b[^>]*>/gi, '').replace(/<\/blockquote>/gi, '');
-  }
 
   /**
    * Estrae contenuto principale, rimuovendo citazioni e firme
@@ -274,8 +227,17 @@ class Classifier {
       processedBody = processedBody.substring(0, MAX_LENGTH);
     }
 
-    // Rimuove blockquote in modo lineare per evitare backtracking catastrofico su HTML malformato
-    processedBody = this._stripBlockquotesSafely(processedBody);
+    // Sostituzione globale per tag chiusi correttamente (gestisce anche l'annidamento se ripetuta un paio di volte)
+    for (let i = 0; i < 3; i++) {
+      const previous = processedBody;
+      processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
+      if (processedBody === previous) break; // Esci se non c'è più nulla da pulire
+    }
+
+    // Fallback di sicurezza: rimuove i tag blockquote spaiati o malformati rimanenti (troncando tutto ciò che segue)
+    if (/<blockquote/i.test(processedBody)) {
+      processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*$/gi, '');
+    }
 
     // Rimuove div.gmail_quote
     processedBody = processedBody.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*?<\/div>/gi, '');
