@@ -349,7 +349,7 @@ Solution: System uses "linguistic prevalence". If email has
 **Q: Too many emails marked "Verifica"**
 ```
 Cause: Validation threshold too high
-Solution: In gas_config_s.js, change VALIDATION_MIN_SCORE from 0.6 to 0.5
+Solution: In gas_config.js, change VALIDATION_MIN_SCORE from 0.6 to 0.5
 ```
 
 ### Contacts

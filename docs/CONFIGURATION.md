@@ -3,6 +3,7 @@
 [![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](CONFIGURATION_IT.md)
 
 This document details the configuration parameters available in `gas_config.js`.
+Use `gas_config.example.js` as template in repository and create your local `gas_config.js` file for runtime settings.
 
 ## Core Configuration (`CONFIG`)
 

@@ -91,8 +91,11 @@ class Logger {
   _sendErrorNotification(logEntry) {
     try {
       const loggingConfig = (this.config && this.config.LOGGING) ? this.config.LOGGING : {};
-      const adminEmail = loggingConfig.ADMIN_EMAIL;
-      if (!adminEmail || adminEmail.includes('[')) return;
+      const adminEmailProperty = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
+        ? PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL')
+        : '';
+      const adminEmail = adminEmailProperty || loggingConfig.ADMIN_EMAIL || '';
+      if (!adminEmail || adminEmail.includes('[') || adminEmail.includes('YOUR_')) return;
 
       const subject = `[${this.config.PROJECT_NAME || 'GAS_BOT'}] Avviso Errore: ${logEntry.message}`;
       const body = `

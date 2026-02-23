@@ -213,9 +213,13 @@ class EmailProcessor {
       }
 
       if (!myEmail) {
-        const adminEmail = (typeof CONFIG !== 'undefined' && CONFIG.LOGGING && CONFIG.LOGGING.ADMIN_EMAIL)
+        const adminEmailProperty = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
+          ? PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL')
+          : '';
+        const adminEmailConfig = (typeof CONFIG !== 'undefined' && CONFIG.LOGGING && CONFIG.LOGGING.ADMIN_EMAIL)
           ? CONFIG.LOGGING.ADMIN_EMAIL
           : '';
+        const adminEmail = adminEmailProperty || adminEmailConfig || '';
         const botEmailProperty = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
           ? PropertiesService.getScriptProperties().getProperty('BOT_EMAIL')
           : '';
@@ -226,7 +230,7 @@ class EmailProcessor {
         if (myEmail) {
           console.warn(`⚠️ Session email non disponibile: uso fallback anti-loop (${myEmail})`);
         } else {
-          console.warn('⚠️ Session email non disponibile e nessun fallback configurato (CONFIG.LOGGING.ADMIN_EMAIL/BOT_EMAIL/CONFIG.BOT_EMAIL)');
+          console.warn('⚠️ Session email non disponibile e nessun fallback configurato (ScriptProperties.ADMIN_EMAIL/CONFIG.LOGGING.ADMIN_EMAIL/BOT_EMAIL/CONFIG.BOT_EMAIL)');
         }
       }
 

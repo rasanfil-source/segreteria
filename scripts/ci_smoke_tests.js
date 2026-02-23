@@ -764,7 +764,7 @@ function runGoldenCases() {
     vm.createContext(sandbox);
 
     const scripts = [
-        'gas_config_s.js',
+        'gas_config.example.js',
         'gas_classifier.js',
         'gas_request_classifier.js',
         'gas_prompt_engine.js',

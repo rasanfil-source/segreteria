@@ -372,7 +372,7 @@ Soluzione: Sistema usa "prevalenza linguistica". Se email ha
 **Q: Troppe email marcate "Verifica"**
 ```
 Causa: Soglia validazione troppo alta
-Soluzione: In gas_config_s.js, cambia VALIDATION_MIN_SCORE da 0.6 a 0.5
+Soluzione: In gas_config.js, cambia VALIDATION_MIN_SCORE da 0.6 a 0.5
 ```
 
 ### Contatti

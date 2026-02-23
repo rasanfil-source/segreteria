@@ -120,7 +120,7 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
 
     // Caricamento script core
     [
-        'gas_config_s.js',
+        'gas_config.example.js',
         'gas_error_types.js',
         'gas_rate_limiter.js',
         'gas_memory_service.js',

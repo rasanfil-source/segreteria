@@ -3,8 +3,7 @@ const path = require('path');
 
 const FILES = [
     'gas_classifier.js',
-    'gas_config.js',
-    'gas_config_s.js',
+    'gas_config.example.js',
     'gas_email_processor.js',
     'gas_error_types.js',
     'gas_gemini_service.js',

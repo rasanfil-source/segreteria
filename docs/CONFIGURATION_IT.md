@@ -3,6 +3,7 @@
 [![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](CONFIGURATION.md)
 
 Questo documento descrive i parametri di configurazione disponibili nel file `gas_config.js`.
+Usa `gas_config.example.js` come template nel repository e crea il file locale `gas_config.js` per i valori runtime.
 
 ## Configurazione Principale (`CONFIG`)
 
