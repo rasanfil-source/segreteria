@@ -1050,7 +1050,9 @@ Output JSON:
       }
 
       if (responseCode !== 200) {
-        throw new Error(`Errore API Gemini: ${responseCode} - ${response.getContentText().substring(0, 200)}`);
+        const body = response.getContentText().substring(0, 500);
+        console.error(`❌ Errore Gemini API: ${responseCode} — ${body}`);
+        throw new Error(`Errore API non recuperabile: ${responseCode} — ${body}`);
       }
 
       const resJson = JSON.parse(response.getContentText());

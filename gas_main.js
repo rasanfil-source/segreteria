@@ -612,10 +612,56 @@ function _sheetRowsToText(rows) {
     .map(row => {
       const safeRow = Array.isArray(row) ? row : [row];
       return safeRow
-        .map(cell => (cell == null ? '' : String(cell)).trim())
+        .map(cell => _formatCellForKnowledgeText(cell))
         .filter(Boolean)
         .join(' | ');
     })
     .filter(Boolean)
     .join('\n');
+}
+
+/**
+ * Normalizza la serializzazione celle per evitare output locale-dipendente.
+ * In particolare, le Date di Google Sheets vengono convertite in formato stabile
+ * (YYYY-MM-DD oppure YYYY-MM-DD HH:mm) invece di "Tue May 12 2026 ...".
+ */
+function _formatCellForKnowledgeText(cell) {
+  if (cell == null) return '';
+
+  if (cell instanceof Date && !isNaN(cell.getTime())) {
+    return _formatDateForKnowledgeText(cell);
+  }
+
+  return String(cell).trim();
+}
+
+function _formatDateForKnowledgeText(date) {
+  if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+    const tz = (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function')
+      ? Session.getScriptTimeZone()
+      : 'UTC';
+
+    // Rileviamo se ha una parte oraria in base al fuso orario target
+    const hasTime = (tz === 'UTC')
+      ? (date.getUTCHours() !== 0 || date.getUTCMinutes() !== 0 || date.getUTCSeconds() !== 0)
+      : (date.getHours() !== 0 || date.getMinutes() !== 0 || date.getSeconds() !== 0);
+
+    const pattern = hasTime ? 'yyyy-MM-dd HH:mm' : 'yyyy-MM-dd';
+
+    return Utilities.formatDate(date, tz, pattern);
+  }
+
+  // Fallback Node/tests: serializzazione stabile UTC
+  const hasUtcTime = date.getUTCHours() !== 0 || date.getUTCMinutes() !== 0 || date.getUTCSeconds() !== 0;
+  const yyyy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(date.getUTCDate()).padStart(2, '0');
+
+  if (!hasUtcTime) {
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  const hh = String(date.getUTCHours()).padStart(2, '0');
+  const min = String(date.getUTCMinutes()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
 }

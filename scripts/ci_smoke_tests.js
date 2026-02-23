@@ -41,7 +41,18 @@ global.createLogger = function (name) {
 };
 
 global.Utilities = {
-    formatDate: (date) => new Date(date).toISOString().slice(0, 10),
+    formatDate: (date, tz, pattern) => {
+        const d = new Date(date);
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        if (pattern && pattern.includes('HH:mm')) {
+            const h = String(d.getUTCHours()).padStart(2, '0');
+            const min = String(d.getUTCMinutes()).padStart(2, '0');
+            return `${y}-${m}-${day} ${h}:${min}`;
+        }
+        return `${y}-${m}-${day}`;
+    },
     sleep: () => { },
     computeDigest: () => [0, 1, 2, 3],
     getUuid: () => 'uuid-mock',
@@ -1178,6 +1189,20 @@ function testSheetRowsToTextRemovesEmptyCellsAndRows() {
     assert(text === expected, `Serializzazione righe non valida. Atteso "${expected}", ottenuto "${text}"`);
 }
 
+function testSheetRowsToTextFormatsDatesStably() {
+    console.log('--- Test: Sheet Rows To Text Date Stability ---');
+    loadScript('gas_main.js');
+
+    const d1 = new Date(Date.UTC(2026, 4, 10, 0, 0, 0));
+    const d2 = new Date(Date.UTC(2026, 4, 10, 18, 30, 0));
+
+    const text = _sheetRowsToText([['Evento', d1], ['Incontro', d2]]);
+    const lines = text.split('\n');
+
+    assert(lines[0] === 'Evento | 2026-05-10', `Data senza orario non stabile: ottenuto "${lines[0]}"`);
+    assert(lines[1] === 'Incontro | 2026-05-10 18:30', `Data con orario non stabile: ottenuto "${lines[1]}"`);
+}
+
 function testPortugueseDetectionRefinement() {
     console.log('--- Test: Portuguese Detection Refinement ---');
     loadScript('gas_gemini_service.js');
@@ -1239,6 +1264,7 @@ function main() {
         ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
         ['main: nessun leak globale hasExecutionLock', testMainDoesNotLeakHasExecutionLockGlobal],
         ['main: serializzazione robusta righe KB', testSheetRowsToTextRemovesEmptyCellsAndRows],
+        ['main: serializzazione date KB stabile', testSheetRowsToTextFormatsDatesStably],
         ['prompt context: temporal risk with object KB', testPromptContextTemporalRiskWithObjectKnowledgeBase],
         ['prompt context: circular object KB fallback', testPromptContextKnowledgeBaseCircularObjectDoesNotCrash],
         ['prompt KB truncation: hard limit chars rispettato', testPromptKbSemanticTruncationRespectsHardLimit],
@@ -1255,7 +1281,7 @@ function main() {
             console.log(`PASS ${name}`);
         } catch (e) {
             failed++;
-            console.error(`FAIL ${name}: ${e.message}\n${e.stack}`);
+            console.log(`FAIL ${name}: ${e.message}\n${e.stack}`);
         }
     }
 

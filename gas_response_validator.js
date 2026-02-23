@@ -978,7 +978,7 @@ class ResponseValidator {
       if (timeSlot === correctTimeSlot) continue; // Salta la fascia corretta
 
       for (const greeting of greetings) {
-        const regex = new RegExp(`^(\\s*)(${greeting})\\b`, 'i');
+        const regex = new RegExp(`^(\\s*[\\*#]*\\s*)(${greeting})\\b`, 'i');
         const match = firstPart.match(regex);
 
         if (match) {
@@ -1048,8 +1048,8 @@ class ResponseValidator {
     targets.forEach(word => {
       const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const apostropheAgnosticWord = escapedWord.replace(/'/g, "['\u2019]");
-      const regex = new RegExp(`,\\s+(${apostropheAgnosticWord})(?!\\w)`, 'g');
-      result = result.replace(regex, (fullMatch, p1, offset) => {
+      const regex = new RegExp(`,(\\s+)(${apostropheAgnosticWord})(?!\\w)`, 'g');
+      result = result.replace(regex, (fullMatch, sep, p1, offset) => {
         if (capitalizationExceptions.includes(p1)) {
           return fullMatch;
         }
@@ -1059,11 +1059,33 @@ class ResponseValidator {
         if (textAfter.match(/^\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]+/)) {
           return fullMatch; // Mantieni maiuscola: probabile nome doppio
         }
-        return `, ${p1.toLowerCase()}`;
+        return `,${sep}${p1.toLowerCase()}`;
       });
     });
 
     return result;
+  }
+
+  /**
+   * Escape metacaratteri per uso sicuro in RegExp
+   */
+  _escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
+   * Rimuove ragionamento esposto (thinking leak) in modo robusto
+   */
+  _rimuoviThinkingLeak(text) {
+    let cleaned = text;
+    // Usa thinkingPatterns come sorgente per le keyword di ragionamento
+    const keywords = this.thinkingPatterns || [];
+    keywords.forEach(kw => {
+      const escaped = this._escapeRegex(kw);
+      const regex = new RegExp(`\\b${escaped}[^.?!]*[.?!]`, 'gi');
+      cleaned = cleaned.replace(regex, '');
+    });
+    return cleaned.trim();
   }
 
   // ========================================================================

@@ -146,7 +146,7 @@ class GmailService {
   /**
    * Ottiene gli ID di tutti i messaggi con una specifica etichetta
    */
-  getMessageIdsWithLabel(labelName) {
+  getMessageIdsWithLabel(labelName, onlyInbox = true) {
     try {
       const label = this.getOrCreateLabel(labelName);
       const labelId = label.getId();
@@ -154,9 +154,13 @@ class GmailService {
       const messageIds = new Set();
       let pageToken;
 
+      // PATCH: Seleziona in base alla inbox per evitare di scaricare 10 anni di storico
+      const query = onlyInbox ? 'in:inbox' : '';
+
       do {
         const response = Gmail.Users.Messages.list('me', {
           labelIds: [labelId],
+          q: query,
           maxResults: 500,
           pageToken: pageToken
         });
@@ -168,7 +172,7 @@ class GmailService {
         pageToken = response.nextPageToken;
       } while (pageToken);
 
-      console.log(`📦 Trovati ${messageIds.size} messaggi con label '${labelName}'`);
+      console.log(`📦 Trovati ${messageIds.size} messaggi con label '${labelName}' (inbox: ${onlyInbox})`);
       return messageIds;
     } catch (e) {
       console.warn(`⚠️ Impossibile ottenere messaggi con label ${labelName}: ${e.message}`);
@@ -1483,19 +1487,25 @@ function markdownToHtml(text) {
   html = html.replace(/(?<!\*)\*(?!\*)(.+?)\*(?!\*)/g, '<em>$1</em>');
 
   // 5. Liste markdown (bullet e numerate) -> <ul>/ <ol> + <li>
-  // Ordered lists (1. item)
-  html = html.replace(/((?:^\d+\.\s+.+$\n?)+)/gm, (block) => {
-    const items = block.trim().split(/\n/).map(line =>
-      `<li>${line.replace(/^\d+\.\s+/, '')}</li>`
-    ).join('');
-    return `<ol style="margin:8px 0;padding-left:20px;">${items}</ol>`;
+  // Liste puntate (- item  oppure  * item all'inizio riga)
+  // Raggruppa righe consecutive con lo stesso prefisso in un unico <ul>
+  html = html.replace(/((?:^[ \t]*[-*][ \t]+.+(?:\n|$))+)/gm, (block) => {
+    const items = block
+      .split('\n')
+      .filter(l => l.trim())
+      .map(l => `<li>${l.replace(/^[ \t]*[-*][ \t]+/, '')}</li>`)
+      .join('');
+    return `<ul style="margin:6px 0;padding-left:20px;">${items}</ul>`;
   });
 
-  // Unordered lists (- item o * item)
-  html = html.replace(/^[•\-*]\s+(.+)$/gm, '<li>$1</li>');
-  html = html.replace(/(?:<li>.*?<\/li>\s*)+/gs, (block) => {
-    const cleaned = block.replace(/\n+/g, '');
-    return `<ul style="margin:8px 0;padding-left:20px;">${cleaned}</ul>`;
+  // Liste numerate (1. item)
+  html = html.replace(/((?:^[ \t]*\d+\.[ \t]+.+(?:\n|$))+)/gm, (block) => {
+    const items = block
+      .split('\n')
+      .filter(l => l.trim())
+      .map(l => `<li>${l.replace(/^[ \t]*\d+\.[ \t]+/, '')}</li>`)
+      .join('');
+    return `<ol style="margin:6px 0;padding-left:20px;">${items}</ol>`;
   });
 
   html = html.trim();
@@ -1533,11 +1543,16 @@ function markdownToHtml(text) {
     })
     .join('');
 
+  const startsWithBlock = /^\s*<(p|ul|ol|pre|h[1-6])/i.test(cleanedHtml);
+  const bodyContent = startsWithBlock ? cleanedHtml : `<p>${cleanedHtml}</p>`;
+
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
 <body style="font-family: Arial, Helvetica, sans-serif; font-size: 16px; color: #351c75; line-height: 1.6;">
-  ${(cleanedHtml.trim().startsWith('<p') || cleanedHtml.trim().startsWith('<ul') || cleanedHtml.trim().startsWith('<ol') || cleanedHtml.trim().startsWith('<pre') || cleanedHtml.trim().startsWith('<div') || cleanedHtml.trim().startsWith('<h')) ? cleanedHtml : `<p>${cleanedHtml}</p>`}
+  <div style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #351c75; line-height: 1.6;">
+    ${bodyContent}
+  </div>
 </body>
 </html>`;
 }
