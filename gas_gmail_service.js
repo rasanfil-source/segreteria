@@ -1494,8 +1494,6 @@ function markdownToHtml(text) {
   });
 
   html = html.trim();
-  html = html.replace(/\n\n+/g, '</p><p>');
-  html = html.replace(/\n/g, '<br>');
 
   // 7. Ripristina link e code blocks
   links.forEach((entry) => {
@@ -1517,14 +1515,23 @@ function markdownToHtml(text) {
     return char;
   }).join('');
 
-  // 9. Pulizia finale tag vuoti e wrapper RFC
-  const cleanedHtml = html.replace(/^(<\/p><p>)+|(<\/p><p>)+$/g, '');
+  // 9. Costruzione paragrafi evitando nesting invalido di <p>
+  const isBlockHtml = (fragment) => /^<(p|ul|ol|pre|div|h[1-6])\b/i.test(fragment.trim());
+  const cleanedHtml = html
+    .split(/\n\n+/)
+    .map(fragment => fragment.trim())
+    .filter(fragment => fragment.length > 0)
+    .map(fragment => {
+      const withLineBreaks = fragment.replace(/\n/g, '<br>');
+      return isBlockHtml(withLineBreaks) ? withLineBreaks : `<p>${withLineBreaks}</p>`;
+    })
+    .join('');
 
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
 <body style="font-family: Arial, Helvetica, sans-serif; font-size: 16px; color: #351c75; line-height: 1.6;">
-  ${(cleanedHtml.trim().startsWith('<p') || cleanedHtml.trim().startsWith('<ul') || cleanedHtml.trim().startsWith('<ol') || cleanedHtml.trim().startsWith('<pre')) ? cleanedHtml : `<p>${cleanedHtml}</p>`}
+  ${(cleanedHtml.trim().startsWith('<p') || cleanedHtml.trim().startsWith('<ul') || cleanedHtml.trim().startsWith('<ol') || cleanedHtml.trim().startsWith('<pre') || cleanedHtml.trim().startsWith('<div') || cleanedHtml.trim().startsWith('<h')) ? cleanedHtml : `<p>${cleanedHtml}</p>`}
 </body>
 </html>`;
 }

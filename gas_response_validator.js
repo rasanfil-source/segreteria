@@ -56,7 +56,6 @@ class ResponseValidator {
     this.placeholders = ['XXX', 'TODO', '<insert>', 'placeholder', 'tbd', 'TBD'];
 
     // Pattern di ragionamento esposto (thinking leak) - CRITICO
-    // Pattern di ragionamento esposto (thinking leak) - CRITICO
     // IBRIDO: Regex semantiche + pattern statici specifici
     this.thinkingRegexes = [
       /\b(devo|dovrei)\s+(correggere|modificare|aggiornare)\s+(la\s+risposta|il\s+prompt|il\s+testo)\b/i, // Meta-commenti AI (ristretto)
@@ -66,7 +65,7 @@ class ResponseValidator {
     ];
 
     this.thinkingPatterns = [
-      // Pattern conversazionali non catturati dalle regex
+      // Pattern conversazionali non catturati dalle regex 
       'rivedendo la knowledge base',
       'pensandoci bene',
       '(nota:',

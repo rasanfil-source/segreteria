@@ -134,7 +134,10 @@ class GeminiService {
 
     // Separazione errori di rete/quota vs contenuto con semplici if
     if ([429, 500, 502, 503, 504].includes(responseCode)) {
-      throw new Error(`Errore rete/server o quota (${responseCode}). Richiesto retry.`);
+      if (responseCode === 429) {
+        throw new Error('Quota o rate limit superato (429). Richiesto retry.');
+      }
+      throw new Error(`Errore server temporaneo (${responseCode}). Richiesto retry.`);
     }
 
     if (responseCode === 400) {
