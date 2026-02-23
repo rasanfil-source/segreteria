@@ -151,6 +151,14 @@ graph LR
 
 ### Breaking Changes Between Versions
 
+**2.3.6 → 2.3.7 (Current)**
+- ✅ **Rate Limiter**: Fixed variable shadowing and WAL persistence logic.
+- ✅ **Gmail Service**: Added markdown lists support and RFC-compliant HTML wrapper.
+- ✅ **Drive API**: Enforced 2MB limit for Image OCR to prevent API errors.
+- ✅ **Email Processor**: ES6 scope refactoring and smart memory truncation.
+- ✅ **Memory Service**: Fixed cache GC for falsy/corrupt keys.
+- ✅ **Response Validator**: Improved phone pattern to avoid false positives on dates.
+
 **2.3.5 → 2.3.6**
 - ✅ Added `const` declaration to `enrichedKnowledgeBase` for strict mode compliance.
 

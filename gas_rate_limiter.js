@@ -672,8 +672,8 @@ class GeminiRateLimiter {
       const wal = {
         timestamp: walTimestamp,
         // Mantieni finestra completa di sicurezza (max 100) per recovery coerente
-        rpm: mergedRpm.slice(-100),
-        tpm: mergedTpm.slice(-100)
+        rpm: mergedRpm.slice(),
+        tpm: mergedTpm.slice()
       };
 
       // 2. Scrivi WAL prima (checkpoint di sicurezza)
@@ -799,8 +799,8 @@ class GeminiRateLimiter {
     }
 
     // Altrimenti leggi da PropertiesService
-    const window = JSON.parse(this.props.getProperty(windowType + '_window') || '[]');
-    return window.filter(function (e) {
+    const windowData = JSON.parse(this.props.getProperty(windowType + '_window') || '[]');
+    return windowData.filter(function (e) {
       return e.modelKey === modelKey && (now - e.timestamp < 60000);
     }).length;
   }
@@ -820,8 +820,8 @@ class GeminiRateLimiter {
     }
 
     // Fallback PropertiesService
-    const window = JSON.parse(this.props.getProperty(windowType + '_window') || '[]');
-    return window
+    const windowData = JSON.parse(this.props.getProperty(windowType + '_window') || '[]');
+    return windowData
       .filter(function (e) {
         return e.modelKey === modelKey && (now - e.timestamp < 60000);
       })

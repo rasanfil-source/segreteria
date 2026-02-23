@@ -589,7 +589,9 @@ class ResponseValidator {
     }
 
     // === Controllo numeri telefono ===
-    const phonePattern = /\b(?:\+?\d{1,3})?[\s.-]?\d{2,4}[\s.-]?\d{2,4}[\s.-]?\d{2,4}[\s.-]?\d{2,4}\b/g;
+    // BUG-7: Pattern più selettivo: richiede prefisso internazionale o separatori standard
+    // Esclude pattern data (GG/MM/AAAA) e orari common
+    const phonePattern = /(?:\+\d{1,3}[\s.-])?\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]\d{3,4}(?!\d)/g;
     const responsePhonesRaw = response.match(phonePattern) || [];
     const kbPhonesRaw = safeKnowledgeBase.match(phonePattern) || [];
 

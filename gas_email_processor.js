@@ -110,12 +110,12 @@ class EmailProcessor {
     // ACQUISIZIONE LOCK (LIVELLO-THREAD) - Previene condizioni di conflitto
     // ====================================================================================================
 
-    var lockAcquired = false;
-    var scriptCache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
+    let lockAcquired = false;
+    const scriptCache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
       ? CacheService.getScriptCache()
       : null;
-    var threadLockKey = `thread_lock_${threadId}`;
-    var lockValue = null;
+    const threadLockKey = `thread_lock_${threadId}`;
+    let lockValue = null;
 
     if (skipLock) {
       console.log(`🔒 Lock saltato per thread ${threadId} (chiamante ha già lock)`);
@@ -1436,7 +1436,9 @@ ${addressLines.join('\n\n')}
     if (summary.length > maxChars) {
       const truncated = summary.slice(0, maxChars);
       const lastBreak = truncated.lastIndexOf('\n');
-      summary = (lastBreak > 0 ? truncated.slice(0, lastBreak) : truncated).trim();
+      const lastSpace = truncated.lastIndexOf(' ');
+      const cutIndex = lastBreak > 0 ? lastBreak : (lastSpace > 0 ? lastSpace : maxChars);
+      summary = truncated.slice(0, cutIndex).trim() + '...';
     }
 
     return summary || null;

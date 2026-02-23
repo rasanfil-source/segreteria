@@ -47,11 +47,18 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **Cycle v2.3.7 (Resilience & Compliance)**:
+    *   **Rate Limiter**: Risolto shadowing variabile `window` e ottimizzata persistenza WAL.
+    *   **Gmail Service**: Supporto liste markdown e wrapper HTML RFC-compliant.
+    *   **Drive OCR**: Limite immagini a 2MB per stabilità API Drive.
+    *   **Email Processor**: Refactoring scope lock e troncamento memoria intelligente.
+    *   **Memory Service**: Fix GC cache per chiavi falsy/corrotte.
+    *   **Response Validator**: Pattern telefonico selettivo (anti-falsi positivi date).
 *   **Cycle v2.3.6 (Strict Mode & Hardening)**:
-    *   **Dichiarazioni Variabili**: Corretta la dichiarazione di `enrichedKnowledgeBase` con `const` per una maggiore aderenza allo strict mode.
-    *   **Allineamento Fallback (v2.3.5)**: Garantita la coerenza dell'oggetto `classification` anche in scenari di errore API.
-    *   **KB Semantic Hard-Cap (v2.3.5)**: Rafforzato il rispetto del budget dei token Knowledge Base tramite troncamento ferreo.
-    *   **Lock Management (v2.3.5)**: Rimozione lock ridondanti per prevenire lock starvation.
+    *   **Dichiarazioni Variabili**: Corretta la dichiarazione di `enrichedKnowledgeBase` con `const`.
+    *   **Allineamento Fallback (v2.3.5)**: Garantita coerenza oggetto `classification`.
+    *   **KB Semantic Hard-Cap (v2.3.5)**: Rispetto budget token KB.
+    *   **Lock Management (v2.3.5)**: Rimozione lock ridondanti.
 
 
 ---

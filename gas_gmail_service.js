@@ -358,9 +358,13 @@ class GmailService {
       }
 
 
-      const size = attachment.getSize ? attachment.getSize() : 0;
-      if (size > settings.maxBytesPerFile) {
-        skipped.push({ name: attachmentName, reason: 'too_large', size: size });
+      size = attachment.getSize ? attachment.getSize() : 0;
+      contentType = (attachment.getContentType() || '').toLowerCase();
+      isImage = contentType.startsWith('image/');
+      const maxAllowedSize = isImage ? (2 * 1024 * 1024) : settings.maxBytesPerFile;
+
+      if (size > maxAllowedSize) {
+        skipped.push({ name: attachmentName, reason: 'too_large_for_ocr', size: size, limit: maxAllowedSize });
         continue;
       }
 
@@ -1473,14 +1477,23 @@ function markdownToHtml(text) {
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/(?<!\*)\*(?!\*)(.+?)\*(?!\*)/g, '<em>$1</em>');
 
-  // 5. Liste markdown (bullet) -> <ul><li>
+  // 5. Liste markdown (bullet e numerate) -> <ul>/ <ol> + <li>
+  // Ordered lists (1. item)
+  html = html.replace(/((?:^\d+\.\s+.+$\n?)+)/gm, (block) => {
+    const items = block.trim().split(/\n/).map(line =>
+      `<li>${line.replace(/^\d+\.\s+/, '')}</li>`
+    ).join('');
+    return `<ol style="margin:8px 0;padding-left:20px;">${items}</ol>`;
+  });
+
+  // Unordered lists (- item o * item)
   html = html.replace(/^[•\-*]\s+(.+)$/gm, '<li>$1</li>');
   html = html.replace(/(?:<li>.*?<\/li>\s*)+/gs, (block) => {
     const cleaned = block.replace(/\n+/g, '');
     return `<ul style="margin:8px 0;padding-left:20px;">${cleaned}</ul>`;
   });
 
-  // 6. Paragraphs e line breaks (prima del ripristino placeholder)
+  html = html.trim();
   html = html.replace(/\n\n+/g, '</p><p>');
   html = html.replace(/\n/g, '<br>');
 
@@ -1504,14 +1517,14 @@ function markdownToHtml(text) {
     return char;
   }).join('');
 
-  return `
-    <div style="
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 20px;
-      color: #351c75;
-      line-height: 1.6;
-    ">
-      ${(html.trim().startsWith('<p') || html.trim().startsWith('<ul') || html.trim().startsWith('<pre')) ? html : `<p>${html}</p>`}
-    </div>
-  `;
+  // 9. Pulizia finale tag vuoti e wrapper RFC
+  const cleanedHtml = html.replace(/^(<\/p><p>)+|(<\/p><p>)+$/g, '');
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: Arial, Helvetica, sans-serif; font-size: 16px; color: #351c75; line-height: 1.6;">
+  ${(cleanedHtml.trim().startsWith('<p') || cleanedHtml.trim().startsWith('<ul') || cleanedHtml.trim().startsWith('<ol') || cleanedHtml.trim().startsWith('<pre')) ? cleanedHtml : `<p>${cleanedHtml}</p>`}
+</body>
+</html>`;
 }

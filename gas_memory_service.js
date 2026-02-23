@@ -965,7 +965,12 @@ class MemoryService {
     let deletedCount = 0;
 
     for (const key in this._cache) {
-      if (!this._cache[key]) continue;
+      // BUG-5: Elimina entry null/undefined (corrotte) o scadute
+      if (!this._cache[key] || !this._cache[key].timestamp) {
+        delete this._cache[key];
+        deletedCount++;
+        continue;
+      }
       if (now - this._cache[key].timestamp > this._cacheExpiry) {
         delete this._cache[key];
         deletedCount++;
