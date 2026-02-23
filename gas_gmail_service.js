@@ -609,7 +609,7 @@ class GmailService {
       // O generica: IT\d{2}[A-Z]\d{10}[A-Z0-9]{12}
       // Usiamo una regex che cattura 'IT' seguito da 25 chars circa
       // Regex IBAN universale (27 paesi EU + altri SEPA)
-      const ibanRegex = /\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b/i;
+      const ibanRegex = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]){10,30}\b/i;
       const match = cleaned.match(ibanRegex);
 
       if (match) {
@@ -639,7 +639,7 @@ class GmailService {
 
     // Regex IBAN italiano (IT + 2 cifre controllo + 1 lettera CIN + 22 alfanumerici)
     // Regex IBAN universale (27 paesi EU + altri SEPA)
-    const ibanRegex = /\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b/i;
+    const ibanRegex = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]){10,30}\b/i;
     const match = text.match(ibanRegex);
 
     if (!match) {
@@ -1468,7 +1468,8 @@ function markdownToHtml(text) {
     const escapedText = escapeHtml(linkText);
     const token = `@@LINK_PLACEHOLDER_${links.length}_${Utilities.getUuid()}@@`;
     if (sanitizedUrl) {
-      links.push({ token: token, value: `<a href="${sanitizedUrl}" style="color:#351c75;">${escapedText}</a>` });
+      const hrefSafe = sanitizedUrl.replace(/&(?!amp;|lt;|gt;|quot;|#39;)/g, '&amp;');
+      links.push({ token: token, value: `<a href="${hrefSafe}" style="color:#351c75;">${escapedText}</a>` });
     } else {
       console.warn(`⚠️ URL bloccato per sicurezza: ${url}`);
       links.push({ token: token, value: escapedText });

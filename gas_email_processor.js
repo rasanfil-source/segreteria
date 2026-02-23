@@ -124,7 +124,7 @@ class EmailProcessor {
     } else {
       const configuredTtl = (typeof CONFIG !== 'undefined' && Number(CONFIG.CACHE_LOCK_TTL))
         ? Number(CONFIG.CACHE_LOCK_TTL)
-        : 45; // Default lowered to 45s to avoid orphaned locks preventing subsequent rapid retries
+        : 240; // Fallback allineato al default config per coprire OCR + validazione semantica
 
       const ttlSeconds = configuredTtl;
       const lockTtlMs = ttlSeconds * 1000;

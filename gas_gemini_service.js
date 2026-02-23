@@ -543,12 +543,27 @@ Output JSON:
       countMatches(englishStandardKeywords, text, 1);
     const spanishLexicalScore = countMatches(spanishKeywords, text, 1);
 
+    const ptUniqueScore = countMatches(portugueseUniqueKeywords, text, 2);
+    const ptStandardScore = countMatches(portugueseStandardKeywords, text, 1);
+
     const scores = {
       'en': englishScore,
       'es': spanishLexicalScore + Math.min(spanishCharScore, 2),
       'it': countMatches(italianKeywords, text, 1),
-      'pt': countMatches(portugueseUniqueKeywords, text, 2) + countMatches(portugueseStandardKeywords, text, 1) + Math.min(portugueseCharScore, 2)
+      'pt': ptUniqueScore + ptStandardScore + Math.min(portugueseCharScore, 2)
     };
+
+    // Disambiguazione ES/PT su testi brevi: evita confusione quando i punteggi sono quasi pari.
+    const compactText = text.replace(/\s+/g, ' ').trim();
+    if (compactText.length <= 120 && Math.abs(scores.es - scores.pt) <= 1 && Math.max(scores.es, scores.pt) >= 2) {
+      const ptStrongMarkers = /\b(não|vocês|estou|obrigad[oa]|orçamento|viatura|portagens|agradecemos|cumprimentos)\b/i;
+      const esStrongMarkers = /\b(usted|ustedes|gracias|presupuesto|coche|iglesia|parroquia|estimado|querido)\b/i;
+      if (ptStrongMarkers.test(compactText) && !esStrongMarkers.test(compactText)) {
+        scores.pt += 1;
+      } else if (esStrongMarkers.test(compactText) && !ptStrongMarkers.test(compactText)) {
+        scores.es += 1;
+      }
+    }
 
     console.log(`   Punteggi lingua: EN = ${scores['en']}, ES = ${scores['es']}, PT = ${scores['pt']}, IT = ${scores['it']}`);
 

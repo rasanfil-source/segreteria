@@ -218,6 +218,18 @@ function testClassifyErrorNonRetryable() {
     assert(unknown.retryable === false, 'Errore UNKNOWN NON deve essere retryable');
 }
 
+function testClassifyErrorTimeoutSignals() {
+    loadScript('gas_error_types.js');
+
+    const httpTimeout = classifyError(new Error('HTTP 408 Request Timeout'));
+    assert(httpTimeout.type === 'TIMEOUT', `Atteso TIMEOUT su 408, ottenuto "${httpTimeout.type}"`);
+    assert(httpTimeout.retryable === true, 'Errore 408 deve essere retryable');
+
+    const connAborted = classifyError(new Error('read ECONNABORTED while contacting API'));
+    assert(connAborted.type === 'TIMEOUT', `Atteso TIMEOUT su ECONNABORTED, ottenuto "${connAborted.type}"`);
+    assert(connAborted.retryable === true, 'Errore ECONNABORTED deve essere retryable');
+}
+
 // ========================================================================
 // TEST GEMINI SERVICE
 // ========================================================================
@@ -1245,6 +1257,7 @@ function main() {
         // Error Types (classificazione centralizzata)
         ['classifyError: quota/429 → retryable', testClassifyErrorQuota],
         ['classifyError: API key/invalid → non-retryable', testClassifyErrorNonRetryable],
+        ['classifyError: timeout/408/econnaborted → retryable', testClassifyErrorTimeoutSignals],
         // GeminiService
         ['portuguese special greeting', testPortugueseSpecialGreeting],
         ['gemini DI + mock fetch', testGeminiDependencyInjectionAndMockFetch],

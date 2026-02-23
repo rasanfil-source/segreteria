@@ -44,7 +44,8 @@ function classifyError(error) {
     }
 
     if (message.includes('timeout') || message.includes('deadline exceeded') ||
-        message.includes('econnreset')) {
+        message.includes('econnreset') || message.includes('econnaborted') ||
+        message.includes('408') || message.includes('request timed out')) {
         return { type: ErrorTypes.TIMEOUT, retryable: true, message: message };
     }
 
