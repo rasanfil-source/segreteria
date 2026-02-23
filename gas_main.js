@@ -548,6 +548,11 @@ function main() {
     // 2. Caricamento Risorse (Config, KB, Blacklist)
     withSheetsRetry(() => loadResources(false, true), 'loadResources(main)');
 
+    if (!GLOBAL_CACHE.loaded) {
+      console.error('💥 Risorse non caricate correttamente (GLOBAL_CACHE.loaded=false). Interruzione preventiva.');
+      return;
+    }
+
     // 3. Controllo Stato Sistema
     if (!GLOBAL_CACHE.systemEnabled) {
       console.log('🛑 Sistema disattivato da foglio Controllo.');

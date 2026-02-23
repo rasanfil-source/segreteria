@@ -1085,6 +1085,11 @@ ${addressLines.join('\n\n')}
     }
 
     try {
+      if (knowledgeBase === null || typeof knowledgeBase === 'undefined') {
+        this.logger.error('Knowledge base non disponibile: interrompo batch per evitare risposte senza contesto.');
+        return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'knowledge_base_missing' };
+      }
+
       if (this.config.dryRun) {
         console.warn('🔴 MODALITÀ DRY_RUN ATTIVA - Email NON inviate!');
       }
