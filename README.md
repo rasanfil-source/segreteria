@@ -151,6 +151,9 @@ graph LR
 
 ### Breaking Changes Between Versions
 
+**2.3.5 → 2.3.6**
+- ✅ Added `const` declaration to `enrichedKnowledgeBase` for strict mode compliance.
+
 **2.3.4 → 2.3.5**
 - ✅ Alignment of `classification` object in fallbacks
 - ✅ Enforced hard-cap for KB semantic truncation

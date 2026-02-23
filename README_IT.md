@@ -47,10 +47,12 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
-48: *   **Cycle v2.3.5 (Consistency & Reliability)**:
-49:     *   **Allineamento Fallback**: Garantita la coerenza dell'oggetto `classification` anche in scenari di errore API (elimina crash a valle).
-50:     *   **KB Semantic Hard-Cap**: Rafforzato il rispetto del budget dei token Knowledge Base tramite troncamento ferreo ("hard-cap").
-51:     *   **Lock Management**: Rimozione lock ridondanti per prevenire lock starvation durante esecuzioni parallele o sequenziali rapide.
+*   **Cycle v2.3.6 (Strict Mode & Hardening)**:
+    *   **Dichiarazioni Variabili**: Corretta la dichiarazione di `enrichedKnowledgeBase` con `const` per una maggiore aderenza allo strict mode.
+    *   **Allineamento Fallback (v2.3.5)**: Garantita la coerenza dell'oggetto `classification` anche in scenari di errore API.
+    *   **KB Semantic Hard-Cap (v2.3.5)**: Rafforzato il rispetto del budget dei token Knowledge Base tramite troncamento ferreo.
+    *   **Lock Management (v2.3.5)**: Rimozione lock ridondanti per prevenire lock starvation.
+
 
 ---
 

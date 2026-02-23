@@ -541,7 +541,7 @@ class EmailProcessor {
         }
       }
 
-      enrichedKnowledgeBase = knowledgeSections.filter(Boolean).join('\n\n');
+      const enrichedKnowledgeBase = knowledgeSections.filter(Boolean).join('\n\n');
 
       // ====================================================================================================
       // STEP 6: STORICO CONVERSAZIONE
