@@ -969,8 +969,14 @@ class GmailService {
       } catch (fallbackError) {
         console.error(`❌ CRITICO: Invio risposta alternativo fallito: ${fallbackError.message}`);
         const errorLabel = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME) ? CONFIG.ERROR_LABEL_NAME : 'Errore';
-        if (mailEntity && typeof mailEntity.getMessages === 'function') {
-          this.addLabelToThread(mailEntity, errorLabel);
+        if (mailEntity) {
+          const targetThread = (typeof mailEntity.getThread === 'function')
+            ? mailEntity.getThread()
+            : mailEntity;
+
+          if (targetThread && typeof targetThread.getMessages === 'function') {
+            this.addLabelToThread(targetThread, errorLabel);
+          }
         }
       }
     }

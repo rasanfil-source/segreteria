@@ -407,17 +407,26 @@ class EmailProcessor {
           console.warn('   ⚠️ Email utente non disponibile: skip controllo anti-loop basato su mittente');
         }
         let consecutiveExternal = 0;
+        const knownAliases = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES))
+          ? CONFIG.KNOWN_ALIASES.map(alias => String(alias || '').toLowerCase())
+          : [];
+        const normalizedMyEmail = myEmail ? myEmail.toLowerCase() : '';
 
         for (let i = messages.length - 1; i >= 0; i--) {
           const msgFrom = messages[i].getFrom().toLowerCase();
-          if (myEmail && !msgFrom.includes(myEmail.toLowerCase())) {
+          const isUs = Boolean(normalizedMyEmail) && (
+            msgFrom.includes(normalizedMyEmail) ||
+            knownAliases.some(alias => alias && msgFrom.includes(alias))
+          );
+
+          if (!isUs) {
             consecutiveExternal++;
           } else {
             break;
           }
         }
 
-        if (myEmail && consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
+        if (normalizedMyEmail && consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
           console.log(`   ⊖ Saltato: probabile loop email (${consecutiveExternal} esterni consecutivi)`);
           this._markMessageAsProcessed(candidate, labeledMessageIds);
           result.status = 'filtered';
