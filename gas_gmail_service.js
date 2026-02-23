@@ -1383,7 +1383,8 @@ function sanitizeUrl(url) {
  * Applicato PRIMA delle trasformazioni markdown.
  */
 function escapeHtml(text) {
-  return text
+  const value = (text === null || typeof text === 'undefined') ? '' : String(text);
+  return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -1396,7 +1397,8 @@ function escapeHtml(text) {
  * Strategia: escape-first, poi trasformazioni markdown.
  */
 function markdownToHtml(text) {
-  if (!text) return '';
+  if (text === null || typeof text === 'undefined') return '';
+  const inputText = (typeof text === 'string') ? text : String(text);
 
   const replaceMarkdownLinks = (input, replacer) => {
     let result = '';
@@ -1452,7 +1454,7 @@ function markdownToHtml(text) {
 
   // 1. Proteggi code blocks (prima dell'escape globale)
   const codeBlocks = [];
-  let html = text.replace(/```[\s\S]*?```/g, (match) => {
+  let html = inputText.replace(/```[\s\S]*?```/g, (match) => {
     const sanitized = escapeHtml(match.replace(/```/g, '').trim());
     const token = `@@CODEBLOCK_PLACEHOLDER_${codeBlocks.length}_${Utilities.getUuid()}@@`;
     codeBlocks.push({ token: token, value: sanitized });

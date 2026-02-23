@@ -824,9 +824,13 @@ class MemoryService {
         // Normalizzazione dati: converte stringhe semplici in oggetti strutturati
         providedInfo = Array.isArray(raw) ? raw.map(item => {
           if (typeof item === 'string') return { topic: item, userReaction: 'unknown', context: null, timestamp: new Date().toISOString() };
-          // Standardizzazione: allinea la nomenclatura dei campi
-          if (item.reaction && !item.userReaction) item.userReaction = item.reaction;
-          return item;
+          // Standardizzazione: allinea la nomenclatura senza mutare l'input originale
+          const normalized = Object.assign({}, item);
+          if (normalized.reaction && !normalized.userReaction) {
+            normalized.userReaction = normalized.reaction;
+            delete normalized.reaction;
+          }
+          return normalized;
         }) : [];
       }
     } catch (e) {

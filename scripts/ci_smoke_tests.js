@@ -1013,6 +1013,19 @@ function testEscapeHtml() {
 
     const amp = escapeHtml('A & B');
     assert(amp === 'A &amp; B', `escapeHtml deve convertire &, ottenuto: "${amp}"`);
+
+    const numeric = escapeHtml(12345);
+    assert(numeric === '12345', `escapeHtml deve gestire input non-stringa, ottenuto: "${numeric}"`);
+}
+
+function testMarkdownToHtmlNonStringInput() {
+    loadScript('gas_gmail_service.js');
+
+    const numeric = markdownToHtml(42);
+    assert(numeric.includes('<p>42</p>'), `markdownToHtml deve serializzare numeri in modo sicuro, ottenuto: ${numeric}`);
+
+    const objectValue = markdownToHtml({ a: 1 });
+    assert(objectValue.includes('<p>[object Object]</p>'), `markdownToHtml deve serializzare oggetti senza eccezioni, ottenuto: ${objectValue}`);
 }
 
 function testSanitizeUrlIPv6() {
@@ -1256,6 +1269,7 @@ function main() {
         ['golden set: regressione output strutturale', runGoldenCases],
         // Sicurezza
         ['escapeHtml: neutralizza XSS', testEscapeHtml],
+        ['markdownToHtml: input non stringa robusto', testMarkdownToHtmlNonStringInput],
         ['sanitizeUrl: blocca IPv6/decimale/userinfo', testSanitizeUrlIPv6],
         ['markdownToHtml: escape-first previene XSS', testMarkdownToHtmlXss],
         ['markdownToHtml: supporta URL con parentesi', testMarkdownLinkWithParentheses],
