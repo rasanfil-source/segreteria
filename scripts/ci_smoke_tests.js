@@ -1078,6 +1078,20 @@ function testMarkdownLinkWithParentheses() {
     );
 }
 
+function testMarkdownLinkQueryParamsNotDoubleEscaped() {
+    loadScript('gas_gmail_service.js');
+
+    const result = markdownToHtml('Portale: [Accedi](https://example.com/login?token=a&lang=it)');
+    assert(
+        result.includes('href="https://example.com/login?token=a&amp;lang=it"'),
+        `I parametri query devono essere escaped una sola volta, ottenuto: ${result}`
+    );
+    assert(
+        !result.includes('&amp;amp;lang=it'),
+        `Rilevato double-escape dei parametri query, ottenuto: ${result}`
+    );
+}
+
 function testAddLabelToThreadPropagatesNonLabelErrors() {
     loadScript('gas_gmail_service.js');
 
@@ -1220,6 +1234,7 @@ function main() {
         ['sanitizeUrl: blocca IPv6/decimale/userinfo', testSanitizeUrlIPv6],
         ['markdownToHtml: escape-first previene XSS', testMarkdownToHtmlXss],
         ['markdownToHtml: supporta URL con parentesi', testMarkdownLinkWithParentheses],
+        ['markdownToHtml: query params senza double-escape', testMarkdownLinkQueryParamsNotDoubleEscaped],
         ['gmail labels: errori non-label vengono propagati', testAddLabelToThreadPropagatesNonLabelErrors],
         ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
         ['main: nessun leak globale hasExecutionLock', testMainDoesNotLeakHasExecutionLockGlobal],
