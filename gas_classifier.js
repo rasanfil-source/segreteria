@@ -235,11 +235,12 @@ class Classifier {
       processedBody = processedBody.substring(0, firstQuoteIdx);
     }
 
-    // Sostituzione globale per tag chiusi correttamente (gestisce anche l'annidamento se ripetuta un paio di volte)
-    for (let i = 0; i < 3; i++) {
-      const previous = processedBody;
+    // FIX: Rimozione blockquote più sicura e performante (evita stalli regex su HTML complessi)
+    let iterations = 0;
+    const MAX_ITERATIONS = 5;
+    while (/<blockquote/i.test(processedBody) && iterations < MAX_ITERATIONS) {
       processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
-      if (processedBody === previous) break; // Esci se non c'è più nulla da pulire
+      iterations++;
     }
 
     // Fallback di sicurezza: rimuove i tag blockquote spaiati o malformati rimanenti (troncando tutto ciò che segue)

@@ -462,8 +462,9 @@ class EmailProcessor {
       // STEP 0.8: ANTI-MITTENTE-NOREPLY
       // ====================================================================================================
       const senderInfo = `${messageDetails.senderEmail} ${messageDetails.senderName}`.toLowerCase();
-      if (/no-reply|do-not-reply|noreply/i.test(senderInfo)) {
-        console.log('   ⊖ Saltato: mittente o nome no-reply');
+      const autoPattern = /no-reply|do-not-reply|noreply|daemon|postmaster|bounce|mailer/i;
+      if (autoPattern.test(senderInfo)) {
+        console.log('   ⊖ Saltato: mittente rilevato come casella automatica o no-reply');
         this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'filtered';
         result.reason = 'no_reply_sender';
