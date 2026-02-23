@@ -390,7 +390,11 @@ Output JSON:
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        return fn();
+        const result = fn();
+        if (typeof result === 'undefined') {
+          throw new Error("La funzione ha restituito undefined in modo silente");
+        }
+        return result;
       } catch (error) {
         lastError = error;
 

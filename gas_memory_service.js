@@ -747,6 +747,7 @@ class MemoryService {
       try {
         try {
           if (cache.get(key) != null) {
+            console.warn(`\u26A0\uFE0F Lock sharded già acquisito o presente: ${key}`);
             return false; // Già lockato
           }
           cache.put(key, '1', lockTtlSeconds);

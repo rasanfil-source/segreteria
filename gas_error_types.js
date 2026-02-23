@@ -39,15 +39,15 @@ function classifyError(error) {
         return { type: ErrorTypes.TIMEOUT, retryable: true, message: message };
     }
 
-    if (message.includes('invalid') || message.includes('malformed') ||
-        message.includes('invalid_argument') || message.includes('non json valida')) {
-        return { type: ErrorTypes.INVALID_RESPONSE, retryable: false, message: message };
-    }
-
     if (message.includes('500') || message.includes('502') ||
         message.includes('503') || message.includes('504') ||
         message.includes('service unavailable')) {
         return { type: ErrorTypes.NETWORK, retryable: true, message: message };
+    }
+
+    if (message.includes('invalid') || message.includes('malformed') ||
+        message.includes('invalid_argument') || message.includes('non json valida')) {
+        return { type: ErrorTypes.INVALID_RESPONSE, retryable: false, message: message };
     }
 
     return { type: ErrorTypes.UNKNOWN, retryable: false, message: message };

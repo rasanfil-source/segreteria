@@ -133,7 +133,13 @@ class EmailProcessor {
       const entropy = Math.random().toString(36).substring(2, 8);
       lockValue = `${Date.now()}_${entropy}`;
 
+      const scriptLock = LockService.getScriptLock();
       try {
+        if (!scriptLock.tryLock(5000)) {
+          console.warn(`🔒 Impossibile acquisire lock globale per thread ${threadId}, salto`);
+          return { status: 'skipped', reason: 'global_lock_unavailable' };
+        }
+
         const existingLock = scriptCache.get(threadLockKey);
         if (existingLock) {
           const existingTimestamp = Number(String(existingLock).split('_')[0]);
@@ -149,11 +155,23 @@ class EmailProcessor {
         }
 
         scriptCache.put(threadLockKey, lockValue, ttlSeconds);
+        const confirmValue = scriptCache.get(threadLockKey);
+        if (confirmValue !== lockValue) {
+          console.warn(`🔒 Collisione lock cache su thread ${threadId}, salto`);
+          return { status: 'skipped', reason: 'thread_lock_collision' };
+        }
+
         lockAcquired = true;
         console.log(`🔒 Lock acquisito per thread ${threadId}`);
       } catch (e) {
         console.warn(`⚠️ Errore acquisizione lock thread: ${e.message}`);
         return { status: 'error', error: 'Lock acquisition failed' };
+      } finally {
+        if (scriptLock && typeof scriptLock.releaseLock === 'function') {
+          try {
+            scriptLock.releaseLock();
+          } catch (_) { }
+        }
       }
     }
 

@@ -1528,6 +1528,7 @@ function markdownToHtml(text) {
     .filter(fragment => fragment.length > 0)
     .map(fragment => {
       const withLineBreaks = fragment.replace(/\n/g, '<br>');
+      if (!withLineBreaks || withLineBreaks === '<br>') return withLineBreaks;
       return isBlockHtml(withLineBreaks) ? withLineBreaks : `<p>${withLineBreaks}</p>`;
     })
     .join('');

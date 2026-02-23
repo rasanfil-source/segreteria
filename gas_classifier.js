@@ -227,6 +227,14 @@ class Classifier {
       processedBody = processedBody.substring(0, MAX_LENGTH);
     }
 
+    // Fast-path: evita regex su body enormi tagliando subito dalla prima citazione HTML nota.
+    const firstBlockquoteIdx = processedBody.toLowerCase().indexOf('<blockquote');
+    const firstGmailQuoteIdx = processedBody.toLowerCase().indexOf('class="gmail_quote"');
+    const firstQuoteIdx = [firstBlockquoteIdx, firstGmailQuoteIdx].filter(idx => idx >= 0).sort((a, b) => a - b)[0];
+    if (typeof firstQuoteIdx === 'number') {
+      processedBody = processedBody.substring(0, firstQuoteIdx);
+    }
+
     // Sostituzione globale per tag chiusi correttamente (gestisce anche l'annidamento se ripetuta un paio di volte)
     for (let i = 0; i < 3; i++) {
       const previous = processedBody;
