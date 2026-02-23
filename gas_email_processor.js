@@ -386,7 +386,9 @@ class EmailProcessor {
         /\b(thank you for your message|mailbox monitored periodically|messaggio ricevuto)\b/i
       ];
 
-      if (outOfOfficePatterns.some(p => p.test(`${messageDetails.subject} ${messageDetails.body}`))) {
+      const oooSubject = messageDetails.subject || '';
+      const oooBody = messageDetails.body || '';
+      if (outOfOfficePatterns.some(p => p.test(`${oooSubject} ${oooBody}`))) {
         console.log('   ⊖ Saltato: risposta automatica out-of-office (testo)');
         this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'filtered';

@@ -700,8 +700,10 @@ class GmailService {
       return angleMatch[1];
     }
 
-    // Punto 3: Regex più robusta per l'estrazione degli indirizzi email
-    const emailMatch = fromField.match(/\b[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b/i);
+    // Evita regex RFC5322 troppo complesse (rischio backtracking su input malevoli).
+    // Header From di Gmail sono già sanificati: pattern snello e lineare è sufficiente.
+    const safeFromField = fromField.length > 512 ? fromField.substring(0, 512) : fromField;
+    const emailMatch = safeFromField.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
     if (emailMatch) {
       return emailMatch[0];
     }
@@ -940,7 +942,8 @@ class GmailService {
           `--${boundary}--`
         ].join('\r\n');
 
-        const encodedMessage = Utilities.base64EncodeWebSafe(rawMessage);
+        // Gmail API RAW richiede base64url RFC4648 senza padding finale '='.
+        const encodedMessage = Utilities.base64EncodeWebSafe(rawMessage).replace(/=+$/, '');
 
         Gmail.Users.Messages.send({
           raw: encodedMessage,
