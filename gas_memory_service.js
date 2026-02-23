@@ -831,7 +831,12 @@ class MemoryService {
       }
     } catch (e) {
       // Fallback per vecchi formati non JSON (se esistenti) o errori
-      providedInfo = values[4] ? [{ topic: String(values[4]), reaction: 'unknown' }] : [];
+      providedInfo = values[4] ? [{
+        topic: String(values[4]),
+        userReaction: 'unknown',
+        context: null,
+        timestamp: new Date().toISOString()
+      }] : [];
     }
 
     const lastUpdated = this._validateAndNormalizeTimestamp(values[5]);

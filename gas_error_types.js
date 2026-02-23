@@ -21,7 +21,16 @@ const ErrorTypes = {
  * @returns {{ type: string, retryable: boolean, message: string }}
  */
 function classifyError(error) {
-    const message = String(error && error.message || error || '').toLowerCase();
+    const message = String((error != null && error.message != null ? error.message : error) || '').toLowerCase();
+
+    // I messaggi 5xx possono contenere la parola "quota" (es. "Errore rete/server o quota (503)").
+    // Manteniamo priorità alla classificazione NETWORK per evitare falsi positivi QUOTA_EXCEEDED.
+    if (message.includes('rete/server') || message.includes('network') ||
+        message.includes('500') || message.includes('502') ||
+        message.includes('503') || message.includes('504') ||
+        message.includes('service unavailable')) {
+        return { type: ErrorTypes.NETWORK, retryable: true, message: message };
+    }
 
     if (message.includes('quota') || message.includes('rate limit') ||
         message.includes('429') || message.includes('resource_exhausted')) {
@@ -37,12 +46,6 @@ function classifyError(error) {
     if (message.includes('timeout') || message.includes('deadline exceeded') ||
         message.includes('econnreset')) {
         return { type: ErrorTypes.TIMEOUT, retryable: true, message: message };
-    }
-
-    if (message.includes('500') || message.includes('502') ||
-        message.includes('503') || message.includes('504') ||
-        message.includes('service unavailable')) {
-        return { type: ErrorTypes.NETWORK, retryable: true, message: message };
     }
 
     if (message.includes('invalid') || message.includes('malformed') ||
