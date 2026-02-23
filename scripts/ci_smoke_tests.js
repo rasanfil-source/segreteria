@@ -12,7 +12,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
-const MIN_EXPECTED_TESTS = 37;
+const MIN_EXPECTED_TESTS = 38;
 
 const loadedScripts = new Set();
 
@@ -1296,7 +1296,18 @@ function testPortugueseDetectionRefinement() {
     assert(result.confidence >= 2, `Punteggio PT atteso >= 2, ottenuto ${result.confidence}`);
 }
 
-// ========================================================================
+function testClassifierBackwardQuoteScan() {
+    console.log('--- Test: Classifier Backward Quote Scan ---');
+    loadScript('gas_classifier.js');
+    const classifier = createClassifier();
+
+    // Body molto lungo con citazione alla fine (scenari thread Gmail chilometrici)
+    const longBody = "Testo principale importante.\n" + "A".repeat(1000) + "\nIl giorno 23 feb 2026 alle 10:00 utente@example.com ha scritto:\n> Citazione";
+    const result = classifier._extractMainContent(longBody);
+
+    assert(result.trim() === "Testo principale importante.\n" + "A".repeat(1000), "Dovrebbe troncare alla citazione trovata via backward scan");
+}
+
 // MAIN: runner con contatore e soglia minima
 // ========================================================================
 
@@ -1350,6 +1361,7 @@ function main() {
         ['prompt context: circular object KB fallback', testPromptContextKnowledgeBaseCircularObjectDoesNotCrash],
         ['prompt KB truncation: hard limit chars rispettato', testPromptKbSemanticTruncationRespectsHardLimit],
         ['gemini: portuguese detection refinement', testPortugueseDetectionRefinement],
+        ['classifier: backward quote scan', testClassifierBackwardQuoteScan],
     ];
 
     let passed = 0;

@@ -273,6 +273,23 @@ class Classifier {
     ];
 
     const lines = processedBody.split('\n');
+
+    // Hardening thread lunghi: riduce il costo su body con quote annidate/malformate
+    // scansionando all'indietro solo una finestra limitata di righe.
+    const MAX_BACKWARD_SCAN_LINES = 400;
+    const backwardStart = Math.max(0, lines.length - MAX_BACKWARD_SCAN_LINES);
+    for (let i = lines.length - 1; i >= backwardStart; i--) {
+      const trimmed = (lines[i] || '').trim();
+      if (!trimmed) continue;
+
+      for (const marker of quoteMarkers) {
+        if (marker.test(trimmed)) {
+          lines.length = i;
+          break;
+        }
+      }
+    }
+
     const cleanLines = [];
 
     for (const line of lines) {

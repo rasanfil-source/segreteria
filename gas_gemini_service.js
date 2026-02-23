@@ -275,7 +275,7 @@ Output JSON:
 
       // Punto 4: Estesa gestione errori con switch alla chiave di riserva
       responseCode = response.getResponseCode();
-      if ([429, 500, 502, 503, 504].includes(responseCode) && this.backupKey) {
+      if ([401, 403, 429, 500, 502, 503, 504].includes(responseCode) && this.backupKey) {
         console.warn(`\u26A0\uFE0F Chiave primaria esaurita / errore(${response.getResponseCode()}).Tentativo con chiave di riserva...`);
         activeKey = this.backupKey;
         response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
