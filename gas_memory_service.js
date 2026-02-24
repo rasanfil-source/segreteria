@@ -338,8 +338,18 @@ class MemoryService {
     if (!this._initialized || !threadId) {
       return false;
     }
+    const rawData = (newData && typeof newData === 'object') ? newData : {};
+
+    // Filtra campi interni (_*) per evitare persistenza accidentale su Sheets
+    const dataToUpdate = {};
+    for (const key in rawData) {
+      if (!key.startsWith('_')) {
+        dataToUpdate[key] = rawData[key];
+      }
+    }
+
     // Accetta anche solo topic (se newData è nullo o vuoto ma providedTopics è presente)
-    const hasData = newData && typeof newData === 'object' && Object.keys(newData).length > 0;
+    const hasData = Object.keys(dataToUpdate).length > 0;
     const hasTopics = providedTopics && (Array.isArray(providedTopics) || (typeof providedTopics === 'string' && providedTopics.length > 0));
 
     if (!hasData && !hasTopics) {
@@ -374,7 +384,13 @@ class MemoryService {
           const existingData = this._rowToObject(existingRow.values);
           const currentVersion = existingData.version || 0;
 
-          const mergedData = Object.assign({}, existingData, newData);
+          // Controllo concorrenza ottimistico opzionale
+          if (rawData._expectedVersion !== undefined && rawData._expectedVersion !== currentVersion) {
+            console.warn(`🔒 Version mismatch atomico thread ${threadId}: atteso ${rawData._expectedVersion}, ottenuto ${currentVersion}`);
+            throw new Error('VERSION_MISMATCH');
+          }
+
+          const mergedData = Object.assign({}, existingData, dataToUpdate);
           mergedData.lastUpdated = now;
           mergedData.messageCount = (existingData.messageCount || 0) + 1;
           mergedData.version = currentVersion + 1;
@@ -401,7 +417,7 @@ class MemoryService {
           });
           console.log(`🧠 Memoria aggiornata atomicamente per thread ${threadId} (v${mergedData.version})`);
         } else {
-          const insertData = Object.assign({}, newData);
+          const insertData = Object.assign({}, dataToUpdate);
           insertData.threadId = threadId;
           insertData.lastUpdated = now;
           insertData.messageCount = 1;

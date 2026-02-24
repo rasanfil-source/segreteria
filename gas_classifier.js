@@ -235,18 +235,9 @@ class Classifier {
       processedBody = processedBody.substring(0, firstQuoteIdx);
     }
 
-    // FIX: Rimozione blockquote più sicura e performante (evita stalli regex su HTML complessi)
-    let iterations = 0;
-    const MAX_ITERATIONS = 5;
-    while (/<blockquote/i.test(processedBody) && iterations < MAX_ITERATIONS) {
-      processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
-      iterations++;
-    }
-
-    // Fallback di sicurezza: rimuove i tag blockquote spaiati o malformati rimanenti (troncando tutto ciò che segue)
-    if (/<blockquote/i.test(processedBody)) {
-      processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*$/gi, '');
-    }
+    // Rimozione blockquote robusta: evita cicli inutili su HTML malformato
+    processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
+    processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*$/gi, '');
 
     // Rimuove div.gmail_quote
     processedBody = processedBody.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*?<\/div>/gi, '');
