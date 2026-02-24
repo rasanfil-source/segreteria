@@ -707,7 +707,8 @@ class ResponseValidator {
       forbiddenCaps = italianForbiddenCaps;
     }
 
-    // Regex per trovare ", Parola"
+    // Regex mirata ai token alfabetici semplici dopo virgola: evita falsi positivi su forme elise (es. Un'altra).
+    // Nota: mantenuta intenzionalmente conservativa perché questa regola genera warning stilistici, non errori bloccanti.
     const pattern = /,\s+([A-ZÀÈÉÌÒÙ][a-zàèéìòù]*)/g;
     let match;
     const violations = [];

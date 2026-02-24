@@ -324,7 +324,10 @@ class MemoryService {
     console.log(`🧹 Invalidazione preventiva cache per thread ${threadId} pre-lettura di allineamento`);
     this._invalidateCache(`memory_${threadId}`);
 
-    // updateMemory gestisce già retry, lock e invalidazione/aggiornamento cache.
+    // Scelta intenzionale: qui NON usiamo updateMemoryAtomic.
+    // Motivo: updateMemoryRobust persiste solo campi memoria (senza topic),
+    // e updateMemory garantisce già lock + retry + coerenza cache con costo minore.
+    // Se servono topic o coerenza multi-entità, usare updateMemoryAtomic nei callsite dedicati.
     // Se fallisce anche dopo i retry, qui non rilanciamo: la memoria è best-effort.
     try {
       this.updateMemory(threadId, data);
@@ -1096,10 +1099,15 @@ class MemoryService {
       if (keys.length > 0) {
         cache.removeAll(keys);
       }
-      // Pulisce anche i prefissi MEN_ usati da Robust (Bug #5)
-      // Nota: getScriptCache non ha listKeys, quindi facciamo clearing atomico se possibile o rimuoviamo noti
-      // In GAS non possiamo elencare le chiavi, quindi dobbiamo fare affidamento sulla scadenza naturale
-      // o pulire chiavi specifiche se tracciate. Qui aggiungiamo logica preventiva.
+      // Rimuove anche le chiavi MEM_* accoppiate alle memory_* locali per evitare stale hit.
+      const memKeys = keys
+        .filter(k => typeof k === 'string' && k.startsWith('memory_'))
+        .map(k => `MEM_${k.substring('memory_'.length)}`);
+      if (memKeys.length > 0) {
+        cache.removeAll(memKeys);
+      }
+
+      // Nota: CacheService non espone listKeys, quindi possiamo pulire solo chiavi note/tracciate.
     } catch (e) {
       // best effort
     }

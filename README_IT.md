@@ -47,6 +47,10 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **Cycle v2.5.1 (Reliability & Resource Adaptation)**:
+    *   **Memory Service**: Affinata la pulizia della cache per le chiavi `MEM_*` (transazionali) e migliorata la documentazione interna sulla precedenza dei blocchi lock-retry.
+    *   **Territory Validator**: Introdotto flag esplicito `needsCivic: false` per indirizzi completi, garantendo la coerenza del contratto con l'EmailProcessor e riducendo richieste ridondanti all'utente.
+    *   **Response Validator**: Regex migliorata per il controllo della maiuscola dopo virgola, riducendo i falsi positivi su forme elise.
 *   **Cycle v2.5.0 (KB Structure & Multi-line Support)**:
     *   **Main Logic**: Implementata la normalizzazione delle celle multilinea nei Fogli Google per preservare la struttura logica "una riga = un'istruzione" nel prompt dell'IA.
     *   **Smoke Tests**: Aggiunti test di regressione per la normalizzazione del testo KB e la stabilità delle celle complesse.

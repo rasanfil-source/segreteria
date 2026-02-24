@@ -552,6 +552,8 @@ class TerritoryValidator {
             const suffixWarning = result.needsReview ? ' (Attenzione: Verifica il suffisso alfanumerico se incide nei confini del sub-civico)' : '';
             const verification = {
                 inParish: result.inTerritory,
+                // Campo esplicito per contratto con EmailProcessor: con civico presente non va richiesto.
+                needsCivic: false,
                 reason: result.inTerritory
                     ? `'${addrInfo.street}' n. ${civicLabel} è nel territorio (${result.rule})${suffixWarning}`
                     : `'${addrInfo.street}' n. ${civicLabel} non è nel territorio`,
