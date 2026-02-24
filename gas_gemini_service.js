@@ -256,6 +256,7 @@ Output JSON:
     let activeKey = this.primaryKey;
     let response;
     let responseCode;
+    let fetchError = null;
 
     try {
       response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
@@ -294,7 +295,42 @@ Output JSON:
       }
 
     } catch (e) {
-      throw new Error(`Errore connessione API: ${e.message}`);
+      fetchError = e;
+    }
+
+    const shouldTryBackupKey = !!this.backupKey
+      && (
+        fetchError !== null
+        || (response && [401, 403, 429, 500, 502, 503, 504].includes(response.getResponseCode()))
+      );
+
+    // Nota: gestiamo esplicitamente anche errori "hard" di UrlFetchApp (timeout/DNS)
+    // perché non forniscono responseCode e altrimenti salterebbero il fallback cross-key.
+    if (shouldTryBackupKey) {
+      console.warn('⚠️ Chiave primaria non utilizzabile (errore rete/quota). Tentativo con chiave di riserva...');
+      activeKey = this.backupKey;
+      try {
+        response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
+          method: 'POST',
+          contentType: 'application/json',
+          payload: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0,
+              maxOutputTokens: 1024,
+              responseMimeType: 'application/json'
+            }
+          }),
+          muteHttpExceptions: true
+        });
+        fetchError = null;
+      } catch (backupError) {
+        throw new Error(`Errore connessione API (anche con backup): ${backupError.message}`);
+      }
+    }
+
+    if (fetchError) {
+      throw new Error(`Errore connessione API: ${fetchError.message}`);
     }
 
     responseCode = response.getResponseCode();
@@ -667,8 +703,20 @@ Output JSON:
    */
   getAdaptiveGreeting(senderName, language = 'it') {
     const now = new Date();
-    const hour = now.getHours();
-    const day = now.getDay(); // 0 = Domenica
+    let hour = now.getHours();
+    let day = now.getDay(); // 0 = Domenica
+
+    // Coerenza business: saluti basati sempre sull'orario italiano,
+    // anche se il fuso del progetto è stato modificato per errore.
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+      try {
+        hour = parseInt(Utilities.formatDate(now, 'Europe/Rome', 'H'), 10);
+        const isoDay = parseInt(Utilities.formatDate(now, 'Europe/Rome', 'u'), 10);
+        if (!isNaN(isoDay)) day = isoDay % 7;
+      } catch (e) {
+        // fallback locale: manteniamo comportamento precedente se Utilities non è disponibile
+      }
+    }
 
     let greeting, closing;
 

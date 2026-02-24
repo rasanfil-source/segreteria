@@ -18,6 +18,7 @@ var GLOBAL_CACHE = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBA
   replacements: {}
 };
 
+// TTL in-RAM valido nella singola esecuzione: cross-esecuzione la cache reale è CacheService.
 const RESOURCE_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 ore
 
 // ====================================================================
@@ -156,20 +157,19 @@ function isInSuspensionTime(checkDate = new Date()) {
   let day = now.getDay();
   let hour = now.getHours();
 
-  const scriptTimeZone = (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function')
-    ? Session.getScriptTimeZone()
-    : '';
+  // Regola di dominio: la sospensione è ancorata all'orario italiano.
+  const businessTimeZone = 'Europe/Rome';
 
-  if (scriptTimeZone && typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+  if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
     try {
-      year = parseInt(Utilities.formatDate(now, scriptTimeZone, 'yyyy'), 10);
-      monthIndex = parseInt(Utilities.formatDate(now, scriptTimeZone, 'M'), 10) - 1;
-      date = parseInt(Utilities.formatDate(now, scriptTimeZone, 'd'), 10);
-      const isoDay = parseInt(Utilities.formatDate(now, scriptTimeZone, 'u'), 10);
+      year = parseInt(Utilities.formatDate(now, businessTimeZone, 'yyyy'), 10);
+      monthIndex = parseInt(Utilities.formatDate(now, businessTimeZone, 'M'), 10) - 1;
+      date = parseInt(Utilities.formatDate(now, businessTimeZone, 'd'), 10);
+      const isoDay = parseInt(Utilities.formatDate(now, businessTimeZone, 'u'), 10);
       day = isNaN(isoDay) ? day : (isoDay % 7);
-      hour = parseInt(Utilities.formatDate(now, scriptTimeZone, 'H'), 10);
+      hour = parseInt(Utilities.formatDate(now, businessTimeZone, 'H'), 10);
     } catch (e) {
-      console.warn(`⚠️ Impossibile applicare timezone script (${scriptTimeZone}): ${e.message}`);
+      console.warn(`⚠️ Impossibile applicare timezone business (${businessTimeZone}): ${e.message}`);
     }
   }
 
@@ -183,6 +183,7 @@ function isInSuspensionTime(checkDate = new Date()) {
   const normalizedNow = new Date(year, monthIndex, date, 12, 0, 0);
   if (isSameCalendarDay(normalizedNow, easter)) return false;
 
+  // Nota manutenzione: base su "easter" è intenzionale per leggibilità semantica.
   const pasquetta = new Date(easter);
   pasquetta.setDate(easter.getDate() + 1);
   if (isSameCalendarDay(normalizedNow, pasquetta)) return false;
@@ -192,7 +193,7 @@ function isInSuspensionTime(checkDate = new Date()) {
   if (isSameCalendarDay(normalizedNow, holySaturday)) return false;
 
   // Ferie Segretario (Sheet)
-  if (isInVacationPeriod(now, scriptTimeZone)) return false;
+  if (isInVacationPeriod(now, businessTimeZone)) return false;
 
   // 2. ORARI UFFICIO (Sistema SOSPESO)
   // Utilizza i dati caricati dal foglio Controllo in (A10:D16/B10:E16) durante il loadResources
@@ -486,6 +487,8 @@ function _loadAdvancedConfig(ss) {
     // Sospensione (B10:E16)
     const susp = sheet.getRange('B10:E16').getValues();
     susp.forEach((r, i) => {
+      // Mapping esplicito indice-riga -> getDay JS:
+      // B10..B16 = Lun..Dom  => 1..6,0 (dove Domenica in JS è 0, non 7).
       const day = (i + 1) % 7;
       if (!isNaN(parseInt(r[0])) && !isNaN(parseInt(r[2]))) {
         config.suspensionRules[day] = [[parseInt(r[0]), parseInt(r[2])]];

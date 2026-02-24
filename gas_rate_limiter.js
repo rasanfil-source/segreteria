@@ -505,6 +505,7 @@ class GeminiRateLimiter {
 
   _trackRequest(modelKey, tokensUsed, duration) {
     const now = Date.now();
+    const nonce = `${Math.floor(Math.random() * 1000000)}`;
 
     // 1-2. Contatori RPD/Tokens con incremento atomico (evita race condition)
     const counters = this._incrementCountersAtomic(modelKey, tokensUsed);
@@ -512,12 +513,14 @@ class GeminiRateLimiter {
     // 3. Finestra RPM (con cache)
     this._updateWindow('rpm', {
       timestamp: now,
+      nonce: nonce,
       modelKey: modelKey
     });
 
     // 4. Finestra TPM (con cache)
     this._updateWindow('tpm', {
       timestamp: now,
+      nonce: nonce,
       modelKey: modelKey,
       tokens: tokensUsed
     });
@@ -772,9 +775,10 @@ class GeminiRateLimiter {
   _mergeWindowData(existing, walData) {
     const toKey = (entry) => {
       const ts = entry && typeof entry.timestamp !== 'undefined' ? entry.timestamp : 'na';
+      const nonce = entry && typeof entry.nonce !== 'undefined' ? entry.nonce : 'na';
       const model = entry && entry.modelKey ? entry.modelKey : 'na';
       const tokens = entry && typeof entry.tokens !== 'undefined' ? entry.tokens : 0;
-      return `${ts}|${model}|${tokens}`;
+      return `${ts}|${nonce}|${model}|${tokens}`;
     };
 
     const existingEntries = new Set(existing.map(toKey));
