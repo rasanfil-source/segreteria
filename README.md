@@ -151,7 +151,11 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.5.2 → 2.5.3 (Current)**
+**2.5.3 → 2.5.4 (Current)**
+- ✅ **Sheets**: Wrapped all sheet retrieval calls in `withSheetsRetry` for added reliability.
+- ✅ **Gemini**: Enhanced internal error classification documentation.
+
+**2.5.2 → 2.5.3**
 - ✅ **Infrastructure**: Upgraded Drive Advanced Service from v2 to v3.
 - ✅ **OCR**: Updated text extraction to use `Drive.Files.create` with explicit Google Doc conversion.
 

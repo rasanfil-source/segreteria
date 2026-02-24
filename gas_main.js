@@ -340,7 +340,10 @@ function _loadResourcesInternal() {
 
   let ss;
   try {
-    ss = SpreadsheetApp.openById(spreadsheetId);
+    ss = withSheetsRetry(
+      () => SpreadsheetApp.openById(spreadsheetId),
+      'Apertura Spreadsheet da CONFIG.SPREADSHEET_ID'
+    );
   } catch (e) {
     throw new Error('Impossibile aprire il foglio. Verifica CONFIG.SPREADSHEET_ID. Dettaglio: ' + e.message);
   }
@@ -357,7 +360,7 @@ function _loadResourcesInternal() {
   const newCacheData = {};
 
   // KB Base
-  const kbSheet = ss.getSheetByName(cfg.KB_SHEET_NAME);
+  const kbSheet = withSheetsRetry(() => ss.getSheetByName(cfg.KB_SHEET_NAME), 'Recupero foglio KB Base');
   if (kbSheet) {
     withSheetsRetry(() => {
       const kbData = kbSheet.getDataRange().getValues();
@@ -368,7 +371,7 @@ function _loadResourcesInternal() {
   }
 
   // Prompt resources aggiuntive (usate da PromptEngine)
-  const aiCoreLiteSheet = ss.getSheetByName(cfg.AI_CORE_LITE_SHEET);
+  const aiCoreLiteSheet = withSheetsRetry(() => ss.getSheetByName(cfg.AI_CORE_LITE_SHEET), 'Recupero foglio AI_CORE_LITE');
   newCacheData.aiCoreLite = '';
   if (aiCoreLiteSheet) {
     withSheetsRetry(() => {
@@ -376,7 +379,7 @@ function _loadResourcesInternal() {
     }, 'Lettura AI_CORE_LITE');
   }
 
-  const aiCoreSheet = ss.getSheetByName(cfg.AI_CORE_SHEET);
+  const aiCoreSheet = withSheetsRetry(() => ss.getSheetByName(cfg.AI_CORE_SHEET), 'Recupero foglio AI_CORE');
   if (aiCoreSheet) {
     withSheetsRetry(() => {
       const aiCoreData = aiCoreSheet.getDataRange().getValues();
@@ -388,7 +391,7 @@ function _loadResourcesInternal() {
     newCacheData.aiCore = '';
   }
 
-  const doctrineSheet = ss.getSheetByName(cfg.DOCTRINE_SHEET);
+  const doctrineSheet = withSheetsRetry(() => ss.getSheetByName(cfg.DOCTRINE_SHEET), 'Recupero foglio Dottrina');
   if (doctrineSheet) {
     withSheetsRetry(() => {
       const doctrineData = doctrineSheet.getDataRange().getValues();
@@ -401,7 +404,7 @@ function _loadResourcesInternal() {
   }
 
   const replacementsSheetName = cfg.REPLACEMENTS_SHEET_NAME || 'Sostituzioni';
-  const replacementsSheet = ss.getSheetByName(replacementsSheetName);
+  const replacementsSheet = withSheetsRetry(() => ss.getSheetByName(replacementsSheetName), 'Recupero foglio Sostituzioni');
   newCacheData.replacements = {};
   if (replacementsSheet) {
     withSheetsRetry(() => {
@@ -417,7 +420,7 @@ function _loadResourcesInternal() {
   }
 
   // Config Avanzata
-  const adv = _loadAdvancedConfig(ss);
+  const adv = withSheetsRetry(() => _loadAdvancedConfig(ss), 'Lettura Configurazione Avanzata');
   newCacheData.systemEnabled = adv.systemEnabled;
   newCacheData.vacationPeriods = adv.vacationPeriods;
   newCacheData.suspensionRules = adv.suspensionRules;

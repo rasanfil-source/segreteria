@@ -47,6 +47,9 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **Cycle v2.5.4 (Sheets Resilience & Error Handling Documented)**:
+    *   **Main Logic**: Esteso l'uso di `withSheetsRetry` a tutte le chiamate critiche di recupero fogli (`getSheetByName`) e alla configurazione avanzata, migliorando la resilienza verso glitch temporanei delle API Spreadsheet.
+    *   **Gemini Service**: Migliorata la documentazione interna sulla classificazione degli errori e la policy di retry per prevenire drift logici.
 *   **Cycle v2.5.3 (Drive API Upgrade & OCR Persistence)**:
     *   **Project Config**: Aggiornato il Servizio Avanzato Drive dalla versione `v2` alla `v3` in `appsscript.json`.
     *   **Gmail Service**: Adeguata la logica OCR per utilizzare i metodi Drive API v3 (`create` con `mimeType` specifico) garantendo la conversione corretta in Google Doc per l'estrazione del testo.
