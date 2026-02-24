@@ -613,6 +613,7 @@ class MemoryService {
     try {
       sheetLock.waitLock(timeoutMs);
       writeOperation();
+      SpreadsheetApp.flush();
     } catch (e) {
       throw new Error(`Lock del foglio non acquisito: ${e.message}`);
     } finally {

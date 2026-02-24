@@ -174,7 +174,13 @@ function isInSuspensionTime(checkDate = new Date()) {
 
   if (rules[day]) {
     for (const [startH, endH] of rules[day]) {
-      if (hour >= startH && hour < endH) return true;
+      const startHour = parseInt(startH, 10);
+      const endHour = parseInt(endH, 10);
+      if (!Number.isFinite(startHour) || !Number.isFinite(endHour)) {
+        continue;
+      }
+
+      if (hour >= startHour && hour < endHour) return true;
     }
   }
 

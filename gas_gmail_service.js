@@ -146,7 +146,7 @@ class GmailService {
   /**
    * Ottiene gli ID di tutti i messaggi con una specifica etichetta
    */
-  getMessageIdsWithLabel(labelName, onlyInbox = true) {
+  getMessageIdsWithLabel(labelName, onlyInbox = true, options = {}) {
     try {
       const label = this.getOrCreateLabel(labelName);
       const labelId = label.getId();
@@ -154,30 +154,60 @@ class GmailService {
       const messageIds = new Set();
       let pageToken;
 
-      // PATCH: Seleziona in base alla inbox per evitare di scaricare 10 anni di storico
-      const query = onlyInbox ? 'in:inbox' : '';
+      const safeWindowDays = parseInt(options.windowDays, 10);
+      const useWindowDays = Number.isFinite(safeWindowDays) && safeWindowDays > 0
+        ? safeWindowDays
+        : ((typeof CONFIG !== 'undefined' && CONFIG.GMAIL_LABEL_LOOKBACK_DAYS) || 0);
+      const maxPages = Math.max(1, parseInt(options.maxPages || ((typeof CONFIG !== 'undefined' && CONFIG.GMAIL_LIST_MAX_PAGES) || 20), 10));
+      const maxMessages = Math.max(1, parseInt(options.maxMessages || ((typeof CONFIG !== 'undefined' && CONFIG.GMAIL_LIST_MAX_MESSAGES) || 5000), 10));
+      const pageSize = Math.min(500, Math.max(50, parseInt(options.pageSize || 500, 10)));
+
+      // Query composita: inbox opzionale + finestra temporale opzionale
+      const queryParts = [];
+      if (onlyInbox) queryParts.push('in:inbox');
+      if (useWindowDays > 0) queryParts.push(`after:${this._getNDaysAgo(useWindowDays)}`);
+      const query = queryParts.join(' ').trim();
+      let pageCount = 0;
 
       do {
+        if (pageCount >= maxPages || messageIds.size >= maxMessages) {
+          console.warn(`⚠️ Interruzione list label '${labelName}': limite raggiunto (pages=${pageCount}/${maxPages}, messages=${messageIds.size}/${maxMessages})`);
+          break;
+        }
+
         const response = Gmail.Users.Messages.list('me', {
           labelIds: [labelId],
           q: query,
-          maxResults: 500,
+          maxResults: pageSize,
           pageToken: pageToken
         });
+        pageCount++;
 
         if (response.messages) {
-          response.messages.forEach(m => messageIds.add(m.id));
+          for (const m of response.messages) {
+            messageIds.add(m.id);
+            if (messageIds.size >= maxMessages) {
+              break;
+            }
+          }
         }
 
         pageToken = response.nextPageToken;
       } while (pageToken);
 
-      console.log(`📦 Trovati ${messageIds.size} messaggi con label '${labelName}' (inbox: ${onlyInbox})`);
+      console.log(`📦 Trovati ${messageIds.size} messaggi con label '${labelName}' (inbox: ${onlyInbox}, windowDays: ${useWindowDays || 'all'}, pages: ${pageCount})`);
       return messageIds;
     } catch (e) {
       console.warn(`⚠️ Impossibile ottenere messaggi con label ${labelName}: ${e.message}`);
       return new Set();
     }
+  }
+
+  _getNDaysAgo(n) {
+    const days = Math.max(0, parseInt(n, 10) || 0);
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy/MM/dd');
   }
 
   // ========================================================================
@@ -862,7 +892,13 @@ class GmailService {
     finalResponse = this.fixPunctuation(finalResponse, messageDetails.senderName);
     finalResponse = this.ensureGreetingLineBreak(finalResponse);
 
-    const htmlBody = markdownToHtml(finalResponse);
+    const htmlBody = (typeof markdownToHtml === 'function')
+      ? markdownToHtml(finalResponse)
+      : finalResponse
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>');
     const plainText = this._htmlToPlainText(htmlBody);
 
     const hasThreadingInfo = messageDetails.rfc2822MessageId;
