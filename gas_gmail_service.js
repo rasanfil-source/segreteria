@@ -533,7 +533,9 @@ class GmailService {
       } else if (typeof Drive.Files.create === 'function') {
         const resource = {
           name: `OCR_${fileName}`,
-          mimeType: blob.getContentType()
+          // Drive API v3: per ottenere testo OCR apribile con DocumentApp,
+          // il file caricato va convertito in Google Doc.
+          mimeType: 'application/vnd.google-apps.document'
         };
         const file = Drive.Files.create(resource, blob, {
           ocrLanguage: settings.ocrLanguage || 'it'

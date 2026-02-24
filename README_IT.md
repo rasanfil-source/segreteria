@@ -47,6 +47,9 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **Cycle v2.5.3 (Drive API Upgrade & OCR Persistence)**:
+    *   **Project Config**: Aggiornato il Servizio Avanzato Drive dalla versione `v2` alla `v3` in `appsscript.json`.
+    *   **Gmail Service**: Adeguata la logica OCR per utilizzare i metodi Drive API v3 (`create` con `mimeType` specifico) garantendo la conversione corretta in Google Doc per l'estrazione del testo.
 *   **Cycle v2.5.2 (Hardening Gmail & Runtime Initialization)**:
     *   **Gmail Service**: Migliorata l'estrazione del destinatario (`recipientEmail`) con fallback multipli su `EffectiveUser` e `ActiveUser` in caso di fallimento delle API avanzate.
     *   **Main Logic**: Rafforzato il caricamento risorse con documentazione esplicita sulla garanzia di inizializzazione della cache globale.

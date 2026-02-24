@@ -151,7 +151,11 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.5.1 → 2.5.2 (Current)**
+**2.5.2 → 2.5.3 (Current)**
+- ✅ **Infrastructure**: Upgraded Drive Advanced Service from v2 to v3.
+- ✅ **OCR**: Updated text extraction to use `Drive.Files.create` with explicit Google Doc conversion.
+
+**2.5.1 → 2.5.2**
 - ✅ **Gmail**: Improved `recipientEmail` extraction with multiple fallbacks (`EffectiveUser`/`ActiveUser`).
 - ✅ **Main**: Hardened `loadResources` with explicit initialization guarantees.
 
