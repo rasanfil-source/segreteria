@@ -126,6 +126,15 @@ function isInVacationPeriod(date = new Date()) {
 function isInSuspensionTime(checkDate = new Date()) {
   const now = checkDate;
 
+  const isSameCalendarDay = (left, right) => {
+    if (!(left instanceof Date) || isNaN(left.getTime()) || !(right instanceof Date) || isNaN(right.getTime())) {
+      return false;
+    }
+    return left.getFullYear() === right.getFullYear()
+      && left.getMonth() === right.getMonth()
+      && left.getDate() === right.getDate();
+  };
+
   let year = now.getFullYear();
   let monthIndex = now.getMonth();
   let date = now.getDate();
@@ -156,11 +165,14 @@ function isInSuspensionTime(checkDate = new Date()) {
 
   // Pasquetta, Sabato Santo
   const easter = calculateEaster(year);
-  const pasquetta = new Date(easter); pasquetta.setDate(easter.getDate() + 1);
-  if (monthIndex === pasquetta.getMonth() && date === pasquetta.getDate()) return false;
+  const normalizedNow = new Date(year, monthIndex, date, 12, 0, 0);
+  const pasquetta = new Date(easter);
+  pasquetta.setDate(easter.getDate() + 1);
+  if (isSameCalendarDay(normalizedNow, pasquetta)) return false;
 
-  const holySaturday = new Date(easter); holySaturday.setDate(easter.getDate() - 1);
-  if (monthIndex === holySaturday.getMonth() && date === holySaturday.getDate()) return false;
+  const holySaturday = new Date(easter);
+  holySaturday.setDate(easter.getDate() - 1);
+  if (isSameCalendarDay(normalizedNow, holySaturday)) return false;
 
   // Ferie Segretario (Sheet)
   if (isInVacationPeriod(now)) return false;
