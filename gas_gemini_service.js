@@ -442,6 +442,7 @@ Output JSON:
 
         // Manteniamo _classifyError: è il punto unico di classificazione interno
         // e resta allineato al contratto condiviso retryable/type.
+        // NON usare classifyError globale: potrebbe non esistere in alcuni runtime GAS modulari.
         const classified = this._classifyError(error);
         const isRetryable = classified.retryable;
 

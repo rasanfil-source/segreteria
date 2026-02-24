@@ -192,6 +192,16 @@ function isInSuspensionTime(checkDate = new Date()) {
   holySaturday.setDate(easter.getDate() - 1);
   if (isSameCalendarDay(normalizedNow, holySaturday)) return false;
 
+  // Pentecoste (Pasqua + 49 giorni)
+  const pentecost = new Date(easter);
+  pentecost.setDate(easter.getDate() + 49);
+  if (isSameCalendarDay(normalizedNow, pentecost)) return false;
+
+  // Corpus Domini (Pasqua + 60 giorni)
+  const corpusDomini = new Date(easter);
+  corpusDomini.setDate(easter.getDate() + 60);
+  if (isSameCalendarDay(normalizedNow, corpusDomini)) return false;
+
   // Ferie Segretario (Sheet)
   if (isInVacationPeriod(now, businessTimeZone)) return false;
 

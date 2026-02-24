@@ -47,6 +47,10 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **Cycle v2.4.6 (Holiday & Architecture Refinement)**:
+    *   **Main Logic**: Aggiunte Pentecoste e Corpus Domini al sistema di sospensione oraria (gestite come festivi).
+    *   **Response Validator**: Introdotto alias di compatibilità `validate(response, opts)` per integrazioni legacy.
+    *   **Prompt Engine**: Migliorata la robustezza della checklist contestuale con cast di sicurezza sui contesti territoriali.
 *   **Cycle v2.4.5 (Test Environment Hardening)**:
     *   **Unit Tests**: Aggiunto mock per `SpreadsheetApp.flush()` per una migliore compatibilità con l'ambiente GAS durante i test locali.
 *   **Cycle v2.4.4 (Cross-Service Hardening)**:

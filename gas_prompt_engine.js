@@ -401,7 +401,7 @@ ${GLOBAL_CACHE.doctrineBase}
     }
 
     // Controlli territorio (se rilevante)
-    if (territoryContext && territoryContext.includes('RIENTRA')) {
+    if (territoryContext && String(territoryContext).includes('RIENTRA')) {
       checks.push('□ Ho dato risposta SÌ/NO sul territorio (NON "verificheremo")');
       checks.push('□ Ho usato ESATTAMENTE i dati della verifica territorio');
     }

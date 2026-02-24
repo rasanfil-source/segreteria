@@ -80,6 +80,8 @@ function fixEncoding(filePath) {
         return { fixed: false };
     }
 
+    // Nota: convertiamo in UTF-8 (non latin1) perché stiamo ricostruendo byte CP1252 corrotti
+    // che rappresentano un testo UTF-8 originario.
     // Slice buffer to actual used length
     const finalBuffer = buffer.slice(0, bufIdx);
 

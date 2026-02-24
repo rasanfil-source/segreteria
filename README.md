@@ -151,7 +151,12 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.4.4 → 2.4.5 (Current)**
+**2.4.5 → 2.4.6 (Current)**
+- ✅ **Holidays**: Added Pentecost and Corpus Domini to operational calendar.
+- ✅ **Architecture**: Introduced `ResponseValidator.validate` alias for object-based API compatibility.
+- ✅ **Harden**: Safe-casting for `territoryContext` in `PromptEngine`.
+
+**2.4.4 → 2.4.5**
 - ✅ **Test Infrastructure**: Added `SpreadsheetApp.flush()` mock to ensure CI compatibility.
 
 **2.4.3 → 2.4.4**

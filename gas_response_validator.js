@@ -256,6 +256,24 @@ class ResponseValidator {
   }
 
   /**
+   * Alias di compatibilità per la firma ad oggetto usata in README/test legacy.
+   * Evita rotture quando il chiamante usa validator.validate(response, { ...opts }).
+   * @param {string} response
+   * @param {{language?: string, knowledgeBase?: string, emailContent?: string, body?: string, emailSubject?: string, subject?: string, salutationMode?: string}} opts
+   * @returns {Object}
+   */
+  validate(response, opts = {}) {
+    return this.validateResponse(
+      response,
+      opts.language || 'it',
+      opts.knowledgeBase || '',
+      opts.emailContent || opts.body || '',
+      opts.emailSubject || opts.subject || '',
+      opts.salutationMode || 'full'
+    );
+  }
+
+  /**
    * Esegue i ✅ effettivi (estratto per riutilizzo)
    */
   _runValidationChecks(response, detectedLanguage, knowledgeBase, salutationMode, originalMessage = '') {
