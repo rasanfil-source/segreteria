@@ -635,7 +635,7 @@ function main() {
 
   // 0. Controllo Preventivo API Avanzate
   try {
-    const probe = GmailApp.getAliases(); // Chiamata leggera per testare abilitazione servizio
+    GmailApp.getAliases(); // Probe: verifica che i Servizi Avanzati siano abilitati
   } catch (apiError) {
     console.error(`💥 CRITICO: Servizi Avanzati (Gmail API) non abilitati nel progetto GAS. Impossibile procedere.`);
     return;

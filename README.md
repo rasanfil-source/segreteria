@@ -151,7 +151,12 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.4.7 → 2.4.8 (Current)**
+**2.4.8 → 2.4.9 (Current)**
+- ✅ **Logger**: Renamed internal class to `AppLogger` to prevent shadowing built-in GAS `Logger`.
+- ✅ **Gemini**: Improved liturgical date range checks and code readability.
+- ✅ **Main**: Refined advanced services probe.
+
+**2.4.7 → 2.4.8**
 - ✅ **Memory**: Fixed OCC retry loop by aligning `expectedVersion` on mismatch.
 - ✅ **Gmail/OCR**: Refined name extraction regex to include commas.
 - ✅ **Rate Limiter**: Optimized model candidates and strategic fallbacks.

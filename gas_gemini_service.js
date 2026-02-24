@@ -944,9 +944,11 @@ Output JSON:
    * Verifica se una data è compresa tra inizio e fine (inclusi)
    */
   _isBetweenInclusive(date, start, end) {
-    const d = date.getTime();
-    const s = start.getTime();
-    const e = end.getTime();
+    // Confronto su base "giorno" (ora azzerata) per includere correttamente
+    // tutto il giorno finale dell'intervallo, indipendentemente dall'orario corrente.
+    const d = new Date(date).setHours(0, 0, 0, 0);
+    const s = new Date(start).setHours(0, 0, 0, 0);
+    const e = new Date(end).setHours(0, 0, 0, 0);
     return d >= s && d <= e;
   }
 
@@ -1097,6 +1099,7 @@ Output JSON:
         () => this._generateWithModel(prompt, targetModel, targetKey),
         'Generazione diretta (Chiave di Riserva)'
       );
+      // `success` è coerente con la presenza di testo generato (nessuna inversione logica).
       return { success: !!text, text: text, modelUsed: targetModel };
     }
 

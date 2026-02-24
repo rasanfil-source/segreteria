@@ -9,7 +9,8 @@ const LogLevel = {
   ERROR: 3
 };
 
-class Logger {
+// Nota: non usare il nome `Logger` per evitare shadowing del built-in GAS `Logger.log()`.
+class AppLogger {
   constructor(context = 'System') {
     this.context = context;
     this.config = typeof getConfig === 'function' ? getConfig() : (typeof CONFIG !== 'undefined' ? CONFIG : {});
@@ -132,7 +133,7 @@ Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
    * Crea logger con contesto specifico
    */
   withContext(newContext) {
-    return new Logger(`${this.context}:${newContext}`);
+    return new AppLogger(`${this.context}:${newContext}`);
   }
 }
 
@@ -140,5 +141,5 @@ Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
  * Factory function per creare logger
  */
 function createLogger(context) {
-  return new Logger(context);
+  return new AppLogger(context);
 }
