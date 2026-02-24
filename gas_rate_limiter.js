@@ -258,13 +258,20 @@ class GeminiRateLimiter {
     const lock = LockService.getScriptLock();
     // Aumentato timeout acquisizione per gestione alta concorrenza
     const lockAcquired = lock.tryLock(5000);
+    if (!lockAcquired) {
+      console.warn('⚠️ Lock non acquisito per selezione modello, fallback conservativo');
+      return {
+        available: false,
+        modelKey: null,
+        reason: 'lock_timeout',
+        nextResetTime: this._getNextResetTime()
+      };
+    }
 
     let selectedResult = null;
     try {
-      if (lockAcquired) {
-        // Rinfresca i contatori per avere dati aggiornati sotto lock
-        this._refreshCache();
-      }
+      // Rinfresca i contatori per avere dati aggiornati sotto lock
+      this._refreshCache();
 
       for (var i = 0; i < candidates.length; i++) {
         const modelKey = candidates[i];

@@ -939,7 +939,8 @@ class GmailService {
           '',
           Utilities.base64Encode(htmlBody, Utilities.Charset.UTF_8),
           '',
-          `--${boundary}--`
+          `--${boundary}--`,
+          ''
         ].join('\r\n');
 
         // Gmail API RAW richiede base64url RFC4648 senza padding finale '='.
@@ -963,7 +964,21 @@ class GmailService {
     // Nel fallback nativo prediligiamo il cast esplicito a GmailMessage (se disponibile)
     // affinché la libreria interna mantenga al meglio il riferimento al messaggio specifico
     const isMessage = resource && typeof resource.reply === 'function' && typeof resource.getThread === 'function';
-    const mailEntity = isMessage ? resource : (typeof resource === 'string' ? GmailApp.getThreadById(resource) : resource);
+    let mailEntity = null;
+
+    if (isMessage) {
+      mailEntity = resource;
+    } else if (typeof resource === 'string') {
+      const threadEntity = GmailApp.getThreadById(resource);
+      const threadMessages = threadEntity ? threadEntity.getMessages() : [];
+      mailEntity = threadMessages.length > 0 ? threadMessages[threadMessages.length - 1] : threadEntity;
+    } else {
+      mailEntity = resource;
+    }
+
+    if (!mailEntity || typeof mailEntity.reply !== 'function') {
+      throw new Error('Entità Gmail non valida per reply() nel fallback HTML');
+    }
 
     try {
       mailEntity.reply('', { htmlBody: htmlBody });

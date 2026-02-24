@@ -347,7 +347,7 @@ class ResponseValidator {
     } else if (length > this.WARNING_MAX_LENGTH) {
       // BUG FIX 8.2: Se sfora la max length è un ERRORE, non solo un warning (simmetria)
       errors.push(`Risposta troppo lunga e prolissa (${length} caratteri, limite ${this.WARNING_MAX_LENGTH})`);
-      score *= 0.50; // Penalizza fortemente o azzera, invalidando via errors.length > 0
+      score = 0.0;
     }
 
     return { score, errors, warnings, length };

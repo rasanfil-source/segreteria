@@ -187,7 +187,14 @@ function isInSuspensionTime(checkDate = new Date()) {
  */
 function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 20) {
   const cutoffMs = Date.now() - (maxAgeHours * 60 * 60 * 1000);
-  const threads = GmailApp.search('in:inbox is:unread', 0, searchLimit);
+
+  const labelName = (typeof CONFIG !== 'undefined' && CONFIG.LABEL_NAME) ? CONFIG.LABEL_NAME : 'IA';
+  const errorLabel = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME) ? CONFIG.ERROR_LABEL_NAME : 'Errore';
+  const validationLabel = (typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_ERROR_LABEL) ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica';
+  const quoteLabel = (label) => `"${String(label).replace(/"/g, '\\"')}"`;
+
+  const query = `in:inbox is:unread -label:${quoteLabel(labelName)} -label:${quoteLabel(errorLabel)} -label:${quoteLabel(validationLabel)}`;
+  const threads = GmailApp.search(query, 0, searchLimit);
 
   for (const thread of threads) {
     const messages = thread.getMessages();
