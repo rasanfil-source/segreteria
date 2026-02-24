@@ -32,6 +32,8 @@ function fixEncoding(filePath) {
     // Heuristic: If we convert to bytes using CP1252 reverse map, 
     // and then read as UTF-8, does it look valid?
 
+    // Qui la dimensione su content.length è voluta: ricostruiamo byte CP1252 (1 byte per code unit trattata).
+    // Il buffer viene comunque tagliato con slice(0, bufIdx) prima della scrittura.
     const buffer = Buffer.alloc(content.length);
     let bufIdx = 0;
 

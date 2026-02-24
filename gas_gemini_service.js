@@ -343,8 +343,6 @@ Output JSON:
       throw new Error(`Errore API: ${responseCode}`);
     }
 
-    const result = JSON.parse(response.getContentText());
-
     // Risultato default in caso di errori
     const defaultResult = {
       shouldRespond: false, // Failsafe conservativo: evita risposte massive in caso di errore
@@ -356,6 +354,14 @@ Output JSON:
         confidence: 0.0
       }
     };
+
+    let result;
+    try {
+      result = JSON.parse(response.getContentText());
+    } catch (parseError) {
+      console.warn(`⚠️ JSON non valido nel controllo rapido Gemini: ${parseError.message}`);
+      return defaultResult;
+    }
 
     if (!result.candidates || !result.candidates[0]) {
       console.error('\u274C Nessun candidato nella risposta Controllo Rapido Gemini');
@@ -460,7 +466,15 @@ Output JSON:
    */
   _classifyError(error) {
     const msg = String(error.message || error.toString() || '').toLowerCase();
-    const RETRYABLE_ERRORS = ['401', '403', '429', '500', '502', '503', '504', 'quota', 'timeout', 'deadline', 'econnreset'];
+    const RETRYABLE_ERRORS = ['429', '500', '502', '503', '504', 'quota', 'timeout', 'deadline', 'econnreset'];
+    const FATAL_ERRORS = ['401', '403', 'unauthorized', 'forbidden', 'permission denied', 'unauthenticated'];
+
+    // 401/403 sono tipicamente problemi di credenziali o permessi: ritentare non li risolve.
+    for (const kw of FATAL_ERRORS) {
+      if (msg.includes(kw)) {
+        return { type: 'FATAL', retryable: false };
+      }
+    }
 
     let retryable = false;
     for (const kw of RETRYABLE_ERRORS) {

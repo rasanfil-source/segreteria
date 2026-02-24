@@ -151,7 +151,11 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.4.2 → 2.4.3 (Current)**
+**2.4.3 → 2.4.4 (Current)**
+- ✅ **Gemini Service**: Hardened JSON parsing and error classification (explicit 401/403 fatal handling).
+- ✅ **Advanced Config**: Fixed column indexing for suspension rules (shifted to C/D) and improved spam filter range detection.
+
+**2.4.2 → 2.4.3**
 - ✅ **Advanced Config**: Implemented strict hour parsing (0-23) for suspension rules, preventing corruption from invalid sheet data.
 - ✅ **Coverage**: Added specific smoke tests for advanced configuration parsing.
 

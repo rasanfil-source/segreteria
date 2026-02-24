@@ -657,6 +657,7 @@ function testMainDoesNotLeakHasExecutionLockGlobal() {
     };
 
     try {
+        // Intenzionale: il test deve verificare il vero entry point triggerabile del progetto.
         processEmailsMain();
         const leaked = Object.prototype.hasOwnProperty.call(global, 'hasExecutionLock');
         assert(!leaked, 'processEmailsMain non deve creare una variabile globale hasExecutionLock');
@@ -1254,13 +1255,13 @@ function testLoadAdvancedConfigStrictSuspensionHours() {
             if (args.length === 1 && args[0] === 'B10:E16') {
                 return {
                     getValues: () => [
-                        ['08', '', '12', ''],
-                        ['08x', '', '12', ''],
-                        ['22', '', '24', ''],
-                        ['18', '', '18', ''],
-                        [null, '', null, ''],
-                        [' 9 ', '', '17', ''],
-                        ['07', '', '09', '']
+                        ['Lun', '08', '12', ''],
+                        ['Mar', '08x', '12', ''],
+                        ['Mer', '22', '24', ''],
+                        ['Gio', '18', '18', ''],
+                        ['Ven', null, null, ''],
+                        ['Sab', ' 9 ', '17', ''],
+                        ['Dom', '07', '09', '']
                     ]
                 };
             }

@@ -517,7 +517,8 @@ function _loadAdvancedConfig(ss) {
       // Mapping esplicito indice-riga -> getDay JS:
       // B10..B16 = Lun..Dom  => 1..6,0 (dove Domenica in JS è 0, non 7).
       const day = (i + 1) % 7;
-      const startHour = _parseStrictHour(r[0]);
+      // B contiene il nome del giorno; gli orari reali sono in C (r[1]) e D (r[2]).
+      const startHour = _parseStrictHour(r[1]);
       const endHour = _parseStrictHour(r[2]);
       if (startHour == null || endHour == null) return;
       if (startHour >= endHour) return;
@@ -526,15 +527,18 @@ function _loadAdvancedConfig(ss) {
     });
 
     // Filtri anti-spam (layout single-sheet: E11:F)
-    const maxRows = Math.max(sheet.getLastRow(), 11);
-    const filterRows = Math.max(maxRows - 10, 1);
-    const filters = sheet.getRange(11, 5, filterRows, 2).getValues();
-    filters.forEach(row => {
-      const domain = String(row[0] || '').trim().toLowerCase();
-      const keyword = String(row[1] || '').trim().toLowerCase();
-      if (domain) config.ignoreDomains.push(domain);
-      if (keyword) config.ignoreKeywords.push(keyword);
-    });
+    const lastDataRow = sheet.getLastRow();
+    const filterStartRow = 11;
+    const filterRows = lastDataRow >= filterStartRow ? (lastDataRow - filterStartRow + 1) : 0;
+    if (filterRows > 0) {
+      const filters = sheet.getRange(filterStartRow, 5, filterRows, 2).getValues();
+      filters.forEach(row => {
+        const domain = String(row[0] || '').trim().toLowerCase();
+        const keyword = String(row[1] || '').trim().toLowerCase();
+        if (domain) config.ignoreDomains.push(domain);
+        if (keyword) config.ignoreKeywords.push(keyword);
+      });
+    }
   }, 'Lettura configurazione avanzata');
 
   // Dedup + fallback su config statica
