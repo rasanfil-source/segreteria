@@ -37,11 +37,6 @@ class GeminiRateLimiter {
           name: 'gemini-2.5-flash-lite',
           rpm: 10, tpm: 1000000, rpd: 1500,
           useCases: ['fallback', 'classification', 'quick_check']
-        },
-        'flash-2.0': {
-          name: 'gemini-2.5-flash',
-          rpm: 10, tpm: 1000000, rpd: 1500,
-          useCases: ['generation', 'all']
         }
       };
     }
@@ -54,8 +49,9 @@ class GeminiRateLimiter {
       // Fallback default
       this.strategies = {
         'quick_check': ['flash-lite', 'flash-2.5'],
-        'generation': ['flash-2.5', 'flash-2.0', 'flash-lite'],
-        'fallback': ['flash-lite', 'flash-2.0']
+        // Gemini 2.0 è deprecato: manteniamo solo la famiglia 2.5 in tutte le catene.
+        'generation': ['flash-2.5', 'flash-lite'],
+        'fallback': ['flash-lite', 'flash-2.5']
       };
     }
 
@@ -120,8 +116,8 @@ class GeminiRateLimiter {
    */
   _normalizeDeprecatedModelNames(models) {
     const deprecatedMap = {
-      'gemini-2.0-flash-exp': 'gemini-2.5-flash-lite',
-      'gemini-2.0-flash': 'gemini-2.5-flash'
+      // Canonicalizzazione minima: accettiamo alias storici ma restiamo su 2.5.
+      'gemini-2.5-flash-exp': 'gemini-2.5-flash-lite'
     };
 
     const normalized = {};
