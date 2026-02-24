@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 
 const FILES = [
     'gas_email_processor.js',
@@ -6,7 +7,8 @@ const FILES = [
 ];
 
 FILES.forEach(file => {
-    let content = fs.readFileSync(file, 'utf8');
+    const fullPath = path.join(__dirname, '..', file);
+    let content = fs.readFileSync(fullPath, 'utf8');
 
     // Strip BOM
     if (content.charCodeAt(0) === 0xFEFF) {
@@ -24,6 +26,6 @@ FILES.forEach(file => {
     content = content.replace(/\\u00F0\\u0178\\u201D\\u2019/g, '[LOCK]'); // \u00F0\u0178\u201D\u2019
     content = content.replace(/\\u00F0\\u0178\\u201D\\u201C/g, '[UNLOCK]');
 
-    fs.writeFileSync(file, content, 'utf8');
+    fs.writeFileSync(fullPath, content, 'utf8');
     console.log(`Sanitized ${file}`);
 });

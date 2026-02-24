@@ -351,15 +351,20 @@ function _loadResourcesInternal() {
 
   // Prompt resources aggiuntive (usate da PromptEngine)
   const aiCoreLiteSheet = ss.getSheetByName(cfg.AI_CORE_LITE_SHEET);
-  newCacheData.aiCoreLite = aiCoreLiteSheet
-    ? _sheetRowsToText(aiCoreLiteSheet.getDataRange().getValues())
-    : '';
+  newCacheData.aiCoreLite = '';
+  if (aiCoreLiteSheet) {
+    withSheetsRetry(() => {
+      newCacheData.aiCoreLite = _sheetRowsToText(aiCoreLiteSheet.getDataRange().getValues());
+    }, 'Lettura AI_CORE_LITE');
+  }
 
   const aiCoreSheet = ss.getSheetByName(cfg.AI_CORE_SHEET);
   if (aiCoreSheet) {
-    const aiCoreData = aiCoreSheet.getDataRange().getValues();
-    newCacheData.aiCoreStructured = _parseSheetToStructured(aiCoreData);
-    newCacheData.aiCore = _sheetRowsToText(aiCoreData);
+    withSheetsRetry(() => {
+      const aiCoreData = aiCoreSheet.getDataRange().getValues();
+      newCacheData.aiCoreStructured = _parseSheetToStructured(aiCoreData);
+      newCacheData.aiCore = _sheetRowsToText(aiCoreData);
+    }, 'Lettura AI_CORE');
   } else {
     newCacheData.aiCoreStructured = [];
     newCacheData.aiCore = '';
@@ -367,9 +372,11 @@ function _loadResourcesInternal() {
 
   const doctrineSheet = ss.getSheetByName(cfg.DOCTRINE_SHEET);
   if (doctrineSheet) {
-    const doctrineData = doctrineSheet.getDataRange().getValues();
-    newCacheData.doctrineStructured = _parseSheetToStructured(doctrineData);
-    newCacheData.doctrineBase = _sheetRowsToText(doctrineData);
+    withSheetsRetry(() => {
+      const doctrineData = doctrineSheet.getDataRange().getValues();
+      newCacheData.doctrineStructured = _parseSheetToStructured(doctrineData);
+      newCacheData.doctrineBase = _sheetRowsToText(doctrineData);
+    }, 'Lettura Dottrina');
   } else {
     newCacheData.doctrineStructured = [];
     newCacheData.doctrineBase = '';
@@ -379,14 +386,16 @@ function _loadResourcesInternal() {
   const replacementsSheet = ss.getSheetByName(replacementsSheetName);
   newCacheData.replacements = {};
   if (replacementsSheet) {
-    const replacementRows = replacementsSheet.getDataRange().getValues();
-    replacementRows.forEach(row => {
-      const from = String((row && row[0]) || '').trim();
-      const to = String((row && row[1]) || '').trim();
-      if (from) {
-        newCacheData.replacements[from] = to;
-      }
-    });
+    withSheetsRetry(() => {
+      const replacementRows = replacementsSheet.getDataRange().getValues();
+      replacementRows.forEach(row => {
+        const from = String((row && row[0]) || '').trim();
+        const to = String((row && row[1]) || '').trim();
+        if (from) {
+          newCacheData.replacements[from] = to;
+        }
+      });
+    }, 'Lettura Sostituzioni');
   }
 
   // Config Avanzata

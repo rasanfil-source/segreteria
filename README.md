@@ -151,7 +151,13 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.3.7 → 2.3.8 (Current)**
+**2.3.9 → 2.4.0 (Current)**
+- ✅ **Resource Loading**: Hardened resource loading (`gas_main.js`) with automatic retry logic for transient Sheets API errors.
+- ✅ **Lock management**: Refactored lock release logs and logic in `gas_email_processor.js` for better traceability.
+- ✅ **Salutation Mode**: Optimized greeting logic to eliminate redundancies in threads with existing memory.
+- ✅ **Maintenance Tools**: Enhanced encoding restoration (`restore_all`) and sanitization scripts to handle CP1252 artifacts safely.
+
+**2.3.7 → 2.3.8**
 - ✅ **Easter Calculation**: Returns noon (12:00:00) to prevent date shifts across timezones/DST.
 
 **2.3.6 → 2.3.7**

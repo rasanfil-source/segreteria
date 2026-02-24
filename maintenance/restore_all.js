@@ -12,10 +12,12 @@ const FILES = [
 // CP1252 (Windows-1252) Reverse Mapping for 0x80-0x9F range
 // These characters in the file mean the byte was in 0x80-0x9F range
 const CP1252_REVERSE = {
-    '€': 0x80, ' ': 0x81, '‚': 0x82, 'ƒ': 0x83, '„': 0x84, '…': 0x85, '†': 0x86, '‡': 0x87,
-    'ˆ': 0x88, '‰': 0x89, 'Š': 0x8A, '‹': 0x8B, 'Œ': 0x8C, ' ': 0x8D, 'Ž': 0x8E, ' ': 0x8F,
-    ' ': 0x90, '‘': 0x91, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '–': 0x96, '—': 0x97,
-    '˜': 0x98, '™': 0x99, 'š': 0x9A, '›': 0x9B, 'œ': 0x9C, ' ': 0x9D, 'ž': 0x9E, 'Ÿ': 0x9F
+    '€': 0x80, '‚': 0x82, 'ƒ': 0x83, '„': 0x84, '…': 0x85, '†': 0x86, '‡': 0x87,
+    'ˆ': 0x88, '‰': 0x89, 'Š': 0x8A, '‹': 0x8B, 'Œ': 0x8C, 'Ž': 0x8E,
+    '‘': 0x91, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '–': 0x96, '—': 0x97,
+    '˜': 0x98, '™': 0x99, 'š': 0x9A, '›': 0x9B, 'œ': 0x9C, 'ž': 0x9E, 'Ÿ': 0x9F,
+    // Byte CP1252 "undefined" in 0x80-0x9F: mappati a caratteri di controllo distinti.
+    '': 0x81, '': 0x8D, '': 0x8F, '': 0x90, '': 0x9D
 };
 
 function fixEncoding(filePath) {
@@ -41,7 +43,7 @@ function fixEncoding(filePath) {
 
         if (code < 0x80) {
             buffer[bufIdx++] = code;
-        } else if (CP1252_REVERSE[char]) {
+        } else if (Object.prototype.hasOwnProperty.call(CP1252_REVERSE, char)) {
             buffer[bufIdx++] = CP1252_REVERSE[char];
             needsFix = true;
         } else if (code >= 0xA0 && code <= 0xFF) {
@@ -66,17 +68,7 @@ function fixEncoding(filePath) {
             // But usually it's fully one way.
 
             // Let's assume strict reconstruction. If we hit a high char not in map, warn.
-            console.warn(`[${filePath}] Warning: Char '${char}' (U+${code.toString(16)}) cannot be reverse-mapped to CP1252 byte. Keeping original?`);
-            // Attempt to write UTF-8 bytes of this char into the buffer?
-            // No, that mixes logic.
-            // If the file is "Double Encoded", then ALL chars should be representable as single bytes (the Bytes of the original UTF-8).
-            // If we find a Char > 255 (and not in CP1252 map), it means this character CANNOT be the result of byte-interpretation.
-            // It must have been added correctly later.
-
-            // Strategy: This naive loop only works if the WHOLE file is corrupted.
-            // If the file has valid ✅ (U+2705) it means it wasn't corrupted, OR it was fixed partially.
-
-            // For now, let's try to convert validly.
+            console.error(`[${filePath}] ERRORE: Char '${char}' (U+${code.toString(16).toUpperCase()}) non mappabile in CP1252. File saltato per evitare corruzione.`);
             return { fixed: false, reason: `Contains high-char '${char}'` };
         }
     }

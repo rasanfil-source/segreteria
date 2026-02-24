@@ -1073,6 +1073,9 @@ ${addressLines.join('\n\n')}
     const executionLock = LockService.getScriptLock();
     let lockAcquiredHere = false;
 
+    // Nota: non rimuoviamo questo blocco. Serve quando processUnreadEmails è invocata
+    // fuori dall'entry point principale (job manuali/test), evitando corse concorrenti.
+    // In main il parametro skipExecutionLock=true impedisce il double-lock/release prematuro.
     if (!skipExecutionLock) {
       const lockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
         ? CONFIG.EXECUTION_LOCK_WAIT_MS : 5000;
@@ -1724,46 +1727,41 @@ function computeSalutationMode({ isReply = false, messageCount = 0, memoryExists
     return 'full';
   }
 
-  // 2️⃣ Conversazione attiva
-  if (isReply || messageCount > 1 || memoryExists) {
-    if (!lastUpdated) {
-      return 'none_or_continuity';
-    }
+  // 2️⃣ Conversazione attiva (qui isReply è necessariamente true)
+  if (!lastUpdated) {
+    return 'none_or_continuity';
+  }
 
-    const parsedLastUpdated = new Date(lastUpdated);
-    if (isNaN(parsedLastUpdated.getTime())) {
-      return 'none_or_continuity';
-    }
+  const parsedLastUpdated = new Date(lastUpdated);
+  if (isNaN(parsedLastUpdated.getTime())) {
+    return 'none_or_continuity';
+  }
 
-    const timeSinceLastMs = now.getTime() - parsedLastUpdated.getTime();
-    const minutesSinceLast = timeSinceLastMs / (1000 * 60);
-    const hoursSinceLast = timeSinceLastMs / (1000 * 60 * 60);
+  const timeSinceLastMs = now.getTime() - parsedLastUpdated.getTime();
+  const minutesSinceLast = timeSinceLastMs / (1000 * 60);
+  const hoursSinceLast = timeSinceLastMs / (1000 * 60 * 60);
 
-    if (isNaN(hoursSinceLast) || hoursSinceLast < 0) {
-      console.warn('⚠️ Timestamp futuro o invalido');
-      return 'full';
-    }
-
-    // Sessione conversazionale ravvicinata (entro 15 minuti)
-    if (minutesSinceLast <= SESSION_WINDOW_MINUTES) {
-      return 'session';
-    }
-
-    // Follow-up ravvicinato (entro 48h)
-    if (hoursSinceLast <= 48) {
-      return 'none_or_continuity';
-    }
-
-    // Conversazione ripresa dopo pausa (48h - 4 giorni)
-    if (hoursSinceLast <= 96) {
-      return 'soft';
-    }
-
-    // Troppo tempo passato (> 4 giorni) → nuovo contatto
+  if (isNaN(hoursSinceLast) || hoursSinceLast < 0) {
+    console.warn('⚠️ Timestamp futuro o invalido');
     return 'full';
   }
 
-  // Fallback
+  // Sessione conversazionale ravvicinata (entro 15 minuti)
+  if (minutesSinceLast <= SESSION_WINDOW_MINUTES) {
+    return 'session';
+  }
+
+  // Follow-up ravvicinato (entro 48h)
+  if (hoursSinceLast <= 48) {
+    return 'none_or_continuity';
+  }
+
+  // Conversazione ripresa dopo pausa (48h - 4 giorni)
+  if (hoursSinceLast <= 96) {
+    return 'soft';
+  }
+
+  // Troppo tempo passato (> 4 giorni) → nuovo contatto
   return 'full';
 }
 
