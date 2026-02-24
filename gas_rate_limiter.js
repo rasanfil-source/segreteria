@@ -49,9 +49,9 @@ class GeminiRateLimiter {
       // Fallback default
       this.strategies = {
         'quick_check': ['flash-lite', 'flash-2.5'],
-        // Gemini 2.0 è deprecato: manteniamo solo la famiglia 2.5 in tutte le catene.
-        'generation': ['flash-2.5', 'flash-lite'],
-        'fallback': ['flash-lite', 'flash-2.5']
+        // Per generation evitiamo loop sul solo "lite" e usiamo fallback premium-safe.
+        'generation': ['flash-2.5', 'flash-lite', 'flash-2.5-lite-backup'],
+        'fallback': ['flash-lite', 'flash-2.5-lite-backup', 'flash-2.5']
       };
     }
 
@@ -246,10 +246,10 @@ class GeminiRateLimiter {
     // Aggiunge 'classification' come alias di 'quick_check' se non definito
     const taskStrategies = this.strategies;
     if (!taskStrategies['classification']) {
-      taskStrategies['classification'] = taskStrategies['quick_check'] || ['flash-2.5', 'flash-lite'];
+      taskStrategies['classification'] = taskStrategies['quick_check'] || ['flash-lite', 'flash-2.5'];
     }
 
-    const candidates = taskStrategies[taskType] || taskStrategies['fallback'] || ['flash-2.5', 'flash-lite'];
+    const candidates = taskStrategies[taskType] || taskStrategies['fallback'] || ['flash-lite', 'flash-2.5'];
 
     // Trova primo modello disponibile (Punto 11: Protezione con lock per atomicità check+use)
     const lock = LockService.getScriptLock();

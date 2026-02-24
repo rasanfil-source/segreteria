@@ -47,6 +47,10 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **Cycle v2.4.8 (State Management & OCR Refinement)**:
+    *   **Memory Service**: Allineamento automatico della versione attesa (`expectedVersion`) durante i retry di aggiornamento memoria per una gestione più robusta dei conflitti OCC.
+    *   **Gmail Service**: Migliorato il parsing dei nomi nei documenti estratti (rimossa esclusione virgola) per una maggiore precisione OCR.
+    *   **Rate Limiter**: Ottimizzata la selezione dei candidati per task di generazione con fallback prioritario sulla famiglia 2.5-flash.
 *   **Cycle v2.4.7 (Robustness & Concurrency Hardening)**:
     *   **Rate Limiter**: Implementato retry loop con backoff esponenziale per l'acquisizione del lock nella selezione modello.
     *   **Memory Service**: Preservazione delle reazioni utente durante il merge dei topic e allineamento dinamico dei TTL dei lock con i timeout di scrittura sugli Sheet.

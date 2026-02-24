@@ -214,6 +214,10 @@ class MemoryService {
     // Workaround: Hash del threadId per sharding (riduce contention)
     const lockKey = this._getShardedLockKey(threadId);
 
+    // Stato locale OCC: aggiorniamo la expectedVersion ad ogni conflitto
+    // per evitare retry inutili con versione ormai obsoleta.
+    let expectedVersion = newData._expectedVersion;
+
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       let lockOwned = false;
       let shouldRetry = false;
@@ -236,14 +240,13 @@ class MemoryService {
           const currentVersion = existingData.version || 0;
 
           // Verifica controllo concorrenza ottimistico
-          if (newData._expectedVersion !== undefined && newData._expectedVersion !== currentVersion) {
+          if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
             // INVALIDAZIONE CACHE CRITICA
             this._invalidateCache(`memory_${threadId}`);
-            console.warn(`🔒 Version mismatch thread ${threadId}: atteso ${newData._expectedVersion}, ottenuto ${currentVersion}`);
+            console.warn(`🔒 Version mismatch thread ${threadId}: atteso ${expectedVersion}, ottenuto ${currentVersion}`);
 
-            // Crea una copia per evitare mutation del chiamante (Bug #8)
-            const updatedData = Object.assign({}, newData);
-            updatedData._expectedVersion = currentVersion;
+            // Allinea la versione attesa per il retry successivo (OCC corretto).
+            expectedVersion = currentVersion;
             throw new Error('VERSION_MISMATCH');
           }
 
@@ -365,6 +368,8 @@ class MemoryService {
     const lockKey = this._getShardedLockKey(threadId);
 
     // Prova max 3 volte
+    let expectedVersion = rawData._expectedVersion;
+
     for (let i = 0; i < 3; i++) {
       let lockAcquired = false;
       try {
@@ -390,8 +395,9 @@ class MemoryService {
           const currentVersion = existingData.version || 0;
 
           // Controllo concorrenza ottimistico opzionale
-          if (rawData._expectedVersion !== undefined && rawData._expectedVersion !== currentVersion) {
-            console.warn(`🔒 Version mismatch atomico thread ${threadId}: atteso ${rawData._expectedVersion}, ottenuto ${currentVersion}`);
+          if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
+            console.warn(`🔒 Version mismatch atomico thread ${threadId}: atteso ${expectedVersion}, ottenuto ${currentVersion}`);
+            expectedVersion = currentVersion;
             throw new Error('VERSION_MISMATCH');
           }
 

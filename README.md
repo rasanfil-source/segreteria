@@ -151,7 +151,12 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.4.6 → 2.4.7 (Current)**
+**2.4.7 → 2.4.8 (Current)**
+- ✅ **Memory**: Fixed OCC retry loop by aligning `expectedVersion` on mismatch.
+- ✅ **Gmail/OCR**: Refined name extraction regex to include commas.
+- ✅ **Rate Limiter**: Optimized model candidates and strategic fallbacks.
+
+**2.4.6 → 2.4.7**
 - ✅ **Rate Limiter**: Added lock retry mechanism with backoff for high-concurrency tasks.
 - ✅ **Memory**: Enhanced topic merging (reaction preservation) and synchronized lock TTLs with Sheet write timeouts.
 - ✅ **Prompt Engine**: Lowered `MAX_SAFE_TOKENS` to 50k to prevent execution timeouts.
