@@ -151,7 +151,11 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.4.1 → 2.4.2 (Current)**
+**2.4.2 → 2.4.3 (Current)**
+- ✅ **Advanced Config**: Implemented strict hour parsing (0-23) for suspension rules, preventing corruption from invalid sheet data.
+- ✅ **Coverage**: Added specific smoke tests for advanced configuration parsing.
+
+**2.4.1 → 2.4.2**
 - ✅ **Response Validator**: Hardened forbidden phrase detection with word boundaries; fixed length score calculation.
 - ✅ **Resilience**: Improved HTML parsing and Sheets API retry logging.
 - ✅ **Classifier**: Refined signature detection logic to prevent content truncation.

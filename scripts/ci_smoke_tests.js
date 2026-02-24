@@ -1243,6 +1243,48 @@ function testSheetRowsToTextFormatsDatesStably() {
     assert(lines[1] === 'Incontro | 2026-05-10 18:30', `Data con orario non stabile: ottenuto "${lines[1]}"`);
 }
 
+function testLoadAdvancedConfigStrictSuspensionHours() {
+    console.log('--- Test: Load Advanced Config strict suspension parsing ---');
+    loadScript('gas_main.js');
+
+    const sheet = {
+        getRange: (...args) => {
+            if (args.length === 1 && args[0] === 'B2') return { getValue: () => 'ACCESO' };
+            if (args.length === 1 && args[0] === 'B5:E7') return { getValues: () => [[null, null, null, null], [null, null, null, null], [null, null, null, null]] };
+            if (args.length === 1 && args[0] === 'B10:E16') {
+                return {
+                    getValues: () => [
+                        ['08', '', '12', ''],
+                        ['08x', '', '12', ''],
+                        ['22', '', '24', ''],
+                        ['18', '', '18', ''],
+                        [null, '', null, ''],
+                        [' 9 ', '', '17', ''],
+                        ['07', '', '09', '']
+                    ]
+                };
+            }
+            if (args.length === 4 && args[0] === 11 && args[1] === 5) {
+                const rows = args[2];
+                return { getValues: () => Array.from({ length: rows }, () => ['', '']) };
+            }
+            throw new Error(`Range non atteso: ${args.join(',')}`);
+        },
+        getLastRow: () => 11
+    };
+
+    const ss = { getSheetByName: (name) => (name === 'Controllo' ? sheet : null) };
+    const cfg = _loadAdvancedConfig(ss);
+
+    assert(Array.isArray(cfg.suspensionRules[1]), 'Lunedì deve includere la fascia oraria valida 08-12');
+    assert(cfg.suspensionRules[1][0][0] === 8 && cfg.suspensionRules[1][0][1] === 12, 'Fascia lunedì non parsata correttamente');
+    assert(cfg.suspensionRules[6][0][0] === 9 && cfg.suspensionRules[6][0][1] === 17, 'Valori con spazi devono essere normalizzati (9-17)');
+    assert(cfg.suspensionRules[0][0][0] === 7 && cfg.suspensionRules[0][0][1] === 9, 'Domenica valida deve essere mantenuta (7-9)');
+    assert(cfg.suspensionRules[2] == null, 'Valori parzialmente numerici (es. 08x) devono essere scartati');
+    assert(cfg.suspensionRules[3] == null, 'Ore fuori range (es. 24) devono essere scartate');
+    assert(cfg.suspensionRules[4] == null, 'Fasce invertite o nulle (18-18) devono essere scartate');
+}
+
 function testLoadResourcesKeepsFalseyValuesInAiCoreSheets() {
     console.log('--- Test: Load Resources AI_CORE falsey values ---');
     loadScript('gas_main.js');
@@ -1413,6 +1455,7 @@ function main() {
         ['main: serializzazione robusta righe KB', testSheetRowsToTextRemovesEmptyCellsAndRows],
         ['main: serializzazione date KB stabile', testSheetRowsToTextFormatsDatesStably],
         ['main: ai_core preserva valori falsey', testLoadResourcesKeepsFalseyValuesInAiCoreSheets],
+        ['main: parsing rigoroso fasce sospensione', testLoadAdvancedConfigStrictSuspensionHours],
         ['prompt context: temporal risk with object KB', testPromptContextTemporalRiskWithObjectKnowledgeBase],
         ['prompt context: circular object KB fallback', testPromptContextKnowledgeBaseCircularObjectDoesNotCrash],
         ['prompt engine: object KB normalization', testPromptEngineNormalizesObjectKnowledgeBase],

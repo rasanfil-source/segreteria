@@ -47,6 +47,9 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **Cycle v2.4.3 (Strict Config & Validation)**:
+    *   **Config Advanced**: Implementata validazione rigorosa per le fasce orarie di sospensione (scarto di valori non numerici, ore fuori range 0-23 e fasce invertite).
+    *   **Smoke Tests**: Aggiunta copertura per il parsing delle configurazioni avanzate dello Sheet Controllo.
 *   **Cycle v2.4.2 (Maintenance & Edge-Cases)**:
     *   **Response Validator**: Migliorato il rilevamento delle frasi di incertezza (word boundaries) e corretto il calcolo dello score per risposte troppo lunghe.
     *   **Gmail Service & Main**: Ottimizzato il parsing HTML, migliorata la resilienza nel caricamento risorse e raffinata la persistenza della memoria (best-effort).

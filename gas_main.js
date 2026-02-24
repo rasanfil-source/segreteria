@@ -477,8 +477,17 @@ function _parseSheetToStructured(data) {
     usedHeaders.forEach((h, i) => {
       if (h) obj[h] = row[i];
     });
-    return obj;
   });
+}
+
+function _parseStrictHour(value) {
+  const normalized = String(value == null ? '' : value).trim();
+  if (!/^\d{1,2}$/.test(normalized)) return null;
+
+  const hour = Number(normalized);
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
+
+  return hour;
 }
 
 function _loadAdvancedConfig(ss) {
@@ -508,9 +517,12 @@ function _loadAdvancedConfig(ss) {
       // Mapping esplicito indice-riga -> getDay JS:
       // B10..B16 = Lun..Dom  => 1..6,0 (dove Domenica in JS è 0, non 7).
       const day = (i + 1) % 7;
-      if (!isNaN(parseInt(r[0])) && !isNaN(parseInt(r[2]))) {
-        config.suspensionRules[day] = [[parseInt(r[0]), parseInt(r[2])]];
-      }
+      const startHour = _parseStrictHour(r[0]);
+      const endHour = _parseStrictHour(r[2]);
+      if (startHour == null || endHour == null) return;
+      if (startHour >= endHour) return;
+
+      config.suspensionRules[day] = [[startHour, endHour]];
     });
 
     // Filtri anti-spam (layout single-sheet: E11:F)
