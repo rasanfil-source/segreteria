@@ -745,7 +745,8 @@ class GmailService {
     if (!html) return '';
 
     let text = html;
-    // Preserva separatori strutturali per evitare blocchi di testo illeggibili
+    // Preserva separatori strutturali per evitare blocchi di testo illeggibili.
+    // È intenzionale: evitare il "muro di testo" migliora la qualità del parsing Gemini.
     text = text.replace(/<br\s*\/?\s*>/gi, '\n');
     text = text.replace(/<\/p\s*>/gi, '\n\n');
     text = text.replace(/<\/div\s*>/gi, '\n');

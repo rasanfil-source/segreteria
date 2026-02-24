@@ -84,7 +84,7 @@ function calculateEaster(year) {
 /**
  * Verifica se una data ricade in uno dei periodi ferie del segretario
  */
-function isInVacationPeriod(date = new Date()) {
+function isInVacationPeriod(date = new Date(), scriptTimeZone = "") {
   if (!(date instanceof Date) || isNaN(date.getTime())) {
     console.warn('⚠️ Data non valida passata a isInVacationPeriod');
     return false;
@@ -99,22 +99,37 @@ function isInVacationPeriod(date = new Date()) {
     return false;
   }
 
-  // Normalizza input a inizio giornata per confronto date-only
-  const checkDate = new Date(date);
-  checkDate.setHours(0, 0, 0, 0);
+  // Normalizza input a data-only nel fuso dello script per evitare slittamenti ai confini UTC.
+  const formatDateOnly = function (value) {
+    const source = (value instanceof Date) ? value : new Date(value);
+    if (isNaN(source.getTime())) return '';
+
+    if (scriptTimeZone && typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+      try {
+        return Utilities.formatDate(source, scriptTimeZone, 'yyyy-MM-dd');
+      } catch (e) {
+        console.warn(`⚠️ Impossibile applicare timezone script (${scriptTimeZone}) in isInVacationPeriod: ${e.message}`);
+      }
+    }
+
+    // Fallback locale: mantiene compatibilità anche in test/mocking senza Utilities.
+    const y = source.getFullYear();
+    const m = String(source.getMonth() + 1).padStart(2, '0');
+    const d = String(source.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const checkDateKey = formatDateOnly(date);
+  if (!checkDateKey) return false;
 
   for (const vp of periods) {
     if (!vp || !vp.start || !vp.end) continue;
 
-    const start = new Date(vp.start);
-    const end = new Date(vp.end);
+    const startKey = formatDateOnly(vp.start);
+    const endKey = formatDateOnly(vp.end);
+    if (!startKey || !endKey) continue;
 
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) continue;
-
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
-
-    if (checkDate >= start && checkDate <= end) return true;
+    if (checkDateKey >= startKey && checkDateKey <= endKey) return true;
   }
 
   return false;
@@ -163,9 +178,11 @@ function isInSuspensionTime(checkDate = new Date()) {
     if (monthIndex === hMonth && date === hDay) return false;
   }
 
-  // Pasquetta, Sabato Santo
+  // Domenica di Pasqua, Pasquetta, Sabato Santo
   const easter = calculateEaster(year);
   const normalizedNow = new Date(year, monthIndex, date, 12, 0, 0);
+  if (isSameCalendarDay(normalizedNow, easter)) return false;
+
   const pasquetta = new Date(easter);
   pasquetta.setDate(easter.getDate() + 1);
   if (isSameCalendarDay(normalizedNow, pasquetta)) return false;
@@ -175,7 +192,7 @@ function isInSuspensionTime(checkDate = new Date()) {
   if (isSameCalendarDay(normalizedNow, holySaturday)) return false;
 
   // Ferie Segretario (Sheet)
-  if (isInVacationPeriod(now)) return false;
+  if (isInVacationPeriod(now, scriptTimeZone)) return false;
 
   // 2. ORARI UFFICIO (Sistema SOSPESO)
   // Utilizza i dati caricati dal foglio Controllo in (A10:D16/B10:E16) durante il loadResources

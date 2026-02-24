@@ -522,6 +522,10 @@ class GeminiRateLimiter {
       tokens: tokensUsed
     });
 
+    // GAS esegue trigger in istanze effimere: persistenza immediata evita perdite
+    // silenziose delle entry RPM/TPM quando una run termina in meno di 10s.
+    this._persistCache();
+
     // Log
     console.log(`📊 Tracciato: ${modelKey}`);
     console.log(`   RPD: ${counters.rpd}/${this.models[modelKey].rpd}`);

@@ -398,7 +398,8 @@ Output JSON:
       } catch (error) {
         lastError = error;
 
-        // Centralizza classificazione errore per logica retry
+        // Manteniamo _classifyError: è il punto unico di classificazione interno
+        // e resta allineato al contratto condiviso retryable/type.
         const classified = this._classifyError(error);
         const isRetryable = classified.retryable;
 
