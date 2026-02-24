@@ -122,7 +122,7 @@ class PromptEngine {
     // PRE-STIMA E BUDGETING TOKEN (Protezione Miglioramento #6 - Memory Growth)
     // ══════════════════════════════════════════════════════
     const MAX_SAFE_TOKENS = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS
-      ? CONFIG.MAX_SAFE_TOKENS : 100000;
+      ? CONFIG.MAX_SAFE_TOKENS : 50000;
 
     const OVERHEAD_TOKENS = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS)
       ? CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS : 15000; // Riserva per istruzioni e sistema
@@ -335,6 +335,7 @@ ${GLOBAL_CACHE.doctrineBase}
     // ══════════════════════════════════════════════════════
 
     addSection(this._renderCriticalErrorsReminder(), 'CriticalErrorsReminder');
+    // Nota: il parametro è volutamente territoryContext (senza refusi) perché viene passato dal chiamante con lo stesso nome.
     addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode), 'ContextualChecklist');
 
     addSection('**Genera la risposta completa seguendo le linee guida sopra:**', 'FinalInstruction', { force: true });

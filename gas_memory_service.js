@@ -678,7 +678,24 @@ class MemoryService {
 
     newTopics.forEach(item => {
       if (item && item.topic) {
-        mergedMap.set(item.topic, item);
+        const previous = mergedMap.get(item.topic);
+        if (!previous) {
+          mergedMap.set(item.topic, item);
+          return;
+        }
+
+        // Manteniamo la reazione utente pregressa se il nuovo topic arriva senza segnale esplicito.
+        // Questo evita di perdere metadati storici durante deduplica per chiave "topic".
+        const incomingReaction = item.userReaction || item.reaction;
+        const shouldPreserveReaction = !incomingReaction || incomingReaction === 'unknown';
+
+        mergedMap.set(item.topic, {
+          ...previous,
+          ...item,
+          userReaction: shouldPreserveReaction
+            ? (previous.userReaction || incomingReaction || 'unknown')
+            : incomingReaction
+        });
       }
     });
 
@@ -765,9 +782,14 @@ class MemoryService {
   _tryAcquireShardedLock(key) {
     const cache = CacheService.getScriptCache();
     const globalLock = LockService.getScriptLock();
-    const lockTtlSeconds = (typeof CONFIG !== 'undefined' && Number(CONFIG.MEMORY_LOCK_TTL) > 0)
+    const configuredLockTtlSeconds = (typeof CONFIG !== 'undefined' && Number(CONFIG.MEMORY_LOCK_TTL) > 0)
       ? Number(CONFIG.MEMORY_LOCK_TTL)
       : 30;
+    const sheetWriteTimeoutMs = (typeof CONFIG !== 'undefined' && Number(CONFIG.SHEET_WRITE_LOCK_TIMEOUT_MS) > 0)
+      ? Number(CONFIG.SHEET_WRITE_LOCK_TIMEOUT_MS)
+      : 10000;
+    // TTL >= attesa lock sheet + margine: riduce la finestra in cui due worker credono di essere soli.
+    const lockTtlSeconds = Math.max(configuredLockTtlSeconds, Math.ceil((sheetWriteTimeoutMs + 5000) / 1000));
 
     // Pattern: Global Guard per operazione Cache Atomica
     // Prendi lock globale per pochissimo tempo, solo per check-and-set su Cache

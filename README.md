@@ -151,7 +151,12 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.4.5 → 2.4.6 (Current)**
+**2.4.6 → 2.4.7 (Current)**
+- ✅ **Rate Limiter**: Added lock retry mechanism with backoff for high-concurrency tasks.
+- ✅ **Memory**: Enhanced topic merging (reaction preservation) and synchronized lock TTLs with Sheet write timeouts.
+- ✅ **Prompt Engine**: Lowered `MAX_SAFE_TOKENS` to 50k to prevent execution timeouts.
+
+**2.4.5 → 2.4.6**
 - ✅ **Holidays**: Added Pentecost and Corpus Domini to operational calendar.
 - ✅ **Architecture**: Introduced `ResponseValidator.validate` alias for object-based API compatibility.
 - ✅ **Harden**: Safe-casting for `territoryContext` in `PromptEngine`.

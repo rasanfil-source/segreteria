@@ -82,7 +82,8 @@ const CONFIG = {
     REPLACEMENTS_SHEET_NAME: 'Sostituzioni',
     MEMORY_SHEET_NAME: 'ConversationMemory',
     MAX_PROVIDED_TOPICS: 50,             // Limite massimo topic in memoria
-    MEMORY_LOCK_TTL: 10,                 // Lock TTL in secondi per MemoryService
+    MEMORY_LOCK_TTL: 30,                 // Lock TTL in secondi per MemoryService (>= timeout lock Sheet)
+    SHEET_WRITE_LOCK_TIMEOUT_MS: 10000,  // Timeout attesa ScriptLock prima di scrivere su Sheet
 
     // === Retry API Sheets ===
     SHEETS_RETRY_MAX: 3,                 // Tentativi massimi
@@ -94,7 +95,7 @@ const CONFIG = {
     USE_RATE_LIMITER: true,              // Rate limiter intelligente abilitato
 
     // === Limiti Token (Prompt Engine) ===
-    MAX_SAFE_TOKENS: 100000,             // Limite massimo token per prompt
+    MAX_SAFE_TOKENS: 50000,              // Limite massimo token per prompt (più sicuro per timeout GAS)
     KB_TOKEN_BUDGET_RATIO: 0.5,          // Percentuale budget KB rispetto a max token
 
     // === Limiti Thread ===
@@ -151,6 +152,8 @@ const CONFIG = {
     },
 
     // === Liste di esclusione ===
+    // Nota: lista intentionally mista (domini + email complete).
+    // Il matcher supporta sia exact match (email) sia suffisso dominio in _shouldIgnoreEmail.
     IGNORE_DOMAINS: [
         'noreply', 'no-reply', 'newsletter', 'marketing',
         'promo', 'ads', 'notifications',

@@ -117,7 +117,8 @@ class GeminiRateLimiter {
   _normalizeDeprecatedModelNames(models) {
     const deprecatedMap = {
       // Canonicalizzazione minima: accettiamo alias storici ma restiamo su 2.5.
-      'gemini-2.5-flash-exp': 'gemini-2.5-flash-lite'
+      'gemini-2.5-flash-exp': 'gemini-2.5-flash-lite',
+      'gemini-2.0-flash-exp': 'gemini-2.5-flash-lite'
     };
 
     const normalized = {};
@@ -252,10 +253,20 @@ class GeminiRateLimiter {
 
     // Trova primo modello disponibile (Punto 11: Protezione con lock per atomicità check+use)
     const lock = LockService.getScriptLock();
-    // Aumentato timeout acquisizione per gestione alta concorrenza
-    const lockAcquired = lock.tryLock(5000);
+    // Retry breve con backoff: evita falsi "non disponibile" sotto burst concorrenti.
+    let lockAcquired = false;
+    const maxLockAttempts = 3;
+    for (let attempt = 0; attempt < maxLockAttempts; attempt++) {
+      lockAcquired = lock.tryLock(5000);
+      if (lockAcquired) break;
+      if (attempt < maxLockAttempts - 1) {
+        const backoffMs = 150 * Math.pow(2, attempt) + Math.floor(Math.random() * 100);
+        Utilities.sleep(backoffMs);
+      }
+    }
+
     if (!lockAcquired) {
-      console.warn('⚠️ Lock non acquisito per selezione modello, fallback conservativo');
+      console.warn('⚠️ Lock non acquisito per selezione modello dopo retry, fallback conservativo');
       return {
         available: false,
         modelKey: null,
