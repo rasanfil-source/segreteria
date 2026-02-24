@@ -151,7 +151,11 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.5.0 → 2.5.1 (Current)**
+**2.5.1 → 2.5.2 (Current)**
+- ✅ **Gmail**: Improved `recipientEmail` extraction with multiple fallbacks (`EffectiveUser`/`ActiveUser`).
+- ✅ **Main**: Hardened `loadResources` with explicit initialization guarantees.
+
+**2.5.0 → 2.5.1**
 - ✅ **Territory**: Added explicit `needsCivic: false` for full addresses to prevent redundant processing.
 - ✅ **Memory**: Improved Cache clearing logic for transaction-style keys (`MEM_*`).
 - ✅ **Validator**: Refined punctuation regex to reduce false positives on elided forms.

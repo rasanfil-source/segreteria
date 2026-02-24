@@ -47,6 +47,9 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **Cycle v2.5.2 (Hardening Gmail & Runtime Initialization)**:
+    *   **Gmail Service**: Migliorata l'estrazione del destinatario (`recipientEmail`) con fallback multipli su `EffectiveUser` e `ActiveUser` in caso di fallimento delle API avanzate.
+    *   **Main Logic**: Rafforzato il caricamento risorse con documentazione esplicita sulla garanzia di inizializzazione della cache globale.
 *   **Cycle v2.5.1 (Reliability & Resource Adaptation)**:
     *   **Memory Service**: Affinata la pulizia della cache per le chiavi `MEM_*` (transazionali) e migliorata la documentazione interna sulla precedenza dei blocchi lock-retry.
     *   **Territory Validator**: Introdotto flag esplicito `needsCivic: false` per indirizzi completi, garantendo la coerenza del contratto con l'EmailProcessor e riducendo richieste ridondanti all'utente.

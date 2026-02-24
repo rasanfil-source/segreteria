@@ -289,7 +289,12 @@ class GmailService {
     try {
       recipientEmail = message.getTo();
     } catch (e) {
-      recipientEmail = Session.getEffectiveUser().getEmail();
+      const effectiveUser = Session.getEffectiveUser();
+      recipientEmail = effectiveUser ? effectiveUser.getEmail() : '';
+      if (!recipientEmail) {
+        const activeUser = Session.getActiveUser();
+        recipientEmail = activeUser ? activeUser.getEmail() : '';
+      }
     }
 
     let recipientCc = '';
@@ -1065,6 +1070,8 @@ class GmailService {
   fixPunctuation(text, senderName = '') {
     if (!text) return text;
 
+    // Intenzionale: array locale ricreato a ogni chiamata, quindi la mutazione
+    // serve solo ad ampliare le eccezioni per il messaggio corrente.
     const exceptions = ['Don', 'Padre', 'Suor', 'Monsignor', 'Papa', 'Signore', 'Signora'];
 
     if (senderName) {

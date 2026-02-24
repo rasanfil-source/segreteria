@@ -285,6 +285,8 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
   if (typeof GLOBAL_CACHE === 'undefined' || !GLOBAL_CACHE) {
     throw new Error('GLOBAL_CACHE non inizializzata: impossibile caricare risorse in sicurezza.');
   }
+  // Nota: da qui in avanti GLOBAL_CACHE è garantita; evitiamo fallback silenziosi
+  // perché maschererebbero regressioni d'inizializzazione del runtime.
 
   const now = Date.now();
   const cacheIsFresh = GLOBAL_CACHE.loaded && GLOBAL_CACHE.lastLoadedAt && ((now - GLOBAL_CACHE.lastLoadedAt) < RESOURCE_CACHE_TTL_MS);
