@@ -151,7 +151,10 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.4.3 → 2.4.4 (Current)**
+**2.4.4 → 2.4.5 (Current)**
+- ✅ **Test Infrastructure**: Added `SpreadsheetApp.flush()` mock to ensure CI compatibility.
+
+**2.4.3 → 2.4.4**
 - ✅ **Gemini Service**: Hardened JSON parsing and error classification (explicit 401/403 fatal handling).
 - ✅ **Advanced Config**: Fixed column indexing for suspension rules (shifted to C/D) and improved spam filter range detection.
 

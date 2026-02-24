@@ -47,6 +47,8 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **Cycle v2.4.5 (Test Environment Hardening)**:
+    *   **Unit Tests**: Aggiunto mock per `SpreadsheetApp.flush()` per una migliore compatibilità con l'ambiente GAS durante i test locali.
 *   **Cycle v2.4.4 (Cross-Service Hardening)**:
     *   **Gemini Service**: Migliorato il parsing JSON nel controllo rapido e raffinata la classificazione degli errori (distinzione netta tra errori FATAL come 401/403 e RETRYABLE).
     *   **Config Advanced**: Corretti gli indici di colonna per le fasce orarie e ottimizzato il caricamento filtri anti-spam.

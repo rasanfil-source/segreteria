@@ -74,6 +74,7 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
 
     if (typeof global.SpreadsheetApp === 'undefined') {
         global.SpreadsheetApp = {
+            flush: () => { },
             openById: () => ({
                 getSheetByName: () => ({
                     getRange: (r) => ({
