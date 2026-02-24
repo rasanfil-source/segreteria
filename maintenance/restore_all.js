@@ -90,7 +90,9 @@ function fixEncoding(filePath) {
         // If the 'fixed' string STILL has 'Ã', maybe we failed? 
         // No, 'à' is 0xC3 0xA0. 
         // If we fixed it, we should see 'à'.
-
+        // Nota: la scrittura è intenzionalmente condizionata.
+        // Se non miglioriamo un indicatore semplice (lunghezza), evitiamo di riscrivere
+        // file potenzialmente già sani per non introdurre corruzione silenziosa.
         if (fixedContent.length < content.length) {
             console.log(`[${filePath}] Detected CP1252 corruption. Restoring...`);
             fs.writeFileSync(fullPath, fixedContent, 'utf8');

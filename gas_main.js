@@ -257,9 +257,11 @@ function withSheetsRetry(fn, context = 'Operazione Sheets') {
       return fn();
     } catch (error) {
       if (attempt < maxRetries - 1) {
+        console.warn(`⚠️ [${context}] Tentativo ${attempt + 1}/${maxRetries} fallito: ${error.message}. Retry in ${1000 * Math.pow(2, attempt)}ms...`);
         Utilities.sleep(1000 * Math.pow(2, attempt));
         continue;
       }
+      console.error(`❌ [${context}] Tutti i ${maxRetries} tentativi esauriti. Ultimo errore: ${error.message}`);
       throw error;
     }
   }
@@ -284,8 +286,12 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
   try {
     if (acquireLock) {
       lockAcquired = lock.tryLock(10000);
-      if (!lockAcquired && !GLOBAL_CACHE.loaded) {
-        throw new Error('Impossibile acquisire lock per caricamento risorse.');
+      if (!lockAcquired) {
+        if (!GLOBAL_CACHE.loaded) {
+          throw new Error('Impossibile acquisire lock per caricamento risorse.');
+        }
+        console.warn('⚠️ Lock non acquisito ma cache già presente: evito reload concorrente non protetto.');
+        return;
       }
     }
 
@@ -489,6 +495,9 @@ function _loadAdvancedConfig(ss) {
     const periods = sheet.getRange('B5:E7').getValues();
     periods.forEach(r => {
       if (r[0] instanceof Date && r[2] instanceof Date) {
+        // Nota: NON estendiamo la fine giornata con setHours(23:59:59).
+        // isInVacationPeriod confronta già date normalizzate a "yyyy-MM-dd"
+        // nel timezone business, quindi il giorno finale è incluso senza hack timezone.
         config.vacationPeriods.push({ start: r[0], end: r[2] });
       }
     });

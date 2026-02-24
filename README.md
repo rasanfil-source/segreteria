@@ -151,7 +151,12 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.4.0 → 2.4.1 (Current)**
+**2.4.1 → 2.4.2 (Current)**
+- ✅ **Response Validator**: Hardened forbidden phrase detection with word boundaries; fixed length score calculation.
+- ✅ **Resilience**: Improved HTML parsing and Sheets API retry logging.
+- ✅ **Classifier**: Refined signature detection logic to prevent content truncation.
+
+**2.4.0 → 2.4.1**
 - ✅ **Prompt Engine**: Hardened input normalization to prevent "[object Object]" artifacts in the final prompt when passing structured data.
 - ✅ **Validation**: Added smoke test coverage for JSON serialization of object-based Knowledge Base.
 

@@ -321,8 +321,13 @@ class MemoryService {
     console.log(`🧹 Invalidazione preventiva cache per thread ${threadId} pre-lettura di allineamento`);
     this._invalidateCache(`memory_${threadId}`);
 
-    // updateMemory gestisce già retry, lock e invalidazione/aggiornamento cache
-    this.updateMemory(threadId, data);
+    // updateMemory gestisce già retry, lock e invalidazione/aggiornamento cache.
+    // Se fallisce anche dopo i retry, qui non rilanciamo: la memoria è best-effort.
+    try {
+      this.updateMemory(threadId, data);
+    } catch (e) {
+      console.error(`❌ updateMemoryRobust: persistenza memoria fallita per thread ${threadId}: ${e.message}`);
+    }
   }
 
   /**

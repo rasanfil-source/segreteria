@@ -345,7 +345,6 @@ class ResponseValidator {
       warnings.push(`Risposta piuttosto corta (${length} caratteri)`);
       score *= 0.85;
     } else if (length > this.WARNING_MAX_LENGTH) {
-      // BUG FIX 8.2: Se sfora la max length è un ERRORE, non solo un warning (simmetria)
       errors.push(`Risposta troppo lunga e prolissa (${length} caratteri, limite ${this.WARNING_MAX_LENGTH})`);
       score = 0.0;
     }
@@ -441,10 +440,14 @@ class ResponseValidator {
 
     const responseLower = response.toLowerCase();
 
-    // Controlla frasi vietate (indicatori incertezza)
-    const foundForbidden = this.forbiddenPhrases.filter(
-      phrase => responseLower.includes(phrase)
-    );
+    // Controlla frasi vietate (indicatori incertezza) con confini di parola/frase
+    // per ridurre falsi positivi su sottostringhe.
+    const foundForbidden = this.forbiddenPhrases.filter((phrase) => {
+      if (!phrase || !phrase.trim()) return false;
+      const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const rx = new RegExp(`(?:^|\\s)${escaped}(?:\\s|$|[.,!?;:])`, 'i');
+      return rx.test(responseLower);
+    });
 
     if (foundForbidden.length > 0) {
       errors.push(`Contiene frasi di incertezza: ${foundForbidden.slice(0, 2).join(', ')}`);

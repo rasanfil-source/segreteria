@@ -316,6 +316,8 @@ class Classifier {
     // Rimuovi firme solo quando appaiono come riga dedicata.
     // Evita troncamenti su frasi di contenuto come:
     // "Cordiali saluti da tutta la famiglia, vorrei sapere se..."
+    // Nota manutenzione: NON usiamo search globale su marker nel testo intero,
+    // perché qui è voluto un approccio line-based per evitare falsi positivi a metà frase.
     const signatureLineMarkers = [
       /^cordiali\s+saluti[\s,!.-]*$/i,
       /^distinti\s+saluti[\s,!.-]*$/i,

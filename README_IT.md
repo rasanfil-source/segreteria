@@ -47,7 +47,11 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
-*   **Cycle v2.4.1 (Prompt Hardening)**:
+*   **Cycle v2.4.2 (Maintenance & Edge-Cases)**:
+    *   **Response Validator**: Migliorato il rilevamento delle frasi di incertezza (word boundaries) e corretto il calcolo dello score per risposte troppo lunghe.
+    *   **Gmail Service & Main**: Ottimizzato il parsing HTML, migliorata la resilienza nel caricamento risorse e raffinata la persistenza della memoria (best-effort).
+    *   **Classifier**: Raffinata la rimozione delle firme per evitare falsi positivi a metà frase.
+*   **Cycle v2.4.1 (No-Object Hardening)**:
     *   **Prompt Engine**: Implementata normalizzazione automatica degli input (`knowledgeBase`, `attachmentsContext`) per prevenire output "[object Object]" nel prompt in caso di dati strutturati.
     *   **Smoke Tests**: Aggiunta copertura per la normalizzazione degli oggetti nella Knowledge Base.
 *   **Cycle v2.4.0 (Resilience Hardening)**:

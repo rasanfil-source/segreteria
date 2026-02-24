@@ -755,7 +755,9 @@ class GmailService {
     text = text.replace(/&nbsp;/g, ' ')
       .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>');
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
     // Riduce spazi/tabs senza distruggere i newline significativi
     text = text
       .replace(/\r\n?/g, '\n')
@@ -1451,6 +1453,7 @@ function escapeHtml(text) {
 function markdownToHtml(text) {
   if (text === null || typeof text === 'undefined') return '';
   const inputText = (typeof text === 'string') ? text : String(text);
+  const normalizedInputText = inputText.replace(/\r\n?/g, '\n');
 
   const replaceMarkdownLinks = (input, replacer) => {
     let result = '';
@@ -1506,7 +1509,7 @@ function markdownToHtml(text) {
 
   // 1. Proteggi code blocks (prima dell'escape globale)
   const codeBlocks = [];
-  let html = inputText.replace(/```[\s\S]*?```/g, (match) => {
+  let html = normalizedInputText.replace(/```[\s\S]*?```/g, (match) => {
     const sanitized = escapeHtml(match.replace(/```/g, '').trim());
     const token = `@@CODEBLOCK_PLACEHOLDER_${codeBlocks.length}_${Utilities.getUuid()}@@`;
     codeBlocks.push({ token: token, value: sanitized });
