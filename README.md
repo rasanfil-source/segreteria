@@ -151,7 +151,10 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.3.6 → 2.3.7 (Current)**
+**2.3.7 → 2.3.8 (Current)**
+- ✅ **Easter Calculation**: Returns noon (12:00:00) to prevent date shifts across timezones/DST.
+
+**2.3.6 → 2.3.7**
 - ✅ **Rate Limiter**: Fixed variable shadowing and WAL persistence logic.
 - ✅ **Gmail Service**: Added markdown lists support and RFC-compliant HTML wrapper.
 - ✅ **Drive API**: Enforced 2MB limit for Image OCR to prevent API errors.
