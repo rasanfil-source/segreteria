@@ -151,7 +151,11 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.4.8 → 2.4.9 (Current)**
+**2.4.9 → 2.5.0 (Current)**
+- ✅ **Main/KB**: Multi-line spreadsheet cells are now normalized into single lines to prevent prompt breakage.
+- ✅ **Smoke Tests**: Added regression tests for KB text serialization.
+
+**2.4.8 → 2.4.9**
 - ✅ **Logger**: Renamed internal class to `AppLogger` to prevent shadowing built-in GAS `Logger`.
 - ✅ **Gemini**: Improved liturgical date range checks and code readability.
 - ✅ **Main**: Refined advanced services probe.

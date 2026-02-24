@@ -47,6 +47,9 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **Cycle v2.5.0 (KB Structure & Multi-line Support)**:
+    *   **Main Logic**: Implementata la normalizzazione delle celle multilinea nei Fogli Google per preservare la struttura logica "una riga = un'istruzione" nel prompt dell'IA.
+    *   **Smoke Tests**: Aggiunti test di regressione per la normalizzazione del testo KB e la stabilità delle celle complesse.
 *   **Cycle v2.4.9 (Logging & Date Stability Refinement)**:
     *   **Logger**: Rinominato in `AppLogger` per evitare conflitti con l'oggetto globale di sistema di Google Apps Script.
     *   **Gemini Service**: Stabilizzata la logica `_isBetweenInclusive` per il calendario liturgico (confronto azzerato sull'ora) e migliorata la leggibilità della generazione diretta.

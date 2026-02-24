@@ -749,7 +749,12 @@ function _formatCellForKnowledgeText(cell) {
     return _formatDateForKnowledgeText(cell);
   }
 
-  return String(cell).trim();
+  // Evita che ritorni a capo dentro una singola cella spezzino la struttura
+  // del testo KB (una riga Sheet deve restare una riga logica nel prompt).
+  return String(cell)
+    .replace(/\r\n?|\n/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function _formatDateForKnowledgeText(date) {

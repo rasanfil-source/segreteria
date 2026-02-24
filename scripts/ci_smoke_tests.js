@@ -1244,6 +1244,21 @@ function testSheetRowsToTextFormatsDatesStably() {
     assert(lines[1] === 'Incontro | 2026-05-10 18:30', `Data con orario non stabile: ottenuto "${lines[1]}"`);
 }
 
+function testSheetRowsToTextNormalizesMultilineCells() {
+    console.log('--- Test: Sheet Rows To Text Multiline Cell Normalization ---');
+    loadScript('gas_main.js');
+
+    const rows = [
+        ['Orari ufficio', 'Lun-Ven\n09:00-12:00\r\n15:00-18:00']
+    ];
+
+    const text = _sheetRowsToText(rows);
+    assert(
+        text === 'Orari ufficio | Lun-Ven 09:00-12:00 15:00-18:00',
+        `Le celle multilinea devono essere normalizzate su una riga. Ottenuto: "${text}"`
+    );
+}
+
 function testLoadAdvancedConfigStrictSuspensionHours() {
     console.log('--- Test: Load Advanced Config strict suspension parsing ---');
     loadScript('gas_main.js');
@@ -1455,6 +1470,7 @@ function main() {
         ['main: nessun leak globale hasExecutionLock', testMainDoesNotLeakHasExecutionLockGlobal],
         ['main: serializzazione robusta righe KB', testSheetRowsToTextRemovesEmptyCellsAndRows],
         ['main: serializzazione date KB stabile', testSheetRowsToTextFormatsDatesStably],
+        ['main: serializzazione celle multilinea KB stabile', testSheetRowsToTextNormalizesMultilineCells],
         ['main: ai_core preserva valori falsey', testLoadResourcesKeepsFalseyValuesInAiCoreSheets],
         ['main: parsing rigoroso fasce sospensione', testLoadAdvancedConfigStrictSuspensionHours],
         ['prompt context: temporal risk with object KB', testPromptContextTemporalRiskWithObjectKnowledgeBase],
