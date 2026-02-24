@@ -1193,6 +1193,21 @@ function testPromptContextKnowledgeBaseCircularObjectDoesNotCrash() {
     assert(pc.concerns.temporal_risk === true, 'temporal_risk deve restare true per KB oggetto');
 }
 
+function testPromptEngineNormalizesObjectKnowledgeBase() {
+    loadScript('gas_prompt_engine.js');
+
+    const engine = new PromptEngine();
+    const prompt = engine.buildPrompt({
+        emailContent: 'Buongiorno, chiedo info.',
+        emailSubject: 'Info',
+        knowledgeBase: { orari: ['08:00', '10:30'], contatti: { telefono: '+39 0123 456789' } },
+        detectedLanguage: 'it'
+    });
+
+    assert(!prompt.includes('[object Object]'), 'La KB oggetto non deve produrre [object Object] nel prompt');
+    assert(prompt.includes('"orari"') && prompt.includes('"contatti"'), 'La KB oggetto deve essere serializzata in JSON leggibile');
+}
+
 function testSheetRowsToTextRemovesEmptyCellsAndRows() {
     console.log('--- Test: Sheet Rows To Text Polish ---');
     loadScript('gas_main.js');
@@ -1400,6 +1415,7 @@ function main() {
         ['main: ai_core preserva valori falsey', testLoadResourcesKeepsFalseyValuesInAiCoreSheets],
         ['prompt context: temporal risk with object KB', testPromptContextTemporalRiskWithObjectKnowledgeBase],
         ['prompt context: circular object KB fallback', testPromptContextKnowledgeBaseCircularObjectDoesNotCrash],
+        ['prompt engine: object KB normalization', testPromptEngineNormalizesObjectKnowledgeBase],
         ['prompt KB truncation: hard limit chars rispettato', testPromptKbSemanticTruncationRespectsHardLimit],
         ['gemini: portuguese detection refinement', testPortugueseDetectionRefinement],
         ['classifier: backward quote scan', testClassifierBackwardQuoteScan],

@@ -39,6 +39,22 @@ class PromptEngine {
   }
 
   /**
+   * Normalizza valori eterogenei in stringa sicura per il prompt.
+   * Evita output "[object Object]" quando una risorsa viene passata in forma non-stringa.
+   */
+  _normalizePromptTextInput(value, fallback = '') {
+    if (value == null) return fallback;
+    if (typeof value === 'string') return value;
+
+    try {
+      const serialized = JSON.stringify(value);
+      return typeof serialized === 'string' ? serialized : String(value);
+    } catch (e) {
+      return String(value);
+    }
+  }
+
+  /**
    * Determina se un template deve essere incluso in base a profilo e concern
    */
   _shouldIncludeTemplate(templateName, promptProfile, activeConcerns = {}) {
@@ -116,7 +132,7 @@ class PromptEngine {
     const availableForKB = Math.max(0, (MAX_SAFE_TOKENS - OVERHEAD_TOKENS) * KB_BUDGET_RATIO);
     const kbCharsLimit = Math.round(availableForKB * 4);
 
-    let workingKnowledgeBase = knowledgeBase;
+    let workingKnowledgeBase = this._normalizePromptTextInput(knowledgeBase, '');
     let kbWasTruncated = false;
 
     // Troncamento proattivo della KB PRIMA di assemblare il prompt
@@ -126,7 +142,7 @@ class PromptEngine {
       kbWasTruncated = true;
     }
 
-    let workingAttachmentsContext = attachmentsContext;
+    let workingAttachmentsContext = this._normalizePromptTextInput(attachmentsContext, '');
     if (kbWasTruncated && workingAttachmentsContext) {
       const attachmentSettings = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT)
         ? CONFIG.ATTACHMENT_CONTEXT

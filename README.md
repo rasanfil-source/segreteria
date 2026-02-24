@@ -151,7 +151,11 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.3.9 → 2.4.0 (Current)**
+**2.4.0 → 2.4.1 (Current)**
+- ✅ **Prompt Engine**: Hardened input normalization to prevent "[object Object]" artifacts in the final prompt when passing structured data.
+- ✅ **Validation**: Added smoke test coverage for JSON serialization of object-based Knowledge Base.
+
+**2.3.9 → 2.4.0**
 - ✅ **Resource Loading**: Hardened resource loading (`gas_main.js`) with automatic retry logic for transient Sheets API errors.
 - ✅ **Lock management**: Refactored lock release logs and logic in `gas_email_processor.js` for better traceability.
 - ✅ **Salutation Mode**: Optimized greeting logic to eliminate redundancies in threads with existing memory.

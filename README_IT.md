@@ -47,6 +47,9 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **Cycle v2.4.1 (Prompt Hardening)**:
+    *   **Prompt Engine**: Implementata normalizzazione automatica degli input (`knowledgeBase`, `attachmentsContext`) per prevenire output "[object Object]" nel prompt in caso di dati strutturati.
+    *   **Smoke Tests**: Aggiunta copertura per la normalizzazione degli oggetti nella Knowledge Base.
 *   **Cycle v2.4.0 (Resilience Hardening)**:
     *   **Resource Loading**: Caricamento risorse (`gas_main.js`) reso robusto con sistema di retry automatico per gestire errori transitori delle Sheets API.
     *   **Lock management**: Refactoring e precisione nei log di rilascio lock in `gas_email_processor.js`.
