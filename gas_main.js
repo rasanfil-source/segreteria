@@ -669,6 +669,7 @@ function _parseSheetToStructured(data) {
     usedHeaders.forEach((h, i) => {
       if (h) obj[h] = row[i];
     });
+    return obj;
   });
 }
 
@@ -803,6 +804,15 @@ function deleteTriggersByHandler_(handlerName) {
       ScriptApp.deleteTrigger(trigger);
     }
   });
+}
+
+/**
+ * Alias retrocompatibile per installazioni legacy e smoke test storici.
+ * Manteniamo questo entrypoint perché alcuni trigger/documentazioni usano ancora
+ * `processEmailsMain` e non `main`.
+ */
+function processEmailsMain() {
+  return main();
 }
 
 /**

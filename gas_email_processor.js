@@ -184,8 +184,9 @@ class EmailProcessor {
 
     // Snapshot robusto del classificatore errori — restituisce sempre { type, retryable, message }
     // per coerenza con il contratto di gas_error_types.classifyError
-    const classifyError = (this && typeof this._classifyError === 'function')
+    const classifyError = (typeof this._classifyError === 'function')
       ? this._classifyError.bind(this)
+      // Manteniamo fallback locale per non dipendere dal globale in runtime modulari.
       : function fallbackClassifyError(err) { return { type: 'UNKNOWN', retryable: false, message: String(err) }; };
 
     let candidate = null;

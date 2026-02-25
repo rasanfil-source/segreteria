@@ -516,7 +516,9 @@ class ResponseValidator {
     const warnings = [];
     let score = 1.0;
     const hallucinations = {};
-    const safeKnowledgeBase = typeof knowledgeBase === 'string' ? knowledgeBase : '';
+    const safeKnowledgeBase = (typeof knowledgeBase === 'string')
+      ? knowledgeBase
+      : ((knowledgeBase && typeof knowledgeBase === 'object') ? JSON.stringify(knowledgeBase) : '');
 
     // Helper normalizzazione orari
     const normalizeTime = (t) => {
@@ -771,6 +773,7 @@ class ResponseValidator {
 
     // 1. Cerca pattern Regex (Meta-commenti strutturali)
     for (const regex of this.thinkingRegexes) {
+      if (regex && typeof regex.lastIndex === 'number') regex.lastIndex = 0;
       if (regex.test(response)) {
         foundPatterns.push(`Regex Match: ${regex.source}`);
       }

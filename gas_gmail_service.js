@@ -553,17 +553,24 @@ class GmailService {
         }
 
         const cutoffIso = new Date(Date.now() - (24 * 60 * 60 * 1000)).toISOString();
-        const query = `title contains 'OCR_' and trashed = false and modifiedDate < '${cutoffIso}'`;
+        // Compatibilità Drive API v2/v3: cambiano nomi campo in query e shape della risposta.
+        // Manteniamo doppia strategia per evitare cleanup silenziosamente inattivo.
+        const v2Query = `title contains 'OCR_' and trashed = false and modifiedDate < '${cutoffIso}'`;
+        const v3Query = `name contains 'OCR_' and trashed = false and modifiedTime < '${cutoffIso}'`;
 
         let response;
         try {
-            response = Drive.Files.list({ q: query, maxResults: 20 });
+            response = Drive.Files.list({ q: v2Query, maxResults: 20 });
         } catch (e) {
-            console.warn(`⚠️ Cleanup orfani OCR non disponibile: ${e.message}`);
-            return;
+            try {
+                response = Drive.Files.list({ q: v3Query, pageSize: 20 });
+            } catch (v3Error) {
+                console.warn(`⚠️ Cleanup orfani OCR non disponibile: ${v3Error.message}`);
+                return;
+            }
         }
 
-        const files = response && response.items ? response.items : [];
+        const files = response && (response.items || response.files) ? (response.items || response.files) : [];
         if (!files.length) {
             return;
         }
