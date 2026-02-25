@@ -47,6 +47,8 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **Cycle v2.5.7 (Memory Hardening & WAL De-duplication)**:
+    *   **Memory Service**: Implementato meccanismo di de-duplicazione robusto per le voci WAL (Write-Ahead Log) basato su chiave univoca. Migliorata la resilienza con quarantena automatica (sheet separato) per righe con timestamp non validi, prevenendo corruzione dati.
 *   **Cycle v2.5.5 (Reaction Resilience & Language Refinement)**:
     *   **Email Processor**: Migliorata la gestione dei topic nelle reazioni (`_inferUserReaction`) con normalizzazione rigorosa dei titoli e filtraggio dei valori null/undefined per prevenire crash su thread con metadati parziali.
     *   **Gemini Service**: Affinata la logica di rilevamento lingua (portoghese/italiano) e corretta la persistenza dei commenti Unicode per i motori di regex. Aggiunta documentazione sul check inclusivo dei periodi festivi.
@@ -239,7 +241,13 @@ graph LR
 
 ### Breaking Changes tra Versioni
 
-**2.3.x → 2.4.x**
+**2.5.6 → 2.5.7 (Corrente)**
+- ✅ **Memory**: Hardening della de-duplicazione WAL e gestione timestamp invalidi (quarantena).
+
+**2.5.5 → 2.5.6**
+- ✅ **Infrastruttura**: Controlli di coerenza interna e potenziamento smoke tests.
+
+**2.5.4 → 2.5.5**
 - ⚠️ `CONFIG.GEMINI_MODELS` ora obbligatorio
 - ⚠️ `VALIDATION_STRICT_MODE` rimosso (usa invece `VALIDATION_MIN_SCORE`)
 

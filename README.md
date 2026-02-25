@@ -21,6 +21,7 @@
 ✅ **Email in English/Spanish** → Response in the same language  
 
 ### ✨ Versione 2.0: Solidità & Affidabilità
+*   **Cycle v2.5.7 (Memory Hardening)**: Robust WAL de-duplication and invalid timestamp quarantine.
 *   **Gestione Lock Avanzata**: Ottimizzazione dei lock atomici per una coordinazione perfetta dei processi.
 *   **Gestione Semantica KB**: Troncamento intelligente della Knowledge Base per garantire risposte sempre complete e coerenti.
 *   **Resilienza Operativa**: Sistema di monitoraggio delle quote integrato per una continuità di servizio costante.
@@ -151,9 +152,11 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.5.4 → 2.5.5 (Current)**
-- ✅ **Memory**: Hardened topic inference in `_inferUserReaction` against null/undefined topics.
-- ✅ **Gemini**: Refined language detection regex comments and date inclusion logic.
+**2.5.6 → 2.5.7 (Current)**
+- ✅ **Memory**: Hardened WAL de-duplication and improved invalid timestamp handling (quarantine).
+
+**2.5.5 → 2.5.6**
+- ✅ **Infrastructure**: Internal consistency checks and smoke test enhancements.
 
 **2.5.3 → 2.5.4**
 - ✅ **Sheets**: Wrapped all sheet retrieval calls in `withSheetsRetry` for added reliability.
