@@ -1012,19 +1012,35 @@ class MemoryService {
    * Unisce dati di finestra (WAL) con esistenti, de-duplica per timestamp
    */
   _mergeWindowData(existing, walData) {
-    const existingTimestamps = new Set(existing.map(e => e.timestamp));
+    const existingKeys = new Set(existing.map(e => this._buildWalEntryDedupKey(e)));
 
     // Deep copy via JSON (sicuro per dati serializzabili)
     const merged = JSON.parse(JSON.stringify(existing));
 
     for (const entry of walData) {
-      if (!existingTimestamps.has(entry.timestamp)) {
+      const dedupKey = this._buildWalEntryDedupKey(entry);
+      if (!existingKeys.has(dedupKey)) {
         merged.push({ ...entry }); // Spread per sicurezza
-        existingTimestamps.add(entry.timestamp);
+        existingKeys.add(dedupKey);
       }
     }
 
-    return merged.sort((a, b) => a.timestamp - b.timestamp).slice(-100);
+    return merged.sort((a, b) => {
+      const at = new Date(a.timestamp).getTime();
+      const bt = new Date(b.timestamp).getTime();
+      return at - bt;
+    }).slice(-100);
+  }
+
+  _buildWalEntryDedupKey(entry) {
+    if (!entry || typeof entry !== 'object') return 'invalid_entry';
+
+    const topic = String(entry.topic || '').trim().toLowerCase();
+    const reaction = String(entry.userReaction || entry.reaction || '').trim().toLowerCase();
+    const context = String(entry.context || '').trim().toLowerCase();
+    const timestamp = String(entry.timestamp || '').trim();
+
+    return [timestamp, topic, reaction, context].join('::');
   }
 
   /**
@@ -1130,23 +1146,75 @@ class MemoryService {
       cutoffDate.setDate(cutoffDate.getDate() - daysOld);
 
       let deletedCount = 0;
+      let quarantinedCount = 0;
+      let quarantineSheet = null;
 
       // Vai all'indietro per evitare problemi di shifting indici
       for (let i = data.length - 1; i >= 1; i--) {
-        const lastUpdated = new Date(data[i][5]);
-        if (!data[i][5] || isNaN(lastUpdated.getTime()) || lastUpdated < cutoffDate) {
-          this._sheet.deleteRow(i + 1);
-          deletedCount++;
+        const rawLastUpdated = data[i][5];
+        const parsedLastUpdated = new Date(rawLastUpdated);
+        const hasInvalidTimestamp = !rawLastUpdated || isNaN(parsedLastUpdated.getTime());
+        const isExpired = !hasInvalidTimestamp && parsedLastUpdated < cutoffDate;
+
+        if (!hasInvalidTimestamp && !isExpired) {
+          continue;
         }
+
+        if (hasInvalidTimestamp) {
+          if (!quarantineSheet) {
+            quarantineSheet = this._getOrCreateQuarantineSheet();
+          }
+          if (quarantineSheet) {
+            quarantineSheet.appendRow([
+              new Date().toISOString(),
+              'invalid_lastUpdated',
+              this.sheetName,
+              i + 1,
+              ...data[i]
+            ]);
+            quarantinedCount++;
+          }
+        }
+
+        this._sheet.deleteRow(i + 1);
+        deletedCount++;
       }
 
-      console.log(`🧹 Pulite ${deletedCount} voci memoria vecchie`);
+      console.log(`🧹 Pulite ${deletedCount} voci memoria vecchie (quarantena: ${quarantinedCount})`);
       return deletedCount;
 
     } catch (error) {
       console.error(`❌ Errore pulizia voci vecchie: ${error.message}`);
       return 0;
     }
+  }
+
+  _getOrCreateQuarantineSheet() {
+    if (!this._spreadsheet) return null;
+
+    const quarantineName = `${this.sheetName}_Quarantena`;
+    let quarantine = this._spreadsheet.getSheetByName(quarantineName);
+
+    if (!quarantine) {
+      quarantine = this._spreadsheet.insertSheet(quarantineName);
+      quarantine.appendRow([
+        'quarantinedAt',
+        'reason',
+        'sourceSheet',
+        'sourceRow',
+        'threadId',
+        'language',
+        'category',
+        'tone',
+        'providedInfo',
+        'lastUpdated',
+        'messageCount',
+        'version',
+        'memorySummary'
+      ]);
+    }
+
+    return quarantine;
   }
 
   /**

@@ -322,7 +322,7 @@ function _loadResourcesInternal() {
     const cachedData = cache.get(CACHE_KEY);
     if (cachedData) {
       try {
-        const parsedData = JSON.parse(cachedData);
+        const parsedData = _deserializeResourceCache(cachedData);
         Object.assign(GLOBAL_CACHE, parsedData);
         GLOBAL_CACHE.loaded = true;
         console.log('✓ Risorse caricate dalla Cache veloce.');
@@ -435,12 +435,61 @@ function _loadResourcesInternal() {
   // 4. Salva nel CacheService (6 ore)
   if (cache) {
     try {
-      cache.put(CACHE_KEY, JSON.stringify(newCacheData), 21600);
+      const serialized = _serializeResourceCache(newCacheData, false);
+      cache.put(CACHE_KEY, serialized, 21600);
       console.log('✓ Risorse caricate da Fogli e salvate in Cache.');
     } catch (e) {
-      console.warn('⚠️ Impossibile salvare in cache (limite 100KB?): ' + e.message);
+      console.warn('⚠️ Salvataggio cache standard fallito: ' + e.message);
+      try {
+        const compressedPayload = _serializeResourceCache(newCacheData, true);
+        cache.put(CACHE_KEY, compressedPayload, 21600);
+        console.warn('⚠️ Cache risorse salvata in formato compresso (payload vicino limite 100KB).');
+      } catch (compressionError) {
+        console.warn('⚠️ Impossibile salvare in cache anche in formato compresso: ' + compressionError.message);
+      }
     }
   }
+}
+
+/**
+ * Serializza payload risorse per CacheService.
+ * Usa JSON diretto; opzionalmente comprime con gzip+base64 quando disponibile.
+ */
+function _serializeResourceCache(data, forceCompression) {
+  const json = JSON.stringify(data);
+  if (!forceCompression) {
+    return json;
+  }
+
+  if (typeof Utilities === 'undefined' || !Utilities || typeof Utilities.newBlob !== 'function' || typeof Utilities.gzip !== 'function' || typeof Utilities.base64Encode !== 'function') {
+    throw new Error('Utilities gzip/base64 non disponibili');
+  }
+
+  const gzipped = Utilities.gzip(Utilities.newBlob(json, 'application/json'));
+  const base64 = Utilities.base64Encode(gzipped.getBytes());
+  return JSON.stringify({
+    encoding: 'gzip_base64_json_v1',
+    payload: base64
+  });
+}
+
+/**
+ * Deserializza payload risorse da CacheService (plain JSON o gzip+base64).
+ */
+function _deserializeResourceCache(serializedPayload) {
+  const parsed = JSON.parse(serializedPayload);
+  if (!parsed || typeof parsed !== 'object' || parsed.encoding !== 'gzip_base64_json_v1') {
+    return parsed;
+  }
+
+  if (typeof Utilities === 'undefined' || !Utilities || typeof Utilities.ungzip !== 'function' || typeof Utilities.base64Decode !== 'function' || typeof Utilities.newBlob !== 'function') {
+    throw new Error('Utilities ungzip/base64 non disponibili per cache compressa');
+  }
+
+  const bytes = Utilities.base64Decode(parsed.payload || '');
+  const uncompressedBlob = Utilities.ungzip(Utilities.newBlob(bytes));
+  const json = uncompressedBlob.getDataAsString('UTF-8');
+  return JSON.parse(json);
 }
 
 /**
