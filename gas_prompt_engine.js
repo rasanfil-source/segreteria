@@ -130,6 +130,8 @@ class PromptEngine {
       ? CONFIG.KB_TOKEN_BUDGET_RATIO
       : 0.5; // La KB può occupare max il 50% dello spazio rimanente
     const availableForKB = Math.max(0, (MAX_SAFE_TOKENS - OVERHEAD_TOKENS) * KB_BUDGET_RATIO);
+    // Stima conservativa 1 token ≈ 4 caratteri: volutamente prudente per evitare overflow
+    // con input multilingua/rumorosi. Ridurre il fattore aumenterebbe il rischio di prompt troppo lunghi.
     const kbCharsLimit = Math.round(availableForKB * 4);
 
     let workingKnowledgeBase = this._normalizePromptTextInput(knowledgeBase, '');
@@ -138,6 +140,8 @@ class PromptEngine {
     // Troncamento proattivo della KB PRIMA di assemblare il prompt
     if (workingKnowledgeBase && workingKnowledgeBase.length > kbCharsLimit) {
       console.warn(`⚠️ KB eccede il budget (${workingKnowledgeBase.length} chars), tronco a ${kbCharsLimit}`);
+      // _truncateKbSemantically è implementato in questa classe: preserva paragrafi completi
+      // invece di fare uno slice cieco che può spezzare contesto e istruzioni operative.
       workingKnowledgeBase = this._truncateKbSemantically(workingKnowledgeBase, kbCharsLimit);
       kbWasTruncated = true;
     }
@@ -211,6 +215,8 @@ class PromptEngine {
       const territorySection = this._renderTerritoryVerification(territoryContext);
       if (territorySection) {
         addSection(territorySection, 'TerritoryVerification');
+      } else {
+        console.warn('⚠️ Territory context presente ma sezione vuota: verificare i dati in input o la renderizzazione.');
       }
     }
 

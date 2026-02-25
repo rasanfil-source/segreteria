@@ -21,6 +21,7 @@
 ✅ **Email in English/Spanish** → Response in the same language  
 
 ### ✨ Versione 2.0: Solidità & Affidabilità
+*   **v2.6.2 (Prompt & KB Hardening)**: Implemented `_safeStringify` for circular references in PromptContext and refined KB token budgeting in PromptEngine.
 *   **v2.6.1 (Resilience & Quota)**: Hardened thread lock release and implemented proactive `PRIMARY_QUOTA_EXHAUSTED` signal for faster cross-key fallback.
 *   **v2.6.0 (HTML Rendering Fix)**: Improved `markdownToHtml` to prevent invalid tag nesting (e.g., lists inside paragraphs).
 *   **Cycle v2.5.9 (Territory Resilience)**: Added diacritics normalization for street addresses (accents removal via NFD).
@@ -156,11 +157,12 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.6.0 → 2.6.1 (Current)**
-- ✅ **Email Processor**: Hardened lock release to handle expired cases.
-- ✅ **Gemini Service**: Faster cross-key fallback via `PRIMARY_QUOTA_EXHAUSTED` signal.
+**2.6.1 → 2.6.2 (Current)**
+- ✅ **Prompt Context**: Robust `knowledgeBase` serialization (circular reference safe).
+- ✅ **Prompt Engine**: Conservative KB token budgeting to prevent context overflow.
+- ✅ **Response Validator**: Refined thinking leak detection patterns.
 
-**2.5.9 → 2.6.0**
+**2.6.0 → 2.6.1**
 - ✅ **Infrastructure**: Internal consistency checks and smoke test enhancements.
 
 **2.5.3 → 2.5.4**

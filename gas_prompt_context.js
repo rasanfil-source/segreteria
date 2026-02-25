@@ -11,7 +11,9 @@ class PromptContext {
             input = {};
         }
 
-        // Sanitizza lastUpdated non valido
+        // Sanitizza lastUpdated non valido.
+        // Nota: il doppio controllo su input.memory è intenzionale per evitare TypeError
+        // quando il chiamante non passa il blocco memoria.
         if (input.memory && input.memory.lastUpdated) {
             if (isNaN(new Date(input.memory.lastUpdated).getTime())) {
                 console.warn(`⚠️ PromptContext: lastUpdated non valido, reset a null`);
@@ -38,12 +40,7 @@ class PromptContext {
             if (isString) {
                 knowledgeBaseRaw = normalizedInput.knowledgeBase;
             } else {
-                try {
-                    knowledgeBaseRaw = JSON.stringify(normalizedInput.knowledgeBase);
-                } catch (e) {
-                    console.warn('⚠️ PromptContext: knowledgeBase non serializzabile, uso fallback stringa');
-                    knowledgeBaseRaw = String(normalizedInput.knowledgeBase);
-                }
+                knowledgeBaseRaw = this._safeStringify(normalizedInput.knowledgeBase);
             }
 
             normalizedInput.knowledgeBaseRaw = knowledgeBaseRaw;
@@ -54,6 +51,33 @@ class PromptContext {
         }
 
         return normalizedInput;
+    }
+
+    /**
+     * Serializzazione robusta della KB:
+     * - gestisce riferimenti circolari senza lanciare eccezioni;
+     * - evita fallback generici tipo "[object Object]" che perderebbero informazione.
+     */
+    _safeStringify(value) {
+        const seen = new WeakSet();
+
+        try {
+            return JSON.stringify(value, (key, current) => {
+                if (typeof current === 'object' && current !== null) {
+                    if (seen.has(current)) {
+                        return '[Circular]';
+                    }
+                    seen.add(current);
+                }
+                return current;
+            });
+        } catch (e) {
+            console.warn('⚠️ PromptContext: knowledgeBase non serializzabile, uso fallback controllato');
+            if (value === null || typeof value === 'undefined') {
+                return '';
+            }
+            return typeof value === 'string' ? value : Object.prototype.toString.call(value);
+        }
     }
 
     _computeConcerns() {

@@ -61,6 +61,7 @@ class ResponseValidator {
       /\b(devo|dovrei)\s+(correggere|modificare|aggiornare)\s+(la\s+risposta|il\s+prompt|il\s+testo)\b/i, // Meta-commenti AI (ristretto)
       /\b(knowledge base|kb)\s+(dice|afferma|contiene|riporta|indica)\b/i,                       // Riferimenti KB
       /\b(rivedendo|consultando|controllando|verificando)\s+(la\s+)?(knowledge base|kb)\b/i,     // Azioni su KB
+      // Range limitato e stop su punto/newline: scelta intenzionale anti-backtracking e anti-falsi positivi cross-frase.
       /\b(ho\s+)?dedott[oaie]?\b[^.\n]{0,120}\b(knowledge base|kb)\b/i                          // Deduzioni esplicite da KB
     ];
 
@@ -68,7 +69,7 @@ class ResponseValidator {
       // Pattern conversazionali non catturati dalle regex 
       'rivedendo la knowledge base',
       'pensandoci bene',
-      '(nota:',
+      '(nota:', // Stringa letterale: qui usiamo match statici via includes(), non regex.
       'nota:',
       'n.b.:',
       'nb:',
