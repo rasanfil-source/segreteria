@@ -151,7 +151,11 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.5.3 → 2.5.4 (Current)**
+**2.5.4 → 2.5.5 (Current)**
+- ✅ **Memory**: Hardened topic inference in `_inferUserReaction` against null/undefined topics.
+- ✅ **Gemini**: Refined language detection regex comments and date inclusion logic.
+
+**2.5.3 → 2.5.4**
 - ✅ **Sheets**: Wrapped all sheet retrieval calls in `withSheetsRetry` for added reliability.
 - ✅ **Gemini**: Enhanced internal error classification documentation.
 

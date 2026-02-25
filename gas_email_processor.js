@@ -1590,8 +1590,10 @@ ${addressLines.join('\n\n')}
     if (!inferredReaction) return;
 
     // 1. Trova TUTTI i topic menzionati esplicitamente
-    const normalizedTopics = previousTopics.map(info => (typeof info === 'object' ? info.topic : info));
-    const mentionedTopics = normalizedTopics.filter(topic => bodyLower.includes(topic.toLowerCase()));
+    const normalizedTopics = previousTopics
+      .map(info => (typeof info === 'object' ? info.topic : info))
+      .map(topic => topic == null ? '' : String(topic).trim());
+    const mentionedTopics = normalizedTopics.filter(topic => topic && bodyLower.includes(topic.toLowerCase()));
 
     let targetTopics = [];
 
@@ -1600,7 +1602,7 @@ ${addressLines.join('\n\n')}
       targetTopics = mentionedTopics;
     } else {
       // Fallback: applica all'ultimo topic discusso
-      targetTopics = [normalizedTopics[normalizedTopics.length - 1]];
+      targetTopics = [normalizedTopics[normalizedTopics.length - 1]].filter(Boolean);
     }
 
     if (targetTopics.length === 0) return;

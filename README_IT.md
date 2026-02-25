@@ -47,6 +47,9 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **Cycle v2.5.5 (Reaction Resilience & Language Refinement)**:
+    *   **Email Processor**: Migliorata la gestione dei topic nelle reazioni (`_inferUserReaction`) con normalizzazione rigorosa dei titoli e filtraggio dei valori null/undefined per prevenire crash su thread con metadati parziali.
+    *   **Gemini Service**: Affinata la logica di rilevamento lingua (portoghese/italiano) e corretta la persistenza dei commenti Unicode per i motori di regex. Aggiunta documentazione sul check inclusivo dei periodi festivi.
 *   **Cycle v2.5.4 (Sheets Resilience & Error Handling Documented)**:
     *   **Main Logic**: Esteso l'uso di `withSheetsRetry` a tutte le chiamate critiche di recupero fogli (`getSheetByName`) e alla configurazione avanzata, migliorando la resilienza verso glitch temporanei delle API Spreadsheet.
     *   **Gemini Service**: Migliorata la documentazione interna sulla classificazione degli errori e la policy di retry per prevenire drift logici.

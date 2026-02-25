@@ -671,6 +671,28 @@ function testMainDoesNotLeakHasExecutionLockGlobal() {
     }
 }
 
+function testInferUserReactionHandlesNullTopic() {
+    loadScript('gas_email_processor.js');
+
+    const processor = Object.create(EmailProcessor.prototype);
+    const calls = [];
+    processor.memoryService = {
+        updateReaction: (threadId, topic, reaction, context) => {
+            calls.push({ threadId, topic, reaction, context });
+        }
+    };
+
+    processor._inferUserReaction(
+        'Grazie, ho capito perfettamente.',
+        [{ topic: null }, undefined, { topic: 'Battesimo' }],
+        'thread-null-topic'
+    );
+
+    assert(calls.length === 1, `Attesa una sola reazione sull'ultimo topic valido, ottenute ${calls.length}`);
+    assert(calls[0].topic === 'Battesimo', `Atteso topic "Battesimo", ottenuto "${calls[0].topic}"`);
+    assert(calls[0].reaction === 'acknowledged', `Attesa reazione "acknowledged", ottenuta "${calls[0].reaction}"`);
+}
+
 function testRateLimiterRecoverRequiresLock() {
     loadScript('gas_rate_limiter.js');
 
@@ -1452,6 +1474,7 @@ function main() {
         ['anti-loop: thread lungo con esterni consecutivi', testAntiLoopDetection],
         ['memory get: usa row.values in parsing', testMemoryGetUsesRowValues],
         ['memory invalidate: pulizia cache robusta', testInvalidateCacheAlsoClearsRobustCache],
+        ['memory reaction: topic null non crasha', testInferUserReactionHandlesNullTopic],
         ['rate limiter WAL: recovery bloccato senza lock', testRateLimiterRecoverRequiresLock],
         ['_shouldIgnoreEmail: no-reply/reale/ooo', testShouldIgnoreEmail],
         ['attachment context: sanitizzazione + newline reali', testAttachmentContextSanitizationFormatting],

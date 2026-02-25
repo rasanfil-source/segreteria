@@ -585,6 +585,8 @@ Output JSON:
           count += weight * matches;
         } else {
           const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          // NOTA: niente \b perché in JS è ASCII-only e fallisce con accenti (es. "olá", "perché").
+          // Usiamo invece un confine Unicode esplicito senza lookbehind per massima compatibilità runtime.
           const pattern = new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'giu');
           const matches = (txt.match(pattern) || []).length;
           count += weight * matches;
@@ -948,6 +950,7 @@ Output JSON:
   _isBetweenInclusive(date, start, end) {
     // Confronto su base "giorno" (ora azzerata) per includere correttamente
     // tutto il giorno finale dell'intervallo, indipendentemente dall'orario corrente.
+    // Il check rimane inclusivo perché anche la data da verificare viene normalizzata al giorno.
     const d = new Date(date).setHours(0, 0, 0, 0);
     const s = new Date(start).setHours(0, 0, 0, 0);
     const e = new Date(end).setHours(0, 0, 0, 0);
