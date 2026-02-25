@@ -538,6 +538,7 @@ ${checks.join('\n')}
 
     const candidates = doctrineDB.map(row => {
       let score = 0;
+      if (!row) return { row: {}, score: -1 };
       const sottotema = String(row['Sotto-tema'] || '').toLowerCase();
       const rowTone = String(row['Tono consigliato'] || '').toLowerCase();
       const rowCat = String(row.Categoria || '');
