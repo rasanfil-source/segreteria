@@ -117,8 +117,7 @@ class GeminiRateLimiter {
   _normalizeDeprecatedModelNames(models) {
     const deprecatedMap = {
       // Canonicalizzazione minima: accettiamo alias storici ma restiamo su 2.5.
-      'gemini-2.5-flash-exp': 'gemini-2.5-flash-lite',
-      'gemini-2.0-flash-exp': 'gemini-2.5-flash-lite'
+      'gemini-2.5-flash-exp': 'gemini-2.5-flash-lite'
     };
 
     const normalized = {};

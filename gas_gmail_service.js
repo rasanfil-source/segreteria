@@ -1633,11 +1633,20 @@ function markdownToHtml(text) {
     html = escapeHtml(html);
 
     // 4. Trasformazioni markdown su testo già escaped
+    // Manteniamo una proporzione fissa tra corpo testo e titoli.
+    const baseBodyFontPx = 20;
+    const headingPx = {
+        h4: Math.round(baseBodyFontPx * 1.00),
+        h3: Math.round(baseBodyFontPx * 1.15),
+        h2: Math.round(baseBodyFontPx * 1.30),
+        h1: Math.round(baseBodyFontPx * 1.50)
+    };
+
     // Headers
-    html = html.replace(/^####\s+(.+)$/gm, '<p style="font-size:1em;font-weight:bold;margin:8px 0 4px;">$1</p>');
-    html = html.replace(/^###\s+(.+)$/gm, '<p style="font-size:1.15em;font-weight:bold;margin:10px 0 4px;">$1</p>');
-    html = html.replace(/^##\s+(.+)$/gm, '<p style="font-size:1.3em;font-weight:bold;margin:12px 0 4px;">$1</p>');
-    html = html.replace(/^#\s+(.+)$/gm, '<p style="font-size:1.5em;font-weight:bold;margin:14px 0 6px;">$1</p>');
+    html = html.replace(/^####\s+(.+)$/gm, `<p style="font-size:${headingPx.h4}px;font-weight:bold;margin:8px 0 4px;">$1</p>`);
+    html = html.replace(/^###\s+(.+)$/gm, `<p style="font-size:${headingPx.h3}px;font-weight:bold;margin:10px 0 4px;">$1</p>`);
+    html = html.replace(/^##\s+(.+)$/gm, `<p style="font-size:${headingPx.h2}px;font-weight:bold;margin:12px 0 4px;">$1</p>`);
+    html = html.replace(/^#\s+(.+)$/gm, `<p style="font-size:${headingPx.h1}px;font-weight:bold;margin:14px 0 6px;">$1</p>`);
 
     // Bold / Italic (asterischi già escaped come testo, usiamo la versione escaped)
     // Nota: gli asterischi NON vengono escaped da escapeHtml(), quindi funzionano normalmente
@@ -1714,8 +1723,8 @@ function markdownToHtml(text) {
     return `<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
-<body style="font-family: Arial, Helvetica, sans-serif; font-size: 20px; color: #351c75; line-height: 1.6;">
-  <div style="font-family: Arial, Helvetica, sans-serif; font-size: 20px; color: #351c75; line-height: 1.6;">
+<body style="font-family: Arial, Helvetica, sans-serif; font-size: ${baseBodyFontPx}px; color: #351c75; line-height: 1.6;">
+  <div style="font-family: Arial, Helvetica, sans-serif; font-size: ${baseBodyFontPx}px; color: #351c75; line-height: 1.6;">
     ${bodyContent}
   </div>
 </body>
