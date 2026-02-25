@@ -205,6 +205,10 @@ function runAllTests() {
             const normalized = service._validateAndNormalizeTimestamp(future);
             return new Date(normalized).getTime() <= Date.now() + 86400000;
         });
+        test('Canonicalizza timestamp validi in ISO', results, () => {
+            const normalized = service._validateAndNormalizeTimestamp('Wed, 01 Jan 2025 10:00:00 GMT');
+            return normalized === '2025-01-01T10:00:00.000Z';
+        });
         test('Lock gestion con threadId', results, () => {
             service.updateMemory('test-thread-id', { language: 'it' });
             return true;

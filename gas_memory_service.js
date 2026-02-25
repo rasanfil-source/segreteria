@@ -869,7 +869,9 @@ class MemoryService {
       return fallback;
     }
 
-    return timestamp;
+    // Canonicalizza sempre in ISO-8601 UTC per evitare formati locali non stabili
+    // (es. "2/25/2026, 17:00:00") che possono degradare confronti/sort cronologici.
+    return parsed.toISOString();
   }
 
   /**
