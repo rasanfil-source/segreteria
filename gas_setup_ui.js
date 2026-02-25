@@ -231,17 +231,36 @@ function createNamedRanges(ss, warningsCollector) {
     { name: 'lst_ignore_keywords', range: "'Controllo'!F11:F" }
   ];
 
-  ranges.forEach(def => {
-    removeNamedRangeIfExists(ss, def.name);
-    try { ss.setNamedRange(def.name, ss.getRange(def.range)); } catch (e) {
-      const msg = e && e.message ? e.message : String(e);
-      const warning = 'Errore creazione named range ' + def.name + ': ' + msg;
+  const documentLock = LockService.getDocumentLock();
+  let lockAcquired = false;
+
+  try {
+    // Evita race condition in esecuzioni concorrenti (es. trigger multipli setup).
+    // Timeout breve: se il lock non arriva, preferiamo warning esplicito a stato intermedio silenzioso.
+    lockAcquired = documentLock.tryLock(5000);
+    if (!lockAcquired) {
+      const warning = 'Lock documento non acquisito: creazione named ranges saltata per evitare stato incoerente.';
       console.warn(warning);
-      if (Array.isArray(warningsCollector)) {
-        warningsCollector.push(warning);
-      }
+      if (Array.isArray(warningsCollector)) warningsCollector.push(warning);
+      return;
     }
-  });
+
+    ranges.forEach(def => {
+      removeNamedRangeIfExists(ss, def.name);
+      try { ss.setNamedRange(def.name, ss.getRange(def.range)); } catch (e) {
+        const msg = e && e.message ? e.message : String(e);
+        const warning = 'Errore creazione named range ' + def.name + ': ' + msg;
+        console.warn(warning);
+        if (Array.isArray(warningsCollector)) {
+          warningsCollector.push(warning);
+        }
+      }
+    });
+  } finally {
+    if (lockAcquired) {
+      documentLock.releaseLock();
+    }
+  }
 }
 
 function testConfiguration() {

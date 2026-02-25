@@ -552,7 +552,11 @@ class EmailProcessor {
       knowledgeSections.push('--- ISTRUZIONI OPERATIVE ---\n' + knowledgeBase);
 
       // AI_CORE: Solo per situazioni pastorali o complesse (Bug 1 & 2)
-      if (aiCore && (isPastoral || requestType.complexity > 0.7)) {
+      // Nota: complexity può essere undefined/null in classificazioni parziali.
+      // Usiamo Number()+fallback per evitare confronti silenziosi non intenzionali.
+      const complexityScore = Number(requestType && requestType.complexity);
+      const safeComplexity = Number.isFinite(complexityScore) ? complexityScore : 0;
+      if (aiCore && (isPastoral || safeComplexity > 0.7)) {
         console.log('   🧠 AiCore (Avanzata) iniettata per contesto pastorale/complesso');
         knowledgeSections.push('--- LOGICA AVANZATA ---\n' + aiCore);
       }
@@ -1407,6 +1411,8 @@ ${addressLines.join('\n\n')}
   _formatLabelQueryValue(labelName) {
     const raw = String(labelName || '').trim();
     if (!raw) return '""';
+    // Scelta intenzionale: in query Gmail il quoting è la strategia più stabile.
+    // Evitiamo escaping aggressivo di caratteri non-quote perché può alterare il matching label:nome.
     return `"${raw.replace(/"/g, '\\"')}"`;
   }
 
