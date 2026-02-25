@@ -1710,11 +1710,12 @@ function markdownToHtml(text) {
     const startsWithBlock = /^\s*<(p|ul|ol|pre|h[1-6])/i.test(cleanedHtml);
     const bodyContent = startsWithBlock ? cleanedHtml : `<p>${cleanedHtml}</p>`;
 
+    // Manteniamo il corpo risposta a 20px: i programmatori non devono rompere le scatole con altre regressioni.
     return `<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
-<body style="font-family: Arial, Helvetica, sans-serif; font-size: 16px; color: #351c75; line-height: 1.6;">
-  <div style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #351c75; line-height: 1.6;">
+<body style="font-family: Arial, Helvetica, sans-serif; font-size: 20px; color: #351c75; line-height: 1.6;">
+  <div style="font-family: Arial, Helvetica, sans-serif; font-size: 20px; color: #351c75; line-height: 1.6;">
     ${bodyContent}
   </div>
 </body>
