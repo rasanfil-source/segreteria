@@ -47,6 +47,9 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **v2.6.1 (Resilienza & Quota)**:
+    *   **Email Processor**: Consolidata la logica di rilascio lock per gestire casi di timeout o lock già scaduti.
+    *   **Gemini Service**: Implementato segnale `PRIMARY_QUOTA_EXHAUSTED` per un passaggio immediato alla chiave di backup senza retry inutili.
 *   **v2.6.0 (HTML Rendering Fix)**:
     *   **Email Service**: Ottimizzata la funzione `markdownToHtml` per prevenire il nesting invalido di tag (es. liste dentro paragrafi), garantendo una visualizzazione email più pulita e standard.
 *   **Cycle v2.5.9 (Territory Resilience)**:
@@ -249,10 +252,10 @@ graph LR
 
 ### Breaking Changes tra Versioni
 
-**2.5.9 → 2.6.0 (Corrente)**
-- ✅ **Email**: Correzione strutturale di `markdownToHtml` per evitare tag di blocco (liste, pre) nidificati in modo invalido dentro i paragrafi.
+**2.6.0 → 2.6.1 (Corrente)**
+- ✅ **Infrastructure**: Hardening del rilascio lock e ottimizzazione fallback cross-key (proactive quota exhaust).
 
-**2.5.8 → 2.5.9**
+**2.5.9 → 2.6.0**
 - ✅ **Infrastruttura**: Controlli di coerenza interna e potenziamento smoke tests.
 
 **2.5.4 → 2.5.5**

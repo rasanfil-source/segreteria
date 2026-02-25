@@ -1046,13 +1046,16 @@ ${addressLines.join('\n\n')}
       if (lockAcquired && scriptCache && threadLockKey) {
         try {
           const currentLockValue = scriptCache.get(threadLockKey);
-          if (currentLockValue === lockValue) {
+          // Rilasciamo sia quando il lock è nostro sia quando è già scaduto.
+          if (!currentLockValue || currentLockValue === lockValue) {
             scriptCache.remove(threadLockKey);
             console.log(`🔓 Lock rilasciato per thread ${threadId}`);
           } else {
             console.warn(`⚠️ Rilascio lock saltato per thread ${threadId} (lock scaduto o di altro processo)`);
           }
         } catch (e) {
+          // Non forziamo remove() se get() fallisce: potremmo cancellare il lock
+          // legittimo di un altro worker appena subentrato dopo la scadenza TTL.
           console.warn('⚠️ Errore rilascio lock:', e.message);
         }
       }

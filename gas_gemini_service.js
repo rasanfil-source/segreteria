@@ -132,6 +132,13 @@ class GeminiService {
     const responseCode = response.getResponseCode();
     const responseBody = response.getContentText();
 
+    // Se la primaria risponde 429 e abbiamo una chiave di riserva,
+    // segnaliamo esplicitamente al chiamante di passare subito al fallback
+    // senza consumare retry inutili sulla stessa chiave.
+    if (responseCode === 429 && activeKey === this.primaryKey && this.backupKey) {
+      throw new Error('PRIMARY_QUOTA_EXHAUSTED');
+    }
+
     // Separazione errori di rete/quota vs contenuto con semplici if
     if ([429, 500, 502, 503, 504].includes(responseCode)) {
       if (responseCode === 429) {
@@ -473,10 +480,15 @@ Output JSON:
     const FATAL_ERRORS = ['401', '403', 'unauthorized', 'forbidden', 'permission denied', 'unauthenticated'];
 
     // 401/403 sono tipicamente problemi di credenziali o permessi: ritentare non li risolve.
+    // PRIMARY_QUOTA_EXHAUSTED deve saltare i retry locali per passare subito al backup.
     for (const kw of FATAL_ERRORS) {
       if (msg.includes(kw)) {
         return { type: 'FATAL', retryable: false };
       }
+    }
+
+    if (msg.includes('primary_quota_exhausted')) {
+      return { type: 'QUOTA_EXHAUSTED', retryable: false };
     }
 
     let retryable = false;
@@ -965,6 +977,9 @@ Output JSON:
    * (prassi liturgica del rito romano).
    */
   _getHolyFamilySunday(year) {
+    // Il range 26-31 è intenzionale: cerchiamo la domenica *dopo* Natale.
+    // Se il 25 è domenica, non esiste altra domenica nell'ottava e il
+    // calendario romano prevede il fallback al 30 dicembre.
     for (let day = 26; day <= 31; day++) {
       const date = new Date(year, 11, day);
       if (date.getDay() === 0) {

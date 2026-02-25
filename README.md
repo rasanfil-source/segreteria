@@ -21,6 +21,7 @@
 ✅ **Email in English/Spanish** → Response in the same language  
 
 ### ✨ Versione 2.0: Solidità & Affidabilità
+*   **v2.6.1 (Resilience & Quota)**: Hardened thread lock release and implemented proactive `PRIMARY_QUOTA_EXHAUSTED` signal for faster cross-key fallback.
 *   **v2.6.0 (HTML Rendering Fix)**: Improved `markdownToHtml` to prevent invalid tag nesting (e.g., lists inside paragraphs).
 *   **Cycle v2.5.9 (Territory Resilience)**: Added diacritics normalization for street addresses (accents removal via NFD).
 *   **Cycle v2.5.8 (Gmail & Prompt Resilience)**: Hardened label listing with safe pagination fallbacks and improved prompt cross-compatibility for legacy request types.
@@ -155,10 +156,11 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.5.9 → 2.6.0 (Current)**
-- ✅ **Email**: Fixed `markdownToHtml` structural issues to ensure valid HTML blocks (lists, pre, headers) are correctly separated from paragraphs.
+**2.6.0 → 2.6.1 (Current)**
+- ✅ **Email Processor**: Hardened lock release to handle expired cases.
+- ✅ **Gemini Service**: Faster cross-key fallback via `PRIMARY_QUOTA_EXHAUSTED` signal.
 
-**2.5.8 → 2.5.9**
+**2.5.9 → 2.6.0**
 - ✅ **Infrastructure**: Internal consistency checks and smoke test enhancements.
 
 **2.5.3 → 2.5.4**
