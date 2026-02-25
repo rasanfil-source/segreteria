@@ -241,7 +241,11 @@ class TerritoryValidator {
             return '';
         }
         const safeStreet = String(street);
-        let normalized = safeStreet.toLowerCase().trim();
+        let normalized = safeStreet
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
 
         // Espandi abbreviazioni comuni italiane
         const abbreviations = {

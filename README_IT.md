@@ -47,6 +47,8 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **Cycle v2.5.9 (Territory Resilience)**:
+    *   **Territory Validator**: Implementata la normalizzazione NFD e la rimozione dei diacritici (accenti) nei nomi delle vie per migliorare la resilienza del matching degli indirizzi.
 *   **Cycle v2.5.8 (Gmail & Prompt Resilience)**:
     *   **Gmail Service**: Consolidato il recupero messaggi con etichetta tramite l'helper `_safePositiveInt` per gestire parametri di paginazione malformati.
     *   **Prompt Engine**: Introdotta retrocompatibilità per input `requestType` in formato stringa, garantendo la stabilità dei prompt anche con flussi legacy.
@@ -245,12 +247,10 @@ graph LR
 
 ### Breaking Changes tra Versioni
 
-**2.5.7 → 2.5.8 (Corrente)**
-- ✅ **Gmail**: Fallback robusti per paginazione e helper per interi sicuri.
-- ✅ **Prompt**: Retrocompatibilità per tipologie di richiesta legacy (string-based).
-- ✅ **Context**: Hardening dei metadati per KB strutturate e circolari.
+**2.5.8 → 2.5.9 (Corrente)**
+- ✅ **Territorio**: Normalizzazione diacritici (accenti) per una maggiore robustezza nel matching delle vie.
 
-**2.5.6 → 2.5.7**
+**2.5.7 → 2.5.8**
 - ✅ **Infrastruttura**: Controlli di coerenza interna e potenziamento smoke tests.
 
 **2.5.4 → 2.5.5**

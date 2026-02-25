@@ -21,6 +21,7 @@
 ✅ **Email in English/Spanish** → Response in the same language  
 
 ### ✨ Versione 2.0: Solidità & Affidabilità
+*   **Cycle v2.5.9 (Territory Resilience)**: Added diacritics normalization for street addresses (accents removal via NFD).
 *   **Cycle v2.5.8 (Gmail & Prompt Resilience)**: Hardened label listing with safe pagination fallbacks and improved prompt cross-compatibility for legacy request types.
 *   **Cycle v2.5.7 (Memory Hardening)**: Robust WAL de-duplication and invalid timestamp quarantine.
 *   **Gestione Lock Avanzata**: Ottimizzazione dei lock atomici per una coordinazione perfetta dei processi.
@@ -153,12 +154,10 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.5.7 → 2.5.8 (Current)**
-- ✅ **Gmail**: Hardened label listing with `_safePositiveInt` and robust pagination fallbacks.
-- ✅ **Prompt Engine**: Added retro-compatibility for string-based `requestType` inputs.
-- ✅ **Prompt Context**: Clarified metadata handling for circular or complex Knowledge Base objects.
+**2.5.8 → 2.5.9 (Current)**
+- ✅ **Territory**: Implemented NFD normalization and diacritics removal for street names to improve matching resilience.
 
-**2.5.6 → 2.5.7**
+**2.5.7 → 2.5.8**
 - ✅ **Infrastructure**: Internal consistency checks and smoke test enhancements.
 
 **2.5.3 → 2.5.4**
