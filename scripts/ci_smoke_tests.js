@@ -420,7 +420,7 @@ function testComputeSalutationMode() {
     const result5d = computeSalutationMode({ isReply: true, messageCount: 3, memoryExists: true, lastUpdated: fiveDaysAgo, now: NOW });
     assert(result5d === 'full', `Reply dopo 5 giorni: atteso "full", ottenuto "${result5d}"`);
 
-    // Reply dopo 4 giorni → full (nuovo contatto, > 72h)
+    // Reply dopo 4 giorni → soft (ripresa conversazione entro 96h)
     const fourDaysAgo = new Date(NOW.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString();
     const result4d = computeSalutationMode({ isReply: true, messageCount: 3, memoryExists: true, lastUpdated: fourDaysAgo, now: NOW });
     assert(result4d === 'soft', `Reply dopo 4 giorni: atteso "soft", ottenuto "${result4d}"`);

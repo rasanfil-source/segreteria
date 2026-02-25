@@ -76,7 +76,7 @@ Email Arrives
 ┌──────────────────────────────────────────────────────────┐
 │  LOCK ACQUISITION (Thread Level)                         │
 │  - Prevents race conditions between parallel executions │
-│  - TTL 30s with double-check                            │
+│  - Configurable TTL (default 240s) + double-check     │
 └──────────────┬──────────────────────────────────────────┘
                │
                v
@@ -213,7 +213,7 @@ Email Arrives
 **Key Functions:**
 ```javascript
 main()                  // Trigger entry point
-loadResources()         // Loads KB + vacation + replacements
+loadResources()         // Loads KB + vacation (6h cache; compressed fallback if large payload)
 isInSuspensionTime()    // Verifies suspension
 getSpecialMassTimeRule()// Holiday mass rules
 ```
@@ -243,7 +243,8 @@ getSpecialMassTimeRule()// Holiday mass rules
 ```javascript
 // Prevents race conditions between parallel executions
 const threadLockKey = `thread_lock_${threadId}`;
-scriptCache.put(threadLockKey, lockValue, 30); // TTL 30s
+const ttlSeconds = CONFIG.CACHE_LOCK_TTL || 240;
+scriptCache.put(threadLockKey, lockValue, ttlSeconds);
 Utilities.sleep(50); // Anti-race sleep
 const checkValue = scriptCache.get(threadLockKey);
 if (checkValue !== lockValue) return; // Race detected
@@ -253,14 +254,17 @@ if (checkValue !== lockValue) return; // Race detected
 - Trigger every 5 mins → possible overlap
 - Same thread could be processed twice
 - Lock guarantees atomic processing
+- v2.2.0+: Defensive lock release (handling orphaned or expired locks)
 
 #### 2. Anti-Loop Detection
 ```javascript
 // Detects infinite conversations
 if (messages.length > MAX_THREAD_LENGTH) {
   let consecutiveExternal = 0;
-  for (msg in messages.reverse()) {
-    if (!msg.from.includes(ourEmail)) consecutiveExternal++;
+  const reversed = messages.slice().reverse();
+  for (const msg of reversed) {
+    const sender = msg.getFrom ? msg.getFrom() : '';
+    if (!sender.includes(ourEmail)) consecutiveExternal++;
     else break;
   }
   if (consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {

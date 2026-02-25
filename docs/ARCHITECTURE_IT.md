@@ -78,7 +78,7 @@ Email Arriva
 ┌──────────────────────────────────────────────────────────┐
 │  LOCK ACQUISITION (Livello Thread)                       │
 │  - Previene race condition tra esecuzioni parallele     │
-│  - TTL 30s con double-check                              │
+│  - TTL configurabile (default 240s) + double-check       │
 └──────────────┬──────────────────────────────────────────┘
                │
                v
@@ -224,7 +224,7 @@ Email Arriva
 **Key Functions:**
 ```javascript
 main()                  // Entry point trigger
-loadResources()         // Carica KB + ferie (Cache 6 ore per KB < 100KB)
+loadResources()         // Carica KB + ferie (cache 6h; fallback compresso se payload grande)
 isInSuspensionTime()    // Verifica sospensione
 getSpecialMassTimeRule()// Regole messe giorni festivi
 ```
@@ -254,7 +254,8 @@ getSpecialMassTimeRule()// Regole messe giorni festivi
 ```javascript
 // Previene race condition tra esecuzioni parallele
 const threadLockKey = `thread_lock_${threadId}`;
-scriptCache.put(threadLockKey, lockValue, 30); // TTL 30s
+const ttlSeconds = CONFIG.CACHE_LOCK_TTL || 240;
+scriptCache.put(threadLockKey, lockValue, ttlSeconds);
 Utilities.sleep(50); // Anti-race sleep
 const checkValue = scriptCache.get(threadLockKey);
 if (checkValue !== lockValue) return; // Race rilevata
@@ -271,8 +272,10 @@ if (checkValue !== lockValue) return; // Race rilevata
 // Rileva conversazioni infinite
 if (messages.length > MAX_THREAD_LENGTH) {
   let consecutiveExternal = 0;
-  for (msg in messages.reverse()) {
-    if (!msg.from.includes(ourEmail)) consecutiveExternal++;
+  const reversed = messages.slice().reverse();
+  for (const msg of reversed) {
+    const sender = msg.getFrom ? msg.getFrom() : '';
+    if (!sender.includes(ourEmail)) consecutiveExternal++;
     else break;
   }
   if (consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
