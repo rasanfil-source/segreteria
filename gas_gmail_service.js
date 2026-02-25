@@ -1689,13 +1689,19 @@ function markdownToHtml(text) {
     }).join('');
 
     // 9. Costruzione paragrafi evitando nesting invalido di <p>
+    // Inserisce separatori intorno ai blocchi per evitare casi tipo:
+    // "Intro\n<ul>...</ul>" -> <p>Intro<br><ul>...</ul></p> (HTML invalido)
+    html = html.replace(/(<\/?(?:ul|ol|pre|p|div|h[1-6])\b[^>]*>)/gi, '\n$1\n');
+
     const isBlockHtml = (fragment) => /^<(p|ul|ol|pre|div|h[1-6])\b/i.test(fragment.trim());
     const cleanedHtml = html
         .split(/\n\n+/)
         .map(fragment => fragment.trim())
         .filter(fragment => fragment.length > 0)
         .map(fragment => {
-            const withLineBreaks = fragment.replace(/\n/g, '<br>');
+            const withLineBreaks = isBlockHtml(fragment)
+                ? fragment
+                : fragment.replace(/\n/g, '<br>');
             if (!withLineBreaks || withLineBreaks === '<br>') return withLineBreaks;
             return isBlockHtml(withLineBreaks) ? withLineBreaks : `<p>${withLineBreaks}</p>`;
         })

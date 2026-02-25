@@ -21,6 +21,7 @@
 ✅ **Email in English/Spanish** → Response in the same language  
 
 ### ✨ Versione 2.0: Solidità & Affidabilità
+*   **v2.6.0 (HTML Rendering Fix)**: Improved `markdownToHtml` to prevent invalid tag nesting (e.g., lists inside paragraphs).
 *   **Cycle v2.5.9 (Territory Resilience)**: Added diacritics normalization for street addresses (accents removal via NFD).
 *   **Cycle v2.5.8 (Gmail & Prompt Resilience)**: Hardened label listing with safe pagination fallbacks and improved prompt cross-compatibility for legacy request types.
 *   **Cycle v2.5.7 (Memory Hardening)**: Robust WAL de-duplication and invalid timestamp quarantine.
@@ -154,10 +155,10 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.5.8 → 2.5.9 (Current)**
-- ✅ **Territory**: Implemented NFD normalization and diacritics removal for street names to improve matching resilience.
+**2.5.9 → 2.6.0 (Current)**
+- ✅ **Email**: Fixed `markdownToHtml` structural issues to ensure valid HTML blocks (lists, pre, headers) are correctly separated from paragraphs.
 
-**2.5.7 → 2.5.8**
+**2.5.8 → 2.5.9**
 - ✅ **Infrastructure**: Internal consistency checks and smoke test enhancements.
 
 **2.5.3 → 2.5.4**

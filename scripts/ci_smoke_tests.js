@@ -1151,6 +1151,20 @@ function testMarkdownLinkQueryParamsNotDoubleEscaped() {
     );
 }
 
+function testMarkdownListParagraphNesting() {
+    loadScript('gas_gmail_service.js');
+
+    const result = markdownToHtml('Introduzione\n- uno\n- due');
+    assert(
+        !result.includes('<p>Introduzione<br><ul'),
+        `markdownToHtml non deve nidificare <ul> dentro <p>, ottenuto: ${result}`
+    );
+    assert(
+        result.includes('<p>Introduzione</p><ul') || result.includes('<p>Introduzione</p>\n<ul'),
+        `markdownToHtml deve separare testo e lista in blocchi distinti, ottenuto: ${result}`
+    );
+}
+
 function testAddLabelToThreadPropagatesNonLabelErrors() {
     loadScript('gas_gmail_service.js');
 
@@ -1534,6 +1548,7 @@ function main() {
         ['markdownToHtml: escape-first previene XSS', testMarkdownToHtmlXss],
         ['markdownToHtml: supporta URL con parentesi', testMarkdownLinkWithParentheses],
         ['markdownToHtml: query params senza double-escape', testMarkdownLinkQueryParamsNotDoubleEscaped],
+        ['markdownToHtml: evita nesting p/ul invalido', testMarkdownListParagraphNesting],
         ['gmail labels: errori non-label vengono propagati', testAddLabelToThreadPropagatesNonLabelErrors],
         ['gmail list: fallback robusto opzioni paginazione invalide', testGetMessageIdsWithLabelInvalidPaginationOptions],
         ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
