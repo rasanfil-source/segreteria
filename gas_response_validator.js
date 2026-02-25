@@ -171,7 +171,7 @@ class ResponseValidator {
     console.log(`🔍 Validazione risposta (${currentResponse.length} caratteri, lingua=${safeDetectedLanguage})...`);
 
     // --- PRIMO PASSAGGIO DI VALIDAZIONE ---
-    let validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent);
+    let validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent, emailSubject);
 
     // --- AUTOCORREZIONE (PERFEZIONAMENTO) ---
     if (!validationResult.isValid && attemptPerfezionamento) {
@@ -185,7 +185,7 @@ class ResponseValidator {
         wasRefined = true;
 
         // Ri-esegui validazione sul testo corretto
-        validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent);
+        validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent, emailSubject);
 
         if (validationResult.isValid) {
           console.log('   ✅ Autocorrezione ha risolto i problemi!');
@@ -277,7 +277,7 @@ class ResponseValidator {
   /**
    * Esegue i ✅ effettivi (estratto per riutilizzo)
    */
-  _runValidationChecks(response, detectedLanguage, knowledgeBase, salutationMode, originalMessage = '') {
+  _runValidationChecks(response, detectedLanguage, knowledgeBase, salutationMode, originalMessage = '', emailSubject = '') {
     const errors = [];
     const warnings = [];
     const details = {};
@@ -311,7 +311,8 @@ class ResponseValidator {
     score *= contentResult.score;
 
     // === CONTROLLO 5: Allucinazioni ===
-    const hallucResult = this._checkHallucinations(response, knowledgeBase, originalMessage);
+    const originalContext = [emailSubject, originalMessage].filter(Boolean).join('\n').trim();
+    const hallucResult = this._checkHallucinations(response, knowledgeBase, originalContext);
     errors.push(...hallucResult.errors);
     warnings.push(...hallucResult.warnings);
     details.hallucinations = hallucResult;
@@ -1217,7 +1218,7 @@ class SemanticValidator {
    */
   validateThinkingLeak(response, regexResult) {
     if (!this.shouldRun(regexResult.score)) {
-      return { isValid: true, confidence: 1.0, skipped: true };
+      return { isValid: true, confidence: regexResult.score, skipped: true };
     }
 
     const cacheKey = this._cacheKey('thinking', response);

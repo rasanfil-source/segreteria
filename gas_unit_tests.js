@@ -33,7 +33,9 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
             formatDate: (date, tz, fmt) => new Date(date).toISOString(),
             sleep: () => { },
             computeDigest: () => [0, 1, 2, 3],
-            DigestAlgorithm: { MD5: 'MD5' }
+            DigestAlgorithm: { MD5: 'MD5' },
+            getUuid: () => 'test-uuid-' + Math.random().toString(36).substring(2, 9),
+            base64Encode: (data) => Buffer.from(data).toString('base64')
         };
     }
     if (typeof global.PropertiesService === 'undefined') {
@@ -242,6 +244,11 @@ function runAllTests() {
         test('Rileva placeholder "XXX"', results, () => {
             const res = validator.validateResponse("Gentile utente, XXX, saluti.", 'it', "...", "...", "...", "full");
             return res.details.content.score === 0.0;
+        });
+        test('Rileva inconsistenza lingua (ES invece di IT)', results, () => {
+            const spanishText = "Hola, gracias por contactarnos. Saludos estimables.";
+            const res = validator._checkLanguage(spanishText, 'it');
+            return res.score < 1.0 && (res.detectedLang === 'es' || res.warnings.length > 0);
         });
     });
 

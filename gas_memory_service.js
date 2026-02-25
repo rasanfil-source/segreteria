@@ -803,6 +803,8 @@ class MemoryService {
 
     // Pattern: Global Guard per operazione Cache Atomica
     // Prendi lock globale per pochissimo tempo, solo per check-and-set su Cache
+    // Nota manutenzione: il timeout di 5s garantisce che anche in picchi di carico
+    // il worker non fallisca immediatamente nel tentativo di segnare il thread come in lavorazione.
     // Punto 14: Aumentato timeout acquisizione lock a 5 secondi per gestire carichi elevati
     if (globalLock.tryLock(5000)) {
       try {

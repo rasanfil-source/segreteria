@@ -731,14 +731,27 @@ ${addressLines.join('\n\n')}
         if (this._isNearDeadline(this.config.maxExecutionTimeMs)) {
           attachmentContext.skipped.push({ reason: 'near_deadline' });
           console.warn('   ⏳ OCR allegati saltato: tempo residuo insufficiente.');
-        } else if (this._shouldTryOcr(messageDetails.body, messageDetails.subject, candidate)) {
-          attachmentContext = this.gmailService.extractAttachmentContext(candidate, {
-            detectedLanguage: detectedLanguage,
-            shouldContinue: () => !this._isNearDeadline(this.config.maxExecutionTimeMs)
-          });
         } else {
-          attachmentContext.skipped.push({ reason: 'precheck_no_ocr' });
-          console.log('   📎 Allegati OCR saltati: pre-check negativo (keyword non trovate)');
+          let hasAttachments = false;
+          try {
+            const attachments = candidate.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
+            hasAttachments = attachments.length > 0;
+          } catch (e) {
+            console.warn(`⚠️ Impossibile leggere allegati per pre-check OCR: ${e.message}`);
+          }
+
+          if (!hasAttachments) {
+            attachmentContext.skipped.push({ reason: 'no_attachments' });
+            console.log('   📎 OCR saltato: nessun allegato nel messaggio candidato');
+          } else if (this._shouldTryOcr(messageDetails.body, messageDetails.subject, candidate)) {
+            attachmentContext = this.gmailService.extractAttachmentContext(candidate, {
+              detectedLanguage: detectedLanguage,
+              shouldContinue: () => !this._isNearDeadline(this.config.maxExecutionTimeMs)
+            });
+          } else {
+            attachmentContext.skipped.push({ reason: 'precheck_no_ocr' });
+            console.log('   📎 Allegati OCR saltati: pre-check negativo (keyword non trovate)');
+          }
         }
       } else {
         // OCR disabilitato da config
@@ -1046,6 +1059,8 @@ ${addressLines.join('\n\n')}
       return result;
 
     } finally {
+      // Nota manutenzione: questo finally copre TUTTI i return anticipati nel try,
+      // quindi non duplicare scriptCache.remove(...) in ogni ramo di skip.
       // Rilascia lock (solo se acquisito)
       if (lockAcquired && scriptCache && threadLockKey) {
         try {

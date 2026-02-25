@@ -21,6 +21,8 @@
 ✅ **Email in English/Spanish** → Response in the same language  
 
 ### ✨ Versione 2.0: Solidità & Affidabilità
+*   **v2.6.6 (Hardening & Refinement)**: Hardened OCR attachment pre-check with keyword scanning and improved hallucination detection by including email subject in semantic context.
+*   **v2.6.5 (Timestamp & Validation)**: Canonicalized all timestamps to ISO-8601 UTC and added language consistency unit tests.
 *   **v2.6.4 (Memory & Lock Hardening)**: Implemented FIFO eviction in MemoryService local cache and increased main pipeline lock timeout to 10s.
 *   **v2.6.3 (Resilience Hardening)**: Hardened `complexity` handling in EmailProcessor and added document locking to named range creation in Setup UI.
 *   **v2.6.2 (Prompt & KB Hardening)**: Implemented `_safeStringify` for circular references in PromptContext and refined KB token budgeting in PromptEngine.
@@ -159,11 +161,15 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.6.3 → 2.6.4 (Current)**
-- ✅ **Memory Service**: FIFO cache eviction to prevent RAM overflow.
-- ✅ **Main Pipeline**: Increased execution lock time (10s) and optimized trigger queuing logic.
+**2.6.5 → 2.6.6 (Current)**
+- ✅ **Email Processor**: Advanced OCR pre-check and keyword scanning.
+- ✅ **Validator**: Semantic hallucination check now includes email subject; fixed thinking leak confidence reporting.
 
-**2.6.2 → 2.6.3**
+**2.6.4 → 2.6.5**
+- ✅ **Memory Service**: Full ISO-8601 UTC timestamp canonicalization.
+- ✅ **Testing**: New coverage for language consistency and date normalization.
+
+**2.6.3 → 2.6.4**
 - ✅ **Infrastructure**: Internal consistency checks and smoke test enhancements.
 
 **2.5.3 → 2.5.4**

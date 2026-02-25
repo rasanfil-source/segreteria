@@ -47,6 +47,8 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **v2.6.6 (Hardening & Raffinamento)**: Rafforzato il pre-check degli allegati OCR con scansione keyword e migliorato il rilevamento allucinazioni includendo l'oggetto email nel contesto semantico.
+*   **v2.6.5 (Timestamp & Validazione)**: Canonicalizzazione di tutti i timestamp in ISO-8601 UTC e aggiunti test unitari per la consistenza linguistica.
 *   **v2.6.4 (Hardening Memoria & Lock)**:
     *   **Memory Service**: Implementata strategia di eviction FIFO per la cache locale (max 200 entry) per prevenire saturazione RAM.
     *   **Main Pipeline**: Aumentato timeout del lock di esecuzione (10s) e migliorata la gestione delle collisioni trigger.
@@ -261,10 +263,15 @@ graph LR
 
 ### Breaking Changes tra Versioni
 
-**2.6.3 → 2.6.4 (Corrente)**
-- ✅ **Infrastructure**: Ottimizzazione della memoria in-memory e consolidamento dei lock di sistema.
+**2.6.5 → 2.6.6 (Corrente)**
+- ✅ **Email Processor**: Pre-check OCR avanzato con scansione keyword e rilevamento allegati esplicito.
+- ✅ **Validator**: Il controllo semantico delle allucinazioni ora include l'oggetto email; corretta la segnalazione della confidenza per i thinking leak saltati.
 
-**2.6.2 → 2.6.3**
+**2.6.4 → 2.6.5**
+- ✅ **Memory Service**: Canonicalizzazione completa dei timestamp in formato ISO-8601 UTC.
+- ✅ **Unit Tests**: Nuova copertura per la consistenza della lingua e la normalizzazione delle date.
+
+**2.6.3 → 2.6.4**
 - ✅ **Infrastruttura**: Controlli di coerenza interna e potenziamento smoke tests.
 
 **2.5.4 → 2.5.5**

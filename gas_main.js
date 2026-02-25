@@ -349,6 +349,8 @@ function _loadResourcesInternal() {
   }
 
   // Hardening: evita crash se CONFIG non è ancora inizializzato (ordine file GAS)
+  // Nota manutenzione: questo caricamento risorse deve avere priorità su processUnreadEmails
+  // per assicurare che KB e Dottrina siano disponibili.
   const cfg = (typeof CONFIG !== 'undefined' && CONFIG) ? CONFIG : {
     KB_SHEET_NAME: 'Istruzioni',
     AI_CORE_LITE_SHEET: 'AI_CORE_LITE',
@@ -619,12 +621,7 @@ function _loadAdvancedConfig(ss) {
 // ENTRY POINT PRINCIPALE (TRIGGER)
 // ====================================================================
 
-/**
- * Compatibilità: Entry point storico per i trigger GAS
- */
-function main() {
-  processEmailsMain();
-}
+
 
 /**
  * Configura tutti i trigger necessari al sistema.
@@ -766,12 +763,7 @@ function main() {
   }
 }
 
-/**
- * Hook retrocompatibile rimosso o allineato
- */
-function processEmailsMain() {
-  main();
-}
+
 
 /**
  * Serializza righe foglio in testo robusto per prompt/validator.

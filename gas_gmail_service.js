@@ -313,6 +313,8 @@ class GmailService {
             const effectiveUser = Session.getEffectiveUser();
             recipientEmail = effectiveUser ? effectiveUser.getEmail() : '';
             if (!recipientEmail) {
+                // Nota: Session.getActiveUser() in questo contesto GAS potrebbe restituire stringa vuota 
+                // se non ci sono permessi specifici o se è un trigger.
                 const activeUser = Session.getActiveUser();
                 recipientEmail = activeUser ? activeUser.getEmail() : '';
             }
@@ -819,7 +821,7 @@ class GmailService {
     _extractEmailAddress(fromField) {
         if (typeof fromField !== 'string') return '';
 
-        const angleMatch = fromField.match(/<(.+?)>/);
+        const angleMatch = fromField.match(/<([^>]+@[^>]+)>/);
         if (angleMatch) {
             return angleMatch[1];
         }
