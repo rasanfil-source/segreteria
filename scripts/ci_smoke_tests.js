@@ -1171,6 +1171,52 @@ function testAddLabelToThreadPropagatesNonLabelErrors() {
     assert(threw, 'addLabelToThread deve propagare errori non riconducibili a label missing');
 }
 
+function testGetMessageIdsWithLabelInvalidPaginationOptions() {
+    loadScript('gas_gmail_service.js');
+
+    const service = Object.create(GmailService.prototype);
+    service.getOrCreateLabel = () => ({ getId: () => 'LBL_1' });
+    service._getNDaysAgo = () => '2026/01/01';
+
+    const originalGmail = global.Gmail;
+    const originalConfig = global.CONFIG;
+    let listCalls = 0;
+
+    global.CONFIG = {
+        GMAIL_LIST_MAX_PAGES: 1,
+        GMAIL_LIST_MAX_MESSAGES: 2,
+        GMAIL_LABEL_LOOKBACK_DAYS: 7
+    };
+
+    global.Gmail = {
+        Users: {
+            Messages: {
+                list: (_user, opts) => {
+                    listCalls += 1;
+                    assert(opts.maxResults === 500, `pageSize deve ricadere al default sicuro (500), ottenuto ${opts.maxResults}`);
+                    return {
+                        messages: [{ id: `msg-${listCalls}` }],
+                        nextPageToken: 'next'
+                    };
+                }
+            }
+        }
+    };
+
+    try {
+        const ids = service.getMessageIdsWithLabel('IA', true, {
+            maxPages: 'abc',
+            maxMessages: 'NaN',
+            pageSize: 'invalid'
+        });
+
+        assert(ids.size === 1, `Con limiti fallback, deve fermarsi dopo 1 pagina (ids=1), ottenuto ${ids.size}`);
+        assert(listCalls === 1, `Paginazione deve fermarsi al fallback maxPages=1, chiamate ottenute ${listCalls}`);
+    } finally {
+        global.Gmail = originalGmail;
+        global.CONFIG = originalConfig;
+    }
+}
 
 function testRequestClassifierExternalHintCategoryTrim() {
     loadScript('gas_request_classifier.js');
@@ -1489,6 +1535,7 @@ function main() {
         ['markdownToHtml: supporta URL con parentesi', testMarkdownLinkWithParentheses],
         ['markdownToHtml: query params senza double-escape', testMarkdownLinkQueryParamsNotDoubleEscaped],
         ['gmail labels: errori non-label vengono propagati', testAddLabelToThreadPropagatesNonLabelErrors],
+        ['gmail list: fallback robusto opzioni paginazione invalide', testGetMessageIdsWithLabelInvalidPaginationOptions],
         ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
         ['main: nessun leak globale hasExecutionLock', testMainDoesNotLeakHasExecutionLockGlobal],
         ['main: serializzazione robusta righe KB', testSheetRowsToTextRemovesEmptyCellsAndRows],

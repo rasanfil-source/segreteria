@@ -28,7 +28,9 @@ class PromptContext {
     _normalizeInput(input) {
         const normalizedInput = Object.assign({}, input);
 
-        // Mantiene knowledgeBase originale inalterata e crea metadati separati
+        // Mantiene knowledgeBase originale inalterata e crea metadati separati.
+        // NOTA: i metadati restano dentro input (knowledgeBaseMeta) per compatibilita con i test
+        // e con il codice che legge this.input in debug/telemetria: non usiamo un campo esterno.
         if (normalizedInput.knowledgeBase) {
             const isString = typeof normalizedInput.knowledgeBase === 'string';
             let knowledgeBaseRaw = '';

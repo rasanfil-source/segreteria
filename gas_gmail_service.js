@@ -158,9 +158,17 @@ class GmailService {
             const useWindowDays = Number.isFinite(safeWindowDays) && safeWindowDays > 0
                 ? safeWindowDays
                 : ((typeof CONFIG !== 'undefined' && CONFIG.GMAIL_LABEL_LOOKBACK_DAYS) || 0);
-            const maxPages = Math.max(1, parseInt(options.maxPages || ((typeof CONFIG !== 'undefined' && CONFIG.GMAIL_LIST_MAX_PAGES) || 20), 10));
-            const maxMessages = Math.max(1, parseInt(options.maxMessages || ((typeof CONFIG !== 'undefined' && CONFIG.GMAIL_LIST_MAX_MESSAGES) || 5000), 10));
-            const pageSize = Math.min(500, Math.max(50, parseInt(options.pageSize || 500, 10)));
+            const maxPages = this._safePositiveInt(
+                options.maxPages,
+                ((typeof CONFIG !== 'undefined' && CONFIG.GMAIL_LIST_MAX_PAGES) || 20),
+                1
+            );
+            const maxMessages = this._safePositiveInt(
+                options.maxMessages,
+                ((typeof CONFIG !== 'undefined' && CONFIG.GMAIL_LIST_MAX_MESSAGES) || 5000),
+                1
+            );
+            const pageSize = this._safePositiveInt(options.pageSize, 500, 50, 500);
 
             // Query composita: inbox opzionale + finestra temporale opzionale
             const queryParts = [];
@@ -201,6 +209,19 @@ class GmailService {
             console.warn(`⚠️ Impossibile ottenere messaggi con label ${labelName}: ${e.message}`);
             return new Set();
         }
+    }
+
+    _safePositiveInt(value, fallback, min, max = null) {
+        const parsed = parseInt(value, 10);
+        const fallbackParsed = parseInt(fallback, 10);
+        let safe = Number.isFinite(parsed) ? parsed : (Number.isFinite(fallbackParsed) ? fallbackParsed : min);
+
+        safe = Math.max(min, safe);
+        if (max !== null) {
+            safe = Math.min(max, safe);
+        }
+
+        return safe;
     }
 
     _getNDaysAgo(n) {
@@ -951,378 +972,378 @@ class GmailService {
     }
 
 
-/**
- * Invia risposta come HTML con threading corretto
- */
-sendHtmlReply(resource, responseText, messageDetails) {
-    const sanitizedText = this._sanitizeHeaders(responseText);
+    /**
+     * Invia risposta come HTML con threading corretto
+     */
+    sendHtmlReply(resource, responseText, messageDetails) {
+        const sanitizedText = this._sanitizeHeaders(responseText);
 
-    let finalResponse = sanitizedText;
-    if (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.replacements) {
-        const replacementCount = Object.keys(GLOBAL_CACHE.replacements).length;
-        if (replacementCount > 0) {
-            finalResponse = this.applyReplacements(finalResponse, GLOBAL_CACHE.replacements);
-            console.log(`   ✓ Applicate ${replacementCount} regole sostituzione`);
+        let finalResponse = sanitizedText;
+        if (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.replacements) {
+            const replacementCount = Object.keys(GLOBAL_CACHE.replacements).length;
+            if (replacementCount > 0) {
+                finalResponse = this.applyReplacements(finalResponse, GLOBAL_CACHE.replacements);
+                console.log(`   ✓ Applicate ${replacementCount} regole sostituzione`);
+            }
         }
-    }
 
-    finalResponse = this.fixPunctuation(finalResponse, messageDetails.senderName);
-    finalResponse = this.ensureGreetingLineBreak(finalResponse);
+        finalResponse = this.fixPunctuation(finalResponse, messageDetails.senderName);
+        finalResponse = this.ensureGreetingLineBreak(finalResponse);
 
-    const htmlBody = (typeof markdownToHtml === 'function')
-        ? markdownToHtml(finalResponse)
-        : finalResponse
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/\n/g, '<br>');
-    const plainText = this._htmlToPlainText(htmlBody);
+        const htmlBody = (typeof markdownToHtml === 'function')
+            ? markdownToHtml(finalResponse)
+            : finalResponse
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\n/g, '<br>');
+        const plainText = this._htmlToPlainText(htmlBody);
 
-    const hasThreadingInfo = messageDetails.rfc2822MessageId;
+        const hasThreadingInfo = messageDetails.rfc2822MessageId;
 
-    if (hasThreadingInfo) {
+        if (hasThreadingInfo) {
+            try {
+                let threadId = null;
+                if (typeof resource === 'string') {
+                    threadId = resource;
+                } else if (resource && typeof resource.getId === 'function') {
+                    if (typeof resource.getThread === 'function') {
+                        threadId = resource.getThread().getId();
+                    } else {
+                        threadId = resource.getId();
+                    }
+                }
+
+                let replySubject = messageDetails.subject;
+                if (!replySubject.toLowerCase().startsWith('re:')) {
+                    replySubject = 'Re: ' + replySubject;
+                }
+
+                let referencesHeader = messageDetails.rfc2822MessageId;
+                if (messageDetails.existingReferences) {
+                    referencesHeader = messageDetails.existingReferences + ' ' + messageDetails.rfc2822MessageId;
+                }
+
+                // From stabile: usa sempre l'account attivo (evita errori "non autorizzato")
+                const stableFrom = Session.getEffectiveUser().getEmail();
+
+                // Reply-To: usa alias solo se presente in To/Cc del messaggio originale
+                let replyToEmail = null;
+                const recipientHeaders = `${messageDetails.recipientEmail || ''},${messageDetails.recipientCc || ''}`;
+                const emailRegex = /\b[A-Za-z0-9][A-Za-z0-9._%+-]{0,63}@(?!-)(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}\b/gi;
+                const recipientAddresses = (recipientHeaders.match(emailRegex) || [])
+                    .map(addr => addr.replace(/[\r\n]+/g, '').trim().toLowerCase());
+                const knownAliases = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES))
+                    ? CONFIG.KNOWN_ALIASES.map(alias => (alias || '').toLowerCase())
+                    : [];
+
+                const matchedAlias = recipientAddresses.find(addr => knownAliases.includes(addr));
+                if (matchedAlias && matchedAlias !== stableFrom.toLowerCase()) {
+                    replyToEmail = matchedAlias;
+                }
+
+                const boundary = 'boundary_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
+                const rawHeaders = [
+                    'MIME-Version: 1.0',
+                    `From: ${stableFrom}`,
+                    `To: ${messageDetails.senderEmail}`,
+                    `Subject: =?UTF-8?B?${Utilities.base64Encode(replySubject, Utilities.Charset.UTF_8)}?=`,
+                    `In-Reply-To: ${messageDetails.rfc2822MessageId}`,
+                    `References: ${referencesHeader}`,
+                    `Content-Type: multipart/alternative; boundary="${boundary}"`
+                ];
+
+                if (replyToEmail) {
+                    rawHeaders.splice(2, 0, `Reply-To: ${replyToEmail}`);
+                }
+
+                // Manteniamo `rawHeaders` come array e lo espandiamo nel payload MIME.
+                const rawMessage = [
+                    rawHeaders.join('\r\n'),
+                    '',
+                    `--${boundary}`,
+                    'Content-Type: text/plain; charset=UTF-8',
+                    'Content-Transfer-Encoding: base64',
+                    '',
+                    Utilities.base64Encode(plainText, Utilities.Charset.UTF_8),
+                    '',
+                    `--${boundary}`,
+                    'Content-Type: text/html; charset=UTF-8',
+                    'Content-Transfer-Encoding: base64',
+                    '',
+                    Utilities.base64Encode(htmlBody, Utilities.Charset.UTF_8),
+                    '',
+                    `--${boundary}--`,
+                    ''
+                ].join('\r\n');
+
+                // Gmail API RAW richiede base64url RFC4648 senza padding finale '='.
+                const encodedMessage = Utilities.base64EncodeWebSafe(rawMessage).replace(/=+$/, '');
+
+                Gmail.Users.Messages.send({
+                    raw: encodedMessage,
+                    threadId: threadId
+                }, 'me');
+
+                console.log(`✓ Risposta HTML inviata via Gmail API a ${messageDetails.senderEmail}`);
+                console.log(`   📧 Threading headers: In-Reply-To=${messageDetails.rfc2822MessageId.substring(0, 30)}...`);
+                return;
+
+            } catch (apiError) {
+                console.warn(`⚠️ Gmail API fallita, ripiego su GmailApp: ${apiError.message}`);
+            }
+        }
+
+        // Alternativa: metodo tradizionale
+        // Nel fallback nativo prediligiamo il cast esplicito a GmailMessage (se disponibile)
+        // affinché la libreria interna mantenga al meglio il riferimento al messaggio specifico
+        const isMessage = resource && typeof resource.reply === 'function' && typeof resource.getThread === 'function';
+        let mailEntity = null;
+
+        if (isMessage) {
+            mailEntity = resource;
+        } else if (typeof resource === 'string') {
+            const threadEntity = GmailApp.getThreadById(resource);
+            const threadMessages = threadEntity ? threadEntity.getMessages() : [];
+            mailEntity = threadMessages.length > 0 ? threadMessages[threadMessages.length - 1] : threadEntity;
+        } else {
+            mailEntity = resource;
+        }
+
+        if (!mailEntity || typeof mailEntity.reply !== 'function') {
+            throw new Error('Entità Gmail non valida per reply() nel fallback HTML');
+        }
+
         try {
-            let threadId = null;
-            if (typeof resource === 'string') {
-                threadId = resource;
-            } else if (resource && typeof resource.getId === 'function') {
-                if (typeof resource.getThread === 'function') {
-                    threadId = resource.getThread().getId();
-                } else {
-                    threadId = resource.getId();
+            mailEntity.reply('', { htmlBody: htmlBody });
+            console.log(`✓ Risposta HTML inviata a ${messageDetails.senderEmail} (metodo alternativo nativo)`);
+        } catch (error) {
+            console.error(`❌ Risposta fallita: ${error.message}`);
+            try {
+                mailEntity.reply(plainText || this._stripHtmlTags(finalResponse));
+                console.log(`✓ Risposta plain text inviata a ${messageDetails.senderEmail} (alternativa)`);
+            } catch (fallbackError) {
+                console.error(`❌ CRITICO: Invio risposta alternativo fallito: ${fallbackError.message}`);
+                const errorLabel = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME) ? CONFIG.ERROR_LABEL_NAME : 'Errore';
+                if (mailEntity) {
+                    const targetThread = (typeof mailEntity.getThread === 'function')
+                        ? mailEntity.getThread()
+                        : mailEntity;
+
+                    if (targetThread && typeof targetThread.getMessages === 'function') {
+                        this.addLabelToThread(targetThread, errorLabel);
+                    }
                 }
             }
-
-            let replySubject = messageDetails.subject;
-            if (!replySubject.toLowerCase().startsWith('re:')) {
-                replySubject = 'Re: ' + replySubject;
-            }
-
-            let referencesHeader = messageDetails.rfc2822MessageId;
-            if (messageDetails.existingReferences) {
-                referencesHeader = messageDetails.existingReferences + ' ' + messageDetails.rfc2822MessageId;
-            }
-
-            // From stabile: usa sempre l'account attivo (evita errori "non autorizzato")
-            const stableFrom = Session.getEffectiveUser().getEmail();
-
-            // Reply-To: usa alias solo se presente in To/Cc del messaggio originale
-            let replyToEmail = null;
-            const recipientHeaders = `${messageDetails.recipientEmail || ''},${messageDetails.recipientCc || ''}`;
-            const emailRegex = /\b[A-Za-z0-9][A-Za-z0-9._%+-]{0,63}@(?!-)(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}\b/gi;
-            const recipientAddresses = (recipientHeaders.match(emailRegex) || [])
-                .map(addr => addr.replace(/[\r\n]+/g, '').trim().toLowerCase());
-            const knownAliases = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES))
-                ? CONFIG.KNOWN_ALIASES.map(alias => (alias || '').toLowerCase())
-                : [];
-
-            const matchedAlias = recipientAddresses.find(addr => knownAliases.includes(addr));
-            if (matchedAlias && matchedAlias !== stableFrom.toLowerCase()) {
-                replyToEmail = matchedAlias;
-            }
-
-            const boundary = 'boundary_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
-            const rawHeaders = [
-                'MIME-Version: 1.0',
-                `From: ${stableFrom}`,
-                `To: ${messageDetails.senderEmail}`,
-                `Subject: =?UTF-8?B?${Utilities.base64Encode(replySubject, Utilities.Charset.UTF_8)}?=`,
-                `In-Reply-To: ${messageDetails.rfc2822MessageId}`,
-                `References: ${referencesHeader}`,
-                `Content-Type: multipart/alternative; boundary="${boundary}"`
-            ];
-
-            if (replyToEmail) {
-                rawHeaders.splice(2, 0, `Reply-To: ${replyToEmail}`);
-            }
-
-            // Manteniamo `rawHeaders` come array e lo espandiamo nel payload MIME.
-            const rawMessage = [
-                rawHeaders.join('\r\n'),
-                '',
-                `--${boundary}`,
-                'Content-Type: text/plain; charset=UTF-8',
-                'Content-Transfer-Encoding: base64',
-                '',
-                Utilities.base64Encode(plainText, Utilities.Charset.UTF_8),
-                '',
-                `--${boundary}`,
-                'Content-Type: text/html; charset=UTF-8',
-                'Content-Transfer-Encoding: base64',
-                '',
-                Utilities.base64Encode(htmlBody, Utilities.Charset.UTF_8),
-                '',
-                `--${boundary}--`,
-                ''
-            ].join('\r\n');
-
-            // Gmail API RAW richiede base64url RFC4648 senza padding finale '='.
-            const encodedMessage = Utilities.base64EncodeWebSafe(rawMessage).replace(/=+$/, '');
-
-            Gmail.Users.Messages.send({
-                raw: encodedMessage,
-                threadId: threadId
-            }, 'me');
-
-            console.log(`✓ Risposta HTML inviata via Gmail API a ${messageDetails.senderEmail}`);
-            console.log(`   📧 Threading headers: In-Reply-To=${messageDetails.rfc2822MessageId.substring(0, 30)}...`);
-            return;
-
-        } catch (apiError) {
-            console.warn(`⚠️ Gmail API fallita, ripiego su GmailApp: ${apiError.message}`);
         }
     }
 
-    // Alternativa: metodo tradizionale
-    // Nel fallback nativo prediligiamo il cast esplicito a GmailMessage (se disponibile)
-    // affinché la libreria interna mantenga al meglio il riferimento al messaggio specifico
-    const isMessage = resource && typeof resource.reply === 'function' && typeof resource.getThread === 'function';
-    let mailEntity = null;
-
-    if (isMessage) {
-        mailEntity = resource;
-    } else if (typeof resource === 'string') {
-        const threadEntity = GmailApp.getThreadById(resource);
-        const threadMessages = threadEntity ? threadEntity.getMessages() : [];
-        mailEntity = threadMessages.length > 0 ? threadMessages[threadMessages.length - 1] : threadEntity;
-    } else {
-        mailEntity = resource;
+    _stripHtmlTags(text) {
+        if (!text) return '';
+        return text
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\*\*(.+?)\*\*/g, '$1')
+            .replace(/\*(.+?)\*/g, '$1')
+            .replace(/#{1,4}\s+/g, '')
+            // Mantieni link leggibile: [Testo](URL) -> Testo (URL)
+            .replace(/\[(.+?)\]\((.+?)\)/g, '$1 ($2)');
     }
 
-    if (!mailEntity || typeof mailEntity.reply !== 'function') {
-        throw new Error('Entità Gmail non valida per reply() nel fallback HTML');
-    }
+    // ========================================================================
+    // SAFEGUARD DI FORMATTAZIONE
+    // ========================================================================
 
-    try {
-        mailEntity.reply('', { htmlBody: htmlBody });
-        console.log(`✓ Risposta HTML inviata a ${messageDetails.senderEmail} (metodo alternativo nativo)`);
-    } catch (error) {
-        console.error(`❌ Risposta fallita: ${error.message}`);
-        try {
-            mailEntity.reply(plainText || this._stripHtmlTags(finalResponse));
-            console.log(`✓ Risposta plain text inviata a ${messageDetails.senderEmail} (alternativa)`);
-        } catch (fallbackError) {
-            console.error(`❌ CRITICO: Invio risposta alternativo fallito: ${fallbackError.message}`);
-            const errorLabel = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME) ? CONFIG.ERROR_LABEL_NAME : 'Errore';
-            if (mailEntity) {
-                const targetThread = (typeof mailEntity.getThread === 'function')
-                    ? mailEntity.getThread()
-                    : mailEntity;
+    /**
+     * Corregge errori comuni di punteggiatura
+     * Gestisce eccezioni per nomi doppi (es. "Maria Isabella")
+     */
+    fixPunctuation(text, senderName = '') {
+        if (!text) return text;
 
-                if (targetThread && typeof targetThread.getMessages === 'function') {
-                    this.addLabelToThread(targetThread, errorLabel);
+        // Intenzionale: array locale ricreato a ogni chiamata, quindi la mutazione
+        // serve solo ad ampliare le eccezioni per il messaggio corrente.
+        const exceptions = ['Don', 'Padre', 'Suor', 'Monsignor', 'Papa', 'Signore', 'Signora'];
+
+        if (senderName) {
+            const nameParts = senderName.split(/\s+/);
+            for (const part of nameParts) {
+                if (part && !exceptions.includes(part)) {
+                    exceptions.push(part);
                 }
             }
         }
+
+        return text.replace(/,\s+([A-ZÀÈÉÌÒÙ])([a-zàèéìòù]*)/g, (match, firstLetter, rest, offset) => {
+            const word = firstLetter + rest;
+
+            if (exceptions.includes(word)) {
+                return match;
+            }
+
+            const afterMatch = text.substring(offset + match.length);
+
+            // Eccezione per virgola/punto successivo
+            if (afterMatch.match(/^\s*[,.]/)) {
+                return match;
+            }
+
+            // Eccezione per congiunzione "e" seguita da nome (es. "Maria e Giovanni,")
+            if (afterMatch.match(/^\s+e\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]*\s*[,.]/)) {
+                return match;
+            }
+
+            // Euristica nomi doppi: se la parola è seguita da un'altra parola maiuscola,
+            // probabilmente sono nomi propri (es. "Maria Isabella", "Gian Luca", "Carlo Alberto")
+            if (afterMatch.match(/^\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]+/)) {
+                return match;
+            }
+
+            return `, ${firstLetter.toLowerCase()}${rest}`;
+        });
     }
-}
 
-_stripHtmlTags(text) {
-    if (!text) return '';
-    return text
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\*\*(.+?)\*\*/g, '$1')
-        .replace(/\*(.+?)\*/g, '$1')
-        .replace(/#{1,4}\s+/g, '')
-        // Mantieni link leggibile: [Testo](URL) -> Testo (URL)
-        .replace(/\[(.+?)\]\((.+?)\)/g, '$1 ($2)');
-}
+    ensureGreetingLineBreak(text) {
+        if (!text) return text;
 
-// ========================================================================
-// SAFEGUARD DI FORMATTAZIONE
-// ========================================================================
-
-/**
- * Corregge errori comuni di punteggiatura
- * Gestisce eccezioni per nomi doppi (es. "Maria Isabella")
- */
-fixPunctuation(text, senderName = '') {
-    if (!text) return text;
-
-    // Intenzionale: array locale ricreato a ogni chiamata, quindi la mutazione
-    // serve solo ad ampliare le eccezioni per il messaggio corrente.
-    const exceptions = ['Don', 'Padre', 'Suor', 'Monsignor', 'Papa', 'Signore', 'Signora'];
-
-    if (senderName) {
-        const nameParts = senderName.split(/\s+/);
-        for (const part of nameParts) {
-            if (part && !exceptions.includes(part)) {
-                exceptions.push(part);
+        const lines = text.split('\n');
+        if (lines.length > 1) {
+            const firstLine = lines[0].trim();
+            if (/^(Buongiorno|Buonasera|Salve|Gentile|Egregio|Ciao)/i.test(firstLine)) {
+                if (lines[1].trim() !== '') {
+                    lines.splice(1, 0, '');
+                    return lines.join('\n');
+                }
             }
         }
+        return text;
     }
 
-    return text.replace(/,\s+([A-ZÀÈÉÌÒÙ])([a-zàèéìòù]*)/g, (match, firstLetter, rest, offset) => {
-        const word = firstLetter + rest;
+    /**
+     * Applica sostituzioni testo dal foglio Sostituzioni
+     */
+    applyReplacements(text, replacements) {
+        if (!text || !replacements) return text;
 
-        if (exceptions.includes(word)) {
-            return match;
-        }
+        let result = text;
+        let count = 0;
 
-        const afterMatch = text.substring(offset + match.length);
+        for (const [bad, good] of Object.entries(replacements)) {
+            const regex = new RegExp(bad.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+            const before = result;
+            result = result.replace(regex, good);
 
-        // Eccezione per virgola/punto successivo
-        if (afterMatch.match(/^\s*[,.]/)) {
-            return match;
-        }
-
-        // Eccezione per congiunzione "e" seguita da nome (es. "Maria e Giovanni,")
-        if (afterMatch.match(/^\s+e\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]*\s*[,.]/)) {
-            return match;
-        }
-
-        // Euristica nomi doppi: se la parola è seguita da un'altra parola maiuscola,
-        // probabilmente sono nomi propri (es. "Maria Isabella", "Gian Luca", "Carlo Alberto")
-        if (afterMatch.match(/^\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]+/)) {
-            return match;
-        }
-
-        return `, ${firstLetter.toLowerCase()}${rest}`;
-    });
-}
-
-ensureGreetingLineBreak(text) {
-    if (!text) return text;
-
-    const lines = text.split('\n');
-    if (lines.length > 1) {
-        const firstLine = lines[0].trim();
-        if (/^(Buongiorno|Buonasera|Salve|Gentile|Egregio|Ciao)/i.test(firstLine)) {
-            if (lines[1].trim() !== '') {
-                lines.splice(1, 0, '');
-                return lines.join('\n');
+            if (result !== before) {
+                count++;
             }
         }
-    }
-    return text;
-}
 
-/**
- * Applica sostituzioni testo dal foglio Sostituzioni
- */
-applyReplacements(text, replacements) {
-    if (!text || !replacements) return text;
-
-    let result = text;
-    let count = 0;
-
-    for (const [bad, good] of Object.entries(replacements)) {
-        const regex = new RegExp(bad.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-        const before = result;
-        result = result.replace(regex, good);
-
-        if (result !== before) {
-            count++;
+        if (count > 0) {
+            console.log(`✓ Applicate ${count} sostituzioni`);
         }
+
+        return result;
     }
 
-    if (count > 0) {
-        console.log(`✓ Applicate ${count} sostituzioni`);
+    _sanitizeHeaders(text) {
+        if (!text) return '';
+        return text
+            .replace(/(^|\n)(To|Cc|Bcc|From|Subject|Reply-To):/gi, '$1[$2]:')
+            .replace(/\r\n|\r/g, '\n');
     }
 
-    return result;
-}
+    // ========================================================================
+    // VERIFICA STATO
+    // ========================================================================
 
-_sanitizeHeaders(text) {
-    if (!text) return '';
-    return text
-        .replace(/(^|\n)(To|Cc|Bcc|From|Subject|Reply-To):/gi, '$1[$2]:')
-        .replace(/\r\n|\r/g, '\n');
-}
-
-// ========================================================================
-// VERIFICA STATO
-// ========================================================================
-
-testConnection() {
-    const results = {
-        connectionOk: false,
-        canListMessages: false,
-        canCreateLabels: false,
-        errors: []
-    };
-
-    try {
-        const threads = GmailApp.search('is:unread', 0, 1);
-        results.connectionOk = true;
-        results.canListMessages = true;
+    testConnection() {
+        const results = {
+            connectionOk: false,
+            canListMessages: false,
+            canCreateLabels: false,
+            errors: []
+        };
 
         try {
-            const testLabel = this.getOrCreateLabel('_TEST_LABEL_');
-            results.canCreateLabels = true;
+            const threads = GmailApp.search('is:unread', 0, 1);
+            results.connectionOk = true;
+            results.canListMessages = true;
 
             try {
-                testLabel.deleteLabel();
-            } catch (e) { }
+                const testLabel = this.getOrCreateLabel('_TEST_LABEL_');
+                results.canCreateLabels = true;
+
+                try {
+                    testLabel.deleteLabel();
+                } catch (e) { }
+            } catch (e) {
+                results.errors.push(`Impossibile creare label: ${e.message}`);
+            }
+
         } catch (e) {
-            results.errors.push(`Impossibile creare label: ${e.message}`);
+            results.errors.push(`Errore connessione: ${e.message}`);
         }
 
-    } catch (e) {
-        results.errors.push(`Errore connessione: ${e.message}`);
+        results.isHealthy = results.connectionOk && results.canListMessages;
+        return results;
     }
 
-    results.isHealthy = results.connectionOk && results.canListMessages;
-    return results;
-}
+    _detectDocumentType(fileName, text) {
+        const source = `${fileName || ''}\n${text || ''}`.toLowerCase();
+        const docPatterns = [
+            { type: 'Modulo iscrizione cresima', patterns: ['cresima', 'confermazione'], minMatches: 1 },
+            { type: 'Modulo iscrizione prima comunione/catechesi', patterns: ['prima comunione', 'catechesi', 'catechismo'], minMatches: 1 },
+            { type: 'Modulo corso prematrimoniale', patterns: ['prematrimonial', 'fidanzati', 'matrimonio'], minMatches: 1 },
+            { type: 'Certificato di battesimo', patterns: ['certificato', 'battesimo', 'battezz'], minMatches: 2 },
+            { type: 'Certificato di cresima', patterns: ['certificato', 'cresima', 'confermazion'], minMatches: 2 },
+            { type: 'Documento identità/passaporto', patterns: ["carta d'identit", "documento di identit", 'passaporto'], minMatches: 1 },
+            { type: 'Tessera sanitaria/codice fiscale', patterns: ['tessera sanitaria', 'codice fiscale'], minMatches: 1 }
+        ];
 
-_detectDocumentType(fileName, text) {
-    const source = `${fileName || ''}\n${text || ''}`.toLowerCase();
-    const docPatterns = [
-        { type: 'Modulo iscrizione cresima', patterns: ['cresima', 'confermazione'], minMatches: 1 },
-        { type: 'Modulo iscrizione prima comunione/catechesi', patterns: ['prima comunione', 'catechesi', 'catechismo'], minMatches: 1 },
-        { type: 'Modulo corso prematrimoniale', patterns: ['prematrimonial', 'fidanzati', 'matrimonio'], minMatches: 1 },
-        { type: 'Certificato di battesimo', patterns: ['certificato', 'battesimo', 'battezz'], minMatches: 2 },
-        { type: 'Certificato di cresima', patterns: ['certificato', 'cresima', 'confermazion'], minMatches: 2 },
-        { type: 'Documento identità/passaporto', patterns: ["carta d'identit", "documento di identit", 'passaporto'], minMatches: 1 },
-        { type: 'Tessera sanitaria/codice fiscale', patterns: ['tessera sanitaria', 'codice fiscale'], minMatches: 1 }
-    ];
-
-    for (const rule of docPatterns) {
-        const matches = rule.patterns.reduce((acc, pattern) => acc + (source.includes(pattern) ? 1 : 0), 0);
-        if (matches >= (rule.minMatches || rule.patterns.length)) {
-            return rule.type;
+        for (const rule of docPatterns) {
+            const matches = rule.patterns.reduce((acc, pattern) => acc + (source.includes(pattern) ? 1 : 0), 0);
+            if (matches >= (rule.minMatches || rule.patterns.length)) {
+                return rule.type;
+            }
         }
+
+        if (source.includes('certificato')) return 'Certificato (non specificato)';
+        if (source.includes('modulo') || source.includes('iscrizione')) return 'Modulo parrocchiale';
+        return 'Documento generico';
     }
 
-    if (source.includes('certificato')) return 'Certificato (non specificato)';
-    if (source.includes('modulo') || source.includes('iscrizione')) return 'Modulo parrocchiale';
-    return 'Documento generico';
-}
+    _extractDocumentFields(text, shouldMask = true) {
+        const value = `${text || ''}`;
+        if (!value) return [];
 
-_extractDocumentFields(text, shouldMask = true) {
-    const value = `${text || ''}`;
-    if (!value) return [];
+        const extract = [];
+        const patterns = [
+            { label: 'Nome e cognome', regex: /(?:nome\s*(?:e\s*cognome)?|cognome\s*e\s*nome)\s*[:\-]\s*([^\n;]{3,80})/i },
+            { label: 'Data di nascita', regex: /(?:data\s*di\s*nascita|nato\/a\s*il)\s*[:\-]?\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i },
+            { label: 'Luogo di nascita', regex: /(?:luogo\s*di\s*nascita|nato\/a\s*a)\s*[:\-]\s*([^\n,;]{2,80})/i },
+            { label: 'Codice fiscale', regex: /\b([A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z])\b/i },
+            { label: 'Documento', regex: /(?:numero\s*(?:documento|doc\.)|n\.\s*documento)\s*[:\-]?\s*([A-Z0-9\-]{5,20})/i },
+            { label: 'Contatto email', regex: /\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b/i },
+            { label: 'Telefono', regex: /(?:tel(?:efono)?|cell(?:ulare)?)\s*[:\-]?\s*(\+?[0-9\s]{7,16})/i }
+        ];
 
-    const extract = [];
-    const patterns = [
-        { label: 'Nome e cognome', regex: /(?:nome\s*(?:e\s*cognome)?|cognome\s*e\s*nome)\s*[:\-]\s*([^\n;]{3,80})/i },
-        { label: 'Data di nascita', regex: /(?:data\s*di\s*nascita|nato\/a\s*il)\s*[:\-]?\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i },
-        { label: 'Luogo di nascita', regex: /(?:luogo\s*di\s*nascita|nato\/a\s*a)\s*[:\-]\s*([^\n,;]{2,80})/i },
-        { label: 'Codice fiscale', regex: /\b([A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z])\b/i },
-        { label: 'Documento', regex: /(?:numero\s*(?:documento|doc\.)|n\.\s*documento)\s*[:\-]?\s*([A-Z0-9\-]{5,20})/i },
-        { label: 'Contatto email', regex: /\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b/i },
-        { label: 'Telefono', regex: /(?:tel(?:efono)?|cell(?:ulare)?)\s*[:\-]?\s*(\+?[0-9\s]{7,16})/i }
-    ];
+        for (const p of patterns) {
+            const m = value.match(p.regex);
+            if (!m || !m[1]) continue;
+            const normalized = m[1].trim();
+            extract.push(`${p.label}: ${shouldMask ? this._maskSensitiveValue(normalized) : normalized}`);
+        }
 
-    for (const p of patterns) {
-        const m = value.match(p.regex);
-        if (!m || !m[1]) continue;
-        const normalized = m[1].trim();
-        extract.push(`${p.label}: ${shouldMask ? this._maskSensitiveValue(normalized) : normalized}`);
+        return extract.slice(0, 8);
     }
 
-    return extract.slice(0, 8);
-}
-
-_maskSensitiveValue(raw) {
-    const value = `${raw || ''}`.trim();
-    if (!value) return '';
-    if (value.length <= 4) return '****';
-    const visiblePrefix = value.slice(0, 2);
-    const visibleSuffix = value.slice(-2);
-    return `${visiblePrefix}${'*'.repeat(Math.max(4, value.length - 4))}${visibleSuffix}`;
-}
+    _maskSensitiveValue(raw) {
+        const value = `${raw || ''}`.trim();
+        if (!value) return '';
+        if (value.length <= 4) return '****';
+        const visiblePrefix = value.slice(0, 2);
+        const visibleSuffix = value.slice(-2);
+        return `${visiblePrefix}${'*'.repeat(Math.max(4, value.length - 4))}${visibleSuffix}`;
+    }
 }
 
 // Funzione factory

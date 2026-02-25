@@ -47,6 +47,10 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **Cycle v2.5.8 (Gmail & Prompt Resilience)**:
+    *   **Gmail Service**: Consolidato il recupero messaggi con etichetta tramite l'helper `_safePositiveInt` per gestire parametri di paginazione malformati.
+    *   **Prompt Engine**: Introdotta retrocompatibilità per input `requestType` in formato stringa, garantendo la stabilità dei prompt anche con flussi legacy.
+    *   **Prompt Context**: Migliorata la documentazione e la gestione dei metadati per Knowledge Base in formato oggetto complesso.
 *   **Cycle v2.5.7 (Memory Hardening & WAL De-duplication)**:
     *   **Memory Service**: Implementato meccanismo di de-duplicazione robusto per le voci WAL (Write-Ahead Log) basato su chiave univoca. Migliorata la resilienza con quarantena automatica (sheet separato) per righe con timestamp non validi, prevenendo corruzione dati.
 *   **Cycle v2.5.5 (Reaction Resilience & Language Refinement)**:
@@ -241,10 +245,12 @@ graph LR
 
 ### Breaking Changes tra Versioni
 
-**2.5.6 → 2.5.7 (Corrente)**
-- ✅ **Memory**: Hardening della de-duplicazione WAL e gestione timestamp invalidi (quarantena).
+**2.5.7 → 2.5.8 (Corrente)**
+- ✅ **Gmail**: Fallback robusti per paginazione e helper per interi sicuri.
+- ✅ **Prompt**: Retrocompatibilità per tipologie di richiesta legacy (string-based).
+- ✅ **Context**: Hardening dei metadati per KB strutturate e circolari.
 
-**2.5.5 → 2.5.6**
+**2.5.6 → 2.5.7**
 - ✅ **Infrastruttura**: Controlli di coerenza interna e potenziamento smoke tests.
 
 **2.5.4 → 2.5.5**

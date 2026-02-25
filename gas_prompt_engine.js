@@ -247,7 +247,18 @@ class PromptEngine {
     // ══════════════════════════════════════════════════════
     // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)
     // ══════════════════════════════════════════════════════
-    const requestTypeObj = options.requestType || { needsDiscernment: false, needsDoctrine: false };
+    // Normalizzazione retrocompatibile: alcuni flussi legacy passano una stringa
+    // (es. "pastoral") invece di un oggetto con flag booleani.
+    let requestTypeObj;
+    if (typeof options.requestType === 'string') {
+      requestTypeObj = {
+        type: options.requestType,
+        needsDiscernment: options.requestType === 'pastoral',
+        needsDoctrine: options.requestType === 'doctrinal'
+      };
+    } else {
+      requestTypeObj = options.requestType || { needsDiscernment: false, needsDoctrine: false };
+    }
 
     // AI_CORE_LITE: solo se componente pastorale
     if ((requestTypeObj.needsDiscernment || requestTypeObj.needsDoctrine) && typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.aiCoreLite) {
