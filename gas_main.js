@@ -582,6 +582,7 @@ function _loadAdvancedConfig(ss) {
       // B10..B16 = Lun..Dom  => 1..6,0 (dove Domenica in JS è 0, non 7).
       const day = (i + 1) % 7;
       // B contiene il nome del giorno; gli orari reali sono in C (r[1]) e D (r[2]).
+      // Manteniamo questo mapping: usare r[0]/r[2] sarebbe errato per questo layout.
       const startHour = _parseStrictHour(r[1]);
       const endHour = _parseStrictHour(r[2]);
       if (startHour == null || endHour == null) return;
@@ -700,8 +701,10 @@ function main() {
 
   try {
     // 1. Sincronizzazione Esecuzione (Prevenzione concurrency)
-    hasExecutionLock = executionLock.tryLock(5000);
+    hasExecutionLock = executionLock.tryLock(10000);
     if (!hasExecutionLock) {
+      // Nota progettuale: evitiamo di accodare trigger aggiuntivi qui per non creare
+      // una tempesta di trigger concorrenti; il trigger periodico successivo riproverà.
       console.warn('⚠️ Esecuzione già in corso o lock bloccato. Salto turno.');
       return;
     }

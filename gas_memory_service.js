@@ -36,6 +36,7 @@ class MemoryService {
     // Cache per performance (evita lookup ripetuti)
     this._cache = {};
     this._cacheExpiry = 5 * 60 * 1000; // 5 minuti
+    this._maxCacheSize = 200; // Limite hard per evitare crescita RAM incontrollata
     this._opCount = 0; // Punto 9: Contatore per Garbage Collection periodica
 
     // Inizializza foglio
@@ -1002,9 +1003,31 @@ class MemoryService {
   }
 
   _setLocalCache(key, data) {
+    const now = Date.now();
+    const keys = Object.keys(this._cache);
+
+    if (keys.length >= this._maxCacheSize && !this._cache[key]) {
+      // Eviction FIFO temporale: rimuove la entry più vecchia in RAM.
+      // È una scelta intenzionale perché in GAS la memoria disponibile è limitata.
+      let oldestKey = null;
+      let oldestTimestamp = Infinity;
+
+      keys.forEach(existingKey => {
+        const ts = this._cache[existingKey] && this._cache[existingKey].timestamp;
+        if (Number.isFinite(ts) && ts < oldestTimestamp) {
+          oldestTimestamp = ts;
+          oldestKey = existingKey;
+        }
+      });
+
+      if (oldestKey) {
+        delete this._cache[oldestKey];
+      }
+    }
+
     this._cache[key] = {
       data: data,
-      timestamp: Date.now()
+      timestamp: now
     };
   }
 

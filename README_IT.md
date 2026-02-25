@@ -47,6 +47,9 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **v2.6.4 (Hardening Memoria & Lock)**:
+    *   **Memory Service**: Implementata strategia di eviction FIFO per la cache locale (max 200 entry) per prevenire saturazione RAM.
+    *   **Main Pipeline**: Aumentato timeout del lock di esecuzione (10s) e migliorata la gestione delle collisioni trigger.
 *   **v2.6.3 (Hardening Resilienza)**:
     *   **Email Processor**: Migliorata la gestione del punteggio di complessità per l'iniezione condizionale di AiCore.
     *   **Setup UI**: Implementato il blocco a livello di documento per la creazione atomica dei named ranges, evitando race conditions.
@@ -258,10 +261,10 @@ graph LR
 
 ### Breaking Changes tra Versioni
 
-**2.6.2 → 2.6.3 (Corrente)**
-- ✅ **Infrastructure**: Locking documentale per il setup e hardening dei calcoli di complessità.
+**2.6.3 → 2.6.4 (Corrente)**
+- ✅ **Infrastructure**: Ottimizzazione della memoria in-memory e consolidamento dei lock di sistema.
 
-**2.6.1 → 2.6.2**
+**2.6.2 → 2.6.3**
 - ✅ **Infrastruttura**: Controlli di coerenza interna e potenziamento smoke tests.
 
 **2.5.4 → 2.5.5**

@@ -21,6 +21,7 @@
 ✅ **Email in English/Spanish** → Response in the same language  
 
 ### ✨ Versione 2.0: Solidità & Affidabilità
+*   **v2.6.4 (Memory & Lock Hardening)**: Implemented FIFO eviction in MemoryService local cache and increased main pipeline lock timeout to 10s.
 *   **v2.6.3 (Resilience Hardening)**: Hardened `complexity` handling in EmailProcessor and added document locking to named range creation in Setup UI.
 *   **v2.6.2 (Prompt & KB Hardening)**: Implemented `_safeStringify` for circular references in PromptContext and refined KB token budgeting in PromptEngine.
 *   **v2.6.1 (Resilience & Quota)**: Hardened thread lock release and implemented proactive `PRIMARY_QUOTA_EXHAUSTED` signal for faster cross-key fallback.
@@ -158,11 +159,11 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.6.2 → 2.6.3 (Current)**
-- ✅ **Email Processor**: Reliable complexity score handling with `Number.isFinite`.
-- ✅ **Setup UI**: Document-level locking for atomic named range creation.
+**2.6.3 → 2.6.4 (Current)**
+- ✅ **Memory Service**: FIFO cache eviction to prevent RAM overflow.
+- ✅ **Main Pipeline**: Increased execution lock time (10s) and optimized trigger queuing logic.
 
-**2.6.1 → 2.6.2**
+**2.6.2 → 2.6.3**
 - ✅ **Infrastructure**: Internal consistency checks and smoke test enhancements.
 
 **2.5.3 → 2.5.4**
