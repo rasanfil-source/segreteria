@@ -19,7 +19,16 @@ var GLOBAL_CACHE = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBA
 };
 
 // TTL in-RAM valido nella singola esecuzione: cross-esecuzione la cache reale è CacheService.
+// ⚠️ Scelta blindata: questo TTL è allineato ai 21600s della ScriptCache.
+// Cambiare solo insieme ai comandi manuali di riallineamento (primeCache/clearKnowledgeCache)
+// per evitare disallineamenti "RAM fresca / ScriptCache scaduta" e ricariche imprevedibili.
 const RESOURCE_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 ore
+const RESOURCE_CACHE_TTL_SECONDS = 21600; // 6 ore
+const RESOURCE_CACHE_KEY_V2 = 'SPA_KNOWLEDGE_BASE_V2';
+const RESOURCE_CACHE_KEY_V1 = 'SPA_KNOWLEDGE_BASE_V1';
+const RESOURCE_CACHE_PARTS_KEY = `${RESOURCE_CACHE_KEY_V2}:parts`;
+const RESOURCE_CACHE_PART_PREFIX = `${RESOURCE_CACHE_KEY_V2}:part:`;
+const RESOURCE_CACHE_MAX_PART_SIZE = 95000;
 
 // ====================================================================
 // FESTIVITÀ E SOSPENSIONE
@@ -278,6 +287,8 @@ function withSheetsRetry(fn, context = 'Operazione Sheets') {
 }
 
 function loadResources(acquireLock = true, hasExternalLock = false) {
+  // ⚠️ Invariante blindante: niente reload senza lock.
+  // Questo evita race condition in cui due trigger sovrascrivono la cache a metà serializzazione.
   if (!acquireLock && !hasExternalLock) {
     throw new Error('loadResources richiede un lock preventivo.');
   }
@@ -315,11 +326,14 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
 
 function _loadResourcesInternal() {
   const cache = (typeof CacheService !== 'undefined') ? CacheService.getScriptCache() : null;
-  const CACHE_KEY = 'SPA_KNOWLEDGE_BASE_V1';
+
+  // ⚠️ Scelta blindata: la cache persiste SEMPRE il payload completo delle risorse.
+  // Eventuali riduzioni/riassunti vanno fatte solo a runtime nel PromptEngine,
+  // mai qui, altrimenti si degrada sistematicamente il caso normale.
 
   // 1. Prova a leggere dalla vera Cache di Apps Script
   if (cache) {
-    const cachedData = cache.get(CACHE_KEY);
+    const cachedData = _readResourceCachePayload(cache);
     if (cachedData) {
       try {
         const parsedData = _deserializeResourceCache(cachedData);
@@ -438,13 +452,13 @@ function _loadResourcesInternal() {
   if (cache) {
     try {
       const serialized = _serializeResourceCache(newCacheData, false);
-      cache.put(CACHE_KEY, serialized, 21600);
+      _writeResourceCachePayload(cache, serialized);
       console.log('✓ Risorse caricate da Fogli e salvate in Cache.');
     } catch (e) {
       console.warn('⚠️ Salvataggio cache standard fallito: ' + e.message);
       try {
         const compressedPayload = _serializeResourceCache(newCacheData, true);
-        cache.put(CACHE_KEY, compressedPayload, 21600);
+        _writeResourceCachePayload(cache, compressedPayload);
         console.warn('⚠️ Cache risorse salvata in formato compresso (payload vicino limite 100KB).');
       } catch (compressionError) {
         console.warn('⚠️ Impossibile salvare in cache anche in formato compresso: ' + compressionError.message);
@@ -494,11 +508,102 @@ function _deserializeResourceCache(serializedPayload) {
   return JSON.parse(json);
 }
 
+function _splitCachePayload(payload, maxSize) {
+  const parts = [];
+  for (let i = 0; i < payload.length; i += maxSize) {
+    parts.push(payload.substring(i, i + maxSize));
+  }
+  return parts;
+}
+
+function _readResourceCachePayload(cache) {
+  if (!cache) return null;
+
+  // Compatibilità retroattiva con vecchia chiave V1.
+  // Manteniamo questo ramo per non perdere warm-cache durante deploy graduali.
+  // La V1 non va rimossa senza una migrazione esplicita orchestrata.
+  const legacyPayload = cache.get(RESOURCE_CACHE_KEY_V1);
+  if (legacyPayload) {
+    return legacyPayload;
+  }
+
+  const v2Inline = cache.get(RESOURCE_CACHE_KEY_V2);
+  if (v2Inline) {
+    return v2Inline;
+  }
+
+  const partsCountRaw = cache.get(RESOURCE_CACHE_PARTS_KEY);
+  const partsCount = parseInt(partsCountRaw || '0', 10);
+  if (!Number.isFinite(partsCount) || partsCount <= 0) {
+    return null;
+  }
+
+  const keys = [];
+  for (let i = 0; i < partsCount; i++) {
+    keys.push(`${RESOURCE_CACHE_PART_PREFIX}${i}`);
+  }
+
+  const chunks = cache.getAll(keys);
+  const missing = keys.find(k => !chunks[k]);
+  if (missing) {
+    console.warn(`⚠️ Cache multipart incompleta (${missing}), invalido payload e forzo reload.`);
+    _invalidateResourceCacheStorage(cache);
+    return null;
+  }
+
+  return keys.map(k => chunks[k]).join('');
+}
+
+function _writeResourceCachePayload(cache, payload) {
+  if (!cache) return;
+
+  // ⚠️ Prima invalidiamo sempre: evita mix V2-inline + multipart stale dopo downgrade/upgrade.
+  _invalidateResourceCacheStorage(cache);
+
+  if (payload.length <= RESOURCE_CACHE_MAX_PART_SIZE) {
+    cache.put(RESOURCE_CACHE_KEY_V2, payload, RESOURCE_CACHE_TTL_SECONDS);
+    return;
+  }
+
+  // ⚠️ Multipart è una protezione tecnica contro il limite CacheService (~100KB/entry),
+  // non una riduzione funzionale della KB.
+  const parts = _splitCachePayload(payload, RESOURCE_CACHE_MAX_PART_SIZE);
+  if (!parts.length) {
+    throw new Error('Payload cache vuoto: impossibile salvare');
+  }
+
+  const values = {};
+  parts.forEach((part, idx) => {
+    values[`${RESOURCE_CACHE_PART_PREFIX}${idx}`] = part;
+  });
+  values[RESOURCE_CACHE_PARTS_KEY] = String(parts.length);
+
+  cache.putAll(values, RESOURCE_CACHE_TTL_SECONDS);
+  console.warn(`⚠️ Cache risorse salvata in modalità multipart (${parts.length} chunk).`);
+}
+
+function _invalidateResourceCacheStorage(cache) {
+  if (!cache) return;
+
+  const toRemove = [RESOURCE_CACHE_KEY_V1, RESOURCE_CACHE_KEY_V2, RESOURCE_CACHE_PARTS_KEY];
+  const partsCountRaw = cache.get(RESOURCE_CACHE_PARTS_KEY);
+  const partsCount = parseInt(partsCountRaw || '0', 10);
+  if (Number.isFinite(partsCount) && partsCount > 0) {
+    for (let i = 0; i < partsCount; i++) {
+      toRemove.push(`${RESOURCE_CACHE_PART_PREFIX}${i}`);
+    }
+  }
+
+  cache.removeAll(toRemove);
+}
+
 /**
  * Svuota manualmente la cache globale (knowledge/config) per forzare reload.
  * Utile come comando da eseguire a mano dall'editor Apps Script.
  */
 function clearKnowledgeCache() {
+  // ⚠️ Comando operativo ufficiale: resetta RAM + ScriptCache in modo coerente.
+  // Evitare reset "parziali" altrove: causano stati fantasma e reload intermittenti.
   GLOBAL_CACHE.loaded = false;
   GLOBAL_CACHE.lastLoadedAt = 0;
   GLOBAL_CACHE.knowledgeBase = '';
@@ -517,7 +622,7 @@ function clearKnowledgeCache() {
   // Invalida anche la cache di sistema (CacheService)
   try {
     const cache = CacheService.getScriptCache();
-    cache.remove('SPA_KNOWLEDGE_BASE_V1');
+    _invalidateResourceCacheStorage(cache);
   } catch (e) {
     // best effort
   }
@@ -528,6 +633,27 @@ function clearKnowledgeCache() {
 // Compatibilità con nome storico usato manualmente in alcuni ambienti.
 function clearCache() {
   clearKnowledgeCache();
+}
+
+/**
+ * Forza invalidazione + ricarica immediata usando le funzioni operative già esistenti
+ * (`clearKnowledgeCache`/`clearCache` + `loadResources`).
+ * Da usare quando cambia il contenuto dei fogli e non si vuole attendere il TTL.
+ */
+function primeCache() {
+  // ⚠️ Orchestrazione voluta: 1) invalidate totale, 2) reload immediato.
+  // Non invertire l'ordine (reload->clear) o si ottiene una cache svuotata subito dopo il warm-up.
+  clearKnowledgeCache();
+  loadResources(true, false);
+  const kbSize = (GLOBAL_CACHE.knowledgeBase || '').length;
+  const doctrineSize = (GLOBAL_CACHE.doctrineBase || '').length;
+  console.log(`🔄 Cache primed manualmente (KB=${kbSize} chars, Dottrina=${doctrineSize} chars).`);
+  return {
+    loaded: GLOBAL_CACHE.loaded,
+    lastLoadedAt: GLOBAL_CACHE.lastLoadedAt,
+    knowledgeBaseChars: kbSize,
+    doctrineChars: doctrineSize
+  };
 }
 
 function _parseSheetToStructured(data) {

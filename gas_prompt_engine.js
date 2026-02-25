@@ -138,6 +138,9 @@ class PromptEngine {
     let kbWasTruncated = false;
 
     // Troncamento proattivo della KB PRIMA di assemblare il prompt
+    // ⚠️ Scelta blindata: questo è l'UNICO punto dove la KB può essere ridotta.
+    // La cache risorse deve restare completa; qui applichiamo solo una riduzione runtime
+    // per rispettare il budget token quando il contesto del singolo messaggio è eccezionalmente grande.
     if (workingKnowledgeBase && workingKnowledgeBase.length > kbCharsLimit) {
       console.warn(`⚠️ KB eccede il budget (${workingKnowledgeBase.length} chars), tronco a ${kbCharsLimit}`);
       // _truncateKbSemantically è implementato in questa classe: preserva paragrafi completi
