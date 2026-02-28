@@ -1171,6 +1171,7 @@ class SemanticValidator {
     this.taskType = semanticConfig.taskType || 'semantic';
     this.fallbackOnError = semanticConfig.fallbackOnError !== false;
     this.maxRetries = semanticConfig.maxRetries || 1;
+    this.runtimeSemanticAvailable = typeof UrlFetchApp !== 'undefined';
 
     this.geminiService = new GeminiService();
 
@@ -1184,9 +1185,18 @@ class SemanticValidator {
   }
 
   /**
-   * Valida allucinazioni usando semantic similarity
+   * Valida allucinazioni usando similitudine semantica
    */
   validateHallucinations(response, knowledgeBase, regexResult, emailContent) {
+    if (!this.runtimeSemanticAvailable) {
+      return {
+        isValid: regexResult.score >= 0.6,
+        confidence: regexResult.score,
+        skipped: true,
+        reason: 'Validazione semantica non disponibile nel runtime corrente (UrlFetchApp mancante)'
+      };
+    }
+
     if (!this.shouldRun(regexResult.score) && regexResult.errors.length === 0) {
       console.log('   ⚠ Semantic hallucination ✅ skippato (confidence alta)');
       return { isValid: true, confidence: regexResult.score, skipped: true };
@@ -1217,9 +1227,20 @@ class SemanticValidator {
   }
 
   /**
-   * Valida thinking leaks usando semantic understanding
+   * Valida leak di pensiero usando comprensione semantica
    */
   validateThinkingLeak(response, regexResult) {
+    if (!this.runtimeSemanticAvailable) {
+      const fallbackThreshold = 0.85;
+      return {
+        isValid: regexResult.score >= fallbackThreshold,
+        confidence: regexResult.score,
+        fallback: true,
+        skipped: true,
+        reason: 'Validazione semantica del pensiero non disponibile nel runtime corrente (UrlFetchApp mancante)'
+      };
+    }
+
     if (!this.shouldRun(regexResult.score)) {
       return { isValid: true, confidence: regexResult.score, skipped: true };
     }
