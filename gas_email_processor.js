@@ -95,6 +95,20 @@ class EmailProcessor {
   }
 
   /**
+   * Classifica l'errore per determinare la strategia di retry.
+   * Gli errori non retryable (chiave invalida, risposta malformata) sono fatali.
+   * @param {Error} error
+   * @returns {{ type: string, retryable: boolean, message: string }}
+   */
+  _classifyError(error) {
+    const result = classifyError(error);
+    if (!result.retryable) {
+      result.type = 'FATAL';
+    }
+    return result;
+  }
+
+  /**
    * Elabora il singolo thread (analisi, categorizzazione, generazione risposta, invio)
    * @param {GmailThread} thread 
    * @param {string} knowledgeBase - KB testo semplice
@@ -552,7 +566,7 @@ class EmailProcessor {
       // KB Principale (Istruzioni dal foglio)
       knowledgeSections.push('--- ISTRUZIONI OPERATIVE ---\n' + knowledgeBase);
 
-      // AI_CORE: Solo per situazioni pastorali o complesse (Bug 1 & 2)
+      // AI_CORE: Solo per situazioni pastorali o complesse
       // Nota: complexity può essere undefined/null in classificazioni parziali.
       // Usiamo Number()+fallback per evitare confronti silenziosi non intenzionali.
       const complexityScore = Number(requestType && requestType.complexity);
@@ -850,7 +864,7 @@ ${addressLines.join('\n\n')}
             skipRateLimit: plan.skipRateLimit
           });
 
-          // Compatibilità: GeminiService può restituire stringa (legacy) oppure
+          // GeminiService può restituire stringa semplice oppure
           // oggetto strutturato { success, text, modelUsed }.
           if (response && typeof response === 'object') {
             response = response.text;
@@ -1127,7 +1141,7 @@ ${addressLines.join('\n\n')}
       const errorLabelQuery = this._formatLabelQueryValue(this.config.errorLabelName);
       const validationLabelQuery = this._formatLabelQueryValue(this.config.validationErrorLabel);
 
-      // BUG FIX 2.2: La query corretta è -label:IA (!IMPORTANTE il MENO davanti)
+      // La query esclude i thread già etichettati (il prefisso "-" è obbligatorio)
       const searchQuery = `is:unread -label:${processedLabelQuery} -label:${errorLabelQuery} -label:${validationLabelQuery} in:inbox`;
       const searchLimit = (this.config.searchPageSize || 50);
 
@@ -1338,8 +1352,8 @@ ${addressLines.join('\n\n')}
       ? CONFIG.ATTACHMENT_CONTEXT
       : {};
 
-    // Se trigger keywords non sono definite, default a true (comportamento legacy)
-    // Ma nel config nuovo sono definite, quindi userà quelle.
+    // Se trigger keywords non sono definite, OCR attivo di default.
+    // Se presenti in configurazione, verranno usate come filtro.
     const triggerKeywords = settings.ocrTriggerKeywords || [];
 
     // Se la lista è vuota, significa "OCR sempre attivo se enabled=true"
@@ -1404,7 +1418,7 @@ ${addressLines.join('\n\n')}
     }
   }
 
-  // BUG FIX 1.2: Calcolo corretto tempo rimanente rispetto a _startTime
+  // Calcola se il tempo residuo è sufficiente per elaborare un nuovo thread
   _isNearDeadline(maxExecutionTimeMs) {
     const budgetMs = Number(maxExecutionTimeMs) || 330000;
     const minRemainingMs = (typeof this.config.minRemainingTimeMs === 'number')
@@ -1462,7 +1476,7 @@ ${addressLines.join('\n\n')}
     this.gmailService.addLabelToThread(thread, this.config.validationErrorLabel);
   }
 
-  // BUG FIX 4.2: Evitare "Ultima risposta inviata" statico, appendere vero sommario
+  // Costruisce un sommario incrementale delle risposte inviate al thread
   _buildMemorySummary({ existingSummary, responseText, providedTopics }) {
     const maxChars = 2000;
     const maxBullets = 5;
@@ -1539,7 +1553,6 @@ ${addressLines.join('\n\n')}
     if (!response || typeof response !== 'string') return [];
     const topics = [];
     // I pattern usano già il flag /i, nessuna normalizzazione necessaria
-    const lower = response;
 
     const patterns = {
       'orari_messe': /messe?\b.*\d{1,2}[:.]\d{2}|orari\w*\s+messe/i,
@@ -1834,17 +1847,10 @@ function computeResponseDelay({ messageDate, now = new Date(), thresholdHours = 
 // ====================================================================================================
 
 /**
- * Entry point legacy — delegata a processEmailsMain() (gas_main.js).
- * Mantenuta per retrocompatibilità con eventuali trigger esistenti.
- * @deprecated Utilizzare processEmailsMain() come entry point.
- */
-/**
- * Entry point legacy — DEPRECATA in Ciclo 9.
- * Delegata a processEmailsMain() (gas_main.js).
- * @deprecated Utilizzare processEmailsMain() come unico entry point per i trigger.
+ * Alias dell'entry point principale processEmailsMain() (gas_main.js).
+ * Mantenuta per compatibilità con trigger preesistenti.
  */
 function processUnreadEmailsMain() {
-  console.warn('🛑 processUnreadEmailsMain() è DEPRECATA. Usa processEmailsMain().');
   if (typeof processEmailsMain === 'function') {
     processEmailsMain();
   } else {

@@ -336,8 +336,7 @@ class RequestTypeClassifier {
   }
 
   /**
-   * Compatibilità retroattiva con la vecchia interfaccia.
-   * @deprecated Usare classify(subject, body, externalHint)
+   * Interfaccia semplificata (soggetto + corpo) con ordine parametri invertito.
    */
   classifyRequest(body, subject, externalHint = null) {
     return this.classify(subject, body, externalHint);

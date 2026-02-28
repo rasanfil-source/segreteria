@@ -99,7 +99,7 @@ class Classifier {
     const safeSubject = typeof subject === 'string' ? subject : '';
     let safeBody = typeof body === 'string' ? body : '';
 
-    // Retrocompatibilità: in alcune chiamate legacy il 3° parametro era senderEmail.
+    // Supporto firma alternativa: il 3° parametro può essere senderEmail anziché booleano.
     if (typeof isReply === 'string' && senderEmail === null) {
       senderEmail = isReply;
       isReply = false;

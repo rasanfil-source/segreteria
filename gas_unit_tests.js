@@ -177,7 +177,7 @@ function test(label, results, callback) {
 
 function runAllTests() {
     console.log('╔' + '═'.repeat(68) + '╗');
-    console.log('║' + ' '.repeat(15) + '🧪 TEST SUITE ESTESA V2.0.4' + ' '.repeat(25) + '║');
+    console.log('║' + ' '.repeat(15) + '🧪 SUITE DI TEST' + ' '.repeat(36) + '║');
     console.log('╚' + '═'.repeat(68) + '╝');
 
     const results = { total: 0, passed: 0, failed: 0 };

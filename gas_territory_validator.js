@@ -80,7 +80,7 @@ class TerritoryValidator {
             'piazzale di villa giulia': { tutti: true }
         };
 
-        // Compatibilità con test legacy: espone le regole come Map mutabile
+        // Espone le regole come Map mutabile per accesso diretto nei test
         this.rules = new Map(Object.entries(this.territory));
     }
 

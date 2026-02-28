@@ -83,7 +83,7 @@ class MemoryService {
 
   /**
    * Verifica ed eventualmente aggiunge la colonna 'memorySummary'
-   * Utile per migrazione da versioni precedenti
+   * Garantisce la presenza di tutte le colonne nella struttura del foglio.
    */
   _ensureMemorySummaryColumn() {
     try {
@@ -212,7 +212,7 @@ class MemoryService {
     }
 
     const MAX_RETRIES = 5;
-    // Workaround: Hash del threadId per sharding (riduce contention)
+    // Sharding basato su hash del threadId per ridurre la contention
     const lockKey = this._getShardedLockKey(threadId);
 
     // Stato locale OCC: aggiorniamo la expectedVersion ad ogni conflitto
@@ -321,7 +321,7 @@ class MemoryService {
       return;
     }
 
-    // BUG FIX 6.2: Prevenzione data staling tra Sheet e Cache
+    // Invalidazione preventiva cache prima della lettura di allineamento
     console.log(`🧹 Invalidazione preventiva cache per thread ${threadId} pre-lettura di allineamento`);
     this._invalidateCache(`memory_${threadId}`);
 
@@ -463,7 +463,7 @@ class MemoryService {
         }
       }
     }
-    // BUG FIX 3.1: Protezione best-effort. Non distruggere il batch fallendo e gettando il thread in LOOP infinito.
+    // Protezione best-effort: non distruggere il batch fallendo.
     // Invece di throw, logghiamo l'errore e ritorniamo false per permettere all'email_processor di finire il job (labeling).
     console.error(`❌ CRITICO: Lock Memory Service irrisolvibile per thread ${threadId} (Loop Timeout dopo 3 retry). Fallback best-effort a batch bypass.`);
     return false;
@@ -775,7 +775,7 @@ class MemoryService {
    * Genera chiave lock sharded basata su hash threadId
    */
   _getShardedLockKey(threadId) {
-    // Workaround: sharding per ridurre contention globale
+    // Sharding per ridurre contention globale
     const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, threadId);
     // Usa più caratteri dell'array digest (8 invece di 4) per minimizzare collisioni
     const hex = Array.prototype.map.call(digest, (byte) => {
@@ -1062,7 +1062,7 @@ class MemoryService {
     let deletedCount = 0;
 
     for (const key in this._cache) {
-      // BUG-5: Elimina entry null/undefined (corrotte) o scadute
+      // Rimuove entry nulle o scadute dalla cache
       if (!this._cache[key] || !this._cache[key].timestamp) {
         delete this._cache[key];
         deletedCount++;

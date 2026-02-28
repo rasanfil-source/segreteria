@@ -256,7 +256,7 @@ class PromptEngine {
     // ══════════════════════════════════════════════════════
     // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)
     // ══════════════════════════════════════════════════════
-    // Normalizzazione retrocompatibile: alcuni flussi legacy passano una stringa
+    // Normalizzazione: alcuni flussi passano la dottrina come stringa anziché array strutturato
     // (es. "pastoral") invece di un oggetto con flag booleani.
     let requestTypeObj;
     if (typeof options.requestType === 'string') {

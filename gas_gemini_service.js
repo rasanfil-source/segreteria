@@ -36,7 +36,7 @@ class GeminiService {
     const propBackupKey = this.props.getProperty('GEMINI_API_KEY_BACKUP');
     this.backupKey = options.backupKey || ((propBackupKey && propBackupKey.length > 20) ? propBackupKey : null);
 
-    // Manteniamo apiKey per retrocompatibilità
+    // Alias accessibile per i moduli che usano la proprietà apiKey
     this.apiKey = this.primaryKey;
 
     this.modelName = this.config.MODEL_NAME || 'gemini-2.5-flash';

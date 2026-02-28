@@ -67,7 +67,7 @@
     *   **Territory Validator**: Implementata la normalizzazione NFD e la rimozione dei diacritici (accenti) nei nomi delle vie per migliorare la resilienza del matching degli indirizzi.
 *   **Cycle v2.5.8 (Gmail & Prompt Resilience)**:
     *   **Gmail Service**: Consolidato il recupero messaggi con etichetta tramite l'helper `_safePositiveInt` per gestire parametri di paginazione malformati.
-    *   **Prompt Engine**: Introdotta retrocompatibilità per input `requestType` in formato stringa, garantendo la stabilità dei prompt anche con flussi legacy.
+    *   **Prompt Engine**: Introdotta compatibilità per input `requestType` in formato stringa, garantendo la stabilità dei prompt anche con flussi alternativi.
     *   **Prompt Context**: Migliorata la documentazione e la gestione dei metadati per Knowledge Base in formato oggetto complesso.
 *   **Cycle v2.5.7 (Memory Hardening & WAL De-duplication)**:
     *   **Memory Service**: Implementato meccanismo di de-duplicazione robusto per le voci WAL (Write-Ahead Log) basato su chiave univoca. Migliorata la resilienza con quarantena automatica (sheet separato) per righe con timestamp non validi, prevenendo corruzione dati.
@@ -104,7 +104,7 @@
     *   **Prompt Engine**: Ridotto il limite di sicurezza `MAX_SAFE_TOKENS` a 50k per una maggiore stabilità contro i timeout GAS.
 *   **Cycle v2.4.6 (Holiday & Architecture Refinement)**:
     *   **Main Logic**: Aggiunte Pentecoste e Corpus Domini al sistema di sospensione oraria (gestite come festivi).
-    *   **Response Validator**: Introdotto alias di compatibilità `validate(response, opts)` per integrazioni legacy.
+    *   **Response Validator**: Introdotto alias di compatibilità `validate(response, opts)` per integrazioni esistenti.
     *   **Prompt Engine**: Migliorata la robustezza della checklist contestuale con cast di sicurezza sui contesti territoriali.
 *   **Cycle v2.4.5 (Test Environment Hardening)**:
     *   **Unit Tests**: Aggiunto mock per `SpreadsheetApp.flush()` per una migliore compatibilità con l'ambiente GAS durante i test locali.

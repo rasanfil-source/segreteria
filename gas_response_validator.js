@@ -257,7 +257,7 @@ class ResponseValidator {
   }
 
   /**
-   * Alias di compatibilità per la firma ad oggetto usata in README/test legacy.
+   * Alias per la firma ad oggetto (supporta chiamata con parametri nominali).
    * Evita rotture quando il chiamante usa validator.validate(response, { ...opts }).
    * @param {string} response
    * @param {{language?: string, knowledgeBase?: string, emailContent?: string, body?: string, emailSubject?: string, subject?: string, salutationMode?: string}} opts
@@ -526,7 +526,7 @@ class ResponseValidator {
       if (/[a-z]{2,}\.\d{1,2}\.[a-z]{2,}/i.test(t)) return t;
       if (/\/([\w-]+\.\d{1,2}\.\w+)$/i.test(t)) return t;
 
-      // BUG FIX 7.2: Replace globale di TUTTI i punti in due punti (per gestire formati anomali tipo 18.00.00)
+      // Sostituzione globale dei punti per normalizzare formati orari anomali (es. 18.00.00)
       t = t.replace(/\./g, ':');
       if (/^\d{1,2}$/.test(t)) {
         const hour = parseInt(t, 10);
@@ -613,7 +613,7 @@ class ResponseValidator {
     }
 
     // === Controllo numeri telefono ===
-    // BUG-7: Pattern più selettivo: richiede prefisso internazionale o separatori standard
+    // Pattern selettivo: richiede prefisso internazionale o separatori standard
     // Esclude pattern data (GG/MM/AAAA) e orari common
     const phonePattern = /(?:\+\d{1,3}[\s.-])?\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]\d{3,4}(?!\d)/g;
     const responsePhonesRaw = response.match(phonePattern) || [];
@@ -1106,7 +1106,7 @@ class ResponseValidator {
   _rimuoviThinkingLeak(text) {
     let cleaned = text;
 
-    // Patch rapida: rimuove prefissi meta-ragionamento comuni in apertura frase
+    // Rimuove prefissi meta-ragionamento comuni in apertura frase
     // senza attendere rigenerazione completa.
     cleaned = cleaned.replace(
       /^(?:in base alla knowledge base|consultando i dati|consultando la knowledge base|rivedendo le istruzioni),?\s*/i,

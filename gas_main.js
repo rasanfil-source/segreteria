@@ -519,12 +519,11 @@ function _splitCachePayload(payload, maxSize) {
 function _readResourceCachePayload(cache) {
   if (!cache) return null;
 
-  // Compatibilità retroattiva con vecchia chiave V1.
+  // Lettura cache con supporto chiave precedente per continuità operativa.
   // Manteniamo questo ramo per non perdere warm-cache durante deploy graduali.
-  // La V1 non va rimossa senza una migrazione esplicita orchestrata.
-  const legacyPayload = cache.get(RESOURCE_CACHE_KEY_V1);
-  if (legacyPayload) {
-    return legacyPayload;
+  const v1Payload = cache.get(RESOURCE_CACHE_KEY_V1);
+  if (v1Payload) {
+    return v1Payload;
   }
 
   const v2Inline = cache.get(RESOURCE_CACHE_KEY_V2);
@@ -630,7 +629,7 @@ function clearKnowledgeCache() {
   console.log('🗑️ Cache conoscenza/config svuotata manualmente (RAM + ScriptCache)');
 }
 
-// Compatibilità con nome storico usato manualmente in alcuni ambienti.
+// Alias per invocazione manuale o da trigger precedenti.
 function clearCache() {
   clearKnowledgeCache();
 }
@@ -699,7 +698,7 @@ function _loadAdvancedConfig(ss) {
       if (r[0] instanceof Date && r[2] instanceof Date) {
         // Nota: NON estendiamo la fine giornata con setHours(23:59:59).
         // isInVacationPeriod confronta già date normalizzate a "yyyy-MM-dd"
-        // nel timezone business, quindi il giorno finale è incluso senza hack timezone.
+        // nel timezone business, quindi il giorno finale è incluso senza manipolazioni aggiuntive.
         config.vacationPeriods.push({ start: r[0], end: r[2] });
       }
     });
@@ -807,9 +806,21 @@ function deleteTriggersByHandler_(handlerName) {
 }
 
 /**
- * Alias retrocompatibile per installazioni legacy e smoke test storici.
- * Manteniamo questo entrypoint perché alcuni trigger/documentazioni usano ancora
- * `processEmailsMain` e non `main`.
+ * Configura il trigger per la pulizia settimanale della memoria.
+ * La funzione associata (weeklyMemoryCleanup) deve esistere nel progetto.
+ */
+function setupWeeklyCleanupTrigger() {
+  deleteTriggersByHandler_('weeklyMemoryCleanup');
+  ScriptApp.newTrigger('weeklyMemoryCleanup')
+    .timeBased()
+    .onWeekDay(ScriptApp.WeekDay.SUNDAY)
+    .atHour(3)
+    .create();
+}
+
+/**
+ * Entrypoint alternativo per trigger e script preesistenti.
+ * Delega direttamente a main().
  */
 function processEmailsMain() {
   return main();
@@ -819,7 +830,7 @@ function processEmailsMain() {
  * Funzione principale invocata dal trigger temporale (es. ogni 5 min)
  */
 function main() {
-  console.log('🚀 Avvio main pipeline - v3.0');
+  console.log('🚀 Avvio pipeline principale');
 
   // 0. Controllo Preventivo API Avanzate
   try {
@@ -873,7 +884,7 @@ function main() {
     const knowledgeBase = GLOBAL_CACHE.knowledgeBase || '';
     const doctrineBase = GLOBAL_CACHE.doctrineBase || '';
 
-    // Passaggio della dottrina strutturata e testo piatto per retrocompatibilita
+    // Passaggio della dottrina strutturata e testo piatto per compatibilità con i formati di input
     const results = processor.processUnreadEmails(knowledgeBase, doctrineBase, true); // true = skip double lock
 
     if (results) {
