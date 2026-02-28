@@ -217,11 +217,11 @@ class ResponseValidator {
       const semanticConfidence = Math.min(semHalluc.confidence, semThinking.confidence);
 
       if (!semanticValid) {
-        console.warn('❌ Semantic validator ha rilevato problemi non catturati da regex');
+        console.warn('❌ Il validatore semantico ha rilevato problemi non catturati da regex');
         validationResult.isValid = false;
         validationResult.score = Math.min(validationResult.score, semanticConfidence);
-        const semanticReason = semHalluc.reason || semThinking.reason || 'Semantic validation failed without explicit reason';
-        validationResult.errors.push(`Semantic: ${semanticReason}`);
+        const semanticReason = semHalluc.reason || semThinking.reason || 'Validazione semantica fallita senza motivo esplicito';
+        validationResult.errors.push(`Semantica: ${semanticReason}`);
       }
 
       validationResult.details.semantic = {
@@ -1198,7 +1198,7 @@ class SemanticValidator {
     }
 
     if (!this.shouldRun(regexResult.score) && regexResult.errors.length === 0) {
-      console.log('   ⚠ Semantic hallucination ✅ skippato (confidence alta)');
+      console.log('   ⚠ Validazione semantica allucinazioni ignorata (alta confidenza base)');
       return { isValid: true, confidence: regexResult.score, skipped: true };
     }
 
@@ -1206,7 +1206,7 @@ class SemanticValidator {
     const cached = this._readCache(cacheKey);
     if (cached) return cached;
 
-    console.log('   🧠 Eseguo semantic hallucination ✅...');
+    console.log('   🧠 Eseguo validazione semantica allucinazioni...');
 
     try {
       const prompt = this._buildHallucinationPrompt(response, knowledgeBase, emailContent);
@@ -1215,7 +1215,7 @@ class SemanticValidator {
       this._writeCache(cacheKey, result);
       return result;
     } catch (error) {
-      console.warn(`⚠️ Semantic API fallita: ${error.message}`);
+      console.warn(`⚠️ API Semantica fallita: ${error.message}`);
       if (!this.fallbackOnError) throw error;
       return {
         isValid: regexResult.score >= 0.6,
@@ -1249,7 +1249,7 @@ class SemanticValidator {
     const cached = this._readCache(cacheKey);
     if (cached) return cached;
 
-    console.log('   🧠 Eseguo semantic thinking leak ✅...');
+    console.log('   🧠 Eseguo validazione semantica ragionamento esposto...');
 
     try {
       const prompt = this._buildThinkingLeakPrompt(response);
@@ -1258,14 +1258,14 @@ class SemanticValidator {
       this._writeCache(cacheKey, result);
       return result;
     } catch (error) {
-      console.warn(`⚠️ Semantic thinking ✅ fallito: ${error.message}`);
+      console.warn(`⚠️ Validazione semantica ragionamento esposto fallita: ${error.message}`);
       if (!this.fallbackOnError) throw error;
       const fallbackThreshold = 0.85;
       return {
         isValid: regexResult.score >= fallbackThreshold,
         confidence: regexResult.score,
         fallback: true,
-        reason: `Semantic thinking validation unavailable: ${error.message || 'unknown error'}`
+        reason: `Validazione semantica ragionamento esposto non disponibile: ${error.message || 'errore sconosciuto'}`
       };
     }
   }
@@ -1396,8 +1396,8 @@ Rispondi SOLO con questo JSON (senza markdown):
       const parsed = JSON.parse(cleaned);
       return this._normalizeSemanticPayload(parsed);
     } catch (error) {
-      console.error(`❌ Parse semantic response failed: ${error.message}`);
-      throw new Error('Invalid JSON from semantic validator');
+      console.error(`❌ Errore nel parse della risposta semantica: ${error.message}`);
+      throw new Error('JSON non valido dal validatore semantico');
     }
   }
 
@@ -1406,7 +1406,7 @@ Rispondi SOLO con questo JSON (senza markdown):
       isValid: parsed.isValid === true,
       confidence: Math.max(0, Math.min(parsed.confidence || 0.5, 1.0)),
       details: parsed.hallucinations || parsed.examples || {},
-      reason: parsed.reason || 'No reason provided'
+      reason: parsed.reason || 'Nessuna motivazione fornita'
     };
   }
 
