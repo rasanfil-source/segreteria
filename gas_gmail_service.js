@@ -1436,7 +1436,7 @@ function sanitizeUrl(url) {
             if (!ipv6Host || !ipv6Host.includes(':')) return false;
 
             const normalizedIpv6 = ipv6Host.toLowerCase();
-            // Block loopback and unspecified
+            // Blocca loopback e indirizzi non specificati
             if (normalizedIpv6 === '::' || normalizedIpv6 === '::1') return true;
             // Block link-local
             if (normalizedIpv6.startsWith('fe80:')) return true;
@@ -1697,7 +1697,7 @@ function markdownToHtml(text) {
         );
     });
 
-    // 8. Emoji to HTML entities
+    // 8. Converti Emoji in entità HTML
     html = Array.from(html).map(char => {
         const codePoint = char.codePointAt(0);
         if (codePoint > 0xFFFF) {

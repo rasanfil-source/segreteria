@@ -105,7 +105,7 @@ class Classifier {
       isReply = false;
     }
 
-    // FIX NULL SAFETY & LENGTH LIMIT
+    // Sicurezza null e limite lunghezza
     if (safeSubject.trim() === '' && safeBody.trim() === '') {
       console.error('  ❌ Contenuto email vuoto');
       return { shouldReply: false, reason: 'empty_email', category: null, subIntents: {}, confidence: 1.0 };

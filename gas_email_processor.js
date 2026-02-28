@@ -1752,7 +1752,7 @@ ${addressLines.join('\n\n')}
  * Calcola modalità saluto basata su segnali strutturali
  * @param {Object} params - Parametri di input
  * @returns {'full'|'soft'|'none_or_continuity'|'session'}
- */ // Fix: added 'session' to contract
+ */
 function computeSalutationMode({ isReply = false, messageCount = 0, memoryExists = false, lastUpdated = null, now = new Date() } = {}) {
   const SESSION_WINDOW_MINUTES = 15;
   // 0️⃣ Nuovo contatto (non reply): privilegia sempre un saluto completo.
