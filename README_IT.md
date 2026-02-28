@@ -47,6 +47,9 @@
     *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
     *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
     *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
+*   **v2.6.9 (Semantic & Logic Hardening)**: Corretta la logica di skip della validazione semantica e migliorato il rilevamento dei thinking leak in assenza di servizi avanzati; aggiunto report degli errori residui nel perfezionamento.
+*   **v2.6.8 (Memory & Lock Hardening)**: Consolidata la gestione FIFO della cache di memoria e raffinata la logica di acquisizione lock per prevenire race conditions su thread concorrenti.
+*   **v2.6.7 (Resilience & Bug Fix)**: Migliorata la gestione delle reazioni utente e normalizzazione dei topic nelle conversazioni lunghe.
 *   **v2.6.6 (Hardening & Raffinamento)**: Rafforzato il pre-check degli allegati OCR con scansione keyword e migliorato il rilevamento allucinazioni includendo l'oggetto email nel contesto semantico.
 *   **v2.6.5 (Timestamp & Validazione)**: Canonicalizzazione di tutti i timestamp in ISO-8601 UTC e aggiunti test unitari per la consistenza linguistica.
 *   **v2.6.4 (Hardening Memoria & Lock)**:
@@ -263,9 +266,9 @@ graph LR
 
 ### Breaking Changes tra Versioni
 
-**2.6.5 → 2.6.6 (Corrente)**
-- ✅ **Email Processor**: Pre-check OCR avanzato con scansione keyword e rilevamento allegati esplicito.
-- ✅ **Validator**: Il controllo semantico delle allucinazioni ora include l'oggetto email; corretta la segnalazione della confidenza per i thinking leak saltati.
+**2.6.8 → 2.6.9 (Corrente)**
+- ✅ **Validator**: Corretta la logica di fallback per la validazione semantica in assenza di `UrlFetchApp` (quota/runtime).
+- ✅ **Prompt Logic**: Migliorato il rilevamento dei thinking leak con soglia dinamica e report errori residui.
 
 **2.6.4 → 2.6.5**
 - ✅ **Memory Service**: Canonicalizzazione completa dei timestamp in formato ISO-8601 UTC.

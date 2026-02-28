@@ -21,6 +21,9 @@
 ✅ **Email in English/Spanish** → Response in the same language  
 
 ### ✨ Versione 2.0: Solidità & Affidabilità
+*   **v2.6.9 (Semantic & Logic Hardening)**: Fixed semantic validation skip logic and improved thinking leak detection when advanced services are missing; added residual error reporting.
+*   **v2.6.8 (Memory & Lock Hardening)**: Consolidated FIFO memory cache management and refined lock acquisition logic.
+*   **v2.6.7 (Resilience & Bug Fix)**: Improved user reaction handling and topic normalization.
 *   **v2.6.6 (Hardening & Refinement)**: Hardened OCR attachment pre-check with keyword scanning and improved hallucination detection by including email subject in semantic context.
 *   **v2.6.5 (Timestamp & Validation)**: Canonicalized all timestamps to ISO-8601 UTC and added language consistency unit tests.
 *   **v2.6.4 (Memory & Lock Hardening)**: Implemented FIFO eviction in MemoryService local cache and increased main pipeline lock timeout to 10s.
@@ -161,9 +164,9 @@ graph LR
 
 ### Breaking Changes Between Versions
 
-**2.6.5 → 2.6.6 (Current)**
-- ✅ **Email Processor**: Advanced OCR pre-check and keyword scanning.
-- ✅ **Validator**: Semantic hallucination check now includes email subject; fixed thinking leak confidence reporting.
+**2.6.8 → 2.6.9 (Current)**
+- ✅ **Validator**: Fixed semantic validation fallback logic when `UrlFetchApp` is missing.
+- ✅ **Prompt Logic**: Improved thinking leak detection with dynamic thresholds and residual error reporting.
 
 **2.6.4 → 2.6.5**
 - ✅ **Memory Service**: Full ISO-8601 UTC timestamp canonicalization.
