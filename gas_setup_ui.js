@@ -219,13 +219,16 @@ function createNamedRanges(ss, warningsCollector) {
   const ranges = [
     { name: 'cfg_system_master', range: "'Controllo'!B2" },
     { name: 'cfg_timezone', range: "'Controllo'!B4" },
-    { name: 'cfg_holidays_mode', range: "'Controllo'!B5" }, // Inizio ferie (B5)
+    // Legacy: nome ambiguo mantenuto per retrocompatibilità (punta alla prima data ferie).
+    { name: 'cfg_holidays_mode', range: "'Controllo'!B5" },
+    // Nome esplicito consigliato per nuove integrazioni.
+    { name: 'cfg_vacation_start_date', range: "'Controllo'!B5" },
     { name: 'sum_auto_status', range: "'Controllo'!F5" },
     { name: 'sum_secretary_status', range: "'Controllo'!F6" },
     { name: 'sum_today_date', range: "'Controllo'!F7" },
     { name: 'sum_today_reason', range: "'Controllo'!F8" },
     { name: 'sum_today_slot', range: "'Controllo'!F9" },
-    { name: 'tbl_week_schedule', range: "'Controllo'!A10:D16" }, // Schedule da A10 a D16
+    { name: 'tbl_week_schedule', range: "'Controllo'!B10:D16" }, // Schedule da B10 a D16
     { name: 'tbl_absences', range: "'Controllo'!A5:D7" }, // Assenze da A5 a D7
     { name: 'lst_ignore_domains', range: "'Controllo'!E11:E" },
     { name: 'lst_ignore_keywords', range: "'Controllo'!F11:F" }
