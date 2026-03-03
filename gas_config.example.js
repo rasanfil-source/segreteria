@@ -47,7 +47,7 @@ const CONFIG = {
     GMAIL_LABEL_CACHE_TTL: 3600000,      // 1 ora in millisecondi
     MAX_HISTORY_MESSAGES: 10,            // Massimo messaggi in cronologia thread
     ATTACHMENT_CONTEXT: {
-        enabled: true,                   // Includi OCR allegati (PDF e immagini) nel prompt
+        enabled: true,                   // Includi testo allegati (PDF, immagini, Word, Excel, PowerPoint) nel prompt
         maxFiles: 4,                     // Numero massimo di allegati da processare
         maxBytesPerFile: 5 * 1024 * 1024,// 5 MB per file
         maxCharsPerFile: 4000,           // Limite testo per singolo allegato

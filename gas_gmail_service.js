@@ -20,6 +20,19 @@ class GmailService {
         this._cacheTtlSeconds = Math.max(60, Math.floor(this._cacheTTL / 1000));
         this._scriptCache = CacheService.getScriptCache();
 
+        // Mappa MIME types Office → tipo Google Workspace per conversione nativa
+        this._officeMimeMap = {
+            // Word → Google Docs
+            'application/msword': 'application/vnd.google-apps.document',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'application/vnd.google-apps.document',
+            // Excel → Google Sheets
+            'application/vnd.ms-excel': 'application/vnd.google-apps.spreadsheet',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'application/vnd.google-apps.spreadsheet',
+            // PowerPoint → Google Slides
+            'application/vnd.ms-powerpoint': 'application/vnd.google-apps.presentation',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'application/vnd.google-apps.presentation'
+        };
+
         console.log('✓ GmailService inizializzato con cache etichette (TTL 1h)');
     }
 
@@ -347,11 +360,12 @@ class GmailService {
     }
 
     // ========================================================================
-    // ALLEGATI: OCR PDF/IMMAGINI PER CONTESTO PROMPT
+    // ALLEGATI: ESTRAZIONE TESTO (OCR PDF/immagini, conversione Office)
     // ========================================================================
 
     /**
-     * Estrae testo OCR dagli allegati (PDF/immagini) per contesto prompt.
+     * Estrae testo dagli allegati per contesto prompt.
+     * Supporta PDF/immagini (via OCR), Word, Excel e PowerPoint (via conversione nativa).
      * Richiede Drive Advanced Service abilitato.
      * @param {GmailMessage} message
      * @param {object} options
@@ -415,8 +429,9 @@ class GmailService {
             const contentType = (attachment.getContentType() || '').toLowerCase();
             const isPdf = contentType.includes('pdf');
             const isImage = contentType.startsWith('image/');
+            const isOffice = Boolean(this._officeMimeMap[contentType]);
 
-            if (!isPdf && !isImage) {
+            if (!isPdf && !isImage && !isOffice) {
                 skipped.push({ name: attachmentName, reason: 'unsupported_type', contentType: contentType });
                 continue;
             }
@@ -436,12 +451,23 @@ class GmailService {
             const suspiciousNames = ["img_", "dsc_", "photo", "whatsapp image", "image", "screenshot"];
             const isGenericName = suspiciousNames.some(name => fileNameLower.includes(name));
 
-            const ocrText = this._extractOcrTextFromAttachment(attachment, settings);
-            const ocrConfidence = this._estimateOcrConfidence(ocrText, isGenericName);
-            // Logica Filtro Qualità OCR
-            if (!this._isMeaningfulOCR(ocrText, isGenericName)) {
-                skipped.push({ name: attachmentName, reason: 'ocr_quality_low', ocrConfidence: ocrConfidence });
-                continue;
+            // Estrazione testo: conversione diretta per Office, OCR per PDF/immagini
+            let ocrText, ocrConfidence;
+            if (isOffice) {
+                ocrText = this._extractOfficeText(attachment, this._officeMimeMap[contentType], settings);
+                ocrConfidence = ocrText ? 1.0 : 0; // Conversione diretta, non ottica
+                if (!ocrText || ocrText.replace(/\s+/g, ' ').trim().length < 30) {
+                    skipped.push({ name: attachmentName, reason: 'office_empty', ocrConfidence: 0 });
+                    continue;
+                }
+            } else {
+                ocrText = this._extractOcrTextFromAttachment(attachment, settings);
+                ocrConfidence = this._estimateOcrConfidence(ocrText, isGenericName);
+                // Filtro qualità OCR (solo per PDF/immagini)
+                if (!this._isMeaningfulOCR(ocrText, isGenericName)) {
+                    skipped.push({ name: attachmentName, reason: 'ocr_quality_low', ocrConfidence: ocrConfidence });
+                    continue;
+                }
             }
 
             let normalized = this._normalizeAttachmentText(ocrText, settings);
@@ -594,6 +620,128 @@ class GmailService {
 
         if (removed > 0) {
             console.log(`🧹 Cleanup OCR: rimossi ${removed} file orfani`);
+        }
+    }
+
+    /**
+     * Estrae testo da un allegato Office (Word, Excel, PowerPoint)
+     * tramite conversione nativa in Google Workspace.
+     * @param {GmailAttachment} attachment - Allegato email
+     * @param {string} googleMimeType - Tipo Google Workspace destinazione
+     * @param {object} settings - Impostazioni pipeline
+     * @returns {string} Testo estratto (vuoto se fallisce)
+     */
+    _extractOfficeText(attachment, googleMimeType, settings) {
+        let fileId = null;
+        try {
+            if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) {
+                return '';
+            }
+
+            if (typeof Drive === 'undefined' || !Drive.Files) {
+                throw new Error('Drive Advanced Service non abilitato');
+            }
+
+            const blob = attachment.copyBlob();
+            const fileName = attachment.getName() || 'allegato';
+
+            // Caricamento con conversione nel formato Google Workspace corrispondente
+            if (typeof Drive.Files.insert === 'function') {
+                const resource = {
+                    title: `OCR_${fileName}`,
+                    mimeType: blob.getContentType()
+                };
+                const file = Drive.Files.insert(resource, blob, { convert: true });
+                if (!file || !file.id) {
+                    throw new Error('Drive API ha restituito un file convertito non valido (id assente)');
+                }
+                fileId = file.id;
+            } else if (typeof Drive.Files.create === 'function') {
+                const resource = {
+                    name: `OCR_${fileName}`,
+                    mimeType: googleMimeType
+                };
+                const file = Drive.Files.create(resource, blob, {});
+                if (!file || !file.id) {
+                    throw new Error('Drive API ha restituito un file convertito non valido (id assente)');
+                }
+                fileId = file.id;
+            } else {
+                throw new Error('Drive.Files non espone metodi compatibili (insert/create)');
+            }
+
+            // Estrazione testo in base al tipo Google Workspace
+            if (googleMimeType === 'application/vnd.google-apps.document') {
+                // Word → Google Docs
+                const doc = DocumentApp.openById(fileId);
+                return doc.getBody().getText();
+            }
+
+            if (googleMimeType === 'application/vnd.google-apps.spreadsheet') {
+                // Excel → Google Sheets: concatena il testo di tutte le celle non vuote
+                const ss = SpreadsheetApp.openById(fileId);
+                const sheets = ss.getSheets();
+                const parts = [];
+                const maxSheets = Math.min(sheets.length, 3); // Limita a 3 fogli
+                for (let s = 0; s < maxSheets; s++) {
+                    const sheet = sheets[s];
+                    const lastRow = Math.min(sheet.getLastRow(), 100); // Limita a 100 righe
+                    const lastCol = Math.min(sheet.getLastColumn(), 20); // Limita a 20 colonne
+                    if (lastRow === 0 || lastCol === 0) continue;
+                    if (maxSheets > 1) {
+                        parts.push(`[Foglio: ${sheet.getName()}]`);
+                    }
+                    const data = sheet.getRange(1, 1, lastRow, lastCol).getDisplayValues();
+                    for (const row of data) {
+                        const line = row.filter(Boolean).join(' | ');
+                        if (line.trim()) parts.push(line);
+                    }
+                }
+                return parts.join('\n');
+            }
+
+            if (googleMimeType === 'application/vnd.google-apps.presentation') {
+                // PowerPoint → Google Slides: estrae testo da ogni diapositiva
+                const presentation = SlidesApp.openById(fileId);
+                const slides = presentation.getSlides();
+                const parts = [];
+                const maxSlides = Math.min(slides.length, 10); // Limita a 10 diapositive
+                for (let i = 0; i < maxSlides; i++) {
+                    const slide = slides[i];
+                    const shapes = slide.getShapes();
+                    const slideTexts = [];
+                    for (const shape of shapes) {
+                        const tf = shape.getText();
+                        if (tf) {
+                            const text = tf.asString().trim();
+                            if (text) slideTexts.push(text);
+                        }
+                    }
+                    if (slideTexts.length > 0) {
+                        parts.push(`[Slide ${i + 1}] ${slideTexts.join(' ')}`);
+                    }
+                }
+                return parts.join('\n');
+            }
+
+            return '';
+        } catch (e) {
+            console.warn(`⚠️ Estrazione Office fallita: ${e.message}`);
+            return '';
+        } finally {
+            if (fileId) {
+                try {
+                    if (typeof Drive.Files.remove === 'function') {
+                        Drive.Files.remove(fileId);
+                    } else if (typeof Drive.Files.delete === 'function') {
+                        Drive.Files.delete(fileId);
+                    } else if (typeof Drive.Files.trash === 'function') {
+                        Drive.Files.trash(fileId);
+                    }
+                } catch (e) {
+                    console.warn(`⚠️ Cleanup file Office fallito (${fileId}): ${e.message}`);
+                }
+            }
         }
     }
 
@@ -1317,6 +1465,13 @@ class GmailService {
 
         if (source.includes('certificato')) return 'Certificato (non specificato)';
         if (source.includes('modulo') || source.includes('iscrizione')) return 'Modulo parrocchiale';
+
+        // Classificazione per formato file Office
+        const fileNameLower = (fileName || '').toLowerCase();
+        if (fileNameLower.endsWith('.doc') || fileNameLower.endsWith('.docx')) return 'Documento Word';
+        if (fileNameLower.endsWith('.xls') || fileNameLower.endsWith('.xlsx')) return 'Foglio Excel';
+        if (fileNameLower.endsWith('.ppt') || fileNameLower.endsWith('.pptx')) return 'Presentazione PowerPoint';
+
         return 'Documento generico';
     }
 

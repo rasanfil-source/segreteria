@@ -275,6 +275,27 @@ function runAllTests() {
             const fields = service._extractDocumentFields('Codice fiscale: RSSMRA80A01H501U', true);
             return fields.length > 0 && fields[0].includes('*') && !fields[0].includes('RSSMRA80A01H501U');
         });
+        test('Riconosce file Word come Documento Word', results, () => {
+            const t = service._detectDocumentType('relazione.docx', 'testo generico');
+            return t === 'Documento Word';
+        });
+        test('Riconosce file Excel come Foglio Excel', results, () => {
+            const t = service._detectDocumentType('bilancio.xlsx', 'dati vari');
+            return t === 'Foglio Excel';
+        });
+        test('Riconosce file PowerPoint come Presentazione PowerPoint', results, () => {
+            const t = service._detectDocumentType('presentazione.pptx', 'slide varie');
+            return t === 'Presentazione PowerPoint';
+        });
+        test('Mappa MIME Office contiene tutti i formati', results, () => {
+            const map = service._officeMimeMap;
+            return Boolean(map['application/msword'] &&
+                map['application/vnd.openxmlformats-officedocument.wordprocessingml.document'] &&
+                map['application/vnd.ms-excel'] &&
+                map['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'] &&
+                map['application/vnd.ms-powerpoint'] &&
+                map['application/vnd.openxmlformats-officedocument.presentationml.presentation']);
+        });
     });
 
     const duration = Date.now() - start;
