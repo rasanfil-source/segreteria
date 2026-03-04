@@ -322,7 +322,7 @@ class EmailProcessor {
       const lastMessage = messages[messages.length - 1];
       const lastSenderRaw = lastMessage.getFrom() || '';
       const lastSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
-        ? this.gmailService._extractEmailAddress(lastSenderRaw).toLowerCase()
+        ? (this.gmailService._extractEmailAddress(lastSenderRaw) || '').toLowerCase()
         : '';
       const knownAliases = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES)) ? CONFIG.KNOWN_ALIASES : [];
       const normalizedMyEmail = myEmail ? myEmail.toLowerCase() : '';
@@ -558,7 +558,7 @@ class EmailProcessor {
       const knowledgeSections = [];
       const aiCoreLite = (typeof GLOBAL_CACHE !== 'undefined') ? (GLOBAL_CACHE.aiCoreLite || '') : '';
       const aiCore = (typeof GLOBAL_CACHE !== 'undefined') ? (GLOBAL_CACHE.aiCore || '') : '';
-      const doctrineBase = (typeof GLOBAL_CACHE !== 'undefined') ? (GLOBAL_CACHE.doctrineBase || '') : '';
+      const effectiveDoctrineBase = doctrineBase || ((typeof GLOBAL_CACHE !== 'undefined') ? (GLOBAL_CACHE.doctrineBase || '') : '');
 
       // AI_CORE_LITE: Sempre presente per regole base
       if (aiCoreLite) knowledgeSections.push('--- REGOLE BASE ---\n' + aiCoreLite);
@@ -577,9 +577,9 @@ class EmailProcessor {
       }
 
       // Dottrina: Solo per domande dottrinali
-      if (doctrineBase && (requestType.type === 'spiritual' || requestType.category === 'doctrine')) {
+      if (effectiveDoctrineBase && (requestType.type === 'spiritual' || requestType.category === 'doctrine')) {
         console.log('   📖 Dottrina iniettata per domanda spirituale');
-        knowledgeSections.push('--- FONTE DOTTRINALE ---\n' + doctrineBase);
+        knowledgeSections.push('--- FONTE DOTTRINALE ---\n' + effectiveDoctrineBase);
       }
 
       // Regola messe speciali
