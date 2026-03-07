@@ -1259,6 +1259,18 @@ function testPromptContextTemporalRiskWithObjectKnowledgeBase() {
     assert(pc.profile === 'standard', "Profilo deve essere almeno standard per temporal_risk");
 }
 
+function testPromptContextTemporalRiskWithDayMonthKnowledgeBase() {
+    console.log('--- Test: PromptContext Temporal Risk with day/month KB ---');
+    loadScript('gas_prompt_context.js');
+    const pc = new PromptContext({
+        knowledgeBase: 'Orari ufficio dal 01/09 al 30/06. Apertura 08:30.',
+        temporal: { mentionsDates: false, mentionsTimes: false }
+    });
+
+    assert(pc.input.knowledgeBaseMeta.containsDates === true, 'KB con dd/mm e hh:mm deve attivare containsDates');
+    assert(pc.concerns.temporal_risk === true, 'temporal_risk deve essere true con segnali temporali in KB testuale');
+}
+
 function testPromptContextKnowledgeBaseCircularObjectDoesNotCrash() {
     console.log('--- Test: PromptContext Circular KB Object ---');
     loadScript('gas_prompt_context.js');
@@ -1559,6 +1571,7 @@ function main() {
         ['main: ai_core preserva valori falsey', testLoadResourcesKeepsFalseyValuesInAiCoreSheets],
         ['main: parsing rigoroso fasce sospensione', testLoadAdvancedConfigStrictSuspensionHours],
         ['prompt context: temporal risk with object KB', testPromptContextTemporalRiskWithObjectKnowledgeBase],
+        ['prompt context: temporal risk with day/month KB', testPromptContextTemporalRiskWithDayMonthKnowledgeBase],
         ['prompt context: circular object KB fallback', testPromptContextKnowledgeBaseCircularObjectDoesNotCrash],
         ['prompt engine: object KB normalization', testPromptEngineNormalizesObjectKnowledgeBase],
         ['prompt KB truncation: hard limit chars rispettato', testPromptKbSemanticTruncationRespectsHardLimit],

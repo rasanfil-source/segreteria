@@ -46,11 +46,23 @@ class PromptContext {
             normalizedInput.knowledgeBaseRaw = knowledgeBaseRaw;
             normalizedInput.knowledgeBaseMeta = {
                 length: knowledgeBaseRaw.length,
-                containsDates: (isString && /\d{4}/.test(knowledgeBaseRaw)) || (typeof normalizedInput.knowledgeBase === 'object' && normalizedInput.knowledgeBase !== null)
+                containsDates: (isString && this._containsTemporalHintsInKnowledgeBase(knowledgeBaseRaw)) || (typeof normalizedInput.knowledgeBase === 'object' && normalizedInput.knowledgeBase !== null)
             };
         }
 
         return normalizedInput;
+    }
+
+    /**
+     * Rileva segnali temporali nella KB testuale.
+     * Copre anni espliciti, date locali (dd/mm o dd-mm) e orari (hh:mm).
+     */
+    _containsTemporalHintsInKnowledgeBase(knowledgeBaseRaw) {
+        if (!knowledgeBaseRaw || typeof knowledgeBaseRaw !== 'string') {
+            return false;
+        }
+
+        return /\b\d{4}\b|\b\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?\b|\b\d{1,2}:\d{2}\b/.test(knowledgeBaseRaw);
     }
 
     /**
