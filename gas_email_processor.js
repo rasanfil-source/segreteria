@@ -1137,6 +1137,8 @@ ${addressLines.join('\n\n')}
       // Cerca thread non letti nella inbox
       // Utilizziamo un buffer di ricerca più ampio per gestire thread saltati (es. loop interni)
       // Escludiamo solo thread gia in errore/verifica; i thread con label IA restano candidati.
+      const errorLabelQuery = this._formatLabelQueryValue(this.config.errorLabelName);
+      const validationLabelQuery = this._formatLabelQueryValue(this.config.validationErrorLabel);
       const searchQuery = `is:unread -label:${errorLabelQuery} -label:${validationLabelQuery} in:inbox`;
       const searchLimit = (this.config.searchPageSize || 50);
 
