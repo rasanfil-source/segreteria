@@ -855,11 +855,11 @@ function processEmailsMain() {
 function main() {
   console.log('🚀 Avvio pipeline principale');
 
-  // 0. Controllo Preventivo API Avanzate
+  // 0. Controllo Preventivo Gmail Advanced Service
   try {
-    GmailApp.getAliases(); // Probe: verifica che i Servizi Avanzati siano abilitati
+    Gmail.Users.getProfile('me'); // Probe reale: verifica disponibilità Gmail Advanced Service
   } catch (apiError) {
-    console.error(`💥 CRITICO: Servizi Avanzati (Gmail API) non abilitati nel progetto GAS. Impossibile procedere.`);
+    console.error('CRITICO: Gmail Advanced Service non disponibile o non autorizzato. Impossibile procedere.');
     return;
   }
 

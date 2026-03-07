@@ -730,7 +730,7 @@ function testAttachmentContextSanitizationFormatting() {
     const input = 'Riga 1\nRiga 2';
     const rendered = engine._renderAttachmentContext(input);
 
-    assert(rendered.includes('ALLEGATI (TESTO OCR/PDF)'), 'Header allegati non trovato');
+    assert(rendered.includes('ALLEGATI (TESTO ESTRATTO)'), 'Header allegati non trovato');
     assert(rendered.includes('Riga 1\nRiga 2'), 'Il contesto allegati deve preservare newline reali');
 }
 
