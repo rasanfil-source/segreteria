@@ -1254,9 +1254,9 @@ function testPromptContextTemporalRiskWithObjectKnowledgeBase() {
         temporal: { mentionsDates: false }
     });
 
-    assert(pc.input.knowledgeBaseMeta.containsDates === true, "KB oggetto deve forzare containsDates: true");
-    assert(pc.concerns.temporal_risk === true, "temporal_risk deve essere true per KB oggetto");
-    assert(pc.profile === 'standard', "Profilo deve essere almeno standard per temporal_risk");
+    assert(pc.input.knowledgeBaseMeta.containsDates === false, 'KB oggetto senza metadati non deve forzare containsDates');
+    assert(pc.concerns.temporal_risk === false, 'temporal_risk deve restare false senza segnali temporali espliciti');
+    assert(pc.profile === 'lite', 'Profilo deve restare lite senza concern attivi');
 }
 
 function testPromptContextTemporalRiskWithDayMonthKnowledgeBase() {
@@ -1285,7 +1285,23 @@ function testPromptContextKnowledgeBaseCircularObjectDoesNotCrash() {
 
     assert(typeof pc.input.knowledgeBaseRaw === 'string', 'knowledgeBaseRaw deve essere valorizzata anche con oggetti circolari');
     assert(pc.input.knowledgeBaseMeta.length > 0, 'knowledgeBaseMeta.length deve essere > 0 con fallback stringa');
-    assert(pc.concerns.temporal_risk === true, 'temporal_risk deve restare true per KB oggetto');
+    assert(pc.concerns.temporal_risk === false, 'temporal_risk non deve attivarsi automaticamente per KB oggetto');
+}
+
+function testPromptContextHonorsExplicitKnowledgeBaseMeta() {
+    console.log('--- Test: PromptContext Explicit KB Meta ---');
+    loadScript('gas_prompt_context.js');
+
+    const pc = new PromptContext({
+        knowledgeBase: { some: 'structured_data' },
+        knowledgeBaseMeta: { length: 15000, containsDates: true },
+        temporal: { mentionsDates: false, mentionsTimes: false }
+    });
+
+    assert(pc.input.knowledgeBaseMeta.length === 15000, 'knowledgeBaseMeta.length esplicito deve avere precedenza');
+    assert(pc.input.knowledgeBaseMeta.containsDates === true, 'containsDates esplicito deve avere precedenza');
+    assert(pc.concerns.hallucination_risk === true, 'KB lunga deve attivare hallucination_risk');
+    assert(pc.concerns.temporal_risk === true, 'containsDates esplicito deve attivare temporal_risk');
 }
 
 function testPromptEngineNormalizesObjectKnowledgeBase() {
@@ -1351,6 +1367,43 @@ function testSheetRowsToTextNormalizesMultilineCells() {
         text === 'Orari ufficio | Lun-Ven 09:00-12:00 15:00-18:00',
         `Le celle multilinea devono essere normalizzate su una riga. Ottenuto: "${text}"`
     );
+}
+
+function testFormatDateForKnowledgeTextUsesScriptTimezoneInNodeFallback() {
+    console.log('--- Test: Date formatter fallback honors script timezone ---');
+    loadScript('gas_main.js');
+
+    const originalSession = global.Session;
+    const originalUtilities = global.Utilities;
+    try {
+        global.Utilities = undefined;
+        global.Session = {
+            getScriptTimeZone: () => 'Europe/Rome'
+        };
+
+        const midnightRome = new Date('2026-03-07T00:00:00+01:00');
+        const withTimeRome = new Date('2026-03-07T08:15:00+01:00');
+
+        assert(_formatDateForKnowledgeText(midnightRome) === '2026-03-07', 'Data solo giorno deve restare senza orario nel fallback Node');
+        assert(_formatDateForKnowledgeText(withTimeRome) === '2026-03-07 08:15', 'Data con orario deve usare il fuso script nel fallback Node');
+    } finally {
+        global.Utilities = originalUtilities;
+        global.Session = originalSession;
+    }
+}
+
+function testResponseValidatorRemovesThinkingLeakWithParenthesisKeyword() {
+    console.log('--- Test: Thinking leak removal handles keyword starting with parenthesis ---');
+    loadScript('gas_response_validator.js');
+
+    const validator = new ResponseValidator();
+    validator.thinkingPatterns = ['(nota:'];
+
+    const text = 'Gentile utente, (nota: questo è un passaggio interno.) Procediamo con la risposta.';
+    const cleaned = validator._rimuoviThinkingLeak(text);
+
+    assert(!cleaned.includes('(nota:'), 'Il pattern con parentesi deve essere rimosso correttamente');
+    assert(cleaned.includes('Procediamo con la risposta.'), 'Il testo utile deve essere preservato');
 }
 
 function testLoadAdvancedConfigStrictSuspensionHours() {
@@ -1568,11 +1621,14 @@ function main() {
         ['main: serializzazione robusta righe KB', testSheetRowsToTextRemovesEmptyCellsAndRows],
         ['main: serializzazione date KB stabile', testSheetRowsToTextFormatsDatesStably],
         ['main: serializzazione celle multilinea KB stabile', testSheetRowsToTextNormalizesMultilineCells],
+        ['main: fallback date formatter usa timezone script', testFormatDateForKnowledgeTextUsesScriptTimezoneInNodeFallback],
+        ['validator: thinking leak con pattern parentesi', testResponseValidatorRemovesThinkingLeakWithParenthesisKeyword],
         ['main: ai_core preserva valori falsey', testLoadResourcesKeepsFalseyValuesInAiCoreSheets],
         ['main: parsing rigoroso fasce sospensione', testLoadAdvancedConfigStrictSuspensionHours],
         ['prompt context: temporal risk with object KB', testPromptContextTemporalRiskWithObjectKnowledgeBase],
         ['prompt context: temporal risk with day/month KB', testPromptContextTemporalRiskWithDayMonthKnowledgeBase],
         ['prompt context: circular object KB fallback', testPromptContextKnowledgeBaseCircularObjectDoesNotCrash],
+        ['prompt context: explicit knowledgeBaseMeta precedence', testPromptContextHonorsExplicitKnowledgeBaseMeta],
         ['prompt engine: object KB normalization', testPromptEngineNormalizesObjectKnowledgeBase],
         ['prompt KB truncation: hard limit chars rispettato', testPromptKbSemanticTruncationRespectsHardLimit],
         ['gemini: portuguese detection refinement', testPortugueseDetectionRefinement],

@@ -977,10 +977,15 @@ function _formatCellForKnowledgeText(cell) {
 }
 
 function _formatDateForKnowledgeText(date) {
+  const resolveScriptTz = () => {
+    if (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function') {
+      return Session.getScriptTimeZone();
+    }
+    return 'UTC';
+  };
+
   if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
-    const tz = (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function')
-      ? Session.getScriptTimeZone()
-      : 'UTC';
+    const tz = resolveScriptTz();
 
     // Rileviamo se ha una parte oraria in base al fuso orario target
     const hasTime = (tz === 'UTC')
@@ -992,17 +997,50 @@ function _formatDateForKnowledgeText(date) {
     return Utilities.formatDate(date, tz, pattern);
   }
 
-  // Fallback Node/tests: serializzazione stabile UTC
-  const hasUtcTime = date.getUTCHours() !== 0 || date.getUTCMinutes() !== 0 || date.getUTCSeconds() !== 0;
-  const yyyy = date.getUTCFullYear();
-  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(date.getUTCDate()).padStart(2, '0');
+  // Fallback Node/tests: prova a rispettare lo stesso fuso orario dello script.
+  const tz = resolveScriptTz();
+  const parts = _extractDatePartsForTimeZone(date, tz);
+  const hasTime = parts.hour !== '00' || parts.minute !== '00' || parts.second !== '00';
 
-  if (!hasUtcTime) {
-    return `${yyyy}-${mm}-${dd}`;
+  if (!hasTime) {
+    return `${parts.year}-${parts.month}-${parts.day}`;
   }
 
-  const hh = String(date.getUTCHours()).padStart(2, '0');
-  const min = String(date.getUTCMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
+}
+
+function _extractDatePartsForTimeZone(date, timeZone) {
+  try {
+    if (typeof Intl !== 'undefined' && Intl && typeof Intl.DateTimeFormat === 'function') {
+      const dtf = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timeZone || 'UTC',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+
+      const resolved = { year: '0000', month: '00', day: '00', hour: '00', minute: '00', second: '00' };
+      dtf.formatToParts(date).forEach((part) => {
+        if (Object.prototype.hasOwnProperty.call(resolved, part.type)) {
+          resolved[part.type] = part.value;
+        }
+      });
+      return resolved;
+    }
+  } catch (e) {
+    // Ignora e usa fallback UTC sotto.
+  }
+
+  return {
+    year: String(date.getUTCFullYear()),
+    month: String(date.getUTCMonth() + 1).padStart(2, '0'),
+    day: String(date.getUTCDate()).padStart(2, '0'),
+    hour: String(date.getUTCHours()).padStart(2, '0'),
+    minute: String(date.getUTCMinutes()).padStart(2, '0'),
+    second: String(date.getUTCSeconds()).padStart(2, '0')
+  };
 }

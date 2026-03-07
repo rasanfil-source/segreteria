@@ -723,7 +723,11 @@ ${addressLines.join('\n\n')}
           },
           conversation: { messageCount: memoryContext.messageCount || messages.length },
           territory: { addressFound: territoryResult.addressFound },
-          knowledgeBase: { length: enrichedKnowledgeBase.length, containsDates: /\d{4}/.test(enrichedKnowledgeBase) },
+          knowledgeBase: enrichedKnowledgeBase,
+          knowledgeBaseMeta: {
+            length: enrichedKnowledgeBase.length,
+            containsDates: this._detectTemporalMentions(enrichedKnowledgeBase, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(enrichedKnowledgeBase)
+          },
           temporal: {
             mentionsDates: this._detectTemporalMentions(messageDetails.body, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(messageDetails.body),
             mentionsTimes: /\d{1,2}[:.]\d{2}/.test(messageDetails.body)

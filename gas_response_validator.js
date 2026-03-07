@@ -1117,8 +1117,8 @@ class ResponseValidator {
     const keywords = this.thinkingPatterns || [];
     keywords.forEach(kw => {
       const escaped = this._escapeRegex(kw);
-      const regex = new RegExp(`\\b${escaped}[^.?!]*[.?!]`, 'gi');
-      cleaned = cleaned.replace(regex, '');
+      const regex = new RegExp(`(^|[\\s.,;!?])${escaped}[^.?!]*[.?!]`, 'gi');
+      cleaned = cleaned.replace(regex, '$1');
     });
     return cleaned.trim();
   }

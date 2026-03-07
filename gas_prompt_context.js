@@ -30,6 +30,10 @@ class PromptContext {
     _normalizeInput(input) {
         const normalizedInput = Object.assign({}, input);
 
+        const incomingMeta = (normalizedInput.knowledgeBaseMeta && typeof normalizedInput.knowledgeBaseMeta === 'object')
+            ? normalizedInput.knowledgeBaseMeta
+            : null;
+
         // Mantiene knowledgeBase originale inalterata e crea metadati separati.
         // NOTA: i metadati restano dentro input (knowledgeBaseMeta) per compatibilita con i test
         // e con il codice che legge this.input in debug/telemetria: non usiamo un campo esterno.
@@ -45,8 +49,15 @@ class PromptContext {
 
             normalizedInput.knowledgeBaseRaw = knowledgeBaseRaw;
             normalizedInput.knowledgeBaseMeta = {
-                length: knowledgeBaseRaw.length,
-                containsDates: (isString && this._containsTemporalHintsInKnowledgeBase(knowledgeBaseRaw)) || (typeof normalizedInput.knowledgeBase === 'object' && normalizedInput.knowledgeBase !== null)
+                length: Number.isFinite(incomingMeta?.length) ? incomingMeta.length : knowledgeBaseRaw.length,
+                containsDates:
+                    incomingMeta?.containsDates === true ||
+                    (isString && this._containsTemporalHintsInKnowledgeBase(knowledgeBaseRaw))
+            };
+        } else if (incomingMeta) {
+            normalizedInput.knowledgeBaseMeta = {
+                length: Number.isFinite(incomingMeta.length) ? incomingMeta.length : 0,
+                containsDates: incomingMeta.containsDates === true
             };
         }
 
