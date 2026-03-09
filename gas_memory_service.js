@@ -556,7 +556,7 @@ class MemoryService {
           ...info,
           userReaction: reaction,
           context: context || info.context || null,
-          lastInteraction: Date.now()
+          lastInteraction: new Date().toISOString()
         };
       }
       return info;

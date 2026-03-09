@@ -49,8 +49,8 @@ function classifyError(error) {
         return { type: ErrorTypes.TIMEOUT, retryable: true, message: message };
     }
 
-    if (message.includes('invalid') || message.includes('malformed') ||
-        message.includes('invalid_argument') || message.includes('non json valida')) {
+    if (message.includes('invalid_argument') || message.includes('malformed') ||
+        message.includes('non json valida')) {
         return { type: ErrorTypes.INVALID_RESPONSE, retryable: false, message: message };
     }
 

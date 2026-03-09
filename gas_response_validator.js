@@ -619,8 +619,8 @@ class ResponseValidator {
     const responsePhonesRaw = response.match(phonePattern) || [];
     const kbPhonesRaw = safeKnowledgeBase.match(phonePattern) || [];
 
-    // 8+ cifre minimo per evitare falsi positivi. Escludi esplicitamente date YYYYMMDD (B18).
-    const datePattern = /^\d{4}[01]\d[0-3]\d$/;
+    // 8+ cifre minimo per evitare falsi positivi. Escludi date YYYYMMDD e DDMMYYYY (B18).
+    const datePattern = /^\d{4}[01]\d[0-3]\d$|^[0-3]\d[01]\d\d{4}$/;
     const responsePhones = new Set(
       responsePhonesRaw.map(normalizePhone)
         .filter(p => p.length >= 8 && !datePattern.test(p))
