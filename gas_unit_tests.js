@@ -238,6 +238,23 @@ function runAllTests() {
             const topics = processor._detectProvidedTopics('La via Antonio Gramsci rientra nel territorio parrocchiale.');
             return Array.isArray(topics) && topics.includes('territorio');
         });
+        test('Verifica territorio solo su richiesta esplicita', results, () => {
+            const ask = processor._isTerritoryRequest('Info territorio', 'Via Antonio Gramsci rientra?');
+            const noAsk = processor._isTerritoryRequest('Iscrizione cresima', 'Abito in via Antonio Gramsci.');
+            return ask === true && noAsk === false;
+        });
+        test('Aggiunge nota differenza orario in modo generico (non solo cresima)', results, () => {
+            const response = 'Buonasera.\n\nIl prossimo corso prematrimoniale inizierà alle ore 16:30.\n\nCordiali saluti.';
+            const messageDetails = { subject: 'Corso prematrimoniale', body: 'Pensavo iniziasse alle 17:00.' };
+            const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it', { topic: 'corso prematrimoniale' }, { type: 'technical' });
+            return adjusted.includes('in un orario diverso rispetto a quanto da Lei indicato');
+        });
+        test('Usa formulazione non minimizzante per scarti orari ampi', results, () => {
+            const response = "Buonasera.\n\nL'incontro inizierà alle ore 16:30.\n\nCordiali saluti.";
+            const messageDetails = { subject: 'Incontro', body: 'Io avevo capito 20:00.' };
+            const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it', { topic: 'incontro' }, { type: 'technical' });
+            return adjusted.includes('in un orario differente da quanto indicato da Lei');
+        });
     });
 
     // 5. GeminiService

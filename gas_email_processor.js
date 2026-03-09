@@ -656,10 +656,17 @@ class EmailProcessor {
       }
 
       // ====================================================================================================
-      // PASSO 7.1: VERIFICA TERRITORIO (se TerritoryValidator disponibile)
+      // PASSO 7.1: VERIFICA TERRITORIO (solo quando richiesta esplicita)
       // ====================================================================================================
+      const territoryRequested = this._isTerritoryRequest(
+        messageDetails.subject,
+        messageDetails.body,
+        classification,
+        requestType
+      );
+
       let territoryResult = { addressFound: false };
-      if (this.territoryValidator) {
+      if (territoryRequested && this.territoryValidator) {
         territoryResult = this.territoryValidator.analyzeEmailForAddress(
           messageDetails.body,
           messageDetails.subject
@@ -684,19 +691,25 @@ class EmailProcessor {
         })
         : ['Nessun indirizzo rilevato nel testo.'];
 
-      const territoryContext = `
+      const territoryContext = territoryRequested
+        ? `
 ====================================================================================================
 🎯 VERIFICA TERRITORIO AUTOMATICA
 ====================================================================================================
 ${addressLines.join('\n\n')}
 ====================================================================================================
-`;
+`
+        : null;
       // knowledgeSections.unshift(territoryContext); // RIMOSSO: Passato separatamente per evidenza critica
 
-      const summary = territoryResult.addressFound
-        ? (addressLines.length > 1 ? `${addressLines.length} indirizzi` : '1 indirizzo')
-        : 'nessun indirizzo';
-      console.log(`   🎯 Verifica territorio: ${summary}`);
+      if (territoryRequested) {
+        const summary = territoryResult.addressFound
+          ? (addressLines.length > 1 ? `${addressLines.length} indirizzi` : '1 indirizzo')
+          : 'nessun indirizzo';
+        console.log(`   🎯 Verifica territorio: ${summary}`);
+      } else {
+        console.log('   ⊖ Verifica territorio non richiesta: controllo saltato');
+      }
 
       // ====================================================================================================
       // STEP 7.2: PROMPT CONTEXT (profilo e concern dinamici)
@@ -942,6 +955,14 @@ ${addressLines.join('\n\n')}
           console.log(`   ⚠️ Nota OCR aggiunta (confidenza media: ${attachmentContext.ocrConfidence})`);
         }
       }
+
+      response = this._addTimeDiscrepancyNoteIfNeeded(
+        response,
+        messageDetails,
+        detectedLanguage,
+        classification,
+        requestType
+      );
 
       // ====================================================================================================
       // STEP 9: VALIDA RISPOSTA
@@ -1559,6 +1580,96 @@ ${addressLines.join('\n\n')}
     }
 
     return summary || null;
+  }
+
+  _isTerritoryRequest(subject, body, classification = {}, requestType = {}) {
+    const text = `${subject || ''} ${body || ''}`.toLowerCase();
+    const topic = String(classification && classification.topic ? classification.topic : '').toLowerCase();
+    const type = String(requestType && requestType.type ? requestType.type : '').toLowerCase();
+
+    if (type === 'territory') return true;
+    if (topic.includes('territor') || topic.includes('parrocch')) return true;
+
+    const explicitPatterns = [
+      /\bterritorio\b/i,
+      /\bparrocchia\s+di\s+residenza\b/i,
+      /\brientra\b/i,
+      /\bnon\s+rientra\b/i,
+      /\bcompetenza\s+parrocchiale\b/i,
+      /\bquale\s+parrocchia\b/i,
+      /\bfuori\s+territorio\b/i
+    ];
+
+    return explicitPatterns.some((pattern) => pattern.test(text));
+  }
+
+  _extractTimes(text) {
+    if (!text || typeof text !== 'string') return [];
+
+    const matches = text.match(/\b(?:[01]?\d|2[0-3])[:.][0-5]\d\b/g) || [];
+    const normalized = matches.map((time) => {
+      const [hh, mm] = time.replace('.', ':').split(':');
+      return `${hh.padStart(2, '0')}:${mm}`;
+    });
+
+    return Array.from(new Set(normalized));
+  }
+
+  _addTimeDiscrepancyNoteIfNeeded(response, messageDetails, detectedLanguage, classification = {}, requestType = {}) {
+    if (!response || typeof response !== 'string') return response;
+
+    const language = String(detectedLanguage || 'it').toLowerCase();
+    if (language !== 'it') return response;
+
+    const sourceText = `${messageDetails && messageDetails.subject ? messageDetails.subject : ''} ${messageDetails && messageDetails.body ? messageDetails.body : ''}`.toLowerCase();
+    const responseLower = response.toLowerCase();
+
+    // Evita duplicazione note se già presente un chiarimento orario.
+    if (
+      responseLower.includes("rispetto all'orario da lei indicato") ||
+      responseLower.includes('orario diverso da quello indicato') ||
+      responseLower.includes('orario differente da quanto indicato')
+    ) {
+      return response;
+    }
+
+    const userTimes = this._extractTimes(sourceText);
+    const responseTimes = this._extractTimes(response);
+
+    if (userTimes.length === 0 || responseTimes.length === 0) return response;
+
+    const hasSameTime = userTimes.some((t) => responseTimes.includes(t));
+    if (hasSameTime) return response;
+
+    const toMinutes = (time) => {
+      const [hh, mm] = time.split(':').map(Number);
+      return (hh * 60) + mm;
+    };
+
+    let minDelta = Infinity;
+    for (const ut of userTimes) {
+      for (const rt of responseTimes) {
+        minDelta = Math.min(minDelta, Math.abs(toMinutes(ut) - toMinutes(rt)));
+      }
+    }
+
+    const note = minDelta >= 90
+      ? 'in un orario differente da quanto indicato da Lei'
+      : 'in un orario diverso rispetto a quanto da Lei indicato';
+
+    // Inserisce la nota nella prima frase che contiene un orario, indipendentemente dal sacramento/corso.
+    const sentencePattern = /([^\n.!?]*\b(?:[01]?\d|2[0-3])[:.][0-5]\d\b[^\n.!?]*)([.!?])/i;
+
+    if (sentencePattern.test(response)) {
+      return response.replace(sentencePattern, (full, sentence, endPunct) => {
+        if (sentence.toLowerCase().includes('orario diverso') || sentence.toLowerCase().includes('orario differente')) return full;
+        return `${sentence}, ${note}${endPunct}`;
+      });
+    }
+
+    return `${response.trim()}
+
+Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
   }
 
   /**

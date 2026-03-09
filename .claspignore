@@ -26,6 +26,12 @@ tests/output.log
 
 t e s t _ l e a k _ d e t e c t i o n . j s  
 
+# File di test e log
+test_output.txt
+final_test_results.txt
+*_test_results.txt
+smoke_out.txt
+
 # File di debug/riproduzione da non deployare
 maintenance/
 maintenance/**

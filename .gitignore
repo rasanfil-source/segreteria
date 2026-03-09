@@ -14,3 +14,9 @@ Thumbs.db
 
 
 ID dei due progetti.txt
+
+# Log e risultati di test
+test_output.txt
+final_test_results.txt
+*_test_results.txt
+smoke_out.txt
