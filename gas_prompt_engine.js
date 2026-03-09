@@ -546,8 +546,17 @@ ${checks.join('\n')}
 
     const fullTextLower = `${emailSubject} ${emailContent}`.toLowerCase();
 
-    // Keywords critiche
-    const keywords = ['confessione', 'battesimo', 'eucaristia', 'matrimonio', 'cresima', 'divorziato', 'convivente', 'peccato'];
+    // Stem dottrinali (allineati alla logica per pattern del classifier)
+    const DOCTRINE_STEMS = [
+      'confess', 'riconciliaz',
+      'battesim',
+      'eucarist',
+      'matrimon',
+      'cresim',
+      'divorziat',
+      'conviven',
+      'peccato', 'peccamin'
+    ];
 
     console.log(`🔍 Retrieval Start: profilo=${promptProfile}, MAX_ROWS=${MAX_ROWS}`);
 
@@ -561,9 +570,9 @@ ${checks.join('\n')}
       // A. Rilevanza Semantica (Topic/Text)
       // Match forte su topic
       if (topicLower && sottotema.includes(topicLower)) score += 10;
-      // Match keyword nel testo
-      keywords.forEach(kw => {
-        if (fullTextLower.includes(kw) && sottotema.includes(kw)) score += 3;
+      // Match stem nel testo
+      DOCTRINE_STEMS.forEach(stem => {
+        if (fullTextLower.includes(stem) && sottotema.includes(stem)) score += 3;
       });
       // Match generico contenuto
       if (fullTextLower.includes(sottotema)) score += 2;
