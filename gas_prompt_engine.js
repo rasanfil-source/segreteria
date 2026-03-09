@@ -115,6 +115,18 @@ class PromptEngine {
       attachmentsContext = ''
     } = options;
 
+    // Compatibilità input: alcuni flussi legacy passano i concern come array di chiavi.
+    // Esempio: ['formatting_risk', 'temporal_risk']
+    // Li normalizziamo in mappa booleana per mantenere attivi i branch condizionali.
+    const normalizedConcerns = Array.isArray(activeConcerns)
+      ? activeConcerns.reduce((acc, concernKey) => {
+        if (typeof concernKey === 'string' && concernKey) {
+          acc[concernKey] = true;
+        }
+        return acc;
+      }, {})
+      : ((activeConcerns && typeof activeConcerns === 'object') ? activeConcerns : {});
+
     let sections = [];
     let skippedCount = 0;
 
@@ -192,7 +204,7 @@ class PromptEngine {
      * Helper per aggiungere template condizionali
      */
     const addTemplate = (templateName, content, label) => {
-      if (this._shouldIncludeTemplate(templateName, promptProfile, activeConcerns)) {
+      if (this._shouldIncludeTemplate(templateName, promptProfile, normalizedConcerns)) {
         addSection(content, label || templateName);
       } else {
         skippedCount++;
@@ -240,8 +252,8 @@ class PromptEngine {
     const shouldAddContinuityFocus =
       (memoryContext && Object.keys(memoryContext).length > 0) ||
       (salutationMode && salutationMode !== 'full') ||
-      activeConcerns.emotional_sensitivity ||
-      activeConcerns.repetition_risk;
+      normalizedConcerns.emotional_sensitivity ||
+      normalizedConcerns.repetition_risk;
     if (shouldAddContinuityFocus) {
       addSection(this._renderContinuityHumanFocus(), 'ContinuityHumanFocus');
     }

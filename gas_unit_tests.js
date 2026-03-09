@@ -328,6 +328,32 @@ function runAllTests() {
         });
     });
 
+    // 9. PromptEngine concerns normalization
+    testGroup('Punto #9: PromptEngine - Concerns normalization', results, () => {
+        const engine = new PromptEngine();
+        const baseOptions = {
+            emailContent: 'Test body',
+            emailSubject: 'Test subject',
+            knowledgeBase: 'KB minima',
+            detectedLanguage: 'it',
+            promptProfile: 'standard'
+        };
+
+        test('Accetta activeConcerns come array legacy', results, () => {
+            const prompt = engine.buildPrompt(Object.assign({}, baseOptions, {
+                activeConcerns: ['formatting_risk']
+            }));
+            return typeof prompt === 'string' && prompt.includes('✨ FORMATTAZIONE ELEGANTE E USO ICONE');
+        });
+
+        test('Accetta activeConcerns null senza eccezioni', results, () => {
+            const prompt = engine.buildPrompt(Object.assign({}, baseOptions, {
+                activeConcerns: null
+            }));
+            return typeof prompt === 'string' && prompt.length > 0;
+        });
+    });
+
     const duration = Date.now() - start;
     const successRate = results.total > 0 ? ((results.passed / results.total) * 100).toFixed(1) : 0;
 

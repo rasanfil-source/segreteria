@@ -715,7 +715,7 @@ ${addressLines.join('\n\n')}
       // STEP 7.2: PROMPT CONTEXT (profilo e concern dinamici)
       // ====================================================================================================
       let promptProfile = 'standard';
-      let activeConcerns = [];
+      let activeConcerns = {};
       if (typeof createPromptContext === 'function') {
         const promptContext = createPromptContext({
           email: {
