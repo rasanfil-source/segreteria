@@ -352,10 +352,45 @@ class TerritoryValidator {
     }
 
     /**
+     * Pulisce il testo usato per l'estrazione vie senza civico.
+     * Evita di includere etichette del form (es. "Data Nascita") nel nome strada.
+     */
+    _sanitizeStreetOnlyInput(text) {
+        const stopWords = [
+            'data nascita', 'luogo nascita', 'nome', 'cognome', 'telefono', 'cellulare',
+            'email', 'codice fiscale', 'cap', 'comune', 'provincia', 'documento',
+            'parrocchia', 'battesimo', 'cresima', 'indirizzo', 'residenza'
+        ];
+
+        let sanitized = String(text || '').replace(/\r/g, '\n');
+
+        // Quando le email arrivano come form "campo: valore", isoliamo solo il valore.
+        sanitized = sanitized.replace(/\b(?:via|viale|piazza|piazzale|largo|lungotevere|salita)\b\s*:\s*/gi, (m) => {
+            return m.replace(':', ' ');
+        });
+
+        for (const stopWord of stopWords) {
+            const escaped = stopWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const inlineRegex = new RegExp(`\\s*(?:\\||;|,)?\\s*${escaped}\\s*:?`, 'gi');
+            sanitized = sanitized.replace(inlineRegex, '\n');
+        }
+
+        sanitized = sanitized
+            .replace(/^\s*\d[^\n]*$/gm, '')
+            .replace(/\n{2,}/g, '\n')
+            .replace(/[ \t]{2,}/g, ' ')
+            .trim();
+
+        return sanitized;
+    }
+
+    /**
      * Estrae solo vie (senza civico) dal testo
      */
     extractStreetOnlyFromText(text) {
         if (!text || typeof text !== 'string') return null;
+
+        text = this._sanitizeStreetOnlyInput(text);
 
         if (text && text.length > 1000) {
             text = text.substring(0, 1000);

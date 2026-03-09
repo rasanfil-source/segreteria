@@ -225,17 +225,30 @@ function runAllTests() {
             validator.extractAddressFromText("via " + "a".repeat(1000) + " b");
             return (Date.now() - start) < 500;
         });
+        test('Via da form non ingloba campo successivo', results, () => {
+            const streets = validator.extractStreetOnlyFromText('Via Antonio Gramsci\nData Nascita: 01/01/1990');
+            return Array.isArray(streets) && streets.includes('via Antonio Gramsci');
+        });
     });
 
-    // 4. GeminiService
-    testGroup('Punto #4: GeminiService - Language', results, () => {
+    // 4. EmailProcessor
+    testGroup('Punto #4: EmailProcessor - Topic Detection', results, () => {
+        const processor = new EmailProcessor();
+        test('Non lancia errori su rilevazione topic territorio', results, () => {
+            const topics = processor._detectProvidedTopics('La via Antonio Gramsci rientra nel territorio parrocchiale.');
+            return Array.isArray(topics) && topics.includes('territorio');
+        });
+    });
+
+    // 5. GeminiService
+    testGroup('Punto #5: GeminiService - Language', results, () => {
         const service = new GeminiService();
         test('Rilevamento IT', results, () => service.detectEmailLanguage("Buongiorno").lang === 'it');
         test('Rilevamento PT', results, () => service.detectEmailLanguage("Bom dia").lang === 'pt');
     });
 
-    // 5. ResponseValidator
-    testGroup('Punto #5: ResponseValidator - Quality', results, () => {
+    // 6. ResponseValidator
+    testGroup('Punto #6: ResponseValidator - Quality', results, () => {
         const validator = new ResponseValidator();
         test('Rileva leak "Rivedendo la KB"', results, () => {
             const res = validator.validateResponse("Rivedendo la knowledge base, ecco la risposta.", 'it', "...", "...", "...", "full");
@@ -252,8 +265,8 @@ function runAllTests() {
         });
     });
 
-    // 6. Gemini JSON parser recovery
-    testGroup('Punto #6: Gemini JSON Parser - Recovery', results, () => {
+    // 7. Gemini JSON parser recovery
+    testGroup('Punto #7: Gemini JSON Parser - Recovery', results, () => {
         test('Parsa JSON in blocco markdown', results, () => {
             const parsed = parseGeminiJsonLenient('```json\n{"reply_needed":true,"language":"it","category":"MIXED"}\n```');
             return parsed.reply_needed === true && parsed.language === 'it' && parsed.category === 'MIXED';
@@ -264,8 +277,8 @@ function runAllTests() {
         });
     });
 
-    // 7. GmailService OCR document parsing
-    testGroup('Punto #7: GmailService - OCR document hints', results, () => {
+    // 8. GmailService OCR document parsing
+    testGroup('Punto #8: GmailService - OCR document hints', results, () => {
         const service = new GmailService();
         test('Riconosce certificato di battesimo', results, () => {
             const t = service._detectDocumentType('certificato_battesimo.pdf', 'certificato di battesimo');

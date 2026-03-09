@@ -204,6 +204,7 @@ class EmailProcessor {
       : function fallbackClassifyError(err) { return { type: 'UNKNOWN', retryable: false, message: String(err) }; };
 
     let candidate = null;
+    let replySent = false;
     try {
       // Raccogli informazioni su thread e messaggi
       // Ottieni ultimo messaggio NON LETTO nel thread
@@ -1012,6 +1013,7 @@ ${addressLines.join('\n\n')}
 
       try {
         this.gmailService.sendHtmlReply(candidate, response, messageDetails);
+        replySent = true;
       } catch (e) {
         const errorMessage = e && e.message ? e.message : String(e);
         console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
@@ -1069,6 +1071,18 @@ ${addressLines.join('\n\n')}
 
     } catch (error) {
       console.error(`   🛑 Errore elaborazione thread: ${error.message}`);
+
+      if (replySent) {
+        console.warn('   ⚠️ Errore post-invio: thread non etichettato come errore perché la risposta è stata già inviata');
+        if (candidate) {
+          this._markMessageAsProcessed(candidate, labeledMessageIds);
+        }
+        result.status = 'replied';
+        result.warning = `post_send_error: ${error.message}`;
+        result.durationMs = Date.now() - startTime;
+        return result;
+      }
+
       this._addErrorLabel(thread);
       if (candidate) {
         this._markMessageAsProcessed(candidate, labeledMessageIds);
@@ -1553,6 +1567,7 @@ ${addressLines.join('\n\n')}
   _detectProvidedTopics(response) {
     if (!response || typeof response !== 'string') return [];
     const topics = [];
+    const responseLower = response.toLowerCase();
     // I pattern usano già il flag /i, nessuna normalizzazione necessaria
 
     const patterns = {
@@ -1567,7 +1582,7 @@ ${addressLines.join('\n\n')}
     };
 
     for (const [topic, pattern] of Object.entries(patterns)) {
-      if (pattern.test(lower)) {
+      if (pattern.test(responseLower)) {
         topics.push(topic);
       }
     }
