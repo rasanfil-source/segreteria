@@ -722,7 +722,21 @@ class ResponseValidator {
       const word = String(match[1]); // Punto 8: Coercizione esplicita a stringa
 
       if (capitalizationExceptions.includes(word)) {
-        continue;
+        if (word !== 'La') {
+          continue;
+        }
+
+        // "La" è ambigua: può essere pronome formale (ok) o articolo (da segnalare).
+        // Se seguito da un verbo comune, trattalo come eccezione; altrimenti lascia passare i controlli.
+        const afterMatchPosLa = match.index + match[0].length;
+        const textAfterLa = response.substring(afterMatchPosLa);
+        const nextWordMatch = textAfterLa.match(/^\s+([a-zàèéìòù']+)/);
+        const nextWord = nextWordMatch ? nextWordMatch[1].toLowerCase() : '';
+        const likelyFormalPronoun = /^(informo|ringrazio|avviso|aggiorno|contatto|invito|prego|saluto|ascolto|rassicuro|confermo|ricordo|attendo)$/.test(nextWord);
+
+        if (likelyFormalPronoun) {
+          continue;
+        }
       }
 
       // Euristica nomi doppi: se la parola è seguita da un'altra maiuscola,
@@ -966,7 +980,7 @@ class ResponseValidator {
     // Regex cattura: [ (gruppo1) ] ( (gruppo2) )
     // Verifica se gruppo1 == gruppo2 (o molto simile)
     return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label, url) => {
-      if (label.trim() === url.trim() || url.includes(label.trim())) {
+      if (label.trim() === url.trim()) {
         return url; // Ritorna solo l'URL
       }
       return match;

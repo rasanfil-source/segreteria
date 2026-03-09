@@ -1,4 +1,4 @@
-﻿­ƒöì Match esatto trovato: 'via giovanni vincenzo gravina'
+­ƒöì Match esatto trovato: 'via giovanni vincenzo gravina'
 ­ƒôì Indirizzo rilevato: via Roma n. 10A
 ­ƒôì Indirizzo rilevato: via Roma n. 10B
 PASS territory abbreviations
@@ -9,6 +9,7 @@ PASS civic deduplication (10A vs 10B)
 PASS civic extraction with slash/dash suffix
 PASS classifyError: quota/429 ÔåÆ retryable
 PASS classifyError: API key/invalid ÔåÆ non-retryable
+PASS classifyError: timeout/408/econnaborted ÔåÆ retryable
 PASS portuguese special greeting
 ­ƒñû Chiamata gemini-2.5-flash (prompt: 11 caratteri)...
 Ô£ô Generati 5 caratteri (da 1 parti)
@@ -42,12 +43,17 @@ PASS anti-loop: thread lungo con esterni consecutivi
 ­ƒºá Memory hit per thread thread-1 (Lingua: it)
 PASS memory get: usa row.values in parsing
 PASS memory invalidate: pulizia cache robusta
+­ƒºá Inferred Reaction: ACKNOWLEDGED su topic 'Battesimo'
+PASS memory reaction: topic null non crasha
+ÔÜá´©Å Recovery WAL saltato: impossibile acquisire lock entro 5s
 PASS rate limiter WAL: recovery bloccato senza lock
 ­ƒÜ½ Ignorato: auto-reply o notifica di sistema
 ­ƒÜ½ Ignorato: auto-reply o notifica di sistema
 PASS _shouldIgnoreEmail: no-reply/reale/ooo
 PASS attachment context: sanitizzazione + newline reali
-­ƒôØ Prompt generato: 89108 caratteri (~22277 token) | Profilo: lite | Saltati: 4
+­ƒôª KB troncata: 1/1 paragrafi (39200/80000 caratteri)
+ÔÜá´©Å KB eccede il budget (80000 chars), tronco a 70000
+­ƒôØ Prompt generato: 48380 caratteri (~12095 token) | Profilo: lite | Saltati: 4
 PASS prompt lite: budget token e sezioni ridotte
 ­ƒôè Inizializzazione RequestTypeClassifier...
 Ô£ô RequestTypeClassifier inizializzato
@@ -66,158 +72,218 @@ PASS request classifier: external hint category trim
    ­ƒôè Classificazione: TECHNICAL (Tono: Professionale)
       Dims: T=0.80 P=0.00 D=0.00 F=0.00
       Emotion=Low, Complex=Low
-­ƒôØ Prompt generato: 11279 caratteri (~2820 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11273 caratteri (~2819 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (140 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 0.95)
    ­ƒôè Classificazione: PASTORAL (Tono: Empatico e Accogliente)
       Dims: T=0.00 P=1.00 D=0.00 F=0.00
       Emotion=High, Complex=High
-­ƒôØ Prompt generato: 11957 caratteri (~2990 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11955 caratteri (~2989 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (78 caratteri, lingua=en)...
 Ô£ô Validazione SUPERATA (punteggio: 0.69)
    ­ƒôè Classificazione: TECHNICAL (Tono: Professionale)
       Dims: T=0.00 P=0.00 D=0.00 F=0.00
       Emotion=Low, Complex=Low
-­ƒôØ Prompt generato: 13823 caratteri (~3456 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 13817 caratteri (~3455 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (133 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 1.00)
    ­ƒôè Classificazione: TECHNICAL (Tono: Professionale)
       Dims: T=0.00 P=0.00 D=0.00 F=0.00
       Emotion=Low, Complex=Low
-­ƒôØ Prompt generato: 11943 caratteri (~2986 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11941 caratteri (~2986 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (78 caratteri, lingua=en)...
 Ô£ô Validazione SUPERATA (punteggio: 0.69)
    ­ƒôè Classificazione: TECHNICAL (Tono: Professionale)
       Dims: T=0.00 P=0.00 D=0.00 F=0.00
       Emotion=Low, Complex=Low
-­ƒôØ Prompt generato: 11858 caratteri (~2965 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11854 caratteri (~2964 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (68 caratteri, lingua=es)...
 Ô£ô Validazione SUPERATA (punteggio: 0.81)
    ­ƒôè Classificazione: TECHNICAL (Tono: Professionale)
       Dims: T=0.80 P=0.00 D=0.00 F=0.00
       Emotion=Low, Complex=Low
-­ƒôØ Prompt generato: 13068 caratteri (~3267 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 13062 caratteri (~3266 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (77 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 0.81)
    ­ƒôè Classificazione: TECHNICAL (Tono: Professionale)
       Dims: T=0.00 P=0.00 D=0.00 F=0.00
       Emotion=Low, Complex=Low
-­ƒôØ Prompt generato: 8041 caratteri (~2011 token) | Profilo: lite | Saltati: 4
+­ƒôØ Prompt generato: 8037 caratteri (~2010 token) | Profilo: lite | Saltati: 4
 ­ƒöì Validazione risposta (68 caratteri, lingua=es)...
 Ô£ô Validazione SUPERATA (punteggio: 0.81)
    ­ƒôè Classificazione: DOCTRINAL (Tono: Istruttivo e Chiaro)
       Dims: T=0.40 P=0.00 D=0.80 F=0.00
       Emotion=Low, Complex=Medium
-­ƒôØ Prompt generato: 11332 caratteri (~2833 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11326 caratteri (~2832 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (123 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 0.95)
    ­ƒôè Classificazione: TECHNICAL (Tono: Professionale)
       Dims: T=0.80 P=0.00 D=0.00 F=0.00
       Emotion=Low, Complex=Low
-­ƒôØ Prompt generato: 9235 caratteri (~2309 token) | Profilo: lite | Saltati: 4
+­ƒôØ Prompt generato: 9229 caratteri (~2308 token) | Profilo: lite | Saltati: 4
 ­ƒöì Validazione risposta (77 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 0.81)
    ­ƒôè Classificazione: TECHNICAL (Tono: Professionale)
       Dims: T=0.40 P=0.00 D=0.00 F=0.00
       Emotion=Low, Complex=Low
-­ƒôØ Prompt generato: 9179 caratteri (~2295 token) | Profilo: lite | Saltati: 4
+­ƒôØ Prompt generato: 9173 caratteri (~2294 token) | Profilo: lite | Saltati: 4
 ­ƒöì Validazione risposta (87 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 1.00)
    ­ƒôè Classificazione: TECHNICAL (Tono: Professionale)
       Dims: T=0.00 P=0.00 D=0.00 F=0.00
       Emotion=Low, Complex=Low
-­ƒôØ Prompt generato: 11212 caratteri (~2803 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11206 caratteri (~2802 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (81 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 0.90)
    ­ƒôè Classificazione: TECHNICAL (Tono: Professionale)
       Dims: T=0.00 P=0.00 D=0.00 F=0.00
       Emotion=Low, Complex=Low
-­ƒôØ Prompt generato: 11224 caratteri (~2806 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11218 caratteri (~2805 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (89 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 0.95)
    ­ƒôè Classificazione: TECHNICAL (Tono: Professionale)
       Dims: T=0.40 P=0.00 D=0.00 F=0.00
       Emotion=Low, Complex=Low
-­ƒôØ Prompt generato: 11236 caratteri (~2809 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11230 caratteri (~2808 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (83 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 0.95)
    ­ƒôè Classificazione: TECHNICAL (Tono: Professionale)
       Dims: T=0.00 P=0.00 D=0.00 F=0.00
       Emotion=Low, Complex=Low
-­ƒôØ Prompt generato: 12018 caratteri (~3005 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 12012 caratteri (~3003 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (133 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 0.95)
    ­ƒôè Classificazione: PASTORAL (Tono: Empatico e Accogliente)
       Dims: T=0.00 P=1.00 D=0.00 F=0.00
       Emotion=High, Complex=High
-­ƒôØ Prompt generato: 11274 caratteri (~2819 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11268 caratteri (~2817 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (115 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 0.95)
    ­ƒôè Classificazione: PASTORAL (Tono: Empatico e Accogliente)
       Dims: T=0.00 P=1.00 D=0.00 F=0.00
       Emotion=High, Complex=High
-­ƒôØ Prompt generato: 11259 caratteri (~2815 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11253 caratteri (~2814 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (109 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 0.95)
    ­ƒôè Classificazione: TECHNICAL (Tono: Professionale)
       Dims: T=0.00 P=0.00 D=0.00 F=0.00
       Emotion=Low, Complex=Low
-­ƒôØ Prompt generato: 11835 caratteri (~2959 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11830 caratteri (~2958 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (56 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 0.81)
    ­ƒôè Classificazione: PASTORAL (Tono: Empatico e Accogliente)
       Dims: T=0.00 P=0.80 D=0.00 F=0.00
       Emotion=High, Complex=Low
-­ƒôØ Prompt generato: 11319 caratteri (~2830 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11313 caratteri (~2829 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (119 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 0.95)
    ­ƒôè Classificazione: PASTORAL (Tono: Empatico e Accogliente)
       Dims: T=0.00 P=1.00 D=0.00 F=0.00
       Emotion=High, Complex=High
-­ƒôØ Prompt generato: 11277 caratteri (~2820 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11271 caratteri (~2818 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (145 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 0.95)
    ­ƒôè Classificazione: TECHNICAL (Tono: Professionale)
       Dims: T=0.00 P=0.00 D=0.00 F=0.00
       Emotion=Low, Complex=Low
-­ƒôØ Prompt generato: 11264 caratteri (~2816 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11258 caratteri (~2815 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (168 caratteri, lingua=it)...
-Ô£ô Validazione SUPERATA (punteggio: 0.95)
+Ô£ô Validazione SUPERATA (punteggio: 0.81)
    ­ƒôè Classificazione: PASTORAL (Tono: Empatico e Accogliente)
       Dims: T=0.00 P=1.00 D=0.00 F=0.00
       Emotion=High, Complex=High
-­ƒôØ Prompt generato: 11959 caratteri (~2990 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11957 caratteri (~2990 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (102 caratteri, lingua=en)...
 Ô£ô Validazione SUPERATA (punteggio: 0.95)
    ­ƒôè Classificazione: PASTORAL (Tono: Empatico e Accogliente)
       Dims: T=0.00 P=0.80 D=0.00 F=0.00
       Emotion=High, Complex=Low
-­ƒôØ Prompt generato: 11877 caratteri (~2970 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11873 caratteri (~2969 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (117 caratteri, lingua=es)...
 Ô£ô Validazione SUPERATA (punteggio: 0.95)
    ­ƒôè Classificazione: PASTORAL (Tono: Empatico e Accogliente)
       Dims: T=0.00 P=0.80 D=0.00 F=0.00
       Emotion=High, Complex=Low
-­ƒôØ Prompt generato: 11277 caratteri (~2820 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11271 caratteri (~2818 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (96 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 0.95)
    ­ƒôè Classificazione: PASTORAL (Tono: Empatico e Accogliente)
       Dims: T=0.00 P=1.00 D=0.00 F=0.00
       Emotion=High, Complex=High
-­ƒôØ Prompt generato: 11247 caratteri (~2812 token) | Profilo: standard | Saltati: 1
+­ƒôØ Prompt generato: 11241 caratteri (~2811 token) | Profilo: standard | Saltati: 1
 ­ƒöì Validazione risposta (165 caratteri, lingua=it)...
 Ô£ô Validazione SUPERATA (punteggio: 0.95)
 PASS golden set: regressione output strutturale
 PASS escapeHtml: neutralizza XSS
+PASS markdownToHtml: input non stringa robusto
+­ƒøæ Bloccato tentativo SSRF IPv6 locale: http://[::1]/admin
+­ƒøæ Bloccato tentativo SSRF: http://2130706433/
+­ƒøæ Bloccato tentativo SSRF: http://localhost@evil.com/path
+­ƒøæ Bloccato tentativo SSRF: http://localhost./admin
+­ƒøæ Bloccato tentativo SSRF hostname numerico: http://0x7f.0x0.0x0.0x1/admin
+­ƒøæ Bloccato tentativo SSRF IPv4-mapped IPv6: http://[::ffff:127.0.0.1]/admin
+­ƒøæ Bloccato tentativo SSRF IPv4-mapped IPv6: http://[0:0:0:0:0:ffff:7f00:1]/admin
+­ƒøæ Bloccato tentativo SSRF IPv6 locale: http://[fd00::1]/admin
+­ƒøæ Bloccato tentativo SSRF IPv6 locale: http://[::]/admin
+­ƒøæ Bloccato tentativo SSRF hostname numerico: http://100.64.0.10/internal
 PASS sanitizeUrl: blocca IPv6/decimale/userinfo
 PASS markdownToHtml: escape-first previene XSS
 PASS markdownToHtml: supporta URL con parentesi
+PASS markdownToHtml: query params senza double-escape
+PASS markdownToHtml: evita nesting p/ul invalido
+ÔÜá´©Å addLabelToThread fallito per 'IA': Permission denied
 PASS gmail labels: errori non-label vengono propagati
-Ô£ô Risorse caricate correttamente.
+ÔÜá´©Å Interruzione list label 'IA': limite raggiunto (pages=1/1, messages=1/2)
+­ƒôª Trovati 1 messaggi con label 'IA' (inbox: true, windowDays: 7, pages: 1)
+PASS gmail list: fallback robusto opzioni paginazione invalide
 PASS main: reset cache risorse mancanti
-­ƒÜÇ Avvio main pipeline - v3.0
+­ƒÜÇ Avvio pipeline principale
+CRITICO: Gmail Advanced Service non disponibile o non autorizzato. Impossibile procedere.
 PASS main: nessun leak globale hasExecutionLock
+--- Test: Sheet Rows To Text Polish ---
+PASS main: serializzazione robusta righe KB
+--- Test: Sheet Rows To Text Date Stability ---
+PASS main: serializzazione date KB stabile
+--- Test: Sheet Rows To Text Multiline Cell Normalization ---
+PASS main: serializzazione celle multilinea KB stabile
+--- Test: Date formatter fallback honors script timezone ---
+PASS main: fallback date formatter usa timezone script
+--- Test: Thinking leak removal handles keyword starting with parenthesis ---
+­ƒöì Inizializzazione ResponseValidator...
+Ô£ô ResponseValidator inizializzato
+   Soglia minima validit├á: 0.6
+PASS validator: thinking leak con pattern parentesi
+--- Test: Load Resources AI_CORE falsey values ---
+ÔÜá´©Å Salvataggio cache standard fallito: cache.removeAll is not a function
+ÔÜá´©Å Impossibile salvare in cache anche in formato compresso: Utilities gzip/base64 non disponibili
+PASS main: ai_core preserva valori falsey
+--- Test: Load Advanced Config strict suspension parsing ---
+PASS main: parsing rigoroso fasce sospensione
+--- Test: PromptContext Temporal Risk with Object KB ---
+PASS prompt context: temporal risk with object KB
+--- Test: PromptContext Temporal Risk with day/month KB ---
+PASS prompt context: temporal risk with day/month KB
+--- Test: PromptContext Circular KB Object ---
+PASS prompt context: circular object KB fallback
+--- Test: PromptContext Explicit KB Meta ---
+PASS prompt context: explicit knowledgeBaseMeta precedence
+­ƒôØ Prompt generato: 11192 caratteri (~2798 token) | Profilo: heavy | Saltati: 0
+PASS prompt engine: object KB normalization
+­ƒôª KB troncata: 1/2 paragrafi (22/388 caratteri)
+PASS prompt KB truncation: hard limit chars rispettato
+--- Test: Portuguese Detection Refinement ---
+   Trovato carattere portoghese (├ú, ├Á, ├º)
+   Punteggi lingua: EN = 0, ES = 0, PT = 13, IT = 1
+   Ô£ô Rilevato: PT (punteggio: 13, grado sicurezza: 5)
+PASS gemini: portuguese detection refinement
+--- Test: Classifier Backward Quote Scan ---
+­ƒºá Inizializzazione Classifier...
+Ô£ô Classifier inizializzato
+   Filosofia: Filtra solo casi ovvi, delega il resto a Gemini
+PASS classifier: backward quote scan
+--- Test: Load Resources Replacements ---
+PASS main: caricamento sostituzioni
 
-SUMMARY: 32/32 passed (min: 20)
+SUMMARY: 54/54 passed (min: 39)
 
 Ô£à Smoke tests completati con successo.

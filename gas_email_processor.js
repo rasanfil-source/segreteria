@@ -1678,7 +1678,6 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
   _detectProvidedTopics(response) {
     if (!response || typeof response !== 'string') return [];
     const topics = [];
-    const responseLower = response.toLowerCase();
     // I pattern usano già il flag /i, nessuna normalizzazione necessaria
 
     const patterns = {
@@ -1693,7 +1692,7 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
     };
 
     for (const [topic, pattern] of Object.entries(patterns)) {
-      if (pattern.test(responseLower)) {
+      if (pattern.test(response)) {
         topics.push(topic);
       }
     }

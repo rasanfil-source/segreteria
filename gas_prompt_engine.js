@@ -581,7 +581,9 @@ ${checks.join('\n')}
       if (fullTextLower.includes(sottotema)) score += 2;
 
       // B. Peso Categoriale (da Dimensioni)
-      score *= (1 + getCatWeight(rowCat));
+      // Il bonus categoria deve poter emergere anche con match semantico debole.
+      const catWeight = getCatWeight(rowCat);
+      score = (score * (1 + catWeight)) + (catWeight * 2);
 
       // C. Coerenza Tono (Boost direttive allineate)
       // Se il tono suggerito dal classifier matcha il tono della riga

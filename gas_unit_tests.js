@@ -257,6 +257,14 @@ function runAllTests() {
         });
     });
 
+    testGroup('Punto #4b: Classifier - OOO patterns', results, () => {
+        test('Non filtra come OOO una richiesta pastorale con "malattia" senza contesto assenza', results, () => {
+            const classifier = new Classifier();
+            const out = classifier.classifyEmail('Richiesta preghiera', 'Mia madre ha una malattia grave, possiamo parlare con il parroco?');
+            return out.shouldReply === true && out.reason !== 'out_of_office_auto_reply';
+        });
+    });
+
     // 5. GeminiService
     testGroup('Punto #5: GeminiService - Language', results, () => {
         const service = new GeminiService();
@@ -274,6 +282,14 @@ function runAllTests() {
         test('Rileva placeholder "XXX"', results, () => {
             const res = validator.validateResponse("Gentile utente, XXX, saluti.", 'it', "...", "...", "...", "full");
             return res.details.content.score === 0.0;
+        });
+        test("Mantiene link descrittivo quando label è sottostringa dell'URL", results, () => {
+            const optimized = validator._ottimizzaLinkDuplicati('[Santiago](https://tinyurl.com/santiago26)');
+            return optimized === '[Santiago](https://tinyurl.com/santiago26)';
+        });
+        test('Segnala "La" articolo dopo virgola (non pronome formale)', results, () => {
+            const cap = validator._checkCapitalAfterComma('Ciao, La messa è alle 10.', 'it');
+            return Array.isArray(cap.violations) && cap.violations.includes('La');
         });
         test('Rileva inconsistenza lingua (ES invece di IT)', results, () => {
             const spanishText = "Hola, gracias por contactarnos. Saludos estimables.";

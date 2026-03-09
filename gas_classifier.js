@@ -384,7 +384,8 @@ class Classifier {
       /\bsono\s+in\s+ferie\b/i,
       /\bassen[tz]a\s+per\s+ferie\b/i,
       /\bnon\s+sono\s+in\s+ufficio\b/i,
-      /\bmalattia\b/i,
+      /\bassenza\s+per\s+malattia\b/i,
+      /\bcongedo\s+per\s+malattia\b/i,
       /\bvacc?anze\b/i
     ];
 
