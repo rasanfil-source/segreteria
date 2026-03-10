@@ -141,7 +141,11 @@ class PromptEngine {
     const KB_BUDGET_RATIO = (typeof CONFIG !== 'undefined' && typeof CONFIG.KB_TOKEN_BUDGET_RATIO === 'number')
       ? CONFIG.KB_TOKEN_BUDGET_RATIO
       : 0.5; // La KB può occupare max il 50% dello spazio rimanente
-    const availableForKB = Math.max(0, (MAX_SAFE_TOKENS - OVERHEAD_TOKENS) * KB_BUDGET_RATIO);
+
+    // FIX: Calcolo dinamico - sottrai i token stimati per allegati testuali
+    // per evitare che KB + allegati superino il budget API
+    const ocrTokens = this.estimateTokens(attachmentsContext || '');
+    const availableForKB = Math.max(2000, ((MAX_SAFE_TOKENS - OVERHEAD_TOKENS - ocrTokens) * KB_BUDGET_RATIO));
     // Stima conservativa 1 token ≈ 4 caratteri: volutamente prudente per evitare overflow
     // con input multilingua/rumorosi. Ridurre il fattore aumenterebbe il rischio di prompt troppo lunghi.
     const kbCharsLimit = Math.round(availableForKB * 4);

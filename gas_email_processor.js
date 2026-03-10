@@ -778,7 +778,14 @@ ${addressLines.join('\n\n')}
           if (!hasAttachments) {
             attachmentSkipped.push({ reason: 'no_attachments' });
             console.log('   📎 Elaborazione allegati saltata: nessun allegato nel messaggio candidato');
-          } else if (this._shouldTryOcr(messageDetails.body, messageDetails.subject, candidate)) {
+          } else if (
+            (messageDetails.body || '').trim().length < 50 ||
+            this._shouldTryOcr(messageDetails.body, messageDetails.subject, candidate)
+          ) {
+            // Body molto corto (<50 char) → l'allegato è probabilmente il contenuto principale
+            if ((messageDetails.body || '').trim().length < 50) {
+              console.log('   📎 Body corto: elaborazione allegati forzata');
+            }
             console.log('   📎 Elaborazione allegati multimodale (Vision)...');
             const attachmentData = this.gmailService.getProcessableAttachments(candidate);
             attachmentBlobs = attachmentData.blobs || [];
@@ -798,6 +805,7 @@ ${addressLines.join('\n\n')}
             attachmentSkipped.push({ reason: 'precheck_no_ocr' });
             console.log('   📎 Elaborazione allegati saltata: keyword trigger non rilevate');
           }
+
         }
       }
 
@@ -953,14 +961,6 @@ ${addressLines.join('\n\n')}
         return result;
       }
 
-      // Nota OCR bassa confidenza: avviso leggibilità allegato
-      if (attachmentContext && attachmentContext.ocrConfidenceLow) {
-        const ocrLowConfidenceNote = this._getOcrLowConfidenceNote(detectedLanguage);
-        if (ocrLowConfidenceNote && !response.includes(ocrLowConfidenceNote)) {
-          response = `${response.trim()}\n\n${ocrLowConfidenceNote}`;
-          console.log(`   ⚠️ Nota OCR aggiunta (confidenza media: ${attachmentContext.ocrConfidence})`);
-        }
-      }
 
       response = this._addTimeDiscrepancyNoteIfNeeded(
         response,

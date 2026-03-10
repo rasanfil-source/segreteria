@@ -92,7 +92,8 @@ class GeminiService {
       const wordCount = text.split(/\s+/).length;
       const baseTokens = Math.ceil(wordCount * 1.25);
       const overhead = Math.ceil(baseTokens * 0.1);
-      const charEstimate = Math.ceil(text.length / 3.5);
+      // Incrementato a 3.2 per cautela con caratteri speciali/accentati comuni in IT/ES/PT
+      const charEstimate = Math.ceil(text.length / 3.2);
       tokens += Math.max(baseTokens + overhead, charEstimate, 1);
     }
 
