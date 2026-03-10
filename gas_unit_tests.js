@@ -382,6 +382,10 @@ function runAllTests() {
             }));
             return typeof prompt === 'string' && prompt.length > 0;
         });
+        test('Rafforza regola anti-infodumping nelle linee guida risposta', results, () => {
+            const guidelines = engine._renderResponseGuidelines('it', 'ordinario', 'Buongiorno', 'Cordiali saluti');
+            return guidelines.includes('REGOLA ANTI-INFODUMP') && guidelines.includes('massimo 4 frasi brevi');
+        });
     });
 
     const duration = Date.now() - start;

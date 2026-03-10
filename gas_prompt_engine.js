@@ -656,7 +656,8 @@ sempre in modo concreto alla domanda posta.
 ══════════════════════════════════════════════════════
 1) CONTINUITÀ: Se emerge che l'utente ha gi\u00E0 ricevuto una risposta su questo tema, evita di ripetere informazioni identiche. Usa al massimo 1 frase di continuità (es. "Riprendo volentieri da quanto detto..."), poi vai al punto.
 2) UMANITÀ MISURATA: Usa una frase empatica SOLO se il messaggio mostra un chiaro segnale emotivo o pastorale. Altrimenti rispondi in modo diretto e sobrio.
-3) FOCUS: Rispondi prima al tema principale (topic). Aggiungi solo informazioni secondarie se strettamente utili.
+-3) FOCUS: Rispondi prima al tema principale (topic). Aggiungi solo informazioni secondarie se strettamente utili.
++3) FOCUS: Rispondi prima al tema principale (topic). Aggiungi solo informazioni secondarie se strettamente utili. Se bastano poche righe, fermati lì.
 4) COERENZA LINGUISTICA: Mantieni la stessa lingua e livello di formalità dell'email ricevuta.
 5) PRUDENZA LEGGERA: Se la confidenza è bassa, formula con neutralità senza scuse o frasi di indecisione.
 ══════════════════════════════════════════════════════`;
@@ -1390,7 +1391,8 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
    • Answer ONLY what is asked
    • Use ONLY information from the knowledge base
    • ✅ Format elegantly if 3+ elements/times
-   • Follow-up (Re:): be more direct and concise`;
+   • Follow-up (Re:): be more direct and concise
+   • ANTI-INFODUMP RULE: keep the body to max 4 short sentences when the user asks one specific question; add extra details only if explicitly requested`;
 
       languageReminder = `4. **LANGUAGE: ⚠️ RESPOND IN ENGLISH ONLY**
    • NO Italian words allowed
@@ -1411,7 +1413,8 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
    • Responde SOLO lo que se pregunta
    • Usa SOLO información de la base de conocimientos
    • ✅ Formatea elegantemente si 3+ elementos/horarios
-   • Seguimiento (Re:): sé más directo y conciso`;
+   • Seguimiento (Re:): sé más directo y conciso
+   • REGLA ANTI-INFODUMP: cuerpo de máximo 4 frases breves si hay una sola pregunta específica; añade más detalles solo si se solicitan explícitamente`;
 
       languageReminder = `4. **IDIOMA: ⚠️ RESPONDE SOLO EN ESPAÑOL**
    • NO se permiten palabras italianas
@@ -1432,7 +1435,8 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
    • Responde APENAS ao que é perguntado
    • Usa APENAS informações da base de conhecimento
    • ✅ Formata elegantemente se 3+ elementos/horários
-   • Seguimiento (Re:): sê mais direto e conciso`;
+   • Seguimiento (Re:): sê mais direto e conciso
+   • REGRA ANTI-INFODUMP: corpo com no massimo 4 frasi curte quando houver uma pergunta específica; só acrescente detalhes extras se forem pedidos explicitamente`;
 
       languageReminder = `4. **IDIOMA: ⚠️ RESPONDE APENAS EM PORTUGUÊS**
    • NÃO são permitidas palavras italianas
@@ -1453,7 +1457,8 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
    • Rispondi SOLO a ciò che è chiesto
    • Usa SOLO info dalla knowledge base
    • ✅ Formatta elegantemente se 3+ elementi/orari
-   • Follow-up (Re:): sii più diretto e conciso`;
+   • Follow-up (Re:): sii più diretto e conciso
+   • REGOLA ANTI-INFODUMP: con una sola domanda specifica, limita il corpo a massimo 4 frasi brevi; aggiungi dettagli extra solo se richiesti esplicitamente`;
 
       languageReminder = `4. **Lingua:** Rispondi in italiano`;
     }
