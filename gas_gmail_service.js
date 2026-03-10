@@ -551,12 +551,149 @@ class GmailService {
         };
     }
 
+    // ========================================================================
+    // ALLEGATI: GESTIONE MULTIMODALE (Gemini Vision)
+    // ========================================================================
+
+    /**
+     * Estrae gli allegati processabili in modalità multimodale.
+     * - TXT/CSV: estratti come testo di contesto
+     * - PDF/Immagini: passati come Blob
+     * - DOC/DOCX/PPT/PPTX: convertiti al volo in PDF
+     * @param {GmailMessage} message
+     * @param {object} options
+     * @returns {{textContext: string, blobs: Array<Blob>, skipped: Array}}
+     */
+    getProcessableAttachments(message, options = {}) {
+        const defaults = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT)
+            ? CONFIG.ATTACHMENT_CONTEXT
+            : {};
+        const settings = Object.assign({
+            maxFiles: 3,
+            maxBytesPerFile: 3 * 1024 * 1024
+        }, defaults, options);
+
+        const result = {
+            textContext: '',
+            blobs: [],
+            skipped: []
+        };
+
+        let attachments = [];
+        try {
+            attachments = message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
+        } catch (e) {
+            console.warn(`⚠️ Impossibile leggere allegati: ${e.message}`);
+            result.skipped.push({ reason: 'read_error', error: e.message });
+            return result;
+        }
+
+        for (const attachment of attachments) {
+            const name = attachment.getName ? (attachment.getName() || 'allegato') : 'allegato';
+
+            if (result.blobs.length >= settings.maxFiles) {
+                result.skipped.push({ name: name, reason: 'max_files' });
+                continue;
+            }
+
+            const size = attachment.getSize ? attachment.getSize() : 0;
+            if (size > settings.maxBytesPerFile) {
+                result.skipped.push({ name: name, reason: 'too_large', size: size });
+                continue;
+            }
+
+            const mimeType = (attachment.getContentType() || '').toLowerCase();
+
+            if (mimeType.includes('text/plain') || mimeType.includes('text/csv')) {
+                try {
+                    const text = attachment.getDataAsString();
+                    result.textContext += `\n\n--- Contenuto file: ${name} ---\n${text.substring(0, 5000)}`;
+                } catch (e) {
+                    result.skipped.push({ name: name, reason: 'text_extract_error', error: e.message });
+                }
+                continue;
+            }
+
+            if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
+                result.blobs.push(attachment.copyBlob());
+                continue;
+            }
+
+            const isWord = mimeType.includes('msword') || mimeType.includes('wordprocessingml');
+            const isPowerPoint = mimeType.includes('mspowerpoint') || mimeType.includes('presentationml');
+
+            if (isWord || isPowerPoint) {
+                try {
+                    console.log(`   🔄 Conversione al volo in PDF per: ${name}`);
+                    const convertedPdf = this._convertOfficeToPdf(attachment);
+                    if (convertedPdf) {
+                        convertedPdf.setName(`${name}.pdf`);
+                        result.blobs.push(convertedPdf);
+                    } else {
+                        result.skipped.push({ name: name, reason: 'conversion_failed' });
+                    }
+                } catch (e) {
+                    console.warn(`   ⚠️ Errore conversione per ${name}: ${e.message}`);
+                    result.skipped.push({ name: name, reason: 'conversion_error', error: e.message });
+                }
+                continue;
+            }
+
+            result.skipped.push({ name: name, reason: 'unsupported_type', mimeType: mimeType });
+        }
+
+        return result;
+    }
+
+    /**
+     * Converte un file Office in PDF usando Drive Advanced Service.
+     * Crea un file temporaneo, lo esporta in PDF e lo cancella sempre.
+     * @param {Blob} attachmentBlob
+     * @returns {Blob}
+     */
+    _convertOfficeToPdf(attachmentBlob) {
+        if (typeof Drive === 'undefined' || !Drive.Files || typeof Drive.Files.insert !== 'function') {
+            throw new Error('Drive Advanced Service non abilitato. Attivare il servizio Drive nel progetto Apps Script.');
+        }
+
+        let fileId = null;
+        try {
+            const resource = {
+                title: `TEMP_CONV_${attachmentBlob.getName() || 'allegato'}`,
+                mimeType: attachmentBlob.getContentType()
+            };
+
+            const file = Drive.Files.insert(resource, attachmentBlob.copyBlob(), { convert: true });
+            fileId = file && file.id ? file.id : null;
+            if (!fileId) {
+                throw new Error('Conversione fallita: file temporaneo senza id.');
+            }
+
+            const pdfBlob = DriveApp.getFileById(fileId).getAs('application/pdf');
+            return pdfBlob;
+        } finally {
+            if (fileId) {
+                try {
+                    if (typeof Drive.Files.remove === 'function') {
+                        Drive.Files.remove(fileId);
+                    } else if (typeof Drive.Files.delete === 'function') {
+                        Drive.Files.delete(fileId);
+                    }
+                } catch (e) {
+                    console.warn(`⚠️ Errore cancellazione file temporaneo ${fileId}: ${e.message}`);
+                }
+            }
+        }
+    }
+
+
 
     _cleanupOrphanedOcrFilesIfNeeded() {
         try {
             const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
                 ? CacheService.getScriptCache()
                 : null;
+
 
             const throttleKey = 'OCR_ORPHAN_CLEANUP_LAST_RUN_V1';
             if (cache && cache.get(throttleKey)) {

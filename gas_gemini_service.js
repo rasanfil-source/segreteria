@@ -81,18 +81,46 @@ class GeminiService {
   // ========================================================================
 
   /**
-   * Stima token da testo
-   * Formula: parole * 1.25 + overhead 10% (allineato con GeminiRateLimiter)
+   * Stima token da testo + allegati multimodali
+   * Formula: testo + (immagini * tokenImage) + (pdf/documenti * tokenPdf)
+   * Valori token configurabili via CONFIG.ATTACHMENT_TOKEN_ESTIMATE
    */
-  _estimateTokens(text) {
-    if (!text) return 0;
+  _estimateTokens(text, attachments = []) {
+    let tokens = 0;
 
-    const wordCount = text.split(/\s+/).length;
-    const baseTokens = Math.ceil(wordCount * 1.25);
-    const overhead = Math.ceil(baseTokens * 0.1);
-    const charEstimate = Math.ceil(text.length / 3.5);
+    if (text) {
+      const wordCount = text.split(/\s+/).length;
+      const baseTokens = Math.ceil(wordCount * 1.25);
+      const overhead = Math.ceil(baseTokens * 0.1);
+      const charEstimate = Math.ceil(text.length / 3.5);
+      tokens += Math.max(baseTokens + overhead, charEstimate, 1);
+    }
 
-    return Math.max(baseTokens + overhead, charEstimate, 1);
+    if (attachments && attachments.length > 0) {
+      const tokenEstimates = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_TOKEN_ESTIMATE)
+        ? CONFIG.ATTACHMENT_TOKEN_ESTIMATE
+        : {};
+      const tokenImage = tokenEstimates.image || 258;
+      const tokenPdf = tokenEstimates.pdf || 1032;
+      const tokenDefault = tokenEstimates.defaultDoc || 1032;
+
+      attachments.forEach((blob) => {
+        try {
+          const mimeType = ((blob && blob.getContentType) ? blob.getContentType() : '').toLowerCase();
+          if (mimeType.includes('image/')) {
+            tokens += tokenImage;
+          } else if (mimeType.includes('pdf')) {
+            tokens += tokenPdf;
+          } else {
+            tokens += tokenDefault;
+          }
+        } catch (e) {
+          tokens += tokenImage;
+        }
+      });
+    }
+
+    return Math.max(tokens, 1);
   }
 
   /**
@@ -100,9 +128,10 @@ class GeminiService {
    * @param {string} prompt - Prompt completo
    * @param {string} modelName - Nome modello API (es. 'gemini-2.5-flash')
    * @param {string} apiKeyOverride - Chiave API opzionale (per strategia multi-key)
+   * @param {Array<Blob>} attachments - Array di Blob (immagini/PDF) da inviare
    * @returns {string|null} Testo generato
    */
-  _generateWithModel(prompt, modelName, apiKeyOverride = null) {
+  _generateWithModel(prompt, modelName, apiKeyOverride = null, attachments = []) {
     // Usa chiave override se fornita, altrimenti chiave primaria
     const activeKey = apiKeyOverride || this.primaryKey;
     const url = this._buildGenerateUrl(modelName);
@@ -111,13 +140,30 @@ class GeminiService {
 
     console.log(`\uD83E\uDD16 Chiamata ${modelName} (prompt: ${prompt.length} caratteri)...`);
 
+    const requestParts = [];
+    if (attachments && attachments.length > 0) {
+      attachments.forEach((blob) => {
+        try {
+          requestParts.push({
+            inlineData: {
+              mimeType: blob.getContentType(),
+              data: Utilities.base64Encode(blob.getBytes())
+            }
+          });
+        } catch (e) {
+          console.warn(`Impossibile encodare l'allegato: ${e.message}`);
+        }
+      });
+    }
+    requestParts.push({ text: prompt });
+
     let response;
     try {
       response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
+          contents: [{ parts: requestParts }],
           generationConfig: {
             temperature: temperature,
             maxOutputTokens: maxTokens
@@ -128,6 +174,7 @@ class GeminiService {
     } catch (error) {
       throw new Error(`Errore rete/timeout durante chiamata Gemini: ${error.message}`);
     }
+
 
     const responseCode = response.getResponseCode();
     const responseBody = response.getContentText();
@@ -1079,23 +1126,25 @@ Output JSON:
    * @param {string} options.apiKey - Chiave API specifica (opzionale)
    * @param {string} options.modelName - Nome modello specifico (opzionale)
    * @param {boolean} options.skipRateLimit - Se true, bypassa Rate Limiter locale
+   * @param {Array<Blob>} options.attachments - Array di Blob (immagini/PDF)
    * @returns {Object} { success: boolean, text: string, error?: string, modelUsed?: string }
    */
   generateResponse(prompt, options = {}) {
     const targetKey = options.apiKey || this.primaryKey;
     const targetModel = options.modelName || this.modelName;
     const skipRateLimit = options.skipRateLimit || false;
+    const attachments = options.attachments || [];
 
     // ═══════════════════════════════════════════════════════════════════
     // RATE LIMITER PATH (solo se abilitato E non skippato)
     // ═══════════════════════════════════════════════════════════════════
     if (this.useRateLimiter && !skipRateLimit) {
       try {
-        const estimatedTokens = this._estimateTokens(prompt);
+        const estimatedTokens = this._estimateTokens(prompt, attachments);
 
         const result = this.rateLimiter.executeRequest(
           'generation',
-          (modelName) => this._generateWithModel(prompt, modelName, targetKey),
+          (modelName) => this._generateWithModel(prompt, modelName, targetKey, attachments),
           {
             estimatedTokens: estimatedTokens,
             preferQuality: true  // Qualità > economia per generation
@@ -1122,72 +1171,17 @@ Output JSON:
     if (skipRateLimit) {
       console.log(`⏩ Chiamata diretta(bypass RateLimiter) con ${targetModel} `);
       const text = this._withRetry(
-        () => this._generateWithModel(prompt, targetModel, targetKey),
+        () => this._generateWithModel(prompt, targetModel, targetKey, attachments),
         'Generazione diretta (Chiave di Riserva)'
       );
       // `success` è coerente con la presenza di testo generato (nessuna inversione logica).
       return { success: !!text, text: text, modelUsed: targetModel };
     }
 
-    // IMPLEMENTAZIONE ORIGINALE
-    const result = this._withRetry(() => {
-      console.log(`🤖 Chiamata Gemini API(prompt: ${prompt.length} caratteri)...`);
-
-      const temperature = this.config.TEMPERATURE || 0.5;
-      const maxTokens = this.config.MAX_OUTPUT_TOKENS || 6000;
-
-      const url = this._buildGenerateUrl(targetModel);
-
-      const response = this.fetchFn(`${url}?key=${encodeURIComponent(targetKey)}`, {
-        method: 'POST',
-        contentType: 'application/json',
-        payload: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: temperature,
-            maxOutputTokens: maxTokens
-          }
-        }),
-        muteHttpExceptions: true
-      });
-
-      const responseCode = response.getResponseCode();
-
-      if (responseCode === 429 || responseCode === 503) {
-        throw new Error(`rate limit o servizio non disponibile: ${responseCode} `);
-      }
-
-      if (responseCode !== 200) {
-        const body = response.getContentText().substring(0, 500);
-        console.error(`❌ Errore Gemini API: ${responseCode} — ${body}`);
-        throw new Error(`Errore API non recuperabile: ${responseCode} — ${body}`);
-      }
-
-      const resJson = JSON.parse(response.getContentText());
-
-      if (!resJson.candidates || !resJson.candidates[0] || !resJson.candidates[0].content) {
-        console.error('❌ Risposta Gemini non valida: nessun candidato o contenuto');
-        return null;
-      }
-
-      const candidate = resJson.candidates[0];
-
-      if (candidate.finishReason === 'MAX_TOKENS') {
-        console.warn('⚠️ Risposta troncata per limite MAX_TOKENS');
-      }
-
-      const parts = candidate.content?.parts || [];
-      const generatedText = parts.map(p => p.text || '').join('').trim();
-
-      if (!generatedText || generatedText.trim().length === 0) {
-        console.error('❌ Gemini ha restituito risposta vuota');
-        return null;
-      }
-
-      console.log(`✓ Risposta generata(${generatedText.length} caratteri)`);
-      return generatedText;
-
-    }, 'Generazione risposta');
+    const result = this._withRetry(
+      () => this._generateWithModel(prompt, targetModel, targetKey, attachments),
+      'Generazione risposta'
+    );
 
     return {
       success: !!result,
@@ -1196,6 +1190,7 @@ Output JSON:
       error: result ? null : 'Risposta vuota o errore'
     };
   }
+
 
   // ========================================================================
   // METODI UTILITÀ

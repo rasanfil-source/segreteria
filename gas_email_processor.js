@@ -756,46 +756,51 @@ ${addressLines.join('\n\n')}
       const categoryHintSource = classification.category || requestType.type;
 
       // ====================================================================================================
-      // STEP 7.1: ESTRAZIONE CONTESTO ALLEGATI (OCR) - Eseguita SOLO ORA
+      // STEP 7.1: PREPARAZIONE ALLEGATI (Multimodale / Vision)
       // ====================================================================================================
-      let attachmentContext = { text: '', items: [], skipped: [] };
+      let attachmentBlobs = [];
+      let textFromAttachments = '';
+      let attachmentSkipped = [];
+
       if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
-        // OCR può essere costoso: se siamo vicini alla deadline, preferiamo degradare e proseguire.
         if (this._isNearDeadline(this.config.maxExecutionTimeMs)) {
-          attachmentContext.skipped.push({ reason: 'near_deadline' });
-          console.warn('   ⏳ OCR allegati saltato: tempo residuo insufficiente.');
+          attachmentSkipped.push({ reason: 'near_deadline' });
+          console.warn('   ⏳ Allegati multimodali saltati: tempo residuo insufficiente.');
         } else {
           let hasAttachments = false;
           try {
             const attachments = candidate.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
             hasAttachments = attachments.length > 0;
           } catch (e) {
-            console.warn(`⚠️ Impossibile leggere allegati per pre-check OCR: ${e.message}`);
+            console.warn(`⚠️ Impossibile leggere allegati per pre-check: ${e.message}`);
           }
 
           if (!hasAttachments) {
-            attachmentContext.skipped.push({ reason: 'no_attachments' });
-            console.log('   📎 OCR saltato: nessun allegato nel messaggio candidato');
+            attachmentSkipped.push({ reason: 'no_attachments' });
+            console.log('   📎 Elaborazione allegati saltata: nessun allegato nel messaggio candidato');
           } else if (this._shouldTryOcr(messageDetails.body, messageDetails.subject, candidate)) {
-            attachmentContext = this.gmailService.extractAttachmentContext(candidate, {
-              detectedLanguage: detectedLanguage,
-              shouldContinue: () => !this._isNearDeadline(this.config.maxExecutionTimeMs)
-            });
+            console.log('   📎 Elaborazione allegati multimodale (Vision)...');
+            const attachmentData = this.gmailService.getProcessableAttachments(candidate);
+            attachmentBlobs = attachmentData.blobs || [];
+            textFromAttachments = attachmentData.textContext || '';
+            attachmentSkipped = attachmentData.skipped || [];
+
+            if (attachmentBlobs.length > 0) {
+              const blobNames = attachmentBlobs.map((b) => b.getName()).join(', ');
+              console.log(`   📎 Pronti ${attachmentBlobs.length} allegati visivi per Gemini (${blobNames})`);
+            }
+
+            if (attachmentSkipped.length > 0) {
+              const skippedNames = attachmentSkipped.map((s) => s.name || s.reason).join(', ');
+              console.log(`   📎 Allegati ignorati/non supportati: ${attachmentSkipped.length} (${skippedNames})`);
+            }
           } else {
-            attachmentContext.skipped.push({ reason: 'precheck_no_ocr' });
-            console.log('   📎 Allegati OCR saltati: pre-check negativo (keyword non trovate)');
+            attachmentSkipped.push({ reason: 'precheck_no_ocr' });
+            console.log('   📎 Elaborazione allegati saltata: keyword trigger non rilevate');
           }
         }
-      } else {
-        // OCR disabilitato da config
       }
-      if (attachmentContext && attachmentContext.items && attachmentContext.items.length > 0) {
-        const attachmentNames = attachmentContext.items.map(item => item.name).join(', ');
-        console.log(`   📎 Allegati OCR: ${attachmentContext.items.length} file inclusi nel contesto (${attachmentNames})`);
-      } else if (attachmentContext && attachmentContext.skipped && attachmentContext.skipped.length > 0) {
-        const skippedNames = attachmentContext.skipped.map(item => item.name || item.reason).join(', ');
-        console.log(`   📎 Allegati OCR saltati: ${attachmentContext.skipped.length} (${skippedNames})`);
-      }
+
 
       const promptOptions = {
         emailContent: messageDetails.body,
@@ -820,7 +825,7 @@ ${addressLines.join('\n\n')}
         activeConcerns: activeConcerns,
         territoryContext: territoryContext, // Passiamo il contesto separatamente per rendering prioritario
         requestType: requestType, // Aggiunto per recupero selettivo Dottrina
-        attachmentsContext: attachmentContext ? attachmentContext.text : ''
+        attachmentsContext: textFromAttachments
       };
 
       const prompt = this.promptEngine.buildPrompt(promptOptions);
@@ -879,7 +884,8 @@ ${addressLines.join('\n\n')}
           response = this.geminiService.generateResponse(fullPrompt, {
             apiKey: plan.key,
             modelName: plan.model,
-            skipRateLimit: plan.skipRateLimit
+            skipRateLimit: plan.skipRateLimit,
+            attachments: attachmentBlobs
           });
 
           // GeminiService può restituire stringa semplice oppure

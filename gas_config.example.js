@@ -48,8 +48,8 @@ const CONFIG = {
     MAX_HISTORY_MESSAGES: 10,            // Massimo messaggi in cronologia thread
     ATTACHMENT_CONTEXT: {
         enabled: true,                   // Includi testo allegati (PDF, immagini, Word, Excel, PowerPoint) nel prompt
-        maxFiles: 4,                     // Numero massimo di allegati da processare
-        maxBytesPerFile: 5 * 1024 * 1024,// 5 MB per file
+        maxFiles: 3,                     // Numero massimo di allegati da processare (ridotto per payload multimodale)
+        maxBytesPerFile: 3 * 1024 * 1024,// 3 MB per file (ridotto per payload Base64)
         maxCharsPerFile: 4000,           // Limite testo per singolo allegato
         maxTotalChars: 12000,            // Limite totale testo allegati
         ocrLanguage: 'it',               // Lingua OCR (Drive Advanced API)
@@ -63,6 +63,13 @@ const CONFIG = {
         ibanFocusEnabled: true,          // Focus OCR se viene trovato un IBAN
         ibanContextChars: 300,           // Finestra +/- per testo attorno all'IBAN
         maxCharsWhenKbTruncated: 2000    // Riduzione allegati se KB è troncata
+    },
+
+    // === Token per tipo allegato (stima multimodale) ===
+    ATTACHMENT_TOKEN_ESTIMATE: {
+        image: 258,                      // Token stimati per immagine (Gemini Vision)
+        pdf: 1032,                       // Token stimati per PDF
+        defaultDoc: 1032                 // Token stimati per altri documenti
     },
 
     // === Cache e Lock ===
