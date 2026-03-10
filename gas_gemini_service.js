@@ -172,6 +172,12 @@ class GeminiService {
     }
 
     if (!result.candidates || !result.candidates[0]) {
+      const blockReason = result.promptFeedback && result.promptFeedback.blockReason
+        ? result.promptFeedback.blockReason
+        : null;
+      if (blockReason) {
+        throw new Error(`Risposta bloccata da Gemini (promptFeedback): ${blockReason}`);
+      }
       throw new Error('Risposta Gemini non valida: nessun candidato');
     }
 

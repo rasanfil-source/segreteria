@@ -270,6 +270,20 @@ function runAllTests() {
         const service = new GeminiService();
         test('Rilevamento IT', results, () => service.detectEmailLanguage("Buongiorno").lang === 'it');
         test('Rilevamento PT', results, () => service.detectEmailLanguage("Bom dia").lang === 'pt');
+        test('Gestisce blocco promptFeedback senza candidate', results, () => {
+            const blockedService = new GeminiService({
+                fetchFn: () => ({
+                    getResponseCode: () => 200,
+                    getContentText: () => JSON.stringify({ promptFeedback: { blockReason: 'SAFETY' }, candidates: [] })
+                })
+            });
+            try {
+                blockedService._generateWithModel('ciao', 'gemini-2.5-flash');
+                return false;
+            } catch (e) {
+                return e.message.includes('promptFeedback') && e.message.includes('SAFETY');
+            }
+        });
     });
 
     // 6. ResponseValidator
