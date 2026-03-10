@@ -798,9 +798,14 @@ class GmailService {
                     name: `OCR_${fileName}`,
                     mimeType: googleMimeType
                 };
-                const file = Drive.Files.create(resource, blob, {});
+                const file = Drive.Files.create(resource, blob, {
+                    mimeType: googleMimeType
+                });
                 if (!file || !file.id) {
                     throw new Error('Drive API ha restituito un file convertito non valido (id assente)');
+                }
+                if (file.mimeType && file.mimeType !== googleMimeType) {
+                    throw new Error(`Conversione Office non applicata (mimeType=${file.mimeType})`);
                 }
                 fileId = file.id;
             } else {

@@ -623,9 +623,13 @@ class EmailProcessor {
       // ====================================================================================================
       // STEP 6.6: CALCOLO DINAMICO SALUTO E RITARDO
       // ====================================================================================================
+      const memoryMessageCount = Number.isFinite(Number(memoryContext.messageCount))
+        ? Number(memoryContext.messageCount)
+        : 0;
+
       const salutationMode = computeSalutationMode({
         isReply: safeSubjectLower.startsWith('re:'),
-        messageCount: memoryContext.messageCount || messages.length, // Il conteggio include già mess.length attuali
+        messageCount: memoryMessageCount,
         memoryExists: Object.keys(memoryContext).length > 0,
         lastUpdated: memoryContext.lastUpdated || null,
         now: new Date()
@@ -735,7 +739,7 @@ ${addressLines.join('\n\n')}
             providedInfoCount: (memoryContext.providedInfo || []).length,
             lastUpdated: memoryContext.lastUpdated || null
           },
-          conversation: { messageCount: memoryContext.messageCount || messages.length },
+          conversation: { messageCount: memoryMessageCount },
           territory: { addressFound: territoryResult.addressFound },
           knowledgeBase: enrichedKnowledgeBase,
           knowledgeBaseMeta: {
@@ -1762,8 +1766,13 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
     // 1. Trova TUTTI i topic menzionati esplicitamente
     const normalizedTopics = previousTopics
       .map(info => (typeof info === 'object' ? info.topic : info))
-      .map(topic => topic == null ? '' : String(topic).trim());
-    const mentionedTopics = normalizedTopics.filter(topic => topic && bodyLower.includes(topic.toLowerCase()));
+      .map(topic => this._normalizeTopicKey(topic));
+
+    const mentionedTopics = normalizedTopics.filter(topic => {
+      if (!topic) return false;
+      const topicWithSpaces = topic.replace(/_/g, ' ');
+      return bodyLower.includes(topic) || bodyLower.includes(topicWithSpaces);
+    });
 
     let targetTopics = [];
 
@@ -1784,9 +1793,19 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
     };
 
     targetTopics.forEach(topic => {
-      console.log(`🧠 Inferred Reaction: ${inferredReaction.type.toUpperCase()} su topic '${topic}'`);
+      console.log(`   🧠 Inferred Reaction: ${inferredReaction.type.toUpperCase()} su topic '${topic}'`);
       this.memoryService.updateReaction(threadId, topic, inferredReaction.type, context);
     });
+  }
+
+  _normalizeTopicKey(topic) {
+    if (topic == null) return '';
+    return String(topic)
+      .toLowerCase()
+      .trim()
+      .replace(/[_\-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/ /g, '_');
   }
   /**
    * Punto 12: Classificazione centralizzata degli errori API

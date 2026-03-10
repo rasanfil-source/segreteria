@@ -689,8 +689,61 @@ function testInferUserReactionHandlesNullTopic() {
     );
 
     assert(calls.length === 1, `Attesa una sola reazione sull'ultimo topic valido, ottenute ${calls.length}`);
-    assert(calls[0].topic === 'Battesimo', `Atteso topic "Battesimo", ottenuto "${calls[0].topic}"`);
+    assert(calls[0].topic === 'battesimo', `Atteso topic normalizzato "battesimo", ottenuto "${calls[0].topic}"`);
     assert(calls[0].reaction === 'acknowledged', `Attesa reazione "acknowledged", ottenuta "${calls[0].reaction}"`);
+}
+
+function testInferUserReactionNormalizesTopicKeys() {
+    loadScript('gas_email_processor.js');
+
+    const processor = Object.create(EmailProcessor.prototype);
+    const calls = [];
+    processor.memoryService = {
+        updateReaction: (threadId, topic, reaction) => {
+            calls.push({ threadId, topic, reaction });
+        }
+    };
+
+    processor._inferUserReaction(
+        'Grazie, ho capito gli orari messe.',
+        [{ topic: 'orari_messe' }, { topic: 'contatti' }],
+        'thread-topic-normalization'
+    );
+
+    assert(calls.length === 1, `Attesa una sola reazione, ottenute ${calls.length}`);
+    assert(calls[0].topic === 'orari_messe', `Atteso match topic normalizzato "orari_messe", ottenuto "${calls[0].topic}"`);
+    assert(calls[0].reaction === 'acknowledged', `Attesa reazione "acknowledged", ottenuta "${calls[0].reaction}"`);
+}
+
+function testExtractOfficeTextDriveCreateForcesTargetMimeType() {
+    loadScript('gas_gmail_service.js');
+
+    const originalDrive = global.Drive;
+    const service = Object.create(GmailService.prototype);
+    let createOptions = null;
+
+    global.Drive = {
+        Files: {
+            create: (_resource, _blob, options) => {
+                createOptions = options;
+                return { id: 'file-1', mimeType: 'application/pdf' };
+            },
+            remove: () => { }
+        }
+    };
+
+    const attachment = {
+        copyBlob: () => ({ getContentType: () => 'application/msword' }),
+        getName: () => 'test.doc'
+    };
+
+    try {
+        const extracted = service._extractOfficeText(attachment, 'application/vnd.google-apps.document', {});
+        assert(extracted === '', 'Con mimeType finale non convertito deve ritornare stringa vuota');
+        assert(createOptions && createOptions.mimeType === 'application/vnd.google-apps.document', 'Drive.Files.create deve forzare il mimeType target anche nelle opzioni');
+    } finally {
+        global.Drive = originalDrive;
+    }
 }
 
 function testRateLimiterRecoverRequiresLock() {
@@ -1600,6 +1653,7 @@ function main() {
         ['memory get: usa row.values in parsing', testMemoryGetUsesRowValues],
         ['memory invalidate: pulizia cache robusta', testInvalidateCacheAlsoClearsRobustCache],
         ['memory reaction: topic null non crasha', testInferUserReactionHandlesNullTopic],
+        ['memory reaction: normalizzazione topic coerente', testInferUserReactionNormalizesTopicKeys],
         ['rate limiter WAL: recovery bloccato senza lock', testRateLimiterRecoverRequiresLock],
         ['_shouldIgnoreEmail: no-reply/reale/ooo', testShouldIgnoreEmail],
         ['attachment context: sanitizzazione + newline reali', testAttachmentContextSanitizationFormatting],
@@ -1610,6 +1664,7 @@ function main() {
         ['escapeHtml: neutralizza XSS', testEscapeHtml],
         ['markdownToHtml: input non stringa robusto', testMarkdownToHtmlNonStringInput],
         ['sanitizeUrl: blocca IPv6/decimale/userinfo', testSanitizeUrlIPv6],
+        ['markdownToHtml: escape-first previene XSS', testMarkdownToHtmlXss],
         ['markdownToHtml: escape-first previene XSS', testMarkdownToHtmlXss],
         ['markdownToHtml: supporta URL con parentesi', testMarkdownLinkWithParentheses],
         ['markdownToHtml: query params senza double-escape', testMarkdownLinkQueryParamsNotDoubleEscaped],
@@ -1634,6 +1689,7 @@ function main() {
         ['gemini: portuguese detection refinement', testPortugueseDetectionRefinement],
         ['classifier: backward quote scan', testClassifierBackwardQuoteScan],
         ['main: caricamento sostituzioni', testLoadResourcesReplacements],
+        ['gmail office extract: Drive v3 forza mimeType target', testExtractOfficeTextDriveCreateForcesTargetMimeType],
     ];
 
     let passed = 0;
