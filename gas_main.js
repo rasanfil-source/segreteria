@@ -927,8 +927,12 @@ function main() {
       }
     }
   } finally {
-    if (typeof hasExecutionLock !== 'undefined' && hasExecutionLock && executionLock) {
-      executionLock.releaseLock();
+    if (hasExecutionLock && executionLock) {
+      try {
+        executionLock.releaseLock();
+      } catch (lockError) {
+        console.warn(`⚠️ Impossibile rilasciare execution lock: ${lockError.message}`);
+      }
     }
   }
 }
