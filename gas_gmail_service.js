@@ -976,7 +976,7 @@ class GmailService {
 
         // 2. Filtro Contenuto Alfabetico (Immagini nere/rumore)
         // Conta le lettere effettive (a-z, A-Z)
-        const letters = (cleaned.match(/[a-zA-Z]/g) || []).length;
+        const letters = (cleaned.match(/[a-zA-ZÀ-ÿ]/g) || []).length;
         if (letters < 5) return false; // Meno di 5 lettere = spazzatura (es. "|||||--")
 
         // 3. Filtro Combinato per Nomi Generici

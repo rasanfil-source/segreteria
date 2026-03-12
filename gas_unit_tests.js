@@ -255,6 +255,33 @@ function runAllTests() {
             const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it', { topic: 'incontro' }, { type: 'technical' });
             return adjusted.includes('in un orario differente da quanto indicato da Lei');
         });
+
+        test('Fix Bug 1: processThread marca altri messaggi come elaborati', results, () => {
+            const labeledMessageIds = new Set();
+            const thread = {
+                getId: () => 'thread-123',
+                getMessages: () => [
+                    { getId: () => 'msg-1', isUnread: () => true, getFrom: () => 'user@external.com', getDate: () => new Date() },
+                    { getId: () => 'msg-2', isUnread: () => true, getFrom: () => 'user@external.com', getDate: () => new Date() },
+                    { getId: () => 'msg-3', isUnread: () => true, getFrom: () => 'user@external.com', getDate: () => new Date() }
+                ]
+            };
+            const processor = new EmailProcessor({
+                gmailService: {
+                    getMessageIdsWithLabel: () => new Set(),
+                    extractMessageDetails: (m) => ({ senderEmail: 'user@external.com', date: new Date() }),
+                    _extractEmailAddress: (f) => f,
+                    addLabelToMessage: (id) => labeledMessageIds.add(id)
+                },
+                geminiService: {
+                    shouldRespondToEmail: () => ({ shouldRespond: false }) // Skip GEMINI per semplicità
+                }
+            });
+
+            processor.processThread(thread, 'KB', 'Doctrine', labeledMessageIds, true);
+            // Dovrebbe aver marcato tutti e 3 come elaborati (il candidate + gli altri 2)
+            return labeledMessageIds.has('msg-1') && labeledMessageIds.has('msg-2') && labeledMessageIds.has('msg-3');
+        });
     });
 
     testGroup('Punto #4b: Classifier - OOO patterns', results, () => {
@@ -355,6 +382,14 @@ function runAllTests() {
                 map['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'] &&
                 map['application/vnd.ms-powerpoint'] &&
                 map['application/vnd.openxmlformats-officedocument.presentationml.presentation']);
+        });
+
+        test('Fix Bug 2: _isMeaningfulOCR supporta accenti italiani', results, () => {
+            const service = new GmailService();
+            // Testo con lettere accentate. Deve essere > 30 caratteri totali
+            // e contenere almeno 5 lettere [a-zA-ZÀ-ÿ].
+            const textWithAccents = "È una prova di testo accentato lunga abbastanza."; 
+            return service._isMeaningfulOCR(textWithAccents, false) === true;
         });
     });
 

@@ -303,6 +303,14 @@ class EmailProcessor {
       candidate = externalUnread[externalUnread.length - 1];
       const messageDetails = this.gmailService.extractMessageDetails(candidate);
 
+      // GUARDRAIL: Segna gli altri messaggi non letti nel thread come elaborati
+      // per evitare che il bot risponda a ritroso nei trigger successivi
+      unlabeledUnread.forEach(message => {
+        if (message.getId() !== candidate.getId()) {
+          this._markMessageAsProcessed(message, labeledMessageIds);
+        }
+      });
+
       console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
       console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
 
