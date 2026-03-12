@@ -26,12 +26,15 @@ class AppLogger {
   _log(level, message, data = {}) {
     if (LogLevel[level] < this.minLevel) return;
 
+    // Guardia null: il default `= {}` copre solo `undefined`, non `null`.
+    const safeData = (data !== null && data !== undefined && typeof data === 'object') ? data : {};
+
     const logEntry = {
       timestamp: new Date().toISOString(),
       level: level,
       context: this.context,
       message: message,
-      ...data
+      ...safeData
     };
 
     const loggingConfig = (this.config && this.config.LOGGING) ? this.config.LOGGING : {};
@@ -40,8 +43,8 @@ class AppLogger {
       console.log(JSON.stringify(logEntry));
     } else {
       console.log(`[${logEntry.timestamp}] [${level}] [${this.context}] ${message}`);
-      if (Object.keys(data).length > 0) {
-        console.log(JSON.stringify(data, null, 2));
+      if (Object.keys(safeData).length > 0) {
+        console.log(JSON.stringify(safeData, null, 2));
       }
     }
 
