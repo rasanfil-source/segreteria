@@ -569,8 +569,8 @@ Output JSON:
   detectEmailLanguage(emailContent, emailSubject = '') {
     const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
     const safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
-    const text = `${safeSubject} ${safeContent} `.toLowerCase();
-    const originalText = `${safeSubject} ${safeContent} `;
+    const text = ` ${safeSubject} ${safeContent} `.toLowerCase();
+    const originalText = ` ${safeSubject} ${safeContent} `;
 
     // Rilevamento caratteri specifici
     let spanishCharScore = 0;
