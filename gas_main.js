@@ -270,14 +270,20 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 20) {
 // ====================================================================
 
 function withSheetsRetry(fn, context = 'Operazione Sheets') {
-  const maxRetries = 3;
+  const maxRetries = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.SHEETS_RETRY_MAX)) && CONFIG.SHEETS_RETRY_MAX > 0)
+    ? CONFIG.SHEETS_RETRY_MAX
+    : 3;
+  const backoffMs = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.SHEETS_RETRY_BACKOFF_MS)) && CONFIG.SHEETS_RETRY_BACKOFF_MS > 0)
+    ? CONFIG.SHEETS_RETRY_BACKOFF_MS
+    : 1000;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return fn();
     } catch (error) {
       if (attempt < maxRetries - 1) {
-        console.warn(`⚠️ [${context}] Tentativo ${attempt + 1}/${maxRetries} fallito: ${error.message}. Retry in ${1000 * Math.pow(2, attempt)}ms...`);
-        Utilities.sleep(1000 * Math.pow(2, attempt));
+        const waitMs = backoffMs * Math.pow(2, attempt);
+        console.warn(`⚠️ [${context}] Tentativo ${attempt + 1}/${maxRetries} fallito: ${error.message}. Retry in ${waitMs}ms...`);
+        Utilities.sleep(waitMs);
         continue;
       }
       console.error(`❌ [${context}] Tutti i ${maxRetries} tentativi esauriti. Ultimo errore: ${error.message}`);

@@ -567,21 +567,9 @@ class EmailProcessor {
       // KB Principale (Istruzioni dal foglio)
       knowledgeSections.push('--- ISTRUZIONI OPERATIVE ---\n' + knowledgeBase);
 
-      // AI_CORE: Solo per situazioni pastorali o complesse
-      // Nota: complexity può essere undefined/null in classificazioni parziali.
-      // Usiamo Number()+fallback per evitare confronti silenziosi non intenzionali.
-      const complexityScore = Number(requestType && requestType.complexity);
-      const safeComplexity = Number.isFinite(complexityScore) ? complexityScore : 0;
-      if (aiCore && (isPastoral || safeComplexity > 0.7)) {
-        console.log('   🧠 AiCore (Avanzata) iniettata per contesto pastorale/complesso');
-        knowledgeSections.push('--- LOGICA AVANZATA ---\n' + aiCore);
-      }
-
-      // Dottrina: Solo per domande dottrinali
-      if (effectiveDoctrineBase && (requestType.needsDoctrine || requestType.type === 'doctrinal')) {
-        console.log('   📖 Dottrina iniettata per domanda spirituale');
-        knowledgeSections.push('--- FONTE DOTTRINALE ---\n' + effectiveDoctrineBase);
-      }
+      // AI_CORE e Dottrina NON vengono iniettati qui: è responsabilità esclusiva di
+      // PromptEngine (buildPrompt) che li legge da GLOBAL_CACHE con logica selettiva.
+      // Doppia iniezione causerebbe gonfiamento prompt e rischio truncation.
 
       // Regola messe speciali
       if (typeof getSpecialMassTimeRule === 'function') {
@@ -1211,9 +1199,17 @@ ${addressLines.join('\n\n')}
       this._trackEmptyInboxStreak(false);
       console.log(`📬 Trovate ${threads.length} email da elaborare (query: ${searchQuery})`);
 
-      // Carica etichette una sola volta
-      const labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
-      console.log(`📦 Trovati in cache ${labeledMessageIds.size} messaggi già elaborati`);
+      // Carica etichette una sola volta.
+      // Se la chiamata fallisce (quota, permessi), interrompiamo il batch per intero:
+      // procedere con un set vuoto causerebbe doppie risposte su tutti i thread.
+      let labeledMessageIds;
+      try {
+        labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+        console.log(`📦 Trovati in cache ${labeledMessageIds.size} messaggi già elaborati`);
+      } catch (e) {
+        this.logger.error(`❌ Impossibile caricare messaggi già etichettati: ${e.message}. Batch interrotto per sicurezza.`);
+        return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'labeled_ids_fetch_failed' };
+      }
 
       // Statistiche
       const stats = {

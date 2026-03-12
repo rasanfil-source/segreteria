@@ -17,7 +17,9 @@ class GmailService {
         // Cache etichette: in-memory (stessa esecuzione) + CacheService (cross-esecuzione)
         this._labelCache = new Map();
         this._cacheTTL = (typeof CONFIG !== 'undefined' && CONFIG.GMAIL_LABEL_CACHE_TTL) ? CONFIG.GMAIL_LABEL_CACHE_TTL : 3600000;
-        this._cacheTtlSeconds = Math.max(60, Math.floor(this._cacheTTL / 1000));
+        // CacheService.put accetta al massimo 21600 s (6 ore); valori superiori causano
+        // un'eccezione silenziosa o un fallimento dell'operazione di put.
+        this._cacheTtlSeconds = Math.min(21600, Math.max(60, Math.floor(this._cacheTTL / 1000)));
         this._scriptCache = CacheService.getScriptCache();
 
         // Mappa MIME types Office → tipo Google Workspace per conversione nativa
@@ -220,7 +222,7 @@ class GmailService {
             return messageIds;
         } catch (e) {
             console.warn(`⚠️ Impossibile ottenere messaggi con label ${labelName}: ${e.message}`);
-            return new Set();
+            throw e;
         }
     }
 
