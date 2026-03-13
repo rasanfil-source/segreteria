@@ -859,6 +859,7 @@ ${addressLines.join('\n\n')}
       let generationError = null;
       let initialError = null;
       let strategyUsed = null;
+      let strategyUsedPlan = null;
 
       if (this._isNearDeadline(this.config.maxExecutionTimeMs)) {
         console.warn('⏳ Tempo residuo insufficiente prima della generazione AI: rimando il thread al prossimo turno.');
@@ -904,6 +905,7 @@ ${addressLines.join('\n\n')}
 
           if (response) {
             strategyUsed = plan.name;
+            strategyUsedPlan = plan;
             console.log(`✅ Generazione riuscita con strategia: ${plan.name}`);
             break; // Successo! Esci dal loop
           }
@@ -971,11 +973,15 @@ ${addressLines.join('\n\n')}
       );
 
       // ====================================================================================================
-      // STEP 9: VALIDA RISPOSTA
+      // STEP 9: VALIDAZIONE + RETRY INTELLIGENTE
       // ====================================================================================================
+      let finalResponse = response;
+      let validation = null;
+      let retryAttempted = false;
+
       if (this.config.validationEnabled) {
-        const validation = this.validator.validateResponse(
-          response,
+        validation = this.validator.validateResponse(
+          finalResponse,
           detectedLanguage,
           enrichedKnowledgeBase,
           messageDetails.body,
@@ -983,10 +989,86 @@ ${addressLines.join('\n\n')}
           salutationMode
         );
 
-        if (!validation.isValid) {
-          console.warn(`   🛑 Validazione FALLITA (punteggio: ${validation.score.toFixed(2)})`);
+        if (validation.fixedResponse) {
+          console.log('   🩹 Usa risposta corretta automaticamente (Self-Healing)');
+          finalResponse = validation.fixedResponse;
+        }
 
-          // Gestione errore validazione critica
+        const retryConfig = (typeof CONFIG !== 'undefined' && CONFIG.INTELLIGENT_RETRY) ? CONFIG.INTELLIGENT_RETRY : null;
+        const retryEnabled = retryConfig && retryConfig.enabled !== false;
+        const maxRetries = retryEnabled ? Math.max(0, parseInt(retryConfig.maxRetries, 10) || 1) : 0;
+
+        if (!validation.isValid && retryEnabled && maxRetries > 0 && !this._isNearDeadline(this.config.maxExecutionTimeMs)) {
+          const shouldRetry = this._shouldAttemptIntelligentRetry(validation, detectedLanguage, retryConfig);
+          if (shouldRetry) {
+            retryAttempted = true;
+            console.log(`🔄 Retry intelligente attivato (score: ${validation.score.toFixed(2)}, errori: ${validation.errors.length})`);
+
+            const correctionPrompt = this._buildCorrectionPrompt(
+              fullPrompt,
+              finalResponse,
+              validation,
+              detectedLanguage,
+              salutationMode
+            );
+
+            const retryPlan = strategyUsedPlan || attemptStrategy.find(p => p && p.key) || {
+              key: this.geminiService.primaryKey,
+              model: flashModel,
+              skipRateLimit: false
+            };
+
+            let retryResponse = null;
+            try {
+              const retryResult = this.geminiService.generateResponse(correctionPrompt, {
+                apiKey: retryPlan.key,
+                modelName: retryPlan.model,
+                skipRateLimit: retryPlan.skipRateLimit,
+                attachments: attachmentBlobs
+              });
+
+              if (retryResult && typeof retryResult === 'object') {
+                retryResponse = retryResult.text;
+              } else if (typeof retryResult === 'string') {
+                retryResponse = retryResult;
+              }
+            } catch (retryError) {
+              console.warn(`⚠️ Retry fallito per errore API: ${retryError.message}`);
+            }
+
+            if (retryResponse) {
+              const retryValidation = this.validator.validateResponse(
+                retryResponse,
+                detectedLanguage,
+                enrichedKnowledgeBase,
+                messageDetails.body,
+                messageDetails.subject,
+                salutationMode
+              );
+
+              if (retryValidation.isValid) {
+                console.log(`✅ Retry superato (score: ${retryValidation.score.toFixed(2)})`);
+                finalResponse = retryValidation.fixedResponse || retryResponse;
+                validation = retryValidation;
+              } else {
+                console.warn(
+                  `⚠️ Retry non sufficiente (score: ${retryValidation.score.toFixed(2)}). ` +
+                  `Errori residui: ${retryValidation.errors.join('; ')}`
+                );
+                if (retryValidation.score > validation.score) {
+                  console.log('   → Uso risposta del retry (score più alto, nonostante non valida)');
+                  finalResponse = retryResponse;
+                  validation = retryValidation;
+                }
+              }
+            }
+          }
+        }
+
+        if (!validation.isValid) {
+          const retryNote = retryAttempted ? ' (dopo retry)' : '';
+          console.warn(`   🛑 Validazione FALLITA${retryNote} (punteggio: ${validation.score.toFixed(2)})`);
+
           if (validation.details && validation.details.exposedReasoning && validation.details.exposedReasoning.score === 0.0) {
             console.warn("⚠️ Risposta bloccata per Thinking Leak. Invio a etichetta 'Verifica'.");
             result.reason = 'thinking_leak';
@@ -996,15 +1078,12 @@ ${addressLines.join('\n\n')}
           this._markMessageAsProcessed(candidate, labeledMessageIds);
           result.status = 'validation_failed';
           result.validationFailed = true;
-          // Garantisce che ogni rifiuto abbia un motivo tracciabile
           if (!result.reason) {
             result.reason = 'validation_score_below_threshold';
           }
           return result;
         }
 
-        // Se ci sono WARNING e il punteggio è sotto la soglia di sicurezza, aggiungi etichetta "verifica"
-        // Ignoriamo i warning per punteggi alti (es. >= 0.90) assumendo siano nits minori (es. firma)
         const warningThreshold = this.config.validationWarningThreshold || 0.90;
 
         if (validation.warnings && validation.warnings.length > 0 && validation.score < warningThreshold) {
@@ -1018,11 +1097,13 @@ ${addressLines.join('\n\n')}
 
         if (validation.fixedResponse) {
           console.log('   🩹 Usa risposta corretta automaticamente (Self-Healing)');
-          response = validation.fixedResponse;
+          finalResponse = validation.fixedResponse;
         }
 
         console.log(`   ✓ Validazione PASSATA (punteggio: ${validation.score.toFixed(2)})`);
       }
+
+      response = finalResponse;
 
       // ====================================================================================================
       // STEP 10: INVIA RISPOSTA
@@ -1524,6 +1605,200 @@ ${addressLines.join('\n\n')}
 
   _addValidationErrorLabel(thread) {
     this.gmailService.addLabelToThread(thread, this.config.validationErrorLabel);
+  }
+
+  // Classifica gli errori di validazione in categorie utili per il retry LLM
+  _classifyValidationForRetry(validationResult, detectedLanguage) {
+    const details = (validationResult && validationResult.details) ? validationResult.details : {};
+    const errors = (validationResult && Array.isArray(validationResult.errors)) ? validationResult.errors : [];
+    const errorText = errors.map(e => String(e).toLowerCase());
+
+    const hallucinations = (details.hallucinations && details.hallucinations.hallucinations)
+      ? details.hallucinations.hallucinations
+      : {};
+
+    let hasHallucination = (
+      (Array.isArray(hallucinations.emails) && hallucinations.emails.length > 0) ||
+      (Array.isArray(hallucinations.phones) && hallucinations.phones.length > 0) ||
+      (Array.isArray(hallucinations.times) && hallucinations.times.length > 0)
+    );
+    if (!hasHallucination && errorText.some(e => e.includes('non in kb') || e.includes('allucin'))) {
+      hasHallucination = true;
+    }
+
+    const exposedErrors = (details.exposedReasoning && Array.isArray(details.exposedReasoning.errors))
+      ? details.exposedReasoning.errors
+      : [];
+    let hasThinkingLeak = exposedErrors.length > 0 || errorText.some(e => e.includes('ragionamento esposto'));
+
+    const semantic = details.semantic || {};
+    if (semantic.thinkingLeak && semantic.thinkingLeak.isValid === false) {
+      hasThinkingLeak = true;
+    }
+    if (semantic.hallucinations && semantic.hallucinations.isValid === false) {
+      hasHallucination = true;
+    }
+
+    const langErrors = (details.language && Array.isArray(details.language.errors))
+      ? details.language.errors
+      : [];
+    const hasLanguage = langErrors.length > 0 || errorText.some(e => e.includes('lingua'));
+
+    const foundPlaceholders = (details.content && Array.isArray(details.content.foundPlaceholders))
+      ? details.content.foundPlaceholders
+      : [];
+    const hasPlaceholder = foundPlaceholders.length > 0 || errorText.some(e => e.includes('placeholder'));
+
+    const lengthErrors = (details.length && Array.isArray(details.length.errors))
+      ? details.length.errors
+      : [];
+    const hasLength = lengthErrors.length > 0 || errorText.some(e => e.includes('troppo corta') || e.includes('troppo lunga') || e.includes('prolissa'));
+
+    return {
+      thinking_leak: hasThinkingLeak,
+      hallucination: hasHallucination,
+      language: hasLanguage,
+      placeholder: hasPlaceholder,
+      length: hasLength,
+      lengthErrors: lengthErrors,
+      foundPlaceholders: foundPlaceholders,
+      hallucinations: hallucinations,
+      detectedLanguage: detectedLanguage
+    };
+  }
+
+  _shouldAttemptIntelligentRetry(validationResult, detectedLanguage, retryConfig) {
+    if (!validationResult || validationResult.isValid) return false;
+    const cfg = retryConfig || {};
+    const flags = this._classifyValidationForRetry(validationResult, detectedLanguage);
+    const allowed = (Array.isArray(cfg.onlyForErrors) && cfg.onlyForErrors.length > 0)
+      ? cfg.onlyForErrors
+      : ['thinking_leak', 'hallucination', 'language', 'placeholder', 'length'];
+
+    const hasAllowed = allowed.some(key => flags[key]);
+    if (!hasAllowed) return false;
+
+    const minScore = (typeof cfg.minScoreToTrigger === 'number')
+      ? cfg.minScoreToTrigger
+      : ((typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_MIN_SCORE === 'number') ? CONFIG.VALIDATION_MIN_SCORE : 0.6);
+
+    const critical = flags.thinking_leak || flags.hallucination;
+    if (!critical && Number.isFinite(minScore) && validationResult.score >= minScore) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Costruisce un prompt correttivo "chirurgico" basato sugli errori di validazione.
+   */
+  _buildCorrectionPrompt(originalPrompt, failedResponse, validationResult, language, salutationMode) {
+    const safePrompt = typeof originalPrompt === 'string' ? originalPrompt : (originalPrompt == null ? '' : String(originalPrompt));
+    const safeResponse = typeof failedResponse === 'string' ? failedResponse : (failedResponse == null ? '' : String(failedResponse));
+    const details = validationResult && validationResult.details ? validationResult.details : {};
+    const flags = this._classifyValidationForRetry(validationResult, language);
+
+    const correctionInstructions = [];
+    const langNames = { it: 'italiano', en: 'inglese', es: 'spagnolo', fr: 'francese', de: 'tedesco', pt: 'portoghese' };
+    const shouldIncludeSignature = salutationMode !== 'none_or_continuity' && salutationMode !== 'session';
+
+    if (flags.thinking_leak) {
+      correctionInstructions.push(
+        'ERRORE CRITICO: Hai incluso il tuo ragionamento interno nella risposta.\n' +
+        'CORREZIONE: Scrivi SOLO la risposta finale. Non usare frasi come "noto che", "devo correggere", ' +
+        '"le istruzioni dicono", "rivedendo le informazioni".'
+      );
+    }
+
+    if (flags.hallucination) {
+      const items = [];
+      if (Array.isArray(flags.hallucinations.emails) && flags.hallucinations.emails.length > 0) {
+        items.push(`email: ${flags.hallucinations.emails.slice(0, 3).join(', ')}`);
+      }
+      if (Array.isArray(flags.hallucinations.phones) && flags.hallucinations.phones.length > 0) {
+        items.push(`telefoni: ${flags.hallucinations.phones.slice(0, 3).join(', ')}`);
+      }
+      if (Array.isArray(flags.hallucinations.times) && flags.hallucinations.times.length > 0) {
+        items.push(`orari: ${flags.hallucinations.times.slice(0, 3).join(', ')}`);
+      }
+      const itemsStr = items.length > 0
+        ? `Rimuovi o verifica: ${items.join(' | ')}`
+        : 'Rimuovi qualsiasi dato (orario, telefono, email, URL) non presente nelle informazioni fornite.';
+      correctionInstructions.push(
+        'ERRORE CRITICO: Hai inventato informazioni non presenti nelle informazioni disponibili.\n' +
+        `CORREZIONE: ${itemsStr}\n` +
+        'Se non conosci un dato, invita cortesemente a contattare la segreteria.'
+      );
+    }
+
+    if (flags.language) {
+      const langLabel = langNames[language] || language;
+      correctionInstructions.push(
+        `ERRORE: La risposta non è in ${langLabel}.\n` +
+        `CORREZIONE: Riscrivi l'intera risposta in ${langLabel}. Saluto e firma devono essere in ${langLabel}.`
+      );
+    }
+
+    if (flags.placeholder) {
+      const placeholders = (flags.foundPlaceholders || []).slice(0, 4);
+      const placeholderText = placeholders.length > 0 ? placeholders.join(', ') : '[segnaposti]';
+      correctionInstructions.push(
+        'ERRORE: La risposta contiene segnaposto non compilati.\n' +
+        `CORREZIONE: Compila o rimuovi questi segnaposto: ${placeholderText}.`
+      );
+    }
+
+    if (flags.length) {
+      const lengthErrors = (flags.lengthErrors || []).map(e => String(e).toLowerCase());
+      const tooShort = lengthErrors.some(e => e.includes('troppo corta'));
+      const tooLong = lengthErrors.some(e => e.includes('troppo lunga') || e.includes('prolissa'));
+
+      if (tooShort) {
+        const signatureNote = shouldIncludeSignature ? 'Includi saluto e firma.' : 'Mantieni lo stesso schema di saluto previsto.';
+        correctionInstructions.push(
+          'ERRORE: La risposta è troppo breve.\n' +
+          `CORREZIONE: Espandi con 2-3 frasi complete e informazioni utili. ${signatureNote}`
+        );
+      }
+      if (tooLong) {
+        correctionInstructions.push(
+          'ERRORE: La risposta è eccessivamente lunga.\n' +
+          'CORREZIONE: Sintetizza e rispondi SOLO alla domanda posta, massimo 4-5 frasi.'
+        );
+      }
+    }
+
+    if (correctionInstructions.length === 0) {
+      const scoreLabel = (validationResult && typeof validationResult.score === 'number')
+        ? validationResult.score.toFixed(2)
+        : '?';
+      correctionInstructions.push(
+        `La risposta non ha superato il controllo qualità (score: ${scoreLabel}).\n` +
+        'Riscrivi la risposta in modo più preciso, professionale e coerente con le istruzioni.'
+      );
+    }
+
+    const compactResponse = safeResponse.replace(/\s+/g, ' ').trim();
+    const failedSnippet = compactResponse.length > 400 ? compactResponse.substring(0, 400) + '...' : compactResponse;
+
+    return `${safePrompt}
+
+══════════════════════════════════════════════════════
+CORREZIONE RICHIESTA — SECONDA GENERAZIONE
+══════════════════════════════════════════════════════
+
+La tua risposta precedente non è utilizzabile per i seguenti motivi:
+
+${correctionInstructions.join('\n\n')}
+
+══════════════════════════════════════════════════════
+RISPOSTA PRECEDENTE (DA NON RIPETERE):
+${failedSnippet}
+══════════════════════════════════════════════════════
+
+Genera ora una nuova risposta corretta, evitando tutti gli errori elencati sopra.
+Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
   }
 
   // Costruisce un sommario incrementale delle risposte inviate al thread

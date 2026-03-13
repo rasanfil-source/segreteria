@@ -20,15 +20,28 @@ const CONFIG = {
     VALIDATION_ENABLED: true,
     VALIDATION_MIN_SCORE: 0.6,
     VALIDATION_WARNING_THRESHOLD: 0.9,
-    SEMANTIC_VALIDATION: {
-        enabled: true,
-        activationThreshold: 0.9,
-        cacheEnabled: true,
-        cacheTTL: 300,
-        taskType: 'semantic',
-        maxRetries: 1,
-        fallbackOnError: true
-    },
+  SEMANTIC_VALIDATION: {
+    enabled: true,
+    activationThreshold: 0.9,
+    cacheEnabled: true,
+    cacheTTL: 300,
+    taskType: 'semantic',
+    maxRetries: 1,
+    fallbackOnError: true
+  },
+  // === Retry Intelligente Post-Validazione ===
+  INTELLIGENT_RETRY: {
+    enabled: true,           // Abilita retry LLM su errori strutturali
+    maxRetries: 1,           // Mai più di 1: budget GAS limitato
+    minScoreToTrigger: 0.6,  // Soglia minima score per considerare retry non critici
+    onlyForErrors: [         // Tipi di errore che giustificano una chiamata LLM
+      'thinking_leak',
+      'hallucination',
+      'language',
+      'placeholder',
+      'length'
+    ]
+  },
 
     // === Gmail ===
     LABEL_NAME: 'IA',                    // Label per email processate
