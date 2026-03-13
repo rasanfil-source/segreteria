@@ -580,6 +580,11 @@ class GmailService {
             blobs: [],
             skipped: []
         };
+        const maxFiles = Math.max(1, parseInt(settings.maxFiles, 10) || 3);
+        const maxCharsPerFile = Math.max(0, parseInt(settings.maxCharsPerFile, 10) || 4000);
+        const maxTotalChars = Math.max(0, parseInt(settings.maxTotalChars, 10) || 12000);
+        let processedCount = 0;
+        let totalTextChars = 0;
 
         let attachments = [];
         try {
@@ -593,7 +598,7 @@ class GmailService {
         for (const attachment of attachments) {
             const name = attachment.getName ? (attachment.getName() || 'allegato') : 'allegato';
 
-            if (result.blobs.length >= settings.maxFiles) {
+            if (processedCount >= maxFiles) {
                 result.skipped.push({ name: name, reason: 'max_files' });
                 continue;
             }
@@ -608,8 +613,30 @@ class GmailService {
 
             if (mimeType.includes('text/plain') || mimeType.includes('text/csv')) {
                 try {
-                    const text = attachment.getDataAsString();
-                    result.textContext += `\n\n--- Contenuto file: ${name} ---\n${text.substring(0, 5000)}`;
+                    const rawText = attachment.getDataAsString() || '';
+                    let text = rawText;
+                    if (maxCharsPerFile > 0 && text.length > maxCharsPerFile) {
+                        text = text.substring(0, maxCharsPerFile);
+                        result.skipped.push({ name: name, reason: 'text_truncated', kept: text.length, originalSize: rawText.length });
+                    }
+                    const segment = `\n\n--- Contenuto file: ${name} ---\n${text}`;
+                    if (maxTotalChars > 0) {
+                        const remaining = maxTotalChars - totalTextChars;
+                        if (remaining <= 0) {
+                            result.skipped.push({ name: name, reason: 'max_total_chars' });
+                            continue;
+                        }
+                        const bounded = segment.length > remaining ? segment.substring(0, remaining) : segment;
+                        if (bounded.length < segment.length) {
+                            result.skipped.push({ name: name, reason: 'max_total_chars', kept: bounded.length });
+                        }
+                        result.textContext += bounded;
+                        totalTextChars += bounded.length;
+                    } else {
+                        result.textContext += segment;
+                        totalTextChars += segment.length;
+                    }
+                    processedCount++;
                 } catch (e) {
                     result.skipped.push({ name: name, reason: 'text_extract_error', error: e.message });
                 }
@@ -618,6 +645,7 @@ class GmailService {
 
             if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
                 result.blobs.push(attachment.copyBlob());
+                processedCount++;
                 continue;
             }
 
@@ -631,6 +659,7 @@ class GmailService {
                     if (convertedPdf) {
                         convertedPdf.setName(`${name}.pdf`);
                         result.blobs.push(convertedPdf);
+                        processedCount++;
                     } else {
                         result.skipped.push({ name: name, reason: 'conversion_failed' });
                     }
@@ -654,21 +683,44 @@ class GmailService {
      * @returns {Blob}
      */
     _convertOfficeToPdf(attachmentBlob) {
-        if (typeof Drive === 'undefined' || !Drive.Files || typeof Drive.Files.insert !== 'function') {
+        if (typeof Drive === 'undefined' || !Drive.Files) {
             throw new Error('Drive Advanced Service non abilitato. Attivare il servizio Drive nel progetto Apps Script.');
         }
 
         let fileId = null;
         try {
-            const resource = {
-                title: `TEMP_CONV_${attachmentBlob.getName() || 'allegato'}`,
-                mimeType: attachmentBlob.getContentType()
-            };
+            const originalMime = attachmentBlob.getContentType();
+            const googleMime = (this._officeMimeMap && this._officeMimeMap[originalMime]) ? this._officeMimeMap[originalMime] : null;
 
-            const file = Drive.Files.insert(resource, attachmentBlob.copyBlob(), { convert: true });
-            fileId = file && file.id ? file.id : null;
-            if (!fileId) {
-                throw new Error('Conversione fallita: file temporaneo senza id.');
+            if (typeof Drive.Files.insert === 'function') {
+                const resource = {
+                    title: `TEMP_CONV_${attachmentBlob.getName() || 'allegato'}`,
+                    mimeType: originalMime
+                };
+
+                const file = Drive.Files.insert(resource, attachmentBlob.copyBlob(), { convert: true });
+                fileId = file && file.id ? file.id : null;
+                if (!fileId) {
+                    throw new Error('Conversione fallita: file temporaneo senza id.');
+                }
+            } else if (typeof Drive.Files.create === 'function') {
+                if (!googleMime) {
+                    throw new Error(`Conversione fallita: mimeType Office non supportato (${originalMime})`);
+                }
+                const resource = {
+                    name: `TEMP_CONV_${attachmentBlob.getName() || 'allegato'}`,
+                    mimeType: googleMime
+                };
+                const file = Drive.Files.create(resource, attachmentBlob.copyBlob(), { mimeType: googleMime });
+                fileId = file && file.id ? file.id : null;
+                if (!fileId) {
+                    throw new Error('Conversione fallita: file temporaneo senza id.');
+                }
+                if (file.mimeType && file.mimeType !== googleMime) {
+                    throw new Error(`Conversione Office non applicata (mimeType=${file.mimeType})`);
+                }
+            } else {
+                throw new Error('Drive.Files non espone metodi compatibili (insert/create)');
             }
 
             const pdfBlob = DriveApp.getFileById(fileId).getAs('application/pdf');

@@ -814,7 +814,7 @@ ${addressLines.join('\n\n')}
         emailContent: messageDetails.body,
         emailSubject: messageDetails.subject,
         knowledgeBase: enrichedKnowledgeBase,
-        doctrineBase: doctrineBase,
+        doctrineBase: effectiveDoctrineBase,
         senderName: messageDetails.senderName,
         senderEmail: messageDetails.senderEmail,
         conversationHistory: conversationHistory,

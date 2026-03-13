@@ -95,6 +95,7 @@ class PromptEngine {
       emailContent,
       emailSubject,
       knowledgeBase,
+      doctrineBase = '',
       senderName = 'Utente',
       senderEmail = '',
       conversationHistory = '',
@@ -319,14 +320,19 @@ ${GLOBAL_CACHE.aiCore}
       );
       if (selectiveDoctrine) {
         addSection(selectiveDoctrine, 'SelectiveDoctrine');
-      } else if (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.doctrineBase) {
+      } else {
+        const doctrineFallback = (typeof doctrineBase === 'string' && doctrineBase.trim())
+          ? doctrineBase
+          : ((typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.doctrineBase) ? GLOBAL_CACHE.doctrineBase : '');
+        if (doctrineFallback) {
         const doctrineSection = `
 ══════════════════════════════════════════════════════
 📖 BASE DOTTRINALE (Dottrina) - Fallback Completo
 ══════════════════════════════════════════════════════
-${GLOBAL_CACHE.doctrineBase}
+${doctrineFallback}
 ══════════════════════════════════════════════════════\n`;
         addSection(doctrineSection, 'DoctrineFallback');
+        }
       }
     }
 
