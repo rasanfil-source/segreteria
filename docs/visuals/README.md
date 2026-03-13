@@ -1,41 +1,43 @@
 # 📁 Visual Assets
 
-> **Cartella per diagrammi e asset visivi del sistema**
+[![Italian Version](https://img.shields.io/badge/Italian-Version-green?style=flat-square)](README_IT.md)
+
+> **Folder for system diagrams and visual assets**
 
 ---
 
-## 📋 Asset Pianificati
+## 📋 Planned Assets
 
-| File | Descrizione | Stato |
-|------|-------------|-------|
-| `architecture-overview.svg` | Diagramma C4 architettura | 📝 Da creare |
-| `pipeline-flow.svg` | Sequence diagram flusso email | 📝 Da creare |
-| `decision-tree-troubleshooting.svg` | Albero decisionale problemi | 📝 Da creare |
-| `one-page-quickstart.pdf` | Guida A4 stampabile | 📝 Da creare |
-
----
-
-## 🛠️ Come Creare i Diagrammi
-
-### Strumenti Consigliati
-
-1. **[draw.io](https://draw.io)** - Gratuito, funziona nel browser
-2. **[Lucidchart](https://lucidchart.com)** - Professionale, collaborativo
-3. **[Mermaid Live Editor](https://mermaid.live)** - Per esportare diagrammi Mermaid
-
-### Esportazione
-
-- **SVG** per web (scalabile)
-- **PNG** per documenti
-- **PDF** per stampa
+| File | Description | Status |
+|------|-------------|--------|
+| `architecture-overview.svg` | C4 architecture diagram | ✅ Created |
+| `pipeline-flow.svg` | Email flow sequence diagram | ✅ Created |
+| `decision-tree-troubleshooting.svg` | Troubleshooting decision tree | ✅ Created |
+| `one-page-quickstart.pdf` | Printable A4 quickstart | ✅ Created |
 
 ---
 
-## 📝 Note
+## 🛠️ How to Create Diagrams
 
-I diagrammi Mermaid inclusi nei file markdown (`ARCHITECTURE_DIAGRAMS_IT.md`) 
-possono essere esportati come SVG usando il Mermaid Live Editor.
+### Recommended Tools
+
+1. **[draw.io](https://draw.io)** - Free, browser-based
+2. **[Lucidchart](https://lucidchart.com)** - Professional, collaborative
+3. **[Mermaid Live Editor](https://mermaid.live)** - Export Mermaid diagrams
+
+### Export
+
+- **SVG** for web (scalable)
+- **PNG** for documents
+- **PDF** for print
 
 ---
 
-**[Torna a Documentazione](../../README.md)**
+## 📝 Notes
+
+Mermaid diagrams in the markdown files (`ARCHITECTURE_DIAGRAMS.md`, `ARCHITECTURE_DIAGRAMS_IT.md`)
+can be exported to SVG using the Mermaid Live Editor.
+
+---
+
+**[Back to Documentation](../../README.md)**

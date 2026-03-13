@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="980" viewBox="0 0 1200 980">
+  <defs>
+    <style>
+      .box { fill: #ffffff; stroke: #2f4f4f; stroke-width: 1.5; rx: 8; ry: 8; }
+      .diamond { fill: #ffffff; stroke: #2f4f4f; stroke-width: 1.5; }
+      .title { font: 600 18px 'Segoe UI', Arial, sans-serif; fill: #1f2d3d; }
+      .label { font: 12px 'Segoe UI', Arial, sans-serif; fill: #1f2d3d; }
+      .arrow { stroke: #394b59; stroke-width: 1.6; fill: none; }
+      .edge-label { font: 11px 'Segoe UI', Arial, sans-serif; fill: #394b59; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#394b59" />
+    </marker>
+  </defs>
+
+  <text x="600" y="40" text-anchor="middle" class="title">Email Processing Pipeline</text>
+
+  <!-- Main flow boxes -->
+  <rect x="450" y="60" width="300" height="50" class="box"/>
+  <text x="600" y="90" text-anchor="middle" class="label">New email in inbox</text>
+
+  <rect x="450" y="130" width="300" height="50" class="box"/>
+  <text x="600" y="160" text-anchor="middle" class="label">Main trigger (every 5 min)</text>
+
+  <rect x="450" y="200" width="300" height="50" class="box"/>
+  <text x="600" y="230" text-anchor="middle" class="label">Search unread threads</text>
+
+  <rect x="450" y="270" width="300" height="50" class="box"/>
+  <text x="600" y="300" text-anchor="middle" class="label">Process thread</text>
+
+  <rect x="450" y="340" width="300" height="50" class="box"/>
+  <text x="600" y="370" text-anchor="middle" class="label">Classifier (category, lang)</text>
+
+  <!-- Decision 1 -->
+  <polygon points="600,420 680,460 600,500 520,460" class="diamond"/>
+  <text x="600" y="455" text-anchor="middle" class="label">Should reply?</text>
+  <text x="600" y="472" text-anchor="middle" class="label">(valid email)</text>
+
+  <!-- No branch: skipped -->
+  <rect x="120" y="430" width="220" height="50" class="box"/>
+  <text x="230" y="460" text-anchor="middle" class="label">Apply label Skipped</text>
+
+  <!-- Quick check -->
+  <rect x="450" y="520" width="300" height="50" class="box"/>
+  <text x="600" y="550" text-anchor="middle" class="label">Gemini quick check</text>
+
+  <!-- Decision 2 -->
+  <polygon points="600,600 680,640 600,680 520,640" class="diamond"/>
+  <text x="600" y="635" text-anchor="middle" class="label">Reply needed?</text>
+
+  <!-- No branch: no reply -->
+  <rect x="120" y="610" width="220" height="50" class="box"/>
+  <text x="230" y="640" text-anchor="middle" class="label">Apply label NoReply</text>
+
+  <!-- Generate response -->
+  <rect x="450" y="700" width="300" height="50" class="box"/>
+  <text x="600" y="730" text-anchor="middle" class="label">Generate response (Gemini)</text>
+
+  <!-- Validate -->
+  <rect x="450" y="770" width="300" height="50" class="box"/>
+  <text x="600" y="800" text-anchor="middle" class="label">Validate response</text>
+
+  <!-- Decision 3 -->
+  <polygon points="600,850 680,890 600,930 520,890" class="diamond"/>
+  <text x="600" y="885" text-anchor="middle" class="label">Valid?</text>
+  <text x="600" y="902" text-anchor="middle" class="label">(score &gt;= 0.6)</text>
+
+  <!-- No branch: verify -->
+  <rect x="120" y="860" width="220" height="50" class="box"/>
+  <text x="230" y="890" text-anchor="middle" class="label">Apply label Verifica</text>
+
+  <!-- Yes branch: send -->
+  <rect x="820" y="860" width="320" height="60" class="box"/>
+  <text x="980" y="890" text-anchor="middle" class="label">Send reply + label IA</text>
+  <text x="980" y="907" text-anchor="middle" class="label">Update memory</text>
+
+  <!-- Arrows main flow -->
+  <line x1="600" y1="110" x2="600" y2="130" class="arrow" marker-end="url(#arrowhead)"/>
+  <line x1="600" y1="180" x2="600" y2="200" class="arrow" marker-end="url(#arrowhead)"/>
+  <line x1="600" y1="250" x2="600" y2="270" class="arrow" marker-end="url(#arrowhead)"/>
+  <line x1="600" y1="320" x2="600" y2="340" class="arrow" marker-end="url(#arrowhead)"/>
+  <line x1="600" y1="390" x2="600" y2="420" class="arrow" marker-end="url(#arrowhead)"/>
+
+  <line x1="520" y1="460" x2="340" y2="460" class="arrow" marker-end="url(#arrowhead)"/>
+  <text x="430" y="448" text-anchor="middle" class="edge-label">No</text>
+
+  <line x1="600" y1="500" x2="600" y2="520" class="arrow" marker-end="url(#arrowhead)"/>
+  <line x1="600" y1="570" x2="600" y2="600" class="arrow" marker-end="url(#arrowhead)"/>
+
+  <line x1="520" y1="640" x2="340" y2="640" class="arrow" marker-end="url(#arrowhead)"/>
+  <text x="430" y="628" text-anchor="middle" class="edge-label">No</text>
+
+  <line x1="600" y1="680" x2="600" y2="700" class="arrow" marker-end="url(#arrowhead)"/>
+  <line x1="600" y1="750" x2="600" y2="770" class="arrow" marker-end="url(#arrowhead)"/>
+  <line x1="600" y1="820" x2="600" y2="850" class="arrow" marker-end="url(#arrowhead)"/>
+
+  <line x1="520" y1="890" x2="340" y2="890" class="arrow" marker-end="url(#arrowhead)"/>
+  <text x="430" y="878" text-anchor="middle" class="edge-label">No</text>
+
+  <line x1="680" y1="890" x2="820" y2="890" class="arrow" marker-end="url(#arrowhead)"/>
+  <text x="750" y="878" text-anchor="middle" class="edge-label">Yes</text>
+
+  <text x="640" y="512" text-anchor="start" class="edge-label">Yes</text>
+  <text x="640" y="692" text-anchor="start" class="edge-label">Yes</text>
+</svg>

@@ -1,0 +1,92 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1321 >>
+stream
+BT
+/F1 18 Tf
+50 800 Td
+(Segreteria Email Parrocchiale AI - Quick Start \\(1 pagina\\)) Tj
+/F1 11 Tf
+0 -14 Td
+() Tj
+0 -14 Td
+(Requisiti minimi:) Tj
+0 -14 Td
+(- Account Gmail parrocchia) Tj
+0 -14 Td
+(- Google Drive + Google Sheets) Tj
+0 -14 Td
+(- API key Gemini \\(AI Studio\\)) Tj
+0 -14 Td
+(- Apps Script project) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Setup rapido \\(5 min\\):) Tj
+0 -14 Td
+(1\\) Crea progetto Apps Script e incolla i file GAS) Tj
+0 -14 Td
+(2\\) Imposta Script Properties: GEMINI_API_KEY, SPREADSHEET_ID) Tj
+0 -14 Td
+(3\\) Popola Knowledge Base \\(Istruzioni, AI_CORE, DOTTRINA\\)) Tj
+0 -14 Td
+(4\\) Esegui setupTrigger\\(\\) per attivare il trigger 5 min) Tj
+0 -14 Td
+(5\\) Invia email test o usa testQuickDemo\\(\\)) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Etichette Gmail:) Tj
+0 -14 Td
+(- IA = risposta inviata) Tj
+0 -14 Td
+(- Verifica = controllo umano) Tj
+0 -14 Td
+(- Skipped = ignorata) Tj
+0 -14 Td
+(- NoReply = nessuna risposta necessaria) Tj
+0 -14 Td
+(- Errore = intervento manuale) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Troubleshooting rapido:) Tj
+0 -14 Td
+(- Nessuna email: verifica trigger ed esecuzioni) Tj
+0 -14 Td
+(- Troppe Verifica: abbassa VALIDATION_MIN_SCORE) Tj
+0 -14 Td
+(- Errori 429: attesa quota o usa flash-lite) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Documentazione: docs/DEPLOYMENT_IT.md, docs/TROUBLESHOOTING_IT.md) Tj
+ET
+
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000001614 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1684
+%%EOF

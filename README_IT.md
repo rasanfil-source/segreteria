@@ -73,7 +73,8 @@
     *   **Prompt Engine**: Introdotta compatibilità per input `requestType` in formato stringa, garantendo la stabilità dei prompt anche con flussi alternativi.
     *   **Prompt Context**: Migliorata la documentazione e la gestione dei metadati per Knowledge Base in formato oggetto complesso.
 *   **Cycle v2.5.7 (Memory Hardening & WAL De-duplication)**:
-    *   **Memory Service**: Implementato meccanismo di de-duplicazione robusto per le voci WAL (Write-Ahead Log) basato su chiave univoca. Migliorata la resilienza con quarantena automatica (sheet separato) per righe con timestamp non validi, prevenendo corruzione dati.
+    *   **Rate Limiter**: De-duplicazione WAL in recovery con chiave composita (timestamp+nonce+model+tokens).
+    *   **Memory Service**: Normalizzazione dei timestamp non validi (reset a valore valido); nessuna quarantena su sheet.
 *   **Cycle v2.5.5 (Reaction Resilience & Language Refinement)**:
     *   **Email Processor**: Migliorata la gestione dei topic nelle reazioni (`_inferUserReaction`) con normalizzazione rigorosa dei titoli e filtraggio dei valori null/undefined per prevenire crash su thread con metadati parziali.
     *   **Gemini Service**: Affinata la logica di rilevamento lingua (portoghese/italiano) e corretta la persistenza dei commenti Unicode per i motori di regex. Aggiunta documentazione sul check inclusivo dei periodi festivi.

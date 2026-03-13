@@ -33,7 +33,7 @@
 *   **v2.6.0 (HTML Rendering Fix)**: Improved `markdownToHtml` to prevent invalid tag nesting (e.g., lists inside paragraphs).
 *   **Cycle v2.5.9 (Territory Resilience)**: Added diacritics normalization for street addresses (accents removal via NFD).
 *   **Cycle v2.5.8 (Gmail & Prompt Resilience)**: Hardened label listing with safe pagination fallbacks and improved prompt cross-compatibility for all request types.
-*   **Cycle v2.5.7 (Memory Hardening)**: Robust WAL de-duplication and invalid timestamp quarantine.
+*   **Cycle v2.5.7 (Memory Hardening)**: WAL recovery de-duplication in RateLimiter uses a composite key (timestamp+nonce+model+tokens); MemoryService normalizes invalid timestamps (no quarantine sheet).
 *   **Gestione Lock Avanzata**: Ottimizzazione dei lock atomici per una coordinazione perfetta dei processi.
 *   **Gestione Semantica KB**: Troncamento intelligente della Knowledge Base per garantire risposte sempre complete e coerenti.
 *   **Resilienza Operativa**: Sistema di monitoraggio delle quote integrato per una continuità di servizio costante.

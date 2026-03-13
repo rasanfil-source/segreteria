@@ -73,6 +73,7 @@ Righe consigliate:
 | `lst_ignore_keywords` | Filtri | `Filtri!C2:C` | lista testo (keyword) | codice + utente |
 | `cfg_timezone` | Controllo | `Controllo!B4` | testo (`Europe/Rome`) | codice |
 | `cfg_holidays_mode` | Controllo | `Controllo!B5` | boolean/testo (`Considera Festivi`) | codice + utente |
+| `cfg_vacation_start_date` | Controllo | `Controllo!B5` | alias di `cfg_holidays_mode` (stessa cella) | codice |
 
 ---
 
