@@ -525,16 +525,16 @@ function _splitCachePayload(payload, maxSize) {
 function _readResourceCachePayload(cache) {
   if (!cache) return null;
 
-  // Lettura cache con supporto chiave precedente per continuità operativa.
-  // Manteniamo questo ramo per non perdere warm-cache durante deploy graduali.
-  const v1Payload = cache.get(RESOURCE_CACHE_KEY_V1);
-  if (v1Payload) {
-    return v1Payload;
-  }
-
   const v2Inline = cache.get(RESOURCE_CACHE_KEY_V2);
   if (v2Inline) {
     return v2Inline;
+  }
+
+  // Lettura cache con supporto chiave precedente per continuità operativa.
+  // Manteniamo questo ramo solo come fallback, così V2 prevale se presente.
+  const v1Payload = cache.get(RESOURCE_CACHE_KEY_V1);
+  if (v1Payload) {
+    return v1Payload;
   }
 
   const partsCountRaw = cache.get(RESOURCE_CACHE_PARTS_KEY);
@@ -567,6 +567,11 @@ function _writeResourceCachePayload(cache, payload) {
 
   if (payload.length <= RESOURCE_CACHE_MAX_PART_SIZE) {
     cache.put(RESOURCE_CACHE_KEY_V2, payload, RESOURCE_CACHE_TTL_SECONDS);
+    try {
+      cache.remove(RESOURCE_CACHE_KEY_V1);
+    } catch (e) {
+      // best effort: evita stale V1 se removeAll precedente è fallita
+    }
     return;
   }
 
@@ -584,6 +589,11 @@ function _writeResourceCachePayload(cache, payload) {
   values[RESOURCE_CACHE_PARTS_KEY] = String(parts.length);
 
   cache.putAll(values, RESOURCE_CACHE_TTL_SECONDS);
+  try {
+    cache.remove(RESOURCE_CACHE_KEY_V1);
+  } catch (e) {
+    // best effort: evita stale V1 se removeAll precedente è fallita
+  }
   console.warn(`⚠️ Cache risorse salvata in modalità multipart (${parts.length} chunk).`);
 }
 
@@ -998,9 +1008,10 @@ function _formatDateForKnowledgeText(date) {
     const tz = resolveScriptTz();
 
     // Rileviamo se ha una parte oraria in base al fuso orario target
-    const hasTime = (tz === 'UTC')
-      ? (date.getUTCHours() !== 0 || date.getUTCMinutes() !== 0 || date.getUTCSeconds() !== 0)
-      : (date.getHours() !== 0 || date.getMinutes() !== 0 || date.getSeconds() !== 0);
+    const hStr = Utilities.formatDate(date, tz, 'H');
+    const mStr = Utilities.formatDate(date, tz, 'm');
+    const sStr = Utilities.formatDate(date, tz, 's');
+    const hasTime = parseInt(hStr, 10) !== 0 || parseInt(mStr, 10) !== 0 || parseInt(sStr, 10) !== 0;
 
     const pattern = hasTime ? 'yyyy-MM-dd HH:mm' : 'yyyy-MM-dd';
 

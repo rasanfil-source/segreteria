@@ -604,7 +604,10 @@ class ResponseValidator {
     const kbEmails = new Set(
       (safeKnowledgeBase.match(emailPattern) || []).map(e => e.toLowerCase())
     );
-    const inventedEmails = [...responseEmails].filter(e => !kbEmails.has(e));
+    const originalEmails = new Set(
+      ((originalMessage || '').match(emailPattern) || []).map(e => e.toLowerCase())
+    );
+    const inventedEmails = [...responseEmails].filter(e => !kbEmails.has(e) && !originalEmails.has(e));
 
     if (inventedEmails.length > 0) {
       errors.push(`Indirizzi email non in KB: ${inventedEmails.join(', ')}`);

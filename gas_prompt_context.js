@@ -99,12 +99,15 @@ class PromptContext {
             if (value === null || typeof value === 'undefined') {
                 return '';
             }
-            return typeof value === 'string' ? value : Object.prototype.toString.call(value);
+            return typeof value === 'string' ? value : String(value);
         }
     }
 
     _computeConcerns() {
         const i = this.input;
+        const configuredThreshold = (typeof CONFIG !== 'undefined' && Number.isFinite(CONFIG.KB_HALLUCINATION_RISK_THRESHOLD))
+            ? CONFIG.KB_HALLUCINATION_RISK_THRESHOLD
+            : 8000;
 
         return {
             language_safety:
@@ -112,7 +115,7 @@ class PromptContext {
                 (i.classification?.confidence ?? 1) < 0.8,
 
             hallucination_risk:
-                (i.knowledgeBaseMeta?.length ?? i.knowledgeBase?.length ?? 0) > 800 ||
+                (i.knowledgeBaseMeta?.length ?? i.knowledgeBase?.length ?? 0) > configuredThreshold ||
                 i.temporal?.mentionsDates ||
                 i.temporal?.mentionsTimes,
 
