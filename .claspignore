@@ -38,4 +38,5 @@ tests/*
 tests/**/*
 **/tests/**
 scripts/*
-*test*
+maintenance/*
+maintenance/**/*
