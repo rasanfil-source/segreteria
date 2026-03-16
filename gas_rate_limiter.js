@@ -30,12 +30,12 @@ class GeminiRateLimiter {
       this.models = {
         'flash-2.5': {
           name: 'gemini-2.5-flash',
-          rpm: 15, tpm: 1000000, rpd: 1500,
+          rpm: 100, tpm: 1000000, rpd: 50,
           useCases: ['generation', 'all']
         },
         'flash-lite': {
           name: 'gemini-2.5-flash-lite',
-          rpm: 10, tpm: 1000000, rpd: 1500,
+          rpm: 15, tpm: 1000000, rpd: 1000,
           useCases: ['fallback', 'classification', 'quick_check']
         }
       };
