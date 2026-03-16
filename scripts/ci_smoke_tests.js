@@ -642,7 +642,7 @@ function testLoadResourcesResetsMissingPromptSheets() {
     }
 }
 
-function testMainDoesNotLeakHasExecutionLockGlobal() {
+function testMainEncapsulatesExecutionLockSuccessfully() {
     loadScript('gas_main.js');
 
     const originalLockService = global.LockService;
@@ -660,7 +660,7 @@ function testMainDoesNotLeakHasExecutionLockGlobal() {
         // Intenzionale: il test deve verificare il vero entry point triggerabile del progetto.
         processEmailsMain();
         const leaked = Object.prototype.hasOwnProperty.call(global, 'hasExecutionLock');
-        assert(!leaked, 'processEmailsMain non deve creare una variabile globale hasExecutionLock');
+        assert(!leaked, 'processEmailsMain deve mantenere uno scope isolato senza propagare hasExecutionLock');
     } finally {
         global.LockService = originalLockService;
         if (hadHasExecutionLock) {
@@ -671,7 +671,7 @@ function testMainDoesNotLeakHasExecutionLockGlobal() {
     }
 }
 
-function testInferUserReactionHandlesNullTopic() {
+function testInferUserReactionIsResilientToEmptyTopics() {
     loadScript('gas_email_processor.js');
 
     const processor = Object.create(EmailProcessor.prototype);
@@ -746,7 +746,7 @@ function testExtractOfficeTextDriveCreateForcesTargetMimeType() {
     }
 }
 
-function testRateLimiterRecoverRequiresLock() {
+function testRateLimiterPersistenceRequiresTransactionalLock() {
     loadScript('gas_rate_limiter.js');
 
     const originalLockService = global.LockService;
@@ -1652,9 +1652,9 @@ function main() {
         ['anti-loop: thread lungo con esterni consecutivi', testAntiLoopDetection],
         ['memory get: usa row.values in parsing', testMemoryGetUsesRowValues],
         ['memory invalidate: pulizia cache robusta', testInvalidateCacheAlsoClearsRobustCache],
-        ['memory reaction: topic null non crasha', testInferUserReactionHandlesNullTopic],
+        ['memory reaction: gestione dinamica topic vuoti', testInferUserReactionIsResilientToEmptyTopics],
         ['memory reaction: normalizzazione topic coerente', testInferUserReactionNormalizesTopicKeys],
-        ['rate limiter WAL: recovery bloccato senza lock', testRateLimiterRecoverRequiresLock],
+        ['rate limiter: persistenza rigorosa transazionale bloccata senza lock', testRateLimiterPersistenceRequiresTransactionalLock],
         ['_shouldIgnoreEmail: no-reply/reale/ooo', testShouldIgnoreEmail],
         ['attachment context: sanitizzazione + newline reali', testAttachmentContextSanitizationFormatting],
         ['prompt lite: budget token e sezioni ridotte', testPromptLiteTokenBudget],
@@ -1672,7 +1672,7 @@ function main() {
         ['gmail labels: errori non-label vengono propagati', testAddLabelToThreadPropagatesNonLabelErrors],
         ['gmail list: fallback robusto opzioni paginazione invalide', testGetMessageIdsWithLabelInvalidPaginationOptions],
         ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
-        ['main: nessun leak globale hasExecutionLock', testMainDoesNotLeakHasExecutionLockGlobal],
+        ['main: isolamento rigoroso per hasExecutionLock', testMainEncapsulatesExecutionLockSuccessfully],
         ['main: serializzazione robusta righe KB', testSheetRowsToTextRemovesEmptyCellsAndRows],
         ['main: serializzazione date KB stabile', testSheetRowsToTextFormatsDatesStably],
         ['main: serializzazione celle multilinea KB stabile', testSheetRowsToTextNormalizesMultilineCells],

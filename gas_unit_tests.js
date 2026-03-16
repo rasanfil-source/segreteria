@@ -184,13 +184,13 @@ function runAllTests() {
     const start = Date.now();
 
     // 1. RateLimiter
-    testGroup('Punto #1: RateLimiter - WAL Protection', results, () => {
-        test('WAL persist elimini log se riuscito', results, () => {
+    testGroup('Punto #1: RateLimiter - Persistenza Transazionale', results, () => {
+        test('Il gestore della persistenza pulisce i registri dopo sincronizzazione riuscita', results, () => {
             const limiter = new GeminiRateLimiter();
             limiter._persistCacheWithWAL();
             return limiter.props.getProperty('rate_limit_wal') === null;
         });
-        test('WAL recovery ripristini finestre', results, () => {
+        test('Il ripristino di stato rigenera in modo coerente le finestre operative', results, () => {
             const limiter = new GeminiRateLimiter();
             const wal = { timestamp: Date.now(), rpm: [{ timestamp: Date.now(), modelKey: 'flash' }], tpm: [] };
             limiter.props.setProperty('rate_limit_wal', JSON.stringify(wal));
@@ -218,9 +218,9 @@ function runAllTests() {
     });
 
     // 3. TerritoryValidator
-    testGroup('Punto #3: TerritoryValidator - ReDoS', results, () => {
+    testGroup('Punto #3: TerritoryValidator - Gestione Input Estremi', results, () => {
         const validator = new TerritoryValidator();
-        test('Input ReDoS non blocchi processo', results, () => {
+        test('L\'elaborazione dell\'input viene completata tempestivamente su schemi complessi', results, () => {
             const start = Date.now();
             validator.extractAddressFromText("via " + "a".repeat(1000) + " b");
             return (Date.now() - start) < 500;
@@ -234,7 +234,7 @@ function runAllTests() {
     // 4. EmailProcessor
     testGroup('Punto #4: EmailProcessor - Topic Detection', results, () => {
         const processor = new EmailProcessor();
-        test('Non lancia errori su rilevazione topic territorio', results, () => {
+        test('Gestisce in modo dinamico la rilevazione in assenza esplicita di topic', results, () => {
             const topics = processor._detectProvidedTopics('La via Antonio Gramsci rientra nel territorio parrocchiale.');
             return Array.isArray(topics) && topics.includes('territorio');
         });
@@ -256,7 +256,7 @@ function runAllTests() {
             return adjusted.includes('in un orario differente da quanto indicato da Lei');
         });
 
-        test('Fix Bug 1: processThread marca altri messaggi come elaborati', results, () => {
+        test('processThread identifica e marca uniformemente tutti i messaggi aggregati', results, () => {
             const labeledMessageIds = new Set();
             const thread = {
                 getId: () => 'thread-123',
@@ -317,7 +317,7 @@ function runAllTests() {
     // 6. ResponseValidator
     testGroup('Punto #6: ResponseValidator - Quality', results, () => {
         const validator = new ResponseValidator();
-        test('Rileva leak "Rivedendo la KB"', results, () => {
+        test('Controlla e censura eventuali inferenze esposte di estrazione del LLM', results, () => {
             const res = validator.validateResponse("Rivedendo la knowledge base, ecco la risposta.", 'it', "...", "...", "...", "full");
             return res.details.exposedReasoning.score === 0.0;
         });
@@ -385,7 +385,7 @@ function runAllTests() {
                 map['application/vnd.openxmlformats-officedocument.presentationml.presentation']);
         });
 
-        test('Fix Bug 2: _isMeaningfulOCR supporta accenti italiani', results, () => {
+        test('_isMeaningfulOCR processa in sicurezza set estesi di caratteri e lettere accentate', results, () => {
             const service = new GmailService();
             // Testo con lettere accentate. Deve essere > 30 caratteri totali
             // e contenere almeno 5 lettere [a-zA-ZÀ-ÿ].

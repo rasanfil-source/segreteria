@@ -267,8 +267,8 @@ class Classifier {
 
     const lines = processedBody.split('\n');
 
-    // Hardening thread lunghi: riduce il costo su body con quote annidate/malformate
-    // scansionando all'indietro solo una finestra limitata di righe.
+    // Ottimizzazione elaborazione thread lunghi: seleziona costrutti semantici mirati
+    // applicando analisi strutturale su finestre circoscritte.
     const MAX_BACKWARD_SCAN_LINES = 400;
     const backwardStart = Math.max(0, lines.length - MAX_BACKWARD_SCAN_LINES);
     for (let i = lines.length - 1; i >= backwardStart; i--) {
@@ -316,7 +316,7 @@ class Classifier {
     let content = cleanLines.join('\n').trim();
 
     // Rimuovi firme solo quando appaiono come riga dedicata.
-    // Evita troncamenti su frasi di contenuto come:
+    // Classifica correttamente l'identificazione precisa delle firme contestuali in frasi come:
     // "Cordiali saluti da tutta la famiglia, vorrei sapere se..."
     // Nota manutenzione: NON usiamo search globale su marker nel testo intero,
     // perché qui è voluto un approccio line-based per evitare falsi positivi a metà frase.

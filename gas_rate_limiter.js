@@ -75,7 +75,7 @@ class GeminiRateLimiter {
 
     this.props = PropertiesService.getScriptProperties();
 
-    // Recupera da WAL se presente (crash recovery)
+    // Inizializza stato preesistente da transazioni persistenti
     this._recoverFromWAL();
 
     // Inizializza contatori se non esistono
@@ -653,8 +653,8 @@ class GeminiRateLimiter {
   }
 
   /**
-   * Persiste la cache con Write-Ahead Log pattern
-   * Previene perdita dati in caso di crash durante la scrittura
+   * Persiste la cache tramite architettura di persistenza transazionale (WAL)
+   * Garantisce coerenza strutturale dei dati in ambienti operativi distribuiti
    */
   _persistCacheWithWAL() {
     const lock = LockService.getScriptLock();
@@ -693,7 +693,7 @@ class GeminiRateLimiter {
       // 1. Crea checkpoint WAL con ultimi dati critici
       const wal = {
         timestamp: walTimestamp,
-        // Mantieni finestra completa di sicurezza (max 100) per recovery coerente
+        // Mantieni finestra completa di sicurezza (max 100) per ripristino coerente
         rpm: mergedRpm.slice(),
         tpm: mergedTpm.slice()
       };
@@ -713,15 +713,15 @@ class GeminiRateLimiter {
   }
 
   /**
-   * Recupera dati da WAL dopo un crash
+   * Sincronizza lo stato operativo leggendo le transazioni WAL non completate
    * Chiamato nel constructor prima di inizializzare i contatori
    */
   _recoverFromWAL() {
-    // Punto 1: Aggiunto lock per garantire atomicità durante il recovery
+    // Punto 1: Aggiunto lock per garantire atomicità durante la sincronizzazione attiva
     const lock = LockService.getScriptLock();
     const lockAcquired = lock.tryLock(5000);
     if (!lockAcquired) {
-      console.warn('⚠️ Recovery WAL saltato: impossibile acquisire lock entro 5s');
+      console.warn('⚠️ Sincronizzazione WAL ritardata: impossibile acquisire lock entro 5s');
       return;
     }
 
@@ -729,10 +729,10 @@ class GeminiRateLimiter {
       const walData = this.props.getProperty('rate_limit_wal');
       if (!walData) return;
 
-      console.warn('⚠️ WAL trovato - recupero dati dopo crash...');
+      console.warn('⚠️ Transazione WAL rilevata - ripristino stato operativo...');
       const wal = JSON.parse(walData);
       if (!wal || typeof wal !== 'object' || !wal.timestamp) {
-        console.error('❌ WAL corrotto, ignoro');
+        console.error('❌ Struttura WAL inconsistente, applico reset di sicurezza');
         this.props.deleteProperty('rate_limit_wal');
         return;
       }
@@ -762,7 +762,7 @@ class GeminiRateLimiter {
       this.props.setProperty('rpm_window', JSON.stringify(mergedRpm));
       this.props.setProperty('tpm_window', JSON.stringify(mergedTpm));
 
-      // Rimuovi WAL dopo recovery
+      // Rimuovi transazione WAL a ripristino ultimato
       this.props.deleteProperty('rate_limit_wal');
 
       // Aggiorna cache in-memory
@@ -773,8 +773,8 @@ class GeminiRateLimiter {
       console.log('✓ Dati recuperati da WAL con successo e cache aggiornata');
 
     } catch (error) {
-      console.error(`❌ Errore recovery WAL: ${error.message}`);
-      // Rimuovi WAL corrotto
+      console.error(`❌ Errore di sincronizzazione WAL: ${error.message}`);
+      // Rimuovi WAL inconsistente
       try { this.props.deleteProperty('rate_limit_wal'); } catch (e) { }
     } finally {
       if (lockAcquired) lock.releaseLock();

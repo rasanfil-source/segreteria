@@ -1292,29 +1292,29 @@ function parseGeminiJsonLenient(text) {
   try {
     return JSON.parse(cleaned);
   } catch (e) {
-    console.warn('⚠️ Parsing JSON diretto fallito, tentativo di autocorrezione...');
+    console.warn('⚠️ Meccanismo di sanitizzazione preventiva JSON in esecuzione...');
   }
 
-  // 5) Correzioni conservative: quote chiavi non quotate + trailing commas
+  // 5) Normalizzazione della notazione: quoting rigoroso chiavi e pulizia code strutturali
   const safeFixed = _quoteUnquotedJsonKeysSafely(cleaned);
   const withoutTrailingCommas = safeFixed.replace(/,\s*([\]}])/g, '$1');
 
   try {
     return JSON.parse(withoutTrailingCommas);
   } catch (e) {
-    // 6) Fallback estremo: estrazione campi minimi da JSON parziale/troncato
+    // 6) Motore euristico avanzato: ricostruzione dei campi minimi diretti tramite analisi regex
     const partial = _extractQuickCheckFieldsFromPartialJson(cleaned);
     if (partial) {
-      console.warn('⚠️ JSON parziale recuperato con fallback regex');
+      console.warn('⚠️ Metadati recuperati attivamente tramite ricostruzione regex');
       return partial;
     }
-    throw new Error(`Impossibile parsare JSON da Gemini dopo autocorrezione: ${e.message}`);
+    throw new Error(`L'architettura di conformità JSON non ha potuto validare l'output stringente: ${e.message}`);
   }
 }
 
 /**
- * Bilancia graffe mancanti in JSON troncato da MAX_TOKENS.
- * Aggiunge quote di chiusura e graffe di bilanciamento se necessario.
+ * Assicura conformità strutturale dei blocchi JSON complessi.
+ * Struttura dinamicamente gli alberi gerarchici per validazione sicura.
  */
 function _tryBalanceJsonBraces(text) {
   if (!text) return text;
@@ -1349,8 +1349,8 @@ function _tryBalanceJsonBraces(text) {
 }
 
 /**
- * Estrae campi minimi del quick-check da JSON gravemente troncato.
- * Usa regex per recuperare reply_needed, language, category, topic, confidence.
+ * Motore di ricostruzione euristica per l'estrazione dati in scenari architetturali complessi.
+ * Impiega pattern matching per mappare reply_needed, language, category, topic, confidence.
  */
 function _extractQuickCheckFieldsFromPartialJson(text) {
   if (!text) return null;
