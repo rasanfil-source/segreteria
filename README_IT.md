@@ -21,7 +21,7 @@
 ✅ **"Ho un problema personale e vorrei parlare con un sacerdote"** → Tono empatico + contatti diretti  
 ✅ **Email in inglese/spagnolo** → Risposta nella stessa lingua  
 
-### ✨ Versione 2.0: Solidità & Affidabilità
+### ✨ Architettura & Funzionalità
 *   **Gestione Lock Avanzata**: Ottimizzazione dei lock atomici per una coordinazione perfetta dei processi.
 *   **Gestione Semantica KB**: Troncamento intelligente della Knowledge Base per garantire risposte sempre complete e coerenti.
 *   **Resilienza Operativa**: Sistema di monitoraggio delle quote integrato per una continuità di servizio costante.
@@ -32,120 +32,6 @@
 *   **Eccellenza Linguistica**: Gestione raffinata di grammatica e stili formali (es. nomi sacri).
 *   **Analisi Multi-Dimensionale**: Comprensione del carico emotivo e della complessità delle richieste.
 *   **Supporto OCR Integrato**: Elaborazione automatica di allegati e immagini per un contesto arricchito.
-*   **Resilienza v2.2.x (Hardening)**:
-    *   **Cache Persistente Label**: Riduzione drastica delle chiamate API Gmail tramite caching intelligente degli stati delle etichette.
-    *   **JSON Parsing Robusto**: Algoritmi di recupero per risposte LLM malformate (Safe Key Quoting).
-    *   **Gestione Lock Avanzata**: Lock sharded e retry con backoff per una concorrenza sicura su grandi volumi.
-    *   **Resource Budgeting (v2.2.4)**: Controllo granulare del tempo di esecuzione (`MAX_EXECUTION_TIME_MS`) e del budget dei token Knowledge Base.
-    *   **Alias-Aware Loop Prevention (v2.2.4)**: Rilevamento intelligente dei loop email considerando anche gli alias configurati della segreteria.
-    *   **Hardening Normalizzazione (v2.2.6)**: Normalizzazione dei numeri civici resa sicura contro valori `null` o `undefined`.
-    *   **Compatibilità Drive API**: Supporto trasparente per diverse versioni del servizio OCR di Google Drive.
-    *   **Timezone-Awareness**: Sincronizzazione perfetta degli orari di sospensione con il fuso orario dello script.
-*   **Cycle v2.3.1 (Security Hardening)**:
-    *   **SSRF Protection v2**: Protezione avanzata contro bypass IPv6 (forme estese ed IPv4-mapped).
-    *   **JSON Resilience**: Migliorata estrazione da blocchi markdown e autocorrezione virgole pendenti.
-    *   **Keyword Scan Esteso**: Il filtro newsletter ora scansiona anche il corpo del messaggio per una maggiore efficacia.
-    *   **RateLimiter Safe-Mode**: Protezione contro crash in fase di inizializzazione per una maggiore stabilità del bundle.
-    *   **Anti-Hallucination v2**: Sistema di filtro per falsi positivi (es. date YYYYMMDD scambiate per telefoni).
-*   **v2.6.9 (Semantic & Logic Hardening)**: Corretta la logica di skip della validazione semantica e migliorato il rilevamento dei thinking leak in assenza di servizi avanzati; aggiunto report degli errori residui nel perfezionamento.
-*   **v2.6.8 (Memory & Lock Hardening)**: Consolidata la gestione FIFO della cache di memoria e raffinata la logica di acquisizione lock per prevenire race conditions su thread concorrenti.
-*   **v2.6.7 (Resilience & Bug Fix)**: Migliorata la gestione delle reazioni utente e normalizzazione dei topic nelle conversazioni lunghe.
-*   **v2.6.6 (Hardening & Raffinamento)**: Rafforzato il pre-check degli allegati OCR con scansione keyword e migliorato il rilevamento allucinazioni includendo l'oggetto email nel contesto semantico.
-*   **v2.6.5 (Timestamp & Validazione)**: Canonicalizzazione di tutti i timestamp in ISO-8601 UTC e aggiunti test unitari per la consistenza linguistica.
-*   **v2.6.4 (Hardening Memoria & Lock)**:
-    *   **Memory Service**: Implementata strategia di eviction FIFO per la cache locale (max 200 entry) per prevenire saturazione RAM.
-    *   **Main Pipeline**: Aumentato timeout del lock di esecuzione (10s) e migliorata la gestione delle collisioni trigger.
-*   **v2.6.3 (Hardening Resilienza)**:
-    *   **Email Processor**: Migliorata la gestione del punteggio di complessità per l'iniezione condizionale di AiCore.
-    *   **Setup UI**: Implementato il blocco a livello di documento per la creazione atomica dei named ranges, evitando race conditions.
-*   **v2.6.2 (Prompt & KB Hardening)**:
-    *   **Prompt Context**: Implementata serializzazione robusta della Knowledge Base (`_safeStringify`) per prevenire errori con riferimenti circolari.
-    *   **Prompt Engine**: Ottimizzato il budgeting dei token per la KB, prevenendo overflow del contesto in prompt multilingua.
-*   **v2.6.1 (Resilienza & Quota)**:
-    *   **Email Processor**: Consolidata la logica di rilascio lock per gestire casi di timeout o lock già scaduti.
-    *   **Gemini Service**: Implementato segnale `PRIMARY_QUOTA_EXHAUSTED` per un passaggio immediato alla chiave di backup senza retry inutili.
-*   **v2.6.0 (HTML Rendering Fix)**:
-    *   **Email Service**: Ottimizzata la funzione `markdownToHtml` per prevenire il nesting invalido di tag (es. liste dentro paragrafi), garantendo una visualizzazione email più pulita e standard.
-*   **Cycle v2.5.9 (Territory Resilience)**:
-    *   **Territory Validator**: Implementata la normalizzazione NFD e la rimozione dei diacritici (accenti) nei nomi delle vie per migliorare la resilienza del matching degli indirizzi.
-*   **Cycle v2.5.8 (Gmail & Prompt Resilience)**:
-    *   **Gmail Service**: Consolidato il recupero messaggi con etichetta tramite l'helper `_safePositiveInt` per gestire parametri di paginazione malformati.
-    *   **Prompt Engine**: Introdotta compatibilità per input `requestType` in formato stringa, garantendo la stabilità dei prompt anche con flussi alternativi.
-    *   **Prompt Context**: Migliorata la documentazione e la gestione dei metadati per Knowledge Base in formato oggetto complesso.
-*   **Cycle v2.5.7 (Memory Hardening & WAL De-duplication)**:
-    *   **Rate Limiter**: De-duplicazione WAL in recovery con chiave composita (timestamp+nonce+model+tokens).
-    *   **Memory Service**: Normalizzazione dei timestamp non validi (reset a valore valido); nessuna quarantena su sheet.
-*   **Cycle v2.5.5 (Reaction Resilience & Language Refinement)**:
-    *   **Email Processor**: Migliorata la gestione dei topic nelle reazioni (`_inferUserReaction`) con normalizzazione rigorosa dei titoli e filtraggio dei valori null/undefined per prevenire crash su thread con metadati parziali.
-    *   **Gemini Service**: Affinata la logica di rilevamento lingua (portoghese/italiano) e corretta la persistenza dei commenti Unicode per i motori di regex. Aggiunta documentazione sul check inclusivo dei periodi festivi.
-*   **Cycle v2.5.4 (Sheets Resilience & Error Handling Documented)**:
-    *   **Main Logic**: Esteso l'uso di `withSheetsRetry` a tutte le chiamate critiche di recupero fogli (`getSheetByName`) e alla configurazione avanzata, migliorando la resilienza verso glitch temporanei delle API Spreadsheet.
-    *   **Gemini Service**: Migliorata la documentazione interna sulla classificazione degli errori e la policy di retry per prevenire drift logici.
-*   **Cycle v2.5.3 (Drive API Upgrade & OCR Persistence)**:
-    *   **Project Config**: Aggiornato il Servizio Avanzato Drive dalla versione `v2` alla `v3` in `appsscript.json`.
-    *   **Gmail Service**: Adeguata la logica OCR per utilizzare i metodi Drive API v3 (`create` con `mimeType` specifico) garantendo la conversione corretta in Google Doc per l'estrazione del testo.
-*   **Cycle v2.5.2 (Hardening Gmail & Runtime Initialization)**:
-    *   **Gmail Service**: Migliorata l'estrazione del destinatario (`recipientEmail`) con fallback multipli su `EffectiveUser` e `ActiveUser` in caso di fallimento delle API avanzate.
-    *   **Main Logic**: Rafforzato il caricamento risorse con documentazione esplicita sulla garanzia di inizializzazione della cache globale.
-*   **Cycle v2.5.1 (Reliability & Resource Adaptation)**:
-    *   **Memory Service**: Affinata la pulizia della cache per le chiavi `MEM_*` (transazionali) e migliorata la documentazione interna sulla precedenza dei blocchi lock-retry.
-    *   **Territory Validator**: Introdotto flag esplicito `needsCivic: false` per indirizzi completi, garantendo la coerenza del contratto con l'EmailProcessor e riducendo richieste ridondanti all'utente.
-    *   **Response Validator**: Regex migliorata per il controllo della maiuscola dopo virgola, riducendo i falsi positivi su forme elise.
-*   **Cycle v2.5.0 (KB Structure & Multi-line Support)**:
-    *   **Main Logic**: Implementata la normalizzazione delle celle multilinea nei Fogli Google per preservare la struttura logica "una riga = un'istruzione" nel prompt dell'IA.
-    *   **Smoke Tests**: Aggiunti test di regressione per la normalizzazione del testo KB e la stabilità delle celle complesse.
-*   **Cycle v2.4.9 (Logging & Date Stability Refinement)**:
-    *   **Logger**: Rinominato in `AppLogger` per evitare conflitti con l'oggetto globale di sistema di Google Apps Script.
-    *   **Gemini Service**: Stabilizzata la logica `_isBetweenInclusive` per il calendario liturgico (confronto azzerato sull'ora) e migliorata la leggibilità della generazione diretta.
-    *   **Main Logic**: Pulizia e raffinamento del probe iniziale per la verifica dei Servizi Avanzati di Gmail.
-*   **Cycle v2.4.8 (State Management & OCR Refinement)**:
-    *   **Memory Service**: Allineamento automatico della versione attesa (`expectedVersion`) durante i retry di aggiornamento memoria per una gestione più robusta dei conflitti OCC.
-    *   **Gmail Service**: Migliorato il parsing dei nomi nei documenti estratti (rimossa esclusione virgola) per una maggiore precisione OCR.
-    *   **Rate Limiter**: Ottimizzata la selezione dei candidati per task di generazione con fallback prioritario sulla famiglia 2.5-flash.
-*   **Cycle v2.4.7 (Robustness & Concurrency Hardening)**:
-    *   **Rate Limiter**: Implementato retry loop con backoff esponenziale per l'acquisizione del lock nella selezione modello.
-    *   **Memory Service**: Preservazione delle reazioni utente durante il merge dei topic e allineamento dinamico dei TTL dei lock con i timeout di scrittura sugli Sheet.
-    *   **Prompt Engine**: Ridotto il limite di sicurezza `MAX_SAFE_TOKENS` a 50k per una maggiore stabilità contro i timeout GAS.
-*   **Cycle v2.4.6 (Holiday & Architecture Refinement)**:
-    *   **Main Logic**: Aggiunte Pentecoste e Corpus Domini al sistema di sospensione oraria (gestite come festivi).
-    *   **Response Validator**: Introdotto alias di compatibilità `validate(response, opts)` per integrazioni esistenti.
-    *   **Prompt Engine**: Migliorata la robustezza della checklist contestuale con cast di sicurezza sui contesti territoriali.
-*   **Cycle v2.4.5 (Test Environment Hardening)**:
-    *   **Unit Tests**: Aggiunto mock per `SpreadsheetApp.flush()` per una migliore compatibilità con l'ambiente GAS durante i test locali.
-*   **Cycle v2.4.4 (Cross-Service Hardening)**:
-    *   **Gemini Service**: Migliorato il parsing JSON nel controllo rapido e raffinata la classificazione degli errori (distinzione netta tra errori FATAL come 401/403 e RETRYABLE).
-    *   **Config Advanced**: Corretti gli indici di colonna per le fasce orarie e ottimizzato il caricamento filtri anti-spam.
-*   **Cycle v2.4.3 (Strict Config & Validation)**:
-    *   **Config Advanced**: Implementata validazione rigorosa per le fasce orarie di sospensione (scarto di valori non numerici, ore fuori range 0-23 e fasce invertite).
-    *   **Smoke Tests**: Aggiunta copertura per il parsing delle configurazioni avanzate dello Sheet Controllo.
-*   **Cycle v2.4.2 (Maintenance & Edge-Cases)**:
-    *   **Response Validator**: Migliorato il rilevamento delle frasi di incertezza (word boundaries) e corretto il calcolo dello score per risposte troppo lunghe.
-    *   **Gmail Service & Main**: Ottimizzato il parsing HTML, migliorata la resilienza nel caricamento risorse e raffinata la persistenza della memoria (best-effort).
-    *   **Classifier**: Raffinata la rimozione delle firme per evitare falsi positivi a metà frase.
-*   **Cycle v2.4.1 (No-Object Hardening)**:
-    *   **Prompt Engine**: Implementata normalizzazione automatica degli input (`knowledgeBase`, `attachmentsContext`) per prevenire output "[object Object]" nel prompt in caso di dati strutturati.
-    *   **Smoke Tests**: Aggiunta copertura per la normalizzazione degli oggetti nella Knowledge Base.
-*   **Cycle v2.4.0 (Resilience Hardening)**:
-    *   **Resource Loading**: Caricamento risorse (`gas_main.js`) reso robusto con sistema di retry automatico per gestire errori transitori delle Sheets API.
-    *   **Lock management**: Refactoring e precisione nei log di rilascio lock in `gas_email_processor.js`.
-    *   **Salutation Mode**: Ottimizzazione della logica di saluto per eliminare ridondanze nei thread con memoria.
-    *   **Maintenance Tools**: Potenziamento degli script di ripristino codifica (restore_all) e sanitizzazione (sanitize_files) per gestire artefatti di codifica CP1252.
-*   **Cycle v2.3.8 (Maintenance)**:
-    *   **Calcolo Pasqua**: Restituisce mezzogiorno (12:00:00) per prevenire slittamenti di data tra timezone/DST.
-*   **Cycle v2.3.7 (Resilience & Compliance)**:
-    *   **Rate Limiter**: Risolto shadowing variabile `window` e ottimizzata persistenza WAL.
-    *   **Gmail Service**: Supporto liste markdown e wrapper HTML RFC-compliant.
-    *   **Drive OCR**: Limite immagini a 2MB per stabilità API Drive.
-    *   **Email Processor**: Refactoring scope lock e troncamento memoria intelligente.
-    *   **Memory Service**: Fix GC cache per chiavi falsy/corrotte.
-    *   **Response Validator**: Pattern telefonico selettivo (anti-falsi positivi date).
-*   **Cycle v2.3.6 (Strict Mode & Hardening)**:
-    *   **Dichiarazioni Variabili**: Corretta la dichiarazione di `enrichedKnowledgeBase` con `const`.
-    *   **Allineamento Fallback (v2.3.5)**: Garantita coerenza oggetto `classification`.
-    *   **KB Semantic Hard-Cap (v2.3.5)**: Rispetto budget token KB.
-    *   **Lock Management (v2.3.5)**: Rimozione lock ridondanti.
-
-
 ---
 
 ## ⚡ Vantaggi Immediati
@@ -264,23 +150,6 @@ graph LR
 | Google Sheets API | v4 | v4 | - |
 | Gmail API | v1 | v1 | Advanced Service |
 | Node.js (per clasp) | 14+ | 20 LTS | Solo sviluppo |
-
-### Breaking Changes tra Versioni
-
-**2.6.8 → 2.6.9 (Corrente)**
-- ✅ **Validator**: Corretta la logica di fallback per la validazione semantica in assenza di `UrlFetchApp` (quota/runtime).
-- ✅ **Prompt Logic**: Migliorato il rilevamento dei thinking leak con soglia dinamica e report errori residui.
-
-**2.6.4 → 2.6.5**
-- ✅ **Memory Service**: Canonicalizzazione completa dei timestamp in formato ISO-8601 UTC.
-- ✅ **Unit Tests**: Nuova copertura per la consistenza della lingua e la normalizzazione delle date.
-
-**2.6.3 → 2.6.4**
-- ✅ **Infrastruttura**: Controlli di coerenza interna e potenziamento smoke tests.
-
-**2.5.4 → 2.5.5**
-- ⚠️ `CONFIG.GEMINI_MODELS` ora obbligatorio
-- ⚠️ `VALIDATION_STRICT_MODE` rimosso (usa invece `VALIDATION_MIN_SCORE`)
 
 ---
 

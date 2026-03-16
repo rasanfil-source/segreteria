@@ -172,7 +172,7 @@ const CONFIG = {
     },
 
     // === Liste di esclusione ===
-    // Nota: lista intentionally mista (domini + email complete).
+    // Nota: lista volutamente mista (domini + email complete).
     // Il matcher supporta sia exact match (email) sia suffisso dominio in _shouldIgnoreEmail.
     IGNORE_DOMAINS: [
         'noreply', 'no-reply', 'newsletter', 'marketing',

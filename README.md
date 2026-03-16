@@ -20,30 +20,16 @@
 ✅ **"I have a personal problem and would like to speak with a priest"** → Empathetic tone + direct contacts  
 ✅ **Email in English/Spanish** → Response in the same language  
 
-### ✨ Versione 2.0: Solidità & Affidabilità
-*   **v2.6.9 (Semantic & Logic Hardening)**: Fixed semantic validation skip logic and improved thinking leak detection when advanced services are missing; added residual error reporting.
-*   **v2.6.8 (Memory & Lock Hardening)**: Consolidated FIFO memory cache management and refined lock acquisition logic.
-*   **v2.6.7 (Resilience & Bug Fix)**: Improved user reaction handling and topic normalization.
-*   **v2.6.6 (Hardening & Refinement)**: Hardened OCR attachment pre-check with keyword scanning and improved hallucination detection by including email subject in semantic context.
-*   **v2.6.5 (Timestamp & Validation)**: Canonicalized all timestamps to ISO-8601 UTC and added language consistency unit tests.
-*   **v2.6.4 (Memory & Lock Hardening)**: Implemented FIFO eviction in MemoryService local cache and increased main pipeline lock timeout to 10s.
-*   **v2.6.3 (Resilience Hardening)**: Hardened `complexity` handling in EmailProcessor and added document locking to named range creation in Setup UI.
-*   **v2.6.2 (Prompt & KB Hardening)**: Implemented `_safeStringify` for circular references in PromptContext and refined KB token budgeting in PromptEngine.
-*   **v2.6.1 (Resilience & Quota)**: Hardened thread lock release and implemented proactive `PRIMARY_QUOTA_EXHAUSTED` signal for faster cross-key fallback.
-*   **v2.6.0 (HTML Rendering Fix)**: Improved `markdownToHtml` to prevent invalid tag nesting (e.g., lists inside paragraphs).
-*   **Cycle v2.5.9 (Territory Resilience)**: Added diacritics normalization for street addresses (accents removal via NFD).
-*   **Cycle v2.5.8 (Gmail & Prompt Resilience)**: Hardened label listing with safe pagination fallbacks and improved prompt cross-compatibility for all request types.
-*   **Cycle v2.5.7 (Memory Hardening)**: WAL recovery de-duplication in RateLimiter uses a composite key (timestamp+nonce+model+tokens); MemoryService normalizes invalid timestamps (no quarantine sheet).
-*   **Gestione Lock Avanzata**: Ottimizzazione dei lock atomici per una coordinazione perfetta dei processi.
-*   **Gestione Semantica KB**: Troncamento intelligente della Knowledge Base per garantire risposte sempre complete e coerenti.
-*   **Resilienza Operativa**: Sistema di monitoraggio delle quote integrato per una continuità di servizio costante.
-*   **Raffinamento Validazione**: Controlli qualitativi estesi per una precisione millimetrica nell'interazione.
-*   **Prompt Engine Modulare**: Assemblaggio dinamico del contesto per massimizzare la pertinenza di ogni risposta.
-*   **Smart RAG (Dottrina)**: Integrazione profonda con il magistero e le direttive parrocchiali.
-*   **Eccellenza Linguistica**: Gestione raffinata di grammatica e stili formali (es. nomi sacri).
-*   **Analisi Multi-Dimensionale**: Comprensione del carico emotivo e della complessità delle richieste.
-*   **Supporto OCR Integrato**: Elaborazione automatica di allegati e immagini per un contesto arricchito.
-
+### ✨ Core Architecture & Features
+*   **Advanced Lock Management**: Optimized atomic locks for perfect process coordination.
+*   **KB Semantic Management**: Intelligent truncation of the Knowledge Base to ensure complete and consistent responses.
+*   **Operational Resilience**: Integrated quota monitoring system for constant service continuity.
+*   **Validation Refinement**: Extended qualitative controls for millimeter precision in interaction.
+*   **Modular Prompt Engine**: Dynamic context assembly to maximize the relevance of each response.
+*   **Smart RAG (Doctrine)**: Deep integration with the magisterium and parish directives.
+*   **Linguistic Excellence**: Refined management of grammar and formal styles (e.g., sacred names).
+*   **Multi-Dimensional Analysis**: Understanding the emotional load and complexity of requests.
+*   **Integrated OCR Support**: Automatic processing of attachments and images for an enriched context.
 ---
 
 ## ⚡ Immediate Benefits
@@ -161,109 +147,6 @@ graph LR
 | Google Sheets API | v4 | v4 | - |
 | Gmail API | v1 | v1 | Advanced Service |
 | Node.js (for clasp) | 14+ | 20 LTS | Development only |
-
-### Breaking Changes Between Versions
-
-**2.6.8 → 2.6.9 (Current)**
-- ✅ **Validator**: Fixed semantic validation fallback logic when `UrlFetchApp` is missing.
-- ✅ **Prompt Logic**: Improved thinking leak detection with dynamic thresholds and residual error reporting.
-
-**2.6.4 → 2.6.5**
-- ✅ **Memory Service**: Full ISO-8601 UTC timestamp canonicalization.
-- ✅ **Testing**: New coverage for language consistency and date normalization.
-
-**2.6.3 → 2.6.4**
-- ✅ **Infrastructure**: Internal consistency checks and smoke test enhancements.
-
-**2.5.3 → 2.5.4**
-- ✅ **Sheets**: Wrapped all sheet retrieval calls in `withSheetsRetry` for added reliability.
-- ✅ **Gemini**: Enhanced internal error classification documentation.
-
-**2.5.2 → 2.5.3**
-- ✅ **Infrastructure**: Upgraded Drive Advanced Service from v2 to v3.
-- ✅ **OCR**: Updated text extraction to use `Drive.Files.create` with explicit Google Doc conversion.
-
-**2.5.1 → 2.5.2**
-- ✅ **Gmail**: Improved `recipientEmail` extraction with multiple fallbacks (`EffectiveUser`/`ActiveUser`).
-- ✅ **Main**: Hardened `loadResources` with explicit initialization guarantees.
-
-**2.5.0 → 2.5.1**
-- ✅ **Territory**: Added explicit `needsCivic: false` for full addresses to prevent redundant processing.
-- ✅ **Memory**: Improved Cache clearing logic for transaction-style keys (`MEM_*`).
-- ✅ **Validator**: Refined punctuation regex to reduce false positives on elided forms.
-
-**2.4.9 → 2.5.0**
-- ✅ **Main/KB**: Multi-line spreadsheet cells are now normalized into single lines to prevent prompt breakage.
-- ✅ **Smoke Tests**: Added regression tests for KB text serialization.
-
-**2.4.8 → 2.4.9**
-- ✅ **Logger**: Renamed internal class to `AppLogger` to prevent shadowing built-in GAS `Logger`.
-- ✅ **Gemini**: Improved liturgical date range checks and code readability.
-- ✅ **Main**: Refined advanced services probe.
-
-**2.4.7 → 2.4.8**
-- ✅ **Memory**: Fixed OCC retry loop by aligning `expectedVersion` on mismatch.
-- ✅ **Gmail/OCR**: Refined name extraction regex to include commas.
-- ✅ **Rate Limiter**: Optimized model candidates and strategic fallbacks.
-
-**2.4.6 → 2.4.7**
-- ✅ **Rate Limiter**: Added lock retry mechanism with backoff for high-concurrency tasks.
-- ✅ **Memory**: Enhanced topic merging (reaction preservation) and synchronized lock TTLs with Sheet write timeouts.
-- ✅ **Prompt Engine**: Lowered `MAX_SAFE_TOKENS` to 50k to prevent execution timeouts.
-
-**2.4.5 → 2.4.6**
-- ✅ **Holidays**: Added Pentecost and Corpus Domini to operational calendar.
-- ✅ **Architecture**: Introduced `ResponseValidator.validate` alias for object-based API compatibility.
-- ✅ **Harden**: Safe-casting for `territoryContext` in `PromptEngine`.
-
-**2.4.4 → 2.4.5**
-- ✅ **Test Infrastructure**: Added `SpreadsheetApp.flush()` mock to ensure CI compatibility.
-
-**2.4.3 → 2.4.4**
-- ✅ **Gemini Service**: Hardened JSON parsing and error classification (explicit 401/403 fatal handling).
-- ✅ **Advanced Config**: Fixed column indexing for suspension rules (shifted to C/D) and improved spam filter range detection.
-
-**2.4.2 → 2.4.3**
-- ✅ **Advanced Config**: Implemented strict hour parsing (0-23) for suspension rules, preventing corruption from invalid sheet data.
-- ✅ **Coverage**: Added specific smoke tests for advanced configuration parsing.
-
-**2.4.1 → 2.4.2**
-- ✅ **Response Validator**: Hardened forbidden phrase detection with word boundaries; fixed length score calculation.
-- ✅ **Resilience**: Improved HTML parsing and Sheets API retry logging.
-- ✅ **Classifier**: Refined signature detection logic to prevent content truncation.
-
-**2.4.0 → 2.4.1**
-- ✅ **Prompt Engine**: Hardened input normalization to prevent "[object Object]" artifacts in the final prompt when passing structured data.
-- ✅ **Validation**: Added smoke test coverage for JSON serialization of object-based Knowledge Base.
-
-**2.3.9 → 2.4.0**
-- ✅ **Resource Loading**: Hardened resource loading (`gas_main.js`) with automatic retry logic for transient Sheets API errors.
-- ✅ **Lock management**: Refactored lock release logs and logic in `gas_email_processor.js` for better traceability.
-- ✅ **Salutation Mode**: Optimized greeting logic to eliminate redundancies in threads with existing memory.
-- ✅ **Maintenance Tools**: Enhanced encoding restoration (`restore_all`) and sanitization scripts to handle CP1252 artifacts safely.
-
-**2.3.7 → 2.3.8**
-- ✅ **Easter Calculation**: Returns noon (12:00:00) to prevent date shifts across timezones/DST.
-
-**2.3.6 → 2.3.7**
-- ✅ **Rate Limiter**: Fixed variable shadowing and WAL persistence logic.
-- ✅ **Gmail Service**: Added markdown lists support and RFC-compliant HTML wrapper.
-- ✅ **Drive API**: Enforced 2MB limit for Image OCR to prevent API errors.
-- ✅ **Email Processor**: ES6 scope refactoring and smart memory truncation.
-- ✅ **Memory Service**: Fixed cache GC for falsy/corrupt keys.
-- ✅ **Response Validator**: Improved phone pattern to avoid false positives on dates.
-
-**2.3.5 → 2.3.6**
-- ✅ Added `const` declaration to `enrichedKnowledgeBase` for strict mode compliance.
-
-**2.3.4 → 2.3.5**
-- ✅ Alignment of `classification` object in fallbacks
-- ✅ Enforced hard-cap for KB semantic truncation
-- ✅ Redundant ScriptLock removal for improved stability
-
-**2.3.x → 2.4.x**
-- ⚠️ `CONFIG.GEMINI_MODELS` now mandatory
-- ⚠️ `VALIDATION_STRICT_MODE` removed (use `VALIDATION_MIN_SCORE` instead)
 
 ---
 

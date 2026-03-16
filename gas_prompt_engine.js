@@ -143,7 +143,7 @@ class PromptEngine {
       ? CONFIG.KB_TOKEN_BUDGET_RATIO
       : 0.5; // La KB può occupare max il 50% dello spazio rimanente
 
-    // FIX: Calcolo dinamico - sottrai i token stimati per allegati testuali
+    // Calcolo dinamico: sottrazione dei token stimati per allegati testuali
     // per evitare che KB + allegati superino il budget API
     const ocrTokens = this.estimateTokens(attachmentsContext || '');
     const availableForKB = Math.max(2000, ((MAX_SAFE_TOKENS - OVERHEAD_TOKENS - ocrTokens) * KB_BUDGET_RATIO));
@@ -666,8 +666,7 @@ sempre in modo concreto alla domanda posta.
 ══════════════════════════════════════════════════════
 1) CONTINUITÀ: Se emerge che l'utente ha gi\u00E0 ricevuto una risposta su questo tema, evita di ripetere informazioni identiche. Usa al massimo 1 frase di continuità (es. "Riprendo volentieri da quanto detto..."), poi vai al punto.
 2) UMANITÀ MISURATA: Usa una frase empatica SOLO se il messaggio mostra un chiaro segnale emotivo o pastorale. Altrimenti rispondi in modo diretto e sobrio.
--3) FOCUS: Rispondi prima al tema principale (topic). Aggiungi solo informazioni secondarie se strettamente utili.
-+3) FOCUS: Rispondi prima al tema principale (topic). Aggiungi solo informazioni secondarie se strettamente utili. Se bastano poche righe, fermati lì.
+3) FOCUS: Rispondi prima al tema principale (topic). Aggiungi solo informazioni secondarie se strettamente utili. Se bastano poche righe, fermati lì.
 4) COERENZA LINGUISTICA: Mantieni la stessa lingua e livello di formalità dell'email ricevuta.
 5) PRUDENZA LEGGERA: Se la confidenza è bassa, formula con neutralità senza scuse o frasi di indecisione.
 ══════════════════════════════════════════════════════`;
