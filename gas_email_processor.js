@@ -60,7 +60,7 @@ class EmailProcessor {
     this.config = {
       validationEnabled: typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_ENABLED : true,
       dryRun: typeof CONFIG !== 'undefined' ? CONFIG.DRY_RUN : false,
-      maxEmailsPerRun: typeof CONFIG !== 'undefined' ? CONFIG.MAX_EMAILS_PER_RUN : 10,
+      maxEmailsPerRun: typeof CONFIG !== 'undefined' ? CONFIG.MAX_EMAILS_PER_RUN : 3,
       maxExecutionTimeMs: typeof CONFIG !== 'undefined' && CONFIG.MAX_EXECUTION_TIME_MS
         ? CONFIG.MAX_EXECUTION_TIME_MS
         : 280 * 1000,
@@ -444,7 +444,7 @@ class EmailProcessor {
       // ====================================================================================================
       // STEP 0.5: ANTI-LOOP (rilevamento intelligente)
       // ====================================================================================================
-      const MAX_THREAD_LENGTH = (typeof CONFIG !== 'undefined' && CONFIG.MAX_THREAD_LENGTH) ? CONFIG.MAX_THREAD_LENGTH : 10;
+      const MAX_THREAD_LENGTH = (typeof CONFIG !== 'undefined' && CONFIG.MAX_THREAD_LENGTH) ? CONFIG.MAX_THREAD_LENGTH : 8;
       const MAX_CONSECUTIVE_EXTERNAL = this.config.maxConsecutiveExternal;
 
       if (messages.length > MAX_THREAD_LENGTH) {

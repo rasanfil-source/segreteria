@@ -379,10 +379,10 @@ class GmailService {
             : {};
         const settings = Object.assign({
             enabled: true,
-            maxFiles: 4,
-            maxBytesPerFile: 5 * 1024 * 1024,
-            maxCharsPerFile: 4000,
-            maxTotalChars: 12000,
+            maxFiles: 3,
+            maxBytesPerFile: 3 * 1024 * 1024,
+            maxCharsPerFile: 3000,
+            maxTotalChars: 9000,
             ocrLanguage: 'it',
             ocrConfidenceWarningThreshold: 0.8,
             pdfMaxPages: 2,
@@ -581,8 +581,8 @@ class GmailService {
             skipped: []
         };
         const maxFiles = Math.max(1, parseInt(settings.maxFiles, 10) || 3);
-        const maxCharsPerFile = Math.max(0, parseInt(settings.maxCharsPerFile, 10) || 4000);
-        const maxTotalChars = Math.max(0, parseInt(settings.maxTotalChars, 10) || 12000);
+        const maxCharsPerFile = Math.max(0, parseInt(settings.maxCharsPerFile, 10) || 3000);
+        const maxTotalChars = Math.max(0, parseInt(settings.maxTotalChars, 10) || 9000);
         let processedCount = 0;
         let totalTextChars = 0;
 

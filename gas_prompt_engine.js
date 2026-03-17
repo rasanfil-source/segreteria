@@ -135,7 +135,7 @@ class PromptEngine {
     // PRE-STIMA E BUDGETING TOKEN (Protezione Miglioramento #6 - Memory Growth)
     // ══════════════════════════════════════════════════════
     const MAX_SAFE_TOKENS = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS
-      ? CONFIG.MAX_SAFE_TOKENS : 50000;
+      ? CONFIG.MAX_SAFE_TOKENS : 35000;
 
     const OVERHEAD_TOKENS = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS)
       ? CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS : 15000; // Riserva per istruzioni e sistema
@@ -146,7 +146,7 @@ class PromptEngine {
     // Calcolo dinamico: sottrazione dei token stimati per allegati testuali
     // per evitare che KB + allegati superino il budget API
     const ocrTokens = this.estimateTokens(attachmentsContext || '');
-    const availableForKB = Math.max(2000, ((MAX_SAFE_TOKENS - OVERHEAD_TOKENS - ocrTokens) * KB_BUDGET_RATIO));
+    const availableForKB = Math.max(1500, ((MAX_SAFE_TOKENS - OVERHEAD_TOKENS - ocrTokens) * KB_BUDGET_RATIO));
     // Stima conservativa 1 token ≈ 4 caratteri: volutamente prudente per evitare overflow
     // con input multilingua/rumorosi. Ridurre il fattore aumenterebbe il rischio di prompt troppo lunghi.
     const kbCharsLimit = Math.round(availableForKB * 4);
@@ -171,7 +171,7 @@ class PromptEngine {
       const attachmentSettings = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT)
         ? CONFIG.ATTACHMENT_CONTEXT
         : {};
-      const attachmentLimit = attachmentSettings.maxCharsWhenKbTruncated || 2000;
+      const attachmentLimit = attachmentSettings.maxCharsWhenKbTruncated || 1500;
       if (workingAttachmentsContext.length > attachmentLimit) {
         console.warn(`⚠️ KB troncata: riduco allegati da ${workingAttachmentsContext.length} a ${attachmentLimit} chars`);
         workingAttachmentsContext = workingAttachmentsContext.slice(0, Math.max(0, attachmentLimit - 1)).trim() + '…';

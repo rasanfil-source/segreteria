@@ -27,15 +27,16 @@ class GeminiRateLimiter {
     } else {
       // Fallback se CONFIG non disponibile
       console.warn('   \u26A0\uFE0F CONFIG.GEMINI_MODELS non trovato, uso default');
+      // ATTENZIONE: Non modificare arbitrariamente. Verificare periodicamente in rete i limiti delle quote gratuiti stabiliti, mantenendo proporzionalità con le quote di base.
       this.models = {
         'flash-2.5': {
           name: 'gemini-2.5-flash',
-          rpm: 15, tpm: 1000000, rpd: 1500,
+          rpm: 10, tpm: 250000, rpd: 250,
           useCases: ['generation', 'all']
         },
         'flash-lite': {
           name: 'gemini-2.5-flash-lite',
-          rpm: 10, tpm: 1000000, rpd: 1500,
+          rpm: 15, tpm: 250000, rpd: 1000,
           useCases: ['fallback', 'classification', 'quick_check']
         }
       };
@@ -86,7 +87,7 @@ class GeminiRateLimiter {
     // ================================================================
 
     this.safetyMargin = {
-      rpm: 0.8,   // 80% del limite (12 su 15)
+      rpm: 0.8,   // 80% del limite RPM
       tpm: 0.8,
       rpd: 0.9    // 90% del limite
     };
