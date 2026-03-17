@@ -565,15 +565,11 @@ class EmailProcessor {
       // STEP 5: KB ENRICHMENT CONDIZIONALE
       // ====================================================================================================
       const knowledgeSections = [];
-      const aiCoreLite = (typeof GLOBAL_CACHE !== 'undefined') ? (GLOBAL_CACHE.aiCoreLite || '') : '';
-      const aiCore = (typeof GLOBAL_CACHE !== 'undefined') ? (GLOBAL_CACHE.aiCore || '') : '';
       const effectiveDoctrineBase = doctrineBase || ((typeof GLOBAL_CACHE !== 'undefined') ? (GLOBAL_CACHE.doctrineBase || '') : '');
 
-      // AI_CORE_LITE: Sempre presente per regole base
-      if (aiCoreLite) knowledgeSections.push('--- REGOLE BASE ---\n' + aiCoreLite);
-
-      // KB Principale (Istruzioni dal foglio)
-      knowledgeSections.push('--- ISTRUZIONI OPERATIVE ---\n' + knowledgeBase);
+      // KB principale: passata "pulita" al PromptEngine per evitare overhead
+      // e rispettare il budget di troncamento sui contenuti realmente informativi.
+      knowledgeSections.push(knowledgeBase);
 
       // AI_CORE e Dottrina NON vengono iniettati qui: è responsabilità esclusiva di
       // PromptEngine (buildPrompt) che li legge da GLOBAL_CACHE con logica selettiva.
@@ -584,7 +580,7 @@ class EmailProcessor {
         const specialMassRule = getSpecialMassTimeRule(new Date());
         if (specialMassRule) {
           console.log('   🚨 Regola Messe Speciali iniettata nel Prompt');
-          knowledgeSections.push('--- ECCEZIONI CALENDARIO ---\n' + specialMassRule);
+          knowledgeSections.push('ECCEZIONI CALENDARIO:\n' + specialMassRule);
         }
       }
 
@@ -838,9 +834,7 @@ ${addressLines.join('\n\n')}
 
       const prompt = this.promptEngine.buildPrompt(promptOptions);
 
-      // Aggiungi hint tipo richiesta (nuovo metodo blended)
-      const typeHint = this.requestClassifier.getRequestTypeHint(requestType);
-      const fullPrompt = typeHint + '\n\n' + prompt;
+      const fullPrompt = prompt;
 
       // ====================================================================================================
       // STEP 8: GENERA RISPOSTA (STRATEGIA "CROSS-KEY QUALITY FIRST")

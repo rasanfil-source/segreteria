@@ -154,15 +154,22 @@ class PromptEngine {
     let workingKnowledgeBase = this._normalizePromptTextInput(knowledgeBase, '');
     let kbWasTruncated = false;
 
+    const aiCoreLiteSectionOverhead = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE && GLOBAL_CACHE.aiCoreLite)
+      ? this._estimateAiCoreLiteSectionChars()
+      : 0;
+    const kbSectionOverhead = this._estimateKbSectionOverheadChars();
+    const effectiveKbCharsLimit = Math.max(500, kbCharsLimit - aiCoreLiteSectionOverhead - kbSectionOverhead);
+
+
     // Troncamento proattivo della KB PRIMA di assemblare il prompt
     // ⚠️ Scelta blindata: questo è l'UNICO punto dove la KB può essere ridotta.
     // La cache risorse deve restare completa; qui applichiamo solo una riduzione runtime
     // per rispettare il budget token quando il contesto del singolo messaggio è eccezionalmente grande.
-    if (workingKnowledgeBase && workingKnowledgeBase.length > kbCharsLimit) {
-      console.warn(`⚠️ KB eccede il budget (${workingKnowledgeBase.length} chars), tronco a ${kbCharsLimit}`);
+    if (workingKnowledgeBase && workingKnowledgeBase.length > effectiveKbCharsLimit) {
+      console.warn(`⚠️ KB eccede il budget (${workingKnowledgeBase.length} chars), tronco a ${effectiveKbCharsLimit} (budget netto)`);
       // _truncateKbSemantically è implementato in questa classe: preserva paragrafi completi
       // invece di fare uno slice cieco che può spezzare contesto e istruzioni operative.
-      workingKnowledgeBase = this._truncateKbSemantically(workingKnowledgeBase, kbCharsLimit);
+      workingKnowledgeBase = this._truncateKbSemantically(workingKnowledgeBase, effectiveKbCharsLimit);
       kbWasTruncated = true;
     }
 
@@ -279,7 +286,7 @@ class PromptEngine {
     if (typeof options.requestType === 'string') {
       requestTypeObj = {
         type: options.requestType,
-        needsDiscernment: options.requestType === 'pastoral',
+        needsDiscernment: options.requestType === 'pastoral' || options.requestType === 'mixed',
         needsDoctrine: options.requestType === 'doctrinal'
       };
     } else {
@@ -309,7 +316,7 @@ ${GLOBAL_CACHE.aiCore}
     }
 
     // 11. ARRICCHIMENTO DOTTRINALE (Selettivo)
-    if (requestTypeObj.needsDoctrine || topic) {
+    if (requestTypeObj.needsDoctrine) {
       const selectiveDoctrine = this._renderSelectiveDoctrine(
         requestTypeObj,
         topic,
@@ -1568,6 +1575,27 @@ Segreteria Parrocchia Sant'Eugenio
   // METODI UTILITÀ
   // ========================================================================
 
+  _estimateKbSectionOverheadChars() {
+    const shell = this._renderKnowledgeBase('');
+    return shell ? shell.length : 0;
+  }
+
+  _estimateAiCoreLiteSectionChars() {
+    const aiCoreLiteText = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE && GLOBAL_CACHE.aiCoreLite)
+      ? String(GLOBAL_CACHE.aiCoreLite)
+      : '';
+    if (!aiCoreLiteText) return 0;
+
+    const liteSection = `
+══════════════════════════════════════════════════════
+📋 PRINCIPI PASTORALI FONDAMENTALI (AI_CORE_LITE)
+══════════════════════════════════════════════════════
+${aiCoreLiteText}
+══════════════════════════════════════════════════════
+`;
+    return liteSection.length;
+  }
+
   /**
    * Tronca KB semanticamente per paragrafi preservando il contesto
    * Invece di tagliare a metà frase, mantiene paragrafi completi fino al budget
@@ -1627,16 +1655,16 @@ Segreteria Parrocchia Sant'Eugenio
 
     const roomForMarker = budgetChars - truncatedContent.length;
     if (roomForMarker >= markerLength) {
-      return truncatedContent + truncationMarker;
+      return (truncatedContent + truncationMarker).slice(0, budgetChars);
     }
 
     // Fallback stretto: conserva sempre il limite caratteri senza sforare
     const fallbackMarker = ' ...[omesso]';
-    const suffix = roomForMarker > fallbackMarker.length
+    const suffix = roomForMarker >= fallbackMarker.length
       ? fallbackMarker
       : '…'.repeat(Math.max(0, roomForMarker));
 
-    return (truncatedContent.slice(0, Math.max(0, budgetChars - suffix.length)) + suffix).slice(0, budgetChars);
+    return (truncatedContent + suffix).slice(0, budgetChars);
   }
 }
 
