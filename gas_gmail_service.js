@@ -229,13 +229,9 @@ class GmailService {
     /**
      * Recupera i thread con almeno un messaggio non letto e non ancora etichettato.
      *
-     * BLOCCO NUOVO / ROLLBACK FACILE:
-     * - 'metadata': baseline prudente (list INBOX/UNREAD + get minimal per labelIds)
-     * - 'query'   : variante più economica via query testuale -label:...
-     * - 'shadow'  : usa metadata per decidere e lancia query solo per confronto nei log
-     *
-     * Per tornare subito alla modalità più conservativa basta impostare
-     * CONFIG.MESSAGE_DISCOVERY_MODE = 'metadata' senza toccare il resto del codice.
+     * Modalità supportate:
+     * - 'query'   : default operativo, più economica e coerente con la label a livello messaggio
+     * - 'metadata': fallback prudente/manuale (list INBOX/UNREAD + get minimal per labelIds)
      *
      * @param {string} labelName            - Label applicata ai messaggi già elaborati (es. 'IA')
      * @param {string} errorLabel           - Label dei thread in errore (es. 'Errore')
@@ -254,8 +250,8 @@ class GmailService {
         const safeTargetThreads = this._safePositiveInt(targetThreads, 50, 1);
         const safeMaxPages = this._safePositiveInt(maxPages, 3, 1);
 
-        if (mode === 'query') {
-            return this._discoverByQuery(
+        if (mode === 'metadata') {
+            return this._discoverByMetadata(
                 labelName,
                 errorLabel,
                 validationLabel,
@@ -265,41 +261,18 @@ class GmailService {
             ).threads;
         }
 
-        // 'metadata' e 'shadow': la sorgente di verità resta metadata finché non validiamo query.
-        const metadataResult = this._discoverByMetadata(
+        return this._discoverByQuery(
             labelName,
             errorLabel,
             validationLabel,
             safeMessageBuffer,
             safeTargetThreads,
             safeMaxPages
-        );
-
-        if (mode === 'shadow') {
-            try {
-                // Confronto non bloccante: utile per validare query senza cambiare il batch reale.
-                this._shadowCompare(
-                    metadataResult,
-                    labelName,
-                    errorLabel,
-                    validationLabel,
-                    safeMessageBuffer,
-                    safeTargetThreads,
-                    safeMaxPages
-                );
-            } catch (shadowError) {
-                console.warn(`⚠️ Shadow compare fallito (non bloccante): ${shadowError.message}`);
-            }
-        }
-
-        return metadataResult.threads;
+        ).threads;
     }
 
     /**
-     * BLOCCO NUOVO / ROLLBACK FACILE:
-     * baseline prudente che verifica le label sul singolo messaggio via metadata.
-     * Se in futuro query sarà validata definitivamente, questo blocco potrà restare
-     * come fallback diagnostico o essere semplificato.
+     * Fallback prudente/manuale che verifica le label sul singolo messaggio via metadata.
      */
     _discoverByMetadata(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages) {
         const processedLabelId = this._getOptionalLabelIdByName(labelName);
@@ -362,9 +335,7 @@ class GmailService {
     }
 
     /**
-     * BLOCCO NUOVO / ROLLBACK FACILE:
-     * variante più economica che usa la query testuale di Gmail.
-     * Va promossa a default solo dopo validazione empirica in shadow mode.
+     * Default operativo: variante più economica che usa la query testuale di Gmail.
      */
     _discoverByQuery(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages) {
         const lq = this._formatLabelQueryValue(labelName);
@@ -415,53 +386,7 @@ class GmailService {
         }
     }
 
-    /**
-     * BLOCCO NUOVO / ROLLBACK FACILE:
-     * confronto diagnostico tra metadata e query. Non blocca mai il batch.
-     */
-    _shadowCompare(metadataResult, labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages) {
-        const queryResult = this._discoverByQuery(
-            labelName,
-            errorLabel,
-            validationLabel,
-            safeMessageBuffer,
-            safeTargetThreads,
-            safeMaxPages
-        );
 
-        const metadataThreadIds = metadataResult.threadIds || new Set();
-        const queryThreadIds = queryResult.threadIds || new Set();
-        const metadataMessageIds = metadataResult.messageIds || new Set();
-        const queryMessageIds = queryResult.messageIds || new Set();
-
-        const missingThreadsInQuery = [...metadataThreadIds].filter(id => !queryThreadIds.has(id));
-        const extraThreadsInQuery = [...queryThreadIds].filter(id => !metadataThreadIds.has(id));
-        const missingMessagesInQuery = [...metadataMessageIds].filter(id => !queryMessageIds.has(id));
-        const extraMessagesInQuery = [...queryMessageIds].filter(id => !metadataMessageIds.has(id));
-
-        console.log('🔬 [shadow] Confronto metadata vs query:');
-        console.log(`   thread metadata=${metadataThreadIds.size}, query=${queryThreadIds.size}`);
-        console.log(`   messaggi metadata=${metadataMessageIds.size}, query=${queryMessageIds.size}`);
-
-        if (missingThreadsInQuery.length === 0 && extraThreadsInQuery.length === 0 &&
-            missingMessagesInQuery.length === 0 && extraMessagesInQuery.length === 0) {
-            console.log('   ✅ Risultati identici: nessuna differenza tra metadata e query');
-            return;
-        }
-
-        if (missingThreadsInQuery.length > 0) {
-            console.warn(`   ⚠️ missing_threads_in_query: [${missingThreadsInQuery.slice(0, 20).join(', ')}]`);
-        }
-        if (extraThreadsInQuery.length > 0) {
-            console.warn(`   ⚠️ extra_threads_in_query: [${extraThreadsInQuery.slice(0, 20).join(', ')}]`);
-        }
-        if (missingMessagesInQuery.length > 0) {
-            console.warn(`   ⚠️ missing_messages_in_query: [${missingMessagesInQuery.slice(0, 20).join(', ')}]`);
-        }
-        if (extraMessagesInQuery.length > 0) {
-            console.warn(`   ⚠️ extra_messages_in_query: [${extraMessagesInQuery.slice(0, 20).join(', ')}]`);
-        }
-    }
 
     _formatLabelQueryValue(labelName) {
         const raw = String(labelName || '').trim();

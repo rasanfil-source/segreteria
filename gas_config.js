@@ -52,12 +52,10 @@ const CONFIG = {
   MIN_REMAINING_TIME_MS: 90000,      // Stop preventivo se resta meno di 90 secondi
   EXECUTION_LOCK_WAIT_MS: 5000,      // Timeout acquisizione lock esecuzione (ms)
   SEARCH_PAGE_SIZE: 15,              // Buffer discovery per candidati message-level (≈ 5x MAX_EMAILS_PER_RUN)
-  // === DISCOVERY MODE (NUOVO, rollback facile) ============================================
+  // === DISCOVERY MODE ======================================================================
   // Modalità di scoperta messaggi non letti da elaborare.
-  // - 'metadata': list(INBOX,UNREAD) + get(minimal) per ogni messaggio (baseline affidabile)
-  // - 'query'   : Messages.list con query testuale -label:... (meno chiamate API, da validare)
-  // - 'shadow'  : usa metadata come sorgente di verità e lancia anche query solo per confronto log
-  // Per tornare al comportamento più prudente basta reimpostare 'metadata'.
+  // - 'query'   : default operativo, message-level con query Gmail -label:...
+  // - 'metadata': fallback prudente/manuale (list INBOX/UNREAD + get(minimal) per labelIds)
   MESSAGE_DISCOVERY_MODE: 'query',
   // =========================================================================================
   MAX_EXECUTION_TIME_MS: 280000,    // Budget massimo per run (default GAS trigger ~6 minuti)
@@ -270,8 +268,8 @@ function validateConfig() {
   checkRange('MAX_EMAILS_PER_RUN', CONFIG.MAX_EMAILS_PER_RUN, 1, 50); // Sanity check
   checkType('LABEL_NAME', CONFIG.LABEL_NAME, 'string');
   checkType('MESSAGE_DISCOVERY_MODE', CONFIG.MESSAGE_DISCOVERY_MODE, 'string');
-  if (!['metadata', 'query', 'shadow'].includes(CONFIG.MESSAGE_DISCOVERY_MODE)) {
-    errors.push("Errore Config: 'MESSAGE_DISCOVERY_MODE' deve essere uno tra 'metadata', 'query', 'shadow'");
+  if (!['metadata', 'query'].includes(CONFIG.MESSAGE_DISCOVERY_MODE)) {
+    errors.push("Errore Config: 'MESSAGE_DISCOVERY_MODE' deve essere uno tra 'metadata', 'query'");
   }
 
   // Cache & Lock
