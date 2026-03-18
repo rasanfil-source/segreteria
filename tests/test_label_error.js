@@ -51,7 +51,7 @@ async function runTest() {
     console.log('--- Testing EmailProcessor.processUnreadEmails with failing GmailService ---');
 
     const failingGmailService = {
-        getMessageIdsWithLabel: () => {
+        getUnprocessedUnreadThreads: () => {
             throw new Error('API Quota Exceeded');
         }
     };
@@ -60,15 +60,13 @@ async function runTest() {
         gmailService: failingGmailService
     });
 
-    // Mocking _formatLabelQueryValue as it's an internal helper
-    processor._formatLabelQueryValue = (v) => v;
     processor._trackEmptyInboxStreak = () => 0;
 
     const result = processor.processUnreadEmails('Some knowledge base');
 
     console.log('Result:', JSON.stringify(result, null, 2));
 
-    if (result.reason === 'labeled_ids_fetch_failed' && result.errors === 1) {
+    if (result.reason === 'thread_discovery_failed' && result.errors === 1) {
         console.log('✅ TEST PASSED: Error correctly handled and batch interrupted.');
     } else {
         console.log('❌ TEST FAILED: Unexpected result.');
