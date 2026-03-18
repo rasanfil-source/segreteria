@@ -249,6 +249,12 @@ function runAllTests() {
             const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it', { topic: 'corso prematrimoniale' }, { type: 'technical' });
             return adjusted.includes('in un orario diverso rispetto a quanto da Lei indicato');
         });
+        test('Non aggiunge nota se l\'utente cita un orario solo come contesto', results, () => {
+            const response = 'Buonasera.\n\nL\'incontro inizierà alle ore 16:30.\n\nCordiali saluti.';
+            const messageDetails = { subject: 'Incontro', body: 'Domani riesco a passare alle 17:00 per chiedere informazioni.' };
+            const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it', { topic: 'incontro' }, { type: 'technical' });
+            return adjusted === response;
+        });
         test('Usa formulazione non minimizzante per scarti orari ampi', results, () => {
             const response = "Buonasera.\n\nL'incontro inizierà alle ore 16:30.\n\nCordiali saluti.";
             const messageDetails = { subject: 'Incontro', body: 'Io avevo capito 20:00.' };
