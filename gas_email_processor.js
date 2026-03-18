@@ -1254,23 +1254,28 @@ ${addressLines.join('\n\n')}
         console.warn('🔴 MODALITÀ DRY_RUN ATTIVA - Email NON inviate!');
       }
 
-      // Cerca thread non letti nella inbox
-      // Utilizziamo un buffer di ricerca più ampio per gestire thread saltati (es. loop interni)
-      // Escludiamo solo thread gia in errore/verifica; i thread con label IA restano candidati.
-      const errorLabelQuery = this._formatLabelQueryValue(this.config.errorLabelName);
-      const validationLabelQuery = this._formatLabelQueryValue(this.config.validationErrorLabel);
-      const searchQuery = `is:unread -label:${errorLabelQuery} -label:${validationLabelQuery} in:inbox`;
-      const searchLimit = (this.config.searchPageSize || 50);
-
-      const threads = GmailApp.search(
-        searchQuery,
-        0,
-        searchLimit
-      );
+      // Recupera direttamente i thread con messaggi non letti e non ancora etichettati.
+      // La ricerca avviene a livello messaggio, coerentemente con il fatto che la label
+      // viene applicata per messaggio (non per thread): questo elimina il doppio passaggio
+      // thread→messaggi che produceva fast-skip ridondanti.
+      // Se la discovery fallisce, il batch si interrompe per sicurezza.
+      let threads;
+      try {
+        threads = this.gmailService.getUnprocessedUnreadThreads(
+          this.config.labelName,
+          this.config.errorLabelName,
+          this.config.validationErrorLabel,
+          this.config.searchPageSize || 150,
+          this.config.maxEmailsPerRun || 50
+        );
+      } catch (e) {
+        this.logger.error(`❌ Impossibile recuperare thread da elaborare: ${e.message}. Batch interrotto per sicurezza.`);
+        return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'thread_discovery_failed' };
+      }
 
       if (threads.length === 0) {
         const emptyStreak = this._trackEmptyInboxStreak(true);
-        console.log(`Nessuna email da elaborare (query: ${searchQuery}).`);
+        console.log('Nessuna email da elaborare.');
 
         if (emptyStreak >= this.config.emptyInboxWarningThreshold) {
           console.warn(`⚠️ Inbox vuota da ${emptyStreak} esecuzioni consecutive. Verificare filtri Gmail/trigger in ingresso.`);
@@ -1280,19 +1285,12 @@ ${addressLines.join('\n\n')}
       }
 
       this._trackEmptyInboxStreak(false);
-      console.log(`📬 Trovate ${threads.length} email da elaborare (query: ${searchQuery})`);
+      console.log(`📬 Trovati ${threads.length} thread da elaborare`);
 
-      // Carica etichette una sola volta.
-      // Se la chiamata fallisce (quota, permessi), interrompiamo il batch per intero:
-      // procedere con un set vuoto causerebbe doppie risposte su tutti i thread.
-      let labeledMessageIds;
-      try {
-        labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
-        console.log(`📦 Trovati in cache ${labeledMessageIds.size} messaggi già elaborati`);
-      } catch (e) {
-        this.logger.error(`❌ Impossibile caricare messaggi già etichettati: ${e.message}. Batch interrotto per sicurezza.`);
-        return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'labeled_ids_fetch_failed' };
-      }
+      // Il set parte vuoto: viene popolato durante il run da _markMessageAsProcessed().
+      // Non è necessario pre-caricarlo perché la query a monte garantisce già
+      // che nessun messaggio con label attiva sia incluso nei candidati.
+      const labeledMessageIds = new Set();
 
       // Statistiche
       const stats = {

@@ -226,6 +226,78 @@ class GmailService {
         }
     }
 
+    /**
+     * Recupera i thread con almeno un messaggio non letto e non ancora etichettato.
+     *
+     * La ricerca avviene a livello di singolo messaggio (Gmail Advanced Service),
+     * coerentemente con il fatto che la label IA viene applicata per messaggio
+     * e non per thread. In questo modo il criterio di discovery coincide
+     * con il criterio di processing, eliminando confronti ridondanti a valle.
+     *
+     * @param {string} labelName            - Label applicata ai messaggi già elaborati (es. 'IA')
+     * @param {string} errorLabel           - Label dei thread in errore (es. 'Errore')
+     * @param {string} validationLabel      - Label dei thread in attesa di verifica (es. 'Verifica')
+     * @param {number} [messageBuffer=150]  - Numero massimo di messaggi da esaminare per pagina
+     * @param {number} [targetThreads=50]   - Numero di thread unici da raccogliere prima di fermarsi
+     * @param {number} [maxPages=3]         - Limite pagine di paginazione per evitare loop
+     * @returns {GmailThread[]}             - Thread unici, già istanziati, con almeno un messaggio da elaborare
+     */
+    getUnprocessedUnreadThreads(labelName, errorLabel, validationLabel, messageBuffer = 150, targetThreads = 50, maxPages = 3) {
+        const lq = this._formatLabelQueryValue(labelName);
+        const eq = this._formatLabelQueryValue(errorLabel);
+        const vq = this._formatLabelQueryValue(validationLabel);
+        const query = `is:unread -label:${lq} -label:${eq} -label:${vq} in:inbox`;
+
+        const seenThreadIds = new Set();
+        const threads = [];
+        const safeMessageBuffer = this._safePositiveInt(messageBuffer, 150, 1, 500);
+        const safeTargetThreads = this._safePositiveInt(targetThreads, 50, 1);
+        const safeMaxPages = this._safePositiveInt(maxPages, 3, 1);
+        let pageToken;
+        let page = 0;
+
+        try {
+            do {
+                if (page >= safeMaxPages || seenThreadIds.size >= safeTargetThreads) break;
+
+                const params = { q: query, maxResults: safeMessageBuffer };
+                if (pageToken) params.pageToken = pageToken;
+
+                const response = Gmail.Users.Messages.list('me', params);
+                page++;
+
+                const messages = response.messages || [];
+                console.log(`📬 Pagina ${page}: ${messages.length} messaggi non letti senza etichetta`);
+
+                for (const msg of messages) {
+                    if (!msg.threadId || seenThreadIds.has(msg.threadId)) continue;
+                    seenThreadIds.add(msg.threadId);
+                    const thread = GmailApp.getThreadById(msg.threadId);
+                    if (thread) threads.push(thread);
+                    if (seenThreadIds.size >= safeTargetThreads) break;
+                }
+
+                pageToken = response.nextPageToken;
+            } while (pageToken);
+
+            console.log(`📬 Trovati ${threads.length} thread da elaborare (thread unici su ${page} pagina/e)`);
+            return threads;
+
+        } catch (e) {
+            // Propaga l'errore: se la discovery fallisce il batch deve abortire,
+            // non degradare in uno stato ambiguo che potrebbe causare doppie risposte.
+            console.error(`❌ getUnprocessedUnreadThreads fallito: ${e.message}`);
+            throw e;
+        }
+    }
+
+    _formatLabelQueryValue(labelName) {
+        const raw = String(labelName || '').trim();
+        if (!raw) return '""';
+        return `"${raw.replace(/"/g, '\\"')}"`;
+    }
+
+
     _safePositiveInt(value, fallback, min, max = null) {
         const parsed = parseInt(value, 10);
         const fallbackParsed = parseInt(fallback, 10);
