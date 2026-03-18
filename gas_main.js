@@ -1007,15 +1007,20 @@ function _formatDateForKnowledgeText(date) {
   if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
     const tz = resolveScriptTz();
 
-    // Rileviamo se ha una parte oraria in base al fuso orario target
+    // Rileviamo se Utilities supporta davvero i token orari richiesti.
+    // Nei test Node il mock può restituire stringhe complete (es. "2026-05-10")
+    // anche per pattern come 'H'/'m'/'s': in quel caso facciamo fallback ai parts
+    // per evitare di classificare erroneamente una data-only come data+ora.
     const hStr = Utilities.formatDate(date, tz, 'H');
     const mStr = Utilities.formatDate(date, tz, 'm');
     const sStr = Utilities.formatDate(date, tz, 's');
-    const hasTime = parseInt(hStr, 10) !== 0 || parseInt(mStr, 10) !== 0 || parseInt(sStr, 10) !== 0;
+    const utilitySupportsTimeTokens = /^\d{1,2}$/.test(hStr) && /^\d{1,2}$/.test(mStr) && /^\d{1,2}$/.test(sStr);
 
-    const pattern = hasTime ? 'yyyy-MM-dd HH:mm' : 'yyyy-MM-dd';
-
-    return Utilities.formatDate(date, tz, pattern);
+    if (utilitySupportsTimeTokens) {
+      const hasTime = parseInt(hStr, 10) !== 0 || parseInt(mStr, 10) !== 0 || parseInt(sStr, 10) !== 0;
+      const pattern = hasTime ? 'yyyy-MM-dd HH:mm' : 'yyyy-MM-dd';
+      return Utilities.formatDate(date, tz, pattern);
+    }
   }
 
   // Fallback Node/tests: prova a rispettare lo stesso fuso orario dello script.
