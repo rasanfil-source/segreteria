@@ -51,14 +51,14 @@ const CONFIG = {
   SUSPENSION_STALE_UNREAD_HOURS: 12,    // Paracadute: processa unread vecchie anche in fascia sospesa
   MIN_REMAINING_TIME_MS: 90000,      // Stop preventivo se resta meno di 90 secondi
   EXECUTION_LOCK_WAIT_MS: 5000,      // Timeout acquisizione lock esecuzione (ms)
-  SEARCH_PAGE_SIZE: 50,              // Buffer discovery (storicamente thread con GmailApp.search, ora usato come limite candidati)
+  SEARCH_PAGE_SIZE: 15,              // Buffer discovery per candidati message-level (≈ 5x MAX_EMAILS_PER_RUN)
   // === DISCOVERY MODE (NUOVO, rollback facile) ============================================
   // Modalità di scoperta messaggi non letti da elaborare.
   // - 'metadata': list(INBOX,UNREAD) + get(minimal) per ogni messaggio (baseline affidabile)
   // - 'query'   : Messages.list con query testuale -label:... (meno chiamate API, da validare)
   // - 'shadow'  : usa metadata come sorgente di verità e lancia anche query solo per confronto log
   // Per tornare al comportamento più prudente basta reimpostare 'metadata'.
-  MESSAGE_DISCOVERY_MODE: 'shadow',
+  MESSAGE_DISCOVERY_MODE: 'query',
   // =========================================================================================
   MAX_EXECUTION_TIME_MS: 280000,    // Budget massimo per run (default GAS trigger ~6 minuti)
   GMAIL_LABEL_CACHE_TTL: 3600000,      // 1 ora in millisecondi
