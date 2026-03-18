@@ -1903,6 +1903,25 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     return Array.from(new Set(normalized));
   }
 
+  _hasExplicitTimeExpectation(text) {
+    if (!text || typeof text !== 'string') return false;
+
+    const timeExpectationPatterns = [
+      /\bpensavo\b/i,
+      /\bcredevo\b/i,
+      /\bmi\s+era\s+stato\s+detto\b/i,
+      /\bavevo\s+capito\b/i,
+      /\bmi\s+risultava?\b/i,
+      /\bsecondo\s+me\b/i,
+      /\bmi\s+sembrava\b/i,
+      /\bero\s+convint[oa]\b/i,
+      /\bho\s+letto\b/i,
+      /\balle\s+ore?\s+(?:[01]?\d|2[0-3])[:.][0-5]\d\b/i
+    ];
+
+    return timeExpectationPatterns.some((pattern) => pattern.test(text));
+  }
+
   _addTimeDiscrepancyNoteIfNeeded(response, messageDetails, detectedLanguage, classification = {}, requestType = {}) {
     if (!response || typeof response !== 'string') return response;
 
@@ -1920,6 +1939,9 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     ) {
       return response;
     }
+
+    // Scatta solo se l'utente ha espresso un orario come aspettativa/presupposto.
+    if (!this._hasExplicitTimeExpectation(sourceText)) return response;
 
     const userTimes = this._extractTimes(sourceText);
     const responseTimes = this._extractTimes(response);
