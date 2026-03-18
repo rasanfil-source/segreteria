@@ -256,7 +256,7 @@ function runAllTests() {
             return adjusted.includes('in un orario differente da quanto indicato da Lei');
         });
 
-        test('processThread identifica e marca uniformemente tutti i messaggi aggregati', results, () => {
+        test('processThread tratta un Set vuoto come cache già fornita', results, () => {
             const labeledMessageIds = new Set();
             const thread = {
                 getId: () => 'thread-123',
@@ -268,7 +268,7 @@ function runAllTests() {
             };
             const processor = new EmailProcessor({
                 gmailService: {
-                    getMessageIdsWithLabel: () => new Set(),
+                    getMessageIdsWithLabel: () => { throw new Error('fallback should not run'); },
                     extractMessageDetails: (m) => ({ senderEmail: 'user@external.com', date: new Date() }),
                     _extractEmailAddress: (f) => f,
                     addLabelToMessage: (id) => labeledMessageIds.add(id)
@@ -281,6 +281,21 @@ function runAllTests() {
             processor.processThread(thread, 'KB', 'Doctrine', labeledMessageIds, true);
             // Dovrebbe aver marcato tutti e 3 come elaborati (il candidate + gli altri 2)
             return labeledMessageIds.has('msg-1') && labeledMessageIds.has('msg-2') && labeledMessageIds.has('msg-3');
+        });
+
+        test('_hasUnreadMessagesToProcess tratta un Set vuoto come cache già fornita', results, () => {
+            const processor = new EmailProcessor({
+                gmailService: {
+                    getMessageIdsWithLabel: () => { throw new Error('fallback should not run'); }
+                }
+            });
+            const thread = {
+                getMessages: () => [
+                    { getId: () => 'msg-empty-cache', isUnread: () => true }
+                ]
+            };
+
+            return processor._hasUnreadMessagesToProcess(thread, new Set()) === true;
         });
     });
 

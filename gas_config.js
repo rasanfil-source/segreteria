@@ -51,7 +51,15 @@ const CONFIG = {
   SUSPENSION_STALE_UNREAD_HOURS: 12,    // Paracadute: processa unread vecchie anche in fascia sospesa
   MIN_REMAINING_TIME_MS: 90000,      // Stop preventivo se resta meno di 90 secondi
   EXECUTION_LOCK_WAIT_MS: 5000,      // Timeout acquisizione lock esecuzione (ms)
-  SEARCH_PAGE_SIZE: 50,              // Numero massimo thread restituiti da GmailApp.search
+  SEARCH_PAGE_SIZE: 50,              // Buffer discovery (storicamente thread con GmailApp.search, ora usato come limite candidati)
+  // === DISCOVERY MODE (NUOVO, rollback facile) ============================================
+  // Modalità di scoperta messaggi non letti da elaborare.
+  // - 'metadata': list(INBOX,UNREAD) + get(minimal) per ogni messaggio (baseline affidabile)
+  // - 'query'   : Messages.list con query testuale -label:... (meno chiamate API, da validare)
+  // - 'shadow'  : usa metadata come sorgente di verità e lancia anche query solo per confronto log
+  // Per tornare al comportamento più prudente basta reimpostare 'metadata'.
+  MESSAGE_DISCOVERY_MODE: 'shadow',
+  // =========================================================================================
   MAX_EXECUTION_TIME_MS: 280000,    // Budget massimo per run (default GAS trigger ~6 minuti)
   GMAIL_LABEL_CACHE_TTL: 3600000,      // 1 ora in millisecondi
   MAX_HISTORY_MESSAGES: 8,             // Massimo messaggi in cronologia thread (ricalibrato)
@@ -261,6 +269,10 @@ function validateConfig() {
   checkType('MAX_EMAILS_PER_RUN', CONFIG.MAX_EMAILS_PER_RUN, 'number');
   checkRange('MAX_EMAILS_PER_RUN', CONFIG.MAX_EMAILS_PER_RUN, 1, 50); // Sanity check
   checkType('LABEL_NAME', CONFIG.LABEL_NAME, 'string');
+  checkType('MESSAGE_DISCOVERY_MODE', CONFIG.MESSAGE_DISCOVERY_MODE, 'string');
+  if (!['metadata', 'query', 'shadow'].includes(CONFIG.MESSAGE_DISCOVERY_MODE)) {
+    errors.push("Errore Config: 'MESSAGE_DISCOVERY_MODE' deve essere uno tra 'metadata', 'query', 'shadow'");
+  }
 
   // Cache & Lock
   checkType('CACHE_LOCK_TTL', CONFIG.CACHE_LOCK_TTL, 'number');

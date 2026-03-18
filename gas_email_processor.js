@@ -250,7 +250,7 @@ class EmailProcessor {
       // ====================================================================================================
       // FILTRO A LIVELLO MESSAGGIO
       // ====================================================================================================
-      const effectiveLabeledIds = (labeledMessageIds && labeledMessageIds.size > 0)
+      const effectiveLabeledIds = (labeledMessageIds instanceof Set)
         ? labeledMessageIds
         : this.gmailService.getMessageIdsWithLabel(this.config.labelName);
 
@@ -1579,7 +1579,7 @@ ${addressLines.join('\n\n')}
         return false;
       }
 
-      const effectiveLabeledIds = (labeledMessageIds && labeledMessageIds.size > 0)
+      const effectiveLabeledIds = (labeledMessageIds instanceof Set)
         ? labeledMessageIds
         : this.gmailService.getMessageIdsWithLabel(this.config.labelName);
 

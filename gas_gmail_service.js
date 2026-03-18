@@ -229,10 +229,13 @@ class GmailService {
     /**
      * Recupera i thread con almeno un messaggio non letto e non ancora etichettato.
      *
-     * La ricerca avviene a livello di singolo messaggio (Gmail Advanced Service),
-     * coerentemente con il fatto che la label IA viene applicata per messaggio
-     * e non per thread. In questo modo il criterio di discovery coincide
-     * con il criterio di processing, eliminando confronti ridondanti a valle.
+     * BLOCCO NUOVO / ROLLBACK FACILE:
+     * - 'metadata': baseline prudente (list INBOX/UNREAD + get minimal per labelIds)
+     * - 'query'   : variante più economica via query testuale -label:...
+     * - 'shadow'  : usa metadata per decidere e lancia query solo per confronto nei log
+     *
+     * Per tornare subito alla modalità più conservativa basta impostare
+     * CONFIG.MESSAGE_DISCOVERY_MODE = 'metadata' senza toccare il resto del codice.
      *
      * @param {string} labelName            - Label applicata ai messaggi già elaborati (es. 'IA')
      * @param {string} errorLabel           - Label dei thread in errore (es. 'Errore')
@@ -243,16 +246,135 @@ class GmailService {
      * @returns {GmailThread[]}             - Thread unici, già istanziati, con almeno un messaggio da elaborare
      */
     getUnprocessedUnreadThreads(labelName, errorLabel, validationLabel, messageBuffer = 150, targetThreads = 50, maxPages = 3) {
+        const mode = (typeof CONFIG !== 'undefined' && CONFIG.MESSAGE_DISCOVERY_MODE)
+            ? CONFIG.MESSAGE_DISCOVERY_MODE
+            : 'metadata';
+
+        const safeMessageBuffer = this._safePositiveInt(messageBuffer, 150, 1, 500);
+        const safeTargetThreads = this._safePositiveInt(targetThreads, 50, 1);
+        const safeMaxPages = this._safePositiveInt(maxPages, 3, 1);
+
+        if (mode === 'query') {
+            return this._discoverByQuery(
+                labelName,
+                errorLabel,
+                validationLabel,
+                safeMessageBuffer,
+                safeTargetThreads,
+                safeMaxPages
+            ).threads;
+        }
+
+        // 'metadata' e 'shadow': la sorgente di verità resta metadata finché non validiamo query.
+        const metadataResult = this._discoverByMetadata(
+            labelName,
+            errorLabel,
+            validationLabel,
+            safeMessageBuffer,
+            safeTargetThreads,
+            safeMaxPages
+        );
+
+        if (mode === 'shadow') {
+            try {
+                // Confronto non bloccante: utile per validare query senza cambiare il batch reale.
+                this._shadowCompare(
+                    metadataResult,
+                    labelName,
+                    errorLabel,
+                    validationLabel,
+                    safeMessageBuffer,
+                    safeTargetThreads,
+                    safeMaxPages
+                );
+            } catch (shadowError) {
+                console.warn(`⚠️ Shadow compare fallito (non bloccante): ${shadowError.message}`);
+            }
+        }
+
+        return metadataResult.threads;
+    }
+
+    /**
+     * BLOCCO NUOVO / ROLLBACK FACILE:
+     * baseline prudente che verifica le label sul singolo messaggio via metadata.
+     * Se in futuro query sarà validata definitivamente, questo blocco potrà restare
+     * come fallback diagnostico o essere semplificato.
+     */
+    _discoverByMetadata(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages) {
+        const processedLabelId = this._getOptionalLabelIdByName(labelName);
+        const errorLabelId = this._getOptionalLabelIdByName(errorLabel);
+        const validationLabelId = this._getOptionalLabelIdByName(validationLabel);
+        const excludedLabelIds = new Set([processedLabelId, errorLabelId, validationLabelId].filter(Boolean));
+
+        const seenThreadIds = new Set();
+        const seenMessageIds = new Set();
+        const threads = [];
+        let pageToken;
+        let page = 0;
+
+        try {
+            do {
+                if (page >= safeMaxPages || seenThreadIds.size >= safeTargetThreads) break;
+
+                const params = { labelIds: ['INBOX', 'UNREAD'], maxResults: safeMessageBuffer };
+                if (pageToken) params.pageToken = pageToken;
+
+                const response = Gmail.Users.Messages.list('me', params);
+                page++;
+
+                const messages = response.messages || [];
+                let addedInPage = 0;
+                console.log(`📬 [metadata] Pagina ${page}: ${messages.length} messaggi candidati INBOX/UNREAD`);
+
+                for (const msg of messages) {
+                    if (!msg || !msg.id || !msg.threadId || seenThreadIds.has(msg.threadId)) continue;
+
+                    const metadata = Gmail.Users.Messages.get('me', msg.id, { format: 'minimal' });
+                    const msgLabelIds = new Set((metadata && metadata.labelIds) || []);
+                    const isExcluded = [...excludedLabelIds].some(id => msgLabelIds.has(id));
+                    if (isExcluded) continue;
+
+                    seenThreadIds.add(msg.threadId);
+                    seenMessageIds.add(msg.id);
+                    const thread = GmailApp.getThreadById(msg.threadId);
+                    if (!thread) continue;
+
+                    threads.push(thread);
+                    addedInPage++;
+                    if (seenThreadIds.size >= safeTargetThreads) break;
+                }
+
+                console.log(`📬 [metadata] Pagina ${page}: ${addedInPage} thread aggiunto/i dopo filtro label`);
+                pageToken = response.nextPageToken;
+            } while (pageToken);
+
+            console.log(`📬 [metadata] Trovati ${threads.length} thread da elaborare (${page} pagina/e)`);
+            return {
+                threads: threads,
+                threadIds: seenThreadIds,
+                messageIds: seenMessageIds
+            };
+        } catch (e) {
+            console.error(`❌ _discoverByMetadata fallito: ${e.message}`);
+            throw e;
+        }
+    }
+
+    /**
+     * BLOCCO NUOVO / ROLLBACK FACILE:
+     * variante più economica che usa la query testuale di Gmail.
+     * Va promossa a default solo dopo validazione empirica in shadow mode.
+     */
+    _discoverByQuery(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages) {
         const lq = this._formatLabelQueryValue(labelName);
         const eq = this._formatLabelQueryValue(errorLabel);
         const vq = this._formatLabelQueryValue(validationLabel);
         const query = `is:unread -label:${lq} -label:${eq} -label:${vq} in:inbox`;
 
         const seenThreadIds = new Set();
+        const seenMessageIds = new Set();
         const threads = [];
-        const safeMessageBuffer = this._safePositiveInt(messageBuffer, 150, 1, 500);
-        const safeTargetThreads = this._safePositiveInt(targetThreads, 50, 1);
-        const safeMaxPages = this._safePositiveInt(maxPages, 3, 1);
         let pageToken;
         let page = 0;
 
@@ -267,11 +389,12 @@ class GmailService {
                 page++;
 
                 const messages = response.messages || [];
-                console.log(`📬 Pagina ${page}: ${messages.length} messaggi non letti senza etichetta`);
+                console.log(`📬 [query] Pagina ${page}: ${messages.length} messaggi trovati`);
 
                 for (const msg of messages) {
-                    if (!msg.threadId || seenThreadIds.has(msg.threadId)) continue;
+                    if (!msg || !msg.id || !msg.threadId || seenThreadIds.has(msg.threadId)) continue;
                     seenThreadIds.add(msg.threadId);
+                    seenMessageIds.add(msg.id);
                     const thread = GmailApp.getThreadById(msg.threadId);
                     if (thread) threads.push(thread);
                     if (seenThreadIds.size >= safeTargetThreads) break;
@@ -280,14 +403,63 @@ class GmailService {
                 pageToken = response.nextPageToken;
             } while (pageToken);
 
-            console.log(`📬 Trovati ${threads.length} thread da elaborare (thread unici su ${page} pagina/e)`);
-            return threads;
-
+            console.log(`📬 [query] Trovati ${threads.length} thread da elaborare (${page} pagina/e)`);
+            return {
+                threads: threads,
+                threadIds: seenThreadIds,
+                messageIds: seenMessageIds
+            };
         } catch (e) {
-            // Propaga l'errore: se la discovery fallisce il batch deve abortire,
-            // non degradare in uno stato ambiguo che potrebbe causare doppie risposte.
-            console.error(`❌ getUnprocessedUnreadThreads fallito: ${e.message}`);
+            console.error(`❌ _discoverByQuery fallito: ${e.message}`);
             throw e;
+        }
+    }
+
+    /**
+     * BLOCCO NUOVO / ROLLBACK FACILE:
+     * confronto diagnostico tra metadata e query. Non blocca mai il batch.
+     */
+    _shadowCompare(metadataResult, labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages) {
+        const queryResult = this._discoverByQuery(
+            labelName,
+            errorLabel,
+            validationLabel,
+            safeMessageBuffer,
+            safeTargetThreads,
+            safeMaxPages
+        );
+
+        const metadataThreadIds = metadataResult.threadIds || new Set();
+        const queryThreadIds = queryResult.threadIds || new Set();
+        const metadataMessageIds = metadataResult.messageIds || new Set();
+        const queryMessageIds = queryResult.messageIds || new Set();
+
+        const missingThreadsInQuery = [...metadataThreadIds].filter(id => !queryThreadIds.has(id));
+        const extraThreadsInQuery = [...queryThreadIds].filter(id => !metadataThreadIds.has(id));
+        const missingMessagesInQuery = [...metadataMessageIds].filter(id => !queryMessageIds.has(id));
+        const extraMessagesInQuery = [...queryMessageIds].filter(id => !metadataMessageIds.has(id));
+
+        console.log('🔬 [shadow] Confronto metadata vs query:');
+        console.log(`   thread metadata=${metadataThreadIds.size}, query=${queryThreadIds.size}`);
+        console.log(`   messaggi metadata=${metadataMessageIds.size}, query=${queryMessageIds.size}`);
+
+        if (missingThreadsInQuery.length === 0 && extraThreadsInQuery.length === 0 &&
+            missingMessagesInQuery.length === 0 && extraMessagesInQuery.length === 0) {
+            console.log('   ✅ Risultati identici: nessuna differenza tra metadata e query');
+            return;
+        }
+
+        if (missingThreadsInQuery.length > 0) {
+            console.warn(`   ⚠️ missing_threads_in_query: [${missingThreadsInQuery.slice(0, 20).join(', ')}]`);
+        }
+        if (extraThreadsInQuery.length > 0) {
+            console.warn(`   ⚠️ extra_threads_in_query: [${extraThreadsInQuery.slice(0, 20).join(', ')}]`);
+        }
+        if (missingMessagesInQuery.length > 0) {
+            console.warn(`   ⚠️ missing_messages_in_query: [${missingMessagesInQuery.slice(0, 20).join(', ')}]`);
+        }
+        if (extraMessagesInQuery.length > 0) {
+            console.warn(`   ⚠️ extra_messages_in_query: [${extraMessagesInQuery.slice(0, 20).join(', ')}]`);
         }
     }
 
@@ -295,6 +467,25 @@ class GmailService {
         const raw = String(labelName || '').trim();
         if (!raw) return '""';
         return `"${raw.replace(/"/g, '\\"')}"`;
+    }
+
+    _getOptionalLabelIdByName(labelName) {
+        const raw = String(labelName || '').trim();
+        if (!raw) return null;
+
+        const cachedEntry = this._labelCache.get(raw);
+        const now = Date.now();
+        if (cachedEntry && (now - cachedEntry.ts) < this._cacheTTL) {
+            return cachedEntry.label ? cachedEntry.label.getId() : null;
+        }
+
+        const label = GmailApp.getUserLabelByName(raw);
+        if (!label) {
+            return null;
+        }
+
+        this._labelCache.set(raw, { label: label, ts: now });
+        return label.getId();
     }
 
 
