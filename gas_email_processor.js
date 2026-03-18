@@ -299,34 +299,19 @@ class EmailProcessor {
         return result;
       }
 
-      // Seleziona ultimo messaggio non letto non etichettato da esterni
+      // Seleziona ultimo messaggio non letto non etichettato da esterni.
+      // La discovery resta deliberatamente a livello messaggio: l'eventuale presenza
+      // di materiale IA nello stesso thread NON deve nascondere nuovi follow-up non letti.
       candidate = externalUnread[externalUnread.length - 1];
-      const messageDetails = this.gmailService.extractMessageDetails(candidate);
-
-      // GUARDRAIL: Segna gli altri messaggi non letti nel thread come elaborati
-      // per evitare che il bot risponda a ritroso nei trigger successivi
-      unlabeledUnread.forEach(message => {
-        if (message.getId() !== candidate.getId()) {
-          this._markMessageAsProcessed(message, labeledMessageIds);
-        }
-      });
-
-      console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
-      console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
-
-
-      if (messageDetails.isNewsletter) {
-        console.log('   ⊖ Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
-        this._markMessageAsProcessed(candidate, labeledMessageIds);
-        result.status = 'filtered';
-        result.reason = 'newsletter_header';
-        return result;
-      }
+      const candidateRawFrom = candidate.getFrom() || '';
+      const candidateSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
+        ? (this.gmailService._extractEmailAddress(candidateRawFrom) || '').toLowerCase()
+        : '';
 
       // ====================================================================================================
       // STEP 0: CONTROLLO ULTIMO MITTENTE (Anti-Loop & Ownership)
-      // GUARDRAIL (critico): se l'ultimo intervento nel thread è nostro,
-      // il bot NON deve inviare un'altra risposta. Si attende il prossimo messaggio utente.
+      // Thread usato solo come contesto conversazionale e per capire chi ha parlato per ultimo.
+      // Se l'ultimo intervento è nostro, ci fermiamo senza fare ulteriori chiamate metadata.
       // ====================================================================================================
       const lastMessage = messages[messages.length - 1];
       const lastSenderRaw = lastMessage.getFrom() || '';
@@ -351,7 +336,7 @@ class EmailProcessor {
       // ====================================================================================================
       // STEP 0.1: ANTI-AUTO-RISPOSTA (Safe Sender Check)
       // ====================================================================================================
-      const safeSenderEmail = (messageDetails.senderEmail || '').toLowerCase();
+      const safeSenderEmail = candidateSenderEmail;
 
       // Verifica mittente: confronta solo con email proprie e alias configurati.
       // Il confronto con i destinatari (To/CC) è stato rimosso perché genera
@@ -366,6 +351,28 @@ class EmailProcessor {
         this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'skipped';
         result.reason = 'self_sent';
+        return result;
+      }
+
+      // GUARDRAIL: Segna gli altri messaggi non letti nel thread come elaborati
+      // per evitare che il bot risponda a ritroso nei trigger successivi.
+      // Lo facciamo solo dopo i check cheap: se il last speaker siamo noi, il thread
+      // deve restare intatto fino al prossimo vero messaggio esterno.
+      unlabeledUnread.forEach(message => {
+        if (message.getId() !== candidate.getId()) {
+          this._markMessageAsProcessed(message, labeledMessageIds);
+        }
+      });
+
+      const messageDetails = this.gmailService.extractMessageDetails(candidate);
+      console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
+      console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
+
+      if (messageDetails.isNewsletter) {
+        console.log('   ⊖ Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
+        this._markMessageAsProcessed(candidate, labeledMessageIds);
+        result.status = 'filtered';
+        result.reason = 'newsletter_header';
         return result;
       }
 
