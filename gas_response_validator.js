@@ -637,7 +637,7 @@ class ResponseValidator {
     const inventedPhones = [...responsePhones].filter(p => {
       if (kbPhones.has(p)) return false;
       // Se il numero è presente nel testo originale, è legittimo ripeterlo
-      if (whitelistText.replace(/\s+/g, '').includes(p)) return false;
+      if (whitelistText.replace(/\D/g, '').includes(p)) return false;
       return true;
     });
 
