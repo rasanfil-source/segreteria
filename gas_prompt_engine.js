@@ -1,6 +1,6 @@
 /**
  * PromptEngine.gs - Generazione prompt modulare
- * 19 classi template per composizione prompt
+ * Sezioni template modulari (numero variabile per profilo/condizioni)
  * Supporta filtro dinamico basato su profilo
  * 
  * Include:
@@ -27,7 +27,7 @@ class PromptEngine {
       'ExamplesTemplate'
     ];
 
-    this.logger.info('PromptEngine inizializzato', { templates: 20 });
+    this.logger.info('PromptEngine inizializzato', { templateSections: 'variabile' });
   }
 
   /**
@@ -85,17 +85,21 @@ class PromptEngine {
   * Supporta filtro dinamico template basato su profilo
   * 
   * ORDINE SEZIONI:
-  * 1. Setup critico (Ruolo, Lingua, KB, Territorio) - Priorità alta
-  * 2. Contesto (Memoria, Cronologia, Email)
+  * 1. Setup critico (Ruolo, Lingua, NoReply, KB, Territorio) - Priorità alta
+  * 2. Contesto (Memoria, Continuità, Cronologia, Email)
   * 3. Linee guida (Formattazione, Tono, Esempi)
   * 4. Rinforzo finale (Errori critici, Checklist)
   */
-  buildPrompt(options) {
+  buildPrompt(options = {}) {
     const {
       emailContent,
       emailSubject,
       knowledgeBase,
       doctrineBase = '',
+      doctrineStructured = null,
+      aiCoreLite = '',
+      aiCore = '',
+      allowDoctrineFallback = true,
       senderName = 'Utente',
       senderEmail = '',
       conversationHistory = '',
@@ -151,11 +155,18 @@ class PromptEngine {
     // con input multilingua/rumorosi. Ridurre il fattore aumenterebbe il rischio di prompt troppo lunghi.
     const kbCharsLimit = Math.round(availableForKB * 4);
 
+    const aiCoreLiteText = this._normalizePromptTextInput(aiCoreLite, '');
+    const aiCoreText = this._normalizePromptTextInput(aiCore, '');
+    const doctrineBaseText = this._normalizePromptTextInput(doctrineBase, '');
+    const doctrineDB = Array.isArray(doctrineStructured)
+      ? doctrineStructured
+      : (Array.isArray(options.doctrineDB) ? options.doctrineDB : []);
+
     let workingKnowledgeBase = this._normalizePromptTextInput(knowledgeBase, '');
     let kbWasTruncated = false;
 
-    const aiCoreLiteSectionOverhead = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE && GLOBAL_CACHE.aiCoreLite)
-      ? this._estimateAiCoreLiteSectionChars()
+    const aiCoreLiteSectionOverhead = aiCoreLiteText
+      ? this._estimateAiCoreLiteSectionChars(aiCoreLiteText)
       : 0;
     const kbSectionOverhead = this._estimateKbSectionOverheadChars();
     const effectiveKbCharsLimit = Math.max(500, kbCharsLimit - aiCoreLiteSectionOverhead - kbSectionOverhead);
@@ -233,10 +244,13 @@ class PromptEngine {
     // 2. ISTRUZIONI LINGUA
     addSection(this._renderLanguageInstruction(detectedLanguage), 'LanguageInstruction', { force: true });
 
-    // 3. KNOWLEDGE BASE (Già troncata se necessario)
+    // 3. REGOLE NO REPLY (prima del contenuto da filtrare)
+    addSection(this._renderNoReplyRules(), 'NoReplyRules');
+
+    // 4. KNOWLEDGE BASE (Già troncata se necessario)
     addSection(this._renderKnowledgeBase(workingKnowledgeBase), 'KnowledgeBase');
 
-    // 4. VERIFICA TERRITORIO
+    // 5. VERIFICA TERRITORIO
     // (Aggiunto context check per evitare undefined)
     if (territoryContext) {
       const territorySection = this._renderTerritoryVerification(territoryContext);
@@ -251,16 +265,16 @@ class PromptEngine {
     // BLOCCO 2: CONTESTO E CONTINUITÀ
     // ══════════════════════════════════════════════════════
 
-    // 5. CONTESTO MEMORIA
+    // 6. CONTESTO MEMORIA
     addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
 
-    // 6. CONTINUITÀ CONVERSAZIONALE
+    // 7. CONTINUITÀ CONVERSAZIONALE
     addSection(this._renderConversationContinuity(salutationMode), 'ConversationContinuity');
 
-    // 7. SCUSE PER RITARDO
+    // 8. SCUSE PER RITARDO
     addSection(this._renderResponseDelay(responseDelay, detectedLanguage), 'ResponseDelay');
 
-    // 8. FOCUS UMANO (Condizionale)
+    // 9. FOCUS UMANO (Condizionale)
     const shouldAddContinuityFocus =
       (memoryContext && Object.keys(memoryContext).length > 0) ||
       (salutationMode && salutationMode !== 'full') ||
@@ -270,11 +284,12 @@ class PromptEngine {
       addSection(this._renderContinuityHumanFocus(), 'ContinuityHumanFocus');
     }
 
-    // 9. CONTESTO STAGIONALE E TEMPORALE
+    // 10. CONTESTO STAGIONALE
     addSection(this._renderSeasonalContext(currentSeason), 'SeasonalContext');
+    // 11. CONSAPEVOLEZZA TEMPORALE
     addSection(this._renderTemporalAwareness(currentDate, detectedLanguage), 'TemporalAwareness');
 
-    // 10. SUGGERIMENTO CATEGORIA
+    // 12. SUGGERIMENTO CATEGORIA
     addSection(this._renderCategoryHint(category), 'CategoryHint');
 
     // ══════════════════════════════════════════════════════
@@ -293,29 +308,29 @@ class PromptEngine {
       requestTypeObj = options.requestType || { needsDiscernment: false, needsDoctrine: false };
     }
 
-    // AI_CORE_LITE: solo se componente pastorale
-    if ((requestTypeObj.needsDiscernment || requestTypeObj.needsDoctrine) && typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.aiCoreLite) {
+    // 13. AI_CORE_LITE: solo se componente pastorale
+    if ((requestTypeObj.needsDiscernment || requestTypeObj.needsDoctrine) && aiCoreLiteText) {
       const liteSection = `
 ══════════════════════════════════════════════════════
 📋 PRINCIPI PASTORALI FONDAMENTALI (AI_CORE_LITE)
 ══════════════════════════════════════════════════════
-${GLOBAL_CACHE.aiCoreLite}
+${aiCoreLiteText}
 ══════════════════════════════════════════════════════\n`;
       addSection(liteSection, 'AICoreLite');
     }
 
-    // AI_CORE esteso: solo se discernimento
-    if (requestTypeObj.needsDiscernment && typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.aiCore) {
+    // 14. AI_CORE esteso: solo se discernimento
+    if (requestTypeObj.needsDiscernment && aiCoreText) {
       const coreSection = `
 ══════════════════════════════════════════════════════
 🧭 PRINCIPI PASTORALI ESTESI (AI_CORE) - Accompagnamento Personale
 ══════════════════════════════════════════════════════
-${GLOBAL_CACHE.aiCore}
+${aiCoreText}
 ══════════════════════════════════════════════════════\n`;
       addSection(coreSection, 'AICore');
     }
 
-    // 11. ARRICCHIMENTO DOTTRINALE (Selettivo)
+    // 15. ARRICCHIMENTO DOTTRINALE (Selettivo)
     if (requestTypeObj.needsDoctrine) {
       const selectiveDoctrine = this._renderSelectiveDoctrine(
         requestTypeObj,
@@ -323,59 +338,62 @@ ${GLOBAL_CACHE.aiCore}
         emailContent,
         emailSubject,
         promptProfile,
-        subIntents
+        subIntents,
+        doctrineDB
       );
       if (selectiveDoctrine) {
         addSection(selectiveDoctrine, 'SelectiveDoctrine');
       } else {
-        const doctrineFallback = (typeof doctrineBase === 'string' && doctrineBase.trim())
-          ? doctrineBase
-          : ((typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.doctrineBase) ? GLOBAL_CACHE.doctrineBase : '');
-        if (doctrineFallback) {
-        const doctrineSection = `
+        const canFallbackDoctrine = allowDoctrineFallback && !aiCoreLiteText && !aiCoreText;
+        if (doctrineBaseText && canFallbackDoctrine) {
+          const doctrineSection = `
 ══════════════════════════════════════════════════════
 📖 BASE DOTTRINALE (Dottrina) - Fallback Completo
 ══════════════════════════════════════════════════════
-${doctrineFallback}
+${doctrineBaseText}
 ══════════════════════════════════════════════════════\n`;
-        addSection(doctrineSection, 'DoctrineFallback');
+          addSection(doctrineSection, 'DoctrineFallback');
+        } else if (doctrineBaseText && !canFallbackDoctrine) {
+          console.warn('ℹ️ Fallback dottrinale completo evitato: AI_CORE presente (riduzione rischio bloat).');
         }
       }
     }
 
-    // 12. CRONOLOGIA E CONTENUTO EMAIL
+    // 16. CRONOLOGIA CONVERSAZIONE
     if (conversationHistory) {
       addSection(this._renderConversationHistory(conversationHistory), 'ConversationHistory');
     }
+    // 17. CONTENUTO EMAIL
     addSection(this._renderEmailContent(emailContent, emailSubject, senderName, senderEmail, detectedLanguage), 'EmailContent');
+    // 18. CONTESTO ALLEGATI
     addSection(this._renderAttachmentContext(workingAttachmentsContext), 'AttachmentsContext');
 
     // ══════════════════════════════════════════════════════
     // BLOCCO 3: LINEE GUIDA E TEMPLATE
     // ══════════════════════════════════════════════════════
 
-    // 13. REGOLE NO REPLY
-    addSection(this._renderNoReplyRules(), 'NoReplyRules');
-
-    // 14. LINEE GUIDA (Filtrabili per profilo)
+    // 19. LINEE GUIDA (Filtrabili per profilo)
     addTemplate('FormattingGuidelinesTemplate', this._renderFormattingGuidelines(), 'FormattingGuidelines');
 
-    // 15. STRUTTURA RISPOSTA
+    // 20. STRUTTURA RISPOSTA
     addSection(this._renderResponseStructure(category, subIntents), 'ResponseStructure');
 
-    // 16. TEMPLATE SPECIALI (Sbattezzo ecc.)
+    // 21. TEMPLATE SPECIALI (Sbattezzo ecc.)
     const normalizedTopic = (topic || '').toLowerCase();
     if (normalizedTopic.includes('sbattezzo') || category === 'sbattezzo') {
       addSection(this._renderSbattezzoTemplate(senderName), 'SbattezzoTemplate');
     }
 
+    // 22. LINEE GUIDA TONO UMANO
     addTemplate('HumanToneGuidelinesTemplate', this._renderHumanToneGuidelines(), 'HumanToneGuidelines');
+    // 23. ESEMPI
     addTemplate('ExamplesTemplate', this._renderExamples(category), 'Examples');
 
-    // 17. REGOLE FINALI
+    // 24. REGOLE FINALI
     addSection(this._renderResponseGuidelines(detectedLanguage, currentSeason, salutation, closing), 'ResponseGuidelines');
 
     if (!normalizedTopic.includes('sbattezzo') && category !== 'formal') {
+      // 25. CASI SPECIALI
       addTemplate('SpecialCasesTemplate', this._renderSpecialCases(), 'SpecialCases');
     }
 
@@ -383,10 +401,13 @@ ${doctrineFallback}
     // BLOCCO 4: RINFORZO FINALE
     // ══════════════════════════════════════════════════════
 
+    // 26. REMINDER ERRORI CRITICI
     addSection(this._renderCriticalErrorsReminder(), 'CriticalErrorsReminder');
     // Nota: il parametro è volutamente territoryContext (senza refusi) perché viene passato dal chiamante con lo stesso nome.
+    // 27. CHECKLIST CONTESTUALE
     addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode), 'ContextualChecklist');
 
+    // 28. ISTRUZIONE FINALE
     addSection('**Genera la risposta completa seguendo le linee guida sopra:**', 'FinalInstruction', { force: true });
 
     // Componi prompt finale tramite concatenazione efficiente
@@ -472,6 +493,8 @@ ${doctrineFallback}
 ══════════════════════════════════════════════════════
 ✅ CHECKLIST FINALE CONTESTUALE - VERIFICA PRIMA DI RISPONDERE
 ══════════════════════════════════════════════════════
+Prima di scrivere la risposta, verifica mentalmente (NON nel testo finale) ciascun punto.
+
 ${checks.join('\n')}
 ══════════════════════════════════════════════════════`;
   }
@@ -487,14 +510,11 @@ ${checks.join('\n')}
    * Recupero selettivo UNIFICATO (Dottrina + Direttive)
    * Integra logica dimensionale, tono consigliato e volume adattivo
    */
-  _renderSelectiveDoctrine(requestType, topic, emailContent, emailSubject, promptProfile, subIntents) {
-    if (typeof GLOBAL_CACHE === 'undefined' || !GLOBAL_CACHE.doctrineStructured) {
-      console.warn('⚠️ Cache dottrina non disponibile');
+  _renderSelectiveDoctrine(requestType, topic, emailContent, emailSubject, promptProfile, subIntents, doctrineDB) {
+    if (!Array.isArray(doctrineDB) || doctrineDB.length === 0) {
+      console.warn('⚠️ Dottrina strutturata non disponibile');
       return null;
     }
-
-    const doctrineDB = GLOBAL_CACHE.doctrineStructured;
-    if (!Array.isArray(doctrineDB) || doctrineDB.length === 0) return null;
 
     // 1. Definisci pesi categorie basati su dimensioni (se disponibili)
     // Se requestType è stringa semplice, usa preset. Se è oggetto, usa dimensioni.
@@ -1009,7 +1029,8 @@ ESEMPIO DI APERTURA:
 ${knowledgeBase}
 </knowledge_base>
 
-**REGOLA FONDAMENTALE:** Usa SOLO informazioni presenti sopra. NON inventare.`;
+**REGOLA FONDAMENTALE:** Usa SOLO informazioni presenti sopra. NON inventare.
+**SE L'INFORMAZIONE NON È PRESENTE:** scrivi "Per questa informazione specifica, la invitiamo a contattarci telefonicamente al numero indicato nella KB o a venire in segreteria." Se la KB non contiene un numero, invita SOLO a venire in segreteria.`;
   }
 
   // ========================================================================
@@ -1580,17 +1601,15 @@ Segreteria Parrocchia Sant'Eugenio
     return shell ? shell.length : 0;
   }
 
-  _estimateAiCoreLiteSectionChars() {
-    const aiCoreLiteText = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE && GLOBAL_CACHE.aiCoreLite)
-      ? String(GLOBAL_CACHE.aiCoreLite)
-      : '';
-    if (!aiCoreLiteText) return 0;
+  _estimateAiCoreLiteSectionChars(aiCoreLiteText) {
+    const safeAiCoreLiteText = this._normalizePromptTextInput(aiCoreLiteText, '');
+    if (!safeAiCoreLiteText) return 0;
 
     const liteSection = `
 ══════════════════════════════════════════════════════
 📋 PRINCIPI PASTORALI FONDAMENTALI (AI_CORE_LITE)
 ══════════════════════════════════════════════════════
-${aiCoreLiteText}
+${safeAiCoreLiteText}
 ══════════════════════════════════════════════════════
 `;
     return liteSection.length;

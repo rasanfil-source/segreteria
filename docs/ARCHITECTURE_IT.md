@@ -140,8 +140,8 @@ Email Arriva
                v
 ┌──────────────────────────────────────────────────────────┐
 │  PROMPT CONSTRUCTION (PromptEngine)                      │
-│  - 18 template modulari componibili                      │
-│  - Filtering dinamico basato su profilo (lite/std/heavy)│
+│  - Sezioni modulari prompt (numero variabile)           │
+│  - Filtering dinamico basato su profilo (lite/std/heavy) │
 │  - Token budget management (~100k max)                   │
 │  - KB_TOKEN_BUDGET_RATIO modulare (v2.2.4)               │
 │  - Retrieval Selettivo Dottrina (riduzione 83% token)    │
@@ -415,30 +415,37 @@ classify(subject, body, externalHint) {
 
 ### PromptEngine.gs - Modular Composition
 
-**18 Template Componibili:**
+**Sezioni Modulari (ordine; alcune condizionali; numero variabile per profilo):**
 
 ```
-1. CriticalErrors     (SEMPRE - rinforzo anti-errori)
-2. SystemRole         (SEMPRE - identità assistente)
-3. LanguageInstruction(SEMPRE - lingua richiesta)
-4. ConversationContinuity (CONDIZIONALE - se follow-up)
-5. MemoryContext      (CONDIZIONALE - se memoria exists)
-6. KnowledgeBase      (SEMPRE)
-7. TerritoryVerification (SEMPRE)
-8. SeasonalContext    (SEMPRE - invernale/estivo)
-9. TemporalAwareness  (SEMPRE - data corrente)
-10. CategoryHint      (CONDIZIONALE - se category rilevata)
-11. DynamicDirectives (CONDIZIONALE - Smart RAG da Dottrina)
-12. FormattingGuidelines (FILTRABILE - no su profilo lite)
-13. ResponseStructure (SEMPRE)
-14. ConversationHistory (CONDIZIONALE - se thread>1 msg)
-15. EmailContent      (SEMPRE)
-16. NoReplyRules      (SEMPRE)
-17. HumanToneGuidelines (FILTRABILE - no su profilo lite)
-18. Examples          (FILTRABILE - no su profilo lite/standard)
-19. ResponseGuidelines (SEMPRE)
-20. SpecialCases      (FILTRABILE - no su profilo lite)
-21. FinalChecklist    (SEMPRE - rinforzo finale)
+1. SystemRole              (SEMPRE - identità assistente)
+2. LanguageInstruction     (SEMPRE - lingua richiesta)
+3. NoReplyRules            (SEMPRE - esclusioni prima del contenuto)
+4. KnowledgeBase           (SEMPRE)
+5. TerritoryVerification   (CONDIZIONALE - se contesto territorio)
+6. MemoryContext           (CONDIZIONALE - se memoria presente)
+7. ConversationContinuity  (CONDIZIONALE - follow-up/modalità saluto)
+8. ResponseDelay           (CONDIZIONALE - risposta in ritardo)
+9. ContinuityHumanFocus    (CONDIZIONALE - focus emotivo/ripetizione)
+10. SeasonalContext        (SEMPRE - invernale/estivo)
+11. TemporalAwareness      (SEMPRE - data corrente)
+12. CategoryHint           (CONDIZIONALE - se category rilevata)
+13. AICoreLite             (CONDIZIONALE - richieste pastorali)
+14. AICore                 (CONDIZIONALE - discernimento)
+15. SelectiveDoctrine      (CONDIZIONALE - richieste dottrinali; fallback solo se no AI_CORE/LITE)
+16. ConversationHistory    (CONDIZIONALE - se thread>1 msg)
+17. EmailContent           (SEMPRE)
+18. AttachmentsContext     (CONDIZIONALE - OCR/allegati)
+19. FormattingGuidelines   (FILTRABILE - no su profilo lite)
+20. ResponseStructure      (SEMPRE)
+21. SbattezzoTemplate      (CONDIZIONALE - category/topic)
+22. HumanToneGuidelines    (FILTRABILE - no su profilo lite)
+23. Examples               (FILTRABILE - no su profilo lite/standard)
+24. ResponseGuidelines     (SEMPRE)
+25. SpecialCases           (FILTRABILE - no su profilo lite)
+26. CriticalErrorsReminder (SEMPRE - rinforzo anti-errori)
+27. ContextualChecklist    (SEMPRE - verifica finale)
+28. FinalInstruction       (SEMPRE - genera risposta)
 ```
 
 **Prompt Profiling:**

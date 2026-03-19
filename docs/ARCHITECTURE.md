@@ -138,8 +138,8 @@ Email Arrives
                v
 ┌──────────────────────────────────────────────────────────┐
 │  PROMPT CONSTRUCTION (PromptEngine)                      │
-│  - 18 composable modular templates                      │
-│  - Dynamic filtering based on profile (lite/std/heavy)  │
+│  - Modular prompt sections (count varies by profile)     │
+│  - Dynamic filtering based on profile (lite/std/heavy)   │
 │  - Token budget management (~100k max)                  │
 │  - Semantic truncation if KB too large                  │
 └──────────────┬──────────────────────────────────────────┘
@@ -381,30 +381,37 @@ classify(subject, body, externalHint) {
 
 ### PromptEngine.gs - Modular Composition
 
-**18 Composable Templates:**
+**Modular Sections (order; some conditional; count varies by profile):**
 
 ```
-1. CriticalErrors     (ALWAYS - anti-error reinforcement)
-2. SystemRole         (ALWAYS - assistant identity)
-3. LanguageInstruction(ALWAYS - requested language)
-4. ConversationContinuity (CONDITIONAL - if follow-up)
-5. MemoryContext      (CONDITIONAL - if memory exists)
-6. KnowledgeBase      (ALWAYS)
-7. TerritoryVerification (ALWAYS)
-8. SeasonalContext    (ALWAYS - winter/summer)
-9. TemporalAwareness  (ALWAYS - current date)
-10. CategoryHint      (CONDITIONAL - if category detected)
-11. DynamicDirectives (CONDITIONAL - Smart RAG from Doctrine)
-12. FormattingGuidelines (FILTERABLE - no on lite profile)
-13. ResponseStructure (ALWAYS)
-14. ConversationHistory (CONDITIONAL - if thread>1 msg)
-15. EmailContent      (ALWAYS)
-16. NoReplyRules      (ALWAYS)
-17. HumanToneGuidelines (FILTERABLE - no on lite profile)
-18. Examples          (FILTERABLE - no on lite/standard profile)
-19. ResponseGuidelines (ALWAYS)
-20. SpecialCases      (FILTERABLE - no on lite profile)
-21. FinalChecklist    (ALWAYS - final reinforcement)
+1. SystemRole              (ALWAYS - assistant identity)
+2. LanguageInstruction     (ALWAYS - requested language)
+3. NoReplyRules            (ALWAYS - exclusions before content)
+4. KnowledgeBase           (ALWAYS)
+5. TerritoryVerification   (CONDITIONAL - if territory context)
+6. MemoryContext           (CONDITIONAL - if memory exists)
+7. ConversationContinuity  (CONDITIONAL - if follow-up/salutation mode)
+8. ResponseDelay           (CONDITIONAL - if late response)
+9. ContinuityHumanFocus    (CONDITIONAL - emotional/repetition focus)
+10. SeasonalContext        (ALWAYS - winter/summer)
+11. TemporalAwareness      (ALWAYS - current date)
+12. CategoryHint           (CONDITIONAL - if category detected)
+13. AICoreLite             (CONDITIONAL - pastoral needs)
+14. AICore                 (CONDITIONAL - discernment)
+15. SelectiveDoctrine      (CONDITIONAL - doctrinal requests; fallback only if no AI_CORE/LITE)
+16. ConversationHistory    (CONDITIONAL - if thread>1 msg)
+17. EmailContent           (ALWAYS)
+18. AttachmentsContext     (CONDITIONAL - OCR/attachments)
+19. FormattingGuidelines   (FILTERABLE - no on lite profile)
+20. ResponseStructure      (ALWAYS)
+21. SbattezzoTemplate      (CONDITIONAL - category/topic)
+22. HumanToneGuidelines    (FILTERABLE - no on lite profile)
+23. Examples               (FILTERABLE - no on lite/standard profile)
+24. ResponseGuidelines     (ALWAYS)
+25. SpecialCases           (FILTERABLE - no on lite profile)
+26. CriticalErrorsReminder (ALWAYS - anti-error reinforcement)
+27. ContextualChecklist    (ALWAYS - final verification)
+28. FinalInstruction       (ALWAYS - generate response)
 ```
 
 **Prompt Profiling:**

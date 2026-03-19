@@ -150,9 +150,18 @@ class GeminiRateLimiter {
     const lock = LockService.getScriptLock();
     let lockAcquired = false;
     try {
-      // Tenta di acquisire il lock per 5 secondi
-      if (lock.tryLock(5000)) {
-        lockAcquired = true;
+      // Tentativo di acquisizione lock con retry (backoff breve)
+      for (let i = 0; i < 3; i++) {
+        if (lock.tryLock(2000)) {
+          lockAcquired = true;
+          break;
+        }
+        if (i < 2) {
+          Utilities.sleep(500 * (i + 1));
+        }
+      }
+
+      if (lockAcquired) {
         // Usa data Pacific per allinearsi al reset reale delle quote Google
         // Il reset Google avviene a mezzanotte Pacific = 9:00 AM italiana
         const pacificDate = this._getPacificDate();
@@ -571,11 +580,12 @@ class GeminiRateLimiter {
       const todayPacific = this._getPacificDate();
       const lastRpdDate = this.props.getProperty(rpdDateKey) || '';
       let currentRpd = parseInt(this.props.getProperty(rpdKey) || '0');
+      let currentTokens = parseInt(this.props.getProperty(tokensKey) || '0');
       if (lastRpdDate !== todayPacific) {
         currentRpd = 0;
+        currentTokens = 0;
         this.props.setProperty(rpdDateKey, todayPacific);
       }
-      const currentTokens = parseInt(this.props.getProperty(tokensKey) || '0');
       const nextRpd = currentRpd + 1;
       const nextTokens = currentTokens + (tokensUsed || 0);
 

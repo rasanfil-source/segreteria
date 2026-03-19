@@ -572,14 +572,18 @@ class EmailProcessor {
       // STEP 5: KB ENRICHMENT CONDIZIONALE
       // ====================================================================================================
       const knowledgeSections = [];
-      const effectiveDoctrineBase = doctrineBase || ((typeof GLOBAL_CACHE !== 'undefined') ? (GLOBAL_CACHE.doctrineBase || '') : '');
+      const resourceCache = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBAL_CACHE : {};
+      const effectiveDoctrineBase = doctrineBase || (resourceCache.doctrineBase || '');
+      const doctrineStructured = Array.isArray(resourceCache.doctrineStructured) ? resourceCache.doctrineStructured : [];
+      const aiCoreLite = (resourceCache.aiCoreLite != null) ? resourceCache.aiCoreLite : '';
+      const aiCore = (resourceCache.aiCore != null) ? resourceCache.aiCore : '';
 
       // KB principale: passata "pulita" al PromptEngine per evitare overhead
       // e rispettare il budget di troncamento sui contenuti realmente informativi.
       knowledgeSections.push(knowledgeBase);
 
       // AI_CORE e Dottrina NON vengono iniettati qui: è responsabilità esclusiva di
-      // PromptEngine (buildPrompt) che li legge da GLOBAL_CACHE con logica selettiva.
+      // PromptEngine (buildPrompt) che li riceve via opzioni con logica selettiva.
       // Doppia iniezione causerebbe gonfiamento prompt e rischio truncation.
 
       // Regola messe speciali
@@ -836,7 +840,10 @@ ${addressLines.join('\n\n')}
         activeConcerns: activeConcerns,
         territoryContext: territoryContext, // Passiamo il contesto separatamente per rendering prioritario
         requestType: requestType, // Aggiunto per recupero selettivo Dottrina
-        attachmentsContext: textFromAttachments
+        attachmentsContext: textFromAttachments,
+        aiCoreLite: aiCoreLite,
+        aiCore: aiCore,
+        doctrineStructured: doctrineStructured
       };
 
       const prompt = this.promptEngine.buildPrompt(promptOptions);
