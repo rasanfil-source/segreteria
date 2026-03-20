@@ -1508,16 +1508,16 @@ function testLoadAdvancedConfigStrictSuspensionHours() {
         getRange: (...args) => {
             if (args.length === 1 && args[0] === 'B2') return { getValue: () => 'ACCESO' };
             if (args.length === 1 && args[0] === 'B5:E7') return { getValues: () => [[null, null, null, null], [null, null, null, null], [null, null, null, null]] };
-            if (args.length === 1 && args[0] === 'B10:E16') {
+            if (args.length === 1 && args[0] === 'A10:D16') {
                 return {
                     getValues: () => [
-                        ['Lun', '08', '12', ''],
-                        ['Mar', '08x', '12', ''],
-                        ['Mer', '22', '24', ''],
-                        ['Gio', '18', '18', ''],
-                        ['Ven', null, null, ''],
-                        ['Sab', ' 9 ', '17', ''],
-                        ['Dom', '07', '09', '']
+                        ['Lun', '08', '', '12'],
+                        ['Mar', '08x', '', '12'],
+                        ['Mer', '22', '', '24'],
+                        ['Gio', '18', '', '18'],
+                        ['Ven', null, '', null],
+                        ['Sab', ' 9 ', '', '17'],
+                        ['Dom', '07', '', '09']
                     ]
                 };
             }
@@ -1540,6 +1540,44 @@ function testLoadAdvancedConfigStrictSuspensionHours() {
     assert(cfg.suspensionRules[2] == null, 'Valori parzialmente numerici (es. 08x) devono essere scartati');
     assert(cfg.suspensionRules[3] == null, 'Ore fuori range (es. 24) devono essere scartate');
     assert(cfg.suspensionRules[4] == null, 'Fasce invertite o nulle (18-18) devono essere scartate');
+}
+
+function testLoadAdvancedConfigLegacySuspensionLayoutCompatibility() {
+    console.log('--- Test: Load Advanced Config legacy suspension layout compatibility ---');
+    loadScript('gas_main.js');
+
+    const sheet = {
+        getRange: (...args) => {
+            if (args.length === 1 && args[0] === 'B2') return { getValue: () => 'ACCESO' };
+            if (args.length === 1 && args[0] === 'B5:E7') return { getValues: () => [[null, null, null, null], [null, null, null, null], [null, null, null, null]] };
+            if (args.length === 1 && args[0] === 'A10:D16') {
+                return {
+                    getValues: () => [
+                        ['', 'Lun', '08', '12'],
+                        ['', 'Mar', '09', '13'],
+                        ['', 'Mer', null, null],
+                        ['', 'Gio', null, null],
+                        ['', 'Ven', null, null],
+                        ['', 'Sab', null, null],
+                        ['', 'Dom', '07', '09']
+                    ]
+                };
+            }
+            if (args.length === 4 && args[0] === 11 && args[1] === 5) {
+                const rows = args[2];
+                return { getValues: () => Array.from({ length: rows }, () => ['', '']) };
+            }
+            throw new Error(`Range non atteso: ${args.join(',')}`);
+        },
+        getLastRow: () => 11
+    };
+
+    const ss = { getSheetByName: (name) => (name === 'Controllo' ? sheet : null) };
+    const cfg = _loadAdvancedConfig(ss);
+
+    assert(cfg.suspensionRules[1][0][0] === 8 && cfg.suspensionRules[1][0][1] === 12, 'Layout legacy: lunedì 08-12 deve restare supportato');
+    assert(cfg.suspensionRules[2][0][0] === 9 && cfg.suspensionRules[2][0][1] === 13, 'Layout legacy: martedì 09-13 deve restare supportato');
+    assert(cfg.suspensionRules[0][0][0] === 7 && cfg.suspensionRules[0][0][1] === 9, 'Layout legacy: domenica 07-09 deve restare supportato');
 }
 
 function testLoadResourcesKeepsFalseyValuesInAiCoreSheets() {
@@ -1722,6 +1760,7 @@ function main() {
         ['validator: thinking leak con pattern parentesi', testResponseValidatorRemovesThinkingLeakWithParenthesisKeyword],
         ['main: ai_core preserva valori falsey', testLoadResourcesKeepsFalseyValuesInAiCoreSheets],
         ['main: parsing rigoroso fasce sospensione', testLoadAdvancedConfigStrictSuspensionHours],
+        ['main: compatibilità layout legacy fasce sospensione', testLoadAdvancedConfigLegacySuspensionLayoutCompatibility],
         ['prompt context: temporal risk with object KB', testPromptContextTemporalRiskWithObjectKnowledgeBase],
         ['prompt context: temporal risk with day/month KB', testPromptContextTemporalRiskWithDayMonthKnowledgeBase],
         ['prompt context: circular object KB fallback', testPromptContextKnowledgeBaseCircularObjectDoesNotCrash],
