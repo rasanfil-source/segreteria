@@ -162,10 +162,11 @@ class GeminiRateLimiter {
       }
 
       if (lockAcquired) {
+        // Rileggi sempre le proprietà dopo aver acquisito il lock per evitare race condition
         // Usa data Pacific per allinearsi al reset reale delle quote Google
         // Il reset Google avviene a mezzanotte Pacific = 9:00 AM italiana
-        const pacificDate = this._getPacificDate();
         const storedDate = this.props.getProperty('rate_limit_date');
+        const pacificDate = this._getPacificDate();
 
         // Reset quando cambia la data Pacific (non italiana!)
         if (storedDate !== pacificDate) {
@@ -173,6 +174,8 @@ class GeminiRateLimiter {
           console.log(`   (Ora italiana: ${Utilities.formatDate(new Date(), 'Europe/Rome', 'HH:mm')})`);
           this._resetDailyCounters();
           this.props.setProperty('rate_limit_date', pacificDate);
+          // Forza svuotamento cache locale per riflettere subito il reset
+          this.cache.lastCacheUpdate = 0;
         }
       } else {
         console.warn('⚠️ Impossibile acquisire lock per reset quota, salto controllo');

@@ -1763,12 +1763,14 @@ class GmailService {
      * Applica sostituzioni testo dal foglio Sostituzioni
      */
     applyReplacements(text, replacements) {
-        if (!text || !replacements) return text;
+        if (!text || !replacements || typeof replacements !== 'object') return text;
 
         let result = text;
         let count = 0;
 
         for (const [bad, good] of Object.entries(replacements)) {
+            if (!bad) continue;
+
             const regex = new RegExp(bad.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
             const before = result;
             result = result.replace(regex, good);
@@ -2164,7 +2166,7 @@ function markdownToHtml(text) {
     // 2. Proteggi link markdown (prima dell'escape globale)
     const links = [];
     html = replaceMarkdownLinks(html, (linkText, url) => {
-        const sanitizedUrl = sanitizeUrl(url);
+        const sanitizedUrl = sanitizeUrl(url.replace(/[\s\u200B-\u200D\uFEFF]/g, ''));
         const escapedText = escapeHtml(linkText);
         const token = `@@LINK_PLACEHOLDER_${links.length}_${Utilities.getUuid()}@@`;
         if (sanitizedUrl) {

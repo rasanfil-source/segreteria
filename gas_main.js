@@ -135,8 +135,12 @@ function isInVacationPeriod(date = new Date(), scriptTimeZone = "") {
   for (const vp of periods) {
     if (!vp || !vp.start || !vp.end) continue;
 
-    const startKey = formatDateOnly(vp.start);
-    const endKey = formatDateOnly(vp.end);
+    const start = new Date(vp.start);
+    const end = new Date(vp.end);
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) continue;
+
+    const startKey = formatDateOnly(start);
+    const endKey = formatDateOnly(end);
     if (!startKey || !endKey) continue;
 
     if (checkDateKey >= startKey && checkDateKey <= endKey) return true;
