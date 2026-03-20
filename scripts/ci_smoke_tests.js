@@ -1238,6 +1238,47 @@ function testAddLabelToThreadPropagatesNonLabelErrors() {
     assert(threw, 'addLabelToThread deve propagare errori non riconducibili a label missing');
 }
 
+function testListMessagesWithResilienceHandlesEmptyResponseError() {
+    loadScript('gas_gmail_service.js');
+
+    const service = Object.create(GmailService.prototype);
+    service._safePositiveInt = GmailService.prototype._safePositiveInt;
+    service._isEmptyResponseError = GmailService.prototype._isEmptyResponseError;
+
+    const originalGmail = global.Gmail;
+    const originalUtilities = global.Utilities;
+    let calls = 0;
+    let sleeps = 0;
+
+    global.Utilities = Object.assign({}, originalUtilities, {
+        sleep: () => {
+            sleeps += 1;
+        }
+    });
+    global.Gmail = {
+        Users: {
+            Messages: {
+                list: () => {
+                    calls += 1;
+                    throw new Error('Empty response');
+                }
+            }
+        }
+    };
+
+    try {
+        const result = service._listMessagesWithResilience({ maxResults: 10 }, 2);
+        assert(Array.isArray(result.messages), 'Fallback deve restituire messages come array');
+        assert(result.messages.length === 0, 'Fallback deve restituire pagina vuota');
+        assert(result.nextPageToken === null, 'Fallback deve azzerare nextPageToken');
+        assert(calls === 2, `Attesi 2 tentativi, ottenuti ${calls}`);
+        assert(sleeps === 1, `Attesa backoff attesa 1 volta, ottenuto ${sleeps}`);
+    } finally {
+        global.Gmail = originalGmail;
+        global.Utilities = originalUtilities;
+    }
+}
+
 function testGetMessageIdsWithLabelInvalidPaginationOptions() {
     loadScript('gas_gmail_service.js');
 
@@ -1670,6 +1711,7 @@ function main() {
         ['markdownToHtml: query params senza double-escape', testMarkdownLinkQueryParamsNotDoubleEscaped],
         ['markdownToHtml: evita nesting p/ul invalido', testMarkdownListParagraphNesting],
         ['gmail labels: errori non-label vengono propagati', testAddLabelToThreadPropagatesNonLabelErrors],
+        ['gmail list: empty response fallback', testListMessagesWithResilienceHandlesEmptyResponseError],
         ['gmail list: fallback robusto opzioni paginazione invalide', testGetMessageIdsWithLabelInvalidPaginationOptions],
         ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
         ['main: isolamento rigoroso per hasExecutionLock', testMainEncapsulatesExecutionLockSuccessfully],

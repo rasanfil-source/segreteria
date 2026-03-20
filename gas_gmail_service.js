@@ -158,6 +158,44 @@ class GmailService {
             message.includes('404');
     }
 
+
+    _listMessagesWithResilience(params, maxAttempts = 2) {
+        const safeAttempts = this._safePositiveInt(maxAttempts, 2, 1, 5);
+        let lastError = null;
+
+        for (let attempt = 1; attempt <= safeAttempts; attempt++) {
+            try {
+                const response = Gmail.Users.Messages.list('me', params);
+                if (response === null || typeof response === 'undefined') {
+                    throw new Error('Empty response');
+                }
+                return response;
+            } catch (error) {
+                lastError = error;
+                const isEmptyResponse = this._isEmptyResponseError(error);
+                const hasRetryBudget = attempt < safeAttempts;
+
+                if (!isEmptyResponse) {
+                    throw error;
+                }
+
+                console.warn(`⚠️ Gmail.Users.Messages.list risposta vuota (tentativo ${attempt}/${safeAttempts})`);
+                if (hasRetryBudget) {
+                    Utilities.sleep(250 * attempt);
+                    continue;
+                }
+            }
+        }
+
+        console.warn('⚠️ Gmail.Users.Messages.list continua a restituire risposta vuota: tratto la pagina come vuota per non interrompere il batch');
+        return { messages: [], nextPageToken: null };
+    }
+
+    _isEmptyResponseError(error) {
+        const message = (error && error.message) ? String(error.message).toLowerCase() : '';
+        return message.includes('empty response') || message.includes('risposta vuota');
+    }
+
     /**
      * Ottiene gli ID di tutti i messaggi con una specifica etichetta
      */
@@ -198,7 +236,7 @@ class GmailService {
                     break;
                 }
 
-                const response = Gmail.Users.Messages.list('me', {
+                const response = this._listMessagesWithResilience({
                     labelIds: [labelId],
                     q: query,
                     maxResults: pageSize,
@@ -293,7 +331,7 @@ class GmailService {
                 const params = { labelIds: ['INBOX', 'UNREAD'], maxResults: safeMessageBuffer };
                 if (pageToken) params.pageToken = pageToken;
 
-                const response = Gmail.Users.Messages.list('me', params);
+                const response = this._listMessagesWithResilience(params);
                 page++;
 
                 const messages = (response && response.messages) || [];
@@ -356,7 +394,7 @@ class GmailService {
                 const params = { q: query, maxResults: safeMessageBuffer };
                 if (pageToken) params.pageToken = pageToken;
 
-                const response = Gmail.Users.Messages.list('me', params);
+                const response = this._listMessagesWithResilience(params);
                 page++;
 
                 const messages = (response && response.messages) || [];
