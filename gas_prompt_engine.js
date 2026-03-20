@@ -107,7 +107,7 @@ class PromptEngine {
       topic = '',
       detectedLanguage = 'it',
       currentSeason = 'invernale',
-      currentDate = Utilities.formatDate(new Date(), 'Europe/Rome', 'yyyy-MM-dd'),
+      currentDate = null,
       salutation = 'Buongiorno.',
       closing = 'Cordiali saluti,',
       subIntents = {},
@@ -119,6 +119,11 @@ class PromptEngine {
       territoryContext = null,
       attachmentsContext = ''
     } = options;
+    const safeCurrentDate = currentDate || (
+      (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function')
+        ? Utilities.formatDate(new Date(), 'Europe/Rome', 'yyyy-MM-dd')
+        : new Date().toISOString().slice(0, 10)
+    );
 
     // Compatibilità input: alcuni flussi legacy passano i concern come array di chiavi.
     // Esempio: ['formatting_risk', 'temporal_risk']
@@ -287,7 +292,7 @@ class PromptEngine {
     // 10. CONTESTO STAGIONALE
     addSection(this._renderSeasonalContext(currentSeason), 'SeasonalContext');
     // 11. CONSAPEVOLEZZA TEMPORALE
-    addSection(this._renderTemporalAwareness(currentDate, detectedLanguage), 'TemporalAwareness');
+    addSection(this._renderTemporalAwareness(safeCurrentDate, detectedLanguage), 'TemporalAwareness');
 
     // 12. SUGGERIMENTO CATEGORIA
     addSection(this._renderCategoryHint(category), 'CategoryHint');
