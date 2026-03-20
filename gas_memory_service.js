@@ -850,6 +850,23 @@ class MemoryService {
       return fallback;
     }
 
+    if (timestamp instanceof Date) {
+      if (!isNaN(timestamp.getTime())) {
+        return timestamp.toISOString();
+      }
+      console.warn('⚠️ Timestamp Date non valido, reset');
+      return fallback;
+    }
+
+    if (typeof timestamp === 'number' && Number.isFinite(timestamp)) {
+      const numericDate = new Date(timestamp);
+      if (!isNaN(numericDate.getTime())) {
+        return numericDate.toISOString();
+      }
+      console.warn('⚠️ Timestamp numerico non valido, reset');
+      return fallback;
+    }
+
     if (typeof timestamp !== 'string') {
       console.warn(`⚠️ Timestamp non-string: ${typeof timestamp}, reset`);
       return fallback;
@@ -1262,7 +1279,7 @@ function cleanupOldMemory() {
  * Configura trigger settimanale per pulizia automatica memoria
  * ESEGUI UNA SOLA VOLTA manualmente per attivare il cleanup automatico
  */
-function setupWeeklyCleanupTrigger() {
+function setupWeeklyMemoryCleanupTrigger() {
   // Rimuovi trigger esistenti per evitare duplicati
   const triggers = ScriptApp.getProjectTriggers();
   let removed = 0;
@@ -1284,4 +1301,12 @@ function setupWeeklyCleanupTrigger() {
     .create();
 
   console.log('✓ Trigger cleanup settimanale creato (Domenica 3:00 AM)');
+}
+
+/**
+ * Alias per compatibilità: alcuni trigger storici puntano a weeklyMemoryCleanup.
+ * Manteniamo un wrapper per evitare rotture dopo la correzione dei trigger.
+ */
+function weeklyMemoryCleanup() {
+  return cleanupOldMemory();
 }

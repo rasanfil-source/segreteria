@@ -255,7 +255,15 @@ class EmailProcessor {
         : this.gmailService.getMessageIdsWithLabel(this.config.labelName);
 
       const unlabeledUnread = unreadMessages.filter(message => {
-        return !effectiveLabeledIds.has(message.getId());
+        const messageId = message.getId();
+        if (effectiveLabeledIds.has(messageId)) return false;
+        if (this._messageHasLabel(message, this.config.labelName)) {
+          if (effectiveLabeledIds && typeof effectiveLabeledIds.add === 'function') {
+            effectiveLabeledIds.add(messageId);
+          }
+          return false;
+        }
+        return true;
       });
 
       // Build set of our own addresses (primary + aliases) per filtro early-stage
@@ -1543,6 +1551,18 @@ ${addressLines.join('\n\n')}
     return notes[lang] || notes.it;
   }
 
+  _messageHasLabel(message, labelName) {
+    if (!message || !labelName) return false;
+    try {
+      if (typeof message.getLabels !== 'function') return false;
+      const labels = message.getLabels() || [];
+      return labels.some(label => label && typeof label.getName === 'function' && label.getName() === labelName);
+    } catch (e) {
+      this.logger.warn(`⚠️ Impossibile leggere label del messaggio: ${e.message}`);
+      return false;
+    }
+  }
+
   _markMessageAsProcessed(message, labeledMessageIds = null) {
     // SCELTA OPERATIVA INTENZIONALE:
     // - etichetta IA a livello *messaggio* (non thread), usando Gmail Advanced Service;
@@ -1598,7 +1618,17 @@ ${addressLines.join('\n\n')}
         ? labeledMessageIds
         : this.gmailService.getMessageIdsWithLabel(this.config.labelName);
 
-      return unreadMessages.some(message => !effectiveLabeledIds.has(message.getId()));
+      return unreadMessages.some(message => {
+        const messageId = message.getId();
+        if (effectiveLabeledIds.has(messageId)) return false;
+        if (this._messageHasLabel(message, this.config.labelName)) {
+          if (effectiveLabeledIds && typeof effectiveLabeledIds.add === 'function') {
+            effectiveLabeledIds.add(messageId);
+          }
+          return false;
+        }
+        return true;
+      });
     } catch (e) {
       // Fallback sicuro: in caso di errore non bloccare il thread, lasciamo decidere a processThread.
       this.logger.warn(`⚠️ Fast-skip check fallito: ${e.message}`);
