@@ -296,7 +296,7 @@ class GmailService {
                 const response = Gmail.Users.Messages.list('me', params);
                 page++;
 
-                const messages = response.messages || [];
+                const messages = (response && response.messages) || [];
                 let addedInPage = 0;
                 console.log(`📬 [metadata] Pagina ${page}: ${messages.length} messaggi candidati INBOX/UNREAD`);
 
@@ -319,7 +319,7 @@ class GmailService {
                 }
 
                 console.log(`📬 [metadata] Pagina ${page}: ${addedInPage} thread aggiunto/i dopo filtro label`);
-                pageToken = response.nextPageToken;
+                pageToken = response ? response.nextPageToken : null;
             } while (pageToken);
 
             console.log(`📬 [metadata] Trovati ${threads.length} thread da elaborare (${page} pagina/e)`);
@@ -359,7 +359,7 @@ class GmailService {
                 const response = Gmail.Users.Messages.list('me', params);
                 page++;
 
-                const messages = response.messages || [];
+                const messages = (response && response.messages) || [];
                 console.log(`📬 [query] Pagina ${page}: ${messages.length} messaggi trovati`);
 
                 for (const msg of messages) {
@@ -371,7 +371,7 @@ class GmailService {
                     if (seenThreadIds.size >= safeTargetThreads) break;
                 }
 
-                pageToken = response.nextPageToken;
+                pageToken = response ? response.nextPageToken : null;
             } while (pageToken);
 
             console.log(`📬 [query] Trovati ${threads.length} thread da elaborare (${page} pagina/e)`);

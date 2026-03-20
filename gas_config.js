@@ -56,7 +56,7 @@ const CONFIG = {
   // Modalità di scoperta messaggi non letti da elaborare.
   // - 'query'   : default operativo, message-level con query Gmail -label:...
   // - 'metadata': fallback prudente/manuale (list INBOX/UNREAD + get(minimal) per labelIds)
-  MESSAGE_DISCOVERY_MODE: 'query',
+  MESSAGE_DISCOVERY_MODE: 'metadata',
   // =========================================================================================
   MAX_EXECUTION_TIME_MS: 280000,    // Budget massimo per run (default GAS trigger ~6 minuti)
   GMAIL_LABEL_CACHE_TTL: 3600000,      // 1 ora in millisecondi

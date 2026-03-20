@@ -373,6 +373,49 @@ function runAllTests() {
         });
     });
 
+    // 7b. GmailService discovery resiliency
+    testGroup('Punto #7b: GmailService - Discovery resiliente su risposta vuota', results, () => {
+        const originalGmail = global.Gmail;
+        const originalGmailApp = global.GmailApp;
+        const originalCacheService = global.CacheService;
+        const originalSession = global.Session;
+        const originalUtilities = global.Utilities;
+        const originalConfig = global.CONFIG;
+
+        try {
+            global.CacheService = {
+                getScriptCache: () => ({ get: () => null, put: () => { }, remove: () => { } })
+            };
+            global.Session = Object.assign({}, originalSession, { getScriptTimeZone: () => 'UTC' });
+            global.Utilities = Object.assign({}, originalUtilities, { formatDate: () => '2026/03/20' });
+            global.CONFIG = Object.assign({}, originalConfig, { MESSAGE_DISCOVERY_MODE: 'query' });
+            global.GmailApp = {
+                getThreadById: (threadId) => ({ id: threadId }),
+                getUserLabelByName: () => null
+            };
+            global.Gmail = {
+                Users: {
+                    Messages: {
+                        list: () => null
+                    }
+                }
+            };
+
+            test('Risposta nulla da Gmail.Users.Messages.list non interrompe il batch discovery', results, () => {
+                const service = new GmailService();
+                const threads = service.getUnprocessedUnreadThreads('IA', 'Errore', 'Verifica', 10, 5, 1);
+                return Array.isArray(threads) && threads.length === 0;
+            });
+        } finally {
+            global.Gmail = originalGmail;
+            global.GmailApp = originalGmailApp;
+            global.CacheService = originalCacheService;
+            global.Session = originalSession;
+            global.Utilities = originalUtilities;
+            global.CONFIG = originalConfig;
+        }
+    });
+
     // 8. GmailService OCR document parsing
     testGroup('Punto #8: GmailService - OCR document hints', results, () => {
         const service = new GmailService();
