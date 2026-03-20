@@ -313,7 +313,7 @@ class GmailService {
     getUnprocessedUnreadThreads(labelName, errorLabel, validationLabel, messageBuffer = 150, targetThreads = 50, maxPages = 3) {
         const mode = (typeof CONFIG !== 'undefined' && CONFIG.MESSAGE_DISCOVERY_MODE)
             ? CONFIG.MESSAGE_DISCOVERY_MODE
-            : 'metadata';
+            : 'query';
 
         const safeMessageBuffer = this._safePositiveInt(messageBuffer, 150, 1, 500);
         const safeTargetThreads = this._safePositiveInt(targetThreads, 50, 1);
