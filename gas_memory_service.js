@@ -198,7 +198,7 @@ class MemoryService {
    * Aggiorna memoria per un thread (merge con esistente)
    * Usa lock granulare + retry + optimistic locking
    */
-  updateMemory(threadId, newData) {
+  updateMemory(threadId, newData, options = {}) {
     if (!this._initialized || !threadId || !newData || typeof newData !== 'object') {
       return;
     }
@@ -254,7 +254,10 @@ class MemoryService {
           // Merge: esistente + nuovi dati
           const mergedData = Object.assign({}, existingData, dataToUpdate);
           mergedData.lastUpdated = now;
-          mergedData.messageCount = (existingData.messageCount || 0) + 1;
+          const shouldIncrementMessageCount = options.incrementMessageCount !== false;
+          mergedData.messageCount = shouldIncrementMessageCount
+            ? (existingData.messageCount || 0) + 1
+            : (existingData.messageCount || 0);
           mergedData.version = currentVersion + 1;
 
           this._withSheetWriteLock(() => {
@@ -266,7 +269,7 @@ class MemoryService {
           const insertData = Object.assign({}, dataToUpdate);
           insertData.threadId = threadId;
           insertData.lastUpdated = now;
-          insertData.messageCount = 1;
+          insertData.messageCount = options.incrementMessageCount === false ? 0 : 1;
           insertData.version = 1;
 
           this._withSheetWriteLock(() => {
@@ -520,14 +523,14 @@ class MemoryService {
    * Imposta lingua per un thread
    */
   setLanguage(threadId, language) {
-    this.updateMemory(threadId, { language: language });
+    this.updateMemory(threadId, { language: language }, { incrementMessageCount: false });
   }
 
   /**
    * Imposta categoria per un thread
    */
   setCategory(threadId, category) {
-    this.updateMemory(threadId, { category: category });
+    this.updateMemory(threadId, { category: category }, { incrementMessageCount: false });
   }
 
   /**
