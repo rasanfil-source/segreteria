@@ -844,7 +844,13 @@ class ResponseValidator {
     }
 
     // Determina fascia oraria corrente (fuso orario italiano)
-    const currentHour = parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'HH'), 10);
+    const currentHour = (
+      typeof Utilities !== 'undefined' &&
+      Utilities &&
+      typeof Utilities.formatDate === 'function'
+    )
+      ? parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'HH'), 10)
+      : new Date().getHours();
     let expectedTimeSlot;
     if (currentHour >= 5 && currentHour < 12) {
       expectedTimeSlot = 'morning';
@@ -998,7 +1004,13 @@ class ResponseValidator {
     if (!this.greetingPatterns[language]) return text;
 
     // Determina fascia oraria corrente (fuso orario italiano)
-    const currentHour = parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'HH'), 10);
+    const currentHour = (
+      typeof Utilities !== 'undefined' &&
+      Utilities &&
+      typeof Utilities.formatDate === 'function'
+    )
+      ? parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'HH'), 10)
+      : new Date().getHours();
     let correctTimeSlot;
     if (currentHour >= 5 && currentHour < 12) {
       correctTimeSlot = 'morning';
