@@ -613,7 +613,13 @@ function _invalidateResourceCacheStorage(cache) {
     }
   }
 
-  cache.removeAll(toRemove);
+  if (typeof cache.removeAll === 'function') {
+    cache.removeAll(toRemove);
+  } else if (typeof cache.remove === 'function') {
+    toRemove.forEach(key => {
+      try { cache.remove(key); } catch (e) {}
+    });
+  }
 }
 
 /**
