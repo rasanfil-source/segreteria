@@ -1291,7 +1291,8 @@ ${addressLines.join('\n\n')}
         const emptyStreak = this._trackEmptyInboxStreak(true);
         console.log('Nessuna email da elaborare.');
 
-        if (emptyStreak >= this.config.emptyInboxWarningThreshold) {
+        if (emptyStreak >= this.config.emptyInboxWarningThreshold &&
+            (emptyStreak === this.config.emptyInboxWarningThreshold || emptyStreak % 50 === 0)) {
           console.warn(`⚠️ Inbox vuota da ${emptyStreak} esecuzioni consecutive. Verificare filtri Gmail/trigger in ingresso.`);
         }
 
