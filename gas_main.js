@@ -725,6 +725,49 @@ function _parseStrictHour(value) {
   return hour;
 }
 
+function _isWeekdayCellLabel(value) {
+  const normalized = String(value == null ? '' : value)
+    .trim()
+    .toLowerCase();
+
+  if (!normalized) return false;
+
+  return /^(lun|luned[iì]|mar|marted[iì]|mer|mercoled[iì]|gio|gioved[iì]|ven|venerd[iì]|sab|sabato|dom|domenica)$/.test(normalized);
+}
+
+function _extractSuspensionHoursFromRow(row) {
+  const cells = Array.isArray(row) ? row : [];
+
+  // Layout UI corrente (single-sheet):
+  // A=giorno, B=ora inizio, C=vuoto/separatore, D=ora fine
+  if (_isWeekdayCellLabel(cells[0])) {
+    return {
+      startHour: _parseStrictHour(cells[1]),
+      endHour: _parseStrictHour(cells[3])
+    };
+  }
+
+  // Layout legacy:
+  // A=vuoto, B=giorno, C=ora inizio, D=ora fine
+  if (_isWeekdayCellLabel(cells[1])) {
+    return {
+      startHour: _parseStrictHour(cells[2]),
+      endHour: _parseStrictHour(cells[3])
+    };
+  }
+
+  // Fallback difensivo per sheet manipolati manualmente:
+  // sceglie le prime due celle orarie valide da sinistra a destra.
+  const parsedHours = cells
+    .map((cell) => _parseStrictHour(cell))
+    .filter((hour) => hour != null);
+
+  return {
+    startHour: parsedHours[0] != null ? parsedHours[0] : null,
+    endHour: parsedHours[1] != null ? parsedHours[1] : null
+  };
+}
+
 function _loadAdvancedConfig(ss) {
   const config = { systemEnabled: true, vacationPeriods: [], suspensionRules: {}, ignoreDomains: [], ignoreKeywords: [] };
   const sheet = ss.getSheetByName('Controllo');
@@ -746,16 +789,17 @@ function _loadAdvancedConfig(ss) {
       }
     });
 
-    // Sospensione (B10:E16)
-    const susp = sheet.getRange('B10:E16').getValues();
+    // Sospensione: supporta sia il layout single-sheet corrente
+    // (A=giorno, B=inizio, D=fine) sia il legacy
+    // (B=giorno, C=inizio, D=fine).
+    const susp = sheet.getRange('A10:D16').getValues();
     susp.forEach((r, i) => {
       // Mapping esplicito indice-riga -> getDay JS:
       // B10..B16 = Lun..Dom  => 1..6,0 (dove Domenica in JS è 0, non 7).
       const day = (i + 1) % 7;
-      // B contiene il nome del giorno; gli orari reali sono in C (r[1]) e D (r[2]).
-      // Manteniamo questo mapping: usare r[0]/r[2] sarebbe errato per questo layout.
-      const startHour = _parseStrictHour(r[1]);
-      const endHour = _parseStrictHour(r[2]);
+      const extracted = _extractSuspensionHoursFromRow(r);
+      const startHour = extracted.startHour;
+      const endHour = extracted.endHour;
       if (startHour == null || endHour == null) return;
       if (startHour >= endHour) return;
 
