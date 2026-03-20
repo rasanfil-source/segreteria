@@ -159,6 +159,37 @@ class GmailService {
     }
 
 
+
+    _getMessageMetadataWithResilience(messageId, params, maxAttempts = 2) {
+        const safeAttempts = this._safePositiveInt(maxAttempts, 2, 1, 5);
+
+        for (let attempt = 1; attempt <= safeAttempts; attempt++) {
+            try {
+                const response = Gmail.Users.Messages.get('me', messageId, params);
+                if (response === null || typeof response === 'undefined') {
+                    throw new Error('Empty response');
+                }
+                return response;
+            } catch (error) {
+                const isEmptyResponse = this._isEmptyResponseError(error);
+                const hasRetryBudget = attempt < safeAttempts;
+
+                if (!isEmptyResponse) {
+                    throw error;
+                }
+
+                console.warn(`⚠️ Gmail.Users.Messages.get risposta vuota per msg ${messageId} (tentativo ${attempt}/${safeAttempts})`);
+                if (hasRetryBudget) {
+                    Utilities.sleep(250 * attempt);
+                    continue;
+                }
+            }
+        }
+
+        console.warn(`⚠️ Gmail.Users.Messages.get continua a restituire risposta vuota per msg ${messageId}: skip del messaggio`);
+        return null;
+    }
+
     _listMessagesWithResilience(params, maxAttempts = 2) {
         const safeAttempts = this._safePositiveInt(maxAttempts, 2, 1, 5);
         let lastError = null;
@@ -341,8 +372,13 @@ class GmailService {
                 for (const msg of messages) {
                     if (!msg || !msg.id || !msg.threadId || seenThreadIds.has(msg.threadId)) continue;
 
-                    const metadata = Gmail.Users.Messages.get('me', msg.id, { format: 'minimal' });
-                    const msgLabelIds = new Set((metadata && metadata.labelIds) || []);
+                    const metadata = this._getMessageMetadataWithResilience(msg.id, { format: 'minimal' });
+                    if (!metadata) {
+                        console.warn(`⚠️ Gmail.Users.Messages.get risposta vuota per msg ${msg.id}: skip`);
+                        continue;
+                    }
+
+                    const msgLabelIds = new Set(metadata.labelIds || []);
                     const isExcluded = [...excludedLabelIds].some(id => msgLabelIds.has(id));
                     if (isExcluded) continue;
 

@@ -387,24 +387,58 @@ function runAllTests() {
                 getScriptCache: () => ({ get: () => null, put: () => { }, remove: () => { } })
             };
             global.Session = Object.assign({}, originalSession, { getScriptTimeZone: () => 'UTC' });
-            global.Utilities = Object.assign({}, originalUtilities, { formatDate: () => '2026/03/20' });
-            global.CONFIG = Object.assign({}, originalConfig, { MESSAGE_DISCOVERY_MODE: 'query' });
+            global.Utilities = Object.assign({}, originalUtilities, {
+                formatDate: () => '2026/03/20',
+                sleep: () => { }
+            });
             global.GmailApp = {
                 getThreadById: (threadId) => ({ id: threadId }),
                 getUserLabelByName: () => null
             };
-            global.Gmail = {
-                Users: {
-                    Messages: {
-                        list: () => null
-                    }
-                }
-            };
 
             test('Risposta nulla da Gmail.Users.Messages.list non interrompe il batch discovery', results, () => {
+                global.CONFIG = Object.assign({}, originalConfig, { MESSAGE_DISCOVERY_MODE: 'query' });
+                global.Gmail = {
+                    Users: {
+                        Messages: {
+                            list: () => null
+                        }
+                    }
+                };
+
                 const service = new GmailService();
                 const threads = service.getUnprocessedUnreadThreads('IA', 'Errore', 'Verifica', 10, 5, 1);
                 return Array.isArray(threads) && threads.length === 0;
+            });
+
+            test('Metadata discovery salta il singolo messaggio con risposta vuota senza interrompere il batch', results, () => {
+                global.CONFIG = Object.assign({}, originalConfig, { MESSAGE_DISCOVERY_MODE: 'metadata' });
+                let getCalls = 0;
+                global.Gmail = {
+                    Users: {
+                        Messages: {
+                            list: () => ({
+                                messages: [
+                                    { id: 'm-empty', threadId: 't-empty' },
+                                    { id: 'm-good', threadId: 't-good' }
+                                ],
+                                nextPageToken: null
+                            }),
+                            get: (userId, messageId) => {
+                                getCalls++;
+                                if (messageId === 'm-empty') return null;
+                                return { id: messageId, labelIds: ['INBOX', 'UNREAD'] };
+                            }
+                        }
+                    }
+                };
+
+                const service = new GmailService();
+                const threads = service.getUnprocessedUnreadThreads('IA', 'Errore', 'Verifica', 10, 5, 1);
+                return Array.isArray(threads)
+                    && threads.length === 1
+                    && threads[0].id === 't-good'
+                    && getCalls >= 2;
             });
         } finally {
             global.Gmail = originalGmail;
