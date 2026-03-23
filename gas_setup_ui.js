@@ -276,7 +276,14 @@ function testConfiguration() {
   const nrList = ['cfg_system_master', 'sum_auto_status', 'tbl_week_schedule', 'tbl_absences', 'lst_ignore_domains'];
   nrList.forEach(n => {
     const nr = ss.getRangeByName(n);
-    checks.push({ name: 'Named range ' + n, ok: !!nr });
+    let isOk = false;
+    if (nr) {
+      try {
+        nr.getA1Notation();
+        isOk = true;
+      } catch (e) { }
+    }
+    checks.push({ name: 'Named range ' + n, ok: isOk });
   });
 
   const lines = checks.map(c => (c.ok ? '✅ ' : '❌ ') + c.name);
@@ -378,7 +385,7 @@ function applyControlloInputConstraints_(sheet) {
 
   // Filtri domini/keyword direttamente su Controllo
   const domainRule = SpreadsheetApp.newDataValidation()
-    .requireFormulaSatisfied('=OR(E11="";REGEXMATCH(E11;"^(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}$"))')
+    .requireFormulaSatisfied('=OR(E11="";REGEXMATCH(TRIM(E11);"^(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}$"))')
     .setAllowInvalid(false)
     .setHelpText('Inserisci solo dominio/email parziale (es. amazon.com).')
     .build();
