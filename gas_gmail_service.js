@@ -985,7 +985,7 @@ class GmailService {
                     name: `TEMP_CONV_${attachmentBlob.getName() || 'allegato'}`,
                     mimeType: googleMime
                 };
-                const file = Drive.Files.create(resource, attachmentBlob.copyBlob(), { mimeType: googleMime });
+                const file = Drive.Files.create(resource, attachmentBlob.copyBlob());
                 fileId = file && file.id ? file.id : null;
                 if (!fileId) {
                     throw new Error('Conversione fallita: file temporaneo senza id.');
@@ -1466,6 +1466,8 @@ class GmailService {
         if (!html) return '';
 
         let text = html;
+        // Rimuove blocchi di codice/stile che altrimenti finirebbero nel prompt testuale.
+        text = text.replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
         // Preserva separatori strutturali per evitare blocchi di testo illeggibili.
         // È intenzionale: evitare il "muro di testo" migliora la qualità del parsing Gemini.
         text = text.replace(/<br\s*\/?\s*>/gi, '\n');

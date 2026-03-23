@@ -589,9 +589,13 @@ class MemoryService {
   _findRowByThreadId(threadId) {
     if (!this._sheet) return null;
     const normalizedThreadId = String(threadId);
+    const maxRows = this._sheet.getMaxRows();
+
+    // Evita errore out-of-bounds se il foglio contiene solo l'intestazione.
+    if (maxRows < 2) return null;
 
     // Punto 5: Ottimizzazione TextFinder limitando il range alla colonna A (Thread ID)
-    const finder = this._sheet.getRange('A2:A').createTextFinder(normalizedThreadId)
+    const finder = this._sheet.getRange(2, 1, maxRows - 1, 1).createTextFinder(normalizedThreadId)
       .matchEntireCell(true)      // Corrispondenza esatta
       .matchCase(true)            // Case sensitive
       .matchFormulaText(false);   // Cerca solo nei valori
