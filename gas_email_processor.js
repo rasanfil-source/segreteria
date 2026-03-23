@@ -95,20 +95,6 @@ class EmailProcessor {
   }
 
   /**
-   * Classifica l'errore per determinare la strategia di retry.
-   * Gli errori non retryable (chiave invalida, risposta malformata) sono fatali.
-   * @param {Error} error
-   * @returns {{ type: string, retryable: boolean, message: string }}
-   */
-  _classifyError(error) {
-    const result = classifyError(error);
-    if (!result.retryable) {
-      result.type = 'FATAL';
-    }
-    return result;
-  }
-
-  /**
    * Elabora il singolo thread (analisi, categorizzazione, generazione risposta, invio)
    * @param {GmailThread} thread 
    * @param {string} knowledgeBase - KB testo semplice
@@ -198,8 +184,8 @@ class EmailProcessor {
 
     // Snapshot robusto del classificatore errori — restituisce sempre { type, retryable, message }
     // per coerenza con il contratto di gas_error_types.classifyError
-    const classifyErrorFn = (typeof this._classifyError === 'function')
-      ? this._classifyError.bind(this)
+    const classifyErrorFn = (typeof classifyError === 'function')
+      ? function(err) { const r = classifyError(err); if (!r.retryable) r.type = 'FATAL'; return r; }
       // Manteniamo fallback locale per non dipendere dal globale in runtime modulari.
       : function fallbackClassifyError(err) { return { type: 'UNKNOWN', retryable: false, message: String(err) }; };
 

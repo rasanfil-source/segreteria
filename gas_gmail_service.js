@@ -1482,7 +1482,8 @@ class GmailService {
      */
     buildConversationHistory(messages, maxMessages = 10, ourEmail = '') {
         if (!ourEmail) {
-            ourEmail = Session.getEffectiveUser().getEmail();
+            const effectiveUser = Session.getEffectiveUser();
+            ourEmail = effectiveUser ? effectiveUser.getEmail() : '';
         }
 
         if (messages.length > maxMessages) {

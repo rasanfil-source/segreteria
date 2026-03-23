@@ -210,9 +210,9 @@ function isInSuspensionTime(checkDate = new Date()) {
   pentecost.setDate(easter.getDate() + 49);
   if (isSameCalendarDay(normalizedNow, pentecost)) return false;
 
-  // Corpus Domini (Pasqua + 60 giorni)
+  // Corpus Domini (Pasqua + 63 giorni: domenica successiva alla SS. Trinità, prassi italiana)
   const corpusDomini = new Date(easter);
-  corpusDomini.setDate(easter.getDate() + 60);
+  corpusDomini.setDate(easter.getDate() + 63);
   if (isSameCalendarDay(normalizedNow, corpusDomini)) return false;
 
   // Ferie Segretario (Sheet)
@@ -702,7 +702,7 @@ function _parseStrictHour(value) {
   if (typeof value === 'number') {
     // Orario nativo di Sheets: frazione di giorno (es. 08:00 => 0.3333...)
     if (value >= 0 && value < 1) {
-      return Math.floor(value * 24);
+      return Math.round(value * 24);
     }
 
     if (Number.isInteger(value) && value >= 0 && value <= 23) {

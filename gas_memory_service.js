@@ -1060,25 +1060,6 @@ class MemoryService {
   }
 
   /**
-   * Unisce dati di finestra (WAL) con esistenti, de-duplica per timestamp
-   */
-  _mergeWindowData(existing, walData) {
-    const existingTimestamps = new Set(existing.map(e => e.timestamp));
-
-    // Deep copy via JSON (sicuro per dati serializzabili)
-    const merged = JSON.parse(JSON.stringify(existing));
-
-    for (const entry of walData) {
-      if (!existingTimestamps.has(entry.timestamp)) {
-        merged.push({ ...entry }); // Spread per sicurezza
-        existingTimestamps.add(entry.timestamp);
-      }
-    }
-
-    return merged.sort((a, b) => a.timestamp - b.timestamp).slice(-100);
-  }
-
-  /**
    * Pulisce la cache dagli elementi scaduti
    */
   _gcCache() {
