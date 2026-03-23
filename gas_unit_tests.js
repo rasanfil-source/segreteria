@@ -35,7 +35,12 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
             computeDigest: () => [0, 1, 2, 3],
             DigestAlgorithm: { MD5: 'MD5' },
             getUuid: () => 'test-uuid-' + Math.random().toString(36).substring(2, 9),
-            base64Encode: (data) => Buffer.from(data).toString('base64')
+            base64Encode: (data) => Buffer.from(data).toString('base64'),
+            Charset: { UTF_8: 'utf-8' },
+            base64EncodeWebSafe: (data) => Buffer.from(data).toString('base64url'),
+            newBlob: (data) => ({
+                getBytes: () => Buffer.from(data, 'utf8')
+            })
         };
     }
     if (typeof global.PropertiesService === 'undefined') {
@@ -108,6 +113,7 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
                     }),
                     appendRow: () => { },
                     getLastRow: () => 10,
+                    getMaxRows: () => 100,
                     getMaxColumns: () => 10
                 })
             })
@@ -332,6 +338,53 @@ function runAllTests() {
             } catch (e) {
                 return e.message.includes('promptFeedback') && e.message.includes('SAFETY');
             }
+        });
+        test('Quick check usa al massimo 2 fetch con fallback backup su errore quota primaria', results, () => {
+            const calls = [];
+            const serviceWithBackup = new GeminiService({
+                primaryKey: 'primary-key-abcdefghijklmnopqrstuvwxyz',
+                backupKey: 'backup-key-abcdefghijklmnopqrstuvwxyz',
+                fetchFn: (url) => {
+                    calls.push(url);
+                    if (calls.length === 1) {
+                        return {
+                            getResponseCode: () => 429,
+                            getContentText: () => JSON.stringify({ error: { message: 'quota' } })
+                        };
+                    }
+                    return {
+                        getResponseCode: () => 200,
+                        getContentText: () => JSON.stringify({
+                            candidates: [{
+                                content: {
+                                    parts: [{
+                                        text: JSON.stringify({
+                                            reply_needed: true,
+                                            language: 'it',
+                                            category: 'TECHNICAL',
+                                            dimensions: {
+                                                technical: 1,
+                                                pastoral: 0,
+                                                doctrinal: 0,
+                                                formal: 0
+                                            },
+                                            topic: 'test',
+                                            confidence: 0.9,
+                                            reason: 'ok'
+                                        })
+                                    }]
+                                }
+                            }]
+                        })
+                    };
+                }
+            });
+
+            const out = serviceWithBackup._quickCheckWithModel('Testo richiesta', 'Oggetto', 'gemini-2.5-flash');
+            return calls.length === 2
+                && calls[0].includes('primary-key-abcdefghijklmnopqrstuvwxyz')
+                && calls[1].includes('backup-key-abcdefghijklmnopqrstuvwxyz')
+                && out.shouldRespond === true;
         });
     });
 
@@ -563,6 +616,28 @@ function runAllTests() {
             // e contenere almeno 5 lettere [a-zA-ZÀ-ÿ].
             const textWithAccents = "È una prova di testo accentato lunga abbastanza."; 
             return service._isMeaningfulOCR(textWithAccents, false) === true;
+        });
+        test('extractAttachmentContext applica il focus IBAN una sola volta', results, () => {
+            const service = new GmailService();
+            service._cleanupOrphanedOcrFilesIfNeeded = () => { };
+            service._extractOcrTextFromAttachment = () => 'Pagamento ricevuto. IBAN IT60X0542811101000000123456 intestato alla parrocchia. Grazie.';
+            service._estimateOcrConfidence = () => 1;
+            service._isMeaningfulOCR = () => true;
+
+            const message = {
+                getAttachments: () => [{
+                    getName: () => 'contabile.pdf',
+                    getContentType: () => 'application/pdf',
+                    getSize: () => 1024
+                }]
+            };
+
+            const result = service.extractAttachmentContext(message, {
+                ibanFocusEnabled: true,
+                ibanContextChars: 40
+            });
+            const matches = result.text.match(/\[FOCUS IBAN DETECTED\]/g) || [];
+            return matches.length === 1 && result.text.includes('IT60X0542811101000000123456');
         });
     });
 

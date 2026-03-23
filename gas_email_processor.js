@@ -198,7 +198,7 @@ class EmailProcessor {
 
     // Snapshot robusto del classificatore errori — restituisce sempre { type, retryable, message }
     // per coerenza con il contratto di gas_error_types.classifyError
-    const classifyError = (typeof this._classifyError === 'function')
+    const classifyErrorFn = (typeof this._classifyError === 'function')
       ? this._classifyError.bind(this)
       // Manteniamo fallback locale per non dipendere dal globale in runtime modulari.
       : function fallbackClassifyError(err) { return { type: 'UNKNOWN', retryable: false, message: String(err) }; };
@@ -321,17 +321,14 @@ class EmailProcessor {
       // Thread usato solo come contesto conversazionale e per capire chi ha parlato per ultimo.
       // Se l'ultimo intervento è nostro, ci fermiamo senza fare ulteriori chiamate metadata.
       // ====================================================================================================
+      const normalizedMyEmail = myEmail ? myEmail.toLowerCase() : '';
+      const normalizedKnownAliases = Array.from(ownAddresses).filter(address => address && address !== normalizedMyEmail);
       const lastMessage = messages[messages.length - 1];
       const lastSenderRaw = lastMessage.getFrom() || '';
       const lastSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
         ? (this.gmailService._extractEmailAddress(lastSenderRaw) || '').toLowerCase()
         : '';
-      const knownAliases = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES)) ? CONFIG.KNOWN_ALIASES : [];
-      const normalizedMyEmail = myEmail ? myEmail.toLowerCase() : '';
-      const lastSpeakerIsUs = Boolean(lastSenderEmail) && Boolean(normalizedMyEmail) && (
-        lastSenderEmail === normalizedMyEmail ||
-        knownAliases.some(alias => lastSenderEmail === alias.toLowerCase())
-      );
+      const lastSpeakerIsUs = Boolean(lastSenderEmail) && ownAddresses.has(lastSenderEmail);
 
       if (lastSpeakerIsUs) {
         console.log('   ⊖ Saltato: l\'ultimo messaggio del thread è già nostro (bot o segreteria)');
@@ -349,10 +346,7 @@ class EmailProcessor {
       // Verifica mittente: confronta solo con email proprie e alias configurati.
       // Il confronto con i destinatari (To/CC) è stato rimosso perché genera
       // falsi positivi su mailing list e thread con CC multipli.
-      const isMe = Boolean(safeSenderEmail) && (
-        (Boolean(normalizedMyEmail) && safeSenderEmail === normalizedMyEmail) ||
-        knownAliases.some(alias => safeSenderEmail === alias.toLowerCase())
-      );
+      const isMe = Boolean(safeSenderEmail) && ownAddresses.has(safeSenderEmail);
 
       if (isMe) {
         console.log('   ⊖ Saltato: messaggio auto-inviato (o da alias conosciuto)');
@@ -467,16 +461,12 @@ class EmailProcessor {
           console.warn('   ⚠️ Email utente non disponibile: skip controllo anti-loop basato su mittente');
         }
         let consecutiveExternal = 0;
-        const knownAliases = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES))
-          ? CONFIG.KNOWN_ALIASES.map(alias => String(alias || '').toLowerCase())
-          : [];
-        const normalizedMyEmail = myEmail ? myEmail.toLowerCase() : '';
 
         for (let i = messages.length - 1; i >= 0; i--) {
           const msgFrom = messages[i].getFrom().toLowerCase();
           const isUs = Boolean(normalizedMyEmail) && (
             msgFrom.includes(normalizedMyEmail) ||
-            knownAliases.some(alias => alias && msgFrom.includes(alias))
+            normalizedKnownAliases.some(alias => msgFrom.includes(alias))
           );
 
           if (!isUs) {
@@ -929,7 +919,7 @@ ${addressLines.join('\n\n')}
         } catch (err) {
           generationError = err; // Salva l'ultimo errore
           if (!initialError) initialError = err; // Salva il primo errore per il reporting
-          const errorClass = this._classifyError(err);
+          const errorClass = classifyErrorFn(err);
           console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass.type}]`);
 
           if (errorClass.type === 'FATAL') {
@@ -948,7 +938,7 @@ ${addressLines.join('\n\n')}
       // Verifiche finali post-loop
       if (!response) {
         const errorToReport = initialError || generationError;
-        const errorClass = errorToReport ? this._classifyError(errorToReport) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
+        const errorClass = errorToReport ? classifyErrorFn(errorToReport) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
         console.error('🛑 TUTTE le strategie di generazione sono fallite.');
         this._addErrorLabel(thread);
         this._markMessageAsProcessed(candidate, labeledMessageIds);

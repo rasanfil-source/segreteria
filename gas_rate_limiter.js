@@ -862,11 +862,14 @@ class GeminiRateLimiter {
   // ================================================================
 
   getUsageStats() {
+    const now = new Date();
+    const canFormatDates = typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function';
+    const fallbackTime = now.toISOString().slice(11, 16);
     const stats = {
-      date: this._getItalianDate(),
-      italianTime: Utilities.formatDate(new Date(), 'Europe/Rome', 'HH:mm'),
-      pacificTime: Utilities.formatDate(new Date(), 'America/Los_Angeles', 'HH:mm') + ' (PST/PDT)',
-      nextReset: this._getNextResetTime(),
+      date: canFormatDates ? this._getItalianDate() : now.toISOString().slice(0, 10),
+      italianTime: canFormatDates ? Utilities.formatDate(now, 'Europe/Rome', 'HH:mm') : fallbackTime,
+      pacificTime: (canFormatDates ? Utilities.formatDate(now, 'America/Los_Angeles', 'HH:mm') : fallbackTime) + ' (PST/PDT)',
+      nextReset: canFormatDates ? this._getNextResetTime() : 'n/a',
       nextResetPacific: '00:00 Pacific Time', // Reset Google è sempre mezzanotte Pacific
       models: {}
     };

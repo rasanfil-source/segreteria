@@ -477,7 +477,11 @@ class GmailService {
     _formatLabelQueryValue(labelName) {
         const raw = String(labelName || '').trim();
         if (!raw) return '""';
-        return `"${raw.replace(/"/g, '\\"')}"`;
+
+        // Gmail label names non supportano virgolette letterali: normalizziamo eventuali input
+        // anomali invece di iniettare escape nella query, che Gmail non interpreta come JavaScript.
+        const normalized = raw.replace(/"/g, ' ').replace(/\s+/g, ' ').trim();
+        return `"${normalized || raw}"`;
     }
 
     _getOptionalLabelIdByName(labelName) {
@@ -1352,29 +1356,7 @@ class GmailService {
 
     _normalizeAttachmentText(text, settings) {
         if (!text || typeof text !== 'string') return '';
-        let cleaned = text.replace(/\s+/g, ' ').trim();
-
-        // Logica Focus IBAN
-        if (settings && settings.ibanFocusEnabled) {
-            // Regex IBAN IT (semplificata: IT + 2 cifre + 1 lettera + 22 alfanumerici)
-            // O generica: IT\d{2}[A-Z]\d{10}[A-Z0-9]{12}
-            // Usiamo una regex che cattura 'IT' seguito da 25 chars circa
-            // Regex IBAN universale (27 paesi EU + altri SEPA)
-            const ibanRegex = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]){10,30}\b/i;
-            const match = cleaned.match(ibanRegex);
-
-            if (match) {
-                const ibanIndex = match.index;
-                const contextChars = settings.ibanContextChars || 300;
-                const start = Math.max(0, ibanIndex - contextChars);
-                const end = Math.min(cleaned.length, ibanIndex + match[0].length + contextChars);
-
-                console.log(`   💳 IBAN rilevato nell'allegato. Estraggo contesto focalizzato.`);
-                return `[FOCUS IBAN DETECTED]\n...${cleaned.slice(start, end)}...`;
-            }
-        }
-
-        return cleaned;
+        return text.replace(/\s+/g, ' ').trim();
     }
 
     /**
@@ -1707,7 +1689,17 @@ class GmailService {
                 ].join('\r\n');
 
                 // Gmail API RAW richiede base64url RFC4648 senza padding finale '='.
-                const encodedMessage = Utilities.base64EncodeWebSafe(rawMessage).replace(/=+$/, '');
+                let encodedMessage;
+                if (Utilities && typeof Utilities.base64EncodeWebSafe === 'function' && Utilities.Charset && Utilities.Charset.UTF_8) {
+                    encodedMessage = Utilities.base64EncodeWebSafe(rawMessage, Utilities.Charset.UTF_8);
+                } else if (Utilities && typeof Utilities.newBlob === 'function' && typeof Utilities.base64EncodeWebSafe === 'function') {
+                    encodedMessage = Utilities.base64EncodeWebSafe(Utilities.newBlob(rawMessage, 'message/rfc822').getBytes());
+                } else if (typeof Buffer !== 'undefined') {
+                    encodedMessage = Buffer.from(rawMessage, 'utf8').toString('base64url');
+                } else {
+                    encodedMessage = Utilities.base64EncodeWebSafe(rawMessage);
+                }
+                encodedMessage = encodedMessage.replace(/=+$/, '');
 
                 Gmail.Users.Messages.send({
                     raw: encodedMessage,

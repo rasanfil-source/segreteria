@@ -313,53 +313,35 @@ Output JSON:
 
     console.log(`🔍 Controllo rapido via ${modelName}...`);
 
-    // Gestione con tentativo su chiave primaria e alternativa su secondaria
+    // Gestione con tentativo su chiave primaria e fallback singolo su chiave secondaria.
     let activeKey = this.primaryKey;
     let response;
     let responseCode;
     let fetchError = null;
+    const requestPayload = {
+      method: 'POST',
+      contentType: 'application/json',
+      payload: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 1024,
+          responseMimeType: 'application/json'
+        }
+      }),
+      muteHttpExceptions: true
+    };
+    const executeFetch = (apiKey) => this.fetchFn(`${url}?key=${encodeURIComponent(apiKey)}`, requestPayload);
 
     try {
-      response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
-        method: 'POST',
-        contentType: 'application/json',
-        payload: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0,
-            maxOutputTokens: 1024,
-            responseMimeType: 'application/json'
-          }
-        }),
-        muteHttpExceptions: true
-      });
-
-
-      // Punto 4: Estesa gestione errori con switch alla chiave di riserva
+      response = executeFetch(activeKey);
       responseCode = response.getResponseCode();
-      if ([401, 403, 429, 500, 502, 503, 504].includes(responseCode) && this.backupKey) {
-        console.warn(`\u26A0\uFE0F Chiave primaria esaurita / errore(${response.getResponseCode()}).Tentativo con chiave di riserva...`);
-        activeKey = this.backupKey;
-        response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
-          method: 'POST',
-          contentType: 'application/json',
-          payload: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0,
-              maxOutputTokens: 1024,
-              responseMimeType: 'application/json'
-            }
-          }),
-          muteHttpExceptions: true
-        });
-      }
-
     } catch (e) {
       fetchError = e;
     }
 
     const shouldTryBackupKey = !!this.backupKey
+      && activeKey !== this.backupKey
       && (
         fetchError !== null
         || (response && [401, 403, 429, 500, 502, 503, 504].includes(response.getResponseCode()))
@@ -371,19 +353,8 @@ Output JSON:
       console.warn('⚠️ Chiave primaria non utilizzabile (errore rete/quota). Tentativo con chiave di riserva...');
       activeKey = this.backupKey;
       try {
-        response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
-          method: 'POST',
-          contentType: 'application/json',
-          payload: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0,
-              maxOutputTokens: 1024,
-              responseMimeType: 'application/json'
-            }
-          }),
-          muteHttpExceptions: true
-        });
+        response = executeFetch(activeKey);
+        responseCode = response.getResponseCode();
         fetchError = null;
       } catch (backupError) {
         throw new Error(`Errore connessione API (anche con backup): ${backupError.message}`);
