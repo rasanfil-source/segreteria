@@ -203,6 +203,9 @@ class GeminiRateLimiter {
     // Reset anche cache
     this.props.setProperty('rpm_window', JSON.stringify([]));
     this.props.setProperty('tpm_window', JSON.stringify([]));
+    this.cache.rpmWindow = [];
+    this.cache.tpmWindow = [];
+    this.cache.lastCacheUpdate = 0;
     console.log('✓ Contatori giornalieri resettati');
   }
 
@@ -672,22 +675,11 @@ class GeminiRateLimiter {
    */
   _persistCacheWithWAL() {
     const lock = LockService.getScriptLock();
-    let lockAcquired = false;
-
-    // Tentativo di acquisizione lock con retry (backoff esponenziale)
-    for (let i = 0; i < 3; i++) {
-      if (lock.tryLock(2000)) {
-        lockAcquired = true;
-        break;
-      }
-      // Attesa crescente (500ms, 1000ms, 1500ms) se lock occupato
-      if (i < 2) {
-        Utilities.sleep(500 * (i + 1));
-      }
-    }
+    // Evita sleep applicativi inutili: demandiamo l'attesa direttamente al lock.
+    const lockAcquired = lock.tryLock(7500);
 
     if (!lockAcquired) {
-      console.warn('\u26A0\uFE0F Impossibile acquisire lock per salvataggio cache dopo 3 tentativi. Dati mantenuti in memoria.');
+      console.warn('\u26A0\uFE0F Impossibile acquisire lock per salvataggio cache entro 7.5s. Dati mantenuti in memoria.');
       return;
     }
 
