@@ -350,6 +350,7 @@ class GmailService {
         const excludedLabelIds = new Set([processedLabelId, errorLabelId, validationLabelId].filter(Boolean));
 
         const seenThreadIds = new Set();
+        const unavailableThreadIds = new Set();
         const seenMessageIds = new Set();
         const threads = [];
         let pageToken;
@@ -370,7 +371,7 @@ class GmailService {
                 console.log(`📬 [metadata] Pagina ${page}: ${messages.length} messaggi candidati INBOX/UNREAD`);
 
                 for (const msg of messages) {
-                    if (!msg || !msg.id || !msg.threadId || seenThreadIds.has(msg.threadId)) continue;
+                    if (!msg || !msg.id || !msg.threadId || seenThreadIds.has(msg.threadId) || unavailableThreadIds.has(msg.threadId)) continue;
 
                     const metadata = this._getMessageMetadataWithResilience(msg.id, { format: 'minimal' });
                     if (!metadata) {
@@ -382,11 +383,15 @@ class GmailService {
                     const isExcluded = [...excludedLabelIds].some(id => msgLabelIds.has(id));
                     if (isExcluded) continue;
 
+                    const thread = GmailApp.getThreadById(msg.threadId);
+                    if (!thread) {
+                        unavailableThreadIds.add(msg.threadId);
+                        console.warn(`⚠️ GmailApp.getThreadById(${msg.threadId}) restituisce null: thread ignorato senza contarlo verso il target`);
+                        continue;
+                    }
+
                     seenThreadIds.add(msg.threadId);
                     seenMessageIds.add(msg.id);
-                    const thread = GmailApp.getThreadById(msg.threadId);
-                    if (!thread) continue;
-
                     threads.push(thread);
                     addedInPage++;
                     if (seenThreadIds.size >= safeTargetThreads) break;
@@ -418,6 +423,7 @@ class GmailService {
         const query = `is:unread -label:${lq} -label:${eq} -label:${vq} in:inbox`;
 
         const seenThreadIds = new Set();
+        const unavailableThreadIds = new Set();
         const seenMessageIds = new Set();
         const threads = [];
         let pageToken;
@@ -437,11 +443,17 @@ class GmailService {
                 console.log(`📬 [query] Pagina ${page}: ${messages.length} messaggi trovati`);
 
                 for (const msg of messages) {
-                    if (!msg || !msg.id || !msg.threadId || seenThreadIds.has(msg.threadId)) continue;
+                    if (!msg || !msg.id || !msg.threadId || seenThreadIds.has(msg.threadId) || unavailableThreadIds.has(msg.threadId)) continue;
+                    const thread = GmailApp.getThreadById(msg.threadId);
+                    if (!thread) {
+                        unavailableThreadIds.add(msg.threadId);
+                        console.warn(`⚠️ GmailApp.getThreadById(${msg.threadId}) restituisce null: thread ignorato senza contarlo verso il target`);
+                        continue;
+                    }
+
                     seenThreadIds.add(msg.threadId);
                     seenMessageIds.add(msg.id);
-                    const thread = GmailApp.getThreadById(msg.threadId);
-                    if (thread) threads.push(thread);
+                    threads.push(thread);
                     if (seenThreadIds.size >= safeTargetThreads) break;
                 }
 

@@ -397,7 +397,6 @@ function runAllTests() {
             };
 
             test('Risposta nulla da Gmail.Users.Messages.list non interrompe il batch discovery', results, () => {
-                global.CONFIG = Object.assign({}, originalConfig, { MESSAGE_DISCOVERY_MODE: 'query' });
                 global.Gmail = {
                     Users: {
                         Messages: {
@@ -407,12 +406,11 @@ function runAllTests() {
                 };
 
                 const service = new GmailService();
-                const threads = service.getUnprocessedUnreadThreads('IA', 'Errore', 'Verifica', 10, 5, 1);
+                const threads = service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 5, 1).threads;
                 return Array.isArray(threads) && threads.length === 0;
             });
 
             test('Metadata discovery salta il singolo messaggio con risposta vuota senza interrompere il batch', results, () => {
-                global.CONFIG = Object.assign({}, originalConfig, { MESSAGE_DISCOVERY_MODE: 'metadata' });
                 let getCalls = 0;
                 global.Gmail = {
                     Users: {
@@ -434,11 +432,87 @@ function runAllTests() {
                 };
 
                 const service = new GmailService();
-                const threads = service.getUnprocessedUnreadThreads('IA', 'Errore', 'Verifica', 10, 5, 1);
+                const threads = service._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 5, 1).threads;
                 return Array.isArray(threads)
                     && threads.length === 1
                     && threads[0].id === 't-good'
                     && getCalls >= 2;
+            });
+
+            test('Discovery query continua sulle pagine successive se getThreadById restituisce null', results, () => {
+                const fetchedThreadIds = [];
+                global.GmailApp = {
+                    getThreadById: (threadId) => {
+                        fetchedThreadIds.push(threadId);
+                        return threadId === 't-missing' ? null : { id: threadId };
+                    },
+                    getUserLabelByName: () => null
+                };
+                global.Gmail = {
+                    Users: {
+                        Messages: {
+                            list: (userId, params) => {
+                                if (!params.pageToken) {
+                                    return {
+                                        messages: [{ id: 'm-1', threadId: 't-missing' }],
+                                        nextPageToken: 'page-2'
+                                    };
+                                }
+                                return {
+                                    messages: [{ id: 'm-2', threadId: 't-good-2' }],
+                                    nextPageToken: null
+                                };
+                            }
+                        }
+                    }
+                };
+
+                const service = new GmailService();
+                const result = service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 1, 5);
+                return Array.isArray(result.threads)
+                    && result.threads.length === 1
+                    && result.threads[0].id === 't-good-2'
+                    && fetchedThreadIds.join(',') === 't-missing,t-good-2';
+            });
+
+            test('Discovery metadata continua sulle pagine successive se getThreadById restituisce null', results, () => {
+                const fetchedThreadIds = [];
+                global.GmailApp = {
+                    getThreadById: (threadId) => {
+                        fetchedThreadIds.push(threadId);
+                        return threadId === 't-missing-meta' ? null : { id: threadId };
+                    },
+                    getUserLabelByName: () => null
+                };
+                global.Gmail = {
+                    Users: {
+                        Messages: {
+                            list: (userId, params) => {
+                                if (!params.pageToken) {
+                                    return {
+                                        messages: [{ id: 'm-meta-1', threadId: 't-missing-meta' }],
+                                        nextPageToken: 'page-2'
+                                    };
+                                }
+                                return {
+                                    messages: [{ id: 'm-meta-2', threadId: 't-good-meta' }],
+                                    nextPageToken: null
+                                };
+                            },
+                            get: (userId, messageId) => ({
+                                id: messageId,
+                                labelIds: ['INBOX', 'UNREAD']
+                            })
+                        }
+                    }
+                };
+
+                const service = new GmailService();
+                const result = service._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 1, 5);
+                return Array.isArray(result.threads)
+                    && result.threads.length === 1
+                    && result.threads[0].id === 't-good-meta'
+                    && fetchedThreadIds.join(',') === 't-missing-meta,t-good-meta';
             });
         } finally {
             global.Gmail = originalGmail;
