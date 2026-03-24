@@ -1546,7 +1546,8 @@ class GmailService {
             /^>/m,
             /^On .* wrote:/m,
             /^Il giorno .* ha scritto:/m,
-            /^-{3,}.*Original Message/m
+            /^-{3,}.*Original Message/im,
+            /^-{3,}.*Messaggio originale/im
         ];
 
         let result = content;

@@ -704,7 +704,9 @@ function _parseStrictHour(value) {
     if (value >= 0 && value < 1) {
       // Usa floor (non round): 23:30/23:59 devono restare nell'ora 23,
       // altrimenti round produrrebbe 24 invalidando la fascia oraria.
-      const hourFromFraction = Math.floor(value * 24);
+      // Applica un piccolo epsilon per assorbire errori IEEE-754
+      // (es. 0.3333333333333333 * 24 = 7.999999999999999).
+      const hourFromFraction = Math.floor((value * 24) + 0.0001);
       return Math.min(Math.max(hourFromFraction, 0), 23);
     }
 
