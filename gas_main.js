@@ -702,7 +702,10 @@ function _parseStrictHour(value) {
   if (typeof value === 'number') {
     // Orario nativo di Sheets: frazione di giorno (es. 08:00 => 0.3333...)
     if (value >= 0 && value < 1) {
-      return Math.round(value * 24);
+      // Usa floor (non round): 23:30/23:59 devono restare nell'ora 23,
+      // altrimenti round produrrebbe 24 invalidando la fascia oraria.
+      const hourFromFraction = Math.floor(value * 24);
+      return Math.min(Math.max(hourFromFraction, 0), 23);
     }
 
     if (Number.isInteger(value) && value >= 0 && value <= 23) {
