@@ -1,0 +1,75 @@
+[
+  {
+    "id": "pv-golden-it-info",
+    "input": {
+      "emailSubject": "Orari Messe",
+      "emailContent": "Buongiorno, vorrei conoscere gli orari delle Messe domenicali.",
+      "knowledgeBase": "Orari messe festive: Domenica ore 9:00 e ore 11:00. Segreteria: lun-ven 9:00-12:00.",
+      "detectedLanguage": "it",
+      "promptProfile": "standard",
+      "salutationMode": "full"
+    },
+    "candidateResponse": "Buongiorno, le Messe domenicali sono alle ore 9:00 e alle ore 11:00. Cordiali saluti, Segreteria Parrocchia Sant'Eugenio",
+    "expected": {
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE",
+        "INFORMAZIONI DI RIFERIMENTO"
+      ],
+      "promptMustNotInclude": [
+        "RAGIONAMENTO INTERNO"
+      ],
+      "maxPromptChars": 15000,
+      "validator": {
+        "isValid": true,
+        "minScore": 0.9
+      }
+    }
+  },
+  {
+    "id": "pv-golden-it-thinking-leak",
+    "input": {
+      "emailSubject": "Documenti battesimo",
+      "emailContent": "Quali documenti servono per il battesimo?",
+      "knowledgeBase": "Per il battesimo servono certificato di nascita e modulo richiesta.",
+      "detectedLanguage": "it",
+      "promptProfile": "standard",
+      "salutationMode": "full"
+    },
+    "candidateResponse": "Rivedendo la knowledge base, devo correggere la risposta. Cordiali saluti, Segreteria Parrocchia Sant'Eugenio",
+    "expected": {
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE"
+      ],
+      "maxPromptChars": 15000,
+      "validator": {
+        "isValid": false,
+        "maxScore": 0.6,
+        "errorsMustInclude": [
+          "RAGIONAMENTO ESPOSTO"
+        ]
+      }
+    }
+  },
+  {
+    "id": "pv-golden-en-basic",
+    "input": {
+      "emailSubject": "Mass times",
+      "emailContent": "Could you share Sunday Mass times?",
+      "knowledgeBase": "Sunday Masses are at 9:00 and 11:00.",
+      "detectedLanguage": "en",
+      "promptProfile": "lite",
+      "salutationMode": "soft"
+    },
+    "candidateResponse": "Good morning, Sunday Masses are at 9:00 and 11:00. Regards, Parish Secretariat of Sant'Eugenio",
+    "expected": {
+      "promptMustInclude": [
+        "CHECKLIST FINALE CONTESTUALE"
+      ],
+      "maxPromptChars": 12000,
+      "validator": {
+        "isValid": true,
+        "minScore": 0.85
+      }
+    }
+  }
+]
