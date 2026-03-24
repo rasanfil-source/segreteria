@@ -183,7 +183,7 @@ class Classifier {
       return {
         shouldReply: true,
         reason: 'formal_request_detected',
-        category: 'FORMAL',
+        category: 'formal',
         subIntents: {},
         confidence: 1.0
       };

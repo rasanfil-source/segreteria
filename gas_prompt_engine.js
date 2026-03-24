@@ -384,8 +384,13 @@ ${doctrineBaseText}
     addSection(this._renderResponseStructure(category, subIntents), 'ResponseStructure');
 
     // 21. TEMPLATE SPECIALI (Sbattezzo ecc.)
-    const normalizedTopic = (topic || '').toLowerCase();
-    if (normalizedTopic.includes('sbattezzo') || category === 'sbattezzo') {
+    const normalizedTopic = String(topic || '').toLowerCase();
+    const normalizedCategory = String(category || '').toLowerCase();
+    const isFormalRequest =
+      normalizedCategory === 'formal' ||
+      normalizedCategory === 'sbattezzo' ||
+      requestTypeObj.type === 'formal';
+    if (normalizedTopic.includes('sbattezzo') || isFormalRequest) {
       addSection(this._renderSbattezzoTemplate(senderName), 'SbattezzoTemplate');
     }
 
@@ -397,7 +402,7 @@ ${doctrineBaseText}
     // 24. REGOLE FINALI
     addSection(this._renderResponseGuidelines(detectedLanguage, currentSeason, salutation, closing), 'ResponseGuidelines');
 
-    if (!normalizedTopic.includes('sbattezzo') && category !== 'formal') {
+    if (!normalizedTopic.includes('sbattezzo') && !isFormalRequest) {
       // 25. CASI SPECIALI
       addTemplate('SpecialCasesTemplate', this._renderSpecialCases(), 'SpecialCases');
     }

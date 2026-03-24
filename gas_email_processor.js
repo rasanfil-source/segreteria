@@ -549,7 +549,6 @@ class EmailProcessor {
       );
 
       // Estrai dati dalla nuova struttura classificazione
-      const categoryHint = this.requestClassifier.getRequestTypeHint(requestType);
       const isPastoral = requestType.dimensions ? (requestType.dimensions.pastoral > 0.6) : (requestType.type === 'pastoral'); // Compatibilità
 
       // ====================================================================================================
@@ -744,7 +743,7 @@ ${addressLines.join('\n\n')}
         console.log(`   🧠 PromptContext: profilo=${promptProfile}`);
       }
 
-      const categoryHintSource = classification.category || requestType.type;
+      const categoryHintSource = String(classification.category || requestType.type || '').toLowerCase() || null;
 
       // ====================================================================================================
       // STEP 7.1: PREPARAZIONE ALLEGATI (Multimodale / Vision)
@@ -813,7 +812,7 @@ ${addressLines.join('\n\n')}
         topic: quickCheck.classification ? quickCheck.classification.topic : '',
         detectedLanguage: detectedLanguage,
         currentSeason: this._getCurrentSeason(),
-        currentDate: new Date().toISOString().split('T')[0],
+        currentDate: this._getBusinessDateString(),
         salutation: greeting,
         closing: closing,
         subIntents: classification.subIntents || {},
@@ -1509,6 +1508,12 @@ ${addressLines.join('\n\n')}
     return false;
   }
 
+  _getBusinessDateString(date = new Date()) {
+    return (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function')
+      ? Utilities.formatDate(date, 'Europe/Rome', 'yyyy-MM-dd')
+      : new Date(date).toISOString().split('T')[0];
+  }
+
   _getCurrentSeason() {
     const month = new Date().getMonth() + 1;
     return (month >= 6 && month <= 9) ? 'estivo' : 'invernale';
@@ -1863,7 +1868,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     }
 
     // Aggiungiamo data contestuale per non collassare topic se esauditi in momenti diversi
-    const newBullet = summarySentence ? `• [${new Date().toISOString().split('T')[0]}] ${summarySentence}` : '';
+    const newBullet = summarySentence ? `• [${this._getBusinessDateString()}] ${summarySentence}` : '';
 
     // Controlliamo l'overlap ma con tolleranza (data aiuta l'unicità)
     if (newBullet && !summaryLines.some(line => line.toLowerCase() === newBullet.toLowerCase())) {
