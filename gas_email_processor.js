@@ -1696,7 +1696,7 @@ ${addressLines.join('\n\n')}
       : ((typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_MIN_SCORE === 'number') ? CONFIG.VALIDATION_MIN_SCORE : 0.6);
 
     const critical = flags.thinking_leak || flags.hallucination;
-    if (!critical && Number.isFinite(minScore) && validationResult.score >= minScore) {
+    if (!critical && Number.isFinite(minScore) && Number.isFinite(validationResult.score) && validationResult.score >= minScore) {
       return false;
     }
 
