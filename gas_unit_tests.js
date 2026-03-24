@@ -1,3 +1,11 @@
+// Runtime root compatibile (Node + Apps Script)
+var __ROOT__ = (typeof globalThis !== 'undefined')
+    ? globalThis
+    : ((typeof this !== 'undefined') ? this : {});
+if (typeof global === 'undefined') {
+    var global = __ROOT__;
+}
+
 // Bootstrap Node.js: carica script GAS e mock minimi per esecuzione locale/CI
 if (typeof process !== 'undefined' && typeof require !== 'undefined') {
     var fs = require('fs');
@@ -156,7 +164,10 @@ function testGroup(label, results, callback) {
         callback();
     } catch (e) {
         console.error(`💥 ERRORE NEL GRUPPO [${label}]: ${e.message}`);
-        process.exit(1);
+        if (typeof process !== 'undefined' && process && typeof process.exit === 'function') {
+            process.exit(1);
+        }
+        throw e;
     }
 }
 
