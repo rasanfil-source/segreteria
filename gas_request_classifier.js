@@ -1,4 +1,4 @@
-﻿/**
+/**
  * RequestTypeClassifier.gs - Classificazione Tecnica/Pastorale/Mista
  * 
  * TIPI RICHIESTA:
