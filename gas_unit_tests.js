@@ -463,6 +463,33 @@ function runAllTests() {
                 return Array.isArray(threads) && threads.length === 0;
             });
 
+            test('Errore transiente "Unknown Error" su list viene ritentato e recupera i thread', results, () => {
+                let listCalls = 0;
+                global.Gmail = {
+                    Users: {
+                        Messages: {
+                            list: () => {
+                                listCalls++;
+                                if (listCalls < 2) {
+                                    throw new Error('API call to gmail.users.messages.list failed with error: Unknown Error.');
+                                }
+                                return {
+                                    messages: [{ id: 'm-recovered', threadId: 't-recovered' }],
+                                    nextPageToken: null
+                                };
+                            }
+                        }
+                    }
+                };
+
+                const service = new GmailService();
+                const result = service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 5, 1);
+                return listCalls === 2
+                    && Array.isArray(result.threads)
+                    && result.threads.length === 1
+                    && result.threads[0].id === 't-recovered';
+            });
+
             test('Metadata discovery salta il singolo messaggio con risposta vuota senza interrompere il batch', results, () => {
                 let getCalls = 0;
                 global.Gmail = {
@@ -490,6 +517,34 @@ function runAllTests() {
                     && threads.length === 1
                     && threads[0].id === 't-good'
                     && getCalls >= 2;
+            });
+
+            test('Metadata discovery salta messaggio con errore transiente su get e continua', results, () => {
+                global.Gmail = {
+                    Users: {
+                        Messages: {
+                            list: () => ({
+                                messages: [
+                                    { id: 'm-unknown', threadId: 't-unknown' },
+                                    { id: 'm-good-meta-2', threadId: 't-good-meta-2' }
+                                ],
+                                nextPageToken: null
+                            }),
+                            get: (userId, messageId) => {
+                                if (messageId === 'm-unknown') {
+                                    throw new Error('API call failed with error: Unknown Error.');
+                                }
+                                return { id: messageId, labelIds: ['INBOX', 'UNREAD'] };
+                            }
+                        }
+                    }
+                };
+
+                const service = new GmailService();
+                const threads = service._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 5, 1).threads;
+                return Array.isArray(threads)
+                    && threads.length === 1
+                    && threads[0].id === 't-good-meta-2';
             });
 
             test('Discovery query continua sulle pagine successive se getThreadById restituisce null', results, () => {

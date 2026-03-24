@@ -162,6 +162,7 @@ class GmailService {
 
     _getMessageMetadataWithResilience(messageId, params, maxAttempts = 2) {
         const safeAttempts = this._safePositiveInt(maxAttempts, 2, 1, 5);
+        let lastError = null;
 
         for (let attempt = 1; attempt <= safeAttempts; attempt++) {
             try {
@@ -171,22 +172,25 @@ class GmailService {
                 }
                 return response;
             } catch (error) {
+                lastError = error;
                 const isEmptyResponse = this._isEmptyResponseError(error);
+                const isRetryableError = this._isRetryableGmailApiError(error);
                 const hasRetryBudget = attempt < safeAttempts;
 
-                if (!isEmptyResponse) {
+                if (!isEmptyResponse && !isRetryableError) {
                     throw error;
                 }
 
-                console.warn(`⚠️ Gmail.Users.Messages.get risposta vuota per msg ${messageId} (tentativo ${attempt}/${safeAttempts})`);
+                const reason = isEmptyResponse ? 'risposta vuota' : `errore transiente: ${error.message}`;
+                console.warn(`⚠️ Gmail.Users.Messages.get ${reason} per msg ${messageId} (tentativo ${attempt}/${safeAttempts})`);
                 if (hasRetryBudget) {
-                    Utilities.sleep(250 * attempt);
+                    Utilities.sleep(250 * attempt * attempt);
                     continue;
                 }
             }
         }
 
-        console.warn(`⚠️ Gmail.Users.Messages.get continua a restituire risposta vuota per msg ${messageId}: skip del messaggio`);
+        console.warn(`⚠️ Gmail.Users.Messages.get non recuperabile per msg ${messageId}: skip del messaggio (${lastError ? lastError.message : 'errore sconosciuto'})`);
         return null;
     }
 
@@ -204,27 +208,50 @@ class GmailService {
             } catch (error) {
                 lastError = error;
                 const isEmptyResponse = this._isEmptyResponseError(error);
+                const isRetryableError = this._isRetryableGmailApiError(error);
                 const hasRetryBudget = attempt < safeAttempts;
 
-                if (!isEmptyResponse) {
+                if (!isEmptyResponse && !isRetryableError) {
                     throw error;
                 }
 
-                console.warn(`⚠️ Gmail.Users.Messages.list risposta vuota (tentativo ${attempt}/${safeAttempts})`);
+                const reason = isEmptyResponse ? 'risposta vuota' : `errore transiente: ${error.message}`;
+                console.warn(`⚠️ Gmail.Users.Messages.list ${reason} (tentativo ${attempt}/${safeAttempts})`);
                 if (hasRetryBudget) {
-                    Utilities.sleep(250 * attempt);
+                    Utilities.sleep(300 * attempt * attempt);
                     continue;
                 }
             }
         }
 
-        console.warn('⚠️ Gmail.Users.Messages.list continua a restituire risposta vuota: tratto la pagina come vuota per non interrompere il batch');
+        console.warn(`⚠️ Gmail.Users.Messages.list non recuperabile (${lastError ? lastError.message : 'errore sconosciuto'}): tratto la pagina come vuota per non interrompere il batch`);
         return { messages: [], nextPageToken: null };
     }
 
     _isEmptyResponseError(error) {
         const message = (error && error.message) ? String(error.message).toLowerCase() : '';
         return message.includes('empty response') || message.includes('risposta vuota');
+    }
+
+    _isRetryableGmailApiError(error) {
+        const message = (error && error.message) ? String(error.message).toLowerCase() : '';
+        if (!message) return false;
+
+        return message.includes('unknown error')
+            || message.includes('internal error')
+            || message.includes('backend error')
+            || message.includes('service unavailable')
+            || message.includes('timed out')
+            || message.includes('timeout')
+            || message.includes('rate limit')
+            || message.includes('user-rate limit')
+            || message.includes('quota exceeded')
+            || message.includes('too many requests')
+            || message.includes('429')
+            || message.includes('500')
+            || message.includes('502')
+            || message.includes('503')
+            || message.includes('504');
     }
 
     /**
