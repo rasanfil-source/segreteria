@@ -1104,16 +1104,10 @@ class ResponseValidator {
     targets.forEach(word => {
       const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const apostropheAgnosticWord = escapedWord.replace(/'/g, "['\u2019]");
-      const regex = new RegExp(`,(\\s+)(${apostropheAgnosticWord})(?!\\w)`, 'g');
-      result = result.replace(regex, (fullMatch, sep, p1, offset) => {
+      const regex = new RegExp(`,(\\s+)(${apostropheAgnosticWord})(?!\\w)(?!\\s+[A-ZÀÈÉÌÒÙ])`, 'g');
+      result = result.replace(regex, (fullMatch, sep, p1) => {
         if (capitalizationExceptions.includes(p1)) {
           return fullMatch;
-        }
-        // Euristica nomi doppi: se seguito da un'altra parola maiuscola, non correggere
-        const afterMatchPos = offset + fullMatch.length;
-        const textAfter = result.substring(afterMatchPos);
-        if (textAfter.match(/^\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]+/)) {
-          return fullMatch; // Mantieni maiuscola: probabile nome doppio
         }
         return `,${sep}${p1.toLowerCase()}`;
       });

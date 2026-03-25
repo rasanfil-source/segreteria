@@ -288,6 +288,9 @@ function validateConfig() {
   if (!CONFIG.GEMINI_MODELS || typeof CONFIG.GEMINI_MODELS !== 'object') {
     errors.push("Errore Config: 'GEMINI_MODELS' deve essere un oggetto");
   } else {
+    if (Object.keys(CONFIG.GEMINI_MODELS).length === 0) {
+      errors.push("Errore Config: 'GEMINI_MODELS' è vuoto");
+    }
     // Check esistenza modelli chiave
     if (!CONFIG.GEMINI_MODELS['flash-2.5']) errors.push("Errore Config: Modello 'flash-2.5' mancante in GEMINI_MODELS");
   }

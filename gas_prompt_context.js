@@ -155,8 +155,11 @@ class PromptContext {
 
     _computeProfile() {
         const c = this.concerns;
+        const requestType = this.input.requestType;
+        const isFormal = !!(requestType && (requestType.type === 'formal' || requestType.formalScore > 0.6));
+        const isDoctrinal = !!(requestType && (requestType.type === 'doctrinal' || requestType.doctrineScore > 0.6));
 
-        if (c.discernment_risk || c.emotional_sensitivity) {
+        if (c.discernment_risk || c.emotional_sensitivity || isFormal || isDoctrinal) {
             return 'heavy';
         }
 

@@ -549,10 +549,11 @@ class MemoryService {
 
     const infos = memory.providedInfo;
     let modified = false;
+    const normalizedTargetTopic = this._normalizeTopicKey(topic);
 
     // Trova e aggiorna il topic
     const newInfos = infos.map(info => {
-      if (info.topic === topic) {
+      if (this._normalizeTopicKey(info.topic) === normalizedTargetTopic) {
         modified = true;
         // Aggiorna userReaction e context se fornito
         return {
@@ -679,6 +680,16 @@ class MemoryService {
         return null;
       })
       .filter(Boolean);
+  }
+
+  _normalizeTopicKey(topic) {
+    if (topic == null) return '';
+    return String(topic)
+      .toLowerCase()
+      .trim()
+      .replace(/[_\-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/ /g, '_');
   }
 
   /**

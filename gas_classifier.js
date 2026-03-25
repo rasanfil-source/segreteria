@@ -355,7 +355,12 @@ class Classifier {
 
     // Normalizza
     let normalized = text.toLowerCase().trim();
-    normalized = normalized.replace(/[^\p{L}\p{N}\s!]/gu, '');
+    try {
+      normalized = normalized.replace(/[^\p{L}\p{N}\s!]/gu, '');
+    } catch (e) {
+      // Fallback compatibilità runtime che non supportano Unicode property escapes
+      normalized = normalized.replace(/[^\w\s!àèéìòù]/g, '');
+    }
     normalized = normalized.replace(/\s+/g, ' ');
 
     // Conta parole
@@ -446,8 +451,14 @@ class Classifier {
     // Ritorna categoria con punteggio più alto
     let maxCategory = null;
     let maxScore = 0;
+    const priority = ['sbattezzo', 'sacrament', 'complaint', 'quotation', 'collaboration', 'appointment', 'information'];
     for (const cat in categoryScores) {
-      if (categoryScores[cat] > maxScore) {
+      const catPriority = priority.indexOf(cat);
+      const maxPriority = maxCategory ? priority.indexOf(maxCategory) : Number.POSITIVE_INFINITY;
+      if (
+        categoryScores[cat] > maxScore ||
+        (categoryScores[cat] === maxScore && catPriority !== -1 && catPriority < maxPriority)
+      ) {
         maxScore = categoryScores[cat];
         maxCategory = cat;
       }

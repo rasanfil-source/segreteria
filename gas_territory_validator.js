@@ -254,7 +254,7 @@ class TerritoryValidator {
             '(?:\\ba\\.\\s*|\\ba\\s+)': 'antonio ',
             '(?:\\bs\\.\\s*|\\bs\\s+)': 'san ',
             '(?:\\bl\\.\\s*|\\bl\\s+)': 'largo ',
-            '(?:^\\s*v\\.\\s*|^\\s*v\\s+)': 'via ',
+            '(?:^\\s*v\\.\\s*|^\\s*v\\s+)(?!ia)': 'via ',
             '(?:\\bc\\.\\s*|\\bc\\s+)': 'corso ',
             '(?:\\bu\\.\\s*|\\bu\\s+)': 'ulisse ',
             '(?:\\bm\\.\\s*|\\bm\\s+)': 'maria ',
