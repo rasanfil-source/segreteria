@@ -61,7 +61,8 @@ class TerritoryValidator {
             'via jacopo da ponte': { tutti: true },
             'via luigi canina': { tutti: true },
             'piazzale manila': { tutti: true },
-            'piazza marina': { tutti: [24, 35] },
+            // Nota: "piazza marina" (senza articolo) è gestita come alias
+            // dallo step 1b di findTerritoryMatch (normalizzazione articoli).
             'piazza della marina': { tutti: [24, 35] },
             'piazzale miguel cervantes': { tutti: true },
             'lungotevere delle navi': { tutti: true },
@@ -160,6 +161,29 @@ class TerritoryValidator {
         if (this.rules.has(normalizedInput)) {
             console.log(`🔍 Match esatto trovato: '${normalizedInput}'`);
             return { key: normalizedInput, rules: this.rules.get(normalizedInput) };
+        }
+
+        // 1b. Match con normalizzazione articoli opzionali (deterministico)
+        // Gestisce alias tipo "piazza marina" → "piazza della marina",
+        // "via del corso" → "via corso", ecc.
+        // La strip avviene SOLO sui token intermedi (non sul tipo strada in pos. 0).
+        const STOP_ARTICLES = new Set([
+            'della', 'delle', 'del', 'dei', 'degli', 'di',
+            'de', 'la', 'il', 'lo', 'le', 'gli', 'i', "l'"
+        ]);
+        const stripArticles = (name) => {
+            const tokens = name.split(' ');
+            if (tokens.length < 2) return name;
+            // Preserva sempre il token 0 (tipo strada: via/piazza/viale...)
+            const significant = tokens.slice(1).filter(t => !STOP_ARTICLES.has(t));
+            return significant.length > 0 ? tokens[0] + ' ' + significant.join(' ') : name;
+        };
+        const inputStripped = stripArticles(normalizedInput);
+        for (const [dbKey, dbRules] of this.rules.entries()) {
+            if (stripArticles(dbKey) === inputStripped) {
+                console.log(`🔍 Match normalizzato (articoli) trovato: '${normalizedInput}' → '${dbKey}'`);
+                return { key: dbKey, rules: dbRules };
+            }
         }
 
         // 2. Match Fuzzy con controllo consecutività
