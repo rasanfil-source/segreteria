@@ -2048,6 +2048,14 @@ function sanitizeUrl(url) {
         return null;
     }
 
+    if (/^mailto:/i.test(normalized)) {
+        const emailPart = decoded.replace(/^mailto:/i, '').split('?')[0].trim();
+        if (!/^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/.test(emailPart)) {
+            console.warn(`🛑 Bloccato mailto malformato: ${decoded}`);
+            return null;
+        }
+    }
+
     // SSRF: blocco IP interni, IPv6 loopback/link-local, IP decimali
     const INTERNAL_IP_PATTERN = /^(https?:\/\/)?(localhost|127\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.)/i;
     const DECIMAL_IP = /^https?:\/\/\d{8,10}(\/|$)/i;
@@ -2211,6 +2219,13 @@ function markdownToHtml(text) {
     const inputText = (typeof text === 'string') ? text : String(text);
     const normalizedInputText = inputText.replace(/\r\n?/g, '\n');
 
+    const generatePlaceholderNonce = () => {
+        if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.getUuid === 'function') {
+            return Utilities.getUuid();
+        }
+        return Math.random().toString(36).slice(2);
+    };
+
     const replaceMarkdownLinks = (input, replacer) => {
         let result = '';
         let cursor = 0;
@@ -2267,7 +2282,7 @@ function markdownToHtml(text) {
     const codeBlocks = [];
     let html = normalizedInputText.replace(/```[\s\S]*?```/g, (match) => {
         const sanitized = escapeHtml(match.replace(/```/g, '').trim());
-        const token = `@@CODEBLOCK_PLACEHOLDER_${codeBlocks.length}_${Utilities.getUuid()}@@`;
+        const token = `@@CODEBLOCK_PLACEHOLDER_${codeBlocks.length}_${generatePlaceholderNonce()}@@`;
         codeBlocks.push({ token: token, value: sanitized });
         return token;
     });
@@ -2277,7 +2292,7 @@ function markdownToHtml(text) {
     html = replaceMarkdownLinks(html, (linkText, url) => {
         const sanitizedUrl = sanitizeUrl(url.replace(/[\s\u200B-\u200D\uFEFF]/g, ''));
         const escapedText = escapeHtml(linkText);
-        const token = `@@LINK_PLACEHOLDER_${links.length}_${Utilities.getUuid()}@@`;
+        const token = `@@LINK_PLACEHOLDER_${links.length}_${generatePlaceholderNonce()}@@`;
         if (sanitizedUrl) {
             const hrefSafe = sanitizedUrl.replace(/&(?!amp;|lt;|gt;|quot;|#39;)/g, '&amp;');
             links.push({ token: token, value: `<a href="${hrefSafe}" style="color:#351c75;">${escapedText}</a>` });

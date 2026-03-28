@@ -796,7 +796,11 @@ function _loadAdvancedConfig(ss) {
         // Nota: NON estendiamo la fine giornata con setHours(23:59:59).
         // isInVacationPeriod confronta già date normalizzate a "yyyy-MM-dd"
         // nel timezone business, quindi il giorno finale è incluso senza manipolazioni aggiuntive.
-        config.vacationPeriods.push({ start: r[0], end: r[2] });
+        const start = new Date(r[0]);
+        const end = new Date(r[2]);
+        start.setHours(12, 0, 0, 0);
+        end.setHours(12, 0, 0, 0);
+        config.vacationPeriods.push({ start: start, end: end });
       }
     });
 
@@ -1111,7 +1115,7 @@ function _extractDatePartsForTimeZone(date, timeZone) {
       const resolved = { year: '0000', month: '00', day: '00', hour: '00', minute: '00', second: '00' };
       dtf.formatToParts(date).forEach((part) => {
         if (Object.prototype.hasOwnProperty.call(resolved, part.type)) {
-          resolved[part.type] = part.value;
+          resolved[part.type] = (part.type === 'hour' && part.value === '24') ? '00' : part.value;
         }
       });
       return resolved;

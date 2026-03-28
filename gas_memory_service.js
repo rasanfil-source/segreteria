@@ -610,7 +610,13 @@ class MemoryService {
       // Verifica sicurezza: l'ID deve essere nella colonna A (indice 1)
       if (colIndex === 1 && rowIndex > 1) {
         // Leggi SOLO la riga trovata (molto efficiente)
-        const rowValues = this._sheet.getRange(rowIndex, 1, 1, this._getColumnCount()).getValues()[0];
+        const expectedCols = this._getColumnCount();
+        const availableCols = Math.max(1, Math.min(expectedCols, this._sheet.getLastColumn()));
+        const rowValues = this._sheet.getRange(rowIndex, 1, 1, availableCols).getValues()[0];
+
+        while (rowValues.length < expectedCols) {
+          rowValues.push('');
+        }
 
         // Doppio controllo per sicurezza
         if (String(rowValues[0]) === normalizedThreadId) {
@@ -1078,6 +1084,10 @@ class MemoryService {
     let deletedCount = 0;
 
     for (const key in this._cache) {
+      if (!Object.prototype.hasOwnProperty.call(this._cache, key)) {
+        continue;
+      }
+
       // Rimuove entry nulle o scadute dalla cache
       if (!this._cache[key] || !this._cache[key].timestamp) {
         delete this._cache[key];

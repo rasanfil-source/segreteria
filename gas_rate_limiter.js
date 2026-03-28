@@ -686,8 +686,15 @@ class GeminiRateLimiter {
     try {
       const walTimestamp = Date.now();
       // Rilegge lo stato persistito dentro lock ed esegue merge con cache locale
-      const currentRpm = JSON.parse(this.props.getProperty('rpm_window') || '[]');
-      const currentTpm = JSON.parse(this.props.getProperty('tpm_window') || '[]');
+      let currentRpm;
+      let currentTpm;
+      try {
+        currentRpm = JSON.parse(this.props.getProperty('rpm_window') || '[]');
+        currentTpm = JSON.parse(this.props.getProperty('tpm_window') || '[]');
+      } catch (e) {
+        currentRpm = [];
+        currentTpm = [];
+      }
 
       const mergedRpm = this._mergeWindowData(currentRpm, this.cache.rpmWindow);
       const mergedTpm = this._mergeWindowData(currentTpm, this.cache.tpmWindow);
@@ -800,7 +807,7 @@ class GeminiRateLimiter {
     };
 
     const existingEntries = new Set(existing.map(toKey));
-    const merged = JSON.parse(JSON.stringify(existing));
+    const merged = Array.isArray(existing) ? existing.slice() : [];
 
     for (const entry of walData) {
       const entryKey = toKey(entry);

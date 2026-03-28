@@ -465,8 +465,8 @@ Output JSON:
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const result = fn();
-        if (typeof result === 'undefined') {
-          throw new Error("La funzione ha restituito undefined in modo silente");
+        if (result === undefined || result === null || result === '') {
+          throw new Error(`Risposta vuota o undefined da ${context}`);
         }
         return result;
       } catch (error) {
@@ -556,8 +556,13 @@ Output JSON:
       console.log('   Trovato carattere spagnolo (ñ)');
     }
     if (text.includes('ã') || text.includes('õ') || text.includes('ç')) {
-      portugueseCharScore += 2;
-      console.log('   Trovato carattere portoghese (ã, õ, ç)');
+      if (text.includes('ã') || text.includes('õ')) {
+        portugueseCharScore += 2;
+        console.log('   Trovato carattere portoghese forte (ã, õ)');
+      } else {
+        portugueseCharScore += 0.5;
+        console.log('   Trovato carattere ambiguo (ç): boost portoghese ridotto');
+      }
     }
 
     // Parole chiave per rilevamento
