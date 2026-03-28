@@ -60,20 +60,29 @@ assert(flags.hallucination === false, 'Should not detect hallucination');
 
 // 2. Test _shouldAttemptIntelligentRetry
 console.log('Testing _shouldAttemptIntelligentRetry...');
-// Critical error (thinking_leak) should trigger even if score > minScore (if we consider criticals special)
-// Actually the code says: if (!critical && score >= minScore) return false;
-// So critical ALWAYS triggers if allowed.
+// Critical errors bypass the minScore gate.
 const shouldRetry = processor._shouldAttemptIntelligentRetry(mockValidation, 'it', global.CONFIG.INTELLIGENT_RETRY);
 assert(shouldRetry === true, 'Should attempt retry for thinking_leak');
 
-const lowScoreButNotAllowed = {
+const lowScoreButNotAllowed = { isValid: false, score: 0.2, errors: ['length'] };
+const shouldNotRetry = processor._shouldAttemptIntelligentRetry(lowScoreButNotAllowed, 'it', global.CONFIG.INTELLIGENT_RETRY);
+assert(shouldNotRetry === false, 'Should not attempt retry for length error (not in allowed list)');
+
+const retryConfigWithLength = {
+    ...global.CONFIG.INTELLIGENT_RETRY,
+    onlyForErrors: [...global.CONFIG.INTELLIGENT_RETRY.onlyForErrors, 'length']
+};
+const highScoreAllowed = {
     isValid: false,
-    score: 0.4,
+    score: 0.8,
     errors: ['risposta troppo corta'],
     details: { length: { errors: ['troppo corta'] } }
 };
-const shouldNotRetry = processor._shouldAttemptIntelligentRetry(lowScoreButNotAllowed, 'it', global.CONFIG.INTELLIGENT_RETRY);
-assert(shouldNotRetry === false, 'Should not attempt retry for length error (not in allowed list)');
+const shouldRetryAllowed = processor._shouldAttemptIntelligentRetry(highScoreAllowed, 'it', retryConfigWithLength);
+assert(
+    shouldRetryAllowed === true,
+    'Should attempt retry for allowed non-critical error when score is above threshold'
+);
 
 // 3. Test _buildCorrectionPrompt
 console.log('Testing _buildCorrectionPrompt...');

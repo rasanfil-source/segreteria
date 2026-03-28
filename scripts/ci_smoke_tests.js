@@ -59,10 +59,30 @@ global.Utilities = {
     DigestAlgorithm: { MD5: 'MD5' }
 };
 
+// Mock Session
+global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'me@parrocchia.it' }),
+    getActiveUser: () => ({ getEmail: () => 'me@parrocchia.it' })
+};
+
+// Mock CacheService
+const globalCacheStore = new Map();
+global.CacheService = {
+    getScriptCache: () => ({
+        get: (k) => globalCacheStore.get(k) || null,
+        put: (k, v) => globalCacheStore.set(k, v),
+        remove: (k) => globalCacheStore.delete(k)
+    })
+};
+
 // Mock PropertiesService e SpreadsheetApp (per MemoryService)
 global.PropertiesService = {
     getScriptProperties: () => ({
-        getProperty: (k) => k === 'SPREADSHEET_ID' ? 'abc-123' : null
+        getProperty: (k) => {
+            if (k === 'SPREADSHEET_ID') return 'abc-123';
+            if (k === 'GEMINI_API_KEY') return 'abcdefghijklmnopqrstuvwxyz123456';
+            return null;
+        }
     })
 };
 
@@ -376,6 +396,26 @@ function testResponseValidatorLanguageCheck() {
     assert(resEn.errors.length === 0, `Check lingua EN non deve generare errori, ottenuti: ${resEn.errors.join('; ')}`);
 }
 
+function testResponseValidatorStreetNumberDoesNotWhitelistInventedTime() {
+    loadScript('gas_response_validator.js');
+
+    const validator = new ResponseValidator();
+    const result = validator._checkHallucinations(
+        'La messa e alle 10:00.',
+        'Orari disponibili: 09:00 e 11:00.',
+        'Abito in Via Roma 10, vorrei informazioni.'
+    );
+
+    assert(
+        result.warnings.some((w) => w.includes('Orari non in KB: 10:00')),
+        'numero civico 10 non deve sdoganare 10:00 come orario presente nel messaggio originale'
+    );
+    assert(
+        Array.isArray(result.hallucinations.times) && result.hallucinations.times.includes('10:00'),
+        '10:00 deve essere registrato tra gli orari inventati'
+    );
+}
+
 function testSemanticThinkingPromptBullets() {
     loadScript('gas_response_validator.js');
 
@@ -426,25 +466,52 @@ function testComputeSalutationMode() {
     assert(result4d === 'soft', `Reply dopo 4 giorni: atteso "soft", ottenuto "${result4d}"`);
 }
 
+function testIntelligentRetryAllowedNonCriticalHighScore() {
+    loadScript('gas_email_processor.js');
+
+    const previousConfig = global.CONFIG;
+    global.CONFIG = {
+        ...(previousConfig || {}),
+        INTELLIGENT_RETRY: {
+            enabled: true,
+            maxRetries: 1,
+            minScoreToTrigger: 0.6,
+            onlyForErrors: ['thinking_leak', 'hallucination', 'language', 'placeholder', 'length']
+        }
+    };
+
+    try {
+        const processor = new EmailProcessor({
+            config: { validationEnabled: true }
+        });
+
+        const validation = {
+            isValid: false,
+            score: 0.8,
+            errors: ['risposta troppo corta'],
+            details: { length: { errors: ['troppo corta'] } }
+        };
+
+        const shouldRetry = processor._shouldAttemptIntelligentRetry(
+            validation,
+            'it',
+            global.CONFIG.INTELLIGENT_RETRY
+        );
+
+        assert(
+            shouldRetry === true,
+            'errore non critico ammesso con score sopra soglia deve attivare il retry intelligente'
+        );
+    } finally {
+        global.CONFIG = previousConfig;
+    }
+}
+
 function testAntiLoopDetection() {
     loadScript('gas_email_processor.js');
 
     const originalSession = global.Session;
     const originalCacheService = global.CacheService;
-
-    global.Session = {
-        getEffectiveUser: () => ({ getEmail: () => 'me@parrocchia.it' }),
-        getActiveUser: () => ({ getEmail: () => 'me@parrocchia.it' })
-    };
-
-    const store = new Map();
-    global.CacheService = {
-        getScriptCache: () => ({
-            get: (k) => store.get(k) || null,
-            put: (k, v) => store.set(k, v),
-            remove: (k) => store.delete(k)
-        })
-    };
 
     const readMessageIds = [];
     const buildMessage = (id, from, date) => ({
@@ -1727,6 +1794,7 @@ function testLoadResourcesReplacements() {
 
     try {
         GLOBAL_CACHE.loaded = false;
+        globalCacheStore.clear();
         _loadResourcesInternal();
         assert(GLOBAL_CACHE.replacements['Roma'] === 'ROMA CAPUT MUNDI', 'La sostituzione per "Roma" deve essere corretta');
         assert(GLOBAL_CACHE.replacements['IA'] === 'Intelligenza Artificiale', 'La sostituzione per "IA" deve essere corretta');
@@ -1808,6 +1876,8 @@ function main() {
         ['classifier: backward quote scan', testClassifierBackwardQuoteScan],
         ['main: caricamento sostituzioni', testLoadResourcesReplacements],
         ['gmail office extract: Drive v3 forza mimeType target', testExtractOfficeTextDriveCreateForcesTargetMimeType],
+        ['validator: numero civico non sdogana orario inventato', testResponseValidatorStreetNumberDoesNotWhitelistInventedTime],
+        ['retry intelligente: errore ammesso non critico sopra soglia', testIntelligentRetryAllowedNonCriticalHighScore],
     ];
 
     let passed = 0;

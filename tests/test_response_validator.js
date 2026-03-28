@@ -58,15 +58,29 @@ assert(signatureResult.warnings.length === 0, 'in none_or_continuity non deve es
 console.log('--- Test hallucination: civico non deve essere interpretato come orario ---');
 const civicResult = validator._checkHallucinations(
   'Per la verifica territoriale risulta Via Roma civico 12.30.',
-  'it',
   'Copertura territoriale: Via Roma civico 12.30',
-  'Abito in Via Roma civico 12.30',
-  'Verifica territorio'
+  'Abito in Via Roma civico 12.30'
 );
 assert(civicResult.score === 1.0, 'civico 12.30 non deve generare warning orari inventati');
 assert(
   !civicResult.warnings.some((w) => w.includes('Orari non in KB')),
   'non deve segnalare orari inventati nel caso civico'
+);
+
+console.log('--- Test hallucination: numero civico non deve autorizzare orario inventato ---');
+const streetNumberResult = validator._checkHallucinations(
+  'La messa e alle 10:00.',
+  'Orari disponibili: 09:00 e 11:00.',
+  'Abito in Via Roma 10, vorrei informazioni.'
+);
+assert(
+  streetNumberResult.warnings.some((w) => w.includes('Orari non in KB: 10:00')),
+  'numero civico 10 non deve sdoganare 10:00 come orario presente nel messaggio originale'
+);
+assert(
+  Array.isArray(streetNumberResult.hallucinations.times) &&
+  streetNumberResult.hallucinations.times.includes('10:00'),
+  '10:00 deve essere registrato tra gli orari inventati'
 );
 
 console.log('✅ Test core ResponseValidator passati');
