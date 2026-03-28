@@ -728,9 +728,9 @@ function _parseStrictHour(value) {
     return hourFromTime;
   }
 
-  if (!/^\d{1,2}$/.test(normalized)) return null;
-
-  const hour = Number(normalized);
+  if (!/^\d{1,2}$/.test(normalized.replace(/\s+/g, ''))) return null;
+ 
+  const hour = Number(normalized.replace(/\s+/g, ''));
   if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
 
   return hour;

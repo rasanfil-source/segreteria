@@ -907,7 +907,7 @@ class MemoryService {
     }
 
     const parsed = new Date(timestamp);
-    if (!parsed || isNaN(parsed.getTime())) {
+    if (isNaN(parsed.getTime())) {
       console.warn(`⚠️ Timestamp parsing failed: "${timestamp}", reset`);
       return fallback;
     }

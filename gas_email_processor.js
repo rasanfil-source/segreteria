@@ -449,7 +449,7 @@ class EmailProcessor {
         let consecutiveExternal = 0;
 
         for (let i = messages.length - 1; i >= 0; i--) {
-          const msgFrom = messages[i].getFrom().toLowerCase();
+          const msgFrom = (messages[i].getFrom() || '').toLowerCase();
           const isUs = Boolean(normalizedMyEmail) && (
             msgFrom.includes(normalizedMyEmail) ||
             normalizedKnownAliases.some(alias => msgFrom.includes(alias))

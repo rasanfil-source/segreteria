@@ -1344,7 +1344,7 @@ function _extractQuickCheckFieldsFromPartialJson(text) {
     language: languageMatch ? languageMatch[1].toLowerCase() : 'it',
     category: categoryMatch ? categoryMatch[1] : 'TECHNICAL',
     topic: topicMatch ? topicMatch[1].trim() : 'unknown',
-    confidence: confidenceMatch ? Number(confidenceMatch[1]) : 0.5,
+    confidence: (confidenceMatch && !isNaN(Number(confidenceMatch[1]))) ? Number(confidenceMatch[1]) : 0.5,
     reason: 'quick_check_partial_json_recovered'
   };
 }
