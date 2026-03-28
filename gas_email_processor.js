@@ -405,7 +405,8 @@ class EmailProcessor {
       ];
 
       const oooSubject = messageDetails.subject || '';
-      const oooBody = messageDetails.body || '';
+      // Trunca a 2000 char per prevenire Regex Timeout su mega-thread
+      const oooBody = (messageDetails.body || '').substring(0, 2000);
       if (outOfOfficePatterns.some(p => p.test(`${oooSubject} ${oooBody}`))) {
         console.log('   ⊖ Saltato: risposta automatica out-of-office (testo)');
         this._markMessageAsProcessed(candidate, labeledMessageIds);
