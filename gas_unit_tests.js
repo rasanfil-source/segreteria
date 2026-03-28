@@ -456,7 +456,12 @@ function runAllTests() {
                 sleep: () => { }
             });
             global.GmailApp = {
-                getThreadById: (threadId) => ({ id: threadId }),
+                getThreadById: (threadId) => ({
+                    id: threadId,
+                    getId: () => threadId,
+                    getMessages: () => [],
+                    addLabel: () => { }
+                }),
                 getUserLabelByName: () => null
             };
 
@@ -563,7 +568,12 @@ function runAllTests() {
                 global.GmailApp = {
                     getThreadById: (threadId) => {
                         fetchedThreadIds.push(threadId);
-                        return threadId === 't-missing' ? null : { id: threadId };
+                        return threadId === 't-missing' ? null : {
+                            id: threadId,
+                            getId: () => threadId,
+                            getMessages: () => [],
+                            addLabel: () => { }
+                        };
                     },
                     getUserLabelByName: () => null
                 };
@@ -599,7 +609,12 @@ function runAllTests() {
                 global.GmailApp = {
                     getThreadById: (threadId) => {
                         fetchedThreadIds.push(threadId);
-                        return threadId === 't-missing-meta' ? null : { id: threadId };
+                        return threadId === 't-missing-meta' ? null : {
+                            id: threadId,
+                            getId: () => threadId,
+                            getMessages: () => [],
+                            addLabel: () => { }
+                        };
                     },
                     getUserLabelByName: () => null
                 };
