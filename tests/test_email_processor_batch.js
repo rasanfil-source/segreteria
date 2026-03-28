@@ -128,6 +128,21 @@ console.log('--- Test processUnreadEmails: stop preventivo per tempo insufficien
   assert(stats.total === 0, 'con tempo insufficiente non deve processare thread');
 }
 
+console.log('--- Test processUnreadEmails: KB vuota/whitespace blocca il batch ---');
+{
+  const processor = new EmailProcessor({
+    gmailService: { getUnprocessedUnreadThreads: () => [] }
+  });
+
+  const statsWhitespace = processor.processUnreadEmails('   ', '', true);
+  assert(statsWhitespace.errors === 1, 'KB whitespace deve essere trattata come mancante');
+  assert(statsWhitespace.reason === 'knowledge_base_missing', 'reason atteso knowledge_base_missing per KB whitespace');
+
+  const statsEmpty = processor.processUnreadEmails('', '', true);
+  assert(statsEmpty.errors === 1, 'KB stringa vuota deve essere trattata come mancante');
+  assert(statsEmpty.reason === 'knowledge_base_missing', 'reason atteso knowledge_base_missing per KB vuota');
+}
+
 console.log('--- Test processUnreadEmails: conteggio stats skipped/replied ---');
 {
   const threads = [

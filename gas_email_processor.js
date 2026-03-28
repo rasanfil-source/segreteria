@@ -1242,7 +1242,14 @@ ${addressLines.join('\n\n')}
     }
 
     try {
-      if (knowledgeBase === null || typeof knowledgeBase === 'undefined') {
+      const normalizedKnowledgeBase = (typeof knowledgeBase === 'string')
+        ? knowledgeBase.trim()
+        : knowledgeBase;
+      const isKnowledgeBaseMissing = normalizedKnowledgeBase === null ||
+        typeof normalizedKnowledgeBase === 'undefined' ||
+        normalizedKnowledgeBase === '';
+
+      if (isKnowledgeBaseMissing) {
         this.logger.error('Knowledge base non disponibile: interrompo batch per evitare risposte senza contesto.');
         return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'knowledge_base_missing' };
       }
