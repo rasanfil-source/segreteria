@@ -567,7 +567,8 @@ class GeminiRateLimiter {
    */
   _incrementCountersAtomic(modelKey, tokensUsed) {
     const lock = LockService.getScriptLock();
-    const gotLock = lock.tryLock(5000);
+    // Timeout esteso per garantire persistenza contatori sotto burst concorrenti.
+    const gotLock = lock.tryLock(25000);
 
     if (!gotLock) {
       console.warn(`⚠️ Impossibile tracciare RPD/Token per ${modelKey} (Lock Timeout)`);
@@ -675,11 +676,11 @@ class GeminiRateLimiter {
    */
   _persistCacheWithWAL() {
     const lock = LockService.getScriptLock();
-    // Evita sleep applicativi inutili: demandiamo l'attesa direttamente al lock.
-    const lockAcquired = lock.tryLock(7500);
+    // Timeout esteso per ridurre perdita cache in istanze effimere sotto alta concorrenza.
+    const lockAcquired = lock.tryLock(25000);
 
     if (!lockAcquired) {
-      console.warn('\u26A0\uFE0F Impossibile acquisire lock per salvataggio cache entro 7.5s. Dati mantenuti in memoria.');
+      console.warn('\u26A0\uFE0F Impossibile acquisire lock per salvataggio cache entro 25s. Dati mantenuti in memoria.');
       return;
     }
 
