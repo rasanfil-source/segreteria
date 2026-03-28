@@ -483,38 +483,48 @@ class MemoryService {
 
     const lockKey = this._getShardedLockKey(threadId);
 
-    let lockAcquired = false;
-    try {
-      lockAcquired = this._tryAcquireShardedLock(lockKey);
-      if (!lockAcquired) return; // Rinuncia se lockato
-
-      const existingRow = this._findRowByThreadId(threadId);
-      if (existingRow) {
-        const existingData = this._rowToObject(existingRow.values);
-        const existingTopics = this._normalizeProvidedTopics(existingData.providedInfo || []);
-        const normalizedTopics = this._normalizeProvidedTopics(topics);
-        let mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
-
-        const maxTopics = (typeof CONFIG !== 'undefined' && CONFIG.MAX_PROVIDED_TOPICS) || 50;
-        if (mergedTopics.length > maxTopics) {
-          console.log(`🧠 Memoria: Trim providedInfo da ${mergedTopics.length} a ${maxTopics} topic`);
-          mergedTopics = mergedTopics.slice(-maxTopics);
+    for (let i = 0; i < 3; i++) {
+      let lockAcquired = false;
+      try {
+        lockAcquired = this._tryAcquireShardedLock(lockKey);
+        if (!lockAcquired) {
+          if (i < 2) {
+            Utilities.sleep(200 + Math.random() * 100);
+            continue;
+          }
+          console.warn(`⚠️ Lock non acquisito dopo 3 tentativi in addProvidedInfoTopics per thread ${threadId}`);
+          return;
         }
 
-        const currentVersion = existingData.version || 0;
-        existingData.providedInfo = mergedTopics;
-        existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
-        existingData.version = currentVersion + 1;
+        const existingRow = this._findRowByThreadId(threadId);
+        if (existingRow) {
+          const existingData = this._rowToObject(existingRow.values);
+          const existingTopics = this._normalizeProvidedTopics(existingData.providedInfo || []);
+          const normalizedTopics = this._normalizeProvidedTopics(topics);
+          let mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
 
-        this._updateRow(existingRow.rowIndex, existingData);
-        this._invalidateCache(`memory_${threadId}`);
-        console.log(`🧠 Memoria: Topic aggiunti atomicamente ${JSON.stringify(topics)}`);
-      }
-    } catch (error) {
-      console.error(`❌ Errore aggiunta provided info: ${error.message}`);
-    } finally {
-      if (lockAcquired) {
-        this._releaseShardedLock(lockKey);
+          const maxTopics = (typeof CONFIG !== 'undefined' && CONFIG.MAX_PROVIDED_TOPICS) || 50;
+          if (mergedTopics.length > maxTopics) {
+            console.log(`🧠 Memoria: Trim providedInfo da ${mergedTopics.length} a ${maxTopics} topic`);
+            mergedTopics = mergedTopics.slice(-maxTopics);
+          }
+
+          const currentVersion = existingData.version || 0;
+          existingData.providedInfo = mergedTopics;
+          existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
+          existingData.version = currentVersion + 1;
+
+          this._updateRow(existingRow.rowIndex, existingData);
+          this._invalidateCache(`memory_${threadId}`);
+          console.log(`🧠 Memoria: Topic aggiunti atomicamente ${JSON.stringify(topics)}`);
+        }
+        return;
+      } catch (error) {
+        console.error(`❌ Errore aggiunta provided info (tentativo ${i + 1}): ${error.message}`);
+      } finally {
+        if (lockAcquired) {
+          this._releaseShardedLock(lockKey);
+        }
       }
     }
   }
@@ -977,8 +987,8 @@ class MemoryService {
       data.tone || 'standard',
       providedInfoJson,
       data.lastUpdated,
-      data.messageCount || 1,
-      data.version || 1,
+      data.messageCount !== undefined ? data.messageCount : 1,
+      data.version !== undefined ? data.version : 1,
       data.memorySummary || ''
     ]]);
   }
@@ -996,8 +1006,8 @@ class MemoryService {
       data.tone || 'standard',
       providedInfoJson,
       data.lastUpdated,
-      data.messageCount || 1,
-      data.version || 1,
+      data.messageCount !== undefined ? data.messageCount : 1,
+      data.version !== undefined ? data.version : 1,
       data.memorySummary || ''
     ]);
   }

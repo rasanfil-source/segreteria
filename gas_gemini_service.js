@@ -654,8 +654,8 @@ Output JSON:
     // Disambiguazione ES/PT su testi brevi: evita confusione quando i punteggi sono quasi pari.
     const compactText = text.replace(/\s+/g, ' ').trim();
     if (compactText.length <= 120 && Math.abs(scores.es - scores.pt) <= 1 && Math.max(scores.es, scores.pt) >= 2) {
-      const ptStrongMarkers = /\b(não|vocês|estou|obrigad[oa]|orçamento|viatura|portagens|agradecemos|cumprimentos)\b/i;
-      const esStrongMarkers = /\b(usted|ustedes|gracias|presupuesto|coche|iglesia|parroquia|estimado|querido)\b/i;
+      const ptStrongMarkers = /(?:^|[^\\p{L}\\p{N}_])(não|vocês|estou|obrigad[oa]|orçamento|viatura|portagens|agradecemos|cumprimentos)(?=$|[^\\p{L}\\p{N}_])/iu;
+      const esStrongMarkers = /(?:^|[^\\p{L}\\p{N}_])(usted|ustedes|gracias|presupuesto|coche|iglesia|parroquia|estimado|querido)(?=$|[^\\p{L}\\p{N}_])/iu;
       if (ptStrongMarkers.test(compactText) && !esStrongMarkers.test(compactText)) {
         scores.pt += 1;
       } else if (esStrongMarkers.test(compactText) && !ptStrongMarkers.test(compactText)) {
