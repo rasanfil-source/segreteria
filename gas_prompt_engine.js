@@ -30,9 +30,6 @@ class PromptEngine {
     this.logger.info('PromptEngine inizializzato', { templateSections: 'variabile' });
   }
 
-  /**
-  * Stima token (approx 4 char/token per l'italiano/inglese)
-  */
   estimateTokens(text) {
     if (!text || typeof text !== 'string') return 0;
     return Math.ceil(text.length / 4);
@@ -230,48 +227,37 @@ class PromptEngine {
     addSection(this._renderSeasonalContext(currentSeason), 'SeasonalContext');
     addSection(this._renderTemporalAwareness(safeCurrentDate, detectedLanguage), 'TemporalAwareness');
     addSection(this._renderCategoryHint(category), 'CategoryHint');
+
+    // 16. CRONOLOGIA CONVERSAZIONE
+    if (conversationHistory) {
+      addSection(this._renderConversationHistory(conversationHistory), 'ConversationHistory');
+    }
+    // 17. CONTENUTO EMAIL
+    addSection(this._renderEmailContent(emailContent, emailSubject, senderName, senderEmail, detectedLanguage), 'EmailContent');
+    // 18. CONTESTO ALLEGATI
+    addSection(this._renderAttachmentContext(workingAttachmentsContext), 'AttachmentsContext');
+
     // ════════════════════════════════════════════════════════════════════════════════
-    // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)
+    // BLOCCO 3: LINEE GUIDA E TEMPLATE
     // ════════════════════════════════════════════════════════════════════════════════
 
-  }
-}
+    // 19. LINEE GUIDA
+    addTemplate('FormattingGuidelinesTemplate', this._renderFormattingGuidelines(), 'FormattingGuidelines');
 
-// 16. CRONOLOGIA CONVERSAZIONE
-if (conversationHistory) {
-  addSection(this._renderConversationHistory(conversationHistory), 'ConversationHistory');
-}
-// 17. CONTENUTO EMAIL
-addSection(this._renderEmailContent(emailContent, emailSubject, senderName, senderEmail, detectedLanguage), 'EmailContent');
-// 18. CONTESTO ALLEGATI
-addSection(this._renderAttachmentContext(workingAttachmentsContext), 'AttachmentsContext');
+    // 20. STRUTTURA RISPOSTA
+    addSection(this._renderResponseStructure(category, subIntents), 'ResponseStructure');
 
-// ══════════════════════════════════════════════════════
-// ════════════════════════════════════════════════════════════════════════════════
-// BLOCCO 3: LINEE GUIDA E TEMPLATE
-// ════════════════════════════════════════════════════════════════════════════════
+    // 21. TEMPLATE SPECIALI (Sbattezzo ecc.)
+    const normalizedTopic = String(topic || '').toLowerCase();
+    const normalizedCategory = String(category || '').toLowerCase();
+    const isFormalRequest = normalizedCategory === 'formal' || normalizedCategory === 'sbattezzo';
 
-// ══════════════════════════════════════════════════════
+    if (normalizedTopic.includes('sbattezzo') || isFormalRequest) {
+      addSection(this._renderSbattezzoTemplate(senderName), 'SbattezzoTemplate');
+    }
 
-// 19. LINEE GUIDA (Filtrabili per profilo)
-addTemplate('FormattingGuidelinesTemplate', this._renderFormattingGuidelines(), 'FormattingGuidelines');
-
-// 20. STRUTTURA RISPOSTA
-addSection(this._renderResponseStructure(category, subIntents), 'ResponseStructure');
-
-// 21. TEMPLATE SPECIALI (Sbattezzo ecc.)
-const normalizedTopic = String(topic || '').toLowerCase();
-const normalizedCategory = String(category || '').toLowerCase();
-const isFormalRequest =
-normalizedCategory === 'formal' ||
-normalizedCategory === 'sbattezzo' ||
-requestTypeObj.type === 'formal';
-if (normalizedTopic.includes('sbattezzo') || isFormalRequest) {
-  addSection(this._renderSbattezzoTemplate(senderName), 'SbattezzoTemplate');
-}
-
-// 22. LINEE GUIDA TONO UMANO
-addTemplate('HumanToneGuidelinesTemplate', this._renderHumanToneGuidelines(), 'HumanToneGuidelines');
+    // 22. LINEE GUIDA TONO UMANO
+    addTemplate('HumanToneGuidelinesTemplate', this._renderHumanToneGuidelines(), 'HumanToneGuidelines');
 // 23. ESEMPI
 addTemplate('ExamplesTemplate', this._renderExamples(category), 'Examples');
 
@@ -313,7 +299,7 @@ return prompt;
 _renderCriticalErrorsReminder() {
   return `
   🚨 REMINDER ERRORI CRITICI (verifica finale):
-  â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+  ────────────────────────────────────────
 
   âŒ Maiuscola dopo virgola: "Ciao, Siamo" → SBAGLIATO
   ✅ Minuscola dopo virgola: "Ciao, siamo" → GIUSTO
@@ -333,7 +319,7 @@ _renderCriticalErrorsReminder() {
   âŒ Imitare errori utente: "la canale", "i orari" → correggi implicitamente, senza segnalarlo
   ✅ Se riprendi un termine dell'utente, assicurati prima che sia grammaticalmente corretto
 
-  â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”`;
+  ────────────────────────────────────────`;
 }
 // TEMPLATE 1.5: CHECKLIST CONTESTUALE
 // Sostituisce checklist generica con versione mirata per lingua/contesto
@@ -342,35 +328,35 @@ _renderContextualChecklist(detectedLanguage, territoryContext, salutationMode) {
   const checks = [];
 
   // Controlli universali
-  checks.push('â–¡ Ho risposto SOLO alla domanda posta');
-  checks.push('â–¡ Ho usato SOLO informazioni dalla KB');
-  checks.push('â–¡ NO ragionamento esposto (es: "la KB dice...", "devo correggere...")');
+  checks.push('□ Ho risposto SOLO alla domanda posta');
+  checks.push('□ Ho usato SOLO informazioni dalla KB');
+  checks.push('□ NO ragionamento esposto (es: "la KB dice...", "devo correggere...")');
 
   // Controlli lingua-specifici
   if (detectedLanguage === 'it') {
-    checks.push('â–¡ Minuscola dopo virgola (es: "Ciao, siamo" NON "Ciao, Siamo")');
-    checks.push('â–¡ Nomi propri MAIUSCOLI (es: "Federica" NON "federica")');
-    checks.push('â–¡ Ho corretto errori grammaticali dell\'utente (NON copiati)');
+    checks.push('□ Minuscola dopo virgola (es: "Ciao, siamo" NON "Ciao, Siamo")');
+    checks.push('□ Nomi propri MAIUSCOLI (es: "Federica" NON "federica")');
+    checks.push('□ Ho corretto errori grammaticali dell\'utente (NON copiati)');
   } else if (detectedLanguage === 'en') {
-    checks.push('â–¡ ENTIRE response in ENGLISH (NO Italian words)');
+    checks.push('□ ENTIRE response in ENGLISH (NO Italian words)');
   } else if (detectedLanguage === 'es') {
-    checks.push('â–¡ TODA la respuesta en ESPAÃ‘OL (NO palabras italianas)');
+    checks.push('□ TODA la respuesta en ESPAÃ‘OL (NO palabras italianas)');
   }
 
   // Controlli territorio (se rilevante)
   if (territoryContext && String(territoryContext).includes('RIENTRA')) {
-    checks.push('â–¡ Ho dato risposta SÃŒ/NO sul territorio (NON "verificheremo")');
-    checks.push('â–¡ Ho usato ESATTAMENTE i dati della verifica territorio');
+    checks.push('□ Ho dato risposta SÃŒ/NO sul territorio (NON "verificheremo")');
+    checks.push('□ Ho usato ESATTAMENTE i dati della verifica territorio');
   }
 
   // Controlli saluto
   if (salutationMode === 'none_or_continuity' || salutationMode === 'session') {
-    checks.push('â–¡ NO saluti rituali (es: Buongiorno) - conversazione in corso');
+    checks.push('□ NO saluti rituali (es: Buongiorno) - conversazione in corso');
   }
 
   // Controlli anti-ridondanza
-  checks.push('â–¡ Se l\'utente ha detto "Ho gi\u00E0 X", NON ho fornito X di nuovo');
-  checks.push('â–¡ Link formato: "Descrizione: https://url" NON "[url](url)"');
+  checks.push('□ Se l\'utente ha detto "Ho gi\u00E0 X", NON ho fornito X di nuovo');
+  checks.push('□ Link formato: "Descrizione: https://url" NON "[url](url)"');
 
   return `
   ══════════════════════════════════════════════════════
@@ -744,16 +730,16 @@ _renderMemoryContext(memoryContext) {
 
     if (acknowledgedTopics.length > 0) {
       sections.push(`✅ UTENTE HA CAPITO: ${acknowledgedTopics.join(', ')}`);
-      sections.push('ðŸš« NON RIPETERE ASSOLUTAMENTE queste informazioni. Dai per scontato che le sappiano.');
+      sections.push('🚫 NON RIPETERE ASSOLUTAMENTE queste informazioni. Dai per scontato che le sappiano.');
     }
 
     if (questionedTopics.length > 0) {
       sections.push(`â“ UTENTE NON HA CAPITO: ${questionedTopics.join(', ')}`);
-      sections.push('âš¡ URGENTE: Spiega questi punti di nuovo MA con parole diverse, più semplici e chiare. Usa esempi.');
+      sections.push('⚡ URGENTE: Spiega questi punti di nuovo MA con parole diverse, più semplici e chiare. Usa esempi.');
     }
 
     if (needsExpansionTopics.length > 0) {
-      sections.push(`ðŸ§© UTENTE CHIEDE PIÙ DETTAGLI: ${needsExpansionTopics.join(', ')}`);
+      sections.push(`🧩 UTENTE CHIEDE PIÙ DETTAGLI: ${needsExpansionTopics.join(', ')}`);
       sections.push('➕ Fornisci dettagli aggiuntivi e passaggi pratici, mantenendo il tono formale (Lei).');
     }
   }
