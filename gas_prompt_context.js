@@ -48,11 +48,14 @@ class PromptContext {
             }
 
             normalizedInput.knowledgeBaseRaw = knowledgeBaseRaw;
+            const hasExplicitContainsDates = typeof incomingMeta?.containsDates === 'boolean';
             normalizedInput.knowledgeBaseMeta = {
                 length: Number.isFinite(incomingMeta?.length) ? incomingMeta.length : knowledgeBaseRaw.length,
-                containsDates:
-                    incomingMeta?.containsDates === true ||
-                    this._containsTemporalHintsInKnowledgeBase(knowledgeBaseRaw)
+                // Se il chiamante fornisce containsDates esplicito (true/false),
+                // deve avere precedenza per evitare override automatici inattesi.
+                containsDates: hasExplicitContainsDates
+                    ? incomingMeta.containsDates
+                    : this._containsTemporalHintsInKnowledgeBase(knowledgeBaseRaw)
             };
         } else if (incomingMeta) {
             normalizedInput.knowledgeBaseMeta = {

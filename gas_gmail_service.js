@@ -955,7 +955,28 @@ class GmailService {
             }
 
             const isWord = mimeType.includes('msword') || mimeType.includes('wordprocessingml');
+            const isExcel = mimeType.includes('ms-excel') || mimeType.includes('spreadsheetml');
             const isPowerPoint = mimeType.includes('mspowerpoint') || mimeType.includes('presentationml');
+
+            if (isExcel) {
+                try {
+                    const rawText = this._extractOfficeText(attachment, this._officeMimeMap[mimeType], settings) || '';
+                    if (!rawText.trim()) {
+                        result.skipped.push({ name: name, reason: 'office_empty' });
+                        continue;
+                    }
+                    const text = rawText.substring(0, maxCharsPerFile);
+                    result.textContext += `
+
+--- Contenuto file: ${name} ---
+${text}`;
+                    totalTextChars += text.length;
+                    processedCount++;
+                } catch (e) {
+                    result.skipped.push({ name: name, reason: 'text_extract_error', error: e.message });
+                }
+                continue;
+            }
 
             if (isWord || isPowerPoint) {
                 try {

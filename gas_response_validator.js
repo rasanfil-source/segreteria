@@ -554,7 +554,7 @@ class ResponseValidator {
 
     // === Controllo orari ===
     const timePattern = /(?<![a-z]\.)\b\d{1,2}[:.]\d{2}\b(?!\.[a-z])/gi;
-    const timeOrHourPattern = /\b\d{1,2}(?:[:.]\d{2})?\b/g;
+    const contextualHourPattern = /\b(?:alle?|ore)\s+(\d{1,2})\b/gi;
     const responseTimesRaw = [];
     let match;
     // Reset lastIndex per sicurezza se regex è globale
@@ -582,7 +582,11 @@ class ResponseValidator {
       responseTimesRaw.push(timeStr);
     }
     const kbTimesRaw = safeKnowledgeBase.match(timePattern) || [];
-    const originalTimesRaw = (originalMessage || '').match(timeOrHourPattern) || [];
+    const originalTimesRaw = (originalMessage || '').match(timePattern) || [];
+    let contextualHourMatch;
+    while ((contextualHourMatch = contextualHourPattern.exec(originalMessage || '')) !== null) {
+      originalTimesRaw.push(contextualHourMatch[1]);
+    }
 
     const responseTimes = new Set(responseTimesRaw.map(normalizeTime));
     const kbTimes = new Set(kbTimesRaw.map(normalizeTime));

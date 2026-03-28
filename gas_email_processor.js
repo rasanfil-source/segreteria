@@ -187,7 +187,7 @@ class EmailProcessor {
     // Snapshot robusto del classificatore errori — restituisce sempre { type, retryable, message }
     // per coerenza con il contratto di gas_error_types.classifyError
     const classifyErrorFn = (typeof classifyError === 'function')
-      ? function(err) { const r = classifyError(err); if (!r.retryable) r.type = 'FATAL'; return r; }
+      ? function(err) { return classifyError(err); }
       // Manteniamo fallback locale per non dipendere dal globale in runtime modulari.
       : function fallbackClassifyError(err) { return { type: 'UNKNOWN', retryable: false, message: String(err) }; };
 
@@ -909,16 +909,15 @@ ${addressLines.join('\n\n')}
           const errorClass = classifyErrorFn(err);
           console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass.type}]`);
 
-          if (errorClass.type === 'FATAL') {
+          if (errorClass.type === 'INVALID_API_KEY' || errorClass.type === 'FATAL') {
             console.error('🛑 Errore fatale rilevato, interrompo strategia.');
             break;
           }
 
-          if (errorClass.type === 'NETWORK') {
-            console.warn('🌐 Errore di rete/timeout, continuo con prossima strategia.');
+          if (['NETWORK', 'TIMEOUT', 'QUOTA_EXCEEDED', 'INVALID_RESPONSE', 'UNKNOWN'].includes(errorClass.type)) {
+            console.warn(`↪️ Errore ${errorClass.type}, provo la strategia successiva.`);
             continue;
           }
-          // QUOTA_EXCEEDED, INVALID_RESPONSE, UNKNOWN: continua
         }
       }
 
@@ -1724,7 +1723,7 @@ ${addressLines.join('\n\n')}
       : ((typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_MIN_SCORE === 'number') ? CONFIG.VALIDATION_MIN_SCORE : 0.6);
 
     const critical = flags.thinking_leak || flags.hallucination;
-    if (!critical && Number.isFinite(minScore) && Number.isFinite(validationResult.score) && validationResult.score >= minScore) {
+    if (!critical && Number.isFinite(minScore) && Number.isFinite(validationResult.score) && validationResult.score < minScore) {
       return false;
     }
 

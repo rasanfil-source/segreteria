@@ -1187,29 +1187,41 @@ class MemoryService {
   cleanOldEntries(daysOld = 30) {
     if (!this._initialized) return 0;
 
-    try {
-      const data = this._sheet.getDataRange().getValues();
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+    let deletedCount = 0;
 
-      let deletedCount = 0;
+    this._withSheetWriteLock(() => {
+      try {
+        const range = this._sheet.getDataRange();
+        const data = range.getValues();
+        if (data.length <= 1) return;
 
-      // Vai all'indietro per evitare problemi di shifting indici
-      for (let i = data.length - 1; i >= 1; i--) {
-        const lastUpdated = new Date(data[i][5]);
-        if (!data[i][5] || isNaN(lastUpdated.getTime()) || lastUpdated < cutoffDate) {
-          this._sheet.deleteRow(i + 1);
-          deletedCount++;
+        const headers = data[0];
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+
+        const validRows = [headers];
+
+        for (let i = 1; i < data.length; i++) {
+          const lastUpdated = new Date(data[i][5]);
+          if (data[i][5] && !isNaN(lastUpdated.getTime()) && lastUpdated >= cutoffDate) {
+            validRows.push(data[i]);
+          } else {
+            deletedCount++;
+          }
         }
+
+        if (deletedCount > 0) {
+          range.clearContent();
+          this._sheet.getRange(1, 1, validRows.length, headers.length).setValues(validRows);
+        }
+
+        console.log(`🧹 Pulite ${deletedCount} voci memoria vecchie (Bulk Update)`);
+      } catch (error) {
+        console.error(`❌ Errore pulizia voci vecchie: ${error.message}`);
       }
+    });
 
-      console.log(`🧹 Pulite ${deletedCount} voci memoria vecchie`);
-      return deletedCount;
-
-    } catch (error) {
-      console.error(`❌ Errore pulizia voci vecchie: ${error.message}`);
-      return 0;
-    }
+    return deletedCount;
   }
 
   /**

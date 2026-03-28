@@ -392,7 +392,7 @@ ${doctrineBaseText}
     addTemplate('ExamplesTemplate', this._renderExamples(category), 'Examples');
 
     // 24. REGOLE FINALI
-    addSection(this._renderResponseGuidelines(detectedLanguage, currentSeason, salutation, closing), 'ResponseGuidelines');
+    addSection(this._renderResponseGuidelines(detectedLanguage, currentSeason, salutation, closing, salutationMode), 'ResponseGuidelines');
 
     if (!normalizedTopic.includes('sbattezzo') && !isFormalRequest) {
       // 25. CASI SPECIALI
@@ -590,7 +590,7 @@ ${checks.join('\n')}
       let score = 0;
       if (!row) return { row: {}, score: -1 };
       const sottotema = String(row['Sotto-tema'] || '').toLowerCase();
-      const rowTone = String(row['Tono consigliato'] || '').toLowerCase();
+      const rowTone = String(row['Tono consigliato'] || '').toLowerCase().trim();
       const rowCat = String(row.Categoria || '');
 
       if (topicLower && sottotema.includes(topicLower)) score += 10;
@@ -1115,7 +1115,6 @@ ${hints[category]}`;
       'pastoral': 'emotional_support',
       'doctrinal': 'information'
     };
-
     const effectiveCategory = fallbackMap[category] || null;
     return effectiveCategory ? `**CATEGORIA IDENTIFICATA:**
 ${hints[effectiveCategory]}` : null;
@@ -1379,8 +1378,9 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
   // TEMPLATE 22: LINEE GUIDA RISPOSTA
   // ========================================================================
 
-  _renderResponseGuidelines(lang, season, salutation, closing) {
+  _renderResponseGuidelines(lang, season, salutation, closing, salutationMode) {
     let formatSection, contentSection, languageReminder;
+    const isContinuity = salutationMode === 'session' || salutationMode === 'none_or_continuity';
 
     if (lang === 'en') {
       formatSection = `1. **MANDATORY GREETING:**

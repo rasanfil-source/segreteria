@@ -1419,6 +1419,20 @@ function testPromptContextHonorsExplicitKnowledgeBaseMeta() {
     assert(pc.concerns.temporal_risk === true, 'containsDates esplicito deve attivare temporal_risk');
 }
 
+function testPromptContextHonorsExplicitKnowledgeBaseMetaFalse() {
+    console.log('--- Test: PromptContext Explicit KB Meta false override ---');
+    loadScript('gas_prompt_context.js');
+
+    const pc = new PromptContext({
+        knowledgeBase: 'Orari ufficio dal 01/09 al 30/06. Apertura 08:30.',
+        knowledgeBaseMeta: { length: 120, containsDates: false },
+        temporal: { mentionsDates: false, mentionsTimes: false }
+    });
+
+    assert(pc.input.knowledgeBaseMeta.containsDates === false, 'containsDates=false esplicito deve avere precedenza su autodetect');
+    assert(pc.concerns.temporal_risk === false, 'temporal_risk deve restare false se containsDates esplicito è false');
+}
+
 function testPromptEngineNormalizesObjectKnowledgeBase() {
     loadScript('gas_prompt_engine.js');
 
@@ -1787,6 +1801,7 @@ function main() {
         ['prompt context: temporal risk with object KB containing dates', testPromptContextTemporalRiskWithObjectKnowledgeBaseContainingDates],
         ['prompt context: circular object KB fallback', testPromptContextKnowledgeBaseCircularObjectDoesNotCrash],
         ['prompt context: explicit knowledgeBaseMeta precedence', testPromptContextHonorsExplicitKnowledgeBaseMeta],
+        ['prompt context: explicit knowledgeBaseMeta false override', testPromptContextHonorsExplicitKnowledgeBaseMetaFalse],
         ['prompt engine: object KB normalization', testPromptEngineNormalizesObjectKnowledgeBase],
         ['prompt KB truncation: hard limit chars rispettato', testPromptKbSemanticTruncationRespectsHardLimit],
         ['gemini: portuguese detection refinement', testPortugueseDetectionRefinement],
