@@ -105,6 +105,8 @@ class EmailProcessor {
   processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds = new Set(), skipLock = false) {
     const threadId = thread.getId();
     const startTime = Date.now();
+    const normalizedKnowledgeBase = this._normalizeTextContent(knowledgeBase);
+    const normalizedDoctrineBase = this._normalizeTextContent(doctrineBase);
 
     // ====================================================================================================
     // ACQUISIZIONE LOCK (LIVELLO-THREAD) - Previene condizioni di conflitto
@@ -556,14 +558,14 @@ class EmailProcessor {
       // ====================================================================================================
       const knowledgeSections = [];
       const resourceCache = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBAL_CACHE : {};
-      const effectiveDoctrineBase = doctrineBase || (resourceCache.doctrineBase || '');
+      const effectiveDoctrineBase = normalizedDoctrineBase || (resourceCache.doctrineBase || '');
       const doctrineStructured = Array.isArray(resourceCache.doctrineStructured) ? resourceCache.doctrineStructured : [];
       const aiCoreLite = (resourceCache.aiCoreLite != null) ? resourceCache.aiCoreLite : '';
       const aiCore = (resourceCache.aiCore != null) ? resourceCache.aiCore : '';
 
       // KB principale: passata "pulita" al PromptEngine per evitare overhead
       // e rispettare il budget di troncamento sui contenuti realmente informativi.
-      knowledgeSections.push(knowledgeBase);
+      knowledgeSections.push(normalizedKnowledgeBase);
 
       // AI_CORE e Dottrina NON vengono iniettati qui: è responsabilità esclusiva di
       // PromptEngine (buildPrompt) che li riceve via opzioni con logica selettiva.
@@ -1242,9 +1244,8 @@ ${addressLines.join('\n\n')}
     }
 
     try {
-      const normalizedKnowledgeBase = (typeof knowledgeBase === 'string')
-        ? knowledgeBase.trim()
-        : knowledgeBase;
+      const normalizedKnowledgeBase = this._normalizeTextContent(knowledgeBase);
+      const normalizedDoctrineBase = this._normalizeTextContent(doctrineBase);
       const isKnowledgeBaseMissing = normalizedKnowledgeBase === null ||
         typeof normalizedKnowledgeBase === 'undefined' ||
         normalizedKnowledgeBase === '';
@@ -1348,7 +1349,7 @@ ${addressLines.join('\n\n')}
 
         console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
 
-        const result = this.processThread(thread, normalizedKnowledgeBase, doctrineBase, labeledMessageIds);
+        const result = this.processThread(thread, normalizedKnowledgeBase, normalizedDoctrineBase, labeledMessageIds);
         stats.total++;
 
         // Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI
@@ -1621,6 +1622,21 @@ ${addressLines.join('\n\n')}
       // Fallback sicuro: in caso di errore non bloccare il thread, lasciamo decidere a processThread.
       this.logger.warn(`⚠️ Fast-skip check fallito: ${e.message}`);
       return true;
+    }
+  }
+
+  _normalizeTextContent(value) {
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+    if (value === null || typeof value === 'undefined') {
+      return '';
+    }
+    try {
+      return String(value).trim();
+    } catch (e) {
+      this.logger.warn(`⚠️ Impossibile normalizzare contenuto testuale: ${e.message}`);
+      return '';
     }
   }
 
