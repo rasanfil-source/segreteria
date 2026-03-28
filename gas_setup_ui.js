@@ -408,8 +408,24 @@ function applyControlloInputConstraints_(sheet) {
  * @param {string[]} rangesA1
  */
 function protectRangesWithWarning_(sheet, rangesA1) {
+  // Recupera tutte le protezioni esistenti per evitare cloni su run ripetuti.
+  const existingProtections = sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE);
+
   rangesA1.forEach(a1 => {
     const range = sheet.getRange(a1);
+
+    // Pulisce eventuali protezioni precedenti sullo stesso A1.
+    existingProtections.forEach(protection => {
+      const protectedRange = protection.getRange();
+      if (protectedRange && protectedRange.getA1Notation() === range.getA1Notation()) {
+        try {
+          protection.remove();
+        } catch (e) {
+          // Silenzioso: potrebbe fallire se non siamo owner
+        }
+      }
+    });
+
     const protection = range.protect();
     protection.setWarningOnly(true);
     protection.setDescription('Area protetta setup UI: ' + a1);
