@@ -86,24 +86,43 @@ global.PropertiesService = {
     })
 };
 
-global.SpreadsheetApp = {
-    openById: () => ({
-        getSheetByName: () => ({
-            getRange: () => ({
-                getValues: () => [['threadId', 'language', 'category', 'tone', 'providedInfo', 'lastUpdated', 'messageCount', 'version', 'memorySummary']],
-                setFontWeight: () => { },
-                setValue: () => { }
-            }),
-            createTextFinder: () => ({
-                matchEntireCell: () => ({
-                    matchCase: () => ({
-                        matchFormulaText: () => ({
-                            findNext: () => null
-                        })
+function makeSheetMock(matrix) {
+    const rows = Array.isArray(matrix) && matrix.length > 0 ? matrix : [[null]];
+    const maxColumns = Math.max(9, ...rows.map((row) => Array.isArray(row) ? row.length : 0));
+    const cell = {
+        setFontWeight: () => { },
+        setValue: () => { }
+    };
+
+    return {
+        getDataRange: () => ({ getValues: () => rows }),
+        getRange: (row = 1, column = 1, numRows = 1, numCols = 1) => ({
+            getValues: () => Array.from({ length: numRows }, (_, rowOffset) =>
+                Array.from({ length: numCols }, (_, colOffset) => ((rows[row + rowOffset - 1] || [])[column + colOffset - 1] ?? ''))
+            ),
+            getValue: () => ((rows[row - 1] || [])[column - 1] ?? ''),
+            getCell: () => cell,
+            setFontWeight: () => { },
+            setValue: () => { }
+        }),
+        getLastRow: () => rows.length,
+        getMaxColumns: () => maxColumns,
+        insertColumnAfter: () => { },
+        createTextFinder: () => ({
+            matchEntireCell: () => ({
+                matchCase: () => ({
+                    matchFormulaText: () => ({
+                        findNext: () => null
                     })
                 })
             })
         })
+    };
+}
+
+global.SpreadsheetApp = {
+    openById: () => ({
+        getSheetByName: () => makeSheetMock([['threadId', 'language', 'category', 'tone', 'providedInfo', 'lastUpdated', 'messageCount', 'version', 'memorySummary']])
     })
 };
 
@@ -117,6 +136,61 @@ function loadScript(path) {
 function assert(condition, message) {
     if (!condition) {
         throw new Error(message);
+    }
+}
+
+function assertThrows(fn, expectedMessageFragment, failureMessage) {
+    let thrown = null;
+    try {
+        fn();
+    } catch (error) {
+        thrown = error;
+    }
+
+    assert(thrown, failureMessage || 'Eccezione attesa ma non lanciata');
+    if (expectedMessageFragment) {
+        assert(
+            thrown.message.includes(expectedMessageFragment),
+            `Errore atteso contiene "${expectedMessageFragment}", ottenuto: "${thrown.message}"`
+        );
+    }
+    return thrown;
+}
+
+function stringifyConsoleArgs(args) {
+    return args.map((arg) => {
+        if (typeof arg === 'string') return arg;
+        if (arg instanceof Error) return arg.stack || arg.message;
+        try {
+            return JSON.stringify(arg);
+        } catch (_) {
+            return String(arg);
+        }
+    }).join(' ');
+}
+
+function withCapturedConsoleNoise(expected, fn) {
+    const originalWarn = console.warn;
+    const originalError = console.error;
+    const seen = { warn: [], error: [] };
+
+    const wrap = (level, original, patterns = []) => (...args) => {
+        const message = stringifyConsoleArgs(args);
+        seen[level].push(message);
+        const isExpected = patterns.some((pattern) => pattern.test(message));
+        if (!isExpected) {
+            original(...args);
+        }
+    };
+
+    console.warn = wrap('warn', originalWarn, expected && expected.warn);
+    console.error = wrap('error', originalError, expected && expected.error);
+    try {
+        fn(seen);
+        return seen;
+    } finally {
+        console.warn = originalWarn;
+        console.error = originalError;
     }
 }
 
@@ -292,15 +366,11 @@ function testGeminiRetryOn429() {
     };
 
     const service = createMockGeminiService(() => mock429);
-
-    let threw = false;
-    try {
-        service._generateWithModel('Prompt test', 'gemini-2.5-flash');
-    } catch (e) {
-        threw = true;
-        assert(e.message.includes('429'), `Errore atteso contiene "429", ottenuto: "${e.message}"`);
-    }
-    assert(threw, '_generateWithModel deve lanciare errore su risposta 429');
+    assertThrows(
+        () => service._generateWithModel('Prompt test', 'gemini-2.5-flash'),
+        '429',
+        '_generateWithModel deve lanciare errore su risposta 429'
+    );
 }
 
 function testGeminiMalformedJson() {
@@ -312,15 +382,11 @@ function testGeminiMalformedJson() {
     };
 
     const service = createMockGeminiService(() => mockBadJson);
-
-    let threw = false;
-    try {
-        service._generateWithModel('Prompt test', 'gemini-2.5-flash');
-    } catch (e) {
-        threw = true;
-        assert(e.message.includes('non JSON valida'), `Errore atteso contiene "non JSON valida", ottenuto: "${e.message}"`);
-    }
-    assert(threw, '_generateWithModel deve lanciare errore su JSON malformato');
+    assertThrows(
+        () => service._generateWithModel('Prompt test', 'gemini-2.5-flash'),
+        'non JSON valida',
+        '_generateWithModel deve lanciare errore su JSON malformato'
+    );
 }
 
 function testGeminiNoCandidates() {
@@ -332,15 +398,11 @@ function testGeminiNoCandidates() {
     };
 
     const service = createMockGeminiService(() => mockNoCandidates);
-
-    let threw = false;
-    try {
-        service._generateWithModel('Prompt test', 'gemini-2.5-flash');
-    } catch (e) {
-        threw = true;
-        assert(e.message.includes('nessun candidato'), `Errore atteso contiene "nessun candidato", ottenuto: "${e.message}"`);
-    }
-    assert(threw, '_generateWithModel deve lanciare errore senza candidati');
+    assertThrows(
+        () => service._generateWithModel('Prompt test', 'gemini-2.5-flash'),
+        'nessun candidato',
+        '_generateWithModel deve lanciare errore senza candidati'
+    );
 }
 
 // ========================================================================
@@ -712,9 +774,16 @@ function testLoadResourcesResetsMissingPromptSheets() {
 function testMainEncapsulatesExecutionLockSuccessfully() {
     loadScript('gas_main.js');
 
+    const originalGmail = global.Gmail;
     const originalLockService = global.LockService;
     const hadHasExecutionLock = Object.prototype.hasOwnProperty.call(global, 'hasExecutionLock');
     const originalHasExecutionLock = global.hasExecutionLock;
+
+    global.Gmail = {
+        Users: {
+            getProfile: () => ({ emailAddress: 'me@parrocchia.it' })
+        }
+    };
 
     global.LockService = {
         getScriptLock: () => ({
@@ -724,11 +793,20 @@ function testMainEncapsulatesExecutionLockSuccessfully() {
     };
 
     try {
-        // Intenzionale: il test deve verificare il vero entry point triggerabile del progetto.
-        processEmailsMain();
+        const consoleNoise = withCapturedConsoleNoise({
+            warn: [/Esecuzione già in corso o lock bloccato/]
+        }, () => {
+            // Intenzionale: il test deve verificare il vero entry point triggerabile del progetto.
+            processEmailsMain();
+        });
         const leaked = Object.prototype.hasOwnProperty.call(global, 'hasExecutionLock');
         assert(!leaked, 'processEmailsMain deve mantenere uno scope isolato senza propagare hasExecutionLock');
+        assert(
+            consoleNoise.warn.some((msg) => msg.includes('Esecuzione già in corso o lock bloccato')),
+            'Il test deve esercitare il ramo lock occupato senza fermarsi al probe Gmail'
+        );
     } finally {
+        global.Gmail = originalGmail;
         global.LockService = originalLockService;
         if (hadHasExecutionLock) {
             global.hasExecutionLock = originalHasExecutionLock;
@@ -805,9 +883,17 @@ function testExtractOfficeTextDriveCreateForcesTargetMimeType() {
     };
 
     try {
-        const extracted = service._extractOfficeText(attachment, 'application/vnd.google-apps.document', {});
-        assert(extracted === '', 'Con mimeType finale non convertito deve ritornare stringa vuota');
+        const consoleNoise = withCapturedConsoleNoise({
+            warn: [/Estrazione Office fallita: Conversione Office non applicata/]
+        }, () => {
+            const extracted = service._extractOfficeText(attachment, 'application/vnd.google-apps.document', {});
+            assert(extracted === '', 'Con mimeType finale non convertito deve ritornare stringa vuota');
+        });
         assert(createOptions && createOptions.mimeType === 'application/vnd.google-apps.document', 'Drive.Files.create deve forzare il mimeType target anche nelle opzioni');
+        assert(
+            consoleNoise.warn.some((msg) => msg.includes('Estrazione Office fallita')),
+            'Il test deve intercettare il warning atteso sulla conversione Office'
+        );
     } finally {
         global.Drive = originalDrive;
     }
@@ -1294,15 +1380,24 @@ function testAddLabelToThreadPropagatesNonLabelErrors() {
     };
     service._isLabelNotFoundError = () => false;
 
-    let threw = false;
-    try {
-        service.addLabelToThread({ addLabel: () => { } }, 'IA');
-    } catch (error) {
-        threw = true;
-        assert(error.message.includes('Permission denied'), 'Errore inatteso propagato da addLabelToThread');
-    }
+    const consoleNoise = withCapturedConsoleNoise({
+        warn: [/addLabelToThread fallito/]
+    }, () => {
+        let threw = false;
+        try {
+            service.addLabelToThread({ addLabel: () => { } }, 'IA');
+        } catch (error) {
+            threw = true;
+            assert(error.message.includes('Permission denied'), 'Errore inatteso propagato da addLabelToThread');
+        }
 
-    assert(threw, 'addLabelToThread deve propagare errori non riconducibili a label missing');
+        assert(threw, 'addLabelToThread deve propagare errori non riconducibili a label missing');
+    });
+
+    assert(
+        consoleNoise.warn.some((msg) => msg.includes("addLabelToThread fallito per 'IA'")),
+        'Il warning atteso di addLabelToThread deve essere catturato dal test'
+    );
 }
 
 function testListMessagesWithResilienceHandlesEmptyResponseError() {
@@ -1333,17 +1428,33 @@ function testListMessagesWithResilienceHandlesEmptyResponseError() {
         }
     };
 
-    try {
-        const result = service._listMessagesWithResilience({ maxResults: 10 }, 2);
-        assert(Array.isArray(result.messages), 'Fallback deve restituire messages come array');
-        assert(result.messages.length === 0, 'Fallback deve restituire pagina vuota');
-        assert(result.nextPageToken === null, 'Fallback deve azzerare nextPageToken');
-        assert(calls === 2, `Attesi 2 tentativi, ottenuti ${calls}`);
-        assert(sleeps === 1, `Attesa backoff attesa 1 volta, ottenuto ${sleeps}`);
-    } finally {
-        global.Gmail = originalGmail;
-        global.Utilities = originalUtilities;
-    }
+    const consoleNoise = withCapturedConsoleNoise({
+        warn: [
+            /Gmail\.Users\.Messages\.list risposta vuota/,
+            /Gmail\.Users\.Messages\.list non recuperabile/
+        ]
+    }, () => {
+        try {
+            const result = service._listMessagesWithResilience({ maxResults: 10 }, 2);
+            assert(Array.isArray(result.messages), 'Fallback deve restituire messages come array');
+            assert(result.messages.length === 0, 'Fallback deve restituire pagina vuota');
+            assert(result.nextPageToken === null, 'Fallback deve azzerare nextPageToken');
+            assert(calls === 2, `Attesi 2 tentativi, ottenuti ${calls}`);
+            assert(sleeps === 1, `Attesa backoff attesa 1 volta, ottenuto ${sleeps}`);
+        } finally {
+            global.Gmail = originalGmail;
+            global.Utilities = originalUtilities;
+        }
+    });
+
+    assert(
+        consoleNoise.warn.some((msg) => msg.includes('Gmail.Users.Messages.list risposta vuota')),
+        'Il test deve catturare il warning atteso sui retry della list Gmail'
+    );
+    assert(
+        consoleNoise.warn.some((msg) => msg.includes('Gmail.Users.Messages.list non recuperabile')),
+        'Il test deve catturare il warning atteso del fallback finale'
+    );
 }
 
 function testGetMessageIdsWithLabelInvalidPaginationOptions() {
