@@ -1348,7 +1348,7 @@ ${addressLines.join('\n\n')}
 
         console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
 
-        const result = this.processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds);
+        const result = this.processThread(thread, normalizedKnowledgeBase, doctrineBase, labeledMessageIds);
         stats.total++;
 
         // Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI
