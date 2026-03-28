@@ -52,7 +52,7 @@ class PromptContext {
                 length: Number.isFinite(incomingMeta?.length) ? incomingMeta.length : knowledgeBaseRaw.length,
                 containsDates:
                     incomingMeta?.containsDates === true ||
-                    (isString && this._containsTemporalHintsInKnowledgeBase(knowledgeBaseRaw))
+                    this._containsTemporalHintsInKnowledgeBase(knowledgeBaseRaw)
             };
         } else if (incomingMeta) {
             normalizedInput.knowledgeBaseMeta = {

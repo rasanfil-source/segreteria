@@ -1365,6 +1365,27 @@ function testPromptContextTemporalRiskWithDayMonthKnowledgeBase() {
     assert(pc.concerns.temporal_risk === true, 'temporal_risk deve essere true con segnali temporali in KB testuale');
 }
 
+function testPromptContextTemporalRiskWithObjectKnowledgeBaseContainingDates() {
+    console.log('--- Test: PromptContext Temporal Risk with Object KB containing dates ---');
+    loadScript('gas_prompt_context.js');
+    const pc = new PromptContext({
+        knowledgeBase: {
+            eventi: ['Catechesi 01/09', 'Inizio corso 15/10'],
+            orari: ['08:30', '18:00']
+        },
+        temporal: { mentionsDates: false, mentionsTimes: false }
+    });
+
+    assert(
+        pc.input.knowledgeBaseMeta.containsDates === true,
+        'KB oggetto serializzata con date/orari deve attivare containsDates'
+    );
+    assert(
+        pc.concerns.temporal_risk === true,
+        'temporal_risk deve essere true con segnali temporali presenti in KB oggetto'
+    );
+}
+
 function testPromptContextKnowledgeBaseCircularObjectDoesNotCrash() {
     console.log('--- Test: PromptContext Circular KB Object ---');
     loadScript('gas_prompt_context.js');
@@ -1763,6 +1784,7 @@ function main() {
         ['main: compatibilità layout legacy fasce sospensione', testLoadAdvancedConfigLegacySuspensionLayoutCompatibility],
         ['prompt context: temporal risk with object KB', testPromptContextTemporalRiskWithObjectKnowledgeBase],
         ['prompt context: temporal risk with day/month KB', testPromptContextTemporalRiskWithDayMonthKnowledgeBase],
+        ['prompt context: temporal risk with object KB containing dates', testPromptContextTemporalRiskWithObjectKnowledgeBaseContainingDates],
         ['prompt context: circular object KB fallback', testPromptContextKnowledgeBaseCircularObjectDoesNotCrash],
         ['prompt context: explicit knowledgeBaseMeta precedence', testPromptContextHonorsExplicitKnowledgeBaseMeta],
         ['prompt engine: object KB normalization', testPromptEngineNormalizesObjectKnowledgeBase],
