@@ -36,6 +36,9 @@ assertEqual(_parseStrictHour(24), null, '24 intero deve essere invalido');
 assertEqual(_parseStrictHour('09:30'), 9, 'stringa HH:MM valida');
 assertEqual(_parseStrictHour('23:59'), 23, 'stringa 23:59 valida');
 assertEqual(_parseStrictHour('25:00'), null, 'stringa HH:MM non valida');
+const testDate = new Date(1899, 11, 30, 14, 0, 0); // 30 Dec 1899, 14:00 local
+assertEqual(_parseStrictHour(testDate), 14, 'Date orario nativo Sheets valida');
+assertEqual(_parseStrictHour(new Date('invalid')), null, 'Date invalida deve essere null');
 
 console.log('--- Test _extractSuspensionHoursFromRow (layout corrente/legacy) ---');
 assertDeepEqual(

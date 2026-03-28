@@ -410,10 +410,15 @@ class GmailService {
                     const isExcluded = [...excludedLabelIds].some(id => msgLabelIds.has(id));
                     if (isExcluded) continue;
 
-                    const thread = GmailApp.getThreadById(msg.threadId);
+                    let thread = null;
+                    try {
+                        thread = GmailApp.getThreadById(msg.threadId);
+                    } catch (error) {
+                        console.warn(`⚠️ Errore recupero thread ${msg.threadId}: ${error.message}`);
+                    }
                     if (!thread) {
                         unavailableThreadIds.add(msg.threadId);
-                        console.warn(`⚠️ GmailApp.getThreadById(${msg.threadId}) restituisce null: thread ignorato senza contarlo verso il target`);
+                        console.warn(`⚠️ GmailApp.getThreadById(${msg.threadId}) restituisce null o errore: thread ignorato`);
                         continue;
                     }
 
@@ -471,10 +476,15 @@ class GmailService {
 
                 for (const msg of messages) {
                     if (!msg || !msg.id || !msg.threadId || seenThreadIds.has(msg.threadId) || unavailableThreadIds.has(msg.threadId)) continue;
-                    const thread = GmailApp.getThreadById(msg.threadId);
+                    let thread = null;
+                    try {
+                        thread = GmailApp.getThreadById(msg.threadId);
+                    } catch (error) {
+                        console.warn(`⚠️ Errore recupero thread ${msg.threadId}: ${error.message}`);
+                    }
                     if (!thread) {
                         unavailableThreadIds.add(msg.threadId);
-                        console.warn(`⚠️ GmailApp.getThreadById(${msg.threadId}) restituisce null: thread ignorato senza contarlo verso il target`);
+                        console.warn(`⚠️ GmailApp.getThreadById(${msg.threadId}) restituisce null o errore: thread ignorato`);
                         continue;
                     }
 

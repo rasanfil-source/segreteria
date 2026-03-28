@@ -717,6 +717,15 @@ function _parseStrictHour(value) {
     return null;
   }
 
+  // Google Sheets può restituire gli orari nativi come Date (es. 30 Dec 1899 14:00:00)
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    const hourFromDate = value.getHours();
+    if (Number.isInteger(hourFromDate) && hourFromDate >= 0 && hourFromDate <= 23) {
+      return hourFromDate;
+    }
+    return null;
+  }
+
   const normalized = String(value == null ? '' : value).trim();
 
   const hhmm = normalized.match(/^(\d{1,2}):(\d{2})$/);

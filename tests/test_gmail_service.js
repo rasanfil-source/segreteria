@@ -10,7 +10,27 @@ function assert(condition, message) {
 }
 
 global.Utilities = {
-  getUuid: () => 'uuid-test'
+  getUuid: () => 'uuid-test',
+  sleep: () => {}
+};
+
+global.CacheService = {
+  getScriptCache: () => ({
+    get: () => null,
+    put: () => {},
+    remove: () => {}
+  })
+};
+
+global.CONFIG = {};
+
+global.Gmail = {
+  Users: {
+    Messages: {
+      list: () => ({ messages: [] }),
+      get: () => ({})
+    }
+  }
 };
 
 const gasGmailServicePath = path.join(__dirname, '..', 'gas_gmail_service.js');
@@ -28,5 +48,35 @@ assert(html.includes('<strong>Mondo</strong>'), 'bold markdown deve essere rende
 assert(html.includes('href="https://example.org"'), 'link https deve essere mantenuto');
 assert(!html.includes('<script>alert(1)</script>'), 'script raw non deve passare');
 assert(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'), 'script deve essere escaped');
+
+console.log('--- Test discovery: errore getThreadById non deve bloccare il batch ---');
+const service = new GmailService();
+
+service._getOptionalLabelIdByName = () => null;
+service._listMessagesWithResilience = () => ({
+  messages: [
+    { id: 'm1', threadId: 't-missing' },
+    { id: 'm2', threadId: 't-ok' }
+  ],
+  nextPageToken: null
+});
+service._getMessageMetadataWithResilience = () => ({ labelIds: [] });
+
+global.GmailApp = {
+  getThreadById: (threadId) => {
+    if (threadId === 't-missing') {
+      throw new Error('Thread gone');
+    }
+    return { getId: () => threadId };
+  }
+};
+
+const metadataResult = service._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 10, 1);
+assert(metadataResult.threads.length === 1, 'metadata mode deve continuare dopo errore getThreadById');
+assert(metadataResult.threads[0].getId() === 't-ok', 'metadata mode deve includere thread valido');
+
+const queryResult = service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1);
+assert(queryResult.threads.length === 1, 'query mode deve continuare dopo errore getThreadById');
+assert(queryResult.threads[0].getId() === 't-ok', 'query mode deve includere thread valido');
 
 console.log('✅ Test sanitizzazione Gmail/HTML passati');
