@@ -91,284 +91,149 @@
   * 4. Rinforzo finale (Errori critici, Checklist)
   */
   buildPrompt(options = {}) {
-  const {
-    emailContent,
-    emailSubject,
-    knowledgeBase,
-    doctrineBase = '',
-    doctrineStructured = null,
-    aiCoreLite = '',
-    aiCore = '',
-    allowDoctrineFallback = true,
-    senderName = 'Utente',
-    senderEmail = '',
-    conversationHistory = '',
-    category = null,
-    topic = '',
-    detectedLanguage = 'it',
-    currentSeason = 'invernale',
-    currentDate = null,
-    salutation = 'Buongiorno.',
-    closing = 'Cordiali saluti,',
-    subIntents = {},
-    memoryContext = {},
-    promptProfile = 'heavy',
-    activeConcerns = {},
-    salutationMode = 'full',
-    responseDelay = null,
-    territoryContext = null,
-    attachmentsContext = ''
-  } = options;
+    const {
+      emailContent,
+      emailSubject,
+      knowledgeBase,
+      doctrineBase = '',
+      doctrineStructured = null,
+      aiCoreLite = '',
+      aiCore = '',
+      allowDoctrineFallback = true,
+      senderName = 'Utente',
+      senderEmail = '',
+      conversationHistory = '',
+      category = null,
+      topic = '',
+      detectedLanguage = 'it',
+      currentSeason = 'invernale',
+      currentDate = null,
+      salutation = 'Buongiorno.',
+      closing = 'Cordiali saluti,',
+      subIntents = {},
+      memoryContext = {},
+      promptProfile = 'heavy',
+      activeConcerns = {},
+      salutationMode = 'full',
+      responseDelay = null,
+      territoryContext = null,
+      attachmentsContext = ''
+    } = options;
 
-   const safeCurrentDate = currentDate || (
-    (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function')
-    ? Utilities.formatDate(new Date(), 'Europe/Rome', 'yyyy-MM-dd')
-    : new Date().toISOString().slice(0, 10)
-  );
+    const safeCurrentDate = currentDate || (
+      (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function')
+        ? Utilities.formatDate(new Date(), 'Europe/Rome', 'yyyy-MM-dd')
+        : new Date().toISOString().slice(0, 10)
+    );
 
-   // Compatibilità input: alcuni flussi legacy passano i concern come array di chiavi.
-  // Esempio: ['formatting_risk', 'temporal_risk']
-  // Li normalizziamo in mappa booleana per mantenere attivi i branch condizionali.
-  const normalizedConcerns = Array.isArray(activeConcerns)
-    ? activeConcerns.reduce((acc, concernKey) => {
-    if (typeof concernKey === 'string' && concernKey) {
-      acc[concernKey] = true;
-    }
-    return acc;
-    }, {})
-    : ((activeConcerns && typeof activeConcerns === 'object') ? activeConcerns : {});
+    const normalizedConcerns = Array.isArray(activeConcerns)
+      ? activeConcerns.reduce((acc, concernKey) => {
+        if (typeof concernKey === 'string' && concernKey) {
+          acc[concernKey] = true;
+        }
+        return acc;
+      }, {})
+      : ((activeConcerns && typeof activeConcerns === 'object') ? activeConcerns : {});
 
-   let sections = [];
-  let skippedCount = 0;
+    let sections = [];
+    let skippedCount = 0;
 
-   // ══════════════════════════════════════════════════════
     // ════════════════════════════════════════════════════════════════════════════════
     // PRE-STIMA E BUDGETING TOKEN
     // ════════════════════════════════════════════════════════════════════════════════
-  // ══════════════════════════════════════════════════════
-  const MAX_SAFE_TOKENS = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS
-    ? CONFIG.MAX_SAFE_TOKENS : 35000;
+    const MAX_SAFE_TOKENS = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS
+      ? CONFIG.MAX_SAFE_TOKENS : 35000;
+    const OVERHEAD_TOKENS = 15000;
+    const KB_BUDGET_RATIO = 0.5;
 
-   const OVERHEAD_TOKENS = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS)
-    ? CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS : 15000; // Riserva per istruzioni e sistema
-  const KB_BUDGET_RATIO = (typeof CONFIG !== 'undefined' && typeof CONFIG.KB_TOKEN_BUDGET_RATIO === 'number')
-    ? CONFIG.KB_TOKEN_BUDGET_RATIO
-    : 0.5; // La KB può occupare max il 50% dello spazio rimanente
+    const ocrTokens = this.estimateTokens(attachmentsContext || '');
+    const availableForKB = Math.max(1500, ((MAX_SAFE_TOKENS - OVERHEAD_TOKENS - ocrTokens) * KB_BUDGET_RATIO));
+    const kbCharsLimit = Math.round(availableForKB * 4);
 
-   // Calcolo dinamico: sottrazione dei token stimati per allegati testuali
-  // per evitare che KB + allegati superino il budget API
-  const ocrTokens = this.estimateTokens(attachmentsContext || '');
-  const availableForKB = Math.max(1500, ((MAX_SAFE_TOKENS - OVERHEAD_TOKENS - ocrTokens) * KB_BUDGET_RATIO));
-  // Stima conservativa 1 token â‰ˆ 4 caratteri: volutamente prudente per evitare overflow
-  // con input multilingua/rumorosi. Ridurre il fattore aumenterebbe il rischio di prompt troppo lunghi.
-  const kbCharsLimit = Math.round(availableForKB * 4);
+    const aiCoreLiteText = this._normalizePromptTextInput(aiCoreLite, '');
+    const aiCoreText = this._normalizePromptTextInput(aiCore, '');
+    const doctrineBaseText = this._normalizePromptTextInput(doctrineBase, '');
+    const doctrineDB = Array.isArray(doctrineStructured) ? doctrineStructured : [];
 
-   const aiCoreLiteText = this._normalizePromptTextInput(aiCoreLite, '');
-  const aiCoreText = this._normalizePromptTextInput(aiCore, '');
-  const doctrineBaseText = this._normalizePromptTextInput(doctrineBase, '');
-  const doctrineDB = Array.isArray(doctrineStructured)
-    ? doctrineStructured
-    : (Array.isArray(options.doctrineDB) ? options.doctrineDB : []);
+    let workingKnowledgeBase = this._normalizePromptTextInput(knowledgeBase, '');
+    let kbWasTruncated = false;
 
-   let workingKnowledgeBase = this._normalizePromptTextInput(knowledgeBase, '');
-  let kbWasTruncated = false;
+    const aiCoreLiteSectionOverhead = aiCoreLiteText ? 500 : 0;
+    const kbSectionOverhead = 200;
+    const effectiveKbCharsLimit = Math.max(500, kbCharsLimit - aiCoreLiteSectionOverhead - kbSectionOverhead);
 
-   const aiCoreLiteSectionOverhead = aiCoreLiteText
-    ? this._estimateAiCoreLiteSectionChars(aiCoreLiteText)
-    : 0;
-  const kbSectionOverhead = this._estimateKbSectionOverheadChars();
-  const effectiveKbCharsLimit = Math.max(500, kbCharsLimit - aiCoreLiteSectionOverhead - kbSectionOverhead);
-
-
-  // Troncamento proattivo della KB PRIMA di assemblare il prompt
-  // ⚠️ Scelta blindata: questo è l'UNICO punto dove la KB può essere ridotta.
-  // La cache risorse deve restare completa; qui applichiamo solo una riduzione runtime
-  // per rispettare il budget token quando il contesto del singolo messaggio è eccezionalmente grande.
-  if (workingKnowledgeBase && workingKnowledgeBase.length > effectiveKbCharsLimit) {
-    console.warn(`⚠️ KB eccede il budget (${workingKnowledgeBase.length} chars), tronco a ${effectiveKbCharsLimit} (budget netto)`);
-    // _truncateKbSemantically è implementato in questa classe: preserva paragrafi completi
-    // invece di fare uno slice cieco che può spezzare contesto e istruzioni operative.
-    workingKnowledgeBase = this._truncateKbSemantically(workingKnowledgeBase, effectiveKbCharsLimit);
-    kbWasTruncated = true;
-  }
-
-   let workingAttachmentsContext = this._normalizePromptTextInput(attachmentsContext, '');
-  if (kbWasTruncated && workingAttachmentsContext) {
-    const attachmentSettings = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT)
-    ? CONFIG.ATTACHMENT_CONTEXT
-    : {};
-    const attachmentLimit = attachmentSettings.maxCharsWhenKbTruncated || 1500;
-    if (workingAttachmentsContext.length > attachmentLimit) {
-    console.warn(`⚠️ KB troncata: riduco allegati da ${workingAttachmentsContext.length} a ${attachmentLimit} chars`);
-    workingAttachmentsContext = workingAttachmentsContext.slice(0, Math.max(0, attachmentLimit - 1)).trim() + '…';
-    }
-  }
-
-   let usedTokens = 0;
-
-   /**
-    * Helper per aggiungere sezioni tracciando il budget token
-    */
-  const addSection = (section, label, options = {}) => {
-    if (!section) return;
-    const sectionTokens = this.estimateTokens(section);
-
-   // Se superiamo il budget, saltiamo a meno che non sia forzato (es. istruzioni critiche)
-    if (!options.force && usedTokens + sectionTokens > MAX_SAFE_TOKENS) {
-    console.warn(`⚠️ Budget esaurito, sezione saltata: ${label}`);
-    skippedCount++;
-    return;
+    if (workingKnowledgeBase && workingKnowledgeBase.length > effectiveKbCharsLimit) {
+      console.warn(`⚠️ KB eccede il budget, tronco a ${effectiveKbCharsLimit}`);
+      workingKnowledgeBase = this._truncateKbSemantically(workingKnowledgeBase, effectiveKbCharsLimit);
+      kbWasTruncated = true;
     }
 
-   // Protezione memoria: Limita numero massimo sezioni
-    if (sections.length >= 30) {
-    console.warn(`⚠️ Limite sezioni raggiunto (30), salto sezione non critica: ${label}`);
-    skippedCount++;
-    return;
+    let workingAttachmentsContext = this._normalizePromptTextInput(attachmentsContext, '');
+    if (kbWasTruncated && workingAttachmentsContext) {
+      const attachmentLimit = 1500;
+      if (workingAttachmentsContext.length > attachmentLimit) {
+        workingAttachmentsContext = workingAttachmentsContext.slice(0, Math.max(0, attachmentLimit - 1)).trim() + '…';
+      }
     }
 
-   sections.push(section);
-    usedTokens += sectionTokens;
-  };
+    let usedTokens = 0;
+    const addSection = (section, label, options = {}) => {
+      if (!section) return;
+      const sectionTokens = this.estimateTokens(section);
+      if (!options.force && usedTokens + sectionTokens > MAX_SAFE_TOKENS) {
+        skippedCount++;
+        return;
+      }
+      if (sections.length >= 30) {
+        skippedCount++;
+        return;
+      }
+      sections.push(section);
+      usedTokens += sectionTokens;
+    };
 
-   /**
-    * Helper per aggiungere template condizionali
-    */
-  const addTemplate = (templateName, content, label) => {
-    if (this._shouldIncludeTemplate(templateName, promptProfile, normalizedConcerns)) {
-    addSection(content, label || templateName);
-    } else {
-    skippedCount++;
-    }
-  };
+    const addTemplate = (templateName, content, label) => {
+      if (this._shouldIncludeTemplate(templateName, promptProfile, normalizedConcerns)) {
+        addSection(content, label || templateName);
+      } else {
+        skippedCount++;
+      }
+    };
 
-   // ══════════════════════════════════════════════════════
-  // ══════════════════════════════════════════════════════
     // ════════════════════════════════════════════════════════════════════════════════
     // BLOCCO 1: SETUP CRITICO
     // ════════════════════════════════════════════════════════════════════════════════
-  // 1. RUOLO SISTEMA
-  addSection(this._renderSystemRole(), 'SystemRole', { force: true });
+    addSection(this._renderSystemRole(), 'SystemRole', { force: true });
+    addSection(this._renderLanguageInstruction(detectedLanguage), 'LanguageInstruction', { force: true });
+    addSection(this._renderNoReplyRules(), 'NoReplyRules');
+    addSection(this._renderKnowledgeBase(workingKnowledgeBase), 'KnowledgeBase');
 
-   // 2. ISTRUZIONI LINGUA
-  addSection(this._renderLanguageInstruction(detectedLanguage), 'LanguageInstruction', { force: true });
-
-   // 3. REGOLE NO REPLY (prima del contenuto da filtrare)
-  addSection(this._renderNoReplyRules(), 'NoReplyRules');
-
-   // 4. KNOWLEDGE BASE (Già troncata se necessario)
-  addSection(this._renderKnowledgeBase(workingKnowledgeBase), 'KnowledgeBase');
-
-   // 5. VERIFICA TERRITORIO
-  // (Aggiunto context check per evitare undefined)
-  if (territoryContext) {
-    const territorySection = this._renderTerritoryVerification(territoryContext);
-    if (territorySection) {
-    addSection(territorySection, 'TerritoryVerification');
-    } else {
-    console.warn('⚠️ Territory context presente ma sezione vuota: verificare i dati in input o la renderizzazione.');
+    if (territoryContext) {
+      const territorySection = this._renderTerritoryVerification(territoryContext);
+      if (territorySection) {
+        addSection(territorySection, 'TerritoryVerification');
+      }
     }
-  }
 
-   // ══════════════════════════════════════════════════════
     // ════════════════════════════════════════════════════════════════════════════════
     // BLOCCO 2: CONTESTO E CONTINUITÀ
     // ════════════════════════════════════════════════════════════════════════════════
-  // ══════════════════════════════════════════════════════
+    addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
+    addSection(this._renderConversationContinuity(salutationMode), 'ConversationContinuity');
+    addSection(this._renderResponseDelay(responseDelay, detectedLanguage), 'ResponseDelay');
 
-   // 6. CONTESTO MEMORIA
-  addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
+    const shouldAddContinuityFocus = (memoryContext && Object.keys(memoryContext).length > 0) || (salutationMode && salutationMode !== 'full');
+    if (shouldAddContinuityFocus) {
+      addSection(this._renderContinuityHumanFocus(), 'ContinuityHumanFocus');
+    }
 
-   // 7. CONTINUITÀ CONVERSAZIONALE
-  addSection(this._renderConversationContinuity(salutationMode), 'ConversationContinuity');
+    addSection(this._renderSeasonalContext(currentSeason), 'SeasonalContext');
+    addSection(this._renderTemporalAwareness(safeCurrentDate, detectedLanguage), 'TemporalAwareness');
+    addSection(this._renderCategoryHint(category), 'CategoryHint');
 
-   // 8. SCUSE PER RITARDO
-  addSection(this._renderResponseDelay(responseDelay, detectedLanguage), 'ResponseDelay');
-
-   // 9. FOCUS UMANO (Condizionale)
-  const shouldAddContinuityFocus =
-    (memoryContext && Object.keys(memoryContext).length > 0) ||
-    (salutationMode && salutationMode !== 'full') ||
-    normalizedConcerns.emotional_sensitivity ||
-    normalizedConcerns.repetition_risk;
-  if (shouldAddContinuityFocus) {
-    addSection(this._renderContinuityHumanFocus(), 'ContinuityHumanFocus');
-  }
-
-   // 10. CONTESTO STAGIONALE
-  addSection(this._renderSeasonalContext(currentSeason), 'SeasonalContext');
-  // 11. CONSAPEVOLEZZA TEMPORALE
-  addSection(this._renderTemporalAwareness(safeCurrentDate, detectedLanguage), 'TemporalAwareness');
-
-   // 12. SUGGERIMENTO CATEGORIA
-  addSection(this._renderCategoryHint(category), 'CategoryHint');
-
-   // ══════════════════════════════════════════════════════
     // ════════════════════════════════════════════════════════════════════════════════
     // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)
     // ════════════════════════════════════════════════════════════════════════════════
-  // ══════════════════════════════════════════════════════
-  // Normalizzazione: alcuni flussi passano la dottrina come stringa anziché array strutturato
-  // (es. "pastoral") invece di un oggetto con flag booleani.
-  let requestTypeObj;
-  if (typeof options.requestType === 'string') {
-    requestTypeObj = {
-    type: options.requestType,
-    needsDiscernment: options.requestType === 'pastoral' || options.requestType === 'mixed',
-    needsDoctrine: options.requestType === 'doctrinal'
-    };
-  } else {
-    requestTypeObj = Object.assign({ needsDiscernment: false, needsDoctrine: false, type: 'technical' }, (options.requestType && typeof options.requestType === 'object') ? options.requestType : {});
-  }
-
-   // 13. AI_CORE_LITE: solo se componente pastorale
-  if ((requestTypeObj.needsDiscernment || requestTypeObj.needsDoctrine) && aiCoreLiteText) {
-    const liteSection = `
-══════════════════════════════════════════════════════
-📋 PRINCIPI PASTORALI FONDAMENTALI (AI_CORE_LITE)
-══════════════════════════════════════════════════════
-${aiCoreLiteText}
-══════════════════════════════════════════════════════\n`;
-    addSection(liteSection, 'AICoreLite');
-  }
-
-   // 14. AI_CORE esteso: solo se discernimento
-  if (requestTypeObj.needsDiscernment && aiCoreText) {
-    const coreSection = `
-══════════════════════════════════════════════════════
-🧭 PRINCIPI PASTORALI ESTESI (AI_CORE) - Accompagnamento Personale
-══════════════════════════════════════════════════════
-${aiCoreText}
-══════════════════════════════════════════════════════\n`;
-    addSection(coreSection, 'AICore');
-  }
-
-   // 15. ARRICCHIMENTO DOTTRINALE (Selettivo)
-  if (requestTypeObj.needsDoctrine) {
-    const selectiveDoctrine = this._renderSelectiveDoctrine(
-    requestTypeObj,
-    topic,
-    emailContent,
-    emailSubject,
-    promptProfile,
-    subIntents,
-    doctrineDB
-    );
-    if (selectiveDoctrine) {
-    addSection(selectiveDoctrine, 'SelectiveDoctrine');
-    } else {
-    const canFallbackDoctrine = allowDoctrineFallback && !aiCoreLiteText && !aiCoreText;
-    if (doctrineBaseText && canFallbackDoctrine) {
-      const doctrineSection = `
-══════════════════════════════════════════════════════
-📖 BASE DOTTRINALE (Dottrina) - Fallback Completo
-══════════════════════════════════════════════════════
-${doctrineBaseText}
-══════════════════════════════════════════════════════\n`;
-      addSection(doctrineSection, 'DoctrineFallback');
-    } else if (doctrineBaseText && !canFallbackDoctrine) {
-      console.warn('ℹ️ Fallback dottrinale completo evitato: AI_CORE presente (riduzione rischio bloat).');
-    }
     }
   }
 
