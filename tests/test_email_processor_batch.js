@@ -174,4 +174,92 @@ console.log('--- Test processUnreadEmails: conteggio stats skipped/replied ---')
   assert(stats.skipped_internal >= 1, 'deve contare no_external_unread come skipped_internal');
 }
 
+function createExternalThread(id) {
+  const msg = createMessage({ id: `m-${id}`, unread: true, from: 'utente@example.com' });
+  return createThread({ id: `t-${id}`, messages: [msg] });
+}
+
+function buildProcessorForGenerationFailure(errorTypeToThrow) {
+  global.ErrorTypes = {
+    INVALID_RESPONSE: 'INVALID_RESPONSE',
+    UNKNOWN: 'UNKNOWN',
+    INVALID_API_KEY: 'INVALID_API_KEY'
+  };
+  global.classifyError = (err) => {
+    // Simula il comportamento del classificatore reale mappando l'errore forzato
+    if (err.message.includes('INVALID_RESPONSE')) return { type: 'UNKNOWN', retryable: false, message: err.message };
+    if (err.message.includes('UNKNOWN')) return { type: 'UNKNOWN', retryable: false, message: err.message };
+    return { type: 'FATAL', retryable: false, message: err.message || 'err' };
+  };
+
+  const calls = [];
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Richiesta informazioni',
+        body: 'Vorrei sapere gli orari.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      buildConversationHistory: () => ''
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'info', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      backupKey: 'backup-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'orari' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: (_prompt, options) => {
+        calls.push(options.modelName);
+        throw new Error(`forced-${errorTypeToThrow}`);
+      }
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({})
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: () => 'PROMPT'
+    }
+  });
+
+  return { processor, calls };
+}
+
+console.log('--- Test processThread: fallback end-to-end su INVALID_RESPONSE ---');
+{
+  const labeled = new Set();
+  const { processor, calls } = buildProcessorForGenerationFailure('INVALID_RESPONSE');
+  const res = processor.processThread(createExternalThread('invalid-response'), 'kb valida', '', labeled, true);
+  // Con il nuovo classificatore, INVALID_RESPONSE -> UNKNOWN -> continua il loop di retry strategie
+  assert(calls.length === 3, `con INVALID_RESPONSE deve tentare tutte le 3 strategie (fatti: ${calls.length})`);
+  assert(res.status === 'error', 'con fallback esaurito deve restituire status error');
+  assert(labeled.has('m-invalid-response'), 'deve marcare il messaggio candidato come processato');
+}
+
+console.log('--- Test processThread: fallback end-to-end su UNKNOWN ---');
+{
+  const labeled = new Set();
+  const { processor, calls } = buildProcessorForGenerationFailure('UNKNOWN');
+  const res = processor.processThread(createExternalThread('unknown'), 'kb valida', '', labeled, true);
+  assert(calls.length === 3, 'con UNKNOWN deve tentare tutte le 3 strategie');
+  assert(res.status === 'error', 'con fallback esaurito deve restituire status error');
+  assert(labeled.has('m-unknown'), 'deve marcare il messaggio candidato come processato');
+}
+
 console.log('✅ Test batch EmailProcessor passati');

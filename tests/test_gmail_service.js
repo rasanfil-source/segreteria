@@ -79,4 +79,24 @@ const queryResult = service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10,
 assert(queryResult.threads.length === 1, 'query mode deve continuare dopo errore getThreadById');
 assert(queryResult.threads[0].getId() === 't-ok', 'query mode deve includere thread valido');
 
+console.log('--- Test getProcessableAttachments: ramo .xlsx come contesto testuale ---');
+{
+  const xlsxBlob = {
+    getName: () => 'registro.xlsx',
+    getSize: () => 1024,
+    getContentType: () => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    copyBlob: () => xlsxBlob
+  };
+  const message = {
+    getAttachments: () => [xlsxBlob]
+  };
+
+  service._extractOfficeText = () => 'Nome,Data\nMario Rossi,2026-03-28';
+  const out = service.getProcessableAttachments(message, { maxCharsPerFile: 500, maxTotalChars: 1000 });
+  assert(out.blobs.length === 0, 'xlsx non deve entrare nei blob visuali');
+  assert(out.textContext.includes('registro.xlsx'), 'xlsx deve essere incluso nel contesto testuale');
+  assert(out.textContext.includes('Mario Rossi'), 'testo estratto xlsx deve essere presente');
+  assert(out.skipped.length === 0, 'xlsx con testo non deve finire tra skipped');
+}
+
 console.log('✅ Test sanitizzazione Gmail/HTML passati');

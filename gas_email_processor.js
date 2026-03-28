@@ -184,12 +184,16 @@ class EmailProcessor {
       error: null
     };
 
-    // Snapshot robusto del classificatore errori — restituisce sempre { type, retryable, message }
-    // per coerenza con il contratto di gas_error_types.classifyError
+    // Snapshot robusto del classificatore errori
     const classifyErrorFn = (typeof classifyError === 'function')
       ? function(err) { return classifyError(err); }
-      // Manteniamo fallback locale per non dipendere dal globale in runtime modulari.
-      : function fallbackClassifyError(err) { return { type: 'UNKNOWN', retryable: false, message: String(err) }; };
+      : function fallbackClassifyError(err) { 
+          const msg = String(err).toLowerCase();
+          if (msg.includes('quota') || msg.includes('429')) return { type: 'QUOTA_EXCEEDED', retryable: true };
+          if (msg.includes('timeout')) return { type: 'TIMEOUT', retryable: true };
+          if (msg.includes('invalid_api_key')) return { type: 'INVALID_API_KEY', retryable: false };
+          return { type: 'UNKNOWN', retryable: false, message: String(err) }; 
+        };
 
     let candidate = null;
     let replySent = false;
@@ -693,7 +697,6 @@ ${addressLines.join('\n\n')}
 ====================================================================================================
 `
         : null;
-      // knowledgeSections.unshift(territoryContext); // RIMOSSO: Passato separatamente per evidenza critica
 
       if (territoryRequested) {
         const summary = territoryResult.addressFound
@@ -824,8 +827,8 @@ ${addressLines.join('\n\n')}
         responseDelay: responseDelay,
         promptProfile: promptProfile,
         activeConcerns: activeConcerns,
-        territoryContext: territoryContext, // Passiamo il contesto separatamente per rendering prioritario
-        requestType: requestType, // Aggiunto per recupero selettivo Dottrina
+        territoryContext: territoryContext,
+        requestType: requestType,
         attachmentsContext: textFromAttachments,
         aiCoreLite: aiCoreLite,
         aiCore: aiCore,
@@ -837,18 +840,8 @@ ${addressLines.join('\n\n')}
       const fullPrompt = prompt;
 
       // ====================================================================================================
-      // STEP 8: GENERA RISPOSTA (STRATEGIA "CROSS-KEY QUALITY FIRST")
+      // STEP 8: GENERA RISPOSTA
       // ====================================================================================================
-      // NOTA ARCHITETTURALE:
-      // Questa fase può richiedere più tempo del normale (fino a 4 tentativi API).
-      // SCELTA DELIBERATA: Privilegiamo la qualità della risposta (Modello Flash 2.5)
-      // rispetto alla velocità. 
-      // 1. Proviamo Flash 2.5 sulla chiave primaria.
-      // 2. Se fallisce, proviamo Flash 2.5 sulla chiave di RISERVA.
-      // 3. Solo se entrambe falliscono, degradiamo al modello Lite (più economico).
-      // Questo "costo" in termini di tempo è gestito riducendo MAX_EMAILS_PER_RUN a 3.
-      // ====================================================================================================
-
       let response = null;
       let generationError = null;
       let initialError = null;
@@ -862,10 +855,6 @@ ${addressLines.join('\n\n')}
         return result;
       }
 
-      // Punto 12: Utilizzo del metodo di classe centralizzato per la classificazione degli errori
-
-
-      // Definizione strategie di generazione (Punti di robustezza cross-key)
       const geminiModels = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_MODELS) ? CONFIG.GEMINI_MODELS : {};
       const flashModel = (geminiModels['flash-2.5'] && geminiModels['flash-2.5'].name) ? geminiModels['flash-2.5'].name : 'gemini-2.5-flash';
       const liteModel = (geminiModels['flash-lite'] && geminiModels['flash-lite'].name) ? geminiModels['flash-lite'].name : 'gemini-2.5-flash-lite';
@@ -876,9 +865,7 @@ ${addressLines.join('\n\n')}
         { name: 'Fallback-Lite', key: this.geminiService.primaryKey, model: liteModel, skipRateLimit: false }
       ];
 
-      // Esecuzione Loop Strategico
       for (const plan of attemptStrategy) {
-        // Salta se manca la chiave (es. backupKey non configurata)
         if (!plan.key) continue;
 
         try {
@@ -891,8 +878,6 @@ ${addressLines.join('\n\n')}
             attachments: attachmentBlobs
           });
 
-          // GeminiService può restituire stringa semplice oppure
-          // oggetto strutturato { success, text, modelUsed }.
           if (response && typeof response === 'object') {
             response = response.text;
           }
@@ -901,12 +886,12 @@ ${addressLines.join('\n\n')}
             strategyUsed = plan.name;
             strategyUsedPlan = plan;
             console.log(`✅ Generazione riuscita con strategia: ${plan.name}`);
-            break; // Successo! Esci dal loop
+            break;
           }
 
         } catch (err) {
-          generationError = err; // Salva l'ultimo errore
-          if (!initialError) initialError = err; // Salva il primo errore per il reporting
+          generationError = err;
+          if (!initialError) initialError = err;
           const errorClass = classifyErrorFn(err);
           console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass.type}]`);
 
@@ -922,7 +907,6 @@ ${addressLines.join('\n\n')}
         }
       }
 
-      // Verifiche finali post-loop
       if (!response) {
         const errorToReport = initialError || generationError;
         const errorClass = errorToReport ? classifyErrorFn(errorToReport) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
@@ -938,7 +922,6 @@ ${addressLines.join('\n\n')}
         return result;
       }
 
-      // Controlla marcatore NO_REPLY
       if (typeof response !== 'string') {
         console.error(`🛑 Risposta non valida da Gemini: tipo ricevuto '${typeof response}'`);
         this._addErrorLabel(thread);
@@ -1105,7 +1088,6 @@ ${addressLines.join('\n\n')}
         console.log('   🔴 DRY RUN - Risposta non inviata');
         console.log(`   📄 Invierebbe: ${response.substring(0, 100)}...`);
         result.dryRun = true;
-        // In DRY_RUN non aggiorniamo memoria né label per non avere effetti permanenti
         result.status = 'replied';
         result.durationMs = Date.now() - startTime;
         this.logger.info(`Thread processato in ${result.durationMs}ms`, { threadId: threadId, duration: result.durationMs });
@@ -1128,11 +1110,10 @@ ${addressLines.join('\n\n')}
       }
 
       // ====================================================================================================
-      // STEP 11: AGGIORNA MEMORIA (solo se non DRY_RUN)
+      // STEP 11: AGGIORNA MEMORIA
       // ====================================================================================================
       const providedTopics = this._detectProvidedTopics(response);
 
-      // Strutturazione Oggetti Topic
       const topicsWithObjects = providedTopics.map(topic => ({
         topic: topic,
         userReaction: 'unknown',
@@ -1146,7 +1127,6 @@ ${addressLines.join('\n\n')}
         providedTopics: providedTopics
       });
 
-      // Inferisci reazione utente su topic precedenti (se presenti)
       if (memoryContext.providedInfo && memoryContext.providedInfo.length > 0) {
         this._inferUserReaction(messageDetails.body, memoryContext.providedInfo, threadId);
       }
@@ -1193,13 +1173,9 @@ ${addressLines.join('\n\n')}
       return result;
 
     } finally {
-      // Nota manutenzione: questo finally copre TUTTI i return anticipati nel try,
-      // quindi non duplicare scriptCache.remove(...) in ogni ramo di skip.
-      // Rilascia lock (solo se acquisito)
       if (lockAcquired && scriptCache && threadLockKey) {
         try {
           const currentLockValue = scriptCache.get(threadLockKey);
-          // Rilasciamo sia quando il lock è nostro sia quando è già scaduto.
           if (!currentLockValue || currentLockValue === lockValue) {
             scriptCache.remove(threadLockKey);
             console.log(`🔓 Lock rilasciato per thread ${threadId}`);
@@ -1207,8 +1183,6 @@ ${addressLines.join('\n\n')}
             console.warn(`⚠️ Rilascio lock saltato per thread ${threadId} (lock scaduto o di altro processo)`);
           }
         } catch (e) {
-          // Non forziamo remove() se get() fallisce: potremmo cancellare il lock
-          // legittimo di un altro worker appena subentrato dopo la scadenza TTL.
           console.warn('⚠️ Errore rilascio lock:', e.message);
         }
       }
@@ -1229,9 +1203,6 @@ ${addressLines.join('\n\n')}
     const executionLock = LockService.getScriptLock();
     let lockAcquiredHere = false;
 
-    // Nota: non rimuoviamo questo blocco. Serve quando processUnreadEmails è invocata
-    // fuori dall'entry point principale (job manuali/test), evitando corse concorrenti.
-    // In main il parametro skipExecutionLock=true impedisce il double-lock/release prematuro.
     if (!skipExecutionLock) {
       const lockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
         ? CONFIG.EXECUTION_LOCK_WAIT_MS : 5000;
@@ -1259,11 +1230,6 @@ ${addressLines.join('\n\n')}
         console.warn('🔴 MODALITÀ DRY_RUN ATTIVA - Email NON inviate!');
       }
 
-      // Recupera direttamente i thread con messaggi non letti e non ancora etichettati.
-      // La ricerca avviene a livello messaggio, coerentemente con il fatto che la label
-      // viene applicata per messaggio (non per thread): questo elimina il doppio passaggio
-      // thread→messaggi che produceva fast-skip ridondanti.
-      // Se la discovery fallisce, il batch si interrompe per sicurezza.
       let threads;
       try {
         threads = this.gmailService.getUnprocessedUnreadThreads(
@@ -1293,12 +1259,8 @@ ${addressLines.join('\n\n')}
       this._trackEmptyInboxStreak(false);
       console.log(`📬 Trovati ${threads.length} thread da elaborare`);
 
-      // Il set parte vuoto: viene popolato durante il run da _markMessageAsProcessed().
-      // Non è necessario pre-caricarlo perché la query a monte garantisce già
-      // che nessun messaggio con label attiva sia incluso nei candidati.
       const labeledMessageIds = new Set();
 
-      // Statistiche
       const stats = {
         total: 0,
         replied: 0,
@@ -1313,15 +1275,13 @@ ${addressLines.join('\n\n')}
         skipped_loop: 0
       };
 
-      // Processa ogni thread fino a raggiungere il limite di elaborazione
       this._startTime = Date.now();
       const MAX_EXECUTION_TIME = this.config.maxExecutionTimeMs;
-      let processedCount = 0; // Contatore thread effettivamente elaborati
+      let processedCount = 0;
       const maxLimit = parseInt(this.config.maxEmailsPerRun, 10);
       const safeLimit = Number.isNaN(maxLimit) ? 10 : maxLimit;
 
       for (let index = 0; index < threads.length; index++) {
-        // Stop se abbiamo raggiunto il target di elaborazione effettiva
         if (processedCount >= safeLimit) {
           console.log(`🛑 Raggiunti ${safeLimit} thread elaborati. Stop.`);
           break;
@@ -1329,15 +1289,12 @@ ${addressLines.join('\n\n')}
 
         const thread = threads[index];
 
-        // Controllo tempo residuo (rigoroso): evita avvio di un nuovo thread senza buffer minimo
         const remainingTimeMs = this._getRemainingTimeMs(MAX_EXECUTION_TIME);
         if (remainingTimeMs < this.config.minRemainingTimeMs || this._isNearDeadline(MAX_EXECUTION_TIME)) {
           console.warn(`⏳ Tempo insufficiente per un nuovo thread (${Math.round(remainingTimeMs / 1000)}s restanti). Stop preventivo.`);
           break;
         }
 
-        // Fast-skip: evita pipeline completa/lock quando i non letti sono già etichettati.
-        // Riduce overhead su thread marcati manualmente come "non letto" ma già gestiti.
         if (!this._hasUnreadMessagesToProcess(thread, labeledMessageIds)) {
           console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
           console.log('   ⊖ Fast-skip: thread con soli non letti già etichettati IA');
@@ -2171,8 +2128,9 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
         case ErrorTypes.NETWORK:
           return mkResult('NETWORK', true, normalized.message);
         case ErrorTypes.INVALID_API_KEY:
-        case ErrorTypes.INVALID_RESPONSE:
           return mkResult('FATAL', false, normalized.message);
+        case ErrorTypes.INVALID_RESPONSE:
+          return mkResult('UNKNOWN', false, normalized.message);
         default:
           return mkResult('UNKNOWN', false, normalized.message);
       }

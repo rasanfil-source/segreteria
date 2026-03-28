@@ -55,4 +55,18 @@ const signatureResult = validator._checkSignature('Messaggio follow-up senza fir
 assert(signatureResult.score === 1.0, 'in none_or_continuity la firma non deve penalizzare');
 assert(signatureResult.warnings.length === 0, 'in none_or_continuity non deve esserci warning firma');
 
+console.log('--- Test hallucination: civico non deve essere interpretato come orario ---');
+const civicResult = validator._checkHallucinations(
+  'Per la verifica territoriale risulta Via Roma civico 12.30.',
+  'it',
+  'Copertura territoriale: Via Roma civico 12.30',
+  'Abito in Via Roma civico 12.30',
+  'Verifica territorio'
+);
+assert(civicResult.score === 1.0, 'civico 12.30 non deve generare warning orari inventati');
+assert(
+  !civicResult.warnings.some((w) => w.includes('Orari non in KB')),
+  'non deve segnalare orari inventati nel caso civico'
+);
+
 console.log('✅ Test core ResponseValidator passati');
