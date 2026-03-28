@@ -230,7 +230,6 @@ PASS markdownToHtml: input non stringa robusto
 ­ƒøæ Bloccato tentativo SSRF hostname numerico: http://100.64.0.10/internal
 PASS sanitizeUrl: blocca IPv6/decimale/userinfo
 PASS markdownToHtml: escape-first previene XSS
-PASS markdownToHtml: escape-first previene XSS
 PASS markdownToHtml: supporta URL con parentesi
 PASS markdownToHtml: query params senza double-escape
 PASS markdownToHtml: evita nesting p/ul invalido
@@ -295,19 +294,8 @@ PASS gemini: portuguese detection refinement
    Filosofia: Filtra solo casi ovvi, delega il resto a Gemini
 PASS classifier: backward quote scan
 --- Test: Load Resources Replacements ---
-Ô£ô Risorse caricate dalla Cache veloce.
-FAIL main: caricamento sostituzioni: La sostituzione per "Roma" deve essere corretta
-Error: La sostituzione per "Roma" deve essere corretta
-    at assert (C:\Users\romolo\OneDrive\Documenti\SCRIPT\GMAIL AUTOMATICA\GMAIL PARROCCHIA\exnovoGAS\scripts\ci_smoke_tests.js:119:15)
-    at testLoadResourcesReplacements (C:\Users\romolo\OneDrive\Documenti\SCRIPT\GMAIL AUTOMATICA\GMAIL PARROCCHIA\exnovoGAS\scripts\ci_smoke_tests.js:1798:9)
-    at main (C:\Users\romolo\OneDrive\Documenti\SCRIPT\GMAIL AUTOMATICA\GMAIL PARROCCHIA\exnovoGAS\scripts\ci_smoke_tests.js:1887:13)
-    at Object.<anonymous> (C:\Users\romolo\OneDrive\Documenti\SCRIPT\GMAIL AUTOMATICA\GMAIL PARROCCHIA\exnovoGAS\scripts\ci_smoke_tests.js:1914:1)
-    at Module._compile (node:internal/modules/cjs/loader:1761:14)
-    at Object..js (node:internal/modules/cjs/loader:1893:10)
-    at Module.load (node:internal/modules/cjs/loader:1481:32)
-    at Module._load (node:internal/modules/cjs/loader:1300:12)
-    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
-    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+Ô£ô Risorse caricate da Fogli e salvate in Cache.
+PASS main: caricamento sostituzioni
 ÔÜá´©Å Estrazione Office fallita: Conversione Office non applicata (mimeType=application/pdf)
 PASS gmail office extract: Drive v3 forza mimeType target
 ­ƒöì Inizializzazione ResponseValidator...
@@ -325,10 +313,10 @@ PASS validator: numero civico non sdogana orario inventato
 ­ƒôº Inizializzazione GmailService...
 Ô£ô GmailService inizializzato con cache etichette (TTL 1h)
 ­ƒºá Inizializzazione MemoryService (basato su Sheet)...
-ÔÜá´©Å Errore verifica colonna memorySummary: this._sheet.getMaxColumns is not a function
 Ô£ô MemoryService inizializzato (Foglio: ConversationMemory)
+ÔÜá´©Å Errore verifica colonna memorySummary: this._sheet.getMaxColumns is not a function
 PASS retry intelligente: errore ammesso non critico sopra soglia
 
-SUMMARY: 62/63 passed (min: 39)
+SUMMARY: 62/62 passed (min: 39)
 
-ÔØî 1 test falliti.
+Ô£à Smoke tests completati con successo.

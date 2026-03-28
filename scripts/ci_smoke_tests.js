@@ -1847,7 +1847,6 @@ function main() {
         ['markdownToHtml: input non stringa robusto', testMarkdownToHtmlNonStringInput],
         ['sanitizeUrl: blocca IPv6/decimale/userinfo', testSanitizeUrlIPv6],
         ['markdownToHtml: escape-first previene XSS', testMarkdownToHtmlXss],
-        ['markdownToHtml: escape-first previene XSS', testMarkdownToHtmlXss],
         ['markdownToHtml: supporta URL con parentesi', testMarkdownLinkWithParentheses],
         ['markdownToHtml: query params senza double-escape', testMarkdownLinkQueryParamsNotDoubleEscaped],
         ['markdownToHtml: evita nesting p/ul invalido', testMarkdownListParagraphNesting],

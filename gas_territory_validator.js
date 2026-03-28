@@ -128,11 +128,11 @@ class TerritoryValidator {
     _buildAddressPatterns() {
         const streetType = this._streetTypePatternSource;
         return [
-            // Pattern 1: "via Rossi 10" - Supporto alfanumerico (es. 10A, 10/B, 10-B, 10 B)
-            new RegExp(`\\b(${streetType})\\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(\\d{1,4}(?:\\s*[/-]?\\s*[a-zA-Z])?)\\b`, 'gi'),
+            // Pattern 1: "via Rossi 10" o "Via: Rossi 10" - Supporto alfanumerico
+            new RegExp(`\\b(${streetType})(?:\\s*:\\s*|\\s+)([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(\\d{1,4}(?:[/-]?[a-zA-Z])?)\\b`, 'gi'),
 
-            // Pattern 2: "abito in via Rossi 10"
-            new RegExp(`\\b(?:in|abito\\s+in|abito\\s+al|abito\\s+alle|abito\\s+a|al|alle)\\s+(${streetType})\\s+([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(\\d{1,4}(?:\\s*[/-]?\\s*[a-zA-Z])?)\\b`, 'gi')
+            // Pattern 2: "abito in via Rossi 10" o "abito in via: Rossi 10"
+            new RegExp(`\\b(?:in|abito\\s+in|abito\\s+al|abito\\s+alle|abito\\s+a|al|alle)\\s+(${streetType})(?:\\s*:\\s*|\\s+)([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(\\d{1,4}(?:[/-]?[a-zA-Z])?)\\b`, 'gi')
         ];
     }
 
