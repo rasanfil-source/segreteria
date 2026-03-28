@@ -1340,7 +1340,7 @@ ${attachmentsContext}`;
 **ESEMPIO 1 - CAMMINO DI SANTIAGO (con link corretti):**
 
 ✅ VERSIONE CORRETTA:
-\`\`\`markdown
+\```markdown
 Buonasera, siamo lieti di fornirle le informazioni sul pellegrinaggio.
 
 ### 🚶 Cammino di Santiago 2026
@@ -1356,23 +1356,21 @@ Restiamo a disposizione per qualsiasi chiarimento.
 
 Cordiali saluti,
 Segreteria Parrocchia Sant'Eugenio
-\`\`\`
+\```
 
 ❌ VERSIONE SBAGLIATA (DA EVITARE):
-\`\`\`markdown
+\```markdown
 Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
 
 • Iscrizione: [tinyurl.com/santiago26](https://tinyurl.com/santiago26) ← ERRORE: URL ripetuto
-\`\`\`
-
-══════════════════════════════════════════════════════════════════════
+\```
 
 **QUANDO NON FORMATTARE:**
 
 ✅ ESEMPIO CORRETTO (senza formattazione):
 "Buongiorno, la catechesi inizia domenica 21 settembre alle ore 10:00."
 
-→ Info singola, breve, chiara = no formattazione necessaria.
+→ Info siingola, breve, chiara = no formattazione necessaria.
 
 ══════════════════════════════════════════════════════════════════════`;
   }
@@ -1602,21 +1600,21 @@ ${safeAiCoreLiteText}
 
     const paragraphs = kbContent.split(/\n{2,}|(?=═{3,})|(?=─{3,})/);
 
+    const markerLength = truncationMarker.length;
+    const reservedForMarker = Math.min(markerLength, Math.max(12, Math.floor(budgetChars * 0.2)));
+    const contentLimit = Math.max(1, budgetChars - reservedForMarker);
     let result = [];
     let currentLength = 0;
-    const markerLength = truncationMarker.length;
-
-    const targetLength = budgetChars * 0.8;
 
     for (const para of paragraphs) {
       const trimmedPara = para.trim();
       if (!trimmedPara) continue;
 
-      if (currentLength + trimmedPara.length + markerLength > targetLength) {
+      if (currentLength + trimmedPara.length > contentLimit) {
         if (result.length > 0) {
           break;
         }
-        result.push(trimmedPara.substring(0, Math.floor(targetLength * 0.7)));
+        result.push(trimmedPara.substring(0, contentLimit));
         break;
       }
 
@@ -1624,7 +1622,7 @@ ${safeAiCoreLiteText}
       currentLength += trimmedPara.length + 2;
     }
 
-    const truncatedContent = result.join('\n\n').slice(0, budgetChars);
+    const truncatedContent = result.join('\n\n').slice(0, contentLimit);
 
     const originalParagraphs = paragraphs.filter(p => p.trim()).length;
     const keptParagraphs = result.length;
