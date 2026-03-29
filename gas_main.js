@@ -409,11 +409,9 @@ function _loadResourcesInternal() {
   if (aiCoreSheet) {
     withSheetsRetry(() => {
       const aiCoreData = aiCoreSheet.getDataRange().getValues();
-      newCacheData.aiCoreStructured = _parseSheetToStructured(aiCoreData);
       newCacheData.aiCore = _sheetRowsToText(aiCoreData);
     }, 'Lettura AI_CORE');
   } else {
-    newCacheData.aiCoreStructured = [];
     newCacheData.aiCore = '';
   }
 
@@ -435,7 +433,8 @@ function _loadResourcesInternal() {
   if (replacementsSheet) {
     withSheetsRetry(() => {
       const replacementRows = replacementsSheet.getDataRange().getValues();
-      replacementRows.forEach(row => {
+      // Salta la prima riga (header convenzionale: Originale | Sostituzione)
+      replacementRows.slice(1).forEach(row => {
         const from = String((row && row[0]) || '').trim();
         const to = String((row && row[1]) || '').trim();
         if (from) {
@@ -641,7 +640,6 @@ function clearKnowledgeCache() {
   GLOBAL_CACHE.replacements = {};
   GLOBAL_CACHE.aiCoreLite = '';
   GLOBAL_CACHE.aiCore = '';
-  GLOBAL_CACHE.aiCoreStructured = [];
   GLOBAL_CACHE.doctrineStructured = [];
 
   // Invalida anche la cache di sistema (CacheService)

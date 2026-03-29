@@ -1909,6 +1909,10 @@ function testLoadResourcesReplacements() {
         _loadResourcesInternal();
         assert(GLOBAL_CACHE.replacements['Roma'] === 'ROMA CAPUT MUNDI', 'La sostituzione per "Roma" deve essere corretta');
         assert(GLOBAL_CACHE.replacements['IA'] === 'Intelligenza Artificiale', 'La sostituzione per "IA" deve essere corretta');
+        assert(
+            !Object.prototype.hasOwnProperty.call(GLOBAL_CACHE.replacements, 'Originale'),
+            'La riga header non deve essere registrata come regola di sostituzione'
+        );
     } finally {
         global.SpreadsheetApp = originalSpreadsheetApp;
         global.CONFIG = originalConfig;
