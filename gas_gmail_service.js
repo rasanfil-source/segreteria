@@ -966,7 +966,10 @@ class GmailService {
 
             const isWord = mimeType.includes('msword') || mimeType.includes('wordprocessingml');
             const isExcel = mimeType.includes('ms-excel') || mimeType.includes('spreadsheetml');
-            const isPowerPoint = mimeType.includes('mspowerpoint') || mimeType.includes('presentationml');
+            const isPowerPoint =
+                mimeType.includes('ms-powerpoint') ||
+                mimeType.includes('mspowerpoint') ||
+                mimeType.includes('presentationml');
 
             if (isExcel) {
                 try {
@@ -976,11 +979,23 @@ class GmailService {
                         continue;
                     }
                     const text = rawText.substring(0, maxCharsPerFile);
-                    result.textContext += `
-
---- Contenuto file: ${name} ---
-${text}`;
-                    totalTextChars += text.length;
+                    const segment = `\n\n--- Contenuto file: ${name} ---\n${text}`;
+                    if (maxTotalChars > 0) {
+                        const remaining = maxTotalChars - totalTextChars;
+                        if (remaining <= 0) {
+                            result.skipped.push({ name: name, reason: 'max_total_chars' });
+                            continue;
+                        }
+                        const bounded = segment.length > remaining ? segment.substring(0, remaining) : segment;
+                        if (bounded.length < segment.length) {
+                            result.skipped.push({ name: name, reason: 'max_total_chars', kept: bounded.length });
+                        }
+                        result.textContext += bounded;
+                        totalTextChars += bounded.length;
+                    } else {
+                        result.textContext += segment;
+                        totalTextChars += segment.length;
+                    }
                     processedCount++;
                 } catch (e) {
                     result.skipped.push({ name: name, reason: 'text_extract_error', error: e.message });

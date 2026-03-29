@@ -128,7 +128,9 @@ Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
         .getProperty('last_error_notification');
       const now = Date.now();
 
-      if (!lastNotification || (now - parseInt(lastNotification)) > 300000) {
+      const lastNotificationMs = Number.parseInt(lastNotification || '', 10);
+      const isCooldownExpired = !Number.isFinite(lastNotificationMs) || (now - lastNotificationMs) > 300000;
+      if (isCooldownExpired) {
         GmailApp.sendEmail(adminEmail, subject, body);
         PropertiesService.getScriptProperties()
           .setProperty('last_error_notification', now.toString());
