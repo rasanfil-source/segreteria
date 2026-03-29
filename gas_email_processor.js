@@ -463,26 +463,26 @@ class EmailProcessor {
       const MAX_CONSECUTIVE_EXTERNAL = this.config.maxConsecutiveExternal;
 
       if (messages.length > MAX_THREAD_LENGTH) {
-        if (!myEmail) {
-          console.warn('   ⚠️ Email utente non disponibile: skip controllo anti-loop basato su mittente');
-        }
+        const hasIdentityHints = Boolean(normalizedMyEmail) || normalizedKnownAliases.length > 0;
         let consecutiveExternal = 0;
 
-        for (let i = messages.length - 1; i >= 0; i--) {
-          const msgFrom = (messages[i].getFrom() || '').toLowerCase();
-          const isUs = Boolean(normalizedMyEmail) && (
-            msgFrom.includes(normalizedMyEmail) ||
-            normalizedKnownAliases.some(alias => msgFrom.includes(alias))
-          );
+        if (!hasIdentityHints) {
+          console.warn('   ⚠️ Email utente e alias non disponibili: skip controllo anti-loop per evitare falsi positivi');
+        } else {
+          for (let i = messages.length - 1; i >= 0; i--) {
+            const msgFrom = (messages[i].getFrom() || '').toLowerCase();
+            const isUs = (Boolean(normalizedMyEmail) && msgFrom.includes(normalizedMyEmail)) ||
+              normalizedKnownAliases.some(alias => msgFrom.includes(alias));
 
-          if (!isUs) {
-            consecutiveExternal++;
-          } else {
-            break;
+            if (!isUs) {
+              consecutiveExternal++;
+            } else {
+              break;
+            }
           }
         }
 
-        if (normalizedMyEmail && consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
+        if (hasIdentityHints && consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
           console.log(`   ⊖ Saltato: probabile loop email (${consecutiveExternal} esterni consecutivi)`);
           this._markMessageAsProcessed(candidate, labeledMessageIds);
           result.status = 'filtered';
@@ -1189,7 +1189,10 @@ ${addressLines.join('\n\n')}
       if (lockAcquired && scriptCache && threadLockKey) {
         try {
           const currentLockValue = scriptCache.get(threadLockKey);
-          if (!currentLockValue || currentLockValue === lockValue) {
+          // Rilascia solo se il lock corrente è esplicitamente il nostro:
+          // con eventual consistency, un remove "cieco" su valore nullo può
+          // eliminare il lock appena acquisito da un altro worker.
+          if (currentLockValue === lockValue) {
             scriptCache.remove(threadLockKey);
             console.log(`🔓 Lock rilasciato per thread ${threadId}`);
           } else {
