@@ -677,10 +677,14 @@ class EmailProcessor {
 
       let territoryResult = { addressFound: false };
       if (territoryRequested && this.territoryValidator) {
-        territoryResult = this.territoryValidator.analyzeEmailForAddress(
-          messageDetails.body,
-          messageDetails.subject
-        );
+        try {
+          territoryResult = this.territoryValidator.analyzeEmailForAddress(
+            messageDetails.body,
+            messageDetails.subject
+          );
+        } catch (territoryError) {
+          console.warn(`⚠️ Errore non fatale in territoryValidator: ${territoryError.message}`);
+        }
       }
 
       const addressLines = territoryResult.addressFound

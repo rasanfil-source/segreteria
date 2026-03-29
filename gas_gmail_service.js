@@ -1074,7 +1074,31 @@ class GmailService {
                 throw new Error('Drive.Files non espone metodi compatibili (insert/create)');
             }
 
-            const pdfBlob = DriveApp.getFileById(fileId).getAs('application/pdf');
+            // La conversione lato Drive può essere asincrona su file Office grandi.
+            // Usiamo retry breve con backoff lineare per evitare PDF vuoti/corrotti.
+            let pdfBlob = null;
+            let lastError = null;
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const candidateBlob = DriveApp.getFileById(fileId).getAs('application/pdf');
+                    if (candidateBlob && typeof candidateBlob.getBytes === 'function' && candidateBlob.getBytes().length > 0) {
+                        pdfBlob = candidateBlob;
+                        break;
+                    }
+                    lastError = new Error('Blob PDF vuoto dopo conversione Office');
+                } catch (e) {
+                    lastError = e;
+                }
+
+                if (attempt < 2) {
+                    Utilities.sleep(1000 * (attempt + 1));
+                }
+            }
+
+            if (!pdfBlob) {
+                throw lastError || new Error('Conversione Office->PDF fallita');
+            }
+
             return pdfBlob;
         } finally {
             if (fileId) {
@@ -1751,13 +1775,13 @@ class GmailService {
                     'Content-Type: text/plain; charset=UTF-8',
                     'Content-Transfer-Encoding: base64',
                     '',
-                    Utilities.base64Encode(plainText, Utilities.Charset.UTF_8),
+                    this._chunkBase64(Utilities.base64Encode(plainText, Utilities.Charset.UTF_8)),
                     '',
                     `--${boundary}`,
                     'Content-Type: text/html; charset=UTF-8',
                     'Content-Transfer-Encoding: base64',
                     '',
-                    Utilities.base64Encode(htmlBody, Utilities.Charset.UTF_8),
+                    this._chunkBase64(Utilities.base64Encode(htmlBody, Utilities.Charset.UTF_8)),
                     '',
                     `--${boundary}--`,
                     ''
@@ -1947,6 +1971,19 @@ class GmailService {
         return text
             .replace(/(^|\n)(To|Cc|Bcc|From|Subject|Reply-To):/gi, '$1[$2]:')
             .replace(/\r\n|\r/g, '\n');
+    }
+
+    /**
+     * Spezza una stringa Base64 in righe da massimo 76 caratteri (RFC 2045).
+     * @param {string} base64Str
+     * @returns {string}
+     */
+    _chunkBase64(base64Str) {
+        if (!base64Str || typeof base64Str !== 'string') {
+            return '';
+        }
+        const chunks = base64Str.match(/.{1,76}/g);
+        return chunks ? chunks.join('\r\n') : '';
     }
 
     // ========================================================================
