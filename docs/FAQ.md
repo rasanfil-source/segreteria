@@ -40,7 +40,7 @@ If you use GitHub integration, do a `git pull` and then `clasp push`. Otherwise,
 The system will stop responding and will log the error. You can monitor the quota on the Google Cloud Console. We recommend setting up an alert. If it happens, the system will resume the next day upon quota reset.
 
 ### 3. How does the Knowledge Base cache work?
-To save Sheet reads and speed up, the KB is saved in `CacheService` for 1 hour (configurable). If you update the sheet and want to see changes immediately, you can wait 1 hour or manually run a cache clearing function (non-critical, usually just wait).
+To save Sheet reads and speed up, the KB is saved in `CacheService` for 6 hours. Additionally, on each load the system compares the Spreadsheet `modifiedTime`: if the sheet was updated after `lastLoadedAt`, cache is selectively invalidated and resources are reloaded immediately.
 
 ### 4. Can I use a model other than Gemini?
 The system is built modularly around the Google Vertex AI / Gemini SDK. Changing providers (e.g., OpenAI) would require rewriting the `GeminiService` class. Changing Gemini *version* (e.g., from `flash` to `pro`) is very easy: just change a constant in `gas_config.js`.

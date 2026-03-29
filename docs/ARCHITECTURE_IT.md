@@ -224,7 +224,7 @@ Email Arriva
 **Key Functions:**
 ```javascript
 main()                  // Entry point trigger
-loadResources()         // Carica KB + ferie (cache 6h; fallback compresso se payload grande)
+loadResources()         // Carica KB + ferie (cache 6h + invalidazione su modifiedTime; fallback compresso se payload grande)
 isInSuspensionTime()    // Verifica sospensione
 getSpecialMassTimeRule()// Regole messe giorni festivi
 ```

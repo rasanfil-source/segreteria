@@ -213,7 +213,7 @@ Email Arrives
 **Key Functions:**
 ```javascript
 main()                  // Trigger entry point
-loadResources()         // Loads KB + vacation (6h cache; compressed fallback if large payload)
+loadResources()         // Loads KB + vacation (6h cache + modifiedTime invalidation; compressed fallback if large payload)
 isInSuspensionTime()    // Verifies suspension
 getSpecialMassTimeRule()// Holiday mass rules
 ```

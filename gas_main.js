@@ -310,8 +310,15 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
   // perché maschererebbero regressioni d'inizializzazione del runtime.
 
   const now = Date.now();
-  const cacheIsFresh = GLOBAL_CACHE.loaded && GLOBAL_CACHE.lastLoadedAt && ((now - GLOBAL_CACHE.lastLoadedAt) < RESOURCE_CACHE_TTL_MS);
-  if (cacheIsFresh) return;
+  const cacheIsFreshByTtl = GLOBAL_CACHE.loaded && GLOBAL_CACHE.lastLoadedAt && ((now - GLOBAL_CACHE.lastLoadedAt) < RESOURCE_CACHE_TTL_MS);
+  if (cacheIsFreshByTtl) {
+    const spreadsheetId = (typeof CONFIG !== 'undefined' && CONFIG.SPREADSHEET_ID) ? CONFIG.SPREADSHEET_ID : null;
+    const latestSheetModifiedAt = _getSpreadsheetModifiedTimeMs(spreadsheetId);
+    if (!latestSheetModifiedAt || latestSheetModifiedAt <= GLOBAL_CACHE.lastLoadedAt) {
+      return;
+    }
+    console.log(`↻ Cache risorse invalidata: foglio aggiornato (${new Date(latestSheetModifiedAt).toISOString()}) dopo ultimo load (${new Date(GLOBAL_CACHE.lastLoadedAt).toISOString()}).`);
+  }
 
   const lock = LockService.getScriptLock();
   let lockAcquired = false;
@@ -335,6 +342,12 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
 }
 
 function _loadResourcesInternal() {
+  const spreadsheetId = (typeof CONFIG !== 'undefined' && CONFIG.SPREADSHEET_ID) ? CONFIG.SPREADSHEET_ID : null;
+  if (!spreadsheetId) {
+    throw new Error('Impossibile aprire il foglio: CONFIG.SPREADSHEET_ID non configurato.');
+  }
+
+  const latestSheetModifiedAt = _getSpreadsheetModifiedTimeMs(spreadsheetId);
   const cache = (typeof CacheService !== 'undefined') ? CacheService.getScriptCache() : null;
 
   // ⚠️ Scelta blindata: la cache persiste SEMPRE il payload completo delle risorse.
@@ -347,20 +360,23 @@ function _loadResourcesInternal() {
     if (cachedData) {
       try {
         const parsedData = _deserializeResourceCache(cachedData);
-        Object.assign(GLOBAL_CACHE, parsedData);
-        GLOBAL_CACHE.loaded = true;
-        console.log('✓ Risorse caricate dalla Cache veloce.');
-        return;
+        const cachedLastLoadedAt = Number(parsedData && parsedData.lastLoadedAt) || 0;
+        const cacheStaleBySheetUpdate = !!(latestSheetModifiedAt && cachedLastLoadedAt && latestSheetModifiedAt > cachedLastLoadedAt);
+        if (cacheStaleBySheetUpdate) {
+          console.log(`↻ Cache persistente invalidata: spreadsheet modifiedTime (${new Date(latestSheetModifiedAt).toISOString()}) > cached lastLoadedAt (${new Date(cachedLastLoadedAt).toISOString()}).`);
+          _invalidateResourceCacheStorage(cache);
+        } else {
+          Object.assign(GLOBAL_CACHE, parsedData);
+          GLOBAL_CACHE.loaded = true;
+          console.log('✓ Risorse caricate dalla Cache veloce.');
+          return;
+        }
       } catch (e) {
         console.warn('⚠️ Cache corrotta o obsoleta, ricaricamento dai fogli...');
       }
     }
   }
 
-  const spreadsheetId = (typeof CONFIG !== 'undefined' && CONFIG.SPREADSHEET_ID) ? CONFIG.SPREADSHEET_ID : null;
-  if (!spreadsheetId) {
-    throw new Error('Impossibile aprire il foglio: CONFIG.SPREADSHEET_ID non configurato.');
-  }
 
   let ss;
   try {
@@ -390,6 +406,7 @@ function _loadResourcesInternal() {
   if (kbSheet) {
     withSheetsRetry(() => {
       const kbData = kbSheet.getDataRange().getValues();
+      _logKnowledgeBaseHealthReport(kbData, cfg.KB_SHEET_NAME || 'Istruzioni');
       newCacheData.knowledgeBase = _sheetRowsToText(kbData);
     }, 'Lettura KB Base');
   } else {
@@ -475,6 +492,93 @@ function _loadResourcesInternal() {
     }
   }
 }
+
+function _getSpreadsheetModifiedTimeMs(spreadsheetId) {
+  if (!spreadsheetId) return 0;
+
+  try {
+    if (typeof Drive !== 'undefined' && Drive && Drive.Files && typeof Drive.Files.get === 'function') {
+      const file = Drive.Files.get(spreadsheetId, {
+        fields: 'modifiedTime,modifiedDate'
+      });
+      const modifiedRaw = file && (file.modifiedTime || file.modifiedDate);
+      const modifiedMs = modifiedRaw ? Date.parse(modifiedRaw) : NaN;
+      if (!isNaN(modifiedMs)) return modifiedMs;
+    }
+  } catch (e) {
+    console.warn('⚠️ Drive API non disponibile per modifiedTime: ' + e.message);
+  }
+
+  return 0;
+}
+
+function _logKnowledgeBaseHealthReport(rows, sheetName) {
+  const report = _analyzeKnowledgeBaseRows(rows, sheetName);
+  console.log('KB_HEALTH_REPORT ' + JSON.stringify(report));
+}
+
+function _analyzeKnowledgeBaseRows(rows, sheetName) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const report = {
+    sheet: sheetName || 'unknown',
+    scannedRows: safeRows.length,
+    skippedHeader: false,
+    rowsWithLessThanTwoCells: 0,
+    rowsWithRequiredFieldsMissing: 0,
+    duplicateCategoryInfoRows: 0,
+    issues: []
+  };
+
+  if (safeRows.length === 0) return report;
+
+  const normalize = function (value) {
+    return _formatCellForKnowledgeText(value).toLowerCase();
+  };
+
+  const firstRow = Array.isArray(safeRows[0]) ? safeRows[0] : [safeRows[0]];
+  const firstCol = normalize(firstRow[0]);
+  const secondCol = normalize(firstRow[1]);
+  const looksLikeHeader = (firstCol === 'categoria' || firstCol === 'category') && (secondCol === 'informazione' || secondCol === 'informazioni' || secondCol === 'info' || secondCol === 'information');
+
+  const seenCategoryInfo = {};
+  const startIndex = looksLikeHeader ? 1 : 0;
+  report.skippedHeader = looksLikeHeader;
+
+  for (let i = startIndex; i < safeRows.length; i++) {
+    const row = Array.isArray(safeRows[i]) ? safeRows[i] : [safeRows[i]];
+    const normalizedRow = row.map(normalize);
+    const nonEmptyCount = normalizedRow.filter(Boolean).length;
+    const line = i + 1;
+
+    if (nonEmptyCount === 0) {
+      continue;
+    }
+
+    if (nonEmptyCount < 2) {
+      report.rowsWithLessThanTwoCells++;
+      report.issues.push({ type: 'LESS_THAN_TWO_CELLS', row: line });
+    }
+
+    const category = normalizedRow[0] || '';
+    const info = normalizedRow[1] || '';
+    if (!category || !info) {
+      report.rowsWithRequiredFieldsMissing++;
+      report.issues.push({ type: 'MISSING_REQUIRED_COLUMNS', row: line, missing: { category: !category, information: !info } });
+      continue;
+    }
+
+    const key = `${category}||${info}`;
+    if (Object.prototype.hasOwnProperty.call(seenCategoryInfo, key)) {
+      report.duplicateCategoryInfoRows++;
+      report.issues.push({ type: 'DUPLICATE_CATEGORY_INFORMATION', row: line, duplicateOf: seenCategoryInfo[key] });
+      continue;
+    }
+    seenCategoryInfo[key] = line;
+  }
+
+  return report;
+}
+
 
 /**
  * Serializza payload risorse per CacheService.
