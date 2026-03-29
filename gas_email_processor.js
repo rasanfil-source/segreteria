@@ -1111,10 +1111,27 @@ ${addressLines.join('\n\n')}
         return result;
       }
 
+      const sendTxn = this._beginSendTransaction(candidate.getId());
+      if (!sendTxn.ok) {
+        console.warn(`   ⊖ Invio saltato per idempotenza (${sendTxn.reason})`);
+        if (sendTxn.reason === 'already_sent') {
+          this._markMessageAsProcessed(candidate, labeledMessageIds);
+          result.status = 'skipped';
+          result.reason = 'already_sent_recently';
+        } else {
+          result.status = 'skipped';
+          result.reason = 'send_in_flight';
+        }
+        result.durationMs = Date.now() - startTime;
+        return result;
+      }
+
       try {
         this.gmailService.sendHtmlReply(candidate, response, messageDetails);
+        this._commitSendTransaction(candidate.getId());
         replySent = true;
       } catch (e) {
+        this._rollbackSendTransaction(candidate.getId());
         const errorMessage = e && e.message ? e.message : String(e);
         console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
         this._addErrorLabel(thread);
@@ -1491,6 +1508,49 @@ ${addressLines.join('\n\n')}
     }
 
     return false;
+  }
+
+  _beginSendTransaction(messageId) {
+    if (!messageId) return { ok: true, reason: 'missing_message_id' };
+    const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
+      ? CacheService.getScriptCache()
+      : null;
+
+    if (!cache) {
+      return { ok: true, reason: 'cache_unavailable' };
+    }
+
+    const sendingKey = `sending_${messageId}`;
+    const sentKey = `sent_${messageId}`;
+    if (cache.get(sentKey)) {
+      return { ok: false, reason: 'already_sent' };
+    }
+    if (cache.get(sendingKey)) {
+      return { ok: false, reason: 'in_flight' };
+    }
+
+    cache.put(sendingKey, String(Date.now()), 300); // 5 minuti
+    return { ok: true, reason: 'acquired' };
+  }
+
+  _commitSendTransaction(messageId) {
+    if (!messageId) return;
+    const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
+      ? CacheService.getScriptCache()
+      : null;
+    if (!cache) return;
+
+    cache.put(`sent_${messageId}`, String(Date.now()), 21600); // 6 ore max CacheService
+    cache.remove(`sending_${messageId}`);
+  }
+
+  _rollbackSendTransaction(messageId) {
+    if (!messageId) return;
+    const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
+      ? CacheService.getScriptCache()
+      : null;
+    if (!cache) return;
+    cache.remove(`sending_${messageId}`);
   }
 
   _getBusinessDateString(date = new Date()) {
