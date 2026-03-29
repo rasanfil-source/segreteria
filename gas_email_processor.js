@@ -218,6 +218,19 @@ class EmailProcessor {
       }
 
       if (!myEmail) {
+        try {
+          const aliases = (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getAliases === 'function')
+            ? GmailApp.getAliases()
+            : [];
+          if (Array.isArray(aliases) && aliases.length > 0) {
+            myEmail = aliases[0] || '';
+          }
+        } catch (aliasError) {
+          console.warn(`⚠️ Impossibile recuperare alias Gmail: ${aliasError.message}`);
+        }
+      }
+
+      if (!myEmail) {
         const adminEmailProperty = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
           ? PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL')
           : '';

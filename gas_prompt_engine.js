@@ -144,6 +144,9 @@ class PromptEngine {
     // ══════════════════════════════════════════════════════════════════════
     const MAX_SAFE_TOKENS = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS
       ? CONFIG.MAX_SAFE_TOKENS : 35000;
+    const MAX_SAFE_PROMPT_CHARS = (typeof CONFIG !== 'undefined' && Number(CONFIG.MAX_SAFE_PROMPT_CHARS) > 0)
+      ? Number(CONFIG.MAX_SAFE_PROMPT_CHARS)
+      : 1000000;
 
     const OVERHEAD_TOKENS = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS)
       ? CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS : 15000;
@@ -190,6 +193,7 @@ class PromptEngine {
     }
 
     let usedTokens = 0;
+    let usedChars = 0;
 
     /**
      * Helper per aggiungere sezioni tracciando il budget token
@@ -197,9 +201,16 @@ class PromptEngine {
     const addSection = (section, label, options = {}) => {
       if (!section) return;
       const sectionTokens = this.estimateTokens(section);
+      const sectionChars = section.length;
 
       if (!options.force && usedTokens + sectionTokens > MAX_SAFE_TOKENS) {
         console.warn(`⚠️ Budget esaurito, sezione saltata: ${label}`);
+        skippedCount++;
+        return;
+      }
+
+      if (!options.force && usedChars + sectionChars > MAX_SAFE_PROMPT_CHARS) {
+        console.warn(`⚠️ Budget caratteri esaurito, sezione saltata: ${label}`);
         skippedCount++;
         return;
       }
@@ -212,6 +223,7 @@ class PromptEngine {
 
       sections.push(section);
       usedTokens += sectionTokens;
+      usedChars += sectionChars;
     };
 
     /**
@@ -414,6 +426,10 @@ ${doctrineBaseText}
 
     // Componi prompt finale tramite concatenazione efficiente
     const prompt = sections.join('\n\n');
+    if (prompt.length > MAX_SAFE_PROMPT_CHARS) {
+      console.warn(`⚠️ Prompt oltre soglia caratteri (${prompt.length}), tronco a ${MAX_SAFE_PROMPT_CHARS}`);
+      return prompt.slice(0, Math.max(0, MAX_SAFE_PROMPT_CHARS - 1)).trimEnd() + '…';
+    }
     const finalTokens = this.estimateTokens(prompt);
 
     console.log(`📝 Prompt generato: ${prompt.length} caratteri (~${finalTokens} token) | Profilo: ${promptProfile} | Saltati: ${skippedCount}`);

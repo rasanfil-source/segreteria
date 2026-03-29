@@ -225,7 +225,7 @@ class MemoryService {
 
       try {
         // 1. Acquisisci Lock Sharded (CacheService)
-        lockOwned = this._tryAcquireShardedLock(lockKey);
+        lockOwned = this._tryAcquireShardedLock(lockKey, 15000);
         if (!lockOwned) {
           console.warn(`🔒 Timeout lock memoria sharded (Tentativo ${attempt + 1})`);
           shouldRetry = true;
@@ -380,7 +380,7 @@ class MemoryService {
     for (let i = 0; i < 3; i++) {
       let lockAcquired = false;
       try {
-        lockAcquired = this._tryAcquireShardedLock(lockKey);
+        lockAcquired = this._tryAcquireShardedLock(lockKey, 15000);
         if (!lockAcquired) {
           if (i === 2) {
             console.warn(`⚠️ Lock non acquisito dopo 3 tentativi, annullo aggiornamento atomico per thread ${threadId}`);
@@ -823,7 +823,7 @@ class MemoryService {
   /**
    * Tenta acquisizione lock sharded (simulato con CacheService + Global Guard breve)
    */
-  _tryAcquireShardedLock(key) {
+  _tryAcquireShardedLock(key, timeoutMs = 5000) {
     const cache = CacheService.getScriptCache();
     const globalLock = LockService.getScriptLock();
     const configuredLockTtlSeconds = (typeof CONFIG !== 'undefined' && Number(CONFIG.MEMORY_LOCK_TTL) > 0)
@@ -840,7 +840,7 @@ class MemoryService {
     // Nota manutenzione: il timeout di 5s garantisce che anche in picchi di carico
     // il worker non fallisca immediatamente nel tentativo di segnare il thread come in lavorazione.
     // Punto 14: Aumentato timeout acquisizione lock a 5 secondi per gestire carichi elevati
-    if (globalLock.tryLock(5000)) {
+    if (globalLock.tryLock(timeoutMs)) {
       try {
         try {
           if (cache.get(key) != null) {

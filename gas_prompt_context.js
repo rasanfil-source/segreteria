@@ -102,7 +102,14 @@ class PromptContext {
             if (value === null || typeof value === 'undefined') {
                 return '';
             }
-            return typeof value === 'string' ? value : String(value);
+            if (typeof value === 'string') {
+                return value;
+            }
+            try {
+                return String(value);
+            } catch (_) {
+                return Object.prototype.toString.call(value);
+            }
         }
     }
 

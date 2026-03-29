@@ -122,9 +122,17 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
                     appendRow: () => { },
                     getLastRow: () => 10,
                     getMaxRows: () => 100,
+                    getLastColumn: () => 10,
                     getMaxColumns: () => 10
                 })
             })
+        };
+    }
+
+    if (typeof global.GmailApp === 'undefined') {
+        global.GmailApp = {
+            getAliases: () => ['bot@example.com'],
+            getThreadById: () => null
         };
     }
 

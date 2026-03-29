@@ -145,9 +145,14 @@ class GeminiService {
     if (attachments && attachments.length > 0) {
       attachments.forEach((blob) => {
         try {
+          const mimeType = blob && typeof blob.getContentType === 'function' ? blob.getContentType() : '';
+          if (!mimeType) {
+            console.warn('Allegato ignorato: contentType mancante o non valido');
+            return;
+          }
           requestParts.push({
             inlineData: {
-              mimeType: blob.getContentType(),
+              mimeType: mimeType,
               data: Utilities.base64Encode(blob.getBytes())
             }
           });
