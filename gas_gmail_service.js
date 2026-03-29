@@ -1291,7 +1291,21 @@ ${text}`;
             const blob = attachment.copyBlob();
             const fileName = attachment.getName() || 'allegato';
 
-            if (typeof Drive.Files.insert === 'function') {
+            if (typeof Drive.Files.create === 'function') {
+                const resource = {
+                    name: `OCR_${fileName}`,
+                    // Drive API v3: per ottenere testo OCR apribile con DocumentApp,
+                    // il file caricato va convertito in Google Doc.
+                    mimeType: 'application/vnd.google-apps.document'
+                };
+                const file = Drive.Files.create(resource, blob, {
+                    ocrLanguage: settings.ocrLanguage || 'it'
+                });
+                if (!file || !file.id) {
+                    throw new Error('Drive API ha restituito un file OCR non valido (id assente)');
+                }
+                fileId = file.id;
+            } else if (typeof Drive.Files.insert === 'function') {
                 const resource = {
                     title: `OCR_${fileName}`,
                     mimeType: blob.getContentType()
@@ -1306,22 +1320,8 @@ ${text}`;
                     throw new Error('Drive API ha restituito un file OCR non valido (id assente)');
                 }
                 fileId = file.id;
-            } else if (typeof Drive.Files.create === 'function') {
-                const resource = {
-                    name: `OCR_${fileName}`,
-                    // Drive API v3: per ottenere testo OCR apribile con DocumentApp,
-                    // il file caricato va convertito in Google Doc.
-                    mimeType: 'application/vnd.google-apps.document'
-                };
-                const file = Drive.Files.create(resource, blob, {
-                    ocrLanguage: settings.ocrLanguage || 'it'
-                });
-                if (!file || !file.id) {
-                    throw new Error('Drive API ha restituito un file OCR non valido (id assente)');
-                }
-                fileId = file.id;
             } else {
-                throw new Error('Drive.Files non espone metodi OCR compatibili (insert/create)');
+                throw new Error('Drive.Files non espone metodi OCR compatibili (create/insert)');
             }
 
             const doc = DocumentApp.openById(fileId);
@@ -1332,10 +1332,10 @@ ${text}`;
         } finally {
             if (fileId) {
                 try {
-                    if (typeof Drive.Files.remove === 'function') {
-                        Drive.Files.remove(fileId);
-                    } else if (typeof Drive.Files.delete === 'function') {
+                    if (typeof Drive.Files.delete === 'function') {
                         Drive.Files.delete(fileId);
+                    } else if (typeof Drive.Files.remove === 'function') {
+                        Drive.Files.remove(fileId);
                     } else if (typeof Drive.Files.trash === 'function') {
                         Drive.Files.trash(fileId);
                     }
