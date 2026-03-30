@@ -1355,7 +1355,7 @@ ${attachmentsContext}`;
 **ESEMPIO 1 - CAMMINO DI SANTIAGO (con link corretti):**
 
 ✅ VERSIONE CORRETTA:
-\```markdown
+~~~markdown
 Buonasera, siamo lieti di fornirle le informazioni sul pellegrinaggio.
 
 ### 🚶 Cammino di Santiago 2026
@@ -1371,21 +1371,21 @@ Restiamo a disposizione per qualsiasi chiarimento.
 
 Cordiali saluti,
 Segreteria Parrocchia Sant'Eugenio
-\```
+~~~
 
 ❌ VERSIONE SBAGLIATA (DA EVITARE):
-\```markdown
+~~~markdown
 Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
 
 • Iscrizione: [tinyurl.com/santiago26](https://tinyurl.com/santiago26) ← ERRORE: URL ripetuto
-\```
+~~~
 
 **QUANDO NON FORMATTARE:**
 
 ✅ ESEMPIO CORRETTO (senza formattazione):
 "Buongiorno, la catechesi inizia domenica 21 settembre alle ore 10:00."
 
-→ Info siingola, breve, chiara = no formattazione necessaria.
+→ Info singola, breve, chiara = no formattazione necessaria.
 
 ══════════════════════════════════════════════════════════════════════`;
   }
