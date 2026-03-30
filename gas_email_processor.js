@@ -184,16 +184,8 @@ class EmailProcessor {
       error: null
     };
 
-    // Snapshot robusto del classificatore errori
-    const classifyErrorFn = (typeof classifyError === 'function')
-      ? function(err) { return classifyError(err); }
-      : function fallbackClassifyError(err) { 
-          const msg = String(err).toLowerCase();
-          if (msg.includes('quota') || msg.includes('429')) return { type: 'QUOTA_EXCEEDED', retryable: true };
-          if (msg.includes('timeout')) return { type: 'TIMEOUT', retryable: true };
-          if (msg.includes('invalid_api_key')) return { type: 'INVALID_API_KEY', retryable: false };
-          return { type: 'UNKNOWN', retryable: false, message: String(err) }; 
-        };
+    // Usa il metodo interno della classe invece di ricreare una funzione locale
+    const classifyErrorFn = (err) => this._classifyError(err);
 
     let candidate = null;
     let replySent = false;

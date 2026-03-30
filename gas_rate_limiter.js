@@ -625,9 +625,10 @@ class GeminiRateLimiter {
       return now - e.timestamp < 60000;
     });
 
-    // Limita dimensioni array per rispettare limiti PropertiesService (~9kb)
-    if (this.cache[cacheKey].length > 100) {
-      this.cache[cacheKey] = this.cache[cacheKey].slice(-100);
+    // Limita array a 30 (limite API Free è 15 RPM)
+    // Previene crash del PropertiesService per superamento dei 9KB
+    if (this.cache[cacheKey].length > 30) {
+      this.cache[cacheKey] = this.cache[cacheKey].slice(-30);
     }
 
     // Persist ogni 10 secondi (batch writes)
@@ -647,8 +648,8 @@ class GeminiRateLimiter {
       return now - e.timestamp < 60000;
     });
     // Taglio di sicurezza esplicito per RPM
-    if (newRpm.length > 100) {
-      newRpm = newRpm.slice(-100);
+    if (newRpm.length > 30) {
+      newRpm = newRpm.slice(-30);
     }
     this.cache.rpmWindow = newRpm;
 
@@ -657,8 +658,8 @@ class GeminiRateLimiter {
       return now - e.timestamp < 60000;
     });
     // Taglio di sicurezza esplicito per TPM
-    if (newTpm.length > 100) {
-      newTpm = newTpm.slice(-100);
+    if (newTpm.length > 30) {
+      newTpm = newTpm.slice(-30);
     }
     this.cache.tpmWindow = newTpm;
 
@@ -821,7 +822,7 @@ class GeminiRateLimiter {
     // Ordina per timestamp e limita
     return merged
       .sort((a, b) => a.timestamp - b.timestamp)
-      .slice(-100);
+      .slice(-30);
   }
 
   _getRequestsInWindow(windowType, modelKey) {
