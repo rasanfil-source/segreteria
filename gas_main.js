@@ -498,9 +498,16 @@ function _getSpreadsheetModifiedTimeMs(spreadsheetId) {
 
   try {
     if (typeof Drive !== 'undefined' && Drive && Drive.Files && typeof Drive.Files.get === 'function') {
-      const file = Drive.Files.get(spreadsheetId, {
-        fields: 'modifiedTime,modifiedDate'
-      });
+      let file = null;
+
+      try {
+        // Drive API v3
+        file = Drive.Files.get(spreadsheetId, { fields: 'modifiedTime' });
+      } catch (v3Error) {
+        // Alcuni ambienti Apps Script usano ancora semantica v2.
+        file = Drive.Files.get(spreadsheetId, { fields: 'modifiedDate' });
+      }
+
       const modifiedRaw = file && (file.modifiedTime || file.modifiedDate);
       const modifiedMs = modifiedRaw ? Date.parse(modifiedRaw) : NaN;
       if (!isNaN(modifiedMs)) return modifiedMs;
