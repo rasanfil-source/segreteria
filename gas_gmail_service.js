@@ -1199,8 +1199,17 @@ class GmailService {
      */
     _extractOfficeText(attachment, googleMimeType, settings) {
         let fileId = null;
+        const startedAt = Date.now();
+        const maxOfficeExtractionMs = (settings && typeof settings.maxOfficeExtractionMs === 'number')
+            ? settings.maxOfficeExtractionMs
+            : 12000;
+        const exceededBudget = () => (Date.now() - startedAt) > maxOfficeExtractionMs;
         try {
             if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) {
+                return '';
+            }
+            if (exceededBudget()) {
+                console.warn('⚠️ Timeout estrazione Office: budget superato prima della conversione');
                 return '';
             }
 
@@ -1240,6 +1249,10 @@ class GmailService {
             } else {
                 throw new Error('Drive.Files non espone metodi compatibili (insert/create)');
             }
+            if (exceededBudget()) {
+                console.warn('⚠️ Timeout estrazione Office: budget superato dopo conversione Drive');
+                return '';
+            }
 
             // Estrazione testo in base al tipo Google Workspace
             if (googleMimeType === 'application/vnd.google-apps.document') {
@@ -1255,6 +1268,8 @@ class GmailService {
                 const parts = [];
                 const maxSheets = Math.min(sheets.length, 3); // Limita a 3 fogli
                 for (let s = 0; s < maxSheets; s++) {
+                    if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) break;
+                    if (exceededBudget()) break;
                     const sheet = sheets[s];
                     const lastRow = Math.min(sheet.getLastRow(), 100); // Limita a 100 righe
                     const lastCol = Math.min(sheet.getLastColumn(), 20); // Limita a 20 colonne
@@ -1278,10 +1293,13 @@ class GmailService {
                 const parts = [];
                 const maxSlides = Math.min(slides.length, 10); // Limita a 10 diapositive
                 for (let i = 0; i < maxSlides; i++) {
+                    if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) break;
+                    if (exceededBudget()) break;
                     const slide = slides[i];
                     const shapes = slide.getShapes();
                     const slideTexts = [];
                     for (const shape of shapes) {
+                        if (exceededBudget()) break;
                         const tf = shape.getText();
                         if (tf) {
                             const text = tf.asString().trim();

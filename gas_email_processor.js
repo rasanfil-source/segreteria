@@ -273,11 +273,11 @@ class EmailProcessor {
 
       // Build set of our own addresses (primary + aliases) per filtro early-stage
       const ownAddresses = new Set();
-      if (myEmail) ownAddresses.add(myEmail.toLowerCase());
+      if (myEmail) ownAddresses.add(this._normalizeEmailAddress_(myEmail));
       const knownAliasesArray = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES))
         ? CONFIG.KNOWN_ALIASES : [];
       knownAliasesArray.forEach(alias => {
-        if (alias) ownAddresses.add(String(alias).toLowerCase());
+        if (alias) ownAddresses.add(this._normalizeEmailAddress_(alias));
       });
 
       const externalUnread = unlabeledUnread.filter(message => {
@@ -287,7 +287,7 @@ class EmailProcessor {
 
         // Se non riusciamo ad estrarre l'email, consideriamo il mittente come esterno per sicurezza
         if (!senderEmail) return true;
-        return !ownAddresses.has(senderEmail.toLowerCase());
+        return !ownAddresses.has(this._normalizeEmailAddress_(senderEmail));
       });
 
       // GUARDRAIL (critico): se un messaggio è già stato etichettati IA, non deve
@@ -318,7 +318,7 @@ class EmailProcessor {
       candidate = externalUnread[externalUnread.length - 1];
       const candidateRawFrom = candidate.getFrom() || '';
       const candidateSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
-        ? (this.gmailService._extractEmailAddress(candidateRawFrom) || '').toLowerCase()
+        ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(candidateRawFrom) || '')
         : '';
 
       // ====================================================================================================
@@ -326,12 +326,12 @@ class EmailProcessor {
       // Thread usato solo come contesto conversazionale e per capire chi ha parlato per ultimo.
       // Se l'ultimo intervento è nostro, ci fermiamo senza fare ulteriori chiamate metadata.
       // ====================================================================================================
-      const normalizedMyEmail = myEmail ? myEmail.toLowerCase() : '';
+      const normalizedMyEmail = myEmail ? this._normalizeEmailAddress_(myEmail) : '';
       const normalizedKnownAliases = Array.from(ownAddresses).filter(address => address && address !== normalizedMyEmail);
       const lastMessage = messages[messages.length - 1];
       const lastSenderRaw = lastMessage.getFrom() || '';
       const lastSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
-        ? (this.gmailService._extractEmailAddress(lastSenderRaw) || '').toLowerCase()
+        ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(lastSenderRaw) || '')
         : '';
       const lastSpeakerIsUs = Boolean(lastSenderEmail) && ownAddresses.has(lastSenderEmail);
 
@@ -435,17 +435,22 @@ class EmailProcessor {
       const candidateIndex = messages.findIndex(msg => msg.getId() === candidate.getId());
       if (candidateIndex > 0 && messages[candidateIndex - 1]) {
         const previousMessage = messages[candidateIndex - 1];
-        const previousSender = (previousMessage.getFrom() || '').toLowerCase();
+        const previousSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
+          ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(previousMessage.getFrom() || '') || '')
+          : '';
         const candidateDate = messageDetails.date ? messageDetails.date.getTime() : null;
         const previousDate = previousMessage.getDate() ? previousMessage.getDate().getTime() : null;
         const arrivedSoonAfterUs = candidateDate && previousDate
           ? Math.abs(candidateDate - previousDate) <= 10 * 60 * 1000
           : false;
-        const previousIsUs = myEmail ? previousSender.includes(myEmail.toLowerCase()) : false;
+        const previousIsUs = Boolean(previousSenderEmail) && ownAddresses.has(previousSenderEmail);
         const candidateBody = messageDetails.body || '';
         const candidateWords = candidateBody.trim().split(/\s+/).filter(Boolean);
-        const isShortClosureReply = candidateWords.length > 0 && candidateWords.length < 10 &&
-          /\b(grazie|ok|perfetto)\b/i.test(candidateBody);
+        const hasThanksCue = /\b(grazie|ok|perfetto|ricevuto)\b/i.test(candidateBody);
+        const hasQuestionSignal = /\?|\b(quando|come|dove|quale|quali|perché|perche|posso|potete|mi\s+serve|vorrei)\b/i
+          .test(candidateBody);
+        const isShortClosureReply = candidateWords.length > 0 && candidateWords.length <= 4 &&
+          hasThanksCue && !hasQuestionSignal;
 
         if (previousIsUs && arrivedSoonAfterUs && isShortClosureReply) {
           console.log('   ⊖ Saltato: risposta breve di chiusura (grazie/ok/perfetto)');
@@ -470,9 +475,12 @@ class EmailProcessor {
           console.warn('   ⚠️ Email utente e alias non disponibili: skip controllo anti-loop per evitare falsi positivi');
         } else {
           for (let i = messages.length - 1; i >= 0; i--) {
-            const msgFrom = (messages[i].getFrom() || '').toLowerCase();
-            const isUs = (Boolean(normalizedMyEmail) && msgFrom.includes(normalizedMyEmail)) ||
-              normalizedKnownAliases.some(alias => msgFrom.includes(alias));
+            const msgFromRaw = messages[i].getFrom() || '';
+            const msgFromEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
+              ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(msgFromRaw) || '')
+              : this._normalizeEmailAddress_(msgFromRaw);
+            const isUs = (Boolean(normalizedMyEmail) && msgFromEmail === normalizedMyEmail) ||
+              normalizedKnownAliases.some(alias => msgFromEmail === alias);
 
             if (!isUs) {
               consecutiveExternal++;
@@ -1417,7 +1425,7 @@ ${addressLines.join('\n\n')}
    * Usa le liste UNIFICATE (Codice + Foglio) presenti in GLOBAL_CACHE
    */
   _shouldIgnoreEmail(messageDetails) {
-    const email = (messageDetails.senderEmail || '').toLowerCase();
+    const email = this._normalizeEmailAddress_(messageDetails.senderEmail || '');
     const subject = (messageDetails.subject || '').toLowerCase();
     const body = (messageDetails.body || '').toLowerCase();
 
@@ -1468,6 +1476,37 @@ ${addressLines.join('\n\n')}
     }
 
     return false;
+  }
+
+  /**
+   * Normalizza indirizzo email per confronti robusti (anti-loop/filtri):
+   * - lowercase + trim
+   * - rimozione display name eventuale (se presente)
+   * - per Gmail/Googlemail: rimozione alias "+tag" nel local-part
+   */
+  _normalizeEmailAddress_(rawEmail) {
+    if (!rawEmail) return '';
+    const raw = String(rawEmail).trim();
+
+    let extracted = raw;
+    const bracketMatch = raw.match(/<([^>]+)>/);
+    if (bracketMatch && bracketMatch[1]) {
+      extracted = bracketMatch[1];
+    }
+
+    extracted = extracted.trim().toLowerCase();
+    const atIdx = extracted.lastIndexOf('@');
+    if (atIdx <= 0) return extracted;
+
+    let local = extracted.substring(0, atIdx);
+    const domain = extracted.substring(atIdx + 1);
+    if (!domain) return extracted;
+
+    if (domain === 'gmail.com' || domain === 'googlemail.com') {
+      local = local.replace(/\+.*/, '');
+    }
+
+    return `${local}@${domain}`;
   }
 
   _shouldTryOcr(body, subject, message = null) {

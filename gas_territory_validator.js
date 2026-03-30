@@ -122,17 +122,20 @@ class TerritoryValidator {
         return null;
     }
 
-    /**
-     * Pre-compila regex per indirizzi completi (via + civico)
-     */
     _buildAddressPatterns() {
         const streetType = this._streetTypePatternSource;
+        // Nome via tollerante:
+        // - lettere accentate e apostrofo
+        // - abbreviazioni con punto (es. "S.")
+        // - numeri nel toponimo (es. "24 Maggio")
+        const streetNameToken = `[a-zA-Z0-9àèéìòùÀÈÉÌÒÙ'.]{1,50}`;
+        const streetName = `${streetNameToken}(?:\\s+${streetNameToken}){0,5}`;
         return [
             // Pattern 1: "via Rossi 10" o "Via: Rossi 10" - Supporto alfanumerico
-            new RegExp(`\\b(${streetType})(?:\\s*:\\s*|\\s+)([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(\\d{1,4}(?:[/-]?[a-zA-Z])?)\\b`, 'gi'),
+            new RegExp(`\\b(${streetType})(?:\\s*:\\s*|\\s+)(${streetName})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(\\d{1,4}(?:[/-]?[a-zA-Z])?)\\b`, 'gi'),
 
             // Pattern 2: "abito in via Rossi 10" o "abito in via: Rossi 10"
-            new RegExp(`\\b(?:in|abito\\s+in|abito\\s+al|abito\\s+alle|abito\\s+a|al|alle)\\s+(${streetType})(?:\\s*:\\s*|\\s+)([a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(\\d{1,4}(?:[/-]?[a-zA-Z])?)\\b`, 'gi')
+            new RegExp(`\\b(?:in|abito\\s+in|abito\\s+al|abito\\s+alle|abito\\s+a|al|alle)\\s+(${streetType})(?:\\s*:\\s*|\\s+)(${streetName})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(\\d{1,4}(?:[/-]?[a-zA-Z])?)\\b`, 'gi')
         ];
     }
 
