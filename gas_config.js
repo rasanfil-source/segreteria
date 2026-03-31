@@ -3,9 +3,17 @@
  * Tutti i parametri configurabili sono definiti qui
  */
 
+var _SCRIPT_PROPERTIES = null;
+function _getScriptProperty(key) {
+  if (!_SCRIPT_PROPERTIES) {
+    _SCRIPT_PROPERTIES = PropertiesService.getScriptProperties();
+  }
+  return _SCRIPT_PROPERTIES.getProperty(key);
+}
+
 var CONFIG = {
   // === API ===
-  GEMINI_API_KEY: PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY'),
+  get GEMINI_API_KEY() { return _getScriptProperty('GEMINI_API_KEY'); },
   MODEL_NAME: 'gemini-2.5-flash',
 
   // === Generazione ===
@@ -88,7 +96,7 @@ var CONFIG = {
   KNOWN_ALIASES: ['info@parrocchiasanteugenio.it'],
 
   // === Knowledge Base ===
-  SPREADSHEET_ID: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID'),
+  get SPREADSHEET_ID() { return _getScriptProperty('SPREADSHEET_ID'); },
   KB_SHEET_NAME: 'Istruzioni',
   AI_CORE_LITE_SHEET: 'AI_CORE_LITE',
   AI_CORE_SHEET: 'AI_CORE',
@@ -126,7 +134,7 @@ var CONFIG = {
 
   // === Metriche Giornaliere ===
   // Configurare METRICS_SHEET_ID in Script Properties per abilitare export
-  METRICS_SHEET_ID: PropertiesService.getScriptProperties().getProperty('METRICS_SHEET_ID'),
+  get METRICS_SHEET_ID() { return _getScriptProperty('METRICS_SHEET_ID'); },
   METRICS_SHEET_NAME: 'DailyMetrics',
 
   // === Modelli Gemini (configurazione centralizzata) ===
