@@ -3,7 +3,7 @@
  * Tutti i parametri configurabili sono definiti qui
  */
 
-const CONFIG = {
+var CONFIG = {
   // === API ===
   GEMINI_API_KEY: PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY'),
   MODEL_NAME: 'gemini-2.5-flash',

@@ -928,6 +928,7 @@ Output JSON:
 
     // === FESTE MOBILI (basate sulla Pasqua) ===
 
+    if (typeof calculateEaster !== 'function') return null;
     const easter = calculateEaster(y);
 
     // Ottava di Pasqua (Domenica di Pasqua + 7 giorni)
