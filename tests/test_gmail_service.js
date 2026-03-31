@@ -99,4 +99,31 @@ console.log('--- Test getProcessableAttachments: ramo .xlsx come contesto testua
   assert(out.skipped.length === 0, 'xlsx con testo non deve finire tra skipped');
 }
 
+console.log('--- Test getProcessableAttachments: MIME con parametri deve essere processato ---');
+{
+  const pdfBlobWithParams = {
+    getName: () => 'preventivo.pdf',
+    getSize: () => 1024,
+    getContentType: () => 'application/pdf; charset=UTF-8',
+    copyBlob: () => pdfBlobWithParams
+  };
+  const xlsxBlobWithParams = {
+    getName: () => 'contabilita.xlsx',
+    getSize: () => 1024,
+    getContentType: () => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; name="contabilita.xlsx"',
+    copyBlob: () => xlsxBlobWithParams
+  };
+  const message = {
+    getAttachments: () => [pdfBlobWithParams, xlsxBlobWithParams]
+  };
+
+  service._extractOfficeText = () => 'Contenuto documento office';
+  const out = service.getProcessableAttachments(message, { maxCharsPerFile: 500, maxTotalChars: 1000, maxFiles: 5 });
+
+  assert(out.blobs.length === 1, 'PDF con parametri MIME deve entrare nei blob visuali');
+  assert(out.textContext.includes('contabilita.xlsx'), 'XLSX con parametri MIME deve essere processato come testo');
+  assert(out.textContext.includes('Contenuto documento office'), 'testo estratto XLSX deve essere presente');
+  assert(!out.skipped.some((s) => s.reason === 'unsupported_type'), 'MIME parametrizzati validi non devono risultare unsupported_type');
+}
+
 console.log('✅ Test sanitizzazione Gmail/HTML passati');
