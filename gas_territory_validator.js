@@ -129,7 +129,7 @@ class TerritoryValidator {
         // - abbreviazioni con punto (es. "S.")
         // - numeri nel toponimo (es. "24 Maggio")
         const streetNameToken = `[a-zA-Z0-9àèéìòùÀÈÉÌÒÙ'.]{1,50}`;
-        const streetName = `${streetNameToken}(?:\\s+${streetNameToken}){0,5}`;
+        const streetName = `${streetNameToken}(?:\\s+${streetNameToken}){0,5}?`;
         return [
             // Pattern 1: "via Rossi 10" o "Via: Rossi 10" - Supporto alfanumerico
             new RegExp(`\\b(${streetType})(?:\\s*:\\s*|\\s+)(${streetName})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(\\d{1,4}(?:[/-]?[a-zA-Z])?)\\b`, 'gi'),
@@ -145,7 +145,7 @@ class TerritoryValidator {
     _buildStreetOnlyPattern() {
         // Pattern bounded (max 6 token) per evitare backtracking eccessivo su input malevoli
         const streetType = this._streetTypePatternSource;
-        const streetName = `[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5}`;
+        const streetName = `[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5}?`;
         return new RegExp(`(${streetType})\\s+(${streetName})\\b(?!\\s*(?:n\\.?\\s*|civico\\s+)?\\d+)`, 'gi');
     }
 

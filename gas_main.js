@@ -311,13 +311,14 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
 
   const now = Date.now();
   const cacheIsFreshByTtl = GLOBAL_CACHE.loaded && GLOBAL_CACHE.lastLoadedAt && ((now - GLOBAL_CACHE.lastLoadedAt) < RESOURCE_CACHE_TTL_MS);
+  let precomputedSheetModifiedAt = 0;
   if (cacheIsFreshByTtl) {
     const spreadsheetId = (typeof CONFIG !== 'undefined' && CONFIG.SPREADSHEET_ID) ? CONFIG.SPREADSHEET_ID : null;
-    const latestSheetModifiedAt = _getSpreadsheetModifiedTimeMs(spreadsheetId);
-    if (!latestSheetModifiedAt || latestSheetModifiedAt <= GLOBAL_CACHE.lastLoadedAt) {
+    precomputedSheetModifiedAt = _getSpreadsheetModifiedTimeMs(spreadsheetId);
+    if (!precomputedSheetModifiedAt || precomputedSheetModifiedAt <= GLOBAL_CACHE.lastLoadedAt) {
       return;
     }
-    console.log(`↻ Cache risorse invalidata: foglio aggiornato (${new Date(latestSheetModifiedAt).toISOString()}) dopo ultimo load (${new Date(GLOBAL_CACHE.lastLoadedAt).toISOString()}).`);
+    console.log(`↻ Cache risorse invalidata: foglio aggiornato (${new Date(precomputedSheetModifiedAt).toISOString()}) dopo ultimo load (${new Date(GLOBAL_CACHE.lastLoadedAt).toISOString()}).`);
   }
 
   const lock = LockService.getScriptLock();
@@ -335,19 +336,19 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
       }
     }
 
-    _loadResourcesInternal();
+    _loadResourcesInternal(precomputedSheetModifiedAt);
   } finally {
     if (lockAcquired) lock.releaseLock();
   }
 }
 
-function _loadResourcesInternal() {
+function _loadResourcesInternal(knownSheetModifiedAt) {
   const spreadsheetId = (typeof CONFIG !== 'undefined' && CONFIG.SPREADSHEET_ID) ? CONFIG.SPREADSHEET_ID : null;
   if (!spreadsheetId) {
     throw new Error('Impossibile aprire il foglio: CONFIG.SPREADSHEET_ID non configurato.');
   }
 
-  const latestSheetModifiedAt = _getSpreadsheetModifiedTimeMs(spreadsheetId);
+  const latestSheetModifiedAt = knownSheetModifiedAt || _getSpreadsheetModifiedTimeMs(spreadsheetId);
   const cache = (typeof CacheService !== 'undefined') ? CacheService.getScriptCache() : null;
 
   // ⚠️ Scelta blindata: la cache persiste SEMPRE il payload completo delle risorse.
@@ -406,8 +407,10 @@ function _loadResourcesInternal() {
   if (kbSheet) {
     withSheetsRetry(() => {
       const kbData = kbSheet.getDataRange().getValues();
-      _logKnowledgeBaseHealthReport(kbData, cfg.KB_SHEET_NAME || 'Istruzioni');
-      newCacheData.knowledgeBase = _sheetRowsToText(kbData);
+      const kbHealthReport = _analyzeKnowledgeBaseRows(kbData, cfg.KB_SHEET_NAME || 'Istruzioni');
+      console.log('KB_HEALTH_REPORT ' + JSON.stringify(kbHealthReport));
+      const kbRowsForText = kbHealthReport.skippedHeader ? kbData.slice(1) : kbData;
+      newCacheData.knowledgeBase = _sheetRowsToText(kbRowsForText);
     }, 'Lettura KB Base');
   } else {
     newCacheData.knowledgeBase = '';
@@ -437,7 +440,8 @@ function _loadResourcesInternal() {
     withSheetsRetry(() => {
       const doctrineData = doctrineSheet.getDataRange().getValues();
       newCacheData.doctrineStructured = _parseSheetToStructured(doctrineData);
-      newCacheData.doctrineBase = _sheetRowsToText(doctrineData);
+      // Coerenza con _parseSheetToStructured: la prima riga è intestazione e non contenuto.
+      newCacheData.doctrineBase = _sheetRowsToText(doctrineData.slice(1));
     }, 'Lettura Dottrina');
   } else {
     newCacheData.doctrineStructured = [];

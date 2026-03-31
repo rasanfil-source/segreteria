@@ -1237,14 +1237,16 @@ ${addressLines.join('\n\n')}
     console.log('📬 Inizio elaborazione email...');
     console.log('='.repeat(70));
 
-    const executionLock = LockService.getScriptLock();
+    const executionLock = (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function')
+      ? LockService.getScriptLock()
+      : null;
     let lockAcquiredHere = false;
 
     if (!skipExecutionLock) {
       const lockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
         ? CONFIG.EXECUTION_LOCK_WAIT_MS : 5000;
 
-      if (!executionLock.tryLock(lockWaitMs)) {
+      if (!executionLock || !executionLock.tryLock(lockWaitMs)) {
         console.warn('⚠️ Un\'altra esecuzione è già attiva: salto questo turno per evitare doppie risposte.');
         return { total: 0, replied: 0, filtered: 0, errors: 0, skipped: 1, reason: 'execution_locked' };
       }
@@ -1448,7 +1450,9 @@ ${addressLines.join('\n\n')}
     }
 
     // 3. Controllo Auto-reply e Notifiche (Standard)
-    // NOTA: no-reply/noreply sono anche controllati in STEP 0.8 (defense-in-depth)
+    // NOTA: no-reply/noreply sono anche controllati in STEP 0.8 (defense-in-depth).
+    // Qui manteniamo un set più mirato (segnali "sistemici" su sender/subject/body) per
+    // ridurre falsi positivi rispetto al filtro preliminare regex più ampio.
     if (
       email.includes('no-reply') ||
       email.includes('noreply') ||
@@ -1653,13 +1657,6 @@ ${addressLines.join('\n\n')}
     return Math.max(0, budgetMs - elapsed);
   }
 
-  _formatLabelQueryValue(labelName) {
-    const raw = String(labelName || '').trim();
-    if (!raw) return '""';
-    // Scelta intenzionale: in query Gmail il quoting è la strategia più stabile.
-    // Evitiamo escaping aggressivo di caratteri non-quote perché può alterare il matching label:nome.
-    return `"${raw.replace(/"/g, '\\"')}"`;
-  }
 
   _hasUnreadMessagesToProcess(thread, labeledMessageIds) {
     try {
@@ -1697,7 +1694,7 @@ ${addressLines.join('\n\n')}
     if (typeof value === 'string') {
       return value.trim();
     }
-    if (value === null || typeof value === 'undefined') {
+    if (value == null) {
       return '';
     }
     try {
@@ -2276,7 +2273,10 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
    * Traccia il contatore di inbox vuote consecutive (per avvisi diagnostici)
    */
   _trackEmptyInboxStreak(isEmpty) {
-    const cache = CacheService.getScriptCache();
+    const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
+      ? CacheService.getScriptCache()
+      : null;
+    if (!cache) return 0;
     const key = 'empty_inbox_streak';
     let streak = parseInt(cache.get(key) || '0');
 

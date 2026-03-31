@@ -2004,19 +2004,6 @@ class GmailService {
         return chunks ? chunks.join('\r\n') : '';
     }
 
-    /**
-     * Spezza una stringa Base64 in righe da massimo 76 caratteri (RFC 2045).
-     * @param {string} base64Str
-     * @returns {string}
-     */
-    _chunkBase64(base64Str) {
-        if (!base64Str || typeof base64Str !== 'string') {
-            return '';
-        }
-        const chunks = base64Str.match(/.{1,76}/g);
-        return chunks ? chunks.join('\r\n') : '';
-    }
-
     // ========================================================================
     // VERIFICA STATO
     // ========================================================================
