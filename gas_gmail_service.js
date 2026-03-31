@@ -743,7 +743,8 @@ class GmailService {
                 continue;
             }
 
-            const contentType = (attachment.getContentType() || '').toLowerCase();
+            const rawContentType = (attachment.getContentType() || '').toLowerCase();
+            const contentType = rawContentType.split(';')[0].trim();
             const isPdf = contentType.includes('pdf');
             const isImage = contentType.startsWith('image/');
             const isOffice = Boolean(this._officeMimeMap[contentType]);
@@ -924,7 +925,8 @@ class GmailService {
                 continue;
             }
 
-            const mimeType = (attachment.getContentType() || '').toLowerCase();
+            const rawMimeType = (attachment.getContentType() || '').toLowerCase();
+            const mimeType = rawMimeType.split(';')[0].trim();
 
             if (mimeType.includes('text/plain') || mimeType.includes('text/csv')) {
                 try {

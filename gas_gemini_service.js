@@ -1305,7 +1305,7 @@ function _tryBalanceJsonBraces(text) {
 
   let inString = false;
   let escaped = false;
-  let depth = 0;
+  const stack = [];
 
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
@@ -1322,13 +1322,20 @@ function _tryBalanceJsonBraces(text) {
       continue;
     }
     if (inString) continue;
-    if (ch === '{') depth++;
-    if (ch === '}') depth = Math.max(depth - 1, 0);
+    if (ch === '{') stack.push('}');
+    else if (ch === '[') stack.push(']');
+    else if (ch === '}' || ch === ']') {
+      if (stack.length > 0 && stack[stack.length - 1] === ch) {
+        stack.pop();
+      }
+    }
   }
 
   let balanced = text;
   if (inString) balanced += '"';
-  if (depth > 0) balanced += '}'.repeat(depth);
+  while (stack.length > 0) {
+    balanced += stack.pop();
+  }
   return balanced;
 }
 
