@@ -263,8 +263,10 @@ if (messages.length > MAX_THREAD_LENGTH) {
   let consecutiveExternal = 0;
   const reversed = messages.slice().reverse();
   for (const msg of reversed) {
-    const sender = msg.getFrom ? msg.getFrom() : '';
-    if (!sender.includes(ourEmail)) consecutiveExternal++;
+    const rawFrom = msg.getFrom ? msg.getFrom() : '';
+    const sender = normalizeEmail(rawFrom); // estrae <mail@dominio>, lowercase
+    const isUs = sender === normalizeEmail(ourEmail) || knownAliases.includes(sender);
+    if (!isUs) consecutiveExternal++;
     else break;
   }
   if (consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {

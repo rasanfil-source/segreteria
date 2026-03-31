@@ -133,6 +133,10 @@ LABEL_ERROR: 'AI/Error'
 LABEL_SKIPPED: 'AI/Skipped'
 ```
 
+> ⚠️ **Nota (allineamento v2.x):** nel codice corrente i nomi configurati sono
+> `LABEL_NAME`, `ERROR_LABEL_NAME`, `VALIDATION_ERROR_LABEL` con default
+> `IA`, `Errore`, `Verifica`.
+
 ### 5. Setup Trigger
 
 Esegui la funzione `setupTrigger()` manualmente:
@@ -275,7 +279,7 @@ Il trigger verrà impostato per eseguire `main()` ogni X minuti (configurabile).
 - ✓ Coerenza con richiesta
 - ✓ Tono professionale
 
-**Scoring**: 0-100, soglia minima 50
+**Scoring**: 0.0-1.0, soglia minima consigliata 0.6 (`VALIDATION_MIN_SCORE`)
 
 ### MemoryService.gs
 **Responsabilità**: Memoria conversazionale
@@ -365,13 +369,11 @@ Retry se fallisce (max 3)
 ```
 Valida risposta
     ↓
-Score < 30? → SÌ → Skip + Label "NeedsReview"
+isValid = false? → SÌ → Non inviare + Label "Verifica"
     ↓ NO
-Score 30-50? → Label "NeedsReview" ma invia
-    ↓
 Invia risposta
     ↓
-Applica label "Processed"
+Applica label "IA"
     ↓
 Salva in memoria
 ```

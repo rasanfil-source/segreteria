@@ -731,7 +731,7 @@ function _invalidateResourceCacheStorage(cache) {
     cache.removeAll(toRemove);
   } else if (typeof cache.remove === 'function') {
     toRemove.forEach(key => {
-      try { cache.remove(key); } catch (e) {}
+      try { cache.remove(key); } catch (e) { }
     });
   }
 }
@@ -851,7 +851,7 @@ function _parseStrictHour(value) {
   }
 
   if (!/^\d{1,2}$/.test(normalized.replace(/\s+/g, ''))) return null;
- 
+
   const hour = Number(normalized.replace(/\s+/g, ''));
   if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
 
@@ -987,7 +987,11 @@ function setupAllTriggers() {
   // 3. Trigger Metriche/Statistiche (Giornaliero)
   setupMetricsTrigger();
 
-  SpreadsheetApp.getUi().alert('✅ Tutti i trigger sono stati riattivati correttamente.');
+  try {
+    SpreadsheetApp.getUi().alert('✅ Tutti i trigger sono stati riattivati correttamente.');
+  } catch (e) {
+    console.log('✅ Tutti i trigger sono stati riattivati correttamente.');
+  }
 }
 
 /**

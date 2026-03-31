@@ -483,8 +483,8 @@ const limiter = new GeminiRateLimiter();
 
 - [ ] Sistema valida e rileva problemi
 - [ ] Score basso
-- [ ] Label "NeedsReview" applicata
-- [ ] Email non inviata se score < 30
+- [ ] Label "Verifica" applicata
+- [ ] Email non inviata se `isValid === false` (tipicamente score < `VALIDATION_MIN_SCORE`)
 
 ### API Errors
 **Simulare errore API** (temporaneamente invalidare API key):

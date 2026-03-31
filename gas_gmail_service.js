@@ -1236,9 +1236,7 @@ class GmailService {
                     name: `OCR_${fileName}`,
                     mimeType: googleMimeType
                 };
-                const file = Drive.Files.create(resource, blob, {
-                    mimeType: googleMimeType
-                });
+                const file = Drive.Files.create(resource, blob);
                 if (!file || !file.id) {
                     throw new Error('Drive API ha restituito un file convertito non valido (id assente)');
                 }
