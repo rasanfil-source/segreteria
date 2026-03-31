@@ -1629,7 +1629,7 @@ class GmailService {
 
     extractMainReply(content) {
         const markers = [
-            /^>/m,
+            /^(?:>\s?.*\n){1,}>\s?.*/m,
             /^On .* wrote:/m,
             /^Il giorno .* ha scritto:/m,
             /^-{3,}.*Original Message/im,

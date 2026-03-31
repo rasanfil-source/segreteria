@@ -940,7 +940,10 @@ function _loadAdvancedConfig(ss) {
       if (startHour == null || endHour == null) return;
       if (startHour >= endHour) return;
 
-      config.suspensionRules[day] = [[startHour, endHour]];
+      if (!config.suspensionRules[day]) {
+        config.suspensionRules[day] = [];
+      }
+      config.suspensionRules[day].push([startHour, endHour]);
     });
 
     // Filtri anti-spam (layout single-sheet: E11:F)

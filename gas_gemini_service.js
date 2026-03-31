@@ -1262,11 +1262,12 @@ function parseGeminiJsonLenient(text) {
 
   // 2) Estrazione oggetto JSON esterno
   const start = cleaned.indexOf('{');
-  if (start === -1) {
+  const end = cleaned.lastIndexOf('}');
+  if (start === -1 || end === -1 || end < start) {
     throw new Error('Nessun oggetto JSON trovato');
   }
 
-  cleaned = cleaned.substring(start).trim();
+  cleaned = cleaned.substring(start, end + 1).trim();
 
   // 3) Recupero troncamenti: bilancia parentesi graffe mancanti
   cleaned = _tryBalanceJsonBraces(cleaned);
