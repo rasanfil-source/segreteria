@@ -1454,13 +1454,13 @@ class GmailService {
         const cleaned = text.replace(/\s+/g, ' ').trim();
         if (!cleaned) return 0;
 
-        const letters = (cleaned.match(/[a-zA-ZÀ-ÿ]/g) || []).length;
+        const alnumCount = (cleaned.match(/[a-zA-Z0-9À-ÿ]/g) || []).length;
         const chars = cleaned.length;
-        const letterRatio = Math.min(1, letters / Math.max(1, chars * 0.45));
+        const alnumRatio = Math.min(1, alnumCount / Math.max(1, chars * 0.5));
 
         let score = 0.3;
         score += Math.min(cleaned.length / 600, 0.35);
-        score += letterRatio * 0.3;
+        score += alnumRatio * 0.3;
 
         if (isGenericName) {
             score -= 0.1;

@@ -28,7 +28,7 @@ const RESOURCE_CACHE_KEY_V2 = 'SPA_KNOWLEDGE_BASE_V2';
 const RESOURCE_CACHE_KEY_V1 = 'SPA_KNOWLEDGE_BASE_V1';
 const RESOURCE_CACHE_PARTS_KEY = `${RESOURCE_CACHE_KEY_V2}:parts`;
 const RESOURCE_CACHE_PART_PREFIX = `${RESOURCE_CACHE_KEY_V2}:part:`;
-const RESOURCE_CACHE_MAX_PART_SIZE = 95000;
+const RESOURCE_CACHE_MAX_PART_SIZE = 45000; // Mitigazione rapida: riduce rischio overflow entry CacheService con UTF-8 multibyte.
 
 // ====================================================================
 // FESTIVITÀ E SOSPENSIONE
