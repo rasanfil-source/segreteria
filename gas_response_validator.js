@@ -386,7 +386,10 @@ class ResponseValidator {
     const markerScores = {};
     for (const lang in this.languageMarkers) {
       markerScores[lang] = this.languageMarkers[lang].reduce((count, marker) => {
-        return count + (responseLower.includes(marker) ? 1 : 0);
+        const escapedMarker = String(marker).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Usa confini di parola per evitare falsi positivi su sottostringhe (es. "misa" in "camisa")
+        const regex = new RegExp(`\\b${escapedMarker}\\b`, 'i');
+        return count + (regex.test(responseLower) ? 1 : 0);
       }, 0);
     }
 

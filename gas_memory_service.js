@@ -170,10 +170,12 @@ class MemoryService {
       const cached = cache.get(cacheKey);
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (!Array.isArray(parsed.providedInfo)) {
-          parsed.providedInfo = [];
+        if (parsed && typeof parsed === 'object') {
+          if (!Array.isArray(parsed.providedInfo)) {
+            parsed.providedInfo = [];
+          }
+          return parsed;
         }
-        return parsed;
       }
     } catch (e) {
       console.warn(`Cache miss per thread ${threadId}: ${e.message}`);

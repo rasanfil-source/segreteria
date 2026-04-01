@@ -1425,9 +1425,10 @@ ${addressLines.join('\n\n')}
 
     // 1. Controllo Blacklist Domini/Email
     // NOTA: GLOBAL_CACHE.ignoreDomains include già CONFIG.IGNORE_DOMAINS (merge in _loadAdvancedConfig)
-    const ignoreDomains = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreDomains))
-      ? GLOBAL_CACHE.ignoreDomains.map(d => String(d).toLowerCase())
-      : ((typeof CONFIG !== 'undefined' && CONFIG.IGNORE_DOMAINS) ? CONFIG.IGNORE_DOMAINS.map(d => String(d).toLowerCase()) : []);
+    const ignoreDomainsArray = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreDomains))
+      ? GLOBAL_CACHE.ignoreDomains
+      : ((typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_DOMAINS)) ? CONFIG.IGNORE_DOMAINS : []);
+    const ignoreDomains = ignoreDomainsArray.map(d => String(d).toLowerCase());
 
     if (ignoreDomains.some(domain => {
       const isExactMatch = email === domain;
@@ -1440,9 +1441,10 @@ ${addressLines.join('\n\n')}
 
     // 2. Controllo Keyword Oggetto/Corpo
     // NOTA: GLOBAL_CACHE.ignoreKeywords include già CONFIG.IGNORE_KEYWORDS (merge in _loadAdvancedConfig)
-    const ignoreKeywords = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreKeywords))
-      ? GLOBAL_CACHE.ignoreKeywords.map(k => String(k).toLowerCase())
-      : ((typeof CONFIG !== 'undefined' && CONFIG.IGNORE_KEYWORDS) ? CONFIG.IGNORE_KEYWORDS.map(k => String(k).toLowerCase()) : []);
+    const ignoreKeywordsArray = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreKeywords))
+      ? GLOBAL_CACHE.ignoreKeywords
+      : ((typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_KEYWORDS)) ? CONFIG.IGNORE_KEYWORDS : []);
+    const ignoreKeywords = ignoreKeywordsArray.map(k => String(k).toLowerCase());
 
     if (ignoreKeywords.some(keyword => subject.includes(keyword) || body.includes(keyword))) {
       console.log(`🚫 Ignorato: oggetto o corpo contiene keyword vietata`);
