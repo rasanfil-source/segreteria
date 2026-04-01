@@ -128,7 +128,8 @@ class EmailProcessor {
         ? Number(CONFIG.CACHE_LOCK_TTL)
         : 240; // Fallback allineato al default config per coprire OCR + validazione semantica
 
-      const ttlSeconds = configuredTtl;
+      // CacheService supporta max 21600 secondi (6h): clamp difensivo.
+      const ttlSeconds = Math.max(1, Math.min(configuredTtl, 21600));
       const lockTtlMs = ttlSeconds * 1000;
 
       // Aggiunge entropia per evitare collisioni se due thread identici partono nello stesso Ms 

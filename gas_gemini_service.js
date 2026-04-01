@@ -400,7 +400,7 @@ Output JSON:
       return defaultResult;
     }
 
-    if (!result.candidates || !result.candidates[0]) {
+    if (!result || typeof result !== 'object' || !result.candidates || !result.candidates[0]) {
       console.error('\u274C Nessun candidato nella risposta Controllo Rapido Gemini');
       return defaultResult;
     }
@@ -434,12 +434,21 @@ Output JSON:
       console.warn(`\u26A0\uFE0F parseGeminiJsonLenient fallito: ${parseError.message}`);
       return defaultResult;
     }
+    if (!data || typeof data !== 'object') {
+      console.warn('⚠️ Decisione quick check non è un oggetto JSON valido');
+      return defaultResult;
+    }
 
     // Detection locale come lingua alternativa
 
     // Normalizzazione sicura booleano
     const replyNeeded = data.reply_needed;
     const isTrue = replyNeeded === true || (typeof replyNeeded === 'string' && replyNeeded.toLowerCase() === 'true');
+
+    const safeDimensions = (data.dimensions && typeof data.dimensions === 'object')
+      ? data.dimensions
+      : null;
+    const safeConfidence = Number.isFinite(data.confidence) ? data.confidence : 0.8;
 
     return {
       // Rispondi solo se la richiesta è esplicita e necessaria
@@ -449,8 +458,8 @@ Output JSON:
       classification: {
         category: data.category || 'TECHNICAL',
         topic: data.topic || '',
-        confidence: data.confidence || 0.8,
-        dimensions: data.dimensions || null
+        confidence: safeConfidence,
+        dimensions: safeDimensions
       }
     };
   }

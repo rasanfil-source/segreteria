@@ -1487,7 +1487,7 @@ class GmailService {
 
         // Regex IBAN italiano (IT + 2 cifre controllo + 1 lettera CIN + 22 alfanumerici)
         // Regex IBAN universale (27 paesi EU + altri SEPA)
-        const ibanRegex = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]){10,30}\b/i;
+        const ibanRegex = /\b[A-Z]{2}\d{2}(?:[A-Z0-9]{10,30}|\s[A-Z0-9]{10,30})\b/i;
         const match = text.match(ibanRegex);
 
         if (!match) {
@@ -1505,17 +1505,18 @@ class GmailService {
     }
 
     _extractSenderName(fromField) {
-        if (!fromField || typeof fromField !== 'string') {
+        const safeFrom = String(fromField || '').trim();
+        if (!safeFrom) {
             return 'Utente';
         }
 
-        const match = fromField.match(/^"?(.+?)"?\s*</);
+        const match = safeFrom.match(/^"?(.+?)"?\s*</);
         let name = null;
 
         if (match) {
             name = match[1].trim();
         } else {
-            const email = this._extractEmailAddress(fromField);
+            const email = this._extractEmailAddress(safeFrom);
             if (email) {
                 name = email.split('@')[0];
             }
@@ -1541,16 +1542,17 @@ class GmailService {
     }
 
     _extractEmailAddress(fromField) {
-        if (typeof fromField !== 'string') return '';
+        const safeFrom = String(fromField || '');
+        if (!safeFrom) return '';
 
-        const angleMatch = fromField.match(/<([^>]+@[^>]+)>/);
+        const angleMatch = safeFrom.match(/<([^>]+@[^>]+)>/);
         if (angleMatch) {
             return angleMatch[1];
         }
 
         // Evita regex RFC5322 troppo complesse (rischio backtracking su input malevoli).
         // Header From di Gmail sono già sanificati: pattern snello e lineare è sufficiente.
-        const safeFromField = fromField.length > 512 ? fromField.substring(0, 512) : fromField;
+        const safeFromField = safeFrom.length > 512 ? safeFrom.substring(0, 512) : safeFrom;
         const emailMatch = safeFromField.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
         if (emailMatch) {
             return emailMatch[0];
