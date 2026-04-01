@@ -1211,14 +1211,14 @@ ${addressLines.join('\n\n')}
       if (lockAcquired && scriptCache && threadLockKey) {
         try {
           const currentLockValue = scriptCache.get(threadLockKey);
-          // Rilascia solo se il lock corrente è esplicitamente il nostro:
-          // con eventual consistency, un remove "cieco" su valore nullo può
-          // eliminare il lock appena acquisito da un altro worker.
+          // Rilasciamo SOLO se il lock è inequivocabilmente il nostro.
           if (currentLockValue === lockValue) {
             scriptCache.remove(threadLockKey);
             console.log(`🔓 Lock rilasciato per thread ${threadId}`);
-          } else {
+          } else if (currentLockValue) {
             console.warn(`⚠️ Rilascio lock saltato per thread ${threadId} (lock scaduto o di altro processo)`);
+          } else {
+            console.log(`🔓 Lock già scaduto naturalmente per thread ${threadId}`);
           }
         } catch (e) {
           console.warn('⚠️ Errore rilascio lock:', e.message);

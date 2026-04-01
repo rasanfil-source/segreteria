@@ -227,9 +227,17 @@ class Classifier {
       processedBody = processedBody.substring(0, MAX_LENGTH);
     }
 
-    // Manteniamo la regex perché il corpo è già limitato a 50k caratteri: in questo contesto è un compromesso affidabile
-    // tra robustezza e costo computazionale, senza introdurre parser HTML più pesanti in GAS.
-    // Rimozione blockquote robusta: evita cicli inutili su HTML malformato
+    // Fast-path: evita regex su body enormi tagliando subito dalla prima citazione HTML nota.
+    const lowerBody = processedBody.toLowerCase();
+    const firstBlockquoteIdx = lowerBody.indexOf('<blockquote');
+    const firstGmailQuoteIdx = lowerBody.indexOf('class="gmail_quote"');
+    const firstQuoteIdx = [firstBlockquoteIdx, firstGmailQuoteIdx].filter(idx => idx >= 0).sort((a, b) => a - b)[0];
+
+    if (typeof firstQuoteIdx === 'number') {
+      processedBody = processedBody.substring(0, firstQuoteIdx);
+    }
+
+    // Rimozione blockquote residua (se non intercettata dal fast-path o in altri formati)
     processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
     processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*$/gi, '');
 

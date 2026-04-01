@@ -499,12 +499,12 @@ class GeminiRateLimiter {
         lastError = error;
         const errorMsg = error.message || '';
 
-        // Controllo se errore 429
-        if (errorMsg.indexOf('429') !== -1 ||
-          errorMsg.indexOf('rate limit') !== -1 ||
-          errorMsg.indexOf('quota') !== -1) {
+        // Uso la classificazione centralizzata (difensiva in caso di runtime modulare)
+        const classifiedError = typeof classifyError === 'function' ? classifyError(error) : { type: 'UNKNOWN', retryable: false };
 
-          console.warn(`⚠️  Limite quota (429) al tentativo ${attempt + 1}`);
+        if (classifiedError.type === 'QUOTA_EXCEEDED' || classifiedError.type === 'NETWORK') {
+
+          console.warn(`⚠️  Limite quota/rete (${classifiedError.type}) al tentativo ${attempt + 1}`);
 
           if (attempt < maxRetries - 1) {
             const backoffDelay = Math.min(
