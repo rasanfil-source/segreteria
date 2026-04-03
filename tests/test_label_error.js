@@ -1,7 +1,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
-// Mock environments for EmailProcessor
+// Ambiente simulato per EmailProcessor
 global.createLogger = (name) => ({
     info: (...args) => console.log(`[INF] ${name}:`, ...args),
     warn: (...args) => console.warn(`[WRN] ${name}:`, ...args),

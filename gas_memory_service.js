@@ -596,7 +596,7 @@ class MemoryService {
   }
 
   /**
-   * Trova riga per threadId (OTTIMIZZATO con TextFinder)
+   * Trova riga per threadId usando TextFinder
    * Ritorna { rowIndex, values } o null
    */
   _findRowByThreadId(threadId) {
@@ -607,7 +607,7 @@ class MemoryService {
     // Evita errore out-of-bounds se il foglio contiene solo l'intestazione.
     if (maxRows < 2) return null;
 
-    // Punto 5: Ottimizzazione TextFinder limitando il range alla colonna A (Thread ID)
+    // Limita il range alla colonna A per la ricerca del Thread ID
     const finder = this._sheet.getRange(2, 1, maxRows - 1, 1).createTextFinder(normalizedThreadId)
       .matchEntireCell(true)      // Corrispondenza esatta
       .matchCase(true)            // Case sensitive
@@ -644,7 +644,7 @@ class MemoryService {
 
   /**
    * Serializza le scritture su Spreadsheet con ScriptLock globale.
-   * Riduce race condition tra thread diversi durante update/append riga.
+   * Riduce conflitti tra thread diversi durante inserimenti o aggiornamenti della riga.
    * @param {Function} writeOperation callback con la scrittura effettiva
    */
   _withSheetWriteLock(writeOperation) {

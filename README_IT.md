@@ -354,7 +354,7 @@ Questo progetto è **open source** e accoglie contributi da:
 - ⛪ **Operatori pastorali** → Feedback su tono risposte, casi d'uso
 - 🌍 **Traduttori** → Supporto nuove lingue
 - 📚 **Documentatori** → Guide, tutorial, esempi
-- 🐛 **Tester** → Segnalazione bug
+- 🛡️ **Tester** → Testing del sistema
 
 Leggi [CONTRIBUTING_IT.md](docs/CONTRIBUTING_IT.md) per i dettagli.
 

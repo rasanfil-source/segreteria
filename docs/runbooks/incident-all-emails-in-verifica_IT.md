@@ -182,7 +182,7 @@ CONFIG.MODEL_STRATEGY = {
 
 ```javascript
 function verifyVerificaResolved() {
-  // Attendi 1-2 ore dopo il fix
+  // Attendi 1-2 ore dopo la soluzione
   
   calculateVerificaRate();
   
@@ -219,7 +219,7 @@ Per le email già in "Verifica":
 
 ## 📞 Escalation
 
-Se problema persiste dopo tutti i fix:
+Se il problema persiste dopo tutte le soluzioni:
 
 1. Documenta pattern errori più frequenti
 2. Esporta 5 esempi email problematiche (anonimizzate)

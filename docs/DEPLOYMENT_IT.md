@@ -633,7 +633,7 @@ function emergencyDiagnostic() {
 
 ### Scenario 2: Troppe Email "Verifica"
 
-**Fix immediato:**
+**Soluzione immediata:**
 
 ```javascript
 // In gas_config.js

@@ -80,7 +80,7 @@ If you suspect your API Key has been exposed:
 1.  Go to Google AI Studio / Google Cloud Console.
 2.  **Revoke/Delete** the old key immediately.
 3.  Generate a new key.
-4.  Update the `ScriptProperties` in the Apps Script project.
+4.  Set the `ScriptProperties` in the Apps Script project.
 
 ### Unauthorized Access
 If an unauthorized account has accessed the sheet or email:

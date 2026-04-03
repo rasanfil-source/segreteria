@@ -33,14 +33,14 @@ It depends on how it is configured. By default, to seem more "human", it can be 
 
 ## 💻 Technical Section (System Administrators)
 
-### 1. How do I update the script?
-If you use GitHub integration, do a `git pull` and then `clasp push`. Otherwise, copy the updated code into the Apps Script editor. **Warning**: do not overwrite `gas_config.js` if it contains your customizations.
+### 1. How do I load the script?
+If you use GitHub integration, do a `git pull` and then `clasp push`. Otherwise, copy the code into the Apps Script editor. **Warning**: do not overwrite `gas_config.js` if it contains your customizations.
 
 ### 2. What happens if the Gemini API quota runs out?
 The system will stop responding and will log the error. You can monitor the quota on the Google Cloud Console. We recommend setting up an alert. If it happens, the system will resume the next day upon quota reset.
 
 ### 3. How does the Knowledge Base cache work?
-To save Sheet reads and speed up, the KB is saved in `CacheService` for 6 hours. Additionally, on each load the system compares the Spreadsheet `modifiedTime`: if the sheet was updated after `lastLoadedAt`, cache is selectively invalidated and resources are reloaded immediately.
+To save Sheet reads and speed up, the KB is saved in `CacheService` for 6 hours. Additionally, on each load the system compares the Spreadsheet `modifiedTime`: if the sheet was modified after `lastLoadedAt`, cache is selectively invalidated and resources are reloaded immediately.
 
 ### 4. Can I use a model other than Gemini?
 The system is built modularly around the Google Vertex AI / Gemini SDK. Changing providers (e.g., OpenAI) would require rewriting the `GeminiService` class. Changing Gemini *version* (e.g., from `flash` to `pro`) is very easy: just change a constant in `gas_config.js`.

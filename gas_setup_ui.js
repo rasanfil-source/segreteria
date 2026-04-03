@@ -31,7 +31,7 @@ function onOpen() {
 
 /**
  * Applica SOLO le regole di validazione dati al foglio Controllo.
- * Non modifica layout, colori o testi. Utile per correggere i formati.
+ * Non modifica layout, colori o testi. Utile per formattare i dati inseriti.
  * ORA RICREA ANCHE I NAMED RANGES MANCANTI.
  */
 function applyValidationOnly() {

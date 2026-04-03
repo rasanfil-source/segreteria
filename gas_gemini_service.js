@@ -750,7 +750,7 @@ Output JSON:
     if (normalizedGemini === normalizedLocal) return normalizedGemini;
 
     // 2. Lingue "esotiche": Se Gemini rileva qualcosa che NON è IT/EN/ES/PT, 
-    // ci fidiamo di Gemini prima del locale (che è ottimizzato solo per quelle 4).
+    // ci fidiamo di Gemini prima del locale (che è calibrato solo per quelle 4).
     const supportedLocally = ['it', 'en', 'es', 'pt'];
     if (!supportedLocally.includes(normalizedGemini)) {
       console.log(`   \uD83C\uDF0D Lingua: ${normalizedGemini.toUpperCase()} (Gemini ha rilevato lingua non supportata localmente)`);

@@ -763,7 +763,7 @@ updateMemoryAtomic(threadId, newData, providedTopics) {
 providedTopics = detectProvidedTopics(response);
 // Ex: ['orari_messe', 'battesimo_info', 'territorio']
 
-// Update memory
+// Store memory
 addProvidedInfoTopics(threadId, providedTopics);
 
 // Next prompt will contain:

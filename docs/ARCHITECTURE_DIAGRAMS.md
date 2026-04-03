@@ -94,7 +94,7 @@ sequenceDiagram
                     V-->>P: ✅ Valid
                     P->>G: Send response
                     P->>G: Apply "IA" label
-                    P->>S: Update memory
+                    P->>S: Store memory
                 else Validation FAIL
                     V-->>P: ❌ Invalid
                     P->>G: Apply "Verifica" label

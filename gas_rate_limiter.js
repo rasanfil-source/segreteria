@@ -528,7 +528,7 @@ class GeminiRateLimiter {
   }
 
   // ================================================================
-  // TRACKING (Ottimizzato con cache)
+  // TRACCIAMENTO con cache
   // ================================================================
 
   _trackRequest(modelKey, tokensUsed, duration) {

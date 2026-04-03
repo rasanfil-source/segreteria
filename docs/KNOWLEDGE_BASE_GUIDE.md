@@ -273,7 +273,7 @@ Example:
 | Baptism | Request Form | Downloadable from www.parish.org/documents or available in office |
 ```
 
-### 4. Keep Updated
+### 4. Continuous Maintenance
 
 **Plan quarterly review:**
 - ✅ Summer/Winter schedules
@@ -362,7 +362,7 @@ function testKnowledgeBase() {
 
 ---
 
-## 🔄 Update Workflow
+## 🔄 Maintenance Workflow
 
 ### Weekly
 1. Check "Check" emails
@@ -371,13 +371,13 @@ function testKnowledgeBase() {
 
 ### Monthly
 1. Review schedules (if changing seasonally)
-2. Update event dates
+2. Record event dates
 3. Verify contacts still valid
 
 ### Annual
 1. Complete review
 2. Removal of obsolete info
-3. Liturgical calendar update
+3. Liturgical calendar configuration
 
 ---
 

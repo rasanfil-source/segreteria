@@ -9,15 +9,15 @@ if (!fs.existsSync(FULL_PATH)) {
     process.exit(1);
 }
 
-// Read as buffer to see raw bytes
+// Legge come buffer per vedere i byte grezzi
 let buffer = fs.readFileSync(FULL_PATH);
 
 console.log("First 3 bytes:", buffer[0].toString(16), buffer[1].toString(16), buffer[2].toString(16));
 
-// Check for UTF-8 BOM: EF BB BF
+// Controllo per UTF-8 BOM: EF BB BF
 if (buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
     console.log("BOM detected. Removing...");
-    // Slice off the first 3 bytes
+    // Rimuove i primi 3 byte
     const newBuffer = buffer.subarray(3);
     fs.writeFileSync(FULL_PATH, newBuffer);
     console.log("BOM removed.");
@@ -30,15 +30,15 @@ if (buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
     const newBuffer = buffer.subarray(2);
     fs.writeFileSync(FULL_PATH, newBuffer);
 } else {
-    // Maybe it's not a BOM but a garbage char?
-    // Let's check if the first char is not standard ASCII
+    // Forse non è un BOM ma un carattere spazzatura?
+    // Controllo se il primo carattere non è ASCII standard
     const text = buffer.toString('utf8');
     if (text.charCodeAt(0) === 65279) { // 0xFEFF
         console.log("Zero Width No-Break Space detected (BOM char) at index 0. Removing...");
         fs.writeFileSync(FULL_PATH, text.substring(1), 'utf8');
     } else {
         console.log("No standard BOM bytes found.");
-        // If node -c failed on \uFEFF, maybe it's literally the string "\uFEFF"?
+        // Se node -c fallisce su \uFEFF, forse è letteralmente la stringa "\uFEFF"?
         if (text.startsWith('\\uFEFF')) {
             console.log("Found literal string '\\uFEFF'. Removing...");
             fs.writeFileSync(FULL_PATH, text.replace(/^\\uFEFF/, ''), 'utf8');

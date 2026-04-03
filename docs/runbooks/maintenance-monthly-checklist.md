@@ -141,7 +141,7 @@ function verifySpreadsheetIntegrity() {
 
 **Manual Actions:**
 - [ ] Archive emails > 6 months with "IA" label
-- [ ] Delete resolved emails from "Verifica"
+- [ ] Delete processed emails from "Verifica"
 - [ ] Check emails in "Errore" and reprocess if necessary
 
 ---
@@ -151,10 +151,10 @@ function verifySpreadsheetIntegrity() {
 ### 3.1 Verify Knowledge Base
 
 **Checklist:**
-- [ ] Mass times updated (summer/winter?)
+- [ ] Mass times verified (summer/winter?)
 - [ ] Secretariat contacts correct
 - [ ] Current year event dates present
-- [ ] Sacrament information updated
+- [ ] Sacrament information verified
 - [ ] Removed references to past events
 
 ### 3.2 Verify Configuration
@@ -194,7 +194,7 @@ function reviewConfiguration() {
 
 **If 3 months have passed since last rotation:**
 - [ ] Generate new API Key on [AI Studio](https://aistudio.google.com/apikey)
-- [ ] Update in Script Properties
+- [ ] Set in Script Properties
 - [ ] Disable old key
 - [ ] Test connection with `testGeminiConnection()`
 
@@ -217,9 +217,9 @@ function reviewConfiguration() {
 ## 📝 Section 5: Documentation
 
 **Checklist:**
-- [ ] Updated CHANGELOG if changes during the month
+- [ ] Maintained CHANGELOG if any changes
 - [ ] Documented significant incidents
-- [ ] Updated KB with new recurring FAQs
+- [ ] Verified KB with new recurring FAQs
 - [ ] Notes for next month annotated
 
 ---
@@ -245,7 +245,7 @@ Performed by: _____________
 - Emails archived: ____
 
 🔧 UPDATES
-- KB updated: ☐ Yes ☐ No
+- KB verified: ☐ Yes ☐ No
 - Config modified: ☐ Yes ☐ No
 
 🔐 SECURITY
@@ -268,8 +268,8 @@ _______________________________________
 |-------|------------------|
 | January | Complete annual review |
 | April | API Key Rotation Q1 |
-| July | API Key Rotation Q2 + Summer schedule update |
-| October | API Key Rotation Q3 + Winter schedule update |
+| July | API Key Rotation Q2 + Summer schedule configuration |
+| October | API Key Rotation Q3 + Winter schedule configuration |
 
 ---
 

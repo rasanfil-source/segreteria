@@ -102,7 +102,7 @@ function quickDiagnosis() {
   }
 }
 
-// 2. Fix: Recreate trigger
+// 2. Solution: Recreate trigger
 setupTrigger();
 ```
 

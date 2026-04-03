@@ -21,7 +21,7 @@
 ✅ **Email in English/Spanish** → Response in the same language  
 
 ### ✨ Core Architecture & Features
-*   **Advanced Lock Management**: Optimized atomic locks for perfect process coordination.
+*   **Advanced Lock Management**: Atomic locks for perfect process coordination.
 *   **KB Semantic Management**: Intelligent truncation of the Knowledge Base to ensure complete and consistent responses.
 *   **Operational Resilience**: Integrated quota monitoring system for constant service continuity.
 *   **Validation Refinement**: Extended qualitative controls for millimeter precision in interaction.

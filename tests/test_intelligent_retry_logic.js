@@ -1,7 +1,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
-// Mock environment
+// Ambiente simulato
 global.CONFIG = {
   INTELLIGENT_RETRY: {
     enabled: true,
@@ -60,7 +60,7 @@ assert(flags.hallucination === false, 'Should not detect hallucination');
 
 // 2. Test _shouldAttemptIntelligentRetry
 console.log('Testing _shouldAttemptIntelligentRetry...');
-// Critical errors bypass the minScore gate.
+// Gli errori critici bypassano il controllo del punteggio minimo.
 const shouldRetry = processor._shouldAttemptIntelligentRetry(mockValidation, 'it', global.CONFIG.INTELLIGENT_RETRY);
 assert(shouldRetry === true, 'Should attempt retry for thinking_leak');
 

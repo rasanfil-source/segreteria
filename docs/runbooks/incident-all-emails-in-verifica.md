@@ -65,7 +65,7 @@ Check logs in **Apps Script → Executions** for common patterns:
 | "Missing signature" | Wrong signature pattern |
 | "Forbidden content detected" | Prohibited phrases |
 | "Hallucination detected" | Data not in KB |
-| "Thinking leak" | Gemini 2.5 bug |
+| "Thinking leak" | Gemini 2.5 behavior |
 
 ### Step 3: Detailed Analysis
 
@@ -95,7 +95,7 @@ function analyzeVerificaEmails() {
 
 ### Cause A: Threshold Too High
 
-**Immediate Fix:**
+**Immediate Solution:**
 ```javascript
 // In gas_config.js:
 CONFIG.VALIDATION_MIN_SCORE = 0.5;  // Was 0.6
@@ -183,7 +183,7 @@ CONFIG.MODEL_STRATEGY = {
 
 ```javascript
 function verifyVerificaResolved() {
-  // Wait 1-2 hours after the fix
+  // Wait 1-2 hours after the solution
   
   calculateVerificaRate();
   

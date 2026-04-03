@@ -172,7 +172,7 @@ function verifyResolution() {
 - [ ] Verify email processing in next 30 minutes
 - [ ] Check that no emails were lost
 - [ ] Document root cause in incident log
-- [ ] Update runbook if necessary
+- [ ] Check runbook if necessary
 
 ---
 
