@@ -1227,6 +1227,16 @@ class MemoryService {
   }
 
   /**
+   * Alias retrocompatibile usato in alcuni runbook legacy.
+   * @returns {{removed:number, remaining:number}}
+   */
+  cleanupOldEntries(daysOld = 30) {
+    const removed = this.cleanOldEntries(daysOld);
+    const remaining = (this._initialized && this._sheet) ? Math.max(0, this._sheet.getLastRow() - 1) : 0;
+    return { removed, remaining };
+  }
+
+  /**
    * Ottieni statistiche sull'uso della memoria
    */
   getStats() {

@@ -50,6 +50,7 @@ const CONFIG = {
     // Ridotto a 3 per supportare strategia "Cross-Key Quality First"
     // Fino a 4 chiamate API per email → batch ridotto per prevenire timeout GAS (6 min)
     MAX_EMAILS_PER_RUN: 3,
+    SAFETY_VALVE_THRESHOLD: 0.8,       // Riduce dinamicamente il batch quando RPD supera l'80%
     MAX_CONSECUTIVE_EXTERNAL: 5,        // Soglia per rilevamento email loop
     EMPTY_INBOX_WARNING_THRESHOLD: 5,   // Soglia per warning inbox vuota
     SUSPENSION_STALE_UNREAD_HOURS: 12,    // Paracadute: processa unread vecchie anche in fascia sospesa

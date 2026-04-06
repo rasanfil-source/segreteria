@@ -1020,6 +1020,21 @@ function setupAllTriggers() {
 }
 
 /**
+ * Alias retrocompatibile documentato nei runbook legacy.
+ * Configura trigger principali + manutenzione.
+ */
+function setupTrigger() {
+  return setupAllTriggers();
+}
+
+/**
+ * Alias retrocompatibile per deployment produzione (ogni 5 minuti).
+ */
+function setupProductionTrigger() {
+  return setupMainTrigger(5);
+}
+
+/**
  * Configura il trigger di elaborazione email.
  */
 function setupMainTrigger(minutes) {
@@ -1044,6 +1059,34 @@ function setupMetricsTrigger() {
     .atHour(23)
     .everyDays(1)
     .create();
+}
+
+/**
+ * Export giornaliero metriche su Google Sheet (best effort).
+ */
+function exportMetricsToSheet() {
+  if (typeof CONFIG === 'undefined') {
+    console.log('ℹ️ exportMetricsToSheet: CONFIG non disponibile, skip.');
+    return;
+  }
+
+  const metricsSheetId = CONFIG.METRICS_SHEET_ID;
+  if (!metricsSheetId || metricsSheetId.indexOf('YOUR_') !== -1) {
+    console.log('ℹ️ exportMetricsToSheet: METRICS_SHEET_ID non configurato, skip.');
+    return;
+  }
+
+  try {
+    const limiter = new GeminiRateLimiter();
+    const stats = limiter.getUsageStats();
+    const sheetName = CONFIG.METRICS_SHEET_NAME || 'DailyMetrics';
+    const ss = SpreadsheetApp.openById(metricsSheetId);
+    const sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
+    sheet.appendRow([new Date(), JSON.stringify(stats)]);
+    console.log('✓ Metriche esportate su sheet');
+  } catch (e) {
+    console.error(`❌ exportMetricsToSheet fallita: ${e.message}`);
+  }
 }
 
 /**

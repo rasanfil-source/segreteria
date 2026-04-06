@@ -1111,7 +1111,7 @@ class ResponseValidator {
     targets.forEach(word => {
       const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const apostropheAgnosticWord = escapedWord.replace(/'/g, "['\u2019]");
-      const regex = new RegExp(`,(\\s+)(${apostropheAgnosticWord})(?!\\w)(?!\\s+[A-ZÀÈÉÌÒÙ])`, 'g');
+      const regex = new RegExp(`,(\\s+)(${apostropheAgnosticWord})(?![\\wÀ-ÖØ-öø-ÿ])(?!\\s+[A-ZÀÈÉÌÒÙ])`, 'g');
       result = result.replace(regex, (fullMatch, sep, p1) => {
         if (capitalizationExceptions.includes(p1)) {
           return fullMatch;

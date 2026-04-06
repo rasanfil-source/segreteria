@@ -54,6 +54,7 @@ var CONFIG = {
   // Bilanciato per usare al massimo le quote gratuite mantenendo priorità qualità
   // ATTENZIONE: Non modificare arbitrariamente. Verificare periodicamente in rete i limiti delle quote gratuiti stabiliti, mantenendo proporzionalità con le quote di base.
   MAX_EMAILS_PER_RUN: 3,
+  SAFETY_VALVE_THRESHOLD: 0.8,       // Riduce dinamicamente il batch quando RPD supera l'80%
   MAX_CONSECUTIVE_EXTERNAL: 5,        // Soglia per rilevamento email loop
   EMPTY_INBOX_WARNING_THRESHOLD: 5,   // Soglia per warning inbox vuota
   SUSPENSION_STALE_UNREAD_HOURS: 12,    // Paracadute: processa unread vecchie anche in fascia sospesa
@@ -274,6 +275,8 @@ function validateConfig() {
   // Gmail & Process
   checkType('MAX_EMAILS_PER_RUN', CONFIG.MAX_EMAILS_PER_RUN, 'number');
   checkRange('MAX_EMAILS_PER_RUN', CONFIG.MAX_EMAILS_PER_RUN, 1, 50); // Sanity check
+  checkType('SAFETY_VALVE_THRESHOLD', CONFIG.SAFETY_VALVE_THRESHOLD, 'number');
+  checkRange('SAFETY_VALVE_THRESHOLD', CONFIG.SAFETY_VALVE_THRESHOLD, 0.5, 0.99);
   checkType('LABEL_NAME', CONFIG.LABEL_NAME, 'string');
   checkType('MESSAGE_DISCOVERY_MODE', CONFIG.MESSAGE_DISCOVERY_MODE, 'string');
   if (!['metadata', 'query'].includes(CONFIG.MESSAGE_DISCOVERY_MODE)) {

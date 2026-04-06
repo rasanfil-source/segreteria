@@ -44,6 +44,8 @@ class GmailService {
 
     /**
      * Ottiene o crea un'etichetta Gmail con caching
+     * Nota: la creazione automatica è intenzionale (self-healing al primo avvio)
+     * per evitare errori "label not found" in ambienti nuovi.
      */
     getOrCreateLabel(labelName) {
         const cacheKey = `gmail_label_exists:${labelName}`;

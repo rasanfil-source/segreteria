@@ -1889,7 +1889,15 @@ ${addressLines.join('\n\n')}
     const compactResponse = safeResponse.replace(/\s+/g, ' ').trim();
     const failedSnippet = compactResponse.length > 400 ? compactResponse.substring(0, 400) + '...' : compactResponse;
 
-    return `${safePrompt}
+    const maxSafeTokens = (typeof CONFIG !== 'undefined' && Number.isFinite(CONFIG.MAX_SAFE_TOKENS))
+      ? CONFIG.MAX_SAFE_TOKENS
+      : 35000;
+    // Riserva spazio per blocco correzioni + risposta precedente (stima: 4 char/token).
+    const reservedTokens = 2500;
+    const maxPromptChars = Math.max(2000, Math.floor((maxSafeTokens - reservedTokens) * 4));
+    const promptForRetry = this._trimPromptForRetry_(safePrompt, maxPromptChars);
+
+    return `${promptForRetry}
 
 ══════════════════════════════════════════════════════
 CORREZIONE RICHIESTA — SECONDA GENERAZIONE
@@ -1906,6 +1914,22 @@ ${failedSnippet}
 
 Genera ora una nuova risposta corretta, evitando tutti gli errori elencati sopra.
 Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
+  }
+
+  _trimPromptForRetry_(prompt, maxChars) {
+    if (typeof prompt !== 'string') return '';
+    if (!Number.isFinite(maxChars) || maxChars <= 0 || prompt.length <= maxChars) {
+      return prompt;
+    }
+
+    // Mantiene testa+coda per preservare istruzioni iniziali e contesto finale utente.
+    const headChars = Math.floor(maxChars * 0.7);
+    const tailChars = maxChars - headChars;
+    return `${prompt.slice(0, headChars)}
+
+[...PROMPT ORIGINALE TRONCATO PER RETRY...]
+
+${prompt.slice(-tailChars)}`;
   }
 
   // Costruisce un sommario incrementale delle risposte inviate al thread

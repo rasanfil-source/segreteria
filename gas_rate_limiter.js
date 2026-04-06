@@ -89,7 +89,9 @@ class GeminiRateLimiter {
     this.safetyMargin = {
       rpm: 0.8,   // 80% del limite RPM
       tpm: 0.8,
-      rpd: 0.9    // 90% del limite
+      rpd: (typeof CONFIG !== 'undefined' && Number.isFinite(CONFIG.SAFETY_VALVE_THRESHOLD))
+        ? CONFIG.SAFETY_VALVE_THRESHOLD
+        : 0.8
     };
 
     this.throttleDelays = {
@@ -387,6 +389,7 @@ class GeminiRateLimiter {
     const tpmRatio = tpmUsed / model.tpm;
 
     if (rpdRatio >= this.safetyMargin.rpd) {
+      this._applySafetyValve_();
       return { needed: true, reason: 'rpd', delay: this.throttleDelays.rpd };
     }
     if (rpmRatio >= this.safetyMargin.rpm) {
@@ -397,6 +400,23 @@ class GeminiRateLimiter {
     }
 
     return { needed: false };
+  }
+
+  _applySafetyValve_() {
+    if (typeof CONFIG === 'undefined' || !Number.isFinite(CONFIG.MAX_EMAILS_PER_RUN)) return;
+    if (CONFIG.MAX_EMAILS_PER_RUN <= 1) return;
+
+    const todayPacific = this._getPacificDate();
+    const key = 'safety_valve_last_date';
+    const alreadyAppliedToday = this.props.getProperty(key) === todayPacific;
+    if (alreadyAppliedToday) return;
+
+    const reduced = Math.max(1, Math.floor(CONFIG.MAX_EMAILS_PER_RUN / 2));
+    if (reduced < CONFIG.MAX_EMAILS_PER_RUN) {
+      console.warn(`🚨 Safety Valve attiva: MAX_EMAILS_PER_RUN ${CONFIG.MAX_EMAILS_PER_RUN} → ${reduced}`);
+      CONFIG.MAX_EMAILS_PER_RUN = reduced;
+      this.props.setProperty(key, todayPacific);
+    }
   }
 
   // ================================================================
