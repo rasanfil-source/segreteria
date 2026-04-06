@@ -145,8 +145,9 @@ class TerritoryValidator {
     _buildStreetOnlyPattern() {
         // Pattern bounded (max 6 token) per evitare backtracking eccessivo su input malevoli
         const streetType = this._streetTypePatternSource;
-        const streetName = `[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}(?:\\s+[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}){0,5}?`;
-        return new RegExp(`(${streetType})\\s+(${streetName})\\b(?!\\s*(?:n\\.?\\s*|civico\\s+)?\\d+)`, 'gi');
+        const streetNameToken = `[a-zA-ZàèéìòùÀÈÉÌÒÙ']{1,50}`;
+        const streetName = `${streetNameToken}(?:[ \\t]+${streetNameToken}){0,5}`;
+        return new RegExp(`(${streetType})[ \\t]+(${streetName})\\b(?!\\s*(?:n\\.?\\s*|civico\\s+)?\\d+)`, 'gi');
     }
 
     /**

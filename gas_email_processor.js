@@ -1293,10 +1293,25 @@ ${addressLines.join('\n\n')}
       this._trackEmptyInboxStreak(false);
       console.log(`📬 Trovati ${threads.length} thread da elaborare`);
 
-      // Pre-carica gli ID già etichettati IA tramite Gmail Advanced Service.
-      // GmailMessage in Apps Script non espone getLabels(), quindi la cache
-      // iniziale è fondamentale per il fast-skip affidabile.
-      const labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+      let labeledMessageIds = new Set();
+      if (this.gmailService && typeof this.gmailService.getMessageIdsWithLabel === 'function') {
+        try {
+          labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+        } catch (e) {
+          console.warn(`⚠️ Impossibile pre-caricare gli ID etichettati (${e.message}). Continuo senza cache label.`);
+          labeledMessageIds = new Set();
+        }
+      } else {
+        console.warn('⚠️ gmailService.getMessageIdsWithLabel non disponibile: continuo senza cache label pre-caricata.');
+      }
+
+      if (!(labeledMessageIds instanceof Set)) {
+        if (Array.isArray(labeledMessageIds)) {
+          labeledMessageIds = new Set(labeledMessageIds);
+        } else {
+          labeledMessageIds = new Set();
+        }
+      }
 
       const stats = {
         total: 0,
