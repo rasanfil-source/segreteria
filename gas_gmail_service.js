@@ -1064,7 +1064,7 @@ class GmailService {
                     name: `TEMP_CONV_${attachmentBlob.getName() || 'allegato'}`,
                     mimeType: googleMime
                 };
-                const file = Drive.Files.create(resource, attachmentBlob.copyBlob());
+                const file = Drive.Files.create(resource, attachmentBlob.copyBlob(), { mimeType: googleMime });
                 fileId = file && file.id ? file.id : null;
                 if (!fileId) {
                     throw new Error('Conversione fallita: file temporaneo senza id.');
@@ -1238,7 +1238,7 @@ class GmailService {
                     name: `OCR_${fileName}`,
                     mimeType: googleMimeType
                 };
-                const file = Drive.Files.create(resource, blob);
+                const file = Drive.Files.create(resource, blob, { mimeType: googleMimeType });
                 if (!file || !file.id) {
                     throw new Error('Drive API ha restituito un file convertito non valido (id assente)');
                 }
