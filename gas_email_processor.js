@@ -2120,16 +2120,16 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
   _detectProvidedTopics(response) {
     if (!response || typeof response !== 'string') return [];
     const topics = [];
-    // I pattern usano già il flag /i, nessuna normalizzazione necessaria
+    // Usiamo il flag /s (dotAll) affinché .* includa anche gli a capo (\n)
 
     const patterns = {
-      'orari_messe': /messe?\b.*\d{1,2}[:.]\d{2}|orari\w*\s+messe/i,
+      'orari_messe': /messe?\b.*\d{1,2}[:.]\d{2}|orari\w*\s+messe/is,
       'contatti': /telefono|email|@|segreteria/i,
-      'battesimo_info': /battesimo.*documento|documento.*battesimo/i,
-      'comunione_info': /comunione.*catechismo|catechismo.*comunione/i,
-      'cresima_info': /cresima.*percorso|percorso.*cresima/i,
-      'matrimonio_info': /matrimonio.*corso|corso.*matrimonio/i,
-      'territorio': /rientra|non rientra|parrocchia.*competenza/i,
+      'battesimo_info': /battesimo.*documento|documento.*battesimo/is,
+      'comunione_info': /comunione.*catechismo|catechismo.*comunione/is,
+      'cresima_info': /cresima.*percorso|percorso.*cresima/is,
+      'matrimonio_info': /matrimonio.*corso|corso.*matrimonio/is,
+      'territorio': /rientra|non rientra|parrocchia.*competenza/is,
       'indirizzo': /(?:via|viale|corso|piazza|largo|circonvallazione)\s+(?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,10}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s*,?\s*\d+/i
     };
 
