@@ -1855,7 +1855,9 @@ class GmailService {
         }
 
         try {
-            mailEntity.reply('', { htmlBody: htmlBody });
+            // Corpo minimo non vuoto per massimizzare compatibilità nel fallback nativo.
+            const fallbackBody = plainText || this._stripHtmlTags(finalResponse) || 'Visualizza il contenuto HTML.';
+            mailEntity.reply(fallbackBody, { htmlBody: htmlBody });
             console.log(`✓ Risposta HTML inviata a ${messageDetails.senderEmail} (metodo alternativo nativo)`);
         } catch (error) {
             console.error(`❌ Risposta fallita: ${error.message}`);

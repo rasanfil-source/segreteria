@@ -168,7 +168,7 @@ function isInSuspensionTime(checkDate = new Date()) {
   let monthIndex = now.getMonth();
   let date = now.getDate();
   let day = now.getDay();
-  let hour = now.getHours();
+  let currentHour = now.getHours() + (now.getMinutes() / 60);
 
   // Regola di dominio: la sospensione è ancorata all'orario italiano.
   const businessTimeZone = 'Europe/Rome';
@@ -180,7 +180,11 @@ function isInSuspensionTime(checkDate = new Date()) {
       date = parseInt(Utilities.formatDate(now, businessTimeZone, 'd'), 10);
       const isoDay = parseInt(Utilities.formatDate(now, businessTimeZone, 'u'), 10);
       day = isNaN(isoDay) ? day : (isoDay % 7);
-      hour = parseInt(Utilities.formatDate(now, businessTimeZone, 'H'), 10);
+      const businessHour = parseInt(Utilities.formatDate(now, businessTimeZone, 'H'), 10);
+      const businessMinute = parseInt(Utilities.formatDate(now, businessTimeZone, 'm'), 10);
+      if (!isNaN(businessHour) && !isNaN(businessMinute)) {
+        currentHour = businessHour + (businessMinute / 60);
+      }
     } catch (e) {
       console.warn(`⚠️ Impossibile applicare timezone business (${businessTimeZone}): ${e.message}`);
     }
@@ -227,13 +231,13 @@ function isInSuspensionTime(checkDate = new Date()) {
 
   if (rules[day]) {
     for (const [startH, endH] of rules[day]) {
-      const startHour = parseInt(startH, 10);
-      const endHour = parseInt(endH, 10);
+      const startHour = Number(startH);
+      const endHour = Number(endH);
       if (!Number.isFinite(startHour) || !Number.isFinite(endHour)) {
         continue;
       }
 
-      if (hour >= startHour && hour < endHour) return true;
+      if (currentHour >= startHour && currentHour < endHour) return true;
     }
   }
 
@@ -338,7 +342,12 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
 
     _loadResourcesInternal(precomputedSheetModifiedAt);
   } finally {
-    if (lockAcquired) lock.releaseLock();
+    if (lockAcquired) {
+      const canRelease = (typeof lock.hasLock !== 'function') || lock.hasLock();
+      if (canRelease) {
+        lock.releaseLock();
+      }
+    }
   }
 }
 
@@ -634,8 +643,18 @@ function _deserializeResourceCache(serializedPayload) {
 
 function _splitCachePayload(payload, maxSize) {
   const parts = [];
-  for (let i = 0; i < payload.length; i += maxSize) {
-    parts.push(payload.substring(i, i + maxSize));
+  let i = 0;
+  while (i < payload.length) {
+    let end = Math.min(i + maxSize, payload.length);
+    // Evita split nel mezzo di surrogate pair UTF-16 (es. emoji)
+    if (end < payload.length) {
+      const maybeHighSurrogate = payload.charCodeAt(end - 1);
+      if (maybeHighSurrogate >= 0xD800 && maybeHighSurrogate <= 0xDBFF) {
+        end -= 1;
+      }
+    }
+    parts.push(payload.substring(i, end));
+    i = end;
   }
   return parts;
 }
@@ -815,12 +834,11 @@ function _parseStrictHour(value) {
   if (typeof value === 'number') {
     // Orario nativo di Sheets: frazione di giorno (es. 08:00 => 0.3333...)
     if (value >= 0 && value < 1) {
-      // Usa floor (non round): 23:30/23:59 devono restare nell'ora 23,
-      // altrimenti round produrrebbe 24 invalidando la fascia oraria.
-      // Applica un piccolo epsilon per assorbire errori IEEE-754
-      // (es. 0.3333333333333333 * 24 = 7.999999999999999).
-      const hourFromFraction = Math.floor((value * 24) + 0.0001);
-      return Math.min(Math.max(hourFromFraction, 0), 23);
+      const totalMinutes = Math.round((value * 24 * 60) + 0.0001);
+      const hourFromFraction = Math.floor(totalMinutes / 60);
+      const minuteFromFraction = totalMinutes % 60;
+      const safeHour = Math.min(Math.max(hourFromFraction, 0), 23);
+      return safeHour + (Math.min(Math.max(minuteFromFraction, 0), 59) / 60);
     }
 
     if (Number.isInteger(value) && value >= 0 && value <= 23) {
@@ -833,8 +851,12 @@ function _parseStrictHour(value) {
   // Google Sheets può restituire gli orari nativi come Date (es. 30 Dec 1899 14:00:00)
   if (value instanceof Date && !isNaN(value.getTime())) {
     const hourFromDate = value.getHours();
-    if (Number.isInteger(hourFromDate) && hourFromDate >= 0 && hourFromDate <= 23) {
-      return hourFromDate;
+    const minuteFromDate = value.getMinutes();
+    if (
+      Number.isInteger(hourFromDate) && hourFromDate >= 0 && hourFromDate <= 23 &&
+      Number.isInteger(minuteFromDate) && minuteFromDate >= 0 && minuteFromDate <= 59
+    ) {
+      return hourFromDate + (minuteFromDate / 60);
     }
     return null;
   }
@@ -847,7 +869,7 @@ function _parseStrictHour(value) {
     const minuteFromTime = Number(hhmm[2]);
     if (!Number.isInteger(hourFromTime) || !Number.isInteger(minuteFromTime)) return null;
     if (hourFromTime < 0 || hourFromTime > 23 || minuteFromTime < 0 || minuteFromTime > 59) return null;
-    return hourFromTime;
+    return hourFromTime + (minuteFromTime / 60);
   }
 
   if (!/^\d{1,2}$/.test(normalized.replace(/\s+/g, ''))) return null;

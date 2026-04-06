@@ -324,7 +324,9 @@ class EmailProcessor {
 
       if (lastSpeakerIsUs) {
         console.log('   ⊖ Saltato: l\'ultimo messaggio del thread è già nostro (bot o segreteria)');
-        // Non marchiamo nulla, semplicemente ci fermiamo finché l'utente non risponde
+        // Segniamo i non letti correnti come processati per evitare loop su thread
+        // dove l'ultimo intervento è nostro ma restano flag "unread" riaperti manualmente.
+        unlabeledUnread.forEach(message => this._markMessageAsProcessed(message, labeledMessageIds));
         result.status = 'skipped';
         result.reason = 'last_speaker_is_me';
         return result;
