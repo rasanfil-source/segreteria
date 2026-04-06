@@ -255,12 +255,6 @@ class EmailProcessor {
       const unlabeledUnread = unreadMessages.filter(message => {
         const messageId = message.getId();
         if (effectiveLabeledIds.has(messageId)) return false;
-        if (this._messageHasLabel(message, this.config.labelName)) {
-          if (effectiveLabeledIds && typeof effectiveLabeledIds.add === 'function') {
-            effectiveLabeledIds.add(messageId);
-          }
-          return false;
-        }
         return true;
       });
 
@@ -1299,7 +1293,10 @@ ${addressLines.join('\n\n')}
       this._trackEmptyInboxStreak(false);
       console.log(`📬 Trovati ${threads.length} thread da elaborare`);
 
-      const labeledMessageIds = new Set();
+      // Pre-carica gli ID già etichettati IA tramite Gmail Advanced Service.
+      // GmailMessage in Apps Script non espone getLabels(), quindi la cache
+      // iniziale è fondamentale per il fast-skip affidabile.
+      const labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
 
       const stats = {
         total: 0,
@@ -1615,17 +1612,7 @@ ${addressLines.join('\n\n')}
     return notes[lang] || notes.it;
   }
 
-  _messageHasLabel(message, labelName) {
-    if (!message || !labelName) return false;
-    try {
-      if (typeof message.getLabels !== 'function') return false;
-      const labels = message.getLabels() || [];
-      return labels.some(label => label && typeof label.getName === 'function' && label.getName() === labelName);
-    } catch (e) {
-      this.logger.warn(`⚠️ Impossibile leggere label del messaggio: ${e.message}`);
-      return false;
-    }
-  }
+
 
   _markMessageAsProcessed(message, labeledMessageIds = null) {
     // SCELTA OPERATIVA INTENZIONALE:
@@ -1678,12 +1665,6 @@ ${addressLines.join('\n\n')}
       return unreadMessages.some(message => {
         const messageId = message.getId();
         if (effectiveLabeledIds.has(messageId)) return false;
-        if (this._messageHasLabel(message, this.config.labelName)) {
-          if (effectiveLabeledIds && typeof effectiveLabeledIds.add === 'function') {
-            effectiveLabeledIds.add(messageId);
-          }
-          return false;
-        }
         return true;
       });
     } catch (e) {
