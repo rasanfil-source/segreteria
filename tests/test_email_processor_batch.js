@@ -13,8 +13,7 @@ function createMessage({ id, unread = true, from = 'utente@example.com' }) {
   return {
     getId: () => id,
     isUnread: () => unread,
-    getFrom: () => from,
-    getLabels: () => []
+    getFrom: () => from
   };
 }
 
