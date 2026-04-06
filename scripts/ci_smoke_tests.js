@@ -1507,6 +1507,57 @@ function testGetMessageIdsWithLabelInvalidPaginationOptions() {
     }
 }
 
+function testExtractMessageDetailsUsesMainReplyOnly() {
+    loadScript('gas_gmail_service.js');
+
+    const service = Object.create(GmailService.prototype);
+    service._htmlToPlainText = GmailService.prototype._htmlToPlainText;
+    service.extractMainReply = GmailService.prototype.extractMainReply;
+    service._extractSenderName = GmailService.prototype._extractSenderName;
+    service._extractEmailAddress = GmailService.prototype._extractEmailAddress;
+
+    const originalGmail = global.Gmail;
+    global.Gmail = {
+        Users: {
+            Messages: {
+                get: () => ({ payload: { headers: [] } })
+            }
+        }
+    };
+
+    const message = {
+        getSubject: () => 'Re: Info',
+        getFrom: () => 'Mario Rossi <mario@example.com>',
+        getDate: () => new Date('2026-04-06T08:00:00Z'),
+        getPlainBody: () => 'Grazie mille per la risposta.\n\nIl giorno lun 6 apr 2026 ha scritto:\n> Testo citato lungo',
+        getBody: () => '',
+        getId: () => 'msg-1',
+        getReplyTo: () => '',
+        getTo: () => 'parrocchia@example.org',
+        getCc: () => ''
+    };
+
+    try {
+        const details = service.extractMessageDetails(message);
+        assert(details.body === 'Grazie mille per la risposta.', `Il body deve contenere solo la risposta principale, ottenuto: ${details.body}`);
+    } finally {
+        global.Gmail = originalGmail;
+    }
+}
+
+function testSanitizeSubjectForHeaderRemovesCRLF() {
+    loadScript('gas_gmail_service.js');
+    const service = Object.create(GmailService.prototype);
+    service._sanitizeSubjectForHeader = GmailService.prototype._sanitizeSubjectForHeader;
+
+    const sanitized = service._sanitizeSubjectForHeader('Oggetto valido\r\nBcc: attacker@example.com');
+    assert(!/[\r\n]/.test(sanitized), `Subject sanificato non deve contenere CR/LF, ottenuto: ${JSON.stringify(sanitized)}`);
+    assert(!/Bcc:/i.test(sanitized), `Subject sanificato non deve consentire header injection, ottenuto: ${sanitized}`);
+
+    const emptyFallback = service._sanitizeSubjectForHeader(null);
+    assert(emptyFallback === 'Re:', `Fallback subject atteso 'Re:', ottenuto '${emptyFallback}'`);
+}
+
 function testRequestClassifierExternalHintCategoryTrim() {
     loadScript('gas_request_classifier.js');
 
@@ -1519,6 +1570,31 @@ function testRequestClassifierExternalHintCategoryTrim() {
 
     assert(result.type === 'pastoral' || result.type === 'mixed', `Categoria con spazi non valorizzata: ${result.type}`);
     assert(result.pastoralScore >= 0.8, `pastoralScore atteso >= 0.8 con hint esterno, ottenuto ${result.pastoralScore}`);
+}
+
+function testRequestClassifierExternalHintLocalizedConfidence() {
+    loadScript('gas_request_classifier.js');
+
+    const classifier = new RequestTypeClassifier();
+    const result = classifier.classify(
+        'Richiesta',
+        'Mi serve supporto spirituale in questo periodo difficile.',
+        { category: 'pastoral', confidence: '82%' }
+    );
+
+    assert(result.pastoralScore >= 0.8, `confidence localizzata percentuale non applicata: ${result.pastoralScore}`);
+}
+
+function testRequestClassifierSanitizeStructuredBody() {
+    loadScript('gas_request_classifier.js');
+
+    const classifier = new RequestTypeClassifier();
+    const result = classifier.classify(
+        { body: 'Info su certificato battesimo e documenti necessari' },
+        { textPlain: 'Quali documenti servono?' }
+    );
+
+    assert(result.technicalScore >= 0.4, `Input strutturato non analizzato correttamente: ${result.technicalScore}`);
 }
 
 function testPromptContextTemporalRiskWithObjectKnowledgeBase() {
@@ -1959,6 +2035,8 @@ function main() {
         ['attachment context: sanitizzazione + newline reali', testAttachmentContextSanitizationFormatting],
         ['prompt lite: budget token e sezioni ridotte', testPromptLiteTokenBudget],
         ['request classifier: external hint category trim', testRequestClassifierExternalHintCategoryTrim],
+        ['request classifier: localized confidence parsing', testRequestClassifierExternalHintLocalizedConfidence],
+        ['request classifier: structured body sanitization', testRequestClassifierSanitizeStructuredBody],
         ['golden set: regressione output strutturale', runGoldenCases],
         // Sicurezza
         ['escapeHtml: neutralizza XSS', testEscapeHtml],
@@ -1971,6 +2049,8 @@ function main() {
         ['gmail labels: errori non-label vengono propagati', testAddLabelToThreadPropagatesNonLabelErrors],
         ['gmail list: empty response fallback', testListMessagesWithResilienceHandlesEmptyResponseError],
         ['gmail list: fallback robusto opzioni paginazione invalide', testGetMessageIdsWithLabelInvalidPaginationOptions],
+        ['gmail extract: usa solo main reply senza storico', testExtractMessageDetailsUsesMainReplyOnly],
+        ['gmail subject: sanifica CRLF header injection', testSanitizeSubjectForHeaderRemovesCRLF],
         ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
         ['main: isolamento rigoroso per hasExecutionLock', testMainEncapsulatesExecutionLockSuccessfully],
         ['main: serializzazione robusta righe KB', testSheetRowsToTextRemovesEmptyCellsAndRows],

@@ -589,7 +589,8 @@ class GmailService {
         const subject = message.getSubject();
         const sender = message.getFrom();
         const date = message.getDate();
-        const body = message.getPlainBody() || this._htmlToPlainText(message.getBody());
+        let body = message.getPlainBody() || this._htmlToPlainText(message.getBody());
+        body = this.extractMainReply(body);
         const messageId = message.getId();
 
         // Estrai RFC 2822 Message-ID e header utili per filtraggio
@@ -1766,7 +1767,7 @@ class GmailService {
                     }
                 }
 
-                let replySubject = messageDetails.subject;
+                let replySubject = this._sanitizeSubjectForHeader(messageDetails.subject);
                 if (!replySubject.toLowerCase().startsWith('re:')) {
                     replySubject = 'Re: ' + replySubject;
                 }
@@ -2015,6 +2016,16 @@ class GmailService {
         return text
             .replace(/(^|\n)(To|Cc|Bcc|From|Subject|Reply-To):/gi, '$1[$2]:')
             .replace(/\r\n|\r/g, '\n');
+    }
+
+    _sanitizeSubjectForHeader(subject) {
+        const safe = (subject === null || subject === undefined) ? '' : String(subject);
+        const folded = safe
+            .replace(/[\r\n]+/g, ' ')
+            .replace(/\b(?:to|cc|bcc|from|subject|reply-to)\s*:/gi, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+        return folded || 'Re:';
     }
 
     /**

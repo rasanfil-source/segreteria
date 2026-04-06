@@ -199,9 +199,10 @@ class RequestTypeClassifier {
     // 3. Logica Ibrida (Integrazione Gemini se disponibile)
     let source = 'regex';
     const externalDims = this._extractExternalDimensions(externalHint);
+    const externalConfidence = this._normalizeConfidence(externalHint && externalHint.confidence);
     const hasExternalHint = Boolean(
-      (externalDims && externalHint && externalHint.confidence >= 0.6) ||
-      (externalHint && externalHint.category && externalHint.confidence >= 0.75)
+      (externalDims && externalHint && externalConfidence >= 0.6) ||
+      (externalHint && externalHint.category && externalConfidence >= 0.75)
     );
 
     if (externalDims && hasExternalHint) {
@@ -375,7 +376,18 @@ class RequestTypeClassifier {
    * Sanitizza il testo evitando falsi positivi da quote e firme
    */
   _sanitizeText(subject, body) {
-    let text = `${subject || ''}\n${body || ''}`;
+    const normalizePart = (value) => {
+      if (value === null || value === undefined) return '';
+      if (typeof value === 'string') return value;
+      if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+      if (typeof value === 'object') {
+        if (typeof value.textPlain === 'string') return value.textPlain;
+        if (typeof value.body === 'string') return value.body;
+      }
+      return '';
+    };
+
+    let text = `${normalizePart(subject)}\n${normalizePart(body)}`;
 
     let iterations = 0;
     while (/<blockquote/i.test(text) && iterations < 10) {
@@ -432,6 +444,32 @@ class RequestTypeClassifier {
     }
 
     return cleaned.join(' ').replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * Normalizza confidence LLM in range [0..1], accettando anche formati localizzati.
+   * Esempi supportati: 0.82, "0,82", "82%", 82.
+   */
+  _normalizeConfidence(confidenceValue) {
+    if (typeof confidenceValue === 'number' && Number.isFinite(confidenceValue)) {
+      return confidenceValue > 1 ? confidenceValue / 100 : confidenceValue;
+    }
+
+    if (typeof confidenceValue !== 'string') {
+      return 0;
+    }
+
+    const raw = confidenceValue.trim();
+    if (!raw) return 0;
+
+    const hasPercent = raw.includes('%');
+    const numeric = parseFloat(raw.replace(',', '.').replace('%', '').trim());
+    if (!Number.isFinite(numeric)) return 0;
+
+    if (hasPercent || numeric > 1) {
+      return numeric / 100;
+    }
+    return numeric;
   }
 
   /**
