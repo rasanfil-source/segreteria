@@ -17,42 +17,57 @@ const ErrorTypes = {
 
 /**
  * Classifica un errore in una categoria standard.
- * @param {Error|string} error - Errore da classificare
+ * @param {Error|string|Object} error - Errore da classificare
  * @returns {{ type: string, retryable: boolean, message: string }}
  */
 function classifyError(error) {
-    const message = String((error != null && error.message != null ? error.message : error) || '').toLowerCase();
+    let rawMessage = '';
+    if (error != null) {
+        if (typeof error === 'string') {
+            rawMessage = error;
+        } else if (error.message != null) {
+            rawMessage = String(error.message);
+        } else {
+            try {
+                rawMessage = JSON.stringify(error) || '';
+            } catch (jsonError) {
+                rawMessage = String(error);
+            }
+        }
+    }
+    const message = rawMessage.toLowerCase();
 
     // I messaggi 5xx possono contenere la parola "quota" (es. "Errore rete/server o quota (503)").
     // Manteniamo priorità alla classificazione NETWORK per evitare falsi positivi QUOTA_EXCEEDED.
     if (message.includes('rete/server') || message.includes('network') ||
-        message.includes('500') || message.includes('502') ||
-        message.includes('503') || message.includes('504') ||
-        message.includes('service unavailable')) {
-        return { type: ErrorTypes.NETWORK, retryable: true, message: message };
+        message.includes('service unavailable') ||
+        /\b(500|502|503|504)\b/.test(message)) {
+        return { type: ErrorTypes.NETWORK, retryable: true, message: rawMessage };
     }
 
     if (message.includes('quota') || message.includes('rate limit') ||
-        message.includes('429') || message.includes('resource_exhausted')) {
-        return { type: ErrorTypes.QUOTA_EXCEEDED, retryable: true, message: message };
+        message.includes('resource_exhausted') ||
+        /\b429\b/.test(message)) {
+        return { type: ErrorTypes.QUOTA_EXCEEDED, retryable: true, message: rawMessage };
     }
 
     if (message.includes('api key') || message.includes('unauthorized') ||
         message.includes('unauthenticated') || message.includes('permission_denied') ||
-        message.includes('403')) {
-        return { type: ErrorTypes.INVALID_API_KEY, retryable: false, message: message };
+        /\b(401|403)\b/.test(message)) {
+        return { type: ErrorTypes.INVALID_API_KEY, retryable: false, message: rawMessage };
     }
 
     if (message.includes('timeout') || message.includes('deadline exceeded') ||
         message.includes('econnreset') || message.includes('econnaborted') ||
-        message.includes('408') || message.includes('request timed out')) {
-        return { type: ErrorTypes.TIMEOUT, retryable: true, message: message };
+        message.includes('request timed out') ||
+        /\b408\b/.test(message)) {
+        return { type: ErrorTypes.TIMEOUT, retryable: true, message: rawMessage };
     }
 
     if (message.includes('invalid_argument') || message.includes('malformed') ||
         message.includes('non json valida')) {
-        return { type: ErrorTypes.INVALID_RESPONSE, retryable: false, message: message };
+        return { type: ErrorTypes.INVALID_RESPONSE, retryable: false, message: rawMessage };
     }
 
-    return { type: ErrorTypes.UNKNOWN, retryable: false, message: message };
+    return { type: ErrorTypes.UNKNOWN, retryable: false, message: rawMessage };
 }

@@ -290,10 +290,12 @@ function testClassifyErrorQuota() {
     const result = classifyError(new Error('429 rate limit exceeded'));
     assert(result.type === 'QUOTA_EXCEEDED', `Atteso QUOTA_EXCEEDED, ottenuto "${result.type}"`);
     assert(result.retryable === true, 'Errore quota deve essere retryable');
+    assert(result.message === '429 rate limit exceeded', 'Messaggio deve essere preservato');
 
     const result2 = classifyError(new Error('RESOURCE_EXHAUSTED: Quota exceeded'));
     assert(result2.type === 'QUOTA_EXCEEDED', `Atteso QUOTA_EXCEEDED, ottenuto "${result2.type}"`);
     assert(result2.retryable === true, 'Errore RESOURCE_EXHAUSTED deve essere retryable');
+    assert(result2.message === 'RESOURCE_EXHAUSTED: Quota exceeded', 'Messaggio deve essere preservato');
 }
 
 function testClassifyErrorNonRetryable() {
@@ -318,6 +320,7 @@ function testClassifyErrorTimeoutSignals() {
     const httpTimeout = classifyError(new Error('HTTP 408 Request Timeout'));
     assert(httpTimeout.type === 'TIMEOUT', `Atteso TIMEOUT su 408, ottenuto "${httpTimeout.type}"`);
     assert(httpTimeout.retryable === true, 'Errore 408 deve essere retryable');
+    assert(httpTimeout.message === 'HTTP 408 Request Timeout', 'Messaggio deve essere preservato');
 
     const connAborted = classifyError(new Error('read ECONNABORTED while contacting API'));
     assert(connAborted.type === 'TIMEOUT', `Atteso TIMEOUT su ECONNABORTED, ottenuto "${connAborted.type}"`);

@@ -2243,29 +2243,43 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
       }
     }
 
-    // Classificazione locale (standalone) — stesso contratto { type, retryable, message }
-    const msg = String(error.message || error.toString() || '');
-    if (!msg) {
-      console.warn('⚠️ Errore senza messaggio utile:', error);
-      return mkResult('UNKNOWN', false, '');
+    // Classificazione locale (fallback) con regex e messaggi grezzi
+    let rawMessage = '';
+    if (error != null) {
+      if (typeof error === 'string') {
+        rawMessage = error;
+      } else if (error.message != null) {
+        rawMessage = String(error.message);
+      } else {
+        try {
+          rawMessage = JSON.stringify(error) || '';
+        } catch (jsonError) {
+          rawMessage = String(error);
+        }
+      }
     }
+    const msg = rawMessage.toLowerCase();
 
-    const RETRYABLE_ERRORS = ['429', 'rate limit', 'quota', 'RESOURCE_EXHAUSTED'];
-    const FATAL_ERRORS = ['INVALID_ARGUMENT', 'PERMISSION_DENIED', 'UNAUTHENTICATED'];
+    const RETRYABLE_ERRORS = ['quota', 'RESOURCE_EXHAUSTED', 'resource_exhausted'];
+    const FATAL_ERRORS = ['INVALID_ARGUMENT', 'PERMISSION_DENIED', 'UNAUTHENTICATED', 'unauthorized', 'forbidden', 'unauthenticated'];
 
     for (const fatal of FATAL_ERRORS) {
-      if (msg.includes(fatal)) return mkResult('FATAL', false, msg);
+      if (msg.includes(fatal.toLowerCase())) return mkResult('FATAL', false, rawMessage);
     }
+    if (/\b(401|403)\b/.test(msg)) return mkResult('FATAL', false, rawMessage);
 
     for (const retryable of RETRYABLE_ERRORS) {
-      if (msg.includes(retryable)) return mkResult('QUOTA', true, msg);
+      if (msg.includes(retryable.toLowerCase())) return mkResult('QUOTA', true, rawMessage);
+    }
+    if (/\b429\b/.test(msg)) return mkResult('QUOTA', true, rawMessage);
+
+    if (msg.includes('timeout') || msg.includes('ECONNRESET') || msg.includes('econnreset') ||
+        msg.includes('deadline') || msg.includes('request timed out') ||
+        /\b(408|500|502|503|504)\b/.test(msg)) {
+      return mkResult('NETWORK', true, rawMessage);
     }
 
-    if (msg.includes('timeout') || msg.includes('ECONNRESET') || msg.includes('503') || msg.includes('500') || msg.includes('502') || msg.includes('504')) {
-      return mkResult('NETWORK', true, msg);
-    }
-
-    return mkResult('UNKNOWN', false, msg);
+    return mkResult('UNKNOWN', false, rawMessage);
   }
 
   /**

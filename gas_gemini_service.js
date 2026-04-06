@@ -514,9 +514,31 @@ Output JSON:
    * @returns {{type: string, retryable: boolean}}
    */
   _classifyError(error) {
-    const msg = String(error.message || error.toString() || '').toLowerCase();
-    const RETRYABLE_ERRORS = ['429', '500', '502', '503', '504', 'quota', 'timeout', 'deadline', 'econnreset'];
-    const FATAL_ERRORS = ['401', '403', 'unauthorized', 'forbidden', 'permission denied', 'unauthenticated'];
+    if (typeof classifyError === 'function' && typeof ErrorTypes !== 'undefined') {
+      const central = classifyError(error);
+      if (central.type === ErrorTypes.QUOTA_EXCEEDED || central.type === ErrorTypes.NETWORK || central.type === ErrorTypes.TIMEOUT) {
+        return { type: 'RETRYABLE', retryable: true };
+      }
+      return { type: 'FATAL', retryable: false };
+    }
+
+    let rawMessage = '';
+    if (error != null) {
+      if (typeof error === 'string') {
+        rawMessage = error;
+      } else if (error.message != null) {
+        rawMessage = String(error.message);
+      } else {
+        try {
+          rawMessage = JSON.stringify(error) || '';
+        } catch (jsonError) {
+          rawMessage = String(error);
+        }
+      }
+    }
+    const msg = rawMessage.toLowerCase();
+    const RETRYABLE_ERRORS = ['quota', 'timeout', 'deadline', 'econnreset'];
+    const FATAL_ERRORS = ['unauthorized', 'forbidden', 'permission denied', 'unauthenticated'];
 
     // 401/403 sono tipicamente problemi di credenziali o permessi: ritentare non li risolve.
     // PRIMARY_QUOTA_EXHAUSTED deve saltare i retry locali per passare subito al backup.
@@ -524,6 +546,10 @@ Output JSON:
       if (msg.includes(kw)) {
         return { type: 'FATAL', retryable: false };
       }
+    }
+
+    if (/\b(401|403)\b/.test(msg)) {
+      return { type: 'FATAL', retryable: false };
     }
 
     if (msg.includes('primary_quota_exhausted')) {
@@ -536,6 +562,9 @@ Output JSON:
         retryable = true;
         break;
       }
+    }
+    if (!retryable && /\b(429|500|502|503|504)\b/.test(msg)) {
+      retryable = true;
     }
     return { type: retryable ? 'RETRYABLE' : 'FATAL', retryable: retryable };
   }

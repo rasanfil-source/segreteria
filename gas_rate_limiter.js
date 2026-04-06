@@ -500,11 +500,11 @@ class GeminiRateLimiter {
         const errorMsg = error.message || '';
 
         // Uso la classificazione centralizzata (difensiva in caso di runtime modulare)
-        const classifiedError = typeof classifyError === 'function' ? classifyError(error) : { type: 'UNKNOWN', retryable: false };
+        const classifiedError = typeof classifyError === 'function' ? classifyError(error) : { type: 'UNKNOWN', retryable: false, message: errorMsg };
 
         if (classifiedError.type === 'QUOTA_EXCEEDED' || classifiedError.type === 'NETWORK') {
 
-          console.warn(`⚠️  Limite quota/rete (${classifiedError.type}) al tentativo ${attempt + 1}`);
+          console.warn(`⚠️ Limite quota/rete (${classifiedError.type}) al tentativo ${attempt + 1}: ${classifiedError.message}`);
 
           if (attempt < maxRetries - 1) {
             const backoffDelay = Math.min(
