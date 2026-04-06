@@ -79,7 +79,22 @@ class GmailService {
             }
         }
 
-        const newLabel = GmailApp.createLabel(labelName);
+        let newLabel;
+        try {
+            newLabel = GmailApp.createLabel(labelName);
+        } catch (e) {
+            // Possibile race condition: un'altra esecuzione parallela ha creato la label
+            // dopo il nostro check ma prima della createLabel().
+            const existingLabel = GmailApp.getUserLabelByName(labelName);
+            if (existingLabel) {
+                this._labelCache.set(labelName, { label: existingLabel, ts: now });
+                this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+                console.log(`✓ Label '${labelName}' recuperata dopo collisione di creazione`);
+                return existingLabel;
+            }
+            throw e;
+        }
+
         this._labelCache.set(labelName, { label: newLabel, ts: now });
         this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
         console.log(`✓ Creata nuova label: ${labelName}`);
@@ -1044,7 +1059,10 @@ class GmailService {
 
         let fileId = null;
         try {
-            const originalMime = attachmentBlob.getContentType();
+            // getContentType() può includere parametri (es. "; charset=UTF-8"):
+            // per la lookup in _officeMimeMap usiamo il mime base normalizzato.
+            const originalMimeFull = attachmentBlob.getContentType() || '';
+            const originalMime = originalMimeFull.split(';')[0].trim().toLowerCase();
             const googleMime = (this._officeMimeMap && this._officeMimeMap[originalMime]) ? this._officeMimeMap[originalMime] : null;
 
             if (typeof Drive.Files.insert === 'function') {
@@ -1225,10 +1243,12 @@ class GmailService {
             const fileName = attachment.getName() || 'allegato';
 
             // Caricamento con conversione nel formato Google Workspace corrispondente
+            const originalMimeFull = blob.getContentType() || '';
+            const originalMime = originalMimeFull.split(';')[0].trim().toLowerCase();
             if (typeof Drive.Files.insert === 'function') {
                 const resource = {
                     title: `OCR_${fileName}`,
-                    mimeType: blob.getContentType()
+                    mimeType: originalMime
                 };
                 const file = Drive.Files.insert(resource, blob, { convert: true });
                 if (!file || !file.id) {

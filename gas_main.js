@@ -1015,7 +1015,7 @@ function setupAllTriggers() {
   try {
     SpreadsheetApp.getUi().alert('✅ Tutti i trigger sono stati riattivati correttamente.');
   } catch (e) {
-    console.log('✅ Tutti i trigger sono stati riattivati correttamente.');
+    console.log('✅ Tutti i trigger sono stati riattivati correttamente (Esecuzione non-UI).');
   }
 }
 
