@@ -688,12 +688,19 @@ class MemoryService {
         if (topic && typeof topic === 'object' && typeof topic.topic === 'string') {
           const trimmed = topic.topic.trim();
           if (!trimmed) return null;
-          return {
+          const normalized = {
             topic: trimmed,
             userReaction: topic.userReaction || topic.reaction || 'unknown',
             context: topic.context || null,
             timestamp: this._validateAndNormalizeTimestamp(topic.timestamp || new Date().toISOString())
           };
+          // Preserva eventuali metadati aggiuntivi (es. lastInteraction)
+          // per evitare perdite durante cicli di normalizzazione + merge.
+          Object.keys(topic).forEach((key) => {
+            if (['topic', 'userReaction', 'reaction', 'context', 'timestamp'].includes(key)) return;
+            normalized[key] = topic[key];
+          });
+          return normalized;
         }
         return null;
       })

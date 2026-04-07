@@ -836,7 +836,8 @@ function _parseStrictHour(value) {
     if (value >= 0 && value < 1) {
       const totalMinutes = Math.floor((value * 24 * 60) + 0.0001);
       const hourFromFraction = Math.floor(totalMinutes / 60);
-      return Math.min(Math.max(hourFromFraction, 0), 23);
+      const minuteFromFraction = totalMinutes % 60;
+      return Math.min(Math.max(hourFromFraction, 0), 23) + (minuteFromFraction / 60);
     }
 
     if (Number.isInteger(value) && value >= 0 && value <= 23) {
@@ -849,10 +850,12 @@ function _parseStrictHour(value) {
   // Google Sheets può restituire gli orari nativi come Date (es. 30 Dec 1899 14:00:00)
   if (value instanceof Date && !isNaN(value.getTime())) {
     const hourFromDate = value.getHours();
+    const minuteFromDate = value.getMinutes();
     if (
       Number.isInteger(hourFromDate) && hourFromDate >= 0 && hourFromDate <= 23
+      && Number.isInteger(minuteFromDate) && minuteFromDate >= 0 && minuteFromDate <= 59
     ) {
-      return hourFromDate;
+      return hourFromDate + (minuteFromDate / 60);
     }
     return null;
   }
@@ -865,7 +868,7 @@ function _parseStrictHour(value) {
     const minuteFromTime = Number(hhmm[2]);
     if (!Number.isInteger(hourFromTime) || !Number.isInteger(minuteFromTime)) return null;
     if (hourFromTime < 0 || hourFromTime > 23 || minuteFromTime < 0 || minuteFromTime > 59) return null;
-    return hourFromTime;
+    return hourFromTime + (minuteFromTime / 60);
   }
 
   if (!/^\d{1,2}$/.test(normalized.replace(/\s+/g, ''))) return null;

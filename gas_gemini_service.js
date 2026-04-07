@@ -349,7 +349,7 @@ Output JSON:
       && activeKey !== this.backupKey
       && (
         fetchError !== null
-        || (response && [401, 403, 429, 500, 502, 503, 504].includes(response.getResponseCode()))
+        || (responseCode !== undefined && [401, 403, 429, 500, 502, 503, 504].includes(responseCode))
       );
 
     // Nota: gestiamo esplicitamente anche errori "hard" di UrlFetchApp (timeout/DNS)

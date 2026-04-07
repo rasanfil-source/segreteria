@@ -913,7 +913,7 @@ ${addressLines.join('\n\n')}
           const errorClass = classifyErrorFn(err);
           console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass.type}]`);
 
-          if (errorClass.type === 'INVALID_API_KEY' || errorClass.type === 'FATAL') {
+          if (errorClass.type === 'FATAL') {
             console.error('🛑 Errore fatale rilevato, interrompo strategia.');
             break;
           }
@@ -1135,9 +1135,17 @@ ${addressLines.join('\n\n')}
         this._rollbackSendTransaction(candidate.getId());
         const errorMessage = e && e.message ? e.message : String(e);
         console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
-        this._addErrorLabel(thread);
+        try {
+          this._addErrorLabel(thread);
+        } catch (labelError) {
+          console.warn(`⚠️ Errore aggiunta errorLabel silenziato: ${labelError.message}`);
+        }
         if (candidate) {
-          this._markMessageAsProcessed(candidate, labeledMessageIds);
+          try {
+            this._markMessageAsProcessed(candidate, labeledMessageIds);
+          } catch (markError) {
+            console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
+          }
         }
         result.status = 'error';
         result.error = `gmail_send_failed: ${errorMessage}`;
@@ -1191,7 +1199,11 @@ ${addressLines.join('\n\n')}
       if (replySent) {
         console.warn('   ⚠️ Errore post-invio: thread non etichettato come errore perché la risposta è stata già inviata');
         if (candidate) {
-          this._markMessageAsProcessed(candidate, labeledMessageIds);
+          try {
+            this._markMessageAsProcessed(candidate, labeledMessageIds);
+          } catch (markError) {
+            console.warn(`⚠️ Errore label post-invio silenziato: ${markError.message}`);
+          }
         }
         result.status = 'replied';
         result.warning = `post_send_error: ${error.message}`;
@@ -1199,9 +1211,17 @@ ${addressLines.join('\n\n')}
         return result;
       }
 
-      this._addErrorLabel(thread);
+      try {
+        this._addErrorLabel(thread);
+      } catch (labelError) {
+        console.warn(`⚠️ Errore aggiunta errorLabel silenziato: ${labelError.message}`);
+      }
       if (candidate) {
-        this._markMessageAsProcessed(candidate, labeledMessageIds);
+        try {
+          this._markMessageAsProcessed(candidate, labeledMessageIds);
+        } catch (markError) {
+          console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
+        }
       }
       result.status = 'error';
       result.error = error.message;

@@ -1399,7 +1399,17 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
     const isContinuity = salutationMode === 'session' || salutationMode === 'none_or_continuity';
 
     if (lang === 'en') {
-      formatSection = `1. **MANDATORY GREETING:**
+      formatSection = isContinuity
+        ? `1. **ONGOING CONVERSATION — NO RITUAL GREETING:**
+   • Do NOT open with a salutation — the conversation is already in progress.
+   • Begin directly with the content or a brief linking phrase.
+
+2. **Response Format (ENGLISH REQUIRED):**
+   [Direct continuation — no greeting]
+   [Concise and relevant body - ✅ USE FORMATTING IF APPROPRIATE]
+   ${closing}
+   Parish Secretariat of Sant'Eugenio`
+        : `1. **MANDATORY GREETING:**
    • You MUST start the email with EXACTLY: "${salutation}"
    • Do NOT change this greeting based on the user's email.
 
@@ -1421,7 +1431,17 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
    • Use English for everything: greeting, body, closing`;
 
     } else if (lang === 'es') {
-      formatSection = `1. **SALUDO OBLIGATORIO:**
+      formatSection = isContinuity
+        ? `1. **CONVERSACIÓN EN CURSO — SIN SALUDO RITUAL:**
+   • NO abras con un saludo — la conversación ya está en marcha.
+   • Comienza directamente con el contenido o una frase de enlace.
+
+2. **Formato de respuesta (ESPAÑOL REQUERIDO):**
+   [Continuación directa — sin saludo]
+   [Cuerpo conciso y pertinente - ✅ USA FORMATO SI ES APROPIADO]
+   ${closing}
+   Secretaría Parroquia Sant'Eugenio`
+        : `1. **SALUDO OBLIGATORIO:**
    • Debes comenzar el correo EXACTAMENTE con: "${salutation}"
    • NO cambies este saludo.
 
@@ -1465,7 +1485,17 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
    • Usa português para tudo: saudação, corpo, despedida`;
 
     } else {
-      formatSection = `1. **SALUTO OBBLIGATORIO:**
+      formatSection = isContinuity
+        ? `1. **CONVERSAZIONE IN CORSO — NESSUN SALUTO RITUALE:**
+   • NON aprire con un saluto formale — la conversazione è già avviata.
+   • Inizia direttamente con il contenuto o con una frase di continuità.
+
+2. **Formato risposta:**
+   [Continuazione diretta — nessun saluto]
+   [Corpo conciso e pertinente - ✅ USA FORMATTAZIONE SE APPROPRIATO]
+   ${closing}
+   Segreteria Parrocchia Sant'Eugenio`
+        : `1. **SALUTO OBBLIGATORIO:**
    • Inizia l'email ESATTAMENTE con: "${salutation}"
    • NON cambiare questo saluto.
 
