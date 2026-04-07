@@ -1257,7 +1257,7 @@ Output JSON:
       if (results.connectionOk) {
         try {
           const result = JSON.parse(response.getContentText());
-          if (result.candidates) {
+          if (Array.isArray(result.candidates) && result.candidates.length > 0) {
             results.canGenerate = true;
           } else {
             results.errors.push('API non ha restituito candidati');

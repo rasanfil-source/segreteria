@@ -518,7 +518,7 @@ function _getSpreadsheetModifiedTimeMs(spreadsheetId) {
         file = Drive.Files.get(spreadsheetId, { fields: 'modifiedTime' });
       } catch (v3Error) {
         // Alcuni ambienti Apps Script usano ancora semantica v2.
-        file = Drive.Files.get(spreadsheetId, { fields: 'modifiedDate' });
+        file = Drive.Files.get(spreadsheetId);
       }
 
       const modifiedRaw = file && (file.modifiedTime || file.modifiedDate);

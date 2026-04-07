@@ -248,9 +248,13 @@ class EmailProcessor {
       // ====================================================================================================
       // FILTRO A LIVELLO MESSAGGIO
       // ====================================================================================================
-      const effectiveLabeledIds = (labeledMessageIds instanceof Set)
-        ? labeledMessageIds
-        : this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+      let effectiveLabeledIds;
+      if (labeledMessageIds instanceof Set) {
+        effectiveLabeledIds = labeledMessageIds;
+      } else {
+        const fetchedIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+        effectiveLabeledIds = (fetchedIds instanceof Set) ? fetchedIds : new Set(fetchedIds || []);
+      }
 
       const unlabeledUnread = unreadMessages.filter(message => {
         const messageId = message.getId();
@@ -1675,9 +1679,13 @@ ${addressLines.join('\n\n')}
         return false;
       }
 
-      const effectiveLabeledIds = (labeledMessageIds instanceof Set)
-        ? labeledMessageIds
-        : this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+      let effectiveLabeledIds;
+      if (labeledMessageIds instanceof Set) {
+        effectiveLabeledIds = labeledMessageIds;
+      } else {
+        const fetchedIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+        effectiveLabeledIds = (fetchedIds instanceof Set) ? fetchedIds : new Set(fetchedIds || []);
+      }
 
       return unreadMessages.some(message => {
         const messageId = message.getId();
