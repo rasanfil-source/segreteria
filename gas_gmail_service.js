@@ -257,6 +257,8 @@ class GmailService {
         return message.includes('unknown error')
             || message.includes('internal error')
             || message.includes('backend error')
+            || message.includes('backend unavailable')
+            || message.includes('authentication backend')
             || message.includes('service unavailable')
             || message.includes('timed out')
             || message.includes('timeout')
