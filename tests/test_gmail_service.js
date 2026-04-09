@@ -127,3 +127,62 @@ console.log('--- Test getProcessableAttachments: MIME con parametri deve essere 
 }
 
 console.log('✅ Test sanitizzazione Gmail/HTML passati');
+
+console.log('--- Test extractMessageDetails: headers malformati non devono rompere parsing metadata ---');
+{
+  global.Gmail.Users.Messages.get = () => ({
+    payload: {
+      headers: [
+        null,
+        { foo: 'bar' },
+        { name: 'Message-ID', value: '<id@example.org>' },
+        { name: 'References', value: '<prev@example.org>' }
+      ]
+    }
+  });
+
+  const message = {
+    getSubject: () => 'Oggetto',
+    getFrom: () => 'Utente <utente@example.org>',
+    getDate: () => new Date('2026-04-01T10:00:00Z'),
+    getPlainBody: () => 'Corpo',
+    getBody: () => '<p>Corpo</p>',
+    getId: () => 'msg-1',
+    getReplyTo: () => 'reply@example.org',
+    getTo: () => 'parrocchia@example.org',
+    getCc: () => ''
+  };
+
+  const details = service.extractMessageDetails(message);
+  assert(details.rfc2822MessageId === '<id@example.org>', 'Message-ID deve essere letto anche con header malformati nel payload');
+  assert(details.existingReferences === '<prev@example.org>', 'References deve essere letto anche con header malformati nel payload');
+}
+
+console.log('--- Test extractMessageDetails: getReplyTo in errore non deve bloccare elaborazione ---');
+{
+  global.Gmail.Users.Messages.get = () => ({ payload: { headers: [] } });
+  global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'parrocchia@example.org' }),
+    getActiveUser: () => ({ getEmail: () => '' })
+  };
+
+  const message = {
+    getSubject: () => 'Oggetto 2',
+    getFrom: () => 'Utente <utente2@example.org>',
+    getDate: () => new Date('2026-04-01T11:00:00Z'),
+    getPlainBody: () => 'Corpo 2',
+    getBody: () => '<p>Corpo 2</p>',
+    getId: () => 'msg-2',
+    getReplyTo: () => {
+      throw new Error('header unavailable');
+    },
+    getTo: () => 'parrocchia@example.org',
+    getCc: () => ''
+  };
+
+  const details = service.extractMessageDetails(message);
+  assert(details.sender === 'Utente <utente2@example.org>', 'se getReplyTo fallisce deve usare il sender originale');
+  assert(details.hasReplyTo === false, 'se getReplyTo fallisce non deve impostare hasReplyTo=true');
+}
+
+console.log('✅ Test extractMessageDetails robustezza passati');

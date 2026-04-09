@@ -616,9 +616,10 @@ class GmailService {
             });
             if (rawMessage && rawMessage.payload && rawMessage.payload.headers) {
                 for (const header of rawMessage.payload.headers) {
-                    if (header && header.name) {
-                        headers[header.name.toLowerCase()] = header.value || '';
-                    }
+                    if (!header || !header.name) continue;
+
+                    headers[header.name.toLowerCase()] = header.value || '';
+
                     if (header.name === 'Message-ID' || header.name === 'Message-Id') {
                         rfc2822MessageId = header.value;
                     }
@@ -640,7 +641,12 @@ class GmailService {
             console.warn(`⚠️ Impossibile estrarre RFC 2822 Message-ID: ${e.message}`);
         }
 
-        const replyTo = message.getReplyTo();
+        let replyTo = '';
+        try {
+            replyTo = message.getReplyTo();
+        } catch (e) {
+            replyTo = '';
+        }
 
         let effectiveSender;
         let hasReplyTo = false;
