@@ -1785,8 +1785,17 @@ class GmailService {
                     referencesHeader = messageDetails.existingReferences + ' ' + messageDetails.rfc2822MessageId;
                 }
 
-                // From stabile: usa sempre l'account attivo (evita errori "non autorizzato")
-                const stableFrom = Session.getEffectiveUser().getEmail();
+                // From stabile: usa account effettivo, con fallback difensivo se non disponibile.
+                const effectiveUser = Session.getEffectiveUser();
+                const activeUser = Session.getActiveUser();
+                const stableFrom = (
+                    (effectiveUser && typeof effectiveUser.getEmail === 'function' && effectiveUser.getEmail())
+                    || (activeUser && typeof activeUser.getEmail === 'function' && activeUser.getEmail())
+                    || null
+                );
+                if (!stableFrom) {
+                    throw new Error('Impossibile determinare un mittente valido da Session (effective/active user vuoto).');
+                }
 
                 // Reply-To: usa alias solo se presente in To/Cc del messaggio originale
                 let replyToEmail = null;

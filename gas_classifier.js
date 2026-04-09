@@ -371,7 +371,8 @@ class Classifier {
 
     // Deve contenere parola di ringraziamento/ricevuto
     const thankWords = ['grazie', 'ringrazio', 'ricevuto', 'ok', 'perfetto'];
-    const hasThanks = thankWords.some(word => normalized.includes(word));
+    const normalizedWords = normalized.split(' ').filter(w => w.length > 0);
+    const hasThanks = normalizedWords.some(word => thankWords.includes(word));
 
     return hasThanks && wordCount <= 3;
   }

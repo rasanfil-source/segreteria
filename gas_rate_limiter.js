@@ -261,14 +261,14 @@ class GeminiRateLimiter {
       return this._validateModelAvailability(forceModel, estimatedTokens);
     }
 
-    // Usa strategia da CONFIG (o fallback)
-    // Aggiunge 'classification' come alias di 'quick_check' se non definito
-    const taskStrategies = this.strategies;
-    if (!taskStrategies['classification']) {
-      taskStrategies['classification'] = taskStrategies['quick_check'] || ['flash-lite', 'flash-2.5'];
-    }
+    // Usa strategia da CONFIG (o fallback) senza mutare this.strategies.
+    const taskStrategies = this.strategies || {};
+    const resolvedStrategies = Object.assign(
+      { classification: taskStrategies['quick_check'] || ['flash-lite', 'flash-2.5'] },
+      taskStrategies
+    );
 
-    const candidates = taskStrategies[taskType] || taskStrategies['fallback'] || ['flash-lite', 'flash-2.5'];
+    const candidates = resolvedStrategies[taskType] || resolvedStrategies['fallback'] || ['flash-lite', 'flash-2.5'];
 
     // Trova primo modello disponibile (Punto 11: Protezione con lock per atomicità check+use)
     const lock = LockService.getScriptLock();

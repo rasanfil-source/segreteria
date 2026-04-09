@@ -226,9 +226,12 @@ function isInSuspensionTime(checkDate = new Date()) {
   // 2. ORARI UFFICIO (Sistema SOSPESO)
   // Utilizza i dati caricati dal foglio Controllo in (A10:D16/B10:E16) durante il loadResources
   // Se non presenti, usa il fallback definito via codice in SUSPENSION_HOURS
-  const rules = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.suspensionRules)
-    ? GLOBAL_CACHE.suspensionRules
-    : SUSPENSION_HOURS;
+  const hasCachedSuspensionRules = (
+    typeof GLOBAL_CACHE !== 'undefined'
+    && GLOBAL_CACHE.suspensionRules
+    && Object.keys(GLOBAL_CACHE.suspensionRules).length > 0
+  );
+  const rules = hasCachedSuspensionRules ? GLOBAL_CACHE.suspensionRules : SUSPENSION_HOURS;
 
   if (rules[day]) {
     for (const [startH, endH] of rules[day]) {
@@ -848,7 +851,7 @@ function _parseStrictHour(value) {
       return Math.min(Math.max(hourFromFraction, 0), 23) + (minuteFromFraction / 60);
     }
 
-    if (Number.isInteger(value) && value >= 0 && value <= 23) {
+    if (Number.isInteger(value) && value >= 0 && value <= 24) {
       return value;
     }
 
@@ -882,7 +885,7 @@ function _parseStrictHour(value) {
   if (!/^\d{1,2}$/.test(normalized.replace(/\s+/g, ''))) return null;
 
   const hour = Number(normalized.replace(/\s+/g, ''));
-  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
+  if (!Number.isInteger(hour) || hour < 0 || hour > 24) return null;
 
   return hour;
 }
