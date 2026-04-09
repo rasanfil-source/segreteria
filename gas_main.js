@@ -842,6 +842,10 @@ function _parseSheetToStructured(data) {
 }
 
 function _parseStrictHour(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return value.getHours();
+  }
+
   if (typeof value === 'number') {
     // Contratto runtime/UI: fasce a ore intere (i minuti vengono troncati).
     if (value >= 0 && value < 1) {

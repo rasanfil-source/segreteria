@@ -313,12 +313,14 @@ class GmailService {
                     break;
                 }
 
-                const response = this._listMessagesWithResilience({
+                const params = {
                     labelIds: [labelId],
                     q: query,
-                    maxResults: pageSize,
-                    pageToken: pageToken
-                });
+                    maxResults: pageSize
+                };
+                if (pageToken) params.pageToken = pageToken;
+
+                const response = this._listMessagesWithResilience(params);
                 pageCount++;
 
                 if (response.messages) {
@@ -601,7 +603,7 @@ class GmailService {
         let isNewsletter = false;
         const headers = {};
         try {
-            const rawMessage = Gmail.Users.Messages.get('me', messageId, {
+            const rawMessage = this._getMessageMetadataWithResilience(messageId, {
                 format: 'metadata',
                 metadataHeaders: [
                     'Message-ID',
