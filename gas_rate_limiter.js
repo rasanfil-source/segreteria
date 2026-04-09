@@ -641,14 +641,11 @@ class GeminiRateLimiter {
     this.cache[cacheKey].push(entry);
 
     // Pulisci vecchie entry (>60 secondi)
-    this.cache[cacheKey] = this.cache[cacheKey].filter(function (e) {
-      return now - e.timestamp < 60000;
-    });
+    this.cache[cacheKey] = this.cache[cacheKey].filter(e => now - e.timestamp < 60000);
 
-    // Limita array a 30 (limite API Free è 15 RPM)
-    // Previene crash del PropertiesService per superamento dei 9KB
-    if (this.cache[cacheKey].length > 30) {
-      this.cache[cacheKey] = this.cache[cacheKey].slice(-30);
+    // Limita dimensioni array per rispettare limiti PropertiesService (~9kb)
+    if (this.cache[cacheKey].length > 100) {
+      this.cache[cacheKey] = this.cache[cacheKey].slice(-100);
     }
 
     // Persist ogni 10 secondi (batch writes)
@@ -664,22 +661,18 @@ class GeminiRateLimiter {
     const now = Date.now();
 
     // 1. Pulisci RPM e applica LIMITE DI SICUREZZA
-    let newRpm = rpmWindow.filter(function (e) {
-      return now - e.timestamp < 60000;
-    });
+    let newRpm = rpmWindow.filter(e => now - e.timestamp < 60000);
     // Taglio di sicurezza esplicito per RPM
-    if (newRpm.length > 30) {
-      newRpm = newRpm.slice(-30);
+    if (newRpm.length > 100) {
+      newRpm = newRpm.slice(-100);
     }
     this.cache.rpmWindow = newRpm;
 
     // 2. Pulisci TPM e applica LIMITE DI SICUREZZA
-    let newTpm = tpmWindow.filter(function (e) {
-      return now - e.timestamp < 60000;
-    });
+    let newTpm = tpmWindow.filter(e => now - e.timestamp < 60000);
     // Taglio di sicurezza esplicito per TPM
-    if (newTpm.length > 30) {
-      newTpm = newTpm.slice(-30);
+    if (newTpm.length > 100) {
+      newTpm = newTpm.slice(-100);
     }
     this.cache.tpmWindow = newTpm;
 
@@ -842,7 +835,7 @@ class GeminiRateLimiter {
     // Ordina per timestamp e limita
     return merged
       .sort((a, b) => a.timestamp - b.timestamp)
-      .slice(-30);
+      .slice(-100);
   }
 
   _getRequestsInWindow(windowType, modelKey) {
@@ -851,16 +844,12 @@ class GeminiRateLimiter {
     // Usa cache se fresh
     if (now - this.cache.lastCacheUpdate < this.cache.cacheTTL) {
       const cacheKey = windowType + 'Window';
-      return this.cache[cacheKey].filter(function (e) {
-        return e.modelKey === modelKey && (now - e.timestamp < 60000);
-      }).length;
+      return this.cache[cacheKey].filter(e => e.modelKey === modelKey && (now - e.timestamp < 60000)).length;
     }
 
     // Altrimenti leggi da PropertiesService
     const windowData = JSON.parse(this.props.getProperty(windowType + '_window') || '[]');
-    return windowData.filter(function (e) {
-      return e.modelKey === modelKey && (now - e.timestamp < 60000);
-    }).length;
+    return windowData.filter(e => e.modelKey === modelKey && (now - e.timestamp < 60000)).length;
   }
 
   _getTokensInWindow(windowType, modelKey) {
@@ -880,19 +869,15 @@ class GeminiRateLimiter {
       const cacheKey = windowType + 'Window';
       const cachedWindow = Array.isArray(this.cache[cacheKey]) ? this.cache[cacheKey] : [];
       return cachedWindow
-        .filter(function (e) {
-          return e.modelKey === modelKey && (now - e.timestamp < 60000);
-        })
-        .reduce(function (sum, e) { return sum + (e.tokens || 0); }, 0);
+        .filter(e => e.modelKey === modelKey && (now - e.timestamp < 60000))
+        .reduce((sum, e) => sum + (e.tokens || 0), 0);
     }
 
     // Fallback PropertiesService
     const windowData = JSON.parse(this.props.getProperty(windowType + '_window') || '[]');
     return windowData
-      .filter(function (e) {
-        return e.modelKey === modelKey && (now - e.timestamp < 60000);
-      })
-      .reduce(function (sum, e) { return sum + (e.tokens || 0); }, 0);
+      .filter(e => e.modelKey === modelKey && (now - e.timestamp < 60000))
+      .reduce((sum, e) => sum + (e.tokens || 0), 0);
   }
 
   // ================================================================
