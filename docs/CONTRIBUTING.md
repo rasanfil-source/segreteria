@@ -21,6 +21,7 @@ Thank you for your interest in contributing to SPA! We welcome contributions fro
 
 ### Testing
 *   **Unit Tests**: Run `node gas_unit_tests.js` locally (requires node setup) or `runAllTests()` in the GAS editor.
+*   **CI-equivalent Node Suite**: Run `bash scripts/run_ci_test_suite.sh` to execute smoke + unit + modular Node tests (`tests/test_*.js`) with the same orchestration used in GitHub Actions.
 *   **Safety**: Ensure that your changes do not compromise the "Safety Valve" or Rate Limiting logic.
 *   **Pastoral Sensitivity**: Any change affecting response generation must be tested against pastoral scenarios (e.g., bereavement, spiritual distress) to ensure tone remains appropriate.
 

@@ -23,17 +23,11 @@ jobs:
       - name: Syntax check (tracked JS files)
         run: bash scripts/check_js_syntax.sh
 
-      - name: CI smoke tests
-        run: node scripts/ci_smoke_tests.js | tee smoke_output.txt
-
-      - name: Unit test suite
-        run: node gas_unit_tests.js | tee unit_output.txt
+      - name: Full Node test suite (smoke + unit + modular)
+        run: bash scripts/run_ci_test_suite.sh | tee ci_full_output.txt
 
       - name: Pubblica riepilogo test
         if: always()
         run: |
-          echo "## 🧪 Smoke Test Results" >> $GITHUB_STEP_SUMMARY
-          tail -2 smoke_output.txt >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## ✅ Unit Test Suite" >> $GITHUB_STEP_SUMMARY
-          tail -8 unit_output.txt >> $GITHUB_STEP_SUMMARY
+          echo "## 🧪 Full Node test suite" >> $GITHUB_STEP_SUMMARY
+          tail -20 ci_full_output.txt >> $GITHUB_STEP_SUMMARY

@@ -21,6 +21,7 @@ Grazie per il tuo interesse nel contribuire a SPA! Accogliamo contributi da svil
 
 ### Testing
 *   **Unit Tests**: Esegui `node gas_unit_tests.js` localmente o `runAllTests()` nell'editor GAS.
+*   **Suite Node equivalente CI**: Esegui `bash scripts/run_ci_test_suite.sh` per lanciare smoke + unit + test modulari Node (`tests/test_*.js`) con la stessa orchestrazione usata in GitHub Actions.
 *   **Sicurezza**: Assicurati che le tue modifiche non compromettano la "Safety Valve" o la logica di Rate Limiting.
 *   **Sensibilità Pastorale**: Ogni modifica che influenza la generazione delle risposte deve essere testata contro scenari pastorali (es. lutto, disagio spirituale) per garantire che il tono rimanga appropriato.
 
