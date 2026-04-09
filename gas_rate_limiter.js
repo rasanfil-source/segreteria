@@ -853,6 +853,8 @@ class GeminiRateLimiter {
   }
 
   _getTokensInWindow(windowType, modelKey) {
+    const now = Date.now();
+
     // Fail-safe difensivo: evita crash se la cache non è stata inizializzata
     // (es. stato corrotto/iniezione test incompleta).
     if (!this.cache || typeof this.cache !== 'object') {
