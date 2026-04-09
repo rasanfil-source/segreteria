@@ -379,7 +379,13 @@ class EmailProcessor {
           messageDetails.subject
         ) || {})
         : {};
-      const detectedLanguage = (languageDetection.lang || 'it').toLowerCase();
+      const quickCheckPre = (this.geminiService && typeof this.geminiService.shouldRespondToEmail === 'function')
+        ? this.geminiService.shouldRespondToEmail(
+          messageDetails.body,
+          messageDetails.subject
+        )
+        : null;
+      const detectedLanguage = (((quickCheckPre && quickCheckPre.language) || languageDetection.lang || 'it') + '').toLowerCase().substring(0, 2);
       console.log(`   🌐 Lingua: ${detectedLanguage.toUpperCase()}`);
 
       if (this._shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
@@ -562,7 +568,7 @@ class EmailProcessor {
       // ====================================================================================================
       // STEP 3: CONTROLLO RAPIDO - Gemini decide se serve risposta
       // ====================================================================================================
-      const quickCheck = this.geminiService.shouldRespondToEmail(
+      const quickCheck = quickCheckPre || this.geminiService.shouldRespondToEmail(
         messageDetails.body,
         messageDetails.subject
       );
