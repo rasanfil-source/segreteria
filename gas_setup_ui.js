@@ -380,21 +380,26 @@ function applyControlloInputConstraints_(sheet) {
     'La data fine deve essere uguale o successiva alla data inizio.'
   );
 
-  // Orari sospensione: B10 e D10...B16 e D16 (Interi 0-24)
-  const timeRule = SpreadsheetApp.newDataValidation()
-    .requireNumberBetween(0, 24)
-    .setAllowInvalid(false)
-    .setHelpText('Inserisci un numero intero tra 0 e 24 (es. 8, 20).')
-    .build();
-
-  sheet.getRange('B10:B16').setDataValidation(timeRule).setNumberFormat('0');
-  sheet.getRange('D10:D16').setDataValidation(timeRule).setNumberFormat('0');
+  // Orari sospensione: B10 e D10...B16 e D16 (interi 0-23)
+  applyFormulaValidationWithFallback_(
+    sheet.getRange('B10:B16'),
+    [
+      '=OR($B10="";AND(ISNUMBER($B10);$B10=INT($B10);$B10>=0;$B10<=23))',
+      '=OR($B10="",AND(ISNUMBER($B10),$B10=INT($B10),$B10>=0,$B10<=23))'
+    ],
+    'Inserisci un numero intero tra 0 e 23 (es. 8, 20).'
+  );
+  sheet.getRange('B10:B16').setNumberFormat('0');
+  sheet.getRange('D10:D16').setNumberFormat('0');
 
   // Controllo orario B < D
   applyFormulaValidationWithFallback_(
     sheet.getRange('D10:D16'),
-    ['=OR(AND($B10="";$D10="");$B10<$D10)', '=OR(AND($B10="",$D10=""),$B10<$D10)'],
-    'Inserisci orari validi (0-24) e assicurati che inizio < fine.'
+    [
+      '=OR(AND($B10="";$D10="");AND(ISNUMBER($B10);$B10=INT($B10);$B10>=0;$B10<=23;ISNUMBER($D10);$D10=INT($D10);$D10>=0;$D10<=23;$B10<$D10))',
+      '=OR(AND($B10="",$D10=""),AND(ISNUMBER($B10),$B10=INT($B10),$B10>=0,$B10<=23,ISNUMBER($D10),$D10=INT($D10),$D10>=0,$D10<=23,$B10<$D10))'
+    ],
+    'Inserisci orari validi (interi 0-23) e assicurati che inizio < fine.'
   );
 
   // Filtri domini/keyword direttamente su Controllo
@@ -406,7 +411,7 @@ function applyControlloInputConstraints_(sheet) {
   sheet.getRange('E13:E120').setDataValidation(domainRule);
 
   const keywordRule = SpreadsheetApp.newDataValidation()
-    .requireFormulaSatisfied('=OR(F13="";LEN(TRIM(F11))>0)')
+    .requireFormulaSatisfied('=OR(F13="";LEN(TRIM(F13))>0)')
     .setAllowInvalid(false)
     .setHelpText('Inserisci una parola/frase da escludere.')
     .build();

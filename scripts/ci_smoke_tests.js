@@ -1904,8 +1904,7 @@ function testLoadAdvancedConfigStrictSuspensionHours() {
     assert(cfg.suspensionRules[6][0][0] === 9 && cfg.suspensionRules[6][0][1] === 17, 'Valori con spazi devono essere normalizzati (9-17)');
     assert(cfg.suspensionRules[0][0][0] === 7 && cfg.suspensionRules[0][0][1] === 9, 'Domenica valida deve essere mantenuta (7-9)');
     assert(cfg.suspensionRules[2] == null, 'Valori parzialmente numerici (es. 08x) devono essere scartati');
-    assert(Array.isArray(cfg.suspensionRules[3]), 'Mercoledì deve includere la fascia oraria valida 22-24');
-    assert(cfg.suspensionRules[3][0][0] === 22 && cfg.suspensionRules[3][0][1] === 24, 'Fascia mercoledì 22-24 non parsata correttamente');
+    assert(cfg.suspensionRules[3] == null, 'Ore fuori range (es. 24) devono essere scartate');
     assert(cfg.suspensionRules[4] == null, 'Fasce invertite o nulle (18-18) devono essere scartate');
 }
 
