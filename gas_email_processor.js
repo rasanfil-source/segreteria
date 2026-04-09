@@ -1488,7 +1488,9 @@ ${addressLines.join('\n\n')}
     const ignoreDomainsArray = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreDomains))
       ? GLOBAL_CACHE.ignoreDomains
       : ((typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_DOMAINS)) ? CONFIG.IGNORE_DOMAINS : []);
-    const ignoreDomains = ignoreDomainsArray.map(d => String(d).toLowerCase());
+    const ignoreDomains = ignoreDomainsArray
+      .map(d => String(d == null ? '' : d).trim().toLowerCase())
+      .filter(Boolean);
 
     if (ignoreDomains.some(domain => {
       const isExactMatch = email === domain;
@@ -1504,7 +1506,9 @@ ${addressLines.join('\n\n')}
     const ignoreKeywordsArray = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreKeywords))
       ? GLOBAL_CACHE.ignoreKeywords
       : ((typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_KEYWORDS)) ? CONFIG.IGNORE_KEYWORDS : []);
-    const ignoreKeywords = ignoreKeywordsArray.map(k => String(k).toLowerCase());
+    const ignoreKeywords = ignoreKeywordsArray
+      .map(k => String(k == null ? '' : k).trim().toLowerCase())
+      .filter(Boolean);
 
     if (ignoreKeywords.some(keyword => subject.includes(keyword) || body.includes(keyword))) {
       console.log(`🚫 Ignorato: oggetto o corpo contiene keyword vietata`);
@@ -1583,7 +1587,7 @@ ${addressLines.join('\n\n')}
     const normalizedSubject = (subject || '').toLowerCase().replace(/\s+/g, ' ');
 
     const hasKeywordMatch = triggerKeywords.some(keyword => {
-      const needle = (keyword || '').toLowerCase();
+      const needle = String(keyword == null ? '' : keyword).toLowerCase().trim();
       return needle && (normalizedBody.includes(needle) || normalizedSubject.includes(needle));
     });
 
@@ -1651,9 +1655,24 @@ ${addressLines.join('\n\n')}
   }
 
   _getBusinessDateString(date = new Date()) {
-    return (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function')
-      ? Utilities.formatDate(date, 'Europe/Rome', 'yyyy-MM-dd')
-      : new Date(date).toISOString().split('T')[0];
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+      return Utilities.formatDate(date, 'Europe/Rome', 'yyyy-MM-dd');
+    }
+
+    const parsed = new Date(date);
+    if (isNaN(parsed.getTime())) return '';
+
+    try {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Rome',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(parsed);
+    } catch (_) {
+      // Fallback minimale quando Intl/timeZone non è disponibile.
+      return parsed.toISOString().split('T')[0];
+    }
   }
 
   _getCurrentSeason() {
