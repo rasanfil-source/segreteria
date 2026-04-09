@@ -576,6 +576,12 @@ class EmailProcessor {
 
       if (!quickCheck.shouldRespond) {
         console.log(`   ⊖ Gemini quick check: nessuna risposta necessaria (${quickCheck.reason})`);
+        if (quickCheck.reason === 'quick_check_failed') {
+          console.warn('   ⚠️ Gemini quick check fallito: thread lasciato non etichettato per retry successivo.');
+          result.status = 'error';
+          result.error = 'quick_check_failed';
+          return result;
+        }
         this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'filtered';
         return result;

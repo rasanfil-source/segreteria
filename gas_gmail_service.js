@@ -618,12 +618,13 @@ class GmailService {
                 for (const header of rawMessage.payload.headers) {
                     if (!header || !header.name) continue;
 
-                    headers[header.name.toLowerCase()] = header.value || '';
+                    const lowerName = String(header.name).toLowerCase();
+                    headers[lowerName] = header.value || '';
 
-                    if (header.name === 'Message-ID' || header.name === 'Message-Id') {
+                    if (lowerName === 'message-id') {
                         rfc2822MessageId = header.value;
                     }
-                    if (header.name === 'References') {
+                    if (lowerName === 'references') {
                         existingReferences = header.value;
                     }
                 }
