@@ -164,8 +164,8 @@ function setupControlloSheet(ss) {
   applyFormulaWithLocaleFallback_(sheet.getRange('F7'), '=IF($B$2="Spento";"⏹️ Non rilevante (sistema spento)";IF($F$2="Solo straniere";"🇪🇺 Solo lingue straniere";"🌍 Tutte le lingue"))');
   applyFormulaWithLocaleFallback_(sheet.getRange('F8'), '=TODAY()');
   applyFormulaWithLocaleFallback_(sheet.getRange('F9'), '=IF(B2="Spento";"Spento manualmente";IF(F6="Assente";"Assenza segretario";"OK"))');
-  // Formula aggiornata per B/D
-  applyFormulaWithLocaleFallback_(sheet.getRange('F10'), '=IF(OR(INDEX(B10:B16;WEEKDAY(TODAY();2))="";INDEX(D10:D16;WEEKDAY(TODAY();2))="");"Nessuna";RIGHT("0"&HOUR(INDEX(B10:B16;WEEKDAY(TODAY();2)));2)&"."&RIGHT("0"&MINUTE(INDEX(B10:B16;WEEKDAY(TODAY();2)));2)&"-"&RIGHT("0"&HOUR(INDEX(D10:D16;WEEKDAY(TODAY();2)));2)&"."&RIGHT("0"&MINUTE(INDEX(D10:D16;WEEKDAY(TODAY();2)));2))');
+  // Formula universale: gestisce sia interi (8) che valori orario (08:00)
+  applyFormulaWithLocaleFallback_(sheet.getRange('F10'), '=IF(OR(INDEX(B10:B16;WEEKDAY(TODAY();2))="";INDEX(D10:D16;WEEKDAY(TODAY();2))="");"Nessuna";TEXT(IF(INDEX(B10:B16;WEEKDAY(TODAY();2))<1;INDEX(B10:B16;WEEKDAY(TODAY();2));TIME(INDEX(B10:B16;WEEKDAY(TODAY();2));0;0));"hh.mm")&"-"&TEXT(IF(INDEX(D10:D16;WEEKDAY(TODAY();2))<1;INDEX(D10:D16;WEEKDAY(TODAY();2));TIME(INDEX(D10:D16;WEEKDAY(TODAY();2));0;0));"hh.mm"))');
 
   // Sospensione oraria
   sheet.getRange('A9').setValue('🟡 Risposta automatica sospesa:').setFontWeight('bold');
