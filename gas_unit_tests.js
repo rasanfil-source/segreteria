@@ -286,6 +286,12 @@ function runAllTests() {
             const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it', { topic: 'incontro' }, { type: 'technical' });
             return adjusted.includes('in un orario differente da quanto indicato da Lei');
         });
+        test('Non duplica nota quando è già presente il fallback "Nota: orario comunicato"', results, () => {
+            const response = "Buonasera.\n\nL'incontro inizierà alle ore 16:30.\n\nNota: l'orario comunicato è diverso da quello da Lei indicato.";
+            const messageDetails = { subject: 'Incontro', body: 'Pensavo fosse alle 17:00.' };
+            const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it', { topic: 'incontro' }, { type: 'technical' });
+            return adjusted === response;
+        });
 
         test('processThread tratta un Set vuoto come cache già fornita', results, () => {
             const labeledMessageIds = new Set();

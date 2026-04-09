@@ -2091,12 +2091,15 @@ ${prompt.slice(-tailChars)}`;
     const sourceText = `${messageDetails && messageDetails.subject ? messageDetails.subject : ''} ${messageDetails && messageDetails.body ? messageDetails.body : ''}`.toLowerCase();
     const responseLower = response.toLowerCase();
 
-    // Evita duplicazione note se già presente un chiarimento orario.
-    if (
-      responseLower.includes("rispetto all'orario da lei indicato") ||
-      responseLower.includes('orario diverso da quello indicato') ||
-      responseLower.includes('orario differente da quanto indicato')
-    ) {
+    // Evita duplicazione note se già presente un chiarimento orario
+    // (supporta varianti lessicali e il fallback "Nota: ...").
+    const discrepancyNotePatterns = [
+      /orario\s+(?:diverso|differente)\s+(?:da|rispetto\s+a)\s+(?:quanto\s+)?(?:da\s+)?lei\s+indicato/i,
+      /orario\s+(?:diverso|differente)\s+da\s+quello\s+indicato/i,
+      /orario\s+comunicato\s+è\s+diverso/i
+    ];
+
+    if (discrepancyNotePatterns.some((pattern) => pattern.test(responseLower))) {
       return response;
     }
 
