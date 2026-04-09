@@ -1244,6 +1244,80 @@ function testShouldIgnoreEmail() {
     assert(ooo === true, 'Auto-reply OOO deve essere ignorata');
 }
 
+function testShouldIgnoreEmailSkipsBlankBlacklistEntries() {
+    loadScript('gas_email_processor.js');
+
+    const originalGlobalCache = global.GLOBAL_CACHE;
+    global.GLOBAL_CACHE = {
+        ...(originalGlobalCache || {}),
+        ignoreDomains: ['   ', '', null],
+        ignoreKeywords: []
+    };
+
+    try {
+        const processor = new EmailProcessor({
+            geminiService: {},
+            classifier: {},
+            requestClassifier: {},
+            validator: {},
+            gmailService: {},
+            promptEngine: {},
+            memoryService: { getMemory: () => ({ providedInfo: [] }), updateMemory: () => { } },
+            territoryValidator: null
+        });
+
+        const regular = processor._shouldIgnoreEmail({
+            senderEmail: 'utente@example.com',
+            senderName: 'Utente',
+            subject: 'Informazioni',
+            body: 'Vorrei sapere gli orari',
+            headers: {}
+        });
+
+        assert(regular === false, 'Voci blacklist vuote non devono bloccare tutte le email');
+    } finally {
+        global.GLOBAL_CACHE = originalGlobalCache;
+    }
+}
+
+function testShouldTryOcrHandlesNonStringKeywords() {
+    loadScript('gas_email_processor.js');
+
+    const originalConfig = global.CONFIG;
+    global.CONFIG = {
+        ...(originalConfig || {}),
+        ATTACHMENT_CONTEXT: {
+            enabled: true,
+            ocrTriggerKeywords: [123, null, 'certificato']
+        }
+    };
+
+    try {
+        const processor = Object.create(EmailProcessor.prototype);
+        const decision = processor._shouldTryOcr('Allego certificato battesimo', 'Richiesta documenti');
+        assert(decision === true, 'Keyword stringa valida deve attivare OCR anche con elementi non stringa nella lista');
+    } finally {
+        global.CONFIG = originalConfig;
+    }
+}
+
+function testGetBusinessDateStringFallbackUsesRomeTimezone() {
+    loadScript('gas_email_processor.js');
+
+    const processor = Object.create(EmailProcessor.prototype);
+    const originalUtilities = global.Utilities;
+
+    try {
+        global.Utilities = undefined;
+        const romeMidnight = new Date('2026-03-07T00:30:00+01:00');
+        const dateStr = processor._getBusinessDateString(romeMidnight);
+        assert(dateStr === '2026-03-07', `Fallback date deve rispettare Europe/Rome, ottenuto ${dateStr}`);
+    } finally {
+        global.Utilities = originalUtilities;
+    }
+}
+
+
 // ========================================================================
 // TEST SICUREZZA (escapeHtml, sanitizeUrl, markdownToHtml)
 // ========================================================================
@@ -2032,6 +2106,9 @@ function main() {
         ['memory reaction: normalizzazione topic coerente', testInferUserReactionNormalizesTopicKeys],
         ['rate limiter: persistenza rigorosa transazionale bloccata senza lock', testRateLimiterPersistenceRequiresTransactionalLock],
         ['_shouldIgnoreEmail: no-reply/reale/ooo', testShouldIgnoreEmail],
+        ['_shouldIgnoreEmail: blacklist vuota non blocca tutto', testShouldIgnoreEmailSkipsBlankBlacklistEntries],
+        ['ocr trigger: keyword non-stringa gestite in sicurezza', testShouldTryOcrHandlesNonStringKeywords],
+        ['business date: fallback rispetta timezone Roma', testGetBusinessDateStringFallbackUsesRomeTimezone],
         ['attachment context: sanitizzazione + newline reali', testAttachmentContextSanitizationFormatting],
         ['prompt lite: budget token e sezioni ridotte', testPromptLiteTokenBudget],
         ['request classifier: external hint category trim', testRequestClassifierExternalHintCategoryTrim],
