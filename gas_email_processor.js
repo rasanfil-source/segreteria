@@ -379,7 +379,8 @@ class EmailProcessor {
           messageDetails.subject
         ) || {})
         : {};
-      const quickCheckPre = (this.geminiService && typeof this.geminiService.shouldRespondToEmail === 'function')
+      const shouldPrecomputeQuickCheck = languageMode === 'foreign_only';
+      const quickCheckPre = (shouldPrecomputeQuickCheck && this.geminiService && typeof this.geminiService.shouldRespondToEmail === 'function')
         ? this.geminiService.shouldRespondToEmail(
           messageDetails.body,
           messageDetails.subject
