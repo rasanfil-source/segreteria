@@ -11,6 +11,7 @@ var GLOBAL_CACHE = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBA
   knowledgeBase: '',
   doctrineBase: '',
   systemEnabled: true,
+  languageMode: 'all',
   vacationPeriods: [],
   suspensionRules: {},
   ignoreDomains: [],
@@ -477,6 +478,7 @@ function _loadResourcesInternal(knownSheetModifiedAt) {
   // Config Avanzata
   const adv = withSheetsRetry(() => _loadAdvancedConfig(ss), 'Lettura Configurazione Avanzata');
   newCacheData.systemEnabled = adv.systemEnabled;
+  newCacheData.languageMode = adv.languageMode || 'all';
   newCacheData.vacationPeriods = adv.vacationPeriods;
   newCacheData.suspensionRules = adv.suspensionRules;
   newCacheData.ignoreDomains = adv.ignoreDomains;
@@ -767,6 +769,7 @@ function clearKnowledgeCache() {
   GLOBAL_CACHE.knowledgeBase = '';
   GLOBAL_CACHE.doctrineBase = '';
   GLOBAL_CACHE.systemEnabled = true;
+  GLOBAL_CACHE.languageMode = 'all';
   GLOBAL_CACHE.vacationPeriods = [];
   GLOBAL_CACHE.suspensionRules = {};
   GLOBAL_CACHE.ignoreDomains = [];
@@ -923,7 +926,7 @@ function _extractSuspensionHoursFromRow(row) {
 }
 
 function _loadAdvancedConfig(ss) {
-  const config = { systemEnabled: true, vacationPeriods: [], suspensionRules: {}, ignoreDomains: [], ignoreKeywords: [] };
+  const config = { systemEnabled: true, languageMode: 'all', vacationPeriods: [], suspensionRules: {}, ignoreDomains: [], ignoreKeywords: [] };
   const sheet = ss.getSheetByName('Controllo');
   if (!sheet) return config;
 
@@ -931,6 +934,28 @@ function _loadAdvancedConfig(ss) {
     // Interruttore
     const status = sheet.getRange('B2').getValue();
     if (String(status).toUpperCase().includes('SPENTO')) config.systemEnabled = false;
+
+    // Modalità lingua (F2): "Tutte le lingue" | "Solo straniere"
+    // Fallback difensivo su "all" per retrocompatibilità.
+    let languageModeRaw = '';
+    try {
+      const languageModeCell = sheet.getRange('F2');
+      const languageModeDisplay = (languageModeCell && typeof languageModeCell.getDisplayValue === 'function')
+        ? languageModeCell.getDisplayValue()
+        : '';
+      const languageModeValue = (languageModeCell && typeof languageModeCell.getValue === 'function')
+        ? languageModeCell.getValue()
+        : '';
+      languageModeRaw = String(languageModeDisplay || languageModeValue || '').trim().toLowerCase();
+    } catch (e) {
+      // Retrocompatibilità: alcuni test/fogli legacy non espongono F2.
+      languageModeRaw = '';
+    }
+    if (languageModeRaw.includes('solo') && languageModeRaw.includes('straniere')) {
+      config.languageMode = 'foreign_only';
+    } else {
+      config.languageMode = 'all';
+    }
 
     // Ferie (B5:E7): B=data inizio, C=separatore, D=data fine, E=riepilogo (ignorato)
     const periods = sheet.getRange('B5:E7').getValues();
@@ -967,9 +992,9 @@ function _loadAdvancedConfig(ss) {
       config.suspensionRules[day].push([startHour, endHour]);
     });
 
-    // Filtri anti-spam (layout single-sheet: E11:F)
+    // Filtri anti-spam (layout single-sheet: E13:F)
     const lastDataRow = sheet.getLastRow();
-    const filterStartRow = 11;
+    const filterStartRow = 13;
     const filterRows = lastDataRow >= filterStartRow ? (lastDataRow - filterStartRow + 1) : 0;
     if (filterRows > 0) {
       const filters = sheet.getRange(filterStartRow, 5, filterRows, 2).getValues();

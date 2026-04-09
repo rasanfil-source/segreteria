@@ -28,6 +28,7 @@ global.CONFIG = {
 };
 
 global.GLOBAL_CACHE = {
+  languageMode: 'all',
   ignoreDomains: ['mailchimp.com'],
   ignoreKeywords: ['newsletter']
 };
@@ -78,6 +79,21 @@ console.log('--- Test _shouldTryOcr (nessuna keyword, testo presente) ---');
 assert(
   processor._shouldTryOcr('Richiesta informazioni generica', 'Oggetto', null) === false,
   'non deve attivare OCR senza keyword se c’è testo'
+);
+
+console.log('--- Test modalità lingua (foreign_only) ---');
+global.GLOBAL_CACHE.languageMode = 'foreign_only';
+assert(
+  processor._getLanguageProcessingMode_() === 'foreign_only',
+  'deve leggere foreign_only da GLOBAL_CACHE'
+);
+assert(
+  processor._shouldSkipByLanguageMode_('it', 'foreign_only') === true,
+  'in foreign_only deve saltare email italiane'
+);
+assert(
+  processor._shouldSkipByLanguageMode_('en', 'foreign_only') === false,
+  'in foreign_only non deve saltare email straniere'
 );
 
 console.log('✅ Test filtri EmailProcessor passati');

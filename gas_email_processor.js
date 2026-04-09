@@ -107,6 +107,7 @@ class EmailProcessor {
     const startTime = Date.now();
     const normalizedKnowledgeBase = this._normalizeTextContent(knowledgeBase);
     const normalizedDoctrineBase = this._normalizeTextContent(doctrineBase);
+    const languageMode = this._getLanguageProcessingMode_();
 
     // ====================================================================================================
     // ACQUISIZIONE LOCK (LIVELLO-THREAD) - Previene condizioni di conflitto
@@ -358,15 +359,35 @@ class EmailProcessor {
       // per evitare che il bot risponda a ritroso nei trigger successivi.
       // Lo facciamo solo dopo i check cheap: se il last speaker siamo noi, il thread
       // deve restare intatto fino al prossimo vero messaggio esterno.
-      unlabeledUnread.forEach(message => {
-        if (message.getId() !== candidate.getId()) {
-          this._markMessageAsProcessed(message, labeledMessageIds);
-        }
-      });
+      if (languageMode !== 'foreign_only') {
+        unlabeledUnread.forEach(message => {
+          if (message.getId() !== candidate.getId()) {
+            this._markMessageAsProcessed(message, labeledMessageIds);
+          }
+        });
+      } else {
+        console.log('   🌐 Modalità "Solo straniere": non pre-marco i non letti secondari');
+      }
 
       const messageDetails = this.gmailService.extractMessageDetails(candidate);
       console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
       console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
+
+      const languageDetection = (this.geminiService && typeof this.geminiService.detectEmailLanguage === 'function')
+        ? (this.geminiService.detectEmailLanguage(
+          messageDetails.body,
+          messageDetails.subject
+        ) || {})
+        : {};
+      const detectedLanguage = (languageDetection.lang || 'it').toLowerCase();
+      console.log(`   🌐 Lingua: ${detectedLanguage.toUpperCase()}`);
+
+      if (this._shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
+        console.log('   ⊖ Saltato: modalità "Solo straniere" attiva e email in italiano');
+        result.status = 'skipped';
+        result.reason = 'italian_skipped_foreign_only';
+        return result;
+      }
 
       if (messageDetails.isNewsletter) {
         console.log('   ⊖ Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
@@ -552,13 +573,6 @@ class EmailProcessor {
         result.status = 'filtered';
         return result;
       }
-
-      const languageDetection = this.geminiService.detectEmailLanguage(
-        messageDetails.body,
-        messageDetails.subject
-      ) || {};
-      const detectedLanguage = (quickCheck.language || languageDetection.lang || 'it').toLowerCase();
-      console.log(`   🌐 Lingua: ${detectedLanguage.toUpperCase()}`);
 
       // ====================================================================================================
       // STEP 4: CLASSIFICAZIONE TIPO RICHIESTA (Multi-dimensionale)
@@ -1653,7 +1667,19 @@ ${addressLines.join('\n\n')}
     return notes[lang] || notes.it;
   }
 
+  _getLanguageProcessingMode_() {
+    const cacheMode = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE && typeof GLOBAL_CACHE.languageMode === 'string')
+      ? GLOBAL_CACHE.languageMode
+      : '';
+    const normalized = String(cacheMode || '').trim().toLowerCase();
+    return normalized === 'foreign_only' ? 'foreign_only' : 'all';
+  }
 
+  _shouldSkipByLanguageMode_(detectedLanguage, languageMode) {
+    const lang = String(detectedLanguage || '').trim().toLowerCase();
+    const mode = String(languageMode || '').trim().toLowerCase();
+    return mode === 'foreign_only' && lang === 'it';
+  }
 
   _markMessageAsProcessed(message, labeledMessageIds = null) {
     // SCELTA OPERATIVA INTENZIONALE:

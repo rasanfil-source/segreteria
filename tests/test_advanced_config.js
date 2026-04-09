@@ -25,6 +25,10 @@ vm.runInThisContext(code, { filename: gasMainPath });
 function createFakeSheet() {
   const ranges = {
     'B2': { getValue: () => 'ACCESO' },
+    'F2': {
+      getDisplayValue: () => 'Solo straniere',
+      getValue: () => 'Solo straniere'
+    },
     'B5:E7': {
       getValues: () => [
         [new Date('2026-08-01'), '', new Date('2026-08-15'), 'ok'],
@@ -54,7 +58,7 @@ function createFakeSheet() {
 
       // getRange(row, col, numRows, numCols) per filtri anti-spam
       const [row, col, numRows, numCols] = args;
-      if (row === 11 && col === 5 && numRows === 3 && numCols === 2) {
+      if (row === 13 && col === 5 && numRows === 3 && numCols === 2) {
         return {
           getValues: () => [
             ['Notify.com', 'Promozione'],
@@ -66,7 +70,7 @@ function createFakeSheet() {
 
       throw new Error(`Range non gestito nel fake sheet: ${JSON.stringify(args)}`);
     },
-    getLastRow: () => 13
+    getLastRow: () => 15
   };
 }
 
@@ -78,6 +82,7 @@ console.log('--- Test _loadAdvancedConfig ---');
 const adv = _loadAdvancedConfig(fakeSpreadsheet);
 
 assert(adv.systemEnabled === true, 'systemEnabled deve risultare acceso');
+assert(adv.languageMode === 'foreign_only', 'languageMode deve risultare foreign_only');
 assert(Array.isArray(adv.vacationPeriods) && adv.vacationPeriods.length === 2, 'devono coverci 2 periodi ferie validi');
 assert(adv.suspensionRules[1][0][0] === 8 && adv.suspensionRules[1][0][1] === 20, 'Lunedì deve essere 8-20');
 assert(adv.suspensionRules[2][0][0] === 8 && adv.suspensionRules[2][0][1] === 14, 'Martedì deve essere 8-14');

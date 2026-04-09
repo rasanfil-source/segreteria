@@ -45,7 +45,7 @@ function applyValidationOnly() {
   }
 
   // PULIZIA Totale delle validazioni per evitare conflitti
-  const rangesToClean = ['B2', 'B5:B7', 'D5:D7', 'B10:B16', 'D10:D16', 'E11:E120', 'F11:F120'];
+  const rangesToClean = ['B2', 'F2', 'B5:B7', 'D5:D7', 'B10:B16', 'D10:D16', 'E13:E120', 'F13:F120'];
   rangesToClean.forEach(a1 => {
     try {
       sheet.getRange(a1).clearDataValidations();
@@ -126,12 +126,12 @@ function setupControlloSheet(ss) {
 
   // Nota: B2 viene gestito da applyControlloInputConstraints_
 
-  safeMerge(sheet.getRange('E2:F2'));
+  safeMerge(sheet.getRange('E1:F1'));
   applyFormulaWithLocaleFallback_(
-    sheet.getRange('E2:F2'),
+    sheet.getRange('E1:F1'),
     '=IF($B$2="Spento";"🔴 Spento";IF(SUMPRODUCT((TODAY()>=$B$5:$B$7)*(TODAY()<=$D$5:$D$7)*($B$5:$B$7<>""))>0;"🟢 Attiva (Ferie/H24)";IFERROR(IF(AND(HOUR(NOW())>=INDEX($B$10:$B$16;MATCH(LOWER(TEXT(TODAY();"dddd"));LOWER($A$10:$A$16);0));HOUR(NOW())<INDEX($D$10:$D$16;MATCH(LOWER(TEXT(TODAY();"dddd"));LOWER($A$10:$A$16);0)));"🟡 Sospesa (orari)";"🟢 Attiva");"🟢 Attiva")))'
   );
-  sheet.getRange('E2:F2')
+  sheet.getRange('E1:F1')
     .setFontWeight('bold')
     .setHorizontalAlignment('center')
     .setBackground('#E6F4EA');
@@ -152,18 +152,20 @@ function setupControlloSheet(ss) {
   sheet.getRange('E4').setValue('RIASSUNTO').setFontWeight('bold');
   sheet.getRange('E5').setValue('Risposta automatica:').setFontWeight('bold');
   sheet.getRange('E6').setValue('Segretario:').setFontWeight('bold');
-  sheet.getRange('E7').setValue('Oggi:').setFontWeight('bold');
-  sheet.getRange('E8').setValue('Motivo:').setFontWeight('bold');
-  sheet.getRange('E9').setValue('Fascia attuale:').setFontWeight('bold');
+  sheet.getRange('E7').setValue('Modalità lingua:').setFontWeight('bold');
+  sheet.getRange('E8').setValue('Oggi:').setFontWeight('bold');
+  sheet.getRange('E9').setValue('Motivo:').setFontWeight('bold');
+  sheet.getRange('E10').setValue('Fascia attuale:').setFontWeight('bold');
 
   applyFormulaWithLocaleFallback_(sheet.getRange('F5'), '=IF($B$2="Spento";"🔴 Spento";IF(SUMPRODUCT((TODAY()>=$B$5:$B$7)*(TODAY()<=$D$5:$D$7)*($B$5:$B$7<>""))>0;"🟢 Attiva (Ferie/H24)";IFERROR(IF(AND(HOUR(NOW())>=INDEX($B$10:$B$16;MATCH(LOWER(TEXT(TODAY();"dddd"));LOWER($A$10:$A$16);0));HOUR(NOW())<INDEX($D$10:$D$16;MATCH(LOWER(TEXT(TODAY();"dddd"));LOWER($A$10:$A$16);0)));"🟡 Sospesa (orari)";"🟢 Attiva");"🟢 Attiva")))');
   // Formula aggiornata per B/D
   applyFormulaWithLocaleFallback_(sheet.getRange('F6'), '=IF(COUNTIFS(B5:B7;"<="&TODAY();D5:D7;">="&TODAY())>0;"Assente";"In servizio")');
 
-  applyFormulaWithLocaleFallback_(sheet.getRange('F7'), '=TODAY()');
-  applyFormulaWithLocaleFallback_(sheet.getRange('F8'), '=IF(B2="Spento";"Spento manualmente";IF(F6="Assente";"Assenza segretario";"OK"))');
+  applyFormulaWithLocaleFallback_(sheet.getRange('F7'), '=IF($B$2="Spento";"⏹️ Non rilevante (sistema spento)";IF($F$2="Solo straniere";"🇪🇺 Solo lingue straniere";"🌍 Tutte le lingue"))');
+  applyFormulaWithLocaleFallback_(sheet.getRange('F8'), '=TODAY()');
+  applyFormulaWithLocaleFallback_(sheet.getRange('F9'), '=IF(B2="Spento";"Spento manualmente";IF(F6="Assente";"Assenza segretario";"OK"))');
   // Formula aggiornata per B/D
-  applyFormulaWithLocaleFallback_(sheet.getRange('F9'), '=IF(OR(INDEX(B10:B16;WEEKDAY(TODAY();2))="";INDEX(D10:D16;WEEKDAY(TODAY();2))="");"Nessuna";RIGHT("0"&HOUR(INDEX(B10:B16;WEEKDAY(TODAY();2)));2)&"."&RIGHT("0"&MINUTE(INDEX(B10:B16;WEEKDAY(TODAY();2)));2)&"-"&RIGHT("0"&HOUR(INDEX(D10:D16;WEEKDAY(TODAY();2)));2)&"."&RIGHT("0"&MINUTE(INDEX(D10:D16;WEEKDAY(TODAY();2)));2))');
+  applyFormulaWithLocaleFallback_(sheet.getRange('F10'), '=IF(OR(INDEX(B10:B16;WEEKDAY(TODAY();2))="";INDEX(D10:D16;WEEKDAY(TODAY();2))="");"Nessuna";RIGHT("0"&HOUR(INDEX(B10:B16;WEEKDAY(TODAY();2)));2)&"."&RIGHT("0"&MINUTE(INDEX(B10:B16;WEEKDAY(TODAY();2)));2)&"-"&RIGHT("0"&HOUR(INDEX(D10:D16;WEEKDAY(TODAY();2)));2)&"."&RIGHT("0"&MINUTE(INDEX(D10:D16;WEEKDAY(TODAY();2)));2))');
 
   // Sospensione oraria
   sheet.getRange('A9').setValue('🟡 Risposta automatica sospesa:').setFontWeight('bold');
@@ -172,10 +174,10 @@ function setupControlloSheet(ss) {
   sheet.getRange('A10:A16').setValues(UI_CONFIG.DAYS.map(day => [day]));
 
   // Filtri nella stessa pagina
-  safeMerge(sheet.getRange('E9:F9'));
-  sheet.getRange('E9:F9').setValue('email cui non rispondere').setFontWeight('bold').setHorizontalAlignment('center').setBackground('#F4CCCC');
-  sheet.getRange('E10').setValue('domini').setFontWeight('bold').setBackground('#F97316').setHorizontalAlignment('center');
-  sheet.getRange('F10').setValue('parole').setFontWeight('bold').setBackground('#F97316').setHorizontalAlignment('center');
+  safeMerge(sheet.getRange('E11:F11'));
+  sheet.getRange('E11:F11').setValue('email cui non rispondere').setFontWeight('bold').setHorizontalAlignment('center').setBackground('#F4CCCC');
+  sheet.getRange('E12').setValue('domini').setFontWeight('bold').setBackground('#F97316').setHorizontalAlignment('center');
+  sheet.getRange('F12').setValue('parole').setFontWeight('bold').setBackground('#F97316').setHorizontalAlignment('center');
 
   // Layout generale
   sheet.setColumnWidth(1, 330);
@@ -218,6 +220,7 @@ function applyFormulaWithLocaleFallback_(range, formula) {
 function createNamedRanges(ss, warningsCollector) {
   const ranges = [
     { name: 'cfg_system_master', range: "'Controllo'!B2" },
+    { name: 'cfg_language_mode', range: "'Controllo'!F2" },
     { name: 'cfg_timezone', range: "'Controllo'!B4" },
     // Legacy: nome ambiguo mantenuto per retrocompatibilità (punta alla prima data ferie).
     { name: 'cfg_holidays_mode', range: "'Controllo'!B5" },
@@ -225,13 +228,13 @@ function createNamedRanges(ss, warningsCollector) {
     { name: 'cfg_vacation_start_date', range: "'Controllo'!B5" },
     { name: 'sum_auto_status', range: "'Controllo'!F5" },
     { name: 'sum_secretary_status', range: "'Controllo'!F6" },
-    { name: 'sum_today_date', range: "'Controllo'!F7" },
-    { name: 'sum_today_reason', range: "'Controllo'!F8" },
-    { name: 'sum_today_slot', range: "'Controllo'!F9" },
+    { name: 'sum_today_date', range: "'Controllo'!F8" },
+    { name: 'sum_today_reason', range: "'Controllo'!F9" },
+    { name: 'sum_today_slot', range: "'Controllo'!F10" },
     { name: 'tbl_week_schedule', range: "'Controllo'!B10:D16" }, // Schedule da B10 a D16
     { name: 'tbl_absences', range: "'Controllo'!A5:D7" }, // Assenze da A5 a D7
-    { name: 'lst_ignore_domains', range: "'Controllo'!E11:E" },
-    { name: 'lst_ignore_keywords', range: "'Controllo'!F11:F" }
+    { name: 'lst_ignore_domains', range: "'Controllo'!E13:E" },
+    { name: 'lst_ignore_keywords', range: "'Controllo'!F13:F" }
   ];
 
   const documentLock = LockService.getDocumentLock();
@@ -273,7 +276,7 @@ function testConfiguration() {
   checks.push({ name: 'Foglio Controllo', ok: !!ss.getSheetByName('Controllo') });
 
   // Verifica puntuale dei named range critici
-  const nrList = ['cfg_system_master', 'sum_auto_status', 'tbl_week_schedule', 'tbl_absences', 'lst_ignore_domains'];
+  const nrList = ['cfg_system_master', 'cfg_language_mode', 'sum_auto_status', 'tbl_week_schedule', 'tbl_absences', 'lst_ignore_domains'];
   nrList.forEach(n => {
     const nr = ss.getRangeByName(n);
     let isOk = false;
@@ -348,6 +351,17 @@ function applyControlloInputConstraints_(sheet) {
     sheet.getRange('B2').setValue('Acceso');
   }
 
+  // F2: modalità lingua
+  const languageModeRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['Tutte le lingue', 'Solo straniere'], true)
+    .setAllowInvalid(false)
+    .setHelpText('Seleziona se l\'IA deve operare su tutte le email o solo su lingue straniere.')
+    .build();
+  sheet.getRange('F2').setDataValidation(languageModeRule).setHorizontalAlignment('center').setFontWeight('bold');
+  if (!sheet.getRange('F2').getDisplayValue()) {
+    sheet.getRange('F2').setValue('Tutte le lingue');
+  }
+
   // Date ferie/malattia: B5,D5 - B7,D7
   const dateRule = SpreadsheetApp.newDataValidation()
     .requireDate()
@@ -385,21 +399,21 @@ function applyControlloInputConstraints_(sheet) {
 
   // Filtri domini/keyword direttamente su Controllo
   const domainRule = SpreadsheetApp.newDataValidation()
-    .requireFormulaSatisfied('=OR(E11="";REGEXMATCH(TRIM(E11);"^(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}$"))')
+    .requireFormulaSatisfied('=OR(E13="";REGEXMATCH(TRIM(E13);"^(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}$"))')
     .setAllowInvalid(false)
     .setHelpText('Inserisci solo dominio/email parziale (es. amazon.com).')
     .build();
-  sheet.getRange('E11:E120').setDataValidation(domainRule);
+  sheet.getRange('E13:E120').setDataValidation(domainRule);
 
   const keywordRule = SpreadsheetApp.newDataValidation()
-    .requireFormulaSatisfied('=OR(F11="";LEN(TRIM(F11))>0)')
+    .requireFormulaSatisfied('=OR(F13="";LEN(TRIM(F11))>0)')
     .setAllowInvalid(false)
     .setHelpText('Inserisci una parola/frase da escludere.')
     .build();
-  sheet.getRange('F11:F120').setDataValidation(keywordRule);
+  sheet.getRange('F13:F120').setDataValidation(keywordRule);
 
   // Protezioni Warning Only sulle etichette
-  protectRangesWithWarning_(sheet, ['A1:F1', 'A3:A16', 'C4:D4', 'C5:C7', 'E4:F10']);
+  protectRangesWithWarning_(sheet, ['A1:F1', 'A3:A16', 'C4:D4', 'C5:C7', 'E4:F12']);
 }
 
 /**
