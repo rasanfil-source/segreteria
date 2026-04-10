@@ -699,7 +699,7 @@ class EmailProcessor {
       const territoryRequested = this._isTerritoryRequest(
         messageDetails.subject,
         messageDetails.body,
-        classification,
+        (quickCheck && quickCheck.classification) || {}, // Fix integrazione: usa classificazione Gemini con check safe.
         requestType
       );
 
