@@ -228,8 +228,8 @@ function isInSuspensionTime(checkDate = new Date()) {
   // Se non presenti, usa il fallback definito via codice in SUSPENSION_HOURS
   const hasCachedSuspensionRules = (
     typeof GLOBAL_CACHE !== 'undefined'
+    && GLOBAL_CACHE.loaded
     && GLOBAL_CACHE.suspensionRules
-    && Object.keys(GLOBAL_CACHE.suspensionRules).length > 0
   );
   const rules = hasCachedSuspensionRules ? GLOBAL_CACHE.suspensionRules : SUSPENSION_HOURS;
 

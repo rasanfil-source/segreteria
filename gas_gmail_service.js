@@ -990,9 +990,14 @@ class GmailService {
             }
 
             if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
-                result.blobs.push(attachment.copyBlob());
-                processedCount++;
-                continue;
+                try {
+                    result.blobs.push(attachment.copyBlob());
+                    processedCount++;
+                    continue;
+                } catch (e) {
+                    result.skipped.push({ name: name, reason: 'copy_blob_error', error: e.message });
+                    continue;
+                }
             }
 
             const isWord = mimeType.includes('msword') || mimeType.includes('wordprocessingml');
