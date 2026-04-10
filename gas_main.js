@@ -1161,6 +1161,9 @@ function processEmailsMain() {
 function main() {
   console.log('🚀 Avvio pipeline principale');
 
+  // Jitter: previene collisioni esatte al millisecondo in caso di trigger sovrapposti
+  Utilities.sleep(Math.floor(Math.random() * 1000));
+
   // 0. Controllo Preventivo Gmail Advanced Service
   try {
     Gmail.Users.getProfile('me'); // Probe reale: verifica disponibilità Gmail Advanced Service
@@ -1291,7 +1294,8 @@ function _formatDateForKnowledgeText(date) {
     if (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function') {
       return Session.getScriptTimeZone();
     }
-    return 'UTC';
+    // Fix: Fallback al timezone di business per evitare shift di giorni su edge-cases V8
+    return 'Europe/Rome';
   };
 
   if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
