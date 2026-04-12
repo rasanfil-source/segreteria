@@ -573,17 +573,11 @@ class EmailProcessor {
         this._markMessageAsProcessed(candidate, labeledMessageIds);
         // Allineamento con il quick-check: se il candidato è scartato in modo definitivo
         // marchiamo anche i secondari per evitare reprocessing infinito dello stesso thread.
-        // NOTA ANTI-REGRESSIONE:
-        // questo batching è volutamente DISATTIVATO in foreign_only. In tale modalità
-        // non dobbiamo "bruciare" email italiane non ancora processate, perché potrebbero
-        // dover essere gestite quando l'operatore reimposta la modalità su "all".
-        if (languageMode !== 'foreign_only') {
-          unlabeledUnread.forEach(message => {
-            if (message.getId() !== candidate.getId()) {
-              this._markMessageAsProcessed(message, labeledMessageIds);
-            }
-          });
-        }
+        unlabeledUnread.forEach(message => {
+          if (message.getId() !== candidate.getId()) {
+            this._markMessageAsProcessed(message, labeledMessageIds);
+          }
+        });
         result.status = 'filtered';
         return result;
       }
@@ -608,14 +602,14 @@ class EmailProcessor {
         }
         this._markMessageAsProcessed(candidate, labeledMessageIds);
 
-        // Bug Fix [Alta]: Marchiamo i secondari solo se il candidato è ufficialmente scartato o processato
-        if (languageMode !== 'foreign_only') {
-          unlabeledUnread.forEach(message => {
-            if (message.getId() !== candidate.getId()) {
-              this._markMessageAsProcessed(message, labeledMessageIds);
-            }
-          });
-        }
+        // Marchiamo sempre i secondari quando il candidato è stato scartato:
+        // il thread è già stato valutato e lasciarli non etichettati genera
+        // riprocessamenti inutili nei trigger successivi.
+        unlabeledUnread.forEach(message => {
+          if (message.getId() !== candidate.getId()) {
+            this._markMessageAsProcessed(message, labeledMessageIds);
+          }
+        });
         result.status = 'filtered';
         return result;
       }
