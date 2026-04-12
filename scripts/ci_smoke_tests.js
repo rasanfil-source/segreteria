@@ -711,9 +711,8 @@ function testInvalidateCacheAlsoClearsRobustCache() {
         service._cache = { 'memory_thread-42': { data: {}, timestamp: Date.now() } };
 
         service._invalidateCache('memory_thread-42');
-
         assert(!service._cache['memory_thread-42'], '_invalidateCache deve rimuovere la cache locale');
-        assert(removedKeys.includes('MEM_thread-42'), '_invalidateCache deve rimuovere anche la cache robusta');
+        assert(removedKeys.includes('memory_thread-42'), '_invalidateCache deve rimuovere la chiave dalla cache script');
     } finally {
         global.CacheService = originalCacheService;
     }
@@ -2114,7 +2113,7 @@ function main() {
         ['computeSalutationMode: primo/reply/vecchio', testComputeSalutationMode],
         ['anti-loop: thread lungo con esterni consecutivi', testAntiLoopDetection],
         ['memory get: usa row.values in parsing', testMemoryGetUsesRowValues],
-        ['memory invalidate: pulizia cache robusta', testInvalidateCacheAlsoClearsRobustCache],
+        ['memory invalidate: pulizia cache deterministica', testInvalidateCacheAlsoClearsRobustCache],
         ['memory reaction: gestione dinamica topic vuoti', testInferUserReactionIsResilientToEmptyTopics],
         ['memory reaction: normalizzazione topic coerente', testInferUserReactionNormalizesTopicKeys],
         ['rate limiter: persistenza rigorosa transazionale bloccata senza lock', testRateLimiterPersistenceRequiresTransactionalLock],
