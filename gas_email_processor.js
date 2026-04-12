@@ -388,7 +388,7 @@ class EmailProcessor {
       // PORTA 1: Interrompiamo se l'email deve essere ignorata in base alla lingua
       if (this._shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
         console.log('   ⊖ Saltato: modalità "Solo straniere", email in italiano');
-        // NESSUN _markMessageAsProcessed: l'email resta non letta e visibile agli umani
+        // ✅ Corretto - lascia l'email intatta
         result.status = 'skipped';
         result.reason = 'italian_skipped_foreign_only';
         return result;
