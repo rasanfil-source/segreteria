@@ -109,9 +109,9 @@ class EmailProcessor {
     const normalizedDoctrineBase = this._normalizeTextContent(doctrineBase);
     const languageMode = this._getLanguageProcessingMode_();
 
-    // ====================================================================================================
+    // ====================================================================
     // ACQUISIZIONE LOCK (LIVELLO-THREAD) - Previene condizioni di conflitto
-    // ====================================================================================================
+    // ====================================================================
 
     let lockAcquired = false;
     const scriptCache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
@@ -246,9 +246,9 @@ class EmailProcessor {
         }
       }
 
-      // ====================================================================================================
+      // ====================================================================
       // FILTRO A LIVELLO MESSAGGIO
-      // ====================================================================================================
+      // ====================================================================
       let effectiveLabeledIds;
       if (labeledMessageIds instanceof Set) {
         effectiveLabeledIds = labeledMessageIds;
@@ -313,11 +313,11 @@ class EmailProcessor {
         ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(candidateRawFrom) || '')
         : '';
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 0: CONTROLLO ULTIMO MITTENTE (Anti-Loop & Ownership)
       // Thread usato solo come contesto conversazionale e per capire chi ha parlato per ultimo.
       // Se l'ultimo intervento è nostro, ci fermiamo senza fare ulteriori chiamate metadata.
-      // ====================================================================================================
+      // ====================================================================
       const normalizedMyEmail = myEmail ? this._normalizeEmailAddress_(myEmail) : '';
       const normalizedKnownAliases = Array.from(ownAddresses).filter(address => address && address !== normalizedMyEmail);
       const lastMessage = messages[messages.length - 1];
@@ -337,9 +337,9 @@ class EmailProcessor {
         return result;
       }
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 0.1: ANTI-AUTO-RISPOSTA (Safe Sender Check)
-      // ====================================================================================================
+      // ====================================================================
       const safeSenderEmail = candidateSenderEmail;
 
       // Verifica mittente: confronta solo con email proprie e alias configurati.
@@ -410,9 +410,9 @@ class EmailProcessor {
         return result;
       }
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 0.2: AUTO-REPLY / OUT-OF-OFFICE DETECTION
-      // ====================================================================================================
+      // ====================================================================
       const headers = messageDetails.headers || {};
       // Lookup case-insensitive: i server SMTP possono restituire header in casing arbitrario
       const getHeader = (name) => {
@@ -488,9 +488,9 @@ class EmailProcessor {
         }
       }
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 0.5: ANTI-LOOP (rilevamento intelligente)
-      // ====================================================================================================
+      // ====================================================================
       const MAX_THREAD_LENGTH = (typeof CONFIG !== 'undefined' && CONFIG.MAX_THREAD_LENGTH) ? CONFIG.MAX_THREAD_LENGTH : 8;
       const MAX_CONSECUTIVE_EXTERNAL = this.config.maxConsecutiveExternal;
 
@@ -524,9 +524,9 @@ class EmailProcessor {
         console.warn(`   ⚠️ Thread lungo (${messages.length} messaggi) ma non loop - elaboro`);
       }
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 0.8: ANTI-MITTENTE-NOREPLY
-      // ====================================================================================================
+      // ====================================================================
       const senderInfo = `${messageDetails.senderEmail} ${messageDetails.senderName}`.toLowerCase();
       const autoPattern = /no-reply|do-not-reply|noreply|daemon|postmaster|bounce|mailer/i;
       if (autoPattern.test(senderInfo)) {
@@ -537,9 +537,9 @@ class EmailProcessor {
         return result;
       }
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 1: FILTRO - Domini/parole chiave ignorati
-      // ====================================================================================================
+      // ====================================================================
       if (this._shouldIgnoreEmail(messageDetails)) {
         console.log('   ⊖ Filtrato: domain/keyword ignore');
         this._markMessageAsProcessed(candidate, labeledMessageIds);
@@ -547,9 +547,9 @@ class EmailProcessor {
         return result;
       }
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 2: CLASSIFICAZIONE - Filtro ack/greeting ultra-semplice
-      // ====================================================================================================
+      // ====================================================================
       const MAX_SUBJECT_LENGTH = 1000;
       const safeSubject = (messageDetails.subject || '').substring(0, MAX_SUBJECT_LENGTH);
       const safeBody = (messageDetails.body || '');
@@ -568,9 +568,9 @@ class EmailProcessor {
         return result;
       }
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 3: CONTROLLO RAPIDO - Gemini decide se serve risposta
-      // ====================================================================================================
+      // ====================================================================
       const quickCheck = quickCheckPre || this.geminiService.shouldRespondToEmail(
         messageDetails.body,
         messageDetails.subject
@@ -589,9 +589,9 @@ class EmailProcessor {
         return result;
       }
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 4: CLASSIFICAZIONE TIPO RICHIESTA (Multi-dimensionale)
-      // ====================================================================================================
+      // ====================================================================
       const requestType = this.requestClassifier.classify(
         messageDetails.subject,
         messageDetails.body,
@@ -601,9 +601,9 @@ class EmailProcessor {
       // Estrai dati dalla nuova struttura classificazione
       const isPastoral = requestType.dimensions ? (requestType.dimensions.pastoral > 0.6) : (requestType.type === 'pastoral'); // Compatibilità
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 5: KB ENRICHMENT CONDIZIONALE
-      // ====================================================================================================
+      // ====================================================================
       const knowledgeSections = [];
       const resourceCache = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBAL_CACHE : {};
       const effectiveDoctrineBase = normalizedDoctrineBase || (resourceCache.doctrineBase || '');
@@ -630,9 +630,9 @@ class EmailProcessor {
 
       const enrichedKnowledgeBase = knowledgeSections.filter(Boolean).join('\n\n');
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 6: STORICO CONVERSAZIONE
-      // ====================================================================================================
+      // ====================================================================
       let conversationHistory = '';
       if (messages.length > 1) {
         const candidateId = candidate.getId();
@@ -647,18 +647,18 @@ class EmailProcessor {
         }
       }
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 6.5: CONTESTO MEMORIA
-      // ====================================================================================================
+      // ====================================================================
       const memoryContext = this.memoryService.getMemory(threadId) || {};
 
       if (Object.keys(memoryContext).length > 0) {
         console.log(`   🧠 Memoria trovata: lang=${memoryContext.language}, topics=${(memoryContext.providedInfo || []).length}`);
       }
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 6.6: CALCOLO DINAMICO SALUTO E RITARDO
-      // ====================================================================================================
+      // ====================================================================
       const memoryMessageCount = Number.isFinite(Number(memoryContext.messageCount))
         ? Number(memoryContext.messageCount)
         : 0;
@@ -680,9 +680,9 @@ class EmailProcessor {
         console.log(`   🕐 Ritardo risposta: ${responseDelay.days} giorni`);
       }
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 7: COSTRUISCI PROMPT
-      // ====================================================================================================
+      // ====================================================================
       let { greeting, closing } = this.geminiService.getAdaptiveGreeting(
         messageDetails.senderName,
         detectedLanguage
@@ -695,9 +695,9 @@ class EmailProcessor {
         greeting = '[Inizia con breve frase di riaggancio cordiale]';
       }
 
-      // ====================================================================================================
+      // ====================================================================
       // PASSO 7.1: VERIFICA TERRITORIO (solo quando richiesta esplicita)
-      // ====================================================================================================
+      // ====================================================================
       const territoryRequested = this._isTerritoryRequest(
         messageDetails.subject,
         messageDetails.body,
@@ -737,11 +737,11 @@ class EmailProcessor {
 
       const territoryContext = territoryRequested
         ? `
-====================================================================================================
+ ====================================================================
 🎯 VERIFICA TERRITORIO AUTOMATICA
-====================================================================================================
+ ====================================================================
 ${addressLines.join('\n\n')}
-====================================================================================================
+ ====================================================================
 `
         : null;
 
@@ -754,9 +754,9 @@ ${addressLines.join('\n\n')}
         console.log('   ⊖ Verifica territorio non richiesta: controllo saltato');
       }
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 7.2: PROMPT CONTEXT (profilo e concern dinamici)
-      // ====================================================================================================
+      // ====================================================================
       let promptProfile = 'standard';
       let activeConcerns = {};
       if (typeof createPromptContext === 'function') {
@@ -798,9 +798,9 @@ ${addressLines.join('\n\n')}
 
       const categoryHintSource = String(classification.category || requestType.type || '').toLowerCase() || null;
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 7.1: PREPARAZIONE ALLEGATI (Multimodale / Vision)
-      // ====================================================================================================
+      // ====================================================================
       let attachmentBlobs = [];
       let textFromAttachments = '';
       let attachmentSkipped = [];
@@ -886,9 +886,9 @@ ${addressLines.join('\n\n')}
 
       const fullPrompt = prompt;
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 8: GENERA RISPOSTA
-      // ====================================================================================================
+      // ====================================================================
       let response = null;
       let generationError = null;
       let initialError = null;
@@ -998,9 +998,9 @@ ${addressLines.join('\n\n')}
         requestType
       );
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 9: VALIDAZIONE + RETRY INTELLIGENTE
-      // ====================================================================================================
+      // ====================================================================
       let finalResponse = response;
       let validation = null;
       let retryAttempted = false;
@@ -1134,9 +1134,9 @@ ${addressLines.join('\n\n')}
 
       response = finalResponse;
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 10: INVIA RISPOSTA
-      // ====================================================================================================
+      // ====================================================================
       if (this.config.dryRun) {
         console.log('   🔴 DRY RUN - Risposta non inviata');
         console.log(`   📄 Invierebbe: ${response.substring(0, 100)}...`);
@@ -1187,9 +1187,9 @@ ${addressLines.join('\n\n')}
         return result;
       }
 
-      // ====================================================================================================
+      // ====================================================================
       // STEP 11: AGGIORNA MEMORIA
-      // ====================================================================================================
+      // ====================================================================
       const providedTopics = this._detectProvidedTopics(response);
 
       const topicsWithObjects = providedTopics.map(topic => ({
@@ -1490,9 +1490,9 @@ ${addressLines.join('\n\n')}
     }
   }
 
-  // ====================================================================================================
+  // ====================================================================
   // RILEVAMENTO TEMPORALE (Date/Orari)
-  // ====================================================================================================
+  // ====================================================================
 
   /**
    * Verifica se l'email deve essere ignorata (blacklist, auto-reply, notifiche)
@@ -2456,9 +2456,9 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
   }
 }
 
-// ====================================================================================================
+// ====================================================================
 // CALCOLATORE MODALITÀ SALUTO
-// ====================================================================================================
+// ====================================================================
 
 /**
  * Calcola modalità saluto basata su segnali strutturali
@@ -2554,9 +2554,9 @@ function computeResponseDelay({ messageDate, now = new Date(), thresholdHours = 
   };
 }
 
-// ====================================================================================================
+// ====================================================================
 // ENTRY POINT PRINCIPALE
-// ====================================================================================================
+// ====================================================================
 
 /**
  * Alias dell'entry point principale processEmailsMain() (gas_main.js).

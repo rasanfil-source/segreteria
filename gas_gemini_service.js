@@ -292,7 +292,7 @@ COMPITI:
 5. Estrai l'argomento principale (topic) in ITALIANO (usando termini coerenti con la richiesta)
 6. Fornisci un breve ragionamento (reason)
 
-Ã¢Å¡Â Ã¯Â¸Â REGOLA CRITICA "SBATTEZZO":
+⚠️  REGOLA CRITICA "SBATTEZZO":
 Se l'utente esprime la volontà di non essere più cristiano, essere cancellato dai registri o "sbattezzarsi":
 - Classifica SEMPRE come "FORMAL"
 - Topic: "sbattezzo"
@@ -355,7 +355,7 @@ Output JSON:
     // Nota: gestiamo esplicitamente anche errori "hard" di UrlFetchApp (timeout/DNS)
     // perché non forniscono responseCode e altrimenti salterebbero il fallback cross-key.
     if (shouldTryBackupKey) {
-      console.warn('Ã¢Å¡Â Ã¯Â¸Â Chiave primaria non utilizzabile (errore rete/quota). Tentativo con chiave di riserva...');
+      console.warn('⚠️  Chiave primaria non utilizzabile (errore rete/quota). Tentativo con chiave di riserva...');
       activeKey = this.backupKey;
       try {
         response = executeFetch(activeKey);
@@ -399,7 +399,7 @@ Output JSON:
     try {
       result = JSON.parse(response.getContentText());
     } catch (parseError) {
-      console.warn(`Ã¢Å¡Â Ã¯Â¸Â JSON non valido nel controllo rapido Gemini: ${parseError.message}`);
+      console.warn(`⚠️  JSON non valido nel controllo rapido Gemini: ${parseError.message}`);
       return defaultResult;
     }
 
@@ -438,7 +438,7 @@ Output JSON:
       return defaultResult;
     }
     if (!data || typeof data !== 'object') {
-      console.warn('Ã¢Å¡Â Ã¯Â¸Â Decisione quick check non è un oggetto JSON valido');
+      console.warn('⚠️  Decisione quick check non è un oggetto JSON valido');
       return defaultResult;
     }
 
@@ -1118,7 +1118,7 @@ Output JSON:
         }
       } catch (error) {
         if (error.message && error.message.includes('QUOTA_EXHAUSTED')) {
-          console.warn('Ã¢Å¡Â Ã¯Â¸Â Rate Limiter in QUOTA_EXHAUSTED nel quick check, provo fallback diretto con retry');
+          console.warn('⚠️  Rate Limiter in QUOTA_EXHAUSTED nel quick check, provo fallback diretto con retry');
           try {
             return this._withRetry(
               () => this._quickCheckWithModel(emailContent, emailSubject, this.modelName, detection),
@@ -1129,7 +1129,7 @@ Output JSON:
             return defaultResult;
           }
         }
-        console.warn(`Ã¢Å¡Â Ã¯Â¸Â Rate Limiter quick check fallito: ${error.message} `);
+        console.warn(`⚠️  Rate Limiter quick check fallito: ${error.message} `);
         // Prosegui con implementazione originale
       }
     }
@@ -1142,7 +1142,7 @@ Output JSON:
         'Quick check'
       );
     } catch (error) {
-      console.warn(`Ã¢Å¡Â Ã¯Â¸Â Quick check fallito: ${error.message}, uso detection locale`);
+      console.warn(`⚠️  Quick check fallito: ${error.message}, uso detection locale`);
       return defaultResult;
     }
   }
@@ -1191,10 +1191,10 @@ Output JSON:
         }
       } catch (error) {
         if (error.message && error.message.includes('QUOTA_EXHAUSTED')) {
-          console.warn('Ã¢Å¡Â Ã¯Â¸Â Quota primaria esaurita (intercettato da RateLimiter)');
+          console.warn('⚠️  Quota primaria esaurita (intercettato da RateLimiter)');
           throw error; // Rilancia per gestione strategia nel Processor
         }
-        console.warn(`Ã¢Å¡Â Ã¯Â¸Â Rate Limiter generazione fallito: ${error.message} `);
+        console.warn(`⚠️  Rate Limiter generazione fallito: ${error.message} `);
         // Prosegui con implementazione originale
       }
     }
@@ -1328,7 +1328,7 @@ function parseGeminiJsonLenient(text) {
   try {
     return JSON.parse(cleaned);
   } catch (e) {
-    console.warn('Ã¢Å¡Â Ã¯Â¸Â Meccanismo di sanitizzazione preventiva JSON in esecuzione...');
+    console.warn('⚠️  Meccanismo di sanitizzazione preventiva JSON in esecuzione...');
   }
 
   // 5) Normalizzazione della notazione: quoting rigoroso chiavi e pulizia code strutturali
@@ -1341,7 +1341,7 @@ function parseGeminiJsonLenient(text) {
     // 6) Motore euristico avanzato: ricostruzione dei campi minimi diretti tramite analisi regex
     const partial = _extractQuickCheckFieldsFromPartialJson(cleaned);
     if (partial) {
-      console.warn('Ã¢Å¡Â Ã¯Â¸Â Metadati recuperati attivamente tramite ricostruzione regex');
+      console.warn('⚠️  Metadati recuperati attivamente tramite ricostruzione regex');
       return partial;
     }
     throw new Error(`L'architettura di conformità JSON non ha potuto validare l'output stringente: ${e.message}`);
