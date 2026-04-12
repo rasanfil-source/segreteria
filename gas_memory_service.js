@@ -158,42 +158,9 @@ class MemoryService {
    * Riduce la dipendenza dalla latenza di Sheets e previene la perdita di contesto.
    */
   getMemoryRobust(threadId) {
-    if (!threadId) {
-      return { providedInfo: [] };
-    }
-
-    const cacheKey = `MEM_${threadId}`;
-    const cache = CacheService.getScriptCache();
-
-    // PERCORSO RAPIDO: prova prima la cache in memoria
-    try {
-      const cached = cache.get(cacheKey);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed && typeof parsed === 'object') {
-          if (!Array.isArray(parsed.providedInfo)) {
-            parsed.providedInfo = [];
-          }
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.warn(`Cache miss per thread ${threadId}: ${e.message}`);
-    }
-
-    // ALTERNATIVA: leggi da Sheets
-    const fromSheets = this.getMemory(threadId);
-
-    // Riscalda la cache per le prossime letture
-    if (fromSheets) {
-      try {
-        cache.put(cacheKey, JSON.stringify(fromSheets), 1800); // 30 minuti
-      } catch (e) {
-        // cache write non bloccante
-      }
-    }
-
-    return fromSheets;
+    // getMemory implementa già il multi-livello (RAM locale + CacheService).
+    // Duplicare qui la cache con prefisso alternativo introdurrebbe stato incoerente.
+    return this.getMemory(threadId);
   }
 
   /**
@@ -818,15 +785,9 @@ class MemoryService {
    * Genera chiave lock sharded basata su hash threadId
    */
   _getShardedLockKey(threadId) {
-    // Sharding per ridurre contention globale
-    const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, threadId);
-    // Usa più caratteri dell'array digest (8 invece di 4) per minimizzare collisioni
-    const hex = Array.prototype.map.call(digest, (byte) => {
-      const unsigned = byte < 0 ? byte + 256 : byte;
-      return unsigned.toString(16).padStart(2, '0');
-    }).join('');
-    const shard = hex.substring(0, 8);
-    return `mem_lock_${shard}`;
+    // Gmail threadId è già unico e ben entro il limite chiavi CacheService (<250 char).
+    // Evita hashing/troncamento per non introdurre collisioni artificiali tra thread diversi.
+    return `mem_lock_${threadId}`;
   }
 
   /**
@@ -1126,35 +1087,9 @@ class MemoryService {
   _invalidateCache(key) {
     delete this._cache[key];
 
-    // Mantieni coerenza tra i due namespace cache locali: memory_ <-> MEM_
-    if (typeof key === 'string' && key.startsWith('memory_')) {
-      const threadId = key.substring('memory_'.length);
-      if (threadId) {
-        delete this._cache[`MEM_${threadId}`];
-      }
-    } else if (typeof key === 'string' && key.startsWith('MEM_')) {
-      const threadId = key.substring('MEM_'.length);
-      if (threadId) {
-        delete this._cache[`memory_${threadId}`];
-      }
-    }
-
     try {
       const cache = CacheService.getScriptCache();
       cache.remove(key);
-
-      // Compatibilità con getMemoryRobust/updateMemoryRobust: rimuovi anche prefisso correlato
-      if (typeof key === 'string' && key.startsWith('memory_')) {
-        const threadId = key.substring('memory_'.length);
-        if (threadId) {
-          cache.remove(`MEM_${threadId}`);
-        }
-      } else if (typeof key === 'string' && key.startsWith('MEM_')) {
-        const threadId = key.substring('MEM_'.length);
-        if (threadId) {
-          cache.remove(`memory_${threadId}`);
-        }
-      }
     } catch (e) {
       // best effort
     }
@@ -1171,14 +1106,6 @@ class MemoryService {
       if (keys.length > 0) {
         cache.removeAll(keys);
       }
-      // Rimuove anche le chiavi MEM_* accoppiate alle memory_* locali per evitare stale hit.
-      const memKeys = keys
-        .filter(k => typeof k === 'string' && k.startsWith('memory_'))
-        .map(k => `MEM_${k.substring('memory_'.length)}`);
-      if (memKeys.length > 0) {
-        cache.removeAll(memKeys);
-      }
-
       // Nota: CacheService non espone listKeys, quindi possiamo pulire solo chiavi note/tracciate.
     } catch (e) {
       // best effort

@@ -628,9 +628,6 @@ class EmailProcessor {
         quickCheck.classification
       );
 
-      // Estrai dati dalla nuova struttura classificazione
-      const isPastoral = requestType.dimensions ? (requestType.dimensions.pastoral > 0.6) : (requestType.type === 'pastoral'); // Compatibilità
-
       // ====================================================================
       // STEP 5: KB ENRICHMENT CONDIZIONALE
       // ====================================================================
@@ -994,9 +991,9 @@ ${addressLines.join('\n\n')}
         this._addErrorLabel(thread);
         this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'error';
-        result.error = errorToReport ? errorToReport.message : 'Generation strategies exhausted';
+        result.error = errorToReport ? String(errorToReport.message || errorToReport) : 'Generation strategies exhausted';
         if (initialError && generationError && initialError !== generationError) {
-          result.error += ` (Ultimo fallback: ${generationError.message})`;
+          result.error += ` (Ultimo fallback: ${String(generationError.message || generationError)})`;
         }
         result.errorClass = errorClass.type;
         return result;
