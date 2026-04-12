@@ -445,7 +445,7 @@ class EmailProcessor {
         /\b(automatic reply|risposta automatica)\b/i,
         /\breturn(ing)? on\b/i,
         /\bdi ritorno (il|dal)\b/i,
-        /\b(thank you for your message|mailbox monitored periodically|messaggio ricevuto)\b/i
+        /\b(thank you for your message|mailbox monitored periodically)\b/i
       ];
 
       const oooSubject = messageDetails.subject || '';
@@ -495,34 +495,30 @@ class EmailProcessor {
       const MAX_CONSECUTIVE_EXTERNAL = this.config.maxConsecutiveExternal;
 
       if (messages.length > MAX_THREAD_LENGTH) {
-        const hasIdentityHints = Boolean(normalizedMyEmail) || normalizedKnownAliases.length > 0;
-        let consecutiveExternal = 0;
-
-        if (!hasIdentityHints) {
-          console.warn('   ⚠️ Email utente e alias non disponibili: skip controllo anti-loop per evitare falsi positivi');
+        if (!normalizedMyEmail) {
+          console.warn('   ⚠️ Email utente non disponibile: skip controllo anti-loop basato su mittente');
         } else {
-          for (let i = messages.length - 1; i >= 0; i--) {
-            const msgFromRaw = messages[i].getFrom() || '';
-            const msgFromEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
-              ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(msgFromRaw) || '')
-              : this._normalizeEmailAddress_(msgFromRaw);
-            const isUs = (Boolean(normalizedMyEmail) && msgFromEmail === normalizedMyEmail) ||
-              normalizedKnownAliases.some(alias => msgFromEmail === alias);
+          let botRepliesCount = 0;
 
-            if (!isUs) {
-              consecutiveExternal++;
-            } else {
-              break;
+          for (let i = 0; i < messages.length; i++) {
+            const msgFrom = (messages[i].getFrom() || '').toLowerCase();
+            const isUs = Boolean(normalizedMyEmail) && (
+              msgFrom.includes(normalizedMyEmail) ||
+              normalizedKnownAliases.some(alias => msgFrom.includes(alias))
+            );
+
+            if (isUs) {
+              botRepliesCount++;
             }
           }
-        }
 
-        if (hasIdentityHints && consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
-          console.log(`   ⊖ Saltato: probabile loop email (${consecutiveExternal} esterni consecutivi)`);
-          this._markMessageAsProcessed(candidate, labeledMessageIds);
-          result.status = 'filtered';
-          result.reason = 'email_loop_detected';
-          return result;
+          if (botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL) {
+            console.log(`   ⊖ Saltato: prevenzione loop email (Il bot ha già risposto ${botRepliesCount} volte in questo thread)`);
+            this._markMessageAsProcessed(candidate, labeledMessageIds);
+            result.status = 'filtered';
+            result.reason = 'email_loop_detected';
+            return result;
+          }
         }
 
         console.warn(`   ⚠️ Thread lungo (${messages.length} messaggi) ma non loop - elaboro`);

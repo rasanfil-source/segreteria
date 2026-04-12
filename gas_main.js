@@ -882,6 +882,7 @@ function _parseStrictHour(value) {
     const minuteFromTime = Number(hhmm[2]);
     if (!Number.isInteger(hourFromTime) || !Number.isInteger(minuteFromTime)) return null;
     if (hourFromTime < 0 || hourFromTime > 23 || minuteFromTime < 0 || minuteFromTime > 59) return null;
+    // NOTA: Il sistema attualmente supporta solo blocchi orari interi. I minuti vengono deliberatamente scartati.
     return hourFromTime;
   }
 
