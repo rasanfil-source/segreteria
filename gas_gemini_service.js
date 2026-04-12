@@ -372,8 +372,11 @@ Output JSON:
 
     responseCode = response.getResponseCode();
 
-    if ([429, 500, 502, 503, 504].includes(responseCode)) {
-      throw new Error(`Errore server o quota Gemini(${responseCode})`);
+    if (responseCode === 429) {
+      throw new Error('QUOTA_EXHAUSTED_ALL_KEYS: Limite quota raggiunto su tutte le chiavi disponibili (429)');
+    }
+    if ([500, 502, 503, 504].includes(responseCode)) {
+      throw new Error(`Errore server Gemini(${responseCode})`);
     }
 
     if (responseCode !== 200) {
@@ -552,7 +555,7 @@ Output JSON:
       return { type: 'FATAL', retryable: false };
     }
 
-    if (msg.includes('primary_quota_exhausted')) {
+    if (msg.includes('primary_quota_exhausted') || msg.includes('quota_exhausted_all_keys')) {
       return { type: 'QUOTA_EXHAUSTED', retryable: false };
     }
 

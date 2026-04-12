@@ -379,7 +379,13 @@ class EmailProcessor {
           messageDetails.subject
         ) || {})
         : {};
-      const shouldPrecomputeQuickCheck = languageMode === 'foreign_only';
+      // Ottimizzazione: in modalità "Solo Straniere", se la detection locale è
+      // già ad alta confidenza (grado ≥ 4) che sia italiano, saltiamo Gemini.
+      const isHighConfidenceItalian = languageDetection.lang === 'it' && (languageDetection.safetyGrade || 0) >= 4;
+      if (languageMode === 'foreign_only' && isHighConfidenceItalian) {
+        console.log(`   ⚡ Pre-skip Gemini: IT rilevato localmente con alta confidenza (grado ${languageDetection.safetyGrade}) — quick_check saltato`);
+      }
+      const shouldPrecomputeQuickCheck = languageMode === 'foreign_only' && !isHighConfidenceItalian;
       const quickCheckPre = (shouldPrecomputeQuickCheck && this.geminiService && typeof this.geminiService.shouldRespondToEmail === 'function')
         ? this.geminiService.shouldRespondToEmail(
           messageDetails.body,

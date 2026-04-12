@@ -519,6 +519,12 @@ class GeminiRateLimiter {
         lastError = error;
         const errorMsg = error.message || '';
 
+        // Interrompi immediatamente se la quota è esaurita su TUTTE le chiavi
+        if (errorMsg.indexOf('PRIMARY_QUOTA_EXHAUSTED') !== -1 || errorMsg.indexOf('QUOTA_EXHAUSTED_ALL_KEYS') !== -1) {
+          console.error('❌ Quota API completamente esaurita su tutte le chiavi. Interruzione retry immediata.');
+          throw error;
+        }
+
         // Uso la classificazione centralizzata (difensiva in caso di runtime modulare)
         const classifiedError = typeof classifyError === 'function' ? classifyError(error) : { type: 'UNKNOWN', retryable: false, message: errorMsg };
 

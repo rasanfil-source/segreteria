@@ -213,7 +213,12 @@ var CONFIG = {
     'gestisci le tue preferenze', 'aggiorna le tue preferenze',
     'cancella iscrizione', 'mailing list', 'inviato con mailup',
     'messaggio inviato con', 'non rispondere a questo messaggio',
-    'avviso di sicurezza'
+    'avviso di sicurezza',
+    'scopri i prodotti', 'scopri le novità', 'offerta esclusiva',
+    'promozione', 'promozion', 'sconto', 'webinar',
+    'ti aspetta al', 'riservato a te', 'iscriviti ora',
+    'clicca qui', 'clicca su', 'non perdere', 'ultimi posti',
+    'registrati gratuitamente', 'scarica il catalogo'
   ]
 };
 
