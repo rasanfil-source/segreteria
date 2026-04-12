@@ -60,7 +60,6 @@ service._listMessagesWithResilience = () => ({
   ],
   nextPageToken: null
 });
-service._getMessageMetadataWithResilience = () => ({ labelIds: [] });
 
 global.GmailApp = {
   getThreadById: (threadId) => {
@@ -126,7 +125,27 @@ console.log('--- Test getProcessableAttachments: MIME con parametri deve essere 
   assert(!out.skipped.some((s) => s.reason === 'unsupported_type'), 'MIME parametrizzati validi non devono risultare unsupported_type');
 }
 
-console.log('✅ Test sanitizzazione Gmail/HTML passati');
+console.log('--- Test _getMessageMetadataWithResilience: fallback su errore API ---');
+const originalGetMetadata = service._getMessageMetadataWithResilience.bind(service);
+service._getMessageMetadataWithResilience = () => ({ labelIds: [] });
+
+const thread = { 
+  getId: () => 't1', 
+  getMessages: () => [{ 
+    id: 'm1',
+    getSubject: () => 'Test',
+    getFrom: () => 'sender@example.com',
+    getDate: () => new Date(),
+    getPlainBody: () => 'Body',
+    getBody: () => '<html>Body</html>',
+    getId: () => 'm1'
+  }] 
+};
+const details = service.extractMessageDetails(thread.getMessages()[0]);
+assert(details.headersFound === false, 'headersFound deve essere false su fallback');
+assert(details.rfc2822MessageId === null, 'rfc2822MessageId deve essere null su fallback');
+
+service._getMessageMetadataWithResilience = originalGetMetadata;
 
 console.log('--- Test extractMessageDetails: headers malformati non devono rompere parsing metadata ---');
 {

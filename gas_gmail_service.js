@@ -601,6 +601,7 @@ class GmailService {
         let rfc2822MessageId = null;
         let existingReferences = null;
         let isNewsletter = false;
+        let headersFound = false;
         const headers = {};
         try {
             const rawMessage = this._getMessageMetadataWithResilience(messageId, {
@@ -617,6 +618,7 @@ class GmailService {
                 ]
             });
             if (rawMessage && rawMessage.payload && rawMessage.payload.headers) {
+                headersFound = true;
                 for (const header of rawMessage.payload.headers) {
                     if (!header || !header.name) continue;
 
@@ -700,6 +702,7 @@ class GmailService {
             recipientEmail: recipientEmail,
             recipientCc: recipientCc,
             headers: headers,
+            headersFound: headersFound,
             isNewsletter: isNewsletter
         };
     }

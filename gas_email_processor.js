@@ -355,10 +355,24 @@ class EmailProcessor {
         return result;
       }
 
-      // I messaggi secondari vengono marcati solo dopo che il quick_check
-      // ha confermato che il thread è gestibile — in caso di errore API
-      // (quick_check_failed) li lasciamo intatti per il retry successivo.
+      // --- PORTA 0.5: Pre-check lingua locale sul soggetto (Zero API Cost) ---
+      if (languageMode === 'foreign_only') {
+        const subjectOnly = (candidate.getSubject() || '');
+        if (subjectOnly.trim() !== '') {
+          // Regex basata sui dizzionari interni di Classifier.gs
+          const italianPattern = /\b(appuntamento|fissare|prenotare|disponibilit[àa]|orari[oa]|incontro|prenotazione|informazioni|chiedere|sapere|vorrei|come\s+faccio|requisiti|battesimo|comunione|cresima|matrimonio|sacramento|confessione|grazie|salve|buongiorno|buonasera|preventivo|offerta|prezzo|costo|il|lo|la|gli|le|un|uno|una|di|da|in|con|su|per|tra|fra)\b/i;
+          
+          if (italianPattern.test(subjectOnly)) {
+            console.log(`   ⊖ Pre-check locale: italiano rilevato nel soggetto ("${subjectOnly.substring(0, 20)}...") → skip anticipato`);
+            result.status = 'skipped';
+            result.reason = 'italian_skipped_foreign_only_precheck';
+            return result;
+          }
+        }
+      }
 
+      // STEP 1: Estrazione dati e pulizia
+      console.log('   STEP 1: Estrazione dati e pulizia...');
       const messageDetails = this.gmailService.extractMessageDetails(candidate);
       console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
       console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
@@ -576,8 +590,7 @@ class EmailProcessor {
         }
         this._markMessageAsProcessed(candidate, labeledMessageIds);
 
-        // Marca i secondari solo qui: il quick_check è andato a buon fine
-        // (anche se ha deciso di non rispondere), quindi il thread è gestito.
+        // Bug Fix [Alta]: Marchiamo i secondari solo se il candidato è ufficialmente scartato o processato
         if (languageMode !== 'foreign_only') {
           unlabeledUnread.forEach(message => {
             if (message.getId() !== candidate.getId()) {
