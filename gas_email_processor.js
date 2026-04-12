@@ -355,19 +355,9 @@ class EmailProcessor {
         return result;
       }
 
-      // GUARDRAIL: Segna gli altri messaggi non letti nel thread come elaborati
-      // per evitare che il bot risponda a ritroso nei trigger successivi.
-      // Lo facciamo solo dopo i check cheap: se il last speaker siamo noi, il thread
-      // deve restare intatto fino al prossimo vero messaggio esterno.
-      if (languageMode !== 'foreign_only') {
-        unlabeledUnread.forEach(message => {
-          if (message.getId() !== candidate.getId()) {
-            this._markMessageAsProcessed(message, labeledMessageIds);
-          }
-        });
-      } else {
-        console.log('   🌐 Modalità "Solo straniere": non pre-marco i non letti secondari');
-      }
+      // I messaggi secondari vengono marcati solo dopo che il quick_check
+      // ha confermato che il thread è gestibile — in caso di errore API
+      // (quick_check_failed) li lasciamo intatti per il retry successivo.
 
       const messageDetails = this.gmailService.extractMessageDetails(candidate);
       console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
@@ -490,9 +480,11 @@ class EmailProcessor {
         if (!normalizedMyEmail) {
           console.warn('   ⚠️ Email utente non disponibile: skip controllo anti-loop basato su mittente');
         } else {
+          let consecutiveExternal = 0;
           let botRepliesCount = 0;
 
-          for (let i = 0; i < messages.length; i++) {
+          // Percorriamo i messaggi a ritroso per contare gli esterni consecutivi
+          for (let i = messages.length - 1; i >= 0; i--) {
             const msgFrom = (messages[i].getFrom() || '').toLowerCase();
             const isUs = Boolean(normalizedMyEmail) && (
               msgFrom.includes(normalizedMyEmail) ||
@@ -501,11 +493,15 @@ class EmailProcessor {
 
             if (isUs) {
               botRepliesCount++;
+              // Se troviamo un nostro messaggio, la sequenza di esterni consecutivi si interrompe
+              break;
+            } else {
+              consecutiveExternal++;
             }
           }
 
-          if (botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL) {
-            console.log(`   ⊖ Saltato: prevenzione loop email (Il bot ha già risposto ${botRepliesCount} volte in questo thread)`);
+          if (consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
+            console.log(`   ⊖ Saltato: prevenzione loop email (${consecutiveExternal} esterni consecutivi alla fine del thread)`);
             this._markMessageAsProcessed(candidate, labeledMessageIds);
             result.status = 'filtered';
             result.reason = 'email_loop_detected';
@@ -575,10 +571,33 @@ class EmailProcessor {
           result.status = 'error';
           result.error = 'quick_check_failed';
           return result;
+          // ↑ Uscita intenzionale senza marcare nulla: i secondari restano
+          //   visibili al prossimo trigger per garantire il retry.
         }
         this._markMessageAsProcessed(candidate, labeledMessageIds);
+
+        // Marca i secondari solo qui: il quick_check è andato a buon fine
+        // (anche se ha deciso di non rispondere), quindi il thread è gestito.
+        if (languageMode !== 'foreign_only') {
+          unlabeledUnread.forEach(message => {
+            if (message.getId() !== candidate.getId()) {
+              this._markMessageAsProcessed(message, labeledMessageIds);
+            }
+          });
+        }
         result.status = 'filtered';
         return result;
+      }
+
+      // Quick check superato con shouldRespond=true: marca i secondari ora.
+      if (languageMode !== 'foreign_only') {
+        unlabeledUnread.forEach(message => {
+          if (message.getId() !== candidate.getId()) {
+            this._markMessageAsProcessed(message, labeledMessageIds);
+          }
+        });
+      } else {
+        console.log('   🌐 Modalità "Solo straniere": non pre-marco i non letti secondari');
       }
 
       // Se Gemini Quick Check ha rilevato una lingua diversa con maggiore precisione, aggiorniamo

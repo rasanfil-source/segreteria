@@ -1136,9 +1136,10 @@ Output JSON:
 
     // IMPLEMENTAZIONE ORIGINALE (fallback o quando Rate Limiter disabilitato)
     try {
-      console.log(`Ã°Å¸â€Â Gemini quick check per: ${emailSubject.substring(0, 40)}...`);
+      const safeSubject = typeof emailSubject === "string" ? emailSubject : (emailSubject == null ? "" : String(emailSubject));
+      console.log(`🔍 Gemini quick check per: ${safeSubject.substring(0, 40)}...`);
       return this._withRetry(
-        () => this._quickCheckWithModel(emailContent, emailSubject, this.modelName, detection),
+        () => this._quickCheckWithModel(emailContent, safeSubject, this.modelName, detection),
         'Quick check'
       );
     } catch (error) {
