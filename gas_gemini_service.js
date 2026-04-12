@@ -1,8 +1,8 @@
-/**
+﻿/**
  * GeminiService.js - Servizio API Gemini
  * Gestisce tutte le chiamate all'API Generativa di Google
  * 
- * FUNZIONALITÀ:
+ * FUNZIONALITÃƒâ‚¬:
  * - Retry con exponential backoff
  * - Rilevamento lingua centralizzato
  * - Controllo rapido per decisione risposta
@@ -19,16 +19,16 @@ class GeminiService {
     this.logger = options.logger || createLogger('GeminiService');
     this.logger.info('Inizializzazione GeminiService');
 
-    // Dipendenze esterne iniettabili (testabilità)
+    // Dipendenze esterne iniettabili (testabilitÃƒÂ )
     this.fetchFn = options.fetchFn || ((url, requestOptions) => UrlFetchApp.fetch(url, requestOptions));
     this.props = options.props || PropertiesService.getScriptProperties();
 
-    // ═══════════════════════════════════════════════════════════════════
+    // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
     // CONFIGURAZIONE CHIAVI API (Strategia Cross-Key Quality First)
-    // ═══════════════════════════════════════════════════════════════════
+    // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
     // Chiave Primaria
-    // Priorità: 1. override DI 2. Script Properties 3. CONFIG
+    // PrioritÃƒÂ : 1. override DI 2. Script Properties 3. CONFIG
     const propKey = this.props.getProperty('GEMINI_API_KEY');
     this.primaryKey = options.primaryKey || ((propKey && propKey.length > 20) ? propKey : this.config.GEMINI_API_KEY);
 
@@ -36,7 +36,7 @@ class GeminiService {
     const propBackupKey = this.props.getProperty('GEMINI_API_KEY_BACKUP');
     this.backupKey = options.backupKey || ((propBackupKey && propBackupKey.length > 20) ? propBackupKey : null);
 
-    // Alias accessibile per i moduli che usano la proprietà apiKey
+    // Alias accessibile per i moduli che usano la proprietÃƒÂ  apiKey
     this.apiKey = this.primaryKey;
 
     this.modelName = this.config.MODEL_NAME || 'gemini-2.5-flash';
@@ -53,7 +53,7 @@ class GeminiService {
     // Configurazione retry
     this.maxRetries = 3;
     this.retryDelay = 2000; // millisecondi
-    this.backoffFactor = 1.5; // crescita graduale: 2s → 3s → 4.5s
+    this.backoffFactor = 1.5; // crescita graduale: 2s Ã¢â€ â€™ 3s Ã¢â€ â€™ 4.5s
 
     // Rate Limiter (abilitato da CONFIG.USE_RATE_LIMITER)
     this.useRateLimiter = this.config.USE_RATE_LIMITER === true;
@@ -258,7 +258,7 @@ class GeminiService {
    * @param {string} emailContent - Contenuto email
    * @param {string} emailSubject - Oggetto email
    * @param {string} modelName - Nome modello API
-   * @param {Object} [precomputedDetection] - Risultato detectEmailLanguage già calcolato (evita doppia chiamata)
+   * @param {Object} [precomputedDetection] - Risultato detectEmailLanguage giÃƒÂ  calcolato (evita doppia chiamata)
    * @returns {Object} Risultato controllo rapido
    */
   _quickCheckWithModel(emailContent, emailSubject, modelName, precomputedDetection = null) {
@@ -276,9 +276,9 @@ Testo: ${safeContent.substring(0, 800)}
 COMPITI:
 1. Decidi se richiede risposta (reply_needed):
  - TRUE se l'utente pone domande, esprime dubbi o fornisce informazioni nuove/utili (appuntamenti, dati, modifiche).
- - FALSE se è solo un ringraziamento finale (es: \"Grazie mille\", \"Perfetto grazie\", \"Ricevuto\") senza nuove domande o info.
- - FALSE se è newsletter, spam o messaggi di sistema.
- - IMPORTANTE: Se l'utente chiede qualcosa già detto, rispondi TRUE ma con riferimento cordiale alla risposta precedente.
+ - FALSE se ÃƒÂ¨ solo un ringraziamento finale (es: \"Grazie mille\", \"Perfetto grazie\", \"Ricevuto\") senza nuove domande o info.
+ - FALSE se ÃƒÂ¨ newsletter, spam o messaggi di sistema.
+ - IMPORTANTE: Se l'utente chiede qualcosa giÃƒÂ  detto, rispondi TRUE ma con riferimento cordiale alla risposta precedente.
 
 2. Rileva la lingua (language) - codice ISO 639-1 (es: "it", "en", "es", "fr", "de")
 3. Classifica la richiesta (category):
@@ -292,11 +292,11 @@ COMPITI:
 5. Estrai l'argomento principale (topic) in ITALIANO (usando termini coerenti con la richiesta)
 6. Fornisci un breve ragionamento (reason)
 
-⚠️ REGOLA CRITICA "SBATTEZZO":
-Se l'utente esprime la volontà di non essere più cristiano, essere cancellato dai registri o "sbattezzarsi":
+Ã¢Å¡Â Ã¯Â¸Â REGOLA CRITICA "SBATTEZZO":
+Se l'utente esprime la volontÃƒÂ  di non essere piÃƒÂ¹ cristiano, essere cancellato dai registri o "sbattezzarsi":
 - Classifica SEMPRE come "FORMAL"
 - Topic: "sbattezzo"
-- NON classificarlo come "PASTORAL" anche se c'è un tono emotivo.
+- NON classificarlo come "PASTORAL" anche se c'ÃƒÂ¨ un tono emotivo.
 
 Output JSON:
 {
@@ -316,7 +316,7 @@ Output JSON:
 
     const url = this._buildGenerateUrl(modelName);
 
-    console.log(`🔍 Controllo rapido via ${modelName}...`);
+    console.log(`Ã°Å¸â€Â Controllo rapido via ${modelName}...`);
 
     // Gestione con tentativo su chiave primaria e fallback singolo su chiave secondaria.
     let activeKey = this.primaryKey;
@@ -355,7 +355,7 @@ Output JSON:
     // Nota: gestiamo esplicitamente anche errori "hard" di UrlFetchApp (timeout/DNS)
     // perché non forniscono responseCode e altrimenti salterebbero il fallback cross-key.
     if (shouldTryBackupKey) {
-      console.warn('⚠️ Chiave primaria non utilizzabile (errore rete/quota). Tentativo con chiave di riserva...');
+      console.warn('Ã¢Å¡Â Ã¯Â¸Â Chiave primaria non utilizzabile (errore rete/quota). Tentativo con chiave di riserva...');
       activeKey = this.backupKey;
       try {
         response = executeFetch(activeKey);
@@ -399,7 +399,7 @@ Output JSON:
     try {
       result = JSON.parse(response.getContentText());
     } catch (parseError) {
-      console.warn(`⚠️ JSON non valido nel controllo rapido Gemini: ${parseError.message}`);
+      console.warn(`Ã¢Å¡Â Ã¯Â¸Â JSON non valido nel controllo rapido Gemini: ${parseError.message}`);
       return defaultResult;
     }
 
@@ -420,7 +420,7 @@ Output JSON:
     const textResponse = parts.map(p => p.text || '').join('').trim();
 
     console.log('=========================================');
-    console.log('🤖 RAW GEMINI CLASSIFIER JSON:');
+    console.log('Ã°Å¸Â¤â€“ RAW GEMINI CLASSIFIER JSON:');
     console.log(textResponse);
     console.log('=========================================');
 
@@ -438,7 +438,7 @@ Output JSON:
       return defaultResult;
     }
     if (!data || typeof data !== 'object') {
-      console.warn('⚠️ Decisione quick check non è un oggetto JSON valido');
+      console.warn('Ã¢Å¡Â Ã¯Â¸Â Decisione quick check non ÃƒÂ¨ un oggetto JSON valido');
       return defaultResult;
     }
 
@@ -454,7 +454,7 @@ Output JSON:
     const safeConfidence = Number.isFinite(data.confidence) ? data.confidence : 0.8;
 
     return {
-      // Rispondi solo se la richiesta è esplicita e necessaria
+      // Rispondi solo se la richiesta ÃƒÂ¨ esplicita e necessaria
       shouldRespond: isTrue,
       language: this._resolveLanguage(data.language, detection.lang, detection.safetyGrade),
       reason: data.reason || 'quick_check',
@@ -489,7 +489,7 @@ Output JSON:
       } catch (error) {
         lastError = error;
 
-        // Manteniamo _classifyError: è il punto unico di classificazione interno
+        // Manteniamo _classifyError: ÃƒÂ¨ il punto unico di classificazione interno
         // e resta allineato al contratto condiviso retryable/type.
         // Nota: NON replichiamo qui una classificazione inline, per evitare drift
         // con la policy errori del servizio e falsi positivi nei retry.
@@ -578,14 +578,23 @@ Output JSON:
 
   /**
    * Rileva la lingua dell'email processando testo localmente tramite dizionario stop-words
-   * Molto più veloce dell'API Gemini e fissa i rari switch di lingua su nomi stranieri.
+   * Molto piÃƒÂ¹ veloce dell'API Gemini e fissa i rari switch di lingua su nomi stranieri.
    * @param {string} emailContent 
    * @param {string} emailSubject 
    * @returns {{lang: string, confidence: number, safetyGrade: number}} 
    */
   detectEmailLanguage(emailContent, emailSubject = '') {
     const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
-    const safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
+    let safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
+
+    // Rimuove le citazioni per evitare che il testo quotato (es. precedente thread in italiano) alteri il punteggio
+    safeContent = safeContent.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
+    safeContent = safeContent.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*?<\/div>/gi, '');
+    // Fallback per citazioni testuali se l'HTML ÃƒÂ¨ giÃƒÂ  stato strippato o ÃƒÂ¨ incompleto
+    safeContent = safeContent.replace(/(?:^|\n)>[\s\S]*/g, '');
+    safeContent = safeContent.replace(/(?:^|\n)(On |Il giorno ).*(wrote|ha scritto):[\s\S]*/gi, '');
+    safeContent = safeContent.replace(/(?:^|\n)-{3,}.*(Original Message|Messaggio originale).*[\s\S]*/gi, '');
+
     // Trunca a 3000 char per evitare CPU Timeout sull'elaborazione lingua
     const text = ` ${safeSubject} ${safeContent} `.substring(0, 3000).toLowerCase();
     const originalText = ` ${safeSubject} ${safeContent} `.substring(0, 3000);
@@ -594,44 +603,44 @@ Output JSON:
     let spanishCharScore = 0;
     let portugueseCharScore = 0;
 
-    if (originalText.includes('¿') || originalText.includes('¡')) {
+    if (originalText.includes('Ã‚Â¿') || originalText.includes('Ã‚Â¡')) {
       spanishCharScore = 1;
-      console.log('   Trovata punteggiatura spagnola (¿ o ¡)');
+      console.log('   Trovata punteggiatura spagnola (Ã‚Â¿ o Ã‚Â¡)');
     }
-    if (text.includes('ñ')) {
+    if (text.includes('ÃƒÂ±')) {
       spanishCharScore += 2;
-      console.log('   Trovato carattere spagnolo (ñ)');
+      console.log('   Trovato carattere spagnolo (ÃƒÂ±)');
     }
-    if (text.includes('ã') || text.includes('õ') || text.includes('ç')) {
-      if (text.includes('ã') || text.includes('õ')) {
+    if (text.includes('ÃƒÂ£') || text.includes('ÃƒÂµ') || text.includes('ÃƒÂ§')) {
+      if (text.includes('ÃƒÂ£') || text.includes('ÃƒÂµ')) {
         portugueseCharScore += 2;
-        console.log('   Trovato carattere portoghese forte (ã, õ)');
+        console.log('   Trovato carattere portoghese forte (ÃƒÂ£, ÃƒÂµ)');
       } else {
         portugueseCharScore += 0.5;
-        console.log('   Trovato carattere ambiguo (ç): boost portoghese ridotto');
+        console.log('   Trovato carattere ambiguo (ÃƒÂ§): boost portoghese ridotto');
       }
     }
 
     // Parole chiave per rilevamento
     const englishUniqueKeywords = [
-      'the', 'would', 'could', 'should', 'might',
-      'we are', 'you are', 'they are', 'i am', "i'm", "we're", "you're",
-      'please', 'thank you', 'thanks', 'dear sir', 'dear madam',
       'kind regards', 'best regards', 'sincerely', 'yours truly',
       'looking forward', 'i would like', 'we would like',
       'let me know', 'get back to', 'reach out',
-      'however', 'therefore', 'furthermore', 'moreover'
+      'however', 'therefore', 'furthermore', 'moreover',
+      'hello', 'hi', 'dear', 'good morning', 'good afternoon', 'good evening',
+      'need', 'want', 'information', 'help'
     ];
 
     const englishStandardKeywords = [
-      ' and ', ' but ', ' an ',
+      'and', 'but', 'an',
       'will', 'can', 'may', 'shall', 'must',
       'have', 'has', 'had', 'do', 'does', 'did',
       'what', 'when', 'where', 'how', 'why', 'which', 'who',
-      ' on ', ' of ', ' to ', ' from ', ' for ', ' with ', ' at ', ' by '
+      'on', 'of', 'to', 'from', 'for', 'with', 'at', 'by',
+      'is', 'are', 'was', 'were', 'it', 'this', 'that', 'my', 'me', 'you', 'your', 'yes', 'in', 'no', 'not', 'if', 'or', 'as', 'be'
     ];
 
-    const spanishKeywords = [
+        const spanishKeywords = [
       'he ido', 'había', 'hay', 'ido', 'sido',
       'hacer', 'haber', 'poder', 'estar', 'estoy', 'están',
       'por qué', 'porque', 'cuándo', 'cómo', 'dónde', 'qué tal',
@@ -639,30 +648,30 @@ Output JSON:
       'misa', 'misas', 'iglesia', 'parroquia',
       'hola', 'gracias', 'necesito', 'quiero',
       'querido', 'estimado', 'saludos',
-      ' no ', ' un ', ' unos ', ' unas ',
-      ' del ', ' con el ', ' en el ', ' es '
+      'no', 'un', 'unos', 'unas',
+      'del', 'con el', 'en el', 'es'
     ];
 
-    const portugueseUniqueKeywords = [
+        const portugueseUniqueKeywords = [
       'olá', 'obrigado', 'obrigada', 'agradecemos', 'agradeço',
-      'orçamento', 'cotação', 'viatura', 'portagens', 'reserva',
-      'estamos ao dispor', 'cumprimentos',
-      'bom dia', 'boa tarde', 'boa noite'
+      'por favor', 'bom dia', 'boa tarde', 'boa noite',
+      'missa', 'missas', 'igreja', 'paróquia',
+      'atenciosamente', 'cumprimentos', 'abrigado'
     ];
 
-    const portugueseStandardKeywords = [
-      ' por ', ' para ', ' com ', ' não ', ' uma ', ' seu ', ' sua ',
-      ' dos ', ' das ', ' ao ', ' aos '
+        const portugueseStandardKeywords = [
+      'por', 'para', 'com', 'não', 'uma', 'seu', 'sua',
+      'dos', 'das', 'ao', 'aos'
     ];
 
-    const italianKeywords = [
+        const italianKeywords = [
       'sono', 'siamo', 'stato', 'stata', 'ho', 'hai', 'abbiamo',
       'fare', 'avere', 'essere', 'potere', 'volere',
       'perché', 'perchè', 'quando', 'come', 'dove', 'cosa',
       'per favore', 'per piacere', 'molte grazie', 'buongiorno',
       'buonasera', 'gentile', 'egregio', 'cordiali saluti',
-      ' non ', ' il ', ' di ', ' da ',
-      ' nel ', ' della ', ' degli ', ' delle '
+      'non', 'il', 'di', 'da',
+      'nel', 'della', 'degli', 'delle'
     ];
 
     // Conta corrispondenze con limiti di parola Unicode-safe
@@ -674,8 +683,8 @@ Output JSON:
           count += weight * matches;
         } else {
           const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          // NOTA: niente \b perché in JS è ASCII-only e fallisce con accenti (es. "olá", "perché").
-          // Usiamo invece un confine Unicode esplicito senza lookbehind per massima compatibilità runtime.
+          // NOTA: niente \b perché in JS ÃƒÂ¨ ASCII-only e fallisce con accenti (es. "olá", "perché").
+          // Usiamo invece un confine Unicode esplicito senza lookbehind per massima compatibilitÃƒÂ  runtime.
           const pattern = new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'giu');
           const matches = (txt.match(pattern) || []).length;
           count += weight * matches;
@@ -701,7 +710,7 @@ Output JSON:
     // Disambiguazione ES/PT su testi brevi: evita confusione quando i punteggi sono quasi pari.
     const compactText = text.replace(/\s+/g, ' ').trim();
     if (compactText.length <= 120 && Math.abs(scores.es - scores.pt) <= 1 && Math.max(scores.es, scores.pt) >= 2) {
-      const ptStrongMarkers = /(?:^|[^\\p{L}\\p{N}_])(não|vocês|estou|obrigad[oa]|orçamento|viatura|portagens|agradecemos|cumprimentos)(?=$|[^\\p{L}\\p{N}_])/iu;
+      const ptStrongMarkers = /(?:^|[^\\p{L}\\p{N}_])(não|vocÃƒÂªs|estou|obrigad[oa]|orÃ§amento|viatura|portagens|agradecemos|cumprimentos)(?=$|[^\\p{L}\\p{N}_])/iu;
       const esStrongMarkers = /(?:^|[^\\p{L}\\p{N}_])(usted|ustedes|gracias|presupuesto|coche|iglesia|parroquia|estimado|querido)(?=$|[^\\p{L}\\p{N}_])/iu;
       if (ptStrongMarkers.test(compactText) && !esStrongMarkers.test(compactText)) {
         scores.pt += 1;
@@ -781,22 +790,22 @@ Output JSON:
     // 1. Se coincidono, massima sicurezza
     if (normalizedGemini === normalizedLocal) return normalizedGemini;
 
-    // 2. Lingue "esotiche": Se Gemini rileva qualcosa che NON è IT/EN/ES/PT, 
-    // ci fidiamo di Gemini prima del locale (che è calibrato solo per quelle 4).
+    // 2. Lingue "esotiche": Se Gemini rileva qualcosa che NON ÃƒÂ¨ IT/EN/ES/PT, 
+    // ci fidiamo di Gemini prima del locale (che ÃƒÂ¨ calibrato solo per quelle 4).
     const supportedLocally = ['it', 'en', 'es', 'pt'];
     if (!supportedLocally.includes(normalizedGemini)) {
       console.log(`   \uD83C\uDF0D Lingua: ${normalizedGemini.toUpperCase()} (Gemini ha rilevato lingua non supportata localmente)`);
       return normalizedGemini;
     }
 
-    // 3. Lingua principale: Se il locale è MOLTO sicuro (grado >= 4), 
+    // 3. Lingua principale: Se il locale ÃƒÂ¨ MOLTO sicuro (grado >= 4), 
     // prevale sulla detection API (che a volte si confonde con nomi propri o citazioni).
     if (localSafetyGrade >= 4) {
       console.log(`   \uD83C\uDF0D Lingua: ${normalizedLocal.toUpperCase()} (Locale vince per grado sicurezza ${localSafetyGrade})`);
       return normalizedLocal;
     }
 
-    // 4. Default: Se c'è incertezza, ci fidiamo del rilevamento del modello Large
+    // 4. Default: Se c'ÃƒÂ¨ incertezza, ci fidiamo del rilevamento del modello Large
     console.log(`   \uD83C\uDF0D Lingua: ${normalizedGemini.toUpperCase()} (Gemini prioritario su locale incerto)`);
     return normalizedGemini;
   }
@@ -815,14 +824,14 @@ Output JSON:
     let day = now.getDay(); // 0 = Domenica
 
     // Coerenza business: saluti basati sempre sull'orario italiano,
-    // anche se il fuso del progetto è stato modificato per errore.
+    // anche se il fuso del progetto ÃƒÂ¨ stato modificato per errore.
     if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
       try {
         hour = parseInt(Utilities.formatDate(now, 'Europe/Rome', 'H'), 10);
         const isoDay = parseInt(Utilities.formatDate(now, 'Europe/Rome', 'u'), 10);
         if (!isNaN(isoDay)) day = isoDay % 7;
       } catch (e) {
-        // fallback locale: manteniamo comportamento precedente se Utilities non è disponibile
+        // fallback locale: manteniamo comportamento precedente se Utilities non ÃƒÂ¨ disponibile
       }
     }
 
@@ -867,7 +876,7 @@ Output JSON:
         } else if (day === 0) {
           greeting = 'Feliz domingo,';
         } else if (hour >= 5 && hour < 13) {
-          greeting = 'Buenos días,';
+          greeting = 'buenos días,';
         } else {
           greeting = 'Buenas tardes,';
         }
@@ -910,19 +919,19 @@ Output JSON:
   // ========================================================================
 
   /**
-   * Ottieni saluto speciale per feste liturgiche e festività
+   * Ottieni saluto speciale per feste liturgiche e festivitÃƒÂ 
    */
   _getSpecialDayGreeting(dateObj, language = 'it') {
     const y = dateObj.getFullYear();
     const m = dateObj.getMonth() + 1;
     const d = dateObj.getDate();
 
-    // === FESTIVITÀ FISSE ===
+    // === FESTIVITÃƒâ‚¬ FISSE ===
 
     // Capodanno
     if (m === 1 && d === 1) {
       if (language === 'en') return 'Happy New Year!';
-      if (language === 'es') return '¡Feliz Año Nuevo!';
+      if (language === 'es') return 'Ã‚Â¡Feliz AÃƒÂ±o Nuevo!';
       if (language === 'pt') return 'Feliz Ano Novo!';
       return 'Buon Capodanno!';
     }
@@ -930,7 +939,7 @@ Output JSON:
     // Epifania
     if (m === 1 && d === 6) {
       if (language === 'en') return 'Happy Epiphany!';
-      if (language === 'es') return '¡Feliz Epifanía!';
+      if (language === 'es') return 'Ã‚Â¡Feliz EpifanÃƒÂ­a!';
       if (language === 'pt') return 'Feliz Epifania!';
       return 'Buona Epifania!';
     }
@@ -938,15 +947,15 @@ Output JSON:
     // Assunzione (15 Agosto)
     if (m === 8 && d === 15) {
       if (language === 'en') return 'Happy Assumption Day!';
-      if (language === 'es') return '¡Feliz día de la Asunción!';
-      if (language === 'pt') return 'Feliz dia da Assunção!';
+      if (language === 'es') return 'Ã‚Â¡Feliz dÃƒÂ­a de la AsunciÃƒÂ³n!';
+      if (language === 'pt') return 'Feliz dia da AssunÃƒÂ§ÃƒÂ£o!';
       return 'Buona festa!';
     }
 
     // Tutti i Santi (1 Novembre)
     if (m === 11 && d === 1) {
       if (language === 'en') return 'Happy All Saints Day!';
-      if (language === 'es') return '¡Feliz día de Todos los Santos!';
+      if (language === 'es') return 'Ã‚Â¡Feliz dÃƒÂ­a de Todos los Santos!';
       if (language === 'pt') return 'Feliz Dia de Todos os Santos!';
       return 'Buona festa di Ognissanti!';
     }
@@ -954,15 +963,15 @@ Output JSON:
     // Immacolata Concezione (8 Dicembre)
     if (m === 12 && d === 8) {
       if (language === 'en') return 'Happy Feast of the Immaculate Conception!';
-      if (language === 'es') return '¡Feliz día de la Inmaculada!';
-      if (language === 'pt') return 'Feliz Imaculada Conceição!';
+      if (language === 'es') return 'Ã‚Â¡Feliz dÃƒÂ­a de la Inmaculada!';
+      if (language === 'pt') return 'Feliz Imaculada ConceiÃƒÂ§ÃƒÂ£o!';
       return 'Buona Immacolata!';
     }
 
     // Natale (25 Dicembre)
     if (m === 12 && d === 25) {
       if (language === 'en') return 'Merry Christmas!';
-      if (language === 'es') return '¡Feliz Navidad!';
+      if (language === 'es') return 'Ã‚Â¡Feliz Navidad!';
       if (language === 'pt') return 'Feliz Natal!';
       return 'Buon Natale!';
     }
@@ -977,8 +986,8 @@ Output JSON:
     const pasquaEnd = this._addDays(easter, 7);
     if (this._isBetweenInclusive(dateObj, pasquaStart, pasquaEnd)) {
       if (language === 'en') return 'Happy Easter!';
-      if (language === 'es') return '¡Feliz Pascua!';
-      if (language === 'pt') return 'Feliz Páscoa!';
+      if (language === 'es') return 'Ã‚Â¡Feliz Pascua!';
+      if (language === 'pt') return 'Feliz PÃƒÂ¡scoa!';
       return 'Buona Pasqua!';
     }
 
@@ -986,7 +995,7 @@ Output JSON:
     const pentecoste = this._addDays(easter, 49);
     if (this._isSameDate(dateObj, pentecoste)) {
       if (language === 'en') return 'Happy Pentecost!';
-      if (language === 'es') return '¡Feliz Pentecostés!';
+      if (language === 'es') return 'Ã‚Â¡Feliz PentecostÃƒÂ©s!';
       if (language === 'pt') return 'Feliz Pentecostes!';
       return 'Buona Pentecoste!';
     }
@@ -995,7 +1004,7 @@ Output JSON:
     const corpusDominiIT = this._addDays(easter, 63);
     if (this._isSameDate(dateObj, corpusDominiIT)) {
       if (language === 'en') return 'Happy Corpus Christi!';
-      if (language === 'es') return '¡Feliz Corpus Christi!';
+      if (language === 'es') return 'Ã‚Â¡Feliz Corpus Christi!';
       if (language === 'pt') return 'Feliz Corpus Christi!';
       return 'Buona festa!';
     }
@@ -1004,8 +1013,8 @@ Output JSON:
     const sacraFamiglia = this._getHolyFamilySunday(y);
     if (sacraFamiglia && this._isSameDate(dateObj, sacraFamiglia)) {
       if (language === 'en') return 'Happy Feast of the Holy Family!';
-      if (language === 'es') return '¡Feliz Fiesta de la Sagrada Familia!';
-      if (language === 'pt') return 'Feliz Festa da Sagrada Família!';
+      if (language === 'es') return 'Ã‚Â¡Feliz Fiesta de la Sagrada Familia!';
+      if (language === 'pt') return 'Feliz Festa da Sagrada FamÃƒÂ­lia!';
       return 'Buona Festa della Sacra Famiglia.';
     }
 
@@ -1013,7 +1022,7 @@ Output JSON:
   }
 
   // ========================================================================
-  // UTILITÀ DATE PER CALENDARIO LITURGICO
+  // UTILITÃƒâ‚¬ DATE PER CALENDARIO LITURGICO
   // ========================================================================
 
   /**
@@ -1035,7 +1044,7 @@ Output JSON:
   }
 
   /**
-   * Verifica se una data è compresa tra inizio e fine (inclusi)
+   * Verifica se una data ÃƒÂ¨ compresa tra inizio e fine (inclusi)
    */
   _isBetweenInclusive(date, start, end) {
     // Confronto su base "giorno" (ora azzerata) per includere correttamente
@@ -1050,13 +1059,13 @@ Output JSON:
   /**
    * Ottieni la data della Domenica della Sacra Famiglia
    * (Domenica tra 25 Dic e 1 Gen, o 30 Dic se nessuna domenica).
-   * Nota: se il 25 dicembre cade di domenica, nel range 26-31 non c'è
-   * alcuna domenica; in quel caso il fallback al 30 dicembre è intenzionale
+   * Nota: se il 25 dicembre cade di domenica, nel range 26-31 non c'ÃƒÂ¨
+   * alcuna domenica; in quel caso il fallback al 30 dicembre ÃƒÂ¨ intenzionale
    * (prassi liturgica del rito romano).
    */
   _getHolyFamilySunday(year) {
-    // Il range 26-31 è intenzionale: cerchiamo la domenica *dopo* Natale.
-    // Se il 25 è domenica, non esiste altra domenica nell'ottava e il
+    // Il range 26-31 ÃƒÂ¨ intenzionale: cerchiamo la domenica *dopo* Natale.
+    // Se il 25 ÃƒÂ¨ domenica, non esiste altra domenica nell'ottava e il
     // calendario romano prevede il fallback al 30 dicembre.
     for (let day = 26; day <= 31; day++) {
       const date = new Date(year, 11, day);
@@ -1099,41 +1108,41 @@ Output JSON:
           (modelName) => this._quickCheckWithModel(emailContent, emailSubject, modelName, detection),
           {
             estimatedTokens: 500,
-            preferQuality: false  // Economia > qualità per controllo rapido
+            preferQuality: false  // Economia > qualitÃƒÂ  per controllo rapido
           }
         );
 
         if (result.success) {
-          console.log(`✓ Controllo rapido via Rate Limiter(modello: ${result.modelUsed})`);
+          console.log(`Ã¢Å“â€œ Controllo rapido via Rate Limiter(modello: ${result.modelUsed})`);
           return result.result;
         }
       } catch (error) {
         if (error.message && error.message.includes('QUOTA_EXHAUSTED')) {
-          console.warn('⚠️ Rate Limiter in QUOTA_EXHAUSTED nel quick check, provo fallback diretto con retry');
+          console.warn('Ã¢Å¡Â Ã¯Â¸Â Rate Limiter in QUOTA_EXHAUSTED nel quick check, provo fallback diretto con retry');
           try {
             return this._withRetry(
               () => this._quickCheckWithModel(emailContent, emailSubject, this.modelName, detection),
               'Quick check fallback dopo QUOTA_EXHAUSTED'
             );
           } catch (directError) {
-            console.error(`❌ Fallback diretto quick check fallito: ${directError.message}. Uso detection locale.`);
+            console.error(`Ã¢ÂÅ’ Fallback diretto quick check fallito: ${directError.message}. Uso detection locale.`);
             return defaultResult;
           }
         }
-        console.warn(`⚠️ Rate Limiter quick check fallito: ${error.message} `);
+        console.warn(`Ã¢Å¡Â Ã¯Â¸Â Rate Limiter quick check fallito: ${error.message} `);
         // Prosegui con implementazione originale
       }
     }
 
     // IMPLEMENTAZIONE ORIGINALE (fallback o quando Rate Limiter disabilitato)
     try {
-      console.log(`🔍 Gemini quick check per: ${emailSubject.substring(0, 40)}...`);
+      console.log(`Ã°Å¸â€Â Gemini quick check per: ${emailSubject.substring(0, 40)}...`);
       return this._withRetry(
         () => this._quickCheckWithModel(emailContent, emailSubject, this.modelName, detection),
         'Quick check'
       );
     } catch (error) {
-      console.warn(`⚠️ Quick check fallito: ${error.message}, uso detection locale`);
+      console.warn(`Ã¢Å¡Â Ã¯Â¸Â Quick check fallito: ${error.message}, uso detection locale`);
       return defaultResult;
     }
   }
@@ -1160,9 +1169,9 @@ Output JSON:
     const skipRateLimit = options.skipRateLimit || false;
     const attachments = options.attachments || [];
 
-    // ═══════════════════════════════════════════════════════════════════
+    // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
     // RATE LIMITER PATH (solo se abilitato E non skippato)
-    // ═══════════════════════════════════════════════════════════════════
+    // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
     if (this.useRateLimiter && !skipRateLimit) {
       try {
         const estimatedTokens = this._estimateTokens(prompt, attachments);
@@ -1172,34 +1181,34 @@ Output JSON:
           (modelName) => this._generateWithModel(prompt, modelName, targetKey, attachments),
           {
             estimatedTokens: estimatedTokens,
-            preferQuality: true  // Qualità > economia per generation
+            preferQuality: true  // QualitÃƒÂ  > economia per generation
           }
         );
 
         if (result.success) {
-          console.log(`✓ Generato via Rate Limiter(modello: ${result.modelUsed}, token: ~${estimatedTokens})`);
+          console.log(`Ã¢Å“â€œ Generato via Rate Limiter(modello: ${result.modelUsed}, token: ~${estimatedTokens})`);
           return { success: true, text: result.result, modelUsed: result.modelUsed };
         }
       } catch (error) {
         if (error.message && error.message.includes('QUOTA_EXHAUSTED')) {
-          console.warn('⚠️ Quota primaria esaurita (intercettato da RateLimiter)');
+          console.warn('Ã¢Å¡Â Ã¯Â¸Â Quota primaria esaurita (intercettato da RateLimiter)');
           throw error; // Rilancia per gestione strategia nel Processor
         }
-        console.warn(`⚠️ Rate Limiter generazione fallito: ${error.message} `);
+        console.warn(`Ã¢Å¡Â Ã¯Â¸Â Rate Limiter generazione fallito: ${error.message} `);
         // Prosegui con implementazione originale
       }
     }
 
-    // ═══════════════════════════════════════════════════════════════════
+    // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
     // CHIAMATA DIRETTA (quando RateLimiter disabilitato O skippato per backup key)
-    // ═══════════════════════════════════════════════════════════════════
+    // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
     if (skipRateLimit) {
-      console.log(`⏩ Chiamata diretta(bypass RateLimiter) con ${targetModel} `);
+      console.log(`Ã¢ÂÂ© Chiamata diretta(bypass RateLimiter) con ${targetModel} `);
       const text = this._withRetry(
         () => this._generateWithModel(prompt, targetModel, targetKey, attachments),
         'Generazione diretta (Chiave di Riserva)'
       );
-      // `success` è coerente con la presenza di testo generato (nessuna inversione logica).
+      // `success` ÃƒÂ¨ coerente con la presenza di testo generato (nessuna inversione logica).
       return { success: !!text, text: text, modelUsed: targetModel };
     }
 
@@ -1218,7 +1227,7 @@ Output JSON:
 
 
   // ========================================================================
-  // METODI UTILITÀ
+  // METODI UTILITÃƒâ‚¬
   // ===================================
   /**
    * Costruisce URL API per modello specifico
@@ -1267,7 +1276,7 @@ Output JSON:
           }
         } catch (e) {
           results.connectionOk = false;
-          results.errors.push(`Risposta API non è JSON valido: ${e.message}`);
+          results.errors.push(`Risposta API non ÃƒÂ¨ JSON valido: ${e.message}`);
         }
       } else {
         results.errors.push(`API ha restituito status ${response.getResponseCode()} `);
@@ -1282,7 +1291,7 @@ Output JSON:
   }
 }
 
-// Funzione factory per compatibilità
+// Funzione factory per compatibilitÃƒÂ 
 function createGeminiService() {
   return new GeminiService();
 }
@@ -1319,7 +1328,7 @@ function parseGeminiJsonLenient(text) {
   try {
     return JSON.parse(cleaned);
   } catch (e) {
-    console.warn('⚠️ Meccanismo di sanitizzazione preventiva JSON in esecuzione...');
+    console.warn('Ã¢Å¡Â Ã¯Â¸Â Meccanismo di sanitizzazione preventiva JSON in esecuzione...');
   }
 
   // 5) Normalizzazione della notazione: quoting rigoroso chiavi e pulizia code strutturali
@@ -1332,15 +1341,15 @@ function parseGeminiJsonLenient(text) {
     // 6) Motore euristico avanzato: ricostruzione dei campi minimi diretti tramite analisi regex
     const partial = _extractQuickCheckFieldsFromPartialJson(cleaned);
     if (partial) {
-      console.warn('⚠️ Metadati recuperati attivamente tramite ricostruzione regex');
+      console.warn('Ã¢Å¡Â Ã¯Â¸Â Metadati recuperati attivamente tramite ricostruzione regex');
       return partial;
     }
-    throw new Error(`L'architettura di conformità JSON non ha potuto validare l'output stringente: ${e.message}`);
+    throw new Error(`L'architettura di conformitÃƒÂ  JSON non ha potuto validare l'output stringente: ${e.message}`);
   }
 }
 
 /**
- * Assicura conformità strutturale dei blocchi JSON complessi.
+ * Assicura conformitÃƒÂ  strutturale dei blocchi JSON complessi.
  * Struttura dinamicamente gli alberi gerarchici per validazione sicura.
  */
 function _tryBalanceJsonBraces(text) {
