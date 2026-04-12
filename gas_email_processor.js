@@ -497,7 +497,11 @@ class EmailProcessor {
 
       if (messages.length > MAX_THREAD_LENGTH) {
         if (!normalizedMyEmail) {
-          console.warn('   ⚠️ Email utente non disponibile: skip controllo anti-loop basato su mittente');
+          console.warn('   ⚠️ Email utente non disponibile con thread lungo: blocco precauzionale anti-loop');
+          this._markMessageAsProcessed(candidate, labeledMessageIds);
+          result.status = 'filtered';
+          result.reason = 'anti_loop_identity_missing';
+          return result;
         } else {
           let consecutiveExternal = 0;
           let botRepliesCount = 0;
