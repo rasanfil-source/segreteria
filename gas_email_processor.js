@@ -1327,12 +1327,18 @@ ${addressLines.join('\n\n')}
 
       let threads;
       try {
+        const DISCOVERY_POOL_MULTIPLIER = 15;
+        const discoveryPoolSize = Math.min(
+          50,
+          Math.max((this.config.maxEmailsPerRun || 3) * DISCOVERY_POOL_MULTIPLIER, 20)
+        );
+
         threads = this.gmailService.getUnprocessedUnreadThreads(
           this.config.labelName,
           this.config.errorLabelName,
           this.config.validationErrorLabel,
           this.config.searchPageSize || 150,
-          this.config.maxEmailsPerRun || 50
+          discoveryPoolSize
         );
       } catch (e) {
         this.logger.error(`❌ Impossibile recuperare thread da elaborare: ${e.message}. Batch interrotto per sicurezza.`);
