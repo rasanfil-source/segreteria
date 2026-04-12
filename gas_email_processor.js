@@ -2280,7 +2280,7 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
       'cresima_info': /cresima.*percorso|percorso.*cresima/is,
       'matrimonio_info': /matrimonio.*corso|corso.*matrimonio/is,
       'territorio': /rientra|non rientra|parrocchia.*competenza/is,
-      'indirizzo': /(?:via|viale|corso|piazza|largo|circonvallazione)\s+(?:[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s+){0,10}[a-zA-ZàèéìòùÀÈÉÌÒÙ']+\s*,?\s*\d+/i
+      'indirizzo': /(?:via|viale|corso|piazza|largo|circonvallazione)\s+[^,\n]{3,60}?,?\s*\d+/i
     };
 
     for (const [topic, pattern] of Object.entries(patterns)) {

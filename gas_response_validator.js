@@ -1420,7 +1420,7 @@ Rispondi SOLO con questo JSON (senza markdown):
       }
 
       let cleaned = apiResponse
-        .replace(/```json\n?/g, '')
+        .replace(/```json\n?/gi, '')
         .replace(/```\n?/g, '')
         .trim();
 

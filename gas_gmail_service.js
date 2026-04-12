@@ -1793,7 +1793,7 @@ class GmailService {
 
                 let referencesHeader = messageDetails.rfc2822MessageId;
                 if (messageDetails.existingReferences) {
-                    referencesHeader = messageDetails.existingReferences + ' ' + messageDetails.rfc2822MessageId;
+                    referencesHeader = messageDetails.existingReferences + (messageDetails.rfc2822MessageId ? ' ' + messageDetails.rfc2822MessageId : '');
                 }
 
                 // From stabile: usa account effettivo, con fallback difensivo se non disponibile.
