@@ -320,6 +320,48 @@ function runAllTests() {
             return labeledMessageIds.has('msg-1') && labeledMessageIds.has('msg-2') && labeledMessageIds.has('msg-3');
         });
 
+        test('foreign_only: email italiane non vengono marcate, così restano processabili dopo cambio modalità', results, () => {
+            const previousCache = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? { ...GLOBAL_CACHE } : null;
+            global.GLOBAL_CACHE = { ...(previousCache || {}), languageMode: 'foreign_only' };
+
+            const labeledMessageIds = new Set();
+            const thread = {
+                getId: () => 'thread-foreign-only-it',
+                getMessages: () => [
+                    { getId: () => 'msg-it-1', isUnread: () => true, getFrom: () => 'utente@example.com', getDate: () => new Date(), getSubject: () => 'Richiesta orari' },
+                    { getId: () => 'msg-it-2', isUnread: () => true, getFrom: () => 'utente@example.com', getDate: () => new Date(), getSubject: () => 'Richiesta orari' }
+                ]
+            };
+
+            const processor = new EmailProcessor({
+                gmailService: {
+                    extractMessageDetails: () => ({
+                        senderEmail: 'utente@example.com',
+                        senderName: 'Utente',
+                        subject: 'Richiesta orari',
+                        body: 'Buongiorno, vorrei informazioni sugli orari delle messe.',
+                        isNewsletter: false,
+                        headers: {}
+                    }),
+                    _extractEmailAddress: (from) => from,
+                    addLabelToMessage: (id) => labeledMessageIds.add(id)
+                },
+                geminiService: {
+                    detectEmailLanguage: () => ({ lang: 'it' })
+                }
+            });
+
+            const out = processor.processThread(thread, 'KB', 'Doctrine', labeledMessageIds, true);
+
+            if (previousCache) {
+                global.GLOBAL_CACHE = previousCache;
+            } else {
+                delete global.GLOBAL_CACHE;
+            }
+
+            return out && out.status === 'skipped' && out.reason === 'italian_skipped_foreign_only' && labeledMessageIds.size === 0;
+        });
+
         test('_hasUnreadMessagesToProcess tratta un Set vuoto come cache già fornita', results, () => {
             const processor = new EmailProcessor({
                 gmailService: {

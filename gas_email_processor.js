@@ -380,10 +380,12 @@ class EmailProcessor {
       // ====================================================================================================
       // STEP 1.5: FAIL-FAST LINGUA (a costo zero)
       // ====================================================================================================
-      const languageDetection = this.geminiService.detectEmailLanguage(
-        messageDetails.body,
-        messageDetails.subject
-      ) || {};
+      const languageDetection = (this.geminiService && typeof this.geminiService.detectEmailLanguage === 'function')
+        ? (this.geminiService.detectEmailLanguage(
+          messageDetails.body,
+          messageDetails.subject
+        ) || {})
+        : { lang: 'it' };
       
       // Estraiamo solo i primi 2 caratteri per gestire formati come "it-IT" o "en-US"
       let detectedLanguage = (languageDetection.lang || 'it').toLowerCase().substring(0, 2);
@@ -392,7 +394,10 @@ class EmailProcessor {
       // PORTA 1: Interrompiamo se l'email deve essere ignorata in base alla lingua
       if (this._shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
         console.log('   ⊖ Saltato: modalità "Solo straniere", email in italiano');
-        // ✅ Corretto - lascia l'email intatta
+        // SCELTA CRITICA ANTI-REGRESSIONE:
+        // In modalità foreign_only NON dobbiamo marcare il messaggio come "IA/processato".
+        // Motivo operativo: se in futuro la parrocchia torna in modalità "all",
+        // questa stessa email italiana deve rimanere eleggibile per l'elaborazione.
         result.status = 'skipped';
         result.reason = 'italian_skipped_foreign_only';
         return result;
@@ -566,6 +571,19 @@ class EmailProcessor {
       if (!classification.shouldReply) {
         console.log(`   ⊖ Filtrato dal classifier: ${classification.reason}`);
         this._markMessageAsProcessed(candidate, labeledMessageIds);
+        // Allineamento con il quick-check: se il candidato è scartato in modo definitivo
+        // marchiamo anche i secondari per evitare reprocessing infinito dello stesso thread.
+        // NOTA ANTI-REGRESSIONE:
+        // questo batching è volutamente DISATTIVATO in foreign_only. In tale modalità
+        // non dobbiamo "bruciare" email italiane non ancora processate, perché potrebbero
+        // dover essere gestite quando l'operatore reimposta la modalità su "all".
+        if (languageMode !== 'foreign_only') {
+          unlabeledUnread.forEach(message => {
+            if (message.getId() !== candidate.getId()) {
+              this._markMessageAsProcessed(message, labeledMessageIds);
+            }
+          });
+        }
         result.status = 'filtered';
         return result;
       }
