@@ -669,11 +669,10 @@ class GmailService {
         try {
             recipientEmail = message.getTo();
         } catch (e) {
-            const effectiveUser = Session.getEffectiveUser();
+            const hasSession = (typeof Session !== 'undefined' && Session);
+            const effectiveUser = hasSession ? Session.getEffectiveUser() : null;
             recipientEmail = effectiveUser ? effectiveUser.getEmail() : '';
-            if (!recipientEmail) {
-                // Nota: Session.getActiveUser() in questo contesto GAS potrebbe restituire stringa vuota 
-                // se non ci sono permessi specifici o se è un trigger.
+            if (!recipientEmail && hasSession) {
                 const activeUser = Session.getActiveUser();
                 recipientEmail = activeUser ? activeUser.getEmail() : '';
             }
@@ -1091,6 +1090,7 @@ class GmailService {
                 const file = Drive.Files.insert(resource, attachmentBlob.copyBlob(), { convert: true });
                 fileId = file && file.id ? file.id : null;
                 if (!fileId) {
+                    console.error('❌ Drive.Files.insert ha avuto successo ma non ha restituito un file ID.');
                     throw new Error('Conversione fallita: file temporaneo senza id.');
                 }
             } else if (typeof Drive.Files.create === 'function') {
@@ -1104,6 +1104,7 @@ class GmailService {
                 const file = Drive.Files.create(resource, attachmentBlob.copyBlob(), { mimeType: googleMime });
                 fileId = file && file.id ? file.id : null;
                 if (!fileId) {
+                    console.error('❌ Drive.Files.create ha avuto successo ma non ha restituito un file ID.');
                     throw new Error('Conversione fallita: file temporaneo senza id.');
                 }
                 if (file.mimeType && file.mimeType !== googleMime) {
@@ -1524,9 +1525,8 @@ class GmailService {
             return { matched: false, text: '' };
         }
 
-        // Regex IBAN italiano (IT + 2 cifre controllo + 1 lettera CIN + 22 alfanumerici)
-        // Regex IBAN universale (27 paesi EU + altri SEPA)
-        const ibanRegex = /\b[A-Z]{2}\d{2}(?:[A-Z0-9]{10,30}|\s[A-Z0-9]{10,30})\b/i;
+        // Regex IBAN più stringente: 2 lettere + 2 cifre + 15-30 alfanumerici (min 15 per evitare collisioni)
+        const ibanRegex = /\b[A-Z]{2}\d{2}[A-Z0-9]{15,30}\b/i;
         const match = text.match(ibanRegex);
 
         if (!match) {
@@ -1571,13 +1571,11 @@ class GmailService {
     _capitalizeName(name) {
         if (!name) return name;
 
-        return name
-            .split(/[\s-]+/)
-            .map(word => {
-                if (word.length === 0) return word;
-                return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-            })
-            .join(' ');
+        // Preserva separatori originali (spazi e trattini)
+        return name.replace(/\b\w+/g, word => {
+            if (word.length === 0) return word;
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        });
     }
 
     _extractEmailAddress(fromField) {
@@ -1638,8 +1636,10 @@ class GmailService {
      */
     buildConversationHistory(messages, maxMessages = 10, ourEmail = '') {
         if (!ourEmail) {
-            const effectiveUser = Session.getEffectiveUser();
-            ourEmail = effectiveUser ? effectiveUser.getEmail() : '';
+            if (typeof Session !== 'undefined' && Session && typeof Session.getEffectiveUser === 'function') {
+                const effectiveUser = Session.getEffectiveUser();
+                ourEmail = effectiveUser ? effectiveUser.getEmail() : '';
+            }
         }
 
         if (messages.length > maxMessages) {
@@ -1964,8 +1964,13 @@ class GmailService {
         }
 
         return text.replace(/,\s+([A-ZÀÈÉÌÒÙ])([a-zàèéìòù]*)/g, (match, firstLetter, rest, offset) => {
-            const word = firstLetter + rest;
+            // Eccezione per elenchi numerati (es: "1, Partecipanti")
+            const beforeMatch = text.substring(Math.max(0, offset - 5), offset);
+            if (beforeMatch.match(/\d+$/)) {
+                return match;
+            }
 
+            const word = firstLetter + rest;
             if (exceptions.includes(word)) {
                 return match;
             }

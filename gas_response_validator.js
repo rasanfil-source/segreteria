@@ -26,7 +26,7 @@ class ResponseValidator {
     this.OPTIMAL_MIN_LENGTH = 80;
     this.WARNING_MAX_LENGTH = 3000;
 
-    // Frasi vietate (indicatori di incertezza/allucinazione)
+    // Frasi vietate (indicatori di rifiuto/incapacità — bloccanti)
     this.forbiddenPhrases = [
       'non ho abbastanza informazioni',
       'non posso rispondere',
@@ -35,11 +35,17 @@ class ResponseValidator {
       'purtroppo non posso',
       'non sono sicuro',
       'non sono sicura',
-      'potrebbe essere',
-      'probabilmente',
-      'forse',
       'suppongo',
       'immagino'
+    ];
+
+    // Frasi di incertezza legittima (soft-warning, NO riduzione score)
+    // In contesto pastorale, espressioni come "potrebbe essere" o "probabilmente"
+    // sono spesso appropriate e non devono bloccare la risposta.
+    this.softWarningPhrases = [
+      'potrebbe essere',
+      'probabilmente',
+      'forse'
     ];
 
     // Marcatori lingua (usa costante condivisa se disponibile)
@@ -1399,16 +1405,11 @@ Rispondi SOLO con questo JSON (senza markdown):
       }
     }
 
-    const originalRetries = this.geminiService.maxRetries;
-    this.geminiService.maxRetries = this.maxRetries;
-    try {
-      return this.geminiService._withRetry(
-        () => this.geminiService._generateWithModel(prompt, this.geminiService.modelName),
-        'Semantic validation'
-      );
-    } finally {
-      this.geminiService.maxRetries = originalRetries;
-    }
+    return this.geminiService._withRetry(
+      () => this.geminiService._generateWithModel(prompt, this.geminiService.modelName),
+      'Semantic validation',
+      this.maxRetries
+    );
   }
 
   _parseSemanticResponse(apiResponse) {
@@ -1456,13 +1457,17 @@ Rispondi SOLO con questo JSON (senza markdown):
   }
 
   _hashText(text) {
-    let hash = 0;
-    for (let i = 0; i < text.length; i++) {
-      const char = text.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash |= 0;
+    // Campiona inizio+fine per ridurre collisioni su testi lunghi ma simili
+    const sample = text.length > 500 ? text.slice(0, 250) + text.slice(-250) : text;
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < sample.length; i++) {
+      const ch = sample.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
     }
-    return Math.abs(hash).toString(36);
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+    h2 = Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    return (Math.abs(4294967296 * (2097151 & h2) + (h1 >>> 0))).toString(36);
   }
 }
 

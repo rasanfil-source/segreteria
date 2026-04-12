@@ -386,7 +386,3 @@ function healthCheck() {
 
   return health;
 }
-// Trigger push
-// Trigger push 2
-// Trigger push 3
-// Trigger push 4

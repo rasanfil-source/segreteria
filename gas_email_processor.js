@@ -926,6 +926,9 @@ ${addressLines.join('\n\n')}
           });
 
           if (response && typeof response === 'object') {
+            if (!response.text && response.success) {
+              console.warn(`⚠️ Gemini ha restituito successo senza testo (${plan.name})`);
+            }
             response = response.text;
           }
 
@@ -1051,6 +1054,9 @@ ${addressLines.join('\n\n')}
               });
 
               if (retryResult && typeof retryResult === 'object') {
+                if (!retryResult.text && retryResult.success) {
+                  console.warn('⚠️ Retry: Gemini ha restituito successo senza testo');
+                }
                 retryResponse = retryResult.text;
               } else if (typeof retryResult === 'string') {
                 retryResponse = retryResult;
@@ -1620,7 +1626,10 @@ ${addressLines.join('\n\n')}
   }
 
   _beginSendTransaction(messageId) {
-    if (!messageId) return { ok: true, reason: 'missing_message_id' };
+    if (!messageId) {
+      console.warn('⚠️ Idempotenza non applicabile: messageId assente. Rischio di duplicazione.');
+      return { ok: true, reason: 'missing_message_id' };
+    }
     const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
       ? CacheService.getScriptCache()
       : null;
@@ -1684,7 +1693,12 @@ ${addressLines.join('\n\n')}
   }
 
   _getCurrentSeason() {
-    const month = new Date().getMonth() + 1;
+    let month;
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+      month = parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'M'), 10);
+    } else {
+      month = new Date().getMonth() + 1;
+    }
     return (month >= 6 && month <= 9) ? 'estivo' : 'invernale';
   }
 

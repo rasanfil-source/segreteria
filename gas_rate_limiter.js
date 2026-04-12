@@ -125,6 +125,11 @@ class GeminiRateLimiter {
       'gemini-2.0-flash': 'gemini-2.5-flash-lite'
     };
 
+    const knownCurrentModels = [
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite'
+    ];
+
     const normalized = {};
     Object.keys(models || {}).forEach(modelKey => {
       const modelConfig = models[modelKey] || {};
@@ -133,6 +138,8 @@ class GeminiRateLimiter {
 
       if (replacement) {
         console.warn(`⚠️ Modello deprecato rilevato per '${modelKey}': ${currentName} → ${replacement}`);
+      } else if (currentName && !knownCurrentModels.includes(currentName)) {
+        console.warn(`⚠️ Modello sconosciuto per '${modelKey}': '${currentName}' non è tra i modelli noti né deprecati. Verificare CONFIG.`);
       }
 
       normalized[modelKey] = Object.assign({}, modelConfig, {
@@ -978,18 +985,25 @@ class GeminiRateLimiter {
   }
 
   /**
-   * Stima il numero di token per un testo
-   * Formula: parole * 1.25 + overhead 10%
+   * Stima il numero di token per un testo ed eventuali allegati
+   * Formula: parole * 1.25 + overhead 10% + 200 per ogni allegato
    */
-  _estimateTokens(text) {
-    if (!text) return 0;
+  _estimateTokens(text, attachments = []) {
+    let tokens = 0;
+    if (text) {
+      const wordCount = text.split(/\s+/).length;
+      const baseTokens = Math.ceil(wordCount * 1.25);
+      const overhead = Math.ceil(baseTokens * 0.1);
+      const charEstimate = Math.ceil(text.length / 3.5);
+      tokens = Math.max(baseTokens + overhead, charEstimate);
+    }
 
-    const wordCount = text.split(/\s+/).length;
-    const baseTokens = Math.ceil(wordCount * 1.25);
-    const overhead = Math.ceil(baseTokens * 0.1);
-    const charEstimate = Math.ceil(text.length / 3.5);
+    // Aggiungi stima per allegati (es: 200 token fissi per immagine/PDF/OCR)
+    if (attachments && Array.isArray(attachments)) {
+      tokens += attachments.length * 200;
+    }
 
-    return Math.max(baseTokens + overhead, charEstimate, 1);
+    return Math.max(tokens, 1);
   }
 }
 

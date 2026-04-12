@@ -995,13 +995,20 @@ function _loadAdvancedConfig(ss) {
       const extracted = _extractSuspensionHoursFromRow(r);
       const startHour = extracted.startHour;
       const endHour = extracted.endHour;
-      if (startHour == null || endHour == null) return;
-      if (startHour >= endHour) return;
+      if (startHour == null || endHour == null || startHour === endHour) return;
 
       if (!config.suspensionRules[day]) {
         config.suspensionRules[day] = [];
       }
-      config.suspensionRules[day].push([startHour, endHour]);
+
+      if (startHour > endHour) {
+        // Cross-midnight: splitta in [start, 24] e [0, end]
+        config.suspensionRules[day].push([startHour, 24]);
+        config.suspensionRules[day].push([0, endHour]);
+        console.log(`ℹ️ Sospensione cross-midnight rilevata per giorno ${day}: ${startHour}..${endHour} (splittata)`);
+      } else {
+        config.suspensionRules[day].push([startHour, endHour]);
+      }
     });
 
     // Filtri anti-spam (layout single-sheet: E13:F)
@@ -1118,7 +1125,30 @@ function exportMetricsToSheet() {
     const sheetName = CONFIG.METRICS_SHEET_NAME || 'DailyMetrics';
     const ss = SpreadsheetApp.openById(metricsSheetId);
     const sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
-    sheet.appendRow([new Date(), JSON.stringify(stats)]);
+
+    // Header automatico se il foglio è vuoto
+    if (sheet.getLastRow() === 0) {
+      const headers = ['Timestamp', 'Data', 'Ora IT'];
+      for (var modelKey in stats.models) {
+        headers.push(modelKey + ' RPD used', modelKey + ' RPD limit', modelKey + ' RPD %');
+        headers.push(modelKey + ' RPM used', modelKey + ' RPM limit');
+        headers.push(modelKey + ' tokensTotali');
+      }
+      headers.push('JSON Debug');
+      sheet.appendRow(headers);
+      sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+    }
+
+    // Riga strutturata per modello
+    const row = [new Date(), stats.date, stats.italianTime];
+    for (var modelKey in stats.models) {
+      const m = stats.models[modelKey];
+      row.push(m.rpd.used, m.rpd.limit, m.rpd.percent);
+      row.push(m.rpm.used, m.rpm.limit);
+      row.push(m.tokensToday);
+    }
+    row.push(JSON.stringify(stats)); // Colonna debug retrocompatibile
+    sheet.appendRow(row);
     console.log('✓ Metriche esportate su sheet');
   } catch (e) {
     console.error(`❌ exportMetricsToSheet fallita: ${e.message}`);
