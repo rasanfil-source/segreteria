@@ -373,30 +373,22 @@ class EmailProcessor {
       console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
       console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
 
-      const languageDetection = (this.geminiService && typeof this.geminiService.detectEmailLanguage === 'function')
-        ? (this.geminiService.detectEmailLanguage(
-          messageDetails.body,
-          messageDetails.subject
-        ) || {})
-        : {};
-      // Ottimizzazione: in modalità "Solo Straniere", se la detection locale è
-      // già ad alta confidenza (grado ≥ 4) che sia italiano, saltiamo Gemini.
-      const isHighConfidenceItalian = languageDetection.lang === 'it' && (languageDetection.safetyGrade || 0) >= 4;
-      if (languageMode === 'foreign_only' && isHighConfidenceItalian) {
-        console.log(`   ⚡ Pre-skip Gemini: IT rilevato localmente con alta confidenza (grado ${languageDetection.safetyGrade}) — quick_check saltato`);
-      }
-      const shouldPrecomputeQuickCheck = languageMode === 'foreign_only' && !isHighConfidenceItalian;
-      const quickCheckPre = (shouldPrecomputeQuickCheck && this.geminiService && typeof this.geminiService.shouldRespondToEmail === 'function')
-        ? this.geminiService.shouldRespondToEmail(
-          messageDetails.body,
-          messageDetails.subject
-        )
-        : null;
-      const detectedLanguage = (((quickCheckPre && quickCheckPre.language) || languageDetection.lang || 'it') + '').toLowerCase().substring(0, 2);
-      console.log(`   🌐 Lingua: ${detectedLanguage.toUpperCase()}`);
+      // ====================================================================================================
+      // STEP 1.5: FAIL-FAST LINGUA (a costo zero)
+      // ====================================================================================================
+      const languageDetection = this.geminiService.detectEmailLanguage(
+        messageDetails.body,
+        messageDetails.subject
+      ) || {};
+      
+      // Estraiamo solo i primi 2 caratteri per gestire formati come "it-IT" o "en-US"
+      let detectedLanguage = (languageDetection.lang || 'it').toLowerCase().substring(0, 2);
+      console.log(`   🌐 Lingua (rilevamento locale): ${detectedLanguage.toUpperCase()}`);
 
+      // PORTA 1: Interrompiamo se l'email deve essere ignorata in base alla lingua
       if (this._shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
-        console.log('   ⊖ Saltato: modalità "Solo straniere" attiva e email in italiano');
+        console.log('   ⊖ Saltato: modalità "Solo straniere", email in italiano');
+        // NESSUN _markMessageAsProcessed: l'email resta non letta e visibile agli umani
         result.status = 'skipped';
         result.reason = 'italian_skipped_foreign_only';
         return result;
@@ -571,7 +563,7 @@ class EmailProcessor {
       // ====================================================================
       // STEP 3: CONTROLLO RAPIDO - Gemini decide se serve risposta
       // ====================================================================
-      const quickCheck = quickCheckPre || this.geminiService.shouldRespondToEmail(
+      const quickCheck = this.geminiService.shouldRespondToEmail(
         messageDetails.body,
         messageDetails.subject
       );
@@ -587,6 +579,12 @@ class EmailProcessor {
         this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'filtered';
         return result;
+      }
+
+      // Se Gemini Quick Check ha rilevato una lingua diversa con maggiore precisione, aggiorniamo
+      if (quickCheck.language && quickCheck.language.substring(0, 2).toLowerCase() !== detectedLanguage) {
+        detectedLanguage = quickCheck.language.substring(0, 2).toLowerCase();
+        console.log(`   🌐 Lingua (aggiornata da AI): ${detectedLanguage.toUpperCase()}`);
       }
 
       // ====================================================================
