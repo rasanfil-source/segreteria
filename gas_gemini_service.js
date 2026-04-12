@@ -316,7 +316,7 @@ Output JSON:
 
     const url = this._buildGenerateUrl(modelName);
 
-    console.log(`Ã°Å¸â€Â Controllo rapido via ${modelName}...`);
+    console.log(`🔍 Controllo rapido via ${modelName}...`);
 
     // Gestione con tentativo su chiave primaria e fallback singolo su chiave secondaria.
     let activeKey = this.primaryKey;
@@ -1113,7 +1113,7 @@ Output JSON:
         );
 
         if (result.success) {
-          console.log(`✓œ Controllo rapido via Rate Limiter(modello: ${result.modelUsed})`);
+          console.log(`🔍 Controllo rapido via Rate Limiter(modello: ${result.modelUsed})`);
           return result.result;
         }
       } catch (error) {
