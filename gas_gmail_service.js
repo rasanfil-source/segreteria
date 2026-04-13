@@ -923,7 +923,7 @@ class GmailService {
      * Estrae gli allegati processabili in modalità multimodale.
      * - TXT/CSV: estratti come testo di contesto
      * - PDF/Immagini: passati come Blob
-     * - DOC/DOCX/PPT/PPTX: convertiti al volo in PDF
+     * - DOC/DOCX/PPT/PPTX/XLS/XLSX: convertiti al volo in PDF
      * @param {GmailMessage} message
      * @param {object} options
      * @returns {{textContext: string, blobs: Array<Blob>, skipped: Array}}
@@ -1024,39 +1024,7 @@ class GmailService {
                 mimeType.includes('mspowerpoint') ||
                 mimeType.includes('presentationml');
 
-            if (isExcel) {
-                try {
-                    const rawText = this._extractOfficeText(attachment, this._officeMimeMap[mimeType], settings) || '';
-                    if (!rawText.trim()) {
-                        result.skipped.push({ name: name, reason: 'office_empty' });
-                        continue;
-                    }
-                    const text = rawText.substring(0, maxCharsPerFile);
-                    const segment = `\n\n--- Contenuto file: ${name} ---\n${text}`;
-                    if (maxTotalChars > 0) {
-                        const remaining = maxTotalChars - totalTextChars;
-                        if (remaining <= 0) {
-                            result.skipped.push({ name: name, reason: 'max_total_chars' });
-                            continue;
-                        }
-                        const bounded = segment.length > remaining ? segment.substring(0, remaining) : segment;
-                        if (bounded.length < segment.length) {
-                            result.skipped.push({ name: name, reason: 'max_total_chars', kept: bounded.length });
-                        }
-                        result.textContext += bounded;
-                        totalTextChars += bounded.length;
-                    } else {
-                        result.textContext += segment;
-                        totalTextChars += segment.length;
-                    }
-                    processedCount++;
-                } catch (e) {
-                    result.skipped.push({ name: name, reason: 'text_extract_error', error: e.message });
-                }
-                continue;
-            }
-
-            if (isWord || isPowerPoint) {
+            if (isWord || isPowerPoint || isExcel) {
                 try {
                     console.log(`   🔄 Conversione al volo in PDF per: ${name}`);
                     const convertedPdf = this._convertOfficeToPdf(attachment);
