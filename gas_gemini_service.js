@@ -607,17 +607,17 @@ Output JSON:
       spanishCharScore = 1;
       console.log('   Trovata punteggiatura spagnola (¿ o ¡)');
     }
-    if (text.includes('à±')) {
+    if (text.includes('ñ')) {
       spanishCharScore += 2;
-      console.log('   Trovato carattere spagnolo (à±)');
+      console.log('   Trovato carattere spagnolo (ñ)');
     }
-    if (text.includes('à£') || text.includes('àµ') || text.includes('à§')) {
-      if (text.includes('à£') || text.includes('àµ')) {
+    if (text.includes('ã') || text.includes('õ') || text.includes('ç')) {
+      if (text.includes('ã') || text.includes('õ')) {
         portugueseCharScore += 2;
-        console.log('   Trovato carattere portoghese forte (à£, àµ)');
+        console.log('   Trovato carattere portoghese forte (ã, õ)');
       } else {
         portugueseCharScore += 0.5;
-        console.log('   Trovato carattere ambiguo (à§): boost portoghese ridotto');
+        console.log('   Trovato carattere ambiguo (ç): boost portoghese ridotto');
       }
     }
 
@@ -710,7 +710,7 @@ Output JSON:
     // Disambiguazione ES/PT su testi brevi: evita confusione quando i punteggi sono quasi pari.
     const compactText = text.replace(/\s+/g, ' ').trim();
     if (compactText.length <= 120 && Math.abs(scores.es - scores.pt) <= 1 && Math.max(scores.es, scores.pt) >= 2) {
-      const ptStrongMarkers = /(?:^|[^\\p{L}\\p{N}_])(não|vocàªs|estou|obrigad[oa]|orÃ§amento|viatura|portagens|agradecemos|cumprimentos)(?=$|[^\\p{L}\\p{N}_])/iu;
+      const ptStrongMarkers = /(?:^|[^\\p{L}\\p{N}_])(não|vocês|estou|obrigad[oa]|orçamento|viatura|portagens|agradecemos|cumprimentos)(?=$|[^\\p{L}\\p{N}_])/iu;
       const esStrongMarkers = /(?:^|[^\\p{L}\\p{N}_])(usted|ustedes|gracias|presupuesto|coche|iglesia|parroquia|estimado|querido)(?=$|[^\\p{L}\\p{N}_])/iu;
       if (ptStrongMarkers.test(compactText) && !esStrongMarkers.test(compactText)) {
         scores.pt += 1;
@@ -931,7 +931,7 @@ Output JSON:
     // Capodanno
     if (m === 1 && d === 1) {
       if (language === 'en') return 'Happy New Year!';
-      if (language === 'es') return '¡Feliz Aà±o Nuevo!';
+      if (language === 'es') return '¡Feliz Año Nuevo!';
       if (language === 'pt') return 'Feliz Ano Novo!';
       return 'Buon Capodanno!';
     }
@@ -939,7 +939,7 @@ Output JSON:
     // Epifania
     if (m === 1 && d === 6) {
       if (language === 'en') return 'Happy Epiphany!';
-      if (language === 'es') return '¡Feliz Epifanà­a!';
+      if (language === 'es') return '¡Feliz Epifanía!';
       if (language === 'pt') return 'Feliz Epifania!';
       return 'Buona Epifania!';
     }
@@ -947,15 +947,15 @@ Output JSON:
     // Assunzione (15 Agosto)
     if (m === 8 && d === 15) {
       if (language === 'en') return 'Happy Assumption Day!';
-      if (language === 'es') return '¡Feliz dà­a de la Asuncià³n!';
-      if (language === 'pt') return 'Feliz dia da Assunà§à£o!';
+      if (language === 'es') return '¡Feliz día de la Asunción!';
+      if (language === 'pt') return 'Feliz dia da Assunção!';
       return 'Buona festa!';
     }
 
     // Tutti i Santi (1 Novembre)
     if (m === 11 && d === 1) {
       if (language === 'en') return 'Happy All Saints Day!';
-      if (language === 'es') return '¡Feliz dà­a de Todos los Santos!';
+      if (language === 'es') return '¡Feliz día di Todos los Santos!';
       if (language === 'pt') return 'Feliz Dia de Todos os Santos!';
       return 'Buona festa di Ognissanti!';
     }
@@ -963,8 +963,8 @@ Output JSON:
     // Immacolata Concezione (8 Dicembre)
     if (m === 12 && d === 8) {
       if (language === 'en') return 'Happy Feast of the Immaculate Conception!';
-      if (language === 'es') return '¡Feliz dà­a de la Inmaculada!';
-      if (language === 'pt') return 'Feliz Imaculada Conceià§à£o!';
+      if (language === 'es') return '¡Feliz día de la Inmaculada!';
+      if (language === 'pt') return 'Feliz Imaculada Conceição!';
       return 'Buona Immacolata!';
     }
 
@@ -987,7 +987,7 @@ Output JSON:
     if (this._isBetweenInclusive(dateObj, pasquaStart, pasquaEnd)) {
       if (language === 'en') return 'Happy Easter!';
       if (language === 'es') return '¡Feliz Pascua!';
-      if (language === 'pt') return 'Feliz Pà¡scoa!';
+      if (language === 'pt') return 'Feliz Páscoa!';
       return 'Buona Pasqua!';
     }
 
@@ -1014,7 +1014,7 @@ Output JSON:
     if (sacraFamiglia && this._isSameDate(dateObj, sacraFamiglia)) {
       if (language === 'en') return 'Happy Feast of the Holy Family!';
       if (language === 'es') return '¡Feliz Fiesta de la Sagrada Familia!';
-      if (language === 'pt') return 'Feliz Festa da Sagrada Famà­lia!';
+      if (language === 'pt') return 'Feliz Festa da Sagrada Família!';
       return 'Buona Festa della Sacra Famiglia.';
     }
 

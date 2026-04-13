@@ -190,6 +190,7 @@ class MemoryService {
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       let lockOwned = false;
+      let lockFailed = false;
       let shouldRetry = false;
 
       try {
@@ -197,6 +198,7 @@ class MemoryService {
         lockOwned = this._tryAcquireShardedLock(lockKey, 15000);
         if (!lockOwned) {
           console.warn(`🔒 Timeout lock memoria sharded (Tentativo ${attempt + 1})`);
+          lockFailed = true;
           shouldRetry = true;
           continue;
         }
@@ -273,12 +275,12 @@ class MemoryService {
       }
 
       if (shouldRetry) {
-        if (!lockOwned) {
-          // Backoff più morbido su lock non acquisito: 100ms base con crescita 1.5x + jitter
+        if (lockFailed) {
+          Utilities.sleep(Math.pow(2, attempt) * 200);
+        } else {
+          // Backoff più morbido su conflitti/errori runtime: 100ms base con crescita 1.5x + jitter
           const delay = Math.pow(1.5, attempt) * 100 + Math.random() * 50;
           Utilities.sleep(delay);
-        } else {
-          Utilities.sleep(Math.pow(2, attempt) * 200);
         }
       }
     }

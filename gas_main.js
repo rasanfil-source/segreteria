@@ -844,8 +844,15 @@ function _parseSheetToStructured(data) {
 }
 
 function _parseStrictHour(value) {
+  // Google Sheets può restituire gli orari nativi come Date (es. 30 Dec 1899 14:00:00)
   if (value instanceof Date && !isNaN(value.getTime())) {
-    return value.getHours();
+    const hourFromDate = value.getHours();
+    if (
+      Number.isInteger(hourFromDate) && hourFromDate >= 0 && hourFromDate <= 23
+    ) {
+      return hourFromDate;
+    }
+    return null;
   }
 
   if (typeof value === 'number') {
@@ -860,17 +867,6 @@ function _parseStrictHour(value) {
       return value;
     }
 
-    return null;
-  }
-
-  // Google Sheets può restituire gli orari nativi come Date (es. 30 Dec 1899 14:00:00)
-  if (value instanceof Date && !isNaN(value.getTime())) {
-    const hourFromDate = value.getHours();
-    if (
-      Number.isInteger(hourFromDate) && hourFromDate >= 0 && hourFromDate <= 23
-    ) {
-      return hourFromDate;
-    }
     return null;
   }
 
