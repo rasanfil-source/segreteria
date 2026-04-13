@@ -2051,7 +2051,9 @@ ${addressLines.join('\n\n')}
       const tooLong = lengthErrors.some(e => e.includes('troppo lunga') || e.includes('prolissa'));
 
       if (tooShort) {
-        const signatureNote = shouldIncludeSignature ? 'Includi saluto e firma.' : 'Mantieni lo stesso schema di saluto previsto.';
+        const signatureNote = shouldIncludeSignature
+          ? 'Includi saluto e firma.'
+          : 'NON includere saluti formali o firme: continua nel tono di conversazione già in corso.';
         correctionInstructions.push(
           'ERRORE: La risposta è troppo breve.\n' +
           `CORREZIONE: Espandi con 2-3 frasi complete e informazioni utili. ${signatureNote}`

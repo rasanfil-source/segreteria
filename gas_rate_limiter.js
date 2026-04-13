@@ -311,6 +311,9 @@ class GeminiRateLimiter {
 
     let selectedResult = null;
     try {
+      // Se al bootstrap il recupero WAL non è riuscito (es. lock timeout), ritenta ora sotto lock già acquisito.
+      this._recoverFromWAL(true);
+
       // Rinfresca i contatori per avere dati aggiornati sotto lock
       this._refreshCache();
 
@@ -765,13 +768,17 @@ class GeminiRateLimiter {
    * Sincronizza lo stato operativo leggendo le transazioni WAL non completate
    * Chiamato nel constructor prima di inizializzare i contatori
    */
-  _recoverFromWAL() {
+  _recoverFromWAL(alreadyLocked = false) {
     // Punto 1: Aggiunto lock per garantire atomicità durante la sincronizzazione attiva
-    const lock = LockService.getScriptLock();
-    const lockAcquired = lock.tryLock(5000);
-    if (!lockAcquired) {
-      console.warn('⚠️ Sincronizzazione WAL ritardata: impossibile acquisire lock entro 5s');
-      return;
+    let lock = null;
+    let lockAcquired = !!alreadyLocked;
+    if (!alreadyLocked) {
+      lock = LockService.getScriptLock();
+      lockAcquired = lock.tryLock(5000);
+      if (!lockAcquired) {
+        console.warn('⚠️ Sincronizzazione WAL ritardata: impossibile acquisire lock entro 5s');
+        return;
+      }
     }
 
     try {
@@ -826,7 +833,7 @@ class GeminiRateLimiter {
       // Rimuovi WAL inconsistente
       try { this.props.deleteProperty('rate_limit_wal'); } catch (e) { }
     } finally {
-      if (lockAcquired) lock.releaseLock();
+      if (!alreadyLocked && lockAcquired && lock) lock.releaseLock();
     }
   }
 
