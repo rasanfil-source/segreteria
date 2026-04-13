@@ -1519,15 +1519,17 @@ function testListMessagesWithResilienceHandlesEmptyResponseError() {
 
     const consoleNoise = withCapturedConsoleNoise({
         warn: [
-            /Gmail\.Users\.Messages\.list risposta vuota/,
-            /Gmail\.Users\.Messages\.list non recuperabile/
+            /Gmail\.Users\.Messages\.list risposta vuota/
         ]
     }, () => {
         try {
-            const result = service._listMessagesWithResilience({ maxResults: 10 }, 2);
-            assert(Array.isArray(result.messages), 'Fallback deve restituire messages come array');
-            assert(result.messages.length === 0, 'Fallback deve restituire pagina vuota');
-            assert(result.nextPageToken === null, 'Fallback deve azzerare nextPageToken');
+            let thrown = null;
+            try {
+                service._listMessagesWithResilience({ maxResults: 10 }, 2);
+            } catch (e) {
+                thrown = e;
+            }
+            assert(thrown && /non recuperabile/i.test(String(thrown.message || thrown)), 'Dopo retry esauriti deve rilanciare errore non recuperabile');
             assert(calls === 2, `Attesi 2 tentativi, ottenuti ${calls}`);
             assert(sleeps === 1, `Attesa backoff attesa 1 volta, ottenuto ${sleeps}`);
         } finally {
@@ -1541,8 +1543,8 @@ function testListMessagesWithResilienceHandlesEmptyResponseError() {
         'Il test deve catturare il warning atteso sui retry della list Gmail'
     );
     assert(
-        consoleNoise.warn.some((msg) => msg.includes('Gmail.Users.Messages.list non recuperabile')),
-        'Il test deve catturare il warning atteso del fallback finale'
+        !consoleNoise.warn.some((msg) => msg.includes('Gmail.Users.Messages.list non recuperabile')),
+        'Il fallback finale ora rilancia errore: non deve esserci warning di pagina vuota'
     );
 }
 

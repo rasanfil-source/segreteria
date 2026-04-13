@@ -268,6 +268,7 @@ class MemoryService {
       } finally {
         if (lockOwned) {
           this._releaseShardedLock(lockKey);
+          lockOwned = false;
         }
       }
 

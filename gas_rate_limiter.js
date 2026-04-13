@@ -142,9 +142,17 @@ class GeminiRateLimiter {
         console.warn(`⚠️ Modello sconosciuto per '${modelKey}': '${currentName}' non è tra i modelli noti né deprecati. Verificare CONFIG.`);
       }
 
+      const fallbackName = String(modelKey).toLowerCase().includes('lite')
+        ? 'gemini-2.5-flash-lite'
+        : 'gemini-2.5-flash';
+
       normalized[modelKey] = Object.assign({}, modelConfig, {
-        name: replacement || currentName
+        name: replacement || currentName || fallbackName
       });
+
+      if (!currentName) {
+        console.warn(`⚠️ Modello '${modelKey}' senza name in CONFIG: uso fallback '${normalized[modelKey].name}'.`);
+      }
     });
 
     return normalized;
