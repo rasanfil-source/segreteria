@@ -1,4 +1,4 @@
-﻿/**
+/**
  * GeminiService.js - Servizio API Gemini
  * Gestisce tutte le chiamate all'API Generativa di Google
  * 
@@ -1084,9 +1084,9 @@ Output JSON:
    * Chiamata rapida Gemini per decidere se email richiede risposta E rilevare lingua
    * Supporta Rate Limiter + alternativa originale
    */
-  shouldRespondToEmail(emailContent, emailSubject) {
+  shouldRespondToEmail(emailContent, emailSubject, precomputedDetection = null) {
     // Detection locale per lingua alternativa
-    const detection = this.detectEmailLanguage(emailContent, emailSubject);
+    const detection = precomputedDetection || this.detectEmailLanguage(emailContent, emailSubject);
     const fallbackLang = detection.lang;
     const defaultResult = {
       shouldRespond: false,

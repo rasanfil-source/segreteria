@@ -591,7 +591,8 @@ class EmailProcessor {
       // ====================================================================
       const quickCheck = this.geminiService.shouldRespondToEmail(
         messageDetails.body,
-        messageDetails.subject
+        messageDetails.subject,
+        languageDetection
       );
 
       if (!quickCheck.shouldRespond) {
@@ -633,6 +634,16 @@ class EmailProcessor {
       if (quickCheck.language && quickCheck.language.substring(0, 2).toLowerCase() !== detectedLanguage) {
         detectedLanguage = quickCheck.language.substring(0, 2).toLowerCase();
         console.log(`   🌐 Lingua (aggiornata da AI): ${detectedLanguage.toUpperCase()}`);
+      }
+
+      // PORTA 1-bis: Coerenza modalità lingua dopo raffinamento quick-check.
+      // Se la lingua viene aggiornata a IT in foreign_only, fermiamo qui senza
+      // etichettare IA per mantenere la possibilità di riprocessare in modalità "all".
+      if (this._shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
+        console.log('   ⊖ Saltato: modalità "Solo straniere", lingua italiana confermata dopo quick-check');
+        result.status = 'skipped';
+        result.reason = 'italian_skipped_foreign_only_post_quickcheck';
+        return result;
       }
 
       // ====================================================================
