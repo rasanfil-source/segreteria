@@ -241,8 +241,7 @@ class GmailService {
             }
         }
 
-        console.warn(`⚠️ Gmail.Users.Messages.list non recuperabile (${lastError ? lastError.message : 'errore sconosciuto'}): tratto la pagina come vuota per non interrompere il batch`);
-        return { messages: [], nextPageToken: null };
+        throw new Error(`Gmail.Users.Messages.list non recuperabile (${lastError ? lastError.message : 'errore sconosciuto'})`);
     }
 
     _isEmptyResponseError(error) {
@@ -1379,8 +1378,17 @@ class GmailService {
 
     _extractOcrTextFromAttachment(attachment, settings) {
         let fileId = null;
+        const startedAt = Date.now();
+        const maxDurationMs = Number(settings && settings.maxAttachmentProcessingMs) > 0
+            ? Number(settings.maxAttachmentProcessingMs)
+            : 20000;
+        const exceededBudget = () => (Date.now() - startedAt) > maxDurationMs;
         try {
             if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) {
+                return '';
+            }
+            if (exceededBudget()) {
+                console.warn('⚠️ OCR allegato: budget temporale già esaurito prima di iniziare');
                 return '';
             }
 
@@ -1425,6 +1433,13 @@ class GmailService {
             }
 
             const doc = DocumentApp.openById(fileId);
+            if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) {
+                return '';
+            }
+            if (exceededBudget()) {
+                console.warn('⚠️ OCR allegato interrotto: budget temporale superato');
+                return '';
+            }
             return doc.getBody().getText();
         } catch (e) {
             console.warn(`⚠️ OCR allegato fallito: ${e.message}`);
@@ -2070,7 +2085,8 @@ class GmailService {
         if (!base64Str || typeof base64Str !== 'string') {
             return '';
         }
-        const chunks = base64Str.match(/.{1,76}/g);
+        const normalizedBase64 = base64Str.replace(/\r?\n/g, '');
+        const chunks = normalizedBase64.match(/.{1,76}/g);
         return chunks ? chunks.join('\r\n') : '';
     }
 

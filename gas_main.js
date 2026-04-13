@@ -422,8 +422,7 @@ function _loadResourcesInternal(knownSheetModifiedAt) {
   if (kbSheet) {
     withSheetsRetry(() => {
       const kbData = kbSheet.getDataRange().getValues();
-      const kbHealthReport = _analyzeKnowledgeBaseRows(kbData, cfg.KB_SHEET_NAME || 'Istruzioni');
-      console.log('KB_HEALTH_REPORT ' + JSON.stringify(kbHealthReport));
+      const kbHealthReport = _logKnowledgeBaseHealthReport(kbData, cfg.KB_SHEET_NAME || 'Istruzioni');
       const kbRowsForText = kbHealthReport.skippedHeader ? kbData.slice(1) : kbData;
       newCacheData.knowledgeBase = _sheetRowsToText(kbRowsForText);
     }, 'Lettura KB Base');
@@ -547,6 +546,7 @@ function _getSpreadsheetModifiedTimeMs(spreadsheetId) {
 function _logKnowledgeBaseHealthReport(rows, sheetName) {
   const report = _analyzeKnowledgeBaseRows(rows, sheetName);
   console.log('KB_HEALTH_REPORT ' + JSON.stringify(report));
+  return report;
 }
 
 function _analyzeKnowledgeBaseRows(rows, sheetName) {

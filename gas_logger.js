@@ -124,16 +124,21 @@ Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
       `.trim();
 
       // Rate limit: max 1 email ogni 5 minuti
-      const lastNotification = PropertiesService.getScriptProperties()
-        .getProperty('last_error_notification');
+      const scriptProperties = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
+        ? PropertiesService.getScriptProperties()
+        : null;
+      const lastNotification = scriptProperties
+        ? scriptProperties.getProperty('last_error_notification')
+        : '';
       const now = Date.now();
 
       const lastNotificationMs = Number.parseInt(lastNotification || '', 10);
       const isCooldownExpired = !Number.isFinite(lastNotificationMs) || (now - lastNotificationMs) > 300000;
       if (isCooldownExpired) {
         GmailApp.sendEmail(adminEmail, subject, body);
-        PropertiesService.getScriptProperties()
-          .setProperty('last_error_notification', now.toString());
+        if (scriptProperties) {
+          scriptProperties.setProperty('last_error_notification', now.toString());
+        }
       }
     } catch (e) {
       console.error('Invio notifica errore fallito:', e.message);
