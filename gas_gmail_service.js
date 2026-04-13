@@ -410,7 +410,13 @@ class GmailService {
                 const params = { labelIds: ['INBOX', 'UNREAD'], maxResults: safeMessageBuffer };
                 if (pageToken) params.pageToken = pageToken;
 
-                const response = this._listMessagesWithResilience(params);
+                let response = null;
+                try {
+                    response = this._listMessagesWithResilience(params);
+                } catch (listError) {
+                    console.error(`❌ [metadata] Interruzione discovery per list non recuperabile: ${listError.message}`);
+                    break;
+                }
                 page++;
 
                 const messages = (response && response.messages) || [];
@@ -488,7 +494,13 @@ class GmailService {
                 const params = { q: query, maxResults: safeMessageBuffer };
                 if (pageToken) params.pageToken = pageToken;
 
-                const response = this._listMessagesWithResilience(params);
+                let response = null;
+                try {
+                    response = this._listMessagesWithResilience(params);
+                } catch (listError) {
+                    console.error(`❌ [query] Interruzione discovery per list non recuperabile: ${listError.message}`);
+                    break;
+                }
                 page++;
 
                 const messages = (response && response.messages) || [];
@@ -525,7 +537,11 @@ class GmailService {
             };
         } catch (e) {
             console.error(`❌ _discoverByQuery fallito: ${e.message}`);
-            throw e;
+            return {
+                threads: threads,
+                threadIds: seenThreadIds,
+                messageIds: seenMessageIds
+            };
         }
     }
 
