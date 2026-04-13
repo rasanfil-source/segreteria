@@ -362,6 +362,60 @@ function runAllTests() {
             return out && out.status === 'skipped' && out.reason === 'italian_skipped_foreign_only' && labeledMessageIds.size === 0;
         });
 
+        test('foreign_only: se quick-check aggiorna lingua a IT, skip finale senza label IA', results, () => {
+            const previousCache = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? { ...GLOBAL_CACHE } : null;
+            global.GLOBAL_CACHE = { ...(previousCache || {}), languageMode: 'foreign_only' };
+
+            const labeledMessageIds = new Set();
+            const thread = {
+                getId: () => 'thread-foreign-only-post-quickcheck-it',
+                getMessages: () => [
+                    { getId: () => 'msg-fq-1', isUnread: () => true, getFrom: () => 'user@example.com', getDate: () => new Date(), getSubject: () => 'Request info' }
+                ]
+            };
+
+            const processor = new EmailProcessor({
+                gmailService: {
+                    extractMessageDetails: () => ({
+                        senderEmail: 'user@example.com',
+                        senderName: 'User',
+                        subject: 'Request info',
+                        body: 'Hello, I need help with appointment details.',
+                        isNewsletter: false,
+                        headers: {}
+                    }),
+                    _extractEmailAddress: (from) => from,
+                    addLabelToMessage: (id) => labeledMessageIds.add(id)
+                },
+                classifier: {
+                    classifyEmail: () => ({ shouldReply: true, reason: 'ok' })
+                },
+                geminiService: {
+                    detectEmailLanguage: () => ({ lang: 'en', confidence: 4, safetyGrade: 3 }),
+                    shouldRespondToEmail: (_body, _subject, precomputedDetection) => {
+                        if (!precomputedDetection || precomputedDetection.lang !== 'en') {
+                            throw new Error('precomputedDetection non passato correttamente');
+                        }
+                        return { shouldRespond: true, language: 'it', classification: { category: 'TECHNICAL' } };
+                    },
+                    getAdaptiveGreeting: () => ({ greeting: 'Ciao', closing: 'Cordiali saluti' })
+                }
+            });
+
+            const out = processor.processThread(thread, 'KB', 'Doctrine', labeledMessageIds, true);
+
+            if (previousCache) {
+                global.GLOBAL_CACHE = previousCache;
+            } else {
+                delete global.GLOBAL_CACHE;
+            }
+
+            return out
+                && out.status === 'skipped'
+                && out.reason === 'italian_skipped_foreign_only_post_quickcheck'
+                && labeledMessageIds.size === 0;
+        });
+
         test('_hasUnreadMessagesToProcess tratta un Set vuoto come cache già fornita', results, () => {
             const processor = new EmailProcessor({
                 gmailService: {

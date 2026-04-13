@@ -75,8 +75,8 @@ class ResponseValidator {
       // Pattern conversazionali non catturati dalle regex 
       'rivedendo la knowledge base',
       'pensandoci bene',
-      '(note:', // Stringa letterale: qui usiamo match statici via includes(), non regex.
-      'nota:',
+      '(nota:', // Stringa letterale: qui usiamo match statici via includes(), non regex.
+      '(note:',
       'n.b.:',
       'nb:',
       'come da istruzioni',
