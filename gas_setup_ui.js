@@ -396,15 +396,15 @@ function applyControlloInputConstraints_(sheet) {
   applyFormulaValidationWithFallback_(
     sheet.getRange('D10:D16'),
     [
-      '=OR(AND($B10="";$D10="");AND(ISNUMBER($B10);$B10=INT($B10);$B10>=0;$B10<=23;ISNUMBER($D10);$D10=INT($D10);$D10>=0;$D10<=23;$B10<$D10))',
-      '=OR(AND($B10="",$D10=""),AND(ISNUMBER($B10),$B10=INT($B10),$B10>=0,$B10<=23,ISNUMBER($D10),$D10=INT($D10),$D10>=0,$D10<=23,$B10<$D10))'
+      '=OR(AND($B10="";$D10="");AND(ISNUMBER($B10);$B10=INT($B10);$B10>=0;$B10<=23;ISNUMBER($D10);$D10=INT($D10);$D10>=0;$D10<=23;$B10<>$D10))',
+      '=OR(AND($B10="",$D10=""),AND(ISNUMBER($B10),$B10=INT($B10),$B10>=0,$B10<=23,ISNUMBER($D10),$D10=INT($D10),$D10>=0,$D10<=23,$B10<>$D10))'
     ],
-    'Inserisci orari validi (interi 0-23) e assicurati che inizio < fine.'
+    'Inserisci orari validi (interi 0-23) e assicurati che inizio e fine siano diversi.'
   );
 
   // Filtri domini/keyword direttamente su Controllo
   const domainRule = SpreadsheetApp.newDataValidation()
-    .requireFormulaSatisfied('=OR(E13="";REGEXMATCH(TRIM(E13);"^(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}$"))')
+    .requireFormulaSatisfied('=OR(E13="";REGEXMATCH(TRIM(E13);"^(?:[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}|[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*)$"))')
     .setAllowInvalid(false)
     .setHelpText('Inserisci solo dominio/email parziale (es. amazon.com).')
     .build();

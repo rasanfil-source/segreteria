@@ -262,7 +262,7 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 20) {
 
   // Ottimizzazione: usa older_than per garantire la visibilità dei thread vecchi (stale) 
   // anche in presenza di molti nuovi messaggi che saturerebbero il searchLimit.
-  const query = `in:inbox is:unread older_than:${maxAgeHours}h -label:${quoteLabel(labelName)} -label:${quoteLabel(errorLabel)} -label:${quoteLabel(validationLabel)}`;
+  const query = `in:inbox is:unread -label:${quoteLabel(labelName)} -label:${quoteLabel(errorLabel)} -label:${quoteLabel(validationLabel)}`;
   const threads = GmailApp.search(query, 0, searchLimit);
 
   for (const thread of threads) {

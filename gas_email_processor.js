@@ -1381,10 +1381,17 @@ ${addressLines.join('\n\n')}
 
       let threads;
       try {
+        const getEffectiveMaxEmailsPerRun = () => {
+          const dynamicLimit = (typeof CONFIG !== 'undefined') ? parseInt(CONFIG.MAX_EMAILS_PER_RUN, 10) : NaN;
+          const fallbackLimit = parseInt(this.config.maxEmailsPerRun, 10);
+          const resolved = Number.isNaN(dynamicLimit) ? fallbackLimit : dynamicLimit;
+          return Number.isNaN(resolved) ? 10 : resolved;
+        };
+
         const DISCOVERY_POOL_MULTIPLIER = 15;
         const discoveryPoolSize = Math.min(
           50,
-          Math.max((this.config.maxEmailsPerRun || 3) * DISCOVERY_POOL_MULTIPLIER, 20)
+          Math.max(getEffectiveMaxEmailsPerRun() * DISCOVERY_POOL_MULTIPLIER, 20)
         );
 
         threads = this.gmailService.getUnprocessedUnreadThreads(
@@ -1451,10 +1458,15 @@ ${addressLines.join('\n\n')}
       this._startTime = Date.now();
       const MAX_EXECUTION_TIME = this.config.maxExecutionTimeMs;
       let processedCount = 0;
-      const maxLimit = parseInt(this.config.maxEmailsPerRun, 10);
-      const safeLimit = Number.isNaN(maxLimit) ? 10 : maxLimit;
+      const getEffectiveMaxEmailsPerRun = () => {
+        const dynamicLimit = (typeof CONFIG !== 'undefined') ? parseInt(CONFIG.MAX_EMAILS_PER_RUN, 10) : NaN;
+        const fallbackLimit = parseInt(this.config.maxEmailsPerRun, 10);
+        const resolved = Number.isNaN(dynamicLimit) ? fallbackLimit : dynamicLimit;
+        return Number.isNaN(resolved) ? 10 : resolved;
+      };
 
       for (let index = 0; index < threads.length; index++) {
+        const safeLimit = getEffectiveMaxEmailsPerRun();
         if (processedCount >= safeLimit) {
           console.log(`🛑 Raggiunti ${safeLimit} thread elaborati. Stop.`);
           break;
