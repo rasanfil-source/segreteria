@@ -1393,3 +1393,30 @@ function _extractDatePartsForTimeZone(date, timeZone) {
     second: String(date.getUTCSeconds()).padStart(2, '0')
   };
 }
+
+/**
+ * Trigger automatico che si attiva ad ogni modifica del foglio.
+ */
+function onEdit(e) {
+  const range = e.range;
+  const sheet = range.getSheet();
+  const sheetName = sheet.getName();
+  const cellAddress = range.getA1Notation();
+
+  // 1. Definisci qui le coordinate del tuo selettore
+  // Esempio: Foglio "Controllo", cella "B2" (dove solitamente risiede lo stato o la config)
+  const TARGET_SHEET = "Controllo"; 
+  const TARGET_CELL = "F2"; // 
+
+  if (sheetName === TARGET_SHEET && cellAddress === TARGET_CELL) {
+    console.log("🔄 Rilevata modifica al selettore. Avvio primeCache automatico...");
+    
+    // Esegue la pulizia e ricarica della cache istantaneamente
+    try {
+      primeCache();
+      SpreadsheetApp.getActiveSpreadsheet().toast("Configurazione aggiornata e cache sincronizzata!", "Sistema IA", 5);
+    } catch (err) {
+      console.error("Errore durante primeCache automatico: " + err.message);
+    }
+  }
+}
