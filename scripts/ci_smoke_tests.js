@@ -2028,6 +2028,26 @@ function testPortugueseDetectionRefinement() {
     assert(result.confidence >= 2, `Punteggio PT atteso >= 2, ottenuto ${result.confidence}`);
 }
 
+function testItalianNewsletterLikeLanguageDetection() {
+    console.log('--- Test: Italian Newsletter-like Language Detection ---');
+    loadScript('gas_gemini_service.js');
+
+    const gemini = createMockGeminiService(() => ({}));
+    const subject = 'Lettera del Cardinale Vicario sulle udienze libere';
+    const body = [
+        'Buongiorno,',
+        'si invia, in allegato, una lettera di S. Em.za il Card. Baldassare Reina.',
+        'Cordiali saluti',
+        'Ufficio di Segreteria',
+        'Vicariato di Roma',
+        'Annulla iscrizione'
+    ].join('\n');
+
+    const result = gemini.detectEmailLanguage(body, subject);
+    assert(result.lang === 'it', `Atteso IT per contenuto newsletter istituzionale in italiano, ottenuto ${result.lang}`);
+    assert(result.confidence >= 2, `Punteggio IT atteso >= 2, ottenuto ${result.confidence}`);
+}
+
 function testClassifierBackwardQuoteScan() {
     console.log('--- Test: Classifier Backward Quote Scan ---');
     loadScript('gas_classifier.js');
@@ -2161,6 +2181,7 @@ function main() {
         ['prompt engine: object KB normalization', testPromptEngineNormalizesObjectKnowledgeBase],
         ['prompt KB truncation: hard limit chars rispettato', testPromptKbSemanticTruncationRespectsHardLimit],
         ['gemini: portuguese detection refinement', testPortugueseDetectionRefinement],
+        ['gemini: italian newsletter-like language detection', testItalianNewsletterLikeLanguageDetection],
         ['classifier: backward quote scan', testClassifierBackwardQuoteScan],
         ['main: caricamento sostituzioni', testLoadResourcesReplacements],
         ['gmail office extract: Drive v3 forza mimeType target', testExtractOfficeTextDriveCreateForcesTargetMimeType],

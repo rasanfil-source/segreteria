@@ -416,6 +416,56 @@ function runAllTests() {
                 && labeledMessageIds.size === 0;
         });
 
+        test('foreign_only: rilevamento lingua usa corpo pulito estratto dal classifier', results, () => {
+            const previousCache = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? { ...GLOBAL_CACHE } : null;
+            global.GLOBAL_CACHE = { ...(previousCache || {}), languageMode: 'foreign_only' };
+
+            const thread = {
+                getId: () => 'thread-foreign-only-clean-body',
+                getMessages: () => [
+                    { getId: () => 'msg-clean-1', isUnread: () => true, getFrom: () => 'utente@example.com', getDate: () => new Date(), getSubject: () => 'Request details' }
+                ]
+            };
+
+            let capturedBody = null;
+            const processor = new EmailProcessor({
+                gmailService: {
+                    extractMessageDetails: () => ({
+                        senderEmail: 'utente@example.com',
+                        senderName: 'Utente',
+                        subject: 'Request details',
+                        body: 'TESTO ORIGINALE CON FIRMA LUNGA',
+                        isNewsletter: false,
+                        headers: {}
+                    }),
+                    _extractEmailAddress: (from) => from
+                },
+                classifier: {
+                    _extractMainContent: () => 'Buongiorno, vorrei informazioni',
+                    classifyEmail: () => ({ shouldReply: true, reason: 'ok' })
+                },
+                geminiService: {
+                    detectEmailLanguage: (body) => {
+                        capturedBody = body;
+                        return { lang: 'it' };
+                    }
+                }
+            });
+
+            const out = processor.processThread(thread, 'KB', 'Doctrine', new Set(), true);
+
+            if (previousCache) {
+                global.GLOBAL_CACHE = previousCache;
+            } else {
+                delete global.GLOBAL_CACHE;
+            }
+
+            return capturedBody === 'Buongiorno, vorrei informazioni'
+                && out
+                && out.status === 'skipped'
+                && out.reason === 'italian_skipped_foreign_only';
+        });
+
         test('_hasUnreadMessagesToProcess tratta un Set vuoto come cache già fornita', results, () => {
             const processor = new EmailProcessor({
                 gmailService: {

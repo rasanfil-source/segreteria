@@ -632,12 +632,14 @@ Output JSON:
     ];
 
     const englishStandardKeywords = [
-      'and', 'but', 'an',
-      'will', 'can', 'may', 'shall', 'must',
-      'have', 'has', 'had', 'do', 'does', 'did',
+      // Evitiamo stopword troppo corte/ambigue ("in", "no", "me", "to", ...)
+      // perché in italiano e nelle firme email causano falsi positivi EN.
+      'and', 'but',
+      'will', 'shall', 'must',
+      'have', 'has', 'had', 'does', 'did',
       'what', 'when', 'where', 'how', 'why', 'which', 'who',
-      'on', 'of', 'to', 'from', 'for', 'with', 'at', 'by',
-      'is', 'are', 'was', 'were', 'it', 'this', 'that', 'my', 'me', 'you', 'your', 'yes', 'in', 'no', 'not', 'if', 'or', 'as', 'be'
+      'from', 'for', 'with',
+      'are', 'were', 'this', 'that', 'your', 'not'
     ];
 
         const spanishKeywords = [
@@ -670,6 +672,7 @@ Output JSON:
       'perché', 'perchè', 'quando', 'come', 'dove', 'cosa',
       'per favore', 'per piacere', 'molte grazie', 'buongiorno',
       'buonasera', 'gentile', 'egregio', 'cordiali saluti',
+      'si invia', 'in allegato', 'ufficio di segreteria', 'vicariato di roma',
       'non', 'il', 'di', 'da',
       'nel', 'della', 'degli', 'delle'
     ];

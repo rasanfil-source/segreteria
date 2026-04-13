@@ -380,15 +380,22 @@ class EmailProcessor {
       // ====================================================================================================
       // STEP 1.5: FAIL-FAST LINGUA (a costo zero)
       // ====================================================================================================
+      const bodyForLanguageDetection = (this.classifier && typeof this.classifier._extractMainContent === 'function')
+        ? this.classifier._extractMainContent(messageDetails.body || '')
+        : (messageDetails.body || '');
+
       const languageDetection = (this.geminiService && typeof this.geminiService.detectEmailLanguage === 'function')
         ? (this.geminiService.detectEmailLanguage(
-          messageDetails.body,
+          bodyForLanguageDetection,
           messageDetails.subject
         ) || {})
         : { lang: 'it' };
       
       // Estraiamo solo i primi 2 caratteri per gestire formati come "it-IT" o "en-US"
       let detectedLanguage = (languageDetection.lang || 'it').toLowerCase().substring(0, 2);
+      if (bodyForLanguageDetection !== (messageDetails.body || '')) {
+        console.log('   ✂️ Lingua: uso corpo pulito (senza firma/citazioni) per ridurre falsi positivi');
+      }
       console.log(`   🌐 Lingua (rilevamento locale): ${detectedLanguage.toUpperCase()}`);
 
       // PORTA 1: Interrompiamo se l'email deve essere ignorata in base alla lingua
