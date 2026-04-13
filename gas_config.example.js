@@ -118,6 +118,9 @@ const CONFIG = {
     // === Limiti Token (Prompt Engine) ===
     MAX_SAFE_TOKENS: 50000,              // Limite massimo token per prompt (più sicuro per timeout GAS)
     KB_TOKEN_BUDGET_RATIO: 0.5,          // Percentuale budget KB rispetto a max token
+    PROMPT_ENGINE: {
+        OVERHEAD_TOKENS: 15000           // Riserva token per istruzioni/fixed context fuori KB
+    },
 
     // === Limiti Thread ===
     MAX_THREAD_LENGTH: 10,               // Messaggi massimi per thread prima di anti-loop

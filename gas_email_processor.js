@@ -1689,15 +1689,30 @@ ${addressLines.join('\n\n')}
 
     const sendingKey = `sending_${messageId}`;
     const sentKey = `sent_${messageId}`;
-    if (cache.get(sentKey)) {
-      return { ok: false, reason: 'already_sent' };
-    }
-    if (cache.get(sendingKey)) {
-      return { ok: false, reason: 'in_flight' };
-    }
+    const scriptLock = (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function')
+      ? LockService.getScriptLock()
+      : null;
+    let lockAcquired = false;
 
-    cache.put(sendingKey, String(Date.now()), 300); // 5 minuti
-    return { ok: true, reason: 'acquired' };
+    try {
+      if (scriptLock && typeof scriptLock.tryLock === 'function') {
+        lockAcquired = scriptLock.tryLock(500);
+      }
+
+      if (cache.get(sentKey)) {
+        return { ok: false, reason: 'already_sent' };
+      }
+      if (cache.get(sendingKey)) {
+        return { ok: false, reason: 'in_flight' };
+      }
+
+      cache.put(sendingKey, String(Date.now()), 300); // 5 minuti
+      return { ok: true, reason: 'acquired' };
+    } finally {
+      if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
+        scriptLock.releaseLock();
+      }
+    }
   }
 
   _commitSendTransaction(messageId) {
@@ -2410,7 +2425,7 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
       const normalized = classifyError(error);
       switch (normalized.type) {
         case ErrorTypes.QUOTA_EXCEEDED:
-          return mkResult('QUOTA', true, normalized.message);
+          return mkResult('QUOTA_EXCEEDED', true, normalized.message);
         case ErrorTypes.TIMEOUT:
         case ErrorTypes.NETWORK:
           return mkResult('NETWORK', true, normalized.message);
@@ -2449,9 +2464,9 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
     if (/\b(401|403)\b/.test(msg)) return mkResult('FATAL', false, rawMessage);
 
     for (const retryable of RETRYABLE_ERRORS) {
-      if (msg.includes(retryable.toLowerCase())) return mkResult('QUOTA', true, rawMessage);
+      if (msg.includes(retryable.toLowerCase())) return mkResult('QUOTA_EXCEEDED', true, rawMessage);
     }
-    if (/\b429\b/.test(msg)) return mkResult('QUOTA', true, rawMessage);
+    if (/\b429\b/.test(msg)) return mkResult('QUOTA_EXCEEDED', true, rawMessage);
 
     if (msg.includes('timeout') || msg.includes('ECONNRESET') || msg.includes('econnreset') ||
         msg.includes('deadline') || msg.includes('request timed out') ||
@@ -2517,8 +2532,9 @@ function computeSalutationMode({ isReply = false, messageCount = 0, memoryExists
     return 'full';
   }
 
-  // 1️⃣ Primo messaggio assoluto
-  if (!memoryExists && messageCount <= 1) {
+  // 1️⃣ Memoria assente: fallback conservativo su saluto completo.
+  // Evita saluti "continuity" quando il Memory Service non ha stato affidabile.
+  if (!memoryExists) {
     return 'full';
   }
 
