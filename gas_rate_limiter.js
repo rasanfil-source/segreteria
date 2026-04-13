@@ -346,7 +346,7 @@ class GeminiRateLimiter {
     }
 
     // Controllo RPD
-    const rpdUsed = parseInt(this.props.getProperty(`rpd_${modelKey}`) || '0');
+    const rpdUsed = parseInt(this.props.getProperty(`rpd_${modelKey}`) || '0', 10) || 0;
     const rpdLeft = model.rpd - rpdUsed;
 
     if (rpdLeft <= 0) {
@@ -619,8 +619,8 @@ class GeminiRateLimiter {
       const rpdKey = 'rpd_' + modelKey;
       const tokensKey = 'tokens_' + modelKey;
       return {
-        rpd: parseInt(this.props.getProperty(rpdKey) || '0'),
-        tokens: parseInt(this.props.getProperty(tokensKey) || '0')
+        rpd: parseInt(this.props.getProperty(rpdKey) || '0', 10) || 0,
+        tokens: parseInt(this.props.getProperty(tokensKey) || '0', 10) || 0
       };
     }
 
@@ -630,8 +630,8 @@ class GeminiRateLimiter {
       const tokensKey = 'tokens_' + modelKey;
       const todayPacific = this._getPacificDate();
       const lastRpdDate = this.props.getProperty(rpdDateKey) || '';
-      let currentRpd = parseInt(this.props.getProperty(rpdKey) || '0');
-      let currentTokens = parseInt(this.props.getProperty(tokensKey) || '0');
+      let currentRpd = parseInt(this.props.getProperty(rpdKey) || '0', 10) || 0;
+      let currentTokens = parseInt(this.props.getProperty(tokensKey) || '0', 10) || 0;
       if (lastRpdDate !== todayPacific) {
         currentRpd = 0;
         currentTokens = 0;
@@ -929,8 +929,8 @@ class GeminiRateLimiter {
 
     for (var modelKey in this.models) {
       const model = this.models[modelKey];
-      const rpdUsed = parseInt(this.props.getProperty('rpd_' + modelKey) || '0');
-      const tokensUsed = parseInt(this.props.getProperty('tokens_' + modelKey) || '0');
+      const rpdUsed = parseInt(this.props.getProperty('rpd_' + modelKey) || '0', 10) || 0;
+      const tokensUsed = parseInt(this.props.getProperty('tokens_' + modelKey) || '0', 10) || 0;
       const rpmUsed = this._getRequestsInWindow('rpm', modelKey);
       const tpmUsed = this._getTokensInWindow('tpm', modelKey);
 
