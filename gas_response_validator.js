@@ -91,7 +91,9 @@ class ResponseValidator {
       /segreteria\s+parrocchia\s+sant['\u2018\u2019]?eugenio/i,        // IT
       /parish\s+secretariat\s+(of\s+)?sant['\u2018\u2019]?eugenio/i,   // EN
       /secretar[ií]a\s+parroquial/i,                                   // ES
-      /secretaria\s+par[oó]quia(l)?\s+sant['\u2018\u2019]?eugenio/i    // PT
+      /secretaria\s+par[oó]quia(l)?\s+sant['\u2018\u2019]?eugenio/i,   // PT
+      /secr[eé]tariat\s+paroiss(e|ial)\s+sant['\u2018\u2019]?eugenio/i, // FR
+      /pfarrsekretariat\s+sant['\u2018\u2019]?eugenio/i                // DE
     ];
 
     // Pattern saluti per fasce orarie (Controllo #8)

@@ -895,6 +895,26 @@ Output JSON:
         } else {
           greeting = 'Boa noite,';
         }
+      } else if (language === 'fr') {
+        if (isNightTime) {
+          greeting = 'Bonjour,';
+        } else if (day === 0) {
+          greeting = 'Bon dimanche,';
+        } else if (hour >= 5 && hour < 18) {
+          greeting = 'Bonjour,';
+        } else {
+          greeting = 'Bonsoir,';
+        }
+      } else if (language === 'de') {
+        if (isNightTime) {
+          greeting = 'Guten Tag,';
+        } else if (day === 0) {
+          greeting = 'Einen schoenen Sonntag,';
+        } else if (hour >= 5 && hour < 18) {
+          greeting = 'Guten Tag,';
+        } else {
+          greeting = 'Guten Abend,';
+        }
       } else {
         // Altre lingue: saluto neutro
         greeting = 'Good day,';
@@ -910,6 +930,10 @@ Output JSON:
       closing = 'Cordiales saludos,';
     } else if (language === 'pt') {
       closing = 'Com os melhores cumprimentos,';
+    } else if (language === 'fr') {
+      closing = 'Cordialement,';
+    } else if (language === 'de') {
+      closing = 'Freundliche Gruesse,';
     } else {
       closing = 'Cordiali saluti,';
     }

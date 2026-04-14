@@ -260,9 +260,9 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 20) {
   const validationLabel = (typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_ERROR_LABEL) ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica';
   const quoteLabel = (label) => `"${String(label).replace(/"/g, '\\"')}"`;
 
-  // Ottimizzazione: usa older_than per garantire la visibilità dei thread vecchi (stale) 
+  // Usa older_than per garantire la visibilità dei thread vecchi (stale)
   // anche in presenza di molti nuovi messaggi che saturerebbero il searchLimit.
-  const query = `in:inbox is:unread -label:${quoteLabel(labelName)} -label:${quoteLabel(errorLabel)} -label:${quoteLabel(validationLabel)}`;
+  const query = `in:inbox is:unread older_than:${maxAgeHours}h -label:${quoteLabel(labelName)} -label:${quoteLabel(errorLabel)} -label:${quoteLabel(validationLabel)}`;
   const threads = GmailApp.search(query, 0, searchLimit);
 
   for (const thread of threads) {
@@ -998,10 +998,15 @@ function _loadAdvancedConfig(ss) {
       }
 
       if (startHour > endHour) {
-        // Cross-midnight: splitta in [start, 24] e [0, end]
+        // Cross-midnight: splitta in [start, 24] sul giorno corrente
+        // e [0, end] sul giorno successivo.
+        const nextDay = (day + 1) % 7;
         config.suspensionRules[day].push([startHour, 24]);
-        config.suspensionRules[day].push([0, endHour]);
-        console.log(`ℹ️ Sospensione cross-midnight rilevata per giorno ${day}: ${startHour}..${endHour} (splittata)`);
+        if (!config.suspensionRules[nextDay]) {
+          config.suspensionRules[nextDay] = [];
+        }
+        config.suspensionRules[nextDay].push([0, endHour]);
+        console.log(`ℹ️ Sospensione cross-midnight rilevata per giorno ${day}: ${startHour}..${endHour} (split su giorno ${day} e ${nextDay})`);
       } else {
         config.suspensionRules[day].push([startHour, endHour]);
       }

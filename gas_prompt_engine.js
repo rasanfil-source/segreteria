@@ -1484,6 +1484,70 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
    • NÃO são permitidas palavras italianas
    • Usa português para tudo: saudação, corpo, despedida`;
 
+    } else if (lang === 'fr') {
+      formatSection = isContinuity
+        ? `1. **CONVERSATION EN COURS — PAS DE SALUTATION RITUELLE :**
+   • N'ouvre PAS avec une salutation formelle — la conversation est déjà commencée.
+   • Commence directement par le contenu ou une phrase de continuité.
+
+2. **Format de réponse (FRANÇAIS OBLIGATOIRE) :**
+   [Suite directe — sans salutation]
+   [Corps concis et pertinent - ✅ UTILISE LA MISE EN FORME SI UTILE]
+   ${closing}
+   Secrétariat Paroisse Sant'Eugenio`
+        : `1. **SALUTATION OBLIGATOIRE :**
+   • Commence l'email EXACTEMENT par : "${salutation}"
+   • Ne modifie PAS cette salutation.
+
+2. **Format de réponse (FRANÇAIS OBLIGATOIRE) :**
+   ${salutation}
+   [Corps concis et pertinent - ✅ UTILISE LA MISE EN FORME SI UTILE]
+   ${closing}
+   Secrétariat Paroisse Sant'Eugenio`;
+
+      contentSection = `3. **Contenu :**
+   • Réponds UNIQUEMENT à la question posée
+   • Utilise UNIQUEMENT les informations de la base de connaissances
+   • ✅ Formate élégamment s'il y a 3+ éléments/horaires
+   • Suivi (Re:) : sois plus direct et concis
+   • RÈGLE ANTI-INFODUMP : avec une seule question précise, limite le corps à 4 phrases courtes maximum ; ajoute des détails seulement si explicitement demandés`;
+
+      languageReminder = `4. **LANGUE : ⚠️ RÉPONDS UNIQUEMENT EN FRANÇAIS**
+   • Aucun mot italien n'est autorisé
+   • Utilise le français pour tout : salutation, corps, conclusion`;
+
+    } else if (lang === 'de') {
+      formatSection = isContinuity
+        ? `1. **LAUFENDES GESPRAECH — KEINE RITUELLE ANREDE:**
+   • Starte NICHT mit einer formellen Anrede — das Gespraech laeuft bereits.
+   • Beginne direkt mit dem Inhalt oder einem Uebergangssatz.
+
+2. **Antwortformat (DEUTSCH ERFORDERLICH):**
+   [Direkte Fortsetzung — ohne Anrede]
+   [Praeziser, relevanter Text - ✅ FORMATIERUNG NUTZEN, WENN SINNVOLL]
+   ${closing}
+   Pfarrsekretariat Sant'Eugenio`
+        : `1. **VERPFLICHTENDE ANREDE:**
+   • Beginne die E-Mail EXAKT mit: "${salutation}"
+   • Diese Anrede darf NICHT geaendert werden.
+
+2. **Antwortformat (DEUTSCH ERFORDERLICH):**
+   ${salutation}
+   [Praeziser, relevanter Text - ✅ FORMATIERUNG NUTZEN, WENN SINNVOLL]
+   ${closing}
+   Pfarrsekretariat Sant'Eugenio`;
+
+      contentSection = `3. **Inhalt:**
+   • Antworte NUR auf das, was gefragt wurde
+   • Nutze NUR Informationen aus der Wissensbasis
+   • ✅ Elegant formatieren bei 3+ Elementen/Uhrzeiten
+   • Follow-up (Re:): direkter und knapper antworten
+   • ANTI-INFODUMP-REGEL: bei einer einzelnen konkreten Frage den Text auf maximal 4 kurze Saetze begrenzen; Zusatzdetails nur auf ausdrueckliche Nachfrage`;
+
+      languageReminder = `4. **SPRACHE: ⚠️ NUR AUF DEUTSCH ANTWORTEN**
+   • Keine italienischen Woerter verwenden
+   • Deutsch fuer alles verwenden: Anrede, Inhalt, Abschluss`;
+
     } else {
       formatSection = isContinuity
         ? `1. **CONVERSAZIONE IN CORSO — NESSUN SALUTO RITUALE:**
