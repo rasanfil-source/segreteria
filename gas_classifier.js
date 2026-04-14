@@ -392,7 +392,8 @@ var Classifier = class Classifier {
       /\bnon\s+sono\s+in\s+ufficio\b/i,
       /\bassenza\s+per\s+malattia\b/i,
       /\bcongedo\s+per\s+malattia\b/i,
-      /\bvacc?anze\b/i
+      /\bsono\s+in\s+vacc?anze\b/i,
+      /\btorno\s+dalle\s+vacc?anze\b/i
     ];
 
     return oooPatterns.some(pattern => pattern.test(normalized));

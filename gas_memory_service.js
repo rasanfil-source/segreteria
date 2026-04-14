@@ -623,13 +623,18 @@ var MemoryService = class MemoryService {
   _withSheetWriteLock(writeOperation) {
     const sheetLock = LockService.getScriptLock();
     const timeoutMs = (typeof CONFIG !== 'undefined' && CONFIG.SHEET_WRITE_LOCK_TIMEOUT_MS) || 10000;
+    let lockAcquired = false;
 
     try {
       sheetLock.waitLock(timeoutMs);
+      lockAcquired = true;
       writeOperation();
       SpreadsheetApp.flush();
     } catch (e) {
-      throw new Error(`Lock del foglio non acquisito: ${e.message}`);
+      if (!lockAcquired) {
+        throw new Error(`Lock del foglio non acquisito (timeout ${timeoutMs}ms): ${e.message}`);
+      }
+      throw new Error(`Errore durante scrittura foglio (lock acquisito): ${e.message}`);
     } finally {
       try {
         sheetLock.releaseLock();

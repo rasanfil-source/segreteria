@@ -151,6 +151,7 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
         'gas_memory_service.js',
         'gas_territory_validator.js',
         'gas_gmail_service.js',
+        'gas_prompt_context.js',
         'gas_prompt_engine.js',
         'gas_email_processor.js',
         'gas_gemini_service.js',

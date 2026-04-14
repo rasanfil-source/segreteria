@@ -1463,9 +1463,19 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
    • Usa español para todo: saludo, cuerpo, despedida`;
 
     } else if (lang === 'pt') {
-      formatSection = `1. **SAUDAÇÃO OBRIGATÓRIA:**
+      formatSection = isContinuity
+        ? `1. **CONVERSA EM CURSO — SEM SAUDAÇÃO RITUAL:**
+   • NÃO abras com uma saudação formal — a conversa já está em andamento.
+   • Começa diretamente com o conteúdo ou com uma frase de ligação.
+
+2. **Formato da resposta (PORTUGUÊS REQUERIDO):**
+   [Continuação direta — sem saudação]
+   [Corpo conciso e pertinente - ✅ USE FORMATAÇÃO SE APROPRIADO]
+   ${closing}
+   Secretaria Paróquia Sant'Eugenio`
+        : `1. **SAUDAÇÃO OBRIGATÓRIA:**
    • Deves começar o email EXATAMENTE com: "${salutation}"
-   • NÃO alteres esta saudação.
+   • NÃO alteres questa saudação.
 
 2. **Formato da resposta (PORTUGUÊS REQUERIDO):**
    ${salutation}

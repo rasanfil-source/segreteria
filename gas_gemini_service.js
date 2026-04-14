@@ -902,7 +902,7 @@ Output JSON:
         } else if (day === 0) {
           greeting = 'Feliz domingo,';
         } else if (hour >= 5 && hour < 13) {
-          greeting = 'buenos días,';
+          greeting = 'Buenos días,';
         } else {
           greeting = 'Buenas tardes,';
         }
