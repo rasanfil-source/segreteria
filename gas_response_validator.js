@@ -1194,7 +1194,7 @@ function createResponseValidator() {
  * - Fallback automatico a regex se API fallisce
  * - Cache risultati (stesso thread)
  */
-class SemanticValidator {
+var SemanticValidator = class SemanticValidator {
   constructor() {
     console.log('🧠 Inizializzazione SemanticValidator...');
 

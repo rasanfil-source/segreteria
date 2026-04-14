@@ -3,7 +3,7 @@
  * Determina dinamicamente quali regole del prompt sono attive
  */
 
-class PromptContext {
+var PromptContext = class PromptContext {
     constructor(input) {
         // Validazione input
         if (!input || typeof input !== 'object') {
