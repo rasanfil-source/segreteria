@@ -337,7 +337,10 @@ class MemoryService {
 
     // Accetta anche solo topic (se newData è nullo o vuoto ma providedTopics è presente)
     const hasData = Object.keys(dataToUpdate).length > 0;
-    const hasTopics = providedTopics && (Array.isArray(providedTopics) || (typeof providedTopics === 'string' && providedTopics.length > 0));
+    const hasTopics = !!(providedTopics && (
+      (Array.isArray(providedTopics) && providedTopics.length > 0) ||
+      (typeof providedTopics === 'string' && providedTopics.length > 0)
+    ));
 
     if (!hasData && !hasTopics) {
       console.warn(`⚠️ updateMemoryAtomic chiamato senza dati né topic validi per thread ${threadId}`);

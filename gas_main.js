@@ -1327,6 +1327,18 @@ function _formatDateForKnowledgeText(date) {
     return 'Europe/Rome';
   };
 
+  // Google Sheets archivia i valori "solo orario" come Date con anno 1899.
+  // In KB preferiamo serializzare solo l'orario (HH:mm), non una data fittizia.
+  if (date.getFullYear() < 1901) {
+    const tz = resolveScriptTz();
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+      return Utilities.formatDate(date, tz, 'HH:mm');
+    }
+    const parts = _extractDatePartsForTimeZone(date, tz);
+    return `${parts.hour}:${parts.minute}`;
+  }
+
+
   if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
     const tz = resolveScriptTz();
 

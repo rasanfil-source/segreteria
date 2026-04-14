@@ -680,14 +680,8 @@ class EmailProcessor {
       // PromptEngine (buildPrompt) che li riceve via opzioni con logica selettiva.
       // Doppia iniezione causerebbe gonfiamento prompt e rischio truncation.
 
-      // Regola messe speciali
-      if (typeof getSpecialMassTimeRule === 'function') {
-        const specialMassRule = getSpecialMassTimeRule(new Date());
-        if (specialMassRule) {
-          console.log('   🚨 Regola Messe Speciali iniettata nel Prompt');
-          knowledgeSections.push('ECCEZIONI CALENDARIO:\n' + specialMassRule);
-        }
-      }
+      // Placeholder: eventuali regole calendario speciali possono essere
+      // iniettate qui quando verrà implementato un provider dedicato.
 
       const enrichedKnowledgeBase = knowledgeSections.filter(Boolean).join('\n\n');
 
