@@ -1024,7 +1024,43 @@ class GmailService {
                 mimeType.includes('mspowerpoint') ||
                 mimeType.includes('presentationml');
 
-            if (isWord || isPowerPoint || isExcel) {
+            // XLS/XLSX: preferisci estrazione testuale (più utile e robusta in assenza Vision)
+            if (isExcel) {
+                try {
+                    const extracted = this._extractOfficeText(
+                        attachment,
+                        this._officeMimeMap['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+                        settings
+                    ) || '';
+                    if (!extracted.trim()) {
+                        result.skipped.push({ name: name, reason: 'office_empty' });
+                        continue;
+                    }
+                    let text = extracted;
+                    if (maxCharsPerFile > 0 && text.length > maxCharsPerFile) {
+                        text = text.substring(0, maxCharsPerFile);
+                        result.skipped.push({ name: name, reason: 'text_truncated', kept: text.length, originalSize: extracted.length });
+                    }
+                    const segment = `\n\n--- Contenuto file: ${name} ---\n${text}`;
+                    const remaining = maxTotalChars > 0 ? (maxTotalChars - totalTextChars) : Infinity;
+                    if (remaining <= 0) {
+                        result.skipped.push({ name: name, reason: 'max_total_chars' });
+                        continue;
+                    }
+                    const bounded = segment.length > remaining ? segment.substring(0, remaining) : segment;
+                    if (bounded.length < segment.length) {
+                        result.skipped.push({ name: name, reason: 'max_total_chars', kept: bounded.length });
+                    }
+                    result.textContext += bounded;
+                    totalTextChars += bounded.length;
+                    processedCount++;
+                } catch (e) {
+                    result.skipped.push({ name: name, reason: 'office_extract_error', error: e.message });
+                }
+                continue;
+            }
+
+            if (isWord || isPowerPoint) {
                 try {
                     console.log(`   🔄 Conversione al volo in PDF per: ${name}`);
                     const convertedPdf = this._convertOfficeToPdf(attachment);
