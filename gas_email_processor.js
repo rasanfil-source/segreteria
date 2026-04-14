@@ -16,7 +16,7 @@
  * - Memory tracking
  */
 
-class EmailProcessor {
+var EmailProcessor = class EmailProcessor {
   constructor(options = {}) {
     // Logger strutturato
     this.logger = (typeof createLogger === 'function')

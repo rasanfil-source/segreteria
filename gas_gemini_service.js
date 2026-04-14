@@ -10,7 +10,7 @@
  * - Rate Limiter integrato con gestione quota
  */
 
-class GeminiService {
+var GeminiService = class GeminiService {
   constructor(options = {}) {
     const sharedConfig = (typeof CONFIG !== 'undefined') ? CONFIG : {};
     this.config = Object.assign({}, sharedConfig, options.config || {});

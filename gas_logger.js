@@ -2,7 +2,7 @@
  * Logger.gs - Sistema di logging strutturato e centralizzato
  */
 
-const LogLevel = {
+var LogLevel = {
   DEBUG: 0,
   INFO: 1,
   WARN: 2,
@@ -10,7 +10,7 @@ const LogLevel = {
 };
 
 // Nota: non usare il nome `Logger` per evitare shadowing del built-in GAS `Logger.log()`.
-class AppLogger {
+var AppLogger = class AppLogger {
   constructor(context = 'System') {
     this.context = context;
   }

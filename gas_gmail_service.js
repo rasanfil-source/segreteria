@@ -10,7 +10,7 @@
  * - Markdown to HTML
  */
 
-class GmailService {
+var GmailService = class GmailService {
     constructor() {
         console.log('📧 Inizializzazione GmailService...');
 

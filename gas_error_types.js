@@ -6,7 +6,7 @@
  * Usato da GeminiService._withRetry e dai test.
  */
 
-const ErrorTypes = {
+var ErrorTypes = {
     QUOTA_EXCEEDED: 'QUOTA_EXCEEDED',
     INVALID_API_KEY: 'INVALID_API_KEY',
     TIMEOUT: 'TIMEOUT',

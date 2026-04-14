@@ -229,7 +229,7 @@ var CONFIG = {
 // MARCATORI LINGUA (costante condivisa tra moduli)
 // ====================================================================
 
-const LANGUAGE_MARKERS = {
+var LANGUAGE_MARKERS = {
   'it': ['grazie', 'cordiali', 'saluti', 'gentile', 'parrocchia', 'messa', 'vorrei', 'quando', 'buongiorno', 'buonasera'],
   'en': ['thank', 'regards', 'dear', 'parish', 'mass', 'church', 'would', 'could', 'please', 'sincerely'],
   'es': ['gracias', 'saludos', 'estimado', 'parroquia', 'misa', 'iglesia', 'querría', 'buenos', 'días'],
