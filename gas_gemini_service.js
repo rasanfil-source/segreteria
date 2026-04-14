@@ -420,7 +420,7 @@ Output JSON:
     const textResponse = parts.map(p => p.text || '').join('').trim();
 
     console.log('=========================================');
-    console.log('Ã°Å¸Â¤â€“ RAW GEMINI CLASSIFIER JSON:');
+    console.log('\uD83E\uDD16 RAW GEMINI CLASSIFIER JSON:');
     console.log(textResponse);
     console.log('=========================================');
 
@@ -1128,7 +1128,7 @@ Output JSON:
               'Quick check fallback dopo QUOTA_EXHAUSTED'
             );
           } catch (directError) {
-            console.error(`Ã¢ÂÅ’ Fallback diretto quick check fallito: ${directError.message}. Uso detection locale.`);
+            console.error(`\u274C Fallback diretto quick check fallito: ${directError.message}. Uso detection locale.`);
             return defaultResult;
           }
         }
@@ -1190,7 +1190,7 @@ Output JSON:
         );
 
         if (result.success) {
-          console.log(`✓œ Generato via Rate Limiter(modello: ${result.modelUsed}, token: ~${estimatedTokens})`);
+          console.log(`\u2705 Generato via Rate Limiter(modello: ${result.modelUsed}, token: ~${estimatedTokens})`);
           return { success: true, text: result.result, modelUsed: result.modelUsed };
         }
       } catch (error) {
@@ -1207,7 +1207,7 @@ Output JSON:
     // CHIAMATA DIRETTA (quando RateLimiter disabilitato O skippato per backup key)
     // ====================================================================
     if (skipRateLimit) {
-      console.log(`Ã¢ÂÂ© Chiamata diretta(bypass RateLimiter) con ${targetModel} `);
+      console.log(`\u2934\uFE0F Chiamata diretta(bypass RateLimiter) con ${targetModel}`);
       const text = this._withRetry(
         () => this._generateWithModel(prompt, targetModel, targetKey, attachments),
         'Generazione diretta (Chiave di Riserva)'
