@@ -9,7 +9,7 @@
  * - Ottimizzazione struttura prompt
  */
 
-class PromptEngine {
+var PromptEngine = class PromptEngine {
   constructor() {
     // Logger strutturato
     this.logger = createLogger('PromptEngine');

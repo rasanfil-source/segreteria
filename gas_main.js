@@ -23,26 +23,26 @@ var GLOBAL_CACHE = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBA
 // ⚠️ Scelta blindata: questo TTL è allineato ai 21600s della ScriptCache.
 // Cambiare solo insieme ai comandi manuali di riallineamento (primeCache/clearKnowledgeCache)
 // per evitare disallineamenti "RAM fresca / ScriptCache scaduta" e ricariche imprevedibili.
-const RESOURCE_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 ore
-const RESOURCE_CACHE_TTL_SECONDS = 21600; // 6 ore
-const RESOURCE_CACHE_KEY_V2 = 'SPA_KNOWLEDGE_BASE_V2';
-const RESOURCE_CACHE_KEY_V1 = 'SPA_KNOWLEDGE_BASE_V1';
-const RESOURCE_CACHE_PARTS_KEY = `${RESOURCE_CACHE_KEY_V2}:parts`;
-const RESOURCE_CACHE_PART_PREFIX = `${RESOURCE_CACHE_KEY_V2}:part:`;
-const RESOURCE_CACHE_MAX_PART_SIZE = 45000; // Mitigazione rapida: riduce rischio overflow entry CacheService con UTF-8 multibyte.
+var RESOURCE_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 ore
+var RESOURCE_CACHE_TTL_SECONDS = 21600; // 6 ore
+var RESOURCE_CACHE_KEY_V2 = 'SPA_KNOWLEDGE_BASE_V2';
+var RESOURCE_CACHE_KEY_V1 = 'SPA_KNOWLEDGE_BASE_V1';
+var RESOURCE_CACHE_PARTS_KEY = `${RESOURCE_CACHE_KEY_V2}:parts`;
+var RESOURCE_CACHE_PART_PREFIX = `${RESOURCE_CACHE_KEY_V2}:part:`;
+var RESOURCE_CACHE_MAX_PART_SIZE = 45000; // Mitigazione rapida: riduce rischio overflow entry CacheService con UTF-8 multibyte.
 
 // ====================================================================
 // FESTIVITÀ E SOSPENSIONE
 // ====================================================================
 
 // Costanti per mesi (JavaScript usa indici 0-11)
-const MONTH = {
+var MONTH = {
   JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5,
   JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11
 };
 
 // Giorni in cui il sistema DEVE rispondere (dipendenti in ferie)
-const ALWAYS_OPERATING_DAYS = [
+var ALWAYS_OPERATING_DAYS = [
   [MONTH.JAN, 1],    // Capodanno
   [MONTH.JAN, 6],    // Epifania
   [MONTH.APR, 25],   // Liberazione
@@ -253,30 +253,9 @@ function isInSuspensionTime(checkDate = new Date()) {
  * permette un ciclo di lavorazione anche durante la sospensione.
  */
 function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 20) {
-  const cutoffMs = Date.now() - (maxAgeHours * 60 * 60 * 1000);
-
-  const labelName = (typeof CONFIG !== 'undefined' && CONFIG.LABEL_NAME) ? CONFIG.LABEL_NAME : 'IA';
-  const errorLabel = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME) ? CONFIG.ERROR_LABEL_NAME : 'Errore';
-  const validationLabel = (typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_ERROR_LABEL) ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica';
-  const quoteLabel = (label) => `"${String(label).replace(/"/g, '\\"')}"`;
-
-  // Usa older_than per garantire la visibilità dei thread vecchi (stale)
-  // anche in presenza di molti nuovi messaggi che saturerebbero il searchLimit.
-  const query = `in:inbox is:unread older_than:${maxAgeHours}h -label:${quoteLabel(labelName)} -label:${quoteLabel(errorLabel)} -label:${quoteLabel(validationLabel)}`;
-  const threads = GmailApp.search(query, 0, searchLimit);
-
-  for (const thread of threads) {
-    const messages = thread.getMessages();
-    for (const message of messages) {
-      if (!message.isUnread()) continue;
-      const messageDate = message.getDate();
-      if (messageDate && messageDate.getTime() <= cutoffMs) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+  const query = `is:unread older_than:${maxAgeHours}h`;
+  const threads = GmailApp.search(query, 0, Math.min(searchLimit, 15));
+  return threads.length > 0;
 }
 
 // ====================================================================

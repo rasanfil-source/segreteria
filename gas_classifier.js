@@ -12,7 +12,7 @@
  * - Categorizzazione suggerimento per Gemini
  * - Estrazione contenuto principale (rimuove citazioni/firme)
  */
-class Classifier {
+var Classifier = class Classifier {
   constructor() {
     console.log('🧠 Inizializzazione Classifier...');
 

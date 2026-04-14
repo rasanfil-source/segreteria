@@ -12,7 +12,7 @@
  * - AI-Core: Solo quando needsDiscernment = true
  * - Dottrina: Solo quando needsDoctrine = true
  */
-class RequestTypeClassifier {
+var RequestTypeClassifier = class RequestTypeClassifier {
   constructor() {
     console.log('📊 Inizializzazione RequestTypeClassifier...');
 

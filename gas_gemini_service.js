@@ -599,6 +599,29 @@ Output JSON:
     const text = ` ${safeSubject} ${safeContent} `.substring(0, 3000).toLowerCase();
     const originalText = ` ${safeSubject} ${safeContent} `.substring(0, 3000);
 
+    // 1. Rilevamento potenziato Italiano istituzionale (Priorità Massima)
+    // Previene errori su richieste formali che potrebbero avere molti termini latini o esteri.
+    const snippet = text.substring(0, 800);
+    const itIstituzionale = [
+      'segreteria', 'parrocchia', 'sant\'eugenio', 'don raimondo', 'ufficio parrocchiale',
+      'certificato di battesimo', 'nulla osta', 'celebrazione', 'sacramento', 'eucaristia',
+      'comunione', 'cresima', 'matrimonio', 'funerale', 'benedizione'
+    ];
+    if (itIstituzionale.some(k => snippet.includes(k))) {
+      console.log(`\u2705 Lingua rilevata (Istituzionale): IT (Confidence: 5)`);
+      return { lang: 'it', confidence: 5, safetyGrade: 5 };
+    }
+
+    // 2. Score basato su indicatori frequenti (fallback)
+    const indicators = {
+      'it': ['buon', 'grazie', 'messaggio', 'cortesi', 'saluti', 'gentile', 'lei', 'perché', 'come', 'quando', 'vorrei'],
+      'en': ['thank', 'regards', 'dear', 'parish', 'mass', 'church', 'would', 'could'],
+      'es': ['gracias', 'saludos', 'estimado', 'parroquia', 'misa', 'iglesia', 'querría'],
+      'fr': ['merci', 'cordialement', 'cher', 'paroisse', 'messe', 'église', 'voudrais'],
+      'de': ['danke', 'grüße', 'liebe', 'pfarrei', 'messe', 'kirche', 'möchte'],
+      'pt': ['obrigado', 'obrigada', 'cumprimentos', 'paróquia', 'missa', 'igreja', 'orçamento']
+    };
+
     // Rilevamento caratteri specifici
     let spanishCharScore = 0;
     let portugueseCharScore = 0;

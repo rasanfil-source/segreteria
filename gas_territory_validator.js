@@ -5,7 +5,7 @@
  * basandosi su un database di vie e numeri civici.
  */
 
-class TerritoryValidator {
+var TerritoryValidator = class TerritoryValidator {
     constructor(options = {}) {
         this.logger = options.logger || console;
         this._streetTypePatternSource = this._buildStreetTypePatternSource();

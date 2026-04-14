@@ -207,7 +207,8 @@ var CONFIG = {
     'amazon.com', 'eventbrite.com', 'paypal.com', 'ebay.com',
     'subito.it', 'mailchimp.com', 'mailup.com',
     'unclickperlascuolaelosport.it', 'sendinblue.com',
-    'miqueldg63@gmail.com', 'rego.juan@gmail.com'
+    'miqueldg63@gmail.com', 'rego.juan@gmail.com',
+    'donraimondo@example.com', 'comunicazioni@example.com'
   ],
   IGNORE_KEYWORDS: [
     'unsubscribe', 'opt-out', 'newsletter',

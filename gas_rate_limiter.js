@@ -12,7 +12,7 @@
  * - Applica throttling quando ci si avvicina ai limiti
  * - Passa al modello di riserva se il principale è esaurito
  */
-class GeminiRateLimiter {
+var GeminiRateLimiter = class GeminiRateLimiter {
   constructor() {
     console.log('\uD83D\uDEA6 Inizializzazione GeminiRateLimiter...');
 
@@ -668,8 +668,8 @@ class GeminiRateLimiter {
     this.cache[cacheKey] = this.cache[cacheKey].filter(e => now - e.timestamp < 60000);
 
     // Limita dimensioni array per rispettare limiti PropertiesService (~9kb)
-    if (this.cache[cacheKey].length > 100) {
-      this.cache[cacheKey] = this.cache[cacheKey].slice(-100);
+    if (this.cache[cacheKey].length > 70) {
+      this.cache[cacheKey] = this.cache[cacheKey].slice(-70);
     }
 
     // Persist ogni 10 secondi (batch writes)
@@ -687,16 +687,16 @@ class GeminiRateLimiter {
     // 1. Pulisci RPM e applica LIMITE DI SICUREZZA
     let newRpm = rpmWindow.filter(e => now - e.timestamp < 60000);
     // Taglio di sicurezza esplicito per RPM
-    if (newRpm.length > 100) {
-      newRpm = newRpm.slice(-100);
+    if (newRpm.length > 70) {
+      newRpm = newRpm.slice(-70);
     }
     this.cache.rpmWindow = newRpm;
 
     // 2. Pulisci TPM e applica LIMITE DI SICUREZZA
     let newTpm = tpmWindow.filter(e => now - e.timestamp < 60000);
     // Taglio di sicurezza esplicito per TPM
-    if (newTpm.length > 100) {
-      newTpm = newTpm.slice(-100);
+    if (newTpm.length > 70) {
+      newTpm = newTpm.slice(-70);
     }
     this.cache.tpmWindow = newTpm;
 
@@ -863,7 +863,7 @@ class GeminiRateLimiter {
     // Ordina per timestamp e limita
     return merged
       .sort((a, b) => a.timestamp - b.timestamp)
-      .slice(-100);
+      .slice(-70);
   }
 
   _getRequestsInWindow(windowType, modelKey) {

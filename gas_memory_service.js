@@ -19,7 +19,7 @@
  * - Topic tracking (anti-ripetizione)
  * - Operazioni atomiche
  */
-class MemoryService {
+var MemoryService = class MemoryService {
   constructor() {
     console.log('🧠 Inizializzazione MemoryService (basato su Sheet)...');
 

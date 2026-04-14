@@ -11,7 +11,7 @@
  * ✅ Dati allucinati (email, telefoni, orari non in KB)
  * ✅ Ragionamento esposto (thinking leak)
  */
-class ResponseValidator {
+var ResponseValidator = class ResponseValidator {
   constructor() {
     console.log('🔍 Inizializzazione ResponseValidator...');
 
