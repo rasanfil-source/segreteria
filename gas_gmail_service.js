@@ -923,7 +923,8 @@ class GmailService {
      * Estrae gli allegati processabili in modalità multimodale.
      * - TXT/CSV: estratti come testo di contesto
      * - PDF/Immagini: passati come Blob
-     * - DOC/DOCX/PPT/PPTX/XLS/XLSX: convertiti al volo in PDF
+     * - DOC/DOCX/PPT/PPTX: convertiti al volo in PDF
+     * - XLS/XLSX: estratti come testo (tabellare) nel contesto
      * @param {GmailMessage} message
      * @param {object} options
      * @returns {{textContext: string, blobs: Array<Blob>, skipped: Array}}
@@ -1024,35 +1025,53 @@ class GmailService {
                 mimeType.includes('mspowerpoint') ||
                 mimeType.includes('presentationml');
 
-            // XLS/XLSX: preferisci estrazione testuale (più utile e robusta in assenza Vision)
+            // Excel (XLS/XLSX): preferisci testo contestuale invece di blob PDF
             if (isExcel) {
                 try {
-                    const extracted = this._extractOfficeText(
-                        attachment,
-                        this._officeMimeMap['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-                        settings
-                    ) || '';
+                    const googleMimeType = this._officeMimeMap[mimeType]
+                        || 'application/vnd.google-apps.spreadsheet';
+                    const extracted = this._extractOfficeText(attachment, googleMimeType, settings) || '';
+
                     if (!extracted.trim()) {
                         result.skipped.push({ name: name, reason: 'office_empty' });
                         continue;
                     }
+
                     let text = extracted;
                     if (maxCharsPerFile > 0 && text.length > maxCharsPerFile) {
                         text = text.substring(0, maxCharsPerFile);
-                        result.skipped.push({ name: name, reason: 'text_truncated', kept: text.length, originalSize: extracted.length });
+                        result.skipped.push({
+                            name: name,
+                            reason: 'text_truncated',
+                            kept: text.length,
+                            originalSize: extracted.length
+                        });
                     }
+
                     const segment = `\n\n--- Contenuto file: ${name} ---\n${text}`;
-                    const remaining = maxTotalChars > 0 ? (maxTotalChars - totalTextChars) : Infinity;
-                    if (remaining <= 0) {
-                        result.skipped.push({ name: name, reason: 'max_total_chars' });
-                        continue;
+                    if (maxTotalChars > 0) {
+                        const remaining = maxTotalChars - totalTextChars;
+                        if (remaining <= 0) {
+                            result.skipped.push({ name: name, reason: 'max_total_chars' });
+                            continue;
+                        }
+                        const bounded = segment.length > remaining
+                            ? segment.substring(0, remaining)
+                            : segment;
+                        if (bounded.length < segment.length) {
+                            result.skipped.push({
+                                name: name,
+                                reason: 'max_total_chars',
+                                kept: bounded.length
+                            });
+                        }
+                        result.textContext += bounded;
+                        totalTextChars += bounded.length;
+                    } else {
+                        result.textContext += segment;
+                        totalTextChars += segment.length;
                     }
-                    const bounded = segment.length > remaining ? segment.substring(0, remaining) : segment;
-                    if (bounded.length < segment.length) {
-                        result.skipped.push({ name: name, reason: 'max_total_chars', kept: bounded.length });
-                    }
-                    result.textContext += bounded;
-                    totalTextChars += bounded.length;
+
                     processedCount++;
                 } catch (e) {
                     result.skipped.push({ name: name, reason: 'office_extract_error', error: e.message });
