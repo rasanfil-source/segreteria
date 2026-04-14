@@ -309,9 +309,6 @@ var EmailProcessor = class EmailProcessor {
       // di materiale IA nello stesso thread NON deve nascondere nuovi follow-up non letti.
       candidate = externalUnread[externalUnread.length - 1];
       const candidateRawFrom = candidate.getFrom() || '';
-      const candidateSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
-        ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(candidateRawFrom) || '')
-        : '';
 
       // ====================================================================
       // STEP 0: CONTROLLO ULTIMO MITTENTE (Anti-Loop & Ownership)
@@ -334,24 +331,6 @@ var EmailProcessor = class EmailProcessor {
         unlabeledUnread.forEach(message => this._markMessageAsProcessed(message, labeledMessageIds));
         result.status = 'skipped';
         result.reason = 'last_speaker_is_me';
-        return result;
-      }
-
-      // ====================================================================
-      // STEP 0.1: ANTI-AUTO-RISPOSTA (Safe Sender Check)
-      // ====================================================================
-      const safeSenderEmail = candidateSenderEmail;
-
-      // Verifica mittente: confronta solo con email proprie e alias configurati.
-      // Il confronto con i destinatari (To/CC) è stato rimosso perché genera
-      // falsi positivi su mailing list e thread con CC multipli.
-      const isMe = Boolean(safeSenderEmail) && ownAddresses.has(safeSenderEmail);
-
-      if (isMe) {
-        console.log('   ⊖ Saltato: messaggio auto-inviato (o da alias conosciuto)');
-        this._markMessageAsProcessed(candidate, labeledMessageIds);
-        result.status = 'skipped';
-        result.reason = 'self_sent';
         return result;
       }
 
