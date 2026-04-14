@@ -253,9 +253,13 @@ function isInSuspensionTime(checkDate = new Date()) {
  * permette un ciclo di lavorazione anche durante la sospensione.
  */
 function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 20) {
-  const query = `is:unread older_than:${maxAgeHours}h`;
-  const threads = GmailApp.search(query, 0, Math.min(searchLimit, 15));
-  return threads.length > 0;
+  const cutoffMs = Date.now() - ((Number(maxAgeHours) || 12) * 60 * 60 * 1000);
+  const threads = GmailApp.search('is:unread', 0, Math.min(searchLimit, 15));
+  return threads.some(thread =>
+    thread.getMessages().some(message =>
+      message.isUnread() && message.getDate().getTime() <= cutoffMs
+    )
+  );
 }
 
 // ====================================================================
