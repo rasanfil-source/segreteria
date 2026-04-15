@@ -1633,7 +1633,7 @@ ALLORA:
 Esempio di risposta CORRETTA per persona divorziata:
 "Comprendiamo la delicatezza della sua situazione. Per poter valutare insieme
 il suo caso specifico, le consigliamo di parlare direttamente con un sacerdote.
-Può contattarci per fissare un appuntamento: Tel. 06 323 18 84.
+Può contattarci per fissare un appuntamento: Tel. [numero in KB].
 Restiamo a disposizione."
 
 ══════════════════════════════════════════════════════════════════════`;
