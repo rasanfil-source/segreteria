@@ -59,7 +59,7 @@ var ResponseValidator = class ResponseValidator {
     };
 
     // Placeholder da rilevare
-    this.placeholders = ['XXX', 'TODO', '<insert>', 'placeholder', 'tbd', 'TBD'];
+    this.placeholders = ['XXX', 'TODO', '...', '<insert>', 'placeholder', 'tbd', 'TBD'];
 
     // Pattern di ragionamento esposto (thinking leak) - CRITICO
     // IBRIDO: Regex semantiche + pattern statici specifici

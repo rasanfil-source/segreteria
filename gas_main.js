@@ -226,12 +226,15 @@ function isInSuspensionTime(checkDate = new Date()) {
   // 2. ORARI UFFICIO (Sistema SOSPESO)
   // Utilizza i dati caricati dal foglio Controllo in (A10:D16/B10:E16) durante il loadResources
   // Se non presenti, usa il fallback definito via codice in SUSPENSION_HOURS
-  const hasCachedSuspensionRules = (
+  // loaded è il discriminante autoritativo: se la cache è caricata, prevalgono le regole da foglio.
+  // Compatibilità payload legacy: se suspensionRules è null, interpretiamo come "nessuna sospensione".
+  const sheetRulesLoaded = (
     typeof GLOBAL_CACHE !== 'undefined'
     && GLOBAL_CACHE.loaded
-    && GLOBAL_CACHE.suspensionRules
   );
-  const rules = hasCachedSuspensionRules ? GLOBAL_CACHE.suspensionRules : SUSPENSION_HOURS;
+  const rules = sheetRulesLoaded
+    ? (GLOBAL_CACHE.suspensionRules != null ? GLOBAL_CACHE.suspensionRules : {})
+    : SUSPENSION_HOURS;
 
   if (rules[day]) {
     for (const [startH, endH] of rules[day]) {
