@@ -995,7 +995,7 @@ ${addressLines.join('\n\n')}
         const errorToReport = initialError || generationError;
         const errorClass = errorToReport ? classifyErrorFn(errorToReport) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
         console.error('🛑 TUTTE le strategie di generazione sono fallite.');
-        this._addErrorLabel(thread);
+        this._addErrorLabel(candidate || thread);
         this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'error';
         result.error = errorToReport ? String(errorToReport.message || errorToReport) : 'Generation strategies exhausted';
@@ -1008,7 +1008,7 @@ ${addressLines.join('\n\n')}
 
       if (typeof response !== 'string') {
         console.error(`🛑 Risposta non valida da Gemini: tipo ricevuto '${typeof response}'`);
-        this._addErrorLabel(thread);
+        this._addErrorLabel(candidate || thread);
         this._markMessageAsProcessed(candidate, labeledMessageIds);
         result.status = 'error';
         result.error = 'Invalid response type from GeminiService';
@@ -1137,7 +1137,7 @@ ${addressLines.join('\n\n')}
             result.reason = 'thinking_leak';
           }
 
-          this._addValidationErrorLabel(thread);
+          this._addValidationErrorLabel(candidate || thread);
           this._markMessageAsProcessed(candidate, labeledMessageIds);
           result.status = 'validation_failed';
           result.validationFailed = true;
@@ -1174,6 +1174,9 @@ ${addressLines.join('\n\n')}
       if (this.config.dryRun) {
         console.log('   🔴 DRY RUN - Risposta non inviata');
         console.log(`   📄 Invierebbe: ${response.substring(0, 100)}...`);
+        if (candidate) {
+          this._markMessageAsProcessed(candidate, labeledMessageIds);
+        }
         result.dryRun = true;
         result.status = 'replied';
         result.durationMs = Date.now() - startTime;
@@ -1205,7 +1208,7 @@ ${addressLines.join('\n\n')}
         const errorMessage = e && e.message ? e.message : String(e);
         console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
         try {
-          this._addErrorLabel(thread);
+          this._addErrorLabel(candidate || thread);
         } catch (labelError) {
           console.warn(`⚠️ Errore aggiunta errorLabel silenziato: ${labelError.message}`);
         }
@@ -1281,7 +1284,7 @@ ${addressLines.join('\n\n')}
       }
 
       try {
-        this._addErrorLabel(thread);
+        this._addErrorLabel(candidate || thread);
       } catch (labelError) {
         console.warn(`⚠️ Errore aggiunta errorLabel silenziato: ${labelError.message}`);
       }
@@ -1875,12 +1878,20 @@ ${addressLines.join('\n\n')}
     }
   }
 
-  _addErrorLabel(thread) {
-    this.gmailService.addLabelToThread(thread, this.config.errorLabelName);
+  _addErrorLabel(target) {
+    if (target && typeof target.getThread === 'function' && typeof target.getId === 'function') {
+      this.gmailService.addLabelToMessage(target.getId(), this.config.errorLabelName);
+      return;
+    }
+    this.gmailService.addLabelToThread(target, this.config.errorLabelName);
   }
 
-  _addValidationErrorLabel(thread) {
-    this.gmailService.addLabelToThread(thread, this.config.validationErrorLabel);
+  _addValidationErrorLabel(target) {
+    if (target && typeof target.getThread === 'function' && typeof target.getId === 'function') {
+      this.gmailService.addLabelToMessage(target.getId(), this.config.validationErrorLabel);
+      return;
+    }
+    this.gmailService.addLabelToThread(target, this.config.validationErrorLabel);
   }
 
   // Classifica gli errori di validazione in categorie utili per il retry LLM

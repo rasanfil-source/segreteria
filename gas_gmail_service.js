@@ -1830,6 +1830,7 @@ var GmailService = class GmailService {
         const plainText = this._htmlToPlainText(htmlBody);
 
         const hasThreadingInfo = messageDetails.rfc2822MessageId;
+        let apiSendError = null;
 
         if (hasThreadingInfo) {
             try {
@@ -1939,6 +1940,7 @@ var GmailService = class GmailService {
                 return;
 
             } catch (apiError) {
+                apiSendError = apiError;
                 console.warn(`⚠️ Gmail API fallita, ripiego su GmailApp: ${apiError.message}`);
             }
         }
@@ -1985,6 +1987,12 @@ var GmailService = class GmailService {
                         this.addLabelToThread(targetThread, errorLabel);
                     }
                 }
+                const rootCauses = [];
+                if (apiSendError && apiSendError.message) {
+                    rootCauses.push(`Gmail API: ${apiSendError.message}`);
+                }
+                rootCauses.push(`Fallback nativo: ${fallbackError.message}`);
+                throw new Error(rootCauses.join(' | '));
             }
         }
     }
