@@ -2032,7 +2032,8 @@ var GmailService = class GmailService {
             }
         }
 
-        return text.replace(/,\s+([A-ZÀÈÉÌÒÙ])([a-zàèéìòù]*)/g, (match, firstLetter, rest, offset) => {
+        // Evita di alterare acronimi/parole interamente maiuscole (es. "ISEE", "INVIA")
+        return text.replace(/,\s+([A-ZÀÈÉÌÒÙ])([a-zàèéìòù]+)/g, (match, firstLetter, rest, offset) => {
             // Eccezione per elenchi numerati (es: "1, Partecipanti")
             const beforeMatch = text.substring(Math.max(0, offset - 5), offset);
             if (beforeMatch.match(/\d+$/)) {
