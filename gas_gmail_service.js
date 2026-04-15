@@ -1887,7 +1887,7 @@ var GmailService = class GmailService {
                     'MIME-Version: 1.0',
                     `From: ${stableFrom}`,
                     `To: ${messageDetails.senderEmail}`,
-                    `Subject: =?UTF-8?B?${Utilities.base64Encode(replySubject, Utilities.Charset.UTF_8)}?=`,
+                    this._buildFoldedUtf8SubjectHeader(replySubject),
                     `In-Reply-To: ${messageDetails.rfc2822MessageId}`,
                     `References: ${referencesHeader}`,
                     `Content-Type: multipart/alternative; boundary="${boundary}"`
@@ -2125,6 +2125,44 @@ var GmailService = class GmailService {
             .replace(/\s{2,}/g, ' ')
             .trim();
         return folded || 'Re:';
+    }
+
+    /**
+     * Crea header Subject RFC 2047 UTF-8 Base64 con folding robusto.
+     * - Ogni encoded-word resta <= 75 caratteri.
+     * - Ogni riga header resta <= 76 caratteri (continuation line con spazio iniziale).
+     * @param {string} subject
+     * @returns {string}
+     */
+    _buildFoldedUtf8SubjectHeader(subject) {
+        const safeSubject = this._sanitizeSubjectForHeader(subject);
+        const encodedBase64 = Utilities.base64Encode(safeSubject, Utilities.Charset.UTF_8).replace(/\r?\n/g, '');
+
+        const encodedWordPrefix = '=?UTF-8?B?';
+        const encodedWordSuffix = '?=';
+        const encodedWordOverhead = encodedWordPrefix.length + encodedWordSuffix.length;
+        const maxEncodedWordLen = 75;
+        const maxBase64ChunkLen = Math.max(1, maxEncodedWordLen - encodedWordOverhead);
+        const encodedWords = (encodedBase64.match(new RegExp(`.{1,${maxBase64ChunkLen}}`, 'g')) || [''])
+            .map(chunk => `${encodedWordPrefix}${chunk}${encodedWordSuffix}`);
+
+        const headerPrefix = 'Subject: ';
+        const maxHeaderLineLen = 76;
+        const foldedLines = [];
+        let currentLine = headerPrefix;
+
+        for (const word of encodedWords) {
+            const separator = currentLine === headerPrefix ? '' : ' ';
+            if ((currentLine + separator + word).length <= maxHeaderLineLen) {
+                currentLine += separator + word;
+            } else {
+                foldedLines.push(currentLine);
+                currentLine = ` ${word}`;
+            }
+        }
+
+        foldedLines.push(currentLine);
+        return foldedLines.join('\r\n');
     }
 
     /**
