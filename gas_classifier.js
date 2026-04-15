@@ -241,8 +241,8 @@ var Classifier = class Classifier {
     processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
     processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*$/gi, '');
 
-    // Rimuove div.gmail_quote
-    processedBody = processedBody.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*?<\/div>/gi, '');
+    // Rimuove div.gmail_quote in modo robusto (trancia fino a fine messaggio)
+    processedBody = processedBody.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*$/gi, '');
 
     // Rimuove quote stile Outlook
     processedBody = processedBody.replace(/<div\s+id=["']?divRplyFwdMsg["']?[^>]*>[\s\S]*$/gi, '');
