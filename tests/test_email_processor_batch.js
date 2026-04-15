@@ -82,9 +82,19 @@ console.log('--- Test processThread: already_labeled_no_new_unread ---');
     }
   });
 
+  const originalWarn = console.warn;
+  const warnings = [];
+  console.warn = (message) => warnings.push(String(message));
+
   const res = processor.processThread(thread, 'kb', '', labeled, true);
+
+  console.warn = originalWarn;
   assert(res.status === 'skipped', 'deve saltare thread senza nuovi unread non etichettati');
   assert(res.reason === 'already_labeled_no_new_unread', 'reason atteso already_labeled_no_new_unread');
+  assert(
+    !warnings.some(msgWarn => msgWarn.includes('Impossibile recuperare email utente')),
+    'non deve loggare warning Session quando Session è undefined'
+  );
 }
 
 console.log('--- Test processThread: no_external_unread ---');

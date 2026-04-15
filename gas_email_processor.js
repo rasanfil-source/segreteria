@@ -200,12 +200,18 @@ var EmailProcessor = class EmailProcessor {
       // Recupero indirizzo email corrente con fallback robusto
       let myEmail = '';
       try {
-        const effectiveUser = Session.getEffectiveUser();
-        myEmail = effectiveUser ? effectiveUser.getEmail() : '';
+        const hasEffectiveUserAccessor = (typeof Session !== 'undefined' && Session && typeof Session.getEffectiveUser === 'function');
+        if (hasEffectiveUserAccessor) {
+          const effectiveUser = Session.getEffectiveUser();
+          myEmail = effectiveUser ? effectiveUser.getEmail() : '';
+        }
 
         if (!myEmail) {
-          const activeUser = Session.getActiveUser();
-          myEmail = activeUser ? activeUser.getEmail() : '';
+          const hasActiveUserAccessor = (typeof Session !== 'undefined' && Session && typeof Session.getActiveUser === 'function');
+          if (hasActiveUserAccessor) {
+            const activeUser = Session.getActiveUser();
+            myEmail = activeUser ? activeUser.getEmail() : '';
+          }
         }
       } catch (e) {
         console.warn(`⚠️ Impossibile recuperare email utente: ${e.message}`);
