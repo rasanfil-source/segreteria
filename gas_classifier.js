@@ -359,7 +359,7 @@ var Classifier = class Classifier {
       normalized = normalized.replace(/[^\p{L}\p{N}\s!]/gu, '');
     } catch (e) {
       // Fallback compatibilità runtime che non supportano Unicode property escapes
-      normalized = normalized.replace(/[^\w\s!àèéìòù]/g, '');
+      normalized = normalized.replace(/[^\w\s!À-ÖØ-öø-ÿ]/g, '');
     }
     normalized = normalized.replace(/\s+/g, ' ');
 
@@ -454,12 +454,16 @@ var Classifier = class Classifier {
     let maxCategory = null;
     let maxScore = 0;
     const priority = ['sbattezzo', 'sacrament', 'complaint', 'quotation', 'collaboration', 'appointment', 'information'];
+    const getPriorityOrInfinity = (category) => {
+      const idx = priority.indexOf(category);
+      return idx !== -1 ? idx : Number.POSITIVE_INFINITY;
+    };
     for (const cat in categoryScores) {
-      const catPriority = priority.indexOf(cat);
-      const maxPriority = maxCategory ? priority.indexOf(maxCategory) : Number.POSITIVE_INFINITY;
+      const catPriority = getPriorityOrInfinity(cat);
+      const maxPriority = maxCategory ? getPriorityOrInfinity(maxCategory) : Number.POSITIVE_INFINITY;
       if (
         categoryScores[cat] > maxScore ||
-        (categoryScores[cat] === maxScore && catPriority !== -1 && catPriority < maxPriority)
+        (categoryScores[cat] === maxScore && catPriority < maxPriority)
       ) {
         maxScore = categoryScores[cat];
         maxCategory = cat;

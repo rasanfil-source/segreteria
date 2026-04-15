@@ -2285,7 +2285,7 @@ ${prompt.slice(-tailChars)}`;
       : 'in un orario diverso rispetto a quanto da Lei indicato';
 
     // Inserisce la nota nella prima frase che contiene un orario, indipendentemente dal sacramento/corso.
-    const sentencePattern = /([^\n.!?]*\b(?:[01]?\d|2[0-3])[:.][0-5]\d\b[^\n.!?]*)([.!?])/i;
+    const sentencePattern = /([^\n.!?]*\b(?:[01]?\d|2[0-3])[:.][0-5]\d\b[^\n.!?]*)([.!?]|\s*$)/i;
 
     if (sentencePattern.test(response)) {
       return response.replace(sentencePattern, (full, sentence, endPunct) => {
