@@ -233,7 +233,9 @@ function isInSuspensionTime(checkDate = new Date()) {
     && GLOBAL_CACHE.loaded
   );
   const rules = sheetRulesLoaded
-    ? (GLOBAL_CACHE.suspensionRules != null ? GLOBAL_CACHE.suspensionRules : {})
+    ? (GLOBAL_CACHE.suspensionRules !== null && GLOBAL_CACHE.suspensionRules !== undefined
+      ? GLOBAL_CACHE.suspensionRules
+      : SUSPENSION_HOURS)
     : SUSPENSION_HOURS;
 
   if (rules[day]) {
@@ -922,7 +924,12 @@ function _extractSuspensionHoursFromRow(row) {
 function _loadAdvancedConfig(ss) {
   const config = { systemEnabled: true, languageMode: 'all', vacationPeriods: [], suspensionRules: {}, ignoreDomains: [], ignoreKeywords: [] };
   const sheet = ss.getSheetByName('Controllo');
-  if (!sheet) return config;
+  if (!sheet) {
+    // null = sheet assente (distinto da {}: sheet presente ma nessuna regola impostata)
+    // isInSuspensionTime userà SUSPENSION_HOURS como fallback sicuro.
+    config.suspensionRules = null;
+    return config;
+  }
 
   withSheetsRetry(() => {
     // Interruttore
@@ -1343,6 +1350,9 @@ function _formatDateForKnowledgeText(date) {
     const utilitySupportsTimeTokens = /^\d{1,2}$/.test(hStr) && /^\d{1,2}$/.test(mStr) && /^\d{1,2}$/.test(sStr);
 
     if (utilitySupportsTimeTokens) {
+      // Nota edge-case: in Google Sheets una data/ora esattamente alle 00:00
+      // è indistinguibile da una "data-only" guardando solo i componenti temporali.
+      // In quel caso questa serializzazione produrrà yyyy-MM-dd.
       const hasTime = parseInt(hStr, 10) !== 0 || parseInt(mStr, 10) !== 0 || parseInt(sStr, 10) !== 0;
       const pattern = hasTime ? 'yyyy-MM-dd HH:mm' : 'yyyy-MM-dd';
       return Utilities.formatDate(date, tz, pattern);

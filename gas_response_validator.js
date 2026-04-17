@@ -81,9 +81,10 @@ var ResponseValidator = class ResponseValidator {
       'nb:',
       'come da istruzioni',
       'secondo le linee guida',
-      'le date del 202',
-      'sono passate',
-      'non sono ancora presenti'
+      'non sono ancora presenti nella kb',
+      'non sono ancora presenti in knowledge base',
+      'le date indicate non sono nella kb',
+      'queste date non sono presenti nella kb'
     ];
 
     // Pattern firma (case-insensitive) - supporta multilingua

@@ -20,7 +20,7 @@ var GmailService = class GmailService {
         // CacheService.put accetta al massimo 21600 s (6 ore); valori superiori causano
         // un'eccezione silenziosa o un fallimento dell'operazione di put.
         this._cacheTtlSeconds = Math.min(21600, Math.max(60, Math.floor(this._cacheTTL / 1000)));
-        this._scriptCache = CacheService.getScriptCache();
+        this._scriptCache = (typeof CacheService !== 'undefined' && CacheService) ? CacheService.getScriptCache() : null;
 
         // Mappa MIME types Office → tipo Google Workspace per conversione nativa
         this._officeMimeMap = {
@@ -58,7 +58,7 @@ var GmailService = class GmailService {
             this._labelCache.delete(labelName);
         }
 
-        const cachedExists = this._scriptCache.get(cacheKey);
+        const cachedExists = this._scriptCache ? this._scriptCache.get(cacheKey) : null;
         if (cachedExists) {
             const label = GmailApp.getUserLabelByName(labelName);
             if (label) {
@@ -66,14 +66,16 @@ var GmailService = class GmailService {
                 console.log(`📦 Label '${labelName}' trovata in cache persistente`);
                 return label;
             }
-            this._scriptCache.remove(cacheKey);
+            if (this._scriptCache) this._scriptCache.remove(cacheKey);
         }
 
         const labels = GmailApp.getUserLabels();
         for (const label of labels) {
             if (label.getName() === labelName) {
                 this._labelCache.set(labelName, { label: label, ts: now });
-                this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+                if (this._scriptCache) {
+                    this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+                }
                 console.log(`✓ Label '${labelName}' trovata`);
                 return label;
             }
@@ -88,7 +90,9 @@ var GmailService = class GmailService {
             const existingLabel = GmailApp.getUserLabelByName(labelName);
             if (existingLabel) {
                 this._labelCache.set(labelName, { label: existingLabel, ts: now });
-                this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+                if (this._scriptCache) {
+                    this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+                }
                 console.log(`✓ Label '${labelName}' recuperata dopo collisione di creazione`);
                 return existingLabel;
             }
@@ -96,7 +100,9 @@ var GmailService = class GmailService {
         }
 
         this._labelCache.set(labelName, { label: newLabel, ts: now });
-        this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+        if (this._scriptCache) {
+            this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+        }
         console.log(`✓ Creata nuova label: ${labelName}`);
         return newLabel;
     }
@@ -108,7 +114,7 @@ var GmailService = class GmailService {
 
     _clearPersistentLabelCache(labelName) {
         if (!labelName) return;
-        this._scriptCache.remove(`gmail_label_exists:${labelName}`);
+        if (this._scriptCache) this._scriptCache.remove(`gmail_label_exists:${labelName}`);
     }
 
     addLabelToThread(thread, labelName) {
@@ -1861,11 +1867,9 @@ var GmailService = class GmailService {
                 const stableFrom = (
                     (effectiveUser && typeof effectiveUser.getEmail === 'function' && effectiveUser.getEmail())
                     || (activeUser && typeof activeUser.getEmail === 'function' && activeUser.getEmail())
-                    || null
+                    || messageDetails.recipientEmail
+                    || 'noreply@localhost'
                 );
-                if (!stableFrom) {
-                    throw new Error('Impossibile determinare un mittente valido da Session (effective/active user vuoto).');
-                }
 
                 // Reply-To: usa alias solo se presente in To/Cc del messaggio originale
                 let replyToEmail = null;

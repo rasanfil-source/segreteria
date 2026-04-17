@@ -370,7 +370,7 @@ Output JSON:
       throw new Error(`Errore connessione API: ${fetchError.message}`);
     }
 
-    responseCode = response.getResponseCode();
+    // responseCode è già valorizzato dal path primario o dal fallback backup key.
 
     if (responseCode === 429) {
       throw new Error('QUOTA_EXHAUSTED_ALL_KEYS: Limite quota raggiunto su tutte le chiavi disponibili (429)');

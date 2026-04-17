@@ -344,8 +344,10 @@ var EmailProcessor = class EmailProcessor {
       if (languageMode === 'foreign_only') {
         const subjectOnly = (candidate.getSubject() || '');
         if (subjectOnly.trim() !== '') {
-          // Regex basata sui dizzionari interni di Classifier.gs
-          const italianPattern = /\b(appuntamento|fissare|prenotare|disponibilit[àa]|orari[oa]|incontro|prenotazione|informazioni|chiedere|sapere|vorrei|come\s+faccio|requisiti|battesimo|comunione|cresima|matrimonio|sacramento|confessione|grazie|salve|buongiorno|buonasera|preventivo|offerta|prezzo|costo|il|lo|la|gli|le|un|uno|una|di|da|in|con|su|per|tra|fra)\b/i;
+          // Pre-check: solo termini inequivocabilmente italiani.
+          // Escluse deliberatamente parole corte polisemiche (in, per, la, di, da, con, il, lo,
+          // gli, le, un, uno, una, su, tra, fra) che causano falsi positivi su lingue straniere.
+          const italianPattern = /\b(appuntamento|fissare|prenotare|disponibilit[àa]|orari[oa]|incontro|prenotazione|informazioni|chiedere|sapere|vorrei|come\s+faccio|requisiti|battesimo|comunione|cresima|matrimonio|sacramento|confessione|grazie|salve|buongiorno|buonasera|preventivo|parrocchia|segreteria|messa|messe)\b/i;
           
           if (italianPattern.test(subjectOnly)) {
             console.log(`   ⊖ Pre-check locale: italiano rilevato nel soggetto ("${subjectOnly.substring(0, 20)}...") → skip anticipato`);
