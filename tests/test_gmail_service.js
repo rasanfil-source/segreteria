@@ -41,6 +41,8 @@ console.log('--- Test sanitizeUrl ---');
 assert(sanitizeUrl('https://example.org/path?q=1') === 'https://example.org/path?q=1', 'URL https valido deve passare');
 assert(sanitizeUrl('javascript:alert(1)') === null, 'URL javascript deve essere bloccato');
 assert(sanitizeUrl('http://127.0.0.1/test') === null, 'URL localhost deve essere bloccato (SSRF)');
+assert(sanitizeUrl('http://[::1%25lo0]/admin') === null, 'IPv6 loopback con zone-id deve essere bloccato (SSRF)');
+assert(sanitizeUrl('http://[::ffff:127.0.0.1%25eth0]/admin') === null, 'IPv4-mapped IPv6 con zone-id deve essere bloccato (SSRF)');
 
 console.log('--- Test markdownToHtml escaping/sicurezza ---');
 const html = markdownToHtml('Ciao **Mondo**\n[link](https://example.org)\n<script>alert(1)</script>');

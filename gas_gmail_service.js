@@ -2364,7 +2364,10 @@ function sanitizeUrl(url) {
 
         const host = String(parseHostFromUrl(decoded) || '').toLowerCase();
         const hostNoBrackets = host.replace(/^\[|\]$/g, '');
-        const normalizedHost = hostNoBrackets.replace(/\.+$/, '');
+        // Normalizza l'eventuale zone id IPv6 (es. ::1%25lo0 / ::1%lo0)
+        // per evitare bypass delle regole SSRF su loopback/link-local.
+        const hostWithoutZone = hostNoBrackets.replace(/%(25)?[a-z0-9_.~-]+$/i, '');
+        const normalizedHost = hostWithoutZone.replace(/\.+$/, '');
 
         if (normalizedHost === 'localhost') {
             console.warn(`🛑 Bloccato tentativo SSRF localhost canonico: ${decoded}`);
@@ -2385,7 +2388,7 @@ function sanitizeUrl(url) {
             return false;
         };
 
-        if (isBlockedIpv6Host(hostNoBrackets)) {
+        if (isBlockedIpv6Host(hostWithoutZone)) {
             console.warn(`🛑 Bloccato tentativo SSRF IPv6 locale: ${decoded}`);
             return null;
         }
@@ -2427,7 +2430,7 @@ function sanitizeUrl(url) {
         ];
 
         const mappedMatch = mappedPatterns
-            .map(pattern => hostNoBrackets.match(pattern))
+            .map(pattern => hostWithoutZone.match(pattern))
             .find(match => match && match[1]);
 
         if (mappedMatch && mappedMatch[1]) {
