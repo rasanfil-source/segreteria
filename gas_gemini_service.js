@@ -1137,18 +1137,6 @@ Output JSON:
   shouldRespondToEmail(emailContent, emailSubject, precomputedDetection = null) {
     // Detection locale per lingua alternativa
     const detection = precomputedDetection || this.detectEmailLanguage(emailContent, emailSubject);
-    const fallbackLang = detection.lang;
-    const defaultResult = {
-      shouldRespond: false,
-      language: fallbackLang,
-      reason: 'failsafe_local_detection',
-      classification: {
-        category: 'TECHNICAL',
-        topic: 'unknown',
-        confidence: 0.0,
-        dimensions: null
-      }
-    };
 
     // RATE LIMITER PATH
     if (this.useRateLimiter) {
@@ -1175,8 +1163,8 @@ Output JSON:
               'Quick check fallback dopo QUOTA_EXHAUSTED'
             );
           } catch (directError) {
-            console.error(`❌ Fallback diretto quick check fallito: ${directError.message}. Uso detection locale.`);
-            return defaultResult;
+            console.error(`❌ Fallback diretto quick check fallito: ${directError.message}. Interruzione per evitare skip silente.`);
+            throw new Error(`Quick check fallito: ${directError.message}`);
           }
         }
         console.warn(`⚠️ Rate Limiter quick check fallito: ${error.message} `);
@@ -1193,8 +1181,8 @@ Output JSON:
         'Quick check'
       );
     } catch (error) {
-      console.warn(`⚠️ Quick check fallito: ${error.message}, uso detection locale`);
-      return defaultResult;
+      console.warn(`⚠️ Quick check fallito: ${error.message}. Interruzione per evitare skip silente.`);
+      throw new Error(`Quick check fallito: ${error.message}`);
     }
   }
 

@@ -186,9 +186,6 @@ var EmailProcessor = class EmailProcessor {
       error: null
     };
 
-    // Usa il metodo interno della classe invece di ricreare una funzione locale
-    const classifyErrorFn = (err) => this._classifyError(err);
-
     let candidate = null;
     let replySent = false;
     try {
@@ -986,7 +983,7 @@ ${addressLines.join('\n\n')}
         } catch (err) {
           generationError = err;
           if (!initialError) initialError = err;
-          const errorClass = classifyErrorFn(err);
+          const errorClass = this._classifyError(err);
           console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass.type}]`);
 
           if (errorClass.type === 'FATAL') {
@@ -1003,7 +1000,7 @@ ${addressLines.join('\n\n')}
 
       if (!response) {
         const errorToReport = initialError || generationError;
-        const errorClass = errorToReport ? classifyErrorFn(errorToReport) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
+        const errorClass = errorToReport ? this._classifyError(errorToReport) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
         console.error('🛑 TUTTE le strategie di generazione sono fallite.');
         this._addErrorLabel(candidate || thread);
         this._markMessageAsProcessed(candidate, labeledMessageIds);
