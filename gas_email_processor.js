@@ -314,7 +314,6 @@ var EmailProcessor = class EmailProcessor {
       // La discovery resta deliberatamente a livello messaggio: l'eventuale presenza
       // di materiale IA nello stesso thread NON deve nascondere nuovi follow-up non letti.
       candidate = externalUnread[externalUnread.length - 1];
-      const candidateRawFrom = candidate.getFrom() || '';
 
       // ====================================================================
       // STEP 0: CONTROLLO ULTIMO MITTENTE (Anti-Loop & Ownership)

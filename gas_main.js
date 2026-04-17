@@ -1422,14 +1422,15 @@ function onEdit(e) {
   const TARGET_CELL = "F2"; // 
 
   if (sheetName === TARGET_SHEET && cellAddress === TARGET_CELL) {
-    console.log("🔄 Rilevata modifica al selettore. Avvio primeCache automatico...");
-    
-    // Esegue la pulizia e ricarica della cache istantaneamente
+    // NOTA: onEdit è un trigger semplice (max 30s, lock non affidabile).
+    // Invalida solo la cache; il reload avviene nel ciclo principale con lock.
+    console.log("🔄 Rilevata modifica al selettore. Invalidazione cache...");
     try {
-      primeCache();
-      SpreadsheetApp.getActiveSpreadsheet().toast("Configurazione aggiornata e cache sincronizzata!", "Sistema IA", 5);
+      clearKnowledgeCache();
+      (e.source || SpreadsheetApp.getActiveSpreadsheet())
+        .toast("Cache invalidata. Ricarica al prossimo ciclo.", "Sistema IA", 5);
     } catch (err) {
-      console.error("Errore durante primeCache automatico: " + err.message);
+      console.error("Errore invalidazione cache in onEdit: " + err.message);
     }
   }
 }

@@ -321,6 +321,8 @@ var RequestTypeClassifier = class RequestTypeClassifier {
 
       needsDiscernment: needsDiscernment,
       needsDoctrine: needsDoctrine,
+      // Usato da getRequestTypeHint() per selezionare template amministrativo.
+      isSbattezzo: formalResult.score >= 4 || dimensions.formal >= 0.8,
       detectedIndicators: [
         ...technicalResult.matched,
         ...pastoralResult.matched,
