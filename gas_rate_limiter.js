@@ -690,8 +690,18 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   }
 
   _refreshCache() {
-    const rpmWindow = JSON.parse(this.props.getProperty('rpm_window') || '[]');
-    const tpmWindow = JSON.parse(this.props.getProperty('tpm_window') || '[]');
+    let rpmWindow = [];
+    let tpmWindow = [];
+    try {
+      rpmWindow = JSON.parse(this.props.getProperty('rpm_window') || '[]');
+    } catch (e) {
+      console.warn('⚠️ Errore parsing rpm_window da PropertiesService, reset a []');
+    }
+    try {
+      tpmWindow = JSON.parse(this.props.getProperty('tpm_window') || '[]');
+    } catch (e) {
+      console.warn('⚠️ Errore parsing tpm_window da PropertiesService, reset a []');
+    }
 
     const now = Date.now();
 

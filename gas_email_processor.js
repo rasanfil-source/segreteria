@@ -490,8 +490,9 @@ var EmailProcessor = class EmailProcessor {
       const MAX_CONSECUTIVE_EXTERNAL = this.config.maxConsecutiveExternal;
 
       if (messages.length > MAX_THREAD_LENGTH) {
-        if (!normalizedMyEmail) {
-          console.warn('   ⚠️ Email utente non disponibile con thread lungo: blocco precauzionale anti-loop');
+        const hasAnyIdentity = Boolean(normalizedMyEmail) || normalizedKnownAliases.length > 0;
+        if (!hasAnyIdentity) {
+          console.warn('   ⚠️ Identità mittente non disponibile con thread lungo: blocco precauzionale anti-loop');
           this._markMessageAsProcessed(candidate, labeledMessageIds);
           result.status = 'filtered';
           result.reason = 'anti_loop_identity_missing';
@@ -503,10 +504,8 @@ var EmailProcessor = class EmailProcessor {
           // Percorriamo i messaggi a ritroso per contare gli esterni consecutivi
           for (let i = messages.length - 1; i >= 0; i--) {
             const msgFrom = (messages[i].getFrom() || '').toLowerCase();
-            const isUs = Boolean(normalizedMyEmail) && (
-              msgFrom.includes(normalizedMyEmail) ||
-              normalizedKnownAliases.some(alias => msgFrom.includes(alias))
-            );
+            const isUs = (Boolean(normalizedMyEmail) && msgFrom.includes(normalizedMyEmail)) ||
+              normalizedKnownAliases.some(alias => msgFrom.includes(alias));
 
             if (isUs) {
               botRepliesCount++;
@@ -643,11 +642,14 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       // STEP 4: CLASSIFICAZIONE TIPO RICHIESTA (Multi-dimensionale)
       // ====================================================================
-      const requestType = this.requestClassifier.classify(
+      const requestTypeRaw = this.requestClassifier.classify(
         messageDetails.subject,
         messageDetails.body,
         quickCheck.classification
       );
+      // Normalizzazione difensiva: alcuni fallback legacy possono restituire null/undefined.
+      // Manteniamo sempre un oggetto per evitare accessi property non sicuri a valle.
+      const requestType = (requestTypeRaw && typeof requestTypeRaw === 'object') ? requestTypeRaw : {};
 
       // ====================================================================
       // STEP 5: KB ENRICHMENT CONDIZIONALE
@@ -838,7 +840,8 @@ ${addressLines.join('\n\n')}
         console.log(`   🧠 PromptContext: profilo=${promptProfile}`);
       }
 
-      const categoryHintSource = String(classification.category || requestType.type || '').toLowerCase() || null;
+      const requestTypeName = requestType && requestType.type ? requestType.type : '';
+      const categoryHintSource = String(classification.category || requestTypeName || '').toLowerCase() || null;
 
       // ====================================================================
       // STEP 7.1: PREPARAZIONE ALLEGATI (Multimodale / Vision)
@@ -1256,7 +1259,7 @@ ${addressLines.join('\n\n')}
 
       const memoryUpdate = {
         language: detectedLanguage,
-        category: classification.category || requestType.type
+        category: classification.category || requestTypeName
       };
 
       if (memorySummary) {
