@@ -90,6 +90,13 @@ var CONFIG = {
     maxCharsWhenKbTruncated: 1500    // Riduzione allegati se KB è troncata
   },
 
+  // === Token per tipo allegato (stima multimodale per budget prompt) ===
+  ATTACHMENT_TOKEN_ESTIMATE: {
+    image: 258,          // Token stimati per immagine (Gemini Vision)
+    pdf: 1032,           // Token stimati per PDF
+    defaultDoc: 1032     // Token stimati per altri documenti
+  },
+
   // === Cache e Lock ===
   CACHE_LOCK_TTL: 240,                 // Secondi (copre OCR + AI + validazione semantica)
   CACHE_RACE_SLEEP_MS: 200,             // Attesa anti-race condition

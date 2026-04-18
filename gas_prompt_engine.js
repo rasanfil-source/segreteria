@@ -168,7 +168,18 @@ var PromptEngine = class PromptEngine {
     let workingKnowledgeBase = this._normalizePromptTextInput(knowledgeBase, '');
     let kbWasTruncated = false;
 
-    const aiCoreLiteSectionOverhead = aiCoreLiteText
+    const shouldReserveAiCoreLiteOverhead = (() => {
+      const requestType = options.requestType;
+      if (typeof requestType === 'string') {
+        return requestType === 'pastoral' || requestType === 'mixed' || requestType === 'doctrinal';
+      }
+      if (requestType && typeof requestType === 'object') {
+        return Boolean(requestType.needsDiscernment || requestType.needsDoctrine);
+      }
+      return false;
+    })();
+
+    const aiCoreLiteSectionOverhead = (aiCoreLiteText && shouldReserveAiCoreLiteOverhead)
       ? this._estimateAiCoreLiteSectionChars(aiCoreLiteText)
       : 0;
     const kbSectionOverhead = this._estimateKbSectionOverheadChars();
