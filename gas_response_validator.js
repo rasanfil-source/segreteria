@@ -726,6 +726,13 @@ var ResponseValidator = class ResponseValidator {
       forbiddenCaps = spanishForbiddenCaps;
     } else if (expectedLanguage === 'pt') {
       forbiddenCaps = portugueseForbiddenCaps;
+    } else if (expectedLanguage === 'fr') {
+      // Francese: set conservativo per ridurre falsi positivi.
+      forbiddenCaps = ['Le', 'La', 'Les', 'Un', 'Une', 'Des', 'Et', 'Ou', 'Mais', 'Pour', 'Dans', 'Sur', 'Par', 'Avec', 'Nous', 'Vous', 'Ils'];
+    } else if (expectedLanguage === 'de') {
+      // Tedesco: i sostantivi sono maiuscoli per grammatica, quindi questa regola
+      // causerebbe warning sistematici non affidabili.
+      forbiddenCaps = [];
     } else {
       forbiddenCaps = italianForbiddenCaps;
     }
