@@ -1160,7 +1160,9 @@ var GmailService = class GmailService {
                     name: `TEMP_CONV_${attachmentBlob.getName() || 'allegato'}`,
                     mimeType: googleMime
                 };
-                const file = Drive.Files.create(resource, attachmentBlob.copyBlob());
+                const file = Drive.Files.create(resource, attachmentBlob.copyBlob(), {
+                    mimeType: googleMime
+                });
                 fileId = file && file.id ? file.id : null;
                 if (!fileId) {
                     console.error('❌ Drive.Files.create ha avuto successo ma non ha restituito un file ID.');
@@ -1337,7 +1339,9 @@ var GmailService = class GmailService {
                     name: `OCR_${fileName}`,
                     mimeType: googleMimeType
                 };
-                const file = Drive.Files.create(resource, blob);
+                const file = Drive.Files.create(resource, blob, {
+                    mimeType: googleMimeType
+                });
                 if (!file || !file.id) {
                     throw new Error('Drive API ha restituito un file convertito non valido (id assente)');
                 }
@@ -1767,6 +1771,7 @@ var GmailService = class GmailService {
         const sigMarkers = [
             /^cordiali saluti\b/im,
             /^distinti saluti\b/im,
+            /^saluti\b/im,
             /^in fede\b/im,
             /best regards/i,
             /sincerely/i,
@@ -1774,7 +1779,10 @@ var GmailService = class GmailService {
             /inviato da/i
         ];
 
-        const signatureSearchStart = Math.floor(result.length * 0.7);
+        // Ricerca firma "tail-aware":
+        // - email brevi: cerca su tutto il testo (evita falsi negativi)
+        // - email lunghe: concentra la ricerca sulle ultime ~600 chars
+        const signatureSearchStart = Math.max(0, result.length - 600);
         const signatureTail = result.substring(signatureSearchStart);
 
         for (const marker of sigMarkers) {
@@ -2322,7 +2330,14 @@ function sanitizeUrl(url) {
     }
 
     decoded = decoded.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
-    const normalized = decoded.toLowerCase().trim();
+    let normalized = decoded.toLowerCase().trim();
+
+    // Compatibilità UX: URL legittimi senza schema (es. "www.parrocchia.it")
+    // vengono normalizzati in https://... prima della whitelist protocolli.
+    if (/^www\.[a-z0-9-]+(\.[a-z0-9-]+)+([/?#].*)?$/i.test(normalized)) {
+        decoded = `https://${decoded.trim()}`;
+        normalized = decoded.toLowerCase().trim();
+    }
 
     const FORBIDDEN_PROTOCOLS = /^\s*(javascript|vbscript|data|file):/i;
     const ALLOWED_PROTOCOLS = /^\s*(https?|mailto):/i;

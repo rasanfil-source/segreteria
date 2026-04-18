@@ -39,6 +39,7 @@ vm.runInThisContext(code, { filename: gasGmailServicePath });
 
 console.log('--- Test sanitizeUrl ---');
 assert(sanitizeUrl('https://example.org/path?q=1') === 'https://example.org/path?q=1', 'URL https valido deve passare');
+assert(sanitizeUrl('www.parrocchia.it/info') === 'https://www.parrocchia.it/info', 'URL www.* legittimo deve essere normalizzato a https');
 assert(sanitizeUrl('javascript:alert(1)') === null, 'URL javascript deve essere bloccato');
 assert(sanitizeUrl('http://127.0.0.1/test') === null, 'URL localhost deve essere bloccato (SSRF)');
 assert(sanitizeUrl('http://[::1%25lo0]/admin') === null, 'IPv6 loopback con zone-id deve essere bloccato (SSRF)');
@@ -152,6 +153,23 @@ console.log('--- Test getProcessableAttachments: MIME con parametri deve essere 
   assert(out.textContext.includes('contabilita.xlsx'), 'XLSX con parametri MIME deve essere processato come testo');
   assert(out.textContext.includes('Contenuto documento office'), 'testo estratto XLSX deve essere presente');
   assert(!out.skipped.some((s) => s.reason === 'unsupported_type'), 'MIME parametrizzati validi non devono risultare unsupported_type');
+}
+
+console.log('--- Test extractMainReply: firma breve deve essere rimossa ---');
+{
+  const shortWithSignature = 'Ciao, a che ora è la messa?\n\nSaluti,\nDonato';
+  const extracted = service.extractMainReply(shortWithSignature);
+  assert(!/saluti/i.test(extracted), 'La firma in email breve deve essere rimossa');
+  assert(extracted.includes('a che ora è la messa?'), 'Il contenuto utile deve rimanere nel testo principale');
+}
+
+console.log('--- Test _chunkBase64: linee max 76 caratteri RFC 2045 ---');
+{
+  const base64 = 'A'.repeat(190);
+  const chunked = service._chunkBase64(base64);
+  const lines = chunked.split('\r\n');
+  assert(lines.every((line) => line.length <= 76), 'Chunk base64 deve rispettare 76 caratteri per riga');
+  assert(lines.join('') === base64, 'Chunk base64 non deve alterare il contenuto');
 }
 
 console.log('--- Test _getMessageMetadataWithResilience: fallback su errore API ---');
