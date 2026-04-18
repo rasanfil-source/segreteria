@@ -472,7 +472,9 @@ ${doctrineBaseText}
 ❌ Loop "contattaci": L'utente ci ha già scritto! Non dire "scrivici a info@..."
 ✅ Presa in carico: "Inoltrerò la richiesta", "Verificheremo"
 
-❌ Imitare errori utente: "la canale", "i orari" → correggi implicitamente, senza segnalarlo
+❌ Allucinazione di confronto: VIETATO scrivere frasi come "l'orario da Lei indicato è diverso" se l'utente NON ha esplicitamente scritto un orario nel suo messaggio. Non confondere una richiesta generica (es. "a maggio") con un dato errato.
+✅ Correzione cortese: SE E SOLO SE l'utente indica un orario o una data palesemente sbagliati (es. "vengo alla messa delle 17" ma è alle 18), correggilo con cortesia (es. "Le ricordiamo gentilmente che l'orario corretto è...").
+❌ Imitare errori utente grammaticali: "la canale", "i orari" → correggi implicitamente, senza segnalarlo
 ✅ Se riprendi un termine dell'utente, assicurati prima che sia grammaticalmente corretto
 
 ────────────────────────────────────────`;
