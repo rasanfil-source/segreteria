@@ -600,7 +600,19 @@ var GmailService = class GmailService {
         const days = Math.max(0, parseInt(n, 10) || 0);
         const d = new Date();
         d.setDate(d.getDate() - days);
-        return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy/MM/dd');
+        const hasUtilitiesFormatDate = (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function');
+        const hasSessionTimezone = (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function');
+
+        if (hasUtilitiesFormatDate && hasSessionTimezone) {
+            try {
+                return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy/MM/dd');
+            } catch (_) { }
+        }
+
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}/${mm}/${dd}`;
     }
 
     // ========================================================================

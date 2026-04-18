@@ -80,6 +80,33 @@ const queryResult = service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10,
 assert(queryResult.threads.length === 1, 'query mode deve continuare dopo errore getThreadById');
 assert(queryResult.threads[0].getId() === 't-ok', 'query mode deve includere thread valido');
 
+console.log('--- Test getMessageIdsWithLabel: fallback data senza Utilities.formatDate/Session ---');
+{
+  const serviceWithLookback = new GmailService();
+  global.CONFIG.GMAIL_LABEL_LOOKBACK_DAYS = 7;
+
+  serviceWithLookback.getOrCreateLabel = () => ({ getId: () => 'label-ia' });
+  serviceWithLookback._listMessagesWithResilience = (params) => {
+    assert(typeof params.q === 'string' && params.q.includes('after:'), 'query deve includere filtro after quando lookback è attivo');
+    assert(/\bafter:\d{4}\/\d{2}\/\d{2}\b/.test(params.q), 'filtro after deve usare formato yyyy/MM/dd anche in fallback');
+    return { messages: [], nextPageToken: null };
+  };
+
+  const originalSession = global.Session;
+  const originalFormatDate = global.Utilities.formatDate;
+  delete global.Session;
+  delete global.Utilities.formatDate;
+
+  const ids = serviceWithLookback.getMessageIdsWithLabel('IA', true, {});
+  assert(ids instanceof Set, 'getMessageIdsWithLabel deve restituire Set anche senza Session/Utilities.formatDate');
+
+  global.Session = originalSession;
+  if (typeof originalFormatDate !== 'undefined') {
+    global.Utilities.formatDate = originalFormatDate;
+  }
+  delete global.CONFIG.GMAIL_LABEL_LOOKBACK_DAYS;
+}
+
 console.log('--- Test getProcessableAttachments: ramo .xlsx come contesto testuale ---');
 {
   const xlsxBlob = {
