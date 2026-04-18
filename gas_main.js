@@ -614,7 +614,8 @@ function _serializeResourceCache(data, forceCompression) {
     throw new Error('Utilities gzip/base64 non disponibili');
   }
 
-  const gzipped = Utilities.gzip(Utilities.newBlob(json, 'application/json'));
+  // Forza UTF-8 nella creazione del blob per consistenza cross-platform
+  const gzipped = Utilities.gzip(Utilities.newBlob(json, 'application/json', Utilities.Charset.UTF_8));
   const base64 = Utilities.base64Encode(gzipped.getBytes());
   return JSON.stringify({
     encoding: 'gzip_base64_json_v1',
@@ -641,20 +642,39 @@ function _deserializeResourceCache(serializedPayload) {
   return JSON.parse(json);
 }
 
-function _splitCachePayload(payload, maxSize) {
+function _splitCachePayload(payload, maxChars) {
+  // Nota: maxChars è una stima iniziale conservativa passata come RESOURCE_CACHE_MAX_PART_SIZE (45000).
+  // CacheService ha un limite fisico di 100KB (102400 byte) per entry.
+  const ABSOLUTE_BYTE_LIMIT = 100000; // Un po' meno di 100KB per sicurezza overhead chiave.
   const parts = [];
-  let i = 0;
-  while (i < payload.length) {
-    let end = Math.min(i + maxSize, payload.length);
-    // Evita split nel mezzo di surrogate pair UTF-16 (es. emoji)
-    if (end < payload.length) {
-      const maybeHighSurrogate = payload.charCodeAt(end - 1);
-      if (maybeHighSurrogate >= 0xD800 && maybeHighSurrogate <= 0xDBFF) {
-        end -= 1;
+  let start = 0;
+
+  while (start < payload.length) {
+    // Cerchiamo il chunk più grande possibile che stia nel limite di byte
+    let length = Math.min(maxChars, payload.length - start);
+    let chunk = payload.substring(start, start + length);
+    
+    // Verifica byte reali (possono superare maxChars se ci sono molti multibyte)
+    let byteLength = Utilities.newBlob(chunk).getBytes().length;
+    
+    // Se sforiamo il limite assoluto di Apps Script, riduciamo il chunk finché non rientra.
+    while (byteLength > ABSOLUTE_BYTE_LIMIT && length > 1000) {
+      length = Math.floor(length * 0.9);
+      chunk = payload.substring(start, start + length);
+      byteLength = Utilities.newBlob(chunk).getBytes().length;
+    }
+
+    // Evita split nel mezzo di surrogate pair UTF-16
+    if (start + length < payload.length) {
+      const lastCode = payload.charCodeAt(start + length - 1);
+      if (lastCode >= 0xD800 && lastCode <= 0xDBFF) {
+        length -= 1;
+        chunk = payload.substring(start, start + length);
       }
     }
-    parts.push(payload.substring(i, end));
-    i = end;
+
+    parts.push(chunk);
+    start += length;
   }
   return parts;
 }

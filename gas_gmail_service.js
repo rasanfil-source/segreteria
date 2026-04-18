@@ -1684,12 +1684,21 @@ var GmailService = class GmailService {
         // Rimuove blocchi di codice/stile che altrimenti finirebbero nel prompt testuale.
         text = text.replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
         // Preserva separatori strutturali per evitare blocchi di testo illeggibili.
-        // È intenzionale: evitare il "muro di testo" migliora la qualità del parsing Gemini.
         text = text.replace(/<br\s*\/?\s*>/gi, '\n');
         text = text.replace(/<\/p\s*>/gi, '\n\n');
         text = text.replace(/<\/div\s*>/gi, '\n');
 
         text = text.replace(/<[^>]+>/g, ' ');
+
+        // Fallback simboli per plain text (evita mojibake in ambienti non-UTF8)
+        text = text
+            .replace(/[\u2713\u2714]/g, '[OK]')
+            .replace(/[\u274C\u2716\u2717]/g, '[X]')
+            .replace(/[\u26A0]/g, '[!]')
+            .replace(/[\uD83D\uDCE7]/g, '[Email]')
+            .replace(/[\u201C\u201D]/g, '"')
+            .replace(/[\u2018\u2019]/g, "'");
+
         text = text.replace(/&nbsp;/g, ' ')
             .replace(/&amp;/g, '&')
             .replace(/&lt;/g, '<')
@@ -2039,6 +2048,14 @@ var GmailService = class GmailService {
     fixPunctuation(text, senderName = '') {
         if (!text) return text;
 
+        // 0. Normalizzazione Encoding: converte smart quotes in standard ASCII
+        // e rimuove caratteri di controllo invisibili che possono corrompere il layout.
+        text = text
+            .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+            .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+            .replace(/[\u2013\u2014]/g, '-')
+            .replace(/[\u200B-\u200D\uFEFF]/g, '');
+
         // Intenzionale: array locale ricreato a ogni chiamata, quindi la mutazione
         // serve solo ad ampliare le eccezioni per il messaggio corrente.
         const exceptions = ['Don', 'Padre', 'Suor', 'Monsignor', 'Papa', 'Signore', 'Signora'];
@@ -2053,7 +2070,8 @@ var GmailService = class GmailService {
         }
 
         // Evita di alterare acronimi/parole interamente maiuscole (es. "ISEE", "INVIA")
-        return text.replace(/,\s+([A-ZÀÈÉÌÒÙ])([a-zàèéìòù]+)/g, (match, firstLetter, rest, offset) => {
+        // Range esteso À-ÿ per coprire tutte le accentate europee (francese, spagnolo, tedesco, italiano...)
+        return text.replace(/,\s+([A-ZÀ-ß])([a-zà-ÿ]+)/g, (match, firstLetter, rest, offset) => {
             // Eccezione per elenchi numerati (es: "1, Partecipanti")
             const beforeMatch = text.substring(Math.max(0, offset - 5), offset);
             if (beforeMatch.match(/\d+$/)) {
@@ -2141,7 +2159,7 @@ var GmailService = class GmailService {
     _sanitizeSubjectForHeader(subject) {
         const safe = (subject === null || subject === undefined) ? '' : String(subject);
         const folded = safe
-            .replace(/[\r\n]+/g, ' ')
+            .replace(/[\r\n\t]+/g, ' ')
             .replace(/\b(?:to|cc|bcc|from|subject|reply-to)\s*:/gi, '')
             .replace(/\s{2,}/g, ' ')
             .trim();
@@ -2150,39 +2168,67 @@ var GmailService = class GmailService {
 
     /**
      * Crea header Subject RFC 2047 UTF-8 Base64 con folding robusto.
-     * - Ogni encoded-word resta <= 75 caratteri.
-     * - Ogni riga header resta <= 76 caratteri (continuation line con spazio iniziale).
+     * Garantisce che:
+     * 1. Ogni encoded-word sia <= 75 caratteri.
+     * 2. Nessun carattere multi-byte (es. emoji, accentate) venga spezzato tra due word.
+     * 3. Ogni word sia decodificabile indipendentemente (Base64 multiplo di 4).
      * @param {string} subject
      * @returns {string}
      */
     _buildFoldedUtf8SubjectHeader(subject) {
         const safeSubject = this._sanitizeSubjectForHeader(subject);
-        const encodedBase64 = Utilities.base64Encode(safeSubject, Utilities.Charset.UTF_8).replace(/\r?\n/g, '');
-
+        
+        // Se il soggetto è puramente ASCII e corto, potremmo evitare l'encoding,
+        // ma per consistenza e sicurezza con nomi italiani/emoji usiamo sempre UTF-8 B.
         const encodedWordPrefix = '=?UTF-8?B?';
         const encodedWordSuffix = '?=';
-        const encodedWordOverhead = encodedWordPrefix.length + encodedWordSuffix.length;
-        const maxEncodedWordLen = 75;
-        const maxBase64ChunkLen = Math.max(1, maxEncodedWordLen - encodedWordOverhead);
-        const encodedWords = (encodedBase64.match(new RegExp(`.{1,${maxBase64ChunkLen}}`, 'g')) || [''])
-            .map(chunk => `${encodedWordPrefix}${chunk}${encodedWordSuffix}`);
+        const overhead = encodedWordPrefix.length + encodedWordSuffix.length;
+        const maxLen = 75; // Limite RFC 2047
+        const maxB64Len = maxLen - overhead;
 
+        const words = [];
+        let currentPart = '';
+        
+        // Usiamo Array.from per gestire correttamente coppie surrogate (emoji)
+        const chars = Array.from(safeSubject);
+        
+        for (const char of chars) {
+            const nextPart = currentPart + char;
+            // Utilities.base64Encode restituisce sempre una stringa con padding multipla di 4.
+            const b64 = Utilities.base64Encode(nextPart, Utilities.Charset.UTF_8);
+            
+            if (b64.length > maxB64Len && currentPart !== '') {
+                // La parte precedente era al limite, chiudiamola.
+                words.push(encodedWordPrefix + Utilities.base64Encode(currentPart, Utilities.Charset.UTF_8) + encodedWordSuffix);
+                currentPart = char;
+            } else {
+                currentPart = nextPart;
+            }
+        }
+        
+        if (currentPart) {
+            words.push(encodedWordPrefix + Utilities.base64Encode(currentPart, Utilities.Charset.UTF_8) + encodedWordSuffix);
+        }
+
+        // Folding: Subject: + prima riga + righe successive con spazio (WSP)
         const headerPrefix = 'Subject: ';
-        const maxHeaderLineLen = 76;
         const foldedLines = [];
         let currentLine = headerPrefix;
 
-        for (const word of encodedWords) {
-            const separator = currentLine === headerPrefix ? '' : ' ';
-            if ((currentLine + separator + word).length <= maxHeaderLineLen) {
+        for (let i = 0; i < words.length; i++) {
+            const word = words[i];
+            const separator = (currentLine === headerPrefix) ? '' : ' ';
+            
+            // 76 è il limite consigliato per le righe header
+            if ((currentLine + separator + word).length <= 76) {
                 currentLine += separator + word;
             } else {
                 foldedLines.push(currentLine);
-                currentLine = ` ${word}`;
+                currentLine = ' ' + word; // Continuation line
             }
         }
-
         foldedLines.push(currentLine);
+
         return foldedLines.join('\r\n');
     }
 
@@ -2195,7 +2241,7 @@ var GmailService = class GmailService {
         if (!base64Str || typeof base64Str !== 'string') {
             return '';
         }
-        const normalizedBase64 = base64Str.replace(/\r?\n/g, '');
+        const normalizedBase64 = base64Str.replace(/[\r\n\s]+/g, '');
         const chunks = normalizedBase64.match(/.{1,76}/g);
         return chunks ? chunks.join('\r\n') : '';
     }
@@ -2669,10 +2715,11 @@ function markdownToHtml(text) {
         );
     });
 
-    // 8. Converti Emoji in entità HTML
+    // 8. Converti TUTTI i caratteri non-ASCII in entità HTML per massima compatibilità.
+    // Questo previene mojibake (es: "â”", "âœ") in client che rilevano male il charset.
     html = Array.from(html).map(char => {
         const codePoint = char.codePointAt(0);
-        if (codePoint > 0xFFFF) {
+        if (codePoint > 127) {
             return '&#' + codePoint + ';';
         }
         return char;
