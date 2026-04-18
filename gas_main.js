@@ -257,9 +257,9 @@ function isInSuspensionTime(checkDate = new Date()) {
  * Paracadute operativo: se esistono email non lette molto vecchie,
  * permette un ciclo di lavorazione anche durante la sospensione.
  */
-function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 20) {
+function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 15) {
   const cutoffMs = Date.now() - ((Number(maxAgeHours) || 12) * 60 * 60 * 1000);
-  const threads = GmailApp.search('is:unread', 0, Math.min(searchLimit, 15));
+  const threads = GmailApp.search('is:unread', 0, searchLimit);
   return threads.some(thread =>
     thread.getMessages().some(message =>
       message.isUnread() && message.getDate().getTime() <= cutoffMs

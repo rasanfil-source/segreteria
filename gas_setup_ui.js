@@ -403,19 +403,23 @@ function applyControlloInputConstraints_(sheet) {
   );
 
   // Filtri domini/keyword direttamente su Controllo
-  const domainRule = SpreadsheetApp.newDataValidation()
-    .requireFormulaSatisfied('=OR(E13="";REGEXMATCH(TRIM(E13);"^(?:[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}|[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*)$"))')
-    .setAllowInvalid(false)
-    .setHelpText('Inserisci solo dominio/email parziale (es. amazon.com).')
-    .build();
-  sheet.getRange('E13:E120').setDataValidation(domainRule);
+  applyFormulaValidationWithFallback_(
+    sheet.getRange('E13:E120'),
+    [
+      '=OR(E13="";REGEXMATCH(TRIM(E13);"^(?:[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}|[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*)$"))',
+      '=OR(E13="",REGEXMATCH(TRIM(E13),"^(?:[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}|[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*)$"))'
+    ],
+    'Inserisci solo dominio/email parziale (es. amazon.com).'
+  );
 
-  const keywordRule = SpreadsheetApp.newDataValidation()
-    .requireFormulaSatisfied('=OR(F13="";LEN(TRIM(F13))>0)')
-    .setAllowInvalid(false)
-    .setHelpText('Inserisci una parola/frase da escludere.')
-    .build();
-  sheet.getRange('F13:F120').setDataValidation(keywordRule);
+  applyFormulaValidationWithFallback_(
+    sheet.getRange('F13:F120'),
+    [
+      '=OR(F13="";LEN(TRIM(F13))>0)',
+      '=OR(F13="",LEN(TRIM(F13))>0)'
+    ],
+    'Inserisci una parola/frase da escludere.'
+  );
 
   // Protezioni Warning Only sulle etichette
   protectRangesWithWarning_(sheet, ['A1:F1', 'A3:A16', 'C4:D4', 'C5:C7', 'E4:F12']);
