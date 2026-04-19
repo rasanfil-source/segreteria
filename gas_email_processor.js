@@ -195,36 +195,17 @@ var EmailProcessor = class EmailProcessor {
       const unreadMessages = messages.filter(m => m.isUnread());
 
       // Recupero indirizzo email corrente con fallback robusto
-      let myEmail = '';
+      let gmailAliases = [];
       try {
-        const hasEffectiveUserAccessor = (typeof Session !== 'undefined' && Session && typeof Session.getEffectiveUser === 'function');
-        if (hasEffectiveUserAccessor) {
-          const effectiveUser = Session.getEffectiveUser();
-          myEmail = effectiveUser ? effectiveUser.getEmail() : '';
-        }
-
-        if (!myEmail) {
-          const hasActiveUserAccessor = (typeof Session !== 'undefined' && Session && typeof Session.getActiveUser === 'function');
-          if (hasActiveUserAccessor) {
-            const activeUser = Session.getActiveUser();
-            myEmail = activeUser ? activeUser.getEmail() : '';
-          }
-        }
-      } catch (e) {
-        console.warn(`⚠️ Impossibile recuperare email utente: ${e.message}`);
+        gmailAliases = (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getAliases === 'function')
+          ? (GmailApp.getAliases() || [])
+          : [];
+      } catch (aliasError) {
+        console.warn(`⚠️ Impossibile recuperare alias Gmail: ${aliasError.message}`);
       }
 
-      if (!myEmail) {
-        try {
-          const aliases = (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getAliases === 'function')
-            ? GmailApp.getAliases()
-            : [];
-          if (Array.isArray(aliases) && aliases.length > 0) {
-            myEmail = aliases[0] || '';
-          }
-        } catch (aliasError) {
-          console.warn(`⚠️ Impossibile recuperare alias Gmail: ${aliasError.message}`);
-        }
+      if (!myEmail && gmailAliases.length > 0) {
+        myEmail = gmailAliases[0] || '';
       }
 
       if (!myEmail) {
@@ -269,6 +250,9 @@ var EmailProcessor = class EmailProcessor {
       // Build set of our own addresses (primary + aliases) per filtro early-stage
       const ownAddresses = new Set();
       if (myEmail) ownAddresses.add(this._normalizeEmailAddress_(myEmail));
+      gmailAliases.forEach(alias => {
+        if (alias) ownAddresses.add(this._normalizeEmailAddress_(alias));
+      });
       const knownAliasesArray = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES))
         ? CONFIG.KNOWN_ALIASES : [];
       knownAliasesArray.forEach(alias => {
@@ -339,14 +323,22 @@ var EmailProcessor = class EmailProcessor {
       // --- PORTA 0.5: Pre-check lingua locale sul soggetto (Zero API Cost) ---
       if (languageMode === 'foreign_only') {
         const subjectOnly = (candidate.getSubject() || '');
-        if (subjectOnly.trim() !== '') {
+        let bodyPreview = '';
+        try {
+          bodyPreview = (candidate.getPlainBody && typeof candidate.getPlainBody === 'function')
+            ? (candidate.getPlainBody() || '')
+            : '';
+        } catch (bodyError) {
+          console.warn(`⚠️ Impossibile leggere body per pre-check lingua: ${bodyError.message}`);
+        }
+        if (subjectOnly.trim() !== '' && bodyPreview.trim() === '') {
           // Pre-check: solo termini inequivocabilmente italiani.
           // Escluse deliberatamente parole corte polisemiche (in, per, la, di, da, con, il, lo,
           // gli, le, un, uno, una, su, tra, fra) che causano falsi positivi su lingue straniere.
           const italianPattern = /\b(appuntamento|fissare|prenotare|disponibilit[àa]|orari[oa]|incontro|prenotazione|informazioni|chiedere|sapere|vorrei|come\s+faccio|requisiti|battesimo|comunione|cresima|matrimonio|sacramento|confessione|grazie|salve|buongiorno|buonasera|preventivo|parrocchia|segreteria|messa|messe)\b/i;
           
           if (italianPattern.test(subjectOnly)) {
-            console.log(`   ⊖ Pre-check locale: italiano rilevato nel soggetto ("${subjectOnly.substring(0, 20)}...") → skip anticipato`);
+            console.log(`   ⊖ Pre-check locale: italiano rilevato nel solo oggetto ("${subjectOnly.substring(0, 20)}...") → skip anticipato`);
             result.status = 'skipped';
             result.reason = 'italian_skipped_foreign_only_precheck';
             return result;
@@ -499,9 +491,12 @@ var EmailProcessor = class EmailProcessor {
 
           // Percorriamo i messaggi a ritroso per contare gli esterni consecutivi
           for (let i = messages.length - 1; i >= 0; i--) {
-            const msgFrom = (messages[i].getFrom() || '').toLowerCase();
-            const isUs = (Boolean(normalizedMyEmail) && msgFrom.includes(normalizedMyEmail)) ||
-              normalizedKnownAliases.some(alias => msgFrom.includes(alias));
+            const msgFrom = messages[i].getFrom() || '';
+            const msgSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
+              ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(msgFrom) || '')
+              : this._normalizeEmailAddress_(msgFrom);
+
+            const isUs = Boolean(msgSenderEmail) && ownAddresses.has(msgSenderEmail);
 
             if (isUs) {
               botRepliesCount++;
@@ -682,7 +677,8 @@ var EmailProcessor = class EmailProcessor {
           conversationHistory = this.gmailService.buildConversationHistory(
             historyMessages,
             10,
-            myEmail
+            myEmail,
+            gmailAliases
           );
         }
       }

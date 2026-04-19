@@ -447,7 +447,7 @@ var ResponseValidator = class ResponseValidator {
     let score = 1.0;
 
     // Nei follow-up ravvicinati la firma è opzionale
-    if (salutationMode === 'none_or_continuity') {
+    if (salutationMode === 'none_or_continuity' || salutationMode === 'session') {
       return { score, errors, warnings };
     }
 

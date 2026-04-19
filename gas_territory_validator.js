@@ -527,8 +527,8 @@ var TerritoryValidator = class TerritoryValidator {
             const maxLabel = maxValue === Infinity ? '∞' : maxValue;
 
             if (civic >= minValue && civic <= maxValue) {
-                console.log(`✅ ${matchedKey} n. ${civic}: nel range PARI [${minValue}, ${maxLabel}]`);
-                return { inTerritory: true, matchedKey: matchedKey, rule: `pari [${minValue}-${maxLabel}]` };
+                console.log(`✅ ${matchedKey} n. ${fullCivic || civic}: nel range PARI [${minValue}, ${maxLabel}]`);
+                return { inTerritory: true, matchedKey: matchedKey, rule: `pari [${minValue}-${maxLabel}]`, needsReview: hasSuffix };
             }
         }
 

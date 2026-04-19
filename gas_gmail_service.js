@@ -1727,13 +1727,38 @@ var GmailService = class GmailService {
     /**
      * Costruisce cronologia conversazione da messaggi thread
      */
-    buildConversationHistory(messages, maxMessages = 10, ourEmail = '') {
+    buildConversationHistory(messages, maxMessages = 10, ourEmail = '', ourAliases = []) {
+        const normalizeOwnAddress = (value) => {
+            if (!value) return '';
+            const extracted = this._extractEmailAddress(value) || value;
+            return String(extracted).trim().toLowerCase();
+        };
+
+        const ownAddresses = new Set();
+        const addOwnAddress = (value) => {
+            const normalized = normalizeOwnAddress(value);
+            if (normalized) ownAddresses.add(normalized);
+        };
+
         if (!ourEmail) {
             if (typeof Session !== 'undefined' && Session && typeof Session.getEffectiveUser === 'function') {
                 const effectiveUser = Session.getEffectiveUser();
                 ourEmail = effectiveUser ? effectiveUser.getEmail() : '';
             }
         }
+
+        addOwnAddress(ourEmail);
+        (Array.isArray(ourAliases) ? ourAliases : []).forEach(addOwnAddress);
+        const knownAliases = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES))
+            ? CONFIG.KNOWN_ALIASES
+            : [];
+        knownAliases.forEach(addOwnAddress);
+        try {
+            const gmailAliases = (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getAliases === 'function')
+                ? (GmailApp.getAliases() || [])
+                : [];
+            gmailAliases.forEach(addOwnAddress);
+        } catch (_) { }
 
         if (messages.length > maxMessages) {
             console.warn(`⚠️ Thread con ${messages.length} messaggi, limitato a ultimi ${maxMessages}`);
@@ -1744,7 +1769,8 @@ var GmailService = class GmailService {
 
         for (const msg of messages) {
             const details = this.extractMessageDetails(msg);
-            const isOurs = ourEmail && details.senderEmail.toLowerCase() === ourEmail.toLowerCase();
+            const normalizedSender = normalizeOwnAddress(details.senderEmail);
+            const isOurs = normalizedSender && ownAddresses.has(normalizedSender);
 
             const prefix = isOurs ? 'Segreteria' : `Utente (${details.senderName})`;
 
