@@ -1167,8 +1167,11 @@ Output JSON:
             throw new Error(`Quick check fallito: ${directError.message}`);
           }
         }
-        console.warn(`⚠️ Rate Limiter quick check fallito: ${error.message} `);
-        // Prosegui con implementazione originale
+        // NON bypassare il RateLimiter su errori transienti/non-quota:
+        // executeRequest include già retry+backoff e il fallback diretto
+        // causerebbe consumo API non tracciato.
+        console.warn(`⚠️ Rate Limiter quick check fallito: ${error.message}. Interruzione per evitare bypass quota.`);
+        throw new Error(`Quick check via RateLimiter fallito: ${error.message}`);
       }
     }
 
@@ -1233,8 +1236,10 @@ Output JSON:
           console.warn('⚠️ Quota primaria esaurita (intercettato da RateLimiter)');
           throw error; // Rilancia per gestione strategia nel Processor
         }
-        console.warn(`⚠️ Rate Limiter generazione fallito: ${error.message} `);
-        // Prosegui con implementazione originale
+        // NON effettuare fallback diretto: i retry sono già gestiti nel RateLimiter
+        // e una seconda esecuzione fuori limiter falserebbe i contatori quota.
+        console.warn(`⚠️ Rate Limiter generazione fallito: ${error.message}. Interruzione per evitare bypass quota.`);
+        throw new Error(`Generazione via RateLimiter fallita: ${error.message}`);
       }
     }
 

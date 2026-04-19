@@ -174,7 +174,14 @@ var PromptEngine = class PromptEngine {
         return requestType === 'pastoral' || requestType === 'mixed' || requestType === 'doctrinal';
       }
       if (requestType && typeof requestType === 'object') {
-        return Boolean(requestType.needsDiscernment || requestType.needsDoctrine);
+        const hasDiscernment = Object.prototype.hasOwnProperty.call(requestType, 'needsDiscernment');
+        const hasDoctrine = Object.prototype.hasOwnProperty.call(requestType, 'needsDoctrine');
+        const derivedDiscernment = requestType.type === 'pastoral' || requestType.type === 'mixed';
+        const derivedDoctrine = requestType.type === 'doctrinal';
+        return Boolean(
+          (hasDiscernment ? requestType.needsDiscernment : derivedDiscernment) ||
+          (hasDoctrine ? requestType.needsDoctrine : derivedDoctrine)
+        );
       }
       return false;
     })();
@@ -318,10 +325,20 @@ var PromptEngine = class PromptEngine {
         needsDoctrine: options.requestType === 'doctrinal'
       };
     } else {
+      const sourceRequestType = (options.requestType && typeof options.requestType === 'object') ? options.requestType : {};
+      const hasDiscernment = Object.prototype.hasOwnProperty.call(sourceRequestType, 'needsDiscernment');
+      const hasDoctrine = Object.prototype.hasOwnProperty.call(sourceRequestType, 'needsDoctrine');
+      const type = sourceRequestType.type || 'technical';
       requestTypeObj = Object.assign(
         { needsDiscernment: false, needsDoctrine: false, type: 'technical' },
-        (options.requestType && typeof options.requestType === 'object') ? options.requestType : {}
+        sourceRequestType
       );
+      if (!hasDiscernment) {
+        requestTypeObj.needsDiscernment = type === 'pastoral' || type === 'mixed';
+      }
+      if (!hasDoctrine) {
+        requestTypeObj.needsDoctrine = type === 'doctrinal';
+      }
     }
 
     // 13. AI_CORE_LITE: solo se componente pastorale
