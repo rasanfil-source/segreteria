@@ -2196,7 +2196,8 @@ ${prompt.slice(-tailChars)}`;
     const topic = String(classification && classification.topic ? classification.topic : '').toLowerCase();
     const type = String(requestType && requestType.type ? requestType.type : '').toLowerCase();
 
-    if (type === 'territory') return true;
+    // NOTA: RequestTypeClassifier non produce mai type='territory'.
+    // La rilevazione avviene interamente via pattern sul testo qui sotto.
     if (topic.includes('territor') || topic.includes('parrocch')) return true;
 
     const explicitPatterns = [

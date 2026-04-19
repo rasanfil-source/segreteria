@@ -543,11 +543,7 @@ var GmailService = class GmailService {
             };
         } catch (e) {
             console.error(`❌ _discoverByQuery fallito: ${e.message}`);
-            return {
-                threads: threads,
-                threadIds: seenThreadIds,
-                messageIds: seenMessageIds
-            };
+            throw e;
         }
     }
 

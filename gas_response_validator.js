@@ -75,12 +75,11 @@ var ResponseValidator = class ResponseValidator {
       // Pattern conversazionali non catturati dalle regex 
       'rivedendo la knowledge base',
       'pensandoci bene',
-      '(nota:', // Stringa letterale: qui usiamo match statici via includes(), non regex.
-      '(note:',
+      '(nota interna:', // Stringa letterale: qui usiamo match statici via includes(), non regex.
+      '(note interne:',
       'n.b.:',
       'nb:',
       'come da istruzioni',
-      'secondo le linee guida',
       'non sono ancora presenti nella kb',
       'non sono ancora presenti in knowledge base',
       'le date indicate non sono nella kb',
@@ -492,7 +491,7 @@ var ResponseValidator = class ResponseValidator {
       if (!p || !p.trim()) continue; // Guardia difensiva: ignora stringhe vuote
       // Per '...', verifica se usato come placeholder (non ellissi nel testo)
       if (p === '...') {
-        if (/\[\.\.\.]/g.test(response) || /\.\.\.\s*$/g.test(response)) {
+        if (/\[\.\.\.]/g.test(response)) {
           foundPlaceholders.push(p);
         }
       } else if (responseLower.includes(p.toLowerCase())) {
@@ -832,8 +831,7 @@ var ResponseValidator = class ResponseValidator {
       const hardPatterns = [
         'rivedendo la knowledge base',
         'consultando la knowledge base',
-        'come da istruzioni',
-        'secondo le linee guida'
+        'come da istruzioni'
       ];
 
       const isRegexMatch = firstPattern.startsWith('regex match:');

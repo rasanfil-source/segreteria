@@ -227,7 +227,10 @@ function isInSuspensionTime(checkDate = new Date()) {
   // Utilizza i dati caricati dal foglio Controllo in (A10:D16/B10:E16) durante il loadResources
   // Se non presenti, usa il fallback definito via codice in SUSPENSION_HOURS
   // loaded è il discriminante autoritativo: se la cache è caricata, prevalgono le regole da foglio.
-  // Compatibilità payload legacy: se suspensionRules è null, interpretiamo come "nessuna sospensione".
+  // Semantica payload:
+  //   - null: foglio 'Controllo' assente → fallback sicuro su SUSPENSION_HOURS.
+  //   - {}: foglio presente ma senza fasce configurate → nessuna sospensione.
+  //   - {1:[...], ...}: fasce orarie lette dal foglio.
   const sheetRulesLoaded = (
     typeof GLOBAL_CACHE !== 'undefined'
     && GLOBAL_CACHE.loaded
