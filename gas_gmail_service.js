@@ -706,6 +706,9 @@ var GmailService = class GmailService {
             if (!recipientEmail && hasSession) {
                 const activeUser = Session.getActiveUser();
                 recipientEmail = activeUser ? activeUser.getEmail() : '';
+                if (!recipientEmail && typeof CONFIG !== 'undefined') {
+                    recipientEmail = CONFIG.BOT_EMAIL || (CONFIG.LOGGING && CONFIG.LOGGING.ADMIN_EMAIL) || '';
+                }
             }
         }
 

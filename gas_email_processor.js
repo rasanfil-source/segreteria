@@ -507,7 +507,10 @@ var EmailProcessor = class EmailProcessor {
 
           // Percorriamo i messaggi a ritroso per contare gli esterni consecutivi
           for (let i = messages.length - 1; i >= 0; i--) {
-            const msgFrom = messages[i].getFrom() || '';
+            const rawFrom = messages[i] && typeof messages[i].getFrom === 'function'
+              ? messages[i].getFrom()
+              : '';
+            const msgFrom = String(rawFrom || '');
             const msgSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
               ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(msgFrom) || '')
               : this._normalizeEmailAddress_(msgFrom);
