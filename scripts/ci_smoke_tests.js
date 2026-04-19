@@ -280,6 +280,23 @@ function testAddressExtractionWithSlashAndDashSuffix() {
     assert(extracted[1].fullCivic === '10B', `Atteso 10B, ottenuto ${extracted[1].fullCivic}`);
 }
 
+function testTerritorySuffixNeedsReviewOnParityRanges() {
+    loadScript('gas_territory_validator.js');
+
+    const validator = new TerritoryValidator();
+
+    const evenWithSuffix = validator.verifyAddress('via flaminia', 158, '158A');
+    assert(evenWithSuffix.inTerritory === true, '158A in via Flaminia deve risultare nel territorio');
+    assert(evenWithSuffix.needsReview === true, 'civico pari con suffisso deve richiedere review');
+
+    const oddWithSuffix = validator.verifyAddress('via flaminia', 109, '109B');
+    assert(oddWithSuffix.inTerritory === true, '109B in via Flaminia deve risultare nel territorio');
+    assert(oddWithSuffix.needsReview === true, 'civico dispari con suffisso deve richiedere review in modo simmetrico');
+
+    const evenPlain = validator.verifyAddress('via flaminia', 158, '158');
+    assert(evenPlain.needsReview === false, 'civico senza suffisso non deve richiedere review');
+}
+
 // ========================================================================
 // TEST ERROR TYPES (classificazione centralizzata)
 // ========================================================================
@@ -2116,6 +2133,7 @@ function main() {
         ['civic normalization (normalizeCivic)', testCivicNormalization],
         ['civic deduplication (10A vs 10B)', testCivicDeduplicationExplicit],
         ['civic extraction with slash/dash suffix', testAddressExtractionWithSlashAndDashSuffix],
+        ['territory suffix on parity ranges sets needsReview', testTerritorySuffixNeedsReviewOnParityRanges],
         // Error Types (classificazione centralizzata)
         ['classifyError: quota/429 → retryable', testClassifyErrorQuota],
         ['classifyError: API key/invalid → non-retryable', testClassifyErrorNonRetryable],

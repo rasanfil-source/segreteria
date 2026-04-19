@@ -33,11 +33,23 @@ global.GLOBAL_CACHE = {
   ignoreKeywords: ['newsletter']
 };
 
-const gasEmailProcessorPath = path.join(__dirname, '..', 'gas_email_processor.js');
-const code = fs.readFileSync(gasEmailProcessorPath, 'utf8');
-vm.runInThisContext(code, { filename: gasEmailProcessorPath });
-
 const processor = new EmailProcessor();
+
+function extractEmailAddress(fromField) {
+  const match = String(fromField || '').match(/<([^>]+)>/) || String(fromField || '').match(/([^\s<]+@[^\s>]+)/);
+  return match ? match[1] : '';
+}
+
+function createMessage(id, from, subject, plainBody, date = new Date('2026-04-01T10:00:00Z')) {
+  return {
+    getId: () => id,
+    getFrom: () => from,
+    getSubject: () => subject,
+    getPlainBody: () => plainBody,
+    getDate: () => date,
+    isUnread: () => true
+  };
+}
 
 console.log('--- Test _shouldIgnoreEmail (dominio blacklist) ---');
 assert(
@@ -95,5 +107,176 @@ assert(
   processor._shouldSkipByLanguageMode_('en', 'foreign_only') === false,
   'in foreign_only non deve saltare email straniere'
 );
+
+console.log('--- Test processThread: alias Gmail riconosciuto come ultimo mittente interno ---');
+{
+  const originalSession = global.Session;
+  const originalGmailApp = global.GmailApp;
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  const labeled = [];
+
+  global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
+  };
+  global.GmailApp = {
+    getAliases: () => ['segreteria@example.org']
+  };
+  global.GLOBAL_CACHE.languageMode = 'all';
+
+  const aliasAwareProcessor = new EmailProcessor({
+    gmailService: {
+      getMessageIdsWithLabel: () => new Set(),
+      _extractEmailAddress: extractEmailAddress,
+      addLabelToMessage: (id) => labeled.push(id)
+    }
+  });
+
+  const thread = {
+    getId: () => 'thread-alias-last-speaker',
+    getLabels: () => [],
+    getMessages: () => [
+      createMessage('m-ext', 'Utente <utente@example.org>', 'Info battesimo', 'Buongiorno, avrei bisogno di informazioni.'),
+      createMessage('m-me', 'Segreteria <segreteria@example.org>', 'Re: Info battesimo', 'Le abbiamo appena risposto dalla segreteria.')
+    ]
+  };
+
+  const result = aliasAwareProcessor.processThread(thread, '', [], new Set(), true);
+  assert(result.status === 'skipped', 'thread con ultimo alias interno deve essere skipped');
+  assert(result.reason === 'last_speaker_is_me', 'ultimo alias interno deve produrre last_speaker_is_me');
+  assert(labeled.includes('m-ext') && labeled.includes('m-me'), 'i non letti del thread devono essere marcati come processati');
+
+  global.Session = originalSession;
+  global.GmailApp = originalGmailApp;
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
+console.log('--- Test processThread: foreign_only non deve saltare body inglese con oggetto italiano ---');
+{
+  const originalSession = global.Session;
+  const originalGmailApp = global.GmailApp;
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  const labeled = [];
+
+  global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
+  };
+  global.GmailApp = {
+    getAliases: () => []
+  };
+  global.GLOBAL_CACHE.languageMode = 'foreign_only';
+
+  const processorForeignOnly = new EmailProcessor({
+    geminiService: {
+      detectEmailLanguage: () => ({ lang: 'en', safetyGrade: 5 })
+    },
+    classifier: {
+      _extractMainContent: (body) => body,
+      classifyEmail: () => ({ shouldReply: false, reason: 'unit_test_stop' })
+    },
+    gmailService: {
+      getMessageIdsWithLabel: () => new Set(),
+      _extractEmailAddress: extractEmailAddress,
+      extractMessageDetails: (message) => ({
+        subject: message.getSubject(),
+        body: message.getPlainBody(),
+        senderEmail: extractEmailAddress(message.getFrom()),
+        senderName: 'Utente',
+        headers: {},
+        isNewsletter: false,
+        date: message.getDate()
+      }),
+      addLabelToMessage: (id) => labeled.push(id)
+    }
+  });
+
+  const thread = {
+    getId: () => 'thread-foreign-only-body',
+    getLabels: () => [],
+    getMessages: () => [
+      createMessage(
+        'm-foreign',
+        'Utente <utente@example.org>',
+        'Richiesta informazioni battesimo',
+        'Hello, I would like to know the available times for a baptism appointment.'
+      )
+    ]
+  };
+
+  const result = processorForeignOnly.processThread(thread, '', [], new Set(), true);
+  assert(result.status === 'filtered', 'il flusso deve superare il pre-check e arrivare al classifier');
+  assert(result.reason !== 'italian_skipped_foreign_only_precheck', 'oggetto italiano non deve bloccare un body inglese reale');
+  assert(labeled.includes('m-foreign'), 'il messaggio deve seguire il normale flusso di labeling del classifier');
+
+  global.Session = originalSession;
+  global.GmailApp = originalGmailApp;
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
+console.log('--- Test processThread: alias interno interrompe la sequenza esterna anti-loop ---');
+{
+  const originalSession = global.Session;
+  const originalGmailApp = global.GmailApp;
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  const labeled = [];
+
+  global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
+  };
+  global.GmailApp = {
+    getAliases: () => ['segreteria@example.org']
+  };
+  global.GLOBAL_CACHE.languageMode = 'all';
+
+  const antiLoopProcessor = new EmailProcessor({
+    geminiService: {
+      detectEmailLanguage: () => ({ lang: 'it', safetyGrade: 5 })
+    },
+    classifier: {
+      _extractMainContent: (body) => body,
+      classifyEmail: () => ({ shouldReply: false, reason: 'unit_test_stop' })
+    },
+    gmailService: {
+      getMessageIdsWithLabel: () => new Set(),
+      _extractEmailAddress: extractEmailAddress,
+      extractMessageDetails: (message) => ({
+        subject: message.getSubject(),
+        body: message.getPlainBody(),
+        senderEmail: extractEmailAddress(message.getFrom()),
+        senderName: 'Utente',
+        headers: {},
+        isNewsletter: false,
+        date: message.getDate()
+      }),
+      addLabelToMessage: (id) => labeled.push(id)
+    }
+  });
+
+  const baseDate = new Date('2026-04-01T10:00:00Z');
+  const messages = Array.from({ length: 12 }, (_, index) => {
+    const isAliasMessage = index === 7;
+    return createMessage(
+      `m-${index}`,
+      isAliasMessage ? 'Segreteria <segreteria@example.org>' : 'Utente <utente@example.org>',
+      `Thread ${index}`,
+      isAliasMessage ? 'Risposta interna della segreteria.' : 'Messaggio esterno di follow-up.',
+      new Date(baseDate.getTime() + index * 60000)
+    );
+  });
+
+  const thread = {
+    getId: () => 'thread-anti-loop-alias',
+    getLabels: () => [],
+    getMessages: () => messages
+  };
+
+  const result = antiLoopProcessor.processThread(thread, '', [], new Set(), true);
+  assert(result.status === 'filtered', 'il thread deve proseguire oltre il controllo anti-loop fino al classifier');
+  assert(result.reason !== 'email_loop_detected', 'un alias interno negli ultimi messaggi deve interrompere la sequenza esterna');
+  assert(labeled.includes('m-11'), 'il candidato finale deve essere gestito normalmente');
+
+  global.Session = originalSession;
+  global.GmailApp = originalGmailApp;
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
 
 console.log('✅ Test filtri EmailProcessor passati');

@@ -55,6 +55,11 @@ const signatureResult = validator._checkSignature('Messaggio follow-up senza fir
 assert(signatureResult.score === 1.0, 'in none_or_continuity la firma non deve penalizzare');
 assert(signatureResult.warnings.length === 0, 'in none_or_continuity non deve esserci warning firma');
 
+console.log('--- Test _checkSignature (session) ---');
+const sessionSignatureResult = validator._checkSignature('Messaggio follow-up rapido senza firma', 'session');
+assert(sessionSignatureResult.score === 1.0, 'in session la firma non deve penalizzare');
+assert(sessionSignatureResult.warnings.length === 0, 'in session non deve esserci warning firma');
+
 console.log('--- Test hallucination: civico non deve essere interpretato come orario ---');
 const civicResult = validator._checkHallucinations(
   'Per la verifica territoriale risulta Via Roma civico 12.30.',

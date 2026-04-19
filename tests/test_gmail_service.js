@@ -255,4 +255,41 @@ console.log('--- Test extractMessageDetails: getReplyTo in errore non deve blocc
   assert(details.hasReplyTo === false, 'se getReplyTo fallisce non deve impostare hasReplyTo=true');
 }
 
+console.log('--- Test buildConversationHistory: alias interni restano Segreteria ---');
+{
+  const originalExtractMessageDetails = service.extractMessageDetails;
+  const originalGmailApp = global.GmailApp;
+  const originalKnownAliases = global.CONFIG.KNOWN_ALIASES;
+
+  service.extractMessageDetails = (message) => message;
+  global.GmailApp = Object.assign({}, originalGmailApp || {}, {
+    getAliases: () => ['segreteria@example.org']
+  });
+  global.CONFIG.KNOWN_ALIASES = ['archivio@example.org'];
+
+  const historyFromGmailAlias = service.buildConversationHistory(
+    [{ senderEmail: 'segreteria@example.org', senderName: 'Segreteria', body: 'Risposta interna' }],
+    10,
+    'info@example.org'
+  );
+  assert(
+    historyFromGmailAlias.startsWith('Segreteria: Risposta interna'),
+    'alias Gmail deve essere classificato come messaggio interno'
+  );
+
+  const historyFromKnownAlias = service.buildConversationHistory(
+    [{ senderEmail: 'archivio@example.org', senderName: 'Archivio', body: 'Messaggio da alias noto' }],
+    10,
+    'info@example.org'
+  );
+  assert(
+    historyFromKnownAlias.startsWith('Segreteria: Messaggio da alias noto'),
+    'CONFIG.KNOWN_ALIASES deve essere classificato come messaggio interno'
+  );
+
+  service.extractMessageDetails = originalExtractMessageDetails;
+  global.GmailApp = originalGmailApp;
+  global.CONFIG.KNOWN_ALIASES = originalKnownAliases;
+}
+
 console.log('✅ Test extractMessageDetails robustezza passati');
