@@ -77,8 +77,6 @@ var ResponseValidator = class ResponseValidator {
       'pensandoci bene',
       '(nota interna:', // Stringa letterale: qui usiamo match statici via includes(), non regex.
       '(note interne:',
-      'n.b.:',
-      'nb:',
       'come da istruzioni',
       'non sono ancora presenti nella kb',
       'non sono ancora presenti in knowledge base',
@@ -487,6 +485,21 @@ var ResponseValidator = class ResponseValidator {
 
     // Rilevamento placeholder intelligente
     const foundPlaceholders = [];
+    const hasPlaceholderToken = (placeholder) => {
+      const normalized = String(placeholder || '').trim();
+      if (!normalized) return false;
+
+      // Evita falsi positivi su sottostringhe di parole reali
+      // (es. "todo" in spagnolo) per placeholder alfabetici.
+      if (/^[A-Za-z]+$/.test(normalized)) {
+        const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const rx = new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'iu');
+        return rx.test(response);
+      }
+
+      return responseLower.includes(normalized.toLowerCase());
+    };
+
     for (const p of this.placeholders) {
       if (!p || !p.trim()) continue; // Guardia difensiva: ignora stringhe vuote
       // Per '...', verifica se usato come placeholder (non ellissi nel testo)
@@ -494,7 +507,7 @@ var ResponseValidator = class ResponseValidator {
         if (/\[\.\.\.]/g.test(response)) {
           foundPlaceholders.push(p);
         }
-      } else if (responseLower.includes(p.toLowerCase())) {
+      } else if (hasPlaceholderToken(p)) {
         foundPlaceholders.push(p);
       }
     }

@@ -311,8 +311,12 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
   // perché maschererebbero regressioni d'inizializzazione del runtime.
 
   const now = Date.now();
-  const cacheIsFreshByTtl = GLOBAL_CACHE.loaded && GLOBAL_CACHE.lastLoadedAt && ((now - GLOBAL_CACHE.lastLoadedAt) < RESOURCE_CACHE_TTL_MS);
+  const forceReload = typeof CONFIG !== 'undefined' && CONFIG.FORCE_RELOAD === true;
+  const cacheIsFreshByTtl = !forceReload && GLOBAL_CACHE.loaded && GLOBAL_CACHE.lastLoadedAt && ((now - GLOBAL_CACHE.lastLoadedAt) < RESOURCE_CACHE_TTL_MS);
   let precomputedSheetModifiedAt = 0;
+  if (forceReload) {
+    console.log('↻ FORCE_RELOAD attivo: ricarico le risorse ignorando la cache TTL.');
+  }
   if (cacheIsFreshByTtl) {
     const spreadsheetId = (typeof CONFIG !== 'undefined' && CONFIG.SPREADSHEET_ID) ? CONFIG.SPREADSHEET_ID : null;
     precomputedSheetModifiedAt = _getSpreadsheetModifiedTimeMs(spreadsheetId);
