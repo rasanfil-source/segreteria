@@ -195,6 +195,18 @@ var EmailProcessor = class EmailProcessor {
       const unreadMessages = messages.filter(m => m.isUnread());
 
       // Recupero indirizzo email corrente con fallback robusto
+      let myEmail = '';
+      try {
+        if (typeof Session !== 'undefined' && Session && typeof Session.getEffectiveUser === 'function') {
+          const effectiveUser = Session.getEffectiveUser();
+          if (effectiveUser && typeof effectiveUser.getEmail === 'function') {
+            myEmail = effectiveUser.getEmail() || '';
+          }
+        }
+      } catch (sessionError) {
+        console.warn(`⚠️ Impossibile recuperare email utente da Session: ${sessionError.message}`);
+      }
+
       let gmailAliases = [];
       try {
         gmailAliases = (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getAliases === 'function')
@@ -247,6 +259,10 @@ var EmailProcessor = class EmailProcessor {
         return true;
       });
 
+      const markUnlabeledUnreadAsProcessed = () => {
+        unlabeledUnread.forEach(message => this._markMessageAsProcessed(message, labeledMessageIds));
+      };
+
       // Build set of our own addresses (primary + aliases) per filtro early-stage
       const ownAddresses = new Set();
       if (myEmail) ownAddresses.add(this._normalizeEmailAddress_(myEmail));
@@ -285,7 +301,7 @@ var EmailProcessor = class EmailProcessor {
       // Se non ci sono messaggi da esterni → skip
       if (externalUnread.length === 0) {
         console.log('   ⊖ Saltato: nessun nuovo messaggio esterno non letto');
-        unlabeledUnread.forEach(message => this._markMessageAsProcessed(message, labeledMessageIds));
+        markUnlabeledUnreadAsProcessed();
         result.status = 'skipped';
         result.reason = 'no_external_unread';
         return result;
@@ -314,7 +330,7 @@ var EmailProcessor = class EmailProcessor {
         console.log('   ⊖ Saltato: l\'ultimo messaggio del thread è già nostro (bot o segreteria)');
         // Segniamo i non letti correnti come processati per evitare loop su thread
         // dove l'ultimo intervento è nostro ma restano flag "unread" riaperti manualmente.
-        unlabeledUnread.forEach(message => this._markMessageAsProcessed(message, labeledMessageIds));
+        markUnlabeledUnreadAsProcessed();
         result.status = 'skipped';
         result.reason = 'last_speaker_is_me';
         return result;
@@ -387,7 +403,7 @@ var EmailProcessor = class EmailProcessor {
 
       if (messageDetails.isNewsletter) {
         console.log('   ⊖ Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
-        this._markMessageAsProcessed(candidate, labeledMessageIds);
+        markUnlabeledUnreadAsProcessed();
         result.status = 'filtered';
         result.reason = 'newsletter_header';
         return result;
@@ -417,7 +433,7 @@ var EmailProcessor = class EmailProcessor {
         /oof|all|dr|rn|nri|auto/i.test(xAutoResponseSuppress)
       ) {
         console.log('   ⊖ Saltato: risposta automatica (header SMTP)');
-        this._markMessageAsProcessed(candidate, labeledMessageIds);
+        markUnlabeledUnreadAsProcessed();
         result.status = 'filtered';
         result.reason = 'out_of_office';
         return result;
@@ -436,7 +452,7 @@ var EmailProcessor = class EmailProcessor {
       const oooBody = (messageDetails.body || '').substring(0, 2000);
       if (outOfOfficePatterns.some(p => p.test(`${oooSubject} ${oooBody}`))) {
         console.log('   ⊖ Saltato: risposta automatica out-of-office (testo)');
-        this._markMessageAsProcessed(candidate, labeledMessageIds);
+        markUnlabeledUnreadAsProcessed();
         result.status = 'filtered';
         result.reason = 'out_of_office';
         return result;
@@ -464,7 +480,7 @@ var EmailProcessor = class EmailProcessor {
 
         if (previousIsUs && arrivedSoonAfterUs && isShortClosureReply) {
           console.log('   ⊖ Saltato: risposta breve di chiusura (grazie/ok/perfetto)');
-          this._markMessageAsProcessed(candidate, labeledMessageIds);
+          markUnlabeledUnreadAsProcessed();
           result.status = 'filtered';
           result.reason = 'short_closure_reply';
           return result;
@@ -481,7 +497,7 @@ var EmailProcessor = class EmailProcessor {
         const hasAnyIdentity = Boolean(normalizedMyEmail) || normalizedKnownAliases.length > 0;
         if (!hasAnyIdentity) {
           console.warn('   ⚠️ Identità mittente non disponibile con thread lungo: blocco precauzionale anti-loop');
-          this._markMessageAsProcessed(candidate, labeledMessageIds);
+          markUnlabeledUnreadAsProcessed();
           result.status = 'filtered';
           result.reason = 'anti_loop_identity_missing';
           return result;
@@ -509,7 +525,7 @@ var EmailProcessor = class EmailProcessor {
 
           if (consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
             console.log(`   ⊖ Saltato: prevenzione loop email (${consecutiveExternal} esterni consecutivi alla fine del thread)`);
-            this._markMessageAsProcessed(candidate, labeledMessageIds);
+            markUnlabeledUnreadAsProcessed();
             result.status = 'filtered';
             result.reason = 'email_loop_detected';
             return result;
@@ -526,7 +542,7 @@ var EmailProcessor = class EmailProcessor {
       const autoPattern = /no-reply|do-not-reply|noreply|daemon|postmaster|bounce|mailer/i;
       if (autoPattern.test(senderInfo)) {
         console.log('   ⊖ Saltato: mittente rilevato come casella automatica o no-reply');
-        this._markMessageAsProcessed(candidate, labeledMessageIds);
+        markUnlabeledUnreadAsProcessed();
         result.status = 'filtered';
         result.reason = 'no_reply_sender';
         return result;
@@ -537,8 +553,9 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       if (this._shouldIgnoreEmail(messageDetails)) {
         console.log('   ⊖ Filtrato: domain/keyword ignore');
-        this._markMessageAsProcessed(candidate, labeledMessageIds);
+        markUnlabeledUnreadAsProcessed();
         result.status = 'filtered';
+        result.reason = 'ignore_rules';
         return result;
       }
 
@@ -558,14 +575,7 @@ var EmailProcessor = class EmailProcessor {
 
       if (!classification.shouldReply) {
         console.log(`   ⊖ Filtrato dal classifier: ${classification.reason}`);
-        this._markMessageAsProcessed(candidate, labeledMessageIds);
-        // Allineamento con il quick-check: se il candidato è scartato in modo definitivo
-        // marchiamo anche i secondari per evitare reprocessing infinito dello stesso thread.
-        unlabeledUnread.forEach(message => {
-          if (message.getId() !== candidate.getId()) {
-            this._markMessageAsProcessed(message, labeledMessageIds);
-          }
-        });
+        markUnlabeledUnreadAsProcessed();
         result.status = 'filtered';
         return result;
       }
@@ -1061,73 +1071,76 @@ ${addressLines.join('\n\n')}
         const retryEnabled = retryConfig && retryConfig.enabled !== false;
         const maxRetries = retryEnabled ? Math.max(0, parseInt(retryConfig.maxRetries, 10) || 1) : 0;
 
-        if (!validation.isValid && retryEnabled && maxRetries > 0 && !this._isNearDeadline(this.config.maxExecutionTimeMs)) {
+        let retryCount = 0;
+        while (!validation.isValid && retryEnabled && retryCount < maxRetries && !this._isNearDeadline(this.config.maxExecutionTimeMs)) {
           const shouldRetry = this._shouldAttemptIntelligentRetry(validation, detectedLanguage, retryConfig);
-          if (shouldRetry) {
-            retryAttempted = true;
-            console.log(`🔄 Retry intelligente attivato (score: ${validation.score.toFixed(2)}, errori: ${validation.errors.length})`);
+          if (!shouldRetry) break;
 
-            const correctionPrompt = this._buildCorrectionPrompt(
-              fullPrompt,
-              finalResponse,
-              validation,
-              detectedLanguage,
-              salutationMode
-            );
+          retryAttempted = true;
+          retryCount++;
+          console.log(`🔄 Retry intelligente ${retryCount}/${maxRetries} (score: ${validation.score.toFixed(2)}, errori: ${validation.errors.length})`);
 
-            const retryPlan = strategyUsedPlan || attemptStrategy.find(p => p && p.key) || {
-              key: this.geminiService.primaryKey,
-              model: flashModel,
-              skipRateLimit: false
-            };
+          const correctionPrompt = this._buildCorrectionPrompt(
+            fullPrompt,
+            finalResponse,
+            validation,
+            detectedLanguage,
+            salutationMode
+          );
 
-            let retryResponse = null;
-            try {
-              const retryResult = this.geminiService.generateResponse(correctionPrompt, {
-                apiKey: retryPlan.key,
-                modelName: retryPlan.model,
-                skipRateLimit: retryPlan.skipRateLimit,
-                attachments: attachmentBlobs
-              });
+          const retryPlan = strategyUsedPlan || attemptStrategy.find(p => p && p.key) || {
+            key: this.geminiService.primaryKey,
+            model: flashModel,
+            skipRateLimit: false
+          };
 
-              if (retryResult && typeof retryResult === 'object') {
-                if (!retryResult.text && retryResult.success) {
-                  console.warn('⚠️ Retry: Gemini ha restituito successo senza testo');
-                }
-                retryResponse = retryResult.text;
-              } else if (typeof retryResult === 'string') {
-                retryResponse = retryResult;
+          let retryResponse = null;
+          try {
+            const retryResult = this.geminiService.generateResponse(correctionPrompt, {
+              apiKey: retryPlan.key,
+              modelName: retryPlan.model,
+              skipRateLimit: retryPlan.skipRateLimit,
+              attachments: attachmentBlobs
+            });
+
+            if (retryResult && typeof retryResult === 'object') {
+              if (!retryResult.text && retryResult.success) {
+                console.warn('⚠️ Retry: Gemini ha restituito successo senza testo');
               }
-            } catch (retryError) {
-              console.warn(`⚠️ Retry fallito per errore API: ${retryError.message}`);
+              retryResponse = retryResult.text;
+            } else if (typeof retryResult === 'string') {
+              retryResponse = retryResult;
             }
+          } catch (retryError) {
+            console.warn(`⚠️ Retry fallito per errore API: ${retryError.message}`);
+          }
 
-            if (retryResponse) {
-              const retryValidation = this.validator.validateResponse(
-                retryResponse,
-                detectedLanguage,
-                enrichedKnowledgeBase,
-                messageDetails.body,
-                messageDetails.subject,
-                salutationMode
-              );
+          if (!retryResponse) break;
 
-              if (retryValidation.isValid) {
-                console.log(`✅ Retry superato (score: ${retryValidation.score.toFixed(2)})`);
-                finalResponse = retryValidation.fixedResponse || retryResponse;
-                validation = retryValidation;
-              } else {
-                console.warn(
-                  `⚠️ Retry non sufficiente (score: ${retryValidation.score.toFixed(2)}). ` +
-                  `Errori residui: ${retryValidation.errors.join('; ')}`
-                );
-                if (retryValidation.score > validation.score) {
-                  console.log('   → Uso risposta del retry (score più alto, nonostante non valida)');
-                  finalResponse = retryResponse;
-                  validation = retryValidation;
-                }
-              }
-            }
+          const retryValidation = this.validator.validateResponse(
+            retryResponse,
+            detectedLanguage,
+            enrichedKnowledgeBase,
+            messageDetails.body,
+            messageDetails.subject,
+            salutationMode
+          );
+
+          if (retryValidation.isValid) {
+            console.log(`✅ Retry superato (score: ${retryValidation.score.toFixed(2)})`);
+            finalResponse = retryValidation.fixedResponse || retryResponse;
+            validation = retryValidation;
+            break;
+          }
+
+          console.warn(
+            `⚠️ Retry non sufficiente (score: ${retryValidation.score.toFixed(2)}). ` +
+            `Errori residui: ${retryValidation.errors.join('; ')}`
+          );
+          if (retryValidation.score > validation.score) {
+            console.log('   → Uso risposta del retry (score più alto, nonostante non valida)');
+            finalResponse = retryResponse;
+            validation = retryValidation;
           }
         }
 
@@ -1501,7 +1514,7 @@ ${addressLines.join('\n\n')}
           stats.skipped++;
           if (result.reason === 'thread_locked' || result.reason === 'thread_locked_race') stats.skipped_locked++;
           if (result.reason === 'already_labeled_no_new_unread') stats.skipped_processed++;
-          if (result.reason === 'no_external_unread' || result.reason === 'self_sent') stats.skipped_internal++;
+          if (result.reason === 'no_external_unread' || result.reason === 'last_speaker_is_me') stats.skipped_internal++;
           if (result.reason === 'email_loop_detected') stats.skipped_loop++;
         } else if (result.status === 'filtered') {
           stats.filtered++;
