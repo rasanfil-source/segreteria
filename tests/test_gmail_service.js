@@ -39,6 +39,10 @@ vm.runInThisContext(code, { filename: gasGmailServicePath });
 
 console.log('--- Test sanitizeUrl ---');
 assert(sanitizeUrl('https://example.org/path?q=1') === 'https://example.org/path?q=1', 'URL https valido deve passare');
+assert(
+  sanitizeUrl('https://example.org/search?q=<safe>') === 'https://example.org/search?q=&lt;safe&gt;',
+  'URL con parentesi angolari deve essere escaped in modo sicuro'
+);
 assert(sanitizeUrl('www.parrocchia.it/info') === 'https://www.parrocchia.it/info', 'URL www.* legittimo deve essere normalizzato a https');
 assert(sanitizeUrl('javascript:alert(1)') === null, 'URL javascript deve essere bloccato');
 assert(sanitizeUrl('http://127.0.0.1/test') === null, 'URL localhost deve essere bloccato (SSRF)');
