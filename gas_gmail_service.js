@@ -1248,8 +1248,8 @@ var GmailService = class GmailService {
         const cutoffIso = new Date(Date.now() - (24 * 60 * 60 * 1000)).toISOString();
         // Compatibilità Drive API v2/v3: cambiano nomi campo in query e shape della risposta.
         // Manteniamo doppia strategia per evitare cleanup silenziosamente inattivo.
-        const v2Query = `title contains 'OCR_' and trashed = false and modifiedDate < '${cutoffIso}'`;
-        const v3Query = `name contains 'OCR_' and trashed = false and modifiedTime < '${cutoffIso}'`;
+        const v2Query = `(title contains 'OCR_' or title contains 'TEMP_CONV_') and trashed = false and modifiedDate < '${cutoffIso}'`;
+        const v3Query = `(name contains 'OCR_' or name contains 'TEMP_CONV_') and trashed = false and modifiedTime < '${cutoffIso}'`;
 
         let response;
         try {
