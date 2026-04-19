@@ -760,8 +760,8 @@ Output JSON:
 
     // Default: IT se punteggi nulli o trascurabili
     if (maxScore < 2) {
-      console.log('   \u2713 Default: ITALIANO (punteggio basso o nullo)');
-      return { lang: 'it', confidence: maxScore, safetyGrade: 5 };
+      console.log('   ✓ Default: ITALIANO (punteggio basso o nullo)');
+      return { lang: 'it', confidence: maxScore, safetyGrade: 1 };
     }
 
     const safetyGrade = this._computeSafetyGrade(detectedLang, maxScore, scores);

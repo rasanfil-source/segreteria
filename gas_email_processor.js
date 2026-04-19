@@ -1569,9 +1569,11 @@ ${addressLines.join('\n\n')}
       .filter(Boolean);
 
     if (ignoreDomains.some(domain => {
+      const localPart = email.includes('@') ? email.substring(0, email.lastIndexOf('@')) : email;
       const isExactMatch = email === domain;
       const isDomainMatch = email.endsWith(domain.startsWith('@') ? domain : '@' + domain);
-      return isExactMatch || isDomainMatch;
+      const isUsernameMatch = !domain.includes('@') && localPart === domain;
+      return isExactMatch || isDomainMatch || isUsernameMatch;
     })) {
       console.log(`🚫 Ignorato: mittente in blacklist (${email})`);
       return true;

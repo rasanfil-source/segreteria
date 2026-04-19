@@ -1156,7 +1156,11 @@ var GmailService = class GmailService {
                     name: `TEMP_CONV_${attachmentBlob.getName() || 'allegato'}`,
                     mimeType: googleMime
                 };
-                const file = Drive.Files.create(resource, attachmentBlob.copyBlob());
+                const file = Drive.Files.create(resource, attachmentBlob.copyBlob(), {
+                    // Difesa-in-profondità: alcuni client/mock v3 leggono il mimeType
+                    // target dalle opzioni anziché dal solo resource body.
+                    mimeType: googleMime
+                });
                 fileId = file && file.id ? file.id : null;
                 if (!fileId) {
                     console.error('❌ Drive.Files.create ha avuto successo ma non ha restituito un file ID.');
@@ -1335,7 +1339,11 @@ var GmailService = class GmailService {
                     name: `OCR_${fileName}`,
                     mimeType: googleMimeType
                 };
-                const file = Drive.Files.create(resource, blob);
+                const file = Drive.Files.create(resource, blob, {
+                    // Difesa-in-profondità: alcuni client/mock v3 leggono il mimeType
+                    // target dalle opzioni anziché dal solo resource body.
+                    mimeType: googleMimeType
+                });
                 if (!file || !file.id) {
                     throw new Error('Drive API ha restituito un file convertito non valido (id assente)');
                 }
@@ -1462,6 +1470,9 @@ var GmailService = class GmailService {
                     mimeType: 'application/vnd.google-apps.document'
                 };
                 const file = Drive.Files.create(resource, blob, {
+                    // Difesa-in-profondità: alcuni client/mock v3 leggono il mimeType
+                    // target dalle opzioni anziché dal solo resource body.
+                    mimeType: 'application/vnd.google-apps.document',
                     ocrLanguage: settings.ocrLanguage || 'it'
                 });
                 if (!file || !file.id) {
