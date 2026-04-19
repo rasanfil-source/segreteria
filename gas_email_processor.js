@@ -2389,7 +2389,7 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
 
     // 1. Trova TUTTI i topic menzionati esplicitamente
     const normalizedTopics = previousTopics
-      .map(info => (typeof info === 'object' ? info.topic : info))
+      .map(info => (typeof info === 'object' && info !== null ? info.topic : info))
       .map(topic => this._normalizeTopicKey(topic));
 
     const mentionedTopics = normalizedTopics.filter(topic => {

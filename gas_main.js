@@ -1096,12 +1096,17 @@ function setupProductionTrigger() {
  */
 function setupMainTrigger(minutes) {
   const intervalMinutes = parseInt(minutes, 10) || 5;
+  // GAS supporta solo alcuni intervalli per everyMinutes().
+  const validIntervals = [1, 5, 10, 15, 30];
+  const safeInterval = validIntervals.reduce((prev, curr) =>
+    Math.abs(curr - intervalMinutes) < Math.abs(prev - intervalMinutes) ? curr : prev
+  );
   deleteTriggersByHandler_('main');
   deleteTriggersByHandler_('processEmailsMain');
 
   ScriptApp.newTrigger('main')
     .timeBased()
-    .everyMinutes(intervalMinutes)
+    .everyMinutes(safeInterval)
     .create();
 }
 

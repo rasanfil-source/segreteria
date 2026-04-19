@@ -1208,6 +1208,8 @@ var GmailService = class GmailService {
                         Drive.Files.remove(fileId);
                     } else if (typeof Drive.Files.delete === 'function') {
                         Drive.Files.delete(fileId);
+                    } else if (typeof Drive.Files.trash === 'function') {
+                        Drive.Files.trash(fileId);
                     }
                 } catch (e) {
                     console.warn(`⚠️ Errore cancellazione file temporaneo ${fileId}: ${e.message}`);
