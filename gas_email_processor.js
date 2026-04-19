@@ -2276,16 +2276,25 @@ ${prompt.slice(-tailChars)}`;
     if (hasSameTime) return response;
 
     const toMinutes = (time) => {
-      const [hh, mm] = time.split(':').map(Number);
+      if (!time || typeof time !== 'string' || !time.includes(':')) return NaN;
+      const [hhRaw, mmRaw] = time.split(':');
+      const hh = Number(hhRaw);
+      const mm = Number(mmRaw);
+      if (!Number.isFinite(hh) || !Number.isFinite(mm)) return NaN;
       return (hh * 60) + mm;
     };
 
     let minDelta = Infinity;
     for (const ut of userTimes) {
       for (const rt of responseTimes) {
-        minDelta = Math.min(minDelta, Math.abs(toMinutes(ut) - toMinutes(rt)));
+        const utMin = toMinutes(ut);
+        const rtMin = toMinutes(rt);
+        if (!Number.isFinite(utMin) || !Number.isFinite(rtMin)) continue;
+        minDelta = Math.min(minDelta, Math.abs(utMin - rtMin));
       }
     }
+
+    if (!Number.isFinite(minDelta)) return response;
 
     const note = minDelta >= 90
       ? 'in un orario differente da quanto indicato da Lei'
@@ -2509,7 +2518,7 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
       : null;
     if (!cache) return 0;
     const key = 'empty_inbox_streak';
-    let streak = parseInt(cache.get(key) || '0');
+    let streak = parseInt(cache.get(key) || '0', 10);
 
     if (isEmpty) {
       streak++;
