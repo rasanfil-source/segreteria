@@ -267,78 +267,103 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
   selectModel(taskType, options, alreadyLocked = false) {
     options = options || {};
-    const preferQuality = options.preferQuality || false;
     const forceModel = options.forceModel || null;
     const estimatedTokens = options.estimatedTokens || 1000;
 
-    // Override manuale
+    if (alreadyLocked) {
+      return this._selectModelUnlocked(taskType, options);
+    }
+
+    const lockResult = this._withRateLimitLock_(function () {
+      this._recoverFromWAL(true);
+      this._refreshCache();
+      return this._selectModelUnlocked(taskType, {
+        forceModel: forceModel,
+        estimatedTokens: estimatedTokens
+      });
+    }.bind(this), {
+      timeoutReason: 'lock_timeout',
+      lockDescription: 'selezione modello'
+    });
+
+    if (!lockResult.ok) {
+      return lockResult.result;
+    }
+    return lockResult.result;
+  }
+
+  _selectModelUnlocked(taskType, options) {
+    options = options || {};
+    const forceModel = options.forceModel || null;
+    const estimatedTokens = options.estimatedTokens || 1000;
+
     if (forceModel && this.models[forceModel]) {
       return this._validateModelAvailability(forceModel, estimatedTokens);
     }
 
-    // Usa strategia da CONFIG (o fallback) senza mutare this.strategies.
+    const candidates = this._getCandidateModels(taskType);
+    for (var i = 0; i < candidates.length; i++) {
+      const modelKey = candidates[i];
+      const result = this._validateModelAvailability(modelKey, estimatedTokens);
+      if (result.available) {
+        console.log(`✓ Selezionato: ${modelKey} per ${taskType}`);
+        return result;
+      }
+    }
+
+    return {
+      available: false,
+      modelKey: null,
+      reason: 'all_quotas_exhausted',
+      nextResetTime: this._getNextResetTime()
+    };
+  }
+
+  _getCandidateModels(taskType) {
     const taskStrategies = this.strategies || {};
     const resolvedStrategies = Object.assign(
       { classification: taskStrategies['quick_check'] || ['flash-lite', 'flash-2.5'] },
       taskStrategies
     );
 
-    const candidates = resolvedStrategies[taskType] || resolvedStrategies['fallback'] || ['flash-lite', 'flash-2.5'];
+    return resolvedStrategies[taskType] || resolvedStrategies['fallback'] || ['flash-lite', 'flash-2.5'];
+  }
 
-    // Trova primo modello disponibile (Punto 11: Protezione con lock per atomicità check+use)
+  _withRateLimitLock_(fn, options) {
+    options = options || {};
+    const timeoutReason = options.timeoutReason || 'lock_timeout';
+    const lockDescription = options.lockDescription || 'rate limiter';
     const lock = LockService.getScriptLock();
-    // Retry breve con backoff: evita falsi "non disponibile" sotto burst concorrenti.
     let lockAcquired = false;
+    const maxLockAttempts = 3;
 
-    if (!alreadyLocked) {
-      const maxLockAttempts = 3;
-      for (let attempt = 0; attempt < maxLockAttempts; attempt++) {
-        lockAcquired = lock.tryLock(5000);
-        if (lockAcquired) break;
-        if (attempt < maxLockAttempts - 1) {
-          const backoffMs = 150 * Math.pow(2, attempt) + Math.floor(Math.random() * 100);
-          Utilities.sleep(backoffMs);
-        }
+    for (let attempt = 0; attempt < maxLockAttempts; attempt++) {
+      lockAcquired = lock.tryLock(5000);
+      if (lockAcquired) break;
+      if (attempt < maxLockAttempts - 1) {
+        const backoffMs = 150 * Math.pow(2, attempt) + Math.floor(Math.random() * 100);
+        Utilities.sleep(backoffMs);
       }
+    }
 
-      if (!lockAcquired) {
-        console.warn('⚠️ Lock non acquisito per selezione modello dopo retry, fallback conservativo');
-        return {
+    if (!lockAcquired) {
+      console.warn(`⚠️ Lock non acquisito per ${lockDescription} dopo retry`);
+      return {
+        ok: false,
+        result: {
           available: false,
           modelKey: null,
-          reason: 'lock_timeout',
+          reason: timeoutReason,
           nextResetTime: this._getNextResetTime()
-        };
-      }
-    }
-
-    let selectedResult = null;
-    try {
-      // Se al bootstrap il recupero WAL non è riuscito (es. lock timeout), ritenta ora sotto lock già acquisito.
-      this._recoverFromWAL(true);
-
-      // Rinfresca i contatori per avere dati aggiornati sotto lock
-      this._refreshCache();
-
-      for (var i = 0; i < candidates.length; i++) {
-        const modelKey = candidates[i];
-        const result = this._validateModelAvailability(modelKey, estimatedTokens);
-        if (result.available) {
-          console.log(`✓ Selezionato: ${modelKey} per ${taskType}`);
-          selectedResult = result;
-          break;
         }
-      }
-    } finally {
-      if (!alreadyLocked && lockAcquired) lock.releaseLock();
+      };
     }
 
-    return selectedResult || {
-      available: false,
-      modelKey: null,
-      reason: 'all_quotas_exhausted',
-      nextResetTime: this._getNextResetTime()
-    };
+    try {
+      return { ok: true, result: fn() };
+    } finally {
+      lock.releaseLock();
+    }
   }
 
   _validateModelAvailability(modelKey, estimatedTokens) {
@@ -894,11 +919,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   _mergeWindowData(existing, walData) {
     const toKey = (entry) => {
       const ts = entry && typeof entry.timestamp !== 'undefined' ? entry.timestamp : 'na';
-      const reserved = entry && entry.reserved === true ? 'r1' : 'r0';
-      const completed = entry && entry.completed === true ? 'c1' : 'c0';
       const nonce = entry && typeof entry.nonce !== 'undefined' ? entry.nonce : 'na';
       const model = entry && entry.modelKey ? entry.modelKey : 'na';
       const tokens = entry && typeof entry.tokens !== 'undefined' ? entry.tokens : 0;
+      const reserved = entry && entry.reserved === true ? 'r1' : 'r0';
+      const completed = entry && entry.completed === true ? 'c1' : 'c0';
       return `${ts}|${nonce}|${model}|${tokens}|${reserved}|${completed}`;
     };
 
@@ -1077,77 +1102,57 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   _selectAndReserveModel(taskType, options) {
     options = options || {};
     const estimatedTokens = options.estimatedTokens || 1000;
-    const preferQuality = options.preferQuality || false;
     const forceModel = options.forceModel || null;
 
-    const lock = LockService.getScriptLock();
-    let lockAcquired = false;
-    const maxLockAttempts = 3;
-
-    for (let attempt = 0; attempt < maxLockAttempts; attempt++) {
-      lockAcquired = lock.tryLock(5000);
-      if (lockAcquired) break;
-      if (attempt < maxLockAttempts - 1) {
-        const backoffMs = 150 * Math.pow(2, attempt) + Math.floor(Math.random() * 100);
-        Utilities.sleep(backoffMs);
-      }
-    }
-
-    if (!lockAcquired) {
-      console.warn('⚠️ Lock non acquisito per selezione+reservation modello dopo retry');
-      return {
-        available: false,
-        modelKey: null,
-        reason: 'lock_timeout',
-        nextResetTime: this._getNextResetTime()
-      };
-    }
-
-    try {
+    const lockResult = this._withRateLimitLock_(function () {
       this._recoverFromWAL(true);
       this._refreshCache();
 
-      const selection = this.selectModel(taskType, {
-        preferQuality: preferQuality,
+      const selection = this._selectModelUnlocked(taskType, {
         forceModel: forceModel,
         estimatedTokens: estimatedTokens
-      }, true);
+      });
 
       if (!selection.available) {
         return selection;
       }
 
-      const reservationId = this._createReservationUnderLock(selection.modelKey, estimatedTokens);
+      const reservationId = this._createReservationUnlocked(selection.modelKey, estimatedTokens);
       selection.reservationId = reservationId;
       return selection;
-    } finally {
-      lock.releaseLock();
+    }.bind(this), {
+      timeoutReason: 'lock_timeout',
+      lockDescription: 'selezione+reservation modello'
+    });
+
+    if (!lockResult.ok) {
+      return lockResult.result;
     }
+    return lockResult.result;
   }
 
-  _createReservationUnderLock(modelKey, estimatedTokens) {
+  _createReservationUnlocked(modelKey, estimatedTokens) {
     const now = Date.now();
     const reservationId = `res_${now}_${Math.floor(Math.random() * 1000000)}`;
-    const rpmEntry = {
+
+    this._updateWindow('rpm', {
       timestamp: now,
       nonce: reservationId,
       modelKey: modelKey,
       reserved: true,
       completed: false
-    };
-    const tpmEntry = {
+    });
+
+    this._updateWindow('tpm', {
       timestamp: now,
       nonce: reservationId,
       modelKey: modelKey,
       tokens: estimatedTokens || 0,
       reserved: true,
       completed: false
-    };
+    });
 
-    this._updateWindow('rpm', rpmEntry);
-    this._updateWindow('tpm', tpmEntry);
     this._persistCache();
-
     console.log(`🧾 Reservation creata: ${modelKey} (${reservationId})`);
     return reservationId;
   }
@@ -1155,8 +1160,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   _finalizeReservation(modelKey, reservationId, duration) {
     this._mutateReservation(modelKey, reservationId, function(entry) {
       entry.completed = true;
-      entry.duration = duration || 0;
       entry.completedAt = Date.now();
+      entry.duration = duration || 0;
       return true;
     });
   }
@@ -1170,26 +1175,36 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   _mutateReservation(modelKey, reservationId, mutatorFn) {
     if (!reservationId) return;
 
-    const lock = LockService.getScriptLock();
-    if (!lock.tryLock(25000)) {
-      console.warn(`⚠️ Impossibile acquisire lock per mutateReservation ${reservationId}`);
-      return;
-    }
-
-    try {
+    const lockResult = this._withRateLimitLock_(function () {
       this._refreshCache();
-      ['rpmWindow', 'tpmWindow'].forEach((cacheKey) => {
+
+      ['rpmWindow', 'tpmWindow'].forEach(function(cacheKey) {
         const currentWindow = Array.isArray(this.cache[cacheKey]) ? this.cache[cacheKey] : [];
-        this.cache[cacheKey] = currentWindow.filter((entry) => {
+        this.cache[cacheKey] = currentWindow.filter(function(entry) {
           if (!entry || entry.modelKey !== modelKey || entry.nonce !== reservationId || entry.reserved !== true) {
             return true;
           }
-          return mutatorFn(Object.assign(entry, { reservationId: reservationId })) !== false;
+
+          const mutableEntry = Object.assign({}, entry);
+          const keepEntry = mutatorFn(mutableEntry);
+          if (keepEntry === false) {
+            return false;
+          }
+          Object.keys(entry).forEach(function(key) { delete entry[key]; });
+          Object.assign(entry, mutableEntry);
+          return true;
         });
-      });
+      }.bind(this));
+
       this._persistCache();
-    } finally {
-      lock.releaseLock();
+      return true;
+    }.bind(this), {
+      timeoutReason: 'lock_timeout',
+      lockDescription: 'mutation reservation'
+    });
+
+    if (!lockResult.ok) {
+      console.warn(`⚠️ mutateReservation non completata per ${reservationId}: ${lockResult.result.reason}`);
     }
   }
 }
