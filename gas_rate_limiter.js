@@ -265,7 +265,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   // SELEZIONE MODELLO
   // ================================================================
 
-  selectModel(taskType, options) {
+  selectModel(taskType, options, alreadyLocked = false) {
     options = options || {};
     const preferQuality = options.preferQuality || false;
     const forceModel = options.forceModel || null;
@@ -289,24 +289,27 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const lock = LockService.getScriptLock();
     // Retry breve con backoff: evita falsi "non disponibile" sotto burst concorrenti.
     let lockAcquired = false;
-    const maxLockAttempts = 3;
-    for (let attempt = 0; attempt < maxLockAttempts; attempt++) {
-      lockAcquired = lock.tryLock(5000);
-      if (lockAcquired) break;
-      if (attempt < maxLockAttempts - 1) {
-        const backoffMs = 150 * Math.pow(2, attempt) + Math.floor(Math.random() * 100);
-        Utilities.sleep(backoffMs);
-      }
-    }
 
-    if (!lockAcquired) {
-      console.warn('⚠️ Lock non acquisito per selezione modello dopo retry, fallback conservativo');
-      return {
-        available: false,
-        modelKey: null,
-        reason: 'lock_timeout',
-        nextResetTime: this._getNextResetTime()
-      };
+    if (!alreadyLocked) {
+      const maxLockAttempts = 3;
+      for (let attempt = 0; attempt < maxLockAttempts; attempt++) {
+        lockAcquired = lock.tryLock(5000);
+        if (lockAcquired) break;
+        if (attempt < maxLockAttempts - 1) {
+          const backoffMs = 150 * Math.pow(2, attempt) + Math.floor(Math.random() * 100);
+          Utilities.sleep(backoffMs);
+        }
+      }
+
+      if (!lockAcquired) {
+        console.warn('⚠️ Lock non acquisito per selezione modello dopo retry, fallback conservativo');
+        return {
+          available: false,
+          modelKey: null,
+          reason: 'lock_timeout',
+          nextResetTime: this._getNextResetTime()
+        };
+      }
     }
 
     let selectedResult = null;
@@ -326,9 +329,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
           break;
         }
       }
-
     } finally {
-      if (lockAcquired) lock.releaseLock();
+      if (!alreadyLocked && lockAcquired) lock.releaseLock();
     }
 
     return selectedResult || {
@@ -495,8 +497,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const maxRetries = options.maxRetries || 3;
     const preferQuality = options.preferQuality || false;
 
-    // 1. Selezione modello standard
-    const selection = this.selectModel(taskType, { preferQuality: preferQuality });
+    // 1. Selezione + riserva atomica della capacità minuto per ridurre oversubscription concorrente.
+    const selection = this._reserveModelCapacity(taskType, {
+      preferQuality: preferQuality,
+      estimatedTokens: estimatedTokens
+    });
 
     if (!selection.available) {
       console.error(`\u274C Nessun modello disponibile: ${selection.reason}`);
@@ -527,7 +532,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
         const duration = Date.now() - startTime;
 
-        // Traccia richiesta riuscita
+        // Traccia completamento richiesta (RPD/tokens giornalieri + metriche)
         this._trackRequest(modelKey, estimatedTokens, duration);
 
         console.log(`✓ Successo (${duration}ms)`);
@@ -1040,6 +1045,37 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     return Math.max(tokens, 1);
+  }
+
+  _reserveModelCapacity(taskType, options) {
+    options = options || {};
+    const estimatedTokens = options.estimatedTokens || 1000;
+    const lock = LockService.getScriptLock();
+    if (!lock.tryLock(25000)) {
+      return {
+        available: false,
+        modelKey: null,
+        reason: 'lock_timeout',
+        nextResetTime: this._getNextResetTime()
+      };
+    }
+
+    try {
+      this._recoverFromWAL(true);
+      this._refreshCache();
+
+      const baseSelection = this.selectModel(taskType, options, true);
+      if (!baseSelection.available) return baseSelection;
+
+      const now = Date.now();
+      this._updateWindow('rpm', { timestamp: now, nonce: `reserve_${now}`, modelKey: baseSelection.modelKey });
+      this._updateWindow('tpm', { timestamp: now, nonce: `reserve_${now}`, modelKey: baseSelection.modelKey, tokens: estimatedTokens });
+      this._persistCache();
+
+      return baseSelection;
+    } finally {
+      lock.releaseLock();
+    }
   }
 }
 

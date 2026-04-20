@@ -578,7 +578,7 @@ var ResponseValidator = class ResponseValidator {
     const normalizePhone = (p) => p.replace(/\D/g, '');
 
     // === Controllo orari ===
-    const timePattern = /(?<![a-z]\.)\b\d{1,2}[:.]\d{2}\b(?!\.[a-z])/gi;
+    const timePattern = /(?<![a-z]\.)(?<!\b\d{1,2}[\/.-])\b\d{1,2}[:.]\d{2}\b(?![\/.-]\d{2,4})(?!\.[a-z])/gi;
     const contextualHourPattern = /\b(?:alle?|ore)\s+(\d{1,2})\b/gi;
     const responseTimesRaw = [];
     let match;
@@ -597,6 +597,10 @@ var ResponseValidator = class ResponseValidator {
       }
       // Whitelist: Escludi prezzi (es. 10.50 euro)
       if (/^\s*(?:euro|\u20AC|eur)/i.test(suffix)) {
+        continue;
+      }
+      // Whitelist: Escludi date tipo 12.05.2026 o 12/05
+      if (/^\.\d{2,4}\b/.test(suffix) || /(?:^|[\s(])\d{1,2}[\/.-]\d{1,2}$/.test(prefix.trim())) {
         continue;
       }
       // Whitelist: Escludi versetti biblici (es. Gv 10,10 o Mt 10.10)

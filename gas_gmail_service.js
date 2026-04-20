@@ -2712,8 +2712,11 @@ function markdownToHtml(text) {
             }
 
             if (!foundClosingParen) {
-                result += input.slice(openBracket);
-                break;
+                // Degrada localmente il link malformato senza interrompere
+                // il parsing di eventuali link validi successivi.
+                result += input.slice(openBracket, closeBracket + 2);
+                cursor = closeBracket + 2;
+                continue;
             }
 
             const url = input.slice(closeBracket + 2, i);
