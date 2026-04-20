@@ -200,59 +200,57 @@ var MemoryService = class MemoryService {
           console.warn(`🔒 Timeout lock memoria sharded (Tentativo ${attempt + 1})`);
           lockFailed = true;
           shouldRetry = true;
-          continue;
-        }
+        } else {
+          // 2. Rileggi dati freschi dallo Sheet
+          const existingRow = this._findRowByThreadId(threadId);
+          const now = this._validateAndNormalizeTimestamp(new Date().toISOString());
 
-        // 2. Rileggi dati freschi dallo Sheet
-        const existingRow = this._findRowByThreadId(threadId);
-        const now = this._validateAndNormalizeTimestamp(new Date().toISOString());
+          if (existingRow) {
+            const existingData = this._rowToObject(existingRow.values);
+            const currentVersion = existingData.version || 0;
 
-        if (existingRow) {
-          const existingData = this._rowToObject(existingRow.values);
-          const currentVersion = existingData.version || 0;
+            // Verifica controllo concorrenza ottimistico
+            if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
+              // INVALIDAZIONE CACHE CRITICA
+              this._invalidateCache(`memory_${threadId}`);
+              console.warn(`🔒 Version mismatch thread ${threadId}: atteso ${expectedVersion}, ottenuto ${currentVersion}`);
 
-          // Verifica controllo concorrenza ottimistico
-          if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
-            // INVALIDAZIONE CACHE CRITICA
-            this._invalidateCache(`memory_${threadId}`);
-            console.warn(`🔒 Version mismatch thread ${threadId}: atteso ${expectedVersion}, ottenuto ${currentVersion}`);
+              // Allinea la versione attesa per il retry successivo (OCC corretto).
+              expectedVersion = currentVersion;
+              throw new Error('VERSION_MISMATCH');
+            }
 
-            // Allinea la versione attesa per il retry successivo (OCC corretto).
-            expectedVersion = currentVersion;
-            throw new Error('VERSION_MISMATCH');
+            // Merge: esistente + nuovi dati
+            const mergedData = Object.assign({}, existingData, dataToUpdate);
+            mergedData.lastUpdated = now;
+            const shouldIncrementMessageCount = options.incrementMessageCount !== false;
+            mergedData.messageCount = shouldIncrementMessageCount
+              ? (existingData.messageCount || 0) + 1
+              : (existingData.messageCount || 0);
+            mergedData.version = currentVersion + 1;
+
+            this._withSheetWriteLock(() => {
+              this._updateRow(existingRow.rowIndex, mergedData);
+            });
+            console.log(`🧠 Memoria aggiornata per thread ${threadId} (v${mergedData.version}, Tentativo ${attempt + 1})`);
+          } else {
+            // Nuova riga
+            const insertData = Object.assign({}, dataToUpdate);
+            insertData.threadId = threadId;
+            insertData.lastUpdated = now;
+            insertData.messageCount = options.incrementMessageCount === false ? 0 : 1;
+            insertData.version = 1;
+
+            this._withSheetWriteLock(() => {
+              this._appendRow(insertData);
+            });
+            console.log(`🧠 Memoria creata per thread ${threadId} (v1)`);
           }
 
-          // Merge: esistente + nuovi dati
-          const mergedData = Object.assign({}, existingData, dataToUpdate);
-          mergedData.lastUpdated = now;
-          const shouldIncrementMessageCount = options.incrementMessageCount !== false;
-          mergedData.messageCount = shouldIncrementMessageCount
-            ? (existingData.messageCount || 0) + 1
-            : (existingData.messageCount || 0);
-          mergedData.version = currentVersion + 1;
-
-          this._withSheetWriteLock(() => {
-            this._updateRow(existingRow.rowIndex, mergedData);
-          });
-          console.log(`🧠 Memoria aggiornata per thread ${threadId} (v${mergedData.version}, Tentativo ${attempt + 1})`);
-        } else {
-          // Nuova riga
-          const insertData = Object.assign({}, dataToUpdate);
-          insertData.threadId = threadId;
-          insertData.lastUpdated = now;
-          insertData.messageCount = options.incrementMessageCount === false ? 0 : 1;
-          insertData.version = 1;
-
-          this._withSheetWriteLock(() => {
-            this._appendRow(insertData);
-          });
-          console.log(`🧠 Memoria creata per thread ${threadId} (v1)`);
+          // Invalida cache locale
+          this._invalidateCache(`memory_${threadId}`);
+          return; // Successo
         }
-
-        // Invalida cache locale
-        this._invalidateCache(`memory_${threadId}`);
-        return; // Successo
-
       } catch (error) {
         if (error.message === 'VERSION_MISMATCH') {
           console.warn(`⚠️ Conflitto concorrenza, retry... (Tentativo ${attempt + 1})`);
@@ -489,7 +487,9 @@ var MemoryService = class MemoryService {
           existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
           existingData.version = currentVersion + 1;
 
-          this._updateRow(existingRow.rowIndex, existingData);
+          this._withSheetWriteLock(() => {
+            this._updateRow(existingRow.rowIndex, existingData);
+          });
           this._invalidateCache(`memory_${threadId}`);
           console.log(`🧠 Memoria: Topic aggiunti atomicamente ${JSON.stringify(topics)}`);
         }
@@ -773,11 +773,13 @@ var MemoryService = class MemoryService {
       existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
       existingData.version = (existingData.version || 0) + 1;
 
-      if (existingRow) {
-        this._updateRow(existingRow.rowIndex, existingData);
-      } else {
-        this._appendRow(existingData);
-      }
+      this._withSheetWriteLock(() => {
+        if (existingRow) {
+          this._updateRow(existingRow.rowIndex, existingData);
+        } else {
+          this._appendRow(existingData);
+        }
+      });
       this._invalidateCache(`memory_${threadId}`);
     } catch (error) {
       console.warn(`⚠️ Aggiornamento reazione fallito: ${error.message}`);

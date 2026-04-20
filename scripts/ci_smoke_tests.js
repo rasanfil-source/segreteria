@@ -792,6 +792,160 @@ function testInvalidateCacheAlsoClearsRobustCache() {
     }
 }
 
+function testUpdateMemoryLockFailureUsesExponentialBackoff() {
+    console.log('--- Test: updateMemory applica backoff su lock timeout ---');
+    loadScript('gas_memory_service.js');
+
+    const service = Object.create(MemoryService.prototype);
+    service._initialized = true;
+    service._getShardedLockKey = () => 'memory_lock_thread-backoff';
+    service._tryAcquireShardedLock = () => false;
+    service._releaseShardedLock = () => { throw new Error('releaseLock non deve essere chiamato senza lock'); };
+
+    const originalUtilities = global.Utilities;
+    const sleeps = [];
+    global.Utilities = Object.assign({}, originalUtilities, {
+        sleep: (ms) => sleeps.push(ms)
+    });
+
+    try {
+        let thrown = null;
+        try {
+            service.updateMemory('thread-backoff', { language: 'it' });
+        } catch (error) {
+            thrown = error;
+        }
+
+        assert(
+            thrown && /Aggiornamento memoria fallito/.test(thrown.message),
+            'updateMemory deve fallire dopo MAX_RETRIES se il lock resta occupato'
+        );
+
+        const expectedSleeps = [200, 400, 800, 1600, 3200];
+        assert(
+            sleeps.length === expectedSleeps.length,
+            `Attesi ${expectedSleeps.length} backoff sleep prima del fallimento finale, ottenuti ${sleeps.length}`
+        );
+        assert(
+            sleeps.every((ms, index) => ms === expectedSleeps[index]),
+            `Backoff lock timeout non valido. Atteso ${expectedSleeps.join(', ')}, ottenuto ${sleeps.join(', ')}`
+        );
+    } finally {
+        global.Utilities = originalUtilities;
+    }
+}
+
+function testAddProvidedInfoTopicsUsesSheetWriteLock() {
+    console.log('--- Test: addProvidedInfoTopics usa sheet lock per scrivere ---');
+    loadScript('gas_memory_service.js');
+
+    const service = Object.create(MemoryService.prototype);
+    service._initialized = true;
+    service._getShardedLockKey = () => 'memory_lock_thread-topics';
+    service._tryAcquireShardedLock = () => true;
+
+    let released = false;
+    service._releaseShardedLock = () => { released = true; };
+    service._findRowByThreadId = () => ({
+        rowIndex: 5,
+        values: ['thread-topics', 'it', 'INFO', 'standard', '[]', '2026-02-15T10:00:00.000Z', 2, 3, '']
+    });
+    service._rowToObject = () => ({
+        threadId: 'thread-topics',
+        providedInfo: ['orari'],
+        version: 3
+    });
+    service._normalizeProvidedTopics = (topics) => Array.isArray(topics) ? topics.slice() : [];
+    service._mergeProvidedTopics = (existingTopics, newTopics) => existingTopics.concat(newTopics);
+    service._validateAndNormalizeTimestamp = (ts) => ts;
+
+    let sheetLockCalls = 0;
+    let insideSheetWriteLock = false;
+    let updateRowCalls = 0;
+    let invalidatedKey = null;
+
+    service._withSheetWriteLock = (writeOperation) => {
+        sheetLockCalls++;
+        insideSheetWriteLock = true;
+        try {
+            writeOperation();
+        } finally {
+            insideSheetWriteLock = false;
+        }
+    };
+    service._updateRow = (_rowIndex, data) => {
+        updateRowCalls++;
+        assert(insideSheetWriteLock, 'addProvidedInfoTopics deve scrivere su Sheet solo dentro _withSheetWriteLock');
+        assert(
+            Array.isArray(data.providedInfo) && data.providedInfo.length === 2,
+            'providedInfo deve risultare mergeato prima della scrittura'
+        );
+    };
+    service._invalidateCache = (key) => { invalidatedKey = key; };
+
+    service.addProvidedInfoTopics('thread-topics', ['contatti']);
+
+    assert(sheetLockCalls === 1, `_withSheetWriteLock deve essere chiamato una volta, ottenuto ${sheetLockCalls}`);
+    assert(updateRowCalls === 1, `_updateRow deve essere eseguito una volta, ottenuto ${updateRowCalls}`);
+    assert(invalidatedKey === 'memory_thread-topics', `Cache invalidata errata: ${invalidatedKey}`);
+    assert(released === true, 'Il lock sharded deve essere rilasciato in finally');
+}
+
+function testUpdateProvidedInfoWithoutIncrementUsesSheetWriteLockForAppend() {
+    console.log('--- Test: _updateProvidedInfoWithoutIncrement usa sheet lock anche in append ---');
+    loadScript('gas_memory_service.js');
+
+    const service = Object.create(MemoryService.prototype);
+    service._initialized = true;
+    service._getShardedLockKey = () => 'memory_lock_thread-append';
+    service._tryAcquireShardedLock = () => true;
+
+    let released = false;
+    service._releaseShardedLock = () => { released = true; };
+    service._findRowByThreadId = () => null;
+    service._normalizeProvidedTopics = (topics) => {
+        if (!Array.isArray(topics)) topics = [topics];
+        return topics.map(t => typeof t === 'string' ? { topic: t } : t);
+    };
+    service._mergeProvidedTopics = (existingTopics, newTopics) => existingTopics.concat(newTopics);
+    service._validateAndNormalizeTimestamp = (ts) => ts;
+
+    let sheetLockCalls = 0;
+    let insideSheetWriteLock = false;
+    let appendRowCalls = 0;
+    let invalidatedKey = null;
+
+    service._withSheetWriteLock = (writeOperation) => {
+        sheetLockCalls++;
+        insideSheetWriteLock = true;
+        try {
+            writeOperation();
+        } finally {
+            insideSheetWriteLock = false;
+        }
+    };
+    service._appendRow = (data) => {
+        appendRowCalls++;
+        assert(insideSheetWriteLock, '_updateProvidedInfoWithoutIncrement deve fare append solo dentro _withSheetWriteLock');
+        assert(data.threadId === 'thread-append', `threadId append errato: ${data.threadId}`);
+        assert(
+            Array.isArray(data.providedInfo) && data.providedInfo[0].topic === 'battesimo',
+            'Il topic providedInfo deve essere preservato nel branch append'
+        );
+    };
+    service._updateRow = () => {
+        throw new Error('_updateRow non deve essere chiamato nel branch append');
+    };
+    service._invalidateCache = (key) => { invalidatedKey = key; };
+
+    service._updateProvidedInfoWithoutIncrement('thread-append', ['battesimo']);
+
+    assert(sheetLockCalls === 1, `_withSheetWriteLock deve essere chiamato una volta, ottenuto ${sheetLockCalls}`);
+    assert(appendRowCalls === 1, `_appendRow deve essere eseguito una volta, ottenuto ${appendRowCalls}`);
+    assert(invalidatedKey === 'memory_thread-append', `Cache invalidata errata: ${invalidatedKey}`);
+    assert(released === true, 'Il lock sharded deve essere rilasciato in finally');
+}
+
 function testLoadResourcesResetsMissingPromptSheets() {
     loadScript('gas_main.js');
 
@@ -1939,25 +2093,28 @@ function testPromptEngineNormalizesObjectKnowledgeBase() {
     assert(prompt.includes('"orari"') && prompt.includes('"contatti"'), 'La KB oggetto deve essere serializzata in JSON leggibile');
 }
 
-function testSheetRowsToTextRemovesEmptyCellsAndRows() {
-    console.log('--- Test: Sheet Rows To Text Polish ---');
+function testSheetRowsToTextPreservesColumnAlignmentWithEmptyCells() {
+    console.log('--- Test: Sheet Rows To Text Column Alignment ---');
     loadScript('gas_main.js');
 
     const rows = [
-        [' Categoria ', ' Dettaglio ', ''],
+        ['Nome', 'Telefono', 'Email'],
+        ['Mario', '', 'mario@test.com'],
         ['', '   ', null],
-        ['Orari Messe Festive', 'Sabato 18:00', undefined],
         ['Contatti', 12345, false]
     ];
 
     const text = _sheetRowsToText(rows);
     const expected = [
-        'Categoria | Dettaglio',
-        'Orari Messe Festive | Sabato 18:00',
+        'Nome | Telefono | Email',
+        'Mario | - | mario@test.com',
         'Contatti | 12345 | false'
     ].join('\n');
 
-    assert(text === expected, `Serializzazione righe non valida. Atteso "${expected}", ottenuto "${text}"`);
+    assert(
+        text === expected,
+        `La serializzazione deve preservare l'allineamento colonne. Atteso "${expected}", ottenuto "${text}"`
+    );
 }
 
 function testSheetRowsToTextFormatsDatesStably() {
@@ -2284,8 +2441,11 @@ function main() {
         ['computeSalutationMode: primo/reply/vecchio', testComputeSalutationMode],
         ['anti-loop: thread lungo con esterni consecutivi', testAntiLoopDetection],
         ['email processor: canonicalizza gmail/googlemail dotted alias', testEmailProcessorNormalizesGooglemailDotAliases],
+        ['memory: lock timeout applica exponential backoff', testUpdateMemoryLockFailureUsesExponentialBackoff],
         ['memory get: usa row.values in parsing', testMemoryGetUsesRowValues],
         ['memory invalidate: pulizia cache deterministica', testInvalidateCacheAlsoClearsRobustCache],
+        ['memory: addProvidedInfoTopics serializza scrittura sheet', testAddProvidedInfoTopicsUsesSheetWriteLock],
+        ['memory: providedInfo append usa sheet lock globale', testUpdateProvidedInfoWithoutIncrementUsesSheetWriteLockForAppend],
         ['memory reaction: gestione dinamica topic vuoti', testInferUserReactionIsResilientToEmptyTopics],
         ['memory reaction: normalizzazione topic coerente', testInferUserReactionNormalizesTopicKeys],
         ['rate limiter: persistenza rigorosa transazionale bloccata senza lock', testRateLimiterPersistenceRequiresTransactionalLock],
@@ -2315,7 +2475,7 @@ function main() {
         ['gmail send: fold e bound della catena References', testSendHtmlReplyFoldsAndBoundsReferencesHeader],
         ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
         ['main: isolamento rigoroso per hasExecutionLock', testMainEncapsulatesExecutionLockSuccessfully],
-        ['main: serializzazione robusta righe KB', testSheetRowsToTextRemovesEmptyCellsAndRows],
+        ['main: serializzazione KB preserva colonne vuote', testSheetRowsToTextPreservesColumnAlignmentWithEmptyCells],
         ['main: serializzazione date KB stabile', testSheetRowsToTextFormatsDatesStably],
         ['main: serializzazione celle multilinea KB stabile', testSheetRowsToTextNormalizesMultilineCells],
         ['main: fallback date formatter usa timezone script', testFormatDateForKnowledgeTextUsesScriptTimezoneInNodeFallback],
