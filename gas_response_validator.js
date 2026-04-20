@@ -705,11 +705,11 @@ var ResponseValidator = class ResponseValidator {
     // Parole italiane che NON devono essere maiuscole dopo una virgola
     const italianForbiddenCaps = [
       // Verbi
-      'Siamo', 'Restiamo', 'Sono', 'È', "E'", 'Era', 'Sarà',
-      'Ho', 'Hai', 'Ha', 'Abbiamo', 'Avete', 'Hanno',
-      'Vorrei', 'Vorremmo', 'Volevamo', 'Desideriamo', 'Informiamo',
-      // Articoli
-      'Il', 'Lo', 'La', 'I', 'Gli', 'Le', 'Un', 'Uno', 'Una', "Un'",
+       'Siamo', 'Restiamo', 'Sono', 'È', 'Era', 'Sarà',
+       'Ho', 'Hai', 'Ha', 'Abbiamo', 'Avete', 'Hanno',
+       'Vorrei', 'Vorremmo', 'Volevamo', 'Desideriamo', 'Informiamo',
+       // Articoli
+       'Il', 'Lo', 'La', 'I', 'Gli', 'Le', 'Un', 'Uno', 'Una',
       // Preposizioni
       'Per', 'Con', 'In', 'Su', 'Tra', 'Fra', 'Da', 'Di', 'A',
       // Congiunzioni e particelle (AGGIUNTE "E", "Ed")
@@ -1116,10 +1116,10 @@ var ResponseValidator = class ResponseValidator {
     // Definiamo le regole per lingua
     if (language === 'it') {
       targets = [
-        'Siamo', 'Restiamo', 'Sono', 'È', "E'", 'Era', 'Sarà',
+        'Siamo', 'Restiamo', 'Sono', 'È', 'Era', 'Sarà',
         'Ho', 'Hai', 'Ha', 'Abbiamo', 'Avete', 'Hanno',
         'Vorrei', 'Vorremmo', 'Volevamo', 'Desideriamo', 'Informiamo',
-        'Il', 'Lo', 'La', 'I', 'Gli', 'Le', 'Un', 'Uno', 'Una', "Un'",
+        'Il', 'Lo', 'La', 'I', 'Gli', 'Le', 'Un', 'Uno', 'Una',
         'Per', 'Con', 'In', 'Su', 'Tra', 'Fra', 'Da', 'Di', 'A',
         'Ma', 'Se', 'Che', 'Non', 'Sì', 'No', 'E', 'Ed', 'O', 'Oppure',
         'Vi', 'Ti', 'Mi', 'Ci', 'Si', 'Li',
