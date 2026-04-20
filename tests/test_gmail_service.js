@@ -292,4 +292,94 @@ console.log('--- Test buildConversationHistory: alias interni restano Segreteria
   global.CONFIG.KNOWN_ALIASES = originalKnownAliases;
 }
 
+console.log('--- Test buildConversationHistory: gmail/googlemail e dots equivalenti restano Segreteria ---');
+{
+  const originalExtractMessageDetails = service.extractMessageDetails;
+
+  service.extractMessageDetails = (message) => message;
+
+  const history = service.buildConversationHistory(
+    [{ senderEmail: 'info.parrocchia@gmail.com', senderName: 'Info', body: 'Risposta con account Gmail equivalente' }],
+    10,
+    'infoparrocchia@googlemail.com'
+  );
+
+  assert(
+    history.startsWith('Segreteria: Risposta con account Gmail equivalente'),
+    'gmail/googlemail con local-part puntato devono restare messaggi interni'
+  );
+
+  service.extractMessageDetails = originalExtractMessageDetails;
+}
+
+console.log('--- Test sendHtmlReply: References lunghe vengono foldate e limitate ---');
+{
+  const originalUtilities = global.Utilities;
+  const originalSession = global.Session;
+  const originalGmail = global.Gmail;
+  const originalGlobalCache = global.GLOBAL_CACHE;
+  let rawPayload = '';
+
+  try {
+    global.Utilities = Object.assign({}, originalUtilities, {
+      Charset: { UTF_8: 'utf8' },
+      base64Encode: (input) => Buffer.from(String(input || ''), 'utf8').toString('base64'),
+      base64EncodeWebSafe: (input) => Buffer.from(String(input || ''), 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+    });
+    global.Session = {
+      getEffectiveUser: () => ({ getEmail: () => 'parrocchia@example.org' }),
+      getActiveUser: () => ({ getEmail: () => 'parrocchia@example.org' })
+    };
+    global.GLOBAL_CACHE = { replacements: {} };
+    global.Gmail = {
+      Users: {
+        Messages: {
+          send: ({ raw }) => {
+            const normalized = String(raw || '').replace(/-/g, '+').replace(/_/g, '/');
+            const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+            rawPayload = Buffer.from(padded, 'base64').toString('utf8');
+          }
+        }
+      }
+    };
+
+    const longReferences = Array.from({ length: 30 }, (_, i) => `<ref${i}@example.org>`).join(' ');
+    service.sendHtmlReply(
+      { getThread: () => ({ getId: () => 'thread-refs' }) },
+      'Risposta di test',
+      {
+        subject: 'Oggetto di test',
+        senderEmail: 'utente@example.org',
+        senderName: 'Utente',
+        rfc2822MessageId: '<current@example.org>',
+        existingReferences: longReferences,
+        recipientEmail: 'parrocchia@example.org',
+        recipientCc: ''
+      }
+    );
+
+    const lines = rawPayload.split('\r\n');
+    const refStart = lines.findIndex((line) => line.startsWith('References:'));
+    assert(refStart >= 0, 'Il messaggio RAW deve contenere l\'header References');
+
+    const refLines = [];
+    for (let i = refStart; i < lines.length; i++) {
+       if (i === refStart || lines[i].startsWith(' ')) refLines.push(lines[i]);
+       else break;
+    }
+
+    const refIds = refLines.join(' ').match(/<[^<>\s]+>/g) || [];
+    assert(refLines.length > 1, 'Una catena References lunga deve essere foldata su più righe');
+    assert(refLines.every((line) => line.length <= 76), 'Ogni riga dell\'header References deve restare entro 76 caratteri');
+    assert(refIds.length === 20, `La catena References deve essere limitata agli ultimi 20 Message-ID, ottenuti ${refIds.length}`);
+    assert(refIds[0] === '<ref11@example.org>', `La finestra References deve conservare gli ID più recenti, ottenuto primo ID ${refIds[0]}`);
+    assert(refIds[refIds.length - 1] === '<current@example.org>', 'L\'ultimo elemento References deve essere il Message-ID corrente');
+  } finally {
+    global.Utilities = originalUtilities;
+    global.Session = originalSession;
+    global.Gmail = originalGmail;
+    global.GLOBAL_CACHE = originalGlobalCache;
+  }
+}
+
 console.log('✅ Test extractMessageDetails robustezza passati');

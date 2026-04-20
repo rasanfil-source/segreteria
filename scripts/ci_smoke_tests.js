@@ -498,6 +498,23 @@ function testResponseValidatorStreetNumberDoesNotWhitelistInventedTime() {
     );
 }
 
+function testResponseValidatorHourOnlyKnowledgeBaseAllowsNormalizedTime() {
+    loadScript('gas_response_validator.js');
+
+    const validator = new ResponseValidator();
+    const result = validator._checkHallucinations(
+        'La messa è alle 10:00.',
+        'Orari messe festive: domenica alle ore 10.',
+        'Vorrei sapere gli orari della domenica.'
+    );
+
+    assert(result.score === 1.0, `KB con "ore 10" deve autorizzare 10:00, ottenuto score ${result.score}`);
+    assert(
+        !result.warnings.some((w) => w.includes('Orari non in KB')),
+        'KB con orario contestuale deve evitare warning di allucinazione su 10:00'
+    );
+}
+
 function testSemanticThinkingPromptBullets() {
     loadScript('gas_response_validator.js');
 
@@ -519,6 +536,34 @@ function testResponseValidatorFrenchLiturgicalGreeting() {
 
     assert(result.isLiturgical === true, 'Il saluto liturgico francese deve essere riconosciuto');
     assert(result.warnings.length === 0, 'Un saluto liturgico non deve generare warning orari');
+}
+
+function testSemanticValidatorLazyFallbackWithoutGeminiOrCache() {
+    loadScript('gas_response_validator.js');
+
+    const originalConfig = global.CONFIG;
+    const originalGeminiService = global.GeminiService;
+    const originalCacheService = global.CacheService;
+    const originalUrlFetchApp = global.UrlFetchApp;
+
+    try {
+        global.CONFIG = { VALIDATION_MIN_SCORE: 0.6, SEMANTIC_VALIDATION: { enabled: true } };
+        global.GeminiService = undefined;
+        global.CacheService = undefined;
+        global.UrlFetchApp = undefined;
+
+        const validator = new ResponseValidator();
+        assert(validator.semanticValidator !== null, 'SemanticValidator deve inizializzarsi senza GeminiService eager');
+        assert(validator.semanticValidator.runtimeSemanticAvailable === false, 'runtimeSemanticAvailable deve restare false fuori runtime GAS');
+
+        const fallback = validator.semanticValidator.validateThinkingLeak('Risposta naturale.', { score: 0.9 });
+        assert(fallback.skipped === true && fallback.fallback === true, 'in assenza runtime deve usare fallback lazy');
+    } finally {
+        global.CONFIG = originalConfig;
+        global.GeminiService = originalGeminiService;
+        global.CacheService = originalCacheService;
+        global.UrlFetchApp = originalUrlFetchApp;
+    }
 }
 
 // ========================================================================
@@ -546,6 +591,18 @@ function testComputeSalutationMode() {
     const fourDaysAgo = new Date(NOW.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString();
     const result4d = computeSalutationMode({ isReply: true, messageCount: 3, memoryExists: true, lastUpdated: fourDaysAgo, now: NOW });
     assert(result4d === 'soft', `Reply dopo 4 giorni: atteso "soft", ottenuto "${result4d}"`);
+}
+
+function testEmailProcessorNormalizesGooglemailDotAliases() {
+    loadScript('gas_email_processor.js');
+
+    const processor = Object.create(EmailProcessor.prototype);
+    const normalizedGooglemail = processor._normalizeEmailAddress_('Info.Parrocchia+archivio@googlemail.com');
+    const normalizedGmail = processor._normalizeEmailAddress_('info.parrocchia@gmail.com');
+
+    assert(normalizedGooglemail === 'infoparrocchia@gmail.com', `googlemail con dots/+ deve canonicalizzare a infoparrocchia@gmail.com, ottenuto ${normalizedGooglemail}`);
+    assert(normalizedGmail === 'infoparrocchia@gmail.com', `gmail con dots deve canonicalizzare a infoparrocchia@gmail.com, ottenuto ${normalizedGmail}`);
+    assert(normalizedGooglemail === normalizedGmail, 'gmail.com e googlemail.com dello stesso account devono risultare equivalenti');
 }
 
 function testIntelligentRetryAllowedNonCriticalHighScore() {
@@ -1663,6 +1720,78 @@ function testSanitizeSubjectForHeaderRemovesCRLF() {
     assert(emptyFallback === 'Re:', `Fallback subject atteso 'Re:', ottenuto '${emptyFallback}'`);
 }
 
+function testSendHtmlReplyFoldsAndBoundsReferencesHeader() {
+    loadScript('gas_gmail_service.js');
+
+    const service = Object.create(GmailService.prototype);
+    const originalUtilities = global.Utilities;
+    const originalSession = global.Session;
+    const originalGmail = global.Gmail;
+    const originalGlobalCache = global.GLOBAL_CACHE;
+    let rawPayload = '';
+
+    try {
+        global.Utilities = Object.assign({}, originalUtilities, {
+            Charset: { UTF_8: 'utf8' },
+            base64Encode: (input) => Buffer.from(String(input || ''), 'utf8').toString('base64'),
+            base64EncodeWebSafe: (input) => Buffer.from(String(input || ''), 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+        });
+        global.Session = {
+            getEffectiveUser: () => ({ getEmail: () => 'parrocchia@example.org' }),
+            getActiveUser: () => ({ getEmail: () => 'parrocchia@example.org' })
+        };
+        global.GLOBAL_CACHE = { replacements: {} };
+        global.Gmail = {
+            Users: {
+                Messages: {
+                    send: ({ raw }) => {
+                        const normalized = String(raw || '').replace(/-/g, '+').replace(/_/g, '/');
+                        const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+                        rawPayload = Buffer.from(padded, 'base64').toString('utf8');
+                    }
+                }
+            }
+        };
+
+        const longReferences = Array.from({ length: 30 }, (_, i) => `<ref${i}@example.org>`).join(' ');
+        service.sendHtmlReply(
+            { getThread: () => ({ getId: () => 'thread-refs' }) },
+            'Risposta di test',
+            {
+                subject: 'Oggetto di test',
+                senderEmail: 'utente@example.org',
+                senderName: 'Utente',
+                rfc2822MessageId: '<current@example.org>',
+                existingReferences: longReferences,
+                recipientEmail: 'parrocchia@example.org',
+                recipientCc: ''
+            }
+        );
+
+        const lines = rawPayload.split('\r\n');
+        const refStart = lines.findIndex((line) => line.startsWith('References:'));
+        assert(refStart >= 0, 'Il messaggio RAW deve contenere l\'header References');
+
+        const refLines = [];
+        for (let i = refStart; i < lines.length; i++) {
+            if (i === refStart || lines[i].startsWith(' ')) refLines.push(lines[i]);
+            else break;
+        }
+
+        const refIds = refLines.join(' ').match(/<[^<>\s]+>/g) || [];
+        assert(refLines.length > 1, 'References lunga deve essere foldata su più righe');
+        assert(refLines.every((line) => line.length <= 76), 'Ogni riga References deve restare entro 76 caratteri');
+        assert(refIds.length === 20, `References deve essere limitata a 20 Message-ID, ottenuti ${refIds.length}`);
+        assert(refIds[0] === '<ref11@example.org>', `La finestra References deve conservare gli ID più recenti, ottenuto primo ID ${refIds[0]}`);
+        assert(refIds[refIds.length - 1] === '<current@example.org>', 'L\'ultimo ID References deve essere quello corrente');
+    } finally {
+        global.Utilities = originalUtilities;
+        global.Session = originalSession;
+        global.Gmail = originalGmail;
+        global.GLOBAL_CACHE = originalGlobalCache;
+    }
+}
+
 function testRequestClassifierExternalHintCategoryTrim() {
     loadScript('gas_request_classifier.js');
 
@@ -2148,10 +2277,13 @@ function main() {
         ['validator: check lunghezza', testResponseValidatorCheckLength],
         ['validator: contenuto vietato + placeholder', testResponseValidatorForbiddenContent],
         ['validator: consistenza lingua', testResponseValidatorLanguageCheck],
+        ['validator: KB con ora contestuale autorizza 10:00', testResponseValidatorHourOnlyKnowledgeBaseAllowsNormalizedTime],
         ['validator: semantic prompt bullets puliti', testSemanticThinkingPromptBullets],
+        ['validator: semantic fallback lazy senza Gemini/Cache', testSemanticValidatorLazyFallbackWithoutGeminiOrCache],
         // EmailProcessor
         ['computeSalutationMode: primo/reply/vecchio', testComputeSalutationMode],
         ['anti-loop: thread lungo con esterni consecutivi', testAntiLoopDetection],
+        ['email processor: canonicalizza gmail/googlemail dotted alias', testEmailProcessorNormalizesGooglemailDotAliases],
         ['memory get: usa row.values in parsing', testMemoryGetUsesRowValues],
         ['memory invalidate: pulizia cache deterministica', testInvalidateCacheAlsoClearsRobustCache],
         ['memory reaction: gestione dinamica topic vuoti', testInferUserReactionIsResilientToEmptyTopics],
@@ -2180,6 +2312,7 @@ function main() {
         ['gmail list: fallback robusto opzioni paginazione invalide', testGetMessageIdsWithLabelInvalidPaginationOptions],
         ['gmail extract: usa solo main reply senza storico', testExtractMessageDetailsUsesMainReplyOnly],
         ['gmail subject: sanifica CRLF header injection', testSanitizeSubjectForHeaderRemovesCRLF],
+        ['gmail send: fold e bound della catena References', testSendHtmlReplyFoldsAndBoundsReferencesHeader],
         ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
         ['main: isolamento rigoroso per hasExecutionLock', testMainEncapsulatesExecutionLockSuccessfully],
         ['main: serializzazione robusta righe KB', testSheetRowsToTextRemovesEmptyCellsAndRows],

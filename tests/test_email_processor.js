@@ -85,6 +85,16 @@ assert(
   'non deve ignorare email normale utente'
 );
 
+console.log('--- Test _normalizeEmailAddress_ (gmail/googlemail + dots + plus) ---');
+const normalizedGooglemail = processor._normalizeEmailAddress_('Info.Parrocchia+archivio@googlemail.com');
+const normalizedGmail = processor._normalizeEmailAddress_('info.parrocchia@gmail.com');
+assert(normalizedGooglemail === 'infoparrocchia@gmail.com', `googlemail con dots/+ deve canonicalizzare a infoparrocchia@gmail.com, ottenuto ${normalizedGooglemail}`);
+assert(normalizedGmail === 'infoparrocchia@gmail.com', `gmail con dots deve canonicalizzare a infoparrocchia@gmail.com, ottenuto ${normalizedGmail}`);
+assert(
+  normalizedGooglemail === normalizedGmail,
+  'gmail.com e googlemail.com dello stesso account devono essere equivalenti dopo normalizzazione'
+);
+
 console.log('--- Test _shouldTryOcr (keyword presente) ---');
 assert(
   processor._shouldTryOcr('In allegato iban per bonifico', 'Documentazione', null) === true,

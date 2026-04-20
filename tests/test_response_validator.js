@@ -88,4 +88,48 @@ assert(
   '10:00 deve essere registrato tra gli orari inventati'
 );
 
+console.log('--- Test hallucination: ora solo numerica in KB deve validare 10:00 ---');
+const hourOnlyKbResult = validator._checkHallucinations(
+  'La messa è alle 10:00.',
+  'Orari messe festive: domenica alle ore 10.',
+  'Vorrei sapere gli orari della domenica.'
+);
+assert(hourOnlyKbResult.score === 1.0, 'una KB con "ore 10" deve autorizzare una risposta con 10:00');
+assert(
+  !hourOnlyKbResult.warnings.some((w) => w.includes('Orari non in KB')),
+  'non deve segnalare orari inventati se la KB contiene un\'ora contestuale equivalente'
+);
+assert(
+  !hourOnlyKbResult.hallucinations.times || hourOnlyKbResult.hallucinations.times.length === 0,
+  'non deve registrare 10:00 tra gli orari allucinati quando la KB contiene "ore 10"'
+);
+
+console.log('--- Test SemanticValidator: fallback lazy senza GeminiService/CacheService ---');
+{
+  const originalConfig = global.CONFIG;
+  const originalGeminiService = global.GeminiService;
+  const originalCacheService = global.CacheService;
+  const originalUrlFetchApp = global.UrlFetchApp;
+
+  try {
+    global.CONFIG = { VALIDATION_MIN_SCORE: 0.6, SEMANTIC_VALIDATION: { enabled: true } };
+    global.GeminiService = undefined;
+    global.CacheService = undefined;
+    global.UrlFetchApp = undefined;
+
+    const lazyValidator = new ResponseValidator();
+    assert(lazyValidator.semanticValidator !== null, 'SemanticValidator deve inizializzarsi anche senza GeminiService');
+    assert(lazyValidator.semanticValidator.runtimeSemanticAvailable === false, 'runtimeSemanticAvailable deve restare false fuori runtime GAS');
+
+    const fallback = lazyValidator.semanticValidator.validateThinkingLeak('Risposta naturale.', { score: 0.9 });
+    assert(fallback.skipped === true && fallback.fallback === true, 'senza runtime semantico deve usare fallback lazy');
+    assert(fallback.isValid === true, 'fallback lazy con score alto deve restare valido');
+  } finally {
+    global.CONFIG = originalConfig;
+    global.GeminiService = originalGeminiService;
+    global.CacheService = originalCacheService;
+    global.UrlFetchApp = originalUrlFetchApp;
+  }
+}
+
 console.log('✅ Test core ResponseValidator passati');
