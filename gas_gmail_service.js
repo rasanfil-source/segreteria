@@ -1730,14 +1730,18 @@ var GmailService = class GmailService {
      */
     buildConversationHistory(messages, maxMessages = 10, ourEmail = '', ourAliases = []) {
         const normalizeOwnAddress = (value) => {
-            const extracted = this._extractEmailAddress(value) || value;
-            const normalized = String(extracted || '').trim().toLowerCase();
-            const atIdx = normalized.lastIndexOf('@');
-            if (atIdx <= 0) return normalized;
-            let local = normalized.substring(0, atIdx);
-            let domain = normalized.substring(atIdx + 1);
+            if (!value) return '';
+            const extracted = String(this._extractEmailAddress(value) || value).trim().toLowerCase();
+            const atIdx = extracted.lastIndexOf('@');
+            if (atIdx <= 0) return extracted;
+
+            let local = extracted.substring(0, atIdx);
+            let domain = extracted.substring(atIdx + 1);
             if (domain === 'googlemail.com') domain = 'gmail.com';
-            if (domain === 'gmail.com') local = local.replace(/\+.*/, '').replace(/\./g, '');
+            if (domain === 'gmail.com') {
+                local = local.replace(/\+.*/, '').replace(/\./g, '');
+            }
+
             return `${local}@${domain}`;
         };
 
@@ -1920,14 +1924,20 @@ var GmailService = class GmailService {
                 }
 
                 const referenceIds = [];
-                const collectMessageIds = (value) => {
-                    const matches = String(value || '').replace(/[\r\n]+/g, ' ').match(/<[^<>\s]+>/g) || [];
+                const collectReferenceIds = (value) => {
+                    const matches = String(value || '')
+                        .replace(/[\r\n]+/g, ' ')
+                        .match(/<[^<>\s]+>/g) || [];
                     matches.forEach((id) => {
-                        if (!referenceIds.includes(id)) referenceIds.push(id);
+                        if (!referenceIds.includes(id)) {
+                            referenceIds.push(id);
+                        }
                     });
                 };
-                collectMessageIds(messageDetails.existingReferences);
-                collectMessageIds(messageDetails.rfc2822MessageId);
+
+                collectReferenceIds(messageDetails.existingReferences);
+                collectReferenceIds(messageDetails.rfc2822MessageId);
+                const boundedReferenceChain = referenceIds.slice(-20).join(' ');
 
                 // From stabile: usa account effettivo, con fallback difensivo se non disponibile.
                 const effectiveUser = Session.getEffectiveUser();
@@ -1960,8 +1970,8 @@ var GmailService = class GmailService {
                     `From: ${stableFrom}`,
                     `To: ${messageDetails.senderEmail}`,
                     this._buildFoldedUtf8SubjectHeader(replySubject),
-                    this._buildFoldedAsciiHeader('In-Reply-To', messageDetails.rfc2822MessageId),
-                    this._buildFoldedAsciiHeader('References', referenceIds.slice(-20).join(' ')),
+                    this._buildFoldedTokenHeader('In-Reply-To', messageDetails.rfc2822MessageId),
+                    this._buildFoldedTokenHeader('References', boundedReferenceChain),
                     `Content-Type: multipart/alternative; boundary="${boundary}"`
                 ].filter(Boolean);
 
@@ -2289,16 +2299,28 @@ var GmailService = class GmailService {
         return chunks ? chunks.join('\r\n') : '';
     }
 
-    _buildFoldedAsciiHeader(name, value, maxLineLength = 76) {
+    _buildFoldedTokenHeader(name, value, maxLineLength = 76) {
+        const safeName = String(name || '').replace(/[\r\n:]+/g, '').trim();
         const safeValue = String(value || '').replace(/[\r\n]+/g, ' ').trim();
-        if (!safeValue) return '';
-        const tokens = safeValue.split(/\s+/);
-        const lines = [];
-        let currentLine = `${name}:`;
-        for (const token of tokens) {
-            if ((currentLine + ' ' + token).length <= maxLineLength) currentLine += ' ' + token;
-            else { lines.push(currentLine); currentLine = ' ' + token; }
+        if (!safeName || !safeValue) {
+            return '';
         }
+
+        const tokens = safeValue.split(/\s+/).filter(Boolean);
+        const headerPrefix = `${safeName}:`;
+        const lines = [];
+        let currentLine = headerPrefix;
+
+        for (const token of tokens) {
+            const candidate = `${currentLine} ${token}`;
+            if (currentLine === headerPrefix || candidate.length <= maxLineLength) {
+                currentLine = candidate;
+            } else {
+                lines.push(currentLine);
+                currentLine = ` ${token}`;
+            }
+        }
+
         lines.push(currentLine);
         return lines.join('\r\n');
     }

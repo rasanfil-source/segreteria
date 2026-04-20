@@ -615,6 +615,7 @@ var ResponseValidator = class ResponseValidator {
         target.push(contextualHourMatch[1]);
       }
     };
+
     collectContextualHours(safeKnowledgeBase, kbTimesRaw);
     collectContextualHours(originalMessage || '', originalTimesRaw);
 
@@ -1235,13 +1236,13 @@ var SemanticValidator = class SemanticValidator {
     this.fallbackOnError = semanticConfig.fallbackOnError !== false;
     this.maxRetries = semanticConfig.maxRetries || 1;
     this.runtimeSemanticAvailable = typeof UrlFetchApp !== 'undefined';
-
     this.geminiService = null;
-
-    this.cache = (this.cacheEnabled &&
+    this.cache = (
+      this.cacheEnabled &&
       typeof CacheService !== 'undefined' &&
       CacheService &&
-      typeof CacheService.getScriptCache === 'function')
+      typeof CacheService.getScriptCache === 'function'
+    )
       ? CacheService.getScriptCache()
       : null;
 
@@ -1420,8 +1421,12 @@ Rispondi SOLO con questo JSON (senza markdown):
 
   _generateSemantic(prompt) {
     if (!this.geminiService) {
+      if (typeof GeminiService !== 'function') {
+        throw new Error('GeminiService non disponibile per validazione semantica');
+      }
       this.geminiService = new GeminiService();
     }
+
     const estimatedTokens = this.geminiService._estimateTokens(prompt);
 
     if (this.geminiService.useRateLimiter && this.geminiService.rateLimiter) {
