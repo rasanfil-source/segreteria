@@ -1331,9 +1331,12 @@ function _sheetRowsToText(rows) {
   return rows
     .map(row => {
       const safeRow = Array.isArray(row) ? row : [row];
-      return safeRow
-        .map(cell => _formatCellForKnowledgeText(cell))
-        .filter(Boolean)
+      const formattedCells = safeRow.map(cell => _formatCellForKnowledgeText(cell));
+      if (!formattedCells.some(Boolean)) {
+        return '';
+      }
+      return formattedCells
+        .map(cell => cell || '-')
         .join(' | ');
     })
     .filter(Boolean)
