@@ -33,6 +33,10 @@ global.GLOBAL_CACHE = {
   ignoreKeywords: ['newsletter']
 };
 
+const gasEmailProcessorPath = path.join(__dirname, '..', 'gas_email_processor.js');
+const gasEmailProcessorCode = fs.readFileSync(gasEmailProcessorPath, 'utf8');
+vm.runInThisContext(gasEmailProcessorCode, { filename: gasEmailProcessorPath });
+
 const processor = new EmailProcessor();
 
 function extractEmailAddress(fromField) {

@@ -1159,7 +1159,9 @@ var GmailService = class GmailService {
                     name: `TEMP_CONV_${attachmentBlob.getName() || 'allegato'}`,
                     mimeType: googleMime
                 };
-                const file = Drive.Files.create(resource, attachmentBlob.copyBlob());
+                const file = Drive.Files.create(resource, attachmentBlob.copyBlob(), {
+                    mimeType: googleMime
+                });
                 fileId = file && file.id ? file.id : null;
                 if (!fileId) {
                     console.error('❌ Drive.Files.create ha avuto successo ma non ha restituito un file ID.');
@@ -1338,7 +1340,9 @@ var GmailService = class GmailService {
                     name: `OCR_${fileName}`,
                     mimeType: googleMimeType
                 };
-                const file = Drive.Files.create(resource, blob);
+                const file = Drive.Files.create(resource, blob, {
+                    mimeType: googleMimeType
+                });
                 if (!file || !file.id) {
                     throw new Error('Drive API ha restituito un file convertito non valido (id assente)');
                 }
@@ -1456,19 +1460,24 @@ var GmailService = class GmailService {
 
             const blob = attachment.copyBlob();
             const fileName = attachment.getName() || 'allegato';
+            const targetMimeType = 'application/vnd.google-apps.document';
 
             if (typeof Drive.Files.create === 'function') {
                 const resource = {
                     name: `OCR_${fileName}`,
                     // Drive API v3: per ottenere testo OCR apribile con DocumentApp,
                     // il file caricato va convertito in Google Doc.
-                    mimeType: 'application/vnd.google-apps.document'
+                    mimeType: targetMimeType
                 };
                 const file = Drive.Files.create(resource, blob, {
+                    mimeType: targetMimeType,
                     ocrLanguage: settings.ocrLanguage || 'it'
                 });
                 if (!file || !file.id) {
                     throw new Error('Drive API ha restituito un file OCR non valido (id assente)');
+                }
+                if (file.mimeType && file.mimeType !== targetMimeType) {
+                    throw new Error(`Conversione OCR non applicata (mimeType=${file.mimeType})`);
                 }
                 fileId = file.id;
             } else if (typeof Drive.Files.insert === 'function') {
