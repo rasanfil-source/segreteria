@@ -497,8 +497,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const maxRetries = options.maxRetries || 3;
     const preferQuality = options.preferQuality || false;
 
-    // 1. Selezione + riserva atomica della capacità minuto per ridurre oversubscription concorrente.
-    const selection = this._reserveModelCapacity(taskType, {
+    // 1. Selezione + riserva atomica della capacità minuto
+    const selection = this._selectAndReserveModel(taskType, {
       preferQuality: preferQuality,
       estimatedTokens: estimatedTokens
     });
@@ -511,6 +511,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const modelKey = selection.modelKey;
     const model = selection.model;
     const shouldThrottle = selection.shouldThrottle;
+    const reservationId = selection.reservationId;
 
     // 2. Throttling
     if (shouldThrottle && shouldThrottle.needed) {
@@ -532,8 +533,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
         const duration = Date.now() - startTime;
 
-        // Traccia completamento richiesta (RPD/tokens giornalieri + metriche)
-        this._trackRequest(modelKey, estimatedTokens, duration);
+        // Completa la richiesta consumando contatori giornalieri e consolidando la riserva RPM/TPM.
+        this._trackRequest(modelKey, estimatedTokens, duration, reservationId);
 
         console.log(`✓ Successo (${duration}ms)`);
 
@@ -542,6 +543,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
           result: result,
           modelUsed: model.name,
           modelKey: modelKey,
+          reservationId: reservationId,
           duration: duration,
           quotaUsed: {
             rpd: parseInt(this.props.getProperty(`rpd_${modelKey}`) || '0', 10) || 0,
@@ -552,6 +554,16 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       } catch (error) {
         lastError = error;
         const errorMsg = error.message || '';
+
+        // Rilascia la riserva corrente prima di eventuali retry o abort,
+        // così non blocchiamo artificialmente la capacità minuto.
+        try {
+          if (reservationId) {
+            this._releaseReservation(modelKey, reservationId);
+          }
+        } catch (releaseError) {
+          console.warn(`⚠️ Rilascio reservation fallito (${modelKey}/${reservationId}): ${releaseError.message}`);
+        }
 
         // Interrompi immediatamente se la quota è esaurita su TUTTE le chiavi
         if (errorMsg.indexOf('PRIMARY_QUOTA_EXHAUSTED') !== -1 || errorMsg.indexOf('QUOTA_EXHAUSTED_ALL_KEYS') !== -1) {
@@ -591,14 +603,27 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   // TRACCIAMENTO con cache
   // ================================================================
 
-  _trackRequest(modelKey, tokensUsed, duration) {
+  _trackRequest(modelKey, tokensUsed, duration, reservationId) {
     const now = Date.now();
     const nonce = `${Math.floor(Math.random() * 1000000)}`;
+
+    // Se la richiesta era stata già riservata nelle finestre RPM/TPM, non dobbiamo
+    // aggiungere una seconda entry minuto: aggiorniamo solo i contatori giornalieri
+    // e marchiamo la reservation come completata per dedup/diagnostica.
+    if (reservationId) {
+      this._finalizeReservation(modelKey, reservationId, duration);
+    }
 
     // 1-2. Contatori RPD/Tokens con incremento atomico (evita race condition)
     const counters = this._incrementCountersAtomic(modelKey, tokensUsed);
 
-    // 3. Finestra RPM (con cache)
+    // 3. Finestra RPM (con cache) - solo per richieste non prenotate
+    if (reservationId) {
+      console.log(`📊 Tracciato tramite reservation: ${modelKey}`);
+      console.log(`   RPD: ${counters.rpd}/${this.models[modelKey].rpd}`);
+      return;
+    }
+
     this._updateWindow('rpm', {
       timestamp: now,
       nonce: nonce,
@@ -869,10 +894,12 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   _mergeWindowData(existing, walData) {
     const toKey = (entry) => {
       const ts = entry && typeof entry.timestamp !== 'undefined' ? entry.timestamp : 'na';
+      const reserved = entry && entry.reserved === true ? 'r1' : 'r0';
+      const completed = entry && entry.completed === true ? 'c1' : 'c0';
       const nonce = entry && typeof entry.nonce !== 'undefined' ? entry.nonce : 'na';
       const model = entry && entry.modelKey ? entry.modelKey : 'na';
       const tokens = entry && typeof entry.tokens !== 'undefined' ? entry.tokens : 0;
-      return `${ts}|${nonce}|${model}|${tokens}`;
+      return `${ts}|${nonce}|${model}|${tokens}|${reserved}|${completed}`;
     };
 
     const existingEntries = new Set(existing.map(toKey));
@@ -1047,11 +1074,27 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     return Math.max(tokens, 1);
   }
 
-  _reserveModelCapacity(taskType, options) {
+  _selectAndReserveModel(taskType, options) {
     options = options || {};
     const estimatedTokens = options.estimatedTokens || 1000;
+    const preferQuality = options.preferQuality || false;
+    const forceModel = options.forceModel || null;
+
     const lock = LockService.getScriptLock();
-    if (!lock.tryLock(25000)) {
+    let lockAcquired = false;
+    const maxLockAttempts = 3;
+
+    for (let attempt = 0; attempt < maxLockAttempts; attempt++) {
+      lockAcquired = lock.tryLock(5000);
+      if (lockAcquired) break;
+      if (attempt < maxLockAttempts - 1) {
+        const backoffMs = 150 * Math.pow(2, attempt) + Math.floor(Math.random() * 100);
+        Utilities.sleep(backoffMs);
+      }
+    }
+
+    if (!lockAcquired) {
+      console.warn('⚠️ Lock non acquisito per selezione+reservation modello dopo retry');
       return {
         available: false,
         modelKey: null,
@@ -1064,15 +1107,87 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       this._recoverFromWAL(true);
       this._refreshCache();
 
-      const baseSelection = this.selectModel(taskType, options, true);
-      if (!baseSelection.available) return baseSelection;
+      const selection = this.selectModel(taskType, {
+        preferQuality: preferQuality,
+        forceModel: forceModel,
+        estimatedTokens: estimatedTokens
+      }, true);
 
-      const now = Date.now();
-      this._updateWindow('rpm', { timestamp: now, nonce: `reserve_${now}`, modelKey: baseSelection.modelKey });
-      this._updateWindow('tpm', { timestamp: now, nonce: `reserve_${now}`, modelKey: baseSelection.modelKey, tokens: estimatedTokens });
+      if (!selection.available) {
+        return selection;
+      }
+
+      const reservationId = this._createReservationUnderLock(selection.modelKey, estimatedTokens);
+      selection.reservationId = reservationId;
+      return selection;
+    } finally {
+      lock.releaseLock();
+    }
+  }
+
+  _createReservationUnderLock(modelKey, estimatedTokens) {
+    const now = Date.now();
+    const reservationId = `res_${now}_${Math.floor(Math.random() * 1000000)}`;
+    const rpmEntry = {
+      timestamp: now,
+      nonce: reservationId,
+      modelKey: modelKey,
+      reserved: true,
+      completed: false
+    };
+    const tpmEntry = {
+      timestamp: now,
+      nonce: reservationId,
+      modelKey: modelKey,
+      tokens: estimatedTokens || 0,
+      reserved: true,
+      completed: false
+    };
+
+    this._updateWindow('rpm', rpmEntry);
+    this._updateWindow('tpm', tpmEntry);
+    this._persistCache();
+
+    console.log(`🧾 Reservation creata: ${modelKey} (${reservationId})`);
+    return reservationId;
+  }
+
+  _finalizeReservation(modelKey, reservationId, duration) {
+    this._mutateReservation(modelKey, reservationId, function(entry) {
+      entry.completed = true;
+      entry.duration = duration || 0;
+      entry.completedAt = Date.now();
+      return true;
+    });
+  }
+
+  _releaseReservation(modelKey, reservationId) {
+    this._mutateReservation(modelKey, reservationId, function(entry) {
+      return false;
+    });
+  }
+
+  _mutateReservation(modelKey, reservationId, mutatorFn) {
+    if (!reservationId) return;
+
+    const lock = LockService.getScriptLock();
+    if (!lock.tryLock(25000)) {
+      console.warn(`⚠️ Impossibile acquisire lock per mutateReservation ${reservationId}`);
+      return;
+    }
+
+    try {
+      this._refreshCache();
+      ['rpmWindow', 'tpmWindow'].forEach((cacheKey) => {
+        const currentWindow = Array.isArray(this.cache[cacheKey]) ? this.cache[cacheKey] : [];
+        this.cache[cacheKey] = currentWindow.filter((entry) => {
+          if (!entry || entry.modelKey !== modelKey || entry.nonce !== reservationId || entry.reserved !== true) {
+            return true;
+          }
+          return mutatorFn(Object.assign(entry, { reservationId: reservationId })) !== false;
+        });
+      });
       this._persistCache();
-
-      return baseSelection;
     } finally {
       lock.releaseLock();
     }
