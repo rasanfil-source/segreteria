@@ -11,17 +11,20 @@ var PromptContext = class PromptContext {
             input = {};
         }
 
+        // Copia shallow iniziale per evitare side-effect sul parametro in ingresso.
+        const safeInput = Object.assign({}, input);
+
         // Sanitizza lastUpdated non valido.
-        // Nota: il doppio controllo su input.memory è intenzionale per evitare TypeError
+        // Nota: il doppio controllo su memory è intenzionale per evitare TypeError
         // quando il chiamante non passa il blocco memoria.
-        if (input.memory && input.memory.lastUpdated) {
-            if (isNaN(new Date(input.memory.lastUpdated).getTime())) {
+        if (safeInput.memory && safeInput.memory.lastUpdated) {
+            if (isNaN(new Date(safeInput.memory.lastUpdated).getTime())) {
                 console.warn(`⚠️ PromptContext: lastUpdated non valido, reset a null`);
-                input.memory.lastUpdated = null;
+                safeInput.memory = Object.assign({}, safeInput.memory, { lastUpdated: null });
             }
         }
 
-        this.input = this._normalizeInput(input);
+        this.input = this._normalizeInput(safeInput);
         this.concerns = this._computeConcerns();
         this.profile = this._computeProfile();
         this.meta = this._buildMeta();
