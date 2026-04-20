@@ -260,12 +260,24 @@ function isInSuspensionTime(checkDate = new Date()) {
  * Paracadute operativo: se esistono email non lette molto vecchie,
  * permette un ciclo di lavorazione anche durante la sospensione.
  */
-function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 15) {
-  const cutoffMs = Date.now() - ((Number(maxAgeHours) || 12) * 60 * 60 * 1000);
-  const threads = GmailApp.search('is:unread', 0, searchLimit);
+function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 15, maxLookbackDays = 7) {
+  const safeMaxAgeHours = Number(maxAgeHours) || 12;
+  const safeMaxLookbackDays = Number(maxLookbackDays) || 7;
+  const cutoffMs = Date.now() - (safeMaxAgeHours * 60 * 60 * 1000);
+  const oldestRelevantMs = Date.now() - (safeMaxLookbackDays * 24 * 60 * 60 * 1000);
+
+  const labelName = (typeof CONFIG !== 'undefined' && CONFIG.LABEL_NAME) ? CONFIG.LABEL_NAME : 'IA';
+  const errorLabel = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME) ? CONFIG.ERROR_LABEL_NAME : 'Errore';
+  const validationLabel = (typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_ERROR_LABEL) ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica';
+  const quoteLabel = (label) => `"${String(label || '').replace(/"/g, '\\"')}"`;
+
+  const query = `in:inbox is:unread newer_than:${safeMaxLookbackDays}d -label:${quoteLabel(labelName)} -label:${quoteLabel(errorLabel)} -label:${quoteLabel(validationLabel)}`;
+  const threads = GmailApp.search(query, 0, searchLimit);
   return threads.some(thread =>
     thread.getMessages().some(message =>
-      message.isUnread() && message.getDate().getTime() <= cutoffMs
+      message.isUnread() &&
+      message.getDate().getTime() <= cutoffMs &&
+      message.getDate().getTime() > oldestRelevantMs
     )
   );
 }
