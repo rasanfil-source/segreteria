@@ -883,7 +883,27 @@ function _parseSheetToStructured(data) {
 
 function _parseStrictHour(value) {
   // Google Sheets può restituire gli orari nativi come Date (es. 30 Dec 1899 14:00:00)
+  // Coerenza timezone con _formatDateForKnowledgeText: usare script TZ quando possibile.
   if (value instanceof Date && !isNaN(value.getTime())) {
+    if (
+      typeof Utilities !== 'undefined' &&
+      Utilities &&
+      typeof Utilities.formatDate === 'function'
+    ) {
+      const scriptTz =
+        typeof Session !== 'undefined' &&
+        Session &&
+        typeof Session.getScriptTimeZone === 'function'
+          ? Session.getScriptTimeZone()
+          : 'Europe/Rome';
+      const hourStr = Utilities.formatDate(value, scriptTz, 'H');
+      const hourFromDate = parseInt(hourStr, 10);
+      if (Number.isInteger(hourFromDate) && hourFromDate >= 0 && hourFromDate <= 23) {
+        return hourFromDate;
+      }
+      return null;
+    }
+    // Fallback per ambienti non-GAS (es. test Node.js)
     const hourFromDate = value.getHours();
     if (
       Number.isInteger(hourFromDate) && hourFromDate >= 0 && hourFromDate <= 23
