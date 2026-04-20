@@ -1271,13 +1271,13 @@ var SemanticValidator = class SemanticValidator {
       return { isValid: true, confidence: regexResult.score, skipped: true };
     }
 
-    const cacheKey = this._cacheKey('halluc', response + knowledgeBase);
-    const cached = this._readCache(cacheKey);
-    if (cached) return cached;
-
     console.log('   🧠 Eseguo validazione semantica allucinazioni...');
 
     try {
+      const cacheKey = this._cacheKey('halluc', response + knowledgeBase);
+      const cached = this._readCache(cacheKey);
+      if (cached) return cached;
+
       const prompt = this._buildHallucinationPrompt(response, knowledgeBase, emailContent);
       const apiResponse = this._generateSemantic(prompt);
       const result = this._parseSemanticResponse(apiResponse);
@@ -1314,13 +1314,13 @@ var SemanticValidator = class SemanticValidator {
       return { isValid: true, confidence: regexResult.score, skipped: true };
     }
 
-    const cacheKey = this._cacheKey('thinking', response);
-    const cached = this._readCache(cacheKey);
-    if (cached) return cached;
-
     console.log('   🧠 Eseguo validazione semantica ragionamento esposto...');
 
     try {
+      const cacheKey = this._cacheKey('thinking', response);
+      const cached = this._readCache(cacheKey);
+      if (cached) return cached;
+
       const prompt = this._buildThinkingLeakPrompt(response);
       const apiResponse = this._generateSemantic(prompt);
       const result = this._parseSemanticResponse(apiResponse);
@@ -1473,8 +1473,19 @@ Rispondi SOLO con questo JSON (senza markdown):
   }
 
   _normalizeSemanticPayload(parsed) {
+    const hasThinkingLeak =
+      parsed &&
+      (
+        parsed.thinkingLeakDetected === true ||
+        (Array.isArray(parsed.examples) && parsed.examples.length > 0)
+      );
+
+    const normalizedIsValid = (typeof parsed.isValid === 'boolean')
+      ? parsed.isValid
+      : !hasThinkingLeak;
+
     return {
-      isValid: parsed.isValid === true,
+      isValid: normalizedIsValid,
       confidence: Math.max(0, Math.min(parsed.confidence || 0.5, 1.0)),
       details: parsed.hallucinations || parsed.examples || {},
       reason: parsed.reason || 'Nessuna motivazione fornita'
@@ -1488,7 +1499,16 @@ Rispondi SOLO con questo JSON (senza markdown):
   _readCache(cacheKey) {
     if (!this.cache) return null;
     const cached = this.cache.get(cacheKey);
-    return cached ? JSON.parse(cached) : null;
+    if (!cached) return null;
+    try {
+      return JSON.parse(cached);
+    } catch (error) {
+      console.warn(`⚠️ Cache semantica corrotta per key ${cacheKey}: ${error.message}`);
+      try {
+        this.cache.remove(cacheKey);
+      } catch (_) {}
+      return null;
+    }
   }
 
   _writeCache(cacheKey, value) {

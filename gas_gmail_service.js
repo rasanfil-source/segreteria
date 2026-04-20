@@ -1940,14 +1940,26 @@ var GmailService = class GmailService {
                 const boundedReferenceChain = referenceIds.slice(-20).join(' ');
 
                 // From stabile: usa account effettivo, con fallback difensivo se non disponibile.
-                const effectiveUser = Session.getEffectiveUser();
-                const activeUser = Session.getActiveUser();
+                const effectiveUser = (
+                    typeof Session !== 'undefined' &&
+                    Session &&
+                    typeof Session.getEffectiveUser === 'function'
+                ) ? Session.getEffectiveUser() : null;
+                const activeUser = (
+                    typeof Session !== 'undefined' &&
+                    Session &&
+                    typeof Session.getActiveUser === 'function'
+                ) ? Session.getActiveUser() : null;
                 const stableFrom = (
                     (effectiveUser && typeof effectiveUser.getEmail === 'function' && effectiveUser.getEmail())
                     || (activeUser && typeof activeUser.getEmail === 'function' && activeUser.getEmail())
                     || messageDetails.recipientEmail
-                    || 'noreply@localhost'
+                    || null
                 );
+
+                if (!stableFrom) {
+                    throw new Error('Impossibile determinare un mittente valido per Gmail RAW');
+                }
 
                 // Reply-To: usa alias solo se presente in To/Cc del messaggio originale
                 let replyToEmail = null;

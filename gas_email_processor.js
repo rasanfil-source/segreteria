@@ -1225,19 +1225,27 @@ ${addressLines.join('\n\n')}
       } catch (e) {
         this._rollbackSendTransaction(candidate.getId());
         const errorMessage = e && e.message ? e.message : String(e);
+        const classifiedSendError = this._classifyError(e);
         console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
-        try {
-          this._addErrorLabel(candidate || thread);
-        } catch (labelError) {
-          console.warn(`⚠️ Errore aggiunta errorLabel silenziato: ${labelError.message}`);
-        }
-        if (candidate) {
+
+        // Errori transienti: lascia il messaggio eleggibile per retry automatico.
+        if (!classifiedSendError.retryable) {
           try {
-            this._markMessageAsProcessed(candidate, labeledMessageIds);
-          } catch (markError) {
-            console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
+            this._addErrorLabel(candidate || thread);
+          } catch (labelError) {
+            console.warn(`⚠️ Errore aggiunta errorLabel silenziato: ${labelError.message}`);
           }
+          if (candidate) {
+            try {
+              this._markMessageAsProcessed(candidate, labeledMessageIds);
+            } catch (markError) {
+              console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
+            }
+          }
+        } else {
+          console.warn(`   ↻ Errore invio retryable (${classifiedSendError.type}) - nessuna marcatura permanente`);
         }
+
         result.status = 'error';
         result.error = `gmail_send_failed: ${errorMessage}`;
         return result;

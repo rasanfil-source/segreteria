@@ -260,9 +260,10 @@ function isInSuspensionTime(checkDate = new Date()) {
  * Paracadute operativo: se esistono email non lette molto vecchie,
  * permette un ciclo di lavorazione anche durante la sospensione.
  */
-function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 15, maxLookbackDays = 7) {
+function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackDays = 7) {
   const safeMaxAgeHours = Number(maxAgeHours) || 12;
   const safeMaxLookbackDays = Number(maxLookbackDays) || 7;
+  const safeSearchLimit = Math.max(15, Number(searchLimit) || 100);
   const cutoffMs = Date.now() - (safeMaxAgeHours * 60 * 60 * 1000);
   const oldestRelevantMs = Date.now() - (safeMaxLookbackDays * 24 * 60 * 60 * 1000);
 
@@ -272,14 +273,24 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 15, maxLookbackDa
   const quoteLabel = (label) => `"${String(label || '').replace(/"/g, '\\"')}"`;
 
   const query = `in:inbox is:unread newer_than:${safeMaxLookbackDays}d -label:${quoteLabel(labelName)} -label:${quoteLabel(errorLabel)} -label:${quoteLabel(validationLabel)}`;
-  const threads = GmailApp.search(query, 0, searchLimit);
-  return threads.some(thread =>
-    thread.getMessages().some(message =>
-      message.isUnread() &&
-      message.getDate().getTime() <= cutoffMs &&
-      message.getDate().getTime() > oldestRelevantMs
-    )
-  );
+
+  const pageSize = 25;
+  for (let offset = 0; offset < safeSearchLimit; offset += pageSize) {
+    const threads = GmailApp.search(query, offset, Math.min(pageSize, safeSearchLimit - offset));
+    if (!threads || threads.length === 0) break;
+
+    const foundStale = threads.some(thread =>
+      thread.getMessages().some(message =>
+        message.isUnread() &&
+        message.getDate().getTime() <= cutoffMs &&
+        message.getDate().getTime() > oldestRelevantMs
+      )
+    );
+
+    if (foundStale) return true;
+  }
+
+  return false;
 }
 
 // ====================================================================
