@@ -1651,11 +1651,14 @@ ${addressLines.join('\n\n')}
     if (atIdx <= 0) return extracted;
 
     let local = extracted.substring(0, atIdx);
-    const domain = extracted.substring(atIdx + 1);
+    let domain = extracted.substring(atIdx + 1);
     if (!domain) return extracted;
 
-    if (domain === 'gmail.com' || domain === 'googlemail.com') {
-      local = local.replace(/\+.*/, '');
+    if (domain === 'googlemail.com') {
+      domain = 'gmail.com';
+    }
+    if (domain === 'gmail.com') {
+      local = local.replace(/\+.*/, '').replace(/\./g, '');
     }
 
     return `${local}@${domain}`;

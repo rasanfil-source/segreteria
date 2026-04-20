@@ -143,6 +143,7 @@ var ResponseValidator = class ResponseValidator {
       CONFIG.SEMANTIC_VALIDATION &&
       CONFIG.SEMANTIC_VALIDATION.enabled === true;
     this.semanticValidator = semanticEnabled ? new SemanticValidator() : null;
+    this.geminiService = null;
 
     console.log('✓ ResponseValidator inizializzato');
     console.log(`   Soglia minima validità: ${this.MIN_VALID_SCORE}`);
@@ -607,10 +608,15 @@ var ResponseValidator = class ResponseValidator {
     }
     const kbTimesRaw = safeKnowledgeBase.match(timePattern) || [];
     const originalTimesRaw = (originalMessage || '').match(timePattern) || [];
-    let contextualHourMatch;
-    while ((contextualHourMatch = contextualHourPattern.exec(originalMessage || '')) !== null) {
-      originalTimesRaw.push(contextualHourMatch[1]);
-    }
+    const collectContextualHours = (text, target) => {
+      contextualHourPattern.lastIndex = 0;
+      let contextualHourMatch;
+      while ((contextualHourMatch = contextualHourPattern.exec(text || '')) !== null) {
+        target.push(contextualHourMatch[1]);
+      }
+    };
+    collectContextualHours(safeKnowledgeBase, kbTimesRaw);
+    collectContextualHours(originalMessage || '', originalTimesRaw);
 
     const responseTimes = new Set(responseTimesRaw.map(normalizeTime));
     const kbTimes = new Set(kbTimesRaw.map(normalizeTime));
@@ -1230,9 +1236,14 @@ var SemanticValidator = class SemanticValidator {
     this.maxRetries = semanticConfig.maxRetries || 1;
     this.runtimeSemanticAvailable = typeof UrlFetchApp !== 'undefined';
 
-    this.geminiService = new GeminiService();
+    this.geminiService = null;
 
-    this.cache = this.cacheEnabled ? CacheService.getScriptCache() : null;
+    this.cache = (this.cacheEnabled &&
+      typeof CacheService !== 'undefined' &&
+      CacheService &&
+      typeof CacheService.getScriptCache === 'function')
+      ? CacheService.getScriptCache()
+      : null;
 
     console.log('✓ SemanticValidator inizializzato');
   }
@@ -1408,6 +1419,9 @@ Rispondi SOLO con questo JSON (senza markdown):
   // ========================================================================
 
   _generateSemantic(prompt) {
+    if (!this.geminiService) {
+      this.geminiService = new GeminiService();
+    }
     const estimatedTokens = this.geminiService._estimateTokens(prompt);
 
     if (this.geminiService.useRateLimiter && this.geminiService.rateLimiter) {

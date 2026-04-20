@@ -1730,9 +1730,15 @@ var GmailService = class GmailService {
      */
     buildConversationHistory(messages, maxMessages = 10, ourEmail = '', ourAliases = []) {
         const normalizeOwnAddress = (value) => {
-            if (!value) return '';
             const extracted = this._extractEmailAddress(value) || value;
-            return String(extracted).trim().toLowerCase();
+            const normalized = String(extracted || '').trim().toLowerCase();
+            const atIdx = normalized.lastIndexOf('@');
+            if (atIdx <= 0) return normalized;
+            let local = normalized.substring(0, atIdx);
+            let domain = normalized.substring(atIdx + 1);
+            if (domain === 'googlemail.com') domain = 'gmail.com';
+            if (domain === 'gmail.com') local = local.replace(/\+.*/, '').replace(/\./g, '');
+            return `${local}@${domain}`;
         };
 
         const ownAddresses = new Set();
@@ -1913,10 +1919,15 @@ var GmailService = class GmailService {
                     replySubject = 'Re: ' + replySubject;
                 }
 
-                let referencesHeader = messageDetails.rfc2822MessageId;
-                if (messageDetails.existingReferences) {
-                    referencesHeader = messageDetails.existingReferences + (messageDetails.rfc2822MessageId ? ' ' + messageDetails.rfc2822MessageId : '');
-                }
+                const referenceIds = [];
+                const collectMessageIds = (value) => {
+                    const matches = String(value || '').replace(/[\r\n]+/g, ' ').match(/<[^<>\s]+>/g) || [];
+                    matches.forEach((id) => {
+                        if (!referenceIds.includes(id)) referenceIds.push(id);
+                    });
+                };
+                collectMessageIds(messageDetails.existingReferences);
+                collectMessageIds(messageDetails.rfc2822MessageId);
 
                 // From stabile: usa account effettivo, con fallback difensivo se non disponibile.
                 const effectiveUser = Session.getEffectiveUser();
@@ -1949,10 +1960,10 @@ var GmailService = class GmailService {
                     `From: ${stableFrom}`,
                     `To: ${messageDetails.senderEmail}`,
                     this._buildFoldedUtf8SubjectHeader(replySubject),
-                    `In-Reply-To: ${messageDetails.rfc2822MessageId}`,
-                    `References: ${referencesHeader}`,
+                    this._buildFoldedAsciiHeader('In-Reply-To', messageDetails.rfc2822MessageId),
+                    this._buildFoldedAsciiHeader('References', referenceIds.slice(-20).join(' ')),
                     `Content-Type: multipart/alternative; boundary="${boundary}"`
-                ];
+                ].filter(Boolean);
 
                 if (replyToEmail) {
                     rawHeaders.splice(2, 0, `Reply-To: ${replyToEmail}`);
@@ -2276,6 +2287,20 @@ var GmailService = class GmailService {
         const normalizedBase64 = base64Str.replace(/[\r\n\s]+/g, '');
         const chunks = normalizedBase64.match(/.{1,76}/g);
         return chunks ? chunks.join('\r\n') : '';
+    }
+
+    _buildFoldedAsciiHeader(name, value, maxLineLength = 76) {
+        const safeValue = String(value || '').replace(/[\r\n]+/g, ' ').trim();
+        if (!safeValue) return '';
+        const tokens = safeValue.split(/\s+/);
+        const lines = [];
+        let currentLine = `${name}:`;
+        for (const token of tokens) {
+            if ((currentLine + ' ' + token).length <= maxLineLength) currentLine += ' ' + token;
+            else { lines.push(currentLine); currentLine = ' ' + token; }
+        }
+        lines.push(currentLine);
+        return lines.join('\r\n');
     }
 
     // ========================================================================
