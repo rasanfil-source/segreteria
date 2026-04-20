@@ -136,8 +136,8 @@ var GeminiService = class GeminiService {
     // Usa chiave override se fornita, altrimenti chiave primaria
     const activeKey = apiKeyOverride || this.primaryKey;
     const url = this._buildGenerateUrl(modelName);
-    const temperature = this.config.TEMPERATURE || 0.5;
-    const maxTokens = this.config.MAX_OUTPUT_TOKENS || 6000;
+    const temperature = this.config.TEMPERATURE ?? 0.5;
+    const maxTokens = this.config.MAX_OUTPUT_TOKENS ?? 6000;
 
     console.log(`\uD83E\uDD16 Chiamata ${modelName} (prompt: ${prompt.length} caratteri)...`);
 

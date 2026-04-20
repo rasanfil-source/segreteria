@@ -1151,8 +1151,21 @@ var MemoryService = class MemoryService {
         const validRows = [headers];
 
         for (let i = 1; i < data.length; i++) {
-          const lastUpdated = new Date(data[i][5]);
-          if (data[i][5] && !isNaN(lastUpdated.getTime()) && lastUpdated >= cutoffDate) {
+          const rawLastUpdated = data[i][5];
+          if (!rawLastUpdated) {
+            console.warn(`⚠️ Riga memoria senza lastUpdated: preservo riga ${i + 1}`);
+            validRows.push(data[i]);
+            continue;
+          }
+
+          const parsedLastUpdated = new Date(rawLastUpdated);
+          if (isNaN(parsedLastUpdated.getTime())) {
+            console.warn(`⚠️ Riga memoria con lastUpdated non valido: preservo riga ${i + 1} (${rawLastUpdated})`);
+            validRows.push(data[i]);
+            continue;
+          }
+
+          if (parsedLastUpdated >= cutoffDate) {
             validRows.push(data[i]);
           } else {
             deletedCount++;

@@ -518,35 +518,35 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
     // ═══════════════════════════════════════════════════════════════════
 
-    const estimatedTokens = options.estimatedTokens || 1000;
-    const maxRetries = options.maxRetries || 3;
+    const estimatedTokens = options.estimatedTokens ?? 1000;
+    const maxRetries = options.maxRetries ?? 3;
     const preferQuality = options.preferQuality || false;
 
-    // 1. Selezione + riserva atomica della capacità minuto
-    const selection = this._selectAndReserveModel(taskType, {
-      preferQuality: preferQuality,
-      estimatedTokens: estimatedTokens
-    });
-
-    if (!selection.available) {
-      console.error(`\u274C Nessun modello disponibile: ${selection.reason}`);
-      throw new Error('QUOTA_EXHAUSTED: ' + selection.reason);
-    }
-
-    const modelKey = selection.modelKey;
-    const model = selection.model;
-    const shouldThrottle = selection.shouldThrottle;
-    const reservationId = selection.reservationId;
-
-    // 2. Throttling
-    if (shouldThrottle && shouldThrottle.needed) {
-      console.warn(`\u23F8\uFE0F Throttling (${shouldThrottle.reason}): ${shouldThrottle.delay}ms`);
-      Utilities.sleep(shouldThrottle.delay);
-    }
-
-    // 3. Esecuzione con retry (sincrono)
+    // 1. Esecuzione con retry (sincrono)
     var lastError = null;
     for (var attempt = 0; attempt < maxRetries; attempt++) {
+      // 1.1 Selezione + riserva atomica della capacità minuto per OGNI tentativo
+      const selection = this._selectAndReserveModel(taskType, {
+        preferQuality: preferQuality,
+        estimatedTokens: estimatedTokens
+      });
+
+      if (!selection.available) {
+        console.error(`\u274C Nessun modello disponibile (tentativo ${attempt + 1}): ${selection.reason}`);
+        throw new Error('QUOTA_EXHAUSTED: ' + selection.reason);
+      }
+
+      const modelKey = selection.modelKey;
+      const model = selection.model;
+      const shouldThrottle = selection.shouldThrottle;
+      const reservationId = selection.reservationId;
+
+      // 1.2 Throttling
+      if (shouldThrottle && shouldThrottle.needed) {
+        console.warn(`\u23F8\uFE0F Throttling (${shouldThrottle.reason}): ${shouldThrottle.delay}ms`);
+        Utilities.sleep(shouldThrottle.delay);
+      }
+
       try {
         const startTime = Date.now();
 
@@ -1101,7 +1101,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
   _selectAndReserveModel(taskType, options) {
     options = options || {};
-    const estimatedTokens = options.estimatedTokens || 1000;
+    const estimatedTokens = options.estimatedTokens ?? 1000;
     const forceModel = options.forceModel || null;
 
     const lockResult = this._withRateLimitLock_(function () {
@@ -1147,7 +1147,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       timestamp: now,
       nonce: reservationId,
       modelKey: modelKey,
-      tokens: estimatedTokens || 0,
+      tokens: estimatedTokens ?? 0,
       reserved: true,
       completed: false
     });

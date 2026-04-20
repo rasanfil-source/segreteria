@@ -17,8 +17,8 @@ var ResponseValidator = class ResponseValidator {
 
     // Ottieni config - fallback a default se CONFIG non definito
     // Soglia minima accettabile
-    this.MIN_VALID_SCORE = typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_MIN_SCORE
-      ? CONFIG.VALIDATION_MIN_SCORE
+    this.MIN_VALID_SCORE = typeof CONFIG !== 'undefined' && CONFIG
+      ? (CONFIG.VALIDATION_MIN_SCORE ?? 0.6)
       : 0.6;
 
     // Soglie lunghezza
@@ -1233,12 +1233,12 @@ var SemanticValidator = class SemanticValidator {
       : {};
 
     this.enabled = semanticConfig.enabled === true;
-    this.activationThreshold = semanticConfig.activationThreshold || 0.9;
+    this.activationThreshold = semanticConfig.activationThreshold ?? 0.9;
     this.cacheEnabled = semanticConfig.cacheEnabled !== false;
-    this.cacheTTL = semanticConfig.cacheTTL || 300;
+    this.cacheTTL = semanticConfig.cacheTTL ?? 300;
     this.taskType = semanticConfig.taskType || 'semantic';
     this.fallbackOnError = semanticConfig.fallbackOnError !== false;
-    this.maxRetries = semanticConfig.maxRetries || 1;
+    this.maxRetries = semanticConfig.maxRetries ?? 1;
     this.runtimeSemanticAvailable = typeof UrlFetchApp !== 'undefined';
     this.geminiService = null;
     this.cache = (
@@ -1278,7 +1278,12 @@ var SemanticValidator = class SemanticValidator {
     console.log('   🧠 Eseguo validazione semantica allucinazioni...');
 
     try {
-      const cacheKey = this._cacheKey('halluc', response + knowledgeBase);
+      const cacheMaterial = [
+        response || '',
+        knowledgeBase || '',
+        emailContent || ''
+      ].join('\n<<SEMANTIC-HALLUCINATION-SCOPE>>\n');
+      const cacheKey = this._cacheKey('halluc', cacheMaterial);
       const cached = this._readCache(cacheKey);
       if (cached) return cached;
 
