@@ -1393,15 +1393,15 @@ ${addressLines.join('\n\n')}
         console.warn('🔴 MODALITÀ DRY_RUN ATTIVA - Email NON inviate!');
       }
 
+      const getEffectiveMaxEmailsPerRun = () => {
+        const dynamicLimit = (typeof CONFIG !== 'undefined') ? parseInt(CONFIG.MAX_EMAILS_PER_RUN, 10) : NaN;
+        const fallbackLimit = parseInt(this.config.maxEmailsPerRun, 10);
+        const resolved = Number.isNaN(dynamicLimit) ? fallbackLimit : dynamicLimit;
+        return Number.isNaN(resolved) ? 10 : resolved;
+      };
+
       let threads;
       try {
-        const getEffectiveMaxEmailsPerRun = () => {
-          const dynamicLimit = (typeof CONFIG !== 'undefined') ? parseInt(CONFIG.MAX_EMAILS_PER_RUN, 10) : NaN;
-          const fallbackLimit = parseInt(this.config.maxEmailsPerRun, 10);
-          const resolved = Number.isNaN(dynamicLimit) ? fallbackLimit : dynamicLimit;
-          return Number.isNaN(resolved) ? 10 : resolved;
-        };
-
         const DISCOVERY_POOL_MULTIPLIER = 15;
         const discoveryPoolSize = Math.min(
           50,
