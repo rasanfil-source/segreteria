@@ -70,6 +70,7 @@ var EmailProcessor = class EmailProcessor {
       labelName: typeof CONFIG !== 'undefined' ? CONFIG.LABEL_NAME : 'IA',
       errorLabelName: typeof CONFIG !== 'undefined' ? CONFIG.ERROR_LABEL_NAME : 'Errore',
       validationErrorLabel: typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica',
+      skipLabelName: typeof CONFIG !== 'undefined' && CONFIG.SKIP_LABEL_NAME ? CONFIG.SKIP_LABEL_NAME : 'SISTEMA/Ignora_IT',
       validationWarningThreshold: typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_WARNING_THRESHOLD === 'number'
         ? CONFIG.VALIDATION_WARNING_THRESHOLD
         : 0.9,
@@ -401,6 +402,7 @@ var EmailProcessor = class EmailProcessor {
         // In modalità foreign_only NON dobbiamo marcare il messaggio come "IA/processato".
         // Motivo operativo: se in futuro la parrocchia torna in modalità "all",
         // questa stessa email italiana deve rimanere eleggibile per l'elaborazione.
+        this._markMessagesAsSkipped(unlabeledUnread);
         result.status = 'skipped';
         result.reason = 'italian_skipped_foreign_only';
         return result;
@@ -643,6 +645,7 @@ var EmailProcessor = class EmailProcessor {
       // etichettare IA per mantenere la possibilità di riprocessare in modalità "all".
       if (this._shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
         console.log('   ⊖ Saltato: modalità "Solo straniere", lingua italiana confermata dopo quick-check');
+        this._markMessagesAsSkipped(unlabeledUnread);
         result.status = 'skipped';
         result.reason = 'italian_skipped_foreign_only_post_quickcheck';
         return result;
@@ -1400,6 +1403,13 @@ ${addressLines.join('\n\n')}
         return Number.isNaN(resolved) ? 10 : resolved;
       };
 
+      const languageMode = typeof this._getLanguageProcessingMode_ === 'function'
+        ? this._getLanguageProcessingMode_()
+        : 'all';
+      const labelDaIgnorare = languageMode === 'foreign_only'
+        ? this.config.skipLabelName
+        : null;
+
       let threads;
       try {
         const DISCOVERY_POOL_MULTIPLIER = 15;
@@ -1413,7 +1423,9 @@ ${addressLines.join('\n\n')}
           this.config.errorLabelName,
           this.config.validationErrorLabel,
           this.config.searchPageSize || 150,
-          discoveryPoolSize
+          discoveryPoolSize,
+          3,
+          labelDaIgnorare
         );
       } catch (e) {
         this.logger.error(`❌ Impossibile recuperare thread da elaborare: ${e.message}. Batch interrotto per sicurezza.`);
@@ -1839,9 +1851,20 @@ ${addressLines.join('\n\n')}
     // Cambiare questo comportamento altera la triage operativa.
     const messageId = message.getId();
     this.gmailService.addLabelToMessage(messageId, this.config.labelName);
+    if (this.gmailService && typeof this.gmailService.removeLabelFromMessage === 'function') {
+      this.gmailService.removeLabelFromMessage(messageId, this.config.skipLabelName);
+    }
     if (labeledMessageIds && typeof labeledMessageIds.add === 'function') {
       labeledMessageIds.add(messageId);
     }
+  }
+
+  _markMessagesAsSkipped(messages) {
+    if (!this.gmailService || typeof this.gmailService.addLabelToMessage !== 'function') return;
+    (messages || []).forEach(message => {
+      if (!message) return;
+      this.gmailService.addLabelToMessage(message.getId(), this.config.skipLabelName);
+    });
   }
 
   // Calcola se il tempo residuo è sufficiente per elaborare un nuovo thread

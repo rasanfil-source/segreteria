@@ -51,6 +51,7 @@ var CONFIG = {
   LABEL_NAME: 'IA',                    // Label per email processate
   ERROR_LABEL_NAME: 'Errore',          // Label per errori
   VALIDATION_ERROR_LABEL: 'Verifica',  // Label per risposte da rivedere
+  SKIP_LABEL_NAME: 'SISTEMA/Ignora_IT',// Label per email italiane saltate in modalità foreign_only
   // Bilanciato per usare al massimo le quote gratuite mantenendo priorità qualità
   // ATTENZIONE: Non modificare arbitrariamente. Verificare periodicamente in rete i limiti delle quote gratuiti stabiliti, mantenendo proporzionalità con le quote di base.
   MAX_EMAILS_PER_RUN: 3,
@@ -295,6 +296,9 @@ function validateConfig() {
   checkType('SAFETY_VALVE_THRESHOLD', CONFIG.SAFETY_VALVE_THRESHOLD, 'number');
   checkRange('SAFETY_VALVE_THRESHOLD', CONFIG.SAFETY_VALVE_THRESHOLD, 0.5, 0.99);
   checkType('LABEL_NAME', CONFIG.LABEL_NAME, 'string');
+  checkType('ERROR_LABEL_NAME', CONFIG.ERROR_LABEL_NAME, 'string');
+  checkType('VALIDATION_ERROR_LABEL', CONFIG.VALIDATION_ERROR_LABEL, 'string');
+  checkType('SKIP_LABEL_NAME', CONFIG.SKIP_LABEL_NAME, 'string');
   checkType('MESSAGE_DISCOVERY_MODE', CONFIG.MESSAGE_DISCOVERY_MODE, 'string');
   if (!['metadata', 'query'].includes(CONFIG.MESSAGE_DISCOVERY_MODE)) {
     errors.push("Errore Config: 'MESSAGE_DISCOVERY_MODE' deve essere uno tra 'metadata', 'query'");

@@ -20,6 +20,10 @@ global.MemoryService = class {};
 global.TerritoryValidator = class {};
 
 global.CONFIG = {
+  LABEL_NAME: 'IA',
+  ERROR_LABEL_NAME: 'Errore',
+  VALIDATION_ERROR_LABEL: 'Verifica',
+  SKIP_LABEL_NAME: 'SISTEMA/Ignora_IT',
   IGNORE_DOMAINS: ['newsletter.com'],
   IGNORE_KEYWORDS: ['unsubscribe', 'annulla iscrizione'],
   ATTACHMENT_CONTEXT: {
@@ -122,6 +126,24 @@ assert(
   'in foreign_only non deve saltare email straniere'
 );
 
+console.log('--- Test _markMessageAsProcessed: rimuove skip label se supportato ---');
+{
+  const applied = [];
+  const removed = [];
+  const processorWithSkipCleanup = new EmailProcessor({
+    gmailService: {
+      addLabelToMessage: (id, label) => applied.push({ id, label }),
+      removeLabelFromMessage: (id, label) => removed.push({ id, label })
+    }
+  });
+
+  const labeledIds = new Set();
+  processorWithSkipCleanup._markMessageAsProcessed(createMessage('m-cleanup', 'Utente <utente@example.org>', 'Oggetto', 'Body'), labeledIds);
+  assert(applied.length === 1 && applied[0].label === 'IA', 'deve applicare la label IA al messaggio processato');
+  assert(removed.length === 1 && removed[0].label === 'SISTEMA/Ignora_IT', 'deve rimuovere la skip label quando il messaggio viene processato');
+  assert(labeledIds.has('m-cleanup'), 'deve aggiungere il messageId al set dei già etichettati');
+}
+
 console.log('--- Test processThread: alias Gmail riconosciuto come ultimo mittente interno ---');
 {
   const originalSession = global.Session;
@@ -158,6 +180,62 @@ console.log('--- Test processThread: alias Gmail riconosciuto come ultimo mitten
   assert(result.status === 'skipped', 'thread con ultimo alias interno deve essere skipped');
   assert(result.reason === 'last_speaker_is_me', 'ultimo alias interno deve produrre last_speaker_is_me');
   assert(labeled.includes('m-ext') && labeled.includes('m-me'), 'i non letti del thread devono essere marcati come processati');
+
+  global.Session = originalSession;
+  global.GmailApp = originalGmailApp;
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
+console.log('--- Test processThread: foreign_only marca skip label sui non letti italiani ---');
+{
+  const originalSession = global.Session;
+  const originalGmailApp = global.GmailApp;
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  const labels = [];
+
+  global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
+  };
+  global.GmailApp = {
+    getAliases: () => []
+  };
+  global.GLOBAL_CACHE.languageMode = 'foreign_only';
+
+  const processorItalianSkip = new EmailProcessor({
+    geminiService: {
+      detectEmailLanguage: () => ({ lang: 'it', safetyGrade: 5 })
+    },
+    classifier: {
+      _extractMainContent: (body) => body
+    },
+    gmailService: {
+      getMessageIdsWithLabel: () => new Set(),
+      _extractEmailAddress: extractEmailAddress,
+      extractMessageDetails: (message) => ({
+        subject: message.getSubject(),
+        body: message.getPlainBody(),
+        senderEmail: extractEmailAddress(message.getFrom()),
+        senderName: 'Utente',
+        headers: {},
+        isNewsletter: false,
+        date: message.getDate()
+      }),
+      addLabelToMessage: (id, label) => labels.push({ id, label })
+    }
+  });
+
+  const thread = {
+    getId: () => 'thread-italian-skip',
+    getLabels: () => [],
+    getMessages: () => [
+      createMessage('m-it', 'Utente <utente@example.org>', 'Info cresima', 'Buongiorno, vorrei informazioni sulla cresima adulti.')
+    ]
+  };
+
+  const result = processorItalianSkip.processThread(thread, '', [], new Set(), true);
+  assert(result.status === 'skipped', 'in foreign_only una mail italiana deve essere skipped');
+  assert(result.reason === 'italian_skipped_foreign_only', 'deve mantenere la reason di skip per lingua');
+  assert(labels.some((entry) => entry.id === 'm-it' && entry.label === 'SISTEMA/Ignora_IT'), 'deve applicare la skip label al messaggio italiano');
 
   global.Session = originalSession;
   global.GmailApp = originalGmailApp;

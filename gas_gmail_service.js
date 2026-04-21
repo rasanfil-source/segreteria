@@ -173,6 +173,22 @@ var GmailService = class GmailService {
         }
     }
 
+    removeLabelFromMessage(messageId, labelName) {
+        if (!labelName) return;
+        try {
+            const labelId = this._getOptionalLabelIdByName(labelName);
+            if (!labelId) return;
+
+            Gmail.Users.Messages.modify({
+                addLabelIds: [],
+                removeLabelIds: [labelId]
+            }, 'me', messageId);
+            console.log(`✓ Rimossa label '${labelName}' dal messaggio ${messageId}`);
+        } catch (e) {
+            console.warn(`⚠️ removeLabelFromMessage fallito per msg ${messageId}: ${e.message}`);
+        }
+    }
+
     _isLabelNotFoundError(error) {
         const message = (error && error.message) ? error.message.toLowerCase() : '';
         return (message.includes('label') && message.includes('not found')) ||
@@ -361,9 +377,10 @@ var GmailService = class GmailService {
      * @param {number} [messageBuffer=150]  - Numero massimo di messaggi da esaminare per pagina
      * @param {number} [targetThreads=50]   - Numero di thread unici da raccogliere prima di fermarsi
      * @param {number} [maxPages=3]         - Limite pagine di paginazione per evitare loop
+     * @param {string|null} [skipLabel=null]- Label dei messaggi da ignorare dinamicamente (es. 'SISTEMA/Ignora_IT')
      * @returns {GmailThread[]}             - Thread unici, già istanziati, con almeno un messaggio da elaborare
      */
-    getUnprocessedUnreadThreads(labelName, errorLabel, validationLabel, messageBuffer = 150, targetThreads = 50, maxPages = 3) {
+    getUnprocessedUnreadThreads(labelName, errorLabel, validationLabel, messageBuffer = 150, targetThreads = 50, maxPages = 3, skipLabel = null) {
         const mode = (typeof CONFIG !== 'undefined' && CONFIG.MESSAGE_DISCOVERY_MODE)
             ? CONFIG.MESSAGE_DISCOVERY_MODE
             : 'query';
@@ -379,7 +396,8 @@ var GmailService = class GmailService {
                 validationLabel,
                 safeMessageBuffer,
                 safeTargetThreads,
-                safeMaxPages
+                safeMaxPages,
+                skipLabel
             ).threads;
         }
 
@@ -389,18 +407,20 @@ var GmailService = class GmailService {
             validationLabel,
             safeMessageBuffer,
             safeTargetThreads,
-            safeMaxPages
+            safeMaxPages,
+            skipLabel
         ).threads;
     }
 
     /**
      * Fallback prudente/manuale che verifica le label sul singolo messaggio via metadata.
      */
-    _discoverByMetadata(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages) {
+    _discoverByMetadata(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null) {
         const processedLabelId = this._getOptionalLabelIdByName(labelName);
         const errorLabelId = this._getOptionalLabelIdByName(errorLabel);
         const validationLabelId = this._getOptionalLabelIdByName(validationLabel);
-        const excludedLabelIds = new Set([processedLabelId, errorLabelId, validationLabelId].filter(Boolean));
+        const skipLabelId = skipLabel ? this._getOptionalLabelIdByName(skipLabel) : null;
+        const excludedLabelIds = new Set([processedLabelId, errorLabelId, validationLabelId, skipLabelId].filter(Boolean));
 
         const seenThreadIds = new Set();
         const unavailableThreadIds = new Set();
@@ -480,11 +500,15 @@ var GmailService = class GmailService {
     /**
      * Default operativo: variante più economica che usa la query testuale di Gmail.
      */
-    _discoverByQuery(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages) {
+    _discoverByQuery(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null) {
         const lq = this._formatLabelQueryValue(labelName);
         const eq = this._formatLabelQueryValue(errorLabel);
         const vq = this._formatLabelQueryValue(validationLabel);
-        const query = `is:unread -label:${lq} -label:${eq} -label:${vq} in:inbox`;
+        let query = `is:unread -label:${lq} -label:${eq} -label:${vq} in:inbox`;
+        if (skipLabel) {
+            const sq = this._formatLabelQueryValue(skipLabel);
+            query += ` -label:${sq}`;
+        }
 
         const seenThreadIds = new Set();
         const unavailableThreadIds = new Set();
