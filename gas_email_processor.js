@@ -105,6 +105,11 @@ var EmailProcessor = class EmailProcessor {
   processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds = new Set(), skipLock = false) {
     const threadId = thread.getId();
     const startTime = Date.now();
+    // B2 Fix: garantisce che _isNearDeadline() funzioni anche se processThread
+    // è invocato direttamente (test, debug) senza passare per processUnreadEmails.
+    if (!this._startTime) {
+      this._startTime = startTime;
+    }
     const normalizedKnowledgeBase = this._normalizeTextContent(knowledgeBase);
     const normalizedDoctrineBase = this._normalizeTextContent(doctrineBase);
     const languageMode = this._getLanguageProcessingMode_();
@@ -1177,10 +1182,9 @@ ${addressLines.join('\n\n')}
           console.log(`   ℹ️ Validazione: Punteggio alto (${validation.score.toFixed(2)}). Warning ignorati: ${validation.warnings.join(', ')}`);
         }
 
-        if (validation.fixedResponse) {
-          console.log('   🩹 Usa risposta corretta automaticamente (Self-Healing)');
-          finalResponse = validation.fixedResponse;
-        }
+        // B1 Fix: questo blocco fixedResponse era duplicato e sovrascriveva
+        // la risposta migliorata dal retry intelligente. Rimosso il duplicato;
+        // la prima applicazione a riga 1068-1071 è sufficiente.
 
         console.log(`   ✓ Validazione PASSATA (punteggio: ${validation.score.toFixed(2)})`);
       }
@@ -1468,12 +1472,8 @@ ${addressLines.join('\n\n')}
       this._startTime = Date.now();
       const MAX_EXECUTION_TIME = this.config.maxExecutionTimeMs;
       let processedCount = 0;
-      const getEffectiveMaxEmailsPerRun = () => {
-        const dynamicLimit = (typeof CONFIG !== 'undefined') ? parseInt(CONFIG.MAX_EMAILS_PER_RUN, 10) : NaN;
-        const fallbackLimit = parseInt(this.config.maxEmailsPerRun, 10);
-        const resolved = Number.isNaN(dynamicLimit) ? fallbackLimit : dynamicLimit;
-        return Number.isNaN(resolved) ? 10 : resolved;
-      };
+      // B4 Fix: rimossa definizione duplicata di getEffectiveMaxEmailsPerRun;
+      // si usa la stessa closure definita sopra a riga 1394 (DRY).
 
       for (let index = 0; index < threads.length; index++) {
         const safeLimit = getEffectiveMaxEmailsPerRun();

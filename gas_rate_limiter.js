@@ -1082,21 +1082,10 @@ var GeminiRateLimiter = class GeminiRateLimiter {
    * Formula: parole * 1.25 + overhead 10% + 200 per ogni allegato
    */
   _estimateTokens(text, attachments = []) {
-    let tokens = 0;
-    if (text) {
-      const wordCount = text.split(/\s+/).length;
-      const baseTokens = Math.ceil(wordCount * 1.25);
-      const overhead = Math.ceil(baseTokens * 0.1);
-      const charEstimate = Math.ceil(text.length / 3.5);
-      tokens = Math.max(baseTokens + overhead, charEstimate);
-    }
-
-    // Aggiungi stima per allegati (es: 200 token fissi per immagine/PDF/OCR)
-    if (attachments && Array.isArray(attachments)) {
-      tokens += attachments.length * 200;
-    }
-
-    return Math.max(tokens, 1);
+    // B3 Fix: delega alla funzione centralizzata in gas_main.js (DRY)
+    return typeof estimateTokenCount === 'function' 
+      ? estimateTokenCount(text, attachments)
+      : Math.max(Math.ceil((text || '').length / 4) + (attachments.length * 200), 1);
   }
 
   _selectAndReserveModel(taskType, options) {

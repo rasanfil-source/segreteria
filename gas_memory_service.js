@@ -1279,10 +1279,13 @@ function cleanupOldMemory() {
 }
 
 /**
- * Configura trigger settimanale per pulizia automatica memoria
- * ESEGUI UNA SOLA VOLTA manualmente per attivare il cleanup automatico
+ * @deprecated B5 Fix: usa setupWeeklyCleanupTrigger() in gas_main.js.
+ * Questa funzione è mantenuta per retrocompatibilità ma NON deve essere
+ * richiamata insieme a setupWeeklyCleanupTrigger() per evitare trigger duplicati.
+ * Configura trigger settimanale per pulizia automatica memoria.
  */
 function setupWeeklyMemoryCleanupTrigger() {
+  console.warn('⚠️ [DEPRECATED] setupWeeklyMemoryCleanupTrigger(): usa setupWeeklyCleanupTrigger() in gas_main.js per evitare trigger duplicati.');
   // Rimuovi trigger esistenti per evitare duplicati
   const triggers = ScriptApp.getProjectTriggers();
   let removed = 0;

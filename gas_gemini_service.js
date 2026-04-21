@@ -1156,16 +1156,12 @@ Output JSON:
         }
       } catch (error) {
         if (error.message && error.message.includes('QUOTA_EXHAUSTED')) {
-          console.warn('⚠️ Rate Limiter in QUOTA_EXHAUSTED nel quick check, provo fallback diretto con retry');
-          try {
-            return this._withRetry(
-              () => this._quickCheckWithModel(emailContent, emailSubject, this.modelName, detection),
-              'Quick check fallback dopo QUOTA_EXHAUSTED'
-            );
-          } catch (directError) {
-            console.error(`❌ Fallback diretto quick check fallito: ${directError.message}. Interruzione per evitare skip silente.`);
-            throw new Error(`Quick check fallito: ${directError.message}`);
-          }
+          // F2 Fix: allineato a generateResponse — non fare fallback diretto.
+          // Il fallback diretto bypasserebbe il quota tracking del RateLimiter,
+          // causando consumo API non tracciato. Il Processor gestirà l'eccezione
+          // come skip del thread (comportamento coerente e sicuro).
+          console.warn('⚠️ Quick check: QUOTA_EXHAUSTED — rilancio per gestione corretta nel Processor.');
+          throw error;
         }
         // NON bypassare il RateLimiter su errori transienti/non-quota:
         // executeRequest include già retry+backoff e il fallback diretto

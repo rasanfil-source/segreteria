@@ -93,6 +93,33 @@ function calculateEaster(year) {
 }
 
 /**
+ * B3 Fix: Stima il numero di token per un testo ed eventuali allegati.
+ * Algoritmo centralizzato (DRY) per RateLimiter e PromptEngine.
+ * Formula: max(parole * 1.25 + 10% overhead, caratteri / 3.5) + 200 per allegato.
+ * 
+ * @param {string} text - Testo da stimare
+ * @param {Array} attachments - Array di allegati (opzionale)
+ * @returns {number} Numero stimato di token (min 1)
+ */
+function estimateTokenCount(text, attachments = []) {
+  let tokens = 0;
+  if (text && typeof text === 'string') {
+    const wordCount = text.split(/\s+/).length;
+    const baseTokens = Math.ceil(wordCount * 1.25);
+    const overhead = Math.ceil(baseTokens * 0.1);
+    const charEstimate = Math.ceil(text.length / 3.5);
+    tokens = Math.max(baseTokens + overhead, charEstimate);
+  }
+
+  // Aggiungi stima per allegati (es: 200 token fissi per immagine/PDF/OCR)
+  if (attachments && Array.isArray(attachments)) {
+    tokens += attachments.length * 200;
+  }
+
+  return Math.max(tokens, 1);
+}
+
+/**
  * Verifica se una data ricade in uno dei periodi ferie del segretario
  */
 function isInVacationPeriod(date = new Date(), scriptTimeZone = "") {
