@@ -618,12 +618,9 @@ var GmailService = class GmailService {
         }
 
         const label = GmailApp.getUserLabelByName(raw);
-        if (!label) {
-            return null;
-        }
-
-        this._labelCache.set(raw, { label: label, ts: now });
-        return label.getId();
+        // Cache positivo + negativo: evita chiamate GmailApp ripetute quando la label non esiste.
+        this._labelCache.set(raw, { label: label || null, ts: now });
+        return label ? label.getId() : null;
     }
 
 

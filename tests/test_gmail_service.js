@@ -214,6 +214,26 @@ console.log('--- Test _chunkBase64: linee max 76 caratteri RFC 2045 ---');
   assert(lines.join('') === base64, 'Chunk base64 non deve alterare il contenuto');
 }
 
+console.log('--- Test _getOptionalLabelIdByName: negative caching evita chiamate ripetute ---');
+{
+  const serviceWithNegativeCache = new GmailService();
+  serviceWithNegativeCache._cacheTTL = 60 * 1000;
+  let getUserLabelByNameCalls = 0;
+
+  global.GmailApp = {
+    getUserLabelByName: () => {
+      getUserLabelByNameCalls += 1;
+      return null;
+    }
+  };
+
+  const first = serviceWithNegativeCache._getOptionalLabelIdByName('Verifica');
+  const second = serviceWithNegativeCache._getOptionalLabelIdByName('Verifica');
+
+  assert(first === null && second === null, 'lookup opzionale deve restituire null quando label non esiste');
+  assert(getUserLabelByNameCalls === 1, 'negative caching deve evitare chiamata GmailApp ripetuta per label assente');
+}
+
 console.log('--- Test _getMessageMetadataWithResilience: fallback su errore API ---');
 const originalGetMetadata = service._getMessageMetadataWithResilience.bind(service);
 service._getMessageMetadataWithResilience = () => ({ labelIds: [] });
