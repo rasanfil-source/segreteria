@@ -1903,19 +1903,7 @@ var GmailService = class GmailService {
      * Invia risposta come HTML con threading corretto
      */
     sendHtmlReply(resource, responseText, messageDetails) {
-        const sanitizedText = this._sanitizeHeaders(responseText);
-
-        let finalResponse = sanitizedText;
-        if (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.replacements) {
-            const replacementCount = Object.keys(GLOBAL_CACHE.replacements).length;
-            if (replacementCount > 0) {
-                finalResponse = this.applyReplacements(finalResponse, GLOBAL_CACHE.replacements);
-                console.log(`   ✓ Applicate ${replacementCount} regole sostituzione`);
-            }
-        }
-
-        finalResponse = this.fixPunctuation(finalResponse, messageDetails.senderName);
-        finalResponse = this.ensureGreetingLineBreak(finalResponse);
+        const finalResponse = responseText;
 
         const htmlBody = (typeof markdownToHtml === 'function')
             ? markdownToHtml(finalResponse)
@@ -2129,6 +2117,24 @@ var GmailService = class GmailService {
     // ========================================================================
     // SAFEGUARD DI FORMATTAZIONE
     // ========================================================================
+
+    // ========================================================================
+    // SAFEGUARD DI FORMATTAZIONE
+    // ========================================================================
+
+    /**
+     * Prepara il testo per l'invio applicando sanificazione, sostituzioni e correzioni.
+     */
+    prepareOutboundText(responseText, messageDetails, languageCode) {
+        let finalResponse = this._sanitizeHeaders(responseText);
+        if (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.replacements) {
+            finalResponse = this.applyReplacements(finalResponse, GLOBAL_CACHE.replacements);
+        }
+        if (languageCode !== 'de') {
+            finalResponse = this.fixPunctuation(finalResponse, messageDetails.senderName);
+        }
+        return this.ensureGreetingLineBreak(finalResponse);
+    }
 
     /**
      * Corregge errori comuni di punteggiatura

@@ -1196,7 +1196,7 @@ ${addressLines.join('\n\n')}
         console.log(`   ✓ Validazione PASSATA (punteggio: ${validation.score.toFixed(2)})`);
       }
 
-      response = finalResponse;
+      response = this.gmailService.prepareOutboundText(finalResponse, messageDetails, detectedLanguage);
 
       // ====================================================================
       // STEP 10: INVIA RISPOSTA
@@ -1204,9 +1204,6 @@ ${addressLines.join('\n\n')}
       if (this.config.dryRun) {
         console.log('   🔴 DRY RUN - Risposta non inviata');
         console.log(`   📄 Invierebbe: ${response.substring(0, 100)}...`);
-        if (candidate) {
-          this._markMessageAsProcessed(candidate, labeledMessageIds);
-        }
         result.dryRun = true;
         result.status = 'replied';
         result.durationMs = Date.now() - startTime;
@@ -1223,7 +1220,7 @@ ${addressLines.join('\n\n')}
           result.reason = 'already_sent_recently';
         } else {
           result.status = 'skipped';
-          result.reason = 'send_in_flight';
+          result.reason = sendTxn.reason;
         }
         result.durationMs = Date.now() - startTime;
         return result;
@@ -1754,6 +1751,9 @@ ${addressLines.join('\n\n')}
     try {
       if (scriptLock && typeof scriptLock.tryLock === 'function') {
         lockAcquired = scriptLock.tryLock(500);
+        if (!lockAcquired) {
+          return { ok: false, reason: 'send_lock_unavailable' };
+        }
       }
 
       if (cache.get(sentKey)) {
