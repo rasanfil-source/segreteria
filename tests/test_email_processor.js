@@ -23,7 +23,7 @@ global.CONFIG = {
   LABEL_NAME: 'IA',
   ERROR_LABEL_NAME: 'Errore',
   VALIDATION_ERROR_LABEL: 'Verifica',
-  SKIP_LABEL_NAME: 'SISTEMA/Ignora_IT',
+  SKIP_LABEL_NAME: '·',
   IGNORE_DOMAINS: ['newsletter.com'],
   IGNORE_KEYWORDS: ['unsubscribe', 'annulla iscrizione'],
   ATTACHMENT_CONTEXT: {
@@ -140,7 +140,7 @@ console.log('--- Test _markMessageAsProcessed: rimuove skip label se supportato 
   const labeledIds = new Set();
   processorWithSkipCleanup._markMessageAsProcessed(createMessage('m-cleanup', 'Utente <utente@example.org>', 'Oggetto', 'Body'), labeledIds);
   assert(applied.length === 1 && applied[0].label === 'IA', 'deve applicare la label IA al messaggio processato');
-  assert(removed.length === 1 && removed[0].label === 'SISTEMA/Ignora_IT', 'deve rimuovere la skip label quando il messaggio viene processato');
+  assert(removed.length === 1 && removed[0].label === CONFIG.SKIP_LABEL_NAME, 'deve rimuovere la skip label quando il messaggio viene processato');
   assert(labeledIds.has('m-cleanup'), 'deve aggiungere il messageId al set dei già etichettati');
 }
 
@@ -235,7 +235,7 @@ console.log('--- Test processThread: foreign_only marca skip label sui non letti
   const result = processorItalianSkip.processThread(thread, '', [], new Set(), true);
   assert(result.status === 'skipped', 'in foreign_only una mail italiana deve essere skipped');
   assert(result.reason === 'italian_skipped_foreign_only', 'deve mantenere la reason di skip per lingua');
-  assert(labels.some((entry) => entry.id === 'm-it' && entry.label === 'SISTEMA/Ignora_IT'), 'deve applicare la skip label al messaggio italiano');
+  assert(labels.some((entry) => entry.id === 'm-it' && entry.label === CONFIG.SKIP_LABEL_NAME), 'deve applicare la skip label al messaggio italiano');
 
   global.Session = originalSession;
   global.GmailApp = originalGmailApp;

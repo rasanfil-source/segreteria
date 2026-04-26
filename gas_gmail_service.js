@@ -377,7 +377,7 @@ var GmailService = class GmailService {
      * @param {number} [messageBuffer=150]  - Numero massimo di messaggi da esaminare per pagina
      * @param {number} [targetThreads=50]   - Numero di thread unici da raccogliere prima di fermarsi
      * @param {number} [maxPages=3]         - Limite pagine di paginazione per evitare loop
-     * @param {string|null} [skipLabel=null]- Label dei messaggi da ignorare dinamicamente (es. 'SISTEMA/Ignora_IT')
+     * @param {string|null} [skipLabel=null]- Label dei messaggi da ignorare dinamicamente (es. '·')
      * @returns {GmailThread[]}             - Thread unici, già istanziati, con almeno un messaggio da elaborare
      */
     getUnprocessedUnreadThreads(labelName, errorLabel, validationLabel, messageBuffer = 150, targetThreads = 50, maxPages = 3, skipLabel = null) {

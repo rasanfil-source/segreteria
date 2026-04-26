@@ -70,7 +70,7 @@ var EmailProcessor = class EmailProcessor {
       labelName: typeof CONFIG !== 'undefined' ? CONFIG.LABEL_NAME : 'IA',
       errorLabelName: typeof CONFIG !== 'undefined' ? CONFIG.ERROR_LABEL_NAME : 'Errore',
       validationErrorLabel: typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica',
-      skipLabelName: typeof CONFIG !== 'undefined' && CONFIG.SKIP_LABEL_NAME ? CONFIG.SKIP_LABEL_NAME : 'SISTEMA/Ignora_IT',
+      skipLabelName: typeof CONFIG !== 'undefined' && CONFIG.SKIP_LABEL_NAME ? CONFIG.SKIP_LABEL_NAME : '·',
       validationWarningThreshold: typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_WARNING_THRESHOLD === 'number'
         ? CONFIG.VALIDATION_WARNING_THRESHOLD
         : 0.9,

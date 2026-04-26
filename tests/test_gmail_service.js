@@ -22,7 +22,10 @@ global.CacheService = {
   })
 };
 
-global.CONFIG = {};
+global.CONFIG = {
+  SKIP_LABEL_NAME: '·'
+};
+
 
 global.Gmail = {
   Users: {
@@ -96,7 +99,7 @@ console.log('--- Test discovery: skipLabel esclude i messaggi marcati come ignor
     nextPageToken: null
   });
   serviceWithSkip._getOptionalLabelIdByName = (labelName) => {
-    if (labelName === 'SISTEMA/Ignora_IT') return 'skip-id';
+    if (labelName === CONFIG.SKIP_LABEL_NAME) return 'skip-id';
     return null;
   };
   serviceWithSkip._getMessageMetadataWithResilience = (messageId) => ({
@@ -107,7 +110,7 @@ console.log('--- Test discovery: skipLabel esclude i messaggi marcati come ignor
     getThreadById: (threadId) => ({ getId: () => threadId })
   };
 
-  const metadataSkipResult = serviceWithSkip._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 10, 1, 'SISTEMA/Ignora_IT');
+  const metadataSkipResult = serviceWithSkip._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 10, 1, CONFIG.SKIP_LABEL_NAME);
   assert(metadataSkipResult.threads.length === 1, 'metadata mode deve escludere i messaggi con skipLabel');
   assert(metadataSkipResult.threads[0].getId() === 't-keep', 'metadata mode deve mantenere solo il thread senza skipLabel');
 
@@ -116,8 +119,8 @@ console.log('--- Test discovery: skipLabel esclude i messaggi marcati come ignor
     capturedQuery = params.q || '';
     return { messages: [], nextPageToken: null };
   };
-  serviceWithSkip._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, 'SISTEMA/Ignora_IT');
-  assert(capturedQuery.includes('-label:"SISTEMA/Ignora_IT"'), 'query mode deve escludere la skipLabel dalla query Gmail');
+  serviceWithSkip._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, CONFIG.SKIP_LABEL_NAME);
+  assert(capturedQuery.includes(`-label:"${CONFIG.SKIP_LABEL_NAME}"`), 'query mode deve escludere la skipLabel dalla query Gmail');
 }
 
 console.log('--- Test getMessageIdsWithLabel: fallback data senza Utilities.formatDate/Session ---');

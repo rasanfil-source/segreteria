@@ -51,7 +51,7 @@ var CONFIG = {
   LABEL_NAME: 'IA',                    // Label per email processate
   ERROR_LABEL_NAME: 'Errore',          // Label per errori
   VALIDATION_ERROR_LABEL: 'Verifica',  // Label per risposte da rivedere
-  SKIP_LABEL_NAME: 'SISTEMA/Ignora_IT',// Label per email italiane saltate in modalità foreign_only
+  SKIP_LABEL_NAME: '·',              // Label per email italiane saltate in modalità foreign_only
   // Bilanciato per usare al massimo le quote gratuite mantenendo priorità qualità
   // ATTENZIONE: Non modificare arbitrariamente. Verificare periodicamente in rete i limiti delle quote gratuiti stabiliti, mantenendo proporzionalità con le quote di base.
   MAX_EMAILS_PER_RUN: 3,

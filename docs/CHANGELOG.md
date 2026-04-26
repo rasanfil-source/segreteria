@@ -11,13 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added the new system label `SISTEMA/Ignora_IT` to mark Italian messages intentionally skipped while language mode is set to `foreign_only`.
+- Added the new system label `·` to mark Italian messages intentionally skipped while language mode is set to `foreign_only`.
 
 ### Changed
 
 - In `foreign_only` mode, Italian emails skipped in the high-confidence language branches are now tagged with the skip label instead of re-entering discovery forever.
 - Gmail discovery now excludes the skip label dynamically in both `query` and `metadata` modes, keeping behavior consistent across both discovery paths.
-- When a message becomes processable again and receives the `IA` label, the `SISTEMA/Ignora_IT` label is automatically removed to avoid stale UI residue in Gmail.
+- When a message becomes processable again and receives the `IA` label, the `·` label is automatically removed to avoid stale UI residue in Gmail.
 
 ### Fixed
 

@@ -47,6 +47,7 @@ const CONFIG = {
     LABEL_NAME: 'IA',                    // Label per email processate
     ERROR_LABEL_NAME: 'Errore',          // Label per errori
     VALIDATION_ERROR_LABEL: 'Verifica',  // Label per risposte da rivedere
+    SKIP_LABEL_NAME: '·',              // Label per email italiane saltate in modalità foreign_only
     // Ridotto a 3 per supportare strategia "Cross-Key Quality First"
     // Fino a 4 chiamate API per email → batch ridotto per prevenire timeout GAS (6 min)
     MAX_EMAILS_PER_RUN: 3,
