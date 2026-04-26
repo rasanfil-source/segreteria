@@ -563,7 +563,12 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       if (this._shouldIgnoreEmail(messageDetails)) {
         console.log('   ⊖ Filtrato: domain/keyword ignore');
-        markUnlabeledUnreadAsProcessed();
+        // I messaggi esclusi da ignore-rules (newsletter/blacklist/keyword) non
+        // devono essere conteggiati come "IA processati": usiamo la label skip.
+        // Questo evita falsi positivi operativi quando il filtro è puramente
+        // regolistico e indipendente dalla generazione di risposta.
+        this._markMessagesAsSkipped(unlabeledUnread);
+
         result.status = 'filtered';
         result.reason = 'ignore_rules';
         return result;

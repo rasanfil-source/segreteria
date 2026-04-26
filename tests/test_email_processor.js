@@ -371,4 +371,61 @@ console.log('--- Test processThread: alias interno interrompe la sequenza estern
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }
 
+console.log('--- Test processThread: ignore rules applica skip label (non IA) ---');
+{
+  const originalSession = global.Session;
+  const originalGmailApp = global.GmailApp;
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  const labels = [];
+
+  global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
+  };
+  global.GmailApp = {
+    getAliases: () => []
+  };
+  global.GLOBAL_CACHE.languageMode = 'all';
+
+  const ignoreRuleProcessor = new EmailProcessor({
+    geminiService: {
+      detectEmailLanguage: () => ({ lang: 'es', safetyGrade: 5 })
+    },
+    classifier: {
+      _extractMainContent: (body) => body
+    },
+    gmailService: {
+      getMessageIdsWithLabel: () => new Set(),
+      _extractEmailAddress: extractEmailAddress,
+      extractMessageDetails: (message) => ({
+        subject: message.getSubject(),
+        body: message.getPlainBody(),
+        senderEmail: extractEmailAddress(message.getFrom()),
+        senderName: 'Utente',
+        headers: {},
+        isNewsletter: false,
+        date: message.getDate()
+      }),
+      addLabelToMessage: (id, label) => labels.push({ id, label })
+    }
+  });
+
+  const thread = {
+    getId: () => 'thread-ignore-rules',
+    getLabels: () => [],
+    getMessages: () => [
+      createMessage('m-news', 'News <news@example.org>', 'Newsletter di maggio', 'Contenuto periodico della newsletter.')
+    ]
+  };
+
+  const result = ignoreRuleProcessor.processThread(thread, '', [], new Set(), true);
+  assert(result.status === 'filtered', 'una newsletter deve essere filtrata dalle ignore-rules');
+  assert(result.reason === 'ignore_rules', 'la reason deve restare ignore_rules');
+  assert(labels.some((entry) => entry.id === 'm-news' && entry.label === CONFIG.SKIP_LABEL_NAME), 'deve applicare la skip label al messaggio filtrato');
+  assert(!labels.some((entry) => entry.id === 'm-news' && entry.label === CONFIG.LABEL_NAME), 'non deve applicare la label IA ai messaggi filtrati da ignore-rules');
+
+  global.Session = originalSession;
+  global.GmailApp = originalGmailApp;
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
 console.log('✅ Test filtri EmailProcessor passati');
