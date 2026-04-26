@@ -598,11 +598,19 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       // STEP 3: CONTROLLO RAPIDO - Gemini decide se serve risposta
       // ====================================================================
-      const quickCheck = this.geminiService.shouldRespondToEmail(
-        messageDetails.body,
-        messageDetails.subject,
-        languageDetection
-      );
+      let quickCheck;
+      try {
+        quickCheck = this.geminiService.shouldRespondToEmail(
+          messageDetails.body,
+          messageDetails.subject,
+          languageDetection
+        );
+      } catch (quickError) {
+        console.warn(`   ⚠️ Gemini quick check fallito: ${quickError.message}. Thread lasciato non etichettato per retry successivo.`);
+        result.status = 'error';
+        result.error = 'quick_check_failed';
+        return result;
+      }
 
       if (!quickCheck.shouldRespond) {
         console.log(`   ⊖ Gemini quick check: nessuna risposta necessaria (${quickCheck.reason})`);
@@ -1024,8 +1032,12 @@ ${addressLines.join('\n\n')}
         const errorToReport = initialError || generationError;
         const errorClass = errorToReport ? this._classifyError(errorToReport) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
         console.error('🛑 TUTTE le strategie di generazione sono fallite.');
-        this._addErrorLabel(candidate || thread);
-        this._markMessageAsProcessed(candidate, labeledMessageIds);
+        if (!errorClass.retryable) {
+          this._addErrorLabel(candidate || thread);
+          this._markMessageAsProcessed(candidate, labeledMessageIds);
+        } else {
+          console.warn(`   ↻ Errore generazione retryable (${errorClass.type}) - nessuna marcatura permanente`);
+        }
         result.status = 'error';
         result.error = errorToReport ? String(errorToReport.message || errorToReport) : 'Generation strategies exhausted';
         if (initialError && generationError && initialError !== generationError) {

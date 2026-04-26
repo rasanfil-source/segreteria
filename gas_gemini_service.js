@@ -1206,6 +1206,11 @@ Output JSON:
     const targetModel = options.modelName || this.modelName;
     const skipRateLimit = options.skipRateLimit || false;
     const attachments = options.attachments || [];
+    const forceModelKey = this.useRateLimiter && this.rateLimiter && this.rateLimiter.models
+      ? Object.keys(this.rateLimiter.models).find((key) =>
+          key === targetModel || this.rateLimiter.models[key].name === targetModel
+        )
+      : null;
 
     // ====================================================================
     // RATE LIMITER PATH (solo se abilitato E non skippato)
@@ -1219,7 +1224,9 @@ Output JSON:
           (modelName) => this._generateWithModel(prompt, modelName, targetKey, attachments),
           {
             estimatedTokens: estimatedTokens,
-            preferQuality: true  // Qualità > economia per generation
+            preferQuality: true,
+            forceModel: forceModelKey,
+            modelNameOverride: targetModel
           }
         );
 

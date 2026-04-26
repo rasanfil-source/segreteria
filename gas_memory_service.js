@@ -35,6 +35,7 @@ var MemoryService = class MemoryService {
 
     // Cache per performance (evita lookup ripetuti)
     this._cache = {};
+    this._heldShardLocks = {};
     this._cacheExpiry = 5 * 60 * 1000; // 5 minuti
     this._maxCacheSize = 200; // Limite hard per evitare crescita RAM incontrollata
     this._opCount = 0; // Punto 9: Contatore per Garbage Collection periodica
@@ -830,7 +831,9 @@ var MemoryService = class MemoryService {
             console.warn(`\u26A0\uFE0F Lock sharded già acquisito o presente: ${key}`);
             return false; // Già lockato
           }
-          cache.put(key, '1', lockTtlSeconds);
+          const token = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+          cache.put(key, token, lockTtlSeconds);
+          this._heldShardLocks[key] = token;
           return true;
         } catch (cacheError) {
           console.warn(`⚠️ Errore CacheService durante lock: ${cacheError.message}`);
@@ -850,9 +853,14 @@ var MemoryService = class MemoryService {
    */
   _releaseShardedLock(key) {
     try {
-      CacheService.getScriptCache().remove(key);
+      const cache = CacheService.getScriptCache();
+      const token = this._heldShardLocks ? this._heldShardLocks[key] : null;
+      if (token && cache.get(key) === token) {
+        cache.remove(key);
+      }
+      if (this._heldShardLocks) delete this._heldShardLocks[key];
     } catch (e) {
-      console.warn('Errore release lock:', e);
+      console.warn(`⚠️ Errore rilascio lock sharded '${key}': ${e.message}`);
     }
   }
 

@@ -521,6 +521,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const estimatedTokens = options.estimatedTokens ?? 1000;
     const maxRetries = options.maxRetries ?? 3;
     const preferQuality = options.preferQuality || false;
+    const forceModel = options.forceModel || null;
 
     // 1. Esecuzione con retry (sincrono)
     var lastError = null;
@@ -528,7 +529,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       // 1.1 Selezione + riserva atomica della capacità minuto per OGNI tentativo
       const selection = this._selectAndReserveModel(taskType, {
         preferQuality: preferQuality,
-        estimatedTokens: estimatedTokens
+        estimatedTokens: estimatedTokens,
+        forceModel: forceModel
       });
 
       if (!selection.available) {
@@ -599,7 +601,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         // Uso la classificazione centralizzata (difensiva in caso di runtime modulare)
         const classifiedError = typeof classifyError === 'function' ? classifyError(error) : { type: 'UNKNOWN', retryable: false, message: errorMsg };
 
-        if (classifiedError.type === 'QUOTA_EXCEEDED' || classifiedError.type === 'NETWORK') {
+        if (classifiedError.retryable) {
 
           console.warn(`⚠️ Limite quota/rete (${classifiedError.type}) al tentativo ${attempt + 1}: ${classifiedError.message}`);
 
