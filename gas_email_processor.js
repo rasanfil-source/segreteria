@@ -1363,7 +1363,7 @@ ${addressLines.join('\n\n')}
    * @param {string} doctrineBase
    * @param {boolean} skipExecutionLock - Evita il double-locking se chiamato da main()
    */
-  processUnreadEmails(knowledgeBase, doctrineBase = '', skipExecutionLock = true) {
+  processUnreadEmails(knowledgeBase, doctrineBase = '', skipExecutionLock = false) {
     console.log('\n' + '='.repeat(70));
     console.log('📬 Inizio elaborazione email...');
     console.log('='.repeat(70));

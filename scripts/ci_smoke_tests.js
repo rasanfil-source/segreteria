@@ -442,9 +442,10 @@ function testResponseValidatorCheckLength() {
     assert(resGood.score === 1.0, `Risposta buona: score atteso 1.0, ottenuto ${resGood.score}`);
     assert(resGood.errors.length === 0, 'Risposta buona non deve generare errori');
 
-    const resLong = validator._checkLength('A'.repeat(3001));
-    assert(resLong.score === 0.0, `Risposta troppo lunga deve avere score 0.0, ottenuto ${resLong.score}`);
-    assert(resLong.errors.length > 0, 'Risposta troppo lunga deve generare un errore');
+    const resWarnLong = validator._checkLength('A'.repeat(3001));
+    assert(resWarnLong.score === 0.85, `3001 char deve essere warning soft, ottenuto ${resWarnLong.score}`);
+    const resHardLong = validator._checkLength('A'.repeat(6001));
+    assert(resHardLong.score === 0.0, `Oltre 6000 char deve restare bloccante, ottenuto ${resHardLong.score}`);
 }
 
 function testResponseValidatorForbiddenContent() {
