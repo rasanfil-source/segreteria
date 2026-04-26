@@ -58,7 +58,14 @@ var GmailService = class GmailService {
             this._labelCache.delete(labelName);
         }
 
-        const cachedExists = this._scriptCache ? this._scriptCache.get(cacheKey) : null;
+        let cachedExists = null;
+        if (this._scriptCache) {
+            try {
+                cachedExists = this._scriptCache.get(cacheKey);
+            } catch (e) {
+                console.warn(`⚠️ CacheService.get fallito per label '${labelName}': ${e.message}`);
+            }
+        }
         if (cachedExists) {
             const label = GmailApp.getUserLabelByName(labelName);
             if (label) {
@@ -66,7 +73,11 @@ var GmailService = class GmailService {
                 console.log(`📦 Label '${labelName}' trovata in cache persistente`);
                 return label;
             }
-            if (this._scriptCache) this._scriptCache.remove(cacheKey);
+            if (this._scriptCache) {
+                try {
+                    this._scriptCache.remove(cacheKey);
+                } catch (_) { }
+            }
         }
 
         const labels = GmailApp.getUserLabels();
@@ -74,7 +85,9 @@ var GmailService = class GmailService {
             if (label.getName() === labelName) {
                 this._labelCache.set(labelName, { label: label, ts: now });
                 if (this._scriptCache) {
-                    this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+                    try {
+                        this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+                    } catch (_) { }
                 }
                 console.log(`✓ Label '${labelName}' trovata`);
                 return label;
@@ -91,7 +104,9 @@ var GmailService = class GmailService {
             if (existingLabel) {
                 this._labelCache.set(labelName, { label: existingLabel, ts: now });
                 if (this._scriptCache) {
-                    this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+                    try {
+                        this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+                    } catch (_) { }
                 }
                 console.log(`✓ Label '${labelName}' recuperata dopo collisione di creazione`);
                 return existingLabel;
@@ -101,7 +116,9 @@ var GmailService = class GmailService {
 
         this._labelCache.set(labelName, { label: newLabel, ts: now });
         if (this._scriptCache) {
-            this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+            try {
+                this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+            } catch (_) { }
         }
         console.log(`✓ Creata nuova label: ${labelName}`);
         return newLabel;
@@ -114,7 +131,11 @@ var GmailService = class GmailService {
 
     _clearPersistentLabelCache(labelName) {
         if (!labelName) return;
-        if (this._scriptCache) this._scriptCache.remove(`gmail_label_exists:${labelName}`);
+        if (this._scriptCache) {
+            try {
+                this._scriptCache.remove(`gmail_label_exists:${labelName}`);
+            } catch (_) { }
+        }
     }
 
     addLabelToThread(thread, labelName) {
