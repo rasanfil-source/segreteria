@@ -71,6 +71,7 @@ var EmailProcessor = class EmailProcessor {
       errorLabelName: typeof CONFIG !== 'undefined' ? CONFIG.ERROR_LABEL_NAME : 'Errore',
       validationErrorLabel: typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica',
       skipLabelName: typeof CONFIG !== 'undefined' && CONFIG.SKIP_LABEL_NAME ? CONFIG.SKIP_LABEL_NAME : '·',
+      ignoreLabelName: typeof CONFIG !== 'undefined' && CONFIG.IGNORE_LABEL_NAME ? CONFIG.IGNORE_LABEL_NAME : 'Ignorato',
       validationWarningThreshold: typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_WARNING_THRESHOLD === 'number'
         ? CONFIG.VALIDATION_WARNING_THRESHOLD
         : 0.9,
@@ -333,6 +334,18 @@ var EmailProcessor = class EmailProcessor {
       const lastSpeakerIsUs = Boolean(lastSenderEmail) && ownAddresses.has(lastSenderEmail);
 
       if (lastSpeakerIsUs) {
+        const candidateIndexForLastSpeaker = messages.findIndex(msg => msg.getId() === candidate.getId());
+        const hasLaterOwnReply = candidateIndexForLastSpeaker >= 0 &&
+          messages.slice(candidateIndexForLastSpeaker + 1).some(msg => {
+            const from = this.gmailService._extractEmailAddress(msg.getFrom() || '');
+            return ownAddresses.has(this._normalizeEmailAddress_(from));
+          });
+
+        if (hasLaterOwnReply) {
+          result.status = 'skipped';
+          result.reason = 'own_reply_after_external_unread';
+          return result;
+        }
         console.log('   ⊖ Saltato: l\'ultimo messaggio del thread è già nostro (bot o segreteria)');
         // Segniamo i non letti correnti come processati per evitare loop su thread
         // dove l'ultimo intervento è nostro ma restano flag "unread" riaperti manualmente.
@@ -361,6 +374,7 @@ var EmailProcessor = class EmailProcessor {
           
           if (italianPattern.test(subjectOnly)) {
             console.log(`   ⊖ Pre-check locale: italiano rilevato nel solo oggetto ("${subjectOnly.substring(0, 20)}...") → skip anticipato`);
+            this._markMessagesAsSkipped(unlabeledUnread);
             result.status = 'skipped';
             result.reason = 'italian_skipped_foreign_only_precheck';
             return result;
@@ -402,7 +416,7 @@ var EmailProcessor = class EmailProcessor {
         // In modalità foreign_only NON dobbiamo marcare il messaggio come "IA/processato".
         // Motivo operativo: se in futuro la parrocchia torna in modalità "all",
         // questa stessa email italiana deve rimanere eleggibile per l'elaborazione.
-        this._markMessagesAsSkipped(unlabeledUnread);
+        this._markMessagesAsSkipped(unlabeledUnread, this.config.ignoreLabelName);
         result.status = 'skipped';
         result.reason = 'italian_skipped_foreign_only';
         return result;
@@ -1224,7 +1238,7 @@ ${addressLines.join('\n\n')}
         console.log('   🔴 DRY RUN - Risposta non inviata');
         console.log(`   📄 Invierebbe: ${response.substring(0, 100)}...`);
         result.dryRun = true;
-        result.status = 'replied';
+        result.status = 'dry_run';
         result.durationMs = Date.now() - startTime;
         this.logger.info(`Thread processato in ${result.durationMs}ms`, { threadId: threadId, duration: result.durationMs });
         return result;
@@ -1429,9 +1443,8 @@ ${addressLines.join('\n\n')}
       const languageMode = typeof this._getLanguageProcessingMode_ === 'function'
         ? this._getLanguageProcessingMode_()
         : 'all';
-      const labelDaIgnorare = languageMode === 'foreign_only'
-        ? this.config.skipLabelName
-        : null;
+      const labelsDaIgnorare = [this.config.ignoreLabelName];
+      if (languageMode === 'foreign_only') labelsDaIgnorare.push(this.config.skipLabelName);
 
       let threads;
       try {
@@ -1448,7 +1461,7 @@ ${addressLines.join('\n\n')}
           this.config.searchPageSize || 150,
           discoveryPoolSize,
           3,
-          labelDaIgnorare
+          labelsDaIgnorare
         );
       } catch (e) {
         this.logger.error(`❌ Impossibile recuperare thread da elaborare: ${e.message}. Batch interrotto per sicurezza.`);
@@ -1885,11 +1898,12 @@ ${addressLines.join('\n\n')}
     }
   }
 
-  _markMessagesAsSkipped(messages) {
+  _markMessagesAsSkipped(messages, labelName = this.config.skipLabelName) {
     if (!this.gmailService || typeof this.gmailService.addLabelToMessage !== 'function') return;
+    console.log(`   🏷️ Etichettatura messaggi come saltati (${labelName})...`);
     (messages || []).forEach(message => {
       if (!message) return;
-      this.gmailService.addLabelToMessage(message.getId(), this.config.skipLabelName);
+      this.gmailService.addLabelToMessage(message.getId(), labelName);
     });
   }
 

@@ -26,7 +26,7 @@ var ResponseValidator = class ResponseValidator {
     this.OPTIMAL_MIN_LENGTH = 80;
     // F3 Fix: alzato da 3000 a 4500 per risposte complesse legittime (es. sacramenti multipli).
     // La soglia precedente azzerava lo score su risposte dettagliate ma corrette.
-    this.WARNING_MAX_LENGTH = 3000;
+    this.WARNING_MAX_LENGTH = 4500;
 
     // Frasi vietate (indicatori di rifiuto/incapacità — bloccanti)
     this.forbiddenPhrases = [

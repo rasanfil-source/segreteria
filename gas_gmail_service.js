@@ -402,6 +402,7 @@ var GmailService = class GmailService {
      * @returns {GmailThread[]}             - Thread unici, già istanziati, con almeno un messaggio da elaborare
      */
     getUnprocessedUnreadThreads(labelName, errorLabel, validationLabel, messageBuffer = 150, targetThreads = 50, maxPages = 3, skipLabel = null) {
+        const skipLabels = Array.isArray(skipLabel) ? skipLabel.filter(Boolean) : [skipLabel].filter(Boolean);
         const mode = (typeof CONFIG !== 'undefined' && CONFIG.MESSAGE_DISCOVERY_MODE)
             ? CONFIG.MESSAGE_DISCOVERY_MODE
             : 'query';
@@ -522,14 +523,16 @@ var GmailService = class GmailService {
      * Default operativo: variante più economica che usa la query testuale di Gmail.
      */
     _discoverByQuery(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null) {
+        const skipLabels = Array.isArray(skipLabel) ? skipLabel.filter(Boolean) : [skipLabel].filter(Boolean);
         const lq = this._formatLabelQueryValue(labelName);
         const eq = this._formatLabelQueryValue(errorLabel);
         const vq = this._formatLabelQueryValue(validationLabel);
         let query = `is:unread -label:${lq} -label:${eq} -label:${vq} in:inbox`;
-        if (skipLabel) {
-            const sq = this._formatLabelQueryValue(skipLabel);
+        
+        skipLabels.forEach(skipName => {
+            const sq = this._formatLabelQueryValue(skipName);
             query += ` -label:${sq}`;
-        }
+        });
 
         const seenThreadIds = new Set();
         const unavailableThreadIds = new Set();
@@ -1714,7 +1717,9 @@ var GmailService = class GmailService {
 
         const angleMatch = safeFrom.match(/<([^>]+@[^>]+)>/);
         if (angleMatch) {
-            return angleMatch[1];
+            const inner = String(angleMatch[1]).replace(/[\r\n]+/g, ' ').trim();
+            const innerMatch = inner.match(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/);
+            if (innerMatch) return innerMatch[0];
         }
 
         // Evita regex RFC5322 troppo complesse (rischio backtracking su input malevoli).
@@ -1924,7 +1929,7 @@ var GmailService = class GmailService {
      * Invia risposta come HTML con threading corretto
      */
     sendHtmlReply(resource, responseText, messageDetails) {
-        const finalResponse = responseText;
+        const finalResponse = responseText == null ? '' : String(responseText);
 
         const htmlBody = (typeof markdownToHtml === 'function')
             ? markdownToHtml(finalResponse)

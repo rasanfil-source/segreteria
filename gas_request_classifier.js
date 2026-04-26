@@ -532,8 +532,13 @@ var RequestTypeClassifier = class RequestTypeClassifier {
 
     for (const key of keys) {
       const value = dims[key];
-      if (typeof value === 'number' && !Number.isNaN(value)) {
-        normalized[key] = Math.max(0, Math.min(value, 1));
+      const raw = typeof value === 'number'
+        ? value
+        : (typeof value === 'string' ? parseFloat(value.replace(',', '.').replace('%', '').trim()) : NaN);
+
+      if (Number.isFinite(raw)) {
+        const scaled = (typeof value === 'string' && value.includes('%')) || raw > 1 ? raw / 100 : raw;
+        normalized[key] = Math.max(0, Math.min(scaled, 1));
         found = true;
       }
     }

@@ -365,6 +365,8 @@ var Classifier = class Classifier {
 
     // Conta parole
     const wordCount = normalized.split(' ').filter(w => w.length > 0).length;
+    const hasOperationalInfo = /\b(oggi|domani|stamattina|stasera|alle|ore|appuntamento|vengo|veniamo|porto|documenti|pagato|bonifico)\b|\d/.test(normalized);
+    if (hasOperationalInfo) return false;
 
     // STRICT: max 3 parole
     if (wordCount > 3) return false;
