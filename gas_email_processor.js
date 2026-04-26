@@ -1180,12 +1180,11 @@ ${addressLines.join('\n\n')}
         }
 
         const warningThreshold = this.config.validationWarningThreshold || 0.90;
+        const shouldLabelForReview =
+          validation.warnings && validation.warnings.length > 0 && validation.score < warningThreshold;
 
-        if (validation.warnings && validation.warnings.length > 0 && validation.score < warningThreshold) {
-          console.log(
-            `   ⚠️ Validazione: Punteggio ${validation.score.toFixed(2)} < ${warningThreshold} con warning - Aggiungo etichetta '${this.config.validationErrorLabel}'`
-          );
-          this.gmailService.addLabelToMessage(candidate.getId(), this.config.validationErrorLabel);
+        if (shouldLabelForReview) {
+          console.log(`   ⚠️ Label '${this.config.validationErrorLabel}' rinviata a dopo invio riuscito`);
         } else if (validation.warnings && validation.warnings.length > 0) {
           console.log(`   ℹ️ Validazione: Punteggio alto (${validation.score.toFixed(2)}). Warning ignorati: ${validation.warnings.join(', ')}`);
         }
@@ -1234,6 +1233,9 @@ ${addressLines.join('\n\n')}
         this.gmailService.sendHtmlReply(candidate, response, messageDetails);
         this._commitSendTransaction(candidate.getId());
         replySent = true;
+        if (shouldLabelForReview) {
+          this.gmailService.addLabelToMessage(candidate.getId(), this.config.validationErrorLabel);
+        }
       } catch (e) {
         this._rollbackSendTransaction(candidate.getId());
         const errorMessage = e && e.message ? e.message : String(e);
