@@ -271,4 +271,74 @@ console.log('--- Test processThread: fallback end-to-end su UNKNOWN ---');
   assert(labeled.has('m-unknown'), 'deve marcare il messaggio candidato come processato');
 }
 
+console.log('--- Test processThread: valida e invia esattamente il testo outbound preparato ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  global.CONFIG.VALIDATION_ENABLED = true;
+
+  let validatedText = null;
+  let sentText = null;
+
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Richiesta informazioni',
+        body: 'Vorrei sapere gli orari.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      buildConversationHistory: () => '',
+      prepareOutboundText: (text) => `${text}\n[prepared-marker]`,
+      sendHtmlReply: (_candidate, responseText) => {
+        sentText = responseText;
+      }
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'info', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'orari' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta base' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    validator: {
+      validateResponse: (text) => {
+        validatedText = text;
+        return { isValid: true, warnings: [], score: 1, details: {}, fixedResponse: null };
+      }
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: () => 'PROMPT'
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('validated-send'), 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'il branch replied con validazione attiva non deve lanciare errori post-send');
+  assert(validatedText === 'Risposta base\n[prepared-marker]', `il validator deve ricevere il testo outbound preparato, ottenuto "${validatedText}"`);
+  assert(sentText === validatedText, 'il testo inviato deve coincidere esattamente con quello validato');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+}
+
 console.log('✅ Test batch EmailProcessor passati');

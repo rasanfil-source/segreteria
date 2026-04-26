@@ -1064,9 +1064,10 @@ ${addressLines.join('\n\n')}
       // ====================================================================
       // STEP 9: VALIDAZIONE + RETRY INTELLIGENTE
       // ====================================================================
-      let finalResponse = response;
+      let finalResponse = this._prepareOutboundResponse(response, messageDetails, detectedLanguage);
       let validation = null;
       let retryAttempted = false;
+      let shouldLabelForReview = false;
 
       if (this.config.validationEnabled) {
         validation = this.validator.validateResponse(
@@ -1133,8 +1134,14 @@ ${addressLines.join('\n\n')}
 
           if (!retryResponse) break;
 
-          const retryValidation = this.validator.validateResponse(
+          const preparedRetryResponse = this._prepareOutboundResponse(
             retryResponse,
+            messageDetails,
+            detectedLanguage
+          );
+
+          const retryValidation = this.validator.validateResponse(
+            preparedRetryResponse,
             detectedLanguage,
             enrichedKnowledgeBase,
             messageDetails.body,
@@ -1144,7 +1151,7 @@ ${addressLines.join('\n\n')}
 
           if (retryValidation.isValid) {
             console.log(`✅ Retry superato (score: ${retryValidation.score.toFixed(2)})`);
-            finalResponse = retryValidation.fixedResponse || retryResponse;
+            finalResponse = retryValidation.fixedResponse || preparedRetryResponse;
             validation = retryValidation;
             break;
           }
@@ -1155,7 +1162,7 @@ ${addressLines.join('\n\n')}
           );
           if (retryValidation.score > validation.score) {
             console.log('   → Uso risposta del retry (score più alto, nonostante non valida)');
-            finalResponse = retryResponse;
+            finalResponse = preparedRetryResponse;
             validation = retryValidation;
           }
         }
@@ -1180,7 +1187,7 @@ ${addressLines.join('\n\n')}
         }
 
         const warningThreshold = this.config.validationWarningThreshold || 0.90;
-        const shouldLabelForReview =
+        shouldLabelForReview =
           validation.warnings && validation.warnings.length > 0 && validation.score < warningThreshold;
 
         if (shouldLabelForReview) {
@@ -1196,7 +1203,7 @@ ${addressLines.join('\n\n')}
         console.log(`   ✓ Validazione PASSATA (punteggio: ${validation.score.toFixed(2)})`);
       }
 
-      response = this.gmailService.prepareOutboundText(finalResponse, messageDetails, detectedLanguage);
+      response = finalResponse;
 
       // ====================================================================
       // STEP 10: INVIA RISPOSTA
@@ -1938,6 +1945,18 @@ ${addressLines.join('\n\n')}
       this.logger.warn(`⚠️ Impossibile normalizzare contenuto testuale: ${e.message}`);
       return '';
     }
+  }
+
+  _prepareOutboundResponse(responseText, messageDetails, detectedLanguage) {
+    const safeText = typeof responseText === 'string'
+      ? responseText
+      : (responseText == null ? '' : String(responseText));
+
+    if (this.gmailService && typeof this.gmailService.prepareOutboundText === 'function') {
+      return this.gmailService.prepareOutboundText(safeText, messageDetails || {}, detectedLanguage);
+    }
+
+    return safeText;
   }
 
   _addErrorLabel(target) {
