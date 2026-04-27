@@ -1974,21 +1974,30 @@ var GmailService = class GmailService {
                 collectReferenceIds(messageDetails.rfc2822MessageId);
                 const boundedReferenceChain = referenceIds.slice(-20).join(' ');
 
-                // From stabile: usa account effettivo, con fallback difensivo se non disponibile.
-                const effectiveUser = (
-                    typeof Session !== 'undefined' &&
-                    Session &&
-                    typeof Session.getEffectiveUser === 'function'
-                ) ? Session.getEffectiveUser() : null;
-                const activeUser = (
-                    typeof Session !== 'undefined' &&
-                    Session &&
-                    typeof Session.getActiveUser === 'function'
-                ) ? Session.getActiveUser() : null;
+                const safeSessionEmail = (getterName) => {
+                    try {
+                        if (
+                            typeof Session === 'undefined' ||
+                            !Session ||
+                            typeof Session[getterName] !== 'function'
+                        ) {
+                            return '';
+                        }
+                        const user = Session[getterName]();
+                        return (user && typeof user.getEmail === 'function')
+                            ? String(user.getEmail() || '').replace(/[\r\n]+/g, '').trim()
+                            : '';
+                    } catch (e) {
+                        return '';
+                    }
+                };
+
+                // From stabile: usa account effettivo, poi account attivo, poi primo indirizzo valido nel To originale.
+                const recipientFallbackEmail = this._extractEmailAddress(messageDetails.recipientEmail || '');
                 const stableFrom = (
-                    (effectiveUser && typeof effectiveUser.getEmail === 'function' && effectiveUser.getEmail())
-                    || (activeUser && typeof activeUser.getEmail === 'function' && activeUser.getEmail())
-                    || messageDetails.recipientEmail
+                    safeSessionEmail('getEffectiveUser')
+                    || safeSessionEmail('getActiveUser')
+                    || recipientFallbackEmail
                     || null
                 );
 

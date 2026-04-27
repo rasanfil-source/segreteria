@@ -440,4 +440,101 @@ console.log('--- Test sendHtmlReply: References lunghe vengono foldate e limitat
   }
 }
 
+console.log('--- Test sendHtmlReply: doppio fallback fallito rilancia errore ---');
+{
+  const originalAddLabelToThread = service.addLabelToThread;
+  const labels = [];
+  let replyCalls = 0;
+
+  try {
+    service.addLabelToThread = (_thread, label) => labels.push(label);
+
+    const thread = {
+      getId: () => 'thread-send-fail',
+      getMessages: () => []
+    };
+    const message = {
+      getThread: () => thread,
+      reply: () => {
+        replyCalls += 1;
+        throw new Error(`reply-fail-${replyCalls}`);
+      }
+    };
+
+    let threw = false;
+    try {
+      service.sendHtmlReply(message, 'Risposta test', {
+        subject: 'Oggetto',
+        senderEmail: 'utente@example.org',
+        rfc2822MessageId: '<msg@example.org>',
+        existingReferences: '',
+        recipientEmail: 'parrocchia@example.org',
+        recipientCc: ''
+      });
+    } catch (e) {
+      threw = /Fallback nativo: reply-fail-2/.test(e.message);
+    }
+
+    assert(threw, 'se API e fallback nativi falliscono, sendHtmlReply deve rilanciare');
+    assert(replyCalls === 2, 'deve tentare fallback HTML e poi plain text');
+    assert(labels.includes('Errore'), 'deve applicare la label Errore prima di rilanciare');
+  } finally {
+    service.addLabelToThread = originalAddLabelToThread;
+  }
+}
+
+console.log('--- Test sendHtmlReply: From fallback usa email estratta dal To ---');
+{
+  const originalUtilities = global.Utilities;
+  const originalSession = global.Session;
+  const originalGmail = global.Gmail;
+  let rawPayload = '';
+
+  try {
+    global.Utilities = Object.assign({}, originalUtilities, {
+      Charset: { UTF_8: 'utf8' },
+      base64Encode: (input) => Buffer.from(String(input || ''), 'utf8').toString('base64'),
+      base64EncodeWebSafe: (input) => Buffer.from(String(input || ''), 'utf8')
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, '')
+    });
+    global.Session = {
+      getEffectiveUser: () => ({ getEmail: () => '' }),
+      getActiveUser: () => ({ getEmail: () => '' })
+    };
+    global.Gmail = {
+      Users: {
+        Messages: {
+          send: ({ raw }) => {
+            const normalized = String(raw || '').replace(/-/g, '+').replace(/_/g, '/');
+            const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+            rawPayload = Buffer.from(padded, 'base64').toString('utf8');
+          }
+        }
+      }
+    };
+
+    service.sendHtmlReply(
+      { getThread: () => ({ getId: () => 'thread-from-fallback' }) },
+      'Risposta test',
+      {
+        subject: 'Oggetto',
+        senderEmail: 'utente@example.org',
+        rfc2822MessageId: '<msg@example.org>',
+        existingReferences: '',
+        recipientEmail: 'Parrocchia <parrocchia@example.org>, copia@example.org',
+        recipientCc: ''
+      }
+    );
+
+    assert(rawPayload.includes('From: parrocchia@example.org\r\n'), 'From deve usare una singola email valida estratta dal To');
+  } finally {
+    global.Utilities = originalUtilities;
+    global.Session = originalSession;
+    global.Gmail = originalGmail;
+  }
+}
+
 console.log('✅ Test extractMessageDetails robustezza passati');
