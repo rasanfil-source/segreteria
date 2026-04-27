@@ -820,23 +820,25 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       this.cache.rpmWindow = mergedRpm;
       this.cache.tpmWindow = mergedTpm;
 
-      // 1. Crea checkpoint WAL con ultimi dati critici
-      const wal = {
-        timestamp: walTimestamp,
-        // Mantieni finestra completa di sicurezza (max 100) per ripristino coerente
-        rpm: mergedRpm.slice(),
-        tpm: mergedTpm.slice()
-      };
+      const rpmStr = JSON.stringify(mergedRpm);
+      const tpmStr = JSON.stringify(mergedTpm);
 
-      // 2. Scrivi WAL prima (checkpoint di sicurezza)
-      this.props.setProperty('rate_limit_wal', JSON.stringify(wal));
+      // 1. Scrivi WAL prima (checkpoint di sicurezza) su chiavi separate
+      // per evitare il limite di 9KB per singola proprietà.
+      this.props.setProperties({
+        rate_limit_wal_ts: String(walTimestamp),
+        rate_limit_wal_rpm: rpmStr,
+        rate_limit_wal_tpm: tpmStr
+      });
 
-      // 3. Scrivi dati completi
-      this.props.setProperty('rpm_window', JSON.stringify(mergedRpm));
-      this.props.setProperty('tpm_window', JSON.stringify(mergedTpm));
+      // 2. Scrivi dati completi
+      this.props.setProperties({
+        rpm_window: rpmStr,
+        tpm_window: tpmStr
+      });
 
-      // 4. Rimuovi WAL solo dopo la scrittura completa
-      this.props.deleteProperty('rate_limit_wal');
+      // 3. Rimuovi WAL solo dopo la scrittura completa
+      this._cleanCorruptedWAL();
     } finally {
       lock.releaseLock();
     }
@@ -860,19 +862,32 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     try {
-      const walData = this.props.getProperty('rate_limit_wal');
-      if (!walData) return;
+      const walTs = this.props.getProperty('rate_limit_wal_ts');
+      const oldWalData = this.props.getProperty('rate_limit_wal');
+      if (!walTs && !oldWalData) return;
 
       console.warn('⚠️ Transazione WAL rilevata - ripristino stato operativo...');
-      const wal = JSON.parse(walData);
+      let wal = null;
+      if (oldWalData) {
+        wal = JSON.parse(oldWalData);
+      } else {
+        const walRpmStr = this.props.getProperty('rate_limit_wal_rpm');
+        const walTpmStr = this.props.getProperty('rate_limit_wal_tpm');
+        wal = {
+          timestamp: parseInt(walTs, 10),
+          rpm: walRpmStr ? JSON.parse(walRpmStr) : [],
+          tpm: walTpmStr ? JSON.parse(walTpmStr) : []
+        };
+      }
+
       if (!wal || typeof wal !== 'object' || !wal.timestamp) {
         console.error('❌ Struttura WAL inconsistente, applico reset di sicurezza');
-        this.props.deleteProperty('rate_limit_wal');
+        this._cleanCorruptedWAL();
         return;
       }
       if (!Array.isArray(wal.rpm) || !Array.isArray(wal.tpm)) {
         console.error('❌ WAL con array invalidi');
-        this.props.deleteProperty('rate_limit_wal');
+        this._cleanCorruptedWAL();
         return;
       }
 
@@ -880,7 +895,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       const age = Date.now() - wal.timestamp;
       if (age > 300000) {
         console.warn('   WAL troppo vecchio, ignorato');
-        this.props.deleteProperty('rate_limit_wal');
+        this._cleanCorruptedWAL();
         return;
       }
 
@@ -897,7 +912,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       this.props.setProperty('tpm_window', JSON.stringify(mergedTpm));
 
       // Rimuovi transazione WAL a ripristino ultimato
-      this.props.deleteProperty('rate_limit_wal');
+      this._cleanCorruptedWAL();
 
       // Aggiorna cache in-memory
       this.cache.rpmWindow = mergedRpm;
@@ -908,11 +923,20 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
     } catch (error) {
       console.error(`❌ Errore di sincronizzazione WAL: ${error.message}`);
-      // Rimuovi WAL inconsistente
-      try { this.props.deleteProperty('rate_limit_wal'); } catch (e) { }
+      this._cleanCorruptedWAL();
     } finally {
       if (!alreadyLocked && lockAcquired && lock) lock.releaseLock();
     }
+  }
+
+  _cleanCorruptedWAL() {
+    try {
+      this.props.deleteProperty('rate_limit_wal_ts');
+      this.props.deleteProperty('rate_limit_wal_rpm');
+      this.props.deleteProperty('rate_limit_wal_tpm');
+      // retrocompatibilità con formato legacy
+      this.props.deleteProperty('rate_limit_wal');
+    } catch (e) { }
   }
 
   /**
