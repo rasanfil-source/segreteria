@@ -412,11 +412,18 @@ var EmailProcessor = class EmailProcessor {
       // PORTA 1: Interrompiamo se l'email deve essere ignorata in base alla lingua
       if (this._shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
         console.log('   ⊖ Saltato: modalità "Solo straniere", email in italiano');
-        // SCELTA CRITICA ANTI-REGRESSIONE:
-        // In modalità foreign_only NON dobbiamo marcare il messaggio come "IA/processato".
-        // Motivo operativo: se in futuro la parrocchia torna in modalità "all",
-        // questa stessa email italiana deve rimanere eleggibile per l'elaborazione.
-        this._markMessagesAsSkipped(unlabeledUnread, this.config.ignoreLabelName);
+        // SCELTA CRITICA ANTI-REGRESSIONE (2 vincoli):
+        //
+        // 1) In modalità foreign_only NON dobbiamo marcare il messaggio come "IA/processato".
+        //    Motivo operativo: se in futuro la parrocchia torna in modalità "all",
+        //    questa stessa email italiana deve rimanere eleggibile per l'elaborazione.
+        //
+        // 2) L'etichetta da applicare DEVE essere skipLabelName ('·', punto centrato),
+        //    MAI ignoreLabelName ('Ignorato'). La label '·' è discreta e non intrusiva
+        //    nell'interfaccia Gmail; 'Ignorato' è riservata esclusivamente ai messaggi
+        //    scartati per blacklist/spam/auto-reply (filtri _shouldIgnoreEmail).
+        //    ⚠️  NON CAMBIARE: volontà esplicita del proprietario del progetto.
+        this._markMessagesAsSkipped(unlabeledUnread);
         result.status = 'skipped';
         result.reason = 'italian_skipped_foreign_only';
         return result;
