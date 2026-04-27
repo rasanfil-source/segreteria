@@ -334,18 +334,6 @@ var EmailProcessor = class EmailProcessor {
       const lastSpeakerIsUs = Boolean(lastSenderEmail) && ownAddresses.has(lastSenderEmail);
 
       if (lastSpeakerIsUs) {
-        const candidateIndexForLastSpeaker = messages.findIndex(msg => msg.getId() === candidate.getId());
-        const hasLaterOwnReply = candidateIndexForLastSpeaker >= 0 &&
-          messages.slice(candidateIndexForLastSpeaker + 1).some(msg => {
-            const from = this.gmailService._extractEmailAddress(msg.getFrom() || '');
-            return ownAddresses.has(this._normalizeEmailAddress_(from));
-          });
-
-        if (hasLaterOwnReply) {
-          result.status = 'skipped';
-          result.reason = 'own_reply_after_external_unread';
-          return result;
-        }
         console.log('   ⊖ Saltato: l\'ultimo messaggio del thread è già nostro (bot o segreteria)');
         // Segniamo i non letti correnti come processati per evitare loop su thread
         // dove l'ultimo intervento è nostro ma restano flag "unread" riaperti manualmente.
