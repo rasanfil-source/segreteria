@@ -1524,9 +1524,9 @@ function onEdit(e) {
   // 1. Definisci qui le coordinate del tuo selettore
   // Esempio: Foglio "Controllo", cella "B2" (dove solitamente risiede lo stato o la config)
   const TARGET_SHEET = "Controllo"; 
-  const TARGET_CELL = "F2"; // 
+  const TARGET_CELLS = ["B2", "F2"]; // B2 = on/off sistema, F2 = modalità lingua
 
-  if (sheetName === TARGET_SHEET && cellAddress === TARGET_CELL) {
+  if (sheetName === TARGET_SHEET && TARGET_CELLS.includes(cellAddress)) {
     // NOTA: onEdit è un trigger semplice (max 30s, lock non affidabile).
     // Invalida solo la cache; il reload avviene nel ciclo principale con lock.
     console.log("🔄 Rilevata modifica al selettore. Invalidazione cache...");
