@@ -1114,11 +1114,13 @@ function testExtractOfficeTextDriveCreateForcesTargetMimeType() {
 
     const originalDrive = global.Drive;
     const service = Object.create(GmailService.prototype);
+    let createResource = null;
     let createOptions = null;
 
     global.Drive = {
         Files: {
-            create: (_resource, _blob, options) => {
+            create: (resource, _blob, options) => {
+                createResource = resource;
                 createOptions = options;
                 return { id: 'file-1', mimeType: 'application/pdf' };
             },
@@ -1138,7 +1140,9 @@ function testExtractOfficeTextDriveCreateForcesTargetMimeType() {
             const extracted = service._extractOfficeText(attachment, 'application/vnd.google-apps.document', {});
             assert(extracted === '', 'Con mimeType finale non convertito deve ritornare stringa vuota');
         });
-        assert(createOptions && createOptions.mimeType === 'application/vnd.google-apps.document', 'Drive.Files.create deve forzare il mimeType target anche nelle opzioni');
+        assert(createResource && createResource.mimeType === 'application/vnd.google-apps.document', 'Drive.Files.create deve forzare il mimeType target nei metadata');
+        assert(createOptions && createOptions.fields === 'id,mimeType', 'Drive.Files.create deve richiedere id,mimeType come fields');
+        assert(!Object.prototype.hasOwnProperty.call(createOptions, 'mimeType'), 'Drive.Files.create non deve passare mimeType negli optionalArgs v3');
         assert(
             consoleNoise.warn.some((msg) => msg.includes('Estrazione Office fallita')),
             'Il test deve intercettare il warning atteso sulla conversione Office'

@@ -1205,7 +1205,7 @@ var GmailService = class GmailService {
                     mimeType: googleMime
                 };
                 const file = Drive.Files.create(resource, attachmentBlob.copyBlob(), {
-                    mimeType: googleMime
+                    fields: 'id,mimeType'
                 });
                 fileId = file && file.id ? file.id : null;
                 if (!fileId) {
@@ -1386,7 +1386,7 @@ var GmailService = class GmailService {
                     mimeType: googleMimeType
                 };
                 const file = Drive.Files.create(resource, blob, {
-                    mimeType: googleMimeType
+                    fields: 'id,mimeType'
                 });
                 if (!file || !file.id) {
                     throw new Error('Drive API ha restituito un file convertito non valido (id assente)');
@@ -1515,7 +1515,7 @@ var GmailService = class GmailService {
                     mimeType: targetMimeType
                 };
                 const file = Drive.Files.create(resource, blob, {
-                    mimeType: targetMimeType,
+                    fields: 'id,mimeType',
                     ocrLanguage: settings.ocrLanguage || 'it'
                 });
                 if (!file || !file.id) {
