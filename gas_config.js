@@ -66,7 +66,7 @@ var CONFIG = {
   // Modalità di scoperta messaggi non letti da elaborare.
   // - 'query'   : default operativo, message-level con query Gmail -label:...
   // - 'metadata': fallback prudente/manuale (list INBOX/UNREAD + get(minimal) per labelIds)
-  // Fix: Spostato a 'query' per massimizzare l'efficienza della quota API di lettura Gmail
+  // Configurato su 'query' per ottimizzare l'uso della quota API in lettura
   MESSAGE_DISCOVERY_MODE: 'query',
   // =========================================================================================
   MAX_EXECUTION_TIME_MS: 280000,    // Budget massimo per run (default GAS trigger ~6 minuti)

@@ -32,7 +32,7 @@ var RESOURCE_CACHE_KEY_V2 = 'SPA_KNOWLEDGE_BASE_V2';
 var RESOURCE_CACHE_KEY_V1 = 'SPA_KNOWLEDGE_BASE_V1';
 var RESOURCE_CACHE_PARTS_KEY = `${RESOURCE_CACHE_KEY_V2}:parts`;
 var RESOURCE_CACHE_PART_PREFIX = `${RESOURCE_CACHE_KEY_V2}:part:`;
-var RESOURCE_CACHE_MAX_PART_SIZE = 45000; // Mitigazione rapida: riduce rischio overflow entry CacheService con UTF-8 multibyte.
+var RESOURCE_CACHE_MAX_PART_SIZE = 45000; // Limita la dimensione della cache per evitare overflow con caratteri UTF-8 multibyte.
 
 // ====================================================================
 // FESTIVITÀ E SOSPENSIONE
@@ -96,7 +96,7 @@ function calculateEaster(year) {
 }
 
 /**
- * B3 Fix: Stima il numero di token per un testo ed eventuali allegati.
+ * Stima il numero di token per un testo ed eventuali allegati.
  * Algoritmo centralizzato (DRY) per RateLimiter e PromptEngine.
  * Formula: max(parole * 1.25 + 10% overhead, caratteri / 3.5) + 200 per allegato.
  * 
@@ -1438,7 +1438,7 @@ function _formatDateForKnowledgeText(date) {
     if (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function') {
       return Session.getScriptTimeZone();
     }
-    // Fix: Fallback al timezone di business per evitare shift di giorni su edge-cases V8
+    // Fallback al timezone di riferimento per evitare spostamenti di giorni imprevisti.
     return 'Europe/Rome';
   };
 

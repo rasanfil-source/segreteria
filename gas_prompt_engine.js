@@ -34,7 +34,7 @@ var PromptEngine = class PromptEngine {
    * Stima token (approx 4 char/token per l'italiano/inglese)
    */
   estimateTokens(text) {
-    // B3 Fix: delega alla funzione centralizzata in gas_main.js (DRY)
+    // Delega alla funzione centralizzata in gas_main.js (DRY)
     return typeof estimateTokenCount === 'function' 
       ? estimateTokenCount(text) 
       : Math.ceil((text || '').length / 4);

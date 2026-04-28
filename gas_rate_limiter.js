@@ -1215,7 +1215,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
    * Formula: parole * 1.25 + overhead 10% + 200 per ogni allegato
    */
   _estimateTokens(text, attachments = []) {
-    // B3 Fix: delega alla funzione centralizzata in gas_main.js (DRY)
+    // Delega alla funzione centralizzata in gas_main.js (DRY)
     return typeof estimateTokenCount === 'function' 
       ? estimateTokenCount(text, attachments)
       : Math.max(Math.ceil((text || '').length / 4) + (attachments.length * 200), 1);

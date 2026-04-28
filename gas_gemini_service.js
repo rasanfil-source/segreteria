@@ -1166,7 +1166,7 @@ Output JSON:
         }
       } catch (error) {
         if (error.message && error.message.includes('QUOTA_EXHAUSTED')) {
-          // F2 Fix: allineato a generateResponse — non fare fallback diretto.
+          // L'eccezione non viene gestita con un fallback diretto per allineamento a generateResponse.
           // Il fallback diretto bypasserebbe il quota tracking del RateLimiter,
           // causando consumo API non tracciato. Il Processor gestirà l'eccezione
           // come skip del thread (comportamento coerente e sicuro).

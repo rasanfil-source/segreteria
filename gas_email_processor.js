@@ -107,7 +107,7 @@ var EmailProcessor = class EmailProcessor {
   processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds = null, skipLock = false) {
     const threadId = thread.getId();
     const startTime = Date.now();
-    // B2 Fix: garantisce che _isNearDeadline() funzioni anche se processThread
+    // Garantisce che _isNearDeadline() funzioni anche se processThread
     // è invocato direttamente (test, debug) senza passare per processUnreadEmails.
     if (!this._startTime) {
       this._startTime = startTime;
@@ -784,7 +784,7 @@ var EmailProcessor = class EmailProcessor {
       const territoryRequested = this._isTerritoryRequest(
         messageDetails.subject,
         messageDetails.body,
-        quickCheck?.classification || {}, // Fix integrazione: usa classificazione Gemini con check safe.
+        quickCheck?.classification || {}, // Usa classificazione Gemini evitando errori se null.
         requestType
       );
 
@@ -1221,9 +1221,7 @@ ${addressLines.join('\n\n')}
           console.log(`   ℹ️ Validazione: Punteggio alto (${validation.score.toFixed(2)}). Warning ignorati: ${validation.warnings.join(', ')}`);
         }
 
-        // B1 Fix: questo blocco fixedResponse era duplicato e sovrascriveva
-        // la risposta migliorata dal retry intelligente. Rimosso il duplicato;
-        // la prima applicazione a riga 1068-1071 è sufficiente.
+        // L'eventuale testo perfezionato è già stato applicato in fase di validazione.
 
         console.log(`   ✓ Validazione PASSATA (punteggio: ${validation.score.toFixed(2)})`);
       }
@@ -1519,8 +1517,7 @@ ${addressLines.join('\n\n')}
       this._startTime = Date.now();
       const MAX_EXECUTION_TIME = this.config.maxExecutionTimeMs;
       let processedCount = 0;
-      // B4 Fix: rimossa definizione duplicata di getEffectiveMaxEmailsPerRun;
-      // si usa la stessa closure definita sopra a riga 1394 (DRY).
+      // Si usa la closure getEffectiveMaxEmailsPerRun definita esternamente per ottimizzare la leggibilità.
 
       for (let index = 0; index < threads.length; index++) {
         const safeLimit = getEffectiveMaxEmailsPerRun();

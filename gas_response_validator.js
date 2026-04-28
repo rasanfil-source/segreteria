@@ -24,7 +24,7 @@ var ResponseValidator = class ResponseValidator {
     // Soglie lunghezza
     this.MIN_LENGTH_CHARS = 25;
     this.OPTIMAL_MIN_LENGTH = 80;
-    // F3 Fix: alzato da 3000 a 4500 per risposte complesse legittime (es. sacramenti multipli).
+    // Limite alzato a 4500 per ospitare risposte legittimamente complesse (es. sacramenti multipli).
     // La soglia precedente azzerava lo score su risposte dettagliate ma corrette.
     this.WARNING_MAX_LENGTH = 4500;
 
@@ -374,7 +374,7 @@ var ResponseValidator = class ResponseValidator {
       warnings.push(`Risposta piuttosto corta (${length} caratteri)`);
       score *= 0.85;
     } else if (length > this.WARNING_MAX_LENGTH) {
-      // F3 Fix: degradazione progressiva invece di blocco duro a 0.0.
+      // Degradazione progressiva invece di azzeramento diretto del punteggio.
       // 4500-6000 → warning (0.85); >6000 → errore bloccante.
       const HARD_MAX_LENGTH = 6000;
       if (length > HARD_MAX_LENGTH) {

@@ -1289,7 +1289,7 @@ function cleanupOldMemory() {
 }
 
 /**
- * @deprecated B5 Fix: usa setupWeeklyCleanupTrigger() in gas_main.js.
+ * @deprecated Usa setupWeeklyCleanupTrigger() in gas_main.js.
  * Questa funzione è mantenuta per retrocompatibilità ma NON deve essere
  * richiamata insieme a setupWeeklyCleanupTrigger() per evitare trigger duplicati.
  * Configura trigger settimanale per pulizia automatica memoria.
@@ -1321,7 +1321,7 @@ function setupWeeklyMemoryCleanupTrigger() {
 
 /**
  * Alias per compatibilità: alcuni trigger storici puntano a weeklyMemoryCleanup.
- * Manteniamo un wrapper per evitare rotture dopo la correzione dei trigger.
+ * Wrapper mantenuto per retrocompatibilità con chiamate legacy.
  */
 function weeklyMemoryCleanup() {
   return cleanupOldMemory();
