@@ -2282,6 +2282,27 @@ function testSheetRowsToTextNormalizesMultilineCells() {
     );
 }
 
+function testSplitCachePayloadAdvancesOnSingleHighSurrogate() {
+    console.log('--- Test: Split Cache Payload Single High Surrogate ---');
+    loadScript('gas_main.js');
+
+    const originalUtilities = global.Utilities;
+    global.Utilities = Object.assign({}, originalUtilities || {}, {
+        newBlob: (data) => ({
+            getBytes: () => Buffer.from(String(data), 'utf8')
+        })
+    });
+
+    try {
+        const highSurrogate = String.fromCharCode(0xD83D);
+        const parts = _splitCachePayload(`A${highSurrogate}B`, 1);
+        assert(parts.join('') === `A${highSurrogate}B`, 'Lo split deve avanzare anche con chunk da 1 high surrogate');
+        assert(parts.length === 3, `Attesi 3 chunk da 1 carattere, ottenuti ${parts.length}`);
+    } finally {
+        global.Utilities = originalUtilities;
+    }
+}
+
 function testFormatDateForKnowledgeTextUsesScriptTimezoneInNodeFallback() {
     console.log('--- Test: Date formatter fallback honors script timezone ---');
     loadScript('gas_main.js');
@@ -2616,6 +2637,7 @@ function main() {
         ['main: serializzazione KB preserva colonne vuote', testSheetRowsToTextPreservesColumnAlignmentWithEmptyCells],
         ['main: serializzazione date KB stabile', testSheetRowsToTextFormatsDatesStably],
         ['main: serializzazione celle multilinea KB stabile', testSheetRowsToTextNormalizesMultilineCells],
+        ['main: split cache avanza su high surrogate singolo', testSplitCachePayloadAdvancesOnSingleHighSurrogate],
         ['main: fallback date formatter usa timezone script', testFormatDateForKnowledgeTextUsesScriptTimezoneInNodeFallback],
         ['validator: thinking leak con pattern parentesi', testResponseValidatorRemovesThinkingLeakWithParenthesisKeyword],
         ['main: ai_core preserva valori falsey', testLoadResourcesKeepsFalseyValuesInAiCoreSheets],

@@ -805,43 +805,37 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     try {
-      const walTimestamp = Date.now();
-      // Rilegge lo stato persistito dentro lock ed esegue merge con cache locale
-      let currentRpm;
-      let currentTpm;
-      try {
-        currentRpm = JSON.parse(this.props.getProperty('rpm_window') || '[]');
-        currentTpm = JSON.parse(this.props.getProperty('tpm_window') || '[]');
-      } catch (e) {
-        currentRpm = [];
-        currentTpm = [];
-      }
-
-      const mergedRpm = this._mergeWindowData(currentRpm, this.cache.rpmWindow);
-      const mergedTpm = this._mergeWindowData(currentTpm, this.cache.tpmWindow);
-
-      // Aggiorna cache locale dell'istanza con stato merged
-      this.cache.rpmWindow = mergedRpm;
-      this.cache.tpmWindow = mergedTpm;
-
-      const rpmStr = JSON.stringify(mergedRpm);
-      const tpmStr = JSON.stringify(mergedTpm);
-
-      // 1. Scrivi WAL prima (checkpoint di sicurezza) su chunk multipli
-      // per garantire rispetto limite 9KB anche con payload ampi.
-      this._writeChunkedWAL(walTimestamp, mergedRpm, mergedTpm);
-
-      // 2. Scrivi dati completi
-      this.props.setProperties({
-        rpm_window: rpmStr,
-        tpm_window: tpmStr
-      });
-
-      // 3. Rimuovi WAL solo dopo la scrittura completa
-      this._cleanCorruptedWAL();
+      this._doPersistCacheWrite();
     } finally {
       lock.releaseLock();
     }
+  }
+
+  _doPersistCacheWrite() {
+    const walTimestamp = Date.now();
+    // Rilegge lo stato persistito dentro lock ed esegue merge con cache locale.
+    let currentRpm;
+    let currentTpm;
+    try {
+      currentRpm = JSON.parse(this.props.getProperty('rpm_window') || '[]');
+      currentTpm = JSON.parse(this.props.getProperty('tpm_window') || '[]');
+    } catch (e) {
+      currentRpm = [];
+      currentTpm = [];
+    }
+
+    const mergedRpm = this._mergeWindowData(currentRpm, this.cache.rpmWindow);
+    const mergedTpm = this._mergeWindowData(currentTpm, this.cache.tpmWindow);
+
+    this.cache.rpmWindow = mergedRpm;
+    this.cache.tpmWindow = mergedTpm;
+
+    this._writeChunkedWAL(walTimestamp, mergedRpm, mergedTpm);
+    this.props.setProperties({
+      rpm_window: JSON.stringify(mergedRpm),
+      tpm_window: JSON.stringify(mergedTpm)
+    });
+    this._cleanCorruptedWAL();
   }
 
   /**

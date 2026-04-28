@@ -727,10 +727,15 @@ function _splitCachePayload(payload, maxChars) {
     // Evita split nel mezzo di surrogate pair UTF-16
     if (start + length < payload.length) {
       const lastCode = payload.charCodeAt(start + length - 1);
-      if (lastCode >= 0xD800 && lastCode <= 0xDBFF) {
+      if (lastCode >= 0xD800 && lastCode <= 0xDBFF && length > 1) {
         length -= 1;
         chunk = payload.substring(start, start + length);
       }
+    }
+
+    if (length <= 0) {
+      start += 1;
+      continue;
     }
 
     parts.push(chunk);

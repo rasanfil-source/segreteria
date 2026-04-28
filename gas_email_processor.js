@@ -1241,7 +1241,7 @@ ${addressLines.join('\n\n')}
         return result;
       }
 
-      const sendTxn = this._beginSendTransaction(candidate.getId());
+      const sendTxn = this._beginSendTransaction(candidate.getId(), skipLock);
       if (!sendTxn.ok) {
         console.warn(`   ⊖ Invio saltato per idempotenza (${sendTxn.reason})`);
         if (sendTxn.reason === 'already_sent') {
@@ -1545,7 +1545,13 @@ ${addressLines.join('\n\n')}
 
         console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
 
-        const result = this.processThread(thread, normalizedKnowledgeBase, normalizedDoctrineBase, labeledMessageIds);
+        const result = this.processThread(
+          thread,
+          normalizedKnowledgeBase,
+          normalizedDoctrineBase,
+          labeledMessageIds,
+          skipExecutionLock || lockAcquiredHere
+        );
         stats.total++;
 
         // Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI
@@ -1758,7 +1764,7 @@ ${addressLines.join('\n\n')}
     return false;
   }
 
-  _beginSendTransaction(messageId) {
+  _beginSendTransaction(messageId, skipLock = false) {
     if (!messageId) {
       console.warn('⚠️ Idempotenza non applicabile: messageId assente. Rischio di duplicazione.');
       return { ok: true, reason: 'missing_message_id' };
@@ -1779,10 +1785,12 @@ ${addressLines.join('\n\n')}
     let lockAcquired = false;
 
     try {
-      if (scriptLock && typeof scriptLock.tryLock === 'function') {
-        lockAcquired = scriptLock.tryLock(500);
-        if (!lockAcquired) {
-          return { ok: false, reason: 'send_lock_unavailable' };
+      if (!skipLock) {
+        if (scriptLock && typeof scriptLock.tryLock === 'function') {
+          lockAcquired = scriptLock.tryLock(500);
+          if (!lockAcquired) {
+            return { ok: false, reason: 'send_lock_unavailable' };
+          }
         }
       }
 
@@ -2360,7 +2368,7 @@ ${prompt.slice(-tailChars)}`;
       /\bmi\s+sembrava\b/i,
       /\bero\s+convint[oa]\b/i,
       /\bho\s+letto\b/i,
-      /\balle\s+(?:ore\s+)?(?:[01]?\d|2[0-3])[:.][0-5]\d\b/i
+      /\b(?:fosse|era|sia|sarà|sarebbe|iniziasse|inizia|cominciasse|comincia)\s+(?:alle\s+)?(?:ore\s+)?(?:[01]?\d|2[0-3])[:.][0-5]\d\b/i
     ];
 
     return timeExpectationPatterns.some((pattern) => pattern.test(text));

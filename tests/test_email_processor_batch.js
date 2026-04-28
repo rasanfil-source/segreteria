@@ -169,7 +169,9 @@ console.log('--- Test processUnreadEmails: conteggio stats skipped/replied ---')
   processor._getRemainingTimeMs = () => 60000;
 
   let call = 0;
-  processor.processThread = () => {
+  const seenSkipLocks = [];
+  processor.processThread = (_thread, _kb, _doctrine, _labeled, skipLock) => {
+    seenSkipLocks.push(skipLock);
     call += 1;
     if (call === 1) return { status: 'replied' };
     return { status: 'skipped', reason: 'no_external_unread' };
@@ -181,6 +183,87 @@ console.log('--- Test processUnreadEmails: conteggio stats skipped/replied ---')
   assert(stats.skipped >= 2, 'deve contare almeno 2 skipped (fast-skip + no_external_unread)');
   assert(stats.skipped_processed >= 1, 'deve contare fast-skip come skipped_processed');
   assert(stats.skipped_internal >= 1, 'deve contare no_external_unread come skipped_internal');
+  assert(seenSkipLocks.length === 2 && seenSkipLocks.every(Boolean), 'skipExecutionLock deve arrivare a processThread');
+}
+
+console.log('--- Test processUnreadEmails: lock batch locale propagato a processThread ---');
+{
+  const threads = [
+    createThread({ id: 't-local-lock', messages: [createMessage({ id: 'm-local-lock', unread: true })] })
+  ];
+  let tryLockCalls = 0;
+  let releaseCalls = 0;
+  const originalLockService = global.LockService;
+
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => {
+        tryLockCalls += 1;
+        return true;
+      },
+      releaseLock: () => {
+        releaseCalls += 1;
+      }
+    })
+  };
+
+  try {
+    const processor = new EmailProcessor({
+      gmailService: { getUnprocessedUnreadThreads: () => threads }
+    });
+    let seenSkipLock = null;
+
+    processor._hasUnreadMessagesToProcess = () => true;
+    processor._isNearDeadline = () => false;
+    processor._getRemainingTimeMs = () => 60000;
+    processor.processThread = (_thread, _kb, _doctrine, _labeled, skipLock) => {
+      seenSkipLock = skipLock;
+      return { status: 'skipped', reason: 'no_external_unread' };
+    };
+
+    const stats = processor.processUnreadEmails('kb', '', false);
+    assert(stats.total === 1, 'il batch con lock locale deve processare il thread');
+    assert(seenSkipLock === true, 'il lock batch acquisito da processUnreadEmails deve essere propagato a processThread');
+    assert(tryLockCalls === 1, 'deve acquisire solo il batch lock, non un secondo ScriptLock nel thread');
+    assert(releaseCalls === 1, 'deve rilasciare solo il batch lock a fine batch');
+  } finally {
+    global.LockService = originalLockService;
+  }
+}
+
+console.log('--- Test _beginSendTransaction: skipLock evita riacquisizione ScriptLock ---');
+{
+  const originalLockService = global.LockService;
+  cacheStore.clear();
+  let tryLockCalls = 0;
+
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => {
+        tryLockCalls += 1;
+        return false;
+      },
+      releaseLock: () => {
+        throw new Error('releaseLock non deve essere chiamato senza lock acquisito');
+      }
+    })
+  };
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    const blockedTxn = processor._beginSendTransaction('m-lock-required');
+    assert(blockedTxn.ok === false && blockedTxn.reason === 'send_lock_unavailable', 'senza skipLock deve fallire se lo ScriptLock è occupato');
+    assert(tryLockCalls === 1, 'senza skipLock deve provare ad acquisire lo ScriptLock');
+
+    tryLockCalls = 0;
+    const skippedLockTxn = processor._beginSendTransaction('m-skip-lock', true);
+    assert(skippedLockTxn.ok === true, 'con skipLock deve iniziare la transazione anche se tryLock fallirebbe');
+    assert(tryLockCalls === 0, 'con skipLock non deve riacquisire lo ScriptLock');
+    assert(cacheStore.get('sending_m-skip-lock'), 'con skipLock deve comunque impostare la chiave sending');
+  } finally {
+    global.LockService = originalLockService;
+    cacheStore.clear();
+  }
 }
 
 function createExternalThread(id) {
