@@ -295,6 +295,7 @@ function runAllTests() {
         });
 
         test('processThread tratta un Set vuoto come cache già fornita', results, () => {
+            const labelCalls = [];
             const labeledMessageIds = new Set();
             const thread = {
                 getId: () => 'thread-123',
@@ -309,7 +310,7 @@ function runAllTests() {
                     getMessageIdsWithLabel: () => { throw new Error('fallback should not run'); },
                     extractMessageDetails: (m) => ({ senderEmail: 'user@external.com', date: new Date() }),
                     _extractEmailAddress: (f) => f,
-                    addLabelToMessage: (id) => labeledMessageIds.add(id)
+                    addLabelToMessage: (id, labelName) => labelCalls.push({ id, labelName })
                 },
                 geminiService: {
                     shouldRespondToEmail: () => ({ shouldRespond: false }) // Skip GEMINI per semplicità
@@ -321,11 +322,47 @@ function runAllTests() {
             return labeledMessageIds.has('msg-1') && labeledMessageIds.has('msg-2') && labeledMessageIds.has('msg-3');
         });
 
+        test('no_external_unread: applica skip (·) e non IA ai messaggi interni', results, () => {
+            const previousSession = (typeof Session !== 'undefined') ? Session : undefined;
+            global.Session = {
+                getEffectiveUser: () => ({
+                    getEmail: () => 'segreteria@example.com'
+                })
+            };
+
+            const labelCalls = [];
+            const thread = {
+                getId: () => 'thread-no-external-unread',
+                getMessages: () => [
+                    { getId: () => 'msg-internal-1', isUnread: () => true, getFrom: () => 'segreteria@example.com', getDate: () => new Date(), getSubject: () => 'Nota interna' }
+                ]
+            };
+
+            const processor = new EmailProcessor({
+                gmailService: {
+                    _extractEmailAddress: (from) => from,
+                    addLabelToMessage: (id, labelName) => labelCalls.push({ id, labelName })
+                }
+            });
+
+            const out = processor.processThread(thread, 'KB', 'Doctrine', new Set(), true);
+            const hasSkipLabel = labelCalls.some(call => call.id === 'msg-internal-1' && call.labelName === '·');
+            const hasIaLabel = labelCalls.some(call => call.id === 'msg-internal-1' && call.labelName === 'IA');
+
+            if (typeof previousSession === 'undefined') {
+                delete global.Session;
+            } else {
+                global.Session = previousSession;
+            }
+
+            return out && out.status === 'skipped' && out.reason === 'no_external_unread' && hasSkipLabel && !hasIaLabel;
+        });
+
         test('foreign_only: email italiane non vengono marcate, così restano processabili dopo cambio modalità', results, () => {
             const previousCache = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? { ...GLOBAL_CACHE } : null;
             global.GLOBAL_CACHE = { ...(previousCache || {}), languageMode: 'foreign_only' };
 
-            const labeledMessageIds = new Set();
+            const labelCalls = [];
             const thread = {
                 getId: () => 'thread-foreign-only-it',
                 getMessages: () => [
@@ -345,14 +382,14 @@ function runAllTests() {
                         headers: {}
                     }),
                     _extractEmailAddress: (from) => from,
-                    addLabelToMessage: (id) => labeledMessageIds.add(id)
+                    addLabelToMessage: (id, labelName) => labelCalls.push({ id, labelName })
                 },
                 geminiService: {
                     detectEmailLanguage: () => ({ lang: 'it' })
                 }
             });
 
-            const out = processor.processThread(thread, 'KB', 'Doctrine', labeledMessageIds, true);
+            const out = processor.processThread(thread, 'KB', 'Doctrine', new Set(), true);
 
             if (previousCache) {
                 global.GLOBAL_CACHE = previousCache;
@@ -360,13 +397,17 @@ function runAllTests() {
                 delete global.GLOBAL_CACHE;
             }
 
-            return out && out.status === 'skipped' && out.reason === 'italian_skipped_foreign_only' && labeledMessageIds.size === 0;
+            const hasIaLabel = labelCalls.some(call => call.labelName === 'IA');
+            const hasSkipLabel = labelCalls.some(call => call.labelName === '·');
+            const acceptedReasons = new Set(['italian_skipped_foreign_only', 'italian_skipped_foreign_only_precheck']);
+            return out && out.status === 'skipped' && acceptedReasons.has(out.reason) && !hasIaLabel && hasSkipLabel;
         });
 
         test('foreign_only: se quick-check aggiorna lingua a IT, skip finale senza label IA', results, () => {
             const previousCache = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? { ...GLOBAL_CACHE } : null;
             global.GLOBAL_CACHE = { ...(previousCache || {}), languageMode: 'foreign_only' };
 
+            const labelCalls = [];
             const labeledMessageIds = new Set();
             const thread = {
                 getId: () => 'thread-foreign-only-post-quickcheck-it',
@@ -386,7 +427,7 @@ function runAllTests() {
                         headers: {}
                     }),
                     _extractEmailAddress: (from) => from,
-                    addLabelToMessage: (id) => labeledMessageIds.add(id)
+                    addLabelToMessage: (id, labelName) => labelCalls.push({ id, labelName })
                 },
                 classifier: {
                     classifyEmail: () => ({ shouldReply: true, reason: 'ok' })
@@ -414,7 +455,8 @@ function runAllTests() {
             return out
                 && out.status === 'skipped'
                 && out.reason === 'italian_skipped_foreign_only_post_quickcheck'
-                && labeledMessageIds.size === 0;
+                && !labelCalls.some(call => call.labelName === 'IA')
+                && labelCalls.some(call => call.labelName === '·');
         });
 
         test('foreign_only: rilevamento lingua usa corpo pulito estratto dal classifier', results, () => {
@@ -465,6 +507,39 @@ function runAllTests() {
                 && out
                 && out.status === 'skipped'
                 && out.reason === 'italian_skipped_foreign_only';
+        });
+
+        test('newsletter header: applica label skip (·) e non IA', results, () => {
+            const labelCalls = [];
+            const thread = {
+                getId: () => 'thread-newsletter-header',
+                getMessages: () => [
+                    { getId: () => 'msg-news-1', isUnread: () => true, getFrom: () => 'news@example.com', getDate: () => new Date(), getSubject: () => 'Promo editoriale' }
+                ]
+            };
+
+            const processor = new EmailProcessor({
+                gmailService: {
+                    extractMessageDetails: () => ({
+                        senderEmail: 'news@example.com',
+                        senderName: 'Newsletter',
+                        subject: 'Promo editoriale',
+                        body: 'Scopri il nuovo catalogo.',
+                        isNewsletter: true,
+                        headers: { 'List-Unsubscribe': '<mailto:unsubscribe@example.com>' }
+                    }),
+                    _extractEmailAddress: (from) => from,
+                    addLabelToMessage: (id, labelName) => labelCalls.push({ id, labelName })
+                },
+                geminiService: {
+                    detectEmailLanguage: () => ({ lang: 'pt' })
+                }
+            });
+
+            const out = processor.processThread(thread, 'KB', 'Doctrine', new Set(), true);
+            const hasSkipLabel = labelCalls.some(call => call.id === 'msg-news-1' && call.labelName === '·');
+            const hasIaLabel = labelCalls.some(call => call.id === 'msg-news-1' && call.labelName === 'IA');
+            return out && out.status === 'filtered' && out.reason === 'newsletter_header' && hasSkipLabel && !hasIaLabel;
         });
 
         test('_hasUnreadMessagesToProcess tratta un Set vuoto come cache già fornita', results, () => {

@@ -308,7 +308,9 @@ var EmailProcessor = class EmailProcessor {
       // Se non ci sono messaggi da esterni → skip
       if (externalUnread.length === 0) {
         console.log('   ⊖ Saltato: nessun nuovo messaggio esterno non letto');
-        markUnlabeledUnreadAsProcessed();
+        // Messaggi interni (nostri/alias) non sono "processati da IA":
+        // vanno marcati come saltati per non inquinare metrica/label IA.
+        this._markMessagesAsSkipped(unlabeledUnread);
         result.status = 'skipped';
         result.reason = 'no_external_unread';
         return result;
@@ -419,7 +421,9 @@ var EmailProcessor = class EmailProcessor {
 
       if (messageDetails.isNewsletter) {
         console.log('   ⊖ Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
-        markUnlabeledUnreadAsProcessed();
+        // Newsletter/automazioni NON devono finire sotto etichetta IA: restano "saltate"
+        // per coerenza con gli altri filtri regolistici (ignore rules / no-reply).
+        this._markMessagesAsSkipped(unlabeledUnread);
         result.status = 'filtered';
         result.reason = 'newsletter_header';
         return result;
