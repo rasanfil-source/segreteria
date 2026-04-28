@@ -572,6 +572,11 @@ function runAllTests() {
         test('Rilevamento IT', results, () => service.detectEmailLanguage("Buongiorno").lang === 'it');
         test('Rilevamento IT con keyword iniziale', results, () => service.detectEmailLanguage("Non ho capito").lang === 'it');
         test('Rilevamento PT', results, () => service.detectEmailLanguage("Bom dia").lang === 'pt');
+        test('Non confonde newsletter italiana con PT per stopword ambigue', results, () => {
+            const subject = 'Fabio Rosini; il suo ultimo libro ora disponibile!';
+            const body = 'Salve, il suo ultimo libro è ora disponibile in libreria. Grazie.';
+            return service.detectEmailLanguage(body, subject).lang === 'it';
+        });
         test('Gestisce blocco promptFeedback senza candidate', results, () => {
             const blockedService = new GeminiService({
                 fetchFn: () => ({

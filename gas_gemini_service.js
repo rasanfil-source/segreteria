@@ -724,7 +724,17 @@ Output JSON:
     const spanishLexicalScore = countMatches(spanishKeywords, text, 1);
 
     const ptUniqueScore = countMatches(portugueseUniqueKeywords, text, 2);
-    const ptStandardScore = countMatches(portugueseStandardKeywords, text, 1);
+    const ptStandardScoreRaw = countMatches(portugueseStandardKeywords, text, 1);
+    const portugueseStrongMarkers = /(?:^|[^\p{L}\p{N}_])(não|voc[êe]s|estou|obrigad[oa]|orçamento|viatura|portagens|agradecemos|cumprimentos|paróquia|igreja|atenciosamente)(?=$|[^\p{L}\p{N}_])/iu;
+    const hasPortugueseStrongSignal =
+      ptUniqueScore >= 2 ||
+      portugueseCharScore >= 2 ||
+      portugueseStrongMarkers.test(text);
+    // Guardrail anti-falso-positivo: senza marker forti, le sole stopword PT
+    // ("por/para/com/uma/...") non devono dominare testi italiani.
+    const ptStandardScore = hasPortugueseStrongSignal
+      ? ptStandardScoreRaw
+      : Math.min(ptStandardScoreRaw, 1);
 
     const scores = {
       'en': englishScore,
