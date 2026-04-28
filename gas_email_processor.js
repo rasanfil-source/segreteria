@@ -1890,6 +1890,15 @@ ${addressLines.join('\n\n')}
     // Motivo: il segretario deve vedere a colpo d'occhio i non letti, anche se già gestiti da IA.
     // Cambiare questo comportamento altera la triage operativa.
     const messageId = message.getId();
+
+    // Fail-safe operativo: in modalità "Solo straniere" un messaggio già marcato come
+    // skip ('·') NON deve mai essere promosso a IA nello stesso assetto, anche se
+    // _markMessageAsProcessed venisse chiamata da percorsi inattesi.
+    if (this._shouldPreserveSkipLabelInForeignOnly_(messageId)) {
+      console.log(`   ⛔ Preservata label '${this.config.skipLabelName}' su ${messageId} (foreign_only): non promuovo a IA`);
+      return;
+    }
+
     this.gmailService.addLabelToMessage(messageId, this.config.labelName);
     if (this.gmailService && typeof this.gmailService.removeLabelFromMessage === 'function') {
       this.gmailService.removeLabelFromMessage(messageId, this.config.skipLabelName);
@@ -1897,6 +1906,21 @@ ${addressLines.join('\n\n')}
     if (labeledMessageIds && typeof labeledMessageIds.add === 'function') {
       labeledMessageIds.add(messageId);
     }
+  }
+
+  _shouldPreserveSkipLabelInForeignOnly_(messageId) {
+    if (this._getLanguageProcessingMode_() !== 'foreign_only') return false;
+    if (!messageId || !this.gmailService) return false;
+    if (typeof this.gmailService._getOptionalLabelIdByName !== 'function') return false;
+    if (typeof this.gmailService._getMessageMetadataWithResilience !== 'function') return false;
+
+    const skipLabelId = this.gmailService._getOptionalLabelIdByName(this.config.skipLabelName);
+    if (!skipLabelId) return false;
+
+    const metadata = this.gmailService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
+    if (!metadata || !Array.isArray(metadata.labelIds)) return false;
+
+    return metadata.labelIds.includes(skipLabelId);
   }
 
   _markMessagesAsSkipped(messages, labelName = this.config.skipLabelName) {

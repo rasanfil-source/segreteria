@@ -550,6 +550,32 @@ function runAllTests() {
             return out && out.status === 'filtered' && out.reason === 'newsletter_header' && hasSkipLabel && !hasIaLabel;
         });
 
+        test('_markMessageAsProcessed preserva skip in foreign_only (fail-safe)', results, () => {
+            const previousCache = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? { ...GLOBAL_CACHE } : null;
+            global.GLOBAL_CACHE = { ...(previousCache || {}), languageMode: 'foreign_only' };
+
+            const labelCalls = [];
+            const processor = new EmailProcessor({
+                gmailService: {
+                    addLabelToMessage: (id, labelName) => labelCalls.push({ id, labelName }),
+                    removeLabelFromMessage: (id, labelName) => labelCalls.push({ id, labelName, remove: true }),
+                    _getOptionalLabelIdByName: (labelName) => labelName === '·' ? 'LBL_SKIP' : null,
+                    _getMessageMetadataWithResilience: () => ({ labelIds: ['LBL_SKIP'] })
+                }
+            });
+
+            processor._markMessageAsProcessed({ getId: () => 'msg-skip-guard' }, new Set());
+
+            if (previousCache) {
+                global.GLOBAL_CACHE = previousCache;
+            } else {
+                delete global.GLOBAL_CACHE;
+            }
+
+            return !labelCalls.some(call => call.labelName === 'IA')
+                && !labelCalls.some(call => call.remove === true && call.labelName === '·');
+        });
+
         test('_hasUnreadMessagesToProcess tratta un Set vuoto come cache già fornita', results, () => {
             const processor = new EmailProcessor({
                 gmailService: {
