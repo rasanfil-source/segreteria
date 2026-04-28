@@ -90,7 +90,7 @@ function setupConfigurationSheets() {
   }, errors);
 
   runSetupStep_('Named Ranges', function () {
-    createNamedRanges(ss);
+    createNamedRanges(ss, errors);
   }, errors);
 
   if (errors.length > 0) {
