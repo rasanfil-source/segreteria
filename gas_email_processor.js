@@ -101,10 +101,10 @@ var EmailProcessor = class EmailProcessor {
    * @param {GmailThread} thread 
    * @param {string} knowledgeBase - KB testo semplice
    * @param {Array} doctrineBase - KB strutturata
-   * @param {Set} labeledMessageIds - ID messaggi già etichettati (opzionale)
+   * @param {?Set} labeledMessageIds - ID messaggi già etichettati (opzionale)
    * @param {boolean} skipLock - Se true, salta acquisizione lock
    */
-  processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds = new Set(), skipLock = false) {
+  processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds = null, skipLock = false) {
     const threadId = thread.getId();
     const startTime = Date.now();
     // B2 Fix: garantisce che _isNearDeadline() funzioni anche se processThread
