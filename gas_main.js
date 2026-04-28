@@ -1321,8 +1321,16 @@ function main() {
     // 2. Caricamento Risorse (Config, KB, Blacklist)
     withSheetsRetry(() => loadResources(false, true), 'loadResources(main)');
 
+    // Self-healing: se la cache risulta ancora non caricata dopo un reset manuale
+    // o uno stato transitorio, forziamo una seconda inizializzazione.
     if (!GLOBAL_CACHE.loaded) {
-      console.error('💥 Risorse non caricate correttamente (GLOBAL_CACHE.loaded=false). Interruzione preventiva.');
+      console.warn('⚠️ GLOBAL_CACHE.loaded=false dopo loadResources(main). Tento auto-ripristino cache.');
+      clearKnowledgeCache();
+      withSheetsRetry(() => loadResources(false, true), 'loadResources(main,retry)');
+    }
+
+    if (!GLOBAL_CACHE.loaded) {
+      console.error('💥 Risorse non caricate correttamente anche dopo auto-ripristino cache. Interruzione preventiva.');
       return;
     }
 
