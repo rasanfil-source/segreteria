@@ -637,10 +637,12 @@ var MemoryService = class MemoryService {
       }
       throw new Error(`Errore durante scrittura foglio (lock acquisito): ${e.message}`);
     } finally {
-      try {
-        sheetLock.releaseLock();
-      } catch (releaseError) {
-        // Lock già rilasciato o non acquisito: ignora
+      if (lockAcquired) {
+        try {
+          sheetLock.releaseLock();
+        } catch (releaseError) {
+          // Lock già rilasciato o non acquisito: ignora
+        }
       }
     }
   }

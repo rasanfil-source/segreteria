@@ -145,11 +145,13 @@ var EmailProcessor = class EmailProcessor {
       lockValue = `${Date.now()}_${entropy}`;
 
       const scriptLock = LockService.getScriptLock();
+      let scriptLockAcquired = false;
       try {
         if (!scriptLock.tryLock(5000)) {
           console.warn(`🔒 Impossibile acquisire lock globale per thread ${threadId}, salto`);
           return { status: 'skipped', reason: 'global_lock_unavailable' };
         }
+        scriptLockAcquired = true;
 
         const existingLock = scriptCache.get(threadLockKey);
         if (existingLock) {
@@ -178,7 +180,7 @@ var EmailProcessor = class EmailProcessor {
         console.warn(`⚠️ Errore acquisizione lock thread: ${e.message}`);
         return { status: 'error', error: 'Lock acquisition failed' };
       } finally {
-        if (scriptLock && typeof scriptLock.releaseLock === 'function') {
+        if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
           try {
             scriptLock.releaseLock();
           } catch (_) { }

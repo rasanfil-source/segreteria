@@ -841,6 +841,49 @@ function testUpdateMemoryLockFailureUsesExponentialBackoff() {
     }
 }
 
+function testSheetWriteLockDoesNotReleaseWhenWaitLockFails() {
+    console.log('--- Test: _withSheetWriteLock non rilascia senza lock acquisito ---');
+    loadScript('gas_memory_service.js');
+
+    const originalLockService = global.LockService;
+    const originalSpreadsheetApp = global.SpreadsheetApp;
+    let releaseCalled = false;
+
+    global.LockService = {
+        getScriptLock: () => ({
+            waitLock: () => {
+                throw new Error('lock busy');
+            },
+            releaseLock: () => {
+                releaseCalled = true;
+            }
+        })
+    };
+    global.SpreadsheetApp = {
+        flush: () => {
+            throw new Error('flush non deve essere chiamato senza lock');
+        }
+    };
+
+    try {
+        const service = Object.create(MemoryService.prototype);
+        let thrown = null;
+        try {
+            service._withSheetWriteLock(() => {
+                throw new Error('writeOperation non deve essere chiamata senza lock');
+            });
+        } catch (error) {
+            thrown = error;
+        }
+
+        assert(thrown && /Lock del foglio non acquisito/.test(thrown.message), 'deve rilanciare errore esplicito di lock non acquisito');
+        assert(releaseCalled === false, 'releaseLock non deve essere chiamato se waitLock fallisce');
+    } finally {
+        global.LockService = originalLockService;
+        global.SpreadsheetApp = originalSpreadsheetApp;
+    }
+}
+
 function testAddProvidedInfoTopicsUsesSheetWriteLock() {
     console.log('--- Test: addProvidedInfoTopics usa sheet lock per scrivere ---');
     loadScript('gas_memory_service.js');
@@ -2601,6 +2644,7 @@ function main() {
         ['memory: lock timeout applica exponential backoff', testUpdateMemoryLockFailureUsesExponentialBackoff],
         ['memory get: usa row.values in parsing', testMemoryGetUsesRowValues],
         ['memory invalidate: pulizia cache deterministica', testInvalidateCacheAlsoClearsRobustCache],
+        ['memory: sheet lock non rilascia se waitLock fallisce', testSheetWriteLockDoesNotReleaseWhenWaitLockFails],
         ['memory: addProvidedInfoTopics serializza scrittura sheet', testAddProvidedInfoTopicsUsesSheetWriteLock],
         ['memory: providedInfo append usa sheet lock globale', testUpdateProvidedInfoWithoutIncrementUsesSheetWriteLockForAppend],
         ['memory reaction: gestione dinamica topic vuoti', testInferUserReactionIsResilientToEmptyTopics],

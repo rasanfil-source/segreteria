@@ -122,6 +122,39 @@ console.log('--- Test processThread: no_external_unread ---');
   assert(marked.includes('m2'), 'deve marcare messaggio come processato nel branch no_external_unread');
 }
 
+console.log('--- Test processThread: non rilascia ScriptLock se tryLock fallisce ---');
+{
+  const originalLockService = global.LockService;
+  cacheStore.clear();
+  let releaseCalled = false;
+
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => false,
+      releaseLock: () => {
+        releaseCalled = true;
+      }
+    })
+  };
+
+  try {
+    const thread = createThread({ id: 't-lock-fail', messages: [createMessage({ id: 'm-lock-fail', unread: true })] });
+    const processor = new EmailProcessor({
+      gmailService: {
+        _extractEmailAddress: (raw) => raw,
+        addLabelToMessage: () => {}
+      }
+    });
+
+    const res = processor.processThread(thread, 'kb', '', new Set(), false);
+    assert(res.status === 'skipped' && res.reason === 'global_lock_unavailable', 'deve saltare se lo ScriptLock thread non è disponibile');
+    assert(releaseCalled === false, 'non deve chiamare releaseLock se tryLock non ha acquisito il lock');
+  } finally {
+    global.LockService = originalLockService;
+    cacheStore.clear();
+  }
+}
+
 console.log('--- Test processUnreadEmails: stop preventivo per tempo insufficiente ---');
 {
   const threadA = createThread({ id: 'ta', messages: [createMessage({ id: 'ma', unread: true })] });
