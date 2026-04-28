@@ -62,6 +62,14 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
                     return null;
                 },
                 setProperty: (k, v) => propsData.set(k, String(v)),
+                setProperties: (values) => {
+                    Object.keys(values || {}).forEach(k => propsData.set(k, String(values[k])));
+                },
+                getProperties: () => {
+                    const obj = {};
+                    propsData.forEach((v, k) => obj[k] = v);
+                    return obj;
+                },
                 deleteProperty: (k) => propsData.delete(k)
             })
         };

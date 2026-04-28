@@ -805,51 +805,43 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     try {
-      this._doPersistCacheWrite();
+      const walTimestamp = Date.now();
+      // Rilegge lo stato persistito dentro lock ed esegue merge con cache locale
+      let currentRpm;
+      let currentTpm;
+      try {
+        currentRpm = JSON.parse(this.props.getProperty('rpm_window') || '[]');
+        currentTpm = JSON.parse(this.props.getProperty('tpm_window') || '[]');
+      } catch (e) {
+        currentRpm = [];
+        currentTpm = [];
+      }
+
+      const mergedRpm = this._mergeWindowData(currentRpm, this.cache.rpmWindow);
+      const mergedTpm = this._mergeWindowData(currentTpm, this.cache.tpmWindow);
+
+      // Aggiorna cache locale dell'istanza con stato merged
+      this.cache.rpmWindow = mergedRpm;
+      this.cache.tpmWindow = mergedTpm;
+
+      const rpmStr = JSON.stringify(mergedRpm);
+      const tpmStr = JSON.stringify(mergedTpm);
+
+      // 1. Scrivi WAL prima (checkpoint di sicurezza) su chunk multipli
+      // per garantire rispetto limite 9KB anche con payload ampi.
+      this._writeChunkedWAL(walTimestamp, mergedRpm, mergedTpm);
+
+      // 2. Scrivi dati completi
+      this.props.setProperties({
+        rpm_window: rpmStr,
+        tpm_window: tpmStr
+      });
+
+      // 3. Rimuovi WAL solo dopo la scrittura completa
+      this._cleanCorruptedWAL();
     } finally {
       lock.releaseLock();
     }
-  }
-
-  _doPersistCacheWrite() {
-    const walTimestamp = Date.now();
-    // Rilegge lo stato persistito dentro lock ed esegue merge con cache locale
-    let currentRpm;
-    let currentTpm;
-    try {
-      currentRpm = JSON.parse(this.props.getProperty('rpm_window') || '[]');
-      currentTpm = JSON.parse(this.props.getProperty('tpm_window') || '[]');
-    } catch (e) {
-      currentRpm = [];
-      currentTpm = [];
-    }
-
-    const mergedRpm = this._mergeWindowData(currentRpm, this.cache.rpmWindow);
-    const mergedTpm = this._mergeWindowData(currentTpm, this.cache.tpmWindow);
-
-    // Aggiorna cache locale dell'istanza con stato merged
-    this.cache.rpmWindow = mergedRpm;
-    this.cache.tpmWindow = mergedTpm;
-
-    const rpmStr = JSON.stringify(mergedRpm);
-    const tpmStr = JSON.stringify(mergedTpm);
-
-    // 1. Scrivi WAL prima (checkpoint di sicurezza) su chiavi separate
-    // per evitare il limite di 9KB per singola proprietà.
-    this.props.setProperties({
-      rate_limit_wal_ts: String(walTimestamp),
-      rate_limit_wal_rpm: rpmStr,
-      rate_limit_wal_tpm: tpmStr
-    });
-
-    // 2. Scrivi dati completi
-    this.props.setProperties({
-      rpm_window: rpmStr,
-      tpm_window: tpmStr
-    });
-
-    // 3. Rimuovi WAL solo dopo la scrittura completa
-    this._cleanCorruptedWAL();
   }
 
   /**
@@ -879,12 +871,14 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       if (oldWalData) {
         wal = JSON.parse(oldWalData);
       } else {
+        const chunkedRpm = this._readChunkedWalWindow('rpm');
+        const chunkedTpm = this._readChunkedWalWindow('tpm');
         const walRpmStr = this.props.getProperty('rate_limit_wal_rpm');
         const walTpmStr = this.props.getProperty('rate_limit_wal_tpm');
         wal = {
           timestamp: parseInt(walTs, 10),
-          rpm: walRpmStr ? JSON.parse(walRpmStr) : [],
-          tpm: walTpmStr ? JSON.parse(walTpmStr) : []
+          rpm: chunkedRpm || (walRpmStr ? JSON.parse(walRpmStr) : []),
+          tpm: chunkedTpm || (walTpmStr ? JSON.parse(walTpmStr) : [])
         };
       }
 
@@ -939,12 +933,89 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
   _cleanCorruptedWAL() {
     try {
-      this.props.deleteProperty('rate_limit_wal_ts');
-      this.props.deleteProperty('rate_limit_wal_rpm');
-      this.props.deleteProperty('rate_limit_wal_tpm');
-      // retrocompatibilità con formato legacy
-      this.props.deleteProperty('rate_limit_wal');
+      const allProps = this.props.getProperties();
+      const keysToDelete = [
+        'rate_limit_wal',
+        'rate_limit_wal_ts',
+        'rate_limit_wal_rpm',
+        'rate_limit_wal_tpm',
+        'rate_limit_wal_rpm_chunks',
+        'rate_limit_wal_tpm_chunks'
+      ];
+
+      for (const key in allProps) {
+        if (/^rate_limit_wal_(rpm|tpm)_\d+$/.test(key)) {
+          keysToDelete.push(key);
+        }
+      }
+
+      for (const key of keysToDelete) {
+        this.props.deleteProperty(key);
+      }
     } catch (e) { }
+  }
+
+  _writeChunkedWAL(walTimestamp, mergedRpm, mergedTpm) {
+    const rpmChunks = this._chunkWindowForProperties(mergedRpm);
+    const tpmChunks = this._chunkWindowForProperties(mergedTpm);
+    const walProps = {
+      rate_limit_wal_ts: String(walTimestamp),
+      rate_limit_wal_rpm_chunks: String(rpmChunks.length),
+      rate_limit_wal_tpm_chunks: String(tpmChunks.length)
+    };
+
+    for (let i = 0; i < rpmChunks.length; i++) {
+      walProps[`rate_limit_wal_rpm_${i}`] = rpmChunks[i];
+    }
+    for (let i = 0; i < tpmChunks.length; i++) {
+      walProps[`rate_limit_wal_tpm_${i}`] = tpmChunks[i];
+    }
+
+    this.props.setProperties(walProps);
+  }
+
+  _readChunkedWalWindow(windowType) {
+    const count = parseInt(this.props.getProperty(`rate_limit_wal_${windowType}_chunks`) || '0', 10) || 0;
+    if (count <= 0) return null;
+
+    const merged = [];
+    for (let i = 0; i < count; i++) {
+      const chunkStr = this.props.getProperty(`rate_limit_wal_${windowType}_${i}`);
+      if (!chunkStr) continue;
+      const chunk = JSON.parse(chunkStr);
+      if (Array.isArray(chunk)) {
+        for (const entry of chunk) merged.push(entry);
+      }
+    }
+    return merged;
+  }
+
+  _chunkWindowForProperties(windowEntries) {
+    const maxChunkBytes = 8000;
+    const chunks = [];
+    let currentChunk = [];
+
+    for (const entry of (Array.isArray(windowEntries) ? windowEntries : [])) {
+      const candidate = currentChunk.concat([entry]);
+      if (JSON.stringify(candidate).length > maxChunkBytes) {
+        if (currentChunk.length > 0) {
+          chunks.push(JSON.stringify(currentChunk));
+        }
+        currentChunk = [entry];
+      } else {
+        currentChunk = candidate;
+      }
+    }
+
+    if (currentChunk.length > 0) {
+      chunks.push(JSON.stringify(currentChunk));
+    }
+
+    if (chunks.length === 0) {
+      chunks.push('[]');
+    }
+
+    return chunks;
   }
 
   /**
