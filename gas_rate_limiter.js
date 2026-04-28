@@ -955,26 +955,54 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       const ts = entry && typeof entry.timestamp !== 'undefined' ? entry.timestamp : 'na';
       const nonce = entry && typeof entry.nonce !== 'undefined' ? entry.nonce : 'na';
       const model = entry && entry.modelKey ? entry.modelKey : 'na';
-      const tokens = entry && typeof entry.tokens !== 'undefined' ? entry.tokens : 0;
-      const reserved = entry && entry.reserved === true ? 'r1' : 'r0';
-      const completed = entry && entry.completed === true ? 'c1' : 'c0';
-      return `${ts}|${nonce}|${model}|${tokens}|${reserved}|${completed}`;
+      return `${ts}|${nonce}|${model}`;
     };
 
-    const existingEntries = new Set(existing.map(toKey));
-    const merged = Array.isArray(existing) ? existing.slice() : [];
+    const lifecycleRank = (entry) => {
+      if (entry && entry.released === true) return 3;
+      if (entry && entry.completed === true) return 2;
+      if (entry && entry.reserved === true) return 1;
+      return 0;
+    };
 
-    for (const entry of walData) {
-      const entryKey = toKey(entry);
-      if (!existingEntries.has(entryKey)) {
-        merged.push(Object.assign({}, entry));
-        existingEntries.add(entryKey);
+    const lifecycleTime = (entry) => {
+      const candidates = [
+        entry && entry.releasedAt,
+        entry && entry.completedAt,
+        entry && entry.timestamp
+      ];
+      return candidates
+        .map(value => Number(value))
+        .filter(value => Number.isFinite(value))
+        .reduce((max, value) => Math.max(max, value), 0);
+    };
+
+    const shouldReplace = (candidate, current) => {
+      const candidateRank = lifecycleRank(candidate);
+      const currentRank = lifecycleRank(current);
+      if (candidateRank !== currentRank) {
+        return candidateRank > currentRank;
       }
-    }
+      return lifecycleTime(candidate) >= lifecycleTime(current);
+    };
+
+    const mergedByKey = new Map();
+    const ingest = (entry) => {
+      if (!entry || typeof entry !== 'object') return;
+      const copy = Object.assign({}, entry);
+      const key = toKey(copy);
+      const current = mergedByKey.get(key);
+      if (!current || shouldReplace(copy, current)) {
+        mergedByKey.set(key, copy);
+      }
+    };
+
+    (Array.isArray(existing) ? existing : []).forEach(ingest);
+    (Array.isArray(walData) ? walData : []).forEach(ingest);
 
     // Ordina per timestamp e limita
-    return merged
-      .sort((a, b) => a.timestamp - b.timestamp)
+    return Array.from(mergedByKey.values())
+      .sort((a, b) => (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0))
       .slice(-60);
   }
 
@@ -984,12 +1012,12 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     // Usa cache se fresh
     if (now - this.cache.lastCacheUpdate < this.cache.cacheTTL) {
       const cacheKey = windowType + 'Window';
-      return this.cache[cacheKey].filter(e => e.modelKey === modelKey && (now - e.timestamp < 60000)).length;
+      return this.cache[cacheKey].filter(e => e.modelKey === modelKey && e.released !== true && (now - e.timestamp < 60000)).length;
     }
 
     // Altrimenti leggi da PropertiesService
     const windowData = JSON.parse(this.props.getProperty(windowType + '_window') || '[]');
-    return windowData.filter(e => e.modelKey === modelKey && (now - e.timestamp < 60000)).length;
+    return windowData.filter(e => e.modelKey === modelKey && e.released !== true && (now - e.timestamp < 60000)).length;
   }
 
   _getTokensInWindow(windowType, modelKey) {
@@ -1011,14 +1039,14 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       const cacheKey = windowType + 'Window';
       const cachedWindow = Array.isArray(this.cache[cacheKey]) ? this.cache[cacheKey] : [];
       return cachedWindow
-        .filter(e => e.modelKey === modelKey && (now - e.timestamp < 60000))
+        .filter(e => e.modelKey === modelKey && e.released !== true && (now - e.timestamp < 60000))
         .reduce((sum, e) => sum + (e.tokens || 0), 0);
     }
 
     // Fallback PropertiesService
     const windowData = JSON.parse(this.props.getProperty(windowType + '_window') || '[]');
     return windowData
-      .filter(e => e.modelKey === modelKey && (now - e.timestamp < 60000))
+      .filter(e => e.modelKey === modelKey && e.released !== true && (now - e.timestamp < 60000))
       .reduce((sum, e) => sum + (e.tokens || 0), 0);
   }
 
@@ -1191,7 +1219,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
   _releaseReservation(modelKey, reservationId) {
     this._mutateReservation(modelKey, reservationId, function(entry) {
-      return false;
+      entry.released = true;
+      entry.releasedAt = Date.now();
+      return true;
     });
   }
 

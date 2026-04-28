@@ -703,16 +703,18 @@ var MemoryService = class MemoryService {
     const mergedMap = new Map();
 
     existingTopics.forEach(item => {
-      if (item && item.topic) {
-        mergedMap.set(item.topic, item);
+      const key = item && item.topic ? this._normalizeTopicKey(item.topic) : '';
+      if (key) {
+        mergedMap.set(key, item);
       }
     });
 
     newTopics.forEach(item => {
-      if (item && item.topic) {
-        const previous = mergedMap.get(item.topic);
+      const key = item && item.topic ? this._normalizeTopicKey(item.topic) : '';
+      if (key) {
+        const previous = mergedMap.get(key);
         if (!previous) {
-          mergedMap.set(item.topic, item);
+          mergedMap.set(key, item);
           return;
         }
 
@@ -721,7 +723,7 @@ var MemoryService = class MemoryService {
         const incomingReaction = item.userReaction || item.reaction;
         const shouldPreserveReaction = !incomingReaction || incomingReaction === 'unknown';
 
-        mergedMap.set(item.topic, {
+        mergedMap.set(key, {
           ...previous,
           ...item,
           userReaction: shouldPreserveReaction

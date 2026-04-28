@@ -1109,6 +1109,37 @@ function testInferUserReactionNormalizesTopicKeys() {
     assert(calls[0].reaction === 'acknowledged', `Attesa reazione "acknowledged", ottenuta "${calls[0].reaction}"`);
 }
 
+function testMemoryMergeProvidedTopicsNormalizesTopicKeys() {
+    loadScript('gas_memory_service.js');
+
+    const service = Object.create(MemoryService.prototype);
+    const merged = service._mergeProvidedTopics(
+        [
+            {
+                topic: 'orari messe',
+                userReaction: 'acknowledged',
+                context: 'old-context',
+                timestamp: '2026-01-01T00:00:00.000Z'
+            }
+        ],
+        [
+            {
+                topic: 'orari_messe',
+                userReaction: 'unknown',
+                context: 'new-context',
+                timestamp: '2026-01-02T00:00:00.000Z'
+            }
+        ]
+    );
+
+    assert(merged.length === 1, `Topic equivalenti devono essere deduplicati, ottenuti ${merged.length}`);
+    assert(merged[0].topic === 'orari_messe', `Atteso topic piu recente "orari_messe", ottenuto "${merged[0].topic}"`);
+    assert(
+        merged[0].userReaction === 'acknowledged',
+        `La reazione esistente deve essere preservata, ottenuta "${merged[0].userReaction}"`
+    );
+}
+
 function testExtractOfficeTextDriveCreateForcesTargetMimeType() {
     loadScript('gas_gmail_service.js');
 
@@ -1179,6 +1210,101 @@ function testRateLimiterPersistenceRequiresTransactionalLock() {
         GeminiRateLimiter.prototype._recoverFromWAL.call(service);
     } finally {
         global.LockService = originalLockService;
+    }
+}
+
+function testRateLimiterReservationLifecycleDoesNotDuplicateOrLeak() {
+    loadScript('gas_rate_limiter.js');
+
+    const originalLockService = global.LockService;
+    const originalPropertiesService = global.PropertiesService;
+    const store = new Map();
+    const props = {
+        getProperty: (key) => store.has(key) ? store.get(key) : null,
+        setProperty: (key, value) => { store.set(key, String(value)); },
+        setProperties: (values) => {
+            Object.keys(values || {}).forEach((key) => store.set(key, String(values[key])));
+        },
+        deleteProperty: (key) => { store.delete(key); }
+    };
+
+    global.LockService = {
+        getScriptLock: () => ({
+            tryLock: () => true,
+            releaseLock: () => { }
+        })
+    };
+    global.PropertiesService = {
+        getScriptProperties: () => props
+    };
+
+    const service = Object.create(GeminiRateLimiter.prototype);
+    service.props = props;
+    service.models = {
+        flash: { name: 'gemini-2.5-flash', rpm: 5, tpm: 1000, rpd: 10 }
+    };
+    service.cache = {
+        rpmWindow: [],
+        tpmWindow: [],
+        lastCacheUpdate: 0,
+        cacheTTL: 10000
+    };
+
+    try {
+        const completedReservation = service._createReservationUnlocked('flash', 100);
+        assert(
+            service._getRequestsInWindow('rpm', 'flash') === 1,
+            'La reservation iniziale deve contare una sola richiesta RPM'
+        );
+        assert(
+            service._getTokensInWindow('tpm', 'flash') === 100,
+            'La reservation iniziale deve contare i token stimati'
+        );
+
+        service._finalizeReservation('flash', completedReservation, 123);
+        const rpmAfterFinalize = JSON.parse(store.get('rpm_window') || '[]');
+        const tpmAfterFinalize = JSON.parse(store.get('tpm_window') || '[]');
+        assert(
+            rpmAfterFinalize.filter(entry => entry.nonce === completedReservation).length === 1,
+            'La finalizzazione non deve duplicare la reservation RPM persistita'
+        );
+        assert(
+            tpmAfterFinalize.filter(entry => entry.nonce === completedReservation).length === 1,
+            'La finalizzazione non deve duplicare la reservation TPM persistita'
+        );
+        assert(
+            service._getRequestsInWindow('rpm', 'flash') === 1,
+            'La reservation completata deve continuare a contare una sola richiesta'
+        );
+        assert(
+            service._getTokensInWindow('tpm', 'flash') === 100,
+            'La reservation completata deve continuare a contare una sola quota token'
+        );
+
+        const releasedReservation = service._createReservationUnlocked('flash', 75);
+        assert(
+            service._getRequestsInWindow('rpm', 'flash') === 2,
+            'Due reservation attive/completate devono contare due richieste'
+        );
+        service._releaseReservation('flash', releasedReservation);
+
+        const rpmAfterRelease = JSON.parse(store.get('rpm_window') || '[]');
+        const releasedEntry = rpmAfterRelease.find(entry => entry.nonce === releasedReservation);
+        assert(
+            releasedEntry && releasedEntry.released === true,
+            'La reservation rilasciata deve essere persistita come tombstone released'
+        );
+        assert(
+            service._getRequestsInWindow('rpm', 'flash') === 1,
+            'La reservation rilasciata non deve consumare RPM'
+        );
+        assert(
+            service._getTokensInWindow('tpm', 'flash') === 100,
+            'La reservation rilasciata non deve consumare TPM'
+        );
+    } finally {
+        global.LockService = originalLockService;
+        global.PropertiesService = originalPropertiesService;
     }
 }
 
@@ -2458,7 +2584,9 @@ function main() {
         ['memory: providedInfo append usa sheet lock globale', testUpdateProvidedInfoWithoutIncrementUsesSheetWriteLockForAppend],
         ['memory reaction: gestione dinamica topic vuoti', testInferUserReactionIsResilientToEmptyTopics],
         ['memory reaction: normalizzazione topic coerente', testInferUserReactionNormalizesTopicKeys],
+        ['memory: merge providedInfo normalizza topic equivalenti', testMemoryMergeProvidedTopicsNormalizesTopicKeys],
         ['rate limiter: persistenza rigorosa transazionale bloccata senza lock', testRateLimiterPersistenceRequiresTransactionalLock],
+        ['rate limiter: reservation lifecycle senza doppio conteggio', testRateLimiterReservationLifecycleDoesNotDuplicateOrLeak],
         ['_shouldIgnoreEmail: no-reply/reale/ooo', testShouldIgnoreEmail],
         ['_shouldIgnoreEmail: blacklist vuota non blocca tutto', testShouldIgnoreEmailSkipsBlankBlacklistEntries],
         ['ocr trigger: keyword non-stringa gestite in sicurezza', testShouldTryOcrHandlesNonStringKeywords],
