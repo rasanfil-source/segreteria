@@ -1300,7 +1300,8 @@ function main() {
   try {
     Gmail.Users.getProfile('me'); // Probe reale: verifica disponibilità Gmail Advanced Service
   } catch (apiError) {
-    console.error('CRITICO: Gmail Advanced Service non disponibile o non autorizzato. Impossibile procedere.');
+    const apiErrorMessage = apiError && apiError.message ? apiError.message : String(apiError);
+    console.error(`CRITICO: Gmail Advanced Service non disponibile o non autorizzato. Impossibile procedere. Dettaglio: ${apiErrorMessage}`);
     return;
   }
 
