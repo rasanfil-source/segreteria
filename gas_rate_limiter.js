@@ -781,16 +781,20 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     this.cache.lastCacheUpdate = now;
   }
 
-  _persistCache() {
-    // Delega al metodo con WAL per sicurezza
-    this._persistCacheWithWAL();
+  _persistCache(alreadyLocked = false) {
+    this._persistCacheWithWAL(alreadyLocked);
   }
 
   /**
    * Persiste la cache tramite architettura di persistenza transazionale (WAL)
    * Garantisce coerenza strutturale dei dati in ambienti operativi distribuiti
    */
-  _persistCacheWithWAL() {
+  _persistCacheWithWAL(alreadyLocked = false) {
+    if (alreadyLocked) {
+      this._doPersistCacheWrite();
+      return;
+    }
+
     const lock = LockService.getScriptLock();
     // Timeout esteso per ridurre perdita cache in istanze effimere sotto alta concorrenza.
     const lockAcquired = lock.tryLock(25000);
@@ -801,47 +805,51 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     try {
-      const walTimestamp = Date.now();
-      // Rilegge lo stato persistito dentro lock ed esegue merge con cache locale
-      let currentRpm;
-      let currentTpm;
-      try {
-        currentRpm = JSON.parse(this.props.getProperty('rpm_window') || '[]');
-        currentTpm = JSON.parse(this.props.getProperty('tpm_window') || '[]');
-      } catch (e) {
-        currentRpm = [];
-        currentTpm = [];
-      }
-
-      const mergedRpm = this._mergeWindowData(currentRpm, this.cache.rpmWindow);
-      const mergedTpm = this._mergeWindowData(currentTpm, this.cache.tpmWindow);
-
-      // Aggiorna cache locale dell'istanza con stato merged
-      this.cache.rpmWindow = mergedRpm;
-      this.cache.tpmWindow = mergedTpm;
-
-      const rpmStr = JSON.stringify(mergedRpm);
-      const tpmStr = JSON.stringify(mergedTpm);
-
-      // 1. Scrivi WAL prima (checkpoint di sicurezza) su chiavi separate
-      // per evitare il limite di 9KB per singola proprietà.
-      this.props.setProperties({
-        rate_limit_wal_ts: String(walTimestamp),
-        rate_limit_wal_rpm: rpmStr,
-        rate_limit_wal_tpm: tpmStr
-      });
-
-      // 2. Scrivi dati completi
-      this.props.setProperties({
-        rpm_window: rpmStr,
-        tpm_window: tpmStr
-      });
-
-      // 3. Rimuovi WAL solo dopo la scrittura completa
-      this._cleanCorruptedWAL();
+      this._doPersistCacheWrite();
     } finally {
       lock.releaseLock();
     }
+  }
+
+  _doPersistCacheWrite() {
+    const walTimestamp = Date.now();
+    // Rilegge lo stato persistito dentro lock ed esegue merge con cache locale
+    let currentRpm;
+    let currentTpm;
+    try {
+      currentRpm = JSON.parse(this.props.getProperty('rpm_window') || '[]');
+      currentTpm = JSON.parse(this.props.getProperty('tpm_window') || '[]');
+    } catch (e) {
+      currentRpm = [];
+      currentTpm = [];
+    }
+
+    const mergedRpm = this._mergeWindowData(currentRpm, this.cache.rpmWindow);
+    const mergedTpm = this._mergeWindowData(currentTpm, this.cache.tpmWindow);
+
+    // Aggiorna cache locale dell'istanza con stato merged
+    this.cache.rpmWindow = mergedRpm;
+    this.cache.tpmWindow = mergedTpm;
+
+    const rpmStr = JSON.stringify(mergedRpm);
+    const tpmStr = JSON.stringify(mergedTpm);
+
+    // 1. Scrivi WAL prima (checkpoint di sicurezza) su chiavi separate
+    // per evitare il limite di 9KB per singola proprietà.
+    this.props.setProperties({
+      rate_limit_wal_ts: String(walTimestamp),
+      rate_limit_wal_rpm: rpmStr,
+      rate_limit_wal_tpm: tpmStr
+    });
+
+    // 2. Scrivi dati completi
+    this.props.setProperties({
+      rpm_window: rpmStr,
+      tpm_window: tpmStr
+    });
+
+    // 3. Rimuovi WAL solo dopo la scrittura completa
+    this._cleanCorruptedWAL();
   }
 
   /**
@@ -1167,7 +1175,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       completed: false
     });
 
-    this._persistCache();
+    this._persistCache(true);
     console.log(`🧾 Reservation creata: ${modelKey} (${reservationId})`);
     return reservationId;
   }
@@ -1211,7 +1219,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         });
       }.bind(this));
 
-      this._persistCache();
+      this._persistCache(true);
       return true;
     }.bind(this), {
       timeoutReason: 'lock_timeout',

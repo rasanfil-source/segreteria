@@ -771,7 +771,7 @@ var EmailProcessor = class EmailProcessor {
       if (salutationMode === 'none_or_continuity' || salutationMode === 'session') {
         greeting = '';
       } else if (salutationMode === 'soft') {
-        greeting = '[Inizia con breve frase di riaggancio cordiale]';
+        greeting = '';
       }
 
       // ====================================================================
@@ -2335,7 +2335,7 @@ ${prompt.slice(-tailChars)}`;
       /\bmi\s+sembrava\b/i,
       /\bero\s+convint[oa]\b/i,
       /\bho\s+letto\b/i,
-      /\balle\s+ore?\s+(?:[01]?\d|2[0-3])[:.][0-5]\d\b/i
+      /\balle\s+(?:ore\s+)?(?:[01]?\d|2[0-3])[:.][0-5]\d\b/i
     ];
 
     return timeExpectationPatterns.some((pattern) => pattern.test(text));

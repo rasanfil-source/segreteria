@@ -1431,7 +1431,10 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
 
   _renderResponseGuidelines(lang, season, salutation, closing, salutationMode) {
     let formatSection, contentSection, languageReminder;
-    const isContinuity = salutationMode === 'session' || salutationMode === 'none_or_continuity';
+    const isContinuity =
+      salutationMode === 'session' ||
+      salutationMode === 'none_or_continuity' ||
+      salutationMode === 'soft';
 
     if (lang === 'en') {
       formatSection = isContinuity
