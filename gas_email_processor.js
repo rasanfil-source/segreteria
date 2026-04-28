@@ -1189,7 +1189,7 @@ ${addressLines.join('\n\n')}
           );
           if (retryValidation.score > validation.score) {
             console.log('   → Uso risposta del retry (score più alto, nonostante non valida)');
-            finalResponse = preparedRetryResponse;
+            finalResponse = retryValidation.fixedResponse || preparedRetryResponse;
             validation = retryValidation;
           }
         }
@@ -1676,7 +1676,8 @@ ${addressLines.join('\n\n')}
       email.includes('noreply') ||
       email.includes('mailer-daemon') ||
       email.includes('postmaster') ||
-      email.includes('notification') ||
+      email.includes('notification@') ||
+      email.includes('notifications@') ||
       email.includes('alert') ||
       subject.includes('delivery status notification') ||
       subject.includes('automatic reply') ||
@@ -2597,7 +2598,7 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
         case ErrorTypes.INVALID_API_KEY:
           return mkResult('FATAL', false, normalized.message);
         case ErrorTypes.INVALID_RESPONSE:
-          return mkResult('UNKNOWN', false, normalized.message);
+          return mkResult('INVALID_RESPONSE', true, normalized.message);
         default:
           return mkResult('UNKNOWN', false, normalized.message);
       }

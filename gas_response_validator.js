@@ -614,7 +614,7 @@ var ResponseValidator = class ResponseValidator {
         continue;
       }
       // Whitelist: Escludi versetti biblici (es. Gv 10,10 o Mt 10.10)
-      if (/(?:gv|mt|mc|lc|gen|es|lv|nm|dt|is|ger|ez)\.?\s*$/i.test(prefix)) {
+      if (/(?:gv|mt|mc|lc|gen|es|lv|nm|dt|is|ger|ez|sal|at|rm|cor|ef|fil|col|ap|tb|gdt|gb|pr|qo|ct|sap|sir|bar|dn|os|gl|am|abd|gna|mi|na|ab|sof|ag|zc|ml)\.?\s*$/i.test(prefix)) {
         continue;
       }
 
