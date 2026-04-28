@@ -1550,6 +1550,7 @@ ${addressLines.join('\n\n')}
         // Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI
         const isEffectiveWork = (
           result.status === 'replied' ||
+          result.status === 'dry_run' ||
           result.status === 'error' ||
           result.status === 'validation_failed' ||
           result.status === 'filtered'
@@ -1563,7 +1564,8 @@ ${addressLines.join('\n\n')}
           stats.validationFailed++;
         } else if (result.status === 'replied') {
           stats.replied++;
-          if (result.dryRun) stats.dryRun++;
+        } else if (result.status === 'dry_run') {
+          stats.dryRun++;
         } else if (result.status === 'skipped') {
           stats.skipped++;
           if (result.reason === 'thread_locked' || result.reason === 'thread_locked_race') stats.skipped_locked++;
