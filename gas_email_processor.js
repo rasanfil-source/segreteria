@@ -2696,21 +2696,27 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
    * Traccia il contatore di inbox vuote consecutive (per avvisi diagnostici)
    */
   _trackEmptyInboxStreak(isEmpty) {
-    const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
-      ? CacheService.getScriptCache()
-      : null;
-    if (!cache) return 0;
-    const key = 'empty_inbox_streak';
-    let streak = parseInt(cache.get(key) || '0', 10);
+    try {
+      const cache = (typeof CacheService !== "undefined" && CacheService && typeof CacheService.getScriptCache === "function")
+        ? CacheService.getScriptCache()
+        : null;
+      if (!cache) return 0;
 
-    if (isEmpty) {
-      streak++;
-      cache.put(key, streak.toString(), 21600); // 6 ore
-    } else {
-      streak = 0;
-      cache.remove(key);
+      const key = "empty_inbox_streak";
+      let streak = parseInt(cache.get(key) || "0", 10);
+
+      if (isEmpty) {
+        streak++;
+        cache.put(key, streak.toString(), 21600); // 6 ore
+      } else {
+        streak = 0;
+        cache.remove(key);
+      }
+      return streak;
+    } catch (e) {
+      console.warn(`⚠️ CacheService temporaneamente indisponibile per metrica empty inbox: ${e.message}`);
+      return 0;
     }
-    return streak;
   }
 
   _detectTemporalMentions(text, language) {
