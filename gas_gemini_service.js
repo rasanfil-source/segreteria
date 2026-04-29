@@ -502,13 +502,15 @@ Output JSON:
         // Verifica del flag _nonRetryable per le risposte vuote.
         const isRetryable = classified.retryable && !error._nonRetryable;
 
-        if (isRetryable && attempt < maxRetries - 1) {
+        if (!isRetryable) {
+          // Errore fatale: interrompe immediatamente senza consumare altri retry
+          throw error;
+        }
+
+        if (attempt < maxRetries - 1) {
           const waitTime = this.retryDelay * Math.pow(this.backoffFactor, attempt);
           console.warn(`\u26A0\uFE0F ${context} fallito (tentativo ${attempt + 1}/${maxRetries}): [${classified.type}] ${error.message} - Attendendo ${waitTime}ms...`);
           Utilities.sleep(waitTime);
-        } else {
-          // Errore fatale o esaurimento tentativi
-          throw error;
         }
       }
     }
