@@ -493,7 +493,7 @@ Output JSON:
       } catch (error) {
         lastError = error;
 
-        // Manteniamo _classifyError: è il punto unico di classificazione interno
+        // Manteniamo _classifyError come logica di classificazione interna centralizzata
         // e resta allineato al contratto condiviso retryable/type.
         // Nota: NON replichiamo qui una classificazione inline, per evitare drift
         // con la policy errori del servizio e falsi positivi nei retry.

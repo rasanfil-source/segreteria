@@ -197,7 +197,7 @@ var ResponseValidator = class ResponseValidator {
         validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent, emailSubject);
 
         if (validationResult.isValid) {
-          console.log('   ✅ Autocorrezione ha risolto i problemi!');
+          console.log('   ✅ Elaborazione di raffinamento completata');
         } else {
           console.warn('   ⚠️ Perfezionamento insufficiente. Errori residui.');
         }
@@ -659,7 +659,7 @@ var ResponseValidator = class ResponseValidator {
     }
 
     // === Controllo email ===
-    // Punto 6: Protezione ReDoS con limite esplicito sulla parte locale dell'email
+    // Protezione ReDoS con limite esplicito sulla parte locale dell'email
     const emailPattern = /\b[A-Za-z0-9](?:[A-Za-z0-9._%+-]{0,64})@[A-Za-z0-9-]+\.[A-Za-z]{2,}\b/gi;
     const responseEmails = new Set(
       (response.match(emailPattern) || []).map(e => e.toLowerCase())
@@ -792,7 +792,7 @@ var ResponseValidator = class ResponseValidator {
 
     while ((match = pattern.exec(response)) !== null) {
       if (!match[1]) continue;
-      const word = String(match[1]); // Punto 8: Coercizione esplicita a stringa
+      const word = String(match[1]); // Coercizione esplicita a stringa
 
       if (capitalizationExceptions.includes(word)) {
         if (word !== 'La') {

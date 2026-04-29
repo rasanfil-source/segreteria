@@ -860,7 +860,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
    * Chiamato nel constructor prima di inizializzare i contatori
    */
   _recoverFromWAL(alreadyLocked = false) {
-    // Punto 1: Aggiunto lock per garantire atomicità durante la sincronizzazione attiva
+    // Utilizzo di lock per garantire atomicità durante la sincronizzazione attiva
     let lock = null;
     let lockAcquired = !!alreadyLocked;
     if (!alreadyLocked) {

@@ -299,7 +299,7 @@ var TerritoryValidator = class TerritoryValidator {
         normalized = normalized.replace(/[^a-z0-9\s'À-ÿ]/g, '');
         normalized = normalized.replace(/\s+/g, ' ');
 
-        // Punto 8: Pulizia finale degli spazi per garantire coerenza con il database
+        // Pulizia finale degli spazi per garantire coerenza con il database
         // e rimozione di eventuali prefissi "via" ridondanti se già presenti
         normalized = normalized.replace(/\s+/g, ' ').trim();
 
@@ -321,7 +321,7 @@ var TerritoryValidator = class TerritoryValidator {
             console.warn(`⚠️ Input troncato a ${text.length}/${MAX_SAFE_LENGTH} caratteri (protezione memoria)`);
         }
 
-        // Punto 6: Usa regex pre-compilate (ottimizzazione performance)
+        // Utilizzo di regex pre-compilate (ottimizzazione performance)
         const patterns = this._addressPatterns;
 
         const addresses = [];
@@ -492,7 +492,7 @@ var TerritoryValidator = class TerritoryValidator {
         }
 
 
-        // Punto: Gestione esplicita tipo Array vs Boolean per 'tutti'
+        // Gestione esplicita tipo Array vs Boolean per 'tutti'
         if (Array.isArray(rules.tutti)) {
             const [min, max] = rules.tutti;
             if (min === null && max === null) {
@@ -671,7 +671,7 @@ var TerritoryValidator = class TerritoryValidator {
     }
 
     /**
-     * Sanitizza le stringhe per i log (Punto 10)
+     * Sanitizza le stringhe per i log
      */
     _sanitize(text) {
         if (typeof text !== 'string') return text;

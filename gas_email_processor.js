@@ -285,7 +285,7 @@ var EmailProcessor = class EmailProcessor {
       });
 
       const externalUnread = unlabeledUnread.filter(message => {
-        // B07: Usa getFrom() leggero anziché la costosa extractMessageDetails()
+        // Utilizza getFrom() per efficienza rispetto alla costosa extractMessageDetails()
         const rawFrom = (message.getFrom() || '');
         const senderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
           ? this.gmailService._extractEmailAddress(rawFrom)
@@ -2624,7 +2624,7 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
       .replace(/ /g, '_');
   }
   /**
-   * Punto 12: Classificazione centralizzata degli errori API
+   * Classificazione centralizzata degli errori API
    * Determina se un errore è fatale, legato alla quota o alla rete.
    */
   _classifyError(error) {
@@ -2720,7 +2720,7 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
   }
 
   _detectTemporalMentions(text, language) {
-    // Punto 15: Protezione contro input nulli o non validi
+    // Protezione contro input nulli o non validi
     if (!text || typeof text !== 'string') return false;
     const monthPatterns = {
       'it': /\b(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\b/i,

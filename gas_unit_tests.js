@@ -218,7 +218,7 @@ function runAllTests() {
     const start = Date.now();
 
     // 1. RateLimiter
-    testGroup('Punto #1: RateLimiter - Persistenza Transazionale', results, () => {
+    testGroup('RateLimiter - Persistenza Transazionale', results, () => {
         test('Il gestore della persistenza pulisce i registri dopo sincronizzazione riuscita', results, () => {
             const limiter = new GeminiRateLimiter();
             limiter._persistCacheWithWAL();
@@ -234,7 +234,7 @@ function runAllTests() {
     });
 
     // 2. MemoryService
-    testGroup('Punto #2: MemoryService - Timestamp & Lock', results, () => {
+    testGroup('MemoryService - Timestamp & Lock', results, () => {
         const service = new MemoryService();
         test('Normalizzazione timestamp futuro', results, () => {
             const future = new Date(Date.now() + 200000000).toISOString();
@@ -252,7 +252,7 @@ function runAllTests() {
     });
 
     // 3. TerritoryValidator
-    testGroup('Punto #3: TerritoryValidator - Gestione Input Estremi', results, () => {
+    testGroup('TerritoryValidator - Gestione Input Estremi', results, () => {
         const validator = new TerritoryValidator();
         test('L\'elaborazione dell\'input viene completata tempestivamente su schemi complessi', results, () => {
             const start = Date.now();
@@ -266,7 +266,7 @@ function runAllTests() {
     });
 
     // 4. EmailProcessor
-    testGroup('Punto #4: EmailProcessor - Topic Detection', results, () => {
+    testGroup('EmailProcessor - Topic Detection', results, () => {
         const processor = new EmailProcessor();
         test('Gestisce in modo dinamico la rilevazione in assenza esplicita di topic', results, () => {
             const topics = processor._detectProvidedTopics('La via Antonio Gramsci rientra nel territorio parrocchiale.');
@@ -592,7 +592,7 @@ function runAllTests() {
         });
     });
 
-    testGroup('Punto #4b: Classifier - OOO patterns', results, () => {
+    testGroup('Classifier - OOO patterns', results, () => {
         test('Non filtra come OOO una richiesta pastorale con "malattia" senza contesto assenza', results, () => {
             const classifier = new Classifier();
             const out = classifier.classifyEmail('Richiesta preghiera', 'Mia madre ha una malattia grave, possiamo parlare con il parroco?');
@@ -601,7 +601,7 @@ function runAllTests() {
     });
 
     // 5. GeminiService
-    testGroup('Punto #5: GeminiService - Language', results, () => {
+    testGroup('GeminiService - Language', results, () => {
         const service = new GeminiService();
         test('Rilevamento IT', results, () => service.detectEmailLanguage("Buongiorno").lang === 'it');
         test('Rilevamento IT con keyword iniziale', results, () => service.detectEmailLanguage("Non ho capito").lang === 'it');
@@ -675,7 +675,7 @@ function runAllTests() {
     });
 
     // 6. ResponseValidator
-    testGroup('Punto #6: ResponseValidator - Quality', results, () => {
+    testGroup('ResponseValidator - Quality', results, () => {
         const validator = new ResponseValidator();
         test('Controlla e censura eventuali inferenze esposte di estrazione del LLM', results, () => {
             const res = validator.validateResponse("Rivedendo la knowledge base, ecco la risposta.", 'it', "...", "...", "...", "full");
@@ -701,7 +701,7 @@ function runAllTests() {
     });
 
     // 7. Gemini JSON parser recovery
-    testGroup('Punto #7: Gemini JSON Parser - Recovery', results, () => {
+    testGroup('Gemini JSON Parser - Recovery', results, () => {
         test('Parsa JSON in blocco markdown', results, () => {
             const parsed = parseGeminiJsonLenient('```json\n{"reply_needed":true,"language":"it","category":"MIXED"}\n```');
             return parsed.reply_needed === true && parsed.language === 'it' && parsed.category === 'MIXED';
@@ -713,7 +713,7 @@ function runAllTests() {
     });
 
     // 7b. GmailService discovery resiliency
-    testGroup('Punto #7b: GmailService - Discovery resiliente su risposta vuota', results, () => {
+    testGroup('GmailService - Discovery resiliente su risposta vuota', results, () => {
         const originalGmail = global.Gmail;
         const originalGmailApp = global.GmailApp;
         const originalCacheService = global.CacheService;
@@ -934,7 +934,7 @@ function runAllTests() {
     });
 
     // 8. GmailService OCR document parsing
-    testGroup('Punto #8: GmailService - OCR document hints', results, () => {
+    testGroup('GmailService - OCR document hints', results, () => {
         const service = new GmailService();
         test('Riconosce certificato di battesimo', results, () => {
             const t = service._detectDocumentType('certificato_battesimo.pdf', 'certificato di battesimo');
@@ -998,7 +998,7 @@ function runAllTests() {
     });
 
     // 9. PromptEngine concerns normalization
-    testGroup('Punto #9: PromptEngine - Concerns normalization', results, () => {
+    testGroup('PromptEngine - Concerns normalization', results, () => {
         const engine = new PromptEngine();
         const baseOptions = {
             emailContent: 'Test body',

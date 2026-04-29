@@ -38,7 +38,7 @@ var MemoryService = class MemoryService {
     this._heldShardLocks = {};
     this._cacheExpiry = 5 * 60 * 1000; // 5 minuti
     this._maxCacheSize = 200; // Limite hard per evitare crescita RAM incontrollata
-    this._opCount = 0; // Punto 9: Contatore per Garbage Collection periodica
+    this._opCount = 0; // Contatore per Garbage Collection periodica
 
     // Inizializza foglio
     this._sheet = null;
@@ -216,7 +216,7 @@ var MemoryService = class MemoryService {
               this._invalidateCache(`memory_${threadId}`);
               console.warn(`🔒 Version mismatch thread ${threadId}: atteso ${expectedVersion}, ottenuto ${currentVersion}`);
 
-              // Allinea la versione attesa per il retry successivo (OCC corretto).
+              // Allinea la versione attesa per il retry successivo (OCC).
               expectedVersion = currentVersion;
               throw new Error('VERSION_MISMATCH');
             }
@@ -829,7 +829,7 @@ var MemoryService = class MemoryService {
     // Prendi lock globale per pochissimo tempo, solo per check-and-set su Cache
     // Nota manutenzione: il timeout di 5s garantisce che anche in picchi di carico
     // il worker non fallisca immediatamente nel tentativo di segnare il thread come in lavorazione.
-    // Punto 14: Aumentato timeout acquisizione lock a 5 secondi per gestire carichi elevati
+    // Timeout acquisizione lock impostato a 5 secondi per gestire carichi elevati
     if (globalLock.tryLock(timeoutMs)) {
       try {
         try {
@@ -1036,7 +1036,7 @@ var MemoryService = class MemoryService {
   }
 
   _setCache(key, data) {
-    // Punto 9: Implementazione Garbage Collection periodica della cache in-memory
+    // Implementazione Garbage Collection periodica della cache in-memory
     this._opCount++;
     if (this._opCount >= 100) {
       this._gcCache();
