@@ -482,7 +482,7 @@ Output JSON:
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const result = fn();
-        // BUG-11 FIX: Risposte vuote non sono errori transienti (non migliorano con retry).
+        // Le risposte vuote sono considerate non transienti.
         // Le segnaliamo come errore non-retryable per evitare spreco quota API.
         if (result === undefined || result === null || result === '') {
           const emptyError = new Error(`Risposta vuota o undefined da ${context}`);
@@ -499,7 +499,7 @@ Output JSON:
         // con la policy errori del servizio e falsi positivi nei retry.
         // NON usare classifyError globale: potrebbe non esistere in alcuni runtime GAS modulari.
         const classified = this._classifyError(error);
-        // BUG-11 FIX: rispetta il flag _nonRetryable impostato per risposte vuote
+        // Verifica del flag _nonRetryable per le risposte vuote.
         const isRetryable = classified.retryable && !error._nonRetryable;
 
         if (isRetryable && attempt < maxRetries - 1) {
@@ -746,7 +746,7 @@ Output JSON:
       'es': spanishLexicalScore + Math.min(spanishCharScore, 2),
       'it': countMatches(italianKeywords, text, 1),
       'pt': ptUniqueScore + ptStandardScore + Math.min(portugueseCharScore, 2),
-      // BUG-17: Supporto markers per lingue secondarie
+      // Supporto markers per lingue secondarie.
       'fr': countMatches(indicators.fr, text, 1.5),
       'de': countMatches(indicators.de, text, 1.5)
     };
@@ -785,7 +785,7 @@ Output JSON:
     const safetyGrade = this._computeSafetyGrade(detectedLang, maxScore, scores);
     console.log(`   \u2713 Rilevato: ${detectedLang.toUpperCase()} (punteggio: ${maxScore}, grado sicurezza: ${safetyGrade})`);
 
-    // BUG-17 FIX: Se la sicurezza del rilevamento locale è bassa (< 3) e non siamo IT,
+    // Gestione del rilevamento locale con bassa sicurezza per lingue estere.
     // tentiamo un rilevamento AI se possibile.
     if (safetyGrade < 3 && detectedLang !== 'it' && typeof this.detectLanguageAI === 'function') {
       try {
@@ -808,7 +808,7 @@ Output JSON:
   }
 
   /**
-   * BUG-17: Rilevamento lingua tramite AI (fallback ad alto costo)
+   * Rilevamento lingua tramite AI (fallback).
    */
   detectLanguageAI(text) {
     const prompt = `Analizza questo testo e identifica la lingua prevalente.

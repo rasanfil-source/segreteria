@@ -109,7 +109,7 @@ function estimateTokenCount(text, attachments = []) {
   
   let tokens = 0;
   if (text && typeof text === 'string') {
-    // BUG-05 FIX: Sincronizzato con GeminiService._estimateTokens per evitare drift.
+    // Sincronizzazione con GeminiService._estimateTokens.
     // Algoritmo: Max(wordCount * 1.3, charCount / 3.6) + overhead 10%.
     const wordCount = text.trim().split(/\s+/).length;
     const baseTokens = Math.max(wordCount * 1.3, text.length / 3.6);
@@ -303,7 +303,7 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
   const errorLabel = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME) ? CONFIG.ERROR_LABEL_NAME : 'Errore';
   const validationLabel = (typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_ERROR_LABEL) ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica';
   
-  // BUG-14 FIX: Gmail non supporta l'escaping con backslash per le virgolette nelle etichette.
+  // Gestione virgolette nelle etichette (senza escaping backslash).
   // Usiamo solo il quoting standard. Se l'etichetta contiene già virgolette, la query fallirà comunque,
   // ma è un edge case estremo per nomi di label IA.
   const quoteLabel = (label) => `"${String(label || '')}"`;
@@ -680,7 +680,7 @@ function _serializeResourceCache(data, forceCompression) {
     throw new Error('Utilities gzip/base64 non disponibili');
   }
 
-  // BUG-15 FIX: Utilities.Charset.UTF_8 è un enum, non una stringa nome. 
+  // Utilizzo dell'enum Utilities.Charset.UTF_8.
   // Per Utilities.newBlob(data, contentType, name), il terzo parametro deve essere una stringa.
   // Utilities.newBlob() converte automaticamente le stringhe in byte UTF-8.
   const gzipped = Utilities.gzip(Utilities.newBlob(json, 'application/json'));

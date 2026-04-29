@@ -404,7 +404,7 @@ var ResponseValidator = class ResponseValidator {
     for (const lang in this.languageMarkers) {
       markerScores[lang] = this.languageMarkers[lang].reduce((count, marker) => {
         const escapedMarker = String(marker).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // BUG-09 FIX: Usa confini Unicode per evitare falsi negativi su parole accentate
+        // Confini Unicode per il supporto alle parole accentate.
         // (es. "paróquia", "grüße", "querría"). \b è ASCII-only e fallisce con diacritici.
         const regex = new RegExp(`(?<![\\p{L}\\p{N}_])${escapedMarker}(?![\\p{L}\\p{N}_])`, 'iu');
         return count + (regex.test(responseLower) ? 1 : 0);
@@ -553,7 +553,7 @@ var ResponseValidator = class ResponseValidator {
     let score = 1.0;
     const hallucinations = {};
     
-    // BUG-12 FIX: Guardia difensiva se knowledgeBase è null, undefined o non-string.
+    // Controllo di validità per knowledgeBase.
     // Previene crash su input malformati o KB non caricate correttamente.
     let safeKnowledgeBase = '';
     if (typeof knowledgeBase === 'string') {
@@ -573,7 +573,7 @@ var ResponseValidator = class ResponseValidator {
       if (/[a-z]{2,}\.\d{1,2}\.[a-z]{2,}/i.test(t)) return t;
       if (/\/([\w-]+\.\d{1,2}\.\w+)$/i.test(t)) return t;
 
-      // BUG-13 FIX: Sostituisce solo i punti tra cifre (formato orario) per evitare
+      // Sostituzione mirata dei separatori orari.
       // di corrompere pattern come "10.5" o nomi file.
       t = t.replace(/(\d)\.(\d)/g, '$1:$2');
       if (/^\d{1,2}$/.test(t)) {

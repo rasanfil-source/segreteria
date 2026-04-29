@@ -1394,7 +1394,7 @@ ${addressLines.join('\n\n')}
    * @param {boolean} locksAlreadyCovered - Se true, processThread evita lock interni già coperti da lock esterno
    */
   processUnreadEmails(knowledgeBase, doctrineBase = '', skipExecutionLock = false, locksAlreadyCovered = skipExecutionLock) {
-    // BUG-18 FIX: Resetta _startTime all'inizio per garantire calcoli precisi 
+    // Inizializzazione di _startTime per la precisione dei calcoli.
     // anche se l'istanza viene riutilizzata in trigger successivi.
     this._startTime = Date.now();
 
@@ -1508,7 +1508,7 @@ ${addressLines.join('\n\n')}
         }
       }
 
-      // BUG-03 FIX: Pre-carica gli ID dei messaggi con label skip (·)
+      // Pre-caricamento degli ID dei messaggi con etichetta skip (·)
       // per evitare ri-discovery di thread già valutati in foreign_only.
       let skippedMessageIds = new Set();
       if (languageMode === 'foreign_only' && this.gmailService && typeof this.gmailService.getMessageIdsWithLabel === 'function') {
@@ -1703,7 +1703,7 @@ ${addressLines.join('\n\n')}
       email.includes('postmaster') ||
       email.includes('notification@') ||
       email.includes('notifications@') ||
-      // BUG-06 FIX: 'alert' causava falsi positivi su nomi come "walter@", "gerald@".
+      // Filtro per evitare falsi positivi su indirizzi contenenti 'alert'.
       email.includes('alert@') || email.includes('alerts@') ||
       subject.includes('delivery status notification') ||
       subject.includes('automatic reply') ||
@@ -1958,7 +1958,7 @@ ${addressLines.join('\n\n')}
     return metadata.labelIds.includes(skipLabelId);
   }
 
-  // BUG-07 FIX: Traccia gli ID skippati per evitare ri-discovery nello stesso batch.
+  // Tracciamento ID saltati per ottimizzare il batch.
   _markMessagesAsSkipped(messages, labelName = this.config.skipLabelName, skippedMessageIds = null) {
     if (this.config.dryRun) {
       this.logger.info(`   🔴 DRY RUN - Label skip '${labelName}' non aggiunta (simulazione)`);
@@ -1998,7 +1998,7 @@ ${addressLines.join('\n\n')}
   }
 
 
-  // BUG-03 FIX: Aggiunto supporto per skippedMessageIds (messaggi con label · o Ignorato)
+  // Supporto per skippedMessageIds.
   // per evitare ri-discovery inutile di thread già valutati in modalità foreign_only.
   _hasUnreadMessagesToProcess(thread, labeledMessageIds, skippedMessageIds) {
     try {

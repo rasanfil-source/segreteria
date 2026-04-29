@@ -576,7 +576,7 @@ var MemoryService = class MemoryService {
   _findRowByThreadId(threadId) {
     if (!this._sheet) return null;
     const normalizedThreadId = String(threadId);
-    // BUG-10 FIX: getLastRow() ritorna l'ultima riga con dati, non le righe allocate vuote.
+    // getLastRow() restituisce l'ultima riga effettiva con dati.
     // getMaxRows() includerebbe migliaia di righe vuote, rallentando la ricerca TextFinder.
     const maxRows = this._sheet.getLastRow();
 
