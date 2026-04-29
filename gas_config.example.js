@@ -6,7 +6,7 @@
  * Le chiavi sensibili (API Key, Spreadsheet ID) sono rimosse o mascherate.
  */
 
-const CONFIG = {
+var CONFIG = {
     // === API ===
     // In produzione: PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY')
     GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY_HERE',
@@ -57,16 +57,22 @@ const CONFIG = {
     SUSPENSION_STALE_UNREAD_HOURS: 12,    // Paracadute: processa unread vecchie anche in fascia sospesa
     MIN_REMAINING_TIME_MS: 90000,      // Stop preventivo se resta meno di 90 secondi
     EXECUTION_LOCK_WAIT_MS: 5000,      // Timeout acquisizione lock esecuzione (ms)
-    SEARCH_PAGE_SIZE: 50,              // Numero massimo thread restituiti da GmailApp.search
+    SEARCH_PAGE_SIZE: 15,              // Buffer discovery per candidati message-level (circa 5x MAX_EMAILS_PER_RUN)
+    // === DISCOVERY MODE ======================================================================
+    // Modalità di scoperta messaggi non letti da elaborare.
+    // - 'query'   : default operativo, message-level con query Gmail -label:...
+    // - 'metadata': fallback prudente/manuale (list INBOX/UNREAD + get(minimal) per labelIds)
+    MESSAGE_DISCOVERY_MODE: 'query',
+    // =========================================================================================
     MAX_EXECUTION_TIME_MS: 280000,    // Budget massimo per run (default GAS trigger ~6 minuti)
     GMAIL_LABEL_CACHE_TTL: 3600000,      // 1 ora in millisecondi
-    MAX_HISTORY_MESSAGES: 10,            // Massimo messaggi in cronologia thread
+    MAX_HISTORY_MESSAGES: 8,             // Massimo messaggi in cronologia thread
     ATTACHMENT_CONTEXT: {
         enabled: true,                   // Includi testo allegati (PDF, immagini, Word, Excel, PowerPoint) nel prompt
         maxFiles: 3,                     // Numero massimo di allegati da processare (ridotto per payload multimodale)
         maxBytesPerFile: 3 * 1024 * 1024,// 3 MB per file (ridotto per payload Base64)
-        maxCharsPerFile: 4000,           // Limite testo per singolo allegato
-        maxTotalChars: 12000,            // Limite totale testo allegati
+        maxCharsPerFile: 3000,           // Limite testo per singolo allegato
+        maxTotalChars: 9000,             // Limite totale testo allegati
         ocrLanguage: 'it',               // Lingua OCR (Drive Advanced API)
         ocrConfidenceWarningThreshold: 0.8, // Soglia warning leggibilità OCR in risposta
         pdfMaxPages: 2,                  // Limite pagine PDF (stima via OCR)
@@ -77,7 +83,7 @@ const CONFIG = {
         ],
         ibanFocusEnabled: true,          // Focus OCR se viene trovato un IBAN
         ibanContextChars: 300,           // Finestra +/- per testo attorno all'IBAN
-        maxCharsWhenKbTruncated: 2000    // Riduzione allegati se KB è troncata
+        maxCharsWhenKbTruncated: 1500    // Riduzione allegati se KB è troncata
     },
 
     // === Token per tipo allegato (stima multimodale) ===
@@ -117,14 +123,14 @@ const CONFIG = {
     USE_RATE_LIMITER: true,              // Rate limiter intelligente abilitato
 
     // === Limiti Token (Prompt Engine) ===
-    MAX_SAFE_TOKENS: 50000,              // Limite massimo token per prompt (più sicuro per timeout GAS)
+    MAX_SAFE_TOKENS: 35000,              // Allineato al profilo produzione per evitare drift nei test
     KB_TOKEN_BUDGET_RATIO: 0.5,          // Percentuale budget KB rispetto a max token
     PROMPT_ENGINE: {
         OVERHEAD_TOKENS: 15000           // Riserva token per istruzioni/fixed context fuori KB
     },
 
     // === Limiti Thread ===
-    MAX_THREAD_LENGTH: 10,               // Messaggi massimi per thread prima di anti-loop
+    MAX_THREAD_LENGTH: 8,                // Messaggi massimi per thread prima di anti-loop
 
     // === Logging ===
     LOGGING: {
@@ -140,30 +146,44 @@ const CONFIG = {
     METRICS_SHEET_NAME: 'DailyMetrics',
 
     // === Modelli Gemini (configurazione centralizzata) ===
-    // Aggiornato: Gennaio 2026
+    // Aggiornato: Marzo 2026
+    // Dati tecnici operativi (piano gratuito, 17/03/2026).
+    GEMINI_FREE_TIER_NOTES: {
+        contextWindowTokens: 1048576,
+        ipm: 2,
+        groundingSharedRpd: 500,
+        dataUsedForTraining: true
+    },
+
     GEMINI_MODELS: {
         // Modello premium: qualità massima per generazione risposte
         'flash-2.5': {
             name: 'gemini-2.5-flash',
-            rpm: 15,
-            tpm: 1000000,
-            rpd: 1500,
+            rpm: 10,
+            tpm: 250000,
+            rpd: 250,
+            contextWindowTokens: 1048576,
+            ipm: 2,
             useCases: ['generation']
         },
         // Modello workhorse: quick check e fallback
         'flash-lite': {
             name: 'gemini-2.5-flash-lite',
-            rpm: 10,
-            tpm: 1000000,
-            rpd: 1500,
+            rpm: 15,
+            tpm: 250000,
+            rpd: 1000,
+            contextWindowTokens: 1048576,
+            ipm: 2,
             useCases: ['quick_check', 'classification', 'semantic', 'fallback']
         },
         // Modello backup: variante 2.5 Lite
         'flash-2.5-lite-backup': {
             name: 'gemini-2.5-flash-lite',
-            rpm: 10,
-            tpm: 1000000,
-            rpd: 1500,
+            rpm: 15,
+            tpm: 250000,
+            rpd: 1000,
+            contextWindowTokens: 1048576,
+            ipm: 2,
             useCases: ['fallback']
         }
     },

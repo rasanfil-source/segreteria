@@ -30,6 +30,7 @@ node_modules/**
 .gemini/**
 package*.json
 scripts/**
+scratch/**
 *.txt
 *.log
 *.md

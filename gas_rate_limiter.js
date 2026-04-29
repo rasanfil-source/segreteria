@@ -1204,16 +1204,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     return new Date(high).toISOString();
   }
 
-  /**
-   * Stima il numero di token per un testo ed eventuali allegati
-   * Formula: parole * 1.25 + overhead 10% + 200 per ogni allegato
-   */
-  _estimateTokens(text, attachments = []) {
-    // Delega alla funzione centralizzata in gas_main.js (DRY)
-    return typeof estimateTokenCount === 'function' 
-      ? estimateTokenCount(text, attachments)
-      : Math.max(Math.ceil((text || '').length / 4) + (attachments.length * 200), 1);
-  }
+  // Nota: niente _estimateTokens locale.
+  // Il rate limiter riceve estimatedTokens dal chiamante (es. GeminiService),
+  // che può applicare logiche multimodali più accurate rispetto a una stima generica.
 
   _selectAndReserveModel(taskType, options) {
     options = options || {};
