@@ -1240,7 +1240,7 @@ ${addressLines.join('\n\n')}
         return result;
       }
 
-      const sendTxn = this._beginSendTransaction(candidate.getId());
+      const sendTxn = this._beginSendTransaction(candidate.getId(), skipLock);
       if (!sendTxn.ok) {
         console.warn(`   ⊖ Invio saltato per idempotenza (${sendTxn.reason})`);
         if (sendTxn.reason === 'already_sent') {
@@ -1390,9 +1390,10 @@ ${addressLines.join('\n\n')}
    * Processa tutte le email non lette
    * @param {string} knowledgeBase
    * @param {string} doctrineBase
-   * @param {boolean} skipExecutionLock - Evita il double-locking se chiamato da main()
+   * @param {boolean} skipExecutionLock - Evita il lock batch quando il chiamante gestisce l'orchestrazione
+   * @param {boolean} locksAlreadyCovered - Se true, processThread evita lock interni già coperti da lock esterno
    */
-  processUnreadEmails(knowledgeBase, doctrineBase = '', skipExecutionLock = false) {
+  processUnreadEmails(knowledgeBase, doctrineBase = '', skipExecutionLock = false, locksAlreadyCovered = skipExecutionLock) {
     // BUG-18 FIX: Resetta _startTime all'inizio per garantire calcoli precisi 
     // anche se l'istanza viene riutilizzata in trigger successivi.
     this._startTime = Date.now();
@@ -1567,16 +1568,16 @@ ${addressLines.join('\n\n')}
 
         console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
 
-        // BUG-01 FIX: MAI skippare il lock a livello thread.
-        // Il lock globale (executionLock) protegge da esecuzioni parallele dello script,
-        // ma NON protegge da race condition su singolo thread tra trigger sovrapposti.
-        // Il lock CacheService a livello thread è l'unica guardia anti-duplicazione.
+        // Se il batch possiede già lo ScriptLock (o il chiamante esterno lo possiede),
+        // non tentare un secondo lock dentro processThread: GAS non garantisce reentrancy
+        // e un doppio tryLock può far saltare thread validi nella stessa esecuzione.
+        const threadLockAlreadyCovered = locksAlreadyCovered || lockAcquiredHere;
         const result = this.processThread(
           thread,
           normalizedKnowledgeBase,
           normalizedDoctrineBase,
           labeledMessageIds,
-          false
+          threadLockAlreadyCovered
         );
         stats.total++;
 
@@ -1792,10 +1793,10 @@ ${addressLines.join('\n\n')}
     return false;
   }
 
-  // BUG-02 FIX: Il lock di idempotenza invio è SEMPRE necessario,
-  // indipendentemente dal lock di processThread. Protegge il check-then-act
-  // su cache (sentKey/sendingKey) da race condition TOCTOU.
-  _beginSendTransaction(messageId) {
+  // Il lock di idempotenza invio protegge il check-then-act su cache
+  // (sentKey/sendingKey). Se il chiamante possiede già lo ScriptLock, evita
+  // una riacquisizione non reentrant ma mantiene comunque le chiavi cache.
+  _beginSendTransaction(messageId, skipLock = false) {
     if (!messageId) {
       console.warn('⚠️ Idempotenza non applicabile: messageId assente. Rischio di duplicazione.');
       return { ok: true, reason: 'missing_message_id' };
@@ -1816,7 +1817,7 @@ ${addressLines.join('\n\n')}
     let lockAcquired = false;
 
     try {
-      if (scriptLock && typeof scriptLock.tryLock === 'function') {
+      if (!skipLock && scriptLock && typeof scriptLock.tryLock === 'function') {
         lockAcquired = scriptLock.tryLock(500);
         if (!lockAcquired) {
           return { ok: false, reason: 'send_lock_unavailable' };

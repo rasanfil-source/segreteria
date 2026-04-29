@@ -1320,6 +1320,17 @@ function main() {
 
   const executionLock = LockService.getScriptLock();
   let hasExecutionLock = false;
+  const releaseExecutionLock = () => {
+    if (hasExecutionLock && executionLock) {
+      try {
+        executionLock.releaseLock();
+      } catch (lockError) {
+        console.warn(`⚠️ Impossibile rilasciare execution lock: ${lockError.message}`);
+      } finally {
+        hasExecutionLock = false;
+      }
+    }
+  };
 
   try {
     // 1. Sincronizzazione Esecuzione (Prevenzione concurrency)
@@ -1366,12 +1377,17 @@ function main() {
     }
 
     // 4. Orchestrazione Pipeline (Delegato alle classi di servizio)
+    // Rilascia il gate globale prima di costruire/avviare servizi che usano ScriptLock
+    // internamente (RateLimiter, MemoryService, lock thread). La deduplica operativa
+    // resta protetta dai lock granulari e dall'idempotenza su singolo messaggio.
+    releaseExecutionLock();
+
     const processor = new EmailProcessor();
     const knowledgeBase = GLOBAL_CACHE.knowledgeBase || '';
     const doctrineBase = GLOBAL_CACHE.doctrineBase || '';
 
     // Passaggio della dottrina strutturata e testo piatto per compatibilità con i formati di input
-    const results = processor.processUnreadEmails(knowledgeBase, doctrineBase, true); // true = skip double lock
+    const results = processor.processUnreadEmails(knowledgeBase, doctrineBase, true, false);
 
     if (results) {
       console.log(`📊 Batch completato: ${results.total || 0} analizzati, ${results.replied || 0} risposte, ${results.errors || 0} errori.`);
@@ -1390,13 +1406,7 @@ function main() {
       }
     }
   } finally {
-    if (hasExecutionLock && executionLock) {
-      try {
-        executionLock.releaseLock();
-      } catch (lockError) {
-        console.warn(`⚠️ Impossibile rilasciare execution lock: ${lockError.message}`);
-      }
-    }
+    releaseExecutionLock();
   }
 }
 
@@ -1573,5 +1583,4 @@ function onEdit(e) {
     }
   }
 }
-
 

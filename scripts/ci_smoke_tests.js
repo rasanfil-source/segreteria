@@ -1108,6 +1108,78 @@ function testMainEncapsulatesExecutionLockSuccessfully() {
     }
 }
 
+function testMainReleasesExecutionLockBeforePipelineServices() {
+    loadScript('gas_main.js');
+
+    const originalGmail = global.Gmail;
+    const originalLockService = global.LockService;
+    const originalEmailProcessor = global.EmailProcessor;
+    const originalLoadResources = global.loadResources;
+    const originalIsInSuspensionTime = global.isInSuspensionTime;
+    const originalGlobalCache = global.GLOBAL_CACHE;
+    const originalConfig = global.CONFIG;
+
+    let locked = false;
+    let releaseCalls = 0;
+    let constructedWhileLocked = null;
+    let seenProcessArgs = null;
+
+    global.Gmail = {
+        Users: {
+            getProfile: () => ({ emailAddress: 'me@parrocchia.it' })
+        }
+    };
+    global.LockService = {
+        getScriptLock: () => ({
+            tryLock: () => {
+                if (locked) return false;
+                locked = true;
+                return true;
+            },
+            releaseLock: () => {
+                releaseCalls += 1;
+                locked = false;
+            }
+        })
+    };
+    global.GLOBAL_CACHE = {
+        loaded: true,
+        systemEnabled: true,
+        knowledgeBase: 'kb operativa',
+        doctrineBase: ''
+    };
+    global.CONFIG = { SUSPENSION_STALE_UNREAD_HOURS: 12 };
+    global.loadResources = () => {
+        global.GLOBAL_CACHE.loaded = true;
+    };
+    global.isInSuspensionTime = () => false;
+    global.EmailProcessor = class {
+        constructor() {
+            constructedWhileLocked = locked;
+        }
+        processUnreadEmails() {
+            seenProcessArgs = Array.from(arguments);
+            return { total: 0, replied: 0, errors: 0 };
+        }
+    };
+
+    try {
+        global.main();
+        assert(constructedWhileLocked === false, 'main deve rilasciare lo ScriptLock prima di costruire EmailProcessor');
+        assert(releaseCalls === 1, `main deve rilasciare il gate globale una sola volta, ottenuto ${releaseCalls}`);
+        assert(seenProcessArgs && seenProcessArgs[2] === true, 'main deve saltare il lock batch in processUnreadEmails');
+        assert(seenProcessArgs && seenProcessArgs[3] === false, 'main deve lasciare attivi i lock granulari della pipeline');
+    } finally {
+        global.Gmail = originalGmail;
+        global.LockService = originalLockService;
+        global.EmailProcessor = originalEmailProcessor;
+        global.loadResources = originalLoadResources;
+        global.isInSuspensionTime = originalIsInSuspensionTime;
+        global.GLOBAL_CACHE = originalGlobalCache;
+        global.CONFIG = originalConfig;
+    }
+}
+
 function testInferUserReactionIsResilientToEmptyTopics() {
     loadScript('gas_email_processor.js');
 
@@ -2678,6 +2750,7 @@ function main() {
         ['gmail send: fold e bound della catena References', testSendHtmlReplyFoldsAndBoundsReferencesHeader],
         ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
         ['main: isolamento rigoroso per hasExecutionLock', testMainEncapsulatesExecutionLockSuccessfully],
+        ['main: rilascia lock prima dei servizi pipeline', testMainReleasesExecutionLockBeforePipelineServices],
         ['main: serializzazione KB preserva colonne vuote', testSheetRowsToTextPreservesColumnAlignmentWithEmptyCells],
         ['main: serializzazione date KB stabile', testSheetRowsToTextFormatsDatesStably],
         ['main: serializzazione celle multilinea KB stabile', testSheetRowsToTextNormalizesMultilineCells],
