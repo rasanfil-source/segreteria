@@ -438,7 +438,7 @@ var EmailProcessor = class EmailProcessor {
       // Lookup case-insensitive: i server SMTP possono restituire header in casing arbitrario
       const getHeader = (name) => {
         const lower = name.toLowerCase();
-        for (const key in headers) {
+        for (const key of Object.keys(headers)) {
           if (key.toLowerCase() === lower) return headers[key];
         }
         return '';
