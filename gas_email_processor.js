@@ -1960,6 +1960,11 @@ ${addressLines.join('\n\n')}
 
   // BUG-07 FIX: Traccia gli ID skippati per evitare ri-discovery nello stesso batch.
   _markMessagesAsSkipped(messages, labelName = this.config.skipLabelName, skippedMessageIds = null) {
+    if (this.config.dryRun) {
+      this.logger.info(`   🔴 DRY RUN - Label skip '${labelName}' non aggiunta (simulazione)`);
+      return;
+    }
+
     if (!this.gmailService || typeof this.gmailService.addLabelToMessage !== 'function') return;
     console.log(`   🏷️ Etichettatura messaggi come saltati (${labelName})...`);
     (messages || []).forEach(message => {
