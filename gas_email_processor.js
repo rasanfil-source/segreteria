@@ -567,6 +567,7 @@ var EmailProcessor = class EmailProcessor {
       const autoPattern = /no-reply|do-not-reply|noreply|daemon|postmaster|bounce|mailer/i;
       if (autoPattern.test(senderInfo)) {
         console.log('   ⊖ Saltato: mittente rilevato come casella automatica o no-reply');
+        // Elaborato (filtrato): applichiamo IA per chiudere il processo
         markUnlabeledUnreadAsProcessed();
         result.status = 'filtered';
         result.reason = 'no_reply_sender';
@@ -578,11 +579,8 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       if (this._shouldIgnoreEmail(messageDetails)) {
         console.log('   ⊖ Filtrato: domain/keyword ignore');
-        // I messaggi esclusi da ignore-rules (newsletter/blacklist/keyword) non
-        // devono essere conteggiati come "IA processati": usiamo la label skip.
-        // Questo evita falsi positivi operativi quando il filtro è puramente
-        // regolistico e indipendente dalla generazione di risposta.
-        this._markMessagesAsSkipped(unlabeledUnread);
+        // Elaborato (filtrato): applichiamo IA per chiudere il processo
+        markUnlabeledUnreadAsProcessed();
 
         result.status = 'filtered';
         result.reason = 'ignore_rules';
@@ -605,6 +603,7 @@ var EmailProcessor = class EmailProcessor {
 
       if (!classification.shouldReply) {
         console.log(`   ⊖ Filtrato dal classifier: ${classification.reason}`);
+        // Elaborato (filtrato): applichiamo IA per chiudere il processo
         markUnlabeledUnreadAsProcessed();
         result.status = 'filtered';
         return result;
@@ -1083,9 +1082,7 @@ ${addressLines.join('\n\n')}
       response = this._addTimeDiscrepancyNoteIfNeeded(
         response,
         messageDetails,
-        detectedLanguage,
-        classification,
-        requestType
+        detectedLanguage
       );
 
       // ====================================================================
@@ -1243,7 +1240,7 @@ ${addressLines.join('\n\n')}
         return result;
       }
 
-      const sendTxn = this._beginSendTransaction(candidate.getId(), skipLock);
+      const sendTxn = this._beginSendTransaction(candidate.getId());
       if (!sendTxn.ok) {
         console.warn(`   ⊖ Invio saltato per idempotenza (${sendTxn.reason})`);
         if (sendTxn.reason === 'already_sent') {
@@ -1396,6 +1393,10 @@ ${addressLines.join('\n\n')}
    * @param {boolean} skipExecutionLock - Evita il double-locking se chiamato da main()
    */
   processUnreadEmails(knowledgeBase, doctrineBase = '', skipExecutionLock = false) {
+    // BUG-18 FIX: Resetta _startTime all'inizio per garantire calcoli precisi 
+    // anche se l'istanza viene riutilizzata in trigger successivi.
+    this._startTime = Date.now();
+
     console.log('\n' + '='.repeat(70));
     console.log('📬 Inizio elaborazione email...');
     console.log('='.repeat(70));
@@ -1442,8 +1443,12 @@ ${addressLines.join('\n\n')}
       const languageMode = typeof this._getLanguageProcessingMode_ === 'function'
         ? this._getLanguageProcessingMode_()
         : 'all';
-      const labelsDaIgnorare = [this.config.ignoreLabelName];
-      if (languageMode === 'foreign_only') labelsDaIgnorare.push(this.config.skipLabelName);
+      const labelsDaIgnorare = [this.config.labelName];
+      // Il punto medio (·) lo escludiamo dalla ricerca SOLO in modalità foreign_only.
+      // In modalità 'all', non lo escludiamo: così le email "parcheggiate" vengono ripescate.
+      if (languageMode === 'foreign_only') {
+        labelsDaIgnorare.push(this.config.skipLabelName);
+      }
 
       let threads;
       try {
@@ -1502,6 +1507,21 @@ ${addressLines.join('\n\n')}
         }
       }
 
+      // BUG-03 FIX: Pre-carica gli ID dei messaggi con label skip (·)
+      // per evitare ri-discovery di thread già valutati in foreign_only.
+      let skippedMessageIds = new Set();
+      if (languageMode === 'foreign_only' && this.gmailService && typeof this.gmailService.getMessageIdsWithLabel === 'function') {
+        try {
+          const skipIds = this.gmailService.getMessageIdsWithLabel(this.config.skipLabelName);
+          skippedMessageIds = (skipIds instanceof Set) ? skipIds : new Set(skipIds || []);
+          if (skippedMessageIds.size > 0) {
+            console.log(`   🌐 Pre-caricati ${skippedMessageIds.size} ID messaggi skip (·) per fast-skip`);
+          }
+        } catch (e) {
+          console.warn(`⚠️ Impossibile pre-caricare gli ID skip (${e.message}). Continuo senza cache skip.`);
+        }
+      }
+
       const stats = {
         total: 0,
         replied: 0,
@@ -1536,7 +1556,7 @@ ${addressLines.join('\n\n')}
           break;
         }
 
-        if (!this._hasUnreadMessagesToProcess(thread, labeledMessageIds)) {
+        if (!this._hasUnreadMessagesToProcess(thread, labeledMessageIds, skippedMessageIds)) {
           console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
           console.log('   ⊖ Fast-skip: thread con soli non letti già etichettati IA');
           stats.total++;
@@ -1547,12 +1567,16 @@ ${addressLines.join('\n\n')}
 
         console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
 
+        // BUG-01 FIX: MAI skippare il lock a livello thread.
+        // Il lock globale (executionLock) protegge da esecuzioni parallele dello script,
+        // ma NON protegge da race condition su singolo thread tra trigger sovrapposti.
+        // Il lock CacheService a livello thread è l'unica guardia anti-duplicazione.
         const result = this.processThread(
           thread,
           normalizedKnowledgeBase,
           normalizedDoctrineBase,
           labeledMessageIds,
-          skipExecutionLock || lockAcquiredHere
+          false
         );
         stats.total++;
 
@@ -1678,7 +1702,8 @@ ${addressLines.join('\n\n')}
       email.includes('postmaster') ||
       email.includes('notification@') ||
       email.includes('notifications@') ||
-      email.includes('alert') ||
+      // BUG-06 FIX: 'alert' causava falsi positivi su nomi come "walter@", "gerald@".
+      email.includes('alert@') || email.includes('alerts@') ||
       subject.includes('delivery status notification') ||
       subject.includes('automatic reply') ||
       subject.includes('fuori sede') ||
@@ -1767,7 +1792,10 @@ ${addressLines.join('\n\n')}
     return false;
   }
 
-  _beginSendTransaction(messageId, skipLock = false) {
+  // BUG-02 FIX: Il lock di idempotenza invio è SEMPRE necessario,
+  // indipendentemente dal lock di processThread. Protegge il check-then-act
+  // su cache (sentKey/sendingKey) da race condition TOCTOU.
+  _beginSendTransaction(messageId) {
     if (!messageId) {
       console.warn('⚠️ Idempotenza non applicabile: messageId assente. Rischio di duplicazione.');
       return { ok: true, reason: 'missing_message_id' };
@@ -1788,12 +1816,10 @@ ${addressLines.join('\n\n')}
     let lockAcquired = false;
 
     try {
-      if (!skipLock) {
-        if (scriptLock && typeof scriptLock.tryLock === 'function') {
-          lockAcquired = scriptLock.tryLock(500);
-          if (!lockAcquired) {
-            return { ok: false, reason: 'send_lock_unavailable' };
-          }
+      if (scriptLock && typeof scriptLock.tryLock === 'function') {
+        lockAcquired = scriptLock.tryLock(500);
+        if (!lockAcquired) {
+          return { ok: false, reason: 'send_lock_unavailable' };
         }
       }
 
@@ -1931,12 +1957,17 @@ ${addressLines.join('\n\n')}
     return metadata.labelIds.includes(skipLabelId);
   }
 
-  _markMessagesAsSkipped(messages, labelName = this.config.skipLabelName) {
+  // BUG-07 FIX: Traccia gli ID skippati per evitare ri-discovery nello stesso batch.
+  _markMessagesAsSkipped(messages, labelName = this.config.skipLabelName, skippedMessageIds = null) {
     if (!this.gmailService || typeof this.gmailService.addLabelToMessage !== 'function') return;
     console.log(`   🏷️ Etichettatura messaggi come saltati (${labelName})...`);
     (messages || []).forEach(message => {
       if (!message) return;
-      this.gmailService.addLabelToMessage(message.getId(), labelName);
+      const msgId = message.getId();
+      this.gmailService.addLabelToMessage(msgId, labelName);
+      if (skippedMessageIds && typeof skippedMessageIds.add === 'function') {
+        skippedMessageIds.add(msgId);
+      }
     });
   }
 
@@ -1961,7 +1992,9 @@ ${addressLines.join('\n\n')}
   }
 
 
-  _hasUnreadMessagesToProcess(thread, labeledMessageIds) {
+  // BUG-03 FIX: Aggiunto supporto per skippedMessageIds (messaggi con label · o Ignorato)
+  // per evitare ri-discovery inutile di thread già valutati in modalità foreign_only.
+  _hasUnreadMessagesToProcess(thread, labeledMessageIds, skippedMessageIds) {
     try {
       const messages = thread.getMessages() || [];
       const unreadMessages = messages.filter(m => m.isUnread());
@@ -1979,9 +2012,12 @@ ${addressLines.join('\n\n')}
         effectiveLabeledIds = (fetchedIds instanceof Set) ? fetchedIds : new Set(fetchedIds || []);
       }
 
+      const effectiveSkippedIds = (skippedMessageIds instanceof Set) ? skippedMessageIds : new Set();
+
       return unreadMessages.some(message => {
         const messageId = message.getId();
         if (effectiveLabeledIds.has(messageId)) return false;
+        if (effectiveSkippedIds.has(messageId)) return false;
         return true;
       });
     } catch (e) {
@@ -2110,6 +2146,9 @@ ${addressLines.join('\n\n')}
       : ((typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_MIN_SCORE === 'number') ? CONFIG.VALIDATION_MIN_SCORE : 0.6);
 
     const critical = flags.thinking_leak || flags.hallucination;
+    
+
+
     if (!critical && Number.isFinite(minScore) && Number.isFinite(validationResult.score) && validationResult.score < minScore) {
       return false;
     }
@@ -2377,7 +2416,7 @@ ${prompt.slice(-tailChars)}`;
     return timeExpectationPatterns.some((pattern) => pattern.test(text));
   }
 
-  _addTimeDiscrepancyNoteIfNeeded(response, messageDetails, detectedLanguage, classification = {}, requestType = {}) {
+  _addTimeDiscrepancyNoteIfNeeded(response, messageDetails, detectedLanguage) {
     if (!response || typeof response !== 'string') return response;
 
     const language = String(detectedLanguage || 'it').toLowerCase();
@@ -2598,7 +2637,7 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
         case ErrorTypes.INVALID_API_KEY:
           return mkResult('FATAL', false, normalized.message);
         case ErrorTypes.INVALID_RESPONSE:
-          return mkResult('INVALID_RESPONSE', true, normalized.message);
+          return mkResult('INVALID_RESPONSE', false, normalized.message);
         default:
           return mkResult('UNKNOWN', false, normalized.message);
       }

@@ -2265,7 +2265,8 @@ var GmailService = class GmailService {
 
             const regex = new RegExp(bad.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
             const before = result;
-            result = result.replace(regex, good);
+            // Usa callback per evitare l'interpretazione dei pattern speciali ($1, $&, $', $`).
+            result = result.replace(regex, () => good);
 
             if (result !== before) {
                 count++;
@@ -2312,27 +2313,28 @@ var GmailService = class GmailService {
         // ma per consistenza e sicurezza con nomi italiani/emoji usiamo sempre UTF-8 B.
         const encodedWordPrefix = '=?UTF-8?B?';
         const encodedWordSuffix = '?=';
-        const overhead = encodedWordPrefix.length + encodedWordSuffix.length;
         const maxLen = 75; // Limite RFC 2047
-        const maxB64Len = maxLen - overhead;
+        const maxB64Len = maxLen - 12; // overhead encoded-word: 10 (prefix) + 2 (suffix)
+        const maxBytesPerWord = Math.floor(maxB64Len / 4) * 3;
 
         const words = [];
         let currentPart = '';
-        
+        let currentBytes = 0;
+
         // Usiamo Array.from per gestire correttamente coppie surrogate (emoji)
         const chars = Array.from(safeSubject);
-        
+
         for (const char of chars) {
-            const nextPart = currentPart + char;
-            // Utilities.base64Encode restituisce sempre una stringa con padding multipla di 4.
-            const b64 = Utilities.base64Encode(nextPart, Utilities.Charset.UTF_8);
-            
-            if (b64.length > maxB64Len && currentPart !== '') {
-                // La parte precedente era al limite, chiudiamola.
+            const code = char.codePointAt(0);
+            const charBytes = code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
+
+            if (currentBytes + charBytes > maxBytesPerWord && currentPart !== '') {
                 words.push(encodedWordPrefix + Utilities.base64Encode(currentPart, Utilities.Charset.UTF_8) + encodedWordSuffix);
                 currentPart = char;
+                currentBytes = charBytes;
             } else {
-                currentPart = nextPart;
+                currentPart += char;
+                currentBytes += charBytes;
             }
         }
         

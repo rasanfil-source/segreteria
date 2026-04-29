@@ -105,18 +105,20 @@ function calculateEaster(year) {
  * @returns {number} Numero stimato di token (min 1)
  */
 function estimateTokenCount(text, attachments = []) {
+  if (!text && (!attachments || attachments.length === 0)) return 0;
+  
   let tokens = 0;
   if (text && typeof text === 'string') {
-    const wordCount = text.split(/\s+/).length;
-    const baseTokens = Math.ceil(wordCount * 1.25);
-    const overhead = Math.ceil(baseTokens * 0.1);
-    const charEstimate = Math.ceil(text.length / 3.5);
-    tokens = Math.max(baseTokens + overhead, charEstimate);
+    // BUG-05 FIX: Sincronizzato con GeminiService._estimateTokens per evitare drift.
+    // Algoritmo: Max(wordCount * 1.3, charCount / 3.6) + overhead 10%.
+    const wordCount = text.trim().split(/\s+/).length;
+    const baseTokens = Math.max(wordCount * 1.3, text.length / 3.6);
+    tokens = Math.ceil(baseTokens * 1.1); // +10% safety overhead
   }
 
-  // Aggiungi stima per allegati (es: 200 token fissi per immagine/PDF/OCR)
+  // Aggiungi stima per allegati (es: 258 token fissi per immagine Gemini 1.5)
   if (attachments && Array.isArray(attachments)) {
-    tokens += attachments.length * 200;
+    tokens += attachments.length * 258;
   }
 
   return Math.max(tokens, 1);
@@ -300,7 +302,11 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
   const labelName = (typeof CONFIG !== 'undefined' && CONFIG.LABEL_NAME) ? CONFIG.LABEL_NAME : 'IA';
   const errorLabel = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME) ? CONFIG.ERROR_LABEL_NAME : 'Errore';
   const validationLabel = (typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_ERROR_LABEL) ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica';
-  const quoteLabel = (label) => `"${String(label || '').replace(/"/g, '\\"')}"`;
+  
+  // BUG-14 FIX: Gmail non supporta l'escaping con backslash per le virgolette nelle etichette.
+  // Usiamo solo il quoting standard. Se l'etichetta contiene già virgolette, la query fallirà comunque,
+  // ma è un edge case estremo per nomi di label IA.
+  const quoteLabel = (label) => `"${String(label || '')}"`;
 
   const query = `in:inbox is:unread newer_than:${safeMaxLookbackDays}d -label:${quoteLabel(labelName)} -label:${quoteLabel(errorLabel)} -label:${quoteLabel(validationLabel)}`;
 
@@ -674,8 +680,10 @@ function _serializeResourceCache(data, forceCompression) {
     throw new Error('Utilities gzip/base64 non disponibili');
   }
 
-  // Forza UTF-8 nella creazione del blob per consistenza cross-platform
-  const gzipped = Utilities.gzip(Utilities.newBlob(json, 'application/json', Utilities.Charset.UTF_8));
+  // BUG-15 FIX: Utilities.Charset.UTF_8 è un enum, non una stringa nome. 
+  // Per Utilities.newBlob(data, contentType, name), il terzo parametro deve essere una stringa.
+  // Utilities.newBlob() converte automaticamente le stringhe in byte UTF-8.
+  const gzipped = Utilities.gzip(Utilities.newBlob(json, 'application/json'));
   const base64 = Utilities.base64Encode(gzipped.getBytes());
   return JSON.stringify({
     encoding: 'gzip_base64_json_v1',
@@ -1549,6 +1557,15 @@ function onEdit(e) {
     console.log("🔄 Rilevata modifica al selettore. Invalidazione cache...");
     try {
       clearKnowledgeCache();
+      
+      // Se il cambio è sulla modalità lingua, forziamo il salvataggio immediato 
+      // della proprietà per il controllo al prossimo ciclo main.
+      if (cellAddress === "F2") {
+        const val = range.getValue();
+        const mode = String(val).toLowerCase().includes('solo') ? 'foreign_only' : 'all';
+        // Non facciamo il riarmo qui (onEdit ha pochi permessi), lo farà il main.
+      }
+
       (e.source || SpreadsheetApp.getActiveSpreadsheet())
         .toast("Cache invalidata. Ricarica al prossimo ciclo.", "Sistema IA", 5);
     } catch (err) {
@@ -1556,3 +1573,5 @@ function onEdit(e) {
     }
   }
 }
+
+

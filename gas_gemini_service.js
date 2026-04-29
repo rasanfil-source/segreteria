@@ -482,8 +482,12 @@ Output JSON:
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const result = fn();
+        // BUG-11 FIX: Risposte vuote non sono errori transienti (non migliorano con retry).
+        // Le segnaliamo come errore non-retryable per evitare spreco quota API.
         if (result === undefined || result === null || result === '') {
-          throw new Error(`Risposta vuota o undefined da ${context}`);
+          const emptyError = new Error(`Risposta vuota o undefined da ${context}`);
+          emptyError._nonRetryable = true;
+          throw emptyError;
         }
         return result;
       } catch (error) {
@@ -495,7 +499,8 @@ Output JSON:
         // con la policy errori del servizio e falsi positivi nei retry.
         // NON usare classifyError globale: potrebbe non esistere in alcuni runtime GAS modulari.
         const classified = this._classifyError(error);
-        const isRetryable = classified.retryable;
+        // BUG-11 FIX: rispetta il flag _nonRetryable impostato per risposte vuote
+        const isRetryable = classified.retryable && !error._nonRetryable;
 
         if (isRetryable && attempt < maxRetries - 1) {
           const waitTime = this.retryDelay * Math.pow(this.backoffFactor, attempt);
@@ -740,7 +745,10 @@ Output JSON:
       'en': englishScore,
       'es': spanishLexicalScore + Math.min(spanishCharScore, 2),
       'it': countMatches(italianKeywords, text, 1),
-      'pt': ptUniqueScore + ptStandardScore + Math.min(portugueseCharScore, 2)
+      'pt': ptUniqueScore + ptStandardScore + Math.min(portugueseCharScore, 2),
+      // BUG-17: Supporto markers per lingue secondarie
+      'fr': countMatches(indicators.fr, text, 1.5),
+      'de': countMatches(indicators.de, text, 1.5)
     };
 
     // Disambiguazione ES/PT su testi brevi: evita confusione quando i punteggi sono quasi pari.
@@ -777,11 +785,51 @@ Output JSON:
     const safetyGrade = this._computeSafetyGrade(detectedLang, maxScore, scores);
     console.log(`   \u2713 Rilevato: ${detectedLang.toUpperCase()} (punteggio: ${maxScore}, grado sicurezza: ${safetyGrade})`);
 
+    // BUG-17 FIX: Se la sicurezza del rilevamento locale è bassa (< 3) e non siamo IT,
+    // tentiamo un rilevamento AI se possibile.
+    if (safetyGrade < 3 && detectedLang !== 'it' && typeof this.detectLanguageAI === 'function') {
+      try {
+        const aiLang = this.detectLanguageAI(text);
+        if (aiLang) {
+          console.log(`   \uD83E\uDD16 Fallback AI: ${aiLang.toUpperCase()} (sovrascrive locale incerto)`);
+          return { lang: aiLang, confidence: 5, safetyGrade: 4, method: 'ai_fallback' };
+        }
+      } catch (e) {
+        console.warn(`   ⚠️ Fallback AI lingua fallito: ${e.message}`);
+      }
+    }
+
     return {
       lang: detectedLang,
       confidence: maxScore,
-      safetyGrade: safetyGrade
+      safetyGrade: safetyGrade,
+      method: 'local_regex'
     };
+  }
+
+  /**
+   * BUG-17: Rilevamento lingua tramite AI (fallback ad alto costo)
+   */
+  detectLanguageAI(text) {
+    const prompt = `Analizza questo testo e identifica la lingua prevalente.
+Rispondi ESCLUSIVAMENTE con il codice ISO 639-1 (es. it, en, es, fr, de, pt).
+NON aggiungere altro testo.
+
+Testo:
+"${text.substring(0, 1000)}"`;
+
+    try {
+      const response = this._withRetry(
+        () => this._generateWithModel(prompt, this.modelName),
+        'Language detection AI',
+        1 // Solo 1 retry per non bloccare la pipeline
+      );
+      
+      const cleaned = (response || '').trim().toLowerCase().substring(0, 2);
+      return /^[a-z]{2}$/.test(cleaned) ? cleaned : null;
+    } catch (e) {
+      return null;
+    }
   }
 
   /**

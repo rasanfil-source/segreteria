@@ -371,7 +371,7 @@ console.log('--- Test processThread: alias interno interrompe la sequenza estern
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }
 
-console.log('--- Test processThread: ignore rules applica skip label (non IA) ---');
+console.log('--- Test processThread: ignore rules applica label IA (processato) ---');
 {
   const originalSession = global.Session;
   const originalGmailApp = global.GmailApp;
@@ -420,8 +420,8 @@ console.log('--- Test processThread: ignore rules applica skip label (non IA) --
   const result = ignoreRuleProcessor.processThread(thread, '', [], new Set(), true);
   assert(result.status === 'filtered', 'una newsletter deve essere filtrata dalle ignore-rules');
   assert(result.reason === 'ignore_rules', 'la reason deve restare ignore_rules');
-  assert(labels.some((entry) => entry.id === 'm-news' && entry.label === CONFIG.SKIP_LABEL_NAME), 'deve applicare la skip label al messaggio filtrato');
-  assert(!labels.some((entry) => entry.id === 'm-news' && entry.label === CONFIG.LABEL_NAME), 'non deve applicare la label IA ai messaggi filtrati da ignore-rules');
+  assert(labels.some((entry) => entry.id === 'm-news' && entry.label === CONFIG.LABEL_NAME), 'deve applicare la label IA al messaggio filtrato (processo concluso)');
+  assert(!labels.some((entry) => entry.id === 'm-news' && entry.label === CONFIG.SKIP_LABEL_NAME), 'non deve applicare la skip label · ai messaggi filtrati da ignore-rules');
 
   global.Session = originalSession;
   global.GmailApp = originalGmailApp;

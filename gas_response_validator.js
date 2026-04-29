@@ -404,8 +404,9 @@ var ResponseValidator = class ResponseValidator {
     for (const lang in this.languageMarkers) {
       markerScores[lang] = this.languageMarkers[lang].reduce((count, marker) => {
         const escapedMarker = String(marker).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // Usa confini di parola per evitare falsi positivi su sottostringhe (es. "misa" in "camisa")
-        const regex = new RegExp(`\\b${escapedMarker}\\b`, 'i');
+        // BUG-09 FIX: Usa confini Unicode per evitare falsi negativi su parole accentate
+        // (es. "paróquia", "grüße", "querría"). \b è ASCII-only e fallisce con diacritici.
+        const regex = new RegExp(`(?<![\\p{L}\\p{N}_])${escapedMarker}(?![\\p{L}\\p{N}_])`, 'iu');
         return count + (regex.test(responseLower) ? 1 : 0);
       }, 0);
     }
@@ -551,9 +552,20 @@ var ResponseValidator = class ResponseValidator {
     const warnings = [];
     let score = 1.0;
     const hallucinations = {};
-    const safeKnowledgeBase = (typeof knowledgeBase === 'string')
-      ? knowledgeBase
-      : ((knowledgeBase && typeof knowledgeBase === 'object') ? JSON.stringify(knowledgeBase) : '');
+    
+    // BUG-12 FIX: Guardia difensiva se knowledgeBase è null, undefined o non-string.
+    // Previene crash su input malformati o KB non caricate correttamente.
+    let safeKnowledgeBase = '';
+    if (typeof knowledgeBase === 'string') {
+      safeKnowledgeBase = knowledgeBase;
+    } else if (knowledgeBase && typeof knowledgeBase === 'object') {
+      try {
+        safeKnowledgeBase = JSON.stringify(knowledgeBase);
+      } catch (e) {
+        console.warn('⚠️ Impossibile serializzare knowledgeBase per check allucinazioni');
+        safeKnowledgeBase = '';
+      }
+    }
 
     // Helper normalizzazione orari
     const normalizeTime = (t) => {
@@ -561,8 +573,9 @@ var ResponseValidator = class ResponseValidator {
       if (/[a-z]{2,}\.\d{1,2}\.[a-z]{2,}/i.test(t)) return t;
       if (/\/([\w-]+\.\d{1,2}\.\w+)$/i.test(t)) return t;
 
-      // Sostituzione globale dei punti per normalizzare formati orari anomali (es. 18.00.00)
-      t = t.replace(/\./g, ':');
+      // BUG-13 FIX: Sostituisce solo i punti tra cifre (formato orario) per evitare
+      // di corrompere pattern come "10.5" o nomi file.
+      t = t.replace(/(\d)\.(\d)/g, '$1:$2');
       if (/^\d{1,2}$/.test(t)) {
         const hour = parseInt(t, 10);
         if (!isNaN(hour) && hour >= 0 && hour <= 23) {
