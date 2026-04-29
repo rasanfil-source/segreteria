@@ -2558,7 +2558,9 @@ function sanitizeUrl(url) {
 
     if (/^mailto:/i.test(normalized)) {
         const emailPart = decoded.replace(/^mailto:/i, '').split('?')[0].trim();
-        if (!/^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/.test(emailPart)) {
+        const emails = emailPart.split(',').map((e) => e.trim()).filter(Boolean);
+        const emailRegex = /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/;
+        if (emails.length === 0 || !emails.every((e) => emailRegex.test(e))) {
             console.warn(`🛑 Bloccato mailto malformato: ${decoded}`);
             return null;
         }
