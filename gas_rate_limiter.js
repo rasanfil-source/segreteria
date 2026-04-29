@@ -38,6 +38,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
           name: 'gemini-2.5-flash-lite',
           rpm: 15, tpm: 250000, rpd: 1000,
           useCases: ['fallback', 'classification', 'quick_check']
+        },
+        'flash-2.5-lite-backup': {
+          name: 'gemini-2.5-flash-lite',
+          rpm: 15, tpm: 250000, rpd: 1000,
+          useCases: ['fallback', 'backup']
         }
       };
     }

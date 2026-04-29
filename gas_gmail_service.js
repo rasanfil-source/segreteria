@@ -19,7 +19,7 @@ var GmailService = class GmailService {
         this._cacheTTL = (typeof CONFIG !== 'undefined' && CONFIG.GMAIL_LABEL_CACHE_TTL) ? CONFIG.GMAIL_LABEL_CACHE_TTL : 3600000;
         // CacheService.put accetta al massimo 21600 s (6 ore); valori superiori causano
         // un'eccezione silenziosa o un fallimento dell'operazione di put.
-        this._cacheTtlSeconds = Math.min(21600, Math.max(60, Math.floor(this._cacheTTL / 1000)));
+        this._cacheTtlSeconds = Math.min(21599, Math.max(60, Math.floor(this._cacheTTL / 1000)));
         this._scriptCache = (typeof CacheService !== 'undefined' && CacheService) ? CacheService.getScriptCache() : null;
 
         // Mappa MIME types Office → tipo Google Workspace per conversione nativa
