@@ -195,7 +195,6 @@ var GeminiRateLimiter = class GeminiRateLimiter {
           console.log(`📅 Giorno Pacific cambiato (${pacificDate}), reset contatori giornalieri`);
           console.log(`   (Ora italiana: ${Utilities.formatDate(new Date(), 'Europe/Rome', 'HH:mm')})`);
           this._resetDailyCounters();
-          this.props.setProperty('rate_limit_date', pacificDate);
           // Forza svuotamento cache locale per riflettere subito il reset
           this.cache.lastCacheUpdate = 0;
         }
@@ -217,14 +216,19 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
   _resetDailyCounters() {
     const todayPacific = this._getPacificDate();
+    const newProps = {};
     for (const modelKey in this.models) {
-      this.props.setProperty(`rpd_${modelKey}`, '0');
-      this.props.setProperty(`rpd_date_${modelKey}`, todayPacific);
-      this.props.setProperty(`tokens_${modelKey}`, '0');
+      newProps[`rpd_${modelKey}`] = '0';
+      newProps[`rpd_date_${modelKey}`] = todayPacific;
+      newProps[`tokens_${modelKey}`] = '0';
     }
-    // Reset anche cache
-    this.props.setProperty('rpm_window', JSON.stringify([]));
-    this.props.setProperty('tpm_window', JSON.stringify([]));
+
+    // Reset anche cache + data Pacific in un'unica scrittura atomica.
+    newProps.rpm_window = JSON.stringify([]);
+    newProps.tpm_window = JSON.stringify([]);
+    newProps.rate_limit_date = todayPacific;
+    this.props.setProperties(newProps);
+
     this.cache.rpmWindow = [];
     this.cache.tpmWindow = [];
     this.cache.lastCacheUpdate = 0;
@@ -752,31 +756,39 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   }
 
   _refreshCache() {
-    let rpmWindow = [];
-    let tpmWindow = [];
+    let rpmFromProps = [];
+    let tpmFromProps = [];
     try {
-      rpmWindow = JSON.parse(this.props.getProperty('rpm_window') || '[]');
+      rpmFromProps = JSON.parse(this.props.getProperty('rpm_window') || '[]');
     } catch (e) {
       console.warn('⚠️ Errore parsing rpm_window da PropertiesService, reset a []');
     }
     try {
-      tpmWindow = JSON.parse(this.props.getProperty('tpm_window') || '[]');
+      tpmFromProps = JSON.parse(this.props.getProperty('tpm_window') || '[]');
     } catch (e) {
       console.warn('⚠️ Errore parsing tpm_window da PropertiesService, reset a []');
     }
 
     const now = Date.now();
 
-    // 1. Pulisci RPM e applica LIMITE DI SICUREZZA
-    let newRpm = rpmWindow.filter(e => now - e.timestamp < 60000);
+    // 1. Merge dello stato persistito con eventuali entry in-memory recenti.
+    const freshFromPropsRpm = rpmFromProps.filter(e => now - e.timestamp < 60000);
+    const inMemoryRpm = Array.isArray(this.cache.rpmWindow)
+      ? this.cache.rpmWindow.filter(e => now - e.timestamp < 60000)
+      : [];
+    let newRpm = this._mergeWindowData(freshFromPropsRpm, inMemoryRpm);
     // Taglio di sicurezza esplicito per RPM
     if (newRpm.length > 60) {
       newRpm = newRpm.slice(-60);
     }
     this.cache.rpmWindow = newRpm;
 
-    // 2. Pulisci TPM e applica LIMITE DI SICUREZZA
-    let newTpm = tpmWindow.filter(e => now - e.timestamp < 60000);
+    // 2. Stessa logica di merge per TPM.
+    const freshFromPropsTpm = tpmFromProps.filter(e => now - e.timestamp < 60000);
+    const inMemoryTpm = Array.isArray(this.cache.tpmWindow)
+      ? this.cache.tpmWindow.filter(e => now - e.timestamp < 60000)
+      : [];
+    let newTpm = this._mergeWindowData(freshFromPropsTpm, inMemoryTpm);
     // Taglio di sicurezza esplicito per TPM
     if (newTpm.length > 60) {
       newTpm = newTpm.slice(-60);

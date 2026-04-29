@@ -1792,6 +1792,27 @@ function testShouldTryOcrHandlesNonStringKeywords() {
     }
 }
 
+function testShouldTryOcrHandlesNonArrayKeywords() {
+    loadScript('gas_email_processor.js');
+
+    const originalConfig = global.CONFIG;
+    global.CONFIG = {
+        ...(originalConfig || {}),
+        ATTACHMENT_CONTEXT: {
+            enabled: true,
+            ocrTriggerKeywords: 'certificato'
+        }
+    };
+
+    try {
+        const processor = Object.create(EmailProcessor.prototype);
+        const decision = processor._shouldTryOcr('Testo senza keyword rilevante', 'Oggetto');
+        assert(decision === true, 'Configurazione OCR non-array deve ricadere sul default sicuro');
+    } finally {
+        global.CONFIG = originalConfig;
+    }
+}
+
 function testGetBusinessDateStringFallbackUsesRomeTimezone() {
     loadScript('gas_email_processor.js');
 
@@ -2623,6 +2644,27 @@ function testItalianNewsletterLikeLanguageDetection() {
     assert(result.confidence >= 2, `Punteggio IT atteso >= 2, ottenuto ${result.confidence}`);
 }
 
+function testFrenchGermanDetectionRefinement() {
+    console.log('--- Test: French/German Detection Refinement ---');
+    loadScript('gas_gemini_service.js');
+
+    const gemini = createMockGeminiService(() => ({}));
+
+    const fr = gemini.detectEmailLanguage(
+        'Bonjour, je voudrais des informations sur la messe et la paroisse. Merci cordialement.',
+        'Demande informations'
+    );
+    assert(fr.lang === 'fr', `Atteso FR per contenuto francese, ottenuto ${fr.lang}`);
+    assert(fr.confidence >= 2, `Punteggio FR atteso >= 2, ottenuto ${fr.confidence}`);
+
+    const de = gemini.detectEmailLanguage(
+        'Guten Tag, ich möchte Informationen zur Messe und zur Kirche. Danke und freundliche Grüße.',
+        'Informationen'
+    );
+    assert(de.lang === 'de', `Atteso DE per contenuto tedesco, ottenuto ${de.lang}`);
+    assert(de.confidence >= 2, `Punteggio DE atteso >= 2, ottenuto ${de.confidence}`);
+}
+
 function testClassifierBackwardQuoteScan() {
     console.log('--- Test: Classifier Backward Quote Scan ---');
     loadScript('gas_classifier.js');
@@ -2727,6 +2769,7 @@ function main() {
         ['_shouldIgnoreEmail: no-reply/reale/ooo', testShouldIgnoreEmail],
         ['_shouldIgnoreEmail: blacklist vuota non blocca tutto', testShouldIgnoreEmailSkipsBlankBlacklistEntries],
         ['ocr trigger: keyword non-stringa gestite in sicurezza', testShouldTryOcrHandlesNonStringKeywords],
+        ['ocr trigger: configurazione non-array gestita in sicurezza', testShouldTryOcrHandlesNonArrayKeywords],
         ['business date: fallback rispetta timezone Roma', testGetBusinessDateStringFallbackUsesRomeTimezone],
         ['attachment context: sanitizzazione + newline reali', testAttachmentContextSanitizationFormatting],
         ['prompt lite: budget token e sezioni ridotte', testPromptLiteTokenBudget],
@@ -2770,6 +2813,7 @@ function main() {
         ['prompt KB truncation: hard limit chars rispettato', testPromptKbSemanticTruncationRespectsHardLimit],
         ['gemini: portuguese detection refinement', testPortugueseDetectionRefinement],
         ['gemini: italian newsletter-like language detection', testItalianNewsletterLikeLanguageDetection],
+        ['gemini: french/german detection refinement', testFrenchGermanDetectionRefinement],
         ['classifier: backward quote scan', testClassifierBackwardQuoteScan],
         ['main: caricamento sostituzioni', testLoadResourcesReplacements],
         ['gmail office extract: Drive v3 forza mimeType target', testExtractOfficeTextDriveCreateForcesTargetMimeType],

@@ -765,12 +765,12 @@ Output JSON:
       }
     }
 
-    console.log(`   Punteggi lingua: EN = ${scores['en']}, ES = ${scores['es']}, PT = ${scores['pt']}, IT = ${scores['it']}`);
+    console.log(`   Punteggi lingua: IT = ${scores['it']}, EN = ${scores['en']}, ES = ${scores['es']}, PT = ${scores['pt']}, FR = ${scores['fr']}, DE = ${scores['de']}`);
 
     // Determina lingua rilevata e punteggio massimo
     let detectedLang = 'it';
     let maxScore = scores.it || 0;
-    const langPriority = ['it', 'en', 'pt', 'es'];
+    const langPriority = ['it', 'en', 'pt', 'es', 'fr', 'de'];
     for (const lang of langPriority) {
       if (scores[lang] > maxScore) {
         maxScore = scores[lang];
@@ -876,9 +876,8 @@ Testo:
     // 1. Se coincidono, massima sicurezza
     if (normalizedGemini === normalizedLocal) return normalizedGemini;
 
-    // 2. Lingue "esotiche": Se Gemini rileva qualcosa che NON è IT/EN/ES/PT, 
-    // ci fidiamo di Gemini prima del locale (che è calibrato solo per quelle 4).
-    const supportedLocally = ['it', 'en', 'es', 'pt'];
+    // 2. Lingue non coperte dal rilevamento locale: in quel caso ci fidiamo di Gemini.
+    const supportedLocally = ['it', 'en', 'es', 'pt', 'fr', 'de'];
     if (!supportedLocally.includes(normalizedGemini)) {
       console.log(`   \uD83C\uDF0D Lingua: ${normalizedGemini.toUpperCase()} (Gemini ha rilevato lingua non supportata localmente)`);
       return normalizedGemini;

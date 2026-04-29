@@ -1551,6 +1551,11 @@ function _extractDatePartsForTimeZone(date, timeZone) {
  * Trigger automatico che si attiva ad ogni modifica del foglio.
  */
 function onEdit(e) {
+  if (!e || !e.range) {
+    console.log('ℹ️ onEdit chiamato senza range: nessuna azione.');
+    return;
+  }
+
   const range = e.range;
   const sheet = range.getSheet();
   const sheetName = sheet.getName();
@@ -1583,4 +1588,3 @@ function onEdit(e) {
     }
   }
 }
-

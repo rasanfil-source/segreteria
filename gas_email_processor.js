@@ -1760,7 +1760,9 @@ ${addressLines.join('\n\n')}
 
     // Se trigger keywords non sono definite, OCR attivo di default.
     // Se presenti in configurazione, verranno usate come filtro.
-    const triggerKeywords = settings.ocrTriggerKeywords || [];
+    const triggerKeywords = Array.isArray(settings.ocrTriggerKeywords)
+      ? settings.ocrTriggerKeywords
+      : [];
 
     // Se la lista è vuota, significa "OCR sempre attivo se enabled=true"
     if (triggerKeywords.length === 0) return true;
