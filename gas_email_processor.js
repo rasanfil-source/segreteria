@@ -287,7 +287,9 @@ var EmailProcessor = class EmailProcessor {
       const externalUnread = unlabeledUnread.filter(message => {
         // B07: Usa getFrom() leggero anziché la costosa extractMessageDetails()
         const rawFrom = (message.getFrom() || '');
-        const senderEmail = this.gmailService._extractEmailAddress(rawFrom);
+        const senderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
+          ? this.gmailService._extractEmailAddress(rawFrom)
+          : rawFrom;
 
         // Se non riusciamo ad estrarre l'email, consideriamo il mittente come esterno per sicurezza
         if (!senderEmail) return true;
