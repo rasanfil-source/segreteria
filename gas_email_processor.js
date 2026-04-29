@@ -256,7 +256,9 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       let effectiveLabeledIds;
       if (labeledMessageIds instanceof Set) {
-        effectiveLabeledIds = labeledMessageIds;
+        effectiveLabeledIds = labeledMessageIds.size > 0
+          ? labeledMessageIds
+          : this.gmailService.getMessageIdsWithLabel(this.config.labelName);
       } else {
         const fetchedIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
         effectiveLabeledIds = (fetchedIds instanceof Set) ? fetchedIds : new Set(fetchedIds || []);
@@ -2016,7 +2018,9 @@ ${addressLines.join('\n\n')}
 
       let effectiveLabeledIds;
       if (labeledMessageIds instanceof Set) {
-        effectiveLabeledIds = labeledMessageIds;
+        effectiveLabeledIds = labeledMessageIds.size > 0
+          ? labeledMessageIds
+          : this.gmailService.getMessageIdsWithLabel(this.config.labelName);
       } else {
         const fetchedIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
         effectiveLabeledIds = (fetchedIds instanceof Set) ? fetchedIds : new Set(fetchedIds || []);
