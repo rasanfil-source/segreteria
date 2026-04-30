@@ -254,14 +254,20 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       // FILTRO A LIVELLO MESSAGGIO
       // ====================================================================
+      const fetchLabeledIds = () => {
+        if (!this.gmailService || typeof this.gmailService.getMessageIdsWithLabel !== 'function') {
+          return new Set();
+        }
+        const fetchedIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+        return (fetchedIds instanceof Set) ? fetchedIds : new Set(fetchedIds || []);
+      };
       let effectiveLabeledIds;
       if (labeledMessageIds instanceof Set) {
         effectiveLabeledIds = labeledMessageIds.size > 0
           ? labeledMessageIds
-          : this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+          : fetchLabeledIds();
       } else {
-        const fetchedIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
-        effectiveLabeledIds = (fetchedIds instanceof Set) ? fetchedIds : new Set(fetchedIds || []);
+        effectiveLabeledIds = fetchLabeledIds();
       }
 
       const unlabeledUnread = unreadMessages.filter(message => {
@@ -2016,14 +2022,20 @@ ${addressLines.join('\n\n')}
         return false;
       }
 
+      const fetchLabeledIds = () => {
+        if (!this.gmailService || typeof this.gmailService.getMessageIdsWithLabel !== 'function') {
+          return new Set();
+        }
+        const fetchedIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+        return (fetchedIds instanceof Set) ? fetchedIds : new Set(fetchedIds || []);
+      };
       let effectiveLabeledIds;
       if (labeledMessageIds instanceof Set) {
         effectiveLabeledIds = labeledMessageIds.size > 0
           ? labeledMessageIds
-          : this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+          : fetchLabeledIds();
       } else {
-        const fetchedIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
-        effectiveLabeledIds = (fetchedIds instanceof Set) ? fetchedIds : new Set(fetchedIds || []);
+        effectiveLabeledIds = fetchLabeledIds();
       }
 
       const effectiveSkippedIds = (skippedMessageIds instanceof Set) ? skippedMessageIds : new Set();
