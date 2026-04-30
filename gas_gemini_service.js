@@ -732,7 +732,7 @@ Output JSON:
 
     const ptUniqueScore = countMatches(portugueseUniqueKeywords, text, 2);
     const ptStandardScoreRaw = countMatches(portugueseStandardKeywords, text, 1);
-    const portugueseStrongMarkers = /(?:^|[^\p{L}\p{N}_])(não|voc[êe]s|estou|obrigad[oa]|orçamento|viatura|portagens|agradecemos|cumprimentos|paróquia|igreja|atenciosamente)(?=$|[^\p{L}\p{N}_])/iu;
+    const portugueseStrongMarkers = /(?:^|[^\p{L}\p{N}_])(não|voc[êe]s?|estou|obrigad[oa]|orçamento|viatura|portagens|agradecemos|cumprimentos|paróquia|igreja|atenciosamente)(?=$|[^\p{L}\p{N}_])/iu;
     const hasPortugueseStrongSignal =
       ptUniqueScore >= 2 ||
       portugueseCharScore >= 2 ||
@@ -756,7 +756,7 @@ Output JSON:
     // Disambiguazione ES/PT su testi brevi: evita confusione quando i punteggi sono quasi pari.
     const compactText = text.replace(/\s+/g, ' ').trim();
     if (compactText.length <= 120 && Math.abs(scores.es - scores.pt) <= 1 && Math.max(scores.es, scores.pt) >= 2) {
-      const ptStrongMarkers = /(?:^|[^\p{L}\p{N}_])(não|vocês|estou|obrigad[oa]|orçamento|viatura|portagens|agradecemos|cumprimentos)(?=$|[^\p{L}\p{N}_])/iu;
+      const ptStrongMarkers = /(?:^|[^\p{L}\p{N}_])(não|voc[êe]s?|estou|obrigad[oa]|orçamento|viatura|portagens|agradecemos|cumprimentos)(?=$|[^\p{L}\p{N}_])/iu;
       const esStrongMarkers = /(?:^|[^\p{L}\p{N}_])(usted|ustedes|gracias|presupuesto|coche|iglesia|parroquia|estimado|querido)(?=$|[^\p{L}\p{N}_])/iu;
       if (ptStrongMarkers.test(compactText) && !esStrongMarkers.test(compactText)) {
         scores.pt += 1;
