@@ -446,7 +446,12 @@ Output JSON:
 
     // Normalizzazione sicura booleano
     const replyNeeded = data.reply_needed;
-    const isTrue = replyNeeded === true || (typeof replyNeeded === 'string' && replyNeeded.toLowerCase() === 'true');
+    const normalizedReplyNeeded = (typeof replyNeeded === 'string')
+      ? replyNeeded.toLowerCase()
+      : replyNeeded;
+    // Fail-open: rispondi in assenza del flag o in caso di formato inatteso.
+    // L'unico caso "non rispondere" è un false esplicito.
+    const shouldRespond = !(normalizedReplyNeeded === false || normalizedReplyNeeded === 'false');
 
     const safeDimensions = (data.dimensions && typeof data.dimensions === 'object')
       ? data.dimensions
@@ -454,8 +459,8 @@ Output JSON:
     const safeConfidence = Number.isFinite(data.confidence) ? data.confidence : 0.8;
 
     return {
-      // Rispondi solo se la richiesta è esplicita e necessaria
-      shouldRespond: isTrue,
+      // Fail-open deliberato: shouldRespond=false solo con rifiuto esplicito.
+      shouldRespond: shouldRespond,
       language: this._resolveLanguage(data.language, detection.lang, detection.safetyGrade),
       reason: data.reason || 'quick_check',
       classification: {

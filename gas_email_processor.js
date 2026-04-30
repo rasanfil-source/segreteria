@@ -1332,9 +1332,7 @@ ${addressLines.join('\n\n')}
       // Marca tutti i messaggi non letti esaminati nel thread:
       // evita reprocessing dei messaggi precedenti quando arrivano più email
       // ravvicinate prima dell'esecuzione del trigger.
-      unlabeledUnread.forEach(message => {
-        this._markMessageAsProcessed(message, labeledMessageIds);
-      });
+      markUnlabeledUnreadAsProcessed();
       result.status = 'replied';
       result.durationMs = Date.now() - startTime;
       this.logger.info(`Thread processato in ${result.durationMs}ms`, { threadId: threadId, duration: result.durationMs });
@@ -1345,13 +1343,11 @@ ${addressLines.join('\n\n')}
 
       if (replySent) {
         console.warn('   ⚠️ Errore post-invio: thread non etichettato come errore perché la risposta è stata già inviata');
-        unlabeledUnread.forEach(message => {
-          try {
-            this._markMessageAsProcessed(message, labeledMessageIds);
-          } catch (markError) {
-            console.warn(`⚠️ Errore label post-invio silenziato: ${markError.message}`);
-          }
-        });
+        try {
+          markUnlabeledUnreadAsProcessed();
+        } catch (markError) {
+          console.warn(`⚠️ Errore label post-invio silenziato: ${markError.message}`);
+        }
         result.status = 'replied';
         result.warning = `post_send_error: ${error.message}`;
         result.durationMs = Date.now() - startTime;
@@ -1363,13 +1359,11 @@ ${addressLines.join('\n\n')}
       } catch (labelError) {
         console.warn(`⚠️ Errore aggiunta errorLabel silenziato: ${labelError.message}`);
       }
-      unlabeledUnread.forEach(message => {
-        try {
-          this._markMessageAsProcessed(message, labeledMessageIds);
-        } catch (markError) {
-          console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
-        }
-      });
+      try {
+        markUnlabeledUnreadAsProcessed();
+      } catch (markError) {
+        console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
+      }
       result.status = 'error';
       result.error = error.message;
       return result;
