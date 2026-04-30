@@ -72,6 +72,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       rpmWindow: [],
       tpmWindow: [],
       lastCacheUpdate: 0,
+      lastPersistUpdate: 0,
       cacheTTL: 10000  // 10 secondi cache TTL
     };
 
@@ -749,8 +750,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       this.cache[cacheKey].shift();
     }
 
-    // Persist ogni 10 secondi (batch writes)
-    if (now - this.cache.lastCacheUpdate > 10000) {
+    // Persist ogni 10 secondi usando un timestamp dedicato:
+    // lastCacheUpdate viene aggiornato da _refreshCache e non può governare il flush.
+    if (now - this.cache.lastPersistUpdate > 10000) {
       this._persistCache();
     }
   }
@@ -853,6 +855,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       tpm_window: JSON.stringify(mergedTpm)
     });
     this._cleanCorruptedWAL();
+    this.cache.lastPersistUpdate = Date.now();
   }
 
   /**

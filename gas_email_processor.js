@@ -271,8 +271,23 @@ var EmailProcessor = class EmailProcessor {
         return true;
       });
 
-      const markUnlabeledUnreadAsProcessed = () => {
-        unlabeledUnread.forEach(message => this._markMessageAsProcessed(message, labeledMessageIds));
+      // Marca i non letti gestiti in modo coerente:
+      // - esterni => label IA (processati)
+      // - interni => skip label
+      // Così evitiamo reprocessing senza alterare la semantica operativa sui messaggi interni.
+      const markHandledUnread = () => {
+        const externalIds = new Set(externalUnread.map(m => m.getId()));
+        const internalUnread = [];
+        unlabeledUnread.forEach(message => {
+          if (externalIds.has(message.getId())) {
+            this._markMessageAsProcessed(message, labeledMessageIds);
+          } else {
+            internalUnread.push(message);
+          }
+        });
+        if (internalUnread.length > 0) {
+          this._markMessagesAsSkipped(internalUnread);
+        }
       };
 
       // Build set of our own addresses (primary + aliases) per filtro early-stage
@@ -346,7 +361,7 @@ var EmailProcessor = class EmailProcessor {
         console.log('   ⊖ Saltato: l\'ultimo messaggio del thread è già nostro (bot o segreteria)');
         // Segniamo i non letti correnti come processati per evitare loop su thread
         // dove l'ultimo intervento è nostro ma restano flag "unread" riaperti manualmente.
-        markUnlabeledUnreadAsProcessed();
+        markHandledUnread();
         result.status = 'skipped';
         result.reason = 'last_speaker_is_me';
         return result;
@@ -460,7 +475,7 @@ var EmailProcessor = class EmailProcessor {
         /oof|all|dr|rn|nri|auto/i.test(xAutoResponseSuppress)
       ) {
         console.log('   ⊖ Saltato: risposta automatica (header SMTP)');
-        markUnlabeledUnreadAsProcessed();
+        markHandledUnread();
         result.status = 'filtered';
         result.reason = 'out_of_office';
         return result;
@@ -479,7 +494,7 @@ var EmailProcessor = class EmailProcessor {
       const oooBody = (messageDetails.body || '').substring(0, 2000);
       if (outOfOfficePatterns.some(p => p.test(`${oooSubject} ${oooBody}`))) {
         console.log('   ⊖ Saltato: risposta automatica out-of-office (testo)');
-        markUnlabeledUnreadAsProcessed();
+        markHandledUnread();
         result.status = 'filtered';
         result.reason = 'out_of_office';
         return result;
@@ -507,7 +522,7 @@ var EmailProcessor = class EmailProcessor {
 
         if (previousIsUs && arrivedSoonAfterUs && isShortClosureReply) {
           console.log('   ⊖ Saltato: risposta breve di chiusura (grazie/ok/perfetto)');
-          markUnlabeledUnreadAsProcessed();
+          markHandledUnread();
           result.status = 'filtered';
           result.reason = 'short_closure_reply';
           return result;
@@ -524,7 +539,7 @@ var EmailProcessor = class EmailProcessor {
         const hasAnyIdentity = Boolean(normalizedMyEmail) || normalizedKnownAliases.length > 0;
         if (!hasAnyIdentity) {
           console.warn('   ⚠️ Identità mittente non disponibile con thread lungo: blocco precauzionale anti-loop');
-          markUnlabeledUnreadAsProcessed();
+          markHandledUnread();
           result.status = 'filtered';
           result.reason = 'anti_loop_identity_missing';
           return result;
@@ -555,7 +570,7 @@ var EmailProcessor = class EmailProcessor {
 
           if (consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
             console.log(`   ⊖ Saltato: prevenzione loop email (${consecutiveExternal} esterni consecutivi alla fine del thread)`);
-            markUnlabeledUnreadAsProcessed();
+            markHandledUnread();
             result.status = 'filtered';
             result.reason = 'email_loop_detected';
             return result;
@@ -573,7 +588,7 @@ var EmailProcessor = class EmailProcessor {
       if (autoPattern.test(senderInfo)) {
         console.log('   ⊖ Saltato: mittente rilevato come casella automatica o no-reply');
         // Elaborato (filtrato): applichiamo IA per chiudere il processo
-        markUnlabeledUnreadAsProcessed();
+        markHandledUnread();
         result.status = 'filtered';
         result.reason = 'no_reply_sender';
         return result;
@@ -585,7 +600,7 @@ var EmailProcessor = class EmailProcessor {
       if (this._shouldIgnoreEmail(messageDetails)) {
         console.log('   ⊖ Filtrato: domain/keyword ignore');
         // Elaborato (filtrato): applichiamo IA per chiudere il processo
-        markUnlabeledUnreadAsProcessed();
+        markHandledUnread();
 
         result.status = 'filtered';
         result.reason = 'ignore_rules';
@@ -609,7 +624,7 @@ var EmailProcessor = class EmailProcessor {
       if (!classification.shouldReply) {
         console.log(`   ⊖ Filtrato dal classifier: ${classification.reason}`);
         // Elaborato (filtrato): applichiamo IA per chiudere il processo
-        markUnlabeledUnreadAsProcessed();
+        markHandledUnread();
         result.status = 'filtered';
         return result;
       }
@@ -1332,7 +1347,7 @@ ${addressLines.join('\n\n')}
       // Marca tutti i messaggi non letti esaminati nel thread:
       // evita reprocessing dei messaggi precedenti quando arrivano più email
       // ravvicinate prima dell'esecuzione del trigger.
-      markUnlabeledUnreadAsProcessed();
+      markHandledUnread();
       result.status = 'replied';
       result.durationMs = Date.now() - startTime;
       this.logger.info(`Thread processato in ${result.durationMs}ms`, { threadId: threadId, duration: result.durationMs });
@@ -1344,7 +1359,7 @@ ${addressLines.join('\n\n')}
       if (replySent) {
         console.warn('   ⚠️ Errore post-invio: thread non etichettato come errore perché la risposta è stata già inviata');
         try {
-          markUnlabeledUnreadAsProcessed();
+          markHandledUnread();
         } catch (markError) {
           console.warn(`⚠️ Errore label post-invio silenziato: ${markError.message}`);
         }
@@ -1360,7 +1375,7 @@ ${addressLines.join('\n\n')}
         console.warn(`⚠️ Errore aggiunta errorLabel silenziato: ${labelError.message}`);
       }
       try {
-        markUnlabeledUnreadAsProcessed();
+        markHandledUnread();
       } catch (markError) {
         console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
       }
