@@ -2743,8 +2743,15 @@ function markdownToHtml(text) {
     const replaceMarkdownLinks = (input, replacer) => {
         let result = '';
         let cursor = 0;
+        let parsedLinksCount = 0;
+        const MAX_LINKS = 100; // Limite iterazione profonda URLs per sicurezza
 
         while (cursor < input.length) {
+            if (parsedLinksCount++ >= MAX_LINKS) {
+                console.warn(`⚠️ Raggiunto limite parsing link (${MAX_LINKS}). Stop iterazione.`);
+                result += input.slice(cursor);
+                break;
+            }
             const openBracket = input.indexOf('[', cursor);
             if (openBracket === -1) {
                 result += input.slice(cursor);

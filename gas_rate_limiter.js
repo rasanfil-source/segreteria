@@ -745,8 +745,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     this.cache[cacheKey] = this.cache[cacheKey].filter(e => now - e.timestamp < 60000);
 
     // Limita dimensioni array per rispettare limiti PropertiesService (~9kb)
-    if (this.cache[cacheKey].length > 60) {
-      this.cache[cacheKey] = this.cache[cacheKey].slice(-60);
+    while (JSON.stringify(this.cache[cacheKey]).length > 8000 && this.cache[cacheKey].length > 0) {
+      this.cache[cacheKey].shift();
     }
 
     // Persist ogni 10 secondi (batch writes)
@@ -777,9 +777,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       ? this.cache.rpmWindow.filter(e => now - e.timestamp < 60000)
       : [];
     let newRpm = this._mergeWindowData(freshFromPropsRpm, inMemoryRpm);
-    // Taglio di sicurezza esplicito per RPM
-    if (newRpm.length > 60) {
-      newRpm = newRpm.slice(-60);
+    // Taglio di sicurezza esplicito per RPM (garantito da _mergeWindowData, ma ri-applicato come fallback)
+    while (JSON.stringify(newRpm).length > 8000 && newRpm.length > 0) {
+      newRpm.shift();
     }
     this.cache.rpmWindow = newRpm;
 
@@ -789,9 +789,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       ? this.cache.tpmWindow.filter(e => now - e.timestamp < 60000)
       : [];
     let newTpm = this._mergeWindowData(freshFromPropsTpm, inMemoryTpm);
-    // Taglio di sicurezza esplicito per TPM
-    if (newTpm.length > 60) {
-      newTpm = newTpm.slice(-60);
+    // Taglio di sicurezza esplicito per TPM (garantito da _mergeWindowData, ma ri-applicato come fallback)
+    while (JSON.stringify(newTpm).length > 8000 && newTpm.length > 0) {
+      newTpm.shift();
     }
     this.cache.tpmWindow = newTpm;
 
@@ -1083,9 +1083,15 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     (Array.isArray(walData) ? walData : []).forEach(ingest);
 
     // Ordina per timestamp e limita
-    return Array.from(mergedByKey.values())
-      .sort((a, b) => (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0))
-      .slice(-60);
+    const sorted = Array.from(mergedByKey.values())
+      .sort((a, b) => (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0));
+
+    // Limita dimensione array a max 8KB per evitare crash PropertiesService
+    while (JSON.stringify(sorted).length > 8000 && sorted.length > 0) {
+      sorted.shift();
+    }
+
+    return sorted;
   }
 
   _getRequestsInWindow(windowType, modelKey) {

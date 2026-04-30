@@ -425,6 +425,20 @@ function testGeminiNoCandidates() {
     );
 }
 
+function testGeminiQuotaSentinelsSkipLocalRetry() {
+    loadScript('gas_error_types.js');
+    loadScript('gas_gemini_service.js');
+
+    const service = Object.create(GeminiService.prototype);
+    const primary = service._classifyError(new Error('PRIMARY_QUOTA_EXHAUSTED'));
+    const allKeys = service._classifyError(new Error('QUOTA_EXHAUSTED_ALL_KEYS: Limite quota raggiunto'));
+
+    assert(primary.type === 'QUOTA_EXHAUSTED', `Atteso QUOTA_EXHAUSTED, ottenuto "${primary.type}"`);
+    assert(primary.retryable === false, 'PRIMARY_QUOTA_EXHAUSTED non deve consumare retry locali');
+    assert(allKeys.type === 'QUOTA_EXHAUSTED', `Atteso QUOTA_EXHAUSTED, ottenuto "${allKeys.type}"`);
+    assert(allKeys.retryable === false, 'QUOTA_EXHAUSTED_ALL_KEYS non deve consumare retry locali');
+}
+
 // ========================================================================
 // TEST RESPONSE VALIDATOR
 // ========================================================================
@@ -529,6 +543,21 @@ function testSemanticThinkingPromptBullets() {
 
     assert(!prompt.includes('$- '), 'Il prompt semantico non deve contenere prefissi "$-"');
     assert(prompt.includes('- "Rivedendo le istruzioni..."'), 'Bullet atteso non trovato nel prompt semantico');
+}
+
+function testSemanticValidatorHallucinationsDefaultInvalid() {
+    loadScript('gas_response_validator.js');
+
+    const semantic = Object.create(SemanticValidator.prototype);
+    const normalized = semantic._normalizeSemanticPayload({
+        hallucinations: { times: ['10:00'], emails: [], phones: [] },
+        confidence: 0,
+        reason: 'orario non presente nella KB'
+    });
+
+    assert(normalized.isValid === false, 'hallucinations non vuote senza isValid devono rendere il payload non valido');
+    assert(normalized.confidence === 0, 'confidence 0 deve essere preservata');
+    assert(Array.isArray(normalized.details.times), 'i dettagli hallucinations devono essere preservati');
 }
 
 function testResponseValidatorFrenchLiturgicalGreeting() {
@@ -782,7 +811,9 @@ function testInvalidateCacheAlsoClearsRobustCache() {
     const originalCacheService = global.CacheService;
     global.CacheService = {
         getScriptCache: () => ({
-            remove: (key) => removedKeys.push(key)
+            remove: (key) => removedKeys.push(key),
+            get: (key) => null,
+            removeAll: (keys) => keys.forEach(k => removedKeys.push(k))
         })
     };
 
@@ -2744,12 +2775,14 @@ function main() {
         ['gemini contract: 429 → errore propagato', testGeminiRetryOn429],
         ['gemini contract: malformed JSON → errore parse', testGeminiMalformedJson],
         ['gemini contract: no candidates → errore semantico', testGeminiNoCandidates],
+        ['gemini contract: quota sentinel non ritenta localmente', testGeminiQuotaSentinelsSkipLocalRetry],
         // ResponseValidator
         ['validator: check lunghezza', testResponseValidatorCheckLength],
         ['validator: contenuto vietato + placeholder', testResponseValidatorForbiddenContent],
         ['validator: consistenza lingua', testResponseValidatorLanguageCheck],
         ['validator: KB con ora contestuale autorizza 10:00', testResponseValidatorHourOnlyKnowledgeBaseAllowsNormalizedTime],
         ['validator: semantic prompt bullets puliti', testSemanticThinkingPromptBullets],
+        ['validator: semantic hallucinations default invalid', testSemanticValidatorHallucinationsDefaultInvalid],
         ['validator: semantic fallback lazy senza Gemini/Cache', testSemanticValidatorLazyFallbackWithoutGeminiOrCache],
         // EmailProcessor
         ['computeSalutationMode: primo/reply/vecchio', testComputeSalutationMode],

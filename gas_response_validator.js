@@ -1506,22 +1506,31 @@ Rispondi SOLO con questo JSON (senza markdown):
   }
 
   _normalizeSemanticPayload(parsed) {
+    const payload = parsed && typeof parsed === 'object' ? parsed : {};
+    const examples = Array.isArray(payload.examples) ? payload.examples : [];
+    const hallucinations = payload.hallucinations && typeof payload.hallucinations === 'object'
+      ? payload.hallucinations
+      : null;
+    const hasHallucinations = !!hallucinations && Object.values(hallucinations).some((value) => {
+      if (Array.isArray(value)) return value.length > 0;
+      if (value && typeof value === 'object') return Object.keys(value).length > 0;
+      return Boolean(value);
+    });
     const hasThinkingLeak =
-      parsed &&
-      (
-        parsed.thinkingLeakDetected === true ||
-        (Array.isArray(parsed.examples) && parsed.examples.length > 0)
-      );
+      payload.thinkingLeakDetected === true ||
+      examples.length > 0;
 
-    const normalizedIsValid = (typeof parsed.isValid === 'boolean')
-      ? parsed.isValid
-      : !hasThinkingLeak;
+    const normalizedIsValid = (typeof payload.isValid === 'boolean')
+      ? payload.isValid
+      : !(hasThinkingLeak || hasHallucinations);
+    const rawConfidence = Number(payload.confidence);
+    const confidence = Number.isFinite(rawConfidence) ? rawConfidence : 0.5;
 
     return {
       isValid: normalizedIsValid,
-      confidence: Math.max(0, Math.min(parsed.confidence || 0.5, 1.0)),
-      details: parsed.hallucinations || parsed.examples || {},
-      reason: parsed.reason || 'Nessuna motivazione fornita'
+      confidence: Math.max(0, Math.min(confidence, 1.0)),
+      details: hallucinations || examples || {},
+      reason: payload.reason || 'Nessuna motivazione fornita'
     };
   }
 

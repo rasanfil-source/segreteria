@@ -1024,12 +1024,24 @@ var MemoryService = class MemoryService {
       const cache = CacheService.getScriptCache();
       const serialized = cache.get(key);
       if (serialized) {
-        const parsed = JSON.parse(serialized);
+        let parsed;
+        if (serialized.startsWith('{"_isChunked":true')) {
+          const meta = JSON.parse(serialized);
+          let fullString = '';
+          for (let i = 0; i < meta.chunks; i++) {
+            const chunk = cache.get(`${key}_chunk_${i}`);
+            if (!chunk) throw new Error('Chunk mancante');
+            fullString += chunk;
+          }
+          parsed = JSON.parse(fullString);
+        } else {
+          parsed = JSON.parse(serialized);
+        }
         this._setLocalCache(key, parsed);
         return parsed;
       }
     } catch (e) {
-      // best effort
+      // best effort, oppure chunk parziale/scaduto
     }
 
     return null;
@@ -1048,7 +1060,22 @@ var MemoryService = class MemoryService {
     // CacheService per riuso tra esecuzioni del trigger
     try {
       const cache = CacheService.getScriptCache();
-      cache.put(key, JSON.stringify(data), Math.floor(this._cacheExpiry / 1000));
+      const serialized = JSON.stringify(data);
+      const ttl = Math.floor(this._cacheExpiry / 1000);
+      const MAX_CHUNK_SIZE = 90000;
+
+      if (serialized.length > MAX_CHUNK_SIZE) {
+        const chunks = Math.ceil(serialized.length / MAX_CHUNK_SIZE);
+        const meta = { _isChunked: true, chunks: chunks };
+        const payload = {};
+        payload[key] = JSON.stringify(meta);
+        for (let i = 0; i < chunks; i++) {
+          payload[`${key}_chunk_${i}`] = serialized.substring(i * MAX_CHUNK_SIZE, (i + 1) * MAX_CHUNK_SIZE);
+        }
+        cache.putAll(payload, ttl);
+      } else {
+        cache.put(key, serialized, ttl);
+      }
     } catch (e) {
       // best effort
     }
@@ -1116,6 +1143,18 @@ var MemoryService = class MemoryService {
 
     try {
       const cache = CacheService.getScriptCache();
+      const serialized = cache.get(key);
+      if (serialized && serialized.startsWith('{"_isChunked":true')) {
+        try {
+          const meta = JSON.parse(serialized);
+          const keysToRemove = [key];
+          for (let i = 0; i < meta.chunks; i++) {
+            keysToRemove.push(`${key}_chunk_${i}`);
+          }
+          cache.removeAll(keysToRemove);
+          return;
+        } catch (e) { }
+      }
       cache.remove(key);
     } catch (e) {
       // best effort

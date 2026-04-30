@@ -132,4 +132,18 @@ console.log('--- Test SemanticValidator: fallback lazy senza GeminiService/Cache
   }
 }
 
+console.log('--- Test SemanticValidator: hallucinations senza isValid diventano invalidanti ---');
+{
+  const semantic = Object.create(SemanticValidator.prototype);
+  const normalized = semantic._normalizeSemanticPayload({
+    hallucinations: { times: ['10:00'], emails: [], phones: [] },
+    confidence: 0,
+    reason: 'orario non presente nella KB'
+  });
+
+  assert(normalized.isValid === false, 'hallucinations non vuote devono rendere il payload non valido');
+  assert(normalized.confidence === 0, 'confidence 0 deve essere preservata e non sostituita con default');
+  assert(Array.isArray(normalized.details.times), 'i dettagli hallucinations devono essere preservati');
+}
+
 console.log('✅ Test core ResponseValidator passati');

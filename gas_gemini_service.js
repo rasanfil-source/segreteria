@@ -524,14 +524,6 @@ Output JSON:
    * @returns {{type: string, retryable: boolean}}
    */
   _classifyError(error) {
-    if (typeof classifyError === 'function' && typeof ErrorTypes !== 'undefined') {
-      const central = classifyError(error);
-      if (central.type === ErrorTypes.QUOTA_EXCEEDED || central.type === ErrorTypes.NETWORK || central.type === ErrorTypes.TIMEOUT) {
-        return { type: 'RETRYABLE', retryable: true };
-      }
-      return { type: 'FATAL', retryable: false };
-    }
-
     let rawMessage = '';
     if (error != null) {
       if (typeof error === 'string') {
@@ -547,6 +539,20 @@ Output JSON:
       }
     }
     const msg = rawMessage.toLowerCase();
+
+    // Segnali interni di esaurimento quota: non ritentare sulla stessa chiave,
+    // lascia che il chiamante passi subito alla strategia/chiave successiva.
+    if (msg.includes('primary_quota_exhausted') || msg.includes('quota_exhausted_all_keys')) {
+      return { type: 'QUOTA_EXHAUSTED', retryable: false };
+    }
+
+    if (typeof classifyError === 'function' && typeof ErrorTypes !== 'undefined') {
+      const central = classifyError(error);
+      if (central.type === ErrorTypes.QUOTA_EXCEEDED || central.type === ErrorTypes.NETWORK || central.type === ErrorTypes.TIMEOUT) {
+        return { type: 'RETRYABLE', retryable: true };
+      }
+      return { type: 'FATAL', retryable: false };
+    }
     const RETRYABLE_ERRORS = ['quota', 'timeout', 'deadline', 'econnreset'];
     const FATAL_ERRORS = ['unauthorized', 'forbidden', 'permission denied', 'unauthenticated'];
 
@@ -560,10 +566,6 @@ Output JSON:
 
     if (/\b(401|403)\b/.test(msg)) {
       return { type: 'FATAL', retryable: false };
-    }
-
-    if (msg.includes('primary_quota_exhausted') || msg.includes('quota_exhausted_all_keys')) {
-      return { type: 'QUOTA_EXHAUSTED', retryable: false };
     }
 
     let retryable = false;
@@ -593,6 +595,10 @@ Output JSON:
   detectEmailLanguage(emailContent, emailSubject = '') {
     const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
     let safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
+
+    // PROTEZIONE: Truncamento preventivo a 15000 caratteri PRIMA delle RegEx 
+    // Evita CPU Timeout (Catastrophic Backtracking) se un utente invia una mail infinita
+    safeContent = safeContent.substring(0, 15000);
 
     // Rimuove le citazioni per evitare che il testo quotato (es. precedente thread in italiano) alteri il punteggio
     safeContent = safeContent.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');

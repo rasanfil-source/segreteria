@@ -66,7 +66,7 @@ var EmailProcessor = class EmailProcessor {
         : 280 * 1000,
       minRemainingTimeMs: typeof CONFIG !== 'undefined' && typeof CONFIG.MIN_REMAINING_TIME_MS === 'number'
         ? CONFIG.MIN_REMAINING_TIME_MS
-        : 90 * 1000,
+        : 120 * 1000,
       labelName: typeof CONFIG !== 'undefined' ? CONFIG.LABEL_NAME : 'IA',
       errorLabelName: typeof CONFIG !== 'undefined' ? CONFIG.ERROR_LABEL_NAME : 'Errore',
       validationErrorLabel: typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica',
