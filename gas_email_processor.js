@@ -261,14 +261,9 @@ var EmailProcessor = class EmailProcessor {
         const fetchedIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
         return (fetchedIds instanceof Set) ? fetchedIds : new Set(fetchedIds || []);
       };
-      let effectiveLabeledIds;
-      if (labeledMessageIds instanceof Set) {
-        effectiveLabeledIds = labeledMessageIds.size > 0
-          ? labeledMessageIds
-          : fetchLabeledIds();
-      } else {
-        effectiveLabeledIds = fetchLabeledIds();
-      }
+      const effectiveLabeledIds = (labeledMessageIds instanceof Set)
+        ? labeledMessageIds
+        : fetchLabeledIds();
 
       const unlabeledUnread = unreadMessages.filter(message => {
         const messageId = message.getId();
