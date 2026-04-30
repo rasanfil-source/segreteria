@@ -258,7 +258,7 @@ var EmailProcessor = class EmailProcessor {
         if (!this.gmailService || typeof this.gmailService.getMessageIdsWithLabel !== 'function') {
           return new Set();
         }
-        const fetchedIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+        const fetchedIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName, true, { onlyUnread: true });
         return (fetchedIds instanceof Set) ? fetchedIds : new Set(fetchedIds || []);
       };
       const effectiveLabeledIds = (labeledMessageIds instanceof Set)
@@ -1508,7 +1508,7 @@ ${addressLines.join('\n\n')}
       let labeledMessageIds = new Set();
       if (this.gmailService && typeof this.gmailService.getMessageIdsWithLabel === 'function') {
         try {
-          labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+          labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName, true, { onlyUnread: true });
         } catch (e) {
           console.warn(`⚠️ Impossibile pre-caricare gli ID etichettati (${e.message}). Continuo senza cache label.`);
           labeledMessageIds = new Set();
@@ -1530,7 +1530,7 @@ ${addressLines.join('\n\n')}
       let skippedMessageIds = new Set();
       if (languageMode === 'foreign_only' && this.gmailService && typeof this.gmailService.getMessageIdsWithLabel === 'function') {
         try {
-          const skipIds = this.gmailService.getMessageIdsWithLabel(this.config.skipLabelName);
+          const skipIds = this.gmailService.getMessageIdsWithLabel(this.config.skipLabelName, true, { onlyUnread: true });
           skippedMessageIds = (skipIds instanceof Set) ? skipIds : new Set(skipIds || []);
           if (skippedMessageIds.size > 0) {
             console.log(`   🌐 Pre-caricati ${skippedMessageIds.size} ID messaggi skip (·) per fast-skip`);
@@ -2033,14 +2033,12 @@ ${addressLines.join('\n\n')}
         if (!this.gmailService || typeof this.gmailService.getMessageIdsWithLabel !== 'function') {
           return new Set();
         }
-        const fetchedIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName);
+        const fetchedIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName, true, { onlyUnread: true });
         return (fetchedIds instanceof Set) ? fetchedIds : new Set(fetchedIds || []);
       };
       let effectiveLabeledIds;
       if (labeledMessageIds instanceof Set) {
-        effectiveLabeledIds = labeledMessageIds.size > 0
-          ? labeledMessageIds
-          : fetchLabeledIds();
+        effectiveLabeledIds = labeledMessageIds;
       } else {
         effectiveLabeledIds = fetchLabeledIds();
       }

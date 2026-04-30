@@ -342,9 +342,11 @@ var GmailService = class GmailService {
             );
             const pageSize = this._safePositiveInt(options.pageSize, 500, 50, 500);
 
-            // Query composita: inbox opzionale + finestra temporale opzionale
+            const unreadOnly = options.onlyUnread === true;
+            // Query composita: inbox opzionale + filtro unread opzionale + finestra temporale opzionale
             const queryParts = [];
             if (onlyInbox) queryParts.push('in:inbox');
+            if (unreadOnly) queryParts.push('is:unread');
             if (useWindowDays > 0) queryParts.push(`after:${this._getNDaysAgo(useWindowDays)}`);
             const query = queryParts.join(' ').trim();
             let pageCount = 0;
