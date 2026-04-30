@@ -237,15 +237,18 @@ var Classifier = class Classifier {
       processedBody = processedBody.substring(0, firstQuoteIdx);
     }
 
-    // Rimozione blockquote residua (se non intercettata dal fast-path o in altri formati)
-    processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
-    processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*$/gi, '');
+    // Esegui regex HTML solo se il body contiene davvero markup (fast-path testo puro)
+    if (processedBody.indexOf('<') !== -1) {
+      // Rimozione blockquote residua (se non intercettata dal fast-path o in altri formati)
+      processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
+      processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*$/gi, '');
 
-    // Rimuove div.gmail_quote in modo robusto (trancia fino a fine messaggio)
-    processedBody = processedBody.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*$/gi, '');
+      // Rimuove div.gmail_quote in modo robusto (trancia fino a fine messaggio)
+      processedBody = processedBody.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*$/gi, '');
 
-    // Rimuove quote stile Outlook
-    processedBody = processedBody.replace(/<div\s+id=["']?divRplyFwdMsg["']?[^>]*>[\s\S]*$/gi, '');
+      // Rimuove quote stile Outlook
+      processedBody = processedBody.replace(/<div\s+id=["']?divRplyFwdMsg["']?[^>]*>[\s\S]*$/gi, '');
+    }
 
     // Marcatori citazione per vari client email
     const quoteMarkers = [
