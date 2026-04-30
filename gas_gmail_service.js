@@ -1609,7 +1609,6 @@ var GmailService = class GmailService {
 
     _resolveOcrLanguage(languageCode) {
         const normalized = (languageCode || 'it').toString().toLowerCase().trim();
-        if (!normalized) return 'it';
 
         const supported = new Set(['it', 'en', 'es', 'fr', 'de', 'pt', 'nl']);
         if (supported.has(normalized)) {

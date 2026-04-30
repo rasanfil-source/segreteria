@@ -591,7 +591,8 @@ function runAllTests() {
         test('_hasUnreadMessagesToProcess tratta un Set vuoto come cache già fornita', results, () => {
             const processor = new EmailProcessor({
                 gmailService: {
-                    getMessageIdsWithLabel: () => { throw new Error('fallback should not run'); }
+                    getMessageIdsWithLabel: () => { throw new Error('fallback should not run'); },
+                    _extractEmailAddress: (from) => from
                 }
             });
             const thread = {

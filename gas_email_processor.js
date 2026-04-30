@@ -746,7 +746,7 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       const memoryContext = this.memoryService.getMemory(threadId) || {};
 
-      if (Object.keys(memoryContext).length > 0) {
+      if (memoryContext.lastUpdated) {
         console.log(`   🧠 Memoria trovata: lang=${memoryContext.language}, topics=${(memoryContext.providedInfo || []).length}`);
       }
 
@@ -760,7 +760,7 @@ var EmailProcessor = class EmailProcessor {
       const salutationMode = computeSalutationMode({
         isReply: safeSubjectLower.startsWith('re:'),
         messageCount: memoryMessageCount,
-        memoryExists: Object.keys(memoryContext).length > 0,
+        memoryExists: !!memoryContext.lastUpdated,
         lastUpdated: memoryContext.lastUpdated || null,
         now: new Date()
       });
@@ -2392,7 +2392,6 @@ ${prompt.slice(-tailChars)}`;
   _isTerritoryRequest(subject, body, classification = {}, requestType = {}) {
     const text = `${subject || ''} ${body || ''}`.toLowerCase();
     const topic = String(classification && classification.topic ? classification.topic : '').toLowerCase();
-    const type = String(requestType && requestType.type ? requestType.type : '').toLowerCase();
 
     // NOTA: RequestTypeClassifier non produce mai type='territory'.
     // La rilevazione avviene interamente via pattern sul testo qui sotto.
