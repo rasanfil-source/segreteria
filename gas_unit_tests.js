@@ -315,18 +315,29 @@ function runAllTests() {
             };
             const processor = new EmailProcessor({
                 gmailService: {
-                    getMessageIdsWithLabel: () => { throw new Error('fallback should not run'); },
-                    extractMessageDetails: (m) => ({ senderEmail: 'user@external.com', date: new Date() }),
+                    // La cache vuota è trattata come assente: forniamo fallback neutro
+                    getMessageIdsWithLabel: () => [],
+                    extractMessageDetails: (m) => ({
+                        senderEmail: 'user@external.com',
+                        senderName: 'Utente',
+                        subject: 'Richiesta informazioni',
+                        body: 'Vorrei sapere gli orari delle messe domenicali, grazie mille.',
+                        date: new Date(),
+                        isNewsletter: false,
+                        headers: {}
+                    }),
                     _extractEmailAddress: (f) => f,
                     addLabelToMessage: (id, labelName) => labelCalls.push({ id, labelName })
                 },
                 geminiService: {
-                    shouldRespondToEmail: () => ({ shouldRespond: false }) // Skip GEMINI per semplicità
+                    shouldRespondToEmail: () => ({ shouldRespond: false, reason: 'no_action_needed' }),
+                    detectEmailLanguage: () => ({ lang: 'it', confidence: 3, safetyGrade: 3 })
                 }
             });
 
             processor.processThread(thread, 'KB', 'Doctrine', labeledMessageIds, true);
-            // Dovrebbe aver marcato tutti e 3 come elaborati (il candidate + gli altri 2)
+            // Con il mock corretto, il path atteso è: classifyEmail → shouldReply:true →
+            // shouldRespondToEmail → shouldRespond:false → _markMessageAsProcessed per tutti
             return labeledMessageIds.has('msg-1') && labeledMessageIds.has('msg-2') && labeledMessageIds.has('msg-3');
         });
 
@@ -348,6 +359,7 @@ function runAllTests() {
 
             const processor = new EmailProcessor({
                 gmailService: {
+                    getMessageIdsWithLabel: () => [],
                     _extractEmailAddress: (from) => from,
                     addLabelToMessage: (id, labelName) => labelCalls.push({ id, labelName })
                 }

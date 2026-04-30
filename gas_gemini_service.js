@@ -688,7 +688,7 @@ Output JSON:
       'olá', 'obrigado', 'obrigada', 'agradecemos', 'agradeço',
       'por favor', 'bom dia', 'boa tarde', 'boa noite',
       'missa', 'missas', 'igreja', 'paróquia',
-      'atenciosamente', 'cumprimentos', 'abrigado'
+      'atenciosamente', 'cumprimentos', 'atualização'
     ];
 
         const portugueseStandardKeywords = [

@@ -1039,7 +1039,8 @@ REGOLE OBBLIGATORIE:
 ✅ Non attribuire colpe o dettagli tecnici (niente "spam", "problemi tecnici")
 
 ESEMPIO DI APERTURA:
-• "${apologyLine}"`;
+• "${apologyLine}"
+══════════════════════════════════════════════════════════════════════`;
   }
 
   // ========================================================================
