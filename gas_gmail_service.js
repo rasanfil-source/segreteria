@@ -1874,10 +1874,10 @@ var GmailService = class GmailService {
             /^distinti saluti\b/im,
             /^saluti\b/im,
             /^in fede\b/im,
-            /best regards/i,
-            /sincerely/i,
-            /sent from my iphone/i,
-            /inviato da/i
+            /^best regards\b/im,
+            /^sincerely\b/im,
+            /^sent from my iphone\b/im,
+            /^inviato da\b/im
         ];
 
         // Ricerca firma "tail-aware":
