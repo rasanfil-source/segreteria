@@ -2282,8 +2282,8 @@ var GmailService = class GmailService {
     _sanitizeHeaders(text) {
         if (!text) return '';
         return text
-            .replace(/(^|\n)(To|Cc|Bcc|From|Subject|Reply-To):/gi, '$1[$2]:')
-            .replace(/\r\n|\r/g, '\n');
+            .replace(/\r\n|\r/g, '\n')
+            .replace(/(^|\n)(To|Cc|Bcc|From|Subject|Reply-To):/gi, '$1[$2]:');
     }
 
     _sanitizeSubjectForHeader(subject) {
