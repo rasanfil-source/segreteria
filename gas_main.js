@@ -1179,7 +1179,14 @@ function _loadAdvancedConfig(ss) {
     });
 
     if (Object.keys(config.suspensionRules).length === 0) {
-      console.warn("⚠️ Foglio 'Controllo' presente ma senza fasce sospensione valide: sistema operativo 24/7 finché non vengono configurate regole.");
+      const strictSuspensionConfig = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.STRICT_SUSPENSION_CONFIG === true);
+      if (strictSuspensionConfig) {
+        // null = fallback sicuro a SUSPENSION_HOURS in isInSuspensionTime
+        config.suspensionRules = null;
+        console.warn("⚠️ Foglio 'Controllo' presente ma senza fasce valide: STRICT_SUSPENSION_CONFIG=true, applico fallback orari statici.");
+      } else {
+        console.warn("⚠️ Foglio 'Controllo' presente ma senza fasce sospensione valide: sistema operativo 24/7 finché non vengono configurate regole.");
+      }
     }
 
     // Filtri anti-spam (layout single-sheet: E13:F)

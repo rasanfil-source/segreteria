@@ -55,6 +55,7 @@ var CONFIG = {
     MAX_CONSECUTIVE_EXTERNAL: 5,        // Soglia per rilevamento email loop
     EMPTY_INBOX_WARNING_THRESHOLD: 5,   // Soglia per warning inbox vuota
     SUSPENSION_STALE_UNREAD_HOURS: 12,    // Paracadute: processa unread vecchie anche in fascia sospesa
+    STRICT_SUSPENSION_CONFIG: false,      // Se true: foglio Controllo presente ma invalido => fallback orari statici
     MIN_REMAINING_TIME_MS: 120000,      // Stop preventivo se resta meno di 120 secondi
     EXECUTION_LOCK_WAIT_MS: 5000,      // Timeout acquisizione lock esecuzione (ms)
     SEARCH_PAGE_SIZE: 15,              // Buffer discovery per candidati message-level (circa 5x MAX_EMAILS_PER_RUN)

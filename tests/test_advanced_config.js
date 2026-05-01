@@ -97,3 +97,24 @@ assert(adv.ignoreKeywords.includes('promozione'), 'deve includere keyword da she
 assert(adv.ignoreKeywords.includes('unsubscribe'), 'deve includere keyword statica unsubscribe');
 
 console.log('✅ Test advanced config parsing passati');
+
+console.log('--- Test _loadAdvancedConfig strict suspension fallback ---');
+global.CONFIG.STRICT_SUSPENSION_CONFIG = true;
+const strictSpreadsheet = {
+  getSheetByName: (name) => {
+    if (name !== 'Controllo') return null;
+    return {
+      getRange: (a1) => {
+        if (a1 === 'B2') return { getValue: () => 'ACCESO' };
+        if (a1 === 'F2') return { getDisplayValue: () => 'Tutte le lingue', getValue: () => 'Tutte le lingue' };
+        if (a1 === 'B5:E7') return { getValues: () => [[], [], []] };
+        if (a1 === 'A10:D16') return { getValues: () => [[], [], [], [], [], [], []] };
+        throw new Error(`Range non gestito nel fake strict sheet: ${a1}`);
+      },
+      getLastRow: () => 12
+    };
+  }
+};
+const strictAdv = _loadAdvancedConfig(strictSpreadsheet);
+assert(strictAdv.suspensionRules === null, 'con STRICT_SUSPENSION_CONFIG=true e nessuna fascia valida, suspensionRules deve essere null (fallback statico)');
+console.log('✅ Test strict suspension fallback passato');
