@@ -1157,11 +1157,12 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       nextResetPacific: '00:00 Pacific Time', // Reset Google è sempre mezzanotte Pacific
       models: {}
     };
+    const allProps = this.props.getProperties();
 
     for (var modelKey in this.models) {
       const model = this.models[modelKey];
-      const rpdUsed = parseInt(this.props.getProperty('rpd_' + modelKey) || '0', 10) || 0;
-      const tokensUsed = parseInt(this.props.getProperty('tokens_' + modelKey) || '0', 10) || 0;
+      const rpdUsed = parseInt(allProps['rpd_' + modelKey] || '0', 10) || 0;
+      const tokensUsed = parseInt(allProps['tokens_' + modelKey] || '0', 10) || 0;
       const rpmUsed = this._getRequestsInWindow('rpm', modelKey);
       const tpmUsed = this._getTokensInWindow('tpm', modelKey);
 
