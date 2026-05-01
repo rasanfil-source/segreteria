@@ -1053,6 +1053,11 @@ ${addressLines.join('\n\n')}
             break;
           }
 
+          if (errorClass.type === 'QUOTA_EXCEEDED' && plan.name === 'Fallback-Lite') {
+            console.warn('🧯 QUOTA_EXCEEDED su Fallback-Lite: nessuna strategia residua, uscita anticipata.');
+            break;
+          }
+
           if (['NETWORK', 'TIMEOUT', 'QUOTA_EXCEEDED', 'INVALID_RESPONSE', 'UNKNOWN'].includes(errorClass.type)) {
             console.warn(`↪️ Errore ${errorClass.type}, provo la strategia successiva.`);
             continue;
