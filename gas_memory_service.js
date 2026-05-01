@@ -1116,8 +1116,14 @@ var MemoryService = class MemoryService {
     let topics = Array.isArray(providedInfo) ? providedInfo.slice() : [];
     let serialized = JSON.stringify(topics);
 
+    // Troncamento rapido per evitare loop O(n²) su storici lunghi.
+    if (serialized.length > maxChars && topics.length > 25) {
+      topics = topics.slice(-25);
+      serialized = JSON.stringify(topics);
+    }
+
     while (topics.length > 0 && serialized.length > maxChars) {
-      topics = topics.slice(1);
+      topics.shift();
       serialized = JSON.stringify(topics);
     }
 

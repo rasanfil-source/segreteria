@@ -747,7 +747,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   /**
    * Aggiorna finestra con cache (riduce PropertiesService I/O)
    */
-  _updateWindow(windowType, entry) {
+  _updateWindow(windowType, entry, skipPersist = false) {
     const now = Date.now();
 
     // Invalida cache se troppo vecchia
@@ -768,7 +768,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     // GAS è runtime effimero: persiste subito per non perdere stato RPM/TPM tra esecuzioni.
-    this._persistCache();
+    if (!skipPersist) {
+      this._persistCache();
+    }
   }
 
   _refreshCache() {
@@ -1311,7 +1313,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       modelKey: modelKey,
       reserved: true,
       completed: false
-    });
+    }, true);
 
     this._updateWindow('tpm', {
       timestamp: now,
@@ -1320,7 +1322,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       tokens: estimatedTokens ?? 0,
       reserved: true,
       completed: false
-    });
+    }, true);
 
     this._persistCache(true);
     console.log(`🧾 Reservation creata: ${modelKey} (${reservationId})`);

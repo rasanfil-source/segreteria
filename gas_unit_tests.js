@@ -39,13 +39,13 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
     if (typeof global.Utilities === 'undefined') {
         global.Utilities = {
             formatDate: (date, tz, fmt) => {
-              const d = new Date(date);
-              if (fmt === 'yyyy-MM-dd') return d.toISOString().slice(0, 10);
-              if (fmt === 'H') return String(d.getHours());
-              if (fmt === 'm') return String(d.getMinutes());
-              if (fmt === 's') return String(d.getSeconds());
-              if (fmt === 'HH:mm') return d.toISOString().slice(11, 16);
-              return d.toISOString();
+                const d = new Date(date);
+                if (fmt === 'yyyy-MM-dd') return d.toISOString().slice(0, 10);
+                if (fmt === 'H') return String(d.getUTCHours());
+                if (fmt === 'm') return String(d.getUTCMinutes());
+                if (fmt === 's') return String(d.getUTCSeconds());
+                if (fmt === 'HH:mm') return d.toISOString().slice(11, 16);
+                return d.toISOString();
             },
             sleep: () => { },
             computeDigest: () => [0, 1, 2, 3],
@@ -161,6 +161,7 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
 
     // Caricamento script core
     [
+        'gas_logger.js',
         'gas_config.example.js',
         'gas_error_types.js',
         'gas_rate_limiter.js',
@@ -173,7 +174,8 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
         'gas_gemini_service.js',
         'gas_classifier.js',
         'gas_request_classifier.js',
-        'gas_response_validator.js'
+        'gas_response_validator.js',
+        'gas_main.js'
     ].forEach(loadScript);
 }
 
@@ -288,7 +290,7 @@ function runAllTests() {
         test('Aggiunge nota differenza orario in modo generico (non solo cresima)', results, () => {
             const response = 'Buonasera.\n\nIl prossimo corso prematrimoniale inizierà alle ore 16:30.\n\nCordiali saluti.';
             const messageDetails = { subject: 'Corso prematrimoniale', body: 'Pensavo iniziasse alle 17:00.' };
-            const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it', { topic: 'corso prematrimoniale' }, { type: 'technical' });
+            const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it');
             return adjusted.includes('in un orario diverso rispetto a quanto da Lei indicato');
         });
         test('Non aggiunge nota se l\'utente cita un orario solo come contesto', results, () => {

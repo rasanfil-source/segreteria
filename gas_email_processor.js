@@ -1624,8 +1624,8 @@ ${addressLines.join('\n\n')}
         stats.total++;
 
         if (result && result.error && String(result.error).includes('GMAIL_DAILY_CALL_LIMIT_REACHED')) {
-          this.logger.warn('⚠️ Stop batch durante processThread: limite chiamate Gmail raggiunto. Salvo checkpoint.');
-          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, this._getRemainingTimeMs(MAX_EXECUTION_TIME));
+          this.logger.warn('⚠️ Stop batch: limite giornaliero chiamate Gmail raggiunto durante processThread.');
+          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, remainingTimeMs);
           break;
         }
 
@@ -2359,7 +2359,9 @@ ${addressLines.join('\n\n')}
       ? CONFIG.MAX_SAFE_TOKENS
       : 35000;
     // Riserva spazio per blocco correzioni + risposta precedente (stima: 4 char/token).
-    const reservedTokens = 2500;
+    const correctionBlockPreview =
+      `\n\nCORREZIONE RICHIESTA\n${correctionInstructions.join('\n\n')}\n${failedSnippet}`;
+    const reservedTokens = 2500 + Math.ceil(correctionBlockPreview.length / 4);
     const maxPromptChars = Math.max(2000, Math.floor((maxSafeTokens - reservedTokens) * 4));
     const promptForRetry = this._trimPromptForRetry_(safePrompt, maxPromptChars);
 

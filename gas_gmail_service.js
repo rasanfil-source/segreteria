@@ -34,9 +34,13 @@ var GmailService = class GmailService {
             // Excel → Google Sheets
             'application/vnd.ms-excel': 'application/vnd.google-apps.spreadsheet',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'application/vnd.google-apps.spreadsheet',
+            'application/vnd.oasis.opendocument.spreadsheet': 'application/vnd.google-apps.spreadsheet',
             // PowerPoint → Google Slides
             'application/vnd.ms-powerpoint': 'application/vnd.google-apps.presentation',
-            'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'application/vnd.google-apps.presentation'
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'application/vnd.google-apps.presentation',
+            'application/vnd.oasis.opendocument.presentation': 'application/vnd.google-apps.presentation',
+            // OpenDocument Text → Google Docs
+            'application/vnd.oasis.opendocument.text': 'application/vnd.google-apps.document'
         };
 
         console.log('✓ GmailService inizializzato con cache etichette (TTL 1h)');
@@ -2990,7 +2994,8 @@ function markdownToHtml(text) {
     // Questo previene mojibake (es: "â”", "âœ") in client che rilevano male il charset.
     html = Array.from(html).map(char => {
         const codePoint = char.codePointAt(0);
-        if (codePoint > 127) {
+        // Mantieni UTF-8 nativo per accenti/latin; entità solo per codepoint fuori BMP.
+        if (codePoint > 65535) {
             return '&#' + codePoint + ';';
         }
         return char;
