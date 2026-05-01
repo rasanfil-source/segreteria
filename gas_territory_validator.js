@@ -95,7 +95,9 @@ var TerritoryValidator = class TerritoryValidator {
             'p[\\s.]*[iìíï][\\s.]*a[\\s.]*z[\\s.]*z[\\s.]*a(?:[\\s.]*l[\\s.]*e)?', // piazza / piazzale
             'l[\\s.]*a[\\s.]*r[\\s.]*g[\\s.]*o', // largo
             'l[\\s.]*u[\\s.]*n[\\s.]*g[\\s.]*o[\\s.]*t[\\s.]*e[\\s.]*v[\\s.]*e[\\s.]*r[\\s.]*e', // lungotevere
-            's[\\s.]*a[\\s.]*l[\\s.]*[iìíï][\\s.]*t[\\s.]*a' // salita
+            's[\\s.]*a[\\s.]*l[\\s.]*[iìíï][\\s.]*t[\\s.]*a', // salita
+            'v[\\s.]*[iìíï][\\s.]*c[\\s.]*o[\\s.]*l[\\s.]*o', // vicolo
+            'c[\\s.]*o[\\s.]*r[\\s.]*s[\\s.]*o' // corso
         ].join('|');
     }
 
@@ -118,6 +120,8 @@ var TerritoryValidator = class TerritoryValidator {
         if (canonical.startsWith('lungotevere')) return 'lungotevere';
         if (canonical.startsWith('salita')) return 'salita';
         if (canonical.startsWith('largo')) return 'largo';
+        if (canonical.startsWith('vicolo')) return 'vicolo';
+        if (canonical.startsWith('corso')) return 'corso';
 
         return null;
     }
@@ -128,14 +132,14 @@ var TerritoryValidator = class TerritoryValidator {
         // - lettere accentate e apostrofo (range À-ÿ copre la maggior parte dei caratteri europei)
         // - abbreviazioni con punto (es. "S.")
         // - numeri nel toponimo (es. "24 Maggio")
-        const streetNameToken = `[a-zA-Z0-9À-ÿ'.]{1,50}`;
+        const streetNameToken = `[a-zA-Z0-9À-ÿ'.-]{1,50}`;
         const streetName = `${streetNameToken}(?:\\s+${streetNameToken}){0,5}?`;
         return [
-            // Pattern 1: "via Rossi 10" o "Via: Rossi 10" - Supporto alfanumerico
-            new RegExp(`\\b(${streetType})(?:\\s*:\\s*|\\s+)(${streetName})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(\\d{1,4}(?:[/-]?[a-zA-Z])?)\\b`, 'gi'),
+            // Pattern 1: "via Rossi 10" o "Via: Rossi 10" - Supporto alfanumerico esteso e SNC
+            new RegExp(`\\b(${streetType})(?:\\s*:\\s*|\\s+)(${streetName})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(\\d{1,4}(?:\\s*[/-]?\\s*[a-zA-Z]{1,3})?|snc)\\b`, 'gi'),
 
             // Pattern 2: "abito in via Rossi 10" o "abito in via: Rossi 10"
-            new RegExp(`\\b(?:in|abito\\s+in|abito\\s+al|abito\\s+alle|abito\\s+a|al|alle)\\s+(${streetType})(?:\\s*:\\s*|\\s+)(${streetName})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(\\d{1,4}(?:[/-]?[a-zA-Z])?)\\b`, 'gi')
+            new RegExp(`\\b(?:in|abito\\s+in|abito\\s+al|abito\\s+alle|abito\\s+a|al|alle)\\s+(${streetType})(?:\\s*:\\s*|\\s+)(${streetName})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(\\d{1,4}(?:\\s*[/-]?\\s*[a-zA-Z]{1,3})?|snc)\\b`, 'gi')
         ];
     }
 
@@ -145,9 +149,9 @@ var TerritoryValidator = class TerritoryValidator {
     _buildStreetOnlyPattern() {
         // Pattern bounded (max 6 token) per evitare backtracking eccessivo su input malevoli
         const streetType = this._streetTypePatternSource;
-        const streetNameToken = `[a-zA-ZÀ-ÿ']{1,50}`;
+        const streetNameToken = `[a-zA-Z0-9À-ÿ'.-]{1,50}`;
         const streetName = `${streetNameToken}(?:[ \\t]+${streetNameToken}){0,5}`;
-        return new RegExp(`(${streetType})[ \\t]+(${streetName})\\b(?!\\s*(?:n\\.?\\s*|civico\\s+)?\\d+)`, 'gi');
+        return new RegExp(`(${streetType})[ \\t]+(${streetName})\\b(?!\\s*(?:n\\.?\\s*|civico\\s+)?(?:\\d+|snc\\b))`, 'gi');
     }
 
     /**
@@ -256,6 +260,9 @@ var TerritoryValidator = class TerritoryValidator {
             return '';
         }
         const compact = String(raw).replace(/\s+/g, '').toUpperCase();
+        if (compact === 'SNC') {
+            return 'SNC';
+        }
         // Normalizza varianti tipiche: 10/A, 10-A -> 10A
         return compact.replace(/^(\d{1,4})[/-]([A-Z])$/, '$1$2');
     }
@@ -277,15 +284,10 @@ var TerritoryValidator = class TerritoryValidator {
 
         // Espandi abbreviazioni comuni italiane
         const abbreviations = {
-            '(?:\\bg\\.\\s*|\\bg\\s+)': 'giovanni ',
-            '(?:\\bf\\.\\s*|\\bf\\s+)': 'francesco ',
-            '(?:\\ba\\.\\s*|\\ba\\s+)': 'antonio ',
             '(?:\\bs\\.\\s*|\\bs\\s+)': 'san ',
             '(?:\\bl\\.\\s*|\\bl\\s+)': 'largo ',
             '(?:^\\s*v\\.\\s*|^\\s*v\\s+)(?!ia)': 'via ',
             '(?:\\bc\\.\\s*|\\bc\\s+)': 'corso ',
-            '(?:\\bu\\.\\s*|\\bu\\s+)': 'ulisse ',
-            '(?:\\bm\\.\\s*|\\bm\\s+)': 'maria ',
             '(?:\\bl\\.?\\s*tevere\\b)': 'lungotevere '
         };
 
@@ -296,6 +298,7 @@ var TerritoryValidator = class TerritoryValidator {
 
         // Rimuovi caratteri speciali non ammessi in nomi vie (mantiene lettere, numeri, spazi, apostrofi)
         // Range À-ÿ per conservare accentate durante la pulizia.
+        normalized = normalized.replace(/-/g, ' ');
         normalized = normalized.replace(/[^a-z0-9\s'À-ÿ]/g, '');
         normalized = normalized.replace(/\s+/g, ' ');
 
@@ -350,9 +353,14 @@ var TerritoryValidator = class TerritoryValidator {
                     const street = viaType + ' ' + viaName;
                     const civicRaw = match[3];
                     // Parsifica parte numerica principale per validazione range
-                    const civicMatch = civicRaw.match(/\d+/);
-                    if (!civicMatch) continue;
-                    const civicNum = parseInt(civicMatch[0], 10);
+                    let civicNum;
+                    if (/snc/i.test(civicRaw)) {
+                        civicNum = 0;
+                    } else {
+                        const civicMatch = civicRaw.match(/\d+/);
+                        if (!civicMatch) continue;
+                        civicNum = parseInt(civicMatch[0], 10);
+                    }
 
                     // Consenti anche civico 0 (presente in alcuni catasti), range valido 0-9999
                     if (isNaN(civicNum) || civicNum < 0 || civicNum > 9999) continue;
@@ -393,7 +401,7 @@ var TerritoryValidator = class TerritoryValidator {
         let sanitized = String(text || '').replace(/\r/g, '\n');
 
         // Quando le email arrivano come form "campo: valore", isoliamo solo il valore.
-        sanitized = sanitized.replace(/\b(?:via|viale|piazza|piazzale|largo|lungotevere|salita)\b\s*:\s*/gi, (m) => {
+        sanitized = sanitized.replace(/\b(?:via|viale|piazza|piazzale|largo|lungotevere|salita|vicolo|corso)\b\s*:\s*/gi, (m) => {
             return m.replace(':', ' ');
         });
 
