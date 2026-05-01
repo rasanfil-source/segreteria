@@ -457,4 +457,49 @@ console.log('--- Test processThread: valida e invia esattamente il testo outboun
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
 }
 
+console.log('--- Test processUnreadEmails: graceful stop su GMAIL_DAILY_CALL_LIMIT_REACHED ---');
+{
+  const processor = new EmailProcessor({
+    gmailService: {
+      getUnprocessedUnreadThreads: () => { throw new Error('GMAIL_DAILY_CALL_LIMIT_REACHED (18000/18000)'); }
+    }
+  });
+  const stats = processor.processUnreadEmails('kb', '', true);
+  assert(stats.reason === 'gmail_daily_limit_reached', 'deve restituire reason gmail_daily_limit_reached');
+  assert(stats.errors === 0, 'non deve incrementare errors su stop quota locale');
+}
+
+console.log('--- Test checkpoint payload include version e runId ---');
+{
+  const props = new Map();
+  const originalPropertiesService = global.PropertiesService;
+  const originalScriptApp = global.ScriptApp;
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      setProperty: (k, v) => props.set(k, v),
+      getProperty: (k) => props.get(k) || ''
+    })
+  };
+  global.ScriptApp = {
+    getProjectTriggers: () => [],
+    newTrigger: () => ({
+      timeBased: () => ({
+        after: () => ({ create: () => {} })
+      })
+    })
+  };
+  try {
+    const processor = new EmailProcessor({ gmailService: { getUnprocessedUnreadThreads: () => [] } });
+    const fakeThreads = [{ getId: () => 't100' }, { getId: () => 't101' }];
+    processor._storeBatchCheckpointAndScheduleContinuation_(fakeThreads, 0, 25000);
+    const raw = props.get('EMAIL_BATCH_CHECKPOINT');
+    const parsed = JSON.parse(raw);
+    assert(parsed.version === 2, 'checkpoint deve avere version=2');
+    assert(typeof parsed.runId === 'string' && parsed.runId.length > 5, 'checkpoint deve avere runId non vuoto');
+  } finally {
+    global.PropertiesService = originalPropertiesService;
+    global.ScriptApp = originalScriptApp;
+  }
+}
+
 console.log('✅ Test batch EmailProcessor passati');
