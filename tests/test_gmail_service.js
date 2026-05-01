@@ -58,6 +58,9 @@ assert(html.includes('<strong>Mondo</strong>'), 'bold markdown deve essere rende
 assert(html.includes('href="https://example.org"'), 'link https deve essere mantenuto');
 assert(!html.includes('<script>alert(1)</script>'), 'script raw non deve passare');
 assert(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'), 'script deve essere escaped');
+const htmlIsolated = markdownToHtml('Testo <img src=x onerror=alert(1)> finale');
+assert(!htmlIsolated.includes('<img src=x onerror=alert(1)>'), 'tag HTML isolato non deve passare raw');
+assert(htmlIsolated.includes('&lt;img src=x onerror=alert(1)&gt;'), 'tag HTML isolato deve essere escaped');
 
 console.log('--- Test discovery: errore getThreadById non deve bloccare il batch ---');
 const service = new GmailService();
