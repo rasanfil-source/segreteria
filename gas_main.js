@@ -1441,7 +1441,7 @@ function main() {
 
     // Passaggio della dottrina strutturata e testo piatto per compatibilità con i formati di input
     const results = processor.processUnreadEmails(knowledgeBase, doctrineBase, true, false, runOptions);
-    if (checkpointData) {
+    if (checkpointData && (!results || results.reason !== 'gmail_daily_limit_reached')) {
       _clearBatchCheckpoint_();
     }
 

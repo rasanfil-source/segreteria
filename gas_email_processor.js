@@ -1496,6 +1496,10 @@ ${addressLines.join('\n\n')}
           );
         }
       } catch (e) {
+        if (e && e.message && String(e.message).includes('GMAIL_DAILY_CALL_LIMIT_REACHED')) {
+          this.logger.warn('⚠️ Stop batch: raggiunto limite locale chiamate Gmail. Rimando al prossimo ciclo.');
+          return { total: 0, replied: 0, filtered: 0, errors: 0, skipped: 1, reason: 'gmail_daily_limit_reached' };
+        }
         this.logger.error(`❌ Impossibile recuperare thread da elaborare: ${e.message}. Batch interrotto per sicurezza.`);
         return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'thread_discovery_failed' };
       }
