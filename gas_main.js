@@ -1434,9 +1434,16 @@ function main() {
     const processor = new EmailProcessor();
     const knowledgeBase = GLOBAL_CACHE.knowledgeBase || '';
     const doctrineBase = GLOBAL_CACHE.doctrineBase || '';
+    const checkpointData = _readBatchCheckpoint_();
+    const runOptions = (checkpointData && Array.isArray(checkpointData.pendingThreadIds) && checkpointData.pendingThreadIds.length > 0)
+      ? { threadIds: checkpointData.pendingThreadIds }
+      : {};
 
     // Passaggio della dottrina strutturata e testo piatto per compatibilità con i formati di input
-    const results = processor.processUnreadEmails(knowledgeBase, doctrineBase, true, false);
+    const results = processor.processUnreadEmails(knowledgeBase, doctrineBase, true, false, runOptions);
+    if (checkpointData) {
+      _clearBatchCheckpoint_();
+    }
 
     if (results) {
       console.log(`📊 Batch completato: ${results.total || 0} analizzati, ${results.replied || 0} risposte, ${results.errors || 0} errori.`);
@@ -1468,14 +1475,31 @@ function _getExecutionBatchLockKey_() {
 }
 
 function resumeEmailBatchFromCheckpoint() {
-  const props = PropertiesService.getScriptProperties();
-  const raw = props.getProperty('EMAIL_BATCH_CHECKPOINT');
+  const checkpoint = _readBatchCheckpoint_();
+  const raw = checkpoint ? JSON.stringify(checkpoint) : '';
   if (!raw) {
     console.log('ℹ️ Nessun checkpoint batch presente: resume skip.');
     return;
   }
   console.log('⏭️ Ripresa batch da checkpoint richiesta.');
   main();
+}
+
+function _readBatchCheckpoint_() {
+  try {
+    const raw = PropertiesService.getScriptProperties().getProperty('EMAIL_BATCH_CHECKPOINT');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return (parsed && typeof parsed === 'object') ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function _clearBatchCheckpoint_() {
+  try {
+    PropertiesService.getScriptProperties().deleteProperty('EMAIL_BATCH_CHECKPOINT');
+  } catch (_) { }
 }
 
 

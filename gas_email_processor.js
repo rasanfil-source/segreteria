@@ -1411,7 +1411,7 @@ ${addressLines.join('\n\n')}
    * @param {boolean} skipExecutionLock - Evita il lock batch quando il chiamante gestisce l'orchestrazione
    * @param {boolean} locksAlreadyCovered - Se true, processThread evita lock interni già coperti da lock esterno
    */
-  processUnreadEmails(knowledgeBase, doctrineBase = '', skipExecutionLock = false, locksAlreadyCovered = skipExecutionLock) {
+  processUnreadEmails(knowledgeBase, doctrineBase = '', skipExecutionLock = false, locksAlreadyCovered = skipExecutionLock, options = {}) {
     // Inizializzazione di _startTime per la precisione dei calcoli.
     // anche se l'istanza viene riutilizzata in trigger successivi.
     this._startTime = Date.now();
@@ -1471,21 +1471,30 @@ ${addressLines.join('\n\n')}
 
       let threads;
       try {
-        const DISCOVERY_POOL_MULTIPLIER = 15;
-        const discoveryPoolSize = Math.min(
-          50,
-          Math.max(getEffectiveMaxEmailsPerRun() * DISCOVERY_POOL_MULTIPLIER, 20)
-        );
-
-        threads = this.gmailService.getUnprocessedUnreadThreads(
-          this.config.labelName,
-          this.config.errorLabelName,
-          this.config.validationErrorLabel,
-          this.config.searchPageSize || 150,
-          discoveryPoolSize,
-          3,
-          labelsDaIgnorare
-        );
+        if (Array.isArray(options.threadIds) && options.threadIds.length > 0) {
+          threads = options.threadIds
+            .map((id) => {
+              try { return GmailApp.getThreadById(id); } catch (_) { return null; }
+            })
+            .filter(Boolean);
+          console.log(`⏭️ Ripresa batch con ${threads.length}/${options.threadIds.length} thread da checkpoint`);
+        } else {
+          const DISCOVERY_POOL_MULTIPLIER = 15;
+          const discoveryPoolSize = Math.min(
+            50,
+            Math.max(getEffectiveMaxEmailsPerRun() * DISCOVERY_POOL_MULTIPLIER, 20)
+          );
+  
+          threads = this.gmailService.getUnprocessedUnreadThreads(
+            this.config.labelName,
+            this.config.errorLabelName,
+            this.config.validationErrorLabel,
+            this.config.searchPageSize || 150,
+            discoveryPoolSize,
+            3,
+            labelsDaIgnorare
+          );
+        }
       } catch (e) {
         this.logger.error(`❌ Impossibile recuperare thread da elaborare: ${e.message}. Batch interrotto per sicurezza.`);
         return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'thread_discovery_failed' };
