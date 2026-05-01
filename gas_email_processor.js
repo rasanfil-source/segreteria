@@ -1623,6 +1623,12 @@ ${addressLines.join('\n\n')}
         );
         stats.total++;
 
+        if (result && result.error && String(result.error).includes('GMAIL_DAILY_CALL_LIMIT_REACHED')) {
+          this.logger.warn('⚠️ Stop batch durante processThread: limite chiamate Gmail raggiunto. Salvo checkpoint.');
+          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, this._getRemainingTimeMs(MAX_EXECUTION_TIME));
+          break;
+        }
+
         // Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI
         const isEffectiveWork = (
           result.status === 'replied' ||
