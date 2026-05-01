@@ -571,7 +571,7 @@ Output JSON:
 
     // Rimuove le citazioni per evitare che il testo quotato (es. precedente thread in italiano) alteri il punteggio
     safeContent = safeContent.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
-    safeContent = safeContent.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*?<\/div>/gi, '');
+    safeContent = safeContent.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*$/gi, '');
     // Fallback per citazioni testuali se l'HTML è già stato strippato o è incompleto
     safeContent = safeContent.replace(/(?:^|\n)>[\s\S]*/g, '');
     safeContent = safeContent.replace(/(?:^|\n)(On |Il giorno ).*(wrote|ha scritto):[\s\S]*/gi, '');
