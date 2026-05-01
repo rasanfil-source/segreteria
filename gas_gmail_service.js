@@ -248,7 +248,7 @@ var GmailService = class GmailService {
         return (message.includes('label') && message.includes('not found')) ||
             message.includes('etichetta non trovata') ||
             message.includes('invalid label') ||
-            message.includes('404');
+            (message.includes('label') && /\b404\b/.test(message));
     }
 
 

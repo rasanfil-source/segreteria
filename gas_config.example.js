@@ -94,8 +94,10 @@ var CONFIG = {
     },
 
     // === Cache e Lock ===
-    CACHE_LOCK_TTL: 240,                 // Secondi (copre OCR + AI + validazione semantica)
+    CACHE_LOCK_TTL: 310,                 // Secondi (>= MAX_EXECUTION_TIME_MS/1000 con margine)
     CACHE_RACE_SLEEP_MS: 200,             // Attesa anti-race condition
+    GMAIL_LIST_MAX_PAGES: 20,             // Limite pagine Gmail list per bootstrap label cache
+    GMAIL_LIST_MAX_MESSAGES: 2000,        // Limite messaggi Gmail list per bootstrap label cache
 
     // === Alias noti (anti-loop) ===
     KNOWN_ALIASES: ['YOUR_SENDING_ALIAS@example.com'],

@@ -938,7 +938,7 @@ function primeCache() {
 function _parseSheetToStructured(data) {
   if (!data || data.length < 2) return [];
   const headers = data[0].map(h => String(h).trim());
-  const firstEmptyHeaderIndex = headers.findIndex(h => !h || h === 'null' || h === 'undefined');
+  const firstEmptyHeaderIndex = headers.findIndex(h => !h || String(h).trim() === '' || h === 'null' || h === 'undefined');
   const usedHeaders = (firstEmptyHeaderIndex === -1)
     ? headers
     : headers.slice(0, firstEmptyHeaderIndex);
@@ -1716,7 +1716,7 @@ function onEdit(e) {
   const TARGET_CELLS = ["B2", "F2"]; // B2 = on/off sistema, F2 = modalità lingua
 
   if (sheetName === TARGET_SHEET && TARGET_CELLS.includes(cellAddress)) {
-    // NOTA: onEdit è un trigger semplice (max 30s, lock non affidabile).
+    // NOTA: onEdit è un trigger semplice (max ~6s, lock non affidabile).
     // Invalida solo la cache; il reload avviene nel ciclo principale con lock.
     console.log("🔄 Rilevata modifica al selettore. Invalidazione cache...");
     try {

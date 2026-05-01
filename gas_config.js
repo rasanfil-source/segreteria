@@ -100,10 +100,12 @@ var CONFIG = {
 
   // === Cache e Lock ===
   CACHE_MAX_BYTES: 90 * 1024,          // Margine sotto 100KB/entry CacheService per ridurre quota exceeded
-  CACHE_LOCK_TTL: 240,                 // Secondi (copre OCR + AI + validazione semantica)
+  CACHE_LOCK_TTL: 310,                 // Secondi (>= MAX_EXECUTION_TIME_MS/1000 con margine)
   CACHE_RACE_SLEEP_MS: 200,             // Attesa anti-race condition
   DEBUG: true,                         // Abilita log verbose (console.log) in produzione tenerlo false
   GMAIL_DAILY_CALL_LIMIT: 18000,       // Soft limit locale anti-burst prima del limite Gmail reale
+  GMAIL_LIST_MAX_PAGES: 20,            // Limite pagine Gmail list per bootstrap label cache
+  GMAIL_LIST_MAX_MESSAGES: 2000,       // Limite messaggi Gmail list per bootstrap label cache
   BATCH_CHECKPOINT_TTL_MS: 10 * 60 * 1000, // Scadenza checkpoint resume (10 minuti)
 
   // === Alias noti (anti-loop: il bot riconosce sé stesso anche quando invia da alias) ===
