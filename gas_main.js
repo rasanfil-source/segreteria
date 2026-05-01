@@ -1752,7 +1752,7 @@ function onEdit(e) {
   const range = e.range;
   const sheet = range.getSheet();
   const sheetName = sheet.getName();
-  const cellAddress = range.getA1Notation();
+  const cellAddress = range.getCell(1, 1).getA1Notation();
 
   // 1. Definisci qui le coordinate del tuo selettore
   // Esempio: Foglio "Controllo", cella "B2" (dove solitamente risiede lo stato o la config)

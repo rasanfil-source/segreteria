@@ -38,7 +38,15 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
     }
     if (typeof global.Utilities === 'undefined') {
         global.Utilities = {
-            formatDate: (date, tz, fmt) => new Date(date).toISOString(),
+            formatDate: (date, tz, fmt) => {
+              const d = new Date(date);
+              if (fmt === 'yyyy-MM-dd') return d.toISOString().slice(0, 10);
+              if (fmt === 'H') return String(d.getHours());
+              if (fmt === 'm') return String(d.getMinutes());
+              if (fmt === 's') return String(d.getSeconds());
+              if (fmt === 'HH:mm') return d.toISOString().slice(11, 16);
+              return d.toISOString();
+            },
             sleep: () => { },
             computeDigest: () => [0, 1, 2, 3],
             DigestAlgorithm: { MD5: 'MD5' },
