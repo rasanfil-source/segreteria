@@ -173,7 +173,9 @@ var EmailProcessor = class EmailProcessor {
 
         scriptCache.put(threadLockKey, lockValue, ttlSeconds);
         const confirmValue = scriptCache.get(threadLockKey);
-        if (confirmValue !== lockValue) {
+        // FIX: in failure transitori CacheService può restituire null subito dopo put().
+        // Blocca solo su collisione esplicita (token presente ma diverso).
+        if (confirmValue !== null && confirmValue !== lockValue) {
           console.warn(`🔒 Collisione lock cache su thread ${threadId}, salto`);
           return { status: 'skipped', reason: 'thread_lock_collision' };
         }
@@ -1468,12 +1470,11 @@ ${addressLines.join('\n\n')}
       const languageMode = typeof this._getLanguageProcessingMode_ === 'function'
         ? this._getLanguageProcessingMode_()
         : 'all';
-      const labelsDaIgnorare = [this.config.labelName];
-      // Il punto medio (·) lo escludiamo dalla ricerca SOLO in modalità foreign_only.
-      // In modalità 'all', non lo escludiamo: così le email "parcheggiate" vengono ripescate.
-      if (languageMode === 'foreign_only') {
-        labelsDaIgnorare.push(this.config.skipLabelName);
-      }
+      // FIX: non escludere label di processo nella query Gmail.
+      // L'operatore -label agisce a livello thread: escludere "IA" impedisce
+      // di rilevare follow-up non letti in conversazioni già etichettate.
+      // Il filtro dei messaggi già processati avviene già per-message.
+      const labelsDaIgnorare = [];
 
       let threads;
       try {
