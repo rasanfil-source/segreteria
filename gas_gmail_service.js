@@ -2232,7 +2232,7 @@ var GmailService = class GmailService {
 
         // Evita di alterare acronimi/parole interamente maiuscole (es. "ISEE", "INVIA")
         // Range esteso À-ÿ per coprire tutte le accentate europee (francese, spagnolo, tedesco, italiano...)
-        return text.replace(/,\s+([A-ZÀ-ß])([a-zà-ÿ]+)/g, (match, firstLetter, rest, offset) => {
+        return text.replace(/(,\s+)([A-ZÀ-ß])([a-zà-ÿ]+)/g, (match, commaAndSpace, firstLetter, rest, offset) => {
             // Eccezione per elenchi numerati (es: "1, Partecipanti")
             const beforeMatch = text.substring(Math.max(0, offset - 5), offset);
             if (beforeMatch.match(/\d+$/)) {
@@ -2262,7 +2262,7 @@ var GmailService = class GmailService {
                 return match;
             }
 
-            return `, ${firstLetter.toLowerCase()}${rest}`;
+            return `${commaAndSpace}${firstLetter.toLowerCase()}${rest}`;
         });
     }
 

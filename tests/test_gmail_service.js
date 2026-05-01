@@ -63,6 +63,11 @@ assert(!htmlIsolated.includes('<img src=x onerror=alert(1)>'), 'tag HTML isolato
 assert(htmlIsolated.includes('&lt;img src=x onerror=alert(1)&gt;'), 'tag HTML isolato deve essere escaped');
 
 console.log('--- Test discovery: errore getThreadById non deve bloccare il batch ---');
+console.log('--- Test fixPunctuation preserva newline dopo virgola ---');
+const punctuationService = new GmailService();
+const punctuated = punctuationService.fixPunctuation('Buongiorno,\nSiamo disponibili.');
+assert(punctuated === 'Buongiorno,\nsiamo disponibili.', 'fixPunctuation deve mantenere il newline dopo la virgola');
+
 const service = new GmailService();
 
 service._getOptionalLabelIdByName = () => null;
