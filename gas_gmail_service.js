@@ -2465,6 +2465,8 @@ var GmailService = class GmailService {
         const lines = [];
         let currentLine = headerPrefix;
 
+        let hasAtLeastOneToken = false;
+
         const maxTokenLength = Math.max(1, maxLineLength - 2); // continuation line: " " + token
         for (const token of tokens) {
             // I token header (es. Message-ID) non sono splittabili semanticamente.
@@ -2480,6 +2482,11 @@ var GmailService = class GmailService {
                 lines.push(currentLine);
                 currentLine = ` ${token}`;
             }
+            hasAtLeastOneToken = true;
+        }
+
+        if (!hasAtLeastOneToken) {
+            return '';
         }
 
         lines.push(currentLine);
