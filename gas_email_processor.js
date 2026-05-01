@@ -558,15 +558,13 @@ var EmailProcessor = class EmailProcessor {
 
             if (isUs) {
               botRepliesCount++;
-              // Se troviamo un nostro messaggio, la sequenza di esterni consecutivi si interrompe
-              break;
             } else {
               consecutiveExternal++;
             }
           }
 
-          if (consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
-            console.log(`   ⊖ Saltato: prevenzione loop email (${consecutiveExternal} esterni consecutivi alla fine del thread)`);
+          if (botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL || consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
+            console.log(`   ⊖ Saltato: prevenzione loop email attivata (thread ripetitivo: esterni=${consecutiveExternal}, bot=${botRepliesCount})`);
             markHandledUnread();
             result.status = 'filtered';
             result.reason = 'email_loop_detected';

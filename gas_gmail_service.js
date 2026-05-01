@@ -198,8 +198,9 @@ var GmailService = class GmailService {
      */
     addLabelToMessage(messageId, labelName) {
         try {
-            const label = this.getOrCreateLabel(labelName);
-            const labelId = label.getId();
+            this.getOrCreateLabel(labelName);
+            const labelId = this._getOptionalLabelIdByName(labelName);
+            if (!labelId) throw new Error("Label ID non trovato tramite API Avanzata");
             this._incrementGmailCallCounterOrThrow_('messages.modify:addLabel');
             const payload = { addLabelIds: [labelId] };
             Gmail.Users.Messages.modify(payload, 'me', messageId);
@@ -210,8 +211,9 @@ var GmailService = class GmailService {
                 this._clearPersistentLabelCache(labelName);
                 this.clearLabelCache();
                 try {
-                    const label = this.getOrCreateLabel(labelName);
-                    const labelId = label.getId();
+                    this.getOrCreateLabel(labelName);
+                    const labelId = this._getOptionalLabelIdByName(labelName);
+                    if (!labelId) throw new Error("Label ID non trovato tramite API Avanzata");
                     this._incrementGmailCallCounterOrThrow_('messages.modify:addLabel:retry');
                     const payload = { addLabelIds: [labelId] };
                     Gmail.Users.Messages.modify(payload, 'me', messageId);
@@ -374,8 +376,9 @@ var GmailService = class GmailService {
      */
     getMessageIdsWithLabel(labelName, onlyInbox = true, options = {}) {
         try {
-            const label = this.getOrCreateLabel(labelName);
-            const labelId = label.getId();
+            this.getOrCreateLabel(labelName);
+            const labelId = this._getOptionalLabelIdByName(labelName);
+            if (!labelId) throw new Error("Label ID non trovato tramite API Avanzata");
 
             const messageIds = new Set();
             let pageToken;
@@ -674,13 +677,20 @@ var GmailService = class GmailService {
         const cachedEntry = this._labelCache.get(raw);
         const now = Date.now();
         if (cachedEntry && (now - cachedEntry.ts) < this._cacheTTL) {
-            return cachedEntry.label ? cachedEntry.label.getId() : null;
+            return cachedEntry.labelId || null;
         }
 
-        const label = GmailApp.getUserLabelByName(raw);
-        // Cache positivo + negativo: evita chiamate GmailApp ripetute quando la label non esiste.
-        this._labelCache.set(raw, { label: label || null, ts: now });
-        return label ? label.getId() : null;
+        try {
+            const response = Gmail.Users.Labels.list('me');
+            const apiLabels = (response && response.labels) ? response.labels : [];
+            const matched = apiLabels.find(l => l && l.name === raw);
+            const id = matched ? matched.id : null;
+            this._labelCache.set(raw, { labelId: id, ts: now });
+            return id;
+        } catch (e) {
+            this._labelCache.set(raw, { labelId: null, ts: now });
+            return null;
+        }
     }
 
 
