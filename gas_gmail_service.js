@@ -2473,6 +2473,13 @@ var GmailService = class GmailService {
                 lines.push(currentLine);
                 currentLine = ` ${token}`;
             }
+
+            // Hard-stop RFC safety: un token anomalo non deve mai generare righe > maxLineLength.
+            while (currentLine.length > maxLineLength) {
+                const keep = currentLine.slice(0, maxLineLength);
+                lines.push(keep);
+                currentLine = ` ${currentLine.slice(maxLineLength).trimStart()}`;
+            }
         }
 
         lines.push(currentLine);
