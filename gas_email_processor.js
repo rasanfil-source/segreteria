@@ -1683,6 +1683,8 @@ ${addressLines.join('\n\n')}
         })
         .filter(Boolean);
       const checkpoint = {
+        version: 2,
+        runId: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         createdAt: new Date().toISOString(),
         startIndex: startIndex,
         remainingTimeMs: remainingTimeMs,

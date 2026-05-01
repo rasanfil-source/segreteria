@@ -104,6 +104,7 @@ var CONFIG = {
   CACHE_RACE_SLEEP_MS: 200,             // Attesa anti-race condition
   DEBUG: true,                         // Abilita log verbose (console.log) in produzione tenerlo false
   GMAIL_DAILY_CALL_LIMIT: 18000,       // Soft limit locale anti-burst prima del limite Gmail reale
+  BATCH_CHECKPOINT_TTL_MS: 10 * 60 * 1000, // Scadenza checkpoint resume (10 minuti)
 
   // === Alias noti (anti-loop: il bot riconosce sé stesso anche quando invia da alias) ===
   KNOWN_ALIASES: ['info@parrocchiasanteugenio.it'],

@@ -1482,6 +1482,10 @@ function resumeEmailBatchFromCheckpoint() {
     return;
   }
   console.log('⏭️ Ripresa batch da checkpoint richiesta.');
+  if (!_acquireCheckpointResumeLock_(checkpoint.runId || 'legacy')) {
+    console.warn('⚠️ Resume checkpoint già in corso: skip trigger duplicato.');
+    return;
+  }
   main();
 }
 
@@ -1490,7 +1494,17 @@ function _readBatchCheckpoint_() {
     const raw = PropertiesService.getScriptProperties().getProperty('EMAIL_BATCH_CHECKPOINT');
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return (parsed && typeof parsed === 'object') ? parsed : null;
+    if (!parsed || typeof parsed !== 'object') return null;
+    const ttlMs = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.BATCH_CHECKPOINT_TTL_MS)))
+      ? Number(CONFIG.BATCH_CHECKPOINT_TTL_MS)
+      : (10 * 60 * 1000);
+    const createdAtMs = Date.parse(parsed.createdAt || '');
+    const isFresh = Number.isFinite(createdAtMs) && ((Date.now() - createdAtMs) <= ttlMs);
+    if (!isFresh) {
+      _clearBatchCheckpoint_();
+      return null;
+    }
+    return parsed;
   } catch (_) {
     return null;
   }
@@ -1500,6 +1514,21 @@ function _clearBatchCheckpoint_() {
   try {
     PropertiesService.getScriptProperties().deleteProperty('EMAIL_BATCH_CHECKPOINT');
   } catch (_) { }
+}
+
+function _acquireCheckpointResumeLock_(runId) {
+  try {
+    const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
+      ? CacheService.getScriptCache()
+      : null;
+    if (!cache) return true;
+    const key = `checkpoint_resume_lock_${String(runId || 'unknown')}`;
+    if (cache.get(key)) return false;
+    cache.put(key, '1', 120);
+    return true;
+  } catch (_) {
+    return true;
+  }
 }
 
 
