@@ -45,7 +45,7 @@ var AppLogger = class AppLogger {
       level: level,
       context: this.context,
       message: message,
-      ...safeData
+      data: safeData
     };
 
     const loggingConfig = (this.config && this.config.LOGGING) ? this.config.LOGGING : {};

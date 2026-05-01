@@ -309,7 +309,11 @@ function isInSuspensionTime(checkDate = new Date()) {
         continue;
       }
 
-      if (currentHour >= startHour && currentHour < endHour) return true;
+      if (startHour <= endHour) {
+        if (currentHour >= startHour && currentHour < endHour) return true;
+      } else {
+        if (currentHour >= startHour || currentHour < endHour) return true;
+      }
     }
   }
 

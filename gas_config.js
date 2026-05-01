@@ -240,7 +240,6 @@ var CONFIG = {
     'registrati gratuitamente', 'scarica il catalogo'
   ]
 };
-
 // ====================================================================
 // MARCATORI LINGUA (costante condivisa tra moduli)
 // ====================================================================

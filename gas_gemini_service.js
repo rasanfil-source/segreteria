@@ -1405,12 +1405,17 @@ function parseGeminiJsonLenient(text) {
     cleaned = fencedMatch[1];
   }
 
-  // 2) Estrazione oggetto JSON esterno
-  const start = cleaned.indexOf('{');
+  // 2) Estrazione JSON esterno (oggetto o array)
+  const startObj = cleaned.indexOf('{');
+  const startArr = cleaned.indexOf('[');
+  const start = (startObj !== -1 && startArr !== -1)
+    ? Math.min(startObj, startArr)
+    : Math.max(startObj, startArr);
   if (start === -1) {
-    throw new Error('Nessun oggetto JSON trovato');
+    throw new Error('Nessun payload JSON trovato');
   }
-  const end = cleaned.lastIndexOf('}');
+  const openingChar = cleaned[start];
+  const end = cleaned.lastIndexOf(openingChar === '{' ? '}' : ']');
 
   cleaned = (end === -1 || end < start)
     ? cleaned.substring(start).trim()

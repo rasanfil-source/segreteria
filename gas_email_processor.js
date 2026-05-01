@@ -142,7 +142,7 @@ var EmailProcessor = class EmailProcessor {
 
       // Identificativo lock robusto: UUID se disponibile, fallback timestamp+entropia.
       if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.getUuid === 'function') {
-        lockValue = Utilities.getUuid();
+        lockValue = `${Date.now()}_${Utilities.getUuid()}`;
       } else {
         const entropy = Math.random().toString(36).substring(2, 8);
         lockValue = `${Date.now()}_${entropy}`;
