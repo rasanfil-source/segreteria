@@ -1446,15 +1446,8 @@ function setupWeeklyMemoryCleanupTrigger() {
   if (removed > 0) {
     console.log(`🗑️ Rimossi ${removed} trigger cleanup esistenti`);
   }
-
-  // Crea trigger settimanale (domenica alle 3:00)
-  ScriptApp.newTrigger('cleanupOldMemory')
-    .timeBased()
-    .onWeekDay(ScriptApp.WeekDay.SUNDAY)
-    .atHour(3)
-    .create();
-
-  console.log('✓ Trigger cleanup settimanale creato (Domenica 3:00 AM)');
+ 
+  console.log('ℹ️ setupWeeklyMemoryCleanupTrigger deprecata: nessun nuovo trigger creato qui. Usa setupWeeklyCleanupTrigger() in gas_main.js.');
 }
 
 /**

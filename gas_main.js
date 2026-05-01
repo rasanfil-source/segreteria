@@ -1154,6 +1154,10 @@ function _loadAdvancedConfig(ss) {
       }
     });
 
+    if (Object.keys(config.suspensionRules).length === 0) {
+      console.warn("⚠️ Foglio 'Controllo' presente ma senza fasce sospensione valide: sistema operativo 24/7 finché non vengono configurate regole.");
+    }
+
     // Filtri anti-spam (layout single-sheet: E13:F)
     const lastDataRow = sheet.getLastRow();
     const filterStartRow = 13;

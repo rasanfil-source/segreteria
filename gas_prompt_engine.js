@@ -148,7 +148,7 @@ var PromptEngine = class PromptEngine {
       ? CONFIG.MAX_SAFE_TOKENS : 35000;
     const MAX_SAFE_PROMPT_CHARS = (typeof CONFIG !== 'undefined' && Number(CONFIG.MAX_SAFE_PROMPT_CHARS) > 0)
       ? Number(CONFIG.MAX_SAFE_PROMPT_CHARS)
-      : 1000000;
+      : 140000;
 
     const OVERHEAD_TOKENS = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && Number(CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS) > 0)
       ? Number(CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS) : 15000;

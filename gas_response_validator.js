@@ -11,6 +11,17 @@
  * ✅ Dati allucinati (email, telefoni, orari non in KB)
  * ✅ Ragionamento esposto (thinking leak)
  */
+const ITALIAN_FORBIDDEN_CAPS = [
+  'Siamo', 'Restiamo', 'Sono', 'È', 'Era', 'Sarà',
+  'Ho', 'Hai', 'Ha', 'Abbiamo', 'Avete', 'Hanno',
+  'Vorrei', 'Vorremmo', 'Volevamo', 'Desideriamo', 'Informiamo',
+  'Il', 'Lo', 'La', 'I', 'Gli', 'Le', 'Un', 'Uno', 'Una',
+  'Per', 'Con', 'In', 'Su', 'Tra', 'Fra', 'Da', 'Di', 'A',
+  'Ma', 'Se', 'Che', 'Non', 'Sì', 'No', 'E', 'Ed', 'O', 'Oppure',
+  'Vi', 'Ti', 'Mi', 'Ci', 'Si', 'Li',
+  'Ecco', 'Gentile', 'Caro', 'Cara', 'Spettabile'
+];
+ 
 var ResponseValidator = class ResponseValidator {
   constructor() {
     console.log('🔍 Inizializzazione ResponseValidator...');
@@ -727,22 +738,7 @@ var ResponseValidator = class ResponseValidator {
     ];
 
     // Parole italiane che NON devono essere maiuscole dopo una virgola
-    const italianForbiddenCaps = [
-      // Verbi
-       'Siamo', 'Restiamo', 'Sono', 'È', 'Era', 'Sarà',
-       'Ho', 'Hai', 'Ha', 'Abbiamo', 'Avete', 'Hanno',
-       'Vorrei', 'Vorremmo', 'Volevamo', 'Desideriamo', 'Informiamo',
-       // Articoli
-       'Il', 'Lo', 'La', 'I', 'Gli', 'Le', 'Un', 'Uno', 'Una',
-      // Preposizioni
-      'Per', 'Con', 'In', 'Su', 'Tra', 'Fra', 'Da', 'Di', 'A',
-      // Congiunzioni e particelle (AGGIUNTE "E", "Ed")
-      'Ma', 'Se', 'Che', 'Non', 'Sì', 'No', 'E', 'Ed', 'O', 'Oppure',
-      // Pronomi
-      'Vi', 'Ti', 'Mi', 'Ci', 'Si', 'Li',
-      // Altre parole comuni
-      'Ecco', 'Gentile', 'Caro', 'Cara', 'Spettabile'
-    ];
+    const italianForbiddenCaps = ITALIAN_FORBIDDEN_CAPS;
 
     // Parole inglesi - lista limitata
     const englishForbiddenCaps = [
@@ -781,7 +777,7 @@ var ResponseValidator = class ResponseValidator {
       // causerebbe warning sistematici non affidabili.
       forbiddenCaps = [];
     } else {
-      forbiddenCaps = italianForbiddenCaps;
+      forbiddenCaps = ITALIAN_FORBIDDEN_CAPS;
     }
 
     // Regex mirata ai token alfabetici semplici dopo virgola: evita falsi positivi su forme elise (es. Un'altra).
@@ -860,7 +856,6 @@ var ResponseValidator = class ResponseValidator {
 
     // 1. Cerca pattern Regex (Meta-commenti strutturali)
     for (const regex of this.thinkingRegexes) {
-      if (regex && typeof regex.lastIndex === 'number') regex.lastIndex = 0;
       if (regex.test(response)) {
         foundPatterns.push(`Regex Match: ${regex.source}`);
       }
@@ -1139,16 +1134,7 @@ var ResponseValidator = class ResponseValidator {
 
     // Definiamo le regole per lingua
     if (language === 'it') {
-      targets = [
-        'Siamo', 'Restiamo', 'Sono', 'È', 'Era', 'Sarà',
-        'Ho', 'Hai', 'Ha', 'Abbiamo', 'Avete', 'Hanno',
-        'Vorrei', 'Vorremmo', 'Volevamo', 'Desideriamo', 'Informiamo',
-        'Il', 'Lo', 'La', 'I', 'Gli', 'Le', 'Un', 'Uno', 'Una',
-        'Per', 'Con', 'In', 'Su', 'Tra', 'Fra', 'Da', 'Di', 'A',
-        'Ma', 'Se', 'Che', 'Non', 'Sì', 'No', 'E', 'Ed', 'O', 'Oppure',
-        'Vi', 'Ti', 'Mi', 'Ci', 'Si', 'Li',
-        'Ecco', 'Gentile', 'Caro', 'Cara', 'Spettabile'
-      ];
+      targets = ITALIAN_FORBIDDEN_CAPS;
     } else if (language === 'en') {
       // Lista minima per inglese
       targets = ['The', 'An', 'For', 'With', 'On', 'At', 'If', 'Or', 'And', 'But', 'To', 'In'];

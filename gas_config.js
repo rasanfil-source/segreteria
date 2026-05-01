@@ -227,7 +227,7 @@ var CONFIG = {
   IGNORE_KEYWORDS: [
     'unsubscribe', 'opt-out', 'newsletter',
     'disiscriviti', 'disiscrizione', 'annulla iscrizione',
-    'annulla l\'iscrizione', 'gestisci la tua iscrizione',
+    'annulla l\'iscrizione', 'annulla l’iscrizione', 'gestisci la tua iscrizione',
     'gestisci le tue preferenze', 'aggiorna le tue preferenze',
     'cancella iscrizione', 'mailing list', 'inviato con mailup',
     'messaggio inviato con', 'non rispondere a questo messaggio',

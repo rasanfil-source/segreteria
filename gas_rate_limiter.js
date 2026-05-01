@@ -154,11 +154,13 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         : 'gemini-2.5-flash';
 
       normalized[modelKey] = Object.assign({}, modelConfig, {
-        name: replacement || currentName || fallbackName
+        name: replacement || ((currentName === undefined || currentName === null) ? fallbackName : currentName)
       });
-
-      if (!currentName) {
+ 
+      if (currentName === undefined || currentName === null) {
         console.warn(`⚠️ Modello '${modelKey}' senza name in CONFIG: uso fallback '${normalized[modelKey].name}'.`);
+      } else if (typeof currentName === 'string' && currentName.trim() === '') {
+        console.warn(`⚠️ Modello '${modelKey}' con name vuoto in CONFIG: verificare la configurazione.`);
       }
     });
 
@@ -1222,25 +1224,27 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   }
 
   _getNextResetTime() {
-    const nowMs = Date.now();
-    const currentPacificDate = this._getPacificDate();
+    // Il reset quote avviene a mezzanotte Pacific. Per ridurre il costo runtime
+    // evitiamo chiamate ripetute a Utilities.formatDate (binary search) e usiamo
+    // un calcolo UTC basato sull'offset Pacific corrente.
+    const now = new Date();
+    const pacificNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+    const pacificYear = pacificNow.getFullYear();
+    const pacificMonth = pacificNow.getMonth();
+    const pacificDay = pacificNow.getDate();
 
-    // Trova il primo istante in cui cambia la data Pacific (mezzanotte locale Pacific)
-    let low = nowMs;
-    let high = nowMs + (36 * 60 * 60 * 1000); // margine abbondante per DST
-
-    while (high - low > 1000) {
-      const mid = Math.floor((low + high) / 2);
-      const midPacificDate = Utilities.formatDate(new Date(mid), 'America/Los_Angeles', 'yyyy-MM-dd');
-
-      if (midPacificDate === currentPacificDate) {
-        low = mid;
-      } else {
-        high = mid;
-      }
-    }
-
-    return new Date(high).toISOString();
+    const utcAtPacificMidnight = new Date(Date.UTC(pacificYear, pacificMonth, pacificDay + 1, 0, 0, 0));
+    const pacificAsUtcMs = Date.UTC(
+      pacificNow.getFullYear(),
+      pacificNow.getMonth(),
+      pacificNow.getDate(),
+      pacificNow.getHours(),
+      pacificNow.getMinutes(),
+      pacificNow.getSeconds(),
+      pacificNow.getMilliseconds()
+    );
+    const pacificOffsetMs = now.getTime() - pacificAsUtcMs;
+    return new Date(utcAtPacificMidnight.getTime() + pacificOffsetMs).toISOString();
   }
 
   // Nota: niente _estimateTokens locale.

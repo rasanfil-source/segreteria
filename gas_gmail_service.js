@@ -197,10 +197,8 @@ var GmailService = class GmailService {
             const label = this.getOrCreateLabel(labelName);
             const labelId = label.getId();
             this._incrementGmailCallCounterOrThrow_('messages.modify:addLabel');
-            Gmail.Users.Messages.modify({
-                addLabelIds: [labelId],
-                removeLabelIds: []
-            }, 'me', messageId);
+            const payload = { addLabelIds: [labelId] };
+            Gmail.Users.Messages.modify(payload, 'me', messageId);
             console.log(`✓ Aggiunta label '${labelName}' al messaggio ${messageId}`);
         } catch (e) {
             console.warn(`⚠️ addLabelToMessage fallito per messaggio ${messageId}: ${e.message}`);
@@ -211,10 +209,8 @@ var GmailService = class GmailService {
                     const label = this.getOrCreateLabel(labelName);
                     const labelId = label.getId();
                     this._incrementGmailCallCounterOrThrow_('messages.modify:addLabel:retry');
-                    Gmail.Users.Messages.modify({
-                        addLabelIds: [labelId],
-                        removeLabelIds: []
-                    }, 'me', messageId);
+                    const payload = { addLabelIds: [labelId] };
+                    Gmail.Users.Messages.modify(payload, 'me', messageId);
                     console.log(`✓ Aggiunta label '${labelName}' al messaggio ${messageId} (retry dopo cache reset)`);
                 } catch (retryError) {
                     console.warn(`⚠️ Retry addLabelToMessage fallito per messaggio ${messageId}: ${retryError.message}`);
@@ -246,10 +242,8 @@ var GmailService = class GmailService {
             if (!labelId) return;
 
             this._incrementGmailCallCounterOrThrow_('messages.modify:removeLabel');
-            Gmail.Users.Messages.modify({
-                addLabelIds: [],
-                removeLabelIds: [labelId]
-            }, 'me', messageId);
+            const payload = { removeLabelIds: [labelId] };
+            Gmail.Users.Messages.modify(payload, 'me', messageId);
             console.log(`✓ Rimossa label '${labelName}' dal messaggio ${messageId}`);
         } catch (e) {
             console.warn(`⚠️ removeLabelFromMessage fallito per msg ${messageId}: ${e.message}`);
@@ -579,9 +573,8 @@ var GmailService = class GmailService {
         const skipLabels = Array.isArray(skipLabel) ? skipLabel.filter(Boolean) : [skipLabel].filter(Boolean);
         const eq = this._formatLabelQueryValue(errorLabel);
         const vq = this._formatLabelQueryValue(validationLabel);
-        // Nota multi-turn: NON escludere la label di processo (es. IA) a livello thread.
-        // In Gmail i thread ereditano label dei messaggi: "-label:IA" nasconde follow-up validi.
-        // Il filtro sui messaggi già processati avviene poi in processThread (message-level cache).
+        // Discovery a livello messaggio (Gmail API list): qui filtriamo solo error/validation/skip.
+        // Non applichiamo esclusione della label di processo a livello thread per non perdere follow-up validi.
         let query = `is:unread -label:${eq} -label:${vq} in:inbox`;
         
         skipLabels.forEach(skipName => {
@@ -1793,7 +1786,8 @@ var GmailService = class GmailService {
         text = text.replace(/<\/p\s*>/gi, '\n\n');
         text = text.replace(/<\/div\s*>/gi, '\n');
 
-        text = text.replace(/<[^>]+>/g, ' ');
+        text = text// Evita di rimuovere espressioni testuali tipo "A < B > C" trattando solo tag HTML plausibili
+            .replace(/<\/?\s*[a-zA-Z][^>]*>/g, ' ');
 
         // Fallback simboli per plain text (evita mojibake in ambienti non-UTF8)
         text = text
@@ -2191,7 +2185,8 @@ var GmailService = class GmailService {
     _stripHtmlTags(text) {
         if (!text) return '';
         return text
-            .replace(/<[^>]+>/g, ' ')
+            // Evita di rimuovere espressioni testuali tipo "A < B > C" trattando solo tag HTML plausibili
+            .replace(/<\/?\s*[a-zA-Z][^>]*>/g, ' ')
             .replace(/\*\*(.+?)\*\*/g, '$1')
             .replace(/\*(.+?)\*/g, '$1')
             .replace(/#{1,4}\s+/g, '')

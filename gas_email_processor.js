@@ -2441,10 +2441,10 @@ ${prompt.slice(-tailChars)}`;
     return summary || null;
   }
 
-  _isTerritoryRequest(subject, body, classification = {}, requestType = {}) {
+  _isTerritoryRequest(subject, body, classification = {}) {
     const text = `${subject || ''} ${body || ''}`.toLowerCase();
     const topic = String(classification && classification.topic ? classification.topic : '').toLowerCase();
-
+ 
     // NOTA: RequestTypeClassifier non produce mai type='territory'.
     // La rilevazione avviene interamente via pattern sul testo qui sotto.
     if (topic.includes('territor') || topic.includes('parrocch')) return true;
