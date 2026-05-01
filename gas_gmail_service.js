@@ -560,10 +560,12 @@ var GmailService = class GmailService {
      */
     _discoverByQuery(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null) {
         const skipLabels = Array.isArray(skipLabel) ? skipLabel.filter(Boolean) : [skipLabel].filter(Boolean);
-        const lq = this._formatLabelQueryValue(labelName);
         const eq = this._formatLabelQueryValue(errorLabel);
         const vq = this._formatLabelQueryValue(validationLabel);
-        let query = `is:unread -label:${lq} -label:${eq} -label:${vq} in:inbox`;
+        // Nota multi-turn: NON escludere la label di processo (es. IA) a livello thread.
+        // In Gmail i thread ereditano label dei messaggi: "-label:IA" nasconde follow-up validi.
+        // Il filtro sui messaggi già processati avviene poi in processThread (message-level cache).
+        let query = `is:unread -label:${eq} -label:${vq} in:inbox`;
         
         skipLabels.forEach(skipName => {
             const sq = this._formatLabelQueryValue(skipName);

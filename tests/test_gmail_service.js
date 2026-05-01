@@ -68,6 +68,18 @@ const punctuationService = new GmailService();
 const punctuated = punctuationService.fixPunctuation('Buongiorno,\nSiamo disponibili.');
 assert(punctuated === 'Buongiorno,\nsiamo disponibili.', 'fixPunctuation deve mantenere il newline dopo la virgola');
 
+console.log('--- Test _discoverByQuery: non esclude label IA a livello thread ---');
+{
+  const serviceQuery = new GmailService();
+  let capturedQuery = '';
+  serviceQuery._listMessagesWithResilience = (params) => {
+    capturedQuery = params.q || '';
+    return { messages: [], nextPageToken: null };
+  };
+  serviceQuery._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, []);
+  assert(!capturedQuery.includes('-label:IA'), 'query discovery non deve escludere label IA a livello thread');
+}
+
 const service = new GmailService();
 
 service._getOptionalLabelIdByName = () => null;
