@@ -362,6 +362,7 @@ var MemoryService = class MemoryService {
     for (let i = 0; i < 3; i++) {
         const globalLock = LockService.getScriptLock();
         let globalLockAcquired = false;
+        let lockAcquired = false;
 
         try {
           // 1. Acquisisci Lock Sharded (CacheService)
@@ -900,7 +901,7 @@ var MemoryService = class MemoryService {
 
     // Pattern: Global Guard per operazione Cache Atomica
     // Prendi lock globale per pochissimo tempo, solo per check-and-set su Cache
-    // Nota manutenzione: il timeout di 5s garantisce che anche in picchi di carico
+    // Nota manutenzione: il timeout di 500ms garantisce che anche in picchi di carico
     // il worker non fallisca immediatamente nel tentativo di segnare il thread come in lavorazione.
     // Timeout acquisizione lock ridotto a 500ms per la guard atomica (B2)
     // Evita la cascata di timeout osservata durante carichi elevati.

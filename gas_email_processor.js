@@ -273,25 +273,6 @@ var EmailProcessor = class EmailProcessor {
         return true;
       });
 
-      // Marca i non letti gestiti in modo coerente:
-      // - esterni => label IA (processati)
-      // - interni => skip label
-      // Così evitiamo reprocessing senza alterare la semantica operativa sui messaggi interni.
-      const markHandledUnread = () => {
-        const externalIds = new Set(externalUnread.map(m => m.getId()));
-        const internalUnread = [];
-        unlabeledUnread.forEach(message => {
-          if (externalIds.has(message.getId())) {
-            this._markMessageAsProcessed(message, labeledMessageIds);
-          } else {
-            internalUnread.push(message);
-          }
-        });
-        if (internalUnread.length > 0) {
-          this._markMessagesAsSkipped(internalUnread);
-        }
-      };
-
       // Build set of our own addresses (primary + aliases) per filtro early-stage
       const ownAddresses = new Set();
       if (myEmail) ownAddresses.add(this._normalizeEmailAddress_(myEmail));
@@ -315,6 +296,25 @@ var EmailProcessor = class EmailProcessor {
         if (!senderEmail) return true;
         return !ownAddresses.has(this._normalizeEmailAddress_(senderEmail));
       });
+
+      // Marca i non letti gestiti in modo coerente:
+      // - esterni => label IA (processati)
+      // - interni => skip label
+      // Così evitiamo reprocessing senza alterare la semantica operativa sui messaggi interni.
+      const markHandledUnread = () => {
+        const externalIds = new Set(externalUnread.map(m => m.getId()));
+        const internalUnread = [];
+        unlabeledUnread.forEach(message => {
+          if (externalIds.has(message.getId())) {
+            this._markMessageAsProcessed(message, labeledMessageIds);
+          } else {
+            internalUnread.push(message);
+          }
+        });
+        if (internalUnread.length > 0) {
+          this._markMessagesAsSkipped(internalUnread);
+        }
+      };
 
       // GUARDRAIL (critico): se un messaggio è già stato etichettati IA, non deve
       // rientrare nel ciclo di risposta automatica anche se il thread è ancora aperto.
