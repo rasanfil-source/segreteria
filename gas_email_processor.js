@@ -248,6 +248,7 @@ var EmailProcessor = class EmailProcessor {
           console.warn(`⚠️ Session email non disponibile: uso fallback anti-loop (${myEmail})`);
         } else {
           console.warn('⚠️ Session email non disponibile e nessun fallback configurato (ScriptProperties.ADMIN_EMAIL/CONFIG.LOGGING.ADMIN_EMAIL/BOT_EMAIL/CONFIG.BOT_EMAIL)');
+          return { status: 'skipped', reason: 'anti_loop_protection_unavailable' };
         }
       }
 
@@ -2781,7 +2782,7 @@ function computeSalutationMode({ isReply = false, messageCount = 0, memoryExists
     return 'none_or_continuity';
   }
 
-  const parsedLastUpdated = new Date(lastUpdated);
+  const parsedLastUpdated = (typeof parseDateSafe === 'function') ? parseDateSafe(lastUpdated, null) : new Date(lastUpdated);
   if (isNaN(parsedLastUpdated.getTime())) {
     return 'none_or_continuity';
   }
@@ -2834,7 +2835,7 @@ function computeResponseDelay({ messageDate, now = new Date(), thresholdHours = 
     return { shouldApologize: false, hours: 0, days: 0 };
   }
 
-  const parsedMessageDate = new Date(messageDate);
+  const parsedMessageDate = (typeof parseDateSafe === 'function') ? parseDateSafe(messageDate, null) : new Date(messageDate);
   const diffMs = now.getTime() - parsedMessageDate.getTime();
 
   if (isNaN(diffMs) || diffMs < 0) {

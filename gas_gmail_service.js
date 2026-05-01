@@ -21,6 +21,10 @@ var GmailService = class GmailService {
         // un'eccezione silenziosa o un fallimento dell'operazione di put.
         this._cacheTtlSeconds = Math.min(21599, Math.max(60, Math.floor(this._cacheTTL / 1000)));
         this._scriptCache = (typeof CacheService !== 'undefined' && CacheService) ? CacheService.getScriptCache() : null;
+        this._gmailDailyCallLimit = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.GMAIL_DAILY_CALL_LIMIT)))
+            ? Number(CONFIG.GMAIL_DAILY_CALL_LIMIT)
+            : 18000;
+        this._gmailDailyCounterWarnAt = Math.floor(this._gmailDailyCallLimit * 0.9);
 
         // Mappa MIME types Office → tipo Google Workspace per conversione nativa
         this._officeMimeMap = {
@@ -36,6 +40,28 @@ var GmailService = class GmailService {
         };
 
         console.log('✓ GmailService inizializzato con cache etichette (TTL 1h)');
+    }
+
+    _getGmailCounterDateKey_() {
+        const tz = (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function')
+            ? (Session.getScriptTimeZone() || 'Etc/UTC')
+            : 'Etc/UTC';
+        return `gmail_api_calls:${Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd')}`;
+    }
+
+    _incrementGmailCallCounterOrThrow_(opName) {
+        if (!this._scriptCache || !this._gmailDailyCallLimit) return;
+        const key = this._getGmailCounterDateKey_();
+        const raw = this._scriptCache.get(key);
+        const current = Number.parseInt(raw || '0', 10) || 0;
+        const next = current + 1;
+        this._scriptCache.put(key, String(next), 21600);
+        if (next >= this._gmailDailyCounterWarnAt && next < this._gmailDailyCallLimit) {
+            console.warn(`⚠️ Gmail API call counter alto: ${next}/${this._gmailDailyCallLimit} (${opName})`);
+        }
+        if (next >= this._gmailDailyCallLimit) {
+            throw new Error(`GMAIL_DAILY_CALL_LIMIT_REACHED (${next}/${this._gmailDailyCallLimit})`);
+        }
     }
 
     // ========================================================================
@@ -166,6 +192,7 @@ var GmailService = class GmailService {
         try {
             const label = this.getOrCreateLabel(labelName);
             const labelId = label.getId();
+            this._incrementGmailCallCounterOrThrow_('messages.modify:addLabel');
             Gmail.Users.Messages.modify({
                 addLabelIds: [labelId],
                 removeLabelIds: []
@@ -179,6 +206,7 @@ var GmailService = class GmailService {
                 try {
                     const label = this.getOrCreateLabel(labelName);
                     const labelId = label.getId();
+                    this._incrementGmailCallCounterOrThrow_('messages.modify:addLabel:retry');
                     Gmail.Users.Messages.modify({
                         addLabelIds: [labelId],
                         removeLabelIds: []
@@ -200,6 +228,7 @@ var GmailService = class GmailService {
             const labelId = this._getOptionalLabelIdByName(labelName);
             if (!labelId) return;
 
+            this._incrementGmailCallCounterOrThrow_('messages.modify:removeLabel');
             Gmail.Users.Messages.modify({
                 addLabelIds: [],
                 removeLabelIds: [labelId]
@@ -226,6 +255,7 @@ var GmailService = class GmailService {
 
         for (let attempt = 1; attempt <= safeAttempts; attempt++) {
             try {
+                this._incrementGmailCallCounterOrThrow_('messages.get');
                 const response = Gmail.Users.Messages.get('me', messageId, params);
                 if (response === null || typeof response === 'undefined') {
                     throw new Error('Empty response');
@@ -260,6 +290,7 @@ var GmailService = class GmailService {
 
         for (let attempt = 1; attempt <= safeAttempts; attempt++) {
             try {
+                this._incrementGmailCallCounterOrThrow_('messages.list');
                 const response = Gmail.Users.Messages.list('me', params);
                 if (response === null || typeof response === 'undefined') {
                     throw new Error('Empty response');
@@ -748,17 +779,15 @@ var GmailService = class GmailService {
 
         let recipientEmail = null;
         try {
-            recipientEmail = message.getTo();
+            const rawTo = message.getTo() || '';
+            const match = rawTo.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+            recipientEmail = match ? match[0] : '';
         } catch (e) {
             const hasSession = (typeof Session !== 'undefined' && Session);
             const effectiveUser = hasSession ? Session.getEffectiveUser() : null;
             recipientEmail = effectiveUser ? effectiveUser.getEmail() : '';
-            if (!recipientEmail && hasSession) {
-                const activeUser = Session.getActiveUser();
-                recipientEmail = activeUser ? activeUser.getEmail() : '';
-                if (!recipientEmail && typeof CONFIG !== 'undefined') {
-                    recipientEmail = CONFIG.BOT_EMAIL || (CONFIG.LOGGING && CONFIG.LOGGING.ADMIN_EMAIL) || '';
-                }
+            if (!recipientEmail && typeof CONFIG !== 'undefined') {
+                recipientEmail = CONFIG.BOT_EMAIL || (CONFIG.LOGGING && CONFIG.LOGGING.ADMIN_EMAIL) || '';
             }
         }
 
@@ -2072,6 +2101,7 @@ var GmailService = class GmailService {
                 }
                 encodedMessage = encodedMessage.replace(/=+$/, '');
 
+                this._incrementGmailCallCounterOrThrow_('messages.send');
                 Gmail.Users.Messages.send({
                     raw: encodedMessage,
                     threadId: threadId

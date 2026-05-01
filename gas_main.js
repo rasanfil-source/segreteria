@@ -32,7 +32,15 @@ var RESOURCE_CACHE_KEY_V2 = 'SPA_KNOWLEDGE_BASE_V2';
 var RESOURCE_CACHE_KEY_V1 = 'SPA_KNOWLEDGE_BASE_V1';
 var RESOURCE_CACHE_PARTS_KEY = `${RESOURCE_CACHE_KEY_V2}:parts`;
 var RESOURCE_CACHE_PART_PREFIX = `${RESOURCE_CACHE_KEY_V2}:part:`;
-var RESOURCE_CACHE_MAX_PART_SIZE = 45000; // Limita la dimensione della cache per evitare overflow con caratteri UTF-8 multibyte.
+var RESOURCE_CACHE_MAX_BYTES = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.CACHE_MAX_BYTES)))
+  ? Number(CONFIG.CACHE_MAX_BYTES)
+  : (90 * 1024);
+var RESOURCE_CACHE_MAX_PART_SIZE = Math.max(20000, Math.floor(RESOURCE_CACHE_MAX_BYTES * 0.45)); // multipart conservativo
+
+function _normalizeStringArraySafe_(candidate) {
+  if (!Array.isArray(candidate)) return [];
+  return Array.from(new Set(candidate.map(v => String(v == null ? '' : v).trim().toLowerCase()).filter(Boolean)));
+}
 
 // ====================================================================
 // FESTIVITÀ E SOSPENSIONE
@@ -1067,12 +1075,8 @@ function _loadAdvancedConfig(ss) {
     const staticKeywords = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_KEYWORDS))
       ? CONFIG.IGNORE_KEYWORDS
       : [];
-    config.ignoreDomains = Array.from(
-      new Set(staticDomains.map(v => String(v).trim().toLowerCase()).filter(Boolean))
-    );
-    config.ignoreKeywords = Array.from(
-      new Set(staticKeywords.map(v => String(v).trim().toLowerCase()).filter(Boolean))
-    );
+    config.ignoreDomains = _normalizeStringArraySafe_(staticDomains);
+    config.ignoreKeywords = _normalizeStringArraySafe_(staticKeywords);
     return config;
   }
 
@@ -1168,8 +1172,8 @@ function _loadAdvancedConfig(ss) {
   // Dedup + fallback su config statica
   const staticDomains = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_DOMAINS)) ? CONFIG.IGNORE_DOMAINS : [];
   const staticKeywords = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_KEYWORDS)) ? CONFIG.IGNORE_KEYWORDS : [];
-  config.ignoreDomains = Array.from(new Set([...staticDomains, ...config.ignoreDomains].map(v => String(v).trim().toLowerCase()).filter(Boolean)));
-  config.ignoreKeywords = Array.from(new Set([...staticKeywords, ...config.ignoreKeywords].map(v => String(v).trim().toLowerCase()).filter(Boolean)));
+  config.ignoreDomains = _normalizeStringArraySafe_([...(Array.isArray(staticDomains) ? staticDomains : []), ...(Array.isArray(config.ignoreDomains) ? config.ignoreDomains : [])]);
+  config.ignoreKeywords = _normalizeStringArraySafe_([...(Array.isArray(staticKeywords) ? staticKeywords : []), ...(Array.isArray(config.ignoreKeywords) ? config.ignoreKeywords : [])]);
 
   return config;
 }
@@ -1577,6 +1581,34 @@ function _extractDatePartsForTimeZone(date, timeZone) {
     minute: String(date.getUTCMinutes()).padStart(2, '0'),
     second: String(date.getUTCSeconds()).padStart(2, '0')
   };
+}
+
+function parseDateSafe(input, fallback = null, explicitTimeZone = null) {
+  if (input instanceof Date) {
+    return Number.isNaN(input.getTime()) ? fallback : new Date(input.getTime());
+  }
+  if (input === null || input === undefined || input === '') return fallback;
+
+  const parsed = new Date(input);
+  if (!Number.isNaN(parsed.getTime())) return parsed;
+
+  if (typeof input === 'string') {
+    const match = String(input).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) {
+      const tz = explicitTimeZone || _resolveScriptTimeZone();
+      const noonUtcGuess = new Date(`${match[1]}-${match[2]}-${match[3]}T12:00:00Z`);
+      try {
+        const y = Utilities.formatDate(noonUtcGuess, tz, 'yyyy');
+        const m = Utilities.formatDate(noonUtcGuess, tz, 'MM');
+        const d = Utilities.formatDate(noonUtcGuess, tz, 'dd');
+        return new Date(`${y}-${m}-${d}T12:00:00`);
+      } catch (_) {
+        return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0, 0);
+      }
+    }
+  }
+
+  return fallback;
 }
 
 /**

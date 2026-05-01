@@ -13,7 +13,7 @@
  * - Passa al modello di riserva se il principale è esaurito
  */
 var GeminiRateLimiter = class GeminiRateLimiter {
-  constructor() {
+  constructor(options = {}) {
     console.log('\uD83D\uDEA6 Inizializzazione GeminiRateLimiter...');
 
     // ================================================================
@@ -80,10 +80,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     // PERSISTENZA (PropertiesService)
     // ================================================================
 
-    this.props = PropertiesService.getScriptProperties();
+    this.props = options.props || PropertiesService.getScriptProperties();
 
     // Inizializza stato preesistente da transazioni persistenti
-    this._recoverFromWAL();
+    // Se siamo già lockati (es. in main), saltiamo il lock interno (B3)
+    this._recoverFromWAL(options.alreadyLocked || false);
 
     // Inizializza contatori se non esistono
     this._initializeCounters();
@@ -511,7 +512,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       try {
         const startTime = Date.now();
         // Esecuzione diretta senza controlli quota
-        const result = requestFn(options.modelNameOverride || 'gemini-2.5-flash');
+        const result = this._safeExecuteRequestFn_(requestFn, options.modelNameOverride || 'gemini-2.5-flash');
         const duration = Date.now() - startTime;
 
         return {
@@ -522,8 +523,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
           duration: duration
         };
       } catch (e) {
-        // Se fallisce, rilancia l'errore per gestione esterna
-        throw e;
+        throw new Error(`RATE_LIMITER_EXECUTE_BYPASS_FAILED: ${e.message}`);
       }
     }
     // ═══════════════════════════════════════════════════════════════════
@@ -566,7 +566,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         console.log(`   Modello: ${model.name}, Task: ${taskType}`);
 
         // CHIAMATA SINCRONA (no await)
-        const result = requestFn(model.name);
+        const result = this._safeExecuteRequestFn_(requestFn, model.name);
 
         const duration = Date.now() - startTime;
 
@@ -634,6 +634,21 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     // Tutti i tentativi falliti
     console.error(`❌ Tutti i ${maxRetries} tentativi falliti`);
     throw lastError || new Error('Richiesta fallita dopo tutti i tentativi');
+  }
+
+  _safeExecuteRequestFn_(requestFn, modelName) {
+    if (typeof requestFn !== 'function') {
+      throw new Error('requestFn non valido: attesa funzione');
+    }
+    try {
+      const raw = requestFn(modelName);
+      if (raw === null || raw === undefined) {
+        throw new Error('requestFn ha restituito payload vuoto');
+      }
+      return raw;
+    } catch (e) {
+      throw new Error(`requestFn exception (${modelName}): ${e.message}`);
+    }
   }
 
   // ================================================================

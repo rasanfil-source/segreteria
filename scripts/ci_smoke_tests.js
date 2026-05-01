@@ -1,4 +1,18 @@
-#!/usr/bin/env node
+global.LockService = {
+    getScriptLock: () => ({
+        tryLock: () => true,
+        waitLock: () => { },
+        releaseLock: () => { },
+        hasLock: () => true
+    }),
+    getUserLock: () => ({
+        tryLock: () => true,
+        waitLock: () => { },
+        releaseLock: () => { },
+        hasLock: () => true
+    })
+};
+
 
 /**
  * Smoke tests eseguibili in CI Node.js
@@ -838,7 +852,6 @@ function testUpdateMemoryLockFailureUsesExponentialBackoff() {
     service._getShardedLockKey = () => 'memory_lock_thread-backoff';
     service._tryAcquireShardedLock = () => false;
     service._releaseShardedLock = () => { throw new Error('releaseLock non deve essere chiamato senza lock'); };
-
     const originalUtilities = global.Utilities;
     const sleeps = [];
     global.Utilities = Object.assign({}, originalUtilities, {
@@ -846,16 +859,11 @@ function testUpdateMemoryLockFailureUsesExponentialBackoff() {
     });
 
     try {
-        let thrown = null;
-        try {
-            service.updateMemory('thread-backoff', { language: 'it' });
-        } catch (error) {
-            thrown = error;
-        }
+        const result = service.updateMemory('thread-backoff', { language: 'it' });
 
         assert(
-            thrown && /Aggiornamento memoria fallito/.test(thrown.message),
-            'updateMemory deve fallire dopo MAX_RETRIES se il lock resta occupato'
+            result === false,
+            'updateMemory deve ritornare false dopo MAX_RETRIES se il lock resta occupato'
         );
 
         const expectedSleeps = [200, 400, 800, 1600, 3200];

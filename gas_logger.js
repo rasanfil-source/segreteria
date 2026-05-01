@@ -9,6 +9,10 @@ var LogLevel = {
   ERROR: 3
 };
 
+function isDebugLoggingEnabled() {
+  return !(typeof CONFIG !== 'undefined' && CONFIG && CONFIG.DEBUG === false);
+}
+
 // Nota: non usare il nome `Logger` per evitare shadowing del built-in GAS `Logger.log()`.
 var AppLogger = class AppLogger {
   constructor(context = 'System') {
@@ -30,6 +34,7 @@ var AppLogger = class AppLogger {
    * Log generico
    */
   _log(level, message, data = {}) {
+    if (!isDebugLoggingEnabled() && level !== 'ERROR' && level !== 'WARN') return;
     if (LogLevel[level] < this.minLevel) return;
 
     // Guardia null: il default `= {}` copre solo `undefined`, non `null`.

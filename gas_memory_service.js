@@ -190,100 +190,108 @@ var MemoryService = class MemoryService {
     let expectedVersion = newData._expectedVersion;
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      let lockOwned = false;
-      let lockFailed = false;
-      let shouldRetry = false;
+      let shardedLockOwned = false;
+      let globalLockAcquired = false;
+      const globalLock = LockService.getScriptLock();
 
       try {
         // 1. Acquisisci Lock Sharded (CacheService)
-        lockOwned = this._tryAcquireShardedLock(lockKey, 15000);
-        if (!lockOwned) {
+        shardedLockOwned = this._tryAcquireShardedLock(lockKey, 15000);
+        if (!shardedLockOwned) {
           console.warn(`🔒 Timeout lock memoria sharded (Tentativo ${attempt + 1})`);
-          lockFailed = true;
-          shouldRetry = true;
-        } else {
-          // 2. Rileggi dati freschi dallo Sheet
-          const existingRow = this._findRowByThreadId(threadId);
-          const now = this._validateAndNormalizeTimestamp(new Date().toISOString());
+          Utilities.sleep(Math.pow(2, attempt) * 200);
+          continue;
+        }
 
-          if (existingRow) {
-            const existingData = this._rowToObject(existingRow.values);
-            const currentVersion = existingData.version || 0;
+        // 2. Acquisisci Lock Globale per scrittura fisica (B4)
+        const sheetTimeout = (typeof CONFIG !== 'undefined' && CONFIG.SHEET_WRITE_LOCK_TIMEOUT_MS) || 10000;
+        globalLock.waitLock(sheetTimeout);
+        globalLockAcquired = true;
 
-            // Verifica controllo concorrenza ottimistico
-            if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
-              // INVALIDAZIONE CACHE CRITICA
-              this._invalidateCache(`memory_${threadId}`);
-              console.warn(`🔒 Version mismatch thread ${threadId}: atteso ${expectedVersion}, ottenuto ${currentVersion}`);
+        // 3. Rileggi dati freschi dallo Sheet
+        const existingRow = this._findRowByThreadId(threadId);
+        const now = this._validateAndNormalizeTimestamp(new Date().toISOString());
 
-              // Allinea la versione attesa per il retry successivo (OCC).
-              expectedVersion = currentVersion;
-              throw new Error('VERSION_MISMATCH');
-            }
+        if (existingRow) {
+          const existingData = this._rowToObject(existingRow.values);
+          const currentVersion = existingData.version || 0;
 
-            // Merge: esistente + nuovi dati
-            const mergedData = Object.assign({}, existingData, dataToUpdate);
-            mergedData.lastUpdated = now;
-            const shouldIncrementMessageCount = options.incrementMessageCount !== false;
-            mergedData.messageCount = shouldIncrementMessageCount
-              ? (existingData.messageCount || 0) + 1
-              : (existingData.messageCount || 0);
-            mergedData.version = currentVersion + 1;
-
-            this._withSheetWriteLock(() => {
-              this._updateRow(existingRow.rowIndex, mergedData);
-            });
-            console.log(`🧠 Memoria aggiornata per thread ${threadId} (v${mergedData.version}, Tentativo ${attempt + 1})`);
-          } else {
-            // Nuova riga
-            const insertData = Object.assign({}, dataToUpdate);
-            insertData.threadId = threadId;
-            insertData.lastUpdated = now;
-            insertData.messageCount = options.incrementMessageCount === false ? 0 : 1;
-            insertData.version = 1;
-
-            this._withSheetWriteLock(() => {
-              this._appendRow(insertData);
-            });
-            console.log(`🧠 Memoria creata per thread ${threadId} (v1)`);
+          // Verifica controllo concorrenza ottimistico
+          if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
+            this._invalidateCache(`memory_${threadId}`);
+            console.warn(`🔒 Version mismatch thread ${threadId}: atteso ${expectedVersion}, ottenuto ${currentVersion}`);
+            expectedVersion = currentVersion;
+            throw new Error('VERSION_MISMATCH');
           }
 
-          // Invalida cache locale
-          this._invalidateCache(`memory_${threadId}`);
-          return; // Successo
+          // Merge: esistente + nuovi dati
+          const mergedData = Object.assign({}, existingData, dataToUpdate);
+          mergedData.lastUpdated = now;
+          const shouldIncrementMessageCount = options.incrementMessageCount !== false;
+          mergedData.messageCount = shouldIncrementMessageCount
+            ? (existingData.messageCount || 0) + 1
+            : (existingData.messageCount || 0);
+          mergedData.version = currentVersion + 1;
+
+          // Cap preventivo lunghezza JSON providedInfo (B5)
+          if (mergedData.providedInfo && Array.isArray(mergedData.providedInfo)) {
+            const serialized = JSON.stringify(mergedData.providedInfo);
+            if (serialized.length > 40000) {
+              console.warn(`🧠 Memoria: providedInfo troppo grande (${serialized.length} chars), riduco ulteriormente`);
+              mergedData.providedInfo = mergedData.providedInfo.slice(-25);
+            }
+          }
+
+          this._withSheetWriteLock(() => {
+            this._updateRow(existingRow.rowIndex, mergedData);
+          }, true);
+          console.log(`🧠 Memoria aggiornata per thread ${threadId} (v${mergedData.version}, Tentativo ${attempt + 1})`);
+        } else {
+          // Nuova riga
+          const insertData = Object.assign({}, dataToUpdate);
+          insertData.threadId = threadId;
+          insertData.lastUpdated = now;
+          insertData.messageCount = options.incrementMessageCount === false ? 0 : 1;
+          insertData.version = 1;
+
+          this._withSheetWriteLock(() => {
+            this._appendRow(insertData);
+          }, true);
+          console.log(`🧠 Memoria creata per thread ${threadId} (v1)`);
         }
+
+        // Invalida cache locale
+        this._invalidateCache(`memory_${threadId}`);
+        return; // Successo
+
       } catch (error) {
         if (error.message === 'VERSION_MISMATCH') {
           console.warn(`⚠️ Conflitto concorrenza, retry... (Tentativo ${attempt + 1})`);
-          // Forziamo invalidazione cache anche qui per sicurezza
           this._invalidateCache(`memory_${threadId}`);
         } else {
           console.warn(`Aggiornamento memoria fallito (Tentativo ${attempt + 1}): ${error.message}`);
         }
 
-        shouldRetry = true;
-
         if (attempt === MAX_RETRIES - 1) {
           console.error(`❌ Aggiornamento memoria finale fallito: ${error.message}`);
+          throw error;
         }
-      } finally {
-        if (lockOwned) {
-          this._releaseShardedLock(lockKey);
-          lockOwned = false;
-        }
-      }
 
-      if (shouldRetry) {
-        if (lockFailed) {
-          Utilities.sleep(Math.pow(2, attempt) * 200);
-        } else {
-          // Backoff più morbido su conflitti/errori runtime: 100ms base con crescita 1.5x + jitter
-          const delay = Math.pow(1.5, attempt) * 100 + Math.random() * 50;
-          Utilities.sleep(delay);
+        // Backoff
+        const delay = Math.pow(1.5, attempt) * 100 + Math.random() * 50;
+        Utilities.sleep(delay);
+
+      } finally {
+        if (globalLockAcquired) {
+          try { globalLock.releaseLock(); } catch (e) {}
+        }
+        if (shardedLockOwned) {
+          this._releaseShardedLock(lockKey);
         }
       }
     }
-    throw new Error(`Aggiornamento memoria fallito per thread ${threadId} dopo ${MAX_RETRIES} tentativi`);
+    console.error(`❌ Aggiornamento memoria fallito per thread ${threadId} dopo ${MAX_RETRIES} tentativi`);
+    return false;
   }
 
   /**
@@ -352,20 +360,28 @@ var MemoryService = class MemoryService {
     let expectedVersion = rawData._expectedVersion;
 
     for (let i = 0; i < 3; i++) {
-      let lockAcquired = false;
-      try {
-        lockAcquired = this._tryAcquireShardedLock(lockKey, 15000);
-        if (!lockAcquired) {
-          if (i === 2) {
-            console.warn(`⚠️ Lock non acquisito dopo 3 tentativi, annullo aggiornamento atomico per thread ${threadId}`);
-            return false;
+        const globalLock = LockService.getScriptLock();
+        let globalLockAcquired = false;
+
+        try {
+          // 1. Acquisisci Lock Sharded (CacheService)
+          lockAcquired = this._tryAcquireShardedLock(lockKey, 15000);
+          if (!lockAcquired) {
+            if (i === 2) {
+              console.warn(`⚠️ Lock non acquisito dopo 3 tentativi, annullo aggiornamento atomico per thread ${threadId}`);
+              return false;
+            }
+            if (i < 2) {
+              const baseSleepMs = (typeof CONFIG !== 'undefined' && CONFIG.CACHE_RACE_SLEEP_MS) || 200;
+              Utilities.sleep(baseSleepMs + Math.random() * 100);
+            }
+            continue;
           }
-          if (i < 2) {
-            const baseSleepMs = (typeof CONFIG !== 'undefined' && CONFIG.CACHE_RACE_SLEEP_MS) || 200;
-            Utilities.sleep(baseSleepMs + Math.random() * 100);
-          }
-          continue;
-        }
+
+          // 1.5 Acquisisci Lock Globale per scrittura (B4)
+          const sheetTimeout = (typeof CONFIG !== 'undefined' && CONFIG.SHEET_WRITE_LOCK_TIMEOUT_MS) || 10000;
+          globalLock.waitLock(sheetTimeout);
+          globalLockAcquired = true;
 
         // --- SEZIONE CRITICA ---
         const existingRow = this._findRowByThreadId(threadId);
@@ -404,10 +420,19 @@ var MemoryService = class MemoryService {
             console.log(`🧠 Memoria: Aggiunti atomicamente topic ${JSON.stringify(normalizedTopics)}`);
           }
 
-          this._withSheetWriteLock(() => {
-            this._updateRow(existingRow.rowIndex, mergedData);
-          });
-          console.log(`🧠 Memoria aggiornata atomicamente per thread ${threadId} (v${mergedData.version})`);
+            // Cap preventivo lunghezza JSON providedInfo (B5)
+            if (mergedData.providedInfo && Array.isArray(mergedData.providedInfo)) {
+              const serialized = JSON.stringify(mergedData.providedInfo);
+              if (serialized.length > 40000) {
+                console.warn(`🧠 Memoria: providedInfo troppo grande (${serialized.length} chars), riduco ulteriormente`);
+                mergedData.providedInfo = mergedData.providedInfo.slice(-25);
+              }
+            }
+
+            this._withSheetWriteLock(() => {
+              this._updateRow(existingRow.rowIndex, mergedData);
+            }, true);
+            console.log(`🧠 Memoria aggiornata atomicamente per thread ${threadId} (v${mergedData.version})`);
         } else {
           const insertData = Object.assign({}, dataToUpdate);
           insertData.threadId = threadId;
@@ -421,7 +446,7 @@ var MemoryService = class MemoryService {
 
           this._withSheetWriteLock(() => {
             this._appendRow(insertData);
-          });
+          }, true);
           console.log(`🧠 Memoria creata atomicamente per thread ${threadId} (v1)`);
         }
 
@@ -429,16 +454,18 @@ var MemoryService = class MemoryService {
         return true;
         // --- FINE SEZIONE CRITICA ---
 
-      } catch (error) {
-        console.warn(`⚠️ Errore aggiornamento atomico (tentativo ${i + 1}): ${error.message}`);
-        // Invalida cache per sicurezza se c'è stato un fallimento parziale
-        this._invalidateCache(`memory_${threadId}`);
-        Utilities.sleep(Math.pow(2, i) * 200);
-      } finally {
-        if (lockAcquired) {
-          this._releaseShardedLock(lockKey);
+        } catch (error) {
+          console.warn(`⚠️ Errore aggiornamento atomico (tentativo ${i + 1}): ${error.message}`);
+          this._invalidateCache(`memory_${threadId}`);
+          Utilities.sleep(Math.pow(2, i) * 200);
+        } finally {
+          if (globalLockAcquired) {
+            try { globalLock.releaseLock(); } catch (e) {}
+          }
+          if (lockAcquired) {
+            this._releaseShardedLock(lockKey);
+          }
         }
-      }
     }
     // Protezione best-effort: non distruggere il batch fallendo.
     // Invece di throw, logghiamo l'errore e ritorniamo false per permettere all'email_processor di finire il job (labeling).
@@ -459,8 +486,11 @@ var MemoryService = class MemoryService {
 
     for (let i = 0; i < 3; i++) {
       let lockAcquired = false;
+      let globalLockAcquired = false;
+      const globalLock = LockService.getScriptLock();
+
       try {
-        lockAcquired = this._tryAcquireShardedLock(lockKey);
+        lockAcquired = this._tryAcquireShardedLock(lockKey, 15000);
         if (!lockAcquired) {
           if (i < 2) {
             Utilities.sleep(200 + Math.random() * 100);
@@ -469,6 +499,10 @@ var MemoryService = class MemoryService {
           console.warn(`⚠️ Lock non acquisito dopo 3 tentativi in addProvidedInfoTopics per thread ${threadId}`);
           return;
         }
+
+        // Lock globale (B4)
+        globalLock.waitLock(10000);
+        globalLockAcquired = true;
 
         const existingRow = this._findRowByThreadId(threadId);
         if (existingRow) {
@@ -490,14 +524,18 @@ var MemoryService = class MemoryService {
 
           this._withSheetWriteLock(() => {
             this._updateRow(existingRow.rowIndex, existingData);
-          });
+          }, true);
           this._invalidateCache(`memory_${threadId}`);
           console.log(`🧠 Memoria: Topic aggiunti atomicamente ${JSON.stringify(topics)}`);
         }
         return;
-      } catch (error) {
-        console.error(`❌ Errore aggiunta provided info (tentativo ${i + 1}): ${error.message}`);
+      } catch (e) {
+        console.warn(`⚠️ addProvidedInfoTopics fallito (tentativo ${i + 1}): ${e.message}`);
+        Utilities.sleep(200);
       } finally {
+        if (globalLockAcquired) {
+          try { globalLock.releaseLock(); } catch (e) {}
+        }
         if (lockAcquired) {
           this._releaseShardedLock(lockKey);
         }
@@ -509,14 +547,26 @@ var MemoryService = class MemoryService {
    * Imposta lingua per un thread
    */
   setLanguage(threadId, language) {
-    this.updateMemory(threadId, { language: language }, { incrementMessageCount: false });
+    try {
+      this.updateMemory(threadId, { language: language }, { incrementMessageCount: false });
+    } catch (e) {
+      console.error(`❌ setLanguage fallito per thread ${threadId}: ${e.message}`);
+      return false;
+    }
+    return true;
   }
 
   /**
    * Imposta categoria per un thread
    */
   setCategory(threadId, category) {
-    this.updateMemory(threadId, { category: category }, { incrementMessageCount: false });
+    try {
+      this.updateMemory(threadId, { category: category }, { incrementMessageCount: false });
+    } catch (e) {
+      console.error(`❌ setCategory fallito per thread ${threadId}: ${e.message}`);
+      return false;
+    }
+    return true;
   }
 
   /**
@@ -622,8 +672,15 @@ var MemoryService = class MemoryService {
    * Serializza le scritture su Spreadsheet con ScriptLock globale.
    * Riduce conflitti tra thread diversi durante inserimenti o aggiornamenti della riga.
    * @param {Function} writeOperation callback con la scrittura effettiva
+   * @param {boolean} alreadyLocked se true, assume che il lock sia già acquisito
    */
-  _withSheetWriteLock(writeOperation) {
+  _withSheetWriteLock(writeOperation, alreadyLocked = false) {
+    if (alreadyLocked) {
+      writeOperation();
+      SpreadsheetApp.flush();
+      return;
+    }
+
     const sheetLock = LockService.getScriptLock();
     const timeoutMs = (typeof CONFIG !== 'undefined' && CONFIG.SHEET_WRITE_LOCK_TIMEOUT_MS) || 10000;
     let lockAcquired = false;
@@ -748,10 +805,16 @@ var MemoryService = class MemoryService {
 
     const lockKey = this._getShardedLockKey(threadId);
     let lockAcquired = false;
+    let globalLockAcquired = false;
+    const globalLock = LockService.getScriptLock();
 
     try {
-      lockAcquired = this._tryAcquireShardedLock(lockKey);
+      lockAcquired = this._tryAcquireShardedLock(lockKey, 15000);
       if (!lockAcquired) return;
+
+      // Lock globale per scrittura (B4)
+      globalLock.waitLock(10000);
+      globalLockAcquired = true;
 
       const existingRow = this._findRowByThreadId(threadId);
       const existingData = existingRow
@@ -780,17 +843,27 @@ var MemoryService = class MemoryService {
       existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
       existingData.version = (existingData.version || 0) + 1;
 
+      // Cap preventivo lunghezza JSON (B5)
+      const serialized = JSON.stringify(existingData.providedInfo);
+      if (serialized.length > 40000) {
+        console.warn(`🧠 Memoria: providedInfo in reazione troppo grande (${serialized.length} chars), riduco`);
+        existingData.providedInfo = existingData.providedInfo.slice(-25);
+      }
+
       this._withSheetWriteLock(() => {
         if (existingRow) {
           this._updateRow(existingRow.rowIndex, existingData);
         } else {
           this._appendRow(existingData);
         }
-      });
+      }, true);
       this._invalidateCache(`memory_${threadId}`);
     } catch (error) {
       console.warn(`⚠️ Aggiornamento reazione fallito: ${error.message}`);
     } finally {
+      if (globalLockAcquired) {
+        try { globalLock.releaseLock(); } catch (e) {}
+      }
       if (lockAcquired) {
         this._releaseShardedLock(lockKey);
       }
@@ -813,7 +886,7 @@ var MemoryService = class MemoryService {
   /**
    * Tenta acquisizione lock sharded (simulato con CacheService + Global Guard breve)
    */
-  _tryAcquireShardedLock(key, timeoutMs = 5000) {
+  _tryAcquireShardedLock(key, timeoutMs = 500) {
     const cache = CacheService.getScriptCache();
     const globalLock = LockService.getScriptLock();
     const configuredLockTtlSeconds = (typeof CONFIG !== 'undefined' && Number(CONFIG.MEMORY_LOCK_TTL) > 0)
@@ -829,8 +902,9 @@ var MemoryService = class MemoryService {
     // Prendi lock globale per pochissimo tempo, solo per check-and-set su Cache
     // Nota manutenzione: il timeout di 5s garantisce che anche in picchi di carico
     // il worker non fallisca immediatamente nel tentativo di segnare il thread come in lavorazione.
-    // Timeout acquisizione lock impostato a 5 secondi per gestire carichi elevati
-    if (globalLock.tryLock(timeoutMs)) {
+    // Timeout acquisizione lock ridotto a 500ms per la guard atomica (B2)
+    // Evita la cascata di timeout osservata durante carichi elevati.
+    if (globalLock.tryLock(500)) {
       try {
         try {
           if (cache.get(key) != null) {
@@ -975,7 +1049,7 @@ var MemoryService = class MemoryService {
    * Aggiorna riga esistente
    */
   _updateRow(rowIndex, data) {
-    const providedInfoJson = JSON.stringify(data.providedInfo || []);
+    const providedInfoJson = this._serializeProvidedInfoForSheet(data.providedInfo || []);
 
     this._sheet.getRange(rowIndex, 1, 1, 9).setValues([[
       data.threadId,
@@ -994,7 +1068,7 @@ var MemoryService = class MemoryService {
    * Aggiunge nuova riga
    */
   _appendRow(data) {
-    const providedInfoJson = JSON.stringify(data.providedInfo || []);
+    const providedInfoJson = this._serializeProvidedInfoForSheet(data.providedInfo || []);
 
     this._sheet.appendRow([
       data.threadId,
@@ -1007,6 +1081,26 @@ var MemoryService = class MemoryService {
       data.version !== undefined ? data.version : 1,
       data.memorySummary || ''
     ]);
+  }
+
+  _serializeProvidedInfoForSheet(providedInfo) {
+    const maxChars = (typeof CONFIG !== 'undefined' && Number(CONFIG.MAX_PROVIDED_INFO_JSON_CHARS) > 0)
+      ? Number(CONFIG.MAX_PROVIDED_INFO_JSON_CHARS)
+      : 45000;
+    let topics = Array.isArray(providedInfo) ? providedInfo.slice() : [];
+    let serialized = JSON.stringify(topics);
+
+    while (topics.length > 0 && serialized.length > maxChars) {
+      topics = topics.slice(1);
+      serialized = JSON.stringify(topics);
+    }
+
+    if (serialized.length > maxChars) {
+      console.warn(`⚠️ providedInfo eccede ${maxChars} caratteri: salvo array vuoto`);
+      return '[]';
+    }
+
+    return serialized;
   }
 
   // ========================================================================

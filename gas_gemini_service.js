@@ -1184,9 +1184,10 @@ Testo:
           }
         );
 
-        if (result.success) {
+        const normalized = this._normalizeExecuteRequestResult_(result);
+        if (normalized.success) {
           console.log(`🔍 Controllo rapido via Rate Limiter(modello: ${result.modelUsed})`);
-          return result.result;
+          return normalized.result;
         }
       } catch (error) {
         if (error.message && error.message.includes('QUOTA_EXHAUSTED')) {
@@ -1217,6 +1218,17 @@ Testo:
       console.warn(`⚠️ Quick check fallito: ${error.message}. Interruzione per evitare skip silente.`);
       throw new Error(`Quick check fallito: ${error.message}`);
     }
+  }
+
+  _normalizeExecuteRequestResult_(result) {
+    if (!result || typeof result !== 'object') {
+      throw new Error('executeRequest ha restituito un risultato non valido');
+    }
+    return {
+      success: result.success === true,
+      result: (typeof result.result === 'undefined') ? null : result.result,
+      modelUsed: result.modelUsed || 'unknown'
+    };
   }
 
   // ========================================================================

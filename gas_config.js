@@ -99,8 +99,11 @@ var CONFIG = {
   },
 
   // === Cache e Lock ===
+  CACHE_MAX_BYTES: 90 * 1024,          // Margine sotto 100KB/entry CacheService per ridurre quota exceeded
   CACHE_LOCK_TTL: 240,                 // Secondi (copre OCR + AI + validazione semantica)
   CACHE_RACE_SLEEP_MS: 200,             // Attesa anti-race condition
+  DEBUG: true,                         // Abilita log verbose (console.log) in produzione tenerlo false
+  GMAIL_DAILY_CALL_LIMIT: 18000,       // Soft limit locale anti-burst prima del limite Gmail reale
 
   // === Alias noti (anti-loop: il bot riconosce sé stesso anche quando invia da alias) ===
   KNOWN_ALIASES: ['info@parrocchiasanteugenio.it'],
