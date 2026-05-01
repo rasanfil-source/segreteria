@@ -216,8 +216,8 @@ var Classifier = class Classifier {
 
 
   /**
-   * Estrae contenuto principale, rimuovendo citazioni e firme
-   * Gestisce blockquote HTML e vari formati client email
+   * Estrae contenuto principale, rimuovendo citazioni e firme.
+   * Input atteso: plain-text (normalizzato a monte da GmailService).
    */
   _extractMainContent(body) {
     let processedBody = typeof body === 'string' ? body : '';
@@ -225,29 +225,6 @@ var Classifier = class Classifier {
     const MAX_LENGTH = 50000;
     if (processedBody.length > MAX_LENGTH) {
       processedBody = processedBody.substring(0, MAX_LENGTH);
-    }
-
-    // Fast-path: evita regex su body enormi tagliando subito dalla prima citazione HTML nota.
-    const lowerBody = processedBody.toLowerCase();
-    const firstBlockquoteIdx = lowerBody.indexOf('<blockquote');
-    const firstGmailQuoteIdx = lowerBody.indexOf('class="gmail_quote"');
-    const firstQuoteIdx = [firstBlockquoteIdx, firstGmailQuoteIdx].filter(idx => idx >= 0).sort((a, b) => a - b)[0];
-
-    if (typeof firstQuoteIdx === 'number') {
-      processedBody = processedBody.substring(0, firstQuoteIdx);
-    }
-
-    // Esegui regex HTML solo se il body contiene davvero markup (fast-path testo puro)
-    if (processedBody.indexOf('<') !== -1) {
-      // Rimozione blockquote residua (se non intercettata dal fast-path o in altri formati)
-      processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
-      processedBody = processedBody.replace(/<blockquote[^>]*>[\s\S]*$/gi, '');
-
-      // Rimuove div.gmail_quote in modo robusto (trancia fino a fine messaggio)
-      processedBody = processedBody.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*$/gi, '');
-
-      // Rimuove quote stile Outlook
-      processedBody = processedBody.replace(/<div\s+id=["']?divRplyFwdMsg["']?[^>]*>[\s\S]*$/gi, '');
     }
 
     // Marcatori citazione per vari client email
