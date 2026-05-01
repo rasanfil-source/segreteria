@@ -2465,20 +2465,20 @@ var GmailService = class GmailService {
         const lines = [];
         let currentLine = headerPrefix;
 
+        const maxTokenLength = Math.max(1, maxLineLength - 2); // continuation line: " " + token
         for (const token of tokens) {
+            // I token header (es. Message-ID) non sono splittabili semanticamente.
+            // Se un token è anomalo e troppo lungo per una continuation line valida, lo scartiamo.
+            if (token.length > maxTokenLength) {
+                continue;
+            }
+
             const candidate = `${currentLine} ${token}`;
             if (currentLine === headerPrefix || candidate.length <= maxLineLength) {
                 currentLine = candidate;
             } else {
                 lines.push(currentLine);
                 currentLine = ` ${token}`;
-            }
-
-            // Hard-stop RFC safety: un token anomalo non deve mai generare righe > maxLineLength.
-            while (currentLine.length > maxLineLength) {
-                const keep = currentLine.slice(0, maxLineLength);
-                lines.push(keep);
-                currentLine = ` ${currentLine.slice(maxLineLength).trimStart()}`;
             }
         }
 
