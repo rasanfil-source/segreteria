@@ -81,47 +81,11 @@ var GeminiService = class GeminiService {
   // ========================================================================
 
   /**
-   * Stima token da testo + allegati multimodali
-   * Formula: testo + (immagini * tokenImage) + (pdf/documenti * tokenPdf)
-   * Valori token configurabili via CONFIG.ATTACHMENT_TOKEN_ESTIMATE
+   * Stima token da testo + allegati multimodali.
+   * Delega alla funzione centralizzata estimateTokenCount (gas_main.js).
    */
   _estimateTokens(text, attachments = []) {
-    let tokens = 0;
-
-    if (text) {
-      const wordCount = text.split(/\s+/).length;
-      const baseTokens = Math.ceil(wordCount * 1.25);
-      const overhead = Math.ceil(baseTokens * 0.1);
-      // Incrementato a 3.2 per cautela con caratteri speciali/accentati comuni in IT/ES/PT
-      const charEstimate = Math.ceil(text.length / 3.2);
-      tokens += Math.max(baseTokens + overhead, charEstimate, 1);
-    }
-
-    if (attachments && attachments.length > 0) {
-      const tokenEstimates = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_TOKEN_ESTIMATE)
-        ? CONFIG.ATTACHMENT_TOKEN_ESTIMATE
-        : {};
-      const tokenImage = tokenEstimates.image || 258;
-      const tokenPdf = tokenEstimates.pdf || 1032;
-      const tokenDefault = tokenEstimates.defaultDoc || 1032;
-
-      attachments.forEach((blob) => {
-        try {
-          const mimeType = ((blob && blob.getContentType) ? blob.getContentType() : '').toLowerCase();
-          if (mimeType.includes('image/')) {
-            tokens += tokenImage;
-          } else if (mimeType.includes('pdf')) {
-            tokens += tokenPdf;
-          } else {
-            tokens += tokenDefault;
-          }
-        } catch (e) {
-          tokens += tokenImage;
-        }
-      });
-    }
-
-    return Math.max(tokens, 1);
+    return estimateTokenCount(text, attachments);
   }
 
   /**

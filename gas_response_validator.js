@@ -1460,7 +1460,7 @@ Rispondi SOLO con questo JSON (senza markdown):
       this.geminiService = new GeminiService();
     }
 
-    const estimatedTokens = this.geminiService._estimateTokens(prompt);
+    const estimatedTokens = estimateTokenCount(prompt);
 
     if (this.geminiService.useRateLimiter && this.geminiService.rateLimiter) {
       const result = this.geminiService.rateLimiter.executeRequest(

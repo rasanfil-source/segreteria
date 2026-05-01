@@ -272,15 +272,18 @@ var Classifier = class Classifier {
 
     // Ottimizzazione elaborazione thread lunghi: seleziona costrutti semantici mirati
     // applicando analisi strutturale su finestre circoscritte.
+    // Il backward scan tronca l'array alla prima citazione trovata dal basso verso l'alto.
     const MAX_BACKWARD_SCAN_LINES = 400;
     const backwardStart = Math.max(0, lines.length - MAX_BACKWARD_SCAN_LINES);
-    for (let i = lines.length - 1; i >= backwardStart; i--) {
+    let quoteFound = false;
+    for (let i = lines.length - 1; i >= backwardStart && !quoteFound; i--) {
       const trimmed = (lines[i] || '').trim();
       if (!trimmed) continue;
 
       for (const marker of quoteMarkers) {
         if (marker.test(trimmed)) {
           lines.length = i;
+          quoteFound = true;
           break;
         }
       }

@@ -97,11 +97,12 @@ function calculateEaster(year) {
 
 /**
  * Stima il numero di token per un testo ed eventuali allegati.
- * Algoritmo centralizzato (DRY) per RateLimiter e PromptEngine.
- * Formula: max(parole * 1.25 + 10% overhead, caratteri / 3.5) + 200 per allegato.
+ * Algoritmo centralizzato (DRY): unica sorgente di verità per tutte le stime token.
+ * Formula testo: max(parole * 1.25 + 10% overhead, caratteri / 3.2)
+ * Allegati: stima MIME-aware (image=258, pdf=1032, default=1032) configurabile via CONFIG.
  * 
  * @param {string} text - Testo da stimare
- * @param {Array} attachments - Array di allegati (opzionale)
+ * @param {Array} attachments - Array di allegati (opzionale, Blob con getContentType)
  * @returns {number} Numero stimato di token (min 1)
  */
 function estimateTokenCount(text, attachments = []) {
@@ -109,16 +110,35 @@ function estimateTokenCount(text, attachments = []) {
   
   let tokens = 0;
   if (text && typeof text === 'string') {
-    // Sincronizzazione con GeminiService._estimateTokens.
-    // Algoritmo: Max(wordCount * 1.3, charCount / 3.6) + overhead 10%.
-    const wordCount = text.trim().split(/\s+/).length;
-    const baseTokens = Math.max(wordCount * 1.3, text.length / 3.6);
-    tokens = Math.ceil(baseTokens * 1.1); // +10% safety overhead
+    const wordCount = text.split(/\s+/).length;
+    const baseTokens = Math.ceil(wordCount * 1.25);
+    const overhead = Math.ceil(baseTokens * 0.1);
+    const charEstimate = Math.ceil(text.length / 3.2);
+    tokens += Math.max(baseTokens + overhead, charEstimate, 1);
   }
 
-  // Aggiungi stima per allegati (es: 258 token fissi per immagine Gemini 1.5)
-  if (attachments && Array.isArray(attachments)) {
-    tokens += attachments.length * 258;
+  if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+    const tokenEstimates = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_TOKEN_ESTIMATE)
+      ? CONFIG.ATTACHMENT_TOKEN_ESTIMATE
+      : {};
+    const tokenImage = tokenEstimates.image || 258;
+    const tokenPdf = tokenEstimates.pdf || 1032;
+    const tokenDefault = tokenEstimates.defaultDoc || 1032;
+
+    attachments.forEach((blob) => {
+      try {
+        const mimeType = ((blob && blob.getContentType) ? blob.getContentType() : '').toLowerCase();
+        if (mimeType.includes('image/')) {
+          tokens += tokenImage;
+        } else if (mimeType.includes('pdf')) {
+          tokens += tokenPdf;
+        } else {
+          tokens += tokenDefault;
+        }
+      } catch (e) {
+        tokens += tokenImage;
+      }
+    });
   }
 
   return Math.max(tokens, 1);
