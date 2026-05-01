@@ -339,19 +339,43 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
   const query = `in:inbox is:unread newer_than:${safeMaxLookbackDays}d -label:${quoteLabel(labelName)} -label:${quoteLabel(errorLabel)} -label:${quoteLabel(validationLabel)}`;
 
   const pageSize = 25;
-  for (let offset = 0; offset < safeSearchLimit; offset += pageSize) {
-    const threads = GmailApp.search(query, offset, Math.min(pageSize, safeSearchLimit - offset));
-    if (!threads || threads.length === 0) break;
+  try {
+    for (let offset = 0; offset < safeSearchLimit; offset += pageSize) {
+      let threads = [];
+      try {
+        threads = GmailApp.search(query, offset, Math.min(pageSize, safeSearchLimit - offset));
+      } catch (searchError) {
+        console.warn(`⚠️ hasStaleUnreadThreads: GmailApp.search fallita (offset=${offset}): ${searchError.message}`);
+        return false;
+      }
 
-    const foundStale = threads.some(thread =>
-      thread.getMessages().some(message =>
-        message.isUnread() &&
-        message.getDate().getTime() <= cutoffMs &&
-        message.getDate().getTime() > oldestRelevantMs
-      )
-    );
+      if (!Array.isArray(threads) || threads.length === 0) break;
 
-    if (foundStale) return true;
+      const foundStale = threads.some(thread => {
+        try {
+          const messages = thread && typeof thread.getMessages === 'function' ? thread.getMessages() : [];
+          return Array.isArray(messages) && messages.some(message => {
+            try {
+              const date = (message && typeof message.getDate === 'function') ? message.getDate() : null;
+              const timeMs = date instanceof Date ? date.getTime() : NaN;
+              const unread = Boolean(message && typeof message.isUnread === 'function' && message.isUnread());
+              return unread && Number.isFinite(timeMs) && timeMs <= cutoffMs && timeMs > oldestRelevantMs;
+            } catch (msgError) {
+              console.warn(`⚠️ hasStaleUnreadThreads: messaggio ignorato per errore metadata (${msgError.message})`);
+              return false;
+            }
+          });
+        } catch (threadError) {
+          console.warn(`⚠️ hasStaleUnreadThreads: thread ignorato per errore getMessages (${threadError.message})`);
+          return false;
+        }
+      });
+
+      if (foundStale) return true;
+    }
+  } catch (e) {
+    console.warn(`⚠️ hasStaleUnreadThreads: fallback conservativo per errore inatteso (${e.message})`);
+    return false;
   }
 
   return false;

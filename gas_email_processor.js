@@ -1511,6 +1511,11 @@ ${addressLines.join('\n\n')}
         return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'thread_discovery_failed' };
       }
 
+      if (!Array.isArray(threads)) {
+        this.logger.warn(`⚠️ Discovery thread non valida (tipo=${typeof threads}). Applico fallback sicuro a lista vuota.`);
+        threads = [];
+      }
+
       if (threads.length === 0) {
         const emptyStreak = this._trackEmptyInboxStreak(true);
         console.log('Nessuna email da elaborare.');
