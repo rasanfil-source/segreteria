@@ -285,6 +285,7 @@ var TerritoryValidator = class TerritoryValidator {
         // Espandi abbreviazioni comuni italiane
         const abbreviations = {
             '(?:\\bs\\.\\s*|\\bs\\s+)': 'san ',
+            '(?:\\bg\\.\\s*)': 'giovanni ',
             '(?:\\bl\\.\\s*|\\bl\\s+)': 'largo ',
             '(?:^\\s*v\\.\\s*|^\\s*v\\s+)(?!ia)': 'via ',
             '(?:\\bc\\.\\s*|\\bc\\s+)': 'corso ',
