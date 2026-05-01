@@ -1572,6 +1572,7 @@ ${addressLines.join('\n\n')}
         const remainingTimeMs = this._getRemainingTimeMs(MAX_EXECUTION_TIME);
         if (remainingTimeMs < this.config.minRemainingTimeMs || this._isNearDeadline(MAX_EXECUTION_TIME)) {
           console.warn(`⏳ Tempo insufficiente per un nuovo thread (${Math.round(remainingTimeMs / 1000)}s restanti). Stop preventivo.`);
+          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, remainingTimeMs);
           break;
         }
 
@@ -1660,6 +1661,33 @@ ${addressLines.join('\n\n')}
           console.warn(`⚠️ Errore rilascio execution lock: ${e.message}`);
         }
       }
+    }
+  }
+
+  _storeBatchCheckpointAndScheduleContinuation_(threads, startIndex, remainingTimeMs) {
+    try {
+      const props = PropertiesService.getScriptProperties();
+      const pendingThreadIds = (threads || [])
+        .slice(startIndex)
+        .map((thread) => {
+          try { return thread && typeof thread.getId === 'function' ? thread.getId() : null; } catch (_) { return null; }
+        })
+        .filter(Boolean);
+      const checkpoint = {
+        createdAt: new Date().toISOString(),
+        startIndex: startIndex,
+        remainingTimeMs: remainingTimeMs,
+        pendingCount: pendingThreadIds.length,
+        pendingThreadIds: pendingThreadIds.slice(0, 100)
+      };
+      props.setProperty('EMAIL_BATCH_CHECKPOINT', JSON.stringify(checkpoint));
+
+      const existing = ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'resumeEmailBatchFromCheckpoint');
+      existing.forEach(t => ScriptApp.deleteTrigger(t));
+      ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(60 * 1000).create();
+      console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger di continuazione pianificato.`);
+    } catch (e) {
+      console.warn(`⚠️ Salvataggio checkpoint batch fallito: ${e.message}`);
     }
   }
 

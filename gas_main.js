@@ -1355,6 +1355,10 @@ function main() {
   }
 
   const executionLock = LockService.getScriptLock();
+  const scriptCache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
+    ? CacheService.getScriptCache()
+    : null;
+  const batchLockKey = _getExecutionBatchLockKey_();
   let hasExecutionLock = false;
   const releaseExecutionLock = () => {
     if (hasExecutionLock && executionLock) {
@@ -1376,6 +1380,15 @@ function main() {
       // una tempesta di trigger concorrenti; il trigger periodico successivo riproverà.
       console.warn('⚠️ Esecuzione già in corso o lock bloccato. Salto turno.');
       return;
+    }
+    if (scriptCache) {
+      const lockOwner = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const existing = scriptCache.get(batchLockKey);
+      if (existing) {
+        console.warn(`⚠️ Batch lock già presente (${batchLockKey}), salto turno.`);
+        return;
+      }
+      scriptCache.put(batchLockKey, lockOwner, 120);
     }
 
     // 2. Caricamento Risorse (Config, KB, Blacklist)
@@ -1442,8 +1455,27 @@ function main() {
       }
     }
   } finally {
+    if (scriptCache) {
+      try { scriptCache.remove(batchLockKey); } catch (_) { }
+    }
     releaseExecutionLock();
   }
+}
+
+function _getExecutionBatchLockKey_() {
+  const minuteBucket = Math.floor(Date.now() / 60000);
+  return `main_batch_lock_${minuteBucket}`;
+}
+
+function resumeEmailBatchFromCheckpoint() {
+  const props = PropertiesService.getScriptProperties();
+  const raw = props.getProperty('EMAIL_BATCH_CHECKPOINT');
+  if (!raw) {
+    console.log('ℹ️ Nessun checkpoint batch presente: resume skip.');
+    return;
+  }
+  console.log('⏭️ Ripresa batch da checkpoint richiesta.');
+  main();
 }
 
 
