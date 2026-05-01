@@ -256,7 +256,7 @@ var Classifier = class Classifier {
       /^On .* wrote:.*$/m,
       /^Il giorno .* ha scritto:.*$/m,
       /^Il .* alle .* .* ha scritto:.*$/m,
-      /^Da:.*$/m,
+      /^Da:\s*.*<[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}>.*$/m,
       /^From:.*Sent:.*$/m,
       /^-{3,}.*Original Message.*$/m,
       /^-{3,}.*Messaggio originale.*$/m,
