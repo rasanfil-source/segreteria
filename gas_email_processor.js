@@ -140,9 +140,13 @@ var EmailProcessor = class EmailProcessor {
       const ttlSeconds = Math.max(1, Math.min(configuredTtl, 21600));
       const lockTtlMs = ttlSeconds * 1000;
 
-      // Aggiunge entropia per evitare collisioni se due thread identici partono nello stesso Ms 
-      const entropy = Math.random().toString(36).substring(2, 8);
-      lockValue = `${Date.now()}_${entropy}`;
+      // Identificativo lock robusto: UUID se disponibile, fallback timestamp+entropia.
+      if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.getUuid === 'function') {
+        lockValue = Utilities.getUuid();
+      } else {
+        const entropy = Math.random().toString(36).substring(2, 8);
+        lockValue = `${Date.now()}_${entropy}`;
+      }
 
       const scriptLock = LockService.getScriptLock();
       let scriptLockAcquired = false;

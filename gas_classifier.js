@@ -302,7 +302,7 @@ var Classifier = class Classifier {
       }
 
       // Salta saluti standalone all'inizio
-      if (/^(salve|buongiorno|buonasera|ciao)[\s,!.]*$/i.test(stripped)) {
+      if (/^(salve|buongiorno|buonasera|ciao)[\s,!.]{0,5}$/i.test(stripped)) {
         continue;
       }
 
