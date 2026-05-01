@@ -222,6 +222,19 @@ var GmailService = class GmailService {
                 }
                 return;
             }
+            // Fallback obbligatorio: etichetta il thread per evitare riprocessamenti infiniti
+            // quando l'API avanzata message-level fallisce in modo intermittente.
+            try {
+                const message = GmailApp.getMessageById(messageId);
+                const thread = message && typeof message.getThread === 'function' ? message.getThread() : null;
+                if (thread) {
+                    this.addLabelToThread(thread, labelName);
+                    console.log(`✓ Fallback thread-level applicato per messaggio ${messageId}`);
+                    return;
+                }
+            } catch (fallbackError) {
+                console.warn(`⚠️ Fallback thread-level fallito per messaggio ${messageId}: ${fallbackError.message}`);
+            }
             throw e;
         }
     }
@@ -2886,8 +2899,8 @@ function markdownToHtml(text) {
 
     // Bold / Italic (asterischi già escaped come testo, usiamo la versione escaped)
     // Nota: gli asterischi NON vengono escaped da escapeHtml(), quindi funzionano normalmente
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/(?<!\*)\*(?!\*)(.+?)\*(?!\*)/g, '<em>$1</em>');
+    html = html.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/(?<!\*)\*(?!\*)([\s\S]+?)\*(?!\*)/g, '<em>$1</em>');
 
     // 5. Liste markdown (bullet e numerate) -> <ul>/ <ol> + <li>
     // Liste puntate (- item  oppure  * item all'inizio riga)

@@ -765,11 +765,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       this.cache[cacheKey].shift();
     }
 
-    // Persist ogni 10 secondi usando un timestamp dedicato:
-    // lastCacheUpdate viene aggiornato da _refreshCache e non può governare il flush.
-    if (now - this.cache.lastPersistUpdate > 10000) {
-      this._persistCache();
-    }
+    // GAS è runtime effimero: persiste subito per non perdere stato RPM/TPM tra esecuzioni.
+    this._persistCache();
   }
 
   _refreshCache() {
