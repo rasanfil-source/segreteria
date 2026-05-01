@@ -181,7 +181,7 @@ var MemoryService = class MemoryService {
       }
     }
 
-    const MAX_RETRIES = 5;
+    const MAX_RETRIES = this._getLockTuning_().maxRetries;
     // Sharding basato su hash del threadId per ridurre la contention
     const lockKey = this._getShardedLockKey(threadId);
 
@@ -196,10 +196,10 @@ var MemoryService = class MemoryService {
 
       try {
         // 1. Acquisisci Lock Sharded (CacheService)
-        shardedLockOwned = this._tryAcquireShardedLock(lockKey, 15000);
+        shardedLockOwned = this._tryAcquireShardedLock(lockKey, this._getLockTuning_().shardedAcquireTimeoutMs);
         if (!shardedLockOwned) {
           console.warn(`🔒 Timeout lock memoria sharded (Tentativo ${attempt + 1})`);
-          Utilities.sleep(Math.pow(2, attempt) * 200);
+          this._sleepLockBackoff_(attempt);
           continue;
         }
 
@@ -278,8 +278,7 @@ var MemoryService = class MemoryService {
         }
 
         // Backoff
-        const delay = Math.pow(1.5, attempt) * 100 + Math.random() * 50;
-        Utilities.sleep(delay);
+        this._sleepLockBackoff_(attempt);
 
       } finally {
         if (globalLockAcquired) {
@@ -366,15 +365,14 @@ var MemoryService = class MemoryService {
 
         try {
           // 1. Acquisisci Lock Sharded (CacheService)
-          lockAcquired = this._tryAcquireShardedLock(lockKey, 15000);
+          lockAcquired = this._tryAcquireShardedLock(lockKey, this._getLockTuning_().shardedAcquireTimeoutMs);
           if (!lockAcquired) {
             if (i === 2) {
               console.warn(`⚠️ Lock non acquisito dopo 3 tentativi, annullo aggiornamento atomico per thread ${threadId}`);
               return false;
             }
             if (i < 2) {
-              const baseSleepMs = (typeof CONFIG !== 'undefined' && CONFIG.CACHE_RACE_SLEEP_MS) || 200;
-              Utilities.sleep(baseSleepMs + Math.random() * 100);
+              this._sleepLockBackoff_(i);
             }
             continue;
           }
@@ -458,7 +456,7 @@ var MemoryService = class MemoryService {
         } catch (error) {
           console.warn(`⚠️ Errore aggiornamento atomico (tentativo ${i + 1}): ${error.message}`);
           this._invalidateCache(`memory_${threadId}`);
-          Utilities.sleep(Math.pow(2, i) * 200);
+          this._sleepLockBackoff_(i);
         } finally {
           if (globalLockAcquired) {
             try { globalLock.releaseLock(); } catch (e) {}
@@ -491,10 +489,10 @@ var MemoryService = class MemoryService {
       const globalLock = LockService.getScriptLock();
 
       try {
-        lockAcquired = this._tryAcquireShardedLock(lockKey, 15000);
+        lockAcquired = this._tryAcquireShardedLock(lockKey, this._getLockTuning_().shardedAcquireTimeoutMs);
         if (!lockAcquired) {
           if (i < 2) {
-            Utilities.sleep(200 + Math.random() * 100);
+            this._sleepLockBackoff_(i);
             continue;
           }
           console.warn(`⚠️ Lock non acquisito dopo 3 tentativi in addProvidedInfoTopics per thread ${threadId}`);
@@ -532,7 +530,7 @@ var MemoryService = class MemoryService {
         return;
       } catch (e) {
         console.warn(`⚠️ addProvidedInfoTopics fallito (tentativo ${i + 1}): ${e.message}`);
-        Utilities.sleep(200);
+        this._sleepLockBackoff_(i);
       } finally {
         if (globalLockAcquired) {
           try { globalLock.releaseLock(); } catch (e) {}
@@ -810,7 +808,7 @@ var MemoryService = class MemoryService {
     const globalLock = LockService.getScriptLock();
 
     try {
-      lockAcquired = this._tryAcquireShardedLock(lockKey, 15000);
+      lockAcquired = this._tryAcquireShardedLock(lockKey, this._getLockTuning_().shardedAcquireTimeoutMs);
       if (!lockAcquired) return;
 
       // Lock globale per scrittura (B4)
@@ -879,9 +877,10 @@ var MemoryService = class MemoryService {
    * Genera chiave lock sharded basata su hash threadId
    */
   _getShardedLockKey(threadId) {
-    // Gmail threadId è già unico e ben entro il limite chiavi CacheService (<250 char).
-    // Evita hashing/troncamento per non introdurre collisioni artificiali tra thread diversi.
-    return `mem_lock_${threadId}`;
+    const bucketCount = this._getLockTuning_().shardBuckets;
+    if (bucketCount <= 1) return `mem_lock_${threadId}`;
+    const bucket = this._stableHash_(threadId) % bucketCount;
+    return `mem_lock_b${bucket}_${threadId}`;
   }
 
   /**
@@ -905,7 +904,8 @@ var MemoryService = class MemoryService {
     // il worker non fallisca immediatamente nel tentativo di segnare il thread come in lavorazione.
     // Timeout acquisizione lock ridotto a 500ms per la guard atomica (B2)
     // Evita la cascata di timeout osservata durante carichi elevati.
-    if (globalLock.tryLock(500)) {
+    const guardTimeout = Math.min(timeoutMs, this._getLockTuning_().globalGuardTimeoutMs);
+    if (globalLock.tryLock(guardTimeout)) {
       try {
         try {
           if (cache.get(key) != null) {
@@ -927,6 +927,38 @@ var MemoryService = class MemoryService {
       console.warn(`⚠️ Timeout acquisizione GlobalLock per sharded key: ${key}`);
       return false; // Fallito acquisizione guard
     }
+  }
+
+  _getLockTuning_() {
+    const cfg = (typeof CONFIG !== 'undefined' && CONFIG) ? CONFIG : {};
+    return {
+      maxRetries: Number(cfg.MEMORY_LOCK_MAX_RETRIES) > 0 ? Number(cfg.MEMORY_LOCK_MAX_RETRIES) : 5,
+      shardedAcquireTimeoutMs: Number(cfg.MEMORY_SHARDED_LOCK_ACQUIRE_TIMEOUT_MS) > 0 ? Number(cfg.MEMORY_SHARDED_LOCK_ACQUIRE_TIMEOUT_MS) : 15000,
+      globalGuardTimeoutMs: Number(cfg.MEMORY_LOCK_GLOBAL_GUARD_TIMEOUT_MS) > 0 ? Number(cfg.MEMORY_LOCK_GLOBAL_GUARD_TIMEOUT_MS) : 500,
+      backoffBaseMs: Number(cfg.MEMORY_LOCK_BACKOFF_BASE_MS) > 0 ? Number(cfg.MEMORY_LOCK_BACKOFF_BASE_MS) : 200,
+      backoffCapMs: Number(cfg.MEMORY_LOCK_BACKOFF_CAP_MS) > 0 ? Number(cfg.MEMORY_LOCK_BACKOFF_CAP_MS) : 10000,
+      backoffJitterMs: Number(cfg.MEMORY_LOCK_BACKOFF_JITTER_MS) >= 0 ? Number(cfg.MEMORY_LOCK_BACKOFF_JITTER_MS) : 0,
+      shardBuckets: Number(cfg.MEMORY_LOCK_SHARD_BUCKETS) > 1 ? Number(cfg.MEMORY_LOCK_SHARD_BUCKETS) : 1
+    };
+  }
+
+  _sleepLockBackoff_(attempt) {
+    const lockCfg = this._getLockTuning_();
+    const exp = Math.min(6, Math.max(0, attempt));
+    const baseDelay = Math.min(lockCfg.backoffCapMs, lockCfg.backoffBaseMs * Math.pow(2, exp));
+    const jitterBudget = lockCfg.backoffJitterMs;
+    const jitter = jitterBudget > 0 ? Math.floor(Math.random() * jitterBudget) : 0;
+    Utilities.sleep(baseDelay + jitter);
+  }
+
+  _stableHash_(value) {
+    const input = String(value || '');
+    let hash = 0;
+    for (let i = 0; i < input.length; i++) {
+      hash = ((hash << 5) - hash) + input.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash);
   }
 
   /**

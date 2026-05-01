@@ -1685,7 +1685,14 @@ ${addressLines.join('\n\n')}
 
   _storeBatchCheckpointAndScheduleContinuation_(threads, startIndex, remainingTimeMs) {
     try {
-      const props = PropertiesService.getScriptProperties();
+      const props = (typeof PropertiesService !== 'undefined' &&
+        PropertiesService &&
+        typeof PropertiesService.getScriptProperties === 'function')
+        ? PropertiesService.getScriptProperties()
+        : null;
+      if (!props || typeof props.setProperty !== 'function') {
+        throw new Error('PropertiesService non disponibile o adapter senza setProperty');
+      }
       const pendingThreadIds = (threads || [])
         .slice(startIndex)
         .map((thread) => {
@@ -1703,10 +1710,20 @@ ${addressLines.join('\n\n')}
       };
       props.setProperty('EMAIL_BATCH_CHECKPOINT', JSON.stringify(checkpoint));
 
-      const existing = ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'resumeEmailBatchFromCheckpoint');
-      existing.forEach(t => ScriptApp.deleteTrigger(t));
-      ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(60 * 1000).create();
-      console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger di continuazione pianificato.`);
+      const canManageTriggers = (typeof ScriptApp !== 'undefined' &&
+        ScriptApp &&
+        typeof ScriptApp.getProjectTriggers === 'function' &&
+        typeof ScriptApp.deleteTrigger === 'function' &&
+        typeof ScriptApp.newTrigger === 'function');
+
+      if (canManageTriggers) {
+        const existing = ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'resumeEmailBatchFromCheckpoint');
+        existing.forEach(t => ScriptApp.deleteTrigger(t));
+        ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(60 * 1000).create();
+        console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger di continuazione pianificato.`);
+      } else {
+        console.warn('⚠️ Checkpoint salvato ma ScriptApp trigger non disponibile: continuazione automatica non pianificata');
+      }
     } catch (e) {
       console.warn(`⚠️ Salvataggio checkpoint batch fallito: ${e.message}`);
     }

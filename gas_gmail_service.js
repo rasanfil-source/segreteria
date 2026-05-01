@@ -285,7 +285,7 @@ var GmailService = class GmailService {
                 const reason = isEmptyResponse ? 'risposta vuota' : `errore transiente: ${error.message}`;
                 console.warn(`⚠️ Gmail.Users.Messages.get ${reason} per msg ${messageId} (tentativo ${attempt}/${safeAttempts})`);
                 if (hasRetryBudget) {
-                    Utilities.sleep(250 * attempt * attempt);
+                    this._safeSleep_(250 * attempt * attempt);
                     continue;
                 }
             }
@@ -320,7 +320,7 @@ var GmailService = class GmailService {
                 const reason = isEmptyResponse ? 'risposta vuota' : `errore transiente: ${error.message}`;
                 console.warn(`⚠️ Gmail.Users.Messages.list ${reason} (tentativo ${attempt}/${safeAttempts})`);
                 if (hasRetryBudget) {
-                    Utilities.sleep(300 * attempt * attempt);
+                    this._safeSleep_(300 * attempt * attempt);
                     continue;
                 }
             }
@@ -355,6 +355,14 @@ var GmailService = class GmailService {
             || message.includes('502')
             || message.includes('503')
             || message.includes('504');
+    }
+
+    _safeSleep_(ms) {
+        try {
+            if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.sleep === 'function') {
+                Utilities.sleep(ms);
+            }
+        } catch (_) { }
     }
 
     /**
@@ -2161,6 +2169,20 @@ var GmailService = class GmailService {
                 mailEntity.reply(plainText || this._stripHtmlTags(finalResponse));
                 console.log(`✓ Risposta plain text inviata a ${messageDetails.senderEmail} (alternativa)`);
             } catch (fallbackError) {
+                let threadFallbackError = null;
+                try {
+                    const threadEntity = (mailEntity && typeof mailEntity.getThread === 'function')
+                        ? mailEntity.getThread()
+                        : null;
+                    if (threadEntity && typeof threadEntity.reply === 'function') {
+                        threadEntity.reply(plainText || this._stripHtmlTags(finalResponse));
+                        console.log(`✓ Risposta plain text inviata a ${messageDetails.senderEmail} (fallback thread-level)`);
+                        return;
+                    }
+                } catch (e) {
+                    threadFallbackError = e;
+                }
+
                 console.error(`❌ CRITICO: Invio risposta alternativo fallito: ${fallbackError.message}`);
                 const errorLabel = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME) ? CONFIG.ERROR_LABEL_NAME : 'Errore';
                 if (mailEntity) {
@@ -2177,6 +2199,9 @@ var GmailService = class GmailService {
                     rootCauses.push(`Gmail API: ${apiSendError.message}`);
                 }
                 rootCauses.push(`Fallback nativo: ${fallbackError.message}`);
+                if (threadFallbackError && threadFallbackError.message) {
+                    rootCauses.push(`Fallback thread: ${threadFallbackError.message}`);
+                }
                 throw new Error(rootCauses.join(' | '));
             }
         }

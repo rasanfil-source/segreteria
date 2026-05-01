@@ -1288,8 +1288,9 @@ Testo:
         }
         // NON effettuare fallback diretto: i retry sono già gestiti nel RateLimiter
         // e una seconda esecuzione fuori limiter falserebbe i contatori quota.
-        console.warn(`⚠️ Rate Limiter generazione fallito: ${error.message}. Interruzione per evitare bypass quota.`);
-        throw new Error(`Generazione via RateLimiter fallita: ${error.message}`);
+        const errorMessage = (error && error.message) ? error.message : String(error);
+        console.warn(`⚠️ Rate Limiter generazione fallito: ${errorMessage}. Interruzione per evitare bypass quota.`);
+        throw error; // Preserva l'eccezione originale per il classificatore
       }
     }
 
