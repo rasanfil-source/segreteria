@@ -1464,7 +1464,12 @@ ${addressLines.join('\n\n')}
         const dynamicLimit = (typeof CONFIG !== 'undefined') ? parseInt(CONFIG.MAX_EMAILS_PER_RUN, 10) : NaN;
         const fallbackLimit = parseInt(this.config.maxEmailsPerRun, 10);
         const resolved = Number.isNaN(dynamicLimit) ? fallbackLimit : dynamicLimit;
-        return Number.isNaN(resolved) ? 10 : resolved;
+        const sanitized = Number.isNaN(resolved) ? 10 : resolved;
+        const bounded = Math.max(1, Math.min(50, sanitized));
+        if (bounded !== sanitized) {
+          this.logger.warn(`⚠️ MAX_EMAILS_PER_RUN fuori range (${sanitized}), normalizzato a ${bounded}.`);
+        }
+        return bounded;
       };
 
       const languageMode = typeof this._getLanguageProcessingMode_ === 'function'

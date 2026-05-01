@@ -331,10 +331,15 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
   const errorLabel = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME) ? CONFIG.ERROR_LABEL_NAME : 'Errore';
   const validationLabel = (typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_ERROR_LABEL) ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica';
   
-  // Gestione virgolette nelle etichette (senza escaping backslash).
-  // Usiamo solo il quoting standard. Se l'etichetta contiene già virgolette, la query fallirà comunque,
-  // ma è un edge case estremo per nomi di label IA.
-  const quoteLabel = (label) => `"${String(label || '')}"`;
+  // Escape robusto per etichette in query Gmail.
+  // Gmail query parser accetta escaping con backslash per le virgolette.
+  const quoteLabel = (label) => {
+    const normalized = String(label == null ? '' : label);
+    const escaped = normalized
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"');
+    return `"${escaped}"`;
+  };
 
   const query = `in:inbox is:unread newer_than:${safeMaxLookbackDays}d -label:${quoteLabel(labelName)} -label:${quoteLabel(errorLabel)} -label:${quoteLabel(validationLabel)}`;
 
