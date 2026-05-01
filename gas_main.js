@@ -1042,15 +1042,17 @@ function _loadAdvancedConfig(ss) {
     // isInSuspensionTime userà SUSPENSION_HOURS como fallback sicuro.
     config.suspensionRules = null;
     const staticDomains = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_DOMAINS))
-      ? CONFIG.IGNORE_DOMAINS : [];
+      ? CONFIG.IGNORE_DOMAINS
+      : [];
     const staticKeywords = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_KEYWORDS))
-      ? CONFIG.IGNORE_KEYWORDS : [];
-    config.ignoreDomains = Array.from(new Set(
-      staticDomains.map(v => String(v).trim().toLowerCase()).filter(Boolean)
-    ));
-    config.ignoreKeywords = Array.from(new Set(
-      staticKeywords.map(v => String(v).trim().toLowerCase()).filter(Boolean)
-    ));
+      ? CONFIG.IGNORE_KEYWORDS
+      : [];
+    config.ignoreDomains = Array.from(
+      new Set(staticDomains.map(v => String(v).trim().toLowerCase()).filter(Boolean))
+    );
+    config.ignoreKeywords = Array.from(
+      new Set(staticKeywords.map(v => String(v).trim().toLowerCase()).filter(Boolean))
+    );
     return config;
   }
 
