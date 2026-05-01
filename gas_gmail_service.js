@@ -2801,7 +2801,9 @@ function sanitizeUrl(url) {
         return null;
     }
 
-    return decoded;
+    return decoded
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
 /**
