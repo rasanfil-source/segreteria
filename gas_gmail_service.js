@@ -46,7 +46,11 @@ var GmailService = class GmailService {
         const tz = (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function')
             ? (Session.getScriptTimeZone() || 'Etc/UTC')
             : 'Etc/UTC';
-        return `gmail_api_calls:${Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd')}`;
+        if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+            return `gmail_api_calls:${Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd')}`;
+        }
+        const isoDate = new Date().toISOString().slice(0, 10);
+        return `gmail_api_calls:${isoDate}`;
     }
 
     _incrementGmailCallCounterOrThrow_(opName) {

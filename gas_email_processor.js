@@ -246,9 +246,6 @@ var EmailProcessor = class EmailProcessor {
 
         if (myEmail) {
           console.warn(`⚠️ Session email non disponibile: uso fallback anti-loop (${myEmail})`);
-        } else {
-          console.warn('⚠️ Session email non disponibile e nessun fallback configurato (ScriptProperties.ADMIN_EMAIL/CONFIG.LOGGING.ADMIN_EMAIL/BOT_EMAIL/CONFIG.BOT_EMAIL)');
-          return { status: 'skipped', reason: 'anti_loop_protection_unavailable' };
         }
       }
 
