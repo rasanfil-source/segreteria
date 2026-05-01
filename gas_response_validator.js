@@ -515,6 +515,13 @@ var ResponseValidator = class ResponseValidator {
       // Evita falsi positivi su sottostringhe di parole reali
       // (es. "todo" in spagnolo) per placeholder alfabetici.
       if (/^[A-Za-z]+$/.test(normalized)) {
+        // Evita falsi positivi su parole naturali in minuscolo (es. "todo" in spagnolo).
+        // Placeholder acronimici devono comparire in maiuscolo.
+        if (normalized === normalized.toUpperCase()) {
+          const escapedUpper = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const upperRx = new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escapedUpper}(?=$|[^\\p{L}\\p{N}_])`, 'u');
+          return upperRx.test(response);
+        }
         const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const rx = new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'iu');
         return rx.test(response);

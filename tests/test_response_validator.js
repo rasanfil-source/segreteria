@@ -40,6 +40,13 @@ assert(
   'deve segnalare frasi di incertezza'
 );
 
+console.log('--- Test _checkForbiddenContent (todo minuscolo non placeholder) ---');
+const spanishTodoResult = validator._checkForbiddenContent('Gracias por todo, le responderemos pronto.');
+assert(
+  !spanishTodoResult.errors.some((e) => e.includes('Contiene placeholder')),
+  '"todo" minuscolo non deve essere rilevato come placeholder TODO'
+);
+
 console.log('--- Test _checkExposedReasoning (thinking leak critico) ---');
 const reasoningResult = validator._checkExposedReasoning(
   'Rivedendo la knowledge base, la invito a contattare la segreteria.'
