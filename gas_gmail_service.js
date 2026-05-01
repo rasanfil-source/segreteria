@@ -2060,6 +2060,7 @@ var GmailService = class GmailService {
                 if (!originalMessageId) {
                     throw new Error('Message-ID originale mancante, forzatura fallback nativo');
                 }
+                collectReferenceIds(messageDetails.existingReferences || '');
                 collectReferenceIds(originalMessageId);
                 const boundedReferenceChain = referenceIds.slice(-20).join(' ');
 
