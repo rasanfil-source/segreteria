@@ -2598,7 +2598,7 @@ function sanitizeUrl(url) {
     }
 
     // SSRF: blocco IP interni, IPv6 loopback/link-local, IP decimali
-    const INTERNAL_IP_PATTERN = /^(https?:\/\/)?(localhost|127\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.)/i;
+    const INTERNAL_IP_PATTERN = /^\s*(https?:\/\/)?(localhost|127\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.)/i;
     const DECIMAL_IP = /^https?:\/\/\d{8,10}(\/|$)/i;
     const USERINFO_BYPASS = /^https?:\/\/[^@]+@/i;
 
