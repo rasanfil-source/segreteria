@@ -1103,9 +1103,27 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const sorted = Array.from(mergedByKey.values())
       .sort((a, b) => (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0));
 
-    // Limita dimensione array a max 8KB per evitare crash PropertiesService
-    while (JSON.stringify(sorted).length > 8000 && sorted.length > 0) {
-      sorted.shift();
+    // Limita dimensione array a max 8KB per evitare crash PropertiesService.
+    // Evita il pattern O(n²) di JSON.stringify() ad ogni iterazione.
+    const maxBytes = 8000;
+    const serializedEntries = sorted.map(entry => JSON.stringify(entry));
+    let totalBytes = 2; // []
+    for (let i = 0; i < serializedEntries.length; i++) {
+      totalBytes += serializedEntries[i].length;
+      if (i > 0) totalBytes += 1; // virgola separatrice
+    }
+
+    let start = 0;
+    while (totalBytes > maxBytes && start < serializedEntries.length) {
+      totalBytes -= serializedEntries[start].length;
+      if (start < serializedEntries.length - 1) {
+        totalBytes -= 1; // rimuove anche una virgola
+      }
+      start++;
+    }
+
+    if (start > 0) {
+      return sorted.slice(start);
     }
 
     return sorted;
@@ -1334,20 +1352,18 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
       ['rpmWindow', 'tpmWindow'].forEach(function(cacheKey) {
         const currentWindow = Array.isArray(this.cache[cacheKey]) ? this.cache[cacheKey] : [];
-        this.cache[cacheKey] = currentWindow.filter(function(entry) {
+        this.cache[cacheKey] = currentWindow.map(function(entry) {
           if (!entry || entry.modelKey !== modelKey || entry.nonce !== reservationId || entry.reserved !== true) {
-            return true;
+            return entry;
           }
 
           const mutableEntry = Object.assign({}, entry);
           const keepEntry = mutatorFn(mutableEntry);
           if (keepEntry === false) {
-            return false;
+            return null;
           }
-          Object.keys(entry).forEach(function(key) { delete entry[key]; });
-          Object.assign(entry, mutableEntry);
-          return true;
-        });
+          return mutableEntry;
+        }).filter(Boolean);
       }.bind(this));
 
       this._persistCache(true);

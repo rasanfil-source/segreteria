@@ -1455,7 +1455,7 @@ function parseGeminiJsonLenient(text) {
 function _tryBalanceJsonBraces(text) {
   if (!text) return text;
 
-  let inString = false;
+  let stringDelimiter = null;
   let escaped = false;
   const stack = [];
 
@@ -1469,11 +1469,15 @@ function _tryBalanceJsonBraces(text) {
       escaped = true;
       continue;
     }
-    if (ch === '"') {
-      inString = !inString;
+    if (ch === '"' || ch === "'") {
+      if (!stringDelimiter) {
+        stringDelimiter = ch;
+      } else if (stringDelimiter === ch) {
+        stringDelimiter = null;
+      }
       continue;
     }
-    if (inString) continue;
+    if (stringDelimiter) continue;
     if (ch === '{') stack.push('}');
     else if (ch === '[') stack.push(']');
     else if (ch === '}' || ch === ']') {
@@ -1484,7 +1488,7 @@ function _tryBalanceJsonBraces(text) {
   }
 
   let balanced = text;
-  if (inString) balanced += '"';
+  if (stringDelimiter) balanced += stringDelimiter;
   while (stack.length > 0) {
     balanced += stack.pop();
   }

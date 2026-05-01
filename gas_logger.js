@@ -106,10 +106,13 @@ var AppLogger = class AppLogger {
   _sendErrorNotification(logEntry) {
     try {
       const loggingConfig = (this.config && this.config.LOGGING) ? this.config.LOGGING : {};
-      const adminEmailProperty = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
-        ? PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL')
+      const scriptProperties = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
+        ? PropertiesService.getScriptProperties()
+        : null;
+      const adminEmailProperty = scriptProperties
+        ? scriptProperties.getProperty('ADMIN_EMAIL')
         : '';
-      const adminEmail = adminEmailProperty || loggingConfig.ADMIN_EMAIL || '';
+      const adminEmail = adminEmailProperty || loggingConfig.adminEmail || '';
       if (!adminEmail || adminEmail.includes('[') || adminEmail.includes('YOUR_')) return;
 
       const subject = `[${this.config.PROJECT_NAME || 'GAS_BOT'}] Avviso Errore: ${logEntry.message}`;
@@ -129,9 +132,6 @@ Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
       `.trim();
 
       // Rate limit: max 1 email ogni 5 minuti
-      const scriptProperties = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
-        ? PropertiesService.getScriptProperties()
-        : null;
       const lastNotification = scriptProperties
         ? scriptProperties.getProperty('last_error_notification')
         : '';

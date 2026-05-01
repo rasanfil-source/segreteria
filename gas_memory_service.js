@@ -884,11 +884,10 @@ var MemoryService = class MemoryService {
   }
 
   /**
-   * Tenta acquisizione lock sharded (simulato con CacheService + Global Guard breve)
+   * Tenta acquisizione lock sharded (single-key su CacheService, senza lock globale).
    */
   _tryAcquireShardedLock(key, timeoutMs = 500) {
     const cache = CacheService.getScriptCache();
-    const globalLock = LockService.getScriptLock();
     const configuredLockTtlSeconds = (typeof CONFIG !== 'undefined' && Number(CONFIG.MEMORY_LOCK_TTL) > 0)
       ? Number(CONFIG.MEMORY_LOCK_TTL)
       : 30;
@@ -898,34 +897,28 @@ var MemoryService = class MemoryService {
     // TTL >= attesa lock sheet + margine: riduce la finestra in cui due worker credono di essere soli.
     const lockTtlSeconds = Math.max(configuredLockTtlSeconds, Math.ceil((sheetWriteTimeoutMs + 5000) / 1000));
 
-    // Pattern: Global Guard per operazione Cache Atomica
-    // Prendi lock globale per pochissimo tempo, solo per check-and-set su Cache
-    // Nota manutenzione: il timeout di 500ms garantisce che anche in picchi di carico
-    // il worker non fallisca immediatamente nel tentativo di segnare il thread come in lavorazione.
-    // Timeout acquisizione lock ridotto a 500ms per la guard atomica (B2)
-    // Evita la cascata di timeout osservata durante carichi elevati.
-    const guardTimeout = Math.min(timeoutMs, this._getLockTuning_().globalGuardTimeoutMs);
-    if (globalLock.tryLock(guardTimeout)) {
-      try {
-        try {
-          if (cache.get(key) != null) {
-            console.warn(`\u26A0\uFE0F Lock sharded già acquisito o presente: ${key}`);
-            return false; // Già lockato
-          }
-          const token = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      const startedAt = Date.now();
+      const acquireBudgetMs = Math.max(0, Number(timeoutMs) || 0);
+      const token = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+      while ((Date.now() - startedAt) <= acquireBudgetMs) {
+        if (cache.get(key) == null) {
           cache.put(key, token, lockTtlSeconds);
-          this._heldShardLocks[key] = token;
-          return true;
-        } catch (cacheError) {
-          console.warn(`⚠️ Errore CacheService durante lock: ${cacheError.message}`);
-          return false;
+          if (cache.get(key) === token) {
+            this._heldShardLocks[key] = token;
+            return true;
+          }
         }
-      } finally {
-        globalLock.releaseLock();
+
+        Utilities.sleep(50);
       }
-    } else {
-      console.warn(`⚠️ Timeout acquisizione GlobalLock per sharded key: ${key}`);
-      return false; // Fallito acquisizione guard
+
+      console.warn(`⚠️ Timeout acquisizione lock sharded key: ${key}`);
+      return false;
+    } catch (cacheError) {
+      console.warn(`⚠️ Errore CacheService durante lock: ${cacheError.message}`);
+      return false;
     }
   }
 

@@ -2221,7 +2221,9 @@ var GmailService = class GmailService {
             .replace(/\*(.+?)\*/g, '$1')
             .replace(/#{1,4}\s+/g, '')
             // Mantieni link leggibile: [Testo](URL) -> Testo (URL)
-            .replace(/\[(.+?)\]\((.+?)\)/g, '$1 ($2)');
+            .replace(/\[(.+?)\]\((.+?)\)/g, '$1 ($2)')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
     }
 
     // ========================================================================
@@ -2470,8 +2472,15 @@ var GmailService = class GmailService {
         const maxTokenLength = Math.max(1, maxLineLength - 2); // continuation line: " " + token
         for (const token of tokens) {
             // I token header (es. Message-ID) non sono splittabili semanticamente.
-            // Se un token è anomalo e troppo lungo per una continuation line valida, lo scartiamo.
+            // Se un token supera i limiti RFC, preserviamo la semantica emettendolo
+            // integralmente su una continuation line dedicata.
             if (token.length > maxTokenLength) {
+                if (currentLine !== headerPrefix) {
+                    lines.push(currentLine);
+                }
+                currentLine = ` ${token}`;
+                hasAtLeastOneToken = true;
+                console.warn(`⚠️ Header token troppo lungo (${token.length} chars), emesso integralmente`);
                 continue;
             }
 
@@ -2792,12 +2801,7 @@ function sanitizeUrl(url) {
         return null;
     }
 
-    return decoded
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+    return decoded;
 }
 
 /**
@@ -2812,6 +2816,10 @@ function escapeHtml(text) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+function escapeHtmlAttr(text) {
+    return escapeHtml(text).replace(/`/g, '&#96;');
 }
 
 /**
@@ -2908,7 +2916,7 @@ function markdownToHtml(text) {
         const escapedText = escapeHtml(linkText);
         const token = `@@LINK_PLACEHOLDER_${links.length}_${generatePlaceholderNonce()}@@`;
         if (sanitizedUrl) {
-            const hrefSafe = sanitizedUrl.replace(/&(?!amp;|lt;|gt;|quot;|#39;)/g, '&amp;');
+            const hrefSafe = escapeHtmlAttr(sanitizedUrl);
             links.push({ token: token, value: `<a href="${hrefSafe}" style="color:#351c75;">${escapedText}</a>` });
         } else {
             console.warn(`⚠️ URL bloccato per sicurezza: ${url}`);
