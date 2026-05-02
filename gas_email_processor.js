@@ -442,7 +442,10 @@ var EmailProcessor = class EmailProcessor {
         console.log('   ⊖ Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
         // Newsletter/automazioni NON devono finire sotto etichetta IA: restano "saltate"
         // per coerenza con gli altri filtri regolistici (ignore rules / no-reply).
-        this._markMessagesAsSkipped(unlabeledUnread);
+        // Fallback: se non risultano unread non etichettati (es. edge case su stato thread),
+        // etichettiamo comunque il candidato corrente per lasciare traccia esplicita di "saltato".
+        const messagesToSkip = (unlabeledUnread && unlabeledUnread.length > 0) ? unlabeledUnread : [candidate];
+        this._markMessagesAsSkipped(messagesToSkip);
         result.status = 'filtered';
         result.reason = 'newsletter_header';
         return result;
@@ -2035,7 +2038,10 @@ ${addressLines.join('\n\n')}
 
     this.gmailService.addLabelToMessage(messageId, this.config.labelName);
     if (this.gmailService && typeof this.gmailService.removeLabelFromMessage === 'function') {
+      // Quando si torna da `foreign_only` a `all`, i messaggi prima marcati con '·'
+      // devono essere promossi a IA al primo passaggio utile.
       this.gmailService.removeLabelFromMessage(messageId, this.config.skipLabelName);
+      console.log(`   ♻️ Promozione completata: rimossa label '${this.config.skipLabelName}' da ${messageId} e aggiunta '${this.config.labelName}'`);
     }
     if (labeledMessageIds && typeof labeledMessageIds.add === 'function') {
       labeledMessageIds.add(messageId);
