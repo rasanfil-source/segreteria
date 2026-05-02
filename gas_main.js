@@ -784,13 +784,13 @@ function _splitCachePayload(payload, maxChars) {
     let chunk = payload.substring(start, start + length);
     
     // Verifica byte reali (possono superare maxChars se ci sono molti multibyte)
-    let byteLength = Utilities.newBlob(chunk).getBytes().length;
+    let byteLength = Utilities.newBlob(chunk, 'text/plain; charset=UTF-8').getBytes().length;
     
     // Se sforiamo il limite assoluto di Apps Script, riduciamo il chunk finché non rientra.
     while (byteLength > ABSOLUTE_BYTE_LIMIT && length > 1000) {
       length = Math.floor(length * 0.9);
       chunk = payload.substring(start, start + length);
-      byteLength = Utilities.newBlob(chunk).getBytes().length;
+      byteLength = Utilities.newBlob(chunk, 'text/plain; charset=UTF-8').getBytes().length;
     }
 
     // Evita split nel mezzo di surrogate pair UTF-16
@@ -1594,7 +1594,7 @@ function _sheetRowsToText(rows) {
         return '';
       }
       return formattedCells
-        .map(cell => cell || '-')
+        .filter(Boolean)
         .join(' | ');
     })
     .filter(Boolean)

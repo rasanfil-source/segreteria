@@ -967,7 +967,7 @@ Testo:
         if (isNightTime) {
           greeting = 'Guten Tag,';
         } else if (day === 0) {
-          greeting = 'Einen schoenen Sonntag,';
+          greeting = 'Einen schönen Sonntag,';
         } else if (hour >= 5 && hour < 18) {
           greeting = 'Guten Tag,';
         } else {
@@ -991,7 +991,7 @@ Testo:
     } else if (language === 'fr') {
       closing = 'Cordialement,';
     } else if (language === 'de') {
-      closing = 'Freundliche Gruesse,';
+      closing = 'Freundliche Grüße,';
     } else {
       closing = 'Cordiali saluti,';
     }

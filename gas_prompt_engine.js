@@ -668,9 +668,9 @@ ${checks.join('\n')}
     if (selected.length === 0) {
       const topScore = (candidates.length > 0 && typeof candidates[0].score === 'number') ? candidates[0].score : 0;
       if (topScore <= 0) {
-        console.info(`ℹ️ Nessuna riga rilevante (top: ${topScore.toFixed(1)}). Uso fallback dottrinale completo.`);
+        console.info(`ℹ️ Nessuna riga rilevante (top: ${topScore.toFixed(1)}). Il chiamante valuterà il fallback.`);
       } else {
-        console.warn(`⚠️ Nessuna riga supera threshold ${threshold} (top: ${topScore.toFixed(1)}). Fallback dump.`);
+        console.warn(`⚠️ Nessuna riga supera threshold ${threshold} (top: ${topScore.toFixed(1)}). Il chiamante valuterà il fallback.`);
       }
       return null;
     }

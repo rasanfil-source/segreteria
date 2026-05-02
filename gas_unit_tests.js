@@ -98,7 +98,20 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
             getScriptCache: () => ({
                 get: (k) => (cache.has(k) ? cache.get(k) : null),
                 put: (k, v) => cache.set(k, String(v)),
-                remove: (k) => cache.delete(k)
+                remove: (k) => cache.delete(k),
+                putAll: (values) => {
+                    Object.entries(values || {}).forEach(([k, v]) => cache.set(k, String(v)));
+                },
+                getAll: (keys) => {
+                    const result = {};
+                    (keys || []).forEach((k) => {
+                        if (cache.has(k)) result[k] = cache.get(k);
+                    });
+                    return result;
+                },
+                removeAll: (keys) => {
+                    (keys || []).forEach((k) => cache.delete(k));
+                }
             })
         };
     }
@@ -296,19 +309,19 @@ function runAllTests() {
         test('Non aggiunge nota se l\'utente cita un orario solo come contesto', results, () => {
             const response = 'Buonasera.\n\nL\'incontro inizierà alle ore 16:30.\n\nCordiali saluti.';
             const messageDetails = { subject: 'Incontro', body: 'Domani riesco a passare alle 17:00 per chiedere informazioni.' };
-            const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it', { topic: 'incontro' }, { type: 'technical' });
+            const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it');
             return adjusted === response;
         });
         test('Usa formulazione non minimizzante per scarti orari ampi', results, () => {
             const response = "Buonasera.\n\nL'incontro inizierà alle ore 16:30.\n\nCordiali saluti.";
             const messageDetails = { subject: 'Incontro', body: 'Io avevo capito 20:00.' };
-            const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it', { topic: 'incontro' }, { type: 'technical' });
+            const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it');
             return adjusted.includes('in un orario differente da quanto indicato da Lei');
         });
         test('Non duplica nota quando è già presente il fallback "Nota: orario comunicato"', results, () => {
             const response = "Buonasera.\n\nL'incontro inizierà alle ore 16:30.\n\nNota: l'orario comunicato è diverso da quello da Lei indicato.";
             const messageDetails = { subject: 'Incontro', body: 'Pensavo fosse alle 17:00.' };
-            const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it', { topic: 'incontro' }, { type: 'technical' });
+            const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it');
             return adjusted === response;
         });
 

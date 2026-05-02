@@ -737,7 +737,7 @@ var EmailProcessor = class EmailProcessor {
         const historyMessages = messages.filter(m => m.getId() !== candidateId);
 
         if (historyMessages.length > 0) {
-          conversationHistory = this.gmailService.buildConversationHistory(
+          conversationHistory = this.gmailService.getThreadHistory(
             historyMessages,
             10,
             myEmail,
@@ -1329,9 +1329,9 @@ ${addressLines.join('\n\n')}
         providedTopics: providedTopics
       });
 
-      if (memoryContext.providedInfo && memoryContext.providedInfo.length > 0) {
-        this._inferUserReaction(messageDetails.body, memoryContext.providedInfo, threadId);
-      }
+      const inferredReactionData = (memoryContext.providedInfo && memoryContext.providedInfo.length > 0)
+        ? this._computeUserReaction(messageDetails.body, memoryContext.providedInfo)
+        : null;
 
       const memoryUpdate = {
         language: detectedLanguage,
@@ -1342,7 +1342,12 @@ ${addressLines.join('\n\n')}
         memoryUpdate.memorySummary = memorySummary;
       }
 
-      this.memoryService.updateMemoryAtomic(threadId, memoryUpdate, topicsWithObjects.length > 0 ? topicsWithObjects : null);
+      this.memoryService.updateMemoryAtomic(
+        threadId,
+        memoryUpdate,
+        topicsWithObjects.length > 0 ? topicsWithObjects : null,
+        inferredReactionData
+      );
 
       // Marca tutti i messaggi non letti esaminati nel thread:
       // evita reprocessing dei messaggi precedenti quando arrivano più email
@@ -2468,12 +2473,10 @@ ${prompt.slice(-tailChars)}`;
     return summary || null;
   }
 
-  _isTerritoryRequest(subject, body, classification = {}) {
+  _isTerritoryRequest(subject, body, classification = {}, requestType = null) {
     const text = `${subject || ''} ${body || ''}`.toLowerCase();
     const topic = String(classification && classification.topic ? classification.topic : '').toLowerCase();
- 
-    // NOTA: RequestTypeClassifier non produce mai type='territory'.
-    // La rilevazione avviene interamente via pattern sul testo qui sotto.
+    if (requestType && requestType.type === 'territory') return true;
     if (topic.includes('territor') || topic.includes('parrocch')) return true;
 
     const explicitPatterns = [
@@ -2622,7 +2625,7 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
   /**
    * Inferisce la reazione dell'utente rispetto ai topic forniti in precedenza
    */
-  _inferUserReaction(userBody, previousTopics, threadId) {
+  _computeUserReaction(userBody, previousTopics) {
     if (!previousTopics || previousTopics.length === 0) return;
     if (!userBody || typeof userBody !== 'string') return;
 
@@ -2653,8 +2656,8 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
         'potrebbe indicare i passaggi',
         'could you provide more details', 'more details', 'could you elaborate',
         'would it be possible to have more information', 'could you outline the steps',
-        'podría ampliar', 'más detalles', 'podría proporcionar más información',
-        'sería posible tener más información', 'podría indicar los pasos'
+        'podría ampliar', 'más detalles', 'podría proporcionar más informazioni',
+        'sería possibile tener más información', 'podría indicar los pasos'
       ]
     };
 
@@ -2694,18 +2697,15 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
       targetTopics = [normalizedTopics[normalizedTopics.length - 1]].filter(Boolean);
     }
 
-    if (targetTopics.length === 0) return;
+    if (targetTopics.length === 0) return null;
 
-    const context = {
+    return {
+      reaction: inferredReaction.type,
+      topics: targetTopics,
       source: 'user_reply',
       matchedPhrase: inferredReaction.match,
       excerpt: userBody.substring(0, 160)
     };
-
-    targetTopics.forEach(topic => {
-      console.log(`   🧠 Inferred Reaction: ${inferredReaction.type.toUpperCase()} su topic '${topic}'`);
-      this.memoryService.updateReaction(threadId, topic, inferredReaction.type, context);
-    });
   }
 
   _normalizeTopicKey(topic) {

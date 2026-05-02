@@ -731,7 +731,7 @@ function testAntiLoopDetection() {
                     global.__labeled.push(id);
                 }
             },
-            buildConversationHistory: () => []
+            getThreadHistory: () => []
         },
         validator: {
             validateResponse: () => ({ isValid: true, score: 1.0, errors: [] })
@@ -2140,7 +2140,7 @@ function testExtractMessageDetailsUsesMainReplyOnly() {
     const service = Object.create(GmailService.prototype);
     service._htmlToPlainText = GmailService.prototype._htmlToPlainText;
     service.extractMainReply = GmailService.prototype.extractMainReply;
-    service._extractSenderName = GmailService.prototype._extractSenderName;
+    service.extractNameFromSender = GmailService.prototype.extractNameFromSender;
     service._extractEmailAddress = GmailService.prototype._extractEmailAddress;
 
     const originalGmail = global.Gmail;

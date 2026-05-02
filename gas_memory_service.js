@@ -327,7 +327,7 @@ var MemoryService = class MemoryService {
    * @param {(string|Object)[]} providedTopics - Topic da aggiungere (opzionale)
    * @returns {boolean} - true se l'operazione è riuscita
    */
-  updateMemoryAtomic(threadId, newData, providedTopics = null) {
+  updateMemoryAtomic(threadId, newData, providedTopics = null, inferredReactionData = null) {
     if (!this._initialized || !threadId) {
       return false;
     }
@@ -417,6 +417,23 @@ var MemoryService = class MemoryService {
 
             mergedData.providedInfo = trimmedTopics;
             console.log(`🧠 Memoria: Aggiunti atomicamente topic ${JSON.stringify(normalizedTopics)}`);
+          }
+          if (inferredReactionData && Array.isArray(mergedData.providedInfo) && mergedData.providedInfo.length > 0) {
+            const normalizedReactionTopics = (inferredReactionData.topics || []).map(topic => this._normalizeTopicKey(topic));
+            mergedData.providedInfo = mergedData.providedInfo.map(info => {
+              const normalizedInfoTopic = this._normalizeTopicKey(info.topic);
+              if (!normalizedReactionTopics.includes(normalizedInfoTopic)) return info;
+              return {
+                ...info,
+                userReaction: inferredReactionData.reaction,
+                context: {
+                  source: inferredReactionData.source || 'user_reply',
+                  matchedPhrase: inferredReactionData.matchedPhrase || null,
+                  excerpt: inferredReactionData.excerpt || null
+                },
+                lastInteraction: now
+              };
+            });
           }
 
             // Cap preventivo lunghezza JSON providedInfo (B5)
@@ -1352,8 +1369,11 @@ var MemoryService = class MemoryService {
         }
 
         if (deletedCount > 0) {
-          range.clearContent();
           this._sheet.getRange(1, 1, validRows.length, headers.length).setValues(validRows);
+          const staleRows = this._sheet.getLastRow() - validRows.length;
+          if (staleRows > 0) {
+            this._sheet.deleteRows(validRows.length + 1, staleRows);
+          }
         }
 
         console.log(`🧹 Pulite ${deletedCount} voci memoria vecchie (Bulk Update)`);

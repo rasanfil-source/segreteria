@@ -332,7 +332,7 @@ function buildProcessorForGenerationFailure(errorTypeToThrow) {
       }),
       addLabelToMessage: () => {},
       addLabelToThread: () => {},
-      buildConversationHistory: () => ''
+      getThreadHistory: () => ''
     },
     classifier: {
       classifyEmail: () => ({ shouldReply: true, category: 'info', subIntents: {}, confidence: 0.9 })
@@ -411,7 +411,7 @@ console.log('--- Test processThread: valida e invia esattamente il testo outboun
       }),
       addLabelToMessage: () => {},
       addLabelToThread: () => {},
-      buildConversationHistory: () => '',
+      getThreadHistory: () => '',
       prepareOutboundText: (text) => `${text}\n[prepared-marker]`,
       sendHtmlReply: (_candidate, responseText) => {
         sentText = responseText;

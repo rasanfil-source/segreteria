@@ -85,7 +85,7 @@ var GmailService = class GmailService {
         const cacheKey = `gmail_label_exists:${labelName}`;
         const cachedEntry = this._labelCache.get(labelName);
         const now = Date.now();
-        if (cachedEntry && (now - cachedEntry.ts) < this._cacheTTL) {
+        if (cachedEntry && (now - cachedEntry.ts) < this._cacheTTL && cachedEntry.label !== null) {
             console.log(`📦 Label '${labelName}' trovata in cache`);
             return cachedEntry.label;
         } else if (cachedEntry) {
@@ -808,7 +808,7 @@ var GmailService = class GmailService {
             effectiveSender = sender;
         }
 
-        const senderName = this._extractSenderName(effectiveSender);
+        const senderName = this.extractNameFromSender(effectiveSender);
         const senderEmail = this._extractEmailAddress(effectiveSender);
 
         let recipientEmail = null;
@@ -1612,15 +1612,25 @@ var GmailService = class GmailService {
                 throw new Error('Drive.Files non espone metodi OCR compatibili (create/insert)');
             }
 
-            const doc = DocumentApp.openById(fileId);
-            if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) {
-                return '';
+            let ocrText = '';
+            for (let attempt = 0; attempt < 3; attempt++) {
+                const doc = DocumentApp.openById(fileId);
+                ocrText = (doc && doc.getBody()) ? doc.getBody().getText() : '';
+                if (ocrText && ocrText.trim().length > 20) {
+                    break;
+                }
+                if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) {
+                    return '';
+                }
+                if (exceededBudget()) {
+                    console.warn('⚠️ OCR allegato interrotto: budget temporale superato');
+                    return '';
+                }
+                if (attempt < 2) {
+                    Utilities.sleep(1500 * (attempt + 1));
+                }
             }
-            if (exceededBudget()) {
-                console.warn('⚠️ OCR allegato interrotto: budget temporale superato');
-                return '';
-            }
-            return doc.getBody().getText();
+            return ocrText || '';
         } catch (e) {
             console.warn(`⚠️ OCR allegato fallito: ${e.message}`);
             return '';
@@ -1740,7 +1750,7 @@ var GmailService = class GmailService {
         };
     }
 
-    _extractSenderName(fromField) {
+    extractNameFromSender(fromField) {
         const safeFrom = String(fromField || '').trim();
         if (!safeFrom) {
             return 'Utente';
@@ -1843,7 +1853,7 @@ var GmailService = class GmailService {
     /**
      * Costruisce cronologia conversazione da messaggi thread
      */
-    buildConversationHistory(messages, maxMessages = 10, ourEmail = '', ourAliases = []) {
+    getThreadHistory(messages, maxMessages = 10, ourEmail = '', ourAliases = []) {
         const normalizeOwnAddress = (value) => {
             if (!value) return '';
             const extracted = String(this._extractEmailAddress(value) || value).trim().toLowerCase();
@@ -1894,7 +1904,7 @@ var GmailService = class GmailService {
         const history = [];
 
         for (const msg of messages) {
-            const details = this.extractMessageDetails(msg);
+            const details = this._extractMessageDetailsLite(msg);
             const normalizedSender = normalizeOwnAddress(details.senderEmail);
             const isOurs = normalizedSender && ownAddresses.has(normalizedSender);
 
@@ -1909,6 +1919,22 @@ var GmailService = class GmailService {
         }
 
         return history.join('\n');
+    }
+
+    /**
+     * Estrazione leggera dettagli messaggio (senza fetch metadata API).
+     * Usata per la sola costruzione della history conversazionale.
+     */
+    _extractMessageDetailsLite(message) {
+        const sender = message.getFrom() || '';
+        let body = message.getPlainBody() || this._htmlToPlainText(message.getBody());
+        body = this.extractMainReply(body);
+
+        return {
+            senderName: this.extractNameFromSender(sender),
+            senderEmail: this._extractEmailAddress(sender),
+            body: body || ''
+        };
     }
 
     // ========================================================================

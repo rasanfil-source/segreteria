@@ -340,9 +340,10 @@ var RequestTypeClassifier = class RequestTypeClassifier {
 
   /**
    * Interfaccia semplificata (soggetto + corpo) con ordine parametri invertito.
+   * @deprecated Preferire classify(subject, body, externalHint) per evitare ambiguità.
    */
-  classifyRequest(body, subject, externalHint = null) {
-    return this.classify(subject, body, externalHint);
+  classifyRequest(bodyFirst, subjectSecond, externalHint = null) {
+    return this.classify(subjectSecond, bodyFirst, externalHint);
   }
 
   /**

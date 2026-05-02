@@ -467,24 +467,35 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const todayPacific = this._getPacificDate();
     const dateKey = 'safety_valve_last_date';
     const valueKey = 'safety_valve_reduced_value';
+    const originalKey = 'safety_valve_original_value';
     const alreadyAppliedToday = this.props.getProperty(dateKey) === todayPacific;
 
     if (alreadyAppliedToday) {
       // GAS usa runtime effimero: ricarichiamo il valore ridotto persistito a ogni esecuzione.
       const stored = parseInt(this.props.getProperty(valueKey) || '0', 10);
-      if (stored > 0 && stored < CONFIG.MAX_EMAILS_PER_RUN) {
+      const originalAtTrigger = parseInt(this.props.getProperty(originalKey) || '0', 10);
+      const currentCap = Number(CONFIG.MAX_EMAILS_PER_RUN);
+      const canReapplyStored =
+        stored > 0 &&
+        Number.isFinite(currentCap) &&
+        originalAtTrigger > 0 &&
+        currentCap <= originalAtTrigger;
+
+      if (canReapplyStored) {
         console.warn(`🚨 Safety Valve (persistita): MAX_EMAILS_PER_RUN → ${stored}`);
         CONFIG.MAX_EMAILS_PER_RUN = stored;
       }
       return;
     }
 
-    const reduced = Math.max(1, Math.floor(CONFIG.MAX_EMAILS_PER_RUN / 2));
-    if (reduced < CONFIG.MAX_EMAILS_PER_RUN) {
-      console.warn(`🚨 Safety Valve attiva: MAX_EMAILS_PER_RUN ${CONFIG.MAX_EMAILS_PER_RUN} → ${reduced}`);
+    const currentCap = Number(CONFIG.MAX_EMAILS_PER_RUN);
+    const reduced = Math.max(1, Math.floor(currentCap / 2));
+    if (reduced < currentCap) {
+      console.warn(`🚨 Safety Valve attiva: MAX_EMAILS_PER_RUN ${currentCap} → ${reduced}`);
       CONFIG.MAX_EMAILS_PER_RUN = reduced;
       this.props.setProperty(dateKey, todayPacific);
       this.props.setProperty(valueKey, String(reduced));
+      this.props.setProperty(originalKey, String(currentCap));
     }
   }
 

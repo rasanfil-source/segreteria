@@ -333,7 +333,7 @@ console.log('--- Test extractMessageDetails: getReplyTo in errore non deve blocc
   assert(details.hasReplyTo === false, 'se getReplyTo fallisce non deve impostare hasReplyTo=true');
 }
 
-console.log('--- Test buildConversationHistory: alias interni restano Segreteria ---');
+console.log('--- Test getThreadHistory: alias interni restano Segreteria ---');
 {
   const originalExtractMessageDetails = service.extractMessageDetails;
   const originalGmailApp = global.GmailApp;
@@ -345,7 +345,7 @@ console.log('--- Test buildConversationHistory: alias interni restano Segreteria
   });
   global.CONFIG.KNOWN_ALIASES = ['archivio@example.org'];
 
-  const historyFromGmailAlias = service.buildConversationHistory(
+  const historyFromGmailAlias = service.getThreadHistory(
     [{ senderEmail: 'segreteria@example.org', senderName: 'Segreteria', body: 'Risposta interna' }],
     10,
     'info@example.org'
@@ -355,7 +355,7 @@ console.log('--- Test buildConversationHistory: alias interni restano Segreteria
     'alias Gmail deve essere classificato come messaggio interno'
   );
 
-  const historyFromKnownAlias = service.buildConversationHistory(
+  const historyFromKnownAlias = service.getThreadHistory(
     [{ senderEmail: 'archivio@example.org', senderName: 'Archivio', body: 'Messaggio da alias noto' }],
     10,
     'info@example.org'
@@ -370,13 +370,13 @@ console.log('--- Test buildConversationHistory: alias interni restano Segreteria
   global.CONFIG.KNOWN_ALIASES = originalKnownAliases;
 }
 
-console.log('--- Test buildConversationHistory: gmail/googlemail e dots equivalenti restano Segreteria ---');
+console.log('--- Test getThreadHistory: gmail/googlemail e dots equivalenti restano Segreteria ---');
 {
   const originalExtractMessageDetails = service.extractMessageDetails;
 
   service.extractMessageDetails = (message) => message;
 
-  const history = service.buildConversationHistory(
+  const history = service.getThreadHistory(
     [{ senderEmail: 'info.parrocchia@gmail.com', senderName: 'Info', body: 'Risposta con account Gmail equivalente' }],
     10,
     'infoparrocchia@googlemail.com'
