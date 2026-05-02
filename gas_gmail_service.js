@@ -714,6 +714,32 @@ var GmailService = class GmailService {
             return cachedEntry.labelId || null;
         }
 
+        // Fallback robusto: in ambienti dove Gmail.Users non è disponibile (es. test locali
+        // o deployment senza servizio avanzato), usiamo GmailApp per verificare l'esistenza
+        // della label e cache-iamo comunque il risultato (anche negativo).
+        const hasGmailUsersList = (
+            typeof Gmail !== 'undefined' &&
+            Gmail &&
+            Gmail.Users &&
+            Gmail.Users.Labels &&
+            typeof Gmail.Users.Labels.list === 'function'
+        );
+        if (!hasGmailUsersList) {
+            try {
+                const appLabel = (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getUserLabelByName === 'function')
+                    ? GmailApp.getUserLabelByName(raw)
+                    : null;
+                const fallbackId = appLabel && typeof appLabel.getId === 'function'
+                    ? appLabel.getId()
+                    : null;
+                this._labelCache.set(raw, { labelId: fallbackId, ts: now });
+                return fallbackId;
+            } catch (e) {
+                this._labelCache.set(raw, { labelId: null, ts: now });
+                return null;
+            }
+        }
+
         try {
             const response = Gmail.Users.Labels.list('me');
             const apiLabels = (response && response.labels) ? response.labels : [];
@@ -1992,6 +2018,14 @@ var GmailService = class GmailService {
      * Usata per la sola costruzione della history conversazionale.
      */
     _extractMessageDetailsLite(message) {
+        if (message && typeof message === 'object' && 'senderEmail' in message && 'body' in message) {
+            return {
+                senderName: message.senderName || this.extractNameFromSender(message.senderEmail || ''),
+                senderEmail: message.senderEmail || '',
+                body: message.body || ''
+            };
+        }
+
         const sender = message.getFrom() || '';
         let body = message.getPlainBody() || this._htmlToPlainText(message.getBody());
         body = this.extractMainReply(body);
