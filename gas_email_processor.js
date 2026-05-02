@@ -2126,7 +2126,10 @@ ${addressLines.join('\n\n')}
         ? labeledMessageIds
         : fetchLabeledIds();
 
-      const effectiveSkippedIds = (skippedMessageIds instanceof Set) ? skippedMessageIds : new Set();
+      const mode = this._getLanguageProcessingMode_();
+      const effectiveSkippedIds = (mode === 'foreign_only' && skippedMessageIds instanceof Set)
+        ? skippedMessageIds
+        : new Set();
 
       return unreadMessages.some(message => {
         const messageId = message.getId();
