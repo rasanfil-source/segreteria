@@ -1395,10 +1395,25 @@ var GmailService = class GmailService {
                 return;
             }
 
+            // Backup persistente: CacheService può essere evicted prima del TTL.
+            const props = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
+                ? PropertiesService.getScriptProperties()
+                : null;
+            const propKey = 'OCR_CLEANUP_LAST_TS';
+            if (props) {
+                const lastTs = parseInt(props.getProperty(propKey) || '0', 10);
+                if ((Date.now() - lastTs) < 6 * 3600 * 1000) {
+                    return;
+                }
+            }
+
             this._cleanupOrphanedOcrFiles();
 
             if (cache) {
                 cache.put(throttleKey, String(Date.now()), 21600); // max una volta ogni 6 ore
+            }
+            if (props) {
+                try { props.setProperty(propKey, String(Date.now())); } catch (_) {}
             }
         } catch (e) {
             console.warn(`⚠️ Cleanup orfani OCR non eseguito: ${e.message}`);
@@ -2373,7 +2388,8 @@ var GmailService = class GmailService {
 
         // Evita di alterare acronimi/parole interamente maiuscole (es. "ISEE", "INVIA")
         // Range esteso À-ÿ per coprire tutte le accentate europee (francese, spagnolo, tedesco, italiano...)
-        return text.replace(/(,\s+)([A-ZÀ-ß])([a-zà-ÿ]+)/g, (match, commaAndSpace, firstLetter, rest, offset) => {
+        // Range espliciti per evitare inclusione dei simboli × (U+00D7) e ÷ (U+00F7)
+        return text.replace(/(,\s+)([A-ZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞ])([a-zàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþß]+)/g, (match, commaAndSpace, firstLetter, rest, offset) => {
             // Eccezione per elenchi numerati (es: "1, Partecipanti")
             const beforeMatch = text.substring(Math.max(0, offset - 5), offset);
             if (beforeMatch.match(/\d+$/)) {

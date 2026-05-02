@@ -1139,9 +1139,17 @@ var MemoryService = class MemoryService {
       serialized = JSON.stringify(topics);
     }
 
-    while (topics.length > 0 && serialized.length > maxChars) {
-      topics.shift();
+    // Stima lineare: taglio proporzionale per ridurre serializzazioni iterative.
+    if (topics.length > 0 && serialized.length > maxChars) {
+      const avgBytesPerEntry = Math.ceil(serialized.length / topics.length);
+      const targetCount = Math.max(1, Math.floor(maxChars / Math.max(1, avgBytesPerEntry)));
+      topics = topics.slice(-targetCount);
       serialized = JSON.stringify(topics);
+
+      while (topics.length > 1 && serialized.length > maxChars) {
+        topics.shift();
+        serialized = JSON.stringify(topics);
+      }
     }
 
     if (serialized.length > maxChars) {

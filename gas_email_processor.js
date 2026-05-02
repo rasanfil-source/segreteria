@@ -1503,7 +1503,10 @@ ${addressLines.join('\n\n')}
       // L'operatore -label agisce a livello thread: escludere "IA" impedisce
       // di rilevare follow-up non letti in conversazioni già etichettate.
       // Il filtro dei messaggi già processati avviene già per-message.
-      const labelsDaIgnorare = [];
+      // In foreign_only escludiamo la label di skip dalla discovery query per ridurre thread scaricati
+      const labelsDaIgnorare = (languageMode === 'foreign_only')
+        ? [this.config.skipLabelName].filter(Boolean)
+        : [];
 
       let threads;
       try {
@@ -1796,7 +1799,8 @@ ${addressLines.join('\n\n')}
       const localPart = email.includes('@') ? email.substring(0, email.lastIndexOf('@')) : email;
       const isExactMatch = email === domain;
       const isDomainMatch = email.endsWith(domain.startsWith('@') ? domain : '@' + domain);
-      const isUsernameMatch = !domain.includes('@') && localPart === domain;
+      // Match username solo per token senza punto (evita falsi positivi su nomi dominio parziali)
+      const isUsernameMatch = !domain.includes('@') && !domain.includes('.') && localPart === domain;
       return isExactMatch || isDomainMatch || isUsernameMatch;
     })) {
       console.log(`🚫 Ignorato: mittente in blacklist (${email})`);
