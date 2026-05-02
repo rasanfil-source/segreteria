@@ -71,7 +71,6 @@ var EmailProcessor = class EmailProcessor {
       errorLabelName: typeof CONFIG !== 'undefined' ? CONFIG.ERROR_LABEL_NAME : 'Errore',
       validationErrorLabel: typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica',
       skipLabelName: typeof CONFIG !== 'undefined' && CONFIG.SKIP_LABEL_NAME ? CONFIG.SKIP_LABEL_NAME : '·',
-      ignoreLabelName: typeof CONFIG !== 'undefined' && CONFIG.IGNORE_LABEL_NAME ? CONFIG.IGNORE_LABEL_NAME : 'Ignorato',
       validationWarningThreshold: typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_WARNING_THRESHOLD === 'number'
         ? CONFIG.VALIDATION_WARNING_THRESHOLD
         : 0.9,
@@ -427,11 +426,8 @@ var EmailProcessor = class EmailProcessor {
         //    Motivo operativo: se in futuro la parrocchia torna in modalità "all",
         //    questa stessa email italiana deve rimanere eleggibile per l'elaborazione.
         //
-        // 2) L'etichetta da applicare DEVE essere skipLabelName ('·', punto centrato),
-        //    MAI ignoreLabelName ('Ignorato'). La label '·' è discreta e non intrusiva
-        //    nell'interfaccia Gmail; 'Ignorato' è riservata esclusivamente ai messaggi
-        //    scartati per blacklist/spam/auto-reply (filtri _shouldIgnoreEmail).
-        //    ⚠️  NON CAMBIARE: volontà esplicita del proprietario del progetto.
+        // 2) L'etichetta da applicare DEVE essere skipLabelName ('·', punto centrato).
+        //    È una label discreta e non intrusiva nell'interfaccia Gmail.
         this._markMessagesAsSkipped(unlabeledUnread);
         result.status = 'skipped';
         result.reason = 'italian_skipped_foreign_only';
