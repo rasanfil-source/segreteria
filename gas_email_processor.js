@@ -1640,8 +1640,7 @@ ${addressLines.join('\n\n')}
           result.status === 'replied' ||
           result.status === 'dry_run' ||
           result.status === 'error' ||
-          result.status === 'validation_failed' ||
-          result.status === 'filtered'
+          result.status === 'validation_failed'
         );
 
         if (isEffectiveWork) {

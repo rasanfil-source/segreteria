@@ -1514,7 +1514,7 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
    Secretaria Paróquia Sant'Eugenio`
         : `1. **SAUDAÇÃO OBRIGATÓRIA:**
    • Deves começar o email EXATAMENTE com: "${salutation}"
-   • NÃO alteres questa saudação.
+   • NÃO alteres esta saudação.
 
 2. **Formato da resposta (PORTUGUÊS REQUERIDO):**
    ${salutation}

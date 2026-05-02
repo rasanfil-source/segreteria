@@ -219,6 +219,38 @@ console.log('--- Test processUnreadEmails: conteggio stats skipped/replied ---')
   assert(seenSkipLocks.length === 2 && seenSkipLocks.every(Boolean), 'skipExecutionLock deve arrivare a processThread');
 }
 
+
+console.log('--- Test processUnreadEmails: filtered non deve consumare MAX_EMAILS_PER_RUN ---');
+{
+  const originalMax = global.CONFIG.MAX_EMAILS_PER_RUN;
+  global.CONFIG.MAX_EMAILS_PER_RUN = 1;
+
+  const threads = [
+    createThread({ id: 't-filtered', messages: [createMessage({ id: 'm-filtered', unread: true })] }),
+    createThread({ id: 't-replied', messages: [createMessage({ id: 'm-replied', unread: true })] })
+  ];
+
+  const processor = new EmailProcessor({
+    gmailService: { getUnprocessedUnreadThreads: () => threads }
+  });
+  processor._hasUnreadMessagesToProcess = () => true;
+  processor._isNearDeadline = () => false;
+  processor._getRemainingTimeMs = () => 60000;
+
+  const calls = [];
+  processor.processThread = (thread) => {
+    calls.push(thread.getId());
+    if (thread.getId() === 't-filtered') return { status: 'filtered', reason: 'newsletter_header' };
+    return { status: 'replied' };
+  };
+
+  const stats = processor.processUnreadEmails('kb', '', true);
+  assert(calls.length === 2, 'thread filtered non deve bloccare il thread successivo quando il limite è 1');
+  assert(stats.replied === 1, 'il thread successivo actionable deve essere elaborato');
+
+  global.CONFIG.MAX_EMAILS_PER_RUN = originalMax;
+}
+
 console.log('--- Test processUnreadEmails: lock batch locale propagato a processThread ---');
 {
   const threads = [
