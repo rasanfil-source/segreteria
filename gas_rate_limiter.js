@@ -1255,27 +1255,31 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   }
 
   _getNextResetTime() {
-    // Il reset quote avviene a mezzanotte Pacific. Per ridurre il costo runtime
-    // evitiamo chiamate ripetute a Utilities.formatDate (binary search) e usiamo
-    // un calcolo UTC basato sull'offset Pacific corrente.
     const now = new Date();
-    const pacificNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-    const pacificYear = pacificNow.getFullYear();
-    const pacificMonth = pacificNow.getMonth();
-    const pacificDay = pacificNow.getDate();
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+      try {
+        // Recupera data/ora corrente Pacific tramite API GAS nativa (robusta su trigger).
+        const pacificDate = Utilities.formatDate(now, 'America/Los_Angeles', 'yyyy-MM-dd');
+        const pacificTime = Utilities.formatDate(now, 'America/Los_Angeles', 'HH:mm:ss');
+        const [y, m, d] = pacificDate.split('-').map(Number);
+        const [hh, mm, ss] = pacificTime.split(':').map(Number);
 
-    const utcAtPacificMidnight = new Date(Date.UTC(pacificYear, pacificMonth, pacificDay + 1, 0, 0, 0));
-    const pacificAsUtcMs = Date.UTC(
-      pacificNow.getFullYear(),
-      pacificNow.getMonth(),
-      pacificNow.getDate(),
-      pacificNow.getHours(),
-      pacificNow.getMinutes(),
-      pacificNow.getSeconds(),
-      pacificNow.getMilliseconds()
-    );
-    const pacificOffsetMs = now.getTime() - pacificAsUtcMs;
-    return new Date(utcAtPacificMidnight.getTime() + pacificOffsetMs).toISOString();
+        // Offset istantaneo Pacific rispetto a UTC (DST-safe, calcolato "adesso").
+        const pacificAsUtcMs = Date.UTC(y, m - 1, d, hh, mm, ss);
+        const pacificOffsetMs = now.getTime() - pacificAsUtcMs;
+
+        // Mezzanotte Pacific del giorno successivo riportata in UTC.
+        const utcAtPacificNextMidnight = Date.UTC(y, m - 1, d + 1, 0, 0, 0);
+        return new Date(utcAtPacificNextMidnight + pacificOffsetMs).toISOString();
+      } catch (e) {
+        console.warn(`⚠️ _getNextResetTime fallback: ${e.message}`);
+      }
+    }
+
+    // Fallback locale approssimativo se Utilities non è disponibile.
+    const tomorrow = new Date(now.getTime() + 86400000);
+    tomorrow.setHours(0, 0, 0, 0);
+    return tomorrow.toISOString();
   }
 
   // Nota: niente _estimateTokens locale.

@@ -1278,8 +1278,15 @@ var GmailService = class GmailService {
             throw new Error('Drive Advanced Service non abilitato. Attivare il servizio Drive nel progetto Apps Script.');
         }
 
+        const startedAt = Date.now();
+        const MAX_CONVERSION_MS = 15000; // 15s budget per singola conversione
+        const exceededBudget = () => (Date.now() - startedAt) > MAX_CONVERSION_MS;
+
         let fileId = null;
         try {
+            if (exceededBudget()) {
+                throw new Error('Budget temporale esaurito prima della conversione Office');
+            }
             // getContentType() può includere parametri (es. "; charset=UTF-8"):
             // per la lookup in _officeMimeMap usiamo il mime base normalizzato.
             const originalMimeFull = attachmentBlob.getContentType() || '';
@@ -1326,6 +1333,9 @@ var GmailService = class GmailService {
             let pdfBlob = null;
             let lastError = null;
             for (let attempt = 0; attempt < 3; attempt++) {
+                if (exceededBudget()) {
+                    throw new Error(`Timeout conversione Office dopo ${attempt} tentativi`);
+                }
                 try {
                     const candidateBlob = DriveApp.getFileById(fileId).getAs('application/pdf');
                     if (candidateBlob && typeof candidateBlob.getBytes === 'function' && candidateBlob.getBytes().length > 0) {
@@ -2475,7 +2485,7 @@ var GmailService = class GmailService {
         // ma per consistenza e sicurezza con nomi italiani/emoji usiamo sempre UTF-8 B.
         const encodedWordPrefix = '=?UTF-8?B?';
         const encodedWordSuffix = '?=';
-        const maxLen = 75; // Limite RFC 2047
+        const maxLen = 75; // Limite RFC 2047 per singolo encoded-word
         const maxB64Len = maxLen - 12; // overhead encoded-word: 10 (prefix) + 2 (suffix)
         const maxBytesPerWord = Math.floor(maxB64Len / 4) * 3;
 
@@ -2506,6 +2516,8 @@ var GmailService = class GmailService {
 
         // Folding: Subject: + prima riga + righe successive con spazio (WSP)
         const headerPrefix = 'Subject: ';
+        const maxFirstLine = 78; // RFC 2822 SHOULD
+        const maxContinuationLine = 76;
         const foldedLines = [];
         let currentLine = headerPrefix;
 
@@ -2513,8 +2525,8 @@ var GmailService = class GmailService {
             const word = words[i];
             const separator = (currentLine === headerPrefix) ? '' : ' ';
             
-            // 76 è il limite consigliato per le righe header
-            if ((currentLine + separator + word).length <= 76) {
+            const limit = (currentLine === headerPrefix) ? maxFirstLine : maxContinuationLine;
+            if ((currentLine + separator + word).length <= limit) {
                 currentLine += separator + word;
             } else {
                 foldedLines.push(currentLine);
@@ -3035,6 +3047,8 @@ function markdownToHtml(text) {
     // Nota: gli asterischi NON vengono escaped da escapeHtml(), quindi funzionano normalmente
     html = html.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/(?<!\*)\*(?!\*)([\s\S]+?)\*(?!\*)/g, '<em>$1</em>');
+    // Inline code
+    html = html.replace(/`([^`\n]+)`/g, '<code style="background:#f4f4f4;padding:2px 4px;border-radius:3px;font-family:monospace;font-size:0.9em;">$1</code>');
 
     // 5. Liste markdown (bullet e numerate) -> <ul>/ <ol> + <li>
     // Liste puntate (- item  oppure  * item all'inizio riga)
