@@ -224,7 +224,7 @@ function createNamedRanges(ss, warningsCollector) {
   const ranges = [
     { name: 'cfg_system_master', range: "'Controllo'!B2" },
     { name: 'cfg_language_mode', range: "'Controllo'!F2" },
-    { name: 'cfg_timezone', range: "'Controllo'!B4" },
+    { name: 'cfg_timezone', range: "'Controllo'!B4" }, // Inizializzata in setupControlloSheet
     // Legacy: nome ambiguo mantenuto per retrocompatibilità (punta alla prima data ferie).
     { name: 'cfg_holidays_mode', range: "'Controllo'!B5" },
     // Nome esplicito consigliato per nuove integrazioni.
