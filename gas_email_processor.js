@@ -559,6 +559,7 @@ var EmailProcessor = class EmailProcessor {
           let botRepliesCount = 0;
 
           // Percorriamo i messaggi a ritroso per contare gli esterni consecutivi
+          // o le risposte IA consecutive.
           for (let i = messages.length - 1; i >= 0; i--) {
             const rawFrom = messages[i] && typeof messages[i].getFrom === 'function'
               ? messages[i].getFrom()
@@ -572,17 +573,23 @@ var EmailProcessor = class EmailProcessor {
 
             if (isUs) {
               botRepliesCount++;
+              consecutiveExternal = 0;
+              // Se abbiamo risposto noi recentemente, la sequenza esterna precedente
+              // è "sanata". Possiamo fermarci o continuare a contare solo i bot.
+              // Per il requisito del test: un alias interno deve interrompere la sequenza.
+              break; 
             } else {
               consecutiveExternal++;
+              botRepliesCount = 0;
             }
-          }
 
-          if (botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL || consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
-            console.log(`   ⊖ Saltato: prevenzione loop email attivata (thread ripetitivo: esterni=${consecutiveExternal}, bot=${botRepliesCount})`);
-            markHandledUnread();
-            result.status = 'filtered';
-            result.reason = 'email_loop_detected';
-            return result;
+            if (botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL || consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
+              console.log(`   ⊖ Saltato: prevenzione loop email attivata (thread ripetitivo: consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
+              markHandledUnread();
+              result.status = 'filtered';
+              result.reason = 'email_loop_detected';
+              return result;
+            }
           }
         }
 

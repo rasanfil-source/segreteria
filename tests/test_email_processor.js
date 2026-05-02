@@ -428,4 +428,98 @@ console.log('--- Test processThread: ignore rules applica label IA (processato) 
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }
 
+
+console.log('--- Test processThread: newsletter in modalità all viene marcata IA ---');
+{
+  const labels = [];
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  global.GLOBAL_CACHE.languageMode = 'all';
+
+  const processor = new EmailProcessor({
+    classifier: {
+      _extractMainContent: (body) => body,
+      classifyEmail: () => ({ action: 'FILTER', reason: 'unit_test_stop' })
+    },
+    geminiService: {
+      detectEmailLanguage: () => ({ lang: 'it', safetyGrade: 5 })
+    },
+    gmailService: {
+      getMessageIdsWithLabel: () => new Set(),
+      _extractEmailAddress: extractEmailAddress,
+      extractMessageDetails: (message) => ({
+        subject: message.getSubject(),
+        body: message.getPlainBody(),
+        senderEmail: extractEmailAddress(message.getFrom()),
+        senderName: 'Utente',
+        headers: { 'list-unsubscribe': '<mailto:test@example.org>' },
+        isNewsletter: true,
+        date: message.getDate()
+      }),
+      addLabelToMessage: (id, label) => labels.push({ id, label }),
+      removeLabelFromMessage: (id, label) => labels.push({ id, label, removed: true })
+    }
+  });
+
+  const thread = {
+    getId: () => 'thread-newsletter-all-mode',
+    getLabels: () => [],
+    getMessages: () => [
+      createMessage('m-news-all', 'news@example.org', 'Newsletter', 'Contenuto newsletter')
+    ]
+  };
+
+  const result = processor.processThread(thread, '', [], new Set(), true);
+  assert(result.status === 'filtered' && result.reason === 'newsletter_header', 'newsletter deve restare filtered');
+  assert(labels.some((entry) => entry.id === 'm-news-all' && entry.label === CONFIG.LABEL_NAME), 'in modalità all newsletter deve ricevere label IA');
+  assert(!labels.some((entry) => entry.id === 'm-news-all' && entry.label === CONFIG.SKIP_LABEL_NAME && !entry.removed), 'in modalità all newsletter non deve ricevere skip label');
+
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
+
+console.log('--- Test processThread: foreign_only non aggiunge skip a messaggi già IA ---');
+{
+  const labels = [];
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  global.GLOBAL_CACHE.languageMode = 'foreign_only';
+
+  const processor = new EmailProcessor({
+    classifier: {
+      _extractMainContent: (body) => body,
+      classifyEmail: () => ({ action: 'FILTER', reason: 'unit_test_stop' })
+    },
+    geminiService: {
+      detectEmailLanguage: () => ({ lang: 'en', safetyGrade: 5 })
+    },
+    gmailService: {
+      getMessageIdsWithLabel: () => new Set(['m-news-ia']),
+      _extractEmailAddress: extractEmailAddress,
+      extractMessageDetails: (message) => ({
+        subject: message.getSubject(),
+        body: message.getPlainBody(),
+        senderEmail: extractEmailAddress(message.getFrom()),
+        senderName: 'Utente',
+        headers: { 'list-unsubscribe': '<mailto:test@example.org>' },
+        isNewsletter: true,
+        date: message.getDate()
+      }),
+      addLabelToMessage: (id, label) => labels.push({ id, label })
+    }
+  });
+
+  const thread = {
+    getId: () => 'thread-newsletter-foreign-only-ia',
+    getLabels: () => [],
+    getMessages: () => [
+      createMessage('m-news-ia', 'news@example.org', 'Newsletter', 'Newsletter body')
+    ]
+  };
+
+  const result = processor.processThread(thread, '', [], new Set(['m-news-ia']), true);
+  assert(result.status === 'skipped' && result.reason === 'already_labeled_no_new_unread', 'se già IA deve essere saltato come già processato');
+  assert(!labels.some((entry) => entry.id === 'm-news-ia' && entry.label === CONFIG.SKIP_LABEL_NAME), 'se già IA non deve aggiungere skip label in foreign_only');
+
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
 console.log('✅ Test filtri EmailProcessor passati');
