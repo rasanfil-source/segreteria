@@ -52,7 +52,7 @@ var Classifier = class Classifier {
       'quotation': [
         'preventivo', 'offerta', 'quotazione', 'proposta commerciale',
         'prezzo', 'tariffa', 'costo', 'listino', 'budget',
-        'orçamento', 'cotação', 'proposta', 'preço',
+        'orçamento', 'cotação', 'proposta', 'preço', 'presupuesto',
         'quote', 'quotation', 'pricing', 'offer', 'estimate', 'price list'
       ],
       'sbattezzo': [
