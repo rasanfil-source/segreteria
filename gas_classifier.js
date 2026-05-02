@@ -222,6 +222,24 @@ var Classifier = class Classifier {
   _extractMainContent(body) {
     let processedBody = typeof body === 'string' ? body : '';
 
+    // Fast-path HTML quote trimming:
+    // se è presente class="gmail_quote", tronca dall'inizio del tag contenitore
+    // per evitare HTML pendente (es. "<div" aperto) in caso di input HTML.
+    const lowerBody = processedBody.toLowerCase();
+    const firstBlockquoteIdx = lowerBody.indexOf('<blockquote');
+    const firstGmailQuoteIdx = lowerBody.indexOf('class="gmail_quote"');
+    let safeGmailQuoteIdx = -1;
+    if (firstGmailQuoteIdx >= 0) {
+      safeGmailQuoteIdx = lowerBody.lastIndexOf('<div', firstGmailQuoteIdx);
+      if (safeGmailQuoteIdx === -1) safeGmailQuoteIdx = firstGmailQuoteIdx;
+    }
+    const firstQuoteIdx = [firstBlockquoteIdx, safeGmailQuoteIdx]
+      .filter(idx => idx >= 0)
+      .sort((a, b) => a - b)[0];
+    if (typeof firstQuoteIdx === 'number') {
+      processedBody = processedBody.substring(0, firstQuoteIdx);
+    }
+
     const MAX_LENGTH = 50000;
     if (processedBody.length > MAX_LENGTH) {
       processedBody = processedBody.substring(0, MAX_LENGTH);
@@ -242,7 +260,7 @@ var Classifier = class Classifier {
       /^Inizio messaggio inoltrato:.*$/m,
       /^-------- Forwarded Message --------$/m,
       /^\*From:\*.*$/m,
-      /^Le .* à .* .* a écrit.*$/m
+      /^Le .* a écrit.*$/m
     ];
 
     const lines = processedBody.split('\n');

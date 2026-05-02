@@ -1981,12 +1981,12 @@ ${addressLines.join('\n\n')}
   }
 
   _getBusinessDateString(date = new Date()) {
-    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
-      return Utilities.formatDate(date, 'Europe/Rome', 'yyyy-MM-dd');
-    }
+    const parsedDate = (date instanceof Date) ? date : new Date(date);
+    if (isNaN(parsedDate.getTime())) return '';
 
-    const parsed = new Date(date);
-    if (isNaN(parsed.getTime())) return '';
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+      return Utilities.formatDate(parsedDate, 'Europe/Rome', 'yyyy-MM-dd');
+    }
 
     try {
       return new Intl.DateTimeFormat('en-CA', {
@@ -1994,10 +1994,10 @@ ${addressLines.join('\n\n')}
         year: 'numeric',
         month: '2-digit',
         day: '2-digit'
-      }).format(parsed);
+      }).format(parsedDate);
     } catch (_) {
       // Fallback minimale quando Intl/timeZone non è disponibile.
-      return parsed.toISOString().split('T')[0];
+      return parsedDate.toISOString().split('T')[0];
     }
   }
 

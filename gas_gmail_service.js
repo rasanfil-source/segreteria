@@ -1347,6 +1347,13 @@ var GmailService = class GmailService {
             }
 
             return pdfBlob;
+        } catch (error) {
+            // In caso di errore durante conversione/export, forza anche il cleanup
+            // degli eventuali residui per ridurre accumulo file temporanei.
+            try {
+                this._cleanupOrphanedOcrFilesIfNeeded();
+            } catch (_) { }
+            throw error;
         } finally {
             if (fileId) {
                 try {
