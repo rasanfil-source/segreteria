@@ -19,7 +19,8 @@ var GmailService = class GmailService {
         this._cacheTTL = (typeof CONFIG !== 'undefined' && CONFIG.GMAIL_LABEL_CACHE_TTL) ? CONFIG.GMAIL_LABEL_CACHE_TTL : 3600000;
         // CacheService.put accetta al massimo 21600 s (6 ore); valori superiori causano
         // un'eccezione silenziosa o un fallimento dell'operazione di put.
-        this._cacheTtlSeconds = Math.min(21599, Math.max(60, Math.floor(this._cacheTTL / 1000)));
+        const safeTtl = Number.isFinite(Number(this._cacheTTL)) ? Number(this._cacheTTL) : 3600000;
+        this._cacheTtlSeconds = Math.min(21599, Math.max(60, Math.floor(safeTtl / 1000)));
         this._scriptCache = (typeof CacheService !== 'undefined' && CacheService) ? CacheService.getScriptCache() : null;
         this._gmailDailyCallLimit = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.GMAIL_DAILY_CALL_LIMIT)))
             ? Number(CONFIG.GMAIL_DAILY_CALL_LIMIT)
@@ -2409,13 +2410,14 @@ var GmailService = class GmailService {
 
         // Intenzionale: array locale ricreato a ogni chiamata, quindi la mutazione
         // serve solo ad ampliare le eccezioni per il messaggio corrente.
-        const exceptions = ['Don', 'Padre', 'Suor', 'Monsignor', 'Papa', 'Signore', 'Signora'];
+        const baseExceptions = ['Don', 'Padre', 'Suor', 'Monsignor', 'Papa', 'Signore', 'Signora'];
+        const exceptionsSet = new Set(baseExceptions);
 
         if (senderName) {
             const nameParts = senderName.split(/\s+/);
             for (const part of nameParts) {
-                if (part && !exceptions.includes(part)) {
-                    exceptions.push(part);
+                if (part) {
+                    exceptionsSet.add(part);
                 }
             }
         }
@@ -2431,7 +2433,7 @@ var GmailService = class GmailService {
             }
 
             const word = firstLetter + rest;
-            if (exceptions.includes(word)) {
+            if (exceptionsSet.has(word)) {
                 return match;
             }
 

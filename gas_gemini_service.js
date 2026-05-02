@@ -334,6 +334,10 @@ Output JSON:
       throw new Error(`Errore connessione API: ${fetchError.message}`);
     }
 
+    if (typeof responseCode === 'undefined') {
+      throw new Error('Errore API: responseCode indefinito (possibile interruzione di rete pre-connessione)');
+    }
+
     // responseCode è già valorizzato dal path primario o dal fallback backup key.
 
     if (responseCode === 429) {
