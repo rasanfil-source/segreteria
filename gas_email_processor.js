@@ -202,6 +202,7 @@ var EmailProcessor = class EmailProcessor {
 
     let candidate = null;
     let replySent = false;
+    let markHandledUnread = () => {};
     try {
       // Raccogli informazioni su thread e messaggi
       // Ottieni ultimo messaggio NON LETTO nel thread
@@ -295,7 +296,7 @@ var EmailProcessor = class EmailProcessor {
       // - esterni => label IA (processati)
       // - interni => skip label
       // Così evitiamo reprocessing senza alterare la semantica operativa sui messaggi interni.
-      const markHandledUnread = () => {
+      markHandledUnread = () => {
         const externalIds = new Set(externalUnread.map(m => m.getId()));
         const internalUnread = [];
         unlabeledUnread.forEach(message => {
