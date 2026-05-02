@@ -1964,13 +1964,17 @@ var GmailService = class GmailService {
         ];
 
         let result = content;
+        let earliestMatch = -1;
 
         for (const marker of markers) {
             const match = result.search(marker);
-            if (match !== -1) {
-                result = result.substring(0, match);
-                break;
+            if (match !== -1 && (earliestMatch === -1 || match < earliestMatch)) {
+                earliestMatch = match;
             }
+        }
+
+        if (earliestMatch !== -1) {
+            result = result.substring(0, earliestMatch);
         }
 
         const sigMarkers = [
@@ -1998,7 +2002,7 @@ var GmailService = class GmailService {
             const prefix = result.substring(0, absoluteMatch);
 
             // Tronca solo se la firma è su una nuova sezione (dopo riga vuota)
-            if (/\n\s*\n\s*$/.test(prefix) || absoluteMatch === 0) {
+            if (/\n\s*$/.test(prefix) || absoluteMatch === 0) {
                 result = result.substring(0, absoluteMatch);
                 break;
             }
@@ -2594,11 +2598,11 @@ var GmailService = class GmailService {
     _detectDocumentType(fileName, text) {
         const source = `${fileName || ''}\n${text || ''}`.toLowerCase();
         const docPatterns = [
+            { type: 'Certificato di battesimo', patterns: ['certificato', 'battesimo', 'battezz'], minMatches: 2 },
+            { type: 'Certificato di cresima', patterns: ['certificato', 'cresima', 'confermazion'], minMatches: 2 },
             { type: 'Modulo iscrizione cresima', patterns: ['cresima', 'confermazione'], minMatches: 1 },
             { type: 'Modulo iscrizione prima comunione/catechesi', patterns: ['prima comunione', 'catechesi', 'catechismo'], minMatches: 1 },
             { type: 'Modulo corso prematrimoniale', patterns: ['prematrimonial', 'fidanzati', 'matrimonio'], minMatches: 1 },
-            { type: 'Certificato di battesimo', patterns: ['certificato', 'battesimo', 'battezz'], minMatches: 2 },
-            { type: 'Certificato di cresima', patterns: ['certificato', 'cresima', 'confermazion'], minMatches: 2 },
             { type: 'Documento identità/passaporto', patterns: ["carta d'identit", "documento di identit", 'passaporto'], minMatches: 1 },
             { type: 'Tessera sanitaria/codice fiscale', patterns: ['tessera sanitaria', 'codice fiscale'], minMatches: 1 }
         ];

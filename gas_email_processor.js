@@ -103,7 +103,7 @@ var EmailProcessor = class EmailProcessor {
    * @param {?Set} labeledMessageIds - ID messaggi già etichettati (opzionale)
    * @param {boolean} skipLock - Se true, salta acquisizione lock
    */
-  processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds = null, skipLock = false) {
+  processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds = null, skipLock = false, skippedMessageIds = null) {
     const threadId = thread.getId();
     const startTime = Date.now();
     // Garantisce che _isNearDeadline() funzioni anche se processThread
@@ -301,7 +301,7 @@ var EmailProcessor = class EmailProcessor {
         const internalUnread = [];
         unlabeledUnread.forEach(message => {
           if (externalIds.has(message.getId())) {
-            this._markMessageAsProcessed(message, labeledMessageIds);
+            this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
           } else {
             internalUnread.push(message);
           }
@@ -455,7 +455,7 @@ var EmailProcessor = class EmailProcessor {
           if (languageMode === 'foreign_only') {
             this._markMessagesAsSkipped(messagesToMark);
           } else {
-            messagesToMark.forEach((message) => this._markMessageAsProcessed(message, labeledMessageIds));
+            messagesToMark.forEach((message) => this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds));
           }
         }
         result.status = 'filtered';
@@ -673,14 +673,14 @@ var EmailProcessor = class EmailProcessor {
           // ↑ Uscita intenzionale senza marcare nulla: i secondari restano
           //   visibili al prossimo trigger per garantire il retry.
         }
-        this._markMessageAsProcessed(candidate, labeledMessageIds);
+        this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
 
         // Marchiamo sempre i secondari quando il candidato è stato scartato:
         // il thread è già stato valutato e lasciarli non etichettati genera
         // riprocessamenti inutili nei trigger successivi.
         unlabeledUnread.forEach(message => {
           if (message.getId() !== candidate.getId()) {
-            this._markMessageAsProcessed(message, labeledMessageIds);
+            this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
           }
         });
         result.status = 'filtered';
@@ -691,7 +691,7 @@ var EmailProcessor = class EmailProcessor {
       if (languageMode !== 'foreign_only') {
         unlabeledUnread.forEach(message => {
           if (message.getId() !== candidate.getId()) {
-            this._markMessageAsProcessed(message, labeledMessageIds);
+            this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
           }
         });
       } else {
@@ -945,7 +945,7 @@ ${addressLines.join('\n\n')}
             console.log('   📎 Elaborazione allegati saltata: nessun allegato nel messaggio candidato');
           } else if (
             (messageDetails.body || '').trim().length < 50 ||
-            this._shouldTryOcr(messageDetails.body, messageDetails.subject, candidate)
+            this._shouldTryOcr(messageDetails.body, messageDetails.subject, hasAttachments)
           ) {
             // Body molto corto (<50 char) → l'allegato è probabilmente il contenuto principale
             if ((messageDetails.body || '').trim().length < 50) {
@@ -1068,6 +1068,12 @@ ${addressLines.join('\n\n')}
           console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass.type}]`);
 
           if (errorClass.type === 'FATAL') {
+            // Se la chiave corrente è invalida/non autorizzata (401/403),
+            // prova la strategia successiva: una chiave/modello di backup può essere ancora valido.
+            if (/401|403|unauthorized|forbidden|permission_denied/i.test(String(err && err.message ? err.message : err))) {
+              console.warn('↪️ Errore di autenticazione/permessi rilevato, provo la strategia successiva.');
+              continue;
+            }
             console.error('🛑 Errore fatale rilevato, interrompo strategia.');
             break;
           }
@@ -1090,7 +1096,7 @@ ${addressLines.join('\n\n')}
         console.error('🛑 TUTTE le strategie di generazione sono fallite.');
         if (!errorClass.retryable) {
           this._addErrorLabel(candidate || thread);
-          this._markMessageAsProcessed(candidate, labeledMessageIds);
+          this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
         } else {
           console.warn(`   ↻ Errore generazione retryable (${errorClass.type}) - nessuna marcatura permanente`);
         }
@@ -1106,7 +1112,7 @@ ${addressLines.join('\n\n')}
       if (typeof response !== 'string') {
         console.error(`🛑 Risposta non valida da Gemini: tipo ricevuto '${typeof response}'`);
         this._addErrorLabel(candidate || thread);
-        this._markMessageAsProcessed(candidate, labeledMessageIds);
+        this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
         result.status = 'error';
         result.error = 'Invalid response type from GeminiService';
         result.errorClass = 'DATA';
@@ -1115,7 +1121,7 @@ ${addressLines.join('\n\n')}
 
       if (response.trim() === 'NO_REPLY') {
         console.log('   ⊖ AI ha restituito NO_REPLY');
-        this._markMessageAsProcessed(candidate, labeledMessageIds);
+        this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
         result.status = 'filtered';
         return result;
       }
@@ -1243,7 +1249,7 @@ ${addressLines.join('\n\n')}
           }
 
           this._addValidationErrorLabel(candidate || thread);
-          this._markMessageAsProcessed(candidate, labeledMessageIds);
+          this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
           result.status = 'validation_failed';
           result.validationFailed = true;
           if (!result.reason) {
@@ -1286,7 +1292,7 @@ ${addressLines.join('\n\n')}
       if (!sendTxn.ok) {
         console.warn(`   ⊖ Invio saltato per idempotenza (${sendTxn.reason})`);
         if (sendTxn.reason === 'already_sent') {
-          this._markMessageAsProcessed(candidate, labeledMessageIds);
+          this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
           result.status = 'skipped';
           result.reason = 'already_sent_recently';
         } else {
@@ -1319,7 +1325,7 @@ ${addressLines.join('\n\n')}
           }
           if (candidate) {
             try {
-              this._markMessageAsProcessed(candidate, labeledMessageIds);
+              this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
             } catch (markError) {
               console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
             }
@@ -1644,7 +1650,8 @@ ${addressLines.join('\n\n')}
           normalizedKnowledgeBase,
           normalizedDoctrineBase,
           labeledMessageIds,
-          threadLockAlreadyCovered
+          threadLockAlreadyCovered,
+          skippedMessageIds
         );
         stats.total++;
 
@@ -1871,7 +1878,7 @@ ${addressLines.join('\n\n')}
     return `${local}@${domain}`;
   }
 
-  _shouldTryOcr(body, subject, message = null) {
+  _shouldTryOcr(body, subject, hasAttachments = false) {
     const settings = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT)
       ? CONFIG.ATTACHMENT_CONTEXT
       : {};
@@ -1898,16 +1905,9 @@ ${addressLines.join('\n\n')}
     }
 
     const hasEmailText = Boolean(normalizedBody.trim() || normalizedSubject.trim());
-    if (!hasEmailText && message) {
-      try {
-        const attachments = message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
-        if (attachments.length > 0) {
-          console.log('   📎 OCR fallback attivo: email senza testo ma con allegati');
-          return true;
-        }
-      } catch (e) {
-        console.warn(`⚠️ Impossibile verificare allegati per OCR fallback: ${e.message}`);
-      }
+    if (!hasEmailText && hasAttachments) {
+      console.log('   📎 OCR fallback attivo: email senza testo ma con allegati');
+      return true;
     }
 
     return false;
@@ -2038,7 +2038,7 @@ ${addressLines.join('\n\n')}
     return mode === 'foreign_only' && lang === 'it';
   }
 
-  _markMessageAsProcessed(message, labeledMessageIds = null) {
+  _markMessageAsProcessed(message, labeledMessageIds = null, skippedMessageIds = null) {
     // SCELTA OPERATIVA INTENZIONALE:
     // - etichetta IA a livello *messaggio* (non thread), usando Gmail Advanced Service;
     // - NON marcare come letto qui.
@@ -2049,7 +2049,12 @@ ${addressLines.join('\n\n')}
     // Fail-safe operativo: in modalità "Solo straniere" un messaggio già marcato come
     // skip ('·') NON deve mai essere promosso a IA nello stesso assetto, anche se
     // _markMessageAsProcessed venisse chiamata da percorsi inattesi.
-    if (this._shouldPreserveSkipLabelInForeignOnly_(messageId)) {
+    if (this._getLanguageProcessingMode_() === 'foreign_only' && skippedMessageIds && skippedMessageIds.has(messageId)) {
+      console.log(`   ⛔ Preservata label '${this.config.skipLabelName}' su ${messageId} (foreign_only, cache): non promuovo a IA`);
+      return;
+    }
+
+    if (!skippedMessageIds && this._shouldPreserveSkipLabelInForeignOnly_(messageId)) {
       console.log(`   ⛔ Preservata label '${this.config.skipLabelName}' su ${messageId} (foreign_only): non promuovo a IA`);
       return;
     }
@@ -2710,8 +2715,10 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
 
     const mentionedTopics = normalizedTopics.filter(topic => {
       if (!topic) return false;
-      const topicWithSpaces = topic.replace(/_/g, ' ');
-      return bodyLower.includes(topic) || bodyLower.includes(topicWithSpaces);
+      // Rimuove suffissi tecnici (es. "_info") e underscore per confrontare
+      // il topic interno con il linguaggio naturale usato dall'utente.
+      const naturalTopic = topic.replace(/_info$/, '').replace(/_/g, ' ').trim();
+      return !!naturalTopic && bodyLower.includes(naturalTopic);
     });
 
     let targetTopics = [];
