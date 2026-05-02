@@ -699,7 +699,7 @@ var GmailService = class GmailService {
         // Gmail label names non supportano virgolette letterali: normalizziamo eventuali input
         // anomali invece di iniettare escape nella query, che Gmail non interpreta come JavaScript.
         const normalized = raw.replace(/"/g, ' ').replace(/\s+/g, ' ').trim();
-        return `"${normalized || raw}"`;
+        return normalized ? `"${normalized}"` : '""';
     }
 
     _getOptionalLabelIdByName(labelName) {
