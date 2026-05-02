@@ -307,7 +307,7 @@ var EmailProcessor = class EmailProcessor {
           }
         });
         if (internalUnread.length > 0) {
-          this._markMessagesAsSkipped(internalUnread);
+          this._markMessagesAsSkipped(internalUnread, this.config.skipLabelName, skippedMessageIds);
         }
       };
 
@@ -578,7 +578,7 @@ var EmailProcessor = class EmailProcessor {
               // Se abbiamo risposto noi recentemente, la sequenza esterna precedente
               // è "sanata". Possiamo fermarci o continuare a contare solo i bot.
               // Per il requisito del test: un alias interno deve interrompere la sequenza.
-              break; 
+              continue;
             } else {
               consecutiveExternal++;
               botRepliesCount = 0;
@@ -1650,7 +1650,7 @@ ${addressLines.join('\n\n')}
         // Se il batch possiede già lo ScriptLock (o il chiamante esterno lo possiede),
         // non tentare un secondo lock dentro processThread: GAS non garantisce reentrancy
         // e un doppio tryLock può far saltare thread validi nella stessa esecuzione.
-        const threadLockAlreadyCovered = locksAlreadyCovered || lockAcquiredHere;
+        const threadLockAlreadyCovered = locksAlreadyCovered; // Il lock di esecuzione globale non esime dal lock sul singolo thread
         const result = this.processThread(
           thread,
           normalizedKnowledgeBase,

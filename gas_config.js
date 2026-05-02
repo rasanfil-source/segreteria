@@ -4,11 +4,15 @@
  */
 
 var _SCRIPT_PROPERTIES = null;
+var _CACHED_PROPS = {};
 function _getScriptProperty(key) {
   if (!_SCRIPT_PROPERTIES) {
     _SCRIPT_PROPERTIES = PropertiesService.getScriptProperties();
   }
-  return _SCRIPT_PROPERTIES.getProperty(key);
+  if (!(key in _CACHED_PROPS)) {
+    _CACHED_PROPS[key] = _SCRIPT_PROPERTIES.getProperty(key);
+  }
+  return _CACHED_PROPS[key];
 }
 
 var CONFIG = {
@@ -234,7 +238,7 @@ var CONFIG = {
     'messaggio inviato con', 'non rispondere a questo messaggio',
     'avviso di sicurezza',
     'scopri i prodotti', 'scopri le novità', 'offerta esclusiva',
-    'promozione', 'promozion', 'sconto', 'webinar',
+    'promozione', 'promozioni', 'sconto', 'webinar',
     'ti aspetta al', 'riservato a te', 'iscriviti ora',
     'clicca qui', 'clicca su', 'non perdere', 'ultimi posti',
     'registrati gratuitamente', 'scarica il catalogo'

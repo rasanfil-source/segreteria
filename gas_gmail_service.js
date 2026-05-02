@@ -1891,7 +1891,7 @@ var GmailService = class GmailService {
 
         // Evita regex RFC5322 troppo complesse (rischio backtracking su input malevoli).
         // Header From di Gmail sono già sanificati: pattern snello e lineare è sufficiente.
-        const safeFromField = safeFrom.length > 512 ? safeFrom.substring(0, 512) : safeFrom;
+        const safeFromField = safeFrom.length > 2048 ? safeFrom.substring(0, 2048) : safeFrom;
         const emailMatch = safeFromField.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
         if (emailMatch) {
             return emailMatch[0];
@@ -3099,8 +3099,6 @@ function markdownToHtml(text) {
     // Nota: gli asterischi NON vengono escaped da escapeHtml(), quindi funzionano normalmente
     html = html.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/(?<!\*)\*(?!\*)([\s\S]+?)\*(?!\*)/g, '<em>$1</em>');
-    // Inline code
-    html = html.replace(/`([^`\n]+)`/g, '<code style="background:#f4f4f4;padding:2px 4px;border-radius:3px;font-family:monospace;font-size:0.9em;">$1</code>');
     // Inline code
     html = html.replace(/`([^`\n]+)`/g, '<code style="background:#f4f4f4;padding:2px 4px;border-radius:3px;font-family:monospace;font-size:0.9em;">$1</code>');
 
