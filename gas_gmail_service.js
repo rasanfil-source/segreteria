@@ -380,12 +380,12 @@ var GmailService = class GmailService {
      */
     getMessageIdsWithLabel(labelName, onlyInbox = true, options = {}) {
         try {
-            this.getOrCreateLabel(labelName);
-            const labelId = this._getOptionalLabelIdByName(labelName);
+            const label = this.getOrCreateLabel(labelName);
+            const labelIdFromCache = this._getOptionalLabelIdByName(labelName);
+            const labelId = labelIdFromCache || (label && typeof label.getId === 'function' ? label.getId() : null);
             const hasLabelId = !!labelId;
             if (!hasLabelId) {
-                console.warn(`⚠️ Label ID non trovato per '${labelName}': ritorno set vuoto.`);
-                return new Set();
+                console.warn(`⚠️ Label ID non trovato per '${labelName}': fallback query senza labelIds.`);
             }
 
             const messageIds = new Set();
