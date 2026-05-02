@@ -2708,6 +2708,27 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
     };
   }
 
+  /**
+   * Backward-compat alias mantenuto per test/call-site legacy.
+   * Aggiorna direttamente la memoria con la reazione inferita.
+   */
+  _inferUserReaction(userBody, previousTopics, threadId) {
+    const inferred = this._computeUserReaction(userBody, previousTopics);
+    if (!inferred || !Array.isArray(inferred.topics) || inferred.topics.length === 0) return;
+    if (!this.memoryService || typeof this.memoryService.updateReaction !== 'function') return;
+    if (!threadId) return;
+
+    inferred.topics.forEach(topic => {
+      if (!topic) return;
+      this.memoryService.updateReaction(
+        threadId,
+        this._normalizeTopicKey(topic),
+        inferred.reaction,
+        inferred.excerpt || userBody
+      );
+    });
+  }
+
   _normalizeTopicKey(topic) {
     if (topic == null) return '';
     return String(topic)

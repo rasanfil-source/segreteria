@@ -1593,8 +1593,17 @@ function _sheetRowsToText(rows) {
       if (!formattedCells.some(Boolean)) {
         return '';
       }
+      const lastNonEmptyIdx = (() => {
+        for (let i = formattedCells.length - 1; i >= 0; i--) {
+          if (formattedCells[i]) return i;
+        }
+        return -1;
+      })();
+      if (lastNonEmptyIdx < 0) return '';
+
       return formattedCells
-        .filter(Boolean)
+        .slice(0, lastNonEmptyIdx + 1)
+        .map(cell => cell || '-')
         .join(' | ');
     })
     .filter(Boolean)

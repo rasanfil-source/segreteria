@@ -198,9 +198,13 @@ var GmailService = class GmailService {
      */
     addLabelToMessage(messageId, labelName) {
         try {
-            this.getOrCreateLabel(labelName);
-            const labelId = this._getOptionalLabelIdByName(labelName);
-            if (!labelId) throw new Error("Label ID non trovato tramite API Avanzata");
+            const label = this.getOrCreateLabel(labelName);
+            const labelIdFromCache = this._getOptionalLabelIdByName(labelName);
+            const labelId = labelIdFromCache || (label && typeof label.getId === 'function' ? label.getId() : null);
+            const hasLabelId = !!labelId;
+            if (!hasLabelId) {
+                console.warn(`⚠️ Label ID non trovato per '${labelName}': fallback query senza labelIds.`);
+            }
             this._incrementGmailCallCounterOrThrow_('messages.modify:addLabel');
             const payload = { addLabelIds: [labelId] };
             Gmail.Users.Messages.modify(payload, 'me', messageId);
@@ -378,7 +382,11 @@ var GmailService = class GmailService {
         try {
             this.getOrCreateLabel(labelName);
             const labelId = this._getOptionalLabelIdByName(labelName);
-            if (!labelId) throw new Error("Label ID non trovato tramite API Avanzata");
+            const hasLabelId = !!labelId;
+            if (!hasLabelId) {
+                console.warn(`⚠️ Label ID non trovato per '${labelName}': ritorno set vuoto.`);
+                return new Set();
+            }
 
             const messageIds = new Set();
             let pageToken;
@@ -415,10 +423,12 @@ var GmailService = class GmailService {
                 }
 
                 const params = {
-                    labelIds: [labelId],
                     q: query,
                     maxResults: pageSize
                 };
+                if (hasLabelId) {
+                    params.labelIds = [labelId];
+                }
                 if (pageToken) params.pageToken = pageToken;
 
                 const response = this._listMessagesWithResilience(params);
@@ -673,6 +683,9 @@ var GmailService = class GmailService {
     _getOptionalLabelIdByName(labelName) {
         const raw = String(labelName || '').trim();
         if (!raw) return null;
+        if (!this._labelCache || typeof this._labelCache.get !== 'function') {
+            this._labelCache = new Map();
+        }
 
         const cachedEntry = this._labelCache.get(raw);
         const now = Date.now();
