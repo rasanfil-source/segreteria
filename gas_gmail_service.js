@@ -61,9 +61,30 @@ var GmailService = class GmailService {
         if (!this._scriptCache || !this._gmailDailyCallLimit) return;
         const key = this._getGmailCounterDateKey_();
         const raw = this._scriptCache.get(key);
-        const current = Number.parseInt(raw || '0', 10) || 0;
+        let current = 0;
+        if (raw !== null) {
+            current = Number.parseInt(raw, 10) || 0;
+        } else if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+            // Fallback persistente: CacheService scade entro 6h, quindi recuperiamo
+            // il valore giornaliero da ScriptProperties nei periodi di inattività lunghi.
+            try {
+                const props = PropertiesService.getScriptProperties();
+                current = Number.parseInt(props.getProperty(key) || '0', 10) || 0;
+            } catch (e) {
+                console.warn(`⚠️ Impossibile leggere backup counter da ScriptProperties (${key}): ${e.message}`);
+            }
+        }
         const next = current + 1;
         this._scriptCache.put(key, String(next), 21600);
+        // Sync periodico su storage persistente per limitare scritture
+        // ma sopravvivere alla scadenza della cache.
+        if (next % 50 === 0 && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+            try {
+                PropertiesService.getScriptProperties().setProperty(key, String(next));
+            } catch (e) {
+                console.warn(`⚠️ Impossibile salvare backup counter su ScriptProperties (${key}): ${e.message}`);
+            }
+        }
         if (next >= this._gmailDailyCounterWarnAt && next < this._gmailDailyCallLimit) {
             console.warn(`⚠️ Gmail API call counter alto: ${next}/${this._gmailDailyCallLimit} (${opName})`);
         }
