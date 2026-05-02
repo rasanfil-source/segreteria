@@ -439,13 +439,28 @@ var EmailProcessor = class EmailProcessor {
       }
 
       if (messageDetails.isNewsletter) {
+        if (languageMode === 'foreign_only') {
+          console.log('   ℹ️ Newsletter in foreign_only: arrivata qui perché NON intercettata dal gate lingua italiana iniziale');
+        }
         console.log('   ⊖ Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
-        // Newsletter/automazioni NON devono finire sotto etichetta IA: restano "saltate"
-        // per coerenza con gli altri filtri regolistici (ignore rules / no-reply).
-        // Fallback: se non risultano unread non etichettati (es. edge case su stato thread),
-        // etichettiamo comunque il candidato corrente per lasciare traccia esplicita di "saltato".
-        const messagesToSkip = (unlabeledUnread && unlabeledUnread.length > 0) ? unlabeledUnread : [candidate];
-        this._markMessagesAsSkipped(messagesToSkip);
+        // In modalità "all" le newsletter vanno marcate come IA (niente risposta, ma thread processato),
+        // così non vengono ripescate nei run successivi.
+        // In modalità "foreign_only" conserviamo la semantica skip ('·').
+        let messagesToMark = (unlabeledUnread && unlabeledUnread.length > 0) ? unlabeledUnread : [candidate];
+        // Evita di "demotare" messaggi già IA quando il fallback usa candidate.
+        messagesToMark = (messagesToMark || []).filter((message) => {
+          if (!message || typeof message.getId !== 'function') return false;
+          const messageId = message.getId();
+          return !(labeledMessageIds instanceof Set && labeledMessageIds.has(messageId));
+        });
+
+        if (messagesToMark.length > 0) {
+          if (languageMode === 'foreign_only') {
+            this._markMessagesAsSkipped(messagesToMark);
+          } else {
+            messagesToMark.forEach((message) => this._markMessageAsProcessed(message, labeledMessageIds));
+          }
+        }
         result.status = 'filtered';
         result.reason = 'newsletter_header';
         return result;
