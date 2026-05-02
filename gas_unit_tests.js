@@ -552,7 +552,10 @@ function runAllTests() {
                 && out.reason === 'italian_skipped_foreign_only';
         });
 
-        test('newsletter header: applica label skip (·) e non IA', results, () => {
+        test('newsletter header in foreign_only: applica label skip (·) e non IA', results, () => {
+            const previousCache = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? { ...GLOBAL_CACHE } : null;
+            global.GLOBAL_CACHE = { ...(previousCache || {}), languageMode: 'foreign_only' };
+
             const labelCalls = [];
             const thread = {
                 getId: () => 'thread-newsletter-header',
@@ -580,6 +583,13 @@ function runAllTests() {
             });
 
             const out = processor.processThread(thread, 'KB', 'Doctrine', new Set(), true);
+
+            if (previousCache) {
+                global.GLOBAL_CACHE = previousCache;
+            } else {
+                delete global.GLOBAL_CACHE;
+            }
+
             const hasSkipLabel = labelCalls.some(call => call.id === 'msg-news-1' && call.labelName === '·');
             const hasIaLabel = labelCalls.some(call => call.id === 'msg-news-1' && call.labelName === 'IA');
             return out && out.status === 'filtered' && out.reason === 'newsletter_header' && hasSkipLabel && !hasIaLabel;

@@ -260,7 +260,9 @@ var Classifier = class Classifier {
       /^Inizio messaggio inoltrato:.*$/m,
       /^-------- Forwarded Message --------$/m,
       /^\*From:\*.*$/m,
-      /^Le .* a écrit.*$/m
+      /^Le .* \u00E0 .* .* a \u00E9crit.*$/m,
+      /^Le .* a \u00E9crit.*$/m,
+      /^Le .* a \u00E8crit.*$/m
     ];
 
     const lines = processedBody.split('\n');

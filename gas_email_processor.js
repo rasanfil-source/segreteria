@@ -1234,9 +1234,12 @@ ${addressLines.join('\n\n')}
           );
           if (retryValidation.score > validation.score) {
             console.log('   → Uso risposta del retry (score più alto, nonostante non valida)');
-            finalResponse = retryValidation.fixedResponse || preparedRetryResponse;
-            validation = retryValidation;
+          } else {
+            console.warn('   → Retry peggiorativo, ma aggiorno il contesto con gli ultimi errori');
           }
+          // Aggiorna sempre il contesto: evita retry successivi con prompt correttivo identico.
+          finalResponse = retryValidation.fixedResponse || preparedRetryResponse;
+          validation = retryValidation;
         }
 
         if (!validation.isValid) {
@@ -1987,10 +1990,6 @@ ${addressLines.join('\n\n')}
   _getBusinessDateString(date = new Date()) {
     const parsedDate = (date instanceof Date) ? date : new Date(date);
     if (isNaN(parsedDate.getTime())) return '';
-
-    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
-      return Utilities.formatDate(parsedDate, 'Europe/Rome', 'yyyy-MM-dd');
-    }
 
     try {
       return new Intl.DateTimeFormat('en-CA', {

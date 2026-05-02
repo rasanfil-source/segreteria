@@ -2389,7 +2389,7 @@ var GmailService = class GmailService {
         // Evita di alterare acronimi/parole interamente maiuscole (es. "ISEE", "INVIA")
         // Range esteso À-ÿ per coprire tutte le accentate europee (francese, spagnolo, tedesco, italiano...)
         // Range espliciti per evitare inclusione dei simboli × (U+00D7) e ÷ (U+00F7)
-        return text.replace(/(,\s+)([A-ZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞ])([a-zàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþß]+)/g, (match, commaAndSpace, firstLetter, rest, offset) => {
+        return text.replace(/(,\s+)([A-ZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞ])([a-zàáâãäåæçèéêëìíîïðñotóôõöøùúûüýþß]+)/g, (match, commaAndSpace, firstLetter, rest, offset) => {
             // Eccezione per elenchi numerati (es: "1, Partecipanti")
             const beforeMatch = text.substring(Math.max(0, offset - 5), offset);
             if (beforeMatch.match(/\d+$/)) {
@@ -2778,7 +2778,7 @@ function sanitizeUrl(url) {
     }
 
     // SSRF: blocco IP interni, IPv6 loopback/link-local, IP decimali
-    const INTERNAL_IP_PATTERN = /^\s*(https?:\/\/)?(localhost|127\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.)/i;
+    const INTERNAL_IP_PATTERN = /^\s*(https?:\/\/)?(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2[0-9]|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+)(?::\d+)?(?:\/|$)/i;
     const DECIMAL_IP = /^https?:\/\/\d{8,10}(\/|$)/i;
     const USERINFO_BYPASS = /^https?:\/\/[^@]+@/i;
 
@@ -3063,6 +3063,8 @@ function markdownToHtml(text) {
     // Nota: gli asterischi NON vengono escaped da escapeHtml(), quindi funzionano normalmente
     html = html.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/(?<!\*)\*(?!\*)([\s\S]+?)\*(?!\*)/g, '<em>$1</em>');
+    // Inline code
+    html = html.replace(/`([^`\n]+)`/g, '<code style="background:#f4f4f4;padding:2px 4px;border-radius:3px;font-family:monospace;font-size:0.9em;">$1</code>');
     // Inline code
     html = html.replace(/`([^`\n]+)`/g, '<code style="background:#f4f4f4;padding:2px 4px;border-radius:3px;font-family:monospace;font-size:0.9em;">$1</code>');
 
