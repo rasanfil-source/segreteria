@@ -2421,9 +2421,9 @@ var GmailService = class GmailService {
         }
 
         // Evita di alterare acronimi/parole interamente maiuscole (es. "ISEE", "INVIA")
-        // Range esteso À-ÿ per coprire tutte le accentate europee (francese, spagnolo, tedesco, italiano...)
-        // Range espliciti per evitare inclusione dei simboli × (U+00D7) e ÷ (U+00F7)
-        return text.replace(/(,\s+)([A-ZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞ])([a-zàáâãäåæçèéêëìíîïðñotóôõöøùúûüýþß]+)/g, (match, commaAndSpace, firstLetter, rest, offset) => {
+        // Range esteso per coprire accentate europee (francese, spagnolo, tedesco, italiano...)
+        // senza catturare spazi nel gruppo "parola" (evita false-negative sulle eccezioni, es. "Maria ").
+        return text.replace(/(,\s+)([A-Z\u00C0-\u017F])([a-z\u00DF-\u017F]+)/g, (match, commaAndSpace, firstLetter, rest, offset) => {
             // Eccezione per elenchi numerati (es: "1, Partecipanti")
             const beforeMatch = text.substring(Math.max(0, offset - 5), offset);
             if (beforeMatch.match(/\d+$/)) {

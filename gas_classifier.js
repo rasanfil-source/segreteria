@@ -227,7 +227,7 @@ var Classifier = class Classifier {
     // per evitare HTML pendente (es. "<div" aperto) in caso di input HTML.
     const lowerBody = processedBody.toLowerCase();
     const firstBlockquoteIdx = lowerBody.indexOf('<blockquote');
-    const firstGmailQuoteIdx = lowerBody.indexOf('class="gmail_quote"');
+    const firstGmailQuoteIdx = lowerBody.indexOf('<div class="gmail_quote"');
     let safeGmailQuoteIdx = -1;
     if (firstGmailQuoteIdx >= 0) {
       safeGmailQuoteIdx = lowerBody.lastIndexOf('<div', firstGmailQuoteIdx);
