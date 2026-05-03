@@ -1417,11 +1417,6 @@ ${addressLines.join('\n\n')}
       } catch (labelError) {
         console.warn(`⚠️ Errore aggiunta errorLabel silenziato: ${labelError.message}`);
       }
-      try {
-        markHandledUnread();
-      } catch (markError) {
-        console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
-      }
       result.status = 'error';
       result.error = error.message;
       return result;
@@ -2330,7 +2325,8 @@ ${addressLines.join('\n\n')}
     
 
 
-    if (!critical && Number.isFinite(minScore) && Number.isFinite(validationResult.score) && validationResult.score < minScore) {
+    // Per errori non critici, evita retry solo su output gravemente scarso.
+    if (!critical && Number.isFinite(validationResult.score) && validationResult.score < 0.3) {
       return false;
     }
 

@@ -265,7 +265,7 @@ var Classifier = class Classifier {
       /^Le .* a \u00E8crit.*$/m
     ];
 
-    const lines = processedBody.split('\n');
+    let lines = processedBody.split('\n');
 
     // Ottimizzazione elaborazione thread lunghi: seleziona costrutti semantici mirati
     // applicando analisi strutturale su finestre circoscritte.
@@ -279,7 +279,7 @@ var Classifier = class Classifier {
 
       for (const marker of quoteMarkers) {
         if (marker.test(trimmed)) {
-          lines.length = i;
+          lines = lines.slice(0, i);
           quoteFound = true;
           break;
         }

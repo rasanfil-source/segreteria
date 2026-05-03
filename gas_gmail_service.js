@@ -1022,10 +1022,26 @@ var GmailService = class GmailService {
             }
 
             const rawContentType = (attachment.getContentType() || '').toLowerCase();
-            const contentType = rawContentType.split(';')[0].trim();
+            let contentType = rawContentType.split(';')[0].trim();
             const isPdf = contentType.includes('pdf');
             const isImage = contentType.startsWith('image/');
-            const isOffice = Boolean(this._officeMimeMap[contentType]);
+            let isOffice = Boolean(this._officeMimeMap[contentType]);
+
+            if (!isOffice && (contentType === 'application/octet-stream' || contentType.startsWith('application/x-'))) {
+                const ext = (attachmentName.split('.').pop() || '').toLowerCase();
+                const extMap = {
+                    doc: 'application/msword',
+                    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    xls: 'application/vnd.ms-excel',
+                    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    ppt: 'application/vnd.ms-powerpoint',
+                    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+                };
+                if (extMap[ext]) {
+                    contentType = extMap[ext];
+                    isOffice = true;
+                }
+            }
             const isText = contentType.includes('text/plain') || contentType.includes('text/csv');
 
             if (!isPdf && !isImage && !isOffice && !isText) {
@@ -1421,6 +1437,10 @@ var GmailService = class GmailService {
                     lastError = new Error('Blob PDF vuoto dopo conversione Office');
                 } catch (e) {
                     lastError = e;
+                }
+
+                if (exceededBudget()) {
+                    break;
                 }
 
                 if (attempt < 2) {

@@ -112,7 +112,8 @@ function estimateTokenCount(text, attachments = []) {
   
   let tokens = 0;
   if (text && typeof text === 'string') {
-    const wordCount = text.split(/\s+/).length;
+    const cleanText = text.trim();
+    const wordCount = cleanText ? cleanText.split(/\s+/).length : 0;
     const baseTokens = Math.ceil(wordCount * 1.25);
     const overhead = Math.ceil(baseTokens * 0.1);
     const charEstimate = Math.ceil(text.length / 3.2);
@@ -129,7 +130,7 @@ function estimateTokenCount(text, attachments = []) {
 
     attachments.forEach((blob) => {
       try {
-        const mimeType = ((blob && blob.getContentType) ? blob.getContentType() : '').toLowerCase();
+        const mimeType = ((blob && typeof blob.getContentType === 'function') ? blob.getContentType() : '').toLowerCase();
         if (mimeType.includes('image/')) {
           tokens += tokenImage;
         } else if (mimeType.includes('pdf')) {
