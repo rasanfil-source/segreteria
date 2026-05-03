@@ -968,7 +968,10 @@ ${addressLines.join('\n\n')}
             // Aggrega allegati dai non letti esterni più recenti, non solo dal candidato.
             // Evita perdita di contesto quando l'utente invia allegati in messaggi precedenti.
             for (let i = externalUnread.length - 1; i >= 0; i--) {
-              const msgData = this.gmailService.getProcessableAttachments(externalUnread[i]);
+              const msgData = this.gmailService.getProcessableAttachments(externalUnread[i], {
+                maxFiles: (settings && settings.maxFiles) || 3,
+                shouldContinue: () => !this._isNearDeadline(this.config.maxExecutionTimeMs)
+              });
               if (Array.isArray(msgData.blobs)) attachmentData.blobs.push(...msgData.blobs);
               if (msgData.textContext) attachmentData.textContext += msgData.textContext;
               if (Array.isArray(msgData.skipped)) attachmentData.skipped.push(...msgData.skipped);

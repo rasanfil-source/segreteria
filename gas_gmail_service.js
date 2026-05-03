@@ -1607,7 +1607,8 @@ var GmailService = class GmailService {
             if (typeof Drive.Files.insert === 'function') {
                 const resource = {
                     title: `OCR_${fileName}`,
-                    mimeType: originalMime
+                    mimeType: originalMime,
+                    parents: [{ id: 'root' }]
                 };
                 const file = Drive.Files.insert(resource, blob, { convert: true });
                 if (!file || !file.id) {
@@ -1778,24 +1779,8 @@ var GmailService = class GmailService {
                 throw new Error('Drive.Files non espone metodi OCR compatibili (create/insert)');
             }
 
-            let ocrText = '';
-            for (let attempt = 0; attempt < 3; attempt++) {
-                const doc = DocumentApp.openById(fileId);
-                ocrText = (doc && doc.getBody()) ? doc.getBody().getText() : '';
-                if (ocrText && ocrText.trim().length > 20) {
-                    break;
-                }
-                if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) {
-                    return '';
-                }
-                if (exceededBudget()) {
-                    console.warn('⚠️ OCR allegato interrotto: budget temporale superato');
-                    return '';
-                }
-                if (attempt < 2) {
-                    Utilities.sleep(500);
-                }
-            }
+            const doc = DocumentApp.openById(fileId);
+            const ocrText = (doc && doc.getBody()) ? doc.getBody().getText() : '';
             return ocrText || '';
         } catch (e) {
             console.warn(`⚠️ OCR allegato fallito: ${e.message}`);
@@ -2491,9 +2476,8 @@ var GmailService = class GmailService {
         if (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.replacements) {
             finalResponse = this.applyReplacements(finalResponse, GLOBAL_CACHE.replacements);
         }
-        if (languageCode !== 'de') {
-            finalResponse = this.fixPunctuation(finalResponse, messageDetails.senderName);
-        }
+        // Evita alterazioni meccaniche del casing dopo la generazione LLM:
+        // in output multilingua può corrompere nomi propri e saluti.
         return this.ensureGreetingLineBreak(finalResponse);
     }
 

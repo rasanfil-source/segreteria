@@ -139,10 +139,21 @@ Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
       const lastNotificationMs = Number.parseInt(lastNotification || '', 10);
       const isCooldownExpired = !Number.isFinite(lastNotificationMs) || (now - lastNotificationMs) > 300000;
       if (isCooldownExpired) {
-        if (scriptProperties) {
+        let sent = false;
+        try {
+          MailApp.sendEmail(adminEmail, subject, body);
+          sent = true;
+        } catch (mailError) {
+          try {
+            GmailApp.sendEmail(adminEmail, subject, body);
+            sent = true;
+          } catch (gmailError) {
+            console.error('Impossibile inviare notifica errore:', gmailError.message);
+          }
+        }
+        if (sent && scriptProperties) {
           scriptProperties.setProperty('last_error_notification', now.toString());
         }
-        GmailApp.sendEmail(adminEmail, subject, body);
       }
     } catch (e) {
       console.error('Invio notifica errore fallito:', e.message);
