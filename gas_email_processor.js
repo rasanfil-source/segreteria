@@ -120,6 +120,7 @@ var EmailProcessor = class EmailProcessor {
     // ====================================================================
 
     let lockAcquired = false;
+    let globalThreadLock = null;
     const scriptCache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
       ? CacheService.getScriptCache()
       : null;
@@ -181,12 +182,20 @@ var EmailProcessor = class EmailProcessor {
         }
 
         lockAcquired = true;
+        if (scriptLockAcquired) {
+          globalThreadLock = scriptLock;
+        }
         console.log(`🔒 Lock acquisito per thread ${threadId}`);
       } catch (e) {
         console.warn(`⚠️ Errore acquisizione lock thread: ${e.message}`);
+        if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
+          try {
+            scriptLock.releaseLock();
+          } catch (_) { }
+        }
         return { status: 'error', error: 'Lock acquisition failed' };
       } finally {
-        if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
+        if (scriptLockAcquired && !globalThreadLock && scriptLock && typeof scriptLock.releaseLock === 'function') {
           try {
             scriptLock.releaseLock();
           } catch (_) { }
@@ -1438,6 +1447,11 @@ ${addressLines.join('\n\n')}
           console.warn('⚠️ Errore rilascio lock:', e.message);
         }
       }
+      if (globalThreadLock && typeof globalThreadLock.releaseLock === 'function') {
+        try {
+          globalThreadLock.releaseLock();
+        } catch (_) { }
+      }
     }
   }
 
@@ -1784,9 +1798,12 @@ ${addressLines.join('\n\n')}
 
       if (canManageTriggers) {
         const existing = ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'resumeEmailBatchFromCheckpoint');
-        existing.forEach(t => ScriptApp.deleteTrigger(t));
-        ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(60 * 1000).create();
-        console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger di continuazione pianificato.`);
+        if (existing.length === 0) {
+          ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(60 * 1000).create();
+          console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), nuovo trigger di continuazione pianificato.`);
+        } else {
+          console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger esistente preservato.`);
+        }
       } else {
         console.warn('⚠️ Checkpoint salvato ma ScriptApp trigger non disponibile: continuazione automatica non pianificata');
       }

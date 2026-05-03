@@ -276,19 +276,6 @@ var GmailService = class GmailService {
                 }
                 return;
             }
-            // Fallback obbligatorio: etichetta il thread per evitare riprocessamenti infiniti
-            // quando l'API avanzata message-level fallisce in modo intermittente.
-            try {
-                const message = GmailApp.getMessageById(messageId);
-                const thread = message && typeof message.getThread === 'function' ? message.getThread() : null;
-                if (thread) {
-                    this.addLabelToThread(thread, labelName);
-                    console.log(`✓ Fallback thread-level applicato per messaggio ${messageId}`);
-                    return;
-                }
-            } catch (fallbackError) {
-                console.warn(`⚠️ Fallback thread-level fallito per messaggio ${messageId}: ${fallbackError.message}`);
-            }
             throw e;
         }
     }
@@ -1444,7 +1431,7 @@ var GmailService = class GmailService {
                 }
 
                 if (attempt < 2) {
-                    Utilities.sleep(1000 * (attempt + 1));
+                    Utilities.sleep(500);
                 }
             }
 
@@ -1794,7 +1781,7 @@ var GmailService = class GmailService {
                     return '';
                 }
                 if (attempt < 2) {
-                    Utilities.sleep(1500 * (attempt + 1));
+                    Utilities.sleep(500);
                 }
             }
             return ocrText || '';
@@ -2319,11 +2306,13 @@ var GmailService = class GmailService {
                 }
 
                 const boundary = 'boundary_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
+                const safeFrom = String(stableFrom || '').replace(/[\r\n]+/g, '').trim();
+                const safeTo = String(messageDetails.senderEmail || '').replace(/[\r\n]+/g, '').trim();
                 const rawHeaders = [
                     'MIME-Version: 1.0',
                     `Date: ${new Date().toUTCString()}`,
-                    `From: ${stableFrom}`,
-                    `To: ${messageDetails.senderEmail}`,
+                    `From: ${safeFrom}`,
+                    `To: ${safeTo}`,
                     this._buildFoldedUtf8SubjectHeader(replySubject),
                     this._buildFoldedTokenHeader('In-Reply-To', originalMessageId),
                     this._buildFoldedTokenHeader('References', boundedReferenceChain),
