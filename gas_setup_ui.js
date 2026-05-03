@@ -425,7 +425,8 @@ function applyControlloInputConstraints_(sheet) {
   );
 
   // Protezioni Warning Only sulle etichette
-  protectRangesWithWarning_(sheet, ['A1:F1', 'A3:A16', 'C4:D4', 'C5:C7', 'E4:F12']);
+  // Nota: E11:F11 è usato come etichetta modificabile e viene escluso volutamente dagli avvisi.
+  protectRangesWithWarning_(sheet, ['A1:F1', 'A3:A16', 'C4:D4', 'C5:C7', 'E4:F10', 'E12:F12']);
 }
 
 /**
