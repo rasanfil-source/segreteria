@@ -618,7 +618,6 @@ var EmailProcessor = class EmailProcessor {
 
           if (
             botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL ||
-            consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL ||
             totalBotRepliesInThread >= Math.max(2, Math.floor(MAX_CONSECUTIVE_EXTERNAL * 1.5))
           ) {
             console.log(`   ⊖ Saltato: prevenzione loop email attivata (ping-pong/thread ripetitivo: interventiBot=${totalBotRepliesInThread}, consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
@@ -1288,12 +1287,11 @@ ${addressLines.join('\n\n')}
           );
           if (retryValidation.score > validation.score) {
             console.log('   → Uso risposta del retry (score più alto, nonostante non valida)');
+            finalResponse = retryValidation.fixedResponse || preparedRetryResponse;
+            validation = retryValidation;
           } else {
-            console.warn('   → Retry peggiorativo, ma aggiorno il contesto con gli ultimi errori');
+            console.warn('   → Retry peggiorativo, mantengo la risposta originale migliore');
           }
-          // Aggiorna sempre il contesto: evita retry successivi con prompt correttivo identico.
-          finalResponse = retryValidation.fixedResponse || preparedRetryResponse;
-          validation = retryValidation;
         }
 
         if (!validation.isValid) {
@@ -2191,6 +2189,13 @@ ${addressLines.join('\n\n')}
   _markMessagesAsSkipped(messages, labelName = this.config.skipLabelName, skippedMessageIds = null) {
     if (this.config.dryRun) {
       this.logger.info(`   🔴 DRY RUN - Label skip '${labelName}' non aggiunta (simulazione)`);
+      (messages || []).forEach(message => {
+        if (!message) return;
+        const msgId = message.getId();
+        if (skippedMessageIds && typeof skippedMessageIds.add === 'function') {
+          skippedMessageIds.add(msgId);
+        }
+      });
       return;
     }
 
