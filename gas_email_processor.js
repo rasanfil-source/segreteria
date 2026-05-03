@@ -664,6 +664,22 @@ var EmailProcessor = class EmailProcessor {
         return result;
       }
 
+      // Se Gemini Quick Check ha rilevato una lingua diversa con maggiore precisione, aggiorniamo
+      if (quickCheck.language && quickCheck.language.substring(0, 2).toLowerCase() !== detectedLanguage) {
+        detectedLanguage = quickCheck.language.substring(0, 2).toLowerCase();
+        console.log(`   🌐 Lingua (aggiornata da AI): ${detectedLanguage.toUpperCase()}`);
+      }
+
+      // PORTA 1-bis: Coerenza modalità lingua dopo raffinamento quick-check.
+      // Va fatto PRIMA del blocco !quickCheck.shouldRespond per evitare label IA in foreign_only.
+      if (this._shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
+        console.log('   ⊖ Saltato: modalità "Solo straniere", lingua italiana confermata dopo quick-check');
+        this._markMessagesAsSkipped(unlabeledUnread, this.config.skipLabelName, skippedMessageIds);
+        result.status = 'skipped';
+        result.reason = 'italian_skipped_foreign_only_post_quickcheck';
+        return result;
+      }
+
       if (!quickCheck.shouldRespond) {
         console.log(`   ⊖ Gemini quick check: nessuna risposta necessaria (${quickCheck.reason})`);
         if (quickCheck.reason === 'quick_check_failed') {
@@ -697,23 +713,6 @@ var EmailProcessor = class EmailProcessor {
         });
       } else {
         console.log('   🌐 Modalità "Solo straniere": non pre-marco i non letti secondari');
-      }
-
-      // Se Gemini Quick Check ha rilevato una lingua diversa con maggiore precisione, aggiorniamo
-      if (quickCheck.language && quickCheck.language.substring(0, 2).toLowerCase() !== detectedLanguage) {
-        detectedLanguage = quickCheck.language.substring(0, 2).toLowerCase();
-        console.log(`   🌐 Lingua (aggiornata da AI): ${detectedLanguage.toUpperCase()}`);
-      }
-
-      // PORTA 1-bis: Coerenza modalità lingua dopo raffinamento quick-check.
-      // Se la lingua viene aggiornata a IT in foreign_only, fermiamo qui senza
-      // etichettare IA per mantenere la possibilità di riprocessare in modalità "all".
-      if (this._shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
-        console.log('   ⊖ Saltato: modalità "Solo straniere", lingua italiana confermata dopo quick-check');
-        this._markMessagesAsSkipped(unlabeledUnread, this.config.skipLabelName, skippedMessageIds);
-        result.status = 'skipped';
-        result.reason = 'italian_skipped_foreign_only_post_quickcheck';
-        return result;
       }
 
       // ====================================================================
@@ -2524,11 +2523,12 @@ ${prompt.slice(-tailChars)}`;
     let summary = trimmedLines.join('\n').trim();
 
     if (summary.length > maxChars) {
-      const truncated = summary.slice(0, maxChars);
-      const lastBreak = truncated.lastIndexOf('\n');
-      const lastSpace = truncated.lastIndexOf(' ');
-      const cutIndex = lastBreak > 0 ? lastBreak : (lastSpace > 0 ? lastSpace : maxChars);
-      summary = truncated.slice(0, cutIndex).trim() + '...';
+      // Tronca l'inizio (ricordi più vecchi) e preserva la coda più recente.
+      const truncated = summary.slice(-maxChars);
+      const firstBreak = truncated.indexOf('\n');
+      const firstSpace = truncated.indexOf(' ');
+      const cutIndex = firstBreak > 0 ? firstBreak : (firstSpace > 0 ? firstSpace : 0);
+      summary = '...' + truncated.slice(cutIndex).trim();
     }
 
     return summary || null;

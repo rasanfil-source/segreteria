@@ -77,9 +77,10 @@ var GmailService = class GmailService {
         }
         const next = current + 1;
         this._scriptCache.put(key, String(next), 21600);
-        // Sync periodico su storage persistente per limitare scritture
-        // ma sopravvivere alla scadenza della cache.
-        if (next % 50 === 0 && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+        // Sync periodico su storage persistente più frequente e forzato in zona rischio.
+        // Riduce drift in caso di cache scaduta/evicted prima del trigger successivo.
+        const shouldSync = (next % 15 === 0) || (next >= this._gmailDailyCounterWarnAt);
+        if (shouldSync && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
             try {
                 PropertiesService.getScriptProperties().setProperty(key, String(next));
             } catch (e) {
