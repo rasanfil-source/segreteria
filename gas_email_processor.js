@@ -958,6 +958,37 @@ ${addressLines.join('\n\n')}
       const categoryHintSource = String(classification.category || requestTypeName || '').toLowerCase() || null;
 
       // ====================================================================
+      // CONTEXT ROUTING: inietta moduli KB pesanti solo quando servono.
+      // Manteniamo default conservativo (dottrina attiva) in caso di dubbio.
+      // ====================================================================
+      let routedAiCoreLite = aiCoreLite;
+      let routedAiCore = aiCore;
+      let routedDoctrine = effectiveDoctrineBase;
+      let routedDoctrineStructured = doctrineStructured;
+
+      const technicalCategories = new Set(['technical', 'appointment', 'quotation', 'information']);
+      const concernFlags = activeConcerns && typeof activeConcerns === 'object'
+        ? activeConcerns
+        : {};
+      const hasPastoralConcern = Boolean(
+        concernFlags.doctrine ||
+        concernFlags.sensitive ||
+        concernFlags.canonLaw ||
+        concernFlags.sacrament ||
+        concernFlags.formalComplaint
+      );
+      const isTechnicalOnly = technicalCategories.has(categoryHintSource) && !hasPastoralConcern;
+
+      if (isTechnicalOnly) {
+        routedAiCore = '';
+        routedDoctrine = '';
+        routedDoctrineStructured = [];
+        console.log('   🧭 Context routing: richiesta tecnica → disattivo moduli dottrinali pesanti.');
+      } else {
+        console.log('   🧭 Context routing: richiesta non tecnica o sensibile → mantengo moduli completi.');
+      }
+
+      // ====================================================================
       // STEP 7.1: PREPARAZIONE ALLEGATI (Multimodale / Vision)
       // ====================================================================
       let attachmentBlobs = [];
@@ -1048,9 +1079,10 @@ ${addressLines.join('\n\n')}
         territoryContext: territoryContext,
         requestType: requestType,
         attachmentsContext: textFromAttachments,
-        aiCoreLite: aiCoreLite,
-        aiCore: aiCore,
-        doctrineStructured: doctrineStructured
+        aiCoreLite: routedAiCoreLite,
+        aiCore: routedAiCore,
+        doctrineBase: routedDoctrine,
+        doctrineStructured: routedDoctrineStructured
       };
 
       const prompt = this.promptEngine.buildPrompt(promptOptions);
@@ -2506,22 +2538,18 @@ ${addressLines.join('\n\n')}
     const maxPromptChars = Math.max(2000, Math.floor((maxSafeTokens - reservedTokens) * 4));
     const promptForRetry = this._trimPromptForRetry_(safePrompt, maxPromptChars);
 
-    return `${promptForRetry}
+    return `### ISTRUZIONI DI BASE ###
+${promptForRetry}
 
-══════════════════════════════════════════════════════
-CORREZIONE RICHIESTA — SECONDA GENERAZIONE
-══════════════════════════════════════════════════════
+### ATTENZIONE: CORREZIONE CRITICA RICHIESTA ###
+La tua generazione precedente conteneva errori che DEVI correggere:
+- ${correctionInstructions.join('\n- ')}
 
-La tua risposta precedente non è utilizzabile per i seguenti motivi:
-
-${correctionInstructions.join('\n\n')}
-
-══════════════════════════════════════════════════════
-RISPOSTA PRECEDENTE (DA NON RIPETERE):
+### RISPOSTA FALLITA (NON RIPETERE QUESTI ERRORI) ###
 ${failedSnippet}
-══════════════════════════════════════════════════════
 
-Genera ora una nuova risposta corretta, evitando tutti gli errori elencati sopra.
+### AZIONE ###
+Genera la nuova risposta correggendo i problemi indicati.
 Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
   }
 
