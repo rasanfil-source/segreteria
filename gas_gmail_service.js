@@ -1102,7 +1102,9 @@ var GmailService = class GmailService {
                 const estimatedPages = Math.ceil(normalized.length / settings.pdfCharsPerPage);
                 if (estimatedPages > settings.pdfMaxPages) {
                     const estimatedLimit = settings.pdfMaxPages * settings.pdfCharsPerPage;
-                    perFileLimit = Math.min(perFileLimit, estimatedLimit);
+                    // Per i PDF usa un limite coerente con il cap pagine stimato,
+                    // consentendo di superare il default generico quando necessario.
+                    perFileLimit = estimatedLimit;
                 }
             }
 
@@ -1990,7 +1992,7 @@ var GmailService = class GmailService {
         text = text.replace(/<\/div\s*>/gi, '\n');
 
         text = text// Evita di rimuovere espressioni testuali tipo "A < B > C" trattando solo tag HTML plausibili
-            .replace(/<\/?\s*[a-zA-Z][^>]*>/g, ' ');
+            .replace(/<\/?[a-zA-Z][^>]*>/g, ' ');
 
         // Fallback simboli per plain text (evita mojibake in ambienti non-UTF8)
         text = text

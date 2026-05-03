@@ -102,7 +102,7 @@ var Classifier = class Classifier {
     // Supporto firma alternativa: il 3° parametro può essere senderEmail anziché booleano.
     if (typeof isReply === 'string' && senderEmail === null) {
       senderEmail = isReply;
-      isReply = false;
+      isReply = /^(re|fwd|fwd|r|ris|i):/i.test(safeSubject.trim());
     }
 
     // Sicurezza null e limite lunghezza
@@ -355,8 +355,8 @@ var Classifier = class Classifier {
     try {
       normalized = normalized.replace(/[^\p{L}\p{N}\s]/gu, '');
     } catch (e) {
-      // Fallback compatibilità runtime che non supportano Unicode property escapes
-      normalized = normalized.replace(/[^\w\sÀ-ÖØ-öø-ÿ]/g, '');
+      // Fallback compatibilità runtime        text = text// Evita di rimuovere espressioni testuali tipo "A < B > C" trattando solo tag HTML plausibili
+            .replace(/<\/?[a-zA-Z][^>]*>/g, ' ');
     }
     normalized = normalized.replace(/\s+/g, ' ');
 
