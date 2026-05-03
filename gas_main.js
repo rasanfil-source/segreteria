@@ -679,7 +679,12 @@ function _analyzeKnowledgeBaseRows(rows, sheetName) {
   if (safeRows.length === 0) return report;
 
   const normalize = function (value) {
-    return _formatCellForKnowledgeText(value).toLowerCase();
+    return _formatCellForKnowledgeText(value)
+      .replace(/\uFEFF/g, '')
+      .replace(/[\u200B-\u200D\u2060]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
   };
 
   const firstRow = Array.isArray(safeRows[0]) ? safeRows[0] : [safeRows[0]];

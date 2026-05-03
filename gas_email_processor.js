@@ -131,7 +131,7 @@ var EmailProcessor = class EmailProcessor {
     } else {
       const configuredTtl = (typeof CONFIG !== 'undefined' && Number(CONFIG.CACHE_LOCK_TTL))
         ? Number(CONFIG.CACHE_LOCK_TTL)
-        : 240; // Fallback allineato al default config per coprire OCR + validazione semantica
+        : 310; // Fallback > MAX_EXECUTION_TIME_MS per prevenire race su lock cache
 
       // CacheService supporta max 21600 secondi (6h): clamp difensivo.
       const ttlSeconds = Math.max(1, Math.min(configuredTtl, 21600));

@@ -224,9 +224,8 @@ var GmailService = class GmailService {
             const labelIdFromCache = this._getOptionalLabelIdByName(labelName);
             const labelId = labelIdFromCache || (label && typeof label.getId === 'function' ? label.getId() : null);
             const hasLabelId = !!labelId;
-            if (!hasLabelId) {
-                console.warn(`⚠️ Label ID non trovato per '${labelName}': salto modifica messaggio.`);
-                return;
+            if (!labelId) {
+                throw new Error(`Label ID non trovato per '${labelName}': impossibile usare API Avanzata.`);
             }
             this._incrementGmailCallCounterOrThrow_('messages.modify:addLabel');
             const payload = { addLabelIds: [labelId] };
@@ -3131,7 +3130,7 @@ function markdownToHtml(text) {
     // 5. Liste markdown (bullet e numerate) -> <ul>/ <ol> + <li>
     // Liste puntate (- item  oppure  * item all'inizio riga)
     // Raggruppa righe consecutive con lo stesso prefisso in un unico <ul>
-    html = html.replace(/((?:^[ \t]*[-*][ \t]+.+(?:\n|$))+)/gm, (block) => {
+    html = html.replace(/((?:^[ \t]*[-*][ \t]+.*\n?)+)/gm, (block) => {
         const items = block
             .split('\n')
             .filter(l => l.trim())
@@ -3141,7 +3140,7 @@ function markdownToHtml(text) {
     });
 
     // Liste numerate (1. item)
-    html = html.replace(/((?:^[ \t]*\d+\.[ \t]+.+(?:\n|$))+)/gm, (block) => {
+    html = html.replace(/((?:^[ \t]*\d+\.[ \t]+.*\n?)+)/gm, (block) => {
         const items = block
             .split('\n')
             .filter(l => l.trim())
