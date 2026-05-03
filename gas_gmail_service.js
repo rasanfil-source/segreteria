@@ -2300,12 +2300,12 @@ var GmailService = class GmailService {
                 }
 
                 // La specifica Gmail RAW richiede un Message-ID valido per l'header In-Reply-To.
-                const originalMessageId = String(messageDetails.rfc2822MessageId || '').trim();
-                if (!originalMessageId) {
-                    throw new Error('Message-ID originale mancante, forzatura fallback nativo');
-                }
+                // Se non disponibile/valido, inviamo comunque via RAW con threadId e Subject pulito.
+                const originalMessageId = this._normalizeRfcMessageId(messageDetails.rfc2822MessageId || '');
                 collectReferenceIds(messageDetails.existingReferences || '');
-                collectReferenceIds(originalMessageId);
+                if (originalMessageId) {
+                    collectReferenceIds(originalMessageId);
+                }
                 const boundedReferenceChain = referenceIds.slice(-20).join(' ');
 
                 // Reply-To: usa alias solo se presente in To/Cc del messaggio originale
@@ -2332,8 +2332,8 @@ var GmailService = class GmailService {
                     `From: ${safeFrom}`,
                     `To: ${safeTo}`,
                     this._buildFoldedUtf8SubjectHeader(replySubject),
-                    this._buildFoldedTokenHeader('In-Reply-To', originalMessageId),
-                    this._buildFoldedTokenHeader('References', boundedReferenceChain),
+                    originalMessageId ? this._buildFoldedTokenHeader('In-Reply-To', originalMessageId) : '',
+                    boundedReferenceChain ? this._buildFoldedTokenHeader('References', boundedReferenceChain) : '',
                     `Content-Type: multipart/alternative; boundary="${boundary}"`
                 ].filter(Boolean);
 
@@ -2629,6 +2629,15 @@ var GmailService = class GmailService {
             .replace(/\s{2,}/g, ' ')
             .trim();
         return folded || 'Re:';
+    }
+
+    _normalizeRfcMessageId(value) {
+        const raw = String(value || '').replace(/[\r\n\t]+/g, ' ').trim();
+        if (!raw) return '';
+        const match = raw.match(/<[^<>\s]+@[^<>\s]+>/);
+        if (match) return match[0];
+        if (/^[^<>\s@]+@[^<>\s@]+$/.test(raw)) return `<${raw}>`;
+        return '';
     }
 
     /**
