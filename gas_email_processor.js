@@ -165,8 +165,7 @@ var EmailProcessor = class EmailProcessor {
           const isStale = !isNaN(existingTimestamp) && (Date.now() - existingTimestamp) > lockTtlMs;
 
           if (isStale) {
-            console.warn(`🔓 Lock stale rilevato per thread ${threadId}, pulizia`);
-            scriptCache.remove(threadLockKey);
+            console.warn(`🔓 Lock stale rilevato per thread ${threadId}, sovrascrittura lock`);
           } else {
             console.warn(`🔒 Thread ${threadId} lockato da altro processo, salto`);
             return { status: 'skipped', reason: 'thread_locked' };
@@ -613,7 +612,6 @@ var EmailProcessor = class EmailProcessor {
             consecutiveExternal = 0;
           } else {
             consecutiveExternal++;
-            botRepliesCount = 0;
           }
 
           if (

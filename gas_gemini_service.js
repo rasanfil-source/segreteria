@@ -1523,7 +1523,7 @@ function _tryBalanceJsonBraces(text) {
       escaped = true;
       continue;
     }
-    if (ch === '"' || ch === "'") {
+    if (ch === '"') {
       if (!stringDelimiter) {
         stringDelimiter = ch;
       } else if (stringDelimiter === ch) {

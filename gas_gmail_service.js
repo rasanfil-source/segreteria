@@ -1274,14 +1274,15 @@ var GmailService = class GmailService {
                 }
             }
 
-            const isWord = mimeType.includes('msword') ||
-                mimeType.includes('wordprocessingml') ||
-                mimeType.includes('opendocument.text');
-            const isExcel = mimeType.includes('ms-excel') || mimeType.includes('spreadsheetml');
-            const isPowerPoint =
-                mimeType.includes('ms-powerpoint') ||
-                mimeType.includes('mspowerpoint') ||
-                mimeType.includes('presentationml');
+            const googleMime = this._officeMimeMap[mimeType] || null;
+            const isWord = googleMime === 'application/vnd.google-apps.document';
+            const isExcel = googleMime === 'application/vnd.google-apps.spreadsheet';
+            const isPowerPoint = googleMime === 'application/vnd.google-apps.presentation';
+
+            if (!googleMime && !isWord && !isExcel && !isPowerPoint) {
+                result.skipped.push({ name: name, reason: 'unsupported_type', mimeType: mimeType });
+                continue;
+            }
 
             // Excel (XLS/XLSX): preferisci testo contestuale invece di blob PDF
             if (isExcel) {
@@ -1389,7 +1390,12 @@ var GmailService = class GmailService {
             // per la lookup in _officeMimeMap usiamo il mime base normalizzato.
             const originalMimeFull = attachmentBlob.getContentType() || '';
             const originalMime = originalMimeFull.split(';')[0].trim().toLowerCase();
-            const googleMime = (this._officeMimeMap && this._officeMimeMap[originalMime]) ? this._officeMimeMap[originalMime] : null;
+            let googleMime = (this._officeMimeMap && this._officeMimeMap[originalMime]) ? this._officeMimeMap[originalMime] : null;
+            if (!googleMime) {
+                if (originalMime.includes('word')) googleMime = 'application/vnd.google-apps.document';
+                else if (originalMime.includes('spreadsheet') || originalMime.includes('excel')) googleMime = 'application/vnd.google-apps.spreadsheet';
+                else if (originalMime.includes('presentation') || originalMime.includes('powerpoint')) googleMime = 'application/vnd.google-apps.presentation';
+            }
 
             if (typeof Drive.Files.insert === 'function') {
                 const resource = {
@@ -1992,7 +1998,7 @@ var GmailService = class GmailService {
         text = text.replace(/<\/div\s*>/gi, '\n');
 
         text = text// Evita di rimuovere espressioni testuali tipo "A < B > C" trattando solo tag HTML plausibili
-            .replace(/<\/?[a-zA-Z][^>]*>/g, ' ');
+            .replace(/<\/?(?:[a-z]+[1-6]?)(?:\s+[^>]*)?>/gi, ' ');
 
         // Fallback simboli per plain text (evita mojibake in ambienti non-UTF8)
         text = text
@@ -2123,7 +2129,6 @@ var GmailService = class GmailService {
 
     extractMainReply(content) {
         const markers = [
-            /^(?:>\s[^\n]*\n)+/m,
             /^On .* wrote:/m,
             /^Il giorno .* ha scritto:/m,
             /^-{3,}.*Original Message/im,
