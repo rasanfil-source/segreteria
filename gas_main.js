@@ -1768,14 +1768,15 @@ function onEdit(e) {
   const range = e.range;
   const sheet = range.getSheet();
   const sheetName = sheet.getName();
-  const cellAddress = range.getCell(1, 1).getA1Notation();
-
   // 1. Definisci qui le coordinate del tuo selettore
   // Esempio: Foglio "Controllo", cella "B2" (dove solitamente risiede lo stato o la config)
-  const TARGET_SHEET = "Controllo"; 
-  const TARGET_CELLS = ["B2", "F2"]; // B2 = on/off sistema, F2 = modalità lingua
+  const TARGET_SHEET = "Controllo";
 
-  if (sheetName === TARGET_SHEET && TARGET_CELLS.includes(cellAddress)) {
+  // Verifica intersezione per supportare edit multi-cella (copia/incolla o eliminazione righe)
+  const intersectsB2 = (range.getRow() <= 2 && range.getLastRow() >= 2 && range.getColumn() <= 2 && range.getLastColumn() >= 2);
+  const intersectsF2 = (range.getRow() <= 2 && range.getLastRow() >= 2 && range.getColumn() <= 6 && range.getLastColumn() >= 6);
+
+  if (sheetName === TARGET_SHEET && (intersectsB2 || intersectsF2)) {
     // NOTA: onEdit è un trigger semplice (max ~6s, lock non affidabile).
     // Invalida solo la cache; il reload avviene nel ciclo principale con lock.
     console.log("🔄 Rilevata modifica al selettore. Invalidazione cache...");
@@ -1784,8 +1785,8 @@ function onEdit(e) {
       
       // Se il cambio è sulla modalità lingua, forziamo il salvataggio immediato 
       // della proprietà per il controllo al prossimo ciclo main.
-      if (cellAddress === "F2") {
-        const val = range.getValue();
+      if (intersectsF2) {
+        const val = sheet.getRange('F2').getValue();
         const mode = String(val).toLowerCase().includes('solo') ? 'foreign_only' : 'all';
         // Non facciamo il riarmo qui (onEdit ha pochi permessi), lo farà il main.
       }
