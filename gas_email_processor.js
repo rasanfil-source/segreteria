@@ -425,13 +425,15 @@ var EmailProcessor = class EmailProcessor {
       // CRITICO: Ricostruzione del contesto in caso di burst (più email non lette dallo stesso utente).
       // Evita che un'email finale breve (es. "Grazie") faccia scartare le vere domande precedenti.
       if (externalUnread.length > 1) {
-        const previousTexts = externalUnread
-          .filter(m => m.getId() !== candidate.getId())
-          .map(m => this.gmailService.extractMessageDetails(m).body)
-          .filter(Boolean);
-        if (previousTexts.length > 0) {
-          messageDetails.body = previousTexts.join('\n\n[Messaggio precedente]:\n') + '\n\n[Ultimo messaggio]:\n' + messageDetails.body;
-          console.log(`     Burst rilevato: accorpati contestualmente ${previousTexts.length} messaggi precedenti`);
+        const aggregatedBody = externalUnread.map((message) => {
+          const details = this.gmailService.extractMessageDetails(message);
+          const messageDate = details.date instanceof Date ? details.date.toLocaleString() : 'data non disponibile';
+          return `--- Messaggio del ${messageDate} ---\n${details.body || ''}`;
+        }).join('\n\n');
+        
+        if (aggregatedBody) {
+          messageDetails.body = aggregatedBody;
+          console.log(`     Burst rilevato: accorpati contestualmente ${externalUnread.length} messaggi precedenti con timestamp`);
         }
       }
 
@@ -1717,6 +1719,13 @@ ${addressLines.join('\n\n')}
 
         if (result && result.error && String(result.error).includes('GMAIL_DAILY_CALL_LIMIT_REACHED')) {
           this.logger.warn('⚠️ Stop batch: limite giornaliero chiamate Gmail raggiunto durante processThread.');
+          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, remainingTimeMs);
+          break;
+        }
+
+        if (result && (result.errorClass === 'QUOTA_EXCEEDED' || result.errorClass === 'QUOTA_EXHAUSTED')) {
+          this.logger.warn('⚠️ Stop batch: quota API LLM esaurita, salvo checkpoint per evitare cascata di error label.');
+          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, remainingTimeMs);
           break;
         }
 

@@ -1425,7 +1425,7 @@ var GmailService = class GmailService {
             // Usiamo retry breve con backoff lineare per evitare PDF vuoti/corrotti.
             let pdfBlob = null;
             let lastError = null;
-            for (let attempt = 0; attempt < 3; attempt++) {
+            for (let attempt = 0; attempt < 5; attempt++) {
                 if (exceededBudget()) {
                     throw new Error(`Timeout conversione Office dopo ${attempt} tentativi`);
                 }
@@ -1444,8 +1444,8 @@ var GmailService = class GmailService {
                     break;
                 }
 
-                if (attempt < 2) {
-                    Utilities.sleep(500);
+                if (attempt < 4) {
+                    Utilities.sleep(1000 * (attempt + 1));
                 }
             }
 
@@ -2110,7 +2110,7 @@ var GmailService = class GmailService {
 
     extractMainReply(content) {
         const markers = [
-            /^(?:>\s?.*\n){1,}>\s?.*/m,
+            /^(?:>\s[^\n]*\n)+/m,
             /^On .* wrote:/m,
             /^Il giorno .* ha scritto:/m,
             /^-{3,}.*Original Message/im,
