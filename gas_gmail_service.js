@@ -2465,7 +2465,7 @@ var GmailService = class GmailService {
 
             // Euristica nomi doppi: se la parola è seguita da un'altra parola maiuscola,
             // probabilmente sono nomi propri (es. "Maria Isabella", "Gian Luca", "Carlo Alberto")
-            if (afterMatch.match(/^\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]+/)) {
+            if (afterMatch.match(/^\s+[A-Z\u00C0-\u017F][a-z\u00DF-\u017F]+\s+[A-Z\u00C0-\u017F][a-z\u00DF-\u017F]+/)) {
                 return match;
             }
 

@@ -126,9 +126,7 @@ var EmailProcessor = class EmailProcessor {
     const threadLockKey = `thread_lock_${threadId}`;
     let lockValue = null;
 
-    if (skipLock) {
-      console.log(`🔒 Lock saltato per thread ${threadId} (chiamante ha già lock)`);
-    } else if (!scriptCache || typeof LockService === 'undefined' || !LockService || typeof LockService.getScriptLock !== 'function') {
+    if (!scriptCache || typeof LockService === 'undefined' || !LockService || typeof LockService.getScriptLock !== 'function') {
       console.warn(`⚠️ Lock service/cache non disponibili per thread ${threadId}: procedo senza lock`);
     } else {
       const configuredTtl = (typeof CONFIG !== 'undefined' && Number(CONFIG.CACHE_LOCK_TTL))
@@ -150,11 +148,15 @@ var EmailProcessor = class EmailProcessor {
       const scriptLock = LockService.getScriptLock();
       let scriptLockAcquired = false;
       try {
-        if (!scriptLock.tryLock(5000)) {
-          console.warn(`🔒 Impossibile acquisire lock globale per thread ${threadId}, salto`);
-          return { status: 'skipped', reason: 'global_lock_unavailable' };
+        if (skipLock) {
+          console.log(`🔒 Mutex globale saltato per thread ${threadId} (chiamante possiede già lock esecuzione)`);
+        } else {
+          if (!scriptLock.tryLock(5000)) {
+            console.warn(`🔒 Impossibile acquisire lock globale per thread ${threadId}, salto`);
+            return { status: 'skipped', reason: 'global_lock_unavailable' };
+          }
+          scriptLockAcquired = true;
         }
-        scriptLockAcquired = true;
 
         const existingLock = scriptCache.get(threadLockKey);
         if (existingLock) {
@@ -329,7 +331,7 @@ var EmailProcessor = class EmailProcessor {
         console.log('   ⊖ Saltato: nessun nuovo messaggio esterno non letto');
         // Messaggi interni (nostri/alias) non sono "processati da IA":
         // vanno marcati come saltati per non inquinare metrica/label IA.
-        this._markMessagesAsSkipped(unlabeledUnread);
+        this._markMessagesAsSkipped(unlabeledUnread, this.config.skipLabelName, skippedMessageIds);
         result.status = 'skipped';
         result.reason = 'no_external_unread';
         return result;
@@ -383,7 +385,7 @@ var EmailProcessor = class EmailProcessor {
           
           if (italianPattern.test(subjectOnly)) {
             console.log(`   ⊖ Pre-check locale: italiano rilevato nel solo oggetto ("${subjectOnly.substring(0, 20)}...") → skip anticipato`);
-            this._markMessagesAsSkipped(unlabeledUnread);
+            this._markMessagesAsSkipped(unlabeledUnread, this.config.skipLabelName, skippedMessageIds);
             result.status = 'skipped';
             result.reason = 'italian_skipped_foreign_only_precheck';
             return result;
@@ -429,7 +431,7 @@ var EmailProcessor = class EmailProcessor {
         //
         // 2) L'etichetta da applicare DEVE essere skipLabelName ('·', punto centrato).
         //    È una label discreta e non intrusiva nell'interfaccia Gmail.
-        this._markMessagesAsSkipped(unlabeledUnread);
+        this._markMessagesAsSkipped(unlabeledUnread, this.config.skipLabelName, skippedMessageIds);
         result.status = 'skipped';
         result.reason = 'italian_skipped_foreign_only';
         return result;
@@ -453,7 +455,7 @@ var EmailProcessor = class EmailProcessor {
 
         if (messagesToMark.length > 0) {
           if (languageMode === 'foreign_only') {
-            this._markMessagesAsSkipped(messagesToMark);
+            this._markMessagesAsSkipped(messagesToMark, this.config.skipLabelName, skippedMessageIds);
           } else {
             messagesToMark.forEach((message) => this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds));
           }
@@ -708,7 +710,7 @@ var EmailProcessor = class EmailProcessor {
       // etichettare IA per mantenere la possibilità di riprocessare in modalità "all".
       if (this._shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
         console.log('   ⊖ Saltato: modalità "Solo straniere", lingua italiana confermata dopo quick-check');
-        this._markMessagesAsSkipped(unlabeledUnread);
+        this._markMessagesAsSkipped(unlabeledUnread, this.config.skipLabelName, skippedMessageIds);
         result.status = 'skipped';
         result.reason = 'italian_skipped_foreign_only_post_quickcheck';
         return result;
