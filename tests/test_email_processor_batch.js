@@ -220,7 +220,7 @@ console.log('--- Test processUnreadEmails: conteggio stats skipped/replied ---')
 }
 
 
-console.log('--- Test processUnreadEmails: filtered non deve consumare MAX_EMAILS_PER_RUN ---');
+console.log('--- Test processUnreadEmails: filtered deve consumare MAX_EMAILS_PER_RUN ---');
 {
   const originalMax = global.CONFIG.MAX_EMAILS_PER_RUN;
   global.CONFIG.MAX_EMAILS_PER_RUN = 1;
@@ -245,8 +245,8 @@ console.log('--- Test processUnreadEmails: filtered non deve consumare MAX_EMAIL
   };
 
   const stats = processor.processUnreadEmails('kb', '', true);
-  assert(calls.length === 2, 'thread filtered non deve bloccare il thread successivo quando il limite è 1');
-  assert(stats.replied === 1, 'il thread successivo actionable deve essere elaborato');
+  assert(calls.length === 1, 'thread filtered deve contribuire al limite quando il limite è 1');
+  assert(stats.replied === 0, 'con limite esaurito non deve elaborare thread successivo');
 
   global.CONFIG.MAX_EMAILS_PER_RUN = originalMax;
 }

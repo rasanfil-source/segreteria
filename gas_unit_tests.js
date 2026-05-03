@@ -244,14 +244,14 @@ function runAllTests() {
     testGroup('RateLimiter - Persistenza Transazionale', results, () => {
         test('Il gestore della persistenza pulisce i registri dopo sincronizzazione riuscita', results, () => {
             const limiter = new GeminiRateLimiter();
-            limiter._persistCacheWithWAL();
+            limiter._persistCacheToStorage();
             return limiter.props.getProperty('rate_limit_wal') === null;
         });
         test('Il ripristino di stato rigenera in modo coerente le finestre operative', results, () => {
             const limiter = new GeminiRateLimiter();
             const wal = { timestamp: Date.now(), rpm: [{ timestamp: Date.now(), modelKey: 'flash' }], tpm: [] };
             limiter.props.setProperty('rate_limit_wal', JSON.stringify(wal));
-            limiter._recoverFromWAL();
+            limiter._recoverFromStorage();
             return limiter.cache.rpmWindow.length > 0;
         });
     });

@@ -473,7 +473,7 @@ Output JSON:
         // NON usare classifyError globale: potrebbe non esistere in alcuni runtime GAS modulari.
         const classified = this._classifyError(error);
         // Verifica del flag _nonRetryable per le risposte vuote.
-        const isRetryable = classified.retryable && !error._nonRetryable;
+        const isRetryable = classified.retryable && !(error && error._nonRetryable);
 
         if (!isRetryable) {
           // Errore fatale: interrompe immediatamente senza consumare altri retry

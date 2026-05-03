@@ -508,7 +508,7 @@ if (rpdUsage > 0.8 * rpdLimit) {
 // Batch writes every 10 seconds (reduces PropertiesService I/O)
 // Uses Write-Ahead Log (WAL) pattern for crash recovery
 if (now - cache.lastCacheUpdate > 10000) {
-  this._persistCacheWithWAL(); // Safe persistent write
+  this._persistCacheToStorage(); // Safe persistent write
 }
 ```
 

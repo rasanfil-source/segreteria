@@ -1361,7 +1361,7 @@ function testRateLimiterPersistenceRequiresTransactionalLock() {
     };
 
     try {
-        GeminiRateLimiter.prototype._recoverFromWAL.call(service);
+        GeminiRateLimiter.prototype._recoverFromStorage.call(service);
     } finally {
         global.LockService = originalLockService;
     }

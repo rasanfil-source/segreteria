@@ -1466,9 +1466,14 @@ ${addressLines.join('\n\n')}
       const lockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
         ? CONFIG.EXECUTION_LOCK_WAIT_MS : 5000;
 
-      if (!executionLock || !executionLock.tryLock(lockWaitMs)) {
-        console.warn('⚠️ Un\'altra esecuzione è già attiva: salto questo turno per evitare doppie risposte.');
-        return { total: 0, replied: 0, filtered: 0, errors: 0, skipped: 1, reason: 'execution_locked' };
+      try {
+        if (!executionLock || !executionLock.tryLock(lockWaitMs)) {
+          console.warn('⚠️ Un\'altra esecuzione è già attiva: salto questo turno per evitare doppie risposte.');
+          return { total: 0, replied: 0, filtered: 0, errors: 0, skipped: 1, reason: 'execution_locked' };
+        }
+      } catch (e) {
+        console.error(`❌ Errore servizio Lock Globale: ${e.message}. Batch interrotto.`);
+        return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'lock_service_error' };
       }
       lockAcquiredHere = true;
     }
@@ -1671,7 +1676,8 @@ ${addressLines.join('\n\n')}
           result.status === 'replied' ||
           result.status === 'dry_run' ||
           result.status === 'error' ||
-          result.status === 'validation_failed'
+          result.status === 'validation_failed' ||
+          result.status === 'filtered'
         );
 
         if (isEffectiveWork) {
@@ -2086,6 +2092,10 @@ ${addressLines.join('\n\n')}
     if (!skippedMessageIds && this._shouldPreserveSkipLabelInForeignOnly_(messageId)) {
       console.log(`   ⛔ Preservata label '${this.config.skipLabelName}' su ${messageId} (foreign_only): non promuovo a IA`);
       return;
+    }
+
+    if (labeledMessageIds && labeledMessageIds.has(messageId)) {
+      return; // Previene doppia chiamata API sullo stesso messaggio
     }
 
     this.gmailService.addLabelToMessage(messageId, this.config.labelName);
@@ -2512,11 +2522,13 @@ ${prompt.slice(-tailChars)}`;
       summarySentence = plainText.slice(0, 200);
     }
 
-    // Aggiungiamo data contestuale per non collassare topic se esauditi in momenti diversi
-    const newBullet = summarySentence ? `• [${this._getBusinessDateString()}] ${summarySentence}` : '';
-
-    // Controlliamo l'overlap ma con tolleranza (data aiuta l'unicità)
-    if (newBullet && !summaryLines.some(line => line.toLowerCase() === newBullet.toLowerCase())) {
+    // Confronto semantico: controlla il testo privo di data per evitare duplicati giornalieri.
+    const cleanBullet = summarySentence ? summarySentence.trim().toLowerCase() : '';
+    const isDuplicate = cleanBullet && summaryLines.some(
+      line => line.replace(/^•?\s*\[\d{4}-\d{2}-\d{2}\]\s*/, '').trim().toLowerCase() === cleanBullet
+    );
+    if (summarySentence && !isDuplicate) {
+      const newBullet = `• [${this._getBusinessDateString()}] ${summarySentence}`;
       summaryLines.push(newBullet);
     }
 

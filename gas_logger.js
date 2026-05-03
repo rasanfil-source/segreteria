@@ -34,7 +34,6 @@ var AppLogger = class AppLogger {
    * Log generico
    */
   _log(level, message, data = {}) {
-    if (!isDebugLoggingEnabled() && level !== 'ERROR' && level !== 'WARN') return;
     if (LogLevel[level] < this.minLevel) return;
 
     // Guardia null: il default `= {}` copre solo `undefined`, non `null`.

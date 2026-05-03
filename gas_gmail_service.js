@@ -37,6 +37,7 @@ var GmailService = class GmailService {
             'application/vnd.oasis.opendocument.spreadsheet': 'application/vnd.google-apps.spreadsheet',
             // PowerPoint → Google Slides
             'application/vnd.ms-powerpoint': 'application/vnd.google-apps.presentation',
+            'application/vnd.mspowerpoint': 'application/vnd.google-apps.presentation',
             'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'application/vnd.google-apps.presentation',
             'application/vnd.oasis.opendocument.presentation': 'application/vnd.google-apps.presentation',
             // OpenDocument Text → Google Docs
@@ -112,13 +113,23 @@ var GmailService = class GmailService {
     // GESTIONE ETICHETTE (con cache)
     // ========================================================================
 
+    _getLabelCacheKey_(labelName) {
+        const normalizedLabelName = String(labelName || '');
+        if (normalizedLabelName.length <= 220) {
+            return `gmail_label_exists:${normalizedLabelName}`;
+        }
+        const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, normalizedLabelName);
+        const hash = Utilities.base64EncodeWebSafe(digest).slice(0, 32);
+        return `gmail_label_exists:${hash}`;
+    }
+
     /**
      * Ottiene o crea un'etichetta Gmail con caching
      * Nota: la creazione automatica è intenzionale (self-healing al primo avvio)
      * per evitare errori "label not found" in ambienti nuovi.
      */
     getOrCreateLabel(labelName) {
-        const cacheKey = `gmail_label_exists:${labelName}`;
+        const cacheKey = this._getLabelCacheKey_(labelName);
         const cachedEntry = this._labelCache.get(labelName);
         const now = Date.now();
         if (cachedEntry && (now - cachedEntry.ts) < this._cacheTTL && cachedEntry.label !== null) {
@@ -203,7 +214,7 @@ var GmailService = class GmailService {
         if (!labelName) return;
         if (this._scriptCache) {
             try {
-                this._scriptCache.remove(`gmail_label_exists:${labelName}`);
+                this._scriptCache.remove(this._getLabelCacheKey_(labelName));
             } catch (_) { }
         }
     }
@@ -841,6 +852,9 @@ var GmailService = class GmailService {
                     'List-Unsubscribe'
                 ]
             });
+            if (!rawMessage) {
+                throw new Error('Recupero metadati (headers) fallito: impossibile garantire il threading della conversazione');
+            }
             if (rawMessage && rawMessage.payload && rawMessage.payload.headers) {
                 headersFound = true;
                 for (const header of rawMessage.payload.headers) {
@@ -1294,6 +1308,10 @@ var GmailService = class GmailService {
             }
 
             if (isWord || isPowerPoint) {
+                if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) {
+                    result.skipped.push({ name: name, reason: 'near_deadline' });
+                    break;
+                }
                 try {
                     console.log(`   🔄 Conversione al volo in PDF per: ${name}`);
                     const convertedPdf = this._convertOfficeToPdf(attachment);
@@ -1475,45 +1493,50 @@ var GmailService = class GmailService {
             return;
         }
 
-        const cutoffIso = new Date(Date.now() - (24 * 60 * 60 * 1000)).toISOString();
+        const orphanMaxAgeHours = this._safePositiveInt((typeof CONFIG !== 'undefined' ? CONFIG.OCR_ORPHAN_MAX_AGE_HOURS : null), 1, 1, 24);
+        const cutoffIso = new Date(Date.now() - (orphanMaxAgeHours * 60 * 60 * 1000)).toISOString();
         // Compatibilità Drive API v2/v3: cambiano nomi campo in query e shape della risposta.
         // Manteniamo doppia strategia per evitare cleanup silenziosamente inattivo.
         const v2Query = `(title contains 'OCR_' or title contains 'TEMP_CONV_') and 'me' in owners and trashed = false and modifiedDate < '${cutoffIso}'`;
         const v3Query = `(name contains 'OCR_' or name contains 'TEMP_CONV_') and 'me' in owners and trashed = false and modifiedTime < '${cutoffIso}'`;
 
-        let response;
-        try {
-            response = Drive.Files.list({ q: v2Query, maxResults: 20 });
-        } catch (e) {
-            try {
-                response = Drive.Files.list({ q: v3Query, pageSize: 20 });
-            } catch (v3Error) {
-                console.warn(`⚠️ Cleanup orfani OCR non disponibile: ${v3Error.message}`);
-                return;
-            }
-        }
-
-        const files = response && (response.items || response.files) ? (response.items || response.files) : [];
-        if (!files.length) {
-            return;
-        }
-
         let removed = 0;
-        for (const file of files) {
-            if (!file || !file.id) continue;
+        let pageToken = null;
+        do {
+            let response;
             try {
-                if (typeof Drive.Files.remove === 'function') {
-                    Drive.Files.remove(file.id);
-                } else if (typeof Drive.Files.delete === 'function') {
-                    Drive.Files.delete(file.id);
-                } else if (typeof Drive.Files.trash === 'function') {
-                    Drive.Files.trash(file.id);
-                }
-                removed++;
+                response = Drive.Files.list({ q: v2Query, maxResults: 100, pageToken: pageToken });
             } catch (e) {
-                console.warn(`⚠️ Impossibile rimuovere file OCR orfano (${file.id}): ${e.message}`);
+                try {
+                    response = Drive.Files.list({ q: v3Query, pageSize: 100, pageToken: pageToken });
+                } catch (v3Error) {
+                    console.warn(`⚠️ Cleanup orfani OCR non disponibile: ${v3Error.message}`);
+                    return;
+                }
             }
-        }
+
+            const files = response && (response.items || response.files) ? (response.items || response.files) : [];
+            if (!files.length) {
+                break;
+            }
+
+            for (const file of files) {
+                if (!file || !file.id) continue;
+                try {
+                    if (typeof Drive.Files.remove === 'function') {
+                        Drive.Files.remove(file.id);
+                    } else if (typeof Drive.Files.delete === 'function') {
+                        Drive.Files.delete(file.id);
+                    } else if (typeof Drive.Files.trash === 'function') {
+                        Drive.Files.trash(file.id);
+                    }
+                    removed++;
+                } catch (e) {
+                    console.warn(`⚠️ Impossibile rimuovere file OCR orfano (${file.id}): ${e.message}`);
+                }
+            }
+            pageToken = response.nextPageToken || null;
+        } while (pageToken);
 
         if (removed > 0) {
             console.log(`🧹 Cleanup OCR: rimossi ${removed} file orfani`);
@@ -2120,6 +2143,7 @@ var GmailService = class GmailService {
         const signatureSearchStart = Math.max(0, result.length - 600);
         const signatureTail = result.substring(signatureSearchStart);
 
+        let earliestSigMatch = -1;
         for (const marker of sigMarkers) {
             const match = signatureTail.search(marker);
             if (match === -1) continue;
@@ -2129,9 +2153,13 @@ var GmailService = class GmailService {
 
             // Tronca solo se la firma è su una nuova sezione (dopo riga vuota)
             if (/\n\s*$/.test(prefix) || absoluteMatch === 0) {
-                result = result.substring(0, absoluteMatch);
-                break;
+                if (earliestSigMatch === -1 || absoluteMatch < earliestSigMatch) {
+                    earliestSigMatch = absoluteMatch;
+                }
             }
+        }
+        if (earliestSigMatch !== -1) {
+            result = result.substring(0, earliestSigMatch);
         }
 
         return result.trim();
@@ -2907,15 +2935,20 @@ function sanitizeUrl(url) {
             console.warn(`🛑 Bloccato tentativo SSRF IPv6 locale: ${decoded}`);
             return null;
         }
-        const parts = normalizedHost.split('.');
+        // Gestione delle notazioni IPv4 abbreviate (es. 127.1, 10.0.1)
+        const isIpv4Candidate = parts.length > 0 && parts.length <= 4 && parts.every(part => /^(0x[0-9a-f]+|0[0-7]+|\d+)$/i.test(part));
 
-        if (parts.length === 4) {
+        if (isIpv4Candidate) {
             const parsedOctets = parts.map(part => {
                 if (/^0x[0-9a-f]+$/i.test(part)) return parseInt(part, 16);
                 if (/^0[0-7]+$/.test(part)) return parseInt(part, 8);
                 if (/^\d+$/.test(part)) return parseInt(part, 10);
                 return NaN;
             });
+            // Espande la notazione short (es. [127, 1] diventa [127, 0, 0, 1])
+            while (parsedOctets.length < 4) {
+                parsedOctets.splice(parsedOctets.length - 1, 0, 0);
+            }
 
             const isNumericHost = parsedOctets.every(v => Number.isInteger(v) && v >= 0 && v <= 255);
             const firstOctet = parsedOctets[0];

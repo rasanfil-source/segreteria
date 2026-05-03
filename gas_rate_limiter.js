@@ -156,8 +156,10 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         name: replacement || ((currentName === undefined || currentName === null || (typeof currentName === 'string' && currentName.trim() === '')) ? fallbackName : currentName)
       });
  
-      if (currentName === undefined || currentName === null || (typeof currentName === 'string' && currentName.trim() === '')) {
-        console.warn(`⚠️ Modello '${modelKey}' senza name valido in CONFIG: uso fallback '${normalized[modelKey].name}'.`);
+      if (currentName === undefined || currentName === null) {
+        console.warn(`⚠️ Modello '${modelKey}' senza name in CONFIG: uso fallback '${normalized[modelKey].name}'.`);
+      } else if (typeof currentName === 'string' && currentName.trim() === '') {
+        console.warn(`⚠️ Modello '${modelKey}' con name vuoto in CONFIG: sostituito con '${normalized[modelKey].name}'.`);
       }
     });
 
