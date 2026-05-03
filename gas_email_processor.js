@@ -1828,10 +1828,19 @@ ${addressLines.join('\n\n')}
           console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), nuovo trigger di continuazione pianificato.`);
         } else {
           console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger esistente preservato.`);
-        }
-      } else {
-        console.warn('⚠️ Checkpoint salvato ma ScriptApp trigger non disponibile: continuazione automatica non pianificata');
       }
+    } catch (e) {
+      console.warn(`⚠️ Salvataggio checkpoint batch fallito: ${e.message}`);
+    }
+  }
+
+  // ====================================================================
+  // RILEVAMENTO TEMPORALE (Date/Orari)
+  // ====================================================================
+
+  /**
+   * Verifica se l'email deve essere ignorata (blacklist, auto-reply, notifiche)
+   * Usa le liste UNIFICATE (Codice + Foglio) presenti in GLOBAL_CACHE
    */
   _shouldIgnoreEmail(messageDetails) {
     const email = this._normalizeEmailAddress_(messageDetails.senderEmail || '');
