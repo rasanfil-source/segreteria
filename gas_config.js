@@ -321,6 +321,15 @@ function validateConfig() {
   checkType('VALIDATION_ENABLED', CONFIG.VALIDATION_ENABLED, 'boolean');
   checkType('VALIDATION_MIN_SCORE', CONFIG.VALIDATION_MIN_SCORE, 'number');
   checkRange('VALIDATION_MIN_SCORE', CONFIG.VALIDATION_MIN_SCORE, 0.0, 1.0);
+  checkType('VALIDATION_WARNING_THRESHOLD', CONFIG.VALIDATION_WARNING_THRESHOLD, 'number');
+  checkRange('VALIDATION_WARNING_THRESHOLD', CONFIG.VALIDATION_WARNING_THRESHOLD, 0.0, 1.0);
+
+  // Retry Logic
+  if (!CONFIG.INTELLIGENT_RETRY || typeof CONFIG.INTELLIGENT_RETRY !== 'object') {
+    errors.push("Errore Config: 'INTELLIGENT_RETRY' deve essere un oggetto");
+  } else {
+    checkType('INTELLIGENT_RETRY.enabled', CONFIG.INTELLIGENT_RETRY.enabled, 'boolean');
+  }
 
   // Arrays
   if (!Array.isArray(CONFIG.IGNORE_DOMAINS)) errors.push("Errore Config: 'IGNORE_DOMAINS' deve essere un array");

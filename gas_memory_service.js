@@ -1377,8 +1377,9 @@ var MemoryService = class MemoryService {
         }
 
         if (deletedCount > 0) {
+          const originalLastRow = this._sheet.getLastRow();
           this._sheet.getRange(1, 1, validRows.length, headers.length).setValues(validRows);
-          const staleRows = this._sheet.getLastRow() - validRows.length;
+          const staleRows = originalLastRow - validRows.length;
           if (staleRows > 0) {
             this._sheet.deleteRows(validRows.length + 1, staleRows);
           }

@@ -1432,7 +1432,8 @@ function main() {
         console.warn(`⚠️ Batch lock già presente (${batchLockKey}), salto turno.`);
         return;
       }
-      scriptCache.put(batchLockKey, lockOwner, 120);
+      // TTL allineato al budget esecuzione (280 s) + margine sicurezza
+      scriptCache.put(batchLockKey, lockOwner, 300);
     }
 
     // 2. Caricamento Risorse (Config, KB, Blacklist)
@@ -1733,7 +1734,11 @@ function parseDateSafe(input, fallback = null, explicitTimeZone = null) {
   if (typeof input === 'string') {
     const match = String(input).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (match) {
-      const tz = explicitTimeZone || _resolveScriptTimeZone();
+      const tz = explicitTimeZone ||
+        (typeof Session !== 'undefined' && Session &&
+         typeof Session.getScriptTimeZone === 'function'
+          ? Session.getScriptTimeZone()
+          : 'Europe/Rome');
       const noonUtcGuess = new Date(`${match[1]}-${match[2]}-${match[3]}T12:00:00Z`);
       try {
         const y = Utilities.formatDate(noonUtcGuess, tz, 'yyyy');

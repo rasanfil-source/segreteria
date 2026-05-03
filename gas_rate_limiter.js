@@ -380,7 +380,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   _validateModelAvailability(modelKey, estimatedTokens) {
     const model = this.models[modelKey];
     if (!model) {
-      return { available: false, reason: 'model_not_found' };
+      return { available: false, reason: 'model_not_found_in_config', message: `Modello '${modelKey}' non trovato in GEMINI_MODELS` };
     }
 
     // Controllo RPD
@@ -556,6 +556,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
       if (!selection.available) {
         console.error(`\u274C Nessun modello disponibile (tentativo ${attempt + 1}): ${selection.reason}`);
+        if (selection.reason === 'model_not_found_in_config') {
+          throw new Error('CONFIG_ERROR: ' + (selection.message || selection.reason));
+        }
         throw new Error('QUOTA_EXHAUSTED: ' + selection.reason);
       }
 

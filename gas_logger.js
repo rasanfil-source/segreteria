@@ -112,7 +112,7 @@ var AppLogger = class AppLogger {
       const adminEmailProperty = scriptProperties
         ? scriptProperties.getProperty('ADMIN_EMAIL')
         : '';
-      const adminEmail = adminEmailProperty || loggingConfig.adminEmail || '';
+      const adminEmail = adminEmailProperty || loggingConfig.ADMIN_EMAIL || '';
       if (!adminEmail || adminEmail.includes('[') || adminEmail.includes('YOUR_')) return;
 
       const subject = `[${this.config.PROJECT_NAME || 'GAS_BOT'}] Avviso Errore: ${logEntry.message}`;

@@ -225,7 +225,8 @@ var GmailService = class GmailService {
             const labelId = labelIdFromCache || (label && typeof label.getId === 'function' ? label.getId() : null);
             const hasLabelId = !!labelId;
             if (!hasLabelId) {
-                console.warn(`⚠️ Label ID non trovato per '${labelName}': fallback query senza labelIds.`);
+                console.warn(`⚠️ Label ID non trovato per '${labelName}': salto modifica messaggio.`);
+                return;
             }
             this._incrementGmailCallCounterOrThrow_('messages.modify:addLabel');
             const payload = { addLabelIds: [labelId] };
@@ -693,13 +694,18 @@ var GmailService = class GmailService {
 
 
     _formatLabelQueryValue(labelName) {
-        const raw = String(labelName || '').trim();
-        if (!raw) return '""';
+        if (!labelName) return '""';
+        const raw = String(labelName);
+        const trimmed = raw.trim();
+        if (!trimmed) {
+            // Se la label è letteralmente uno spazio o char invisibile, preserva il valore raw
+            return `"${raw}"`;
+        }
 
         // Gmail label names non supportano virgolette letterali: normalizziamo eventuali input
         // anomali invece di iniettare escape nella query, che Gmail non interpreta come JavaScript.
-        const normalized = raw.replace(/"/g, ' ').replace(/\s+/g, ' ').trim();
-        return normalized ? `"${normalized}"` : '""';
+        const normalized = trimmed.replace(/"/g, ' ').replace(/\s+/g, ' ').trim();
+        return `"${normalized || trimmed}"`;
     }
 
     _getOptionalLabelIdByName(labelName) {

@@ -573,12 +573,12 @@ var EmailProcessor = class EmailProcessor {
             const isUs = Boolean(msgSenderEmail) && ownAddresses.has(msgSenderEmail);
 
             if (isUs) {
+              // Un nostro messaggio (account primario o alias) interrompe la
+              // sequenza esterna "recente": non bisogna considerare i messaggi
+              // più vecchi nel controllo anti-loop.
               botRepliesCount++;
               consecutiveExternal = 0;
-              // Se abbiamo risposto noi recentemente, la sequenza esterna precedente
-              // è "sanata". Possiamo fermarci o continuare a contare solo i bot.
-              // Per il requisito del test: un alias interno deve interrompere la sequenza.
-              continue;
+              break;
             } else {
               consecutiveExternal++;
               botRepliesCount = 0;
@@ -1647,10 +1647,9 @@ ${addressLines.join('\n\n')}
 
         console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
 
-        // Se il batch possiede già lo ScriptLock (o il chiamante esterno lo possiede),
-        // non tentare un secondo lock dentro processThread: GAS non garantisce reentrancy
-        // e un doppio tryLock può far saltare thread validi nella stessa esecuzione.
-        const threadLockAlreadyCovered = locksAlreadyCovered; // Il lock di esecuzione globale non esime dal lock sul singolo thread
+        // Se abbiamo già acquisito il lock batch in questa funzione (o il chiamante
+        // dichiara lock già coperti), evitiamo una seconda acquisizione in processThread.
+        const threadLockAlreadyCovered = Boolean(locksAlreadyCovered || lockAcquiredHere);
         const result = this.processThread(
           thread,
           normalizedKnowledgeBase,
@@ -1802,9 +1801,11 @@ ${addressLines.join('\n\n')}
       const localPart = email.includes('@') ? email.substring(0, email.lastIndexOf('@')) : email;
       const isExactMatch = email === domain;
       const isDomainMatch = email.endsWith(domain.startsWith('@') ? domain : '@' + domain);
+      const isSubdomainMatch = !domain.startsWith('@') && !domain.includes('@') &&
+        email.endsWith('.' + domain);
       // Match username solo per token senza punto (evita falsi positivi su nomi dominio parziali)
       const isUsernameMatch = !domain.includes('@') && !domain.includes('.') && localPart === domain;
-      return isExactMatch || isDomainMatch || isUsernameMatch;
+      return isExactMatch || isDomainMatch || isSubdomainMatch || isUsernameMatch;
     })) {
       console.log(`🚫 Ignorato: mittente in blacklist (${email})`);
       return true;
@@ -2511,7 +2512,6 @@ ${prompt.slice(-tailChars)}`;
   _isTerritoryRequest(subject, body, classification = {}, requestType = null) {
     const text = `${subject || ''} ${body || ''}`.toLowerCase();
     const topic = String(classification && classification.topic ? classification.topic : '').toLowerCase();
-    if (requestType && requestType.type === 'territory') return true;
     if (topic.includes('territor') || topic.includes('parrocch')) return true;
 
     const explicitPatterns = [
