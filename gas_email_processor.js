@@ -2716,19 +2716,11 @@ ${prompt.slice(-tailChars)}`;
       ? 'in un orario differente da quanto indicato da Lei'
       : 'in un orario diverso rispetto a quanto da Lei indicato';
 
-    // Inserisce la nota nella prima frase che contiene un orario, indipendentemente dal sacramento/corso.
-    const sentencePattern = /([^\n.!?]*\b(?:[01]?\d|2[0-3])[:.][0-5]\d\b[^\n.!?]*)([.!?]|\s*$)/i;
-
-    if (sentencePattern.test(response)) {
-      return response.replace(sentencePattern, (full, sentence, endPunct) => {
-        if (sentence.toLowerCase().includes('orario diverso') || sentence.toLowerCase().includes('orario differente')) return full;
-        return `${sentence}, ${note}${endPunct}`;
-      });
-    }
-
+    // Evita injection "cieca" nella prima frase con orario: potrebbe alterare il significato
+    // di frasi non correlate alla discrepanza (es. corso vs messa).
     return `${response.trim()}
 
-Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
+Nota bene: l'orario comunicato ${note}.`;
   }
 
   /**
