@@ -2064,6 +2064,16 @@ var GmailService = class GmailService {
 
         addOwnAddress(ourEmail);
         (Array.isArray(ourAliases) ? ourAliases : []).forEach(addOwnAddress);
+        if (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getAliases === 'function') {
+            try {
+                (GmailApp.getAliases() || []).forEach(addOwnAddress);
+            } catch (e) {
+                console.warn(`⚠️ Impossibile leggere alias Gmail in getThreadHistory: ${e && e.message ? e.message : e}`);
+            }
+        }
+        const knownAliases = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES))
+            ? CONFIG.KNOWN_ALIASES
+            : [];
         knownAliases.forEach(addOwnAddress);
 
         if (messages.length > maxMessages) {
@@ -2939,6 +2949,7 @@ function sanitizeUrl(url) {
 
         const host = String(parseHostFromUrl(decoded) || '').toLowerCase();
         const hostNoBrackets = host.replace(/^\[|\]$/g, '');
+        const parts = hostNoBrackets.split('.').filter(Boolean);
         // Normalizza l'eventuale zone id IPv6 (es. ::1%25lo0 / ::1%lo0)
         // per evitare bypass delle regole SSRF su loopback/link-local.
         const hostWithoutZone = hostNoBrackets.replace(/%(25)?[a-z0-9_.~-]+$/i, '');

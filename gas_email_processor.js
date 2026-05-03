@@ -615,6 +615,7 @@ var EmailProcessor = class EmailProcessor {
           }
 
           if (
+            consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL ||
             botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL ||
             totalBotRepliesInThread >= Math.max(2, Math.floor(MAX_CONSECUTIVE_EXTERNAL * 1.5))
           ) {
@@ -676,6 +677,7 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       const MAX_SUBJECT_LENGTH = 1000;
       const safeSubject = (messageDetails.subject || '').substring(0, MAX_SUBJECT_LENGTH);
+      const safeSubjectLower = safeSubject.toLowerCase();
       const safeBody = (messageDetails.body || '');
       const isReplyPattern = /^(re|r|risp|aw|fw|fwd|i|wg)\s*[:\-]/i;
 
