@@ -559,9 +559,10 @@ var EmailProcessor = class EmailProcessor {
           let consecutiveExternal = 0;
           let botRepliesCount = 0;
 
-          // Percorriamo i messaggi a ritroso per contare gli esterni consecutivi
-          // o le risposte IA consecutive.
-          for (let i = messages.length - 1; i >= 0; i--) {
+          // Percorriamo una finestra degli ultimi MAX_THREAD_LENGTH messaggi a ritroso
+          // per contare sequenze esterne e densità di risposte del bot.
+          const startIndex = Math.max(0, messages.length - MAX_THREAD_LENGTH);
+          for (let i = messages.length - 1; i >= startIndex; i--) {
             const rawFrom = messages[i] && typeof messages[i].getFrom === 'function'
               ? messages[i].getFrom()
               : '';
@@ -577,9 +578,10 @@ var EmailProcessor = class EmailProcessor {
               consecutiveExternal = 0;
             } else {
               consecutiveExternal++;
+              botRepliesCount = 0;
             }
 
-            if (botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL || consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
+            if (botRepliesCount >= (MAX_CONSECUTIVE_EXTERNAL - 1) || consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
               console.log(`   ⊖ Saltato: prevenzione loop email attivata (thread ripetitivo: consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
               markHandledUnread();
               result.status = 'filtered';

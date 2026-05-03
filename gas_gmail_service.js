@@ -1909,7 +1909,8 @@ var GmailService = class GmailService {
     _htmlToPlainText(html) {
         if (!html) return '';
 
-        let text = html;
+        // Troncamento preventivo: evita timeout V8 su HTML anomalo/massivo durante replace regex.
+        let text = html.length > 50000 ? html.substring(0, 50000) : html;
         // Rimuove blocchi di codice/stile che altrimenti finirebbero nel prompt testuale.
         text = text.replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
         // Preserva separatori strutturali per evitare blocchi di testo illeggibili.
@@ -2233,6 +2234,7 @@ var GmailService = class GmailService {
                 const boundary = 'boundary_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
                 const rawHeaders = [
                     'MIME-Version: 1.0',
+                    `Date: ${new Date().toUTCString()}`,
                     `From: ${stableFrom}`,
                     `To: ${messageDetails.senderEmail}`,
                     this._buildFoldedUtf8SubjectHeader(replySubject),
