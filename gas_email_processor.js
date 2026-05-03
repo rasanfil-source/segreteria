@@ -868,7 +868,7 @@ ${addressLines.join('\n\n')}
 
       if (territoryRequested) {
         const summary = territoryResult.addressFound
-          ? (addressLines.length > 1 ? `${addressLines.length} indirizzi` : '1 indirizzo')
+          ? (addressLines.length > 1 ? `${addressLines.length} indirizzi` : (addressLines.length === 1 ? '1 indirizzo' : 'nessun indirizzo valido'))
           : 'nessun indirizzo';
         console.log(`   🎯 Verifica territorio: ${summary}`);
       } else {
