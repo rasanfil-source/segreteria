@@ -677,14 +677,14 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       const MAX_SUBJECT_LENGTH = 1000;
       const safeSubject = (messageDetails.subject || '').substring(0, MAX_SUBJECT_LENGTH);
-      const safeSubjectLower = safeSubject.toLowerCase();
       const safeBody = (messageDetails.body || '');
       const isReplyPattern = /^(re|r|risp|aw|fw|fwd|i|wg)\s*[:\-]/i;
+      const isReplyBySubject = isReplyPattern.test(safeSubject.toLowerCase());
 
       const classification = this.classifier.classifyEmail(
         safeSubject,
         safeBody,
-        isReplyPattern.test(safeSubjectLower)
+        isReplyBySubject
       );
 
       if (!classification.shouldReply) {
@@ -824,7 +824,7 @@ var EmailProcessor = class EmailProcessor {
         : 0;
 
       const salutationMode = computeSalutationMode({
-        isReply: isReplyPattern.test(safeSubjectLower) || messages.length > 1,
+        isReply: isReplyBySubject || messages.length > 1,
         messageCount: memoryMessageCount,
         memoryExists: !!memoryContext.lastUpdated,
         lastUpdated: memoryContext.lastUpdated || null,
@@ -924,7 +924,7 @@ ${addressLines.join('\n\n')}
           email: {
             subject: safeSubject,
             body: messageDetails.body,
-            isReply: isReplyPattern.test(safeSubjectLower) || messages.length > 1,
+            isReply: isReplyBySubject || messages.length > 1,
             detectedLanguage: detectedLanguage
           },
           classification: {
