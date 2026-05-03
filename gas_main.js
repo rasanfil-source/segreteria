@@ -4,7 +4,7 @@
  * Include logica sospensione oraria e festività italiane
  */
 
-// Inizializzazione difensiva cache globale condivisa tra moduli
+// Inizializzazione della cache globale condivisa tra moduli
 var GLOBAL_CACHE = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBAL_CACHE : {
   loaded: false,
   lastLoadedAt: 0,
@@ -22,10 +22,7 @@ var GLOBAL_CACHE = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBA
   replacements: {}
 };
 
-// TTL in-RAM valido nella singola esecuzione: cross-esecuzione la cache reale è CacheService.
-// ⚠️ Scelta blindata: questo TTL è allineato ai 21600s della ScriptCache.
-// Cambiare solo insieme ai comandi manuali di riallineamento (primeCache/clearKnowledgeCache)
-// per evitare disallineamenti "RAM fresca / ScriptCache scaduta" e ricariche imprevedibili.
+// Configurazione TTL allineata ai vincoli di ScriptCache (21600s).
 var RESOURCE_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 ore
 var RESOURCE_CACHE_TTL_SECONDS = 21600; // 6 ore
 var RESOURCE_CACHE_KEY_V2 = 'SPA_KNOWLEDGE_BASE_V2';
@@ -68,11 +65,8 @@ var ALWAYS_OPERATING_DAYS = [
 ];
 
 // ====================================================================
-// ⚠️ WARNING: NON CANCELLARE QUESTO BLOCCO STATIC (Fallback Sicurezza)
-// Orari di sospensione per giorno della settimana
-// Sistema SOSPESO durante questi orari. 
-// Usato come FALLBACK SICURO se il Foglio "Controllo" è irraggiungibile o formattato male.
-// Qualsiasi sviluppatore intenda rimuoverlo causerà malfunzionamenti fuori orario in caso di failure API.
+// Configurazione statica degli orari di sospensione (Fallback).
+// Garantisce il funzionamento del sistema anche in assenza di configurazione esterna.
 const SUSPENSION_HOURS = {
   1: [[8, 20]],    // Lunedì: 8–20
   2: [[8, 14]],    // Martedì: 8–14
@@ -1344,7 +1338,7 @@ function exportMetricsToSheet() {
       row.push(m.rpm.used, m.rpm.limit);
       row.push(m.tokensToday);
     }
-    row.push(JSON.stringify(stats)); // Colonna debug retrocompatibile
+    row.push(JSON.stringify(stats)); // Archivio dati granulari per analisi statistica.
     sheet.appendRow(row);
     console.log('✓ Metriche esportate su sheet');
   } catch (e) {

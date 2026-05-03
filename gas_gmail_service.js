@@ -17,8 +17,7 @@ var GmailService = class GmailService {
         // Cache etichette: in-memory (stessa esecuzione) + CacheService (cross-esecuzione)
         this._labelCache = new Map();
         this._cacheTTL = (typeof CONFIG !== 'undefined' && CONFIG.GMAIL_LABEL_CACHE_TTL) ? CONFIG.GMAIL_LABEL_CACHE_TTL : 3600000;
-        // CacheService.put accetta al massimo 21600 s (6 ore); valori superiori causano
-        // un'eccezione silenziosa o un fallimento dell'operazione di put.
+        // Limita il TTL entro i vincoli tecnici di CacheService.
         const safeTtl = Number.isFinite(Number(this._cacheTTL)) ? Number(this._cacheTTL) : 3600000;
         this._cacheTtlSeconds = Math.min(21599, Math.max(60, Math.floor(safeTtl / 1000)));
         this._scriptCache = (typeof CacheService !== 'undefined' && CacheService) ? CacheService.getScriptCache() : null;
@@ -66,8 +65,7 @@ var GmailService = class GmailService {
         if (raw !== null) {
             current = Number.parseInt(raw, 10) || 0;
         } else if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
-            // Fallback persistente: CacheService scade entro 6h, quindi recuperiamo
-            // il valore giornaliero da ScriptProperties nei periodi di inattività lunghi.
+            // Sincronizzazione con ScriptProperties per garantire persistenza giornaliera.
             try {
                 const props = PropertiesService.getScriptProperties();
                 current = Number.parseInt(props.getProperty(key) || '0', 10) || 0;
@@ -77,8 +75,7 @@ var GmailService = class GmailService {
         }
         const next = current + 1;
         this._scriptCache.put(key, String(next), 21600);
-        // Sync periodico su storage persistente più frequente e forzato in zona rischio.
-        // Riduce drift in caso di cache scaduta/evicted prima del trigger successivo.
+        // Allineamento periodico del counter su storage persistente.
         const shouldSync = (next % 15 === 0) || (next >= this._gmailDailyCounterWarnAt);
         if (shouldSync && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
             try {
@@ -2225,7 +2222,7 @@ var GmailService = class GmailService {
                     throw new Error('Impossibile determinare un mittente valido per Gmail RAW');
                 }
 
-                // FIX: Gmail RAW richiede un Message-ID valido per In-Reply-To.
+                // La specifica Gmail RAW richiede un Message-ID valido per l'header In-Reply-To.
                 const originalMessageId = String(messageDetails.rfc2822MessageId || '').trim();
                 if (!originalMessageId) {
                     throw new Error('Message-ID originale mancante, forzatura fallback nativo');

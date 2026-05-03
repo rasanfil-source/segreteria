@@ -159,7 +159,7 @@ var RequestTypeClassifier = class RequestTypeClassifier {
    * Restituisce dimensioni continue, complessità e tono suggerito.
    */
   classify(subject, body, externalHint = null) {
-    // Debug logging solo in modalità esplicita (evita leak dati sensibili nei log)
+    // Configurazione del livello di logging per il monitoraggio delle inferenze.
     const logLevel = (typeof CONFIG !== 'undefined' && CONFIG.LOGGING && CONFIG.LOGGING.LEVEL)
       ? String(CONFIG.LOGGING.LEVEL).toUpperCase()
       : 'INFO';

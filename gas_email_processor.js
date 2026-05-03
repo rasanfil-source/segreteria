@@ -131,13 +131,13 @@ var EmailProcessor = class EmailProcessor {
     } else {
       const configuredTtl = (typeof CONFIG !== 'undefined' && Number(CONFIG.CACHE_LOCK_TTL))
         ? Number(CONFIG.CACHE_LOCK_TTL)
-        : 310; // Fallback > MAX_EXECUTION_TIME_MS per prevenire race su lock cache
+        : 310; // Valore di fallback superiore al tempo massimo di esecuzione GAS
 
-      // CacheService supporta max 21600 secondi (6h): clamp difensivo.
+      // Rispetta il limite massimo di CacheService (6 ore)
       const ttlSeconds = Math.max(1, Math.min(configuredTtl, 21600));
       const lockTtlMs = ttlSeconds * 1000;
 
-      // Identificativo lock robusto: UUID se disponibile, fallback timestamp+entropia.
+      // Generazione identificativo univoco per il lock current thread
       if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.getUuid === 'function') {
         lockValue = `${Date.now()}_${Utilities.getUuid()}`;
       } else {
@@ -174,8 +174,7 @@ var EmailProcessor = class EmailProcessor {
 
         scriptCache.put(threadLockKey, lockValue, ttlSeconds);
         const confirmValue = scriptCache.get(threadLockKey);
-        // FIX: in failure transitori CacheService può restituire null subito dopo put().
-        // Blocca solo su collisione esplicita (token presente ma diverso).
+        // In scenari di latenza di CacheService, procediamo solo se il token è coerente.
         if (confirmValue !== null && confirmValue !== lockValue) {
           console.warn(`🔒 Collisione lock cache su thread ${threadId}, salto`);
           return { status: 'skipped', reason: 'thread_lock_collision' };
@@ -211,7 +210,7 @@ var EmailProcessor = class EmailProcessor {
       const messages = thread.getMessages();
       const unreadMessages = messages.filter(m => m.isUnread());
 
-      // Recupero indirizzo email corrente con fallback robusto
+      // Risoluzione indirizzo email principale e alias configurati
       let myEmail = '';
       try {
         if (typeof Session !== 'undefined' && Session && typeof Session.getEffectiveUser === 'function') {
@@ -676,8 +675,7 @@ var EmailProcessor = class EmailProcessor {
         console.log(`   🌐 Lingua (aggiornata da AI): ${detectedLanguage.toUpperCase()}`);
       }
 
-      // PORTA 1-bis: Coerenza modalità lingua dopo raffinamento quick-check.
-      // Va fatto PRIMA del blocco !quickCheck.shouldRespond per evitare label IA in foreign_only.
+      // Valutazione preliminare della lingua per il filtraggio selettivo.
       if (this._shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
         console.log('   ⊖ Saltato: modalità "Solo straniere", lingua italiana confermata dopo quick-check');
         this._markMessagesAsSkipped(unlabeledUnread, this.config.skipLabelName, skippedMessageIds);
@@ -729,8 +727,7 @@ var EmailProcessor = class EmailProcessor {
         messageDetails.body,
         quickCheck.classification
       );
-      // Normalizzazione difensiva: alcuni fallback legacy possono restituire null/undefined.
-      // Manteniamo sempre un oggetto per evitare accessi property non sicuri a valle.
+      // Normalizzazione dell'oggetto requestType per l'elaborazione successiva.
       const requestType = (requestTypeRaw && typeof requestTypeRaw === 'object') ? requestTypeRaw : {};
 
       // ====================================================================
@@ -743,13 +740,10 @@ var EmailProcessor = class EmailProcessor {
       const aiCoreLite = (resourceCache.aiCoreLite != null) ? resourceCache.aiCoreLite : '';
       const aiCore = (resourceCache.aiCore != null) ? resourceCache.aiCore : '';
 
-      // KB principale: passata "pulita" al PromptEngine per evitare overhead
-      // e rispettare il budget di troncamento sui contenuti realmente informativi.
+      // Inclusione della Knowledge Base testuale per il PromptEngine.
       knowledgeSections.push(normalizedKnowledgeBase);
 
-      // AI_CORE e Dottrina NON vengono iniettati qui: è responsabilità esclusiva di
-      // PromptEngine (buildPrompt) che li riceve via opzioni con logica selettiva.
-      // Doppia iniezione causerebbe gonfiamento prompt e rischio truncation.
+      // PromptEngine gestisce l'integrazione selettiva di AI_CORE e Dottrina.
 
       // Placeholder: eventuali regole calendario speciali possono essere
       // iniettate qui quando verrà implementato un provider dedicato.
@@ -1508,10 +1502,9 @@ ${addressLines.join('\n\n')}
       const languageMode = typeof this._getLanguageProcessingMode_ === 'function'
         ? this._getLanguageProcessingMode_()
         : 'all';
-      // FIX: non escludere label di processo nella query Gmail.
-      // L'operatore -label agisce a livello thread: escludere "IA" impedisce
-      // di rilevare follow-up non letti in conversazioni già etichettate.
-      // Il filtro dei messaggi già processati avviene già per-message.
+      // La query di discovery opera a livello thread. Per garantire il rilevamento di nuovi
+      // messaggi in conversazioni esistenti, non escludiamo esplicitamente le etichette di stato.
+      // Il filtraggio granulare avviene successivamente a livello di singolo messaggio.
       // In foreign_only escludiamo la label di skip dalla discovery query per ridurre thread scaricati
       const labelsDaIgnorare = (languageMode === 'foreign_only')
         ? [this.config.skipLabelName].filter(Boolean)
@@ -2670,13 +2663,13 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
     // Usiamo il flag /s (dotAll) affinché .* includa anche gli a capo (\n)
 
     const patterns = {
-      'orari_messe': /messe?\b.*\d{1,2}[:.]\d{2}|orari\w*\s+messe/is,
+      'orari_messe': /messe?\b.*?\d{1,2}[:.]\d{2}|orari\w*\s+messe/is,
       'contatti': /telefono|email|@|segreteria/i,
-      'battesimo_info': /battesimo.*documento|documento.*battesimo/is,
-      'comunione_info': /comunione.*catechismo|catechismo.*comunione/is,
-      'cresima_info': /cresima.*percorso|percorso.*cresima/is,
-      'matrimonio_info': /matrimonio.*corso|corso.*matrimonio/is,
-      'territorio': /rientra|non rientra|parrocchia.*competenza/is,
+      'battesimo_info': /battesimo.*?documento|documento.*?battesimo/is,
+      'comunione_info': /comunione.*?catechismo|catechismo.*?comunione/is,
+      'cresima_info': /cresima.*?percorso|percorso.*?cresima/is,
+      'matrimonio_info': /matrimonio.*?corso|corso.*?matrimonio/is,
+      'territorio': /rientra|non rientra|parrocchia.*?competenza/is,
       'indirizzo': /(?:via|viale|corso|piazza|largo|circonvallazione)\s+[^,\n]{3,60}?,?\s*\d+/i
     };
 

@@ -40,7 +40,7 @@ var CONFIG = {
   // === Retry Intelligente Post-Validazione ===
   INTELLIGENT_RETRY: {
     enabled: true,           // Abilita retry LLM su errori strutturali
-    maxRetries: 1,           // Mai più di 1: budget GAS limitato
+    maxRetries: 1,           // Limite di esecuzione per sessione GAS
     minScoreToTrigger: 0.6,  // Soglia minima score per considerare retry non critici
     onlyForErrors: [         // Tipi di errore che giustificano una chiamata LLM
       'thinking_leak',
@@ -56,15 +56,14 @@ var CONFIG = {
   ERROR_LABEL_NAME: 'Errore',          // Label per errori
   VALIDATION_ERROR_LABEL: 'Verifica',  // Label per risposte da rivedere
   SKIP_LABEL_NAME: '·',              // Label per email italiane saltate in modalità foreign_only
-  // Bilanciato per usare al massimo le quote gratuite mantenendo priorità qualità
-  // ATTENZIONE: Non modificare arbitrariamente. Verificare periodicamente in rete i limiti delle quote gratuiti stabiliti, mantenendo proporzionalità con le quote di base.
+  // Configurazione dei limiti operativi per garantire stabilità e rispetto delle quote.
   MAX_EMAILS_PER_RUN: 3,
-  SAFETY_VALVE_THRESHOLD: 0.8,       // Riduce dinamicamente il batch quando RPD supera l'80%
+  SAFETY_VALVE_THRESHOLD: 0.8,       // Regolazione batch in base al carico operativo RPD
   MAX_CONSECUTIVE_EXTERNAL: 5,        // Soglia per rilevamento email loop
   EMPTY_INBOX_WARNING_THRESHOLD: 5,   // Soglia per warning inbox vuota
-  SUSPENSION_STALE_UNREAD_HOURS: 12,    // Paracadute: processa unread vecchie anche in fascia sospesa
+  SUSPENSION_STALE_UNREAD_HOURS: 12,    // Garanzia di elaborazione dei messaggi non letti persistenti
   STRICT_SUSPENSION_CONFIG: false,    // Se true: foglio Controllo presente ma invalido => fallback SUSPENSION_HOURS (non 24/7)
-  MIN_REMAINING_TIME_MS: 90000,      // Stop preventivo se resta meno di 90 secondi
+  MIN_REMAINING_TIME_MS: 90000,      // Margine di sicurezza temporale per la sessione
   EXECUTION_LOCK_WAIT_MS: 5000,      // Timeout acquisizione lock esecuzione (ms)
   SEARCH_PAGE_SIZE: 15,              // Buffer discovery per candidati message-level (≈ 5x MAX_EMAILS_PER_RUN)
   // === DISCOVERY MODE ======================================================================
@@ -74,7 +73,7 @@ var CONFIG = {
   // Configurato su 'query' per ottimizzare l'uso della quota API in lettura
   MESSAGE_DISCOVERY_MODE: 'query',
   // =========================================================================================
-  MAX_EXECUTION_TIME_MS: 280000,    // Budget massimo per run (default GAS trigger ~6 minuti)
+  MAX_EXECUTION_TIME_MS: 280000,    // Tempo massimo stimato per singola esecuzione GAS
   GMAIL_LABEL_CACHE_TTL: 3600000,      // 1 ora in millisecondi
   MAX_HISTORY_MESSAGES: 8,             // Massimo messaggi in cronologia thread (ricalibrato)
   ATTACHMENT_CONTEXT: {

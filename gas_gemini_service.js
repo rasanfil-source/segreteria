@@ -24,7 +24,7 @@ var GeminiService = class GeminiService {
     this.props = options.props || PropertiesService.getScriptProperties();
 
     // ====================================================================
-    // CONFIGURAZIONE CHIAVI API (Strategia Cross-Key Quality First)
+    // CONFIGURAZIONE CHIAVI API (Gestione Ridondanza)
     // ====================================================================
 
     // Chiave Primaria
@@ -32,7 +32,7 @@ var GeminiService = class GeminiService {
     const propKey = this.props.getProperty('GEMINI_API_KEY');
     this.primaryKey = options.primaryKey || ((propKey && propKey.length > 20) ? propKey : this.config.GEMINI_API_KEY);
 
-    // Chiave di Riserva (opzionale, per alternativa quando quota primaria esaurita)
+    // Chiave di Riserva (opzionale)
     const propBackupKey = this.props.getProperty('GEMINI_API_KEY_BACKUP');
     this.backupKey = options.backupKey || ((propBackupKey && propBackupKey.length > 20) ? propBackupKey : null);
 
@@ -47,7 +47,7 @@ var GeminiService = class GeminiService {
     }
 
     if (this.backupKey) {
-      this.logger.info('Chiave di Riserva configurata (Cross-Key Quality First attivo)');
+      this.logger.info('Chiave di Riserva configurata');
     }
 
     // Configurazione retry
@@ -66,7 +66,7 @@ var GeminiService = class GeminiService {
           throw new Error('Classe GeminiRateLimiter non trovata nel bundle di script.');
         }
       } catch (e) {
-        this.logger.warn('Inizializzazione Rate Limiter fallita, fallback a chiamate dirette', { errore: e.message });
+        this.logger.warn('Rate Limiter non disponibile, procedo con chiamate dirette', { errore: e.message });
         this.useRateLimiter = false;
       }
     } else {
@@ -807,7 +807,7 @@ Testo:
         1 // Solo 1 retry per non bloccare la pipeline
       );
       
-      const cleaned = (response || '').trim().toLowerCase().substring(0, 2);
+      const cleaned = (response || '').replace(/`/g, '').trim().toLowerCase().substring(0, 2);
       return /^[a-z]{2}$/.test(cleaned) ? cleaned : null;
     } catch (e) {
       return null;

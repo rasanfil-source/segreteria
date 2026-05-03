@@ -61,8 +61,7 @@ var TerritoryValidator = class TerritoryValidator {
             'via jacopo da ponte': { tutti: true },
             'via luigi canina': { tutti: true },
             'piazzale manila': { tutti: true },
-            // Nota: "piazza marina" (senza articolo) è gestita come alias
-            // dallo step 1b di findTerritoryMatch (normalizzazione articoli).
+            // Gestione automatica degli articoli tramite normalizzazione deterministica.
             'piazza della marina': { tutti: [24, 35] },
             'piazzale miguel cervantes': { tutti: true },
             'lungotevere delle navi': { tutti: true },
@@ -147,7 +146,7 @@ var TerritoryValidator = class TerritoryValidator {
      * Pre-compila regex per vie senza civico
      */
     _buildStreetOnlyPattern() {
-        // Pattern bounded (max 6 token) per evitare backtracking eccessivo su input malevoli
+        // Pattern ottimizzato per la scansione efficiente di nomi strada composti.
         const streetType = this._streetTypePatternSource;
         const streetNameToken = `[a-zA-Z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF'.-]{1,50}`;
         const streetName = `${streetNameToken}(?:[ \\t]+${streetNameToken}){0,5}`;

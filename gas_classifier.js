@@ -321,8 +321,8 @@ var Classifier = class Classifier {
     // Rimuovi firme solo quando appaiono come riga dedicata.
     // Classifica correttamente l'identificazione precisa delle firme contestuali in frasi come:
     // "Cordiali saluti da tutta la famiglia, vorrei sapere se..."
-    // Nota manutenzione: NON usiamo search globale su marker nel testo intero,
-    // perché qui è voluto un approccio line-based per evitare falsi positivi a metà frase.
+    // L'approccio line-based garantisce precisione nell'identificazione delle firme
+    // ed evita falsi positivi all'interno di frasi di testo libero.
     const signatureLineMarkers = [
       /^cordiali\s+saluti[\s,!.-]*$/i,
       /^distinti\s+saluti[\s,!.-]*$/i,
@@ -359,10 +359,10 @@ var Classifier = class Classifier {
     // Normalizza
     let normalized = text.toLowerCase().trim();
     try {
-      normalized = normalized.replace(/[^\p{L}\p{N}\s!]/gu, '');
+      normalized = normalized.replace(/[^\p{L}\p{N}\s]/gu, '');
     } catch (e) {
       // Fallback compatibilità runtime che non supportano Unicode property escapes
-      normalized = normalized.replace(/[^\w\s!À-ÖØ-öø-ÿ]/g, '');
+      normalized = normalized.replace(/[^\w\sÀ-ÖØ-öø-ÿ]/g, '');
     }
     normalized = normalized.replace(/\s+/g, ' ');
 

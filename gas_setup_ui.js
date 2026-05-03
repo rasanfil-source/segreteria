@@ -1,6 +1,6 @@
 /**
  * @file gas_setup_ui.js
- * @description Setup UI "single-sheet first" per Controllo, con validazioni e protezioni robuste.
+ * @description Setup UI "single-sheet first" per Controllo, con validazioni e protezioni dei dati.
  */
 
 const UI_CONFIG = {
@@ -244,8 +244,7 @@ function createNamedRanges(ss, warningsCollector) {
   let lockAcquired = false;
 
   try {
-    // Evita race condition in esecuzioni concorrenti (es. trigger multipli setup).
-    // Timeout breve: se il lock non arriva, preferiamo warning esplicito a stato intermedio silenzioso.
+    // Garantisce consistenza in esecuzioni parallele (es. trigger simultanei).
     lockAcquired = documentLock.tryLock(5000);
     if (!lockAcquired) {
       const warning = 'Lock documento non acquisito: creazione named ranges saltata per evitare stato incoerente.';

@@ -22,7 +22,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
     // Legge modelli da CONFIG.GEMINI_MODELS (centralizzato)
     if (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_MODELS) {
-      this.models = this._normalizeDeprecatedModelNames(CONFIG.GEMINI_MODELS);
+      this.models = CONFIG.GEMINI_MODELS;
       console.log('   \u2713 Modelli caricati da CONFIG.GEMINI_MODELS');
     } else {
       // Fallback se CONFIG non disponibile
@@ -82,9 +82,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
     this.props = options.props || PropertiesService.getScriptProperties();
 
-    // Inizializza stato preesistente da transazioni persistenti
-    // Se siamo già lockati (es. in main), saltiamo il lock interno (B3)
-    this._recoverFromWAL(options.alreadyLocked || false);
+    // Sincronizzazione dello stato con lo storage persistente.
+    this._recoverFromStorage(options.alreadyLocked || false);
 
     // Inizializza contatori se non esistono
     this._initializeCounters();
@@ -286,7 +285,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     const lockResult = this._withRateLimitLock_(function () {
-      this._recoverFromWAL(true);
+      this._recoverFromStorage(true);
       this._refreshCache();
       return this._selectModelUnlocked(taskType, {
         forceModel: forceModel,
@@ -829,14 +828,14 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   }
 
   _persistCache(alreadyLocked = false) {
-    this._persistCacheWithWAL(alreadyLocked);
+    this._persistCacheToStorage(alreadyLocked);
   }
 
   /**
    * Persiste la cache tramite architettura di persistenza transazionale (WAL)
    * Garantisce coerenza strutturale dei dati in ambienti operativi distribuiti
    */
-  _persistCacheWithWAL(alreadyLocked = false) {
+  _persistCacheToStorage(alreadyLocked = false) {
     if (alreadyLocked) {
       this._doPersistCacheWrite();
       return;
@@ -877,12 +876,12 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     this.cache.rpmWindow = mergedRpm;
     this.cache.tpmWindow = mergedTpm;
 
-    this._writeChunkedWAL(walTimestamp, mergedRpm, mergedTpm);
+    this._writeChunkedData(walTimestamp, mergedRpm, mergedTpm);
     this.props.setProperties({
       rpm_window: JSON.stringify(mergedRpm),
       tpm_window: JSON.stringify(mergedTpm)
     });
-    this._cleanCorruptedWAL();
+    this._cleanStorageBuffers();
     this.cache.lastPersistUpdate = Date.now();
   }
 
@@ -890,7 +889,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
    * Sincronizza lo stato operativo leggendo le transazioni WAL non completate
    * Chiamato nel constructor prima di inizializzare i contatori
    */
-  _recoverFromWAL(alreadyLocked = false) {
+  _recoverFromStorage(alreadyLocked = false) {
     // Utilizzo di lock per garantire atomicità durante la sincronizzazione attiva
     let lock = null;
     let lockAcquired = !!alreadyLocked;
@@ -898,7 +897,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       lock = LockService.getScriptLock();
       lockAcquired = lock.tryLock(5000);
       if (!lockAcquired) {
-        console.warn('⚠️ Sincronizzazione WAL ritardata: impossibile acquisire lock entro 5s');
+        console.warn('⚠️ Sincronizzazione storage ritardata: impossibile acquisire lock entro 5s');
         return;
       }
     }
@@ -908,13 +907,13 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       const oldWalData = this.props.getProperty('rate_limit_wal');
       if (!walTs && !oldWalData) return;
 
-      console.warn('⚠️ Transazione WAL rilevata - ripristino stato operativo...');
+      console.warn('⚠️ Sincronizzazione buffer rilevata - ripristino stato operativo...');
       let wal = null;
       if (oldWalData) {
         wal = JSON.parse(oldWalData);
       } else {
-        const chunkedRpm = this._readChunkedWalWindow('rpm');
-        const chunkedTpm = this._readChunkedWalWindow('tpm');
+        const chunkedRpm = this._readChunkedDataWindow('rpm');
+        const chunkedTpm = this._readChunkedDataWindow('tpm');
         const walRpmStr = this.props.getProperty('rate_limit_wal_rpm');
         const walTpmStr = this.props.getProperty('rate_limit_wal_tpm');
         wal = {
@@ -925,21 +924,21 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       }
 
       if (!wal || typeof wal !== 'object' || !wal.timestamp) {
-        console.error('❌ Struttura WAL inconsistente, applico reset di sicurezza');
-        this._cleanCorruptedWAL();
+        console.error('❌ Struttura buffer inconsistente, applico reset di sicurezza');
+        this._cleanStorageBuffers();
         return;
       }
       if (!Array.isArray(wal.rpm) || !Array.isArray(wal.tpm)) {
-        console.error('❌ WAL con array invalidi');
-        this._cleanCorruptedWAL();
+        console.error('❌ Buffer con dati invalidi');
+        this._cleanStorageBuffers();
         return;
       }
 
       // Verifica che il WAL non sia troppo vecchio (> 5 minuti)
       const age = Date.now() - wal.timestamp;
       if (age > 300000) {
-        console.warn('   WAL troppo vecchio, ignorato');
-        this._cleanCorruptedWAL();
+        console.warn('   Buffer dati obsoleto, ignorato');
+        this._cleanStorageBuffers();
         return;
       }
 
@@ -956,24 +955,24 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       this.props.setProperty('tpm_window', JSON.stringify(mergedTpm));
 
       // Rimuovi transazione WAL a ripristino ultimato
-      this._cleanCorruptedWAL();
+      this._cleanStorageBuffers();
 
       // Aggiorna cache in-memory
       this.cache.rpmWindow = mergedRpm;
       this.cache.tpmWindow = mergedTpm;
       this.cache.lastCacheUpdate = Date.now();
 
-      console.log('✓ Dati recuperati da WAL con successo e cache aggiornata');
+      console.log('✓ Dati recuperati correttamente e cache aggiornata');
 
     } catch (error) {
-      console.error(`❌ Errore di sincronizzazione WAL: ${error.message}`);
-      this._cleanCorruptedWAL();
+      console.error(`❌ Errore di sincronizzazione storage: ${error.message}`);
+      this._cleanStorageBuffers();
     } finally {
       if (!alreadyLocked && lockAcquired && lock) lock.releaseLock();
     }
   }
 
-  _cleanCorruptedWAL() {
+  _cleanStorageBuffers() {
     try {
       const allProps = this.props.getProperties();
       const keysToDelete = [
@@ -997,7 +996,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     } catch (e) { }
   }
 
-  _writeChunkedWAL(walTimestamp, mergedRpm, mergedTpm) {
+  _writeChunkedData(walTimestamp, mergedRpm, mergedTpm) {
     const rpmChunks = this._chunkWindowForProperties(mergedRpm);
     const tpmChunks = this._chunkWindowForProperties(mergedTpm);
     const walProps = {
@@ -1016,7 +1015,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     this.props.setProperties(walProps);
   }
 
-  _readChunkedWalWindow(windowType) {
+  _readChunkedDataWindow(windowType) {
     const count = parseInt(this.props.getProperty(`rate_limit_wal_${windowType}_chunks`) || '0', 10) || 0;
     if (count <= 0) return null;
 
@@ -1293,7 +1292,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const forceModel = options.forceModel || null;
 
     const lockResult = this._withRateLimitLock_(function () {
-      this._recoverFromWAL(true);
+      this._recoverFromStorage(true);
       this._refreshCache();
 
       const selection = this._selectModelUnlocked(taskType, {

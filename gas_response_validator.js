@@ -2,14 +2,14 @@
  * ResponseValidator.gs - Validazione risposte AI
  * Controlla qualità e sicurezza delle risposte generate
  * 
- * CONTROLLI CRITICI:
- * ✅ Lunghezza (troppo corta/lunga = UX negativa)
- * ✅ Consistenza lingua (critico per multilingua)
- * ✅ Frasi vietate (indicatori allucinazione)
- * ✅ Placeholder (risposta incompleta)
- * ✅ Firma obbligatoria (identità brand)
- * ✅ Dati allucinati (email, telefoni, orari non in KB)
- * ✅ Ragionamento esposto (thinking leak)
+ * CONTROLLI DI QUALITÀ:
+ * ✅ Lunghezza ed UX
+ * ✅ Consistenza linguistica
+ * ✅ Rilevamento frasi di incertezza
+ * ✅ Identificazione placeholder
+ * ✅ Validazione firma
+ * ✅ Verifica integrità dati (email, telefoni, orari)
+ * ✅ Rilevamento leak di processo (thinking leak)
  */
 const ITALIAN_FORBIDDEN_CAPS = [
   'Siamo', 'Restiamo', 'Sono', 'È', 'Era', 'Sarà',
@@ -35,8 +35,7 @@ var ResponseValidator = class ResponseValidator {
     // Soglie lunghezza
     this.MIN_LENGTH_CHARS = 25;
     this.OPTIMAL_MIN_LENGTH = 80;
-    // Limite alzato a 4500 per ospitare risposte legittimamente complesse (es. sacramenti multipli).
-    // La soglia precedente azzerava lo score su risposte dettagliate ma corrette.
+    // Limite superiore per risposte strutturate (es. sacramenti multipli).
     this.WARNING_MAX_LENGTH = 4500;
 
     // Frasi vietate (indicatori di rifiuto/incapacità — bloccanti)
@@ -193,9 +192,9 @@ var ResponseValidator = class ResponseValidator {
     // --- PRIMO PASSAGGIO DI VALIDAZIONE ---
     let validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent, emailSubject);
 
-    // --- AUTOCORREZIONE (PERFEZIONAMENTO) ---
+    // --- PERFEZIONAMENTO QUALITATIVO ---
     if (!validationResult.isValid && attemptPerfezionamento) {
-      console.log('🩺 Tentativo perfezionamento automatico...');
+      console.log('✨ Tentativo perfezionamento automatico...');
 
       const perfezionamentoResult = this._perfezionamentoAutomatico(currentResponse, validationResult.errors, safeDetectedLanguage);
 
@@ -531,7 +530,7 @@ var ResponseValidator = class ResponseValidator {
     };
 
     for (const p of this.placeholders) {
-      if (!p || !p.trim()) continue; // Guardia difensiva: ignora stringhe vuote
+      if (!p || !p.trim()) continue; // Validazione input: ignora stringhe vuote
       // Per '...', verifica se usato come placeholder (non ellissi nel testo)
       if (p === '...') {
         if (/\[\.\.\.]/g.test(response)) {
@@ -571,8 +570,7 @@ var ResponseValidator = class ResponseValidator {
     let score = 1.0;
     const hallucinations = {};
     
-    // Controllo di validità per knowledgeBase.
-    // Previene crash su input malformati o KB non caricate correttamente.
+    // Previene elaborazioni su input malformati o KB non caricate.
     let safeKnowledgeBase = '';
     if (typeof knowledgeBase === 'string') {
       safeKnowledgeBase = knowledgeBase;
@@ -623,7 +621,7 @@ var ResponseValidator = class ResponseValidator {
     const contextualHourPattern = /\b(?:alle?|ore)\s+(\d{1,2})\b/gi;
     const responseTimesRaw = [];
     let match;
-    // Reset lastIndex per sicurezza se regex è globale
+    // Reset dell'indice per la scansione sequenziale.
     timePattern.lastIndex = 0;
     while ((match = timePattern.exec(response)) !== null) {
       const timeStr = match[0];
@@ -1007,7 +1005,7 @@ var ResponseValidator = class ResponseValidator {
   }
 
   // ========================================================================
-  // METODI DI AUTO-CORREZIONE (SELF-HEALING)
+  // METODI DI RAFFINAMENTO AUTOMATICO (QUALITY ENHANCEMENT)
   // ========================================================================
 
   /**
@@ -1017,16 +1015,16 @@ var ResponseValidator = class ResponseValidator {
     let textPerfezionato = response;
     let modified = false;
 
-    // 1. Correzione Link duplicati (Markdown)
+    // 1. Perfezionamento Link duplicati (Markdown)
     // Cerca [url](url) o [url](url...) e semplifica
     const linksOttimizzati = this._ottimizzaLinkDuplicati(textPerfezionato);
     if (linksOttimizzati !== textPerfezionato) {
       textPerfezionato = linksOttimizzati;
       modified = true;
-      console.log('   🩺 Ottimizzazione Link applicata');
+      console.log('   ✨ Ottimizzazione Link applicata');
     }
 
-    // 2. Correzione Maiuscole dopo virgola
+    // 2. Perfezionamento Maiuscole dopo virgola
     // Applicabile solo se non è un errore di Thinking Leak (che richiede rigenerazione)
     // e se non ci sono placeholder
     if (!errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('placeholder'))) {
@@ -1034,17 +1032,17 @@ var ResponseValidator = class ResponseValidator {
       if (capsOttimizzate !== textPerfezionato) {
         textPerfezionato = capsOttimizzate;
         modified = true;
-        console.log('   🩺 Ottimizzazione Maiuscole applicata');
+        console.log('   ✨ Ottimizzazione Maiuscole applicata');
       }
     }
 
-    // 3. Correzione Saluto temporalmente incongruente
+    // 3. Perfezionamento Saluto temporalmente incongruente
     if (!errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('placeholder'))) {
       const salutoOttimizzato = this._ottimizzaSalutoTemporale(textPerfezionato, language);
       if (salutoOttimizzato !== textPerfezionato) {
         textPerfezionato = salutoOttimizzato;
         modified = true;
-        console.log('   🩺 Ottimizzazione Saluto applicata');
+        console.log('   ✨ Ottimizzazione Saluto applicata');
       }
     }
 
