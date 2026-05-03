@@ -141,7 +141,13 @@ var GeminiService = class GeminiService {
           generationConfig: {
             temperature: temperature,
             maxOutputTokens: maxTokens
-          }
+          },
+          safetySettings: [
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
+          ]
         }),
         muteHttpExceptions: true
       });
@@ -160,12 +166,22 @@ var GeminiService = class GeminiService {
       throw new Error('PRIMARY_QUOTA_EXHAUSTED');
     }
 
+    let apiErrorMsg = responseBody.substring(0, 200);
+    try {
+      const parsedObj = JSON.parse(responseBody);
+      if (parsedObj && parsedObj.error && parsedObj.error.message) {
+        apiErrorMsg = parsedObj.error.message;
+      }
+    } catch (e) {
+      // Manteniamo fallback al body raw troncato.
+    }
+
     // Separazione errori di rete/quota vs contenuto con semplici if
     if ([429, 500, 502, 503, 504].includes(responseCode)) {
       if (responseCode === 429) {
-        throw new Error('Quota o rate limit superato (429). Richiesto retry.');
+        throw new Error(`Quota o rate limit superato (429): ${apiErrorMsg}`);
       }
-      throw new Error(`Errore server temporaneo (${responseCode}). Richiesto retry.`);
+      throw new Error(`Errore server temporaneo (${responseCode}): ${apiErrorMsg}`);
     }
 
     if (responseCode === 400) {
@@ -174,15 +190,15 @@ var GeminiService = class GeminiService {
       if (isTokenLimit) {
         throw new Error('Errore contenuto: prompt supera il limite token del modello.');
       }
-      throw new Error(`Errore contenuto: richiesta non valida (${responseCode}).`);
+      throw new Error(`Errore API 400: ${apiErrorMsg}`);
     }
 
     if (responseCode === 403) {
-      throw new Error(`Errore API 403 (chiave non valida/restrizioni referrer-IP-API): ${responseBody.substring(0, 200)}`);
+      throw new Error(`Errore API 403: ${apiErrorMsg}`);
     }
 
     if (responseCode !== 200) {
-      throw new Error(`Errore API: ${responseCode} - ${responseBody.substring(0, 200)}`);
+      throw new Error(`Errore API ${responseCode}: ${apiErrorMsg}`);
     }
 
     let result;
@@ -300,7 +316,13 @@ Output JSON:
           temperature: 0,
           maxOutputTokens: 1024,
           responseMimeType: 'application/json'
-        }
+        },
+        safetySettings: [
+          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
+        ]
       }),
       muteHttpExceptions: true
     };
