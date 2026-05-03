@@ -45,7 +45,7 @@ function applyValidationOnly() {
   }
 
   // PULIZIA Totale delle validazioni per evitare conflitti
-  const rangesToClean = ['B2', 'F2', 'B5:B7', 'D5:D7', 'B10:B16', 'D10:D16', 'E13:E120', 'F13:F120'];
+  const rangesToClean = ['B2', 'F2', 'B5:B7', 'D5:D7', 'B10:B16', 'D10:D16', 'E11:F11', 'E13:E120', 'F13:F120'];
   rangesToClean.forEach(a1 => {
     try {
       sheet.getRange(a1).clearDataValidations();
