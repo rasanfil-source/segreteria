@@ -275,6 +275,21 @@ var EmailProcessor = class EmailProcessor {
       const unlabeledUnread = unreadMessages.filter(message => {
         const messageId = message.getId();
         if (effectiveLabeledIds.has(messageId)) return false;
+
+        // Cache miss hardening: l'ID potrebbe essere uscito dalla finestra maxMessages.
+        // Verifica minimale su Gmail per evitare re-processing e loop di risposte duplicate.
+        if (this.gmailService && typeof this.gmailService._getMessageMetadataWithResilience === 'function') {
+          const metadata = this.gmailService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
+          if (metadata && Array.isArray(metadata.labelIds)) {
+            const labelIdIA = (typeof this.gmailService._getOptionalLabelIdByName === 'function')
+              ? this.gmailService._getOptionalLabelIdByName(this.config.labelName)
+              : null;
+            if (labelIdIA && metadata.labelIds.includes(labelIdIA)) {
+              effectiveLabeledIds.add(messageId); // auto-healing cache locale
+              return false;
+            }
+          }
+        }
         return true;
       });
 
@@ -1817,18 +1832,6 @@ ${addressLines.join('\n\n')}
       } else {
         console.warn('⚠️ Checkpoint salvato ma ScriptApp trigger non disponibile: continuazione automatica non pianificata');
       }
-    } catch (e) {
-      console.warn(`⚠️ Salvataggio checkpoint batch fallito: ${e.message}`);
-    }
-  }
-
-  // ====================================================================
-  // RILEVAMENTO TEMPORALE (Date/Orari)
-  // ====================================================================
-
-  /**
-   * Verifica se l'email deve essere ignorata (blacklist, auto-reply, notifiche)
-   * Usa le liste UNIFICATE (Codice + Foglio) presenti in GLOBAL_CACHE
    */
   _shouldIgnoreEmail(messageDetails) {
     const email = this._normalizeEmailAddress_(messageDetails.senderEmail || '');
@@ -2144,7 +2147,10 @@ ${addressLines.join('\n\n')}
     if (!skipLabelId) return false;
 
     const metadata = this.gmailService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
-    if (!metadata || !Array.isArray(metadata.labelIds)) return false;
+
+    // Fail-closed: in caso di errore/risposta non valida preserviamo lo stato skip.
+    // Evita promozioni accidentali a IA dovute a fault transitori Gmail API.
+    if (!metadata || !Array.isArray(metadata.labelIds)) return true;
 
     return metadata.labelIds.includes(skipLabelId);
   }

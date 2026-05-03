@@ -226,18 +226,12 @@ var Classifier = class Classifier {
     // se è presente class="gmail_quote", tronca dall'inizio del tag contenitore
     // per evitare HTML pendente (es. "<div" aperto) in caso di input HTML.
     const lowerBody = processedBody.toLowerCase();
-    const firstBlockquoteIdx = lowerBody.indexOf('<blockquote');
     const firstGmailQuoteIdx = lowerBody.indexOf('<div class="gmail_quote"');
     let safeGmailQuoteIdx = -1;
     if (firstGmailQuoteIdx >= 0) {
       safeGmailQuoteIdx = lowerBody.lastIndexOf('<div', Math.max(0, firstGmailQuoteIdx - 1));
       if (safeGmailQuoteIdx === -1) safeGmailQuoteIdx = firstGmailQuoteIdx;
-    }
-    const firstQuoteIdx = [firstBlockquoteIdx, safeGmailQuoteIdx]
-      .filter(idx => idx >= 0)
-      .sort((a, b) => a - b)[0];
-    if (typeof firstQuoteIdx === 'number') {
-      processedBody = processedBody.substring(0, firstQuoteIdx);
+      processedBody = processedBody.substring(0, safeGmailQuoteIdx);
     }
 
     const MAX_LENGTH = 50000;
