@@ -65,9 +65,12 @@ var GmailService = class GmailService {
         if (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function') {
             lock = LockService.getScriptLock();
             try {
-                lockAcquired = lock.tryLock(1000);
+                lockAcquired = lock.tryLock(2000);
             } catch (_) {
                 lockAcquired = false;
+            }
+            if (!lockAcquired) {
+                throw new Error(`GMAIL_COUNTER_LOCK_NOT_ACQUIRED (${opName})`);
             }
         }
 
@@ -132,7 +135,7 @@ var GmailService = class GmailService {
         const cacheKey = this._getLabelCacheKey_(labelName);
         const cachedEntry = this._labelCache.get(labelName);
         const now = Date.now();
-        if (cachedEntry && (now - cachedEntry.ts) < this._cacheTTL && cachedEntry.label !== null) {
+        if (cachedEntry && (now - cachedEntry.ts) < this._cacheTTL && cachedEntry.label != null) {
             console.log(`📦 Label '${labelName}' trovata in cache`);
             return cachedEntry.label;
         } else if (cachedEntry) {
@@ -150,7 +153,7 @@ var GmailService = class GmailService {
         if (cachedExists) {
             const label = GmailApp.getUserLabelByName(labelName);
             if (label) {
-                this._labelCache.set(labelName, { label: label, ts: now });
+                this._labelCache.set(labelName, { ...(this._labelCache.get(labelName) || {}), label: label, ts: now });
                 console.log(`📦 Label '${labelName}' trovata in cache persistente`);
                 return label;
             }
@@ -164,7 +167,7 @@ var GmailService = class GmailService {
         const labels = GmailApp.getUserLabels();
         for (const label of labels) {
             if (label.getName() === labelName) {
-                this._labelCache.set(labelName, { label: label, ts: now });
+                this._labelCache.set(labelName, { ...(this._labelCache.get(labelName) || {}), label: label, ts: now });
                 if (this._scriptCache) {
                     try {
                         this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
@@ -183,7 +186,7 @@ var GmailService = class GmailService {
             // dopo il nostro check ma prima della createLabel().
             const existingLabel = GmailApp.getUserLabelByName(labelName);
             if (existingLabel) {
-                this._labelCache.set(labelName, { label: existingLabel, ts: now });
+                this._labelCache.set(labelName, { ...(this._labelCache.get(labelName) || {}), label: existingLabel, ts: now });
                 if (this._scriptCache) {
                     try {
                         this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
@@ -195,7 +198,7 @@ var GmailService = class GmailService {
             throw e;
         }
 
-        this._labelCache.set(labelName, { label: newLabel, ts: now });
+        this._labelCache.set(labelName, { ...(this._labelCache.get(labelName) || {}), label: newLabel, ts: now });
         if (this._scriptCache) {
             try {
                 this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
@@ -755,7 +758,7 @@ var GmailService = class GmailService {
                 const fallbackId = appLabel && typeof appLabel.getId === 'function'
                     ? appLabel.getId()
                     : null;
-                this._labelCache.set(raw, { labelId: fallbackId, ts: now });
+                this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: fallbackId, ts: now });
                 return fallbackId;
             } catch (e) {
                 console.warn(`⚠️ _getOptionalLabelIdByName fallback GmailApp fallito per ${raw}, non metto in cache: ${e.message}`);
@@ -768,7 +771,7 @@ var GmailService = class GmailService {
             const apiLabels = (response && response.labels) ? response.labels : [];
             const matched = apiLabels.find(l => l && l.name === raw);
             const id = matched ? matched.id : null;
-            this._labelCache.set(raw, { labelId: id, ts: now });
+            this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: id, ts: now });
             return id;
         } catch (e) {
             console.warn(`⚠️ _getOptionalLabelIdByName fallito per ${raw}, non metto in cache: ${e.message}`);
