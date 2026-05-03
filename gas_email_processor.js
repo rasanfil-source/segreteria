@@ -600,18 +600,27 @@ var EmailProcessor = class EmailProcessor {
         }
       }
 
-      if (!hasAnyIdentity) {
-        console.warn('   ⚠️ Identità mittente non disponibile: anti-loop check degradato');
-      }
-
       if (messages.length > MAX_THREAD_LENGTH) {
-        console.warn(`   ⚠️ Thread lungo (${messages.length} messaggi) tollerato - elaboro`);
+        if (!hasAnyIdentity) {
+          console.warn('   ⚠️ Identità mittente non disponibile con thread lungo: blocco precauzionale anti-loop');
+          markHandledUnread();
+          result.status = 'filtered';
+          result.reason = 'anti_loop_identity_missing';
+          return result;
+        }
+
+        console.warn(`   ⚠️ Thread lungo (${messages.length} messaggi) ma non loop - elaboro`);
       }
 
       // ====================================================================
       // STEP 0.8: ANTI-MITTENTE-NOREPLY
       // ====================================================================
-      const senderInfo = `${messageDetails.senderEmail} ${messageDetails.senderName}`.toLowerCase();
+      const originalSenderEmail = (
+        this.gmailService && typeof this.gmailService._extractEmailAddress === 'function'
+      )
+        ? this.gmailService._extractEmailAddress(messageDetails.originalFrom || '')
+        : (messageDetails.senderEmail || '');
+      const senderInfo = `${originalSenderEmail} ${messageDetails.senderName}`.toLowerCase();
       const autoPattern = /no-reply|do-not-reply|noreply|daemon|postmaster|bounce|mailer/i;
       if (autoPattern.test(senderInfo)) {
         console.log('   ⊖ Saltato: mittente rilevato come casella automatica o no-reply');
@@ -1326,9 +1335,11 @@ ${addressLines.join('\n\n')}
           this.gmailService.addLabelToMessage(candidate.getId(), this.config.validationErrorLabel);
         }
       } catch (e) {
-        this._rollbackSendTransaction(candidate.getId());
         const errorMessage = e && e.message ? e.message : String(e);
         const classifiedSendError = this._classifyError(e);
+        if (classifiedSendError.type !== 'NETWORK' && classifiedSendError.type !== 'TIMEOUT') {
+          this._rollbackSendTransaction(candidate.getId());
+        }
         console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
 
         // Errori transienti: lascia il messaggio eleggibile per retry automatico.
