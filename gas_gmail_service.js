@@ -47,9 +47,8 @@ var GmailService = class GmailService {
     }
 
     _getGmailCounterDateKey_() {
-        const tz = (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function')
-            ? (Session.getScriptTimeZone() || 'Etc/UTC')
-            : 'Etc/UTC';
+        // Allineamento al timezone Pacifico (reset quote Gmail lato Google).
+        const tz = 'America/Los_Angeles';
         if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
             return `gmail_api_calls:${Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd')}`;
         }
@@ -60,35 +59,52 @@ var GmailService = class GmailService {
     _incrementGmailCallCounterOrThrow_(opName) {
         if (!this._scriptCache || !this._gmailDailyCallLimit) return;
         const key = this._getGmailCounterDateKey_();
-        const raw = this._scriptCache.get(key);
-        let current = 0;
-        if (raw !== null) {
-            current = Number.parseInt(raw, 10) || 0;
-        } else if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
-            // Sincronizzazione con ScriptProperties per garantire persistenza giornaliera.
+        let lock = null;
+        let lockAcquired = false;
+        if (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function') {
+            lock = LockService.getScriptLock();
             try {
-                const props = PropertiesService.getScriptProperties();
-                current = Number.parseInt(props.getProperty(key) || '0', 10) || 0;
-            } catch (e) {
-                console.warn(`⚠️ Impossibile leggere backup counter da ScriptProperties (${key}): ${e.message}`);
+                lockAcquired = lock.tryLock(1000);
+            } catch (_) {
+                lockAcquired = false;
             }
         }
-        const next = current + 1;
-        this._scriptCache.put(key, String(next), 21600);
-        // Allineamento periodico del counter su storage persistente.
-        const shouldSync = (next % 15 === 0) || (next >= this._gmailDailyCounterWarnAt);
-        if (shouldSync && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
-            try {
-                PropertiesService.getScriptProperties().setProperty(key, String(next));
-            } catch (e) {
-                console.warn(`⚠️ Impossibile salvare backup counter su ScriptProperties (${key}): ${e.message}`);
+
+        try {
+            const raw = this._scriptCache.get(key);
+            let current = 0;
+            if (raw !== null) {
+                current = Number.parseInt(raw, 10) || 0;
+            } else if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+                // Sincronizzazione con ScriptProperties per garantire persistenza giornaliera.
+                try {
+                    const props = PropertiesService.getScriptProperties();
+                    current = Number.parseInt(props.getProperty(key) || '0', 10) || 0;
+                } catch (e) {
+                    console.warn(`⚠️ Impossibile leggere backup counter da ScriptProperties (${key}): ${e.message}`);
+                }
             }
-        }
-        if (next >= this._gmailDailyCounterWarnAt && next < this._gmailDailyCallLimit) {
-            console.warn(`⚠️ Gmail API call counter alto: ${next}/${this._gmailDailyCallLimit} (${opName})`);
-        }
-        if (next >= this._gmailDailyCallLimit) {
-            throw new Error(`GMAIL_DAILY_CALL_LIMIT_REACHED (${next}/${this._gmailDailyCallLimit})`);
+            const next = current + 1;
+            this._scriptCache.put(key, String(next), 21600);
+            // Allineamento periodico del counter su storage persistente.
+            const shouldSync = (next % 15 === 0) || (next >= this._gmailDailyCounterWarnAt);
+            if (shouldSync && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+                try {
+                    PropertiesService.getScriptProperties().setProperty(key, String(next));
+                } catch (e) {
+                    console.warn(`⚠️ Impossibile salvare backup counter su ScriptProperties (${key}): ${e.message}`);
+                }
+            }
+            if (next >= this._gmailDailyCounterWarnAt && next < this._gmailDailyCallLimit) {
+                console.warn(`⚠️ Gmail API call counter alto: ${next}/${this._gmailDailyCallLimit} (${opName})`);
+            }
+            if (next >= this._gmailDailyCallLimit) {
+                throw new Error(`GMAIL_DAILY_CALL_LIMIT_REACHED (${next}/${this._gmailDailyCallLimit})`);
+            }
+        } finally {
+            if (lockAcquired && lock && typeof lock.releaseLock === 'function') {
+                try { lock.releaseLock(); } catch (_) { }
+            }
         }
     }
 
@@ -2383,8 +2399,8 @@ var GmailService = class GmailService {
     _stripHtmlTags(text) {
         if (!text) return '';
         return text
-            // Evita di rimuovere espressioni testuali tipo "A < B > C" trattando solo tag HTML plausibili
-            .replace(/<\/?\s*[a-zA-Z][^>]*>/g, ' ')
+            // Rimuove solo tag HTML plausibili con nome "word-like", preservando operatori testuali (<, >).
+            .replace(/<\/?[a-zA-Z][a-zA-Z0-9:-]*(\s+[a-zA-Z_:][a-zA-Z0-9:._-]*(\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*\s*\/?>/g, ' ')
             .replace(/\*\*(.+?)\*\*/g, '$1')
             .replace(/\*(.+?)\*/g, '$1')
             .replace(/#{1,4}\s+/g, '')
