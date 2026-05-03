@@ -1568,8 +1568,8 @@ ${addressLines.join('\n\n')}
         try {
           labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName, true, { onlyUnread: true });
         } catch (e) {
-          console.warn(`⚠️ Impossibile pre-caricare gli ID etichettati (${e.message}). Continuo senza cache label.`);
-          labeledMessageIds = new Set();
+          this.logger.error(`Impossibile pre-caricare gli ID etichettati (${e.message}). Interrompo il batch per evitare risposte duplicate.`);
+          return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'label_cache_failed' };
         }
       } else {
         console.warn('⚠️ gmailService.getMessageIdsWithLabel non disponibile: continuo senza cache label pre-caricata.');
@@ -1659,7 +1659,6 @@ ${addressLines.join('\n\n')}
 
         if (result && result.error && String(result.error).includes('GMAIL_DAILY_CALL_LIMIT_REACHED')) {
           this.logger.warn('⚠️ Stop batch: limite giornaliero chiamate Gmail raggiunto durante processThread.');
-          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, remainingTimeMs);
           break;
         }
 

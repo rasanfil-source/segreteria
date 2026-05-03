@@ -742,7 +742,7 @@ var GmailService = class GmailService {
                 this._labelCache.set(raw, { labelId: fallbackId, ts: now });
                 return fallbackId;
             } catch (e) {
-                this._labelCache.set(raw, { labelId: null, ts: now });
+                console.warn(`⚠️ _getOptionalLabelIdByName fallback GmailApp fallito per ${raw}, non metto in cache: ${e.message}`);
                 return null;
             }
         }
@@ -755,7 +755,7 @@ var GmailService = class GmailService {
             this._labelCache.set(raw, { labelId: id, ts: now });
             return id;
         } catch (e) {
-            this._labelCache.set(raw, { labelId: null, ts: now });
+            console.warn(`⚠️ _getOptionalLabelIdByName fallito per ${raw}, non metto in cache: ${e.message}`);
             return null;
         }
     }
