@@ -422,6 +422,19 @@ var EmailProcessor = class EmailProcessor {
       console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
       console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
 
+      // CRITICO: Ricostruzione del contesto in caso di burst (più email non lette dallo stesso utente).
+      // Evita che un'email finale breve (es. "Grazie") faccia scartare le vere domande precedenti.
+      if (externalUnread.length > 1) {
+        const previousTexts = externalUnread
+          .filter(m => m.getId() !== candidate.getId())
+          .map(m => this.gmailService.extractMessageDetails(m).body)
+          .filter(Boolean);
+        if (previousTexts.length > 0) {
+          messageDetails.body = previousTexts.join('\n\n[Messaggio precedente]:\n') + '\n\n[Ultimo messaggio]:\n' + messageDetails.body;
+          console.log(`     Burst rilevato: accorpati contestualmente ${previousTexts.length} messaggi precedenti`);
+        }
+      }
+
       // ====================================================================================================
       // STEP 1.5: FAIL-FAST LINGUA (a costo zero)
       // ====================================================================================================

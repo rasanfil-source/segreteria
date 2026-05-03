@@ -1269,7 +1269,9 @@ var GmailService = class GmailService {
                 }
             }
 
-            const isWord = mimeType.includes('msword') || mimeType.includes('wordprocessingml');
+            const isWord = mimeType.includes('msword') ||
+                mimeType.includes('wordprocessingml') ||
+                mimeType.includes('opendocument.text');
             const isExcel = mimeType.includes('ms-excel') || mimeType.includes('spreadsheetml');
             const isPowerPoint =
                 mimeType.includes('ms-powerpoint') ||
@@ -2043,16 +2045,7 @@ var GmailService = class GmailService {
 
         addOwnAddress(ourEmail);
         (Array.isArray(ourAliases) ? ourAliases : []).forEach(addOwnAddress);
-        const knownAliases = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES))
-            ? CONFIG.KNOWN_ALIASES
-            : [];
         knownAliases.forEach(addOwnAddress);
-        try {
-            const gmailAliases = (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getAliases === 'function')
-                ? (GmailApp.getAliases() || [])
-                : [];
-            gmailAliases.forEach(addOwnAddress);
-        } catch (_) { }
 
         if (messages.length > maxMessages) {
             console.warn(`⚠️ Thread con ${messages.length} messaggi, limitato a ultimi ${maxMessages}`);
