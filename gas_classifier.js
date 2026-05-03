@@ -330,7 +330,7 @@ var Classifier = class Classifier {
       /^best\s+regards[\s,!.-]*$/i,
       /^sincerely[\s,!.-]*$/i,
       /^sent\s+from\s+my\s+iphone[\s,!.-]*$/i,
-      /^inviato\s+da\b.*$/i
+      /^inviato\s+da\s+(?:mio\s+)?(?:iphone|samsung|smartphone|dispositivo|ipad|telefono)[\s,!.-]*$/i
     ];
 
     const contentLines = content.split('\n');

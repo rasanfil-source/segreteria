@@ -991,8 +991,9 @@ var GmailService = class GmailService {
             const isPdf = contentType.includes('pdf');
             const isImage = contentType.startsWith('image/');
             const isOffice = Boolean(this._officeMimeMap[contentType]);
+            const isText = contentType.includes('text/plain') || contentType.includes('text/csv');
 
-            if (!isPdf && !isImage && !isOffice) {
+            if (!isPdf && !isImage && !isOffice && !isText) {
                 skipped.push({ name: attachmentName, reason: 'unsupported_type', contentType: contentType });
                 continue;
             }
@@ -1014,7 +1015,10 @@ var GmailService = class GmailService {
 
             // Estrazione testo: conversione diretta per Office, OCR per PDF/immagini
             let ocrText, ocrConfidence;
-            if (isOffice) {
+            if (isText) {
+                ocrText = attachment.getDataAsString() || '';
+                ocrConfidence = 1.0;
+            } else if (isOffice) {
                 ocrText = this._extractOfficeText(attachment, this._officeMimeMap[contentType], settings);
                 ocrConfidence = ocrText ? 1.0 : 0; // Conversione diretta, non ottica
                 if (!ocrText || ocrText.replace(/\s+/g, ' ').trim().length < 30) {
@@ -2086,7 +2090,7 @@ var GmailService = class GmailService {
             /^best regards\b/im,
             /^sincerely\b/im,
             /^sent from my iphone\b/im,
-            /^inviato da\b/im
+            /^inviato da (?:mio )?(?:iphone|samsung|smartphone|dispositivo|ipad|telefono)\b/im
         ];
 
         // Ricerca firma "tail-aware":
@@ -2592,7 +2596,7 @@ var GmailService = class GmailService {
             const separator = (currentLine === headerPrefix) ? '' : ' ';
             
             const limit = (currentLine === headerPrefix) ? maxFirstLine : maxContinuationLine;
-            if ((currentLine + separator + word).length <= limit) {
+            if ((currentLine + separator + word).length <= limit || currentLine === headerPrefix) {
                 currentLine += separator + word;
             } else {
                 foldedLines.push(currentLine);
