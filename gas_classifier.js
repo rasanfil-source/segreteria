@@ -355,8 +355,8 @@ var Classifier = class Classifier {
     try {
       normalized = normalized.replace(/[^\p{L}\p{N}\s]/gu, '');
     } catch (e) {
-      // Fallback compatibilità runtime        text = text// Evita di rimuovere espressioni testuali tipo "A < B > C" trattando solo tag HTML plausibili
-            .replace(/<\/?[a-zA-Z][^>]*>/g, ' ');
+      // Fallback compatibilità runtime che non supportano Unicode property escapes
+      normalized = normalized.replace(/[^\w\sÀ-ÖØ-öø-ÿ]/g, '');
     }
     normalized = normalized.replace(/\s+/g, ' ');
 
