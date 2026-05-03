@@ -2624,6 +2624,8 @@ var GmailService = class GmailService {
         const folded = safe
             .replace(/[\r\n\t]+/g, ' ')
             .replace(/\b(?:to|cc|bcc|from|subject|reply-to)\s*:/gi, '')
+            // Rimuove eventuali Message-ID appesi all'oggetto (es: <abc@mail.gmail.com>)
+            .replace(/\s*<[^<>\s]+@[^<>\s]+>\s*/g, ' ')
             .replace(/\s{2,}/g, ' ')
             .trim();
         return folded || 'Re:';
