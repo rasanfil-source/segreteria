@@ -1734,6 +1734,22 @@ ${addressLines.join('\n\n')}
       if (!props || typeof props.setProperty !== 'function') {
         throw new Error('PropertiesService non disponibile o adapter senza setProperty');
       }
+      let currentDepth = 0;
+      try {
+        const previousCheckpoint = JSON.parse(props.getProperty('EMAIL_BATCH_CHECKPOINT') || '{}');
+        currentDepth = previousCheckpoint.depth || 0;
+      } catch (_) {
+        currentDepth = 0;
+      }
+
+      if (currentDepth >= 5) {
+        console.error('Limite massimo di continuazioni batch (5) raggiunto. Interruzione per prevenire loop di trigger.');
+        if (typeof props.deleteProperty === 'function') {
+          props.deleteProperty('EMAIL_BATCH_CHECKPOINT');
+        }
+        return;
+      }
+
       const pendingThreadIds = (threads || [])
         .slice(startIndex)
         .map((thread) => {
@@ -1747,7 +1763,8 @@ ${addressLines.join('\n\n')}
         startIndex: startIndex,
         remainingTimeMs: remainingTimeMs,
         pendingCount: pendingThreadIds.length,
-        pendingThreadIds: pendingThreadIds.slice(0, 100)
+        pendingThreadIds: pendingThreadIds.slice(0, 100),
+        depth: currentDepth + 1
       };
       props.setProperty('EMAIL_BATCH_CHECKPOINT', JSON.stringify(checkpoint));
 
@@ -1970,8 +1987,12 @@ ${addressLines.join('\n\n')}
       : null;
     if (!cache) return;
 
-    cache.put(`sent_${messageId}`, String(Date.now()), 21600); // 6 ore max CacheService
-    cache.remove(`sending_${messageId}`);
+    try {
+      cache.put(`sent_${messageId}`, String(Date.now()), 21599);
+      cache.remove(`sending_${messageId}`);
+    } catch (e) {
+      console.warn(`  Impossibile committare la transazione in cache per ${messageId}: ${e.message}`);
+    }
   }
 
   _rollbackSendTransaction(messageId) {
@@ -1980,7 +2001,11 @@ ${addressLines.join('\n\n')}
       ? CacheService.getScriptCache()
       : null;
     if (!cache) return;
-    cache.remove(`sending_${messageId}`);
+    try {
+      cache.remove(`sending_${messageId}`);
+    } catch (e) {
+      console.warn(`  Impossibile eseguire il rollback della transazione in cache per ${messageId}: ${e.message}`);
+    }
   }
 
   _getBusinessDateString(date = new Date()) {
