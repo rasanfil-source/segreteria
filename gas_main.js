@@ -1404,6 +1404,7 @@ function main() {
     : null;
   const batchLockKey = _getExecutionBatchLockKey_();
   let hasExecutionLock = false;
+  let hasBatchLock = false;
   const releaseExecutionLock = () => {
     if (hasExecutionLock && executionLock) {
       try {
@@ -1434,6 +1435,7 @@ function main() {
       }
       // TTL allineato al budget esecuzione (280 s) + margine sicurezza
       scriptCache.put(batchLockKey, lockOwner, 300);
+      hasBatchLock = true;
     }
 
     // 2. Caricamento Risorse (Config, KB, Blacklist)
@@ -1507,7 +1509,7 @@ function main() {
       }
     }
   } finally {
-    if (scriptCache) {
+    if (scriptCache && hasBatchLock) {
       try { scriptCache.remove(batchLockKey); } catch (_) { }
     }
     releaseExecutionLock();
