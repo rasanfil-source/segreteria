@@ -1559,7 +1559,7 @@ function _extractQuickCheckFieldsFromPartialJson(text) {
   const replyMatch = text.match(/"reply_needed"\s*:\s*(true|false|"true"|"false")/i);
   if (!replyMatch) return null;
 
-  const languageMatch = text.match(/"language"\s*:\s*"([a-z]{2})"/i);
+  const languageMatch = text.match(/"language"\s*:\s*"([a-z]{2}(?:-[a-z]{2})?)"/i);
   const categoryMatch = text.match(/"category"\s*:\s*"(TECHNICAL|PASTORAL|DOCTRINAL|FORMAL|MIXED)"/i);
   // Supporta apici interni escapati, es: "topic": "Richiesta \"info\""
   const topicMatch = text.match(/"topic"\s*:\s*"((?:\\.|[^"\\])*)"/i);

@@ -257,10 +257,10 @@ var EmailProcessor = class EmailProcessor {
           : '';
         const botEmailConfig = (typeof CONFIG !== 'undefined' && CONFIG.BOT_EMAIL) ? CONFIG.BOT_EMAIL : '';
 
-        myEmail = botEmailProperty || botEmailConfig || adminEmail || '';
+        myEmail = botEmailProperty || botEmailConfig || '';
 
         if (myEmail) {
-          console.warn(`⚠️ Session email non disponibile: uso fallback anti-loop (${myEmail})`);
+          console.warn(`⚠️ Session email non disponibile: uso fallback bot email anti-loop (${myEmail})`);
         }
       }
 
@@ -677,14 +677,12 @@ var EmailProcessor = class EmailProcessor {
       const MAX_SUBJECT_LENGTH = 1000;
       const safeSubject = (messageDetails.subject || '').substring(0, MAX_SUBJECT_LENGTH);
       const safeBody = (messageDetails.body || '');
-      const safeSubjectLower = safeSubject.toLowerCase();
+      const isReplyPattern = /^(re|r|risp|aw|fw|fwd|i|wg)\s*[:\-]/i;
 
       const classification = this.classifier.classifyEmail(
         safeSubject,
         safeBody,
-        safeSubjectLower.startsWith('re:')
-        ? /^(re|r|fw|fwd|i|inoltr):\s*/.test(safeSubjectLower)
-        : false
+        isReplyPattern.test(safeSubjectLower)
       );
 
       if (!classification.shouldReply) {
@@ -824,7 +822,7 @@ var EmailProcessor = class EmailProcessor {
         : 0;
 
       const salutationMode = computeSalutationMode({
-        isReply: /^(re|r|rif|aw|rv|fw|fwd|i|inoltr)\s*:/i.test(safeSubjectLower) || messages.length > 1,
+        isReply: isReplyPattern.test(safeSubjectLower) || messages.length > 1,
         messageCount: memoryMessageCount,
         memoryExists: !!memoryContext.lastUpdated,
         lastUpdated: memoryContext.lastUpdated || null,
@@ -924,7 +922,7 @@ ${addressLines.join('\n\n')}
           email: {
             subject: safeSubject,
             body: messageDetails.body,
-            isReply: /^(re|r|rif|aw|rv|fw|fwd|i|inoltr)\s*:/i.test(safeSubjectLower) || messages.length > 1,
+            isReply: isReplyPattern.test(safeSubjectLower) || messages.length > 1,
             detectedLanguage: detectedLanguage
           },
           classification: {

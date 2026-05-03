@@ -124,7 +124,7 @@ var Classifier = class Classifier {
 
     // Body vuoto + subject generico (es. "Re: Orari messe") → passa a Gemini
     if ((!mainContent || !mainContent.trim()) && isReply) {
-      const subjectClean = safeSubject.replace(/^re:\s*/i, '').trim();
+      const subjectClean = safeSubject.replace(/^(re|r|risp|aw|fw|fwd|i|wg)\s*[:\-]\s*/i, '').trim();
       if (subjectClean.length > 3 && subjectClean.length < 50) {
         console.log('      ✓ Body vuoto ma subject ragionevole -> Passa a Gemini');
         return {
@@ -420,6 +420,7 @@ var Classifier = class Classifier {
    */
   _isTrivialReplyBody(text) {
     if (!text) return true;
+
     const normalized = text.toLowerCase().trim();
     const cleaned = normalized.replace(/[^\w\sàèéìòù:]/g, '');
     const words = cleaned.split(/\s+/).filter(Boolean);
