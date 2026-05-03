@@ -311,7 +311,7 @@ var Classifier = class Classifier {
           break;
         }
       }
-      if (isQuote) break;
+      if (isQuote) continue;
 
       cleanLines.push(safeLine);
     }

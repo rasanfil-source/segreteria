@@ -1194,6 +1194,9 @@ Testo:
           console.log(`🔍 Controllo rapido via Rate Limiter(modello: ${result.modelUsed})`);
           return normalized.result;
         }
+
+        const rejectReason = (result && result.reason) ? result.reason : 'Rate limit interno';
+        throw new Error(`Rate Limiter ha rifiutato il quick check: ${rejectReason}`);
       } catch (error) {
         if (error.message && error.message.includes('QUOTA_EXHAUSTED')) {
           // L'eccezione non viene gestita con un fallback diretto per allineamento a generateResponse.
