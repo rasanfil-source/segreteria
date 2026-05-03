@@ -107,8 +107,26 @@ var GeminiService = class GeminiService {
 
     const requestParts = [];
     if (attachments && attachments.length > 0) {
-      attachments.forEach((att) => {
-        if (att && att.inlineData) requestParts.push(att);
+      attachments.forEach((blob) => {
+        try {
+          if (blob && blob.inlineData && blob.inlineData.data) {
+            requestParts.push(blob);
+            return;
+          }
+          const mimeType = blob && typeof blob.getContentType === 'function' ? blob.getContentType() : '';
+          if (!mimeType) {
+            console.warn('Allegato ignorato: contentType mancante o non valido');
+            return;
+          }
+          requestParts.push({
+            inlineData: {
+              mimeType: mimeType,
+              data: Utilities.base64Encode(blob.getBytes())
+            }
+          });
+        } catch (e) {
+          console.warn(`Impossibile encodare l'allegato: ${e.message}`);
+        }
       });
     }
     requestParts.push({ text: prompt });
@@ -1248,14 +1266,11 @@ Testo:
     const attachments = options.attachments || [];
 
     // Pre-elaborazione Base64 per evitare ripetizione I/O e allocazioni pesanti durante i retry.
-    const preEncodedAttachments = attachments.map((blob) => {
+    const preEncodedAttachments = attachments.map(blob => {
+      if (blob && blob.inlineData && blob.inlineData.data) return blob;
       try {
-        if (blob && blob.inlineData) return blob;
         const mimeType = blob && typeof blob.getContentType === 'function' ? blob.getContentType() : '';
-        if (!mimeType) {
-          console.warn('Allegato ignorato: contentType mancante o non valido');
-          return null;
-        }
+        if (!mimeType) return null;
         return {
           inlineData: {
             mimeType: mimeType,
@@ -1263,7 +1278,7 @@ Testo:
           }
         };
       } catch (e) {
-        console.warn(`Impossibile encodare l'allegato: ${e.message}`);
+        console.warn(`Impossibile pre-encodare allegato: ${e.message}`);
         return null;
       }
     }).filter(Boolean);

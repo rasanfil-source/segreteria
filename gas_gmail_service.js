@@ -900,8 +900,16 @@ var GmailService = class GmailService {
         let recipientEmail = null;
         try {
             const rawTo = message.getTo() || '';
-            const match = rawTo.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-            recipientEmail = match ? match[0] : '';
+            const matches = rawTo.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+            const normalizedMatches = matches.map(email => String(email || '').trim().toLowerCase()).filter(Boolean);
+            const knownAliases = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES))
+                ? CONFIG.KNOWN_ALIASES.map(alias => String(alias || '').trim().toLowerCase()).filter(Boolean)
+                : [];
+            const botEmail = (typeof CONFIG !== 'undefined' && CONFIG.BOT_EMAIL)
+                ? String(CONFIG.BOT_EMAIL).trim().toLowerCase()
+                : '';
+            const preferredRecipients = new Set([...knownAliases, botEmail].filter(Boolean));
+            recipientEmail = normalizedMatches.find(email => preferredRecipients.has(email)) || normalizedMatches[0] || '';
         } catch (e) {
             // Silenzio sugli errori di parsing campo To; fallback applicato sotto.
         }
@@ -2372,6 +2380,14 @@ var GmailService = class GmailService {
 
             } catch (apiError) {
                 apiSendError = apiError;
+                const errMsg = String((apiError && apiError.message) || '').toLowerCase();
+                if (
+                    errMsg.includes('timeout')
+                    || errMsg.includes('deadline')
+                    || /\b(503|504)\b/.test(errMsg)
+                ) {
+                    throw new Error(`Timeout API avanzata: fallback nativo bloccato (${apiError.message})`);
+                }
                 console.warn(`⚠️ Gmail API fallita, ripiego su GmailApp: ${apiError.message}`);
             }
         }
