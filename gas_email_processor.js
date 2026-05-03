@@ -1828,6 +1828,7 @@ ${addressLines.join('\n\n')}
           console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), nuovo trigger di continuazione pianificato.`);
         } else {
           console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger esistente preservato.`);
+        }
       }
     } catch (e) {
       console.warn(`⚠️ Salvataggio checkpoint batch fallito: ${e.message}`);
