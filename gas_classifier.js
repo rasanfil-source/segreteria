@@ -230,7 +230,7 @@ var Classifier = class Classifier {
     const firstGmailQuoteIdx = lowerBody.indexOf('<div class="gmail_quote"');
     let safeGmailQuoteIdx = -1;
     if (firstGmailQuoteIdx >= 0) {
-      safeGmailQuoteIdx = lowerBody.lastIndexOf('<div', firstGmailQuoteIdx);
+      safeGmailQuoteIdx = lowerBody.lastIndexOf('<div', Math.max(0, firstGmailQuoteIdx - 1));
       if (safeGmailQuoteIdx === -1) safeGmailQuoteIdx = firstGmailQuoteIdx;
     }
     const firstQuoteIdx = [firstBlockquoteIdx, safeGmailQuoteIdx]

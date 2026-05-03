@@ -578,8 +578,9 @@ var EmailProcessor = class EmailProcessor {
           }
 
           if (
-            botRepliesCount >= (MAX_CONSECUTIVE_EXTERNAL - 1) ||
-            totalBotRepliesInThread >= Math.ceil(MAX_THREAD_LENGTH / 2)
+            botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL ||
+            consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL ||
+            totalBotRepliesInThread >= Math.max(2, Math.floor(MAX_CONSECUTIVE_EXTERNAL * 1.5))
           ) {
             console.log(`   ⊖ Saltato: prevenzione loop email attivata (ping-pong/thread ripetitivo: interventiBot=${totalBotRepliesInThread}, consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
             markHandledUnread();
@@ -641,6 +642,8 @@ var EmailProcessor = class EmailProcessor {
         safeSubject,
         safeBody,
         safeSubjectLower.startsWith('re:')
+        ? /^(re|r|fw|fwd|i|inoltr):\s*/.test(safeSubjectLower)
+        : false
       );
 
       if (!classification.shouldReply) {
@@ -784,7 +787,7 @@ var EmailProcessor = class EmailProcessor {
         : 0;
 
       const salutationMode = computeSalutationMode({
-        isReply: safeSubjectLower.startsWith('re:'),
+        isReply: /^(re|r|fw|fwd|i|inoltr):\s*/.test(safeSubjectLower),
         messageCount: memoryMessageCount,
         memoryExists: !!memoryContext.lastUpdated,
         lastUpdated: memoryContext.lastUpdated || null,
@@ -884,7 +887,7 @@ ${addressLines.join('\n\n')}
           email: {
             subject: safeSubject,
             body: messageDetails.body,
-            isReply: safeSubjectLower.startsWith('re:'),
+            isReply: /^(re|r|fw|fwd|i|inoltr):\s*/.test(safeSubjectLower),
             detectedLanguage: detectedLanguage
           },
           classification: {
