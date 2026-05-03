@@ -1763,8 +1763,14 @@ var GmailService = class GmailService {
         const cleaned = text.replace(/\s+/g, ' ').trim();
 
         // 1. Filtro Lunghezza Minima Assoluta
-        // Se meno di 30 caratteri, è probabilmente rumore o intestazioni vuote
-        if (cleaned.length < 30) return false;
+        // Ridotto a 15 per consentire dati strutturati brevi (es. Codice Fiscale).
+        if (cleaned.length < 15) return false;
+
+        // 1.5 Fast-path per identificativi strutturati (anche con poche lettere, es. IBAN)
+        const compact = cleaned.replace(/\s+/g, '').toUpperCase();
+        const looksLikeCF = /^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/.test(compact);
+        const looksLikeIBAN = /^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(compact);
+        if (looksLikeCF || looksLikeIBAN) return true;
 
         // 2. Filtro Contenuto Alfabetico (Immagini nere/rumore)
         // Conta le lettere effettive (a-z, A-Z)

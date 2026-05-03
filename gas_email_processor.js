@@ -547,48 +547,50 @@ var EmailProcessor = class EmailProcessor {
       const MAX_THREAD_LENGTH = (typeof CONFIG !== 'undefined' && CONFIG.MAX_THREAD_LENGTH) ? CONFIG.MAX_THREAD_LENGTH : 8;
       const MAX_CONSECUTIVE_EXTERNAL = this.config.maxConsecutiveExternal;
 
+      const hasAnyIdentity = Boolean(normalizedMyEmail) || normalizedKnownAliases.length > 0;
+      if (hasAnyIdentity) {
+        let consecutiveExternal = 0;
+        let botRepliesCount = 0;
+
+        // Percorriamo una finestra degli ultimi MAX_THREAD_LENGTH messaggi a ritroso
+        // per contare sequenze esterne e densità di risposte del bot.
+        const startIndex = Math.max(0, messages.length - MAX_THREAD_LENGTH);
+        for (let i = messages.length - 1; i >= startIndex; i--) {
+          const rawFrom = messages[i] && typeof messages[i].getFrom === 'function'
+            ? messages[i].getFrom()
+            : '';
+          const msgFrom = String(rawFrom || '');
+          const msgSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
+            ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(msgFrom) || '')
+            : this._normalizeEmailAddress_(msgFrom);
+
+          const isUs = Boolean(msgSenderEmail) && ownAddresses.has(msgSenderEmail);
+
+          if (isUs) {
+            botRepliesCount++;
+            consecutiveExternal = 0;
+          } else {
+            consecutiveExternal++;
+            botRepliesCount = 0;
+          }
+
+          if (botRepliesCount >= (MAX_CONSECUTIVE_EXTERNAL - 1) || consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
+            console.log(`   ⊖ Saltato: prevenzione loop email attivata (thread ripetitivo: consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
+            markHandledUnread();
+            result.status = 'filtered';
+            result.reason = 'email_loop_detected';
+            return result;
+          }
+        }
+      }
+
       if (messages.length > MAX_THREAD_LENGTH) {
-        const hasAnyIdentity = Boolean(normalizedMyEmail) || normalizedKnownAliases.length > 0;
         if (!hasAnyIdentity) {
           console.warn('   ⚠️ Identità mittente non disponibile con thread lungo: blocco precauzionale anti-loop');
           markHandledUnread();
           result.status = 'filtered';
           result.reason = 'anti_loop_identity_missing';
           return result;
-        } else {
-          let consecutiveExternal = 0;
-          let botRepliesCount = 0;
-
-          // Percorriamo una finestra degli ultimi MAX_THREAD_LENGTH messaggi a ritroso
-          // per contare sequenze esterne e densità di risposte del bot.
-          const startIndex = Math.max(0, messages.length - MAX_THREAD_LENGTH);
-          for (let i = messages.length - 1; i >= startIndex; i--) {
-            const rawFrom = messages[i] && typeof messages[i].getFrom === 'function'
-              ? messages[i].getFrom()
-              : '';
-            const msgFrom = String(rawFrom || '');
-            const msgSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
-              ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(msgFrom) || '')
-              : this._normalizeEmailAddress_(msgFrom);
-
-            const isUs = Boolean(msgSenderEmail) && ownAddresses.has(msgSenderEmail);
-
-            if (isUs) {
-              botRepliesCount++;
-              consecutiveExternal = 0;
-            } else {
-              consecutiveExternal++;
-              botRepliesCount = 0;
-            }
-
-            if (botRepliesCount >= (MAX_CONSECUTIVE_EXTERNAL - 1) || consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {
-              console.log(`   ⊖ Saltato: prevenzione loop email attivata (thread ripetitivo: consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
-              markHandledUnread();
-              result.status = 'filtered';
-              result.reason = 'email_loop_detected';
-              return result;
-            }
-          }
         }
 
         console.warn(`   ⚠️ Thread lungo (${messages.length} messaggi) ma non loop - elaboro`);

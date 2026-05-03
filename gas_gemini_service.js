@@ -1285,6 +1285,9 @@ Testo:
           console.log(`✅ Generato via Rate Limiter (modello: ${result.modelUsed}, token: ~${estimatedTokens})`);
           return { success: true, text: result.result, modelUsed: result.modelUsed };
         }
+
+        const rejectReason = (result && result.reason) ? result.reason : 'Rate limit interno';
+        throw new Error(`Rate Limiter ha rifiutato la richiesta: ${rejectReason}`);
       } catch (error) {
         if (error.message && error.message.includes('QUOTA_EXHAUSTED')) {
           console.warn('⚠️ Quota primaria esaurita (intercettato da RateLimiter)');
