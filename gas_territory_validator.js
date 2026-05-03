@@ -132,7 +132,7 @@ var TerritoryValidator = class TerritoryValidator {
         // - lettere accentate e apostrofo (range À-ÿ copre la maggior parte dei caratteri europei)
         // - abbreviazioni con punto (es. "S.")
         // - numeri nel toponimo (es. "24 Maggio")
-        const streetNameToken = `[a-zA-Z0-9À-ÿ'.-]{1,50}`;
+        const streetNameToken = `[a-zA-Z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF'.-]{1,50}`;
         const streetName = `${streetNameToken}(?:\\s+${streetNameToken}){0,5}?`;
         return [
             // Pattern 1: "via Rossi 10" o "Via: Rossi 10" - Supporto alfanumerico esteso e SNC
@@ -149,7 +149,7 @@ var TerritoryValidator = class TerritoryValidator {
     _buildStreetOnlyPattern() {
         // Pattern bounded (max 6 token) per evitare backtracking eccessivo su input malevoli
         const streetType = this._streetTypePatternSource;
-        const streetNameToken = `[a-zA-Z0-9À-ÿ'.-]{1,50}`;
+        const streetNameToken = `[a-zA-Z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF'.-]{1,50}`;
         const streetName = `${streetNameToken}(?:[ \\t]+${streetNameToken}){0,5}`;
         return new RegExp(`(${streetType})[ \\t]+(${streetName})\\b(?!\\s*(?:n\\.?\\s*|civico\\s+)?(?:\\d+|snc\\b))`, 'gi');
     }
@@ -298,9 +298,9 @@ var TerritoryValidator = class TerritoryValidator {
         }
 
         // Rimuovi caratteri speciali non ammessi in nomi vie (mantiene lettere, numeri, spazi, apostrofi)
-        // Range À-ÿ per conservare accentate durante la pulizia.
+        // Range esplicitamente ristretto per conservare accentate evitando simboli matematici (es. ×, ÷).
         normalized = normalized.replace(/-/g, ' ');
-        normalized = normalized.replace(/[^a-z0-9\s'À-ÿ]/g, '');
+        normalized = normalized.replace(/[^a-z0-9\s'\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF]/g, '');
         normalized = normalized.replace(/\s+/g, ' ');
 
         // Pulizia finale degli spazi per garantire coerenza con il database

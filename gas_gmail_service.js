@@ -704,7 +704,7 @@ var GmailService = class GmailService {
 
         // Gmail label names non supportano virgolette letterali: normalizziamo eventuali input
         // anomali invece di iniettare escape nella query, che Gmail non interpreta come JavaScript.
-        const normalized = trimmed.replace(/"/g, ' ').replace(/\s+/g, ' ').trim();
+        let normalized = trimmed.replace(/[^a-z0-9\s'\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF]/g, '').replace(/\s+/g, ' ').trim();
         return `"${normalized || trimmed}"`;
     }
 
@@ -1778,7 +1778,7 @@ var GmailService = class GmailService {
 
         // 2. Filtro Contenuto Alfabetico (Immagini nere/rumore)
         // Conta le lettere effettive (a-z, A-Z)
-        const letters = (cleaned.match(/[a-zA-ZÀ-ÿ]/g) || []).length;
+        const letters = (cleaned.match(/[a-zA-Z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF]/g) || []).length;
         if (letters < 5) return false; // Meno di 5 lettere = spazzatura (es. "|||||--")
 
         // 3. Filtro Combinato per Nomi Generici
@@ -1810,7 +1810,7 @@ var GmailService = class GmailService {
         const cleaned = text.replace(/\s+/g, ' ').trim();
         if (!cleaned) return 0;
 
-        const alnumCount = (cleaned.match(/[a-zA-Z0-9À-ÿ]/g) || []).length;
+        const alnumCount = (cleaned.match(/[a-zA-Z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF]/g) || []).length;
         const chars = cleaned.length;
         const alnumRatio = Math.min(1, alnumCount / Math.max(1, chars * 0.5));
 
@@ -2044,8 +2044,16 @@ var GmailService = class GmailService {
             };
         }
 
-        const sender = message.getFrom() || '';
-        let body = message.getPlainBody() || this._htmlToPlainText(message.getBody());
+        let sender = '';
+        try { sender = message.getFrom() || ''; } catch (e) {}
+
+        let body = '';
+        try {
+            body = message.getPlainBody() || this._htmlToPlainText(message.getBody() || '');
+        } catch (e) {
+            const msg = (e && e.message) ? e.message : String(e);
+            console.warn(`⚠️ _extractMessageDetailsLite: impossibile leggere body (${msg})`);
+        }
         body = this.extractMainReply(body);
 
         return {
@@ -2441,9 +2449,8 @@ var GmailService = class GmailService {
         }
 
         // Evita di alterare acronimi/parole interamente maiuscole (es. "ISEE", "INVIA")
-        // Range esteso per coprire accentate europee (francese, spagnolo, tedesco, italiano...)
-        // senza catturare spazi nel gruppo "parola" (evita false-negative sulle eccezioni, es. "Maria ").
-        return text.replace(/(,\s+)([A-Z\u00C0-\u017F])([a-z\u00DF-\u017F]+)/g, (match, commaAndSpace, firstLetter, rest, offset) => {
+        // Range esplicitamente ristretto per coprire accentate europee escludendo simboli matematici (×, ÷).
+        return text.replace(/(,\s+)([A-Z\u00C0-\u00DE])([a-z\u00DF-\u00FF]+)/g, (match, commaAndSpace, firstLetter, rest, offset) => {
             // Eccezione per elenchi numerati (es: "1, Partecipanti")
             const beforeMatch = text.substring(Math.max(0, offset - 5), offset);
             if (beforeMatch.match(/\d+$/)) {
@@ -2463,13 +2470,13 @@ var GmailService = class GmailService {
             }
 
             // Eccezione per congiunzione "e" seguita da nome (es. "Maria e Giovanni,")
-            if (afterMatch.match(/^\s+e\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]*\s*[,.]/)) {
+            if (afterMatch.match(/^\s+e\s+[A-Z\u00C0-\u00DE][a-z\u00DF-\u00FF]*\s*[,.]/)) {
                 return match;
             }
 
             // Euristica nomi doppi: se la parola è seguita da un'altra parola maiuscola,
             // probabilmente sono nomi propri (es. "Maria Isabella", "Gian Luca", "Carlo Alberto")
-            if (afterMatch.match(/^\s+[A-Z\u00C0-\u017F][a-z\u00DF-\u017F]+\s+[A-Z\u00C0-\u017F][a-z\u00DF-\u017F]+/)) {
+            if (afterMatch.match(/^\s+[A-Z\u00C0-\u00DE][a-z\u00DF-\u00FF]+\s+[A-Z\u00C0-\u00DE][a-z\u00DF-\u00FF]+/)) {
                 return match;
             }
 
@@ -2647,15 +2654,16 @@ var GmailService = class GmailService {
                 }
                 currentLine = ` ${token}`;
                 hasAtLeastOneToken = true;
-                console.warn(`⚠️ Header token troppo lungo (${token.length} chars), emesso integralmente`);
                 continue;
             }
 
             const candidate = `${currentLine} ${token}`;
-            if (currentLine === headerPrefix || candidate.length <= maxLineLength) {
+            if (candidate.length <= maxLineLength) {
                 currentLine = candidate;
             } else {
-                lines.push(currentLine);
+                if (currentLine !== headerPrefix) {
+                    lines.push(currentLine);
+                }
                 currentLine = ` ${token}`;
             }
             hasAtLeastOneToken = true;
