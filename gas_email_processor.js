@@ -249,7 +249,7 @@ var EmailProcessor = class EmailProcessor {
           : '';
         const botEmailConfig = (typeof CONFIG !== 'undefined' && CONFIG.BOT_EMAIL) ? CONFIG.BOT_EMAIL : '';
 
-        myEmail = adminEmail || botEmailProperty || botEmailConfig || '';
+        myEmail = botEmailProperty || botEmailConfig || adminEmail || '';
 
         if (myEmail) {
           console.warn(`⚠️ Session email non disponibile: uso fallback anti-loop (${myEmail})`);
@@ -696,25 +696,21 @@ var EmailProcessor = class EmailProcessor {
           // ↑ Uscita intenzionale senza marcare nulla: i secondari restano
           //   visibili al prossimo trigger per garantire il retry.
         }
-        this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
-
-        // Marchiamo sempre i secondari quando il candidato è stato scartato:
-        // il thread è già stato valutato e lasciarli non etichettati genera
-        // riprocessamenti inutili nei trigger successivi.
-        unlabeledUnread.forEach(message => {
-          if (message.getId() !== candidate.getId()) {
-            this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
-          }
-        });
+        markHandledUnread();
         result.status = 'filtered';
         return result;
       }
 
       // Quick check superato con shouldRespond=true: marca i secondari ora.
       if (languageMode !== 'foreign_only') {
+        const externalIds = new Set(externalUnread.map(m => m.getId()));
         unlabeledUnread.forEach(message => {
           if (message.getId() !== candidate.getId()) {
-            this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
+            if (externalIds.has(message.getId())) {
+              this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
+            } else {
+              this._markMessagesAsSkipped([message], this.config.skipLabelName, skippedMessageIds);
+            }
           }
         });
       } else {
@@ -954,7 +950,16 @@ ${addressLines.join('\n\n')}
               console.log('   📎 Body corto: elaborazione allegati forzata');
             }
             console.log('   📎 Elaborazione allegati multimodale (Vision)...');
-            const attachmentData = this.gmailService.getProcessableAttachments(candidate);
+            let attachmentData = { blobs: [], textContext: '', skipped: [] };
+            // Aggrega allegati dai non letti esterni più recenti, non solo dal candidato.
+            // Evita perdita di contesto quando l'utente invia allegati in messaggi precedenti.
+            for (let i = externalUnread.length - 1; i >= 0; i--) {
+              const msgData = this.gmailService.getProcessableAttachments(externalUnread[i]);
+              if (Array.isArray(msgData.blobs)) attachmentData.blobs.push(...msgData.blobs);
+              if (msgData.textContext) attachmentData.textContext += msgData.textContext;
+              if (Array.isArray(msgData.skipped)) attachmentData.skipped.push(...msgData.skipped);
+              if (attachmentData.blobs.length >= ((settings && settings.maxFiles) || 3)) break;
+            }
             attachmentBlobs = attachmentData.blobs || [];
             textFromAttachments = attachmentData.textContext || '';
             attachmentSkipped = attachmentData.skipped || [];
@@ -1509,13 +1514,10 @@ ${addressLines.join('\n\n')}
       const languageMode = typeof this._getLanguageProcessingMode_ === 'function'
         ? this._getLanguageProcessingMode_()
         : 'all';
-      // La query di discovery opera a livello thread. Per garantire il rilevamento di nuovi
-      // messaggi in conversazioni esistenti, non escludiamo esplicitamente le etichette di stato.
-      // Il filtraggio granulare avviene successivamente a livello di singolo messaggio.
-      // In foreign_only escludiamo la label di skip dalla discovery query per ridurre thread scaricati
-      const labelsDaIgnorare = (languageMode === 'foreign_only')
-        ? [this.config.skipLabelName].filter(Boolean)
-        : [];
+      // IMPORTANTE: non escludere mai skipLabelName in query:
+      // Gmail applica -label a livello thread e rischieremmo di perdere follow-up esterni
+      // su conversazioni già toccate da messaggi interni/italiani saltati.
+      const labelsDaIgnorare = [];
 
       let threads;
       try {
@@ -2890,17 +2892,22 @@ Nota: l'orario comunicato è diverso da quello da Lei indicato.`;
       const cache = (typeof CacheService !== "undefined" && CacheService && typeof CacheService.getScriptCache === "function")
         ? CacheService.getScriptCache()
         : null;
-      if (!cache) return 0;
+      const props = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
+        ? PropertiesService.getScriptProperties()
+        : null;
+      if (!cache && !props) return 0;
 
       const key = "empty_inbox_streak";
-      let streak = parseInt(cache.get(key) || "0", 10);
+      let streak = parseInt((cache ? cache.get(key) : null) || (props ? props.getProperty(key) : null) || "0", 10);
 
       if (isEmpty) {
         streak++;
-        cache.put(key, streak.toString(), 21600); // 6 ore
+        if (cache) cache.put(key, streak.toString(), 21600); // 6 ore
+        if (props && streak % 10 === 0) props.setProperty(key, streak.toString());
       } else {
         streak = 0;
-        cache.remove(key);
+        if (cache) cache.remove(key);
+        if (props) props.removeProperty(key);
       }
       return streak;
     } catch (e) {

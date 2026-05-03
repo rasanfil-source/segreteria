@@ -262,8 +262,9 @@ var GmailService = class GmailService {
                 this._clearPersistentLabelCache(labelName);
                 this.clearLabelCache();
                 try {
-                    this.getOrCreateLabel(labelName);
-                    const labelId = this._getOptionalLabelIdByName(labelName);
+                    const recoveredLabel = this.getOrCreateLabel(labelName);
+                    const labelIdFromCache = this._getOptionalLabelIdByName(labelName);
+                    const labelId = labelIdFromCache || (recoveredLabel && typeof recoveredLabel.getId === 'function' ? recoveredLabel.getId() : null);
                     if (!labelId) throw new Error("Label ID non trovato tramite API Avanzata");
                     this._incrementGmailCallCounterOrThrow_('messages.modify:addLabel:retry');
                     const payload = { addLabelIds: [labelId] };
@@ -911,9 +912,16 @@ var GmailService = class GmailService {
             const match = rawTo.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
             recipientEmail = match ? match[0] : '';
         } catch (e) {
+            // Silenzio sugli errori di parsing campo To; fallback applicato sotto.
+        }
+        if (!recipientEmail) {
             const hasSession = (typeof Session !== 'undefined' && Session);
-            const effectiveUser = hasSession ? Session.getEffectiveUser() : null;
-            recipientEmail = effectiveUser ? effectiveUser.getEmail() : '';
+            const effectiveUser = hasSession && typeof Session.getEffectiveUser === 'function'
+                ? Session.getEffectiveUser()
+                : null;
+            recipientEmail = effectiveUser && typeof effectiveUser.getEmail === 'function'
+                ? (effectiveUser.getEmail() || '')
+                : '';
             if (!recipientEmail && typeof CONFIG !== 'undefined') {
                 recipientEmail = CONFIG.BOT_EMAIL || (CONFIG.LOGGING && CONFIG.LOGGING.ADMIN_EMAIL) || '';
             }
