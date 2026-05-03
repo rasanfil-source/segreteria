@@ -1440,14 +1440,14 @@ var GmailService = class GmailService {
                 }
             }
 
-            this._cleanupOrphanedOcrFiles();
-
             if (cache) {
-                cache.put(throttleKey, String(Date.now()), 21600); // max una volta ogni 6 ore
+                cache.put(throttleKey, String(Date.now()), 21599); // max una volta ogni 6 ore (evita edge-case al limite hard)
             }
             if (props) {
                 try { props.setProperty(propKey, String(Date.now())); } catch (_) {}
             }
+
+            this._cleanupOrphanedOcrFiles();
         } catch (e) {
             console.warn(`⚠️ Cleanup orfani OCR non eseguito: ${e.message}`);
         }

@@ -140,10 +140,10 @@ Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
       const lastNotificationMs = Number.parseInt(lastNotification || '', 10);
       const isCooldownExpired = !Number.isFinite(lastNotificationMs) || (now - lastNotificationMs) > 300000;
       if (isCooldownExpired) {
-        GmailApp.sendEmail(adminEmail, subject, body);
         if (scriptProperties) {
           scriptProperties.setProperty('last_error_notification', now.toString());
         }
+        GmailApp.sendEmail(adminEmail, subject, body);
       }
     } catch (e) {
       console.error('Invio notifica errore fallito:', e.message);
