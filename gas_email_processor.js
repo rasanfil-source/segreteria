@@ -573,15 +573,10 @@ var EmailProcessor = class EmailProcessor {
             const isUs = Boolean(msgSenderEmail) && ownAddresses.has(msgSenderEmail);
 
             if (isUs) {
-              // Un nostro messaggio (account primario o alias) interrompe la
-              // sequenza esterna "recente": non bisogna considerare i messaggi
-              // più vecchi nel controllo anti-loop.
               botRepliesCount++;
               consecutiveExternal = 0;
-              break;
             } else {
               consecutiveExternal++;
-              botRepliesCount = 0;
             }
 
             if (botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL || consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL) {

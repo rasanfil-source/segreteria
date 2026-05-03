@@ -2196,9 +2196,9 @@ var GmailService = class GmailService {
                 // From stabile: usa account effettivo, poi account attivo, poi primo indirizzo valido nel To originale.
                 const recipientFallbackEmail = this._extractEmailAddress(messageDetails.recipientEmail || '');
                 const stableFrom = (
-                    safeSessionEmail('getEffectiveUser')
+                    recipientFallbackEmail
+                    || safeSessionEmail('getEffectiveUser')
                     || safeSessionEmail('getActiveUser')
-                    || recipientFallbackEmail
                     || null
                 );
 
