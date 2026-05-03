@@ -730,7 +730,11 @@ var GmailService = class GmailService {
         const cachedEntry = this._labelCache.get(raw);
         const now = Date.now();
         if (cachedEntry && (now - cachedEntry.ts) < this._cacheTTL) {
-            return cachedEntry.labelId || null;
+            if (cachedEntry.labelId !== undefined) return cachedEntry.labelId;
+            if (cachedEntry.label && typeof cachedEntry.label.getId === 'function') {
+                return cachedEntry.label.getId();
+            }
+            return null;
         }
 
         // Fallback robusto: in ambienti dove Gmail.Users non è disponibile (es. test locali

@@ -600,16 +600,12 @@ var EmailProcessor = class EmailProcessor {
         }
       }
 
-      if (messages.length > MAX_THREAD_LENGTH) {
-        if (!hasAnyIdentity) {
-          console.warn('   ⚠️ Identità mittente non disponibile con thread lungo: blocco precauzionale anti-loop');
-          markHandledUnread();
-          result.status = 'filtered';
-          result.reason = 'anti_loop_identity_missing';
-          return result;
-        }
+      if (!hasAnyIdentity) {
+        console.warn('   ⚠️ Identità mittente non disponibile: anti-loop check degradato');
+      }
 
-        console.warn(`   ⚠️ Thread lungo (${messages.length} messaggi) ma non loop - elaboro`);
+      if (messages.length > MAX_THREAD_LENGTH) {
+        console.warn(`   ⚠️ Thread lungo (${messages.length} messaggi) tollerato - elaboro`);
       }
 
       // ====================================================================
@@ -792,7 +788,7 @@ var EmailProcessor = class EmailProcessor {
         : 0;
 
       const salutationMode = computeSalutationMode({
-        isReply: /^(re|r|fw|fwd|i|inoltr):\s*/.test(safeSubjectLower),
+        isReply: /^(re|r|rif|aw|rv|fw|fwd|i|inoltr)\s*:/i.test(safeSubjectLower) || messages.length > 1,
         messageCount: memoryMessageCount,
         memoryExists: !!memoryContext.lastUpdated,
         lastUpdated: memoryContext.lastUpdated || null,
@@ -892,7 +888,7 @@ ${addressLines.join('\n\n')}
           email: {
             subject: safeSubject,
             body: messageDetails.body,
-            isReply: /^(re|r|fw|fwd|i|inoltr):\s*/.test(safeSubjectLower),
+            isReply: /^(re|r|rif|aw|rv|fw|fwd|i|inoltr)\s*:/i.test(safeSubjectLower) || messages.length > 1,
             detectedLanguage: detectedLanguage
           },
           classification: {

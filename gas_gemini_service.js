@@ -107,22 +107,8 @@ var GeminiService = class GeminiService {
 
     const requestParts = [];
     if (attachments && attachments.length > 0) {
-      attachments.forEach((blob) => {
-        try {
-          const mimeType = blob && typeof blob.getContentType === 'function' ? blob.getContentType() : '';
-          if (!mimeType) {
-            console.warn('Allegato ignorato: contentType mancante o non valido');
-            return;
-          }
-          requestParts.push({
-            inlineData: {
-              mimeType: mimeType,
-              data: Utilities.base64Encode(blob.getBytes())
-            }
-          });
-        } catch (e) {
-          console.warn(`Impossibile encodare l'allegato: ${e.message}`);
-        }
+      attachments.forEach((att) => {
+        if (att && att.inlineData) requestParts.push(att);
       });
     }
     requestParts.push({ text: prompt });
@@ -1260,6 +1246,27 @@ Testo:
     const targetModel = options.modelName || this.modelName;
     const skipRateLimit = options.skipRateLimit || false;
     const attachments = options.attachments || [];
+
+    // Pre-elaborazione Base64 per evitare ripetizione I/O e allocazioni pesanti durante i retry.
+    const preEncodedAttachments = attachments.map((blob) => {
+      try {
+        if (blob && blob.inlineData) return blob;
+        const mimeType = blob && typeof blob.getContentType === 'function' ? blob.getContentType() : '';
+        if (!mimeType) {
+          console.warn('Allegato ignorato: contentType mancante o non valido');
+          return null;
+        }
+        return {
+          inlineData: {
+            mimeType: mimeType,
+            data: Utilities.base64Encode(blob.getBytes())
+          }
+        };
+      } catch (e) {
+        console.warn(`Impossibile encodare l'allegato: ${e.message}`);
+        return null;
+      }
+    }).filter(Boolean);
     const forceModelKey = this.useRateLimiter && this.rateLimiter && this.rateLimiter.models
       ? Object.keys(this.rateLimiter.models).find((key) =>
           key === targetModel || this.rateLimiter.models[key].name === targetModel
@@ -1275,7 +1282,7 @@ Testo:
 
         const result = this.rateLimiter.executeRequest(
           'generation',
-          (modelName) => this._generateWithModel(prompt, modelName, targetKey, attachments),
+          (modelName) => this._generateWithModel(prompt, modelName, targetKey, preEncodedAttachments),
           {
             estimatedTokens: estimatedTokens,
             preferQuality: true,
@@ -1310,7 +1317,7 @@ Testo:
     if (skipRateLimit) {
       console.log(`⏩ Chiamata diretta (bypass RateLimiter) con ${targetModel}`);
       const text = this._withRetry(
-        () => this._generateWithModel(prompt, targetModel, targetKey, attachments),
+        () => this._generateWithModel(prompt, targetModel, targetKey, preEncodedAttachments),
         'Generazione diretta (Chiave di Riserva)'
       );
       // `success` è coerente con la presenza di testo generato (nessuna inversione logica).
@@ -1318,7 +1325,7 @@ Testo:
     }
 
     const result = this._withRetry(
-      () => this._generateWithModel(prompt, targetModel, targetKey, attachments),
+      () => this._generateWithModel(prompt, targetModel, targetKey, preEncodedAttachments),
       'Generazione risposta'
     );
 
