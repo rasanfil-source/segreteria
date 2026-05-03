@@ -1686,10 +1686,18 @@ var GmailService = class GmailService {
                     const slideTexts = [];
                     for (const shape of shapes) {
                         if (exceededBudget()) break;
-                        const tf = shape.getText();
-                        if (tf) {
-                            const text = tf.asString().trim();
-                            if (text) slideTexts.push(text);
+                        try {
+                            const shapeType = (typeof shape.getShapeType === 'function') ? shape.getShapeType() : null;
+                            if (shapeType !== SlidesApp.ShapeType.TEXT_BOX && shapeType !== SlidesApp.ShapeType.SHAPE) {
+                                continue;
+                            }
+                            const tf = shape.getText();
+                            if (tf) {
+                                const text = tf.asString().trim();
+                                if (text) slideTexts.push(text);
+                            }
+                        } catch (_) {
+                            // Ignora shape non testuali o non leggibili
                         }
                     }
                     if (slideTexts.length > 0) {

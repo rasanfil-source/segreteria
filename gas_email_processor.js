@@ -1717,7 +1717,8 @@ ${addressLines.join('\n\n')}
 
         if (result && result.error && String(result.error).includes('GMAIL_DAILY_CALL_LIMIT_REACHED')) {
           this.logger.warn('⚠️ Stop batch: limite giornaliero chiamate Gmail raggiunto durante processThread.');
-          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, remainingTimeMs);
+          // -1: checkpoint senza trigger (quota Gmail giornaliera, retry domani)
+          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, -1);
           break;
         }
 
@@ -1843,7 +1844,9 @@ ${addressLines.join('\n\n')}
 
       if (canManageTriggers) {
         const existing = ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'resumeEmailBatchFromCheckpoint');
-        if (existing.length === 0) {
+        if (remainingTimeMs === -1) {
+          console.log(`⏸️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), nessun trigger pianificato (quota giornaliera Gmail esaurita).`);
+        } else if (existing.length === 0) {
           ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(60 * 1000).create();
           console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), nuovo trigger di continuazione pianificato.`);
         } else {
