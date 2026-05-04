@@ -2139,6 +2139,19 @@ ${addressLines.join('\n\n')}
     const parsedDate = (date instanceof Date) ? date : new Date(date);
     if (isNaN(parsedDate.getTime())) return '';
 
+    if (typeof Utilities !== 'undefined' && Utilities &&
+        typeof Utilities.formatDate === 'function') {
+      try {
+        const tz = (typeof Session !== 'undefined' && Session &&
+                    typeof Session.getScriptTimeZone === 'function')
+          ? Session.getScriptTimeZone()
+          : 'Europe/Rome';
+        return Utilities.formatDate(parsedDate, tz, 'yyyy-MM-dd');
+      } catch (_) {
+        // Fallback sotto
+      }
+    }
+
     try {
       return new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Europe/Rome',

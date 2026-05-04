@@ -2741,7 +2741,7 @@ var GmailService = class GmailService {
 
         for (const token of tokens) {
             const candidate = `${currentLine} ${token}`;
-            if (candidate.length <= maxLineLength) {
+            if (candidate.length <= maxLineLength || currentLine === headerPrefix) {
                 currentLine = candidate;
             } else {
                 // Se non c'è spazio, spingi la riga corrente (incluso il prefisso se è il primo token)

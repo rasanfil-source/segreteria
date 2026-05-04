@@ -567,9 +567,9 @@ ${checks.join('\n')}
     if (typeof requestType === 'object' && requestType.dimensions) {
       dimWeights = {
         'sacrament': 1.0,
-        'pastoral': requestType.dimensions.pastoral || 0.5,
-        'doctrinal': requestType.dimensions.doctrinal || 0.5,
-        'technical': requestType.dimensions.technical || 0.5
+        'pastoral': requestType.dimensions.pastoral ?? 0.5,
+        'doctrinal': requestType.dimensions.doctrinal ?? 0.5,
+        'technical': requestType.dimensions.technical ?? 0.5
       };
       suggestedTone = (requestType.suggestedTone || '').toLowerCase();
     } else {

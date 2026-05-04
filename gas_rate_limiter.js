@@ -23,6 +23,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     // Legge modelli da CONFIG.GEMINI_MODELS (centralizzato)
     if (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_MODELS) {
       this.models = CONFIG.GEMINI_MODELS;
+      this.models = this._normalizeDeprecatedModelNames(this.models);
       console.log('   \u2713 Modelli caricati da CONFIG.GEMINI_MODELS');
     } else {
       // Fallback se CONFIG non disponibile
