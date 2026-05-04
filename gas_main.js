@@ -355,6 +355,20 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
 
       if (!Array.isArray(threads) || threads.length === 0) break;
 
+      // Fix architetturale: filtra i falsi positivi della query `newer_than`
+      // prima di passare al controllo dettagliato per-messaggio.
+      for (const thread of threads) {
+        try {
+          const lastDate = (thread && typeof thread.getLastMessageDate === 'function') ? thread.getLastMessageDate() : null;
+          const lastTs = lastDate instanceof Date ? lastDate.getTime() : NaN;
+          if (Number.isFinite(lastTs) && lastTs <= cutoffMs && lastTs > oldestRelevantMs) {
+            return true;
+          }
+        } catch (threadDateError) {
+          console.warn(`⚠️ hasStaleUnreadThreads: thread ignorato per errore getLastMessageDate (${threadDateError.message})`);
+        }
+      }
+
       const foundStale = threads.some(thread => {
         try {
           const messages = thread && typeof thread.getMessages === 'function' ? thread.getMessages() : [];
@@ -1495,6 +1509,7 @@ function main() {
       return;
     }
 
+    let staleOnlyMs = null;
     if (isInSuspensionTime()) {
       const staleHours = (typeof CONFIG !== 'undefined' && typeof CONFIG.SUSPENSION_STALE_UNREAD_HOURS === 'number')
         ? CONFIG.SUSPENSION_STALE_UNREAD_HOURS
@@ -1504,6 +1519,8 @@ function main() {
         console.log('💤 Sistema in sospensione (orario ufficio/festività).');
         return;
       }
+
+      staleOnlyMs = Date.now() - (staleHours * 60 * 60 * 1000);
       console.warn(`⏰ Sospensione bypassata: trovate email non lette più vecchie di ${staleHours}h.`);
     }
 
@@ -1520,6 +1537,10 @@ function main() {
     const runOptions = (checkpointData && Array.isArray(checkpointData.pendingThreadIds) && checkpointData.pendingThreadIds.length > 0)
       ? { threadIds: checkpointData.pendingThreadIds }
       : {};
+
+    if (Number.isFinite(staleOnlyMs)) {
+      runOptions.staleOnlyMs = staleOnlyMs;
+    }
 
     // Passaggio della dottrina strutturata e testo piatto per compatibilità con i formati di input
     const results = processor.processUnreadEmails(knowledgeBase, doctrineBase, true, false, runOptions);

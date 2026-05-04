@@ -103,7 +103,7 @@ var EmailProcessor = class EmailProcessor {
    * @param {?Set} labeledMessageIds - ID messaggi già etichettati (opzionale)
    * @param {boolean} skipLock - Se true, salta acquisizione lock
    */
-  processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds = null, skipLock = false, skippedMessageIds = null) {
+  processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds = null, skipLock = false, skippedMessageIds = null, options = {}) {
     const threadId = thread.getId();
     const startTime = Date.now();
     // Garantisce che _isNearDeadline() funzioni anche se processThread
@@ -313,6 +313,16 @@ var EmailProcessor = class EmailProcessor {
 
         // Se non riusciamo ad estrarre l'email, consideriamo il mittente come esterno per sicurezza
         if (!senderEmail) return true;
+
+        // Guardrail paracadute: in modalità stale-only scarta messaggi recenti.
+        if (options && Number.isFinite(Number(options.staleOnlyMs))) {
+          const msgDate = (message && typeof message.getDate === 'function') ? message.getDate() : null;
+          const messageTs = msgDate instanceof Date ? msgDate.getTime() : NaN;
+          if (Number.isFinite(messageTs) && messageTs > Number(options.staleOnlyMs)) {
+            return false;
+          }
+        }
+
         return !ownAddresses.has(this._normalizeEmailAddress_(senderEmail));
       });
 
@@ -1756,7 +1766,8 @@ ${addressLines.join('\n\n')}
           normalizedDoctrineBase,
           labeledMessageIds,
           threadLockAlreadyCovered,
-          skippedMessageIds
+          skippedMessageIds,
+          options
         );
         stats.total++;
 
