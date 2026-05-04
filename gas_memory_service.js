@@ -923,7 +923,7 @@ var MemoryService = class MemoryService {
         if (cache.get(key) == null) {
           cache.put(key, token, lockTtlSeconds);
           // Piccola attesa per lasciare propagare il put in ambienti con latenza cache.
-          Utilities.sleep(20);
+          Utilities.sleep(80);
           if (cache.get(key) === token) {
             this._heldShardLocks[key] = token;
             return true;

@@ -361,9 +361,15 @@ var EmailProcessor = class EmailProcessor {
       // Se non ci sono messaggi da esterni → skip
       if (externalUnread.length === 0) {
         console.log('   ⊖ Saltato: nessun nuovo messaggio esterno non letto');
-        // Messaggi interni (nostri/alias) non sono "processati da IA":
-        // vanno marcati come saltati per non inquinare metrica/label IA.
-        this._markMessagesAsSkipped(unlabeledUnread, this.config.skipLabelName, skippedMessageIds);
+        // In modalità stale-only i messaggi recenti devono restare eleggibili per il ciclo normale.
+        const isStaleOnlyRun = options && Number.isFinite(Number(options.staleOnlyMs));
+        if (!isStaleOnlyRun) {
+          // Messaggi interni (nostri/alias) non sono "processati da IA":
+          // vanno marcati come saltati per non inquinare metrica/label IA.
+          this._markMessagesAsSkipped(unlabeledUnread, this.config.skipLabelName, skippedMessageIds);
+        } else {
+          console.log('   ℹ️ Stale-only: messaggi recenti non marcati (saranno processati nel prossimo ciclo)');
+        }
         result.status = 'skipped';
         result.reason = 'no_external_unread';
         return result;
@@ -436,7 +442,20 @@ var EmailProcessor = class EmailProcessor {
       if (externalUnread.length > 1) {
         const aggregatedBody = externalUnread.map((message) => {
           const details = this.gmailService.extractMessageDetails(message);
-          const messageDate = details.date instanceof Date ? details.date.toLocaleString() : 'data non disponibile';
+          const messageDate = (() => {
+            if (!(details.date instanceof Date)) return 'data non disponibile';
+            if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+              try {
+                const tz = (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function')
+                  ? Session.getScriptTimeZone()
+                  : 'Europe/Rome';
+                return Utilities.formatDate(details.date, tz, 'dd/MM/yyyy HH:mm');
+              } catch (e) {
+                // fallback sotto
+              }
+            }
+            return details.date.toISOString().slice(0, 16).replace('T', ' ');
+          })();
           return `--- Messaggio del ${messageDate} ---\n${details.body || ''}`;
         }).join('\n\n');
         
@@ -1781,7 +1800,14 @@ ${addressLines.join('\n\n')}
           break;
         }
 
-        if (result && (result.errorClass === 'QUOTA_EXCEEDED' || result.errorClass === 'QUOTA_EXHAUSTED')) {
+        if (
+          result &&
+          (
+            result.errorClass === 'QUOTA_EXCEEDED' ||
+            result.errorClass === 'QUOTA_EXHAUSTED' ||
+            String(result.error || '').includes('QUOTA_EXHAUSTED')
+          )
+        ) {
           this.logger.warn('⚠️ Stop batch: quota API LLM esaurita, salvo checkpoint per evitare cascata di error label.');
           this._storeBatchCheckpointAndScheduleContinuation_(threads, index, remainingTimeMs);
           break;

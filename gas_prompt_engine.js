@@ -1108,10 +1108,20 @@ Non mostrare mai entrambi i set di orari.`;
     } else {
       dateObj = new Date(currentDate);
     }
-    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    const localeByLanguage = { it: 'it-IT', en: 'en-GB', es: 'es-ES', pt: 'pt-PT' };
-    const locale = localeByLanguage[detectedLanguage] || localeByLanguage.it;
-    const humanDate = dateObj.toLocaleDateString(locale, options);
+    const humanDate = (() => {
+      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      const localeByLanguage = { it: 'it-IT', en: 'en-GB', es: 'es-ES', pt: 'pt-PT' };
+      const locale = localeByLanguage[detectedLanguage] || localeByLanguage.it;
+
+      try {
+        const tz = (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function')
+          ? Session.getScriptTimeZone()
+          : 'Europe/Rome';
+        return new Intl.DateTimeFormat(locale, { ...options, timeZone: tz }).format(dateObj);
+      } catch (e) {
+        return currentDate;
+      }
+    })();
 
     return `══════════════════════════════════════════════════════════════════════
 🗓️ DATA ODIERNA: ${currentDate} (${humanDate})
