@@ -66,7 +66,7 @@ var CONFIG = {
     MESSAGE_DISCOVERY_MODE: 'query',
     // =========================================================================================
     MAX_EXECUTION_TIME_MS: 280000,    // Budget massimo per run (default GAS trigger ~6 minuti)
-    GMAIL_LABEL_CACHE_TTL: 3600000,      // 1 ora in millisecondi
+    GMAIL_LABEL_CACHE_TTL: 21600000,     // 6 ore in millisecondi
     MAX_HISTORY_MESSAGES: 8,             // Massimo messaggi in cronologia thread
     ATTACHMENT_CONTEXT: {
         enabled: true,                   // Includi testo allegati (PDF, immagini, Word, Excel, PowerPoint) nel prompt

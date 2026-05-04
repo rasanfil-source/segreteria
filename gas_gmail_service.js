@@ -44,7 +44,8 @@ var GmailService = class GmailService {
             'application/vnd.oasis.opendocument.text': 'application/vnd.google-apps.document'
         };
 
-        console.log('✓ GmailService inizializzato con cache etichette (TTL 1h)');
+        const ttlHours = Math.max(1, Math.round((this._cacheTtlSeconds / 3600) * 10) / 10);
+        console.log(`✓ GmailService inizializzato con cache etichette (TTL ${ttlHours}h)`);
     }
 
     _getGmailCounterDateKey_() {
