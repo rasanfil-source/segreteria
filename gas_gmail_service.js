@@ -90,9 +90,9 @@ var GmailService = class GmailService {
                 }
             }
             const next = current + 1;
-            this._scriptCache.put(key, String(next), 21600);
+            this._scriptCache.put(key, String(next), 21599);
             // Allineamento periodico del counter su storage persistente.
-            const shouldSync = (next % 15 === 0) || (next >= this._gmailDailyCounterWarnAt);
+            const shouldSync = (next % 5 === 0) || (next >= this._gmailDailyCounterWarnAt);
             if (shouldSync && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
                 try {
                     PropertiesService.getScriptProperties().setProperty(key, String(next));
@@ -709,16 +709,13 @@ var GmailService = class GmailService {
 
     _formatLabelQueryValue(labelName) {
         if (!labelName) return '""';
-        const raw = String(labelName);
-        const trimmed = raw.trim();
-        if (!trimmed) {
-            return '""';
-        }
+        const trimmed = String(labelName).trim();
+        if (!trimmed) return '""';
 
-        // Gmail label names non supportano virgolette letterali: normalizziamo eventuali input
-        // anomali invece di iniettare escape nella query, che Gmail non interpreta come JavaScript.
-        let normalized = trimmed.replace(/[^a-z0-9\s'\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF]/g, '').replace(/\s+/g, ' ').trim();
-        return `"${normalized || trimmed}"`;
+        // Gmail non supporta virgolette letterali nei nomi delle label nelle query.
+        // Rimuoviamole per evitare di rompere la stringa racchiusa in "".
+        const sanitized = trimmed.replace(/"/g, '');
+        return `"${sanitized}"`;
     }
 
     _getOptionalLabelIdByName(labelName) {
@@ -2158,14 +2155,14 @@ var GmailService = class GmailService {
         }
 
         const sigMarkers = [
-            /^cordiali saluti\b/im,
-            /^distinti saluti\b/im,
-            /^saluti\b/im,
-            /^in fede\b/im,
-            /^best regards\b/im,
-            /^sincerely\b/im,
-            /^sent from my iphone\b/im,
-            /^inviato da (?:mio )?(?:iphone|samsung|smartphone|dispositivo|ipad|telefono)\b/im
+            /^cordiali\s+saluti[\s,!.-]*$/im,
+            /^distinti\s+saluti[\s,!.-]*$/im,
+            /^saluti[\s,!.-]*$/im,
+            /^in\s+fede[\s,!.-]*$/im,
+            /^best\s+regards[\s,!.-]*$/im,
+            /^sincerely[\s,!.-]*$/im,
+            /^sent\s+from\s+my\s+iphone[\s,!.-]*$/im,
+            /^inviato\s+da\b.*$/im
         ];
 
         // Ricerca firma "tail-aware":
@@ -3206,12 +3203,6 @@ function markdownToHtml(text) {
     html = html.replace(/^##\s+(.+)$/gm, `<p style="font-size:${headingPx.h2}px;font-weight:bold;margin:12px 0 4px;">$1</p>`);
     html = html.replace(/^#\s+(.+)$/gm, `<p style="font-size:${headingPx.h1}px;font-weight:bold;margin:14px 0 6px;">$1</p>`);
 
-    // Bold / Italic (asterischi già escaped come testo, usiamo la versione escaped)
-    // Nota: gli asterischi NON vengono escaped da escapeHtml(), quindi funzionano normalmente
-    html = html.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/(?<!\*)\*(?!\*)([\s\S]+?)\*(?!\*)/g, '<em>$1</em>');
-    // Inline code
-    html = html.replace(/`([^`\n]+)`/g, '<code style="background:#f4f4f4;padding:2px 4px;border-radius:3px;font-family:monospace;font-size:0.9em;">$1</code>');
 
     // 5. Liste markdown (bullet e numerate) -> <ul>/ <ol> + <li>
     // Liste puntate (- item  oppure  * item all'inizio riga)

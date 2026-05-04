@@ -788,6 +788,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   }
 
   _refreshCache() {
+    let rpmFromProps = [];
+    let tpmFromProps = [];
     try {
       rpmFromProps = JSON.parse(this.props.getProperty('rpm_window') || '[]');
       if (!rpmFromProps.length) {

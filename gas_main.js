@@ -361,18 +361,15 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
         try {
           const lastDate = (thread && typeof thread.getLastMessageDate === 'function') ? thread.getLastMessageDate() : null;
           const lastTs = lastDate instanceof Date ? lastDate.getTime() : NaN;
+          
+          // Se l'ultimo messaggio è già "stale", l'intero thread è considerato stale.
           if (Number.isFinite(lastTs) && lastTs <= cutoffMs && lastTs > oldestRelevantMs) {
             return true;
           }
-        } catch (threadDateError) {
-          console.warn(`⚠️ hasStaleUnreadThreads: thread ignorato per errore getLastMessageDate (${threadDateError.message})`);
-        }
-      }
 
-      const foundStale = threads.some(thread => {
-        try {
+          // Se l'ultimo messaggio è recente, verifichiamo se ci sono messaggi non letti "stale" all'interno.
           const messages = thread && typeof thread.getMessages === 'function' ? thread.getMessages() : [];
-          return Array.isArray(messages) && messages.some(message => {
+          const hasInternalStale = Array.isArray(messages) && messages.some(message => {
             try {
               const date = (message && typeof message.getDate === 'function') ? message.getDate() : null;
               const timeMs = date instanceof Date ? date.getTime() : NaN;
@@ -383,13 +380,13 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
               return false;
             }
           });
-        } catch (threadError) {
-          console.warn(`⚠️ hasStaleUnreadThreads: thread ignorato per errore getMessages (${threadError.message})`);
-          return false;
-        }
-      });
 
-      if (foundStale) return true;
+          if (hasInternalStale) return true;
+
+        } catch (threadError) {
+          console.warn(`⚠️ hasStaleUnreadThreads: thread ignorato per errore (${threadError.message})`);
+        }
+      }
     }
   } catch (e) {
     console.warn(`⚠️ hasStaleUnreadThreads: fallback conservativo per errore inatteso (${e.message})`);

@@ -1086,7 +1086,6 @@ ${addressLines.join('\n\n')}
         emailContent: messageDetails.body,
         emailSubject: messageDetails.subject,
         knowledgeBase: enrichedKnowledgeBase,
-        doctrineBase: effectiveDoctrineBase,
         senderName: messageDetails.senderName,
         senderEmail: messageDetails.senderEmail,
         conversationHistory: conversationHistory,
@@ -1570,19 +1569,23 @@ ${addressLines.join('\n\n')}
     let lockAcquiredHere = false;
 
     if (!skipExecutionLock) {
-      const lockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
-        ? CONFIG.EXECUTION_LOCK_WAIT_MS : 5000;
+      if (!executionLock) {
+        console.warn('⚠️ LockService non disponibile: procedo senza lock globale per questo batch.');
+      } else {
+        const lockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
+          ? CONFIG.EXECUTION_LOCK_WAIT_MS : 5000;
 
-      try {
-        if (!executionLock || !executionLock.tryLock(lockWaitMs)) {
-          console.warn('⚠️ Un\'altra esecuzione è già attiva: salto questo turno per evitare doppie risposte.');
-          return { total: 0, replied: 0, filtered: 0, errors: 0, skipped: 1, reason: 'execution_locked' };
+        try {
+          if (!executionLock.tryLock(lockWaitMs)) {
+            console.warn('⚠️ Un\'altra esecuzione è già attiva: salto questo turno per evitare doppie risposte.');
+            return { total: 0, replied: 0, filtered: 0, errors: 0, skipped: 1, reason: 'execution_locked' };
+          }
+        } catch (e) {
+          console.error(`❌ Errore servizio Lock Globale: ${e.message}. Batch interrotto.`);
+          return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'lock_service_error' };
         }
-      } catch (e) {
-        console.error(`❌ Errore servizio Lock Globale: ${e.message}. Batch interrotto.`);
-        return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'lock_service_error' };
+        lockAcquiredHere = true;
       }
-      lockAcquiredHere = true;
     }
 
     try {
