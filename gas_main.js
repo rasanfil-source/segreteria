@@ -623,6 +623,23 @@ function _loadResourcesInternal(knownSheetModifiedAt) {
 }
 
 function _getSpreadsheetModifiedTimeMs(spreadsheetId) {
+  const props = (typeof PropertiesService !== 'undefined' && PropertiesService)
+    ? PropertiesService.getScriptProperties()
+    : null;
+
+  if (props) {
+    const customRaw = props.getProperty('KB_CUSTOM_MODIFIED_TIME');
+    const customTs = customRaw ? parseInt(customRaw, 10) : NaN;
+    if (!isNaN(customTs) && customTs > 0) {
+      return customTs;
+    }
+
+    // Fallback di bootstrap: inizializza il timestamp custom al primo avvio.
+    const bootstrapTs = Date.now();
+    props.setProperty('KB_CUSTOM_MODIFIED_TIME', String(bootstrapTs));
+    return bootstrapTs;
+  }
+
   if (!spreadsheetId) return 0;
 
   try {
@@ -651,6 +668,19 @@ function _getSpreadsheetModifiedTimeMs(spreadsheetId) {
   }
 
   return 0;
+}
+
+function _isKnowledgeBaseSheetName(sheetName, cfg) {
+  if (!sheetName) return false;
+  const safeCfg = cfg || {};
+  const kbSheets = [
+    safeCfg.KB_SHEET_NAME || 'Istruzioni',
+    safeCfg.AI_CORE_LITE_SHEET || 'AI_CORE_LITE',
+    safeCfg.AI_CORE_SHEET || 'AI_CORE',
+    safeCfg.DOCTRINE_SHEET || 'Dottrina',
+    safeCfg.REPLACEMENTS_SHEET_NAME || 'Sostituzioni'
+  ];
+  return kbSheets.includes(sheetName);
 }
 
 function _logKnowledgeBaseHealthReport(rows, sheetName) {
@@ -1768,6 +1798,18 @@ function onEdit(e) {
   const range = e.range;
   const sheet = range.getSheet();
   const sheetName = sheet.getName();
+  const cfg = (typeof CONFIG !== 'undefined' && CONFIG) ? CONFIG : null;
+
+  // Ogni modifica ai fogli KB aggiorna il timestamp virtuale usato per l'invalidazione cache.
+  if (_isKnowledgeBaseSheetName(sheetName, cfg)) {
+    try {
+      PropertiesService.getScriptProperties().setProperty('KB_CUSTOM_MODIFIED_TIME', String(Date.now()));
+      console.log(`↻ Timestamp custom KB aggiornato da onEdit su foglio: ${sheetName}`);
+    } catch (propError) {
+      console.warn('⚠️ Impossibile aggiornare KB_CUSTOM_MODIFIED_TIME: ' + propError.message);
+    }
+  }
+
   // 1. Definisci qui le coordinate del tuo selettore
   // Esempio: Foglio "Controllo", cella "B2" (dove solitamente risiede lo stato o la config)
   const TARGET_SHEET = "Controllo";
