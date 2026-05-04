@@ -509,7 +509,7 @@ ${doctrineBaseText}
     // Controlli universali
     checks.push('▢ Ho risposto SOLO alla domanda posta');
     checks.push('▢ Ho usato SOLO informazioni dalla KB');
-    checks.push('▢ NO ragionamento esposto (es: "la KB dice...", "devo correggere...")');
+    checks.push('▢ NO ragionamento esposto o riferimenti alle fonti (es: "nella nostra base dati", "la KB dice...", "devo correggere...")');
 
     // Controlli lingua-specifici
     if (detectedLanguage === 'it') {
@@ -1054,7 +1054,8 @@ ${knowledgeBase}
 </knowledge_base>
 
 **REGOLA FONDAMENTALE:** Usa SOLO informazioni presenti sopra. NON inventare.
-**SE L'INFORMAZIONE NON È PRESENTE:** scrivi "Per questa informazione specifica, la invitiamo a contattarci telefonicamente al numero indicato nella KB o a venire in segreteria." Se la KB non contiene un numero, invita SOLO a venire in segreteria.`;
+**SE L'INFORMAZIONE NON È PRESENTE:** scrivi "Non siamo in grado di rispondere a questa domanda" oppure "Non abbiamo informazioni in proposito", invitando cortesemente a contattare la segreteria (es. telefonicamente o di persona).
+⚠️ DIVIETO ASSOLUTO: Non fare MAI riferimento alla tua "base dati", "knowledge base", "documenti forniti" o "istruzioni".`;
   }
 
   // ========================================================================

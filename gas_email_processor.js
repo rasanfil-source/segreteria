@@ -2477,9 +2477,9 @@ ${addressLines.join('\n\n')}
 
     if (flags.thinking_leak) {
       correctionInstructions.push(
-        'ERRORE CRITICO: Hai incluso il tuo ragionamento interno nella risposta.\n' +
+        'ERRORE CRITICO: Hai incluso il tuo ragionamento interno o fatto riferimento alle tue fonti nella risposta.\n' +
         'CORREZIONE: Scrivi SOLO la risposta finale. Non usare frasi come "noto che", "devo correggere", ' +
-        '"le istruzioni dicono", "rivedendo le informazioni".'
+        '"le istruzioni dicono", "nella nostra base dati", "nella conoscenza di base". Se ti manca un dato, scrivi solo "Non abbiamo informazioni in proposito".'
       );
     }
 
