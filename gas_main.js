@@ -634,40 +634,45 @@ function _getSpreadsheetModifiedTimeMs(spreadsheetId) {
       return customTs;
     }
 
-    // Fallback di bootstrap: inizializza il timestamp custom al primo avvio.
-    const bootstrapTs = Date.now();
-    props.setProperty('KB_CUSTOM_MODIFIED_TIME', String(bootstrapTs));
-    return bootstrapTs;
   }
 
-  if (!spreadsheetId) return 0;
+  let driveModifiedMs = 0;
 
-  try {
-    if (typeof Drive !== 'undefined' && Drive && Drive.Files && typeof Drive.Files.get === 'function') {
-      let file = null;
+  if (spreadsheetId) {
+    try {
+      if (typeof Drive !== 'undefined' && Drive && Drive.Files && typeof Drive.Files.get === 'function') {
+        let file = null;
 
-      try {
-        // Drive API v3
-        file = Drive.Files.get(spreadsheetId, { fields: 'modifiedTime' });
-      } catch (v3Error) {
-        // Alcuni ambienti Apps Script usano ancora semantica v2.
         try {
-          file = Drive.Files.get(spreadsheetId, { fields: 'modifiedDate' });
-        } catch (v2FieldError) {
-          // Fallback finale per ambienti senza parametro "fields".
-          file = Drive.Files.get(spreadsheetId);
+          // Drive API v3
+          file = Drive.Files.get(spreadsheetId, { fields: 'modifiedTime' });
+        } catch (v3Error) {
+          // Alcuni ambienti Apps Script usano ancora semantica v2.
+          try {
+            file = Drive.Files.get(spreadsheetId, { fields: 'modifiedDate' });
+          } catch (v2FieldError) {
+            // Fallback finale per ambienti senza parametro "fields".
+            file = Drive.Files.get(spreadsheetId);
+          }
         }
-      }
 
-      const modifiedRaw = file && (file.modifiedTime || file.modifiedDate);
-      const modifiedMs = modifiedRaw ? Date.parse(modifiedRaw) : NaN;
-      if (!isNaN(modifiedMs)) return modifiedMs;
+        const modifiedRaw = file && (file.modifiedTime || file.modifiedDate);
+        driveModifiedMs = modifiedRaw ? Date.parse(modifiedRaw) : NaN;
+        if (isNaN(driveModifiedMs)) driveModifiedMs = 0;
+      }
+    } catch (e) {
+      console.warn('⚠️ Drive API non disponibile per modifiedTime: ' + e.message);
     }
-  } catch (e) {
-    console.warn('⚠️ Drive API non disponibile per modifiedTime: ' + e.message);
   }
 
-  return 0;
+  // Bootstrap: usa il timestamp reale di Drive quando disponibile.
+  const finalTs = driveModifiedMs > 0 ? driveModifiedMs : Date.now();
+
+  if (props) {
+    props.setProperty('KB_CUSTOM_MODIFIED_TIME', String(finalTs));
+  }
+
+  return finalTs;
 }
 
 function _isKnowledgeBaseSheetName(sheetName, cfg) {
