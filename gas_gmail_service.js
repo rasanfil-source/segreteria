@@ -2291,14 +2291,33 @@ var GmailService = class GmailService {
                     }
                 };
 
-                // From stabile: usa account effettivo, poi account attivo, poi primo indirizzo valido nel To originale.
+                // From stabile: priorità all'indirizzo di ricezione solo se autorizzato
+                // (utente effettivo/attivo o alias configurato in Gmail).
                 const recipientFallbackEmail = this._extractEmailAddress(messageDetails.recipientEmail || '');
-                const stableFrom = (
-                    recipientFallbackEmail
-                    || safeSessionEmail('getEffectiveUser')
-                    || safeSessionEmail('getActiveUser')
-                    || null
-                );
+                const effectiveUser = safeSessionEmail('getEffectiveUser');
+                const activeUser = safeSessionEmail('getActiveUser');
+
+                let stableFrom = null;
+                if (recipientFallbackEmail) {
+                    const allowedFrom = [effectiveUser, activeUser]
+                        .filter(Boolean)
+                        .map((value) => String(value).toLowerCase());
+                    try {
+                        const aliases = GmailApp.getAliases() || [];
+                        aliases.forEach((alias) => {
+                            const normalized = String(alias || '').trim().toLowerCase();
+                            if (normalized) allowedFrom.push(normalized);
+                        });
+                    } catch (_) { }
+
+                    if (allowedFrom.includes(String(recipientFallbackEmail).toLowerCase())) {
+                        stableFrom = recipientFallbackEmail;
+                    }
+                }
+
+                if (!stableFrom) {
+                    stableFrom = effectiveUser || activeUser || recipientFallbackEmail || null;
+                }
 
                 if (!stableFrom) {
                     throw new Error('Impossibile determinare un mittente valido per Gmail RAW');
