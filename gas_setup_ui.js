@@ -62,6 +62,16 @@ function applyValidationOnly() {
   // Applica constraints usando la funzione helper dell'utente
   applyControlloInputConstraints_(sheet);
 
+  // Assicura che B4 (cfg_timezone) sia valorizzata anche senza setup completo
+  const ctrl = ss.getSheetByName(UI_CONFIG.CONTROLLO_SHEET);
+  if (ctrl && !ctrl.getRange('B4').getValue()) {
+    ctrl.getRange('B4').setValue(
+      (typeof Session !== 'undefined' && Session.getScriptTimeZone)
+        ? Session.getScriptTimeZone()
+        : 'Europe/Rome'
+    );
+  }
+
   // CRUCIALE: Ricrea i Named Ranges se mancano!
   createNamedRanges(ss, setupWarnings);
 

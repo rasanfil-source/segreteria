@@ -102,7 +102,7 @@ var Classifier = class Classifier {
     // Supporto firma alternativa: il 3° parametro può essere senderEmail anziché booleano.
     if (typeof isReply === 'string' && senderEmail === null) {
       senderEmail = isReply;
-      isReply = /^(re|fwd|fwd|r|ris|i):/i.test(safeSubject.trim());
+      isReply = /^(re|fwd|r|ris|i):/i.test(safeSubject.trim());
     }
 
     // Sicurezza null e limite lunghezza

@@ -1943,7 +1943,9 @@ ${addressLines.join('\n\n')}
       const isSubdomainMatch = !domain.startsWith('@') && !domain.includes('@') &&
         email.endsWith('.' + domain);
       // Match username solo per token senza punto (evita falsi positivi su nomi dominio parziali)
-      const isUsernameMatch = !domain.includes('@') && !domain.includes('.') && localPart === domain;
+      const isUsernameMatch = !domain.includes('@') && !domain.includes('.') &&
+        localPart === domain &&
+        (domain.length >= 6 || ['ads', 'bot', 'crm'].includes(domain));
       return isExactMatch || isDomainMatch || isSubdomainMatch || isUsernameMatch;
     })) {
       console.log(`🚫 Ignorato: mittente in blacklist (${email})`);
@@ -3048,10 +3050,10 @@ Nota bene: l'orario comunicato ${note}.`;
     // Protezione contro input nulli o non validi
     if (!text || typeof text !== 'string') return false;
     const monthPatterns = {
-      'it': /\b(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\b/i,
-      'en': /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/i,
-      'es': /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i,
-      'pt': /\b(janeiro|fevereiro|mar\u00E7o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i
+      'it': /\b(oggi|domani|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\b/i,
+      'en': /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december)\b/i,
+      'es': /\b(hoy|mañana|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i,
+      'pt': /\b(hoje|amanh[aã]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo|janeiro|fevereiro|mar\u00E7o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i
     };
 
     // Fallback su italiano se lingua non supportata

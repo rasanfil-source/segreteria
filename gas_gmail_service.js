@@ -635,13 +635,9 @@ var GmailService = class GmailService {
      */
     _discoverByQuery(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null) {
         const skipLabels = Array.isArray(skipLabel) ? skipLabel.filter(Boolean) : [skipLabel].filter(Boolean);
-        const eq = this._formatLabelQueryValue(errorLabel);
-        const vq = this._formatLabelQueryValue(validationLabel);
-        // Discovery a livello messaggio (Gmail API list): qui filtriamo solo error/validation/skip.
-        // Non applichiamo esclusione della label di processo a livello thread per non perdere follow-up validi.
+        // Query volutamente neutra su error/validation: i filtri label a livello thread
+        // possono nascondere follow-up non letti in conversazioni già segnate in passato.
         let query = `is:unread in:inbox`;
-        if (eq !== '""') query += ` -label:${eq}`;
-        if (vq !== '""') query += ` -label:${vq}`;
 
         skipLabels.forEach(skipName => {
             const sq = this._formatLabelQueryValue(skipName);
@@ -2535,7 +2531,7 @@ var GmailService = class GmailService {
 
         // Evita di alterare acronimi/parole interamente maiuscole (es. "ISEE", "INVIA")
         // Range esplicitamente ristretto per coprire accentate europee escludendo simboli matematici (×, ÷).
-        return text.replace(/(,\s+)([A-Z\u00C0-\u00DE])([a-z\u00DF-\u00FF]+)/g, (match, commaAndSpace, firstLetter, rest, offset) => {
+        return text.replace(/(,\s+)([A-Z\u00C0-\u00D6\u00D8-\u00DE])([a-z\u00DF-\u00FF]+)/g, (match, commaAndSpace, firstLetter, rest, offset) => {
             // Eccezione per elenchi numerati (es: "1, Partecipanti")
             const beforeMatch = text.substring(Math.max(0, offset - 5), offset);
             if (beforeMatch.match(/\d+$/)) {
@@ -3238,6 +3234,14 @@ function markdownToHtml(text) {
             .join('');
         return `<ol style="margin:6px 0;padding-left:20px;">${items}</ol>`;
     });
+
+    // Bold / Italic (dopo le liste per evitare collisioni con "* item")
+    // Nota: gli asterischi NON vengono escaped da escapeHtml(), quindi funzionano normalmente
+    html = html.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
+    // Evita match su marker lista "* " e su chiusure con spazio prima dell'asterisco
+    html = html.replace(/(?<!\*)\*(?![\s*])([\s\S]+?)(?<!\s)\*(?!\*)/g, '<em>$1</em>');
+    // Inline code
+    html = html.replace(/`([^`\n]+)`/g, '<code style="background:#f4f4f4;padding:2px 4px;border-radius:3px;font-family:monospace;font-size:0.9em;">$1</code>');
 
     html = html.trim();
 

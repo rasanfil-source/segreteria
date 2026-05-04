@@ -788,15 +788,21 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   }
 
   _refreshCache() {
-    let rpmFromProps = [];
-    let tpmFromProps = [];
     try {
       rpmFromProps = JSON.parse(this.props.getProperty('rpm_window') || '[]');
+      if (!rpmFromProps.length) {
+        const rpmBackup = this.props.getProperty('rate_limit_rpm_backup');
+        if (rpmBackup) rpmFromProps = JSON.parse(rpmBackup);
+      }
     } catch (e) {
       console.warn('⚠️ Errore parsing rpm_window da PropertiesService, reset a []');
     }
     try {
       tpmFromProps = JSON.parse(this.props.getProperty('tpm_window') || '[]');
+      if (!tpmFromProps.length) {
+        const tpmBackup = this.props.getProperty('rate_limit_tpm_backup');
+        if (tpmBackup) tpmFromProps = JSON.parse(tpmBackup);
+      }
     } catch (e) {
       console.warn('⚠️ Errore parsing tpm_window da PropertiesService, reset a []');
     }
@@ -882,7 +888,10 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     this._writeChunkedData(walTimestamp, mergedRpm, mergedTpm);
     this.props.setProperties({
       rpm_window: JSON.stringify(mergedRpm),
-      tpm_window: JSON.stringify(mergedTpm)
+      tpm_window: JSON.stringify(mergedTpm),
+      // Backup durevole per sopravvivere a eventuale eviction cache/flush transitori
+      rate_limit_rpm_backup: JSON.stringify(mergedRpm.slice(-10)),
+      rate_limit_tpm_backup: JSON.stringify(mergedTpm.slice(-10))
     });
     this._cleanStorageBuffers();
     this.cache.lastPersistUpdate = Date.now();
