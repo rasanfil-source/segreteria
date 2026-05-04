@@ -3240,9 +3240,6 @@ function markdownToHtml(text) {
     html = html.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
     // Evita match su marker lista "* " e su chiusure con spazio prima dell'asterisco
     html = html.replace(/(?<!\*)\*(?![\s*])([\s\S]+?)(?<!\s)\*(?!\*)/g, '<em>$1</em>');
-    // Inline code
-    html = html.replace(/`([^`\n]+)`/g, '<code style="background:#f4f4f4;padding:2px 4px;border-radius:3px;font-family:monospace;font-size:0.9em;">$1</code>');
-
     html = html.trim();
 
     // 7. Ripristina link e code blocks
