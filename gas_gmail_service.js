@@ -760,8 +760,8 @@ var GmailService = class GmailService {
                 const appLabel = (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getUserLabelByName === 'function')
                     ? GmailApp.getUserLabelByName(raw)
                     : null;
-                const fallbackId = appLabel && typeof appLabel.getId === 'function'
-                    ? appLabel.getId()
+                const fallbackId = appLabel && typeof appLabel.getName === 'function'
+                    ? appLabel.getName()
                     : null;
                 this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: fallbackId, ts: now });
                 return fallbackId;

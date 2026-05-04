@@ -177,6 +177,9 @@ var EmailProcessor = class EmailProcessor {
         // In scenari di latenza di CacheService, procediamo solo se il token è coerente.
         if (confirmValue !== null && confirmValue !== lockValue) {
           console.warn(`🔒 Collisione lock cache su thread ${threadId}, salto`);
+          if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
+            try { scriptLock.releaseLock(); } catch (_) {}
+          }
           return { status: 'skipped', reason: 'thread_lock_collision' };
         }
 

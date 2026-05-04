@@ -59,7 +59,10 @@ var GeminiService = class GeminiService {
     this.useRateLimiter = this.config.USE_RATE_LIMITER === true;
     if (this.useRateLimiter) {
       try {
-        if (typeof GeminiRateLimiter !== 'undefined') {
+        if (options.rateLimiter) {
+          this.rateLimiter = options.rateLimiter;
+          this.logger.info('Rate Limiter iniettato via DI');
+        } else if (typeof GeminiRateLimiter !== 'undefined') {
           this.rateLimiter = new GeminiRateLimiter();
           this.logger.info('Rate Limiter abilitato');
         } else {
