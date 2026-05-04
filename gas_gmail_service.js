@@ -249,12 +249,10 @@ var GmailService = class GmailService {
      */
     addLabelToMessage(messageId, labelName) {
         try {
-            const label = this.getOrCreateLabel(labelName);
             const labelIdFromCache = this._getOptionalLabelIdByName(labelName);
-            const labelId = labelIdFromCache || (label && typeof label.getId === 'function' ? label.getId() : null);
-            const hasLabelId = !!labelId;
+            const labelId = labelIdFromCache || null;
             if (!labelId) {
-                throw new Error(`Label ID non trovato per '${labelName}': impossibile usare API Avanzata.`);
+                throw new Error(`Label ID non trovato per '${labelName}' (Advanced Service non disponibile o senza permessi): forzo fallback a livello thread.`);
             }
             this._incrementGmailCallCounterOrThrow_('messages.modify:addLabel');
             const payload = { addLabelIds: [labelId] };
@@ -266,9 +264,8 @@ var GmailService = class GmailService {
                 this._clearPersistentLabelCache(labelName);
                 this.clearLabelCache();
                 try {
-                    const recoveredLabel = this.getOrCreateLabel(labelName);
                     const labelIdFromCache = this._getOptionalLabelIdByName(labelName);
-                    const labelId = labelIdFromCache || (recoveredLabel && typeof recoveredLabel.getId === 'function' ? recoveredLabel.getId() : null);
+                    const labelId = labelIdFromCache || null;
                     if (!labelId) throw new Error("Label ID non trovato tramite API Avanzata");
                     this._incrementGmailCallCounterOrThrow_('messages.modify:addLabel:retry');
                     const payload = { addLabelIds: [labelId] };
@@ -279,6 +276,19 @@ var GmailService = class GmailService {
                     throw retryError;
                 }
                 return;
+            }
+            // Fallback operativo: se non possiamo etichettare il singolo messaggio via API avanzata,
+            // etichettiamo il thread per evitare loop di retry su transienti/permessi.
+            try {
+                const nativeMessage = GmailApp.getMessageById(messageId);
+                const thread = nativeMessage ? nativeMessage.getThread() : null;
+                if (thread) {
+                    this.addLabelToThread(thread, labelName);
+                    console.warn(`⚠️ Fallback thread-level applicato per msg ${messageId} con label '${labelName}'`);
+                    return;
+                }
+            } catch (fallbackError) {
+                console.warn(`⚠️ Fallback thread-level fallito per msg ${messageId}: ${fallbackError.message}`);
             }
             throw e;
         }
