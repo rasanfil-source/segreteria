@@ -1032,8 +1032,11 @@ ${addressLines.join('\n\n')}
             // Evita perdita di contesto quando l'utente invia allegati in messaggi precedenti.
             for (let i = externalUnread.length - 1; i >= 0; i--) {
               try {
+                const remainingFiles = maxAttachmentFiles - attachmentData.blobs.length;
+                if (remainingFiles <= 0) break;
+
                 const msgData = this.gmailService.getProcessableAttachments(externalUnread[i], {
-                  maxFiles: maxAttachmentFiles,
+                  maxFiles: remainingFiles,
                   shouldContinue: () => !this._isNearDeadline(this.config.maxExecutionTimeMs)
                 });
                 if (Array.isArray(msgData.blobs)) attachmentData.blobs.push(...msgData.blobs);
@@ -1041,7 +1044,9 @@ ${addressLines.join('\n\n')}
                 if (Array.isArray(msgData.skipped)) attachmentData.skipped.push(...msgData.skipped);
                 if (attachmentData.blobs.length >= maxAttachmentFiles) break;
               } catch (attError) {
-                console.warn(`   ⚠️ Errore critico estrazione allegati: ${attError.message}`);
+                let messageId = 'unknown';
+                try { messageId = externalUnread[i] && externalUnread[i].getId ? externalUnread[i].getId() : 'unknown'; } catch (_) {}
+                console.warn(`   ⚠️ Errore critico estrazione allegati nel messaggio ${messageId}: ${attError.message}`);
                 attachmentData.skipped.push({ reason: 'extraction_crash', error: attError.message });
               }
             }
