@@ -2470,12 +2470,16 @@ var GmailService = class GmailService {
                 console.error(`❌ CRITICO: Invio risposta alternativo fallito: ${fallbackError.message}`);
                 const errorLabel = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME) ? CONFIG.ERROR_LABEL_NAME : 'Errore';
                 if (mailEntity) {
-                    const targetThread = (typeof mailEntity.getThread === 'function')
-                        ? mailEntity.getThread()
-                        : mailEntity;
+                    try {
+                        const targetThread = (typeof mailEntity.getThread === 'function')
+                            ? mailEntity.getThread()
+                            : mailEntity;
 
-                    if (targetThread && typeof targetThread.getMessages === 'function') {
-                        this.addLabelToThread(targetThread, errorLabel);
+                        if (targetThread && typeof targetThread.getMessages === 'function') {
+                            this.addLabelToThread(targetThread, errorLabel);
+                        }
+                    } catch (labelErr) {
+                        console.warn(`⚠️ Impossibile applicare label di errore: ${labelErr.message}`);
                     }
                 }
                 const rootCauses = [];

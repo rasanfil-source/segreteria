@@ -1436,7 +1436,7 @@ ${addressLines.join('\n\n')}
 
       try {
         this.gmailService.sendHtmlReply(candidate, response, messageDetails);
-        this._commitSendTransaction(candidate.getId());
+        this._commitSendTransaction(candidate.getId(), sendTxn);
         replySent = true;
         if (shouldLabelForReview) {
           this.gmailService.addLabelToMessage(candidate.getId(), this.config.validationErrorLabel);
@@ -1445,7 +1445,7 @@ ${addressLines.join('\n\n')}
         const errorMessage = e && e.message ? e.message : String(e);
         const classifiedSendError = this._classifyError(e);
         if (classifiedSendError.type !== 'NETWORK' && classifiedSendError.type !== 'TIMEOUT') {
-          this._rollbackSendTransaction(candidate.getId());
+          this._rollbackSendTransaction(candidate.getId(), sendTxn);
         }
         console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
 
@@ -1772,6 +1772,7 @@ ${addressLines.join('\n\n')}
         const safeLimit = getEffectiveMaxEmailsPerRun();
         if (processedCount >= safeLimit) {
           console.log(`🛑 Raggiunti ${safeLimit} thread elaborati. Stop.`);
+          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, this._getRemainingTimeMs(MAX_EXECUTION_TIME));
           break;
         }
 
@@ -2146,15 +2147,16 @@ ${addressLines.join('\n\n')}
       }
 
       cache.put(sendingKey, String(Date.now()), 300); // 5 minuti
-      return { ok: true, reason: 'acquired' };
-    } finally {
+      return { ok: true, reason: 'acquired', lock: lockAcquired ? scriptLock : null };
+    } catch (e) {
       if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
         scriptLock.releaseLock();
       }
+      throw e;
     }
   }
 
-  _commitSendTransaction(messageId) {
+  _commitSendTransaction(messageId, sendTxn = null) {
     if (!messageId) return;
     const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
       ? CacheService.getScriptCache()
@@ -2166,10 +2168,14 @@ ${addressLines.join('\n\n')}
       cache.remove(`sending_${messageId}`);
     } catch (e) {
       console.warn(`  Impossibile committare la transazione in cache per ${messageId}: ${e.message}`);
+    } finally {
+      if (sendTxn && sendTxn.lock && typeof sendTxn.lock.releaseLock === 'function') {
+        sendTxn.lock.releaseLock();
+      }
     }
   }
 
-  _rollbackSendTransaction(messageId) {
+  _rollbackSendTransaction(messageId, sendTxn = null) {
     if (!messageId) return;
     const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
       ? CacheService.getScriptCache()
@@ -2179,6 +2185,10 @@ ${addressLines.join('\n\n')}
       cache.remove(`sending_${messageId}`);
     } catch (e) {
       console.warn(`  Impossibile eseguire il rollback della transazione in cache per ${messageId}: ${e.message}`);
+    } finally {
+      if (sendTxn && sendTxn.lock && typeof sendTxn.lock.releaseLock === 'function') {
+        sendTxn.lock.releaseLock();
+      }
     }
   }
 
