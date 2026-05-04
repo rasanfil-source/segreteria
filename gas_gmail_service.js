@@ -2738,27 +2738,14 @@ var GmailService = class GmailService {
 
         let hasAtLeastOneToken = false;
 
-        const maxTokenLength = Math.max(1, maxLineLength - 2); // continuation line: " " + token
         for (const token of tokens) {
-            // I token header (es. Message-ID) non sono splittabili semanticamente.
-            // Se un token supera i limiti RFC, preserviamo la semantica emettendolo
-            // integralmente su una continuation line dedicata.
-            if (token.length > maxTokenLength) {
-                if (currentLine !== headerPrefix) {
-                    lines.push(currentLine);
-                }
-                currentLine = ` ${token}`;
-                hasAtLeastOneToken = true;
-                continue;
-            }
-
             const candidate = `${currentLine} ${token}`;
             if (candidate.length <= maxLineLength) {
                 currentLine = candidate;
             } else {
-                if (currentLine !== headerPrefix) {
-                    lines.push(currentLine);
-                }
+                // Se non c'è spazio, spingi la riga corrente (incluso il prefisso se è il primo token)
+                // e manda il token a capo. Mantiene intatta la semantica e il nome dell'header.
+                lines.push(currentLine);
                 currentLine = ` ${token}`;
             }
             hasAtLeastOneToken = true;

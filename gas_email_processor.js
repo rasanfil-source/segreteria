@@ -2993,8 +2993,10 @@ Nota bene: l'orario comunicato ${note}.`;
         if (props && streak % 10 === 0) props.setProperty(key, streak.toString());
       } else {
         streak = 0;
-        if (cache) cache.remove(key);
-        if (props) props.removeProperty(key);
+        // Usa put a "0" invece di remove() per aggirare bug di implementazione 
+        // in polyfill/mock usati in ambienti di test (props.removeProperty is not a function)
+        if (cache) cache.put(key, "0", 21600);
+        if (props) props.setProperty(key, "0");
       }
       return streak;
     } catch (e) {
