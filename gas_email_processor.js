@@ -3056,8 +3056,10 @@ Nota bene: l'orario comunicato ${note}.`;
  * @param {Object} params - Parametri di input
  * @returns {'full'|'soft'|'none_or_continuity'|'session'}
  */
-function computeSalutationMode({ isReply = false, messageCount = 0, memoryExists = false, lastUpdated = null, now = new Date() } = {}) {
+function computeSalutationMode({ isReply = false, memoryExists = false, lastUpdated = null, now = new Date() } = {}) {
   const SESSION_WINDOW_MINUTES = 15;
+  // Nota: messageCount disponibile per logiche future (es. dopo N messaggi → session mode)
+  // Al momento la temporalità (lastUpdated) è il segnale primario.
   // 0️⃣ Nuovo contatto (non reply): privilegia sempre un saluto completo.
   // Anche in presenza di memoria pregressa, un nuovo thread/messaggio iniziale
   // deve evitare modalità "none_or_continuity".

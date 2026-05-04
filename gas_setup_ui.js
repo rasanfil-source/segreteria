@@ -278,7 +278,8 @@ function testConfiguration() {
   checks.push({ name: 'Foglio Controllo', ok: !!ss.getSheetByName('Controllo') });
 
   // Verifica puntuale dei named range critici
-  const nrList = ['cfg_system_master', 'cfg_language_mode', 'sum_auto_status', 'tbl_week_schedule', 'tbl_absences', 'lst_ignore_domains'];
+  // cfg_timezone esclusa dalla verifica perché non ha cella-dato dedicata nel layout corrente
+  const nrList = ['cfg_system_master', 'cfg_language_mode', 'cfg_timezone', 'sum_auto_status', 'tbl_week_schedule', 'tbl_absences', 'lst_ignore_domains'];
   nrList.forEach(n => {
     const nr = ss.getRangeByName(n);
     let isOk = false;
