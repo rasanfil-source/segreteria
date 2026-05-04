@@ -2663,27 +2663,23 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
       return prompt;
     }
 
-    // Mantiene testa+coda per preservare istruzioni iniziali e contesto finale utente.
-    // Prova ad allineare il taglio a boundary di riga per ridurre il rischio di rottura di blocchi strutturati.
-    const marker = '\n\n[...PROMPT ORIGINALE TRONCATO PER RETRY...]\n\n';
+    // Evita splice testa+coda: concatenare due metà può corrompere JSON/XML interni.
+    // Preferiamo mantenere solo l'inizio del prompt (istruzioni sistemiche) e troncare
+    // in coda con marker, allineando il più possibile a boundary di riga/sezione.
+    const marker = '\n\n[...PROMPT ORIGINALE TRONCATO PER RETRY...]';
     const budget = Math.max(0, maxChars - marker.length);
-    const headBudget = Math.floor(budget * 0.7);
-    const tailBudget = budget - headBudget;
+    let head = prompt.slice(0, budget);
 
-    let head = prompt.slice(0, headBudget);
-    let tail = prompt.slice(-tailBudget);
-
-    const headBoundary = head.lastIndexOf('\n');
-    if (headBoundary > Math.floor(head.length * 0.6)) {
-      head = head.slice(0, headBoundary);
+    // Allinea il taglio a un boundary strutturale vicino alla fine del budget.
+    const sectionBoundary = head.lastIndexOf('\n### ');
+    const lineBoundary = head.lastIndexOf('\n');
+    if (sectionBoundary > Math.floor(head.length * 0.6)) {
+      head = head.slice(0, sectionBoundary);
+    } else if (lineBoundary > Math.floor(head.length * 0.6)) {
+      head = head.slice(0, lineBoundary);
     }
 
-    const tailBoundary = tail.indexOf('\n');
-    if (tailBoundary >= 0 && tailBoundary < Math.floor(tail.length * 0.4)) {
-      tail = tail.slice(tailBoundary + 1);
-    }
-
-    return `${head}${marker}${tail}`;
+    return `${head}${marker}`;
   }
 
   // Costruisce un sommario incrementale delle risposte inviate al thread
