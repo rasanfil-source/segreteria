@@ -92,7 +92,7 @@ var GmailService = class GmailService {
             const next = current + 1;
             this._scriptCache.put(key, String(next), 21599);
             // Allineamento periodico del counter su storage persistente.
-            const shouldSync = (next % 5 === 0) || (next >= this._gmailDailyCounterWarnAt);
+            const shouldSync = (raw === null) || (next % 5 === 0) || (next >= this._gmailDailyCounterWarnAt);
             if (shouldSync && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
                 try {
                     PropertiesService.getScriptProperties().setProperty(key, String(next));

@@ -1721,6 +1721,19 @@ ${addressLines.join('\n\n')}
         }
       }
 
+      // Include anche i messaggi unread già marcati come Errore/Verifica:
+      // evitiamo retry infiniti del singolo messaggio, ma senza oscurare l'intero thread.
+      if (this.gmailService && typeof this.gmailService.getMessageIdsWithLabel === 'function') {
+        try {
+          const errorIds = this.gmailService.getMessageIdsWithLabel(this.config.errorLabelName, true, { onlyUnread: true });
+          const validationIds = this.gmailService.getMessageIdsWithLabel(this.config.validationErrorLabel, true, { onlyUnread: true });
+          (errorIds || []).forEach((id) => labeledMessageIds.add(id));
+          (validationIds || []).forEach((id) => labeledMessageIds.add(id));
+        } catch (e) {
+          console.warn(`⚠️ Impossibile pre-caricare ID error/validation (${e.message}). Continuo con sola cache IA.`);
+        }
+      }
+
       // Pre-caricamento degli ID dei messaggi con etichetta skip (·)
       // per evitare ri-discovery di thread già valutati in foreign_only.
       let skippedMessageIds = new Set();
