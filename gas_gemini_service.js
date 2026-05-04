@@ -619,8 +619,8 @@ Output JSON:
     const snippet = text.substring(0, 800);
     const itIstituzionale = [
       'segreteria', 'parrocchia', 'sant\'eugenio', 'don raimondo', 'ufficio parrocchiale',
-      'certificato di battesimo', 'nulla osta', 'celebrazione', 'sacramento', 'eucaristia',
-      'comunione', 'cresima', 'matrimonio', 'funerale', 'benedizione'
+      'certificato di battesimo', 'nulla osta', 'la celebrazione', 'il sacramento', 'l\'eucaristia',
+      'la comunione', 'la cresima', 'il matrimonio', 'il funerale', 'la benedizione'
     ];
     if (itIstituzionale.some(k => snippet.includes(k))) {
       console.log(`\u2705 Lingua rilevata (Istituzionale): IT (Confidence: 5)`);

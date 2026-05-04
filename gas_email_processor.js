@@ -1359,7 +1359,7 @@ ${addressLines.join('\n\n')}
 
           console.warn(
             `⚠️ Retry non sufficiente (score: ${retryValidation.score.toFixed(2)}). ` +
-            `Errori residui: ${retryValidation.errors.join('; ')}`
+            `Errori residui: ${((retryValidation && Array.isArray(retryValidation.errors)) ? retryValidation.errors : []).join('; ')}`
           );
           if (retryValidation.score > validation.score) {
             console.log('   → Uso risposta del retry (score più alto, nonostante non valida)');
@@ -1438,8 +1438,14 @@ ${addressLines.join('\n\n')}
         this.gmailService.sendHtmlReply(candidate, response, messageDetails);
         this._commitSendTransaction(candidate.getId(), sendTxn);
         replySent = true;
-        if (shouldLabelForReview) {
-          this.gmailService.addLabelToMessage(candidate.getId(), this.config.validationErrorLabel);
+
+        // Etichettatura non critica: non deve compromettere lo step successivo (memoria).
+        try {
+          if (shouldLabelForReview) {
+            this.gmailService.addLabelToMessage(candidate.getId(), this.config.validationErrorLabel);
+          }
+        } catch (labelErr) {
+          console.warn(`⚠️ Label di verifica non applicata (non bloccante): ${labelErr.message}`);
         }
       } catch (e) {
         const errorMessage = e && e.message ? e.message : String(e);
@@ -2658,13 +2664,26 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     }
 
     // Mantiene testa+coda per preservare istruzioni iniziali e contesto finale utente.
-    const headChars = Math.floor(maxChars * 0.7);
-    const tailChars = maxChars - headChars;
-    return `${prompt.slice(0, headChars)}
+    // Prova ad allineare il taglio a boundary di riga per ridurre il rischio di rottura di blocchi strutturati.
+    const marker = '\n\n[...PROMPT ORIGINALE TRONCATO PER RETRY...]\n\n';
+    const budget = Math.max(0, maxChars - marker.length);
+    const headBudget = Math.floor(budget * 0.7);
+    const tailBudget = budget - headBudget;
 
-[...PROMPT ORIGINALE TRONCATO PER RETRY...]
+    let head = prompt.slice(0, headBudget);
+    let tail = prompt.slice(-tailBudget);
 
-${prompt.slice(-tailChars)}`;
+    const headBoundary = head.lastIndexOf('\n');
+    if (headBoundary > Math.floor(head.length * 0.6)) {
+      head = head.slice(0, headBoundary);
+    }
+
+    const tailBoundary = tail.indexOf('\n');
+    if (tailBoundary >= 0 && tailBoundary < Math.floor(tail.length * 0.4)) {
+      tail = tail.slice(tailBoundary + 1);
+    }
+
+    return `${head}${marker}${tail}`;
   }
 
   // Costruisce un sommario incrementale delle risposte inviate al thread
