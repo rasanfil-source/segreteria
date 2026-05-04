@@ -1022,18 +1022,28 @@ ${addressLines.join('\n\n')}
               console.log('   📎 Body corto: elaborazione allegati forzata');
             }
             console.log('   📎 Elaborazione allegati multimodale (Vision)...');
+            const attachmentSettings = Object.assign(
+              { maxFiles: 3 },
+              (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT) ? CONFIG.ATTACHMENT_CONTEXT : {}
+            );
+            const maxAttachmentFiles = Math.max(1, parseInt(attachmentSettings.maxFiles, 10) || 3);
             let attachmentData = { blobs: [], textContext: '', skipped: [] };
             // Aggrega allegati dai non letti esterni più recenti, non solo dal candidato.
             // Evita perdita di contesto quando l'utente invia allegati in messaggi precedenti.
             for (let i = externalUnread.length - 1; i >= 0; i--) {
-              const msgData = this.gmailService.getProcessableAttachments(externalUnread[i], {
-                maxFiles: (settings && settings.maxFiles) || 3,
-                shouldContinue: () => !this._isNearDeadline(this.config.maxExecutionTimeMs)
-              });
-              if (Array.isArray(msgData.blobs)) attachmentData.blobs.push(...msgData.blobs);
-              if (msgData.textContext) attachmentData.textContext += msgData.textContext;
-              if (Array.isArray(msgData.skipped)) attachmentData.skipped.push(...msgData.skipped);
-              if (attachmentData.blobs.length >= ((settings && settings.maxFiles) || 3)) break;
+              try {
+                const msgData = this.gmailService.getProcessableAttachments(externalUnread[i], {
+                  maxFiles: maxAttachmentFiles,
+                  shouldContinue: () => !this._isNearDeadline(this.config.maxExecutionTimeMs)
+                });
+                if (Array.isArray(msgData.blobs)) attachmentData.blobs.push(...msgData.blobs);
+                if (msgData.textContext) attachmentData.textContext += msgData.textContext;
+                if (Array.isArray(msgData.skipped)) attachmentData.skipped.push(...msgData.skipped);
+                if (attachmentData.blobs.length >= maxAttachmentFiles) break;
+              } catch (attError) {
+                console.warn(`   ⚠️ Errore critico estrazione allegati: ${attError.message}`);
+                attachmentData.skipped.push({ reason: 'extraction_crash', error: attError.message });
+              }
             }
             attachmentBlobs = attachmentData.blobs || [];
             textFromAttachments = attachmentData.textContext || '';
