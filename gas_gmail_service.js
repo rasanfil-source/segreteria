@@ -639,11 +639,13 @@ var GmailService = class GmailService {
         const vq = this._formatLabelQueryValue(validationLabel);
         // Discovery a livello messaggio (Gmail API list): qui filtriamo solo error/validation/skip.
         // Non applichiamo esclusione della label di processo a livello thread per non perdere follow-up validi.
-        let query = `is:unread -label:${eq} -label:${vq} in:inbox`;
-        
+        let query = `is:unread in:inbox`;
+        if (eq !== '""') query += ` -label:${eq}`;
+        if (vq !== '""') query += ` -label:${vq}`;
+
         skipLabels.forEach(skipName => {
             const sq = this._formatLabelQueryValue(skipName);
-            query += ` -label:${sq}`;
+            if (sq !== '""') query += ` -label:${sq}`;
         });
 
         const seenThreadIds = new Set();
@@ -714,8 +716,7 @@ var GmailService = class GmailService {
         const raw = String(labelName);
         const trimmed = raw.trim();
         if (!trimmed) {
-            // Se la label è letteralmente uno spazio o char invisibile, preserva il valore raw
-            return `"${raw}"`;
+            return '""';
         }
 
         // Gmail label names non supportano virgolette letterali: normalizziamo eventuali input
@@ -1998,8 +1999,8 @@ var GmailService = class GmailService {
         text = text.replace(/<\/p\s*>/gi, '\n\n');
         text = text.replace(/<\/div\s*>/gi, '\n');
 
-        text = text// Evita di rimuovere espressioni testuali tipo "A < B > C" trattando solo tag HTML plausibili
-            .replace(/<\/?(?:[a-z]+[1-6]?)(?:\s+[^>]*)?>/gi, ' ');
+        // Evita di rimuovere espressioni testuali tipo "A < B > C" trattando solo tag HTML plausibili
+        text = text.replace(/<\/?(?:[a-z]+[1-6]?)(?:\s+[^>]*)?>/gi, ' ');
 
         // Fallback simboli per plain text (evita mojibake in ambienti non-UTF8)
         text = text
