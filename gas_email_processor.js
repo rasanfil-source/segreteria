@@ -3271,12 +3271,12 @@ Nota bene: l'orario comunicato ${note}.`;
     const hasEvidence = (Array.isArray(attachmentItems) && attachmentItems.some(item => item && item.attachmentRole === 'submitted_evidence')) || /ruolo allegato:\s*submitted_evidence/i.test(ocrText || '');
     const hasCaseData = (Array.isArray(attachmentItems) && attachmentItems.some(item => item && item.attachmentRole === 'case_data')) || /ruolo allegato:\s*case_data/i.test(ocrText || '');
 
-    let nextStepsAction = 'indicare che la segreteria procederà con la verifica della documentazione.';
-    if (hasEvidence && !hasCaseData) {
-      nextStepsAction = 'indicare che il documento è stato acquisito e verrà protocollato/registrato agli atti (NON usare la parola "verifica" per i certificati ufficiali).';
-    } else if (hasEvidence && hasCaseData) {
-      nextStepsAction = 'indicare che il certificato è stato acquisito e che il modulo allegato verrà verificato.';
-    }
+
+
+
+
+
+
 
     // Se è un pre-check (senza OCR), siamo conservativi
     if (phase === 'pre_ocr') {
@@ -3291,8 +3291,8 @@ Nota bene: l'orario comunicato ${note}.`;
         allowBodyQuestions: hasBodyQuestion,
         suppressKbTopics: [],
         responseDirective: hasBodyQuestion
-          ? `Confermare la ricezione dell'allegato, ${nextStepsAction} Rispondere poi alle domande esplicite.`
-          : `Confermare la ricezione della documentazione allegata e ${nextStepsAction}`
+          ? `Confermare la ricezione dell'allegato. Rispondere poi alle domande esplicite.`
+          : `Confermare la ricezione della documentazione allegata.`
       };
     }
 
@@ -3316,9 +3316,9 @@ Nota bene: l'orario comunicato ${note}.`;
 
     if (hasBodyQuestion || hasOcrQuestion) {
       intent += '_with_question';
-      responseDirective = `Confermare la ricezione dell'allegato, ${nextStepsAction} Rispondere poi puntualmente alle domande usando la KB.`;
+      responseDirective = `Confermare la ricezione dell'allegato. Rispondere poi puntualmente alle domande usando la KB.`;
     } else {
-      responseDirective = `Confermare la ricezione della documentazione allegata e ${nextStepsAction}`;
+      responseDirective = `Confermare la ricezione della documentazione allegata.`;
     }
 
     return {
