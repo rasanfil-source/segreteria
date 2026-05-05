@@ -1281,7 +1281,7 @@ ${hints[effectiveCategory]}` : null;
 1. Conferma la ricezione dell'allegato/documento.
 2. Se il corpo contiene una domanda esplicita, rispondi solo a quella domanda.
 3. Non elencare requisiti o istruzioni già superate dalla consegna del documento.
-4. Indica eventualmente che la segreteria procederà con la verifica.`;
+4. Indica i prossimi passi in base alla natura del documento (archiviazione per i certificati, verifica per moduli da compilare).`;
     }
 
     return hint;

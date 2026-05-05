@@ -1104,7 +1104,7 @@ ${addressLines.join('\n\n')}
       let textFromAttachments = '';
       let attachmentSkipped = [];
       let attachmentItems = [];
-      let attachmentIntentContext = preQuickAttachmentIntentContext;
+      attachmentIntentContext = preQuickAttachmentIntentContext;
 
       if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
         if (this._isNearDeadline(this.config.maxExecutionTimeMs)) {
@@ -1171,6 +1171,12 @@ ${addressLines.join('\n\n')}
               textFromAttachments,
               'post_ocr'
             );
+
+            // Se post-OCR cambia la categoria (es. rilevato modulo sbattezzo), aggiorniamo il routing
+            if (attachmentIntentContext && attachmentIntentContext.categoryHintSource) {
+              console.log(`   📎 Routing categoria aggiornato post-OCR: ${attachmentIntentContext.categoryHintSource}`);
+              categoryHintSource = attachmentIntentContext.categoryHintSource;
+            }
 
             if (attachmentBlobs.length > 0) {
               const blobNames = attachmentBlobs.map((b) => b.getName()).join(', ');
@@ -2522,47 +2528,7 @@ ${addressLines.join('\n\n')}
     }
   }
 
-  _deriveAttachmentIntentContext_(body, subject, attachmentItems = [], attachmentText = '', phase = 'post_ocr') {
-    const bodyText = `${subject || ''}\n${body || ''}`.toLowerCase();
-    const attachmentTextLower = `${attachmentText || ''}`.toLowerCase();
-    const hasTransmissionPhrase = /\b(in\s+allegato|allego|le\s+invio|vi\s+invio|trasmetto|trova\s+allegato|troverete\s+allegato|invio\s+il\s+documento|documento\s+di|mando\s+il\s+documento|inoltro\s+il\s+documento)\b/i.test(bodyText);
-    const hasBodyQuestion = /(\?|a che ora|quando|dove|come|posso|devo|bisogna|serve|vorrei sapere|mi può dire|mi potete dire|è possibile|ci sono|quali sono)/i.test(bodyText);
-    const hasSubmittedEvidence = attachmentItems.some(item => item && (item.intentContribution === 'suppress' || item.attachmentRole === 'submitted_evidence' || item.documentIntent === 'document_submission')) || /ruolo allegato:\s*submitted_evidence/i.test(attachmentText);
-    const isSponsorEligibility = /idoneit[aà].*(padrino|madrina)|(padrino|madrina).*idoneit[aà]/i.test(attachmentTextLower);
 
-    if (phase === 'pre_ocr') {
-      if (hasTransmissionPhrase) {
-        return {
-          intent: hasBodyQuestion ? 'suspected_submission_with_question' : 'suspected_submission',
-          confidence: hasBodyQuestion ? 0.55 : 0.75,
-          phase: 'pre_ocr',
-          suppressAttachmentIntentKeywords: true,
-          allowBodyQuestions: hasBodyQuestion,
-          suppressKbTopics: [],
-          responseDirective: hasBodyQuestion
-            ? 'Probabile consegna documentale con domanda nel corpo: considera il body come fonte primaria; non trasformare riferimenti ad allegati in richiesta informativa.'
-            : 'Probabile consegna documentale: non trasformare riferimenti ad allegati in richiesta informativa.'
-        };
-      }
-      return { intent: 'unknown', confidence: 0, phase: 'pre_ocr', suppressAttachmentIntentKeywords: false, allowBodyQuestions: true, suppressKbTopics: [], responseDirective: '' };
-    }
-
-    if (hasTransmissionPhrase && hasSubmittedEvidence) {
-      return {
-        intent: hasBodyQuestion ? 'document_submission_with_question' : 'document_submission',
-        confidence: isSponsorEligibility ? 0.95 : 0.85,
-        phase: 'post_ocr',
-        suppressAttachmentIntentKeywords: true,
-        allowBodyQuestions: hasBodyQuestion,
-        suppressKbTopics: isSponsorEligibility ? ['requisiti padrino', 'requisiti madrina', 'idoneità padrino', 'idoneità madrina'] : [],
-        responseDirective: hasBodyQuestion
-          ? 'Confermare la ricezione dell’allegato e rispondere solo alle domande esplicite presenti nel corpo email.'
-          : 'Confermare la ricezione della documentazione allegata e indicare che si procederà con la verifica.'
-      };
-    }
-
-    return { intent: 'unknown', confidence: 0, phase: 'post_ocr', suppressAttachmentIntentKeywords: false, allowBodyQuestions: true, suppressKbTopics: [], responseDirective: '' };
-  }
 
   _prepareOutboundResponse(responseText, messageDetails, detectedLanguage) {
     const safeText = typeof responseText === 'string'
@@ -3289,6 +3255,17 @@ Nota bene: l'orario comunicato ${note}.`;
     const isIdentityDoc = /carta d'identit[aà]|passaporto|documento identit[aà]/i.test(fullText);
     const isSbattezzoDoc = /modulo sbattezzo|richiesta cancellazione|registr[oi] battesim/i.test(fullText);
 
+    // Rileva se ci sono evidenze (certificati) o dati pratica (moduli)
+    const hasEvidence = (Array.isArray(attachmentItems) && attachmentItems.some(item => item && item.attachmentRole === 'submitted_evidence')) || /ruolo allegato:\s*submitted_evidence/i.test(ocrText || '');
+    const hasCaseData = (Array.isArray(attachmentItems) && attachmentItems.some(item => item && item.attachmentRole === 'case_data')) || /ruolo allegato:\s*case_data/i.test(ocrText || '');
+
+    let nextStepsAction = 'indicare che la segreteria procederà con la verifica della documentazione.';
+    if (hasEvidence && !hasCaseData) {
+      nextStepsAction = 'indicare che il documento è stato acquisito e verrà protocollato/registrato agli atti (NON usare la parola "verifica" per i certificati ufficiali).';
+    } else if (hasEvidence && hasCaseData) {
+      nextStepsAction = 'indicare che il certificato è stato acquisito e che il modulo allegato verrà verificato.';
+    }
+
     // Se è un pre-check (senza OCR), siamo conservativi
     if (phase === 'pre_ocr') {
       const isSuspectedSubmission = /allegato|invio|ecco|documento|certificato|modulo/i.test(fullText);
@@ -3302,8 +3279,8 @@ Nota bene: l'orario comunicato ${note}.`;
         allowBodyQuestions: hasBodyQuestion,
         suppressKbTopics: [],
         responseDirective: hasBodyQuestion
-          ? 'Probabile consegna documentale con domanda nel corpo: considera il body come fonte primaria; non trasformare riferimenti ad allegati in richiesta informativa.'
-          : 'Probabile consegna documentale: non trasformare riferimenti ad allegati in richiesta informativa.'
+          ? `Confermare la ricezione dell'allegato, ${nextStepsAction} Rispondere poi alle domande esplicite.`
+          : `Confermare la ricezione della documentazione allegata e ${nextStepsAction}`
       };
     }
 
@@ -3327,7 +3304,9 @@ Nota bene: l'orario comunicato ${note}.`;
 
     if (hasBodyQuestion || hasOcrQuestion) {
       intent += '_with_question';
-      responseDirective += ' L\'utente pone anche domande specifiche: rispondi puntualmente alle domande usando la KB.';
+      responseDirective = `Confermare la ricezione dell'allegato, ${nextStepsAction} Rispondere poi puntualmente alle domande usando la KB.`;
+    } else {
+      responseDirective = `Confermare la ricezione della documentazione allegata e ${nextStepsAction}`;
     }
 
     return {
