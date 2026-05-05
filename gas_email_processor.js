@@ -3289,13 +3289,18 @@ Nota bene: l'orario comunicato ${note}.`;
    */
   _deriveAttachmentIntentContext_(body, subject, attachmentItems, ocrText, phase = 'pre_ocr') {
     const fullText = `${subject || ''} ${body || ''} ${ocrText || ''}`.toLowerCase();
+    const attachmentSignalText = `${ocrText || ''} ${(Array.isArray(attachmentItems) ? attachmentItems.map((i) => (i && i.name) ? i.name : '').join(' ') : '')}`.toLowerCase();
     const hasBodyQuestion = /\?|vorrei sapere|chiedo se|mi dica|sapere se/i.test(`${subject || ''} ${body || ''}`);
     const hasOcrQuestion = phase === 'post_ocr' && /\?|domanda|quesito/i.test(ocrText || '');
 
     // Rilevamento tipologia documenti (euristico)
-    const isSponsorDoc = /idoneit[aà]|padrino|madrina|sponsor/i.test(fullText);
-    const isIdentityDoc = /carta d'identit[aà]|passaporto|documento identit[aà]/i.test(fullText);
-    const isSbattezzoDoc = /modulo sbattezzo|richiesta cancellazione|registr[oi] battesim/i.test(fullText);
+    // PRE-OCR: usa subject+body (fullText) per sospetto submission.
+    // POST-OCR: usa segnali dagli allegati per evitare che il corpo "contamini"
+    // la classificazione del documento effettivamente ricevuto.
+    const docScopeText = phase === 'post_ocr' ? attachmentSignalText : fullText;
+    const isSponsorDoc = /idoneit[aà]|padrino|madrina|sponsor/i.test(docScopeText);
+    const isIdentityDoc = /carta d'identit[aà]|passaporto|documento identit[aà]/i.test(docScopeText);
+    const isSbattezzoDoc = /modulo sbattezzo|richiesta cancellazione|registr[oi] battesim/i.test(docScopeText);
 
     // Rileva se ci sono evidenze (certificati) o dati pratica (moduli)
     const hasEvidence = (Array.isArray(attachmentItems) && attachmentItems.some(item => item && item.attachmentRole === 'submitted_evidence')) || /ruolo allegato:\s*submitted_evidence/i.test(ocrText || '');
@@ -3337,7 +3342,7 @@ Nota bene: l'orario comunicato ${note}.`;
     if (isSponsorDoc) {
       intent = 'sponsor_eligibility_submission';
       categoryHintSource = 'sacrament';
-      responseDirective = 'Consegna documento idoneità padrino/madrina. Verifica requisiti canonici se necessario, ringrazia e archivia.';
+      responseDirective = 'Consegna documento idoneità padrino/madrina rilevata. Conferma la ricezione della documentazione allegata.';
     } else if (isSbattezzoDoc) {
       intent = 'formal_request_submission';
       categoryHintSource = 'formal';
