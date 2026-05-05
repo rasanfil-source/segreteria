@@ -919,6 +919,14 @@ Testo:
    * Supporta calendario liturgico completo
    */
   getAdaptiveGreeting(senderName, language = 'it') {
+    const now = new Date();
+    let hour = now.getHours();
+    let day = now.getDay(); // 0 = Domenica
+    let minutes = now.getMinutes();
+
+    // Coerenza business: saluti basati sempre sull'orario italiano,
+    // anche se il fuso del progetto è stato modificato per errore.
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
       try {
         hour = parseInt(Utilities.formatDate(now, 'Europe/Rome', 'H'), 10);
         minutes = parseInt(Utilities.formatDate(now, 'Europe/Rome', 'm'), 10);
