@@ -1222,7 +1222,8 @@ var GmailService = class GmailService {
         const result = {
             textContext: '',
             blobs: [],
-            skipped: []
+            skipped: [],
+            items: []
         };
         const maxFiles = Math.max(1, parseInt(settings.maxFiles, 10) || 3);
         const maxCharsPerFile = Math.max(0, parseInt(settings.maxCharsPerFile, 10) || 3000);
@@ -1270,7 +1271,16 @@ var GmailService = class GmailService {
                         text = text.substring(0, maxCharsPerFile);
                         result.skipped.push({ name: name, reason: 'text_truncated', kept: text.length, originalSize: rawText.length });
                     }
-                    const segment = `\n\n--- Contenuto file: ${name} ---\n${text}`;
+                    const documentType = this._detectDocumentType(name, text);
+                    const attachmentRole = this._classifyAttachmentRole(documentType, name, text);
+                    result.items.push({
+                        name: name,
+                        attachmentRole: attachmentRole.attachmentRole,
+                        documentIntent: attachmentRole.documentIntent,
+                        intentContribution: attachmentRole.intentContribution
+                    });
+                    const roleLine = `Ruolo allegato: ${attachmentRole.attachmentRole}; intentContribution=${attachmentRole.intentContribution}; documentIntent=${attachmentRole.documentIntent}`;
+                    const segment = `\n\n--- Contenuto file: ${name} ---\n${roleLine}\n${text}`;
                     if (maxTotalChars > 0) {
                         const remaining = maxTotalChars - totalTextChars;
                         if (remaining <= 0) {
@@ -1296,6 +1306,16 @@ var GmailService = class GmailService {
 
             if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
                 try {
+                    const documentType = this._detectDocumentType(name, '');
+                    const attachmentRole = this._classifyAttachmentRole(documentType, name, '');
+                    result.items.push({
+                        name: name,
+                        attachmentRole: attachmentRole.attachmentRole,
+                        documentIntent: attachmentRole.documentIntent,
+                        intentContribution: attachmentRole.intentContribution
+                    });
+                    const roleLine = `Ruolo allegato: ${attachmentRole.attachmentRole}; intentContribution=${attachmentRole.intentContribution}; documentIntent=${attachmentRole.documentIntent}`;
+                    result.textContext += `\n\n--- File visivo inviato: ${name} ---\n${roleLine}`;
                     result.blobs.push(attachment.copyBlob());
                     processedCount++;
                     continue;
@@ -1338,7 +1358,16 @@ var GmailService = class GmailService {
                         });
                     }
 
-                    const segment = `\n\n--- Contenuto file: ${name} ---\n${text}`;
+                    const documentType = this._detectDocumentType(name, text);
+                    const attachmentRole = this._classifyAttachmentRole(documentType, name, text);
+                    result.items.push({
+                        name: name,
+                        attachmentRole: attachmentRole.attachmentRole,
+                        documentIntent: attachmentRole.documentIntent,
+                        intentContribution: attachmentRole.intentContribution
+                    });
+                    const roleLine = `Ruolo allegato: ${attachmentRole.attachmentRole}; intentContribution=${attachmentRole.intentContribution}; documentIntent=${attachmentRole.documentIntent}`;
+                    const segment = `\n\n--- Contenuto file: ${name} ---\n${roleLine}\n${text}`;
                     if (maxTotalChars > 0) {
                         const remaining = maxTotalChars - totalTextChars;
                         if (remaining <= 0) {
