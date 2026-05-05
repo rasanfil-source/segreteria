@@ -2238,6 +2238,14 @@ ${addressLines.join('\n\n')}
       return true;
     }
 
+    // Fallback robusto: se il testo suggerisce un documento "atteso",
+    // abilitiamo OCR anche quando le keyword configurate non coprono il caso.
+    const expectedDocType = this._detectDocumentTypeFromText_(`${normalizedSubject} ${normalizedBody}`);
+    if (expectedDocType && expectedDocType !== 'unknown') {
+      console.log(`   📎 OCR fallback attivo: documento atteso rilevato (${expectedDocType})`);
+      return true;
+    }
+
     const hasEmailText = Boolean(normalizedBody.trim() || normalizedSubject.trim());
     if (!hasEmailText && hasAttachments) {
       console.log('   📎 OCR fallback attivo: email senza testo ma con allegati');
