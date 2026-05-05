@@ -773,9 +773,15 @@ var GmailService = class GmailService {
             try {
                 // GmailApp.getUserLabelByName restituisce un GmailLabel che NON possiede un metodo getId().
                 // Passare getName() come fallback ID causerà il fallimento dell'API Avanzata.
-                // Restituiamo esplicitamente null per forzare il fallback nativo a livello di thread.
-                this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: null, ts: now });
-                return null;
+                // Interroghiamo comunque GmailApp una sola volta per cache-are anche il risultato negativo.
+                const nativeLabel = (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getUserLabelByName === 'function')
+                    ? GmailApp.getUserLabelByName(raw)
+                    : null;
+                const nativeId = nativeLabel && typeof nativeLabel.getId === 'function'
+                    ? nativeLabel.getId()
+                    : null;
+                this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: nativeId || null, ts: now });
+                return nativeId || null;
             } catch (e) {
                 console.warn(`⚠️ _getOptionalLabelIdByName fallback GmailApp fallito per ${raw}, non metto in cache: ${e.message}`);
                 return null;
@@ -1901,7 +1907,7 @@ var GmailService = class GmailService {
 
         // 1.5 Fast-path per identificativi strutturati (anche con poche lettere, es. IBAN)
         const compact = cleaned.replace(/\s+/g, '').toUpperCase();
-        const looksLikeCF = /^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/.test(compact);
+        const looksLikeCF = /^[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/.test(compact);
         const looksLikeIBAN = /^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(compact);
         if (looksLikeCF || looksLikeIBAN) return true;
 
@@ -3390,8 +3396,8 @@ function markdownToHtml(text) {
     // Bold / Italic (dopo le liste per evitare collisioni con "* item")
     // Nota: gli asterischi NON vengono escaped da escapeHtml(), quindi funzionano normalmente
     html = html.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
-    // Evita match su marker lista "* " e su chiusure con spazio prima dell'asterisco
-    html = html.replace(/(?<!\*)\*(?![\s*])([\s\S]+?)(?<!\s)\*(?!\*)/g, '<em>$1</em>');
+    // [^\n*] evita match cross-paragrafo e attraversamento di tag già inseriti
+    html = html.replace(/(?<!\*)\*(?![\s*])([^\n*]+?)(?<!\s)\*(?!\*)/g, '<em>$1</em>');
     // Inline code (singolo backtick)
     html = html.replace(/`([^`\n]+)`/g,
         '<code style="font-family:monospace;background:#f4f4f4;' +

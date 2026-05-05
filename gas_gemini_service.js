@@ -633,7 +633,7 @@ Output JSON:
     // Previene errori su richieste formali che potrebbero avere molti termini latini o esteri.
     const snippet = text.substring(0, 800);
     const itIstituzionale = [
-      'segreteria', 'parrocchia', 'sant\'eugenio', 'don raimondo', 'ufficio parrocchiale',
+      'segreteria', 'parrocchia', 'sant’eugenio', 'sant\'eugenio', "sant'eugenio", 'don raimondo', 'ufficio parrocchiale',
       'certificato di battesimo', 'nulla osta', 'la celebrazione', 'il sacramento', 'l\'eucaristia',
       'la comunione', 'la cresima', 'il matrimonio', 'il funerale', 'la benedizione'
     ];

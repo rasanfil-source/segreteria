@@ -1224,7 +1224,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     };
     const allProps = this.props.getProperties();
 
-    for (var modelKey in this.models) {
+    for (const modelKey of Object.keys(this.models)) {
       const model = this.models[modelKey];
       const rpdUsed = parseInt(allProps['rpd_' + modelKey] || '0', 10) || 0;
       const tokensUsed = parseInt(allProps['tokens_' + modelKey] || '0', 10) || 0;
@@ -1263,7 +1263,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     console.log('⏰ Prossimo reset: ' + stats.nextReset + ' (9:00 AM italiana)');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    for (var modelKey in stats.models) {
+    for (const modelKey of Object.keys(stats.models)) {
       const model = stats.models[modelKey];
       console.log('\n' + modelKey.toUpperCase() + ' (' + model.name + '):');
       console.log('  RPD: ' + model.rpd.used + '/' + model.rpd.limit + ' (' + model.rpd.percent + '%)');
@@ -1429,7 +1429,7 @@ function showQuotaDashboard() {
 
   // Avviso se >80%
   const stats = limiter.getUsageStats();
-  for (var modelKey in stats.models) {
+  for (const modelKey of Object.keys(stats.models)) {
     const model = stats.models[modelKey];
     if (parseFloat(model.rpd.percent) > 80) {
       console.warn('⚠️  ATTENZIONE: ' + modelKey + ' RPD > 80% (' + model.rpd.percent + '%)');

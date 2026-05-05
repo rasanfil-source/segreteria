@@ -158,7 +158,6 @@ var EmailProcessor = class EmailProcessor {
     // ====================================================================
 
     let lockAcquired = false;
-    let globalThreadLock = null;
     const scriptCache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
       ? CacheService.getScriptCache()
       : null;
@@ -1666,11 +1665,6 @@ ${addressLines.join('\n\n')}
           threadLogger.warn(`Errore rilascio lock: ${e.message}`);
         }
       }
-      if (globalThreadLock && typeof globalThreadLock.releaseLock === 'function') {
-        try {
-          globalThreadLock.releaseLock();
-        } catch (_) { }
-      }
     }
   }
 
@@ -1688,9 +1682,24 @@ ${addressLines.join('\n\n')}
     const runId = (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.getUuid === 'function')
       ? Utilities.getUuid().substring(0, 8)
       : `${this._startTime}`;
-    const runLogger = (this.logger && typeof this.logger.withMeta === 'function')
+    const candidateRunLogger = (this.logger && typeof this.logger.withMeta === 'function')
       ? this.logger.withMeta({ runId: runId })
       : this.logger;
+    const runLogger = (candidateRunLogger &&
+      typeof candidateRunLogger.info === 'function' &&
+      typeof candidateRunLogger.warn === 'function' &&
+      typeof candidateRunLogger.error === 'function')
+      ? candidateRunLogger
+      : {
+        info: (...args) => console.log(...args),
+        warn: (...args) => console.warn(...args),
+        error: (...args) => console.error(...args),
+        debug: (...args) => console.log(...args),
+      };
+    const previousRunServiceLoggers = {
+      gmailService: this.gmailService ? this.gmailService.logger : null,
+      memoryService: this.memoryService ? this.memoryService.logger : null
+    };
     if (runLogger && typeof runLogger.withContext === 'function') {
       if (this.gmailService) this.gmailService.logger = runLogger.withContext('GmailService');
       if (this.memoryService) this.memoryService.logger = runLogger.withContext('MemoryService');
@@ -1986,6 +1995,8 @@ ${addressLines.join('\n\n')}
       return stats;
 
     } finally {
+      if (this.gmailService) this.gmailService.logger = previousRunServiceLoggers.gmailService;
+      if (this.memoryService) this.memoryService.logger = previousRunServiceLoggers.memoryService;
       if (lockAcquiredHere) {
         try {
           executionLock.releaseLock();
@@ -2928,7 +2939,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     const discrepancyNotePatterns = [
       /orario\s+(?:diverso|differente)\s+(?:da|rispetto\s+a)\s+(?:quanto\s+)?(?:da\s+)?lei\s+indicato/i,
       /orario\s+(?:diverso|differente)\s+da\s+quello\s+indicato/i,
-      /orario\s+comunicato\s+è\s+diverso/i
+      /orario\s+comunicato\s+[eè]['’]?\s+diverso/i
     ];
 
     if (discrepancyNotePatterns.some((pattern) => pattern.test(responseLower))) {
@@ -3353,7 +3364,7 @@ function computeSalutationMode({ isReply = false, memoryExists = false, lastUpda
 
   // 2️⃣ Conversazione attiva (qui isReply è necessariamente true)
   if (!lastUpdated) {
-    return 'full';
+    return 'none_or_continuity';
   }
 
   const parsedLastUpdated = (typeof parseDateSafe === 'function') ? parseDateSafe(lastUpdated, null) : new Date(lastUpdated);

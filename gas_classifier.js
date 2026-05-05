@@ -307,7 +307,10 @@ var Classifier = class Classifier {
         inQuoteBlock = true;
         continue;
       }
-      if (inQuoteBlock && /^[A-Za-zÀ-ÖØ-öø-ÿ0-9]/.test(stripped)) {
+      if (inQuoteBlock &&
+          /^[A-Za-zÀ-ÖØ-öø-ÿ0-9]/.test(stripped) &&
+          !stripped.startsWith('>') &&
+          !stripped.startsWith('|')) {
         inQuoteBlock = false;
       }
 
