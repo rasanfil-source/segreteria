@@ -1047,6 +1047,7 @@ ${addressLines.join('\n\n')}
       }
 
       let attachmentIntentContext = preQuickAttachmentIntentContext;
+      let forceReceiptOnlyForSubmission = false;
 
       const requestTypeName = requestType && requestType.type ? requestType.type : '';
       let categoryHintSource = String(classification.category || requestTypeName || '').toLowerCase() || null;
@@ -1181,6 +1182,24 @@ ${addressLines.join('\n\n')}
               categoryHintSource = attachmentIntentContext.categoryHintSource;
             }
 
+            if (attachmentIntentContext && /submission/i.test(String(attachmentIntentContext.intent || ''))) {
+              const sponsorSubmission = Boolean(
+                (attachmentIntentContext.detectedDocTypes && attachmentIntentContext.detectedDocTypes.sponsor) ||
+                /sponsor|padrin|madrin|idoneit/i.test(String(attachmentIntentContext.intent || ''))
+              );
+              if (sponsorSubmission) {
+                const shouldProvideEligibilityGuidance = this._shouldProvideEligibilityGuidance_(
+                  messageDetails.subject,
+                  messageDetails.body,
+                  attachmentIntentContext
+                );
+                forceReceiptOnlyForSubmission = !shouldProvideEligibilityGuidance;
+                if (forceReceiptOnlyForSubmission) {
+                  console.log('   📎 Guardrail sponsor submission: consegna documentale → risposta solo conferma ricezione');
+                }
+              }
+            }
+
             if (attachmentBlobs.length > 0) {
               const blobNames = attachmentBlobs.map((b) => b.getName()).join(', ');
               console.log(`   📎 Pronti ${attachmentBlobs.length} allegati visivi per Gemini (${blobNames})`);
@@ -1220,6 +1239,7 @@ ${addressLines.join('\n\n')}
         promptProfile: promptProfile,
         activeConcerns: activeConcerns,
         territoryContext: territoryContext,
+        sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext),
         requestType: requestType,
         attachmentsContext: textFromAttachments,
         attachmentIntentContext: attachmentIntentContext,
@@ -1334,6 +1354,12 @@ ${addressLines.join('\n\n')}
       }
       }
 
+      if (forceReceiptOnlyForSubmission) {
+        response = this._buildReceiptOnlySubmissionResponse_(detectedLanguage);
+        strategyUsed = 'Submission-ReceiptOnlyGuardrail';
+        console.log('✅ Guardrail applicato: risposta limitata a conferma ricezione documenti');
+      }
+
       if (!response) {
         const errorToReport = initialError || generationError;
         const errorClass = errorToReport ? this._classifyError(errorToReport) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
@@ -1375,6 +1401,12 @@ ${addressLines.join('\n\n')}
         response,
         messageDetails,
         detectedLanguage
+      );
+
+      response = this._sanitizeUnrequestedSponsorGuidance_(
+        response,
+        messageDetails.subject,
+        messageDetails.body
       );
 
       // ====================================================================
@@ -3421,6 +3453,64 @@ Nota bene: l'orario comunicato ${note}.`;
       return 'Good evening.\nWe have received your attachment. Before proceeding, the parish office will verify the submitted documentation.\nKind regards,\nParish Office';
     }
     return 'Buonasera.\nAbbiamo ricevuto la documentazione allegata. Prima di procedere, la segreteria verificherà la documentazione inviata.\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio';
+  }
+  _buildReceiptOnlySubmissionResponse_(language) {
+    const lang = String(language || 'it').toLowerCase();
+    if (lang === 'en') {
+      return 'Good evening.\nWe have received the attached documentation.\nKind regards,\nParish Office';
+    }
+    return 'Buonasera.\nAbbiamo ricevuto la documentazione allegata.\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio';
+  }
+
+  _shouldProvideEligibilityGuidance_(subject, body, attachmentIntentContext) {
+    const text = `${subject || ''} ${body || ''}`.toLowerCase();
+    const intent = String((attachmentIntentContext && attachmentIntentContext.intent) || '').toLowerCase();
+
+    const deliverySignals = /\b(allego|in allegato|invio|inoltro|trasmetto|ecco|certificato|attestato|idoneit[aà])\b/i.test(text);
+    if (deliverySignals && /submission/.test(intent)) {
+      return false;
+    }
+
+    const infoSignals = /\b(vorrei|desidero|ho bisogno|mi serve|informazioni|info|come|percorso|corso)\b/i.test(text);
+    const cresimaGoalSignals = /\b(cresima adulti?|fare la cresima|diventare padrin[oa]|fare da padrin[oa]|fare da madrin[ao])\b/i.test(text);
+    return infoSignals && cresimaGoalSignals;
+  }
+  _sanitizeUnrequestedSponsorGuidance_(response, subject, body) {
+    const text = typeof response === 'string' ? response : String(response || '');
+    if (!text) return text;
+
+    const userText = `${subject || ''} ${body || ''}`.toLowerCase();
+    const asksEligibilityInfo = /\b(idoneit[aà]|requisit[oi]|come (diventare|fare) padrin[oa]|certificato idoneit[aà])\b/i.test(userText);
+    if (asksEligibilityInfo) return text;
+
+    const mentionsPadrinoContext = /\ bpadrin[oa]|madrin[ao]|sponsor\b/i.test(userText);
+    if (!mentionsPadrinoContext) return text;
+
+    const lines = text.split(/\n+/);
+    const filtered = lines.filter((line) => {
+      return !/\b(requisit[oi].*padrin|idoneit[aà].*padrin|fare da padrin|fare da madrin|vita cristiana conforme|divorzio|convivenza)\b/i.test(line);
+    });
+
+    const cleaned = filtered.join('\n').trim();
+    if (!cleaned) return text;
+    if (cleaned !== text) {
+      console.log('   🧹 Rimossa guida non richiesta su requisiti padrino/madrina dalla risposta.');
+    }
+    return cleaned;
+  }
+
+  _deriveSponsorGuidancePolicy_(subject, body, attachmentIntentContext) {
+    const text = `${subject || ''} ${body || ''}`.toLowerCase();
+    const intent = String((attachmentIntentContext && attachmentIntentContext.intent) || '').toLowerCase();
+    const isSubmission = /submission/.test(intent);
+    const asksEligibility = /\b(idoneit[aà]|requisit[oi]|come (diventare|fare) padrin[oa]|certificato idoneit[aà])\b/i.test(text);
+    const asksLogistics = /\b(a che ora|orari|quando|arrivare|inizia|inizio|dove|luogo)\b/i.test(text);
+    const asksCresimaPath = /\b(informazioni|info|corso|percorso)\b/i.test(text) && /\b(cresima adulti?|fare la cresima)\b/i.test(text);
+
+    if (isSubmission && !asksEligibility) return 'no_eligibility_guidance';
+    if (asksLogistics && !asksEligibility) return 'logistics_only_no_eligibility';
+    if (asksCresimaPath) return 'allow_eligibility_context';
+    return 'default';
   }
 }
 

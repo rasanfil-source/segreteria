@@ -120,7 +120,8 @@ var PromptEngine = class PromptEngine {
       responseDelay = null,
       territoryContext = null,
       attachmentsContext = '',
-      attachmentIntentContext = null
+      attachmentIntentContext = null,
+      sponsorGuidancePolicy = 'default'
     } = options;
 
     const safeCurrentDate = currentDate || (
@@ -316,6 +317,7 @@ var PromptEngine = class PromptEngine {
 
     // 12. SUGGERIMENTO CATEGORIA
     addSection(this._renderCategoryHint(category), 'CategoryHint');
+    addSection(this._renderSponsorGuidancePolicy(sponsorGuidancePolicy), 'SponsorGuidancePolicy');
 
     // ══════════════════════════════════════════════════════════════════════
     // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)
@@ -1285,6 +1287,25 @@ ${hints[effectiveCategory]}` : null;
     }
 
     return hint;
+  }
+
+  _renderSponsorGuidancePolicy(policy) {
+    const normalized = String(policy || 'default').toLowerCase();
+    if (normalized === 'default') return null;
+
+    if (normalized === 'no_eligibility_guidance' || normalized === 'logistics_only_no_eligibility') {
+      return `**POLICY CONTENUTO PADRINO/MADRINA (OBBLIGATORIA):**
+- Non spiegare requisiti di idoneità padrino/madrina se non richiesti esplicitamente.
+- Non proporre procedure su come diventare idonei.
+- Rispondi solo alla richiesta effettiva (es. conferma ricezione, orari, logistica).`;
+    }
+
+    if (normalized === 'allow_eligibility_context') {
+      return `**POLICY CONTENUTO PADRINO/MADRINA:**
+- È consentito dare contesto su percorso Cresima per idoneità padrino/madrina.
+- Mantieni la risposta aderente alla domanda, senza aggiungere requisiti non richiesti.`;
+    }
+    return null;
   }
 
   // ========================================================================
