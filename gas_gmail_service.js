@@ -2036,7 +2036,25 @@ var GmailService = class GmailService {
             .replace(/&lt;/g, '<')
             .replace(/&gt;/g, '>')
             .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'");
+            .replace(/&#39;/g, "'")
+            .replace(/&#(\d+);/g, (match, dec) => {
+                const code = Number(dec);
+                if (!Number.isFinite(code)) return match;
+                try {
+                    return String.fromCodePoint(code);
+                } catch (_) {
+                    return match;
+                }
+            })
+            .replace(/&#x([0-9a-f]+);/gi, (match, hex) => {
+                const code = Number.parseInt(hex, 16);
+                if (!Number.isFinite(code)) return match;
+                try {
+                    return String.fromCodePoint(code);
+                } catch (_) {
+                    return match;
+                }
+            });
         // Riduce spazi/tabs senza distruggere i newline significativi
         text = text
             .replace(/\r\n?/g, '\n')
@@ -2969,11 +2987,11 @@ function sanitizeUrl(url) {
     }
 
     if (/^mailto:/i.test(normalized)) {
-        const emailPart = decoded.replace(/^mailto:/i, '').split('?')[0].trim();
-        const emails = emailPart.split(',').map((e) => e.trim()).filter(Boolean);
-        const emailRegex = /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/;
-        if (emails.length === 0 || !emails.every((e) => emailRegex.test(e))) {
-            console.warn(`🛑 Bloccato mailto malformato: ${decoded}`);
+        const mailtoPayload = decoded.replace(/^mailto:/i, '').split('?')[0].trim();
+        const decodedMailbox = mailtoPayload.replace(/%40/gi, '@');
+        const emailPattern = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i;
+        if (!emailPattern.test(decodedMailbox)) {
+            console.warn(`🛑 Bloccato mailto non valido: ${decoded}`);
             return null;
         }
     }
