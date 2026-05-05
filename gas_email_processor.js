@@ -106,6 +106,44 @@ var EmailProcessor = class EmailProcessor {
   processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds = null, skipLock = false, skippedMessageIds = null, options = {}) {
     const threadId = thread.getId();
     const startTime = Date.now();
+    const activeLogger = (options && options.logger) ? options.logger : this.logger;
+    const baseThreadLogger = (activeLogger && typeof activeLogger.withMeta === 'function')
+      ? activeLogger.withMeta({ threadId: threadId })
+      : activeLogger;
+    const threadLogger = (baseThreadLogger && typeof baseThreadLogger.info === 'function' && typeof baseThreadLogger.warn === 'function' && typeof baseThreadLogger.error === 'function')
+      ? baseThreadLogger
+      : {
+        info: (...args) => console.log(...args),
+        warn: (...args) => console.warn(...args),
+        error: (...args) => console.error(...args),
+        debug: (...args) => console.log(...args),
+      };
+    const previousServiceLoggers = {
+      geminiService: this.geminiService ? this.geminiService.logger : null,
+      classifier: this.classifier ? this.classifier.logger : null,
+      validator: this.validator ? this.validator.logger : null,
+      requestClassifier: this.requestClassifier ? this.requestClassifier.logger : null,
+      gmailService: this.gmailService ? this.gmailService.logger : null,
+      memoryService: this.memoryService ? this.memoryService.logger : null
+    };
+    if (this.geminiService && threadLogger && typeof threadLogger.withContext === 'function') {
+      this.geminiService.logger = threadLogger.withContext('GeminiService');
+    }
+    if (this.classifier && threadLogger && typeof threadLogger.withContext === 'function') {
+      this.classifier.logger = threadLogger.withContext('Classifier');
+    }
+    if (this.validator && threadLogger && typeof threadLogger.withContext === 'function') {
+      this.validator.logger = threadLogger.withContext('Validator');
+    }
+    if (this.requestClassifier && threadLogger && typeof threadLogger.withContext === 'function') {
+      this.requestClassifier.logger = threadLogger.withContext('RequestClassifier');
+    }
+    if (this.gmailService && threadLogger && typeof threadLogger.withContext === 'function') {
+      this.gmailService.logger = threadLogger.withContext('GmailService');
+    }
+    if (this.memoryService && threadLogger && typeof threadLogger.withContext === 'function') {
+      this.memoryService.logger = threadLogger.withContext('MemoryService');
+    }
     // Garantisce che _isNearDeadline() funzioni anche se processThread
     // è invocato direttamente (test, debug) senza passare per processUnreadEmails.
     if (!this._startTime) {
@@ -128,7 +166,7 @@ var EmailProcessor = class EmailProcessor {
     let lockValue = null;
 
     if (!scriptCache || typeof LockService === 'undefined' || !LockService || typeof LockService.getScriptLock !== 'function') {
-      console.warn(`⚠️ Lock service/cache non disponibili per thread ${threadId}: procedo senza lock`);
+      threadLogger.warn('Lock service/cache non disponibili: procedo senza lock');
     } else {
       const configuredTtl = (typeof CONFIG !== 'undefined' && Number(CONFIG.CACHE_LOCK_TTL))
         ? Number(CONFIG.CACHE_LOCK_TTL)
@@ -150,7 +188,7 @@ var EmailProcessor = class EmailProcessor {
       let scriptLockAcquired = false;
       try {
         if (skipLock) {
-          console.log(`🔒 Mutex globale saltato per thread ${threadId} (chiamante possiede già lock esecuzione)`);
+          threadLogger.debug('Mutex globale saltato (lock esecuzione già posseduto dal chiamante)');
         } else {
           if (!scriptLock.tryLock(5000)) {
             console.warn(`🔒 Impossibile acquisire lock globale per thread ${threadId}, salto`);
@@ -167,7 +205,7 @@ var EmailProcessor = class EmailProcessor {
           if (isStale) {
             console.warn(`🔓 Lock stale rilevato per thread ${threadId}, sovrascrittura lock`);
           } else {
-            console.warn(`🔒 Thread ${threadId} lockato da altro processo, salto`);
+            threadLogger.warn('Thread lockato da altro processo, salto');
             return { status: 'skipped', reason: 'thread_locked' };
           }
         }
@@ -184,9 +222,9 @@ var EmailProcessor = class EmailProcessor {
         }
 
         lockAcquired = true;
-        console.log(`🔒 Lock acquisito per thread ${threadId}`);
+        threadLogger.debug('Lock acquisito');
       } catch (e) {
-        console.warn(`⚠️ Errore acquisizione lock thread: ${e.message}`);
+        threadLogger.warn(`Errore acquisizione lock thread: ${e.message}`);
         // Demandiamo il rilascio in via esclusiva al blocco finally, prevenendo la collisione double-release
         return { status: 'error', error: 'Lock acquisition failed' };
       } finally {
@@ -224,7 +262,7 @@ var EmailProcessor = class EmailProcessor {
           }
         }
       } catch (sessionError) {
-        console.warn(`⚠️ Impossibile recuperare email utente da Session: ${sessionError.message}`);
+        threadLogger.warn(`Impossibile recuperare email utente da Session: ${sessionError.message}`);
       }
 
       let gmailAliases = [];
@@ -365,7 +403,7 @@ var EmailProcessor = class EmailProcessor {
       // I messaggi interni (noi/alias) vengono esclusi per evitare loop e risposte non dovute.
       // Se non ci sono messaggi da esterni → skip
       if (externalUnread.length === 0) {
-        console.log('   ⊖ Saltato: nessun nuovo messaggio esterno non letto');
+        threadLogger.info('Saltato: nessun nuovo messaggio esterno non letto');
         // In modalità stale-only i messaggi recenti devono restare eleggibili per il ciclo normale.
         const isStaleOnlyRun = options && Number.isFinite(Number(options.staleOnlyMs));
         if (!isStaleOnlyRun) {
@@ -1421,7 +1459,7 @@ ${addressLines.join('\n\n')}
         result.dryRun = true;
         result.status = 'dry_run';
         result.durationMs = Date.now() - startTime;
-        this.logger.info(`Thread processato in ${result.durationMs}ms`, { threadId: threadId, duration: result.durationMs });
+        threadLogger.info(`Thread processato in ${result.durationMs}ms`, { duration: result.durationMs });
         return result;
       }
 
@@ -1528,11 +1566,11 @@ ${addressLines.join('\n\n')}
       markHandledUnread();
       result.status = 'replied';
       result.durationMs = Date.now() - startTime;
-      this.logger.info(`Thread processato in ${result.durationMs}ms`, { threadId: threadId, duration: result.durationMs });
+      threadLogger.info(`Thread processato in ${result.durationMs}ms`, { duration: result.durationMs });
       return result;
 
     } catch (error) {
-      console.error(`   🛑 Errore elaborazione thread: ${error.message}`);
+      threadLogger.error(`Errore elaborazione thread: ${error.message}`, { stack: error && error.stack ? error.stack : undefined });
 
       if (replySent) {
         console.warn('   ⚠️ Errore post-invio: thread non etichettato come errore perché la risposta è stata già inviata');
@@ -1557,6 +1595,12 @@ ${addressLines.join('\n\n')}
       return result;
 
     } finally {
+      if (this.geminiService) this.geminiService.logger = previousServiceLoggers.geminiService;
+      if (this.classifier) this.classifier.logger = previousServiceLoggers.classifier;
+      if (this.validator) this.validator.logger = previousServiceLoggers.validator;
+      if (this.requestClassifier) this.requestClassifier.logger = previousServiceLoggers.requestClassifier;
+      if (this.gmailService) this.gmailService.logger = previousServiceLoggers.gmailService;
+      if (this.memoryService) this.memoryService.logger = previousServiceLoggers.memoryService;
       if (lockAcquired && scriptCache && threadLockKey) {
         try {
           const currentLockValue = scriptCache.get(threadLockKey);
@@ -1592,10 +1636,17 @@ ${addressLines.join('\n\n')}
     // Inizializzazione di _startTime per la precisione dei calcoli.
     // anche se l'istanza viene riutilizzata in trigger successivi.
     this._startTime = Date.now();
-
-    console.log('\n' + '='.repeat(70));
-    console.log('📬 Inizio elaborazione email...');
-    console.log('='.repeat(70));
+    const runId = (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.getUuid === 'function')
+      ? Utilities.getUuid().substring(0, 8)
+      : `${this._startTime}`;
+    const runLogger = (this.logger && typeof this.logger.withMeta === 'function')
+      ? this.logger.withMeta({ runId: runId })
+      : this.logger;
+    if (runLogger && typeof runLogger.withContext === 'function') {
+      if (this.gmailService) this.gmailService.logger = runLogger.withContext('GmailService');
+      if (this.memoryService) this.memoryService.logger = runLogger.withContext('MemoryService');
+    }
+    runLogger.info('Inizio elaborazione email', { runId: runId });
 
     const executionLock = (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function')
       ? LockService.getScriptLock()
@@ -1630,7 +1681,7 @@ ${addressLines.join('\n\n')}
         normalizedKnowledgeBase === '';
 
       if (isKnowledgeBaseMissing) {
-        this.logger.error('Knowledge base non disponibile: interrompo batch per evitare risposte senza contesto.');
+        runLogger.error('Knowledge base non disponibile: interrompo batch per evitare risposte senza contesto.');
         return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'knowledge_base_missing' };
       }
 
@@ -1645,7 +1696,7 @@ ${addressLines.join('\n\n')}
         const sanitized = Number.isNaN(resolved) ? 10 : resolved;
         const bounded = Math.max(1, Math.min(50, sanitized));
         if (bounded !== sanitized) {
-          this.logger.warn(`⚠️ MAX_EMAILS_PER_RUN fuori range (${sanitized}), normalizzato a ${bounded}.`);
+          runLogger.warn(`⚠️ MAX_EMAILS_PER_RUN fuori range (${sanitized}), normalizzato a ${bounded}.`);
         }
         return bounded;
       };
@@ -1686,15 +1737,15 @@ ${addressLines.join('\n\n')}
         }
       } catch (e) {
         if (e && e.message && String(e.message).includes('GMAIL_DAILY_CALL_LIMIT_REACHED')) {
-          this.logger.warn('⚠️ Stop batch: raggiunto limite locale chiamate Gmail. Rimando al prossimo ciclo.');
+          runLogger.warn('⚠️ Stop batch: raggiunto limite locale chiamate Gmail. Rimando al prossimo ciclo.');
           return { total: 0, replied: 0, filtered: 0, errors: 0, skipped: 1, reason: 'gmail_daily_limit_reached' };
         }
-        this.logger.error(`❌ Impossibile recuperare thread da elaborare: ${e.message}. Batch interrotto per sicurezza.`);
+        runLogger.error(`❌ Impossibile recuperare thread da elaborare: ${e.message}. Batch interrotto per sicurezza.`);
         return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'thread_discovery_failed' };
       }
 
       if (!Array.isArray(threads)) {
-        this.logger.warn(`⚠️ Discovery thread non valida (tipo=${typeof threads}). Applico fallback sicuro a lista vuota.`);
+        runLogger.warn(`⚠️ Discovery thread non valida (tipo=${typeof threads}). Applico fallback sicuro a lista vuota.`);
         threads = [];
       }
 
@@ -1718,7 +1769,7 @@ ${addressLines.join('\n\n')}
         try {
           labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName, true, { onlyUnread: true });
         } catch (e) {
-          this.logger.error(`Impossibile pre-caricare gli ID etichettati (${e.message}). Interrompo il batch per evitare risposte duplicate.`);
+          runLogger.error(`Impossibile pre-caricare gli ID etichettati (${e.message}). Interrompo il batch per evitare risposte duplicate.`);
           return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'label_cache_failed' };
         }
       } else {
@@ -1818,12 +1869,12 @@ ${addressLines.join('\n\n')}
           labeledMessageIds,
           threadLockAlreadyCovered,
           skippedMessageIds,
-          options
+          { ...options, logger: runLogger }
         );
         stats.total++;
 
         if (result && result.error && String(result.error).includes('GMAIL_DAILY_CALL_LIMIT_REACHED')) {
-          this.logger.warn('⚠️ Stop batch: limite giornaliero chiamate Gmail raggiunto durante processThread.');
+          runLogger.warn('⚠️ Stop batch: limite giornaliero chiamate Gmail raggiunto durante processThread.');
           // -1: checkpoint senza trigger (quota Gmail giornaliera, retry domani)
           this._storeBatchCheckpointAndScheduleContinuation_(threads, index, -1);
           break;
@@ -1837,7 +1888,7 @@ ${addressLines.join('\n\n')}
             String(result.error || '').includes('QUOTA_EXHAUSTED')
           )
         ) {
-          this.logger.warn('⚠️ Stop batch: quota API LLM esaurita, salvo checkpoint per evitare cascata di error label.');
+          runLogger.warn('⚠️ Stop batch: quota API LLM esaurita, salvo checkpoint per evitare cascata di error label.');
           this._storeBatchCheckpointAndScheduleContinuation_(threads, index, remainingTimeMs);
           break;
         }
