@@ -771,11 +771,21 @@ var EmailProcessor = class EmailProcessor {
       // STEP 3: CONTROLLO RAPIDO - Gemini decide se serve risposta
       // ====================================================================
       let quickCheck;
+
+      const preQuickAttachmentIntentContext = this._deriveAttachmentIntentContext_(
+        messageDetails.body,
+        messageDetails.subject,
+        [],
+        '',
+        'pre_ocr'
+      );
+
       try {
         quickCheck = this.geminiService.shouldRespondToEmail(
           messageDetails.body,
           messageDetails.subject,
-          languageDetection
+          languageDetection,
+          preQuickAttachmentIntentContext
         );
       } catch (quickError) {
         console.warn(`   ⚠️ Gemini quick check fallito: ${quickError.message}. Applico etichetta errore per evitare loop.`);
@@ -1033,8 +1043,28 @@ ${addressLines.join('\n\n')}
         console.log(`   🧠 PromptContext: profilo=${promptProfile}`);
       }
 
+      let attachmentIntentContext = preQuickAttachmentIntentContext;
+
       const requestTypeName = requestType && requestType.type ? requestType.type : '';
-      const categoryHintSource = String(classification.category || requestTypeName || '').toLowerCase() || null;
+      let categoryHintSource = String(classification.category || requestTypeName || '').toLowerCase() || null;
+
+      if (attachmentIntentContext && (
+        attachmentIntentContext.intent === 'document_submission' ||
+        attachmentIntentContext.intent === 'document_submission_with_question'
+      )) {
+        categoryHintSource = attachmentIntentContext.intent;
+        classification.category = 'document_submission';
+        classification.topic = attachmentIntentContext.allowBodyQuestions
+          ? 'documentazione ricevuta con domanda'
+          : 'documentazione ricevuta';
+
+        if (requestType && typeof requestType === 'object') {
+          requestType.type = 'technical';
+          requestType.needsDoctrine = false;
+          requestType.needsDiscernment = false;
+          requestType.topic = classification.topic;
+        }
+      }
 
       // ====================================================================
       // CONTEXT ROUTING: inietta moduli KB pesanti solo quando servono.
@@ -1073,6 +1103,8 @@ ${addressLines.join('\n\n')}
       let attachmentBlobs = [];
       let textFromAttachments = '';
       let attachmentSkipped = [];
+      let attachmentItems = [];
+      let attachmentIntentContext = preQuickAttachmentIntentContext;
 
       if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
         if (this._isNearDeadline(this.config.maxExecutionTimeMs)) {
@@ -1104,7 +1136,7 @@ ${addressLines.join('\n\n')}
               (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT) ? CONFIG.ATTACHMENT_CONTEXT : {}
             );
             const maxAttachmentFiles = Math.max(1, parseInt(attachmentSettings.maxFiles, 10) || 3);
-            let attachmentData = { blobs: [], textContext: '', skipped: [] };
+            let attachmentData = { blobs: [], textContext: '', skipped: [], items: [] };
             // Aggrega allegati dai non letti esterni più recenti, non solo dal candidato.
             // Evita perdita di contesto quando l'utente invia allegati in messaggi precedenti.
             for (let i = externalUnread.length - 1; i >= 0; i--) {
@@ -1119,6 +1151,7 @@ ${addressLines.join('\n\n')}
                 if (Array.isArray(msgData.blobs)) attachmentData.blobs.push(...msgData.blobs);
                 if (msgData.textContext) attachmentData.textContext += msgData.textContext;
                 if (Array.isArray(msgData.skipped)) attachmentData.skipped.push(...msgData.skipped);
+                if (Array.isArray(msgData.items)) attachmentData.items.push(...msgData.items);
                 if (attachmentData.blobs.length >= maxAttachmentFiles) break;
               } catch (attError) {
                 let messageId = 'unknown';
@@ -1130,6 +1163,14 @@ ${addressLines.join('\n\n')}
             attachmentBlobs = attachmentData.blobs || [];
             textFromAttachments = attachmentData.textContext || '';
             attachmentSkipped = attachmentData.skipped || [];
+            attachmentItems = attachmentData.items || [];
+            attachmentIntentContext = this._deriveAttachmentIntentContext_(
+              messageDetails.body,
+              messageDetails.subject,
+              attachmentItems,
+              textFromAttachments,
+              'post_ocr'
+            );
 
             if (attachmentBlobs.length > 0) {
               const blobNames = attachmentBlobs.map((b) => b.getName()).join(', ');
@@ -1172,6 +1213,7 @@ ${addressLines.join('\n\n')}
         territoryContext: territoryContext,
         requestType: requestType,
         attachmentsContext: textFromAttachments,
+        attachmentIntentContext: attachmentIntentContext,
         aiCoreLite: routedAiCoreLite,
         aiCore: routedAiCore,
         doctrineBase: routedDoctrine,
@@ -2480,6 +2522,48 @@ ${addressLines.join('\n\n')}
     }
   }
 
+  _deriveAttachmentIntentContext_(body, subject, attachmentItems = [], attachmentText = '', phase = 'post_ocr') {
+    const bodyText = `${subject || ''}\n${body || ''}`.toLowerCase();
+    const attachmentTextLower = `${attachmentText || ''}`.toLowerCase();
+    const hasTransmissionPhrase = /\b(in\s+allegato|allego|le\s+invio|vi\s+invio|trasmetto|trova\s+allegato|troverete\s+allegato|invio\s+il\s+documento|documento\s+di|mando\s+il\s+documento|inoltro\s+il\s+documento)\b/i.test(bodyText);
+    const hasBodyQuestion = /(\?|a che ora|quando|dove|come|posso|devo|bisogna|serve|vorrei sapere|mi può dire|mi potete dire|è possibile|ci sono|quali sono)/i.test(bodyText);
+    const hasSubmittedEvidence = attachmentItems.some(item => item && (item.intentContribution === 'suppress' || item.attachmentRole === 'submitted_evidence' || item.documentIntent === 'document_submission')) || /ruolo allegato:\s*submitted_evidence/i.test(attachmentText);
+    const isSponsorEligibility = /idoneit[aà].*(padrino|madrina)|(padrino|madrina).*idoneit[aà]/i.test(attachmentTextLower);
+
+    if (phase === 'pre_ocr') {
+      if (hasTransmissionPhrase) {
+        return {
+          intent: hasBodyQuestion ? 'suspected_submission_with_question' : 'suspected_submission',
+          confidence: hasBodyQuestion ? 0.55 : 0.75,
+          phase: 'pre_ocr',
+          suppressAttachmentIntentKeywords: true,
+          allowBodyQuestions: hasBodyQuestion,
+          suppressKbTopics: [],
+          responseDirective: hasBodyQuestion
+            ? 'Probabile consegna documentale con domanda nel corpo: considera il body come fonte primaria; non trasformare riferimenti ad allegati in richiesta informativa.'
+            : 'Probabile consegna documentale: non trasformare riferimenti ad allegati in richiesta informativa.'
+        };
+      }
+      return { intent: 'unknown', confidence: 0, phase: 'pre_ocr', suppressAttachmentIntentKeywords: false, allowBodyQuestions: true, suppressKbTopics: [], responseDirective: '' };
+    }
+
+    if (hasTransmissionPhrase && hasSubmittedEvidence) {
+      return {
+        intent: hasBodyQuestion ? 'document_submission_with_question' : 'document_submission',
+        confidence: isSponsorEligibility ? 0.95 : 0.85,
+        phase: 'post_ocr',
+        suppressAttachmentIntentKeywords: true,
+        allowBodyQuestions: hasBodyQuestion,
+        suppressKbTopics: isSponsorEligibility ? ['requisiti padrino', 'requisiti madrina', 'idoneità padrino', 'idoneità madrina'] : [],
+        responseDirective: hasBodyQuestion
+          ? 'Confermare la ricezione dell’allegato e rispondere solo alle domande esplicite presenti nel corpo email.'
+          : 'Confermare la ricezione della documentazione allegata e indicare che si procederà con la verifica.'
+      };
+    }
+
+    return { intent: 'unknown', confidence: 0, phase: 'post_ocr', suppressAttachmentIntentKeywords: false, allowBodyQuestions: true, suppressKbTopics: [], responseDirective: '' };
+  }
+
   _prepareOutboundResponse(responseText, messageDetails, detectedLanguage) {
     const safeText = typeof responseText === 'string'
       ? responseText
@@ -3182,13 +3266,83 @@ Nota bene: l'orario comunicato ${note}.`;
     const monthPatterns = {
       'it': /\b(oggi|domani|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\b/i,
       'en': /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december)\b/i,
-      'es': /\b(hoy|mañana|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i,
+      'es': /\b(hoy|mañana|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|ottobre|noviembre|diciembre)\b/i,
       'pt': /\b(hoje|amanh[aã]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo|janeiro|fevereiro|mar\u00E7o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i
     };
 
     // Fallback su italiano se lingua non supportata
     const pattern = monthPatterns[language] || monthPatterns['it'];
     return pattern.test(text);
+  }
+
+  /**
+   * Analizza corpo, oggetto e allegati per derivare il contesto dell'intento documentale.
+   * Utile per distinguere tra pura consegna e richiesta di informazioni allegata.
+   */
+  _deriveAttachmentIntentContext_(body, subject, attachmentItems, ocrText, phase = 'pre_ocr') {
+    const fullText = `${subject || ''} ${body || ''} ${ocrText || ''}`.toLowerCase();
+    const hasBodyQuestion = /\?|vorrei sapere|chiedo se|mi dica|sapere se/i.test(`${subject || ''} ${body || ''}`);
+    const hasOcrQuestion = phase === 'post_ocr' && /\?|domanda|quesito/i.test(ocrText || '');
+
+    // Rilevamento tipologia documenti (euristico)
+    const isSponsorDoc = /idoneit[aà]|padrino|madrina|sponsor/i.test(fullText);
+    const isIdentityDoc = /carta d'identit[aà]|passaporto|documento identit[aà]/i.test(fullText);
+    const isSbattezzoDoc = /modulo sbattezzo|richiesta cancellazione|registr[oi] battesim/i.test(fullText);
+
+    // Se è un pre-check (senza OCR), siamo conservativi
+    if (phase === 'pre_ocr') {
+      const isSuspectedSubmission = /allegato|invio|ecco|documento|certificato|modulo/i.test(fullText);
+      if (!isSuspectedSubmission) return null;
+
+      return {
+        intent: hasBodyQuestion ? 'suspected_submission_with_question' : 'suspected_submission',
+        confidence: hasBodyQuestion ? 0.55 : 0.75,
+        phase: 'pre_ocr',
+        suppressAttachmentIntentKeywords: true,
+        allowBodyQuestions: hasBodyQuestion,
+        suppressKbTopics: [],
+        responseDirective: hasBodyQuestion
+          ? 'Probabile consegna documentale con domanda nel corpo: considera il body come fonte primaria; non trasformare riferimenti ad allegati in richiesta informativa.'
+          : 'Probabile consegna documentale: non trasformare riferimenti ad allegati in richiesta informativa.'
+      };
+    }
+
+    // Fase post-OCR: analisi raffinata
+    const hasAttachments = Array.isArray(attachmentItems) && attachmentItems.length > 0;
+    if (!hasAttachments) return null;
+
+    let intent = 'document_submission';
+    let responseDirective = 'Consegna documenti rilevata. Ringrazia per l\'invio e conferma la ricezione.';
+    let categoryHintSource = null;
+
+    if (isSponsorDoc) {
+      intent = 'sponsor_eligibility_submission';
+      categoryHintSource = 'sacrament';
+      responseDirective = 'Consegna documento idoneità padrino/madrina. Verifica requisiti canonici se necessario, ringrazia e archivia.';
+    } else if (isSbattezzoDoc) {
+      intent = 'formal_request_submission';
+      categoryHintSource = 'formal';
+      responseDirective = 'Ricevuto modulo per sbattezzo/apostasia. Segui protocollo FORMAL: conferma ricezione e informa che la pratica verrà inoltrata al Parroco.';
+    }
+
+    if (hasBodyQuestion || hasOcrQuestion) {
+      intent += '_with_question';
+      responseDirective += ' L\'utente pone anche domande specifiche: rispondi puntualmente alle domande usando la KB.';
+    }
+
+    return {
+      intent: intent,
+      confidence: 0.9,
+      phase: 'post_ocr',
+      categoryHintSource: categoryHintSource,
+      responseDirective: responseDirective,
+      hasQuestions: hasBodyQuestion || hasOcrQuestion,
+      detectedDocTypes: {
+        sponsor: isSponsorDoc,
+        identity: isIdentityDoc,
+        sbattezzo: isSbattezzoDoc
+      }
+    };
   }
 }
 

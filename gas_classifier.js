@@ -36,9 +36,10 @@ var Classifier = class Classifier {
         'information', 'know', 'how to', 'procedure', 'clarification', 'hours'
       ],
       'document_submission': [
-        'allegato', 'invio', 'documento', 'certificato', 'modulo',
-        'attachment', 'sending', 'document', 'certificate', 'form',
-        'in allegato', 'invio il documento', 'trova allegato', 'ecco il modulo'
+        'in allegato', 'allego', 'le invio', 'vi invio',
+        'trasmetto', 'trova allegato', 'troverete allegato',
+        'invio il documento', 'documento allegato', 'documento di',
+        'mando il documento', 'inoltro il documento'
       ],
       'sacrament': [
         'battesimo', 'comunione', 'cresima', 'matrimonio',
@@ -127,16 +128,13 @@ var Classifier = class Classifier {
     const mainContent = this._extractMainContent(safeBody);
     console.log(`      Contenuto principale: ${mainContent.length} caratteri`);
 
-    // 2. Intercettazione precoce consegne documentali
     if (this._isDocumentSubmission(mainContent)) {
-      console.log('📎 Rilevato intento di consegna documentale');
       return {
         shouldReply: true,
+        reason: 'document_submission_detected',
         category: 'document_submission',
-        confidence: 0.85,
-        topic: 'consegna documenti',
-        reason: 'keyword_match_submission',
-        subIntents: {}
+        subIntents: {},
+        confidence: 0.95
       };
     }
 
@@ -515,31 +513,8 @@ var Classifier = class Classifier {
    * @returns {boolean}
    */
   _isDocumentSubmission(text) {
-    if (!text || typeof text !== 'string') return false;
-    const t = text.toLowerCase();
-
-    // Segnali forti: frasi esplicite di invio
-    const strongPatterns = [
-      /\bin allegato\b/i,
-      /\ballego\b/i,
-      /\ble invio\b/i,
-      /\bti invio\b/i,
-      /\bvi invio\b/i,
-      /\btrover[aà]\s+allegato\b/i,
-      /\becco il\s+(modulo|documento|certificato|attestato)\b/i,
-      /\bsono in allegato\b/i,
-      /\binvio il\s+(documento|modulo|certificato|attestato)\b/i,
-      /\btrasmetto\s+(in allegato|il documento|il modulo)\b/i
-    ];
-
-    if (strongPatterns.some(p => p.test(t))) return true;
-
-    // Segnali medi: keyword documentale + verbo di trasmissione
-    const hasDocKeyword = /\b(documento|certificato|modulo|attestato|idoneità|ricevuta)\b/i.test(t);
-    const hasTransmitVerb = /\b(invio|inviare|allego|allegare|trasmetto|trasmettere|mando|mandare|spedisco)\b/i.test(t);
-    if (hasDocKeyword && hasTransmitVerb) return true;
-
-    return false;
+    return /\b(in\s+allegato|allego|le\s+invio|vi\s+invio|trasmetto|trova\s+allegato|troverete\s+allegato|invio\s+il\s+documento|documento\s+allegato|documento\s+di|mando\s+il\s+documento|inoltro\s+il\s+documento)\b/i
+      .test(String(text || ''));
   }
 
   /**
