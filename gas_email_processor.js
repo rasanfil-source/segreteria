@@ -683,6 +683,7 @@ var EmailProcessor = class EmailProcessor {
             consecutiveExternal = 0;
           } else {
             consecutiveExternal++;
+            botRepliesCount = 0;
           }
 
           if (
@@ -1717,7 +1718,7 @@ ${addressLines.join('\n\n')}
               try { return GmailApp.getThreadById(id); } catch (_) { return null; }
             })
             .filter(Boolean);
-          console.log(`⏭️ Ripresa batch con ${threads.length}/${options.threadIds.length} thread da checkpoint`);
+          runLogger.info(`Ripresa batch con ${threads.length}/${options.threadIds.length} thread da checkpoint`);
         } else {
           const DISCOVERY_POOL_MULTIPLIER = 15;
           const discoveryPoolSize = Math.min(
@@ -1751,18 +1752,18 @@ ${addressLines.join('\n\n')}
 
       if (threads.length === 0) {
         const emptyStreak = this._trackEmptyInboxStreak(true);
-        console.log('Nessuna email da elaborare.');
+        runLogger.info('Nessuna email da elaborare.');
 
         if (emptyStreak >= this.config.emptyInboxWarningThreshold &&
             (emptyStreak === this.config.emptyInboxWarningThreshold || emptyStreak % 50 === 0)) {
-          console.warn(`⚠️ Inbox vuota da ${emptyStreak} esecuzioni consecutive. Verificare filtri Gmail/trigger in ingresso.`);
+          runLogger.warn(`Inbox vuota da ${emptyStreak} esecuzioni consecutive. Verificare filtri Gmail/trigger in ingresso.`);
         }
 
         return { total: 0, replied: 0, filtered: 0, errors: 0, emptyStreak: emptyStreak };
       }
 
       this._trackEmptyInboxStreak(false);
-      console.log(`📬 Trovati ${threads.length} thread da elaborare`);
+      runLogger.info(`Trovati ${threads.length} thread da elaborare`);
 
       let labeledMessageIds = new Set();
       if (this.gmailService && typeof this.gmailService.getMessageIdsWithLabel === 'function') {
@@ -1773,7 +1774,7 @@ ${addressLines.join('\n\n')}
           return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'label_cache_failed' };
         }
       } else {
-        console.warn('⚠️ gmailService.getMessageIdsWithLabel non disponibile: continuo senza cache label pre-caricata.');
+        runLogger.warn('gmailService.getMessageIdsWithLabel non disponibile: continuo senza cache label pre-caricata.');
       }
 
       if (!(labeledMessageIds instanceof Set)) {
@@ -1793,7 +1794,7 @@ ${addressLines.join('\n\n')}
           (errorIds || []).forEach((id) => labeledMessageIds.add(id));
           (validationIds || []).forEach((id) => labeledMessageIds.add(id));
         } catch (e) {
-          console.warn(`⚠️ Impossibile pre-caricare ID error/validation (${e.message}). Continuo con sola cache IA.`);
+          runLogger.warn(`Impossibile pre-caricare ID error/validation (${e.message}). Continuo con sola cache IA.`);
         }
       }
 
@@ -1849,15 +1850,14 @@ ${addressLines.join('\n\n')}
         }
 
         if (!this._hasUnreadMessagesToProcess(thread, labeledMessageIds, skippedMessageIds)) {
-          console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
-          console.log('   ⊖ Fast-skip: thread con soli non letti già etichettati IA');
+          runLogger.info(`Thread ${index + 1}/${threads.length} - Skip: già etichettato IA`);
           stats.total++;
           stats.skipped++;
           stats.skipped_processed++;
           continue;
         }
 
-        console.log(`\n--- Thread ${index + 1}/${threads.length} ---`);
+        runLogger.info(`Thread ${index + 1}/${threads.length}`);
 
         // Se abbiamo già acquisito il lock batch in questa funzione (o il chiamante
         // dichiara lock già coperti), evitiamo una seconda acquisizione in processThread.
@@ -1889,7 +1889,7 @@ ${addressLines.join('\n\n')}
           )
         ) {
           runLogger.warn('⚠️ Stop batch: quota API LLM esaurita, salvo checkpoint per evitare cascata di error label.');
-          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, remainingTimeMs);
+          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, -1);
           break;
         }
 
@@ -1927,22 +1927,13 @@ ${addressLines.join('\n\n')}
       }
 
       // Stampa riepilogo
-      console.log('\n' + '='.repeat(70));
-      console.log('📊 RIEPILOGO ELABORAZIONE');
-      console.log('='.repeat(70));
-      console.log(`   Totale analizzate (buffer): ${stats.total}`);
-      console.log(`   ✓ Risposte inviate: ${stats.replied}`);
-      if (stats.dryRun > 0) console.warn(`   🔴 DRY RUN: ${stats.dryRun}`);
-
-      if (stats.skipped > 0) {
-        console.log(`   ⊖ Saltate (Totale): ${stats.skipped}`);
-      }
-
-      console.log(`   ⊖ Filtrate (AI/Regole): ${stats.filtered}`);
-      if (stats.validationFailed > 0) console.warn(`   🛑 Validazione fallita: ${stats.validationFailed}`);
-      if (stats.errors > 0) console.error(`   🛑 Errori: ${stats.errors}`);
-      stats.processed = processedCount;
-      console.log('='.repeat(70));
+      runLogger.info('RIEPILOGO ELABORAZIONE', {
+        total: stats.total,
+        replied: stats.replied,
+        filtered: stats.filtered,
+        errors: stats.errors,
+        duration: Date.now() - this._startTime
+      });
 
       return stats;
 
