@@ -216,6 +216,7 @@ var EmailProcessor = class EmailProcessor {
           threadLogger.warn('Collisione lock cache, salto');
           if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
             try { scriptLock.releaseLock(); } catch (_) {}
+            scriptLockAcquired = false;
           }
           return { status: 'skipped', reason: 'thread_lock_collision' };
         }
@@ -224,10 +225,10 @@ var EmailProcessor = class EmailProcessor {
         threadLogger.debug('Lock acquisito');
       } catch (e) {
         threadLogger.warn(`Errore acquisizione lock thread: ${e.message}`);
-        // Demandiamo il rilascio in via esclusiva al blocco finally, prevenendo la collisione double-release
+        // Il mutex globale protegge solo la sezione critica CacheService; il lock thread resta nel token cache.
         return { status: 'error', error: 'Lock acquisition failed' };
       } finally {
-        if (scriptLockAcquired && !globalThreadLock && scriptLock && typeof scriptLock.releaseLock === 'function') {
+        if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
           try {
             scriptLock.releaseLock();
           } catch (_) { }
