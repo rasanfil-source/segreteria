@@ -3315,7 +3315,7 @@ function markdownToHtml(text) {
     // "Intro\n<ul>...</ul>" -> <p>Intro<br><ul>...</ul></p> (HTML invalido)
     html = html.replace(/(<\/?(?:ul|ol|pre|p|div|h[1-6])\b[^>]*>)/gi, '\n$1\n');
 
-    const isBlockHtml = (fragment) => /^<(p|ul|ol|pre|div|h[1-6])\b/i.test(fragment.trim());
+    const isBlockHtml = (fragment) => /^<\/?(p|ul|ol|pre|div|h[1-6])\b/i.test(fragment.trim());
     const cleanedHtml = html
         .split(/\n\n+/)
         .map(fragment => fragment.trim())
