@@ -102,7 +102,7 @@ var Classifier = class Classifier {
     // Supporto firma alternativa: il 3° parametro può essere senderEmail anziché booleano.
     if (typeof isReply === 'string' && senderEmail === null) {
       senderEmail = isReply;
-      isReply = /^(re|fwd|r|ris|i):/i.test(safeSubject.trim());
+      isReply = /^(re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]/i.test(safeSubject.trim());
     }
 
     // Sicurezza null e limite lunghezza
@@ -124,7 +124,7 @@ var Classifier = class Classifier {
 
     // Body vuoto + subject generico (es. "Re: Orari messe") → passa a Gemini
     if ((!mainContent || !mainContent.trim()) && isReply) {
-      const subjectClean = safeSubject.replace(/^(re|r|risp|aw|fw|fwd|i|wg)\s*[:\-]\s*/i, '').trim();
+      const subjectClean = safeSubject.replace(/^(re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]\s*/i, '').trim();
       if (subjectClean.length > 3 && subjectClean.length < 50) {
         console.log('      ✓ Body vuoto ma subject ragionevole -> Passa a Gemini');
         return {
@@ -261,24 +261,7 @@ var Classifier = class Classifier {
 
     let lines = processedBody.split('\n');
 
-    // Ottimizzazione elaborazione thread lunghi: seleziona costrutti semantici mirati
-    // applicando analisi strutturale su finestre circoscritte.
-    // Il backward scan tronca l'array alla prima citazione trovata dal basso verso l'alto.
-    const MAX_BACKWARD_SCAN_LINES = 400;
-    const backwardStart = Math.max(0, lines.length - MAX_BACKWARD_SCAN_LINES);
-    let quoteFound = false;
-    for (let i = lines.length - 1; i >= backwardStart && !quoteFound; i--) {
-      const trimmed = (lines[i] || '').trim();
-      if (!trimmed) continue;
 
-      for (const marker of quoteMarkers) {
-        if (marker.test(trimmed)) {
-          lines = lines.slice(0, i);
-          quoteFound = true;
-          break;
-        }
-      }
-    }
 
     const cleanLines = [];
 

@@ -171,7 +171,7 @@ var GmailService = class GmailService {
                 this._labelCache.set(labelName, { ...(this._labelCache.get(labelName) || {}), label: label, ts: now });
                 if (this._scriptCache) {
                     try {
-                        this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+                        this._scriptCache.put(cacheKey, label.getId(), this._cacheTtlSeconds);
                     } catch (_) { }
                 }
                 console.log(`✓ Label '${labelName}' trovata`);
@@ -190,7 +190,7 @@ var GmailService = class GmailService {
                 this._labelCache.set(labelName, { ...(this._labelCache.get(labelName) || {}), label: existingLabel, ts: now });
                 if (this._scriptCache) {
                     try {
-                        this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+                        this._scriptCache.put(cacheKey, existingLabel.getId(), this._cacheTtlSeconds);
                     } catch (_) { }
                 }
                 console.log(`✓ Label '${labelName}' recuperata dopo collisione di creazione`);
@@ -202,7 +202,7 @@ var GmailService = class GmailService {
         this._labelCache.set(labelName, { ...(this._labelCache.get(labelName) || {}), label: newLabel, ts: now });
         if (this._scriptCache) {
             try {
-                this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
+                this._scriptCache.put(cacheKey, newLabel.getId(), this._cacheTtlSeconds);
             } catch (_) { }
         }
         console.log(`✓ Creata nuova label: ${labelName}`);
@@ -738,6 +738,7 @@ var GmailService = class GmailService {
             this._labelCache = new Map();
         }
 
+        const cacheKey = this._getLabelCacheKey_(raw);
         const cachedEntry = this._labelCache.get(raw);
         const now = Date.now();
         if (cachedEntry && (now - cachedEntry.ts) < this._cacheTTL) {
@@ -746,6 +747,16 @@ var GmailService = class GmailService {
                 return cachedEntry.label.getId();
             }
             return null;
+        }
+
+        if (this._scriptCache) {
+            try {
+                const cachedId = this._scriptCache.get(cacheKey);
+                if (cachedId && cachedId !== '1') {
+                    this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: cachedId, ts: now });
+                    return cachedId;
+                }
+            } catch (_) { }
         }
 
         // Fallback robusto: in ambienti dove Gmail.Users non è disponibile (es. test locali

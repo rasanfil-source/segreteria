@@ -710,7 +710,7 @@ var EmailProcessor = class EmailProcessor {
       const MAX_SUBJECT_LENGTH = 1000;
       const safeSubject = (messageDetails.subject || '').substring(0, MAX_SUBJECT_LENGTH);
       const safeBody = (messageDetails.body || '');
-      const isReplyPattern = /^(re|r|risp|aw|fw|fwd|i|wg)\s*[:\-]/i;
+      const isReplyPattern = /^(re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]/i;
       const isReplyBySubject = isReplyPattern.test(safeSubject.toLowerCase());
 
       const classification = this.classifier.classifyEmail(
