@@ -15,8 +15,9 @@ function isDebugLoggingEnabled() {
 
 // Nota: non usare il nome `Logger` per evitare shadowing del built-in GAS `Logger.log()`.
 var AppLogger = class AppLogger {
-  constructor(context = 'System') {
+  constructor(context = 'System', baseMeta = {}) {
     this.context = context;
+    this.baseMeta = (baseMeta && typeof baseMeta === 'object') ? baseMeta : {};
   }
 
   get config() {
@@ -38,13 +39,14 @@ var AppLogger = class AppLogger {
 
     // Guardia null: il default `= {}` copre solo `undefined`, non `null`.
     const safeData = (data !== null && data !== undefined && typeof data === 'object') ? data : {};
+    const mergedData = { ...this.baseMeta, ...safeData };
 
     const logEntry = {
       timestamp: new Date().toISOString(),
       level: level,
       context: this.context,
       message: message,
-      data: safeData
+      data: mergedData
     };
     const safeStringify = (value, indent = 0) => {
       try {
@@ -57,11 +59,21 @@ var AppLogger = class AppLogger {
     const loggingConfig = (this.config && this.config.LOGGING) ? this.config.LOGGING : {};
 
     if (loggingConfig.STRUCTURED) {
-      console.log(safeStringify(logEntry));
+      const structuredEntry = {
+        timestamp: logEntry.timestamp,
+        level: logEntry.level,
+        context: logEntry.context,
+        message: logEntry.message,
+        ...mergedData
+      };
+      if (level === 'ERROR') console.error(structuredEntry);
+      else if (level === 'WARN') console.warn(structuredEntry);
+      else if (level === 'INFO') console.info(structuredEntry);
+      else console.log(structuredEntry);
     } else {
       console.log(`[${logEntry.timestamp}] [${level}] [${this.context}] ${message}`);
-      if (Object.keys(safeData).length > 0) {
-        console.log(safeStringify(safeData, 2));
+      if (Object.keys(mergedData).length > 0) {
+        console.log(safeStringify(mergedData, 2));
       }
     }
 
@@ -88,30 +100,13 @@ var AppLogger = class AppLogger {
   }
 
   /**
-   * Log specifico per thread email
-   */
-  logThread(threadId, action, status, details = {}) {
-    this.info(`Thread ${action}`, {
-      threadId: threadId,
-      action: action,
-      status: status,
-      ...details
-    });
-  }
-
-  /**
-   * Log metriche di esecuzione
-   */
-  logMetrics(metrics) {
-    this.info('Metriche di esecuzione', metrics);
-  }
-
-  /**
-   * Invia notifica email per errori critici
+   * Invia notifica via email all'amministratore
    */
   _sendErrorNotification(logEntry) {
     try {
       const loggingConfig = (this.config && this.config.LOGGING) ? this.config.LOGGING : {};
+      if (!loggingConfig.ADMIN_EMAIL) return;
+
       const scriptProperties = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
         ? PropertiesService.getScriptProperties()
         : null;
@@ -137,15 +132,31 @@ Sistema: ${this.config.PROJECT_NAME || 'GAS_BOT'}
 Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
       `.trim();
 
-      // Rate limit: max 1 email ogni 5 minuti
-      const lastNotification = scriptProperties
-        ? scriptProperties.getProperty('last_error_notification')
-        : '';
+      const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
+        ? CacheService.getScriptCache()
+        : null;
+      const errorClass = logEntry && logEntry.data && logEntry.data.errorClass ? String(logEntry.data.errorClass) : 'General';
+      const signature = `${logEntry.context}|${errorClass}|${logEntry.message}`;
+      const hash = (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.computeDigest === 'function')
+        ? Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, signature)).substring(0, 16)
+        : signature.substring(0, 64);
+      const errorKey = `last_error_notification_${hash}`;
+      const alreadyNotified = cache ? cache.get(errorKey) : '';
       const now = Date.now();
-
-      const lastNotificationMs = Number.parseInt(lastNotification || '', 10);
-      const isCooldownExpired = !Number.isFinite(lastNotificationMs) || (now - lastNotificationMs) > 300000;
-      if (isCooldownExpired) {
+      const fallbackCooldownMs = 3600 * 1000;
+      let throttleState = {};
+      const propKey = 'ERROR_THROTTLE_STATE';
+      if (scriptProperties) {
+        try {
+          throttleState = JSON.parse(scriptProperties.getProperty(propKey) || '{}');
+        } catch (_) {
+          throttleState = {};
+        }
+      }
+      const fallbackTs = throttleState[hash];
+      const fallbackActive = Number.isFinite(Number(fallbackTs))
+        && ((now - Number(fallbackTs)) < fallbackCooldownMs);
+      if (!alreadyNotified && !fallbackActive) {
         let sent = false;
         try {
           MailApp.sendEmail(adminEmail, subject, body);
@@ -158,8 +169,18 @@ Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
             console.error('Impossibile inviare notifica errore:', gmailError.message);
           }
         }
+        if (sent && cache) {
+          cache.put(errorKey, 'sent', 3600);
+        }
         if (sent && scriptProperties) {
-          scriptProperties.setProperty('last_error_notification', now.toString());
+          const cleanedState = { [hash]: now };
+          Object.keys(throttleState).forEach((key) => {
+            const ts = Number(throttleState[key]);
+            if (Number.isFinite(ts) && (now - ts) < fallbackCooldownMs) {
+              cleanedState[key] = ts;
+            }
+          });
+          scriptProperties.setProperty(propKey, JSON.stringify(cleanedState));
         }
       }
     } catch (e) {
@@ -171,13 +192,20 @@ Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
    * Crea logger con contesto specifico
    */
   withContext(newContext) {
-    return new AppLogger(`${this.context}:${newContext}`);
+    return new AppLogger(`${this.context}:${newContext}`, this.baseMeta);
+  }
+
+  withMeta(meta = {}) {
+    const safeMeta = (meta && typeof meta === 'object') ? meta : {};
+    return new AppLogger(this.context, { ...this.baseMeta, ...safeMeta });
   }
 }
 
 /**
  * Factory function per creare logger
  */
-function createLogger(context) {
-  return new AppLogger(context);
+function createLogger(context, runId, baseMeta = {}) {
+  const safeMeta = (baseMeta && typeof baseMeta === 'object') ? baseMeta : {};
+  const mergedMeta = runId ? { runId: runId, ...safeMeta } : safeMeta;
+  return new AppLogger(context, mergedMeta);
 }
