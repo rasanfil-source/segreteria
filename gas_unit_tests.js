@@ -742,6 +742,44 @@ function runAllTests() {
                 && calls[1].includes('backup-key-abcdefghijklmnopqrstuvwxyz')
                 && out.shouldRespond === true;
         });
+        test('Quick check forza risposta di cortesia su consegna documentale', results, () => {
+            const service = new GeminiService({
+                fetchFn: () => ({
+                    getResponseCode: () => 200,
+                    getContentText: () => JSON.stringify({
+                        candidates: [{
+                            content: {
+                                parts: [{
+                                    text: JSON.stringify({
+                                        reply_needed: false,
+                                        language: 'it',
+                                        category: 'TECHNICAL',
+                                        dimensions: {
+                                            technical: 1,
+                                            pastoral: 0,
+                                            doctrinal: 0,
+                                            formal: 0
+                                        },
+                                        topic: 'documentazione ricevuta',
+                                        confidence: 0.9,
+                                        reason: 'consegna documentazione'
+                                    })
+                                }]
+                            }
+                        }]
+                    })
+                })
+            });
+
+            const out = service._quickCheckWithModel(
+                'Buongiorno, allego il certificato richiesto.',
+                'Documenti',
+                'gemini-2.5-flash',
+                { lang: 'it', confidence: 5, safetyGrade: 5 },
+                { intent: 'document_submission' }
+            );
+            return out.shouldRespond === true && out.classification.topic === 'documentazione ricevuta';
+        });
     });
 
     // 6. ResponseValidator
