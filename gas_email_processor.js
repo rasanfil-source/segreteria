@@ -191,7 +191,7 @@ var EmailProcessor = class EmailProcessor {
           threadLogger.debug('Mutex globale saltato (lock esecuzione già posseduto dal chiamante)');
         } else {
           if (!scriptLock.tryLock(5000)) {
-            console.warn(`🔒 Impossibile acquisire lock globale per thread ${threadId}, salto`);
+            threadLogger.warn('Impossibile acquisire lock globale, salto');
             return { status: 'skipped', reason: 'global_lock_unavailable' };
           }
           scriptLockAcquired = true;
@@ -203,7 +203,7 @@ var EmailProcessor = class EmailProcessor {
           const isStale = !isNaN(existingTimestamp) && (Date.now() - existingTimestamp) > lockTtlMs;
 
           if (isStale) {
-            console.warn(`🔓 Lock stale rilevato per thread ${threadId}, sovrascrittura lock`);
+            threadLogger.warn('Lock stale rilevato, sovrascrittura lock');
           } else {
             threadLogger.warn('Thread lockato da altro processo, salto');
             return { status: 'skipped', reason: 'thread_locked' };
@@ -214,7 +214,7 @@ var EmailProcessor = class EmailProcessor {
         const confirmValue = scriptCache.get(threadLockKey);
         // In scenari di latenza di CacheService, procediamo solo se il token è coerente.
         if (confirmValue !== null && confirmValue !== lockValue) {
-          console.warn(`🔒 Collisione lock cache su thread ${threadId}, salto`);
+          threadLogger.warn('Collisione lock cache, salto');
           if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
             try { scriptLock.releaseLock(); } catch (_) {}
           }
@@ -271,7 +271,7 @@ var EmailProcessor = class EmailProcessor {
           ? (GmailApp.getAliases() || [])
           : [];
       } catch (aliasError) {
-        console.warn(`⚠️ Impossibile recuperare alias Gmail: ${aliasError.message}`);
+        threadLogger.warn(`Impossibile recuperare alias Gmail: ${aliasError.message}`);
       }
 
       if (!myEmail && gmailAliases.length > 0) {
@@ -294,7 +294,7 @@ var EmailProcessor = class EmailProcessor {
         myEmail = botEmailProperty || botEmailConfig || '';
 
         if (myEmail) {
-          console.warn(`⚠️ Session email non disponibile: uso fallback bot email anti-loop (${myEmail})`);
+          threadLogger.warn(`Session email non disponibile: uso fallback bot email anti-loop (${myEmail})`);
         }
       }
 
@@ -1573,11 +1573,11 @@ ${addressLines.join('\n\n')}
       threadLogger.error(`Errore elaborazione thread: ${error.message}`, { stack: error && error.stack ? error.stack : undefined });
 
       if (replySent) {
-        console.warn('   ⚠️ Errore post-invio: thread non etichettato come errore perché la risposta è stata già inviata');
+        threadLogger.warn('Errore post-invio: thread non etichettato come errore perché la risposta è stata già inviata');
         try {
           markHandledUnread();
         } catch (markError) {
-          console.warn(`⚠️ Errore label post-invio silenziato: ${markError.message}`);
+          threadLogger.warn(`Errore label post-invio silenziato: ${markError.message}`);
         }
         result.status = 'replied';
         result.warning = `post_send_error: ${error.message}`;
@@ -1588,7 +1588,7 @@ ${addressLines.join('\n\n')}
       try {
         this._addErrorLabel(candidate || thread);
       } catch (labelError) {
-        console.warn(`⚠️ Errore aggiunta errorLabel silenziato: ${labelError.message}`);
+        threadLogger.warn(`Errore aggiunta errorLabel silenziato: ${labelError.message}`);
       }
       result.status = 'error';
       result.error = error.message;
@@ -1607,14 +1607,14 @@ ${addressLines.join('\n\n')}
           // Rilasciamo SOLO se il lock è inequivocabilmente il nostro.
           if (currentLockValue === lockValue) {
             scriptCache.remove(threadLockKey);
-            console.log(`🔓 Lock rilasciato per thread ${threadId}`);
+            threadLogger.debug('Lock rilasciato');
           } else if (currentLockValue) {
-            console.warn(`⚠️ Rilascio lock saltato per thread ${threadId} (lock scaduto o di altro processo)`);
+            threadLogger.warn('Rilascio lock saltato (lock scaduto o di altro processo)');
           } else {
-            console.log(`🔓 Lock già scaduto naturalmente per thread ${threadId}`);
+            threadLogger.debug('Lock già scaduto naturalmente');
           }
         } catch (e) {
-          console.warn('⚠️ Errore rilascio lock:', e.message);
+          threadLogger.warn(`Errore rilascio lock: ${e.message}`);
         }
       }
       if (globalThreadLock && typeof globalThreadLock.releaseLock === 'function') {
@@ -1662,11 +1662,11 @@ ${addressLines.join('\n\n')}
 
         try {
           if (!executionLock.tryLock(lockWaitMs)) {
-            console.warn('⚠️ Un\'altra esecuzione è già attiva: salto questo turno per evitare doppie risposte.');
+            runLogger.warn('Un\'altra esecuzione è già attiva: salto questo turno per evitare doppie risposte.');
             return { total: 0, replied: 0, filtered: 0, errors: 0, skipped: 1, reason: 'execution_locked' };
           }
         } catch (e) {
-          console.error(`❌ Errore servizio Lock Globale: ${e.message}. Batch interrotto.`);
+          runLogger.error(`Errore servizio Lock Globale: ${e.message}. Batch interrotto.`);
           return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'lock_service_error' };
         }
         lockAcquiredHere = true;
