@@ -217,7 +217,9 @@ var Classifier = class Classifier {
 
   /**
    * Estrae contenuto principale, rimuovendo citazioni e firme.
-   * Input atteso: plain-te  _extractMainContent(body) {
+   * Input atteso: plain-text (body email).
+   */
+  _extractMainContent(body) {
     let processedBody = typeof body === 'string' ? body : '';
 
     // Fast-path HTML quote trimming:
