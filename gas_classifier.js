@@ -226,7 +226,8 @@ var Classifier = class Classifier {
     // se è presente class="gmail_quote", tronca dall'inizio del tag contenitore
     // per evitare HTML pendente (es. "<div" aperto) in caso di input HTML.
     const lowerBody = processedBody.toLowerCase();
-    const firstGmailQuoteIdx = lowerBody.indexOf('class="gmail_quote"');
+    const firstGmailQuoteMatch = lowerBody.match(/<div[^>]*class=["'][^"']*gmail_quote/);
+    const firstGmailQuoteIdx = firstGmailQuoteMatch ? firstGmailQuoteMatch.index : -1;
     let safeGmailQuoteIdx = -1;
     if (firstGmailQuoteIdx >= 0) {
       safeGmailQuoteIdx = lowerBody.lastIndexOf('<div', Math.max(0, firstGmailQuoteIdx - 1));
@@ -465,7 +466,9 @@ var Classifier = class Classifier {
     for (const intentName in this.subIntentKeywords) {
       const keywords = this.subIntentKeywords[intentName];
       for (const keyword of keywords) {
-        if (textLower.includes(keyword)) {
+        const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'iu');
+        if (regex.test(textLower)) {
           detected[intentName] = true;
           break;
         }

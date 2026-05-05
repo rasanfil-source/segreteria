@@ -338,6 +338,12 @@ Output JSON:
       fetchError = e;
     }
 
+    // Architettura: se la primaria è in quota (429) e abbiamo backup,
+    // rilanciamo un errore sentinella così il rate limiter esterno riallinea i bucket.
+    if (responseCode === 429 && activeKey === this.primaryKey && this.backupKey) {
+      throw new Error('PRIMARY_QUOTA_EXHAUSTED');
+    }
+
     const shouldTryBackupKey = !!this.backupKey
       && activeKey !== this.backupKey
       && (
@@ -913,15 +919,9 @@ Testo:
    * Supporta calendario liturgico completo
    */
   getAdaptiveGreeting(senderName, language = 'it') {
-    const now = new Date();
-    let hour = now.getHours();
-    let day = now.getDay(); // 0 = Domenica
-
-    // Coerenza business: saluti basati sempre sull'orario italiano,
-    // anche se il fuso del progetto è stato modificato per errore.
-    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
       try {
         hour = parseInt(Utilities.formatDate(now, 'Europe/Rome', 'H'), 10);
+        minutes = parseInt(Utilities.formatDate(now, 'Europe/Rome', 'm'), 10);
         const isoDay = parseInt(Utilities.formatDate(now, 'Europe/Rome', 'u'), 10);
         if (!isNaN(isoDay)) day = isoDay % 7;
       } catch (e) {
@@ -937,7 +937,6 @@ Testo:
       greeting = specialGreeting;
     } else {
       // Alternativa a saluto standard basato sull'ora
-      const minutes = now.getMinutes();
       const isNightTime = (hour >= 0 && hour < 5) || (hour === 23 && minutes >= 30);
 
       if (language === 'it') {

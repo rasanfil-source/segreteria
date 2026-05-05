@@ -738,7 +738,8 @@ var EmailProcessor = class EmailProcessor {
           languageDetection
         );
       } catch (quickError) {
-        console.warn(`   ⚠️ Gemini quick check fallito: ${quickError.message}. Thread lasciato non etichettato per retry successivo.`);
+        console.warn(`   ⚠️ Gemini quick check fallito: ${quickError.message}. Applico etichetta errore per evitare loop.`);
+        this._addErrorLabel(candidate || thread);
         result.status = 'error';
         result.error = 'quick_check_failed';
         return result;
@@ -762,7 +763,8 @@ var EmailProcessor = class EmailProcessor {
       if (!quickCheck.shouldRespond) {
         console.log(`   ⊖ Gemini quick check: nessuna risposta necessaria (${quickCheck.reason})`);
         if (quickCheck.reason === 'quick_check_failed') {
-          console.warn('   ⚠️ Gemini quick check fallito: thread lasciato non etichettato per retry successivo.');
+          console.warn('   ⚠️ Gemini quick check fallito: applico etichetta errore per evitare retry infiniti.');
+          this._addErrorLabel(candidate || thread);
           result.status = 'error';
           result.error = 'quick_check_failed';
           return result;
@@ -2779,9 +2781,11 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
   _extractTimes(text) {
     if (!text || typeof text !== 'string') return [];
 
-    const matches = text.match(/\b(?:[01]?\d|2[0-3])[:.][0-5]\d\b/g) || [];
+    const matches = text.match(/\b(?:[01]?\d|2[0-3])(?:[:.][0-5]\d)?\b(?=\s*(?:ore\b|am\b|pm\b|:|$))/gi) || [];
     const normalized = matches.map((time) => {
-      const [hh, mm] = time.replace('.', ':').split(':');
+      const parts = time.replace('.', ':').split(':');
+      const hh = parts[0];
+      const mm = parts[1] || '00';
       return `${hh.padStart(2, '0')}:${mm}`;
     });
 
