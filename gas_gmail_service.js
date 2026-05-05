@@ -1141,6 +1141,7 @@ var GmailService = class GmailService {
             }
 
             const documentType = this._detectDocumentType(attachmentName, clipped);
+            const attachmentRole = this._classifyAttachmentRole(documentType, attachmentName, clipped);
             const extractedFields = this._extractDocumentFields(clipped, settings.documentFieldMasking !== false);
 
             items.push({
@@ -1149,6 +1150,10 @@ var GmailService = class GmailService {
                 size: size,
                 ocrConfidence: ocrConfidence,
                 documentType: documentType,
+                attachmentRole: attachmentRole.attachmentRole,
+                documentIntent: attachmentRole.documentIntent,
+                intentContribution: attachmentRole.intentContribution,
+                roleReason: attachmentRole.reason,
                 extractedFields: extractedFields,
                 text: clipped
             });
@@ -1163,12 +1168,16 @@ var GmailService = class GmailService {
         const text = items.map((item, idx) => {
             const sizeKb = item.size ? `${Math.round(item.size / 1024)}KB` : 'n/a';
             const docTypeLine = item.documentType ? `Tipo documento stimato: ${item.documentType}` : '';
+            const roleLine = item.attachmentRole
+                ? `Ruolo allegato: ${item.attachmentRole}; intentContribution=${item.intentContribution}; documentIntent=${item.documentIntent}; reason=${item.roleReason || ''}`
+                : '';
             const extractedFieldsLine = (item.extractedFields && item.extractedFields.length > 0)
                 ? `Campi rilevati: ${item.extractedFields.join(' | ')}`
                 : '';
             return [
                 `(${idx + 1}) ${item.name} [${item.contentType || 'tipo sconosciuto'}, ${sizeKb}]`,
                 docTypeLine,
+                roleLine,
                 extractedFieldsLine,
                 item.text
             ].filter(Boolean).join('\n');
@@ -2898,6 +2907,48 @@ var GmailService = class GmailService {
         if (fileNameLower.endsWith('.ppt') || fileNameLower.endsWith('.pptx')) return 'Presentazione PowerPoint';
 
         return 'Documento generico';
+    }
+
+    _classifyAttachmentRole(documentType, fileName, text) {
+        const source = `${documentType || ''}\n${fileName || ''}\n${text || ''}`.toLowerCase();
+
+        const isSponsorEligibility =
+            /idoneit[aà]/i.test(source) &&
+            /\b(padrino|madrina)\b/i.test(source);
+
+        if (isSponsorEligibility) {
+            return {
+                attachmentRole: 'submitted_evidence',
+                documentIntent: 'document_submission',
+                intentContribution: 'suppress',
+                reason: 'sponsor_eligibility_certificate'
+            };
+        }
+
+        if (/\b(certificato|attestato|ricevuta)\b/i.test(source)) {
+            return {
+                attachmentRole: 'submitted_evidence',
+                documentIntent: 'document_submission',
+                intentContribution: 'low',
+                reason: 'certificate_or_attestation'
+            };
+        }
+
+        if (/\b(modulo|iscrizione|richiesta)\b/i.test(source)) {
+            return {
+                attachmentRole: 'case_data',
+                documentIntent: 'case_data',
+                intentContribution: 'low',
+                reason: 'form_or_application'
+            };
+        }
+
+        return {
+            attachmentRole: 'unknown',
+            documentIntent: 'unknown',
+            intentContribution: 'normal',
+            reason: 'generic_attachment'
+        };
     }
 
     _extractDocumentFields(text, shouldMask = true) {

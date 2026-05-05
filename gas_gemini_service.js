@@ -248,10 +248,24 @@ var GeminiService = class GeminiService {
    * @param {Object} [precomputedDetection] - Risultato detectEmailLanguage già calcolato (evita doppia chiamata)
    * @returns {Object} Risultato controllo rapido
    */
-  _quickCheckWithModel(emailContent, emailSubject, modelName, precomputedDetection = null) {
+  _quickCheckWithModel(emailContent, emailSubject, modelName, precomputedDetection = null, intentContext = null) {
     const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
     const safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
     const detection = precomputedDetection || this.detectEmailLanguage(safeContent, safeSubject);
+    const hasSubmissionContext = intentContext && (
+      intentContext.intent === 'suspected_submission' ||
+      intentContext.intent === 'suspected_submission_with_question' ||
+      intentContext.intent === 'document_submission' ||
+      intentContext.intent === 'document_submission_with_question'
+    );
+    const quickIntentGuardrail = hasSubmissionContext ? `
+CONTESTO STRUTTURALE ALLEGATI:
+- Il testo del mittente contiene segnali di consegna documentale ("in allegato", "allego", "le invio", ecc.).
+- Eventuali parole provenienti da allegati/OCR come "padrino", "madrina", "cresima", "idoneità", "requisiti" NON devono essere interpretate come richiesta informativa.
+- Se ci sono domande esplicite nel corpo email, rispondi a quelle; altrimenti classifica come consegna documentazione.
+- Topic consigliato se non ci sono domande esplicite: "documentazione ricevuta".
+- Non trasformare una consegna di certificato in una richiesta sui requisiti del padrino/madrina.
+` : '';
     const prompt = `Analizza questa email.
 Rispondi ESCLUSIVAMENTE con un oggetto JSON valido e completo.
 NON usare blocchi markdown e NON aggiungere testo extra prima o dopo il JSON.
@@ -259,6 +273,7 @@ NON usare blocchi markdown e NON aggiungere testo extra prima o dopo il JSON.
 Email:
 Oggetto: ${safeSubject}
 Testo: ${safeContent.substring(0, 800)}
+${quickIntentGuardrail}
 
 COMPITI:
 1. Decidi se richiede risposta (reply_needed):
@@ -1203,7 +1218,7 @@ Testo:
    * Chiamata rapida Gemini per decidere se email richiede risposta E rilevare lingua
    * Supporta Rate Limiter + alternativa originale
    */
-  shouldRespondToEmail(emailContent, emailSubject, precomputedDetection = null) {
+  shouldRespondToEmail(emailContent, emailSubject, precomputedDetection = null, intentContext = null) {
     // Detection locale per lingua alternativa
     const detection = precomputedDetection || this.detectEmailLanguage(emailContent, emailSubject);
 
@@ -1212,7 +1227,7 @@ Testo:
       try {
         const result = this.rateLimiter.executeRequest(
           'quick_check',
-          (modelName) => this._quickCheckWithModel(emailContent, emailSubject, modelName, detection),
+          (modelName) => this._quickCheckWithModel(emailContent, emailSubject, modelName, detection, intentContext),
           {
             estimatedTokens: 500,
             preferQuality: false  // Economia > qualità per controllo rapido
@@ -1249,7 +1264,7 @@ Testo:
       const safeSubject = typeof emailSubject === "string" ? emailSubject : (emailSubject == null ? "" : String(emailSubject));
       console.log(`🔍 Gemini quick check per: ${safeSubject.substring(0, 40)}...`);
       return this._withRetry(
-        () => this._quickCheckWithModel(emailContent, safeSubject, this.modelName, detection),
+        () => this._quickCheckWithModel(emailContent, safeSubject, this.modelName, detection, intentContext),
         'Quick check'
       );
     } catch (error) {
