@@ -434,7 +434,10 @@ var GmailService = class GmailService {
             const labelId = labelIdFromCache || (label && typeof label.getId === 'function' ? label.getId() : null);
             const hasLabelId = !!labelId;
             if (!hasLabelId) {
-                console.warn(`⚠️ Label ID non trovato per '${labelName}': fallback query senza labelIds.`);
+                // Senza ID reale la query restituisce tutti gli unread in inbox, non solo quelli etichettati.
+                // Fail-safe: evitiamo di inquinare la cache dei messaggi già etichettati.
+                console.error(`❌ Label ID non trovato per '${labelName}'. Impossibile filtrare per etichetta: restituisco Set vuoto.`);
+                return new Set();
             }
 
             const messageIds = new Set();

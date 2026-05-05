@@ -329,6 +329,8 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
   const labelName = (typeof CONFIG !== 'undefined' && CONFIG.LABEL_NAME) ? CONFIG.LABEL_NAME : 'IA';
   const errorLabel = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME) ? CONFIG.ERROR_LABEL_NAME : 'Errore';
   const validationLabel = (typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_ERROR_LABEL) ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica';
+  const skipLabel = (typeof CONFIG !== 'undefined' && CONFIG.SKIP_LABEL_NAME) ? CONFIG.SKIP_LABEL_NAME : '·';
+  const languageMode = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.languageMode) || 'all';
   
   // Escape robusto per etichette in query Gmail.
   // Gmail query parser accetta escaping con backslash per le virgolette.
@@ -340,7 +342,8 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
     return `"${escaped}"`;
   };
 
-  const query = `in:inbox is:unread newer_than:${safeMaxLookbackDays}d -label:${quoteLabel(labelName)} -label:${quoteLabel(errorLabel)} -label:${quoteLabel(validationLabel)}`;
+  const query = `in:inbox is:unread newer_than:${safeMaxLookbackDays}d -label:${quoteLabel(labelName)} -label:${quoteLabel(errorLabel)} -label:${quoteLabel(validationLabel)}` +
+    (languageMode === 'foreign_only' ? ` -label:${quoteLabel(skipLabel)}` : '');
 
   const pageSize = 25;
   try {

@@ -1994,10 +1994,13 @@ ${addressLines.join('\n\n')}
       const isDomainMatch = email.endsWith(domain.startsWith('@') ? domain : '@' + domain);
       const isSubdomainMatch = !domain.startsWith('@') && !domain.includes('@') &&
         email.endsWith('.' + domain);
-      // Match username solo per token senza punto (evita falsi positivi su nomi dominio parziali)
+      // Match username ristretto a pattern bot/notifica espliciti per evitare falsi positivi
+      // su username legittimi (es. marketing@..., info@...).
+      const BOT_USERNAMES = new Set(['noreply', 'no-reply', 'donotreply', 'mailer-daemon',
+        'postmaster', 'bounce', 'notifications', 'newsletter', 'promo',
+        'ads', 'bot', 'crm']);
       const isUsernameMatch = !domain.includes('@') && !domain.includes('.') &&
-        localPart === domain &&
-        (domain.length >= 6 || ['ads', 'bot', 'crm'].includes(domain));
+        BOT_USERNAMES.has(localPart) && localPart === domain;
       return isExactMatch || isDomainMatch || isSubdomainMatch || isUsernameMatch;
     })) {
       console.log(`🚫 Ignorato: mittente in blacklist (${email})`);
@@ -2899,8 +2902,8 @@ Nota bene: l'orario comunicato ${note}.`;
    * Inferisce la reazione dell'utente rispetto ai topic forniti in precedenza
    */
   _computeUserReaction(userBody, previousTopics) {
-    if (!previousTopics || previousTopics.length === 0) return;
-    if (!userBody || typeof userBody !== 'string') return;
+    if (!previousTopics || previousTopics.length === 0) return null;
+    if (!userBody || typeof userBody !== 'string') return null;
 
     const bodyLower = userBody.toLowerCase();
 
@@ -2947,7 +2950,7 @@ Nota bene: l'orario comunicato ${note}.`;
       inferredReaction = { type: 'acknowledged', match: matchedAcknowledged };
     }
 
-    if (!inferredReaction) return;
+    if (!inferredReaction) return null;
 
     // 1. Trova TUTTI i topic menzionati esplicitamente
     const normalizedTopics = previousTopics

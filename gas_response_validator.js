@@ -617,6 +617,7 @@ var ResponseValidator = class ResponseValidator {
     const normalizePhone = (p) => p.replace(/\D/g, '');
 
     // === Controllo orari ===
+    // Nota compatibilità: questo pattern usa lookbehind variabile-lunghezza; è supportato in Google Apps Script V8.
     const timePattern = /(?<![a-z]\.)(?<!\b\d{1,2}[\/.-])\b\d{1,2}[:.]\d{2}\b(?![\/.-]\d{2,4})(?!\.[a-z])/gi;
     const contextualHourPattern = /\b(?:alle?|ore)\s+(\d{1,2})\b/gi;
     const responseTimesRaw = [];
