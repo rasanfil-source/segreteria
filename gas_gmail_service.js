@@ -1250,6 +1250,12 @@ var GmailService = class GmailService {
             const rawMimeType = (attachment.getContentType() || '').toLowerCase();
             const mimeType = rawMimeType.split(';')[0].trim();
 
+            // Evita richieste multimodali su micro-immagini decorative (icone firma, tracking pixel, ecc.)
+            if (mimeType.startsWith('image/') && size > 0 && size < 5120) {
+                result.skipped.push({ name: name, reason: 'micro_image_ignored', size: size });
+                continue;
+            }
+
             if (mimeType.includes('text/plain') || mimeType.includes('text/csv')) {
                 try {
                     const rawText = attachment.getDataAsString() || '';
@@ -2880,7 +2886,8 @@ var GmailService = class GmailService {
             { label: 'Nome e cognome', regex: /(?:nome\s*(?:e\s*cognome)?|cognome\s*e\s*nome)\s*[:\-]\s*([^\n;]{3,80})/i },
             { label: 'Data di nascita', regex: /(?:data\s*di\s*nascita|nato\/a\s*il)\s*[:\-]?\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i },
             { label: 'Luogo di nascita', regex: /(?:luogo\s*di\s*nascita|nato\/a\s*a)\s*[:\-]\s*([^\n,;]{2,80})/i },
-            { label: 'Codice fiscale', regex: /\b([A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z])\b/i },
+            // Supporta anche codici fiscali omocodici (sostituzioni LMNPQRSTUV nelle posizioni numeriche)
+            { label: 'Codice fiscale', regex: /\b([A-Z]{6}[0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z])\b/i },
             { label: 'Documento', regex: /(?:numero\s*(?:documento|doc\.)|n\.\s*documento)\s*[:\-]?\s*([A-Z0-9\-]{5,20})/i },
             { label: 'Contatto email', regex: /\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b/i },
             { label: 'Telefono', regex: /(?:tel(?:efono)?|cell(?:ulare)?)\s*[:\-]?\s*(\+?[0-9\s]{7,16})/i }

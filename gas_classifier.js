@@ -242,7 +242,7 @@ var Classifier = class Classifier {
 
     // Marcatori citazione per vari client email
     const quoteMarkers = [
-      /^>.*$/m,
+      /^>\s*(?:Da|From|On|Il giorno|Le)\b.*$/im,
       /^On .* wrote:.*$/m,
       /^Il giorno .* ha scritto:.*$/m,
       /^Il .* alle .* .* ha scritto:.*$/m,
