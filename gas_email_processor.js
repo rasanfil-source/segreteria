@@ -570,8 +570,7 @@ var EmailProcessor = class EmailProcessor {
         /\b(out of office|away from office|fuori ufficio|assente)\b/i,
         /\b(automatic reply|risposta automatica)\b/i,
         /\breturn(ing)? on\b/i,
-        /\bdi ritorno (il|dal)\b/i,
-        /\b(thank you for your message|mailbox monitored periodically)\b/i
+        /\b(thank you for your message|mailbox monitored periodically|messaggio ricevuto)\b/i
       ];
 
       const oooSubject = messageDetails.subject || '';
@@ -3179,7 +3178,7 @@ function computeSalutationMode({ isReply = false, memoryExists = false, lastUpda
 
   // 2️⃣ Conversazione attiva (qui isReply è necessariamente true)
   if (!lastUpdated) {
-    return 'none_or_continuity';
+    return 'full';
   }
 
   const parsedLastUpdated = (typeof parseDateSafe === 'function') ? parseDateSafe(lastUpdated, null) : new Date(lastUpdated);

@@ -217,9 +217,7 @@ var Classifier = class Classifier {
 
   /**
    * Estrae contenuto principale, rimuovendo citazioni e firme.
-   * Input atteso: plain-text (normalizzato a monte da GmailService).
-   */
-  _extractMainContent(body) {
+   * Input atteso: plain-te  _extractMainContent(body) {
     let processedBody = typeof body === 'string' ? body : '';
 
     // Fast-path HTML quote trimming:
@@ -260,11 +258,9 @@ var Classifier = class Classifier {
       /^Le .* a \u00E8crit.*$/m
     ];
 
-    let lines = processedBody.split('\n');
-
-
-
+    const lines = processedBody.split('\n');
     const cleanLines = [];
+    let inQuoteBlock = false;
 
     for (const line of lines) {
       const safeLine = line == null ? '' : String(line);
@@ -272,7 +268,7 @@ var Classifier = class Classifier {
 
       // Mantieni righe vuote per separazione paragrafi
       if (stripped === '') {
-        cleanLines.push(safeLine);
+        if (!inQuoteBlock) cleanLines.push(safeLine);
         continue;
       }
 
@@ -281,7 +277,7 @@ var Classifier = class Classifier {
         continue;
       }
 
-      // Ferma ai marcatori di citazione
+      // Salta blocchi citati, ma consenti inline-reply dopo quote
       let isQuote = false;
       for (const marker of quoteMarkers) {
         if (marker.test(stripped)) {
@@ -289,7 +285,13 @@ var Classifier = class Classifier {
           break;
         }
       }
-      if (isQuote) break;
+      if (isQuote || stripped.startsWith('>')) {
+        inQuoteBlock = true;
+        continue;
+      }
+      if (inQuoteBlock && /^[A-Za-zÀ-ÖØ-öø-ÿ0-9]/.test(stripped)) {
+        inQuoteBlock = false;
+      }
 
       cleanLines.push(safeLine);
     }
@@ -312,14 +314,21 @@ var Classifier = class Classifier {
     ];
 
     const contentLines = content.split('\n');
-    const signatureStartIndex = contentLines.findIndex((line) => {
-      const trimmedLine = (line || '').trim();
-      if (!trimmedLine) return false;
-      return signatureLineMarkers.some((marker) => marker.test(trimmedLine));
-    });
+    let signatureStartIndex = -1;
+    for (let i = 0; i < contentLines.length; i++) {
+      const line = (contentLines[i] || '').trim();
+      if (!line) continue;
+      if (signatureLineMarkers.some(marker => marker.test(line))) {
+        signatureStartIndex = i;
+        break;
+      }
+    }
 
     if (signatureStartIndex !== -1) {
-      content = contentLines.slice(0, signatureStartIndex).join('\n').trim();
+      const remainingText = contentLines.slice(signatureStartIndex + 1).join(' ').trim();
+      if (remainingText.length < 150) {
+        content = contentLines.slice(0, signatureStartIndex).join('\n').trim();
+      }
     }
 
     return content;
