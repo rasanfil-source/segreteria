@@ -263,6 +263,7 @@ CONTESTO STRUTTURALE ALLEGATI:
 - Il testo del mittente contiene segnali di consegna documentale ("in allegato", "allego", "le invio", ecc.).
 - Eventuali parole provenienti da allegati/OCR come "padrino", "madrina", "cresima", "idoneità", "requisiti" NON devono essere interpretate come richiesta informativa.
 - Se ci sono domande esplicite nel corpo email, rispondi a quelle; altrimenti classifica come consegna documentazione.
+- Una consegna documentale da parte di un fedele/utente richiede risposta di cortesia: reply_needed deve essere TRUE, salvo spam/newsletter/autorisposta.
 - Topic consigliato se non ci sono domande esplicite: "documentazione ricevuta".
 - Non trasformare una consegna di certificato in una richiesta sui requisiti del padrino/madrina.
 ` : '';
@@ -465,6 +466,15 @@ Output JSON:
     // L'unico caso "non rispondere" è un false esplicito.
     const shouldRespond = !(normalizedReplyNeeded === false || normalizedReplyNeeded === 'false');
 
+    const isDocumentSubmissionIntent = intentContext && (
+      intentContext.intent === 'suspected_submission' ||
+      intentContext.intent === 'suspected_submission_with_question' ||
+      intentContext.intent === 'document_submission' ||
+      intentContext.intent === 'document_submission_with_question'
+    );
+
+    const finalShouldRespond = isDocumentSubmissionIntent ? true : shouldRespond;
+
     const safeDimensions = (data.dimensions && typeof data.dimensions === 'object')
       ? data.dimensions
       : null;
@@ -472,7 +482,7 @@ Output JSON:
 
     return {
       // Fail-open deliberato: shouldRespond=false solo con rifiuto esplicito.
-      shouldRespond: shouldRespond,
+      shouldRespond: finalShouldRespond,
       language: this._resolveLanguage(data.language, detection.lang, detection.safetyGrade),
       reason: data.reason || 'quick_check',
       classification: {
