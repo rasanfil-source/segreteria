@@ -771,14 +771,11 @@ var GmailService = class GmailService {
         );
         if (!hasGmailUsersList) {
             try {
-                const appLabel = (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getUserLabelByName === 'function')
-                    ? GmailApp.getUserLabelByName(raw)
-                    : null;
-                const fallbackId = appLabel && typeof appLabel.getName === 'function'
-                    ? appLabel.getName()
-                    : null;
-                this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: fallbackId, ts: now });
-                return fallbackId;
+                // GmailApp.getUserLabelByName restituisce un GmailLabel che NON possiede un metodo getId().
+                // Passare getName() come fallback ID causerà il fallimento dell'API Avanzata.
+                // Restituiamo esplicitamente null per forzare il fallback nativo a livello di thread.
+                this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: null, ts: now });
+                return null;
             } catch (e) {
                 console.warn(`⚠️ _getOptionalLabelIdByName fallback GmailApp fallito per ${raw}, non metto in cache: ${e.message}`);
                 return null;
@@ -2368,8 +2365,16 @@ var GmailService = class GmailService {
                 }
 
                 const boundary = 'boundary_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
-                const safeFrom = String(stableFrom || '').replace(/[\r\n]+/g, '').trim();
-                const safeTo = String(messageDetails.senderEmail || '').replace(/[\r\n]+/g, '').trim();
+                const encodeAddress = (addr) => {
+                    const match = addr.match(/^(.*?)<(.+?)>$/);
+                    if (!match) return addr;
+                    const name = match[1].trim();
+                    const email = match[2].trim();
+                    if (!name || /^[\x00-\x7F]*$/.test(name)) return addr;
+                    return `=?UTF-8?B?${Utilities.base64Encode(name, Utilities.Charset.UTF_8)}?= <${email}>`;
+                };
+                const safeFrom = encodeAddress(String(stableFrom || '').replace(/[\r\n]+/g, '').trim());
+                const safeTo = encodeAddress(String(messageDetails.senderEmail || '').replace(/[\r\n]+/g, '').trim());
                 const rawHeaders = [
                     'MIME-Version: 1.0',
                     `Date: ${new Date().toUTCString()}`,

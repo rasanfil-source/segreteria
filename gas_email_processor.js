@@ -187,11 +187,7 @@ var EmailProcessor = class EmailProcessor {
         console.log(`🔒 Lock acquisito per thread ${threadId}`);
       } catch (e) {
         console.warn(`⚠️ Errore acquisizione lock thread: ${e.message}`);
-        if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
-          try {
-            scriptLock.releaseLock();
-          } catch (_) { }
-        }
+        // Demandiamo il rilascio in via esclusiva al blocco finally, prevenendo la collisione double-release
         return { status: 'error', error: 'Lock acquisition failed' };
       } finally {
         if (scriptLockAcquired && !globalThreadLock && scriptLock && typeof scriptLock.releaseLock === 'function') {
@@ -2796,7 +2792,8 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
   _extractTimes(text) {
     if (!text || typeof text !== 'string') return [];
 
-    const matches = text.match(/\b(?:[01]?\d|2[0-3])(?:[:.][0-5]\d)?\b(?=\s*(?:ore\b|am\b|pm\b|:|$))/gi) || [];
+    // Eliminata l'ancora di fine stringa ( |$ ) per numeri isolati: previene falsi positivi orari su cifre finali
+    const matches = text.match(/\b(?:[01]?\d|2[0-3])(?:[:.][0-5]\d)\b|\b(?:[01]?\d|2[0-3])\b(?=\s*(?:ore\b|am\b|pm\b|:))/gi) || [];
     const normalized = matches.map((time) => {
       const parts = time.replace('.', ':').split(':');
       const hh = parts[0];
@@ -3270,4 +3267,3 @@ function processUnreadEmailsMain() {
     console.error('🛑 processEmailsMain non trovata — impossibile delegare.');
   }
 }
-
