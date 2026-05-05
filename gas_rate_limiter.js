@@ -385,8 +385,14 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       return { available: false, reason: 'model_not_found_in_config', message: `Modello '${modelKey}' non trovato in GEMINI_MODELS` };
     }
 
-    // Controllo RPD
-    const rpdUsed = parseInt(this.props.getProperty(`rpd_${modelKey}`) || '0', 10) || 0;
+    // Controllo RPD (aggregato per nome modello fisico condiviso)
+    const physicalModelName = model.name;
+    let rpdUsed = 0;
+    for (const key of Object.keys(this.models)) {
+      if (this.models[key].name === physicalModelName) {
+        rpdUsed += parseInt(this.props.getProperty(`rpd_${key}`) || '0', 10) || 0;
+      }
+    }
     const rpdLeft = model.rpd - rpdUsed;
 
     if (rpdLeft <= 0) {
@@ -1262,7 +1268,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       console.log('\n' + modelKey.toUpperCase() + ' (' + model.name + '):');
       console.log('  RPD: ' + model.rpd.used + '/' + model.rpd.limit + ' (' + model.rpd.percent + '%)');
       console.log('  RPM: ' + model.rpm.used + '/' + model.rpm.limit + ' (' + model.rpm.percent + '%)');
-      console.log('  Token oggi: ' + model.tokensToday.toLocaleString());
+      console.log('  Token oggi: ' + String(model.tokensToday));
     }
 
     console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

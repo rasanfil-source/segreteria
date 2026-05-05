@@ -272,6 +272,18 @@ function runAllTests() {
             service.updateMemory('test-thread-id', { language: 'it' });
             return true;
         });
+        test('Lock acquisito e rilasciato correttamente', results, () => {
+            const threadId = 'test-thread-' + Date.now();
+            try {
+                service.updateMemory(threadId, { language: 'it' });
+                const lockKey = service._getShardedLockKey(threadId);
+                const cache = CacheService.getScriptCache();
+                const lockStillHeld = cache.get(lockKey);
+                return lockStillHeld === null;  // ✅ Lock rilasciato
+            } catch (e) {
+                return false;
+            }
+        });
     });
 
     // 3. TerritoryValidator
@@ -285,6 +297,18 @@ function runAllTests() {
         test('Via da form non ingloba campo successivo', results, () => {
             const streets = validator.extractStreetOnlyFromText('Via Antonio Gramsci\nData Nascita: 01/01/1990');
             return Array.isArray(streets) && streets.includes('via Antonio Gramsci');
+        });
+        test('Caratteri speciali nel nome via → gestiti', results, () => {
+            const special = "via Sant'Antonio 10";
+            const result = validator.extractAddressFromText(special);
+            return result && result[0].civic === 10;  // ✅ Apostrofo gestito
+        });
+        test('Civici alfanumerici distinti non deduplicati erroneamente', results, () => {
+            const text = "via Roma 10 e via Roma 10A";
+            const result = validator.extractAddressFromText(text);
+            if (!result || result.length !== 2) return false;
+            const civici = result.map(r => r.fullCivic).sort();
+            return civici[0] === '10' && civici[1] === '10A';
         });
     });
 

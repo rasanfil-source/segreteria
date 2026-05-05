@@ -783,7 +783,8 @@ var ResponseValidator = class ResponseValidator {
       // causerebbe warning sistematici non affidabili.
       forbiddenCaps = [];
     } else {
-      forbiddenCaps = ITALIAN_FORBIDDEN_CAPS;
+      // Lingua non supportata: evita warning non correggibili automaticamente
+      return { score: 1.0, errors: [], warnings: [], violations: [] };
     }
 
     // Regex mirata ai token alfabetici semplici dopo virgola: evita falsi positivi su forme elise (es. Un'altra).

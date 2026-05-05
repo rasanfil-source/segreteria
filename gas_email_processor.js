@@ -902,8 +902,9 @@ var EmailProcessor = class EmailProcessor {
       let territoryResult = { addressFound: false };
       if (territoryRequested && this.territoryValidator) {
         try {
+          const bodyForTerritory = bodyForLanguageDetection || messageDetails.body;
           territoryResult = this.territoryValidator.analyzeEmailForAddress(
-            messageDetails.body,
+            bodyForTerritory,
             messageDetails.subject
           );
         } catch (territoryError) {
@@ -977,7 +978,7 @@ ${addressLines.join('\n\n')}
           knowledgeBase: enrichedKnowledgeBase,
           knowledgeBaseMeta: {
             length: enrichedKnowledgeBase.length,
-            containsDates: this._detectTemporalMentions(enrichedKnowledgeBase, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(enrichedKnowledgeBase)
+            containsDates: /\b(19|20)\d{2}\b/.test(enrichedKnowledgeBase)
           },
           temporal: {
             mentionsDates: this._detectTemporalMentions(messageDetails.body, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(messageDetails.body),
@@ -3255,3 +3256,4 @@ function processUnreadEmailsMain() {
     console.error('🛑 processEmailsMain non trovata — impossibile delegare.');
   }
 }
+
