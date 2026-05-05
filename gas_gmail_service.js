@@ -2823,6 +2823,10 @@ var GmailService = class GmailService {
 
                 try {
                     testLabel.deleteLabel();
+                    this._clearPersistentLabelCache('_TEST_LABEL_');
+                    if (this._labelCache && typeof this._labelCache.delete === 'function') {
+                        this._labelCache.delete('_TEST_LABEL_');
+                    }
                 } catch (e) { }
             } catch (e) {
                 results.errors.push(`Impossibile creare label: ${e.message}`);
@@ -2964,7 +2968,7 @@ function sanitizeUrl(url) {
 
     // SSRF: blocco IP interni, IPv6 loopback/link-local, IP decimali
     const INTERNAL_IP_PATTERN = /^\s*(https?:\/\/)?(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2[0-9]|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+)(?::\d+)?(?:\/|$)/i;
-    const DECIMAL_IP = /^https?:\/\/\d{8,10}(\/|$)/i;
+    const DECIMAL_IP = /^https?:\/\/\d{8,10}(?::\d+)?(\/|$)/i;
     const USERINFO_BYPASS = /^https?:\/\/[^@]+@/i;
 
     // Blocca rappresentazioni numeriche alternative localhost (hex/octal/miste)

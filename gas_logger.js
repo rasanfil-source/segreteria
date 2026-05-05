@@ -46,15 +46,22 @@ var AppLogger = class AppLogger {
       message: message,
       data: safeData
     };
+    const safeStringify = (value, indent = 0) => {
+      try {
+        return indent > 0 ? JSON.stringify(value, null, indent) : JSON.stringify(value);
+      } catch (_) {
+        return JSON.stringify({ log_error: 'Unserializable data (circular/native object)' });
+      }
+    };
 
     const loggingConfig = (this.config && this.config.LOGGING) ? this.config.LOGGING : {};
 
     if (loggingConfig.STRUCTURED) {
-      console.log(JSON.stringify(logEntry));
+      console.log(safeStringify(logEntry));
     } else {
       console.log(`[${logEntry.timestamp}] [${level}] [${this.context}] ${message}`);
       if (Object.keys(safeData).length > 0) {
-        console.log(JSON.stringify(safeData, null, 2));
+        console.log(safeStringify(safeData, 2));
       }
     }
 
