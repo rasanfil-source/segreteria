@@ -641,13 +641,19 @@ function _getSpreadsheetModifiedTimeMs(spreadsheetId) {
     ? PropertiesService.getScriptProperties()
     : null;
 
+  let customTs = 0;
   if (props) {
-    const customRaw = props.getProperty('KB_CUSTOM_MODIFIED_TIME');
-    const customTs = customRaw ? parseInt(customRaw, 10) : NaN;
-    if (!isNaN(customTs) && customTs > 0) {
-      return customTs;
+    try {
+      const customRaw = (typeof props.getProperty === 'function')
+        ? props.getProperty('KB_CUSTOM_MODIFIED_TIME')
+        : null;
+      const parsedCustomTs = customRaw ? parseInt(customRaw, 10) : NaN;
+      if (!isNaN(parsedCustomTs) && parsedCustomTs > 0) {
+        customTs = parsedCustomTs;
+      }
+    } catch (e) {
+      console.warn('⚠️ Impossibile leggere KB_CUSTOM_MODIFIED_TIME: ' + e.message);
     }
-
   }
 
   let driveModifiedMs = 0;
@@ -679,11 +685,16 @@ function _getSpreadsheetModifiedTimeMs(spreadsheetId) {
     }
   }
 
-  // Bootstrap: usa il timestamp reale di Drive quando disponibile.
-  const finalTs = driveModifiedMs > 0 ? driveModifiedMs : Date.now();
+  // Usa il timestamp più recente tra trigger onEdit/custom e Drive.
+  // Se Drive non è disponibile, il custom mantiene l'invalidazione esplicita.
+  const finalTs = Math.max(customTs || 0, driveModifiedMs || 0) || Date.now();
 
-  if (props) {
-    props.setProperty('KB_CUSTOM_MODIFIED_TIME', String(finalTs));
+  if (props && typeof props.setProperty === 'function') {
+    try {
+      props.setProperty('KB_CUSTOM_MODIFIED_TIME', String(finalTs));
+    } catch (e) {
+      console.warn('⚠️ Impossibile salvare KB_CUSTOM_MODIFIED_TIME: ' + e.message);
+    }
   }
 
   return finalTs;
@@ -1573,8 +1584,10 @@ function main() {
 }
 
 function _getExecutionBatchLockKey_() {
-  const minuteBucket = Math.floor(Date.now() / 60000);
-  return `main_batch_lock_${minuteBucket}`;
+  // Chiave stabile: il TTL della CacheService rappresenta la finestra di lock.
+  // Usare bucket per minuto permetteva sovrapposizioni tra trigger consecutivi
+  // mentre il batch precedente era ancora in esecuzione.
+  return 'main_batch_lock_global_v1';
 }
 
 function resumeEmailBatchFromCheckpoint() {
@@ -1829,7 +1842,10 @@ function onEdit(e) {
   // Ogni modifica ai fogli KB aggiorna il timestamp virtuale usato per l'invalidazione cache.
   if (_isKnowledgeBaseSheetName(sheetName, cfg)) {
     try {
-      PropertiesService.getScriptProperties().setProperty('KB_CUSTOM_MODIFIED_TIME', String(Date.now()));
+      const props = PropertiesService.getScriptProperties();
+      if (props && typeof props.setProperty === 'function') {
+        props.setProperty('KB_CUSTOM_MODIFIED_TIME', String(Date.now()));
+      }
       console.log(`↻ Timestamp custom KB aggiornato da onEdit su foglio: ${sheetName}`);
     } catch (propError) {
       console.warn('⚠️ Impossibile aggiornare KB_CUSTOM_MODIFIED_TIME: ' + propError.message);

@@ -338,12 +338,6 @@ Output JSON:
       fetchError = e;
     }
 
-    // Architettura: se la primaria è in quota (429) e abbiamo backup,
-    // rilanciamo un errore sentinella così il rate limiter esterno riallinea i bucket.
-    if (responseCode === 429 && activeKey === this.primaryKey && this.backupKey) {
-      throw new Error('PRIMARY_QUOTA_EXHAUSTED');
-    }
-
     const shouldTryBackupKey = !!this.backupKey
       && activeKey !== this.backupKey
       && (

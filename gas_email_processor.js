@@ -184,9 +184,6 @@ var EmailProcessor = class EmailProcessor {
         }
 
         lockAcquired = true;
-        if (scriptLockAcquired) {
-          globalThreadLock = scriptLock;
-        }
         console.log(`🔒 Lock acquisito per thread ${threadId}`);
       } catch (e) {
         console.warn(`⚠️ Errore acquisizione lock thread: ${e.message}`);
@@ -340,7 +337,16 @@ var EmailProcessor = class EmailProcessor {
           if (externalIds.has(message.getId())) {
             this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
           } else {
-            internalUnread.push(message);
+            const rawFrom = (message && typeof message.getFrom === 'function') ? (message.getFrom() || '') : '';
+            const senderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
+              ? this.gmailService._extractEmailAddress(rawFrom)
+              : rawFrom;
+            const isOwnMessage = senderEmail && ownAddresses.has(this._normalizeEmailAddress_(senderEmail));
+            if (isOwnMessage) {
+              internalUnread.push(message);
+            } else if (options && Number.isFinite(Number(options.staleOnlyMs))) {
+              console.log(`   ℹ️ Stale-only: preservo messaggio esterno recente ${message.getId()} per il ciclo normale`);
+            }
           }
         });
         if (internalUnread.length > 0) {
@@ -782,7 +788,9 @@ var EmailProcessor = class EmailProcessor {
         unlabeledUnread.forEach(message => {
           if (message.getId() !== candidate.getId()) {
             if (externalIds.has(message.getId())) {
-              this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
+              // Non etichettare ancora i messaggi esterni secondari: se generazione,
+              // validazione o invio falliscono, devono restare eleggibili per retry.
+              return;
             } else {
               this._markMessagesAsSkipped([message], this.config.skipLabelName, skippedMessageIds);
             }
@@ -2152,9 +2160,15 @@ ${addressLines.join('\n\n')}
       }
 
       if (cache.get(sentKey)) {
+        if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
+          try { scriptLock.releaseLock(); } catch (_) { }
+        }
         return { ok: false, reason: 'already_sent' };
       }
       if (cache.get(sendingKey)) {
+        if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
+          try { scriptLock.releaseLock(); } catch (_) { }
+        }
         return { ok: false, reason: 'in_flight' };
       }
 
@@ -3109,13 +3123,13 @@ Nota bene: l'orario comunicato ${note}.`;
       if (isEmpty) {
         streak++;
         if (cache) cache.put(key, streak.toString(), 21600); // 6 ore
-        if (props && streak % 10 === 0) props.setProperty(key, streak.toString());
+        if (props && typeof props.setProperty === 'function' && streak % 10 === 0) props.setProperty(key, streak.toString());
       } else {
         streak = 0;
         // Usa put a "0" invece di remove() per aggirare bug di implementazione 
         // in polyfill/mock usati in ambienti di test (props.removeProperty is not a function)
         if (cache) cache.put(key, "0", 21600);
-        if (props) props.setProperty(key, "0");
+        if (props && typeof props.setProperty === 'function') props.setProperty(key, "0");
       }
       return streak;
     } catch (e) {

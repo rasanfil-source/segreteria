@@ -289,7 +289,7 @@ var Classifier = class Classifier {
           break;
         }
       }
-      if (isQuote) continue;
+      if (isQuote) break;
 
       cleanLines.push(safeLine);
     }

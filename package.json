@@ -4,6 +4,6 @@
   "version": "1.0.0",
   "description": "Tooling locale per test della segreteria parrocchiale AI",
   "scripts": {
-    "test": "bash scripts/run_ci_test_suite.sh"
+    "test": "node scripts/run_ci_test_suite.js"
   }
 }
