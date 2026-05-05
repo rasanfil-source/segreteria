@@ -82,7 +82,10 @@ var EmailProcessor = class EmailProcessor {
         : 5,
       searchPageSize: typeof CONFIG !== 'undefined' && typeof CONFIG.SEARCH_PAGE_SIZE === 'number'
         ? CONFIG.SEARCH_PAGE_SIZE
-        : 50
+        : 50,
+      documentConsistencyCheckEnabled: typeof CONFIG !== 'undefined' && typeof CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED === 'boolean'
+        ? CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED
+        : true
     };
 
     this.logger.info('EmailProcessor inizializzato', {
@@ -1226,6 +1229,19 @@ ${addressLines.join('\n\n')}
         doctrineStructured: routedDoctrineStructured
       };
 
+      const documentConsistency = this.config.documentConsistencyCheckEnabled
+        ? this._evaluateDocumentConsistency_(
+          messageDetails.subject,
+          messageDetails.body,
+          attachmentItems,
+          textFromAttachments
+        )
+        : null;
+      const hasDocumentMismatch = !!(documentConsistency && documentConsistency.mode === 'mismatch');
+      if (hasDocumentMismatch) {
+        console.warn(`   ⚠️ Mismatch documentale rilevato: atteso=${documentConsistency.expected || 'unknown'} ricevuto=${documentConsistency.received || 'unknown'}`);
+      }
+
       const prompt = this.promptEngine.buildPrompt(promptOptions);
 
       const fullPrompt = prompt;
@@ -1256,7 +1272,12 @@ ${addressLines.join('\n\n')}
         { name: 'Fallback-Lite', key: this.geminiService.primaryKey, model: liteModel, skipRateLimit: false }
       ];
 
-      for (const plan of attemptStrategy) {
+      if (hasDocumentMismatch) {
+        response = this._buildPrudentDocumentMismatchResponse_(detectedLanguage);
+        strategyUsed = 'DocumentConsistency-PrudentResponse';
+        console.log('✅ Risposta prudente generata per mismatch documentale');
+      } else {
+        for (const plan of attemptStrategy) {
         if (!plan.key) continue;
 
         try {
@@ -1310,6 +1331,7 @@ ${addressLines.join('\n\n')}
             continue;
           }
         }
+      }
       }
 
       if (!response) {
@@ -1534,7 +1556,7 @@ ${addressLines.join('\n\n')}
 
         // Etichettatura non critica: non deve compromettere lo step successivo (memoria).
         try {
-          if (shouldLabelForReview) {
+          if (shouldLabelForReview || hasDocumentMismatch) {
             this.gmailService.addLabelToMessage(candidate.getId(), this.config.validationErrorLabel);
           }
         } catch (labelErr) {
@@ -3334,6 +3356,58 @@ Nota bene: l'orario comunicato ${note}.`;
         sbattezzo: isSbattezzoDoc
       }
     };
+  }
+  _evaluateDocumentConsistency_(subject, body, attachmentItems, ocrText) {
+    const expected = this._detectDocumentTypeFromText_(`${subject || ''} ${body || ''}`);
+    const attachmentNames = Array.isArray(attachmentItems)
+      ? attachmentItems.map((it) => (it && it.name) ? it.name : '').filter(Boolean).join(' ')
+      : '';
+    const received = this._detectDocumentTypeFromText_(`${attachmentNames} ${ocrText || ''}`);
+
+    if (!expected || expected === 'unknown') {
+      return { mode: 'unknown_expected', expected: 'unknown', received: received || 'unknown' };
+    }
+    if (!received || received === 'unknown') {
+      return { mode: 'unknown_received', expected: expected, received: 'unknown' };
+    }
+    if (expected !== received) {
+      return { mode: 'mismatch', expected: expected, received: received };
+    }
+    return { mode: 'match', expected: expected, received: received };
+  }
+
+  _detectDocumentTypeFromText_(text) {
+    const src = String(text || '').toLowerCase();
+    if (!src.trim()) return 'unknown';
+
+    const rules = [
+      { type: 'certificato_battesimo_uso_matrimonio', pattern: /\bbattesim[oa]\b[\s\S]{0,80}\buso\b[\s\S]{0,40}\bmatrimoni[oa]\b/i },
+      { type: 'certificato_battesimo_uso_matrimonio', pattern: /\b(uso matrimoniale|per matrimonio)\b/i },
+      { type: 'attestato_idoneita_padrino_madrina', pattern: /\b(attestat[oa]|certificat[oa])\b[\s\S]{0,60}\bidoneit[aà]\b/i },
+      { type: 'attestato_idoneita_padrino_madrina', pattern: /\b(idoneit[aà]|padrin[oa]|madrin[ao]|sponsor)\b/i },
+      { type: 'certificato_battesimo', pattern: /\bcertificat[oa]\b[\s\S]{0,40}\bbattesim[oa]\b/i },
+      { type: 'certificato_cresima', pattern: /\bcertificat[oa]\b[\s\S]{0,40}\bcresim[ao]\b/i },
+      { type: 'scheda_iscrizione_corso_prematrimoniale', pattern: /\b(scheda|modulo)\b[\s\S]{0,40}\biscrizion[ea]\b[\s\S]{0,60}\bprematrimoniale\b/i },
+      { type: 'scheda_iscrizione_catechesi_comunione_cresima_ragazzi', pattern: /\b(prima comunione|cresima ragazzi|catechismo)\b/i },
+      { type: 'scheda_iscrizione_cresima_adulti', pattern: /\bcresim[ao]\b[\s\S]{0,30}\badult/i },
+      { type: 'scheda_iscrizione_catechesi_buon_pastore', pattern: /\bbuon pastore\b/i },
+      { type: 'scheda_iscrizione_pellegrinaggio', pattern: /\bpellegrinaggi[oa]\b/i },
+      { type: 'modulo_sbattezzo_rinuncia_cancellazione_registri', pattern: /\b(sbattezz[oa]|apostasi[ao]|rinuncia)\b/i },
+      { type: 'modulo_sbattezzo_rinuncia_cancellazione_registri', pattern: /\bcancellazion[ea]\b[\s\S]{0,40}\bregistr[oi]\b[\s\S]{0,30}\bbattesim[oa]\b/i }
+    ];
+
+    for (const rule of rules) {
+      if (rule.pattern.test(src)) return rule.type;
+    }
+    return 'unknown';
+  }
+
+  _buildPrudentDocumentMismatchResponse_(language) {
+    const lang = String(language || 'it').toLowerCase();
+    if (lang === 'en') {
+      return 'Good evening.\nWe have received your attachment. Before proceeding, the parish office will verify the submitted documentation.\nKind regards,\nParish Office';
+    }
+    return 'Buonasera.\nAbbiamo ricevuto la documentazione allegata. Prima di procedere, la segreteria verificherà la documentazione inviata.\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio';
   }
 }
 
