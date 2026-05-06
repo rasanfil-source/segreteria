@@ -189,11 +189,15 @@ function isInVacationPeriod(date = new Date(), scriptTimeZone = "") {
   if (!checkDateKey) return false;
 
   for (const vp of periods) {
-    if (!vp || !vp.start || !vp.end) continue;
+    if (!vp || !(vp.start instanceof Date) || !(vp.end instanceof Date) ||
+      isNaN(vp.start.getTime()) || isNaN(vp.end.getTime())) {
+      console.warn('⚠️ Periodo ferie non valido ignorato');
+      continue;
+    }
 
     const start = new Date(vp.start);
     const end = new Date(vp.end);
-    if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) continue;
+    if (start > end) continue;
 
     const startKey = formatDateOnly(start);
     const endKey = formatDateOnly(end);
@@ -1201,19 +1205,27 @@ function _loadAdvancedConfig(ss) {
       config.languageMode = 'all';
     }
 
-    // Ferie (B5:E7): B=data inizio, C=separatore, D=data fine, E=riepilogo (ignorato)
-    const periods = sheet.getRange('B5:E7').getValues();
-    periods.forEach(r => {
-      if (r[0] instanceof Date && r[2] instanceof Date) {
-        // Nota: NON estendiamo la fine giornata con setHours(23:59:59).
-        // isInVacationPeriod confronta già date normalizzate a "yyyy-MM-dd"
-        // nel timezone business, quindi il giorno finale è incluso senza manipolazioni aggiuntive.
-        const start = new Date(r[0]);
-        const end = new Date(r[2]);
-        start.setHours(12, 0, 0, 0);
-        end.setHours(12, 0, 0, 0);
-        config.vacationPeriods.push({ start: start, end: end });
+    // Ferie (A6:C10): A=riepilogo (ignorato), B=data inizio, C=data fine
+    const ferieRows = sheet.getRange('A6:C10').getValues();
+    ferieRows.forEach(row => {
+      if (!row[1] || !row[2]) return;
+
+      const startDate = _parseDateValue(row[1]);
+      const endDate = _parseDateValue(row[2]);
+
+      if (!startDate || !endDate) {
+        console.warn(`⚠️ Formato data non valido: ${row[1]} - ${row[2]}`);
+        return;
       }
+
+      if (endDate < startDate) {
+        console.warn(`⚠️ Data fine precedente a data inizio: ${startDate.toLocaleDateString()} > ${endDate.toLocaleDateString()}`);
+        return;
+      }
+
+      startDate.setHours(12, 0, 0, 0);
+      endDate.setHours(12, 0, 0, 0);
+      config.vacationPeriods.push({ start: startDate, end: endDate });
     });
 
     // Sospensione: supporta sia il layout single-sheet corrente
@@ -1824,6 +1836,62 @@ function parseDateSafe(input, fallback = null, explicitTimeZone = null) {
   }
 
   return fallback;
+}
+
+/**
+ * Converte valori data provenienti da Google Sheets in Date valide.
+ * Supporta Date native, seriali Sheets e stringhe italiane gg/mm/aaaa.
+ * @param {*} value - Valore cella da convertire
+ * @returns {Date|null} Date valida o null se non interpretabile
+ */
+function _parseDateValue(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+
+  if (typeof value === 'number' && isFinite(value)) {
+    // Google Sheets usa 1899-12-30 come origine dei seriali data.
+    const millis = Math.round((value - 25569) * 86400 * 1000);
+    const parsed = new Date(millis);
+    if (!isNaN(parsed.getTime())) {
+      return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+    }
+  }
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  // Formato italiano più comune nei fogli: gg/mm/aaaa o gg-mm-aaaa.
+  const italianMatch = trimmed.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:\s+.*)?$/);
+  if (italianMatch) {
+    const day = parseInt(italianMatch[1], 10);
+    const month = parseInt(italianMatch[2], 10);
+    const year = parseInt(italianMatch[3], 10);
+    const parsed = new Date(year, month - 1, day);
+
+    if (
+      parsed.getFullYear() === year &&
+      parsed.getMonth() === month - 1 &&
+      parsed.getDate() === day
+    ) {
+      return parsed;
+    }
+
+    return null;
+  }
+
+  const fallback = new Date(trimmed);
+  if (!isNaN(fallback.getTime())) {
+    return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
+  }
+
+  return null;
 }
 
 /**

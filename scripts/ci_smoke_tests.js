@@ -2860,6 +2860,7 @@ function main() {
         ['gmail office extract: Drive v3 forza mimeType target', testExtractOfficeTextDriveCreateForcesTargetMimeType],
         ['validator: numero civico non sdogana orario inventato', testResponseValidatorStreetNumberDoesNotWhitelistInventedTime],
         ['retry intelligente: errore ammesso non critico sopra soglia', testIntelligentRetryAllowedNonCriticalHighScore],
+        ['italian vacation date parsing', testItalianVacationDateParsing],
     ];
 
     let passed = 0;
@@ -2894,4 +2895,46 @@ function main() {
     console.log('\n✅ Smoke tests completati con successo.');
 }
 
+function loadScriptInContext(path, sandbox = {}) {
+    const code = fs.readFileSync(path, 'utf8');
+    const context = vm.createContext(Object.assign({
+        console: {
+            log() { },
+            warn() { },
+            error() { }
+        }
+    }, sandbox));
+    vm.runInContext(code, context, { filename: path });
+    return context;
+}
+
+function testItalianVacationDateParsing() {
+    const context = loadScriptInContext('gas_main.js');
+
+    const parsedItalian = context._parseDateValue('06/05/2026');
+    assert(
+        parsedItalian &&
+        parsedItalian.getFullYear() === 2026 &&
+        parsedItalian.getMonth() === 4 &&
+        parsedItalian.getDate() === 6,
+        `La data italiana 06/05/2026 deve essere interpretata come 6 maggio 2026, ottenuto ${parsedItalian}`
+    );
+
+    const invalidItalian = context._parseDateValue('31/02/2026');
+    assert(invalidItalian === null, 'Le date italiane impossibili non devono essere normalizzate automaticamente');
+
+    context.GLOBAL_CACHE = {
+        vacationPeriods: [
+            { start: 'non-date', end: new Date(2026, 4, 7) },
+            { start: context._parseDateValue('05/05/2026'), end: context._parseDateValue('07/05/2026') }
+        ]
+    };
+
+    assert(
+        context.isInVacationPeriod(new Date(2026, 4, 6)) === true,
+        'isInVacationPeriod deve ignorare periodi corrotti e riconoscere quello valido'
+    );
+}
+
 main();
+
