@@ -1120,7 +1120,7 @@ ${addressLines.join('\n\n')}
       let textFromAttachments = '';
       let attachmentSkipped = [];
       let attachmentItems = [];
-      attachmentIntentContext = preQuickAttachmentIntentContext;
+
 
       if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
         if (this._isNearDeadline(this.config.maxExecutionTimeMs)) {
@@ -1197,7 +1197,8 @@ ${addressLines.join('\n\n')}
             if (attachmentIntentContext && /submission/i.test(String(attachmentIntentContext.intent || ''))) {
               const sponsorSubmission = Boolean(
                 (attachmentIntentContext.detectedDocTypes && attachmentIntentContext.detectedDocTypes.sponsor) ||
-                /sponsor|padrin|madrin|idoneit/i.test(String(attachmentIntentContext.intent || ''))
+                /sponsor|padrin|madrin|idoneit/i.test(String(attachmentIntentContext.intent || '')) ||
+                /sponsor|padrin|madrin|idoneit/i.test(`${messageDetails.subject || ''} ${messageDetails.body || ''}`)
               );
               if (sponsorSubmission) {
                 const shouldProvideEligibilityGuidance = this._shouldProvideEligibilityGuidance_(
@@ -1269,31 +1270,24 @@ ${addressLines.join('\n\n')}
           textFromAttachments
         )
         : null;
-
-      const sponsorContextInEmail = /sponsor|padrin|madrina|idoneit/i.test(`${messageDetails.subject || ''} ${messageDetails.body || ''}`);
+      const isDocumentDeliveryContext = Boolean(
+        attachmentIntentContext &&
+        /submission/i.test(String(attachmentIntentContext.intent || ''))
+      );
       const hasDocumentMismatch = !!(documentConsistency && documentConsistency.mode === 'mismatch');
       const hasRiskyUnknownReceived = !!(
         documentConsistency &&
         documentConsistency.mode === 'unknown_received' &&
-        sponsorContextInEmail
+        isDocumentDeliveryContext
       );
       const shouldForcePrudentDocResponse = hasDocumentMismatch;
-
       if (hasDocumentMismatch) {
         console.warn(`   ⚠️ Mismatch documentale rilevato: atteso=${documentConsistency.expected || 'unknown'} ricevuto=${documentConsistency.received || 'unknown'}`);
       } else if (hasRiskyUnknownReceived) {
         console.warn(`   ⚠️ Documento non classificabile in contesto sponsor: atteso=${documentConsistency.expected || 'unknown'} ricevuto=unknown`);
       }
 
-      const sponsorGuidancePolicy = this._deriveSponsorGuidancePolicy_(
-        messageDetails.subject,
-        messageDetails.body,
-        attachmentIntentContext
-      );
-
-      const prompt = this.promptEngine.buildPrompt(Object.assign({}, promptOptions, {
-        sponsorGuidancePolicy: sponsorGuidancePolicy
-      }));
+      const prompt = this.promptEngine.buildPrompt(promptOptions);
 
       const fullPrompt = prompt;
 
@@ -1623,7 +1617,7 @@ ${addressLines.join('\n\n')}
 
         // Etichettatura non critica: non deve compromettere lo step successivo (memoria).
         try {
-          if (shouldLabelForReview || hasDocumentMismatch) {
+          if (shouldLabelForReview || shouldForcePrudentDocResponse) {
             this.gmailService.addLabelToMessage(candidate.getId(), this.config.validationErrorLabel);
           }
         } catch (labelErr) {
@@ -3583,6 +3577,79 @@ Nota bene: l'orario comunicato ${note}.`;
       console.log('   🧹 Rimossa guida non richiesta su requisiti padrino/madrina dalla risposta.');
     }
     return cleaned;
+  }
+
+  _evaluateDocumentConsistency_(subject, body, attachmentItems, textFromAttachments) {
+    if (!attachmentItems || attachmentItems.length === 0) return null;
+
+    const userText = `${subject || ''} ${body || ''}`.toLowerCase();
+    const isSponsorContext = /\bpadrin[oa]|madrin[ao]|sponsor|idoneit[aà]\b/i.test(userText);
+    if (!isSponsorContext) return null;
+
+    const sponsorDocReceived = attachmentItems.some(item =>
+      (item.documentType && item.documentType.toLowerCase().includes('sponsor')) ||
+      (item.documentType && item.documentType.toLowerCase().includes('idoneit')) ||
+      (item.name && /sponsor|padrin|madrin|idoneit/i.test(item.name)) ||
+      (item.text && /padrino|madrina|idoneità/i.test(item.text))
+    );
+
+    const certificateInName = attachmentItems.some(item =>
+      /certificato|attestato/i.test(item.name || '')
+    );
+
+    const moduleInName = attachmentItems.some(item =>
+      /modulo|mod\.|scheda/i.test(item.name || '')
+    );
+
+    const hasSpecificQuestion = /\?/.test(userText);
+    const asksForEligibility = /\b(posso|potrei|requisiti|idoneo)\b/i.test(userText);
+
+    if (sponsorDocReceived) {
+      const isCertificate = attachmentItems.some(item =>
+        (item.documentType && item.documentType.toLowerCase().includes('certificate')) ||
+        /certificato|attestato/i.test(item.name || '')
+      );
+
+      if (!isCertificate && !hasSpecificQuestion && !asksForEligibility) {
+        return {
+          mode: 'unknown_received',
+          expected: 'sponsor_certificate',
+          received: 'unknown',
+          reason: 'Document received in sponsor context but type not identified as certificate'
+        };
+      }
+      return { mode: 'consistent', type: 'sponsor_doc' };
+    }
+
+    if (certificateInName && !sponsorDocReceived) {
+      return {
+        mode: 'mismatch',
+        expected: 'sponsor_certificate',
+        received: 'other_certificate',
+        reason: 'Certificate received in sponsor context but content does not look like sponsor eligibility'
+      };
+    }
+
+    return null;
+  }
+
+  _buildReceiptOnlySubmissionResponse_(lang = 'it') {
+    if (lang === 'it') {
+      return `Buongiorno,
+
+con la presente confermiamo la ricezione della documentazione inviata.
+Provvederemo a prenderne visione quanto prima.
+
+Cordiali saluti,
+La Segreteria`;
+    }
+    return `Hello,
+
+we confirm the receipt of the documentation you sent.
+We will review it as soon as possible.
+
+Best regards,
+The Secretary Office`;
   }
 
   _deriveSponsorGuidancePolicy_(subject, body, attachmentIntentContext) {
