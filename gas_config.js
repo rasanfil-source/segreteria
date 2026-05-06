@@ -118,6 +118,13 @@ var CONFIG = {
 
   // === Knowledge Base ===
   get SPREADSHEET_ID() { return _getScriptProperty('SPREADSHEET_ID'); },
+  get SCRIPT_ID() {
+    try {
+      return ScriptApp.getScriptId();
+    } catch (e) {
+      return 'unknown';
+    }
+  },
   KB_SHEET_NAME: 'Istruzioni',
   AI_CORE_LITE_SHEET: 'AI_CORE_LITE',
   AI_CORE_SHEET: 'AI_CORE',

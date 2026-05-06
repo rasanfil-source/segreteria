@@ -117,43 +117,51 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
     }
 
     if (typeof global.SpreadsheetApp === 'undefined') {
+        const createMockRange = () => ({
+            getValues: () => [[
+                'threadId', 'language', 'category', 'tone',
+                'providedInfo', 'lastUpdated', 'messageCount', 'version', 'memorySummary'
+            ]],
+            setValues: () => { },
+            setFontWeight: () => { },
+            setValue: () => { },
+            getRow: () => 2,
+            getColumn: () => 1,
+            createTextFinder: (text) => ({
+                matchEntireCell: () => ({
+                    matchCase: () => ({
+                        matchFormulaText: () => ({
+                            findNext: () => (text.includes('test-thread') ? { getRow: () => 2, getColumn: () => 1 } : null)
+                        })
+                    })
+                })
+            })
+        });
+
+        const createMockSheet = () => ({
+            getLastRow: () => 10,
+            getRange: () => createMockRange(),
+            appendRow: () => { },
+            setFrozenRows: () => { },
+            getMaxRows: () => 100,
+            getLastColumn: () => 10,
+            getMaxColumns: () => 10,
+            createTextFinder: (text) => ({
+                matchEntireCell: () => ({
+                    matchCase: () => ({
+                        matchFormulaText: () => ({
+                            findNext: () => (text.includes('test-thread') ? { getRow: () => 2, getColumn: () => 1 } : null)
+                        })
+                    })
+                })
+            })
+        });
+
         global.SpreadsheetApp = {
             flush: () => { },
             openById: () => ({
-                getSheetByName: () => ({
-                    getRange: (r) => ({
-                        getValues: () => [[
-                            'threadId', 'language', 'category', 'tone', 'providedInfo', 'lastUpdated', 'messageCount', 'version', 'memorySummary'
-                        ]],
-                        setFontWeight: () => { },
-                        setValue: () => { },
-                        getRow: () => 2,
-                        getColumn: () => 1,
-                        createTextFinder: (text) => ({
-                            matchEntireCell: () => ({
-                                matchCase: () => ({
-                                    matchFormulaText: () => ({
-                                        findNext: () => (text.includes('test-thread') ? { getRow: () => 2, getColumn: () => 1 } : null)
-                                    })
-                                })
-                            })
-                        })
-                    }),
-                    createTextFinder: (text) => ({
-                        matchEntireCell: () => ({
-                            matchCase: () => ({
-                                matchFormulaText: () => ({
-                                    findNext: () => (text.includes('test-thread') ? { getRow: () => 2, getColumn: () => 1 } : null)
-                                })
-                            })
-                        })
-                    }),
-                    appendRow: () => { },
-                    getLastRow: () => 10,
-                    getMaxRows: () => 100,
-                    getLastColumn: () => 10,
-                    getMaxColumns: () => 10
-                })
+                getSheetByName: () => createMockSheet(),
+                insertSheet: () => createMockSheet()
             })
         };
     }

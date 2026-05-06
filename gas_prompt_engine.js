@@ -158,6 +158,10 @@ var PromptEngine = class PromptEngine {
       ? CONFIG.KB_TOKEN_BUDGET_RATIO
       : 0.5;
 
+    if (OVERHEAD_TOKENS >= MAX_SAFE_TOKENS) {
+      console.warn(`⚠️ PromptEngine: overhead (${OVERHEAD_TOKENS} token) >= budget totale (${MAX_SAFE_TOKENS}). KB ridotta al minimo operativo.`);
+    }
+
     const ocrTokens = this.estimateTokens(attachmentsContext || '');
     const availableForKB = Math.max(1500, ((MAX_SAFE_TOKENS - OVERHEAD_TOKENS - ocrTokens) * KB_BUDGET_RATIO));
     const kbCharsLimit = Math.round(availableForKB * 4);

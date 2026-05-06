@@ -84,7 +84,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     this.props = options.props || PropertiesService.getScriptProperties();
 
     // Sincronizzazione dello stato con lo storage persistente.
-    this._recoverFromStorage(options.alreadyLocked || false);
+    this._recoverFromWAL(options.alreadyLocked || false);
 
     // Inizializza contatori se non esistono
     this._initializeCounters();
@@ -288,7 +288,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     const lockResult = this._withRateLimitLock_(function () {
-      this._recoverFromStorage(true);
+      this._recoverFromWAL(true);
       this._refreshCache();
       return this._selectModelUnlocked(taskType, {
         forceModel: forceModel,
@@ -845,14 +845,14 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   }
 
   _persistCache(alreadyLocked = false) {
-    this._persistCacheToStorage(alreadyLocked);
+    this._persistCacheWithWAL(alreadyLocked);
   }
 
   /**
    * Persiste la cache tramite architettura di persistenza transazionale (WAL)
    * Garantisce coerenza strutturale dei dati in ambienti operativi distribuiti
    */
-  _persistCacheToStorage(alreadyLocked = false) {
+  _persistCacheWithWAL(alreadyLocked = false) {
     if (alreadyLocked) {
       this._doPersistCacheWrite();
       return;
@@ -909,7 +909,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
    * Sincronizza lo stato operativo leggendo le transazioni WAL non completate
    * Chiamato nel constructor prima di inizializzare i contatori
    */
-  _recoverFromStorage(alreadyLocked = false) {
+  _recoverFromWAL(alreadyLocked = false) {
     // Utilizzo di lock per garantire atomicità durante la sincronizzazione attiva
     let lock = null;
     let lockAcquired = !!alreadyLocked;
@@ -1312,7 +1312,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const forceModel = options.forceModel || null;
 
     const lockResult = this._withRateLimitLock_(function () {
-      this._recoverFromStorage(true);
+      this._recoverFromWAL(true);
       this._refreshCache();
 
       const selection = this._selectModelUnlocked(taskType, {
