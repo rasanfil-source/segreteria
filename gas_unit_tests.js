@@ -332,6 +332,31 @@ function runAllTests() {
             const noAsk = processor._isTerritoryRequest('Iscrizione cresima', 'Abito in via Antonio Gramsci.');
             return ask === true && noAsk === false;
         });
+        test('Rileva Cresima come prerequisito implicito per padrino', results, () => {
+            const policy = processor._deriveSponsorGuidancePolicy_(
+                'Cresima per fare da padrino',
+                'Ho bisogno della Cresima per fare da padrino al battesimo di mio nipote. Come posso fare?',
+                null
+            );
+            return policy === 'cresima_prerequisite_for_sponsor_role';
+        });
+        test('Non forza sola ricezione quando la consegna sponsor contiene domanda su Cresima/padrino', results, () => {
+            const shouldGuide = processor._shouldProvideEligibilityGuidance_(
+                'Invio documenti',
+                'Allego il certificato. Non sono cresimato, posso fare da padrino?',
+                { intent: 'document_submission_with_question', hasQuestions: true }
+            );
+            return shouldGuide === true;
+        });
+        test('Mantiene guidance padrino quando la Cresima è prerequisito emerso dal testo', results, () => {
+            const response = 'Per fare da padrino occorre essere battezzato e cresimato.\\nServe anche una vita cristiana conforme.';
+            const cleaned = processor._sanitizeUnrequestedSponsorGuidance_(
+                response,
+                'Cresima',
+                'Mi manca la Cresima per fare da padrino.'
+            );
+            return cleaned === response;
+        });
         test('Aggiunge nota differenza orario in modo generico (non solo cresima)', results, () => {
             const response = 'Buonasera.\n\nIl prossimo corso prematrimoniale inizierà alle ore 16:30.\n\nCordiali saluti.';
             const messageDetails = { subject: 'Corso prematrimoniale', body: 'Pensavo iniziasse alle 17:00.' };

@@ -12,7 +12,7 @@
     "candidateResponse": "Buongiorno, le Messe domenicali sono alle ore 9:00 e alle ore 11:00. Cordiali saluti, Segreteria Parrocchia Sant'Eugenio",
     "expected": {
       "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE",
+        "REGOLE ASSOLUTE - VIOLAZIONE = RISPOSTA INVALIDA",
         "INFORMAZIONI DI RIFERIMENTO"
       ],
       "promptMustNotInclude": [
@@ -38,7 +38,7 @@
     "candidateResponse": "Rivedendo la knowledge base, devo correggere la risposta. Cordiali saluti, Segreteria Parrocchia Sant'Eugenio",
     "expected": {
       "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE"
+        "REGOLE ASSOLUTE - VIOLAZIONE = RISPOSTA INVALIDA"
       ],
       "maxPromptChars": 15000,
       "validator": {
@@ -63,7 +63,7 @@
     "candidateResponse": "Good morning, Sunday Masses are at 9:00 and 11:00. Regards, Parish Secretariat of Sant'Eugenio",
     "expected": {
       "promptMustInclude": [
-        "CHECKLIST FINALE CONTESTUALE"
+        "REGOLE ASSOLUTE - VIOLAZIONE = RISPOSTA INVALIDA"
       ],
       "maxPromptChars": 12000,
       "validator": {

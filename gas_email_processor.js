@@ -1212,9 +1212,11 @@ ${addressLines.join('\n\n')}
                   messageDetails.body,
                   attachmentIntentContext
                 );
-                forceReceiptOnlyForSubmission = !shouldProvideEligibilityGuidance;
+                forceReceiptOnlyForSubmission = hasSubmissionQuestions ? false : !shouldProvideEligibilityGuidance;
                 if (forceReceiptOnlyForSubmission) {
                   console.log('   📎 Guardrail sponsor submission: consegna documentale → risposta solo conferma ricezione');
+                } else if (hasSubmissionQuestions) {
+                  console.log('   📎 Guardrail sponsor submission: domanda nel corpo → risposta alla domanda + conferma ricezione');
                 }
               }
             }
@@ -3545,18 +3547,35 @@ Nota bene: l'orario comunicato ${note}.`;
     }
     return 'Buonasera.\nAbbiamo ricevuto la documentazione allegata. Prima di procedere, la segreteria verificherà la documentazione inviata.\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio';
   }
+  _detectCresimaAsPrerequisiteForSponsorRole_(text) {
+    const source = String(text || '').toLowerCase();
+    const roleSignals = /\b(padrin\w*|madrin\w*|sponsor|battesim\w*|matrimon\w*|testimon\w*)\b/i.test(source);
+    const missingCresimaSignals =
+      /\bnon (sono|mi sono|ero|mi ero) cresim\w*/i.test(source) ||
+      /\bmanc(?:a|ano|herebbe|herebbero)[\s\S]{0,30}cresim\w*/i.test(source);
+
+    return /cresim\w*[\s\S]{0,60}(padrin\w*|madrin\w*|sponsor|battesim\w*|matrimon\w*|testimon\w*)/i.test(source) ||
+      /(padrin\w*|madrin\w*|sponsor|battesim\w*|matrimon\w*|testimon\w*)[\s\S]{0,60}(cresim\w*|non[\s\S]{0,20}cresim\w*|senza[\s\S]{0,20}cresim\w*)/i.test(source) ||
+      (roleSignals && missingCresimaSignals);
+  }
+
   _shouldProvideEligibilityGuidance_(subject, body, attachmentIntentContext) {
     const text = `${subject || ''} ${body || ''}`.toLowerCase();
     const intent = String((attachmentIntentContext && attachmentIntentContext.intent) || '').toLowerCase();
+    const hasSubmissionQuestion = Boolean(
+      (attachmentIntentContext && attachmentIntentContext.hasQuestions) ||
+      /with_question/.test(intent)
+    );
+    const cresimaAsPrerequisiteSignals = this._detectCresimaAsPrerequisiteForSponsorRole_(text);
 
     const deliverySignals = /\b(allego|in allegato|invio|inoltro|trasmetto|ecco|certificato|attestato|idoneit[aà])\b/i.test(text);
-    if (deliverySignals && /submission/.test(intent)) {
+    if (deliverySignals && /submission/.test(intent) && !hasSubmissionQuestion && !cresimaAsPrerequisiteSignals) {
       return false;
     }
 
     const infoSignals = /\b(vorrei|desidero|ho bisogno|mi serve|informazioni|info|come|percorso|corso)\b/i.test(text);
     const cresimaGoalSignals = /\b(cresima adulti?|fare la cresima|diventare padrin[oa]|fare da padrin[oa]|fare da madrin[ao])\b/i.test(text);
-    return infoSignals && cresimaGoalSignals;
+    return (infoSignals && cresimaGoalSignals) || cresimaAsPrerequisiteSignals;
   }
   _sanitizeUnrequestedSponsorGuidance_(response, subject, body) {
     const text = typeof response === 'string' ? response : String(response || '');
@@ -3564,7 +3583,8 @@ Nota bene: l'orario comunicato ${note}.`;
 
     const userText = `${subject || ''} ${body || ''}`.toLowerCase();
     const asksEligibilityInfo = /\b(idoneit[aà]|requisit[oi]|come (diventare|fare) padrin[oa]|certificato idoneit[aà])\b/i.test(userText);
-    if (asksEligibilityInfo) return text;
+    const cresimaAsPrerequisiteSignals = this._detectCresimaAsPrerequisiteForSponsorRole_(userText);
+    if (asksEligibilityInfo || cresimaAsPrerequisiteSignals) return text;
 
     const mentionsPadrinoContext = /\bpadrin[oa]|madrin[ao]|sponsor\b/i.test(userText);
     if (!mentionsPadrinoContext) return text;
@@ -3608,7 +3628,9 @@ The Secretary Office`;
     const asksEligibility = /\b(idoneit[aà]|requisit[oi]|come (diventare|fare) padrin[oa]|certificato idoneit[aà])\b/i.test(text);
     const asksLogistics = /\b(a che ora|orari|quando|arrivare|inizia|inizio|dove|luogo)\b/i.test(text);
     const asksCresimaPath = /\b(informazioni|info|corso|percorso)\b/i.test(text) && /\b(cresima adulti?|fare la cresima)\b/i.test(text);
+    const cresimaAsPrerequisiteSignals = this._detectCresimaAsPrerequisiteForSponsorRole_(text);
 
+    if (cresimaAsPrerequisiteSignals) return 'cresima_prerequisite_for_sponsor_role';
     if (isSubmission && !asksEligibility) return 'no_eligibility_guidance';
     if (asksLogistics && !asksEligibility) return 'logistics_only_no_eligibility';
     if (asksCresimaPath) return 'allow_eligibility_context';

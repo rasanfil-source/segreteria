@@ -45,7 +45,7 @@ assert(
   'il contratto qualità deve essere incluso anche nel profilo lite'
 );
 assert(
-  litePrompt.includes('Non aggiungere orari, link, requisiti, recapiti, procedure o spiegazioni non richiesti'),
+  litePrompt.includes('Soglia massima di informazioni aggiuntive non richieste: ZERO'),
   'il prompt deve vietare informazioni non richieste'
 );
 
@@ -91,7 +91,9 @@ const attachmentPrompt = engine.buildPrompt({
 });
 
 assert(
-  attachmentPrompt.includes('Risposta predefinita: ringrazia, conferma la ricezione'),
+  attachmentPrompt.includes('STOP') &&
+    attachmentPrompt.includes('ALLEGATO = DOCUMENTAZIONE CONSEGNATA') &&
+    attachmentPrompt.includes('Risposta predefinita: ringrazia e conferma la ricezione'),
   'il prompt deve indicare una risposta predefinita di ricezione'
 );
 assert(
@@ -105,6 +107,26 @@ assert(
 assert(
   attachmentPrompt.includes('Se il mittente chiede una conferma, non trasformarla in spiegazione'),
   'il prompt deve preservare la congruenza della risposta'
+);
+
+console.log('--- Test prompt: Cresima prerequisito per padrino autorizza guidance mirata ---');
+const prerequisitePrompt = engine.buildPrompt({
+  emailSubject: 'Cresima per fare da padrino',
+  emailContent: 'Buongiorno, ho bisogno della Cresima per fare da padrino al battesimo di mio nipote. Come posso fare?',
+  knowledgeBase: 'Cresima adulti: percorso dedicato in parrocchia.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  salutationMode: 'full',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  sponsorGuidancePolicy: 'cresima_prerequisite_for_sponsor_role'
+});
+
+assert(
+  prerequisitePrompt.includes('PREREQUISITO CRESIMA') &&
+    prerequisitePrompt.includes('avere almeno 16 anni') &&
+    prerequisitePrompt.includes('non essere il genitore del battezzando'),
+  'il prompt deve autorizzare le condizioni padrino quando la Cresima è prerequisito implicito'
 );
 
 console.log('✅ Test qualità prompt risposta passati');
