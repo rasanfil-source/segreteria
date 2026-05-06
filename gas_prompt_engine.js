@@ -1435,6 +1435,11 @@ ${attachmentsContext || ''}`;
    • Se è PRIMA INTERAZIONE, sii più completo
    • Se conosci il NOME, usalo nel saluto
 
+7. **CONSEGNA DATI (SENZA DOMANDA ESPLICITA):**
+   • Se il mittente invia dati personali/organizzativi (es. date emissione documenti, numeri documento, scadenze) per una pratica o evento, trattalo come invio dati.
+   • Conferma la ricezione e che i dati sono stati registrati per l'organizzazione indicata.
+   • NON chiedere "qual è la richiesta?" se il contesto è già chiaro dall'oggetto/corpo (es. Cammino di Santiago, iscrizione, pratica in corso).
+
 ══════════════════════════════════════════════════════════════════════`;
   }
 

@@ -1195,6 +1195,12 @@ ${addressLines.join('\n\n')}
             }
 
             if (attachmentIntentContext && /submission/i.test(String(attachmentIntentContext.intent || ''))) {
+              const hasSubmissionQuestions = Boolean(attachmentIntentContext.hasQuestions);
+              if (!hasSubmissionQuestions) {
+                forceReceiptOnlyForSubmission = true;
+                console.log('   📎 Guardrail submission: nessuna domanda esplicita → risposta solo conferma ricezione');
+              }
+
               const sponsorSubmission = Boolean(
                 (attachmentIntentContext.detectedDocTypes && attachmentIntentContext.detectedDocTypes.sponsor) ||
                 /sponsor|padrin|madrin|idoneit/i.test(String(attachmentIntentContext.intent || '')) ||
@@ -3425,7 +3431,14 @@ Nota bene: l'orario comunicato ${note}.`;
 
     // Se è un pre-check (senza OCR), siamo conservativi
     if (phase === 'pre_ocr') {
-      const isSuspectedSubmission = /allegato|invio|ecco|documento|certificato|modulo/i.test(fullText);
+      const hasIdentityDataSubmission =
+        /(?:data\s+di\s+emissione|numero\s+(?:documento|passaporto|carta)|scadenza|rilasciat[oa])/.test(fullText) &&
+        /(?:carta d'identit[aà]|passaporto|documento identit[aà])/.test(fullText);
+      const isCamminoContext = /cammino di santiago|pellegrinaggio|iscrizion/i.test(fullText);
+      const isSuspectedSubmission =
+        /allegato|invio|ecco|documento|certificato|modulo/i.test(fullText) ||
+        hasIdentityDataSubmission ||
+        (isCamminoContext && hasIdentityDataSubmission);
       if (!isSuspectedSubmission) return null;
 
       return {

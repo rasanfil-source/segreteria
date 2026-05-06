@@ -855,6 +855,10 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     this._persistCacheWithWAL(alreadyLocked);
   }
 
+  _persistCacheToStorage(alreadyLocked = false) {
+    return this._persistCache(alreadyLocked);
+  }
+
   /**
    * Persiste la cache tramite architettura di persistenza transazionale (WAL)
    * Garantisce coerenza strutturale dei dati in ambienti operativi distribuiti
@@ -997,6 +1001,10 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     } finally {
       if (!alreadyLocked && lockAcquired && lock) lock.releaseLock();
     }
+  }
+
+  _recoverFromStorage(alreadyLocked = false) {
+    return GeminiRateLimiter.prototype._recoverFromWAL.call(this, alreadyLocked);
   }
 
   _cleanStorageBuffers() {

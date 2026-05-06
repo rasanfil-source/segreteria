@@ -109,7 +109,7 @@ function calculateEaster(year) {
  */
 function estimateTokenCount(text, attachments = []) {
   if (!text && (!attachments || attachments.length === 0)) return 0;
-  
+
   let tokens = 0;
   if (text && typeof text === 'string') {
     const cleanText = text.trim();
@@ -151,7 +151,13 @@ function estimateTokenCount(text, attachments = []) {
  * Verifica se una data ricade in uno dei periodi ferie del segretario
  */
 function isInVacationPeriod(date = new Date(), scriptTimeZone = "") {
-  if (!(date instanceof Date) || isNaN(date.getTime())) {
+  const isValidDateLike = function (value) {
+    return value && Object.prototype.toString.call(value) === '[object Date]' &&
+      typeof value.getTime === 'function' &&
+      !isNaN(value.getTime());
+  };
+
+  if (!isValidDateLike(date)) {
     console.warn('⚠️ Data non valida passata a isInVacationPeriod');
     return false;
   }
@@ -167,7 +173,7 @@ function isInVacationPeriod(date = new Date(), scriptTimeZone = "") {
 
   // Normalizza input a data-only nel fuso dello script per evitare slittamenti ai confini UTC.
   const formatDateOnly = function (value) {
-    const source = (value instanceof Date) ? value : new Date(value);
+    const source = isValidDateLike(value) ? value : new Date(value);
     if (isNaN(source.getTime())) return '';
 
     if (scriptTimeZone && typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
@@ -189,8 +195,7 @@ function isInVacationPeriod(date = new Date(), scriptTimeZone = "") {
   if (!checkDateKey) return false;
 
   for (const vp of periods) {
-    if (!vp || !(vp.start instanceof Date) || !(vp.end instanceof Date) ||
-      isNaN(vp.start.getTime()) || isNaN(vp.end.getTime())) {
+    if (!vp || !isValidDateLike(vp.start) || !isValidDateLike(vp.end)) {
       console.warn('⚠️ Periodo ferie non valido ignorato');
       continue;
     }
@@ -335,7 +340,7 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
   const validationLabel = (typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_ERROR_LABEL) ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica';
   const skipLabel = (typeof CONFIG !== 'undefined' && CONFIG.SKIP_LABEL_NAME) ? CONFIG.SKIP_LABEL_NAME : '·';
   const languageMode = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.languageMode) || 'all';
-  
+
   // Escape robusto per etichette in query Gmail.
   // Gmail query parser accetta escaping con backslash per le virgolette.
   const quoteLabel = (label) => {
@@ -368,7 +373,7 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
         try {
           const lastDate = (thread && typeof thread.getLastMessageDate === 'function') ? thread.getLastMessageDate() : null;
           const lastTs = lastDate instanceof Date ? lastDate.getTime() : NaN;
-          
+
           // Se l'ultimo messaggio è già "stale", l'intero thread è considerato stale.
           if (Number.isFinite(lastTs) && lastTs <= cutoffMs && lastTs > oldestRelevantMs) {
             return true;
@@ -847,10 +852,10 @@ function _splitCachePayload(payload, maxChars) {
     // Cerchiamo il chunk più grande possibile che stia nel limite di byte
     let length = Math.min(maxChars, payload.length - start);
     let chunk = payload.substring(start, start + length);
-    
+
     // Verifica byte reali (possono superare maxChars se ci sono molti multibyte)
     let byteLength = Utilities.newBlob(chunk, 'text/plain; charset=UTF-8').getBytes().length;
-    
+
     // Se sforiamo il limite assoluto di Apps Script, riduciamo il chunk finché non rientra.
     while (byteLength > ABSOLUTE_BYTE_LIMIT && length > 1000) {
       length = Math.floor(length * 0.9);
@@ -1061,8 +1066,8 @@ function _parseStrictHour(value) {
     ) {
       const scriptTz =
         typeof Session !== 'undefined' &&
-        Session &&
-        typeof Session.getScriptTimeZone === 'function'
+          Session &&
+          typeof Session.getScriptTimeZone === 'function'
           ? Session.getScriptTimeZone()
           : 'Europe/Rome';
       const hourStr = Utilities.formatDate(value, scriptTz, 'H');
@@ -1205,16 +1210,37 @@ function _loadAdvancedConfig(ss) {
       config.languageMode = 'all';
     }
 
-    // Ferie (A6:C10): A=riepilogo (ignorato), B=data inizio, C=data fine
-    const ferieRows = sheet.getRange('A6:C10').getValues();
-    ferieRows.forEach(row => {
-      if (!row[1] || !row[2]) return;
+    // Ferie/assenze (layout corrente B5:E7): B=data inizio, D=data fine.
+    // Fallback legacy A6:C10: A=riepilogo, B=data inizio, C=data fine.
+    let ferieRows = [];
+    try {
+      ferieRows = sheet.getRange('B5:E7').getValues().map(row => ({
+        start: row[0],
+        end: row[2]
+      }));
+    } catch (e) {
+      ferieRows = [];
+    }
 
-      const startDate = _parseDateValue(row[1]);
-      const endDate = _parseDateValue(row[2]);
+    if (ferieRows.length === 0 || ferieRows.every(row => !row.start && !row.end)) {
+      try {
+        ferieRows = sheet.getRange('A6:C10').getValues().map(row => ({
+          start: row[1],
+          end: row[2]
+        }));
+      } catch (e) {
+        ferieRows = [];
+      }
+    }
+
+    ferieRows.forEach(row => {
+      if (!row.start || !row.end) return;
+
+      const startDate = _parseDateValue(row.start);
+      const endDate = _parseDateValue(row.end);
 
       if (!startDate || !endDate) {
-        console.warn(`⚠️ Formato data non valido: ${row[1]} - ${row[2]}`);
+        console.warn(`⚠️ Formato data non valido: ${row.start} - ${row.end}`);
         return;
       }
 
@@ -1820,7 +1846,7 @@ function parseDateSafe(input, fallback = null, explicitTimeZone = null) {
     if (match) {
       const tz = explicitTimeZone ||
         (typeof Session !== 'undefined' && Session &&
-         typeof Session.getScriptTimeZone === 'function'
+          typeof Session.getScriptTimeZone === 'function'
           ? Session.getScriptTimeZone()
           : 'Europe/Rome');
       const noonUtcGuess = new Date(`${match[1]}-${match[2]}-${match[3]}T12:00:00Z`);
@@ -1935,7 +1961,7 @@ function onEdit(e) {
     console.log("🔄 Rilevata modifica al selettore. Invalidazione cache...");
     try {
       clearKnowledgeCache();
-      
+
       // Se il cambio è sulla modalità lingua, forziamo il salvataggio immediato 
       // della proprietà per il controllo al prossimo ciclo main.
       if (intersectsF2) {
