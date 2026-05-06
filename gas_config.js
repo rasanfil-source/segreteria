@@ -56,6 +56,7 @@ var CONFIG = {
   ERROR_LABEL_NAME: 'Errore',          // Label per errori
   VALIDATION_ERROR_LABEL: 'Verifica',  // Label per risposte da rivedere
   SKIP_LABEL_NAME: '·',              // Label per email italiane saltate in modalità foreign_only
+  DOCUMENT_CONSISTENCY_CHECK_ENABLED: true, // Abilita verifica coerenza tra email e allegati
   // Configurazione dei limiti operativi per garantire stabilità e rispetto delle quote.
   MAX_EMAILS_PER_RUN: 3,
   SAFETY_VALVE_THRESHOLD: 0.8,       // Regolazione batch in base al carico operativo RPD

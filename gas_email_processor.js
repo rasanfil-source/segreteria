@@ -1269,12 +1269,31 @@ ${addressLines.join('\n\n')}
           textFromAttachments
         )
         : null;
+
+      const sponsorContextInEmail = /sponsor|padrin|madrina|idoneit/i.test(`${messageDetails.subject || ''} ${messageDetails.body || ''}`);
       const hasDocumentMismatch = !!(documentConsistency && documentConsistency.mode === 'mismatch');
+      const hasRiskyUnknownReceived = !!(
+        documentConsistency &&
+        documentConsistency.mode === 'unknown_received' &&
+        sponsorContextInEmail
+      );
+      const shouldForcePrudentDocResponse = hasDocumentMismatch;
+
       if (hasDocumentMismatch) {
         console.warn(`   ⚠️ Mismatch documentale rilevato: atteso=${documentConsistency.expected || 'unknown'} ricevuto=${documentConsistency.received || 'unknown'}`);
+      } else if (hasRiskyUnknownReceived) {
+        console.warn(`   ⚠️ Documento non classificabile in contesto sponsor: atteso=${documentConsistency.expected || 'unknown'} ricevuto=unknown`);
       }
 
-      const prompt = this.promptEngine.buildPrompt(promptOptions);
+      const sponsorGuidancePolicy = this._deriveSponsorGuidancePolicy_(
+        messageDetails.subject,
+        messageDetails.body,
+        attachmentIntentContext
+      );
+
+      const prompt = this.promptEngine.buildPrompt(Object.assign({}, promptOptions, {
+        sponsorGuidancePolicy: sponsorGuidancePolicy
+      }));
 
       const fullPrompt = prompt;
 
@@ -1304,10 +1323,14 @@ ${addressLines.join('\n\n')}
         { name: 'Fallback-Lite', key: this.geminiService.primaryKey, model: liteModel, skipRateLimit: false }
       ];
 
-      if (hasDocumentMismatch) {
+      if (shouldForcePrudentDocResponse) {
         response = this._buildPrudentDocumentMismatchResponse_(detectedLanguage);
         strategyUsed = 'DocumentConsistency-PrudentResponse';
         console.log('✅ Risposta prudente generata per mismatch documentale');
+      } else if (hasRiskyUnknownReceived) {
+        response = this._buildReceiptOnlySubmissionResponse_(detectedLanguage);
+        strategyUsed = 'DocumentConsistency-UnknownReceivedReceiptOnly';
+        console.log('✅ Risposta di sola ricezione generata (documento non classificabile in contesto sponsor)');
       } else {
         for (const plan of attemptStrategy) {
         if (!plan.key) continue;
@@ -3546,7 +3569,7 @@ Nota bene: l'orario comunicato ${note}.`;
     const asksEligibilityInfo = /\b(idoneit[aà]|requisit[oi]|come (diventare|fare) padrin[oa]|certificato idoneit[aà])\b/i.test(userText);
     if (asksEligibilityInfo) return text;
 
-    const mentionsPadrinoContext = /\ bpadrin[oa]|madrin[ao]|sponsor\b/i.test(userText);
+    const mentionsPadrinoContext = /\bpadrin[oa]|madrin[ao]|sponsor\b/i.test(userText);
     if (!mentionsPadrinoContext) return text;
 
     const lines = text.split(/\n+/);
