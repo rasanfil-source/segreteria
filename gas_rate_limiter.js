@@ -662,15 +662,22 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     if (typeof requestFn !== 'function') {
       throw new Error('requestFn non valido: attesa funzione');
     }
+
+    let raw;
     try {
-      const raw = requestFn(modelName);
-      if (raw === null || raw === undefined) {
-        throw new Error('requestFn ha restituito payload vuoto');
-      }
-      return raw;
+      raw = requestFn(modelName);
     } catch (e) {
+      if (e && e._nonRetryable) throw e;
       throw new Error(`requestFn exception (${modelName}): ${e.message}`);
     }
+
+    if (raw === null || raw === undefined) {
+      const emptyErr = new Error(`requestFn ha restituito payload vuoto (${modelName})`);
+      emptyErr._nonRetryable = true;
+      throw emptyErr;
+    }
+
+    return raw;
   }
 
   // ================================================================

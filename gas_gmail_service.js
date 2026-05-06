@@ -3126,6 +3126,25 @@ function sanitizeUrl(url) {
             const normalizedIpv6 = ipv6Host.toLowerCase();
             // Blocca loopback e indirizzi non specificati
             if (normalizedIpv6 === '::' || normalizedIpv6 === '::1') return true;
+            // Blocca varianti testuali equivalenti (es. 0:0:0:0:0:0:0:1, 0000::1, ::01)
+            const hextets = normalizedIpv6.split('::');
+            if (hextets.length <= 2) {
+                const left = hextets[0] ? hextets[0].split(':').filter(Boolean) : [];
+                const right = hextets[1] ? hextets[1].split(':').filter(Boolean) : [];
+                const expanded = [];
+                left.forEach(h => expanded.push(h));
+                const missing = 8 - (left.length + right.length);
+                if (missing >= 0) {
+                    for (let i = 0; i < missing; i++) expanded.push('0');
+                    right.forEach(h => expanded.push(h));
+                    if (expanded.length === 8 && expanded.every(h => /^[0-9a-f]{1,4}$/i.test(h))) {
+                        const asInt = expanded.map(h => parseInt(h, 16));
+                        const isUnspecified = asInt.every(v => v === 0);
+                        const isLoopback = asInt.slice(0, 7).every(v => v === 0) && asInt[7] === 1;
+                        if (isUnspecified || isLoopback) return true;
+                    }
+                }
+            }
             // Block link-local
             if (normalizedIpv6.startsWith('fe80:')) return true;
             // Block unique-local (ULA)

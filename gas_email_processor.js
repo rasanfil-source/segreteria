@@ -1383,7 +1383,7 @@ ${addressLines.join('\n\n')}
       }
       }
 
-      if (forceReceiptOnlyForSubmission) {
+      if (forceReceiptOnlyForSubmission && !shouldForcePrudentDocResponse && !hasRiskyUnknownReceived) {
         response = this._buildReceiptOnlySubmissionResponse_(detectedLanguage);
         strategyUsed = 'Submission-ReceiptOnlyGuardrail';
         console.log('✅ Guardrail applicato: risposta limitata a conferma ricezione documenti');
@@ -2186,17 +2186,13 @@ ${addressLines.join('\n\n')}
           });
           console.log(`⏸️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), nessun trigger pianificato (quota giornaliera Gmail esaurita).`);
         } else {
-          if (existing.length > 1) {
-            existing.slice(1).forEach((trigger) => {
-              try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
-            });
-          }
-          if (existing.length === 0) {
+          // I trigger timeBased().after() possono rimanere come oggetti inerti dopo l'esecuzione.
+          // Manteniamo al massimo un trigger "fresco" eliminando tutti i precedenti.
+          existing.forEach((trigger) => {
+            try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
+          });
           ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(60 * 1000).create();
-          console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), nuovo trigger di continuazione pianificato.`);
-          } else {
-          console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger esistente preservato.`);
-          }
+          console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger rigenerato.`);
         }
       }
     } catch (e) {
@@ -2564,7 +2560,9 @@ ${addressLines.join('\n\n')}
     if (typeof this.gmailService._getMessageMetadataWithResilience !== 'function') return false;
 
     const skipLabelId = this.gmailService._getOptionalLabelIdByName(this.config.skipLabelName);
-    if (!skipLabelId) return false;
+    // Fail-closed architetturale: se non recuperiamo l'ID label (quota/API/errore),
+    // preserviamo lo stato skip per evitare promozioni accidentali.
+    if (!skipLabelId) return true;
 
     const metadata = this.gmailService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
 
@@ -3534,14 +3532,6 @@ Nota bene: l'orario comunicato ${note}.`;
     }
     return 'Buonasera.\nAbbiamo ricevuto la documentazione allegata. Prima di procedere, la segreteria verificherà la documentazione inviata.\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio';
   }
-  _buildReceiptOnlySubmissionResponse_(language) {
-    const lang = String(language || 'it').toLowerCase();
-    if (lang === 'en') {
-      return 'Good evening.\nWe have received the attached documentation.\nKind regards,\nParish Office';
-    }
-    return 'Buonasera.\nAbbiamo ricevuto la documentazione allegata.\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio';
-  }
-
   _shouldProvideEligibilityGuidance_(subject, body, attachmentIntentContext) {
     const text = `${subject || ''} ${body || ''}`.toLowerCase();
     const intent = String((attachmentIntentContext && attachmentIntentContext.intent) || '').toLowerCase();
@@ -3577,60 +3567,6 @@ Nota bene: l'orario comunicato ${note}.`;
       console.log('   🧹 Rimossa guida non richiesta su requisiti padrino/madrina dalla risposta.');
     }
     return cleaned;
-  }
-
-  _evaluateDocumentConsistency_(subject, body, attachmentItems, textFromAttachments) {
-    if (!attachmentItems || attachmentItems.length === 0) return null;
-
-    const userText = `${subject || ''} ${body || ''}`.toLowerCase();
-    const isSponsorContext = /\bpadrin[oa]|madrin[ao]|sponsor|idoneit[aà]\b/i.test(userText);
-    if (!isSponsorContext) return null;
-
-    const sponsorDocReceived = attachmentItems.some(item =>
-      (item.documentType && item.documentType.toLowerCase().includes('sponsor')) ||
-      (item.documentType && item.documentType.toLowerCase().includes('idoneit')) ||
-      (item.name && /sponsor|padrin|madrin|idoneit/i.test(item.name)) ||
-      (item.text && /padrino|madrina|idoneità/i.test(item.text))
-    );
-
-    const certificateInName = attachmentItems.some(item =>
-      /certificato|attestato/i.test(item.name || '')
-    );
-
-    const moduleInName = attachmentItems.some(item =>
-      /modulo|mod\.|scheda/i.test(item.name || '')
-    );
-
-    const hasSpecificQuestion = /\?/.test(userText);
-    const asksForEligibility = /\b(posso|potrei|requisiti|idoneo)\b/i.test(userText);
-
-    if (sponsorDocReceived) {
-      const isCertificate = attachmentItems.some(item =>
-        (item.documentType && item.documentType.toLowerCase().includes('certificate')) ||
-        /certificato|attestato/i.test(item.name || '')
-      );
-
-      if (!isCertificate && !hasSpecificQuestion && !asksForEligibility) {
-        return {
-          mode: 'unknown_received',
-          expected: 'sponsor_certificate',
-          received: 'unknown',
-          reason: 'Document received in sponsor context but type not identified as certificate'
-        };
-      }
-      return { mode: 'consistent', type: 'sponsor_doc' };
-    }
-
-    if (certificateInName && !sponsorDocReceived) {
-      return {
-        mode: 'mismatch',
-        expected: 'sponsor_certificate',
-        received: 'other_certificate',
-        reason: 'Certificate received in sponsor context but content does not look like sponsor eligibility'
-      };
-    }
-
-    return null;
   }
 
   _buildReceiptOnlySubmissionResponse_(lang = 'it') {
