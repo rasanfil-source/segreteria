@@ -686,10 +686,11 @@ function _getSpreadsheetModifiedTimeMs(spreadsheetId) {
   }
 
   // Usa il timestamp più recente tra trigger onEdit/custom e Drive.
-  // Se Drive non è disponibile, il custom mantiene l'invalidazione esplicita.
-  const finalTs = Math.max(customTs || 0, driveModifiedMs || 0) || Date.now();
+  // Se nessun segnale reale è disponibile, restituiamo 0: usare Date.now()
+  // renderebbe la cache sempre stale e moltiplicherebbe letture Sheets inutili.
+  const finalTs = Math.max(customTs || 0, driveModifiedMs || 0);
 
-  if (props && typeof props.setProperty === 'function') {
+  if (finalTs > 0 && props && typeof props.setProperty === 'function') {
     try {
       props.setProperty('KB_CUSTOM_MODIFIED_TIME', String(finalTs));
     } catch (e) {

@@ -129,6 +129,14 @@ var EmailProcessor = class EmailProcessor {
       gmailService: this.gmailService ? this.gmailService.logger : null,
       memoryService: this.memoryService ? this.memoryService.logger : null
     };
+    const restoreServiceLoggers = () => {
+      if (this.geminiService) this.geminiService.logger = previousServiceLoggers.geminiService;
+      if (this.classifier) this.classifier.logger = previousServiceLoggers.classifier;
+      if (this.validator) this.validator.logger = previousServiceLoggers.validator;
+      if (this.requestClassifier) this.requestClassifier.logger = previousServiceLoggers.requestClassifier;
+      if (this.gmailService) this.gmailService.logger = previousServiceLoggers.gmailService;
+      if (this.memoryService) this.memoryService.logger = previousServiceLoggers.memoryService;
+    };
     if (this.geminiService && threadLogger && typeof threadLogger.withContext === 'function') {
       this.geminiService.logger = threadLogger.withContext('GeminiService');
     }
@@ -194,6 +202,7 @@ var EmailProcessor = class EmailProcessor {
         } else {
           if (!scriptLock.tryLock(5000)) {
             threadLogger.warn('Impossibile acquisire lock globale, salto');
+            restoreServiceLoggers();
             return { status: 'skipped', reason: 'global_lock_unavailable' };
           }
           scriptLockAcquired = true;
@@ -208,6 +217,7 @@ var EmailProcessor = class EmailProcessor {
             threadLogger.warn('Lock stale rilevato, sovrascrittura lock');
           } else {
             threadLogger.warn('Thread lockato da altro processo, salto');
+            restoreServiceLoggers();
             return { status: 'skipped', reason: 'thread_locked' };
           }
         }
@@ -221,6 +231,7 @@ var EmailProcessor = class EmailProcessor {
             try { scriptLock.releaseLock(); } catch (_) {}
             scriptLockAcquired = false;
           }
+          restoreServiceLoggers();
           return { status: 'skipped', reason: 'thread_lock_collision' };
         }
 
@@ -229,6 +240,7 @@ var EmailProcessor = class EmailProcessor {
       } catch (e) {
         threadLogger.warn(`Errore acquisizione lock thread: ${e.message}`);
         // Il mutex globale protegge solo la sezione critica CacheService; il lock thread resta nel token cache.
+        restoreServiceLoggers();
         return { status: 'error', error: 'Lock acquisition failed' };
       } finally {
         if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
@@ -1361,7 +1373,7 @@ ${addressLines.join('\n\n')}
       }
 
       if (!response) {
-        const errorToReport = initialError || generationError;
+        const errorToReport = generationError || initialError;
         const errorClass = errorToReport ? this._classifyError(errorToReport) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
         console.error('🛑 TUTTE le strategie di generazione sono fallite.');
         if (!errorClass.retryable) {
@@ -1698,12 +1710,7 @@ ${addressLines.join('\n\n')}
       return result;
 
     } finally {
-      if (this.geminiService) this.geminiService.logger = previousServiceLoggers.geminiService;
-      if (this.classifier) this.classifier.logger = previousServiceLoggers.classifier;
-      if (this.validator) this.validator.logger = previousServiceLoggers.validator;
-      if (this.requestClassifier) this.requestClassifier.logger = previousServiceLoggers.requestClassifier;
-      if (this.gmailService) this.gmailService.logger = previousServiceLoggers.gmailService;
-      if (this.memoryService) this.memoryService.logger = previousServiceLoggers.memoryService;
+      restoreServiceLoggers();
       if (lockAcquired && scriptCache && threadLockKey) {
         try {
           const currentLockValue = scriptCache.get(threadLockKey);
@@ -1755,6 +1762,10 @@ ${addressLines.join('\n\n')}
       gmailService: this.gmailService ? this.gmailService.logger : null,
       memoryService: this.memoryService ? this.memoryService.logger : null
     };
+    const restoreRunServiceLoggers = () => {
+      if (this.gmailService) this.gmailService.logger = previousRunServiceLoggers.gmailService;
+      if (this.memoryService) this.memoryService.logger = previousRunServiceLoggers.memoryService;
+    };
     if (runLogger && typeof runLogger.withContext === 'function') {
       if (this.gmailService) this.gmailService.logger = runLogger.withContext('GmailService');
       if (this.memoryService) this.memoryService.logger = runLogger.withContext('MemoryService');
@@ -1776,10 +1787,12 @@ ${addressLines.join('\n\n')}
         try {
           if (!executionLock.tryLock(lockWaitMs)) {
             runLogger.warn('Un\'altra esecuzione è già attiva: salto questo turno per evitare doppie risposte.');
+            restoreRunServiceLoggers();
             return { total: 0, replied: 0, filtered: 0, errors: 0, skipped: 1, reason: 'execution_locked' };
           }
         } catch (e) {
           runLogger.error(`Errore servizio Lock Globale: ${e.message}. Batch interrotto.`);
+          restoreRunServiceLoggers();
           return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'lock_service_error' };
         }
         lockAcquiredHere = true;
@@ -1852,6 +1865,10 @@ ${addressLines.join('\n\n')}
         if (e && e.message && String(e.message).includes('GMAIL_DAILY_CALL_LIMIT_REACHED')) {
           runLogger.warn('⚠️ Stop batch: raggiunto limite locale chiamate Gmail. Rimando al prossimo ciclo.');
           return { total: 0, replied: 0, filtered: 0, errors: 0, skipped: 1, reason: 'gmail_daily_limit_reached' };
+        }
+        if (e && e.message && String(e.message).includes('GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE')) {
+          runLogger.warn('⚠️ Stop batch: contatore Gmail temporaneamente conteso. Riproverà al prossimo ciclo.');
+          return { total: 0, replied: 0, filtered: 0, errors: 0, skipped: 1, reason: 'gmail_counter_lock_unavailable' };
         }
         runLogger.error(`❌ Impossibile recuperare thread da elaborare: ${e.message}. Batch interrotto per sicurezza.`);
         return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'thread_discovery_failed' };
@@ -2001,7 +2018,11 @@ ${addressLines.join('\n\n')}
           )
         ) {
           runLogger.warn('⚠️ Stop batch: quota API LLM esaurita, salvo checkpoint per evitare cascata di error label.');
-          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, -1);
+          this._storeBatchCheckpointAndScheduleContinuation_(
+            threads,
+            index,
+            this._getQuotaCheckpointDelayMs_(result, remainingTimeMs)
+          );
           break;
         }
 
@@ -2050,8 +2071,7 @@ ${addressLines.join('\n\n')}
       return stats;
 
     } finally {
-      if (this.gmailService) this.gmailService.logger = previousRunServiceLoggers.gmailService;
-      if (this.memoryService) this.memoryService.logger = previousRunServiceLoggers.memoryService;
+      restoreRunServiceLoggers();
       if (lockAcquiredHere) {
         try {
           executionLock.releaseLock();
@@ -2060,6 +2080,32 @@ ${addressLines.join('\n\n')}
         }
       }
     }
+  }
+
+  _getQuotaCheckpointDelayMs_(result, remainingTimeMs) {
+    const raw = [
+      result && result.errorClass,
+      result && result.error,
+      result && result.reason
+    ].filter(Boolean).join(' ').toLowerCase();
+
+    const looksDailyQuota =
+      raw.includes('daily') ||
+      raw.includes('giornal') ||
+      raw.includes('rpd');
+
+    if (looksDailyQuota) {
+      return -1;
+    }
+
+    const remaining = Number(remainingTimeMs);
+    if (Number.isFinite(remaining) && remaining > 0) {
+      return remaining;
+    }
+
+    // Quota non chiaramente giornaliera: pianifica una ripresa breve invece di
+    // lasciare il checkpoint sospeso fino al prossimo trigger ordinario.
+    return 60000;
   }
 
   _storeBatchCheckpointAndScheduleContinuation_(threads, startIndex, remainingTimeMs) {
@@ -2088,6 +2134,9 @@ ${addressLines.join('\n\n')}
         return;
       }
 
+      const maxCheckpointThreads = (typeof CONFIG !== 'undefined' && Number(CONFIG.BATCH_CHECKPOINT_MAX_THREADS) > 0)
+        ? Math.min(Math.max(1, Number(CONFIG.BATCH_CHECKPOINT_MAX_THREADS)), 500)
+        : 250;
       const pendingThreadIds = (threads || [])
         .slice(startIndex)
         .map((thread) => {
@@ -2101,7 +2150,7 @@ ${addressLines.join('\n\n')}
         startIndex: startIndex,
         remainingTimeMs: remainingTimeMs,
         pendingCount: pendingThreadIds.length,
-        pendingThreadIds: pendingThreadIds.slice(0, 100),
+        pendingThreadIds: pendingThreadIds.slice(0, maxCheckpointThreads),
         depth: currentDepth + 1
       };
       props.setProperty('EMAIL_BATCH_CHECKPOINT', JSON.stringify(checkpoint));
@@ -2115,12 +2164,22 @@ ${addressLines.join('\n\n')}
       if (canManageTriggers) {
         const existing = ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'resumeEmailBatchFromCheckpoint');
         if (remainingTimeMs === -1) {
+          existing.forEach((trigger) => {
+            try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
+          });
           console.log(`⏸️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), nessun trigger pianificato (quota giornaliera Gmail esaurita).`);
-        } else if (existing.length === 0) {
+        } else {
+          if (existing.length > 1) {
+            existing.slice(1).forEach((trigger) => {
+              try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
+            });
+          }
+          if (existing.length === 0) {
           ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(60 * 1000).create();
           console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), nuovo trigger di continuazione pianificato.`);
-        } else {
+          } else {
           console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger esistente preservato.`);
+          }
         }
       }
     } catch (e) {
@@ -3246,6 +3305,10 @@ Nota bene: l'orario comunicato ${note}.`;
 
     const RETRYABLE_ERRORS = ['quota', 'RESOURCE_EXHAUSTED', 'resource_exhausted'];
     const FATAL_ERRORS = ['INVALID_ARGUMENT', 'PERMISSION_DENIED', 'UNAUTHENTICATED', 'unauthorized', 'forbidden', 'unauthenticated'];
+
+    if (msg.includes('gmail_counter_lock_not_acquired_retryable')) {
+      return mkResult('NETWORK', true, rawMessage);
+    }
 
     for (const fatal of FATAL_ERRORS) {
       if (msg.includes(fatal.toLowerCase())) return mkResult('FATAL', false, rawMessage);

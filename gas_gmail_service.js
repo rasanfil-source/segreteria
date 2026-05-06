@@ -71,7 +71,7 @@ var GmailService = class GmailService {
                 lockAcquired = false;
             }
             if (!lockAcquired) {
-                throw new Error(`GMAIL_COUNTER_LOCK_NOT_ACQUIRED (${opName})`);
+                throw new Error(`GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE (${opName})`);
             }
         }
 
