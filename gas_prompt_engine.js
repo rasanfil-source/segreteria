@@ -416,17 +416,20 @@ ${doctrineBaseText}
       addSection(this._renderAttachmentContext(workingAttachmentsContext, resolvedAttachmentIntent), 'AttachmentsContext');
     }
 
+    // 19. CONTRATTO QUALITÀ RISPOSTA (sempre incluso)
+    addSection(this._renderResponseQualityContract(), 'ResponseQualityContract', { force: true });
+
     // ══════════════════════════════════════════════════════════════════════
     // BLOCCO 3: LINEE GUIDA E TEMPLATE
     // ══════════════════════════════════════════════════════════════════════
 
-    // 19. LINEE GUIDA (Filtrabili per profilo)
+    // 20. LINEE GUIDA (Filtrabili per profilo)
     addTemplate('FormattingGuidelinesTemplate', this._renderFormattingGuidelines(), 'FormattingGuidelines');
 
-    // 20. STRUTTURA RISPOSTA
+    // 21. STRUTTURA RISPOSTA
     addSection(this._renderResponseStructure(category, subIntents), 'ResponseStructure');
 
-    // 21. TEMPLATE SPECIALI (Sbattezzo ecc.)
+    // 22. TEMPLATE SPECIALI (Sbattezzo ecc.)
     const normalizedTopic = String(topic || '').toLowerCase();
     const normalizedCategory = String(category || '').toLowerCase();
     const isFormalRequest =
@@ -438,17 +441,17 @@ ${doctrineBaseText}
       addSection(this._renderSbattezzoTemplate(senderName), 'SbattezzoTemplate');
     }
 
-    // 22. LINEE GUIDA TONO UMANO
+    // 23. LINEE GUIDA TONO UMANO
     addTemplate('HumanToneGuidelinesTemplate', this._renderHumanToneGuidelines(), 'HumanToneGuidelines');
 
-    // 23. ESEMPI
+    // 24. ESEMPI
     addTemplate('ExamplesTemplate', this._renderExamples(category), 'Examples');
 
-    // 24. REGOLE FINALI
+    // 25. REGOLE FINALI
     addSection(this._renderResponseGuidelines(detectedLanguage, currentSeason, salutation, closing, salutationMode), 'ResponseGuidelines');
 
     if (!normalizedTopic.includes('sbattezzo') && !isFormalRequest) {
-      // 25. CASI SPECIALI
+      // 26. CASI SPECIALI
       addTemplate('SpecialCasesTemplate', this._renderSpecialCases(), 'SpecialCases');
     }
 
@@ -456,14 +459,14 @@ ${doctrineBaseText}
     // BLOCCO 4: RINFORZO FINALE
     // ══════════════════════════════════════════════════════════════════════
 
-    // 26. REMINDER ERRORI CRITICI
+    // 27. REMINDER ERRORI CRITICI
     addSection(this._renderCriticalErrorsReminder(), 'CriticalErrorsReminder');
 
-    // 27. CHECKLIST CONTESTUALE
+    // 28. CHECKLIST CONTESTUALE
     addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode), 'ContextualChecklist');
 
-    // 28. ISTRUZIONE FINALE
-    addSection('**Genera la risposta completa seguendo le linee guida sopra:**', 'FinalInstruction', { force: true });
+    // 29. ISTRUZIONE FINALE
+    addSection("**Genera SOLO il testo finale dell'email, senza note interne, spiegazioni del processo o contenuti non richiesti:**", 'FinalInstruction', { force: true });
 
     // Componi prompt finale tramite concatenazione efficiente
     const prompt = sections.join('\n\n');
@@ -507,6 +510,9 @@ ${doctrineBaseText}
 ❌ Imitare errori utente grammaticali: "la canale", "i orari" → correggi implicitamente, senza segnalarlo
 ✅ Se riprendi un termine dell'utente, assicurati prima che sia grammaticalmente corretto
 
+❌ Risposta enciclopedica: aggiungere requisiti, orari, link o procedure non richiesti → SBAGLIATO
+✅ Risposta congruente: conferma/risposta solo sul punto chiesto, poi fermati
+
 ────────────────────────────────────────`;
   }
 
@@ -520,6 +526,8 @@ ${doctrineBaseText}
     // Controlli universali
     checks.push('▢ Ho risposto SOLO alla domanda posta');
     checks.push('▢ Ho usato SOLO informazioni dalla KB');
+    checks.push('▢ Ho distinto correttamente tra domanda, consegna documenti/dati, aggiornamento e semplice ringraziamento');
+    checks.push('▢ Non ho aggiunto orari, link, requisiti, recapiti o procedure non richiesti');
     checks.push('▢ NO ragionamento esposto o riferimenti alle fonti (es: "nella nostra base dati", "la KB dice...", "devo correggere...")');
 
     // Controlli lingua-specifici
@@ -546,6 +554,7 @@ ${doctrineBaseText}
 
     // Controlli anti-ridondanza
     checks.push('▢ Se l\'utente ha detto "Ho già X", NON ho fornito X di nuovo');
+    checks.push('▢ Se è una consegna documentale, ho confermato ricezione senza trasformarla in richiesta informativa');
     checks.push('▢ Link formato: "Descrizione: https://url" NON "[url](url)"');
 
     return `
@@ -1209,6 +1218,7 @@ ${hints[effectiveCategory]}` : null;
 2. **Orari multipli** → Tabella strutturata con icone
 3. **Informazioni importanti** → Grassetto per evidenziare
 4. **Sezioni distinte** → Intestazioni H3 (###) con icona
+5. **Domande con risposta articolata** → Mantieni titoli, icone e sezioni chiare
 
 📋 ICONE CONSIGLIATE PER CATEGORIA:
 
@@ -1227,8 +1237,10 @@ ${hints[effectiveCategory]}` : null;
 ⚠️ REGOLE IMPORTANTI:
 
 1. **NON esagerare con le icone** - Usa 1 icona per categoria
-2. **Usa Markdown SOLO quando migliora la leggibilità**
+2. **Usa Markdown quando migliora la leggibilità**
 3. **Mantieni coerenza** - Stessa icona per stesso tipo info
+4. **Risposte articolate** - Se la domanda richiede più passaggi, date, requisiti o alternative, usa titoli e icone
+5. **Risposte sobrie** - Se è solo una ricevuta documento, una conferma breve o un ringraziamento, non creare titoli/icone
 
 💡 QUANDO NON USARE FORMATTAZIONE AVANZATA:
 ❌ Risposte brevissime (1-2 frasi)
@@ -1287,7 +1299,8 @@ ${hints[effectiveCategory]}` : null;
 1. Conferma la ricezione dell'allegato/documento.
 2. Se il corpo contiene una domanda esplicita, rispondi solo a quella domanda.
 3. Non elencare requisiti o istruzioni già superate dalla consegna del documento.
-4. Indica i prossimi passi in base alla natura del documento (archiviazione per i certificati, verifica per moduli da compilare).`;
+4. Se il prossimo passo è chiaro, indicalo in una frase; se non è chiaro, limitati a dire che la segreteria verificherà la documentazione.
+5. Non ripetere dati personali presenti nel documento, salvo forma mascherata e solo se necessario.`;
     }
 
     return hint;
@@ -1341,6 +1354,26 @@ ${emailContent}
   }
 
   // ========================================================================
+  // TEMPLATE 17.5: CONTRATTO QUALITÀ RISPOSTA
+  // ========================================================================
+
+  _renderResponseQualityContract() {
+    return `**CONTRATTO DI RISPOSTA - CONGRUENZA, GARBO, ESSENZIALITÀ**
+
+Prima di scrivere, individua mentalmente che cosa sta facendo il mittente:
+1. DOMANDA: rispondi alla domanda specifica, non al tema generale.
+2. CONSEGNA DOCUMENTI/DATI: conferma la ricezione e indica solo il prossimo passo necessario.
+3. CORREZIONE/AGGIORNAMENTO: ringrazia e conferma presa in carico o aggiornamento.
+4. SOLO RINGRAZIAMENTO: se non ci sono nuove domande o dati utili, usa NO_REPLY.
+
+Regola di uscita:
+• Se bastano 1-3 frasi, fermati.
+• Non aggiungere orari, link, requisiti, recapiti, procedure o spiegazioni non richiesti.
+• Se manca un dato essenziale, chiedi solo quel dato.
+• La risposta deve sembrare scritta da una segreteria attenta: cortese, concreta, senza enfasi artificiale.`;
+  }
+
+  // ========================================================================
   // TEMPLATE 18: CONTENUTO ALLEGATI (OCR/PDF)
   // ========================================================================
 
@@ -1358,7 +1391,9 @@ L'allegato è documentazione consegnata o probabilmente consegnata.
 Il mittente NON sta necessariamente chiedendo informazioni sui requisiti.
 Non usare parole OCR come "padrino", "madrina", "cresima", "idoneità", "requisiti" per generare una risposta informativa.
 Non elencare i requisiti per fare da padrino/madrina, salvo domanda esplicita nel corpo email.
+Risposta predefinita: ringrazia, conferma la ricezione e comunica che la segreteria verificherà/registrerà quanto inviato.
 Se il corpo contiene una domanda tecnica distinta, rispondi a quella domanda e conferma anche la ricezione dell'allegato.
+Se il documento è poco leggibile o incompleto, non inventare: chiedi solo il reinvio o il dato mancante essenziale.
 ${attachmentIntentContext.responseDirective || ''}
 ` : '';
     return `**ALLEGATI (TESTO ESTRATTO):**
@@ -1368,6 +1403,7 @@ Se l'allegato è un modulo/certificato/documento personale:
 - estrai solo i dati utili alla pratica parrocchiale (es. tipo documento, campi principali mancanti, prossimi passi);
 - non ripetere per esteso dati sensibili (codice fiscale, numero documento, telefono, email): usa forma mascherata;
 - non fare valutazioni legali su documento identità/passaporto/tessera sanitaria.
+- non citare il contenuto OCR nel testo finale se basta una conferma di ricezione.
 ${attachmentsContext || ''}`;
   }
 
@@ -1401,29 +1437,25 @@ ${attachmentsContext || ''}`;
 🎬 LINEE GUIDA PER TONO UMANO E NATURALE
 ══════════════════════════════════════════════════════════════════════
 
-1. **VOCE ISTITUZIONALE MA CALDA:**
-   ✅ GIUSTO: "Siamo lieti di accompagnarvi", "Restiamo a disposizione"
-   ❌ SBAGLIATO: "Sono disponibile", "Ti rispondo"
-   → Usa SEMPRE prima persona plurale (noi/restiamo/siamo)
+1. **VOCE DI SEGRETERIA:**
+   • Usa la prima persona plurale quando serve ("abbiamo ricevuto", "verificheremo").
+   • In italiano usa sempre il "Lei".
+   • Evita frasi troppo personali o enfatiche se il messaggio è pratico.
 
-2. **ACCOGLIENZA SPONTANEA:**
-   ✅ GIUSTO: "Siamo contenti di sapere che...", "Ci fa piacere che..."
-   ❌ SBAGLIATO: Tono robotico o freddo
+2. **GARBO SENZA RIEMPITIVI:**
+   • Una breve frase cortese basta; non aggiungere cordialità generica se non serve.
+   • "Restiamo a disposizione" va usato solo quando apre davvero a un chiarimento utile.
+   • Non chiudere ogni conferma con offerte di aiuto non richieste.
 
-3. **CONCISIONE INTELLIGENTE:**
-   ✅ GIUSTO: Info complete ma senza ripetizioni
-   ❌ SBAGLIATO: Ripetere le stesse cose in modi diversi
+3. **EMPATIA SITUAZIONALE:**
+   • Lutto, disagio, urgenza o situazione pastorale: riconosci con delicatezza prima dell'informazione pratica.
+   • Richieste tecniche, documenti, iscrizioni: tono gentile e concreto, senza commenti emotivi artificiali.
+   • Reclami: riconosci il disagio e passa a una soluzione o presa in carico.
 
-4. **EMPATIA SITUAZIONALE:**
-
-   Per SACRAMENTI:
-   • "Siamo lieti di accompagnarvi in questo importante passo"
-
-   Per URGENZE:
-   • "Comprendiamo l'urgenza della sua richiesta"
-
-   Per PROBLEMI:
-   • "Comprendiamo il disagio e ce ne scusiamo"
+4. **CONCISIONE INTELLIGENTE:**
+   • Info complete rispetto alla domanda, senza ripetizioni.
+   • Se il mittente chiede una conferma, non trasformarla in spiegazione.
+   • Se il mittente chiede un dettaglio, non allegare tutto il programma.
 
 5. **STRUTTURA RESPIRABILE:**
    • Paragrafi brevi (2-3 frasi max)
@@ -1437,7 +1469,7 @@ ${attachmentsContext || ''}`;
 
 7. **CONSEGNA DATI (SENZA DOMANDA ESPLICITA):**
    • Se il mittente invia dati personali/organizzativi (es. date emissione documenti, numeri documento, scadenze) per una pratica o evento, trattalo come invio dati.
-   • Conferma la ricezione e che i dati sono stati registrati per l'organizzazione indicata.
+   • Conferma la ricezione e la presa in carico; non promettere registrazioni definitive se serve una verifica.
    • NON chiedere "qual è la richiesta?" se il contesto è già chiaro dall'oggetto/corpo (es. Cammino di Santiago, iscrizione, pratica in corso).
 
 ══════════════════════════════════════════════════════════════════════`;
