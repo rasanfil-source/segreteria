@@ -971,6 +971,201 @@ function testAddProvidedInfoTopicsUsesSheetWriteLock() {
     };
     service._invalidateCache = (key) => { invalidatedKey = key; };
 
+    const thread = {
+        getId: () => 'thread-loop',
+        getLabels: () => [],
+        getMessages: () => messages
+    };
+
+    try {
+        const result = processor.processThread(thread, '', [], new Set(), true);
+        assert(result.status === 'filtered', `Atteso status=filtered, ottenuto ${result.status}`);
+        assert(result.reason === 'email_loop_detected', `Atteso reason=email_loop_detected, ottenuto ${result.reason}`);
+
+        assert(readMessageIds.length >= 0, 'Controllo anti-loop completato');
+    } finally {
+        global.Session = originalSession;
+        global.CacheService = originalCacheService;
+    }
+}
+
+function testMemoryGetUsesRowValues() {
+    loadScript('gas_memory_service.js');
+
+    const service = Object.create(MemoryService.prototype);
+    service._initialized = true;
+    service._getFromCache = () => null;
+    service._setCache = () => { };
+    service._findRowByThreadId = () => ({
+        rowIndex: 7,
+        values: ['thread-1', 'it', 'TECHNICAL', 'standard', '[]', '2026-02-15T10:00:00.000Z', 2, 1, 'ok']
+    });
+    service._validateAndNormalizeTimestamp = (ts) => ts;
+
+    let captured = null;
+    service._rowToObject = (values) => {
+        captured = values;
+        return { threadId: values[0], language: values[1] };
+    };
+
+    const result = service.getMemory('thread-1');
+    assert(Array.isArray(captured), 'getMemory deve passare solo values a _rowToObject');
+    assert(result.threadId === 'thread-1', 'getMemory deve restituire threadId corretto');
+}
+
+function testInvalidateCacheAlsoClearsRobustCache() {
+    loadScript('gas_memory_service.js');
+
+    const removedKeys = [];
+    const originalCacheService = global.CacheService;
+    global.CacheService = {
+        getScriptCache: () => ({
+            remove: (key) => removedKeys.push(key),
+            get: (key) => null,
+            removeAll: (keys) => keys.forEach(k => removedKeys.push(k))
+        })
+    };
+
+    try {
+        const service = Object.create(MemoryService.prototype);
+        service._cache = { 'memory_thread-42': { data: {}, timestamp: Date.now() } };
+
+        service._invalidateCache('memory_thread-42');
+        assert(!service._cache['memory_thread-42'], '_invalidateCache deve rimuovere la cache locale');
+        assert(removedKeys.includes('memory_thread-42'), '_invalidateCache deve rimuovere la chiave dalla cache script');
+    } finally {
+        global.CacheService = originalCacheService;
+    }
+}
+
+function testUpdateMemoryLockFailureUsesExponentialBackoff() {
+    console.log('--- Test: updateMemory applica backoff su lock timeout ---');
+    loadScript('gas_memory_service.js');
+
+    const service = Object.create(MemoryService.prototype);
+    service._initialized = true;
+    service._getShardedLockKey = () => 'memory_lock_thread-backoff';
+    service._tryAcquireShardedLock = () => false;
+    service._releaseShardedLock = () => { throw new Error('releaseLock non deve essere chiamato senza lock'); };
+    const originalUtilities = global.Utilities;
+    const sleeps = [];
+    global.Utilities = Object.assign({}, originalUtilities, {
+        sleep: (ms) => sleeps.push(ms)
+    });
+
+    try {
+        const result = service.updateMemory('thread-backoff', { language: 'it' });
+
+        assert(
+            result === false,
+            'updateMemory deve ritornare false dopo MAX_RETRIES se il lock resta occupato'
+        );
+
+        const expectedSleeps = [200, 400, 800, 1600, 3200];
+        assert(
+            sleeps.length === expectedSleeps.length,
+            `Attesi ${expectedSleeps.length} backoff sleep prima del fallimento finale, ottenuti ${sleeps.length}`
+        );
+        assert(
+            sleeps.every((ms, index) => ms === expectedSleeps[index]),
+            `Backoff lock timeout non valido. Atteso ${expectedSleeps.join(', ')}, ottenuto ${sleeps.join(', ')}`
+        );
+    } finally {
+        global.Utilities = originalUtilities;
+    }
+}
+
+function testSheetWriteLockDoesNotReleaseWhenWaitLockFails() {
+    console.log('--- Test: _withSheetWriteLock non rilascia senza lock acquisito ---');
+    loadScript('gas_memory_service.js');
+
+    const originalLockService = global.LockService;
+    const originalSpreadsheetApp = global.SpreadsheetApp;
+    let releaseCalled = false;
+
+    global.LockService = {
+        getScriptLock: () => ({
+            waitLock: () => {
+                throw new Error('lock busy');
+            },
+            releaseLock: () => {
+                releaseCalled = true;
+            }
+        })
+    };
+    global.SpreadsheetApp = {
+        flush: () => {
+            throw new Error('flush non deve essere chiamato senza lock');
+        }
+    };
+
+    try {
+        const service = Object.create(MemoryService.prototype);
+        let thrown = null;
+        try {
+            service._withSheetWriteLock(() => {
+                throw new Error('writeOperation non deve essere chiamata senza lock');
+            });
+        } catch (error) {
+            thrown = error;
+        }
+
+        assert(thrown && /Lock del foglio non acquisito/.test(thrown.message), 'deve rilanciare errore esplicito di lock non acquisito');
+        assert(releaseCalled === false, 'releaseLock non deve essere chiamato se waitLock fallisce');
+    } finally {
+        global.LockService = originalLockService;
+        global.SpreadsheetApp = originalSpreadsheetApp;
+    }
+}
+
+function testAddProvidedInfoTopicsUsesSheetWriteLock() {
+    console.log('--- Test: addProvidedInfoTopics usa sheet lock per scrivere ---');
+    loadScript('gas_memory_service.js');
+
+    const service = Object.create(MemoryService.prototype);
+    service._initialized = true;
+    service._getShardedLockKey = () => 'memory_lock_thread-topics';
+    service._tryAcquireShardedLock = () => true;
+
+    let released = false;
+    service._releaseShardedLock = () => { released = true; };
+    service._findRowByThreadId = () => ({
+        rowIndex: 5,
+        values: ['thread-topics', 'it', 'INFO', 'standard', '[]', '2026-02-15T10:00:00.000Z', 2, 3, '']
+    });
+    service._rowToObject = () => ({
+        threadId: 'thread-topics',
+        providedInfo: ['orari'],
+        version: 3
+    });
+    service._normalizeProvidedTopics = (topics) => Array.isArray(topics) ? topics.slice() : [];
+    service._mergeProvidedTopics = (existingTopics, newTopics) => existingTopics.concat(newTopics);
+    service._validateAndNormalizeTimestamp = (ts) => ts;
+
+    let sheetLockCalls = 0;
+    let insideSheetWriteLock = false;
+    let updateRowCalls = 0;
+    let invalidatedKey = null;
+
+    service._withSheetWriteLock = (writeOperation) => {
+        sheetLockCalls++;
+        insideSheetWriteLock = true;
+        try {
+            writeOperation();
+        } finally {
+            insideSheetWriteLock = false;
+        }
+    };
+    service._updateRow = (_rowIndex, data) => {
+        updateRowCalls++;
+        assert(insideSheetWriteLock, 'addProvidedInfoTopics deve scrivere su Sheet solo dentro _withSheetWriteLock');
+        assert(
+            Array.isArray(data.providedInfo) && data.providedInfo.length === 2,
+            'providedInfo deve risultare mergeato prima della scrittura'
+        );
+    };
+    service._invalidateCache = (key) => { invalidatedKey = key; };
+
     service.addProvidedInfoTopics('thread-topics', ['contatti']);
 
     assert(sheetLockCalls === 1, `_withSheetWriteLock deve essere chiamato una volta, ottenuto ${sheetLockCalls}`);
@@ -1032,6 +1227,62 @@ function testUpdateProvidedInfoWithoutIncrementUsesSheetWriteLockForAppend() {
     assert(appendRowCalls === 1, `_appendRow deve essere eseguito una volta, ottenuto ${appendRowCalls}`);
     assert(invalidatedKey === 'memory_thread-append', `Cache invalidata errata: ${invalidatedKey}`);
     assert(released === true, 'Il lock sharded deve essere rilasciato in finally');
+}
+
+function testUpdateProvidedInfoWithoutIncrementRetriesShardedLock() {
+    loadScript('gas_memory_service.js');
+
+    const service = Object.create(MemoryService.prototype);
+    service._initialized = true;
+    service._getShardedLockKey = () => 'memory_lock_thread-retry';
+    service._getLockTuning_ = () => ({ maxRetries: 3, shardedAcquireTimeoutMs: 10, backoffBaseMs: 1, backoffCapMs: 10, backoffJitterMs: 0 });
+    let lockAttempts = 0;
+    service._tryAcquireShardedLock = () => (++lockAttempts) >= 2;
+    let sleeps = 0;
+    service._sleepLockBackoff_ = () => { sleeps++; };
+    service._releaseShardedLock = () => { };
+    service._findRowByThreadId = () => null;
+    service._normalizeProvidedTopics = (topics) => topics.map(topic => ({ topic }));
+    service._mergeProvidedTopics = (existingTopics, newTopics) => existingTopics.concat(newTopics);
+    service._validateAndNormalizeTimestamp = (ts) => ts;
+    service._withSheetWriteLock = (writeOperation) => writeOperation();
+    let appendCalls = 0;
+    service._appendRow = () => { appendCalls++; };
+    service._updateRow = () => { throw new Error('_updateRow non deve essere chiamato'); };
+    service._invalidateCache = () => { };
+
+    service._updateProvidedInfoWithoutIncrement('thread-retry', ['orari']);
+
+    assert(lockAttempts === 2, `Attesi 2 tentativi lock, ottenuti ${lockAttempts}`);
+    assert(sleeps === 1, `Atteso un backoff tra i tentativi, ottenuti ${sleeps}`);
+    assert(appendCalls === 1, `La scrittura deve avvenire dopo retry riuscito, ottenute ${appendCalls}`);
+}
+
+function testHasUnreadMessagesFallbackIncludesTerminalLabels() {
+    loadScript('gas_email_processor.js');
+
+    const calls = [];
+    const processor = Object.create(EmailProcessor.prototype);
+    processor.config = { labelName: 'IA', errorLabelName: 'Errore', validationErrorLabel: 'Verifica' };
+    processor.gmailService = {
+        getMessageIdsWithLabel: (labelName) => {
+            calls.push(labelName);
+            if (labelName === 'Errore') return ['msg-error'];
+            if (labelName === 'Verifica') return new Set(['msg-verify']);
+            return [];
+        }
+    };
+    processor.logger = { warn: () => { } };
+
+    const makeMessage = (id) => ({ getId: () => id, isUnread: () => true });
+    const errorOnlyThread = { getMessages: () => [makeMessage('msg-error')] };
+    const verifyOnlyThread = { getMessages: () => [makeMessage('msg-verify')] };
+    const freshThread = { getMessages: () => [makeMessage('msg-fresh')] };
+
+    assert(processor._hasUnreadMessagesToProcess(errorOnlyThread) === false, 'Messaggio Errore non letto deve essere considerato terminale');
+    assert(processor._hasUnreadMessagesToProcess(verifyOnlyThread) === false, 'Messaggio Verifica non letto deve essere considerato terminale');
+    assert(processor._hasUnreadMessagesToProcess(freshThread) === true, 'Messaggio senza label terminali deve restare processabile');
+    assert(calls.includes('IA') && calls.includes('Errore') && calls.includes('Verifica'), `Fallback deve interrogare tutte le label terminali, chiamate: ${calls.join(',')}`);
 }
 
 function testLoadResourcesResetsMissingPromptSheets() {
@@ -1335,6 +1586,103 @@ function testExtractOfficeTextDriveCreateForcesTargetMimeType() {
     } finally {
         global.Drive = originalDrive;
     }
+}
+
+function testExtractOfficeTextRetriesDrivePropagation() {
+    loadScript('gas_gmail_service.js');
+
+    const originalDrive = global.Drive;
+    const originalDocumentApp = global.DocumentApp;
+    const originalUtilities = global.Utilities;
+    const service = Object.create(GmailService.prototype);
+    let openCalls = 0;
+    let sleeps = 0;
+
+    global.Drive = {
+        Files: {
+            insert: () => ({ id: 'file-propagating' }),
+            remove: () => { }
+        }
+    };
+    global.DocumentApp = {
+        openById: (id) => {
+            openCalls++;
+            assert(id === 'file-propagating', `fileId inatteso: ${id}`);
+            if (openCalls === 1) throw new Error('Document missing');
+            return { getBody: () => ({ getText: () => 'testo convertito' }) };
+        }
+    };
+    global.Utilities = Object.assign({}, originalUtilities, { sleep: () => { sleeps++; } });
+
+    const attachment = {
+        copyBlob: () => ({ getContentType: () => 'application/msword' }),
+        getName: () => 'test.doc'
+    };
+
+    try {
+        const extracted = service._extractOfficeText(attachment, 'application/vnd.google-apps.document', {});
+        assert(extracted === 'testo convertito', `Testo estratto inatteso: ${extracted}`);
+        assert(openCalls === 2, `Attesi 2 tentativi di openById, ottenuti ${openCalls}`);
+        assert(sleeps === 1, `Atteso 1 sleep di propagazione, ottenuti ${sleeps}`);
+    } finally {
+        global.Drive = originalDrive;
+        global.DocumentApp = originalDocumentApp;
+        global.Utilities = originalUtilities;
+    }
+}
+
+function testRemoveLabelFromMessageFallsBackToThread() {
+    loadScript('gas_gmail_service.js');
+
+    const originalGmail = global.Gmail;
+    const originalGmailApp = global.GmailApp;
+    const service = Object.create(GmailService.prototype);
+    let fallbackCalled = false;
+
+    service._getOptionalLabelIdByName = () => 'label-id';
+    service._incrementGmailCallCounterOrThrow_ = () => { };
+    global.Gmail = {
+        Users: {
+            Messages: {
+                modify: () => { throw new Error('429 transient'); }
+            }
+        }
+    };
+    global.GmailApp = {
+        getMessageById: () => ({ getThread: () => ({ removeLabel: () => { fallbackCalled = true; } }) }),
+        getUserLabelByName: () => ({ name: 'IA' })
+    };
+
+    try {
+        const consoleNoise = withCapturedConsoleNoise({
+            warn: [/removeLabelFromMessage fallito/, /Fallback thread-level/]
+        }, () => {
+            service.removeLabelFromMessage('msg-1', 'IA');
+        });
+        assert(fallbackCalled === true, 'Il fallback thread-level deve rimuovere la label nativa');
+        assert(consoleNoise.warn.some(msg => msg.includes('Fallback thread-level')), 'Il fallback deve essere tracciato nei warning');
+    } finally {
+        global.Gmail = originalGmail;
+        global.GmailApp = originalGmailApp;
+    }
+}
+
+function testGetProcessableAttachmentsSkipsUnsupportedImagesBeforeCopyBlob() {
+    loadScript('gas_gmail_service.js');
+
+    const service = Object.create(GmailService.prototype);
+    const message = {
+        getAttachments: () => [{
+            getName: () => 'payload.svg',
+            getSize: () => 8192,
+            getContentType: () => 'image/svg+xml',
+            copyBlob: () => { throw new Error('copyBlob non deve essere chiamato per SVG'); }
+        }]
+    };
+
+    const result = service.getProcessableAttachments(message, { maxBytesPerFile: 1024 * 1024, maxFiles: 3 });
+    assert(result.blobs.length === 0, `SVG non deve generare blob, ottenuti ${result.blobs.length}`);
+    assert(result.skipped.some(item => item.reason === 'unsupported_image_ignored'), 'SVG deve essere scartato come image unsupported');
 }
 
 function testRateLimiterPersistenceRequiresTransactionalLock() {
@@ -2909,6 +3257,7 @@ function main() {
         ['memory: sheet lock non rilascia se waitLock fallisce', testSheetWriteLockDoesNotReleaseWhenWaitLockFails],
         ['memory: addProvidedInfoTopics serializza scrittura sheet', testAddProvidedInfoTopicsUsesSheetWriteLock],
         ['memory: providedInfo append usa sheet lock globale', testUpdateProvidedInfoWithoutIncrementUsesSheetWriteLockForAppend],
+        ['memory: providedInfo reaction ritenta lock sharded', testUpdateProvidedInfoWithoutIncrementRetriesShardedLock],
         ['memory reaction: gestione dinamica topic vuoti', testInferUserReactionIsResilientToEmptyTopics],
         ['memory reaction: normalizzazione topic coerente', testInferUserReactionNormalizesTopicKeys],
         ['memory: merge providedInfo normalizza topic equivalenti', testMemoryMergeProvidedTopicsNormalizesTopicKeys],
@@ -2918,6 +3267,7 @@ function main() {
         ['rate limiter: finestre corrotte fanno fail-safe', testRateLimiterWindowReadsHandleCorruptProperties],
         ['_shouldIgnoreEmail: no-reply/reale/ooo', testShouldIgnoreEmail],
         ['_shouldIgnoreEmail: blacklist vuota non blocca tutto', testShouldIgnoreEmailSkipsBlankBlacklistEntries],
+        ['email processor: fallback fast-skip include label terminali', testHasUnreadMessagesFallbackIncludesTerminalLabels],
         ['ocr trigger: keyword non-stringa gestite in sicurezza', testShouldTryOcrHandlesNonStringKeywords],
         ['ocr trigger: configurazione non-array gestita in sicurezza', testShouldTryOcrHandlesNonArrayKeywords],
         ['business date: fallback rispetta timezone Roma', testGetBusinessDateStringFallbackUsesRomeTimezone],
@@ -2936,9 +3286,11 @@ function main() {
         ['markdownToHtml: query params senza double-escape', testMarkdownLinkQueryParamsNotDoubleEscaped],
         ['markdownToHtml: evita nesting p/ul invalido', testMarkdownListParagraphNesting],
         ['gmail labels: errori non-label vengono propagati', testAddLabelToThreadPropagatesNonLabelErrors],
+        ['gmail labels: remove message fallback thread-level', testRemoveLabelFromMessageFallsBackToThread],
         ['gmail list: empty response fallback', testListMessagesWithResilienceHandlesEmptyResponseError],
         ['gmail list: fallback robusto opzioni paginazione invalide', testGetMessageIdsWithLabelInvalidPaginationOptions],
         ['gmail extract: usa solo main reply senza storico', testExtractMessageDetailsUsesMainReplyOnly],
+        ['gmail attachments: scarta image unsupported prima di copyBlob', testGetProcessableAttachmentsSkipsUnsupportedImagesBeforeCopyBlob],
         ['gmail subject: sanifica CRLF header injection', testSanitizeSubjectForHeaderRemovesCRLF],
         ['gmail send: fold e bound della catena References', testSendHtmlReplyFoldsAndBoundsReferencesHeader],
         ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
@@ -2969,6 +3321,7 @@ function main() {
         ['classifier: backward quote scan', testClassifierBackwardQuoteScan],
         ['main: caricamento sostituzioni', testLoadResourcesReplacements],
         ['gmail office extract: Drive v3 forza mimeType target', testExtractOfficeTextDriveCreateForcesTargetMimeType],
+        ['gmail office extract: retry propagazione Drive', testExtractOfficeTextRetriesDrivePropagation],
         ['validator: numero civico non sdogana orario inventato', testResponseValidatorStreetNumberDoesNotWhitelistInventedTime],
         ['retry intelligente: errore ammesso non critico sopra soglia', testIntelligentRetryAllowedNonCriticalHighScore],
         ['italian vacation date parsing', testItalianVacationDateParsing],
@@ -2976,6 +3329,8 @@ function main() {
 
     let passed = 0;
     let failed = 0;
+
+    console.log(`Esecuzione di ${tests.length} test...\n`);
 
     for (const [name, fn] of tests) {
         try {

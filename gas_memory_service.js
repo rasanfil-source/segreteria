@@ -503,6 +503,7 @@ var MemoryService = class MemoryService {
     for (let i = 0; i < 3; i++) {
       let lockAcquired = false;
       let globalLockAcquired = false;
+      let sleepAfterRelease = false;
       const globalLock = LockService.getScriptLock();
 
       try {
@@ -555,6 +556,9 @@ var MemoryService = class MemoryService {
         if (lockAcquired) {
           this._releaseShardedLock(lockKey);
         }
+      }
+      if (sleepAfterRelease) {
+        this._sleepLockBackoff_(attempt);
       }
     }
   }
@@ -820,68 +824,85 @@ var MemoryService = class MemoryService {
     if (!this._initialized || !threadId) return;
 
     const lockKey = this._getShardedLockKey(threadId);
-    let lockAcquired = false;
-    let globalLockAcquired = false;
-    const globalLock = LockService.getScriptLock();
+    const maxRetries = Math.max(1, Math.min(3, this._getLockTuning_().maxRetries || 3));
 
-    try {
-      lockAcquired = this._tryAcquireShardedLock(lockKey, this._getLockTuning_().shardedAcquireTimeoutMs);
-      if (!lockAcquired) return;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      let lockAcquired = false;
+      let globalLockAcquired = false;
+      let sleepAfterRelease = false;
+      const globalLock = LockService.getScriptLock();
 
-      // Lock globale per scrittura (B4)
-      globalLock.waitLock(10000);
-      globalLockAcquired = true;
-
-      const existingRow = this._findRowByThreadId(threadId);
-      const existingData = existingRow
-        ? this._rowToObject(existingRow.values)
-        : {
-          threadId: threadId,
-          language: 'it',
-          category: null,
-          tone: 'standard',
-          providedInfo: [],
-          lastUpdated: this._validateAndNormalizeTimestamp(new Date().toISOString()),
-          messageCount: 1,
-          version: 1,
-          memorySummary: ''
-        };
-      const existingTopics = this._normalizeProvidedTopics(Array.isArray(existingData.providedInfo) ? existingData.providedInfo : []);
-      const normalizedTopics = this._normalizeProvidedTopics(providedInfo);
-      const maxTopics = typeof CONFIG !== 'undefined' ? (CONFIG.MAX_PROVIDED_TOPICS || 50) : 50;
-
-      let mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
-      if (mergedTopics.length > maxTopics) {
-        mergedTopics = mergedTopics.slice(-maxTopics);
-      }
-
-      existingData.providedInfo = mergedTopics;
-      existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
-      existingData.version = (existingData.version || 0) + 1;
-
-      // Cap preventivo lunghezza JSON (B5)
-      const serialized = JSON.stringify(existingData.providedInfo);
-      if (serialized.length > 40000) {
-        console.warn(`🧠 Memoria: providedInfo in reazione troppo grande (${serialized.length} chars), riduco`);
-        existingData.providedInfo = existingData.providedInfo.slice(-25);
-      }
-
-      this._withSheetWriteLock(() => {
-        if (existingRow) {
-          this._updateRow(existingRow.rowIndex, existingData);
-        } else {
-          this._appendRow(existingData);
+      try {
+        lockAcquired = this._tryAcquireShardedLock(lockKey, this._getLockTuning_().shardedAcquireTimeoutMs);
+        if (!lockAcquired) {
+          if (attempt === maxRetries - 1) {
+            console.warn(`⚠️ Lock reazione non acquisito dopo ${maxRetries} tentativi per thread ${threadId}`);
+            return;
+          }
+          this._sleepLockBackoff_(attempt);
+          continue;
         }
-      }, true);
-      this._invalidateCache(`memory_${threadId}`);
-    } catch (error) {
-      console.warn(`⚠️ Aggiornamento reazione fallito: ${error.message}`);
-    } finally {
-      if (globalLockAcquired) {
-        try { globalLock.releaseLock(); } catch (e) {}
+
+        // Lock globale per scrittura (B4)
+        globalLock.waitLock(10000);
+        globalLockAcquired = true;
+
+        const existingRow = this._findRowByThreadId(threadId);
+        const existingData = existingRow
+          ? this._rowToObject(existingRow.values)
+          : {
+            threadId: threadId,
+            language: 'it',
+            category: null,
+            tone: 'standard',
+            providedInfo: [],
+            lastUpdated: this._validateAndNormalizeTimestamp(new Date().toISOString()),
+            messageCount: 1,
+            version: 1,
+            memorySummary: ''
+          };
+        const existingTopics = this._normalizeProvidedTopics(Array.isArray(existingData.providedInfo) ? existingData.providedInfo : []);
+        const normalizedTopics = this._normalizeProvidedTopics(providedInfo);
+        const maxTopics = typeof CONFIG !== 'undefined' ? (CONFIG.MAX_PROVIDED_TOPICS || 50) : 50;
+
+        let mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
+        if (mergedTopics.length > maxTopics) {
+          mergedTopics = mergedTopics.slice(-maxTopics);
+        }
+
+        existingData.providedInfo = mergedTopics;
+        existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
+        existingData.version = (existingData.version || 0) + 1;
+
+        // Cap preventivo lunghezza JSON (B5)
+        const serialized = JSON.stringify(existingData.providedInfo);
+        if (serialized.length > 40000) {
+          console.warn(`🧠 Memoria: providedInfo in reazione troppo grande (${serialized.length} chars), riduco`);
+          existingData.providedInfo = existingData.providedInfo.slice(-25);
+        }
+
+        this._withSheetWriteLock(() => {
+          if (existingRow) {
+            this._updateRow(existingRow.rowIndex, existingData);
+          } else {
+            this._appendRow(existingData);
+          }
+        }, true);
+        this._invalidateCache(`memory_${threadId}`);
+        return;
+      } catch (error) {
+        console.warn(`⚠️ Aggiornamento reazione fallito (tentativo ${attempt + 1}/${maxRetries}): ${error.message}`);
+        sleepAfterRelease = attempt < maxRetries - 1;
+      } finally {
+        if (globalLockAcquired) {
+          try { globalLock.releaseLock(); } catch (e) {}
+        }
+        if (lockAcquired) {
+          this._releaseShardedLock(lockKey);
+        }
       }
-      if (lockAcquired) {
-        this._releaseShardedLock(lockKey);
+      if (sleepAfterRelease) {
+        this._sleepLockBackoff_(attempt);
       }
     }
   }

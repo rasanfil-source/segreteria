@@ -2675,8 +2675,21 @@ ${addressLines.join('\n\n')}
         if (!this.gmailService || typeof this.gmailService.getMessageIdsWithLabel !== 'function') {
           return new Set();
         }
-        const fetchedIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName, true, { onlyUnread: true });
-        return (fetchedIds instanceof Set) ? fetchedIds : new Set(fetchedIds || []);
+        const terminalLabelNames = [
+          this.config.labelName,
+          this.config.errorLabelName,
+          this.config.validationErrorLabel
+        ].filter(Boolean);
+        const fetchedIds = new Set();
+        terminalLabelNames.forEach(labelName => {
+          const ids = this.gmailService.getMessageIdsWithLabel(labelName, true, { onlyUnread: true });
+          if (ids instanceof Set) {
+            ids.forEach(id => fetchedIds.add(id));
+          } else {
+            (ids || []).forEach(id => fetchedIds.add(id));
+          }
+        });
+        return fetchedIds;
       };
       const effectiveLabeledIds = (labeledMessageIds instanceof Set)
         ? labeledMessageIds

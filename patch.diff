@@ -1,0 +1,764 @@
+diff --git a/gas_email_processor.js b/gas_email_processor.js
+index 1898a346e2ed9c4f0a01fee289ffb02c5b5ca488..b42c2a4a7102d4f688dd64a02e158b35e5e0c3a0 100644
+--- a/gas_email_processor.js
++++ b/gas_email_processor.js
+@@ -2653,52 +2653,65 @@ ${addressLines.join('\n\n')}
+ 
+   _getRemainingTimeMs(maxExecutionTimeMs) {
+     const budgetMs = Number(maxExecutionTimeMs) || 330000;
+     const start = Number(this._startTime) || Date.now();
+     const elapsed = Date.now() - start;
+     return Math.max(0, budgetMs - elapsed);
+   }
+ 
+ 
+   // Supporto per skippedMessageIds.
+   // per evitare ri-discovery inutile di thread già valutati in modalità foreign_only.
+   _hasUnreadMessagesToProcess(thread, labeledMessageIds, skippedMessageIds) {
+     try {
+       const messages = thread.getMessages() || [];
+       const unreadMessages = messages.filter(m => m.isUnread());
+ 
+       // Nessun non letto: non c'è lavoro da fare.
+       if (unreadMessages.length === 0) {
+         return false;
+       }
+ 
+       const fetchLabeledIds = () => {
+         if (!this.gmailService || typeof this.gmailService.getMessageIdsWithLabel !== 'function') {
+           return new Set();
+         }
+-        const fetchedIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName, true, { onlyUnread: true });
+-        return (fetchedIds instanceof Set) ? fetchedIds : new Set(fetchedIds || []);
++        const terminalLabelNames = [
++          this.config.labelName,
++          this.config.errorLabelName,
++          this.config.validationErrorLabel
++        ].filter(Boolean);
++        const fetchedIds = new Set();
++        terminalLabelNames.forEach(labelName => {
++          const ids = this.gmailService.getMessageIdsWithLabel(labelName, true, { onlyUnread: true });
++          if (ids instanceof Set) {
++            ids.forEach(id => fetchedIds.add(id));
++          } else {
++            (ids || []).forEach(id => fetchedIds.add(id));
++          }
++        });
++        return fetchedIds;
+       };
+       const effectiveLabeledIds = (labeledMessageIds instanceof Set)
+         ? labeledMessageIds
+         : fetchLabeledIds();
+ 
+       const mode = this._getLanguageProcessingMode_();
+       const effectiveSkippedIds = (mode === 'foreign_only' && skippedMessageIds instanceof Set)
+         ? skippedMessageIds
+         : new Set();
+ 
+       return unreadMessages.some(message => {
+         const messageId = message.getId();
+         if (effectiveLabeledIds.has(messageId)) return false;
+         if (effectiveSkippedIds.has(messageId)) return false;
+         return true;
+       });
+     } catch (e) {
+       // Fallback sicuro: in caso di errore non bloccare il thread, lasciamo decidere a processThread.
+       this.logger.warn(`⚠️ Fast-skip check fallito: ${e.message}`);
+       return true;
+     }
+   }
+ 
+   _normalizeTextContent(value) {
+     if (typeof value === 'string') {
+diff --git a/gas_gmail_service.js b/gas_gmail_service.js
+index a1dc2c5fab4f21a81eb6495355dab771aefbb259..753361541c8e8b3cfc147f3e3c7d0900a23e39a3 100644
+--- a/gas_gmail_service.js
++++ b/gas_gmail_service.js
+@@ -285,60 +285,82 @@ var GmailService = class GmailService {
+                         console.warn(`⚠️ Fallback thread-level fallito dopo label ID stale per msg ${messageId}: ${fallbackError.message}`);
+                     }
+                     throw retryError;
+                 }
+                 return;
+             }
+             // Fallback operativo: se non possiamo etichettare il singolo messaggio via API avanzata,
+             // etichettiamo il thread per evitare loop di retry su transienti/permessi.
+             try {
+                 const nativeMessage = GmailApp.getMessageById(messageId);
+                 const thread = nativeMessage ? nativeMessage.getThread() : null;
+                 if (thread) {
+                     this.addLabelToThread(thread, labelName);
+                     console.warn(`⚠️ Fallback thread-level applicato per msg ${messageId} con label '${labelName}'`);
+                     return;
+                 }
+             } catch (fallbackError) {
+                 console.warn(`⚠️ Fallback thread-level fallito per msg ${messageId}: ${fallbackError.message}`);
+             }
+             throw e;
+         }
+     }
+ 
+     removeLabelFromMessage(messageId, labelName) {
+         if (!labelName) return;
++        const removeLabelFromNativeThread = () => {
++            const nativeMessage = GmailApp.getMessageById(messageId);
++            const thread = nativeMessage ? nativeMessage.getThread() : null;
++            const nativeLabel = GmailApp.getUserLabelByName(labelName);
++            if (thread && nativeLabel) {
++                thread.removeLabel(nativeLabel);
++                console.warn(`⚠️ Fallback thread-level: rimossa label '${labelName}' per msg ${messageId}`);
++                return true;
++            }
++            return false;
++        };
++
+         try {
+             const labelId = this._getOptionalLabelIdByName(labelName);
+-            if (!labelId) return;
++            if (!labelId) {
++                try { removeLabelFromNativeThread(); } catch (fallbackError) {
++                    console.warn(`⚠️ Fallback thread-level removeLabel fallito per msg ${messageId}: ${fallbackError.message}`);
++                }
++                return;
++            }
+ 
+             this._incrementGmailCallCounterOrThrow_('messages.modify:removeLabel');
+             const payload = { removeLabelIds: [labelId] };
+             Gmail.Users.Messages.modify(payload, 'me', messageId);
+             console.log(`✓ Rimossa label '${labelName}' dal messaggio ${messageId}`);
+         } catch (e) {
+             console.warn(`⚠️ removeLabelFromMessage fallito per msg ${messageId}: ${e.message}`);
++            try {
++                removeLabelFromNativeThread();
++            } catch (fallbackError) {
++                console.warn(`⚠️ Fallback thread-level removeLabel fallito per msg ${messageId}: ${fallbackError.message}`);
++            }
+         }
+     }
+ 
+     _isLabelNotFoundError(error) {
+         const message = (error && error.message) ? error.message.toLowerCase() : '';
+         return (message.includes('label') && message.includes('not found')) ||
+             message.includes('etichetta non trovata') ||
+             message.includes('invalid label') ||
+             (message.includes('label') && /\b404\b/.test(message));
+     }
+ 
+ 
+ 
+     _getMessageMetadataWithResilience(messageId, params, maxAttempts = 2) {
+         const safeAttempts = this._safePositiveInt(maxAttempts, 2, 1, 5);
+         let lastError = null;
+ 
+         for (let attempt = 1; attempt <= safeAttempts; attempt++) {
+             try {
+                 this._incrementGmailCallCounterOrThrow_('messages.get');
+                 const response = Gmail.Users.Messages.get('me', messageId, params);
+                 if (response === null || typeof response === 'undefined') {
+                     throw new Error('Empty response');
+                 }
+                 return response;
+@@ -1263,99 +1285,111 @@ var GmailService = class GmailService {
+         try {
+             attachments = message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
+         } catch (e) {
+             console.warn(`⚠️ Impossibile leggere allegati: ${e.message}`);
+             result.skipped.push({ reason: 'read_error', error: e.message });
+             return result;
+         }
+ 
+         for (const attachment of attachments) {
+             const name = attachment.getName ? (attachment.getName() || 'allegato') : 'allegato';
+ 
+             if (processedCount >= maxFiles) {
+                 result.skipped.push({ name: name, reason: 'max_files' });
+                 continue;
+             }
+ 
+             const size = attachment.getSize ? attachment.getSize() : 0;
+             if (size > settings.maxBytesPerFile) {
+                 result.skipped.push({ name: name, reason: 'too_large', size: size });
+                 continue;
+             }
+ 
+             const rawMimeType = (attachment.getContentType() || '').toLowerCase();
+             const mimeType = rawMimeType.split(';')[0].trim();
+ 
+-            // Evita richieste multimodali su micro-immagini decorative (icone firma, tracking pixel, ecc.)
+-            if (mimeType.startsWith('image/') && size > 0 && size < 5120) {
++            const supportedVisualImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
++            const isSupportedVisualImage = supportedVisualImageTypes.includes(mimeType);
++
++            // Evita richieste multimodali su micro-immagini decorative, immagini vettoriali/unsupported
++            // (es. SVG/TIFF) e formati che possono stressare copyBlob/OCR in RAM.
++            if (mimeType.startsWith('image/') && !isSupportedVisualImage) {
++                result.skipped.push({ name: name, reason: 'unsupported_image_ignored', mimeType: mimeType, size: size });
++                continue;
++            }
++            if (isSupportedVisualImage && size > 0 && size < 5120) {
+                 result.skipped.push({ name: name, reason: 'micro_image_ignored', size: size });
+                 continue;
+             }
+ 
+             if (mimeType.includes('text/plain') || mimeType.includes('text/csv')) {
+                 try {
+                     const rawText = attachment.getDataAsString() || '';
+                     let text = rawText;
+                     if (maxCharsPerFile > 0 && text.length > maxCharsPerFile) {
+                         text = text.substring(0, maxCharsPerFile);
+                         result.skipped.push({ name: name, reason: 'text_truncated', kept: text.length, originalSize: rawText.length });
+                     }
+                     const documentType = this._detectDocumentType(name, text);
+                     const attachmentRole = this._classifyAttachmentRole(documentType, name, text);
+                     result.items.push({
+                         name: name,
+                         attachmentRole: attachmentRole.attachmentRole,
+                         documentIntent: attachmentRole.documentIntent,
+                         intentContribution: attachmentRole.intentContribution
+                     });
+                     const roleLine = `Ruolo allegato: ${attachmentRole.attachmentRole}; intentContribution=${attachmentRole.intentContribution}; documentIntent=${attachmentRole.documentIntent}`;
+                     const segment = `\n\n--- Contenuto file: ${name} ---\n${roleLine}\n${text}`;
+                     if (maxTotalChars > 0) {
+                         const remaining = maxTotalChars - totalTextChars;
+                         if (remaining <= 0) {
+                             result.skipped.push({ name: name, reason: 'max_total_chars' });
+                             continue;
+                         }
+                         const bounded = segment.length > remaining ? segment.substring(0, remaining) : segment;
+                         if (bounded.length < segment.length) {
+                             result.skipped.push({ name: name, reason: 'max_total_chars', kept: bounded.length });
+                         }
+                         result.textContext += bounded;
+                         totalTextChars += bounded.length;
+                     } else {
+                         result.textContext += segment;
+                         totalTextChars += segment.length;
+                     }
+                     processedCount++;
+                 } catch (e) {
+                     result.skipped.push({ name: name, reason: 'text_extract_error', error: e.message });
+                 }
+                 continue;
+             }
+ 
+             if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
+                 try {
++                    if (size > settings.maxBytesPerFile) {
++                        result.skipped.push({ name: name, reason: 'too_large_for_blob', size: size });
++                        continue;
++                    }
+                     const documentType = this._detectDocumentType(name, '');
+                     const attachmentRole = this._classifyAttachmentRole(documentType, name, '');
+                     result.items.push({
+                         name: name,
+                         attachmentRole: attachmentRole.attachmentRole,
+                         documentIntent: attachmentRole.documentIntent,
+                         intentContribution: attachmentRole.intentContribution
+                     });
+                     const roleLine = `Ruolo allegato: ${attachmentRole.attachmentRole}; intentContribution=${attachmentRole.intentContribution}; documentIntent=${attachmentRole.documentIntent}`;
+                     result.textContext += `\n\n--- File visivo inviato: ${name} ---\n${roleLine}`;
+                     result.blobs.push(attachment.copyBlob());
+                     processedCount++;
+                     continue;
+                 } catch (e) {
+                     result.skipped.push({ name: name, reason: 'copy_blob_error', error: e.message });
+                     continue;
+                 }
+             }
+ 
+             const googleMime = this._officeMimeMap[mimeType] || null;
+             const isWord = googleMime === 'application/vnd.google-apps.document';
+             const isExcel = googleMime === 'application/vnd.google-apps.spreadsheet';
+             const isPowerPoint = googleMime === 'application/vnd.google-apps.presentation';
+ 
+             if (!googleMime && !isWord && !isExcel && !isPowerPoint) {
+@@ -1748,86 +1782,100 @@ var GmailService = class GmailService {
+                 }
+                 fileId = file.id;
+             } else if (typeof Drive.Files.create === 'function') {
+                 const resource = {
+                     name: `OCR_${fileName}`,
+                     mimeType: googleMimeType
+                 };
+                 const file = Drive.Files.create(resource, blob, {
+                     fields: 'id,mimeType'
+                 });
+                 if (!file || !file.id) {
+                     throw new Error('Drive API ha restituito un file convertito non valido (id assente)');
+                 }
+                 if (file.mimeType && file.mimeType !== googleMimeType) {
+                     throw new Error(`Conversione Office non applicata (mimeType=${file.mimeType})`);
+                 }
+                 fileId = file.id;
+             } else {
+                 throw new Error('Drive.Files non espone metodi compatibili (insert/create)');
+             }
+             if (exceededBudget()) {
+                 console.warn('⚠️ Timeout estrazione Office: budget superato dopo conversione Drive');
+                 return '';
+             }
+ 
++            let openedDoc = null;
++            for (let attempt = 0; attempt < 3; attempt++) {
++                try {
++                    if (googleMimeType === 'application/vnd.google-apps.document') {
++                        openedDoc = DocumentApp.openById(fileId);
++                    } else if (googleMimeType === 'application/vnd.google-apps.spreadsheet') {
++                        openedDoc = SpreadsheetApp.openById(fileId);
++                    } else if (googleMimeType === 'application/vnd.google-apps.presentation') {
++                        openedDoc = SlidesApp.openById(fileId);
++                    }
++                    if (openedDoc) break;
++                } catch (openError) {
++                    if (attempt === 2 || exceededBudget()) throw openError;
++                    Utilities.sleep(1000 * (attempt + 1));
++                }
++            }
++
+             // Estrazione testo in base al tipo Google Workspace
+             if (googleMimeType === 'application/vnd.google-apps.document') {
+                 // Word → Google Docs
+-                const doc = DocumentApp.openById(fileId);
+-                return doc.getBody().getText();
++                return openedDoc.getBody().getText();
+             }
+ 
+             if (googleMimeType === 'application/vnd.google-apps.spreadsheet') {
+                 // Excel → Google Sheets: concatena il testo di tutte le celle non vuote
+-                const ss = SpreadsheetApp.openById(fileId);
+-                const sheets = ss.getSheets();
++                const sheets = openedDoc.getSheets();
+                 const parts = [];
+                 const maxSheets = Math.min(sheets.length, 3); // Limita a 3 fogli
+                 for (let s = 0; s < maxSheets; s++) {
+                     if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) break;
+                     if (exceededBudget()) break;
+                     const sheet = sheets[s];
+                     const lastRow = Math.min(sheet.getLastRow(), 100); // Limita a 100 righe
+                     const lastCol = Math.min(sheet.getLastColumn(), 20); // Limita a 20 colonne
+                     if (lastRow === 0 || lastCol === 0) continue;
+                     if (maxSheets > 1) {
+                         parts.push(`[Foglio: ${sheet.getName()}]`);
+                     }
+                     const data = sheet.getRange(1, 1, lastRow, lastCol).getDisplayValues();
+                     for (const row of data) {
+                         const line = row.filter(Boolean).join(' | ');
+                         if (line.trim()) parts.push(line);
+                     }
+                 }
+                 return parts.join('\n');
+             }
+ 
+             if (googleMimeType === 'application/vnd.google-apps.presentation') {
+                 // PowerPoint → Google Slides: estrae testo da ogni diapositiva
+-                const presentation = SlidesApp.openById(fileId);
+-                const slides = presentation.getSlides();
++                const slides = openedDoc.getSlides();
+                 const parts = [];
+                 const maxSlides = Math.min(slides.length, 10); // Limita a 10 diapositive
+                 for (let i = 0; i < maxSlides; i++) {
+                     if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) break;
+                     if (exceededBudget()) break;
+                     const slide = slides[i];
+                     const shapes = slide.getShapes();
+                     const slideTexts = [];
+                     for (const shape of shapes) {
+                         if (exceededBudget()) break;
+                         try {
+                             const shapeType = (typeof shape.getShapeType === 'function') ? shape.getShapeType() : null;
+                             if (shapeType !== SlidesApp.ShapeType.TEXT_BOX && shapeType !== SlidesApp.ShapeType.SHAPE) {
+                                 continue;
+                             }
+                             const tf = shape.getText();
+                             if (tf) {
+                                 const text = tf.asString().trim();
+                                 if (text) slideTexts.push(text);
+                             }
+                         } catch (_) {
+                             // Ignora shape non testuali o non leggibili
+                         }
+                     }
+                     if (slideTexts.length > 0) {
+diff --git a/gas_memory_service.js b/gas_memory_service.js
+index 7ce180c40b8a5372d7c729c2fa0a09cc24bb36a9..ad1e7d309b81711b70584d9db165a4529b7c6e00 100644
+--- a/gas_memory_service.js
++++ b/gas_memory_service.js
+@@ -481,50 +481,51 @@ var MemoryService = class MemoryService {
+           if (lockAcquired) {
+             this._releaseShardedLock(lockKey);
+           }
+         }
+     }
+     // Protezione best-effort: non distruggere il batch fallendo.
+     // Invece di throw, logghiamo l'errore e ritorniamo false per permettere all'email_processor di finire il job (labeling).
+     console.error(`❌ CRITICO: Lock Memory Service irrisolvibile per thread ${threadId} (Loop Timeout dopo 3 retry). Fallback best-effort a batch bypass.`);
+     return false;
+   }
+ 
+   /**
+    * Aggiunge topic alla lista info fornite
+    * NON incrementa messageCount
+    */
+   addProvidedInfoTopics(threadId, topics) {
+     if (!this._initialized || !threadId || !topics || topics.length === 0) {
+       return;
+     }
+ 
+     const lockKey = this._getShardedLockKey(threadId);
+ 
+     for (let i = 0; i < 3; i++) {
+       let lockAcquired = false;
+       let globalLockAcquired = false;
++      let sleepAfterRelease = false;
+       const globalLock = LockService.getScriptLock();
+ 
+       try {
+         lockAcquired = this._tryAcquireShardedLock(lockKey, this._getLockTuning_().shardedAcquireTimeoutMs);
+         if (!lockAcquired) {
+           if (i < 2) {
+             this._sleepLockBackoff_(i);
+             continue;
+           }
+           console.warn(`⚠️ Lock non acquisito dopo 3 tentativi in addProvidedInfoTopics per thread ${threadId}`);
+           return;
+         }
+ 
+         // Lock globale (B4)
+         globalLock.waitLock(10000);
+         globalLockAcquired = true;
+ 
+         const existingRow = this._findRowByThreadId(threadId);
+         if (existingRow) {
+           const existingData = this._rowToObject(existingRow.values);
+           const existingTopics = this._normalizeProvidedTopics(existingData.providedInfo || []);
+           const normalizedTopics = this._normalizeProvidedTopics(topics);
+           let mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
+ 
+           const maxTopics = (typeof CONFIG !== 'undefined' && CONFIG.MAX_PROVIDED_TOPICS) || 50;
+@@ -534,50 +535,53 @@ var MemoryService = class MemoryService {
+           }
+ 
+           const currentVersion = existingData.version || 0;
+           existingData.providedInfo = mergedTopics;
+           existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
+           existingData.version = currentVersion + 1;
+ 
+           this._withSheetWriteLock(() => {
+             this._updateRow(existingRow.rowIndex, existingData);
+           }, true);
+           this._invalidateCache(`memory_${threadId}`);
+           console.log(`🧠 Memoria: Topic aggiunti atomicamente ${JSON.stringify(topics)}`);
+         }
+         return;
+       } catch (e) {
+         console.warn(`⚠️ addProvidedInfoTopics fallito (tentativo ${i + 1}): ${e.message}`);
+         this._sleepLockBackoff_(i);
+       } finally {
+         if (globalLockAcquired) {
+           try { globalLock.releaseLock(); } catch (e) {}
+         }
+         if (lockAcquired) {
+           this._releaseShardedLock(lockKey);
+         }
+       }
++      if (sleepAfterRelease) {
++        this._sleepLockBackoff_(attempt);
++      }
+     }
+   }
+ 
+   /**
+    * Imposta lingua per un thread
+    */
+   setLanguage(threadId, language) {
+     try {
+       this.updateMemory(threadId, { language: language }, { incrementMessageCount: false });
+     } catch (e) {
+       console.error(`❌ setLanguage fallito per thread ${threadId}: ${e.message}`);
+       return false;
+     }
+     return true;
+   }
+ 
+   /**
+    * Imposta categoria per un thread
+    */
+   setCategory(threadId, category) {
+     try {
+       this.updateMemory(threadId, { category: category }, { incrementMessageCount: false });
+     } catch (e) {
+       console.error(`❌ setCategory fallito per thread ${threadId}: ${e.message}`);
+       return false;
+@@ -798,112 +802,129 @@ var MemoryService = class MemoryService {
+         // Manteniamo la reazione utente pregressa se il nuovo topic arriva senza segnale esplicito.
+         // Questo evita di perdere metadati storici durante deduplica per chiave "topic".
+         const incomingReaction = item.userReaction || item.reaction;
+         const shouldPreserveReaction = !incomingReaction || incomingReaction === 'unknown';
+ 
+         mergedMap.set(key, {
+           ...previous,
+           ...item,
+           userReaction: shouldPreserveReaction
+             ? (previous.userReaction || incomingReaction || 'unknown')
+             : incomingReaction
+         });
+       }
+     });
+ 
+     return Array.from(mergedMap.values());
+   }
+ 
+   /**
+    * Aggiorna providedInfo senza incrementare messageCount.
+    */
+   _updateProvidedInfoWithoutIncrement(threadId, providedInfo) {
+     if (!this._initialized || !threadId) return;
+ 
+     const lockKey = this._getShardedLockKey(threadId);
+-    let lockAcquired = false;
+-    let globalLockAcquired = false;
+-    const globalLock = LockService.getScriptLock();
++    const maxRetries = Math.max(1, Math.min(3, this._getLockTuning_().maxRetries || 3));
+ 
+-    try {
+-      lockAcquired = this._tryAcquireShardedLock(lockKey, this._getLockTuning_().shardedAcquireTimeoutMs);
+-      if (!lockAcquired) return;
+-
+-      // Lock globale per scrittura (B4)
+-      globalLock.waitLock(10000);
+-      globalLockAcquired = true;
+-
+-      const existingRow = this._findRowByThreadId(threadId);
+-      const existingData = existingRow
+-        ? this._rowToObject(existingRow.values)
+-        : {
+-          threadId: threadId,
+-          language: 'it',
+-          category: null,
+-          tone: 'standard',
+-          providedInfo: [],
+-          lastUpdated: this._validateAndNormalizeTimestamp(new Date().toISOString()),
+-          messageCount: 1,
+-          version: 1,
+-          memorySummary: ''
+-        };
+-      const existingTopics = this._normalizeProvidedTopics(Array.isArray(existingData.providedInfo) ? existingData.providedInfo : []);
+-      const normalizedTopics = this._normalizeProvidedTopics(providedInfo);
+-      const maxTopics = typeof CONFIG !== 'undefined' ? (CONFIG.MAX_PROVIDED_TOPICS || 50) : 50;
++    for (let attempt = 0; attempt < maxRetries; attempt++) {
++      let lockAcquired = false;
++      let globalLockAcquired = false;
++      let sleepAfterRelease = false;
++      const globalLock = LockService.getScriptLock();
+ 
+-      let mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
+-      if (mergedTopics.length > maxTopics) {
+-        mergedTopics = mergedTopics.slice(-maxTopics);
+-      }
++      try {
++        lockAcquired = this._tryAcquireShardedLock(lockKey, this._getLockTuning_().shardedAcquireTimeoutMs);
++        if (!lockAcquired) {
++          if (attempt === maxRetries - 1) {
++            console.warn(`⚠️ Lock reazione non acquisito dopo ${maxRetries} tentativi per thread ${threadId}`);
++            return;
++          }
++          this._sleepLockBackoff_(attempt);
++          continue;
++        }
+ 
+-      existingData.providedInfo = mergedTopics;
+-      existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
+-      existingData.version = (existingData.version || 0) + 1;
++        // Lock globale per scrittura (B4)
++        globalLock.waitLock(10000);
++        globalLockAcquired = true;
+ 
+-      // Cap preventivo lunghezza JSON (B5)
+-      const serialized = JSON.stringify(existingData.providedInfo);
+-      if (serialized.length > 40000) {
+-        console.warn(`🧠 Memoria: providedInfo in reazione troppo grande (${serialized.length} chars), riduco`);
+-        existingData.providedInfo = existingData.providedInfo.slice(-25);
+-      }
++        const existingRow = this._findRowByThreadId(threadId);
++        const existingData = existingRow
++          ? this._rowToObject(existingRow.values)
++          : {
++            threadId: threadId,
++            language: 'it',
++            category: null,
++            tone: 'standard',
++            providedInfo: [],
++            lastUpdated: this._validateAndNormalizeTimestamp(new Date().toISOString()),
++            messageCount: 1,
++            version: 1,
++            memorySummary: ''
++          };
++        const existingTopics = this._normalizeProvidedTopics(Array.isArray(existingData.providedInfo) ? existingData.providedInfo : []);
++        const normalizedTopics = this._normalizeProvidedTopics(providedInfo);
++        const maxTopics = typeof CONFIG !== 'undefined' ? (CONFIG.MAX_PROVIDED_TOPICS || 50) : 50;
+ 
+-      this._withSheetWriteLock(() => {
+-        if (existingRow) {
+-          this._updateRow(existingRow.rowIndex, existingData);
+-        } else {
+-          this._appendRow(existingData);
++        let mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
++        if (mergedTopics.length > maxTopics) {
++          mergedTopics = mergedTopics.slice(-maxTopics);
++        }
++
++        existingData.providedInfo = mergedTopics;
++        existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
++        existingData.version = (existingData.version || 0) + 1;
++
++        // Cap preventivo lunghezza JSON (B5)
++        const serialized = JSON.stringify(existingData.providedInfo);
++        if (serialized.length > 40000) {
++          console.warn(`🧠 Memoria: providedInfo in reazione troppo grande (${serialized.length} chars), riduco`);
++          existingData.providedInfo = existingData.providedInfo.slice(-25);
++        }
++
++        this._withSheetWriteLock(() => {
++          if (existingRow) {
++            this._updateRow(existingRow.rowIndex, existingData);
++          } else {
++            this._appendRow(existingData);
++          }
++        }, true);
++        this._invalidateCache(`memory_${threadId}`);
++        return;
++      } catch (error) {
++        console.warn(`⚠️ Aggiornamento reazione fallito (tentativo ${attempt + 1}/${maxRetries}): ${error.message}`);
++        sleepAfterRelease = attempt < maxRetries - 1;
++      } finally {
++        if (globalLockAcquired) {
++          try { globalLock.releaseLock(); } catch (e) {}
++        }
++        if (lockAcquired) {
++          this._releaseShardedLock(lockKey);
+         }
+-      }, true);
+-      this._invalidateCache(`memory_${threadId}`);
+-    } catch (error) {
+-      console.warn(`⚠️ Aggiornamento reazione fallito: ${error.message}`);
+-    } finally {
+-      if (globalLockAcquired) {
+-        try { globalLock.releaseLock(); } catch (e) {}
+       }
+-      if (lockAcquired) {
+-        this._releaseShardedLock(lockKey);
++      if (sleepAfterRelease) {
++        this._sleepLockBackoff_(attempt);
+       }
+     }
+   }
+ 
+   // ========================================================================
+   // METODI HELPER PRIVATI
+   // ========================================================================
+ 
+   /**
+    * Genera chiave lock sharded basata su hash threadId
+    */
+   _getShardedLockKey(threadId) {
+     const bucketCount = this._getLockTuning_().shardBuckets;
+     if (bucketCount <= 1) return `mem_lock_${threadId}`;
+     const bucket = this._stableHash_(threadId) % bucketCount;
+     return `mem_lock_b${bucket}_${threadId}`;
+   }
+ 
+   /**
+    * Tenta acquisizione lock sharded (single-key su CacheService, senza lock globale).
+    */
+   _tryAcquireShardedLock(key, timeoutMs = 500) {
+     const cache = CacheService.getScriptCache();
+     const configuredLockTtlSeconds = (typeof CONFIG !== 'undefined' && Number(CONFIG.MEMORY_LOCK_TTL) > 0)
+       ? Number(CONFIG.MEMORY_LOCK_TTL)
+diff --git a/gas_unit_tests.js b/gas_unit_tests.js
+index 338c85a5debc8f8f8fef5fd9e2197dfc40ba7160..6c7e28ba48bdfe6fee4dc379ad3028859f46cfb9 100644
+--- a/gas_unit_tests.js
++++ b/gas_unit_tests.js
+@@ -1052,50 +1052,83 @@ function runAllTests() {
+                             get: (userId, messageId) => ({
+                                 id: messageId,
+                                 labelIds: ['INBOX', 'UNREAD']
+                             })
+                         }
+                     }
+                 };
+ 
+                 const service = new GmailService();
+                 const result = service._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 1, 5);
+                 return Array.isArray(result.threads)
+                     && result.threads.length === 1
+                     && result.threads[0].id === 't-good-meta'
+                     && fetchedThreadIds.join(',') === 't-missing-meta,t-good-meta';
+             });
+         } finally {
+             global.Gmail = originalGmail;
+             global.GmailApp = originalGmailApp;
+             global.CacheService = originalCacheService;
+             global.Session = originalSession;
+             global.Utilities = originalUtilities;
+             global.CONFIG = originalConfig;
+         }
+     });
+ 
++    testGroup('GmailService - Fallback label resiliente', results, () => {
++        test('removeLabelFromMessage usa fallback a livello thread se API Avanzata fallisce', results, () => {
++            const originalGmail = global.Gmail;
++            const originalGmailApp = global.GmailApp;
++            let threadFallbackCalled = false;
++
++            try {
++                global.Gmail = {
++                    Users: {
++                        Messages: {
++                            modify: () => { throw new Error('API Error indotto'); }
++                        }
++                    }
++                };
++                global.GmailApp = Object.assign({}, originalGmailApp, {
++                    getMessageById: () => ({
++                        getThread: () => ({ removeLabel: () => { threadFallbackCalled = true; } })
++                    }),
++                    getUserLabelByName: () => ({ name: 'LabelTest' })
++                });
++
++                const service = new GmailService();
++                service._getOptionalLabelIdByName = () => 'label_id_123';
++                service._incrementGmailCallCounterOrThrow_ = () => { };
++                service.removeLabelFromMessage('msg-123', 'LabelTest');
++                return threadFallbackCalled === true;
++            } finally {
++                global.Gmail = originalGmail;
++                global.GmailApp = originalGmailApp;
++            }
++        });
++    });
++
+     // 8. GmailService OCR document parsing
+     testGroup('GmailService - OCR document hints', results, () => {
+         const service = new GmailService();
+         test('Riconosce certificato di battesimo', results, () => {
+             const t = service._detectDocumentType('certificato_battesimo.pdf', 'certificato di battesimo');
+             return t === 'Certificato di battesimo';
+         });
+         test('Maschera codice fiscale estratto', results, () => {
+             const fields = service._extractDocumentFields('Codice fiscale: RSSMRA80A01H501U', true);
+             return fields.length > 0 && fields[0].includes('*') && !fields[0].includes('RSSMRA80A01H501U');
+         });
+         test('Riconosce file Word come Documento Word', results, () => {
+             const t = service._detectDocumentType('relazione.docx', 'testo generico');
+             return t === 'Documento Word';
+         });
+         test('Riconosce file Excel come Foglio Excel', results, () => {
+             const t = service._detectDocumentType('bilancio.xlsx', 'dati vari');
+             return t === 'Foglio Excel';
+         });
+         test('Riconosce file PowerPoint come Presentazione PowerPoint', results, () => {
+             const t = service._detectDocumentType('presentazione.pptx', 'slide varie');
+             return t === 'Presentazione PowerPoint';
+         });
+         test('Mappa MIME Office contiene tutti i formati', results, () => {
+             const map = service._officeMimeMap;

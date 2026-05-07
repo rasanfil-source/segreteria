@@ -307,9 +307,26 @@ var GmailService = class GmailService {
 
     removeLabelFromMessage(messageId, labelName) {
         if (!labelName) return;
+        const removeLabelFromNativeThread = () => {
+            const nativeMessage = GmailApp.getMessageById(messageId);
+            const thread = nativeMessage ? nativeMessage.getThread() : null;
+            const nativeLabel = GmailApp.getUserLabelByName(labelName);
+            if (thread && nativeLabel) {
+                thread.removeLabel(nativeLabel);
+                console.warn(`⚠️ Fallback thread-level: rimossa label '${labelName}' per msg ${messageId}`);
+                return true;
+            }
+            return false;
+        };
+
         try {
             const labelId = this._getOptionalLabelIdByName(labelName);
-            if (!labelId) return;
+            if (!labelId) {
+                try { removeLabelFromNativeThread(); } catch (fallbackError) {
+                    console.warn(`⚠️ Fallback thread-level removeLabel fallito per msg ${messageId}: ${fallbackError.message}`);
+                }
+                return;
+            }
 
             this._incrementGmailCallCounterOrThrow_('messages.modify:removeLabel');
             const payload = { removeLabelIds: [labelId] };
@@ -317,6 +334,11 @@ var GmailService = class GmailService {
             console.log(`✓ Rimossa label '${labelName}' dal messaggio ${messageId}`);
         } catch (e) {
             console.warn(`⚠️ removeLabelFromMessage fallito per msg ${messageId}: ${e.message}`);
+            try {
+                removeLabelFromNativeThread();
+            } catch (fallbackError) {
+                console.warn(`⚠️ Fallback thread-level removeLabel fallito per msg ${messageId}: ${fallbackError.message}`);
+            }
         }
     }
 
@@ -1285,8 +1307,16 @@ var GmailService = class GmailService {
             const rawMimeType = (attachment.getContentType() || '').toLowerCase();
             const mimeType = rawMimeType.split(';')[0].trim();
 
-            // Evita richieste multimodali su micro-immagini decorative (icone firma, tracking pixel, ecc.)
-            if (mimeType.startsWith('image/') && size > 0 && size < 5120) {
+            const supportedVisualImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            const isSupportedVisualImage = supportedVisualImageTypes.includes(mimeType);
+
+            // Evita richieste multimodali su micro-immagini decorative, immagini vettoriali/unsupported
+            // (es. SVG/TIFF) e formati che possono stressare copyBlob/OCR in RAM.
+            if (mimeType.startsWith('image/') && !isSupportedVisualImage) {
+                result.skipped.push({ name: name, reason: 'unsupported_image_ignored', mimeType: mimeType, size: size });
+                continue;
+            }
+            if (isSupportedVisualImage && size > 0 && size < 5120) {
                 result.skipped.push({ name: name, reason: 'micro_image_ignored', size: size });
                 continue;
             }
@@ -1334,6 +1364,10 @@ var GmailService = class GmailService {
 
             if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
                 try {
+                    if (size > settings.maxBytesPerFile) {
+                        result.skipped.push({ name: name, reason: 'too_large_for_blob', size: size });
+                        continue;
+                    }
                     const documentType = this._detectDocumentType(name, '');
                     const attachmentRole = this._classifyAttachmentRole(documentType, name, '');
                     result.items.push({
@@ -1770,17 +1804,32 @@ var GmailService = class GmailService {
                 return '';
             }
 
+            let openedDoc = null;
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    if (googleMimeType === 'application/vnd.google-apps.document') {
+                        openedDoc = DocumentApp.openById(fileId);
+                    } else if (googleMimeType === 'application/vnd.google-apps.spreadsheet') {
+                        openedDoc = SpreadsheetApp.openById(fileId);
+                    } else if (googleMimeType === 'application/vnd.google-apps.presentation') {
+                        openedDoc = SlidesApp.openById(fileId);
+                    }
+                    if (openedDoc) break;
+                } catch (openError) {
+                    if (attempt === 2 || exceededBudget()) throw openError;
+                    Utilities.sleep(1000 * (attempt + 1));
+                }
+            }
+
             // Estrazione testo in base al tipo Google Workspace
             if (googleMimeType === 'application/vnd.google-apps.document') {
                 // Word → Google Docs
-                const doc = DocumentApp.openById(fileId);
-                return doc.getBody().getText();
+                return openedDoc.getBody().getText();
             }
 
             if (googleMimeType === 'application/vnd.google-apps.spreadsheet') {
                 // Excel → Google Sheets: concatena il testo di tutte le celle non vuote
-                const ss = SpreadsheetApp.openById(fileId);
-                const sheets = ss.getSheets();
+                const sheets = openedDoc.getSheets();
                 const parts = [];
                 const maxSheets = Math.min(sheets.length, 3); // Limita a 3 fogli
                 for (let s = 0; s < maxSheets; s++) {
@@ -1804,8 +1853,7 @@ var GmailService = class GmailService {
 
             if (googleMimeType === 'application/vnd.google-apps.presentation') {
                 // PowerPoint → Google Slides: estrae testo da ogni diapositiva
-                const presentation = SlidesApp.openById(fileId);
-                const slides = presentation.getSlides();
+                const slides = openedDoc.getSlides();
                 const parts = [];
                 const maxSlides = Math.min(slides.length, 10); // Limita a 10 diapositive
                 for (let i = 0; i < maxSlides; i++) {

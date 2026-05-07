@@ -1074,6 +1074,39 @@ function runAllTests() {
         }
     });
 
+    testGroup('GmailService - Fallback label resiliente', results, () => {
+        test('removeLabelFromMessage usa fallback a livello thread se API Avanzata fallisce', results, () => {
+            const originalGmail = global.Gmail;
+            const originalGmailApp = global.GmailApp;
+            let threadFallbackCalled = false;
+
+            try {
+                global.Gmail = {
+                    Users: {
+                        Messages: {
+                            modify: () => { throw new Error('API Error indotto'); }
+                        }
+                    }
+                };
+                global.GmailApp = Object.assign({}, originalGmailApp, {
+                    getMessageById: () => ({
+                        getThread: () => ({ removeLabel: () => { threadFallbackCalled = true; } })
+                    }),
+                    getUserLabelByName: () => ({ name: 'LabelTest' })
+                });
+
+                const service = new GmailService();
+                service._getOptionalLabelIdByName = () => 'label_id_123';
+                service._incrementGmailCallCounterOrThrow_ = () => { };
+                service.removeLabelFromMessage('msg-123', 'LabelTest');
+                return threadFallbackCalled === true;
+            } finally {
+                global.Gmail = originalGmail;
+                global.GmailApp = originalGmailApp;
+            }
+        });
+    });
+
     // 8. GmailService OCR document parsing
     testGroup('GmailService - OCR document hints', results, () => {
         const service = new GmailService();
