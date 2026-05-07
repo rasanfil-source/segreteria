@@ -625,17 +625,19 @@ Output JSON:
     const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
     let safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
 
-    // PROTEZIONE: Truncamento preventivo a 15000 caratteri PRIMA delle RegEx 
-    // Evita CPU Timeout (Catastrophic Backtracking) se un utente invia una mail infinita
-    safeContent = safeContent.substring(0, 15000);
+    // PROTEZIONE: limite ampio prima delle RegEx per evitare CPU Timeout se
+    // un utente invia una mail infinita, ma rimuoviamo le citazioni prima del
+    // truncamento finale del segnale lingua per non far consumare il budget dal thread storico.
+    safeContent = safeContent.substring(0, 60000);
 
     // Rimuove le citazioni per evitare che il testo quotato (es. precedente thread in italiano) alteri il punteggio
     safeContent = safeContent.replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '');
     safeContent = safeContent.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*$/gi, '');
     // Fallback per citazioni testuali se l'HTML è già stato strippato o è incompleto
-    safeContent = safeContent.replace(/(?:^|\n)>[^\n]*/g, '');
+    safeContent = safeContent.replace(/(?:^|\n)>{1,3}[^\n]*/g, '');
     safeContent = safeContent.replace(/(?:^|\n)(On |Il giorno )[^\n]*(wrote|ha scritto):[\s\S]*/gi, '');
     safeContent = safeContent.replace(/(?:^|\n)-{3,}.*(Original Message|Messaggio originale).*[\s\S]*/gi, '');
+    safeContent = safeContent.substring(0, 15000);
 
     // Trunca a 3000 char per evitare CPU Timeout sull'elaborazione lingua
     const text = ` ${safeSubject} ${safeContent} `.substring(0, 3000).toLowerCase();

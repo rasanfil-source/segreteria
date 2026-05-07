@@ -1089,16 +1089,21 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const maxChunkBytes = 8000;
     const chunks = [];
     let currentChunk = [];
+    let currentChunkBytes = 2; // []
 
     for (const entry of (Array.isArray(windowEntries) ? windowEntries : [])) {
-      const candidate = currentChunk.concat([entry]);
-      if (JSON.stringify(candidate).length > maxChunkBytes) {
-        if (currentChunk.length > 0) {
-          chunks.push(JSON.stringify(currentChunk));
-        }
+      const serializedEntry = JSON.stringify(entry);
+      const candidateBytes = currentChunk.length === 0
+        ? 2 + serializedEntry.length
+        : currentChunkBytes + 1 + serializedEntry.length; // virgola separatrice
+
+      if (candidateBytes > maxChunkBytes && currentChunk.length > 0) {
+        chunks.push(JSON.stringify(currentChunk));
         currentChunk = [entry];
+        currentChunkBytes = 2 + serializedEntry.length;
       } else {
-        currentChunk = candidate;
+        currentChunk.push(entry);
+        currentChunkBytes = candidateBytes;
       }
     }
 

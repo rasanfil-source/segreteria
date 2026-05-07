@@ -3138,6 +3138,18 @@ function testItalianNewsletterLikeLanguageDetection() {
     assert(result.confidence >= 2, `Punteggio IT atteso >= 2, ottenuto ${result.confidence}`);
 }
 
+function testLanguageDetectionStripsLongHtmlQuotesBeforeFinalTruncation() {
+    console.log('--- Test: Language Detection Strips Long HTML Quotes Before Final Truncation ---');
+    loadScript('gas_gemini_service.js');
+
+    const gemini = createMockGeminiService(() => ({}));
+    const quotedItalian = '<blockquote>' + ('Buongiorno grazie messaggio parrocchia. '.repeat(500)) + '</blockquote>';
+    const body = quotedItalian + '\nHello, thank you for the information about the parish and church. Regards.';
+
+    const result = gemini.detectEmailLanguage(body, 'Information request');
+    assert(result.lang === 'en', `Atteso EN dal testo nuovo dopo una lunga citazione HTML, ottenuto ${result.lang}`);
+}
+
 function testFrenchGermanDetectionRefinement() {
     console.log('--- Test: French/German Detection Refinement ---');
     loadScript('gas_gemini_service.js');
@@ -3317,6 +3329,7 @@ function main() {
         ['prompt KB truncation: hard limit chars rispettato', testPromptKbSemanticTruncationRespectsHardLimit],
         ['gemini: portuguese detection refinement', testPortugueseDetectionRefinement],
         ['gemini: italian newsletter-like language detection', testItalianNewsletterLikeLanguageDetection],
+        ['gemini: long HTML quotes stripped before language truncation', testLanguageDetectionStripsLongHtmlQuotesBeforeFinalTruncation],
         ['gemini: french/german detection refinement', testFrenchGermanDetectionRefinement],
         ['classifier: backward quote scan', testClassifierBackwardQuoteScan],
         ['main: caricamento sostituzioni', testLoadResourcesReplacements],
