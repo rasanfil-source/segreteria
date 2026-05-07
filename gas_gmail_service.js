@@ -273,6 +273,17 @@ var GmailService = class GmailService {
                     console.log(`✓ Aggiunta label '${labelName}' al messaggio ${messageId} (retry dopo cache reset)`);
                 } catch (retryError) {
                     console.warn(`⚠️ Retry addLabelToMessage fallito per messaggio ${messageId}: ${retryError.message}`);
+                    try {
+                        const nativeMessage = GmailApp.getMessageById(messageId);
+                        const thread = nativeMessage ? nativeMessage.getThread() : null;
+                        if (thread) {
+                            this.addLabelToThread(thread, labelName);
+                            console.warn(`⚠️ Fallback thread-level applicato per msg ${messageId} con label '${labelName}' dopo label ID stale`);
+                            return;
+                        }
+                    } catch (fallbackError) {
+                        console.warn(`⚠️ Fallback thread-level fallito dopo label ID stale per msg ${messageId}: ${fallbackError.message}`);
+                    }
                     throw retryError;
                 }
                 return;
@@ -426,14 +437,12 @@ var GmailService = class GmailService {
      */
     getMessageIdsWithLabel(labelName, onlyInbox = true, options = {}) {
         try {
-            const label = this.getOrCreateLabel(labelName);
-            const labelIdFromCache = this._getOptionalLabelIdByName(labelName);
-            const labelId = labelIdFromCache || (label && typeof label.getId === 'function' ? label.getId() : null);
+            const labelId = this._getOptionalLabelIdByName(labelName);
             const hasLabelId = !!labelId;
             if (!hasLabelId) {
                 // Senza ID reale la query restituisce tutti gli unread in inbox, non solo quelli etichettati.
                 // Fail-safe: evitiamo di inquinare la cache dei messaggi già etichettati.
-                console.error(`❌ Label ID non trovato per '${labelName}'. Impossibile filtrare per etichetta: restituisco Set vuoto.`);
+                console.log(`⊖ Label '${labelName}' assente: nessun messaggio da pre-caricare.`);
                 return new Set();
             }
 
@@ -480,7 +489,20 @@ var GmailService = class GmailService {
                 }
                 if (pageToken) params.pageToken = pageToken;
 
-                const response = this._listMessagesWithResilience(params);
+                let response;
+                try {
+                    response = this._listMessagesWithResilience(params);
+                } catch (listError) {
+                    if (this._isLabelNotFoundError(listError)) {
+                        this._clearPersistentLabelCache(labelName);
+                        if (this._labelCache && typeof this._labelCache.delete === 'function') {
+                            this._labelCache.delete(labelName);
+                        }
+                        console.warn(`⚠️ Label '${labelName}' non più esistente: cache pulita, restituisco Set vuoto.`);
+                        return new Set();
+                    }
+                    throw listError;
+                }
                 pageCount++;
 
                 if (response.messages) {

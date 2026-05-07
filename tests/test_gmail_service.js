@@ -148,7 +148,7 @@ console.log('--- Test getMessageIdsWithLabel: fallback data senza Utilities.form
   const serviceWithLookback = new GmailService();
   global.CONFIG.GMAIL_LABEL_LOOKBACK_DAYS = 7;
 
-  serviceWithLookback.getOrCreateLabel = () => ({ getId: () => 'label-ia' });
+  serviceWithLookback._getOptionalLabelIdByName = () => 'label-ia';
   serviceWithLookback._listMessagesWithResilience = (params) => {
     assert(typeof params.q === 'string' && params.q.includes('after:'), 'query deve includere filtro after quando lookback è attivo');
     assert(/\bafter:\d{4}\/\d{2}\/\d{2}\b/.test(params.q), 'filtro after deve usare formato yyyy/MM/dd anche in fallback');

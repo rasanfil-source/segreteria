@@ -2091,7 +2091,7 @@ function testGetMessageIdsWithLabelInvalidPaginationOptions() {
     loadScript('gas_gmail_service.js');
 
     const service = Object.create(GmailService.prototype);
-    service.getOrCreateLabel = () => ({ getId: () => 'LBL_1' });
+    service._getOptionalLabelIdByName = () => 'LBL_1';
     service._getNDaysAgo = () => '2026/01/01';
 
     const originalGmail = global.Gmail;
