@@ -2810,7 +2810,15 @@ ${addressLines.join('\n\n')}
     const adminEmail = (typeof CONFIG !== 'undefined' && CONFIG.LOGGING && CONFIG.LOGGING.ADMIN_EMAIL)
       ? CONFIG.LOGGING.ADMIN_EMAIL
       : '';
-    const candidate = String(propertyEmail || configEmail || adminEmail || '').trim();
+
+    // Priorità:
+    // 1. GLOBAL_CACHE (letto da cella A19 del foglio Controllo)
+    // 2. Proprietà dello script (override dinamico)
+    // 3. Configurazione statica VALIDATION_REVIEW_ALERTS.email
+    // 4. Configurazione statica LOGGING.ADMIN_EMAIL
+    const cacheEmail = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBAL_CACHE.validationReviewEmail : '';
+    const candidate = String(cacheEmail || propertyEmail || configEmail || adminEmail || '').trim();
+
     if (!candidate || candidate.includes('[') || candidate.includes('YOUR_')) return '';
     return candidate;
   }

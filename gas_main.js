@@ -19,7 +19,8 @@ var GLOBAL_CACHE = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBA
   suspensionRules: {},
   ignoreDomains: [],
   ignoreKeywords: [],
-  replacements: {}
+  replacements: {},
+  validationReviewEmail: ''
 };
 
 // Configurazione TTL allineata ai vincoli di ScriptCache (21600s).
@@ -554,7 +555,8 @@ function _loadResourcesInternal(knownSheetModifiedAt) {
     doctrineStructured: [],
     aiCoreLite: '',
     aiCore: '',
-    replacements: {}
+    replacements: {},
+    validationReviewEmail: ''
   };
 
   // KB Base
@@ -1064,6 +1066,8 @@ function clearKnowledgeCache() {
   GLOBAL_CACHE.ignoreDomains = [];
   GLOBAL_CACHE.ignoreKeywords = [];
   GLOBAL_CACHE.replacements = {};
+  GLOBAL_CACHE.validationReviewEmail = '';
+  GLOBAL_CACHE.loaded = false;
   GLOBAL_CACHE.aiCoreLite = '';
   GLOBAL_CACHE.aiCore = '';
   GLOBAL_CACHE.doctrineStructured = [];
@@ -1354,6 +1358,16 @@ function _loadAdvancedConfig(ss) {
         config.suspensionRules[day].push([startHour, endHour]);
       }
     });
+
+    // Recipient email per revisione validazione (A19)
+    try {
+      const reviewEmail = String(sheet.getRange('A19').getValue() || '').trim();
+      if (reviewEmail && reviewEmail.includes('@')) {
+        config.validationReviewEmail = reviewEmail;
+      }
+    } catch (e) {
+      // Ignora errori su A19
+    }
 
     if (Object.keys(config.suspensionRules).length === 0) {
       const strictSuspensionConfig = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.STRICT_SUSPENSION_CONFIG === true);
