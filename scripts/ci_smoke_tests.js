@@ -2457,6 +2457,44 @@ function testSheetRowsToTextNormalizesMultilineCells() {
     );
 }
 
+function testResourceCacheInvalidationFallsBackWhenRemoveAllFails() {
+    console.log('--- Test: Resource Cache Invalidation removeAll fallback ---');
+    loadScript('gas_main.js');
+
+    const removedKeys = [];
+    const cache = {
+        get: (key) => key === RESOURCE_CACHE_PARTS_KEY ? '2' : null,
+        removeAll: () => { throw new Error('quota'); },
+        remove: (key) => removedKeys.push(key)
+    };
+
+    _invalidateResourceCacheStorage(cache);
+
+    assert(removedKeys.includes(RESOURCE_CACHE_KEY_V1), 'fallback deve rimuovere la chiave V1');
+    assert(removedKeys.includes(RESOURCE_CACHE_KEY_V2), 'fallback deve rimuovere la chiave V2');
+    assert(removedKeys.includes(RESOURCE_CACHE_PARTS_KEY), 'fallback deve rimuovere il contatore multipart');
+    assert(removedKeys.includes(`${RESOURCE_CACHE_PART_PREFIX}0`), 'fallback deve rimuovere il primo chunk multipart');
+    assert(removedKeys.includes(`${RESOURCE_CACHE_PART_PREFIX}1`), 'fallback deve rimuovere il secondo chunk multipart');
+}
+
+
+function testResourceCacheInvalidationContinuesWhenPartsIndexReadFails() {
+    console.log('--- Test: Resource Cache Invalidation parts index read failure ---');
+    loadScript('gas_main.js');
+
+    const removedKeys = [];
+    const cache = {
+        get: () => { throw new Error('cache get unavailable'); },
+        remove: (key) => removedKeys.push(key)
+    };
+
+    _invalidateResourceCacheStorage(cache);
+
+    assert(removedKeys.includes(RESOURCE_CACHE_KEY_V1), 'deve rimuovere V1 anche se la lettura indice multipart fallisce');
+    assert(removedKeys.includes(RESOURCE_CACHE_KEY_V2), 'deve rimuovere V2 anche se la lettura indice multipart fallisce');
+    assert(removedKeys.includes(RESOURCE_CACHE_PARTS_KEY), 'deve rimuovere il contatore multipart anche se la lettura indice multipart fallisce');
+}
+
 function testSplitCachePayloadAdvancesOnSingleHighSurrogate() {
     console.log('--- Test: Split Cache Payload Single High Surrogate ---');
     loadScript('gas_main.js');
@@ -2839,6 +2877,8 @@ function main() {
         ['main: serializzazione date KB stabile', testSheetRowsToTextFormatsDatesStably],
         ['main: serializzazione celle multilinea KB stabile', testSheetRowsToTextNormalizesMultilineCells],
         ['main: split cache avanza su high surrogate singolo', testSplitCachePayloadAdvancesOnSingleHighSurrogate],
+        ['main: invalidazione cache fallback removeAll', testResourceCacheInvalidationFallsBackWhenRemoveAllFails],
+        ['main: invalidazione cache senza indice multipart', testResourceCacheInvalidationContinuesWhenPartsIndexReadFails],
         ['main: fallback date formatter usa timezone script', testFormatDateForKnowledgeTextUsesScriptTimezoneInNodeFallback],
         ['validator: thinking leak con pattern parentesi', testResponseValidatorRemovesThinkingLeakWithParenthesisKeyword],
         ['main: ai_core preserva valori falsey', testLoadResourcesKeepsFalseyValuesInAiCoreSheets],

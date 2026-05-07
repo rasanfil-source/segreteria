@@ -548,7 +548,14 @@ function _loadResourcesInternal(knownSheetModifiedAt) {
     REPLACEMENTS_SHEET_NAME: 'Sostituzioni'
   };
 
-  const newCacheData = {};
+  const newCacheData = {
+    knowledgeBase: '',
+    doctrineBase: '',
+    doctrineStructured: [],
+    aiCoreLite: '',
+    aiCore: '',
+    replacements: {}
+  };
 
   // KB Base
   const kbSheet = withSheetsRetry(() => ss.getSheetByName(cfg.KB_SHEET_NAME), 'Recupero foglio KB Base');
@@ -699,14 +706,10 @@ function _getSpreadsheetModifiedTimeMs(spreadsheetId) {
   // renderebbe la cache sempre stale e moltiplicherebbe letture Sheets inutili.
   const finalTs = Math.max(customTs || 0, driveModifiedMs || 0);
 
-  if (finalTs > 0 && props && typeof props.setProperty === 'function') {
-    try {
-      props.setProperty('KB_CUSTOM_MODIFIED_TIME', String(finalTs));
-    } catch (e) {
-      console.warn('⚠️ Impossibile salvare KB_CUSTOM_MODIFIED_TIME: ' + e.message);
-    }
-  }
-
+  // Non persistiamo qui il timestamp calcolato da Drive: KB_CUSTOM_MODIFIED_TIME
+  // è un segnale esplicito scritto da onEdit per le sole risorse monitorate.
+  // Scriverci il valore Drive da un polling generico confonde la provenienza del
+  // segnale e può rendere più difficile diagnosticare l'invalidazione cache.
   return finalTs;
 }
 
@@ -1012,17 +1015,31 @@ function _invalidateResourceCacheStorage(cache) {
   if (!cache) return;
 
   const toRemove = [RESOURCE_CACHE_KEY_V1, RESOURCE_CACHE_KEY_V2, RESOURCE_CACHE_PARTS_KEY];
-  const partsCountRaw = cache.get(RESOURCE_CACHE_PARTS_KEY);
-  const partsCount = parseInt(partsCountRaw || '0', 10);
-  if (Number.isFinite(partsCount) && partsCount > 0) {
-    for (let i = 0; i < partsCount; i++) {
-      toRemove.push(`${RESOURCE_CACHE_PART_PREFIX}${i}`);
+  try {
+    const partsCountRaw = (typeof cache.get === 'function')
+      ? cache.get(RESOURCE_CACHE_PARTS_KEY)
+      : null;
+    const partsCount = parseInt(partsCountRaw || '0', 10);
+    if (Number.isFinite(partsCount) && partsCount > 0) {
+      for (let i = 0; i < partsCount; i++) {
+        toRemove.push(`${RESOURCE_CACHE_PART_PREFIX}${i}`);
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ invalidateResourceCacheStorage: impossibile leggere indice multipart, rimuovo le chiavi base: ' + (e && e.message ? e.message : String(e)));
+  }
+
+  let removeAllSucceeded = false;
+  if (typeof cache.removeAll === 'function') {
+    try {
+      cache.removeAll(toRemove);
+      removeAllSucceeded = true;
+    } catch (e) {
+      console.warn('⚠️ invalidateResourceCacheStorage: removeAll fallita, fallback su remove singoli: ' + (e && e.message ? e.message : String(e)));
     }
   }
 
-  if (typeof cache.removeAll === 'function') {
-    cache.removeAll(toRemove);
-  } else if (typeof cache.remove === 'function') {
+  if (!removeAllSucceeded && typeof cache.remove === 'function') {
     toRemove.forEach(key => {
       try { cache.remove(key); } catch (e) { }
     });
@@ -1313,7 +1330,11 @@ function _loadAdvancedConfig(ss) {
       const extracted = _extractSuspensionHoursFromRow(r);
       const startHour = extracted.startHour;
       const endHour = extracted.endHour;
-      if (startHour == null || endHour == null || startHour === endHour) return;
+      if (startHour == null || endHour == null) return;
+      if (startHour === endHour) {
+        console.warn(`⚠️ Fascia sospensione non valida per giorno ${day}: ora inizio e fine coincidono (${startHour}). Riga ignorata.`);
+        return;
+      }
 
       if (!config.suspensionRules[day]) {
         config.suspensionRules[day] = [];

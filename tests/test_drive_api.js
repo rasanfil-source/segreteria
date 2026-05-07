@@ -60,4 +60,24 @@ console.log('--- Test _getSpreadsheetModifiedTimeMs compatibilità v2/v3 ---');
   assert(result === Date.parse('2026-03-30T21:00:00.000Z'), 'deve leggere modifiedDate nel fallback v2');
 })();
 
+(function testDrivePollingDoesNotOverwriteCustomModifiedTime() {
+  const writes = [];
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: () => null,
+      setProperty: (key, value) => writes.push([key, value])
+    })
+  };
+  global.Drive = {
+    Files: {
+      get: () => ({ modifiedTime: '2026-03-30T22:00:00.000Z' })
+    }
+  };
+
+  const result = _getSpreadsheetModifiedTimeMs('sheet-id-drive-only');
+  assert(result === Date.parse('2026-03-30T22:00:00.000Z'), 'deve restituire il timestamp Drive se più recente/disponibile');
+  assert(writes.length === 0, 'non deve sovrascrivere KB_CUSTOM_MODIFIED_TIME durante il polling Drive');
+  delete global.PropertiesService;
+})();
+
 console.log('✅ Test compatibilità Drive API passati');

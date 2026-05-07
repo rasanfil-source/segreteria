@@ -43,4 +43,33 @@ assert(
   'Manca indicatore di troncamento nel risultato'
 );
 
+
+console.log('--- Test KB semantic truncation preserves paragraph separators ---');
+const crlfKb = [
+  'PARAGRAFO ALFA: '.padEnd(90, 'A'),
+  'PARAGRAFO BETA: '.padEnd(90, 'B'),
+  'PARAGRAFO GAMMA: '.padEnd(90, 'C')
+].join('\r\n\r\n');
+const separated = engine._truncateKbSemantically(crlfKb, 260);
+
+assert(separated.length <= 260, `La KB CRLF troncata supera il limite: ${separated.length} > 260`);
+assert(
+  separated.includes('PARAGRAFO ALFA') && separated.includes('PARAGRAFO BETA'),
+  'La KB troncata dovrebbe mantenere i paragrafi completi quando entrano nel budget'
+);
+assert(
+  separated.includes('A\n\nPARAGRAFO BETA') || separated.includes('A\n\n...'),
+  'I paragrafi mantenuti non devono essere collassati senza separatore semantico'
+);
+
+console.log('--- Test KB semantic truncation marks first-paragraph cuts ---');
+const singleHugeParagraph = 'PARAGRAFO UNICO: ' + 'X'.repeat(1000);
+const singleTruncated = engine._truncateKbSemantically(singleHugeParagraph, 180);
+
+assert(singleTruncated.length <= 180, `La KB mono-paragrafo supera il limite: ${singleTruncated.length} > 180`);
+assert(
+  singleTruncated.includes('[SEZIONI OMESSE') || singleTruncated.includes('...[omesso]') || singleTruncated.endsWith('…'),
+  'Il taglio del primo paragrafo deve includere un indicatore di troncamento'
+);
+
 console.log('✅ Test KB truncation passati');

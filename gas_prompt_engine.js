@@ -198,7 +198,11 @@ var PromptEngine = class PromptEngine {
       ? this._estimateAiCoreLiteSectionChars(aiCoreLiteText)
       : 0;
     const kbSectionOverhead = this._estimateKbSectionOverheadChars();
-    const effectiveKbCharsLimit = Math.max(500, kbCharsLimit - aiCoreLiteSectionOverhead - kbSectionOverhead);
+    const rawEffectiveKbCharsLimit = kbCharsLimit - aiCoreLiteSectionOverhead - kbSectionOverhead;
+    if (rawEffectiveKbCharsLimit < 0) {
+      console.warn(`⚠️ PromptEngine: overhead sezioni (${aiCoreLiteSectionOverhead + kbSectionOverhead} chars) supera il budget KB (${kbCharsLimit}). Forzo limite minimo operativo.`);
+    }
+    const effectiveKbCharsLimit = Math.max(500, rawEffectiveKbCharsLimit);
 
     if (workingKnowledgeBase && workingKnowledgeBase.length > effectiveKbCharsLimit) {
       console.warn(`⚠️ KB eccede il budget (${workingKnowledgeBase.length} chars), tronco a ${effectiveKbCharsLimit} (budget netto)`);
@@ -1873,7 +1877,7 @@ ${safeAiCoreLiteText}
       return kbContent;
     }
 
-    const paragraphs = kbContent.split(/\n{2,}|(?=═{3,})|(?=─{3,})/);
+    const paragraphs = kbContent.split(/\r?\n\s*\r?\n|(?=═{3,})|(?=─{3,})/);
 
     const markerLength = truncationMarker.length;
     const reservedForMarker = Math.min(markerLength, Math.max(12, Math.floor(budgetChars * 0.2)));
@@ -1885,16 +1889,18 @@ ${safeAiCoreLiteText}
       const trimmedPara = para.trim();
       if (!trimmedPara) continue;
 
-      if (currentLength + trimmedPara.length > contentLimit) {
+      const separatorLength = result.length > 0 ? 2 : 0;
+      if (currentLength + separatorLength + trimmedPara.length > contentLimit) {
         if (result.length > 0) {
           break;
         }
         result.push(trimmedPara.substring(0, contentLimit));
+        currentLength = result[0].length;
         break;
       }
 
       result.push(trimmedPara);
-      currentLength += trimmedPara.length + 2;
+      currentLength += separatorLength + trimmedPara.length;
     }
 
     const truncatedContent = result.join('\n\n').slice(0, contentLimit);
