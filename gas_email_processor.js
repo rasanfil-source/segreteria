@@ -266,7 +266,27 @@ var EmailProcessor = class EmailProcessor {
 
     let candidate = null;
     let replySent = false;
+    let externalUnread = [];
     let markHandledUnread = () => {};
+    const markFailureForCurrentBurst = (labelType, reviewContext = {}) => {
+      const targets = (externalUnread && externalUnread.length > 0)
+        ? externalUnread
+        : (candidate ? [candidate] : []);
+
+      if (targets.length === 0) {
+        this._addErrorLabel(thread);
+        return;
+      }
+
+      targets.forEach((message) => {
+        if (labelType === 'validation') {
+          this._addValidationErrorLabel(message, reviewContext);
+        } else {
+          this._addErrorLabel(message);
+        }
+        this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
+      });
+    };
     try {
       // Raccogli informazioni su thread e messaggi
       // Ottieni ultimo messaggio NON LETTO nel thread
@@ -359,7 +379,7 @@ var EmailProcessor = class EmailProcessor {
         if (alias) ownAddresses.add(this._normalizeEmailAddress_(alias));
       });
 
-      const externalUnread = unlabeledUnread.filter(message => {
+      externalUnread = unlabeledUnread.filter(message => {
         // Utilizza getFrom() per efficienza rispetto alla costosa extractMessageDetails()
         const rawFrom = (message.getFrom() || '');
         const senderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
@@ -1417,8 +1437,7 @@ ${addressLines.join('\n\n')}
         const errorClass = errorToReport ? this._classifyError(errorToReport) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
         console.error('🛑 TUTTE le strategie di generazione sono fallite.');
         if (!errorClass.retryable) {
-          this._addErrorLabel(candidate || thread);
-          this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
+          markFailureForCurrentBurst('error');
         } else {
           console.warn(`   ↻ Errore generazione retryable (${errorClass.type}) - nessuna marcatura permanente`);
         }
@@ -1433,8 +1452,7 @@ ${addressLines.join('\n\n')}
 
       if (typeof response !== 'string') {
         console.error(`🛑 Risposta non valida da Gemini: tipo ricevuto '${typeof response}'`);
-        this._addErrorLabel(candidate || thread);
-        this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
+        markFailureForCurrentBurst('error');
         result.status = 'error';
         result.error = 'Invalid response type from GeminiService';
         result.errorClass = 'DATA';
@@ -1443,7 +1461,7 @@ ${addressLines.join('\n\n')}
 
       if (response.trim() === 'NO_REPLY') {
         console.log('   ⊖ AI ha restituito NO_REPLY');
-        this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
+        markHandledUnread();
         result.status = 'filtered';
         return result;
       }
@@ -1586,12 +1604,11 @@ ${addressLines.join('\n\n')}
           }
 
           const validationReason = result.reason || 'validation_score_below_threshold';
-          this._addValidationErrorLabel(candidate || thread, {
+          markFailureForCurrentBurst('validation', {
             reason: validationReason,
             validation: validation,
             subject: messageDetails.subject
           });
-          this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
           result.status = 'validation_failed';
           result.validationFailed = true;
           if (!result.reason) {
@@ -1634,7 +1651,7 @@ ${addressLines.join('\n\n')}
       if (!sendTxn.ok) {
         console.warn(`   ⊖ Invio saltato per idempotenza (${sendTxn.reason})`);
         if (sendTxn.reason === 'already_sent') {
-          this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
+          markHandledUnread();
           result.status = 'skipped';
           result.reason = 'already_sent_recently';
         } else {
@@ -1673,16 +1690,9 @@ ${addressLines.join('\n\n')}
         // Errori transienti: lascia il messaggio eleggibile per retry automatico.
         if (!classifiedSendError.retryable) {
           try {
-            this._addErrorLabel(candidate || thread);
-          } catch (labelError) {
-            console.warn(`⚠️ Errore aggiunta errorLabel silenziato: ${labelError.message}`);
-          }
-          if (candidate) {
-            try {
-              this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
-            } catch (markError) {
-              console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
-            }
+            markFailureForCurrentBurst('error');
+          } catch (markError) {
+            console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
           }
         } else {
           console.warn(`   ↻ Errore invio retryable (${classifiedSendError.type}) - nessuna marcatura permanente`);
@@ -1757,7 +1767,7 @@ ${addressLines.join('\n\n')}
       }
 
       try {
-        this._addErrorLabel(candidate || thread);
+        markFailureForCurrentBurst('error');
       } catch (labelError) {
         threadLogger.warn(`Errore aggiunta errorLabel silenziato: ${labelError.message}`);
       }

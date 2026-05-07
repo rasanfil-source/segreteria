@@ -336,6 +336,19 @@ function createExternalThread(id) {
   return createThread({ id: `t-${id}`, messages: [msg] });
 }
 
+function createExternalBurstThread(id, count) {
+  const baseDate = new Date('2026-05-07T10:00:00Z').getTime();
+  const messages = Array.from({ length: count }, (_, index) => ({
+    getId: () => `m-${id}-${index + 1}`,
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date(baseDate + index * 60000),
+    getSubject: () => 'Richiesta informazioni',
+    getPlainBody: () => `Messaggio ${index + 1}: vorrei sapere gli orari.`
+  }));
+  return createThread({ id: `t-${id}`, messages });
+}
+
 function buildProcessorForGenerationFailure(errorTypeToThrow) {
   global.ErrorTypes = {
     INVALID_RESPONSE: 'INVALID_RESPONSE',
@@ -417,6 +430,17 @@ console.log('--- Test processThread: fallback end-to-end su UNKNOWN ---');
   assert(calls.length === 3, 'con UNKNOWN deve tentare tutte le 3 strategie');
   assert(res.status === 'error', 'con fallback esaurito deve restituire status error');
   assert(labeled.has('m-unknown'), 'deve marcare il messaggio candidato come processato');
+}
+
+console.log('--- Test processThread: fallback generazione marca atomicamente tutto il burst ---');
+{
+  const labeled = new Set();
+  const { processor } = buildProcessorForGenerationFailure('UNKNOWN');
+  const res = processor.processThread(createExternalBurstThread('burst-generation', 3), 'kb valida', '', labeled, true);
+  assert(res.status === 'error', 'con fallback esaurito sul burst deve restituire status error');
+  assert(labeled.has('m-burst-generation-1'), 'deve marcare come processato il primo messaggio del burst');
+  assert(labeled.has('m-burst-generation-2'), 'deve marcare come processato il secondo messaggio del burst');
+  assert(labeled.has('m-burst-generation-3'), 'deve marcare come processato il candidato del burst');
 }
 
 console.log('--- Test processThread: valida e invia esattamente il testo outbound preparato ---');
