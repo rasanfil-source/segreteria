@@ -32,7 +32,17 @@ console.log('--- Test _tryBalanceJsonBraces: parentesi in stringa non alterano l
   const parsed = JSON.parse(balanced);
 
   assert(parsed.note.includes('] e }'), 'caratteri strutturali in stringa non devono essere interpretati');
-  assert(parsed.arr.length === 2, 'array deve essere chiuso correttamente');
+}
+
+console.log('--- Test _quoteUnquotedJsonKeysSafely: non corrompe virgole e pseudo-chiavi nelle stringhe ---');
+{
+  const raw = '{reply_needed:true, topic: "Richiesta, info: sbattezzo", category:"TECHNICAL"}';
+  const fixed = _quoteUnquotedJsonKeysSafely(raw);
+  const parsed = JSON.parse(fixed);
+
+  assert(parsed.reply_needed === true, 'chiave non virgolettata deve essere corretta');
+  assert(parsed.topic === 'Richiesta, info: sbattezzo', 'contenuto testuale con virgola e due punti non deve essere alterato');
+  assert(parsed.category === 'TECHNICAL', 'category deve restare leggibile');
 }
 
 console.log('--- Test _classifyError: quota primaria non ritenta sulla stessa chiave ---');

@@ -590,3 +590,43 @@ console.log('--- Test Gmail counter: non usa ScriptLock per ogni chiamata ---');
     global.PropertiesService = originalPropertiesService;
   }
 }
+
+console.log('--- Test cleanup Drive: coda persistente file temporanei ---');
+{
+  const originalPropertiesService = global.PropertiesService;
+  const originalDrive = global.Drive;
+  const props = {};
+  const removed = [];
+
+  try {
+    global.PropertiesService = {
+      getScriptProperties: () => ({
+        getProperty: (key) => Object.prototype.hasOwnProperty.call(props, key) ? props[key] : null,
+        setProperty: (key, value) => { props[key] = value; },
+        deleteProperty: (key) => { delete props[key]; }
+      })
+    };
+    global.Drive = {
+      Files: {
+        remove: (id) => { removed.push(id); }
+      }
+    };
+
+    const cleanupService = new GmailService();
+    cleanupService._rememberTemporaryDriveFile_('tmp-1');
+    cleanupService._rememberTemporaryDriveFile_('tmp-2');
+    cleanupService._forgetTemporaryDriveFile_('tmp-1');
+
+    const queue = JSON.parse(props.TEMP_DRIVE_FILE_QUEUE_V1);
+    assert(queue.length === 1 && queue[0].id === 'tmp-2', 'la coda deve mantenere solo il file non cancellato');
+
+    cleanupService._cleanupQueuedTemporaryDriveFiles_();
+
+    assert(removed.length === 1 && removed[0] === 'tmp-2', 'cleanup deve rimuovere il file temporaneo rimasto in coda');
+    assert(!Object.prototype.hasOwnProperty.call(props, 'TEMP_DRIVE_FILE_QUEUE_V1'), 'la coda deve essere svuotata dopo cleanup riuscito');
+  } finally {
+    global.PropertiesService = originalPropertiesService;
+    global.Drive = originalDrive;
+  }
+}
+

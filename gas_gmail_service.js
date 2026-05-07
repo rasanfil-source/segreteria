@@ -1515,6 +1515,7 @@ var GmailService = class GmailService {
                     console.error('❌ Drive.Files.insert ha avuto successo ma non ha restituito un file ID.');
                     throw new Error('Conversione fallita: file temporaneo senza id.');
                 }
+                this._rememberTemporaryDriveFile_(fileId);
             } else if (typeof Drive.Files.create === 'function') {
                 if (!googleMime) {
                     throw new Error(`Conversione fallita: mimeType Office non supportato (${originalMime})`);
@@ -1531,6 +1532,7 @@ var GmailService = class GmailService {
                     console.error('❌ Drive.Files.create ha avuto successo ma non ha restituito un file ID.');
                     throw new Error('Conversione fallita: file temporaneo senza id.');
                 }
+                this._rememberTemporaryDriveFile_(fileId);
                 if (file.mimeType && file.mimeType !== googleMime) {
                     throw new Error(`Conversione Office non applicata (mimeType=${file.mimeType})`);
                 }
@@ -1618,6 +1620,7 @@ var GmailService = class GmailService {
                     } else if (typeof Drive.Files.trash === 'function') {
                         Drive.Files.trash(fileId);
                     }
+                    this._forgetTemporaryDriveFile_(fileId);
                 } catch (e) {
                     console.warn(`⚠️ Errore cancellazione file temporaneo ${fileId}: ${e.message}`);
                 }
@@ -1629,6 +1632,10 @@ var GmailService = class GmailService {
 
     _cleanupOrphanedOcrFilesIfNeeded() {
         try {
+            // La coda persistente ripara i crash avvenuti dopo la creazione del file temporaneo:
+            // va drenata anche quando il cleanup orfani indicizzato per nome è ancora in throttle.
+            this._cleanupQueuedTemporaryDriveFiles_();
+
             const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
                 ? CacheService.getScriptCache()
                 : null;
@@ -1764,6 +1771,7 @@ var GmailService = class GmailService {
                     throw new Error('Drive API ha restituito un file convertito non valido (id assente)');
                 }
                 fileId = file.id;
+                this._rememberTemporaryDriveFile_(fileId);
             } else if (typeof Drive.Files.create === 'function') {
                 const resource = {
                     name: `OCR_${fileName}`,
@@ -1779,6 +1787,7 @@ var GmailService = class GmailService {
                     throw new Error(`Conversione Office non applicata (mimeType=${file.mimeType})`);
                 }
                 fileId = file.id;
+                this._rememberTemporaryDriveFile_(fileId);
             } else {
                 throw new Error('Drive.Files non espone metodi compatibili (insert/create)');
             }
@@ -1882,6 +1891,7 @@ var GmailService = class GmailService {
                     } else if (typeof Drive.Files.trash === 'function') {
                         Drive.Files.trash(fileId);
                     }
+                    this._forgetTemporaryDriveFile_(fileId);
                 } catch (e) {
                     console.warn(`⚠️ Cleanup file Office fallito (${fileId}): ${e.message}`);
                 }
@@ -1931,6 +1941,7 @@ var GmailService = class GmailService {
                     throw new Error(`Conversione OCR non applicata (mimeType=${file.mimeType})`);
                 }
                 fileId = file.id;
+                this._rememberTemporaryDriveFile_(fileId);
             } else if (typeof Drive.Files.insert === 'function') {
                 const resource = {
                     title: `OCR_${fileName}`,
@@ -1946,6 +1957,7 @@ var GmailService = class GmailService {
                     throw new Error('Drive API ha restituito un file OCR non valido (id assente)');
                 }
                 fileId = file.id;
+                this._rememberTemporaryDriveFile_(fileId);
             } else {
                 throw new Error('Drive.Files non espone metodi OCR compatibili (create/insert)');
             }
@@ -1966,6 +1978,7 @@ var GmailService = class GmailService {
                     } else if (typeof Drive.Files.trash === 'function') {
                         Drive.Files.trash(fileId);
                     }
+                    this._forgetTemporaryDriveFile_(fileId);
                 } catch (e) {
                     console.warn(`⚠️ Cleanup OCR allegato fallito (${fileId}): ${e.message}`);
                 }
@@ -2047,6 +2060,129 @@ var GmailService = class GmailService {
     _normalizeAttachmentText(text, settings) {
         if (!text || typeof text !== 'string') return '';
         return text.replace(/\s+/g, ' ').trim();
+    }
+
+    _getTemporaryDriveQueueStore_() {
+        if (typeof PropertiesService === 'undefined' || !PropertiesService ||
+            typeof PropertiesService.getScriptProperties !== 'function') {
+            return null;
+        }
+        return PropertiesService.getScriptProperties();
+    }
+
+    _rememberTemporaryDriveFile_(fileId) {
+        if (!fileId) return;
+        const store = this._getTemporaryDriveQueueStore_();
+        if (!store) return;
+
+        const key = 'TEMP_DRIVE_FILE_QUEUE_V1';
+        try {
+            let queue = [];
+            try {
+                queue = JSON.parse(store.getProperty(key) || '[]');
+            } catch (_) {
+                queue = [];
+            }
+            if (!Array.isArray(queue)) queue = [];
+
+            const now = Date.now();
+            queue = queue
+                .filter(item => item && item.id && item.id !== fileId)
+                .slice(-49);
+            queue.push({ id: String(fileId), ts: now });
+            store.setProperty(key, JSON.stringify(queue));
+        } catch (e) {
+            console.warn(`⚠️ Impossibile registrare file temporaneo Drive ${fileId}: ${e.message}`);
+        }
+    }
+
+    _forgetTemporaryDriveFile_(fileId) {
+        if (!fileId) return;
+        const store = this._getTemporaryDriveQueueStore_();
+        if (!store) return;
+
+        const key = 'TEMP_DRIVE_FILE_QUEUE_V1';
+        try {
+            let queue = [];
+            try {
+                queue = JSON.parse(store.getProperty(key) || '[]');
+            } catch (_) {
+                queue = [];
+            }
+            if (!Array.isArray(queue)) queue = [];
+
+            const nextQueue = queue.filter(item => item && item.id && item.id !== fileId);
+            if (nextQueue.length === 0) {
+                store.deleteProperty(key);
+            } else if (nextQueue.length !== queue.length) {
+                store.setProperty(key, JSON.stringify(nextQueue));
+            }
+        } catch (e) {
+            console.warn(`⚠️ Impossibile aggiornare coda file temporanei Drive: ${e.message}`);
+        }
+    }
+
+    _deleteTemporaryDriveFile_(fileId) {
+        if (!fileId || typeof Drive === 'undefined' || !Drive || !Drive.Files) return false;
+
+        if (typeof Drive.Files.remove === 'function') {
+            Drive.Files.remove(fileId);
+            return true;
+        }
+        if (typeof Drive.Files.delete === 'function') {
+            Drive.Files.delete(fileId);
+            return true;
+        }
+        if (typeof Drive.Files.trash === 'function') {
+            Drive.Files.trash(fileId);
+            return true;
+        }
+        return false;
+    }
+
+    _cleanupQueuedTemporaryDriveFiles_() {
+        const store = this._getTemporaryDriveQueueStore_();
+        if (!store) return;
+
+        const key = 'TEMP_DRIVE_FILE_QUEUE_V1';
+        let queue = [];
+        try {
+            queue = JSON.parse(store.getProperty(key) || '[]');
+        } catch (_) {
+            queue = [];
+        }
+        if (!Array.isArray(queue) || queue.length === 0) return;
+
+        const retained = [];
+        let removed = 0;
+        for (const item of queue) {
+            if (!item || !item.id) continue;
+            try {
+                if (this._deleteTemporaryDriveFile_(item.id)) {
+                    removed++;
+                } else {
+                    retained.push(item);
+                }
+            } catch (e) {
+                const msg = String(e && e.message || '').toLowerCase();
+                if (msg.includes('not found') || msg.includes('file not found') || msg.includes('404')) {
+                    removed++;
+                } else {
+                    retained.push(item);
+                    console.warn(`⚠️ Impossibile rimuovere file temporaneo Drive in coda (${item.id}): ${e.message}`);
+                }
+            }
+        }
+
+        if (retained.length === 0) {
+            store.deleteProperty(key);
+        } else {
+            store.setProperty(key, JSON.stringify(retained.slice(-50)));
+        }
+
+        if (removed > 0) {
+            console.log(`🧹 Cleanup Drive: rimossi ${removed} file temporanei in coda`);
+        }
     }
 
     /**
