@@ -1,0 +1,52 @@
+const fs = require('fs');
+const vm = require('vm');
+const path = require('path');
+
+function assert(condition, message) {
+  if (!condition) {
+    console.error(`❌ ${message}`);
+    process.exit(1);
+  }
+}
+
+console.log('--- Test _getScriptProperty: primo accesso e cache ---');
+
+const backingProps = new Map([
+  ['GEMINI_API_KEY', 'first-key'],
+  ['SPREADSHEET_ID', 'sheet-1'],
+  ['METRICS_SHEET_ID', 'metrics-1']
+]);
+const getCounts = new Map();
+let getScriptPropertiesCalls = 0;
+
+global.PropertiesService = {
+  getScriptProperties: () => {
+    getScriptPropertiesCalls++;
+    return {
+      getProperty: (key) => {
+        getCounts.set(key, (getCounts.get(key) || 0) + 1);
+        return backingProps.has(key) ? backingProps.get(key) : null;
+      }
+    };
+  }
+};
+
+const gasConfigPath = path.join(__dirname, '..', 'gas_config.js');
+const code = fs.readFileSync(gasConfigPath, 'utf8');
+vm.runInThisContext(code, { filename: gasConfigPath });
+
+assert(_getScriptProperty('GEMINI_API_KEY') === 'first-key', 'il primo accesso deve leggere la property reale');
+backingProps.set('GEMINI_API_KEY', 'changed-key');
+assert(_getScriptProperty('GEMINI_API_KEY') === 'first-key', 'il secondo accesso deve riusare il valore in cache');
+assert(getCounts.get('GEMINI_API_KEY') === 1, 'getProperty deve essere chiamato una sola volta per chiave cached');
+assert(getScriptPropertiesCalls === 1, 'getScriptProperties deve essere inizializzato una sola volta');
+
+assert(CONFIG.SPREADSHEET_ID === 'sheet-1', 'il getter SPREADSHEET_ID deve usare _getScriptProperty');
+backingProps.set('SPREADSHEET_ID', 'sheet-2');
+assert(CONFIG.SPREADSHEET_ID === 'sheet-1', 'il getter SPREADSHEET_ID deve mantenere il valore cached');
+assert(getCounts.get('SPREADSHEET_ID') === 1, 'SPREADSHEET_ID deve essere letto una sola volta');
+
+assert(CONFIG.METRICS_SHEET_ID === 'metrics-1', 'il getter METRICS_SHEET_ID deve usare _getScriptProperty');
+assert(getCounts.get('METRICS_SHEET_ID') === 1, 'METRICS_SHEET_ID deve essere letto una sola volta');
+
+console.log('✅ Test _getScriptProperty cache passato');

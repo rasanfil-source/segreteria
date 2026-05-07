@@ -111,6 +111,21 @@ assert(
   'non deve registrare 10:00 tra gli orari allucinati quando la KB contiene "ore 10"'
 );
 
+console.log('--- Test hallucination: versetti biblici paolini/cattolici non sono orari inventati ---');
+const bibleVerseResult = validator._checkHallucinations(
+  'Per il gruppo biblico leggeremo Rm 9,20, 1Cor 13.4, Ef 2,10 e 2Pt 1,10.',
+  '',
+  ''
+);
+assert(
+  !bibleVerseResult.warnings.some((w) => w.includes('Orari non in KB')),
+  'versetti Rm/1Cor/Ef/2Pt non devono generare warning orari inventati'
+);
+assert(
+  !bibleVerseResult.hallucinations.times || bibleVerseResult.hallucinations.times.length === 0,
+  'i versetti biblici non devono essere registrati tra gli orari allucinati'
+);
+
 console.log('--- Test SemanticValidator: fallback lazy senza GeminiService/CacheService ---');
 {
   const originalConfig = global.CONFIG;
