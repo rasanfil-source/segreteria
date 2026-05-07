@@ -1459,10 +1459,17 @@ ${addressLines.join('\n\n')}
       let shouldLabelForReview = false;
 
       if (this.config.validationEnabled) {
+        const fullValidationKB = [
+          enrichedKnowledgeBase,
+          routedAiCoreLite,
+          routedAiCore,
+          routedDoctrine
+        ].filter(Boolean).join('\n\n');
+
         validation = this.validator.validateResponse(
           finalResponse,
           detectedLanguage,
-          enrichedKnowledgeBase,
+          fullValidationKB,
           messageDetails.body,
           messageDetails.subject,
           salutationMode
@@ -1532,7 +1539,7 @@ ${addressLines.join('\n\n')}
           const retryValidation = this.validator.validateResponse(
             preparedRetryResponse,
             detectedLanguage,
-            enrichedKnowledgeBase,
+            fullValidationKB,
             messageDetails.body,
             messageDetails.subject,
             salutationMode
@@ -3548,8 +3555,8 @@ Nota bene: l'orario comunicato ${note}.`;
     return 'unknown';
   }
 
-  _buildPrudentDocumentMismatchResponse_(language) {
-    const lang = String(language || 'it').toLowerCase();
+  _buildPrudentDocumentMismatchResponse_(detectedLanguage) {
+    const lang = String(detectedLanguage || 'it').toLowerCase();
     if (lang === 'en') {
       return 'Good evening.\nWe have received your attachment. Before proceeding, the parish office will verify the submitted documentation.\nKind regards,\nParish Office';
     }

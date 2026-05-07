@@ -1311,7 +1311,7 @@ ${hints[effectiveCategory]}` : null;
 - Mantieni la risposta aderente alla domanda, senza aggiungere requisiti non richiesti.`;
     }
 
-    if (normalized === 'cresima_prerequisite_for_sponsor_role' || normalized === 'cresimaprerequisiteforsponsorrole') {
+    if (normalized === 'cresima_prerequisite_for_sponsor_role') {
       return `**POLICY CONTENUTO PADRINO/MADRINA — PREREQUISITO CRESIMA (OBBLIGATORIA):**
 Il mittente chiede della Cresima perché vuole o deve assumere un ruolo di padrino/madrina, oppure capire l'idoneità per un ruolo ecclesiale collegato.
 

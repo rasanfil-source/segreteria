@@ -409,11 +409,8 @@ var GmailService = class GmailService {
             || message.includes('user-rate limit')
             || message.includes('quota exceeded')
             || message.includes('too many requests')
-            || message.includes('429')
-            || message.includes('500')
-            || message.includes('502')
-            || message.includes('503')
-            || message.includes('504');
+            || /\b429\b/.test(message)
+            || /\b(500|502|503|504)\b/.test(message);
     }
 
     _safeSleep_(ms) {

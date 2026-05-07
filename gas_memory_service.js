@@ -1086,8 +1086,8 @@ var MemoryService = class MemoryService {
       tone: values[3] || 'standard',
       providedInfo: providedInfo,
       lastUpdated: lastUpdated,
-      messageCount: parseInt(values[6]) || 0,
-      version: parseInt(values[7]) || 0,
+      messageCount: parseInt(values[6], 10) || 0,
+      version: parseInt(values[7], 10) || 0,
       memorySummary: values[8] || ''
     };
   }
