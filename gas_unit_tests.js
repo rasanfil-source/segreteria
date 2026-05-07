@@ -248,6 +248,78 @@ function runAllTests() {
     const results = { total: 0, passed: 0, failed: 0 };
     const start = Date.now();
 
+    // 0. Regressioni precedence/configurazione
+    testGroup('Regressioni - Precedenza operatori e configurazione', results, () => {
+        test('_getScriptProperty memorizza in cache anche con chiave assente inizialmente', results, () => {
+            let propertyReads = 0;
+            const context = {
+                console,
+                PropertiesService: {
+                    getScriptProperties: () => ({
+                        getProperty: (key) => {
+                            propertyReads += 1;
+                            return `${key}-value`;
+                        }
+                    })
+                }
+            };
+
+            vm.createContext(context);
+            vm.runInContext(fs.readFileSync('gas_config.js', 'utf8'), context, { filename: 'gas_config.js' });
+            propertyReads = 0;
+
+            const first = context._getScriptProperty('CACHE_REGRESSION_KEY');
+            const second = context._getScriptProperty('CACHE_REGRESSION_KEY');
+            return first === 'CACHE_REGRESSION_KEY-value'
+                && second === first
+                && propertyReads === 1;
+        });
+
+        test('_isSameCalendarDay rifiuta input non-Date senza eccezioni', results, () => {
+            return _isSameCalendarDay('2026-04-05', new Date(2026, 3, 5)) === false
+                && _isSameCalendarDay(new Date(2026, 3, 5), null) === false
+                && _isSameCalendarDay(new Date('invalid'), new Date(2026, 3, 5)) === false
+                && _isSameCalendarDay(new Date(2026, 3, 5), new Date(2026, 3, 5)) === true;
+        });
+
+        test('ResponseValidator usa il fallback locale se Utilities.formatDate non è disponibile', results, () => {
+            const previousUtilities = Utilities;
+            try {
+                Utilities = undefined;
+                const validator = new ResponseValidator();
+                const result = validator._checkTimeBasedGreeting('Buongiorno, grazie per averci scritto.', 'it');
+                return result && typeof result.score === 'number' && Array.isArray(result.warnings);
+            } finally {
+                Utilities = previousUtilities;
+            }
+        });
+
+        test('I getter CONFIG reali leggono i nomi underscored delle Script Properties', results, () => {
+            const propertyValues = {
+                GEMINI_API_KEY: 'abcdefghijklmnopqrstuvwxyz123456',
+                SPREADSHEET_ID: 'sheet-123',
+                METRICS_SHEET_ID: 'metrics-sheet-123'
+            };
+            const context = {
+                console,
+                PropertiesService: {
+                    getScriptProperties: () => ({
+                        getProperty: (key) => Object.prototype.hasOwnProperty.call(propertyValues, key)
+                            ? propertyValues[key]
+                            : null
+                    })
+                }
+            };
+
+            vm.createContext(context);
+            vm.runInContext(fs.readFileSync('gas_config.js', 'utf8'), context, { filename: 'gas_config.js' });
+
+            return context.CONFIG.GEMINI_API_KEY === propertyValues.GEMINI_API_KEY
+                && context.CONFIG.SPREADSHEET_ID === propertyValues.SPREADSHEET_ID
+                && context.CONFIG.METRICS_SHEET_ID === propertyValues.METRICS_SHEET_ID;
+        });
+    });
+
     // 1. RateLimiter
     testGroup('RateLimiter - Persistenza Transazionale', results, () => {
         test('Il gestore della persistenza pulisce i registri dopo sincronizzazione riuscita', results, () => {

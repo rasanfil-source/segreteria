@@ -216,19 +216,23 @@ function isInVacationPeriod(date = new Date(), scriptTimeZone = "") {
 }
 
 /**
+ * Confronta due Date sul solo calendario locale.
+ * Resta deliberatamente difensiva perché viene usata nella logica di sospensione.
+ */
+function _isSameCalendarDay(left, right) {
+  if (!(left instanceof Date) || isNaN(left.getTime()) || !(right instanceof Date) || isNaN(right.getTime())) {
+    return false;
+  }
+  return left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+}
+
+/**
  * Verifica se il sistema dovrebbe essere SOSPESO
  */
 function isInSuspensionTime(checkDate = new Date()) {
   const now = checkDate;
-
-  const isSameCalendarDay = (left, right) => {
-    if (!(left instanceof Date) || isNaN(left.getTime()) || !(right instanceof Date) || isNaN(right.getTime())) {
-      return false;
-    }
-    return left.getFullYear() === right.getFullYear()
-      && left.getMonth() === right.getMonth()
-      && left.getDate() === right.getDate();
-  };
 
   let year = now.getFullYear();
   let monthIndex = now.getMonth();
@@ -264,26 +268,26 @@ function isInSuspensionTime(checkDate = new Date()) {
   // Domenica di Pasqua, Pasquetta, Sabato Santo
   const easter = calculateEaster(year);
   const normalizedNow = new Date(year, monthIndex, date, 12, 0, 0);
-  if (isSameCalendarDay(normalizedNow, easter)) return false;
+  if (_isSameCalendarDay(normalizedNow, easter)) return false;
 
   // Nota manutenzione: base su "easter" è intenzionale per leggibilità semantica.
   const pasquetta = new Date(easter);
   pasquetta.setDate(easter.getDate() + 1);
-  if (isSameCalendarDay(normalizedNow, pasquetta)) return false;
+  if (_isSameCalendarDay(normalizedNow, pasquetta)) return false;
 
   const holySaturday = new Date(easter);
   holySaturday.setDate(easter.getDate() - 1);
-  if (isSameCalendarDay(normalizedNow, holySaturday)) return false;
+  if (_isSameCalendarDay(normalizedNow, holySaturday)) return false;
 
   // Pentecoste (Pasqua + 49 giorni)
   const pentecost = new Date(easter);
   pentecost.setDate(easter.getDate() + 49);
-  if (isSameCalendarDay(normalizedNow, pentecost)) return false;
+  if (_isSameCalendarDay(normalizedNow, pentecost)) return false;
 
   // Corpus Domini (Pasqua + 63 giorni: domenica successiva alla SS. Trinità, prassi italiana)
   const corpusDomini = new Date(easter);
   corpusDomini.setDate(easter.getDate() + 63);
-  if (isSameCalendarDay(normalizedNow, corpusDomini)) return false;
+  if (_isSameCalendarDay(normalizedNow, corpusDomini)) return false;
 
   // Ferie Segretario (Sheet)
   if (isInVacationPeriod(now, businessTimeZone)) return false;
