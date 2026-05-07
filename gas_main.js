@@ -723,6 +723,66 @@ function _isKnowledgeBaseSheetName(sheetName, cfg) {
   return kbSheets.includes(sheetName);
 }
 
+function _rangesIntersect_(range, startRow, startColumn, numRows, numColumns) {
+  if (!range || typeof range.getRow !== 'function' || typeof range.getColumn !== 'function') {
+    return false;
+  }
+
+  const rangeStartRow = Number(range.getRow());
+  const rangeStartColumn = Number(range.getColumn());
+  const rangeEndRow = (typeof range.getLastRow === 'function')
+    ? Number(range.getLastRow())
+    : rangeStartRow;
+  const rangeEndColumn = (typeof range.getLastColumn === 'function')
+    ? Number(range.getLastColumn())
+    : rangeStartColumn;
+
+  const targetStartRow = Number(startRow);
+  const targetStartColumn = Number(startColumn);
+  const targetEndRow = targetStartRow + Number(numRows) - 1;
+  const targetEndColumn = targetStartColumn + Number(numColumns) - 1;
+
+  if ([rangeStartRow, rangeStartColumn, rangeEndRow, rangeEndColumn, targetStartRow, targetStartColumn, targetEndRow, targetEndColumn].some(value => !Number.isFinite(value))) {
+    return false;
+  }
+
+  return rangeStartRow <= targetEndRow
+    && rangeEndRow >= targetStartRow
+    && rangeStartColumn <= targetEndColumn
+    && rangeEndColumn >= targetStartColumn;
+}
+
+function _isControlConfigEditRange_(sheetName, range) {
+  if (sheetName !== 'Controllo') return false;
+
+  return _rangesIntersect_(range, 2, 2, 1, 1)       // B2: interruttore
+    || _rangesIntersect_(range, 2, 6, 1, 1)        // F2: modalità lingua
+    || _rangesIntersect_(range, 5, 2, 3, 4)        // B5:E7: ferie/assenze
+    || _rangesIntersect_(range, 6, 1, 5, 3)        // A6:C10: layout ferie legacy
+    || _rangesIntersect_(range, 10, 1, 7, 4)       // A10:D16: fasce sospensione
+    || _rangesIntersect_(range, 13, 5, 5000, 2);   // E13:F: filtri anti-spam
+}
+
+function _isResourceInvalidationEdit_(sheetName, range, cfg) {
+  // Nota operativa: onEdit viene valutato solo su modifiche utente al foglio.
+  // Inoltre limitiamo l'invalidazione ai fogli/range letti da loadResources,
+  // escludendo ConversationMemory e fogli di log/rate-limit scritti durante l'elaborazione email.
+  return _isKnowledgeBaseSheetName(sheetName, cfg) || _isControlConfigEditRange_(sheetName, range);
+}
+
+function _touchResourceConfigModifiedTime_() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    if (props && typeof props.setProperty === 'function') {
+      props.setProperty('KB_CUSTOM_MODIFIED_TIME', String(Date.now()));
+      return true;
+    }
+  } catch (propError) {
+    console.warn('⚠️ Impossibile aggiornare KB_CUSTOM_MODIFIED_TIME: ' + propError.message);
+  }
+  return false;
+}
+
 function _logKnowledgeBaseHealthReport(rows, sheetName) {
   const report = _analyzeKnowledgeBaseRows(rows, sheetName);
   console.log('KB_HEALTH_REPORT ' + JSON.stringify(report));
@@ -1201,13 +1261,11 @@ function _loadAdvancedConfig(ss) {
     }
 
     // Ferie/assenze (layout corrente B5:E7): B=data inizio, D=data fine.
+    // Supporta anche layout compatti/varianti in cui la data fine è in C o E.
     // Fallback legacy A6:C10: A=riepilogo, B=data inizio, C=data fine.
     let ferieRows = [];
     try {
-      ferieRows = sheet.getRange('B5:E7').getValues().map(row => ({
-        start: row[0],
-        end: row[2]
-      }));
+      ferieRows = sheet.getRange('B5:E7').getValues().map(row => _extractVacationPeriodFromControlRow_(row));
     } catch (e) {
       ferieRows = [];
     }
@@ -1855,6 +1913,32 @@ function parseDateSafe(input, fallback = null, explicitTimeZone = null) {
 }
 
 /**
+ * Estrae un periodo ferie da una riga del layout Controllo B5:E7.
+ * Il layout documentato usa B=inizio e D=fine, ma alcuni fogli reali
+ * possono avere la fine in C (layout compatto) o E. Per evitare falsi
+ * periodi invalidi, usa la prima coppia di date valide trovata sulla riga.
+ * @param {Array<*>} row - Riga letta da B:E.
+ * @returns {{start: *, end: *}} Valori originali di inizio/fine da convertire a valle.
+ */
+function _extractVacationPeriodFromControlRow_(row) {
+  if (!Array.isArray(row) || row.length === 0) {
+    return { start: null, end: null };
+  }
+
+  const start = row[0];
+  const startDate = _parseDateValue(start);
+  const endCandidates = [row[2], row[1], row[3]];
+  const end = endCandidates.find(value => _parseDateValue(value)) || row[2] || row[1] || row[3];
+
+  if (!startDate) {
+    return { start, end };
+  }
+
+  // Preferenza esplicita: D (layout documentato), poi C (compatto), poi E (variante estesa).
+  return { start, end };
+}
+
+/**
  * Converte valori data provenienti da Google Sheets in Date valide.
  * Supporta Date native, seriali Sheets e stringhe italiane gg/mm/aaaa.
  * @param {*} value - Valore cella da convertire
@@ -1924,42 +2008,14 @@ function onEdit(e) {
   const sheetName = sheet.getName();
   const cfg = (typeof CONFIG !== 'undefined' && CONFIG) ? CONFIG : null;
 
-  // Ogni modifica ai fogli KB aggiorna il timestamp virtuale usato per l'invalidazione cache.
-  if (_isKnowledgeBaseSheetName(sheetName, cfg)) {
-    try {
-      const props = PropertiesService.getScriptProperties();
-      if (props && typeof props.setProperty === 'function') {
-        props.setProperty('KB_CUSTOM_MODIFIED_TIME', String(Date.now()));
-      }
-      console.log(`↻ Timestamp custom KB aggiornato da onEdit su foglio: ${sheetName}`);
-    } catch (propError) {
-      console.warn('⚠️ Impossibile aggiornare KB_CUSTOM_MODIFIED_TIME: ' + propError.message);
-    }
-  }
+  // Ogni modifica alle risorse usate da loadResources aggiorna il timestamp virtuale
+  // e svuota ScriptCache: il reload avviene poi nel ciclo main con lock.
+  if (_isResourceInvalidationEdit_(sheetName, range, cfg)) {
+    const touched = _touchResourceConfigModifiedTime_();
+    console.log(`↻ Timestamp risorse aggiornato da onEdit su foglio: ${sheetName}${touched ? '' : ' (best effort)'}`);
 
-  // 1. Definisci qui le coordinate del tuo selettore
-  // Esempio: Foglio "Controllo", cella "B2" (dove solitamente risiede lo stato o la config)
-  const TARGET_SHEET = "Controllo";
-
-  // Verifica intersezione per supportare edit multi-cella (copia/incolla o eliminazione righe)
-  const intersectsB2 = (range.getRow() <= 2 && range.getLastRow() >= 2 && range.getColumn() <= 2 && range.getLastColumn() >= 2);
-  const intersectsF2 = (range.getRow() <= 2 && range.getLastRow() >= 2 && range.getColumn() <= 6 && range.getLastColumn() >= 6);
-
-  if (sheetName === TARGET_SHEET && (intersectsB2 || intersectsF2)) {
-    // NOTA: onEdit è un trigger semplice (max ~6s, lock non affidabile).
-    // Invalida solo la cache; il reload avviene nel ciclo principale con lock.
-    console.log("🔄 Rilevata modifica al selettore. Invalidazione cache...");
     try {
       clearKnowledgeCache();
-
-      // Se il cambio è sulla modalità lingua, forziamo il salvataggio immediato 
-      // della proprietà per il controllo al prossimo ciclo main.
-      if (intersectsF2) {
-        const val = sheet.getRange('F2').getValue();
-        const mode = String(val).toLowerCase().includes('solo') ? 'foreign_only' : 'all';
-        // Non facciamo il riarmo qui (onEdit ha pochi permessi), lo farà il main.
-      }
-
       (e.source || SpreadsheetApp.getActiveSpreadsheet())
         .toast("Cache invalidata. Ricarica al prossimo ciclo.", "Sistema IA", 5);
     } catch (err) {

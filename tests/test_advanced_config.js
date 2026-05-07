@@ -22,6 +22,37 @@ const gasMainPath = path.join(__dirname, '..', 'gas_main.js');
 const code = fs.readFileSync(gasMainPath, 'utf8');
 vm.runInThisContext(code, { filename: gasMainPath });
 
+console.log('--- Test estrazione ferie layout variabili B5:E7 ---');
+const compactVacationRow = _extractVacationPeriodFromControlRow_([new Date('2026-07-01'), new Date('2026-07-10'), '', '']);
+const extendedVacationRow = _extractVacationPeriodFromControlRow_([new Date('2026-09-01'), '', '', new Date('2026-09-10')]);
+assert(_parseDateValue(compactVacationRow.start).getTime() === new Date(2026, 6, 1).getTime(), 'layout B-C deve mantenere inizio in B');
+assert(_parseDateValue(compactVacationRow.end).getTime() === new Date(2026, 6, 10).getTime(), 'layout B-C deve leggere fine in C');
+assert(_parseDateValue(extendedVacationRow.end).getTime() === new Date(2026, 8, 10).getTime(), 'layout B-E deve leggere fine in E se C/D sono vuote');
+console.log('✅ Test estrazione ferie layout variabili passati');
+
+function fakeRange(row, column, lastRow = row, lastColumn = column) {
+  return {
+    getRow: () => row,
+    getColumn: () => column,
+    getLastRow: () => lastRow,
+    getLastColumn: () => lastColumn
+  };
+}
+
+console.log('--- Test invalidazione cache per range Controllo ---');
+assert(_isControlConfigEditRange_('Controllo', fakeRange(5, 2)), 'B5 ferie deve invalidare cache');
+assert(_isControlConfigEditRange_('Controllo', fakeRange(7, 5)), 'E7 ferie variante estesa deve invalidare cache');
+assert(_isControlConfigEditRange_('Controllo', fakeRange(10, 1, 16, 4)), 'A10:D16 sospensione deve invalidare cache');
+assert(_isControlConfigEditRange_('Controllo', fakeRange(13, 5)), 'E13 filtri deve invalidare cache');
+assert(!_isControlConfigEditRange_('Controllo', fakeRange(20, 1)), 'A20 fuori configurazione non deve invalidare cache');
+assert(!_isControlConfigEditRange_('Controllo', fakeRange(6000, 5)), 'E6000 fuori area filtri non deve invalidare cache');
+assert(!_isControlConfigEditRange_('ConversationMemory', fakeRange(5, 2)), 'ConversationMemory non deve invalidare cache risorse via onEdit');
+assert(!_isResourceInvalidationEdit_('ConversationMemory', fakeRange(5, 2), global.CONFIG), 'scritture memoria conversazioni non devono invalidare risorse');
+assert(!_isResourceInvalidationEdit_('Log', fakeRange(2, 1), global.CONFIG), 'fogli di log non devono invalidare risorse');
+assert(!_isResourceInvalidationEdit_('GeminiRateLimiter', fakeRange(2, 1), global.CONFIG), 'scritture rate limiter non devono invalidare risorse');
+assert(_isResourceInvalidationEdit_('Istruzioni', fakeRange(10, 1), global.CONFIG), 'modifiche KB devono invalidare risorse');
+console.log('✅ Test invalidazione cache Controllo passati');
+
 function createFakeSheet() {
   const ranges = {
     'B2': { getValue: () => 'ACCESO' },
