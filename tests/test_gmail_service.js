@@ -558,3 +558,35 @@ console.log('--- Test sendHtmlReply: From fallback usa email estratta dal To ---
 }
 
 console.log('✅ Test extractMessageDetails robustezza passati');
+
+console.log('--- Test Gmail counter: non usa ScriptLock per ogni chiamata ---');
+{
+  const originalLockService = global.LockService;
+  const originalPropertiesService = global.PropertiesService;
+  let storedValue = null;
+
+  try {
+    global.LockService = {
+      getScriptLock: () => ({
+        tryLock: () => { throw new Error('lock contention'); },
+        releaseLock: () => { throw new Error('release non atteso'); }
+      })
+    };
+    delete global.PropertiesService;
+
+    const counterService = new GmailService();
+    counterService._scriptCache = {
+      get: () => '41',
+      put: (_key, value) => { storedValue = value; }
+    };
+    counterService._gmailDailyCallLimit = 100;
+    counterService._gmailDailyCounterWarnAt = 90;
+
+    counterService._incrementGmailCallCounterOrThrow_('messages.get');
+
+    assert(storedValue === '42', 'counter Gmail deve incrementare senza acquisire ScriptLock');
+  } finally {
+    global.LockService = originalLockService;
+    global.PropertiesService = originalPropertiesService;
+  }
+}

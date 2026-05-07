@@ -3324,6 +3324,7 @@ function main() {
         ['gmail office extract: retry propagazione Drive', testExtractOfficeTextRetriesDrivePropagation],
         ['validator: numero civico non sdogana orario inventato', testResponseValidatorStreetNumberDoesNotWhitelistInventedTime],
         ['retry intelligente: errore ammesso non critico sopra soglia', testIntelligentRetryAllowedNonCriticalHighScore],
+        ['gmail: counter non usa ScriptLock', testGmailCounterDoesNotUseScriptLock],
         ['italian vacation date parsing', testItalianVacationDateParsing],
     ];
 
@@ -3400,6 +3401,37 @@ function testItalianVacationDateParsing() {
         context.isInVacationPeriod(new Date(2026, 4, 6)) === true,
         'isInVacationPeriod deve ignorare periodi corrotti e riconoscere quello valido'
     );
+}
+
+function testGmailCounterDoesNotUseScriptLock() {
+    const context = loadScriptInContext('gas_gmail_service.js');
+    let storedValue = null;
+
+    context.LockService = {
+        getScriptLock: () => ({
+            tryLock: () => { throw new Error('lock contention'); },
+            releaseLock: () => { throw new Error('release non atteso'); }
+        })
+    };
+    context.PropertiesService = null;
+    
+    context.Utilities = {
+        formatDate: () => '2026-05-07'
+    };
+
+    const service = new context.GmailService();
+    service._scriptCache = {
+        get: () => '41',
+        put: (key, value) => { storedValue = value; }
+    };
+    service._gmailDailyCallLimit = 100;
+    service._gmailDailyCounterWarnAt = 90;
+
+    service._incrementGmailCallCounterOrThrow_('messages.get');
+
+    if (storedValue !== '42') {
+        throw new Error(`Il counter Gmail deve incrementare a 42 (ottenuto: ${storedValue}) senza usare ScriptLock`);
+    }
 }
 
 main();
