@@ -20,6 +20,11 @@ var CONFIG = {
     VALIDATION_ENABLED: true,
     VALIDATION_MIN_SCORE: 0.6,
     VALIDATION_WARNING_THRESHOLD: 0.9,
+    VALIDATION_REVIEW_ALERTS: {
+        enabled: true,
+        cooldownSeconds: 3600,
+        recipientProperty: 'VALIDATION_REVIEW_EMAIL'
+    },
   SEMANTIC_VALIDATION: {
     enabled: true,
     activationThreshold: 0.9,
@@ -101,6 +106,8 @@ var CONFIG = {
     GMAIL_LIST_MAX_MESSAGES: 2000,        // Limite messaggi Gmail list per bootstrap label cache
 
     // === Alias noti (anti-loop) ===
+    // In produzione preferire Script Properties.KNOWN_ALIASES
+    // Formati accettati: JSON array o lista separata da virgola/newline/punto e virgola.
     KNOWN_ALIASES: ['YOUR_SENDING_ALIAS@example.com'],
 
     // === Knowledge Base ===

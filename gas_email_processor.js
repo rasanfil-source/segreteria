@@ -74,6 +74,9 @@ var EmailProcessor = class EmailProcessor {
       validationWarningThreshold: typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_WARNING_THRESHOLD === 'number'
         ? CONFIG.VALIDATION_WARNING_THRESHOLD
         : 0.9,
+      validationReviewAlerts: typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_REVIEW_ALERTS
+        ? CONFIG.VALIDATION_REVIEW_ALERTS
+        : { enabled: true, cooldownSeconds: 3600, recipientProperty: 'VALIDATION_REVIEW_EMAIL' },
       maxConsecutiveExternal: typeof CONFIG !== 'undefined' && typeof CONFIG.MAX_CONSECUTIVE_EXTERNAL === 'number'
         ? CONFIG.MAX_CONSECUTIVE_EXTERNAL
         : 5,
@@ -1574,12 +1577,17 @@ ${addressLines.join('\n\n')}
             result.reason = 'thinking_leak';
           }
 
-          this._addValidationErrorLabel(candidate || thread);
+          const validationReason = result.reason || 'validation_score_below_threshold';
+          this._addValidationErrorLabel(candidate || thread, {
+            reason: validationReason,
+            validation: validation,
+            subject: messageDetails.subject
+          });
           this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
           result.status = 'validation_failed';
           result.validationFailed = true;
           if (!result.reason) {
-            result.reason = 'validation_score_below_threshold';
+            result.reason = validationReason;
           }
           return result;
         }
@@ -1637,7 +1645,11 @@ ${addressLines.join('\n\n')}
         // Etichettatura non critica: non deve compromettere lo step successivo (memoria).
         try {
           if (shouldLabelForReview || shouldForcePrudentDocResponse) {
-            this.gmailService.addLabelToMessage(candidate.getId(), this.config.validationErrorLabel);
+            this._addValidationErrorLabel(candidate, {
+              reason: shouldForcePrudentDocResponse ? 'document_consistency_prudent_response' : 'validation_warning',
+              validation: validation,
+              subject: messageDetails.subject
+            });
           }
         } catch (labelErr) {
           console.warn(`⚠️ Label di verifica non applicata (non bloccante): ${labelErr.message}`);
@@ -2717,12 +2729,171 @@ ${addressLines.join('\n\n')}
     this.gmailService.addLabelToThread(target, this.config.errorLabelName);
   }
 
-  _addValidationErrorLabel(target) {
+  _addValidationErrorLabel(target, reviewContext = {}) {
     if (target && typeof target.getThread === 'function' && typeof target.getId === 'function') {
       this.gmailService.addLabelToMessage(target.getId(), this.config.validationErrorLabel);
+      this._notifyValidationReview_(target, reviewContext);
       return;
     }
     this.gmailService.addLabelToThread(target, this.config.validationErrorLabel);
+    this._notifyValidationReview_(target, reviewContext);
+  }
+
+  _notifyValidationReview_(target, reviewContext = {}) {
+    try {
+      const alertConfig = this.config.validationReviewAlerts || {};
+      if (alertConfig.enabled === false) return;
+
+      const recipient = this._getValidationReviewRecipient_(alertConfig);
+      if (!recipient) return;
+
+      const targetInfo = this._getValidationReviewTargetInfo_(target);
+      const validation = reviewContext.validation || {};
+      const reason = reviewContext.reason || 'validation_review';
+      const score = Number.isFinite(Number(validation.score)) ? Number(validation.score).toFixed(2) : 'n/d';
+      const warnings = Array.isArray(validation.warnings) ? validation.warnings : [];
+      const errors = Array.isArray(validation.errors) ? validation.errors : [];
+      const subjectText = String(reviewContext.subject || targetInfo.subject || '(senza oggetto)')
+        .replace(/[\r\n]+/g, ' ')
+        .trim();
+      const signature = [
+        reason,
+        targetInfo.messageId || '',
+        targetInfo.threadId || '',
+        subjectText
+      ].join('|');
+
+      const canSendWithMailApp = typeof MailApp !== 'undefined' && MailApp && typeof MailApp.sendEmail === 'function';
+      const canSendWithGmailApp = typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.sendEmail === 'function';
+      if (!canSendWithMailApp && !canSendWithGmailApp) return;
+      if (this._isValidationReviewAlertThrottled_(signature, alertConfig)) return;
+
+      const subject = `[${this.config.validationErrorLabel}] Revisione richiesta: ${subjectText}`.substring(0, 180);
+      const gmailLink = targetInfo.threadId
+        ? `https://mail.google.com/mail/u/0/#inbox/${targetInfo.threadId}`
+        : '';
+      const body = [
+        'Una risposta automatica richiede verifica umana.',
+        '',
+        `Motivo: ${reason}`,
+        `Punteggio validazione: ${score}`,
+        `Oggetto: ${subjectText}`,
+        targetInfo.threadId ? `Thread ID: ${targetInfo.threadId}` : '',
+        targetInfo.messageId ? `Message ID: ${targetInfo.messageId}` : '',
+        gmailLink ? `Link Gmail: ${gmailLink}` : '',
+        warnings.length ? `Warning: ${warnings.join('; ')}` : '',
+        errors.length ? `Errori: ${errors.join('; ')}` : ''
+      ].filter(Boolean).join('\n');
+
+      if (canSendWithMailApp) {
+        MailApp.sendEmail(recipient, subject, body);
+      } else if (canSendWithGmailApp) {
+        GmailApp.sendEmail(recipient, subject, body);
+      }
+    } catch (e) {
+      console.warn(`⚠️ Notifica Verifica non inviata: ${e.message}`);
+    }
+  }
+
+  _getValidationReviewRecipient_(alertConfig) {
+    const propKey = alertConfig.recipientProperty || 'VALIDATION_REVIEW_EMAIL';
+    let propertyEmail = '';
+    try {
+      propertyEmail = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
+        ? PropertiesService.getScriptProperties().getProperty(propKey)
+        : '';
+    } catch (e) {
+      propertyEmail = '';
+    }
+
+    const configEmail = alertConfig.email || '';
+    const adminEmail = (typeof CONFIG !== 'undefined' && CONFIG.LOGGING && CONFIG.LOGGING.ADMIN_EMAIL)
+      ? CONFIG.LOGGING.ADMIN_EMAIL
+      : '';
+    const candidate = String(propertyEmail || configEmail || adminEmail || '').trim();
+    if (!candidate || candidate.includes('[') || candidate.includes('YOUR_')) return '';
+    return candidate;
+  }
+
+  _getValidationReviewTargetInfo_(target) {
+    const info = { messageId: '', threadId: '', subject: '' };
+    try {
+      if (target && typeof target.getThread === 'function') {
+        info.messageId = typeof target.getId === 'function' ? target.getId() : '';
+        const thread = target.getThread();
+        info.threadId = thread && typeof thread.getId === 'function' ? thread.getId() : '';
+        info.subject = typeof target.getSubject === 'function' ? target.getSubject() : '';
+      } else if (target && typeof target.getId === 'function') {
+        info.threadId = target.getId();
+        info.subject = typeof target.getFirstMessageSubject === 'function' ? target.getFirstMessageSubject() : '';
+      }
+    } catch (e) {
+      return info;
+    }
+    return info;
+  }
+
+  _isValidationReviewAlertThrottled_(signature, alertConfig) {
+    const cooldownSeconds = Math.max(60, parseInt(alertConfig.cooldownSeconds, 10) || 3600);
+    const hash = this._hashValidationReviewSignature_(signature);
+    const key = `validation_review_alert_${hash}`;
+    const now = Date.now();
+
+    try {
+      const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
+        ? CacheService.getScriptCache()
+        : null;
+      if (cache && cache.get(key)) return true;
+      if (cache) cache.put(key, 'sent', Math.min(cooldownSeconds, 21600));
+    } catch (e) {
+      // Il fallback su PropertiesService copre anche evizioni/cache non disponibili.
+    }
+
+    try {
+      const props = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
+        ? PropertiesService.getScriptProperties()
+        : null;
+      if (!props) return false;
+      const stateKey = 'VALIDATION_REVIEW_ALERT_STATE';
+      let state = {};
+      try {
+        state = JSON.parse(props.getProperty(stateKey) || '{}');
+      } catch (e) {
+        state = {};
+      }
+      const lastTs = Number(state[hash]);
+      if (Number.isFinite(lastTs) && ((now - lastTs) < cooldownSeconds * 1000)) {
+        return true;
+      }
+      const nextState = { [hash]: now };
+      Object.keys(state).forEach((existingHash) => {
+        const ts = Number(state[existingHash]);
+        if (Number.isFinite(ts) && ((now - ts) < cooldownSeconds * 1000)) {
+          nextState[existingHash] = ts;
+        }
+      });
+      props.setProperty(stateKey, JSON.stringify(nextState));
+    } catch (e) {
+      return false;
+    }
+
+    return false;
+  }
+
+  _hashValidationReviewSignature_(signature) {
+    try {
+      if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.computeDigest === 'function') {
+        return Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, signature)).substring(0, 16);
+      }
+    } catch (e) {
+      // fallback deterministico sotto.
+    }
+    let hash = 0;
+    const source = String(signature || '');
+    for (let i = 0; i < source.length; i++) {
+      hash = ((hash << 5) - hash + source.charCodeAt(i)) | 0;
+    }
+    return String(Math.abs(hash));
   }
 
   // Classifica gli errori di validazione in categorie utili per il retry LLM

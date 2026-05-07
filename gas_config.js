@@ -15,6 +15,33 @@ function _getScriptProperty(key) {
   return _CACHED_PROPS[key];
 }
 
+function _getScriptPropertyStringArray(key, fallback) {
+  const safeFallback = Array.isArray(fallback) ? fallback.slice() : [];
+  let raw = '';
+  try {
+    raw = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
+      ? _getScriptProperty(key)
+      : '';
+  } catch (e) {
+    raw = '';
+  }
+  if (!raw) return safeFallback;
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.map(value => String(value || '').trim()).filter(Boolean);
+    }
+  } catch (e) {
+    // Non JSON: accettiamo lista separata da virgola, punto e virgola o newline.
+  }
+
+  return String(raw)
+    .split(/[,\n;]/)
+    .map(value => value.trim())
+    .filter(Boolean);
+}
+
 var CONFIG = {
   // === API ===
   get GEMINI_API_KEY() { return _getScriptProperty('GEMINI_API_KEY'); },
@@ -28,6 +55,11 @@ var CONFIG = {
   VALIDATION_ENABLED: true,
   VALIDATION_MIN_SCORE: 0.6,
   VALIDATION_WARNING_THRESHOLD: 0.9,  // Soglia warning sotto cui aggiungere etichetta Verifica
+  VALIDATION_REVIEW_ALERTS: {
+    enabled: true,
+    cooldownSeconds: 3600,
+    recipientProperty: 'VALIDATION_REVIEW_EMAIL'
+  },
   SEMANTIC_VALIDATION: {
     enabled: true,
     activationThreshold: 0.9,
@@ -107,14 +139,14 @@ var CONFIG = {
   CACHE_MAX_BYTES: 90 * 1024,          // Margine sotto 100KB/entry CacheService per ridurre quota exceeded
   CACHE_LOCK_TTL: 310,                 // Secondi (>= MAX_EXECUTION_TIME_MS/1000 con margine)
   CACHE_RACE_SLEEP_MS: 200,             // Attesa anti-race condition
-  DEBUG: true,                         // Abilita log verbose (console.log) in produzione tenerlo false
+  DEBUG: false,                        // Abilita log verbose (console.log); in produzione tenerlo false
   GMAIL_DAILY_CALL_LIMIT: 18000,       // Soft limit locale anti-burst prima del limite Gmail reale
   GMAIL_LIST_MAX_PAGES: 20,            // Limite pagine Gmail list per bootstrap label cache
   GMAIL_LIST_MAX_MESSAGES: 2000,       // Limite messaggi Gmail list per bootstrap label cache
   BATCH_CHECKPOINT_TTL_MS: 10 * 60 * 1000, // Scadenza checkpoint resume (10 minuti)
 
   // === Alias noti (anti-loop: il bot riconosce sé stesso anche quando invia da alias) ===
-  KNOWN_ALIASES: ['info@parrocchiasanteugenio.it'],
+  KNOWN_ALIASES: _getScriptPropertyStringArray('KNOWN_ALIASES', ['info@parrocchiasanteugenio.it']),
 
   // === Knowledge Base ===
   get SPREADSHEET_ID() { return _getScriptProperty('SPREADSHEET_ID'); },

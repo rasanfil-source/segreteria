@@ -1068,9 +1068,10 @@ Testo:
    * Ottieni saluto speciale per feste liturgiche e festività
    */
   _getSpecialDayGreeting(dateObj, language = 'it') {
-    const y = dateObj.getFullYear();
-    const m = dateObj.getMonth() + 1;
-    const d = dateObj.getDate();
+    const parts = this._getRomeDateParts_(dateObj);
+    const y = parts.year;
+    const m = parts.month;
+    const d = parts.day;
 
     // === FESTIVITÀ FISSE ===
 
@@ -1175,30 +1176,72 @@ Testo:
    * Aggiunge giorni a una data
    */
   _addDays(date, days) {
-    const result = new Date(date);
-    result.setDate(result.getDate() + days);
-    return result;
+    return new Date(new Date(date).getTime() + (days * 24 * 60 * 60 * 1000));
+  }
+
+  _getRomeDateParts_(dateObj) {
+    const safeDate = dateObj instanceof Date ? dateObj : new Date(dateObj);
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+      try {
+        const formatted = Utilities.formatDate(safeDate, 'Europe/Rome', 'yyyy-MM-dd');
+        const match = String(formatted || '').match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+        if (match) {
+          return {
+            year: parseInt(match[1], 10),
+            month: parseInt(match[2], 10),
+            day: parseInt(match[3], 10)
+          };
+        }
+
+        const year = parseInt(Utilities.formatDate(safeDate, 'Europe/Rome', 'yyyy'), 10);
+        const month = parseInt(Utilities.formatDate(safeDate, 'Europe/Rome', 'M'), 10);
+        const day = parseInt(Utilities.formatDate(safeDate, 'Europe/Rome', 'd'), 10);
+        if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day) && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          return { year: year, month: month, day: day };
+        }
+      } catch (e) {
+        // fallback locale sotto.
+      }
+    }
+    return {
+      year: safeDate.getFullYear(),
+      month: safeDate.getMonth() + 1,
+      day: safeDate.getDate()
+    };
+  }
+
+  _romeDayOrdinal_(dateObj) {
+    const parts = this._getRomeDateParts_(dateObj);
+    return Date.UTC(parts.year, parts.month - 1, parts.day);
+  }
+
+  _getRomeWeekday_(dateObj) {
+    const safeDate = dateObj instanceof Date ? dateObj : new Date(dateObj);
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+      try {
+        const isoDay = parseInt(Utilities.formatDate(safeDate, 'Europe/Rome', 'u'), 10);
+        if (!isNaN(isoDay) && isoDay >= 1 && isoDay <= 7) return isoDay % 7;
+      } catch (e) {
+        // fallback locale sotto.
+      }
+    }
+    return safeDate.getDay();
   }
 
   /**
    * Verifica se due date sono lo stesso giorno
    */
   _isSameDate(date1, date2) {
-    return date1.getFullYear() === date2.getFullYear() &&
-      date1.getMonth() === date2.getMonth() &&
-      date1.getDate() === date2.getDate();
+    return this._romeDayOrdinal_(date1) === this._romeDayOrdinal_(date2);
   }
 
   /**
    * Verifica se una data è compresa tra inizio e fine (inclusi)
    */
   _isBetweenInclusive(date, start, end) {
-    // Confronto su base "giorno" (ora azzerata) per includere correttamente
-    // tutto il giorno finale dell'intervallo, indipendentemente dall'orario corrente.
-    // Il check rimane inclusivo perché anche la data da verificare viene normalizzata al giorno.
-    const d = new Date(date).setHours(0, 0, 0, 0);
-    const s = new Date(start).setHours(0, 0, 0, 0);
-    const e = new Date(end).setHours(0, 0, 0, 0);
+    const d = this._romeDayOrdinal_(date);
+    const s = this._romeDayOrdinal_(start);
+    const e = this._romeDayOrdinal_(end);
     return d >= s && d <= e;
   }
 
@@ -1214,12 +1257,12 @@ Testo:
     // Se il 25 è domenica, non esiste altra domenica nell'ottava e il
     // calendario romano prevede il fallback al 30 dicembre.
     for (let day = 26; day <= 31; day++) {
-      const date = new Date(year, 11, day);
-      if (date.getDay() === 0) {
+      const date = new Date(Date.UTC(year, 11, day, 12, 0, 0));
+      if (this._getRomeWeekday_(date) === 0) {
         return date;
       }
     }
-    return new Date(year, 11, 30);
+    return new Date(Date.UTC(year, 11, 30, 12, 0, 0));
   }
 
   // ========================================================================
