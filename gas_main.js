@@ -1193,14 +1193,29 @@ function _parseStrictHour(value) {
   return hour;
 }
 
-function _isWeekdayCellLabel(value) {
+function _weekdayIndexFromLabel(value) {
   const normalized = String(value == null ? '' : value)
     .trim()
-    .toLowerCase();
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .slice(0, 3);
 
-  if (!normalized) return false;
+  const dayMap = {
+    lun: 1,
+    mar: 2,
+    mer: 3,
+    gio: 4,
+    ven: 5,
+    sab: 6,
+    dom: 0
+  };
 
-  return /^(lun|luned[iì]|mar|marted[iì]|mer|mercoled[iì]|gio|gioved[iì]|ven|venerd[iì]|sab|sabato|dom|domenica)$/.test(normalized);
+  return Object.prototype.hasOwnProperty.call(dayMap, normalized) ? dayMap[normalized] : null;
+}
+
+function _isWeekdayCellLabel(value) {
+  return _weekdayIndexFromLabel(value) !== null;
 }
 
 function _extractSuspensionHoursFromRow(row) {
@@ -1328,10 +1343,12 @@ function _loadAdvancedConfig(ss) {
     // (B=giorno, C=inizio, D=fine).
     const susp = sheet.getRange('A10:D16').getValues();
     susp.forEach((r, i) => {
-      // Mapping esplicito indice-riga -> getDay JS:
-      // B10..B16 = Lun..Dom  => 1..6,0 (dove Domenica in JS è 0, non 7).
-      const day = (i + 1) % 7;
       const extracted = _extractSuspensionHoursFromRow(r);
+      // Preferisce l'etichetta del giorno presente nel foglio (layout corrente A o legacy B).
+      // Fallback retrocompatibile: A10:D16 ordinato Lun..Dom => getDay JS 1..6,0.
+      const labeledDay = _weekdayIndexFromLabel(r[0]);
+      const legacyLabeledDay = _weekdayIndexFromLabel(r[1]);
+      const day = (labeledDay !== null) ? labeledDay : ((legacyLabeledDay !== null) ? legacyLabeledDay : ((i + 1) % 7));
       const startHour = extracted.startHour;
       const endHour = extracted.endHour;
       if (startHour == null || endHour == null) return;

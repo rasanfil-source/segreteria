@@ -643,8 +643,8 @@ var ResponseValidator = class ResponseValidator {
       if (/^\.\d{2,4}\b/.test(suffix) || /(?:^|[\s(])\d{1,2}[\/.-]\d{1,2}$/.test(prefix.trim())) {
         continue;
       }
-      // Whitelist: Escludi versetti biblici (es. Gv 10,10 o Mt 10.10)
-      if (/(?:gv|mt|mc|lc|gen|es|lv|nm|dt|is|ger|ez|sal|at|rm|cor|ef|fil|col|ap|tb|gdt|gb|pr|qo|ct|sap|sir|bar|dn|os|gl|am|abd|gna|mi|na|ab|sof|ag|zc|ml)\.?\s*$/i.test(prefix)) {
+      // Whitelist: Escludi versetti biblici (es. Gv 10,10, Rm 9,20, 1Cor 13.4 o 2Pt 1,10)
+      if (/(?:gv|mt|mc|lc|gen|es|lv|nm|dt|gs|dc|rut|1?sam|2sam|1?re|2re|1?cr|2cr|esd|ne|tb|gdt|est|gb|sal|pr|qo|ct|sap|sir|is|ger|lam|bar|ez|dn|os|gl|am|abd|gna|mi|na|ab|sof|ag|zc|ml|at|rm|1?cor|2cor|gal|ef|fil|col|1?ts|2ts|1?tm|2tm|tt|fm|eb|gc|1?pt|2pt|1?gv|2gv|3gv|gd|ap)\.?\s*$/i.test(prefix)) {
         continue;
       }
 

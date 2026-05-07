@@ -129,6 +129,41 @@ assert(adv.ignoreKeywords.includes('unsubscribe'), 'deve includere keyword stati
 
 console.log('✅ Test advanced config parsing passati');
 
+console.log('--- Test _loadAdvancedConfig usa etichetta giorno, non solo posizione riga ---');
+function createReorderedSuspensionSheet() {
+  const ranges = {
+    'B2': { getValue: () => 'ACCESO' },
+    'F2': { getDisplayValue: () => '', getValue: () => '' },
+    'B5:E7': { getValues: () => [] },
+    'A10:D16': {
+      getValues: () => [
+        ['Domenica', 9, '', 12],
+        ['Lunedì', 8, '', 10],
+        ['Martedì', '', '', ''],
+        ['Mercoledì', '', '', ''],
+        ['Giovedì', '', '', ''],
+        ['Venerdì', '', '', ''],
+        ['Sabato', '', '', '']
+      ]
+    }
+  };
+
+  return {
+    getRange: (...args) => {
+      if (args.length === 1) return ranges[args[0]];
+      return { getValues: () => [] };
+    },
+    getLastRow: () => 16
+  };
+}
+
+const reorderedAdv = _loadAdvancedConfig({
+  getSheetByName: (name) => (name === 'Controllo' ? createReorderedSuspensionSheet() : null)
+});
+assert(reorderedAdv.suspensionRules[0][0][0] === 9 && reorderedAdv.suspensionRules[0][0][1] === 12, 'Domenica in prima riga deve restare day=0');
+assert(reorderedAdv.suspensionRules[1][0][0] === 8 && reorderedAdv.suspensionRules[1][0][1] === 10, 'Lunedì in seconda riga deve restare day=1');
+console.log('✅ Test mapping etichette sospensione passato');
+
 console.log('--- Test _loadAdvancedConfig strict suspension fallback ---');
 global.CONFIG.STRICT_SUSPENSION_CONFIG = true;
 const strictSpreadsheet = {

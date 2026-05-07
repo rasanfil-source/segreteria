@@ -932,25 +932,49 @@ var MemoryService = class MemoryService {
     const sheetWriteTimeoutMs = (typeof CONFIG !== 'undefined' && Number(CONFIG.SHEET_WRITE_LOCK_TIMEOUT_MS) > 0)
       ? Number(CONFIG.SHEET_WRITE_LOCK_TIMEOUT_MS)
       : 10000;
-    // TTL >= attesa lock sheet + margine: riduce la finestra in cui due worker credono di essere soli.
-    const lockTtlSeconds = Math.max(configuredLockTtlSeconds, Math.ceil((sheetWriteTimeoutMs + 5000) / 1000));
 
     try {
       const startedAt = Date.now();
       const acquireBudgetMs = Math.max(0, Number(timeoutMs) || 0);
+      // TTL >= tempo massimo di acquisizione + attesa lock sheet + margine: evita scadenze durante retry lenti.
+      const lockTtlSeconds = Math.max(
+        configuredLockTtlSeconds,
+        Math.ceil((acquireBudgetMs + sheetWriteTimeoutMs + 5000) / 1000)
+      );
       const token = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      const guardTimeoutMs = Math.max(1, Math.min(1000, this._getLockTuning_().globalGuardTimeoutMs || 500));
 
       while ((Date.now() - startedAt) <= acquireBudgetMs) {
-        if (cache.get(key) == null) {
-          cache.put(key, token, lockTtlSeconds);
-          // Piccola attesa per lasciare propagare il put in ambienti con latenza cache.
-          Utilities.sleep(80);
-          if (cache.get(key) === token) {
-            this._heldShardLocks[key] = token;
-            return true;
+        const guardLock = LockService.getScriptLock();
+        let guardAcquired = false;
+
+        try {
+          // CacheService non offre put-if-absent: serializziamo solo il breve check+put+verify.
+          guardAcquired = guardLock.tryLock(guardTimeoutMs);
+          if (!guardAcquired) {
+            Utilities.sleep(50);
+            continue;
           }
-          // Race condition: un altro processo ha sovrascritto il token, ritenta subito.
-          continue;
+
+          if (cache.get(key) == null) {
+            cache.put(key, token, lockTtlSeconds);
+            // Piccola attesa per lasciare propagare il put in ambienti con latenza cache.
+            Utilities.sleep(80);
+            if (cache.get(key) === token) {
+              this._heldShardLocks[key] = token;
+              return true;
+            }
+            // Race residua/propagazione anomala: non acquisire se il token non è il nostro.
+            continue;
+          }
+        } finally {
+          if (guardAcquired) {
+            try {
+              guardLock.releaseLock();
+            } catch (releaseError) {
+              console.warn(`⚠️ Errore rilascio guard lock sharded: ${releaseError.message}`);
+            }
+          }
         }
 
         Utilities.sleep(50);
@@ -1406,7 +1430,9 @@ var MemoryService = class MemoryService {
           this._sheet.getRange(1, 1, validRows.length, headers.length).setValues(validRows);
           const staleRows = originalLastRow - validRows.length;
           if (staleRows > 0) {
-            this._sheet.deleteRows(validRows.length + 1, staleRows);
+            // Non eliminiamo fisicamente righe del foglio: con righe vuote intermedie,
+            // formattazioni o formule fuori tabella è più sicuro svuotare l'area stale.
+            this._sheet.getRange(validRows.length + 1, 1, staleRows, headers.length).clearContent();
           }
         }
 
