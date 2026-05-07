@@ -816,6 +816,14 @@ var EmailProcessor = class EmailProcessor {
         return result;
       }
 
+      if (!quickCheck || typeof quickCheck !== 'object') {
+        console.warn('   ⚠️ Gemini quick check ha restituito una risposta vuota/non valida: applico etichetta errore per evitare loop.');
+        this._addErrorLabel(candidate || thread);
+        result.status = 'error';
+        result.error = 'quick_check_failed';
+        return result;
+      }
+
       // Se Gemini Quick Check ha rilevato una lingua diversa con maggiore precisione, aggiorniamo
       if (quickCheck.language && quickCheck.language.substring(0, 2).toLowerCase() !== detectedLanguage) {
         detectedLanguage = quickCheck.language.substring(0, 2).toLowerCase();

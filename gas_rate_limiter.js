@@ -284,6 +284,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const estimatedTokens = options.estimatedTokens || 1000;
 
     if (alreadyLocked) {
+      this._recoverFromWAL(true);
+      this._refreshCache();
       return this._selectModelUnlocked(taskType, options);
     }
 
@@ -802,27 +804,42 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
   }
 
+  _ensureWindowCache() {
+    if (!this.cache || typeof this.cache !== 'object') {
+      this.cache = {};
+    }
+    if (!Array.isArray(this.cache.rpmWindow)) this.cache.rpmWindow = [];
+    if (!Array.isArray(this.cache.tpmWindow)) this.cache.tpmWindow = [];
+    if (!Number.isFinite(this.cache.lastCacheUpdate)) this.cache.lastCacheUpdate = 0;
+    if (!Number.isFinite(this.cache.lastPersistUpdate)) this.cache.lastPersistUpdate = 0;
+    if (!Number.isFinite(this.cache.cacheTTL)) this.cache.cacheTTL = 10000;
+  }
+
+  _readWindowFromProperties(windowType, backupKey) {
+    let windowData = [];
+    try {
+      windowData = JSON.parse(this.props.getProperty(windowType + '_window') || '[]');
+      if (!Array.isArray(windowData)) {
+        console.warn(`⚠️ ${windowType}_window non è un array, reset a []`);
+        windowData = [];
+      }
+      if (!windowData.length && backupKey) {
+        const backup = this.props.getProperty(backupKey);
+        if (backup) {
+          const backupData = JSON.parse(backup);
+          windowData = Array.isArray(backupData) ? backupData : [];
+        }
+      }
+    } catch (e) {
+      console.warn(`⚠️ Errore parsing ${windowType}_window da PropertiesService, reset a []`);
+    }
+    return windowData;
+  }
+
   _refreshCache() {
-    let rpmFromProps = [];
-    let tpmFromProps = [];
-    try {
-      rpmFromProps = JSON.parse(this.props.getProperty('rpm_window') || '[]');
-      if (!rpmFromProps.length) {
-        const rpmBackup = this.props.getProperty('rate_limit_rpm_backup');
-        if (rpmBackup) rpmFromProps = JSON.parse(rpmBackup);
-      }
-    } catch (e) {
-      console.warn('⚠️ Errore parsing rpm_window da PropertiesService, reset a []');
-    }
-    try {
-      tpmFromProps = JSON.parse(this.props.getProperty('tpm_window') || '[]');
-      if (!tpmFromProps.length) {
-        const tpmBackup = this.props.getProperty('rate_limit_tpm_backup');
-        if (tpmBackup) tpmFromProps = JSON.parse(tpmBackup);
-      }
-    } catch (e) {
-      console.warn('⚠️ Errore parsing tpm_window da PropertiesService, reset a []');
-    }
+    this._ensureWindowCache();
+    const rpmFromProps = this._readWindowFromProperties('rpm', 'rate_limit_rpm_backup');
+    const tpmFromProps = this._readWindowFromProperties('tpm', 'rate_limit_tpm_backup');
 
     const now = Date.now();
 
@@ -1181,31 +1198,24 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
   _getRequestsInWindow(windowType, modelKey) {
     const now = Date.now();
+    this._ensureWindowCache();
 
     // Usa cache se fresh
     if (now - this.cache.lastCacheUpdate < this.cache.cacheTTL) {
       const cacheKey = windowType + 'Window';
-      return this.cache[cacheKey].filter(e => e.modelKey === modelKey && e.released !== true && (now - e.timestamp < 60000)).length;
+      const cachedWindow = Array.isArray(this.cache[cacheKey]) ? this.cache[cacheKey] : [];
+      return cachedWindow.filter(e => e.modelKey === modelKey && e.released !== true && (now - e.timestamp < 60000)).length;
     }
 
     // Altrimenti leggi da PropertiesService
-    const windowData = JSON.parse(this.props.getProperty(windowType + '_window') || '[]');
+    const windowData = this._readWindowFromProperties(windowType);
     return windowData.filter(e => e.modelKey === modelKey && e.released !== true && (now - e.timestamp < 60000)).length;
   }
 
   _getTokensInWindow(windowType, modelKey) {
     const now = Date.now();
 
-    // Fail-safe difensivo: evita crash se la cache non è stata inizializzata
-    // (es. stato corrotto/iniezione test incompleta).
-    if (!this.cache || typeof this.cache !== 'object') {
-      this.cache = {
-        rpmWindow: [],
-        tpmWindow: [],
-        lastCacheUpdate: 0,
-        cacheTTL: 10000
-      };
-    }
+    this._ensureWindowCache();
 
     // Usa cache
     if (now - this.cache.lastCacheUpdate < this.cache.cacheTTL) {
@@ -1217,7 +1227,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     // Fallback PropertiesService
-    const windowData = JSON.parse(this.props.getProperty(windowType + '_window') || '[]');
+    const windowData = this._readWindowFromProperties(windowType);
     return windowData
       .filter(e => e.modelKey === modelKey && e.released !== true && (now - e.timestamp < 60000))
       .reduce((sum, e) => sum + (e.tokens || 0), 0);

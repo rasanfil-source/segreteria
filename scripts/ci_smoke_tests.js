@@ -1462,6 +1462,75 @@ function testRateLimiterReservationLifecycleDoesNotDuplicateOrLeak() {
     }
 }
 
+function testRateLimiterAlreadyLockedSelectRefreshesWindows() {
+    loadScript('gas_rate_limiter.js');
+
+    const store = new Map();
+    const props = {
+        getProperty: (key) => store.has(key) ? store.get(key) : null,
+        setProperty: (key, value) => { store.set(key, String(value)); },
+        setProperties: (values) => {
+            Object.keys(values || {}).forEach((key) => store.set(key, String(values[key])));
+        },
+        deleteProperty: (key) => { store.delete(key); }
+    };
+
+    const now = Date.now();
+    store.set('rpm_window', JSON.stringify([{ timestamp: now, nonce: 'external-run', modelKey: 'flash' }]));
+    store.set('tpm_window', JSON.stringify([]));
+
+    const service = Object.create(GeminiRateLimiter.prototype);
+    service.props = props;
+    service.models = {
+        flash: { name: 'gemini-2.5-flash', rpm: 1, tpm: 1000, rpd: 10, useCases: ['generation'] }
+    };
+    service.strategies = { generation: ['flash'] };
+    service.cache = {
+        rpmWindow: [],
+        tpmWindow: [],
+        lastCacheUpdate: now,
+        lastPersistUpdate: now,
+        cacheTTL: 10000
+    };
+    service._recoverFromWAL = () => { };
+    service._getNextResetTime = () => 'next-reset';
+
+    const selection = service.selectModel('generation', { estimatedTokens: 10 }, true);
+    assert(selection.available === false, 'selectModel alreadyLocked deve ricaricare rpm_window prima di validare');
+    assert(selection.reason === 'all_quotas_exhausted', `atteso all_quotas_exhausted, ottenuto ${selection.reason}`);
+    assert(service.cache.rpmWindow.length === 1, 'la cache RPM locale deve riflettere la finestra persistita');
+}
+
+function testRateLimiterWindowReadsHandleCorruptProperties() {
+    loadScript('gas_rate_limiter.js');
+
+    const store = new Map([
+        ['rpm_window', '{bad json'],
+        ['tpm_window', '{"not":"array"}']
+    ]);
+    const props = {
+        getProperty: (key) => store.has(key) ? store.get(key) : null,
+        setProperty: (key, value) => { store.set(key, String(value)); },
+        setProperties: (values) => {
+            Object.keys(values || {}).forEach((key) => store.set(key, String(values[key])));
+        },
+        deleteProperty: (key) => { store.delete(key); }
+    };
+
+    const service = Object.create(GeminiRateLimiter.prototype);
+    service.props = props;
+    service.cache = {
+        rpmWindow: [],
+        tpmWindow: [],
+        lastCacheUpdate: 0,
+        lastPersistUpdate: 0,
+        cacheTTL: 10000
+    };
+
+    assert(service._getRequestsInWindow('rpm', 'flash') === 0, 'rpm_window corrotto deve fare fail-safe a 0');
+    assert(service._getTokensInWindow('tpm', 'flash') === 0, 'tpm_window non-array deve fare fail-safe a 0');
+}
+
 function testAttachmentContextSanitizationFormatting() {
     loadScript('gas_prompt_engine.js');
 
@@ -2845,6 +2914,8 @@ function main() {
         ['memory: merge providedInfo normalizza topic equivalenti', testMemoryMergeProvidedTopicsNormalizesTopicKeys],
         ['rate limiter: persistenza rigorosa transazionale bloccata senza lock', testRateLimiterPersistenceRequiresTransactionalLock],
         ['rate limiter: reservation lifecycle senza doppio conteggio', testRateLimiterReservationLifecycleDoesNotDuplicateOrLeak],
+        ['rate limiter: select alreadyLocked ricarica finestre persistenti', testRateLimiterAlreadyLockedSelectRefreshesWindows],
+        ['rate limiter: finestre corrotte fanno fail-safe', testRateLimiterWindowReadsHandleCorruptProperties],
         ['_shouldIgnoreEmail: no-reply/reale/ooo', testShouldIgnoreEmail],
         ['_shouldIgnoreEmail: blacklist vuota non blocca tutto', testShouldIgnoreEmailSkipsBlankBlacklistEntries],
         ['ocr trigger: keyword non-stringa gestite in sicurezza', testShouldTryOcrHandlesNonStringKeywords],
