@@ -1284,7 +1284,7 @@ ${hints[effectiveCategory]}` : null;
 3. Se non ci sono domande, chiudi con cortesia: nessun passo aggiuntivo non richiesto.
 
 ❌ ESEMPIO SBAGLIATO: "Abbiamo ricevuto il modulo. Per fare da padrino occorre..."
-✅ ESEMPIO GIUSTO: "Abbiamo ricevuto la documentazione. Provvederemo a verificarla."`;
+✅ ESEMPIO GIUSTO: "Abbiamo ricevuto la documentazione. Grazie."`;
     }
 
     return hint;
@@ -1403,7 +1403,7 @@ REGOLA DI USCITA:
 Azione: conferma ricezione + eventuale risposta alla domanda esplicita nel corpo.
 Vietato: elencare requisiti, spiegare procedure, commentare il contenuto OCR o trasformare parole dell'allegato in una richiesta informativa.
 Non elencare i requisiti per fare da padrino/madrina, salvo domanda esplicita nel corpo email o POLICY specifica.
-Risposta predefinita: ringrazia e conferma la ricezione; la segreteria verificherà quanto inviato.
+Risposta predefinita: ringrazia e conferma la ricezione, senza aggiungere passi operativi.
 ${questionGuardrail}
 Se il documento è poco leggibile o incompleto, non inventare: chiedi solo il reinvio o il dato mancante essenziale.
 ${attachmentIntentContext.responseDirective || ''}
