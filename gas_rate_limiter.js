@@ -1077,9 +1077,13 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     for (let i = 0; i < count; i++) {
       const chunkStr = this.props.getProperty(`rate_limit_wal_${windowType}_${i}`);
       if (!chunkStr) continue;
-      const chunk = JSON.parse(chunkStr);
-      if (Array.isArray(chunk)) {
-        for (const entry of chunk) merged.push(entry);
+      try {
+        const chunk = JSON.parse(chunkStr);
+        if (Array.isArray(chunk)) {
+          for (const entry of chunk) merged.push(entry);
+        }
+      } catch (e) {
+        console.warn(`⚠️ WAL chunk corrotto ignorato (rate_limit_wal_${windowType}_${i}): ${e.message}`);
       }
     }
     return merged;

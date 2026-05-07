@@ -346,18 +346,67 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
   const skipLabel = (typeof CONFIG !== 'undefined' && CONFIG.SKIP_LABEL_NAME) ? CONFIG.SKIP_LABEL_NAME : '·';
   const languageMode = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.languageMode) || 'all';
 
-  // Escape robusto per etichette in query Gmail.
-  // Gmail query parser accetta escaping con backslash per le virgolette.
-  const quoteLabel = (label) => {
-    const normalized = String(label == null ? '' : label);
-    const escaped = normalized
-      .replace(/\\/g, '\\\\')
-      .replace(/"/g, '\\"');
-    return `"${escaped}"`;
+  // Non usiamo -label nella query: Gmail può applicarlo a livello thread e
+  // nascondere follow-up non letti dentro conversazioni già etichettate.
+  const terminalLabelNames = [labelName, errorLabel, validationLabel]
+    .concat(languageMode === 'foreign_only' ? [skipLabel] : [])
+    .filter(Boolean);
+  let staleMetadataService = null;
+  let terminalLabelIds = null;
+  const getTerminalLabelIds = () => {
+    if (terminalLabelIds) return terminalLabelIds;
+    terminalLabelIds = [];
+    try {
+      if (typeof GmailService !== 'undefined' && GmailService) {
+        staleMetadataService = staleMetadataService || new GmailService();
+      }
+      if (staleMetadataService && typeof staleMetadataService._getOptionalLabelIdByName === 'function') {
+        terminalLabelIds = terminalLabelNames
+          .map(label => staleMetadataService._getOptionalLabelIdByName(label))
+          .filter(Boolean);
+      }
+    } catch (labelError) {
+      console.warn(`⚠️ hasStaleUnreadThreads: impossibile risolvere label terminali (${labelError.message})`);
+      terminalLabelIds = [];
+    }
+    return terminalLabelIds;
   };
 
-  const query = `in:inbox is:unread newer_than:${safeMaxLookbackDays}d -label:${quoteLabel(labelName)} -label:${quoteLabel(errorLabel)} -label:${quoteLabel(validationLabel)}` +
-    (languageMode === 'foreign_only' ? ` -label:${quoteLabel(skipLabel)}` : '');
+  const hasTerminalLabel = (message) => {
+    try {
+      const messageId = (message && typeof message.getId === 'function') ? message.getId() : '';
+      if (!messageId) return false;
+      const ids = getTerminalLabelIds();
+      if (ids.length === 0) return false;
+      if (!staleMetadataService || typeof staleMetadataService._getMessageMetadataWithResilience !== 'function') {
+        return false;
+      }
+      const metadata = staleMetadataService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
+      const msgLabelIds = metadata && Array.isArray(metadata.labelIds) ? metadata.labelIds : [];
+      return ids.some(id => msgLabelIds.includes(id));
+    } catch (metadataError) {
+      console.warn(`⚠️ hasStaleUnreadThreads: controllo label messaggio fallito (${metadataError.message})`);
+      return false;
+    }
+  };
+
+  const isProcessableStaleUnread = (message) => {
+    try {
+      const date = (message && typeof message.getDate === 'function') ? message.getDate() : null;
+      const timeMs = date instanceof Date ? date.getTime() : NaN;
+      const unread = Boolean(message && typeof message.isUnread === 'function' && message.isUnread());
+      return unread &&
+        Number.isFinite(timeMs) &&
+        timeMs <= cutoffMs &&
+        timeMs > oldestRelevantMs &&
+        !hasTerminalLabel(message);
+    } catch (msgError) {
+      console.warn(`⚠️ hasStaleUnreadThreads: messaggio ignorato per errore metadata (${msgError.message})`);
+      return false;
+    }
+  };
+
+  const query = `in:inbox is:unread newer_than:${safeMaxLookbackDays}d`;
 
   const pageSize = 25;
   try {
@@ -376,27 +425,10 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
       // prima di passare al controllo dettagliato per-messaggio.
       for (const thread of threads) {
         try {
-          const lastDate = (thread && typeof thread.getLastMessageDate === 'function') ? thread.getLastMessageDate() : null;
-          const lastTs = lastDate instanceof Date ? lastDate.getTime() : NaN;
-
-          // Se l'ultimo messaggio è già "stale", l'intero thread è considerato stale.
-          if (Number.isFinite(lastTs) && lastTs <= cutoffMs && lastTs > oldestRelevantMs) {
-            return true;
-          }
-
-          // Se l'ultimo messaggio è recente, verifichiamo se ci sono messaggi non letti "stale" all'interno.
+          // Verifichiamo a livello messaggio: un thread può contenere vecchie
+          // risposte già terminali e nuovi follow-up ancora processabili.
           const messages = thread && typeof thread.getMessages === 'function' ? thread.getMessages() : [];
-          const hasInternalStale = Array.isArray(messages) && messages.some(message => {
-            try {
-              const date = (message && typeof message.getDate === 'function') ? message.getDate() : null;
-              const timeMs = date instanceof Date ? date.getTime() : NaN;
-              const unread = Boolean(message && typeof message.isUnread === 'function' && message.isUnread());
-              return unread && Number.isFinite(timeMs) && timeMs <= cutoffMs && timeMs > oldestRelevantMs;
-            } catch (msgError) {
-              console.warn(`⚠️ hasStaleUnreadThreads: messaggio ignorato per errore metadata (${msgError.message})`);
-              return false;
-            }
-          });
+          const hasInternalStale = Array.isArray(messages) && messages.some(isProcessableStaleUnread);
 
           if (hasInternalStale) return true;
 

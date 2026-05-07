@@ -43,6 +43,21 @@ vm.runInThisContext(gasEmailProcessorCode, { filename: gasEmailProcessorPath });
 
 const processor = new EmailProcessor();
 
+console.log('--- Test constructor: preserva requestClassifier iniettato ---');
+{
+  const injectedRequestClassifier = {
+    classify: () => ({ type: 'custom' }),
+    getRequestTypeHint: () => 'custom'
+  };
+  const processorWithInjectedClassifier = new EmailProcessor({
+    requestClassifier: injectedRequestClassifier
+  });
+  assert(
+    processorWithInjectedClassifier.requestClassifier === injectedRequestClassifier,
+    'deve usare il requestClassifier iniettato senza sostituirlo con il default'
+  );
+}
+
 function extractEmailAddress(fromField) {
   const match = String(fromField || '').match(/<([^>]+)>/) || String(fromField || '').match(/([^\s<]+@[^\s>]+)/);
   return match ? match[1] : '';
@@ -180,6 +195,65 @@ console.log('--- Test processThread: alias Gmail riconosciuto come ultimo mitten
   assert(result.status === 'skipped', 'thread con ultimo alias interno deve essere skipped');
   assert(result.reason === 'last_speaker_is_me', 'ultimo alias interno deve produrre last_speaker_is_me');
   assert(labeled.includes('m-ext') && labeled.includes('m-me'), 'i non letti del thread devono essere marcati come processati');
+
+  global.Session = originalSession;
+  global.GmailApp = originalGmailApp;
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
+console.log('--- Test processThread: quick check filtrato preserva secondari esterni ---');
+{
+  const originalSession = global.Session;
+  const originalGmailApp = global.GmailApp;
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  const labeled = [];
+
+  global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
+  };
+  global.GmailApp = {
+    getAliases: () => []
+  };
+  global.GLOBAL_CACHE.languageMode = 'all';
+
+  const processorQuickFiltered = new EmailProcessor({
+    geminiService: {
+      detectEmailLanguage: () => ({ lang: 'it', safetyGrade: 5 }),
+      shouldRespondToEmail: () => ({ shouldRespond: false, reason: 'ack' })
+    },
+    classifier: {
+      _extractMainContent: (body) => body,
+      classifyEmail: () => ({ shouldReply: true, reason: 'candidate' })
+    },
+    gmailService: {
+      getMessageIdsWithLabel: () => new Set(),
+      _extractEmailAddress: extractEmailAddress,
+      extractMessageDetails: (message) => ({
+        subject: message.getSubject(),
+        body: message.getPlainBody(),
+        senderEmail: extractEmailAddress(message.getFrom()),
+        senderName: 'Utente',
+        headers: {},
+        isNewsletter: false,
+        date: message.getDate()
+      }),
+      addLabelToMessage: (id) => labeled.push(id)
+    }
+  });
+
+  const thread = {
+    getId: () => 'thread-quick-filtered-burst',
+    getLabels: () => [],
+    getMessages: () => [
+      createMessage('m-secondary', 'Utente <utente@example.org>', 'Prima domanda', 'Vorrei informazioni sulla catechesi.'),
+      createMessage('m-candidate', 'Utente <utente@example.org>', 'Re: Prima domanda', 'Grazie')
+    ]
+  };
+
+  const result = processorQuickFiltered.processThread(thread, '', [], new Set(), true);
+  assert(result.status === 'filtered', 'quick check shouldRespond=false deve filtrare il candidato');
+  assert(labeled.includes('m-candidate'), 'deve marcare il candidato filtrato per evitare retry infinito');
+  assert(!labeled.includes('m-secondary'), 'deve preservare il secondario esterno per un trigger successivo');
 
   global.Session = originalSession;
   global.GmailApp = originalGmailApp;
@@ -518,6 +592,59 @@ console.log('--- Test processThread: foreign_only non aggiunge skip a messaggi g
   const result = processor.processThread(thread, '', [], new Set(['m-news-ia']), true);
   assert(result.status === 'skipped' && result.reason === 'already_labeled_no_new_unread', 'se già IA deve essere saltato come già processato');
   assert(!labels.some((entry) => entry.id === 'm-news-ia' && entry.label === CONFIG.SKIP_LABEL_NAME), 'se già IA non deve aggiungere skip label in foreign_only');
+
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
+console.log('--- Test processThread: cache miss rispetta label terminali da metadata ---');
+{
+  const labels = [];
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  const labelIds = {
+    IA: 'label-ia',
+    Errore: 'label-error',
+    Verifica: 'label-review',
+    '·': 'label-skip'
+  };
+
+  const terminalMetadataProcessor = new EmailProcessor({
+    gmailService: {
+      _getOptionalLabelIdByName: (labelName) => labelIds[labelName] || null,
+      _getMessageMetadataWithResilience: (messageId) => ({
+        labelIds: messageId === 'm-review-cache-miss'
+          ? ['label-review']
+          : ['label-skip']
+      }),
+      addLabelToMessage: (id, label) => labels.push({ id, label })
+    }
+  });
+
+  global.GLOBAL_CACHE.languageMode = 'all';
+  const reviewThread = {
+    getId: () => 'thread-review-cache-miss',
+    getLabels: () => [],
+    getMessages: () => [
+      createMessage('m-review-cache-miss', 'Utente <utente@example.org>', 'Da verificare', 'Messaggio già in verifica')
+    ]
+  };
+  const reviewResult = terminalMetadataProcessor.processThread(reviewThread, '', [], new Set(), true);
+  assert(reviewResult.status === 'skipped', 'messaggio con label Verifica da metadata deve essere saltato');
+  assert(reviewResult.reason === 'already_labeled_no_new_unread', 'label terminale da metadata deve chiudere il thread come già gestito');
+
+  global.GLOBAL_CACHE.languageMode = 'foreign_only';
+  const skipThread = {
+    getId: () => 'thread-skip-cache-miss',
+    getLabels: () => [],
+    getMessages: () => [
+      createMessage('m-skip-cache-miss', 'Utente <utente@example.org>', 'Italiano', 'Messaggio italiano già saltato')
+    ]
+  };
+  const skipIds = new Set();
+  const skipResult = terminalMetadataProcessor.processThread(skipThread, '', [], new Set(), true, skipIds);
+  assert(skipResult.status === 'skipped', 'messaggio con label skip da metadata deve essere saltato in foreign_only');
+  assert(skipResult.reason === 'already_labeled_no_new_unread', 'skip label da metadata deve evitare rientro pipeline');
+  assert(skipIds.has('m-skip-cache-miss'), 'cache skip locale deve essere auto-riparata dal metadata');
+  assert(labels.length === 0, 'non deve aggiungere nuove label ai messaggi già terminali');
 
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }

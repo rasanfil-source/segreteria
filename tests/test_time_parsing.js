@@ -59,4 +59,89 @@ assertDeepEqual(
   'fallback deve prendere le prime due ore valide'
 );
 
+console.log('--- Test hasStaleUnreadThreads (label terminali a livello messaggio) ---');
+{
+  const originalConfig = global.CONFIG;
+  const originalGmailApp = global.GmailApp;
+  const originalGmailService = global.GmailService;
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  const oldDate = new Date(Date.now() - (13 * 60 * 60 * 1000));
+  let capturedQuery = '';
+
+  global.CONFIG = {
+    LABEL_NAME: 'IA',
+    ERROR_LABEL_NAME: 'Errore',
+    VALIDATION_ERROR_LABEL: 'Verifica',
+    SKIP_LABEL_NAME: '·'
+  };
+  global.GLOBAL_CACHE.languageMode = 'all';
+
+  const makeMessage = (id, labelIds) => ({
+    getId: () => id,
+    getDate: () => oldDate,
+    isUnread: () => true,
+    labelIds
+  });
+  const makeThread = (messages) => ({
+    getMessages: () => messages
+  });
+  const labelMap = {
+    IA: 'label-ia',
+    Errore: 'label-error',
+    Verifica: 'label-review',
+    '·': 'label-skip'
+  };
+
+  global.GmailService = class GmailService {
+    _getOptionalLabelIdByName(labelName) {
+      return labelMap[labelName] || null;
+    }
+
+    _getMessageMetadataWithResilience(messageId) {
+      return this.messagesById[messageId] || { labelIds: [] };
+    }
+  };
+
+  const terminalMessage = makeMessage('m-terminal', ['label-ia']);
+  global.GmailService.prototype.messagesById = {
+    'm-terminal': { labelIds: terminalMessage.labelIds }
+  };
+  global.GmailApp = {
+    search: (query) => {
+      capturedQuery = query;
+      return [makeThread([terminalMessage])];
+    }
+  };
+
+  assertEqual(
+    hasStaleUnreadThreads(12, 25, 7),
+    false,
+    'messaggi già terminali non devono bypassare la sospensione'
+  );
+  assertEqual(
+    capturedQuery.includes('-label:'),
+    false,
+    'query stale non deve filtrare label a livello thread'
+  );
+
+  const processableMessage = makeMessage('m-processable', []);
+  global.GmailService.prototype.messagesById = {
+    'm-processable': { labelIds: processableMessage.labelIds }
+  };
+  global.GmailApp = {
+    search: () => [makeThread([processableMessage])]
+  };
+
+  assertEqual(
+    hasStaleUnreadThreads(12, 25, 7),
+    true,
+    'messaggio stale senza label terminali deve bypassare la sospensione'
+  );
+
+  global.CONFIG = originalConfig;
+  global.GmailApp = originalGmailApp;
+  global.GmailService = originalGmailService;
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
 console.log('✅ Test gas_main time parsing passati');

@@ -489,8 +489,9 @@ function runAllTests() {
 
             processor.processThread(thread, 'KB', 'Doctrine', labeledMessageIds, true);
             // Con il mock corretto, il path atteso è: classifyEmail → shouldReply:true →
-            // shouldRespondToEmail → shouldRespond:false → _markMessageAsProcessed per tutti
-            return labeledMessageIds.has('msg-1') && labeledMessageIds.has('msg-2') && labeledMessageIds.has('msg-3');
+            // shouldRespondToEmail → shouldRespond:false → _markMessageAsProcessed solo sul candidato,
+            // preservando i secondari esterni per un trigger successivo.
+            return !labeledMessageIds.has('msg-1') && !labeledMessageIds.has('msg-2') && labeledMessageIds.has('msg-3');
         });
 
         test('no_external_unread: applica skip (·) e non IA ai messaggi interni', results, () => {

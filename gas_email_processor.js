@@ -345,20 +345,49 @@ var EmailProcessor = class EmailProcessor {
       const effectiveLabeledIds = (labeledMessageIds instanceof Set)
         ? labeledMessageIds
         : new Set();
+      const metadataTerminalLabelIds = [];
+      const metadataSkipLabelIds = new Set();
+      if (this.gmailService && typeof this.gmailService._getOptionalLabelIdByName === 'function') {
+        const terminalLabels = [
+          { name: this.config.labelName, type: 'processed' },
+          { name: this.config.errorLabelName, type: 'processed' },
+          { name: this.config.validationErrorLabel, type: 'processed' }
+        ];
+        if (languageMode === 'foreign_only') {
+          terminalLabels.push({ name: this.config.skipLabelName, type: 'skip' });
+        }
+
+        terminalLabels.forEach((entry) => {
+          try {
+            const labelId = entry && entry.name
+              ? this.gmailService._getOptionalLabelIdByName(entry.name)
+              : null;
+            if (!labelId) return;
+            metadataTerminalLabelIds.push(labelId);
+            if (entry.type === 'skip') {
+              metadataSkipLabelIds.add(labelId);
+            }
+          } catch (labelError) {
+            threadLogger.warn(`Impossibile risolvere label terminale '${entry && entry.name ? entry.name : ''}': ${labelError.message}`);
+          }
+        });
+      }
 
       const unlabeledUnread = unreadMessages.filter(message => {
         const messageId = message.getId();
         if (effectiveLabeledIds.has(messageId)) return false;
 
         // Cache miss hardening: l'ID potrebbe essere uscito dalla finestra maxMessages.
-        // Verifica minimale su Gmail per evitare re-processing e loop di risposte duplicate.
+        // Verifica minimale su Gmail per evitare re-processing e loop di risposte duplicate
+        // anche su label terminali diverse da IA (Errore/Verifica/skip foreign_only).
         if (this.gmailService && typeof this.gmailService._getMessageMetadataWithResilience === 'function') {
           const metadata = this.gmailService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
           if (metadata && Array.isArray(metadata.labelIds)) {
-            const labelIdIA = (typeof this.gmailService._getOptionalLabelIdByName === 'function')
-              ? this.gmailService._getOptionalLabelIdByName(this.config.labelName)
-              : null;
-            if (labelIdIA && metadata.labelIds.includes(labelIdIA)) {
+            const matchedTerminalId = metadataTerminalLabelIds.find(labelId => metadata.labelIds.includes(labelId));
+            if (matchedTerminalId) {
+              if (metadataSkipLabelIds.has(matchedTerminalId) && skippedMessageIds && typeof skippedMessageIds.add === 'function') {
+                skippedMessageIds.add(messageId);
+              }
               effectiveLabeledIds.add(messageId); // auto-healing cache locale
               return false;
             }
@@ -405,11 +434,17 @@ var EmailProcessor = class EmailProcessor {
       // - esterni => label IA (processati)
       // - interni => skip label
       // Così evitiamo reprocessing senza alterare la semantica operativa sui messaggi interni.
-      markHandledUnread = () => {
+      markHandledUnread = (markOptions = {}) => {
+        const preserveExternalSecondaries = !!markOptions.preserveExternalSecondaries;
+        const candidateId = candidate && typeof candidate.getId === 'function' ? candidate.getId() : null;
         const externalIds = new Set(externalUnread.map(m => m.getId()));
         const internalUnread = [];
         unlabeledUnread.forEach(message => {
-          if (externalIds.has(message.getId())) {
+          const messageId = message.getId();
+          if (externalIds.has(messageId)) {
+            if (preserveExternalSecondaries && candidateId && messageId !== candidateId) {
+              return;
+            }
             this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
           } else {
             const rawFrom = (message && typeof message.getFrom === 'function') ? (message.getFrom() || '') : '';
@@ -867,10 +902,10 @@ var EmailProcessor = class EmailProcessor {
           result.status = 'error';
           result.error = 'quick_check_failed';
           return result;
-          // ↑ Uscita intenzionale senza marcare nulla: i secondari restano
-          //   visibili al prossimo trigger per garantire il retry.
         }
-        markHandledUnread();
+        // Quick check valuta solo il candidato: marca quello filtrato,
+        // ma lascia gli esterni secondari eleggibili per il prossimo trigger.
+        markHandledUnread({ preserveExternalSecondaries: true });
         result.status = 'filtered';
         return result;
       }
