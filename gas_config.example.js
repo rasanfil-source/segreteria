@@ -23,7 +23,8 @@ var CONFIG = {
     VALIDATION_REVIEW_ALERTS: {
         enabled: true,
         cooldownSeconds: 3600,
-        recipientProperty: 'VALIDATION_REVIEW_EMAIL'
+        recipientProperty: 'VALIDATION_REVIEW_EMAIL',
+        email: 'YOUR_ADMIN_EMAIL@example.com'
     },
   SEMANTIC_VALIDATION: {
     enabled: true,
