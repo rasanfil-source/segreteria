@@ -923,9 +923,9 @@ var ResponseValidator = class ResponseValidator {
       ? parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'HH'), 10)
       : new Date().getHours();
     let expectedTimeSlot;
-    if (currentHour >= 5 && currentHour < 12) {
+    if (currentHour >= 5 && currentHour < 13) {
       expectedTimeSlot = 'morning';
-    } else if (currentHour >= 12 && currentHour < 18) {
+    } else if (currentHour >= 13 && currentHour < 19) {
       expectedTimeSlot = 'afternoon';
     } else {
       expectedTimeSlot = 'evening';
@@ -1083,9 +1083,9 @@ var ResponseValidator = class ResponseValidator {
       ? parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'HH'), 10)
       : new Date().getHours();
     let correctTimeSlot;
-    if (currentHour >= 5 && currentHour < 12) {
+    if (currentHour >= 5 && currentHour < 13) {
       correctTimeSlot = 'morning';
-    } else if (currentHour >= 12 && currentHour < 18) {
+    } else if (currentHour >= 13 && currentHour < 19) {
       correctTimeSlot = 'afternoon';
     } else {
       correctTimeSlot = 'evening';
@@ -1151,6 +1151,9 @@ var ResponseValidator = class ResponseValidator {
     } else if (language === 'pt') {
       // Lista minima per portoghese
       targets = ['Estamos', 'Somos', 'Uma', 'Por', 'Com', 'De', 'Que', 'Para', 'Em'];
+    } else if (language === 'fr') {
+      targets = ['Le', 'La', 'Les', 'Un', 'Une', 'Des', 'Et', 'Ou', 'Mais',
+                 'Pour', 'Dans', 'Sur', 'Par', 'Avec', 'Nous', 'Vous', 'Ils'];
     } else {
       // Se lingua sconosciuta o non supportata, NON applicare correzioni rischiose
       console.log(`   ⚠️ Correzione automatica maiuscole disabilitata per lingua '${language}'`);

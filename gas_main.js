@@ -928,11 +928,6 @@ function _writeResourceCachePayload(cache, payload) {
 
   if (payload.length <= RESOURCE_CACHE_MAX_PART_SIZE) {
     cache.put(RESOURCE_CACHE_KEY_V2, payload, RESOURCE_CACHE_TTL_SECONDS);
-    try {
-      cache.remove(RESOURCE_CACHE_KEY_V1);
-    } catch (e) {
-      // best effort: evita stale V1 se removeAll precedente è fallita
-    }
     return;
   }
 
@@ -950,11 +945,6 @@ function _writeResourceCachePayload(cache, payload) {
   values[RESOURCE_CACHE_PARTS_KEY] = String(parts.length);
 
   cache.putAll(values, RESOURCE_CACHE_TTL_SECONDS);
-  try {
-    cache.remove(RESOURCE_CACHE_KEY_V1);
-  } catch (e) {
-    // best effort: evita stale V1 se removeAll precedente è fallita
-  }
   console.warn(`⚠️ Cache risorse salvata in modalità multipart (${parts.length} chunk).`);
 }
 

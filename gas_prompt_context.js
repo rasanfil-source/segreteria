@@ -79,7 +79,7 @@ var PromptContext = class PromptContext {
             return false;
         }
 
-        return /\b\d{4}\b|\b\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?\b|\b\d{1,2}:\d{2}\b/.test(knowledgeBaseRaw);
+        return /\b(19|20)\d{2}\b|\b\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?\b|\b\d{1,2}:\d{2}\b/.test(knowledgeBaseRaw);
     }
 
     /**
@@ -154,7 +154,7 @@ var PromptContext = class PromptContext {
                 (i.conversation?.messageCount ?? 0) > 1,
 
             identity_consistency:
-                !i.email?.isReply ||
+                (i.email?.isReply === false) ||
                 i.requestType?.type !== 'technical',
 
             response_scope_control:

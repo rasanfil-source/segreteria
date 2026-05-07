@@ -295,7 +295,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         estimatedTokens: estimatedTokens
       });
     }.bind(this), {
-      timeoutReason: 'lock_timeout',
+      timeoutReason: 'rate_limiter_lock_timeout',
       lockDescription: 'selezione modello'
     });
 
@@ -388,9 +388,13 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     // Controllo RPD (aggregato per nome modello fisico condiviso)
     const physicalModelName = model.name;
     let rpdUsed = 0;
+    let rpmUsed = 0;
+    let tpmUsed = 0;
     for (const key of Object.keys(this.models)) {
       if (this.models[key].name === physicalModelName) {
         rpdUsed += parseInt(this.props.getProperty(`rpd_${key}`) || '0', 10) || 0;
+        rpmUsed += this._getRequestsInWindow('rpm', key);
+        tpmUsed += this._getTokensInWindow('tpm', key);
       }
     }
     const rpdLeft = model.rpd - rpdUsed;
@@ -405,7 +409,6 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     // Controllo RPM (ultimo minuto)
-    const rpmUsed = this._getRequestsInWindow('rpm', modelKey);
     const rpmLeft = model.rpm - rpmUsed;
 
     if (rpmLeft <= 0) {
@@ -418,7 +421,6 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     // Controllo TPM (ultimo minuto)
-    const tpmUsed = this._getTokensInWindow('tpm', modelKey);
     const tpmLeft = model.tpm - tpmUsed;
 
     if (tpmLeft < estimatedTokens) {
@@ -1343,7 +1345,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       selection.reservationId = reservationId;
       return selection;
     }.bind(this), {
-      timeoutReason: 'lock_timeout',
+      timeoutReason: 'rate_limiter_lock_timeout',
       lockDescription: 'selezione+reservation modello'
     });
 
@@ -1421,7 +1423,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       this._persistCache(true);
       return true;
     }.bind(this), {
-      timeoutReason: 'lock_timeout',
+      timeoutReason: 'rate_limiter_lock_timeout',
       lockDescription: 'mutation reservation'
     });
 

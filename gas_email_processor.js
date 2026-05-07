@@ -223,9 +223,12 @@ var EmailProcessor = class EmailProcessor {
         }
 
         scriptCache.put(threadLockKey, lockValue, ttlSeconds);
+        if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.sleep === 'function') {
+          Utilities.sleep(50);
+        }
         const confirmValue = scriptCache.get(threadLockKey);
         // In scenari di latenza di CacheService, procediamo solo se il token è coerente.
-        if (confirmValue !== null && confirmValue !== lockValue) {
+        if (confirmValue !== lockValue) {
           threadLogger.warn('Collisione lock cache, salto');
           if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
             try { scriptLock.releaseLock(); } catch (_) {}
@@ -926,7 +929,6 @@ var EmailProcessor = class EmailProcessor {
 
       const salutationMode = computeSalutationMode({
         isReply: isReplyBySubject || messages.length > 1,
-        messageCount: memoryMessageCount,
         memoryExists: !!memoryContext.lastUpdated,
         lastUpdated: memoryContext.lastUpdated || null,
         now: new Date()
@@ -1320,7 +1322,9 @@ ${addressLines.join('\n\n')}
       const liteModel = (geminiModels['flash-lite'] && geminiModels['flash-lite'].name) ? geminiModels['flash-lite'].name : 'gemini-2.5-flash-lite';
 
       const attemptStrategy = [
-        { name: 'Primary-Flash2.5', key: this.geminiService.primaryKey, model: flashModel, skipRateLimit: false },
+        ...(this.geminiService && this.geminiService.isPrimaryExhausted ? [] : [
+          { name: 'Primary-Flash2.5', key: this.geminiService.primaryKey, model: flashModel, skipRateLimit: false }
+        ]),
         { name: 'Backup-Flash2.5', key: this.geminiService.backupKey, model: flashModel, skipRateLimit: true },
         { name: 'Fallback-Lite', key: this.geminiService.primaryKey, model: liteModel, skipRateLimit: false }
       ];
@@ -2353,7 +2357,7 @@ ${addressLines.join('\n\n')}
     // Fallback robusto: se il testo suggerisce un documento "atteso",
     // abilitiamo OCR anche quando le keyword configurate non coprono il caso.
     const expectedDocType = this._detectDocumentTypeFromText_(`${normalizedSubject} ${normalizedBody}`);
-    if (expectedDocType && expectedDocType !== 'unknown') {
+    if (expectedDocType && expectedDocType !== 'unknown' && hasAttachments) {
       console.log(`   📎 OCR fallback attivo: documento atteso rilevato (${expectedDocType})`);
       return true;
     }
@@ -3084,6 +3088,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     const discrepancyNotePatterns = [
       /orario\s+(?:diverso|differente)\s+(?:da|rispetto\s+a)\s+(?:quanto\s+)?(?:da\s+)?lei\s+indicato/i,
       /orario\s+(?:diverso|differente)\s+da\s+quello\s+indicato/i,
+      /in\s+un\s+orario\s+differente\s+da\s+quanto/i,
       /orario\s+comunicato\s+[eè]['’]?\s+diverso/i
     ];
 
@@ -3143,13 +3148,13 @@ Nota bene: l'orario comunicato ${note}.`;
     // Usiamo il flag /s (dotAll) affinché .* includa anche gli a capo (\n)
 
     const patterns = {
-      'orari_messe': /messe?\b.*?\d{1,2}[:.]\d{2}|orari\w*\s+messe/is,
-      'contatti': /telefono|email|@|segreteria/i,
-      'battesimo_info': /battesimo.*?documento|documento.*?battesimo/is,
+      'orari_messe': /messe?\b.*?\d{1,2}[:.]\d{2}|orari\w*\s+messe|mass\s+time|mass\s+schedule/is,
+      'contatti': /telefono|phone|email|@|segreteria|secretary/i,
+      'battesimo_info': /battesimo.*?documento|documento.*?battesimo|baptism|baptême|bautismo/is,
       'comunione_info': /comunione.*?catechismo|catechismo.*?comunione/is,
-      'cresima_info': /cresima.*?percorso|percorso.*?cresima/is,
-      'matrimonio_info': /matrimonio.*?corso|corso.*?matrimonio/is,
-      'territorio': /rientra|non rientra|parrocchia.*?competenza/is,
+      'cresima_info': /cresima.*?percorso|percorso.*?cresima|confirmation|confirmación/is,
+      'matrimonio_info': /matrimonio.*?corso|corso.*?matrimonio|wedding|marriage|mariage/is,
+      'territorio': /rientra|non rientra|parrocchia.*?competenza|parish\s+territory|territory/is,
       'indirizzo': /(?:via|viale|corso|piazza|largo|circonvallazione)\s+[^,\n]{3,60}?,?\s*\d+/i
     };
 
@@ -3330,6 +3335,9 @@ Nota bene: l'orario comunicato ${note}.`;
     const FATAL_ERRORS = ['INVALID_ARGUMENT', 'PERMISSION_DENIED', 'UNAUTHENTICATED', 'unauthorized', 'forbidden', 'unauthenticated'];
 
     if (msg.includes('gmail_counter_lock_not_acquired_retryable')) {
+      return mkResult('NETWORK', true, rawMessage);
+    }
+    if (msg.includes('rate_limiter_lock_timeout')) {
       return mkResult('NETWORK', true, rawMessage);
     }
 
@@ -3649,7 +3657,6 @@ The Secretary Office`;
  */
 function computeSalutationMode({ isReply = false, memoryExists = false, lastUpdated = null, now = new Date() } = {}) {
   const SESSION_WINDOW_MINUTES = 15;
-  // Nota: messageCount disponibile per logiche future (es. dopo N messaggi → session mode)
   // Al momento la temporalità (lastUpdated) è il segnale primario.
   // 0️⃣ Nuovo contatto (non reply): privilegia sempre un saluto completo.
   // Anche in presenza di memoria pregressa, un nuovo thread/messaggio iniziale

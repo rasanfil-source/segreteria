@@ -35,6 +35,7 @@ var GeminiService = class GeminiService {
     // Chiave di Riserva (opzionale)
     const propBackupKey = this.props.getProperty('GEMINI_API_KEY_BACKUP');
     this.backupKey = options.backupKey || ((propBackupKey && propBackupKey.length > 20) ? propBackupKey : null);
+    this.isPrimaryExhausted = false;
 
     // Alias accessibile per i moduli che usano la proprietà apiKey
     this.apiKey = this.primaryKey;
@@ -166,6 +167,7 @@ var GeminiService = class GeminiService {
     // segnaliamo esplicitamente al chiamante di passare subito al fallback
     // senza consumare retry inutili sulla stessa chiave.
     if (responseCode === 429 && activeKey === this.primaryKey && this.backupKey) {
+      this.isPrimaryExhausted = true;
       throw new Error('PRIMARY_QUOTA_EXHAUSTED');
     }
 
@@ -632,7 +634,7 @@ Output JSON:
     safeContent = safeContent.replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*$/gi, '');
     // Fallback per citazioni testuali se l'HTML è già stato strippato o è incompleto
     safeContent = safeContent.replace(/(?:^|\n)>[^\n]*/g, '');
-    safeContent = safeContent.replace(/(?:^|\n)(On |Il giorno ).*(wrote|ha scritto):[\s\S]*/gi, '');
+    safeContent = safeContent.replace(/(?:^|\n)(On |Il giorno )[^\n]*(wrote|ha scritto):[\s\S]*/gi, '');
     safeContent = safeContent.replace(/(?:^|\n)-{3,}.*(Original Message|Messaggio originale).*[\s\S]*/gi, '');
 
     // Trunca a 3000 char per evitare CPU Timeout sull'elaborazione lingua

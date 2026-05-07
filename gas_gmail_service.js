@@ -1059,7 +1059,10 @@ var GmailService = class GmailService {
                     xls: 'application/vnd.ms-excel',
                     xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                     ppt: 'application/vnd.ms-powerpoint',
-                    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+                    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                    odt: 'application/vnd.oasis.opendocument.text',
+                    ods: 'application/vnd.oasis.opendocument.spreadsheet',
+                    odp: 'application/vnd.oasis.opendocument.presentation'
                 };
                 if (extMap[ext]) {
                     contentType = extMap[ext];
@@ -1448,6 +1451,7 @@ var GmailService = class GmailService {
         const exceededBudget = () => (Date.now() - startedAt) > MAX_CONVERSION_MS;
 
         let fileId = null;
+        const tempFileName = `TEMP_CONV_${Date.now()}_${attachmentBlob.getName() || 'allegato'}`;
         try {
             if (exceededBudget()) {
                 throw new Error('Budget temporale esaurito prima della conversione Office');
@@ -1465,7 +1469,7 @@ var GmailService = class GmailService {
 
             if (typeof Drive.Files.insert === 'function') {
                 const resource = {
-                    title: `TEMP_CONV_${attachmentBlob.getName() || 'allegato'}`,
+                    title: tempFileName,
                     mimeType: originalMime
                 };
 
@@ -1480,7 +1484,7 @@ var GmailService = class GmailService {
                     throw new Error(`Conversione fallita: mimeType Office non supportato (${originalMime})`);
                 }
                 const resource = {
-                    name: `TEMP_CONV_${attachmentBlob.getName() || 'allegato'}`,
+                    name: tempFileName,
                     mimeType: googleMime
                 };
                 const file = Drive.Files.create(resource, attachmentBlob.copyBlob(), {
@@ -1539,6 +1543,36 @@ var GmailService = class GmailService {
             } catch (_) { }
             throw error;
         } finally {
+            if (!fileId && tempFileName && typeof Drive !== 'undefined' && Drive && Drive.Files &&
+                typeof Drive.Files.list === 'function' &&
+                (typeof Drive.Files.remove === 'function' || typeof Drive.Files.delete === 'function' || typeof Drive.Files.trash === 'function')) {
+                try {
+                    const escapedName = String(tempFileName).replace(/'/g, "\\'");
+                    const queries = [
+                        { q: `title = '${escapedName}' and 'me' in owners`, maxResults: 1 },
+                        { q: `name = '${escapedName}' and 'me' in owners`, pageSize: 1 }
+                    ];
+                    for (const query of queries) {
+                        let res = null;
+                        try {
+                            res = Drive.Files.list(query);
+                        } catch (_) {
+                            continue;
+                        }
+                        const files = res && (res.items || res.files) ? (res.items || res.files) : [];
+                        if (files.length > 0 && files[0].id) {
+                            if (typeof Drive.Files.remove === 'function') {
+                                Drive.Files.remove(files[0].id);
+                            } else if (typeof Drive.Files.delete === 'function') {
+                                Drive.Files.delete(files[0].id);
+                            } else {
+                                Drive.Files.trash(files[0].id);
+                            }
+                            break;
+                        }
+                    }
+                } catch (_) { }
+            }
             if (fileId) {
                 try {
                     if (typeof Drive.Files.remove === 'function') {
@@ -2779,12 +2813,13 @@ var GmailService = class GmailService {
         let currentPart = '';
         let currentBytes = 0;
 
-        // Usiamo Array.from per gestire correttamente coppie surrogate (emoji)
-        const chars = Array.from(safeSubject);
+        // Segmenta per grapheme quando disponibile, con fallback compatibile Apps Script.
+        const chars = (typeof Intl !== 'undefined' && Intl && typeof Intl.Segmenter === 'function')
+            ? Array.from(new Intl.Segmenter('it', { granularity: 'grapheme' }).segment(safeSubject)).map(s => s.segment)
+            : Array.from(safeSubject);
 
         for (const char of chars) {
-            const code = char.codePointAt(0);
-            const charBytes = code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
+            const charBytes = this._utf8ByteLength_(char);
 
             if (currentBytes + charBytes > maxBytesPerWord && currentPart !== '') {
                 words.push(encodedWordPrefix + Utilities.base64Encode(currentPart, Utilities.Charset.UTF_8) + encodedWordSuffix);
@@ -2822,6 +2857,15 @@ var GmailService = class GmailService {
         foldedLines.push(currentLine);
 
         return foldedLines.join('\r\n');
+    }
+
+    _utf8ByteLength_(text) {
+        let bytes = 0;
+        for (const char of Array.from(String(text || ''))) {
+            const code = char.codePointAt(0);
+            bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
+        }
+        return bytes;
     }
 
     /**

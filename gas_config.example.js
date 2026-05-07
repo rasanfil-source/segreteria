@@ -128,6 +128,7 @@ var CONFIG = {
     // === Limiti Token (Prompt Engine) ===
     MAX_SAFE_TOKENS: 35000,              // Allineato al profilo produzione per evitare drift nei test
     KB_TOKEN_BUDGET_RATIO: 0.5,          // Percentuale budget KB rispetto a max token
+    KB_HALLUCINATION_RISK_THRESHOLD: 8000, // Soglia chars KB oltre cui scatta hallucination_risk
     PROMPT_ENGINE: {
         OVERHEAD_TOKENS: 15000           // Riserva token per istruzioni/fixed context fuori KB
     },

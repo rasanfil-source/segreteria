@@ -37,6 +37,10 @@ function classifyError(error) {
     }
     const message = rawMessage.toLowerCase();
 
+    if (message.includes('rate_limiter_lock_timeout')) {
+        return { type: ErrorTypes.NETWORK, retryable: true, message: rawMessage };
+    }
+
     // I messaggi 5xx possono contenere la parola "quota" (es. "Errore rete/server o quota (503)").
     // Manteniamo priorità alla classificazione NETWORK per evitare falsi positivi QUOTA_EXCEEDED.
     if (message.includes('rete/server') || message.includes('network') ||
