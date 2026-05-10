@@ -119,7 +119,7 @@ console.log('--- Test processThread: no_external_unread ---');
   const res = processor.processThread(thread, 'kb', '', labeled, true);
   assert(res.status === 'skipped', 'deve saltare thread con soli unread interni');
   assert(res.reason === 'no_external_unread', 'reason atteso no_external_unread');
-  assert(marked.includes('m2'), 'deve marcare messaggio come processato nel branch no_external_unread');
+  assert(marked.includes('m2'), 'deve marcare messaggio interno con label terminale IA nel branch no_external_unread');
 }
 
 console.log('--- Test processThread: non rilascia ScriptLock se tryLock fallisce ---');

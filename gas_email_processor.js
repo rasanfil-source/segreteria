@@ -430,10 +430,10 @@ var EmailProcessor = class EmailProcessor {
         return !ownAddresses.has(this._normalizeEmailAddress_(senderEmail));
       });
 
-      // Marca i non letti gestiti in modo coerente:
-      // - esterni => label IA (processati)
-      // - interni => skip label
-      // Così evitiamo reprocessing senza alterare la semantica operativa sui messaggi interni.
+      // Nota di manutenzione sulle label:
+      // - IA chiude i messaggi già gestiti tecnicamente (esterni filtrati, interni/nostri).
+      // - '·' indica solo una email italiana rimandata perché siamo in modalità foreign_only.
+      // Tenere separate queste due funzioni evita che il punto medio compaia in modalità "Tutte le lingue".
       markHandledUnread = (markOptions = {}) => {
         const preserveExternalSecondaries = !!markOptions.preserveExternalSecondaries;
         const candidateId = candidate && typeof candidate.getId === 'function' ? candidate.getId() : null;
@@ -460,7 +460,7 @@ var EmailProcessor = class EmailProcessor {
           }
         });
         if (internalUnread.length > 0) {
-          this._markMessagesAsSkipped(internalUnread, this.config.skipLabelName, skippedMessageIds);
+          internalUnread.forEach((message) => this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds));
         }
       };
 
@@ -483,9 +483,9 @@ var EmailProcessor = class EmailProcessor {
         // In modalità stale-only i messaggi recenti devono restare eleggibili per il ciclo normale.
         const isStaleOnlyRun = options && Number.isFinite(Number(options.staleOnlyMs));
         if (!isStaleOnlyRun) {
-          // Messaggi interni (nostri/alias) non sono "processati da IA":
-          // vanno marcati come saltati per non inquinare metrica/label IA.
-          this._markMessagesAsSkipped(unlabeledUnread, this.config.skipLabelName, skippedMessageIds);
+          // Messaggi interni (nostri/alias): sono già gestiti, ma non sono rinvii per lingua.
+          // Per questo usiamo IA come chiusura tecnica e non il punto medio ('·').
+          unlabeledUnread.forEach((message) => this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds));
         } else {
           console.log('   ℹ️ Stale-only: messaggi recenti non marcati (saranno processati nel prossimo ciclo)');
         }
@@ -608,14 +608,10 @@ var EmailProcessor = class EmailProcessor {
       // PORTA 1: Interrompiamo se l'email deve essere ignorata in base alla lingua
       if (this._shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
         console.log('   ⊖ Saltato: modalità "Solo straniere", email in italiano');
-        // SCELTA CRITICA ANTI-REGRESSIONE (2 vincoli):
-        //
-        // 1) In modalità foreign_only NON dobbiamo marcare il messaggio come "IA/processato".
-        //    Motivo operativo: se in futuro la parrocchia torna in modalità "all",
-        //    questa stessa email italiana deve rimanere eleggibile per l'elaborazione.
-        //
-        // 2) L'etichetta da applicare DEVE essere skipLabelName ('·', punto centrato).
-        //    È una label discreta e non intrusiva nell'interfaccia Gmail.
+        // Nota di manutenzione: il punto medio ('·') ha un significato preciso.
+        // Qui segnala una email italiana solo temporaneamente rinviata perché
+        // la modalità corrente risponde alle sole email straniere. Non va marcata IA:
+        // quando si torna a "Tutte le lingue", deve rientrare tra le email lavorabili.
         this._markMessagesAsSkipped(unlabeledUnread, this.config.skipLabelName, skippedMessageIds);
         result.status = 'skipped';
         result.reason = 'italian_skipped_foreign_only';
@@ -627,9 +623,9 @@ var EmailProcessor = class EmailProcessor {
           console.log('   ℹ️ Newsletter in foreign_only: arrivata qui perché NON intercettata dal gate lingua italiana iniziale');
         }
         console.log('   ⊖ Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
-        // In modalità "all" le newsletter vanno marcate come IA (niente risposta, ma thread processato),
-        // così non vengono ripescate nei run successivi.
-        // In modalità "foreign_only" conserviamo la semantica skip ('·').
+        // Le newsletter sono filtrate in modo definitivo: usiamo IA for non riprenderle
+        // nei run successivi. Il punto medio ('·') non si usa qui perché non è un
+        // rinvio temporaneo dovuto alla modalità "Solo straniere".
         let messagesToMark = (unlabeledUnread && unlabeledUnread.length > 0) ? unlabeledUnread : [candidate];
         // Evita di "demotare" messaggi già IA quando il fallback usa candidate.
         messagesToMark = (messagesToMark || []).filter((message) => {
@@ -639,11 +635,7 @@ var EmailProcessor = class EmailProcessor {
         });
 
         if (messagesToMark.length > 0) {
-          if (languageMode === 'foreign_only') {
-            this._markMessagesAsSkipped(messagesToMark, this.config.skipLabelName, skippedMessageIds);
-          } else {
-            messagesToMark.forEach((message) => this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds));
-          }
+          messagesToMark.forEach((message) => this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds));
         }
         result.status = 'filtered';
         result.reason = 'newsletter_header';
@@ -920,7 +912,7 @@ var EmailProcessor = class EmailProcessor {
               // validazione o invio falliscono, devono restare eleggibili per retry.
               return;
             } else {
-              this._markMessagesAsSkipped([message], this.config.skipLabelName, skippedMessageIds);
+              this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
             }
           }
         });
@@ -1931,10 +1923,10 @@ ${addressLines.join('\n\n')}
       const languageMode = typeof this._getLanguageProcessingMode_ === 'function'
         ? this._getLanguageProcessingMode_()
         : 'all';
-      // IMPORTANTE: non escludere mai skipLabelName in query:
-      // Gmail applica -label a livello thread e rischieremmo di perdere follow-up esterni
-      // su conversazioni già toccate da messaggi interni/italiani saltati.
-      const labelsDaIgnorare = [];
+      // Discovery e punto medio:
+      // - in "Solo straniere" escludiamo '·' perché identifica email italiane già rinviate;
+      // - in "Tutte le lingue" non lo escludiamo, così quelle email tornano lavorabili.
+      const labelsDaIgnorare = languageMode === 'foreign_only' ? [this.config.skipLabelName] : [];
 
       let threads;
       try {
@@ -2601,16 +2593,14 @@ ${addressLines.join('\n\n')}
   }
 
   _markMessageAsProcessed(message, labeledMessageIds = null, skippedMessageIds = null) {
-    // SCELTA OPERATIVA INTENZIONALE:
-    // - etichetta IA a livello *messaggio* (non thread), usando Gmail Advanced Service;
-    // - NON marcare come letto qui.
-    // Motivo: il segretario deve vedere a colpo d'occhio i non letti, anche se già gestiti da IA.
-    // Cambiare questo comportamento altera la triage operativa.
+    // Nota di manutenzione: IA viene applicata a livello *messaggio* (non thread)
+    // e non marca il messaggio come letto. Così il segretario continua a vedere i
+    // non letti in Gmail, mentre il sistema sa che quel singolo messaggio è già gestito.
     const messageId = message.getId();
 
-    // Fail-safe operativo: in modalità "Solo straniere" un messaggio già marcato come
-    // skip ('·') NON deve mai essere promosso a IA nello stesso assetto, anche se
-    // _markMessageAsProcessed venisse chiamata da percorsi inattesi.
+    // Se siamo ancora in modalità "Solo straniere", un messaggio già marcato con
+    // punto medio ('·') resta in attesa: verrà promosso a IA solo quando si torna
+    // a "Tutte le lingue" e viene effettivamente lavorato.
     if (this._getLanguageProcessingMode_() === 'foreign_only' && skippedMessageIds && skippedMessageIds.has(messageId)) {
       console.log(`   ⛔ Preservata label '${this.config.skipLabelName}' su ${messageId} (foreign_only, cache): non promuovo a IA`);
       return;
@@ -2627,8 +2617,8 @@ ${addressLines.join('\n\n')}
 
     this.gmailService.addLabelToMessage(messageId, this.config.labelName);
     if (this.gmailService && typeof this.gmailService.removeLabelFromMessage === 'function') {
-      // Quando si torna da `foreign_only` a `all`, i messaggi prima marcati con '·'
-      // devono essere promossi a IA al primo passaggio utile.
+      // In modalità "Tutte le lingue", una email prima rinviata con '·' può essere
+      // chiusa normalmente: rimuoviamo il punto medio e lasciamo IA come stato finale.
       this.gmailService.removeLabelFromMessage(messageId, this.config.skipLabelName);
       console.log(`   ♻️ Promozione completata: rimossa label '${this.config.skipLabelName}' da ${messageId} e aggiunta '${this.config.labelName}'`);
     }
