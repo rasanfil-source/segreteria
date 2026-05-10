@@ -44,6 +44,7 @@ assert(_isControlConfigEditRange_('Controllo', fakeRange(5, 2)), 'B5 ferie deve 
 assert(_isControlConfigEditRange_('Controllo', fakeRange(7, 5)), 'E7 ferie variante estesa deve invalidare cache');
 assert(_isControlConfigEditRange_('Controllo', fakeRange(10, 1, 16, 4)), 'A10:D16 sospensione deve invalidare cache');
 assert(_isControlConfigEditRange_('Controllo', fakeRange(13, 5)), 'E13 filtri deve invalidare cache');
+assert(_isControlConfigEditRange_('Controllo', fakeRange(19, 1)), 'A19 validation email deve invalidare cache');
 assert(!_isControlConfigEditRange_('Controllo', fakeRange(20, 1)), 'A20 fuori configurazione non deve invalidare cache');
 assert(!_isControlConfigEditRange_('Controllo', fakeRange(6000, 5)), 'E6000 fuori area filtri non deve invalidare cache');
 assert(!_isControlConfigEditRange_('ConversationMemory', fakeRange(5, 2)), 'ConversationMemory non deve invalidare cache risorse via onEdit');
@@ -77,7 +78,8 @@ function createFakeSheet() {
         ['Sabato', '', '', ''],            // invalido -> ignorato
         ['Domenica', '', '', '']           // invalido -> ignorato
       ]
-    }
+    },
+    'A19': { getValue: () => 'review@parrocchia.it' }
   };
 
   return {
@@ -126,6 +128,7 @@ assert(adv.ignoreDomains.includes('mailchimp.com'), 'deve includere mailchimp de
 assert(adv.ignoreKeywords.includes('newsletter'), 'deve includere keyword newsletter');
 assert(adv.ignoreKeywords.includes('promozione'), 'deve includere keyword da sheet in lowercase');
 assert(adv.ignoreKeywords.includes('unsubscribe'), 'deve includere keyword statica unsubscribe');
+assert(adv.validationReviewEmail === 'review@parrocchia.it', 'deve leggere validationReviewEmail da A19');
 
 console.log('✅ Test advanced config parsing passati');
 

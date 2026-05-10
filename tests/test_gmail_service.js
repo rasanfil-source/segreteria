@@ -217,6 +217,21 @@ console.log('--- Test getProcessableAttachments: MIME con parametri deve essere 
   assert(!out.skipped.some((s) => s.reason === 'unsupported_type'), 'MIME parametrizzati validi non devono risultare unsupported_type');
 }
 
+console.log('--- Test _isMeaningfulOCR: CF/IBAN dentro testo OCR completo ---');
+{
+  const ocrService = new GmailService();
+  assert(
+    ocrService._isMeaningfulOCR('Codice fiscale: RSSMRA80A01H501U', true) === true,
+    'OCR con codice fiscale preceduto da etichetta deve essere significativo'
+  );
+  assert(
+    ocrService._isMeaningfulOCR('Coordinate IBAN IT60X0542811101000000123456 intestato alla parrocchia', true) === true,
+    'OCR con IBAN dentro testo più ampio deve essere significativo'
+  );
+}
+
+
+
 console.log('--- Test extractMainReply: firma breve deve essere rimossa ---');
 {
   const shortWithSignature = 'Ciao, a che ora è la messa?\n\nSaluti,\nDonato';

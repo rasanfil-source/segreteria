@@ -491,7 +491,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         originalAtTrigger > 0 &&
         currentCap <= originalAtTrigger;
 
-      if (canReapplyStored) {
+      if (canReapplyStored && stored < currentCap) {
         console.warn(`🚨 Safety Valve (persistita): MAX_EMAILS_PER_RUN → ${stored}`);
         CONFIG.MAX_EMAILS_PER_RUN = stored;
       }

@@ -1391,10 +1391,12 @@ ${addressLines.join('\n\n')}
         response = this._buildPrudentDocumentMismatchResponse_(detectedLanguage);
         strategyUsed = 'DocumentConsistency-PrudentResponse';
         console.log('✅ Risposta prudente generata per mismatch documentale');
-      } else if (hasRiskyUnknownReceived) {
+      } else if (hasRiskyUnknownReceived || forceReceiptOnlyForSubmission) {
         response = this._buildReceiptOnlySubmissionResponse_(detectedLanguage);
-        strategyUsed = 'DocumentConsistency-UnknownReceivedReceiptOnly';
-        console.log('✅ Risposta di sola ricezione generata (documento non classificabile in contesto sponsor)');
+        strategyUsed = hasRiskyUnknownReceived 
+          ? 'DocumentConsistency-UnknownReceivedReceiptOnly'
+          : 'Submission-ReceiptOnlyGuardrail';
+        console.log(`✅ Risposta di sola ricezione generata (${strategyUsed})`);
       } else {
         for (const plan of attemptStrategy) {
         if (!plan.key) continue;
@@ -1453,11 +1455,6 @@ ${addressLines.join('\n\n')}
       }
       }
 
-      if (forceReceiptOnlyForSubmission && !shouldForcePrudentDocResponse && !hasRiskyUnknownReceived) {
-        response = this._buildReceiptOnlySubmissionResponse_(detectedLanguage);
-        strategyUsed = 'Submission-ReceiptOnlyGuardrail';
-        console.log('✅ Guardrail applicato: risposta limitata a conferma ricezione documenti');
-      }
 
       if (!response) {
         const errorToReport = generationError || initialError;
@@ -2754,6 +2751,20 @@ ${addressLines.join('\n\n')}
     }
     if (value == null) {
       return '';
+    }
+    if (typeof value === 'object') {
+      try {
+        const cache = new Set();
+        return JSON.stringify(value, (key, val) => {
+          if (typeof val === 'object' && val !== null) {
+            if (cache.has(val)) return '[Circular]';
+            cache.add(val);
+          }
+          return val;
+        }, 2);
+      } catch (e) {
+        return String(value).trim();
+      }
     }
     try {
       return String(value).trim();

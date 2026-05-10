@@ -69,6 +69,19 @@ const gasEmailProcessorPath = path.join(__dirname, '..', 'gas_email_processor.js
 const code = fs.readFileSync(gasEmailProcessorPath, 'utf8');
 vm.runInThisContext(code, { filename: gasEmailProcessorPath });
 
+console.log('--- Test _normalizeTextContent serializza oggetti KB strutturati ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  const structured = { istruzioni: [{ categoria: 'Messe', dettaglio: 'Domenica 10:00' }] };
+  const normalized = processor._normalizeTextContent(structured);
+  assert(normalized.includes('Messe') && normalized.includes('Domenica 10:00'), 'gli oggetti KB devono essere serializzati senza [object Object]');
+  const circular = { tema: 'Catechismo' };
+  circular.self = circular;
+  const normalizedCircular = processor._normalizeTextContent(circular);
+  assert(normalizedCircular.includes('Catechismo') && normalizedCircular.includes('[Circular]'), 'gli oggetti circolari devono avere fallback controllato');
+}
+
+
 console.log('--- Test processThread: already_labeled_no_new_unread ---');
 {
   const msg = createMessage({ id: 'm1', unread: true, from: 'utente@example.com' });
@@ -442,6 +455,99 @@ console.log('--- Test processThread: fallback generazione marca atomicamente tut
   assert(labeled.has('m-burst-generation-2'), 'deve marcare come processato il secondo messaggio del burst');
   assert(labeled.has('m-burst-generation-3'), 'deve marcare come processato il candidato del burst');
 }
+
+console.log('--- Test processThread: submission receipt-only non chiama Gemini generation ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalDocumentConsistency = global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED;
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = false;
+  global.CONFIG.ATTACHMENT_CONTEXT = { enabled: true, maxFiles: 3 };
+  let generationCalls = 0;
+  let sentText = '';
+  const msg = {
+    getId: () => 'm-submission-receipt',
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-10T10:00:00Z'),
+    getSubject: () => 'Invio certificato',
+    getPlainBody: () => 'Allego certificato.',
+    getAttachments: () => [{ getName: () => 'idoneita.pdf' }]
+  };
+  const thread = createThread({ id: 't-submission-receipt', messages: [msg] });
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Invio certificato',
+        body: 'Allego certificato.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      getProcessableAttachments: () => ({
+        blobs: [],
+        textContext: 'Certificato di idoneità padrino allegato.',
+        skipped: [],
+        items: [{ name: 'idoneita.pdf', text: 'Certificato idoneità' }]
+      }),
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: (_candidate, responseText) => { sentText = responseText; }
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'document_submission', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      backupKey: 'backup-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'documentazione ricevuta' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => {
+        generationCalls++;
+        throw new Error('generateResponse non deve essere chiamata per receipt-only submission');
+      }
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: () => 'PROMPT'
+    }
+  });
+  processor._deriveAttachmentIntentContext_ = () => ({
+    intent: 'document_submission',
+    hasQuestions: false,
+    allowBodyQuestions: false,
+    categoryHintSource: 'document_submission',
+    detectedDocTypes: { sponsor: true }
+  });
+
+  const result = processor.processThread(thread, 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'la consegna documento deve ricevere risposta di conferma');
+  assert(generationCalls === 0, 'receipt-only submission non deve consumare chiamate Gemini di generazione');
+  assert(/ricevut|document/i.test(sentText), `risposta di conferma inattesa: ${sentText}`);
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = originalDocumentConsistency;
+  global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+}
+
 
 console.log('--- Test processThread: valida e invia esattamente il testo outbound preparato ---');
 {

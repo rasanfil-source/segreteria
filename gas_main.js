@@ -665,6 +665,7 @@ function _loadResourcesInternal(knownSheetModifiedAt) {
   newCacheData.suspensionRules = adv.suspensionRules;
   newCacheData.ignoreDomains = adv.ignoreDomains;
   newCacheData.ignoreKeywords = adv.ignoreKeywords;
+  newCacheData.validationReviewEmail = adv.validationReviewEmail || '';
   newCacheData.loaded = true;
   newCacheData.lastLoadedAt = Date.now();
 
@@ -801,7 +802,8 @@ function _isControlConfigEditRange_(sheetName, range) {
     || _rangesIntersect_(range, 5, 2, 3, 4)        // B5:E7: ferie/assenze
     || _rangesIntersect_(range, 6, 1, 5, 3)        // A6:C10: layout ferie legacy
     || _rangesIntersect_(range, 10, 1, 7, 4)       // A10:D16: fasce sospensione
-    || _rangesIntersect_(range, 13, 5, 5000, 2);   // E13:F: filtri anti-spam
+    || _rangesIntersect_(range, 13, 5, 5000, 2)    // E13:F: filtri anti-spam
+    || _rangesIntersect_(range, 19, 1, 1, 1);      // A19: validationReviewEmail
 }
 
 function _isResourceInvalidationEdit_(sheetName, range, cfg) {
