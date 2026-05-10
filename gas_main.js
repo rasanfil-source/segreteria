@@ -519,9 +519,10 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
     _loadResourcesInternal(precomputedSheetModifiedAt);
   } finally {
     if (lockAcquired) {
-      const canRelease = (typeof lock.hasLock !== 'function') || lock.hasLock();
-      if (canRelease) {
+      try {
         lock.releaseLock();
+      } catch (e) {
+        console.warn(`⚠️ releaseLock loadResources fallito: ${e.message}`);
       }
     }
   }

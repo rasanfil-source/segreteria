@@ -170,7 +170,7 @@ var GmailService = class GmailService {
             // dopo il nostro check ma prima della createLabel().
             const existingLabel = GmailApp.getUserLabelByName(labelName);
             if (existingLabel) {
-                this._labelCache.set(labelName, { ...(this._labelCache.get(labelName) || {}), label: existingLabel, ts: now });
+                this._labelCache.set(labelName, { label: existingLabel, ts: now });
                 if (this._scriptCache) {
                     try {
                         this._scriptCache.put(cacheKey, existingLabel.getId(), this._cacheTtlSeconds);

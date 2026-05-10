@@ -2211,7 +2211,7 @@ ${addressLines.join('\n\n')}
       let currentDepth = 0;
       try {
         const previousCheckpoint = JSON.parse(props.getProperty('EMAIL_BATCH_CHECKPOINT') || '{}');
-        currentDepth = previousCheckpoint.depth || 0;
+        currentDepth = (previousCheckpoint && previousCheckpoint.depth) ? previousCheckpoint.depth : 0;
       } catch (_) {
         currentDepth = 0;
       }
