@@ -94,15 +94,17 @@ var MemoryService = class MemoryService {
       }
 
       const headers = this._sheet.getRange('A1:I1').getValues()[0];
-      if (headers.length < 8 || !headers[7]) {
-        console.log('🔄 Aggiunta colonna mancante: version');
+      const versionHeader = String(headers[7] || '').trim();
+      if (headers.length < 8 || versionHeader !== 'version') {
+        console.log('🔄 Aggiunta/normalizzazione colonna: version');
         const versionCell = this._sheet.getRange('H1');
         versionCell.setValue('version');
         versionCell.setFontWeight('bold');
       }
 
       // La colonna I è la nona colonna (indice 8)
-      if (headers[8] !== 'memorySummary') {
+      const memorySummaryHeader = String(headers[8] || '').trim();
+      if (memorySummaryHeader !== 'memorySummary') {
         console.log('🔄 Aggiunta colonna mancante: memorySummary');
         const cell = this._sheet.getRange('I1');
         cell.setValue('memorySummary');

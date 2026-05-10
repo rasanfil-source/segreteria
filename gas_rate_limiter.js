@@ -471,8 +471,10 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   }
 
   _applySafetyValve_() {
-    if (typeof CONFIG === 'undefined' || !Number.isFinite(CONFIG.MAX_EMAILS_PER_RUN)) return;
-    if (CONFIG.MAX_EMAILS_PER_RUN <= 1) return;
+    if (typeof CONFIG === 'undefined') return;
+    const initialCap = Number(CONFIG.MAX_EMAILS_PER_RUN);
+    if (!Number.isFinite(initialCap) || initialCap <= 1) return;
+
 
     const todayPacific = this._getPacificDate();
     const dateKey = 'safety_valve_last_date';
@@ -499,6 +501,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     const currentCap = Number(CONFIG.MAX_EMAILS_PER_RUN);
+    if (!Number.isFinite(currentCap) || currentCap <= 1) return;
     const reduced = Math.max(1, Math.floor(currentCap / 2));
     if (reduced < currentCap) {
       console.warn(`🚨 Safety Valve attiva: MAX_EMAILS_PER_RUN ${currentCap} → ${reduced}`);

@@ -414,9 +414,10 @@ var ResponseValidator = class ResponseValidator {
     for (const lang in this.languageMarkers) {
       markerScores[lang] = this.languageMarkers[lang].reduce((count, marker) => {
         const escapedMarker = String(marker).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // Confini Unicode per il supporto alle parole accentate.
+        // Confini accent-aware senza lookbehind/property escapes: Apps Script V8 può
+        // variare per versione, mentre questo intervallo copre i marker latini supportati.
         // (es. "paróquia", "grüße", "querría"). \b è ASCII-only e fallisce con diacritici.
-        const regex = new RegExp(`(?<![\\p{L}\\p{N}_])${escapedMarker}(?![\\p{L}\\p{N}_])`, 'iu');
+        const regex = new RegExp(`(?:^|[^\\wÀ-ÿ])${escapedMarker}(?=[^\\wÀ-ÿ]|$)`, 'i');
         return count + (regex.test(responseLower) ? 1 : 0);
       }, 0);
     }
