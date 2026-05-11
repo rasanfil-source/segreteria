@@ -505,7 +505,6 @@ var MemoryService = class MemoryService {
     for (let i = 0; i < 3; i++) {
       let lockAcquired = false;
       let globalLockAcquired = false;
-      let sleepAfterRelease = false;
       const globalLock = LockService.getScriptLock();
 
       try {
@@ -558,9 +557,6 @@ var MemoryService = class MemoryService {
         if (lockAcquired) {
           this._releaseShardedLock(lockKey);
         }
-      }
-      if (sleepAfterRelease) {
-        this._sleepLockBackoff_(attempt);
       }
     }
   }

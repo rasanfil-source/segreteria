@@ -739,7 +739,7 @@ function runAllTests() {
                 }
             });
 
-            processor._markMessageAsProcessed({ getId: () => 'msg-skip-guard' }, new Set());
+            processor._markMessageAsProcessed({ getId: () => 'msg-skip-guard' }, new Set(), null);
 
             if (previousCache) {
                 global.GLOBAL_CACHE = previousCache;

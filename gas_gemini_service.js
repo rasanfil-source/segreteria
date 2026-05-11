@@ -1,4 +1,4 @@
-/**
+﻿/**
  * GeminiService.js - Servizio API Gemini
  * Gestisce tutte le chiamate all'API Generativa di Google
  * 

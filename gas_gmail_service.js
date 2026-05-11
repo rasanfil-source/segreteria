@@ -1883,10 +1883,6 @@ var GmailService = class GmailService {
                     for (const shape of shapes) {
                         if (exceededBudget()) break;
                         try {
-                            const shapeType = (typeof shape.getShapeType === 'function') ? shape.getShapeType() : null;
-                            if (shapeType !== SlidesApp.ShapeType.TEXT_BOX && shapeType !== SlidesApp.ShapeType.SHAPE) {
-                                continue;
-                            }
                             const tf = shape.getText();
                             if (tf) {
                                 const text = tf.asString().trim();
@@ -3059,8 +3055,14 @@ var GmailService = class GmailService {
             const separator = (currentLine === headerPrefix) ? '' : ' ';
             
             const limit = (currentLine === headerPrefix) ? maxFirstLine : maxContinuationLine;
-            if ((currentLine + separator + word).length <= limit || currentLine === headerPrefix) {
-                currentLine += separator + word;
+            const candidate = currentLine + separator + word;
+            if (candidate.length <= limit) {
+                currentLine = candidate;
+            } else if (currentLine === headerPrefix) {
+                // Fold immediately after the field name when the first encoded-word
+                // would exceed the RFC 2822 recommended first-line length.
+                foldedLines.push(headerPrefix.trimEnd());
+                currentLine = ' ' + word; // Continuation line
             } else {
                 foldedLines.push(currentLine);
                 currentLine = ' ' + word; // Continuation line

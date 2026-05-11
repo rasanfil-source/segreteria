@@ -559,8 +559,11 @@ var EmailProcessor = class EmailProcessor {
       // CRITICO: Ricostruzione del contesto in caso di burst (più email non lette dallo stesso utente).
       // Evita che un'email finale breve (es. "Grazie") faccia scartare le vere domande precedenti.
       if (externalUnread.length > 1) {
+        const candidateId = candidate.getId();
         const aggregatedBody = externalUnread.map((message) => {
-          const details = this.gmailService.extractMessageDetails(message);
+          const details = message.getId() === candidateId
+            ? messageDetails
+            : this.gmailService.extractMessageDetails(message);
           const messageDate = (() => {
             if (!(details.date instanceof Date)) return 'data non disponibile';
             if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
@@ -2603,7 +2606,7 @@ ${addressLines.join('\n\n')}
       return;
     }
 
-    if (!skippedMessageIds && this._shouldPreserveSkipLabelInForeignOnly_(messageId)) {
+    if (this._getLanguageProcessingMode_() === 'foreign_only' && this._shouldPreserveSkipLabelInForeignOnly_(messageId)) {
       console.log(`   ⛔ Preservata label '${this.config.skipLabelName}' su ${messageId} (foreign_only): non promuovo a IA`);
       return;
     }
@@ -3278,7 +3281,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
   _isTerritoryRequest(subject, body, classification = {}, requestType = null) {
     const text = `${subject || ''} ${body || ''}`.toLowerCase();
     const topic = String(classification && classification.topic ? classification.topic : '').toLowerCase();
-    if (topic.includes('territor') || topic.includes('parrocch')) return true;
+    if (topic.includes('territor') || topic.includes('parrocchia di residenza') || topic.includes('competenza parrocchiale')) return true;
 
     const explicitPatterns = [
       /\bterritorio\b/i,
@@ -3847,7 +3850,7 @@ Nota bene: l'orario comunicato ${note}.`;
     const cresimaAsPrerequisiteSignals = this._detectCresimaAsPrerequisiteForSponsorRole_(userText);
     if (asksEligibilityInfo || cresimaAsPrerequisiteSignals) return text;
 
-    const mentionsPadrinoContext = /\bpadrin[oa]|madrin[ao]|sponsor\b/i.test(userText);
+    const mentionsPadrinoContext = /\b(?:padrin[oa]|madrin[ao]|sponsor)\b/i.test(userText);
     if (!mentionsPadrinoContext) return text;
 
     const lines = text.split(/\n+/);

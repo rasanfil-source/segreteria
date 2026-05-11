@@ -442,7 +442,7 @@ ${doctrineBaseText}
       requestTypeObj.type === 'formal';
 
     if (normalizedTopic.includes('sbattezzo') || isFormalRequest) {
-      addSection(this._renderSbattezzoTemplate(senderName), 'SbattezzoTemplate');
+      addSection(this._renderSbattezzoTemplate(senderName, detectedLanguage), 'SbattezzoTemplate');
     }
 
     // 23. LINEE GUIDA TONO UMANO
@@ -1802,11 +1802,43 @@ Restiamo a disposizione."
   // TEMPLATE 24: TEMPLATE SBATTEZZO
   // ========================================================================
 
-  _renderSbattezzoTemplate(senderName) {
+  _renderSbattezzoTemplate(senderName, detectedLanguage = 'it') {
     const sanitizedName = (senderName || 'Utente')
       .replace(/[<>]/g, '')
       .substring(0, 50)
       .trim() || 'Utente';
+
+    if (String(detectedLanguage || '').toLowerCase().substring(0, 2) !== 'it') {
+      return `══════════════════════════════════════════════════════════════════════
+🚨 MANDATORY TEMPLATE: FORMAL REQUEST — REMOVAL FROM PARISH RECORDS 🚨
+══════════════════════════════════════════════════════════════════════
+
+USE EXACTLY THIS STRUCTURE AND TONE. DO NOT ADD ANYTHING ELSE.
+
+Dear ${sanitizedName},
+
+We confirm receipt of your request.
+
+As a first step, this parish will verify its records to ascertain whether your Baptism was celebrated here.
+
+* If the Baptism is recorded in this parish, we will promptly forward your request to the Diocesan Ordinary, attaching the Baptism certificate. The Diocesan Curia will contact you for a personal meeting to clarify the canonical consequences of the decision expressed. If your will remains confirmed, the Ordinary will issue the appropriate Decree and this parish will make the annotation in the Baptism register.
+
+* If the Baptism is not found in this parish's records, we will inform you that we cannot proceed further here and will indicate the parish to contact.
+
+Once the verification is complete, we will inform you of the outcome.
+
+Please note that the Church does not "erase" the historical fact of the sacrament (which remains an event that occurred), but formally records the will not to belong to the Catholic Church anymore.
+
+Kind regards,
+Parish Secretariat of Sant'Eugenio
+
+⚠️ CRITICAL RULES:
+1. Do NOT invite the person to call.
+2. Do NOT invite the person to make an appointment at the parish office (the Curia will do this).
+3. Do NOT add pastoral or theological comments beyond what is written above.
+4. Keep a strictly institutional tone.
+══════════════════════════════════════════════════════════════════════`;
+    }
 
     return `══════════════════════════════════════════════════════════════════════
 🚨 TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI (SBATTEZZO) 🚨

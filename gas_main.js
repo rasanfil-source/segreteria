@@ -1106,7 +1106,6 @@ function clearKnowledgeCache() {
   GLOBAL_CACHE.ignoreKeywords = [];
   GLOBAL_CACHE.replacements = {};
   GLOBAL_CACHE.validationReviewEmail = '';
-  GLOBAL_CACHE.loaded = false;
   GLOBAL_CACHE.aiCoreLite = '';
   GLOBAL_CACHE.aiCore = '';
   GLOBAL_CACHE.doctrineStructured = [];

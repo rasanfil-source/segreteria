@@ -3381,19 +3381,29 @@ function testGmailCounterFallbackUsesPacificTimezone() {
     const context = loadScriptInContext('gas_gmail_service.js', { Intl });
     context.Utilities = null;
 
-    // Mock Date.now per forzare le 06:30 UTC del 7 Maggio (che sono le 23:30 del 6 Maggio a LA)
-    const originalDateNow = Date.now;
-    Date.now = () => new Date('2026-05-07T06:30:00.000Z').getTime();
-
-    try {
-        const service = new context.GmailService();
-        const key = service._getGmailCounterDateKey_();
-
-        if (key !== 'gmail_api_calls:2026-05-06') {
-            throw new Error(`Il fallback del counter Gmail deve usare il giorno Pacifico (ottenuto: ${key})`);
+    // La funzione usa: new Date(Date.now()) → passata a Intl.DateTimeFormat.formatToParts().
+    // Anziché sovrascrivere Date (che rompe il costruttore nel sandbox vm),
+    // mocchiamo direttamente Intl.DateTimeFormat nel context per restituire
+    // il giorno Pacifico atteso per 2026-05-07T06:30:00Z (= 2026-05-06 a LA, UTC-7).
+    context.Intl = {
+        DateTimeFormat: function (_locale, _opts) {
+            return {
+                formatToParts: function () {
+                    return [
+                        { type: 'year', value: '2026' },
+                        { type: 'month', value: '05' },
+                        { type: 'day', value: '06' }
+                    ];
+                }
+            };
         }
-    } finally {
-        Date.now = originalDateNow;
+    };
+
+    const service = new context.GmailService();
+    const key = service._getGmailCounterDateKey_();
+
+    if (key !== 'gmail_api_calls:2026-05-06') {
+        throw new Error(`Il fallback del counter Gmail deve usare il giorno Pacifico (ottenuto: ${key})`);
     }
 }
 
