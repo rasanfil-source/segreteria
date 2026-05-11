@@ -846,19 +846,12 @@ var MemoryService = class MemoryService {
         globalLockAcquired = true;
 
         const existingRow = this._findRowByThreadId(threadId);
-        const existingData = existingRow
-          ? this._rowToObject(existingRow.values)
-          : {
-            threadId: threadId,
-            language: 'it',
-            category: null,
-            tone: 'standard',
-            providedInfo: [],
-            lastUpdated: this._validateAndNormalizeTimestamp(new Date().toISOString()),
-            messageCount: 1,
-            version: 1,
-            memorySummary: ''
-          };
+        if (!existingRow) {
+          console.warn(`⚠️ _updateProvidedInfoWithoutIncrement: thread ${threadId} non trovato su Sheet, salto aggiornamento reazione`);
+          return;
+        }
+
+        const existingData = this._rowToObject(existingRow.values);
         const existingTopics = this._normalizeProvidedTopics(Array.isArray(existingData.providedInfo) ? existingData.providedInfo : []);
         const normalizedTopics = this._normalizeProvidedTopics(providedInfo);
         const maxTopics = typeof CONFIG !== 'undefined' ? (CONFIG.MAX_PROVIDED_TOPICS || 50) : 50;
@@ -880,11 +873,7 @@ var MemoryService = class MemoryService {
         }
 
         this._withSheetWriteLock(() => {
-          if (existingRow) {
-            this._updateRow(existingRow.rowIndex, existingData);
-          } else {
-            this._appendRow(existingData);
-          }
+          this._updateRow(existingRow.rowIndex, existingData);
         }, true);
         this._invalidateCache(`memory_${threadId}`);
         return;
@@ -942,7 +931,7 @@ var MemoryService = class MemoryService {
       const token = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       const guardTimeoutMs = Math.max(1, Math.min(1000, this._getLockTuning_().globalGuardTimeoutMs || 500));
 
-      while ((Date.now() - startedAt) <= acquireBudgetMs) {
+      while ((Date.now() - startedAt) < acquireBudgetMs) {
         const guardLock = LockService.getScriptLock();
         let guardAcquired = false;
 
@@ -1426,7 +1415,8 @@ var MemoryService = class MemoryService {
         if (deletedCount > 0) {
           const originalLastRow = this._sheet.getLastRow();
           this._sheet.getRange(1, 1, validRows.length, headers.length).setValues(validRows);
-          const staleRows = originalLastRow - validRows.length;
+          const newLastRow = Math.max(originalLastRow, this._sheet.getLastRow());
+          const staleRows = Math.max(0, newLastRow - validRows.length);
           if (staleRows > 0) {
             // Non eliminiamo fisicamente righe del foglio: con righe vuote intermedie,
             // formattazioni o formule fuori tabella è più sicuro svuotare l'area stale.
@@ -1461,13 +1451,49 @@ var MemoryService = class MemoryService {
       return { initialized: false };
     }
 
-    const data = this._sheet.getDataRange().getValues();
-    return {
+    const baseStats = {
       initialized: true,
       sheetName: this.sheetName,
-      totalEntries: data.length - 1,
-      cacheSize: Object.keys(this._cache).length
+      cacheSize: Object.keys(this._cache || {}).length
     };
+
+    if (!this._sheet) {
+      return {
+        ...baseStats,
+        totalEntries: 0,
+        warning: 'Sheet memoria non inizializzato'
+      };
+    }
+
+    const readLock = (typeof LockService !== 'undefined' && LockService.getScriptLock)
+      ? LockService.getScriptLock()
+      : null;
+    let lockAcquired = false;
+
+    try {
+      if (readLock) {
+        const timeoutMs = (typeof CONFIG !== 'undefined' && CONFIG.SHEET_WRITE_LOCK_TIMEOUT_MS) || 10000;
+        readLock.waitLock(timeoutMs);
+        lockAcquired = true;
+      }
+
+      const data = this._sheet.getDataRange().getValues();
+      return {
+        ...baseStats,
+        totalEntries: Math.max(0, data.length - 1)
+      };
+    } catch (error) {
+      console.warn(`⚠️ getStats memoria non disponibile: ${error.message}`);
+      return {
+        ...baseStats,
+        totalEntries: 0,
+        error: error.message
+      };
+    } finally {
+      if (lockAcquired) {
+        try { readLock.releaseLock(); } catch (e) {}
+      }
+    }
   }
 
   /**
@@ -1542,21 +1568,8 @@ function cleanupOldMemory() {
  * Configura trigger settimanale per pulizia automatica memoria.
  */
 function setupWeeklyMemoryCleanupTrigger() {
-  console.warn('⚠️ [DEPRECATED] setupWeeklyMemoryCleanupTrigger(): usa setupWeeklyCleanupTrigger() in gas_main.js per evitare trigger duplicati.');
-  // Rimuovi trigger esistenti per evitare duplicati
-  const triggers = ScriptApp.getProjectTriggers();
-  let removed = 0;
-  for (const trigger of triggers) {
-    if (trigger.getHandlerFunction() === 'cleanupOldMemory') {
-      ScriptApp.deleteTrigger(trigger);
-      removed++;
-    }
-  }
-  if (removed > 0) {
-    console.log(`🗑️ Rimossi ${removed} trigger cleanup esistenti`);
-  }
- 
-  console.log('ℹ️ setupWeeklyMemoryCleanupTrigger deprecata: nessun nuovo trigger creato qui. Usa setupWeeklyCleanupTrigger() in gas_main.js.');
+  console.warn('⚠️ [DEPRECATED] setupWeeklyMemoryCleanupTrigger(): usa setupWeeklyCleanupTrigger() in gas_main.js. Funzione legacy no-op.');
+  console.log('ℹ️ setupWeeklyMemoryCleanupTrigger deprecata: non crea né rimuove trigger. Usa setupWeeklyCleanupTrigger() in gas_main.js.');
 }
 
 /**

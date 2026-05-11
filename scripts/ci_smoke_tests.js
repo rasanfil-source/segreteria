@@ -979,8 +979,8 @@ function testAddProvidedInfoTopicsUsesSheetWriteLock() {
     assert(released === true, 'Il lock sharded deve essere rilasciato in finally');
 }
 
-function testUpdateProvidedInfoWithoutIncrementUsesSheetWriteLockForAppend() {
-    console.log('--- Test: _updateProvidedInfoWithoutIncrement usa sheet lock anche in append ---');
+function testUpdateProvidedInfoWithoutIncrementSkipsMissingThread() {
+    console.log('--- Test: _updateProvidedInfoWithoutIncrement non fa append se il thread manca ---');
     loadScript('gas_memory_service.js');
 
     const service = Object.create(MemoryService.prototype);
@@ -991,46 +991,23 @@ function testUpdateProvidedInfoWithoutIncrementUsesSheetWriteLockForAppend() {
     let released = false;
     service._releaseShardedLock = () => { released = true; };
     service._findRowByThreadId = () => null;
-    service._normalizeProvidedTopics = (topics) => {
-        if (!Array.isArray(topics)) topics = [topics];
-        return topics.map(t => typeof t === 'string' ? { topic: t } : t);
-    };
-    service._mergeProvidedTopics = (existingTopics, newTopics) => existingTopics.concat(newTopics);
-    service._validateAndNormalizeTimestamp = (ts) => ts;
 
     let sheetLockCalls = 0;
-    let insideSheetWriteLock = false;
     let appendRowCalls = 0;
+    let updateRowCalls = 0;
     let invalidatedKey = null;
 
-    service._withSheetWriteLock = (writeOperation) => {
-        sheetLockCalls++;
-        insideSheetWriteLock = true;
-        try {
-            writeOperation();
-        } finally {
-            insideSheetWriteLock = false;
-        }
-    };
-    service._appendRow = (data) => {
-        appendRowCalls++;
-        assert(insideSheetWriteLock, '_updateProvidedInfoWithoutIncrement deve fare append solo dentro _withSheetWriteLock');
-        assert(data.threadId === 'thread-append', `threadId append errato: ${data.threadId}`);
-        assert(
-            Array.isArray(data.providedInfo) && data.providedInfo[0].topic === 'battesimo',
-            'Il topic providedInfo deve essere preservato nel branch append'
-        );
-    };
-    service._updateRow = () => {
-        throw new Error('_updateRow non deve essere chiamato nel branch append');
-    };
+    service._withSheetWriteLock = () => { sheetLockCalls++; };
+    service._appendRow = () => { appendRowCalls++; };
+    service._updateRow = () => { updateRowCalls++; };
     service._invalidateCache = (key) => { invalidatedKey = key; };
 
     service._updateProvidedInfoWithoutIncrement('thread-append', ['battesimo']);
 
-    assert(sheetLockCalls === 1, `_withSheetWriteLock deve essere chiamato una volta, ottenuto ${sheetLockCalls}`);
-    assert(appendRowCalls === 1, `_appendRow deve essere eseguito una volta, ottenuto ${appendRowCalls}`);
-    assert(invalidatedKey === 'memory_thread-append', `Cache invalidata errata: ${invalidatedKey}`);
+    assert(sheetLockCalls === 0, `_withSheetWriteLock non deve essere chiamato se il thread manca, ottenuto ${sheetLockCalls}`);
+    assert(appendRowCalls === 0, `_appendRow non deve creare righe parziali, ottenuto ${appendRowCalls}`);
+    assert(updateRowCalls === 0, `_updateRow non deve essere chiamato se il thread manca, ottenuto ${updateRowCalls}`);
+    assert(invalidatedKey === null, `Cache non deve essere invalidata senza scrittura, ottenuto ${invalidatedKey}`);
     assert(released === true, 'Il lock sharded deve essere rilasciato in finally');
 }
 
@@ -1046,21 +1023,32 @@ function testUpdateProvidedInfoWithoutIncrementRetriesShardedLock() {
     let sleeps = 0;
     service._sleepLockBackoff_ = () => { sleeps++; };
     service._releaseShardedLock = () => { };
-    service._findRowByThreadId = () => null;
+    service._findRowByThreadId = () => ({
+        rowIndex: 7,
+        values: ['thread-retry', 'it', null, 'standard', '[]', '2026-02-15T10:00:00Z', 1, 1, '']
+    });
+    service._rowToObject = () => ({
+        threadId: 'thread-retry',
+        providedInfo: [],
+        version: 1
+    });
     service._normalizeProvidedTopics = (topics) => topics.map(topic => ({ topic }));
     service._mergeProvidedTopics = (existingTopics, newTopics) => existingTopics.concat(newTopics);
     service._validateAndNormalizeTimestamp = (ts) => ts;
     service._withSheetWriteLock = (writeOperation) => writeOperation();
-    let appendCalls = 0;
-    service._appendRow = () => { appendCalls++; };
-    service._updateRow = () => { throw new Error('_updateRow non deve essere chiamato'); };
+    let updateCalls = 0;
+    service._appendRow = () => { throw new Error('_appendRow non deve essere chiamato'); };
+    service._updateRow = (rowIndex) => {
+        updateCalls++;
+        assert(rowIndex === 7, `Riga update errata: ${rowIndex}`);
+    };
     service._invalidateCache = () => { };
 
     service._updateProvidedInfoWithoutIncrement('thread-retry', ['orari']);
 
     assert(lockAttempts === 2, `Attesi 2 tentativi lock, ottenuti ${lockAttempts}`);
     assert(sleeps === 1, `Atteso un backoff tra i tentativi, ottenuti ${sleeps}`);
-    assert(appendCalls === 1, `La scrittura deve avvenire dopo retry riuscito, ottenute ${appendCalls}`);
+    assert(updateCalls === 1, `La scrittura deve avvenire dopo retry riuscito, ottenute ${updateCalls}`);
 }
 
 function testUpdateMemoryRetryOnVersionMismatch() {
@@ -1314,8 +1302,8 @@ function testMainReleasesExecutionLockBeforePipelineServices() {
         global.CONFIG = originalConfig;
     }
 }
-function testUpdateProvidedInfoWithoutIncrementUsesSheetWriteLockForAppend() {
-    console.log('--- Test: _updateProvidedInfoWithoutIncrement usa sheet lock anche in append ---');
+function testUpdateProvidedInfoWithoutIncrementSkipsMissingThread() {
+    console.log('--- Test: _updateProvidedInfoWithoutIncrement non fa append se il thread manca ---');
     loadScript('gas_memory_service.js');
 
     const service = Object.create(MemoryService.prototype);
@@ -1326,46 +1314,23 @@ function testUpdateProvidedInfoWithoutIncrementUsesSheetWriteLockForAppend() {
     let released = false;
     service._releaseShardedLock = () => { released = true; };
     service._findRowByThreadId = () => null;
-    service._normalizeProvidedTopics = (topics) => {
-        if (!Array.isArray(topics)) topics = [topics];
-        return topics.map(t => typeof t === 'string' ? { topic: t } : t);
-    };
-    service._mergeProvidedTopics = (existingTopics, newTopics) => existingTopics.concat(newTopics);
-    service._validateAndNormalizeTimestamp = (ts) => ts;
 
     let sheetLockCalls = 0;
-    let insideSheetWriteLock = false;
     let appendRowCalls = 0;
+    let updateRowCalls = 0;
     let invalidatedKey = null;
 
-    service._withSheetWriteLock = (writeOperation) => {
-        sheetLockCalls++;
-        insideSheetWriteLock = true;
-        try {
-            writeOperation();
-        } finally {
-            insideSheetWriteLock = false;
-        }
-    };
-    service._appendRow = (data) => {
-        appendRowCalls++;
-        assert(insideSheetWriteLock, '_updateProvidedInfoWithoutIncrement deve fare append solo dentro _withSheetWriteLock');
-        assert(data.threadId === 'thread-append', `threadId append errato: ${data.threadId}`);
-        assert(
-            Array.isArray(data.providedInfo) && data.providedInfo[0].topic === 'battesimo',
-            'Il topic providedInfo deve essere preservato nel branch append'
-        );
-    };
-    service._updateRow = () => {
-        throw new Error('_updateRow non deve essere chiamato nel branch append');
-    };
+    service._withSheetWriteLock = () => { sheetLockCalls++; };
+    service._appendRow = () => { appendRowCalls++; };
+    service._updateRow = () => { updateRowCalls++; };
     service._invalidateCache = (key) => { invalidatedKey = key; };
 
     service._updateProvidedInfoWithoutIncrement('thread-append', ['battesimo']);
 
-    assert(sheetLockCalls === 1, `_withSheetWriteLock deve essere chiamato una volta, ottenuto ${sheetLockCalls}`);
-    assert(appendRowCalls === 1, `_appendRow deve essere eseguito una volta, ottenuto ${appendRowCalls}`);
-    assert(invalidatedKey === 'memory_thread-append', `Cache invalidata errata: ${invalidatedKey}`);
+    assert(sheetLockCalls === 0, `_withSheetWriteLock non deve essere chiamato se il thread manca, ottenuto ${sheetLockCalls}`);
+    assert(appendRowCalls === 0, `_appendRow non deve creare righe parziali, ottenuto ${appendRowCalls}`);
+    assert(updateRowCalls === 0, `_updateRow non deve essere chiamato se il thread manca, ottenuto ${updateRowCalls}`);
+    assert(invalidatedKey === null, `Cache non deve essere invalidata senza scrittura, ottenuto ${invalidatedKey}`);
     assert(released === true, 'Il lock sharded deve essere rilasciato in finally');
 }
 
@@ -1381,21 +1346,32 @@ function testUpdateProvidedInfoWithoutIncrementRetriesShardedLock() {
     let sleeps = 0;
     service._sleepLockBackoff_ = () => { sleeps++; };
     service._releaseShardedLock = () => { };
-    service._findRowByThreadId = () => null;
+    service._findRowByThreadId = () => ({
+        rowIndex: 7,
+        values: ['thread-retry', 'it', null, 'standard', '[]', '2026-02-15T10:00:00Z', 1, 1, '']
+    });
+    service._rowToObject = () => ({
+        threadId: 'thread-retry',
+        providedInfo: [],
+        version: 1
+    });
     service._normalizeProvidedTopics = (topics) => topics.map(topic => ({ topic }));
     service._mergeProvidedTopics = (existingTopics, newTopics) => existingTopics.concat(newTopics);
     service._validateAndNormalizeTimestamp = (ts) => ts;
     service._withSheetWriteLock = (writeOperation) => writeOperation();
-    let appendCalls = 0;
-    service._appendRow = () => { appendCalls++; };
-    service._updateRow = () => { throw new Error('_updateRow non deve essere chiamato'); };
+    let updateCalls = 0;
+    service._appendRow = () => { throw new Error('_appendRow non deve essere chiamato'); };
+    service._updateRow = (rowIndex) => {
+        updateCalls++;
+        assert(rowIndex === 7, `Riga update errata: ${rowIndex}`);
+    };
     service._invalidateCache = () => { };
 
     service._updateProvidedInfoWithoutIncrement('thread-retry', ['orari']);
 
     assert(lockAttempts === 2, `Attesi 2 tentativi lock, ottenuti ${lockAttempts}`);
     assert(sleeps === 1, `Atteso un backoff tra i tentativi, ottenuti ${sleeps}`);
-    assert(appendCalls === 1, `La scrittura deve avvenire dopo retry riuscito, ottenute ${appendCalls}`);
+    assert(updateCalls === 1, `La scrittura deve avvenire dopo retry riuscito, ottenute ${updateCalls}`);
 }
 
 function testInferUserReactionIsResilientToEmptyTopics() {
@@ -3217,7 +3193,7 @@ function main() {
         ['memory invalidate: pulizia cache deterministica', testInvalidateCacheAlsoClearsRobustCache],
         ['memory: sheet lock non rilascia se waitLock fallisce', testSheetWriteLockDoesNotReleaseWhenWaitLockFails],
         ['memory: addProvidedInfoTopics serializza scrittura sheet', testAddProvidedInfoTopicsUsesSheetWriteLock],
-        ['memory: providedInfo append usa sheet lock globale', testUpdateProvidedInfoWithoutIncrementUsesSheetWriteLockForAppend],
+        ['memory: providedInfo non crea append su thread mancante', testUpdateProvidedInfoWithoutIncrementSkipsMissingThread],
         ['memory: providedInfo reaction ritenta lock sharded', testUpdateProvidedInfoWithoutIncrementRetriesShardedLock],
         ['memory reaction: gestione dinamica topic vuoti', testInferUserReactionIsResilientToEmptyTopics],
         ['memory reaction: normalizzazione topic coerente', testInferUserReactionNormalizesTopicKeys],
