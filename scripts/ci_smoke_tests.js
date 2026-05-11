@@ -26,7 +26,7 @@ global.LockService = {
 const fs = require('fs');
 const vm = require('vm');
 
-const MIN_EXPECTED_TESTS = 39;
+const MIN_EXPECTED_TESTS = 40;
 
 const loadedScripts = new Set();
 
@@ -3267,6 +3267,7 @@ function main() {
         ['validator: numero civico non sdogana orario inventato', testResponseValidatorStreetNumberDoesNotWhitelistInventedTime],
         ['retry intelligente: errore ammesso non critico sopra soglia', testIntelligentRetryAllowedNonCriticalHighScore],
         ['gmail: counter non usa ScriptLock', testGmailCounterDoesNotUseScriptLock],
+        ['gmail: counter fallback usa timezone Pacifico', testGmailCounterFallbackUsesPacificTimezone],
         ['italian vacation date parsing', testItalianVacationDateParsing],
     ];
 
@@ -3373,6 +3374,26 @@ function testGmailCounterDoesNotUseScriptLock() {
 
     if (storedValue !== '42') {
         throw new Error(`Il counter Gmail deve incrementare a 42 (ottenuto: ${storedValue}) senza usare ScriptLock`);
+    }
+}
+
+function testGmailCounterFallbackUsesPacificTimezone() {
+    const context = loadScriptInContext('gas_gmail_service.js', { Intl });
+    context.Utilities = null;
+
+    // Mock Date.now per forzare le 06:30 UTC del 7 Maggio (che sono le 23:30 del 6 Maggio a LA)
+    const originalDateNow = Date.now;
+    Date.now = () => new Date('2026-05-07T06:30:00.000Z').getTime();
+
+    try {
+        const service = new context.GmailService();
+        const key = service._getGmailCounterDateKey_();
+
+        if (key !== 'gmail_api_calls:2026-05-06') {
+            throw new Error(`Il fallback del counter Gmail deve usare il giorno Pacifico (ottenuto: ${key})`);
+        }
+    } finally {
+        Date.now = originalDateNow;
     }
 }
 

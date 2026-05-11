@@ -68,6 +68,24 @@ const punctuationService = new GmailService();
 const punctuated = punctuationService.fixPunctuation('Buongiorno,\nSiamo disponibili.');
 assert(punctuated === 'Buongiorno,\nsiamo disponibili.', 'fixPunctuation deve mantenere il newline dopo la virgola');
 
+console.log('--- Test Gmail counter fallback usa data Pacific Time ---');
+{
+  const originalUtilities = global.Utilities;
+  const originalDateNow = Date.now;
+  try {
+    global.Utilities = null;
+    Date.now = () => new Date('2026-05-11T03:30:00.000Z').getTime();
+    const fallbackService = new GmailService();
+    assert(
+      fallbackService._getGmailCounterDateKey_() === 'gmail_api_calls:2026-05-10',
+      'fallback counter Gmail deve usare la data Pacific Time, non UTC'
+    );
+  } finally {
+    global.Utilities = originalUtilities;
+    Date.now = originalDateNow;
+  }
+}
+
 console.log('--- Test _discoverByQuery: non esclude label IA a livello thread ---');
 {
   const serviceQuery = new GmailService();

@@ -51,11 +51,37 @@ var GmailService = class GmailService {
     _getGmailCounterDateKey_() {
         // Allineamento al timezone Pacifico (reset quote Gmail lato Google).
         const tz = 'America/Los_Angeles';
+        const now = new Date(Date.now());
         if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
-            return `gmail_api_calls:${Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd')}`;
+            return `gmail_api_calls:${Utilities.formatDate(now, tz, 'yyyy-MM-dd')}`;
         }
-        const isoDate = new Date().toISOString().slice(0, 10);
-        return `gmail_api_calls:${isoDate}`;
+
+        // Fallback locale/test: mantieni la stessa semantica Pacific Time anche
+        // fuori da Apps Script, dove Utilities.formatDate potrebbe non esistere.
+        if (typeof Intl !== 'undefined' && Intl && typeof Intl.DateTimeFormat === 'function') {
+            try {
+                const parts = new Intl.DateTimeFormat('en-CA', {
+                    timeZone: tz,
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                }).formatToParts(now);
+                const byType = parts.reduce((acc, part) => {
+                    acc[part.type] = part.value;
+                    return acc;
+                }, {});
+                if (byType.year && byType.month && byType.day) {
+                    return `gmail_api_calls:${byType.year}-${byType.month}-${byType.day}`;
+                }
+            } catch (e) {
+                console.warn(`⚠️ Fallback Intl timezone Pacifico non disponibile: ${e.message}`);
+            }
+        }
+
+        // Ultimo fallback: approssima Pacific Standard Time (UTC-8) per evitare
+        // il reset a mezzanotte UTC, che anticipa il reset quote Gmail.
+        const pacificApprox = new Date(Date.now() - 8 * 60 * 60 * 1000);
+        return `gmail_api_calls:${pacificApprox.toISOString().slice(0, 10)}`;
     }
 
     _incrementGmailCallCounterOrThrow_(opName) {
