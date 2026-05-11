@@ -847,7 +847,7 @@ var MemoryService = class MemoryService {
 
         const existingRow = this._findRowByThreadId(threadId);
         if (!existingRow) {
-          console.warn(`⚠️ _updateProvidedInfoWithoutIncrement: thread ${threadId} non trovato su Sheet, salto aggiornamento reazione`);
+          console.warn(`⚠️ _updateProvidedInfoWithoutIncrement: thread ${threadId} non trovato, skip creazione riga`);
           return;
         }
 
@@ -922,7 +922,13 @@ var MemoryService = class MemoryService {
 
     try {
       const startedAt = Date.now();
-      const acquireBudgetMs = Math.max(0, Number(timeoutMs) || 0);
+      const requestedBudgetMs = Number(timeoutMs);
+      const acquireBudgetMs = Number.isFinite(requestedBudgetMs) && requestedBudgetMs > 0
+        ? Math.max(50, requestedBudgetMs)
+        : 500;
+      if (!Number.isFinite(requestedBudgetMs) || requestedBudgetMs <= 0) {
+        console.warn(`⚠️ Timeout lock sharded non valido (${timeoutMs}); uso fallback ${acquireBudgetMs}ms`);
+      }
       // TTL >= tempo massimo di acquisizione + attesa lock sheet + margine: evita scadenze durante retry lenti.
       const lockTtlSeconds = Math.max(
         configuredLockTtlSeconds,
@@ -931,7 +937,7 @@ var MemoryService = class MemoryService {
       const token = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       const guardTimeoutMs = Math.max(1, Math.min(1000, this._getLockTuning_().globalGuardTimeoutMs || 500));
 
-      while ((Date.now() - startedAt) < acquireBudgetMs) {
+      while ((Date.now() - startedAt) <= acquireBudgetMs) {
         const guardLock = LockService.getScriptLock();
         let guardAcquired = false;
 
@@ -1415,12 +1421,12 @@ var MemoryService = class MemoryService {
         if (deletedCount > 0) {
           const originalLastRow = this._sheet.getLastRow();
           this._sheet.getRange(1, 1, validRows.length, headers.length).setValues(validRows);
-          const newLastRow = Math.max(originalLastRow, this._sheet.getLastRow());
-          const staleRows = Math.max(0, newLastRow - validRows.length);
-          if (staleRows > 0) {
+          const staleRows = originalLastRow - validRows.length;
+          const staleStartRow = validRows.length + 1;
+          if (staleRows > 0 && staleStartRow + staleRows - 1 <= originalLastRow) {
             // Non eliminiamo fisicamente righe del foglio: con righe vuote intermedie,
             // formattazioni o formule fuori tabella è più sicuro svuotare l'area stale.
-            this._sheet.getRange(validRows.length + 1, 1, staleRows, headers.length).clearContent();
+            this._sheet.getRange(staleStartRow, 1, staleRows, headers.length).clearContent();
           }
         }
 

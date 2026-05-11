@@ -1,4 +1,4 @@
-﻿/**
+/**
  * GeminiService.js - Servizio API Gemini
  * Gestisce tutte le chiamate all'API Generativa di Google
  * 
@@ -107,7 +107,7 @@ var GeminiService = class GeminiService {
     const temperature = this.config.TEMPERATURE ?? 0.5;
     const maxTokens = this.config.MAX_OUTPUT_TOKENS ?? 6000;
 
-    console.log(`\uD83E\uDD16 Chiamata ${modelName} (prompt: ${prompt.length} caratteri)...`);
+    console.log(`🤖 Chiamata ${modelName} (prompt: ${prompt.length} caratteri)...`);
 
     const requestParts = [];
     if (attachments && attachments.length > 0) {
@@ -159,7 +159,6 @@ var GeminiService = class GeminiService {
       throw new Error(`Errore rete/timeout durante chiamata Gemini: ${error.message}`);
     }
 
-
     const responseCode = response.getResponseCode();
     const responseBody = response.getContentText();
 
@@ -184,7 +183,7 @@ var GeminiService = class GeminiService {
     // Separazione errori di rete/quota vs contenuto con semplici if
     if ([429, 500, 502, 503, 504].includes(responseCode)) {
       if (responseCode === 429) {
-        throw new Error(`Quota o rate limit superato (429): ${apiErrorMsg}`);
+        throw new Error(`QUOTA_EXHAUSTED: Quota o rate limit superato (429): ${apiErrorMsg}`);
       }
       throw new Error(`Errore server temporaneo (${responseCode}): ${apiErrorMsg}`);
     }
@@ -238,7 +237,7 @@ var GeminiService = class GeminiService {
       throw new Error('Gemini ha restituito testo vuoto');
     }
 
-    console.log(`\u2713 Generati ${generatedText.length} caratteri (da ${parts.length} parti)`);
+    console.log(`✓ Generati ${generatedText.length} caratteri (da ${parts.length} parti)`);
     return generatedText;
   }
 
@@ -419,14 +418,14 @@ Output JSON:
     }
 
     if (!result || typeof result !== 'object' || !result.candidates || !result.candidates[0]) {
-      console.error('\u274C Nessun candidato nella risposta Controllo Rapido Gemini');
+      console.error('❌ Nessun candidato nella risposta Controllo Rapido Gemini');
       return defaultResult;
     }
 
     const candidate = result.candidates[0];
 
     if (candidate.finishReason && ['SAFETY', 'RECITATION', 'OTHER', 'BLOCKLIST'].includes(candidate.finishReason)) {
-      console.warn(`\u26A0\uFE0F Controllo rapido bloccato: ${candidate.finishReason}`);
+      console.warn(`⚠️ Controllo rapido bloccato: ${candidate.finishReason}`);
       return defaultResult;
     }
 
@@ -440,7 +439,7 @@ Output JSON:
     console.log('=========================================');
 
     if (!textResponse) {
-      console.error('\u274C Risposta non valida: testo vuoto');
+      console.error('❌ Risposta non valida: testo vuoto');
       return defaultResult;
     }
 
@@ -449,15 +448,13 @@ Output JSON:
     try {
       data = parseGeminiJsonLenient(textResponse);
     } catch (parseError) {
-      console.warn(`\u26A0\uFE0F parseGeminiJsonLenient fallito: ${parseError.message}`);
+      console.warn(`⚠️ parseGeminiJsonLenient fallito: ${parseError.message}`);
       return defaultResult;
     }
     if (!data || typeof data !== 'object') {
       console.warn('⚠️ Decisione quick check non è un oggetto JSON valido');
       return defaultResult;
     }
-
-    // Detection locale come lingua alternativa
 
     // Normalizzazione sicura booleano
     const replyNeeded = data.reply_needed;
@@ -538,7 +535,7 @@ Output JSON:
 
         if (attempt < maxRetries - 1) {
           const waitTime = this.retryDelay * Math.pow(this.backoffFactor, attempt);
-          console.warn(`\u26A0\uFE0F ${context} fallito (tentativo ${attempt + 1}/${maxRetries}): [${classified.type}] ${error.message} - Attendendo ${waitTime}ms...`);
+          console.warn(`⚠️ ${context} fallito (tentativo ${attempt + 1}/${maxRetries}): [${classified.type}] ${error.message} - Attendendo ${waitTime}ms...`);
           Utilities.sleep(waitTime);
         }
       }
@@ -652,7 +649,7 @@ Output JSON:
       'la comunione', 'la cresima', 'il matrimonio', 'il funerale', 'la benedizione'
     ];
     if (itIstituzionale.some(k => snippet.includes(k))) {
-      console.log(`\u2705 Lingua rilevata (Istituzionale): IT (Confidence: 5)`);
+      console.log(`✅ Lingua rilevata (Istituzionale): IT (Confidence: 5)`);
       return { lang: 'it', confidence: 5, safetyGrade: 5 };
     }
 
@@ -709,9 +706,9 @@ Output JSON:
       'are', 'were', 'this', 'that', 'your', 'not'
     ];
 
-        const spanishKeywords = [
+    const spanishKeywords = [
       'he ido', 'había', 'hay', 'ido', 'sido',
-      'hacer', 'haber', 'poder', 'estar', 'estoy', 'están',
+      'hacer', 'haber', 'pseudo-podere', 'estar', 'estoy', 'están',
       'por qué', 'porque', 'cuándo', 'cómo', 'dónde', 'qué tal',
       'por favor', 'muchas gracias', 'buenos días', 'buenas tardes',
       'misa', 'misas', 'iglesia', 'parroquia',
@@ -722,19 +719,19 @@ Output JSON:
       'ustedes', 'nosotros', 'tambien', 'también'
     ];
 
-        const portugueseUniqueKeywords = [
+    const portugueseUniqueKeywords = [
       'olá', 'obrigado', 'obrigada', 'agradecemos', 'agradeço',
       'por favor', 'bom dia', 'boa tarde', 'boa noite',
       'missa', 'missas', 'igreja', 'paróquia',
       'atenciosamente', 'cumprimentos', 'atualização'
     ];
 
-        const portugueseStandardKeywords = [
+    const portugueseStandardKeywords = [
       'por', 'para', 'com', 'não', 'uma', 'seu', 'sua',
       'dos', 'das', 'ao', 'aos'
     ];
 
-        const italianKeywords = [
+    const italianKeywords = [
       'sono', 'siamo', 'stato', 'stata', 'ho', 'hai', 'abbiamo',
       'fare', 'avere', 'essere', 'potere', 'volere',
       'perché', 'perchè', 'quando', 'come', 'dove', 'cosa',
@@ -823,7 +820,7 @@ Output JSON:
     }
 
     const safetyGrade = this._computeSafetyGrade(detectedLang, maxScore, scores);
-    console.log(`   \u2713 Rilevato: ${detectedLang.toUpperCase()} (punteggio: ${maxScore}, grado sicurezza: ${safetyGrade})`);
+    console.log(`   ✓ Rilevato: ${detectedLang.toUpperCase()} (punteggio: ${maxScore}, grado sicurezza: ${safetyGrade})`);
 
     // Gestione del rilevamento locale con bassa sicurezza per lingue estere.
     // tentiamo un rilevamento AI se possibile.
@@ -831,7 +828,7 @@ Output JSON:
       try {
         const aiLang = this.detectLanguageAI(text);
         if (aiLang) {
-          console.log(`   \uD83E\uDD16 Fallback AI: ${aiLang.toUpperCase()} (sovrascrive locale incerto)`);
+          console.log(`   🤖 Fallback AI: ${aiLang.toUpperCase()} (sovrascrive locale incerto)`);
           return { lang: aiLang, confidence: 5, safetyGrade: 4, method: 'ai_fallback' };
         }
       } catch (e) {
@@ -917,19 +914,19 @@ Testo:
     // 2. Lingue non coperte dal rilevamento locale: in quel caso ci fidiamo di Gemini.
     const supportedLocally = ['it', 'en', 'es', 'pt', 'fr', 'de'];
     if (!supportedLocally.includes(normalizedGemini)) {
-      console.log(`   \uD83C\uDF0D Lingua: ${normalizedGemini.toUpperCase()} (Gemini ha rilevato lingua non supportata localmente)`);
+      console.log(`   🌍 Lingua: ${normalizedGemini.toUpperCase()} (Gemini ha rilevato lingua non supportata localmente)`);
       return normalizedGemini;
     }
 
     // 3. Lingua principale: Se il locale è MOLTO sicuro (grado >= 4), 
     // prevale sulla detection API (che a volte si confonde con nomi propri o citazioni).
     if (localSafetyGrade >= 4) {
-      console.log(`   \uD83C\uDF0D Lingua: ${normalizedLocal.toUpperCase()} (Locale vince per grado sicurezza ${localSafetyGrade})`);
+      console.log(`   🌍 Lingua: ${normalizedLocal.toUpperCase()} (Locale vince per grado sicurezza ${localSafetyGrade})`);
       return normalizedLocal;
     }
 
     // 4. Default: Se c'è incertezza, ci fidiamo del rilevamento del modello Large
-    console.log(`   \uD83C\uDF0D Lingua: ${normalizedGemini.toUpperCase()} (Gemini prioritario su locale incerto)`);
+    console.log(`   🌍 Lingua: ${normalizedGemini.toUpperCase()} (Gemini prioritario su locale incerto)`);
     return normalizedGemini;
   }
 
@@ -1080,7 +1077,7 @@ Testo:
     // Capodanno
     if (m === 1 && d === 1) {
       if (language === 'en') return 'Happy New Year!';
-      if (language === 'es') return '¡Feliz Año Nuevo!';
+      if (language === 'es') return '¡Feliz Año Nuovo!';
       if (language === 'pt') return 'Feliz Ano Novo!';
       return 'Buon Capodanno!';
     }
@@ -1276,7 +1273,6 @@ Testo:
    * Supporta Rate Limiter + alternativa originale
    */
   shouldRespondToEmail(emailContent, emailSubject, precomputedDetection = null, intentContext = null) {
-    // Detection locale per lingua alternativa
     const detection = precomputedDetection || this.detectEmailLanguage(emailContent, emailSubject);
 
     // RATE LIMITER PATH
@@ -1312,7 +1308,7 @@ Testo:
         // executeRequest include già retry+backoff e il fallback diretto
         // causerebbe consumo API non tracciato.
         console.warn(`⚠️ Rate Limiter quick check fallito: ${error.message}. Interruzione per evitare bypass quota.`);
-        throw new Error(`Quick check via RateLimiter fallito: ${error.message}`);
+        throw error;
       }
     }
 
@@ -1326,7 +1322,7 @@ Testo:
       );
     } catch (error) {
       console.warn(`⚠️ Quick check fallito: ${error.message}. Interruzione per evitare skip silente.`);
-      throw new Error(`Quick check fallito: ${error.message}`);
+      throw error;
     }
   }
 

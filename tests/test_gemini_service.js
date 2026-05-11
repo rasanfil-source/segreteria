@@ -57,4 +57,47 @@ console.log('--- Test _classifyError: quota primaria non ritenta sulla stessa ch
   assert(allKeys.retryable === false, 'QUOTA_EXHAUSTED_ALL_KEYS non deve essere retryable localmente');
 }
 
+
+console.log('--- Test shouldRespondToEmail: preserva errore RateLimiter non quota ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  const originalError = new Error('transiente interno');
+  originalError._nonRetryable = true;
+  service.useRateLimiter = true;
+  service.rateLimiter = {
+    executeRequest: () => { throw originalError; }
+  };
+
+  try {
+    service.shouldRespondToEmail('contenuto', 'oggetto', { language: 'it' });
+    assert(false, 'shouldRespondToEmail deve rilanciare errori RateLimiter non quota');
+  } catch (error) {
+    assert(error === originalError, 'deve preservare identità e stack trace dell’errore originale');
+    assert(error._nonRetryable === true, 'deve preservare proprietà custom dell’errore originale');
+  }
+}
+
+console.log('--- Test _generateWithModel: 429 senza backup propaga QUOTA_EXHAUSTED ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = '';
+  service.config = { TEMPERATURE: 0.5, MAX_OUTPUT_TOKENS: 1000 };
+  service._buildGenerateUrl = () => 'https://generativelanguage.googleapis.com/v1beta/models/test:generateContent';
+  service.fetchFn = () => ({
+    getResponseCode: () => 429,
+    getContentText: () => JSON.stringify({ error: { message: 'rate limit' } })
+  });
+
+  let thrown = null;
+  try {
+    service._generateWithModel('prompt', 'gemini-test', 'primary-key', []);
+  } catch (error) {
+    thrown = error;
+  }
+
+  assert(thrown && thrown.message.includes('QUOTA_EXHAUSTED'), '429 deve includere QUOTA_EXHAUSTED per il RateLimiter');
+}
+
+
 console.log('✅ Test bilanciamento JSON Gemini passati');

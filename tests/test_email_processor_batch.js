@@ -9,11 +9,12 @@ function assert(condition, message) {
   }
 }
 
-function createMessage({ id, unread = true, from = 'utente@example.com' }) {
+function createMessage({ id, unread = true, from = 'utente@example.com', date = null }) {
   return {
     getId: () => id,
     isUnread: () => unread,
-    getFrom: () => from
+    getFrom: () => from,
+    getDate: () => date || new Date('2026-05-07T10:00:00Z')
   };
 }
 
@@ -133,6 +134,49 @@ console.log('--- Test processThread: no_external_unread ---');
   assert(res.status === 'skipped', 'deve saltare thread con soli unread interni');
   assert(res.reason === 'no_external_unread', 'reason atteso no_external_unread');
   assert(marked.includes('m2'), 'deve marcare messaggio interno con label terminale IA nel branch no_external_unread');
+}
+
+
+console.log('--- Test processThread: stale-only salta thread con follow-up esterni recenti ---');
+{
+  const oldMsg = createMessage({
+    id: 'm-stale-old',
+    unread: true,
+    from: 'utente@example.com',
+    date: new Date('2026-05-07T08:00:00Z')
+  });
+  const recentMsg = createMessage({
+    id: 'm-stale-recent',
+    unread: true,
+    from: 'utente@example.com',
+    date: new Date('2026-05-10T08:00:00Z')
+  });
+  const thread = createThread({ id: 't-stale-follow-up', messages: [oldMsg, recentMsg] });
+  const labeled = new Set();
+  const marked = [];
+
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      addLabelToMessage: (id) => marked.push(id),
+      extractMessageDetails: () => { throw new Error('non deve estrarre dettagli quando c\'è un follow-up recente'); }
+    }
+  });
+
+  const res = processor.processThread(
+    thread,
+    'kb',
+    '',
+    labeled,
+    true,
+    null,
+    { staleOnlyMs: new Date('2026-05-09T00:00:00Z').getTime() }
+  );
+
+  console.log(`Debug test: res.status=${res.status}, res.reason=${res.reason}`);
+  assert(res.status === 'skipped', "deve saltare l'intero thread stale con follow-up recente");
+  assert(res.reason === 'stale_thread_has_recent_messages', 'reason atteso stale_thread_has_recent_messages');
+  assert(marked.length === 0, 'non deve marcare messaggi preservati per il ciclo normale');
 }
 
 console.log('--- Test processThread: non rilascia ScriptLock se tryLock fallisce ---');

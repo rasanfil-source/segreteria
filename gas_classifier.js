@@ -238,18 +238,6 @@ var Classifier = class Classifier {
   _extractMainContent(body) {
     let processedBody = typeof body === 'string' ? body : '';
 
-    // Fast-path HTML quote trimming:
-    // se è presente class="gmail_quote", tronca dall'inizio del tag contenitore
-    // per evitare HTML pendente (es. "<div" aperto) in caso di input HTML.
-    const lowerBody = processedBody.toLowerCase();
-    const firstGmailQuoteMatch = lowerBody.match(/<div[^>]*class=["'][^"']*gmail_quote/);
-    const firstGmailQuoteIdx = firstGmailQuoteMatch ? firstGmailQuoteMatch.index : -1;
-    let safeGmailQuoteIdx = -1;
-    if (firstGmailQuoteIdx >= 0) {
-      safeGmailQuoteIdx = lowerBody.lastIndexOf('<div', Math.max(0, firstGmailQuoteIdx - 1));
-      if (safeGmailQuoteIdx === -1) safeGmailQuoteIdx = firstGmailQuoteIdx;
-      processedBody = processedBody.substring(0, safeGmailQuoteIdx);
-    }
 
     const MAX_LENGTH = 50000;
     if (processedBody.length > MAX_LENGTH) {

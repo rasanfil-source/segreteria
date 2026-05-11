@@ -226,21 +226,6 @@ var EmailProcessor = class EmailProcessor {
         }
 
         scriptCache.put(threadLockKey, lockValue, ttlSeconds);
-        if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.sleep === 'function') {
-          Utilities.sleep(50);
-        }
-        const confirmValue = scriptCache.get(threadLockKey);
-        // In scenari di latenza di CacheService, procediamo solo se il token è coerente.
-        if (confirmValue !== lockValue) {
-          threadLogger.warn('Collisione lock cache, salto');
-          if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
-            try { scriptLock.releaseLock(); } catch (_) {}
-            scriptLockAcquired = false;
-          }
-          restoreServiceLoggers();
-          return { status: 'skipped', reason: 'thread_lock_collision' };
-        }
-
         lockAcquired = true;
         threadLogger.debug('Lock acquisito');
       } catch (e) {
@@ -418,17 +403,24 @@ var EmailProcessor = class EmailProcessor {
         // Se non riusciamo ad estrarre l'email, consideriamo il mittente come esterno per sicurezza
         if (!senderEmail) return true;
 
-        // Guardrail paracadute: in modalità stale-only scarta messaggi recenti.
-        if (options && Number.isFinite(Number(options.staleOnlyMs))) {
-          const msgDate = (message && typeof message.getDate === 'function') ? message.getDate() : null;
-          const messageTs = msgDate instanceof Date ? msgDate.getTime() : NaN;
-          if (Number.isFinite(messageTs) && messageTs > Number(options.staleOnlyMs)) {
-            return false;
-          }
-        }
-
         return !ownAddresses.has(this._normalizeEmailAddress_(senderEmail));
       });
+
+      if (options && Number.isFinite(Number(options.staleOnlyMs))) {
+        const staleThresholdMs = Number(options.staleOnlyMs);
+        const hasRecentExternalUnread = externalUnread.some(message => {
+          const msgDate = (message && typeof message.getDate === 'function') ? message.getDate() : null;
+          const messageTs = (msgDate && typeof msgDate.getTime === 'function') ? msgDate.getTime() : NaN;
+          return Number.isFinite(messageTs) && messageTs > staleThresholdMs;
+        });
+
+        if (hasRecentExternalUnread) {
+          console.log('     Stale-only: salto thread con follow-up esterni recenti per evitare risposta fuori contesto');
+          result.status = 'skipped';
+          result.reason = 'stale_thread_has_recent_messages';
+          return result;
+        }
+      }
 
       // Nota di manutenzione sulle label:
       // - IA chiude i messaggi già gestiti tecnicamente (esterni filtrati, interni/nostri).
@@ -1223,12 +1215,29 @@ ${addressLines.join('\n\n')}
                 const remainingFiles = maxAttachmentFiles - attachmentData.blobs.length;
                 if (remainingFiles <= 0) break;
 
+                const usedChars = (attachmentData.textContext || '').length;
+                const maxTextChars = parseInt(attachmentSettings.maxTotalChars, 10) || 9000;
+                const safeMaxChars = Math.max(0, maxTextChars - usedChars);
                 const msgData = this.gmailService.getProcessableAttachments(externalUnread[i], {
                   maxFiles: remainingFiles,
+                  maxTotalChars: safeMaxChars,
                   shouldContinue: () => !this._isNearDeadline(this.config.maxExecutionTimeMs)
                 });
                 if (Array.isArray(msgData.blobs)) attachmentData.blobs.push(...msgData.blobs);
-                if (msgData.textContext) attachmentData.textContext += msgData.textContext;
+                if (msgData.textContext) {
+                  const remainingChars = Math.max(0, maxTextChars - (attachmentData.textContext || '').length);
+                  if (remainingChars > 0) {
+                    const boundedText = msgData.textContext.length > remainingChars
+                      ? msgData.textContext.substring(0, remainingChars)
+                      : msgData.textContext;
+                    attachmentData.textContext += boundedText;
+                    if (boundedText.length < msgData.textContext.length) {
+                      attachmentData.skipped.push({ reason: 'max_total_chars', kept: boundedText.length });
+                    }
+                  } else {
+                    attachmentData.skipped.push({ reason: 'max_total_chars' });
+                  }
+                }
                 if (Array.isArray(msgData.skipped)) attachmentData.skipped.push(...msgData.skipped);
                 if (Array.isArray(msgData.items)) attachmentData.items.push(...msgData.items);
                 if (attachmentData.blobs.length >= maxAttachmentFiles) break;
@@ -3934,7 +3943,7 @@ function computeSalutationMode({ isReply = false, memoryExists = false, lastUpda
 
   const parsedLastUpdated = (typeof parseDateSafe === 'function') ? parseDateSafe(lastUpdated, null) : new Date(lastUpdated);
   if (isNaN(parsedLastUpdated.getTime())) {
-    return 'none_or_continuity';
+    return 'full';
   }
 
   const timeSinceLastMs = now.getTime() - parsedLastUpdated.getTime();
