@@ -2885,17 +2885,38 @@ function testFormatDateForKnowledgeTextUsesScriptTimezoneInNodeFallback() {
 }
 
 function testResponseValidatorRemovesThinkingLeakWithParenthesisKeyword() {
-    console.log('--- Test: Thinking leak removal handles keyword starting with parenthesis ---');
+    console.log('--- Test: Thinking leak removal handles keyword with and without parenthesis ---');
     loadScript('gas_response_validator.js');
 
     const validator = new ResponseValidator();
-    validator.thinkingPatterns = ['(nota:'];
+    validator.thinkingPatterns = ['(nota:', 'nota interna:'];
 
     const text = 'Gentile utente, (nota: questo è un passaggio interno.) Procediamo con la risposta.';
     const cleaned = validator._rimuoviThinkingLeak(text);
 
     assert(!cleaned.includes('(nota:'), 'Il pattern con parentesi deve essere rimosso correttamente');
     assert(cleaned.includes('Procediamo con la risposta.'), 'Il testo utile deve essere preservato');
+
+    const exposed = validator._checkExposedReasoning('Nota interna: verificare prima in KB. Risposta finale.');
+    assert(exposed.warnings.length > 0 || exposed.errors.length > 0, 'Il pattern senza parentesi deve essere rilevato come thinking leak');
+}
+
+function testClassifierLegacyWrapperWarns() {
+    console.log('--- Test: classifyRequest legacy wrapper emits deprecation warning ---');
+    loadScript('gas_request_classifier.js');
+
+    const originalWarn = console.warn;
+    let warning = '';
+    console.warn = (message) => { warning += String(message); };
+    try {
+        const classifier = Object.create(RequestTypeClassifier.prototype);
+        classifier.classify = (subject, body, externalHint) => ({ subject, body, externalHint });
+        const result = classifier.classifyRequest('corpo', 'oggetto', 'hint');
+        assert(result.subject === 'oggetto' && result.body === 'corpo', 'classifyRequest deve preservare il comportamento legacy body/subject');
+        assert(warning.includes('[DEPRECATED] classifyRequest()'), 'classifyRequest deve emettere un warning di deprecazione');
+    } finally {
+        console.warn = originalWarn;
+    }
 }
 
 function testLoadAdvancedConfigStrictSuspensionHours() {
@@ -3245,6 +3266,7 @@ function main() {
         ['main: invalidazione cache senza indice multipart', testResourceCacheInvalidationContinuesWhenPartsIndexReadFails],
         ['main: fallback date formatter usa timezone script', testFormatDateForKnowledgeTextUsesScriptTimezoneInNodeFallback],
         ['validator: thinking leak con pattern parentesi', testResponseValidatorRemovesThinkingLeakWithParenthesisKeyword],
+        ['classifier: wrapper legacy emette warning', testClassifierLegacyWrapperWarns],
         ['main: ai_core preserva valori falsey', testLoadResourcesKeepsFalseyValuesInAiCoreSheets],
         ['main: parsing rigoroso fasce sospensione', testLoadAdvancedConfigStrictSuspensionHours],
         ['main: compatibilità layout legacy fasce sospensione', testLoadAdvancedConfigLegacySuspensionLayoutCompatibility],

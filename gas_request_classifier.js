@@ -343,7 +343,7 @@ var RequestTypeClassifier = class RequestTypeClassifier {
    * @deprecated Preferire classify(subject, body, externalHint) per evitare ambiguità.
    */
   classifyRequest(bodyFirst, subjectSecond, externalHint = null) {
-    console.warn('[DEPRECATED] classifyRequest() usa l\'ordine storico body, subject. Preferire classify(subject, body).');
+    console.warn('[DEPRECATED] classifyRequest() usa l\'ordine legacy (body, subject). Preferire classify(subject, body).');
     return this.classify(subjectSecond, bodyFirst, externalHint);
   }
 

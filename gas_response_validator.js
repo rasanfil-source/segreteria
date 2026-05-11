@@ -87,7 +87,11 @@ var ResponseValidator = class ResponseValidator {
       // Pattern conversazionali non catturati dalle regex 
       'rivedendo la knowledge base',
       'pensandoci bene',
-      '(nota interna:', // Stringa letterale: qui usiamo match statici via includes(), non regex.
+      // Varianti con/senza parentesi: il matching è statico case-insensitive,
+      // quindi elenchiamo esplicitamente le forme più probabili.
+      'nota interna:',
+      'note interne:',
+      '(nota interna:',
       '(note interne:',
       'come da istruzioni',
       'non sono ancora presenti nella kb',

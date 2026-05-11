@@ -1703,7 +1703,9 @@ var GmailService = class GmailService {
         }
 
         const orphanMaxAgeHours = this._safePositiveInt((typeof CONFIG !== 'undefined' ? CONFIG.OCR_ORPHAN_MAX_AGE_HOURS : null), 1, 1, 24);
-        const cutoffIso = new Date(Date.now() - (orphanMaxAgeHours * 60 * 60 * 1000)).toISOString();
+        const cutoffIso = new Date(Date.now() - (orphanMaxAgeHours * 60 * 60 * 1000))
+            .toISOString()
+            .replace(/\.\d{3}Z$/, 'Z');
         // Compatibilità Drive API v2/v3: cambiano nomi campo in query e shape della risposta.
         // Manteniamo doppia strategia per evitare cleanup silenziosamente inattivo.
         const v2Query = `(title contains 'OCR_' or title contains 'TEMP_CONV_') and 'me' in owners and trashed = false and modifiedDate < '${cutoffIso}'`;

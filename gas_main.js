@@ -2076,6 +2076,25 @@ function _parseDateValue(value) {
     return null;
   }
 
+  // Evita la "UTC midnight trap": in JS/GAS le stringhe ISO date-only
+  // (es. 2026-12-25) vengono interpretate a mezzanotte UTC e, con fusi
+  // negativi, possono retrocedere al giorno precedente via getDate().
+  const isoDateOnlyMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoDateOnlyMatch) {
+    const year = parseInt(isoDateOnlyMatch[1], 10);
+    const month = parseInt(isoDateOnlyMatch[2], 10);
+    const day = parseInt(isoDateOnlyMatch[3], 10);
+    const parsed = new Date(year, month - 1, day);
+    if (
+      parsed.getFullYear() === year &&
+      parsed.getMonth() === month - 1 &&
+      parsed.getDate() === day
+    ) {
+      return parsed;
+    }
+    return null;
+  }
+
   const fallback = new Date(trimmed);
   if (!isNaN(fallback.getTime())) {
     return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
