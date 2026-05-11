@@ -249,7 +249,11 @@ function isInSuspensionTime(checkDate = new Date()) {
       monthIndex = parseInt(Utilities.formatDate(now, businessTimeZone, 'M'), 10) - 1;
       date = parseInt(Utilities.formatDate(now, businessTimeZone, 'd'), 10);
       const isoDay = parseInt(Utilities.formatDate(now, businessTimeZone, 'u'), 10);
-      day = isNaN(isoDay) ? day : (isoDay % 7);
+      if (isNaN(isoDay)) {
+        console.warn(`⚠️ Giorno ISO non parsabile per timezone ${businessTimeZone}; uso getDay() locale come fallback.`);
+      } else {
+        day = isoDay % 7;
+      }
       const businessHour = parseInt(Utilities.formatDate(now, businessTimeZone, 'H'), 10);
       const businessMinute = parseInt(Utilities.formatDate(now, businessTimeZone, 'm'), 10);
       if (!isNaN(businessHour) && !isNaN(businessMinute)) {
@@ -967,6 +971,33 @@ function _splitCachePayload(payload, maxChars) {
       byteLength = Utilities.newBlob(chunk, 'text/plain; charset=UTF-8').getBytes().length;
     }
 
+    // Se payload estremamente densi di caratteri multibyte restano oltre limite anche
+    // sotto 1000 code unit, trova rapidamente il chunk massimo valido invece di
+    // avanzare un solo carattere per iterazione.
+    if (byteLength > ABSOLUTE_BYTE_LIMIT) {
+      let low = 1;
+      let high = length;
+      let bestLength = 0;
+      let bestChunk = '';
+
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        const candidate = payload.substring(start, start + mid);
+        const candidateByteLength = Utilities.newBlob(candidate, 'text/plain; charset=UTF-8').getBytes().length;
+
+        if (candidateByteLength <= ABSOLUTE_BYTE_LIMIT) {
+          bestLength = mid;
+          bestChunk = candidate;
+          low = mid + 1;
+        } else {
+          high = mid - 1;
+        }
+      }
+
+      length = bestLength;
+      chunk = bestChunk;
+    }
+
     // Evita split nel mezzo di surrogate pair UTF-16
     if (start + length < payload.length) {
       const lastCode = payload.charCodeAt(start + length - 1);
@@ -1554,11 +1585,12 @@ function exportMetricsToSheet() {
     const sheetName = CONFIG.METRICS_SHEET_NAME || 'DailyMetrics';
     const ss = SpreadsheetApp.openById(metricsSheetId);
     const sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
+    const metricModelKeys = Object.keys(stats.models || {});
 
     // Header automatico se il foglio è vuoto
     if (sheet.getLastRow() === 0) {
       const headers = ['Timestamp', 'Data', 'Ora IT'];
-      for (var modelKey in stats.models) {
+      for (const modelKey of metricModelKeys) {
         headers.push(modelKey + ' RPD used', modelKey + ' RPD limit', modelKey + ' RPD %');
         headers.push(modelKey + ' RPM used', modelKey + ' RPM limit');
         headers.push(modelKey + ' tokensTotali');
@@ -1570,7 +1602,7 @@ function exportMetricsToSheet() {
 
     // Riga strutturata per modello
     const row = [new Date(), stats.date, stats.italianTime];
-    for (var modelKey in stats.models) {
+    for (const modelKey of metricModelKeys) {
       const m = stats.models[modelKey];
       row.push(m.rpd.used, m.rpd.limit, m.rpd.percent);
       row.push(m.rpm.used, m.rpm.limit);
