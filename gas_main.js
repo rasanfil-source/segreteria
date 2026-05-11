@@ -1,4 +1,6 @@
-/**
+/** 
+ * Ultimo aggiornamento: 2026-05-11 23:57
+ *
  * Main.js - Entry point del sistema autoresponder
  * Gestisce trigger, inizializzazione e orchestrazione principale
  * Include logica sospensione oraria e festività italiane
