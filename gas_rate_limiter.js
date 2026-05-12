@@ -131,7 +131,6 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   _normalizeDeprecatedModelNames(models) {
     const deprecatedMap = {
       // Mappatura modelli precedenti/ritirati verso il profilo operativo 3.1 Lite.
-      'gemini-2.5-flash': 'gemini-3.1-flash-lite',
       'gemini-2.5-flash-lite': 'gemini-3.1-flash-lite',
       'gemini-2.5-flash-exp': 'gemini-3.1-flash-lite',
       'gemini-2.0-flash-exp': 'gemini-3.1-flash-lite',
@@ -142,8 +141,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const knownCurrentModels = [
       'gemini-3.1-flash-lite',
       'gemini-3.1-flash-lite-preview',
-      'gemini-2.5-flash',
-      'gemini-2.5-flash-lite'
+      'gemini-2.5-flash'
     ];
 
     const normalized = {};
@@ -857,13 +855,13 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     };
   }
 
-  _incrementGroundingCounter_(count) {
+  _incrementGroundingCounter_(count, alreadyLocked = false) {
     const increment = Math.max(0, parseInt(count || 0, 10) || 0);
     if (increment <= 0) return this.getGoogleSearchGroundingStats();
 
     const notes = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_FREE_TIER_NOTES) ? CONFIG.GEMINI_FREE_TIER_NOTES : {};
     const limit = Number(notes.groundingSharedRpd) > 0 ? Number(notes.groundingSharedRpd) : 1500;
-    const lock = LockService.getScriptLock();
+    const lock = alreadyLocked ? null : LockService.getScriptLock();
     const gotLock = alreadyLocked || lock.tryLock(25000);
     if (!gotLock) {
       throw new Error('QUOTA_EXHAUSTED: impossibile acquisire lock per Google Search Grounding');

@@ -334,6 +334,28 @@ function runAllTests() {
             limiter._recoverFromStorage();
             return limiter.cache.rpmWindow.length > 0;
         });
+        test('Google Search Grounding incrementa senza ReferenceError sul lock', results, () => {
+            const limiter = new GeminiRateLimiter();
+            limiter.props.deleteProperty('grounding_google_search_date');
+            limiter.props.deleteProperty('grounding_google_search_rpd');
+            const stats = limiter.reserveGoogleSearchGroundingQueries(1);
+            return stats.used === 1 && stats.limit > 0;
+        });
+        test('Google Search Grounding rispetta alreadyLocked senza nuovo ScriptLock', results, () => {
+            const limiter = new GeminiRateLimiter();
+            limiter.props.deleteProperty('grounding_google_search_date');
+            limiter.props.deleteProperty('grounding_google_search_rpd');
+            const previousLockService = LockService;
+            try {
+                LockService = {
+                    getScriptLock: () => { throw new Error('getScriptLock non dovrebbe essere chiamato con alreadyLocked'); }
+                };
+                const stats = limiter._incrementGroundingCounter_(1, true);
+                return stats.used === 1 && stats.limit > 0;
+            } finally {
+                LockService = previousLockService;
+            }
+        });
     });
 
     // 2. MemoryService
@@ -842,7 +864,7 @@ function runAllTests() {
                 }
             });
 
-            const out = serviceWithBackup._quickCheckWithModel('Testo richiesta', 'Oggetto', 'gemini-2.5-flash');
+            const out = serviceWithBackup._quickCheckWithModel('Testo richiesta', 'Oggetto', 'gemini-3.1-flash-lite');
             return calls.length === 2
                 && calls[0].includes('primary-key-abcdefghijklmnopqrstuvwxyz')
                 && calls[1].includes('backup-key-abcdefghijklmnopqrstuvwxyz')
@@ -880,7 +902,7 @@ function runAllTests() {
             const out = service._quickCheckWithModel(
                 'Buongiorno, allego il certificato richiesto.',
                 'Documenti',
-                'gemini-2.5-flash',
+                'gemini-3.1-flash-lite',
                 { lang: 'it', confidence: 5, safetyGrade: 5 },
                 { intent: 'document_submission' }
             );
