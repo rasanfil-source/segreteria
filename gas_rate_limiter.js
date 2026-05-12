@@ -752,8 +752,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
    */
   _incrementCountersAtomic(modelKey, tokensUsed, alreadyLocked = false) {
     const lock = alreadyLocked ? null : LockService.getScriptLock();
-    // Timeout esteso per garantire persistenza contatori sotto burst concorrenti.
-    const gotLock = alreadyLocked || lock.tryLock(25000);
+    // Timeout ridotto per evitare hang prolungati in console sotto concorrenza
+    const gotLock = alreadyLocked || lock.tryLock(10000);
 
     if (!gotLock) {
       console.warn(`⚠️ Impossibile tracciare RPD/Token per ${modelKey} (Lock Timeout)`);
@@ -862,7 +862,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const notes = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_FREE_TIER_NOTES) ? CONFIG.GEMINI_FREE_TIER_NOTES : {};
     const limit = Number(notes.groundingSharedRpd) > 0 ? Number(notes.groundingSharedRpd) : 1500;
     const lock = alreadyLocked ? null : LockService.getScriptLock();
-    const gotLock = alreadyLocked || lock.tryLock(25000);
+    // Timeout ridotto a 10s per evitare hang
+    const gotLock = alreadyLocked || lock.tryLock(10000);
     if (!gotLock) {
       throw new Error('QUOTA_EXHAUSTED: impossibile acquisire lock per Google Search Grounding');
     }
@@ -1012,11 +1013,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     const lock = LockService.getScriptLock();
-    // Timeout esteso per ridurre perdita cache in istanze effimere sotto alta concorrenza.
-    const lockAcquired = lock.tryLock(25000);
+    // Timeout ridotto a 10s per evitare blocchi infiniti in console.
+    const lockAcquired = lock.tryLock(10000);
 
     if (!lockAcquired) {
-      console.warn('\u26A0\uFE0F Impossibile acquisire lock per salvataggio cache entro 25s. Dati mantenuti in memoria.');
+      console.warn('\u26A0\uFE0F Impossibile acquisire lock per salvataggio cache entro 10s. Dati mantenuti in memoria.');
       return;
     }
 
@@ -1151,7 +1152,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
   _cleanStorageBuffers() {
     try {
-      const allProps = this.props.getProperties();
+      // Ottimizzazione: evitiamo getProperties() che è lentissimo.
+      // Leggiamo il numero di chunk direttamente dalle proprietà note.
+      const rpmChunkCount = parseInt(this.props.getProperty('rate_limit_wal_rpm_chunks') || '0', 10) || 0;
+      const tpmChunkCount = parseInt(this.props.getProperty('rate_limit_wal_tpm_chunks') || '0', 10) || 0;
+      
       const keysToDelete = [
         'rate_limit_wal',
         'rate_limit_wal_ts',
@@ -1161,16 +1166,24 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         'rate_limit_wal_tpm_chunks'
       ];
 
-      for (const key in allProps) {
-        if (/^rate_limit_wal_(rpm|tpm)_\d+$/.test(key)) {
-          keysToDelete.push(key);
-        }
+      // Eliminiamo i chunk RPM
+      for (let i = 0; i < rpmChunkCount; i++) {
+        keysToDelete.push(`rate_limit_wal_rpm_${i}`);
+      }
+      // Eliminiamo i chunk TPM
+      for (let i = 0; i < tpmChunkCount; i++) {
+        keysToDelete.push(`rate_limit_wal_tpm_${i}`);
       }
 
-      for (const key of keysToDelete) {
-        this.props.deleteProperty(key);
-      }
-    } catch (e) { }
+      // Esecuzione eliminazione massiva (se supportata) o singola
+      this.props.deleteAllProperties ? this._deletePropertiesList(keysToDelete) : keysToDelete.forEach(k => this.props.deleteProperty(k));
+    } catch (e) { 
+      console.warn(`⚠️ Errore durante pulizia buffer: ${e.message}`);
+    }
+  }
+
+  _deletePropertiesList(keys) {
+    keys.forEach(k => this.props.deleteProperty(k));
   }
 
   _writeChunkedData(walTimestamp, mergedRpm, mergedTpm) {
@@ -1382,12 +1395,12 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       models: {},
       groundingGoogleSearch: null
     };
-    const allProps = this.props.getProperties();
 
     for (const modelKey of Object.keys(this.models)) {
       const model = this.models[modelKey];
-      const rpdUsed = parseInt(allProps['rpd_' + modelKey] || '0', 10) || 0;
-      const tokensUsed = parseInt(allProps['tokens_' + modelKey] || '0', 10) || 0;
+      // Ottimizzazione: leggiamo solo le chiavi specifiche invece di allProps.getProperties()
+      const rpdUsed = parseInt(this.props.getProperty('rpd_' + modelKey) || '0', 10) || 0;
+      const tokensUsed = parseInt(this.props.getProperty('tokens_' + modelKey) || '0', 10) || 0;
       const rpmUsed = this._getRequestsInWindow('rpm', modelKey);
       const tpmUsed = this._getTokensInWindow('tpm', modelKey);
 
