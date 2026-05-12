@@ -157,6 +157,11 @@ Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
       const fallbackActive = Number.isFinite(Number(fallbackTs))
         && ((now - Number(fallbackTs)) < fallbackCooldownMs);
       if (!alreadyNotified && !fallbackActive) {
+        // Scrittura preventiva per ridurre la finestra di race tra esecuzioni concorrenti.
+        // Il successivo valore 'sent' è idempotente e prolunga il cooldown in caso di invio riuscito.
+        if (cache) {
+          cache.put(errorKey, 'pending', 60);
+        }
         let sent = false;
         try {
           MailApp.sendEmail(adminEmail, subject, body);

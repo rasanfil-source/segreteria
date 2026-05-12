@@ -628,41 +628,37 @@ var ResponseValidator = class ResponseValidator {
     const normalizePhone = (p) => p.replace(/\D/g, '');
 
     // === Controllo orari ===
-    // Nota compatibilità: questo pattern usa lookbehind variabile-lunghezza; è supportato in Google Apps Script V8.
-    const timePattern = /(?<![a-z]\.)(?<!\b\d{1,2}[\/.-])\b\d{1,2}[:.]\d{2}\b(?![\/.-]\d{2,4})(?!\.[a-z])/gi;
+    // Compatibilità GAS: evita lookbehind a lunghezza variabile, che in alcuni runtime V8
+    // può fallire in fase di parsing. Il filtro di contesto replica le esclusioni precedenti.
+    const timePattern = /\b\d{1,2}[:.]\d{2}\b(?![\/.-]\d{2,4})(?!\.[a-z])/gi;
     const contextualHourPattern = /\b(?:alle?|ore)\s+(\d{1,2})\b/gi;
-    const responseTimesRaw = [];
-    let match;
-    // Reset dell'indice per la scansione sequenziale.
-    timePattern.lastIndex = 0;
-    while ((match = timePattern.exec(response)) !== null) {
-      const timeStr = match[0];
-      const index = match.index;
-      // Controlla contesto (20 caratteri prima e dopo)
-      const prefix = response.substring(Math.max(0, index - 20), index).toLowerCase();
-      const suffix = response.substring(index + timeStr.length, Math.min(response.length, index + timeStr.length + 10)).toLowerCase();
+    const collectStandaloneTimes = (text) => {
+      const found = [];
+      const safeText = text || '';
+      let timeMatch;
+      timePattern.lastIndex = 0;
+      while ((timeMatch = timePattern.exec(safeText)) !== null) {
+        const timeStr = timeMatch[0];
+        const index = timeMatch.index;
+        const prefix = safeText.substring(Math.max(0, index - 20), index).toLowerCase();
+        const suffix = safeText.substring(index + timeStr.length, Math.min(safeText.length, index + timeStr.length + 10)).toLowerCase();
 
-      // Whitelist: Escludi indirizzi (es. "Civico 12.30" raro ma possibile intero, o "n. 10")
-      if (/(?:via|viale|piazza|corso|largo|vicolo|civico|n\.|num\.|int\.|scala)\s*$/i.test(prefix)) {
-        continue;
-      }
-      // Whitelist: Escludi prezzi (es. 10.50 euro)
-      if (/^\s*(?:euro|\u20AC|eur)/i.test(suffix)) {
-        continue;
-      }
-      // Whitelist: Escludi date tipo 12.05.2026 o 12/05
-      if (/^\.\d{2,4}\b/.test(suffix) || /(?:^|[\s(])\d{1,2}[\/.-]\d{1,2}$/.test(prefix.trim())) {
-        continue;
-      }
-      // Whitelist: Escludi versetti biblici (es. Gv 10,10, Rm 9,20, 1Cor 13.4 o 2Pt 1,10)
-      if (/(?:gv|mt|mc|lc|gen|es|lv|nm|dt|gs|dc|rut|1?sam|2sam|1?re|2re|1?cr|2cr|esd|ne|tb|gdt|est|gb|sal|pr|qo|ct|sap|sir|is|ger|lam|bar|ez|dn|os|gl|am|abd|gna|mi|na|ab|sof|ag|zc|ml|at|rm|1?cor|2cor|gal|ef|fil|col|1?ts|2ts|1?tm|2tm|tt|fm|eb|gc|1?pt|2pt|1?gv|2gv|3gv|gd|ap)\.?\s*$/i.test(prefix)) {
-        continue;
-      }
+        // Whitelist: Escludi URL/nomi file (es. "v.10.30"), indirizzi, prezzi, date e versetti biblici.
+        if (/[a-z]\.$/i.test(prefix)) continue;
+        if (/\b\d{1,2}[\/.-]$/i.test(prefix)) continue;
+        if (/(?:via|viale|piazza|corso|largo|vicolo|civico|n\.|num\.|int\.|scala)\s*$/i.test(prefix)) continue;
+        if (/^\s*(?:euro|\u20AC|eur)/i.test(suffix)) continue;
+        if (/^\.\d{2,4}\b/.test(suffix) || /(?:^|[\s(])\d{1,2}[\/.-]\d{1,2}$/.test(prefix.trim())) continue;
+        if (/(?:gv|mt|mc|lc|gen|es|lv|nm|dt|gs|dc|rut|1?sam|2sam|1?re|2re|1?cr|2cr|esd|ne|tb|gdt|est|gb|sal|pr|qo|ct|sap|sir|is|ger|lam|bar|ez|dn|os|gl|am|abd|gna|mi|na|ab|sof|ag|zc|ml|at|rm|1?cor|2cor|gal|ef|fil|col|1?ts|2ts|1?tm|2tm|tt|fm|eb|gc|1?pt|2pt|1?gv|2gv|3gv|gd|ap)\.?\s*$/i.test(prefix)) continue;
 
-      responseTimesRaw.push(timeStr);
-    }
-    const kbTimesRaw = safeKnowledgeBase.match(timePattern) || [];
-    const originalTimesRaw = (originalMessage || '').match(timePattern) || [];
+        found.push(timeStr);
+      }
+      return found;
+    };
+
+    const responseTimesRaw = collectStandaloneTimes(response);
+    const kbTimesRaw = collectStandaloneTimes(safeKnowledgeBase);
+    const originalTimesRaw = collectStandaloneTimes(originalMessage || '');
     const collectContextualHours = (text, target) => {
       contextualHourPattern.lastIndex = 0;
       let contextualHourMatch;

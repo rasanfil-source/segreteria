@@ -381,6 +381,7 @@ var TerritoryValidator = class TerritoryValidator {
                     }
                 }
             } catch (e) {
+                pattern.lastIndex = 0;
                 console.error(`❌ Errore analisi indirizzo: ${e.message}`);
             }
         }
@@ -508,7 +509,7 @@ var TerritoryValidator = class TerritoryValidator {
                 console.warn(`\u26A0 Range invalido [null, null] per ${matchedKey}, trattato come "tutti"`);
                 return { inTerritory: true, matchedKey: matchedKey, rule: 'tutti (default)' };
             }
-            const minValue = (min == null || !Number.isFinite(Number(min))) ? 1 : Number(min);
+            const minValue = (min == null || !Number.isFinite(Number(min))) ? 0 : Number(min);
             const maxValue = (max == null || !Number.isFinite(Number(max))) ? Infinity : Number(max);
             const maxLabel = maxValue === Infinity ? '∞' : maxValue;
 
@@ -531,7 +532,7 @@ var TerritoryValidator = class TerritoryValidator {
         }
         if (Array.isArray(rules.pari) && civic % 2 === 0) {
             const [min, max] = rules.pari;
-            const minValue = (min == null || !Number.isFinite(Number(min))) ? 1 : Number(min);
+            const minValue = (min == null || !Number.isFinite(Number(min))) ? 0 : Number(min);
             const maxValue = (max == null || !Number.isFinite(Number(max))) ? Infinity : Number(max);
             const maxLabel = maxValue === Infinity ? '∞' : maxValue;
 
@@ -548,7 +549,7 @@ var TerritoryValidator = class TerritoryValidator {
         }
         if (Array.isArray(rules.dispari) && civic % 2 !== 0) {
             const [min, max] = rules.dispari;
-            const minValue = (min == null || !Number.isFinite(Number(min))) ? 1 : Number(min);
+            const minValue = (min == null || !Number.isFinite(Number(min))) ? 0 : Number(min);
             const maxValue = (max == null || !Number.isFinite(Number(max))) ? Infinity : Number(max);
             const maxLabel = maxValue === Infinity ? '∞' : maxValue;
 

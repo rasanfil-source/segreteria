@@ -392,6 +392,8 @@ var MemoryService = class MemoryService {
     // Prova max 3 volte
     let expectedVersion = rawData._expectedVersion;
 
+    let lastAtomicError = null;
+
     for (let i = 0; i < 3; i++) {
         const globalLock = LockService.getScriptLock();
         let globalLockAcquired = false;
@@ -505,9 +507,12 @@ var MemoryService = class MemoryService {
         // --- FINE SEZIONE CRITICA ---
 
         } catch (error) {
+          lastAtomicError = error;
           console.warn(`⚠️ Errore aggiornamento atomico (tentativo ${i + 1}): ${error.message}`);
           this._invalidateCache(`memory_${threadId}`);
-          this._sleepLockBackoff_(i);
+          if (i < 2) {
+            this._sleepLockBackoff_(i);
+          }
         } finally {
           if (globalLockAcquired) {
             try { globalLock.releaseLock(); } catch (e) {}
@@ -520,6 +525,9 @@ var MemoryService = class MemoryService {
     // Protezione best-effort: non distruggere il batch fallendo.
     // Invece di throw, logghiamo l'errore e ritorniamo false per permettere all'email_processor di finire il job (labeling).
     console.error(`❌ CRITICO: Lock Memory Service irrisolvibile per thread ${threadId} (Loop Timeout dopo 3 retry). Fallback best-effort a batch bypass.`);
+    if (lastAtomicError && lastAtomicError.message === 'VERSION_MISMATCH') {
+      console.error(`🔒 VERSION_MISMATCH persistente dopo 3 retry: possibile contesa alta su thread ${threadId}`);
+    }
     return false;
   }
 

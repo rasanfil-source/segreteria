@@ -166,6 +166,7 @@ var CONFIG = {
 
   MEMORY_SHEET_NAME: 'ConversationMemory',
   MAX_PROVIDED_TOPICS: 50,             // Limite massimo topic in memoria
+  MAX_PROVIDED_INFO_JSON_CHARS: 45000, // Limite JSON providedInfo per cella Sheet (~50k max)
   MEMORY_LOCK_TTL: 30,                 // Lock TTL in secondi per MemoryService (>= timeout lock Sheet)
   SHEET_WRITE_LOCK_TIMEOUT_MS: 10000,  // Timeout attesa ScriptLock prima di scrivere su Sheet
 
@@ -180,6 +181,7 @@ var CONFIG = {
 
   // === Limiti Token (Prompt Engine) ===
   MAX_SAFE_TOKENS: 35000,              // Limite massimo token per prompt (ricalibrato su nuove quote)
+  MAX_SAFE_PROMPT_CHARS: 140000,       // Limite caratteri prompt (~35000 token * 4 char/token)
   KB_TOKEN_BUDGET_RATIO: 0.5,          // Percentuale budget KB rispetto a max token
   KB_HALLUCINATION_RISK_THRESHOLD: 8000, // Soglia chars KB oltre cui scatta hallucination_risk
   PROMPT_ENGINE: {
@@ -340,6 +342,9 @@ function validateConfig() {
   checkType('TEMPERATURE', CONFIG.TEMPERATURE, 'number');
   checkRange('TEMPERATURE', CONFIG.TEMPERATURE, 0.0, 1.0);
   checkType('MAX_OUTPUT_TOKENS', CONFIG.MAX_OUTPUT_TOKENS, 'number');
+  checkType('MAX_SAFE_TOKENS', CONFIG.MAX_SAFE_TOKENS, 'number');
+  checkType('MAX_SAFE_PROMPT_CHARS', CONFIG.MAX_SAFE_PROMPT_CHARS, 'number');
+  checkRange('MAX_SAFE_PROMPT_CHARS', CONFIG.MAX_SAFE_PROMPT_CHARS, 1000, 1000000);
 
   // Gmail & Process
   checkType('MAX_EMAILS_PER_RUN', CONFIG.MAX_EMAILS_PER_RUN, 'number');
@@ -350,6 +355,7 @@ function validateConfig() {
   checkType('ERROR_LABEL_NAME', CONFIG.ERROR_LABEL_NAME, 'string');
   checkType('VALIDATION_ERROR_LABEL', CONFIG.VALIDATION_ERROR_LABEL, 'string');
   checkType('SKIP_LABEL_NAME', CONFIG.SKIP_LABEL_NAME, 'string');
+  // SKIP_LABEL_NAME può essere stringa vuota ("") per disabilitare il labeling in foreign_only: è intenzionale.
   checkType('MESSAGE_DISCOVERY_MODE', CONFIG.MESSAGE_DISCOVERY_MODE, 'string');
   if (!['metadata', 'query'].includes(CONFIG.MESSAGE_DISCOVERY_MODE)) {
     errors.push("Errore Config: 'MESSAGE_DISCOVERY_MODE' deve essere uno tra 'metadata', 'query'");
@@ -357,6 +363,9 @@ function validateConfig() {
 
   // Cache & Lock
   checkType('CACHE_LOCK_TTL', CONFIG.CACHE_LOCK_TTL, 'number');
+  checkType('MAX_PROVIDED_TOPICS', CONFIG.MAX_PROVIDED_TOPICS, 'number');
+  checkType('MAX_PROVIDED_INFO_JSON_CHARS', CONFIG.MAX_PROVIDED_INFO_JSON_CHARS, 'number');
+  checkRange('MAX_PROVIDED_INFO_JSON_CHARS', CONFIG.MAX_PROVIDED_INFO_JSON_CHARS, 1000, 50000);
 
   // Validation Logic
   checkType('VALIDATION_ENABLED', CONFIG.VALIDATION_ENABLED, 'boolean');
