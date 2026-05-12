@@ -58,6 +58,50 @@ console.log('--- Test _classifyError: quota primaria non ritenta sulla stessa ch
 }
 
 
+
+console.log('--- Test _withRetry: segnale switch chiave non consuma retry locali ---');
+{
+  const previousUtilities = global.Utilities;
+  global.Utilities = {
+    sleep: () => {
+      assert(false, 'PRIMARY_QUOTA_EXHAUSTED non deve attendere retry locali');
+    }
+  };
+
+  const service = Object.create(GeminiService.prototype);
+  service.maxRetries = 3;
+  service.retryDelay = 1;
+  service.backoffFactor = 2;
+  service.maxBackoffMs = 10;
+  service.retryJitterMs = 0;
+  service._classifyError = () => ({ type: 'RETRYABLE', retryable: true });
+  let calls = 0;
+
+  try {
+    service._withRetry(() => {
+      calls += 1;
+      throw new Error('PRIMARY_QUOTA_EXHAUSTED');
+    }, 'test switch chiave');
+    assert(false, 'deve rilanciare immediatamente PRIMARY_QUOTA_EXHAUSTED');
+  } catch (error) {
+    assert(error.message === 'PRIMARY_QUOTA_EXHAUSTED', 'deve preservare il segnale di switch chiave');
+    assert(calls === 1, 'deve eseguire un solo tentativo locale');
+  } finally {
+    global.Utilities = previousUtilities;
+  }
+}
+
+console.log('--- Test classifyError: 404 cachedContent è rigenerabile, 404 generico no ---');
+{
+  const cacheExpired = classifyError(new Error('Errore API 404: Cached content not found'));
+  const genericNotFound = classifyError(new Error('Errore API 404: model not found'));
+
+  assert(cacheExpired.type === ErrorTypes.CACHE_EXPIRED, '404 cachedContent deve essere CACHE_EXPIRED');
+  assert(cacheExpired.retryable === true, 'CACHE_EXPIRED deve essere retryable');
+  assert(genericNotFound.type !== ErrorTypes.CACHE_EXPIRED, '404 generico non deve essere trattato come cache scaduta');
+  assert(genericNotFound.retryable === false, '404 generico non deve essere retryable');
+}
+
 console.log('--- Test shouldRespondToEmail: preserva errore RateLimiter non quota ---');
 {
   const service = Object.create(GeminiService.prototype);

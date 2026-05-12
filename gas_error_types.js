@@ -12,6 +12,7 @@ var ErrorTypes = {
     TIMEOUT: 'TIMEOUT',
     INVALID_RESPONSE: 'INVALID_RESPONSE',
     NETWORK: 'NETWORK',
+    CACHE_EXPIRED: 'CACHE_EXPIRED',
     UNKNOWN: 'UNKNOWN'
 };
 
@@ -59,6 +60,15 @@ function classifyError(error) {
         message.includes('resource_exhausted') ||
         /\b429\b/.test(message)) {
         return { type: ErrorTypes.QUOTA_EXCEEDED, retryable: true, message: rawMessage };
+    }
+
+    // Un 404 generico può indicare anche modello/endpoint errato: lo trattiamo
+    // come cache scaduta/espulsa solo quando il messaggio cita esplicitamente
+    // cachedContent o la cache Gemini.
+    if ((/\b404\b/.test(message) || message.includes('not found')) &&
+        (message.includes('cachedcontent') || message.includes('cached content') ||
+            message.includes('cachedcontents') || message.includes('cache'))) {
+        return { type: ErrorTypes.CACHE_EXPIRED, retryable: true, message: rawMessage };
     }
 
     if (message.includes('api key') || message.includes('unauthorized') ||

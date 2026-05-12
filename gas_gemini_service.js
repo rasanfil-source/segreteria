@@ -169,7 +169,7 @@ var GeminiService = class GeminiService {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
-          contents: [{ parts: requestParts }],
+          contents: [{ role: 'user', parts: requestParts }],
           generationConfig: {
             temperature: temperature,
             maxOutputTokens: maxTokens
@@ -844,7 +844,7 @@ Output JSON:
       method: 'POST',
       contentType: 'application/json',
       payload: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0,
           maxOutputTokens: 1024,
@@ -1040,6 +1040,10 @@ Output JSON:
         // Nota: NON replichiamo qui una classificazione inline, per evitare drift
         // con la policy errori del servizio e falsi positivi nei retry.
         // NON usare classifyError globale: potrebbe non esistere in alcuni runtime GAS modulari.
+        if (this._isKeySwitchSignal_(error)) {
+          throw error;
+        }
+
         const classified = this._classifyError(error);
         // Verifica del flag _nonRetryable per le risposte vuote.
         const isRetryable = classified.retryable && !(error && error._nonRetryable);
@@ -1068,26 +1072,29 @@ Output JSON:
     throw lastError || new Error(`Fallimento definitivo dopo ${attempts} tentativi`);
   }
 
+  _getErrorMessage_(error) {
+    if (error == null) return '';
+    if (typeof error === 'string') return error;
+    if (error.message != null) return String(error.message);
+    try {
+      return JSON.stringify(error) || '';
+    } catch (jsonError) {
+      return String(error);
+    }
+  }
+
+  _isKeySwitchSignal_(error) {
+    const msg = this._getErrorMessage_(error).toLowerCase();
+    return msg.includes('primary_quota_exhausted') || msg.includes('quota_exhausted_all_keys');
+  }
+
   /**
    * Categorizza l'errore internamente al GeminiService per la logica di retry.
    * @param {Error} error 
    * @returns {{type: string, retryable: boolean}}
    */
   _classifyError(error) {
-    let rawMessage = '';
-    if (error != null) {
-      if (typeof error === 'string') {
-        rawMessage = error;
-      } else if (error.message != null) {
-        rawMessage = String(error.message);
-      } else {
-        try {
-          rawMessage = JSON.stringify(error) || '';
-        } catch (jsonError) {
-          rawMessage = String(error);
-        }
-      }
-    }
+    const rawMessage = this._getErrorMessage_(error);
     const msg = rawMessage.toLowerCase();
 
     // Segnali interni di esaurimento quota: non ritentare sulla stessa chiave,
@@ -1098,7 +1105,8 @@ Output JSON:
 
     if (typeof classifyError === 'function' && typeof ErrorTypes !== 'undefined') {
       const central = classifyError(error);
-      if (central.type === ErrorTypes.QUOTA_EXCEEDED || central.type === ErrorTypes.NETWORK || central.type === ErrorTypes.TIMEOUT) {
+      if (central.type === ErrorTypes.QUOTA_EXCEEDED || central.type === ErrorTypes.NETWORK ||
+          central.type === ErrorTypes.TIMEOUT || central.type === ErrorTypes.CACHE_EXPIRED) {
         return { type: 'RETRYABLE', retryable: true };
       }
       return { type: 'FATAL', retryable: false };
@@ -2000,7 +2008,7 @@ Testo:
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
-          contents: [{ parts: [{ text: testPrompt }] }],
+          contents: [{ role: 'user', parts: [{ text: testPrompt }] }],
           generationConfig: {
             temperature: 0.1,
             maxOutputTokens: 10

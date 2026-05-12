@@ -3616,6 +3616,7 @@ Nota bene: l'orario comunicato ${note}.`;
           return mkResult('QUOTA_EXCEEDED', true, normalized.message);
         case ErrorTypes.TIMEOUT:
         case ErrorTypes.NETWORK:
+        case ErrorTypes.CACHE_EXPIRED:
           return mkResult('NETWORK', true, normalized.message);
         case ErrorTypes.INVALID_API_KEY:
           return mkResult('FATAL', false, normalized.message);
