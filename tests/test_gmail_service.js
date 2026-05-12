@@ -100,6 +100,17 @@ console.log('--- Test _discoverByQuery: non esclude label IA a livello thread --
 
 const service = new GmailService();
 
+console.log('--- Test _stripHtmlTags: pattern lineare su tag malformati ---');
+{
+  const malformedHtml = '<div' + ' '.repeat(20000) + 'testo senza chiusura';
+  const start = Date.now();
+  const stripped = service._stripHtmlTags(malformedHtml);
+  const elapsedMs = Date.now() - start;
+
+  assert(elapsedMs < 1000, `_stripHtmlTags deve gestire tag malformati senza ReDoS (elapsed=${elapsedMs}ms)`);
+  assert(stripped.includes('testo senza chiusura'), '_stripHtmlTags deve preservare testo dopo tag malformato non chiuso');
+}
+
 service._getOptionalLabelIdByName = () => null;
 service._listMessagesWithResilience = () => ({
   messages: [

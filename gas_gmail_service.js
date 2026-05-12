@@ -2823,8 +2823,8 @@ var GmailService = class GmailService {
     _stripHtmlTags(text) {
         if (!text) return '';
         return text
-            // Rimuove solo tag HTML plausibili con nome "word-like", preservando operatori testuali (<, >).
-            .replace(/<\/?[a-zA-Z][a-zA-Z0-9:-]*(\s+[a-zA-Z_:][a-zA-Z0-9:._-]*(\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*\s*\/?>/g, ' ')
+            // Rimuove tag HTML con pattern lineare per prevenire Catastrophic Backtracking (ReDoS).
+            .replace(/<\/?[a-zA-Z][^>]*>/g, ' ')
             .replace(/\*\*(.+?)\*\*/g, '$1')
             .replace(/\*(.+?)\*/g, '$1')
             .replace(/#{1,4}\s+/g, '')
