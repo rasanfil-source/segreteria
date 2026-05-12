@@ -135,8 +135,10 @@ var CONFIG = {
 
     // === Limiti Token (Prompt Engine) ===
     MAX_SAFE_TOKENS: 35000,              // Allineato al profilo produzione per evitare drift nei test
+    MAX_SAFE_PROMPT_CHARS: 100000,       // Limite caratteri prompt prima del troncamento di sicurezza
     KB_TOKEN_BUDGET_RATIO: 0.5,          // Percentuale budget KB rispetto a max token
     KB_HALLUCINATION_RISK_THRESHOLD: 8000, // Soglia chars KB oltre cui scatta hallucination_risk
+    MAX_PROVIDED_INFO_JSON_CHARS: 45000, // Limite serializzazione memoria providedInfo per riga Sheet
     PROMPT_ENGINE: {
         OVERHEAD_TOKENS: 15000           // Riserva token per istruzioni/fixed context fuori KB
     },
