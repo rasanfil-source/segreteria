@@ -34,6 +34,21 @@ console.log('--- Test _tryBalanceJsonBraces: parentesi in stringa non alterano l
   assert(parsed.note.includes('] e }'), 'caratteri strutturali in stringa non devono essere interpretati');
 }
 
+console.log('--- Test _normalizeCachedContents_: hardening role per Gemini 3.1 ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  
+  // Test 1: Array di oggetti senza ruolo
+  const inputArr = [{ parts: [{ text: "test" }] }];
+  const normalizedArr = service._normalizeCachedContents_(inputArr);
+  assert(normalizedArr[0].role === 'user', 'Deve aggiungere role: user ad array di parti');
+  
+  // Test 2: Stringa semplice
+  const normalizedStr = service._normalizeCachedContents_("test string");
+  assert(normalizedStr[0].role === 'user', 'Deve aggiungere role: user a stringa semplice');
+  assert(normalizedStr[0].parts[0].text === 'test string', 'Deve preservare il testo');
+}
+
 console.log('--- Test _quoteUnquotedJsonKeysSafely: non corrompe virgole e pseudo-chiavi nelle stringhe ---');
 {
   const raw = '{reply_needed:true, topic: "Richiesta, info: sbattezzo", category:"TECHNICAL"}';

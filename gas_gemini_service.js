@@ -557,14 +557,33 @@ var GeminiService = class GeminiService {
   }
 
   _normalizeCachedContents_(content) {
-    if (Array.isArray(content)) return content;
-    if (content && Array.isArray(content.contents)) return content.contents;
-    if (content && Array.isArray(content.parts)) return [content];
-    const text = typeof content === 'string' ? content : this._stringifyForHash_(content);
-    if (!text || !String(text).trim()) {
-      throw new Error('CachedContent vuoto: impossibile creare cache');
+    let contents = [];
+    if (Array.isArray(content)) {
+      contents = content;
+    } else if (content && Array.isArray(content.contents)) {
+      contents = content.contents;
+    } else if (content && Array.isArray(content.parts)) {
+      contents = [content];
+    } else {
+      const text = typeof content === 'string' ? content : this._stringifyForHash_(content);
+      if (!text || !String(text).trim()) {
+        throw new Error('CachedContent vuoto: impossibile creare cache');
+      }
+      contents = [{ role: 'user', parts: [{ text: String(text) }] }];
     }
-    return [{ role: 'user', parts: [{ text: String(text) }] }];
+
+    // Hardening per Gemini 3.1: assicuriamoci che ogni blocco abbia un ruolo (obbligatorio)
+    return contents.map(item => {
+      if (typeof item === 'string') {
+        return { role: 'user', parts: [{ text: item }] };
+      }
+      // Se è già un oggetto, verifichiamo che abbia il ruolo
+      const normalizedItem = { ...item };
+      if (!normalizedItem.role) {
+        normalizedItem.role = 'user';
+      }
+      return normalizedItem;
+    });
   }
 
   _normalizeSystemInstruction_(systemInstructions) {
