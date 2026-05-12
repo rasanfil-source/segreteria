@@ -1,9 +1,0 @@
-{
-  "name": "segreteria-parrocchiale-ai",
-  "private": true,
-  "version": "1.0.0",
-  "description": "Tooling locale per test della segreteria parrocchiale AI",
-  "scripts": {
-    "test": "node scripts/run_ci_test_suite.js"
-  }
-}
