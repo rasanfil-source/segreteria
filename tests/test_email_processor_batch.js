@@ -277,6 +277,50 @@ console.log('--- Test processUnreadEmails: conteggio stats skipped/replied ---')
 }
 
 
+console.log('--- Test processUnreadEmails: normalizza labeledMessageIds da array/null/Set ---');
+{
+  const cases = [
+    { name: 'array', value: ['m-array'], expectedIds: ['m-array'] },
+    { name: 'null', value: null, expectedIds: [] },
+    { name: 'set', value: new Set(['m-set']), expectedIds: ['m-set'] }
+  ];
+
+  cases.forEach(({ name, value, expectedIds }) => {
+    const threads = [
+      createThread({ id: `t-${name}`, messages: [createMessage({ id: `m-${name}`, unread: true })] })
+    ];
+    const seen = [];
+    const processor = new EmailProcessor({
+      gmailService: {
+        getUnprocessedUnreadThreads: () => threads,
+        getMessageIdsWithLabel: (labelName) => {
+          if (labelName === global.CONFIG.LABEL_NAME) return value;
+          return [];
+        }
+      }
+    });
+
+    processor._hasUnreadMessagesToProcess = (_thread, labeledMessageIds) => {
+      seen.push(labeledMessageIds);
+      return false;
+    };
+    processor._isNearDeadline = () => false;
+    processor._getRemainingTimeMs = () => 60000;
+    processor.processThread = () => { throw new Error('processThread non deve essere chiamato nel fast-skip'); };
+
+    const stats = processor.processUnreadEmails('kb', '', true);
+    assert(stats.total === 1, `${name}: deve analizzare il thread`);
+    assert(seen.length === 1, `${name}: deve invocare il fast-skip una volta`);
+    assert(seen[0] instanceof Set, `${name}: labeledMessageIds deve essere normalizzato a Set`);
+    expectedIds.forEach((id) => {
+      assert(seen[0].has(id), `${name}: il Set normalizzato deve preservare ${id}`);
+    });
+    assert(seen[0].size === expectedIds.length, `${name}: il Set normalizzato deve avere la dimensione attesa`);
+  });
+}
+
+
+
 console.log('--- Test processUnreadEmails: filtered deve consumare MAX_EMAILS_PER_RUN ---');
 {
   const originalMax = global.CONFIG.MAX_EMAILS_PER_RUN;

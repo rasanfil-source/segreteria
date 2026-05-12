@@ -1024,35 +1024,34 @@ var ResponseValidator = class ResponseValidator {
     let textPerfezionato = response;
     let modified = false;
 
+    const applicaOttimizzazione = (label, optimizer) => {
+      try {
+        const optimizedText = optimizer(textPerfezionato);
+        if (optimizedText !== textPerfezionato) {
+          textPerfezionato = optimizedText;
+          modified = true;
+          console.log(`   ✨ Ottimizzazione ${label} applicata`);
+        }
+      } catch (e) {
+        const message = e && e.message ? e.message : String(e);
+        console.warn(`   ⚠️ Ottimizzazione ${label} saltata: ${message}`);
+      }
+    };
+
     // 1. Perfezionamento Link duplicati (Markdown)
     // Cerca [url](url) o [url](url...) e semplifica
-    const linksOttimizzati = this._ottimizzaLinkDuplicati(textPerfezionato);
-    if (linksOttimizzati !== textPerfezionato) {
-      textPerfezionato = linksOttimizzati;
-      modified = true;
-      console.log('   ✨ Ottimizzazione Link applicata');
-    }
+    applicaOttimizzazione('Link', (currentText) => this._ottimizzaLinkDuplicati(currentText));
 
     // 2. Perfezionamento Maiuscole dopo virgola
     // Applicabile solo se non è un errore di Thinking Leak (che richiede rigenerazione)
     // e se non ci sono placeholder
     if (!errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('placeholder'))) {
-      const capsOttimizzate = this._ottimizzaCapitalAfterComma(textPerfezionato, language);
-      if (capsOttimizzate !== textPerfezionato) {
-        textPerfezionato = capsOttimizzate;
-        modified = true;
-        console.log('   ✨ Ottimizzazione Maiuscole applicata');
-      }
+      applicaOttimizzazione('Maiuscole', (currentText) => this._ottimizzaCapitalAfterComma(currentText, language));
     }
 
     // 3. Perfezionamento Saluto temporalmente incongruente
     if (!errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('placeholder'))) {
-      const salutoOttimizzato = this._ottimizzaSalutoTemporale(textPerfezionato, language);
-      if (salutoOttimizzato !== textPerfezionato) {
-        textPerfezionato = salutoOttimizzato;
-        modified = true;
-        console.log('   ✨ Ottimizzazione Saluto applicata');
-      }
+      applicaOttimizzazione('Saluto', (currentText) => this._ottimizzaSalutoTemporale(currentText, language));
     }
 
     return { fixed: modified, text: textPerfezionato };
@@ -1116,7 +1115,8 @@ var ResponseValidator = class ResponseValidator {
         const match = firstPart.match(regex);
 
         if (match) {
-          const originalGreeting = match[2];
+          const originalGreeting = match[2] || match[0];
+          if (!originalGreeting) return fixedText;
           let replacement;
 
           // Preserva capitalizzazione originale
@@ -1176,7 +1176,7 @@ var ResponseValidator = class ResponseValidator {
     targets.forEach(word => {
       const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const apostropheAgnosticWord = escapedWord.replace(/'/g, "['\u2019]");
-      const regex = new RegExp(`,(\\s+)(${apostropheAgnosticWord})(?![\\wÀ-ÖØ-öø-ÿ])(?!\\s+[A-ZÀÈÉÌÒÙ])`, 'g');
+      const regex = new RegExp(`,(\\s+)(${apostropheAgnosticWord})(?!['\\u2019])(?![\\wÀ-ÖØ-öø-ÿ])(?!\\s+[A-ZÀÈÉÌÒÙ])`, 'g');
       result = result.replace(regex, (fullMatch, sep, p1) => {
         if (capitalizationExceptions.includes(p1)) {
           return fullMatch;

@@ -47,6 +47,57 @@ assert(
   '"todo" minuscolo non deve essere rilevato come placeholder TODO'
 );
 
+console.log('--- Test _checkForbiddenContent (nessun placeholder quadro) ---');
+const noBracketPlaceholderResult = validator._checkForbiddenContent(
+  'Gentile signora, le confermo che la Santa Messa festiva è celebrata ogni domenica alle ore 10:00.'
+);
+assert(
+  !noBracketPlaceholderResult.errors.some((e) => e.includes('Contiene placeholder')),
+  'una risposta senza placeholder tra quadre non deve generare TypeError né errore placeholder'
+);
+
+console.log('--- Test _ottimizzaSalutoTemporale (saluto reale) ---');
+{
+  const originalUtilities = global.Utilities;
+  global.Utilities = {
+    formatDate: () => '20'
+  };
+  try {
+    const saluto = validator._ottimizzaSalutoTemporale(
+      'Buongiorno, le confermo gli orari della parrocchia.',
+      'it'
+    );
+    assert(saluto.startsWith('Buonasera,'), 'il saluto mattutino deve diventare serale senza accedere a gruppi inesistenti');
+  } finally {
+    global.Utilities = originalUtilities;
+  }
+}
+
+console.log('--- Test _ottimizzaCapitalAfterComma (maiuscole, nomi propri e apostrofi) ---');
+{
+  const fixedCaps = validator._ottimizzaCapitalAfterComma(
+    "La aspettiamo, Il gruppo si riunisce in aula, La Sapienza resta un nome proprio, E' possibile confermare.",
+    'it'
+  );
+  assert(fixedCaps.includes(', il gruppo'), 'deve correggere una parola funzionale maiuscola dopo virgola');
+  assert(fixedCaps.includes(', La Sapienza'), 'non deve corrompere nomi propri o sintagmi con seconda maiuscola');
+  assert(fixedCaps.includes(", E' possibile"), 'non deve corrompere forme con apostrofo');
+}
+
+console.log('--- Test _perfezionamentoAutomatico (hardening helper cosmetici) ---');
+{
+  const hardenedValidator = new ResponseValidator();
+  hardenedValidator._ottimizzaCapitalAfterComma = () => { throw new Error('boom caps'); };
+  hardenedValidator._ottimizzaSalutoTemporale = (text) => text.replace('Buongiorno', 'Buonasera');
+  const result = hardenedValidator._perfezionamentoAutomatico(
+    'Buongiorno, le confermo gli orari della parrocchia.',
+    [],
+    'it'
+  );
+  assert(result.fixed === true, 'un helper cosmetico fallito non deve bloccare quelli successivi');
+  assert(result.text.startsWith('Buonasera,'), 'il perfezionamento successivo deve continuare dopo un errore locale');
+}
+
 console.log('--- Test _checkExposedReasoning (thinking leak critico) ---');
 const reasoningResult = validator._checkExposedReasoning(
   'Rivedendo la knowledge base, la invito a contattare la segreteria.'
