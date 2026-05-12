@@ -589,7 +589,7 @@ var EmailProcessor = class EmailProcessor {
 
       const languageDetection = (this.geminiService && typeof this.geminiService.detectEmailLanguage === 'function')
         ? (this.geminiService.detectEmailLanguage(
-          bodyForLanguageDetection,
+          bodyForLanguageDetection || messageDetails.body || '',
           messageDetails.subject
         ) || {})
         : { lang: 'it' };
@@ -2312,11 +2312,14 @@ ${addressLines.join('\n\n')}
       .filter(Boolean);
 
     if (ignoreDomains.some(domain => {
-      const localPart = email.includes('@') ? email.substring(0, email.lastIndexOf('@')) : email;
+      const atIndex = email.lastIndexOf('@');
+      const localPart = atIndex >= 0 ? email.substring(0, atIndex) : email;
+      const senderDomain = atIndex >= 0 ? email.substring(atIndex + 1) : '';
+      const blacklistDomain = domain.startsWith('@') ? domain.substring(1) : domain;
       const isExactMatch = email === domain;
-      const isDomainMatch = email.endsWith(domain.startsWith('@') ? domain : '@' + domain);
+      const isDomainMatch = (domain.startsWith('@') || !domain.includes('@')) && senderDomain === blacklistDomain;
       const isSubdomainMatch = !domain.startsWith('@') && !domain.includes('@') &&
-        email.endsWith('.' + domain);
+        senderDomain.endsWith('.' + blacklistDomain);
       // Match username ristretto a pattern bot/notifica espliciti per evitare falsi positivi
       // su username legittimi (es. marketing@..., info@...).
       const BOT_USERNAMES = new Set(['noreply', 'no-reply', 'donotreply', 'mailer-daemon',
@@ -3633,6 +3636,7 @@ Nota bene: l'orario comunicato ${note}.`;
    * Traccia il contatore di inbox vuote consecutive (per avvisi diagnostici)
    */
   _trackEmptyInboxStreak(isEmpty) {
+    let streak = 0;
     try {
       const cache = (typeof CacheService !== "undefined" && CacheService && typeof CacheService.getScriptCache === "function")
         ? CacheService.getScriptCache()
@@ -3643,7 +3647,7 @@ Nota bene: l'orario comunicato ${note}.`;
       if (!cache && !props) return 0;
 
       const key = "empty_inbox_streak";
-      let streak = parseInt((cache ? cache.get(key) : null) || (props ? props.getProperty(key) : null) || "0", 10);
+      streak = parseInt((cache ? cache.get(key) : null) || (props ? props.getProperty(key) : null) || "0", 10);
 
       if (isEmpty) {
         streak++;
@@ -3659,7 +3663,7 @@ Nota bene: l'orario comunicato ${note}.`;
       return streak;
     } catch (e) {
       console.warn(`⚠️ CacheService temporaneamente indisponibile per metrica empty inbox: ${e.message}`);
-      return 0;
+      return Number.isFinite(streak) ? streak : 0;
     }
   }
 

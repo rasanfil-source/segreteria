@@ -84,6 +84,33 @@ assert(
   'deve ignorare email da dominio blacklist'
 );
 
+
+console.log('--- Test _shouldIgnoreEmail (confini dominio blacklist) ---');
+{
+  const previousGlobalCache = global.GLOBAL_CACHE;
+  global.GLOBAL_CACHE = {
+    languageMode: 'all',
+    ignoreDomains: ['@mail.com', 'example.org'],
+    ignoreKeywords: []
+  };
+  try {
+    assert(
+      processor._shouldIgnoreEmail({ senderEmail: 'utente@mail.com', subject: 'Info', body: 'Ciao' }) === true,
+      'deve bloccare il dominio esatto @mail.com'
+    );
+    assert(
+      processor._shouldIgnoreEmail({ senderEmail: 'utente@gmail.com', subject: 'Info', body: 'Ciao' }) === false,
+      'non deve bloccare gmail.com quando la blacklist contiene @mail.com'
+    );
+    assert(
+      processor._shouldIgnoreEmail({ senderEmail: 'utente@sub.example.org', subject: 'Info', body: 'Ciao' }) === true,
+      'deve bloccare i sottodomini espliciti di example.org'
+    );
+  } finally {
+    global.GLOBAL_CACHE = previousGlobalCache;
+  }
+}
+
 console.log('--- Test _shouldIgnoreEmail (keyword blacklist) ---');
 assert(
   processor._shouldIgnoreEmail({
@@ -650,3 +677,25 @@ console.log('--- Test processThread: cache miss rispetta label terminali da meta
 }
 
 console.log('✅ Test filtri EmailProcessor passati');
+
+console.log('--- Test _trackEmptyInboxStreak (mantiene streak se CacheService fallisce dopo lettura) ---');
+{
+  const previousCacheService = global.CacheService;
+  const previousPropertiesService = global.PropertiesService;
+  global.CacheService = {
+    getScriptCache: () => ({
+      get: () => '4',
+      put: () => { throw new Error('cache unavailable'); }
+    })
+  };
+  global.PropertiesService = undefined;
+  try {
+    assert(
+      processor._trackEmptyInboxStreak(true) === 5,
+      'se la scrittura cache fallisce dopo la lettura, deve restituire lo streak aggiornato e non azzerarlo'
+    );
+  } finally {
+    global.CacheService = previousCacheService;
+    global.PropertiesService = previousPropertiesService;
+  }
+}
