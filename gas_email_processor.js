@@ -1115,6 +1115,9 @@ ${addressLines.join('\n\n')}
           temporal: {
             mentionsDates: this._detectTemporalMentions(messageDetails.body, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(messageDetails.body),
             mentionsTimes: /\d{1,2}[:.]\d{2}/.test(messageDetails.body)
+          },
+          salutationMode: salutationMode
+        });
         promptProfile = promptContext.profile;
         activeConcerns = promptContext.concerns;
         console.log(`   🧠 PromptContext: profilo=${promptProfile}`);
