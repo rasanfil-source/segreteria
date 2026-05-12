@@ -408,6 +408,11 @@ var Classifier = class Classifier {
     if (text.includes('?')) return false;
 
     let normalized = text.toLowerCase().trim();
+    try {
+      normalized = normalized.normalize('NFC');
+    } catch (e) {
+      // Runtime legacy senza normalize: proseguiamo con la normalizzazione disponibile.
+    }
     normalized = normalized.replace(/[^\w\sàèéìòù]/g, '');
 
     if (this.greetingOnlyPatterns.some(pattern => pattern.test(normalized))) {

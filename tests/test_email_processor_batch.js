@@ -707,6 +707,142 @@ console.log('--- Test processThread: valida e invia esattamente il testo outboun
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
 }
 
+
+
+console.log('--- Test context routing: categoria quickCheck ha priorità su euristica locale ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalGlobalCache = global.GLOBAL_CACHE;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.GLOBAL_CACHE = { aiCoreLite: 'core lite', aiCore: 'core pesante' };
+
+  let promptOptions = null;
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Info battesimo',
+        body: 'Vorrei informazioni sul battesimo.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'sacrament', topic: 'battesimo' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta sacramento' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        promptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('quickcheck-category'), 'kb valida', 'dottrina completa', new Set(), true);
+  assert(result.status === 'replied', 'la risposta con categoria quickCheck sacrament deve completarsi');
+  assert(promptOptions.category === 'sacrament', `categoria attesa sacrament, ottenuta ${promptOptions && promptOptions.category}`);
+  assert(promptOptions.doctrineBase === 'dottrina completa', 'la dottrina deve restare attiva quando quickCheck rileva categoria sacramentale');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.GLOBAL_CACHE = originalGlobalCache;
+}
+
+console.log('--- Test context routing: memoria pastorale impedisce amnesia su follow-up tecnico ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalGlobalCache = global.GLOBAL_CACHE;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.GLOBAL_CACHE = { aiCoreLite: 'core lite', aiCore: 'core pesante' };
+
+  let promptOptions = null;
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Re: percorso sacramentale',
+        body: 'A che ora è l’incontro?',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'information', topic: 'orario incontro' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta incontro' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({ category: 'pastoral_sacrament', lastUpdated: '2026-05-10T10:00:00Z', providedInfo: [] }),
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        promptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('memory-pastoral'), 'kb valida', 'dottrina completa', new Set(), true);
+  assert(result.status === 'replied', 'il follow-up tecnico con memoria pastorale deve completarsi');
+  assert(promptOptions.category === 'information', `categoria tecnica attesa information, ottenuta ${promptOptions && promptOptions.category}`);
+  assert(promptOptions.doctrineBase === 'dottrina completa', 'la memoria pastorale deve impedire la disattivazione della dottrina');
+  assert(promptOptions.aiCore === 'core pesante', 'la memoria pastorale deve mantenere attivo anche AI core pesante');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.GLOBAL_CACHE = originalGlobalCache;
+}
+
+
 console.log('--- Test processThread: errore quota invio propaga errorClass senza label permanente ---');
 {
   const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;

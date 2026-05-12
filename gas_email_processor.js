@@ -66,7 +66,7 @@ var EmailProcessor = class EmailProcessor {
         : 280 * 1000,
       minRemainingTimeMs: typeof CONFIG !== 'undefined' && typeof CONFIG.MIN_REMAINING_TIME_MS === 'number'
         ? CONFIG.MIN_REMAINING_TIME_MS
-        : 120 * 1000,
+        : 90 * 1000,
       labelName: typeof CONFIG !== 'undefined' ? CONFIG.LABEL_NAME : 'IA',
       errorLabelName: typeof CONFIG !== 'undefined' ? CONFIG.ERROR_LABEL_NAME : 'Errore',
       validationErrorLabel: typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica',
@@ -550,13 +550,12 @@ var EmailProcessor = class EmailProcessor {
 
       // CRITICO: Ricostruzione del contesto in caso di burst (più email non lette dallo stesso utente).
       // Evita che un'email finale breve (es. "Grazie") faccia scartare le vere domande precedenti.
-      const lastMessageBody = messageDetails.body;
       if (externalUnread.length > 1) {
         const candidateId = candidate.getId();
         const aggregatedBody = externalUnread.map((message) => {
-          const details = message.getId() === candidateId
+          const details = (message.getId() === candidateId
             ? messageDetails
-            : this.gmailService.extractMessageDetails(message);
+            : this.gmailService.extractMessageDetails(message)) || {};
           const messageDate = (() => {
             if (!(details.date instanceof Date)) return 'data non disponibile';
             if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
@@ -571,8 +570,11 @@ var EmailProcessor = class EmailProcessor {
             }
             return details.date.toISOString().slice(0, 16).replace('T', ' ');
           })();
-          return `--- Messaggio del ${messageDate} ---\n${details.body || ''}`;
-        }).join('\n\n');
+          const bodyPart = details && typeof details.body === 'string' && details.body.trim()
+            ? details.body.trim()
+            : null;
+          return bodyPart ? `--- Messaggio del ${messageDate} ---\n${bodyPart}` : null;
+        }).filter(Boolean).join('\n\n');
         
         if (aggregatedBody) {
           messageDetails.body = aggregatedBody;
@@ -1113,9 +1115,6 @@ ${addressLines.join('\n\n')}
           temporal: {
             mentionsDates: this._detectTemporalMentions(messageDetails.body, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(messageDetails.body),
             mentionsTimes: /\d{1,2}[:.]\d{2}/.test(messageDetails.body)
-          },
-          salutationMode: salutationMode
-        });
         promptProfile = promptContext.profile;
         activeConcerns = promptContext.concerns;
         console.log(`   🧠 PromptContext: profilo=${promptProfile}`);
@@ -1125,7 +1124,11 @@ ${addressLines.join('\n\n')}
       let forceReceiptOnlyForSubmission = false;
 
       const requestTypeName = requestType && requestType.type ? requestType.type : '';
-      let categoryHintSource = String(classification.category || requestTypeName || '').toLowerCase() || null;
+      const quickCheckCategory = quickCheck && quickCheck.classification && quickCheck.classification.category
+        ? String(quickCheck.classification.category).toLowerCase()
+        : '';
+      // Priorità al classificatore LLM del quick check rispetto all'euristica locale iniziale.
+      let categoryHintSource = String(quickCheckCategory || classification.category || requestTypeName || '').toLowerCase() || null;
 
       if (attachmentIntentContext && (
         attachmentIntentContext.intent === 'document_submission' ||
@@ -1158,12 +1161,20 @@ ${addressLines.join('\n\n')}
       const concernFlags = activeConcerns && typeof activeConcerns === 'object'
         ? activeConcerns
         : {};
+      const memoryCategory = memoryContext && memoryContext.category
+        ? String(memoryContext.category).toLowerCase()
+        : '';
+      const memoryPastoralCategories = ['pastoral', 'doctrinal', 'formal', 'sacrament', 'sacramento'];
+      const hasMemoryPastoralContext = memoryPastoralCategories.some((category) =>
+        memoryCategory.includes(category)
+      );
       const hasPastoralConcern = Boolean(
         concernFlags.doctrine ||
         concernFlags.sensitive ||
         concernFlags.canonLaw ||
         concernFlags.sacrament ||
-        concernFlags.formalComplaint
+        concernFlags.formalComplaint ||
+        hasMemoryPastoralContext
       );
       const isTechnicalOnly = technicalCategories.has(categoryHintSource) && !hasPastoralConcern;
 

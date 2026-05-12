@@ -356,12 +356,9 @@ var RequestTypeClassifier = class RequestTypeClassifier {
     let matchCount = 0;
 
     for (const indicator of indicators) {
-      // Forza flag globale per conteggio corretto di tutte le occorrenze
-      let flags = indicator.pattern.flags || '';
-      if (!flags.includes('g')) {
-        flags += 'g';
-      }
-
+      // Crea una nuova RegExp globale per ogni indicatore, evitando stato lastIndex condiviso.
+      const sourceFlags = indicator.pattern.flags || '';
+      const flags = sourceFlags.includes('g') ? sourceFlags : sourceFlags + 'g';
       const pattern = new RegExp(indicator.pattern.source, flags);
 
       const matches = text.match(pattern);

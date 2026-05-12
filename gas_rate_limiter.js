@@ -164,6 +164,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       }
     });
 
+    // Restituisce sempre una nuova copia normalizzata: il chiamante decide se riassegnarla.
     return normalized;
   }
 
