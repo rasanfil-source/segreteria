@@ -311,6 +311,22 @@ function testTerritorySuffixNeedsReviewOnParityRanges() {
     assert(evenPlain.needsReview === false, 'civico senza suffisso non deve richiedere review');
 }
 
+
+function testTerritoryNullLowerBoundIncludesCivicZero() {
+    loadScript('gas_territory_validator.js');
+
+    const validator = new TerritoryValidator();
+    validator.territory['via test civico zero'] = { tutti: [null, 5] };
+    validator.rules.set('via test civico zero', validator.territory['via test civico zero']);
+
+    const result = validator.verifyAddress('via test civico zero', 0, '0');
+    assert(result.inTerritory === true, 'null come limite inferiore deve includere il civico 0');
+    assert(result.rule === 'range [0-5]', `Regola inattesa per range con limite inferiore null: ${result.rule}`);
+}
+
+// ========================================================================
+
+
 // ========================================================================
 // TEST ERROR TYPES (classificazione centralizzata)
 // ========================================================================
@@ -3104,6 +3120,7 @@ function main() {
         ['civic deduplication (10A vs 10B)', testCivicDeduplicationExplicit],
         ['civic extraction with slash/dash suffix', testAddressExtractionWithSlashAndDashSuffix],
         ['territory suffix on parity ranges sets needsReview', testTerritorySuffixNeedsReviewOnParityRanges],
+        ['territory null lower bound includes civic zero', testTerritoryNullLowerBoundIncludesCivicZero],
         // Error Types (classificazione centralizzata)
         ['classifyError: quota/429 → retryable', testClassifyErrorQuota],
         ['classifyError: API key/invalid → non-retryable', testClassifyErrorNonRetryable],
