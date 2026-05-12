@@ -1379,7 +1379,8 @@ function _loadAdvancedConfig(ss) {
 
     if (ferieRows.length === 0 || ferieRows.every(row => !row.start && !row.end)) {
       try {
-        ferieRows = sheet.getRange('A6:C10').getValues().map(row => ({
+        // Fallback su layout legacy A6:C9 (evita riga 10 che è l'inizio della sospensione)
+        ferieRows = sheet.getRange('A6:C9').getValues().map(row => ({
           start: row[1],
           end: row[2]
         }));
@@ -1389,7 +1390,10 @@ function _loadAdvancedConfig(ss) {
     }
 
     ferieRows.forEach(row => {
-      if (!row.start || !row.end) return;
+      // Ignora righe palesemente vuote o con placeholder comuni
+      const sRaw = String(row.start || '').trim();
+      const eRaw = String(row.end || '').trim();
+      if (!sRaw || !eRaw || sRaw === '-' || eRaw === 'null' || eRaw === 'undefined') return;
 
       const startDate = _parseDateValue(row.start);
       const endDate = _parseDateValue(row.end);
@@ -2075,6 +2079,10 @@ function _parseDateValue(value) {
 
   if (typeof value === 'number' && isFinite(value)) {
     // Google Sheets usa 1899-12-30 come origine dei seriali data.
+    // I seriali data odierni sono > 40000. Sotto 36526 (anno 2000) o per numeri 
+    // molto piccoli (es. ore 8, 12) restituiamo null per evitare falsi positivi.
+    if (value < 36526) return null;
+
     const millis = Math.round((value - 25569) * 86400 * 1000);
     const parsed = new Date(millis);
     if (!isNaN(parsed.getTime())) {
