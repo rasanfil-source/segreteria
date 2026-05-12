@@ -55,5 +55,24 @@ console.log('--- Test _applySafetyValve_: non aumenta MAX_EMAILS_PER_RUN già pi
   global.CONFIG = originalConfig;
 }
 
+console.log('--- Test trackAuxiliaryRequest: supporta lock già acquisito ---');
+{
+  const propsData = new Map();
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  limiter.models = {
+    flash: { name: 'gemini-3.1-flash-lite', rpm: 2000, tpm: 2000000, rpd: 3500 }
+  };
+  limiter.props = {
+    getProperty: (key) => propsData.has(key) ? propsData.get(key) : null,
+    setProperty: (key, value) => propsData.set(key, String(value)),
+    setProperties: (values) => Object.keys(values || {}).forEach((key) => propsData.set(key, String(values[key])))
+  };
+  limiter._getPacificDate = () => '2026-05-12';
+
+  const counters = limiter.trackAuxiliaryRequest('gemini-3.1-flash-lite', 123, 'cache-create', true);
+  assert(counters.rpd === 1, 'la chiamata ausiliaria deve incrementare RPD anche con lock esterno');
+  assert(propsData.get('tokens_flash') === '123', 'la chiamata ausiliaria deve tracciare i token stimati');
+}
+
 
 console.log('✅ Rate limiter WAL tests completati');

@@ -102,7 +102,7 @@ Email Arriva
                v
 ┌──────────────────────────────────────────────────────────┐
 │  QUICK CHECK (Gemini AI)                                 │
-│  - Modello: gemini-2.5-flash-lite (veloce, economico)   │
+│  - Modello: gemini-3.1-flash-lite (veloce, cached)      │
 │  - Risposta necessaria? (true/false)                     │
 │  - Lingua rilevata? (it/en/es/fr/de)                     │
 │  - Categoria? (TECHNICAL/PASTORAL/DOCTRINAL/MIXED)       │
@@ -142,7 +142,7 @@ Email Arriva
 │  PROMPT CONSTRUCTION (PromptEngine)                      │
 │  - Sezioni modulari prompt (numero variabile)           │
 │  - Filtering dinamico basato su profilo (lite/std/heavy) │
-│  - Token budget management (~100k max)                   │
+│  - Token budget management (cap operativo 120k)          │
 │  - KB_TOKEN_BUDGET_RATIO modulare (v2.2.4)               │
 │  - Retrieval Selettivo Dottrina (riduzione 83% token)    │
 │  - Semantic truncation se KB troppo grande               │
@@ -152,17 +152,17 @@ Email Arriva
 ┌──────────────────────────────────────────────────────────┐
 │  RATE LIMITING (GeminiRateLimiter)                       │
 │  - Selezione automatica modello disponibile              │
-│  - Fallback chain: flash-2.5 → flash-lite → flash-2.0  │
-│  - Quota tracking: RPM, TPM, RPD                         │
-│  - Exponential backoff su errori                         │
+│  - Fallback chain: 3.1 Lite primary → alias/backup       │
+│  - Quota tracking: RPM, TPM, RPD + Search Grounding      │
+│  - Exponential backoff aggressivo su errori              │
 └──────────────┬──────────────────────────────────────────┘
                │
                v
 ┌──────────────────────────────────────────────────────────┐
 │  AI GENERATION (GeminiService)                           │
-│  - Chiamata API Gemini con retry (max 3)                │
-│  - Safety settings configurati                           │
-│  - Token counting per billing                            │
+│  - Chiamata API Gemini con retry (max 2)                 │
+│  - REST Context Caching con TTL e auto-healing           │
+│  - Stima token locale: nessuna chiamata /countTokens     │
 └──────────────┬──────────────────────────────────────────┘
                │
                v
@@ -472,8 +472,9 @@ const profile = computeProfile({
 
 **Token Management & Retrieval Selettivo:**
 ```javascript
-MAX_SAFE_TOKENS = 100000;
-KB_TOKEN_BUDGET = 50000; // 50%
+CONTEXT_WINDOW_TOKENS = 1048576;
+MAX_SAFE_TOKENS = 120000; // cap operativo locale sotto il limite modello
+KB_TOKEN_BUDGET = 60000; // 50%
 
 // Unified Smart RAG (Dottrina + Direttive)
 // Sostituisce i vecchi metodi di retrieval separati
@@ -496,19 +497,19 @@ if (estimatedTokens > MAX_SAFE_TOKENS) {
 
 ```javascript
 GEMINI_MODELS = {
-  'flash-2.5': {
-    name: 'gemini-2.5-flash',
-    rpm: 10, tpm: 250000, rpd: 250,
-    useCases: ['generation']
+  'flash-3.1-lite': {
+    name: 'gemini-3.1-flash-lite',
+    rpm: 2000, tpm: 2000000, rpd: 3500,
+    useCases: ['generation', 'all']
   },
   'flash-lite': {
-    name: 'gemini-2.5-flash-lite',
-    rpm: 15, tpm: 250000, rpd: 1000,
+    name: 'gemini-3.1-flash-lite',
+    rpm: 2000, tpm: 2000000, rpd: 3500,
     useCases: ['quick_check', 'classification', 'fallback']
   },
-  'flash-2.0': {
-    name: 'gemini-2.0-flash',
-    rpm: 5, tpm: 250000, rpd: 100,
+  'flash-3.1-lite-backup': {
+    name: 'gemini-3.1-flash-lite',
+    rpm: 2000, tpm: 2000000, rpd: 3500,
     useCases: ['fallback']
   }
 }
@@ -517,9 +518,9 @@ GEMINI_MODELS = {
 **Selection Strategy:**
 ```javascript
 MODEL_STRATEGY = {
-  'quick_check': ['flash-lite', 'flash-2.0'],
-  'generation': ['flash-2.5', 'flash-lite', 'flash-2.0'],
-  'fallback': ['flash-lite', 'flash-2.0']
+  'quick_check': ['flash-lite', 'flash-3.1-lite'],
+  'generation': ['flash-3.1-lite', 'flash-lite', 'flash-3.1-lite-backup'],
+  'fallback': ['flash-lite', 'flash-3.1-lite-backup']
 }
 ```
 
@@ -541,6 +542,15 @@ if (rpdUsage > 0.8 * rpdLimit) {
 - **RPM** → Rolling window (ultimi 60 secondi)
 - **TPM** → Rolling window (ultimi 60 secondi)
 - **RPD** → Counter giornaliero (reset 9:00 AM IT)
+- **Google Search Grounding** → Counter condiviso query giornaliere (1.500/giorno)
+- **Context cache** → Nome cache + expireTime persistiti in Script Properties
+
+**Contratto Context Caching:**
+```javascript
+// cachedContents.create riceve contesto statico, systemInstruction e tools.
+// generateContent riceve solo cachedContent + nuovo prompt utente.
+// Se generateContent torna 404 per cache espulsa, la cache viene ricreata una volta.
+```
 
 **Cache Ottimizzazione (WAL Pattern):**
 ```javascript
@@ -603,12 +613,11 @@ tokenComponents = {
 Il sistema supporta una chiave API di riserva per massimizzare la qualità delle risposte:
 
 ```javascript
-// Strategia Fallback a 4 Livelli
+// Strategia cross-key: stesso modello fisico, chiavi diverse se configurate
 attemptStrategy = [
-  { name: 'Primary High-Quality', key: primaryKey, model: 'gemini-2.5-flash', skipRateLimit: false },
-  { name: 'Backup High-Quality', key: backupKey, model: 'gemini-2.5-flash', skipRateLimit: true },
-  { name: 'Primary Lite', key: primaryKey, model: 'gemini-2.5-flash-lite', skipRateLimit: false },
-  { name: 'Backup Lite', key: backupKey, model: 'gemini-2.5-flash-lite', skipRateLimit: true }
+  { name: 'Primary-Flash3.1Lite', key: primaryKey, model: 'gemini-3.1-flash-lite', skipRateLimit: false },
+  { name: 'Backup-Flash3.1Lite', key: backupKey, model: 'gemini-3.1-flash-lite', skipRateLimit: false },
+  { name: 'Fallback-Lite', key: primaryKey, model: 'gemini-3.1-flash-lite', skipRateLimit: false }
 ];
 
 for (plan of attemptStrategy) {
@@ -627,7 +636,7 @@ for (plan of attemptStrategy) {
 **Vantaggi:**
 - 🎯 **Qualità Prima** → Prova sempre prima il modello di alta qualità
 - 🔄 **Degrado Graduale** → Passa al modello lite solo quando necessario
-- 📊 **Statistiche Pulite** → La chiave di riserva bypassa il rate limiter locale
+- 📊 **Statistiche Pulite** → Anche la chiave di riserva passa dal guard RPD locale
 - ⏰ **Prevenzione Timeout** → Batch ridotto a 3 email per esecuzione
 
 **Configurazione:**

@@ -28,21 +28,24 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     } else {
       // Fallback se CONFIG non disponibile
       console.warn('   \u26A0\uFE0F CONFIG.GEMINI_MODELS non trovato, uso default');
-      // ATTENZIONE: Non modificare arbitrariamente. Verificare periodicamente in rete i limiti delle quote gratuiti stabiliti, mantenendo proporzionalità con le quote di base.
+      // Default conservativo allineato a Gemini 3.1 Flash-Lite Free Tier indicato in AI Studio.
       this.models = {
-        'flash-2.5': {
-          name: 'gemini-2.5-flash',
-          rpm: 10, tpm: 250000, rpd: 250,
+        'flash-3.1-lite': {
+          name: 'gemini-3.1-flash-lite',
+          rpm: 2000, tpm: 2000000, rpd: 3500,
+          contextWindowTokens: 1048576,
           useCases: ['generation', 'all']
         },
         'flash-lite': {
-          name: 'gemini-2.5-flash-lite',
-          rpm: 15, tpm: 250000, rpd: 1000,
-          useCases: ['fallback', 'classification', 'quick_check']
+          name: 'gemini-3.1-flash-lite',
+          rpm: 2000, tpm: 2000000, rpd: 3500,
+          contextWindowTokens: 1048576,
+          useCases: ['fallback', 'classification', 'quick_check', 'semantic']
         },
-        'flash-2.5-lite-backup': {
-          name: 'gemini-2.5-flash-lite',
-          rpm: 15, tpm: 250000, rpd: 1000,
+        'flash-3.1-lite-backup': {
+          name: 'gemini-3.1-flash-lite',
+          rpm: 2000, tpm: 2000000, rpd: 3500,
+          contextWindowTokens: 1048576,
           useCases: ['fallback', 'backup']
         }
       };
@@ -55,15 +58,14 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     } else {
       // Fallback default
       this.strategies = {
-        'quick_check': ['flash-lite', 'flash-2.5'],
-        // Per generation evitiamo loop sul solo "lite" e usiamo fallback premium-safe.
-        'generation': ['flash-2.5', 'flash-lite', 'flash-2.5-lite-backup'],
-        'fallback': ['flash-lite', 'flash-2.5-lite-backup', 'flash-2.5']
+        'quick_check': ['flash-lite', 'flash-3.1-lite'],
+        'generation': ['flash-3.1-lite', 'flash-lite', 'flash-3.1-lite-backup'],
+        'fallback': ['flash-lite', 'flash-3.1-lite-backup', 'flash-3.1-lite']
       };
     }
 
     // Modello di default (primo nella lista generation)
-    this.defaultModel = Object.keys(this.models)[0] || 'flash-2.5';
+    this.defaultModel = Object.keys(this.models)[0] || 'flash-3.1-lite';
 
     // ================================================================
     // CACHE IN-MEMORY (per ridurre PropertiesService reads)
@@ -102,15 +104,17 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     };
 
     this.throttleDelays = {
-      rpm: 5000,   // 5 secondi
-      tpm: 3000,
-      rpd: 10000
+      rpm: 250,    // Calibrato dinamicamente in _shouldThrottle
+      tpm: 1000,
+      rpd: 15000
     };
 
     // Exponential backoff
-    this.backoffBase = 2000;
-    this.backoffMultiplier = 2;
-    this.maxBackoff = 60000;
+    const backoffConfig = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_BACKOFF) ? CONFIG.GEMINI_BACKOFF : {};
+    this.backoffBase = Number(backoffConfig.retryDelayMs) > 0 ? Number(backoffConfig.retryDelayMs) : 4000;
+    this.backoffMultiplier = Number(backoffConfig.factor) > 1 ? Number(backoffConfig.factor) : 2.5;
+    this.maxBackoff = Number(backoffConfig.maxBackoffMs) > 0 ? Number(backoffConfig.maxBackoffMs) : 120000;
+    this.defaultMaxRetries = Number(backoffConfig.rateLimiterMaxRetries) > 0 ? Number(backoffConfig.rateLimiterMaxRetries) : 2;
 
     console.log('✓ GeminiRateLimiter inizializzato');
     console.log(`   Modelli: ${Object.keys(this.models).join(', ')}`);
@@ -126,13 +130,18 @@ var GeminiRateLimiter = class GeminiRateLimiter {
    */
   _normalizeDeprecatedModelNames(models) {
     const deprecatedMap = {
-      // Mappatura modelli ritirati verso equivalenti 2.5
-      'gemini-2.5-flash-exp': 'gemini-2.5-flash-lite',
-      'gemini-2.0-flash-exp': 'gemini-2.5-flash-lite',
-      'gemini-2.0-flash': 'gemini-2.5-flash-lite'
+      // Mappatura modelli precedenti/ritirati verso il profilo operativo 3.1 Lite.
+      'gemini-2.5-flash': 'gemini-3.1-flash-lite',
+      'gemini-2.5-flash-lite': 'gemini-3.1-flash-lite',
+      'gemini-2.5-flash-exp': 'gemini-3.1-flash-lite',
+      'gemini-2.0-flash-exp': 'gemini-3.1-flash-lite',
+      'gemini-2.0-flash': 'gemini-3.1-flash-lite',
+      'gemini-2.0-flash-lite': 'gemini-3.1-flash-lite'
     };
 
     const knownCurrentModels = [
+      'gemini-3.1-flash-lite',
+      'gemini-3.1-flash-lite-preview',
       'gemini-2.5-flash',
       'gemini-2.5-flash-lite'
     ];
@@ -150,8 +159,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       }
 
       const fallbackName = String(modelKey).toLowerCase().includes('lite')
-        ? 'gemini-2.5-flash-lite'
-        : 'gemini-2.5-flash';
+        ? 'gemini-3.1-flash-lite'
+        : 'gemini-3.1-flash-lite';
 
       normalized[modelKey] = Object.assign({}, modelConfig, {
         name: replacement || ((currentName === undefined || currentName === null || (typeof currentName === 'string' && currentName.trim() === '')) ? fallbackName : currentName)
@@ -338,11 +347,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   _getCandidateModels(taskType) {
     const taskStrategies = this.strategies || {};
     const resolvedStrategies = Object.assign(
-      { classification: taskStrategies['quick_check'] || ['flash-lite', 'flash-2.5'] },
+      { classification: taskStrategies['quick_check'] || ['flash-lite', 'flash-3.1-lite'] },
       taskStrategies
     );
 
-    return resolvedStrategies[taskType] || resolvedStrategies['fallback'] || ['flash-lite', 'flash-2.5'];
+    return resolvedStrategies[taskType] || resolvedStrategies['fallback'] || ['flash-lite', 'flash-3.1-lite'];
   }
 
   _withRateLimitLock_(fn, options) {
@@ -459,13 +468,18 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
     if (rpdRatio >= this.safetyMargin.rpd) {
       this._applySafetyValve_();
-      return { needed: true, reason: 'rpd', delay: this.throttleDelays.rpd };
+      const rpdDelay = Math.min(60000, Math.max(this.throttleDelays.rpd, Math.round((rpdRatio - this.safetyMargin.rpd + 0.05) * 120000)));
+      return { needed: true, reason: 'rpd', delay: rpdDelay };
     }
     if (rpmRatio >= this.safetyMargin.rpm) {
-      return { needed: true, reason: 'rpm', delay: this.throttleDelays.rpm };
+      const minIntervalMs = Math.ceil(60000 / Math.max(1, model.rpm));
+      const overSafetyRequests = Math.max(1, rpmUsed - Math.floor(model.rpm * this.safetyMargin.rpm) + 1);
+      const rpmDelay = Math.min(30000, Math.max(this.throttleDelays.rpm, overSafetyRequests * minIntervalMs));
+      return { needed: true, reason: 'rpm', delay: rpmDelay };
     }
     if (tpmRatio >= this.safetyMargin.tpm) {
-      return { needed: true, reason: 'tpm', delay: this.throttleDelays.tpm };
+      const tpmDelay = Math.min(30000, Math.max(this.throttleDelays.tpm, Math.round((tpmRatio - this.safetyMargin.tpm + 0.05) * 60000)));
+      return { needed: true, reason: 'tpm', delay: tpmDelay };
     }
 
     return { needed: false };
@@ -539,7 +553,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       try {
         const startTime = Date.now();
         // Esecuzione diretta senza controlli quota
-        const result = this._safeExecuteRequestFn_(requestFn, options.modelNameOverride || 'gemini-2.5-flash');
+        const result = this._safeExecuteRequestFn_(requestFn, options.modelNameOverride || 'gemini-3.1-flash-lite');
         const duration = Date.now() - startTime;
 
         return {
@@ -556,7 +570,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     // ═══════════════════════════════════════════════════════════════════
 
     const estimatedTokens = options.estimatedTokens ?? 1000;
-    const maxRetries = options.maxRetries ?? 3;
+    const maxRetries = options.maxRetries ?? this.defaultMaxRetries ?? 2;
     const preferQuality = options.preferQuality || false;
     const forceModel = options.forceModel || null;
 
@@ -649,10 +663,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
             const backoffDelay = Math.min(
               this.backoffBase * Math.pow(this.backoffMultiplier, attempt),
               this.maxBackoff
-            );
+            ) + Math.floor(Math.random() * 500);
             console.log(`   Attesa ${backoffDelay}ms...`);
             Utilities.sleep(backoffDelay);
-            continue;
           }
         } else {
           // Errore non ritentabile
@@ -739,10 +752,10 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   /**
    * Incrementa contatori persistenti con lock script-level.
    */
-  _incrementCountersAtomic(modelKey, tokensUsed) {
-    const lock = LockService.getScriptLock();
+  _incrementCountersAtomic(modelKey, tokensUsed, alreadyLocked = false) {
+    const lock = alreadyLocked ? null : LockService.getScriptLock();
     // Timeout esteso per garantire persistenza contatori sotto burst concorrenti.
-    const gotLock = lock.tryLock(25000);
+    const gotLock = alreadyLocked || lock.tryLock(25000);
 
     if (!gotLock) {
       console.warn(`⚠️ Impossibile tracciare RPD/Token per ${modelKey} (Lock Timeout)`);
@@ -775,7 +788,115 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
       return { rpd: nextRpd, tokens: nextTokens };
     } finally {
-      lock.releaseLock();
+      if (!alreadyLocked && lock) {
+        lock.releaseLock();
+      }
+    }
+  }
+
+  /**
+   * Traccia chiamate Gemini ausiliarie non gestite dal normale executeRequest
+   * (es. creazione cache REST). Anche queste consumano RPD, quindi passano
+   * dallo stesso contatore giornaliero con ScriptLock.
+   */
+  trackAuxiliaryRequest(modelNameOrKey, tokensUsed, label, alreadyLocked = false) {
+    const modelKey = this._resolveModelKey_(modelNameOrKey);
+    if (!modelKey) {
+      console.warn(`⚠️ Chiamata ausiliaria Gemini non tracciata: modello '${modelNameOrKey}' non in CONFIG`);
+      return null;
+    }
+    const counters = this._incrementCountersAtomic(modelKey, tokensUsed || 0, alreadyLocked);
+    console.log(`📊 Chiamata ausiliaria Gemini tracciata (${label || 'aux'}): ${modelKey} RPD ${counters.rpd}/${this.models[modelKey].rpd}`);
+    return counters;
+  }
+
+  _resolveModelKey_(modelNameOrKey) {
+    if (!modelNameOrKey) return null;
+    if (this.models[modelNameOrKey]) return modelNameOrKey;
+    const modelName = String(modelNameOrKey);
+    const keys = Object.keys(this.models || {});
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      if (this.models[key] && this.models[key].name === modelName) {
+        return key;
+      }
+    }
+    return null;
+  }
+
+  reserveGoogleSearchGroundingQueries(count) {
+    return this._incrementGroundingCounter_(count || 1);
+  }
+
+  reconcileGoogleSearchGroundingQueries(reservedCount, actualCount) {
+    const reserved = Math.max(0, parseInt(reservedCount || 0, 10) || 0);
+    const actual = Math.max(0, parseInt(actualCount || 0, 10) || 0);
+    if (actual > reserved) {
+      return this._incrementGroundingCounter_(actual - reserved);
+    }
+    // Conservativo: non rilasciamo la prenotazione se il modello non ha cercato,
+    // per evitare race tra esecuzioni concorrenti e sottostime del limite condiviso.
+    return this.getGoogleSearchGroundingStats();
+  }
+
+  getGoogleSearchGroundingStats() {
+    const todayPacific = this._getPacificDate();
+    const dateKey = 'grounding_google_search_date';
+    const countKey = 'grounding_google_search_rpd';
+    const storedDate = this.props.getProperty(dateKey) || '';
+    const used = storedDate === todayPacific
+      ? (parseInt(this.props.getProperty(countKey) || '0', 10) || 0)
+      : 0;
+    const notes = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_FREE_TIER_NOTES) ? CONFIG.GEMINI_FREE_TIER_NOTES : {};
+    const limit = Number(notes.groundingSharedRpd) > 0 ? Number(notes.groundingSharedRpd) : 1500;
+    return {
+      used: used,
+      limit: limit,
+      percent: (used / limit * 100).toFixed(1),
+      date: todayPacific
+    };
+  }
+
+  _incrementGroundingCounter_(count) {
+    const increment = Math.max(0, parseInt(count || 0, 10) || 0);
+    if (increment <= 0) return this.getGoogleSearchGroundingStats();
+
+    const notes = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_FREE_TIER_NOTES) ? CONFIG.GEMINI_FREE_TIER_NOTES : {};
+    const limit = Number(notes.groundingSharedRpd) > 0 ? Number(notes.groundingSharedRpd) : 1500;
+    const lock = LockService.getScriptLock();
+    const gotLock = alreadyLocked || lock.tryLock(25000);
+    if (!gotLock) {
+      throw new Error('QUOTA_EXHAUSTED: impossibile acquisire lock per Google Search Grounding');
+    }
+
+    try {
+      const todayPacific = this._getPacificDate();
+      const dateKey = 'grounding_google_search_date';
+      const countKey = 'grounding_google_search_rpd';
+      const storedDate = this.props.getProperty(dateKey) || '';
+      let current = storedDate === todayPacific
+        ? (parseInt(this.props.getProperty(countKey) || '0', 10) || 0)
+        : 0;
+
+      if (current + increment > limit) {
+        throw new Error(`QUOTA_EXHAUSTED: Google Search Grounding ${current + increment}/${limit} query giornaliere`);
+      }
+
+      current += increment;
+      this.props.setProperties({
+        [dateKey]: todayPacific,
+        [countKey]: String(current)
+      });
+      return {
+        used: current,
+        limit: limit,
+        percent: (current / limit * 100).toFixed(1),
+        date: todayPacific
+      };
+    } finally {
+      if (!alreadyLocked && lock) {
+        lock.releaseLock();
+      }
     }
   }
 
@@ -1260,7 +1381,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       pacificTime: (canFormatDates ? Utilities.formatDate(now, 'America/Los_Angeles', 'HH:mm') : fallbackTime) + ' (PST/PDT)',
       nextReset: canFormatDates ? this._getNextResetTime() : 'n/a',
       nextResetPacific: '00:00 Pacific Time', // Reset Google è sempre mezzanotte Pacific
-      models: {}
+      models: {},
+      groundingGoogleSearch: null
     };
     const allProps = this.props.getProperties();
 
@@ -1292,6 +1414,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       };
     }
 
+    stats.groundingGoogleSearch = this.getGoogleSearchGroundingStats();
+
     return stats;
   }
 
@@ -1308,7 +1432,13 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       console.log('\n' + modelKey.toUpperCase() + ' (' + model.name + '):');
       console.log('  RPD: ' + model.rpd.used + '/' + model.rpd.limit + ' (' + model.rpd.percent + '%)');
       console.log('  RPM: ' + model.rpm.used + '/' + model.rpm.limit + ' (' + model.rpm.percent + '%)');
+      console.log('  TPM: ' + model.tpm.used + '/' + model.tpm.limit + ' (' + model.tpm.percent + '%)');
       console.log('  Token oggi: ' + String(model.tokensToday));
+    }
+
+    if (stats.groundingGoogleSearch) {
+      console.log('\nGOOGLE SEARCH GROUNDING (limite condiviso):');
+      console.log('  Query: ' + stats.groundingGoogleSearch.used + '/' + stats.groundingGoogleSearch.limit + ' (' + stats.groundingGoogleSearch.percent + '%)');
     }
 
     console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -1405,7 +1535,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   }
 
   _finalizeReservation(modelKey, reservationId, duration) {
-    this._mutateReservation(modelKey, reservationId, function(entry) {
+    this._mutateReservation(modelKey, reservationId, function (entry) {
       entry.completed = true;
       entry.completedAt = Date.now();
       entry.duration = duration || 0;
@@ -1414,7 +1544,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   }
 
   _releaseReservation(modelKey, reservationId) {
-    this._mutateReservation(modelKey, reservationId, function(entry) {
+    this._mutateReservation(modelKey, reservationId, function (entry) {
       entry.released = true;
       entry.releasedAt = Date.now();
       return true;
@@ -1427,9 +1557,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const lockResult = this._withRateLimitLock_(function () {
       this._refreshCache();
 
-      ['rpmWindow', 'tpmWindow'].forEach(function(cacheKey) {
+      ['rpmWindow', 'tpmWindow'].forEach(function (cacheKey) {
         const currentWindow = Array.isArray(this.cache[cacheKey]) ? this.cache[cacheKey] : [];
-        this.cache[cacheKey] = currentWindow.map(function(entry) {
+        this.cache[cacheKey] = currentWindow.map(function (entry) {
           if (!entry || entry.modelKey !== modelKey || entry.nonce !== reservationId || entry.reserved !== true) {
             return entry;
           }

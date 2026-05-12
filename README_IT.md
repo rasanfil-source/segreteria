@@ -146,7 +146,7 @@ graph LR
 | Componente | Versione Minima | Versione Testata | Note |
 |------------|-----------------|------------------|------|
 | Google Apps Script Runtime | V8 | V8 | **Obbligatorio** |
-| Gemini API | 1.5 Flash | 2.5 Flash | 2.5 raccomandato |
+| Gemini API | Gemini 3.1 Flash-Lite | Gemini 3.1 Flash-Lite | Context caching abilitato |
 | Google Sheets API | v4 | v4 | - |
 | Gmail API | v1 | v1 | Advanced Service |
 | Node.js (per clasp) | 14+ | 20 LTS | Solo sviluppo |
@@ -402,9 +402,10 @@ Aiuta altre comunità a scoprirlo.
 
 | Termine | Definizione | Esempio |
 |---------|-------------|---------|
-| **RPM** | Requests Per Minute - Richieste API al minuto | 10 RPM = max 10 chiamate/min |
-| **TPM** | Tokens Per Minute - Token consumati al minuto | 250k TPM = budget generoso |
-| **RPD** | Requests Per Day - Richieste giornaliere | 250 RPD = ~10/ora in 24h |
+| **RPM** | Requests Per Minute - Richieste API al minuto | 2.000 RPM tracciati localmente |
+| **TPM** | Tokens Per Minute - Token consumati al minuto | 2M TPM stimati localmente |
+| **RPD** | Requests Per Day - Richieste giornaliere | 3.500 RPD sono il collo di bottiglia |
+| **Context Cache** | cachedContent Gemini riusato via REST | Prompt statico in cache; payload finale minimale |
 | **KB** | Knowledge Base - Database informazioni | "Orari messe: 18:00" |
 | **DRY_RUN** | Modalità test senza invio email | `CONFIG.DRY_RUN = true` |
 | **Salutation Mode** | Tipo saluto (full/soft/none) | `full` = primo contatto |

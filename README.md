@@ -143,7 +143,7 @@ graph LR
 | Component | Minimum Version | Tested Version | Notes |
 |-----------|-----------------|----------------|-------|
 | Google Apps Script Runtime | V8 | V8 | **Required** |
-| Gemini API | 1.5 Flash | 2.5 Flash | 2.5 recommended |
+| Gemini API | Gemini 3.1 Flash-Lite | Gemini 3.1 Flash-Lite | Context caching enabled |
 | Google Sheets API | v4 | v4 | - |
 | Gmail API | v1 | v1 | Advanced Service |
 | Node.js (for clasp) | 14+ | 20 LTS | Development only |
@@ -390,9 +390,10 @@ Helps other communities discover it.
 
 | Term | Definition | Example |
 |------|------------|---------|
-| **RPM** | Requests Per Minute - API requests per minute | 10 RPM = max 10 calls/min |
-| **TPM** | Tokens Per Minute - Tokens consumed per minute | 250k TPM = generous budget |
-| **RPD** | Requests Per Day - Daily requests | 250 RPD = ~10/hour in 24h |
+| **RPM** | Requests Per Minute - API requests per minute | 2,000 RPM tracked locally |
+| **TPM** | Tokens Per Minute - Tokens consumed per minute | 2M TPM estimated locally |
+| **RPD** | Requests Per Day - Daily requests | 3,500 RPD is the bottleneck |
+| **Context Cache** | Gemini cachedContent reused via REST | Static prompt cached; final payload stays minimal |
 | **KB** | Knowledge Base - Information database | "Mass times: 6:00 PM" |
 | **DRY_RUN** | Test mode without sending emails | `CONFIG.DRY_RUN = true` |
 | **Salutation Mode** | Greeting type (full/soft/none) | `full` = first contact |

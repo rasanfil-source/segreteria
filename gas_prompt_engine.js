@@ -146,8 +146,14 @@ var PromptEngine = class PromptEngine {
     // ══════════════════════════════════════════════════════════════════════
     // PRE-STIMA E BUDGETING TOKEN (Protezione Memory Growth)
     // ══════════════════════════════════════════════════════════════════════
-    const MAX_SAFE_TOKENS = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS
+    const configuredMaxSafeTokens = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS
       ? CONFIG.MAX_SAFE_TOKENS : 35000;
+    const hardContextWindowTokens = (typeof CONFIG !== 'undefined' && Number(CONFIG.CONTEXT_WINDOW_TOKENS) > 0)
+      ? Number(CONFIG.CONTEXT_WINDOW_TOKENS)
+      : ((typeof CONFIG !== 'undefined' && CONFIG.GEMINI_FREE_TIER_NOTES && Number(CONFIG.GEMINI_FREE_TIER_NOTES.contextWindowTokens) > 0)
+        ? Number(CONFIG.GEMINI_FREE_TIER_NOTES.contextWindowTokens)
+        : 1048576);
+    const MAX_SAFE_TOKENS = Math.min(configuredMaxSafeTokens, hardContextWindowTokens);
     const MAX_SAFE_PROMPT_CHARS = (typeof CONFIG !== 'undefined' && Number(CONFIG.MAX_SAFE_PROMPT_CHARS) > 0)
       ? Number(CONFIG.MAX_SAFE_PROMPT_CHARS)
       : 140000;
@@ -479,6 +485,9 @@ ${doctrineBaseText}
       return prompt.slice(0, Math.max(0, MAX_SAFE_PROMPT_CHARS - 1)).trimEnd() + '…';
     }
     const finalTokens = this.estimateTokens(prompt);
+    if (finalTokens > hardContextWindowTokens) {
+      console.warn(`⚠️ Prompt oltre context window (${finalTokens}/${hardContextWindowTokens} token stimati). Ridurre cronologia/KB.`);
+    }
 
     console.log(`📝 Prompt generato: ${prompt.length} caratteri (~${finalTokens} token) | Profilo: ${promptProfile} | Saltati: ${skippedCount}`);
 

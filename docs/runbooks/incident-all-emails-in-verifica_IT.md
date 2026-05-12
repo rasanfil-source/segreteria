@@ -170,9 +170,9 @@ const signaturePatterns = [
 "NON esporre MAI il tuo processo di ragionamento.
 NON iniziare risposte con 'Rivedendo...', 'Verificando...', etc."
 
-// 2. Considera fallback a modello precedente:
+// 2. Considera percorso generazione conservativo:
 CONFIG.MODEL_STRATEGY = {
-  'generation': ['flash-lite', 'flash-2.0']  // Evita 2.5
+  'generation': ['flash-lite', 'flash-3.1-lite']
 };
 ```
 

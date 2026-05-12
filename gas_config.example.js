@@ -10,7 +10,7 @@ var CONFIG = {
     // === API ===
     // In produzione: PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY')
     GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY_HERE',
-    MODEL_NAME: 'gemini-2.5-flash',
+    MODEL_NAME: 'gemini-3.1-flash-lite',
 
     // === Generazione ===
     TEMPERATURE: 0.5,
@@ -134,8 +134,9 @@ var CONFIG = {
     USE_RATE_LIMITER: true,              // Rate limiter intelligente abilitato
 
     // === Limiti Token (Prompt Engine) ===
-    MAX_SAFE_TOKENS: 35000,              // Allineato al profilo produzione per evitare drift nei test
-    MAX_SAFE_PROMPT_CHARS: 100000,       // Limite caratteri prompt prima del troncamento di sicurezza
+    CONTEXT_WINDOW_TOKENS: 1048576,      // Hard cap documentato per Gemini 3.1 Flash-Lite
+    MAX_SAFE_TOKENS: 120000,             // Cap operativo locale sotto 1M per evitare payload GAS ingestibili
+    MAX_SAFE_PROMPT_CHARS: 380000,       // Limite caratteri prompt prima del troncamento di sicurezza
     KB_TOKEN_BUDGET_RATIO: 0.5,          // Percentuale budget KB rispetto a max token
     KB_HALLUCINATION_RISK_THRESHOLD: 8000, // Soglia chars KB oltre cui scatta hallucination_risk
     MAX_PROVIDED_INFO_JSON_CHARS: 45000, // Limite serializzazione memoria providedInfo per riga Sheet
@@ -160,54 +161,78 @@ var CONFIG = {
     METRICS_SHEET_NAME: 'DailyMetrics',
 
     // === Modelli Gemini (configurazione centralizzata) ===
-    // Aggiornato: Marzo 2026
-    // Dati tecnici operativi (piano gratuito, 17/03/2026).
+    // Aggiornato: Maggio 2026.
+    // Dati tecnici operativi Free Tier: verificare sempre i limiti effettivi in AI Studio.
     GEMINI_FREE_TIER_NOTES: {
         contextWindowTokens: 1048576,
-        ipm: 2,
-        groundingSharedRpd: 500,
+        rpm: 2000,
+        tpm: 2000000,
+        rpd: 3500,
+        ipm: null,
+        groundingSharedRpd: 1500,
+        countTokensApiAllowed: false,
+        contextCachingSupported: true,
         dataUsedForTraining: true
     },
 
+    GEMINI_CONTEXT_CACHE: {
+        enabled: true,
+        ttlSeconds: 3300,
+        expirySkewMs: 90000,
+        minCacheableTokens: 1024,
+        splitMarker: '**EMAIL DA RISPONDERE:**',
+        propertyPrefix: 'gemini_context_cache_v2_',
+        googleSearchGrounding: {
+            enabled: false,
+            reservedQueriesPerRequest: 1
+        }
+    },
+
+    GEMINI_BACKOFF: {
+        maxRetries: 2,
+        retryDelayMs: 4000,
+        factor: 2.5,
+        maxBackoffMs: 120000,
+        jitterMs: 750,
+        rateLimiterMaxRetries: 2
+    },
+
     GEMINI_MODELS: {
-        // Modello premium: qualità massima per generazione risposte
-        'flash-2.5': {
-            name: 'gemini-2.5-flash',
-            rpm: 10,
-            tpm: 250000,
-            rpd: 250,
+        'flash-3.1-lite': {
+            name: 'gemini-3.1-flash-lite',
+            rpm: 2000,
+            tpm: 2000000,
+            rpd: 3500,
             contextWindowTokens: 1048576,
-            ipm: 2,
-            useCases: ['generation']
+            ipm: null,
+            useCases: ['generation', 'all']
         },
-        // Modello workhorse: quick check e fallback
         'flash-lite': {
-            name: 'gemini-2.5-flash-lite',
-            rpm: 15,
-            tpm: 250000,
-            rpd: 1000,
+            name: 'gemini-3.1-flash-lite',
+            rpm: 2000,
+            tpm: 2000000,
+            rpd: 3500,
             contextWindowTokens: 1048576,
-            ipm: 2,
+            ipm: null,
             useCases: ['quick_check', 'classification', 'semantic', 'fallback']
         },
-        // Modello backup: variante 2.5 Lite
-        'flash-2.5-lite-backup': {
-            name: 'gemini-2.5-flash-lite',
-            rpm: 15,
-            tpm: 250000,
-            rpd: 1000,
+        'flash-3.1-lite-backup': {
+            name: 'gemini-3.1-flash-lite',
+            rpm: 2000,
+            tpm: 2000000,
+            rpd: 3500,
             contextWindowTokens: 1048576,
-            ipm: 2,
+            ipm: null,
             useCases: ['fallback']
         }
     },
 
     // Strategia selezione modelli per task (ordine = priorità)
     MODEL_STRATEGY: {
-        'quick_check': ['flash-lite', 'flash-2.5'],
-        'generation': ['flash-2.5', 'flash-lite', 'flash-2.5-lite-backup'],
-        'semantic': ['flash-lite', 'flash-2.5-lite-backup'],
-        'fallback': ['flash-lite', 'flash-2.5-lite-backup']
+        'quick_check': ['flash-lite', 'flash-3.1-lite'],
+        'generation': ['flash-3.1-lite', 'flash-lite', 'flash-3.1-lite-backup'],
+        'semantic': ['flash-lite', 'flash-3.1-lite-backup'],
+        'fallback': ['flash-lite', 'flash-3.1-lite-backup']
     },
 
     // === Liste di esclusione ===

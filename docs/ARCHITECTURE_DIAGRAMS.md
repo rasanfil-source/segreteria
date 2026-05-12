@@ -29,7 +29,7 @@ graph TB
     end
     
     subgraph "External APIs"
-        GeminiAPI["🧠 Google Gemini API<br/>2.5 Flash / Lite"]
+        GeminiAPI["🧠 Google Gemini API<br/>3.1 Flash-Lite + Context Cache"]
     end
     
     Gmail -->|Read Threads| Main
@@ -149,9 +149,9 @@ graph TD
     end
     
     subgraph "Model Chain"
-        F25["⭐ Flash 2.5<br/>RPD: 250"]
-        FLITE["💡 Flash Lite<br/>RPD: 1000"]
-        F20["📦 Flash 2.0<br/>RPD: 100"]
+        F31["⭐ Flash 3.1 Lite<br/>RPD: 3500"]
+        FLITE["💡 Lite Alias<br/>RPM: 2000 / TPM: 2M"]
+        CACHE["🧠 Context Cache<br/>TTL persisted"]
     end
     
     subgraph "Decision"
@@ -161,8 +161,9 @@ graph TD
     end
     
     QC --> FLITE
-    GEN --> F25
+    GEN --> F31
     FB --> FLITE
+    F31 --> CACHE
     
     F25 --> CHECK
     FLITE --> CHECK

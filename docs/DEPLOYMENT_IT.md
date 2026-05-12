@@ -273,10 +273,10 @@ Visibilità: Privato (NON pubblico)
 
 | Scenario | Modello Consigliato | RPD Budget | Costo Stimato/Mese |
 |----------|---------------------|------------|---------------------|
-| Parrocchia piccola (<50 email/settimana) | Flash Lite | 1000 | €5-8 |
-| Parrocchia media (100-200 email/settimana) | Flash 2.5 | 250 | €10-15 |
-| Parrocchia grande (>300 email/settimana) | Flash 2.5 + Lite fallback | 250+1000 | €15-25 |
-| Sviluppo/Test | Flash Lite | 1000 | €0-2 |
+| Parrocchia piccola (<50 email/settimana) | Gemini 3.1 Flash-Lite | 3.500 | Free Tier, monitorare RPD |
+| Parrocchia media (100-200 email/settimana) | Gemini 3.1 Flash-Lite + context cache | 3.500 | Free Tier, cache prompt statico |
+| Parrocchia grande (>300 email/settimana) | Gemini 3.1 Flash-Lite + chiave backup | 3.500/progetto | RPD resta il collo di bottiglia |
+| Sviluppo/Test | Gemini 3.1 Flash-Lite | 3.500 | Tenere DRY_RUN abilitato |
 
 ### Quando Usare Fallback Chain?
 
@@ -284,8 +284,8 @@ Visibilità: Privato (NON pubblico)
 // Configurazione consigliata per produzione
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],           // Economia per check rapidi
-  'generation': ['flash-2.5', 'flash-lite'], // Qualità → Fallback
-  'fallback': ['flash-lite', 'flash-2.0']    // Ultimo resort
+  'generation': ['flash-3.1-lite', 'flash-lite'], // stesso modello fisico, percorsi logici separati
+  'fallback': ['flash-lite', 'flash-3.1-lite-backup']
 };
 ```
 
@@ -293,9 +293,9 @@ CONFIG.MODEL_STRATEGY = {
 
 | Modello | ✅ Pro | ❌ Contro |
 |---------|--------|-----------|
-| **Flash 2.5** | Qualità massima, meno allucinazioni, reasoning migliore | RPD limitato (250/giorno) |
-| **Flash Lite** | RPD generoso (1000), economico, veloce | A volte risposte generiche |
-| **Flash 2.0** | Stabile, ben testato | Meno capace di 2.5, legacy |
+| **Gemini 3.1 Flash-Lite** | Context window 1M, caching supportato, RPM/TPM elevati | RPD 3.500/giorno resta il collo di bottiglia |
+| **Context Cache** | Riuso dei token statici e niente reinvio tools/istruzioni | La creazione cache consuma una chiamata quando scade il TTL |
+| **Google Search Grounding** | Fatti aggiornati se abilitato esplicitamente | 1.500 query/giorno condivise; disabilitato di default |
 
 ### Configurazione per Scenario
 
@@ -312,7 +312,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 5;
 ```javascript
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-2.5', 'flash-lite']
+  'generation': ['flash-3.1-lite', 'flash-lite']
 };
 CONFIG.MAX_EMAILS_PER_RUN = 10;
 ```
@@ -321,7 +321,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 10;
 ```javascript
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-2.5']
+  'generation': ['flash-3.1-lite']
 };
 CONFIG.MAX_EMAILS_PER_RUN = 15;
 // Considera trigger ogni 5 minuti
@@ -367,7 +367,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 5;
 // Usa modelli più economici
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-lite', 'flash-2.5']  // Invertito
+  'generation': ['flash-lite', 'flash-3.1-lite']  // stesso modello, percorso conservativo
 };
 ```
 

@@ -9,7 +9,9 @@ Usa `gas_config.example.js` come template nel repository e crea il file locale `
 
 ### Impostazioni API
 - **GEMINI_API_KEY**: La tua chiave API Gemini (salvata nelle Proprietà dello Script).
-- **MODEL_NAME**: Modello predefinito (es. `gemini-2.5-flash`).
+- **MODEL_NAME**: Modello predefinito (attuale `gemini-3.1-flash-lite`).
+- **GEMINI_CONTEXT_CACHE**: Abilita `cachedContents` REST con TTL persistito in Script Properties. `systemInstruction` e tools sono inviati solo nella creazione cache; la `generateContent` finale invia solo `cachedContent` e il nuovo prompt utente.
+- **GEMINI_FREE_TIER_NOTES**: Profilo quote locale per Gemini 3.1 Flash-Lite Free Tier: 2.000 RPM, 2.000.000 TPM, 3.500 RPD e 1.500 query/giorno Google Search Grounding condivise. Il collo di bottiglia operativo resta RPD.
 
 ### Gmail e Processamento
 - **LABEL_NAME**: `IA` (Email processate con successo).
@@ -33,9 +35,9 @@ Usa `gas_config.example.js` come template nel repository e crea il file locale `
 
 ### Configurazione Modelli Gemini
 Il sistema usa una strategia per selezionare i modelli:
-1. **flash-2.5**: Modello premium per generare risposte di alta qualità.
-2. **flash-lite**: Modello veloce per controlli rapidi e classificazione.
-3. **flash-2.0**: Modello di backup (legacy).
+1. **flash-3.1-lite**: Percorso logico principale per generare risposte.
+2. **flash-lite**: Alias compatibile per controlli rapidi, classificazione, controlli semantici e fallback.
+3. **flash-3.1-lite-backup**: Percorso logico di backup per fallback cross-key.
 
 ## Proprietà dello Script
 Questi valori devono essere impostati in **Impostazioni Progetto > Proprietà dello Script**:

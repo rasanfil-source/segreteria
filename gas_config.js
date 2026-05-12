@@ -45,7 +45,7 @@ function _getScriptPropertyStringArray(key, fallback) {
 var CONFIG = {
   // === API ===
   get GEMINI_API_KEY() { return _getScriptProperty('GEMINI_API_KEY'); },
-  MODEL_NAME: 'gemini-2.5-flash',
+  MODEL_NAME: 'gemini-3.1-flash-lite',
 
   // === Generazione ===
   TEMPERATURE: 0.5,
@@ -179,8 +179,9 @@ var CONFIG = {
   USE_RATE_LIMITER: true,              // Rate limiter intelligente abilitato
 
   // === Limiti Token (Prompt Engine) ===
-  MAX_SAFE_TOKENS: 35000,              // Limite massimo token per prompt (ricalibrato su nuove quote)
-  MAX_SAFE_PROMPT_CHARS: 100000,       // Limite caratteri prompt prima del troncamento di sicurezza
+  CONTEXT_WINDOW_TOKENS: 1048576,      // Hard cap documentato per Gemini 3.1 Flash-Lite
+  MAX_SAFE_TOKENS: 120000,             // Cap operativo locale: resta sotto 1M per evitare payload GAS ingestibili
+  MAX_SAFE_PROMPT_CHARS: 380000,       // Limite caratteri prompt prima del troncamento di sicurezza
   KB_TOKEN_BUDGET_RATIO: 0.5,          // Percentuale budget KB rispetto a max token
   KB_HALLUCINATION_RISK_THRESHOLD: 8000, // Soglia chars KB oltre cui scatta hallucination_risk
   MAX_PROVIDED_INFO_JSON_CHARS: 45000, // Limite serializzazione memoria providedInfo per riga Sheet
@@ -205,59 +206,95 @@ var CONFIG = {
   METRICS_SHEET_NAME: 'DailyMetrics',
 
   // === Modelli Gemini (configurazione centralizzata) ===
-  // Aggiornato: Marzo 2026
-  // ATTENZIONE: Non modificare arbitrariamente. Verificare periodicamente in rete i limiti delle quote gratuiti stabiliti, mantenendo proporzionalità con le quote di base.
-  // Dati tecnici operativi (piano gratuito, 17/03/2026)
-  // - Contesto massimo per prompt: 1.048.576 token (Flash / Flash-Lite)
-  // - IPM: 2 immagini/minuto (Flash / Flash-Lite)
-  // - Grounding Google Search: 500 richieste/giorno condivise tra modelli nel progetto
+  // Aggiornato: Maggio 2026
+  // Fonte modello/capacita: documentazione Google AI Studio (Gemini 3.1 Flash-Lite, 07/05/2026).
+  // Fonte quote operative: piano Free Tier indicato in AI Studio / prompt operativo.
+  // Le quote effettive possono variare per progetto: se AI Studio mostra limiti inferiori,
+  // ridurre questi valori senza aumentare MAX_EMAILS_PER_RUN.
+  // - Contesto massimo per prompt: 1.048.576 token
+  // - RPM: 2.000
+  // - TPM: 2.000.000
+  // - RPD: 3.500
+  // - Grounding Google Search: 1.500 query/giorno condivise nel progetto
+  // - Vietato usare /countTokens: il conteggio resta locale e stimato.
   // - Privacy: nel piano gratuito input/output possono essere usati per training Google (valutare impatto GDPR)
   GEMINI_FREE_TIER_NOTES: {
     contextWindowTokens: 1048576,
-    ipm: 2,
-    groundingSharedRpd: 500,
+    rpm: 2000,
+    tpm: 2000000,
+    rpd: 3500,
+    ipm: null,
+    groundingSharedRpd: 1500,
+    countTokensApiAllowed: false,
+    contextCachingSupported: true,
     dataUsedForTraining: true
   },
 
+  GEMINI_CONTEXT_CACHE: {
+    enabled: true,
+    ttlSeconds: 3300,                  // 55 minuti: sotto il default 1h per ridurre cache stale
+    expirySkewMs: 90000,               // Ricrea prima della scadenza dichiarata
+    minCacheableTokens: 1024,          // Minimo documentato per caching sui modelli Flash recenti
+    splitMarker: '**EMAIL DA RISPONDERE:**',
+    propertyPrefix: 'gemini_context_cache_v2_',
+    // Abilitare solo per flussi che richiedono dati web in tempo reale.
+    // Il tool viene inserito nella creazione cache, mai nella generateContent finale.
+    googleSearchGrounding: {
+      enabled: false,
+      reservedQueriesPerRequest: 1
+    }
+  },
+
+  GEMINI_BACKOFF: {
+    maxRetries: 2,                     // Risparmia RPD: retry brevi e ripetuti consumano il collo di bottiglia giornaliero
+    retryDelayMs: 4000,
+    factor: 2.5,
+    maxBackoffMs: 120000,
+    jitterMs: 750,
+    rateLimiterMaxRetries: 2
+  },
+
   GEMINI_MODELS: {
-    // Modello premium: qualità massima per generazione risposte
-    'flash-2.5': {
-      name: 'gemini-2.5-flash',
-      rpm: 10,
-      tpm: 250000,
-      rpd: 250,
+    // Modello principale: Gemini 3.1 Flash-Lite stabile.
+    // Le tre chiavi logiche puntano allo stesso modello fisico: il RateLimiter
+    // aggrega gli RPD per nome modello, quindi non triplica la quota.
+    'flash-3.1-lite': {
+      name: 'gemini-3.1-flash-lite',
+      rpm: 2000,
+      tpm: 2000000,
+      rpd: 3500,
       contextWindowTokens: 1048576,
-      ipm: 2,
-      useCases: ['generation']
+      ipm: null,
+      useCases: ['generation', 'all']
     },
-    // Modello workhorse: quick check e fallback
+    // Alias compatibile per quick check, classificazione e validazioni semantiche.
     'flash-lite': {
-      name: 'gemini-2.5-flash-lite',
-      rpm: 15,
-      tpm: 250000,
-      rpd: 1000,
+      name: 'gemini-3.1-flash-lite',
+      rpm: 2000,
+      tpm: 2000000,
+      rpd: 3500,
       contextWindowTokens: 1048576,
-      ipm: 2,
+      ipm: null,
       useCases: ['quick_check', 'classification', 'semantic', 'fallback']
     },
-    // Modello backup: variante 2.5 Lite
-    'flash-2.5-lite-backup': {
-      name: 'gemini-2.5-flash-lite',
-      rpm: 15,
-      tpm: 250000,
-      rpd: 1000,
+    // Backup logico per chiave di riserva o fallback controllati.
+    'flash-3.1-lite-backup': {
+      name: 'gemini-3.1-flash-lite',
+      rpm: 2000,
+      tpm: 2000000,
+      rpd: 3500,
       contextWindowTokens: 1048576,
-      ipm: 2,
+      ipm: null,
       useCases: ['fallback']
     }
   },
 
   // Strategia selezione modelli per task (ordine = priorità)
   MODEL_STRATEGY: {
-    'quick_check': ['flash-lite', 'flash-2.5'],
-    'generation': ['flash-2.5', 'flash-lite', 'flash-2.5-lite-backup'],
-    'semantic': ['flash-lite', 'flash-2.5-lite-backup'],
-    'fallback': ['flash-lite', 'flash-2.5-lite-backup']
+    'quick_check': ['flash-lite', 'flash-3.1-lite'],
+    'generation': ['flash-3.1-lite', 'flash-lite', 'flash-3.1-lite-backup'],
+    'semantic': ['flash-lite', 'flash-3.1-lite-backup'],
+    'fallback': ['flash-lite', 'flash-3.1-lite-backup']
   },
 
   // === Liste di esclusione ===
@@ -393,7 +430,8 @@ function validateConfig() {
       errors.push("Errore Config: 'GEMINI_MODELS' è vuoto");
     }
     // Check esistenza modelli chiave
-    if (!CONFIG.GEMINI_MODELS['flash-2.5']) errors.push("Errore Config: Modello 'flash-2.5' mancante in GEMINI_MODELS");
+    if (!CONFIG.GEMINI_MODELS['flash-3.1-lite']) errors.push("Errore Config: Modello 'flash-3.1-lite' mancante in GEMINI_MODELS");
+    if (!CONFIG.GEMINI_MODELS['flash-lite']) errors.push("Errore Config: Modello 'flash-lite' mancante in GEMINI_MODELS");
   }
 
   // Se ci sono errori, logghiamoli subito

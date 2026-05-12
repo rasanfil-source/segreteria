@@ -127,7 +127,7 @@ function analyzeVerificaPatterns() {
 // Immediate action: use only economical model
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-lite']  // Avoid flash-2.5
+  'generation': ['flash-lite']  // Conservative path while RPD recovers
 };
 
 // Reduce load

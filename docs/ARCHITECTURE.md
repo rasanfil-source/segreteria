@@ -100,7 +100,7 @@ Email Arrives
                v
 ┌──────────────────────────────────────────────────────────┐
 │  QUICK CHECK (Gemini AI)                                 │
-│  - Model: gemini-2.5-flash-lite (fast, cheap)           │
+│  - Model: gemini-3.1-flash-lite (fast, cached)          │
 │  - Need reply? (true/false)                             │
 │  - Language detected? (it/en/es/fr/de)                  │
 │  - Category? (TECHNICAL/PASTORAL/DOCTRINAL/MIXED)       │
@@ -140,7 +140,7 @@ Email Arrives
 │  PROMPT CONSTRUCTION (PromptEngine)                      │
 │  - Modular prompt sections (count varies by profile)     │
 │  - Dynamic filtering based on profile (lite/std/heavy)   │
-│  - Token budget management (~100k max)                  │
+│  - Token budget management (120k operational cap)       │
 │  - Semantic truncation if KB too large                  │
 └──────────────┬──────────────────────────────────────────┘
                │
@@ -148,17 +148,17 @@ Email Arrives
 ┌──────────────────────────────────────────────────────────┐
 │  RATE LIMITING (GeminiRateLimiter)                       │
 │  - Automatic available model selection                  │
-│  - Fallback chain: flash-2.5 → flash-lite → flash-2.0   │
-│  - Quota tracking: RPM, TPM, RPD                        │
-│  - Exponential backoff on errors                        │
+│  - Fallback chain: 3.1 Lite primary → lite alias/backup │
+│  - Quota tracking: RPM, TPM, RPD + Search Grounding     │
+│  - Aggressive exponential backoff on errors             │
 └──────────────┬──────────────────────────────────────────┘
                │
                v
 ┌──────────────────────────────────────────────────────────┐
 │  AI GENERATION (GeminiService)                           │
-│  - Gemini API call with retry (max 3)                   │
-│  - Safety settings configured                           │
-│  - Token counting for billing                            │
+│  - Gemini API call with retry (max 2)                   │
+│  - REST Context Caching with TTL auto-healing           │
+│  - Local token estimation only (no /countTokens calls)  │
 └──────────────┬──────────────────────────────────────────┘
                │
                v
@@ -440,8 +440,9 @@ const profile = computeProfile({
 
 **Token Management:**
 ```javascript
-MAX_SAFE_TOKENS = 100000;
-KB_TOKEN_BUDGET = 50000; // 50%
+CONTEXT_WINDOW_TOKENS = 1048576;
+MAX_SAFE_TOKENS = 120000; // local operational cap below model limit
+KB_TOKEN_BUDGET = 60000; // 50%
 
 if (estimatedTokens > MAX_SAFE_TOKENS) {
   // 1. Remove Examples
@@ -457,19 +458,19 @@ if (estimatedTokens > MAX_SAFE_TOKENS) {
 
 ```javascript
 GEMINI_MODELS = {
-  'flash-2.5': {
-    name: 'gemini-2.5-flash',
-    rpm: 10, tpm: 250000, rpd: 250,
-    useCases: ['generation']
+  'flash-3.1-lite': {
+    name: 'gemini-3.1-flash-lite',
+    rpm: 2000, tpm: 2000000, rpd: 3500,
+    useCases: ['generation', 'all']
   },
   'flash-lite': {
-    name: 'gemini-2.5-flash-lite',
-    rpm: 15, tpm: 250000, rpd: 1000,
+    name: 'gemini-3.1-flash-lite',
+    rpm: 2000, tpm: 2000000, rpd: 3500,
     useCases: ['quick_check', 'classification', 'fallback']
   },
-  'flash-2.0': {
-    name: 'gemini-2.0-flash',
-    rpm: 5, tpm: 250000, rpd: 100,
+  'flash-3.1-lite-backup': {
+    name: 'gemini-3.1-flash-lite',
+    rpm: 2000, tpm: 2000000, rpd: 3500,
     useCases: ['fallback']
   }
 }
@@ -478,9 +479,9 @@ GEMINI_MODELS = {
 **Selection Strategy:**
 ```javascript
 MODEL_STRATEGY = {
-  'quick_check': ['flash-lite', 'flash-2.0'],
-  'generation': ['flash-2.5', 'flash-lite', 'flash-2.0'],
-  'fallback': ['flash-lite', 'flash-2.0']
+  'quick_check': ['flash-lite', 'flash-3.1-lite'],
+  'generation': ['flash-3.1-lite', 'flash-lite', 'flash-3.1-lite-backup'],
+  'fallback': ['flash-lite', 'flash-3.1-lite-backup']
 }
 ```
 
@@ -502,6 +503,15 @@ if (rpdUsage > 0.8 * rpdLimit) {
 - **RPM** → Rolling window (last 60 seconds)
 - **TPM** → Rolling window (last 60 seconds)
 - **RPD** → Daily counter (reset 9:00 AM IT)
+- **Google Search Grounding** → Shared daily query counter (1,500/day)
+- **Context cache** → Cache name + expireTime persisted in Script Properties
+
+**Context Caching Contract:**
+```javascript
+// cachedContents.create receives static context, systemInstruction and tools.
+// generateContent receives only cachedContent + the new user prompt.
+// If generateContent returns 404 for an evicted cache, the cache is recreated once.
+```
 
 **Cache Optimization (WAL Pattern):**
 ```javascript
@@ -564,12 +574,11 @@ tokenComponents = {
 The system supports a backup API key for maximum response quality:
 
 ```javascript
-// 4-Level Fallback Strategy
+// Cross-key strategy: same physical model, different API keys if configured
 attemptStrategy = [
-  { name: 'Primary High-Quality', key: primaryKey, model: 'gemini-2.5-flash', skipRateLimit: false },
-  { name: 'Backup High-Quality', key: backupKey, model: 'gemini-2.5-flash', skipRateLimit: true },
-  { name: 'Primary Lite', key: primaryKey, model: 'gemini-2.5-flash-lite', skipRateLimit: false },
-  { name: 'Backup Lite', key: backupKey, model: 'gemini-2.5-flash-lite', skipRateLimit: true }
+  { name: 'Primary-Flash3.1Lite', key: primaryKey, model: 'gemini-3.1-flash-lite', skipRateLimit: false },
+  { name: 'Backup-Flash3.1Lite', key: backupKey, model: 'gemini-3.1-flash-lite', skipRateLimit: false },
+  { name: 'Fallback-Lite', key: primaryKey, model: 'gemini-3.1-flash-lite', skipRateLimit: false }
 ];
 
 for (plan of attemptStrategy) {
@@ -588,7 +597,7 @@ for (plan of attemptStrategy) {
 **Benefits:**
 - 🎯 **Quality First** → Always tries high-quality model first
 - 🔄 **Graceful Degradation** → Falls back to lite model only when necessary
-- 📊 **Clean Statistics** → Backup key bypasses local rate limiter
+- 📊 **Clean Statistics** → Backup key is still counted by the local RPD guard
 - ⏰ **Timeout Prevention** → Batch size reduced to 3 emails per run
 
 **Configuration:**

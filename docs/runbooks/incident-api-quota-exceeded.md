@@ -35,9 +35,9 @@ function checkQuotaStatus() {
 
 | Model | RPD Limit | Reset |
 |-------|-----------|-------|
-| Flash 2.5 | 250/day | 9:00 AM IT |
-| Flash Lite | 1000/day | 9:00 AM IT |
-| Flash 2.0 | 100/day | 9:00 AM IT |
+| Gemini 3.1 Flash-Lite | 3,500/day | 9:00 AM IT |
+| Google Search Grounding | 1,500 shared queries/day | 9:00 AM IT |
+| Context cache create | Counts as API request when TTL expires | 9:00 AM IT |
 
 ---
 
@@ -49,7 +49,7 @@ function checkQuotaStatus() {
 // In gas_config.js, temporarily modify:
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-lite']  // Avoid flash-2.5
+  'generation': ['flash-lite']  // Conservative path while RPD recovers
 };
 ```
 
@@ -106,9 +106,9 @@ function timeToQuotaReset() {
 // After 9:00 AM, restore normal configuration:
 
 CONFIG.MODEL_STRATEGY = {
-  'quick_check': ['flash-lite', 'flash-2.0'],
-  'generation': ['flash-2.5', 'flash-lite', 'flash-2.0'],
-  'fallback': ['flash-lite', 'flash-2.0']
+  'quick_check': ['flash-lite', 'flash-3.1-lite'],
+  'generation': ['flash-3.1-lite', 'flash-lite', 'flash-3.1-lite-backup'],
+  'fallback': ['flash-lite', 'flash-3.1-lite-backup']
 };
 
 CONFIG.MAX_EMAILS_PER_RUN = 10;
@@ -155,9 +155,9 @@ If quota is frequently exhausted, consider:
 
 | Metric | Warning Threshold | Critical Threshold |
 |--------|-------------------|-------------------|
-| RPD Flash 2.5 | > 200/250 (80%) | > 237/250 (95%) |
-| RPD Flash Lite | > 800/1000 (80%) | > 950/1000 (95%) |
-| Avg tokens/response | > 2000 | > 3500 |
+| RPD Gemini 3.1 Flash-Lite | > 2,800/3,500 (80%) | > 3,325/3,500 (95%) |
+| Google Search Grounding | > 1,200/1,500 (80%) | > 1,425/1,500 (95%) |
+| Avg tokens/response | > 20,000 | > 80,000 |
 | Emails/hour | > 15 | > 25 |
 
 ---

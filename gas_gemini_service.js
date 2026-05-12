@@ -40,8 +40,9 @@ var GeminiService = class GeminiService {
     // Alias accessibile per i moduli che usano la proprietà apiKey
     this.apiKey = this.primaryKey;
 
-    this.modelName = this.config.MODEL_NAME || 'gemini-2.5-flash';
+    this.modelName = this.config.MODEL_NAME || 'gemini-3.1-flash-lite';
     this.baseUrl = this._buildGenerateUrl(this.modelName);
+    this.contextCacheConfig = this._getContextCacheConfig_();
 
     if (!this.primaryKey || this.primaryKey.length < 20 || /YOUR_[A-Z0-9_]+_HERE/.test(this.primaryKey)) {
       throw new Error('GEMINI_API_KEY non configurata correttamente (usa Script Properties, non placeholder)');
@@ -52,9 +53,12 @@ var GeminiService = class GeminiService {
     }
 
     // Configurazione retry
-    this.maxRetries = 3;
-    this.retryDelay = 2000; // millisecondi
-    this.backoffFactor = 1.5; // crescita graduale: 2s → 3s → 4.5s
+    const backoffConfig = this.config.GEMINI_BACKOFF || {};
+    this.maxRetries = Number(backoffConfig.maxRetries) > 0 ? Number(backoffConfig.maxRetries) : 2;
+    this.retryDelay = Number(backoffConfig.retryDelayMs) > 0 ? Number(backoffConfig.retryDelayMs) : 4000;
+    this.backoffFactor = Number(backoffConfig.factor) > 1 ? Number(backoffConfig.factor) : 2.5;
+    this.maxBackoffMs = Number(backoffConfig.maxBackoffMs) > 0 ? Number(backoffConfig.maxBackoffMs) : 120000;
+    this.retryJitterMs = Number(backoffConfig.jitterMs) >= 0 ? Number(backoffConfig.jitterMs) : 750;
 
     // Rate Limiter (abilitato da CONFIG.USE_RATE_LIMITER)
     this.useRateLimiter = this.config.USE_RATE_LIMITER === true;
@@ -80,6 +84,25 @@ var GeminiService = class GeminiService {
     this.logger.info('GeminiService inizializzato', { modello: this.modelName });
   }
 
+  _getContextCacheConfig_() {
+    const raw = (this.config && this.config.GEMINI_CONTEXT_CACHE) ? this.config.GEMINI_CONTEXT_CACHE : {};
+    const grounding = raw.googleSearchGrounding || {};
+    return {
+      enabled: raw.enabled === true,
+      ttlSeconds: Number(raw.ttlSeconds) > 0 ? Number(raw.ttlSeconds) : 3300,
+      expirySkewMs: Number(raw.expirySkewMs) >= 0 ? Number(raw.expirySkewMs) : 90000,
+      minCacheableTokens: Number(raw.minCacheableTokens) > 0 ? Number(raw.minCacheableTokens) : 1024,
+      splitMarker: raw.splitMarker || '**EMAIL DA RISPONDERE:**',
+      propertyPrefix: raw.propertyPrefix || 'gemini_context_cache_v2_',
+      googleSearchGrounding: {
+        enabled: grounding.enabled === true,
+        reservedQueriesPerRequest: Number(grounding.reservedQueriesPerRequest) > 0
+          ? Number(grounding.reservedQueriesPerRequest)
+          : 1
+      }
+    };
+  }
+
   // ========================================================================
   // HELPER RATE LIMITER
   // ========================================================================
@@ -95,7 +118,7 @@ var GeminiService = class GeminiService {
   /**
    * Genera risposta con modello specifico
    * @param {string} prompt - Prompt completo
-   * @param {string} modelName - Nome modello API (es. 'gemini-2.5-flash')
+   * @param {string} modelName - Nome modello API (es. 'gemini-3.1-flash-lite')
    * @param {string} apiKeyOverride - Chiave API opzionale (per strategia multi-key)
    * @param {Array<Blob>} attachments - Array di Blob (immagini/PDF) da inviare
    * @returns {string|null} Testo generato
@@ -108,6 +131,11 @@ var GeminiService = class GeminiService {
     const maxTokens = this.config.MAX_OUTPUT_TOKENS ?? 6000;
 
     console.log(`🤖 Chiamata ${modelName} (prompt: ${prompt.length} caratteri)...`);
+
+    const cachePlan = this._buildContextCachePlan_(prompt, modelName, attachments);
+    if (cachePlan) {
+      return this._generateWithCachedContent_(cachePlan, modelName, activeKey);
+    }
 
     const requestParts = [];
     if (attachments && attachments.length > 0) {
@@ -239,6 +267,491 @@ var GeminiService = class GeminiService {
 
     console.log(`✓ Generati ${generatedText.length} caratteri (da ${parts.length} parti)`);
     return generatedText;
+  }
+
+  /**
+   * Crea o riusa un CachedContent REST salvando nome risorsa e scadenza in Script Properties.
+   * Il payload di creazione cache contiene systemInstruction e tools; la generateContent finale
+   * usa solo cachedContent + nuovo prompt utente, evitando conflitti API.
+   */
+  getOrCreateCachedContent(content, systemInstructions, tools, options = {}) {
+    const modelName = options.modelName || this.modelName;
+    const apiKey = options.apiKey || this.primaryKey;
+    const ttlSeconds = Number(options.ttlSeconds) > 0 ? Number(options.ttlSeconds) : this.contextCacheConfig.ttlSeconds;
+    const forceRefresh = options.forceRefresh === true;
+    const cacheKey = options.cacheKey || this._buildContextCachePropertyKey_(modelName, content, systemInstructions, tools, ttlSeconds);
+    const now = Date.now();
+    const skewMs = this.contextCacheConfig.expirySkewMs;
+
+    const lock = (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function')
+      ? LockService.getScriptLock()
+      : null;
+    let lockAcquired = false;
+    try {
+      if (lock) {
+        lockAcquired = lock.tryLock(25000);
+        if (!lockAcquired) {
+          throw new Error('CACHE_LOCK_TIMEOUT: impossibile acquisire lock per CachedContent');
+        }
+      }
+
+      if (!forceRefresh) {
+        const cached = this._readCachedContentRecord_(cacheKey);
+        if (cached && cached.name && cached.expireTimeMs && cached.expireTimeMs - skewMs > now) {
+          this._incrementCacheMetric_('hit');
+          return cached.name;
+        }
+      }
+
+      const payload = {
+        model: `models/${modelName}`,
+        contents: this._normalizeCachedContents_(content),
+        ttl: `${ttlSeconds}s`
+      };
+      const normalizedSystemInstruction = this._normalizeSystemInstruction_(systemInstructions);
+      if (normalizedSystemInstruction) {
+        payload.systemInstruction = normalizedSystemInstruction;
+      }
+      if (Array.isArray(tools) && tools.length > 0) {
+        payload.tools = tools;
+      }
+
+      let response;
+      try {
+        response = this.fetchFn(`${this._buildCachedContentsUrl_()}?key=${encodeURIComponent(apiKey)}`, {
+          method: 'POST',
+          contentType: 'application/json',
+          payload: JSON.stringify(payload),
+          muteHttpExceptions: true
+        });
+      } catch (error) {
+        throw new Error(`Errore rete/timeout durante cachedContents.create: ${error.message}`);
+      }
+      this._trackAuxiliaryGeminiRequest_(modelName, this._estimateTokens(this._stringifyForHash_(content), []), 'cachedContents.create');
+
+      const responseCode = response.getResponseCode();
+      const responseBody = response.getContentText();
+      const apiErrorMsg = this._extractApiErrorMessage_(responseBody);
+
+      if (responseCode === 429) {
+        throw new Error(`QUOTA_EXHAUSTED: cachedContents.create rate limit (429): ${apiErrorMsg}`);
+      }
+      if (responseCode === 404) {
+        throw new Error(`CACHE_CREATE_NOT_FOUND: modello o endpoint cache non trovato (404): ${apiErrorMsg}`);
+      }
+      if (responseCode < 200 || responseCode >= 300) {
+        throw new Error(`Errore cachedContents.create ${responseCode}: ${apiErrorMsg}`);
+      }
+
+      let result;
+      try {
+        result = JSON.parse(responseBody);
+      } catch (error) {
+        throw new Error(`Risposta cachedContents.create non JSON valida: ${error.message}`);
+      }
+
+      if (!result.name) {
+        throw new Error('cachedContents.create non ha restituito il campo name');
+      }
+
+      const expireTimeMs = result.expireTime ? Date.parse(result.expireTime) : (now + ttlSeconds * 1000);
+      const record = {
+        name: result.name,
+        model: modelName,
+        expireTime: result.expireTime || new Date(expireTimeMs).toISOString(),
+        expireTimeMs: Number.isFinite(expireTimeMs) ? expireTimeMs : (now + ttlSeconds * 1000),
+        ttlSeconds: ttlSeconds,
+        createdAt: new Date(now).toISOString()
+      };
+      this.props.setProperty(cacheKey, JSON.stringify(record));
+      this._incrementCacheMetric_('create');
+      console.log(`🧠 CachedContent pronto: ${record.name} (scade ${record.expireTime})`);
+      return record.name;
+    } finally {
+      if (lockAcquired && lock) {
+        lock.releaseLock();
+      }
+    }
+  }
+
+  _buildContextCachePlan_(prompt, modelName, attachments) {
+    if (!this.contextCacheConfig || this.contextCacheConfig.enabled !== true) return null;
+    if (typeof prompt !== 'string' || !prompt.trim()) return null;
+
+    const split = this._splitPromptForContextCache_(prompt);
+    if (!split) return null;
+
+    const extracted = this._extractSystemInstructionForCache_(split.cacheContent);
+    const cacheContent = extracted.cacheContent || split.cacheContent;
+    const systemInstruction = extracted.systemInstruction || null;
+    const estimatedCacheTokens = this._estimateTokens(cacheContent, []);
+    if (estimatedCacheTokens < this.contextCacheConfig.minCacheableTokens) {
+      return null;
+    }
+
+    const tools = this._getContextCacheTools_();
+    return {
+      cacheContent: cacheContent,
+      systemInstruction: systemInstruction,
+      userPrompt: split.userPrompt,
+      userParts: this._buildUserParts_(split.userPrompt, attachments || []),
+      tools: tools,
+      usesGoogleSearch: this._toolsUseGoogleSearch_(tools),
+      cacheKey: this._buildContextCachePropertyKey_(modelName, cacheContent, systemInstruction, tools, this.contextCacheConfig.ttlSeconds),
+      ttlSeconds: this.contextCacheConfig.ttlSeconds
+    };
+  }
+
+  _splitPromptForContextCache_(prompt) {
+    const marker = this.contextCacheConfig.splitMarker;
+    const index = prompt.indexOf(marker);
+    if (index <= 0) return null;
+    const cacheContent = prompt.slice(0, index).trim();
+    const userPrompt = prompt.slice(index).trim();
+    if (!cacheContent || !userPrompt) return null;
+    return { cacheContent: cacheContent, userPrompt: userPrompt };
+  }
+
+  _extractSystemInstructionForCache_(cacheContent) {
+    const parts = String(cacheContent || '').split(/\n{2,}/);
+    if (parts.length < 2) {
+      return { systemInstruction: null, cacheContent: cacheContent };
+    }
+    return {
+      systemInstruction: parts[0].trim(),
+      cacheContent: parts.slice(1).join('\n\n').trim()
+    };
+  }
+
+  _generateWithCachedContent_(cachePlan, modelName, activeKey, forceRefresh = false) {
+    const cacheName = this.getOrCreateCachedContent(
+      cachePlan.cacheContent,
+      cachePlan.systemInstruction,
+      cachePlan.tools,
+      {
+        modelName: modelName,
+        apiKey: activeKey,
+        ttlSeconds: cachePlan.ttlSeconds,
+        cacheKey: cachePlan.cacheKey,
+        forceRefresh: forceRefresh
+      }
+    );
+
+    const reservedGroundingQueries = cachePlan.usesGoogleSearch
+      ? this._reserveGoogleSearchGrounding_(this.contextCacheConfig.googleSearchGrounding.reservedQueriesPerRequest)
+      : 0;
+
+    const payload = {
+      contents: [{ role: 'user', parts: cachePlan.userParts }],
+      cachedContent: cacheName
+    };
+
+    const url = this._buildGenerateUrl(modelName);
+    let response;
+    try {
+      response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
+        method: 'POST',
+        contentType: 'application/json',
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      });
+    } catch (error) {
+      throw new Error(`Errore rete/timeout durante generateContent con CachedContent: ${error.message}`);
+    }
+
+    const responseCode = response.getResponseCode();
+    const responseBody = response.getContentText();
+    const apiErrorMsg = this._extractApiErrorMessage_(responseBody);
+
+    if (responseCode === 404 && !forceRefresh) {
+      console.warn('♻️ CachedContent non trovato o espulso: ricreo cache e riprovo una volta.');
+      this._invalidateCachedContent_(cachePlan.cacheKey);
+      return this._generateWithCachedContent_(cachePlan, modelName, activeKey, true);
+    }
+
+    if (responseCode === 429 && activeKey === this.primaryKey && this.backupKey) {
+      this.isPrimaryExhausted = true;
+      throw new Error('PRIMARY_QUOTA_EXHAUSTED');
+    }
+    if (responseCode === 429) {
+      throw new Error(`QUOTA_EXHAUSTED: Quota o rate limit superato (429): ${apiErrorMsg}`);
+    }
+    if ([500, 502, 503, 504].includes(responseCode)) {
+      throw new Error(`Errore server temporaneo (${responseCode}): ${apiErrorMsg}`);
+    }
+    if (responseCode === 400) {
+      throw new Error(`Errore API 400: ${apiErrorMsg}`);
+    }
+    if (responseCode === 403) {
+      throw new Error(`Errore API 403: ${apiErrorMsg}`);
+    }
+    if (responseCode !== 200) {
+      throw new Error(`Errore API ${responseCode}: ${apiErrorMsg}`);
+    }
+
+    let result;
+    try {
+      result = JSON.parse(responseBody);
+    } catch (error) {
+      throw new Error(`Risposta Gemini non JSON valida: ${error.message}`);
+    }
+
+    if (cachePlan.usesGoogleSearch) {
+      this._reconcileGoogleSearchGrounding_(reservedGroundingQueries, this._extractGroundingQueryCount_(result));
+    }
+
+    const generatedText = this._extractGeneratedTextFromResult_(result);
+    this._incrementCacheMetric_('generate');
+    console.log(`✓ Generati ${generatedText.length} caratteri con CachedContent`);
+    return generatedText;
+  }
+
+  _extractGeneratedTextFromResult_(result) {
+    if (!result.candidates || !result.candidates[0]) {
+      const blockReason = result.promptFeedback && result.promptFeedback.blockReason
+        ? result.promptFeedback.blockReason
+        : null;
+      if (blockReason) {
+        throw new Error(`Risposta bloccata da Gemini (promptFeedback): ${blockReason}`);
+      }
+      throw new Error('Risposta Gemini non valida: nessun candidato');
+    }
+
+    const candidate = result.candidates[0];
+    if (candidate.finishReason && ['SAFETY', 'RECITATION', 'OTHER', 'BLOCKLIST'].includes(candidate.finishReason)) {
+      throw new Error(`Risposta bloccata da Gemini: ${candidate.finishReason}`);
+    }
+
+    const parts = candidate.content?.parts || [];
+    const generatedText = parts.map(p => p.text || '').join('').trim();
+    if (!generatedText) {
+      throw new Error('Gemini ha restituito testo vuoto');
+    }
+    return generatedText;
+  }
+
+  _buildUserParts_(prompt, attachments) {
+    const requestParts = [];
+    if (attachments && attachments.length > 0) {
+      attachments.forEach((blob) => {
+        try {
+          if (blob && blob.inlineData && blob.inlineData.data) {
+            requestParts.push(blob);
+            return;
+          }
+          const mimeType = blob && typeof blob.getContentType === 'function' ? blob.getContentType() : '';
+          if (!mimeType) return;
+          requestParts.push({
+            inlineData: {
+              mimeType: mimeType,
+              data: Utilities.base64Encode(blob.getBytes())
+            }
+          });
+        } catch (e) {
+          console.warn(`Impossibile encodare allegato per cache generation: ${e.message}`);
+        }
+      });
+    }
+    requestParts.push({ text: prompt });
+    return requestParts;
+  }
+
+  _normalizeCachedContents_(content) {
+    if (Array.isArray(content)) return content;
+    if (content && Array.isArray(content.contents)) return content.contents;
+    if (content && Array.isArray(content.parts)) return [content];
+    const text = typeof content === 'string' ? content : this._stringifyForHash_(content);
+    if (!text || !String(text).trim()) {
+      throw new Error('CachedContent vuoto: impossibile creare cache');
+    }
+    return [{ role: 'user', parts: [{ text: String(text) }] }];
+  }
+
+  _normalizeSystemInstruction_(systemInstructions) {
+    if (!systemInstructions) return null;
+    if (typeof systemInstructions === 'string') {
+      return { parts: [{ text: systemInstructions }] };
+    }
+    if (systemInstructions && Array.isArray(systemInstructions.parts)) {
+      return systemInstructions;
+    }
+    return { parts: [{ text: this._stringifyForHash_(systemInstructions) }] };
+  }
+
+  _getContextCacheTools_() {
+    const grounding = this.contextCacheConfig.googleSearchGrounding || {};
+    if (grounding.enabled === true) {
+      // REST Gemini 3 usa google_search; la generateContent finale non ridefinisce il tool.
+      return [{ google_search: {} }];
+    }
+    return [];
+  }
+
+  _toolsUseGoogleSearch_(tools) {
+    return Array.isArray(tools) && tools.some(tool => tool && (tool.google_search || tool.googleSearch || tool.googleSearchRetrieval));
+  }
+
+  _buildCachedContentsUrl_() {
+    return 'https://generativelanguage.googleapis.com/v1beta/cachedContents';
+  }
+
+  _buildContextCachePropertyKey_(modelName, content, systemInstructions, tools, ttlSeconds) {
+    const raw = this._stringifyForHash_({
+      modelName: modelName,
+      content: content,
+      systemInstructions: systemInstructions,
+      tools: tools || [],
+      ttlSeconds: ttlSeconds
+    });
+    return this.contextCacheConfig.propertyPrefix + this._hashString_(raw);
+  }
+
+  _readCachedContentRecord_(cacheKey) {
+    try {
+      const raw = this.props.getProperty(cacheKey);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      console.warn(`⚠️ Record CachedContent corrotto (${cacheKey}), verrà ricreato.`);
+      return null;
+    }
+  }
+
+  _invalidateCachedContent_(cacheKey) {
+    try {
+      if (cacheKey && this.props && typeof this.props.deleteProperty === 'function') {
+        this.props.deleteProperty(cacheKey);
+      }
+      this._incrementCacheMetric_('evicted404');
+    } catch (e) {
+      console.warn(`⚠️ Impossibile invalidare cache ${cacheKey}: ${e.message}`);
+    }
+  }
+
+  _extractApiErrorMessage_(responseBody) {
+    let apiErrorMsg = String(responseBody || '').substring(0, 200);
+    try {
+      const parsedObj = JSON.parse(responseBody);
+      if (parsedObj && parsedObj.error && parsedObj.error.message) {
+        apiErrorMsg = parsedObj.error.message;
+      }
+    } catch (e) {
+      // fallback al body raw troncato.
+    }
+    return apiErrorMsg;
+  }
+
+  _trackAuxiliaryGeminiRequest_(modelName, estimatedTokens, label) {
+    try {
+      if (this.rateLimiter && typeof this.rateLimiter.trackAuxiliaryRequest === 'function') {
+        this.rateLimiter.trackAuxiliaryRequest(modelName, estimatedTokens || 0, label, true);
+      }
+    } catch (e) {
+      console.warn(`⚠️ Tracking chiamata ausiliaria Gemini non riuscito: ${e.message}`);
+    }
+  }
+
+  _reserveGoogleSearchGrounding_(count) {
+    if (!count || count <= 0) return 0;
+    if (this.rateLimiter && typeof this.rateLimiter.reserveGoogleSearchGroundingQueries === 'function') {
+      this.rateLimiter.reserveGoogleSearchGroundingQueries(count);
+      return count;
+    }
+    this._incrementGroundingCounterLocal_(count);
+    return count;
+  }
+
+  _reconcileGoogleSearchGrounding_(reservedCount, actualCount) {
+    if (this.rateLimiter && typeof this.rateLimiter.reconcileGoogleSearchGroundingQueries === 'function') {
+      this.rateLimiter.reconcileGoogleSearchGroundingQueries(reservedCount || 0, actualCount || 0);
+      return;
+    }
+    const extra = Math.max(0, (actualCount || 0) - (reservedCount || 0));
+    if (extra > 0) this._incrementGroundingCounterLocal_(extra);
+  }
+
+  _incrementGroundingCounterLocal_(count) {
+    const increment = Math.max(0, parseInt(count || 0, 10) || 0);
+    if (increment <= 0) return;
+    const notes = (this.config && this.config.GEMINI_FREE_TIER_NOTES) ? this.config.GEMINI_FREE_TIER_NOTES : {};
+    const limit = Number(notes.groundingSharedRpd) > 0 ? Number(notes.groundingSharedRpd) : 1500;
+    const lock = LockService.getScriptLock();
+    const gotLock = lock.tryLock(25000);
+    if (!gotLock) {
+      throw new Error('QUOTA_EXHAUSTED: lock Google Search Grounding non acquisito');
+    }
+    try {
+      const todayPacific = Utilities.formatDate(new Date(), 'America/Los_Angeles', 'yyyy-MM-dd');
+      const dateKey = 'grounding_google_search_date';
+      const countKey = 'grounding_google_search_rpd';
+      const storedDate = this.props.getProperty(dateKey) || '';
+      let current = storedDate === todayPacific
+        ? (parseInt(this.props.getProperty(countKey) || '0', 10) || 0)
+        : 0;
+      if (current + increment > limit) {
+        throw new Error(`QUOTA_EXHAUSTED: Google Search Grounding ${current + increment}/${limit} query giornaliere`);
+      }
+      current += increment;
+      this.props.setProperties({
+        [dateKey]: todayPacific,
+        [countKey]: String(current)
+      });
+    } finally {
+      lock.releaseLock();
+    }
+  }
+
+  _extractGroundingQueryCount_(result) {
+    try {
+      const metadata = result && result.candidates && result.candidates[0]
+        ? result.candidates[0].groundingMetadata
+        : null;
+      const queries = metadata && Array.isArray(metadata.webSearchQueries)
+        ? metadata.webSearchQueries.filter(Boolean)
+        : [];
+      const unique = {};
+      queries.forEach(q => { unique[String(q)] = true; });
+      return Object.keys(unique).length;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  _incrementCacheMetric_(metricName) {
+    try {
+      const date = Utilities.formatDate(new Date(), 'America/Los_Angeles', 'yyyy-MM-dd');
+      const key = `gemini_context_cache_metric_${metricName}_${date}`;
+      const current = parseInt(this.props.getProperty(key) || '0', 10) || 0;
+      this.props.setProperty(key, String(current + 1));
+    } catch (e) {
+      // Metriche best-effort: non devono bloccare la generazione.
+    }
+  }
+
+  _stringifyForHash_(value) {
+    if (typeof value === 'string') return value;
+    try {
+      return JSON.stringify(value);
+    } catch (e) {
+      return String(value);
+    }
+  }
+
+  _hashString_(value) {
+    const text = String(value || '');
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.computeDigest === 'function') {
+      const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text);
+      return bytes.map(function (b) {
+        const n = b < 0 ? b + 256 : b;
+        return ('0' + n.toString(16)).slice(-2);
+      }).join('');
+    }
+
+    let hash = 5381;
+    for (let i = 0; i < text.length; i++) {
+      hash = ((hash << 5) + hash) + text.charCodeAt(i);
+      hash = hash & 0xffffffff;
+    }
+    return Math.abs(hash).toString(16);
   }
 
   /**
@@ -502,10 +1015,13 @@ Output JSON:
    * Esegue una funzione con retry temporizzati
    * Usa ritardi crescenti tra i tentativi
    */
-  _withRetry(fn, context = 'Chiamata API', maxRetries = 3) {
+  _withRetry(fn, context = 'Chiamata API', maxRetries = null) {
+    const attempts = Number(maxRetries) > 0
+      ? Number(maxRetries)
+      : (Number(this.maxRetries) > 0 ? Number(this.maxRetries) : 2);
     let lastError = null;
 
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
       try {
         const result = fn();
         // Le risposte vuote sono considerate non transienti.
@@ -533,15 +1049,23 @@ Output JSON:
           throw error;
         }
 
-        if (attempt < maxRetries - 1) {
-          const waitTime = this.retryDelay * Math.pow(this.backoffFactor, attempt);
-          console.warn(`⚠️ ${context} fallito (tentativo ${attempt + 1}/${maxRetries}): [${classified.type}] ${error.message} - Attendendo ${waitTime}ms...`);
+        if (attempt < attempts - 1) {
+          const retryDelay = Number(this.retryDelay) > 0 ? Number(this.retryDelay) : 4000;
+          const backoffFactor = Number(this.backoffFactor) > 1 ? Number(this.backoffFactor) : 2.5;
+          const maxBackoffMs = Number(this.maxBackoffMs) > 0 ? Number(this.maxBackoffMs) : 120000;
+          const jitterMax = Number(this.retryJitterMs) > 0 ? Number(this.retryJitterMs) : 0;
+          const jitter = jitterMax > 0 ? Math.floor(Math.random() * jitterMax) : 0;
+          const waitTime = Math.min(
+            retryDelay * Math.pow(backoffFactor, attempt),
+            maxBackoffMs
+          ) + jitter;
+          console.warn(`⚠️ ${context} fallito (tentativo ${attempt + 1}/${attempts}): [${classified.type}] ${error.message} - Attendendo ${waitTime}ms...`);
           Utilities.sleep(waitTime);
         }
       }
     }
 
-    throw lastError || new Error(`Fallimento definitivo dopo ${maxRetries} tentativi`);
+    throw lastError || new Error(`Fallimento definitivo dopo ${attempts} tentativi`);
   }
 
   /**
@@ -1515,6 +2039,14 @@ Testo:
 // Funzione factory per compatibilità
 function createGeminiService() {
   return new GeminiService();
+}
+
+/**
+ * Wrapper globale richiesto per uso manuale/test da Apps Script.
+ * Per chiamate applicative è preferibile riusare l'istanza GeminiService già creata.
+ */
+function getOrCreateCachedContent(content, systemInstructions, tools) {
+  return new GeminiService().getOrCreateCachedContent(content, systemInstructions, tools);
 }
 
 // ====================================================================

@@ -171,9 +171,9 @@ const signaturePatterns = [
 "NEVER expose your reasoning process.
 NEVER start responses with 'Reviewing...', 'Checking...', etc."
 
-// 2. Consider fallback to previous model:
+// 2. Consider conservative generation path:
 CONFIG.MODEL_STRATEGY = {
-  'generation': ['flash-lite', 'flash-2.0']  // Avoid 2.5
+  'generation': ['flash-lite', 'flash-3.1-lite']
 };
 ```
 

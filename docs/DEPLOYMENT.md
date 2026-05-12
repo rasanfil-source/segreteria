@@ -273,10 +273,10 @@ Visibility: Private (NOT public)
 
 | Scenario | Recommended Model | RPD Budget | Estimated Cost/Month |
 |----------|-------------------|------------|----------------------|
-| Small parish (<50 emails/week) | Flash Lite | 1000 | €5-8 |
-| Medium parish (100-200 emails/week) | Flash 2.5 | 250 | €10-15 |
-| Large parish (>300 emails/week) | Flash 2.5 + Lite fallback | 250+1000 | €15-25 |
-| Development/Test | Flash Lite | 1000 | €0-2 |
+| Small parish (<50 emails/week) | Gemini 3.1 Flash-Lite | 3,500 | Free Tier, watch RPD |
+| Medium parish (100-200 emails/week) | Gemini 3.1 Flash-Lite + context cache | 3,500 | Free Tier, cache static prompt |
+| Large parish (>300 emails/week) | Gemini 3.1 Flash-Lite + backup key | 3,500/project | RPD remains the bottleneck |
+| Development/Test | Gemini 3.1 Flash-Lite | 3,500 | Keep DRY_RUN enabled |
 
 ### When to Use Fallback Chain?
 
@@ -284,8 +284,8 @@ Visibility: Private (NOT public)
 // Recommended configuration for production
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],             // Economy for quick checks
-  'generation': ['flash-2.5', 'flash-lite'], // Quality → Fallback
-  'fallback': ['flash-lite', 'flash-2.0']    // Last resort
+  'generation': ['flash-3.1-lite', 'flash-lite'], // Same physical model, separate logical paths
+  'fallback': ['flash-lite', 'flash-3.1-lite-backup']
 };
 ```
 
@@ -293,9 +293,9 @@ CONFIG.MODEL_STRATEGY = {
 
 | Model | ✅ Pros | ❌ Cons |
 |-------|---------|---------|
-| **Flash 2.5** | Maximum quality, fewer hallucinations, better reasoning | Limited RPD (250/day) |
-| **Flash Lite** | Generous RPD (1000), economical, fast | Sometimes generic responses |
-| **Flash 2.0** | Stable, well tested | Less capable than 2.5, legacy |
+| **Gemini 3.1 Flash-Lite** | 1M context window, caching supported, high RPM/TPM | RPD 3,500/day is still the bottleneck |
+| **Context Cache** | Reuses static prompt tokens and avoids resending tools/instructions | Cache creation is an extra API call when TTL expires |
+| **Google Search Grounding** | Real-time facts when explicitly enabled | Shared 1,500 queries/day; disabled by default |
 
 ### Configuration by Scenario
 
@@ -312,7 +312,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 5;
 ```javascript
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-2.5', 'flash-lite']
+  'generation': ['flash-3.1-lite', 'flash-lite']
 };
 CONFIG.MAX_EMAILS_PER_RUN = 10;
 ```
@@ -321,7 +321,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 10;
 ```javascript
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-2.5']
+  'generation': ['flash-3.1-lite']
 };
 CONFIG.MAX_EMAILS_PER_RUN = 15;
 // Consider trigger every 5 minutes
@@ -367,7 +367,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 5;
 // Use cheaper models
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-lite', 'flash-2.5']  // Inverted
+  'generation': ['flash-lite', 'flash-3.1-lite']  // Same model, conservative path
 };
 ```
 

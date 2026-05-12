@@ -99,5 +99,107 @@ console.log('--- Test _generateWithModel: 429 senza backup propaga QUOTA_EXHAUST
   assert(thrown && thrown.message.includes('QUOTA_EXHAUSTED'), '429 deve includere QUOTA_EXHAUSTED per il RateLimiter');
 }
 
+console.log('--- Test Context Cache: payload minimale e auto-healing 404 ---');
+{
+  const previousUtilities = global.Utilities;
+  const previousLockService = global.LockService;
+  const previousEstimateTokenCount = global.estimateTokenCount;
+
+  const store = new Map();
+  const props = {
+    getProperty: (key) => store.has(key) ? store.get(key) : null,
+    setProperty: (key, value) => { store.set(key, String(value)); },
+    setProperties: (values) => {
+      Object.keys(values || {}).forEach((key) => store.set(key, String(values[key])));
+    },
+    deleteProperty: (key) => { store.delete(key); }
+  };
+  const calls = [];
+
+  global.Utilities = {
+    formatDate: () => '2026-05-12'
+  };
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => true,
+      releaseLock: () => { }
+    })
+  };
+  global.estimateTokenCount = (text) => Math.max(1, Math.ceil(String(text || '').length / 4));
+
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = '';
+  service.config = { TEMPERATURE: 0.5, MAX_OUTPUT_TOKENS: 1000 };
+  service.props = props;
+  service.modelName = 'gemini-3.1-flash-lite';
+  service.contextCacheConfig = {
+    enabled: true,
+    ttlSeconds: 3300,
+    expirySkewMs: 90000,
+    minCacheableTokens: 1,
+    splitMarker: '**EMAIL DA RISPONDERE:**',
+    propertyPrefix: 'test_context_cache_',
+    googleSearchGrounding: { enabled: false, reservedQueriesPerRequest: 1 }
+  };
+  service.rateLimiter = {
+    trackAuxiliaryRequest: () => { }
+  };
+  service.fetchFn = (url, options) => {
+    const payload = JSON.parse(options.payload);
+    calls.push({ url, payload });
+    if (url.includes('/cachedContents') && calls.filter(c => c.url.includes('/cachedContents')).length === 1) {
+      return {
+        getResponseCode: () => 200,
+        getContentText: () => JSON.stringify({ name: 'cachedContents/one', expireTime: '2026-05-12T22:00:00Z' })
+      };
+    }
+    if (url.includes(':generateContent') && calls.filter(c => c.url.includes(':generateContent')).length === 1) {
+      return {
+        getResponseCode: () => 404,
+        getContentText: () => JSON.stringify({ error: { message: 'Cached content not found' } })
+      };
+    }
+    if (url.includes('/cachedContents')) {
+      return {
+        getResponseCode: () => 200,
+        getContentText: () => JSON.stringify({ name: 'cachedContents/two', expireTime: '2026-05-12T22:00:00Z' })
+      };
+    }
+    return {
+      getResponseCode: () => 200,
+      getContentText: () => JSON.stringify({ candidates: [{ content: { parts: [{ text: 'Risposta finale' }] } }] })
+    };
+  };
+
+  try {
+    const prompt = [
+      'Sei la segreteria della Parrocchia.',
+      '',
+      'CONTESTO STATICO E KB',
+      '',
+      '**EMAIL DA RISPONDERE:**',
+      'Contenuto nuovo utente'
+    ].join('\n');
+    const text = service._generateWithModel(prompt, 'gemini-3.1-flash-lite', 'primary-key', []);
+    assert(text === 'Risposta finale', 'deve rigenerare cache e completare la generazione dopo 404');
+
+    const cacheCreates = calls.filter(c => c.url.includes('/cachedContents'));
+    const generations = calls.filter(c => c.url.includes(':generateContent'));
+    assert(cacheCreates.length === 2, 'deve ricreare la cache dopo 404');
+    assert(cacheCreates[0].payload.systemInstruction, 'systemInstruction deve stare nella create cache');
+    assert(Array.isArray(cacheCreates[0].payload.contents), 'contents cache deve essere nella create cache');
+    assert(generations.length === 2, 'deve tentare generateContent due volte');
+    assert(generations[1].payload.cachedContent === 'cachedContents/two', 'generate finale deve usare la cache ricreata');
+    assert(!generations[1].payload.systemInstruction, 'generateContent non deve ridefinire systemInstruction');
+    assert(!generations[1].payload.tools, 'generateContent non deve ridefinire tools');
+    assert(!generations[1].payload.generationConfig, 'generateContent cached deve restare minimale');
+  } finally {
+    global.Utilities = previousUtilities;
+    global.LockService = previousLockService;
+    global.estimateTokenCount = previousEstimateTokenCount;
+  }
+}
+
 
 console.log('✅ Test bilanciamento JSON Gemini passati');

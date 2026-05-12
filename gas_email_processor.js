@@ -1413,14 +1413,16 @@ ${addressLines.join('\n\n')}
       }
 
       const geminiModels = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_MODELS) ? CONFIG.GEMINI_MODELS : {};
-      const flashModel = (geminiModels['flash-2.5'] && geminiModels['flash-2.5'].name) ? geminiModels['flash-2.5'].name : 'gemini-2.5-flash';
-      const liteModel = (geminiModels['flash-lite'] && geminiModels['flash-lite'].name) ? geminiModels['flash-lite'].name : 'gemini-2.5-flash-lite';
+      const flashModel = (geminiModels['flash-3.1-lite'] && geminiModels['flash-3.1-lite'].name)
+        ? geminiModels['flash-3.1-lite'].name
+        : ((geminiModels['flash-lite'] && geminiModels['flash-lite'].name) ? geminiModels['flash-lite'].name : 'gemini-3.1-flash-lite');
+      const liteModel = (geminiModels['flash-lite'] && geminiModels['flash-lite'].name) ? geminiModels['flash-lite'].name : 'gemini-3.1-flash-lite';
 
       const attemptStrategy = [
         ...(this.geminiService && this.geminiService.isPrimaryExhausted ? [] : [
-          { name: 'Primary-Flash2.5', key: this.geminiService.primaryKey, model: flashModel, skipRateLimit: false }
+          { name: 'Primary-Flash3.1Lite', key: this.geminiService.primaryKey, model: flashModel, skipRateLimit: false }
         ]),
-        { name: 'Backup-Flash2.5', key: this.geminiService.backupKey, model: flashModel, skipRateLimit: true },
+        { name: 'Backup-Flash3.1Lite', key: this.geminiService.backupKey, model: flashModel, skipRateLimit: false },
         { name: 'Fallback-Lite', key: this.geminiService.primaryKey, model: liteModel, skipRateLimit: false }
       ];
 
