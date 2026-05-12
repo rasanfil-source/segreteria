@@ -70,7 +70,7 @@ var MemoryService = class MemoryService {
         this._sheet.setFrozenRows(1);
         console.log(`✓ Creato nuovo foglio: ${this.sheetName}`);
       } else {
-        this._ensureMemorySummaryColumn();
+        this._normalizeHeaders();
       }
 
       this._initialized = true;
@@ -83,35 +83,67 @@ var MemoryService = class MemoryService {
   }
 
   /**
-   * Verifica ed eventualmente aggiunge la colonna 'memorySummary'
-   * Garantisce la presenza di tutte le colonne nella struttura del foglio.
+   * Verifica e normalizza le intestazioni del foglio.
+   * Garantisce che tutte le colonne necessarie siano presenti e rinominate correttamente.
    */
-  _ensureMemorySummaryColumn() {
+  _normalizeHeaders() {
     try {
+      const expectedHeaders = [
+        'threadId', 'language', 'category', 'tone',
+        'providedInfo', 'lastUpdated', 'messageCount', 'version', 'memorySummary'
+      ];
+      
       const maxCols = this._sheet.getMaxColumns();
-      if (maxCols < 9) {
-        this._sheet.insertColumnsAfter(maxCols, 9 - maxCols);
+      if (maxCols < expectedHeaders.length) {
+        this._sheet.insertColumnsAfter(maxCols, expectedHeaders.length - maxCols);
       }
 
-      const headers = this._sheet.getRange('A1:I1').getValues()[0];
-      const versionHeader = String(headers[7] || '').trim();
-      if (headers.length < 8 || versionHeader !== 'version') {
-        console.log('🔄 Aggiunta/normalizzazione colonna: version');
-        const versionCell = this._sheet.getRange('H1');
-        versionCell.setValue('version');
-        versionCell.setFontWeight('bold');
+      const range = this._sheet.getRange(1, 1, 1, expectedHeaders.length);
+      const actualHeaders = range.getValues()[0];
+      const newHeaders = [...actualHeaders];
+      let modified = false;
+
+      // Mappatura alias comuni (IT <-> EN)
+      const headerMap = {
+        'ultima risposta': 'lastUpdated',
+        'ultimo aggiornamento': 'lastUpdated',
+        'stato': 'tone', // O un'altra colonna se appropriato
+        'messaggi': 'messageCount',
+        'versione': 'version',
+        'lingua': 'language',
+        'categoria': 'category'
+      };
+
+      for (let i = 0; i < expectedHeaders.length; i++) {
+        const current = String(actualHeaders[i] || '').trim();
+        const expected = expectedHeaders[i];
+
+        if (current.toLowerCase() !== expected.toLowerCase()) {
+          // Se è un alias noto, lo normalizziamo
+          if (headerMap[current.toLowerCase()] === expected) {
+            console.log(`🔄 Normalizzazione header: '${current}' -> '${expected}'`);
+            newHeaders[i] = expected;
+            modified = true;
+          } else if (!current) {
+            // Se la colonna è vuota, impostiamo il default
+            console.log(`🔄 Impostazione header mancante colonna ${i + 1}: '${expected}'`);
+            newHeaders[i] = expected;
+            modified = true;
+          } else if (i >= 7 && current !== expected) {
+            // Per le ultime colonne (version, memorySummary), forziamo la coerenza
+            console.log(`🔄 Correzione header colonna ${i + 1}: '${current}' -> '${expected}'`);
+            newHeaders[i] = expected;
+            modified = true;
+          }
+        }
       }
 
-      // La colonna I è la nona colonna (indice 8)
-      const memorySummaryHeader = String(headers[8] || '').trim();
-      if (memorySummaryHeader !== 'memorySummary') {
-        console.log('🔄 Aggiunta colonna mancante: memorySummary');
-        const cell = this._sheet.getRange('I1');
-        cell.setValue('memorySummary');
-        cell.setFontWeight('bold');
+      if (modified) {
+        range.setValues([newHeaders]);
+        range.setFontWeight('bold');
       }
     } catch (e) {
-      console.warn('⚠️ Errore verifica colonna memorySummary:', e.message);
+      console.warn('⚠️ Errore normalizzazione intestazioni:', e.message);
     }
   }
 

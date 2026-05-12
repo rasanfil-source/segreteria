@@ -2052,7 +2052,7 @@ function _extractVacationPeriodFromControlRow_(row) {
   const start = row[0];
   const startDate = _parseDateValue(start);
   const endCandidates = [row[2], row[1], row[3]];
-  const end = endCandidates.find(value => _parseDateValue(value)) || row[2] || row[1] || row[3];
+  const end = endCandidates.find(value => _parseDateValue(value) !== null) ?? row[2];
 
   if (!startDate) {
     return { start, end };

@@ -411,7 +411,13 @@ var ResponseValidator = class ResponseValidator {
     const warnings = [];
     let score = 1.0;
 
-    const responseLower = response.toLowerCase();
+    // Rimuove le citazioni HTML per evitare che il testo quotato (es. thread storico)
+    // influenzi la rilevazione della lingua della risposta attuale.
+    const cleanResponse = response
+      .replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '')
+      .replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*$/gi, '');
+
+    const responseLower = cleanResponse.toLowerCase();
 
     // Rileva lingua attuale usando marcatori
     const markerScores = {};

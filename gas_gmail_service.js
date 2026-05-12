@@ -1646,9 +1646,12 @@ var GmailService = class GmailService {
                     } else if (typeof Drive.Files.trash === 'function') {
                         Drive.Files.trash(fileId);
                     }
-                    this._forgetTemporaryDriveFile_(fileId);
                 } catch (e) {
                     console.warn(`⚠️ Errore cancellazione file temporaneo ${fileId}: ${e.message}`);
+                } finally {
+                    // Rimuove dalla coda indipendentemente dall'esito: se la rimozione fallisce
+                    // perché il file era già eliminato, non ha senso ritentare dalla coda.
+                    this._forgetTemporaryDriveFile_(fileId);
                 }
             }
         }

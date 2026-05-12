@@ -550,6 +550,7 @@ var EmailProcessor = class EmailProcessor {
 
       // CRITICO: Ricostruzione del contesto in caso di burst (più email non lette dallo stesso utente).
       // Evita che un'email finale breve (es. "Grazie") faccia scartare le vere domande precedenti.
+      const lastMessageBody = messageDetails.body;
       if (externalUnread.length > 1) {
         const candidateId = candidate.getId();
         const aggregatedBody = externalUnread.map((message) => {
@@ -1183,18 +1184,21 @@ ${addressLines.join('\n\n')}
           console.warn('   ⏳ Allegati multimodali saltati: tempo residuo insufficiente.');
         } else {
           let hasAttachments = false;
+          let attachmentPreCheckFailed = false;
           try {
             const attachments = candidate.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
             hasAttachments = attachments.length > 0;
           } catch (e) {
             console.warn(`⚠️ Impossibile leggere allegati per pre-check: ${e.message}`);
+            attachmentPreCheckFailed = true;
           }
 
-          if (!hasAttachments) {
+          if (!hasAttachments && !attachmentPreCheckFailed) {
             attachmentSkipped.push({ reason: 'no_attachments' });
             console.log('   📎 Elaborazione allegati saltata: nessun allegato nel messaggio candidato');
           } else if (
             (messageDetails.body || '').trim().length < 50 ||
+            attachmentPreCheckFailed ||
             this._shouldTryOcr(messageDetails.body, messageDetails.subject, hasAttachments)
           ) {
             // Body molto corto (<50 char) → l'allegato è probabilmente il contenuto principale
@@ -1505,7 +1509,7 @@ ${addressLines.join('\n\n')}
 
       response = this._addTimeDiscrepancyNoteIfNeeded(
         response,
-        messageDetails,
+        { ...messageDetails, body: lastMessageBody },
         detectedLanguage
       );
 
@@ -3883,7 +3887,7 @@ con la presente confermiamo la ricezione della documentazione inviata.
 Provvederemo a prenderne visione quanto prima.
 
 Cordiali saluti,
-La Segreteria`;
+Segreteria Parrocchia Sant'Eugenio`;
     }
     return `Hello,
 
@@ -3891,7 +3895,7 @@ we confirm the receipt of the documentation you sent.
 We will review it as soon as possible.
 
 Best regards,
-The Secretary Office`;
+Parish Secretariat of Sant'Eugenio`;
   }
 
   _deriveSponsorGuidancePolicy_(subject, body, attachmentIntentContext) {
