@@ -1530,7 +1530,7 @@ ${addressLines.join('\n\n')}
 
       response = this._addTimeDiscrepancyNoteIfNeeded(
         response,
-        { ...messageDetails, body: lastMessageBody },
+        { ...messageDetails, body: messageDetails.body || '' },
         detectedLanguage
       );
 
