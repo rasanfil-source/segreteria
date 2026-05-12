@@ -41,6 +41,12 @@ function classifyError(error) {
         return { type: ErrorTypes.NETWORK, retryable: true, message: rawMessage };
     }
 
+    if (message.includes('gmail_daily_call_limit_reached') ||
+        message.includes('daily call limit') ||
+        message.includes('service invoked too many times')) {
+        return { type: ErrorTypes.QUOTA_EXCEEDED, retryable: true, message: rawMessage };
+    }
+
     // I messaggi 5xx possono contenere la parola "quota" (es. "Errore rete/server o quota (503)").
     // Manteniamo priorità alla classificazione NETWORK per evitare falsi positivi QUOTA_EXCEEDED.
     if (message.includes('rete/server') || message.includes('network') ||

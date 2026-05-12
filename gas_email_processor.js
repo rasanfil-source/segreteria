@@ -852,10 +852,17 @@ var EmailProcessor = class EmailProcessor {
           preQuickAttachmentIntentContext
         );
       } catch (quickError) {
-        console.warn(`   ⚠️ Gemini quick check fallito: ${quickError.message}. Applico etichetta errore per evitare loop.`);
-        this._addErrorLabel(candidate || thread);
+        const quickErrorClass = this._classifyError(quickError);
+        const quickErrorMessage = quickError && quickError.message ? quickError.message : String(quickError);
+        if (!quickErrorClass.retryable) {
+          console.warn(`   ⚠️ Gemini quick check fallito: ${quickErrorMessage}. Applico etichetta errore per evitare loop.`);
+          this._addErrorLabel(candidate || thread);
+        } else {
+          console.warn(`   ↻ Gemini quick check fallito con errore retryable (${quickErrorClass.type}): ${quickErrorMessage}. Nessuna label permanente.`);
+        }
         result.status = 'error';
-        result.error = 'quick_check_failed';
+        result.error = `quick_check_failed: ${quickErrorMessage}`;
+        result.errorClass = quickErrorClass.type;
         return result;
       }
 
@@ -1740,6 +1747,7 @@ ${addressLines.join('\n\n')}
 
         result.status = 'error';
         result.error = `gmail_send_failed: ${errorMessage}`;
+        result.errorClass = classifiedSendError.type;
         return result;
       }
 
@@ -1806,13 +1814,19 @@ ${addressLines.join('\n\n')}
         return result;
       }
 
-      try {
-        markFailureForCurrentBurst('error');
-      } catch (labelError) {
-        threadLogger.warn(`Errore aggiunta errorLabel silenziato: ${labelError.message}`);
+      const unhandledErrorClass = this._classifyError(error);
+      if (!unhandledErrorClass.retryable) {
+        try {
+          markFailureForCurrentBurst('error');
+        } catch (labelError) {
+          threadLogger.warn(`Errore aggiunta errorLabel silenziato: ${labelError.message}`);
+        }
+      } else {
+        threadLogger.warn(`Errore retryable (${unhandledErrorClass.type}): nessuna label permanente applicata.`);
       }
       result.status = 'error';
       result.error = error.message;
+      result.errorClass = unhandledErrorClass.type;
       return result;
 
     } finally {
@@ -2128,6 +2142,16 @@ ${addressLines.join('\n\n')}
             threads,
             index,
             this._getQuotaCheckpointDelayMs_(result, remainingTimeMs)
+          );
+          break;
+        }
+
+        if (result && (result.errorClass === 'NETWORK' || result.errorClass === 'TIMEOUT')) {
+          runLogger.warn('⚠️ Stop batch: errore infrastrutturale retryable, salvo checkpoint per riprovare senza moltiplicare i fallimenti.');
+          this._storeBatchCheckpointAndScheduleContinuation_(
+            threads,
+            index,
+            this._getRemainingTimeMs(MAX_EXECUTION_TIME)
           );
           break;
         }
@@ -3608,6 +3632,11 @@ Nota bene: l'orario comunicato ${note}.`;
 
     if (msg.includes('gmail_counter_lock_not_acquired_retryable')) {
       return mkResult('NETWORK', true, rawMessage);
+    }
+    if (msg.includes('gmail_daily_call_limit_reached') ||
+        msg.includes('daily call limit') ||
+        msg.includes('service invoked too many times')) {
+      return mkResult('QUOTA_EXCEEDED', true, rawMessage);
     }
     if (msg.includes('rate_limiter_lock_timeout')) {
       return mkResult('NETWORK', true, rawMessage);

@@ -2680,7 +2680,7 @@ var GmailService = class GmailService {
                     const name = match[1].trim();
                     const email = match[2].trim();
                     if (!name || /^[\x00-\x7F]*$/.test(name)) return addr;
-                    return `=?UTF-8?B?${Utilities.base64Encode(name, Utilities.Charset.UTF_8)}?= <${email}>`;
+                    return `=?UTF-8?B?${this._base64EncodeUtf8_(name)}?= <${email}>`;
                 };
                 const safeFrom = encodeAddress(String(stableFrom || '').replace(/[\r\n]+/g, '').trim());
                 const safeTo = encodeAddress(String(messageDetails.senderEmail || '').replace(/[\r\n]+/g, '').trim());
@@ -2707,29 +2707,20 @@ var GmailService = class GmailService {
                     'Content-Type: text/plain; charset=UTF-8',
                     'Content-Transfer-Encoding: base64',
                     '',
-                    this._chunkBase64(Utilities.base64Encode(plainText, Utilities.Charset.UTF_8)),
+                    this._chunkBase64(this._base64EncodeUtf8_(plainText)),
                     '',
                     `--${boundary}`,
                     'Content-Type: text/html; charset=UTF-8',
                     'Content-Transfer-Encoding: base64',
                     '',
-                    this._chunkBase64(Utilities.base64Encode(htmlBody, Utilities.Charset.UTF_8)),
+                    this._chunkBase64(this._base64EncodeUtf8_(htmlBody)),
                     '',
                     `--${boundary}--`,
                     ''
                 ].join('\r\n');
 
                 // Gmail API RAW richiede base64url RFC4648 senza padding finale '='.
-                let encodedMessage;
-                if (Utilities && typeof Utilities.base64EncodeWebSafe === 'function' && Utilities.Charset && Utilities.Charset.UTF_8) {
-                    encodedMessage = Utilities.base64EncodeWebSafe(rawMessage, Utilities.Charset.UTF_8);
-                } else if (Utilities && typeof Utilities.newBlob === 'function' && typeof Utilities.base64EncodeWebSafe === 'function') {
-                    encodedMessage = Utilities.base64EncodeWebSafe(Utilities.newBlob(rawMessage, 'message/rfc822').getBytes());
-                } else if (typeof Buffer !== 'undefined') {
-                    encodedMessage = Buffer.from(rawMessage, 'utf8').toString('base64url');
-                } else {
-                    encodedMessage = Utilities.base64EncodeWebSafe(rawMessage);
-                }
+                let encodedMessage = this._base64UrlEncodeUtf8_(rawMessage);
                 encodedMessage = encodedMessage.replace(/=+$/, '');
 
                 this._incrementGmailCallCounterOrThrow_('messages.send');
@@ -3035,7 +3026,7 @@ var GmailService = class GmailService {
             const charBytes = this._utf8ByteLength_(char);
 
             if (currentBytes + charBytes > maxBytesPerWord && currentPart !== '') {
-                words.push(encodedWordPrefix + Utilities.base64Encode(currentPart, Utilities.Charset.UTF_8) + encodedWordSuffix);
+                words.push(encodedWordPrefix + this._base64EncodeUtf8_(currentPart) + encodedWordSuffix);
                 currentPart = char;
                 currentBytes = charBytes;
             } else {
@@ -3045,7 +3036,7 @@ var GmailService = class GmailService {
         }
         
         if (currentPart) {
-            words.push(encodedWordPrefix + Utilities.base64Encode(currentPart, Utilities.Charset.UTF_8) + encodedWordSuffix);
+            words.push(encodedWordPrefix + this._base64EncodeUtf8_(currentPart) + encodedWordSuffix);
         }
 
         // Folding: Subject: + prima riga + righe successive con spazio (WSP)
@@ -3085,6 +3076,40 @@ var GmailService = class GmailService {
             bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
         }
         return bytes;
+    }
+
+    _base64EncodeUtf8_(value) {
+        const text = value == null ? '' : String(value);
+        if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.base64Encode === 'function') {
+            if (Utilities.Charset && Utilities.Charset.UTF_8) {
+                return Utilities.base64Encode(text, Utilities.Charset.UTF_8);
+            }
+            if (typeof Utilities.newBlob === 'function') {
+                return Utilities.base64Encode(Utilities.newBlob(text, 'text/plain; charset=UTF-8').getBytes());
+            }
+            return Utilities.base64Encode(text);
+        }
+        if (typeof Buffer !== 'undefined') {
+            return Buffer.from(text, 'utf8').toString('base64');
+        }
+        throw new Error('Encoder Base64 UTF-8 non disponibile nel runtime corrente');
+    }
+
+    _base64UrlEncodeUtf8_(value) {
+        const text = value == null ? '' : String(value);
+        if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.base64EncodeWebSafe === 'function') {
+            if (Utilities.Charset && Utilities.Charset.UTF_8) {
+                return Utilities.base64EncodeWebSafe(text, Utilities.Charset.UTF_8);
+            }
+            if (typeof Utilities.newBlob === 'function') {
+                return Utilities.base64EncodeWebSafe(Utilities.newBlob(text, 'message/rfc822; charset=UTF-8').getBytes());
+            }
+            return Utilities.base64EncodeWebSafe(text);
+        }
+        if (typeof Buffer !== 'undefined') {
+            return Buffer.from(text, 'utf8').toString('base64url');
+        }
+        return this._base64EncodeUtf8_(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
     }
 
     /**

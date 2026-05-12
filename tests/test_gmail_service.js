@@ -536,6 +536,74 @@ console.log('--- Test sendHtmlReply: doppio fallback fallito rilancia errore ---
   }
 }
 
+console.log('--- Test sendHtmlReply: MIME UTF-8 robusto senza Utilities.Charset ---');
+{
+  const originalUtilities = global.Utilities;
+  const originalSession = global.Session;
+  const originalGmail = global.Gmail;
+  let rawPayload = '';
+
+  const toBuffer = (input) => {
+    if (Array.isArray(input)) return Buffer.from(input);
+    if (Buffer.isBuffer(input)) return input;
+    return Buffer.from(String(input || ''), 'utf8');
+  };
+
+  try {
+    global.Utilities = {
+      base64Encode: (input) => toBuffer(input).toString('base64'),
+      base64EncodeWebSafe: (input) => toBuffer(input)
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, ''),
+      newBlob: (input) => ({
+        getBytes: () => Array.from(toBuffer(input))
+      })
+    };
+    global.Session = {
+      getEffectiveUser: () => ({ getEmail: () => 'parrocchia@example.org' }),
+      getActiveUser: () => ({ getEmail: () => 'parrocchia@example.org' })
+    };
+    global.Gmail = {
+      Users: {
+        Messages: {
+          send: ({ raw }) => {
+            const normalized = String(raw || '').replace(/-/g, '+').replace(/_/g, '/');
+            const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+            rawPayload = Buffer.from(padded, 'base64').toString('utf8');
+          }
+        }
+      }
+    };
+
+    service.sendHtmlReply(
+      { getThread: () => ({ getId: () => 'thread-no-charset' }) },
+      'Café e comunità',
+      {
+        subject: 'Oggetto con accento è',
+        senderEmail: 'utente@example.org',
+        senderName: 'Utente',
+        rfc2822MessageId: '<charset@example.org>',
+        existingReferences: '',
+        recipientEmail: 'parrocchia@example.org',
+        recipientCc: ''
+      }
+    );
+
+    const plainPart = rawPayload.match(/Content-Type: text\/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n([\s\S]*?)\r\n--/);
+    const decodedPlainText = plainPart
+      ? Buffer.from(plainPart[1].replace(/\s+/g, ''), 'base64').toString('utf8')
+      : '';
+    assert(rawPayload.includes('Subject:'), 'il RAW deve essere generato anche senza Utilities.Charset');
+    assert(decodedPlainText.includes('Café e comunità'), 'il corpo UTF-8 deve essere codificato in base64 senza perdita');
+  } finally {
+    global.Utilities = originalUtilities;
+    global.Session = originalSession;
+    global.Gmail = originalGmail;
+  }
+}
+
 console.log('--- Test sendHtmlReply: From fallback usa email estratta dal To ---');
 {
   const originalUtilities = global.Utilities;

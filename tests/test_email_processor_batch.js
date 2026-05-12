@@ -707,6 +707,87 @@ console.log('--- Test processThread: valida e invia esattamente il testo outboun
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
 }
 
+console.log('--- Test processThread: errore quota invio propaga errorClass senza label permanente ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalErrorTypes = global.ErrorTypes;
+  const originalClassifyError = global.classifyError;
+  const labels = [];
+
+  cacheStore.clear();
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.ErrorTypes = {
+    QUOTA_EXCEEDED: 'QUOTA_EXCEEDED',
+    TIMEOUT: 'TIMEOUT',
+    NETWORK: 'NETWORK',
+    INVALID_API_KEY: 'INVALID_API_KEY',
+    INVALID_RESPONSE: 'INVALID_RESPONSE'
+  };
+  global.classifyError = (err) => ({
+    type: global.ErrorTypes.QUOTA_EXCEEDED,
+    retryable: true,
+    message: err && err.message ? err.message : String(err)
+  });
+
+  try {
+    const processor = new EmailProcessor({
+      gmailService: {
+        _extractEmailAddress: (raw) => raw,
+        extractMessageDetails: () => ({
+          subject: 'Richiesta informazioni',
+          body: 'Vorrei sapere gli orari.',
+          senderEmail: 'utente@example.com',
+          senderName: 'Utente Test',
+          date: new Date(),
+          headers: {},
+          isNewsletter: false,
+          rfc2822MessageId: null,
+          existingReferences: null
+        }),
+        addLabelToMessage: (message, label) => labels.push({ id: message.getId(), label }),
+        addLabelToThread: (_thread, label) => labels.push({ id: 'thread', label }),
+        getThreadHistory: () => '',
+        prepareOutboundText: (text) => text,
+        sendHtmlReply: () => { throw new Error('GMAIL_DAILY_CALL_LIMIT_REACHED quota invio'); }
+      },
+      classifier: {
+        classifyEmail: () => ({ shouldReply: true, category: 'info', subIntents: {}, confidence: 0.9 })
+      },
+      geminiService: {
+        primaryKey: 'primary-key',
+        shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'orari' } }),
+        detectEmailLanguage: () => ({ lang: 'it' }),
+        getAdaptiveGreeting: () => 'Buongiorno',
+        getAdaptiveClosing: () => 'Cordiali saluti',
+        generateResponse: () => ({ success: true, text: 'Risposta base' })
+      },
+      requestClassifier: {
+        classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+      },
+      memoryService: {
+        getMemory: () => ({}),
+        updateMemoryAtomic: () => true
+      },
+      territoryValidator: {
+        validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+      },
+      promptEngine: {
+        buildPrompt: () => 'PROMPT'
+      }
+    });
+
+    const result = processor.processThread(createExternalThread('send-quota'), 'kb valida', '', new Set(), true);
+    assert(result.status === 'error', 'errore invio quota deve restituire status error');
+    assert(result.errorClass === 'QUOTA_EXCEEDED', `errore invio quota deve propagare QUOTA_EXCEEDED, ottenuto ${result.errorClass}`);
+    assert(labels.length === 0, 'errore quota retryable non deve applicare label permanente');
+  } finally {
+    global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+    global.ErrorTypes = originalErrorTypes;
+    global.classifyError = originalClassifyError;
+    cacheStore.clear();
+  }
+}
+
 console.log('--- Test processUnreadEmails: graceful stop su GMAIL_DAILY_CALL_LIMIT_REACHED ---');
 {
   const processor = new EmailProcessor({
@@ -717,6 +798,32 @@ console.log('--- Test processUnreadEmails: graceful stop su GMAIL_DAILY_CALL_LIM
   const stats = processor.processUnreadEmails('kb', '', true);
   assert(stats.reason === 'gmail_daily_limit_reached', 'deve restituire reason gmail_daily_limit_reached');
   assert(stats.errors === 0, 'non deve incrementare errors su stop quota locale');
+}
+
+console.log('--- Test processUnreadEmails: stop su errore infrastrutturale retryable ---');
+{
+  let checkpointStartIndex = null;
+  let processCalls = 0;
+  const threads = [createExternalThread('net-1'), createExternalThread('net-2')];
+  const processor = new EmailProcessor({
+    gmailService: {
+      getUnprocessedUnreadThreads: () => threads,
+      getMessageIdsWithLabel: () => new Set()
+    }
+  });
+  processor._hasUnreadMessagesToProcess = () => true;
+  processor.processThread = () => {
+    processCalls++;
+    return { status: 'error', errorClass: 'NETWORK', error: 'timeout rete' };
+  };
+  processor._storeBatchCheckpointAndScheduleContinuation_ = (_threads, startIndex) => {
+    checkpointStartIndex = startIndex;
+  };
+
+  const stats = processor.processUnreadEmails('kb', '', true);
+  assert(processCalls === 1, 'errore retryable infrastrutturale deve fermare il batch al primo thread');
+  assert(stats.total === 1, 'deve conteggiare solo il thread analizzato prima dello stop');
+  assert(checkpointStartIndex === 0, 'checkpoint deve ripartire dal thread fallito');
 }
 
 console.log('--- Test checkpoint payload include version e runId ---');
