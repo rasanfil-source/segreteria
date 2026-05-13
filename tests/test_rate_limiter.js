@@ -74,5 +74,37 @@ console.log('--- Test trackAuxiliaryRequest: supporta lock già acquisito ---');
   assert(propsData.get('tokens_flash') === '123', 'la chiamata ausiliaria deve tracciare i token stimati');
 }
 
+console.log('--- Test model policy: preserva 2.5 Flash e normalizza solo lite storici ---');
+{
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  const normalized = limiter._normalizeDeprecatedModelNames({
+    quality: { name: 'gemini-2.5-flash', useCases: ['generation'] },
+    oldLite: { name: 'gemini-2.5-flash-lite', useCases: ['quick_check'] },
+    missingGeneration: { useCases: ['generation'] },
+    missingQuick: { useCases: ['quick_check'] }
+  });
+
+  assert(normalized.quality.name === 'gemini-2.5-flash', 'il modello qualita 2.5 Flash non deve essere riscritto');
+  assert(normalized.oldLite.name === 'gemini-3.1-flash-lite', 'i vecchi alias lite devono seguire la policy 3.1 Lite');
+  assert(normalized.missingGeneration.name === 'gemini-2.5-flash', 'fallback generation mancante deve essere 2.5 Flash');
+  assert(normalized.missingQuick.name === 'gemini-3.1-flash-lite', 'fallback quick_check mancante deve essere 3.1 Lite');
+}
+
+console.log('--- Test _getCandidateModels: task policy generation vs quick/language ---');
+{
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  limiter.strategies = {
+    generation: ['flash-2.5', 'flash-2.5-backup', 'flash-lite'],
+    quick_check: ['flash-lite', 'flash-3.1-lite'],
+    fallback: ['flash-lite']
+  };
+
+  assert(limiter._getCandidateModels('generation')[0] === 'flash-2.5', 'generation deve partire dal tier qualita');
+  assert(limiter._getCandidateModels('quick_check')[0] === 'flash-lite', 'quick_check deve partire dal lite');
+  assert(limiter._getCandidateModels('classification')[0] === 'flash-lite', 'classification deve ereditare quick_check');
+  assert(limiter._getCandidateModels('language')[0] === 'flash-lite', 'language deve ereditare quick_check');
+  assert(limiter._getCandidateModels('newsletter_summary')[0] === 'flash-lite', 'newsletter_summary deve ereditare quick_check');
+}
+
 
 console.log('✅ Rate limiter WAL tests completati');

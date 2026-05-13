@@ -16,6 +16,8 @@
  * - Memory tracking
  */
 
+var TECHNICAL_CONTEXT_ROUTING_CATEGORIES = new Set(['technical', 'appointment', 'quotation', 'information']);
+
 var EmailProcessor = class EmailProcessor {
   constructor(options = {}) {
     // Logger strutturato
@@ -1162,7 +1164,6 @@ ${addressLines.join('\n\n')}
       let routedDoctrine = effectiveDoctrineBase;
       let routedDoctrineStructured = doctrineStructured;
 
-      const technicalCategories = new Set(['technical', 'appointment', 'quotation', 'information']);
       const concernFlags = activeConcerns && typeof activeConcerns === 'object'
         ? activeConcerns
         : {};
@@ -1336,7 +1337,7 @@ ${addressLines.join('\n\n')}
       // ====================================================================
       // CONTEXT ROUTING post-OCR (definitivo)
       // ====================================================================
-      const isTechnicalOnly = technicalCategories.has(categoryHintSource) && !hasPastoralConcern;
+      const isTechnicalOnly = TECHNICAL_CONTEXT_ROUTING_CATEGORIES.has(categoryHintSource) && !hasPastoralConcern;
       if (isTechnicalOnly) {
         routedAiCore = '';
         routedDoctrine = '';
@@ -1422,8 +1423,10 @@ ${addressLines.join('\n\n')}
       }
 
       const geminiModels = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_MODELS) ? CONFIG.GEMINI_MODELS : {};
-      const defaultGenerationStrategy = ['flash-3.1-lite', 'flash-3-backup', 'flash-3.1-lite-backup'];
+      const defaultGenerationStrategy = ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'];
       const defaultGenerationModelNames = {
+        'flash-2.5': 'gemini-2.5-flash',
+        'flash-2.5-backup': 'gemini-2.5-flash',
         'flash-3.1-lite': 'gemini-3.1-flash-lite',
         'flash-lite': 'gemini-3.1-flash-lite',
         'flash-3': 'gemini-3-flash-preview',
@@ -1438,7 +1441,7 @@ ${addressLines.join('\n\n')}
       ) ? CONFIG.MODEL_STRATEGY.generation : defaultGenerationStrategy;
       const fallbackModelName = configuredGenerationStrategy
         .map(modelKey => (geminiModels[modelKey] && geminiModels[modelKey].name) || defaultGenerationModelNames[modelKey])
-        .find(Boolean) || 'gemini-3.1-flash-lite';
+        .find(Boolean) || 'gemini-2.5-flash';
 
       const attemptStrategy = configuredGenerationStrategy
         .map((modelKey, index) => {
@@ -1461,6 +1464,7 @@ ${addressLines.join('\n\n')}
             name: `Generation-${index + 1}-${modelKey}${usesBackupKey ? '-BackupKey' : '-PrimaryKey'}`,
             key: apiKey,
             model: modelName,
+            usesBackupKey: usesBackupKey,
             skipRateLimit: usesBackupKey
           };
         })
@@ -1479,6 +1483,10 @@ ${addressLines.join('\n\n')}
       } else {
         for (const plan of attemptStrategy) {
         if (!plan.key) continue;
+        if (!plan.usesBackupKey && this.geminiService && this.geminiService.isPrimaryExhausted) {
+          console.warn(`↪️ Strategia '${plan.name}' saltata: chiave primaria già esaurita.`);
+          continue;
+        }
 
         try {
           console.log(`🔄 Tentativo Generazione: ${plan.name}...`);
@@ -1521,8 +1529,9 @@ ${addressLines.join('\n\n')}
             break;
           }
 
-          if (errorClass.type === 'QUOTA_EXCEEDED' && plan.name === 'Fallback-Lite') {
-            console.warn('🧯 QUOTA_EXCEEDED su Fallback-Lite: nessuna strategia residua, uscita anticipata.');
+          const isLastPlan = attemptStrategy[attemptStrategy.length - 1] === plan;
+          if (errorClass.type === 'QUOTA_EXCEEDED' && isLastPlan) {
+            console.warn("🧯 QUOTA_EXCEEDED sull'ultima strategia: nessuna strategia residua, uscita anticipata.");
             break;
           }
 
@@ -1952,6 +1961,14 @@ ${addressLines.join('\n\n')}
       ? LockService.getScriptLock()
       : null;
     let lockAcquiredHere = false;
+    let deferredBatchCheckpoint = null;
+    const deferBatchCheckpoint = (threadsToResume, startIndex, remainingTimeMs) => {
+      deferredBatchCheckpoint = {
+        threads: threadsToResume,
+        startIndex: startIndex,
+        remainingTimeMs: remainingTimeMs
+      };
+    };
 
     if (!skipExecutionLock) {
       if (!executionLock) {
@@ -2141,7 +2158,7 @@ ${addressLines.join('\n\n')}
         const safeLimit = getEffectiveMaxEmailsPerRun();
         if (processedCount >= safeLimit) {
           console.log(`🛑 Raggiunti ${safeLimit} thread elaborati. Stop.`);
-          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, this._getRemainingTimeMs(MAX_EXECUTION_TIME));
+          deferBatchCheckpoint(threads, index, this._getRemainingTimeMs(MAX_EXECUTION_TIME));
           break;
         }
 
@@ -2150,7 +2167,7 @@ ${addressLines.join('\n\n')}
         const remainingTimeMs = this._getRemainingTimeMs(MAX_EXECUTION_TIME);
         if (remainingTimeMs < this.config.minRemainingTimeMs || this._isNearDeadline(MAX_EXECUTION_TIME)) {
           console.warn(`⏳ Tempo insufficiente per un nuovo thread (${Math.round(remainingTimeMs / 1000)}s restanti). Stop preventivo.`);
-          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, remainingTimeMs);
+          deferBatchCheckpoint(threads, index, remainingTimeMs);
           break;
         }
 
@@ -2181,7 +2198,7 @@ ${addressLines.join('\n\n')}
         if (result && result.error && String(result.error).includes('GMAIL_DAILY_CALL_LIMIT_REACHED')) {
           runLogger.warn('⚠️ Stop batch: limite giornaliero chiamate Gmail raggiunto durante processThread.');
           // -1: checkpoint senza trigger (quota Gmail giornaliera, retry domani)
-          this._storeBatchCheckpointAndScheduleContinuation_(threads, index, -1);
+          deferBatchCheckpoint(threads, index, -1);
           break;
         }
 
@@ -2194,7 +2211,7 @@ ${addressLines.join('\n\n')}
           )
         ) {
           runLogger.warn('⚠️ Stop batch: quota API LLM esaurita, salvo checkpoint per evitare cascata di error label.');
-          this._storeBatchCheckpointAndScheduleContinuation_(
+          deferBatchCheckpoint(
             threads,
             index,
             this._getQuotaCheckpointDelayMs_(result, remainingTimeMs)
@@ -2204,7 +2221,7 @@ ${addressLines.join('\n\n')}
 
         if (result && (result.errorClass === 'NETWORK' || result.errorClass === 'TIMEOUT')) {
           runLogger.warn('⚠️ Stop batch: errore infrastrutturale retryable, salvo checkpoint per riprovare senza moltiplicare i fallimenti.');
-          this._storeBatchCheckpointAndScheduleContinuation_(
+          deferBatchCheckpoint(
             threads,
             index,
             this._getRemainingTimeMs(MAX_EXECUTION_TIME)
@@ -2265,6 +2282,13 @@ ${addressLines.join('\n\n')}
         } catch (e) {
           console.warn(`⚠️ Errore rilascio execution lock: ${e.message}`);
         }
+      }
+      if (deferredBatchCheckpoint) {
+        this._storeBatchCheckpointAndScheduleContinuation_(
+          deferredBatchCheckpoint.threads,
+          deferredBatchCheckpoint.startIndex,
+          deferredBatchCheckpoint.remainingTimeMs
+        );
       }
     }
   }

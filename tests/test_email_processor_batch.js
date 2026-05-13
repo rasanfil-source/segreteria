@@ -559,7 +559,7 @@ console.log('--- Test processThread: fallback end-to-end su INVALID_RESPONSE ---
   const { processor, calls } = buildProcessorForGenerationFailure('INVALID_RESPONSE');
   const res = processor.processThread(createExternalThread('invalid-response'), 'kb valida', '', labeled, true);
   // Con il nuovo classificatore, INVALID_RESPONSE -> UNKNOWN -> continua il loop di retry strategie
-  assert(calls.length === 3, `con INVALID_RESPONSE deve tentare tutte le 3 strategie (fatti: ${calls.length})`);
+  assert(calls.length === 4, `con INVALID_RESPONSE deve tentare tutte le 4 strategie (fatti: ${calls.length})`);
   assert(res.status === 'error', 'con fallback esaurito deve restituire status error');
   assert(labeled.has('m-invalid-response'), 'deve marcare il messaggio candidato come processato');
 }
@@ -569,7 +569,7 @@ console.log('--- Test processThread: fallback end-to-end su UNKNOWN ---');
   const labeled = new Set();
   const { processor, calls } = buildProcessorForGenerationFailure('UNKNOWN');
   const res = processor.processThread(createExternalThread('unknown'), 'kb valida', '', labeled, true);
-  assert(calls.length === 3, 'con UNKNOWN deve tentare tutte le 3 strategie');
+  assert(calls.length === 4, 'con UNKNOWN deve tentare tutte le 4 strategie');
   assert(res.status === 'error', 'con fallback esaurito deve restituire status error');
   assert(labeled.has('m-unknown'), 'deve marcare il messaggio candidato come processato');
 }
@@ -582,11 +582,52 @@ console.log('--- Test processThread: fallback default diversifica tier modello -
   const res = processor.processThread(createExternalThread('default-tier-diversification'), 'kb valida', '', labeled, true);
   assert(res.status === 'error', 'con fallback default esaurito deve restituire status error');
   assert(
-    calls.map(call => call.modelName).join('|') === 'gemini-3.1-flash-lite|gemini-3-flash-preview|gemini-3.1-flash-lite',
+    calls.map(call => call.modelName).join('|') === 'gemini-2.5-flash|gemini-2.5-flash|gemini-3.1-flash-lite|gemini-3.1-flash-lite',
     `deve diversificare il tier fisico nel fallback default (fatto: ${calls.map(call => call.modelName).join('|')})`
   );
-  assert(calls[0].skipRateLimit === false && calls[1].skipRateLimit === true && calls[2].skipRateLimit === true, 'i fallback backup devono usare la chiave di riserva e bypassare il RateLimiter');
+  assert(
+    calls[0].skipRateLimit === false &&
+    calls[1].skipRateLimit === true &&
+    calls[2].skipRateLimit === false &&
+    calls[3].skipRateLimit === true,
+    'solo le strategie con chiave di riserva devono bypassare il RateLimiter'
+  );
   assert(labeled.has('m-default-tier-diversification'), 'deve marcare il messaggio candidato come processato');
+}
+
+console.log('--- Test processThread: primaria esaurita salta fallback su primary key ---');
+{
+  const { processor, calls } = buildProcessorForGenerationFailure('UNKNOWN');
+  global.ErrorTypes = {
+    QUOTA_EXCEEDED: 'QUOTA_EXCEEDED',
+    UNKNOWN: 'UNKNOWN',
+    INVALID_API_KEY: 'INVALID_API_KEY'
+  };
+  global.classifyError = (err) => {
+    const message = err && err.message ? err.message : String(err);
+    if (message.includes('QUOTA')) return { type: 'QUOTA_EXCEEDED', retryable: true, message };
+    return { type: 'UNKNOWN', retryable: false, message };
+  };
+
+  let attempt = 0;
+  processor.geminiService.isPrimaryExhausted = false;
+  processor.geminiService.generateResponse = function (_prompt, options) {
+    calls.push({ modelName: options.modelName, skipRateLimit: options.skipRateLimit });
+    attempt += 1;
+    if (attempt === 1) {
+      this.isPrimaryExhausted = true;
+      throw new Error('QUOTA_EXHAUSTED primary');
+    }
+    throw new Error('forced-UNKNOWN');
+  };
+
+  const res = processor.processThread(createExternalThread('primary-exhausted'), 'kb valida', '', new Set(), true);
+  assert(res.status === 'error', 'con fallback esaurito deve restituire status error');
+  assert(
+    calls.map(call => call.modelName).join('|') === 'gemini-2.5-flash|gemini-2.5-flash|gemini-3.1-flash-lite',
+    `deve saltare il fallback lite su primary key esaurita (fatto: ${calls.map(call => call.modelName).join('|')})`
+  );
+  assert(calls[2].skipRateLimit === true, 'il fallback lite residuo deve usare la chiave di riserva');
 }
 
 console.log('--- Test processThread: generazione rispetta CONFIG.MODEL_STRATEGY.generation ---');
@@ -898,6 +939,73 @@ console.log('--- Test processThread: valida e invia esattamente il testo outboun
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
 }
 
+
+console.log('--- Test context routing: categoria tecnica usa set condiviso e disattiva dottrina ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalGlobalCache = global.GLOBAL_CACHE;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.GLOBAL_CACHE = { aiCoreLite: 'core lite', aiCore: 'core pesante' };
+
+  let promptOptions = null;
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Richiesta orari ufficio',
+        body: 'Vorrei sapere gli orari della segreteria parrocchiale.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'technical', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'technical', topic: 'orari' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta orari' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        promptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('technical-routing'), 'kb valida', 'dottrina completa', new Set(), true);
+  assert(result.status === 'replied', 'la richiesta tecnica deve completarsi senza ReferenceError sul set categorie');
+  assert(promptOptions.category === 'technical', `categoria tecnica attesa technical, ottenuta ${promptOptions && promptOptions.category}`);
+  assert(promptOptions.doctrineBase === '', 'la richiesta tecnica pura deve disattivare la dottrina pesante');
+  assert(promptOptions.aiCore === '', 'la richiesta tecnica pura deve disattivare AI core pesante');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.GLOBAL_CACHE = originalGlobalCache;
+}
 
 
 console.log('--- Test context routing: categoria quickCheck ha priorità su euristica locale ---');
@@ -1265,6 +1373,42 @@ console.log('--- Test processUnreadEmails: stop su errore infrastrutturale retry
   assert(processCalls === 1, 'errore retryable infrastrutturale deve fermare il batch al primo thread');
   assert(stats.total === 1, 'deve conteggiare solo il thread analizzato prima dello stop');
   assert(checkpointStartIndex === 0, 'checkpoint deve ripartire dal thread fallito');
+}
+
+console.log('--- Test processUnreadEmails: checkpoint dopo rilascio lock batch ---');
+{
+  const originalLockService = global.LockService;
+  let released = false;
+  let checkpointAfterRelease = null;
+  const threads = [createExternalThread('lock-checkpoint'), createExternalThread('lock-checkpoint-2')];
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => true,
+      releaseLock: () => {
+        released = true;
+      }
+    })
+  };
+
+  try {
+    const processor = new EmailProcessor({
+      gmailService: {
+        getUnprocessedUnreadThreads: () => threads,
+        getMessageIdsWithLabel: () => new Set()
+      }
+    });
+    processor._hasUnreadMessagesToProcess = () => true;
+    processor.processThread = () => ({ status: 'error', errorClass: 'NETWORK', error: 'timeout rete' });
+    processor._storeBatchCheckpointAndScheduleContinuation_ = () => {
+      checkpointAfterRelease = released;
+    };
+
+    const stats = processor.processUnreadEmails('kb', '', false);
+    assert(stats.total === 1, 'deve fermarsi dopo il primo errore retryable');
+    assert(checkpointAfterRelease === true, 'deve salvare/pianificare il checkpoint dopo releaseLock');
+  } finally {
+    global.LockService = originalLockService;
+  }
 }
 
 console.log('--- Test checkpoint payload include version e runId ---');

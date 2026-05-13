@@ -45,7 +45,7 @@ function _getScriptPropertyStringArray(key, fallback) {
 var CONFIG = {
   // === API ===
   get GEMINI_API_KEY() { return _getScriptProperty('GEMINI_API_KEY'); },
-  MODEL_NAME: 'gemini-3.1-flash-lite',
+  MODEL_NAME: 'gemini-2.5-flash',
 
   // === Generazione ===
   TEMPERATURE: 0.5,
@@ -179,7 +179,7 @@ var CONFIG = {
   USE_RATE_LIMITER: true,              // Rate limiter intelligente abilitato
 
   // === Limiti Token (Prompt Engine) ===
-  CONTEXT_WINDOW_TOKENS: 1048576,      // Hard cap documentato per Gemini 3.1 Flash-Lite
+  CONTEXT_WINDOW_TOKENS: 1048576,      // Hard cap operativo condiviso dai modelli Flash configurati
   MAX_SAFE_TOKENS: 120000,             // Cap operativo locale: resta sotto 1M per evitare payload GAS ingestibili
   MAX_SAFE_PROMPT_CHARS: 100000,       // Limite caratteri prompt prima del troncamento di sicurezza
   KB_TOKEN_BUDGET_RATIO: 0.5,          // Percentuale budget KB rispetto a max token
@@ -207,8 +207,10 @@ var CONFIG = {
 
   // === Modelli Gemini (configurazione centralizzata) ===
   // Aggiornato: Maggio 2026
-  // Fonte modello/capacita: documentazione Google AI Studio (Gemini 3.1 Flash-Lite, 07/05/2026).
-  // Fonte quote operative: piano Free Tier indicato in AI Studio / prompt operativo.
+  // Policy operativa:
+  // - Risposta finale: Gemini 2.5 Flash (qualita)
+  // - Task rapidi/ausiliari: Gemini 3.1 Flash-Lite (categoria, lingua AI, semantica, scarti)
+  // Fonte quote operative: verificare i limiti effettivi nel progetto AI Studio.
   // Le quote effettive possono variare per progetto: se AI Studio mostra limiti inferiori,
   // ridurre questi valori senza aumentare MAX_EMAILS_PER_RUN.
   // - Contesto massimo per prompt: 1.048.576 token
@@ -231,8 +233,7 @@ var CONFIG = {
   },
 
   GEMINI_CONTEXT_CACHE: {
-    // Free Tier: la pagina pricing pubblica indica Context caching non disponibile
-    // per gemini-3.1-flash-lite. Abilitare solo se AI Studio lo mostra attivo
+    // Free Tier: abilitare solo se AI Studio mostra Context caching attivo
     // per il progetto; GeminiService degrada comunque a generateContent diretto.
     enabled: false,
     ttlSeconds: 3300,                  // 55 minuti: sotto il default 1h per ridurre cache stale
@@ -258,19 +259,27 @@ var CONFIG = {
   },
 
   GEMINI_MODELS: {
-    // Modello principale: Gemini 3.1 Flash-Lite stabile.
-    // Le tre chiavi logiche puntano allo stesso modello fisico: il RateLimiter
-    // aggrega gli RPD per nome modello, quindi non triplica la quota.
-    'flash-3.1-lite': {
-      name: 'gemini-3.1-flash-lite',
-      rpm: 2000,
-      tpm: 2000000,
-      rpd: 3500,
+    // Modello principale per la risposta finale: qualita.
+    'flash-2.5': {
+      name: 'gemini-2.5-flash',
+      rpm: 10,
+      tpm: 250000,
+      rpd: 250,
       contextWindowTokens: 1048576,
       ipm: null,
       useCases: ['generation', 'all']
     },
-    // Alias compatibile per quick check, classificazione e validazioni semantiche.
+    // Stesso tier qualita su chiave di riserva.
+    'flash-2.5-backup': {
+      name: 'gemini-2.5-flash',
+      rpm: 10,
+      tpm: 250000,
+      rpd: 250,
+      contextWindowTokens: 1048576,
+      ipm: null,
+      useCases: ['generation', 'backup']
+    },
+    // Modello rapido per categoria, lingua AI, semantica e scarti.
     'flash-lite': {
       name: 'gemini-3.1-flash-lite',
       rpm: 2000,
@@ -278,28 +287,17 @@ var CONFIG = {
       rpd: 3500,
       contextWindowTokens: 1048576,
       ipm: null,
-      useCases: ['quick_check', 'classification', 'semantic', 'fallback']
+      useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
     },
-    // Tier alternativo: Gemini 3 Flash Preview, usato solo come fallback di generazione.
-    // Nota: il modello API ufficiale è gemini-3-flash-preview, non gemini-3.1-flash.
-    'flash-3': {
-      name: 'gemini-3-flash-preview',
-      rpm: 10,
-      tpm: 250000,
-      rpd: 250,
+    // Alias esplicito compatibile per la serie 3.1 Lite.
+    'flash-3.1-lite': {
+      name: 'gemini-3.1-flash-lite',
+      rpm: 2000,
+      tpm: 2000000,
+      rpd: 3500,
       contextWindowTokens: 1048576,
       ipm: null,
-      useCases: ['generation', 'fallback']
-    },
-    // Backup logico su chiave di riserva: cambia anche tier fisico rispetto a Flash-Lite.
-    'flash-3-backup': {
-      name: 'gemini-3-flash-preview',
-      rpm: 10,
-      tpm: 250000,
-      rpd: 250,
-      contextWindowTokens: 1048576,
-      ipm: null,
-      useCases: ['generation', 'fallback', 'backup']
+      useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
     },
     // Backup logico Lite per chiave di riserva o fallback controllati.
     'flash-3.1-lite-backup': {
@@ -309,16 +307,19 @@ var CONFIG = {
       rpd: 3500,
       contextWindowTokens: 1048576,
       ipm: null,
-      useCases: ['fallback', 'backup']
+      useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback', 'backup']
     }
   },
 
   // Strategia selezione modelli per task (ordine = priorità)
   MODEL_STRATEGY: {
     'quick_check': ['flash-lite', 'flash-3.1-lite'],
-    'generation': ['flash-3.1-lite', 'flash-3-backup', 'flash-3.1-lite-backup'],
+    'classification': ['flash-lite', 'flash-3.1-lite'],
+    'language': ['flash-lite', 'flash-3.1-lite'],
+    'newsletter_summary': ['flash-lite', 'flash-3.1-lite'],
+    'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
     'semantic': ['flash-lite', 'flash-3.1-lite-backup'],
-    'fallback': ['flash-lite', 'flash-3-backup', 'flash-3.1-lite-backup']
+    'fallback': ['flash-lite', 'flash-3.1-lite-backup']
   },
 
   // === Liste di esclusione ===
@@ -454,9 +455,23 @@ function validateConfig() {
       errors.push("Errore Config: 'GEMINI_MODELS' è vuoto");
     }
     // Check esistenza modelli chiave
-    if (!CONFIG.GEMINI_MODELS['flash-3.1-lite']) errors.push("Errore Config: Modello 'flash-3.1-lite' mancante in GEMINI_MODELS");
+    if (!CONFIG.GEMINI_MODELS['flash-2.5']) errors.push("Errore Config: Modello 'flash-2.5' mancante in GEMINI_MODELS");
+    if (!CONFIG.GEMINI_MODELS['flash-2.5-backup']) errors.push("Errore Config: Modello 'flash-2.5-backup' mancante in GEMINI_MODELS");
     if (!CONFIG.GEMINI_MODELS['flash-lite']) errors.push("Errore Config: Modello 'flash-lite' mancante in GEMINI_MODELS");
-    if (!CONFIG.GEMINI_MODELS['flash-3-backup']) errors.push("Errore Config: Modello 'flash-3-backup' mancante in GEMINI_MODELS");
+    if (!CONFIG.GEMINI_MODELS['flash-3.1-lite-backup']) errors.push("Errore Config: Modello 'flash-3.1-lite-backup' mancante in GEMINI_MODELS");
+  }
+
+  if (!CONFIG.MODEL_STRATEGY || typeof CONFIG.MODEL_STRATEGY !== 'object') {
+    errors.push("Errore Config: 'MODEL_STRATEGY' deve essere un oggetto");
+  } else {
+    const generationStrategy = CONFIG.MODEL_STRATEGY.generation || [];
+    const quickStrategy = CONFIG.MODEL_STRATEGY.quick_check || [];
+    if (!Array.isArray(generationStrategy) || generationStrategy[0] !== 'flash-2.5') {
+      errors.push("Errore Config: MODEL_STRATEGY.generation deve partire da 'flash-2.5'");
+    }
+    if (!Array.isArray(quickStrategy) || quickStrategy[0] !== 'flash-lite') {
+      errors.push("Errore Config: MODEL_STRATEGY.quick_check deve partire da 'flash-lite'");
+    }
   }
 
   // Se ci sono errori, logghiamoli subito

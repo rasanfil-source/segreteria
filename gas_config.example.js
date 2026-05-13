@@ -10,7 +10,7 @@ var CONFIG = {
     // === API ===
     // In produzione: PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY')
     GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY_HERE',
-    MODEL_NAME: 'gemini-3.1-flash-lite',
+    MODEL_NAME: 'gemini-2.5-flash',
 
     // === Generazione ===
     TEMPERATURE: 0.5,
@@ -134,7 +134,7 @@ var CONFIG = {
     USE_RATE_LIMITER: true,              // Rate limiter intelligente abilitato
 
     // === Limiti Token (Prompt Engine) ===
-    CONTEXT_WINDOW_TOKENS: 1048576,      // Hard cap documentato per Gemini 3.1 Flash-Lite
+    CONTEXT_WINDOW_TOKENS: 1048576,      // Hard cap operativo condiviso dai modelli Flash configurati
     MAX_SAFE_TOKENS: 120000,             // Cap operativo locale sotto 1M per evitare payload GAS ingestibili
     MAX_SAFE_PROMPT_CHARS: 100000,       // Limite caratteri prompt prima del troncamento di sicurezza
     KB_TOKEN_BUDGET_RATIO: 0.5,          // Percentuale budget KB rispetto a max token
@@ -162,6 +162,7 @@ var CONFIG = {
 
     // === Modelli Gemini (configurazione centralizzata) ===
     // Aggiornato: Maggio 2026.
+    // Policy: 2.5 Flash per risposte finali; 3.1 Flash-Lite per task rapidi/ausiliari.
     // Dati tecnici operativi Free Tier: verificare sempre i limiti effettivi in AI Studio.
     GEMINI_FREE_TIER_NOTES: {
         contextWindowTokens: 1048576,
@@ -200,14 +201,23 @@ var CONFIG = {
     },
 
     GEMINI_MODELS: {
-        'flash-3.1-lite': {
-            name: 'gemini-3.1-flash-lite',
-            rpm: 2000,
-            tpm: 2000000,
-            rpd: 3500,
+        'flash-2.5': {
+            name: 'gemini-2.5-flash',
+            rpm: 10,
+            tpm: 250000,
+            rpd: 250,
             contextWindowTokens: 1048576,
             ipm: null,
             useCases: ['generation', 'all']
+        },
+        'flash-2.5-backup': {
+            name: 'gemini-2.5-flash',
+            rpm: 10,
+            tpm: 250000,
+            rpd: 250,
+            contextWindowTokens: 1048576,
+            ipm: null,
+            useCases: ['generation', 'backup']
         },
         'flash-lite': {
             name: 'gemini-3.1-flash-lite',
@@ -216,26 +226,16 @@ var CONFIG = {
             rpd: 3500,
             contextWindowTokens: 1048576,
             ipm: null,
-            useCases: ['quick_check', 'classification', 'semantic', 'fallback']
+            useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
         },
-        // Tier alternativo: il modello API ufficiale è gemini-3-flash-preview, non gemini-3.1-flash.
-        'flash-3': {
-            name: 'gemini-3-flash-preview',
-            rpm: 10,
-            tpm: 250000,
-            rpd: 250,
+        'flash-3.1-lite': {
+            name: 'gemini-3.1-flash-lite',
+            rpm: 2000,
+            tpm: 2000000,
+            rpd: 3500,
             contextWindowTokens: 1048576,
             ipm: null,
-            useCases: ['generation', 'fallback']
-        },
-        'flash-3-backup': {
-            name: 'gemini-3-flash-preview',
-            rpm: 10,
-            tpm: 250000,
-            rpd: 250,
-            contextWindowTokens: 1048576,
-            ipm: null,
-            useCases: ['generation', 'fallback', 'backup']
+            useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
         },
         'flash-3.1-lite-backup': {
             name: 'gemini-3.1-flash-lite',
@@ -244,16 +244,19 @@ var CONFIG = {
             rpd: 3500,
             contextWindowTokens: 1048576,
             ipm: null,
-            useCases: ['fallback', 'backup']
+            useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback', 'backup']
         }
     },
 
     // Strategia selezione modelli per task (ordine = priorità)
     MODEL_STRATEGY: {
         'quick_check': ['flash-lite', 'flash-3.1-lite'],
-        'generation': ['flash-3.1-lite', 'flash-3-backup', 'flash-3.1-lite-backup'],
+        'classification': ['flash-lite', 'flash-3.1-lite'],
+        'language': ['flash-lite', 'flash-3.1-lite'],
+        'newsletter_summary': ['flash-lite', 'flash-3.1-lite'],
+        'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
         'semantic': ['flash-lite', 'flash-3.1-lite-backup'],
-        'fallback': ['flash-lite', 'flash-3-backup', 'flash-3.1-lite-backup']
+        'fallback': ['flash-lite', 'flash-3.1-lite-backup']
     },
 
     // === Liste di esclusione ===

@@ -40,7 +40,7 @@ var GeminiService = class GeminiService {
     // Alias accessibile per i moduli che usano la proprietà apiKey
     this.apiKey = this.primaryKey;
 
-    this.modelName = this.config.MODEL_NAME || 'gemini-3.1-flash-lite';
+    this.modelName = this.config.MODEL_NAME || 'gemini-2.5-flash';
     this.baseUrl = this._buildGenerateUrl(this.modelName);
     this.contextCacheConfig = this._getContextCacheConfig_();
 
@@ -103,6 +103,27 @@ var GeminiService = class GeminiService {
     };
   }
 
+  getModelNameForTask(taskType, fallbackName = null) {
+    const strategy = this.config && this.config.MODEL_STRATEGY
+      ? this.config.MODEL_STRATEGY
+      : {};
+    const models = this.config && this.config.GEMINI_MODELS
+      ? this.config.GEMINI_MODELS
+      : {};
+    const candidates = Array.isArray(strategy[taskType]) && strategy[taskType].length > 0
+      ? strategy[taskType]
+      : (Array.isArray(strategy.fallback) ? strategy.fallback : []);
+
+    for (let i = 0; i < candidates.length; i++) {
+      const modelKey = candidates[i];
+      if (models[modelKey] && models[modelKey].name) {
+        return models[modelKey].name;
+      }
+    }
+
+    return fallbackName || this.modelName || 'gemini-2.5-flash';
+  }
+
   // ========================================================================
   // HELPER RATE LIMITER
   // ========================================================================
@@ -118,7 +139,7 @@ var GeminiService = class GeminiService {
   /**
    * Genera risposta con modello specifico
    * @param {string} prompt - Prompt completo
-   * @param {string} modelName - Nome modello API (es. 'gemini-3.1-flash-lite')
+   * @param {string} modelName - Nome modello API (es. 'gemini-2.5-flash')
    * @param {string} apiKeyOverride - Chiave API opzionale (per strategia multi-key)
    * @param {Array<Blob>} attachments - Array di Blob (immagini/PDF) da inviare
    * @returns {string|null} Testo generato
@@ -1898,9 +1919,10 @@ Testo:
     // IMPLEMENTAZIONE ORIGINALE (fallback o quando Rate Limiter disabilitato)
     try {
       const safeSubject = typeof emailSubject === "string" ? emailSubject : (emailSubject == null ? "" : String(emailSubject));
+      const quickModelName = this.getModelNameForTask('quick_check', 'gemini-3.1-flash-lite');
       console.log(`🔍 Gemini quick check per: ${safeSubject.substring(0, 40)}...`);
       return this._withRetry(
-        () => this._quickCheckWithModel(emailContent, safeSubject, this.modelName, detection, intentContext),
+        () => this._quickCheckWithModel(emailContent, safeSubject, quickModelName, detection, intentContext),
         'Quick check'
       );
     } catch (error) {

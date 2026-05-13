@@ -1481,8 +1481,12 @@ Rispondi SOLO con questo JSON (senza markdown):
       }
     }
 
+    const semanticModelName = typeof this.geminiService.getModelNameForTask === 'function'
+      ? this.geminiService.getModelNameForTask(this.taskType, 'gemini-3.1-flash-lite')
+      : (this.geminiService.modelName || 'gemini-3.1-flash-lite');
+
     return this.geminiService._withRetry(
-      () => this.geminiService._generateWithModel(prompt, this.geminiService.modelName),
+      () => this.geminiService._generateWithModel(prompt, semanticModelName),
       'Semantic validation',
       this.maxRetries
     );
