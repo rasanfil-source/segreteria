@@ -1849,10 +1849,65 @@ function _readBatchCheckpoint_() {
       _clearBatchCheckpoint_();
       return null;
     }
+
+    const maxCheckpointRetries = (typeof CONFIG !== 'undefined' && Number(CONFIG.BATCH_CHECKPOINT_MAX_RETRIES) > 0)
+      ? Math.max(1, Math.floor(Number(CONFIG.BATCH_CHECKPOINT_MAX_RETRIES)))
+      : 3;
+    const retryCount = Number(parsed.retryCount || 0);
+    if (Number.isFinite(retryCount) && retryCount >= maxCheckpointRetries) {
+      console.warn(`Checkpoint abbandonato dopo ${retryCount} tentativi falliti.`);
+      _labelBatchCheckpointThreadsAsError_(parsed);
+      _clearBatchCheckpoint_();
+      return null;
+    }
+
     return parsed;
   } catch (_) {
     return null;
   }
+}
+
+function _labelBatchCheckpointThreadsAsError_(checkpoint) {
+  const pendingThreadIds = checkpoint && Array.isArray(checkpoint.pendingThreadIds)
+    ? checkpoint.pendingThreadIds
+    : [];
+  if (pendingThreadIds.length === 0) return;
+
+  const errorLabelName = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME)
+    ? CONFIG.ERROR_LABEL_NAME
+    : 'Errore';
+
+  let gmailService = null;
+  try {
+    gmailService = (typeof GmailService !== 'undefined' && GmailService) ? new GmailService() : null;
+  } catch (_) {
+    gmailService = null;
+  }
+
+  let fallbackLabel = null;
+  pendingThreadIds.forEach((threadId) => {
+    try {
+      const thread = GmailApp.getThreadById(threadId);
+      if (!thread) return;
+
+      if (gmailService && typeof gmailService.addLabelToThread === 'function') {
+        gmailService.addLabelToThread(thread, errorLabelName);
+        return;
+      }
+
+      if (!fallbackLabel && typeof GmailApp.getUserLabelByName === 'function') {
+        fallbackLabel = GmailApp.getUserLabelByName(errorLabelName);
+      }
+      if (!fallbackLabel && typeof GmailApp.createLabel === 'function') {
+        fallbackLabel = GmailApp.createLabel(errorLabelName);
+      }
+      if (fallbackLabel && typeof thread.addLabel === 'function') {
+        thread.addLabel(fallbackLabel);
+      }
+    } catch (labelError) {
+      console.warn(`⚠️ Impossibile applicare label Errore al thread checkpoint ${threadId}: ${labelError.message}`);
+    }
+  });
 }
 
 function _clearBatchCheckpoint_() {

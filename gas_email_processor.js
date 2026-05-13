@@ -2304,10 +2304,12 @@ ${addressLines.join('\n\n')}
         throw new Error('PropertiesService non disponibile o adapter senza setProperty');
       }
       let currentDepth = 0;
+      let previousCheckpoint = null;
       try {
-        const previousCheckpoint = JSON.parse(props.getProperty('EMAIL_BATCH_CHECKPOINT') || '{}');
+        previousCheckpoint = JSON.parse(props.getProperty('EMAIL_BATCH_CHECKPOINT') || '{}');
         currentDepth = (previousCheckpoint && previousCheckpoint.depth) ? previousCheckpoint.depth : 0;
       } catch (_) {
+        previousCheckpoint = null;
         currentDepth = 0;
       }
 
@@ -2328,6 +2330,18 @@ ${addressLines.join('\n\n')}
           try { return thread && typeof thread.getId === 'function' ? thread.getId() : null; } catch (_) { return null; }
         })
         .filter(Boolean);
+
+      const storedPendingThreadIds = pendingThreadIds.slice(0, maxCheckpointThreads);
+      const previousPendingThreadIds = previousCheckpoint && Array.isArray(previousCheckpoint.pendingThreadIds)
+        ? previousCheckpoint.pendingThreadIds
+        : [];
+      const isSameCheckpoint = storedPendingThreadIds.length === previousPendingThreadIds.length &&
+        storedPendingThreadIds.every((id, idx) => id === previousPendingThreadIds[idx]);
+      const previousRetryCount = Number(previousCheckpoint && previousCheckpoint.retryCount);
+      const retryCount = isSameCheckpoint && Number.isFinite(previousRetryCount)
+        ? previousRetryCount + 1
+        : 1;
+
       const checkpoint = {
         version: 2,
         runId: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -2335,8 +2349,9 @@ ${addressLines.join('\n\n')}
         startIndex: startIndex,
         remainingTimeMs: remainingTimeMs,
         pendingCount: pendingThreadIds.length,
-        pendingThreadIds: pendingThreadIds.slice(0, maxCheckpointThreads),
-        depth: currentDepth + 1
+        pendingThreadIds: storedPendingThreadIds,
+        depth: currentDepth + 1,
+        retryCount: retryCount
       };
       props.setProperty('EMAIL_BATCH_CHECKPOINT', JSON.stringify(checkpoint));
 

@@ -1320,4 +1320,38 @@ console.log('--- Test checkpoint trigger: preserva trigger esistenti se create f
 }
 
 
+console.log('--- Test checkpoint retryCount: incrementa solo sullo stesso pending set ---');
+{
+  const props = new Map();
+  const originalPropertiesService = global.PropertiesService;
+  const originalScriptApp = global.ScriptApp;
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      setProperty: (k, v) => props.set(k, v),
+      getProperty: (k) => props.get(k) || '',
+      deleteProperty: (k) => props.delete(k)
+    })
+  };
+  global.ScriptApp = undefined;
+  try {
+    const processor = new EmailProcessor({ gmailService: { getUnprocessedUnreadThreads: () => [] } });
+    const fakeThreads = [{ getId: () => 't300' }, { getId: () => 't301' }];
+
+    processor._storeBatchCheckpointAndScheduleContinuation_(fakeThreads, 0, 25000);
+    let parsed = JSON.parse(props.get('EMAIL_BATCH_CHECKPOINT'));
+    assert(parsed.retryCount === 1, `retryCount iniziale atteso 1, ottenuto ${parsed.retryCount}`);
+
+    processor._storeBatchCheckpointAndScheduleContinuation_(fakeThreads, 0, 25000);
+    parsed = JSON.parse(props.get('EMAIL_BATCH_CHECKPOINT'));
+    assert(parsed.retryCount === 2, `retryCount sullo stesso checkpoint atteso 2, ottenuto ${parsed.retryCount}`);
+
+    processor._storeBatchCheckpointAndScheduleContinuation_(fakeThreads, 1, 25000);
+    parsed = JSON.parse(props.get('EMAIL_BATCH_CHECKPOINT'));
+    assert(parsed.retryCount === 1, `retryCount dopo avanzamento atteso 1, ottenuto ${parsed.retryCount}`);
+  } finally {
+    global.PropertiesService = originalPropertiesService;
+    global.ScriptApp = originalScriptApp;
+  }
+}
+
 console.log('✅ Test batch EmailProcessor passati');
