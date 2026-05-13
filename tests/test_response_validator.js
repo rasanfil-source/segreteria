@@ -219,4 +219,14 @@ console.log('--- Test SemanticValidator: hallucinations senza isValid diventano 
   assert(Array.isArray(normalized.details.times), 'i dettagli hallucinations devono essere preservati');
 }
 
+
+console.log('--- Test SemanticValidator: hash include lunghezza testo ---');
+{
+  const semantic = Object.create(SemanticValidator.prototype);
+  const shortHash = semantic._hashText('abc');
+  const longerHash = semantic._hashText('abc ');
+  assert(shortHash.startsWith('3_'), 'la chiave hash deve includere la lunghezza del testo breve');
+  assert(longerHash.startsWith('4_'), 'la chiave hash deve distinguere anche testi con stesso prefisso ma lunghezza diversa');
+}
+
 console.log('✅ Test core ResponseValidator passati');

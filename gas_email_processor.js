@@ -1155,40 +1155,9 @@ ${addressLines.join('\n\n')}
       // CONTEXT ROUTING: inietta moduli KB pesanti solo quando servono.
       // Manteniamo default conservativo (dottrina attiva) in caso di dubbio.
       // ====================================================================
-      let routedAiCoreLite = aiCoreLite;
-      let routedAiCore = aiCore;
-      let routedDoctrine = effectiveDoctrineBase;
-      let routedDoctrineStructured = doctrineStructured;
-
-      const technicalCategories = new Set(['technical', 'appointment', 'quotation', 'information']);
-      const concernFlags = activeConcerns && typeof activeConcerns === 'object'
-        ? activeConcerns
-        : {};
-      const memoryCategory = memoryContext && memoryContext.category
-        ? String(memoryContext.category).toLowerCase()
-        : '';
-      const memoryPastoralCategories = ['pastoral', 'doctrinal', 'formal', 'sacrament', 'sacramento'];
-      const hasMemoryPastoralContext = memoryPastoralCategories.some((category) =>
-        memoryCategory.includes(category)
-      );
-      const hasPastoralConcern = Boolean(
-        concernFlags.doctrine ||
-        concernFlags.sensitive ||
-        concernFlags.canonLaw ||
-        concernFlags.sacrament ||
-        concernFlags.formalComplaint ||
-        hasMemoryPastoralContext
-      );
-      const isTechnicalOnly = technicalCategories.has(categoryHintSource) && !hasPastoralConcern;
-
-      if (isTechnicalOnly) {
-        routedAiCore = '';
-        routedDoctrine = '';
-        routedDoctrineStructured = [];
-        console.log('   🧭 Context routing: richiesta tecnica → disattivo moduli dottrinali pesanti.');
-      } else {
-        console.log('   🧭 Context routing: richiesta non tecnica o sensibile → mantengo moduli completi.');
-      }
+      // Il context routing definitivo viene eseguito dopo l'OCR degli allegati:
+      // _deriveAttachmentIntentContext_ può aggiornare categoryHintSource con segnali
+      // sacramentali/formali estratti dai documenti, quindi filtrare qui sarebbe prematuro.
 
       // ====================================================================
       // STEP 7.1: PREPARAZIONE ALLEGATI (Multimodale / Vision)
@@ -1207,8 +1176,10 @@ ${addressLines.join('\n\n')}
           let hasAttachments = false;
           let attachmentPreCheckFailed = false;
           try {
-            const attachments = candidate.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
-            hasAttachments = attachments.length > 0;
+            hasAttachments = externalUnread.some((message) => {
+              const attachments = message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
+              return attachments.length > 0;
+            });
           } catch (e) {
             console.warn(`⚠️ Impossibile leggere allegati per pre-check: ${e.message}`);
             attachmentPreCheckFailed = true;
@@ -1334,8 +1305,18 @@ ${addressLines.join('\n\n')}
 
         }
       }
-
-
+      // ====================================================================
+      // CONTEXT ROUTING post-OCR (definitivo)
+      // ====================================================================
+      const isTechnicalOnly = technicalCategories.has(categoryHintSource) && !hasPastoralConcern;
+      if (isTechnicalOnly) {
+        routedAiCore = '';
+        routedDoctrine = '';
+        routedDoctrineStructured = [];
+        console.log('   🧭 Context routing: richiesta tecnica → disattivo moduli dottrinali pesanti.');
+      } else {
+        console.log('   🧭 Context routing: richiesta non tecnica o sensibile → mantengo moduli completi.');
+      }
       const promptOptions = {
         emailContent: messageDetails.body,
         emailSubject: messageDetails.subject,
@@ -2345,12 +2326,22 @@ ${addressLines.join('\n\n')}
           console.log(`⏸️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), nessun trigger pianificato (quota giornaliera Gmail esaurita).`);
         } else {
           // I trigger timeBased().after() possono rimanere come oggetti inerti dopo l'esecuzione.
-          // Manteniamo al massimo un trigger "fresco" eliminando tutti i precedenti.
-          existing.forEach((trigger) => {
-            try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
-          });
-          ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(60 * 1000).create();
-          console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger rigenerato.`);
+          // Creiamo prima il nuovo trigger: se la creazione fallisce, preserviamo quelli
+          // esistenti per non perdere la ripresa del checkpoint.
+          let newTrigger = null;
+          try {
+            newTrigger = ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(60 * 1000).create();
+          } catch (triggerError) {
+            console.error(`❌ Impossibile creare trigger di ripresa batch: ${triggerError.message}. I trigger esistenti vengono preservati.`);
+          }
+          if (newTrigger) {
+            existing.forEach((trigger) => {
+              try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
+            });
+            console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger rigenerato.`);
+          } else {
+            console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger esistente preservato.`);
+          }
         }
       }
     } catch (e) {
@@ -2568,7 +2559,7 @@ ${addressLines.join('\n\n')}
       return { ok: true, reason: 'acquired', lock: lockAcquired ? scriptLock : null };
     } catch (e) {
       if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
-        scriptLock.releaseLock();
+        try { scriptLock.releaseLock(); } catch (_) { }
       }
       throw e;
     }
@@ -3765,7 +3756,9 @@ Nota bene: l'orario comunicato ${note}.`;
     const fullText = `${subject || ''} ${body || ''} ${ocrText || ''}`.toLowerCase();
     const attachmentSignalText = `${ocrText || ''} ${(Array.isArray(attachmentItems) ? attachmentItems.map((i) => (i && i.name) ? i.name : '').join(' ') : '')}`.toLowerCase();
     const hasBodyQuestion = /\?|vorrei sapere|chiedo se|mi dica|sapere se/i.test(`${subject || ''} ${body || ''}`);
-    const hasOcrQuestion = phase === 'post_ocr' && /\?|domanda|quesito/i.test(ocrText || '');
+    // Non trattare punti interrogativi o label OCR come domande rivolte alla segreteria:
+    // un form/certificato può contenere campi o diciture interrogative non intenzionali.
+    const hasOcrQuestion = false;
 
     // Rilevamento tipologia documenti (euristico)
     // PRE-OCR: usa subject+body (fullText) per sospetto submission.
@@ -3775,6 +3768,7 @@ Nota bene: l'orario comunicato ${note}.`;
     const isSponsorDoc = /idoneit[aà]|padrino|madrina|sponsor/i.test(docScopeText);
     const isIdentityDoc = /carta d'identit[aà]|passaporto|documento identit[aà]/i.test(docScopeText);
     const isSbattezzoDoc = /modulo sbattezzo|richiesta cancellazione|registr[oi] battesim/i.test(docScopeText);
+    const isSacramentalDoc = /certificat[oa].{0,80}(battesim[oa]|cresim[ao])|battesim[oa].{0,80}uso.{0,40}matrimoni[oa]|(prima comunione|cresima ragazzi|catechismo)|cresim[ao].{0,30}adult/i.test(docScopeText);
 
     // Rileva se ci sono evidenze (certificati) o dati pratica (moduli)
     const hasEvidence = (Array.isArray(attachmentItems) && attachmentItems.some(item => item && item.attachmentRole === 'submitted_evidence')) || /ruolo allegato:\s*submitted_evidence/i.test(ocrText || '');
@@ -3828,6 +3822,9 @@ Nota bene: l'orario comunicato ${note}.`;
       intent = 'formal_request_submission';
       categoryHintSource = 'formal';
       responseDirective = 'Ricevuto modulo per sbattezzo/apostasia. Segui protocollo FORMAL: conferma ricezione e informa che la pratica verrà inoltrata al Parroco.';
+    } else if (isSacramentalDoc) {
+      categoryHintSource = 'sacrament';
+      responseDirective = 'Consegna documento sacramentale rilevata. Conferma la ricezione della documentazione allegata.';
     }
 
     if (hasBodyQuestion || hasOcrQuestion) {
@@ -3847,7 +3844,8 @@ Nota bene: l'orario comunicato ${note}.`;
       detectedDocTypes: {
         sponsor: isSponsorDoc,
         identity: isIdentityDoc,
-        sbattezzo: isSbattezzoDoc
+        sbattezzo: isSbattezzoDoc,
+        sacrament: isSacramentalDoc
       }
     };
   }
@@ -3947,7 +3945,10 @@ Nota bene: l'orario comunicato ${note}.`;
 
     const lines = text.split(/\n+/);
     const filtered = lines.filter((line) => {
-      return !/\b(requisit[oi].*padrin|idoneit[aà].*padrin|fare da padrin|fare da madrin|vita cristiana conforme|divorzio|convivenza)\b/i.test(line);
+      // Rimuovi solo righe esplicitamente relative ai requisiti per padrino/madrina.
+      // Termini generici come "divorzio" o "convivenza" possono essere legittimi
+      // in risposte matrimoniali o pastorali e non vanno filtrati da soli.
+      return !/\b(requisit[oi].*\b(padrin[oa]?|madrin[ao]?)|idoneit[aà].*\b(padrin[oa]?|madrin[ao]?)|fare da (padrin[oa]|madrin[ao]))\b/i.test(line);
     });
 
     const cleaned = filtered.join('\n').trim();

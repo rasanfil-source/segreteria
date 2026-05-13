@@ -432,6 +432,47 @@ console.log('--- Test _beginSendTransaction: skipLock evita riacquisizione Scrip
   }
 }
 
+
+console.log('--- Test _beginSendTransaction: conserva errore originale se releaseLock fallisce ---');
+{
+  const originalLockService = global.LockService;
+  const originalCacheService = global.CacheService;
+  let releaseCalls = 0;
+
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => true,
+      releaseLock: () => {
+        releaseCalls += 1;
+        throw new Error('release failure');
+      }
+    })
+  };
+  global.CacheService = {
+    getScriptCache: () => ({
+      get: () => { throw new Error('cache failure'); },
+      put: () => {},
+      remove: () => {}
+    })
+  };
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    let thrown = null;
+    try {
+      processor._beginSendTransaction('m-cache-error');
+    } catch (e) {
+      thrown = e;
+    }
+    assert(thrown && thrown.message === 'cache failure', "deve rilanciare l\'errore cache originale anche se releaseLock fallisce");
+    assert(releaseCalls === 1, 'deve tentare il rilascio del lock acquisito nel percorso di errore');
+  } finally {
+    global.LockService = originalLockService;
+    global.CacheService = originalCacheService;
+    cacheStore.clear();
+  }
+}
+
 function createExternalThread(id) {
   const msg = createMessage({ id: `m-${id}`, unread: true, from: 'utente@example.com' });
   return createThread({ id: `t-${id}`, messages: [msg] });
@@ -573,6 +614,112 @@ console.log('--- Test processThread: fallback generazione marca atomicamente tut
   assert(labeled.has('m-burst-generation-2'), 'deve marcare come processato il secondo messaggio del burst');
   assert(labeled.has('m-burst-generation-3'), 'deve marcare come processato il candidato del burst');
 }
+
+
+console.log('--- Test processThread: burst con allegato nel primo messaggio attiva OCR ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalDocumentConsistency = global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED;
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = false;
+  global.CONFIG.ATTACHMENT_CONTEXT = { enabled: true, maxFiles: 3 };
+
+  const attachmentCalls = [];
+  const firstMsg = {
+    getId: () => 'm-burst-attachment-1',
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-10T10:00:00Z'),
+    getSubject: () => 'Invio certificato',
+    getPlainBody: () => 'Allego il certificato.',
+    getAttachments: () => [{ getName: () => 'certificato.pdf' }]
+  };
+  const candidateMsg = {
+    getId: () => 'm-burst-attachment-2',
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-10T10:01:00Z'),
+    getSubject: () => 'Precisazione',
+    getPlainBody: () => 'Grazie.',
+    getAttachments: () => []
+  };
+  const thread = createThread({ id: 't-burst-attachment', messages: [firstMsg, candidateMsg] });
+
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Precisazione',
+        body: 'Grazie.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      getProcessableAttachments: (message) => {
+        attachmentCalls.push(message.getId());
+        return message.getId() === 'm-burst-attachment-1'
+          ? {
+              blobs: [],
+              textContext: 'Certificato allegato nel primo messaggio del burst.',
+              skipped: [],
+              items: [{ name: 'certificato.pdf', text: 'Certificato' }]
+            }
+          : { blobs: [], textContext: '', skipped: [], items: [] };
+      },
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'document_submission', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      backupKey: 'backup-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'documentazione ricevuta' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta con contesto allegato' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: () => 'PROMPT'
+    }
+  });
+  processor._deriveAttachmentIntentContext_ = () => ({
+    intent: 'document_submission',
+    hasQuestions: false,
+    allowBodyQuestions: false,
+    categoryHintSource: 'document_submission',
+    detectedDocTypes: { sponsor: false }
+  });
+
+  const result = processor.processThread(thread, 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'il burst con allegato precedente deve essere processato');
+  assert(attachmentCalls.includes('m-burst-attachment-1'), 'deve elaborare gli allegati del primo messaggio del burst, non solo del candidato');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = originalDocumentConsistency;
+  global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+}
+
 
 console.log('--- Test processThread: submission receipt-only non chiama Gemini generation ---');
 {
@@ -873,6 +1020,120 @@ console.log('--- Test context routing: memoria pastorale impedisce amnesia su fo
 }
 
 
+console.log('--- Test context routing: OCR sacramentale riattiva dottrina dopo categoria tecnica ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+  const originalGlobalCache = global.GLOBAL_CACHE;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.CONFIG.ATTACHMENT_CONTEXT = { enabled: true, maxFiles: 3 };
+  global.GLOBAL_CACHE = { aiCoreLite: 'core lite', aiCore: 'core pesante' };
+
+  let promptOptions = null;
+  const msg = {
+    getId: () => 'm-post-ocr-sacrament',
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-10T10:00:00Z'),
+    getSubject: () => 'Info pratica',
+    getPlainBody: () => 'Allego certificato. Posso fare Cresima?',
+    getAttachments: () => [{ getName: () => 'certificato_battesimo.pdf' }]
+  };
+  const thread = createThread({ id: 't-post-ocr-sacrament', messages: [msg] });
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Info pratica',
+        body: 'Allego certificato. Posso fare Cresima?',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      getProcessableAttachments: () => ({
+        blobs: [],
+        textContext: 'Certificato di battesimo per uso sacramentale.',
+        skipped: [],
+        items: [{ name: 'certificato_battesimo.pdf', text: 'Certificato di battesimo' }]
+      }),
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'information', topic: 'pratica' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta Cresima' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        promptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  const result = processor.processThread(thread, 'kb valida', 'dottrina completa', new Set(), true);
+  assert(result.status === 'replied', 'la domanda con certificato sacramentale OCR deve completarsi');
+  assert(promptOptions.category === 'sacrament', `categoria post-OCR attesa sacrament, ottenuta ${promptOptions && promptOptions.category}`);
+  assert(promptOptions.doctrineBase === 'dottrina completa', 'la dottrina deve restare attiva dopo routing post-OCR sacramentale');
+  assert(promptOptions.aiCore === 'core pesante', 'AI core pesante deve restare attivo dopo routing post-OCR sacramentale');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+  global.GLOBAL_CACHE = originalGlobalCache;
+}
+
+console.log('--- Test attachment intent: OCR con punti interrogativi non crea domanda ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  const context = processor._deriveAttachmentIntentContext_(
+    'Allego modulo compilato.',
+    'Invio documento',
+    [{ name: 'modulo.pdf' }],
+    'Nome? Cognome? Domanda di iscrizione',
+    'post_ocr'
+  );
+  assert(context && context.hasQuestions === false, 'le domande/etichette OCR non devono impostare hasQuestions');
+  assert(!/_with_question$/.test(context.intent), `intent OCR non deve terminare con _with_question, ottenuto ${context && context.intent}`);
+}
+
+console.log('--- Test sponsor sanitizer: non rimuove termini matrimoniali generici ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  const response = 'La convivenza e il divorzio richiedono un discernimento pastorale specifico.\nPer fare da padrino servono requisiti specifici.';
+  const cleaned = processor._sanitizeUnrequestedSponsorGuidance_(
+    response,
+    'Info padrino',
+    'Mio fratello sarà padrino.'
+  );
+  assert(cleaned.includes('convivenza') && cleaned.includes('divorzio'), 'il sanitizer deve preservare righe canoniche generiche');
+  assert(!cleaned.includes('Per fare da padrino'), 'il sanitizer deve ancora rimuovere guidance esplicita su padrino/madrina');
+}
+
+
 console.log('--- Test processThread: errore quota invio propaga errorClass senza label permanente ---');
 {
   const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
@@ -1024,5 +1285,39 @@ console.log('--- Test checkpoint payload include version e runId ---');
     global.ScriptApp = originalScriptApp;
   }
 }
+
+console.log('--- Test checkpoint trigger: preserva trigger esistenti se create fallisce ---');
+{
+  const props = new Map();
+  const existingTrigger = { getHandlerFunction: () => 'resumeEmailBatchFromCheckpoint' };
+  let deleteCalls = 0;
+  const originalPropertiesService = global.PropertiesService;
+  const originalScriptApp = global.ScriptApp;
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      setProperty: (k, v) => props.set(k, v),
+      getProperty: (k) => props.get(k) || ''
+    })
+  };
+  global.ScriptApp = {
+    getProjectTriggers: () => [existingTrigger],
+    deleteTrigger: () => { deleteCalls++; },
+    newTrigger: () => ({
+      timeBased: () => ({
+        after: () => ({ create: () => { throw new Error('quota trigger esaurita'); } })
+      })
+    })
+  };
+  try {
+    const processor = new EmailProcessor({ gmailService: { getUnprocessedUnreadThreads: () => [] } });
+    processor._storeBatchCheckpointAndScheduleContinuation_([{ getId: () => 't200' }], 0, 25000);
+    assert(props.has('EMAIL_BATCH_CHECKPOINT'), 'il checkpoint deve essere salvato anche se il trigger nuovo fallisce');
+    assert(deleteCalls === 0, 'i trigger esistenti non devono essere eliminati se create fallisce');
+  } finally {
+    global.PropertiesService = originalPropertiesService;
+    global.ScriptApp = originalScriptApp;
+  }
+}
+
 
 console.log('✅ Test batch EmailProcessor passati');

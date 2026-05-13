@@ -1572,7 +1572,7 @@ Rispondi SOLO con questo JSON (senza markdown):
     }
     h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
     h2 = Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-    return (Math.abs(4294967296 * (2097151 & h2) + (h1 >>> 0))).toString(36);
+    return `${text.length}_${Math.abs(4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36)}`;
   }
 }
 

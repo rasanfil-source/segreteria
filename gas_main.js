@@ -548,7 +548,9 @@ function _loadResourcesInternal(knownSheetModifiedAt) {
   }
 
   const latestSheetModifiedAt = knownSheetModifiedAt || _getSpreadsheetModifiedTimeMs(spreadsheetId);
-  const cache = (typeof CacheService !== 'undefined') ? CacheService.getScriptCache() : null;
+  const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
+    ? CacheService.getScriptCache()
+    : null;
 
   // ⚠️ Scelta blindata: la cache persiste SEMPRE il payload completo delle risorse.
   // Eventuali riduzioni/riassunti vanno fatte solo a runtime nel PromptEngine,
