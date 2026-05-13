@@ -36,8 +36,8 @@ function checkQuotaStatus() {
 | Model | RPD Limit | Reset |
 |-------|-----------|-------|
 | Gemini 3.1 Flash-Lite | 3,500/day | 9:00 AM IT |
-| Google Search Grounding | 1,500 shared queries/day | 9:00 AM IT |
-| Context cache create | Counts as API request when TTL expires | 9:00 AM IT |
+| Google Search Grounding | Disabled by default; check AI Studio if enabled | 9:00 AM IT |
+| Context cache create | Disabled by default in Free Tier; counts as API request if enabled | 9:00 AM IT |
 
 ---
 
@@ -156,7 +156,7 @@ If quota is frequently exhausted, consider:
 | Metric | Warning Threshold | Critical Threshold |
 |--------|-------------------|-------------------|
 | RPD Gemini 3.1 Flash-Lite | > 2,800/3,500 (80%) | > 3,325/3,500 (95%) |
-| Google Search Grounding | > 1,200/1,500 (80%) | > 1,425/1,500 (95%) |
+| Google Search Grounding | Monitor only if enabled in AI Studio | Monitor only if enabled in AI Studio |
 | Avg tokens/response | > 20,000 | > 80,000 |
 | Emails/hour | > 15 | > 25 |
 

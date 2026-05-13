@@ -274,7 +274,7 @@ Visibilità: Privato (NON pubblico)
 | Scenario | Modello Consigliato | RPD Budget | Costo Stimato/Mese |
 |----------|---------------------|------------|---------------------|
 | Parrocchia piccola (<50 email/settimana) | Gemini 3.1 Flash-Lite | 3.500 | Free Tier, monitorare RPD |
-| Parrocchia media (100-200 email/settimana) | Gemini 3.1 Flash-Lite + context cache | 3.500 | Free Tier, cache prompt statico |
+| Parrocchia media (100-200 email/settimana) | Gemini 3.1 Flash-Lite | 3.500 | Free Tier, context cache spenta salvo disponibilità in AI Studio |
 | Parrocchia grande (>300 email/settimana) | Gemini 3.1 Flash-Lite + chiave backup | 3.500/progetto | RPD resta il collo di bottiglia |
 | Sviluppo/Test | Gemini 3.1 Flash-Lite | 3.500 | Tenere DRY_RUN abilitato |
 
@@ -293,9 +293,9 @@ CONFIG.MODEL_STRATEGY = {
 
 | Modello | ✅ Pro | ❌ Contro |
 |---------|--------|-----------|
-| **Gemini 3.1 Flash-Lite** | Context window 1M, caching supportato, RPM/TPM elevati | RPD 3.500/giorno resta il collo di bottiglia |
-| **Context Cache** | Riuso dei token statici e niente reinvio tools/istruzioni | La creazione cache consuma una chiamata quando scade il TTL |
-| **Google Search Grounding** | Fatti aggiornati se abilitato esplicitamente | 1.500 query/giorno condivise; disabilitato di default |
+| **Gemini 3.1 Flash-Lite** | Context window 1M, RPM/TPM elevati | RPD 3.500/giorno resta il collo di bottiglia |
+| **Context Cache** | Riuso opzionale del prompt statico se AI Studio abilita cachedContents | Disattivata di default in Free Tier; fallback diretto automatico |
+| **Google Search Grounding** | Fatti aggiornati se abilitato esplicitamente | Disabilitato di default; usare solo se AI Studio espone una quota |
 
 ### Configurazione per Scenario
 

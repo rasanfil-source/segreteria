@@ -260,5 +260,93 @@ console.log('--- Test Context Cache: payload minimale e auto-healing 404 ---');
   }
 }
 
+console.log('--- Test Context Cache: Free Tier non disponibile degrada a generateContent diretto ---');
+{
+  const previousUtilities = global.Utilities;
+  const previousLockService = global.LockService;
+  const previousEstimateTokenCount = global.estimateTokenCount;
+
+  const store = new Map();
+  const props = {
+    getProperty: (key) => store.has(key) ? store.get(key) : null,
+    setProperty: (key, value) => { store.set(key, String(value)); },
+    setProperties: (values) => {
+      Object.keys(values || {}).forEach((key) => store.set(key, String(values[key])));
+    },
+    deleteProperty: (key) => { store.delete(key); }
+  };
+  const calls = [];
+
+  global.Utilities = {
+    base64Encode: () => '',
+    formatDate: () => '2026-05-12'
+  };
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => true,
+      releaseLock: () => { }
+    })
+  };
+  global.estimateTokenCount = (text) => Math.max(1, Math.ceil(String(text || '').length / 4));
+
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = '';
+  service.config = { TEMPERATURE: 0.5, MAX_OUTPUT_TOKENS: 1000 };
+  service.props = props;
+  service.modelName = 'gemini-3.1-flash-lite';
+  service.contextCacheConfig = {
+    enabled: true,
+    ttlSeconds: 3300,
+    expirySkewMs: 90000,
+    minCacheableTokens: 1,
+    splitMarker: '**EMAIL DA RISPONDERE:**',
+    propertyPrefix: 'test_context_cache_',
+    googleSearchGrounding: { enabled: false, reservedQueriesPerRequest: 1 }
+  };
+  service.rateLimiter = {
+    trackAuxiliaryRequest: () => { }
+  };
+  service.fetchFn = (url, options) => {
+    const payload = JSON.parse(options.payload);
+    calls.push({ url, payload });
+    if (url.includes('/cachedContents')) {
+      return {
+        getResponseCode: () => 403,
+        getContentText: () => JSON.stringify({ error: { message: 'Context caching is not available for Free Tier' } })
+      };
+    }
+    return {
+      getResponseCode: () => 200,
+      getContentText: () => JSON.stringify({ candidates: [{ content: { parts: [{ text: 'Risposta diretta' }] } }] })
+    };
+  };
+
+  try {
+    const prompt = [
+      'Sei la segreteria della Parrocchia.',
+      '',
+      'CONTESTO STATICO E KB',
+      '',
+      '**EMAIL DA RISPONDERE:**',
+      'Contenuto nuovo utente'
+    ].join('\n');
+    const text = service._generateWithModel(prompt, 'gemini-3.1-flash-lite', 'primary-key', []);
+    assert(text === 'Risposta diretta', 'deve completare con generateContent diretto se cachedContents non è disponibile');
+
+    const cacheCreates = calls.filter(c => c.url.includes('/cachedContents'));
+    const generations = calls.filter(c => c.url.includes(':generateContent'));
+    assert(cacheCreates.length === 1, 'deve tentare la cache una sola volta');
+    assert(generations.length === 1, 'deve eseguire una sola generateContent diretta');
+    assert(!generations[0].payload.cachedContent, 'generateContent diretto non deve usare cachedContent');
+    assert(generations[0].payload.contents[0].parts.some(part => part.text === prompt), 'il prompt completo deve essere inviato nella chiamata diretta');
+    assert(service.contextCacheConfig.enabled === false, 'deve disabilitare la cache in memoria dopo errore di disponibilità');
+  } finally {
+    global.Utilities = previousUtilities;
+    global.LockService = previousLockService;
+    global.estimateTokenCount = previousEstimateTokenCount;
+  }
+}
+
 
 console.log('✅ Test bilanciamento JSON Gemini passati');

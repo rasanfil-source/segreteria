@@ -36,8 +36,8 @@ function checkQuotaStatus() {
 | Modello | Limite RPD | Reset |
 |---------|------------|-------|
 | Gemini 3.1 Flash-Lite | 3.500/giorno | 9:00 IT |
-| Google Search Grounding | 1.500 query/giorno condivise | 9:00 IT |
-| Creazione context cache | Conta come richiesta API quando scade il TTL | 9:00 IT |
+| Google Search Grounding | Disabilitato di default; verificare AI Studio se abilitato | 9:00 IT |
+| Creazione context cache | Disabilitata di default in Free Tier; conta come richiesta API se abilitata | 9:00 IT |
 
 ---
 
@@ -156,7 +156,7 @@ Se quota esaurita frequentemente, valuta:
 | Metrica | Soglia Warning | Soglia Critica |
 |---------|---------------|----------------|
 | RPD Gemini 3.1 Flash-Lite | > 2.800/3.500 (80%) | > 3.325/3.500 (95%) |
-| Google Search Grounding | > 1.200/1.500 (80%) | > 1.425/1.500 (95%) |
+| Google Search Grounding | Monitorare solo se abilitato in AI Studio | Monitorare solo se abilitato in AI Studio |
 | Token/risposta medio | > 20.000 | > 80.000 |
 | Email/ora | > 15 | > 25 |
 

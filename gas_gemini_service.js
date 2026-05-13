@@ -134,7 +134,17 @@ var GeminiService = class GeminiService {
 
     const cachePlan = this._buildContextCachePlan_(prompt, modelName, attachments);
     if (cachePlan) {
-      return this._generateWithCachedContent_(cachePlan, modelName, activeKey);
+      try {
+        return this._generateWithCachedContent_(cachePlan, modelName, activeKey);
+      } catch (cacheError) {
+        if (!this._isContextCacheUnavailableError_(cacheError)) {
+          throw cacheError;
+        }
+        console.warn(`⚠️ Context Cache non disponibile per ${modelName}: ${cacheError.message}. Uso generateContent diretto.`);
+        if (this.contextCacheConfig) {
+          this.contextCacheConfig.enabled = false;
+        }
+      }
     }
 
     const requestParts = [];
@@ -657,6 +667,28 @@ var GeminiService = class GeminiService {
       // fallback al body raw troncato.
     }
     return apiErrorMsg;
+  }
+
+  _isContextCacheUnavailableError_(error) {
+    const message = this._getErrorMessage_(error).toLowerCase();
+    if (!message) return false;
+
+    if (message.includes('cache_create_not_found')) return true;
+    if (message.includes('cachedcontents.create') && /\b(400|403|404)\b/.test(message)) return true;
+    if (message.includes('cachedcontent') || message.includes('context cache') || message.includes('context caching')) {
+      return (
+        message.includes('not available') ||
+        message.includes('not supported') ||
+        message.includes('unsupported') ||
+        message.includes('permission') ||
+        message.includes('forbidden') ||
+        message.includes('billing') ||
+        message.includes('free tier') ||
+        message.includes('not enabled')
+      );
+    }
+
+    return false;
   }
 
   _trackAuxiliaryGeminiRequest_(modelName, estimatedTokens, label) {

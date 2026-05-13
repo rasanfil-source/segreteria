@@ -171,12 +171,14 @@ var CONFIG = {
         ipm: null,
         groundingSharedRpd: 1500,
         countTokensApiAllowed: false,
-        contextCachingSupported: true,
+        contextCachingSupported: false,
         dataUsedForTraining: true
     },
 
     GEMINI_CONTEXT_CACHE: {
-        enabled: true,
+        // Free Tier: lasciare false salvo disponibilità esplicita in AI Studio.
+        // Il servizio degrada comunque a generateContent diretto se cachedContents non è disponibile.
+        enabled: false,
         ttlSeconds: 3300,
         expirySkewMs: 90000,
         minCacheableTokens: 1024,

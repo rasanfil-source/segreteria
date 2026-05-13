@@ -157,7 +157,7 @@ Email Arrives
 ┌──────────────────────────────────────────────────────────┐
 │  AI GENERATION (GeminiService)                           │
 │  - Gemini API call with retry (max 2)                   │
-│  - REST Context Caching with TTL auto-healing           │
+│  - Optional REST Context Caching with direct fallback   │
 │  - Local token estimation only (no /countTokens calls)  │
 └──────────────┬──────────────────────────────────────────┘
                │
@@ -503,10 +503,10 @@ if (rpdUsage > 0.8 * rpdLimit) {
 - **RPM** → Rolling window (last 60 seconds)
 - **TPM** → Rolling window (last 60 seconds)
 - **RPD** → Daily counter (reset 9:00 AM IT)
-- **Google Search Grounding** → Shared daily query counter (1,500/day)
-- **Context cache** → Cache name + expireTime persisted in Script Properties
+- **Google Search Grounding** → Optional shared daily query counter when AI Studio exposes a quota
+- **Context cache** → Disabled by default in Free Tier; cache name + expireTime persisted only when enabled
 
-**Context Caching Contract:**
+**Context Caching Contract (Optional):**
 ```javascript
 // cachedContents.create receives static context, systemInstruction and tools.
 // generateContent receives only cachedContent + the new user prompt.

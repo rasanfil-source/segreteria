@@ -215,7 +215,7 @@ var CONFIG = {
   // - RPM: 2.000
   // - TPM: 2.000.000
   // - RPD: 3.500
-  // - Grounding Google Search: 1.500 query/giorno condivise nel progetto
+  // - Grounding Google Search: tenere disabilitato in Free Tier salvo disponibilità esplicita in AI Studio
   // - Vietato usare /countTokens: il conteggio resta locale e stimato.
   // - Privacy: nel piano gratuito input/output possono essere usati per training Google (valutare impatto GDPR)
   GEMINI_FREE_TIER_NOTES: {
@@ -226,12 +226,15 @@ var CONFIG = {
     ipm: null,
     groundingSharedRpd: 1500,
     countTokensApiAllowed: false,
-    contextCachingSupported: true,
+    contextCachingSupported: false,
     dataUsedForTraining: true
   },
 
   GEMINI_CONTEXT_CACHE: {
-    enabled: true,
+    // Free Tier: la pagina pricing pubblica indica Context caching non disponibile
+    // per gemini-3.1-flash-lite. Abilitare solo se AI Studio lo mostra attivo
+    // per il progetto; GeminiService degrada comunque a generateContent diretto.
+    enabled: false,
     ttlSeconds: 3300,                  // 55 minuti: sotto il default 1h per ridurre cache stale
     expirySkewMs: 90000,               // Ricrea prima della scadenza dichiarata
     minCacheableTokens: 1024,          // Minimo documentato per caching sui modelli Flash recenti

@@ -10,8 +10,8 @@ Usa `gas_config.example.js` come template nel repository e crea il file locale `
 ### Impostazioni API
 - **GEMINI_API_KEY**: La tua chiave API Gemini (salvata nelle Proprietà dello Script).
 - **MODEL_NAME**: Modello predefinito (attuale `gemini-3.1-flash-lite`).
-- **GEMINI_CONTEXT_CACHE**: Abilita `cachedContents` REST con TTL persistito in Script Properties. `systemInstruction` e tools sono inviati solo nella creazione cache; la `generateContent` finale invia solo `cachedContent` e il nuovo prompt utente.
-- **GEMINI_FREE_TIER_NOTES**: Profilo quote locale per Gemini 3.1 Flash-Lite Free Tier: 2.000 RPM, 2.000.000 TPM, 3.500 RPD e 1.500 query/giorno Google Search Grounding condivise. Il collo di bottiglia operativo resta RPD.
+- **GEMINI_CONTEXT_CACHE**: Di default è disabilitata per Free Tier. Abilitala solo se AI Studio mostra `cachedContents` disponibile per il progetto; se l'endpoint non è disponibile, il servizio degrada a `generateContent` diretto.
+- **GEMINI_FREE_TIER_NOTES**: Profilo quote locale per Gemini 3.1 Flash-Lite Free Tier: 2.000 RPM, 2.000.000 TPM e 3.500 RPD. Il collo di bottiglia operativo resta RPD; Google Search Grounding resta disabilitato salvo disponibilità esplicita in AI Studio.
 
 ### Gmail e Processamento
 - **LABEL_NAME**: `IA` (Email processate con successo).

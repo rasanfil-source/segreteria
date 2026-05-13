@@ -274,7 +274,7 @@ Visibility: Private (NOT public)
 | Scenario | Recommended Model | RPD Budget | Estimated Cost/Month |
 |----------|-------------------|------------|----------------------|
 | Small parish (<50 emails/week) | Gemini 3.1 Flash-Lite | 3,500 | Free Tier, watch RPD |
-| Medium parish (100-200 emails/week) | Gemini 3.1 Flash-Lite + context cache | 3,500 | Free Tier, cache static prompt |
+| Medium parish (100-200 emails/week) | Gemini 3.1 Flash-Lite | 3,500 | Free Tier, keep context cache off unless AI Studio enables it |
 | Large parish (>300 emails/week) | Gemini 3.1 Flash-Lite + backup key | 3,500/project | RPD remains the bottleneck |
 | Development/Test | Gemini 3.1 Flash-Lite | 3,500 | Keep DRY_RUN enabled |
 
@@ -293,9 +293,9 @@ CONFIG.MODEL_STRATEGY = {
 
 | Model | ✅ Pros | ❌ Cons |
 |-------|---------|---------|
-| **Gemini 3.1 Flash-Lite** | 1M context window, caching supported, high RPM/TPM | RPD 3,500/day is still the bottleneck |
-| **Context Cache** | Reuses static prompt tokens and avoids resending tools/instructions | Cache creation is an extra API call when TTL expires |
-| **Google Search Grounding** | Real-time facts when explicitly enabled | Shared 1,500 queries/day; disabled by default |
+| **Gemini 3.1 Flash-Lite** | 1M context window, high RPM/TPM | RPD 3,500/day is still the bottleneck |
+| **Context Cache** | Optional static prompt reuse when AI Studio enables cachedContents | Disabled by default in Free Tier; direct fallback is automatic |
+| **Google Search Grounding** | Real-time facts when explicitly enabled | Disabled by default; use only if AI Studio exposes a quota |
 
 ### Configuration by Scenario
 
