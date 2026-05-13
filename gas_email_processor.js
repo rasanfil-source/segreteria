@@ -1155,9 +1155,35 @@ ${addressLines.join('\n\n')}
       // CONTEXT ROUTING: inietta moduli KB pesanti solo quando servono.
       // Manteniamo default conservativo (dottrina attiva) in caso di dubbio.
       // ====================================================================
+      let routedAiCoreLite = aiCoreLite;
+      let routedAiCore = aiCore;
+      let routedDoctrine = effectiveDoctrineBase;
+      let routedDoctrineStructured = doctrineStructured;
+
+      const technicalCategories = new Set(['technical', 'appointment', 'quotation', 'information']);
+      const concernFlags = activeConcerns && typeof activeConcerns === 'object'
+        ? activeConcerns
+        : {};
+      const memoryCategory = memoryContext && memoryContext.category
+        ? String(memoryContext.category).toLowerCase()
+        : '';
+      const memoryPastoralCategories = ['pastoral', 'doctrinal', 'formal', 'sacrament', 'sacramento'];
+      const hasMemoryPastoralContext = memoryPastoralCategories.some((category) =>
+        memoryCategory.includes(category)
+      );
+      const hasPastoralConcern = Boolean(
+        concernFlags.doctrine ||
+        concernFlags.sensitive ||
+        concernFlags.canonLaw ||
+        concernFlags.sacrament ||
+        concernFlags.formalComplaint ||
+        hasMemoryPastoralContext
+      );
+
       // Il context routing definitivo viene eseguito dopo l'OCR degli allegati:
       // _deriveAttachmentIntentContext_ può aggiornare categoryHintSource con segnali
       // sacramentali/formali estratti dai documenti, quindi filtrare qui sarebbe prematuro.
+
 
       // ====================================================================
       // STEP 7.1: PREPARAZIONE ALLEGATI (Multimodale / Vision)
