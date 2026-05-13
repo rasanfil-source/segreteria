@@ -273,10 +273,10 @@ Visibility: Private (NOT public)
 
 | Scenario | Recommended Model | RPD Budget | Estimated Cost/Month |
 |----------|-------------------|------------|----------------------|
-| Small parish (<50 emails/week) | Gemini 3.1 Flash-Lite | 3,500 | Free Tier, watch RPD |
-| Medium parish (100-200 emails/week) | Gemini 3.1 Flash-Lite | 3,500 | Free Tier, keep context cache off unless AI Studio enables it |
-| Large parish (>300 emails/week) | Gemini 3.1 Flash-Lite + backup key | 3,500/project | RPD remains the bottleneck |
-| Development/Test | Gemini 3.1 Flash-Lite | 3,500 | Keep DRY_RUN enabled |
+| Small parish (<50 emails/week) | 2.5 Flash response + 3.1 Flash-Lite fast tasks | Verify in AI Studio | Free Tier, watch RPD |
+| Medium parish (100-200 emails/week) | 2.5 Flash response + lite fallback | Verify in AI Studio | Free Tier, keep context cache off unless AI Studio enables it |
+| Large parish (>300 emails/week) | 2.5 Flash + backup key + 3.1 Lite fallback | per project | RPD remains the bottleneck |
+| Development/Test | 3.1 Flash-Lite for fast tests, 2.5 Flash for quality tests | Verify in AI Studio | Keep DRY_RUN enabled |
 
 ### When to Use Fallback Chain?
 
@@ -284,7 +284,7 @@ Visibility: Private (NOT public)
 // Recommended configuration for production
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],             // Economy for quick checks
-  'generation': ['flash-3.1-lite', 'flash-lite'], // Same physical model, separate logical paths
+  'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
   'fallback': ['flash-lite', 'flash-3.1-lite-backup']
 };
 ```
@@ -293,7 +293,8 @@ CONFIG.MODEL_STRATEGY = {
 
 | Model | ✅ Pros | ❌ Cons |
 |-------|---------|---------|
-| **Gemini 3.1 Flash-Lite** | 1M context window, high RPM/TPM | RPD 3,500/day is still the bottleneck |
+| **Gemini 2.5 Flash** | Higher-quality final response path | Lower local throughput profile; use backup/fallback for resilience |
+| **Gemini 3.1 Flash-Lite** | Fast auxiliary path, high local RPM/TPM profile | Use for classification/language/semantic/fallback, not first-choice final quality |
 | **Context Cache** | Optional static prompt reuse when AI Studio enables cachedContents | Disabled by default in Free Tier; direct fallback is automatic |
 | **Google Search Grounding** | Real-time facts when explicitly enabled | Disabled by default; use only if AI Studio exposes a quota |
 
@@ -303,7 +304,7 @@ CONFIG.MODEL_STRATEGY = {
 ```javascript
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-lite']
+  'generation': ['flash-2.5', 'flash-lite']
 };
 CONFIG.MAX_EMAILS_PER_RUN = 5;
 ```
@@ -312,7 +313,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 5;
 ```javascript
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-3.1-lite', 'flash-lite']
+  'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite']
 };
 CONFIG.MAX_EMAILS_PER_RUN = 10;
 ```
@@ -321,7 +322,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 10;
 ```javascript
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-3.1-lite']
+  'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup']
 };
 CONFIG.MAX_EMAILS_PER_RUN = 15;
 // Consider trigger every 5 minutes
@@ -367,7 +368,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 5;
 // Use cheaper models
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-lite', 'flash-3.1-lite']  // Same model, conservative path
+  'generation': ['flash-2.5', 'flash-lite']  // Quality first, lite fallback
 };
 ```
 
@@ -650,10 +651,10 @@ main();
 // Temporarily ignore
 CONFIG.MAX_EMAILS_PER_RUN = 0;  // Suspends processing
 
-// Or use only lite model
+// Or use a minimal quality + lite fallback chain
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-lite']
+  'generation': ['flash-2.5', 'flash-lite']
 };
 ```
 

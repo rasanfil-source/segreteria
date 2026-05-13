@@ -102,7 +102,7 @@ Email Arriva
                v
 ┌──────────────────────────────────────────────────────────┐
 │  QUICK CHECK (Gemini AI)                                 │
-│  - Modello: gemini-3.1-flash-lite (veloce, cached)      │
+│  - Modello: gemini-3.1-flash-lite (rapido/ausiliario)   │
 │  - Risposta necessaria? (true/false)                     │
 │  - Lingua rilevata? (it/en/es/fr/de)                     │
 │  - Categoria? (TECHNICAL/PASTORAL/DOCTRINAL/MIXED)       │
@@ -497,20 +497,25 @@ if (estimatedTokens > MAX_SAFE_TOKENS) {
 
 ```javascript
 GEMINI_MODELS = {
-  'flash-3.1-lite': {
-    name: 'gemini-3.1-flash-lite',
-    rpm: 2000, tpm: 2000000, rpd: 3500,
+  'flash-2.5': {
+    name: 'gemini-2.5-flash',
+    rpm: 10, tpm: 250000, rpd: 250,
     useCases: ['generation', 'all']
+  },
+  'flash-2.5-backup': {
+    name: 'gemini-2.5-flash',
+    rpm: 10, tpm: 250000, rpd: 250,
+    useCases: ['generation', 'backup']
   },
   'flash-lite': {
     name: 'gemini-3.1-flash-lite',
     rpm: 2000, tpm: 2000000, rpd: 3500,
-    useCases: ['quick_check', 'classification', 'fallback']
+    useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
   },
   'flash-3.1-lite-backup': {
     name: 'gemini-3.1-flash-lite',
     rpm: 2000, tpm: 2000000, rpd: 3500,
-    useCases: ['fallback']
+    useCases: ['fallback', 'backup']
   }
 }
 ```
@@ -519,7 +524,7 @@ GEMINI_MODELS = {
 ```javascript
 MODEL_STRATEGY = {
   'quick_check': ['flash-lite', 'flash-3.1-lite'],
-  'generation': ['flash-3.1-lite', 'flash-lite', 'flash-3.1-lite-backup'],
+  'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
   'fallback': ['flash-lite', 'flash-3.1-lite-backup']
 }
 ```
@@ -613,11 +618,12 @@ tokenComponents = {
 Il sistema supporta una chiave API di riserva per massimizzare la qualità delle risposte:
 
 ```javascript
-// Strategia cross-key: stesso modello fisico, chiavi diverse se configurate
+// Strategia cross-key: qualita prima, poi lite come fallback operativo
 attemptStrategy = [
-  { name: 'Primary-Flash3.1Lite', key: primaryKey, model: 'gemini-3.1-flash-lite', skipRateLimit: false },
-  { name: 'Backup-Flash3.1Lite', key: backupKey, model: 'gemini-3.1-flash-lite', skipRateLimit: false },
-  { name: 'Fallback-Lite', key: primaryKey, model: 'gemini-3.1-flash-lite', skipRateLimit: false }
+  { name: 'Primary-Flash2.5', key: primaryKey, model: 'gemini-2.5-flash', skipRateLimit: false },
+  { name: 'Backup-Flash2.5', key: backupKey, model: 'gemini-2.5-flash', skipRateLimit: true },
+  { name: 'Primary-Lite', key: primaryKey, model: 'gemini-3.1-flash-lite', skipRateLimit: false },
+  { name: 'Backup-Lite', key: backupKey, model: 'gemini-3.1-flash-lite', skipRateLimit: true }
 ];
 
 for (plan of attemptStrategy) {

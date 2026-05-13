@@ -9,9 +9,9 @@ Usa `gas_config.example.js` come template nel repository e crea il file locale `
 
 ### Impostazioni API
 - **GEMINI_API_KEY**: La tua chiave API Gemini (salvata nelle Proprietà dello Script).
-- **MODEL_NAME**: Modello predefinito (attuale `gemini-3.1-flash-lite`).
+- **MODEL_NAME**: Modello predefinito per la generazione qualità (attuale `gemini-2.5-flash`).
 - **GEMINI_CONTEXT_CACHE**: Di default è disabilitata per Free Tier. Abilitala solo se AI Studio mostra `cachedContents` disponibile per il progetto; se l'endpoint non è disponibile, il servizio degrada a `generateContent` diretto.
-- **GEMINI_FREE_TIER_NOTES**: Profilo quote locale per Gemini 3.1 Flash-Lite Free Tier: 2.000 RPM, 2.000.000 TPM e 3.500 RPD. Il collo di bottiglia operativo resta RPD; Google Search Grounding resta disabilitato salvo disponibilità esplicita in AI Studio.
+- **GEMINI_FREE_TIER_NOTES**: Profilo quote locale per i task rapidi su Gemini 3.1 Flash-Lite; per la generazione qualità il sistema parte da Gemini 2.5 Flash. Verifica sempre i limiti effettivi in AI Studio.
 
 ### Gmail e Processamento
 - **LABEL_NAME**: `IA` (Email processate con successo).
@@ -35,9 +35,10 @@ Usa `gas_config.example.js` come template nel repository e crea il file locale `
 
 ### Configurazione Modelli Gemini
 Il sistema usa una strategia per selezionare i modelli:
-1. **flash-3.1-lite**: Percorso logico principale per generare risposte.
-2. **flash-lite**: Alias compatibile per controlli rapidi, classificazione, controlli semantici e fallback.
-3. **flash-3.1-lite-backup**: Percorso logico di backup per fallback cross-key.
+1. **flash-2.5**: Percorso principale per generare risposte finali di qualità.
+2. **flash-2.5-backup**: Stesso modello qualità su chiave di riserva.
+3. **flash-lite / flash-3.1-lite**: Controlli rapidi, categoria, lingua AI, controlli semantici e scarti newsletter.
+4. **flash-3.1-lite-backup**: Fallback lite su chiave di riserva.
 
 ## Proprietà dello Script
 Questi valori devono essere impostati in **Impostazioni Progetto > Proprietà dello Script**:

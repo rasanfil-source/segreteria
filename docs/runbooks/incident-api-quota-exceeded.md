@@ -43,13 +43,13 @@ function checkQuotaStatus() {
 
 ## 🔧 Immediate Workaround
 
-### Option A: Use Only Economical Model
+### Option A: Use Minimal Quality + Lite Fallback Chain
 
 ```javascript
 // In gas_config.js, temporarily modify:
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-lite']  // Conservative path while RPD recovers
+  'generation': ['flash-2.5', 'flash-lite']  // Quality first, conservative fallback
 };
 ```
 
@@ -107,7 +107,7 @@ function timeToQuotaReset() {
 
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite', 'flash-3.1-lite'],
-  'generation': ['flash-3.1-lite', 'flash-lite', 'flash-3.1-lite-backup'],
+  'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
   'fallback': ['flash-lite', 'flash-3.1-lite-backup']
 };
 

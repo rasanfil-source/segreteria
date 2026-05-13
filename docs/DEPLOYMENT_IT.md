@@ -273,10 +273,10 @@ Visibilità: Privato (NON pubblico)
 
 | Scenario | Modello Consigliato | RPD Budget | Costo Stimato/Mese |
 |----------|---------------------|------------|---------------------|
-| Parrocchia piccola (<50 email/settimana) | Gemini 3.1 Flash-Lite | 3.500 | Free Tier, monitorare RPD |
-| Parrocchia media (100-200 email/settimana) | Gemini 3.1 Flash-Lite | 3.500 | Free Tier, context cache spenta salvo disponibilità in AI Studio |
-| Parrocchia grande (>300 email/settimana) | Gemini 3.1 Flash-Lite + chiave backup | 3.500/progetto | RPD resta il collo di bottiglia |
-| Sviluppo/Test | Gemini 3.1 Flash-Lite | 3.500 | Tenere DRY_RUN abilitato |
+| Parrocchia piccola (<50 email/settimana) | 2.5 Flash risposta + 3.1 Flash-Lite task rapidi | Verificare AI Studio | Free Tier, monitorare RPD |
+| Parrocchia media (100-200 email/settimana) | 2.5 Flash risposta + fallback lite | Verificare AI Studio | Free Tier, context cache spenta salvo disponibilità in AI Studio |
+| Parrocchia grande (>300 email/settimana) | 2.5 Flash + chiave backup + fallback 3.1 Lite | per progetto | RPD resta il collo di bottiglia |
+| Sviluppo/Test | 3.1 Flash-Lite per test rapidi, 2.5 Flash per test qualità | Verificare AI Studio | Tenere DRY_RUN abilitato |
 
 ### Quando Usare Fallback Chain?
 
@@ -284,7 +284,7 @@ Visibilità: Privato (NON pubblico)
 // Configurazione consigliata per produzione
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],           // Economia per check rapidi
-  'generation': ['flash-3.1-lite', 'flash-lite'], // stesso modello fisico, percorsi logici separati
+  'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
   'fallback': ['flash-lite', 'flash-3.1-lite-backup']
 };
 ```
@@ -293,7 +293,8 @@ CONFIG.MODEL_STRATEGY = {
 
 | Modello | ✅ Pro | ❌ Contro |
 |---------|--------|-----------|
-| **Gemini 3.1 Flash-Lite** | Context window 1M, RPM/TPM elevati | RPD 3.500/giorno resta il collo di bottiglia |
+| **Gemini 2.5 Flash** | Percorso di maggiore qualità per le risposte finali | Profilo locale di throughput più prudente; usare backup/fallback per resilienza |
+| **Gemini 3.1 Flash-Lite** | Percorso rapido ausiliario, RPM/TPM locali elevati | Usarlo per classificazione/lingua/semantica/fallback, non come prima scelta qualità |
 | **Context Cache** | Riuso opzionale del prompt statico se AI Studio abilita cachedContents | Disattivata di default in Free Tier; fallback diretto automatico |
 | **Google Search Grounding** | Fatti aggiornati se abilitato esplicitamente | Disabilitato di default; usare solo se AI Studio espone una quota |
 
@@ -303,7 +304,7 @@ CONFIG.MODEL_STRATEGY = {
 ```javascript
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-lite']
+  'generation': ['flash-2.5', 'flash-lite']
 };
 CONFIG.MAX_EMAILS_PER_RUN = 5;
 ```
@@ -312,7 +313,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 5;
 ```javascript
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-3.1-lite', 'flash-lite']
+  'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite']
 };
 CONFIG.MAX_EMAILS_PER_RUN = 10;
 ```
@@ -321,7 +322,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 10;
 ```javascript
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-3.1-lite']
+  'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup']
 };
 CONFIG.MAX_EMAILS_PER_RUN = 15;
 // Considera trigger ogni 5 minuti
@@ -367,7 +368,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 5;
 // Usa modelli più economici
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-lite', 'flash-3.1-lite']  // stesso modello, percorso conservativo
+  'generation': ['flash-2.5', 'flash-lite']  // qualità prima, fallback lite
 };
 ```
 
@@ -651,10 +652,10 @@ main();
 // Disabilita temporaneamente
 CONFIG.MAX_EMAILS_PER_RUN = 0;  // Sospende elaborazione
 
-// Oppure usa solo modello lite
+// Oppure usa catena minima qualità + fallback lite
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-lite']
+  'generation': ['flash-2.5', 'flash-lite']
 };
 ```
 

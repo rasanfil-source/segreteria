@@ -173,7 +173,7 @@ NEVER start responses with 'Reviewing...', 'Checking...', etc."
 
 // 2. Consider conservative generation path:
 CONFIG.MODEL_STRATEGY = {
-  'generation': ['flash-lite', 'flash-3.1-lite']
+  'generation': ['flash-2.5', 'flash-lite']
 };
 ```
 

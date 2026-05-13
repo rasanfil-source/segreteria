@@ -124,10 +124,10 @@ function analyzeVerificaPatterns() {
 ### Scenario 3: API Quota Exhausted (Error 429)
 
 ```javascript
-// Immediate action: use only economical model
+// Immediate action: use a minimal quality + lite fallback chain
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-lite']  // Conservative path while RPD recovers
+  'generation': ['flash-2.5', 'flash-lite']  // Quality first, conservative fallback
 };
 
 // Reduce load

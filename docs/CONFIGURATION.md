@@ -9,9 +9,9 @@ Use `gas_config.example.js` as template in repository and create your local `gas
 
 ### API Settings
 - **GEMINI_API_KEY**: Your Google Gemini API Key (stored in Script Properties).
-- **MODEL_NAME**: Default model (currently `gemini-3.1-flash-lite`).
+- **MODEL_NAME**: Default quality-generation model (currently `gemini-2.5-flash`).
 - **GEMINI_CONTEXT_CACHE**: Disabled by default for Free Tier. Enable it only if AI Studio shows `cachedContents` available for the project; if the endpoint is unavailable, the service falls back to direct `generateContent`.
-- **GEMINI_FREE_TIER_NOTES**: Local quota profile for Gemini 3.1 Flash-Lite Free Tier: 2,000 RPM, 2,000,000 TPM, and 3,500 RPD. RPD is the operational bottleneck; Google Search Grounding remains disabled unless AI Studio explicitly makes it available.
+- **GEMINI_FREE_TIER_NOTES**: Local quota profile for fast auxiliary tasks on Gemini 3.1 Flash-Lite; quality generation starts from Gemini 2.5 Flash. Always verify effective limits in AI Studio.
 
 ### Gmail & Processing
 - **LABEL_NAME**: `IA` (Processed emails)
@@ -35,9 +35,10 @@ Use `gas_config.example.js` as template in repository and create your local `gas
 
 ### Gemini Models Configuration
 The system uses a strategy to select models:
-1. **flash-3.1-lite**: Primary logical path for response generation.
-2. **flash-lite**: Compatibility alias for quick checks, classification, semantic checks, and fallback.
-3. **flash-3.1-lite-backup**: Backup logical path for cross-key fallback.
+1. **flash-2.5**: Primary path for final quality responses.
+2. **flash-2.5-backup**: Same quality model on the backup key.
+3. **flash-lite / flash-3.1-lite**: Quick checks, category, AI language, semantic checks, and newsletter discard summaries.
+4. **flash-3.1-lite-backup**: Lite fallback on the backup key.
 
 ## Script Properties
 These values must be set in **Project Settings > Script Properties**:

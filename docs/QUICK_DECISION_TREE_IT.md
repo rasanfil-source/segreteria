@@ -124,10 +124,10 @@ function analyzeVerificaPatterns() {
 ### Scenario 3: Quota API Esaurita (Errore 429)
 
 ```javascript
-// Azione immediata: usa solo modello economico
+// Azione immediata: usa catena minima qualità + fallback lite
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-lite']  // Percorso conservativo mentre RPD recupera
+  'generation': ['flash-2.5', 'flash-lite']  // Qualità prima, fallback conservativo
 };
 
 // Riduce carico
