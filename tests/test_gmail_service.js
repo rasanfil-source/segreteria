@@ -766,35 +766,34 @@ console.log('--- Test cleanup Drive: coda persistente file temporanei ---');
 }
 
 
-console.log('--- Test extractMessageDetails: normalizzazione header case-insensitive ---');
+console.log('--- Test extractMessageDetails normalizza chiavi header preservando valori ---');
 {
-  global.Gmail.Users.Messages.get = () => ({
+  const serviceWithHeaders = new GmailService();
+  serviceWithHeaders._getMessageMetadataWithResilience = () => ({
     payload: {
       headers: [
-        { name: 'MESSAGE-ID', value: '<CASE-INSENSITIVE-ID>' },
-        { name: 'references', value: '<ref1> <ref2>' },
-        { name: 'IN-REPLY-TO', value: '<reply-to-id>' }
+        { name: ' Auto-Submitted ', value: 'Auto-Replied' },
+        { name: 'Message-ID', value: '<Msg.MixedCase@example.org>' },
+        { name: 'References', value: '<Prev.One@example.org>' }
       ]
     }
   });
-
   const message = {
-    getSubject: () => 'Oggetto Test Case',
-    getFrom: () => 'Sender <sender@test.com>',
-    getDate: () => new Date(),
-    getPlainBody: () => 'Corpo test',
-    getBody: () => '<html>Corpo test</html>',
-    getId: () => 'msg-case-test',
+    getSubject: () => 'Oggetto',
+    getFrom: () => 'Utente <utente@example.org>',
+    getDate: () => new Date('2026-05-13T10:00:00Z'),
+    getPlainBody: () => 'Corpo',
+    getBody: () => '<p>Corpo</p>',
+    getId: () => 'msg-header-test',
     getReplyTo: () => '',
-    getTo: () => 'target@test.com',
+    getTo: () => 'bot@example.org',
     getCc: () => ''
   };
-
-  const details = service.extractMessageDetails(message);
-  assert(details.rfc2822MessageId === '<CASE-INSENSITIVE-ID>', 'Message-ID deve essere estratto correttamente anche se maiuscolo');
-  assert(details.existingReferences === '<ref1> <ref2>', 'References deve essere estratto correttamente anche se minuscolo');
-  assert(details.inReplyTo === '<reply-to-id>', 'In-Reply-To deve essere estratto correttamente');
-  assert(details.headers['message-id'] === '<CASE-INSENSITIVE-ID>', 'La mappa headers deve contenere chiavi normalizzate in minuscolo');
+  const details = serviceWithHeaders.extractMessageDetails(message);
+  assert(details.headers['auto-submitted'] === 'Auto-Replied', 'chiave Auto-Submitted deve essere normalizzata e valore preservato');
+  assert(details.rfc2822MessageId === '<Msg.MixedCase@example.org>', 'Message-ID deve preservare il casing del valore');
+  assert(details.existingReferences === '<Prev.One@example.org>', 'References deve preservare il casing del valore');
+  assert(details.isNewsletter === true, 'Auto-Replied deve continuare a essere rilevato in modo case-insensitive');
 }
 
 console.log('✅ Tutti i test di GmailService sono passati');

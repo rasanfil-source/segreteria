@@ -929,7 +929,7 @@ var GmailService = class GmailService {
                 for (const header of rawMessage.payload.headers) {
                     if (!header || !header.name) continue;
 
-                    const lowerName = String(header.name).toLowerCase();
+                    const lowerName = String(header.name).toLowerCase().trim();
                     headers[lowerName] = header.value || '';
 
                     if (lowerName === 'message-id') {
