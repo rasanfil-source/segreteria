@@ -42,6 +42,18 @@ var GeminiRateLimiter = class GeminiRateLimiter {
           contextWindowTokens: 1048576,
           useCases: ['fallback', 'classification', 'quick_check', 'semantic']
         },
+        'flash-3': {
+          name: 'gemini-3-flash-preview',
+          rpm: 10, tpm: 250000, rpd: 250,
+          contextWindowTokens: 1048576,
+          useCases: ['generation', 'fallback']
+        },
+        'flash-3-backup': {
+          name: 'gemini-3-flash-preview',
+          rpm: 10, tpm: 250000, rpd: 250,
+          contextWindowTokens: 1048576,
+          useCases: ['generation', 'fallback', 'backup']
+        },
         'flash-3.1-lite-backup': {
           name: 'gemini-3.1-flash-lite',
           rpm: 2000, tpm: 2000000, rpd: 3500,
@@ -59,8 +71,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       // Fallback default
       this.strategies = {
         'quick_check': ['flash-lite', 'flash-3.1-lite'],
-        'generation': ['flash-3.1-lite', 'flash-lite', 'flash-3.1-lite-backup'],
-        'fallback': ['flash-lite', 'flash-3.1-lite-backup', 'flash-3.1-lite']
+        'generation': ['flash-3.1-lite', 'flash-3-backup', 'flash-3.1-lite-backup'],
+        'fallback': ['flash-lite', 'flash-3-backup', 'flash-3.1-lite-backup']
       };
     }
 
@@ -135,12 +147,15 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       'gemini-2.5-flash-exp': 'gemini-3.1-flash-lite',
       'gemini-2.0-flash-exp': 'gemini-3.1-flash-lite',
       'gemini-2.0-flash': 'gemini-3.1-flash-lite',
-      'gemini-2.0-flash-lite': 'gemini-3.1-flash-lite'
+      'gemini-2.0-flash-lite': 'gemini-3.1-flash-lite',
+      // Refuso ricorrente: non esiste un modello testuale 'gemini-3.1-flash'; il full-tier è Gemini 3 Flash Preview.
+      'gemini-3.1-flash': 'gemini-3-flash-preview'
     };
 
     const knownCurrentModels = [
       'gemini-3.1-flash-lite',
       'gemini-3.1-flash-lite-preview',
+      'gemini-3-flash-preview',
       'gemini-2.5-flash'
     ];
 
@@ -348,7 +363,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       taskStrategies
     );
 
-    return resolvedStrategies[taskType] || resolvedStrategies['fallback'] || ['flash-lite', 'flash-3.1-lite'];
+    return resolvedStrategies[taskType] || resolvedStrategies['fallback'] || ['flash-lite', 'flash-3-backup', 'flash-3.1-lite'];
   }
 
   _withRateLimitLock_(fn, options) {

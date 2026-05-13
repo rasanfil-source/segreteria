@@ -575,6 +575,20 @@ console.log('--- Test processThread: fallback end-to-end su UNKNOWN ---');
 }
 
 
+console.log('--- Test processThread: fallback default diversifica tier modello ---');
+{
+  const labeled = new Set();
+  const { processor, calls } = buildProcessorForGenerationFailure('UNKNOWN');
+  const res = processor.processThread(createExternalThread('default-tier-diversification'), 'kb valida', '', labeled, true);
+  assert(res.status === 'error', 'con fallback default esaurito deve restituire status error');
+  assert(
+    calls.map(call => call.modelName).join('|') === 'gemini-3.1-flash-lite|gemini-3-flash-preview|gemini-3.1-flash-lite',
+    `deve diversificare il tier fisico nel fallback default (fatto: ${calls.map(call => call.modelName).join('|')})`
+  );
+  assert(calls[0].skipRateLimit === false && calls[1].skipRateLimit === true && calls[2].skipRateLimit === true, 'i fallback backup devono usare la chiave di riserva e bypassare il RateLimiter');
+  assert(labeled.has('m-default-tier-diversification'), 'deve marcare il messaggio candidato come processato');
+}
+
 console.log('--- Test processThread: generazione rispetta CONFIG.MODEL_STRATEGY.generation ---');
 {
   const originalModels = global.CONFIG.GEMINI_MODELS;

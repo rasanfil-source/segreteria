@@ -181,7 +181,7 @@ var CONFIG = {
   // === Limiti Token (Prompt Engine) ===
   CONTEXT_WINDOW_TOKENS: 1048576,      // Hard cap documentato per Gemini 3.1 Flash-Lite
   MAX_SAFE_TOKENS: 120000,             // Cap operativo locale: resta sotto 1M per evitare payload GAS ingestibili
-  MAX_SAFE_PROMPT_CHARS: 380000,       // Limite caratteri prompt prima del troncamento di sicurezza
+  MAX_SAFE_PROMPT_CHARS: 100000,       // Limite caratteri prompt prima del troncamento di sicurezza
   KB_TOKEN_BUDGET_RATIO: 0.5,          // Percentuale budget KB rispetto a max token
   KB_HALLUCINATION_RISK_THRESHOLD: 8000, // Soglia chars KB oltre cui scatta hallucination_risk
   MAX_PROVIDED_INFO_JSON_CHARS: 45000, // Limite serializzazione memoria providedInfo per riga Sheet
@@ -280,7 +280,28 @@ var CONFIG = {
       ipm: null,
       useCases: ['quick_check', 'classification', 'semantic', 'fallback']
     },
-    // Backup logico per chiave di riserva o fallback controllati.
+    // Tier alternativo: Gemini 3 Flash Preview, usato solo come fallback di generazione.
+    // Nota: il modello API ufficiale è gemini-3-flash-preview, non gemini-3.1-flash.
+    'flash-3': {
+      name: 'gemini-3-flash-preview',
+      rpm: 10,
+      tpm: 250000,
+      rpd: 250,
+      contextWindowTokens: 1048576,
+      ipm: null,
+      useCases: ['generation', 'fallback']
+    },
+    // Backup logico su chiave di riserva: cambia anche tier fisico rispetto a Flash-Lite.
+    'flash-3-backup': {
+      name: 'gemini-3-flash-preview',
+      rpm: 10,
+      tpm: 250000,
+      rpd: 250,
+      contextWindowTokens: 1048576,
+      ipm: null,
+      useCases: ['generation', 'fallback', 'backup']
+    },
+    // Backup logico Lite per chiave di riserva o fallback controllati.
     'flash-3.1-lite-backup': {
       name: 'gemini-3.1-flash-lite',
       rpm: 2000,
@@ -288,16 +309,16 @@ var CONFIG = {
       rpd: 3500,
       contextWindowTokens: 1048576,
       ipm: null,
-      useCases: ['fallback']
+      useCases: ['fallback', 'backup']
     }
   },
 
   // Strategia selezione modelli per task (ordine = priorità)
   MODEL_STRATEGY: {
     'quick_check': ['flash-lite', 'flash-3.1-lite'],
-    'generation': ['flash-3.1-lite', 'flash-lite', 'flash-3.1-lite-backup'],
+    'generation': ['flash-3.1-lite', 'flash-3-backup', 'flash-3.1-lite-backup'],
     'semantic': ['flash-lite', 'flash-3.1-lite-backup'],
-    'fallback': ['flash-lite', 'flash-3.1-lite-backup']
+    'fallback': ['flash-lite', 'flash-3-backup', 'flash-3.1-lite-backup']
   },
 
   // === Liste di esclusione ===
@@ -323,8 +344,8 @@ var CONFIG = {
     'scopri i prodotti', 'scopri le novità', 'offerta esclusiva',
     'promozione', 'promozioni', 'sconto', 'webinar',
     'ti aspetta al', 'riservato a te', 'iscriviti ora',
-    'clicca qui', 'clicca su', 'non perdere', 'ultimi posti',
-    'registrati gratuitamente', 'scarica il catalogo'
+    'invito all\'evento', 'nuovo arrivo', 'collezione',
+    'ultima occasione'
   ]
 };
 // ====================================================================
@@ -435,6 +456,7 @@ function validateConfig() {
     // Check esistenza modelli chiave
     if (!CONFIG.GEMINI_MODELS['flash-3.1-lite']) errors.push("Errore Config: Modello 'flash-3.1-lite' mancante in GEMINI_MODELS");
     if (!CONFIG.GEMINI_MODELS['flash-lite']) errors.push("Errore Config: Modello 'flash-lite' mancante in GEMINI_MODELS");
+    if (!CONFIG.GEMINI_MODELS['flash-3-backup']) errors.push("Errore Config: Modello 'flash-3-backup' mancante in GEMINI_MODELS");
   }
 
   // Se ci sono errori, logghiamoli subito
