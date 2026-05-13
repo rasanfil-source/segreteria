@@ -155,9 +155,16 @@ function estimateTokenCount(text, attachments = []) {
  */
 function isInVacationPeriod(date = new Date(), scriptTimeZone = "") {
   const isValidDateLike = function (value) {
-    return value && Object.prototype.toString.call(value) === '[object Date]' &&
-      typeof value.getTime === 'function' &&
-      !isNaN(value.getTime());
+    if (!value) return false;
+    if (Object.prototype.toString.call(value) === '[object Date]' && typeof value.getTime === 'function') {
+      return !isNaN(value.getTime());
+    }
+    // Supporto per date serializzate in JSON (stringhe ISO) o timestamp numerici
+    if (typeof value === 'string' || typeof value === 'number') {
+      const d = new Date(value);
+      return !isNaN(d.getTime());
+    }
+    return false;
   };
 
   if (!isValidDateLike(date)) {
@@ -176,7 +183,7 @@ function isInVacationPeriod(date = new Date(), scriptTimeZone = "") {
 
   // Normalizza input a data-only nel fuso dello script per evitare slittamenti ai confini UTC.
   const formatDateOnly = function (value) {
-    const source = isValidDateLike(value) ? value : new Date(value);
+    const source = (value instanceof Date) ? value : new Date(value);
     if (isNaN(source.getTime())) return '';
 
     if (scriptTimeZone && typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {

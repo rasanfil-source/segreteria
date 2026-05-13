@@ -839,6 +839,7 @@ var GmailService = class GmailService {
         }
 
         try {
+            this._incrementGmailCallCounterOrThrow_('labels.list');
             const response = Gmail.Users.Labels.list('me');
             const apiLabels = (response && response.labels) ? response.labels : [];
             const matched = apiLabels.find(l => l && l.name === raw);

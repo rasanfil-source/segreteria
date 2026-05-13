@@ -491,7 +491,7 @@ function buildProcessorForGenerationFailure(errorTypeToThrow) {
       getAdaptiveGreeting: () => 'Buongiorno',
       getAdaptiveClosing: () => 'Cordiali saluti',
       generateResponse: (_prompt, options) => {
-        calls.push(options.modelName);
+        calls.push({ modelName: options.modelName, skipRateLimit: options.skipRateLimit });
         throw new Error(`forced-${errorTypeToThrow}`);
       }
     },
@@ -531,6 +531,36 @@ console.log('--- Test processThread: fallback end-to-end su UNKNOWN ---');
   assert(calls.length === 3, 'con UNKNOWN deve tentare tutte le 3 strategie');
   assert(res.status === 'error', 'con fallback esaurito deve restituire status error');
   assert(labeled.has('m-unknown'), 'deve marcare il messaggio candidato come processato');
+}
+
+
+console.log('--- Test processThread: generazione rispetta CONFIG.MODEL_STRATEGY.generation ---');
+{
+  const originalModels = global.CONFIG.GEMINI_MODELS;
+  const originalStrategy = global.CONFIG.MODEL_STRATEGY;
+  global.CONFIG.GEMINI_MODELS = {
+    custom_b: { name: 'model-b' },
+    custom_a: { name: 'model-a' },
+    'custom-backup': { name: 'model-backup' }
+  };
+  global.CONFIG.MODEL_STRATEGY = {
+    generation: ['custom_b', 'custom_a', 'custom-backup']
+  };
+
+  try {
+    const { processor, calls } = buildProcessorForGenerationFailure('UNKNOWN');
+    const res = processor.processThread(createExternalThread('strategy-config'), 'kb valida', '', new Set(), true);
+
+    assert(res.status === 'error', 'con fallback configurato esaurito deve restituire status error');
+    assert(
+      calls.map(call => call.modelName).join('|') === 'model-b|model-a|model-backup',
+      `deve rispettare l'ordine MODEL_STRATEGY.generation (fatto: ${calls.map(call => call.modelName).join('|')})`
+    );
+    assert(calls[0].skipRateLimit === false && calls[1].skipRateLimit === false && calls[2].skipRateLimit === true, 'solo la strategia backup deve bypassare il RateLimiter');
+  } finally {
+    global.CONFIG.GEMINI_MODELS = originalModels;
+    global.CONFIG.MODEL_STRATEGY = originalStrategy;
+  }
 }
 
 console.log('--- Test processThread: fallback generazione marca atomicamente tutto il burst ---');

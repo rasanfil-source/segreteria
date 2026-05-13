@@ -298,6 +298,29 @@ console.log('--- Test _getOptionalLabelIdByName: negative caching evita chiamate
   assert(getUserLabelByNameCalls === 1, 'negative caching deve evitare chiamata GmailApp ripetuta per label assente');
 }
 
+console.log('--- Test _getOptionalLabelIdByName: Advanced Gmail conta labels.list ---');
+{
+  const serviceWithApiLabel = new GmailService();
+  const counterOps = [];
+  serviceWithApiLabel._incrementGmailCallCounterOrThrow_ = (opName) => counterOps.push(opName);
+
+  const originalLabels = global.Gmail.Users.Labels;
+  global.Gmail.Users.Labels = {
+    list: () => ({ labels: [{ id: 'Label_123', name: 'Verifica' }] })
+  };
+
+  const labelId = serviceWithApiLabel._getOptionalLabelIdByName('Verifica');
+
+  assert(labelId === 'Label_123', 'lookup Advanced Gmail deve restituire id label trovato');
+  assert(counterOps.length === 1 && counterOps[0] === 'labels.list', 'lookup Advanced Gmail deve incrementare il counter locale labels.list');
+
+  if (typeof originalLabels === 'undefined') {
+    delete global.Gmail.Users.Labels;
+  } else {
+    global.Gmail.Users.Labels = originalLabels;
+  }
+}
+
 console.log('--- Test _getMessageMetadataWithResilience: fallback su errore API ---');
 const originalGetMetadata = service._getMessageMetadataWithResilience.bind(service);
 service._getMessageMetadataWithResilience = () => ({ labelIds: [] });

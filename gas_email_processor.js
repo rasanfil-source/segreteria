@@ -1413,18 +1413,47 @@ ${addressLines.join('\n\n')}
       }
 
       const geminiModels = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_MODELS) ? CONFIG.GEMINI_MODELS : {};
-      const flashModel = (geminiModels['flash-3.1-lite'] && geminiModels['flash-3.1-lite'].name)
-        ? geminiModels['flash-3.1-lite'].name
-        : ((geminiModels['flash-lite'] && geminiModels['flash-lite'].name) ? geminiModels['flash-lite'].name : 'gemini-3.1-flash-lite');
-      const liteModel = (geminiModels['flash-lite'] && geminiModels['flash-lite'].name) ? geminiModels['flash-lite'].name : 'gemini-3.1-flash-lite';
+      const defaultGenerationStrategy = ['flash-3.1-lite', 'flash-lite', 'flash-3.1-lite-backup'];
+      const defaultGenerationModelNames = {
+        'flash-3.1-lite': 'gemini-3.1-flash-lite',
+        'flash-lite': 'gemini-3.1-flash-lite',
+        'flash-3.1-lite-backup': 'gemini-3.1-flash-lite'
+      };
+      const configuredGenerationStrategy = (
+        typeof CONFIG !== 'undefined' &&
+        CONFIG.MODEL_STRATEGY &&
+        Array.isArray(CONFIG.MODEL_STRATEGY.generation) &&
+        CONFIG.MODEL_STRATEGY.generation.length > 0
+      ) ? CONFIG.MODEL_STRATEGY.generation : defaultGenerationStrategy;
+      const fallbackModelName = configuredGenerationStrategy
+        .map(modelKey => (geminiModels[modelKey] && geminiModels[modelKey].name) || defaultGenerationModelNames[modelKey])
+        .find(Boolean) || 'gemini-3.1-flash-lite';
 
-      const attemptStrategy = [
-        ...(this.geminiService && this.geminiService.isPrimaryExhausted ? [] : [
-          { name: 'Primary-Flash3.1Lite', key: this.geminiService.primaryKey, model: flashModel, skipRateLimit: false }
-        ]),
-        { name: 'Backup-Flash3.1Lite', key: this.geminiService.backupKey, model: flashModel, skipRateLimit: false },
-        { name: 'Fallback-Lite', key: this.geminiService.primaryKey, model: liteModel, skipRateLimit: false }
-      ];
+      const attemptStrategy = configuredGenerationStrategy
+        .map((modelKey, index) => {
+          const modelDef = geminiModels[modelKey];
+          const modelName = (modelDef && modelDef.name) || defaultGenerationModelNames[modelKey];
+          if (!modelName) {
+            console.warn(`⚠️ Strategia generazione ignora modello non configurato: ${modelKey}`);
+            return null;
+          }
+
+          const usesBackupKey = /backup/i.test(modelKey);
+          if (!usesBackupKey && this.geminiService && this.geminiService.isPrimaryExhausted) {
+            return null;
+          }
+
+          const apiKey = usesBackupKey ? this.geminiService.backupKey : this.geminiService.primaryKey;
+          if (!apiKey) return null;
+
+          return {
+            name: `Generation-${index + 1}-${modelKey}${usesBackupKey ? '-BackupKey' : '-PrimaryKey'}`,
+            key: apiKey,
+            model: modelName,
+            skipRateLimit: usesBackupKey
+          };
+        })
+        .filter(Boolean);
 
       if (shouldForcePrudentDocResponse) {
         response = this._buildPrudentDocumentMismatchResponse_(detectedLanguage);
@@ -1595,7 +1624,7 @@ ${addressLines.join('\n\n')}
 
           const retryPlan = strategyUsedPlan || attemptStrategy.find(p => p && p.key) || {
             key: this.geminiService.primaryKey,
-            model: flashModel,
+            model: fallbackModelName,
             skipRateLimit: false
           };
 
