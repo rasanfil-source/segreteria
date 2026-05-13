@@ -765,3 +765,36 @@ console.log('--- Test cleanup Drive: coda persistente file temporanei ---');
   }
 }
 
+
+console.log('--- Test extractMessageDetails: normalizzazione header case-insensitive ---');
+{
+  global.Gmail.Users.Messages.get = () => ({
+    payload: {
+      headers: [
+        { name: 'MESSAGE-ID', value: '<CASE-INSENSITIVE-ID>' },
+        { name: 'references', value: '<ref1> <ref2>' },
+        { name: 'IN-REPLY-TO', value: '<reply-to-id>' }
+      ]
+    }
+  });
+
+  const message = {
+    getSubject: () => 'Oggetto Test Case',
+    getFrom: () => 'Sender <sender@test.com>',
+    getDate: () => new Date(),
+    getPlainBody: () => 'Corpo test',
+    getBody: () => '<html>Corpo test</html>',
+    getId: () => 'msg-case-test',
+    getReplyTo: () => '',
+    getTo: () => 'target@test.com',
+    getCc: () => ''
+  };
+
+  const details = service.extractMessageDetails(message);
+  assert(details.rfc2822MessageId === '<CASE-INSENSITIVE-ID>', 'Message-ID deve essere estratto correttamente anche se maiuscolo');
+  assert(details.existingReferences === '<ref1> <ref2>', 'References deve essere estratto correttamente anche se minuscolo');
+  assert(details.inReplyTo === '<reply-to-id>', 'In-Reply-To deve essere estratto correttamente');
+  assert(details.headers['message-id'] === '<CASE-INSENSITIVE-ID>', 'La mappa headers deve contenere chiavi normalizzate in minuscolo');
+}
+
+console.log('✅ Tutti i test di GmailService sono passati');

@@ -56,14 +56,14 @@ var CONFIG = {
     SKIP_LABEL_NAME: '·',              // Label per email italiane saltate in modalità foreign_only
     // Ridotto a 3 per supportare strategia "Cross-Key Quality First"
     // Fino a 4 chiamate API per email → batch ridotto per prevenire timeout GAS (6 min)
-    MAX_EMAILS_PER_RUN: 3,
+    MAX_EMAILS_PER_RUN: 2,
     SAFETY_VALVE_THRESHOLD: 0.8,       // Riduce dinamicamente il batch quando RPD supera l'80%
     MAX_CONSECUTIVE_EXTERNAL: 5,        // Soglia per rilevamento email loop
     EMPTY_INBOX_WARNING_THRESHOLD: 5,   // Soglia per warning inbox vuota
     SUSPENSION_STALE_UNREAD_HOURS: 12,    // Paracadute: processa unread vecchie anche in fascia sospesa
     STRICT_SUSPENSION_CONFIG: false,      // Se true: foglio Controllo presente ma invalido => fallback orari statici
     MIN_REMAINING_TIME_MS: 120000,      // Stop preventivo se resta meno di 120 secondi
-    EXECUTION_LOCK_WAIT_MS: 5000,      // Timeout acquisizione lock esecuzione (ms)
+    EXECUTION_LOCK_WAIT_MS: 1000,      // Timeout acquisizione lock esecuzione (ms)
     SEARCH_PAGE_SIZE: 15,              // Buffer discovery per candidati message-level (circa 5x MAX_EMAILS_PER_RUN)
     // === DISCOVERY MODE ======================================================================
     // Modalità di scoperta messaggi non letti da elaborare.

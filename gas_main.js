@@ -1703,7 +1703,9 @@ function main() {
 
   try {
     // 1. Sincronizzazione Esecuzione (Prevenzione concurrency)
-    hasExecutionLock = executionLock.tryLock(10000);
+    const mainLockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
+      ? CONFIG.EXECUTION_LOCK_WAIT_MS : 1000;
+    hasExecutionLock = executionLock.tryLock(mainLockWaitMs);
     if (!hasExecutionLock) {
       // Nota progettuale: evitiamo di accodare trigger aggiuntivi qui per non creare
       // una tempesta di trigger concorrenti; il trigger periodico successivo riproverà.
@@ -1801,7 +1803,10 @@ function main() {
     }
   } finally {
     if (scriptCache && hasBatchLock) {
-      try { scriptCache.remove(batchLockKey); } catch (_) { }
+      try { 
+        scriptCache.remove(batchLockKey); 
+        console.log(`✓ Batch lock rimosso (${batchLockKey})`);
+      } catch (_) { }
     }
     releaseExecutionLock();
   }

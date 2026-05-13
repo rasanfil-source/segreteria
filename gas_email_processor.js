@@ -203,8 +203,10 @@ var EmailProcessor = class EmailProcessor {
         if (skipLock) {
           threadLogger.debug('Mutex globale saltato (lock esecuzione già posseduto dal chiamante)');
         } else {
-          if (!scriptLock.tryLock(5000)) {
-            threadLogger.warn('Impossibile acquisire lock globale, salto');
+          const threadLockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
+            ? CONFIG.EXECUTION_LOCK_WAIT_MS : 1000;
+          if (!scriptLock.tryLock(threadLockWaitMs)) {
+            threadLogger.warn(`Impossibile acquisire lock globale per thread ${threadId} (timeout ${threadLockWaitMs}ms), salto`);
             restoreServiceLoggers();
             return { status: 'skipped', reason: 'global_lock_unavailable' };
           }
@@ -1953,8 +1955,8 @@ ${addressLines.join('\n\n')}
       if (!executionLock) {
         console.warn('⚠️ LockService non disponibile: procedo senza lock globale per questo batch.');
       } else {
-        const lockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
-          ? CONFIG.EXECUTION_LOCK_WAIT_MS : 5000;
+          const lockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
+            ? CONFIG.EXECUTION_LOCK_WAIT_MS : 1000;
 
         try {
           if (!executionLock.tryLock(lockWaitMs)) {
@@ -2257,6 +2259,7 @@ ${addressLines.join('\n\n')}
       if (lockAcquiredHere) {
         try {
           executionLock.releaseLock();
+          runLogger.info('Lock esecuzione batch rilasciato');
         } catch (e) {
           console.warn(`⚠️ Errore rilascio execution lock: ${e.message}`);
         }

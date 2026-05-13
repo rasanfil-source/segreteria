@@ -917,6 +917,7 @@ var GmailService = class GmailService {
                     'X-Autoreply',
                     'X-Auto-Response-Suppress',
                     'Reply-To',
+                    'In-Reply-To',
                     'List-Unsubscribe'
                 ]
             });
@@ -936,6 +937,9 @@ var GmailService = class GmailService {
                     }
                     if (lowerName === 'references') {
                         existingReferences = header.value;
+                    }
+                    if (lowerName === 'in-reply-to') {
+                        headers['in-reply-to'] = header.value || '';
                     }
                 }
             }
@@ -1021,6 +1025,7 @@ var GmailService = class GmailService {
             hasReplyTo: hasReplyTo,
             rfc2822MessageId: rfc2822MessageId,
             existingReferences: existingReferences,
+            inReplyTo: headers['in-reply-to'] || null,
             recipientEmail: recipientEmail,
             recipientCc: recipientCc,
             headers: headers,

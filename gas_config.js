@@ -91,14 +91,14 @@ var CONFIG = {
   SKIP_LABEL_NAME: '·',              // Label per email italiane saltate in modalità foreign_only
   DOCUMENT_CONSISTENCY_CHECK_ENABLED: true, // Abilita verifica coerenza tra email e allegati
   // Configurazione dei limiti operativi per garantire stabilità e rispetto delle quote.
-  MAX_EMAILS_PER_RUN: 3,
+  MAX_EMAILS_PER_RUN: 2,
   SAFETY_VALVE_THRESHOLD: 0.8,       // Regolazione batch in base al carico operativo RPD
   MAX_CONSECUTIVE_EXTERNAL: 5,        // Soglia per rilevamento email loop
   EMPTY_INBOX_WARNING_THRESHOLD: 5,   // Soglia per warning inbox vuota
   SUSPENSION_STALE_UNREAD_HOURS: 12,    // Garanzia di elaborazione dei messaggi non letti persistenti
   STRICT_SUSPENSION_CONFIG: false,    // Se true: foglio Controllo presente ma invalido => fallback SUSPENSION_HOURS (non 24/7)
   MIN_REMAINING_TIME_MS: 90000,      // Margine di sicurezza temporale per la sessione
-  EXECUTION_LOCK_WAIT_MS: 5000,      // Timeout acquisizione lock esecuzione (ms)
+  EXECUTION_LOCK_WAIT_MS: 1000,      // Timeout acquisizione lock esecuzione (ms)
   SEARCH_PAGE_SIZE: 15,              // Buffer discovery per candidati message-level (≈ 5x MAX_EMAILS_PER_RUN)
   // === DISCOVERY MODE ======================================================================
   // Modalità di scoperta messaggi non letti da elaborare.
