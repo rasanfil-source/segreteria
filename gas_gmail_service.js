@@ -46,6 +46,10 @@ var GmailService = class GmailService {
 
         const ttlHours = Math.max(1, Math.round((this._cacheTtlSeconds / 3600) * 10) / 10);
         console.log(`✓ GmailService inizializzato con cache etichette (TTL ${ttlHours}h)`);
+        
+        // Counter batched per ridurre I/O
+        this._pendingGmailCallCount = 0;
+        this._lastGmailCallCount = null;
     }
 
     _getGmailCounterDateKey_() {
@@ -86,16 +90,32 @@ var GmailService = class GmailService {
 
     _incrementGmailCallCounterOrThrow_(opName) {
         if (!this._scriptCache || !this._gmailDailyCallLimit) return;
+        
+        // Sincronizziamo il contatore solo ogni 5 chiamate (o se vicino alla soglia warning)
+        // per ridurre l'overhead di I/O verso CacheService.
+        this._pendingGmailCallCount++;
+        
         const key = this._getGmailCounterDateKey_();
+        const flushThreshold = 5;
+        const warningBuffer = 100; // soglia di sicurezza per forzare il flush
+        
+        // Se non abbiamo ancora un valore base in memoria, forziamo il flush immediato
+        if (this._lastGmailCallCount === null || 
+            this._pendingGmailCallCount >= flushThreshold ||
+            (this._lastGmailCallCount + this._pendingGmailCallCount) > (this._gmailDailyCallLimit - warningBuffer)) {
+            this._flushGmailCallCounter_(key, opName);
+        }
+    }
 
-        // Il counter Gmail è un guardrail soft anti-quota: evitiamo ScriptLock su ogni
-        // chiamata API per non trasformare il contatore in collo di bottiglia globale.
+    _flushGmailCallCounter_(key, opName = 'batch') {
+        if (!this._scriptCache) return;
+        
+        // Carichiamo il valore corrente dalla cache (con fallback su ScriptProperties)
         const raw = this._scriptCache.get(key);
         let current = 0;
         if (raw !== null) {
             current = Number.parseInt(raw, 10) || 0;
         } else if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
-            // Sincronizzazione con ScriptProperties per garantire persistenza giornaliera.
             try {
                 const props = PropertiesService.getScriptProperties();
                 current = Number.parseInt(props.getProperty(key) || '0', 10) || 0;
@@ -103,22 +123,27 @@ var GmailService = class GmailService {
                 console.warn(`⚠️ Impossibile leggere backup counter da ScriptProperties (${key}): ${e.message}`);
             }
         }
-        const next = current + 1;
-        this._scriptCache.put(key, String(next), 21599);
+        
+        const total = current + this._pendingGmailCallCount;
+        this._lastGmailCallCount = total;
+        this._pendingGmailCallCount = 0;
+        
+        // Aggiorniamo la cache (TTL 21599 = ~6 ore)
+        this._scriptCache.put(key, String(total), 21599);
+
         // Allineamento periodico del counter su storage persistente.
-        const shouldSync = (raw === null) || (next % 5 === 0) || (next >= this._gmailDailyCounterWarnAt);
-        if (shouldSync && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+        if (total % 10 === 0 && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
             try {
-                PropertiesService.getScriptProperties().setProperty(key, String(next));
-            } catch (e) {
-                console.warn(`⚠️ Impossibile salvare backup counter su ScriptProperties (${key}): ${e.message}`);
-            }
+                PropertiesService.getScriptProperties().setProperty(key, String(total));
+            } catch (e) {}
         }
-        if (next >= this._gmailDailyCounterWarnAt && next < this._gmailDailyCallLimit) {
-            console.warn(`⚠️ Gmail API call counter alto: ${next}/${this._gmailDailyCallLimit} (${opName})`);
+        
+        if (total >= this._gmailDailyCounterWarnAt && total < this._gmailDailyCallLimit) {
+            console.warn(`⚠️ Gmail API call counter alto: ${total}/${this._gmailDailyCallLimit} (${opName})`);
         }
-        if (next >= this._gmailDailyCallLimit) {
-            throw new Error(`GMAIL_DAILY_CALL_LIMIT_REACHED (${next}/${this._gmailDailyCallLimit})`);
+
+        if (total >= this._gmailDailyCallLimit) {
+            throw new Error(`GMAIL_DAILY_CALL_LIMIT_REACHED (${total}/${this._gmailDailyCallLimit})`);
         }
     }
 
@@ -806,10 +831,17 @@ var GmailService = class GmailService {
             this._incrementGmailCallCounterOrThrow_('labels.list');
             const response = Gmail.Users.Labels.list('me');
             const apiLabels = (response && response.labels) ? response.labels : [];
+            
+            // Ottimizzazione: approfittiamo della chiamata list per popolare 
+            // la cache di tutte le etichette scoperte, non solo quella richiesta.
+            apiLabels.forEach(l => {
+                if (l && l.name) {
+                    this._labelCache.set(l.name, { ...(this._labelCache.get(l.name) || {}), labelId: l.id, ts: now });
+                }
+            });
+            
             const matched = apiLabels.find(l => l && l.name === raw);
-            const id = matched ? matched.id : null;
-            this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: id, ts: now });
-            return id;
+            return matched ? matched.id : null;
         } catch (e) {
             console.warn(`⚠️ _getOptionalLabelIdByName fallito per ${raw}, non metto in cache: ${e.message}`);
             return null;

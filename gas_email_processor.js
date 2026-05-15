@@ -2766,6 +2766,38 @@ ${addressLines.join('\n\n')}
     }
   }
 
+  _getBusinessTimeString(date = new Date()) {
+    const safeDateInput = date || Date.now();
+    const parsedDate = new Date(safeDateInput);
+    if (isNaN(parsedDate.getTime())) return '12:00';
+
+    if (typeof Utilities !== 'undefined' && Utilities &&
+        typeof Utilities.formatDate === 'function') {
+      try {
+        const tz = (typeof Session !== 'undefined' && Session &&
+                    typeof Session.getScriptTimeZone === 'function')
+          ? Session.getScriptTimeZone()
+          : 'Europe/Rome';
+        return Utilities.formatDate(parsedDate, tz, 'HH:mm');
+      } catch (_) {
+        // Fallback sotto
+      }
+    }
+
+    try {
+      return new Intl.DateTimeFormat('it-IT', {
+        timeZone: 'Europe/Rome',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).format(parsedDate);
+    } catch (_) {
+      const h = String(parsedDate.getHours()).padStart(2, '0');
+      const m = String(parsedDate.getMinutes()).padStart(2, '0');
+      return `${h}:${m}`;
+    }
+  }
+
   _getBusinessDateString(date = new Date()) {
     const safeDateInput = date || Date.now();
     const parsedDate = new Date(safeDateInput);
