@@ -53,6 +53,7 @@ var EmailProcessor = class EmailProcessor {
         ? new MemoryService()
         : {
           getMemory: () => ({}),
+          getRecentHistory: () => [],
           updateMemoryAtomic: () => { },
           updateReaction: () => { }
         });
@@ -1022,7 +1023,12 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       // 2. Recupera cronologia recente per il contesto (max configurable)
       const historyLimit = this.config.maxHistoryMessages || 10;
-      const history = this.memoryService.getRecentHistory(threadId, historyLimit);
+      const history = (
+        this.memoryService &&
+        typeof this.memoryService.getRecentHistory === 'function'
+      )
+        ? this.memoryService.getRecentHistory(threadId, historyLimit)
+        : [];
       const memoryContext = this.memoryService.getMemory(threadId) || {};
 
       if (memoryContext.lastUpdated) {

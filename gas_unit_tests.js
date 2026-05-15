@@ -921,6 +921,70 @@ function runAllTests() {
 
             return processor._hasUnreadMessagesToProcess(thread, new Set()) === true;
         });
+
+        test('Fallback memoryService espone getRecentHistory e non rompe processThread', results, function () {
+            var previousMemoryService = (typeof globalThis !== 'undefined') ? globalThis.MemoryService : undefined;
+            try {
+                if (typeof globalThis !== 'undefined') globalThis.MemoryService = undefined;
+
+                var processor = new EmailProcessor({
+                    gmailService: {
+                        extractEmailAddress: function (from) { return from; },
+                        extractMessageDetails: function () {
+                            return {
+                                senderEmail: 'user@example.com',
+                                senderName: 'User',
+                                subject: 'Richiesta informazioni',
+                                body: 'Vorrei sapere gli orari.',
+                                date: new Date(),
+                                isNewsletter: false,
+                                headers: {}
+                            };
+                        },
+                        addLabelToMessage: function () { },
+                        getMessageMetadataWithResilience: function () { return null; }
+                    },
+                    classifier: {
+                        classifyEmail: function () { return { shouldReply: true, category: 'TECHNICAL', subIntents: [], confidence: 0.9 }; },
+                        extractMainContent: function (body) { return body; }
+                    },
+                    geminiService: {
+                        detectEmailLanguage: function () { return { lang: 'it', confidence: 5, safetyGrade: 5 }; },
+                        shouldRespondToEmail: function () {
+                            return {
+                                shouldRespond: false,
+                                reason: 'no_action_needed',
+                                classification: { category: 'TECHNICAL', topic: 'orari' }
+                            };
+                        }
+                    },
+                    requestClassifier: {
+                        classify: function () { return { type: 'technical' }; }
+                    },
+                    validator: {
+                        validateResponse: function () { return { isValid: true, score: 1, warnings: [] }; }
+                    }
+                });
+
+                var thread = {
+                    getId: function () { return 'thread-fallback-memory'; },
+                    getMessages: function () {
+                        return [{
+                            getId: function () { return 'msg-fallback-memory'; },
+                            isUnread: function () { return true; },
+                            getFrom: function () { return 'user@example.com'; },
+                            getDate: function () { return new Date(); },
+                            getSubject: function () { return 'Richiesta informazioni'; }
+                        }];
+                    }
+                };
+
+                var out = processor.processThread(thread, 'KB', 'Doctrine', new Set(), true);
+                return out && (out.status === 'filtered' || out.status === 'skipped' || out.status === 'dryrun');
+            } finally {
+                if (typeof globalThis !== 'undefined') globalThis.MemoryService = previousMemoryService;
+            }
+        });
     });
 
     testGroup('Classifier - OOO patterns', results, () => {
