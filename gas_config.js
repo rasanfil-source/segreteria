@@ -128,6 +128,7 @@ var CONFIG = {
     ibanContextChars: 300,           // Finestra +/- per testo attorno all'IBAN
     maxCharsWhenKbTruncated: 1500    // Riduzione allegati se KB è troncata
   },
+  OCR_ORPHAN_MAX_AGE_HOURS: 6,       // Età massima file OCR temporanei prima del cleanup
 
   // === Token per tipo allegato (stima multimodale per budget prompt) ===
   ATTACHMENT_TOKEN_ESTIMATE: {
@@ -427,6 +428,8 @@ function validateConfig() {
 
   // Cache & Lock
   checkType('CACHE_LOCK_TTL', CONFIG.CACHE_LOCK_TTL, 'number');
+  checkType('OCR_ORPHAN_MAX_AGE_HOURS', CONFIG.OCR_ORPHAN_MAX_AGE_HOURS, 'number');
+  checkRange('OCR_ORPHAN_MAX_AGE_HOURS', CONFIG.OCR_ORPHAN_MAX_AGE_HOURS, 1, 24);
   checkType('MAX_PROVIDED_TOPICS', CONFIG.MAX_PROVIDED_TOPICS, 'number');
   checkType('MAX_PROVIDED_INFO_JSON_CHARS', CONFIG.MAX_PROVIDED_INFO_JSON_CHARS, 'number');
   checkRange('MAX_PROVIDED_INFO_JSON_CHARS', CONFIG.MAX_PROVIDED_INFO_JSON_CHARS, 1000, 50000);

@@ -119,7 +119,17 @@ var Classifier = class Classifier {
 
     if (safeBody.length > 10000) {
       console.error('  ❌ Email molto lunga (>10000 caratteri)');
-      safeBody = safeBody.substring(0, 10000); // Tronca e prosegue
+      const cut = safeBody.substring(0, 10000);
+      const lastLt = cut.lastIndexOf('<');
+      const lastGt = cut.lastIndexOf('>');
+
+      // Evita di lasciare nel payload un tag HTML aperto/spezzato dal troncamento.
+      if (lastLt > lastGt) {
+        safeBody = cut.substring(0, lastLt);
+      } else {
+        const boundary = Math.max(cut.lastIndexOf('>'), cut.lastIndexOf(' '), cut.lastIndexOf('\n'));
+        safeBody = boundary > 0 ? cut.substring(0, boundary) : cut;
+      }
     }
 
     console.log(`   🔍 Classificando: '${safeSubject.substring(0, 50)}...'`);
@@ -145,7 +155,7 @@ var Classifier = class Classifier {
         console.log('      ✓ Body vuoto ma subject ragionevole -> Passa a Gemini');
         return {
           shouldReply: true,
-          reason: 'empty_body_generic_subject',
+          reason: 'needs_ai_analysis',
           category: null,
           subIntents: {},
           confidence: 0.8
@@ -428,7 +438,7 @@ var Classifier = class Classifier {
     } catch (e) {
       // Runtime legacy senza normalize: proseguiamo con la normalizzazione disponibile.
     }
-    normalized = normalized.replace(/[^\w\sàèéìòù]/g, '');
+    normalized = normalized.replace(/[^\p{L}\p{N}\s]/gu, '');
 
     if (this.greetingOnlyPatterns.some(pattern => pattern.test(normalized))) {
       return true;
@@ -444,7 +454,7 @@ var Classifier = class Classifier {
     if (!text) return true;
 
     const normalized = text.toLowerCase().trim();
-    const cleaned = normalized.replace(/[^\w\sàèéìòù:]/g, '');
+    const cleaned = normalized.replace(/[^\p{L}\p{N}\s:]/gu, '');
     const words = cleaned.split(/\s+/).filter(Boolean);
 
     if (words.length === 0) return true;

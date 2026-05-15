@@ -404,7 +404,14 @@ var MemoryService = class MemoryService {
           lockAcquired = this._tryAcquireShardedLock(lockKey, this._getLockTuning_().shardedAcquireTimeoutMs);
           if (!lockAcquired) {
             if (i === 2) {
-              console.warn(`⚠️ Lock non acquisito dopo 3 tentativi, annullo aggiornamento atomico per thread ${threadId}`);
+              const failure = {
+                threadId,
+                cause: 'LOCK_TIMEOUT',
+                message: `Lock sharded non acquisito dopo 3 tentativi (${lockKey})`,
+                at: new Date().toISOString()
+              };
+              this._lastUpdateMemoryAtomicFailure = failure;
+              console.error(`❌ CRITICO: updateMemoryAtomic lock timeout per thread ${threadId}: ${failure.message}`);
               return false;
             }
             if (i < 2) {
@@ -524,11 +531,28 @@ var MemoryService = class MemoryService {
     }
     // Protezione best-effort: non distruggere il batch fallendo.
     // Invece di throw, logghiamo l'errore e ritorniamo false per permettere all'email_processor di finire il job (labeling).
-    console.error(`❌ CRITICO: Lock Memory Service irrisolvibile per thread ${threadId} (Loop Timeout dopo 3 retry). Fallback best-effort a batch bypass.`);
-    if (lastAtomicError && lastAtomicError.message === 'VERSION_MISMATCH') {
+    const failureCause = (lastAtomicError && lastAtomicError.message === 'VERSION_MISMATCH')
+      ? 'VERSION_MISMATCH'
+      : 'WRITE_ERROR';
+    const failureMessage = lastAtomicError ? lastAtomicError.message : 'Loop Timeout dopo 3 retry';
+    this._lastUpdateMemoryAtomicFailure = {
+      threadId,
+      cause: failureCause,
+      message: failureMessage,
+      at: new Date().toISOString()
+    };
+    console.error(`❌ CRITICO: updateMemoryAtomic fallito per thread ${threadId} - causa: ${failureCause} (${failureMessage}). Fallback best-effort a batch bypass.`);
+    if (failureCause === 'VERSION_MISMATCH') {
       console.error(`🔒 VERSION_MISMATCH persistente dopo 3 retry: possibile contesa alta su thread ${threadId}`);
     }
     return false;
+  }
+
+  /**
+   * Restituisce l'ultima causa diagnostica di fallimento updateMemoryAtomic.
+   */
+  getLastUpdateMemoryAtomicFailure() {
+    return this._lastUpdateMemoryAtomicFailure || null;
   }
 
   /**
@@ -999,6 +1023,7 @@ var MemoryService = class MemoryService {
               return true;
             }
             // Race residua/propagazione anomala: non acquisire se il token non è il nostro.
+            Utilities.sleep(50);
             continue;
           }
         } finally {

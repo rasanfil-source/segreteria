@@ -838,6 +838,25 @@ function testMemoryGetUsesRowValues() {
     assert(result.threadId === 'thread-1', 'getMemory deve restituire threadId corretto');
 }
 
+function testUpdateMemoryAtomicReportsLockTimeoutCause() {
+    loadScript('gas_memory_service.js');
+
+    const service = Object.create(MemoryService.prototype);
+    service._initialized = true;
+    service._getShardedLockKey = () => 'memory_lock_thread-atomic-timeout';
+    service._getLockTuning_ = () => ({ shardedAcquireTimeoutMs: 10, backoffBaseMs: 1, backoffCapMs: 10, backoffJitterMs: 0 });
+    service._tryAcquireShardedLock = () => false;
+    service._sleepLockBackoff_ = () => { };
+    service._releaseShardedLock = () => { throw new Error('releaseLock non deve essere chiamato senza lock'); };
+
+    const result = service.updateMemoryAtomic('thread-atomic-timeout', { language: 'it' });
+    const failure = service.getLastUpdateMemoryAtomicFailure();
+
+    assert(result === false, 'updateMemoryAtomic deve ritornare false se il lock non viene acquisito');
+    assert(failure && failure.cause === 'LOCK_TIMEOUT', 'updateMemoryAtomic deve esporre la causa LOCK_TIMEOUT');
+    assert(failure.threadId === 'thread-atomic-timeout', 'la diagnostica deve includere il threadId');
+}
+
 function testInvalidateCacheAlsoClearsRobustCache() {
     loadScript('gas_memory_service.js');
 
@@ -1045,6 +1064,75 @@ function testUpdateProvidedInfoWithoutIncrementSkipsMissingThread() {
     service._updateProvidedInfoWithoutIncrement('thread-missing', ['battesimo']);
 
     assert(released === true, 'Il lock sharded deve essere rilasciato in finally anche sullo skip');
+}
+
+
+function testMemoryGetUsesRowValues() {
+    loadScript('gas_memory_service.js');
+
+    const service = Object.create(MemoryService.prototype);
+    service._initialized = true;
+    service._getFromCache = () => null;
+    service._setCache = () => { };
+    service._findRowByThreadId = () => ({
+        rowIndex: 7,
+        values: ['thread-1', 'it', 'TECHNICAL', 'standard', '[]', '2026-02-15T10:00:00.000Z', 2, 1, 'ok']
+    });
+    service._validateAndNormalizeTimestamp = (ts) => ts;
+
+    let captured = null;
+    service._rowToObject = (values) => {
+        captured = values;
+        return { threadId: values[0], language: values[1] };
+    };
+
+    const result = service.getMemory('thread-1');
+    assert(Array.isArray(captured), 'getMemory deve passare solo values a _rowToObject');
+    assert(result.threadId === 'thread-1', 'getMemory deve restituire threadId corretto');
+}
+
+function testUpdateMemoryAtomicReportsLockTimeoutCause() {
+    loadScript('gas_memory_service.js');
+
+    const service = Object.create(MemoryService.prototype);
+    service._initialized = true;
+    service._getShardedLockKey = () => 'memory_lock_thread-atomic-timeout';
+    service._getLockTuning_ = () => ({ shardedAcquireTimeoutMs: 10, backoffBaseMs: 1, backoffCapMs: 10, backoffJitterMs: 0 });
+    service._tryAcquireShardedLock = () => false;
+    service._sleepLockBackoff_ = () => { };
+    service._releaseShardedLock = () => { throw new Error('releaseLock non deve essere chiamato senza lock'); };
+
+    const result = service.updateMemoryAtomic('thread-atomic-timeout', { language: 'it' });
+    const failure = service.getLastUpdateMemoryAtomicFailure();
+
+    assert(result === false, 'updateMemoryAtomic deve ritornare false se il lock non viene acquisito');
+    assert(failure && failure.cause === 'LOCK_TIMEOUT', 'updateMemoryAtomic deve esporre la causa LOCK_TIMEOUT');
+    assert(failure.threadId === 'thread-atomic-timeout', 'la diagnostica deve includere il threadId');
+}
+
+function testInvalidateCacheAlsoClearsRobustCache() {
+    loadScript('gas_memory_service.js');
+
+    const removedKeys = [];
+    const originalCacheService = global.CacheService;
+    global.CacheService = {
+        getScriptCache: () => ({
+            remove: (key) => removedKeys.push(key),
+            get: (key) => null,
+            removeAll: (keys) => keys.forEach(k => removedKeys.push(k))
+        })
+    };
+
+    try {
+        const service = Object.create(MemoryService.prototype);
+        service._cache = { 'memory_thread-42': { data: {}, timestamp: Date.now() } };
+
+        service._invalidateCache('memory_thread-42');
+        assert(!service._cache['memory_thread-42'], '_invalidateCache deve rimuovere la cache locale');
+        assert(removedKeys.includes('memory_thread-42'), '_invalidateCache deve rimuovere la chiave dalla cache script');
+    } finally {
+        global.CacheService = originalCacheService;
+    }
 }
 
 function testUpdateProvidedInfoWithoutIncrementRetriesShardedLock() {
@@ -3160,6 +3248,7 @@ function main() {
         ['email processor: canonicalizza gmail/googlemail dotted alias', testEmailProcessorNormalizesGooglemailDotAliases],
         ['memory: lock timeout applica exponential backoff', testUpdateMemoryLockFailureUsesExponentialBackoff],
         ['memory get: usa row.values in parsing', testMemoryGetUsesRowValues],
+        ['memory atomic: espone causa lock timeout', testUpdateMemoryAtomicReportsLockTimeoutCause],
         ['memory invalidate: pulizia cache deterministica', testInvalidateCacheAlsoClearsRobustCache],
         ['memory: lock sharded timeout invalido usa fallback', testShardedLockInvalidTimeoutUsesFallbackBudget],
         ['memory: sheet lock non rilascia se waitLock fallisce', testSheetWriteLockDoesNotReleaseWhenWaitLockFails],

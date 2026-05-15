@@ -261,7 +261,7 @@ var GmailService = class GmailService {
             const labelIdFromCache = this._getOptionalLabelIdByName(labelName);
             const labelId = labelIdFromCache || null;
             if (!labelId) {
-                throw new Error(`Label ID non trovato per '${labelName}' (Advanced Service non disponibile o senza permessi): forzo fallback a livello thread.`);
+                throw new Error(`Label ID non trovato per '${labelName}' (Advanced Service non disponibile o senza permessi): interrompo per preservare etichettatura a livello messaggio.`);
             }
             this._incrementGmailCallCounterOrThrow_('messages.modify:addLabel');
             const payload = { addLabelIds: [labelId] };
@@ -282,34 +282,14 @@ var GmailService = class GmailService {
                     console.log(`✓ Aggiunta label '${labelName}' al messaggio ${messageId} (retry dopo cache reset)`);
                 } catch (retryError) {
                     console.warn(`⚠️ Retry addLabelToMessage fallito per messaggio ${messageId}: ${retryError.message}`);
-                    try {
-                        const nativeMessage = GmailApp.getMessageById(messageId);
-                        const thread = nativeMessage ? nativeMessage.getThread() : null;
-                        if (thread) {
-                            this.addLabelToThread(thread, labelName);
-                            console.warn(`⚠️ Fallback thread-level applicato per msg ${messageId} con label '${labelName}' dopo label ID stale`);
-                            return;
-                        }
-                    } catch (fallbackError) {
-                        console.warn(`⚠️ Fallback thread-level fallito dopo label ID stale per msg ${messageId}: ${fallbackError.message}`);
-                    }
+                    console.warn(`⚠️ Skip fallback thread-level per msg ${messageId} con label '${labelName}' dopo label ID stale: preservo triage a livello messaggio`);
                     throw retryError;
                 }
                 return;
             }
-            // Fallback operativo: se non possiamo etichettare il singolo messaggio via API avanzata,
-            // etichettiamo il thread per evitare loop di retry su transienti/permessi.
-            try {
-                const nativeMessage = GmailApp.getMessageById(messageId);
-                const thread = nativeMessage ? nativeMessage.getThread() : null;
-                if (thread) {
-                    this.addLabelToThread(thread, labelName);
-                    console.warn(`⚠️ Fallback thread-level applicato per msg ${messageId} con label '${labelName}'`);
-                    return;
-                }
-            } catch (fallbackError) {
-                console.warn(`⚠️ Fallback thread-level fallito per msg ${messageId}: ${fallbackError.message}`);
-            }
+            // Non degradare a label di thread: il triage operativo è message-level e
+            // un fallback GmailApp.addLabelToThread inquinerebbe l'intera conversazione.
+            console.warn(`⚠️ Skip fallback thread-level per msg ${messageId} con label '${labelName}': preservo triage a livello messaggio`);
             throw e;
         }
     }
@@ -1689,7 +1669,7 @@ var GmailService = class GmailService {
             return;
         }
 
-        const orphanMaxAgeHours = this._safePositiveInt((typeof CONFIG !== 'undefined' ? CONFIG.OCR_ORPHAN_MAX_AGE_HOURS : null), 1, 1, 24);
+        const orphanMaxAgeHours = this._safePositiveInt((typeof CONFIG !== 'undefined' ? CONFIG.OCR_ORPHAN_MAX_AGE_HOURS : null), 6, 1, 24);
         const cutoffIso = new Date(Date.now() - (orphanMaxAgeHours * 60 * 60 * 1000))
             .toISOString()
             .replace(/\.\d{3}Z$/, 'Z');
@@ -2267,14 +2247,14 @@ var GmailService = class GmailService {
         const angleMatch = safeFrom.match(/<([^>]+@[^>]+)>/);
         if (angleMatch) {
             const inner = String(angleMatch[1]).replace(/[\r\n]+/g, ' ').trim();
-            const innerMatch = inner.match(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/);
+            const innerMatch = inner.match(/^[A-Za-z0-9._%+'-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/);
             if (innerMatch) return innerMatch[0];
         }
 
         // Evita regex RFC5322 troppo complesse (rischio backtracking su input malevoli).
         // Header From di Gmail sono già sanificati: pattern snello e lineare è sufficiente.
         const safeFromField = safeFrom.length > 2048 ? safeFrom.substring(0, 2048) : safeFrom;
-        const emailMatch = safeFromField.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+        const emailMatch = safeFromField.match(/[A-Za-z0-9._%+'-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
         if (emailMatch) {
             return emailMatch[0];
         }
@@ -2288,7 +2268,7 @@ var GmailService = class GmailService {
         // Troncamento preventivo: evita timeout V8 su HTML anomalo/massivo durante replace regex.
         let text = html.length > 50000 ? html.substring(0, 50000) : html;
         // Rimuove blocchi di codice/stile che altrimenti finirebbero nel prompt testuale.
-        text = text.replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
+        text = text.replace(/<(style|script)\b[^>]*>[\s\S]{0,5000}?<\/\1>/gi, '');
         // Preserva separatori strutturali per evitare blocchi di testo illeggibili.
         text = text.replace(/<br\s*\/?\s*>/gi, '\n');
         text = text.replace(/<\/p\s*>/gi, '\n\n');

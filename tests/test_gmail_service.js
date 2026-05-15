@@ -62,6 +62,43 @@ const htmlIsolated = markdownToHtml('Testo <img src=x onerror=alert(1)> finale')
 assert(!htmlIsolated.includes('<img src=x onerror=alert(1)>'), 'tag HTML isolato non deve passare raw');
 assert(htmlIsolated.includes('&lt;img src=x onerror=alert(1)&gt;'), 'tag HTML isolato deve essere escaped');
 
+
+console.log('--- Test _extractEmailAddress supporta apostrofo nel local-part ---');
+{
+  const service = new GmailService();
+  assert(
+    service._extractEmailAddress("D'Angelo <d'angelo@example.org>") === "d'angelo@example.org",
+    'indirizzi con apostrofo nel local-part devono essere estratti'
+  );
+}
+
+console.log('--- Test _htmlToPlainText limita rimozione script/style patologici ---');
+{
+  const service = new GmailService();
+  const text = service._htmlToPlainText(`<p>Prima</p><script>${'x'.repeat(6000)}</script><p>Dopo</p>`);
+  assert(text.includes('Prima') && text.includes('Dopo'), 'il testo esterno a script/style lunghi deve restare disponibile');
+}
+
+console.log('--- Test addLabelToMessage non degrada a label thread-level ---');
+{
+  const service = Object.create(GmailService.prototype);
+  let fallbackCalled = false;
+  service._getOptionalLabelIdByName = () => null;
+  service._isLabelNotFoundError = () => false;
+  service.addLabelToThread = () => { fallbackCalled = true; };
+
+  let threw = false;
+  try {
+    service.addLabelToMessage('msg-1', 'IA');
+  } catch (e) {
+    threw = true;
+  }
+
+  assert(threw, 'addLabelToMessage deve propagare errore se il message-level non è disponibile');
+  assert(!fallbackCalled, 'addLabelToMessage non deve applicare fallback a livello thread');
+}
+
+
 console.log('--- Test discovery: errore getThreadById non deve bloccare il batch ---');
 console.log('--- Test fixPunctuation preserva newline dopo virgola ---');
 const punctuationService = new GmailService();
