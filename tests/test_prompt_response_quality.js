@@ -125,7 +125,9 @@ const prerequisitePrompt = engine.buildPrompt({
 assert(
   prerequisitePrompt.includes('PREREQUISITO CRESIMA') &&
     prerequisitePrompt.includes('avere almeno 16 anni') &&
-    prerequisitePrompt.includes('non essere il genitore del battezzando'),
+    prerequisitePrompt.includes('non essere il genitore del battezzando') &&
+    prerequisitePrompt.includes('Non parlare di "discernimento pastorale"') &&
+    prerequisitePrompt.includes('casistica ordinaria prevista'),
   'il prompt deve autorizzare le condizioni padrino quando la Cresima è prerequisito implicito'
 );
 

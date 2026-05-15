@@ -856,11 +856,15 @@ CONTESTO STRUTTURALE ALLEGATI:
 ` : '';
     const sponsorGuidanceTask = shouldClassifySponsorGuidance ? `
 7. Determina needs_sponsor_guidance (boolean):
-   - TRUE solo se nella risposta conviene inserire le condizioni per essere padrino/madrina.
-   - TRUE se il mittente vuole diventare padrino/madrina e non ha ancora la Cresima, oppure chiede esplicitamente requisiti, condizioni o idoneità per quel ruolo.
+   - TRUE solo se nella risposta conviene inserire le condizioni per il ruolo ecclesiale di padrino/madrina/godparent.
+   - Considera equivalenti sacramentali: padrino/madrina (it/es), godparent/godfather/godmother o sponsor sacramentale (en), parrain/marraine (fr), padrinho/madrinha (pt), Pate/Patin/Firmpate/Firmpatin (de).
+   - TRUE se il mittente vuole assumere quel ruolo sacramentale e non ha ancora la Cresima/Confirmation, oppure chiede esplicitamente requisiti, condizioni o idoneità per quel ruolo.
    - FALSE in tutti gli altri casi.
    - FALSE se il mittente sta consegnando documenti propri o del proprio padrino/madrina per ricevere un sacramento.
    - FALSE se "padrino" o "madrina" indica solo l'accompagnatore sacramentale del mittente.
+   - In italiano, "sponsor" NON significa padrino/madrina: se indica pubblicità, finanziamento o magliette, rispondi FALSE.
+   - "Testimone" di matrimonio NON è padrino/madrina e NON richiede Cresima: rispondi FALSE.
+   - In inglese, "sponsor" vale solo se il contesto è chiaramente sacramentale (Confirmation/Baptism/Catholic godparent); altrimenti FALSE.
    - FALSE se il mittente chiede solo logistica, date, orari, luogo o conferma di ricezione documenti.
 ` : '';
     const sponsorGuidanceJsonField = shouldClassifySponsorGuidance

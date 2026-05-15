@@ -1326,14 +1326,16 @@ Il mittente chiede della Cresima perché vuole o deve assumere un ruolo di padri
 
 ISTRUZIONI:
 1. Rispondi prima alla domanda esplicita (es. come fare la Cresima da adulto, requisiti, tempi).
-2. Se il ruolo di padrino/madrina è emerso o è pertinente alla domanda, aggiungi in modo naturale, non burocratico, queste condizioni:
+2. In questo caso il riferimento al ruolo di padrino/madrina è pertinente e richiesto implicitamente: aggiungi in modo naturale che la Cresima è solo una delle condizioni per tale ruolo.
+3. Indica queste condizioni:
    - essere cattolico battezzato e cresimato;
    - aver ricevuto l'Eucaristia;
    - condurre una vita conforme alla fede e non trovarsi in una situazione canonicamente irregolare;
    - avere almeno 16 anni;
    - non essere il genitore del battezzando.
-3. Presenta queste condizioni come informazione utile al percorso, non come elenco freddo di requisiti.
-4. Non aggiungere questa sezione se il mittente ha già scritto di soddisfare tutti i requisiti.`;
+4. Presenta queste condizioni come informazione utile al percorso, non come elenco freddo di requisiti.
+5. Non aggiungere questa sezione se il mittente ha già scritto di soddisfare tutti i requisiti.
+6. Non parlare di "discernimento pastorale", "valutare il caso specifico" o "necessità di valutazione" solo perché il mittente chiede la Cresima per fare da padrino/madrina: è una casistica ordinaria prevista. Invita a parlare con un sacerdote solo se emergono situazioni personali complesse non risolvibili dalla segreteria.`;
     }
     return null;
   }

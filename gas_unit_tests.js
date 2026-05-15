@@ -463,6 +463,66 @@ function runAllTests() {
             );
             return policy === 'cresima_prerequisite_for_sponsor_role';
         });
+        test('Usa AI come disambiguatore quando padrino e Cresima compaiono insieme', results, () => {
+            const body = 'Mi hanno chiesto di fare da padrino il giorno 13 di settembre e non trovo un corso di preparazione alla Cresima, che mi manca, per riceverla entro settembre.';
+            const localDecision = processor._classifySponsorGuidanceLocally_(
+                'Cresima per padrino',
+                body,
+                null,
+                'it'
+            );
+            const yesByAi = processor._deriveSponsorGuidancePolicy_(
+                'Cresima per padrino',
+                body,
+                null,
+                true,
+                'it'
+            );
+            const noByAi = processor._deriveSponsorGuidancePolicy_(
+                'Cresima per padrino',
+                body,
+                null,
+                false,
+                'it'
+            );
+            return localDecision === 'ask_ai' &&
+                yesByAi === 'cresima_prerequisite_for_sponsor_role' &&
+                noByAi === 'no_eligibility_guidance';
+        });
+        test('Non interpreta sponsor pubblicitario italiano come padrino', results, () => {
+            const body = 'Vorremmo proporvi di fare da sponsor sulle magliette della nostra squadra di calcio.';
+            return processor._classifySponsorGuidanceLocally_('Sponsor magliette', body, null, 'it') === 'none' &&
+                processor._deriveSponsorGuidancePolicy_('Sponsor magliette', body, null, true, 'it') === 'default';
+        });
+        test('Non interpreta testimone di matrimonio come padrino', results, () => {
+            const body = 'Devo fare da testimone a un matrimonio e vorrei sapere se serve la Cresima.';
+            return processor._classifySponsorGuidanceLocally_('Testimone matrimonio', body, null, 'it') === 'none' &&
+                processor._deriveSponsorGuidancePolicy_('Testimone matrimonio', body, null, undefined, 'it') !== 'cresima_prerequisite_for_sponsor_role';
+        });
+        test('Radar padrino/Cresima è multilingue nelle lingue supportate', results, () => {
+            const samples = [
+                ['en', 'I was asked to be a sponsor at a baptism, but I have not received Confirmation.'],
+                ['es', 'Me han pedido ser padrino, pero me falta la Confirmación.'],
+                ['fr', 'On m’a demandé d’être parrain, mais il me manque la confirmation.'],
+                ['pt', 'Pediram-me para ser padrinho, mas falta-me a Crisma.'],
+                ['de', 'Ich soll Pate werden, bin aber nicht gefirmt.']
+            ];
+            return samples.every(([lang, body]) =>
+                processor._classifySponsorGuidanceLocally_('Info', body, null, lang) === 'ask_ai'
+            );
+        });
+        test('In inglese sponsor commerciale non attiva radar sacramentale', results, () => {
+            const body = 'We would like to sponsor your football shirts this season.';
+            return processor._classifySponsorGuidanceLocally_('Sponsorship proposal', body, null, 'en') === 'none';
+        });
+        test('In inglese confirm+sponsor commerciale resta fuori dal radar sacramentale', results, () => {
+            const body = 'Could you confirm if we can sponsor your football shirts this season?';
+            return processor._classifySponsorGuidanceLocally_('Sponsorship proposal', body, null, 'en') === 'none';
+        });
+        test('In inglese sponsor con mancanza Confirmation attiva radar sacramentale', results, () => {
+            const body = 'I was asked to be a sponsor, but I am not confirmed.';
+            return processor._classifySponsorGuidanceLocally_('Confirmation sponsor', body, null, 'en') === 'ask_ai';
+        });
         test('Regex locale decide prima del segnale AI per guidance padrino', results, () => {
             const excludedDespiteAi = processor._deriveSponsorGuidancePolicy_(
                 'Documenti Cresima',
@@ -470,14 +530,7 @@ function runAllTests() {
                 { intent: 'sponsor_eligibility_submission' },
                 true
             );
-            const includedDespiteAi = processor._deriveSponsorGuidancePolicy_(
-                'Cresima per padrino',
-                'Mi manca la Cresima e vorrei fare da padrino.',
-                { intent: 'document_submission' },
-                false
-            );
-            return excludedDespiteAi === 'no_eligibility_guidance' &&
-                includedDespiteAi === 'cresima_prerequisite_for_sponsor_role';
+            return excludedDespiteAi === 'no_eligibility_guidance';
         });
         test('AI interviene solo sui casi padrino ambigui individuati dalla regex', results, () => {
             const ambiguous = 'Vorrei fare da madrina alla Cresima di mia nipote: potete aiutarmi?';
@@ -1114,6 +1167,49 @@ function runAllTests() {
         const originalSession = global.Session;
         const originalUtilities = global.Utilities;
         const originalConfig = global.CONFIG;
+        const makeUnreadMessage = (messageId) => ({
+            getId: () => messageId,
+            isUnread: () => true
+        });
+        const makeThreadFromMessage = (threadId, messageId) => ({
+            id: threadId,
+            getId: () => threadId,
+            getMessages: () => [makeUnreadMessage(messageId || `msg-${threadId}`)],
+            addLabel: () => { }
+        });
+        const searchViaAdvancedListMock = (query, start, max) => {
+            const threads = [];
+            let pageToken = null;
+            let pages = 0;
+
+            do {
+                pages++;
+                let response = null;
+                for (let attempt = 0; attempt < 2; attempt++) {
+                    try {
+                        response = global.Gmail.Users.Messages.list('me', {
+                            q: query,
+                            maxResults: max,
+                            pageToken: pageToken || undefined
+                        });
+                        break;
+                    } catch (e) {
+                        if (attempt === 1 || !/Unknown Error/i.test(String(e && e.message))) throw e;
+                    }
+                }
+
+                if (!response || !Array.isArray(response.messages)) break;
+
+                response.messages.forEach((message) => {
+                    if (threads.length >= max) return;
+                    const thread = global.GmailApp.getThreadById(message.threadId);
+                    if (thread) threads.push(thread);
+                });
+                pageToken = response.nextPageToken || null;
+            } while (pageToken && pages < 10 && threads.length < max);
+
+            return threads;
+        };
 
         try {
             global.CacheService = {
@@ -1125,12 +1221,8 @@ function runAllTests() {
                 sleep: () => { }
             });
             global.GmailApp = {
-                getThreadById: (threadId) => ({
-                    id: threadId,
-                    getId: () => threadId,
-                    getMessages: () => [],
-                    addLabel: () => { }
-                }),
+                search: searchViaAdvancedListMock,
+                getThreadById: (threadId) => makeThreadFromMessage(threadId),
                 getUserLabelByName: () => null
             };
 
@@ -1235,14 +1327,10 @@ function runAllTests() {
             test('Discovery query continua sulle pagine successive se getThreadById restituisce null', results, () => {
                 const fetchedThreadIds = [];
                 global.GmailApp = {
+                    search: searchViaAdvancedListMock,
                     getThreadById: (threadId) => {
                         fetchedThreadIds.push(threadId);
-                        return threadId === 't-missing' ? null : {
-                            id: threadId,
-                            getId: () => threadId,
-                            getMessages: () => [],
-                            addLabel: () => { }
-                        };
+                        return threadId === 't-missing' ? null : makeThreadFromMessage(threadId, 'm-2');
                     },
                     getUserLabelByName: () => null
                 };

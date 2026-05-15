@@ -862,7 +862,8 @@ var EmailProcessor = class EmailProcessor {
       const sponsorGuidancePrecheck = this._classifySponsorGuidanceLocally_(
         messageDetails.subject,
         messageDetails.body,
-        preQuickAttachmentIntentContext
+        preQuickAttachmentIntentContext,
+        detectedLanguage
       );
       const quickIntentContext = Object.assign(
         {},
@@ -1331,7 +1332,8 @@ ${addressLines.join('\n\n')}
                   messageDetails.subject,
                   messageDetails.body,
                   attachmentIntentContext,
-                  quickCheck.needs_sponsor_guidance
+                  quickCheck.needs_sponsor_guidance,
+                  detectedLanguage
                 );
                 forceReceiptOnlyForSubmission = hasSubmissionQuestions ? false : !shouldProvideEligibilityGuidance;
                 if (forceReceiptOnlyForSubmission) {
@@ -1391,7 +1393,7 @@ ${addressLines.join('\n\n')}
         promptProfile: promptProfile,
         activeConcerns: activeConcerns,
         territoryContext: territoryContext,
-        sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance),
+        sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),
         requestType: requestType,
         attachmentsContext: textFromAttachments,
         attachmentIntentContext: attachmentIntentContext,
@@ -1612,7 +1614,8 @@ ${addressLines.join('\n\n')}
       response = this._sanitizeUnrequestedSponsorGuidance_(
         response,
         messageDetails.subject,
-        messageDetails.body
+        messageDetails.body,
+        detectedLanguage
       );
 
       // ====================================================================
@@ -4001,38 +4004,173 @@ Nota bene: l'orario comunicato ${note}.`;
     return 'Buonasera.\nAbbiamo ricevuto la documentazione allegata. Prima di procedere, la segreteria verificherà la documentazione inviata.\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio';
   }
 
-  _isSubmittingSponsorEligibilityDocument_(text) {
-    const source = String(text || '').toLowerCase();
-    const deliverySignals = /\b(allego|in allegato|invio|inoltro|trasmetto|mando|consegno|presento|deposito|ecco)\b/i.test(source);
-    const sponsorCertificate = /\b(certificat\w*|attestat\w*)\b[\s\S]{0,80}\bidoneit[aà]\b[\s\S]{0,80}\b(padrin\w*|madrin\w*|sponsor)\b/i.test(source);
-    const sponsorPossessiveCertificate = /\b(certificat\w*|attestat\w*)\b[\s\S]{0,80}\bidoneit[aà]\b[\s\S]{0,40}\b(del|della|dello|dei|delle|di|mio|mia|suo|sua|propri[oa])\b[\s\S]{0,40}\b(padrin\w*|madrin\w*|sponsor)\b/i.test(source);
-
-    return sponsorPossessiveCertificate || (deliverySignals && sponsorCertificate);
+  _normalizeSponsorGuidanceLanguage_(detectedLanguage) {
+    const lang = String(detectedLanguage || 'it').substring(0, 2).toLowerCase();
+    return ['it', 'en', 'es', 'fr', 'pt', 'de'].includes(lang) ? lang : 'it';
   }
 
-  _isExplicitSponsorEligibilityRequest_(text) {
+  _hasConfirmationTopic_(text, detectedLanguage = 'it') {
     const source = String(text || '').toLowerCase();
-    const role = '(padrin\\w*|madrin\\w*|sponsor)';
-    const askWords = '(come|cosa|quali|qual[eè]|posso|potrei|devo|dovrei|serve|servono|occorre|occorrono|bisogna|vorrei sapere|mi serve sapere|ho bisogno di sapere|informazioni|info)';
-    const roleAction = new RegExp(`\\b${askWords}\\b[\\s\\S]{0,90}\\b(fare|diventare|essere|fungere|assumere|svolgere)\\b[\\s\\S]{0,35}\\b(da\\s+|il\\s+|la\\s+)?${role}\\b`, 'i');
-    const requirementsForward = new RegExp(`\\b(requisit[oi]|condizion[ei]|necessari[oaie]?)\\b[\\s\\S]{0,100}\\b${role}\\b`, 'i');
-    const requirementsReverse = new RegExp(`\\b${role}\\b[\\s\\S]{0,100}\\b(requisit[oi]|condizion[ei]|necessari[oaie]?)\\b`, 'i');
-    const certificateQuestion = new RegExp(`\\b${askWords}\\b[\\s\\S]{0,100}\\b(certificat\\w*|attestat\\w*|idoneit[aà])\\b[\\s\\S]{0,80}\\b${role}\\b`, 'i');
-
-    return roleAction.test(source) ||
-      certificateQuestion.test(source) ||
-      requirementsForward.test(source) ||
-      requirementsReverse.test(source);
+    switch (this._normalizeSponsorGuidanceLanguage_(detectedLanguage)) {
+      case 'en':
+        return /\b(confirmation|sacrament of confirmation)\b/i.test(source);
+      case 'es':
+        return /\b(confirmaci[oó]n|confirmad[oa]s?)\b/i.test(source);
+      case 'fr':
+        return /\b(confirmation|confirm[ée]s?)\b/i.test(source);
+      case 'pt':
+        return /\b(crisma|crismad[oa]s?)\b/i.test(source);
+      case 'de':
+        return /\b(firmung|gefirmt\w*)\b/i.test(source);
+      default:
+        return /\bcresim\w*\b/i.test(source);
+    }
   }
 
-  _isReceivingOwnCresimaContext_(text) {
+  _hasSacramentalContext_(text, detectedLanguage = 'it') {
     const source = String(text || '').toLowerCase();
-    return /\b(ricev\w+|ricever\w+|celebr\w+)\b[\s\S]{0,80}\bcresim\w*/i.test(source) ||
-      /\b(fare|farò)\b\s+(la\s+)?cresim\w*/i.test(source) ||
-      /\bcresim\w*[\s\S]{0,80}\b(prossim[aoie]?|imminente|celebrazione|cerimonia|\d{1,2}\s+\w+\s+20\d{2})\b/i.test(source);
+    if (this._hasConfirmationTopic_(source, detectedLanguage)) return true;
+    switch (this._normalizeSponsorGuidanceLanguage_(detectedLanguage)) {
+      case 'en':
+        return /\b(baptism|baptismal|christening|catholic|church|sacrament|godparent)\b/i.test(source);
+      case 'es':
+        return /\b(bautism\w*|cat[oó]lic\w*|iglesia|sacrament\w*)\b/i.test(source);
+      case 'fr':
+        return /\b(bapt[êe]m\w*|catholique|[ée]glise|sacrement\w*)\b/i.test(source);
+      case 'pt':
+        return /\b(batism\w*|cat[oó]lic\w*|igreja|sacrament\w*)\b/i.test(source);
+      case 'de':
+        return /\b(taufe|tauf\w*|katholisch\w*|kirche|sakrament\w*)\b/i.test(source);
+      default:
+        return /\b(battesim\w*|cattolic\w*|chiesa|sacrament\w*)\b/i.test(source);
+    }
   }
 
-  _classifySponsorGuidanceLocally_(subject, body, attachmentIntentContext) {
+  _hasSacramentalSponsorRole_(text, detectedLanguage = 'it') {
+    const source = String(text || '').toLowerCase();
+    switch (this._normalizeSponsorGuidanceLanguage_(detectedLanguage)) {
+      case 'en':
+        return /\b(godfather|godmother|godparent|godparents)\b/i.test(source) ||
+          (/\bsponsors?\b/i.test(source) && (
+            this._hasSacramentalContext_(source, 'en') ||
+            this._hasMissingConfirmationSignal_(source, 'en')
+          ));
+      case 'es':
+        return /\b(padrin\w*|madrin\w*)\b/i.test(source);
+      case 'fr':
+        return /\b(parrain|marraine)s?\b/i.test(source);
+      case 'pt':
+        return /\b(padrinh\w*|madrinh\w*)\b/i.test(source);
+      case 'de':
+        return /\b(firmpat\w*|taufpat\w*|pate|patin)\b/i.test(source);
+      default:
+        return /\b(padrin\w*|madrin\w*)\b/i.test(source);
+    }
+  }
+
+  _hasSponsorEligibilityTopic_(text, detectedLanguage = 'it') {
+    const source = String(text || '').toLowerCase();
+    switch (this._normalizeSponsorGuidanceLanguage_(detectedLanguage)) {
+      case 'en':
+        return /\b(requirements?|conditions?|eligib(?:le|ility)|suitab(?:le|ility))\b/i.test(source);
+      case 'es':
+        return /\b(requisitos?|condiciones?|idoneidad|id[oó]ne[oa]s?)\b/i.test(source);
+      case 'fr':
+        return /\b(conditions?|exigences?|aptitude|apte)\b/i.test(source);
+      case 'pt':
+        return /\b(requisitos?|condi[cç][oõ]es|idoneidade|id[oô]ne[oa]s?)\b/i.test(source);
+      case 'de':
+        return /\b(voraussetzungen?|bedingungen?|eignung|geeignet)\b/i.test(source);
+      default:
+        return /\b(requisit[oi]|condizion[ei]|idoneit[aà]|idone[oa]i?)\b/i.test(source);
+    }
+  }
+
+  _hasMissingConfirmationSignal_(text, detectedLanguage = 'it') {
+    const source = String(text || '').toLowerCase();
+    switch (this._normalizeSponsorGuidanceLanguage_(detectedLanguage)) {
+      case 'en':
+        return /\b(not|never)\b[\s\S]{0,30}\bconfirm(?:ed|ation)\b/i.test(source) ||
+          /\b(have not|haven't|need|must|missing|lack)\b[\s\S]{0,80}\bconfirmation\b/i.test(source);
+      case 'es':
+        return /\b(no estoy|no he sido|me falta|necesito|debo)\b[\s\S]{0,80}\b(confirmaci[oó]n|confirmad[oa])\b/i.test(source) ||
+          /\bconfirmaci[oó]n\b[\s\S]{0,40}\b(me falta|falta)\b/i.test(source);
+      case 'fr':
+        return /\b(pas|jamais|me manque|besoin|dois)\b[\s\S]{0,80}\b(confirmation|confirm[ée])\b/i.test(source) ||
+          /\bconfirmation\b[\s\S]{0,40}\b(me manque|manque)\b/i.test(source);
+      case 'pt':
+        return /\b(n[aã]o sou|nunca fui|me falta|preciso|devo)\b[\s\S]{0,80}\b(crisma|crismad[oa])\b/i.test(source) ||
+          /\bcrisma\b[\s\S]{0,40}\b(me falta|falta)\b/i.test(source);
+      case 'de':
+        return /\b(nicht|nie|fehlt|brauche|muss)\b[\s\S]{0,80}\b(firmung|gefirmt)\b/i.test(source);
+      default:
+        return /\bnon (sono|mi sono|ero|mi ero|ho ricevuto)\b[\s\S]{0,50}\bcresim\w*/i.test(source) ||
+          /\bmi manca\b[\s\S]{0,50}\bcresim\w*/i.test(source) ||
+          /\bcresim\w*[\s\S]{0,50}\b(che\s+)?mi manca\b/i.test(source) ||
+          /\b(devo|dovrei|ho bisogno|mi serve)\b[\s\S]{0,80}\b(ricevere|fare)\b[\s\S]{0,30}\bcresim\w*/i.test(source);
+    }
+  }
+
+  _hasSponsorRoleIntent_(text, detectedLanguage = 'it') {
+    const source = String(text || '').toLowerCase();
+    if (!this._hasSacramentalSponsorRole_(source, detectedLanguage)) return false;
+    switch (this._normalizeSponsorGuidanceLanguage_(detectedLanguage)) {
+      case 'en':
+        return /\b(asked|chosen|need|want|would like|must)\b[\s\S]{0,90}\b(be|become|serve as|act as)\b[\s\S]{0,50}\b(godfather|godmother|godparent|sponsor)\b/i.test(source) ||
+          /\b(be|become|serve as|act as)\b[\s\S]{0,50}\b(godfather|godmother|godparent|sponsor)\b/i.test(source);
+      case 'es':
+        return /\b(ser|hacer de|convertirme en|me pidieron|me han pedido)\b[\s\S]{0,70}\b(padrin\w*|madrin\w*)\b/i.test(source);
+      case 'fr':
+        return /\b([êe]tre|devenir|faire|demand[ée])\b[\s\S]{0,70}\b(parrain|marraine)\b/i.test(source);
+      case 'pt':
+        return /\b(ser|fazer de|tornar-me|pediram|me pediram)\b[\s\S]{0,70}\b(padrinh\w*|madrinh\w*)\b/i.test(source);
+      case 'de':
+        return /\b(pate|patin|firmpat\w*|taufpat\w*)\b[\s\S]{0,70}\b(sein|werden|gebeten)\b/i.test(source) ||
+          /\b(sein|werden|gebeten)\b[\s\S]{0,70}\b(pate|patin|firmpat\w*|taufpat\w*)\b/i.test(source);
+      default:
+        return /\b(fare|diventare|essere|fungere|assumere|svolgere)\b[\s\S]{0,45}\b(da\s+|il\s+|la\s+)?(padrin\w*|madrin\w*)\b/i.test(source) ||
+          /\b(scelt[oa]|chiest[oa]|chiamat[oa]|mi hanno chiesto|mi è stato chiesto)\b[\s\S]{0,90}\b(padrin\w*|madrin\w*)\b/i.test(source);
+    }
+  }
+
+  _isSubmittingSponsorEligibilityDocument_(text, detectedLanguage = 'it') {
+    const source = String(text || '').toLowerCase();
+    const deliverySignals = /\b(allego|in allegato|invio|inoltro|trasmetto|mando|consegno|presento|deposito|ecco|attach|attached|send|sending|env[ií]o|adjunto|j['’]?envoie|anexo|sende)\b/i.test(source);
+    const documentSignals = /\b(certificat\w*|attestat\w*|certificate|attestation|certificado|attestation|atestado|bescheinigung)\b/i.test(source);
+    return this._hasSacramentalSponsorRole_(source, detectedLanguage) &&
+      documentSignals &&
+      this._hasSponsorEligibilityTopic_(source, detectedLanguage) &&
+      deliverySignals;
+  }
+
+  _isExplicitSponsorEligibilityRequest_(text, detectedLanguage = 'it') {
+    const source = String(text || '').toLowerCase();
+    if (!this._hasSacramentalSponsorRole_(source, detectedLanguage)) return false;
+    const hasQuestionIntent = /\?|come|cosa|quali|qual[eè]|posso|potrei|devo|dovrei|serve|servono|occorre|occorrono|bisogna|vorrei sapere|mi serve sapere|ho bisogno di sapere|informazioni|info|how|what|which|can i|could i|do i need|requirements?|requisitos?|conditions?|conditions?|exigences?|voraussetzungen?/i.test(source);
+    return hasQuestionIntent && (this._hasSponsorEligibilityTopic_(source, detectedLanguage) || this._hasSponsorRoleIntent_(source, detectedLanguage));
+  }
+
+  _isReceivingOwnCresimaContext_(text, detectedLanguage = 'it') {
+    const source = String(text || '').toLowerCase();
+    switch (this._normalizeSponsorGuidanceLanguage_(detectedLanguage)) {
+      case 'en':
+        return /\b(receive|get|make)\b[\s\S]{0,50}\bconfirmation\b/i.test(source);
+      case 'es':
+        return /\b(recibir|hacer)\b[\s\S]{0,50}\bconfirmaci[oó]n\b/i.test(source);
+      case 'fr':
+        return /\b(recevoir|faire)\b[\s\S]{0,50}\bconfirmation\b/i.test(source);
+      case 'pt':
+        return /\b(receber|fazer)\b[\s\S]{0,50}\bcrisma\b/i.test(source);
+      case 'de':
+        return /\b(empfangen|machen|erhalten)\b[\s\S]{0,50}\bfirmung\b/i.test(source);
+      default:
+        return /\b(ricev\w+|ricever\w+|celebr\w+)\b[\s\S]{0,80}\bcresim\w*/i.test(source) ||
+          /\b(fare|farò)\b\s+(la\s+)?cresim\w*/i.test(source) ||
+          /\bcresim\w*[\s\S]{0,80}\b(prossim[aoie]?|imminente|celebrazione|cerimonia|\d{1,2}\s+\w+\s+20\d{2})\b/i.test(source);
+    }
+  }
+
+  _classifySponsorGuidanceLocally_(subject, body, attachmentIntentContext, detectedLanguage = 'it') {
     const text = `${subject || ''} ${body || ''}`.toLowerCase();
     const intent = String((attachmentIntentContext && attachmentIntentContext.intent) || '').toLowerCase();
     const isSubmission = /submission/.test(intent);
@@ -4040,46 +4178,40 @@ Nota bene: l'orario comunicato ${note}.`;
       (attachmentIntentContext && attachmentIntentContext.hasQuestions) ||
       /with_question/.test(intent)
     );
-    const hasSponsorTopic = /\b(padrin\w*|madrin\w*|sponsor|idoneit[aà])\b/i.test(text);
-    const hasCresimaTopic = /\bcresim\w*/i.test(text);
-    const asksEligibility = this._isExplicitSponsorEligibilityRequest_(text);
-    const cresimaAsPrerequisiteSignals = this._detectCresimaAsPrerequisiteForSponsorRole_(text);
-    const eligibilitySignals = /\b(requisit[oi]|condizion[ei]|idoneit[aà]|non (sono|mi sono|ero|mi ero) cresim\w*|manc(?:a|ano|herebbe|herebbero)[\s\S]{0,30}cresim\w*)\b/i.test(text);
+    const hasSponsorRole = this._hasSacramentalSponsorRole_(text, detectedLanguage);
+    const hasConfirmationTopic = this._hasConfirmationTopic_(text, detectedLanguage);
+    const hasEligibilityTopic = this._hasSponsorEligibilityTopic_(text, detectedLanguage);
+    const hasMissingConfirmation = this._hasMissingConfirmationSignal_(text, detectedLanguage);
+    const hasSponsorRoleIntent = this._hasSponsorRoleIntent_(text, detectedLanguage);
+    const asksEligibility = this._isExplicitSponsorEligibilityRequest_(text, detectedLanguage);
 
-    if (cresimaAsPrerequisiteSignals) return 'include';
-    if (asksEligibility && eligibilitySignals) return 'include';
-
-    if (this._isSubmittingSponsorEligibilityDocument_(text)) return 'exclude';
-    if (this._isReceivingOwnCresimaContext_(text) && !asksEligibility) return 'exclude';
+    if (this._isSubmittingSponsorEligibilityDocument_(text, detectedLanguage)) return 'exclude';
+    if (this._isReceivingOwnCresimaContext_(text, detectedLanguage) && !hasSponsorRoleIntent && !asksEligibility) return 'exclude';
     if (isSubmission && !hasSubmissionQuestion && !asksEligibility) return 'exclude';
 
-    if (hasSponsorTopic || (hasCresimaTopic && asksEligibility)) return 'ask_ai';
+    if (hasSponsorRole && (hasConfirmationTopic || hasEligibilityTopic || hasMissingConfirmation || hasSponsorRoleIntent)) return 'ask_ai';
     return 'none';
   }
 
-  _detectCresimaAsPrerequisiteForSponsorRole_(text) {
+  _detectCresimaAsPrerequisiteForSponsorRole_(text, detectedLanguage = 'it') {
     const source = String(text || '').toLowerCase();
-    const directSponsorRoleIntent = /\b(fare|diventare|essere|fungere|assumere|svolgere)\b[\s\S]{0,35}\b(da\s+|il\s+|la\s+)?(padrin\w*|madrin\w*|sponsor)\b/i.test(source) ||
-      /\b(scelt[oa]|chiest[oa]|chiamat[oa])\b[\s\S]{0,70}\b(padrin\w*|madrin\w*|sponsor)\b/i.test(source);
-    const sponsorRoleSignals = /\b(padrin\w*|madrin\w*|sponsor)\b/i.test(source);
-    const missingCresimaSignals =
-      /\bnon (sono|mi sono|ero|mi ero) cresim\w*/i.test(source) ||
-      /\bmanc(?:a|ano|herebbe|herebbero)[\s\S]{0,30}cresim\w*/i.test(source);
-    const needsCresimaForRoleSignals =
-      /\b(ho bisogno|mi serve|devo|dovrei|necessit\w*|serve|servono|occorre|occorrono|bisogna)\b[\s\S]{0,80}\bcresim\w*/i.test(source) ||
-      /\bcresim\w*[\s\S]{0,80}\b(per poter|per fare|per diventare|necessari[aoe]?|obbligator\w*|requisit[oi])\b/i.test(source);
+    const directSponsorRoleIntent = this._hasSponsorRoleIntent_(source, detectedLanguage);
+    const sponsorRoleSignals = this._hasSacramentalSponsorRole_(source, detectedLanguage);
+    const missingCresimaSignals = this._hasMissingConfirmationSignal_(source, detectedLanguage);
+    const needsCresimaForRoleSignals = this._hasConfirmationTopic_(source, detectedLanguage) &&
+      /\b(per poter|per fare|per diventare|necessari[aoe]?|obbligator\w*|requisit[oi]|in order to|to be|to become|required|needed|obligatory|requisito|requisitos?|pour|afin de|necess[aá]ri[oa]|n[oó]tig|erforderlich)\b/i.test(source);
 
     if (directSponsorRoleIntent && (missingCresimaSignals || needsCresimaForRoleSignals)) return true;
 
-    if (this._isSubmittingSponsorEligibilityDocument_(source)) return false;
+    if (this._isSubmittingSponsorEligibilityDocument_(source, detectedLanguage)) return false;
 
-    const isReceivingOwnCresima = this._isReceivingOwnCresimaContext_(source);
+    const isReceivingOwnCresima = this._isReceivingOwnCresimaContext_(source, detectedLanguage);
     if (isReceivingOwnCresima && !directSponsorRoleIntent) return false;
 
     return sponsorRoleSignals && missingCresimaSignals;
   }
 
-  _shouldProvideEligibilityGuidance_(subject, body, attachmentIntentContext, aiGuidanceSignal) {
+  _shouldProvideEligibilityGuidance_(subject, body, attachmentIntentContext, aiGuidanceSignal, detectedLanguage = 'it') {
     const text = `${subject || ''} ${body || ''}`.toLowerCase();
     const intent = String((attachmentIntentContext && attachmentIntentContext.intent) || '').toLowerCase();
     const hasSubmissionQuestion = Boolean(
@@ -4087,16 +4219,17 @@ Nota bene: l'orario comunicato ${note}.`;
       /with_question/.test(intent)
     );
     const isSubmission = /submission/.test(intent);
-    const localDecision = this._classifySponsorGuidanceLocally_(subject, body, attachmentIntentContext);
+    const localDecision = this._classifySponsorGuidanceLocally_(subject, body, attachmentIntentContext, detectedLanguage);
 
     if (localDecision === 'include') return true;
     if (localDecision === 'exclude') return false;
+    if (localDecision === 'none') return false;
 
     if (aiGuidanceSignal === true) return true;
     if (aiGuidanceSignal === false && isSubmission && !hasSubmissionQuestion) return false;
 
-    const cresimaAsPrerequisiteSignals = this._detectCresimaAsPrerequisiteForSponsorRole_(text);
-    const asksEligibility = this._isExplicitSponsorEligibilityRequest_(text);
+    const cresimaAsPrerequisiteSignals = this._detectCresimaAsPrerequisiteForSponsorRole_(text, detectedLanguage);
+    const asksEligibility = this._isExplicitSponsorEligibilityRequest_(text, detectedLanguage);
 
     const deliverySignals = /\b(allego|in allegato|invio|inoltro|trasmetto|ecco|certificato|attestato|idoneit[aà])\b/i.test(text);
     if (deliverySignals && isSubmission && !hasSubmissionQuestion && !asksEligibility && !cresimaAsPrerequisiteSignals) {
@@ -4107,16 +4240,16 @@ Nota bene: l'orario comunicato ${note}.`;
     const cresimaGoalSignals = /\b(cresima adulti?|fare la cresima|diventare padrin[oa]|fare da padrin[oa]|fare da madrin[ao])\b/i.test(text);
     return (infoSignals && cresimaGoalSignals) || asksEligibility || cresimaAsPrerequisiteSignals;
   }
-  _sanitizeUnrequestedSponsorGuidance_(response, subject, body) {
+  _sanitizeUnrequestedSponsorGuidance_(response, subject, body, detectedLanguage = 'it') {
     const text = typeof response === 'string' ? response : String(response || '');
     if (!text) return text;
 
     const userText = `${subject || ''} ${body || ''}`.toLowerCase();
-    const asksEligibilityInfo = this._isExplicitSponsorEligibilityRequest_(userText);
-    const cresimaAsPrerequisiteSignals = this._detectCresimaAsPrerequisiteForSponsorRole_(userText);
+    const asksEligibilityInfo = this._isExplicitSponsorEligibilityRequest_(userText, detectedLanguage);
+    const cresimaAsPrerequisiteSignals = this._detectCresimaAsPrerequisiteForSponsorRole_(userText, detectedLanguage);
     if (asksEligibilityInfo || cresimaAsPrerequisiteSignals) return text;
 
-    const mentionsPadrinoContext = /\b(?:padrin[oa]|madrin[ao]|sponsor)\b/i.test(userText);
+    const mentionsPadrinoContext = this._hasSacramentalSponsorRole_(userText, detectedLanguage);
     if (!mentionsPadrinoContext) return text;
 
     const lines = text.split(/\n+/);
@@ -4173,22 +4306,26 @@ Best regards,
 Parish Secretariat of Sant'Eugenio`;
   }
 
-  _deriveSponsorGuidancePolicy_(subject, body, attachmentIntentContext, aiGuidanceSignal) {
+  _deriveSponsorGuidancePolicy_(subject, body, attachmentIntentContext, aiGuidanceSignal, detectedLanguage = 'it') {
     const text = `${subject || ''} ${body || ''}`.toLowerCase();
     const intent = String((attachmentIntentContext && attachmentIntentContext.intent) || '').toLowerCase();
     const isSubmission = /submission/.test(intent);
-    const localDecision = this._classifySponsorGuidanceLocally_(subject, body, attachmentIntentContext);
+    const localDecision = this._classifySponsorGuidanceLocally_(subject, body, attachmentIntentContext, detectedLanguage);
 
     if (localDecision === 'include') return 'cresima_prerequisite_for_sponsor_role';
     if (localDecision === 'exclude') return 'no_eligibility_guidance';
+    if (localDecision === 'none') {
+      const asksLogisticsOnly = /\b(a che ora|orari|quando|arrivare|inizia|inizio|dove|luogo)\b/i.test(text);
+      return asksLogisticsOnly ? 'logistics_only_no_eligibility' : 'default';
+    }
 
     if (aiGuidanceSignal === true) return 'cresima_prerequisite_for_sponsor_role';
     if (aiGuidanceSignal === false) return 'no_eligibility_guidance';
 
-    const asksEligibility = this._isExplicitSponsorEligibilityRequest_(text);
+    const asksEligibility = this._isExplicitSponsorEligibilityRequest_(text, detectedLanguage);
     const asksLogistics = /\b(a che ora|orari|quando|arrivare|inizia|inizio|dove|luogo)\b/i.test(text);
     const asksCresimaPath = /\b(informazioni|info|corso|percorso)\b/i.test(text) && /\b(cresima adulti?|fare la cresima)\b/i.test(text);
-    const cresimaAsPrerequisiteSignals = this._detectCresimaAsPrerequisiteForSponsorRole_(text);
+    const cresimaAsPrerequisiteSignals = this._detectCresimaAsPrerequisiteForSponsorRole_(text, detectedLanguage);
 
     if (cresimaAsPrerequisiteSignals) return 'cresima_prerequisite_for_sponsor_role';
     if (isSubmission && !asksEligibility) return 'no_eligibility_guidance';
