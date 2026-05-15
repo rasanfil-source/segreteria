@@ -2551,6 +2551,52 @@ var GmailService = class GmailService {
         const hasThreadingInfo = messageDetails.rfc2822MessageId;
         let apiSendError = null;
 
+        const safeSessionEmail = (getterName) => {
+            try {
+                if (
+                    typeof Session === 'undefined' ||
+                    !Session ||
+                    typeof Session[getterName] !== 'function'
+                ) {
+                    return '';
+                }
+                const user = Session[getterName]();
+                return (user && typeof user.getEmail === 'function')
+                    ? String(user.getEmail() || '').replace(/[\r\n]+/g, '').trim()
+                    : '';
+            } catch (e) {
+                return '';
+            }
+        };
+
+        // From stabile: priorità all'indirizzo di ricezione solo se autorizzato
+        // (utente effettivo/attivo o alias configurato in Gmail).
+        const recipientFallbackEmail = this._extractEmailAddress(messageDetails.recipientEmail || '');
+        const effectiveUser = safeSessionEmail('getEffectiveUser');
+        const activeUser = safeSessionEmail('getActiveUser');
+
+        let stableFrom = null;
+        if (recipientFallbackEmail) {
+            const allowedFrom = [effectiveUser, activeUser]
+                .filter(Boolean)
+                .map((value) => String(value).toLowerCase());
+            try {
+                const aliases = GmailApp.getAliases() || [];
+                aliases.forEach((alias) => {
+                    const normalized = String(alias || '').trim().toLowerCase();
+                    if (normalized) allowedFrom.push(normalized);
+                });
+            } catch (_) { }
+
+            if (allowedFrom.includes(String(recipientFallbackEmail).toLowerCase())) {
+                stableFrom = recipientFallbackEmail;
+            }
+        }
+
+        if (!stableFrom) {
+            stableFrom = effectiveUser || activeUser || recipientFallbackEmail || null;
+        }
+
         if (hasThreadingInfo) {
             try {
                 let threadId = null;
@@ -2581,51 +2627,6 @@ var GmailService = class GmailService {
                     });
                 };
 
-                const safeSessionEmail = (getterName) => {
-                    try {
-                        if (
-                            typeof Session === 'undefined' ||
-                            !Session ||
-                            typeof Session[getterName] !== 'function'
-                        ) {
-                            return '';
-                        }
-                        const user = Session[getterName]();
-                        return (user && typeof user.getEmail === 'function')
-                            ? String(user.getEmail() || '').replace(/[\r\n]+/g, '').trim()
-                            : '';
-                    } catch (e) {
-                        return '';
-                    }
-                };
-
-                // From stabile: priorità all'indirizzo di ricezione solo se autorizzato
-                // (utente effettivo/attivo o alias configurato in Gmail).
-                const recipientFallbackEmail = this._extractEmailAddress(messageDetails.recipientEmail || '');
-                const effectiveUser = safeSessionEmail('getEffectiveUser');
-                const activeUser = safeSessionEmail('getActiveUser');
-
-                let stableFrom = null;
-                if (recipientFallbackEmail) {
-                    const allowedFrom = [effectiveUser, activeUser]
-                        .filter(Boolean)
-                        .map((value) => String(value).toLowerCase());
-                    try {
-                        const aliases = GmailApp.getAliases() || [];
-                        aliases.forEach((alias) => {
-                            const normalized = String(alias || '').trim().toLowerCase();
-                            if (normalized) allowedFrom.push(normalized);
-                        });
-                    } catch (_) { }
-
-                    if (allowedFrom.includes(String(recipientFallbackEmail).toLowerCase())) {
-                        stableFrom = recipientFallbackEmail;
-                    }
-                }
-
-                if (!stableFrom) {
-                    stableFrom = effectiveUser || activeUser || recipientFallbackEmail || null;
-                }
 
                 if (!stableFrom) {
                     throw new Error('Impossibile determinare un mittente valido per Gmail RAW');
@@ -2752,7 +2753,11 @@ var GmailService = class GmailService {
         try {
             // Corpo minimo non vuoto per massimizzare compatibilità nel fallback nativo.
             const fallbackBody = plainText || this._stripHtmlTags(finalResponse) || 'Visualizza il contenuto HTML.';
-            mailEntity.reply(fallbackBody, { htmlBody: htmlBody });
+            const fallbackOptions = { htmlBody: htmlBody };
+            if (stableFrom && stableFrom !== effectiveUser) {
+                fallbackOptions.from = stableFrom;
+            }
+            mailEntity.reply(fallbackBody, fallbackOptions);
             console.log(`✓ Risposta HTML inviata a ${messageDetails.senderEmail} (metodo alternativo nativo)`);
         } catch (error) {
             console.error(`❌ Risposta fallita: ${error.message}`);
@@ -2958,7 +2963,7 @@ var GmailService = class GmailService {
         const safe = (subject === null || subject === undefined) ? '' : String(subject);
         const folded = safe
             .replace(/[\r\n\t]+/g, ' ')
-            .replace(/\b(?:to|cc|bcc|from|subject|reply-to)\s*:/gi, '')
+            .replace(/^(?:to|cc|bcc|from|subject|reply-to)\s*:/gi, '')
             // Rimuove eventuali Message-ID appesi all'oggetto (es: <abc@mail.gmail.com>)
             .replace(/\s*<[^<>\s]+@[^<>\s]+>\s*/g, ' ')
             .replace(/\s{2,}/g, ' ')

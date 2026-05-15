@@ -88,14 +88,22 @@ console.log('--- Test Gmail counter fallback usa data Pacific Time ---');
 
 console.log('--- Test _discoverByQuery: non esclude label IA a livello thread ---');
 {
-  const serviceQuery = new GmailService();
+  const originalGmailApp = global.GmailApp;
   let capturedQuery = '';
-  serviceQuery._listMessagesWithResilience = (params) => {
-    capturedQuery = params.q || '';
-    return { messages: [], nextPageToken: null };
+  global.GmailApp = {
+    search: (query) => {
+      capturedQuery = query || '';
+      return [];
+    }
   };
-  serviceQuery._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, []);
-  assert(!capturedQuery.includes('-label:IA'), 'query discovery non deve escludere label IA a livello thread');
+
+  try {
+    const serviceQuery = new GmailService();
+    serviceQuery._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, []);
+    assert(!capturedQuery.includes('-label:IA'), 'query discovery non deve escludere label IA a livello thread');
+  } finally {
+    global.GmailApp = originalGmailApp;
+  }
 }
 
 const service = new GmailService();
@@ -126,7 +134,11 @@ global.GmailApp = {
       throw new Error('Thread gone');
     }
     return { getId: () => threadId };
-  }
+  },
+  search: () => [{
+    getId: () => 't-ok',
+    getMessages: () => [{ isUnread: () => true, getId: () => 'm2' }]
+  }]
 };
 
 const metadataResult = service._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 10, 1);
@@ -134,7 +146,7 @@ assert(metadataResult.threads.length === 1, 'metadata mode deve continuare dopo 
 assert(metadataResult.threads[0].getId() === 't-ok', 'metadata mode deve includere thread valido');
 
 const queryResult = service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1);
-assert(queryResult.threads.length === 1, 'query mode deve continuare dopo errore getThreadById');
+assert(queryResult.threads.length === 1, 'query mode deve includere thread valido restituito da GmailApp.search');
 assert(queryResult.threads[0].getId() === 't-ok', 'query mode deve includere thread valido');
 
 console.log('--- Test discovery: skipLabel esclude i messaggi marcati come ignorati ---');
@@ -156,7 +168,8 @@ console.log('--- Test discovery: skipLabel esclude i messaggi marcati come ignor
   });
 
   global.GmailApp = {
-    getThreadById: (threadId) => ({ getId: () => threadId })
+    getThreadById: (threadId) => ({ getId: () => threadId }),
+    search: () => []
   };
 
   const metadataSkipResult = serviceWithSkip._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 10, 1, CONFIG.SKIP_LABEL_NAME);
@@ -164,9 +177,9 @@ console.log('--- Test discovery: skipLabel esclude i messaggi marcati come ignor
   assert(metadataSkipResult.threads[0].getId() === 't-keep', 'metadata mode deve mantenere solo il thread senza skipLabel');
 
   let capturedQuery = '';
-  serviceWithSkip._listMessagesWithResilience = (params) => {
-    capturedQuery = params.q || '';
-    return { messages: [], nextPageToken: null };
+  global.GmailApp.search = (query) => {
+    capturedQuery = query || '';
+    return [];
   };
   serviceWithSkip._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, CONFIG.SKIP_LABEL_NAME);
   assert(capturedQuery.includes(`-label:"${CONFIG.SKIP_LABEL_NAME}"`), 'query mode deve escludere la skipLabel dalla query Gmail');
@@ -689,6 +702,42 @@ console.log('--- Test sendHtmlReply: From fallback usa email estratta dal To ---
     global.Utilities = originalUtilities;
     global.Session = originalSession;
     global.Gmail = originalGmail;
+  }
+}
+
+
+console.log('--- Test sendHtmlReply: fallback nativo usa from alias stabile ---');
+{
+  const originalSession = global.Session;
+  const originalGmailApp = global.GmailApp;
+  let replyOptions = null;
+
+  try {
+    global.Session = {
+      getEffectiveUser: () => ({ getEmail: () => 'admin@example.org' }),
+      getActiveUser: () => ({ getEmail: () => 'admin@example.org' })
+    };
+    global.GmailApp = {
+      getAliases: () => ['parrocchia@example.org']
+    };
+
+    const message = {
+      getThread: () => ({ getId: () => 'thread-native-from' }),
+      reply: (_body, options) => { replyOptions = options || {}; }
+    };
+
+    service.sendHtmlReply(message, 'Risposta test', {
+      subject: 'Oggetto',
+      senderEmail: 'utente@example.org',
+      recipientEmail: 'Parrocchia <parrocchia@example.org>',
+      recipientCc: ''
+    });
+
+    assert(replyOptions && replyOptions.from === 'parrocchia@example.org', 'fallback nativo deve impostare from con alias stabile autorizzato');
+    assert(replyOptions && replyOptions.htmlBody, 'fallback nativo deve preservare htmlBody insieme a from');
+  } finally {
+    global.Session = originalSession;
+    global.GmailApp = originalGmailApp;
   }
 }
 

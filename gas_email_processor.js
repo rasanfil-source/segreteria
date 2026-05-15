@@ -514,13 +514,25 @@ var EmailProcessor = class EmailProcessor {
       const lastSpeakerIsUs = Boolean(lastSenderEmail) && ownAddresses.has(lastSenderEmail);
 
       if (lastSpeakerIsUs) {
-        console.log('   ⊖ Saltato: l\'ultimo messaggio del thread è già nostro (bot o segreteria)');
-        // Segniamo i non letti correnti come processati per evitare loop su thread
-        // dove l'ultimo intervento è nostro ma restano flag "unread" riaperti manualmente.
-        markHandledUnread();
-        result.status = 'skipped';
-        result.reason = 'last_speaker_is_me';
-        return result;
+        const candidateSenderRaw = (candidate && typeof candidate.getFrom === 'function')
+          ? (candidate.getFrom() || '')
+          : '';
+        const candidateSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
+          ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(candidateSenderRaw) || '')
+          : '';
+        const candidateIsUs = Boolean(candidateSenderEmail) && ownAddresses.has(candidateSenderEmail);
+
+        if (candidateIsUs) {
+          console.log('   ⊖ Saltato: l\'ultimo messaggio da elaborare è già nostro (bot o segreteria)');
+          // Segniamo i non letti correnti come processati per evitare loop su thread
+          // dove l'ultimo intervento da elaborare è nostro ma resta flag "unread" riaperto manualmente.
+          markHandledUnread();
+          result.status = 'skipped';
+          result.reason = 'last_speaker_is_me';
+          return result;
+        }
+
+        console.log('   ℹ️ Ultimo messaggio del thread interno, ma candidato esterno non letto: continuo l\'elaborazione');
       }
 
       // --- PORTA 0.5: Pre-check lingua locale sul soggetto (Zero API Cost) ---
@@ -1364,6 +1376,7 @@ ${addressLines.join('\n\n')}
               this.logger.warn('Pre-check: allegati ignorati (nessun OCR utile rilevato)', { threadId, attachmentCount });
             }
             attachmentSkipped.push({ reason: 'precheck_no_ocr' });
+            textFromAttachments = '[Avviso di sistema: sono presenti allegati nel thread, ma sono stati esclusi dall\'analisi automatica perché il pre-check non ha rilevato trigger OCR/multimodali rilevanti.]';
             console.log('   📎 Elaborazione allegati saltata: keyword trigger non rilevate');
           }
 

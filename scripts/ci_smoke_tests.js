@@ -2455,7 +2455,10 @@ function testSanitizeSubjectForHeaderRemovesCRLF() {
 
     const sanitized = service._sanitizeSubjectForHeader('Oggetto valido\r\nBcc: attacker@example.com');
     assert(!/[\r\n]/.test(sanitized), `Subject sanificato non deve contenere CR/LF, ottenuto: ${JSON.stringify(sanitized)}`);
-    assert(!/Bcc:/i.test(sanitized), `Subject sanificato non deve consentire header injection, ottenuto: ${sanitized}`);
+    assert(/Bcc:/i.test(sanitized), `Subject sanificato deve preservare etichette non iniziali dopo folding, ottenuto: ${sanitized}`);
+
+    const inlineHeaderLike = service._sanitizeSubjectForHeader('Richiesta informazioni from: Mario Rossi');
+    assert(inlineHeaderLike === 'Richiesta informazioni from: Mario Rossi', `Subject sanificato non deve rimuovere from: inline, ottenuto: ${inlineHeaderLike}`);
 
     const emptyFallback = service._sanitizeSubjectForHeader(null);
     assert(emptyFallback === 'Re:', `Fallback subject atteso 'Re:', ottenuto '${emptyFallback}'`);

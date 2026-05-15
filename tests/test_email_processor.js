@@ -63,14 +63,14 @@ function extractEmailAddress(fromField) {
   return match ? match[1] : '';
 }
 
-function createMessage(id, from, subject, plainBody, date = new Date('2026-04-01T10:00:00Z')) {
+function createMessage(id, from, subject, plainBody, date = new Date('2026-04-01T10:00:00Z'), unread = true) {
   return {
     getId: () => id,
     getFrom: () => from,
     getSubject: () => subject,
     getPlainBody: () => plainBody,
     getDate: () => date,
-    isUnread: () => true
+    isUnread: () => unread
   };
 }
 
@@ -186,7 +186,7 @@ console.log('--- Test _markMessageAsProcessed: rimuove skip label se supportato 
   assert(labeledIds.has('m-cleanup'), 'deve aggiungere il messageId al set dei già etichettati');
 }
 
-console.log('--- Test processThread: alias Gmail riconosciuto come ultimo mittente interno ---');
+console.log('--- Test processThread: alias Gmail recognized as unread internal ---');
 {
   const originalSession = global.Session;
   const originalGmailApp = global.GmailApp;
@@ -213,15 +213,15 @@ console.log('--- Test processThread: alias Gmail riconosciuto come ultimo mitten
     getId: () => 'thread-alias-last-speaker',
     getLabels: () => [],
     getMessages: () => [
-      createMessage('m-ext', 'Utente <utente@example.org>', 'Info battesimo', 'Buongiorno, avrei bisogno di informazioni.'),
+      createMessage('m-ext', 'Utente <utente@example.org>', 'Info battesimo', 'Buongiorno, avrei bisogno di informazioni.', new Date('2026-04-01T10:00:00Z'), false),
       createMessage('m-me', 'Segreteria <segreteria@example.org>', 'Re: Info battesimo', 'Le abbiamo appena risposto dalla segreteria.')
     ]
   };
 
   const result = aliasAwareProcessor.processThread(thread, '', [], new Set(), true);
-  assert(result.status === 'skipped', 'thread con ultimo alias interno deve essere skipped');
-  assert(result.reason === 'last_speaker_is_me', 'ultimo alias interno deve produrre last_speaker_is_me');
-  assert(labeled.includes('m-ext') && labeled.includes('m-me'), 'i non letti del thread devono essere marcati come processati');
+  assert(result.status === 'skipped', 'thread with last alias internal must be skipped');
+  assert(result.reason === 'no_external_unread', 'unread internal alias must produce no_external_unread');
+  assert(!labeled.includes('m-ext') && labeled.includes('m-me'), 'only the internal unread should be marked as processed');
 
   global.Session = originalSession;
   global.GmailApp = originalGmailApp;
