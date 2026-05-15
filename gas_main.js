@@ -529,6 +529,15 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
       }
     }
 
+    const lockedNow = Date.now();
+    const lockedCacheIsFreshByTtl = !forceReload
+      && GLOBAL_CACHE.loaded
+      && GLOBAL_CACHE.lastLoadedAt
+      && ((lockedNow - GLOBAL_CACHE.lastLoadedAt) < RESOURCE_CACHE_TTL_MS);
+    if (lockedCacheIsFreshByTtl && (!precomputedSheetModifiedAt || precomputedSheetModifiedAt <= GLOBAL_CACHE.lastLoadedAt)) {
+      return;
+    }
+
     _loadResourcesInternal(precomputedSheetModifiedAt);
   } finally {
     if (lockAcquired) {

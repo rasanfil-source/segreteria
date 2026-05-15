@@ -2521,9 +2521,7 @@ var GmailService = class GmailService {
         const gmailThread = typeof thread === 'string' ?
             GmailApp.getThreadById(thread) : thread;
 
-        const messages = gmailThread.getMessages();
-        const lastMsg = messages[messages.length - 1];
-        lastMsg.reply(replyText);
+        this.sendHtmlReply(gmailThread, replyText, messageDetails || {});
 
         console.log(`✓ Risposta inviata a ${messageDetails.senderEmail}`);
 

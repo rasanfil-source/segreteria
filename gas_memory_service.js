@@ -644,6 +644,7 @@ var MemoryService = class MemoryService {
     const infos = memory.providedInfo;
     let modified = false;
     const normalizedTargetTopic = this._normalizeTopicKey(topic);
+    if (!normalizedTargetTopic) return;
 
     // Trova e aggiorna il topic
     const newInfos = infos.map(info => {
