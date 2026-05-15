@@ -296,6 +296,8 @@ var Classifier = class Classifier {
       // Salta blocchi citati, ma consenti inline-reply dopo quote
       let isQuote = false;
       for (const marker of quoteMarkers) {
+        // Safety reset: prevents state leakage if quote markers gain /g or /y flags later.
+        marker.lastIndex = 0;
         if (marker.test(stripped)) {
           isQuote = true;
           break;

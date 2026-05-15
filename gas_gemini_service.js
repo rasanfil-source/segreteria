@@ -972,6 +972,8 @@ Output JSON:
       console.warn('⚠️ Chiave primaria non utilizzabile (errore rete/quota). Tentativo con chiave di riserva...');
       activeKey = this.backupKey;
       try {
+        // Avoid an immediate two-request burst when primary-key failure is transient.
+        Utilities.sleep(1500);
         response = executeFetch(activeKey);
         responseCode = response.getResponseCode();
         fetchError = null;
