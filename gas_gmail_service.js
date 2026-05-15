@@ -698,65 +698,43 @@ var GmailService = class GmailService {
      */
     _discoverByQuery(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null) {
         const skipLabels = Array.isArray(skipLabel) ? skipLabel.filter(Boolean) : [skipLabel].filter(Boolean);
-        // Query volutamente neutra su error/validation: i filtri label a livello thread
-        // possono nascondere follow-up non letti in conversazioni già segnate in passato.
         let query = `is:unread in:inbox`;
-
         skipLabels.forEach(skipName => {
             const sq = this._formatLabelQueryValue(skipName);
             if (sq !== '""') query += ` -label:${sq}`;
         });
 
-        const seenThreadIds = new Set();
-        const unavailableThreadIds = new Set();
-        const seenMessageIds = new Set();
         const threads = [];
-        let pageToken;
-        let page = 0;
+        const seenThreadIds = new Set();
+        const seenMessageIds = new Set();
 
         try {
-            do {
-                if (page >= safeMaxPages || seenThreadIds.size >= safeTargetThreads) break;
+            // Utilizzo di GmailApp.search nativo per efficienza (batch recupero thread già pronti)
+            // Invece di iterare sui singoli messaggi via API avanzata + getThreadById.
+            const nativeThreads = GmailApp.search(query, 0, safeTargetThreads);
+            console.log(`📬 [query] GmailApp.search ha trovato ${nativeThreads.length} thread candidati`);
 
-                const params = { q: query, maxResults: safeMessageBuffer };
-                if (pageToken) params.pageToken = pageToken;
+            for (const thread of nativeThreads) {
+                if (!thread) continue;
+                const threadId = thread.getId();
+                if (seenThreadIds.has(threadId)) continue;
 
-                let response = null;
-                try {
-                    response = this._listMessagesWithResilience(params);
-                } catch (listError) {
-                    console.error(`❌ [query] Interruzione discovery per list non recuperabile: ${listError.message}`);
-                    break;
-                }
-                page++;
-
-                const messages = (response && response.messages) || [];
-                console.log(`📬 [query] Pagina ${page}: ${messages.length} messaggi trovati`);
-
-                for (const msg of messages) {
-                    if (!msg || !msg.id || !msg.threadId || seenThreadIds.has(msg.threadId) || unavailableThreadIds.has(msg.threadId)) continue;
-                    let thread = null;
-                    try {
-                        thread = GmailApp.getThreadById(msg.threadId);
-                    } catch (error) {
-                        console.warn(`⚠️ Errore recupero thread ${msg.threadId}: ${error.message}`);
-                    }
-                    if (!thread) {
-                        unavailableThreadIds.add(msg.threadId);
-                        console.warn(`⚠️ GmailApp.getThreadById(${msg.threadId}) restituisce null o errore: thread ignorato`);
-                        continue;
-                    }
-
-                    seenThreadIds.add(msg.threadId);
-                    seenMessageIds.add(msg.id);
+                // Verifichiamo che ci sia almeno un messaggio non letto nel thread
+                // (GmailApp.search(is:unread) garantisce questo ma facciamo un check veloce)
+                const messages = thread.getMessages();
+                const unreadMessages = messages.filter(m => m.isUnread());
+                
+                if (unreadMessages.length > 0) {
+                    seenThreadIds.add(threadId);
                     threads.push(thread);
-                    if (seenThreadIds.size >= safeTargetThreads) break;
+                    // Registriamo il primo messaggio non letto come riferimento
+                    seenMessageIds.add(unreadMessages[0].getId());
                 }
 
-                pageToken = response ? response.nextPageToken : null;
-            } while (pageToken);
+                if (threads.length >= safeTargetThreads) break;
+            }
 
-            console.log(`📬 [query] Trovati ${threads.length} thread da elaborare (${page} pagina/e)`);
+            console.log(`📬 [query] Trovati ${threads.length} thread da elaborare`);
             return {
                 threads: threads,
                 threadIds: seenThreadIds,

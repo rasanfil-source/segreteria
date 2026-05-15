@@ -463,21 +463,44 @@ function runAllTests() {
             );
             return policy === 'cresima_prerequisite_for_sponsor_role';
         });
-        test('Segnale AI quick check prevale sulla regex per guidance padrino', results, () => {
-            const noGuidance = processor._deriveSponsorGuidancePolicy_(
+        test('Regex locale decide prima del segnale AI per guidance padrino', results, () => {
+            const excludedDespiteAi = processor._deriveSponsorGuidancePolicy_(
                 'Documenti Cresima',
-                'Allego il certificato di idoneità della madrina.',
+                'Invio in allegato il mio certificato di Battesimo e il certificato di idoneità della madrina per poter ricevere il sacramento della Cresima il prossimo 24 maggio 2026.',
                 { intent: 'sponsor_eligibility_submission' },
-                false
+                true
             );
-            const yesGuidance = processor._deriveSponsorGuidancePolicy_(
+            const includedDespiteAi = processor._deriveSponsorGuidancePolicy_(
                 'Cresima per padrino',
                 'Mi manca la Cresima e vorrei fare da padrino.',
                 { intent: 'document_submission' },
+                false
+            );
+            return excludedDespiteAi === 'no_eligibility_guidance' &&
+                includedDespiteAi === 'cresima_prerequisite_for_sponsor_role';
+        });
+        test('AI interviene solo sui casi padrino ambigui individuati dalla regex', results, () => {
+            const ambiguous = 'Vorrei fare da madrina alla Cresima di mia nipote: potete aiutarmi?';
+            const localDecision = processor._classifySponsorGuidanceLocally_(
+                'Madrina Cresima',
+                ambiguous,
+                null
+            );
+            const yesByAi = processor._deriveSponsorGuidancePolicy_(
+                'Madrina Cresima',
+                ambiguous,
+                null,
                 true
             );
-            return noGuidance === 'no_eligibility_guidance' &&
-                yesGuidance === 'cresima_prerequisite_for_sponsor_role';
+            const noByAi = processor._deriveSponsorGuidancePolicy_(
+                'Madrina Cresima',
+                ambiguous,
+                null,
+                false
+            );
+            return localDecision === 'ask_ai' &&
+                yesByAi === 'cresima_prerequisite_for_sponsor_role' &&
+                noByAi === 'no_eligibility_guidance';
         });
         test('Sanitizer rimuove blocco requisiti padrino se il mittente consegna documenti Cresima', results, () => {
             const body = 'Invio in allegato il mio certificato di Battesimo e il certificato di idoneità della madrina per poter ricevere il sacramento della Cresima il prossimo 24 maggio 2026.';
@@ -967,6 +990,81 @@ function runAllTests() {
             return out.shouldRespond === true &&
                 out.classification.topic === 'documentazione ricevuta' &&
                 out.needs_sponsor_guidance === false;
+        });
+        test('Quick check chiede guidance padrino solo se il precheck regex lo richiede', results, () => {
+            let promptWithoutSponsorCheck = '';
+            const serviceWithoutSponsorCheck = new GeminiService({
+                fetchFn: (_url, payload) => {
+                    promptWithoutSponsorCheck = JSON.parse(payload.payload).contents[0].parts[0].text;
+                    return {
+                        getResponseCode: () => 200,
+                        getContentText: () => JSON.stringify({
+                            candidates: [{
+                                content: {
+                                    parts: [{
+                                        text: JSON.stringify({
+                                            reply_needed: true,
+                                            language: 'it',
+                                            category: 'TECHNICAL',
+                                            dimensions: { technical: 1, pastoral: 0, doctrinal: 0, formal: 0 },
+                                            topic: 'orari',
+                                            confidence: 0.9,
+                                            reason: 'richiesta semplice'
+                                        })
+                                    }]
+                                }
+                            }]
+                        })
+                    };
+                }
+            });
+            const outWithoutSponsorCheck = serviceWithoutSponsorCheck._quickCheckWithModel(
+                'Buongiorno, a che ora apre la segreteria?',
+                'Orari',
+                'gemini-3.1-flash-lite',
+                { lang: 'it', confidence: 5, safetyGrade: 5 },
+                { sponsorGuidanceCheck: false }
+            );
+
+            let promptWithSponsorCheck = '';
+            const serviceWithSponsorCheck = new GeminiService({
+                fetchFn: (_url, payload) => {
+                    promptWithSponsorCheck = JSON.parse(payload.payload).contents[0].parts[0].text;
+                    return {
+                        getResponseCode: () => 200,
+                        getContentText: () => JSON.stringify({
+                            candidates: [{
+                                content: {
+                                    parts: [{
+                                        text: JSON.stringify({
+                                            reply_needed: true,
+                                            language: 'it',
+                                            category: 'TECHNICAL',
+                                            dimensions: { technical: 1, pastoral: 0, doctrinal: 0, formal: 0 },
+                                            topic: 'madrina cresima',
+                                            confidence: 0.9,
+                                            reason: 'caso ambiguo',
+                                            needs_sponsor_guidance: true
+                                        })
+                                    }]
+                                }
+                            }]
+                        })
+                    };
+                }
+            });
+            const outWithSponsorCheck = serviceWithSponsorCheck._quickCheckWithModel(
+                'Vorrei fare da madrina alla Cresima di mia nipote: potete aiutarmi?',
+                'Madrina Cresima',
+                'gemini-3.1-flash-lite',
+                { lang: 'it', confidence: 5, safetyGrade: 5 },
+                { sponsorGuidanceCheck: true }
+            );
+
+            return !promptWithoutSponsorCheck.includes('needs_sponsor_guidance') &&
+                outWithoutSponsorCheck.needs_sponsor_guidance === undefined &&
+                promptWithSponsorCheck.includes('needs_sponsor_guidance') &&
+                outWithSponsorCheck.needs_sponsor_guidance === true;
         });
     });
 

@@ -844,6 +844,7 @@ var GeminiService = class GeminiService {
       intentContext.intent === 'document_submission' ||
       intentContext.intent === 'document_submission_with_question'
     );
+    const shouldClassifySponsorGuidance = !!(intentContext && intentContext.sponsorGuidanceCheck === true);
     const quickIntentGuardrail = hasSubmissionContext ? `
 CONTESTO STRUTTURALE ALLEGATI:
 - Il testo del mittente contiene segnali di consegna documentale ("in allegato", "allego", "le invio", ecc.).
@@ -853,6 +854,19 @@ CONTESTO STRUTTURALE ALLEGATI:
 - Topic consigliato se non ci sono domande esplicite: "documentazione ricevuta".
 - Non trasformare una consegna di certificato in una richiesta sui requisiti del padrino/madrina.
 ` : '';
+    const sponsorGuidanceTask = shouldClassifySponsorGuidance ? `
+7. Determina needs_sponsor_guidance (boolean):
+   - TRUE solo se nella risposta conviene inserire le condizioni per essere padrino/madrina.
+   - TRUE se il mittente vuole diventare padrino/madrina e non ha ancora la Cresima, oppure chiede esplicitamente requisiti, condizioni o idoneità per quel ruolo.
+   - FALSE in tutti gli altri casi.
+   - FALSE se il mittente sta consegnando documenti propri o del proprio padrino/madrina per ricevere un sacramento.
+   - FALSE se "padrino" o "madrina" indica solo l'accompagnatore sacramentale del mittente.
+   - FALSE se il mittente chiede solo logistica, date, orari, luogo o conferma di ricezione documenti.
+` : '';
+    const sponsorGuidanceJsonField = shouldClassifySponsorGuidance
+      ? `,
+  "needs_sponsor_guidance": boolean`
+      : '';
     const prompt = `Analizza questa email.
 Rispondi ESCLUSIVAMENTE con un oggetto JSON valido e completo.
 NON usare blocchi markdown e NON aggiungere testo extra prima o dopo il JSON.
@@ -880,13 +894,7 @@ COMPITI:
    - technical, pastoral, doctrinal, formal
 5. Estrai l'argomento principale (topic) in ITALIANO (usando termini coerenti con la richiesta)
 6. Fornisci un breve ragionamento (reason)
-7. Determina needs_sponsor_guidance (boolean):
-   - TRUE solo se nella risposta conviene inserire le condizioni per essere padrino/madrina.
-   - TRUE se il mittente vuole diventare padrino/madrina e non ha ancora la Cresima, oppure chiede esplicitamente requisiti, condizioni o idoneità per quel ruolo.
-   - FALSE in tutti gli altri casi.
-   - FALSE se il mittente sta consegnando documenti propri o del proprio padrino/madrina per ricevere un sacramento.
-   - FALSE se "padrino" o "madrina" indica solo l'accompagnatore sacramentale del mittente.
-   - FALSE se il mittente chiede solo logistica, date, orari, luogo o conferma di ricezione documenti.
+${sponsorGuidanceTask}
 
 ⚠️ REGOLA CRITICA "SBATTEZZO":
 Se l'utente esprime la volontà di non essere più cristiano, essere cancellato dai registri o "sbattezzarsi":
@@ -907,8 +915,7 @@ Output JSON:
   },
   "topic": "string",
   "confidence": number (0.0-1.0),
-  "reason": "string",
-  "needs_sponsor_guidance": boolean
+  "reason": "string"${sponsorGuidanceJsonField}
 }`;
 
     const url = this._buildGenerateUrl(modelName);

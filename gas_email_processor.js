@@ -43,6 +43,7 @@ var EmailProcessor = class EmailProcessor {
         });
     this.validator = options.validator || new ResponseValidator();
     this.gmailService = options.gmailService || new GmailService();
+    this._scriptTimeZone = null;
     this.promptEngine = options.promptEngine ||
       (typeof PromptEngine !== 'undefined'
         ? new PromptEngine()
@@ -555,8 +556,17 @@ var EmailProcessor = class EmailProcessor {
       // CRITICO: Ricostruzione del contesto in caso di burst (più email non lette dallo stesso utente).
       // Evita che un'email finale breve (es. "Grazie") faccia scartare le vere domande precedenti.
       if (externalUnread.length > 1) {
+        const candidateSenderEmail = this._normalizeEmailAddress_(messageDetails.senderEmail || '');
         const candidateId = candidate.getId();
-        const aggregatedBody = externalUnread.map((message) => {
+        const burstMessages = externalUnread.filter((message) => {
+          if (!candidateSenderEmail || !message || typeof message.getFrom !== 'function') return message && message.getId && message.getId() === candidateId;
+          const rawFrom = message.getFrom() || '';
+          const sender = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
+            ? this.gmailService._extractEmailAddress(rawFrom)
+            : rawFrom;
+          return this._normalizeEmailAddress_(sender || '') === candidateSenderEmail;
+        });
+        const aggregatedBody = burstMessages.map((message) => {
           const details = (message.getId() === candidateId
             ? messageDetails
             : this.gmailService.extractMessageDetails(message)) || {};
@@ -564,10 +574,10 @@ var EmailProcessor = class EmailProcessor {
             if (!(details.date instanceof Date)) return 'data non disponibile';
             if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
               try {
-                const tz = (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function')
-                  ? Session.getScriptTimeZone()
-                  : 'Europe/Rome';
-                return Utilities.formatDate(details.date, tz, 'dd/MM/yyyy HH:mm');
+
+
+
+                return Utilities.formatDate(details.date, this._getCachedTimeZone(), 'dd/MM/yyyy HH:mm');
               } catch (e) {
                 // fallback sotto
               }
@@ -849,13 +859,26 @@ var EmailProcessor = class EmailProcessor {
         '',
         'pre_ocr'
       );
+      const sponsorGuidancePrecheck = this._classifySponsorGuidanceLocally_(
+        messageDetails.subject,
+        messageDetails.body,
+        preQuickAttachmentIntentContext
+      );
+      const quickIntentContext = Object.assign(
+        {},
+        preQuickAttachmentIntentContext || {},
+        {
+          sponsorGuidanceCheck: sponsorGuidancePrecheck === 'ask_ai',
+          sponsorGuidanceLocalDecision: sponsorGuidancePrecheck
+        }
+      );
 
       try {
         quickCheck = this.geminiService.shouldRespondToEmail(
           messageDetails.body,
           messageDetails.subject,
           languageDetection,
-          preQuickAttachmentIntentContext
+          quickIntentContext
         );
       } catch (quickError) {
         const quickErrorClass = this._classifyError(quickError);
@@ -2442,25 +2465,29 @@ ${addressLines.join('\n\n')}
       .map(d => String(d == null ? '' : d).trim().toLowerCase())
       .filter(Boolean);
 
+    const atIndex = email.lastIndexOf('@');
+    const localPart = atIndex >= 0 ? email.substring(0, atIndex) : email;
+    const senderDomain = atIndex >= 0 ? email.substring(atIndex + 1) : '';
+
     if (ignoreDomains.some(domain => {
-      const atIndex = email.lastIndexOf('@');
-      const localPart = atIndex >= 0 ? email.substring(0, atIndex) : email;
-      const senderDomain = atIndex >= 0 ? email.substring(atIndex + 1) : '';
       const blacklistDomain = domain.startsWith('@') ? domain.substring(1) : domain;
       const isExactMatch = email === domain;
       const isDomainMatch = (domain.startsWith('@') || !domain.includes('@')) && senderDomain === blacklistDomain;
       const isSubdomainMatch = !domain.startsWith('@') && !domain.includes('@') &&
         senderDomain.endsWith('.' + blacklistDomain);
-      // Match username ristretto a pattern bot/notifica espliciti per evitare falsi positivi
-      // su username legittimi (es. marketing@..., info@...).
-      const BOT_USERNAMES = new Set(['noreply', 'no-reply', 'donotreply', 'mailer-daemon',
-        'postmaster', 'bounce', 'notifications', 'newsletter', 'promo',
-        'ads', 'bot', 'crm']);
-      const isUsernameMatch = !domain.includes('@') && !domain.includes('.') &&
-        BOT_USERNAMES.has(localPart) && localPart === domain;
-      return isExactMatch || isDomainMatch || isSubdomainMatch || isUsernameMatch;
+      return isExactMatch || isDomainMatch || isSubdomainMatch;
     })) {
       console.log(`🚫 Ignorato: mittente in blacklist (${email})`);
+      return true;
+    }
+
+    // Match username ristretto a pattern bot/notifica espliciti per evitare falsi positivi
+    // su username legittimi (es. marketing@..., info@...).
+    const BOT_USERNAMES = new Set(['noreply', 'no-reply', 'donotreply', 'mailer-daemon',
+      'postmaster', 'bounce', 'notifications', 'newsletter', 'promo',
+      'ads', 'bot', 'crm']);
+    if (BOT_USERNAMES.has(localPart)) {
+      console.log(`🚫 Ignorato: username di sistema/bot rilevato (${email})`);
       return true;
     }
 
@@ -3997,6 +4024,38 @@ Nota bene: l'orario comunicato ${note}.`;
       requirementsReverse.test(source);
   }
 
+  _isReceivingOwnCresimaContext_(text) {
+    const source = String(text || '').toLowerCase();
+    return /\b(ricev\w+|ricever\w+|celebr\w+)\b[\s\S]{0,80}\bcresim\w*/i.test(source) ||
+      /\b(fare|farò)\b\s+(la\s+)?cresim\w*/i.test(source) ||
+      /\bcresim\w*[\s\S]{0,80}\b(prossim[aoie]?|imminente|celebrazione|cerimonia|\d{1,2}\s+\w+\s+20\d{2})\b/i.test(source);
+  }
+
+  _classifySponsorGuidanceLocally_(subject, body, attachmentIntentContext) {
+    const text = `${subject || ''} ${body || ''}`.toLowerCase();
+    const intent = String((attachmentIntentContext && attachmentIntentContext.intent) || '').toLowerCase();
+    const isSubmission = /submission/.test(intent);
+    const hasSubmissionQuestion = Boolean(
+      (attachmentIntentContext && attachmentIntentContext.hasQuestions) ||
+      /with_question/.test(intent)
+    );
+    const hasSponsorTopic = /\b(padrin\w*|madrin\w*|sponsor|idoneit[aà])\b/i.test(text);
+    const hasCresimaTopic = /\bcresim\w*/i.test(text);
+    const asksEligibility = this._isExplicitSponsorEligibilityRequest_(text);
+    const cresimaAsPrerequisiteSignals = this._detectCresimaAsPrerequisiteForSponsorRole_(text);
+    const eligibilitySignals = /\b(requisit[oi]|condizion[ei]|idoneit[aà]|non (sono|mi sono|ero|mi ero) cresim\w*|manc(?:a|ano|herebbe|herebbero)[\s\S]{0,30}cresim\w*)\b/i.test(text);
+
+    if (cresimaAsPrerequisiteSignals) return 'include';
+    if (asksEligibility && eligibilitySignals) return 'include';
+
+    if (this._isSubmittingSponsorEligibilityDocument_(text)) return 'exclude';
+    if (this._isReceivingOwnCresimaContext_(text) && !asksEligibility) return 'exclude';
+    if (isSubmission && !hasSubmissionQuestion && !asksEligibility) return 'exclude';
+
+    if (hasSponsorTopic || (hasCresimaTopic && asksEligibility)) return 'ask_ai';
+    return 'none';
+  }
+
   _detectCresimaAsPrerequisiteForSponsorRole_(text) {
     const source = String(text || '').toLowerCase();
     const directSponsorRoleIntent = /\b(fare|diventare|essere|fungere|assumere|svolgere)\b[\s\S]{0,35}\b(da\s+|il\s+|la\s+)?(padrin\w*|madrin\w*|sponsor)\b/i.test(source) ||
@@ -4013,9 +4072,7 @@ Nota bene: l'orario comunicato ${note}.`;
 
     if (this._isSubmittingSponsorEligibilityDocument_(source)) return false;
 
-    const isReceivingOwnCresima =
-      /\b(ricev\w+|ricever\w+|fare|farò|celebr\w+)\b[\s\S]{0,80}\bcresim\w*/i.test(source) ||
-      /\bcresim\w*[\s\S]{0,80}\b(prossim[aoie]?|imminente|celebrazione|cerimonia|\d{1,2}\s+\w+\s+20\d{2})\b/i.test(source);
+    const isReceivingOwnCresima = this._isReceivingOwnCresimaContext_(source);
     if (isReceivingOwnCresima && !directSponsorRoleIntent) return false;
 
     return sponsorRoleSignals && missingCresimaSignals;
@@ -4029,6 +4086,10 @@ Nota bene: l'orario comunicato ${note}.`;
       /with_question/.test(intent)
     );
     const isSubmission = /submission/.test(intent);
+    const localDecision = this._classifySponsorGuidanceLocally_(subject, body, attachmentIntentContext);
+
+    if (localDecision === 'include') return true;
+    if (localDecision === 'exclude') return false;
 
     if (aiGuidanceSignal === true) return true;
     if (aiGuidanceSignal === false && isSubmission && !hasSubmissionQuestion) return false;
@@ -4115,6 +4176,11 @@ Parish Secretariat of Sant'Eugenio`;
     const text = `${subject || ''} ${body || ''}`.toLowerCase();
     const intent = String((attachmentIntentContext && attachmentIntentContext.intent) || '').toLowerCase();
     const isSubmission = /submission/.test(intent);
+    const localDecision = this._classifySponsorGuidanceLocally_(subject, body, attachmentIntentContext);
+
+    if (localDecision === 'include') return 'cresima_prerequisite_for_sponsor_role';
+    if (localDecision === 'exclude') return 'no_eligibility_guidance';
+
     if (aiGuidanceSignal === true) return 'cresima_prerequisite_for_sponsor_role';
     if (aiGuidanceSignal === false) return 'no_eligibility_guidance';
 
