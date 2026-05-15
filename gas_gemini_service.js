@@ -1421,13 +1421,16 @@ Output JSON:
 
     // Disambiguazione ES/PT su testi brevi: evita confusione quando i punteggi sono quasi pari.
     const compactText = text.replace(/\s+/g, ' ').trim();
-    if (compactText.length <= 120 && Math.abs(scores.es - scores.pt) <= 1 && Math.max(scores.es, scores.pt) >= 2) {
-      const ptStrongMarkers = /(?:^|[^\p{L}\p{N}_])(não|voc[êe]s?|estou|obrigad[oa]|orçamento|viatura|portagens|agradecemos|cumprimentos)(?=$|[^\p{L}\p{N}_])/iu;
-      const esStrongMarkers = /(?:^|[^\p{L}\p{N}_])(usted|ustedes|gracias|presupuesto|coche|iglesia|parroquia|estimado|querido)(?=$|[^\p{L}\p{N}_])/iu;
+    if (compactText.length <= 150 && Math.abs(scores.es - scores.pt) <= 1.5 && Math.max(scores.es, scores.pt) >= 1) {
+      // Marcatori forti Portuguese: não, você, obrigado, você, vocês, estou, hoje, amanhã, bom, bem
+      const ptStrongMarkers = /(?:^|[^\p{L}\p{N}_])(n[ãa]o|voc[êe]s?|estou|obrigad[oa]|hoje|amanh[ãa]|bom|bem|muito|atenciosamente)(?=$|[^\p{L}\p{N}_])/iu;
+      // Marcatori forti Spanish: usted, ustedes, gracias, presupuesto, coche, iglesia, parroquia, estimado, querido, hoy, mañana, bien
+      const esStrongMarkers = /(?:^|[^\p{L}\p{N}_])(usted|ustedes|gracias|hoy|ma[ñn]ana|iglesia|parroquia|estimado|querido|bien|mucho|atentamente)(?=$|[^\p{L}\p{N}_])/iu;
+      
       if (ptStrongMarkers.test(compactText) && !esStrongMarkers.test(compactText)) {
-        scores.pt += 1;
+        scores.pt += 1.5;
       } else if (esStrongMarkers.test(compactText) && !ptStrongMarkers.test(compactText)) {
-        scores.es += 1;
+        scores.es += 1.5;
       }
     }
 
@@ -1451,21 +1454,22 @@ Output JSON:
     }
 
     const safetyGrade = this._computeSafetyGrade(detectedLang, maxScore, scores);
-    console.log(`   ✓ Rilevato: ${detectedLang.toUpperCase()} (punteggio: ${maxScore}, grado sicurezza: ${safetyGrade})`);
-
-    // Gestione del rilevamento locale con bassa sicurezza per lingue estere.
-    // tentiamo un rilevamento AI se possibile.
-    if (safetyGrade < 3 && detectedLang !== 'it' && typeof this.detectLanguageAI === 'function') {
+    
+    // Se il grado di sicurezza è basso (< 3), tentiamo un rilevamento AI come fallback.
+    // Questo è cruciale per messaggi molto brevi o ambigui in qualsiasi lingua.
+    if (safetyGrade < 3 && typeof this.detectLanguageAI === 'function') {
       try {
         const aiLang = this.detectLanguageAI(text);
-        if (aiLang) {
-          console.log(`   🤖 Fallback AI: ${aiLang.toUpperCase()} (sovrascrive locale incerto)`);
-          return { lang: aiLang, confidence: 5, safetyGrade: 4, method: 'ai_fallback' };
+        if (aiLang && aiLang !== detectedLang) {
+          console.log(`   🔄 Override AI: ${detectedLang.toUpperCase()} → ${aiLang.toUpperCase()}`);
+          return { lang: aiLang, confidence: maxScore, safetyGrade: 4, method: 'ai_fallback' };
         }
       } catch (e) {
-        console.warn(`   ⚠️ Fallback AI lingua fallito: ${e.message}`);
+        console.warn(`   ⚠️ Fallback AI fallito: ${e.message}`);
       }
     }
+
+    console.log(`   ✓ Rilevato: ${detectedLang.toUpperCase()} (punteggio: ${maxScore}, grado sicurezza: ${safetyGrade})`);
 
     return {
       lang: detectedLang,

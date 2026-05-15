@@ -1145,6 +1145,23 @@ function runAllTests() {
             const res = validator._checkLanguage(spanishText, 'it');
             return res.score < 1.0 && (res.detectedLang === 'es' || res.warnings.length > 0);
         });
+        test('Considera "Buona domenica" come saluto neutro (non attiva warning orario)', results, () => {
+            const res = validator._checkTimeBasedGreeting('Buona domenica a tutti voi.', 'it');
+            return res.detectedTimeSlot === 'neutral' && res.score === 1.0;
+        });
+        test('Metodo validate accetta opts nullo senza crashare', results, () => {
+            const res = validator.validate('Testo di prova lungo a sufficienza per superare il check lunghezza minimo.', null);
+            return res && typeof res.isValid === 'boolean';
+        });
+    });
+
+    testGroup('EmailProcessor - Business Date', results, () => {
+        test('_getBusinessDateString con input nullo non usa epoch 1970 (usa data odierna)', results, () => {
+            const processor = new EmailProcessor({});
+            const dateStr = processor._getBusinessDateString(null);
+            const currentYear = new Date().getFullYear().toString();
+            return dateStr && dateStr.includes(currentYear) && !dateStr.includes('1970');
+        });
     });
 
     // 7. Gemini JSON parser recovery

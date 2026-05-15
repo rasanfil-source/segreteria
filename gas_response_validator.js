@@ -115,7 +115,8 @@ var ResponseValidator = class ResponseValidator {
       'it': {
         morning: ['buongiorno', 'buon giorno'],
         afternoon: ['buon pomeriggio'],
-        evening: ['buonasera', 'buona sera']
+        evening: ['buonasera', 'buona sera'],
+        neutral: ['buona domenica']
       },
       'en': {
         morning: ['good morning'],
@@ -286,14 +287,15 @@ var ResponseValidator = class ResponseValidator {
    * @param {{language?: string, knowledgeBase?: string, emailContent?: string, body?: string, emailSubject?: string, subject?: string, salutationMode?: string}} opts
    * @returns {Object}
    */
-  validate(response, opts = {}) {
+  validate(response, opts) {
+    const safeOpts = opts || {};
     return this.validateResponse(
       response,
-      opts.language || 'it',
-      opts.knowledgeBase || '',
-      opts.emailContent || opts.body || '',
-      opts.emailSubject || opts.subject || '',
-      opts.salutationMode || 'full'
+      safeOpts.language || 'it',
+      safeOpts.knowledgeBase || '',
+      safeOpts.emailContent || safeOpts.body || '',
+      safeOpts.emailSubject || safeOpts.subject || '',
+      safeOpts.salutationMode || 'full'
     );
   }
 

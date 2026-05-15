@@ -73,7 +73,8 @@ var EmailProcessor = class EmailProcessor {
       labelName: typeof CONFIG !== 'undefined' ? CONFIG.LABEL_NAME : 'IA',
       errorLabelName: typeof CONFIG !== 'undefined' ? CONFIG.ERROR_LABEL_NAME : 'Errore',
       validationErrorLabel: typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica',
-      skipLabelName: typeof CONFIG !== 'undefined' && CONFIG.SKIP_LABEL_NAME ? CONFIG.SKIP_LABEL_NAME : '·',
+      skipLabelName: (typeof CONFIG !== 'undefined' && Object.prototype.hasOwnProperty.call(CONFIG, 'SKIP_LABEL_NAME')) ? CONFIG.SKIP_LABEL_NAME : '·',
+      maxHistoryMessages: (typeof CONFIG !== 'undefined' && typeof CONFIG.MAX_HISTORY_MESSAGES === 'number') ? CONFIG.MAX_HISTORY_MESSAGES : 10,
       validationWarningThreshold: typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_WARNING_THRESHOLD === 'number'
         ? CONFIG.VALIDATION_WARNING_THRESHOLD
         : 0.9,
@@ -404,6 +405,8 @@ var EmailProcessor = class EmailProcessor {
         const senderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
           ? this.gmailService._extractEmailAddress(rawFrom)
           : rawFrom;
+
+
 
         // Se non riusciamo ad estrarre l'email, consideriamo il mittente come esterno per sicurezza
         if (!senderEmail) return true;
@@ -1005,6 +1008,9 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       // STEP 6.5: CONTESTO MEMORIA
       // ====================================================================
+      // 2. Recupera cronologia recente per il contesto (max configurable)
+      const historyLimit = this.config.maxHistoryMessages || 10;
+      const history = this.memoryService.getRecentHistory(threadId, historyLimit);
       const memoryContext = this.memoryService.getMemory(threadId) || {};
 
       if (memoryContext.lastUpdated) {
@@ -1354,6 +1360,9 @@ ${addressLines.join('\n\n')}
               console.log(`   📎 Allegati ignorati/non supportati: ${attachmentSkipped.length} (${skippedNames})`);
             }
           } else {
+            if (!isOcrMeaningful && attachmentCount > 0) {
+              this.logger.warn('Pre-check: allegati ignorati (nessun OCR utile rilevato)', { threadId, attachmentCount });
+            }
             attachmentSkipped.push({ reason: 'precheck_no_ocr' });
             console.log('   📎 Elaborazione allegati saltata: keyword trigger non rilevate');
           }
@@ -2703,8 +2712,9 @@ ${addressLines.join('\n\n')}
   }
 
   _getBusinessDateString(date = new Date()) {
-    const parsedDate = (date instanceof Date) ? date : new Date(date);
-    if (isNaN(parsedDate.getTime())) return '';
+    const safeDateInput = date || Date.now();
+    const parsedDate = new Date(safeDateInput);
+    if (isNaN(parsedDate.getTime())) return new Date().toISOString().split('T')[0];
 
     if (typeof Utilities !== 'undefined' && Utilities &&
         typeof Utilities.formatDate === 'function') {
@@ -2839,15 +2849,19 @@ ${addressLines.join('\n\n')}
     }
 
     if (!this.gmailService || typeof this.gmailService.addLabelToMessage !== 'function') return;
-    console.log(`   🏷️ Etichettatura messaggi come saltati (${labelName})...`);
-    (messages || []).forEach(message => {
-      if (!message) return;
-      const msgId = message.getId();
-      this.gmailService.addLabelToMessage(msgId, labelName);
-      if (skippedMessageIds && typeof skippedMessageIds.add === 'function') {
-        skippedMessageIds.add(msgId);
-      }
-    });
+
+    // Se skipLabelName è configurato (anche come stringa vuota per disabilitare), procedi.
+    if (labelName !== undefined && labelName !== null) {
+      console.log(`   🏷️ Etichettatura messaggi come saltati (${labelName})...`);
+      (messages || []).forEach(message => {
+        if (!message) return;
+        const msgId = message.getId();
+        this.gmailService.addLabelToMessage(msgId, labelName);
+        if (skippedMessageIds && typeof skippedMessageIds.add === 'function') {
+          skippedMessageIds.add(msgId);
+        }
+      });
+    }
   }
 
   // Calcola se il tempo residuo è sufficiente per elaborare un nuovo thread
@@ -3561,15 +3575,19 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
 
     if (!Number.isFinite(minDelta)) return response;
 
-    const note = minDelta >= 90
-      ? 'in un orario differente da quanto indicato da Lei'
-      : 'in un orario diverso rispetto a quanto da Lei indicato';
+    const notes = {
+      it: "\n\nNota: la informiamo che l'incontro si svolgerà in un orario diverso rispetto a quanto da Lei indicato.",
+      en: "\n\nNote: please note that the meeting will take place at a different time than what you indicated.",
+      es: "\n\nNota: le informamos que la reunión se llevará a cabo en un horario diferente al indicado por usted.",
+      pt: "\n\nNota: informamos que a reunião terá lugar num horário diferente do indicato por si.",
+      fr: "\n\nNote : nous vous informons que la réunion aura lieu à une heure différente de celle que vous avez indiquée.",
+      de: "\n\nHinweis: Wir informieren Sie, dass das Treffen zu einer anderen Zeit stattfinden wird, als von Ihnen angegeben."
+    };
 
-    // Evita injection "cieca" nella prima frase con orario: potrebbe alterare il significato
-    // di frasi non correlate alla discrepanza (es. corso vs messa).
-    return `${response.trim()}
-
-Nota bene: l'orario comunicato ${note}.`;
+    const lang = (detectedLanguage || 'it').toLowerCase().split('-')[0];
+    const footer = notes[lang] || notes.it;
+    
+    return `${response.trim()}${footer}`;
   }
 
   /**
