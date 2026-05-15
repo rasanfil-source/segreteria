@@ -110,6 +110,7 @@ var PromptEngine = class PromptEngine {
       detectedLanguage = 'it',
       currentSeason = 'invernale',
       currentDate = null,
+      currentTime = null,
       messageDate = null,
       salutation = 'Buongiorno.',
       closing = 'Cordiali saluti,',
@@ -328,7 +329,7 @@ var PromptEngine = class PromptEngine {
     addSection(this._renderSeasonalContext(currentSeason), 'SeasonalContext');
 
     // 11. CONSAPEVOLEZZA TEMPORALE
-    addSection(this._renderTemporalAwareness(safeCurrentDate, detectedLanguage, messageDate), 'TemporalAwareness');
+    addSection(this._renderTemporalAwareness(safeCurrentDate, detectedLanguage, messageDate, currentTime, salutationMode), 'TemporalAwareness');
 
     // 12. SUGGERIMENTO CATEGORIA
     addSection(this._renderCategoryHint(category), 'CategoryHint');
@@ -1117,7 +1118,7 @@ Non mostrare mai entrambi i set di orari.`;
   // TEMPLATE 11: CONSAPEVOLEZZA TEMPORALE
   // ========================================================================
 
-  _renderTemporalAwareness(currentDate, detectedLanguage = 'it', messageDate = null) {
+  _renderTemporalAwareness(currentDate, detectedLanguage = 'it', messageDate = null, currentTime = null, salutationMode = 'full') {
     let dateObj;
     if (typeof currentDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(currentDate)) {
       const [year, month, day] = currentDate.split('-').map(Number);
@@ -1144,11 +1145,22 @@ Non mostrare mai entrambi i set di orari.`;
       ? `\n📨 DATA DI RICEZIONE/INVIO EMAIL: ${messageDate} (usa questa data per interpretare "oggi", "domani" e "ieri" scritti dall'utente)`
       : '';
 
+    const timeLine = currentTime
+      ? `\n⏰ ORA ATTUALE LOCALE: ${currentTime} (Roma, Italia)`
+      : '';
+    const isContinuitySalutation =
+      salutationMode === 'session' ||
+      salutationMode === 'none_or_continuity' ||
+      salutationMode === 'soft';
+    const salutationGuardLine = isContinuitySalutation
+      ? '\n   • Poiché la conversazione è già in corso e il saluto formale è stato omesso, NON inventare saluti iniziali come "Buongiorno", "Buonasera" o "Salve": inizia direttamente con il contenuto.'
+      : '';
+
     return `══════════════════════════════════════════════════════════════════════
-🗓️ DATA ODIERNA: ${currentDate} (${humanDate})${messageDateLine}
+🗓️ DATA ODIERNA: ${currentDate} (${humanDate})${messageDateLine}${timeLine}
 ══════════════════════════════════════════════════════════════════════
 
-⚠️ REGOLE TEMPORALI CRITICHE - PENSA COME UN UMANO:
+⚠️ REGOLE TEMPORALI E DI FORMATO CRITICHE - PENSA COME UN UMANO:
 
 1. **ORDINE CRONOLOGICO OBBLIGATORIO**
    • Presenta SEMPRE gli eventi futuri dal più vicino al più lontano

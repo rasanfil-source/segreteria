@@ -1065,6 +1065,7 @@ console.log('--- Test prompt options: messageDate usa la data del messaggio orig
   const result = processor.processThread(createExternalThread('message-date'), 'kb valida', '', new Set(), true);
   assert(result.status === 'replied', 'il thread con data messaggio deve completarsi');
   assert(promptOptions.messageDate === '2026-05-07', `messageDate deve derivare dalla data originale, ottenuto ${promptOptions && promptOptions.messageDate}`);
+  assert(/^\d{2}:\d{2}$/.test(promptOptions.currentTime), `currentTime deve essere passato in formato HH:mm, ottenuto ${promptOptions && promptOptions.currentTime}`);
 }
 
 console.log('--- Test context routing: categoria tecnica usa set condiviso e disattiva dottrina ---');

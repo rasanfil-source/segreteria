@@ -153,4 +153,27 @@ assert(
   'il prompt deve formulare l\'obiettivo di confronto temporale senza dipendere da singole frasi tipizzate'
 );
 
+console.log('--- Test prompt: orario locale e guardrail anti saluto in continuità ---');
+const temporalGuardPrompt = engine.buildPrompt({
+  emailSubject: 'Invio documenti',
+  emailContent: 'Vi allego i documenti richiesti.',
+  knowledgeBase: 'La segreteria conferma la ricezione dei documenti.',
+  detectedLanguage: 'it',
+  promptProfile: 'lite',
+  currentDate: '2026-05-15',
+  currentTime: '23:23',
+  salutationMode: 'none_or_continuity',
+  salutation: '',
+  closing: 'Cordiali saluti,'
+});
+
+assert(
+  temporalGuardPrompt.includes('⏰ ORA ATTUALE LOCALE: 23:23 (Roma, Italia)'),
+  'il prompt deve includere l’orario locale corrente'
+);
+assert(
+  temporalGuardPrompt.includes('NON inventare saluti iniziali come "Buongiorno", "Buonasera" o "Salve"'),
+  'il prompt deve vietare saluti inventati quando il saluto architetturale è omesso'
+);
+
 console.log('✅ Test qualità prompt risposta passati');

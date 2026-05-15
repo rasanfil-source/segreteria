@@ -1429,6 +1429,7 @@ ${addressLines.join('\n\n')}
         detectedLanguage: detectedLanguage,
         currentSeason: this._getCurrentSeason(),
         currentDate: this._getBusinessDateString(),
+        currentTime: this._getBusinessTimeString(),
         messageDate: this._getBusinessDateString(messageDetails.date),
         salutation: greeting,
         closing: closing,
