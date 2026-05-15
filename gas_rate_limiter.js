@@ -6,11 +6,11 @@
  * Reset quota: ore 9:00 italiane (mezzanotte Pacific)
  * Cache ottimizzata per ridurre letture PropertiesService
  * 
- * FUNZIONALITÃ€:
+ * FUNZIONALITÀ:
  * - Traccia utilizzo RPM (richieste/minuto), TPM (token/minuto), RPD (richieste/giorno)
  * - Seleziona automaticamente il modello disponibile
  * - Applica throttling quando ci si avvicina ai limiti
- * - Passa al modello di riserva se il principale Ã¨ esaurito
+ * - Passa al modello di riserva se il principale è esaurito
  */
 var GeminiRateLimiter = class GeminiRateLimiter {
   constructor(options = {}) {
@@ -135,7 +135,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     this.maxBackoff = Number(backoffConfig.maxBackoffMs) > 0 ? Number(backoffConfig.maxBackoffMs) : 120000;
     this.defaultMaxRetries = Number(backoffConfig.rateLimiterMaxRetries) > 0 ? Number(backoffConfig.rateLimiterMaxRetries) : 2;
 
-    console.log('âœ“ GeminiRateLimiter inizializzato');
+    console.log('✓ GeminiRateLimiter inizializzato');
     console.log(`   Modelli: ${Object.keys(this.models).join(', ')}`);
     console.log(`   Default: ${this.defaultModel}`);
   }
@@ -155,7 +155,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       'gemini-2.0-flash-exp': 'gemini-3.1-flash-lite',
       'gemini-2.0-flash': 'gemini-3.1-flash-lite',
       'gemini-2.0-flash-lite': 'gemini-3.1-flash-lite',
-      // Refuso ricorrente: non esiste un modello testuale 'gemini-3.1-flash'; il full-tier Ã¨ Gemini 3 Flash Preview.
+      // Refuso ricorrente: non esiste un modello testuale 'gemini-3.1-flash'; il full-tier è Gemini 3 Flash Preview.
       'gemini-3.1-flash': 'gemini-3-flash-preview'
     };
 
@@ -173,9 +173,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       const replacement = deprecatedMap[currentName];
 
       if (replacement) {
-        console.warn(`âš ï¸ Modello deprecato rilevato per '${modelKey}': ${currentName} â†’ ${replacement}`);
+        console.warn(`⚠️ Modello deprecato rilevato per '${modelKey}': ${currentName} → ${replacement}`);
       } else if (currentName && !knownCurrentModels.includes(currentName)) {
-        console.warn(`âš ï¸ Modello sconosciuto per '${modelKey}': '${currentName}' non Ã¨ tra i modelli noti nÃ© deprecati. Verificare CONFIG.`);
+        console.warn(`⚠️ Modello sconosciuto per '${modelKey}': '${currentName}' non è tra i modelli noti né deprecati. Verificare CONFIG.`);
       }
 
       const fallbackName = this._getFallbackModelNameForKey_(modelKey, modelConfig);
@@ -187,7 +187,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       const nameWasMissing = currentName === undefined || currentName === null;
       const nameWasEmpty = typeof currentName === 'string' && currentName.trim() === '';
       if (nameWasMissing || nameWasEmpty) {
-        console.warn(`âš ï¸ Modello '${modelKey}' con name ${nameWasMissing ? 'assente' : 'vuoto'} in CONFIG: uso fallback '${normalized[modelKey].name}'.`);
+        console.warn(`⚠️ Modello '${modelKey}' con name ${nameWasMissing ? 'assente' : 'vuoto'} in CONFIG: uso fallback '${normalized[modelKey].name}'.`);
       }
     });
 
@@ -227,7 +227,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       }
 
       if (lockAcquired) {
-        // Rileggi sempre le proprietÃ  dopo aver acquisito il lock per evitare race condition
+        // Rileggi sempre le proprietà dopo aver acquisito il lock per evitare race condition
         // Usa data Pacific per allinearsi al reset reale delle quote Google
         // Il reset Google avviene a mezzanotte Pacific = 9:00 AM italiana
         const storedDate = this.props.getProperty('rate_limit_date');
@@ -235,23 +235,23 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
         // Reset quando cambia la data Pacific (non italiana!)
         if (storedDate !== pacificDate) {
-          console.log(`ðŸ“… Giorno Pacific cambiato (${pacificDate}), reset contatori giornalieri`);
+          console.log(`📅 Giorno Pacific cambiato (${pacificDate}), reset contatori giornalieri`);
           console.log(`   (Ora italiana: ${Utilities.formatDate(new Date(), 'Europe/Rome', 'HH:mm')})`);
           this._resetDailyCounters();
           // Forza svuotamento cache locale per riflettere subito il reset
           this.cache.lastCacheUpdate = 0;
         }
       } else {
-        console.warn('âš ï¸ Impossibile acquisire lock per reset quota, salto controllo');
+        console.warn('⚠️ Impossibile acquisire lock per reset quota, salto controllo');
       }
     } catch (e) {
-      console.error(`âŒ Errore durante lock inizializzazione quota: ${e.message}`);
+      console.error(`❌ Errore durante lock inizializzazione quota: ${e.message}`);
     } finally {
       if (lockAcquired) {
         try {
           lock.releaseLock();
         } catch (e) {
-          console.warn(`âš ï¸ Errore rilascio lock (QuotaReset): ${e.message}`);
+          console.warn(`⚠️ Errore rilascio lock (QuotaReset): ${e.message}`);
         }
       }
     }
@@ -275,7 +275,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     this.cache.rpmWindow = [];
     this.cache.tpmWindow = [];
     this.cache.lastCacheUpdate = 0;
-    console.log('âœ“ Contatori giornalieri resettati');
+    console.log('✓ Contatori giornalieri resettati');
   }
 
   /**
@@ -302,13 +302,13 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       if (month === 2 || month === 10) {
         const hour = parseInt(Utilities.formatDate(now, 'America/Los_Angeles', 'HH'), 10);
         if (hour >= 0 && hour <= 3) {
-          console.warn(`âš ï¸ Possibile transizione DST in corso, ora Pacific: ${hour}`);
+          console.warn(`⚠️ Possibile transizione DST in corso, ora Pacific: ${hour}`);
         }
       }
 
       return pacificDate;
     } catch (error) {
-      console.error(`âŒ Errore getPacificDate: ${error.message}`);
+      console.error(`❌ Errore getPacificDate: ${error.message}`);
       return Utilities.formatDate(now, 'UTC', 'yyyy-MM-dd');
     }
   }
@@ -360,7 +360,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       const modelKey = candidates[i];
       const result = this._validateModelAvailability(modelKey, estimatedTokens);
       if (result.available) {
-        console.log(`âœ“ Selezionato: ${modelKey} per ${taskType}`);
+        console.log(`✓ Selezionato: ${modelKey} per ${taskType}`);
         return result;
       }
     }
@@ -405,7 +405,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     if (!lockAcquired) {
-      console.warn(`âš ï¸ Lock non acquisito per ${lockDescription} dopo retry`);
+      console.warn(`⚠️ Lock non acquisito per ${lockDescription} dopo retry`);
       return {
         ok: false,
         result: {
@@ -542,7 +542,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         currentCap <= originalAtTrigger;
 
       if (canReapplyStored && stored < currentCap) {
-        console.warn(`ðŸš¨ Safety Valve (persistita): MAX_EMAILS_PER_RUN â†’ ${stored}`);
+        console.warn(`🚨 Safety Valve (persistita): MAX_EMAILS_PER_RUN → ${stored}`);
         CONFIG.MAX_EMAILS_PER_RUN = stored;
       }
       return;
@@ -552,7 +552,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     if (!Number.isFinite(currentCap) || currentCap <= 1) return;
     const reduced = Math.max(1, Math.floor(currentCap / 2));
     if (reduced < currentCap) {
-      console.warn(`ðŸš¨ Safety Valve attiva: MAX_EMAILS_PER_RUN ${currentCap} â†’ ${reduced}`);
+      console.warn(`🚨 Safety Valve attiva: MAX_EMAILS_PER_RUN ${currentCap} → ${reduced}`);
       CONFIG.MAX_EMAILS_PER_RUN = reduced;
       this.props.setProperty(dateKey, todayPacific);
       this.props.setProperty(valueKey, String(reduced));
@@ -576,11 +576,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   executeRequest(taskType, requestFn, options) {
     options = options || {};
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // ═══════════════════════════════════════════════════════════════════
     // BYPASS PER CHIAVE DI RISERVA
     // Se stiamo usando una chiave esterna, NON dobbiamo tracciare i consumi
     // sul Rate Limiter locale per non inquinare le statistiche della chiave principale
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // ═══════════════════════════════════════════════════════════════════
     if (options.skipRateLimit) {
       console.warn('\u23E9 RateLimiter BYPASSED (Chiave di Riserva in uso)');
       try {
@@ -600,7 +600,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         throw new Error(`RATE_LIMITER_EXECUTE_BYPASS_FAILED: ${e.message}`);
       }
     }
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // ═══════════════════════════════════════════════════════════════════
 
     const estimatedTokens = options.estimatedTokens ?? 1000;
     const maxRetries = options.maxRetries ?? this.defaultMaxRetries ?? 2;
@@ -667,18 +667,18 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         const errorMsg = error.message || '';
 
         // Rilascia la riserva corrente prima di eventuali retry o abort,
-        // cosÃ¬ non blocchiamo artificialmente la capacitÃ  minuto.
+        // così non blocchiamo artificialmente la capacità minuto.
         try {
           if (reservationId) {
             this._releaseReservation(modelKey, reservationId);
           }
         } catch (releaseError) {
-          console.warn(`âš ï¸ Rilascio reservation fallito (${modelKey}/${reservationId}): ${releaseError.message}`);
+          console.warn(`⚠️ Rilascio reservation fallito (${modelKey}/${reservationId}): ${releaseError.message}`);
         }
 
-        // Interrompi immediatamente se la quota Ã¨ esaurita su TUTTE le chiavi
+        // Interrompi immediatamente se la quota è esaurita su TUTTE le chiavi
         if (errorMsg.indexOf('PRIMARY_QUOTA_EXHAUSTED') !== -1 || errorMsg.indexOf('QUOTA_EXHAUSTED_ALL_KEYS') !== -1) {
-          console.error('âŒ Quota API completamente esaurita su tutte le chiavi. Interruzione retry immediata.');
+          console.error('❌ Quota API completamente esaurita su tutte le chiavi. Interruzione retry immediata.');
           throw error;
         }
 
@@ -687,7 +687,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
         if (classifiedError.retryable) {
 
-          console.warn(`âš ï¸ Limite quota/rete (${classifiedError.type}) al tentativo ${attempt + 1}: ${classifiedError.message}`);
+          console.warn(`⚠️ Limite quota/rete (${classifiedError.type}) al tentativo ${attempt + 1}: ${classifiedError.message}`);
 
           if (attempt < maxRetries - 1) {
             const backoffDelay = Math.min(
@@ -705,7 +705,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     // Tutti i tentativi falliti
-    console.error(`âŒ Tutti i ${maxRetries} tentativi falliti`);
+    console.error(`❌ Tutti i ${maxRetries} tentativi falliti`);
     throw lastError || new Error('Richiesta fallita dopo tutti i tentativi');
   }
 
@@ -739,7 +739,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const now = Date.now();
     const nonce = `${Math.floor(Math.random() * 1000000)}`;
 
-    // Se la richiesta era stata giÃ  riservata nelle finestre RPM/TPM, non dobbiamo
+    // Se la richiesta era stata già riservata nelle finestre RPM/TPM, non dobbiamo
     // aggiungere una seconda entry minuto: aggiorniamo solo i contatori giornalieri
     // e marchiamo la reservation come completata per dedup/diagnostica.
     if (reservationId) {
@@ -751,7 +751,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
     // 3. Finestra RPM (con cache) - solo per richieste non prenotate
     if (reservationId) {
-      console.log(`ðŸ“Š Tracciato tramite reservation: ${modelKey}`);
+      console.log(`📊 Tracciato tramite reservation: ${modelKey}`);
       console.log(`   RPD: ${counters.rpd}/${this.models[modelKey].rpd}`);
       return;
     }
@@ -775,7 +775,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     this._persistCache();
 
     // Log
-    console.log(`ðŸ“Š Tracciato: ${modelKey}`);
+    console.log(`📊 Tracciato: ${modelKey}`);
     console.log(`   RPD: ${counters.rpd}/${this.models[modelKey].rpd}`);
   }
 
@@ -788,7 +788,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const gotLock = alreadyLocked || lock.tryLock(10000);
 
     if (!gotLock) {
-      console.warn(`âš ï¸ Impossibile tracciare RPD/Token per ${modelKey} (Lock Timeout)`);
+      console.warn(`⚠️ Impossibile tracciare RPD/Token per ${modelKey} (Lock Timeout)`);
       const rpdKey = 'rpd_' + modelKey;
       const tokensKey = 'tokens_' + modelKey;
       return {
@@ -832,11 +832,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   trackAuxiliaryRequest(modelNameOrKey, tokensUsed, label, alreadyLocked = false) {
     const modelKey = this._resolveModelKey_(modelNameOrKey);
     if (!modelKey) {
-      console.warn(`âš ï¸ Chiamata ausiliaria Gemini non tracciata: modello '${modelNameOrKey}' non in CONFIG`);
+      console.warn(`⚠️ Chiamata ausiliaria Gemini non tracciata: modello '${modelNameOrKey}' non in CONFIG`);
       return null;
     }
     const counters = this._incrementCountersAtomic(modelKey, tokensUsed || 0, alreadyLocked);
-    console.log(`ðŸ“Š Chiamata ausiliaria Gemini tracciata (${label || 'aux'}): ${modelKey} RPD ${counters.rpd}/${this.models[modelKey].rpd}`);
+    console.log(`📊 Chiamata ausiliaria Gemini tracciata (${label || 'aux'}): ${modelKey} RPD ${counters.rpd}/${this.models[modelKey].rpd}`);
     return counters;
   }
 
@@ -954,7 +954,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       this.cache[cacheKey].shift();
     }
 
-    // GAS Ã¨ runtime effimero: persiste subito per non perdere stato RPM/TPM tra esecuzioni.
+    // GAS è runtime effimero: persiste subito per non perdere stato RPM/TPM tra esecuzioni.
     if (!skipPersist) {
       this._persistCache();
     }
@@ -976,7 +976,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     try {
       windowData = JSON.parse(this.props.getProperty(windowType + '_window') || '[]');
       if (!Array.isArray(windowData)) {
-        console.warn(`âš ï¸ ${windowType}_window non Ã¨ un array, reset a []`);
+        console.warn(`⚠️ ${windowType}_window non è un array, reset a []`);
         windowData = [];
       }
       if (!windowData.length && backupKey) {
@@ -987,7 +987,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         }
       }
     } catch (e) {
-      console.warn(`âš ï¸ Errore parsing ${windowType}_window da PropertiesService, reset a []`);
+      console.warn(`⚠️ Errore parsing ${windowType}_window da PropertiesService, reset a []`);
     }
     return windowData;
   }
@@ -1096,14 +1096,14 @@ var GeminiRateLimiter = class GeminiRateLimiter {
    * Chiamato nel constructor prima di inizializzare i contatori
    */
   _recoverFromWAL(alreadyLocked = false) {
-    // Utilizzo di lock per garantire atomicitÃ  durante la sincronizzazione attiva
+    // Utilizzo di lock per garantire atomicità durante la sincronizzazione attiva
     let lock = null;
     let lockAcquired = !!alreadyLocked;
     if (!alreadyLocked) {
       lock = LockService.getScriptLock();
       lockAcquired = lock.tryLock(5000);
       if (!lockAcquired) {
-        console.warn('âš ï¸ Sincronizzazione storage ritardata: impossibile acquisire lock entro 5s');
+        console.warn('⚠️ Sincronizzazione storage ritardata: impossibile acquisire lock entro 5s');
         return;
       }
     }
@@ -1113,7 +1113,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       const oldWalData = this.props.getProperty('rate_limit_wal');
       if (!walTs && !oldWalData) return;
 
-      console.warn('âš ï¸ Sincronizzazione buffer rilevata - ripristino stato operativo...');
+      console.warn('⚠️ Sincronizzazione buffer rilevata - ripristino stato operativo...');
       let wal = null;
       if (oldWalData) {
         wal = JSON.parse(oldWalData);
@@ -1130,12 +1130,12 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       }
 
       if (!wal || typeof wal !== 'object' || !wal.timestamp) {
-        console.error('âŒ Struttura buffer inconsistente, applico reset di sicurezza');
+        console.error('❌ Struttura buffer inconsistente, applico reset di sicurezza');
         this._cleanStorageBuffers();
         return;
       }
       if (!Array.isArray(wal.rpm) || !Array.isArray(wal.tpm)) {
-        console.error('âŒ Buffer con dati invalidi');
+        console.error('❌ Buffer con dati invalidi');
         this._cleanStorageBuffers();
         return;
       }
@@ -1168,10 +1168,10 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       this.cache.tpmWindow = mergedTpm;
       this.cache.lastCacheUpdate = Date.now();
 
-      console.log('âœ“ Dati recuperati correttamente e cache aggiornata');
+      console.log('✓ Dati recuperati correttamente e cache aggiornata');
 
     } catch (error) {
-      console.error(`âŒ Errore di sincronizzazione storage: ${error.message}`);
+      console.error(`❌ Errore di sincronizzazione storage: ${error.message}`);
       this._cleanStorageBuffers();
     } finally {
       if (!alreadyLocked && lockAcquired && lock) lock.releaseLock();
@@ -1184,8 +1184,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
   _cleanStorageBuffers() {
     try {
-      // Ottimizzazione: evitiamo getProperties() che Ã¨ lentissimo.
-      // Leggiamo il numero di chunk direttamente dalle proprietÃ  note.
+      // Ottimizzazione: evitiamo getProperties() che è lentissimo.
+      // Leggiamo il numero di chunk direttamente dalle proprietà note.
       const rpmChunkCount = parseInt(this.props.getProperty('rate_limit_wal_rpm_chunks') || '0', 10) || 0;
       const tpmChunkCount = parseInt(this.props.getProperty('rate_limit_wal_tpm_chunks') || '0', 10) || 0;
       
@@ -1210,7 +1210,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       // Esecuzione eliminazione massiva (se supportata) o singola
       this.props.deleteAllProperties ? this._deletePropertiesList(keysToDelete) : keysToDelete.forEach(k => this.props.deleteProperty(k));
     } catch (e) { 
-      console.warn(`âš ï¸ Errore durante pulizia buffer: ${e.message}`);
+      console.warn(`⚠️ Errore durante pulizia buffer: ${e.message}`);
     }
   }
 
@@ -1251,7 +1251,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
           for (const entry of chunk) merged.push(entry);
         }
       } catch (e) {
-        console.warn(`âš ï¸ WAL chunk corrotto ignorato (rate_limit_wal_${windowType}_${i}): ${e.message}`);
+        console.warn(`⚠️ WAL chunk corrotto ignorato (rate_limit_wal_${windowType}_${i}): ${e.message}`);
       }
     }
     return merged;
@@ -1423,7 +1423,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       italianTime: canFormatDates ? Utilities.formatDate(now, 'Europe/Rome', 'HH:mm') : fallbackTime,
       pacificTime: (canFormatDates ? Utilities.formatDate(now, 'America/Los_Angeles', 'HH:mm') : fallbackTime) + ' (PST/PDT)',
       nextReset: canFormatDates ? this._getNextResetTime() : 'n/a',
-      nextResetPacific: '00:00 Pacific Time', // Reset Google Ã¨ sempre mezzanotte Pacific
+      nextResetPacific: '00:00 Pacific Time', // Reset Google è sempre mezzanotte Pacific
       models: {},
       groundingGoogleSearch: null
     };
@@ -1465,10 +1465,10 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   logUsageStats() {
     const stats = this.getUsageStats();
 
-    console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
-    console.log('ðŸ“Š UTILIZZO QUOTA GEMINI - ' + stats.date + ' ' + stats.italianTime);
-    console.log('â° Prossimo reset: ' + stats.nextReset + ' (9:00 AM italiana)');
-    console.log('â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📊 UTILIZZO QUOTA GEMINI - ' + stats.date + ' ' + stats.italianTime);
+    console.log('⏰ Prossimo reset: ' + stats.nextReset + ' (9:00 AM italiana)');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     for (const modelKey of Object.keys(stats.models)) {
       const model = stats.models[modelKey];
@@ -1484,7 +1484,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       console.log('  Query: ' + stats.groundingGoogleSearch.used + '/' + stats.groundingGoogleSearch.limit + ' (' + stats.groundingGoogleSearch.percent + '%)');
     }
 
-    console.log('\nâ”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”');
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   }
 
   _getNextResetTime() {
@@ -1505,11 +1505,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         const utcAtPacificNextMidnight = Date.UTC(y, m - 1, d + 1, 0, 0, 0);
         return new Date(utcAtPacificNextMidnight + pacificOffsetMs).toISOString();
       } catch (e) {
-        console.warn(`âš ï¸ _getNextResetTime fallback: ${e.message}`);
+        console.warn(`⚠️ _getNextResetTime fallback: ${e.message}`);
       }
     }
 
-    // Fallback locale approssimativo se Utilities non Ã¨ disponibile.
+    // Fallback locale approssimativo se Utilities non è disponibile.
     const tomorrow = new Date(now.getTime() + 86400000);
     tomorrow.setHours(0, 0, 0, 0);
     return tomorrow.toISOString();
@@ -1517,7 +1517,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
   // Nota: niente _estimateTokens locale.
   // Il rate limiter riceve estimatedTokens dal chiamante (es. GeminiService),
-  // che puÃ² applicare logiche multimodali piÃ¹ accurate rispetto a una stima generica.
+  // che può applicare logiche multimodali più accurate rispetto a una stima generica.
 
   _selectAndReserveModel(taskType, options) {
     options = options || {};
@@ -1573,7 +1573,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }, true);
 
     this._persistCache(true);
-    console.log(`ðŸ§¾ Reservation creata: ${modelKey} (${reservationId})`);
+    console.log(`🧾 Reservation creata: ${modelKey} (${reservationId})`);
     return reservationId;
   }
 
@@ -1624,13 +1624,13 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     });
 
     if (!lockResult.ok) {
-      console.warn(`âš ï¸ mutateReservation non completata per ${reservationId}: ${lockResult.result.reason}`);
+      console.warn(`⚠️ mutateReservation non completata per ${reservationId}: ${lockResult.result.reason}`);
     }
   }
 }
 
 // ================================================================
-// FUNZIONI UTILITÃ€ (per dashboard e manutenzione)
+// FUNZIONI UTILITÀ (per dashboard e manutenzione)
 // ================================================================
 
 /**
@@ -1645,7 +1645,7 @@ function showQuotaDashboard() {
   for (const modelKey of Object.keys(stats.models)) {
     const model = stats.models[modelKey];
     if (parseFloat(model.rpd.percent) > 80) {
-      console.warn('âš ï¸  ATTENZIONE: ' + modelKey + ' RPD > 80% (' + model.rpd.percent + '%)');
+      console.warn('⚠️  ATTENZIONE: ' + modelKey + ' RPD > 80% (' + model.rpd.percent + '%)');
     }
   }
 }
@@ -1657,5 +1657,5 @@ function resetQuotaCounters() {
   const limiter = new GeminiRateLimiter();
   limiter._resetDailyCounters();
   limiter.props.setProperty('rate_limit_date', limiter._getPacificDate());
-  console.log('âœ“ Contatori quota resettati manualmente (usando data Pacific)');
+  console.log('✓ Contatori quota resettati manualmente (usando data Pacific)');
 }

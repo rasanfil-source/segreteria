@@ -107,4 +107,10 @@ console.log('--- Test _getCandidateModels: task policy generation vs quick/langu
 }
 
 
+console.log('--- Test sorgente rate limiter: nessun mojibake nei log operativi ---');
+{
+  const mojibakePattern = /(?:Ã.|â.|ð.|ï.)/;
+  assert(!mojibakePattern.test(gasRateLimiterCode), 'gas_rate_limiter.js non deve contenere sequenze mojibake nei log/commenti');
+}
+
 console.log('✅ Rate limiter WAL tests completati');
