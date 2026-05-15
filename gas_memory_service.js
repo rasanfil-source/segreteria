@@ -197,6 +197,27 @@ var MemoryService = class MemoryService {
     // Duplicare qui la cache con prefisso alternativo introdurrebbe stato incoerente.
     return this.getMemory(threadId);
   }
+ 
+  /**
+   * Restituisce la cronologia recente per il thread specificato.
+   * Attualmente espone i topic salvati in providedInfo; la cronologia
+   * conversazionale completa resta in GmailService.getThreadHistory.
+   *
+   * @param {string} threadId
+   * @param {number} [limit=10] numero massimo di entry da restituire
+   * @returns {Array<{topic: string, userReaction: string}>}
+   */
+  getRecentHistory(threadId, limit = 10) {
+    if (!this._initialized || !threadId) return [];
+    try {
+      const memory = this.getMemory(threadId);
+      const providedInfo = Array.isArray(memory.providedInfo) ? memory.providedInfo : [];
+      return providedInfo.slice(-Math.max(1, limit));
+    } catch (e) {
+      console.warn(`⚠️ getRecentHistory fallito per thread ${threadId}: ${e.message}`);
+      return [];
+    }
+  }
 
   /**
    * Aggiorna memoria per un thread (merge con esistente)

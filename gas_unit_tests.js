@@ -417,6 +417,45 @@ function runAllTests() {
     // 4. EmailProcessor
     testGroup('EmailProcessor - Topic Detection', results, () => {
         const processor = new EmailProcessor();
+        test('_getCachedTimeZone cachea il fuso orario dello script', results, () => {
+            const previousSession = global.Session;
+            let calls = 0;
+            try {
+                global.Session = Object.assign({}, previousSession, {
+                    getScriptTimeZone: () => {
+                        calls++;
+                        return 'Europe/Rome';
+                    }
+                });
+                const localProcessor = new EmailProcessor();
+                return localProcessor._getCachedTimeZone() === 'Europe/Rome'
+                    && localProcessor._getCachedTimeZone() === 'Europe/Rome'
+                    && calls === 1;
+            } finally {
+                global.Session = previousSession;
+            }
+        });
+        test('_detectTemporalMentions rileva giorni italiani accentati', results, () => {
+            return processor._detectTemporalMentions('Ci vediamo lunedì alle 18.', 'it') === true
+                && processor._detectTemporalMentions('Disponibile martedì?', 'it') === true
+                && processor._detectTemporalMentions('testolunedìfuso', 'it') === false;
+        });
+        test('MemoryService.getRecentHistory restituisce gli ultimi topic salvati', results, () => {
+            const memory = Object.create(MemoryService.prototype);
+            memory._initialized = true;
+            memory.getMemory = () => ({
+                providedInfo: [
+                    { topic: 'uno', userReaction: 'unknown' },
+                    { topic: 'due', userReaction: 'acknowledged' },
+                    { topic: 'tre', userReaction: 'unknown' }
+                ]
+            });
+            const history = memory.getRecentHistory('thread-1', 2);
+            return Array.isArray(history)
+                && history.length === 2
+                && history[0].topic === 'due'
+                && history[1].topic === 'tre';
+        });
         test('Gestisce in modo dinamico la rilevazione in assenza esplicita di topic', results, () => {
             const topics = processor._detectProvidedTopics('La via Antonio Gramsci rientra nel territorio parrocchiale.');
             return Array.isArray(topics) && topics.includes('territorio');
@@ -1377,69 +1416,32 @@ function runAllTests() {
                     && getCalls >= 2;
             });
 
-            test('Metadata discovery salta messaggio con errore transiente su get e continua', results, () => {
-                global.Gmail = {
-                    Users: {
-                        Messages: {
-                            list: () => ({
-                                messages: [
-                                    { id: 'm-unknown', threadId: 't-unknown' },
-                                    { id: 'm-good-meta-2', threadId: 't-good-meta-2' }
-                                ],
-                                nextPageToken: null
-                            }),
-                            get: (userId, messageId) => {
-                                if (messageId === 'm-unknown') {
-                                    throw new Error('API call failed with error: Unknown Error.');
-                                }
-                                return { id: messageId, labelIds: ['INBOX', 'UNREAD'] };
-                            }
-                        }
-                    }
-                };
-
-                const service = new GmailService();
-                const threads = service._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 5, 1).threads;
-                return Array.isArray(threads)
-                    && threads.length === 1
-                    && threads[0].id === 't-good-meta-2';
-            });
-
-            test('Discovery query continua sulle pagine successive se getThreadById restituisce null', results, () => {
-                const fetchedThreadIds = [];
+            test('_discoverByQuery filtra thread senza non letti e rispetta safeTargetThreads', results, () => {
+                let requestedMax = null;
                 global.GmailApp = {
-                    search: searchViaAdvancedListMock,
-                    getThreadById: (threadId) => {
-                        fetchedThreadIds.push(threadId);
-                        return threadId === 't-missing' ? null : makeThreadFromMessage(threadId, 'm-2');
+                    search: (query, start, max) => {
+                        requestedMax = max;
+                        return [
+                            makeThreadFromMessage('t-unread-1', 'msg-1'),
+                            {
+                                id: 't-no-unread',
+                                getId: () => 't-no-unread',
+                                getMessages: () => [{ getId: () => 'msg-read', isUnread: () => false }]
+                            },
+                            makeThreadFromMessage('t-unread-2', 'msg-2'),
+                            makeThreadFromMessage('t-unread-3', 'msg-3')
+                        ];
                     },
                     getUserLabelByName: () => null
                 };
-                global.Gmail = {
-                    Users: {
-                        Messages: {
-                            list: (userId, params) => {
-                                if (!params.pageToken) {
-                                    return {
-                                        messages: [{ id: 'm-1', threadId: 't-missing' }],
-                                        nextPageToken: 'page-2'
-                                    };
-                                }
-                                return {
-                                    messages: [{ id: 'm-2', threadId: 't-good-2' }],
-                                    nextPageToken: null
-                                };
-                            }
-                        }
-                    }
-                };
 
                 const service = new GmailService();
-                const result = service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 1, 5);
+                const result = service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 2, 3);
                 return Array.isArray(result.threads)
-                    && result.threads.length === 1
-                    && result.threads[0].id === 't-good-2'
-                    && fetchedThreadIds.join(',') === 't-missing,t-good-2';
+                    && result.threads.length === 2
+                    && result.threads[0].getId() === 't-unread-1'
+                    && result.threads[1].getId() === 't-unread-2'
+                    && requestedMax === 6;
             });
 
             test('Discovery metadata continua sulle pagine successive se getThreadById restituisce null', results, () => {

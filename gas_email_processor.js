@@ -107,6 +107,26 @@ var EmailProcessor = class EmailProcessor {
   }
 
   /**
+   * Restituisce il fuso orario dello script con caching locale per ridurre
+   * le chiamate a Session.getScriptTimeZone() durante l'elaborazione del batch.
+   */
+  _getCachedTimeZone() {
+    if (!this._scriptTimeZone) {
+      try {
+        this._scriptTimeZone =
+          (typeof Session !== 'undefined' && Session &&
+            typeof Session.getScriptTimeZone === 'function')
+            ? Session.getScriptTimeZone()
+            : 'Europe/Rome';
+      } catch (e) {
+        this._scriptTimeZone = 'Europe/Rome';
+      }
+    }
+    return this._scriptTimeZone;
+  }
+
+
+  /**
    * Elabora il singolo thread (analisi, categorizzazione, generazione risposta, invio)
    * @param {GmailThread} thread 
    * @param {string} knowledgeBase - KB testo semplice
@@ -3903,11 +3923,13 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     // Protezione contro input nulli o non validi
     if (!text || typeof text !== 'string') return false;
     const monthPatterns = {
-      'it': /\b(oggi|domani|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\b/i,
-      'en': /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december)\b/i,
-      'es': /\b(hoy|mañana|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i,
-      'pt': /\b(hoje|amanh[aã]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo|janeiro|fevereiro|mar\u00E7o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i,
-      'de': /\b(heute|morgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|januar|februar|märz|maerz|april|mai|juni|juli|august|september|oktober|november|dezember)\b/i
+      // Nota: \b è ASCII-only; i lookaround Unicode evitano falsi negativi
+      // sulle parole con accento finale (lunedì, martedì, ecc.).
+      'it': /(?<![a-zA-ZÀ-ÿ])(oggi|domani|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?![a-zA-ZÀ-ÿ])/i,
+      'en': /(?<![a-zA-Z])(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december)(?![a-zA-Z])/i,
+      'es': /(?<![a-zA-ZÀ-ÿ])(hoy|ma[nñ]ana|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?![a-zA-ZÀ-ÿ])/i,
+      'pt': /(?<![a-zA-ZÀ-ÿ])(hoje|amanh[aã]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo|janeiro|fevereiro|mar\u00E7o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?![a-zA-ZÀ-ÿ])/i,
+      'de': /(?<![a-zA-ZÄÖÜäöüß])(heute|morgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|januar|februar|m[äa]rz|april|mai|juni|juli|august|september|oktober|november|dezember)(?![a-zA-ZÄÖÜäöüß])/i
     };
 
     // Fallback su italiano se lingua non supportata
@@ -3915,10 +3937,6 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     return pattern.test(text);
   }
 
-  /**
-   * Analizza corpo, oggetto e allegati per derivare il contesto dell'intento documentale.
-   * Utile per distinguere tra pura consegna e richiesta di informazioni allegata.
-   */
   _deriveAttachmentIntentContext_(body, subject, attachmentItems, ocrText, phase = 'pre_ocr') {
     const fullText = `${subject || ''} ${body || ''} ${ocrText || ''}`.toLowerCase();
     const attachmentSignalText = `${ocrText || ''} ${(Array.isArray(attachmentItems) ? attachmentItems.map((i) => (i && i.name) ? i.name : '').join(' ') : '')}`.toLowerCase();
@@ -3966,7 +3984,6 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
         phase: 'pre_ocr',
         suppressAttachmentIntentKeywords: true,
         allowBodyQuestions: hasBodyQuestion,
-        suppressKbTopics: [],
         responseDirective: hasBodyQuestion
           ? `Confermare la ricezione dell'allegato. Rispondere poi alle domande esplicite.`
           : `Confermare la ricezione della documentazione allegata.`
