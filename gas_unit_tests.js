@@ -434,6 +434,63 @@ function runAllTests() {
             );
             return policy === 'cresima_prerequisite_for_sponsor_role';
         });
+        test('Non tratta certificato idoneità della madrina come richiesta requisiti padrino', results, () => {
+            const body = 'Invio in allegato il mio certificato di Battesimo e il certificato di idoneità della madrina per poter ricevere il sacramento della Cresima il prossimo 24 maggio 2026.';
+            const policy = processor._deriveSponsorGuidancePolicy_(
+                'Documenti Cresima',
+                body,
+                { intent: 'sponsor_eligibility_submission' }
+            );
+            return policy === 'no_eligibility_guidance' &&
+                processor._detectCresimaAsPrerequisiteForSponsorRole_(body) === false;
+        });
+        test('Non basta citare madrina e Cresima per autorizzare i requisiti padrino', results, () => {
+            const body = 'Vorrei fare da madrina alla Cresima di mia nipote: quali documenti devo portare?';
+            const policy = processor._deriveSponsorGuidancePolicy_(
+                'Madrina Cresima',
+                body,
+                null
+            );
+            return policy !== 'cresima_prerequisite_for_sponsor_role' &&
+                processor._detectCresimaAsPrerequisiteForSponsorRole_(body) === false;
+        });
+        test('Rileva richiesta su Cresima necessaria per fare da padrino', results, () => {
+            const body = 'La Cresima è obbligatoria per fare da padrino al Battesimo?';
+            const policy = processor._deriveSponsorGuidancePolicy_(
+                'Cresima padrino',
+                body,
+                null
+            );
+            return policy === 'cresima_prerequisite_for_sponsor_role';
+        });
+        test('Segnale AI quick check prevale sulla regex per guidance padrino', results, () => {
+            const noGuidance = processor._deriveSponsorGuidancePolicy_(
+                'Documenti Cresima',
+                'Allego il certificato di idoneità della madrina.',
+                { intent: 'sponsor_eligibility_submission' },
+                false
+            );
+            const yesGuidance = processor._deriveSponsorGuidancePolicy_(
+                'Cresima per padrino',
+                'Mi manca la Cresima e vorrei fare da padrino.',
+                { intent: 'document_submission' },
+                true
+            );
+            return noGuidance === 'no_eligibility_guidance' &&
+                yesGuidance === 'cresima_prerequisite_for_sponsor_role';
+        });
+        test('Sanitizer rimuove blocco requisiti padrino se il mittente consegna documenti Cresima', results, () => {
+            const body = 'Invio in allegato il mio certificato di Battesimo e il certificato di idoneità della madrina per poter ricevere il sacramento della Cresima il prossimo 24 maggio 2026.';
+            const response = "Abbiamo ricevuto i documenti.\nLe ricordiamo che per poter assumere l'incarico di padrino o madrina è necessario soddisfare alcune condizioni:\nEssere cattolici battezzati e cresimati.\nAver ricevuto l'Eucaristia.\nCondurre una vita conforme alla fede.\nAvere almeno 16 anni.\nNon essere il genitore del battezzando.\nCordiali saluti.";
+            const cleaned = processor._sanitizeUnrequestedSponsorGuidance_(
+                response,
+                'Documenti Cresima',
+                body
+            );
+            return cleaned.includes('Abbiamo ricevuto i documenti.') &&
+                cleaned.includes('Cordiali saluti.') &&
+                !cleaned.includes('Essere cattolici battezzati');
+        });
         test('Non forza sola ricezione quando la consegna sponsor contiene domanda su Cresima/padrino', results, () => {
             const shouldGuide = processor._shouldProvideEligibilityGuidance_(
                 'Invio documenti',
@@ -888,10 +945,11 @@ function runAllTests() {
                                             doctrinal: 0,
                                             formal: 0
                                         },
-                                        topic: 'documentazione ricevuta',
-                                        confidence: 0.9,
-                                        reason: 'consegna documentazione'
-                                    })
+                                            topic: 'documentazione ricevuta',
+                                            confidence: 0.9,
+                                            reason: 'consegna documentazione',
+                                            needs_sponsor_guidance: false
+                                        })
                                 }]
                             }
                         }]
@@ -906,7 +964,9 @@ function runAllTests() {
                 { lang: 'it', confidence: 5, safetyGrade: 5 },
                 { intent: 'document_submission' }
             );
-            return out.shouldRespond === true && out.classification.topic === 'documentazione ricevuta';
+            return out.shouldRespond === true &&
+                out.classification.topic === 'documentazione ricevuta' &&
+                out.needs_sponsor_guidance === false;
         });
     });
 
