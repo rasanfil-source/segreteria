@@ -989,7 +989,7 @@ var MemoryService = class MemoryService {
       const startedAt = Date.now();
       const requestedBudgetMs = Number(timeoutMs);
       const acquireBudgetMs = Number.isFinite(requestedBudgetMs) && requestedBudgetMs > 0
-        ? Math.max(50, requestedBudgetMs)
+        ? Math.max(150, requestedBudgetMs)
         : 500;
       if (!Number.isFinite(requestedBudgetMs) || requestedBudgetMs <= 0) {
         console.warn(`⚠️ Timeout lock sharded non valido (${timeoutMs}); uso fallback ${acquireBudgetMs}ms`);
@@ -1010,20 +1010,20 @@ var MemoryService = class MemoryService {
           // CacheService non offre put-if-absent: serializziamo solo il breve check+put+verify.
           guardAcquired = guardLock.tryLock(guardTimeoutMs);
           if (!guardAcquired) {
-            Utilities.sleep(50);
+            Utilities.sleep(50 + Math.floor(Math.random() * 80));
             continue;
           }
 
           if (cache.get(key) == null) {
             cache.put(key, token, lockTtlSeconds);
             // Piccola attesa per lasciare propagare il put in ambienti con latenza cache.
-            Utilities.sleep(80);
+            Utilities.sleep(120);
             if (cache.get(key) === token) {
               this._heldShardLocks[key] = token;
               return true;
             }
             // Race residua/propagazione anomala: non acquisire se il token non è il nostro.
-            Utilities.sleep(50);
+            Utilities.sleep(50 + Math.floor(Math.random() * 80));
             continue;
           }
         } finally {
@@ -1036,7 +1036,7 @@ var MemoryService = class MemoryService {
           }
         }
 
-        Utilities.sleep(50);
+        Utilities.sleep(50 + Math.floor(Math.random() * 80));
       }
 
       console.warn(`⚠️ Timeout acquisizione lock sharded key: ${key}`);

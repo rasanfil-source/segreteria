@@ -410,7 +410,8 @@ var ResponseValidator = class ResponseValidator {
         score = 0.0;
       } else {
         warnings.push(`Risposta lunga (${length} caratteri, raccomandato max ${this.WARNING_MAX_LENGTH})`);
-        score *= 0.85;
+        const overRatio = (length - this.WARNING_MAX_LENGTH) / (HARD_MAX_LENGTH - this.WARNING_MAX_LENGTH);
+        score *= Math.max(0.65, 0.85 - overRatio * 0.25);
       }
     }
 
@@ -726,11 +727,16 @@ var ResponseValidator = class ResponseValidator {
     // 8+ cifre minimo per evitare falsi positivi. Escludi date YYYYMMDD e DDMMYYYY (B18).
     const datePattern = /^\d{4}[01]\d[0-3]\d$|^[0-3]\d[01]\d\d{4}$/;
     const responsePhones = new Set(
-      responsePhonesRaw.map(normalizePhone)
-        .filter(p => p.length >= 8 && !datePattern.test(p))
+      responsePhonesRaw
+        .map(raw => ({ raw, normalized: normalizePhone(raw) }))
+        .filter(({ raw, normalized }) => normalized.length >= 8 && !datePattern.test(raw) && !datePattern.test(normalized))
+        .map(({ normalized }) => normalized)
     );
     const kbPhones = new Set(
-      kbPhonesRaw.map(normalizePhone).filter(p => p.length >= 8)
+      kbPhonesRaw
+        .map(raw => ({ raw, normalized: normalizePhone(raw) }))
+        .filter(({ raw, normalized }) => normalized.length >= 8 && !datePattern.test(raw) && !datePattern.test(normalized))
+        .map(({ normalized }) => normalized)
     );
 
     // Escludi numeri presenti nella whitelist (es. mittente, thread) o nel messaggio originale
