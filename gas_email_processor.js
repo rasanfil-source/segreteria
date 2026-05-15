@@ -1859,8 +1859,8 @@ ${addressLines.join('\n\n')}
           this._rollbackSendTransaction(candidate.getId(), sendTxn);
         } else {
           // Gmail può aver accettato il messaggio prima che il client riceva un
-          // timeout/errore di rete: promuoviamo l'idempotency marker a sent
-          // per evitare replay automatici alla ripresa del batch.
+          // timeout/errore di rete: promuoviamo l'idempotency marker a `sent`
+          // per evitare un replay automatico alla ripresa del batch.
           this._commitSendTransaction(candidate.getId(), sendTxn);
         }
         console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
@@ -2425,8 +2425,9 @@ ${addressLines.join('\n\n')}
       const retryCount = isSameCheckpoint && Number.isFinite(previousRetryCount)
         ? previousRetryCount + 1
         : 1;
-      // depth misura solo riprese bloccate sullo stesso identico insieme di
-      // thread pendenti. Se il checkpoint cambia, il batch sta avanzando.
+      // `depth` misura solo le riprese bloccate sullo stesso identico insieme di
+      // thread pendenti. Se il checkpoint cambia, il batch sta avanzando e la
+      // guardia anti-loop deve ripartire per non scartare code sane ma lunghe.
       const nextDepth = isSameCheckpoint ? currentDepth + 1 : 1;
 
       if (nextDepth > 5) {

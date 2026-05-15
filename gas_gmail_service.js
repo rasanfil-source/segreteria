@@ -1669,7 +1669,7 @@ var GmailService = class GmailService {
             return;
         }
 
-        const orphanMaxAgeHours = this._safePositiveInt((typeof CONFIG !== 'undefined' ? CONFIG.OCR_ORPHAN_MAX_AGE_HOURS : null), 6, 1, 24);
+        const orphanMaxAgeHours = this._safePositiveInt((typeof CONFIG !== 'undefined' ? CONFIG.OCR_ORPHAN_MAX_AGE_HOURS : null), 1, 1, 24);
         const cutoffIso = new Date(Date.now() - (orphanMaxAgeHours * 60 * 60 * 1000))
             .toISOString()
             .replace(/\.\d{3}Z$/, 'Z');
@@ -1708,7 +1708,6 @@ var GmailService = class GmailService {
             for (const file of files) {
                 if (Date.now() - cleanupStartedAtMs > cleanupMaxRuntimeMs) {
                     console.warn(`⚠️ Cleanup OCR interrotto durante la pagina dopo ${removed} rimozioni per limite tempo (${cleanupMaxRuntimeMs}ms)`);
-                    stopCleanup = true;
                     pageToken = null;
                     break;
                 }
