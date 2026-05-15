@@ -1159,11 +1159,12 @@ Non mostrare mai entrambi i set di orari.`;
      NON ripetere queste etichette
    • Usa: "Il prossimo corso disponibile...", "Il corso successivo..."
 
-3. **EVENTI GIÀ PASSATI - COMUNICALO CHIARAMENTE**
-   Se l'utente chiede di un evento ANNUALE e la data è GIÀ PASSATA:
-   ✅ Dì che l'evento di quest'anno si è già svolto
-   ✅ Indica QUANDO si è svolto
-   ✅ Suggerisci QUANDO chiedere info per l'anno prossimo
+3. **QUALIFICA TEMPORALE PRIMA DI RISPONDERE**
+   Prima di dire se un evento, corso o celebrazione è futuro, in corso, concluso o già avvenuto, confronta la sua data con la DATA ODIERNA.
+   • Se la data è successiva alla DATA ODIERNA, presentalo come futuro o programmato.
+   • Se la data è precedente alla DATA ODIERNA, presentalo come già avvenuto.
+   • Se la data non è chiara o non è confrontabile, non dedurre che l'evento sia già passato o già concluso.
+   • Applica questa regola anche quando la knowledge base usa formulazioni statiche o riferite all'anno pastorale.
 
 4. **Anno pastorale vs anno solare**
    • L'anno pastorale va da settembre ad agosto

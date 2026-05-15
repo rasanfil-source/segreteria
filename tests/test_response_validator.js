@@ -177,6 +177,34 @@ assert(
   'i versetti biblici non devono essere registrati tra gli orari allucinati'
 );
 
+console.log('--- Test temporal consistency: data futura non può essere presentata come passata ---');
+const temporalPastFutureResult = validator._checkTemporalConsistency(
+  'La celebrazione della Cresima si è tenuta il 24 maggio 2026 alle ore 17:30.',
+  'it',
+  { currentDate: '2026-05-15' }
+);
+assert(temporalPastFutureResult.score === 0.0, 'una data futura qualificata come passata deve bloccare la risposta');
+assert(
+  temporalPastFutureResult.errors.some((e) => e.includes('Incoerenza temporale')),
+  'deve segnalare incoerenza temporale'
+);
+
+console.log('--- Test temporal consistency: data futura programmata passa ---');
+const temporalFutureOkResult = validator._checkTemporalConsistency(
+  'La celebrazione della Cresima è in programma il 24 maggio 2026 alle ore 17:30.',
+  'it',
+  { currentDate: '2026-05-15' }
+);
+assert(temporalFutureOkResult.score === 1.0, 'una data futura presentata come programmata deve passare');
+
+console.log('--- Test temporal consistency: conclusione futura non è scambiata per passato ---');
+const temporalFutureConclusionResult = validator._checkTemporalConsistency(
+  'Il corso si conclude il 23 maggio 2026.',
+  'it',
+  { currentDate: '2026-05-15' }
+);
+assert(temporalFutureConclusionResult.score === 1.0, 'una conclusione futura espressa al presente non deve essere bloccata');
+
 console.log('--- Test SemanticValidator: fallback lazy senza GeminiService/CacheService ---');
 {
   const originalConfig = global.CONFIG;

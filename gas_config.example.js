@@ -45,7 +45,8 @@ var CONFIG = {
       'hallucination',
       'language',
       'placeholder',
-      'length'
+      'length',
+      'temporal'
     ]
   },
 
@@ -92,6 +93,8 @@ var CONFIG = {
         ibanContextChars: 300,           // Finestra +/- per testo attorno all'IBAN
         maxCharsWhenKbTruncated: 1500    // Riduzione allegati se KB è troncata
     },
+    OCR_ORPHAN_MAX_AGE_HOURS: 6,         // Età massima file OCR temporanei prima del cleanup
+    OCR_CLEANUP_MAX_RUNTIME_MS: 8000,    // Limite durata cleanup file OCR orfani
 
     // === Token per tipo allegato (stima multimodale) ===
     ATTACHMENT_TOKEN_ESTIMATE: {

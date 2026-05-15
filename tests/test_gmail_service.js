@@ -915,6 +915,46 @@ console.log('--- Test cleanup Drive: coda persistente file temporanei ---');
   }
 }
 
+console.log('--- Test cleanup OCR orfani: rispetta limite runtime ---');
+{
+  const originalDrive = global.Drive;
+  const originalConfig = global.CONFIG;
+  const originalDateNow = Date.now;
+  const removed = [];
+  let listCalls = 0;
+  const nowValues = [0, 0, 100, 200, 2000];
+
+  try {
+    global.CONFIG = Object.assign({}, originalConfig, {
+      OCR_ORPHAN_MAX_AGE_HOURS: 6,
+      OCR_CLEANUP_MAX_RUNTIME_MS: 1000
+    });
+    Date.now = () => nowValues.length ? nowValues.shift() : 2000;
+    global.Drive = {
+      Files: {
+        list: () => {
+          listCalls++;
+          return {
+            items: [{ id: 'ocr-1' }, { id: 'ocr-2' }],
+            nextPageToken: 'next-page'
+          };
+        },
+        remove: (id) => { removed.push(id); }
+      }
+    };
+
+    const service = new GmailService();
+    service._cleanupOrphanedOcrFiles();
+
+    assert(listCalls === 1, 'cleanup OCR deve fermarsi prima di richiedere pagine ulteriori se supera il limite runtime');
+    assert(removed.length === 1 && removed[0] === 'ocr-1', 'cleanup OCR deve interrompersi durante la pagina rispettando il limite runtime');
+  } finally {
+    global.Drive = originalDrive;
+    global.CONFIG = originalConfig;
+    Date.now = originalDateNow;
+  }
+}
+
 
 console.log('--- Test extractMessageDetails normalizza chiavi header preservando valori ---');
 {

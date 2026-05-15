@@ -1678,9 +1678,16 @@ var GmailService = class GmailService {
         const v2Query = `(title contains 'OCR_' or title contains 'TEMP_CONV_') and 'me' in owners and trashed = false and modifiedDate < '${cutoffIso}'`;
         const v3Query = `(name contains 'OCR_' or name contains 'TEMP_CONV_') and 'me' in owners and trashed = false and modifiedTime < '${cutoffIso}'`;
 
+        const cleanupStartedAtMs = Date.now();
+        const cleanupMaxRuntimeMs = this._safePositiveInt((typeof CONFIG !== 'undefined' ? CONFIG.OCR_CLEANUP_MAX_RUNTIME_MS : null), 8000, 1000, 30000);
         let removed = 0;
         let pageToken = null;
+        let stopCleanup = false;
         do {
+            if (Date.now() - cleanupStartedAtMs > cleanupMaxRuntimeMs) {
+                console.warn(`⚠️ Cleanup OCR interrotto preventivamente dopo ${removed} rimozioni per limite tempo (${cleanupMaxRuntimeMs}ms)`);
+                break;
+            }
             let response;
             try {
                 response = Drive.Files.list({ q: v2Query, maxResults: 100, pageToken: pageToken });
@@ -1699,6 +1706,12 @@ var GmailService = class GmailService {
             }
 
             for (const file of files) {
+                if (Date.now() - cleanupStartedAtMs > cleanupMaxRuntimeMs) {
+                    console.warn(`⚠️ Cleanup OCR interrotto durante la pagina dopo ${removed} rimozioni per limite tempo (${cleanupMaxRuntimeMs}ms)`);
+                    stopCleanup = true;
+                    pageToken = null;
+                    break;
+                }
                 if (!file || !file.id) continue;
                 try {
                     if (typeof Drive.Files.remove === 'function') {
@@ -1712,6 +1725,9 @@ var GmailService = class GmailService {
                 } catch (e) {
                     console.warn(`⚠️ Impossibile rimuovere file OCR orfano (${file.id}): ${e.message}`);
                 }
+            }
+            if (stopCleanup) {
+                break;
             }
             pageToken = response.nextPageToken || null;
         } while (pageToken);

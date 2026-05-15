@@ -80,7 +80,8 @@ var CONFIG = {
       'hallucination',
       'language',
       'placeholder',
-      'length'
+      'length',
+      'temporal'
     ]
   },
 
@@ -129,6 +130,7 @@ var CONFIG = {
     maxCharsWhenKbTruncated: 1500    // Riduzione allegati se KB è troncata
   },
   OCR_ORPHAN_MAX_AGE_HOURS: 6,       // Età massima file OCR temporanei prima del cleanup
+  OCR_CLEANUP_MAX_RUNTIME_MS: 8000,   // Limite durata cleanup file OCR orfani
 
   // === Token per tipo allegato (stima multimodale per budget prompt) ===
   ATTACHMENT_TOKEN_ESTIMATE: {
@@ -430,6 +432,8 @@ function validateConfig() {
   checkType('CACHE_LOCK_TTL', CONFIG.CACHE_LOCK_TTL, 'number');
   checkType('OCR_ORPHAN_MAX_AGE_HOURS', CONFIG.OCR_ORPHAN_MAX_AGE_HOURS, 'number');
   checkRange('OCR_ORPHAN_MAX_AGE_HOURS', CONFIG.OCR_ORPHAN_MAX_AGE_HOURS, 1, 24);
+  checkType('OCR_CLEANUP_MAX_RUNTIME_MS', CONFIG.OCR_CLEANUP_MAX_RUNTIME_MS, 'number');
+  checkRange('OCR_CLEANUP_MAX_RUNTIME_MS', CONFIG.OCR_CLEANUP_MAX_RUNTIME_MS, 1000, 30000);
   checkType('MAX_PROVIDED_TOPICS', CONFIG.MAX_PROVIDED_TOPICS, 'number');
   checkType('MAX_PROVIDED_INFO_JSON_CHARS', CONFIG.MAX_PROVIDED_INFO_JSON_CHARS, 'number');
   checkRange('MAX_PROVIDED_INFO_JSON_CHARS', CONFIG.MAX_PROVIDED_INFO_JSON_CHARS, 1000, 50000);

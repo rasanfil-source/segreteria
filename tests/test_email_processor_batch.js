@@ -1469,6 +1469,92 @@ console.log('--- Test processThread: errore quota invio propaga errorClass senza
   }
 }
 
+console.log('--- Test processThread: timeout invio promuove idempotenza a sent ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalErrorTypes = global.ErrorTypes;
+  const originalClassifyError = global.classifyError;
+  let committed = false;
+  let rolledBack = false;
+
+  cacheStore.clear();
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.ErrorTypes = {
+    QUOTA_EXCEEDED: 'QUOTA_EXCEEDED',
+    TIMEOUT: 'TIMEOUT',
+    NETWORK: 'NETWORK',
+    INVALID_API_KEY: 'INVALID_API_KEY',
+    INVALID_RESPONSE: 'INVALID_RESPONSE'
+  };
+  global.classifyError = (err) => ({
+    type: global.ErrorTypes.TIMEOUT,
+    retryable: true,
+    message: err && err.message ? err.message : String(err)
+  });
+
+  try {
+    const processor = new EmailProcessor({
+      gmailService: {
+        _extractEmailAddress: (raw) => raw,
+        extractMessageDetails: () => ({
+          subject: 'Richiesta informazioni',
+          body: 'Vorrei sapere gli orari.',
+          senderEmail: 'utente@example.com',
+          senderName: 'Utente Test',
+          date: new Date(),
+          headers: {},
+          isNewsletter: false,
+          rfc2822MessageId: null,
+          existingReferences: null
+        }),
+        addLabelToMessage: () => {},
+        addLabelToThread: () => {},
+        getThreadHistory: () => '',
+        prepareOutboundText: (text) => text,
+        sendHtmlReply: () => { throw new Error('timeout rete dopo invio'); }
+      },
+      classifier: {
+        classifyEmail: () => ({ shouldReply: true, category: 'info', subIntents: {}, confidence: 0.9 })
+      },
+      geminiService: {
+        primaryKey: 'primary-key',
+        shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'orari' } }),
+        detectEmailLanguage: () => ({ lang: 'it' }),
+        getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+        getAdaptiveClosing: () => 'Cordiali saluti',
+        generateResponse: () => ({ success: true, text: 'Risposta base' })
+      },
+      requestClassifier: {
+        classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+      },
+      memoryService: {
+        getMemory: () => ({}),
+        getRecentHistory: () => [],
+        updateMemoryAtomic: () => true
+      },
+      territoryValidator: {
+        validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+      },
+      promptEngine: {
+        buildPrompt: () => 'PROMPT'
+      }
+    });
+    processor._commitSendTransaction = () => { committed = true; };
+    processor._rollbackSendTransaction = () => { rolledBack = true; };
+
+    const result = processor.processThread(createExternalThread('send-timeout'), 'kb valida', '', new Set(), true);
+    assert(result.status === 'error', 'timeout invio deve restituire status error');
+    assert(result.errorClass === 'NETWORK', `timeout invio deve essere classificato come NETWORK retryable, ottenuto ${result.errorClass}`);
+    assert(committed === true, 'timeout/network deve promuovere la transazione a sent');
+    assert(rolledBack === false, 'timeout/network non deve rimuovere il marker di invio');
+  } finally {
+    global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+    global.ErrorTypes = originalErrorTypes;
+    global.classifyError = originalClassifyError;
+    cacheStore.clear();
+  }
+}
+
 console.log('--- Test processUnreadEmails: graceful stop su GMAIL_DAILY_CALL_LIMIT_REACHED ---');
 {
   const processor = new EmailProcessor({
@@ -1630,14 +1716,20 @@ console.log('--- Test checkpoint retryCount: incrementa solo sullo stesso pendin
     processor._storeBatchCheckpointAndScheduleContinuation_(fakeThreads, 0, 25000);
     let parsed = JSON.parse(props.get('EMAIL_BATCH_CHECKPOINT'));
     assert(parsed.retryCount === 1, `retryCount iniziale atteso 1, ottenuto ${parsed.retryCount}`);
+    assert(parsed.depth === 1, `depth iniziale attesa 1, ottenuta ${parsed.depth}`);
 
     processor._storeBatchCheckpointAndScheduleContinuation_(fakeThreads, 0, 25000);
     parsed = JSON.parse(props.get('EMAIL_BATCH_CHECKPOINT'));
     assert(parsed.retryCount === 2, `retryCount sullo stesso checkpoint atteso 2, ottenuto ${parsed.retryCount}`);
+    assert(parsed.depth === 2, `depth sullo stesso checkpoint attesa 2, ottenuta ${parsed.depth}`);
 
+    parsed.depth = 5;
+    props.set('EMAIL_BATCH_CHECKPOINT', JSON.stringify(parsed));
     processor._storeBatchCheckpointAndScheduleContinuation_(fakeThreads, 1, 25000);
     parsed = JSON.parse(props.get('EMAIL_BATCH_CHECKPOINT'));
     assert(parsed.retryCount === 1, `retryCount dopo avanzamento atteso 1, ottenuto ${parsed.retryCount}`);
+    assert(parsed.depth === 1, `depth dopo avanzamento attesa 1, ottenuta ${parsed.depth}`);
+    assert(parsed.pendingThreadIds.length === 1 && parsed.pendingThreadIds[0] === 't301', 'checkpoint avanzato non deve essere cancellato anche se la depth precedente era 5');
   } finally {
     global.PropertiesService = originalPropertiesService;
     global.ScriptApp = originalScriptApp;

@@ -146,5 +146,11 @@ assert(
   temporalPrompt.includes('DATA DI RICEZIONE/INVIO EMAIL: 2026-05-07'),
   'il prompt deve includere la data originale del messaggio per oggi/domani/ieri dell\'utente'
 );
+assert(
+  temporalPrompt.includes('Prima di dire se un evento, corso o celebrazione è futuro') &&
+    temporalPrompt.includes('Se la data è successiva alla DATA ODIERNA') &&
+    temporalPrompt.includes('non dedurre che l\'evento sia già passato'),
+  'il prompt deve formulare l\'obiettivo di confronto temporale senza dipendere da singole frasi tipizzate'
+);
 
 console.log('✅ Test qualità prompt risposta passati');

@@ -176,7 +176,7 @@ var ResponseValidator = class ResponseValidator {
    * @param {string} salutationMode - Modalità saluto ('full'|'soft'|'none_or_continuity')
    * @returns {Object} Risultato validazione
    */
-  validateResponse(response, detectedLanguage, knowledgeBase, emailContent, emailSubject, salutationMode = 'full', attemptPerfezionamento = true) {
+  validateResponse(response, detectedLanguage, knowledgeBase, emailContent, emailSubject, salutationMode = 'full', attemptPerfezionamento = true, temporalContext = null) {
     // GUARDRAIL: questo validator non deve "appiattire" la formattazione utile
     // (liste, paragrafi, enfasi) salvo casi di sicurezza/qualità espliciti.
     // Interventi aggressivi di normalizzazione qui possono degradare UX e leggibilità.
@@ -195,7 +195,7 @@ var ResponseValidator = class ResponseValidator {
     console.log(`🔍 Validazione risposta (${currentResponse.length} caratteri, lingua=${safeDetectedLanguage})...`);
 
     // --- PRIMO PASSAGGIO DI VALIDAZIONE ---
-    let validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent, emailSubject);
+    let validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent, emailSubject, temporalContext);
 
     // --- PERFEZIONAMENTO QUALITATIVO ---
     if (!validationResult.isValid && attemptPerfezionamento) {
@@ -209,7 +209,7 @@ var ResponseValidator = class ResponseValidator {
         wasRefined = true;
 
         // Ri-esegui validazione sul testo corretto
-        validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent, emailSubject);
+        validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent, emailSubject, temporalContext);
 
         if (validationResult.isValid) {
           console.log('   ✅ Elaborazione di raffinamento completata');
@@ -284,7 +284,7 @@ var ResponseValidator = class ResponseValidator {
    * Alias per la firma ad oggetto (supporta chiamata con parametri nominali).
    * Evita rotture quando il chiamante usa validator.validate(response, { ...opts }).
    * @param {string} response
-   * @param {{language?: string, knowledgeBase?: string, emailContent?: string, body?: string, emailSubject?: string, subject?: string, salutationMode?: string}} opts
+   * @param {{language?: string, knowledgeBase?: string, emailContent?: string, body?: string, emailSubject?: string, subject?: string, salutationMode?: string, currentDate?: string, messageDate?: string, temporalContext?: Object}} opts
    * @returns {Object}
    */
   validate(response, opts) {
@@ -295,14 +295,19 @@ var ResponseValidator = class ResponseValidator {
       safeOpts.knowledgeBase || '',
       safeOpts.emailContent || safeOpts.body || '',
       safeOpts.emailSubject || safeOpts.subject || '',
-      safeOpts.salutationMode || 'full'
+      safeOpts.salutationMode || 'full',
+      true,
+      safeOpts.temporalContext || {
+        currentDate: safeOpts.currentDate || null,
+        messageDate: safeOpts.messageDate || null
+      }
     );
   }
 
   /**
    * Esegue i ✅ effettivi (estratto per riutilizzo)
    */
-  _runValidationChecks(response, detectedLanguage, knowledgeBase, salutationMode, originalMessage = '', emailSubject = '') {
+  _runValidationChecks(response, detectedLanguage, knowledgeBase, salutationMode, originalMessage = '', emailSubject = '', temporalContext = null) {
     const errors = [];
     const warnings = [];
     const details = {};
@@ -362,6 +367,13 @@ var ResponseValidator = class ResponseValidator {
     warnings.push(...greetingResult.warnings);
     details.greeting = greetingResult;
     score *= greetingResult.score;
+
+    // === CONTROLLO 9: Coerenza temporale eventi/date ===
+    const temporalResult = this._checkTemporalConsistency(response, detectedLanguage, temporalContext);
+    errors.push(...temporalResult.errors);
+    warnings.push(...temporalResult.warnings);
+    details.temporalConsistency = temporalResult;
+    score *= temporalResult.score;
 
     // Determina validità
     const isValid = errors.length === 0 && score >= this.MIN_VALID_SCORE;
@@ -1024,6 +1036,223 @@ var ResponseValidator = class ResponseValidator {
       expectedTimeSlot,
       currentHour
     };
+  }
+
+  /**
+   * Controllo 9: coerenza temporale tra date esplicite e modo in cui sono qualificate.
+   * Il prompt ragiona per obiettivo; qui usiamo pattern conservativi solo come rete di sicurezza.
+   */
+  _checkTemporalConsistency(response, detectedLanguage, temporalContext = null) {
+    const errors = [];
+    const warnings = [];
+    const currentDate = this._resolveTemporalCurrentDate_(temporalContext);
+    if (!currentDate) {
+      return { score: 1.0, errors, warnings, violations: [], skipped: true };
+    }
+
+    const dates = this._extractExplicitDates_(response, currentDate);
+    if (!dates.length) {
+      return { score: 1.0, errors, warnings, violations: [], checkedDates: 0 };
+    }
+
+    const todayOrdinal = this._dateOnlyOrdinal_(currentDate);
+    const violations = [];
+
+    dates.forEach((item) => {
+      if (!item || !item.date || this._dateOnlyOrdinal_(item.date) <= todayOrdinal) return;
+
+      const windowText = this._extractTemporalWindow_(response, item.index, item.length);
+      if (this._hasPastTemporalQualification_(windowText, detectedLanguage)) {
+        violations.push({
+          dateText: item.text,
+          date: this._formatDateOnly_(item.date),
+          context: windowText.replace(/\s+/g, ' ').trim().substring(0, 180)
+        });
+      }
+    });
+
+    if (violations.length > 0) {
+      errors.push(
+        `Incoerenza temporale: una data futura (${violations[0].dateText}) è presentata come evento già passato o concluso.`
+      );
+      return { score: 0.0, errors, warnings, violations, checkedDates: dates.length };
+    }
+
+    return { score: 1.0, errors, warnings, violations, checkedDates: dates.length };
+  }
+
+  _resolveTemporalCurrentDate_(temporalContext) {
+    let value = null;
+    if (temporalContext instanceof Date || typeof temporalContext === 'string') {
+      value = temporalContext;
+    } else if (temporalContext && typeof temporalContext === 'object') {
+      value = temporalContext.currentDate || temporalContext.today || temporalContext.messageDate || null;
+    }
+
+    if (!value) {
+      if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+        try {
+          value = Utilities.formatDate(new Date(), 'Europe/Rome', 'yyyy-MM-dd');
+        } catch (_) {
+          value = null;
+        }
+      }
+      if (!value) value = new Date();
+    }
+
+    return this._parseDateOnly_(value);
+  }
+
+  _parseDateOnly_(value) {
+    if (value instanceof Date && !isNaN(value.getTime())) {
+      return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 12, 0, 0);
+    }
+
+    const source = String(value || '').trim();
+    let match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(source);
+    if (match) {
+      return this._makeDateOnly_(parseInt(match[1], 10), parseInt(match[2], 10), parseInt(match[3], 10));
+    }
+
+    const parsed = new Date(source);
+    if (!isNaN(parsed.getTime())) {
+      return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 12, 0, 0);
+    }
+    return null;
+  }
+
+  _makeDateOnly_(year, month, day) {
+    if (!year || !month || !day) return null;
+    const date = new Date(year, month - 1, day, 12, 0, 0);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+    return date;
+  }
+
+  _dateOnlyOrdinal_(date) {
+    return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000);
+  }
+
+  _formatDateOnly_(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  _stripDiacritics_(value) {
+    try {
+      return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    } catch (_) {
+      return String(value || '');
+    }
+  }
+
+  _monthNameMap_() {
+    return {
+      gennaio: 1, gen: 1, january: 1, jan: 1, enero: 1, janvier: 1, janeiro: 1, januar: 1,
+      febbraio: 2, feb: 2, february: 2, febrero: 2, fevrier: 2, fevereiro: 2, februar: 2,
+      marzo: 3, mar: 3, march: 3, mars: 3, marco: 3, marz: 3, maerz: 3,
+      aprile: 4, apr: 4, april: 4, abril: 4, avril: 4,
+      maggio: 5, mag: 5, may: 5, mayo: 5, mai: 5, maio: 5,
+      giugno: 6, giu: 6, june: 6, jun: 6, junio: 6, juin: 6, junho: 6, juni: 6,
+      luglio: 7, lug: 7, july: 7, jul: 7, julio: 7, juillet: 7, julho: 7, juli: 7,
+      agosto: 8, ago: 8, august: 8, aug: 8, aout: 8,
+      settembre: 9, set: 9, september: 9, sep: 9, septiembre: 9, septembre: 9, setembro: 9,
+      ottobre: 10, ott: 10, october: 10, oct: 10, octubre: 10, octobre: 10, outubro: 10, oktober: 10, okt: 10,
+      novembre: 11, nov: 11, november: 11, noviembre: 11, novembro: 11,
+      dicembre: 12, dic: 12, december: 12, dec: 12, diciembre: 12, decembre: 12, dezembro: 12, dezember: 12, dez: 12
+    };
+  }
+
+  _extractExplicitDates_(text, referenceDate) {
+    const source = String(text || '');
+    const normalized = this._stripDiacritics_(source).toLowerCase();
+    const monthMap = this._monthNameMap_();
+    const dates = [];
+    const seen = new Set();
+    const referenceYear = referenceDate ? referenceDate.getFullYear() : new Date().getFullYear();
+
+    const addDate = (year, month, day, index, length, textValue) => {
+      const date = this._makeDateOnly_(year, month, day);
+      if (!date || index < 0) return;
+      const key = `${index}:${this._formatDateOnly_(date)}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      dates.push({ date, index, length, text: textValue || source.substring(index, index + length) });
+    };
+
+    let match;
+    const iso = /\b(20\d{2})-(0?[1-9]|1[0-2])-([0-2]?\d|3[01])\b/g;
+    while ((match = iso.exec(normalized)) !== null) {
+      addDate(parseInt(match[1], 10), parseInt(match[2], 10), parseInt(match[3], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length));
+    }
+
+    const numeric = /\b([0-2]?\d|3[01])[\/.-](0?[1-9]|1[0-2])[\/.-](20\d{2})\b/g;
+    while ((match = numeric.exec(normalized)) !== null) {
+      addDate(parseInt(match[3], 10), parseInt(match[2], 10), parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length));
+    }
+
+    const dayMonthYear = /\b([0-2]?\d|3[01])(?:°|º|\.)?\s+(?:di\s+|de\s+|del\s+|d['’]\s*)?([a-z]{3,15})\.?\s+(20\d{2})\b/g;
+    while ((match = dayMonthYear.exec(normalized)) !== null) {
+      const month = monthMap[match[2]];
+      if (month) addDate(parseInt(match[3], 10), month, parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length));
+    }
+
+    const monthDayYear = /\b([a-z]{3,15})\.?\s+([0-2]?\d|3[01])(?:st|nd|rd|th)?[,]?\s+(20\d{2})\b/g;
+    while ((match = monthDayYear.exec(normalized)) !== null) {
+      const month = monthMap[match[1]];
+      if (month) addDate(parseInt(match[3], 10), month, parseInt(match[2], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length));
+    }
+
+    const dayMonth = /\b([0-2]?\d|3[01])(?:°|º|\.)?\s+(?:di\s+|de\s+|del\s+|d['’]\s*)?([a-z]{3,15})\.?\b/g;
+    while ((match = dayMonth.exec(normalized)) !== null) {
+      const trailing = normalized.substring(match.index + match[0].length, match.index + match[0].length + 8);
+      const month = monthMap[match[2]];
+      if (month && !/\s*20\d{2}/.test(trailing)) {
+        addDate(referenceYear, month, parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length));
+      }
+    }
+
+    return dates.sort((a, b) => a.index - b.index);
+  }
+
+  _extractTemporalWindow_(text, index, length) {
+    const source = String(text || '');
+    const before = source.substring(0, index);
+    const previousBoundaries = ['.', '!', '?', '\n'].map(token => before.lastIndexOf(token));
+    const previousBoundary = Math.max.apply(null, previousBoundaries);
+    const start = previousBoundary >= 0 ? previousBoundary + 1 : Math.max(0, index - 180);
+
+    const afterStart = index + (length || 0);
+    const after = source.substring(afterStart);
+    const nextBoundaries = ['.', '!', '?', '\n']
+      .map(token => after.indexOf(token))
+      .filter(pos => pos >= 0);
+    const nextBoundary = nextBoundaries.length > 0 ? Math.min.apply(null, nextBoundaries) : -1;
+    const end = nextBoundary >= 0 ? afterStart + nextBoundary + 1 : Math.min(source.length, afterStart + 180);
+
+    return source.substring(start, end);
+  }
+
+  _hasPastTemporalQualification_(text, detectedLanguage) {
+    const source = this._stripDiacritics_(String(text || '').toLowerCase());
+    const patterns = [
+      /\bsi\s+e\s+(?:gia\s+)?(?:tenut|svolt|celebrat|conclus|terminat|chius)\w*/i,
+      /\b(?:e|risulta|resta)\s+gia\s+(?:conclus|terminat|svolt|tenut|passat)\w*/i,
+      /\b(?:ha|hanno)\s+(?:gia\s+)?(?:avuto luogo|concluso|terminato)\b/i,
+      /\b(?:was|were)\s+(?:already\s+)?(?:held|celebrated|concluded|completed)\b/i,
+      /\bhas\s+already\s+(?:taken place|been held|concluded|finished|ended)\b/i,
+      /\b(?:se\s+)?(?:celebro|realizo|concluyo|termino)\b/i,
+      /\bya\s+(?:se\s+)?(?:celebro|realizo|concluyo|termino|ha\s+terminado)\b/i,
+      /\b(?:ja\s+)?(?:se\s+)?(?:realizou|celebrou|concluiu|terminou)\b/i,
+      /\bja\s+(?:esta|foi)\s+(?:concluido|terminado|realizado|celebrado)\b/i,
+      /\bs['’]?est\s+(?:tenu|deroule|termine|conclu)\w*/i,
+      /\ba\s+(?:deja\s+)?(?:eu lieu|ete celebre|ete conclu|ete termine)\b/i,
+      /\b(?:hat|haben)\s+(?:bereits\s+)?(?:stattgefunden|geendet)\b/i,
+      /\b(?:wurde|wurden|ist|sind)\s+(?:bereits\s+)?(?:abgehalten|gefeiert|abgeschlossen|beendet)\b/i
+    ];
+
+    return patterns.some(pattern => pattern.test(source));
   }
 
   // ========================================================================

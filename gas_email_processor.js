@@ -1653,6 +1653,10 @@ ${addressLines.join('\n\n')}
           routedAiCore,
           routedDoctrine
         ].filter(Boolean).join('\n\n');
+        const validationTemporalContext = {
+          currentDate: this._getBusinessDateString(),
+          messageDate: this._getBusinessDateString(messageDetails.date)
+        };
 
         validation = this.validator.validateResponse(
           finalResponse,
@@ -1660,7 +1664,9 @@ ${addressLines.join('\n\n')}
           fullValidationKB,
           messageDetails.body,
           messageDetails.subject,
-          salutationMode
+          salutationMode,
+          true,
+          validationTemporalContext
         );
 
         if (validation.fixedResponse) {
@@ -1730,7 +1736,9 @@ ${addressLines.join('\n\n')}
             fullValidationKB,
             messageDetails.body,
             messageDetails.subject,
-            salutationMode
+            salutationMode,
+            true,
+            validationTemporalContext
           );
 
           if (retryValidation.isValid) {
@@ -1843,6 +1851,11 @@ ${addressLines.join('\n\n')}
         const classifiedSendError = this._classifyError(e);
         if (classifiedSendError.type !== 'NETWORK' && classifiedSendError.type !== 'TIMEOUT') {
           this._rollbackSendTransaction(candidate.getId(), sendTxn);
+        } else {
+          // Gmail può aver accettato il messaggio prima che il client riceva un
+          // timeout/errore di rete: promuoviamo l'idempotency marker a sent
+          // per evitare replay automatici alla ripresa del batch.
+          this._commitSendTransaction(candidate.getId(), sendTxn);
         }
         console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
 
@@ -2386,14 +2399,6 @@ ${addressLines.join('\n\n')}
         currentDepth = 0;
       }
 
-      if (currentDepth >= 5) {
-        console.error('Limite massimo di continuazioni batch (5) raggiunto. Interruzione per prevenire loop di trigger.');
-        if (typeof props.deleteProperty === 'function') {
-          props.deleteProperty('EMAIL_BATCH_CHECKPOINT');
-        }
-        return;
-      }
-
       const maxCheckpointThreads = (typeof CONFIG !== 'undefined' && Number(CONFIG.BATCH_CHECKPOINT_MAX_THREADS) > 0)
         ? Math.min(Math.max(1, Number(CONFIG.BATCH_CHECKPOINT_MAX_THREADS)), 500)
         : 250;
@@ -2414,6 +2419,17 @@ ${addressLines.join('\n\n')}
       const retryCount = isSameCheckpoint && Number.isFinite(previousRetryCount)
         ? previousRetryCount + 1
         : 1;
+      // depth misura solo riprese bloccate sullo stesso identico insieme di
+      // thread pendenti. Se il checkpoint cambia, il batch sta avanzando.
+      const nextDepth = isSameCheckpoint ? currentDepth + 1 : 1;
+
+      if (nextDepth > 5) {
+        console.error('Limite massimo di continuazioni batch (5) raggiunto sullo stesso checkpoint. Interruzione per prevenire loop di trigger.');
+        if (typeof props.deleteProperty === 'function') {
+          props.deleteProperty('EMAIL_BATCH_CHECKPOINT');
+        }
+        return;
+      }
 
       const checkpoint = {
         version: 2,
@@ -2423,7 +2439,7 @@ ${addressLines.join('\n\n')}
         remainingTimeMs: remainingTimeMs,
         pendingCount: pendingThreadIds.length,
         pendingThreadIds: storedPendingThreadIds,
-        depth: currentDepth + 1,
+        depth: nextDepth,
         retryCount: retryCount
       };
       props.setProperty('EMAIL_BATCH_CHECKPOINT', JSON.stringify(checkpoint));
@@ -3222,6 +3238,10 @@ ${addressLines.join('\n\n')}
       ? details.length.errors
       : [];
     const hasLength = lengthErrors.length > 0 || errorText.some(e => e.includes('troppo corta') || e.includes('troppo lunga') || e.includes('prolissa'));
+    const temporalErrors = (details.temporalConsistency && Array.isArray(details.temporalConsistency.errors))
+      ? details.temporalConsistency.errors
+      : [];
+    const hasTemporal = temporalErrors.length > 0 || errorText.some(e => e.includes('incoerenza temporale'));
 
     return {
       thinking_leak: hasThinkingLeak,
@@ -3229,7 +3249,9 @@ ${addressLines.join('\n\n')}
       language: hasLanguage,
       placeholder: hasPlaceholder,
       length: hasLength,
+      temporal: hasTemporal,
       lengthErrors: lengthErrors,
+      temporalErrors: temporalErrors,
       foundPlaceholders: foundPlaceholders,
       hallucinations: hallucinations,
       detectedLanguage: detectedLanguage
@@ -3242,7 +3264,7 @@ ${addressLines.join('\n\n')}
     const flags = this._classifyValidationForRetry(validationResult, detectedLanguage);
     const allowed = (Array.isArray(cfg.onlyForErrors) && cfg.onlyForErrors.length > 0)
       ? cfg.onlyForErrors
-      : ['thinking_leak', 'hallucination', 'language', 'placeholder', 'length'];
+      : ['thinking_leak', 'hallucination', 'language', 'placeholder', 'length', 'temporal'];
 
     const hasAllowed = allowed.some(key => flags[key]);
     if (!hasAllowed) return false;
@@ -3251,7 +3273,7 @@ ${addressLines.join('\n\n')}
       ? cfg.minScoreToTrigger
       : ((typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_MIN_SCORE === 'number') ? CONFIG.VALIDATION_MIN_SCORE : 0.6);
 
-    const critical = flags.thinking_leak || flags.hallucination;
+    const critical = flags.thinking_leak || flags.hallucination || flags.temporal;
     
 
 
@@ -3319,6 +3341,13 @@ ${addressLines.join('\n\n')}
       correctionInstructions.push(
         'ERRORE: La risposta contiene segnaposto non compilati.\n' +
         `CORREZIONE: Compila o rimuovi questi segnaposto: ${placeholderText}.`
+      );
+    }
+
+    if (flags.temporal) {
+      correctionInstructions.push(
+        'ERRORE CRITICO: Hai qualificato temporalmente in modo errato un evento, corso o celebrazione.\n' +
+        'CORREZIONE: Confronta ogni data esplicita con la DATA ODIERNA presente nel prompt: se la data è futura, presentala come programmata o futura; se è passata, presentala come già avvenuta; se non è chiara, non dedurre che sia conclusa.'
       );
     }
 
