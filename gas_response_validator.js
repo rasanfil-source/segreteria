@@ -1470,8 +1470,7 @@ Rispondi SOLO con questo JSON (senza markdown):
         this.taskType,
         (modelName) => this.geminiService._generateWithModel(prompt, modelName),
         {
-          estimatedTokens: estimatedTokens,
-          preferQuality: false
+          estimatedTokens: estimatedTokens
         }
       );
 

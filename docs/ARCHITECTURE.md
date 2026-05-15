@@ -473,6 +473,11 @@ GEMINI_MODELS = {
     rpm: 2000, tpm: 2000000, rpd: 3500,
     useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
   },
+  'flash-3.1-lite': {
+    name: 'gemini-3.1-flash-lite',
+    rpm: 2000, tpm: 2000000, rpd: 3500,
+    useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
+  },
   'flash-3.1-lite-backup': {
     name: 'gemini-3.1-flash-lite',
     rpm: 2000, tpm: 2000000, rpd: 3500,
@@ -484,7 +489,7 @@ GEMINI_MODELS = {
 **Selection Strategy:**
 ```javascript
 MODEL_STRATEGY = {
-  'quick_check': ['flash-lite', 'flash-3.1-lite'],
+  'quick_check': ['flash-lite'],
   'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
   'fallback': ['flash-lite', 'flash-3.1-lite-backup']
 }

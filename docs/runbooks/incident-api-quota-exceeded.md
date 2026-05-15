@@ -106,7 +106,7 @@ function timeToQuotaReset() {
 // After 9:00 AM, restore normal configuration:
 
 CONFIG.MODEL_STRATEGY = {
-  'quick_check': ['flash-lite', 'flash-3.1-lite'],
+  'quick_check': ['flash-lite'],
   'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
   'fallback': ['flash-lite', 'flash-3.1-lite-backup']
 };

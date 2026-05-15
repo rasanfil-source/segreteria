@@ -1886,8 +1886,7 @@ Testo:
           'quick_check',
           (modelName) => this._quickCheckWithModel(emailContent, emailSubject, modelName, detection, intentContext),
           {
-            estimatedTokens: 500,
-            preferQuality: false  // Economia > qualità per controllo rapido
+            estimatedTokens: 500
           }
         );
 
@@ -1999,7 +1998,6 @@ Testo:
           (modelName) => this._generateWithModel(prompt, modelName, targetKey, preEncodedAttachments),
           {
             estimatedTokens: estimatedTokens,
-            preferQuality: true,
             forceModel: forceModelKey,
             modelNameOverride: targetModel
           }

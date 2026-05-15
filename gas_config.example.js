@@ -250,10 +250,10 @@ var CONFIG = {
 
     // Strategia selezione modelli per task (ordine = priorità)
     MODEL_STRATEGY: {
-        'quick_check': ['flash-lite', 'flash-3.1-lite'],
-        'classification': ['flash-lite', 'flash-3.1-lite'],
-        'language': ['flash-lite', 'flash-3.1-lite'],
-        'newsletter_summary': ['flash-lite', 'flash-3.1-lite'],
+        'quick_check': ['flash-lite'],
+        'classification': ['flash-lite'],
+        'language': ['flash-lite'],
+        'newsletter_summary': ['flash-lite'],
         'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
         'semantic': ['flash-lite', 'flash-3.1-lite-backup'],
         'fallback': ['flash-lite', 'flash-3.1-lite-backup']

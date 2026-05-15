@@ -95,7 +95,7 @@ console.log('--- Test _getCandidateModels: task policy generation vs quick/langu
   const limiter = Object.create(GeminiRateLimiter.prototype);
   limiter.strategies = {
     generation: ['flash-2.5', 'flash-2.5-backup', 'flash-lite'],
-    quick_check: ['flash-lite', 'flash-3.1-lite'],
+    quick_check: ['flash-lite'],
     fallback: ['flash-lite']
   };
 
