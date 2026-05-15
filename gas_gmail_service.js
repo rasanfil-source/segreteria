@@ -2016,7 +2016,7 @@ var GmailService = class GmailService {
         // 1.5 Fast-path per identificativi strutturati (anche con poche lettere, es. IBAN)
         const compact = cleaned.replace(/\s+/g, '').toUpperCase();
         const looksLikeCF = /[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]/.test(compact);
-        const looksLikeIBAN = /IT[0-9]{2}[A-Z][0-9]{22}/.test(compact) || /^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(compact);
+        const looksLikeIBAN = /IT[0-9]{2}[A-Z][0-9]{22}/.test(compact) || /[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}/.test(compact);
         if (looksLikeCF || looksLikeIBAN) return true;
 
         // 2. Filtro Contenuto Alfabetico (Immagini nere/rumore)
@@ -2611,7 +2611,7 @@ var GmailService = class GmailService {
                 }
 
                 let replySubject = this._sanitizeSubjectForHeader(messageDetails.subject);
-                if (!replySubject.toLowerCase().startsWith('re:')) {
+                if (!/^(re|rif|r|ris|risp|aw|sv|fw|fwd|tr)\s*:/i.test(replySubject)) {
                     replySubject = 'Re: ' + replySubject;
                 }
 

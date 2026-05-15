@@ -817,7 +817,7 @@ var EmailProcessor = class EmailProcessor {
         : (messageDetails.senderEmail || '');
       const senderInfo = `${originalSenderEmail} ${messageDetails.senderName}`.toLowerCase();
       const autoPattern = /no-reply|do-not-reply|noreply|daemon|postmaster|bounce|mailer/i;
-      if (autoPattern.test(senderInfo)) {
+      if (autoPattern.test(senderInfo) && !messageDetails.hasReplyTo) {
         console.log('   ⊖ Saltato: mittente rilevato come casella automatica o no-reply');
         // Elaborato (filtrato): applichiamo IA per chiudere il processo
         markHandledUnread();
@@ -1372,9 +1372,6 @@ ${addressLines.join('\n\n')}
               console.log(`   📎 Allegati ignorati/non supportati: ${attachmentSkipped.length} (${skippedNames})`);
             }
           } else {
-            if (!isOcrMeaningful && attachmentCount > 0) {
-              this.logger.warn('Pre-check: allegati ignorati (nessun OCR utile rilevato)', { threadId, attachmentCount });
-            }
             attachmentSkipped.push({ reason: 'precheck_no_ocr' });
             textFromAttachments = '[Avviso di sistema: sono presenti allegati nel thread, ma sono stati esclusi dall\'analisi automatica perché il pre-check non ha rilevato trigger OCR/multimodali rilevanti.]';
             console.log('   📎 Elaborazione allegati saltata: keyword trigger non rilevate');
@@ -1406,6 +1403,7 @@ ${addressLines.join('\n\n')}
         detectedLanguage: detectedLanguage,
         currentSeason: this._getCurrentSeason(),
         currentDate: this._getBusinessDateString(),
+        messageDate: this._getBusinessDateString(messageDetails.date),
         salutation: greeting,
         closing: closing,
         subIntents: classification.subIntents || {},

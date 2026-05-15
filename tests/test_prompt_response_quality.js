@@ -131,4 +131,20 @@ assert(
   'il prompt deve autorizzare le condizioni padrino quando la Cresima è prerequisito implicito'
 );
 
+console.log('--- Test prompt: data messaggio originale presente per riferimenti relativi ---');
+const temporalPrompt = engine.buildPrompt({
+  emailSubject: 'Appuntamento',
+  emailContent: 'Domani posso passare?',
+  knowledgeBase: 'Segreteria aperta dal lunedì al venerdì.',
+  detectedLanguage: 'it',
+  currentDate: '2026-05-15',
+  messageDate: '2026-05-07',
+  promptProfile: 'lite'
+});
+
+assert(
+  temporalPrompt.includes('DATA DI RICEZIONE/INVIO EMAIL: 2026-05-07'),
+  'il prompt deve includere la data originale del messaggio per oggi/domani/ieri dell\'utente'
+);
+
 console.log('✅ Test qualità prompt risposta passati');

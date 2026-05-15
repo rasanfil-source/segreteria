@@ -3066,6 +3066,17 @@ function testClassifierBackwardQuoteScan() {
     assert(result.trim() === "Testo principale importante.\n" + "A".repeat(1000), "Dovrebbe troncare alla citazione trovata via backward scan");
 }
 
+function testClassifierPreservesContentAfterMobileSignatureMarker() {
+    console.log('--- Test: Classifier Preserves Content After Mobile Signature Marker ---');
+    loadScript('gas_classifier.js');
+    const classifier = createClassifier();
+
+    const body = 'Buongiorno,\nvorrei informazioni sui certificati.\n\nInviato da iPhone\n\nAh dimenticavo: posso passare domani?';
+    const result = classifier._extractMainContent(body);
+
+    assert(result.includes('Ah dimenticavo: posso passare domani?'), 'Non deve tagliare contenuto utente scritto dopo un marker firma mobile');
+}
+
 function testLoadResourcesReplacements() {
     console.log('--- Test: Load Resources Replacements ---');
     loadScript('gas_main.js');
@@ -3219,6 +3230,7 @@ function main() {
         ['gemini: long HTML quotes stripped before language truncation', testLanguageDetectionStripsLongHtmlQuotesBeforeFinalTruncation],
         ['gemini: french/german detection refinement', testFrenchGermanDetectionRefinement],
         ['classifier: backward quote scan', testClassifierBackwardQuoteScan],
+        ['classifier: preserve content after mobile signature marker', testClassifierPreservesContentAfterMobileSignatureMarker],
         ['main: caricamento sostituzioni', testLoadResourcesReplacements],
         ['gmail office extract: Drive v3 forza mimeType target', testExtractOfficeTextDriveCreateForcesTargetMimeType],
         ['gmail office extract: retry propagazione Drive', testExtractOfficeTextRetriesDrivePropagation],
@@ -3366,4 +3378,3 @@ function testGmailCounterFallbackUsesPacificTimezone() {
 }
 
 main();
-

@@ -110,6 +110,7 @@ var PromptEngine = class PromptEngine {
       detectedLanguage = 'it',
       currentSeason = 'invernale',
       currentDate = null,
+      messageDate = null,
       salutation = 'Buongiorno.',
       closing = 'Cordiali saluti,',
       subIntents = {},
@@ -327,7 +328,7 @@ var PromptEngine = class PromptEngine {
     addSection(this._renderSeasonalContext(currentSeason), 'SeasonalContext');
 
     // 11. CONSAPEVOLEZZA TEMPORALE
-    addSection(this._renderTemporalAwareness(safeCurrentDate, detectedLanguage), 'TemporalAwareness');
+    addSection(this._renderTemporalAwareness(safeCurrentDate, detectedLanguage, messageDate), 'TemporalAwareness');
 
     // 12. SUGGERIMENTO CATEGORIA
     addSection(this._renderCategoryHint(category), 'CategoryHint');
@@ -1116,7 +1117,7 @@ Non mostrare mai entrambi i set di orari.`;
   // TEMPLATE 11: CONSAPEVOLEZZA TEMPORALE
   // ========================================================================
 
-  _renderTemporalAwareness(currentDate, detectedLanguage = 'it') {
+  _renderTemporalAwareness(currentDate, detectedLanguage = 'it', messageDate = null) {
     let dateObj;
     if (typeof currentDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(currentDate)) {
       const [year, month, day] = currentDate.split('-').map(Number);
@@ -1139,8 +1140,12 @@ Non mostrare mai entrambi i set di orari.`;
       }
     })();
 
+    const messageDateLine = messageDate
+      ? `\n📨 DATA DI RICEZIONE/INVIO EMAIL: ${messageDate} (usa questa data per interpretare "oggi", "domani" e "ieri" scritti dall'utente)`
+      : '';
+
     return `══════════════════════════════════════════════════════════════════════
-🗓️ DATA ODIERNA: ${currentDate} (${humanDate})
+🗓️ DATA ODIERNA: ${currentDate} (${humanDate})${messageDateLine}
 ══════════════════════════════════════════════════════════════════════
 
 ⚠️ REGOLE TEMPORALI CRITICHE - PENSA COME UN UMANO:

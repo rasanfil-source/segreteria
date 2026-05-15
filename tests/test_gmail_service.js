@@ -270,6 +270,10 @@ console.log('--- Test _isMeaningfulOCR: CF/IBAN dentro testo OCR completo ---');
     ocrService._isMeaningfulOCR('Coordinate IBAN IT60X0542811101000000123456 intestato alla parrocchia', true) === true,
     'OCR con IBAN dentro testo più ampio deve essere significativo'
   );
+  assert(
+    ocrService._isMeaningfulOCR('Modulo con conto estero DE89370400440532013000 per rimborso', true) === true,
+    'OCR con IBAN non italiano dentro testo più ampio deve essere significativo'
+  );
 }
 
 
@@ -537,6 +541,66 @@ console.log('--- Test sendHtmlReply: References lunghe vengono foldate e limitat
     global.Session = originalSession;
     global.Gmail = originalGmail;
     global.GLOBAL_CACHE = originalGlobalCache;
+  }
+}
+
+
+console.log('--- Test sendHtmlReply: non duplica Re su prefissi localizzati ---');
+{
+  const originalUtilities = global.Utilities;
+  const originalSession = global.Session;
+  const originalGmail = global.Gmail;
+  let rawPayload = '';
+
+  try {
+    global.Utilities = Object.assign({}, originalUtilities, {
+      Charset: { UTF_8: 'utf8' },
+      base64Encode: (input) => Buffer.from(String(input || ''), 'utf8').toString('base64'),
+      base64EncodeWebSafe: (input) => Buffer.from(String(input || ''), 'utf8')
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, '')
+    });
+    global.Session = {
+      getEffectiveUser: () => ({ getEmail: () => 'parrocchia@example.org' }),
+      getActiveUser: () => ({ getEmail: () => 'parrocchia@example.org' })
+    };
+    global.Gmail = {
+      Users: {
+        Messages: {
+          send: ({ raw }) => {
+            const normalized = String(raw || '').replace(/-/g, '+').replace(/_/g, '/');
+            const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+            rawPayload = Buffer.from(padded, 'base64').toString('utf8');
+          }
+        }
+      }
+    };
+
+    service.sendHtmlReply(
+      { getThread: () => ({ getId: () => 'thread-local-prefix' }) },
+      'Risposta test',
+      {
+        subject: 'Rif: Informazioni',
+        senderEmail: 'utente@example.org',
+        senderName: 'Utente',
+        rfc2822MessageId: '<local-prefix@example.org>',
+        existingReferences: '',
+        recipientEmail: 'parrocchia@example.org',
+        recipientCc: ''
+      }
+    );
+
+    const subjectHeader = rawPayload.match(/Subject: ([^\r\n]+)/);
+    const decodedSubject = subjectHeader && subjectHeader[1].startsWith('=?UTF-8?B?')
+      ? Buffer.from(subjectHeader[1].replace(/^=\?UTF-8\?B\?/, '').replace(/\?=$/, ''), 'base64').toString('utf8')
+      : (subjectHeader ? subjectHeader[1] : '');
+    assert(decodedSubject === 'Rif: Informazioni', `un prefisso Rif: esistente non deve diventare Re: Rif: (ottenuto ${decodedSubject})`);
+  } finally {
+    global.Utilities = originalUtilities;
+    global.Session = originalSession;
+    global.Gmail = originalGmail;
   }
 }
 

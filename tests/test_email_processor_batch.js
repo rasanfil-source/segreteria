@@ -517,8 +517,8 @@ function buildProcessorForGenerationFailure(errorTypeToThrow) {
         headers: {},
         isNewsletter: false
       }),
-      addLabelToMessage: () => {},
-      addLabelToThread: () => {},
+      addLabelToMessage: (id, label) => calls.push(`addLabel:${label}`),
+      addLabelToThread: (t, label) => calls.push(`addLabel:${label}`),
       getThreadHistory: () => ''
     },
     classifier: {
@@ -529,7 +529,7 @@ function buildProcessorForGenerationFailure(errorTypeToThrow) {
       backupKey: 'backup-key',
       shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'orari' } }),
       detectEmailLanguage: () => ({ lang: 'it' }),
-      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',
       generateResponse: (_prompt, options) => {
         calls.push({ modelName: options.modelName, skipRateLimit: options.skipRateLimit });
@@ -540,7 +540,8 @@ function buildProcessorForGenerationFailure(errorTypeToThrow) {
       classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
     },
     memoryService: {
-      getMemory: () => ({})
+      getMemory: () => ({}),
+      getRecentHistory: () => []
     },
     territoryValidator: {
       validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
@@ -558,8 +559,9 @@ console.log('--- Test processThread: fallback end-to-end su INVALID_RESPONSE ---
   const labeled = new Set();
   const { processor, calls } = buildProcessorForGenerationFailure('INVALID_RESPONSE');
   const res = processor.processThread(createExternalThread('invalid-response'), 'kb valida', '', labeled, true);
-  // Con il nuovo classificatore, INVALID_RESPONSE -> UNKNOWN -> continua il loop di retry strategie
-  assert(calls.length === 4, `con INVALID_RESPONSE deve tentare tutte le 4 strategie (fatti: ${calls.length})`);
+  // Filtriamo solo le chiamate a geminiService.generateResponse (oggetti)
+  const strategyCalls = calls.filter(c => typeof c === 'object');
+  assert(strategyCalls.length === 4, `con INVALID_RESPONSE deve tentare tutte le 4 strategie (fatti: ${strategyCalls.length})`);
   assert(res.status === 'error', 'con fallback esaurito deve restituire status error');
   assert(labeled.has('m-invalid-response'), 'deve marcare il messaggio candidato come processato');
 }
@@ -569,7 +571,8 @@ console.log('--- Test processThread: fallback end-to-end su UNKNOWN ---');
   const labeled = new Set();
   const { processor, calls } = buildProcessorForGenerationFailure('UNKNOWN');
   const res = processor.processThread(createExternalThread('unknown'), 'kb valida', '', labeled, true);
-  assert(calls.length === 4, 'con UNKNOWN deve tentare tutte le 4 strategie');
+  const strategyCalls = calls.filter(c => typeof c === 'object');
+  assert(strategyCalls.length === 4, `con UNKNOWN deve tentare tutte le 4 strategie (fatti: ${strategyCalls.length})`);
   assert(res.status === 'error', 'con fallback esaurito deve restituire status error');
   assert(labeled.has('m-unknown'), 'deve marcare il messaggio candidato come processato');
 }
@@ -581,15 +584,17 @@ console.log('--- Test processThread: fallback default diversifica tier modello -
   const { processor, calls } = buildProcessorForGenerationFailure('UNKNOWN');
   const res = processor.processThread(createExternalThread('default-tier-diversification'), 'kb valida', '', labeled, true);
   assert(res.status === 'error', 'con fallback default esaurito deve restituire status error');
+  
+  const strategyCalls = calls.filter(c => typeof c === 'object');
   assert(
-    calls.map(call => call.modelName).join('|') === 'gemini-2.5-flash|gemini-2.5-flash|gemini-3.1-flash-lite|gemini-3.1-flash-lite',
-    `deve diversificare il tier fisico nel fallback default (fatto: ${calls.map(call => call.modelName).join('|')})`
+    strategyCalls.map(call => call.modelName).join('|') === 'gemini-2.5-flash|gemini-2.5-flash|gemini-3.1-flash-lite|gemini-3.1-flash-lite',
+    `deve diversificare il tier fisico nel fallback default (fatto: ${strategyCalls.map(call => call.modelName).join('|')})`
   );
   assert(
-    calls[0].skipRateLimit === false &&
-    calls[1].skipRateLimit === true &&
-    calls[2].skipRateLimit === false &&
-    calls[3].skipRateLimit === true,
+    strategyCalls[0].skipRateLimit === false &&
+    strategyCalls[1].skipRateLimit === true &&
+    strategyCalls[2].skipRateLimit === false &&
+    strategyCalls[3].skipRateLimit === true,
     'solo le strategie con chiave di riserva devono bypassare il RateLimiter'
   );
   assert(labeled.has('m-default-tier-diversification'), 'deve marcare il messaggio candidato come processato');
@@ -623,11 +628,12 @@ console.log('--- Test processThread: primaria esaurita salta fallback su primary
 
   const res = processor.processThread(createExternalThread('primary-exhausted'), 'kb valida', '', new Set(), true);
   assert(res.status === 'error', 'con fallback esaurito deve restituire status error');
+  const strategyCalls = calls.filter(c => typeof c === 'object');
   assert(
-    calls.map(call => call.modelName).join('|') === 'gemini-2.5-flash|gemini-2.5-flash|gemini-3.1-flash-lite',
-    `deve saltare il fallback lite su primary key esaurita (fatto: ${calls.map(call => call.modelName).join('|')})`
+    strategyCalls.map(call => call.modelName).join('|') === 'gemini-2.5-flash|gemini-2.5-flash|gemini-3.1-flash-lite',
+    `deve saltare il fallback lite su primary key esaurita (fatto: ${strategyCalls.map(call => call.modelName).join('|')})`
   );
-  assert(calls[2].skipRateLimit === true, 'il fallback lite residuo deve usare la chiave di riserva');
+  assert(strategyCalls[2].skipRateLimit === true, 'il fallback lite residuo deve usare la chiave di riserva');
 }
 
 console.log('--- Test processThread: generazione rispetta CONFIG.MODEL_STRATEGY.generation ---');
@@ -648,11 +654,13 @@ console.log('--- Test processThread: generazione rispetta CONFIG.MODEL_STRATEGY.
     const res = processor.processThread(createExternalThread('strategy-config'), 'kb valida', '', new Set(), true);
 
     assert(res.status === 'error', 'con fallback configurato esaurito deve restituire status error');
+    
+    const strategyCalls = calls.filter(c => typeof c === 'object');
     assert(
-      calls.map(call => call.modelName).join('|') === 'model-b|model-a|model-backup',
-      `deve rispettare l'ordine MODEL_STRATEGY.generation (fatto: ${calls.map(call => call.modelName).join('|')})`
+      strategyCalls.map(call => call.modelName).join('|') === 'model-b|model-a|model-backup',
+      `deve rispettare l'ordine MODEL_STRATEGY.generation (fatto: ${strategyCalls.map(call => call.modelName).join('|')})`
     );
-    assert(calls[0].skipRateLimit === false && calls[1].skipRateLimit === false && calls[2].skipRateLimit === true, 'solo la strategia backup deve bypassare il RateLimiter');
+    assert(strategyCalls[0].skipRateLimit === false && strategyCalls[1].skipRateLimit === false && strategyCalls[2].skipRateLimit === true, 'solo la strategia backup deve bypassare il RateLimiter');
   } finally {
     global.CONFIG.GEMINI_MODELS = originalModels;
     global.CONFIG.MODEL_STRATEGY = originalStrategy;
@@ -740,7 +748,7 @@ console.log('--- Test processThread: burst con allegato nel primo messaggio atti
       backupKey: 'backup-key',
       shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'documentazione ricevuta' } }),
       detectEmailLanguage: () => ({ lang: 'it' }),
-      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',
       generateResponse: () => ({ success: true, text: 'Risposta con contesto allegato' })
     },
@@ -749,6 +757,7 @@ console.log('--- Test processThread: burst con allegato nel primo messaggio atti
     },
     memoryService: {
       getMemory: () => ({}),
+      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -830,7 +839,7 @@ console.log('--- Test processThread: submission receipt-only non chiama Gemini g
       backupKey: 'backup-key',
       shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'documentazione ricevuta' } }),
       detectEmailLanguage: () => ({ lang: 'it' }),
-      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',
       generateResponse: () => {
         generationCalls++;
@@ -842,6 +851,7 @@ console.log('--- Test processThread: submission receipt-only non chiama Gemini g
     },
     memoryService: {
       getMemory: () => ({}),
+      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -906,7 +916,7 @@ console.log('--- Test processThread: valida e invia esattamente il testo outboun
       primaryKey: 'primary-key',
       shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'orari' } }),
       detectEmailLanguage: () => ({ lang: 'it' }),
-      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',
       generateResponse: () => ({ success: true, text: 'Risposta base' })
     },
@@ -921,6 +931,7 @@ console.log('--- Test processThread: valida e invia esattamente il testo outboun
     },
     memoryService: {
       getMemory: () => ({}),
+      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -939,6 +950,122 @@ console.log('--- Test processThread: valida e invia esattamente il testo outboun
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
 }
 
+
+
+console.log('--- Test anti-noreply: Reply-To valido esenta form web legittima ---');
+{
+  let sent = false;
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => String(raw || '').match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)?.[0] || raw,
+      extractMessageDetails: () => ({
+        subject: 'Richiesta dal form contatti',
+        body: 'Vorrei informazioni sugli orari della segreteria.',
+        senderEmail: 'cliente@example.com',
+        senderName: 'Cliente Test',
+        date: new Date('2026-05-07T10:00:00Z'),
+        headers: {},
+        isNewsletter: false,
+        originalFrom: 'WordPress <noreply@sito-parrocchia.example>',
+        hasReplyTo: true,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => { sent = true; }
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'information', topic: 'orari' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta orari' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'information', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: () => 'PROMPT'
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('reply-to-noreply'), 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', `la form con Reply-To valido non deve essere filtrata, ottenuto ${result.status}:${result.reason}`);
+  assert(sent, 'la risposta deve essere inviata al contatto effettivo');
+}
+
+console.log('--- Test prompt options: messageDate usa la data del messaggio originale ---');
+{
+  let promptOptions = null;
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Richiesta appuntamento',
+        body: 'Domani posso passare in segreteria?',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date('2026-05-07T10:00:00Z'),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'information', topic: 'appuntamento' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta appuntamento' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'information', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        promptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('message-date'), 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'il thread con data messaggio deve completarsi');
+  assert(promptOptions.messageDate === '2026-05-07', `messageDate deve derivare dalla data originale, ottenuto ${promptOptions && promptOptions.messageDate}`);
+}
 
 console.log('--- Test context routing: categoria tecnica usa set condiviso e disattiva dottrina ---');
 {
@@ -975,7 +1102,7 @@ console.log('--- Test context routing: categoria tecnica usa set condiviso e dis
       primaryKey: 'primary-key',
       shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'technical', topic: 'orari' } }),
       detectEmailLanguage: () => ({ lang: 'it' }),
-      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',
       generateResponse: () => ({ success: true, text: 'Risposta orari' })
     },
@@ -984,6 +1111,7 @@ console.log('--- Test context routing: categoria tecnica usa set condiviso e dis
     },
     memoryService: {
       getMemory: () => ({}),
+      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -1043,7 +1171,7 @@ console.log('--- Test context routing: categoria quickCheck ha priorità su euri
       primaryKey: 'primary-key',
       shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'sacrament', topic: 'battesimo' } }),
       detectEmailLanguage: () => ({ lang: 'it' }),
-      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',
       generateResponse: () => ({ success: true, text: 'Risposta sacramento' })
     },
@@ -1052,6 +1180,7 @@ console.log('--- Test context routing: categoria quickCheck ha priorità su euri
     },
     memoryService: {
       getMemory: () => ({}),
+      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -1109,7 +1238,7 @@ console.log('--- Test context routing: memoria pastorale impedisce amnesia su fo
       primaryKey: 'primary-key',
       shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'information', topic: 'orario incontro' } }),
       detectEmailLanguage: () => ({ lang: 'it' }),
-      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',
       generateResponse: () => ({ success: true, text: 'Risposta incontro' })
     },
@@ -1118,6 +1247,7 @@ console.log('--- Test context routing: memoria pastorale impedisce amnesia su fo
     },
     memoryService: {
       getMemory: () => ({ category: 'pastoral_sacrament', lastUpdated: '2026-05-10T10:00:00Z', providedInfo: [] }),
+      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -1195,7 +1325,7 @@ console.log('--- Test context routing: OCR sacramentale riattiva dottrina dopo c
       primaryKey: 'primary-key',
       shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'information', topic: 'pratica' } }),
       detectEmailLanguage: () => ({ lang: 'it' }),
-      getAdaptiveGreeting: () => 'Buongiorno',
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',
       generateResponse: () => ({ success: true, text: 'Risposta Cresima' })
     },
@@ -1204,6 +1334,7 @@ console.log('--- Test context routing: OCR sacramentale riattiva dottrina dopo c
     },
     memoryService: {
       getMemory: () => ({}),
+      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -1306,7 +1437,7 @@ console.log('--- Test processThread: errore quota invio propaga errorClass senza
         primaryKey: 'primary-key',
         shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'orari' } }),
         detectEmailLanguage: () => ({ lang: 'it' }),
-        getAdaptiveGreeting: () => 'Buongiorno',
+        getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
         getAdaptiveClosing: () => 'Cordiali saluti',
         generateResponse: () => ({ success: true, text: 'Risposta base' })
       },
@@ -1315,6 +1446,7 @@ console.log('--- Test processThread: errore quota invio propaga errorClass senza
       },
       memoryService: {
         getMemory: () => ({}),
+        getRecentHistory: () => [],
         updateMemoryAtomic: () => true
       },
       territoryValidator: {

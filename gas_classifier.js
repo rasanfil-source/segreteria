@@ -324,7 +324,7 @@ var Classifier = class Classifier {
 
     const contentLines = content.split('\n');
     let signatureStartIndex = -1;
-    for (let i = 0; i < contentLines.length; i++) {
+    for (let i = contentLines.length - 1; i >= 0; i--) {
       const line = (contentLines[i] || '').trim();
       if (!line) continue;
       if (signatureLineMarkers.some(marker => marker.test(line))) {
@@ -334,8 +334,23 @@ var Classifier = class Classifier {
     }
 
     if (signatureStartIndex !== -1) {
-      const remainingText = contentLines.slice(signatureStartIndex + 1).join(' ').trim();
-      if (remainingText.length < 150) {
+      const remainingLines = contentLines
+        .slice(signatureStartIndex + 1)
+        .map(line => (line || '').trim())
+        .filter(Boolean);
+      const remainingText = remainingLines.join(' ').trim();
+      const containsUserContentAfterSignature = /[?!]|\b(?:ah\s+dimenticavo|dimenticavo|vorrei|posso|potrei|chiedo|sapere|informazioni|prenotare|allego|inoltre)\b/i.test(remainingText);
+      const tailLooksLikeSignature = remainingLines.length === 0 || (
+        remainingLines.length <= 3 &&
+        !containsUserContentAfterSignature &&
+        remainingLines.every((line) => {
+          if (line.length > 80) return false;
+          return /^[A-Za-zÀ-ÖØ-öø-ÿ .'-]+$/.test(line) ||
+            /(?:[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|\+?\d[\d .()-]{5,}|https?:\/\/|www\.)/i.test(line);
+        })
+      );
+
+      if (tailLooksLikeSignature) {
         content = contentLines.slice(0, signatureStartIndex).join('\n').trim();
       }
     }
