@@ -596,11 +596,11 @@ function runAllTests() {
             const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it');
             return adjusted === response;
         });
-        test('Usa formulazione non minimizzante per scarti orari ampi', results, () => {
+        test('Usa formulazione generica per discrepanza oraria', results, () => {
             const response = "Buonasera.\n\nL'incontro inizierà alle ore 16:30.\n\nCordiali saluti.";
             const messageDetails = { subject: 'Incontro', body: 'Io avevo capito 20:00.' };
             const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it');
-            return adjusted.includes('in un orario differente da quanto indicato da Lei');
+            return adjusted.includes("l'incontro si svolgerà in un orario diverso rispetto a quanto da Lei indicato");
         });
         test('Non duplica nota quando è già presente il fallback "Nota: orario comunicato"', results, () => {
             const response = "Buonasera.\n\nL'incontro inizierà alle ore 16:30.\n\nNota: l'orario comunicato è diverso da quello da Lei indicato.";

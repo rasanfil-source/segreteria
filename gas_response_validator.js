@@ -984,6 +984,17 @@ var ResponseValidator = class ResponseValidator {
       };
     }
 
+    // Se il saluto è neutro (es. "Buona domenica"), saltiamo il controllo orario.
+    if (detectedTimeSlot === 'neutral') {
+      return {
+        score,
+        warnings,
+        message: 'Saluto neutro (OK indipendentemente dall\'orario)',
+        detectedGreeting,
+        detectedTimeSlot
+      };
+    }
+
     // Controlla congruenza saluto-orario
     if (detectedTimeSlot !== expectedTimeSlot) {
       const timeSlotNames = { morning: 'mattina', afternoon: 'pomeriggio', evening: 'sera' };
