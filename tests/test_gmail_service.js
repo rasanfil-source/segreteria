@@ -63,12 +63,16 @@ assert(!htmlIsolated.includes('<img src=x onerror=alert(1)>'), 'tag HTML isolato
 assert(htmlIsolated.includes('&lt;img src=x onerror=alert(1)&gt;'), 'tag HTML isolato deve essere escaped');
 
 
-console.log('--- Test _extractEmailAddress supporta apostrofo nel local-part ---');
+console.log('--- Test _extractEmailAddress supporta caratteri RFC5322 snelli nel local-part ---');
 {
   const service = new GmailService();
   assert(
     service._extractEmailAddress("D'Angelo <d'angelo@example.org>") === "d'angelo@example.org",
     'indirizzi con apostrofo nel local-part devono essere estratti'
+  );
+  assert(
+    service._extractEmailAddress('Ticket <helpdesk+parish!urgent#case=42@example.org>') === 'helpdesk+parish!urgent#case=42@example.org',
+    'indirizzi con !, # e = nel local-part devono essere estratti'
   );
 }
 
@@ -352,7 +356,7 @@ console.log('--- Test _getOptionalLabelIdByName: negative caching evita chiamate
   assert(getUserLabelByNameCalls === 1, 'negative caching deve evitare chiamata GmailApp ripetuta per label assente');
 }
 
-console.log('--- Test _getOptionalLabelIdByName: Advanced Gmail conta labels.list ---');
+console.log('--- Test _getOptionalLabelIdByName: Advanced Gmail conta labels.list e popola cache bulk ---');
 {
   const serviceWithApiLabel = new GmailService();
   const counterOps = [];
@@ -360,13 +364,18 @@ console.log('--- Test _getOptionalLabelIdByName: Advanced Gmail conta labels.lis
 
   const originalLabels = global.Gmail.Users.Labels;
   global.Gmail.Users.Labels = {
-    list: () => ({ labels: [{ id: 'Label_123', name: 'Verifica' }] })
+    list: () => ({ labels: [
+      { id: 'Label_123', name: 'Verifica' },
+      { id: 'Label_456', name: 'Da inviare' }
+    ] })
   };
 
   const labelId = serviceWithApiLabel._getOptionalLabelIdByName('Verifica');
+  const cachedSecondLabelId = serviceWithApiLabel._getOptionalLabelIdByName('Da inviare');
 
   assert(labelId === 'Label_123', 'lookup Advanced Gmail deve restituire id label trovato');
-  assert(counterOps.length === 1 && counterOps[0] === 'labels.list', 'lookup Advanced Gmail deve incrementare il counter locale labels.list');
+  assert(cachedSecondLabelId === 'Label_456', 'lookup successivo deve usare la cache bulk popolata da labels.list');
+  assert(counterOps.length === 1 && counterOps[0] === 'labels.list', 'lookup Advanced Gmail deve incrementare il counter locale labels.list una sola volta');
 
   if (typeof originalLabels === 'undefined') {
     delete global.Gmail.Users.Labels;
@@ -844,11 +853,13 @@ console.log('--- Test sendHtmlReply: fallback nativo usa from alias stabile ---'
 
 console.log('✅ Test extractMessageDetails robustezza passati');
 
-console.log('--- Test Gmail counter: non usa ScriptLock per ogni chiamata ---');
+console.log('--- Test Gmail counter: non usa ScriptLock per ogni chiamata e accorpa incrementi ---');
 {
   const originalLockService = global.LockService;
   const originalPropertiesService = global.PropertiesService;
   let storedValue = null;
+  let cacheGets = 0;
+  let cachePuts = 0;
 
   try {
     global.LockService = {
@@ -861,15 +872,25 @@ console.log('--- Test Gmail counter: non usa ScriptLock per ogni chiamata ---');
 
     const counterService = new GmailService();
     counterService._scriptCache = {
-      get: () => '41',
-      put: (_key, value) => { storedValue = value; }
+      get: () => {
+        cacheGets += 1;
+        return storedValue || '41';
+      },
+      put: (_key, value) => {
+        cachePuts += 1;
+        storedValue = value;
+      }
     };
     counterService._gmailDailyCallLimit = 100;
     counterService._gmailDailyCounterWarnAt = 90;
 
     counterService._incrementGmailCallCounterOrThrow_('messages.get');
+    counterService._incrementGmailCallCounterOrThrow_('messages.get');
+    counterService._incrementGmailCallCounterOrThrow_('messages.get');
+    counterService._incrementGmailCallCounterOrThrow_('messages.get');
 
-    assert(storedValue === '42', 'counter Gmail deve incrementare senza acquisire ScriptLock');
+    assert(storedValue === '42', 'counter Gmail deve persistere subito la baseline iniziale');
+    assert(cacheGets === 1 && cachePuts === 1, 'counter Gmail deve accorpare in memoria gli incrementi successivi alla baseline');
   } finally {
     global.LockService = originalLockService;
     global.PropertiesService = originalPropertiesService;

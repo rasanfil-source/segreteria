@@ -97,7 +97,7 @@ var GmailService = class GmailService {
         
         const key = this._getGmailCounterDateKey_();
         const flushThreshold = 5;
-        const warningBuffer = 100; // soglia di sicurezza per forzare il flush
+        const warningBuffer = 10; // soglia di sicurezza per forzare il flush
         
         // Se non abbiamo ancora un valore base in memoria, forziamo il flush immediato
         if (this._lastGmailCallCount === null || 
@@ -2300,14 +2300,14 @@ var GmailService = class GmailService {
         const angleMatch = safeFrom.match(/<([^>]+@[^>]+)>/);
         if (angleMatch) {
             const inner = String(angleMatch[1]).replace(/[\r\n]+/g, ' ').trim();
-            const innerMatch = inner.match(/^[A-Za-z0-9._%+'-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/);
+            const innerMatch = inner.match(/^[A-Za-z0-9._%+'!#=-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/);
             if (innerMatch) return innerMatch[0];
         }
 
         // Evita regex RFC5322 troppo complesse (rischio backtracking su input malevoli).
         // Header From di Gmail sono già sanificati: pattern snello e lineare è sufficiente.
         const safeFromField = safeFrom.length > 2048 ? safeFrom.substring(0, 2048) : safeFrom;
-        const emailMatch = safeFromField.match(/[A-Za-z0-9._%+'-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+        const emailMatch = safeFromField.match(/[A-Za-z0-9._%+'!#=-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
         if (emailMatch) {
             return emailMatch[0];
         }
