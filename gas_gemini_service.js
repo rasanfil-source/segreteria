@@ -1492,9 +1492,11 @@ NON aggiungere altro testo.
 Testo:
 "${text.substring(0, 1000)}"`;
 
+    const languageModelName = this.getModelNameForTask('language', 'gemini-3.1-flash-lite');
+
     try {
       const response = this._withRetry(
-        () => this._generateWithModel(prompt, this.modelName),
+        () => this._generateWithModel(prompt, languageModelName),
         'Language detection AI',
         1 // Solo 1 retry per non bloccare la pipeline
       );

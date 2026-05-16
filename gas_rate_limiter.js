@@ -532,11 +532,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
     if (alreadyAppliedToday) {
       // GAS usa runtime effimero: ricarichiamo il valore ridotto persistito a ogni esecuzione.
-      const stored = parseInt(this.props.getProperty(valueKey) || '0', 10);
       const currentCap = Number(CONFIG.MAX_EMAILS_PER_RUN);
+      if (!Number.isFinite(currentCap) || currentCap <= 1) return;
+      const stored = parseInt(this.props.getProperty(valueKey) || '0', 10);
       const canReapplyStored =
         stored > 0 &&
-        Number.isFinite(currentCap) &&
         currentCap >= stored;
 
       if (canReapplyStored && stored < currentCap) {
@@ -786,13 +786,32 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const gotLock = alreadyLocked || lock.tryLock(10000);
 
     if (!gotLock) {
-      console.warn(`⚠️ Impossibile tracciare RPD/Token per ${modelKey} (Lock Timeout)`);
+      console.warn(`⚠️ Lock timeout RPD/Token per ${modelKey}: tento incremento non protetto`);
       const rpdKey = 'rpd_' + modelKey;
+      const rpdDateKey = 'rpd_date_' + modelKey;
       const tokensKey = 'tokens_' + modelKey;
-      return {
-        rpd: parseInt(this.props.getProperty(rpdKey) || '0', 10) || 0,
-        tokens: parseInt(this.props.getProperty(tokensKey) || '0', 10) || 0
-      };
+      try {
+        const todayPacific = this._getPacificDate();
+        const lastRpdDate = this.props.getProperty(rpdDateKey) || '';
+        let currentRpd = parseInt(this.props.getProperty(rpdKey) || '0', 10) || 0;
+        let currentTokens = parseInt(this.props.getProperty(tokensKey) || '0', 10) || 0;
+        if (lastRpdDate !== todayPacific) {
+          currentRpd = 0;
+          currentTokens = 0;
+          this.props.setProperty(rpdDateKey, todayPacific);
+        }
+        const nextRpd = currentRpd + 1;
+        const nextTokens = currentTokens + (tokensUsed || 0);
+        this.props.setProperty(rpdKey, String(nextRpd));
+        this.props.setProperty(tokensKey, String(nextTokens));
+        return { rpd: nextRpd, tokens: nextTokens };
+      } catch (e) {
+        console.error(`❌ Incremento RPD/Token non protetto fallito per ${modelKey}: ${e.message}`);
+        return {
+          rpd: parseInt(this.props.getProperty(rpdKey) || '0', 10) || 0,
+          tokens: parseInt(this.props.getProperty(tokensKey) || '0', 10) || 0
+        };
+      }
     }
 
     try {

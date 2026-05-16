@@ -1345,13 +1345,14 @@ ${addressLines.join('\n\n')}
             textFromAttachments = attachmentData.textContext || '';
             attachmentSkipped = attachmentData.skipped || [];
             attachmentItems = attachmentData.items || [];
-            attachmentIntentContext = this._deriveAttachmentIntentContext_(
+            const postOcrAttachmentIntentContext = this._deriveAttachmentIntentContext_(
               messageDetails.body,
               messageDetails.subject,
               attachmentItems,
               textFromAttachments,
               'post_ocr'
             );
+            attachmentIntentContext = postOcrAttachmentIntentContext || preQuickAttachmentIntentContext;
 
             // Se post-OCR cambia la categoria (es. rilevato modulo sbattezzo), aggiorniamo il routing
             if (attachmentIntentContext && attachmentIntentContext.categoryHintSource) {
@@ -2168,6 +2169,7 @@ ${addressLines.join('\n\n')}
           runLogger.warn(`Inbox vuota da ${emptyStreak} esecuzioni consecutive. Verificare filtri Gmail/trigger in ingresso.`);
         }
 
+        this._clearBatchCheckpoint_('coda vuota');
         return { total: 0, replied: 0, filtered: 0, errors: 0, emptyStreak: emptyStreak };
       }
 
@@ -2358,6 +2360,10 @@ ${addressLines.join('\n\n')}
         duration: Date.now() - this._startTime
       });
 
+      if (!deferredBatchCheckpoint) {
+        this._clearBatchCheckpoint_('batch completato');
+      }
+
       return stats;
 
     } finally {
@@ -2377,6 +2383,22 @@ ${addressLines.join('\n\n')}
           deferredBatchCheckpoint.remainingTimeMs
         );
       }
+    }
+  }
+
+  _clearBatchCheckpoint_(reason) {
+    try {
+      const props = (typeof PropertiesService !== 'undefined' &&
+        PropertiesService &&
+        typeof PropertiesService.getScriptProperties === 'function')
+        ? PropertiesService.getScriptProperties()
+        : null;
+      if (props && typeof props.deleteProperty === 'function') {
+        props.deleteProperty('EMAIL_BATCH_CHECKPOINT');
+        console.log(`🧹 Checkpoint batch ripulito (${reason || 'batch completato'}).`);
+      }
+    } catch (e) {
+      console.warn(`⚠️ Errore pulizia checkpoint batch: ${e.message}`);
     }
   }
 
@@ -4112,11 +4134,12 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
   }
 
   _buildPrudentDocumentMismatchResponse_(detectedLanguage) {
-    const lang = String(detectedLanguage || 'it').toLowerCase();
+    const lang = this._normalizeBypassResponseLanguage_(detectedLanguage);
+    const { greeting, closing } = this._getAdaptiveBypassGreetingAndClosing_(lang);
     if (lang === 'en') {
-      return 'Good evening.\nWe have received your attachment. Before proceeding, the parish office will verify the submitted documentation.\nKind regards,\nParish Office';
+      return `${greeting}\n\nWe have received your attachment. Before proceeding, the parish office will verify the submitted documentation.\n\n${closing}\nParish Office`;
     }
-    return 'Buonasera.\nAbbiamo ricevuto la documentazione allegata. Prima di procedere, la segreteria verificherà la documentazione inviata.\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio';
+    return `${greeting}\n\nAbbiamo ricevuto la documentazione allegata. Prima di procedere, la segreteria verificherà la documentazione inviata.\n\n${closing}\nSegreteria Parrocchia Sant'Eugenio`;
   }
 
   _normalizeSponsorGuidanceLanguage_(detectedLanguage) {
@@ -4403,22 +4426,53 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
   }
 
   _buildReceiptOnlySubmissionResponse_(lang = 'it') {
-    if (lang === 'it') {
-      return `Buongiorno,
+    const normalizedLang = this._normalizeBypassResponseLanguage_(lang);
+    const { greeting, closing } = this._getAdaptiveBypassGreetingAndClosing_(normalizedLang);
+    if (normalizedLang === 'it') {
+      return `${greeting}
 
-con la presente confermiamo la ricezione della documentazione inviata.
+Con la presente confermiamo la ricezione della documentazione inviata.
 Provvederemo a prenderne visione quanto prima.
 
-Cordiali saluti,
+${closing}
 Segreteria Parrocchia Sant'Eugenio`;
     }
-    return `Hello,
+    return `${greeting}
 
-we confirm the receipt of the documentation you sent.
+We confirm the receipt of the documentation you sent.
 We will review it as soon as possible.
 
-Best regards,
+${closing}
 Parish Secretariat of Sant'Eugenio`;
+  }
+
+
+  _normalizeBypassResponseLanguage_(lang = 'it') {
+    const normalized = String(lang || 'it').substring(0, 2).toLowerCase();
+    return normalized === 'en' ? 'en' : 'it';
+  }
+
+  _getAdaptiveBypassGreetingAndClosing_(lang = 'it') {
+    const normalized = this._normalizeBypassResponseLanguage_(lang);
+    if (this.geminiService && typeof this.geminiService.getAdaptiveGreeting === 'function') {
+      try {
+        const fallbackSenderName = normalized === 'it' ? 'utente' : 'parishioner';
+        const adaptive = this.geminiService.getAdaptiveGreeting(fallbackSenderName, normalized) || {};
+        if (adaptive.greeting && adaptive.closing) {
+          return {
+            greeting: String(adaptive.greeting).trim(),
+            closing: String(adaptive.closing).trim()
+          };
+        }
+      } catch (e) {
+        console.warn(`⚠️ Saluto adattivo bypass non disponibile: ${e.message}`);
+      }
+    }
+
+    const fallback = normalized === 'en'
+      ? { greeting: 'Good day,', closing: 'Kind regards,' }
+      : { greeting: 'Buongiorno.', closing: 'Cordiali saluti,' };
+    return fallback;
   }
 
   _deriveSponsorGuidancePolicy_(subject, body, attachmentIntentContext, aiGuidanceSignal, detectedLanguage = 'it') {

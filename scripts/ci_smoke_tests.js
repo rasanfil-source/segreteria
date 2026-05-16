@@ -3318,7 +3318,9 @@ function main() {
         ['gemini: italian newsletter-like language detection', testItalianNewsletterLikeLanguageDetection],
         ['gemini: long HTML quotes stripped before language truncation', testLanguageDetectionStripsLongHtmlQuotesBeforeFinalTruncation],
         ['gemini: french/german detection refinement', testFrenchGermanDetectionRefinement],
+        ['gemini: portuguese language detection (extended)', testPortugueseLanguageDetection],
         ['classifier: backward quote scan', testClassifierBackwardQuoteScan],
+
         ['classifier: preserve content after mobile signature marker', testClassifierPreservesContentAfterMobileSignatureMarker],
         ['main: caricamento sostituzioni', testLoadResourcesReplacements],
         ['gmail office extract: Drive v3 forza mimeType target', testExtractOfficeTextDriveCreateForcesTargetMimeType],
@@ -3377,7 +3379,29 @@ function loadScriptInContext(path, sandbox = {}) {
     return context;
 }
 
+function testPortugueseLanguageDetection() {
+    console.log('--- Test: Portuguese Language Detection (Extended) ---');
+    loadScript('gas_gemini_service.js');
+
+    const gemini = createMockGeminiService(() => ({}));
+
+    // Caso 1: Caratteri speciali (cediglia e tilde)
+    const cedillaOnly = gemini.detectEmailLanguage('Recebi a confirmação da inscription.', 'Informação');
+    assert(
+        cedillaOnly.lang === 'pt',
+        `Atteso rilevamento PT con caratteri portoghesi, ottenuto "${cedillaOnly.lang}"`
+    );
+
+    // Caso 2: Keyword seguite da punteggiatura
+    const punctuation = gemini.detectEmailLanguage('Olá, gostaria de confirmar a reserva. Obrigado.', 'Pedido');
+    assert(
+        punctuation.lang === 'pt',
+        `Atteso rilevamento PT con keyword seguite da punteggiatura, ottenuto "${punctuation.lang}"`
+    );
+}
+
 function testItalianVacationDateParsing() {
+
     const context = loadScriptInContext('gas_main.js');
 
     const parsedItalian = context._parseDateValue('06/05/2026');

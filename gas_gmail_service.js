@@ -718,9 +718,10 @@ var GmailService = class GmailService {
             // Invece di iterare sui singoli messaggi via API avanzata + getThreadById.
             // safeMessageBuffer e safeMaxPages non paginano direttamente GmailApp.search,
             // ma dimensionano il pool massimo di candidati esaminabili prima del filtro thread-level.
+            const DISCOVERY_POOL_MULTIPLIER = 3;
             const discoveryPool = Math.min(500, Math.max(
                 safeTargetThreads,
-                Math.min(safeMessageBuffer * safeMaxPages, safeTargetThreads * 3)
+                Math.min(safeMessageBuffer * safeMaxPages, safeTargetThreads * DISCOVERY_POOL_MULTIPLIER)
             ));
             const nativeThreads = GmailApp.search(query, 0, discoveryPool);
             console.log(`📬 [query] GmailApp.search ha trovato ${nativeThreads.length} thread candidati`);
