@@ -723,7 +723,12 @@ var GmailService = class GmailService {
                 safeTargetThreads,
                 Math.min(safeMessageBuffer * safeMaxPages, safeTargetThreads * DISCOVERY_POOL_MULTIPLIER)
             ));
-            const nativeThreads = GmailApp.search(query, 0, discoveryPool);
+            const searchResult = GmailApp.search(query, 0, discoveryPool);
+            const nativeThreads = Array.isArray(searchResult) ? searchResult : [];
+            
+            if (!Array.isArray(searchResult)) {
+                console.warn('⚠️ GmailApp.search non ha restituito un array; considero 0 thread da elaborare.');
+            }
             console.log(`📬 [query] GmailApp.search ha trovato ${nativeThreads.length} thread candidati`);
 
             for (const thread of nativeThreads) {

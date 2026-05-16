@@ -390,6 +390,44 @@ function testPortugueseSpecialGreeting() {
     );
 }
 
+function testProcessUnreadEmailsHandlesNullSearch() {
+    loadScript('gas_gmail_service.js');
+    loadScript('gas_email_processor.js');
+
+    const originalGmailApp = global.GmailApp;
+    const originalConfig = global.CONFIG;
+    
+    try {
+        global.CONFIG = { MESSAGE_DISCOVERY_MODE: 'query' };
+        global.GmailApp = {
+            search: () => null
+        };
+
+        const processor = Object.create(EmailProcessor.prototype);
+        processor.config = { dryRun: false, searchPageSize: 50 };
+        processor.logger = { info: () => {}, warn: () => {}, debug: () => {}, error: () => {}, withMeta: () => processor.logger, withContext: () => processor.logger };
+        processor.gmailService = new GmailService();
+        processor.gmailService.logger = processor.logger;
+
+        const stats = processor.processUnreadEmails('KB_MOCK', '');
+        assert(stats.total === 0, `Atteso total=0, ottenuto ${stats.total}`);
+        assert(stats.replied === 0, `Atteso replied=0, ottenuto ${stats.replied}`);
+        assert(stats.filtered === 0, `Atteso filtered=0, ottenuto ${stats.filtered}`);
+        assert(stats.errors === 0, `Atteso errors=0, ottenuto ${stats.errors}`);
+    } finally {
+        if (typeof originalGmailApp === 'undefined') {
+            delete global.GmailApp;
+        } else {
+            global.GmailApp = originalGmailApp;
+        }
+        if (typeof originalConfig === 'undefined') {
+            delete global.CONFIG;
+        } else {
+            global.CONFIG = originalConfig;
+        }
+    }
+}
+
 function testGeminiDependencyInjectionAndMockFetch() {
     loadScript('gas_gemini_service.js');
 
@@ -3229,6 +3267,7 @@ function main() {
         ['classifyError: timeout/408/econnaborted → retryable', testClassifyErrorTimeoutSignals],
         // GeminiService
         ['portuguese special greeting', testPortugueseSpecialGreeting],
+        ['null Gmail search handling', testProcessUnreadEmailsHandlesNullSearch],
         ['gemini DI + mock fetch', testGeminiDependencyInjectionAndMockFetch],
         ['gemini contract: 429 → errore propagato', testGeminiRetryOn429],
         ['gemini contract: malformed JSON → errore parse', testGeminiMalformedJson],
