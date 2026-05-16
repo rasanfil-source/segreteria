@@ -205,7 +205,7 @@ var GmailService = class GmailService {
                 this._labelCache.set(labelName, { ...(this._labelCache.get(labelName) || {}), label: label, ts: now });
                 if (this._scriptCache) {
                     try {
-                        this._scriptCache.put(cacheKey, label.getId(), this._cacheTtlSeconds);
+                        this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
                     } catch (_) { }
                 }
                 console.log(`✓ Label '${labelName}' trovata`);
@@ -224,7 +224,7 @@ var GmailService = class GmailService {
                 this._labelCache.set(labelName, { label: existingLabel, ts: now });
                 if (this._scriptCache) {
                     try {
-                        this._scriptCache.put(cacheKey, existingLabel.getId(), this._cacheTtlSeconds);
+                        this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
                     } catch (_) { }
                 }
                 console.log(`✓ Label '${labelName}' recuperata dopo collisione di creazione`);
@@ -236,7 +236,7 @@ var GmailService = class GmailService {
         this._labelCache.set(labelName, { ...(this._labelCache.get(labelName) || {}), label: newLabel, ts: now });
         if (this._scriptCache) {
             try {
-                this._scriptCache.put(cacheKey, newLabel.getId(), this._cacheTtlSeconds);
+                this._scriptCache.put(cacheKey, '1', this._cacheTtlSeconds);
             } catch (_) { }
         }
         console.log(`✓ Creata nuova label: ${labelName}`);
@@ -810,17 +810,17 @@ var GmailService = class GmailService {
         );
         if (!hasGmailUsersList) {
             try {
-                // GmailApp.getUserLabelByName restituisce un GmailLabel che NON possiede un metodo getId().
-                // Passare getName() come fallback ID causerà il fallimento dell'API Avanzata.
-                // Interroghiamo comunque GmailApp una sola volta per cache-are anche il risultato negativo.
+                // GmailApp.getUserLabelByName restituisce un GmailLabel utilizzabile con GmailApp,
+                // ma non espone l'ID interno richiesto dalle Gmail Advanced API
+                // (Gmail.Users.Messages.* vuole valori come "Label_123", non il display name).
+                // Verifichiamo quindi solo l'esistenza per cache-are il lookup ed evitiamo di usare
+                // getName() come falso ID: null forza i fallback GmailApp/thread-level sicuri.
                 const nativeLabel = (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getUserLabelByName === 'function')
                     ? GmailApp.getUserLabelByName(raw)
                     : null;
-                const nativeId = nativeLabel && typeof nativeLabel.getId === 'function'
-                    ? nativeLabel.getId()
-                    : null;
-                this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: nativeId || null, ts: now });
-                return nativeId || null;
+                const fallbackLabelId = null;
+                this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: fallbackLabelId, existsInGmailApp: !!nativeLabel, ts: now });
+                return fallbackLabelId;
             } catch (e) {
                 console.warn(`⚠️ _getOptionalLabelIdByName fallback GmailApp fallito per ${raw}, non metto in cache: ${e.message}`);
                 return null;

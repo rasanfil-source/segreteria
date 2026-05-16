@@ -336,7 +336,34 @@ console.log('--- Test _chunkBase64: linee max 76 caratteri RFC 2045 ---');
   assert(lines.join('') === base64, 'Chunk base64 non deve alterare il contenuto');
 }
 
+
+console.log('--- Test getOrCreateLabel: cache persistente non usa GmailLabel.getId ---');
+{
+  const originalGmailApp = global.GmailApp;
+  const putCalls = [];
+  global.GmailApp = {
+    getUserLabels: () => [],
+    getUserLabelByName: () => null,
+    createLabel: (name) => ({ getName: () => name })
+  };
+
+  const labelCacheService = new GmailService();
+  labelCacheService._scriptCache = {
+    get: () => null,
+    put: (key, value, ttl) => putCalls.push({ key, value, ttl }),
+    remove: () => {}
+  };
+
+  const label = labelCacheService.getOrCreateLabel('IA');
+  assert(label && label.getName() === 'IA', 'getOrCreateLabel deve restituire la label creata anche senza getId');
+  assert(putCalls.length === 1, 'getOrCreateLabel deve valorizzare la cache persistente di esistenza');
+  assert(putCalls[0].value === '1', 'la cache persistente deve usare un sentinel di esistenza, non un ID API inesistente');
+
+  global.GmailApp = originalGmailApp;
+}
+
 console.log('--- Test _getOptionalLabelIdByName: negative caching evita chiamate ripetute ---');
+
 {
   const serviceWithNegativeCache = new GmailService();
   serviceWithNegativeCache._cacheTTL = 60 * 1000;
@@ -356,7 +383,36 @@ console.log('--- Test _getOptionalLabelIdByName: negative caching evita chiamate
   assert(getUserLabelByNameCalls === 1, 'negative caching deve evitare chiamata GmailApp ripetuta per label assente');
 }
 
+
+console.log('--- Test _getOptionalLabelIdByName: fallback GmailApp non usa getName come falso ID Advanced ---');
+{
+  const serviceWithNativeLabel = new GmailService();
+  serviceWithNativeLabel._cacheTTL = 60 * 1000;
+  let getUserLabelByNameCalls = 0;
+
+  const originalGmail = global.Gmail;
+  global.Gmail = undefined;
+  global.GmailApp = {
+    getUserLabelByName: () => {
+      getUserLabelByNameCalls += 1;
+      return { getName: () => 'Verifica' };
+    }
+  };
+
+  const first = serviceWithNativeLabel._getOptionalLabelIdByName('Verifica');
+  const second = serviceWithNativeLabel._getOptionalLabelIdByName('Verifica');
+  const cachedEntry = serviceWithNativeLabel._labelCache.get('Verifica');
+
+  assert(first === null && second === null, 'fallback GmailApp deve restituire null perché non conosce Label_123');
+  assert(cachedEntry && cachedEntry.labelId === null, 'cache fallback GmailApp deve contenere labelId null, non il display name');
+  assert(cachedEntry && cachedEntry.existsInGmailApp === true, 'cache fallback GmailApp deve registrare solo esistenza nativa');
+  assert(getUserLabelByNameCalls === 1, 'cache fallback GmailApp deve evitare lookup ripetuti');
+
+  global.Gmail = originalGmail;
+}
+
 console.log('--- Test _getOptionalLabelIdByName: Advanced Gmail conta labels.list e popola cache bulk ---');
+
 {
   const serviceWithApiLabel = new GmailService();
   const counterOps = [];

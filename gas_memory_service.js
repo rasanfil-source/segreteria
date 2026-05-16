@@ -798,7 +798,7 @@ var MemoryService = class MemoryService {
       if (!lockAcquired) {
         throw new Error(`Lock del foglio non acquisito (timeout ${timeoutMs}ms): ${e.message}`);
       }
-      throw new Error(`Errore durante scrittura foglio (lock acquisito): ${e.message}`);
+      throw e;
     } finally {
       if (lockAcquired) {
         try {

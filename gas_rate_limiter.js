@@ -533,13 +533,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     if (alreadyAppliedToday) {
       // GAS usa runtime effimero: ricarichiamo il valore ridotto persistito a ogni esecuzione.
       const stored = parseInt(this.props.getProperty(valueKey) || '0', 10);
-      const originalAtTrigger = parseInt(this.props.getProperty(originalKey) || '0', 10);
       const currentCap = Number(CONFIG.MAX_EMAILS_PER_RUN);
       const canReapplyStored =
         stored > 0 &&
         Number.isFinite(currentCap) &&
-        originalAtTrigger > 0 &&
-        currentCap <= originalAtTrigger;
+        currentCap >= stored;
 
       if (canReapplyStored && stored < currentCap) {
         console.warn(`🚨 Safety Valve (persistita): MAX_EMAILS_PER_RUN → ${stored}`);

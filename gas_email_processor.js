@@ -575,7 +575,7 @@ var EmailProcessor = class EmailProcessor {
           
           if (italianPattern.test(subjectOnly)) {
             console.log(`   ⊖ Pre-check locale: italiano rilevato nel solo oggetto ("${subjectOnly.substring(0, 20)}...") → skip anticipato`);
-            this._markMessagesAsSkipped(unlabeledUnread, this.config.skipLabelName, skippedMessageIds);
+            this._markMessagesAsSkipped(externalUnread, this.config.skipLabelName, skippedMessageIds);
             result.status = 'skipped';
             result.reason = 'italian_skipped_foreign_only_precheck';
             return result;

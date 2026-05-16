@@ -676,7 +676,55 @@ console.log('--- Test processThread: cache miss rispetta label terminali da meta
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }
 
+
+console.log('--- Test foreign_only pre-check: marca skip solo sui messaggi esterni ---');
+{
+  const originalSession = global.Session;
+  const originalGmailApp = global.GmailApp;
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  const labels = [];
+
+  global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
+  };
+  global.GmailApp = {
+    getAliases: () => ['segreteria@example.org']
+  };
+  global.GLOBAL_CACHE.languageMode = 'foreign_only';
+
+  const precheckProcessor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: extractEmailAddress,
+      _getOptionalLabelIdByName: () => null,
+      addLabelToMessage: (id, label) => labels.push({ id, label })
+    }
+  });
+
+  const thread = {
+    getId: () => 'thread-foreign-only-precheck-external-only',
+    getLabels: () => [],
+    getMessages: () => [
+      createMessage('m-internal', 'Segreteria <segreteria@example.org>', 'Promemoria interno', '', new Date('2026-04-01T09:00:00Z')),
+      createMessage('m-external', 'Utente <utente@example.org>', 'Richiesta appuntamento', '', new Date('2026-04-01T10:00:00Z'))
+    ]
+  };
+
+  const skippedIds = new Set();
+  const result = precheckProcessor.processThread(thread, '', [], new Set(), true, skippedIds);
+
+  assert(result.status === 'skipped', 'il pre-check foreign_only deve saltare il thread italiano subject-only');
+  assert(result.reason === 'italian_skipped_foreign_only_precheck', 'deve usare la reason del pre-check locale');
+  assert(labels.some(entry => entry.id === 'm-external' && entry.label === '·'), 'il messaggio esterno deve ricevere la label skip');
+  assert(!labels.some(entry => entry.id === 'm-internal'), 'il messaggio interno non deve ricevere la label skip');
+  assert(skippedIds.has('m-external') && !skippedIds.has('m-internal'), 'la cache skip deve includere solo il messaggio esterno');
+
+  global.Session = originalSession;
+  global.GmailApp = originalGmailApp;
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
 console.log('✅ Test filtri EmailProcessor passati');
+
 
 console.log('--- Test _trackEmptyInboxStreak (mantiene streak se CacheService fallisce dopo lettura) ---');
 {
