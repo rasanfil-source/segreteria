@@ -1157,7 +1157,7 @@ Non mostrare mai entrambi i set di orari.`;
       : '';
 
     return `══════════════════════════════════════════════════════════════════════
-🗓️ DATA ODIERNA: ${currentDate} (${humanDate})${messageDateLine}${timeLine}
+🗓️ DATA ODIERNA: ${currentDate} (${humanDate})${messageDateLine}${timeLine}${salutationGuardLine}
 ══════════════════════════════════════════════════════════════════════
 
 ⚠️ REGOLE TEMPORALI E DI FORMATO CRITICHE - PENSA COME UN UMANO:
