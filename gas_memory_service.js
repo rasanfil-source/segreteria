@@ -734,7 +734,7 @@ var MemoryService = class MemoryService {
     // getMaxRows() includerebbe migliaia di righe vuote, rallentando la ricerca TextFinder.
     const maxRows = this._sheet.getLastRow();
 
-    // Evita errore out-of-bounds se il foglio contiene solo l'intestazione.
+    // Evita errore fuori limite se il foglio contiene solo l'intestazione.
     if (maxRows < 2) return null;
 
     // Limita il range alla colonna A per la ricerca del Thread ID

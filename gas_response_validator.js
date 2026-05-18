@@ -403,7 +403,7 @@ var ResponseValidator = class ResponseValidator {
       score *= 0.85;
     } else if (length > this.WARNING_MAX_LENGTH) {
       // Degradazione progressiva invece di azzeramento diretto del punteggio.
-      // 4500-6000 → warning (0.85); >6000 → errore bloccante.
+      // 4500-6000 → avviso (0,85); >6000 → errore bloccante.
       const HARD_MAX_LENGTH = 6000;
       if (length > HARD_MAX_LENGTH) {
         errors.push(`Risposta eccessivamente lunga (${length} caratteri, limite assoluto ${HARD_MAX_LENGTH})`);
@@ -570,7 +570,7 @@ var ResponseValidator = class ResponseValidator {
     const bracketPlaceholderPattern = /\[[A-Z][A-Z0-9_\s-]{1,30}\]/g;
     const bracketPlaceholders = response.match(bracketPlaceholderPattern) || [];
     if (bracketPlaceholders.length > 0) {
-      foundPlaceholders.push(...bracketPlaceholders); // no nesting
+      foundPlaceholders.push(...bracketPlaceholders); // nessuna nidificazione
     }
 
     if (foundPlaceholders.length > 0) {

@@ -35,7 +35,7 @@ var CONFIG = {
     maxRetries: 1,
     fallbackOnError: true
   },
-  // === Retry Intelligente Post-Validazione ===
+  // === Riprova Intelligente Post-Validazione ===
   INTELLIGENT_RETRY: {
     enabled: true,           // Abilita retry LLM su errori strutturali
     maxRetries: 1,           // Mai più di 1: budget GAS limitato
@@ -56,7 +56,7 @@ var CONFIG = {
     VALIDATION_ERROR_LABEL: 'Verifica',  // Label per risposte da rivedere
     SKIP_LABEL_NAME: '·',              // Label per email italiane saltate in modalità foreign_only
     DOCUMENT_CONSISTENCY_CHECK_ENABLED: true, // Verifica coerenza tra email e allegati
-    // Ridotto a 2 per supportare strategia "Cross-Key Quality First"
+    // Ridotto a 2 per supportare la strategia "Cross-Key Quality First"
     // Fino a 4 chiamate API per email → batch ridotto per prevenire timeout GAS (6 min)
     MAX_EMAILS_PER_RUN: 2,
     SAFETY_VALVE_THRESHOLD: 0.8,       // Riduce dinamicamente il batch quando RPD supera l'80%
@@ -95,7 +95,7 @@ var CONFIG = {
         maxCharsWhenKbTruncated: 1500    // Riduzione allegati se KB è troncata
     },
     OCR_ORPHAN_MAX_AGE_HOURS: 6,         // Età massima file OCR temporanei prima del cleanup
-    OCR_CLEANUP_MAX_RUNTIME_MS: 8000,    // Limite durata cleanup file OCR orfani
+    OCR_CLEANUP_MAX_RUNTIME_MS: 8000,    // File di pulizia con durata limitata OCR orfani
 
     // === Token per tipo allegato (stima multimodale) ===
     ATTACHMENT_TOKEN_ESTIMATE: {
@@ -139,20 +139,20 @@ var CONFIG = {
     MEMORY_LOCK_TTL: 30,                 // Lock TTL in secondi per MemoryService (>= timeout lock Sheet)
     SHEET_WRITE_LOCK_TIMEOUT_MS: 10000,  // Timeout attesa ScriptLock prima di scrivere su Sheet
 
-    // === Retry API Sheets ===
+    // === Riprova con i fogli API ===
     SHEETS_RETRY_MAX: 3,                 // Tentativi massimi
-    SHEETS_RETRY_BACKOFF_MS: 1000,       // Backoff iniziale (raddoppia ad ogni retry)
+    SHEETS_RETRY_BACKOFF_MS: 1000,       // Backoff iniziale (raddoppia ad ogni tentativo)
 
     // === Modalità ===
     DRY_RUN: false,                      // True per test senza invio email
     FORCE_RELOAD: false,                 // Forza ricaricamento cache KB
-    USE_RATE_LIMITER: true,              // Rate limiter intelligente abilitato
+    USE_RATE_LIMITER: true,              // Limitatore di velocità intelligente abilitato
 
     // === Limiti Token (Prompt Engine) ===
     CONTEXT_WINDOW_TOKENS: 1048576,      // Hard cap operativo condiviso dai modelli Flash configurati
     MAX_SAFE_TOKENS: 120000,             // Cap operativo locale sotto 1M per evitare payload GAS ingestibili
     MAX_SAFE_PROMPT_CHARS: 100000,       // Limite caratteri prompt prima del troncamento di sicurezza
-    KB_TOKEN_BUDGET_RATIO: 0.5,          // Percentuale budget KB rispetto a max token
+    KB_TOKEN_BUDGET_RATIO: 0.5,          // Budget percentuale KB rispetto a un token massimo
     KB_HALLUCINATION_RISK_THRESHOLD: 8000, // Soglia chars KB oltre cui scatta hallucination_risk
     MAX_PROVIDED_INFO_JSON_CHARS: 45000, // Limite serializzazione memoria providedInfo per riga Sheet
     PROMPT_ENGINE: {

@@ -28,7 +28,7 @@ var GmailService = class GmailService {
 
         // Mappa MIME types Office → tipo Google Workspace per conversione nativa
         this._officeMimeMap = {
-            // Word → Google Docs
+            // Parola → Documenti Google
             'application/msword': 'application/vnd.google-apps.document',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'application/vnd.google-apps.document',
             // Excel → Google Sheets
@@ -1175,7 +1175,7 @@ var GmailService = class GmailService {
                 continue;
             }
 
-            // Check Nome File Generico (Segnale Debole)
+            // Controlla Nome File Generico (Segnale Debole)
             const fileNameLower = attachmentName.toLowerCase();
             const suspiciousNames = ["img_", "dsc_", "photo", "whatsapp image", "image", "screenshot"];
             const isGenericName = suspiciousNames.some(name => fileNameLower.includes(name));
@@ -1900,7 +1900,7 @@ var GmailService = class GmailService {
 
             // Estrazione testo in base al tipo Google Workspace
             if (googleMimeType === 'application/vnd.google-apps.document') {
-                // Word → Google Docs
+                // Parola → Documenti Google
                 return openedDoc.getBody().getText();
             }
 
@@ -1913,7 +1913,7 @@ var GmailService = class GmailService {
                     if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) break;
                     if (exceededBudget()) break;
                     const sheet = sheets[s];
-                    const lastRow = Math.min(sheet.getLastRow(), 100); // Limita a 100 righe
+                    const lastRow = Math.min(sheet.getLastRow(), 100); // Limite a 100 righe
                     const lastCol = Math.min(sheet.getLastColumn(), 20); // Limita a 20 colonne
                     if (lastRow === 0 || lastCol === 0) continue;
                     if (maxSheets > 1) {
@@ -1932,7 +1932,7 @@ var GmailService = class GmailService {
                 // PowerPoint → Google Slides: estrae testo da ogni diapositiva
                 const slides = openedDoc.getSlides();
                 const parts = [];
-                const maxSlides = Math.min(slides.length, 10); // Limita a 10 diapositive
+                const maxSlides = Math.min(slides.length, 10); // Limita a 10 diapositivi
                 for (let i = 0; i < maxSlides; i++) {
                     if (typeof settings.shouldContinue === 'function' && !settings.shouldContinue()) break;
                     if (exceededBudget()) break;
@@ -2640,7 +2640,7 @@ var GmailService = class GmailService {
             }
         };
 
-        // From stabile: priorità all'indirizzo di ricezione solo se autorizzato
+        // Da stabile: priorità all'indirizzo di ricezione solo se autorizzato
         // (utente effettivo/attivo o alias configurato in Gmail).
         const recipientFallbackEmail = this._extractEmailAddress(messageDetails.recipientEmail || '');
         const effectiveUser = safeSessionEmail('getEffectiveUser');
@@ -3068,7 +3068,7 @@ var GmailService = class GmailService {
         const encodedWordPrefix = '=?UTF-8?B?';
         const encodedWordSuffix = '?=';
         const maxLen = 75; // Limite RFC 2047 per singolo encoded-word
-        const maxB64Len = maxLen - 12; // overhead encoded-word: 10 (prefix) + 2 (suffix)
+        const maxB64Len = maxLen - 12; // parola codificata in testa: 10 (prefisso) + 2 (suffisso)
         const maxBytesPerWord = Math.floor(maxB64Len / 4) * 3;
 
         const words = [];
@@ -3113,8 +3113,8 @@ var GmailService = class GmailService {
             if (candidate.length <= limit) {
                 currentLine = candidate;
             } else if (currentLine === headerPrefix) {
-                // Fold immediately after the field name when the first encoded-word
-                // would exceed the RFC 2822 recommended first-line length.
+                // Piega immediatamente dopo il nome del campo quando si trova la prima parola codificata
+                // supererebbe la lunghezza della prima riga consigliata RFC 2822.
                 foldedLines.push(headerPrefix.trimEnd());
                 currentLine = ' ' + word; // Continuation line
             } else {
@@ -3398,7 +3398,7 @@ function sanitizeUrl(url) {
     decoded = decoded.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
     let normalized = decoded.toLowerCase().trim();
 
-    // Compatibilità UX: URL legittimi senza schema (es. "www.parrocchia.it")
+    // Compatibilità UX: URL legittimo senza schema (es. "www.parrocchia.it")
     // vengono normalizzati in https://... prima della whitelist protocolli.
     if (/^www\.[a-z0-9-]+(\.[a-z0-9-]+)+([/?#].*)?$/i.test(normalized)) {
         decoded = `https://${decoded.trim()}`;
@@ -3737,7 +3737,7 @@ function markdownToHtml(text) {
 
 
     // 5. Liste markdown (bullet e numerate) -> <ul>/ <ol> + <li>
-    // Liste puntate (- item  oppure  * item all'inizio riga)
+    // Liste puntate (- voce oppure * voce all'inizio riga)
     // Raggruppa righe consecutive con lo stesso prefisso in un unico <ul>
     html = html.replace(/((?:^[ \t]*[-*][ \t]+.*\n?)+)/gm, (block) => {
         const items = block

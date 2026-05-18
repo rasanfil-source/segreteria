@@ -439,7 +439,7 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
       for (const thread of threads) {
         try {
           // Verifichiamo a livello messaggio: un thread può contenere vecchie
-          // risposte già terminali e nuovi follow-up ancora processabili.
+          // risposte già terminali e nuovi follow-up ancora elaborabili.
           const messages = thread && typeof thread.getMessages === 'function' ? thread.getMessages() : [];
           const hasInternalStale = Array.isArray(messages) && messages.some(isProcessableStaleUnread);
 
@@ -825,10 +825,10 @@ function _isControlConfigEditRange_(sheetName, range) {
   return _rangesIntersect_(range, 2, 2, 1, 1)       // B2: interruttore
     || _rangesIntersect_(range, 2, 6, 1, 1)        // F2: modalità lingua
     || _rangesIntersect_(range, 5, 2, 3, 4)        // B5:E7: ferie/assenze
-    || _rangesIntersect_(range, 6, 1, 5, 3)        // A6:C10: layout ferie legacy
+    || _rangesIntersect_(range, 6, 1, 5, 3)        // A6:C10: layout eredità ferie
     || _rangesIntersect_(range, 10, 1, 7, 4)       // A10:D16: fasce sospensione
     || _rangesIntersect_(range, 13, 5, 5000, 2)    // E13:F: filtri anti-spam
-    || _rangesIntersect_(range, 19, 1, 1, 1);      // A19: validationReviewEmail
+    || _rangesIntersect_(range, 19, 1, 1, 1);      // A19: validazioneReviewEmail
 }
 
 function _isResourceInvalidationEdit_(sheetName, range, cfg) {
@@ -1144,7 +1144,7 @@ function _invalidateResourceCacheStorage(cache) {
  */
 function clearKnowledgeCache() {
   // ⚠️ Comando operativo ufficiale: resetta RAM + ScriptCache in modo coerente.
-  // Evitare reset "parziali" altrove: causano stati fantasma e reload intermittenti.
+  // Evitare reset "parziali" altrove: causano stati fantasma e ricarica intermittenti.
   GLOBAL_CACHE.loaded = false;
   GLOBAL_CACHE.lastLoadedAt = 0;
   GLOBAL_CACHE.knowledgeBase = '';
@@ -1345,7 +1345,7 @@ function _loadAdvancedConfig(ss) {
   const sheet = ss.getSheetByName('Controllo');
   if (!sheet) {
     // null = sheet assente (distinto da {}: sheet presente ma nessuna regola impostata)
-    // isInSuspensionTime userà SUSPENSION_HOURS como fallback sicuro.
+    // isInSuspensionTime utilizzerà SUSPENSION_HOURS come fallback sicuro.
     config.suspensionRules = null;
     const staticDomains = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_DOMAINS))
       ? CONFIG.IGNORE_DOMAINS
@@ -1807,7 +1807,7 @@ function main() {
           stack: error && error.stack ? error.stack : null
         });
       } catch (logError) {
-        // Fallback silente
+        // Ripiego silenzioso
       }
     }
   } finally {

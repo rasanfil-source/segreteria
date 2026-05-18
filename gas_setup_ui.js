@@ -434,7 +434,7 @@ function applyControlloInputConstraints_(sheet) {
     'Inserisci una parola/frase da escludere.'
   );
 
-  // Protezioni Warning Only sulle etichette
+  // Protezioni Avvertenza Solo sulle etichette
   // Nota: E11:F11 è usato come etichetta modificabile e viene escluso volutamente dagli avvisi.
   protectRangesWithWarning_(sheet, ['A1:F1', 'A3:A16', 'C4:D4', 'C5:C7', 'E4:F10', 'E12:F12']);
 }
@@ -451,7 +451,7 @@ function protectRangesWithWarning_(sheet, rangesA1) {
   rangesA1.forEach(a1 => {
     const range = sheet.getRange(a1);
 
-    // Pulisce eventuali protezioni precedenti sullo stesso A1.
+    // Pulire eventuali protezioni precedenti sullo stesso A1.
     existingProtections.forEach(protection => {
       const protectedRange = protection.getRange();
       if (protectedRange && protectedRange.getA1Notation() === range.getA1Notation()) {

@@ -52,7 +52,7 @@ var GeminiService = class GeminiService {
       this.logger.info('Chiave di Riserva configurata');
     }
 
-    // Configurazione retry
+    // Nuovo tentativo di configurazione
     const backoffConfig = this.config.GEMINI_BACKOFF || {};
     this.maxRetries = Number(backoffConfig.maxRetries) > 0 ? Number(backoffConfig.maxRetries) : 2;
     this.retryDelay = Number(backoffConfig.retryDelayMs) > 0 ? Number(backoffConfig.retryDelayMs) : 4000;
@@ -125,7 +125,7 @@ var GeminiService = class GeminiService {
   }
 
   // ========================================================================
-  // HELPER RATE LIMITER
+  // LIMITATORE DELLA VELOCITÀ DI AIUTO
   // ========================================================================
 
   /**
@@ -223,7 +223,7 @@ var GeminiService = class GeminiService {
 
     // Se la primaria risponde 429 e abbiamo una chiave di riserva,
     // segnaliamo esplicitamente al chiamante di passare subito al fallback
-    // senza consumare retry inutili sulla stessa chiave.
+    // senza consumare riprovare inutili sulla stessa chiave.
     if (responseCode === 429 && activeKey === this.primaryKey && this.backupKey) {
       this.isPrimaryExhausted = true;
       throw new Error('PRIMARY_QUOTA_EXHAUSTED');
@@ -972,7 +972,7 @@ Output JSON:
       console.warn('⚠️ Chiave primaria non utilizzabile (errore rete/quota). Tentativo con chiave di riserva...');
       activeKey = this.backupKey;
       try {
-        // Avoid an immediate two-request burst when primary-key failure is transient.
+        // Evita un burst immediato di due richieste quando l'errore della chiave primaria è temporaneo.
         Utilities.sleep(1500);
         response = executeFetch(activeKey);
         responseCode = response.getResponseCode();
@@ -1109,7 +1109,7 @@ Output JSON:
 
 
   // ========================================================================
-  // WRAPPER RETRY
+  // TENTATIVO DEL WRAPPER
   // ========================================================================
 
   /**
@@ -1150,7 +1150,7 @@ Output JSON:
         const isRetryable = classified.retryable && !(error && error._nonRetryable);
 
         if (!isRetryable) {
-          // Errore fatale: interrompe immediatamente senza consumare altri retry
+          // Errore fatale: interrompere immediatamente senza consumare altri tentativi
           throw error;
         }
 
@@ -1574,9 +1574,9 @@ Testo:
   // ===================================
 
   /**
-   * Ottieni saluto e chiusura adattati a lingua, ora E giorni speciali
-   * Supporta calendario liturgico completo
-   */
+ * Ottieni un saluto e chiusura adattati alla lingua, ora e giorni speciali
+ * Supporta calendario liturgico completo
+ */
   getAdaptiveGreeting(senderName, language = 'it') {
     const now = new Date();
     let hour = now.getHours();
@@ -1603,7 +1603,7 @@ Testo:
     if (specialGreeting) {
       greeting = specialGreeting;
     } else {
-      // Alternativa a saluto standard basato sull'ora
+      // Alternativa un saluto standard basato sull'ora
       const isNightTime = (hour >= 0 && hour < 5) || (hour === 23 && minutes >= 30);
 
       if (language === 'it') {
@@ -1838,7 +1838,7 @@ Testo:
           return { year: year, month: month, day: day };
         }
       } catch (e) {
-        // fallback locale sotto.
+        // locale di riserva sotto.
       }
     }
     return {
@@ -1860,7 +1860,7 @@ Testo:
         const isoDay = parseInt(Utilities.formatDate(safeDate, 'Europe/Rome', 'u'), 10);
         if (!isNaN(isoDay) && isoDay >= 1 && isoDay <= 7) return isoDay % 7;
       } catch (e) {
-        // fallback locale sotto.
+        // locale di riserva sotto.
       }
     }
     return safeDate.getDay();
@@ -1914,7 +1914,7 @@ Testo:
   shouldRespondToEmail(emailContent, emailSubject, precomputedDetection = null, intentContext = null) {
     const detection = precomputedDetection || this.detectEmailLanguage(emailContent, emailSubject);
 
-    // RATE LIMITER PATH
+    // PERCORSO LIMITATORE DI VELOCITÀ
     if (this.useRateLimiter) {
       try {
         const result = this.rateLimiter.executeRequest(

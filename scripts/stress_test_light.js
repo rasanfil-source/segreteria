@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Stress test lightweight: simula 500-1000 email e verifica tempi/lock/quota locale.
+ * Stress test leggero: simula 500-1000 email e verifica tempi/lock/quota locale.
  */
 const total = Number(process.argv[2] || 500);
 const max = Math.min(1000, Math.max(100, total));

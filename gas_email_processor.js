@@ -496,7 +496,7 @@ var EmailProcessor = class EmailProcessor {
         return result;
       }
 
-      // GUARDRAIL (critico): rispondiamo solo a mittenti esterni.
+      // GUARDRAIL (critico): rispondiamo solo a guanti esterni.
       // I messaggi interni (noi/alias) vengono esclusi per evitare loop e risposte non dovute.
       // Se non ci sono messaggi da esterni → skip
       if (externalUnread.length === 0) {
@@ -556,7 +556,7 @@ var EmailProcessor = class EmailProcessor {
         console.log('   ℹ️ Ultimo messaggio del thread interno, ma candidato esterno non letto: continuo l\'elaborazione');
       }
 
-      // --- PORTA 0.5: Pre-check lingua locale sul soggetto (Zero API Cost) ---
+      // --- PORTA 0.5: Pre-check lingua locale sul soggetto (Costo API Zero) ---
       if (languageMode === 'foreign_only') {
         const subjectOnly = (candidate.getSubject() || '');
         let bodyPreview = '';
@@ -568,7 +568,7 @@ var EmailProcessor = class EmailProcessor {
           console.warn(`⚠️ Impossibile leggere body per pre-check lingua: ${bodyError.message}`);
         }
         if (subjectOnly.trim() !== '' && bodyPreview.trim() === '') {
-          // Pre-check: solo termini inequivocabilmente italiani.
+          // Pre-controllo: solo termini inequivocabilmente italiani.
           // Escluse deliberatamente parole corte polisemiche (in, per, la, di, da, con, il, lo,
           // gli, le, un, uno, una, su, tra, fra) che causano falsi positivi su lingue straniere.
           const italianPattern = /(?:^|[^\p{L}\p{N}_])(appuntamento|fissare|prenotare|disponibilit[àa]|orari[oa]?|incontro|prenotazione|informazioni|chiedere|sapere|vorrei|come\s+faccio|requisiti|battesimo|cresima|confessione|grazie|salve|buongiorno|buonasera|preventivo|parrocchia|segreteria|messa|messe)(?=$|[^\p{L}\p{N}_])/iu;
@@ -615,7 +615,7 @@ var EmailProcessor = class EmailProcessor {
 
                 return Utilities.formatDate(details.date, this._getCachedTimeZone(), 'dd/MM/yyyy HH:mm');
               } catch (e) {
-                // fallback sotto
+                // ripiego sotto
               }
             }
             return details.date.toISOString().slice(0, 16).replace('T', ' ');
@@ -633,7 +633,7 @@ var EmailProcessor = class EmailProcessor {
       }
 
       // ====================================================================================================
-      // STEP 1.5: FAIL-FAST LINGUA (a costo zero)
+      // STEP 1.5: LINGUA FAIL-FAST (a costo zero)
       // ====================================================================================================
       const bodyForLanguageDetection = (this.classifier && typeof this.classifier._extractMainContent === 'function')
         ? this.classifier._extractMainContent(messageDetails.body || '')
@@ -691,7 +691,7 @@ var EmailProcessor = class EmailProcessor {
       }
 
       // ====================================================================
-      // STEP 0.2: AUTO-REPLY / OUT-OF-OFFICE DETECTION
+      // PASSO 0.2: RISPOSTA AUTOMATICA / RILEVAMENTO FUORI SEDE
       // ====================================================================
       const headers = messageDetails.headers || {};
       // Lookup case-insensitive: i server SMTP possono restituire header in casing arbitrario
@@ -1668,7 +1668,7 @@ ${addressLines.join('\n\n')}
       );
 
       // ====================================================================
-      // STEP 9: VALIDAZIONE + RETRY INTELLIGENTE
+      // PASSO 9: VALIDAZIONE + RETRY INTELLIGENTE
       // ====================================================================
       let finalResponse = this._prepareOutboundResponse(response, messageDetails, detectedLanguage);
       let validation = null;
@@ -1863,7 +1863,7 @@ ${addressLines.join('\n\n')}
         this._commitSendTransaction(candidate.getId(), sendTxn);
         replySent = true;
 
-        // Cleanup previous state labels on successful reply
+        // Pulisci le etichette dello stato precedente in caso di risposta positiva
         try {
           this.gmailService.removeLabelFromThread(thread, this.config.errorLabelName);
           if (!shouldLabelForReview) {
@@ -2314,7 +2314,7 @@ ${addressLines.join('\n\n')}
 
         if (result && result.error && String(result.error).includes('GMAIL_DAILY_CALL_LIMIT_REACHED')) {
           runLogger.warn('⚠️ Stop batch: limite giornaliero chiamate Gmail raggiunto durante processThread.');
-          // -1: checkpoint senza trigger (quota Gmail giornaliera, retry domani)
+          // -1: checkpoint senza trigger (quota Gmail giornaliera, riprova domani)
           deferBatchCheckpoint(threads, index, -1);
           break;
         }
@@ -2965,7 +2965,7 @@ ${addressLines.join('\n\n')}
     const metadata = this.gmailService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
 
     // Fail-closed: in caso di errore/risposta non valida preserviamo lo stato skip.
-    // Evita promozioni accidentali a IA dovute a fault transitori Gmail API.
+    // Evita promozioni accidentali a IA dovute a guasti transitori Gmail API.
     if (!metadata || !Array.isArray(metadata.labelIds)) return true;
 
     return metadata.labelIds.includes(skipLabelId);
@@ -3840,7 +3840,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
       // Se l'utente cita esplicitamente dei topic, applica a tutti quelli trovati
       targetTopics = mentionedTopics;
     } else {
-      // Fallback: applica all'ultimo topic discusso
+      // Fallback: applica all'ultimo argomento discusso
       targetTopics = [normalizedTopics[normalizedTopics.length - 1]].filter(Boolean);
     }
 
@@ -3991,7 +3991,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
       } else {
         streak = 0;
         // Usa put a "0" invece di remove() per aggirare bug di implementazione 
-        // in polyfill/mock usati in ambienti di test (props.removeProperty is not a function)
+        // in polyfill/mock usati in ambienti di test (props.removeProperty non è una funzione)
         if (cache) cache.put(key, "0", 21600);
         if (props && typeof props.setProperty === 'function') props.setProperty(key, "0");
       }

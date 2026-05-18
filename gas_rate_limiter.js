@@ -69,7 +69,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       this.strategies = CONFIG.MODEL_STRATEGY;
       console.log('   \u2713 Strategia caricata da CONFIG.MODEL_STRATEGY');
     } else {
-      // Fallback default
+      // Impostazione predefinita di fallback
       this.strategies = {
         'quick_check': ['flash-lite'],
         'classification': ['flash-lite'],
@@ -229,7 +229,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       if (lockAcquired) {
         // Rileggi sempre le proprietà dopo aver acquisito il lock per evitare race condition
         // Usa data Pacific per allinearsi al reset reale delle quote Google
-        // Il reset Google avviene a mezzanotte Pacific = 9:00 AM italiana
+        // Il ripristino di Google avviene a mezzanotte del Pacifico = 9:00 AM italiana
         const storedDate = this.props.getProperty('rate_limit_date');
         const pacificDate = this._getPacificDate();
 
@@ -637,7 +637,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         console.log(`🚀 Tentativo richiesta ${attempt + 1}/${maxRetries}`);
         console.log(`   Modello: ${model.name}, Task: ${taskType}`);
 
-        // CHIAMATA SINCRONA (no await)
+        // CHIAMATA SINCRONA (nessuna attesa)
         const result = this._safeExecuteRequestFn_(requestFn, model.name);
 
         const duration = Date.now() - startTime;
@@ -959,7 +959,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       this._refreshCache();
     }
 
-    // Aggiungi a cache
+    // Aggiungi una cache
     const cacheKey = windowType + 'Window';
     this.cache[cacheKey].push(entry);
 
@@ -1177,7 +1177,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       this.props.setProperty('rpm_window', JSON.stringify(mergedRpm));
       this.props.setProperty('tpm_window', JSON.stringify(mergedTpm));
 
-      // Rimuovi transazione WAL a ripristino ultimato
+      // Rimuovi la transazione WAL al ripristino ultimato
       this._cleanStorageBuffers();
 
       // Aggiorna cache in-memory
@@ -1420,7 +1420,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         .reduce((sum, e) => sum + (e.tokens || 0), 0);
     }
 
-    // Fallback PropertiesService
+    // Servizio proprietà di fallback
     const windowData = this._readWindowFromProperties(windowType);
     return windowData
       .filter(e => e.modelKey === modelKey && e.released !== true && (now - e.timestamp < 60000))
@@ -1440,7 +1440,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       italianTime: canFormatDates ? Utilities.formatDate(now, 'Europe/Rome', 'HH:mm') : fallbackTime,
       pacificTime: (canFormatDates ? Utilities.formatDate(now, 'America/Los_Angeles', 'HH:mm') : fallbackTime) + ' (PST/PDT)',
       nextReset: canFormatDates ? this._getNextResetTime() : 'n/a',
-      nextResetPacific: '00:00 Pacific Time', // Reset Google è sempre mezzanotte Pacific
+      nextResetPacific: '00:00 Pacific Time', // Ripristina Google è sempre mezzanotte Pacifico
       models: {},
       groundingGoogleSearch: null
     };
@@ -1514,7 +1514,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         const [y, m, d] = pacificDate.split('-').map(Number);
         const [hh, mm, ss] = pacificTime.split(':').map(Number);
 
-        // Offset istantaneo Pacific rispetto a UTC (DST-safe, calcolato "adesso").
+        // Offset istantaneo Pacifico rispetto a UTC (DST-safe, calcolato "adesso").
         const pacificAsUtcMs = Date.UTC(y, m - 1, d, hh, mm, ss);
         const pacificOffsetMs = now.getTime() - pacificAsUtcMs;
 

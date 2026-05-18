@@ -100,8 +100,8 @@ var AppLogger = class AppLogger {
   }
 
   /**
-   * Invia notifica via email all'amministratore
-   */
+ * Invia notifica via email all'amministratore
+ */
   _sendErrorNotification(logEntry) {
     try {
       const loggingConfig = (this.config && this.config.LOGGING) ? this.config.LOGGING : {};

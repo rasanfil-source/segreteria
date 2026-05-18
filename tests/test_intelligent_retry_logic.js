@@ -43,7 +43,7 @@ const processor = new EmailProcessor({
   config: { validationEnabled: true }
 });
 
-// 1. Test _classifyValidationForRetry
+// 1. Testare _classifyValidationForRetry
 console.log('Testing _classifyValidationForRetry...');
 const mockValidation = {
   isValid: false,
@@ -58,7 +58,7 @@ const flags = processor._classifyValidationForRetry(mockValidation, 'it');
 assert(flags.thinking_leak === true, 'Should detect thinking_leak');
 assert(flags.hallucination === false, 'Should not detect hallucination');
 
-// 2. Test _shouldAttemptIntelligentRetry
+// 2. Prova _shouldAttemptIntelligentRetry
 console.log('Testing _shouldAttemptIntelligentRetry...');
 // Gli errori critici bypassano il controllo del punteggio minimo.
 const shouldRetry = processor._shouldAttemptIntelligentRetry(mockValidation, 'it', global.CONFIG.INTELLIGENT_RETRY);
@@ -84,7 +84,7 @@ assert(
     'Should attempt retry for allowed non-critical error when score is above threshold'
 );
 
-// 3. Test _buildCorrectionPrompt
+// 3. Testare _buildCorrectionPrompt
 console.log('Testing _buildCorrectionPrompt...');
 const prompt = processor._buildCorrectionPrompt('Original Prompt', 'Failed Response', mockValidation, 'it', 'full');
 assert(prompt.includes('ERRORE CRITICO: Hai incluso il tuo ragionamento interno'), 'Prompt should contain thinking leak correction');

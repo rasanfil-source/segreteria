@@ -222,7 +222,7 @@ function createMockGeminiService(fetchFn) {
 }
 
 // ========================================================================
-// TEST TERRITORY VALIDATOR
+// VALIDATORE DEL TERRITORIO DI TEST
 // ========================================================================
 
 function testTerritoryAbbreviations() {
@@ -328,7 +328,7 @@ function testTerritoryNullLowerBoundIncludesCivicZero() {
 
 
 // ========================================================================
-// TEST ERROR TYPES (classificazione centralizzata)
+// TIPI DI ERRORE TEST (classificazione centralizzata)
 // ========================================================================
 
 function testClassifyErrorQuota() {
@@ -375,7 +375,7 @@ function testClassifyErrorTimeoutSignals() {
 }
 
 // ========================================================================
-// TEST GEMINI SERVICE
+// PROVA IL SERVIZIO GEMELLI
 // ========================================================================
 
 function testPortugueseSpecialGreeting() {
@@ -443,7 +443,7 @@ function testGeminiDependencyInjectionAndMockFetch() {
     assert(text === 'OK-DI', `Atteso "OK-DI", ottenuto "${text}"`);
 }
 
-// --- Contract Tests: error handling ---
+// --- Test contrattuali: gestione degli errori ---
 
 function testGeminiRetryOn429() {
     loadScript('gas_gemini_service.js');
@@ -508,7 +508,7 @@ function testGeminiQuotaSentinelsSkipLocalRetry() {
 }
 
 // ========================================================================
-// TEST RESPONSE VALIDATOR
+// VALIDATORE DELLA RISPOSTA DEL TEST
 // ========================================================================
 
 function testResponseValidatorCheckLength() {
@@ -670,7 +670,7 @@ function testSemanticValidatorLazyFallbackWithoutGeminiOrCache() {
 }
 
 // ========================================================================
-// TEST EMAIL PROCESSOR (pure functions)
+// TEST DEL PROCESSORE EMAIL (funzioni pure)
 // ========================================================================
 
 function testComputeSalutationMode() {

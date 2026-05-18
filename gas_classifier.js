@@ -148,7 +148,7 @@ var Classifier = class Classifier {
       };
     }
 
-    // Body vuoto + subject generico (es. "Re: Orari messe") → passa a Gemini
+    // Corpo vuoto + soggetto generico (es. "Re: Orari messe") → passa a Gemini
     if ((!mainContent || !mainContent.trim()) && isReply) {
       const subjectClean = safeSubject.replace(/^(re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]\s*/i, '').trim();
       if (subjectClean.length > 3 && subjectClean.length < 50) {
@@ -295,7 +295,7 @@ var Classifier = class Classifier {
       // Salta blocchi citati, ma consenti inline-reply dopo quote
       let isQuote = false;
       for (const marker of quoteMarkers) {
-        // Safety reset: prevents state leakage if quote markers gain /g or /y flags later.
+        // Reset di sicurezza: previene la perdita di stato se gli indicatori di virgolette ottengono successivamente i flag /g o /y.
         marker.lastIndex = 0;
         if (marker.test(stripped)) {
           isQuote = true;

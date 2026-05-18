@@ -286,7 +286,7 @@ var PromptEngine = class PromptEngine {
     // 2. ISTRUZIONI LINGUA
     addSection(this._renderLanguageInstruction(detectedLanguage), 'LanguageInstruction', { force: true });
 
-    // 3. REGOLE NO REPLY
+    // 3. REGOLARE NON RISPOSTA
     addSection(this._renderNoReplyRules(), 'NoReplyRules');
 
     // 4. KNOWLEDGE BASE (già troncata se necessario)
@@ -1454,7 +1454,7 @@ ${attachmentsContext || ''}`;
   }
 
   // ========================================================================
-  // TEMPLATE 19: REGOLE NO REPLY
+  // MODELLO 19: REGOLA NESSUNA RISPOSTA
   // ========================================================================
 
   _renderNoReplyRules() {
