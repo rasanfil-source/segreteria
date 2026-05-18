@@ -248,7 +248,6 @@ var Classifier = class Classifier {
   _extractMainContent(body) {
     let processedBody = typeof body === 'string' ? body : '';
 
-
     const MAX_LENGTH = 50000;
     if (processedBody.length > MAX_LENGTH) {
       processedBody = processedBody.substring(0, MAX_LENGTH);

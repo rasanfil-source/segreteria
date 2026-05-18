@@ -278,6 +278,25 @@ var GmailService = class GmailService {
         }
     }
 
+    removeLabelFromThread(thread, labelName) {
+        if (!thread || !labelName) return;
+
+        try {
+            const label = this.getOrCreateLabel(labelName);
+            thread.removeLabel(label);
+            console.log(`✓ Rimossa label '${labelName}' dal thread`);
+        } catch (e) {
+            console.warn(`⚠️ removeLabelFromThread fallito per '${labelName}': ${e.message}`);
+            if (this._isLabelNotFoundError(e)) {
+                this._clearPersistentLabelCache(labelName);
+                this.clearLabelCache();
+                const label = this.getOrCreateLabel(labelName);
+                thread.removeLabel(label);
+                console.log(`✓ Rimossa label '${labelName}' dal thread (retry dopo cache reset)`);
+            }
+        }
+    }
+
     /**
      * Aggiunge etichetta a un messaggio specifico (Gmail API avanzata)
      */

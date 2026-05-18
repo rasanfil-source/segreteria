@@ -1862,6 +1862,17 @@ ${addressLines.join('\n\n')}
         this._commitSendTransaction(candidate.getId(), sendTxn);
         replySent = true;
 
+        // Cleanup previous state labels on successful reply
+        try {
+          this.gmailService.removeLabelFromThread(thread, this.config.errorLabelName);
+          if (!shouldLabelForReview) {
+            this.gmailService.removeLabelFromThread(thread, this.config.validationErrorLabel);
+            this.gmailService.removeLabelFromMessage(candidate.getId(), this.config.validationErrorLabel);
+          }
+        } catch (cleanupError) {
+          console.warn(`⚠️ Cleanup label stato precedente fallito: ${cleanupError.message}`);
+        }
+
         // Etichettatura non critica: non deve compromettere lo step successivo (memoria).
         try {
           if (shouldLabelForReview || shouldForcePrudentDocResponse) {
