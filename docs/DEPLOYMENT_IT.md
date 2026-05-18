@@ -53,8 +53,8 @@
 ```javascript
 // === PRODUZIONE ===
 CONFIG = {
-  // Aumenta se hai molto traffico
-  MAX_EMAILS_PER_RUN: 10,  // Conservativo per iniziare
+  // Default prudente: 2. Usa 1 per mitigazione severa, 0 per sospendere.
+  MAX_EMAILS_PER_RUN: 2,
   
   // Validazione in produzione
   VALIDATION_ENABLED: true,
@@ -306,7 +306,7 @@ CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
   'generation': ['flash-2.5', 'flash-lite']
 };
-CONFIG.MAX_EMAILS_PER_RUN = 5;
+CONFIG.MAX_EMAILS_PER_RUN = 1;
 ```
 
 **Parrocchia Media (bilanciata):**
@@ -315,7 +315,7 @@ CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
   'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite']
 };
-CONFIG.MAX_EMAILS_PER_RUN = 10;
+CONFIG.MAX_EMAILS_PER_RUN = 2;
 ```
 
 **Parrocchia Grande (qualità massima):**
@@ -324,7 +324,7 @@ CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
   'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup']
 };
-CONFIG.MAX_EMAILS_PER_RUN = 15;
+CONFIG.MAX_EMAILS_PER_RUN = 3;
 // Considera trigger ogni 5 minuti
 
 ```
@@ -344,26 +344,25 @@ ScriptApp.newTrigger('processEmailsMain')
   .everyMinutes(5)  // Frequenza standard
   .create();
 
-// Aumenta email per esecuzione
-CONFIG.MAX_EMAILS_PER_RUN = 15;  // Era 10
+// Tieni il batch piccolo e scala prima con la frequenza trigger
+CONFIG.MAX_EMAILS_PER_RUN = 3;
 ```
 
 **Scenario 2: Knowledge Base Molto Grande (>50KB)**
 
 ```javascript
-// Abilita caching aggressivo
-CONFIG.KB_CACHE_ENABLED = true;
-CONFIG.KB_CACHE_TTL = 7200000;  // 2 ore invece di 1
+// Forza un reload solo dopo modifiche importanti alla KB; poi riportalo a false
+CONFIG.FORCE_RELOAD = true;
 
-// Usa profilo lite più spesso
-CONFIG.DEFAULT_PROMPT_PROFILE = 'lite';
+// Mantieni i limiti prompt/allegati prudenziali già configurati
+CONFIG.MAX_SAFE_PROMPT_CHARS = 100000;
 ```
 
 **Scenario 3: Quota API Limitata**
 
 ```javascript
 // Riduci carico
-CONFIG.MAX_EMAILS_PER_RUN = 5;
+CONFIG.MAX_EMAILS_PER_RUN = 1;
 
 // Usa modelli più economici
 CONFIG.MODEL_STRATEGY = {

@@ -29,7 +29,7 @@ function monthlyReport() {
   console.log(`Period: ${oneMonthAgo.toLocaleDateString()} - ${now.toLocaleDateString()}`);
   console.log('═══════════════════════════════════');
   
-  const labels = ['IA', 'Verifica', 'Errore', 'Skipped'];
+  const labels = [CONFIG.LABEL_NAME, CONFIG.VALIDATION_ERROR_LABEL, CONFIG.ERROR_LABEL_NAME, CONFIG.SKIP_LABEL_NAME].filter(Boolean);
   const stats = {};
   
   labels.forEach(labelName => {
@@ -42,14 +42,17 @@ function monthlyReport() {
     }
   });
   
-  const total = stats['IA'] + stats['Verifica'] + stats['Errore'];
-  const automationRate = total > 0 ? (stats['IA'] / total * 100).toFixed(1) : 0;
+  const processed = stats[CONFIG.LABEL_NAME] || 0;
+  const needsReview = stats[CONFIG.VALIDATION_ERROR_LABEL] || 0;
+  const errors = stats[CONFIG.ERROR_LABEL_NAME] || 0;
+  const total = processed + needsReview + errors;
+  const automationRate = total > 0 ? (processed / total * 100).toFixed(1) : 0;
   
   console.log(`\nTotal Emails Processed: ${total}`);
-  console.log(`  ✅ Automated (IA): ${stats['IA']} (${automationRate}%)`);
-  console.log(`  ⚠️ Verifica: ${stats['Verifica']}`);
-  console.log(`  ❌ Error: ${stats['Errore']}`);
-  console.log(`  🚫 Skipped: ${stats['Skipped']}`);
+  console.log(`  ✅ Automated (${CONFIG.LABEL_NAME}): ${processed} (${automationRate}%)`);
+  console.log(`  ⚠️ ${CONFIG.VALIDATION_ERROR_LABEL}: ${needsReview}`);
+  console.log(`  ❌ ${CONFIG.ERROR_LABEL_NAME}: ${errors}`);
+  console.log(`  🚫 ${CONFIG.SKIP_LABEL_NAME || 'Skip'}: ${CONFIG.SKIP_LABEL_NAME ? (stats[CONFIG.SKIP_LABEL_NAME] || 0) : 0}`);
   
   // Benchmark
   if (automationRate >= 80) console.log('\n🏆 EXCELLENT: Automation rate > 80%');

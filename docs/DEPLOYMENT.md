@@ -53,8 +53,8 @@
 ```javascript
 // === PRODUCTION ===
 CONFIG = {
-  // Increase if you have high traffic
-  MAX_EMAILS_PER_RUN: 10,  // Conservative to start
+  // Conservative default: 2. Use 1 for severe mitigation, 0 to suspend.
+  MAX_EMAILS_PER_RUN: 2,
   
   // Production validation
   VALIDATION_ENABLED: true,
@@ -306,7 +306,7 @@ CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
   'generation': ['flash-2.5', 'flash-lite']
 };
-CONFIG.MAX_EMAILS_PER_RUN = 5;
+CONFIG.MAX_EMAILS_PER_RUN = 1;
 ```
 
 **Medium Parish (balanced):**
@@ -315,7 +315,7 @@ CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
   'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite']
 };
-CONFIG.MAX_EMAILS_PER_RUN = 10;
+CONFIG.MAX_EMAILS_PER_RUN = 2;
 ```
 
 **Large Parish (maximum quality):**
@@ -324,7 +324,7 @@ CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
   'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup']
 };
-CONFIG.MAX_EMAILS_PER_RUN = 15;
+CONFIG.MAX_EMAILS_PER_RUN = 3;
 // Consider trigger every 5 minutes
 
 ```
@@ -344,26 +344,25 @@ ScriptApp.newTrigger('processEmailsMain')
   .everyMinutes(5)  // Standard frequency
   .create();
 
-// Increase emails per run
-CONFIG.MAX_EMAILS_PER_RUN = 15;  // Was 10
+// Keep batches small and scale with trigger frequency first
+CONFIG.MAX_EMAILS_PER_RUN = 3;
 ```
 
 **Scenario 2: Very Large Knowledge Base (>50KB)**
 
 ```javascript
-// Enable aggressive caching
-CONFIG.KB_CACHE_ENABLED = true;
-CONFIG.KB_CACHE_TTL = 7200000;  // 2 hours instead of 1
+// Force a reload only after important KB changes; then set it back to false
+CONFIG.FORCE_RELOAD = true;
 
-// Use lite profile more often
-CONFIG.DEFAULT_PROMPT_PROFILE = 'lite';
+// Keep prompt/attachment limits conservative
+CONFIG.MAX_SAFE_PROMPT_CHARS = 100000;
 ```
 
 **Scenario 3: Limited API Quota**
 
 ```javascript
 // Reduce load
-CONFIG.MAX_EMAILS_PER_RUN = 5;
+CONFIG.MAX_EMAILS_PER_RUN = 1;
 
 // Use cheaper models
 CONFIG.MODEL_STRATEGY = {

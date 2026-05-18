@@ -17,7 +17,9 @@ Use `gas_config.example.js` as template in repository and create your local `gas
 - **LABEL_NAME**: `IA` (Processed emails)
 - **ERROR_LABEL_NAME**: `Errore` (Failed processing)
 - **VALIDATION_ERROR_LABEL**: `Verifica` (Needs human review)
-- **MAX_EMAILS_PER_RUN**: `3` (Limits execution batch size to prevent timeouts)
+- **SKIP_LABEL_NAME**: `·` (Italian emails skipped when `foreign_only` mode is active)
+- **MAX_EMAILS_PER_RUN**: `2` (Limits execution batch size to prevent timeouts). Set it to `0` to temporarily suspend processing without running Gmail discovery.
+- **MESSAGE_DISCOVERY_MODE**: `query` (Message-level discovery through Gmail queries; `metadata` is the conservative/manual fallback).
 
 ### Knowledge Base (Google Sheets)
 - **SPREADSHEET_ID**: ID of your Google Sheet (stored in Script Properties).
@@ -56,14 +58,17 @@ This feature extracts text from PDF and image attachments using Google Drive's b
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `enabled` | `true` | Enable/disable attachment OCR processing |
-| `maxFiles` | `4` | Maximum number of attachments to process per email |
-| `maxBytesPerFile` | `5MB` | Maximum file size per attachment |
-| `maxCharsPerFile` | `4000` | Maximum characters extracted per file |
-| `maxTotalChars` | `12000` | Maximum total characters from all attachments |
+| `maxFiles` | `3` | Maximum number of attachments to process per email |
+| `maxBytesPerFile` | `3MB` | Maximum file size per attachment |
+| `maxCharsPerFile` | `3000` | Maximum characters extracted per file |
+| `maxTotalChars` | `9000` | Maximum total characters from all attachments |
 | `ocrLanguage` | `'it'` | OCR language code (can be dynamically overridden by detected email language) |
 | `ocrConfidenceWarningThreshold` | `0.8` | Minimum OCR confidence before appending a readability warning note |
 | `pdfMaxPages` | `2` | Estimated page limit for PDFs |
 | `pdfCharsPerPage` | `1800` | Estimated characters per PDF page |
+| `ocrTriggerKeywords` | `iban`, `bonifico`, `ricevuta`, `documento`, `allego`, `in allegato`, `coordinate`, `modulo` | Keywords that trigger OCR when the body is relevant |
+| `ibanFocusEnabled` | `true` | Narrows OCR context around an IBAN when detected |
+| `maxCharsWhenKbTruncated` | `1500` | More conservative attachment text limit when the KB is already truncated |
 
 ### Supported File Types
 - **PDF documents** (`.pdf`)

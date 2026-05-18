@@ -130,8 +130,8 @@ CONFIG.MODEL_STRATEGY = {
   'generation': ['flash-2.5', 'flash-lite']  // Qualità prima, fallback conservativo
 };
 
-// Riduce carico
-CONFIG.MAX_EMAILS_PER_RUN = 3;
+// Riduce carico (default operativo attuale: 2; usare 1 per mitigazione severa, 0 per sospendere)
+CONFIG.MAX_EMAILS_PER_RUN = 2;
 
 // Nota: Quota si resetta alle 9:00 italiane
 ```

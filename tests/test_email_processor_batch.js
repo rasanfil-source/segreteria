@@ -242,6 +242,34 @@ console.log('--- Test processUnreadEmails: KB vuota/whitespace blocca il batch -
   assert(statsEmpty.reason === 'knowledge_base_missing', 'reason atteso knowledge_base_missing per KB vuota');
 }
 
+console.log('--- Test processUnreadEmails: MAX_EMAILS_PER_RUN=0 sospende senza discovery ---');
+{
+  const originalMax = global.CONFIG.MAX_EMAILS_PER_RUN;
+  global.CONFIG.MAX_EMAILS_PER_RUN = 0;
+  let discoveryCalled = false;
+
+  try {
+    const processor = new EmailProcessor({
+      gmailService: {
+        getUnprocessedUnreadThreads: () => {
+          discoveryCalled = true;
+          return [createThread({ id: 't-suspended', messages: [createMessage({ id: 'm-suspended', unread: true })] })];
+        }
+      }
+    });
+    processor.processThread = () => {
+      throw new Error('processThread non deve essere chiamato quando MAX_EMAILS_PER_RUN=0');
+    };
+
+    const stats = processor.processUnreadEmails('kb', '', true);
+    assert(stats.reason === 'processing_suspended', 'MAX_EMAILS_PER_RUN=0 deve sospendere il batch');
+    assert(stats.total === 0 && stats.replied === 0 && stats.errors === 0, 'la sospensione non deve contare thread o errori');
+    assert(discoveryCalled === false, 'la sospensione deve evitare anche la discovery Gmail');
+  } finally {
+    global.CONFIG.MAX_EMAILS_PER_RUN = originalMax;
+  }
+}
+
 console.log('--- Test processUnreadEmails: conteggio stats skipped/replied ---');
 {
   const threads = [

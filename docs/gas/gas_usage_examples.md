@@ -76,10 +76,10 @@ setupMyTrigger();
 // Script helper per popolare KB di test
 function populateTestKB() {
   const config = getConfig();
-  const ss = SpreadsheetApp.openById(config.KB.SHEET_ID);
+  const ss = SpreadsheetApp.openById(config.SPREADSHEET_ID);
   
-  // KB Lite - Domande semplici
-  const liteSheet = ss.getSheetByName(config.KB.SHEETS.LITE);
+  // AI Core Lite - Domande semplici/tecniche
+  const liteSheet = ss.getSheetByName(config.AI_CORE_LITE_SHEET);
   liteSheet.clear();
   liteSheet.appendRow(['Categoria', 'Domanda', 'Risposta']);
   liteSheet.appendRow([
@@ -93,21 +93,21 @@ function populateTestKB() {
     'Puoi contattarci via email a info@example.com o telefonicamente al 123-456-7890.'
   ]);
   
-  // KB Standard - Informazioni generali
-  const standardSheet = ss.getSheetByName(config.KB.SHEETS.STANDARD);
-  standardSheet.clear();
-  standardSheet.appendRow(['Categoria', 'Domanda', 'Risposta']);
-  standardSheet.appendRow([
+  // Knowledge Base principale - Informazioni generali
+  const kbSheet = ss.getSheetByName(config.KB_SHEET_NAME);
+  kbSheet.clear();
+  kbSheet.appendRow(['Categoria', 'Domanda', 'Risposta']);
+  kbSheet.appendRow([
     'Servizi',
     'Quali servizi offrite?',
     'Offriamo consulenza, supporto tecnico e formazione personalizzata...'
   ]);
   
-  // KB Heavy - Informazioni dettagliate
-  const heavySheet = ss.getSheetByName(config.KB.SHEETS.HEAVY);
-  heavySheet.clear();
-  heavySheet.appendRow(['Categoria', 'Domanda', 'Risposta']);
-  heavySheet.appendRow([
+  // AI Core - Informazioni pastorali/operative estese
+  const coreSheet = ss.getSheetByName(config.AI_CORE_SHEET);
+  coreSheet.clear();
+  coreSheet.appendRow(['Categoria', 'Domanda', 'Risposta']);
+  coreSheet.appendRow([
     'Tecnico',
     'Come configuro il sistema?',
     'La configurazione del sistema richiede i seguenti passaggi dettagliati...'
@@ -312,8 +312,8 @@ function analyzeSkippedEmails() {
   const gmail = new GmailService();
   const classifier = new Classifier();
   
-  // Recupera thread con label "Skipped"
-  const label = GmailApp.getUserLabelByName(getConfig().LABELS.SKIPPED);
+  // Recupera thread con label di skip configurata
+  const label = GmailApp.getUserLabelByName(getConfig().SKIP_LABEL_NAME);
   if (!label) {
     Logger.log('Nessuna email saltata');
     return;
@@ -369,9 +369,7 @@ function debugValidation(responseText) {
   Logger.log('\n=== Dettaglio Controlli ===');
   Logger.log('Lunghezza:', responseText.length);
   Logger.log('Ha saluto:', validator._hasGreeting(responseText));
-  Logger.log('Pattern proibiti:', 
-    getConfig().VALIDATION.FORBIDDEN_PATTERNS.filter(p => p.test(responseText))
-  );
+  Logger.log('Risultato completo:', JSON.stringify(result, null, 2));
 }
 
 // Esempio uso:
@@ -550,10 +548,11 @@ function monthlyCleanup() {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - daysOld);
   
+  const config = getConfig();
   const labels = [
-    getConfig().LABELS.PROCESSED,
-    getConfig().LABELS.SKIPPED
-  ];
+    config.LABEL_NAME,
+    config.SKIP_LABEL_NAME
+  ].filter(Boolean);
   
   labels.forEach(labelName => {
     const label = GmailApp.getUserLabelByName(labelName);
@@ -594,11 +593,11 @@ function weeklyReport() {
   
   const config = getConfig();
   const labels = [
-    config.LABELS.PROCESSED,
-    config.LABELS.SKIPPED,
-    config.LABELS.ERROR,
-    config.LABELS.NEEDS_REVIEW
-  ];
+    config.LABEL_NAME,
+    config.SKIP_LABEL_NAME,
+    config.ERROR_LABEL_NAME,
+    config.VALIDATION_ERROR_LABEL
+  ].filter(Boolean);
   
   Logger.log('=== Weekly Report ===');
   Logger.log(`Periodo: ${oneWeekAgo.toLocaleDateString()} - ${new Date().toLocaleDateString()}\n`);
@@ -618,10 +617,10 @@ function weeklyReport() {
     }
   });
   
-  Logger.log('Thread Processati:', stats[config.LABELS.PROCESSED] || 0);
-  Logger.log('Thread Saltati:', stats[config.LABELS.SKIPPED] || 0);
-  Logger.log('Errori:', stats[config.LABELS.ERROR] || 0);
-  Logger.log('Da Rivedere:', stats[config.LABELS.NEEDS_REVIEW] || 0);
+  Logger.log('Thread Processati:', stats[config.LABEL_NAME] || 0);
+  Logger.log('Thread Saltati:', config.SKIP_LABEL_NAME ? (stats[config.SKIP_LABEL_NAME] || 0) : 0);
+  Logger.log('Errori:', stats[config.ERROR_LABEL_NAME] || 0);
+  Logger.log('Da Rivedere:', stats[config.VALIDATION_ERROR_LABEL] || 0);
   
   const total = Object.values(stats).reduce((a, b) => a + b, 0);
   Logger.log('\nTotale Thread:', total);

@@ -130,8 +130,8 @@ CONFIG.MODEL_STRATEGY = {
   'generation': ['flash-2.5', 'flash-lite']  // Quality first, conservative fallback
 };
 
-// Reduce load
-CONFIG.MAX_EMAILS_PER_RUN = 3;
+// Reduce load (current operational default: 2; use 1 for severe mitigation, 0 to suspend)
+CONFIG.MAX_EMAILS_PER_RUN = 2;
 
 // Note: Quota resets at 9:00 AM Italian time (midnight Pacific)
 ```

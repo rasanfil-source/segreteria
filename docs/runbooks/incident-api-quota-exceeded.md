@@ -57,7 +57,8 @@ CONFIG.MODEL_STRATEGY = {
 
 ```javascript
 // In gas_config.js:
-CONFIG.MAX_EMAILS_PER_RUN = 3;  // Was 10
+CONFIG.MAX_EMAILS_PER_RUN = 2;  // Conservative operational default
+// Use 1 for severe mitigation, 0 to temporarily suspend
 ```
 
 ### Option C: Temporarily Suspend
@@ -111,7 +112,7 @@ CONFIG.MODEL_STRATEGY = {
   'fallback': ['flash-lite', 'flash-3.1-lite-backup']
 };
 
-CONFIG.MAX_EMAILS_PER_RUN = 10;
+CONFIG.MAX_EMAILS_PER_RUN = 2;
 CONFIG.DRY_RUN = false;
 ```
 

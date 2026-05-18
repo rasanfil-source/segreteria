@@ -55,4 +55,23 @@ assert(CONFIG.MODEL_NAME === 'gemini-2.5-flash', 'MODEL_NAME deve puntare al mod
 assert(CONFIG.MODEL_STRATEGY.generation[0] === 'flash-2.5', 'la generazione deve partire da Gemini 2.5 Flash');
 assert(CONFIG.MODEL_STRATEGY.quick_check[0] === 'flash-lite', 'quick_check/categoria/lingua devono partire dal modello lite');
 
+const originalMaxEmailsPerRun = CONFIG.MAX_EMAILS_PER_RUN;
+CONFIG.MAX_EMAILS_PER_RUN = 0;
+assert(validateConfig().valid === true, 'MAX_EMAILS_PER_RUN=0 deve essere valido per sospendere il processamento');
+CONFIG.MAX_EMAILS_PER_RUN = -1;
+let negativeMaxValidation;
+const originalConsoleError = console.error;
+console.error = () => {};
+try {
+  negativeMaxValidation = validateConfig();
+} finally {
+  console.error = originalConsoleError;
+}
+assert(
+  negativeMaxValidation.valid === false &&
+  negativeMaxValidation.errors.some((error) => error.includes('MAX_EMAILS_PER_RUN')),
+  'MAX_EMAILS_PER_RUN negativo deve restare invalido'
+);
+CONFIG.MAX_EMAILS_PER_RUN = originalMaxEmailsPerRun;
+
 console.log('✅ Test _getScriptProperty cache passato');

@@ -98,10 +98,12 @@ Per ogni thread:
 
 #### Knowledge Base Sheet
 1. Crea nuovo Google Sheet per KB
-2. Crea 3 fogli:
-   - `KB_Lite` - Risposte semplici
-   - `KB_Standard` - Conoscenza generale
-   - `KB_Heavy` - Conoscenza approfondita
+2. Crea i fogli usati dal sistema corrente:
+   - `Istruzioni` - Knowledge Base principale e info generali (`KB_SHEET_NAME`)
+   - `AI_CORE_LITE` - Contesto tecnico/semplice (`AI_CORE_LITE_SHEET`)
+   - `AI_CORE` - Contesto pastorale e operativo esteso (`AI_CORE_SHEET`)
+   - `Dottrina` - Riferimenti dottrinali condizionali (`DOCTRINE_SHEET`)
+   - `Sostituzioni` - Regole di sostituzione testo opzionali (`REPLACEMENTS_SHEET_NAME`)
 
 Formato colonne:
 ```
@@ -115,27 +117,30 @@ Formato colonne:
 2. Rinomina foglio in `ConversationMemory`
 3. Il sistema creerà automaticamente le colonne al primo utilizzo
 
-### 4. Compilazione Config.gs
+### 4. Configurazione runtime
 
-Sostituisci tutti i placeholder in `Config.gs`:
+Usa `gas_config.example.js` come riferimento e imposta i valori sensibili nelle Script Properties:
 
 ```javascript
 // Esempio configurazione minima
-GEMINI_API_KEY: 'your-actual-api-key-here'
-KB_SHEET_ID: '1ABC...XYZ'  // ID del foglio KB
-KB_LITE_SHEET_NAME: 'KB_Lite'
-KB_STANDARD_SHEET_NAME: 'KB_Standard'
-KB_HEAVY_SHEET_NAME: 'KB_Heavy'
-MEMORY_SHEET_ID: '1DEF...UVW'  // ID del foglio memoria
+// Script Properties
+GEMINI_API_KEY = 'your-actual-api-key-here'
+SPREADSHEET_ID = '1ABC...XYZ'
+
+// gas_config.js
+KB_SHEET_NAME: 'Istruzioni'
+AI_CORE_LITE_SHEET: 'AI_CORE_LITE'
+AI_CORE_SHEET: 'AI_CORE'
+DOCTRINE_SHEET: 'Dottrina'
+REPLACEMENTS_SHEET_NAME: 'Sostituzioni'
 MEMORY_SHEET_NAME: 'ConversationMemory'
-LABEL_PROCESSED: 'AI/Processed'
-LABEL_ERROR: 'AI/Error'
-LABEL_SKIPPED: 'AI/Skipped'
+LABEL_NAME: 'IA'
+ERROR_LABEL_NAME: 'Errore'
+VALIDATION_ERROR_LABEL: 'Verifica'
+SKIP_LABEL_NAME: '·'
 ```
 
-> ⚠️ **Nota (allineamento v2.x):** nel codice corrente i nomi configurati sono
-> `LABEL_NAME`, `ERROR_LABEL_NAME`, `VALIDATION_ERROR_LABEL` con default
-> `IA`, `Errore`, `Verifica`.
+`MAX_EMAILS_PER_RUN` è `2` di default; impostalo a `0` solo per sospendere temporaneamente l'elaborazione.
 
 ### 5. Setup Trigger
 

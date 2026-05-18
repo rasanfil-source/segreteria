@@ -2112,12 +2112,28 @@ ${addressLines.join('\n\n')}
         const fallbackLimit = parseInt(this.config.maxEmailsPerRun, 10);
         const resolved = Number.isNaN(dynamicLimit) ? fallbackLimit : dynamicLimit;
         const sanitized = Number.isNaN(resolved) ? 10 : resolved;
-        const bounded = Math.max(1, Math.min(50, sanitized));
+        const bounded = Math.max(0, Math.min(50, sanitized));
         if (bounded !== sanitized) {
           runLogger.warn(`⚠️ MAX_EMAILS_PER_RUN fuori range (${sanitized}), normalizzato a ${bounded}.`);
         }
         return bounded;
       };
+
+      const initialMaxEmailsPerRun = getEffectiveMaxEmailsPerRun();
+      if (initialMaxEmailsPerRun === 0) {
+        runLogger.warn('Elaborazione email sospesa: MAX_EMAILS_PER_RUN=0.');
+        this._clearBatchCheckpoint_('elaborazione sospesa');
+        return {
+          total: 0,
+          replied: 0,
+          filtered: 0,
+          validationFailed: 0,
+          errors: 0,
+          dryRun: 0,
+          skipped: 0,
+          reason: 'processing_suspended'
+        };
+      }
 
       const languageMode = typeof this._getLanguageProcessingMode_ === 'function'
         ? this._getLanguageProcessingMode_()

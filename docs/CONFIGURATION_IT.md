@@ -17,7 +17,9 @@ Usa `gas_config.example.js` come template nel repository e crea il file locale `
 - **LABEL_NAME**: `IA` (Email processate con successo).
 - **ERROR_LABEL_NAME**: `Errore` (Elaborazione fallita).
 - **VALIDATION_ERROR_LABEL**: `Verifica` (Richiede revisione umana).
-- **MAX_EMAILS_PER_RUN**: `3` (Numero massimo di email per esecuzione per evitare timeout).
+- **SKIP_LABEL_NAME**: `·` (Email italiane saltate quando è attiva la modalità `foreign_only`).
+- **MAX_EMAILS_PER_RUN**: `2` (Numero massimo di email per esecuzione per evitare timeout). Impostalo a `0` per sospendere temporaneamente l'elaborazione senza fare discovery Gmail.
+- **MESSAGE_DISCOVERY_MODE**: `query` (Discovery message-level con query Gmail; `metadata` è il fallback prudente/manuale).
 
 ### Knowledge Base (Google Sheets)
 - **SPREADSHEET_ID**: ID del tuo foglio Google (salvato nelle Proprietà dello Script).
@@ -56,14 +58,17 @@ Questa funzionalità estrae il testo da allegati PDF e immagini utilizzando l'OC
 | Parametro | Default | Descrizione |
 |-----------|---------|-------------|
 | `enabled` | `true` | Abilita/disabilita l'elaborazione OCR degli allegati |
-| `maxFiles` | `4` | Numero massimo di allegati da processare per email |
-| `maxBytesPerFile` | `5MB` | Dimensione massima per allegato |
-| `maxCharsPerFile` | `4000` | Caratteri massimi estratti per file |
-| `maxTotalChars` | `12000` | Caratteri totali massimi da tutti gli allegati |
+| `maxFiles` | `3` | Numero massimo di allegati da processare per email |
+| `maxBytesPerFile` | `3MB` | Dimensione massima per allegato |
+| `maxCharsPerFile` | `3000` | Caratteri massimi estratti per file |
+| `maxTotalChars` | `9000` | Caratteri totali massimi da tutti gli allegati |
 | `ocrLanguage` | `'it'` | Codice lingua OCR (può essere sovrascritto dinamicamente con lingua email rilevata) |
 | `ocrConfidenceWarningThreshold` | `0.8` | Soglia minima di affidabilità OCR per aggiungere una nota di leggibilità in risposta |
 | `pdfMaxPages` | `2` | Limite pagine stimato per PDF |
 | `pdfCharsPerPage` | `1800` | Caratteri stimati per pagina PDF |
+| `ocrTriggerKeywords` | `iban`, `bonifico`, `ricevuta`, `documento`, `allego`, `in allegato`, `coordinate`, `modulo` | Keyword che attivano OCR quando il body è rilevante |
+| `ibanFocusEnabled` | `true` | Riduce il contesto OCR attorno all'IBAN quando viene rilevato |
+| `maxCharsWhenKbTruncated` | `1500` | Limite più prudente per allegati quando la KB è già troncata |
 
 ### Tipi di File Supportati
 - **Documenti PDF** (`.pdf`)

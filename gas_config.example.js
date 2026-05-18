@@ -55,7 +55,8 @@ var CONFIG = {
     ERROR_LABEL_NAME: 'Errore',          // Label per errori
     VALIDATION_ERROR_LABEL: 'Verifica',  // Label per risposte da rivedere
     SKIP_LABEL_NAME: '·',              // Label per email italiane saltate in modalità foreign_only
-    // Ridotto a 3 per supportare strategia "Cross-Key Quality First"
+    DOCUMENT_CONSISTENCY_CHECK_ENABLED: true, // Verifica coerenza tra email e allegati
+    // Ridotto a 2 per supportare strategia "Cross-Key Quality First"
     // Fino a 4 chiamate API per email → batch ridotto per prevenire timeout GAS (6 min)
     MAX_EMAILS_PER_RUN: 2,
     SAFETY_VALVE_THRESHOLD: 0.8,       // Riduce dinamicamente il batch quando RPD supera l'80%
@@ -63,7 +64,7 @@ var CONFIG = {
     EMPTY_INBOX_WARNING_THRESHOLD: 5,   // Soglia per warning inbox vuota
     SUSPENSION_STALE_UNREAD_HOURS: 12,    // Paracadute: processa unread vecchie anche in fascia sospesa
     STRICT_SUSPENSION_CONFIG: false,      // Se true: foglio Controllo presente ma invalido => fallback orari statici
-    MIN_REMAINING_TIME_MS: 120000,      // Stop preventivo se resta meno di 120 secondi
+    MIN_REMAINING_TIME_MS: 90000,       // Stop preventivo se resta meno di 90 secondi
     EXECUTION_LOCK_WAIT_MS: 1000,      // Timeout acquisizione lock esecuzione (ms)
     SEARCH_PAGE_SIZE: 15,              // Buffer discovery per candidati message-level (circa 5x MAX_EMAILS_PER_RUN)
     // === DISCOVERY MODE ======================================================================
@@ -104,10 +105,14 @@ var CONFIG = {
     },
 
     // === Cache e Lock ===
+    CACHE_MAX_BYTES: 90 * 1024,          // Margine sotto 100KB/entry CacheService
     CACHE_LOCK_TTL: 310,                 // Secondi (>= MAX_EXECUTION_TIME_MS/1000 con margine)
     CACHE_RACE_SLEEP_MS: 200,             // Attesa anti-race condition
+    DEBUG: false,                        // Log verbose: tenere false in produzione
+    GMAIL_DAILY_CALL_LIMIT: 18000,        // Soft limit locale anti-burst prima del limite Gmail reale
     GMAIL_LIST_MAX_PAGES: 20,             // Limite pagine Gmail list per bootstrap label cache
     GMAIL_LIST_MAX_MESSAGES: 2000,        // Limite messaggi Gmail list per bootstrap label cache
+    BATCH_CHECKPOINT_TTL_MS: 10 * 60 * 1000, // Scadenza checkpoint resume (10 minuti)
 
     // === Alias noti (anti-loop) ===
     // In produzione preferire Script Properties.KNOWN_ALIASES
@@ -117,6 +122,13 @@ var CONFIG = {
     // === Knowledge Base ===
     // In produzione: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID')
     SPREADSHEET_ID: 'YOUR_SPREADSHEET_ID_HERE',
+    get SCRIPT_ID() {
+        try {
+            return ScriptApp.getScriptId();
+        } catch (e) {
+            return 'unknown';
+        }
+    },
     KB_SHEET_NAME: 'Istruzioni',
     AI_CORE_LITE_SHEET: 'AI_CORE_LITE',
     AI_CORE_SHEET: 'AI_CORE',

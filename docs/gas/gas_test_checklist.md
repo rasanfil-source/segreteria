@@ -15,14 +15,15 @@
 
 ### Configurazione Base
 - [ ] Tutti i file `.gs` copiati nel progetto GAS
-- [ ] `Config.gs` compilato con tutti i valori reali
-- [ ] Nessun placeholder `[...]` rimasto in Config
-- [ ] API Key Gemini valida e funzionante
-- [ ] Sheet ID corretti per KB e Memoria
+- [ ] `gas_config.js` presente e allineato a `gas_config.example.js`
+- [ ] Nessun placeholder rimasto in `gas_config.js`
+- [ ] `GEMINI_API_KEY` impostata nelle Script Properties e valida
+- [ ] `SPREADSHEET_ID` impostato nelle Script Properties
 
 ### Knowledge Base
-- [ ] Fogli KB_Lite, KB_Standard, KB_Heavy creati
-- [ ] Almeno 5 entry di test in ciascun foglio
+- [ ] Fogli `Istruzioni`, `AI_CORE_LITE`, `AI_CORE`, `Dottrina` creati
+- [ ] Foglio `Sostituzioni` creato se usi regole di replacement
+- [ ] Almeno 5 entry di test nei fogli operativi principali
 - [ ] Formato colonne corretto: Categoria | Domanda | Risposta
 - [ ] Sheet condiviso con permessi appropriati
 
@@ -251,7 +252,7 @@ const gemini = new GeminiService();
 // Test semplice
 const result = gemini.generateResponse(
   'Rispondi con un saluto in italiano. Max 50 parole.',
-  { model: 'gemini-1.5-flash' }
+  { model: 'gemini-2.5-flash' }
 );
 
 console.log('Success:', result.success);
