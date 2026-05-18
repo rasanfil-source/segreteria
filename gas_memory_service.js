@@ -274,7 +274,7 @@ var MemoryService = class MemoryService {
           // Verifica controllo concorrenza ottimistico
           if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
             this._invalidateCache(`memory_${threadId}`);
-            console.warn(`🔒 Version mismatch thread ${threadId}: atteso ${expectedVersion}, ottenuto ${currentVersion}`);
+            console.warn(`🔒 Version mismatch thread ${threadId}: atteso ${expectedVersion}, ottenuto ${currentVersion} - ritento con versione aggiornata`);
             expectedVersion = currentVersion;
             throw new Error('VERSION_MISMATCH');
           }

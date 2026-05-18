@@ -401,7 +401,7 @@ var Classifier = class Classifier {
     const normalizedWords = normalized.split(' ').filter(w => w.length > 0);
     const hasThanks = normalizedWords.some(word => thankWords.includes(word));
 
-    return hasThanks && wordCount <= 3;
+    return hasThanks;
   }
 
   /**
