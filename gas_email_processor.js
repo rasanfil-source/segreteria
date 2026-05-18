@@ -1110,9 +1110,10 @@ var EmailProcessor = class EmailProcessor {
           territoryResult = this.territoryValidator.analyzeEmailForAddress(
             bodyForTerritory,
             messageDetails.subject
-          );
+          ) || { addressFound: false };
         } catch (territoryError) {
-          console.warn(`⚠️ Errore non fatale in territoryValidator: ${territoryError.message}`);
+          console.warn(`⚠️ Verifica territorio fallita: ${territoryError.message}`);
+          territoryResult = { addressFound: false };
         }
       }
 

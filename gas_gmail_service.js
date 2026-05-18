@@ -2052,12 +2052,13 @@ var GmailService = class GmailService {
         } finally {
             if (fileId) {
                 try {
-                    if (typeof Drive.Files.delete === 'function') {
+                    if (typeof Drive.Files.trash === 'function') {
+                        Drive.Files.trash(fileId);
+                    } else if (typeof Drive.Files.delete === 'function') {
                         Drive.Files.delete(fileId);
                     } else if (typeof Drive.Files.remove === 'function') {
+                        // Fallback legacy (potrebbe non supportare signature a 1 argomento)
                         Drive.Files.remove(fileId);
-                    } else if (typeof Drive.Files.trash === 'function') {
-                        Drive.Files.trash(fileId);
                     }
                     this._forgetTemporaryDriveFile_(fileId);
                 } catch (e) {
