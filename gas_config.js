@@ -101,6 +101,7 @@ var CONFIG = {
   MIN_REMAINING_TIME_MS: 90000,      // Margine di sicurezza temporale per la sessione
   EXECUTION_LOCK_WAIT_MS: 1000,      // Timeout acquisizione lock esecuzione (ms)
   SEARCH_PAGE_SIZE: 15,              // Buffer discovery per candidati message-level (≈ 5x MAX_EMAILS_PER_RUN)
+  SENDER_THROTTLE_WINDOW_SECONDS: 60, // Previene burst simultanei su thread diversi dallo stesso sender
   // === DISCOVERY MODE ======================================================================
   // Modalità di scoperta messaggi non letti da elaborare.
   // - 'query'   : default operativo, message-level con query Gmail -label:...
@@ -418,6 +419,8 @@ function validateConfig() {
   checkRange('MAX_EMAILS_PER_RUN', CONFIG.MAX_EMAILS_PER_RUN, 0, 50); // 0 = sospensione operativa temporanea
   checkType('SAFETY_VALVE_THRESHOLD', CONFIG.SAFETY_VALVE_THRESHOLD, 'number');
   checkRange('SAFETY_VALVE_THRESHOLD', CONFIG.SAFETY_VALVE_THRESHOLD, 0.5, 0.99);
+  checkType('SENDER_THROTTLE_WINDOW_SECONDS', CONFIG.SENDER_THROTTLE_WINDOW_SECONDS, 'number');
+  checkRange('SENDER_THROTTLE_WINDOW_SECONDS', CONFIG.SENDER_THROTTLE_WINDOW_SECONDS, 0, 86400);
   checkType('LABEL_NAME', CONFIG.LABEL_NAME, 'string');
   checkType('ERROR_LABEL_NAME', CONFIG.ERROR_LABEL_NAME, 'string');
   checkType('VALIDATION_ERROR_LABEL', CONFIG.VALIDATION_ERROR_LABEL, 'string');

@@ -67,6 +67,7 @@ var CONFIG = {
     MIN_REMAINING_TIME_MS: 90000,       // Stop preventivo se resta meno di 90 secondi
     EXECUTION_LOCK_WAIT_MS: 1000,      // Timeout acquisizione lock esecuzione (ms)
     SEARCH_PAGE_SIZE: 15,              // Buffer discovery per candidati message-level (circa 5x MAX_EMAILS_PER_RUN)
+    SENDER_THROTTLE_WINDOW_SECONDS: 60, // Previene burst simultanei su thread diversi dallo stesso sender
     // === DISCOVERY MODE ======================================================================
     // Modalità di scoperta messaggi non letti da elaborare.
     // - 'query'   : default operativo, message-level con query Gmail -label:...

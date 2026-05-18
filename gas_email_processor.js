@@ -691,6 +691,26 @@ var EmailProcessor = class EmailProcessor {
       }
 
       // ====================================================================
+      // PASSO 0.15: THROTTLE CROSS-THREAD PER MITTENTE
+      // Previene burst simultanei su thread diversi dallo stesso sender.
+      // ====================================================================
+      const safeSenderEmail = (messageDetails.senderEmail || '').toLowerCase();
+      const senderThrottleWindowSeconds = (typeof CONFIG !== 'undefined' && CONFIG.SENDER_THROTTLE_WINDOW_SECONDS)
+        ? CONFIG.SENDER_THROTTLE_WINDOW_SECONDS
+        : 60;
+      const senderThrottleKey = `sender_throttle_${safeSenderEmail || 'unknown'}`;
+      if (scriptCache && scriptCache.get(senderThrottleKey)) {
+        console.log(`   ⊘ Saltato: burst cross-thread rilevato per ${safeSenderEmail || 'mittente sconosciuto'}`);
+        this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
+        result.status = 'filtered';
+        result.reason = 'cross_thread_burst';
+        return result;
+      }
+      if (scriptCache && safeSenderEmail) {
+        scriptCache.put(senderThrottleKey, '1', senderThrottleWindowSeconds);
+      }
+
+      // ====================================================================
       // PASSO 0.2: RISPOSTA AUTOMATICA / RILEVAMENTO FUORI SEDE
       // ====================================================================
       const headers = messageDetails.headers || {};

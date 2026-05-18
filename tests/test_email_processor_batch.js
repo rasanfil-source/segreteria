@@ -19,6 +19,9 @@ function createMessage({ id, unread = true, from = 'utente@example.com', date = 
 }
 
 function createThread({ id, messages }) {
+  if (typeof cacheStore !== 'undefined' && cacheStore && typeof cacheStore.clear === 'function') {
+    cacheStore.clear();
+  }
   return {
     getId: () => id,
     getMessages: () => messages
@@ -520,6 +523,9 @@ function createExternalBurstThread(id, count) {
 }
 
 function buildProcessorForGenerationFailure(errorTypeToThrow) {
+  if (typeof cacheStore !== 'undefined' && cacheStore && typeof cacheStore.clear === 'function') {
+    cacheStore.clear();
+  }
   global.ErrorTypes = {
     INVALID_RESPONSE: 'INVALID_RESPONSE',
     UNKNOWN: 'UNKNOWN',
