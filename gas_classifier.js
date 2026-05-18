@@ -44,7 +44,7 @@ var Classifier = class Classifier {
       'sacrament': [
         'battesimo', 'comunione', 'cresima', 'matrimonio',
         'sacramento', 'confessione', 'prima comunione',
-        'baptism', 'communion', 'confirmation', 'marriage', 'sacrament'
+        'baptism', 'communion', 'confirmation', 'marriage', 'sacrament', 'certificato', 'attestato', 'ritiro', 'consegna certificato'
       ],
       'collaboration': [
         'collaborare', 'volontario', 'aiutare', 'proposta',

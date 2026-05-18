@@ -703,8 +703,9 @@ var GmailService = class GmailService {
      */
     _discoverByQuery(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null) {
         const skipLabels = Array.isArray(skipLabel) ? skipLabel.filter(Boolean) : [skipLabel].filter(Boolean);
+        const allExcludedLabels = [labelName, errorLabel, validationLabel, ...skipLabels].filter(Boolean);
         let query = `is:unread in:inbox`;
-        skipLabels.forEach(skipName => {
+        allExcludedLabels.forEach(skipName => {
             const sq = this._formatLabelQueryValue(skipName);
             if (sq !== '""') query += ` -label:${sq}`;
         });
@@ -723,9 +724,20 @@ var GmailService = class GmailService {
                 safeTargetThreads,
                 Math.min(safeMessageBuffer * safeMaxPages, safeTargetThreads * DISCOVERY_POOL_MULTIPLIER)
             ));
-            const searchResult = GmailApp.search(query, 0, discoveryPool);
+            let searchResult = [];
+            try {
+                searchResult = GmailApp.search(query, 0, discoveryPool);
+            } catch (searchError) {
+                console.error(`❌ _discoverByQuery: GmailApp.search fallita: ${searchError.message}`);
+                return {
+                    threads: [],
+                    threadIds: seenThreadIds,
+                    messageIds: seenMessageIds
+                };
+            }
+
             const nativeThreads = Array.isArray(searchResult) ? searchResult : [];
-            
+
             if (!Array.isArray(searchResult)) {
                 console.warn('⚠️ GmailApp.search non ha restituito un array; considero 0 thread da elaborare.');
             }

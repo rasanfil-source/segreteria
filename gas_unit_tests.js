@@ -1346,7 +1346,44 @@ function runAllTests() {
                 getUserLabelByName: () => null
             };
 
-            test('Risposta nulla da Gmail.Users.Messages.list non interrompe il batch discovery', results, () => {
+            test('_discoverByQuery esclude label operative e skipLabel dalla query GmailApp.search', results, () => {
+                const originalSearch = global.GmailApp.search;
+                let capturedQuery = null;
+                try {
+                    global.GmailApp.search = (query) => {
+                        capturedQuery = query;
+                        return [];
+                    };
+
+                    const service = new GmailService();
+                    service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 5, 1, ['Saltata']);
+                    return capturedQuery === 'is:unread in:inbox -label:"IA" -label:"Errore" -label:"Verifica" -label:"Saltata"';
+                } finally {
+                    global.GmailApp.search = originalSearch;
+                }
+            });
+
+            test('_discoverByQuery gestisce eccezione diretta di GmailApp.search restituendo batch vuoto', results, () => {
+                const originalSearch = global.GmailApp.search;
+                try {
+                    global.GmailApp.search = () => {
+                        throw new Error('GmailApp.search unavailable');
+                    };
+
+                    const service = new GmailService();
+                    const result = service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 5, 1);
+                    return Array.isArray(result.threads)
+                        && result.threads.length === 0
+                        && result.threadIds instanceof Set
+                        && result.threadIds.size === 0
+                        && result.messageIds instanceof Set
+                        && result.messageIds.size === 0;
+                } finally {
+                    global.GmailApp.search = originalSearch;
+                }
+            });
+
+            test('[via searchViaAdvancedListMock] Risposta nulla da Messages.list non interrompe il batch discovery', results, () => {
                 global.Gmail = {
                     Users: {
                         Messages: {
@@ -1360,7 +1397,7 @@ function runAllTests() {
                 return Array.isArray(threads) && threads.length === 0;
             });
 
-            test('Errore transiente "Unknown Error" su list viene ritentato e recupera i thread', results, () => {
+            test('[via searchViaAdvancedListMock] Errore transiente "Unknown Error" su list viene ritentato e recupera i thread', results, () => {
                 let listCalls = 0;
                 global.Gmail = {
                     Users: {

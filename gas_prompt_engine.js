@@ -544,6 +544,7 @@ ${doctrineBaseText}
     rules.push('- Non ripetere informazioni già fornite nel thread.');
     rules.push('- Non chiedere dati che l\'utente ha già scritto.');
     rules.push('- Non trasformare una consegna documenti/dati in una richiesta informativa.');
+    rules.push('- Non scambiare dati anagrafici forniti nel corpo email (nome, data di nascita) per un invio di documentazione. Se non ci sono allegati fisici, non confermare MAI la \'ricezione della documentazione\'.');
     rules.push('- Non esporre ragionamento interno o riferimenti alle fonti (es. "nella nostra base dati", "la KB dice...", "devo correggere...").');
 
     // Regole lingua-specifiche

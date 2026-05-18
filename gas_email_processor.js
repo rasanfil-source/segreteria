@@ -1443,7 +1443,7 @@ ${addressLines.join('\n\n')}
         territoryContext: territoryContext,
         sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),
         requestType: requestType,
-        attachmentsContext: textFromAttachments,
+        attachmentsContext: attachmentBlobs.length > 0 ? textFromAttachments : "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa.",
         attachmentIntentContext: attachmentIntentContext,
         aiCoreLite: routedAiCoreLite,
         aiCore: routedAiCore,
@@ -4359,9 +4359,9 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     const isSubmission = /submission/.test(intent);
     const localDecision = this._classifySponsorGuidanceLocally_(subject, body, attachmentIntentContext, detectedLanguage);
 
-    if (localDecision === 'include') return true;
     if (localDecision === 'exclude') return false;
     if (localDecision === 'none') return false;
+    // localDecision === 'ask_ai': continua alla risoluzione del segnale AI.
 
     if (aiGuidanceSignal === true) return true;
     if (aiGuidanceSignal === false && isSubmission && !hasSubmissionQuestion) return false;
@@ -4481,7 +4481,6 @@ Parish Secretariat of Sant'Eugenio`;
     const isSubmission = /submission/.test(intent);
     const localDecision = this._classifySponsorGuidanceLocally_(subject, body, attachmentIntentContext, detectedLanguage);
 
-    if (localDecision === 'include') return 'cresima_prerequisite_for_sponsor_role';
     if (localDecision === 'exclude') return 'no_eligibility_guidance';
     if (localDecision === 'none') {
       const asksLogisticsOnly = /\b(a che ora|orari|quando|arrivare|inizia|inizio|dove|luogo)\b/i.test(text);
