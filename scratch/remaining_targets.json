@@ -1,0 +1,4928 @@
+{
+  "gas_classifier.js": [
+    {
+      "line": 1,
+      "text": "/**\n * Classifier.gs - Simplified email classification\n * \n * PHILOSOPHY:\n * - Filter ONLY ultra-simple acknowledgments (≤3 words)\n * - Filter ONLY standalone greetings\n * - EVERYTHING ELSE goes to Gemini for intelligent analysis\n * - Zero false negatives: when in doubt, Gemini decides\n * \n * FEATURES:\n * - Sub-intent detection for emotional nuances\n * - Category suggestion for Gemini\n * - Main content extraction (removes quotes/signatures)\n */"
+    },
+    {
+      "line": 101,
+      "text": "/**\n   * Classify email - minimal filtering\n   */"
+    },
+    {
+      "line": 114,
+      "text": "// Null safety and length limit"
+    },
+    {
+      "line": 126,
+      "text": "// Avoid leaving an open/broken HTML tag in the payload due to truncation."
+    },
+    {
+      "line": 255,
+      "text": "// Quote markers for various email clients"
+    },
+    {
+      "line": 297,
+      "text": "// Safety reset: prevents state leakage if quote markers gain /g or /y flags later."
+    },
+    {
+      "line": 321,
+      "text": "// Accurately classifies the precise identification of contextual signatures in sentences like:"
+    },
+    {
+      "line": 322,
+      "text": "// \"Kind regards from the whole family, I would like to know if...\""
+    },
+    {
+      "line": 323,
+      "text": "// The line-based approach ensures precision in identifying signatures"
+    },
+    {
+      "line": 371,
+      "text": "/**\n   * Check if ultra-simple acknowledgment (≤3 words, no question)\n   */"
+    },
+    {
+      "line": 529,
+      "text": "/**\n   * Detects if the text contains explicit cues of a document submission.\n   * Used as an early-exit in classifyEmail to avoid false negatives on emails\n   * with attachments (e.g. \"attached you will find the certificate\").\n   * @param {string} text - Extracted main text (body without quotes/signatures)\n   * @returns {boolean}\n   */"
+    }
+  ],
+  "gas_config.example.js": [
+    {
+      "line": 1,
+      "text": "/**\n * Config.gs - Centralized system configuration\n * All configurable parameters are defined here\n * \n * NOTE: Base configuration for repository. Sensitive values go in Script Properties.\n * Sensitive keys (API Key, Spreadsheet ID) are removed or masked.\n */"
+    },
+    {
+      "line": 11,
+      "text": "// In production: PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY')"
+    },
+    {
+      "line": 57,
+      "text": "// Label for Italian emails skipped in foreign_only mode"
+    },
+    {
+      "line": 58,
+      "text": "// Verify consistency between email and attachments"
+    },
+    {
+      "line": 59,
+      "text": "// Configured with a maximum of 2 emails per run to optimize for Cross-Key Quality First strategy and prevent execution timeouts."
+    },
+    {
+      "line": 60,
+      "text": "// Up to 4 API calls per email - batch size managed to prevent GAS execution timeouts (6 min)"
+    },
+    {
+      "line": 63,
+      "text": "// Threshold for email loop detection"
+    },
+    {
+      "line": 65,
+      "text": "// Safety net: process old unread emails even in suspended time slots"
+    },
+    {
+      "line": 76,
+      "text": "// Maximum budget per run (default GAS trigger ~6 minutes)"
+    },
+    {
+      "line": 77,
+      "text": "// 6 hours in milliseconds"
+    },
+    {
+      "line": 78,
+      "text": "// Maximum messages in thread history to balance context size and memory constraints"
+    },
+    {
+      "line": 80,
+      "text": "// Include attachment text (PDF, images, Word, Excel, PowerPoint) in prompt"
+    },
+    {
+      "line": 82,
+      "text": "// 3 MB per file (optimized for Base64 payload)"
+    },
+    {
+      "line": 83,
+      "text": "// Text limit per single attachment"
+    },
+    {
+      "line": 84,
+      "text": "// Total text limit for attachments"
+    },
+    {
+      "line": 86,
+      "text": "// OCR readability warning threshold in response"
+    },
+    {
+      "line": 87,
+      "text": "// PDF page limit (OCR estimation)"
+    },
+    {
+      "line": 88,
+      "text": "// Estimated characters per PDF page"
+    },
+    {
+      "line": 98,
+      "text": "// Cleanup duration limit for orphan OCR files"
+    },
+    {
+      "line": 100,
+      "text": "// === Tokens per attachment type (multimodal estimation for prompt budget) ==="
+    },
+    {
+      "line": 108,
+      "text": "// Margin below 100KB/entry for CacheService to avoid quota exceeded"
+    },
+    {
+      "line": 111,
+      "text": "// Enable verbose logging (console.log); keep false in production"
+    },
+    {
+      "line": 112,
+      "text": "// Local soft limit anti-burst before the actual Gmail limit"
+    },
+    {
+      "line": 113,
+      "text": "// Gmail list page limit for bootstrap label cache"
+    },
+    {
+      "line": 114,
+      "text": "// Gmail list message limit for bootstrap label cache"
+    },
+    {
+      "line": 118,
+      "text": "// In production, Script Properties.KNOWN_ALIASES is preferred"
+    },
+    {
+      "line": 119,
+      "text": "// Formati accettati: JSON array o lista separata da virgola/newline/punto e virgola."
+    },
+    {
+      "line": 123,
+      "text": "// In production: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID')"
+    },
+    {
+      "line": 138,
+      "text": "// Maximum topics in memory"
+    },
+    {
+      "line": 139,
+      "text": "// Lock TTL in seconds for MemoryService (>= Sheet lock timeout)"
+    },
+    {
+      "line": 149,
+      "text": "// Intelligent rate limiter enabled"
+    },
+    {
+      "line": 154,
+      "text": "// Prompt character limit before safety truncation"
+    },
+    {
+      "line": 157,
+      "text": "// Serialization limit of providedInfo per Sheet row"
+    },
+    {
+      "line": 159,
+      "text": "// Token reserve for instructions/fixed context outside KB"
+    },
+    {
+      "line": 162,
+      "text": "// === Thread Limits ==="
+    },
+    {
+      "line": 163,
+      "text": "// Maximum messages per thread before anti-loop"
+    },
+    {
+      "line": 168,
+      "text": "// Log in JSON format"
+    },
+    {
+      "line": 174,
+      "text": "// Configure METRICS_SHEET_ID in Script Properties to enable export"
+    },
+    {
+      "line": 181,
+      "text": "// Free Tier operational data: verify limits in AI Studio."
+    },
+    {
+      "line": 195,
+      "text": "// Free Tier: enable only if AI Studio shows active Context caching"
+    },
+    {
+      "line": 278,
+      "text": "// Nota: lista volutamente mista (domini + email complete)."
+    },
+    {
+      "line": 279,
+      "text": "// The matcher supports both exact match (email) and domain suffix in _shouldIgnoreEmail."
+    },
+    {
+      "line": 303,
+      "text": "// when this file is loaded together with gas_config.js in the GAS runtime."
+    }
+  ],
+  "gas_config.js": [
+    {
+      "line": 76,
+      "text": "// Execution limit per GAS session"
+    },
+    {
+      "line": 92,
+      "text": "// Label for Italian emails skipped in foreign_only mode"
+    },
+    {
+      "line": 93,
+      "text": "// Enable consistency check between email and attachments"
+    },
+    {
+      "line": 94,
+      "text": "// Operational limit configuration to ensure stability and respect quotas."
+    },
+    {
+      "line": 97,
+      "text": "// Threshold for email loop detection"
+    },
+    {
+      "line": 108,
+      "text": "// Configured to 'query' to optimize API read quota usage"
+    },
+    {
+      "line": 112,
+      "text": "// 6 hours in milliseconds"
+    },
+    {
+      "line": 113,
+      "text": "// Maximum messages in thread history to balance context size and memory constraints"
+    },
+    {
+      "line": 115,
+      "text": "// Include attachment text (PDF, images, Word, Excel, PowerPoint) in prompt"
+    },
+    {
+      "line": 117,
+      "text": "// 3 MB per file"
+    },
+    {
+      "line": 118,
+      "text": "// Text limit per single attachment"
+    },
+    {
+      "line": 119,
+      "text": "// Total text limit for attachments"
+    },
+    {
+      "line": 121,
+      "text": "// OCR readability warning threshold in response"
+    },
+    {
+      "line": 122,
+      "text": "// PDF page limit (OCR estimation)"
+    },
+    {
+      "line": 123,
+      "text": "// Estimated characters per PDF page"
+    },
+    {
+      "line": 133,
+      "text": "// Cleanup duration limit for orphan OCR files"
+    },
+    {
+      "line": 135,
+      "text": "// === Tokens per attachment type (multimodal estimation for prompt budget) ==="
+    },
+    {
+      "line": 143,
+      "text": "// Margin below 100KB/entry for CacheService to avoid quota exceeded"
+    },
+    {
+      "line": 146,
+      "text": "// Enable verbose logging (console.log); keep false in production"
+    },
+    {
+      "line": 147,
+      "text": "// Local soft limit anti-burst before the actual Gmail limit"
+    },
+    {
+      "line": 148,
+      "text": "// Gmail list page limit for bootstrap label cache"
+    },
+    {
+      "line": 149,
+      "text": "// Gmail list message limit for bootstrap label cache"
+    },
+    {
+      "line": 171,
+      "text": "// Maximum topics in memory"
+    },
+    {
+      "line": 172,
+      "text": "// Lock TTL in seconds for MemoryService (>= Sheet lock timeout)"
+    },
+    {
+      "line": 182,
+      "text": "// Intelligent rate limiter enabled"
+    },
+    {
+      "line": 187,
+      "text": "// Prompt character limit before safety truncation"
+    },
+    {
+      "line": 190,
+      "text": "// Serialization limit of providedInfo per Sheet row"
+    },
+    {
+      "line": 192,
+      "text": "// Token reserve for instructions/fixed context outside KB"
+    },
+    {
+      "line": 195,
+      "text": "// === Thread Limits ==="
+    },
+    {
+      "line": 196,
+      "text": "// Maximum messages per thread before anti-loop"
+    },
+    {
+      "line": 201,
+      "text": "// Log in JSON format"
+    },
+    {
+      "line": 203,
+      "text": "// Admin email for notifications"
+    },
+    {
+      "line": 207,
+      "text": "// Configure METRICS_SHEET_ID in Script Properties to enable export"
+    },
+    {
+      "line": 214,
+      "text": "// - Risposta finale: Gemini 2.5 Flash (qualita)"
+    },
+    {
+      "line": 216,
+      "text": "// - Operational quote source: verify actual limits in the AI Studio project."
+    },
+    {
+      "line": 217,
+      "text": "// - Actual quotes may vary by project: if AI Studio shows lower limits,"
+    },
+    {
+      "line": 219,
+      "text": "// - Maximum context per prompt: 1,048,576 tokens"
+    },
+    {
+      "line": 223,
+      "text": "// - Google Search Grounding: keep disabled in Free Tier unless explicitly available in AI Studio"
+    },
+    {
+      "line": 225,
+      "text": "// - Privacy: in the free tier, inputs/outputs may be used for Google training (evaluate GDPR impact)"
+    },
+    {
+      "line": 239,
+      "text": "// Free Tier: enable only if AI Studio shows active Context caching"
+    },
+    {
+      "line": 248,
+      "text": "// The tool is inserted in cache creation, never in final generateContent."
+    },
+    {
+      "line": 295,
+      "text": "// Explicit compatible alias for the 3.1 Lite series; not used in primary"
+    },
+    {
+      "line": 306,
+      "text": "// Logical Lite backup for backup key or controlled fallbacks."
+    },
+    {
+      "line": 330,
+      "text": "// Nota: lista volutamente mista (domini + email complete)."
+    },
+    {
+      "line": 331,
+      "text": "// The matcher supports both exact match (email) and domain suffix in _shouldIgnoreEmail."
+    },
+    {
+      "line": 357,
+      "text": "// MARCATORI LINGUA (costante condivisa tra moduli)"
+    },
+    {
+      "line": 372,
+      "text": "// NOTE: GLOBAL_CACHE is declared with defensive init in gas_main.js."
+    },
+    {
+      "line": 418,
+      "text": "// 0 = sospensione operativa temporanea"
+    },
+    {
+      "line": 425,
+      "text": "// SKIP_LABEL_NAME can be an empty string (\"\") to disable labeling in foreign_only: this is intentional."
+    }
+  ],
+  "gas_email_processor.js": [
+    {
+      "line": 1,
+      "text": "/**\r\n * EmailProcessor.js - Orchestratore Pipeline Email\r\n * \r\n * PIPELINE ELABORAZIONE:\r\n * 1. FILTRA: Dobbiamo processare questa email?\r\n * 2. CLASSIFICA: Che tipo di richiesta è?\r\n * 3. GENERA: Crea risposta AI\r\n * 4. VALIDA: Controlla qualità risposta\r\n * 5. INVIA: Rispondi all'email\r\n * \r\n * FUNZIONALITÀ AVANZATE:\r\n * - Lock a livello thread (anti race condition)\r\n * - Anti-loop detection\r\n * - Salutation mode (full/soft/none_or_continuity/session)\r\n * - KB enrichment condizionale\r\n * - Memory tracking\r\n */"
+    },
+    {
+      "line": 34,
+      "text": "// Inietta dipendenze o crea default"
+    },
+    {
+      "line": 104,
+      "text": "// Timestamp run corrente (usato da _isNearDeadline/_getRemainingTimeMs)."
+    },
+    {
+      "line": 105,
+      "text": "// Viene poi resettato all'avvio di ogni batch in processUnreadEmails."
+    },
+    {
+      "line": 109,
+      "text": "/**\r\n   * Restituisce il fuso orario dello script con caching locale per ridurre\r\n   * le chiamate a Session.getScriptTimeZone() durante l'elaborazione del batch.\r\n   */"
+    },
+    {
+      "line": 129,
+      "text": "/**\r\n   * Elabora il singolo thread (analisi, categorizzazione, generazione risposta, invio)\r\n   * @param {GmailThread} thread \r\n   * @param {string} knowledgeBase - KB testo semplice\r\n   * @param {Array} doctrineBase - KB strutturata\r\n   * @param {?Set} labeledMessageIds - ID messaggi già etichettati (opzionale)\r\n   * @param {boolean} skipLock - Se true, salta acquisizione lock\r\n   */"
+    },
+    {
+      "line": 186,
+      "text": "// Garantisce che _isNearDeadline() funzioni anche se processThread"
+    },
+    {
+      "line": 187,
+      "text": "// è invocato direttamente (test, debug) senza passare per processUnreadEmails."
+    },
+    {
+      "line": 196,
+      "text": "// ACQUISIZIONE LOCK (LIVELLO-THREAD) - Previene condizioni di conflitto"
+    },
+    {
+      "line": 211,
+      "text": "// Valore di fallback superiore al tempo massimo di esecuzione GAS"
+    },
+    {
+      "line": 213,
+      "text": "// Rispetta il limite massimo di CacheService (6 ore)"
+    },
+    {
+      "line": 217,
+      "text": "// Generazione identificativo univoco per il lock current thread"
+    },
+    {
+      "line": 260,
+      "text": "// Il mutex globale protegge solo la sezione critica CacheService; il lock thread resta nel token cache."
+    },
+    {
+      "line": 303,
+      "text": "// Raccogli informazioni su thread e messaggi"
+    },
+    {
+      "line": 304,
+      "text": "// Ottieni ultimo messaggio NON LETTO nel thread"
+    },
+    {
+      "line": 308,
+      "text": "// Risoluzione indirizzo email principale e alias configurati"
+    },
+    {
+      "line": 392,
+      "text": "// Cache miss hardening: l'ID potrebbe essere uscito dalla finestra maxMessages."
+    },
+    {
+      "line": 393,
+      "text": "// Verifica minimale su Gmail per evitare re-processing e loop di risposte duplicate"
+    },
+    {
+      "line": 394,
+      "text": "// anche su label terminali diverse da IA (Errore/Verifica/skip foreign_only)."
+    },
+    {
+      "line": 411,
+      "text": "// Build set of our own addresses (primary + aliases) per filtro early-stage"
+    },
+    {
+      "line": 424,
+      "text": "// Utilizza getFrom() per efficienza rispetto alla costosa extractMessageDetails()"
+    },
+    {
+      "line": 432,
+      "text": "// Se non riusciamo ad estrarre l'email, consideriamo il mittente come esterno per sicurezza"
+    },
+    {
+      "line": 454,
+      "text": "// Nota di manutenzione sulle label:"
+    },
+    {
+      "line": 455,
+      "text": "// - IA chiude i messaggi già gestiti tecnicamente (esterni filtrati, interni/nostri)."
+    },
+    {
+      "line": 456,
+      "text": "// - '·' indica solo una email italiana rimandata perché siamo in modalità foreign_only."
+    },
+    {
+      "line": 457,
+      "text": "// Tenere separate queste due funzioni evita che il punto medio compaia in modalità \"Tutte le lingue\"."
+    },
+    {
+      "line": 488,
+      "text": "// GUARDRAIL (critico): se un messaggio è già stato etichettati IA, non deve"
+    },
+    {
+      "line": 489,
+      "text": "// rientrare nel ciclo di risposta automatica anche se il thread è ancora aperto."
+    },
+    {
+      "line": 490,
+      "text": "// Questo evita doppie risposte su stesso messaggio."
+    },
+    {
+      "line": 491,
+      "text": "// Se non ci sono messaggi non letti non ancora etichettati → skip"
+    },
+    {
+      "line": 500,
+      "text": "// I messaggi interni (noi/alias) vengono esclusi per evitare loop e risposte non dovute."
+    },
+    {
+      "line": 501,
+      "text": "// Se non ci sono messaggi da esterni → skip"
+    },
+    {
+      "line": 504,
+      "text": "// In modalità stale-only i messaggi recenti devono restare eleggibili per il ciclo normale."
+    },
+    {
+      "line": 507,
+      "text": "// Messaggi interni (nostri/alias): sono già gestiti, ma non sono rinvii per lingua."
+    },
+    {
+      "line": 508,
+      "text": "// Per questo usiamo IA come chiusura tecnica e non il punto medio ('·')."
+    },
+    {
+      "line": 518,
+      "text": "// Seleziona ultimo messaggio non letto non etichettato da esterni."
+    },
+    {
+      "line": 519,
+      "text": "// La discovery resta deliberatamente a livello messaggio: l'eventuale presenza"
+    },
+    {
+      "line": 520,
+      "text": "// di materiale IA nello stesso thread NON deve nascondere nuovi follow-up non letti."
+    },
+    {
+      "line": 524,
+      "text": "// STEP 0: CONTROLLO ULTIMO MITTENTE (Anti-Loop & Ownership)"
+    },
+    {
+      "line": 525,
+      "text": "// Thread usato solo come contesto conversazionale e per capire chi ha parlato per ultimo."
+    },
+    {
+      "line": 548,
+      "text": "// Segniamo i non letti correnti come processati per evitare loop su thread"
+    },
+    {
+      "line": 549,
+      "text": "// dove l'ultimo intervento da elaborare è nostro ma resta flag \"unread\" riaperto manualmente."
+    },
+    {
+      "line": 559,
+      "text": "// --- PORTA 0.5: Pre-check lingua locale sul soggetto (Zero API Cost) ---"
+    },
+    {
+      "line": 572,
+      "text": "// Escluse deliberatamente parole corte polisemiche (in, per, la, di, da, con, il, lo,"
+    },
+    {
+      "line": 573,
+      "text": "// gli, le, un, uno, una, su, tra, fra) che causano falsi positivi su lingue straniere."
+    },
+    {
+      "line": 586,
+      "text": "// STEP 1: Estrazione dati e pulizia"
+    },
+    {
+      "line": 592,
+      "text": "// CRITICO: Ricostruzione del contesto in caso di burst (più email non lette dallo stesso utente)."
+    },
+    {
+      "line": 593,
+      "text": "// Evita che un'email finale breve (es. \"Grazie\") faccia scartare le vere domande precedenti."
+    },
+    {
+      "line": 649,
+      "text": "// Estraiamo solo i primi 2 caratteri per gestire formati come \"it-IT\" o \"en-US\""
+    },
+    {
+      "line": 656,
+      "text": "// PORTA 1: Interrompiamo se l'email deve essere ignorata in base alla lingua"
+    },
+    {
+      "line": 659,
+      "text": "// Nota di manutenzione: il punto medio ('·') ha un significato preciso."
+    },
+    {
+      "line": 660,
+      "text": "// Qui segnala una email italiana solo temporaneamente rinviata perché"
+    },
+    {
+      "line": 661,
+      "text": "// la modalità corrente risponde alle sole email straniere. Non va marcata IA:"
+    },
+    {
+      "line": 662,
+      "text": "// quando si torna a \"Tutte le lingue\", deve rientrare tra le email lavorabili."
+    },
+    {
+      "line": 674,
+      "text": "// Le newsletter sono filtrate in modo definitivo: usiamo IA for non riprenderle"
+    },
+    {
+      "line": 675,
+      "text": "// nei run successivi. Il punto medio ('·') non si usa qui perché non è un"
+    },
+    {
+      "line": 676,
+      "text": "// rinvio temporaneo dovuto alla modalità \"Solo straniere\"."
+    },
+    {
+      "line": 678,
+      "text": "// Evita di \"demotare\" messaggi già IA quando il fallback usa candidate."
+    },
+    {
+      "line": 697,
+      "text": "// Lookup case-insensitive: i server SMTP possono restituire header in casing arbitrario"
+    },
+    {
+      "line": 731,
+      "text": "// Trunca a 2000 char per prevenire Regex Timeout su mega-thread"
+    },
+    {
+      "line": 782,
+      "text": "// Percorriamo una finestra degli ultimi MAX_THREAD_LENGTH messaggi a ritroso"
+    },
+    {
+      "line": 783,
+      "text": "// per contare sequenze esterne e densità di risposte del bot."
+    },
+    {
+      "line": 843,
+      "text": "// Elaborato (filtrato): applichiamo IA per chiudere il processo"
+    },
+    {
+      "line": 851,
+      "text": "// STEP 1: FILTRO - Domini/parole chiave ignorati"
+    },
+    {
+      "line": 855,
+      "text": "// Elaborato (filtrato): applichiamo IA per chiudere il processo"
+    },
+    {
+      "line": 880,
+      "text": "// Elaborato (filtrato): applichiamo IA per chiudere il processo"
+    },
+    {
+      "line": 887,
+      "text": "// STEP 3: CONTROLLO RAPIDO - Gemini decide se serve risposta"
+    },
+    {
+      "line": 943,
+      "text": "// Se Gemini Quick Check ha rilevato una lingua diversa con maggiore precisione, aggiorniamo"
+    },
+    {
+      "line": 949,
+      "text": "// Valutazione preliminare della lingua per il filtraggio selettivo."
+    },
+    {
+      "line": 967,
+      "text": "// Quick check valuta solo il candidato: marca quello filtrato,"
+    },
+    {
+      "line": 968,
+      "text": "// ma lascia gli esterni secondari eleggibili per il prossimo trigger."
+    },
+    {
+      "line": 974,
+      "text": "// Quick check superato con shouldRespond=true: marca i secondari ora."
+    },
+    {
+      "line": 980,
+      "text": "// Non etichettare ancora i messaggi esterni secondari: se generazione,"
+    },
+    {
+      "line": 981,
+      "text": "// validazione o invio falliscono, devono restare eleggibili per retry."
+    },
+    {
+      "line": 993,
+      "text": "// STEP 4: CLASSIFICAZIONE TIPO RICHIESTA (Multi-dimensionale)"
+    },
+    {
+      "line": 1000,
+      "text": "// Normalizzazione dell'oggetto requestType per l'elaborazione successiva."
+    },
+    {
+      "line": 1013,
+      "text": "// Inclusione della Knowledge Base testuale per il PromptEngine."
+    },
+    {
+      "line": 1016,
+      "text": "// PromptEngine gestisce l'integrazione selettiva di AI_CORE e Dottrina."
+    },
+    {
+      "line": 1019,
+      "text": "// iniettate qui quando verrà implementato un provider dedicato."
+    },
+    {
+      "line": 1044,
+      "text": "// 2. Recupera cronologia recente per il contesto (max configurable)"
+    },
+    {
+      "line": 1059,
+      "text": "// STEP 6.6: CALCOLO DINAMICO SALUTO E RITARDO"
+    },
+    {
+      "line": 1089,
+      "text": "// Override strutturale: nessun saluto in conversazioni attive"
+    },
+    {
+      "line": 1097,
+      "text": "// PASSO 7.1: VERIFICA TERRITORIO (solo quando richiesta esplicita)"
+    },
+    {
+      "line": 1102,
+      "text": "// Usa classificazione Gemini evitando errori se null."
+    },
+    {
+      "line": 1158,
+      "text": "// STEP 7.2: PROMPT CONTEXT (profilo e concern dinamici)"
+    },
+    {
+      "line": 1206,
+      "text": "// Priorità al classificatore LLM del quick check rispetto all'euristica locale iniziale."
+    },
+    {
+      "line": 1228,
+      "text": "// CONTEXT ROUTING: inietta moduli KB pesanti solo quando servono."
+    },
+    {
+      "line": 1229,
+      "text": "// Manteniamo default conservativo (dottrina attiva) in caso di dubbio."
+    },
+    {
+      "line": 1255,
+      "text": "// Il context routing definitivo viene eseguito dopo l'OCR degli allegati:"
+    },
+    {
+      "line": 1256,
+      "text": "// _deriveAttachmentIntentContext_ può aggiornare categoryHintSource con segnali"
+    },
+    {
+      "line": 1257,
+      "text": "// sacramentali/formali estratti dai documenti, quindi filtrare qui sarebbe prematuro."
+    },
+    {
+      "line": 1294,
+      "text": "// Body molto corto (<50 char) → l'allegato è probabilmente il contenuto principale"
+    },
+    {
+      "line": 1305,
+      "text": "// Aggrega allegati dai non letti esterni più recenti, non solo dal candidato."
+    },
+    {
+      "line": 1306,
+      "text": "// Evita perdita di contesto quando l'utente invia allegati in messaggi precedenti."
+    },
+    {
+      "line": 1358,
+      "text": "// Se post-OCR cambia la categoria (es. rilevato modulo sbattezzo), aggiorniamo il routing"
+    },
+    {
+      "line": 1597,
+      "text": "// Se la chiave corrente è invalida/non autorizzata (401/403),"
+    },
+    {
+      "line": 1598,
+      "text": "// prova la strategia successiva: una chiave/modello di backup può essere ancora valido."
+    },
+    {
+      "line": 1671,
+      "text": "// STEP 9: VALIDAZIONE + RETRY INTELLIGENTE"
+    },
+    {
+      "line": 1826,
+      "text": "// L'eventuale testo perfezionato è già stato applicato in fase di validazione."
+    },
+    {
+      "line": 1877,
+      "text": "// Etichettatura non critica: non deve compromettere lo step successivo (memoria)."
+    },
+    {
+      "line": 1895,
+      "text": "// Gmail può aver accettato il messaggio prima che il client riceva un"
+    },
+    {
+      "line": 1896,
+      "text": "// timeout/errore di rete: promuoviamo l'idempotency marker a `sent`"
+    },
+    {
+      "line": 1897,
+      "text": "// per evitare un replay automatico alla ripresa del batch."
+    },
+    {
+      "line": 1902,
+      "text": "// Errori transienti: lascia il messaggio eleggibile per retry automatico."
+    },
+    {
+      "line": 1957,
+      "text": "// Marca tutti i messaggi non letti esaminati nel thread:"
+    },
+    {
+      "line": 1958,
+      "text": "// evita reprocessing dei messaggi precedenti quando arrivano più email"
+    },
+    {
+      "line": 1959,
+      "text": "// ravvicinate prima dell'esecuzione del trigger."
+    },
+    {
+      "line": 2002,
+      "text": "// Rilasciamo SOLO se il lock è inequivocabilmente il nostro."
+    },
+    {
+      "line": 2018,
+      "text": "/**\r\n   * Processa tutte le email non lette\r\n   * @param {string} knowledgeBase\r\n   * @param {string} doctrineBase\r\n   * @param {boolean} skipExecutionLock - Evita il lock batch quando il chiamante gestisce l'orchestrazione\r\n   * @param {boolean} locksAlreadyCovered - Se true, processThread evita lock interni già coperti da lock esterno\r\n   */"
+    },
+    {
+      "line": 2026,
+      "text": "// Inizializzazione di _startTime per la precisione dei calcoli."
+    },
+    {
+      "line": 2027,
+      "text": "// anche se l'istanza viene riutilizzata in trigger successivi."
+    },
+    {
+      "line": 2142,
+      "text": "// Discovery e punto medio:"
+    },
+    {
+      "line": 2143,
+      "text": "// - in \"Solo straniere\" escludiamo '·' perché identifica email italiane già rinviate;"
+    },
+    {
+      "line": 2144,
+      "text": "// - in \"Tutte le lingue\" non lo escludiamo, così quelle email tornano lavorabili."
+    },
+    {
+      "line": 2227,
+      "text": "// Include anche i messaggi unread già marcati come Errore/Verifica:"
+    },
+    {
+      "line": 2228,
+      "text": "// evitiamo retry infiniti del singolo messaggio, ma senza oscurare l'intero thread."
+    },
+    {
+      "line": 2240,
+      "text": "// Pre-caricamento degli ID dei messaggi con etichetta skip (·)"
+    },
+    {
+      "line": 2241,
+      "text": "// per evitare ri-discovery di thread già valutati in foreign_only."
+    },
+    {
+      "line": 2272,
+      "text": "// Si usa la closure getEffectiveMaxEmailsPerRun definita esternamente per ottimizzare la leggibilità."
+    },
+    {
+      "line": 2301,
+      "text": "// Se abbiamo già acquisito il lock batch in questa funzione (o il chiamante"
+    },
+    {
+      "line": 2302,
+      "text": "// dichiara lock già coperti), evitiamo una seconda acquisizione in processThread."
+    },
+    {
+      "line": 2349,
+      "text": "// Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI"
+    },
+    {
+      "line": 2454,
+      "text": "// Quota non chiaramente giornaliera: pianifica una ripresa breve invece di"
+    },
+    {
+      "line": 2455,
+      "text": "// lasciare il checkpoint sospeso fino al prossimo trigger ordinario."
+    },
+    {
+      "line": 2499,
+      "text": "// `depth` misura solo le riprese bloccate sullo stesso identico insieme di"
+    },
+    {
+      "line": 2500,
+      "text": "// thread pendenti. Se il checkpoint cambia, il batch sta avanzando e la"
+    },
+    {
+      "line": 2501,
+      "text": "// guardia anti-loop deve ripartire per non scartare code sane ma lunghe."
+    },
+    {
+      "line": 2539,
+      "text": "// I trigger timeBased().after() possono rimanere come oggetti inerti dopo l'esecuzione."
+    },
+    {
+      "line": 2540,
+      "text": "// Creiamo prima il nuovo trigger: se la creazione fallisce, preserviamo quelli"
+    },
+    {
+      "line": 2541,
+      "text": "// esistenti per non perdere la ripresa del checkpoint."
+    },
+    {
+      "line": 2567,
+      "text": "/**\r\n   * Verifica se l'email deve essere ignorata (blacklist, auto-reply, notifiche)\r\n   * Usa le liste UNIFICATE (Codice + Foglio) presenti in GLOBAL_CACHE\r\n   */"
+    },
+    {
+      "line": 2576,
+      "text": "// 1. Controllo Blacklist Domini/Email"
+    },
+    {
+      "line": 2577,
+      "text": "// NOTA: GLOBAL_CACHE.ignoreDomains include già CONFIG.IGNORE_DOMAINS (merge in _loadAdvancedConfig)"
+    },
+    {
+      "line": 2601,
+      "text": "// Match username ristretto a pattern bot/notifica espliciti per evitare falsi positivi"
+    },
+    {
+      "line": 2602,
+      "text": "// su username legittimi (es. marketing@..., info@...)."
+    },
+    {
+      "line": 2611,
+      "text": "// 2. Controllo Keyword Oggetto/Corpo"
+    },
+    {
+      "line": 2612,
+      "text": "// NOTA: GLOBAL_CACHE.ignoreKeywords include già CONFIG.IGNORE_KEYWORDS (merge in _loadAdvancedConfig)"
+    },
+    {
+      "line": 2625,
+      "text": "// 3. Controllo Auto-reply e Notifiche (Standard)"
+    },
+    {
+      "line": 2626,
+      "text": "// NOTA: no-reply/noreply sono anche controllati in STEP 0.8 (defense-in-depth)."
+    },
+    {
+      "line": 2627,
+      "text": "// Qui manteniamo un set più mirato (segnali \"sistemici\" su sender/subject/body) per"
+    },
+    {
+      "line": 2628,
+      "text": "// ridurre falsi positivi rispetto al filtro preliminare regex più ampio."
+    },
+    {
+      "line": 2636,
+      "text": "// Filtro per evitare falsi positivi su indirizzi contenenti 'alert'."
+    },
+    {
+      "line": 2652,
+      "text": "/**\r\n   * Normalizza indirizzo email per confronti robusti (anti-loop/filtri):\r\n   * - lowercase + trim\r\n   * - rimozione display name eventuale (se presente)\r\n   * - per Gmail/Googlemail: rimozione alias \"+tag\" nel local-part\r\n   */"
+    },
+    {
+      "line": 2691,
+      "text": "// Se trigger keywords non sono definite, OCR attivo di default."
+    },
+    {
+      "line": 2692,
+      "text": "// Se presenti in configurazione, verranno usate come filtro."
+    },
+    {
+      "line": 2697,
+      "text": "// Se la lista è vuota, significa \"OCR sempre attivo se enabled=true\""
+    },
+    {
+      "line": 2712,
+      "text": "// Fallback robusto: se il testo suggerisce un documento \"atteso\","
+    },
+    {
+      "line": 2713,
+      "text": "// abilitiamo OCR anche quando le keyword configurate non coprono il caso."
+    },
+    {
+      "line": 2729,
+      "text": "// Il lock di idempotenza invio protegge il check-then-act su cache"
+    },
+    {
+      "line": 2730,
+      "text": "// (sentKey/sendingKey). Se il chiamante possiede già lo ScriptLock, evita"
+    },
+    {
+      "line": 2731,
+      "text": "// una riacquisizione non reentrant ma mantiene comunque le chiavi cache."
+    },
+    {
+      "line": 2877,
+      "text": "// Fallback minimale quando Intl/timeZone non è disponibile."
+    },
+    {
+      "line": 2920,
+      "text": "// Nota di manutenzione: IA viene applicata a livello *messaggio* (non thread)"
+    },
+    {
+      "line": 2921,
+      "text": "// e non marca il messaggio come letto. Così il segretario continua a vedere i"
+    },
+    {
+      "line": 2922,
+      "text": "// non letti in Gmail, mentre il sistema sa che quel singolo messaggio è già gestito."
+    },
+    {
+      "line": 2925,
+      "text": "// Se siamo ancora in modalità \"Solo straniere\", un messaggio già marcato con"
+    },
+    {
+      "line": 2926,
+      "text": "// punto medio ('·') resta in attesa: verrà promosso a IA solo quando si torna"
+    },
+    {
+      "line": 2927,
+      "text": "// a \"Tutte le lingue\" e viene effettivamente lavorato."
+    },
+    {
+      "line": 2939,
+      "text": "// Previene doppia chiamata API sullo stesso messaggio"
+    },
+    {
+      "line": 2944,
+      "text": "// In modalità \"Tutte le lingue\", una email prima rinviata con '·' può essere"
+    },
+    {
+      "line": 2945,
+      "text": "// chiusa normalmente: rimuoviamo il punto medio e lasciamo IA come stato finale."
+    },
+    {
+      "line": 2961,
+      "text": "// Fail-closed architetturale: se non recuperiamo l'ID label (quota/API/errore),"
+    },
+    {
+      "line": 2962,
+      "text": "// preserviamo lo stato skip per evitare promozioni accidentali."
+    },
+    {
+      "line": 2967,
+      "text": "// Fail-closed: in caso di errore/risposta non valida preserviamo lo stato skip."
+    },
+    {
+      "line": 2974,
+      "text": "// Tracciamento ID saltati per ottimizzare il batch."
+    },
+    {
+      "line": 2990,
+      "text": "// Se skipLabelName è configurato (anche come stringa vuota per disabilitare), procedi."
+    },
+    {
+      "line": 3004,
+      "text": "// Calcola se il tempo residuo è sufficiente per elaborare un nuovo thread"
+    },
+    {
+      "line": 3025,
+      "text": "// Supporto per skippedMessageIds."
+    },
+    {
+      "line": 3026,
+      "text": "// per evitare ri-discovery inutile di thread già valutati in modalità foreign_only."
+    },
+    {
+      "line": 3032,
+      "text": "// Nessun non letto: non c'è lavoro da fare."
+    },
+    {
+      "line": 3073,
+      "text": "// Fallback sicuro: in caso di errore non bloccare il thread, lasciamo decidere a processThread."
+    },
+    {
+      "line": 3213,
+      "text": "// 1. GLOBAL_CACHE (letto da cella A19 del foglio Controllo)"
+    },
+    {
+      "line": 3214,
+      "text": "// 2. Proprietà dello script (override dinamico)"
+    },
+    {
+      "line": 3255,
+      "text": "// Il fallback su PropertiesService copre anche evizioni/cache non disponibili."
+    },
+    {
+      "line": 3305,
+      "text": "// Classifica gli errori di validazione in categorie utili per il retry LLM"
+    },
+    {
+      "line": 3390,
+      "text": "// Per errori non critici, evita retry solo su output gravemente scarso."
+    },
+    {
+      "line": 3398,
+      "text": "/**\r\n   * Costruisce un prompt correttivo \"chirurgico\" basato sugli errori di validazione.\r\n   */"
+    },
+    {
+      "line": 3502,
+      "text": "// Riserva spazio per blocco correzioni + risposta precedente (stima: 4 char/token)."
+    },
+    {
+      "line": 3531,
+      "text": "// Preferiamo mantenere solo l'inizio del prompt (istruzioni sistemiche) e troncare"
+    },
+    {
+      "line": 3532,
+      "text": "// in coda con marker, allineando il più possibile a boundary di riga/sezione."
+    },
+    {
+      "line": 3537,
+      "text": "// Allinea il taglio a un boundary strutturale vicino alla fine del budget."
+    },
+    {
+      "line": 3549,
+      "text": "// Costruisce un sommario incrementale delle risposte inviate al thread"
+    },
+    {
+      "line": 3597,
+      "text": "// Confronto semantico: controlla il testo privo di data per evitare duplicati giornalieri."
+    },
+    {
+      "line": 3611,
+      "text": "// Tronca l'inizio (ricordi più vecchi) e preserva la coda più recente."
+    },
+    {
+      "line": 3643,
+      "text": "// Eliminata l'ancora di fine stringa ( |$ ) per numeri isolati: previene falsi positivi orari su cifre finali"
+    },
+    {
+      "line": 3683,
+      "text": "// Evita duplicazione note se già presente un chiarimento orario"
+    },
+    {
+      "line": 3684,
+      "text": "// (supporta varianti lessicali e il fallback \"Nota: ...\")."
+    },
+    {
+      "line": 3696,
+      "text": "// Scatta solo se l'utente ha espresso un orario come aspettativa/presupposto."
+    },
+    {
+      "line": 3743,
+      "text": "/**\r\n   * Rileva topic forniti nella risposta (per anti-ripetizione memoria)\r\n   */"
+    },
+    {
+      "line": 3749,
+      "text": "// Usiamo il flag /s (dotAll) affinché .* includa anche gli a capo (\\n)"
+    },
+    {
+      "line": 3770,
+      "text": "/**\r\n   * Inferisce la reazione dell'utente rispetto ai topic forniti in precedenza\r\n   */"
+    },
+    {
+      "line": 3779,
+      "text": "// Pattern semplici di reazione"
+    },
+    {
+      "line": 3824,
+      "text": "// 1. Trova TUTTI i topic menzionati esplicitamente"
+    },
+    {
+      "line": 3831,
+      "text": "// Rimuove suffissi tecnici (es. \"_info\") e underscore per confrontare"
+    },
+    {
+      "line": 3832,
+      "text": "// il topic interno con il linguaggio naturale usato dall'utente."
+    },
+    {
+      "line": 3840,
+      "text": "// Se l'utente cita esplicitamente dei topic, applica a tutti quelli trovati"
+    },
+    {
+      "line": 3858,
+      "text": "/**\r\n   * Backward-compat alias mantenuto per test/call-site legacy.\r\n   * Aggiorna direttamente la memoria con la reazione inferita.\r\n   */"
+    },
+    {
+      "line": 3888,
+      "text": "/**\r\n   * Classificazione centralizzata degli errori API\r\n   * Determina se un errore è fatale, legato alla quota o alla rete.\r\n   */"
+    },
+    {
+      "line": 3900,
+      "text": "// Delega al classificatore centralizzato se disponibile"
+    },
+    {
+      "line": 3919,
+      "text": "// Classificazione locale (fallback) con regex e messaggi grezzi"
+    },
+    {
+      "line": 3970,
+      "text": "/**\r\n   * Traccia il contatore di inbox vuote consecutive (per avvisi diagnostici)\r\n   */"
+    },
+    {
+      "line": 3993,
+      "text": "// Usa put a \"0\" invece di remove() per aggirare bug di implementazione "
+    },
+    {
+      "line": 3994,
+      "text": "// in polyfill/mock usati in ambienti di test (props.removeProperty is not a function)"
+    },
+    {
+      "line": 4006,
+      "text": "// Protezione contro input nulli o non validi"
+    },
+    {
+      "line": 4009,
+      "text": "// Nota: \\b è ASCII-only; i lookaround Unicode evitano falsi negativi"
+    },
+    {
+      "line": 4010,
+      "text": "// sulle parole con accento finale (lunedì, martedì, ecc.)."
+    },
+    {
+      "line": 4018,
+      "text": "// Fallback su italiano se lingua non supportata"
+    },
+    {
+      "line": 4027,
+      "text": "// Non trattare punti interrogativi o label OCR come domande rivolte alla segreteria:"
+    },
+    {
+      "line": 4028,
+      "text": "// un form/certificato può contenere campi o diciture interrogative non intenzionali."
+    },
+    {
+      "line": 4032,
+      "text": "// PRE-OCR: usa subject+body (fullText) per sospetto submission."
+    },
+    {
+      "line": 4033,
+      "text": "// POST-OCR: usa segnali dagli allegati per evitare che il corpo \"contamini\""
+    },
+    {
+      "line": 4034,
+      "text": "// la classificazione del documento effettivamente ricevuto."
+    },
+    {
+      "line": 4041,
+      "text": "// Rileva se ci sono evidenze (certificati) o dati pratica (moduli)"
+    },
+    {
+      "line": 4052,
+      "text": "// Se è un pre-check (senza OCR), siamo conservativi"
+    },
+    {
+      "line": 4392,
+      "text": "// localDecision === 'ask_ai': continua alla risoluzione del segnale AI."
+    },
+    {
+      "line": 4439,
+      "text": "// Rimuovi solo righe esplicitamente relative ai requisiti per padrino/madrina."
+    },
+    {
+      "line": 4440,
+      "text": "// Termini generici come \"divorzio\" o \"convivenza\" possono essere legittimi"
+    },
+    {
+      "line": 4441,
+      "text": "// in risposte matrimoniali o pastorali e non vanno filtrati da soli."
+    },
+    {
+      "line": 4538,
+      "text": "/**\r\n * Calcola modalità saluto basata su segnali strutturali\r\n * @param {Object} params - Parametri di input\r\n * @returns {'full'|'soft'|'none_or_continuity'|'session'}\r\n */"
+    },
+    {
+      "line": 4545,
+      "text": "// Al momento la temporalità (lastUpdated) è il segnale primario."
+    },
+    {
+      "line": 4546,
+      "text": "// 0️⃣ Nuovo contatto (non reply): privilegia sempre un saluto completo."
+    },
+    {
+      "line": 4547,
+      "text": "// Anche in presenza di memoria pregressa, un nuovo thread/messaggio iniziale"
+    },
+    {
+      "line": 4553,
+      "text": "// 1️⃣ Memoria assente: fallback conservativo su saluto completo."
+    },
+    {
+      "line": 4554,
+      "text": "// Evita saluti \"continuity\" quando il Memory Service non ha stato affidabile."
+    },
+    {
+      "line": 4559,
+      "text": "// 2️⃣ Conversazione attiva (qui isReply è necessariamente true)"
+    },
+    {
+      "line": 4588,
+      "text": "// Conversazione ripresa dopo pausa (48h - 4 giorni)"
+    },
+    {
+      "line": 4593,
+      "text": "// Troppo tempo passato (> 4 giorni) → nuovo contatto"
+    },
+    {
+      "line": 4597,
+      "text": "// Compatibilità: rende la funzione disponibile anche in runtime che usano moduli/isolamento"
+    },
+    {
+      "line": 4602,
+      "text": "// Funzione factory"
+    },
+    {
+      "line": 4607,
+      "text": "/**\r\n * Calcola ritardo risposta rispetto alla data del messaggio\r\n * @param {Object} params\r\n * @returns {{shouldApologize: boolean, hours: number, days: number}}\r\n */"
+    },
+    {
+      "line": 4638,
+      "text": "/**\r\n * Alias dell'entry point principale processEmailsMain() (gas_main.js).\r\n * Mantenuta per compatibilità con trigger preesistenti.\r\n */"
+    }
+  ],
+  "gas_error_types.js": [
+    {
+      "line": 1,
+      "text": "/**\r\n * gas_error_types.js - Classificazione centralizzata errori API\r\n *\r\n * Fornisce ErrorTypes e classifyError() per categorizzare\r\n * gli errori in modo uniforme in tutto il sistema.\r\n * Usato da GeminiService._withRetry e dai test.\r\n */"
+    },
+    {
+      "line": 19,
+      "text": "/**\r\n * Classifica un errore in una categoria standard.\r\n * @param {Error|string|Object} error - Errore da classificare\r\n * @returns {{ type: string, retryable: boolean, message: string }}\r\n */"
+    },
+    {
+      "line": 51,
+      "text": "// I messaggi 5xx possono contenere la parola \"quota\" (es. \"Errore rete/server o quota (503)\")."
+    },
+    {
+      "line": 52,
+      "text": "// Manteniamo priorità alla classificazione NETWORK per evitare falsi positivi QUOTA_EXCEEDED."
+    },
+    {
+      "line": 65,
+      "text": "// Un 404 generico può indicare anche modello/endpoint errato: lo trattiamo"
+    },
+    {
+      "line": 66,
+      "text": "// come cache scaduta/espulsa solo quando il messaggio cita esplicitamente"
+    },
+    {
+      "line": 67,
+      "text": "// cachedContent o la cache Gemini."
+    }
+  ],
+  "gas_gemini_service.js": [
+    {
+      "line": 1,
+      "text": "/**\r\n * GeminiService.js - Servizio API Gemini\r\n * Gestisce tutte le chiamate all'API Generativa di Google\r\n * \r\n * FUNZIONALITÀ:\r\n * - Retry con exponential backoff\r\n * - Rilevamento lingua centralizzato\r\n * - Controllo rapido per decisione risposta\r\n * - Saluto adattivo (ora + calendario liturgico)\r\n * - Rate Limiter integrato con gestione quota\r\n */"
+    },
+    {
+      "line": 27,
+      "text": "// CONFIGURAZIONE CHIAVI API (Gestione Ridondanza)"
+    },
+    {
+      "line": 30,
+      "text": "// Chiave Primaria"
+    },
+    {
+      "line": 31,
+      "text": "// Priorità: 1. override DI 2. Script Properties 3. CONFIG"
+    },
+    {
+      "line": 35,
+      "text": "// Chiave di Riserva (opzionale)"
+    },
+    {
+      "line": 40,
+      "text": "// Alias accessibile per i moduli che usano la proprietà apiKey"
+    },
+    {
+      "line": 63,
+      "text": "// Rate Limiter (abilitato da CONFIG.USE_RATE_LIMITER)"
+    },
+    {
+      "line": 128,
+      "text": "// HELPER RATE LIMITER"
+    },
+    {
+      "line": 131,
+      "text": "/**\r\n   * Stima token da testo + allegati multimodali.\r\n   * Delega alla funzione centralizzata estimateTokenCount (gas_main.js).\r\n   */"
+    },
+    {
+      "line": 139,
+      "text": "/**\r\n   * Genera risposta con modello specifico\r\n   * @param {string} prompt - Prompt completo\r\n   * @param {string} modelName - Nome modello API (es. 'gemini-2.5-flash')\r\n   * @param {string} apiKeyOverride - Chiave API opzionale (per strategia multi-key)\r\n   * @param {Array<Blob>} attachments - Array di Blob (immagini/PDF) da inviare\r\n   * @returns {string|null} Testo generato\r\n   */"
+    },
+    {
+      "line": 148,
+      "text": "// Usa chiave override se fornita, altrimenti chiave primaria"
+    },
+    {
+      "line": 224,
+      "text": "// Se la primaria risponde 429 e abbiamo una chiave di riserva,"
+    },
+    {
+      "line": 225,
+      "text": "// segnaliamo esplicitamente al chiamante di passare subito al fallback"
+    },
+    {
+      "line": 226,
+      "text": "// senza consumare retry inutili sulla stessa chiave."
+    },
+    {
+      "line": 239,
+      "text": "// Manteniamo fallback al body raw troncato."
+    },
+    {
+      "line": 242,
+      "text": "// Separazione errori di rete/quota vs contenuto con semplici if"
+    },
+    {
+      "line": 286,
+      "text": "// Controllo blocco safety"
+    },
+    {
+      "line": 303,
+      "text": "/**\r\n   * Crea o riusa un CachedContent REST salvando nome risorsa e scadenza in Script Properties.\r\n   * Il payload di creazione cache contiene systemInstruction e tools; la generateContent finale\r\n   * usa solo cachedContent + nuovo prompt utente, evitando conflitti API.\r\n   */"
+    },
+    {
+      "line": 606,
+      "text": "// Hardening per Gemini 3.1: assicuriamoci che ogni blocco abbia un ruolo (obbligatorio)"
+    },
+    {
+      "line": 611,
+      "text": "// Se è già un oggetto, verifichiamo che abbia il ruolo"
+    },
+    {
+      "line": 634,
+      "text": "// REST Gemini 3 usa google_search; la generateContent finale non ridefinisce il tool."
+    },
+    {
+      "line": 645,
+      "text": "//generativelanguage.googleapis.com/v1beta/cachedContents';"
+    },
+    {
+      "line": 688,
+      "text": "// fallback al body raw troncato."
+    },
+    {
+      "line": 798,
+      "text": "// Metriche best-effort: non devono bloccare la generazione."
+    },
+    {
+      "line": 829,
+      "text": "/**\r\n   * Controllo rapido con modello specifico\r\n   * @param {string} emailContent - Contenuto email\r\n   * @param {string} emailSubject - Oggetto email\r\n   * @param {string} modelName - Nome modello API\r\n   * @param {Object} [precomputedDetection] - Risultato detectEmailLanguage già calcolato (evita doppia chiamata)\r\n   * @returns {Object} Risultato controllo rapido\r\n   */"
+    },
+    {
+      "line": 929,
+      "text": "// Gestione con tentativo su chiave primaria e fallback singolo su chiave secondaria."
+    },
+    {
+      "line": 969,
+      "text": "// Nota: gestiamo esplicitamente anche errori \"hard\" di UrlFetchApp (timeout/DNS)"
+    },
+    {
+      "line": 970,
+      "text": "// perché non forniscono responseCode e altrimenti salterebbero il fallback cross-key."
+    },
+    {
+      "line": 993,
+      "text": "// responseCode è già valorizzato dal path primario o dal fallback backup key."
+    },
+    {
+      "line": 1006,
+      "text": "// Risultato default in caso di errori"
+    },
+    {
+      "line": 1008,
+      "text": "// Failsafe conservativo: evita risposte massive in caso di errore"
+    },
+    {
+      "line": 1052,
+      "text": "// Parsing JSON con gestione errori"
+    },
+    {
+      "line": 1070,
+      "text": "// Fail-open: rispondi in assenza del flag o in caso di formato inatteso."
+    },
+    {
+      "line": 1071,
+      "text": "// L'unico caso \"non rispondere\" è un false esplicito."
+    },
+    {
+      "line": 1096,
+      "text": "// Fail-open deliberato: shouldRespond=false solo con rifiuto esplicito."
+    },
+    {
+      "line": 1115,
+      "text": "/**\r\n   * Esegue una funzione con retry temporizzati\r\n   * Usa ritardi crescenti tra i tentativi\r\n   */"
+    },
+    {
+      "line": 1128,
+      "text": "// Le risposte vuote sono considerate non transienti."
+    },
+    {
+      "line": 1129,
+      "text": "// Le segnaliamo come errore non-retryable per evitare spreco quota API."
+    },
+    {
+      "line": 1139,
+      "text": "// Manteniamo _classifyError come logica di classificazione interna centralizzata"
+    },
+    {
+      "line": 1140,
+      "text": "// e resta allineato al contratto condiviso retryable/type."
+    },
+    {
+      "line": 1141,
+      "text": "// Nota: NON replichiamo qui una classificazione inline, per evitare drift"
+    },
+    {
+      "line": 1142,
+      "text": "// con la policy errori del servizio e falsi positivi nei retry."
+    },
+    {
+      "line": 1143,
+      "text": "// NON usare classifyError globale: potrebbe non esistere in alcuni runtime GAS modulari."
+    },
+    {
+      "line": 1149,
+      "text": "// Verifica del flag _nonRetryable per le risposte vuote."
+    },
+    {
+      "line": 1153,
+      "text": "// Errore fatale: interrompe immediatamente senza consumare altri retry"
+    },
+    {
+      "line": 1192,
+      "text": "/**\r\n   * Categorizza l'errore internamente al GeminiService per la logica di retry.\r\n   * @param {Error} error \r\n   * @returns {{type: string, retryable: boolean}}\r\n   */"
+    },
+    {
+      "line": 1201,
+      "text": "// Segnali interni di esaurimento quota: non ritentare sulla stessa chiave,"
+    },
+    {
+      "line": 1202,
+      "text": "// lascia che il chiamante passi subito alla strategia/chiave successiva."
+    },
+    {
+      "line": 1218,
+      "text": "// 401/403 sono tipicamente problemi di credenziali o permessi: ritentare non li risolve."
+    },
+    {
+      "line": 1219,
+      "text": "// PRIMARY_QUOTA_EXHAUSTED deve saltare i retry locali per passare subito al backup."
+    },
+    {
+      "line": 1247,
+      "text": "/**\r\n   * Rileva la lingua dell'email processando testo localmente tramite dizionario stop-words\r\n   * Molto più veloce dell'API Gemini e fissa i rari switch di lingua su nomi stranieri.\r\n   * @param {string} emailContent \r\n   * @param {string} emailSubject \r\n   * @returns {{lang: string, confidence: number, safetyGrade: number}} \r\n   */"
+    },
+    {
+      "line": 1258,
+      "text": "// PROTEZIONE: limite ampio prima delle RegEx per evitare CPU Timeout se"
+    },
+    {
+      "line": 1259,
+      "text": "// un utente invia una mail infinita, ma rimuoviamo le citazioni prima del"
+    },
+    {
+      "line": 1260,
+      "text": "// truncamento finale del segnale lingua per non far consumare il budget dal thread storico."
+    },
+    {
+      "line": 1263,
+      "text": "// Rimuove le citazioni per evitare che il testo quotato (es. precedente thread in italiano) alteri il punteggio"
+    },
+    {
+      "line": 1266,
+      "text": "// Fallback per citazioni testuali se l'HTML è già stato strippato o è incompleto"
+    },
+    {
+      "line": 1272,
+      "text": "// Trunca a 3000 char per evitare CPU Timeout sull'elaborazione lingua"
+    },
+    {
+      "line": 1277,
+      "text": "// Previene errori su richieste formali che potrebbero avere molti termini latini o esteri."
+    },
+    {
+      "line": 1289,
+      "text": "// 2. Score basato su indicatori frequenti (fallback)"
+    },
+    {
+      "line": 1321,
+      "text": "// Parole chiave per rilevamento"
+    },
+    {
+      "line": 1333,
+      "text": "// perché in italiano e nelle firme email causano falsi positivi EN."
+    },
+    {
+      "line": 1378,
+      "text": "// Conta corrispondenze con limiti di parola Unicode-safe"
+    },
+    {
+      "line": 1387,
+      "text": "// NOTA: niente \\b perché in JS è ASCII-only e fallisce con accenti (es. \"olá\", \"perché\")."
+    },
+    {
+      "line": 1388,
+      "text": "// Usiamo invece un confine Unicode esplicito senza lookbehind per massima compatibilità runtime."
+    },
+    {
+      "line": 1408,
+      "text": "// Guardrail anti-falso-positivo: senza marker forti, le sole stopword PT"
+    },
+    {
+      "line": 1409,
+      "text": "// (\"por/para/com/uma/...\") non devono dominare testi italiani."
+    },
+    {
+      "line": 1419,
+      "text": "// Supporto markers per lingue secondarie."
+    },
+    {
+      "line": 1424,
+      "text": "// Disambiguazione ES/PT su testi brevi: evita confusione quando i punteggi sono quasi pari."
+    },
+    {
+      "line": 1441,
+      "text": "// Determina lingua rilevata e punteggio massimo"
+    },
+    {
+      "line": 1452,
+      "text": "// Default: IT se punteggi nulli o trascurabili"
+    },
+    {
+      "line": 1460,
+      "text": "// Se il grado di sicurezza è basso (< 3), tentiamo un rilevamento AI come fallback."
+    },
+    {
+      "line": 1461,
+      "text": "// Questo è cruciale per messaggi molto brevi o ambigui in qualsiasi lingua."
+    },
+    {
+      "line": 1484,
+      "text": "/**\r\n   * Rilevamento lingua tramite AI (fallback).\r\n   */"
+    },
+    {
+      "line": 1501,
+      "text": "// Solo 1 retry per non bloccare la pipeline"
+    },
+    {
+      "line": 1511,
+      "text": "/**\r\n   * Calcola il grado di sicurezza del rilevamento locale (1-5)\r\n   * Basato su punteggio assoluto e distacco dal secondo classificato\r\n   */"
+    },
+    {
+      "line": 1525,
+      "text": "// Grado 5: Dominio assoluto (es. 10 vs 1 o gap > 6)"
+    },
+    {
+      "line": 1537,
+      "text": "// Grado 1: Bassissima sicurezza (tie o quasi)"
+    },
+    {
+      "line": 1541,
+      "text": "/**\r\n   * Risolve il conflitto tra detection Gemini (API) e Locale (Regex)\r\n   */"
+    },
+    {
+      "line": 1550,
+      "text": "// 1. Se coincidono, massima sicurezza"
+    },
+    {
+      "line": 1553,
+      "text": "// 2. Lingue non coperte dal rilevamento locale: in quel caso ci fidiamo di Gemini."
+    },
+    {
+      "line": 1560,
+      "text": "// 3. Lingua principale: Se il locale è MOLTO sicuro (grado >= 4), "
+    },
+    {
+      "line": 1561,
+      "text": "// prevale sulla detection API (che a volte si confonde con nomi propri o citazioni)."
+    },
+    {
+      "line": 1567,
+      "text": "// 4. Default: Se c'è incertezza, ci fidiamo del rilevamento del modello Large"
+    },
+    {
+      "line": 1573,
+      "text": "// SALUTO ADATTIVO"
+    },
+    {
+      "line": 1576,
+      "text": "/**\r\n   * Ottieni saluto e chiusura adattati a lingua, ora E giorni speciali\r\n   * Supporta calendario liturgico completo\r\n   */"
+    },
+    {
+      "line": 1586,
+      "text": "// Coerenza business: saluti basati sempre sull'orario italiano,"
+    },
+    {
+      "line": 1587,
+      "text": "// anche se il fuso del progetto è stato modificato per errore."
+    },
+    {
+      "line": 1595,
+      "text": "// fallback locale: manteniamo comportamento precedente se Utilities non è disponibile"
+    },
+    {
+      "line": 1601,
+      "text": "// Prima verifica saluto giorno speciale"
+    },
+    {
+      "line": 1606,
+      "text": "// Alternativa a saluto standard basato sull'ora"
+    },
+    {
+      "line": 1676,
+      "text": "// Altre lingue: saluto neutro"
+    },
+    {
+      "line": 1681,
+      "text": "// Chiusura in base alla lingua"
+    },
+    {
+      "line": 1702,
+      "text": "// SALUTI GIORNI SPECIALI (Calendario Liturgico)"
+    },
+    {
+      "line": 1705,
+      "text": "/**\r\n   * Ottieni saluto speciale per feste liturgiche e festività\r\n   */"
+    },
+    {
+      "line": 1740,
+      "text": "// Tutti i Santi (1 Novembre)"
+    },
+    {
+      "line": 1764,
+      "text": "// === FESTE MOBILI (basate sulla Pasqua) ==="
+    },
+    {
+      "line": 1769,
+      "text": "// Ottava di Pasqua (Domenica di Pasqua + 7 giorni)"
+    },
+    {
+      "line": 1788,
+      "text": "// Corpus Domini (Pasqua + 63 giorni in Italia)"
+    },
+    {
+      "line": 1797,
+      "text": "// Domenica della Sacra Famiglia"
+    },
+    {
+      "line": 1810,
+      "text": "// UTILITÀ DATE PER CALENDARIO LITURGICO"
+    },
+    {
+      "line": 1813,
+      "text": "/**\r\n   * Aggiunge giorni a una data\r\n   */"
+    },
+    {
+      "line": 1869,
+      "text": "/**\r\n   * Verifica se due date sono lo stesso giorno\r\n   */"
+    },
+    {
+      "line": 1876,
+      "text": "/**\r\n   * Verifica se una data è compresa tra inizio e fine (inclusi)\r\n   */"
+    },
+    {
+      "line": 1886,
+      "text": "/**\r\n   * Ottieni la data della Domenica della Sacra Famiglia\r\n   * (Domenica tra 25 Dic e 1 Gen, o 30 Dic se nessuna domenica).\r\n   * Nota: se il 25 dicembre cade di domenica, nel range 26-31 non c'è\r\n   * alcuna domenica; in quel caso il fallback al 30 dicembre è intenzionale\r\n   * (prassi liturgica del rito romano).\r\n   */"
+    },
+    {
+      "line": 1894,
+      "text": "// Il range 26-31 è intenzionale: cerchiamo la domenica *dopo* Natale."
+    },
+    {
+      "line": 1895,
+      "text": "// Se il 25 è domenica, non esiste altra domenica nell'ottava e il"
+    },
+    {
+      "line": 1896,
+      "text": "// calendario romano prevede il fallback al 30 dicembre."
+    },
+    {
+      "line": 1907,
+      "text": "// CONTROLLO RAPIDO (Decisione risposta + Rilevamento lingua)"
+    },
+    {
+      "line": 1910,
+      "text": "/**\r\n   * Chiamata rapida Gemini per decidere se email richiede risposta E rilevare lingua\r\n   * Supporta Rate Limiter + alternativa originale\r\n   */"
+    },
+    {
+      "line": 1917,
+      "text": "// RATE LIMITER PATH"
+    },
+    {
+      "line": 1938,
+      "text": "// L'eccezione non viene gestita con un fallback diretto per allineamento a generateResponse."
+    },
+    {
+      "line": 1939,
+      "text": "// Il fallback diretto bypasserebbe il quota tracking del RateLimiter,"
+    },
+    {
+      "line": 1940,
+      "text": "// causando consumo API non tracciato. Il Processor gestirà l'eccezione"
+    },
+    {
+      "line": 1941,
+      "text": "// come skip del thread (comportamento coerente e sicuro)."
+    },
+    {
+      "line": 1945,
+      "text": "// NON bypassare il RateLimiter su errori transienti/non-quota:"
+    },
+    {
+      "line": 1946,
+      "text": "// executeRequest include già retry+backoff e il fallback diretto"
+    },
+    {
+      "line": 1947,
+      "text": "// causerebbe consumo API non tracciato."
+    },
+    {
+      "line": 1953,
+      "text": "// IMPLEMENTAZIONE ORIGINALE (fallback o quando Rate Limiter disabilitato)"
+    },
+    {
+      "line": 1980,
+      "text": "// GENERAZIONE RISPOSTA PRINCIPALE"
+    },
+    {
+      "line": 1983,
+      "text": "/**\r\n   * Genera risposta AI con retry\r\n   * Supporta Rate Limiter + fallback originale\r\n   * \r\n   * @param {string} prompt - Prompt completo\r\n   * @param {Object} options - Opzioni per strategia Cross-Key Quality First\r\n   * @param {string} options.apiKey - Chiave API specifica (opzionale)\r\n   * @param {string} options.modelName - Nome modello specifico (opzionale)\r\n   * @param {boolean} options.skipRateLimit - Se true, bypassa Rate Limiter locale\r\n   * @param {Array<Blob>} options.attachments - Array di Blob (immagini/PDF)\r\n   * @returns {Object} { success: boolean, text: string, error?: string, modelUsed?: string }\r\n   */"
+    },
+    {
+      "line": 2001,
+      "text": "// Pre-elaborazione Base64 per evitare ripetizione I/O e allocazioni pesanti durante i retry."
+    },
+    {
+      "line": 2025,
+      "text": "// RATE LIMITER PATH (solo se abilitato E non skippato)"
+    },
+    {
+      "line": 2051,
+      "text": "// Rilancia per gestione strategia nel Processor"
+    },
+    {
+      "line": 2053,
+      "text": "// NON effettuare fallback diretto: i retry sono già gestiti nel RateLimiter"
+    },
+    {
+      "line": 2054,
+      "text": "// e una seconda esecuzione fuori limiter falserebbe i contatori quota."
+    },
+    {
+      "line": 2057,
+      "text": "// Preserva l'eccezione originale per il classificatore"
+    },
+    {
+      "line": 2062,
+      "text": "// CHIAMATA DIRETTA (quando RateLimiter disabilitato O skippato per backup key)"
+    },
+    {
+      "line": 2070,
+      "text": "// `success` è coerente con la presenza di testo generato (nessuna inversione logica)."
+    },
+    {
+      "line": 2089,
+      "text": "// METODI UTILITÀ"
+    },
+    {
+      "line": 2091,
+      "text": "/**\r\n   * Costruisce URL API per modello specifico\r\n   */"
+    },
+    {
+      "line": 2096,
+      "text": "//generativelanguage.googleapis.com/v1beta/models/${safeModel}:generateContent`;"
+    },
+    {
+      "line": 2153,
+      "text": "// Funzione factory per compatibilità"
+    },
+    {
+      "line": 2158,
+      "text": "/**\r\n * Wrapper globale richiesto per uso manuale/test da Apps Script.\r\n * Per chiamate applicative è preferibile riusare l'istanza GeminiService già creata.\r\n */"
+    },
+    {
+      "line": 2167,
+      "text": "// JSON PARSER TOLLERANTE PER GEMINI (Quick Check)"
+    },
+    {
+      "line": 2173,
+      "text": "// 1) Estrazione markdown robusta: usa il primo blocco fenced se presente"
+    },
+    {
+      "line": 2180,
+      "text": "// 2) Estrazione JSON esterno (oggetto o array)"
+    },
+    {
+      "line": 2206,
+      "text": "// 5) Normalizzazione della notazione: quoting rigoroso chiavi e pulizia code strutturali"
+    },
+    {
+      "line": 2213,
+      "text": "// 6) Motore euristico avanzato: ricostruzione dei campi minimi diretti tramite analisi regex"
+    },
+    {
+      "line": 2223,
+      "text": "/**\r\n * Assicura conformità strutturale dei blocchi JSON complessi.\r\n * Struttura dinamicamente gli alberi gerarchici per validazione sicura.\r\n */"
+    },
+    {
+      "line": 2270,
+      "text": "/**\r\n * Motore di ricostruzione euristica per l'estrazione dati in scenari architetturali complessi.\r\n * Impiega pattern matching per mappare reply_needed, language, category, topic, confidence.\r\n */"
+    }
+  ],
+  "gas_gmail_service.js": [
+    {
+      "line": 1,
+      "text": "/**\r\n * GmailService.gs - Gestione operazioni Gmail\r\n * \r\n * FUNZIONALITÀ:\r\n * - Label cache per performance\r\n * - Supporto header Reply-To per form web\r\n * - Costruttore cronologia conversazione\r\n * - Rimozione citazioni/firme\r\n * - Threading corretto (In-Reply-To, References)\r\n * - Markdown to HTML\r\n */"
+    },
+    {
+      "line": 20,
+      "text": "// Limita il TTL entro i vincoli tecnici di CacheService."
+    },
+    {
+      "line": 29,
+      "text": "// Mappa MIME types Office → tipo Google Workspace per conversione nativa"
+    },
+    {
+      "line": 50,
+      "text": "// Counter batched per ridurre I/O"
+    },
+    {
+      "line": 56,
+      "text": "// Allineamento al timezone Pacifico (reset quote Gmail lato Google)."
+    },
+    {
+      "line": 63,
+      "text": "// Fallback locale/test: mantieni la stessa semantica Pacific Time anche"
+    },
+    {
+      "line": 64,
+      "text": "// fuori da Apps Script, dove Utilities.formatDate potrebbe non esistere."
+    },
+    {
+      "line": 85,
+      "text": "// Ultimo fallback: approssima Pacific Standard Time (UTC-8) per evitare"
+    },
+    {
+      "line": 86,
+      "text": "// il reset a mezzanotte UTC, che anticipa il reset quote Gmail."
+    },
+    {
+      "line": 94,
+      "text": "// Sincronizziamo il contatore solo ogni 5 chiamate (o se vicino alla soglia warning)"
+    },
+    {
+      "line": 95,
+      "text": "// per ridurre l'overhead di I/O verso CacheService."
+    },
+    {
+      "line": 100,
+      "text": "// soglia di sicurezza per forzare il flush"
+    },
+    {
+      "line": 102,
+      "text": "// Se non abbiamo ancora un valore base in memoria, forziamo il flush immediato"
+    },
+    {
+      "line": 113,
+      "text": "// Carichiamo il valore corrente dalla cache (con fallback su ScriptProperties)"
+    },
+    {
+      "line": 131,
+      "text": "// Aggiorniamo la cache (TTL 21599 = ~6 ore)"
+    },
+    {
+      "line": 134,
+      "text": "// Allineamento periodico del counter su storage persistente."
+    },
+    {
+      "line": 164,
+      "text": "/**\r\n     * Ottiene o crea un'etichetta Gmail con caching\r\n     * Nota: la creazione automatica è intenzionale (self-healing al primo avvio)\r\n     * per evitare errori \"label not found\" in ambienti nuovi.\r\n     */"
+    },
+    {
+      "line": 220,
+      "text": "// Possibile race condition: un'altra esecuzione parallela ha creato la label"
+    },
+    {
+      "line": 221,
+      "text": "// dopo il nostro check ma prima della createLabel()."
+    },
+    {
+      "line": 276,
+      "text": "// Non nascondere errori non correlati alla cache etichette (permessi, quota, thread invalido...)"
+    },
+    {
+      "line": 300,
+      "text": "/**\r\n     * Aggiunge etichetta a un messaggio specifico (Gmail API avanzata)\r\n     */"
+    },
+    {
+      "line": 334,
+      "text": "// Non degradare a label di thread: il triage operativo è message-level e"
+    },
+    {
+      "line": 335,
+      "text": "// un fallback GmailApp.addLabelToThread inquinerebbe l'intera conversazione."
+    },
+    {
+      "line": 490,
+      "text": "/**\r\n     * Ottiene gli ID di tutti i messaggi con una specifica etichetta\r\n     */"
+    },
+    {
+      "line": 498,
+      "text": "// Senza ID reale la query restituisce tutti gli unread in inbox, non solo quelli etichettati."
+    },
+    {
+      "line": 499,
+      "text": "// Fail-safe: evitiamo di inquinare la cache dei messaggi già etichettati."
+    },
+    {
+      "line": 583,
+      "text": "/**\r\n     * Recupera i thread con almeno un messaggio non letto e non ancora etichettato.\r\n     *\r\n     * Modalità supportate:\r\n     * - 'query'   : default operativo, più economica e coerente con la label a livello messaggio\r\n     * - 'metadata': fallback prudente/manuale (list INBOX/UNREAD + get minimal per labelIds)\r\n     *\r\n     * @param {string} labelName            - Label applicata ai messaggi già elaborati (es. 'IA')\r\n     * @param {string} errorLabel           - Label dei thread in errore (es. 'Errore')\r\n     * @param {string} validationLabel      - Label dei thread in attesa di verifica (es. 'Verifica')\r\n     * @param {number} [messageBuffer=150]  - Numero massimo di messaggi da esaminare per pagina\r\n     * @param {number} [targetThreads=50]   - Numero di thread unici da raccogliere prima di fermarsi\r\n     * @param {number} [maxPages=3]         - Limite pagine di paginazione per evitare loop\r\n     * @param {string|string[]|null} [skipLabel=null]- Label dei messaggi da ignorare dinamicamente (es. '·')\r\n     * @returns {GmailThread[]}             - Thread unici, già istanziati, con almeno un messaggio da elaborare\r\n     */"
+    },
+    {
+      "line": 632,
+      "text": "/**\r\n     * Fallback prudente/manuale che verifica le label sul singolo messaggio via metadata.\r\n     */"
+    },
+    {
+      "line": 720,
+      "text": "/**\r\n     * Default operativo: variante più economica che usa la query testuale di Gmail.\r\n     */"
+    },
+    {
+      "line": 737,
+      "text": "// Utilizzo di GmailApp.search nativo per efficienza (batch recupero thread già pronti)"
+    },
+    {
+      "line": 738,
+      "text": "// Invece di iterare sui singoli messaggi via API avanzata + getThreadById."
+    },
+    {
+      "line": 739,
+      "text": "// safeMessageBuffer e safeMaxPages non paginano direttamente GmailApp.search,"
+    },
+    {
+      "line": 740,
+      "text": "// ma dimensionano il pool massimo di candidati esaminabili prima del filtro thread-level."
+    },
+    {
+      "line": 770,
+      "text": "// Verifichiamo che ci sia almeno un messaggio non letto nel thread"
+    },
+    {
+      "line": 771,
+      "text": "// (GmailApp.search(is:unread) garantisce questo ma facciamo un check veloce)"
+    },
+    {
+      "line": 778,
+      "text": "// Registriamo il primo messaggio non letto come riferimento"
+    },
+    {
+      "line": 804,
+      "text": "// Gmail non supporta virgolette letterali nei nomi delle label nelle query."
+    },
+    {
+      "line": 805,
+      "text": "// Rimuoviamole per evitare di rompere la stringa racchiusa in \"\"."
+    },
+    {
+      "line": 838,
+      "text": "// Fallback robusto: in ambienti dove Gmail.Users non è disponibile (es. test locali"
+    },
+    {
+      "line": 839,
+      "text": "// o deployment senza servizio avanzato), usiamo GmailApp per verificare l'esistenza"
+    },
+    {
+      "line": 840,
+      "text": "// della label e cache-iamo comunque il risultato (anche negativo)."
+    },
+    {
+      "line": 850,
+      "text": "// GmailApp.getUserLabelByName restituisce un GmailLabel utilizzabile con GmailApp,"
+    },
+    {
+      "line": 851,
+      "text": "// ma non espone l'ID interno richiesto dalle Gmail Advanced API"
+    },
+    {
+      "line": 852,
+      "text": "// (Gmail.Users.Messages.* vuole valori come \"Label_123\", non il display name)."
+    },
+    {
+      "line": 853,
+      "text": "// Verifichiamo quindi solo l'esistenza per cache-are il lookup ed evitiamo di usare"
+    },
+    {
+      "line": 854,
+      "text": "// getName() come falso ID: null forza i fallback GmailApp/thread-level sicuri."
+    },
+    {
+      "line": 872,
+      "text": "// Ottimizzazione: approfittiamo della chiamata list per popolare "
+    },
+    {
+      "line": 873,
+      "text": "// la cache di tutte le etichette scoperte, non solo quella richiesta."
+    },
+    {
+      "line": 922,
+      "text": "// ESTRAZIONE MESSAGGI (con supporto Reply-To)"
+    },
+    {
+      "line": 925,
+      "text": "/**\r\n     * Estrae dettagli messaggio con supporto Reply-To e threading\r\n     */"
+    },
+    {
+      "line": 936,
+      "text": "// Estrai RFC 2822 Message-ID e header utili per filtraggio"
+    },
+    {
+      "line": 980,
+      "text": "// Calcolo flag newsletter basato su header raccolti"
+    },
+    {
+      "line": 1027,
+      "text": "// Silenzio sugli errori di parsing campo To; fallback applicato sotto."
+    },
+    {
+      "line": 1074,
+      "text": "/**\r\n     * Estrae testo dagli allegati per contesto prompt.\r\n     * Supporta PDF/immagini (via OCR), Word, Excel e PowerPoint (via conversione nativa).\r\n     * Richiede Drive Advanced Service abilitato.\r\n     * @param {GmailMessage} message\r\n     * @param {object} options\r\n     * @returns {{text: string, items: Array, skipped: Array}}\r\n     */"
+    },
+    {
+      "line": 1183,
+      "text": "// Estrazione testo: conversione diretta per Office, OCR per PDF/immagini"
+    },
+    {
+      "line": 1190,
+      "text": "// Conversione diretta, non ottica"
+    },
+    {
+      "line": 1198,
+      "text": "// Filtro qualità OCR (solo per PDF/immagini)"
+    },
+    {
+      "line": 1219,
+      "text": "// Per i PDF usa un limite coerente con il cap pagine stimato,"
+    },
+    {
+      "line": 1220,
+      "text": "// consentendo di superare il default generico quando necessario."
+    },
+    {
+      "line": 1301,
+      "text": "/**\r\n     * Estrae gli allegati processabili in modalità multimodale.\r\n     * - TXT/CSV: estratti come testo di contesto\r\n     * - PDF/Immagini: passati come Blob\r\n     * - DOC/DOCX/PPT/PPTX: convertiti al volo in PDF\r\n     * - XLS/XLSX: estratti come testo (tabellare) nel contesto\r\n     * @param {GmailMessage} message\r\n     * @param {object} options\r\n     * @returns {{textContext: string, blobs: Array<Blob>, skipped: Array}}\r\n     */"
+    },
+    {
+      "line": 1361,
+      "text": "// Evita richieste multimodali su micro-immagini decorative, immagini vettoriali/unsupported"
+    },
+    {
+      "line": 1362,
+      "text": "// (es. SVG/TIFF) e formati che possono stressare copyBlob/OCR in RAM."
+    },
+    {
+      "line": 1448,
+      "text": "// Excel (XLS/XLSX): preferisci testo contestuale invece di blob PDF"
+    },
+    {
+      "line": 1539,
+      "text": "/**\r\n     * Converte un file Office in PDF usando Drive Advanced Service.\r\n     * Crea un file temporaneo, lo esporta in PDF e lo cancella sempre.\r\n     * @param {Blob} attachmentBlob\r\n     * @returns {Blob}\r\n     */"
+    },
+    {
+      "line": 1551,
+      "text": "// 15s budget per singola conversione"
+    },
+    {
+      "line": 1561,
+      "text": "// per la lookup in _officeMimeMap usiamo il mime base normalizzato."
+    },
+    {
+      "line": 1608,
+      "text": "// La conversione lato Drive può essere asincrona su file Office grandi."
+    },
+    {
+      "line": 1609,
+      "text": "// Usiamo retry breve con backoff lineare per evitare PDF vuoti/corrotti."
+    },
+    {
+      "line": 1642,
+      "text": "// In caso di errore durante conversione/export, forza anche il cleanup"
+    },
+    {
+      "line": 1643,
+      "text": "// degli eventuali residui per ridurre accumulo file temporanei."
+    },
+    {
+      "line": 1691,
+      "text": "// Rimuove dalla coda indipendentemente dall'esito: se la rimozione fallisce"
+    },
+    {
+      "line": 1692,
+      "text": "// perché il file era già eliminato, non ha senso ritentare dalla coda."
+    },
+    {
+      "line": 1703,
+      "text": "// La coda persistente ripara i crash avvenuti dopo la creazione del file temporaneo:"
+    },
+    {
+      "line": 1704,
+      "text": "// va drenata anche quando il cleanup orfani indicizzato per nome è ancora in throttle."
+    },
+    {
+      "line": 1717,
+      "text": "// Backup persistente: CacheService può essere evicted prima del TTL."
+    },
+    {
+      "line": 1730,
+      "text": "// max una volta ogni 6 ore (evita edge-case al limite hard)"
+    },
+    {
+      "line": 1751,
+      "text": "// Compatibilità Drive API v2/v3: cambiano nomi campo in query e shape della risposta."
+    },
+    {
+      "line": 1752,
+      "text": "// Manteniamo doppia strategia per evitare cleanup silenziosamente inattivo."
+    },
+    {
+      "line": 1814,
+      "text": "/**\r\n     * Estrae testo da un allegato Office (Word, Excel, PowerPoint)\r\n     * tramite conversione nativa in Google Workspace.\r\n     * @param {GmailAttachment} attachment - Allegato email\r\n     * @param {string} googleMimeType - Tipo Google Workspace destinazione\r\n     * @param {object} settings - Impostazioni pipeline\r\n     * @returns {string} Testo estratto (vuoto se fallisce)\r\n     */"
+    },
+    {
+      "line": 1845,
+      "text": "// Caricamento con conversione nel formato Google Workspace corrispondente"
+    },
+    {
+      "line": 1901,
+      "text": "// Estrazione testo in base al tipo Google Workspace"
+    },
+    {
+      "line": 1908,
+      "text": "// Excel → Google Sheets: concatena il testo di tutte le celle non vuote"
+    },
+    {
+      "line": 1932,
+      "text": "// PowerPoint → Google Slides: estrae testo da ogni diapositiva"
+    },
+    {
+      "line": 1951,
+      "text": "// Ignora shape non testuali o non leggibili"
+    },
+    {
+      "line": 2010,
+      "text": "// Drive API v3: per ottenere testo OCR apribile con DocumentApp,"
+    },
+    {
+      "line": 2011,
+      "text": "// il file caricato va convertito in Google Doc."
+    },
+    {
+      "line": 2060,
+      "text": "// Fallback legacy (potrebbe non supportare signature a 1 argomento)"
+    },
+    {
+      "line": 2071,
+      "text": "/**\r\n     * Valuta se il testo OCR è significativo o spazzatura/vuoto.\r\n     * @param {string} text - Testo grezzo OCR\r\n     * @param {boolean} isGenericName - Se il nome file è generico (es. IMG_1234.jpg)\r\n     * @returns {boolean} - True se il testo è valido\r\n     */"
+    },
+    {
+      "line": 2083,
+      "text": "// 1. Filtro Lunghezza Minima Assoluta"
+    },
+    {
+      "line": 2084,
+      "text": "// Ridotto a 15 per consentire dati strutturati brevi (es. Codice Fiscale)."
+    },
+    {
+      "line": 2087,
+      "text": "// 1.5 Fast-path per identificativi strutturati (anche con poche lettere, es. IBAN)"
+    },
+    {
+      "line": 2094,
+      "text": "// Conta le lettere effettive (a-z, A-Z)"
+    },
+    {
+      "line": 2096,
+      "text": "// Meno di 5 lettere = spazzatura (es. \"|||||--\")"
+    },
+    {
+      "line": 2098,
+      "text": "// 3. Filtro Combinato per Nomi Generici"
+    },
+    {
+      "line": 2099,
+      "text": "// Se il file ha nome generico (es. IMG_...), richiediamo più testo (50 caratteri)"
+    },
+    {
+      "line": 2100,
+      "text": "// per evitare di includere screenshot accidentali o foto sfocate con poco testo."
+    },
+    {
+      "line": 2116,
+      "text": "// Gestione codici regionali tipo en-US -> en"
+    },
+    {
+      "line": 2270,
+      "text": "/**\r\n     * Estrae contesto focalizzato attorno a un IBAN rilevato nel testo.\r\n     * @param {string} text - Testo da analizzare\r\n     * @param {number} contextChars - Caratteri di contesto prima/dopo IBAN\r\n     * @returns {{matched: boolean, text: string}} Risultato con flag e testo estratto\r\n     */"
+    },
+    {
+      "line": 2281,
+      "text": "// Regex IBAN più stringente: 2 lettere + 2 cifre + 15-30 alfanumerici (min 15 per evitare collisioni)"
+    },
+    {
+      "line": 2327,
+      "text": "// Preserva separatori originali (spazi e trattini)"
+    },
+    {
+      "line": 2345,
+      "text": "// Evita regex RFC5322 troppo complesse (rischio backtracking su input malevoli)."
+    },
+    {
+      "line": 2346,
+      "text": "// Header From di Gmail sono già sanificati: pattern snello e lineare è sufficiente."
+    },
+    {
+      "line": 2359,
+      "text": "// Troncamento preventivo: evita timeout V8 su HTML anomalo/massivo durante replace regex."
+    },
+    {
+      "line": 2361,
+      "text": "// Rimuove blocchi di codice/stile che altrimenti finirebbero nel prompt testuale."
+    },
+    {
+      "line": 2363,
+      "text": "// Preserva separatori strutturali per evitare blocchi di testo illeggibili."
+    },
+    {
+      "line": 2368,
+      "text": "// Evita di rimuovere espressioni testuali tipo \"A < B > C\" trattando solo tag HTML plausibili"
+    },
+    {
+      "line": 2371,
+      "text": "// Fallback simboli per plain text (evita mojibake in ambienti non-UTF8)"
+    },
+    {
+      "line": 2404,
+      "text": "// Riduce spazi/tabs senza distruggere i newline significativi"
+    },
+    {
+      "line": 2418,
+      "text": "/**\r\n     * Costruisce cronologia conversazione da messaggi thread\r\n     */"
+    },
+    {
+      "line": 2490,
+      "text": "/**\r\n     * Estrazione leggera dettagli messaggio (senza fetch metadata API).\r\n     * Usata per la sola costruzione della history conversazionale.\r\n     */"
+    },
+    {
+      "line": 2560,
+      "text": "// - email brevi: cerca su tutto il testo (evita falsi negativi)"
+    },
+    {
+      "line": 2561,
+      "text": "// - email lunghe: concentra la ricerca sulle ultime ~600 chars"
+    },
+    {
+      "line": 2573,
+      "text": "// Tronca solo se la firma è su una nuova sezione (dopo riga vuota)"
+    },
+    {
+      "line": 2607,
+      "text": "/**\r\n     * Invia risposta come HTML con threading corretto\r\n     */"
+    },
+    {
+      "line": 2643,
+      "text": "// From stabile: priorità all'indirizzo di ricezione solo se autorizzato"
+    },
+    {
+      "line": 2644,
+      "text": "// (utente effettivo/attivo o alias configurato in Gmail)."
+    },
+    {
+      "line": 2706,
+      "text": "// La specifica Gmail RAW richiede un Message-ID valido per l'header In-Reply-To."
+    },
+    {
+      "line": 2707,
+      "text": "// Se non disponibile/valido, inviamo comunque via RAW con threadId e Subject pulito."
+    },
+    {
+      "line": 2715,
+      "text": "// Reply-To: usa alias solo se presente in To/Cc del messaggio originale"
+    },
+    {
+      "line": 2756,
+      "text": "// Manteniamo `rawHeaders` come array e lo espandiamo nel payload MIME."
+    },
+    {
+      "line": 2804,
+      "text": "// Alternativa: metodo tradizionale"
+    },
+    {
+      "line": 2805,
+      "text": "// Nel fallback nativo prediligiamo il cast esplicito a GmailMessage (se disponibile)"
+    },
+    {
+      "line": 2806,
+      "text": "// affinché la libreria interna mantenga al meglio il riferimento al messaggio specifico"
+    },
+    {
+      "line": 2825,
+      "text": "// Corpo minimo non vuoto per massimizzare compatibilità nel fallback nativo."
+    },
+    {
+      "line": 2884,
+      "text": "// Rimuove tag HTML con pattern lineare per prevenire Catastrophic Backtracking (ReDoS)."
+    },
+    {
+      "line": 2896,
+      "text": "// SAFEGUARD DI FORMATTAZIONE"
+    },
+    {
+      "line": 2900,
+      "text": "// SAFEGUARD DI FORMATTAZIONE"
+    },
+    {
+      "line": 2903,
+      "text": "/**\r\n     * Prepara il testo per l'invio applicando sanificazione, sostituzioni e correzioni.\r\n     */"
+    },
+    {
+      "line": 2911,
+      "text": "// Evita alterazioni meccaniche del casing dopo la generazione LLM:"
+    },
+    {
+      "line": 2912,
+      "text": "// in output multilingua può corrompere nomi propri e saluti."
+    },
+    {
+      "line": 2916,
+      "text": "/**\r\n     * Corregge errori comuni di punteggiatura\r\n     * Gestisce eccezioni per nomi doppi (es. \"Maria Isabella\")\r\n     */"
+    },
+    {
+      "line": 2923,
+      "text": "// 0. Normalizzazione Encoding: converte smart quotes in standard ASCII"
+    },
+    {
+      "line": 2924,
+      "text": "// e rimuove caratteri di controllo invisibili che possono corrompere il layout."
+    },
+    {
+      "line": 2931,
+      "text": "// Intenzionale: array locale ricreato a ogni chiamata, quindi la mutazione"
+    },
+    {
+      "line": 2932,
+      "text": "// serve solo ad ampliare le eccezioni per il messaggio corrente."
+    },
+    {
+      "line": 2945,
+      "text": "// Evita di alterare acronimi/parole interamente maiuscole (es. \"ISEE\", \"INVIA\")"
+    },
+    {
+      "line": 2946,
+      "text": "// Range esplicitamente ristretto per coprire accentate europee escludendo simboli matematici (×, ÷)."
+    },
+    {
+      "line": 2948,
+      "text": "// Eccezione per elenchi numerati (es: \"1, Partecipanti\")"
+    },
+    {
+      "line": 2961,
+      "text": "// Eccezione per virgola/punto successivo"
+    },
+    {
+      "line": 2966,
+      "text": "// Eccezione per congiunzione \"e\" seguita da nome (es. \"Maria e Giovanni,\")"
+    },
+    {
+      "line": 2971,
+      "text": "// Euristica nomi doppi: se la parola è seguita da un'altra parola maiuscola,"
+    },
+    {
+      "line": 2997,
+      "text": "/**\r\n     * Applica sostituzioni testo dal foglio Sostituzioni\r\n     */"
+    },
+    {
+      "line": 3011,
+      "text": "// Usa callback per evitare l'interpretazione dei pattern speciali ($1, $&, $', $`)."
+    },
+    {
+      "line": 3054,
+      "text": "/**\r\n     * Crea header Subject RFC 2047 UTF-8 Base64 con folding robusto.\r\n     * Garantisce che:\r\n     * 1. Ogni encoded-word sia <= 75 caratteri.\r\n     * 2. Nessun carattere multi-byte (es. emoji, accentate) venga spezzato tra due word.\r\n     * 3. Ogni word sia decodificabile indipendentemente (Base64 multiplo di 4).\r\n     * @param {string} subject\r\n     * @returns {string}\r\n     */"
+    },
+    {
+      "line": 3066,
+      "text": "// Se il soggetto è puramente ASCII e corto, potremmo evitare l'encoding,"
+    },
+    {
+      "line": 3067,
+      "text": "// ma per consistenza e sicurezza con nomi italiani/emoji usiamo sempre UTF-8 B."
+    },
+    {
+      "line": 3070,
+      "text": "// Limite RFC 2047 per singolo encoded-word"
+    },
+    {
+      "line": 3078,
+      "text": "// Segmenta per grapheme quando disponibile, con fallback compatibile Apps Script."
+    },
+    {
+      "line": 3100,
+      "text": "// Folding: Subject: + prima riga + righe successive con spazio (WSP)"
+    },
+    {
+      "line": 3173,
+      "text": "/**\r\n     * Spezza una stringa Base64 in righe da massimo 76 caratteri (RFC 2045).\r\n     * @param {string} base64Str\r\n     * @returns {string}\r\n     */"
+    },
+    {
+      "line": 3206,
+      "text": "// Se non c'è spazio, spingi la riga corrente (incluso il prefisso se è il primo token)"
+    },
+    {
+      "line": 3207,
+      "text": "// e manda il token a capo. Mantiene intatta la semantica e il nome dell'header."
+    },
+    {
+      "line": 3284,
+      "text": "// Classificazione per formato file Office"
+    },
+    {
+      "line": 3344,
+      "text": "// Supporta anche codici fiscali omocodici (sostituzioni LMNPQRSTUV nelle posizioni numeriche)"
+    },
+    {
+      "line": 3371,
+      "text": "// Funzione factory"
+    },
+    {
+      "line": 3380,
+      "text": "/**\r\n * Sanitizzazione URL robusta con whitelist di protocolli\r\n */"
+    },
+    {
+      "line": 3402,
+      "text": "// vengono normalizzati in https://... prima della whitelist protocolli."
+    },
+    {
+      "line": 3431,
+      "text": "// SSRF: blocco IP interni, IPv6 loopback/link-local, IP decimali"
+    },
+    {
+      "line": 3448,
+      "text": "// Validazione hostname post-parse per bloccare dotted-quad in notazione esadecimale/ottale"
+    },
+    {
+      "line": 3460,
+      "text": "// per evitare bypass delle regole SSRF su loopback/link-local."
+    },
+    {
+      "line": 3473,
+      "text": "// Blocca loopback e indirizzi non specificati"
+    },
+    {
+      "line": 3506,
+      "text": "// Gestione delle notazioni IPv4 abbreviate (es. 127.1, 10.0.1)"
+    },
+    {
+      "line": 3516,
+      "text": "// Espande la notazione short (es. [127, 1] diventa [127, 0, 0, 1])"
+    },
+    {
+      "line": 3598,
+      "text": "/**\r\n * Escape HTML per prevenire XSS.\r\n * Applicato PRIMA delle trasformazioni markdown.\r\n */"
+    },
+    {
+      "line": 3616,
+      "text": "/**\r\n * Converte Markdown in HTML sicuro.\r\n * Strategia: escape-first, poi trasformazioni markdown.\r\n */"
+    },
+    {
+      "line": 3636,
+      "text": "// Limite iterazione profonda URLs per sicurezza"
+    },
+    {
+      "line": 3679,
+      "text": "// Degrada localmente il link malformato senza interrompere"
+    },
+    {
+      "line": 3680,
+      "text": "// il parsing di eventuali link validi successivi."
+    },
+    {
+      "line": 3719,
+      "text": "// 3. Escape globale (tutto il testo rimanente diventa sicuro)"
+    },
+    {
+      "line": 3722,
+      "text": "// 4. Trasformazioni markdown su testo già escaped"
+    },
+    {
+      "line": 3723,
+      "text": "// Manteniamo una proporzione fissa tra corpo testo e titoli."
+    },
+    {
+      "line": 3739,
+      "text": "// 5. Liste markdown (bullet e numerate) -> <ul>/ <ol> + <li>"
+    },
+    {
+      "line": 3741,
+      "text": "// Raggruppa righe consecutive con lo stesso prefisso in un unico <ul>"
+    },
+    {
+      "line": 3761,
+      "text": "// Bold / Italic (dopo le liste per evitare collisioni con \"* item\")"
+    },
+    {
+      "line": 3762,
+      "text": "// Nota: gli asterischi NON vengono escaped da escapeHtml(), quindi funzionano normalmente"
+    },
+    {
+      "line": 3764,
+      "text": "// [^\\n*] evita match cross-paragrafo e attraversamento di tag già inseriti"
+    },
+    {
+      "line": 3772,
+      "text": "// 7. Ripristina link e code blocks"
+    },
+    {
+      "line": 3783,
+      "text": "// 8. Converti TUTTI i caratteri non-ASCII in entità HTML per massima compatibilità."
+    },
+    {
+      "line": 3784,
+      "text": "// Questo previene mojibake (es: \"â”\", \"âœ\") in client che rilevano male il charset."
+    },
+    {
+      "line": 3787,
+      "text": "// Mantieni UTF-8 nativo per accenti/latin; entità solo per codepoint fuori BMP."
+    },
+    {
+      "line": 3794,
+      "text": "// 9. Costruzione paragrafi evitando nesting invalido di <p>"
+    },
+    {
+      "line": 3795,
+      "text": "// Inserisce separatori intorno ai blocchi per evitare casi tipo:"
+    },
+    {
+      "line": 3816,
+      "text": "// Manteniamo il corpo risposta a 20px: i programmatori non devono rompere le scatole con altre regressioni."
+    }
+  ],
+  "gas_logger.js": [
+    {
+      "line": 40,
+      "text": "// Null guard: the default `= {}` only covers `undefined`, not `null`."
+    },
+    {
+      "line": 102,
+      "text": "/**\n   * Invia notifica via email all'amministratore\n   */"
+    },
+    {
+      "line": 161,
+      "text": "// The subsequent 'sent' value is idempotent and extends the cooldown upon successful delivery."
+    },
+    {
+      "line": 209,
+      "text": "/**\n * Factory function to create loggers\n */"
+    }
+  ],
+  "gas_main.js": [
+    {
+      "line": 1,
+      "text": "/** \r\n * Ultimo aggiornamento: 2026-05-11 23:57\r\n *\r\n * Main.js - Entry point del sistema autoresponder\r\n * Gestisce trigger, inizializzazione e orchestrazione principale\r\n * Include logica sospensione oraria e festività italiane\r\n */"
+    },
+    {
+      "line": 9,
+      "text": "// Inizializzazione della cache globale condivisa tra moduli"
+    },
+    {
+      "line": 28,
+      "text": "// Configurazione TTL allineata ai vincoli di ScriptCache (21600s)."
+    },
+    {
+      "line": 46,
+      "text": "// FESTIVITÀ E SOSPENSIONE"
+    },
+    {
+      "line": 49,
+      "text": "// Costanti per mesi (JavaScript usa indici 0-11)"
+    },
+    {
+      "line": 55,
+      "text": "// Giorni in cui il sistema DEVE rispondere (dipendenti in ferie)"
+    },
+    {
+      "line": 60,
+      "text": "// Festa del Lavoro"
+    },
+    {
+      "line": 61,
+      "text": "// Festa della Repubblica"
+    },
+    {
+      "line": 62,
+      "text": "// SS. Pietro e Paolo"
+    },
+    {
+      "line": 71,
+      "text": "// Configurazione statica degli orari di sospensione (Fallback)."
+    },
+    {
+      "line": 72,
+      "text": "// Garantisce il funzionamento del sistema anche in assenza di configurazione esterna."
+    },
+    {
+      "line": 81,
+      "text": "/**\r\n * Calcola la Domenica di Pasqua per un dato anno (calendario occidentale/gregoriano)\r\n */"
+    },
+    {
+      "line": 99,
+      "text": "// Usa mezzogiorno locale per evitare slittamenti di data in conversioni timezone/DST"
+    },
+    {
+      "line": 103,
+      "text": "/**\r\n * Stima il numero di token per un testo ed eventuali allegati.\r\n * Algoritmo centralizzato (DRY): unica sorgente di verità per tutte le stime token.\r\n * Formula testo: max(parole * 1.25 + 10% overhead, caratteri / 3.2)\r\n * Allegati: stima MIME-aware (image=258, pdf=1032, default=1032) configurabile via CONFIG.\r\n * \r\n * @param {string} text - Testo da stimare\r\n * @param {Array} attachments - Array di allegati (opzionale, Blob con getContentType)\r\n * @returns {number} Numero stimato di token (min 1)\r\n */"
+    },
+    {
+      "line": 153,
+      "text": "/**\r\n * Verifica se una data ricade in uno dei periodi ferie del segretario\r\n */"
+    },
+    {
+      "line": 162,
+      "text": "// Supporto per date serializzate in JSON (stringhe ISO) o timestamp numerici"
+    },
+    {
+      "line": 184,
+      "text": "// Normalizza input a data-only nel fuso dello script per evitare slittamenti ai confini UTC."
+    },
+    {
+      "line": 197,
+      "text": "// Fallback locale: mantiene compatibilità anche in test/mocking senza Utilities."
+    },
+    {
+      "line": 227,
+      "text": "/**\r\n * Confronta due Date sul solo calendario locale.\r\n * Resta deliberatamente difensiva perché viene usata nella logica di sospensione.\r\n */"
+    },
+    {
+      "line": 240,
+      "text": "/**\r\n * Verifica se il sistema dovrebbe essere SOSPESO\r\n */"
+    },
+    {
+      "line": 252,
+      "text": "// Regola di dominio: la sospensione è ancorata all'orario italiano."
+    },
+    {
+      "line": 276,
+      "text": "// 1. GESTIONE FESTIVI (Priorità: Sistema ATTIVO)"
+    },
+    {
+      "line": 281,
+      "text": "// Domenica di Pasqua, Pasquetta, Sabato Santo"
+    },
+    {
+      "line": 286,
+      "text": "// Nota manutenzione: base su \"easter\" è intenzionale per leggibilità semantica."
+    },
+    {
+      "line": 300,
+      "text": "// Corpus Domini (Pasqua + 63 giorni: domenica successiva alla SS. Trinità, prassi italiana)"
+    },
+    {
+      "line": 305,
+      "text": "// Ferie Segretario (Sheet)"
+    },
+    {
+      "line": 308,
+      "text": "// 2. ORARI UFFICIO (Sistema SOSPESO)"
+    },
+    {
+      "line": 309,
+      "text": "// Utilizza i dati caricati dal foglio Controllo in (A10:D16/B10:E16) durante il loadResources"
+    },
+    {
+      "line": 310,
+      "text": "// Se non presenti, usa il fallback definito via codice in SUSPENSION_HOURS"
+    },
+    {
+      "line": 311,
+      "text": "// loaded è il discriminante autoritativo: se la cache è caricata, prevalgono le regole da foglio."
+    },
+    {
+      "line": 313,
+      "text": "//   - null: foglio 'Controllo' assente → fallback sicuro su SUSPENSION_HOURS."
+    },
+    {
+      "line": 314,
+      "text": "//   - {}: foglio presente ma senza fasce configurate → nessuna sospensione."
+    },
+    {
+      "line": 315,
+      "text": "//   - {1:[...], ...}: fasce orarie lette dal foglio."
+    },
+    {
+      "line": 345,
+      "text": "/**\r\n * Paracadute operativo: se esistono email non lette molto vecchie,\r\n * permette un ciclo di lavorazione anche durante la sospensione.\r\n */"
+    },
+    {
+      "line": 362,
+      "text": "// Non usiamo -label nella query: Gmail può applicarlo a livello thread e"
+    },
+    {
+      "line": 363,
+      "text": "// nascondere follow-up non letti dentro conversazioni già etichettate."
+    },
+    {
+      "line": 437,
+      "text": "// Fix architetturale: filtra i falsi positivi della query `newer_than`"
+    },
+    {
+      "line": 438,
+      "text": "// prima di passare al controllo dettagliato per-messaggio."
+    },
+    {
+      "line": 441,
+      "text": "// Verifichiamo a livello messaggio: un thread può contenere vecchie"
+    },
+    {
+      "line": 442,
+      "text": "// risposte già terminali e nuovi follow-up ancora processabili."
+    },
+    {
+      "line": 490,
+      "text": "// Questo evita race condition in cui due trigger sovrascrivono la cache a metà serializzazione."
+    },
+    {
+      "line": 498,
+      "text": "// Nota: da qui in avanti GLOBAL_CACHE è garantita; evitiamo fallback silenziosi"
+    },
+    {
+      "line": 499,
+      "text": "// perché maschererebbero regressioni d'inizializzazione del runtime."
+    },
+    {
+      "line": 564,
+      "text": "// ⚠️ Scelta blindata: la cache persiste SEMPRE il payload completo delle risorse."
+    },
+    {
+      "line": 565,
+      "text": "// Eventuali riduzioni/riassunti vanno fatte solo a runtime nel PromptEngine,"
+    },
+    {
+      "line": 566,
+      "text": "// mai qui, altrimenti si degrada sistematicamente il caso normale."
+    },
+    {
+      "line": 568,
+      "text": "// 1. Prova a leggere dalla vera Cache di Apps Script"
+    },
+    {
+      "line": 602,
+      "text": "// Hardening: evita crash se CONFIG non è ancora inizializzato (ordine file GAS)"
+    },
+    {
+      "line": 603,
+      "text": "// Nota manutenzione: questo caricamento risorse deve avere priorità su processUnreadEmails"
+    },
+    {
+      "line": 604,
+      "text": "// per assicurare che KB e Dottrina siano disponibili."
+    },
+    {
+      "line": 636,
+      "text": "// Prompt resources aggiuntive (usate da PromptEngine)"
+    },
+    {
+      "line": 660,
+      "text": "// Coerenza con _parseSheetToStructured: la prima riga è intestazione e non contenuto."
+    },
+    {
+      "line": 674,
+      "text": "// Salta la prima riga (header convenzionale: Originale | Sostituzione)"
+    },
+    {
+      "line": 697,
+      "text": "// 3. Salva nella RAM dell'esecuzione corrente"
+    },
+    {
+      "line": 700,
+      "text": "// 4. Salva nel CacheService (6 ore)"
+    },
+    {
+      "line": 747,
+      "text": "// Drive API v3"
+    },
+    {
+      "line": 750,
+      "text": "// Alcuni ambienti Apps Script usano ancora semantica v2."
+    },
+    {
+      "line": 754,
+      "text": "// Fallback finale per ambienti senza parametro \"fields\"."
+    },
+    {
+      "line": 768,
+      "text": "// Usa il timestamp più recente tra trigger onEdit/custom e Drive."
+    },
+    {
+      "line": 770,
+      "text": "// renderebbe la cache sempre stale e moltiplicherebbe letture Sheets inutili."
+    },
+    {
+      "line": 773,
+      "text": "// Non persistiamo qui il timestamp calcolato da Drive: KB_CUSTOM_MODIFIED_TIME"
+    },
+    {
+      "line": 774,
+      "text": "// è un segnale esplicito scritto da onEdit per le sole risorse monitorate."
+    },
+    {
+      "line": 775,
+      "text": "// Scriverci il valore Drive da un polling generico confonde la provenienza del"
+    },
+    {
+      "line": 776,
+      "text": "// segnale e può rendere più difficile diagnosticare l'invalidazione cache."
+    },
+    {
+      "line": 828,
+      "text": "// A6:C10: layout ferie legacy"
+    },
+    {
+      "line": 835,
+      "text": "// Nota operativa: onEdit viene valutato solo su modifiche utente al foglio."
+    },
+    {
+      "line": 836,
+      "text": "// Inoltre limitiamo l'invalidazione ai fogli/range letti da loadResources,"
+    },
+    {
+      "line": 837,
+      "text": "// escludendo ConversationMemory e fogli di log/rate-limit scritti durante l'elaborazione email."
+    },
+    {
+      "line": 928,
+      "text": "/**\r\n * Serializza payload risorse per CacheService.\r\n * Usa JSON diretto; opzionalmente comprime con gzip+base64 quando disponibile.\r\n */"
+    },
+    {
+      "line": 943,
+      "text": "// Per Utilities.newBlob(data, contentType, name), il terzo parametro deve essere una stringa."
+    },
+    {
+      "line": 944,
+      "text": "// Utilities.newBlob() converte automaticamente le stringhe in byte UTF-8."
+    },
+    {
+      "line": 953,
+      "text": "/**\r\n * Deserializza payload risorse da CacheService (plain JSON o gzip+base64).\r\n */"
+    },
+    {
+      "line": 973,
+      "text": "// Nota: maxChars è una stima iniziale conservativa passata come RESOURCE_CACHE_MAX_PART_SIZE (45000)."
+    },
+    {
+      "line": 974,
+      "text": "// CacheService ha un limite fisico di 100KB (102400 byte) per entry."
+    },
+    {
+      "line": 975,
+      "text": "// Un po' meno di 100KB per sicurezza overhead chiave."
+    },
+    {
+      "line": 980,
+      "text": "// Cerchiamo il chunk più grande possibile che stia nel limite di byte"
+    },
+    {
+      "line": 987,
+      "text": "// Se sforiamo il limite assoluto di Apps Script, riduciamo il chunk finché non rientra."
+    },
+    {
+      "line": 994,
+      "text": "// Se payload estremamente densi di caratteri multibyte restano oltre limite anche"
+    },
+    {
+      "line": 995,
+      "text": "// sotto 1000 code unit, trova rapidamente il chunk massimo valido invece di"
+    },
+    {
+      "line": 996,
+      "text": "// avanzare un solo carattere per iterazione."
+    },
+    {
+      "line": 1021,
+      "text": "// Evita split nel mezzo di surrogate pair UTF-16"
+    },
+    {
+      "line": 1049,
+      "text": "// Lettura cache con supporto chiave precedente per continuità operativa."
+    },
+    {
+      "line": 1050,
+      "text": "// Manteniamo questo ramo solo come fallback, così V2 prevale se presente."
+    },
+    {
+      "line": 1081,
+      "text": "// ⚠️ Prima invalidiamo sempre: evita mix V2-inline + multipart stale dopo downgrade/upgrade."
+    },
+    {
+      "line": 1089,
+      "text": "// ⚠️ Multipart è una protezione tecnica contro il limite CacheService (~100KB/entry),"
+    },
+    {
+      "line": 1090,
+      "text": "// non una riduzione funzionale della KB."
+    },
+    {
+      "line": 1141,
+      "text": "/**\r\n * Svuota manualmente la cache globale (knowledge/config) per forzare reload.\r\n * Utile come comando da eseguire a mano dall'editor Apps Script.\r\n */"
+    },
+    {
+      "line": 1146,
+      "text": "// ⚠️ Comando operativo ufficiale: resetta RAM + ScriptCache in modo coerente."
+    },
+    {
+      "line": 1147,
+      "text": "// Evitare reset \"parziali\" altrove: causano stati fantasma e reload intermittenti."
+    },
+    {
+      "line": 1164,
+      "text": "// Invalida anche la cache di sistema (CacheService)"
+    },
+    {
+      "line": 1175,
+      "text": "// Alias per invocazione manuale o da trigger precedenti."
+    },
+    {
+      "line": 1180,
+      "text": "/**\r\n * Forza invalidazione + ricarica immediata usando le funzioni operative già esistenti\r\n * (`clearKnowledgeCache`/`clearCache` + `loadResources`).\r\n * Da usare quando cambia il contenuto dei fogli e non si vuole attendere il TTL.\r\n */"
+    },
+    {
+      "line": 1187,
+      "text": "// Non invertire l'ordine (reload->clear) o si ottiene una cache svuotata subito dopo il warm-up."
+    },
+    {
+      "line": 1219,
+      "text": "// Google Sheets può restituire gli orari nativi come Date (es. 30 Dec 1899 14:00:00)"
+    },
+    {
+      "line": 1220,
+      "text": "// Coerenza timezone con _formatDateForKnowledgeText: usare script TZ quando possibile."
+    },
+    {
+      "line": 1240,
+      "text": "// Fallback per ambienti non-GAS (es. test Node.js)"
+    },
+    {
+      "line": 1273,
+      "text": "// NOTA: Il sistema attualmente supporta solo blocchi orari interi. I minuti vengono deliberatamente scartati."
+    },
+    {
+      "line": 1331,
+      "text": "// Fallback difensivo per sheet manipolati manualmente:"
+    },
+    {
+      "line": 1332,
+      "text": "// sceglie le prime due celle orarie valide da sinistra a destra."
+    },
+    {
+      "line": 1347,
+      "text": "// null = sheet assente (distinto da {}: sheet presente ma nessuna regola impostata)"
+    },
+    {
+      "line": 1366,
+      "text": "// Modalità lingua (F2): \"Tutte le lingue\" | \"Solo straniere\""
+    },
+    {
+      "line": 1367,
+      "text": "// Fallback difensivo su \"all\" per retrocompatibilità."
+    },
+    {
+      "line": 1379,
+      "text": "// Retrocompatibilità: alcuni test/fogli legacy non espongono F2."
+    },
+    {
+      "line": 1389,
+      "text": "// Supporta anche layout compatti/varianti in cui la data fine è in C o E."
+    },
+    {
+      "line": 1400,
+      "text": "// Fallback su layout legacy A6:C9 (evita riga 10 che è l'inizio della sospensione)"
+    },
+    {
+      "line": 1411,
+      "text": "// Ignora righe palesemente vuote o con placeholder comuni"
+    },
+    {
+      "line": 1434,
+      "text": "// Sospensione: supporta sia il layout single-sheet corrente"
+    },
+    {
+      "line": 1435,
+      "text": "// (A=giorno, B=inizio, D=fine) sia il legacy"
+    },
+    {
+      "line": 1440,
+      "text": "// Preferisce l'etichetta del giorno presente nel foglio (layout corrente A o legacy B)."
+    },
+    {
+      "line": 1458,
+      "text": "// Cross-midnight: splitta in [start, 24] sul giorno corrente"
+    },
+    {
+      "line": 1459,
+      "text": "// e [0, end] sul giorno successivo."
+    },
+    {
+      "line": 1472,
+      "text": "// Recipient email per revisione validazione (A19)"
+    },
+    {
+      "line": 1479,
+      "text": "// Ignora errori su A19"
+    },
+    {
+      "line": 1485,
+      "text": "// null = fallback sicuro a SUSPENSION_HOURS in isInSuspensionTime"
+    },
+    {
+      "line": 1508,
+      "text": "// Dedup + fallback su config statica"
+    },
+    {
+      "line": 1523,
+      "text": "/**\r\n * Configura tutti i trigger necessari al sistema.\r\n * Eseguire manualmente una volta per ripristinare i trigger principali.\r\n */"
+    },
+    {
+      "line": 1544,
+      "text": "/**\r\n * Alias retrocompatibile documentato nei runbook legacy.\r\n * Configura trigger principali + manutenzione.\r\n */"
+    },
+    {
+      "line": 1552,
+      "text": "/**\r\n * Alias retrocompatibile per deployment produzione (ogni 5 minuti).\r\n */"
+    },
+    {
+      "line": 1559,
+      "text": "/**\r\n * Configura il trigger di elaborazione email.\r\n */"
+    },
+    {
+      "line": 1564,
+      "text": "// GAS supporta solo alcuni intervalli per everyMinutes()."
+    },
+    {
+      "line": 1578,
+      "text": "/**\r\n * Configura il trigger per l'export delle metriche (ore 23:00).\r\n */"
+    },
+    {
+      "line": 1591,
+      "text": "/**\r\n * Export giornaliero metriche su Google Sheet (best effort).\r\n */"
+    },
+    {
+      "line": 1614,
+      "text": "// Header automatico se il foglio è vuoto"
+    },
+    {
+      "line": 1627,
+      "text": "// Riga strutturata per modello"
+    },
+    {
+      "line": 1635,
+      "text": "// Archivio dati granulari per analisi statistica."
+    },
+    {
+      "line": 1643,
+      "text": "/**\r\n * Elimina trigger esistenti per uno specifico handler, evitando duplicati.\r\n */"
+    },
+    {
+      "line": 1655,
+      "text": "/**\r\n * Configura il trigger per la pulizia settimanale della memoria.\r\n * La funzione associata (weeklyMemoryCleanup) deve esistere nel progetto.\r\n */"
+    },
+    {
+      "line": 1668,
+      "text": "/**\r\n * Entrypoint alternativo per trigger e script preesistenti.\r\n * Delega direttamente a main().\r\n */"
+    },
+    {
+      "line": 1676,
+      "text": "/**\r\n * Funzione principale invocata dal trigger temporale (es. ogni 5 min)\r\n */"
+    },
+    {
+      "line": 1682,
+      "text": "// Jitter: previene collisioni esatte al millisecondo in caso di trigger sovrapposti"
+    },
+    {
+      "line": 1685,
+      "text": "// 0. Controllo Preventivo Gmail Advanced Service"
+    },
+    {
+      "line": 1719,
+      "text": "// Nota progettuale: evitiamo di accodare trigger aggiuntivi qui per non creare"
+    },
+    {
+      "line": 1720,
+      "text": "// una tempesta di trigger concorrenti; il trigger periodico successivo riproverà."
+    },
+    {
+      "line": 1731,
+      "text": "// TTL allineato al budget esecuzione (280 s) + margine sicurezza"
+    },
+    {
+      "line": 1739,
+      "text": "// Self-healing: se la cache risulta ancora non caricata dopo un reset manuale"
+    },
+    {
+      "line": 1740,
+      "text": "// o uno stato transitorio, forziamo una seconda inizializzazione."
+    },
+    {
+      "line": 1752,
+      "text": "// 3. Controllo Stato Sistema"
+    },
+    {
+      "line": 1773,
+      "text": "// 4. Orchestrazione Pipeline (Delegato alle classi di servizio)"
+    },
+    {
+      "line": 1774,
+      "text": "// Rilascia il gate globale prima di costruire/avviare servizi che usano ScriptLock"
+    },
+    {
+      "line": 1775,
+      "text": "// internamente (RateLimiter, MemoryService, lock thread). La deduplica operativa"
+    },
+    {
+      "line": 1776,
+      "text": "// resta protetta dai lock granulari e dall'idempotenza su singolo messaggio."
+    },
+    {
+      "line": 1791,
+      "text": "// Passaggio della dottrina strutturata e testo piatto per compatibilità con i formati di input"
+    },
+    {
+      "line": 1825,
+      "text": "// Chiave stabile: il TTL della CacheService rappresenta la finestra di lock."
+    },
+    {
+      "line": 1826,
+      "text": "// Usare bucket per minuto permetteva sovrapposizioni tra trigger consecutivi"
+    },
+    {
+      "line": 1827,
+      "text": "// mentre il batch precedente era ancora in esecuzione."
+    },
+    {
+      "line": 1945,
+      "text": "/**\r\n * Serializza righe foglio in testo robusto per prompt/validator.\r\n * - converte in stringa e trimma ogni cella\r\n * - rimuove celle vuote\r\n * - rimuove righe completamente vuote\r\n */"
+    },
+    {
+      "line": 1978,
+      "text": "/**\r\n * Normalizza la serializzazione celle per evitare output locale-dipendente.\r\n * In particolare, le Date di Google Sheets vengono convertite in formato stabile\r\n * (YYYY-MM-DD oppure YYYY-MM-DD HH:mm) invece di \"Tue May 12 2026 ...\".\r\n */"
+    },
+    {
+      "line": 1990,
+      "text": "// Evita che ritorni a capo dentro una singola cella spezzino la struttura"
+    },
+    {
+      "line": 1991,
+      "text": "// del testo KB (una riga Sheet deve restare una riga logica nel prompt)."
+    },
+    {
+      "line": 2003,
+      "text": "// Fallback al timezone di riferimento per evitare spostamenti di giorni imprevisti."
+    },
+    {
+      "line": 2007,
+      "text": "// Google Sheets archivia i valori \"solo orario\" come Date con anno 1899."
+    },
+    {
+      "line": 2008,
+      "text": "// In KB preferiamo serializzare solo l'orario (HH:mm), non una data fittizia."
+    },
+    {
+      "line": 2022,
+      "text": "// Rileviamo se Utilities supporta davvero i token orari richiesti."
+    },
+    {
+      "line": 2023,
+      "text": "// Nei test Node il mock può restituire stringhe complete (es. \"2026-05-10\")"
+    },
+    {
+      "line": 2024,
+      "text": "// anche per pattern come 'H'/'m'/'s': in quel caso facciamo fallback ai parts"
+    },
+    {
+      "line": 2025,
+      "text": "// per evitare di classificare erroneamente una data-only come data+ora."
+    },
+    {
+      "line": 2032,
+      "text": "// Nota edge-case: in Google Sheets una data/ora esattamente alle 00:00"
+    },
+    {
+      "line": 2033,
+      "text": "// è indistinguibile da una \"data-only\" guardando solo i componenti temporali."
+    },
+    {
+      "line": 2034,
+      "text": "// In quel caso questa serializzazione produrrà yyyy-MM-dd."
+    },
+    {
+      "line": 2041,
+      "text": "// Fallback Node/tests: prova a rispettare lo stesso fuso orario dello script."
+    },
+    {
+      "line": 2076,
+      "text": "// Ignora e usa fallback UTC sotto."
+    },
+    {
+      "line": 2121,
+      "text": "/**\r\n * Estrae un periodo ferie da una riga del layout Controllo B5:E7.\r\n * Il layout documentato usa B=inizio e D=fine, ma alcuni fogli reali\r\n * possono avere la fine in C (layout compatto) o E. Per evitare falsi\r\n * periodi invalidi, usa la prima coppia di date valide trovata sulla riga.\r\n * @param {Array<*>} row - Riga letta da B:E.\r\n * @returns {{start: *, end: *}} Valori originali di inizio/fine da convertire a valle.\r\n */"
+    },
+    {
+      "line": 2143,
+      "text": "// Preferenza esplicita: D (layout documentato), poi C (compatto), poi E (variante estesa)."
+    },
+    {
+      "line": 2147,
+      "text": "/**\r\n * Converte valori data provenienti da Google Sheets in Date valide.\r\n * Supporta Date native, seriali Sheets e stringhe italiane gg/mm/aaaa.\r\n * @param {*} value - Valore cella da convertire\r\n * @returns {Date|null} Date valida o null se non interpretabile\r\n */"
+    },
+    {
+      "line": 2159,
+      "text": "// Google Sheets usa 1899-12-30 come origine dei seriali data."
+    },
+    {
+      "line": 2160,
+      "text": "// I seriali data odierni sono > 40000. Sotto 36526 (anno 2000) o per numeri "
+    },
+    {
+      "line": 2161,
+      "text": "// molto piccoli (es. ore 8, 12) restituiamo null per evitare falsi positivi."
+    },
+    {
+      "line": 2180,
+      "text": "// Formato italiano più comune nei fogli: gg/mm/aaaa o gg-mm-aaaa."
+    },
+    {
+      "line": 2199,
+      "text": "// Evita la \"UTC midnight trap\": in JS/GAS le stringhe ISO date-only"
+    },
+    {
+      "line": 2200,
+      "text": "// (es. 2026-12-25) vengono interpretate a mezzanotte UTC e, con fusi"
+    },
+    {
+      "line": 2201,
+      "text": "// negativi, possono retrocedere al giorno precedente via getDate()."
+    },
+    {
+      "line": 2226,
+      "text": "/**\r\n * Trigger automatico che si attiva ad ogni modifica del foglio.\r\n */"
+    },
+    {
+      "line": 2240,
+      "text": "// Ogni modifica alle risorse usate da loadResources aggiorna il timestamp virtuale"
+    },
+    {
+      "line": 2241,
+      "text": "// e svuota ScriptCache: il reload avviene poi nel ciclo main con lock."
+    }
+  ],
+  "gas_memory_service.js": [
+    {
+      "line": 1,
+      "text": "/**\r\n * MemoryService.gs - Memoria conversazionale per GAS\r\n * Usa Google Sheet come storage\r\n * \r\n * STORAGE: Google Sheet \"ConversationMemory\" con colonne:\r\n * A: threadId\r\n * B: language\r\n * C: category\r\n * D: tone\r\n * E: providedInfo (JSON array)\r\n * F: lastUpdated (timestamp)\r\n * G: messageCount\r\n * H: version (per controllo concorrenza ottimistico)\r\n * \r\n * FUNZIONALITÀ:\r\n * - Cache locale per performance\r\n * - Lock granulare (per thread) con CacheService\r\n * - Controllo concorrenza ottimistico con versione\r\n * - Topic tracking (anti-ripetizione)\r\n * - Operazioni atomiche\r\n */"
+    },
+    {
+      "line": 36,
+      "text": "// Cache per performance (evita lookup ripetuti)"
+    },
+    {
+      "line": 40,
+      "text": "// Limite hard per evitare crescita RAM incontrollata"
+    },
+    {
+      "line": 41,
+      "text": "// Contatore per Garbage Collection periodica"
+    },
+    {
+      "line": 54,
+      "text": "/**\r\n   * Inizializza o crea il foglio memoria\r\n   */"
+    },
+    {
+      "line": 63,
+      "text": "// Crea nuovo foglio con intestazioni"
+    },
+    {
+      "line": 85,
+      "text": "/**\r\n   * Verifica e normalizza le intestazioni del foglio.\r\n   * Garantisce che tutte le colonne necessarie siano presenti e rinominate correttamente.\r\n   */"
+    },
+    {
+      "line": 110,
+      "text": "// O un'altra colonna se appropriato"
+    },
+    {
+      "line": 122,
+      "text": "// Se è un alias noto, lo normalizziamo"
+    },
+    {
+      "line": 128,
+      "text": "// Se la colonna è vuota, impostiamo il default"
+    },
+    {
+      "line": 133,
+      "text": "// Per le ultime colonne (version, memorySummary), forziamo la coerenza"
+    },
+    {
+      "line": 150,
+      "text": "/**\r\n   * Ottiene memoria per un thread\r\n   */"
+    },
+    {
+      "line": 167,
+      "text": "// Trova riga per threadId"
+    },
+    {
+      "line": 177,
+      "text": "// Memorizza in cache"
+    },
+    {
+      "line": 191,
+      "text": "/**\r\n   * Legge la memoria con doppio livello: Cache veloce → Sheets come fallback.\r\n   * Riduce la dipendenza dalla latenza di Sheets e previene la perdita di contesto.\r\n   */"
+    },
+    {
+      "line": 196,
+      "text": "// getMemory implementa già il multi-livello (RAM locale + CacheService)."
+    },
+    {
+      "line": 197,
+      "text": "// Duplicare qui la cache con prefisso alternativo introdurrebbe stato incoerente."
+    },
+    {
+      "line": 201,
+      "text": "/**\r\n   * Restituisce la cronologia recente per il thread specificato.\r\n   * Attualmente espone i topic salvati in providedInfo; la cronologia\r\n   * conversazionale completa resta in GmailService.getThreadHistory.\r\n   *\r\n   * @param {string} threadId\r\n   * @param {number} [limit=10] numero massimo di entry da restituire\r\n   * @returns {Array<{topic: string, userReaction: string}>}\r\n   */"
+    },
+    {
+      "line": 222,
+      "text": "/**\r\n   * Aggiorna memoria per un thread (merge con esistente)\r\n   * Usa lock granulare + retry + optimistic locking\r\n   */"
+    },
+    {
+      "line": 240,
+      "text": "// Sharding basato su hash del threadId per ridurre la contention"
+    },
+    {
+      "line": 243,
+      "text": "// Stato locale OCC: aggiorniamo la expectedVersion ad ogni conflitto"
+    },
+    {
+      "line": 244,
+      "text": "// per evitare retry inutili con versione ormai obsoleta."
+    },
+    {
+      "line": 261,
+      "text": "// 2. Acquisisci Lock Globale per scrittura fisica (B4)"
+    },
+    {
+      "line": 266,
+      "text": "// 3. Rileggi dati freschi dallo Sheet"
+    },
+    {
+      "line": 274,
+      "text": "// Verifica controllo concorrenza ottimistico"
+    },
+    {
+      "line": 318,
+      "text": "// Invalida cache locale"
+    },
+    {
+      "line": 351,
+      "text": "/**\r\n   * Scrive su entrambi i livelli (Sheets e Cache).\r\n   * Aggiornato per utilizzare updateMemory che è transazionale e gestisce già inv. cache e lock.\r\n   */"
+    },
+    {
+      "line": 360,
+      "text": "// Invalidazione preventiva cache prima della lettura di allineamento"
+    },
+    {
+      "line": 364,
+      "text": "// Scelta intenzionale: qui NON usiamo updateMemoryAtomic."
+    },
+    {
+      "line": 366,
+      "text": "// e updateMemory garantisce già lock + retry + coerenza cache con costo minore."
+    },
+    {
+      "line": 367,
+      "text": "// Se servono topic o coerenza multi-entità, usare updateMemoryAtomic nei callsite dedicati."
+    },
+    {
+      "line": 368,
+      "text": "// Se fallisce anche dopo i retry, qui non rilanciamo: la memoria è best-effort."
+    },
+    {
+      "line": 376,
+      "text": "/**\r\n   * Aggiorna memoria E topic in un'unica operazione atomica\r\n   * Previene inconsistenze: tutto o niente in un singolo lock\r\n   * \r\n   * @param {string} threadId - ID del thread\r\n   * @param {Object} newData - Dati da aggiornare (language, category, tone, etc.)\r\n   * @param {(string|Object)[]} providedTopics - Topic da aggiungere (opzionale)\r\n   * @returns {boolean} - true se l'operazione è riuscita\r\n   */"
+    },
+    {
+      "line": 391,
+      "text": "// Filtra campi interni (_*) per evitare persistenza accidentale su Sheets"
+    },
+    {
+      "line": 399,
+      "text": "// Accetta anche solo topic (se newData è nullo o vuoto ma providedTopics è presente)"
+    },
+    {
+      "line": 444,
+      "text": "// 1.5 Acquisisci Lock Globale per scrittura (B4)"
+    },
+    {
+      "line": 457,
+      "text": "// Controllo concorrenza ottimistico opzionale"
+    },
+    {
+      "line": 474,
+      "text": "// Limita providedInfo per evitare memory bloat"
+    },
+    {
+      "line": 553,
+      "text": "// Protezione best-effort: non distruggere il batch fallendo."
+    },
+    {
+      "line": 554,
+      "text": "// Invece di throw, logghiamo l'errore e ritorniamo false per permettere all'email_processor di finire il job (labeling)."
+    },
+    {
+      "line": 572,
+      "text": "/**\r\n   * Restituisce l'ultima causa diagnostica di fallimento updateMemoryAtomic.\r\n   */"
+    },
+    {
+      "line": 579,
+      "text": "/**\r\n   * Aggiunge topic alla lista info fornite\r\n   * NON incrementa messageCount\r\n   */"
+    },
+    {
+      "line": 649,
+      "text": "/**\r\n   * Imposta lingua per un thread\r\n   */"
+    },
+    {
+      "line": 662,
+      "text": "/**\r\n   * Imposta categoria per un thread\r\n   */"
+    },
+    {
+      "line": 675,
+      "text": "/**\r\n   * Aggiorna la reazione dell'utente a un topic specifico\r\n   * @param {string} threadId \r\n   * @param {string} topic \r\n   * @param {string} reaction 'acknowledged' | 'questioned' | 'needs_expansion'\r\n   * @param {object} context (Optional) info extra su scippet/match\r\n   */"
+    },
+    {
+      "line": 694,
+      "text": "// Trova e aggiorna il topic"
+    },
+    {
+      "line": 698,
+      "text": "// Aggiorna userReaction e context se fornito"
+    },
+    {
+      "line": 716,
+      "text": "// METODI HELPER PRIVATI"
+    },
+    {
+      "line": 719,
+      "text": "/**\r\n   * Restituisce il numero di colonne da leggere\r\n   */"
+    },
+    {
+      "line": 726,
+      "text": "/**\r\n   * Trova riga per threadId usando TextFinder\r\n   * Ritorna { rowIndex, values } o null\r\n   */"
+    },
+    {
+      "line": 733,
+      "text": "// getLastRow() restituisce l'ultima riga effettiva con dati."
+    },
+    {
+      "line": 734,
+      "text": "// getMaxRows() includerebbe migliaia di righe vuote, rallentando la ricerca TextFinder."
+    },
+    {
+      "line": 737,
+      "text": "// Evita errore out-of-bounds se il foglio contiene solo l'intestazione."
+    },
+    {
+      "line": 740,
+      "text": "// Limita il range alla colonna A per la ricerca del Thread ID"
+    },
+    {
+      "line": 744,
+      "text": "// Cerca solo nei valori"
+    },
+    {
+      "line": 752,
+      "text": "// Verifica sicurezza: l'ID deve essere nella colonna A (indice 1)"
+    },
+    {
+      "line": 754,
+      "text": "// Leggi SOLO la riga trovata (molto efficiente)"
+    },
+    {
+      "line": 763,
+      "text": "// Doppio controllo per sicurezza"
+    },
+    {
+      "line": 775,
+      "text": "/**\r\n   * Serializza le scritture su Spreadsheet con ScriptLock globale.\r\n   * Riduce conflitti tra thread diversi durante inserimenti o aggiornamenti della riga.\r\n   * @param {Function} writeOperation callback con la scrittura effettiva\r\n   * @param {boolean} alreadyLocked se true, assume che il lock sia già acquisito\r\n   */"
+    },
+    {
+      "line": 807,
+      "text": "// Lock già rilasciato o non acquisito: ignora"
+    },
+    {
+      "line": 813,
+      "text": "/**\r\n   * Normalizza i topic forniti in formato oggetto.\r\n   */"
+    },
+    {
+      "line": 842,
+      "text": "// per evitare perdite durante cicli di normalizzazione + merge."
+    },
+    {
+      "line": 864,
+      "text": "/**\r\n   * Merge topic evitando duplicati per chiave \"topic\".\r\n   */"
+    },
+    {
+      "line": 886,
+      "text": "// Manteniamo la reazione utente pregressa se il nuovo topic arriva senza segnale esplicito."
+    },
+    {
+      "line": 887,
+      "text": "// Questo evita di perdere metadati storici durante deduplica per chiave \"topic\"."
+    },
+    {
+      "line": 930,
+      "text": "// Lock globale per scrittura (B4)"
+    },
+    {
+      "line": 984,
+      "text": "// METODI HELPER PRIVATI"
+    },
+    {
+      "line": 987,
+      "text": "/**\r\n   * Genera chiave lock sharded basata su hash threadId\r\n   */"
+    },
+    {
+      "line": 997,
+      "text": "/**\r\n   * Tenta acquisizione lock sharded (single-key su CacheService, senza lock globale).\r\n   */"
+    },
+    {
+      "line": 1018,
+      "text": "// TTL >= tempo massimo di acquisizione + attesa lock sheet + margine: evita scadenze durante retry lenti."
+    },
+    {
+      "line": 1031,
+      "text": "// CacheService non offre put-if-absent: serializziamo solo il breve check+put+verify."
+    },
+    {
+      "line": 1040,
+      "text": "// Piccola attesa per lasciare propagare il put in ambienti con latenza cache."
+    },
+    {
+      "line": 1046,
+      "text": "// Race residua/propagazione anomala: non acquisire se il token non è il nostro."
+    },
+    {
+      "line": 1119,
+      "text": "/**\r\n   * Valida e normalizza timestamp ISO\r\n   * @param {string} timestamp\r\n   * @returns {string} timestamp valido\r\n   */"
+    },
+    {
+      "line": 1160,
+      "text": "// Intervallo di validità futuro: consenti fino a 24h per compensare drift/fusi orari"
+    },
+    {
+      "line": 1168,
+      "text": "// Canonicalizza sempre in ISO-8601 UTC per evitare formati locali non stabili"
+    },
+    {
+      "line": 1169,
+      "text": "// (es. \"2/25/2026, 17:00:00\") che possono degradare confronti/sort cronologici."
+    },
+    {
+      "line": 1173,
+      "text": "/**\r\n   * Restituisce il numero di colonne da leggere\r\n   */"
+    },
+    {
+      "line": 1183,
+      "text": "// Normalizzazione dati: converte stringhe semplici in oggetti strutturati"
+    },
+    {
+      "line": 1186,
+      "text": "// Standardizzazione: allinea la nomenclatura senza mutare l'input originale"
+    },
+    {
+      "line": 1196,
+      "text": "// Fallback per vecchi formati non JSON (se esistenti) o errori"
+    },
+    {
+      "line": 1220,
+      "text": "/**\r\n   * Aggiorna riga esistente\r\n   */"
+    },
+    {
+      "line": 1265,
+      "text": "// Troncamento rapido per evitare loop O(n²) su storici lunghi."
+    },
+    {
+      "line": 1271,
+      "text": "// Stima lineare: taglio proporzionale per ridurre serializzazioni iterative."
+    },
+    {
+      "line": 1293,
+      "text": "// METODI CACHE"
+    },
+    {
+      "line": 1331,
+      "text": "// Implementazione Garbage Collection periodica della cache in-memory"
+    },
+    {
+      "line": 1340,
+      "text": "// CacheService per riuso tra esecuzioni del trigger"
+    },
+    {
+      "line": 1369,
+      "text": "// Eviction FIFO temporale: rimuove la entry più vecchia in RAM."
+    },
+    {
+      "line": 1370,
+      "text": "// È una scelta intenzionale perché in GAS la memoria disponibile è limitata."
+    },
+    {
+      "line": 1393,
+      "text": "/**\r\n   * Pulisce la cache dagli elementi scaduti\r\n   */"
+    },
+    {
+      "line": 1405,
+      "text": "// Rimuove entry nulle o scadute dalla cache"
+    },
+    {
+      "line": 1444,
+      "text": "/**\r\n   * Svuota tutta la cache\r\n   */"
+    },
+    {
+      "line": 1455,
+      "text": "// Nota: CacheService non espone listKeys, quindi possiamo pulire solo chiavi note/tracciate."
+    },
+    {
+      "line": 1463,
+      "text": "// METODI UTILITÀ"
+    },
+    {
+      "line": 1466,
+      "text": "/**\r\n   * Pulisce voci vecchie (più vecchie di N giorni)\r\n   */"
+    },
+    {
+      "line": 1514,
+      "text": "// Non eliminiamo fisicamente righe del foglio: con righe vuote intermedie,"
+    },
+    {
+      "line": 1515,
+      "text": "// formattazioni o formule fuori tabella è più sicuro svuotare l'area stale."
+    },
+    {
+      "line": 1529,
+      "text": "/**\r\n   * Alias retrocompatibile usato in alcuni runbook legacy.\r\n   * @returns {{removed:number, remaining:number}}\r\n   */"
+    },
+    {
+      "line": 1539,
+      "text": "/**\r\n   * Ottieni statistiche sull'uso della memoria\r\n   */"
+    },
+    {
+      "line": 1592,
+      "text": "/**\r\n   * Verifica se il servizio è sano\r\n   */"
+    },
+    {
+      "line": 1603,
+      "text": "/**\r\n   * (Rimossa definizione sperimentale di lock per evitare conflitti e lock scorretti)\r\n   */"
+    },
+    {
+      "line": 1607,
+      "text": "/**\r\n   * Calcola quanto della domanda originale è stato coperto\r\n   * (Funzionalità avanzata per future implementazioni di auto-valutazione)\r\n   */"
+    },
+    {
+      "line": 1642,
+      "text": "// Funzione factory"
+    },
+    {
+      "line": 1648,
+      "text": "// FUNZIONE TRIGGER PULIZIA"
+    },
+    {
+      "line": 1657,
+      "text": "/**\r\n * @deprecated Usa setupWeeklyCleanupTrigger() in gas_main.js.\r\n * Questa funzione è mantenuta per retrocompatibilità ma NON deve essere\r\n * richiamata insieme a setupWeeklyCleanupTrigger() per evitare trigger duplicati.\r\n * Configura trigger settimanale per pulizia automatica memoria.\r\n */"
+    },
+    {
+      "line": 1668,
+      "text": "/**\r\n * Alias per compatibilità: alcuni trigger storici puntano a weeklyMemoryCleanup.\r\n * Wrapper mantenuto per retrocompatibilità con chiamate legacy.\r\n */"
+    }
+  ],
+  "gas_prompt_context.js": [
+    {
+      "line": 8,
+      "text": "// Validazione input"
+    },
+    {
+      "line": 17,
+      "text": "// Sanitizza lastUpdated non valido."
+    },
+    {
+      "line": 41,
+      "text": "// NOTE: metadata remains inside input (knowledgeBaseMeta) for test compatibility"
+    },
+    {
+      "line": 42,
+      "text": "// and with the code that reads this.input in debug/telemetry: we do not use an external field."
+    },
+    {
+      "line": 73,
+      "text": "/**\n     * Detects temporal cues in the text-based KB.\n     * Covers explicit years, local dates (dd/mm or dd-mm), and times (hh:mm).\n     */"
+    }
+  ],
+  "gas_prompt_engine.js": [
+    {
+      "line": 18,
+      "text": "// Template filtering configuration per profile"
+    },
+    {
+      "line": 37,
+      "text": "// Delegate to centralized function in gas_main.js (DRY)"
+    },
+    {
+      "line": 43,
+      "text": "/**\n   * Normalizes heterogeneous values into a safe string for the prompt.\n   * Avoids \"[object Object]\" output when a resource is passed in a non-string format.\n   */"
+    },
+    {
+      "line": 135,
+      "text": "// Input compatibility: some legacy flows pass concerns as an array of keys."
+    },
+    {
+      "line": 280,
+      "text": "// BLOCCO 1: SETUP CRITICO (Priorità Massima)"
+    },
+    {
+      "line": 289,
+      "text": "// 3. REGOLE NO REPLY"
+    },
+    {
+      "line": 339,
+      "text": "// BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)"
+    },
+    {
+      "line": 431,
+      "text": "// 19. CONTRATTO QUALITÀ RISPOSTA (sempre incluso)"
+    },
+    {
+      "line": 471,
+      "text": "// BLOCCO 4: RINFORZO FINALE"
+    },
+    {
+      "line": 474,
+      "text": "// 27. REMINDER ERRORI CRITICI"
+    },
+    {
+      "line": 500,
+      "text": "// TEMPLATE 1: CRITICAL ERRORS REMINDER (CONDENSED VERSION)"
+    },
+    {
+      "line": 573,
+      "text": "//url\", non \"[url](url)\".');"
+    },
+    {
+      "line": 1457,
+      "text": "// TEMPLATE 19: REGOLE NO REPLY"
+    },
+    {
+      "line": 1905,
+      "text": "// METODI UTILITÀ"
+    },
+    {
+      "line": 1927,
+      "text": "/**\n   * Truncates the KB semantically by paragraphs, preserving context.\n   * Instead of cutting mid-sentence, it maintains complete paragraphs up to the budget.\n   * @param {string} kbContent - Contenuto KB originale\n   * @param {number} charLimit - Limite massimo caratteri già calcolato a monte\n   * @returns {string} KB troncata\n   */"
+    }
+  ],
+  "gas_rate_limiter.js": [
+    {
+      "line": 1,
+      "text": "/**\r\n * GeminiRateLimiter.gs - Gestione Quote API Gemini\r\n * \r\n * SINCRONO - Compatibile con Google Apps Script\r\n * Configurazione modelli centralizzata in gas_config.js\r\n * Reset quota: ore 9:00 italiane (mezzanotte Pacific)\r\n * Cache ottimizzata per ridurre letture PropertiesService\r\n * \r\n * FUNZIONALITÀ:\r\n * - Traccia utilizzo RPM (richieste/minuto), TPM (token/minuto), RPD (richieste/giorno)\r\n * - Seleziona automaticamente il modello disponibile\r\n * - Applica throttling quando ci si avvicina ai limiti\r\n * - Passa al modello di riserva se il principale è esaurito\r\n */"
+    },
+    {
+      "line": 20,
+      "text": "// CONFIGURAZIONE MODELLI (Legge da CONFIG)"
+    },
+    {
+      "line": 23,
+      "text": "// Legge modelli da CONFIG.GEMINI_MODELS (centralizzato)"
+    },
+    {
+      "line": 29,
+      "text": "// Fallback se CONFIG non disponibile"
+    },
+    {
+      "line": 31,
+      "text": "// Default conservativo allineato alla policy: 2.5 Flash per generazione,"
+    },
+    {
+      "line": 32,
+      "text": "// 3.1 Flash-Lite per task rapidi/ausiliari."
+    },
+    {
+      "line": 67,
+      "text": "// Legge strategia da CONFIG.MODEL_STRATEGY (centralizzato)"
+    },
+    {
+      "line": 84,
+      "text": "// Modello di default (primo nella lista generation)"
+    },
+    {
+      "line": 107,
+      "text": "// Sincronizzazione dello stato con lo storage persistente."
+    },
+    {
+      "line": 110,
+      "text": "// Inizializza contatori se non esistono"
+    },
+    {
+      "line": 118,
+      "text": "// 80% del limite RPM"
+    },
+    {
+      "line": 126,
+      "text": "// Calibrato dinamicamente in _shouldThrottle"
+    },
+    {
+      "line": 143,
+      "text": "/**\r\n   * Sostituisce nomi modello deprecati/ritirati con equivalenti supportati.\r\n   * Mantiene la stessa struttura dell'oggetto modelli.\r\n   *\r\n   * @param {Object<string, {name: string}>} models\r\n   * @returns {Object<string, {name: string}>}\r\n   */"
+    },
+    {
+      "line": 152,
+      "text": "// Mappatura alias lite storici verso il profilo operativo rapido scelto."
+    },
+    {
+      "line": 158,
+      "text": "// Refuso ricorrente: non esiste un modello testuale 'gemini-3.1-flash'; il full-tier è Gemini 3 Flash Preview."
+    },
+    {
+      "line": 194,
+      "text": "// Restituisce sempre una nuova copia normalizzata: il chiamante decide se riassegnarla."
+    },
+    {
+      "line": 214,
+      "text": "// Usa ScriptLock per sincronizzare il reset tra esecuzioni parallele"
+    },
+    {
+      "line": 218,
+      "text": "// Tentativo di acquisizione lock con retry (backoff breve)"
+    },
+    {
+      "line": 230,
+      "text": "// Rileggi sempre le proprietà dopo aver acquisito il lock per evitare race condition"
+    },
+    {
+      "line": 231,
+      "text": "// Usa data Pacific per allinearsi al reset reale delle quote Google"
+    },
+    {
+      "line": 232,
+      "text": "// Il reset Google avviene a mezzanotte Pacific = 9:00 AM italiana"
+    },
+    {
+      "line": 236,
+      "text": "// Reset quando cambia la data Pacific (non italiana!)"
+    },
+    {
+      "line": 241,
+      "text": "// Forza svuotamento cache locale per riflettere subito il reset"
+    },
+    {
+      "line": 269,
+      "text": "// Reset anche cache + data Pacific in un'unica scrittura atomica."
+    },
+    {
+      "line": 281,
+      "text": "/**\r\n   * Ottieni data in formato italiano (per logging user-friendly)\r\n   */"
+    },
+    {
+      "line": 290,
+      "text": "/**\r\n   * Ottieni data Pacific (per reset quote Google)\r\n   * Il reset delle quote Google avviene a mezzanotte Pacific Time.\r\n   * Mezzanotte Pacific = 9:00 AM italiana (in inverno, 8:00 in estate con DST)\r\n   */"
+    },
+    {
+      "line": 433,
+      "text": "// Controllo RPD (aggregato per nome modello fisico condiviso)"
+    },
+    {
+      "line": 456,
+      "text": "// Controllo RPM (ultimo minuto)"
+    },
+    {
+      "line": 468,
+      "text": "// Controllo TPM (ultimo minuto)"
+    },
+    {
+      "line": 534,
+      "text": "// GAS usa runtime effimero: ricarichiamo il valore ridotto persistito a ogni esecuzione."
+    },
+    {
+      "line": 565,
+      "text": "/**\r\n   * Esegue richiesta con rate limiting\r\n   * VERSIONE SINCRONA per Google Apps Script\r\n   * \r\n   * @param {string} taskType - Tipo task: 'quick_check', 'generation', etc.\r\n   * @param {Function} requestFn - Funzione che riceve modelName ed esegue la richiesta\r\n   * @param {Object} options - {estimatedTokens, maxRetries, forceModel, skipRateLimit}\r\n   * @returns {Object} {success, result, modelUsed, quotaUsed}\r\n   */"
+    },
+    {
+      "line": 578,
+      "text": "// BYPASS PER CHIAVE DI RISERVA"
+    },
+    {
+      "line": 579,
+      "text": "// Se stiamo usando una chiave esterna, NON dobbiamo tracciare i consumi"
+    },
+    {
+      "line": 580,
+      "text": "// sul Rate Limiter locale per non inquinare le statistiche della chiave principale"
+    },
+    {
+      "line": 586,
+      "text": "// Esecuzione diretta senza controlli quota"
+    },
+    {
+      "line": 594,
+      "text": "// Statistiche fittizie per non sporcare contatori"
+    },
+    {
+      "line": 607,
+      "text": "// 1. Esecuzione con retry (sincrono)"
+    },
+    {
+      "line": 645,
+      "text": "// Completa la richiesta consumando contatori giornalieri e consolidando la riserva RPM/TPM."
+    },
+    {
+      "line": 667,
+      "text": "// Rilascia la riserva corrente prima di eventuali retry o abort,"
+    },
+    {
+      "line": 668,
+      "text": "// così non blocchiamo artificialmente la capacità minuto."
+    },
+    {
+      "line": 677,
+      "text": "// Interrompi immediatamente se la quota è esaurita su TUTTE le chiavi"
+    },
+    {
+      "line": 683,
+      "text": "// Uso la classificazione centralizzata (difensiva in caso di runtime modulare)"
+    },
+    {
+      "line": 699,
+      "text": "// Errore non ritentabile"
+    },
+    {
+      "line": 705,
+      "text": "// Tutti i tentativi falliti"
+    },
+    {
+      "line": 733,
+      "text": "// TRACCIAMENTO con cache"
+    },
+    {
+      "line": 740,
+      "text": "// Se la richiesta era stata già riservata nelle finestre RPM/TPM, non dobbiamo"
+    },
+    {
+      "line": 741,
+      "text": "// aggiungere una seconda entry minuto: aggiorniamo solo i contatori giornalieri"
+    },
+    {
+      "line": 742,
+      "text": "// e marchiamo la reservation come completata per dedup/diagnostica."
+    },
+    {
+      "line": 747,
+      "text": "// 1-2. Contatori RPD/Tokens con incremento atomico (evita race condition)"
+    },
+    {
+      "line": 750,
+      "text": "// 3. Finestra RPM (con cache) - solo per richieste non prenotate"
+    },
+    {
+      "line": 771,
+      "text": "// GAS esegue trigger in istanze effimere: persistenza immediata evita perdite"
+    },
+    {
+      "line": 772,
+      "text": "// silenziose delle entry RPM/TPM quando una run termina in meno di 10s."
+    },
+    {
+      "line": 780,
+      "text": "/**\r\n   * Incrementa contatori persistenti con lock script-level.\r\n   */"
+    },
+    {
+      "line": 785,
+      "text": "// Timeout ridotto per evitare hang prolungati in console sotto concorrenza"
+    },
+    {
+      "line": 844,
+      "text": "/**\r\n   * Traccia chiamate Gemini ausiliarie non gestite dal normale executeRequest\r\n   * (es. creazione cache REST). Anche queste consumano RPD, quindi passano\r\n   * dallo stesso contatore giornaliero con ScriptLock.\r\n   */"
+    },
+    {
+      "line": 884,
+      "text": "// Conservativo: non rilasciamo la prenotazione se il modello non ha cercato,"
+    },
+    {
+      "line": 885,
+      "text": "// per evitare race tra esecuzioni concorrenti e sottostime del limite condiviso."
+    },
+    {
+      "line": 914,
+      "text": "// Timeout ridotto a 10s per evitare hang"
+    },
+    {
+      "line": 951,
+      "text": "/**\r\n   * Aggiorna finestra con cache (riduce PropertiesService I/O)\r\n   */"
+    },
+    {
+      "line": 957,
+      "text": "// Invalida cache se troppo vecchia"
+    },
+    {
+      "line": 969,
+      "text": "// Limita dimensioni array per rispettare limiti PropertiesService (~9kb)"
+    },
+    {
+      "line": 974,
+      "text": "// GAS è runtime effimero: persiste subito per non perdere stato RPM/TPM tra esecuzioni."
+    },
+    {
+      "line": 1019,
+      "text": "// 1. Merge dello stato persistito con eventuali entry in-memory recenti."
+    },
+    {
+      "line": 1025,
+      "text": "// Taglio di sicurezza esplicito per RPM (garantito da _mergeWindowData, ma ri-applicato come fallback)"
+    },
+    {
+      "line": 1031,
+      "text": "// 2. Stessa logica di merge per TPM."
+    },
+    {
+      "line": 1037,
+      "text": "// Taglio di sicurezza esplicito per TPM (garantito da _mergeWindowData, ma ri-applicato come fallback)"
+    },
+    {
+      "line": 1054,
+      "text": "/**\r\n   * Persiste la cache tramite architettura di persistenza transazionale (WAL)\r\n   * Garantisce coerenza strutturale dei dati in ambienti operativi distribuiti\r\n   */"
+    },
+    {
+      "line": 1065,
+      "text": "// Timeout ridotto a 10s per evitare blocchi infiniti in console."
+    },
+    {
+      "line": 1082,
+      "text": "// Rilegge lo stato persistito dentro lock ed esegue merge con cache locale."
+    },
+    {
+      "line": 1103,
+      "text": "// Backup durevole per sopravvivere a eventuale eviction cache/flush transitori"
+    },
+    {
+      "line": 1111,
+      "text": "/**\r\n   * Sincronizza lo stato operativo leggendo le transazioni WAL non completate\r\n   * Chiamato nel constructor prima di inizializzare i contatori\r\n   */"
+    },
+    {
+      "line": 1116,
+      "text": "// Utilizzo di lock per garantire atomicità durante la sincronizzazione attiva"
+    },
+    {
+      "line": 1160,
+      "text": "// Verifica che il WAL non sia troppo vecchio (> 5 minuti)"
+    },
+    {
+      "line": 1172,
+      "text": "// Merge WAL con dati esistenti (evita duplicati per timestamp)"
+    },
+    {
+      "line": 1204,
+      "text": "// Ottimizzazione: evitiamo getProperties() che è lentissimo."
+    },
+    {
+      "line": 1205,
+      "text": "// Leggiamo il numero di chunk direttamente dalle proprietà note."
+    },
+    {
+      "line": 1218,
+      "text": "// Eliminiamo i chunk RPM"
+    },
+    {
+      "line": 1222,
+      "text": "// Eliminiamo i chunk TPM"
+    },
+    {
+      "line": 1227,
+      "text": "// Esecuzione eliminazione massiva (se supportata) o singola"
+    },
+    {
+      "line": 1363,
+      "text": "// Ordina per timestamp e limita"
+    },
+    {
+      "line": 1367,
+      "text": "// Limita dimensione array a max 8KB per evitare crash PropertiesService."
+    },
+    {
+      "line": 1368,
+      "text": "// Evita il pattern O(nÂ²) di JSON.stringify() ad ogni iterazione."
+    },
+    {
+      "line": 1381,
+      "text": "// rimuove anche una virgola"
+    },
+    {
+      "line": 1404,
+      "text": "// Altrimenti leggi da PropertiesService"
+    },
+    {
+      "line": 1450,
+      "text": "// Ottimizzazione: leggiamo solo le chiavi specifiche invece di allProps.getProperties()"
+    },
+    {
+      "line": 1511,
+      "text": "// Recupera data/ora corrente Pacific tramite API GAS nativa (robusta su trigger)."
+    },
+    {
+      "line": 1521,
+      "text": "// Mezzanotte Pacific del giorno successivo riportata in UTC."
+    },
+    {
+      "line": 1529,
+      "text": "// Fallback locale approssimativo se Utilities non è disponibile."
+    },
+    {
+      "line": 1536,
+      "text": "// Il rate limiter riceve estimatedTokens dal chiamante (es. GeminiService),"
+    },
+    {
+      "line": 1537,
+      "text": "// che può applicare logiche multimodali più accurate rispetto a una stima generica."
+    },
+    {
+      "line": 1650,
+      "text": "// FUNZIONI UTILITÀ (per dashboard e manutenzione)"
+    },
+    {
+      "line": 1653,
+      "text": "/**\r\n * Dashboard quota (esegui manualmente da editor script)\r\n */"
+    },
+    {
+      "line": 1670,
+      "text": "/**\r\n * Reset manuale contatori (usare con cautela!)\r\n */"
+    }
+  ],
+  "gas_request_classifier.js": [
+    {
+      "line": 21,
+      "text": "// Domande procedurali, normative, su numeri, condizioni formali"
+    },
+    {
+      "line": 33,
+      "text": "// Domande su numeri/quantità (peso 2)"
+    },
+    {
+      "line": 157,
+      "text": "/**\n   * Classifies the email request\n   * Returns continuous dimensions, complexity, and suggested tone.\n   */"
+    },
+    {
+      "line": 212,
+      "text": "// Boost dimensionale basato su Gemini (alternativa a categoria)"
+    },
+    {
+      "line": 232,
+      "text": "// 4. Determinazione Tipo Primario (Compatibilità Base)"
+    },
+    {
+      "line": 290,
+      "text": "// Carico Emotivo: Basato su dimensione pastorale"
+    },
+    {
+      "line": 366,
+      "text": "// match() with global flag returns an array of matched strings, not groups"
+    },
+    {
+      "line": 450,
+      "text": "/**\n   * Normalizes LLM confidence in [0..1] range, also accepting localized formats.\n   * Supported examples: 0.82, \"0,82\", \"82%\", 82.\n   */"
+    },
+    {
+      "line": 571,
+      "text": "// Determina l'istruzione sul tono"
+    }
+  ],
+  "gas_response_validator.js": [
+    {
+      "line": 1,
+      "text": "/**\n * ResponseValidator.gs - AI Response Validation\n * Checks quality and safety of generated responses\n * \n * QUALITY CONTROLS:\n * ✅ Length and UX\n * ✅ Language consistency\n * ✅ Uncertainty phrase detection\n * ✅ Placeholder identification\n * ✅ Signature validation\n * ✅ Data integrity verification (email, phones, times)\n * ✅ Process leak detection (thinking leak)\n */"
+    },
+    {
+      "line": 30,
+      "text": "// Soglia minima accettabile"
+    },
+    {
+      "line": 38,
+      "text": "// Upper limit for structured responses (e.g. multiple sacraments)."
+    },
+    {
+      "line": 54,
+      "text": "// Legitimate uncertainty phrases (soft-warning, NO score reduction)"
+    },
+    {
+      "line": 55,
+      "text": "// In a pastoral context, expressions like \"could be\" or \"probably\""
+    },
+    {
+      "line": 79,
+      "text": "// AI meta-comments (restricted)"
+    },
+    {
+      "line": 81,
+      "text": "// Azioni su KB"
+    },
+    {
+      "line": 87,
+      "text": "// Pattern conversazionali non catturati dalle regex "
+    },
+    {
+      "line": 169,
+      "text": "/**\n   * Validates response completely\n   * @param {string} response - Response text to validate\n   * @param {string} detectedLanguage - Detected language\n   * @param {string} knowledgeBase - KB for hallucination check\n   * @param {string} emailContent - Original email content\n   * @param {string} emailSubject - Email subject\n   * @param {string} salutationMode - Salutation mode ('full'|'soft'|'none_or_continuity')\n   * @returns {Object} Validation result\n   */"
+    },
+    {
+      "line": 316,
+      "text": "// === CONTROLLO 1: Lunghezza ==="
+    },
+    {
+      "line": 323,
+      "text": "// === CONTROLLO 2: Consistenza lingua ==="
+    },
+    {
+      "line": 330,
+      "text": "// === CONTROLLO 3: Firma ==="
+    },
+    {
+      "line": 337,
+      "text": "// === CONTROLLO 4: Contenuto vietato ==="
+    },
+    {
+      "line": 343,
+      "text": "// === CONTROLLO 5: Allucinazioni ==="
+    },
+    {
+      "line": 351,
+      "text": "// === CONTROLLO 6: Maiuscola dopo virgola ==="
+    },
+    {
+      "line": 358,
+      "text": "// === CONTROLLO 7: Ragionamento esposto ==="
+    },
+    {
+      "line": 365,
+      "text": "// === CONTROLLO 8: Saluto temporalmente incongruente ==="
+    },
+    {
+      "line": 371,
+      "text": "// === CONTROLLO 9: Coerenza temporale eventi/date ==="
+    },
+    {
+      "line": 388,
+      "text": "/**\n   * Controllo 1: Validazione lunghezza\n   */"
+    },
+    {
+      "line": 421,
+      "text": "/**\n   * Controllo 2: Consistenza lingua\n   */"
+    },
+    {
+      "line": 442,
+      "text": "// Accent-aware boundaries without lookbehind/property escapes: Apps Script V8 can"
+    },
+    {
+      "line": 443,
+      "text": "// vary by version, while this range covers the supported Latin markers."
+    },
+    {
+      "line": 487,
+      "text": "/**\n   * Controllo 3: Firma (obbligatoria su primo contatto, opzionale su follow-up)\n   */"
+    },
+    {
+      "line": 495,
+      "text": "// In quick follow-ups, the signature is optional"
+    },
+    {
+      "line": 541,
+      "text": "// (e.g. \"todo\" in Spanish) for alphabetic placeholders."
+    },
+    {
+      "line": 543,
+      "text": "// Avoid false positives on natural lowercase words (e.g. \"todo\" in Spanish)."
+    },
+    {
+      "line": 544,
+      "text": "// Acronym placeholders must appear in uppercase."
+    },
+    {
+      "line": 559,
+      "text": "// Validazione input: ignora stringhe vuote"
+    },
+    {
+      "line": 560,
+      "text": "// For '...', check if used as a placeholder (not ellipsis in the text)"
+    },
+    {
+      "line": 573,
+      "text": "// no nesting"
+    },
+    {
+      "line": 590,
+      "text": "/**\n   * Control 5: Hallucinations (invented data not in KB)\n   */"
+    },
+    {
+      "line": 618,
+      "text": "// Sostituzione mirata dei separatori orari."
+    },
+    {
+      "line": 645,
+      "text": "// === Controllo orari ==="
+    },
+    {
+      "line": 646,
+      "text": "// GAS compatibility: avoid variable-length lookbehind, which in some V8 runtimes"
+    },
+    {
+      "line": 700,
+      "text": "// === Controllo email ==="
+    },
+    {
+      "line": 701,
+      "text": "// ReDoS protection with explicit limit on the local part of the email"
+    },
+    {
+      "line": 720,
+      "text": "// === Controllo numeri telefono ==="
+    },
+    {
+      "line": 722,
+      "text": "// Excludes date pattern (DD/MM/YYYY) and common times"
+    },
+    {
+      "line": 742,
+      "text": "// Exclude numbers in whitelist (e.g. sender, thread) or in original message"
+    },
+    {
+      "line": 746,
+      "text": "// If the number is present in the original text, it is legitimate to repeat it"
+    },
+    {
+      "line": 760,
+      "text": "/**\n   * Controllo 6: Maiuscola dopo virgola\n   */"
+    },
+    {
+      "line": 769,
+      "text": "// Titles and honorific forms (especially in ecclesiastical context)"
+    },
+    {
+      "line": 795,
+      "text": "// Solo warning, non blocca l'invio"
+    },
+    {
+      "line": 810,
+      "text": "// causerebbe warning sistematici non affidabili."
+    },
+    {
+      "line": 813,
+      "text": "// Lingua non supportata: evita warning non correggibili automaticamente"
+    },
+    {
+      "line": 879,
+      "text": "/**\n   * Control 7: Thinking Leak (Exposed Reasoning)\n   * Detects when the AI exposes its thinking process in the response\n   */"
+    },
+    {
+      "line": 931,
+      "text": "/**\n   * Control 8: Temporally Incongruent Greeting\n   * Detects if the greeting in the response is appropriate for current time\n   */"
+    },
+    {
+      "line": 944,
+      "text": "// Determina fascia oraria corrente (fuso orario italiano)"
+    },
+    {
+      "line": 961,
+      "text": "// Estrai saluto dai primi 100 caratteri della risposta"
+    },
+    {
+      "line": 980,
+      "text": "// If no greeting detected, OK (might be continuity mode)"
+    },
+    {
+      "line": 1295,
+      "text": "// and if there are no placeholders"
+    },
+    {
+      "line": 1300,
+      "text": "// 3. Perfezionamento Saluto temporalmente incongruente"
+    },
+    {
+      "line": 1324,
+      "text": "/**\n   * Corregge saluto temporalmente incongruente\n   * Es. \"Buongiorno\" alle 20:00 → \"Buonasera\"\n   */"
+    },
+    {
+      "line": 1331,
+      "text": "// Determina fascia oraria corrente (fuso orario italiano)"
+    },
+    {
+      "line": 1352,
+      "text": "// Cerca saluto errato nei primi 80 caratteri"
+    },
+    {
+      "line": 1397,
+      "text": "// We define rules per language"
+    },
+    {
+      "line": 1439,
+      "text": "/**\n   * Escape metacharacters for safe use in RegExp\n   */"
+    },
+    {
+      "line": 1470,
+      "text": "// METODI UTILITÀ"
+    },
+    {
+      "line": 1535,
+      "text": "/**\n   * Valida allucinazioni usando similitudine semantica\n   */"
+    }
+  ],
+  "gas_setup_ui.js": [
+    {
+      "line": 1,
+      "text": "/**\n * @file gas_setup_ui.js\n * @description \"Single-sheet first\" UI Setup for Controllo, with data validations and protections.\n */"
+    },
+    {
+      "line": 32,
+      "text": "/**\n * Applies ONLY the data validation rules to the Controllo sheet.\n * Does not modify layout, colors, or text. Useful for formatting entered data.\n * NOW ALSO RECREATES MISSING NAMED RANGES.\n */"
+    },
+    {
+      "line": 91,
+      "text": "/**\n * Main setup: maintains the layout in the Controllo sheet (base style), without forcing multi-sheet.\n */"
+    },
+    {
+      "line": 152,
+      "text": "// ASSENZE compatte nel Controllo"
+    },
+    {
+      "line": 159,
+      "text": "// Date rules are applied afterwards"
+    },
+    {
+      "line": 180,
+      "text": "// Sospensione oraria"
+    },
+    {
+      "line": 186,
+      "text": "// Filtri nella stessa pagina"
+    },
+    {
+      "line": 204,
+      "text": "// Applica le constraints GUIDATE dall'utente"
+    },
+    {
+      "line": 237,
+      "text": "// Initialized in setupControlloSheet"
+    },
+    {
+      "line": 257,
+      "text": "// Ensures consistency in parallel executions (e.g. simultaneous triggers)."
+    },
+    {
+      "line": 291,
+      "text": "// cfg_timezone included: B4 is initialized in setupControlloSheet with Session.getScriptTimeZone()"
+    },
+    {
+      "line": 350,
+      "text": "/**\n * Applies input validations and protections on the Controllo sheet\n * (User-suggested logic)\n */"
+    },
+    {
+      "line": 378,
+      "text": "// Date ferie/malattia: B5,D5 - B7,D7"
+    },
+    {
+      "line": 408,
+      "text": "// Controllo orario B < D"
+    },
+    {
+      "line": 418,
+      "text": "// Filtri domini/keyword direttamente su Controllo"
+    },
+    {
+      "line": 437,
+      "text": "// Protezioni Warning Only sulle etichette"
+    },
+    {
+      "line": 442,
+      "text": "/**\n * Sets protections in warning-only mode on the specified ranges.\n * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet\n * @param {string[]} rangesA1\n */"
+    },
+    {
+      "line": 454,
+      "text": "// Pulisce eventuali protezioni precedenti sullo stesso A1."
+    }
+  ],
+  "gas_territory_validator.js": [
+    {
+      "line": 54,
+      "text": "// Civici reali nel tratto parrocchiale: solo pari 16-38"
+    },
+    {
+      "line": 64,
+      "text": "// Automatic management of articles via deterministic normalization."
+    },
+    {
+      "line": 83,
+      "text": "// Exposes rules as a mutable Map for direct access in tests"
+    },
+    {
+      "line": 87,
+      "text": "/**\n     * Builds the tolerant regex pattern for street types.\n     * Accepted examples: \"Via\", \"V i a\", \"V.ia\", \"Vía\".\n     */"
+    },
+    {
+      "line": 93,
+      "text": "// via / viale"
+    },
+    {
+      "line": 130,
+      "text": "// Nome via tollerante:"
+    },
+    {
+      "line": 133,
+      "text": "// - numeri nel toponimo (es. \"24 Maggio\")"
+    },
+    {
+      "line": 141,
+      "text": "// Pattern 2: \"abito in via Rossi 10\" or \"abito in via: Rossi 10\""
+    },
+    {
+      "line": 157,
+      "text": "/**\n     * Searches for match in the territory database using fuzzy matching\n     * Requires at least one consecutive pair of words to avoid false positives\n     */"
+    },
+    {
+      "line": 175,
+      "text": "// Gestisce alias tipo \"piazza marina\" → \"piazza della marina\","
+    },
+    {
+      "line": 176,
+      "text": "// \"via del corso\" → \"via corso\", etc."
+    },
+    {
+      "line": 177,
+      "text": "// The strip occurs ONLY on intermediate tokens (not on the street type in pos. 0)."
+    },
+    {
+      "line": 209,
+      "text": "// Evita conflitti tra tipologie diverse (es. \"via\" vs \"viale\")"
+    },
+    {
+      "line": 220,
+      "text": "// Require at least ONE consecutive pair (among input tokens) present in the DB"
+    },
+    {
+      "line": 230,
+      "text": "// Checks if the two tokens are consecutive in the DB as well"
+    },
+    {
+      "line": 270,
+      "text": "/**\n     * Normalizza nome via: lowercase, trim, spazi, espansione abbreviazioni\n     * Espande le abbreviazioni comuni (es. G. -> giovanni)\n     */"
+    },
+    {
+      "line": 300,
+      "text": "// Remove special characters not allowed in street names (retains letters, numbers, spaces, apostrophes)"
+    },
+    {
+      "line": 313,
+      "text": "/**\n     * Estrae indirizzi completi (via + civico) dal testo\n     */"
+    },
+    {
+      "line": 319,
+      "text": "// Limit input length for safety"
+    },
+    {
+      "line": 351,
+      "text": "// Validazione lunghezza nome via"
+    },
+    {
+      "line": 366,
+      "text": "// Also allow street number 0 (present in some land registries), valid range 0-9999"
+    },
+    {
+      "line": 392,
+      "text": "/**\n     * Cleans the text used for street extraction without street number.\n     * Avoids including form labels (e.g. \"Date of Birth\") in street name.\n     */"
+    },
+    {
+      "line": 425,
+      "text": "/**\n     * Estrae solo vie (senza civico) dal testo\n     */"
+    },
+    {
+      "line": 505,
+      "text": "// Explicit handling of Array vs Boolean type for 'all'"
+    },
+    {
+      "line": 614,
+      "text": "/**\n     * Analyzes an email to find and verify addresses\n     */"
+    },
+    {
+      "line": 623,
+      "text": "// 1. Aggiungi prima gli indirizzi completi (più affidabili)"
+    }
+  ],
+  "gas_unit_tests.js": [
+    {
+      "line": 9,
+      "text": "// Bootstrap Node.js: carica script GAS e mock minimi per esecuzione locale/CI"
+    },
+    {
+      "line": 26,
+      "text": "// Mock minimi obbligatori"
+    },
+    {
+      "line": 204,
+      "text": "// FUNZIONI HELPER"
+    },
+    {
+      "line": 240,
+      "text": "// TEST SUITE"
+    },
+    {
+      "line": 664,
+      "text": "// La cache vuota è trattata come assente: forniamo fallback neutro"
+    },
+    {
+      "line": 685,
+      "text": "// Con il mock corretto, il path atteso è: classifyEmail → shouldReply:true →"
+    },
+    {
+      "line": 686,
+      "text": "// shouldRespondToEmail → shouldRespond:false → _markMessageAsProcessed solo sul candidato,"
+    },
+    {
+      "line": 687,
+      "text": "// preservando i secondari esterni per un trigger successivo."
+    },
+    {
+      "line": 1606,
+      "text": "// Testo con lettere accentate. Deve essere > 30 caratteri totali"
+    },
+    {
+      "line": 1607,
+      "text": "// e contenere almeno 5 lettere [a-zA-ZÀ-ÿ]."
+    }
+  ],
+  "maintenance\\remove_bom.js": [
+    {
+      "line": 12,
+      "text": "// Legge come buffer per vedere i byte grezzi"
+    },
+    {
+      "line": 17,
+      "text": "// Controllo per UTF-8 BOM: EF BB BF"
+    },
+    {
+      "line": 20,
+      "text": "// Rimuove i primi 3 byte"
+    },
+    {
+      "line": 33,
+      "text": "// Forse non è un BOM ma un carattere spazzatura?"
+    },
+    {
+      "line": 34,
+      "text": "// Controllo se il primo carattere non è ASCII standard"
+    },
+    {
+      "line": 41,
+      "text": "// Se node -c fallisce su \\uFEFF, forse è letteralmente la stringa \"\\uFEFF\"?"
+    }
+  ],
+  "scripts\\ci_smoke_tests.js": [
+    {
+      "line": 17,
+      "text": "/**\n * Smoke tests executable in CI Node.js\n * - Loads GAS files in Node VM for pure-JS regression checks\n * - Does NOT touch Google services (PropertiesService, UrlFetchApp, ...)\n *\n * MINIMUM THRESHOLD: if the number of tests falls below MIN_EXPECTED_TESTS\n * the process exits with an error (protection against accidental removal).\n */"
+    },
+    {
+      "line": 225,
+      "text": "// TEST TERRITORY VALIDATOR"
+    },
+    {
+      "line": 331,
+      "text": "// TEST ERROR TYPES (classificazione centralizzata)"
+    },
+    {
+      "line": 378,
+      "text": "// TEST GEMINI SERVICE"
+    },
+    {
+      "line": 511,
+      "text": "// TEST RESPONSE VALIDATOR"
+    },
+    {
+      "line": 673,
+      "text": "// TEST EMAIL PROCESSOR (pure functions)"
+    },
+    {
+      "line": 680,
+      "text": "// Primo messaggio → full"
+    },
+    {
+      "line": 1366,
+      "text": "// Intentional: the test must verify the true triggerable entry point of the project."
+    },
+    {
+      "line": 2275,
+      "text": "// TEST SICUREZZA (escapeHtml, sanitizeUrl, markdownToHtml)"
+    },
+    {
+      "line": 2321,
+      "text": "// Dotted quad in hex notation -> null"
+    },
+    {
+      "line": 2357,
+      "text": "// Script injection nel testo deve essere escaped"
+    },
+    {
+      "line": 2361,
+      "text": "// Test bold funziona ancora"
+    },
+    {
+      "line": 3119,
+      "text": "// Use the mock helper to avoid API Key configuration errors"
+    },
+    {
+      "line": 3122,
+      "text": "// Test with keyword \"não\" (previously confused with Italian \"non\") and Portuguese punctuation"
+    },
+    {
+      "line": 3188,
+      "text": "// Very long body with citation at the end (extremely long Gmail thread scenarios)"
+    },
+    {
+      "line": 3507,
+      "text": "// Instead of overwriting Date (which breaks the constructor in the vm sandbox),"
+    },
+    {
+      "line": 3508,
+      "text": "// we directly mock Intl.DateTimeFormat in the context to return"
+    },
+    {
+      "line": 3509,
+      "text": "// the expected Pacific day for 2026-05-07T06:30:00Z (= 2026-05-06 in LA, UTC-7)."
+    }
+  ],
+  "tests\\test_advanced_config.js": [
+    {
+      "line": 78,
+      "text": "// invalido -> ignorato"
+    },
+    {
+      "line": 79,
+      "text": "// invalido -> ignorato"
+    }
+  ],
+  "tests\\test_email_processor_batch.js": [
+    {
+      "line": 590,
+      "text": "// Filtriamo solo le chiamate a geminiService.generateResponse (oggetti)"
+    }
+  ],
+  "tests\\test_gemini_service.js": [
+    {
+      "line": 41,
+      "text": "// Test 1: Array di oggetti senza ruolo"
+    },
+    {
+      "line": 46,
+      "text": "// Test 2: Stringa semplice"
+    },
+    {
+      "line": 145,
+      "text": "//generativelanguage.googleapis.com/v1beta/models/test:generateContent';"
+    }
+  ],
+  "tests\\test_gmail_service.js": [
+    {
+      "line": 44,
+      "text": "//example.org/path?q=1') === 'https://example.org/path?q=1', 'URL https valido deve passare');"
+    },
+    {
+      "line": 52,
+      "text": "//[::1%25lo0]/admin') === null, 'IPv6 loopback con zone-id deve essere bloccato (SSRF)');"
+    },
+    {
+      "line": 53,
+      "text": "//[::ffff:127.0.0.1%25eth0]/admin') === null, 'IPv4-mapped IPv6 con zone-id deve essere bloccato (SSRF)');"
+    }
+  ],
+  "tests\\test_intelligent_retry_logic.js": [
+    {
+      "line": 46,
+      "text": "// 1. Test _classifyValidationForRetry"
+    },
+    {
+      "line": 61,
+      "text": "// 2. Test _shouldAttemptIntelligentRetry"
+    },
+    {
+      "line": 87,
+      "text": "// 3. Test _buildCorrectionPrompt"
+    }
+  ]
+}

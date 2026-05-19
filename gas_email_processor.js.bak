@@ -2479,6 +2479,201 @@ ${addressLines.join('\n\n')}
   _storeBatchCheckpointAndScheduleContinuation_(threads, startIndex, remainingTimeMs) {
     try {
       const props = (typeof PropertiesService !== 'undefined' &&
+      };
+
+      this._startTime = Date.now();
+      const MAX_EXECUTION_TIME = this.config.maxExecutionTimeMs;
+      let processedCount = 0;
+      // Si usa la closure getEffectiveMaxEmailsPerRun definita esternamente per ottimizzare la leggibilità.
+
+      for (let index = 0; index < threads.length; index++) {
+        const safeLimit = getEffectiveMaxEmailsPerRun();
+        if (processedCount >= safeLimit) {
+          console.log(`🛑 Raggiunti ${safeLimit} thread elaborati. Stop.`);
+          deferBatchCheckpoint(threads, index, this._getRemainingTimeMs(MAX_EXECUTION_TIME));
+          break;
+        }
+
+        const thread = threads[index];
+
+        const remainingTimeMs = this._getRemainingTimeMs(MAX_EXECUTION_TIME);
+        if (remainingTimeMs < this.config.minRemainingTimeMs || this._isNearDeadline(MAX_EXECUTION_TIME)) {
+          console.warn(`⏳ Tempo insufficiente per un nuovo thread (${Math.round(remainingTimeMs / 1000)}s restanti). Stop preventivo.`);
+          deferBatchCheckpoint(threads, index, remainingTimeMs);
+          break;
+        }
+
+        if (!this._hasUnreadMessagesToProcess(thread, labeledMessageIds, skippedMessageIds)) {
+          runLogger.info(`Thread ${index + 1}/${threads.length} - Skip: già etichettato IA`);
+          stats.total++;
+          stats.skipped++;
+          stats.skipped_processed++;
+          continue;
+        }
+
+        runLogger.info(`Thread ${index + 1}/${threads.length}`);
+
+        // Se abbiamo già acquisito il lock batch in questa funzione (o il chiamante
+        // dichiara lock già coperti), evitiamo una seconda acquisizione in processThread.
+        const threadLockAlreadyCovered = Boolean(locksAlreadyCovered || lockAcquiredHere);
+        const result = this.processThread(
+          thread,
+          normalizedKnowledgeBase,
+          normalizedDoctrineBase,
+          labeledMessageIds,
+          threadLockAlreadyCovered,
+          skippedMessageIds,
+          { ...options, logger: runLogger }
+        );
+        stats.total++;
+
+        if (result && result.error && String(result.error).includes('GMAIL_DAILY_CALL_LIMIT_REACHED')) {
+          runLogger.warn('⚠️ Stop batch: limite giornaliero chiamate Gmail raggiunto durante processThread.');
+          // -1: checkpoint senza trigger (quota Gmail giornaliera, riprova domani)
+          deferBatchCheckpoint(threads, index, -1);
+          break;
+        }
+
+        if (
+          result &&
+          (
+            result.errorClass === 'QUOTA_EXCEEDED' ||
+            result.errorClass === 'QUOTA_EXHAUSTED' ||
+            String(result.error || '').includes('QUOTA_EXHAUSTED')
+          )
+        ) {
+          runLogger.warn('⚠️ Stop batch: quota API LLM esaurita, salvo checkpoint per evitare cascata di error label.');
+          deferBatchCheckpoint(
+            threads,
+            index,
+            this._getQuotaCheckpointDelayMs_(result, remainingTimeMs)
+          );
+          break;
+        }
+
+        if (result && (result.errorClass === 'NETWORK' || result.errorClass === 'TIMEOUT')) {
+          runLogger.warn('⚠️ Stop batch: errore infrastrutturale retryable, salvo checkpoint per riprovare senza moltiplicare i fallimenti.');
+          deferBatchCheckpoint(
+            threads,
+            index,
+            this._getRemainingTimeMs(MAX_EXECUTION_TIME)
+          );
+          break;
+        }
+
+        // Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI
+        const isEffectiveWork = (
+          result.status === 'replied' ||
+          result.status === 'dry_run' ||
+          result.status === 'error' ||
+          result.status === 'validation_failed' ||
+          result.status === 'filtered'
+        );
+
+        if (isEffectiveWork) {
+          processedCount++;
+        }
+
+        if (result.validationFailed) {
+          stats.validationFailed++;
+        } else if (result.status === 'replied') {
+          stats.replied++;
+        } else if (result.status === 'dry_run') {
+          stats.dryRun++;
+        } else if (result.status === 'skipped') {
+          stats.skipped++;
+          if (result.reason === 'thread_locked' || result.reason === 'thread_locked_race') stats.skipped_locked++;
+          if (result.reason === 'already_labeled_no_new_unread') stats.skipped_processed++;
+          if (result.reason === 'no_external_unread' || result.reason === 'last_speaker_is_me') stats.skipped_internal++;
+          if (result.reason === 'email_loop_detected') stats.skipped_loop++;
+        } else if (result.status === 'filtered') {
+          stats.filtered++;
+          if (result.reason === 'email_loop_detected') stats.skipped_loop++;
+        } else if (result.status === 'error') {
+          stats.errors++;
+        }
+      }
+
+      // Stampa riepilogo
+      runLogger.info('RIEPILOGO ELABORAZIONE', {
+        total: stats.total,
+        replied: stats.replied,
+        filtered: stats.filtered,
+        errors: stats.errors,
+        duration: Date.now() - this._startTime
+      });
+
+      if (!deferredBatchCheckpoint) {
+        this._clearBatchCheckpoint_('batch completato');
+      }
+
+      return stats;
+
+    } finally {
+      restoreRunServiceLoggers();
+      if (lockAcquiredHere) {
+        try {
+          executionLock.releaseLock();
+          runLogger.info('Lock esecuzione batch rilasciato');
+        } catch (e) {
+          console.warn(`⚠️ Errore rilascio execution lock: ${e.message}`);
+        }
+      }
+      if (deferredBatchCheckpoint) {
+        this._storeBatchCheckpointAndScheduleContinuation_(
+          deferredBatchCheckpoint.threads,
+          deferredBatchCheckpoint.startIndex,
+          deferredBatchCheckpoint.remainingTimeMs
+        );
+      }
+    }
+  }
+
+  _clearBatchCheckpoint_(reason) {
+    try {
+      const props = (typeof PropertiesService !== 'undefined' &&
+        PropertiesService &&
+        typeof PropertiesService.getScriptProperties === 'function')
+        ? PropertiesService.getScriptProperties()
+        : null;
+      if (props && typeof props.deleteProperty === 'function') {
+        props.deleteProperty('EMAIL_BATCH_CHECKPOINT');
+        console.log(`🧹 Checkpoint batch ripulito (${reason || 'batch completato'}).`);
+      }
+    } catch (e) {
+      console.warn(`⚠️ Errore pulizia checkpoint batch: ${e.message}`);
+    }
+  }
+
+  _getQuotaCheckpointDelayMs_(result, remainingTimeMs) {
+    const raw = [
+      result && result.errorClass,
+      result && result.error,
+      result && result.reason
+    ].filter(Boolean).join(' ').toLowerCase();
+
+    const looksDailyQuota =
+      raw.includes('daily') ||
+      raw.includes('giornal') ||
+      raw.includes('rpd');
+
+    if (looksDailyQuota) {
+      return -1;
+    }
+
+    const remaining = Number(remainingTimeMs);
+    if (Number.isFinite(remaining) && remaining > 0) {
+      return remaining;
+    }
+
+    // Quota non chiaramente giornaliera: pianifica una ripresa breve invece di
+    // lasciare il checkpoint sospeso fino al prossimo trigger ordinario.
+    return 60000;
+  }
+
+  _storeBatchCheckpointAndScheduleContinuation_(threads, startIndex, remainingTimeMs) {
+    try {
+      const props = (typeof PropertiesService !== 'undefined' &&
         PropertiesService &&
         typeof PropertiesService.getScriptProperties === 'function')
         ? PropertiesService.getScriptProperties()
@@ -2489,6 +2684,11 @@ ${addressLines.join('\n\n')}
       let currentDepth = 0;
       let previousCheckpoint = null;
       try {
+        // PropertiesService ha un limite dimensionale per valore: manteniamo margine
+        // conservativo per evitare "Argument too large" in checkpoint voluminosi.
+        const maxCheckpointThreads = (typeof CONFIG !== 'undefined' && Number(CONFIG.BATCH_CHECKPOINT_MAX_THREADS) > 0)
+          ? Math.min(Math.max(1, Number(CONFIG.BATCH_CHECKPOINT_MAX_THREADS)), 150)
+          : 150;
         previousCheckpoint = JSON.parse(props.getProperty('EMAIL_BATCH_CHECKPOINT') || '{}');
         currentDepth = (previousCheckpoint && previousCheckpoint.depth) ? previousCheckpoint.depth : 0;
       } catch (_) {
@@ -2496,8 +2696,6 @@ ${addressLines.join('\n\n')}
         currentDepth = 0;
       }
 
-      // PropertiesService ha un limite dimensionale per valore: manteniamo margine
-      // conservativo per evitare "Argument too large" in checkpoint voluminosi.
       const maxCheckpointThreads = (typeof CONFIG !== 'undefined' && Number(CONFIG.BATCH_CHECKPOINT_MAX_THREADS) > 0)
         ? Math.min(Math.max(1, Number(CONFIG.BATCH_CHECKPOINT_MAX_THREADS)), 150)
         : 150;
@@ -2557,1005 +2755,19 @@ ${addressLines.join('\n\n')}
           existing.forEach((trigger) => {
             try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
           });
-          const conservativeResumeMs = 18 * 60 * 60 * 1000;
-          ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(conservativeResumeMs).create();
-          console.log(`⏸️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger pianificato tra ~18h (quota giornaliera Gmail esaurita).`);
+          console.log(`⏸️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), nessun trigger pianificato (quota giornaliera Gmail esaurita).`);
         } else {
           try {
             ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(60 * 1000).create();
-            // Non eliminiamo trigger preesistenti qui per evitare race tra run concorrenti
-            // che condividono l'handler ma possono avere checkpoint differenti.
-            console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger pianificato.`);
+            existing.forEach((trigger) => {
+              try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
+            });
+            console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger rigenerato.`);
           } catch (triggerError) {
             console.error(`❌ Impossibile creare trigger di ripresa batch; trigger preesistenti preservati: ${triggerError.message}`);
           }
         }
       }
-    } catch (e) {
-      console.warn(`⚠️ Salvataggio checkpoint batch fallito: ${e.message}`);
-    }
-  }
-
-  // ====================================================================
-  // RILEVAMENTO TEMPORALE (Date/Orari)
-  // ====================================================================
-
-  /**
-   * Verifica se l'email deve essere ignorata (blacklist, auto-reply, notifiche)
-   * Usa le liste UNIFICATE (Codice + Foglio) presenti in GLOBAL_CACHE
-   */
-  _shouldIgnoreEmail(messageDetails) {
-    const email = this._normalizeEmailAddress_(messageDetails.senderEmail || '');
-    const subject = (messageDetails.subject || '').toLowerCase();
-    const body = (messageDetails.body || '').toLowerCase();
-
-    // 1. Controllo Blacklist Domini/Email
-    // NOTA: GLOBAL_CACHE.ignoreDomains include già CONFIG.IGNORE_DOMAINS (merge in _loadAdvancedConfig)
-    const ignoreDomainsArray = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreDomains))
-      ? GLOBAL_CACHE.ignoreDomains
-      : ((typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_DOMAINS)) ? CONFIG.IGNORE_DOMAINS : []);
-    const ignoreDomains = ignoreDomainsArray
-      .map(d => String(d == null ? '' : d).trim().toLowerCase())
-      .filter(Boolean);
-
-    const atIndex = email.lastIndexOf('@');
-    const localPart = atIndex >= 0 ? email.substring(0, atIndex) : email;
-    const senderDomain = atIndex >= 0 ? email.substring(atIndex + 1) : '';
-
-    if (ignoreDomains.some(domain => {
-      const blacklistDomain = domain.startsWith('@') ? domain.substring(1) : domain;
-      const isExactMatch = email === domain;
-      const isDomainMatch = (domain.startsWith('@') || !domain.includes('@')) && senderDomain === blacklistDomain;
-      const isSubdomainMatch = !domain.startsWith('@') && !domain.includes('@') &&
-        senderDomain.endsWith('.' + blacklistDomain);
-      return isExactMatch || isDomainMatch || isSubdomainMatch;
-    })) {
-      console.log(`🚫 Ignorato: mittente in blacklist (${email})`);
-      return true;
-    }
-
-    // Match username ristretto a pattern bot/notifica espliciti per evitare falsi positivi
-    // su username legittimi (es. marketing@..., info@...).
-    const BOT_USERNAMES = new Set(['noreply', 'no-reply', 'donotreply', 'mailer-daemon',
-      'postmaster', 'bounce', 'notifications', 'newsletter', 'promo',
-      'ads', 'bot', 'crm']);
-    if (BOT_USERNAMES.has(localPart)) {
-      console.log(`🚫 Ignorato: username di sistema/bot rilevato (${email})`);
-      return true;
-    }
-
-    // 2. Controllo Keyword Oggetto/Corpo
-    // NOTA: GLOBAL_CACHE.ignoreKeywords include già CONFIG.IGNORE_KEYWORDS (merge in _loadAdvancedConfig)
-    const ignoreKeywordsArray = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreKeywords))
-      ? GLOBAL_CACHE.ignoreKeywords
-      : ((typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_KEYWORDS)) ? CONFIG.IGNORE_KEYWORDS : []);
-    const ignoreKeywords = ignoreKeywordsArray
-      .map(k => String(k == null ? '' : k).trim().toLowerCase())
-      .filter(Boolean);
-
-    if (ignoreKeywords.some(keyword => subject.includes(keyword) || body.includes(keyword))) {
-      console.log(`🚫 Ignorato: oggetto o corpo contiene keyword vietata`);
-      return true;
-    }
-
-    // 3. Controllo Auto-reply e Notifiche (Standard)
-    // NOTA: no-reply/noreply sono anche controllati in STEP 0.8 (defense-in-depth).
-    // Qui manteniamo un set più mirato (segnali "sistemici" su sender/subject/body) per
-    // ridurre falsi positivi rispetto al filtro preliminare regex più ampio.
-    if (
-      email.includes('no-reply') ||
-      email.includes('noreply') ||
-      email.includes('mailer-daemon') ||
-      email.includes('postmaster') ||
-      email.includes('notification@') ||
-      email.includes('notifications@') ||
-      // Filtro per evitare falsi positivi su indirizzi contenenti 'alert'.
-      email.includes('alert@') || email.includes('alerts@') ||
-      subject.includes('delivery status notification') ||
-      subject.includes('automatic reply') ||
-      subject.includes('fuori sede') ||
-      subject.includes('out of office') ||
-      body.includes('this is an automatically generated message') ||
-      body.includes('do not reply to this email')
-    ) {
-      console.log('🚫 Ignorato: auto-reply o notifica di sistema');
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * Normalizza indirizzo email per confronti robusti (anti-loop/filtri):
-   * - lowercase + trim
-   * - rimozione display name eventuale (se presente)
-   * - per Gmail/Googlemail: rimozione alias "+tag" nel local-part
-   */
-  _normalizeEmailAddress_(rawEmail) {
-    if (!rawEmail) return '';
-    const raw = String(rawEmail).trim();
-
-    let extracted = raw;
-    const bracketMatch = raw.match(/<([^>]+)>/);
-    if (bracketMatch && bracketMatch[1]) {
-      extracted = bracketMatch[1];
-    }
-
-    extracted = extracted.trim().toLowerCase();
-    const atIdx = extracted.lastIndexOf('@');
-    if (atIdx <= 0) return extracted;
-
-    let local = extracted.substring(0, atIdx);
-    let domain = extracted.substring(atIdx + 1);
-    if (!domain) return extracted;
-
-    if (domain === 'googlemail.com') {
-      domain = 'gmail.com';
-    }
-    if (domain === 'gmail.com') {
-      local = local.replace(/\+.*/, '').replace(/\./g, '');
-    }
-
-    return `${local}@${domain}`;
-  }
-
-  _shouldTryOcr(body, subject, hasAttachments = false) {
-    const settings = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT)
-      ? CONFIG.ATTACHMENT_CONTEXT
-      : {};
-
-    // Se trigger keywords non sono definite, OCR attivo di default.
-    // Se presenti in configurazione, verranno usate come filtro.
-    const triggerKeywords = Array.isArray(settings.ocrTriggerKeywords)
-      ? settings.ocrTriggerKeywords
-      : [];
-
-    // Se la lista è vuota, significa "OCR sempre attivo se enabled=true"
-    if (triggerKeywords.length === 0) return true;
-
-    const normalizedBody = (body || '').toLowerCase().replace(/\s+/g, ' ');
-    const normalizedSubject = (subject || '').toLowerCase().replace(/\s+/g, ' ');
-
-    const hasKeywordMatch = triggerKeywords.some(keyword => {
-      const needle = String(keyword == null ? '' : keyword).toLowerCase().trim();
-      return needle && (normalizedBody.includes(needle) || normalizedSubject.includes(needle));
-    });
-
-    if (hasKeywordMatch) {
-      return true;
-    }
-
-    // Fallback robusto: se il testo suggerisce un documento "atteso",
-    // abilitiamo OCR anche quando le keyword configurate non coprono il caso.
-    const expectedDocType = this._detectDocumentTypeFromText_(`${normalizedSubject} ${normalizedBody}`);
-    if (expectedDocType && expectedDocType !== 'unknown' && hasAttachments) {
-      console.log(`   📎 OCR fallback attivo: documento atteso rilevato (${expectedDocType})`);
-      return true;
-    }
-
-    const hasEmailText = Boolean(normalizedBody.trim() || normalizedSubject.trim());
-    if (!hasEmailText && hasAttachments) {
-      console.log('   📎 OCR fallback attivo: email senza testo ma con allegati');
-      return true;
-    }
-
-    return false;
-  }
-
-  // Il lock di idempotenza invio protegge il check-then-act su cache
-  // (sentKey/sendingKey). Se il chiamante possiede già lo ScriptLock, evita
-  // una riacquisizione non reentrant ma mantiene comunque le chiavi cache.
-  _beginSendTransaction(messageId, skipLock = false) {
-    if (!messageId) {
-      console.warn('⚠️ Idempotenza non applicabile: messageId assente. Rischio di duplicazione.');
-      return { ok: true, reason: 'missing_message_id' };
-    }
-    const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
-      ? CacheService.getScriptCache()
-      : null;
-
-    if (!cache) {
-      return { ok: true, reason: 'cache_unavailable' };
-    }
-
-    const sendingKey = `sending_${messageId}`;
-    const sentKey = `sent_${messageId}`;
-    const scriptLock = (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function')
-      ? LockService.getScriptLock()
-      : null;
-    let lockAcquired = false;
-
-    try {
-      if (!skipLock && scriptLock && typeof scriptLock.tryLock === 'function') {
-        lockAcquired = scriptLock.tryLock(500);
-        if (!lockAcquired) {
-          return { ok: false, reason: 'send_lock_unavailable' };
-        }
-      }
-
-      if (cache.get(sentKey)) {
-        if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
-          try { scriptLock.releaseLock(); } catch (_) { }
-        }
-        return { ok: false, reason: 'already_sent' };
-      }
-      if (cache.get(sendingKey)) {
-        if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
-          try { scriptLock.releaseLock(); } catch (_) { }
-        }
-        return { ok: false, reason: 'in_flight' };
-      }
-
-      cache.put(sendingKey, String(Date.now()), 300); // 5 minuti
-      if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
-        try { scriptLock.releaseLock(); } catch (_) { }
-      }
-      return { ok: true, reason: 'acquired', lock: null };
-    } catch (e) {
-      if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
-        try { scriptLock.releaseLock(); } catch (_) { }
-      }
-      throw e;
-    }
-  }
-
-  _commitSendTransaction(messageId, sendTxn = null) {
-    if (!messageId) return;
-    const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
-      ? CacheService.getScriptCache()
-      : null;
-    if (!cache) return;
-
-    try {
-      cache.put(`sent_${messageId}`, String(Date.now()), 21599);
-      cache.remove(`sending_${messageId}`);
-    } catch (e) {
-      console.warn(`  Impossibile committare la transazione in cache per ${messageId}: ${e.message}`);
-    } finally {
-      if (sendTxn && sendTxn.lock && typeof sendTxn.lock.releaseLock === 'function') {
-        sendTxn.lock.releaseLock();
-      }
-    }
-  }
-
-  _rollbackSendTransaction(messageId, sendTxn = null) {
-    if (!messageId) return;
-    const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
-      ? CacheService.getScriptCache()
-      : null;
-    if (!cache) return;
-    try {
-      cache.remove(`sending_${messageId}`);
-    } catch (e) {
-      console.warn(`  Impossibile eseguire il rollback della transazione in cache per ${messageId}: ${e.message}`);
-    } finally {
-      if (sendTxn && sendTxn.lock && typeof sendTxn.lock.releaseLock === 'function') {
-        sendTxn.lock.releaseLock();
-      }
-    }
-  }
-
-  _getBusinessTimeString(date = new Date()) {
-    const safeDateInput = date || Date.now();
-    const parsedDate = new Date(safeDateInput);
-    if (isNaN(parsedDate.getTime())) return '12:00';
-
-    if (typeof Utilities !== 'undefined' && Utilities &&
-        typeof Utilities.formatDate === 'function') {
-      try {
-        const tz = (typeof Session !== 'undefined' && Session &&
-                    typeof Session.getScriptTimeZone === 'function')
-          ? Session.getScriptTimeZone()
-          : 'Europe/Rome';
-        return Utilities.formatDate(parsedDate, tz, 'HH:mm');
-      } catch (_) {
-        // Fallback sotto
-      }
-    }
-
-    try {
-      return new Intl.DateTimeFormat('it-IT', {
-        timeZone: 'Europe/Rome',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      }).format(parsedDate);
-    } catch (_) {
-      const h = String(parsedDate.getHours()).padStart(2, '0');
-      const m = String(parsedDate.getMinutes()).padStart(2, '0');
-      return `${h}:${m}`;
-    }
-  }
-
-  _getBusinessDateString(date = new Date()) {
-    const safeDateInput = date || Date.now();
-    const parsedDate = new Date(safeDateInput);
-    if (isNaN(parsedDate.getTime())) return new Date().toISOString().split('T')[0];
-
-    if (typeof Utilities !== 'undefined' && Utilities &&
-        typeof Utilities.formatDate === 'function') {
-      try {
-        const tz = (typeof Session !== 'undefined' && Session &&
-                    typeof Session.getScriptTimeZone === 'function')
-          ? Session.getScriptTimeZone()
-          : 'Europe/Rome';
-        return Utilities.formatDate(parsedDate, tz, 'yyyy-MM-dd');
-      } catch (_) {
-        // Fallback sotto
-      }
-    }
-
-    try {
-      return new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Europe/Rome',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).format(parsedDate);
-    } catch (_) {
-      // Fallback minimale quando Intl/timeZone non è disponibile.
-      return parsedDate.toISOString().split('T')[0];
-    }
-  }
-
-  _getCurrentSeason() {
-    let month;
-    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
-      month = parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'M'), 10);
-    } else {
-      month = new Date().getMonth() + 1;
-    }
-    return (month >= 6 && month <= 9) ? 'estivo' : 'invernale';
-  }
-
-  _getOcrLowConfidenceNote(languageCode) {
-    const lang = ((languageCode || 'it') + '').toLowerCase().split(/[-_]/)[0];
-    const notes = {
-      it: 'Nota: Il documento allegato era di difficile lettura.',
-      en: 'Note: The attached document was difficult to read.',
-      es: 'Nota: El documento adjunto era difícil de leer.',
-      fr: 'Remarque : Le document joint était difficile à lire.',
-      de: 'Hinweis: Das angehängte Dokument war schwer lesbar.',
-      pt: 'Nota: O documento em anexo estava difícil de ler. Posso ter omitido alguns detalhes.'
-    };
-    return notes[lang] || notes.it;
-  }
-
-  _getLanguageProcessingMode_() {
-    const cacheMode = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE && typeof GLOBAL_CACHE.languageMode === 'string')
-      ? GLOBAL_CACHE.languageMode
-      : '';
-    const normalized = String(cacheMode || '').trim().toLowerCase();
-    return normalized === 'foreign_only' ? 'foreign_only' : 'all';
-  }
-
-  _shouldSkipByLanguageMode_(detectedLanguage, languageMode) {
-    const lang = String(detectedLanguage || '').trim().toLowerCase();
-    const mode = String(languageMode || '').trim().toLowerCase();
-    return mode === 'foreign_only' && lang === 'it';
-  }
-
-  _markMessageAsProcessed(message, labeledMessageIds = null, skippedMessageIds = null) {
-    // Nota di manutenzione: IA viene applicata a livello *messaggio* (non thread)
-    // e non marca il messaggio come letto. Così il segretario continua a vedere i
-    // non letti in Gmail, mentre il sistema sa che quel singolo messaggio è già gestito.
-    const messageId = message.getId();
-
-    // Se siamo ancora in modalità "Solo straniere", un messaggio già marcato con
-    // punto medio ('·') resta in attesa: verrà promosso a IA solo quando si torna
-    // a "Tutte le lingue" e viene effettivamente lavorato.
-    if (this._getLanguageProcessingMode_() === 'foreign_only' && skippedMessageIds && skippedMessageIds.has(messageId)) {
-      console.log(`   ⛔ Preservata label '${this.config.skipLabelName}' su ${messageId} (foreign_only, cache): non promuovo a IA`);
-      return;
-    }
-
-    if (this._getLanguageProcessingMode_() === 'foreign_only' && this._shouldPreserveSkipLabelInForeignOnly_(messageId)) {
-      console.log(`   ⛔ Preservata label '${this.config.skipLabelName}' su ${messageId} (foreign_only): non promuovo a IA`);
-      return;
-    }
-
-    if (labeledMessageIds && labeledMessageIds.has(messageId)) {
-      return; // Previene doppia chiamata API sullo stesso messaggio
-    }
-
-    this.gmailService.addLabelToMessage(messageId, this.config.labelName);
-    if (this.gmailService && typeof this.gmailService.removeLabelFromMessage === 'function') {
-      // Best-effort cleanup: no-op se il messaggio non ha la label skip.
-      this.gmailService.removeLabelFromMessage(messageId, this.config.skipLabelName);
-      if (skippedMessageIds && skippedMessageIds.has(messageId)) {
-        console.log(`   ♻️ Promozione da '${this.config.skipLabelName}' a '${this.config.labelName}' per ${messageId}`);
-      }
-    }
-    if (labeledMessageIds && typeof labeledMessageIds.add === 'function') {
-      labeledMessageIds.add(messageId);
-    }
-  }
-
-  _shouldPreserveSkipLabelInForeignOnly_(messageId) {
-    if (this._getLanguageProcessingMode_() !== 'foreign_only') return false;
-    if (!messageId || !this.gmailService) return false;
-    if (typeof this.gmailService._getOptionalLabelIdByName !== 'function') return false;
-    if (typeof this.gmailService._getMessageMetadataWithResilience !== 'function') return false;
-
-    const skipLabelId = this.gmailService._getOptionalLabelIdByName(this.config.skipLabelName);
-    // Fail-closed architetturale: se non recuperiamo l'ID label (quota/API/errore),
-    // preserviamo lo stato skip per evitare promozioni accidentali.
-    if (!skipLabelId) return true;
-
-    const metadata = this.gmailService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
-
-    // Fail-closed: in caso di errore/risposta non valida preserviamo lo stato skip.
-    // Evita promozioni accidentali a IA dovute a guasti transitori Gmail API.
-    if (!metadata || !Array.isArray(metadata.labelIds)) return true;
-
-    return metadata.labelIds.includes(skipLabelId);
-  }
-
-  // Tracciamento ID saltati per ottimizzare il batch.
-  _markMessagesAsSkipped(messages, labelName = this.config.skipLabelName, skippedMessageIds = null) {
-    if (this.config.dryRun) {
-      this.logger.info(`   🔴 DRY RUN - Label skip '${labelName}' non aggiunta (simulazione)`);
-      (messages || []).forEach(message => {
-        if (!message) return;
-        const msgId = message.getId();
-        if (skippedMessageIds && typeof skippedMessageIds.add === 'function') {
-          skippedMessageIds.add(msgId);
-        }
-      });
-      return;
-    }
-
-    if (!this.gmailService || typeof this.gmailService.addLabelToMessage !== 'function') return;
-
-    // Se skipLabelName è configurato (anche come stringa vuota per disabilitare), procedi.
-    if (labelName !== undefined && labelName !== null) {
-      console.log(`   🏷️ Etichettatura messaggi come saltati (${labelName})...`);
-      (messages || []).forEach(message => {
-        if (!message) return;
-        const msgId = message.getId();
-        this.gmailService.addLabelToMessage(msgId, labelName);
-        if (skippedMessageIds && typeof skippedMessageIds.add === 'function') {
-          skippedMessageIds.add(msgId);
-        }
-      });
-    }
-  }
-
-  // Calcola se il tempo residuo è sufficiente per elaborare un nuovo thread
-  _isNearDeadline(maxExecutionTimeMs) {
-    const budgetMs = Number(maxExecutionTimeMs) || 330000;
-    const minRemainingMs = (typeof this.config.minRemainingTimeMs === 'number')
-      ? this.config.minRemainingTimeMs
-      : 90000; // 90 secondi margine sicurezza
-
-    if (!this._startTime) return false;
-
-    const elapsed = Date.now() - this._startTime;
-    return elapsed > Math.max(0, budgetMs - minRemainingMs);
-  }
-
-  _getRemainingTimeMs(maxExecutionTimeMs) {
-    const budgetMs = Number(maxExecutionTimeMs) || 330000;
-    const start = Number(this._startTime) || Date.now();
-    const elapsed = Date.now() - start;
-    return Math.max(0, budgetMs - elapsed);
-  }
-
-
-  // Supporto per skippedMessageIds.
-  // per evitare ri-discovery inutile di thread già valutati in modalità foreign_only.
-  _hasUnreadMessagesToProcess(thread, labeledMessageIds, skippedMessageIds) {
-    try {
-      const messages = thread.getMessages() || [];
-      const unreadMessages = messages.filter(m => m.isUnread());
-
-      // Nessun non letto: non c'è lavoro da fare.
-      if (unreadMessages.length === 0) {
-        return false;
-      }
-
-      const fetchLabeledIds = () => {
-        if (!this.gmailService || typeof this.gmailService.getMessageIdsWithLabel !== 'function') {
-          return new Set();
-        }
-        const terminalLabelNames = [
-          this.config.labelName,
-          this.config.errorLabelName,
-          this.config.validationErrorLabel
-        ].filter(Boolean);
-        const fetchedIds = new Set();
-        terminalLabelNames.forEach(labelName => {
-          const ids = this.gmailService.getMessageIdsWithLabel(labelName, true, { onlyUnread: true });
-          if (ids instanceof Set) {
-            ids.forEach(id => fetchedIds.add(id));
-          } else {
-            (ids || []).forEach(id => fetchedIds.add(id));
-          }
-        });
-        return fetchedIds;
-      };
-      const effectiveLabeledIds = (labeledMessageIds instanceof Set)
-        ? labeledMessageIds
-        : fetchLabeledIds();
-
-      const mode = this._getLanguageProcessingMode_();
-      const effectiveSkippedIds = (mode === 'foreign_only' && skippedMessageIds instanceof Set)
-        ? skippedMessageIds
-        : new Set();
-
-      return unreadMessages.some(message => {
-        const messageId = message.getId();
-        if (effectiveLabeledIds.has(messageId)) return false;
-        if (effectiveSkippedIds.has(messageId)) return false;
-        return true;
-      });
-    } catch (e) {
-      // Fallback sicuro: in caso di errore non bloccare il thread, lasciamo decidere a processThread.
-      this.logger.warn(`⚠️ Fast-skip check fallito: ${e.message}`);
-      return true;
-    }
-  }
-
-  _normalizeTextContent(value) {
-    if (typeof value === 'string') {
-      return value.trim();
-    }
-    if (value == null) {
-      return '';
-    }
-    if (typeof value === 'object') {
-      try {
-        const cache = new Set();
-        return JSON.stringify(value, (key, val) => {
-          if (typeof val === 'object' && val !== null) {
-            if (cache.has(val)) return '[Circular]';
-            cache.add(val);
-          }
-          return val;
-        }, 2);
-      } catch (e) {
-        return String(value).trim();
-      }
-    }
-    try {
-      return String(value).trim();
-    } catch (e) {
-      this.logger.warn(`⚠️ Impossibile normalizzare contenuto testuale: ${e.message}`);
-      return '';
-    }
-  }
-
-
-
-  _prepareOutboundResponse(responseText, messageDetails, detectedLanguage) {
-    const safeText = typeof responseText === 'string'
-      ? responseText
-      : (responseText == null ? '' : String(responseText));
-
-    if (this.gmailService && typeof this.gmailService.prepareOutboundText === 'function') {
-      return this.gmailService.prepareOutboundText(safeText, messageDetails || {}, detectedLanguage);
-    }
-
-    return safeText;
-  }
-
-  _addErrorLabel(target) {
-    if (target && typeof target.getThread === 'function' && typeof target.getId === 'function') {
-      this.gmailService.addLabelToMessage(target.getId(), this.config.errorLabelName);
-      return;
-    }
-    this.gmailService.addLabelToThread(target, this.config.errorLabelName);
-  }
-
-  _addValidationErrorLabel(target, reviewContext = {}) {
-    if (target && typeof target.getThread === 'function' && typeof target.getId === 'function') {
-      this.gmailService.addLabelToMessage(target.getId(), this.config.validationErrorLabel);
-      this._notifyValidationReview_(target, reviewContext);
-      return;
-    }
-    this.gmailService.addLabelToThread(target, this.config.validationErrorLabel);
-    this._notifyValidationReview_(target, reviewContext);
-  }
-
-  _notifyValidationReview_(target, reviewContext = {}) {
-    try {
-      const alertConfig = this.config.validationReviewAlerts || {};
-      if (alertConfig.enabled === false) return;
-
-      const recipient = this._getValidationReviewRecipient_(alertConfig);
-      if (!recipient) return;
-
-      const targetInfo = this._getValidationReviewTargetInfo_(target);
-      const validation = reviewContext.validation || {};
-      const reason = reviewContext.reason || 'validation_review';
-      const score = Number.isFinite(Number(validation.score)) ? Number(validation.score).toFixed(2) : 'n/d';
-      const warnings = Array.isArray(validation.warnings) ? validation.warnings : [];
-      const errors = Array.isArray(validation.errors) ? validation.errors : [];
-      const subjectText = String(reviewContext.subject || targetInfo.subject || '(senza oggetto)')
-        .replace(/[\r\n]+/g, ' ')
-        .trim();
-      const signature = [
-        reason,
-        targetInfo.messageId || '',
-        targetInfo.threadId || '',
-        subjectText
-      ].join('|');
-
-      const canSendWithMailApp = typeof MailApp !== 'undefined' && MailApp && typeof MailApp.sendEmail === 'function';
-      const canSendWithGmailApp = typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.sendEmail === 'function';
-      if (!canSendWithMailApp && !canSendWithGmailApp) return;
-      if (this._isValidationReviewAlertThrottled_(signature, alertConfig)) return;
-
-      const subject = `[${this.config.validationErrorLabel}] Revisione richiesta: ${subjectText}`.substring(0, 180);
-      const gmailLink = targetInfo.threadId
-        ? `https://mail.google.com/mail/u/0/#inbox/${targetInfo.threadId}`
-        : '';
-      const body = [
-        'Una risposta automatica richiede verifica umana.',
-        '',
-        `Motivo: ${reason}`,
-        `Punteggio validazione: ${score}`,
-        `Oggetto: ${subjectText}`,
-        targetInfo.threadId ? `Thread ID: ${targetInfo.threadId}` : '',
-        targetInfo.messageId ? `Message ID: ${targetInfo.messageId}` : '',
-        gmailLink ? `Link Gmail: ${gmailLink}` : '',
-        warnings.length ? `Warning: ${warnings.join('; ')}` : '',
-        errors.length ? `Errori: ${errors.join('; ')}` : ''
-      ].filter(Boolean).join('\n');
-
-      if (canSendWithMailApp) {
-        MailApp.sendEmail(recipient, subject, body);
-      } else if (canSendWithGmailApp) {
-        GmailApp.sendEmail(recipient, subject, body);
-      }
-    } catch (e) {
-      console.warn(`⚠️ Notifica Verifica non inviata: ${e.message}`);
-    }
-  }
-
-  _getValidationReviewRecipient_(alertConfig) {
-    const propKey = alertConfig.recipientProperty || 'VALIDATION_REVIEW_EMAIL';
-    let propertyEmail = '';
-    try {
-      propertyEmail = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
-        ? PropertiesService.getScriptProperties().getProperty(propKey)
-        : '';
-    } catch (e) {
-      propertyEmail = '';
-    }
-
-    const configEmail = alertConfig.email || '';
-    const adminEmail = (typeof CONFIG !== 'undefined' && CONFIG.LOGGING && CONFIG.LOGGING.ADMIN_EMAIL)
-      ? CONFIG.LOGGING.ADMIN_EMAIL
-      : '';
-
-    // Priorità:
-    // 1. GLOBAL_CACHE (letto da cella A19 del foglio Controllo)
-    // 2. Proprietà dello script (override dinamico)
-    // 3. Configurazione statica VALIDATION_REVIEW_ALERTS.email
-    // 4. Configurazione statica LOGGING.ADMIN_EMAIL
-    const cacheEmail = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBAL_CACHE.validationReviewEmail : '';
-    const candidate = String(cacheEmail || propertyEmail || configEmail || adminEmail || '').trim();
-
-    if (!candidate || candidate.includes('[') || candidate.includes('YOUR_')) return '';
-    return candidate;
-  }
-
-  _getValidationReviewTargetInfo_(target) {
-    const info = { messageId: '', threadId: '', subject: '' };
-    try {
-      if (target && typeof target.getThread === 'function') {
-        info.messageId = typeof target.getId === 'function' ? target.getId() : '';
-        const thread = target.getThread();
-        info.threadId = thread && typeof thread.getId === 'function' ? thread.getId() : '';
-        info.subject = typeof target.getSubject === 'function' ? target.getSubject() : '';
-      } else if (target && typeof target.getId === 'function') {
-        info.threadId = target.getId();
-        info.subject = typeof target.getFirstMessageSubject === 'function' ? target.getFirstMessageSubject() : '';
-      }
-    } catch (e) {
-      return info;
-    }
-    return info;
-  }
-
-  _isValidationReviewAlertThrottled_(signature, alertConfig) {
-    const cooldownSeconds = Math.max(60, parseInt(alertConfig.cooldownSeconds, 10) || 3600);
-    const hash = this._hashValidationReviewSignature_(signature);
-    const key = `validation_review_alert_${hash}`;
-    const now = Date.now();
-
-    try {
-      const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
-        ? CacheService.getScriptCache()
-        : null;
-      if (cache && cache.get(key)) return true;
-      if (cache) cache.put(key, 'sent', Math.min(cooldownSeconds, 21600));
-    } catch (e) {
-      // Il fallback su PropertiesService copre anche evizioni/cache non disponibili.
-    }
-
-    try {
-      const props = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
-        ? PropertiesService.getScriptProperties()
-        : null;
-      if (!props) return false;
-      const stateKey = 'VALIDATION_REVIEW_ALERT_STATE';
-      let state = {};
-      try {
-        state = JSON.parse(props.getProperty(stateKey) || '{}');
-      } catch (e) {
-        state = {};
-      }
-      const lastTs = Number(state[hash]);
-      if (Number.isFinite(lastTs) && ((now - lastTs) < cooldownSeconds * 1000)) {
-        return true;
-      }
-      const nextState = { [hash]: now };
-      Object.keys(state).forEach((existingHash) => {
-        const ts = Number(state[existingHash]);
-        if (Number.isFinite(ts) && ((now - ts) < cooldownSeconds * 1000)) {
-          nextState[existingHash] = ts;
-        }
-      });
-      props.setProperty(stateKey, JSON.stringify(nextState));
-    } catch (e) {
-      return false;
-    }
-
-    return false;
-  }
-
-  _hashValidationReviewSignature_(signature) {
-    try {
-      if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.computeDigest === 'function') {
-        return Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, signature)).substring(0, 16);
-      }
-    } catch (e) {
-      // fallback deterministico sotto.
-    }
-    let hash = 0;
-    const source = String(signature || '');
-    for (let i = 0; i < source.length; i++) {
-      hash = ((hash << 5) - hash + source.charCodeAt(i)) | 0;
-    }
-    return String(Math.abs(hash));
-  }
-
-  // Classifica gli errori di validazione in categorie utili per il retry LLM
-  _classifyValidationForRetry(validationResult, detectedLanguage) {
-    const details = (validationResult && validationResult.details) ? validationResult.details : {};
-    const errors = (validationResult && Array.isArray(validationResult.errors)) ? validationResult.errors : [];
-    const errorText = errors.map(e => String(e).toLowerCase());
-
-    const hallucinations = (details.hallucinations && details.hallucinations.hallucinations)
-      ? details.hallucinations.hallucinations
-      : {};
-
-    let hasHallucination = (
-      (Array.isArray(hallucinations.emails) && hallucinations.emails.length > 0) ||
-      (Array.isArray(hallucinations.phones) && hallucinations.phones.length > 0) ||
-      (Array.isArray(hallucinations.times) && hallucinations.times.length > 0)
-    );
-    if (!hasHallucination && errorText.some(e => e.includes('non in kb') || e.includes('allucin'))) {
-      hasHallucination = true;
-    }
-
-    const exposedErrors = (details.exposedReasoning && Array.isArray(details.exposedReasoning.errors))
-      ? details.exposedReasoning.errors
-      : [];
-    let hasThinkingLeak = exposedErrors.length > 0 || errorText.some(e => e.includes('ragionamento esposto'));
-
-    const semantic = details.semantic || {};
-    if (semantic.thinkingLeak && semantic.thinkingLeak.isValid === false) {
-      hasThinkingLeak = true;
-    }
-    if (semantic.hallucinations && semantic.hallucinations.isValid === false) {
-      hasHallucination = true;
-    }
-
-    const langErrors = (details.language && Array.isArray(details.language.errors))
-      ? details.language.errors
-      : [];
-    const hasLanguage = langErrors.length > 0 || errorText.some(e => e.includes('lingua'));
-
-    const foundPlaceholders = (details.content && Array.isArray(details.content.foundPlaceholders))
-      ? details.content.foundPlaceholders
-      : [];
-    const hasPlaceholder = foundPlaceholders.length > 0 || errorText.some(e => e.includes('placeholder'));
-
-    const lengthErrors = (details.length && Array.isArray(details.length.errors))
-      ? details.length.errors
-      : [];
-    const hasLength = lengthErrors.length > 0 || errorText.some(e => e.includes('troppo corta') || e.includes('troppo lunga') || e.includes('prolissa'));
-    const temporalErrors = (details.temporalConsistency && Array.isArray(details.temporalConsistency.errors))
-      ? details.temporalConsistency.errors
-      : [];
-    const hasTemporal = temporalErrors.length > 0 || errorText.some(e => e.includes('incoerenza temporale'));
-
-    return {
-      thinking_leak: hasThinkingLeak,
-      hallucination: hasHallucination,
-      language: hasLanguage,
-      placeholder: hasPlaceholder,
-      length: hasLength,
-      temporal: hasTemporal,
-      lengthErrors: lengthErrors,
-      temporalErrors: temporalErrors,
-      foundPlaceholders: foundPlaceholders,
-      hallucinations: hallucinations,
-      detectedLanguage: detectedLanguage
-    };
-  }
-
-  _shouldAttemptIntelligentRetry(validationResult, detectedLanguage, retryConfig) {
-    if (!validationResult || validationResult.isValid) return false;
-    const cfg = retryConfig || {};
-    const flags = this._classifyValidationForRetry(validationResult, detectedLanguage);
-    const allowed = (Array.isArray(cfg.onlyForErrors) && cfg.onlyForErrors.length > 0)
-      ? cfg.onlyForErrors
-      : ['thinking_leak', 'hallucination', 'language', 'placeholder', 'length', 'temporal'];
-
-    const hasAllowed = allowed.some(key => flags[key]);
-    if (!hasAllowed) return false;
-
-    const minScore = (typeof cfg.minScoreToTrigger === 'number')
-      ? cfg.minScoreToTrigger
-      : ((typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_MIN_SCORE === 'number') ? CONFIG.VALIDATION_MIN_SCORE : 0.6);
-
-    const critical = flags.thinking_leak || flags.hallucination || flags.temporal;
-    
-
-
-    // Per errori non critici, evita retry quando il punteggio è sotto soglia configurata.
-    if (!critical && Number.isFinite(validationResult.score) && validationResult.score < minScore) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * Costruisce un prompt correttivo "chirurgico" basato sugli errori di validazione.
-   */
-  _buildCorrectionPrompt(originalPrompt, failedResponse, validationResult, language, salutationMode) {
-    const safePrompt = typeof originalPrompt === 'string' ? originalPrompt : (originalPrompt == null ? '' : String(originalPrompt));
-    const safeResponse = typeof failedResponse === 'string' ? failedResponse : (failedResponse == null ? '' : String(failedResponse));
-    const details = validationResult && validationResult.details ? validationResult.details : {};
-    const flags = this._classifyValidationForRetry(validationResult, language);
-
-    const correctionInstructions = [];
-    const langNames = { it: 'italiano', en: 'inglese', es: 'spagnolo', fr: 'francese', de: 'tedesco', pt: 'portoghese' };
-    const shouldIncludeSignature = salutationMode !== 'none_or_continuity' && salutationMode !== 'session';
-
-    if (flags.thinking_leak) {
-      correctionInstructions.push(
-        'ERRORE CRITICO: Hai incluso il tuo ragionamento interno o fatto riferimento alle tue fonti nella risposta.\n' +
-        'CORREZIONE: Scrivi SOLO la risposta finale. Non usare frasi come "noto che", "devo correggere", ' +
-        '"le istruzioni dicono", "nella nostra base dati", "nella conoscenza di base". Se ti manca un dato, scrivi solo "Non abbiamo informazioni in proposito".'
-      );
-    }
-
-    if (flags.hallucination) {
-      const items = [];
-      if (Array.isArray(flags.hallucinations.emails) && flags.hallucinations.emails.length > 0) {
-        items.push(`email: ${flags.hallucinations.emails.slice(0, 3).join(', ')}`);
-      }
-      if (Array.isArray(flags.hallucinations.phones) && flags.hallucinations.phones.length > 0) {
-        items.push(`telefoni: ${flags.hallucinations.phones.slice(0, 3).join(', ')}`);
-      }
-      if (Array.isArray(flags.hallucinations.times) && flags.hallucinations.times.length > 0) {
-        items.push(`orari: ${flags.hallucinations.times.slice(0, 3).join(', ')}`);
-      }
-      const itemsStr = items.length > 0
-        ? `Rimuovi o verifica: ${items.join(' | ')}`
-        : 'Rimuovi qualsiasi dato (orario, telefono, email, URL) non presente nelle informazioni fornite.';
-      correctionInstructions.push(
-        'ERRORE CRITICO: Hai inventato informazioni non presenti nelle informazioni disponibili.\n' +
-        `CORREZIONE: ${itemsStr}\n` +
-        'Se non conosci un dato, invita cortesemente a contattare la segreteria.'
-      );
-    }
-
-    if (flags.language) {
-      const langLabel = langNames[language] || language;
-      correctionInstructions.push(
-        `ERRORE: La risposta non è in ${langLabel}.\n` +
-        `CORREZIONE: Riscrivi l'intera risposta in ${langLabel}. Saluto e firma devono essere in ${langLabel}.`
-      );
-    }
-
-    if (flags.placeholder) {
-      const placeholders = (flags.foundPlaceholders || []).slice(0, 4);
-      const placeholderText = placeholders.length > 0 ? placeholders.join(', ') : '[segnaposti]';
-      correctionInstructions.push(
-        'ERRORE: La risposta contiene segnaposto non compilati.\n' +
-        `CORREZIONE: Compila o rimuovi questi segnaposto: ${placeholderText}.`
-      );
-    }
-
-    if (flags.temporal) {
-      correctionInstructions.push(
-        'ERRORE CRITICO: Hai qualificato temporalmente in modo errato un evento, corso o celebrazione.\n' +
-        'CORREZIONE: Confronta ogni data esplicita con la DATA ODIERNA presente nel prompt: se la data è futura, presentala come programmata o futura; se è passata, presentala come già avvenuta; se non è chiara, non dedurre che sia conclusa.'
-      );
-    }
-
-    if (flags.length) {
-      const lengthErrors = (flags.lengthErrors || []).map(e => String(e).toLowerCase());
-      const tooShort = lengthErrors.some(e => e.includes('troppo corta'));
-      const tooLong = lengthErrors.some(e => e.includes('troppo lunga') || e.includes('prolissa'));
-
-      if (tooShort) {
-        const signatureNote = shouldIncludeSignature
-          ? 'Includi saluto e firma.'
-          : 'NON includere saluti formali o firme: continua nel tono di conversazione già in corso.';
-        correctionInstructions.push(
-          'ERRORE: La risposta è troppo breve.\n' +
-          `CORREZIONE: Espandi con 2-3 frasi complete e informazioni utili. ${signatureNote}`
-        );
-      }
-      if (tooLong) {
-        correctionInstructions.push(
-          'ERRORE: La risposta è eccessivamente lunga.\n' +
-          'CORREZIONE: Sintetizza e rispondi SOLO alla domanda posta, massimo 4-5 frasi.'
-        );
-      }
-    }
-
-    if (correctionInstructions.length === 0) {
-      const scoreLabel = (validationResult && typeof validationResult.score === 'number')
-        ? validationResult.score.toFixed(2)
-        : '?';
-      correctionInstructions.push(
-        `La risposta non ha superato il controllo qualità (score: ${scoreLabel}).\n` +
-        'Riscrivi la risposta in modo più preciso, professionale e coerente con le istruzioni.'
-      );
-    }
-
-    const compactResponse = safeResponse.replace(/\s+/g, ' ').trim();
-    const failedSnippet = compactResponse.length > 400 ? compactResponse.substring(0, 400) + '...' : compactResponse;
-
-    const maxSafeTokens = (typeof CONFIG !== 'undefined' && Number.isFinite(CONFIG.MAX_SAFE_TOKENS))
-      ? CONFIG.MAX_SAFE_TOKENS
-      : 35000;
-    // Riserva spazio per blocco correzioni + risposta precedente (stima: 4 char/token).
-    const correctionBlockPreview =
-      `\n\nCORREZIONE RICHIESTA\n${correctionInstructions.join('\n\n')}\n${failedSnippet}`;
-    const reservedTokens = 2500 + Math.ceil(correctionBlockPreview.length / 4);
-    const maxPromptChars = Math.max(2000, Math.floor((maxSafeTokens - reservedTokens) * 4));
-    const promptForRetry = this._trimPromptForRetry_(safePrompt, maxPromptChars);
-
-    return `### ISTRUZIONI DI BASE ###
-${promptForRetry}
-
-### ATTENZIONE: CORREZIONE CRITICA RICHIESTA ###
-La tua generazione precedente conteneva errori che DEVI correggere:
-- ${correctionInstructions.join('\n- ')}
-
-### RISPOSTA FALLITA (NON RIPETERE QUESTI ERRORI) ###
-${failedSnippet}
-
-### AZIONE ###
-Genera la nuova risposta correggendo i problemi indicati.
-Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
-  }
-
-  _trimPromptForRetry_(prompt, maxChars) {
-    if (typeof prompt !== 'string') return '';
-    if (!Number.isFinite(maxChars) || maxChars <= 0 || prompt.length <= maxChars) {
-      return prompt;
-    }
-
-    // Evita splice testa+coda: concatenare due metà può corrompere JSON/XML interni.
-    // Preferiamo mantenere solo l'inizio del prompt (istruzioni sistemiche) e troncare
-    // in coda con marker, allineando il più possibile a boundary di riga/sezione.
-    const marker = '\n\n[...PROMPT ORIGINALE TRONCATO PER RETRY...]';
-    const budget = Math.max(0, maxChars - marker.length);
-    let head = prompt.slice(0, budget);
-
-    // Allinea il taglio a un boundary strutturale vicino alla fine del budget.
-    const sectionBoundary = head.lastIndexOf('\n### ');
     const lineBoundary = head.lastIndexOf('\n');
     if (sectionBoundary > Math.floor(head.length * 0.6)) {
       head = head.slice(0, sectionBoundary);

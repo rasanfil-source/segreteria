@@ -568,9 +568,22 @@ var ResponseValidator = class ResponseValidator {
     }
 
     const bracketPlaceholderPattern = /\[[A-Z][A-Z0-9_\s-]{1,30}\]/g;
+    const systemBracketTokens = new Set([
+      'RIENTRA',
+      'NON RIENTRA',
+      'CIVICO NECESSARIO',
+      'NOREPLY',
+      'FOCUS IBAN DETECTED'
+    ]);
     const bracketPlaceholders = response.match(bracketPlaceholderPattern) || [];
     if (bracketPlaceholders.length > 0) {
-      foundPlaceholders.push(...bracketPlaceholders); // nessuna nidificazione
+      const filteredBracketPlaceholders = bracketPlaceholders.filter((token) => {
+        const inner = token.replace(/^\[|\]$/g, '').trim();
+        return !systemBracketTokens.has(inner);
+      });
+      if (filteredBracketPlaceholders.length > 0) {
+        foundPlaceholders.push(...filteredBracketPlaceholders); // nessuna nidificazione
+      }
     }
 
     if (foundPlaceholders.length > 0) {

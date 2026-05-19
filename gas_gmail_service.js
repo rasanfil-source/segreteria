@@ -109,41 +109,60 @@ var GmailService = class GmailService {
 
     _flushGmailCallCounter_(key, opName = 'batch') {
         if (!this._scriptCache) return;
-        
-        // Carichiamo il valore corrente dalla cache (con fallback su ScriptProperties)
-        const raw = this._scriptCache.get(key);
-        let current = 0;
-        if (raw !== null) {
-            current = Number.parseInt(raw, 10) || 0;
-        } else if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
-            try {
-                const props = PropertiesService.getScriptProperties();
-                current = Number.parseInt(props.getProperty(key) || '0', 10) || 0;
-            } catch (e) {
-                console.warn(`⚠️ Impossibile leggere backup counter da ScriptProperties (${key}): ${e.message}`);
+
+        const lock = (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function')
+            ? LockService.getScriptLock()
+            : null;
+        let lockAcquired = false;
+
+        try {
+            if (lock) {
+                try {
+                    lockAcquired = lock.tryLock(5000);
+                } catch (lockError) {
+                    console.warn(`⚠️ Impossibile acquisire lock flush contatore API: ${lockError.message}`);
+                }
             }
-        }
-        
-        const total = current + this._pendingGmailCallCount;
-        this._lastGmailCallCount = total;
-        this._pendingGmailCallCount = 0;
-        
-        // Aggiorniamo la cache (TTL 21599 = ~6 ore)
-        this._scriptCache.put(key, String(total), 21599);
 
-        // Allineamento periodico del counter su storage persistente.
-        if (total % 10 === 0 && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
-            try {
-                PropertiesService.getScriptProperties().setProperty(key, String(total));
-            } catch (e) {}
-        }
-        
-        if (total >= this._gmailDailyCounterWarnAt && total < this._gmailDailyCallLimit) {
-            console.warn(`⚠️ Gmail API call counter alto: ${total}/${this._gmailDailyCallLimit} (${opName})`);
-        }
+            // Carichiamo il valore corrente dalla cache (con fallback su ScriptProperties)
+            const raw = this._scriptCache.get(key);
+            let current = 0;
+            if (raw !== null) {
+                current = Number.parseInt(raw, 10) || 0;
+            } else if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+                try {
+                    const props = PropertiesService.getScriptProperties();
+                    current = Number.parseInt(props.getProperty(key) || '0', 10) || 0;
+                } catch (e) {
+                    console.warn(`⚠️ Impossibile leggere backup counter da ScriptProperties (${key}): ${e.message}`);
+                }
+            }
 
-        if (total >= this._gmailDailyCallLimit) {
-            throw new Error(`GMAIL_DAILY_CALL_LIMIT_REACHED (${total}/${this._gmailDailyCallLimit})`);
+            const total = current + this._pendingGmailCallCount;
+            this._lastGmailCallCount = total;
+            this._pendingGmailCallCount = 0;
+
+            // Aggiorniamo la cache (TTL 21599 = ~6 ore)
+            this._scriptCache.put(key, String(total), 21599);
+
+            // Allineamento periodico del counter su storage persistente.
+            if (total % 10 === 0 && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+                try {
+                    PropertiesService.getScriptProperties().setProperty(key, String(total));
+                } catch (e) {}
+            }
+
+            if (total >= this._gmailDailyCounterWarnAt && total < this._gmailDailyCallLimit) {
+                console.warn(`⚠️ Gmail API call counter alto: ${total}/${this._gmailDailyCallLimit} (${opName})`);
+            }
+
+            if (total >= this._gmailDailyCallLimit) {
+                throw new Error(`GMAIL_DAILY_CALL_LIMIT_REACHED (${total}/${this._gmailDailyCallLimit})`);
+            }
+        } finally {
+            if (lock && lockAcquired) {
+                try { lock.releaseLock(); } catch (_) {}
+            }
         }
     }
 

@@ -1164,7 +1164,8 @@ Output JSON:
             retryDelay * Math.pow(backoffFactor, attempt),
             maxBackoffMs
           ) + jitter;
-          console.warn(`⚠️ ${context} fallito (tentativo ${attempt + 1}/${attempts}): [${classified.type}] ${error.message} - Attendendo ${waitTime}ms...`);
+          const safeErrorMsg = this._getErrorMessage_(error);
+          console.warn(`⚠️ ${context} fallito (tentativo ${attempt + 1}/${attempts}): [${classified.type}] ${safeErrorMsg} - Attendendo ${waitTime}ms...`);
           Utilities.sleep(waitTime);
         }
       }

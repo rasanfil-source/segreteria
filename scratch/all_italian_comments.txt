@@ -1,0 +1,3209 @@
+
+=========================================
+FILE: gas_classifier.js
+=========================================
+Line 1: /**
+ * Classifier.gs - Simplified email classification
+ * 
+ * PHILOSOPHY:
+ * - Filter ONLY ultra-simple acknowledgments (≤3 words)
+ * - Filter ONLY standalone greetings
+ * - EVERYTHING ELSE goes to Gemini for intelligent analysis
+ * - Zero false negatives: when in doubt, Gemini decides
+ * 
+ * FEATURES:
+ * - Sub-intent detection for emotional nuances
+ * - Category suggestion for Gemini
+ * - Main content extraction (removes quotes/signatures)
+ */
+
+Line 101: /**
+   * Classify email - minimal filtering
+   */
+
+Line 114: // Null safety and length limit
+
+Line 126: // Avoid leaving an open/broken HTML tag in the payload due to truncation.
+
+Line 255: // Quote markers for various email clients
+
+Line 297: // Safety reset: prevents state leakage if quote markers gain /g or /y flags later.
+
+Line 321: // Accurately classifies the precise identification of contextual signatures in sentences like:
+
+Line 322: // "Kind regards from the whole family, I would like to know if..."
+
+Line 323: // The line-based approach ensures precision in identifying signatures
+
+Line 371: /**
+   * Check if ultra-simple acknowledgment (≤3 words, no question)
+   */
+
+Line 529: /**
+   * Detects if the text contains explicit cues of a document submission.
+   * Used as an early-exit in classifyEmail to avoid false negatives on emails
+   * with attachments (e.g. "attached you will find the certificate").
+   * @param {string} text - Extracted main text (body without quotes/signatures)
+   * @returns {boolean}
+   */
+
+
+=========================================
+FILE: gas_config.example.js
+=========================================
+Line 1: /**
+ * Config.gs - Centralized system configuration
+ * All configurable parameters are defined here
+ * 
+ * NOTE: Base configuration for repository. Sensitive values go in Script Properties.
+ * Sensitive keys (API Key, Spreadsheet ID) are removed or masked.
+ */
+
+Line 11: // In production: PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY')
+
+Line 57: // Label for Italian emails skipped in foreign_only mode
+
+Line 58: // Verify consistency between email and attachments
+
+Line 59: // Configured with a maximum of 2 emails per run to optimize for Cross-Key Quality First strategy and prevent execution timeouts.
+
+Line 60: // Up to 4 API calls per email - batch size managed to prevent GAS execution timeouts (6 min)
+
+Line 63: // Threshold for email loop detection
+
+Line 65: // Safety net: process old unread emails even in suspended time slots
+
+Line 76: // Maximum budget per run (default GAS trigger ~6 minutes)
+
+Line 77: // 6 hours in milliseconds
+
+Line 78: // Maximum messages in thread history to balance context size and memory constraints
+
+Line 80: // Include attachment text (PDF, images, Word, Excel, PowerPoint) in prompt
+
+Line 82: // 3 MB per file (optimized for Base64 payload)
+
+Line 83: // Text limit per single attachment
+
+Line 84: // Total text limit for attachments
+
+Line 86: // OCR readability warning threshold in response
+
+Line 87: // PDF page limit (OCR estimation)
+
+Line 88: // Estimated characters per PDF page
+
+Line 98: // Cleanup duration limit for orphan OCR files
+
+Line 100: // === Tokens per attachment type (multimodal estimation for prompt budget) ===
+
+Line 108: // Margin below 100KB/entry for CacheService to avoid quota exceeded
+
+Line 111: // Enable verbose logging (console.log); keep false in production
+
+Line 112: // Local soft limit anti-burst before the actual Gmail limit
+
+Line 113: // Gmail list page limit for bootstrap label cache
+
+Line 114: // Gmail list message limit for bootstrap label cache
+
+Line 118: // In production, Script Properties.KNOWN_ALIASES is preferred
+
+Line 119: // Formati accettati: JSON array o lista separata da virgola/newline/punto e virgola.
+
+Line 123: // In production: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID')
+
+Line 138: // Maximum topics in memory
+
+Line 139: // Lock TTL in seconds for MemoryService (>= Sheet lock timeout)
+
+Line 149: // Intelligent rate limiter enabled
+
+Line 154: // Prompt character limit before safety truncation
+
+Line 157: // Serialization limit of providedInfo per Sheet row
+
+Line 159: // Token reserve for instructions/fixed context outside KB
+
+Line 162: // === Thread Limits ===
+
+Line 163: // Maximum messages per thread before anti-loop
+
+Line 168: // Log in JSON format
+
+Line 174: // Configure METRICS_SHEET_ID in Script Properties to enable export
+
+Line 181: // Free Tier operational data: verify limits in AI Studio.
+
+Line 195: // Free Tier: enable only if AI Studio shows active Context caching
+
+Line 278: // Nota: lista volutamente mista (domini + email complete).
+
+Line 279: // The matcher supports both exact match (email) and domain suffix in _shouldIgnoreEmail.
+
+Line 303: // when this file is loaded together with gas_config.js in the GAS runtime.
+
+
+=========================================
+FILE: gas_config.js
+=========================================
+Line 76: // Execution limit per GAS session
+
+Line 92: // Label for Italian emails skipped in foreign_only mode
+
+Line 93: // Enable consistency check between email and attachments
+
+Line 94: // Operational limit configuration to ensure stability and respect quotas.
+
+Line 97: // Threshold for email loop detection
+
+Line 108: // Configured to 'query' to optimize API read quota usage
+
+Line 112: // 6 hours in milliseconds
+
+Line 113: // Maximum messages in thread history to balance context size and memory constraints
+
+Line 115: // Include attachment text (PDF, images, Word, Excel, PowerPoint) in prompt
+
+Line 117: // 3 MB per file
+
+Line 118: // Text limit per single attachment
+
+Line 119: // Total text limit for attachments
+
+Line 121: // OCR readability warning threshold in response
+
+Line 122: // PDF page limit (OCR estimation)
+
+Line 123: // Estimated characters per PDF page
+
+Line 133: // Cleanup duration limit for orphan OCR files
+
+Line 135: // === Tokens per attachment type (multimodal estimation for prompt budget) ===
+
+Line 143: // Margin below 100KB/entry for CacheService to avoid quota exceeded
+
+Line 146: // Enable verbose logging (console.log); keep false in production
+
+Line 147: // Local soft limit anti-burst before the actual Gmail limit
+
+Line 148: // Gmail list page limit for bootstrap label cache
+
+Line 149: // Gmail list message limit for bootstrap label cache
+
+Line 171: // Maximum topics in memory
+
+Line 172: // Lock TTL in seconds for MemoryService (>= Sheet lock timeout)
+
+Line 182: // Intelligent rate limiter enabled
+
+Line 187: // Prompt character limit before safety truncation
+
+Line 190: // Serialization limit of providedInfo per Sheet row
+
+Line 192: // Token reserve for instructions/fixed context outside KB
+
+Line 195: // === Thread Limits ===
+
+Line 196: // Maximum messages per thread before anti-loop
+
+Line 201: // Log in JSON format
+
+Line 203: // Admin email for notifications
+
+Line 207: // Configure METRICS_SHEET_ID in Script Properties to enable export
+
+Line 214: // - Risposta finale: Gemini 2.5 Flash (qualita)
+
+Line 216: // - Operational quote source: verify actual limits in the AI Studio project.
+
+Line 217: // - Actual quotes may vary by project: if AI Studio shows lower limits,
+
+Line 219: // - Maximum context per prompt: 1,048,576 tokens
+
+Line 223: // - Google Search Grounding: keep disabled in Free Tier unless explicitly available in AI Studio
+
+Line 225: // - Privacy: in the free tier, inputs/outputs may be used for Google training (evaluate GDPR impact)
+
+Line 239: // Free Tier: enable only if AI Studio shows active Context caching
+
+Line 248: // The tool is inserted in cache creation, never in final generateContent.
+
+Line 295: // Explicit compatible alias for the 3.1 Lite series; not used in primary
+
+Line 306: // Logical Lite backup for backup key or controlled fallbacks.
+
+Line 330: // Nota: lista volutamente mista (domini + email complete).
+
+Line 331: // The matcher supports both exact match (email) and domain suffix in _shouldIgnoreEmail.
+
+Line 357: // MARCATORI LINGUA (costante condivisa tra moduli)
+
+Line 372: // NOTE: GLOBAL_CACHE is declared with defensive init in gas_main.js.
+
+Line 418: // 0 = sospensione operativa temporanea
+
+Line 425: // SKIP_LABEL_NAME can be an empty string ("") to disable labeling in foreign_only: this is intentional.
+
+
+=========================================
+FILE: gas_email_processor.js
+=========================================
+Line 1: /**
+ * EmailProcessor.js - Orchestratore Pipeline Email
+ * 
+ * PIPELINE ELABORAZIONE:
+ * 1. FILTRA: Dobbiamo processare questa email?
+ * 2. CLASSIFICA: Che tipo di richiesta è?
+ * 3. GENERA: Crea risposta AI
+ * 4. VALIDA: Controlla qualità risposta
+ * 5. INVIA: Rispondi all'email
+ * 
+ * FUNZIONALITÀ AVANZATE:
+ * - Lock a livello thread (anti race condition)
+ * - Anti-loop detection
+ * - Salutation mode (full/soft/none_or_continuity/session)
+ * - KB enrichment condizionale
+ * - Memory tracking
+ */
+
+Line 34: // Inietta dipendenze o crea default
+
+Line 104: // Timestamp run corrente (usato da _isNearDeadline/_getRemainingTimeMs).
+
+Line 105: // Viene poi resettato all'avvio di ogni batch in processUnreadEmails.
+
+Line 109: /**
+   * Restituisce il fuso orario dello script con caching locale per ridurre
+   * le chiamate a Session.getScriptTimeZone() durante l'elaborazione del batch.
+   */
+
+Line 129: /**
+   * Elabora il singolo thread (analisi, categorizzazione, generazione risposta, invio)
+   * @param {GmailThread} thread 
+   * @param {string} knowledgeBase - KB testo semplice
+   * @param {Array} doctrineBase - KB strutturata
+   * @param {?Set} labeledMessageIds - ID messaggi già etichettati (opzionale)
+   * @param {boolean} skipLock - Se true, salta acquisizione lock
+   */
+
+Line 186: // Garantisce che _isNearDeadline() funzioni anche se processThread
+
+Line 187: // è invocato direttamente (test, debug) senza passare per processUnreadEmails.
+
+Line 196: // ACQUISIZIONE LOCK (LIVELLO-THREAD) - Previene condizioni di conflitto
+
+Line 211: // Valore di fallback superiore al tempo massimo di esecuzione GAS
+
+Line 213: // Rispetta il limite massimo di CacheService (6 ore)
+
+Line 217: // Generazione identificativo univoco per il lock current thread
+
+Line 260: // Il mutex globale protegge solo la sezione critica CacheService; il lock thread resta nel token cache.
+
+Line 303: // Raccogli informazioni su thread e messaggi
+
+Line 304: // Ottieni ultimo messaggio NON LETTO nel thread
+
+Line 308: // Risoluzione indirizzo email principale e alias configurati
+
+Line 392: // Cache miss hardening: l'ID potrebbe essere uscito dalla finestra maxMessages.
+
+Line 393: // Verifica minimale su Gmail per evitare re-processing e loop di risposte duplicate
+
+Line 394: // anche su label terminali diverse da IA (Errore/Verifica/skip foreign_only).
+
+Line 411: // Build set of our own addresses (primary + aliases) per filtro early-stage
+
+Line 424: // Utilizza getFrom() per efficienza rispetto alla costosa extractMessageDetails()
+
+Line 432: // Se non riusciamo ad estrarre l'email, consideriamo il mittente come esterno per sicurezza
+
+Line 454: // Nota di manutenzione sulle label:
+
+Line 455: // - IA chiude i messaggi già gestiti tecnicamente (esterni filtrati, interni/nostri).
+
+Line 456: // - '·' indica solo una email italiana rimandata perché siamo in modalità foreign_only.
+
+Line 457: // Tenere separate queste due funzioni evita che il punto medio compaia in modalità "Tutte le lingue".
+
+Line 488: // GUARDRAIL (critico): se un messaggio è già stato etichettati IA, non deve
+
+Line 489: // rientrare nel ciclo di risposta automatica anche se il thread è ancora aperto.
+
+Line 490: // Questo evita doppie risposte su stesso messaggio.
+
+Line 491: // Se non ci sono messaggi non letti non ancora etichettati → skip
+
+Line 500: // I messaggi interni (noi/alias) vengono esclusi per evitare loop e risposte non dovute.
+
+Line 501: // Se non ci sono messaggi da esterni → skip
+
+Line 504: // In modalità stale-only i messaggi recenti devono restare eleggibili per il ciclo normale.
+
+Line 507: // Messaggi interni (nostri/alias): sono già gestiti, ma non sono rinvii per lingua.
+
+Line 508: // Per questo usiamo IA come chiusura tecnica e non il punto medio ('·').
+
+Line 518: // Seleziona ultimo messaggio non letto non etichettato da esterni.
+
+Line 519: // La discovery resta deliberatamente a livello messaggio: l'eventuale presenza
+
+Line 520: // di materiale IA nello stesso thread NON deve nascondere nuovi follow-up non letti.
+
+Line 524: // STEP 0: CONTROLLO ULTIMO MITTENTE (Anti-Loop & Ownership)
+
+Line 525: // Thread usato solo come contesto conversazionale e per capire chi ha parlato per ultimo.
+
+Line 548: // Segniamo i non letti correnti come processati per evitare loop su thread
+
+Line 549: // dove l'ultimo intervento da elaborare è nostro ma resta flag "unread" riaperto manualmente.
+
+Line 559: // --- PORTA 0.5: Pre-check lingua locale sul soggetto (Zero API Cost) ---
+
+Line 572: // Escluse deliberatamente parole corte polisemiche (in, per, la, di, da, con, il, lo,
+
+Line 573: // gli, le, un, uno, una, su, tra, fra) che causano falsi positivi su lingue straniere.
+
+Line 586: // STEP 1: Estrazione dati e pulizia
+
+Line 592: // CRITICO: Ricostruzione del contesto in caso di burst (più email non lette dallo stesso utente).
+
+Line 593: // Evita che un'email finale breve (es. "Grazie") faccia scartare le vere domande precedenti.
+
+Line 649: // Estraiamo solo i primi 2 caratteri per gestire formati come "it-IT" o "en-US"
+
+Line 656: // PORTA 1: Interrompiamo se l'email deve essere ignorata in base alla lingua
+
+Line 659: // Nota di manutenzione: il punto medio ('·') ha un significato preciso.
+
+Line 660: // Qui segnala una email italiana solo temporaneamente rinviata perché
+
+Line 661: // la modalità corrente risponde alle sole email straniere. Non va marcata IA:
+
+Line 662: // quando si torna a "Tutte le lingue", deve rientrare tra le email lavorabili.
+
+Line 674: // Le newsletter sono filtrate in modo definitivo: usiamo IA for non riprenderle
+
+Line 675: // nei run successivi. Il punto medio ('·') non si usa qui perché non è un
+
+Line 676: // rinvio temporaneo dovuto alla modalità "Solo straniere".
+
+Line 678: // Evita di "demotare" messaggi già IA quando il fallback usa candidate.
+
+Line 697: // Lookup case-insensitive: i server SMTP possono restituire header in casing arbitrario
+
+Line 731: // Trunca a 2000 char per prevenire Regex Timeout su mega-thread
+
+Line 782: // Percorriamo una finestra degli ultimi MAX_THREAD_LENGTH messaggi a ritroso
+
+Line 783: // per contare sequenze esterne e densità di risposte del bot.
+
+Line 843: // Elaborato (filtrato): applichiamo IA per chiudere il processo
+
+Line 851: // STEP 1: FILTRO - Domini/parole chiave ignorati
+
+Line 855: // Elaborato (filtrato): applichiamo IA per chiudere il processo
+
+Line 880: // Elaborato (filtrato): applichiamo IA per chiudere il processo
+
+Line 887: // STEP 3: CONTROLLO RAPIDO - Gemini decide se serve risposta
+
+Line 943: // Se Gemini Quick Check ha rilevato una lingua diversa con maggiore precisione, aggiorniamo
+
+Line 949: // Valutazione preliminare della lingua per il filtraggio selettivo.
+
+Line 967: // Quick check valuta solo il candidato: marca quello filtrato,
+
+Line 968: // ma lascia gli esterni secondari eleggibili per il prossimo trigger.
+
+Line 974: // Quick check superato con shouldRespond=true: marca i secondari ora.
+
+Line 980: // Non etichettare ancora i messaggi esterni secondari: se generazione,
+
+Line 981: // validazione o invio falliscono, devono restare eleggibili per retry.
+
+Line 993: // STEP 4: CLASSIFICAZIONE TIPO RICHIESTA (Multi-dimensionale)
+
+Line 1000: // Normalizzazione dell'oggetto requestType per l'elaborazione successiva.
+
+Line 1013: // Inclusione della Knowledge Base testuale per il PromptEngine.
+
+Line 1016: // PromptEngine gestisce l'integrazione selettiva di AI_CORE e Dottrina.
+
+Line 1019: // iniettate qui quando verrà implementato un provider dedicato.
+
+Line 1044: // 2. Recupera cronologia recente per il contesto (max configurable)
+
+Line 1059: // STEP 6.6: CALCOLO DINAMICO SALUTO E RITARDO
+
+Line 1089: // Override strutturale: nessun saluto in conversazioni attive
+
+Line 1097: // PASSO 7.1: VERIFICA TERRITORIO (solo quando richiesta esplicita)
+
+Line 1102: // Usa classificazione Gemini evitando errori se null.
+
+Line 1158: // STEP 7.2: PROMPT CONTEXT (profilo e concern dinamici)
+
+Line 1206: // Priorità al classificatore LLM del quick check rispetto all'euristica locale iniziale.
+
+Line 1228: // CONTEXT ROUTING: inietta moduli KB pesanti solo quando servono.
+
+Line 1229: // Manteniamo default conservativo (dottrina attiva) in caso di dubbio.
+
+Line 1255: // Il context routing definitivo viene eseguito dopo l'OCR degli allegati:
+
+Line 1256: // _deriveAttachmentIntentContext_ può aggiornare categoryHintSource con segnali
+
+Line 1257: // sacramentali/formali estratti dai documenti, quindi filtrare qui sarebbe prematuro.
+
+Line 1294: // Body molto corto (<50 char) → l'allegato è probabilmente il contenuto principale
+
+Line 1305: // Aggrega allegati dai non letti esterni più recenti, non solo dal candidato.
+
+Line 1306: // Evita perdita di contesto quando l'utente invia allegati in messaggi precedenti.
+
+Line 1358: // Se post-OCR cambia la categoria (es. rilevato modulo sbattezzo), aggiorniamo il routing
+
+Line 1597: // Se la chiave corrente è invalida/non autorizzata (401/403),
+
+Line 1598: // prova la strategia successiva: una chiave/modello di backup può essere ancora valido.
+
+Line 1671: // STEP 9: VALIDAZIONE + RETRY INTELLIGENTE
+
+Line 1826: // L'eventuale testo perfezionato è già stato applicato in fase di validazione.
+
+Line 1877: // Etichettatura non critica: non deve compromettere lo step successivo (memoria).
+
+Line 1895: // Gmail può aver accettato il messaggio prima che il client riceva un
+
+Line 1896: // timeout/errore di rete: promuoviamo l'idempotency marker a `sent`
+
+Line 1897: // per evitare un replay automatico alla ripresa del batch.
+
+Line 1902: // Errori transienti: lascia il messaggio eleggibile per retry automatico.
+
+Line 1957: // Marca tutti i messaggi non letti esaminati nel thread:
+
+Line 1958: // evita reprocessing dei messaggi precedenti quando arrivano più email
+
+Line 1959: // ravvicinate prima dell'esecuzione del trigger.
+
+Line 2002: // Rilasciamo SOLO se il lock è inequivocabilmente il nostro.
+
+Line 2018: /**
+   * Processa tutte le email non lette
+   * @param {string} knowledgeBase
+   * @param {string} doctrineBase
+   * @param {boolean} skipExecutionLock - Evita il lock batch quando il chiamante gestisce l'orchestrazione
+   * @param {boolean} locksAlreadyCovered - Se true, processThread evita lock interni già coperti da lock esterno
+   */
+
+Line 2026: // Inizializzazione di _startTime per la precisione dei calcoli.
+
+Line 2027: // anche se l'istanza viene riutilizzata in trigger successivi.
+
+Line 2142: // Discovery e punto medio:
+
+Line 2143: // - in "Solo straniere" escludiamo '·' perché identifica email italiane già rinviate;
+
+Line 2144: // - in "Tutte le lingue" non lo escludiamo, così quelle email tornano lavorabili.
+
+Line 2227: // Include anche i messaggi unread già marcati come Errore/Verifica:
+
+Line 2228: // evitiamo retry infiniti del singolo messaggio, ma senza oscurare l'intero thread.
+
+Line 2240: // Pre-caricamento degli ID dei messaggi con etichetta skip (·)
+
+Line 2241: // per evitare ri-discovery di thread già valutati in foreign_only.
+
+Line 2272: // Si usa la closure getEffectiveMaxEmailsPerRun definita esternamente per ottimizzare la leggibilità.
+
+Line 2301: // Se abbiamo già acquisito il lock batch in questa funzione (o il chiamante
+
+Line 2302: // dichiara lock già coperti), evitiamo una seconda acquisizione in processThread.
+
+Line 2349: // Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI
+
+Line 2454: // Quota non chiaramente giornaliera: pianifica una ripresa breve invece di
+
+Line 2455: // lasciare il checkpoint sospeso fino al prossimo trigger ordinario.
+
+Line 2499: // `depth` misura solo le riprese bloccate sullo stesso identico insieme di
+
+Line 2500: // thread pendenti. Se il checkpoint cambia, il batch sta avanzando e la
+
+Line 2501: // guardia anti-loop deve ripartire per non scartare code sane ma lunghe.
+
+Line 2539: // I trigger timeBased().after() possono rimanere come oggetti inerti dopo l'esecuzione.
+
+Line 2540: // Creiamo prima il nuovo trigger: se la creazione fallisce, preserviamo quelli
+
+Line 2541: // esistenti per non perdere la ripresa del checkpoint.
+
+Line 2567: /**
+   * Verifica se l'email deve essere ignorata (blacklist, auto-reply, notifiche)
+   * Usa le liste UNIFICATE (Codice + Foglio) presenti in GLOBAL_CACHE
+   */
+
+Line 2576: // 1. Controllo Blacklist Domini/Email
+
+Line 2577: // NOTA: GLOBAL_CACHE.ignoreDomains include già CONFIG.IGNORE_DOMAINS (merge in _loadAdvancedConfig)
+
+Line 2601: // Match username ristretto a pattern bot/notifica espliciti per evitare falsi positivi
+
+Line 2602: // su username legittimi (es. marketing@..., info@...).
+
+Line 2611: // 2. Controllo Keyword Oggetto/Corpo
+
+Line 2612: // NOTA: GLOBAL_CACHE.ignoreKeywords include già CONFIG.IGNORE_KEYWORDS (merge in _loadAdvancedConfig)
+
+Line 2625: // 3. Controllo Auto-reply e Notifiche (Standard)
+
+Line 2626: // NOTA: no-reply/noreply sono anche controllati in STEP 0.8 (defense-in-depth).
+
+Line 2627: // Qui manteniamo un set più mirato (segnali "sistemici" su sender/subject/body) per
+
+Line 2628: // ridurre falsi positivi rispetto al filtro preliminare regex più ampio.
+
+Line 2636: // Filtro per evitare falsi positivi su indirizzi contenenti 'alert'.
+
+Line 2652: /**
+   * Normalizza indirizzo email per confronti robusti (anti-loop/filtri):
+   * - lowercase + trim
+   * - rimozione display name eventuale (se presente)
+   * - per Gmail/Googlemail: rimozione alias "+tag" nel local-part
+   */
+
+Line 2691: // Se trigger keywords non sono definite, OCR attivo di default.
+
+Line 2692: // Se presenti in configurazione, verranno usate come filtro.
+
+Line 2697: // Se la lista è vuota, significa "OCR sempre attivo se enabled=true"
+
+Line 2712: // Fallback robusto: se il testo suggerisce un documento "atteso",
+
+Line 2713: // abilitiamo OCR anche quando le keyword configurate non coprono il caso.
+
+Line 2729: // Il lock di idempotenza invio protegge il check-then-act su cache
+
+Line 2730: // (sentKey/sendingKey). Se il chiamante possiede già lo ScriptLock, evita
+
+Line 2731: // una riacquisizione non reentrant ma mantiene comunque le chiavi cache.
+
+Line 2877: // Fallback minimale quando Intl/timeZone non è disponibile.
+
+Line 2920: // Nota di manutenzione: IA viene applicata a livello *messaggio* (non thread)
+
+Line 2921: // e non marca il messaggio come letto. Così il segretario continua a vedere i
+
+Line 2922: // non letti in Gmail, mentre il sistema sa che quel singolo messaggio è già gestito.
+
+Line 2925: // Se siamo ancora in modalità "Solo straniere", un messaggio già marcato con
+
+Line 2926: // punto medio ('·') resta in attesa: verrà promosso a IA solo quando si torna
+
+Line 2927: // a "Tutte le lingue" e viene effettivamente lavorato.
+
+Line 2939: // Previene doppia chiamata API sullo stesso messaggio
+
+Line 2944: // In modalità "Tutte le lingue", una email prima rinviata con '·' può essere
+
+Line 2945: // chiusa normalmente: rimuoviamo il punto medio e lasciamo IA come stato finale.
+
+Line 2961: // Fail-closed architetturale: se non recuperiamo l'ID label (quota/API/errore),
+
+Line 2962: // preserviamo lo stato skip per evitare promozioni accidentali.
+
+Line 2967: // Fail-closed: in caso di errore/risposta non valida preserviamo lo stato skip.
+
+Line 2974: // Tracciamento ID saltati per ottimizzare il batch.
+
+Line 2990: // Se skipLabelName è configurato (anche come stringa vuota per disabilitare), procedi.
+
+Line 3004: // Calcola se il tempo residuo è sufficiente per elaborare un nuovo thread
+
+Line 3025: // Supporto per skippedMessageIds.
+
+Line 3026: // per evitare ri-discovery inutile di thread già valutati in modalità foreign_only.
+
+Line 3032: // Nessun non letto: non c'è lavoro da fare.
+
+Line 3073: // Fallback sicuro: in caso di errore non bloccare il thread, lasciamo decidere a processThread.
+
+Line 3213: // 1. GLOBAL_CACHE (letto da cella A19 del foglio Controllo)
+
+Line 3214: // 2. Proprietà dello script (override dinamico)
+
+Line 3255: // Il fallback su PropertiesService copre anche evizioni/cache non disponibili.
+
+Line 3305: // Classifica gli errori di validazione in categorie utili per il retry LLM
+
+Line 3390: // Per errori non critici, evita retry solo su output gravemente scarso.
+
+Line 3398: /**
+   * Costruisce un prompt correttivo "chirurgico" basato sugli errori di validazione.
+   */
+
+Line 3502: // Riserva spazio per blocco correzioni + risposta precedente (stima: 4 char/token).
+
+Line 3531: // Preferiamo mantenere solo l'inizio del prompt (istruzioni sistemiche) e troncare
+
+Line 3532: // in coda con marker, allineando il più possibile a boundary di riga/sezione.
+
+Line 3537: // Allinea il taglio a un boundary strutturale vicino alla fine del budget.
+
+Line 3549: // Costruisce un sommario incrementale delle risposte inviate al thread
+
+Line 3597: // Confronto semantico: controlla il testo privo di data per evitare duplicati giornalieri.
+
+Line 3611: // Tronca l'inizio (ricordi più vecchi) e preserva la coda più recente.
+
+Line 3643: // Eliminata l'ancora di fine stringa ( |$ ) per numeri isolati: previene falsi positivi orari su cifre finali
+
+Line 3683: // Evita duplicazione note se già presente un chiarimento orario
+
+Line 3684: // (supporta varianti lessicali e il fallback "Nota: ...").
+
+Line 3696: // Scatta solo se l'utente ha espresso un orario come aspettativa/presupposto.
+
+Line 3743: /**
+   * Rileva topic forniti nella risposta (per anti-ripetizione memoria)
+   */
+
+Line 3749: // Usiamo il flag /s (dotAll) affinché .* includa anche gli a capo (\n)
+
+Line 3770: /**
+   * Inferisce la reazione dell'utente rispetto ai topic forniti in precedenza
+   */
+
+Line 3779: // Pattern semplici di reazione
+
+Line 3824: // 1. Trova TUTTI i topic menzionati esplicitamente
+
+Line 3831: // Rimuove suffissi tecnici (es. "_info") e underscore per confrontare
+
+Line 3832: // il topic interno con il linguaggio naturale usato dall'utente.
+
+Line 3840: // Se l'utente cita esplicitamente dei topic, applica a tutti quelli trovati
+
+Line 3858: /**
+   * Backward-compat alias mantenuto per test/call-site legacy.
+   * Aggiorna direttamente la memoria con la reazione inferita.
+   */
+
+Line 3888: /**
+   * Classificazione centralizzata degli errori API
+   * Determina se un errore è fatale, legato alla quota o alla rete.
+   */
+
+Line 3900: // Delega al classificatore centralizzato se disponibile
+
+Line 3919: // Classificazione locale (fallback) con regex e messaggi grezzi
+
+Line 3970: /**
+   * Traccia il contatore di inbox vuote consecutive (per avvisi diagnostici)
+   */
+
+Line 3993: // Usa put a "0" invece di remove() per aggirare bug di implementazione
+
+Line 3994: // in polyfill/mock usati in ambienti di test (props.removeProperty is not a function)
+
+Line 4006: // Protezione contro input nulli o non validi
+
+Line 4009: // Nota: \b è ASCII-only; i lookaround Unicode evitano falsi negativi
+
+Line 4010: // sulle parole con accento finale (lunedì, martedì, ecc.).
+
+Line 4018: // Fallback su italiano se lingua non supportata
+
+Line 4027: // Non trattare punti interrogativi o label OCR come domande rivolte alla segreteria:
+
+Line 4028: // un form/certificato può contenere campi o diciture interrogative non intenzionali.
+
+Line 4032: // PRE-OCR: usa subject+body (fullText) per sospetto submission.
+
+Line 4033: // POST-OCR: usa segnali dagli allegati per evitare che il corpo "contamini"
+
+Line 4034: // la classificazione del documento effettivamente ricevuto.
+
+Line 4041: // Rileva se ci sono evidenze (certificati) o dati pratica (moduli)
+
+Line 4052: // Se è un pre-check (senza OCR), siamo conservativi
+
+Line 4392: // localDecision === 'ask_ai': continua alla risoluzione del segnale AI.
+
+Line 4439: // Rimuovi solo righe esplicitamente relative ai requisiti per padrino/madrina.
+
+Line 4440: // Termini generici come "divorzio" o "convivenza" possono essere legittimi
+
+Line 4441: // in risposte matrimoniali o pastorali e non vanno filtrati da soli.
+
+Line 4538: /**
+ * Calcola modalità saluto basata su segnali strutturali
+ * @param {Object} params - Parametri di input
+ * @returns {'full'|'soft'|'none_or_continuity'|'session'}
+ */
+
+Line 4545: // Al momento la temporalità (lastUpdated) è il segnale primario.
+
+Line 4546: // 0️⃣ Nuovo contatto (non reply): privilegia sempre un saluto completo.
+
+Line 4547: // Anche in presenza di memoria pregressa, un nuovo thread/messaggio iniziale
+
+Line 4553: // 1️⃣ Memoria assente: fallback conservativo su saluto completo.
+
+Line 4554: // Evita saluti "continuity" quando il Memory Service non ha stato affidabile.
+
+Line 4559: // 2️⃣ Conversazione attiva (qui isReply è necessariamente true)
+
+Line 4588: // Conversazione ripresa dopo pausa (48h - 4 giorni)
+
+Line 4593: // Troppo tempo passato (> 4 giorni) → nuovo contatto
+
+Line 4597: // Compatibilità: rende la funzione disponibile anche in runtime che usano moduli/isolamento
+
+Line 4602: // Funzione factory
+
+Line 4607: /**
+ * Calcola ritardo risposta rispetto alla data del messaggio
+ * @param {Object} params
+ * @returns {{shouldApologize: boolean, hours: number, days: number}}
+ */
+
+Line 4638: /**
+ * Alias dell'entry point principale processEmailsMain() (gas_main.js).
+ * Mantenuta per compatibilità con trigger preesistenti.
+ */
+
+
+=========================================
+FILE: gas_error_types.js
+=========================================
+Line 1: /**
+ * gas_error_types.js - Classificazione centralizzata errori API
+ *
+ * Fornisce ErrorTypes e classifyError() per categorizzare
+ * gli errori in modo uniforme in tutto il sistema.
+ * Usato da GeminiService._withRetry e dai test.
+ */
+
+Line 19: /**
+ * Classifica un errore in una categoria standard.
+ * @param {Error|string|Object} error - Errore da classificare
+ * @returns {{ type: string, retryable: boolean, message: string }}
+ */
+
+Line 51: // I messaggi 5xx possono contenere la parola "quota" (es. "Errore rete/server o quota (503)").
+
+Line 52: // Manteniamo priorità alla classificazione NETWORK per evitare falsi positivi QUOTA_EXCEEDED.
+
+Line 65: // Un 404 generico può indicare anche modello/endpoint errato: lo trattiamo
+
+Line 66: // come cache scaduta/espulsa solo quando il messaggio cita esplicitamente
+
+Line 67: // cachedContent o la cache Gemini.
+
+
+=========================================
+FILE: gas_gemini_service.js
+=========================================
+Line 1: /**
+ * GeminiService.js - Servizio API Gemini
+ * Gestisce tutte le chiamate all'API Generativa di Google
+ * 
+ * FUNZIONALITÀ:
+ * - Retry con exponential backoff
+ * - Rilevamento lingua centralizzato
+ * - Controllo rapido per decisione risposta
+ * - Saluto adattivo (ora + calendario liturgico)
+ * - Rate Limiter integrato con gestione quota
+ */
+
+Line 27: // CONFIGURAZIONE CHIAVI API (Gestione Ridondanza)
+
+Line 30: // Chiave Primaria
+
+Line 31: // Priorità: 1. override DI 2. Script Properties 3. CONFIG
+
+Line 35: // Chiave di Riserva (opzionale)
+
+Line 40: // Alias accessibile per i moduli che usano la proprietà apiKey
+
+Line 63: // Rate Limiter (abilitato da CONFIG.USE_RATE_LIMITER)
+
+Line 128: // HELPER RATE LIMITER
+
+Line 131: /**
+   * Stima token da testo + allegati multimodali.
+   * Delega alla funzione centralizzata estimateTokenCount (gas_main.js).
+   */
+
+Line 139: /**
+   * Genera risposta con modello specifico
+   * @param {string} prompt - Prompt completo
+   * @param {string} modelName - Nome modello API (es. 'gemini-2.5-flash')
+   * @param {string} apiKeyOverride - Chiave API opzionale (per strategia multi-key)
+   * @param {Array<Blob>} attachments - Array di Blob (immagini/PDF) da inviare
+   * @returns {string|null} Testo generato
+   */
+
+Line 148: // Usa chiave override se fornita, altrimenti chiave primaria
+
+Line 224: // Se la primaria risponde 429 e abbiamo una chiave di riserva,
+
+Line 225: // segnaliamo esplicitamente al chiamante di passare subito al fallback
+
+Line 226: // senza consumare retry inutili sulla stessa chiave.
+
+Line 239: // Manteniamo fallback al body raw troncato.
+
+Line 242: // Separazione errori di rete/quota vs contenuto con semplici if
+
+Line 286: // Controllo blocco safety
+
+Line 303: /**
+   * Crea o riusa un CachedContent REST salvando nome risorsa e scadenza in Script Properties.
+   * Il payload di creazione cache contiene systemInstruction e tools; la generateContent finale
+   * usa solo cachedContent + nuovo prompt utente, evitando conflitti API.
+   */
+
+Line 606: // Hardening per Gemini 3.1: assicuriamoci che ogni blocco abbia un ruolo (obbligatorio)
+
+Line 611: // Se è già un oggetto, verifichiamo che abbia il ruolo
+
+Line 634: // REST Gemini 3 usa google_search; la generateContent finale non ridefinisce il tool.
+
+Line 645: //generativelanguage.googleapis.com/v1beta/cachedContents';
+
+Line 688: // fallback al body raw troncato.
+
+Line 798: // Metriche best-effort: non devono bloccare la generazione.
+
+Line 829: /**
+   * Controllo rapido con modello specifico
+   * @param {string} emailContent - Contenuto email
+   * @param {string} emailSubject - Oggetto email
+   * @param {string} modelName - Nome modello API
+   * @param {Object} [precomputedDetection] - Risultato detectEmailLanguage già calcolato (evita doppia chiamata)
+   * @returns {Object} Risultato controllo rapido
+   */
+
+Line 929: // Gestione con tentativo su chiave primaria e fallback singolo su chiave secondaria.
+
+Line 969: // Nota: gestiamo esplicitamente anche errori "hard" di UrlFetchApp (timeout/DNS)
+
+Line 970: // perché non forniscono responseCode e altrimenti salterebbero il fallback cross-key.
+
+Line 993: // responseCode è già valorizzato dal path primario o dal fallback backup key.
+
+Line 1006: // Risultato default in caso di errori
+
+Line 1008: // Failsafe conservativo: evita risposte massive in caso di errore
+
+Line 1052: // Parsing JSON con gestione errori
+
+Line 1070: // Fail-open: rispondi in assenza del flag o in caso di formato inatteso.
+
+Line 1071: // L'unico caso "non rispondere" è un false esplicito.
+
+Line 1096: // Fail-open deliberato: shouldRespond=false solo con rifiuto esplicito.
+
+Line 1115: /**
+   * Esegue una funzione con retry temporizzati
+   * Usa ritardi crescenti tra i tentativi
+   */
+
+Line 1128: // Le risposte vuote sono considerate non transienti.
+
+Line 1129: // Le segnaliamo come errore non-retryable per evitare spreco quota API.
+
+Line 1139: // Manteniamo _classifyError come logica di classificazione interna centralizzata
+
+Line 1140: // e resta allineato al contratto condiviso retryable/type.
+
+Line 1141: // Nota: NON replichiamo qui una classificazione inline, per evitare drift
+
+Line 1142: // con la policy errori del servizio e falsi positivi nei retry.
+
+Line 1143: // NON usare classifyError globale: potrebbe non esistere in alcuni runtime GAS modulari.
+
+Line 1149: // Verifica del flag _nonRetryable per le risposte vuote.
+
+Line 1153: // Errore fatale: interrompe immediatamente senza consumare altri retry
+
+Line 1192: /**
+   * Categorizza l'errore internamente al GeminiService per la logica di retry.
+   * @param {Error} error 
+   * @returns {{type: string, retryable: boolean}}
+   */
+
+Line 1201: // Segnali interni di esaurimento quota: non ritentare sulla stessa chiave,
+
+Line 1202: // lascia che il chiamante passi subito alla strategia/chiave successiva.
+
+Line 1218: // 401/403 sono tipicamente problemi di credenziali o permessi: ritentare non li risolve.
+
+Line 1219: // PRIMARY_QUOTA_EXHAUSTED deve saltare i retry locali per passare subito al backup.
+
+Line 1247: /**
+   * Rileva la lingua dell'email processando testo localmente tramite dizionario stop-words
+   * Molto più veloce dell'API Gemini e fissa i rari switch di lingua su nomi stranieri.
+   * @param {string} emailContent 
+   * @param {string} emailSubject 
+   * @returns {{lang: string, confidence: number, safetyGrade: number}} 
+   */
+
+Line 1258: // PROTEZIONE: limite ampio prima delle RegEx per evitare CPU Timeout se
+
+Line 1259: // un utente invia una mail infinita, ma rimuoviamo le citazioni prima del
+
+Line 1260: // truncamento finale del segnale lingua per non far consumare il budget dal thread storico.
+
+Line 1263: // Rimuove le citazioni per evitare che il testo quotato (es. precedente thread in italiano) alteri il punteggio
+
+Line 1266: // Fallback per citazioni testuali se l'HTML è già stato strippato o è incompleto
+
+Line 1272: // Trunca a 3000 char per evitare CPU Timeout sull'elaborazione lingua
+
+Line 1277: // Previene errori su richieste formali che potrebbero avere molti termini latini o esteri.
+
+Line 1289: // 2. Score basato su indicatori frequenti (fallback)
+
+Line 1321: // Parole chiave per rilevamento
+
+Line 1333: // perché in italiano e nelle firme email causano falsi positivi EN.
+
+Line 1378: // Conta corrispondenze con limiti di parola Unicode-safe
+
+Line 1387: // NOTA: niente \b perché in JS è ASCII-only e fallisce con accenti (es. "olá", "perché").
+
+Line 1388: // Usiamo invece un confine Unicode esplicito senza lookbehind per massima compatibilità runtime.
+
+Line 1408: // Guardrail anti-falso-positivo: senza marker forti, le sole stopword PT
+
+Line 1409: // ("por/para/com/uma/...") non devono dominare testi italiani.
+
+Line 1419: // Supporto markers per lingue secondarie.
+
+Line 1424: // Disambiguazione ES/PT su testi brevi: evita confusione quando i punteggi sono quasi pari.
+
+Line 1441: // Determina lingua rilevata e punteggio massimo
+
+Line 1452: // Default: IT se punteggi nulli o trascurabili
+
+Line 1460: // Se il grado di sicurezza è basso (< 3), tentiamo un rilevamento AI come fallback.
+
+Line 1461: // Questo è cruciale per messaggi molto brevi o ambigui in qualsiasi lingua.
+
+Line 1484: /**
+   * Rilevamento lingua tramite AI (fallback).
+   */
+
+Line 1501: // Solo 1 retry per non bloccare la pipeline
+
+Line 1511: /**
+   * Calcola il grado di sicurezza del rilevamento locale (1-5)
+   * Basato su punteggio assoluto e distacco dal secondo classificato
+   */
+
+Line 1525: // Grado 5: Dominio assoluto (es. 10 vs 1 o gap > 6)
+
+Line 1537: // Grado 1: Bassissima sicurezza (tie o quasi)
+
+Line 1541: /**
+   * Risolve il conflitto tra detection Gemini (API) e Locale (Regex)
+   */
+
+Line 1550: // 1. Se coincidono, massima sicurezza
+
+Line 1553: // 2. Lingue non coperte dal rilevamento locale: in quel caso ci fidiamo di Gemini.
+
+Line 1560: // 3. Lingua principale: Se il locale è MOLTO sicuro (grado >= 4),
+
+Line 1561: // prevale sulla detection API (che a volte si confonde con nomi propri o citazioni).
+
+Line 1567: // 4. Default: Se c'è incertezza, ci fidiamo del rilevamento del modello Large
+
+Line 1573: // SALUTO ADATTIVO
+
+Line 1576: /**
+   * Ottieni saluto e chiusura adattati a lingua, ora E giorni speciali
+   * Supporta calendario liturgico completo
+   */
+
+Line 1586: // Coerenza business: saluti basati sempre sull'orario italiano,
+
+Line 1587: // anche se il fuso del progetto è stato modificato per errore.
+
+Line 1595: // fallback locale: manteniamo comportamento precedente se Utilities non è disponibile
+
+Line 1601: // Prima verifica saluto giorno speciale
+
+Line 1606: // Alternativa a saluto standard basato sull'ora
+
+Line 1676: // Altre lingue: saluto neutro
+
+Line 1681: // Chiusura in base alla lingua
+
+Line 1702: // SALUTI GIORNI SPECIALI (Calendario Liturgico)
+
+Line 1705: /**
+   * Ottieni saluto speciale per feste liturgiche e festività
+   */
+
+Line 1740: // Tutti i Santi (1 Novembre)
+
+Line 1764: // === FESTE MOBILI (basate sulla Pasqua) ===
+
+Line 1769: // Ottava di Pasqua (Domenica di Pasqua + 7 giorni)
+
+Line 1788: // Corpus Domini (Pasqua + 63 giorni in Italia)
+
+Line 1797: // Domenica della Sacra Famiglia
+
+Line 1810: // UTILITÀ DATE PER CALENDARIO LITURGICO
+
+Line 1813: /**
+   * Aggiunge giorni a una data
+   */
+
+Line 1869: /**
+   * Verifica se due date sono lo stesso giorno
+   */
+
+Line 1876: /**
+   * Verifica se una data è compresa tra inizio e fine (inclusi)
+   */
+
+Line 1886: /**
+   * Ottieni la data della Domenica della Sacra Famiglia
+   * (Domenica tra 25 Dic e 1 Gen, o 30 Dic se nessuna domenica).
+   * Nota: se il 25 dicembre cade di domenica, nel range 26-31 non c'è
+   * alcuna domenica; in quel caso il fallback al 30 dicembre è intenzionale
+   * (prassi liturgica del rito romano).
+   */
+
+Line 1894: // Il range 26-31 è intenzionale: cerchiamo la domenica *dopo* Natale.
+
+Line 1895: // Se il 25 è domenica, non esiste altra domenica nell'ottava e il
+
+Line 1896: // calendario romano prevede il fallback al 30 dicembre.
+
+Line 1907: // CONTROLLO RAPIDO (Decisione risposta + Rilevamento lingua)
+
+Line 1910: /**
+   * Chiamata rapida Gemini per decidere se email richiede risposta E rilevare lingua
+   * Supporta Rate Limiter + alternativa originale
+   */
+
+Line 1917: // RATE LIMITER PATH
+
+Line 1938: // L'eccezione non viene gestita con un fallback diretto per allineamento a generateResponse.
+
+Line 1939: // Il fallback diretto bypasserebbe il quota tracking del RateLimiter,
+
+Line 1940: // causando consumo API non tracciato. Il Processor gestirà l'eccezione
+
+Line 1941: // come skip del thread (comportamento coerente e sicuro).
+
+Line 1945: // NON bypassare il RateLimiter su errori transienti/non-quota:
+
+Line 1946: // executeRequest include già retry+backoff e il fallback diretto
+
+Line 1947: // causerebbe consumo API non tracciato.
+
+Line 1953: // IMPLEMENTAZIONE ORIGINALE (fallback o quando Rate Limiter disabilitato)
+
+Line 1980: // GENERAZIONE RISPOSTA PRINCIPALE
+
+Line 1983: /**
+   * Genera risposta AI con retry
+   * Supporta Rate Limiter + fallback originale
+   * 
+   * @param {string} prompt - Prompt completo
+   * @param {Object} options - Opzioni per strategia Cross-Key Quality First
+   * @param {string} options.apiKey - Chiave API specifica (opzionale)
+   * @param {string} options.modelName - Nome modello specifico (opzionale)
+   * @param {boolean} options.skipRateLimit - Se true, bypassa Rate Limiter locale
+   * @param {Array<Blob>} options.attachments - Array di Blob (immagini/PDF)
+   * @returns {Object} { success: boolean, text: string, error?: string, modelUsed?: string }
+   */
+
+Line 2001: // Pre-elaborazione Base64 per evitare ripetizione I/O e allocazioni pesanti durante i retry.
+
+Line 2025: // RATE LIMITER PATH (solo se abilitato E non skippato)
+
+Line 2051: // Rilancia per gestione strategia nel Processor
+
+Line 2053: // NON effettuare fallback diretto: i retry sono già gestiti nel RateLimiter
+
+Line 2054: // e una seconda esecuzione fuori limiter falserebbe i contatori quota.
+
+Line 2057: // Preserva l'eccezione originale per il classificatore
+
+Line 2062: // CHIAMATA DIRETTA (quando RateLimiter disabilitato O skippato per backup key)
+
+Line 2070: // `success` è coerente con la presenza di testo generato (nessuna inversione logica).
+
+Line 2089: // METODI UTILITÀ
+
+Line 2091: /**
+   * Costruisce URL API per modello specifico
+   */
+
+Line 2096: //generativelanguage.googleapis.com/v1beta/models/${safeModel}:generateContent`;
+
+Line 2153: // Funzione factory per compatibilità
+
+Line 2158: /**
+ * Wrapper globale richiesto per uso manuale/test da Apps Script.
+ * Per chiamate applicative è preferibile riusare l'istanza GeminiService già creata.
+ */
+
+Line 2167: // JSON PARSER TOLLERANTE PER GEMINI (Quick Check)
+
+Line 2173: // 1) Estrazione markdown robusta: usa il primo blocco fenced se presente
+
+Line 2180: // 2) Estrazione JSON esterno (oggetto o array)
+
+Line 2206: // 5) Normalizzazione della notazione: quoting rigoroso chiavi e pulizia code strutturali
+
+Line 2213: // 6) Motore euristico avanzato: ricostruzione dei campi minimi diretti tramite analisi regex
+
+Line 2223: /**
+ * Assicura conformità strutturale dei blocchi JSON complessi.
+ * Struttura dinamicamente gli alberi gerarchici per validazione sicura.
+ */
+
+Line 2270: /**
+ * Motore di ricostruzione euristica per l'estrazione dati in scenari architetturali complessi.
+ * Impiega pattern matching per mappare reply_needed, language, category, topic, confidence.
+ */
+
+
+=========================================
+FILE: gas_gmail_service.js
+=========================================
+Line 1: /**
+ * GmailService.gs - Gestione operazioni Gmail
+ * 
+ * FUNZIONALITÀ:
+ * - Label cache per performance
+ * - Supporto header Reply-To per form web
+ * - Costruttore cronologia conversazione
+ * - Rimozione citazioni/firme
+ * - Threading corretto (In-Reply-To, References)
+ * - Markdown to HTML
+ */
+
+Line 20: // Limita il TTL entro i vincoli tecnici di CacheService.
+
+Line 29: // Mappa MIME types Office → tipo Google Workspace per conversione nativa
+
+Line 50: // Counter batched per ridurre I/O
+
+Line 56: // Allineamento al timezone Pacifico (reset quote Gmail lato Google).
+
+Line 63: // Fallback locale/test: mantieni la stessa semantica Pacific Time anche
+
+Line 64: // fuori da Apps Script, dove Utilities.formatDate potrebbe non esistere.
+
+Line 85: // Ultimo fallback: approssima Pacific Standard Time (UTC-8) per evitare
+
+Line 86: // il reset a mezzanotte UTC, che anticipa il reset quote Gmail.
+
+Line 94: // Sincronizziamo il contatore solo ogni 5 chiamate (o se vicino alla soglia warning)
+
+Line 95: // per ridurre l'overhead di I/O verso CacheService.
+
+Line 100: // soglia di sicurezza per forzare il flush
+
+Line 102: // Se non abbiamo ancora un valore base in memoria, forziamo il flush immediato
+
+Line 113: // Carichiamo il valore corrente dalla cache (con fallback su ScriptProperties)
+
+Line 131: // Aggiorniamo la cache (TTL 21599 = ~6 ore)
+
+Line 134: // Allineamento periodico del counter su storage persistente.
+
+Line 164: /**
+     * Ottiene o crea un'etichetta Gmail con caching
+     * Nota: la creazione automatica è intenzionale (self-healing al primo avvio)
+     * per evitare errori "label not found" in ambienti nuovi.
+     */
+
+Line 220: // Possibile race condition: un'altra esecuzione parallela ha creato la label
+
+Line 221: // dopo il nostro check ma prima della createLabel().
+
+Line 276: // Non nascondere errori non correlati alla cache etichette (permessi, quota, thread invalido...)
+
+Line 300: /**
+     * Aggiunge etichetta a un messaggio specifico (Gmail API avanzata)
+     */
+
+Line 334: // Non degradare a label di thread: il triage operativo è message-level e
+
+Line 335: // un fallback GmailApp.addLabelToThread inquinerebbe l'intera conversazione.
+
+Line 490: /**
+     * Ottiene gli ID di tutti i messaggi con una specifica etichetta
+     */
+
+Line 498: // Senza ID reale la query restituisce tutti gli unread in inbox, non solo quelli etichettati.
+
+Line 499: // Fail-safe: evitiamo di inquinare la cache dei messaggi già etichettati.
+
+Line 583: /**
+     * Recupera i thread con almeno un messaggio non letto e non ancora etichettato.
+     *
+     * Modalità supportate:
+     * - 'query'   : default operativo, più economica e coerente con la label a livello messaggio
+     * - 'metadata': fallback prudente/manuale (list INBOX/UNREAD + get minimal per labelIds)
+     *
+     * @param {string} labelName            - Label applicata ai messaggi già elaborati (es. 'IA')
+     * @param {string} errorLabel           - Label dei thread in errore (es. 'Errore')
+     * @param {string} validationLabel      - Label dei thread in attesa di verifica (es. 'Verifica')
+     * @param {number} [messageBuffer=150]  - Numero massimo di messaggi da esaminare per pagina
+     * @param {number} [targetThreads=50]   - Numero di thread unici da raccogliere prima di fermarsi
+     * @param {number} [maxPages=3]         - Limite pagine di paginazione per evitare loop
+     * @param {string|string[]|null} [skipLabel=null]- Label dei messaggi da ignorare dinamicamente (es. '·')
+     * @returns {GmailThread[]}             - Thread unici, già istanziati, con almeno un messaggio da elaborare
+     */
+
+Line 632: /**
+     * Fallback prudente/manuale che verifica le label sul singolo messaggio via metadata.
+     */
+
+Line 720: /**
+     * Default operativo: variante più economica che usa la query testuale di Gmail.
+     */
+
+Line 737: // Utilizzo di GmailApp.search nativo per efficienza (batch recupero thread già pronti)
+
+Line 738: // Invece di iterare sui singoli messaggi via API avanzata + getThreadById.
+
+Line 739: // safeMessageBuffer e safeMaxPages non paginano direttamente GmailApp.search,
+
+Line 740: // ma dimensionano il pool massimo di candidati esaminabili prima del filtro thread-level.
+
+Line 770: // Verifichiamo che ci sia almeno un messaggio non letto nel thread
+
+Line 771: // (GmailApp.search(is:unread) garantisce questo ma facciamo un check veloce)
+
+Line 778: // Registriamo il primo messaggio non letto come riferimento
+
+Line 804: // Gmail non supporta virgolette letterali nei nomi delle label nelle query.
+
+Line 805: // Rimuoviamole per evitare di rompere la stringa racchiusa in "".
+
+Line 838: // Fallback robusto: in ambienti dove Gmail.Users non è disponibile (es. test locali
+
+Line 839: // o deployment senza servizio avanzato), usiamo GmailApp per verificare l'esistenza
+
+Line 840: // della label e cache-iamo comunque il risultato (anche negativo).
+
+Line 850: // GmailApp.getUserLabelByName restituisce un GmailLabel utilizzabile con GmailApp,
+
+Line 851: // ma non espone l'ID interno richiesto dalle Gmail Advanced API
+
+Line 852: // (Gmail.Users.Messages.* vuole valori come "Label_123", non il display name).
+
+Line 853: // Verifichiamo quindi solo l'esistenza per cache-are il lookup ed evitiamo di usare
+
+Line 854: // getName() come falso ID: null forza i fallback GmailApp/thread-level sicuri.
+
+Line 872: // Ottimizzazione: approfittiamo della chiamata list per popolare
+
+Line 873: // la cache di tutte le etichette scoperte, non solo quella richiesta.
+
+Line 922: // ESTRAZIONE MESSAGGI (con supporto Reply-To)
+
+Line 925: /**
+     * Estrae dettagli messaggio con supporto Reply-To e threading
+     */
+
+Line 936: // Estrai RFC 2822 Message-ID e header utili per filtraggio
+
+Line 980: // Calcolo flag newsletter basato su header raccolti
+
+Line 1027: // Silenzio sugli errori di parsing campo To; fallback applicato sotto.
+
+Line 1074: /**
+     * Estrae testo dagli allegati per contesto prompt.
+     * Supporta PDF/immagini (via OCR), Word, Excel e PowerPoint (via conversione nativa).
+     * Richiede Drive Advanced Service abilitato.
+     * @param {GmailMessage} message
+     * @param {object} options
+     * @returns {{text: string, items: Array, skipped: Array}}
+     */
+
+Line 1183: // Estrazione testo: conversione diretta per Office, OCR per PDF/immagini
+
+Line 1190: // Conversione diretta, non ottica
+
+Line 1198: // Filtro qualità OCR (solo per PDF/immagini)
+
+Line 1219: // Per i PDF usa un limite coerente con il cap pagine stimato,
+
+Line 1220: // consentendo di superare il default generico quando necessario.
+
+Line 1301: /**
+     * Estrae gli allegati processabili in modalità multimodale.
+     * - TXT/CSV: estratti come testo di contesto
+     * - PDF/Immagini: passati come Blob
+     * - DOC/DOCX/PPT/PPTX: convertiti al volo in PDF
+     * - XLS/XLSX: estratti come testo (tabellare) nel contesto
+     * @param {GmailMessage} message
+     * @param {object} options
+     * @returns {{textContext: string, blobs: Array<Blob>, skipped: Array}}
+     */
+
+Line 1361: // Evita richieste multimodali su micro-immagini decorative, immagini vettoriali/unsupported
+
+Line 1362: // (es. SVG/TIFF) e formati che possono stressare copyBlob/OCR in RAM.
+
+Line 1448: // Excel (XLS/XLSX): preferisci testo contestuale invece di blob PDF
+
+Line 1539: /**
+     * Converte un file Office in PDF usando Drive Advanced Service.
+     * Crea un file temporaneo, lo esporta in PDF e lo cancella sempre.
+     * @param {Blob} attachmentBlob
+     * @returns {Blob}
+     */
+
+Line 1551: // 15s budget per singola conversione
+
+Line 1561: // per la lookup in _officeMimeMap usiamo il mime base normalizzato.
+
+Line 1608: // La conversione lato Drive può essere asincrona su file Office grandi.
+
+Line 1609: // Usiamo retry breve con backoff lineare per evitare PDF vuoti/corrotti.
+
+Line 1642: // In caso di errore durante conversione/export, forza anche il cleanup
+
+Line 1643: // degli eventuali residui per ridurre accumulo file temporanei.
+
+Line 1691: // Rimuove dalla coda indipendentemente dall'esito: se la rimozione fallisce
+
+Line 1692: // perché il file era già eliminato, non ha senso ritentare dalla coda.
+
+Line 1703: // La coda persistente ripara i crash avvenuti dopo la creazione del file temporaneo:
+
+Line 1704: // va drenata anche quando il cleanup orfani indicizzato per nome è ancora in throttle.
+
+Line 1717: // Backup persistente: CacheService può essere evicted prima del TTL.
+
+Line 1730: // max una volta ogni 6 ore (evita edge-case al limite hard)
+
+Line 1751: // Compatibilità Drive API v2/v3: cambiano nomi campo in query e shape della risposta.
+
+Line 1752: // Manteniamo doppia strategia per evitare cleanup silenziosamente inattivo.
+
+Line 1814: /**
+     * Estrae testo da un allegato Office (Word, Excel, PowerPoint)
+     * tramite conversione nativa in Google Workspace.
+     * @param {GmailAttachment} attachment - Allegato email
+     * @param {string} googleMimeType - Tipo Google Workspace destinazione
+     * @param {object} settings - Impostazioni pipeline
+     * @returns {string} Testo estratto (vuoto se fallisce)
+     */
+
+Line 1845: // Caricamento con conversione nel formato Google Workspace corrispondente
+
+Line 1901: // Estrazione testo in base al tipo Google Workspace
+
+Line 1908: // Excel → Google Sheets: concatena il testo di tutte le celle non vuote
+
+Line 1932: // PowerPoint → Google Slides: estrae testo da ogni diapositiva
+
+Line 1951: // Ignora shape non testuali o non leggibili
+
+Line 2010: // Drive API v3: per ottenere testo OCR apribile con DocumentApp,
+
+Line 2011: // il file caricato va convertito in Google Doc.
+
+Line 2060: // Fallback legacy (potrebbe non supportare signature a 1 argomento)
+
+Line 2071: /**
+     * Valuta se il testo OCR è significativo o spazzatura/vuoto.
+     * @param {string} text - Testo grezzo OCR
+     * @param {boolean} isGenericName - Se il nome file è generico (es. IMG_1234.jpg)
+     * @returns {boolean} - True se il testo è valido
+     */
+
+Line 2083: // 1. Filtro Lunghezza Minima Assoluta
+
+Line 2084: // Ridotto a 15 per consentire dati strutturati brevi (es. Codice Fiscale).
+
+Line 2087: // 1.5 Fast-path per identificativi strutturati (anche con poche lettere, es. IBAN)
+
+Line 2094: // Conta le lettere effettive (a-z, A-Z)
+
+Line 2096: // Meno di 5 lettere = spazzatura (es. "|||||--")
+
+Line 2098: // 3. Filtro Combinato per Nomi Generici
+
+Line 2099: // Se il file ha nome generico (es. IMG_...), richiediamo più testo (50 caratteri)
+
+Line 2100: // per evitare di includere screenshot accidentali o foto sfocate con poco testo.
+
+Line 2116: // Gestione codici regionali tipo en-US -> en
+
+Line 2270: /**
+     * Estrae contesto focalizzato attorno a un IBAN rilevato nel testo.
+     * @param {string} text - Testo da analizzare
+     * @param {number} contextChars - Caratteri di contesto prima/dopo IBAN
+     * @returns {{matched: boolean, text: string}} Risultato con flag e testo estratto
+     */
+
+Line 2281: // Regex IBAN più stringente: 2 lettere + 2 cifre + 15-30 alfanumerici (min 15 per evitare collisioni)
+
+Line 2327: // Preserva separatori originali (spazi e trattini)
+
+Line 2345: // Evita regex RFC5322 troppo complesse (rischio backtracking su input malevoli).
+
+Line 2346: // Header From di Gmail sono già sanificati: pattern snello e lineare è sufficiente.
+
+Line 2359: // Troncamento preventivo: evita timeout V8 su HTML anomalo/massivo durante replace regex.
+
+Line 2361: // Rimuove blocchi di codice/stile che altrimenti finirebbero nel prompt testuale.
+
+Line 2363: // Preserva separatori strutturali per evitare blocchi di testo illeggibili.
+
+Line 2368: // Evita di rimuovere espressioni testuali tipo "A < B > C" trattando solo tag HTML plausibili
+
+Line 2371: // Fallback simboli per plain text (evita mojibake in ambienti non-UTF8)
+
+Line 2404: // Riduce spazi/tabs senza distruggere i newline significativi
+
+Line 2418: /**
+     * Costruisce cronologia conversazione da messaggi thread
+     */
+
+Line 2490: /**
+     * Estrazione leggera dettagli messaggio (senza fetch metadata API).
+     * Usata per la sola costruzione della history conversazionale.
+     */
+
+Line 2560: // - email brevi: cerca su tutto il testo (evita falsi negativi)
+
+Line 2561: // - email lunghe: concentra la ricerca sulle ultime ~600 chars
+
+Line 2573: // Tronca solo se la firma è su una nuova sezione (dopo riga vuota)
+
+Line 2607: /**
+     * Invia risposta come HTML con threading corretto
+     */
+
+Line 2643: // From stabile: priorità all'indirizzo di ricezione solo se autorizzato
+
+Line 2644: // (utente effettivo/attivo o alias configurato in Gmail).
+
+Line 2706: // La specifica Gmail RAW richiede un Message-ID valido per l'header In-Reply-To.
+
+Line 2707: // Se non disponibile/valido, inviamo comunque via RAW con threadId e Subject pulito.
+
+Line 2715: // Reply-To: usa alias solo se presente in To/Cc del messaggio originale
+
+Line 2756: // Manteniamo `rawHeaders` come array e lo espandiamo nel payload MIME.
+
+Line 2804: // Alternativa: metodo tradizionale
+
+Line 2805: // Nel fallback nativo prediligiamo il cast esplicito a GmailMessage (se disponibile)
+
+Line 2806: // affinché la libreria interna mantenga al meglio il riferimento al messaggio specifico
+
+Line 2825: // Corpo minimo non vuoto per massimizzare compatibilità nel fallback nativo.
+
+Line 2884: // Rimuove tag HTML con pattern lineare per prevenire Catastrophic Backtracking (ReDoS).
+
+Line 2896: // SAFEGUARD DI FORMATTAZIONE
+
+Line 2900: // SAFEGUARD DI FORMATTAZIONE
+
+Line 2903: /**
+     * Prepara il testo per l'invio applicando sanificazione, sostituzioni e correzioni.
+     */
+
+Line 2911: // Evita alterazioni meccaniche del casing dopo la generazione LLM:
+
+Line 2912: // in output multilingua può corrompere nomi propri e saluti.
+
+Line 2916: /**
+     * Corregge errori comuni di punteggiatura
+     * Gestisce eccezioni per nomi doppi (es. "Maria Isabella")
+     */
+
+Line 2923: // 0. Normalizzazione Encoding: converte smart quotes in standard ASCII
+
+Line 2924: // e rimuove caratteri di controllo invisibili che possono corrompere il layout.
+
+Line 2931: // Intenzionale: array locale ricreato a ogni chiamata, quindi la mutazione
+
+Line 2932: // serve solo ad ampliare le eccezioni per il messaggio corrente.
+
+Line 2945: // Evita di alterare acronimi/parole interamente maiuscole (es. "ISEE", "INVIA")
+
+Line 2946: // Range esplicitamente ristretto per coprire accentate europee escludendo simboli matematici (×, ÷).
+
+Line 2948: // Eccezione per elenchi numerati (es: "1, Partecipanti")
+
+Line 2961: // Eccezione per virgola/punto successivo
+
+Line 2966: // Eccezione per congiunzione "e" seguita da nome (es. "Maria e Giovanni,")
+
+Line 2971: // Euristica nomi doppi: se la parola è seguita da un'altra parola maiuscola,
+
+Line 2997: /**
+     * Applica sostituzioni testo dal foglio Sostituzioni
+     */
+
+Line 3011: // Usa callback per evitare l'interpretazione dei pattern speciali ($1, $&, $', $`).
+
+Line 3054: /**
+     * Crea header Subject RFC 2047 UTF-8 Base64 con folding robusto.
+     * Garantisce che:
+     * 1. Ogni encoded-word sia <= 75 caratteri.
+     * 2. Nessun carattere multi-byte (es. emoji, accentate) venga spezzato tra due word.
+     * 3. Ogni word sia decodificabile indipendentemente (Base64 multiplo di 4).
+     * @param {string} subject
+     * @returns {string}
+     */
+
+Line 3066: // Se il soggetto è puramente ASCII e corto, potremmo evitare l'encoding,
+
+Line 3067: // ma per consistenza e sicurezza con nomi italiani/emoji usiamo sempre UTF-8 B.
+
+Line 3070: // Limite RFC 2047 per singolo encoded-word
+
+Line 3078: // Segmenta per grapheme quando disponibile, con fallback compatibile Apps Script.
+
+Line 3100: // Folding: Subject: + prima riga + righe successive con spazio (WSP)
+
+Line 3173: /**
+     * Spezza una stringa Base64 in righe da massimo 76 caratteri (RFC 2045).
+     * @param {string} base64Str
+     * @returns {string}
+     */
+
+Line 3206: // Se non c'è spazio, spingi la riga corrente (incluso il prefisso se è il primo token)
+
+Line 3207: // e manda il token a capo. Mantiene intatta la semantica e il nome dell'header.
+
+Line 3284: // Classificazione per formato file Office
+
+Line 3344: // Supporta anche codici fiscali omocodici (sostituzioni LMNPQRSTUV nelle posizioni numeriche)
+
+Line 3371: // Funzione factory
+
+Line 3380: /**
+ * Sanitizzazione URL robusta con whitelist di protocolli
+ */
+
+Line 3402: // vengono normalizzati in https://... prima della whitelist protocolli.
+
+Line 3431: // SSRF: blocco IP interni, IPv6 loopback/link-local, IP decimali
+
+Line 3448: // Validazione hostname post-parse per bloccare dotted-quad in notazione esadecimale/ottale
+
+Line 3460: // per evitare bypass delle regole SSRF su loopback/link-local.
+
+Line 3473: // Blocca loopback e indirizzi non specificati
+
+Line 3506: // Gestione delle notazioni IPv4 abbreviate (es. 127.1, 10.0.1)
+
+Line 3516: // Espande la notazione short (es. [127, 1] diventa [127, 0, 0, 1])
+
+Line 3598: /**
+ * Escape HTML per prevenire XSS.
+ * Applicato PRIMA delle trasformazioni markdown.
+ */
+
+Line 3616: /**
+ * Converte Markdown in HTML sicuro.
+ * Strategia: escape-first, poi trasformazioni markdown.
+ */
+
+Line 3636: // Limite iterazione profonda URLs per sicurezza
+
+Line 3679: // Degrada localmente il link malformato senza interrompere
+
+Line 3680: // il parsing di eventuali link validi successivi.
+
+Line 3719: // 3. Escape globale (tutto il testo rimanente diventa sicuro)
+
+Line 3722: // 4. Trasformazioni markdown su testo già escaped
+
+Line 3723: // Manteniamo una proporzione fissa tra corpo testo e titoli.
+
+Line 3739: // 5. Liste markdown (bullet e numerate) -> <ul>/ <ol> + <li>
+
+Line 3741: // Raggruppa righe consecutive con lo stesso prefisso in un unico <ul>
+
+Line 3761: // Bold / Italic (dopo le liste per evitare collisioni con "* item")
+
+Line 3762: // Nota: gli asterischi NON vengono escaped da escapeHtml(), quindi funzionano normalmente
+
+Line 3764: // [^\n*] evita match cross-paragrafo e attraversamento di tag già inseriti
+
+Line 3772: // 7. Ripristina link e code blocks
+
+Line 3783: // 8. Converti TUTTI i caratteri non-ASCII in entità HTML per massima compatibilità.
+
+Line 3784: // Questo previene mojibake (es: "â”", "âœ") in client che rilevano male il charset.
+
+Line 3787: // Mantieni UTF-8 nativo per accenti/latin; entità solo per codepoint fuori BMP.
+
+Line 3794: // 9. Costruzione paragrafi evitando nesting invalido di <p>
+
+Line 3795: // Inserisce separatori intorno ai blocchi per evitare casi tipo:
+
+Line 3816: // Manteniamo il corpo risposta a 20px: i programmatori non devono rompere le scatole con altre regressioni.
+
+
+=========================================
+FILE: gas_logger.js
+=========================================
+Line 40: // Null guard: the default `= {}` only covers `undefined`, not `null`.
+
+Line 102: /**
+   * Invia notifica via email all'amministratore
+   */
+
+Line 161: // The subsequent 'sent' value is idempotent and extends the cooldown upon successful delivery.
+
+Line 209: /**
+ * Factory function to create loggers
+ */
+
+
+=========================================
+FILE: gas_main.js
+=========================================
+Line 1: /** 
+ * Ultimo aggiornamento: 2026-05-11 23:57
+ *
+ * Main.js - Entry point del sistema autoresponder
+ * Gestisce trigger, inizializzazione e orchestrazione principale
+ * Include logica sospensione oraria e festività italiane
+ */
+
+Line 9: // Inizializzazione della cache globale condivisa tra moduli
+
+Line 28: // Configurazione TTL allineata ai vincoli di ScriptCache (21600s).
+
+Line 46: // FESTIVITÀ E SOSPENSIONE
+
+Line 49: // Costanti per mesi (JavaScript usa indici 0-11)
+
+Line 55: // Giorni in cui il sistema DEVE rispondere (dipendenti in ferie)
+
+Line 60: // Festa del Lavoro
+
+Line 61: // Festa della Repubblica
+
+Line 62: // SS. Pietro e Paolo
+
+Line 71: // Configurazione statica degli orari di sospensione (Fallback).
+
+Line 72: // Garantisce il funzionamento del sistema anche in assenza di configurazione esterna.
+
+Line 81: /**
+ * Calcola la Domenica di Pasqua per un dato anno (calendario occidentale/gregoriano)
+ */
+
+Line 99: // Usa mezzogiorno locale per evitare slittamenti di data in conversioni timezone/DST
+
+Line 103: /**
+ * Stima il numero di token per un testo ed eventuali allegati.
+ * Algoritmo centralizzato (DRY): unica sorgente di verità per tutte le stime token.
+ * Formula testo: max(parole * 1.25 + 10% overhead, caratteri / 3.2)
+ * Allegati: stima MIME-aware (image=258, pdf=1032, default=1032) configurabile via CONFIG.
+ * 
+ * @param {string} text - Testo da stimare
+ * @param {Array} attachments - Array di allegati (opzionale, Blob con getContentType)
+ * @returns {number} Numero stimato di token (min 1)
+ */
+
+Line 153: /**
+ * Verifica se una data ricade in uno dei periodi ferie del segretario
+ */
+
+Line 162: // Supporto per date serializzate in JSON (stringhe ISO) o timestamp numerici
+
+Line 184: // Normalizza input a data-only nel fuso dello script per evitare slittamenti ai confini UTC.
+
+Line 197: // Fallback locale: mantiene compatibilità anche in test/mocking senza Utilities.
+
+Line 227: /**
+ * Confronta due Date sul solo calendario locale.
+ * Resta deliberatamente difensiva perché viene usata nella logica di sospensione.
+ */
+
+Line 240: /**
+ * Verifica se il sistema dovrebbe essere SOSPESO
+ */
+
+Line 252: // Regola di dominio: la sospensione è ancorata all'orario italiano.
+
+Line 276: // 1. GESTIONE FESTIVI (Priorità: Sistema ATTIVO)
+
+Line 281: // Domenica di Pasqua, Pasquetta, Sabato Santo
+
+Line 286: // Nota manutenzione: base su "easter" è intenzionale per leggibilità semantica.
+
+Line 300: // Corpus Domini (Pasqua + 63 giorni: domenica successiva alla SS. Trinità, prassi italiana)
+
+Line 305: // Ferie Segretario (Sheet)
+
+Line 308: // 2. ORARI UFFICIO (Sistema SOSPESO)
+
+Line 309: // Utilizza i dati caricati dal foglio Controllo in (A10:D16/B10:E16) durante il loadResources
+
+Line 310: // Se non presenti, usa il fallback definito via codice in SUSPENSION_HOURS
+
+Line 311: // loaded è il discriminante autoritativo: se la cache è caricata, prevalgono le regole da foglio.
+
+Line 313: //   - null: foglio 'Controllo' assente → fallback sicuro su SUSPENSION_HOURS.
+
+Line 314: //   - {}: foglio presente ma senza fasce configurate → nessuna sospensione.
+
+Line 315: //   - {1:[...], ...}: fasce orarie lette dal foglio.
+
+Line 345: /**
+ * Paracadute operativo: se esistono email non lette molto vecchie,
+ * permette un ciclo di lavorazione anche durante la sospensione.
+ */
+
+Line 362: // Non usiamo -label nella query: Gmail può applicarlo a livello thread e
+
+Line 363: // nascondere follow-up non letti dentro conversazioni già etichettate.
+
+Line 437: // Fix architetturale: filtra i falsi positivi della query `newer_than`
+
+Line 438: // prima di passare al controllo dettagliato per-messaggio.
+
+Line 441: // Verifichiamo a livello messaggio: un thread può contenere vecchie
+
+Line 442: // risposte già terminali e nuovi follow-up ancora processabili.
+
+Line 490: // Questo evita race condition in cui due trigger sovrascrivono la cache a metà serializzazione.
+
+Line 498: // Nota: da qui in avanti GLOBAL_CACHE è garantita; evitiamo fallback silenziosi
+
+Line 499: // perché maschererebbero regressioni d'inizializzazione del runtime.
+
+Line 564: // ⚠️ Scelta blindata: la cache persiste SEMPRE il payload completo delle risorse.
+
+Line 565: // Eventuali riduzioni/riassunti vanno fatte solo a runtime nel PromptEngine,
+
+Line 566: // mai qui, altrimenti si degrada sistematicamente il caso normale.
+
+Line 568: // 1. Prova a leggere dalla vera Cache di Apps Script
+
+Line 602: // Hardening: evita crash se CONFIG non è ancora inizializzato (ordine file GAS)
+
+Line 603: // Nota manutenzione: questo caricamento risorse deve avere priorità su processUnreadEmails
+
+Line 604: // per assicurare che KB e Dottrina siano disponibili.
+
+Line 636: // Prompt resources aggiuntive (usate da PromptEngine)
+
+Line 660: // Coerenza con _parseSheetToStructured: la prima riga è intestazione e non contenuto.
+
+Line 674: // Salta la prima riga (header convenzionale: Originale | Sostituzione)
+
+Line 697: // 3. Salva nella RAM dell'esecuzione corrente
+
+Line 700: // 4. Salva nel CacheService (6 ore)
+
+Line 747: // Drive API v3
+
+Line 750: // Alcuni ambienti Apps Script usano ancora semantica v2.
+
+Line 754: // Fallback finale per ambienti senza parametro "fields".
+
+Line 768: // Usa il timestamp più recente tra trigger onEdit/custom e Drive.
+
+Line 770: // renderebbe la cache sempre stale e moltiplicherebbe letture Sheets inutili.
+
+Line 773: // Non persistiamo qui il timestamp calcolato da Drive: KB_CUSTOM_MODIFIED_TIME
+
+Line 774: // è un segnale esplicito scritto da onEdit per le sole risorse monitorate.
+
+Line 775: // Scriverci il valore Drive da un polling generico confonde la provenienza del
+
+Line 776: // segnale e può rendere più difficile diagnosticare l'invalidazione cache.
+
+Line 828: // A6:C10: layout ferie legacy
+
+Line 835: // Nota operativa: onEdit viene valutato solo su modifiche utente al foglio.
+
+Line 836: // Inoltre limitiamo l'invalidazione ai fogli/range letti da loadResources,
+
+Line 837: // escludendo ConversationMemory e fogli di log/rate-limit scritti durante l'elaborazione email.
+
+Line 928: /**
+ * Serializza payload risorse per CacheService.
+ * Usa JSON diretto; opzionalmente comprime con gzip+base64 quando disponibile.
+ */
+
+Line 943: // Per Utilities.newBlob(data, contentType, name), il terzo parametro deve essere una stringa.
+
+Line 944: // Utilities.newBlob() converte automaticamente le stringhe in byte UTF-8.
+
+Line 953: /**
+ * Deserializza payload risorse da CacheService (plain JSON o gzip+base64).
+ */
+
+Line 973: // Nota: maxChars è una stima iniziale conservativa passata come RESOURCE_CACHE_MAX_PART_SIZE (45000).
+
+Line 974: // CacheService ha un limite fisico di 100KB (102400 byte) per entry.
+
+Line 975: // Un po' meno di 100KB per sicurezza overhead chiave.
+
+Line 980: // Cerchiamo il chunk più grande possibile che stia nel limite di byte
+
+Line 987: // Se sforiamo il limite assoluto di Apps Script, riduciamo il chunk finché non rientra.
+
+Line 994: // Se payload estremamente densi di caratteri multibyte restano oltre limite anche
+
+Line 995: // sotto 1000 code unit, trova rapidamente il chunk massimo valido invece di
+
+Line 996: // avanzare un solo carattere per iterazione.
+
+Line 1021: // Evita split nel mezzo di surrogate pair UTF-16
+
+Line 1049: // Lettura cache con supporto chiave precedente per continuità operativa.
+
+Line 1050: // Manteniamo questo ramo solo come fallback, così V2 prevale se presente.
+
+Line 1081: // ⚠️ Prima invalidiamo sempre: evita mix V2-inline + multipart stale dopo downgrade/upgrade.
+
+Line 1089: // ⚠️ Multipart è una protezione tecnica contro il limite CacheService (~100KB/entry),
+
+Line 1090: // non una riduzione funzionale della KB.
+
+Line 1141: /**
+ * Svuota manualmente la cache globale (knowledge/config) per forzare reload.
+ * Utile come comando da eseguire a mano dall'editor Apps Script.
+ */
+
+Line 1146: // ⚠️ Comando operativo ufficiale: resetta RAM + ScriptCache in modo coerente.
+
+Line 1147: // Evitare reset "parziali" altrove: causano stati fantasma e reload intermittenti.
+
+Line 1164: // Invalida anche la cache di sistema (CacheService)
+
+Line 1175: // Alias per invocazione manuale o da trigger precedenti.
+
+Line 1180: /**
+ * Forza invalidazione + ricarica immediata usando le funzioni operative già esistenti
+ * (`clearKnowledgeCache`/`clearCache` + `loadResources`).
+ * Da usare quando cambia il contenuto dei fogli e non si vuole attendere il TTL.
+ */
+
+Line 1187: // Non invertire l'ordine (reload->clear) o si ottiene una cache svuotata subito dopo il warm-up.
+
+Line 1219: // Google Sheets può restituire gli orari nativi come Date (es. 30 Dec 1899 14:00:00)
+
+Line 1220: // Coerenza timezone con _formatDateForKnowledgeText: usare script TZ quando possibile.
+
+Line 1240: // Fallback per ambienti non-GAS (es. test Node.js)
+
+Line 1273: // NOTA: Il sistema attualmente supporta solo blocchi orari interi. I minuti vengono deliberatamente scartati.
+
+Line 1331: // Fallback difensivo per sheet manipolati manualmente:
+
+Line 1332: // sceglie le prime due celle orarie valide da sinistra a destra.
+
+Line 1347: // null = sheet assente (distinto da {}: sheet presente ma nessuna regola impostata)
+
+Line 1366: // Modalità lingua (F2): "Tutte le lingue" | "Solo straniere"
+
+Line 1367: // Fallback difensivo su "all" per retrocompatibilità.
+
+Line 1379: // Retrocompatibilità: alcuni test/fogli legacy non espongono F2.
+
+Line 1389: // Supporta anche layout compatti/varianti in cui la data fine è in C o E.
+
+Line 1400: // Fallback su layout legacy A6:C9 (evita riga 10 che è l'inizio della sospensione)
+
+Line 1411: // Ignora righe palesemente vuote o con placeholder comuni
+
+Line 1434: // Sospensione: supporta sia il layout single-sheet corrente
+
+Line 1435: // (A=giorno, B=inizio, D=fine) sia il legacy
+
+Line 1440: // Preferisce l'etichetta del giorno presente nel foglio (layout corrente A o legacy B).
+
+Line 1458: // Cross-midnight: splitta in [start, 24] sul giorno corrente
+
+Line 1459: // e [0, end] sul giorno successivo.
+
+Line 1472: // Recipient email per revisione validazione (A19)
+
+Line 1479: // Ignora errori su A19
+
+Line 1485: // null = fallback sicuro a SUSPENSION_HOURS in isInSuspensionTime
+
+Line 1508: // Dedup + fallback su config statica
+
+Line 1523: /**
+ * Configura tutti i trigger necessari al sistema.
+ * Eseguire manualmente una volta per ripristinare i trigger principali.
+ */
+
+Line 1544: /**
+ * Alias retrocompatibile documentato nei runbook legacy.
+ * Configura trigger principali + manutenzione.
+ */
+
+Line 1552: /**
+ * Alias retrocompatibile per deployment produzione (ogni 5 minuti).
+ */
+
+Line 1559: /**
+ * Configura il trigger di elaborazione email.
+ */
+
+Line 1564: // GAS supporta solo alcuni intervalli per everyMinutes().
+
+Line 1578: /**
+ * Configura il trigger per l'export delle metriche (ore 23:00).
+ */
+
+Line 1591: /**
+ * Export giornaliero metriche su Google Sheet (best effort).
+ */
+
+Line 1614: // Header automatico se il foglio è vuoto
+
+Line 1627: // Riga strutturata per modello
+
+Line 1635: // Archivio dati granulari per analisi statistica.
+
+Line 1643: /**
+ * Elimina trigger esistenti per uno specifico handler, evitando duplicati.
+ */
+
+Line 1655: /**
+ * Configura il trigger per la pulizia settimanale della memoria.
+ * La funzione associata (weeklyMemoryCleanup) deve esistere nel progetto.
+ */
+
+Line 1668: /**
+ * Entrypoint alternativo per trigger e script preesistenti.
+ * Delega direttamente a main().
+ */
+
+Line 1676: /**
+ * Funzione principale invocata dal trigger temporale (es. ogni 5 min)
+ */
+
+Line 1682: // Jitter: previene collisioni esatte al millisecondo in caso di trigger sovrapposti
+
+Line 1685: // 0. Controllo Preventivo Gmail Advanced Service
+
+Line 1719: // Nota progettuale: evitiamo di accodare trigger aggiuntivi qui per non creare
+
+Line 1720: // una tempesta di trigger concorrenti; il trigger periodico successivo riproverà.
+
+Line 1731: // TTL allineato al budget esecuzione (280 s) + margine sicurezza
+
+Line 1739: // Self-healing: se la cache risulta ancora non caricata dopo un reset manuale
+
+Line 1740: // o uno stato transitorio, forziamo una seconda inizializzazione.
+
+Line 1752: // 3. Controllo Stato Sistema
+
+Line 1773: // 4. Orchestrazione Pipeline (Delegato alle classi di servizio)
+
+Line 1774: // Rilascia il gate globale prima di costruire/avviare servizi che usano ScriptLock
+
+Line 1775: // internamente (RateLimiter, MemoryService, lock thread). La deduplica operativa
+
+Line 1776: // resta protetta dai lock granulari e dall'idempotenza su singolo messaggio.
+
+Line 1791: // Passaggio della dottrina strutturata e testo piatto per compatibilità con i formati di input
+
+Line 1825: // Chiave stabile: il TTL della CacheService rappresenta la finestra di lock.
+
+Line 1826: // Usare bucket per minuto permetteva sovrapposizioni tra trigger consecutivi
+
+Line 1827: // mentre il batch precedente era ancora in esecuzione.
+
+Line 1945: /**
+ * Serializza righe foglio in testo robusto per prompt/validator.
+ * - converte in stringa e trimma ogni cella
+ * - rimuove celle vuote
+ * - rimuove righe completamente vuote
+ */
+
+Line 1978: /**
+ * Normalizza la serializzazione celle per evitare output locale-dipendente.
+ * In particolare, le Date di Google Sheets vengono convertite in formato stabile
+ * (YYYY-MM-DD oppure YYYY-MM-DD HH:mm) invece di "Tue May 12 2026 ...".
+ */
+
+Line 1990: // Evita che ritorni a capo dentro una singola cella spezzino la struttura
+
+Line 1991: // del testo KB (una riga Sheet deve restare una riga logica nel prompt).
+
+Line 2003: // Fallback al timezone di riferimento per evitare spostamenti di giorni imprevisti.
+
+Line 2007: // Google Sheets archivia i valori "solo orario" come Date con anno 1899.
+
+Line 2008: // In KB preferiamo serializzare solo l'orario (HH:mm), non una data fittizia.
+
+Line 2022: // Rileviamo se Utilities supporta davvero i token orari richiesti.
+
+Line 2023: // Nei test Node il mock può restituire stringhe complete (es. "2026-05-10")
+
+Line 2024: // anche per pattern come 'H'/'m'/'s': in quel caso facciamo fallback ai parts
+
+Line 2025: // per evitare di classificare erroneamente una data-only come data+ora.
+
+Line 2032: // Nota edge-case: in Google Sheets una data/ora esattamente alle 00:00
+
+Line 2033: // è indistinguibile da una "data-only" guardando solo i componenti temporali.
+
+Line 2034: // In quel caso questa serializzazione produrrà yyyy-MM-dd.
+
+Line 2041: // Fallback Node/tests: prova a rispettare lo stesso fuso orario dello script.
+
+Line 2076: // Ignora e usa fallback UTC sotto.
+
+Line 2121: /**
+ * Estrae un periodo ferie da una riga del layout Controllo B5:E7.
+ * Il layout documentato usa B=inizio e D=fine, ma alcuni fogli reali
+ * possono avere la fine in C (layout compatto) o E. Per evitare falsi
+ * periodi invalidi, usa la prima coppia di date valide trovata sulla riga.
+ * @param {Array<*>} row - Riga letta da B:E.
+ * @returns {{start: *, end: *}} Valori originali di inizio/fine da convertire a valle.
+ */
+
+Line 2143: // Preferenza esplicita: D (layout documentato), poi C (compatto), poi E (variante estesa).
+
+Line 2147: /**
+ * Converte valori data provenienti da Google Sheets in Date valide.
+ * Supporta Date native, seriali Sheets e stringhe italiane gg/mm/aaaa.
+ * @param {*} value - Valore cella da convertire
+ * @returns {Date|null} Date valida o null se non interpretabile
+ */
+
+Line 2159: // Google Sheets usa 1899-12-30 come origine dei seriali data.
+
+Line 2160: // I seriali data odierni sono > 40000. Sotto 36526 (anno 2000) o per numeri
+
+Line 2161: // molto piccoli (es. ore 8, 12) restituiamo null per evitare falsi positivi.
+
+Line 2180: // Formato italiano più comune nei fogli: gg/mm/aaaa o gg-mm-aaaa.
+
+Line 2199: // Evita la "UTC midnight trap": in JS/GAS le stringhe ISO date-only
+
+Line 2200: // (es. 2026-12-25) vengono interpretate a mezzanotte UTC e, con fusi
+
+Line 2201: // negativi, possono retrocedere al giorno precedente via getDate().
+
+Line 2226: /**
+ * Trigger automatico che si attiva ad ogni modifica del foglio.
+ */
+
+Line 2240: // Ogni modifica alle risorse usate da loadResources aggiorna il timestamp virtuale
+
+Line 2241: // e svuota ScriptCache: il reload avviene poi nel ciclo main con lock.
+
+
+=========================================
+FILE: gas_memory_service.js
+=========================================
+Line 1: /**
+ * MemoryService.gs - Memoria conversazionale per GAS
+ * Usa Google Sheet come storage
+ * 
+ * STORAGE: Google Sheet "ConversationMemory" con colonne:
+ * A: threadId
+ * B: language
+ * C: category
+ * D: tone
+ * E: providedInfo (JSON array)
+ * F: lastUpdated (timestamp)
+ * G: messageCount
+ * H: version (per controllo concorrenza ottimistico)
+ * 
+ * FUNZIONALITÀ:
+ * - Cache locale per performance
+ * - Lock granulare (per thread) con CacheService
+ * - Controllo concorrenza ottimistico con versione
+ * - Topic tracking (anti-ripetizione)
+ * - Operazioni atomiche
+ */
+
+Line 36: // Cache per performance (evita lookup ripetuti)
+
+Line 40: // Limite hard per evitare crescita RAM incontrollata
+
+Line 41: // Contatore per Garbage Collection periodica
+
+Line 54: /**
+   * Inizializza o crea il foglio memoria
+   */
+
+Line 63: // Crea nuovo foglio con intestazioni
+
+Line 85: /**
+   * Verifica e normalizza le intestazioni del foglio.
+   * Garantisce che tutte le colonne necessarie siano presenti e rinominate correttamente.
+   */
+
+Line 110: // O un'altra colonna se appropriato
+
+Line 122: // Se è un alias noto, lo normalizziamo
+
+Line 128: // Se la colonna è vuota, impostiamo il default
+
+Line 133: // Per le ultime colonne (version, memorySummary), forziamo la coerenza
+
+Line 150: /**
+   * Ottiene memoria per un thread
+   */
+
+Line 167: // Trova riga per threadId
+
+Line 177: // Memorizza in cache
+
+Line 191: /**
+   * Legge la memoria con doppio livello: Cache veloce → Sheets come fallback.
+   * Riduce la dipendenza dalla latenza di Sheets e previene la perdita di contesto.
+   */
+
+Line 196: // getMemory implementa già il multi-livello (RAM locale + CacheService).
+
+Line 197: // Duplicare qui la cache con prefisso alternativo introdurrebbe stato incoerente.
+
+Line 201: /**
+   * Restituisce la cronologia recente per il thread specificato.
+   * Attualmente espone i topic salvati in providedInfo; la cronologia
+   * conversazionale completa resta in GmailService.getThreadHistory.
+   *
+   * @param {string} threadId
+   * @param {number} [limit=10] numero massimo di entry da restituire
+   * @returns {Array<{topic: string, userReaction: string}>}
+   */
+
+Line 222: /**
+   * Aggiorna memoria per un thread (merge con esistente)
+   * Usa lock granulare + retry + optimistic locking
+   */
+
+Line 240: // Sharding basato su hash del threadId per ridurre la contention
+
+Line 243: // Stato locale OCC: aggiorniamo la expectedVersion ad ogni conflitto
+
+Line 244: // per evitare retry inutili con versione ormai obsoleta.
+
+Line 261: // 2. Acquisisci Lock Globale per scrittura fisica (B4)
+
+Line 266: // 3. Rileggi dati freschi dallo Sheet
+
+Line 274: // Verifica controllo concorrenza ottimistico
+
+Line 318: // Invalida cache locale
+
+Line 351: /**
+   * Scrive su entrambi i livelli (Sheets e Cache).
+   * Aggiornato per utilizzare updateMemory che è transazionale e gestisce già inv. cache e lock.
+   */
+
+Line 360: // Invalidazione preventiva cache prima della lettura di allineamento
+
+Line 364: // Scelta intenzionale: qui NON usiamo updateMemoryAtomic.
+
+Line 366: // e updateMemory garantisce già lock + retry + coerenza cache con costo minore.
+
+Line 367: // Se servono topic o coerenza multi-entità, usare updateMemoryAtomic nei callsite dedicati.
+
+Line 368: // Se fallisce anche dopo i retry, qui non rilanciamo: la memoria è best-effort.
+
+Line 376: /**
+   * Aggiorna memoria E topic in un'unica operazione atomica
+   * Previene inconsistenze: tutto o niente in un singolo lock
+   * 
+   * @param {string} threadId - ID del thread
+   * @param {Object} newData - Dati da aggiornare (language, category, tone, etc.)
+   * @param {(string|Object)[]} providedTopics - Topic da aggiungere (opzionale)
+   * @returns {boolean} - true se l'operazione è riuscita
+   */
+
+Line 391: // Filtra campi interni (_*) per evitare persistenza accidentale su Sheets
+
+Line 399: // Accetta anche solo topic (se newData è nullo o vuoto ma providedTopics è presente)
+
+Line 444: // 1.5 Acquisisci Lock Globale per scrittura (B4)
+
+Line 457: // Controllo concorrenza ottimistico opzionale
+
+Line 474: // Limita providedInfo per evitare memory bloat
+
+Line 553: // Protezione best-effort: non distruggere il batch fallendo.
+
+Line 554: // Invece di throw, logghiamo l'errore e ritorniamo false per permettere all'email_processor di finire il job (labeling).
+
+Line 572: /**
+   * Restituisce l'ultima causa diagnostica di fallimento updateMemoryAtomic.
+   */
+
+Line 579: /**
+   * Aggiunge topic alla lista info fornite
+   * NON incrementa messageCount
+   */
+
+Line 649: /**
+   * Imposta lingua per un thread
+   */
+
+Line 662: /**
+   * Imposta categoria per un thread
+   */
+
+Line 675: /**
+   * Aggiorna la reazione dell'utente a un topic specifico
+   * @param {string} threadId 
+   * @param {string} topic 
+   * @param {string} reaction 'acknowledged' | 'questioned' | 'needs_expansion'
+   * @param {object} context (Optional) info extra su scippet/match
+   */
+
+Line 694: // Trova e aggiorna il topic
+
+Line 698: // Aggiorna userReaction e context se fornito
+
+Line 716: // METODI HELPER PRIVATI
+
+Line 719: /**
+   * Restituisce il numero di colonne da leggere
+   */
+
+Line 726: /**
+   * Trova riga per threadId usando TextFinder
+   * Ritorna { rowIndex, values } o null
+   */
+
+Line 733: // getLastRow() restituisce l'ultima riga effettiva con dati.
+
+Line 734: // getMaxRows() includerebbe migliaia di righe vuote, rallentando la ricerca TextFinder.
+
+Line 737: // Evita errore out-of-bounds se il foglio contiene solo l'intestazione.
+
+Line 740: // Limita il range alla colonna A per la ricerca del Thread ID
+
+Line 744: // Cerca solo nei valori
+
+Line 752: // Verifica sicurezza: l'ID deve essere nella colonna A (indice 1)
+
+Line 754: // Leggi SOLO la riga trovata (molto efficiente)
+
+Line 763: // Doppio controllo per sicurezza
+
+Line 775: /**
+   * Serializza le scritture su Spreadsheet con ScriptLock globale.
+   * Riduce conflitti tra thread diversi durante inserimenti o aggiornamenti della riga.
+   * @param {Function} writeOperation callback con la scrittura effettiva
+   * @param {boolean} alreadyLocked se true, assume che il lock sia già acquisito
+   */
+
+Line 807: // Lock già rilasciato o non acquisito: ignora
+
+Line 813: /**
+   * Normalizza i topic forniti in formato oggetto.
+   */
+
+Line 842: // per evitare perdite durante cicli di normalizzazione + merge.
+
+Line 864: /**
+   * Merge topic evitando duplicati per chiave "topic".
+   */
+
+Line 886: // Manteniamo la reazione utente pregressa se il nuovo topic arriva senza segnale esplicito.
+
+Line 887: // Questo evita di perdere metadati storici durante deduplica per chiave "topic".
+
+Line 930: // Lock globale per scrittura (B4)
+
+Line 984: // METODI HELPER PRIVATI
+
+Line 987: /**
+   * Genera chiave lock sharded basata su hash threadId
+   */
+
+Line 997: /**
+   * Tenta acquisizione lock sharded (single-key su CacheService, senza lock globale).
+   */
+
+Line 1018: // TTL >= tempo massimo di acquisizione + attesa lock sheet + margine: evita scadenze durante retry lenti.
+
+Line 1031: // CacheService non offre put-if-absent: serializziamo solo il breve check+put+verify.
+
+Line 1040: // Piccola attesa per lasciare propagare il put in ambienti con latenza cache.
+
+Line 1046: // Race residua/propagazione anomala: non acquisire se il token non è il nostro.
+
+Line 1119: /**
+   * Valida e normalizza timestamp ISO
+   * @param {string} timestamp
+   * @returns {string} timestamp valido
+   */
+
+Line 1160: // Intervallo di validità futuro: consenti fino a 24h per compensare drift/fusi orari
+
+Line 1168: // Canonicalizza sempre in ISO-8601 UTC per evitare formati locali non stabili
+
+Line 1169: // (es. "2/25/2026, 17:00:00") che possono degradare confronti/sort cronologici.
+
+Line 1173: /**
+   * Restituisce il numero di colonne da leggere
+   */
+
+Line 1183: // Normalizzazione dati: converte stringhe semplici in oggetti strutturati
+
+Line 1186: // Standardizzazione: allinea la nomenclatura senza mutare l'input originale
+
+Line 1196: // Fallback per vecchi formati non JSON (se esistenti) o errori
+
+Line 1220: /**
+   * Aggiorna riga esistente
+   */
+
+Line 1265: // Troncamento rapido per evitare loop O(n²) su storici lunghi.
+
+Line 1271: // Stima lineare: taglio proporzionale per ridurre serializzazioni iterative.
+
+Line 1293: // METODI CACHE
+
+Line 1331: // Implementazione Garbage Collection periodica della cache in-memory
+
+Line 1340: // CacheService per riuso tra esecuzioni del trigger
+
+Line 1369: // Eviction FIFO temporale: rimuove la entry più vecchia in RAM.
+
+Line 1370: // È una scelta intenzionale perché in GAS la memoria disponibile è limitata.
+
+Line 1393: /**
+   * Pulisce la cache dagli elementi scaduti
+   */
+
+Line 1405: // Rimuove entry nulle o scadute dalla cache
+
+Line 1444: /**
+   * Svuota tutta la cache
+   */
+
+Line 1455: // Nota: CacheService non espone listKeys, quindi possiamo pulire solo chiavi note/tracciate.
+
+Line 1463: // METODI UTILITÀ
+
+Line 1466: /**
+   * Pulisce voci vecchie (più vecchie di N giorni)
+   */
+
+Line 1514: // Non eliminiamo fisicamente righe del foglio: con righe vuote intermedie,
+
+Line 1515: // formattazioni o formule fuori tabella è più sicuro svuotare l'area stale.
+
+Line 1529: /**
+   * Alias retrocompatibile usato in alcuni runbook legacy.
+   * @returns {{removed:number, remaining:number}}
+   */
+
+Line 1539: /**
+   * Ottieni statistiche sull'uso della memoria
+   */
+
+Line 1592: /**
+   * Verifica se il servizio è sano
+   */
+
+Line 1603: /**
+   * (Rimossa definizione sperimentale di lock per evitare conflitti e lock scorretti)
+   */
+
+Line 1607: /**
+   * Calcola quanto della domanda originale è stato coperto
+   * (Funzionalità avanzata per future implementazioni di auto-valutazione)
+   */
+
+Line 1642: // Funzione factory
+
+Line 1648: // FUNZIONE TRIGGER PULIZIA
+
+Line 1657: /**
+ * @deprecated Usa setupWeeklyCleanupTrigger() in gas_main.js.
+ * Questa funzione è mantenuta per retrocompatibilità ma NON deve essere
+ * richiamata insieme a setupWeeklyCleanupTrigger() per evitare trigger duplicati.
+ * Configura trigger settimanale per pulizia automatica memoria.
+ */
+
+Line 1668: /**
+ * Alias per compatibilità: alcuni trigger storici puntano a weeklyMemoryCleanup.
+ * Wrapper mantenuto per retrocompatibilità con chiamate legacy.
+ */
+
+
+=========================================
+FILE: gas_prompt_context.js
+=========================================
+Line 8: // Validazione input
+
+Line 17: // Sanitizza lastUpdated non valido.
+
+Line 41: // NOTE: metadata remains inside input (knowledgeBaseMeta) for test compatibility
+
+Line 42: // and with the code that reads this.input in debug/telemetry: we do not use an external field.
+
+Line 73: /**
+     * Detects temporal cues in the text-based KB.
+     * Covers explicit years, local dates (dd/mm or dd-mm), and times (hh:mm).
+     */
+
+
+=========================================
+FILE: gas_prompt_engine.js
+=========================================
+Line 18: // Template filtering configuration per profile
+
+Line 37: // Delegate to centralized function in gas_main.js (DRY)
+
+Line 43: /**
+   * Normalizes heterogeneous values into a safe string for the prompt.
+   * Avoids "[object Object]" output when a resource is passed in a non-string format.
+   */
+
+Line 135: // Input compatibility: some legacy flows pass concerns as an array of keys.
+
+Line 280: // BLOCCO 1: SETUP CRITICO (Priorità Massima)
+
+Line 289: // 3. REGOLE NO REPLY
+
+Line 339: // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)
+
+Line 431: // 19. CONTRATTO QUALITÀ RISPOSTA (sempre incluso)
+
+Line 471: // BLOCCO 4: RINFORZO FINALE
+
+Line 474: // 27. REMINDER ERRORI CRITICI
+
+Line 500: // TEMPLATE 1: CRITICAL ERRORS REMINDER (CONDENSED VERSION)
+
+Line 573: //url", non "[url](url)".');
+
+Line 1457: // TEMPLATE 19: REGOLE NO REPLY
+
+Line 1905: // METODI UTILITÀ
+
+Line 1927: /**
+   * Truncates the KB semantically by paragraphs, preserving context.
+   * Instead of cutting mid-sentence, it maintains complete paragraphs up to the budget.
+   * @param {string} kbContent - Contenuto KB originale
+   * @param {number} charLimit - Limite massimo caratteri già calcolato a monte
+   * @returns {string} KB troncata
+   */
+
+
+=========================================
+FILE: gas_rate_limiter.js
+=========================================
+Line 1: /**
+ * GeminiRateLimiter.gs - Gestione Quote API Gemini
+ * 
+ * SINCRONO - Compatibile con Google Apps Script
+ * Configurazione modelli centralizzata in gas_config.js
+ * Reset quota: ore 9:00 italiane (mezzanotte Pacific)
+ * Cache ottimizzata per ridurre letture PropertiesService
+ * 
+ * FUNZIONALITÀ:
+ * - Traccia utilizzo RPM (richieste/minuto), TPM (token/minuto), RPD (richieste/giorno)
+ * - Seleziona automaticamente il modello disponibile
+ * - Applica throttling quando ci si avvicina ai limiti
+ * - Passa al modello di riserva se il principale è esaurito
+ */
+
+Line 20: // CONFIGURAZIONE MODELLI (Legge da CONFIG)
+
+Line 23: // Legge modelli da CONFIG.GEMINI_MODELS (centralizzato)
+
+Line 29: // Fallback se CONFIG non disponibile
+
+Line 31: // Default conservativo allineato alla policy: 2.5 Flash per generazione,
+
+Line 32: // 3.1 Flash-Lite per task rapidi/ausiliari.
+
+Line 67: // Legge strategia da CONFIG.MODEL_STRATEGY (centralizzato)
+
+Line 84: // Modello di default (primo nella lista generation)
+
+Line 107: // Sincronizzazione dello stato con lo storage persistente.
+
+Line 110: // Inizializza contatori se non esistono
+
+Line 118: // 80% del limite RPM
+
+Line 126: // Calibrato dinamicamente in _shouldThrottle
+
+Line 143: /**
+   * Sostituisce nomi modello deprecati/ritirati con equivalenti supportati.
+   * Mantiene la stessa struttura dell'oggetto modelli.
+   *
+   * @param {Object<string, {name: string}>} models
+   * @returns {Object<string, {name: string}>}
+   */
+
+Line 152: // Mappatura alias lite storici verso il profilo operativo rapido scelto.
+
+Line 158: // Refuso ricorrente: non esiste un modello testuale 'gemini-3.1-flash'; il full-tier è Gemini 3 Flash Preview.
+
+Line 194: // Restituisce sempre una nuova copia normalizzata: il chiamante decide se riassegnarla.
+
+Line 214: // Usa ScriptLock per sincronizzare il reset tra esecuzioni parallele
+
+Line 218: // Tentativo di acquisizione lock con retry (backoff breve)
+
+Line 230: // Rileggi sempre le proprietà dopo aver acquisito il lock per evitare race condition
+
+Line 231: // Usa data Pacific per allinearsi al reset reale delle quote Google
+
+Line 232: // Il reset Google avviene a mezzanotte Pacific = 9:00 AM italiana
+
+Line 236: // Reset quando cambia la data Pacific (non italiana!)
+
+Line 241: // Forza svuotamento cache locale per riflettere subito il reset
+
+Line 269: // Reset anche cache + data Pacific in un'unica scrittura atomica.
+
+Line 281: /**
+   * Ottieni data in formato italiano (per logging user-friendly)
+   */
+
+Line 290: /**
+   * Ottieni data Pacific (per reset quote Google)
+   * Il reset delle quote Google avviene a mezzanotte Pacific Time.
+   * Mezzanotte Pacific = 9:00 AM italiana (in inverno, 8:00 in estate con DST)
+   */
+
+Line 433: // Controllo RPD (aggregato per nome modello fisico condiviso)
+
+Line 456: // Controllo RPM (ultimo minuto)
+
+Line 468: // Controllo TPM (ultimo minuto)
+
+Line 534: // GAS usa runtime effimero: ricarichiamo il valore ridotto persistito a ogni esecuzione.
+
+Line 565: /**
+   * Esegue richiesta con rate limiting
+   * VERSIONE SINCRONA per Google Apps Script
+   * 
+   * @param {string} taskType - Tipo task: 'quick_check', 'generation', etc.
+   * @param {Function} requestFn - Funzione che riceve modelName ed esegue la richiesta
+   * @param {Object} options - {estimatedTokens, maxRetries, forceModel, skipRateLimit}
+   * @returns {Object} {success, result, modelUsed, quotaUsed}
+   */
+
+Line 578: // BYPASS PER CHIAVE DI RISERVA
+
+Line 579: // Se stiamo usando una chiave esterna, NON dobbiamo tracciare i consumi
+
+Line 580: // sul Rate Limiter locale per non inquinare le statistiche della chiave principale
+
+Line 586: // Esecuzione diretta senza controlli quota
+
+Line 594: // Statistiche fittizie per non sporcare contatori
+
+Line 607: // 1. Esecuzione con retry (sincrono)
+
+Line 645: // Completa la richiesta consumando contatori giornalieri e consolidando la riserva RPM/TPM.
+
+Line 667: // Rilascia la riserva corrente prima di eventuali retry o abort,
+
+Line 668: // così non blocchiamo artificialmente la capacità minuto.
+
+Line 677: // Interrompi immediatamente se la quota è esaurita su TUTTE le chiavi
+
+Line 683: // Uso la classificazione centralizzata (difensiva in caso di runtime modulare)
+
+Line 699: // Errore non ritentabile
+
+Line 705: // Tutti i tentativi falliti
+
+Line 733: // TRACCIAMENTO con cache
+
+Line 740: // Se la richiesta era stata già riservata nelle finestre RPM/TPM, non dobbiamo
+
+Line 741: // aggiungere una seconda entry minuto: aggiorniamo solo i contatori giornalieri
+
+Line 742: // e marchiamo la reservation come completata per dedup/diagnostica.
+
+Line 747: // 1-2. Contatori RPD/Tokens con incremento atomico (evita race condition)
+
+Line 750: // 3. Finestra RPM (con cache) - solo per richieste non prenotate
+
+Line 771: // GAS esegue trigger in istanze effimere: persistenza immediata evita perdite
+
+Line 772: // silenziose delle entry RPM/TPM quando una run termina in meno di 10s.
+
+Line 780: /**
+   * Incrementa contatori persistenti con lock script-level.
+   */
+
+Line 785: // Timeout ridotto per evitare hang prolungati in console sotto concorrenza
+
+Line 844: /**
+   * Traccia chiamate Gemini ausiliarie non gestite dal normale executeRequest
+   * (es. creazione cache REST). Anche queste consumano RPD, quindi passano
+   * dallo stesso contatore giornaliero con ScriptLock.
+   */
+
+Line 884: // Conservativo: non rilasciamo la prenotazione se il modello non ha cercato,
+
+Line 885: // per evitare race tra esecuzioni concorrenti e sottostime del limite condiviso.
+
+Line 914: // Timeout ridotto a 10s per evitare hang
+
+Line 951: /**
+   * Aggiorna finestra con cache (riduce PropertiesService I/O)
+   */
+
+Line 957: // Invalida cache se troppo vecchia
+
+Line 969: // Limita dimensioni array per rispettare limiti PropertiesService (~9kb)
+
+Line 974: // GAS è runtime effimero: persiste subito per non perdere stato RPM/TPM tra esecuzioni.
+
+Line 1019: // 1. Merge dello stato persistito con eventuali entry in-memory recenti.
+
+Line 1025: // Taglio di sicurezza esplicito per RPM (garantito da _mergeWindowData, ma ri-applicato come fallback)
+
+Line 1031: // 2. Stessa logica di merge per TPM.
+
+Line 1037: // Taglio di sicurezza esplicito per TPM (garantito da _mergeWindowData, ma ri-applicato come fallback)
+
+Line 1054: /**
+   * Persiste la cache tramite architettura di persistenza transazionale (WAL)
+   * Garantisce coerenza strutturale dei dati in ambienti operativi distribuiti
+   */
+
+Line 1065: // Timeout ridotto a 10s per evitare blocchi infiniti in console.
+
+Line 1082: // Rilegge lo stato persistito dentro lock ed esegue merge con cache locale.
+
+Line 1103: // Backup durevole per sopravvivere a eventuale eviction cache/flush transitori
+
+Line 1111: /**
+   * Sincronizza lo stato operativo leggendo le transazioni WAL non completate
+   * Chiamato nel constructor prima di inizializzare i contatori
+   */
+
+Line 1116: // Utilizzo di lock per garantire atomicità durante la sincronizzazione attiva
+
+Line 1160: // Verifica che il WAL non sia troppo vecchio (> 5 minuti)
+
+Line 1172: // Merge WAL con dati esistenti (evita duplicati per timestamp)
+
+Line 1204: // Ottimizzazione: evitiamo getProperties() che è lentissimo.
+
+Line 1205: // Leggiamo il numero di chunk direttamente dalle proprietà note.
+
+Line 1218: // Eliminiamo i chunk RPM
+
+Line 1222: // Eliminiamo i chunk TPM
+
+Line 1227: // Esecuzione eliminazione massiva (se supportata) o singola
+
+Line 1363: // Ordina per timestamp e limita
+
+Line 1367: // Limita dimensione array a max 8KB per evitare crash PropertiesService.
+
+Line 1368: // Evita il pattern O(nÂ²) di JSON.stringify() ad ogni iterazione.
+
+Line 1381: // rimuove anche una virgola
+
+Line 1404: // Altrimenti leggi da PropertiesService
+
+Line 1450: // Ottimizzazione: leggiamo solo le chiavi specifiche invece di allProps.getProperties()
+
+Line 1511: // Recupera data/ora corrente Pacific tramite API GAS nativa (robusta su trigger).
+
+Line 1521: // Mezzanotte Pacific del giorno successivo riportata in UTC.
+
+Line 1529: // Fallback locale approssimativo se Utilities non è disponibile.
+
+Line 1536: // Il rate limiter riceve estimatedTokens dal chiamante (es. GeminiService),
+
+Line 1537: // che può applicare logiche multimodali più accurate rispetto a una stima generica.
+
+Line 1650: // FUNZIONI UTILITÀ (per dashboard e manutenzione)
+
+Line 1653: /**
+ * Dashboard quota (esegui manualmente da editor script)
+ */
+
+Line 1670: /**
+ * Reset manuale contatori (usare con cautela!)
+ */
+
+
+=========================================
+FILE: gas_request_classifier.js
+=========================================
+Line 21: // Domande procedurali, normative, su numeri, condizioni formali
+
+Line 33: // Domande su numeri/quantità (peso 2)
+
+Line 157: /**
+   * Classifies the email request
+   * Returns continuous dimensions, complexity, and suggested tone.
+   */
+
+Line 212: // Boost dimensionale basato su Gemini (alternativa a categoria)
+
+Line 232: // 4. Determinazione Tipo Primario (Compatibilità Base)
+
+Line 290: // Carico Emotivo: Basato su dimensione pastorale
+
+Line 366: // match() with global flag returns an array of matched strings, not groups
+
+Line 450: /**
+   * Normalizes LLM confidence in [0..1] range, also accepting localized formats.
+   * Supported examples: 0.82, "0,82", "82%", 82.
+   */
+
+Line 571: // Determina l'istruzione sul tono
+
+
+=========================================
+FILE: gas_response_validator.js
+=========================================
+Line 1: /**
+ * ResponseValidator.gs - AI Response Validation
+ * Checks quality and safety of generated responses
+ * 
+ * QUALITY CONTROLS:
+ * ✅ Length and UX
+ * ✅ Language consistency
+ * ✅ Uncertainty phrase detection
+ * ✅ Placeholder identification
+ * ✅ Signature validation
+ * ✅ Data integrity verification (email, phones, times)
+ * ✅ Process leak detection (thinking leak)
+ */
+
+Line 30: // Soglia minima accettabile
+
+Line 38: // Upper limit for structured responses (e.g. multiple sacraments).
+
+Line 54: // Legitimate uncertainty phrases (soft-warning, NO score reduction)
+
+Line 55: // In a pastoral context, expressions like "could be" or "probably"
+
+Line 79: // AI meta-comments (restricted)
+
+Line 81: // Azioni su KB
+
+Line 87: // Pattern conversazionali non catturati dalle regex
+
+Line 169: /**
+   * Validates response completely
+   * @param {string} response - Response text to validate
+   * @param {string} detectedLanguage - Detected language
+   * @param {string} knowledgeBase - KB for hallucination check
+   * @param {string} emailContent - Original email content
+   * @param {string} emailSubject - Email subject
+   * @param {string} salutationMode - Salutation mode ('full'|'soft'|'none_or_continuity')
+   * @returns {Object} Validation result
+   */
+
+Line 316: // === CONTROLLO 1: Lunghezza ===
+
+Line 323: // === CONTROLLO 2: Consistenza lingua ===
+
+Line 330: // === CONTROLLO 3: Firma ===
+
+Line 337: // === CONTROLLO 4: Contenuto vietato ===
+
+Line 343: // === CONTROLLO 5: Allucinazioni ===
+
+Line 351: // === CONTROLLO 6: Maiuscola dopo virgola ===
+
+Line 358: // === CONTROLLO 7: Ragionamento esposto ===
+
+Line 365: // === CONTROLLO 8: Saluto temporalmente incongruente ===
+
+Line 371: // === CONTROLLO 9: Coerenza temporale eventi/date ===
+
+Line 388: /**
+   * Controllo 1: Validazione lunghezza
+   */
+
+Line 421: /**
+   * Controllo 2: Consistenza lingua
+   */
+
+Line 442: // Accent-aware boundaries without lookbehind/property escapes: Apps Script V8 can
+
+Line 443: // vary by version, while this range covers the supported Latin markers.
+
+Line 487: /**
+   * Controllo 3: Firma (obbligatoria su primo contatto, opzionale su follow-up)
+   */
+
+Line 495: // In quick follow-ups, the signature is optional
+
+Line 541: // (e.g. "todo" in Spanish) for alphabetic placeholders.
+
+Line 543: // Avoid false positives on natural lowercase words (e.g. "todo" in Spanish).
+
+Line 544: // Acronym placeholders must appear in uppercase.
+
+Line 559: // Validazione input: ignora stringhe vuote
+
+Line 560: // For '...', check if used as a placeholder (not ellipsis in the text)
+
+Line 573: // no nesting
+
+Line 590: /**
+   * Control 5: Hallucinations (invented data not in KB)
+   */
+
+Line 618: // Sostituzione mirata dei separatori orari.
+
+Line 645: // === Controllo orari ===
+
+Line 646: // GAS compatibility: avoid variable-length lookbehind, which in some V8 runtimes
+
+Line 700: // === Controllo email ===
+
+Line 701: // ReDoS protection with explicit limit on the local part of the email
+
+Line 720: // === Controllo numeri telefono ===
+
+Line 722: // Excludes date pattern (DD/MM/YYYY) and common times
+
+Line 742: // Exclude numbers in whitelist (e.g. sender, thread) or in original message
+
+Line 746: // If the number is present in the original text, it is legitimate to repeat it
+
+Line 760: /**
+   * Controllo 6: Maiuscola dopo virgola
+   */
+
+Line 769: // Titles and honorific forms (especially in ecclesiastical context)
+
+Line 795: // Solo warning, non blocca l'invio
+
+Line 810: // causerebbe warning sistematici non affidabili.
+
+Line 813: // Lingua non supportata: evita warning non correggibili automaticamente
+
+Line 879: /**
+   * Control 7: Thinking Leak (Exposed Reasoning)
+   * Detects when the AI exposes its thinking process in the response
+   */
+
+Line 931: /**
+   * Control 8: Temporally Incongruent Greeting
+   * Detects if the greeting in the response is appropriate for current time
+   */
+
+Line 944: // Determina fascia oraria corrente (fuso orario italiano)
+
+Line 961: // Estrai saluto dai primi 100 caratteri della risposta
+
+Line 980: // If no greeting detected, OK (might be continuity mode)
+
+Line 1295: // and if there are no placeholders
+
+Line 1300: // 3. Perfezionamento Saluto temporalmente incongruente
+
+Line 1324: /**
+   * Corregge saluto temporalmente incongruente
+   * Es. "Buongiorno" alle 20:00 → "Buonasera"
+   */
+
+Line 1331: // Determina fascia oraria corrente (fuso orario italiano)
+
+Line 1352: // Cerca saluto errato nei primi 80 caratteri
+
+Line 1397: // We define rules per language
+
+Line 1439: /**
+   * Escape metacharacters for safe use in RegExp
+   */
+
+Line 1470: // METODI UTILITÀ
+
+Line 1535: /**
+   * Valida allucinazioni usando similitudine semantica
+   */
+
+
+=========================================
+FILE: gas_setup_ui.js
+=========================================
+Line 1: /**
+ * @file gas_setup_ui.js
+ * @description "Single-sheet first" UI Setup for Controllo, with data validations and protections.
+ */
+
+Line 32: /**
+ * Applies ONLY the data validation rules to the Controllo sheet.
+ * Does not modify layout, colors, or text. Useful for formatting entered data.
+ * NOW ALSO RECREATES MISSING NAMED RANGES.
+ */
+
+Line 91: /**
+ * Main setup: maintains the layout in the Controllo sheet (base style), without forcing multi-sheet.
+ */
+
+Line 152: // ASSENZE compatte nel Controllo
+
+Line 159: // Date rules are applied afterwards
+
+Line 180: // Sospensione oraria
+
+Line 186: // Filtri nella stessa pagina
+
+Line 204: // Applica le constraints GUIDATE dall'utente
+
+Line 237: // Initialized in setupControlloSheet
+
+Line 257: // Ensures consistency in parallel executions (e.g. simultaneous triggers).
+
+Line 291: // cfg_timezone included: B4 is initialized in setupControlloSheet with Session.getScriptTimeZone()
+
+Line 350: /**
+ * Applies input validations and protections on the Controllo sheet
+ * (User-suggested logic)
+ */
+
+Line 378: // Date ferie/malattia: B5,D5 - B7,D7
+
+Line 408: // Controllo orario B < D
+
+Line 418: // Filtri domini/keyword direttamente su Controllo
+
+Line 437: // Protezioni Warning Only sulle etichette
+
+Line 442: /**
+ * Sets protections in warning-only mode on the specified ranges.
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ * @param {string[]} rangesA1
+ */
+
+Line 454: // Pulisce eventuali protezioni precedenti sullo stesso A1.
+
+
+=========================================
+FILE: gas_territory_validator.js
+=========================================
+Line 54: // Civici reali nel tratto parrocchiale: solo pari 16-38
+
+Line 64: // Automatic management of articles via deterministic normalization.
+
+Line 83: // Exposes rules as a mutable Map for direct access in tests
+
+Line 87: /**
+     * Builds the tolerant regex pattern for street types.
+     * Accepted examples: "Via", "V i a", "V.ia", "Vía".
+     */
+
+Line 93: // via / viale
+
+Line 130: // Nome via tollerante:
+
+Line 133: // - numeri nel toponimo (es. "24 Maggio")
+
+Line 141: // Pattern 2: "abito in via Rossi 10" or "abito in via: Rossi 10"
+
+Line 157: /**
+     * Searches for match in the territory database using fuzzy matching
+     * Requires at least one consecutive pair of words to avoid false positives
+     */
+
+Line 175: // Gestisce alias tipo "piazza marina" → "piazza della marina",
+
+Line 176: // "via del corso" → "via corso", etc.
+
+Line 177: // The strip occurs ONLY on intermediate tokens (not on the street type in pos. 0).
+
+Line 209: // Evita conflitti tra tipologie diverse (es. "via" vs "viale")
+
+Line 220: // Require at least ONE consecutive pair (among input tokens) present in the DB
+
+Line 230: // Checks if the two tokens are consecutive in the DB as well
+
+Line 270: /**
+     * Normalizza nome via: lowercase, trim, spazi, espansione abbreviazioni
+     * Espande le abbreviazioni comuni (es. G. -> giovanni)
+     */
+
+Line 300: // Remove special characters not allowed in street names (retains letters, numbers, spaces, apostrophes)
+
+Line 313: /**
+     * Estrae indirizzi completi (via + civico) dal testo
+     */
+
+Line 319: // Limit input length for safety
+
+Line 351: // Validazione lunghezza nome via
+
+Line 366: // Also allow street number 0 (present in some land registries), valid range 0-9999
+
+Line 392: /**
+     * Cleans the text used for street extraction without street number.
+     * Avoids including form labels (e.g. "Date of Birth") in street name.
+     */
+
+Line 425: /**
+     * Estrae solo vie (senza civico) dal testo
+     */
+
+Line 505: // Explicit handling of Array vs Boolean type for 'all'
+
+Line 614: /**
+     * Analyzes an email to find and verify addresses
+     */
+
+Line 623: // 1. Aggiungi prima gli indirizzi completi (più affidabili)
+
+
+=========================================
+FILE: gas_unit_tests.js
+=========================================
+Line 9: // Bootstrap Node.js: carica script GAS e mock minimi per esecuzione locale/CI
+
+Line 26: // Mock minimi obbligatori
+
+Line 204: // FUNZIONI HELPER
+
+Line 240: // TEST SUITE
+
+Line 664: // La cache vuota è trattata come assente: forniamo fallback neutro
+
+Line 685: // Con il mock corretto, il path atteso è: classifyEmail → shouldReply:true →
+
+Line 686: // shouldRespondToEmail → shouldRespond:false → _markMessageAsProcessed solo sul candidato,
+
+Line 687: // preservando i secondari esterni per un trigger successivo.
+
+Line 1606: // Testo con lettere accentate. Deve essere > 30 caratteri totali
+
+Line 1607: // e contenere almeno 5 lettere [a-zA-ZÀ-ÿ].
+
+
+=========================================
+FILE: maintenance\remove_bom.js
+=========================================
+Line 12: // Legge come buffer per vedere i byte grezzi
+
+Line 17: // Controllo per UTF-8 BOM: EF BB BF
+
+Line 20: // Rimuove i primi 3 byte
+
+Line 33: // Forse non è un BOM ma un carattere spazzatura?
+
+Line 34: // Controllo se il primo carattere non è ASCII standard
+
+Line 41: // Se node -c fallisce su \uFEFF, forse è letteralmente la stringa "\uFEFF"?
+
+
+=========================================
+FILE: scripts\ci_smoke_tests.js
+=========================================
+Line 17: /**
+ * Smoke tests executable in CI Node.js
+ * - Loads GAS files in Node VM for pure-JS regression checks
+ * - Does NOT touch Google services (PropertiesService, UrlFetchApp, ...)
+ *
+ * MINIMUM THRESHOLD: if the number of tests falls below MIN_EXPECTED_TESTS
+ * the process exits with an error (protection against accidental removal).
+ */
+
+Line 225: // TEST TERRITORY VALIDATOR
+
+Line 331: // TEST ERROR TYPES (classificazione centralizzata)
+
+Line 378: // TEST GEMINI SERVICE
+
+Line 511: // TEST RESPONSE VALIDATOR
+
+Line 673: // TEST EMAIL PROCESSOR (pure functions)
+
+Line 680: // Primo messaggio → full
+
+Line 1366: // Intentional: the test must verify the true triggerable entry point of the project.
+
+Line 2275: // TEST SICUREZZA (escapeHtml, sanitizeUrl, markdownToHtml)
+
+Line 2321: // Dotted quad in hex notation -> null
+
+Line 2357: // Script injection nel testo deve essere escaped
+
+Line 2361: // Test bold funziona ancora
+
+Line 3119: // Use the mock helper to avoid API Key configuration errors
+
+Line 3122: // Test with keyword "não" (previously confused with Italian "non") and Portuguese punctuation
+
+Line 3188: // Very long body with citation at the end (extremely long Gmail thread scenarios)
+
+Line 3507: // Instead of overwriting Date (which breaks the constructor in the vm sandbox),
+
+Line 3508: // we directly mock Intl.DateTimeFormat in the context to return
+
+Line 3509: // the expected Pacific day for 2026-05-07T06:30:00Z (= 2026-05-06 in LA, UTC-7).
+
+
+=========================================
+FILE: tests\test_advanced_config.js
+=========================================
+Line 78: // invalido -> ignorato
+
+Line 79: // invalido -> ignorato
+
+
+=========================================
+FILE: tests\test_email_processor_batch.js
+=========================================
+Line 590: // Filtriamo solo le chiamate a geminiService.generateResponse (oggetti)
+
+
+=========================================
+FILE: tests\test_gemini_service.js
+=========================================
+Line 41: // Test 1: Array di oggetti senza ruolo
+
+Line 46: // Test 2: Stringa semplice
+
+Line 145: //generativelanguage.googleapis.com/v1beta/models/test:generateContent';
+
+
+=========================================
+FILE: tests\test_gmail_service.js
+=========================================
+Line 44: //example.org/path?q=1') === 'https://example.org/path?q=1', 'URL https valido deve passare');
+
+Line 52: //[::1%25lo0]/admin') === null, 'IPv6 loopback con zone-id deve essere bloccato (SSRF)');
+
+Line 53: //[::ffff:127.0.0.1%25eth0]/admin') === null, 'IPv4-mapped IPv6 con zone-id deve essere bloccato (SSRF)');
+
+
+=========================================
+FILE: tests\test_intelligent_retry_logic.js
+=========================================
+Line 46: // 1. Test _classifyValidationForRetry
+
+Line 61: // 2. Test _shouldAttemptIntelligentRetry
+
+Line 87: // 3. Test _buildCorrectionPrompt
+

@@ -1,0 +1,5488 @@
+[
+  {
+    "type": "multi",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "startLine": 1,
+    "endLine": 14,
+    "text": "*\n * Classifier.gs - Classificazione email semplificata\n * \n * FILOSOFIA:\n * - Filtra SOLO acknowledgment ultra-semplici (≤3 parole)\n * - Filtra SOLO saluti standalone\n * - TUTTO IL RESTO va a Gemini per analisi intelligente\n * - Zero falsi negativi: in caso di dubbio, Gemini decide\n * \n * FUNZIONALITÀ:\n * - Rilevamento sub-intent per sfumature emotive\n * - Categorizzazione suggerimento per Gemini\n * - Estrazione contenuto principale (rimuove citazioni/firme)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 26,
+    "text": "Categorie per suggerimenti a Gemini",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 71,
+    "text": "Parole chiave sub-intent per sfumature emotive",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 108,
+    "text": "Supporto firma alternativa: il 3° parametro può essere senderEmail anziché booleano.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 114,
+    "text": "Sicurezza null e limite lunghezza",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 126,
+    "text": "Evita di lasciare nel payload un tag HTML aperto/spezzato dal troncamento.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 166,
+    "text": "Se il body è vuoto e NON soddisfa criterio sopra, usa subject per filtri rapidi",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 218,
+    "text": "TUTTO IL RESTO: Passa a Gemini",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "startLine": 244,
+    "endLine": 247,
+    "text": "*\n   * Estrae contenuto principale, rimuovendo citazioni e firme.\n   * Input atteso: plain-text (body email).",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 256,
+    "text": "Marcatori citazione per vari client email",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 284,
+    "text": "Mantieni righe vuote per separazione paragrafi",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 295,
+    "text": "Salta blocchi citati, ma consenti inline-reply dopo quote",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 321,
+    "text": "Rimuovi firme solo quando appaiono come riga dedicata.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 322,
+    "text": "Classifica correttamente l'identificazione precisa delle firme contestuali in frasi come:",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 323,
+    "text": "\"Cordiali saluti da tutta la famiglia, vorrei sapere se...\"",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 324,
+    "text": "L'approccio line-based garantisce precisione nell'identificazione delle firme",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 325,
+    "text": "ed evita falsi positivi all'interno di frasi di testo libero.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "startLine": 372,
+    "endLine": 374,
+    "text": "*\n   * Controlla se acknowledgment ultra-semplice (≤3 parole, nessuna domanda)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 386,
+    "text": "Fallback compatibilità runtime che non supportano Unicode property escapes",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 399,
+    "text": "Deve contenere parola di ringraziamento/ricevuto",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "startLine": 407,
+    "endLine": 409,
+    "text": "*\n   * Rileva pattern espliciti di auto-risposta (OOO/ferie)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "startLine": 429,
+    "endLine": 431,
+    "text": "*\n   * Verifica se solo saluto",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 440,
+    "text": "Runtime legacy senza normalize: proseguiamo con la normalizzazione disponibile.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "startLine": 451,
+    "endLine": 453,
+    "text": "*\n   * Rileva body banale (vuoto o solo \"Re:\")",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "startLine": 469,
+    "endLine": 471,
+    "text": "*\n   * Categorizza contenuto (suggerimento per Gemini)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 486,
+    "text": "Ritorna categoria con punteggio più alto",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "startLine": 530,
+    "endLine": 536,
+    "text": "*\n   * Rileva se il testo contiene segnali espliciti di consegna documentale.\n   * Usato come early-exit in classifyEmail per evitare falsi negativi su email\n   * con allegati (es. \"in allegato troverà il certificato\").\n   * @param {string} text - Testo principale estratto (body senza citazioni/firme)\n   * @returns {boolean}",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_classifier.js",
+    "line": 555,
+    "text": "Funzione factory",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "startLine": 1,
+    "endLine": 7,
+    "text": "*\n * Config.gs - Configurazione centralizzata del sistema\n * Tutti i parametri configurabili sono definiti qui\n * \n * NOTA: Configurazione base per repository. Valori sensibili vanno in Script Properties.\n * Le chiavi sensibili (API Key, Spreadsheet ID) sono rimosse o mascherate.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 11,
+    "text": "In produzione: PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY')",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 41,
+    "text": "Mai più di 1: budget GAS limitato",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 42,
+    "text": "Soglia minima score per considerare retry non critici",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 43,
+    "text": "Tipi di errore che giustificano una chiamata LLM",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 54,
+    "text": "Label per email processate",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 55,
+    "text": "Label per errori",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 56,
+    "text": "Label per risposte da rivedere",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 57,
+    "text": "Label per email italiane saltate in modalità foreign_only",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 58,
+    "text": "Verifica coerenza tra email e allegati",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 59,
+    "text": "Ridotto a 2 per supportare strategia \"Cross-Key Quality First\"",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 60,
+    "text": "Fino a 4 chiamate API per email → batch ridotto per prevenire timeout GAS (6 min)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 62,
+    "text": "Riduce dinamicamente il batch quando RPD supera l'80%",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 63,
+    "text": "Soglia per rilevamento email loop",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 64,
+    "text": "Soglia per warning inbox vuota",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 65,
+    "text": "Paracadute: processa unread vecchie anche in fascia sospesa",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 66,
+    "text": "Se true: foglio Controllo presente ma invalido => fallback orari statici",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 67,
+    "text": "Stop preventivo se resta meno di 90 secondi",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 69,
+    "text": "Buffer discovery per candidati message-level (circa 5x MAX_EMAILS_PER_RUN)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 71,
+    "text": "Modalità di scoperta messaggi non letti da elaborare.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 72,
+    "text": "- 'query'   : default operativo, message-level con query Gmail -label:...",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 73,
+    "text": "- 'metadata': fallback prudente/manuale (list INBOX/UNREAD + get(minimal) per labelIds)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 76,
+    "text": "Budget massimo per run (default GAS trigger ~6 minuti)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 77,
+    "text": "6 ore in millisecondi",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 78,
+    "text": "Massimo messaggi in cronologia thread",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 81,
+    "text": "Numero massimo di allegati da processare (ridotto per payload multimodale)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 82,
+    "text": "3 MB per file (ridotto per payload Base64)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 83,
+    "text": "Limite testo per singolo allegato",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 86,
+    "text": "Soglia warning leggibilità OCR in risposta",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 88,
+    "text": "Stima caratteri per pagina PDF",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 89,
+    "text": "Attiva OCR solo se il contenuto è rilevante",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 93,
+    "text": "Focus OCR se viene trovato un IBAN",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 94,
+    "text": "Finestra +/- per testo attorno all'IBAN",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 95,
+    "text": "Riduzione allegati se KB è troncata",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 97,
+    "text": "Età massima file OCR temporanei prima del cleanup",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 100,
+    "text": "=== Token per tipo allegato (stima multimodale) ===",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 102,
+    "text": "Token stimati per immagine (Gemini Vision)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 103,
+    "text": "Token stimati per PDF",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 104,
+    "text": "Token stimati per altri documenti",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 107,
+    "text": "=== Cache e Lock ===",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 109,
+    "text": "Secondi (>= MAX_EXECUTION_TIME_MS/1000 con margine)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 111,
+    "text": "Log verbose: tenere false in produzione",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 112,
+    "text": "Soft limit locale anti-burst prima del limite Gmail reale",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 113,
+    "text": "Limite pagine Gmail list per bootstrap label cache",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 114,
+    "text": "Limite messaggi Gmail list per bootstrap label cache",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 118,
+    "text": "In produzione preferire Script Properties.KNOWN_ALIASES",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 119,
+    "text": "Formati accettati: JSON array o lista separata da virgola/newline/punto e virgola.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 123,
+    "text": "In produzione: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID')",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 138,
+    "text": "Limite massimo topic in memoria",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 139,
+    "text": "Lock TTL in secondi per MemoryService (>= timeout lock Sheet)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 140,
+    "text": "Timeout attesa ScriptLock prima di scrivere su Sheet",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 147,
+    "text": "True per test senza invio email",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 153,
+    "text": "Cap operativo locale sotto 1M per evitare payload GAS ingestibili",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 154,
+    "text": "Limite caratteri prompt prima del troncamento di sicurezza",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 157,
+    "text": "Limite serializzazione memoria providedInfo per riga Sheet",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 159,
+    "text": "Riserva token per istruzioni/fixed context fuori KB",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 163,
+    "text": "Messaggi massimi per thread prima di anti-loop",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 168,
+    "text": "Log in formato JSON",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 169,
+    "text": "Invia email per errori critici",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 174,
+    "text": "Configurare METRICS_SHEET_ID in Script Properties per abilitare export",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 178,
+    "text": "=== Modelli Gemini (configurazione centralizzata) ===",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 180,
+    "text": "Policy: 2.5 Flash per risposte finali; 3.1 Flash-Lite per task rapidi/ausiliari.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 181,
+    "text": "Dati tecnici operativi Free Tier: verificare sempre i limiti effettivi in AI Studio.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 195,
+    "text": "Free Tier: lasciare false salvo disponibilità esplicita in AI Studio.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 196,
+    "text": "Il servizio degrada comunque a generateContent diretto se cachedContents non è disponibile.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 266,
+    "text": "Strategia selezione modelli per task (ordine = priorità)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 277,
+    "text": "=== Liste di esclusione ===",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 279,
+    "text": "Il matcher supporta sia exact match (email) sia suffisso dominio in _shouldIgnoreEmail.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 302,
+    "text": "NOTA: non dichiarare LANGUAGE_MARKERS qui per evitare doppia dichiarazione",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.example.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.example.js",
+    "line": 303,
+    "text": "quando questo file è caricato insieme a gas_config.js in runtime GAS.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "startLine": 1,
+    "endLine": 4,
+    "text": "*\n * Config.js - Configurazione centralizzata del sistema\n * Tutti i parametri configurabili sono definiti qui",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 36,
+    "text": "Non JSON: accettiamo lista separata da virgola, punto e virgola o newline.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 57,
+    "text": "Soglia warning sotto cui aggiungere etichetta Verifica",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 76,
+    "text": "Limite di esecuzione per sessione GAS",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 77,
+    "text": "Soglia minima score per considerare retry non critici",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 78,
+    "text": "Tipi di errore che giustificano una chiamata LLM",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 89,
+    "text": "Label per email processate",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 90,
+    "text": "Label per errori",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 91,
+    "text": "Label per risposte da rivedere",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 92,
+    "text": "Label per email italiane saltate in modalità foreign_only",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 93,
+    "text": "Abilita verifica coerenza tra email e allegati",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 94,
+    "text": "Configurazione dei limiti operativi per garantire stabilità e rispetto delle quote.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 96,
+    "text": "Regolazione batch in base al carico operativo RPD",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 97,
+    "text": "Soglia per rilevamento email loop",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 98,
+    "text": "Soglia per warning inbox vuota",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 99,
+    "text": "Garanzia di elaborazione dei messaggi non letti persistenti",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 100,
+    "text": "Se true: foglio Controllo presente ma invalido => fallback SUSPENSION_HOURS (non 24/7)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 101,
+    "text": "Margine di sicurezza temporale per la sessione",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 103,
+    "text": "Buffer discovery per candidati message-level (≈ 5x MAX_EMAILS_PER_RUN)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 105,
+    "text": "Modalità di scoperta messaggi non letti da elaborare.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 106,
+    "text": "- 'query'   : default operativo, message-level con query Gmail -label:...",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 107,
+    "text": "- 'metadata': fallback prudente/manuale (list INBOX/UNREAD + get(minimal) per labelIds)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 108,
+    "text": "Configurato su 'query' per ottimizzare l'uso della quota API in lettura",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 111,
+    "text": "Tempo massimo stimato per singola esecuzione GAS",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 112,
+    "text": "6 ore in millisecondi",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 113,
+    "text": "Massimo messaggi in cronologia thread (ricalibrato)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 116,
+    "text": "Numero massimo di allegati da processare",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 117,
+    "text": "3 MB per file",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 118,
+    "text": "Limite testo per singolo allegato",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 121,
+    "text": "Soglia warning leggibilità OCR in risposta",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 123,
+    "text": "Stima caratteri per pagina PDF",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 124,
+    "text": "Attiva OCR solo se il contenuto è rilevante",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 128,
+    "text": "Focus OCR se viene trovato un IBAN",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 129,
+    "text": "Finestra +/- per testo attorno all'IBAN",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 130,
+    "text": "Riduzione allegati se KB è troncata",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 132,
+    "text": "Età massima file OCR temporanei prima del cleanup",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 135,
+    "text": "=== Token per tipo allegato (stima multimodale per budget prompt) ===",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 137,
+    "text": "Token stimati per immagine (Gemini Vision)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 138,
+    "text": "Token stimati per PDF",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 139,
+    "text": "Token stimati per altri documenti",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 142,
+    "text": "=== Cache e Lock ===",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 143,
+    "text": "Margine sotto 100KB/entry CacheService per ridurre quota exceeded",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 144,
+    "text": "Secondi (>= MAX_EXECUTION_TIME_MS/1000 con margine)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 146,
+    "text": "Abilita log verbose (console.log); in produzione tenerlo false",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 147,
+    "text": "Soft limit locale anti-burst prima del limite Gmail reale",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 148,
+    "text": "Limite pagine Gmail list per bootstrap label cache",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 149,
+    "text": "Limite messaggi Gmail list per bootstrap label cache",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 152,
+    "text": "=== Alias noti (anti-loop: il bot riconosce sé stesso anche quando invia da alias) ===",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 171,
+    "text": "Limite massimo topic in memoria",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 172,
+    "text": "Lock TTL in secondi per MemoryService (>= timeout lock Sheet)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 173,
+    "text": "Timeout attesa ScriptLock prima di scrivere su Sheet",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 180,
+    "text": "True per test senza invio email",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 186,
+    "text": "Cap operativo locale: resta sotto 1M per evitare payload GAS ingestibili",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 187,
+    "text": "Limite caratteri prompt prima del troncamento di sicurezza",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 190,
+    "text": "Limite serializzazione memoria providedInfo per riga Sheet",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 192,
+    "text": "Riserva token per istruzioni/fixed context fuori KB",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 196,
+    "text": "Messaggi massimi per thread prima di anti-loop",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 201,
+    "text": "Log in formato JSON",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 202,
+    "text": "Invia email per errori critici",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 203,
+    "text": "Email admin per notifiche",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 207,
+    "text": "Configurare METRICS_SHEET_ID in Script Properties per abilitare export",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 211,
+    "text": "=== Modelli Gemini (configurazione centralizzata) ===",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 215,
+    "text": "- Task rapidi/ausiliari: Gemini 3.1 Flash-Lite (categoria, lingua AI, semantica, scarti)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 216,
+    "text": "Fonte quote operative: verificare i limiti effettivi nel progetto AI Studio.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 217,
+    "text": "Le quote effettive possono variare per progetto: se AI Studio mostra limiti inferiori,",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 219,
+    "text": "- Contesto massimo per prompt: 1.048.576 token",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 223,
+    "text": "- Grounding Google Search: tenere disabilitato in Free Tier salvo disponibilità esplicita in AI Studio",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 224,
+    "text": "- Vietato usare /countTokens: il conteggio resta locale e stimato.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 225,
+    "text": "- Privacy: nel piano gratuito input/output possono essere usati per training Google (valutare impatto GDPR)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 239,
+    "text": "Free Tier: abilitare solo se AI Studio mostra Context caching attivo",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 240,
+    "text": "per il progetto; GeminiService degrada comunque a generateContent diretto.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 242,
+    "text": "55 minuti: sotto il default 1h per ridurre cache stale",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 244,
+    "text": "Minimo documentato per caching sui modelli Flash recenti",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 247,
+    "text": "Abilitare solo per flussi che richiedono dati web in tempo reale.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 248,
+    "text": "Il tool viene inserito nella creazione cache, mai nella generateContent finale.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 256,
+    "text": "Risparmia RPD: retry brevi e ripetuti consumano il collo di bottiglia giornaliero",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 265,
+    "text": "Modello principale per la risposta finale: qualita.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 275,
+    "text": "Stesso tier qualita su chiave di riserva.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 285,
+    "text": "Modello rapido per categoria, lingua AI, semantica e scarti.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 295,
+    "text": "Alias esplicito compatibile per la serie 3.1 Lite; non usato nelle strategie",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 296,
+    "text": "primarie per evitare fallback ridondanti verso lo stesso modello fisico.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 306,
+    "text": "Backup logico Lite per chiave di riserva o fallback controllati.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 318,
+    "text": "Strategia selezione modelli per task (ordine = priorità)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 329,
+    "text": "=== Liste di esclusione ===",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 331,
+    "text": "Il matcher supporta sia exact match (email) sia suffisso dominio in _shouldIgnoreEmail.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 372,
+    "text": "NOTA: GLOBAL_CACHE è dichiarata con init difensiva in gas_main.js.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 373,
+    "text": "NON ridichiarare qui per evitare conflitti di ordine esecuzione file GAS.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 376,
+    "text": "VALIDAZIONE CONFIGURAZIONE",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "startLine": 379,
+    "endLine": 383,
+    "text": "*\n * Valida la configurazione all'avvio con schema rigoroso\n * Previene silent failures da typo o tipi errati\n * @returns {Object} Risultato validazione {valid: boolean, errors: string[]}",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 387,
+    "text": "Helper per validazione tipo",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 394,
+    "text": "Helper per validazione range",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 405,
+    "text": "2. Validazione Tipi e Valori Logici",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 425,
+    "text": "SKIP_LABEL_NAME può essere stringa vuota (\"\") per disabilitare il labeling in foreign_only: è intenzionale.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 486,
+    "text": "Se ci sono errori, logghiamoli subito",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "startLine": 498,
+    "endLine": 501,
+    "text": "*\n * Ottiene la configurazione\n * @returns {Object} Oggetto CONFIG",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "startLine": 506,
+    "endLine": 509,
+    "text": "*\n * Healthcheck del sistema\n * @returns {Object} Stato dei componenti",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 518,
+    "text": "Controllo configurazione",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_config.js",
+    "line": 549,
+    "text": "Determina stato complessivo",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_logger.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_logger.js",
+    "startLine": 1,
+    "endLine": 3,
+    "text": "*\n * Logger.gs - Sistema di logging strutturato e centralizzato",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_logger.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_logger.js",
+    "line": 16,
+    "text": "Nota: non usare il nome `Logger` per evitare shadowing del built-in GAS `Logger.log()`.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_logger.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_logger.js",
+    "line": 40,
+    "text": "Guardia null: il default `= {}` copre solo `undefined`, non `null`.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_logger.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_logger.js",
+    "line": 80,
+    "text": "Invia notifica per errori critici",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_logger.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_logger.js",
+    "line": 160,
+    "text": "Scrittura preventiva per ridurre la finestra di race tra esecuzioni concorrenti.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_logger.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_logger.js",
+    "line": 161,
+    "text": "Il successivo valore 'sent' è idempotente e prolunga il cooldown in caso di invio riuscito.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_logger.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_logger.js",
+    "startLine": 196,
+    "endLine": 198,
+    "text": "*\n   * Crea logger con contesto specifico",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_logger.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_logger.js",
+    "startLine": 209,
+    "endLine": 211,
+    "text": "*\n * Factory function per creare logger",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_prompt_context.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_context.js",
+    "startLine": 1,
+    "endLine": 4,
+    "text": "*\n * PromptContext.gs - Calcola profilo e concern runtime\n * Determina dinamicamente quali regole del prompt sono attive",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_context.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_context.js",
+    "line": 14,
+    "text": "Copia shallow iniziale per evitare side-effect sul parametro in ingresso.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_context.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_context.js",
+    "line": 18,
+    "text": "Nota: il doppio controllo su memory è intenzionale per evitare TypeError",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_context.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_context.js",
+    "line": 19,
+    "text": "quando il chiamante non passa il blocco memoria.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_context.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_context.js",
+    "line": 40,
+    "text": "Mantiene knowledgeBase originale inalterata e crea metadati separati.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_context.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_context.js",
+    "line": 41,
+    "text": "NOTA: i metadati restano dentro input (knowledgeBaseMeta) per compatibilita con i test",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_context.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_context.js",
+    "line": 42,
+    "text": "e con il codice che legge this.input in debug/telemetria: non usiamo un campo esterno.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_context.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_context.js",
+    "line": 57,
+    "text": "Se il chiamante fornisce containsDates esplicito (true/false),",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_context.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_context.js",
+    "line": 58,
+    "text": "deve avere precedenza per evitare override automatici inattesi.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_prompt_context.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_context.js",
+    "startLine": 73,
+    "endLine": 76,
+    "text": "*\n     * Rileva segnali temporali nella KB testuale.\n     * Copre anni espliciti, date locali (dd/mm o dd-mm) e orari (hh:mm).",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_prompt_context.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_context.js",
+    "startLine": 85,
+    "endLine": 89,
+    "text": "*\n     * Serializzazione robusta della KB:\n     * - gestisce riferimenti circolari senza lanciare eccezioni;\n     * - evita fallback generici tipo \"[object Object]\" che perderebbero informazione.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "startLine": 1,
+    "endLine": 10,
+    "text": "*\n * PromptEngine.gs - Generazione prompt modulare\n * Sezioni template modulari (numero variabile per profilo/condizioni)\n * Supporta filtro dinamico basato su profilo\n *\n * Include:\n * - Recupero selettivo Dottrina\n * - Checklist contestuale\n * - Ottimizzazione struttura prompt",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 18,
+    "text": "Configurazione filtering template per profilo",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "startLine": 33,
+    "endLine": 35,
+    "text": "*\n   * Stima token (approx 4 char/token per l'italiano/inglese)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 37,
+    "text": "Delega alla funzione centralizzata in gas_main.js (DRY)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "startLine": 43,
+    "endLine": 46,
+    "text": "*\n   * Normalizza valori eterogenei in stringa sicura per il prompt.\n   * Evita output \"[object Object]\" quando una risorsa viene passata in forma non-stringa.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "startLine": 59,
+    "endLine": 61,
+    "text": "*\n   * Determina se un template deve essere incluso in base a profilo e concern",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 75,
+    "text": "Salta esempi a meno che formatting_risk non sia attivo",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "startLine": 85,
+    "endLine": 94,
+    "text": "*\n   * Costruisce il prompt completo dal contesto\n   * Supporta filtro dinamico template basato su profilo\n   *\n   * ORDINE SEZIONI:\n   * 1. Setup critico (Ruolo, Lingua, NoReply, KB, Territorio) - Priorità alta\n   * 2. Contesto (Memoria, Continuità, Cronologia, Email)\n   * 3. Linee guida (Formattazione, Tono, Esempi)\n   * 4. Rinforzo finale (Errori critici, Checklist)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 135,
+    "text": "Compatibilità input: alcuni flussi legacy passano i concern come array di chiavi.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 149,
+    "text": "PRE-STIMA E BUDGETING TOKEN (Protezione Memory Growth)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "startLine": 237,
+    "endLine": 239,
+    "text": "*\n     * Helper per aggiungere sezioni tracciando il budget token",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "startLine": 268,
+    "endLine": 270,
+    "text": "*\n     * Helper per aggiungere template condizionali",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 292,
+    "text": "4. KNOWLEDGE BASE (già troncata se necessario)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 295,
+    "text": "5. VERIFICA TERRITORIO",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 306,
+    "text": "BLOCCO 2: CONTESTO E CONTINUITÀ",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 315,
+    "text": "8. SCUSE PER RITARDO",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 341,
+    "text": "Normalizzazione: alcuni flussi passano requestType come stringa",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 366,
+    "text": "13. AI_CORE_LITE: solo se componente pastorale",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 377,
+    "text": "14. AI_CORE esteso: solo se discernimento",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 435,
+    "text": "BLOCCO 3: LINEE GUIDA E TEMPLATE",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 438,
+    "text": "20. LINEE GUIDA (Filtrabili per profilo)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 500,
+    "text": "TEMPLATE 1: ERRORI CRITICI REMINDER (VERSIONE CONDENSATA)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 561,
+    "text": "Regole territorio (se rilevante)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "startLine": 587,
+    "endLine": 590,
+    "text": "*\n   * Recupero selettivo UNIFICATO (Dottrina + Direttive)\n   * Integra logica dimensionale, tono consigliato e volume adattivo",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 1030,
+    "text": "TEMPLATE 7: GESTIONE RITARDO RISPOSTA",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 1081,
+    "text": "TEMPLATE 9: VERIFICA TERRITORIO",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 1566,
+    "text": "tinyurl.com/santiago26) ← ERRORE: URL ripetuto",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "startLine": 1927,
+    "endLine": 1933,
+    "text": "*\n   * Tronca KB semanticamente per paragrafi preservando il contesto.\n   * Invece di tagliare a metà frase, mantiene paragrafi completi fino al budget.\n   * @param {string} kbContent - Contenuto KB originale\n   * @param {number} charLimit - Limite massimo caratteri già calcolato a monte\n   * @returns {string} KB troncata",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_prompt_engine.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_prompt_engine.js",
+    "line": 1993,
+    "text": "Funzione factory per compatibilità",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "startLine": 1,
+    "endLine": 14,
+    "text": "*\n * RequestTypeClassifier.gs - Classificazione Tecnica/Pastorale/Mista\n * \n * TIPI RICHIESTA:\n * - TECHNICAL: domande procedurali (\"si può\", \"quanti\", \"quando\")\n * - PASTORAL: coinvolgimento personale (\"mi sento\", emozioni, ferite)\n * - MIXED: entrambi gli aspetti\n * - DOCTRINAL: richieste spiegazione teologica/dottrinale\n * \n * LOGICA ATTIVAZIONE KB:\n * - AI-Core Lite: Solo quando needsDiscernment || needsDoctrine\n * - AI-Core: Solo quando needsDiscernment = true\n * - Dottrina: Solo quando needsDoctrine = true",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 61,
+    "text": "Prima persona, emozioni, situazioni di vita, richieste di senso",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 86,
+    "text": "Situazioni di vita complesse - ITALIANO (peso 2)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 103,
+    "text": "Situazioni di vita complesse - ENGLISH (peso 2)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 118,
+    "text": "Richieste di senso (peso 3)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "startLine": 157,
+    "endLine": 160,
+    "text": "*\n   * Classifica la richiesta email\n   * Restituisce dimensioni continue, complessità e tono suggerito.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 162,
+    "text": "Configurazione del livello di logging per il monitoraggio delle inferenze.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 199,
+    "text": "3. Logica Ibrida (Integrazione Gemini se disponibile)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 253,
+    "text": "Valore predefinito",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 260,
+    "text": "4b. Confidenza e criteri di sicurezza (anti-falsi positivi)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 276,
+    "text": "Downgrade conservativo: evita etichette forti con segnali deboli",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 284,
+    "text": "Complessità: Somma delle dimensioni attive (> 0.2)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 302,
+    "text": "Indicatori di necessità",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 324,
+    "text": "Usato da getRequestTypeHint() per selezionare template amministrativo.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "startLine": 341,
+    "endLine": 344,
+    "text": "*\n   * Interfaccia semplificata (soggetto + corpo) con ordine parametri invertito.\n   * @deprecated Preferire classify(subject, body, externalHint) per evitare ambiguità.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "startLine": 350,
+    "endLine": 352,
+    "text": "*\n   * Calcola punteggio ponderato per set di indicatori",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 359,
+    "text": "Crea una nuova RegExp globale per ogni indicatore, evitando stato lastIndex condiviso.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 366,
+    "text": "match() con global flag ritorna array di stringhe matchate, non gruppi",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "startLine": 376,
+    "endLine": 378,
+    "text": "*\n   * Sanitizza il testo evitando falsi positivi da quote e firme",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "startLine": 450,
+    "endLine": 453,
+    "text": "*\n   * Normalizza confidence LLM in range [0..1], accettando anche formati localizzati.\n   * Esempi supportati: 0.82, \"0,82\", \"82%\", 82.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "startLine": 476,
+    "endLine": 478,
+    "text": "*\n   * Stima confidenza classificazione (0.0 - 1.0) in modo conservativo",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "startLine": 503,
+    "endLine": 505,
+    "text": "*\n   * Flag di sicurezza per trasparenza (non bloccanti)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "startLine": 521,
+    "endLine": 523,
+    "text": "*\n   * Estrae dimensioni continue da hint esterno (0.0 - 1.0)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "startLine": 548,
+    "endLine": 550,
+    "text": "*\n   * Generatore separatore standard (80 char) per UI hints",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "startLine": 555,
+    "endLine": 558,
+    "text": "*\n   * Ottiene suggerimento tipo richiesta per iniezione nel prompt\n   * Supporta sia stringa pura che oggetto classificazione completo",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 560,
+    "text": "Normalizzazione input: se è stringa, usa solo switch base",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 565,
+    "text": "Input oggetto completo (Nuovo sistema blended)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 644,
+    "text": "Default per mixed o altro",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "startLine": 671,
+    "endLine": 673,
+    "text": "*\n   * Metodo privato per compatibilità con chiamate semplici (solo stringa)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_request_classifier.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_request_classifier.js",
+    "line": 685,
+    "text": "Funzione factory",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 1,
+    "endLine": 13,
+    "text": "*\n * ResponseValidator.gs - Validazione risposte AI\n * Controlla qualità e sicurezza delle risposte generate\n * \n * CONTROLLI DI QUALITÀ:\n * ✅ Lunghezza ed UX\n * ✅ Consistenza linguistica\n * ✅ Rilevamento frasi di incertezza\n * ✅ Identificazione placeholder\n * ✅ Validazione firma\n * ✅ Verifica integrità dati (email, telefoni, orari)\n * ✅ Rilevamento leak di processo (thinking leak)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 29,
+    "text": "Ottieni config - fallback a default se CONFIG non definito",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 38,
+    "text": "Limite superiore per risposte strutturate (es. sacramenti multipli).",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 41,
+    "text": "Frasi vietate (indicatori di rifiuto/incapacità — bloccanti)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 54,
+    "text": "Frasi di incertezza legittima (soft-warning, NO riduzione score)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 55,
+    "text": "In contesto pastorale, espressioni come \"potrebbe essere\" o \"probabilmente\"",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 56,
+    "text": "sono spesso appropriate e non devono bloccare la risposta.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 63,
+    "text": "Marcatori lingua (usa costante condivisa se disponibile)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 73,
+    "text": "Placeholder da rilevare",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 76,
+    "text": "Pattern di ragionamento esposto (thinking leak) - CRITICO",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 79,
+    "text": "Meta-commenti AI (ristretto)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 82,
+    "text": "Range limitato e stop su punto/newline: scelta intenzionale anti-backtracking e anti-falsi positivi cross-frase.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 83,
+    "text": "Deduzioni esplicite da KB",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 90,
+    "text": "Varianti con/senza parentesi: il matching è statico case-insensitive,",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 91,
+    "text": "quindi elenchiamo esplicitamente le forme più probabili.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 113,
+    "text": "Pattern saluti per fasce orarie (Controllo #8)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 148,
+    "text": "Saluti liturgici speciali (eccezione al ✅ orario)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 169,
+    "endLine": 178,
+    "text": "*\n   * Valida risposta in modo completo\n   * @param {string} response - Testo risposta da validare\n   * @param {string} detectedLanguage - Lingua rilevata\n   * @param {string} knowledgeBase - KB per confronto allucinazioni\n   * @param {string} emailContent - Contenuto email originale\n   * @param {string} emailSubject - Oggetto email\n   * @param {string} salutationMode - Modalità saluto ('full'|'soft'|'none_or_continuity')\n   * @returns {Object} Risultato validazione",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 180,
+    "text": "GUARDRAIL: questo validator non deve \"appiattire\" la formattazione utile",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 181,
+    "text": "(liste, paragrafi, enfasi) salvo casi di sicurezza/qualità espliciti.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 182,
+    "text": "Interventi aggressivi di normalizzazione qui possono degradare UX e leggibilità.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 188,
+    "text": "Variabile per gestire la risposta (che potrebbe essere perfezionata)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 197,
+    "text": "--- PRIMO PASSAGGIO DI VALIDAZIONE ---",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 211,
+    "text": "Ri-esegui validazione sul testo corretto",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 224,
+    "text": "=== SEMANTIC VALIDATION (solo se necessario) ===",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 273,
+    "text": "Restituisci testo perfezionato SOLO se valido",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 283,
+    "endLine": 289,
+    "text": "*\n   * Alias per la firma ad oggetto (supporta chiamata con parametri nominali).\n   * Evita rotture quando il chiamante usa validator.validate(response, { ...opts }).\n   * @param {string} response\n   * @param {{language?: string, knowledgeBase?: string, emailContent?: string, body?: string, emailSubject?: string, subject?: string, salutationMode?: string, currentDate?: string, messageDate?: string, temporalContext?: Object}} opts\n   * @returns {Object}",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 307,
+    "endLine": 309,
+    "text": "*\n   * Esegue i ✅ effettivi (estratto per riutilizzo)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 385,
+    "text": "CONTROLLI DI VALIDAZIONE",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 405,
+    "text": "Degradazione progressiva invece di azzeramento diretto del punteggio.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 406,
+    "text": "4500-6000 → warning (0.85); >6000 → errore bloccante.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 429,
+    "text": "Rimuove le citazioni HTML per evitare che il testo quotato (es. thread storico)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 430,
+    "text": "influenzi la rilevazione della lingua della risposta attuale.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 442,
+    "text": "Confini accent-aware senza lookbehind/property escapes: Apps Script V8 può",
+    "flags": {
+      "isItalian": false,
+      "hasHistory": true
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 443,
+    "text": "variare per versione, mentre questo intervallo copre i marker latini supportati.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 444,
+    "text": "(es. \"paróquia\", \"grüße\", \"querría\"). \\b è ASCII-only e fallisce con diacritici.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 450,
+    "text": "Scegli lingua con punteggio più alto",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 460,
+    "text": "Verifica corrispondenza",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 474,
+    "text": "Verifica lingue miste",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 495,
+    "text": "Nei follow-up ravvicinati la firma è opzionale",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 500,
+    "text": "Per primo contatto ('full') e riprese dopo pausa ('soft'): firma attesa",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 511,
+    "endLine": 513,
+    "text": "*\n   * Controllo 4: Contenuto vietato e placeholder",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 520,
+    "text": "Controlla frasi vietate (indicatori incertezza) con confini di parola/frase",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 521,
+    "text": "per ridurre falsi positivi su sottostringhe.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 540,
+    "text": "Evita falsi positivi su sottostringhe di parole reali",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 541,
+    "text": "(es. \"todo\" in spagnolo) per placeholder alfabetici.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 543,
+    "text": "Evita falsi positivi su parole naturali in minuscolo (es. \"todo\" in spagnolo).",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 544,
+    "text": "Placeholder acronimici devono comparire in maiuscolo.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 560,
+    "text": "Per '...', verifica se usato come placeholder (non ellissi nel testo)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 581,
+    "text": "Verifica perdita NO_REPLY",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 590,
+    "endLine": 592,
+    "text": "*\n   * Controllo 5: Allucinazioni (dati inventati non in KB)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 599,
+    "text": "Previene elaborazioni su input malformati o KB non caricate.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 614,
+    "text": "Escludi pattern che potrebbero essere URL o nomi file",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 619,
+    "text": "di corrompere pattern come \"10.5\" o nomi file.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 646,
+    "text": "Compatibilità GAS: evita lookbehind a lunghezza variabile, che in alcuni runtime V8",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": true
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 647,
+    "text": "può fallire in fase di parsing. Il filtro di contesto replica le esclusioni precedenti.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 661,
+    "text": "Whitelist: Escludi URL/nomi file (es. \"v.10.30\"), indirizzi, prezzi, date e versetti biblici.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 701,
+    "text": "Protezione ReDoS con limite esplicito sulla parte locale dell'email",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 721,
+    "text": "Pattern selettivo: richiede prefisso internazionale o separatori standard",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 722,
+    "text": "Esclude pattern data (GG/MM/AAAA) e orari common",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 727,
+    "text": "8+ cifre minimo per evitare falsi positivi. Escludi date YYYYMMDD e DDMMYYYY (B18).",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 742,
+    "text": "Escludi numeri presenti nella whitelist (es. mittente, thread) o nel messaggio originale",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 746,
+    "text": "Se il numero è presente nel testo originale, è legittimo ripeterlo",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 769,
+    "text": "Titoli e forme onorifiche (specialmente in contesto ecclesiastico)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 773,
+    "text": "Parole italiane che NON devono essere maiuscole dopo una virgola",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 793,
+    "text": "Seleziona lista in base alla lingua",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 806,
+    "text": "Francese: set conservativo per ridurre falsi positivi.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 809,
+    "text": "Tedesco: i sostantivi sono maiuscoli per grammatica, quindi questa regola",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 817,
+    "text": "Regex mirata ai token alfabetici semplici dopo virgola: evita falsi positivi su forme elise (es. Un'altra).",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 818,
+    "text": "Nota: mantenuta intenzionalmente conservativa perché questa regola genera warning stilistici, non errori bloccanti.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 825,
+    "text": "Coercizione esplicita a stringa",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 832,
+    "text": "\"La\" è ambigua: può essere pronome formale (ok) o articolo (da segnalare).",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 833,
+    "text": "Se seguito da un verbo comune, trattalo come eccezione; altrimenti lascia passare i controlli.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 845,
+    "text": "Euristica nomi doppi: se la parola è seguita da un'altra maiuscola,",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 846,
+    "text": "probabilmente sono nomi propri (es. \"Maria Isabella\", \"Gian Luca\")",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 879,
+    "endLine": 882,
+    "text": "*\n   * Controllo 7: Ragionamento esposto (Thinking Leak)\n   * Rileva quando l'IA espone il suo processo di pensiero nella risposta",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 905,
+    "text": "Se trovati pattern, applica penalizzazione graduata",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 931,
+    "endLine": 934,
+    "text": "*\n   * Controllo 8: Saluto temporalmente incongruente\n   * Rileva se il saluto nella risposta è appropriato per l'orario corrente",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 939,
+    "text": "Verifica lingua supportata",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 964,
+    "text": "Cerca pattern di saluto",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 980,
+    "text": "Se nessun saluto rilevato, OK (potrebbe essere modalità continuity)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 992,
+    "text": "Verifica se è un saluto liturgico speciale (eccezione)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1005,
+    "text": "Se il saluto è neutro (es. \"Buona domenica\"), saltiamo il controllo orario.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1023,
+    "text": "Penalità lieve (errore di cortesia, non sostanziale)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 1047,
+    "endLine": 1050,
+    "text": "*\n   * Controllo 9: coerenza temporale tra date esplicite e modo in cui sono qualificate.\n   * Il prompt ragiona per obiettivo; qui usiamo pattern conservativi solo come rete di sicurezza.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1265,
+    "text": "METODI DI RAFFINAMENTO AUTOMATICO (QUALITY ENHANCEMENT)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 1268,
+    "endLine": 1270,
+    "text": "*\n   * Tenta di correggere automaticamente gli errori rilevati",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1290,
+    "text": "Cerca [url](url) o [url](url...) e semplifica",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1294,
+    "text": "Applicabile solo se non è un errore di Thinking Leak (che richiede rigenerazione)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1295,
+    "text": "e se non ci sono placeholder",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1315,
+    "text": "Verifica se gruppo1 == gruppo2 (o molto simile)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1348,
+    "text": "Ottieni saluto corretto per l'orario",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1356,
+    "text": "Itera su tutte le fasce orarie per trovare saluti errati",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1359,
+    "text": "Salta la fascia corretta",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1370,
+    "text": "Preserva capitalizzazione originale",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1379,
+    "text": "Sostituisci solo la prima occorrenza all'inizio",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 1390,
+    "endLine": 1392,
+    "text": "*\n   * Corregge maiuscole post-virgola per parole vietate",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1394,
+    "text": "Ri-utilizza la lista delle parole vietate appropriata in base alla lingua",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1397,
+    "text": "Definiamo le regole per lingua",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1401,
+    "text": "Lista minima per inglese",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1404,
+    "text": "Lista minima per spagnolo",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1407,
+    "text": "Lista minima per portoghese",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1413,
+    "text": "Se lingua sconosciuta o non supportata, NON applicare correzioni rischiose",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1421,
+    "text": "Per ogni parola vietata, cerca \", Parola\" e sostituisci con \", parola\"",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1422,
+    "text": "Usa lookahead negativo per evitare match parziali anche con apostrofi finali (es. \"E'\" / \"E\\u2019\")",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1423,
+    "text": "Ma rispetta i nomi doppi: non correggere se seguito da altra maiuscola",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 1439,
+    "endLine": 1441,
+    "text": "*\n   * Escape metacaratteri per uso sicuro in RegExp",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 1446,
+    "endLine": 1448,
+    "text": "*\n   * Rimuove ragionamento esposto (thinking leak) in modo robusto",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1452,
+    "text": "Rimuove prefissi meta-ragionamento comuni in apertura frase",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1459,
+    "text": "Usa thinkingPatterns come sorgente per le keyword di ragionamento",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 1473,
+    "endLine": 1475,
+    "text": "*\n   * Ottieni statistiche configurazione validatore",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1488,
+    "text": "Funzione factory per compatibilità",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 1493,
+    "endLine": 1501,
+    "text": "*\n * SemanticValidator.gs - Validazione semantica con Gemini\n *\n * FILOSOFIA:\n * - Usato SOLO quando regex non è sicura (score < soglia)\n * - Chiamate API leggere\n * - Fallback automatico a regex se API fallisce\n * - Cache risultati (stesso thread)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "startLine": 1582,
+    "endLine": 1584,
+    "text": "*\n   * Valida leak di pensiero usando comprensione semantica",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1627,
+    "text": "COSTRUTTORI PROMPT (ottimizzati per brevità)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1703,
+    "text": "PARSING E UTILITY",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_response_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_response_validator.js",
+    "line": 1816,
+    "text": "Campiona inizio+fine per ridurre collisioni su testi lunghi ma simili",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "startLine": 1,
+    "endLine": 4,
+    "text": "*\n * @file gas_setup_ui.js\n * @description Setup UI \"single-sheet first\" per Controllo, con validazioni e protezioni dei dati.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "startLine": 32,
+    "endLine": 36,
+    "text": "*\n * Applica SOLO le regole di validazione dati al foglio Controllo.\n * Non modifica layout, colori o testi. Utile per formattare i dati inseriti.\n * ORA RICREA ANCHE I NAMED RANGES MANCANTI.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 47,
+    "text": "PULIZIA Totale delle validazioni per evitare conflitti",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 62,
+    "text": "Applica constraints usando la funzione helper dell'utente",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 65,
+    "text": "Assicura che B4 (cfg_timezone) sia valorizzata anche senza setup completo",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 75,
+    "text": "CRUCIALE: Ricrea i Named Ranges se mancano!",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "startLine": 91,
+    "endLine": 93,
+    "text": "*\n * Setup principale: mantiene il layout nel foglio Controllo (stile base), senza imporre multi-foglio.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 137,
+    "text": "Nota: B2 viene gestito da applyControlloInputConstraints_",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 159,
+    "text": "Le regole date sono applicate dopo",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 171,
+    "text": "Formula aggiornata per B/D",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 177,
+    "text": "Formula universale: gestisce sia interi (8) che valori orario (08:00)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 237,
+    "text": "Inizializzata in setupControlloSheet",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 238,
+    "text": "Legacy: nome ambiguo mantenuto per retrocompatibilità (punta alla prima data ferie).",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 240,
+    "text": "Nome esplicito consigliato per nuove integrazioni.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 247,
+    "text": "Schedule da B10 a D16",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 248,
+    "text": "Assenze da A5 a D7",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 257,
+    "text": "Garantisce consistenza in esecuzioni parallele (es. trigger simultanei).",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 290,
+    "text": "Verifica puntuale dei named range critici",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 291,
+    "text": "cfg_timezone inclusa: B4 viene inizializzata in setupControlloSheet con Session.getScriptTimeZone()",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "startLine": 350,
+    "endLine": 353,
+    "text": "*\n * Applica validazioni e protezioni input sul foglio Controllo\n * (Logica suggerita dall'utente)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 389,
+    "text": "Coerenza data inizio <= data fine per ogni riga 5..7",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 396,
+    "text": "Orari sospensione: B10 e D10...B16 e D16 (interi 0-23)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 438,
+    "text": "Nota: E11:F11 è usato come etichetta modificabile e viene escluso volutamente dagli avvisi.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "startLine": 442,
+    "endLine": 446,
+    "text": "*\n * Imposta protezioni in modalità warning-only sui range specificati.\n * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet\n * @param {string[]} rangesA1",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 448,
+    "text": "Recupera tutte le protezioni esistenti per evitare cloni su run ripetuti.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_setup_ui.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_setup_ui.js",
+    "line": 461,
+    "text": "Silenzioso: potrebbe fallire se non siamo owner",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "startLine": 1,
+    "endLine": 6,
+    "text": "*\n * TerritoryValidator.gs - Validazione indirizzi territorio parrocchiale\n * \n * Verifica se un indirizzo appartiene al territorio della parrocchia\n * basandosi su un database di vie e numeri civici.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 12,
+    "text": "Pre-compila le regex per riuso (ottimizzazione performance)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 64,
+    "text": "Gestione automatica degli articoli tramite normalizzazione deterministica.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 83,
+    "text": "Espone le regole come Map mutabile per accesso diretto nei test",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "startLine": 87,
+    "endLine": 90,
+    "text": "*\n     * Costruisce il pattern regex tollerante per i tipi strada.\n     * Esempi accettati: \"Via\", \"V i a\", \"V.ia\", \"Vía\".",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "startLine": 103,
+    "endLine": 105,
+    "text": "*\n     * Normalizza il tipo strada estratto dalla regex in una forma canonica.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 131,
+    "text": "- lettere accentate e apostrofo (range À-ÿ copre la maggior parte dei caratteri europei)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 132,
+    "text": "- abbreviazioni con punto (es. \"S.\")",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 138,
+    "text": "Pattern 1: \"via Rossi 10\" o \"Via: Rossi 10\" - Supporto alfanumerico esteso e SNC",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 141,
+    "text": "Pattern 2: \"abito in via Rossi 10\" o \"abito in via: Rossi 10\"",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "startLine": 146,
+    "endLine": 148,
+    "text": "*\n     * Pre-compila regex per vie senza civico",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 150,
+    "text": "Pattern ottimizzato per la scansione efficiente di nomi strada composti.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "startLine": 157,
+    "endLine": 160,
+    "text": "*\n     * Cerca corrispondenza nel database territorio con fuzzy matching\n     * Richiede almeno una coppia consecutiva di parole per evitare falsi positivi",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 174,
+    "text": "1b. Match con normalizzazione articoli opzionali (deterministico)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 176,
+    "text": "\"via del corso\" → \"via corso\", ecc.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 177,
+    "text": "La strip avviene SOLO sui token intermedi (non sul tipo strada in pos. 0).",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 185,
+    "text": "Preserva sempre il token 0 (tipo strada: via/piazza/viale...)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 197,
+    "text": "2. Match Fuzzy con controllo consecutività",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 212,
+    "text": "Filtra tokens corti inessenziali dall'input (es. \"di\", \"la\", \"del\") per il conto degli extra",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 217,
+    "text": "Tolleriamo al massimo 1 parola extra significativa (es. \"via roma alta\" -> \"via roma\")",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 220,
+    "text": "Richiedi almeno UNA coppia consecutiva (tra i token input) present nel DB",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 230,
+    "text": "Controlla se i due token sono consecutivi anche nel DB",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 237,
+    "text": "Match solo se esiste almeno una coppia consecutiva",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 238,
+    "text": "e con buona copertura dei token (riduce falsi positivi su strade simili)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "startLine": 253,
+    "endLine": 257,
+    "text": "*\n     * Normalizza civico grezzo: rimuove tutti gli spazi e converte in maiuscolo\n     * @param {string} raw - Civico grezzo (es. \"10 A\", \"5   B\")\n     * @returns {string} Civico normalizzato (es. \"10A\", \"5B\")",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 300,
+    "text": "Rimuovi caratteri speciali non ammessi in nomi vie (mantiene lettere, numeri, spazi, apostrofi)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 301,
+    "text": "Range esplicitamente ristretto per conservare accentate evitando simboli matematici (es. ×, ÷).",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 306,
+    "text": "Pulizia finale degli spazi per garantire coerenza con il database",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 307,
+    "text": "e rimozione di eventuali prefissi \"via\" ridondanti se già presenti",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 319,
+    "text": "Limita lunghezza input per sicurezza",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 328,
+    "text": "Utilizzo di regex pre-compilate (ottimizzazione performance)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 356,
+    "text": "Parsifica parte numerica principale per validazione range",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 366,
+    "text": "Consenti anche civico 0 (presente in alcuni catasti), range valido 0-9999",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 369,
+    "text": "Mantieni il civico completo (es. \"10A\") per l'output",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 372,
+    "text": "Deduplica basandosi anche sul suffisso (fullCivic) per distinguere 10A da 10B",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "startLine": 392,
+    "endLine": 395,
+    "text": "*\n     * Pulisce il testo usato per l'estrazione vie senza civico.\n     * Evita di includere etichette del form (es. \"Data Nascita\") nel nome strada.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 405,
+    "text": "Quando le email arrivano come form \"campo: valore\", isoliamo solo il valore.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "startLine": 477,
+    "endLine": 480,
+    "text": "*\n     * Verifica se un indirizzo appartiene al territorio parrocchiale\n     * @returns {Object} {inTerritory: boolean, matchedKey: string|null, rule: string|null, needsReview: boolean}",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 505,
+    "text": "Gestione esplicita tipo Array vs Boolean per 'tutti'",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 567,
+    "text": "METODI ADAPTER (Per compatibilità con il resto del sistema)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "startLine": 570,
+    "endLine": 572,
+    "text": "*\n     * Verifica una via senza numero civico",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "startLine": 614,
+    "endLine": 616,
+    "text": "*\n     * Analizza un'email per trovare e verificare indirizzi",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 628,
+    "text": "Adattatore formato con awareness del suffisso ambiguo",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 632,
+    "text": "Campo esplicito per contratto con EmailProcessor: con civico presente non va richiesto.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 648,
+    "text": "2. Aggiunge le vie parziali SOLO se non sovrapposte",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "startLine": 683,
+    "endLine": 685,
+    "text": "*\n     * Sanitizza le stringhe per i log",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "gas_territory_validator.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\gas_territory_validator.js",
+    "line": 692,
+    "text": "Funzione factory",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "startLine": 17,
+    "endLine": 24,
+    "text": "*\n * Smoke tests eseguibili in CI Node.js\n * - Carica file GAS in VM Node per verifiche di regressione pure-JS\n * - NON tocca servizi Google (PropertiesService, UrlFetchApp, ...)\n *\n * SOGLIA MINIMA: se il numero di test scende sotto MIN_EXPECTED_TESTS\n * il processo esce con errore (protezione contro rimozione accidentale).",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 33,
+    "text": "Helper calculateEaster (necessario per gas_gemini_service.js)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 52,
+    "text": "Mock createLogger (necessario per EmailProcessor)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 92,
+    "text": "Mock PropertiesService e SpreadsheetApp (per MemoryService)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 211,
+    "text": "Helper: crea GeminiService mockato con fetchFn personalizzata",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 684,
+    "text": "Reply con memoria senza timestamp → continuità (fallback conservativo)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 698,
+    "text": "Reply con timestamp corrotto → full (fallback conservativo)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 1366,
+    "text": "Intenzionale: il test deve verificare il vero entry point triggerabile del progetto.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 2317,
+    "text": "localhost con trailing dot → null",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 2321,
+    "text": "Dotted quad in notazione hex → null",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 3119,
+    "text": "Usa l'helper mock per evitare errori di configurazione API Key",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 3122,
+    "text": "Test con keyword \"não\" (prima confusa con \"non\" italiano) e punteggiatura portoghese",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 3188,
+    "text": "Body molto lungo con citazione alla fine (scenari thread Gmail chilometrici)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 3252,
+    "text": "MAIN: runner con contatore e soglia minima",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 3427,
+    "text": "Caso 1: Caratteri speciali (cediglia e tilde)",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 3434,
+    "text": "Caso 2: Keyword seguite da punteggiatura",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 3506,
+    "text": "La funzione usa: new Date(Date.now()) → passata a Intl.DateTimeFormat.formatToParts().",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 3507,
+    "text": "Anziché sovrascrivere Date (che rompe il costruttore nel sandbox vm),",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 3508,
+    "text": "mocchiamo direttamente Intl.DateTimeFormat nel context per restituire",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "scripts\\ci_smoke_tests.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\ci_smoke_tests.js",
+    "line": 3509,
+    "text": "il giorno Pacifico atteso per 2026-05-07T06:30:00Z (= 2026-05-06 a LA, UTC-7).",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "multi",
+    "file": "scripts\\stress_test_light.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\scripts\\stress_test_light.js",
+    "startLine": 2,
+    "endLine": 4,
+    "text": "*\n * Stress test lightweight: simula 500-1000 email e verifica tempi/lock/quota locale.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "tests\\test_advanced_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\tests\\test_advanced_config.js",
+    "line": 92,
+    "text": "getRange(row, col, numRows, numCols) per filtri anti-spam",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "tests\\test_advanced_config.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\tests\\test_advanced_config.js",
+    "line": 123,
+    "text": "Merge con static + sheet, dedup e lowercase",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "tests\\test_email_processor_batch.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\tests\\test_email_processor_batch.js",
+    "line": 63,
+    "text": "Session non disponibile: il codice ha già fallback difensivo",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "tests\\test_email_processor_batch.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\tests\\test_email_processor_batch.js",
+    "line": 529,
+    "text": "Simula il comportamento del classificatore reale mappando l'errore forzato",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "tests\\test_intelligent_retry_logic.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\tests\\test_intelligent_retry_logic.js",
+    "line": 63,
+    "text": "Gli errori critici bypassano il controllo del punteggio minimo.",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "tests\\test_label_error.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\tests\\test_label_error.js",
+    "line": 4,
+    "text": "Ambiente simulato per EmailProcessor",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  },
+  {
+    "type": "single",
+    "file": "tests\\test_time_parsing.js",
+    "fullPath": "c:\\Users\\romolo\\OneDrive\\Documenti\\SCRIPT\\GMAIL AUTOMATICA\\GMAIL PARROCCHIA\\Google Script\\AG\\tests\\test_time_parsing.js",
+    "line": 21,
+    "text": "Mocks minimi necessari al parsing del file",
+    "flags": {
+      "isItalian": true,
+      "hasHistory": false
+    }
+  }
+]
