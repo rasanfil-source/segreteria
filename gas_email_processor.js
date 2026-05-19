@@ -2550,28 +2550,18 @@ ${addressLines.join('\n\n')}
 
       if (canManageTriggers) {
         const existing = ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'resumeEmailBatchFromCheckpoint');
+        existing.forEach((trigger) => {
+          try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
+        });
+
         if (remainingTimeMs === -1) {
-          existing.forEach((trigger) => {
-            try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
-          });
           console.log(`⏸️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), nessun trigger pianificato (quota giornaliera Gmail esaurita).`);
         } else {
-          // I trigger timeBased().after() possono rimanere come oggetti inerti dopo l'esecuzione.
-          // Creiamo prima il nuovo trigger: se la creazione fallisce, preserviamo quelli
-          // esistenti per non perdere la ripresa del checkpoint.
-          let newTrigger = null;
           try {
-            newTrigger = ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(60 * 1000).create();
-          } catch (triggerError) {
-            console.error(`❌ Impossibile creare trigger di ripresa batch: ${triggerError.message}. I trigger esistenti vengono preservati.`);
-          }
-          if (newTrigger) {
-            existing.forEach((trigger) => {
-              try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
-            });
+            ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(60 * 1000).create();
             console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger rigenerato.`);
-          } else {
-            console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger esistente preservato.`);
+          } catch (triggerError) {
+            console.error(`❌ Impossibile creare trigger di ripresa batch dopo pulizia trigger preesistenti: ${triggerError.message}`);
           }
         }
       }
@@ -2791,7 +2781,10 @@ ${addressLines.join('\n\n')}
       }
 
       cache.put(sendingKey, String(Date.now()), 300); // 5 minuti
-      return { ok: true, reason: 'acquired', lock: lockAcquired ? scriptLock : null };
+      if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
+        try { scriptLock.releaseLock(); } catch (_) { }
+      }
+      return { ok: true, reason: 'acquired', lock: null };
     } catch (e) {
       if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
         try { scriptLock.releaseLock(); } catch (_) { }
