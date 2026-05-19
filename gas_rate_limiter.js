@@ -1224,8 +1224,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         keysToDelete.push(`rate_limit_wal_tpm_${i}`);
       }
 
-      // Esecuzione eliminazione massiva (se supportata) o singola
-      this.props.deleteAllProperties ? this._deletePropertiesList(keysToDelete) : keysToDelete.forEach(k => this.props.deleteProperty(k));
+      // Eliminazione selettiva delle chiavi WAL
+      keysToDelete.forEach(k => this.props.deleteProperty(k));
     } catch (e) { 
       console.warn(`⚠️ Errore durante pulizia buffer: ${e.message}`);
     }
@@ -1365,7 +1365,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       .sort((a, b) => (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0));
 
     // Limita dimensione array a max 8KB per evitare crash PropertiesService.
-    // Evita il pattern O(nÂ²) di JSON.stringify() ad ogni iterazione.
+    // Evita il pattern O(n²) di JSON.stringify() ad ogni iterazione.
     const maxBytes = 8000;
     const serializedEntries = sorted.map(entry => JSON.stringify(entry));
     let totalBytes = 2; // []

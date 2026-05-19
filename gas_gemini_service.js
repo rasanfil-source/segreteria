@@ -1716,7 +1716,7 @@ Testo:
     // Capodanno
     if (m === 1 && d === 1) {
       if (language === 'en') return 'Happy New Year!';
-      if (language === 'es') return '¡Feliz Año Nuovo!';
+      if (language === 'es') return '¡Feliz Año Nuevo!';
       if (language === 'pt') return 'Feliz Ano Novo!';
       return 'Buon Capodanno!';
     }
@@ -1740,7 +1740,7 @@ Testo:
     // Tutti i Santi (1 Novembre)
     if (m === 11 && d === 1) {
       if (language === 'en') return 'Happy All Saints Day!';
-      if (language === 'es') return '¡Feliz día di Todos los Santos!';
+      if (language === 'es') return '¡Feliz día de Todos los Santos!';
       if (language === 'pt') return 'Feliz Dia de Todos os Santos!';
       return 'Buona festa di Ognissanti!';
     }
