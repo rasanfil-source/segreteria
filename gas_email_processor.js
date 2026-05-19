@@ -2550,18 +2550,21 @@ ${addressLines.join('\n\n')}
 
       if (canManageTriggers) {
         const existing = ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'resumeEmailBatchFromCheckpoint');
-        existing.forEach((trigger) => {
-          try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
-        });
 
         if (remainingTimeMs === -1) {
+          existing.forEach((trigger) => {
+            try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
+          });
           console.log(`⏸️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), nessun trigger pianificato (quota giornaliera Gmail esaurita).`);
         } else {
           try {
             ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(60 * 1000).create();
+            existing.forEach((trigger) => {
+              try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
+            });
             console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger rigenerato.`);
           } catch (triggerError) {
-            console.error(`❌ Impossibile creare trigger di ripresa batch dopo pulizia trigger preesistenti: ${triggerError.message}`);
+            console.error(`❌ Impossibile creare trigger di ripresa batch; trigger preesistenti preservati: ${triggerError.message}`);
           }
         }
       }
