@@ -375,7 +375,32 @@ var GmailService = class GmailService {
         }
     }
 
-    _isLabelNotFoundError(error) {
+    /**
+   * Aggiunge una label a più messaggi in una singola chiamata API (batch).
+   * Riduce il consumo quota rispetto al loop su messages.modify.
+   */
+  batchAddLabelToMessages(messageIds, labelName) {
+    if (!Array.isArray(messageIds) || messageIds.length === 0) return;
+
+    const validIds = [...new Set(messageIds.filter(Boolean))];
+    if (validIds.length === 0) return;
+
+    try {
+      const label = this.getOrCreateLabel(labelName);
+      const labelId = label.getId();
+      Gmail.Users.Messages.batchModify({
+        ids: validIds,
+        addLabelIds: [labelId],
+        removeLabelIds: []
+      }, 'me');
+      console.log(`✓ Aggiunta label '${labelName}' a ${validIds.length} messaggi (batch)`);
+    } catch (e) {
+      console.warn(`⚠️ batchAddLabelToMessages fallito (${labelName}): ${e.message}`);
+      validIds.forEach(id => this.addLabelToMessage(id, labelName));
+    }
+  }
+
+  _isLabelNotFoundError(error) {
         const message = (error && error.message) ? error.message.toLowerCase() : '';
         return (message.includes('label') && message.includes('not found')) ||
             message.includes('etichetta non trovata') ||
