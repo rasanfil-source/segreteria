@@ -18,6 +18,12 @@
 
 var TECHNICAL_CONTEXT_ROUTING_CATEGORIES = new Set(['technical', 'appointment', 'quotation', 'information']);
 
+function shouldSkipByLanguageMode_(detectedLanguage, languageMode) {
+  const lang = String(detectedLanguage || '').trim().toLowerCase();
+  const mode = String(languageMode || '').trim().toLowerCase();
+  return mode === 'foreign_only' && lang === 'it';
+}
+
 var EmailProcessor = class EmailProcessor {
   constructor(options = {}) {
     // Logger strutturato
@@ -654,7 +660,7 @@ var EmailProcessor = class EmailProcessor {
       console.log(`   🌐 Lingua (rilevamento locale): ${detectedLanguage.toUpperCase()}`);
 
       // PORTA 1: Interrompiamo se l'email deve essere ignorata in base alla lingua
-      if (this._shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
+      if (shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
         console.log('   ⊖ Saltato: modalità "Solo straniere", email in italiano');
         // Nota di manutenzione: il punto medio ('·') ha un significato preciso.
         // Qui segnala una email italiana solo temporaneamente rinviata perché
@@ -967,7 +973,7 @@ var EmailProcessor = class EmailProcessor {
       }
 
       // Valutazione preliminare della lingua per il filtraggio selettivo.
-      if (this._shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
+      if (shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
         console.log('   ⊖ Saltato: modalità "Solo straniere", lingua italiana confermata dopo quick-check');
         this._markMessagesAsSkipped(unlabeledUnread, this.config.skipLabelName, skippedMessageIds);
         result.status = 'skipped';
@@ -2929,11 +2935,7 @@ ${addressLines.join('\n\n')}
     return normalized === 'foreign_only' ? 'foreign_only' : 'all';
   }
 
-  _shouldSkipByLanguageMode_(detectedLanguage, languageMode) {
-    const lang = String(detectedLanguage || '').trim().toLowerCase();
-    const mode = String(languageMode || '').trim().toLowerCase();
-    return mode === 'foreign_only' && lang === 'it';
-  }
+
 
   _markMessageAsProcessed(message, labeledMessageIds = null, skippedMessageIds = null) {
     // Nota di manutenzione: IA viene applicata a livello *messaggio* (non thread)
