@@ -84,7 +84,7 @@ console.log('--- Test trackAuxiliaryRequest: supporta lock già acquisito ---');
   const propsData = new Map();
   const limiter = Object.create(GeminiRateLimiter.prototype);
   limiter.models = {
-    flash: { name: 'gemini-3.5-flash-lite', rpm: 2000, tpm: 2000000, rpd: 3500 }
+    flash: { name: 'gemini-3.1-flash-lite', rpm: 2000, tpm: 2000000, rpd: 3500 }
   };
   limiter.props = {
     getProperty: (key) => propsData.has(key) ? propsData.get(key) : null,
@@ -93,7 +93,7 @@ console.log('--- Test trackAuxiliaryRequest: supporta lock già acquisito ---');
   };
   limiter._getPacificDate = () => '2026-05-12';
 
-  const counters = limiter.trackAuxiliaryRequest('gemini-3.5-flash-lite', 123, 'cache-create', true);
+  const counters = limiter.trackAuxiliaryRequest('gemini-3.1-flash-lite', 123, 'cache-create', true);
   assert(counters.rpd === 1, 'la chiamata ausiliaria deve incrementare RPD anche con lock esterno');
   assert(propsData.get('tokens_flash') === '123', 'la chiamata ausiliaria deve tracciare i token stimati');
 }
@@ -109,9 +109,9 @@ console.log('--- Test model policy: preserva 3.5 Flash e normalizza solo storici
   });
 
   assert(normalized.quality.name === 'gemini-3.5-flash', 'il modello qualita 2.5 Flash deve essere riscritto a 3.5');
-  assert(normalized.oldLite.name === 'gemini-3.5-flash-lite', 'i vecchi alias lite devono seguire la policy 3.5 Lite');
+  assert(normalized.oldLite.name === 'gemini-3.1-flash-lite', 'i vecchi alias lite devono seguire la policy 3.1 Lite');
   assert(normalized.missingGeneration.name === 'gemini-3.5-flash', 'fallback generation mancante deve essere 3.5 Flash');
-  assert(normalized.missingQuick.name === 'gemini-3.5-flash-lite', 'fallback quick_check mancante deve essere 3.5 Lite');
+  assert(normalized.missingQuick.name === 'gemini-3.1-flash-lite', 'fallback quick_check mancante deve essere 3.1 Lite');
 }
 
 console.log('--- Test _getCandidateModels: task policy generation vs quick/language ---');

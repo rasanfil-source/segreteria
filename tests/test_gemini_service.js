@@ -159,7 +159,7 @@ console.log('--- Test model policy: quick_check non rate-limited usa lite, non M
     },
     GEMINI_MODELS: {
       'flash-3.5': { name: 'gemini-3.5-flash' },
-      'flash-lite': { name: 'gemini-3.5-flash-lite' }
+      'flash-lite': { name: 'gemini-3.1-flash-lite' }
     }
   };
   service.detectEmailLanguage = () => ({ lang: 'it', confidence: 5, safetyGrade: 5 });
@@ -172,7 +172,7 @@ console.log('--- Test model policy: quick_check non rate-limited usa lite, non M
 
   const result = service.shouldRespondToEmail('Vorrei informazioni', 'Info');
   assert(result.shouldRespond === true, 'quick_check deve restituire il risultato del modello');
-  assert(modelUsed === 'gemini-3.5-flash-lite', `quick_check deve usare lite, ottenuto ${modelUsed}`);
+  assert(modelUsed === 'gemini-3.1-flash-lite', `quick_check deve usare lite, ottenuto ${modelUsed}`);
   assert(service.getModelNameForTask('generation') === 'gemini-3.5-flash', 'generation deve risolvere il modello qualita');
 }
 

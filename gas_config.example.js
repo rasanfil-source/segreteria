@@ -228,7 +228,7 @@ var CONFIG = {
             useCases: ['generation', 'backup']
         },
         'flash-lite': {
-            name: 'gemini-3.5-flash-lite',
+            name: 'gemini-3.1-flash-lite',
             rpm: 15,
             tpm: 1000000,
             rpd: 1500,
@@ -237,7 +237,7 @@ var CONFIG = {
             useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
         },
         'flash-3.5-lite': {
-            name: 'gemini-3.5-flash-lite',
+            name: 'gemini-3.1-flash-lite',
             rpm: 15,
             tpm: 1000000,
             rpd: 1500,
@@ -246,7 +246,7 @@ var CONFIG = {
             useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
         },
         'flash-3.5-lite-backup': {
-            name: 'gemini-3.5-flash-lite',
+            name: 'gemini-3.1-flash-lite',
             rpm: 15,
             tpm: 1000000,
             rpd: 1500,
