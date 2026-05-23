@@ -279,9 +279,9 @@ var CONFIG = {
       ipm: null,
       useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
     },
-    // Alias esplicito compatibile per la serie 3.1 Lite; non usato nelle strategie
+    // Alias esplicito compatibile per la serie 3.5 Lite; non usato nelle strategie
     // primarie per evitare fallback ridondanti verso lo stesso modello fisico.
-    'flash-3.1-lite': {
+    'flash-3.5-lite': {
       name: 'gemini-3.5-flash-lite',
       rpm: 15,
       tpm: 1000000,
@@ -291,7 +291,7 @@ var CONFIG = {
       useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
     },
     // Backup logico Lite per chiave di riserva o fallback controllati.
-    'flash-3.1-lite-backup': {
+    'flash-3.5-lite-backup': {
       name: 'gemini-3.5-flash-lite',
       rpm: 15,
       tpm: 1000000,
@@ -308,9 +308,9 @@ var CONFIG = {
     'classification': ['flash-lite'],
     'language': ['flash-lite'],
     'newsletter_summary': ['flash-lite'],
-    'generation': ['flash-3.5', 'flash-3.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
-    'semantic': ['flash-lite', 'flash-3.1-lite-backup'],
-    'fallback': ['flash-lite', 'flash-3.1-lite-backup']
+    'generation': ['flash-3.5', 'flash-3.5-backup', 'flash-lite', 'flash-3.5-lite-backup'],
+    'semantic': ['flash-lite', 'flash-3.5-lite-backup'],
+    'fallback': ['flash-lite', 'flash-3.5-lite-backup']
   },
 
   // === Liste di esclusione ===
@@ -453,7 +453,7 @@ function validateConfig() {
     if (!CONFIG.GEMINI_MODELS['flash-3.5']) errors.push("Errore Config: Modello 'flash-3.5' mancante in GEMINI_MODELS");
     if (!CONFIG.GEMINI_MODELS['flash-3.5-backup']) errors.push("Errore Config: Modello 'flash-3.5-backup' mancante in GEMINI_MODELS");
     if (!CONFIG.GEMINI_MODELS['flash-lite']) errors.push("Errore Config: Modello 'flash-lite' mancante in GEMINI_MODELS");
-    if (!CONFIG.GEMINI_MODELS['flash-3.1-lite-backup']) errors.push("Errore Config: Modello 'flash-3.1-lite-backup' mancante in GEMINI_MODELS");
+    if (!CONFIG.GEMINI_MODELS['flash-3.5-lite-backup']) errors.push("Errore Config: Modello 'flash-3.5-lite-backup' mancante in GEMINI_MODELS");
   }
 
   if (!CONFIG.MODEL_STRATEGY || typeof CONFIG.MODEL_STRATEGY !== 'object') {

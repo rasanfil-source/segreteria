@@ -224,7 +224,7 @@ var CONFIG = {
             useCases: ['generation', 'backup']
         },
         'flash-lite': {
-            name: 'gemini-3.1-flash-lite',
+            name: 'gemini-3.5-flash-lite',
             rpm: 15,
             tpm: 1000000,
             rpd: 1500,
@@ -232,8 +232,8 @@ var CONFIG = {
             ipm: null,
             useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
         },
-        'flash-3.1-lite': {
-            name: 'gemini-3.1-flash-lite',
+        'flash-3.5-lite': {
+            name: 'gemini-3.5-flash-lite',
             rpm: 15,
             tpm: 1000000,
             rpd: 1500,
@@ -241,8 +241,8 @@ var CONFIG = {
             ipm: null,
             useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
         },
-        'flash-3.1-lite-backup': {
-            name: 'gemini-3.1-flash-lite',
+        'flash-3.5-lite-backup': {
+            name: 'gemini-3.5-flash-lite',
             rpm: 15,
             tpm: 1000000,
             rpd: 1500,
@@ -258,9 +258,9 @@ var CONFIG = {
         'classification': ['flash-lite'],
         'language': ['flash-lite'],
         'newsletter_summary': ['flash-lite'],
-        'generation': ['flash-3.5', 'flash-3.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
-        'semantic': ['flash-lite', 'flash-3.1-lite-backup'],
-        'fallback': ['flash-lite', 'flash-3.1-lite-backup']
+        'generation': ['flash-3.5', 'flash-3.5-backup', 'flash-lite', 'flash-3.5-lite-backup'],
+        'semantic': ['flash-lite', 'flash-3.5-lite-backup'],
+        'fallback': ['flash-lite', 'flash-3.5-lite-backup']
     },
 
     // === Liste di esclusione ===
