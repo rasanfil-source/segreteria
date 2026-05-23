@@ -9,6 +9,7 @@
 var ErrorTypes = {
     QUOTA_EXCEEDED: 'QUOTA_EXCEEDED',
     INVALID_API_KEY: 'INVALID_API_KEY',
+    CONFIG_ERROR: 'CONFIG_ERROR',
     TIMEOUT: 'TIMEOUT',
     INVALID_RESPONSE: 'INVALID_RESPONSE',
     NETWORK: 'NETWORK',
@@ -75,6 +76,10 @@ function classifyError(error) {
         message.includes('unauthenticated') || message.includes('permission_denied') ||
         /\b(401|403)\b/.test(message)) {
         return { type: ErrorTypes.INVALID_API_KEY, retryable: false, message: rawMessage };
+    }
+
+    if (/\b404\b/.test(message) && (message.includes('models/') || message.includes('not found'))) {
+        return { type: ErrorTypes.CONFIG_ERROR, retryable: false, message: rawMessage };
     }
 
     if (message.includes('timeout') || message.includes('deadline exceeded') ||

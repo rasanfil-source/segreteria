@@ -1439,7 +1439,11 @@ Testo:
         // NON bypassare il RateLimiter su errori transienti/non-quota:
         // executeRequest include già retry+backoff e il fallback diretto
         // causerebbe consumo API non tracciato.
-        console.warn(`⚠️ Rate Limiter quick check fallito: ${error.message}. Interruzione per evitare bypass quota.`);
+        const msg = (error && error.message) ? error.message : String(error);
+        if (msg.includes('Errore API: 404') || msg.includes('404')) {
+          console.warn('⚠️ Quick check: modello Gemini non trovato (404). Verifica CONFIG.GEMINI_MODELS e il modello quick_check effettivamente disponibile per la tua API key/progetto.');
+        }
+        console.warn(`⚠️ Rate Limiter quick check fallito: ${msg}. Interruzione per evitare bypass quota.`);
         throw error;
       }
     }

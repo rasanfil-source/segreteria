@@ -946,15 +946,16 @@ var EmailProcessor = class EmailProcessor {
       } catch (quickError) {
         const quickErrorClass = this._classifyError(quickError);
         const quickErrorMessage = quickError && quickError.message ? quickError.message : String(quickError);
-        if (!quickErrorClass.retryable) {
+        const isSystemic = quickErrorClass.type === 'SYSTEM_ERROR' || quickErrorClass.type === 'CONFIG_ERROR' || quickErrorClass.type === 'INVALID_API_KEY' || /\b(401|403|404)\b/.test(quickErrorMessage);
+        if (!quickErrorClass.retryable && !isSystemic) {
           console.warn(`   ⚠️ Gemini quick check fallito: ${quickErrorMessage}. Applico etichetta errore per evitare loop.`);
           this._addErrorLabel(candidate || thread);
         } else {
-          console.warn(`   ↻ Gemini quick check fallito con errore retryable (${quickErrorClass.type}): ${quickErrorMessage}. Nessuna label permanente.`);
+          console.warn(`   ↻ Gemini quick check fallito con errore retryable o di sistema (${quickErrorClass.type}): ${quickErrorMessage}. Nessuna label permanente.`);
         }
         result.status = 'error';
         result.error = `quick_check_failed: ${quickErrorMessage}`;
-        result.errorClass = quickErrorClass.type;
+        result.errorClass = isSystemic ? 'SYSTEM_ERROR' : quickErrorClass.type;
         return result;
       }
 
@@ -2006,18 +2007,19 @@ ${addressLines.join('\n\n')}
       }
 
       const unhandledErrorClass = this._classifyError(error);
-      if (!unhandledErrorClass.retryable) {
+      const isSystemic = unhandledErrorClass.type === 'SYSTEM_ERROR' || unhandledErrorClass.type === 'CONFIG_ERROR' || unhandledErrorClass.type === 'INVALID_API_KEY' || /\b(401|403|404)\b/.test(error.message || '');
+      if (!unhandledErrorClass.retryable && !isSystemic) {
         try {
           markFailureForCurrentBurst('error');
         } catch (labelError) {
           threadLogger.warn(`Errore aggiunta errorLabel silenziato: ${labelError.message}`);
         }
       } else {
-        threadLogger.warn(`Errore retryable (${unhandledErrorClass.type}): nessuna label permanente applicata.`);
+        threadLogger.warn(`Errore retryable o sistemico (${unhandledErrorClass.type}): nessuna label permanente applicata.`);
       }
       result.status = 'error';
       result.error = error.message;
-      result.errorClass = unhandledErrorClass.type;
+      result.errorClass = isSystemic ? 'SYSTEM_ERROR' : unhandledErrorClass.type;
       return result;
 
     } finally {
@@ -2364,6 +2366,16 @@ ${addressLines.join('\n\n')}
 
         if (result && (result.errorClass === 'NETWORK' || result.errorClass === 'TIMEOUT')) {
           runLogger.warn('⚠️ Stop batch: errore infrastrutturale retryable, salvo checkpoint per riprovare senza moltiplicare i fallimenti.');
+          deferBatchCheckpoint(
+            threads,
+            index,
+            this._getRemainingTimeMs(MAX_EXECUTION_TIME)
+          );
+          break;
+        }
+
+        if (result && (result.errorClass === 'SYSTEM_ERROR' || result.errorClass === 'CONFIG_ERROR' || result.errorClass === 'INVALID_API_KEY')) {
+          runLogger.warn('⚠️ Stop batch: errore di sistema/configurazione, salvo checkpoint per evitare cascata di error label.');
           deferBatchCheckpoint(
             threads,
             index,
@@ -3930,7 +3942,8 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
         case ErrorTypes.CACHE_EXPIRED:
           return mkResult('NETWORK', true, normalized.message);
         case ErrorTypes.INVALID_API_KEY:
-          return mkResult('FATAL', false, normalized.message);
+        case ErrorTypes.CONFIG_ERROR:
+          return mkResult(normalized.type, false, normalized.message);
         case ErrorTypes.INVALID_RESPONSE:
           return mkResult('INVALID_RESPONSE', false, normalized.message);
         default:
@@ -3973,7 +3986,8 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     for (const fatal of FATAL_ERRORS) {
       if (msg.includes(fatal.toLowerCase())) return mkResult('FATAL', false, rawMessage);
     }
-    if (/\b(401|403)\b/.test(msg)) return mkResult('FATAL', false, rawMessage);
+    if (/\b(401|403)\b/.test(msg)) return mkResult('INVALID_API_KEY', false, rawMessage);
+    if (/\b404\b/.test(msg) && (msg.includes('models/') || msg.includes('not found'))) return mkResult('CONFIG_ERROR', false, rawMessage);
 
     for (const retryable of RETRYABLE_ERRORS) {
       if (msg.includes(retryable.toLowerCase())) return mkResult('QUOTA_EXCEEDED', true, rawMessage);
