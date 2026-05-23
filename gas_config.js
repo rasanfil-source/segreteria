@@ -275,7 +275,7 @@ var CONFIG = {
     },
     // Modello rapido per categoria, lingua AI, semantica e scarti.
     'flash-lite': {
-      name: 'gemini-3.5-flash-lite',
+      name: 'gemini-3.1-flash-lite',
       rpm: 15,
       tpm: 1000000,
       rpd: 1500,
@@ -286,7 +286,7 @@ var CONFIG = {
     // Alias esplicito compatibile per la serie 3.5 Lite; non usato nelle strategie
     // primarie per evitare fallback ridondanti verso lo stesso modello fisico.
     'flash-3.5-lite': {
-      name: 'gemini-3.5-flash-lite',
+      name: 'gemini-3.1-flash-lite',
       rpm: 15,
       tpm: 1000000,
       rpd: 1500,
@@ -296,7 +296,7 @@ var CONFIG = {
     },
     // Backup logico Lite per chiave di riserva o fallback controllati.
     'flash-3.5-lite-backup': {
-      name: 'gemini-3.5-flash-lite',
+      name: 'gemini-3.1-flash-lite',
       rpm: 15,
       tpm: 1000000,
       rpd: 1500,
