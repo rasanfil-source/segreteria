@@ -10,10 +10,9 @@ var CONFIG = {
     // === API ===
     // In produzione: PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY')
     GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY_HERE',
-    MODEL_NAME: 'gemini-2.5-flash',
+    MODEL_NAME: 'gemini-3.5-flash',
 
     // === Generazione ===
-    TEMPERATURE: 0.5,
     MAX_OUTPUT_TOKENS: 6000,
 
     // === Validazione ===
@@ -160,6 +159,11 @@ var CONFIG = {
         OVERHEAD_TOKENS: 15000           // Riserva token per istruzioni/fixed context fuori KB
     },
 
+    TOKEN_ACCOUNTING: {
+        enabled: true,
+        outputMultiplier: 1.12
+    },
+
     // === Limiti Thread ===
     MAX_THREAD_LENGTH: 8,                // Messaggi massimi per thread prima di anti-loop
 
@@ -182,29 +186,13 @@ var CONFIG = {
     // Dati tecnici operativi Free Tier: verificare sempre i limiti effettivi in AI Studio.
     GEMINI_FREE_TIER_NOTES: {
         contextWindowTokens: 1048576,
-        rpm: 2000,
-        tpm: 2000000,
-        rpd: 3500,
+        rpm: 15,
+        tpm: 1000000,
+        rpd: 1500,
         ipm: null,
         groundingSharedRpd: 1500,
         countTokensApiAllowed: false,
-        contextCachingSupported: false,
         dataUsedForTraining: true
-    },
-
-    GEMINI_CONTEXT_CACHE: {
-        // Free Tier: lasciare false salvo disponibilità esplicita in AI Studio.
-        // Il servizio degrada comunque a generateContent diretto se cachedContents non è disponibile.
-        enabled: false,
-        ttlSeconds: 3300,
-        expirySkewMs: 90000,
-        minCacheableTokens: 1024,
-        splitMarker: '**EMAIL DA RISPONDERE:**',
-        propertyPrefix: 'gemini_context_cache_v2_',
-        googleSearchGrounding: {
-            enabled: false,
-            reservedQueriesPerRequest: 1
-        }
     },
 
     GEMINI_BACKOFF: {
@@ -237,27 +225,27 @@ var CONFIG = {
         },
         'flash-lite': {
             name: 'gemini-3.1-flash-lite',
-            rpm: 2000,
-            tpm: 2000000,
-            rpd: 3500,
+            rpm: 15,
+            tpm: 1000000,
+            rpd: 1500,
             contextWindowTokens: 1048576,
             ipm: null,
             useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
         },
         'flash-3.1-lite': {
             name: 'gemini-3.1-flash-lite',
-            rpm: 2000,
-            tpm: 2000000,
-            rpd: 3500,
+            rpm: 15,
+            tpm: 1000000,
+            rpd: 1500,
             contextWindowTokens: 1048576,
             ipm: null,
             useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
         },
         'flash-3.1-lite-backup': {
             name: 'gemini-3.1-flash-lite',
-            rpm: 2000,
-            tpm: 2000000,
-            rpd: 3500,
+            rpm: 15,
+            tpm: 1000000,
+            rpd: 1500,
             contextWindowTokens: 1048576,
             ipm: null,
             useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback', 'backup']

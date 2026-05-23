@@ -160,11 +160,11 @@ assert(
   'deve leggere foreign_only da GLOBAL_CACHE'
 );
 assert(
-  processor._shouldSkipByLanguageMode_('it', 'foreign_only') === true,
+  shouldSkipByLanguageMode_('it', 'foreign_only') === true,
   'in foreign_only deve saltare email italiane'
 );
 assert(
-  processor._shouldSkipByLanguageMode_('en', 'foreign_only') === false,
+  shouldSkipByLanguageMode_('en', 'foreign_only') === false,
   'in foreign_only non deve saltare email straniere'
 );
 

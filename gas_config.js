@@ -45,10 +45,9 @@ function _getScriptPropertyStringArray(key, fallback) {
 var CONFIG = {
   // === API ===
   get GEMINI_API_KEY() { return _getScriptProperty('GEMINI_API_KEY'); },
-  MODEL_NAME: 'gemini-2.5-flash',
+  MODEL_NAME: 'gemini-3.5-flash',
 
   // === Generazione ===
-  TEMPERATURE: 0.5,
   MAX_OUTPUT_TOKENS: 6000,
 
   // === Validazione ===
@@ -193,6 +192,12 @@ var CONFIG = {
     OVERHEAD_TOKENS: 15000             // Riserva token per istruzioni/fixed context fuori KB
   },
 
+  // Fattore prudenziale per allineare il tracciamento TPM ai token output reali (thinking invisibile Gemini 3.5).
+  TOKEN_ACCOUNTING: {
+    enabled: true,
+    outputMultiplier: 1.12
+  },
+
   // === Limiti Thread ===
   MAX_THREAD_LENGTH: 8,                // Messaggi massimi per thread prima di anti-loop
 
@@ -223,34 +228,15 @@ var CONFIG = {
   // - RPD: 3.500
   // - Grounding Google Search: tenere disabilitato in Free Tier salvo disponibilità esplicita in AI Studio
   // - Vietato usare /countTokens: il conteggio resta locale e stimato.
-  // - Privacy: nel piano gratuito input/output possono essere usati per training Google (valutare impatto GDPR)
   GEMINI_FREE_TIER_NOTES: {
     contextWindowTokens: 1048576,
-    rpm: 2000,
-    tpm: 2000000,
-    rpd: 3500,
+    rpm: 15,
+    tpm: 1000000,
+    rpd: 1500,
     ipm: null,
     groundingSharedRpd: 1500,
     countTokensApiAllowed: false,
-    contextCachingSupported: false,
     dataUsedForTraining: true
-  },
-
-  GEMINI_CONTEXT_CACHE: {
-    // Free Tier: abilitare solo se AI Studio mostra Context caching attivo
-    // per il progetto; GeminiService degrada comunque a generateContent diretto.
-    enabled: false,
-    ttlSeconds: 3300,                  // 55 minuti: sotto il default 1h per ridurre cache stale
-    expirySkewMs: 90000,               // Ricrea prima della scadenza dichiarata
-    minCacheableTokens: 1024,          // Minimo documentato per caching sui modelli Flash recenti
-    splitMarker: '**EMAIL DA RISPONDERE:**',
-    propertyPrefix: 'gemini_context_cache_v2_',
-    // Abilitare solo per flussi che richiedono dati web in tempo reale.
-    // Il tool viene inserito nella creazione cache, mai nella generateContent finale.
-    googleSearchGrounding: {
-      enabled: false,
-      reservedQueriesPerRequest: 1
-    }
   },
 
   GEMINI_BACKOFF: {
@@ -265,30 +251,30 @@ var CONFIG = {
   GEMINI_MODELS: {
     // Modello principale per la risposta finale: qualita.
     'flash-2.5': {
-      name: 'gemini-2.5-flash',
-      rpm: 10,
-      tpm: 250000,
-      rpd: 250,
+      name: 'gemini-3.5-flash',
+      rpm: 15,
+      tpm: 1000000,
+      rpd: 1500,
       contextWindowTokens: 1048576,
       ipm: null,
       useCases: ['generation', 'all']
     },
     // Stesso tier qualita su chiave di riserva.
     'flash-2.5-backup': {
-      name: 'gemini-2.5-flash',
-      rpm: 10,
-      tpm: 250000,
-      rpd: 250,
+      name: 'gemini-3.5-flash',
+      rpm: 15,
+      tpm: 1000000,
+      rpd: 1500,
       contextWindowTokens: 1048576,
       ipm: null,
       useCases: ['generation', 'backup']
     },
     // Modello rapido per categoria, lingua AI, semantica e scarti.
     'flash-lite': {
-      name: 'gemini-3.1-flash-lite',
-      rpm: 2000,
-      tpm: 2000000,
-      rpd: 3500,
+      name: 'gemini-3.5-flash-lite',
+      rpm: 15,
+      tpm: 1000000,
+      rpd: 1500,
       contextWindowTokens: 1048576,
       ipm: null,
       useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
@@ -296,20 +282,20 @@ var CONFIG = {
     // Alias esplicito compatibile per la serie 3.1 Lite; non usato nelle strategie
     // primarie per evitare fallback ridondanti verso lo stesso modello fisico.
     'flash-3.1-lite': {
-      name: 'gemini-3.1-flash-lite',
-      rpm: 2000,
-      tpm: 2000000,
-      rpd: 3500,
+      name: 'gemini-3.5-flash-lite',
+      rpm: 15,
+      tpm: 1000000,
+      rpd: 1500,
       contextWindowTokens: 1048576,
       ipm: null,
       useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
     },
     // Backup logico Lite per chiave di riserva o fallback controllati.
     'flash-3.1-lite-backup': {
-      name: 'gemini-3.1-flash-lite',
-      rpm: 2000,
-      tpm: 2000000,
-      rpd: 3500,
+      name: 'gemini-3.5-flash-lite',
+      rpm: 15,
+      tpm: 1000000,
+      rpd: 1500,
       contextWindowTokens: 1048576,
       ipm: null,
       useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback', 'backup']
@@ -404,10 +390,7 @@ function validateConfig() {
   if (!CONFIG.SPREADSHEET_ID) errors.push('CRITICO: SPREADSHEET_ID mancante');
 
   // 2. Validazione Tipi e Valori Logici
-  // API & Gen
   checkType('MODEL_NAME', CONFIG.MODEL_NAME, 'string');
-  checkType('TEMPERATURE', CONFIG.TEMPERATURE, 'number');
-  checkRange('TEMPERATURE', CONFIG.TEMPERATURE, 0.0, 1.0);
   checkType('MAX_OUTPUT_TOKENS', CONFIG.MAX_OUTPUT_TOKENS, 'number');
   checkType('MAX_SAFE_TOKENS', CONFIG.MAX_SAFE_TOKENS, 'number');
   checkRange('MAX_SAFE_TOKENS', CONFIG.MAX_SAFE_TOKENS, 3000, 1000000);

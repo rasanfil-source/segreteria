@@ -51,8 +51,8 @@ assert(getCounts.get('METRICS_SHEET_ID') === 1, 'METRICS_SHEET_ID deve essere le
 
 assert(CONFIG.MAX_SAFE_PROMPT_CHARS === 100000, 'MAX_SAFE_PROMPT_CHARS deve avere un fallback esplicito');
 assert(CONFIG.MAX_PROVIDED_INFO_JSON_CHARS === 45000, 'MAX_PROVIDED_INFO_JSON_CHARS deve avere un fallback esplicito');
-assert(CONFIG.MODEL_NAME === 'gemini-2.5-flash', 'MODEL_NAME deve puntare al modello qualita per le risposte');
-assert(CONFIG.MODEL_STRATEGY.generation[0] === 'flash-2.5', 'la generazione deve partire da Gemini 2.5 Flash');
+assert(CONFIG.MODEL_NAME === 'gemini-3.5-flash', 'MODEL_NAME deve puntare al modello qualita per le risposte');
+assert(CONFIG.MODEL_STRATEGY.generation[0] === 'flash-2.5', 'la generazione deve partire da Gemini 2.5/3.5 Flash');
 assert(CONFIG.MODEL_STRATEGY.quick_check[0] === 'flash-lite', 'quick_check/categoria/lingua devono partire dal modello lite');
 
 const originalMaxEmailsPerRun = CONFIG.MAX_EMAILS_PER_RUN;
