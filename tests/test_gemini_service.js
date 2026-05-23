@@ -155,10 +155,10 @@ console.log('--- Test model policy: quick_check non rate-limited usa lite, non M
   service.config = {
     MODEL_STRATEGY: {
       quick_check: ['flash-lite'],
-      generation: ['flash-2.5']
+      generation: ['flash-3.5']
     },
     GEMINI_MODELS: {
-      'flash-2.5': { name: 'gemini-3.5-flash' },
+      'flash-3.5': { name: 'gemini-3.5-flash' },
       'flash-lite': { name: 'gemini-3.5-flash-lite' }
     }
   };

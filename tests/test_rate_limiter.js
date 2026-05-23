@@ -19,7 +19,7 @@ console.log('--- Test _readChunkedDataWindow: ignora chunk WAL corrotto ---');
     ['rate_limit_wal_rpm_chunks', '3'],
     ['rate_limit_wal_rpm_0', JSON.stringify([{ timestamp: 1, model: 'flash-lite' }])],
     ['rate_limit_wal_rpm_1', '{json-corrotto'],
-    ['rate_limit_wal_rpm_2', JSON.stringify([{ timestamp: 2, model: 'flash-2.5' }])]
+    ['rate_limit_wal_rpm_2', JSON.stringify([{ timestamp: 2, model: 'flash-3.5' }])]
   ]);
 
   const limiter = Object.create(GeminiRateLimiter.prototype);
@@ -118,12 +118,12 @@ console.log('--- Test _getCandidateModels: task policy generation vs quick/langu
 {
   const limiter = Object.create(GeminiRateLimiter.prototype);
   limiter.strategies = {
-    generation: ['flash-2.5', 'flash-2.5-backup', 'flash-lite'],
+    generation: ['flash-3.5', 'flash-3.5-backup', 'flash-lite'],
     quick_check: ['flash-lite'],
     fallback: ['flash-lite']
   };
 
-  assert(limiter._getCandidateModels('generation')[0] === 'flash-2.5', 'generation deve partire dal tier qualita');
+  assert(limiter._getCandidateModels('generation')[0] === 'flash-3.5', 'generation deve partire dal tier qualita');
   assert(limiter._getCandidateModels('quick_check')[0] === 'flash-lite', 'quick_check deve partire dal lite');
   assert(limiter._getCandidateModels('classification')[0] === 'flash-lite', 'classification deve ereditare quick_check');
   assert(limiter._getCandidateModels('language')[0] === 'flash-lite', 'language deve ereditare quick_check');

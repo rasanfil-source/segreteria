@@ -31,13 +31,13 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       // Default conservativo allineato alla policy: 2.5 Flash per generazione,
       // 3.1 Flash-Lite per task rapidi/ausiliari.
       this.models = {
-        'flash-2.5': {
+        'flash-3.5': {
           name: 'gemini-3.5-flash',
           rpm: 15, tpm: 1000000, rpd: 1500,
           contextWindowTokens: 1048576,
           useCases: ['generation', 'all']
         },
-        'flash-2.5-backup': {
+        'flash-3.5-backup': {
           name: 'gemini-3.5-flash',
           rpm: 15, tpm: 1000000, rpd: 1500,
           contextWindowTokens: 1048576,
@@ -75,7 +75,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         'classification': ['flash-lite'],
         'language': ['flash-lite'],
         'newsletter_summary': ['flash-lite'],
-        'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
+        'generation': ['flash-3.5', 'flash-3.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
         'semantic': ['flash-lite', 'flash-3.1-lite-backup'],
         'fallback': ['flash-lite', 'flash-3.1-lite-backup']
       };
@@ -84,7 +84,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     // Modello di default (primo nella lista generation)
     this.defaultModel = (this.strategies.generation && this.strategies.generation[0]) ||
       Object.keys(this.models)[0] ||
-      'flash-2.5';
+      'flash-3.5';
 
     // ================================================================
     // CACHE IN-MEMORY (per ridurre PropertiesService reads)
@@ -586,7 +586,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       try {
         const startTime = Date.now();
         // Esecuzione diretta senza controlli quota
-        const result = this._safeExecuteRequestFn_(requestFn, options.modelNameOverride || 'gemini-2.5-flash');
+        const result = this._safeExecuteRequestFn_(requestFn, options.modelNameOverride || 'gemini-3.5-flash');
         const duration = Date.now() - startTime;
 
         return {

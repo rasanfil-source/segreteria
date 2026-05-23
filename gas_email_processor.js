@@ -1524,10 +1524,10 @@ ${addressLines.join('\n\n')}
       }
 
       const geminiModels = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_MODELS) ? CONFIG.GEMINI_MODELS : {};
-      const defaultGenerationStrategy = ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'];
+      const defaultGenerationStrategy = ['flash-3.5', 'flash-3.5-backup', 'flash-lite', 'flash-3.1-lite-backup'];
       const defaultGenerationModelNames = {
-        'flash-2.5': 'gemini-3.5-flash',
-        'flash-2.5-backup': 'gemini-3.5-flash',
+        'flash-3.5': 'gemini-3.5-flash',
+        'flash-3.5-backup': 'gemini-3.5-flash',
         'flash-3.1-lite': 'gemini-3.5-flash-lite',
         'flash-lite': 'gemini-3.5-flash-lite',
         'flash-3': 'gemini-3-flash-preview',

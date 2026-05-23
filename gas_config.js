@@ -250,7 +250,7 @@ var CONFIG = {
 
   GEMINI_MODELS: {
     // Modello principale per la risposta finale: qualita.
-    'flash-2.5': {
+    'flash-3.5': {
       name: 'gemini-3.5-flash',
       rpm: 15,
       tpm: 1000000,
@@ -260,7 +260,7 @@ var CONFIG = {
       useCases: ['generation', 'all']
     },
     // Stesso tier qualita su chiave di riserva.
-    'flash-2.5-backup': {
+    'flash-3.5-backup': {
       name: 'gemini-3.5-flash',
       rpm: 15,
       tpm: 1000000,
@@ -308,7 +308,7 @@ var CONFIG = {
     'classification': ['flash-lite'],
     'language': ['flash-lite'],
     'newsletter_summary': ['flash-lite'],
-    'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
+    'generation': ['flash-3.5', 'flash-3.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
     'semantic': ['flash-lite', 'flash-3.1-lite-backup'],
     'fallback': ['flash-lite', 'flash-3.1-lite-backup']
   },
@@ -450,8 +450,8 @@ function validateConfig() {
       errors.push("Errore Config: 'GEMINI_MODELS' è vuoto");
     }
     // Verifica esistenza modelli chiave
-    if (!CONFIG.GEMINI_MODELS['flash-2.5']) errors.push("Errore Config: Modello 'flash-2.5' mancante in GEMINI_MODELS");
-    if (!CONFIG.GEMINI_MODELS['flash-2.5-backup']) errors.push("Errore Config: Modello 'flash-2.5-backup' mancante in GEMINI_MODELS");
+    if (!CONFIG.GEMINI_MODELS['flash-3.5']) errors.push("Errore Config: Modello 'flash-3.5' mancante in GEMINI_MODELS");
+    if (!CONFIG.GEMINI_MODELS['flash-3.5-backup']) errors.push("Errore Config: Modello 'flash-3.5-backup' mancante in GEMINI_MODELS");
     if (!CONFIG.GEMINI_MODELS['flash-lite']) errors.push("Errore Config: Modello 'flash-lite' mancante in GEMINI_MODELS");
     if (!CONFIG.GEMINI_MODELS['flash-3.1-lite-backup']) errors.push("Errore Config: Modello 'flash-3.1-lite-backup' mancante in GEMINI_MODELS");
   }
@@ -461,8 +461,8 @@ function validateConfig() {
   } else {
     const generationStrategy = CONFIG.MODEL_STRATEGY.generation || [];
     const quickStrategy = CONFIG.MODEL_STRATEGY.quick_check || [];
-    if (!Array.isArray(generationStrategy) || generationStrategy[0] !== 'flash-2.5') {
-      errors.push("Errore Config: MODEL_STRATEGY.generation deve partire da 'flash-2.5'");
+    if (!Array.isArray(generationStrategy) || generationStrategy[0] !== 'flash-3.5') {
+      errors.push("Errore Config: MODEL_STRATEGY.generation deve partire da 'flash-3.5'");
     }
     if (!Array.isArray(quickStrategy) || quickStrategy[0] !== 'flash-lite') {
       errors.push("Errore Config: MODEL_STRATEGY.quick_check deve partire da 'flash-lite'");

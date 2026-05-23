@@ -205,20 +205,20 @@ var CONFIG = {
     },
 
     GEMINI_MODELS: {
-        'flash-2.5': {
-            name: 'gemini-2.5-flash',
-            rpm: 10,
-            tpm: 250000,
-            rpd: 250,
+        'flash-3.5': {
+            name: 'gemini-3.5-flash',
+            rpm: 15,
+            tpm: 1000000,
+            rpd: 1500,
             contextWindowTokens: 1048576,
             ipm: null,
             useCases: ['generation', 'all']
         },
-        'flash-2.5-backup': {
-            name: 'gemini-2.5-flash',
-            rpm: 10,
-            tpm: 250000,
-            rpd: 250,
+        'flash-3.5-backup': {
+            name: 'gemini-3.5-flash',
+            rpm: 15,
+            tpm: 1000000,
+            rpd: 1500,
             contextWindowTokens: 1048576,
             ipm: null,
             useCases: ['generation', 'backup']
@@ -258,7 +258,7 @@ var CONFIG = {
         'classification': ['flash-lite'],
         'language': ['flash-lite'],
         'newsletter_summary': ['flash-lite'],
-        'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
+        'generation': ['flash-3.5', 'flash-3.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
         'semantic': ['flash-lite', 'flash-3.1-lite-backup'],
         'fallback': ['flash-lite', 'flash-3.1-lite-backup']
     },
