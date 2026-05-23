@@ -112,11 +112,15 @@ var CONFIG = {
     GMAIL_DAILY_CALL_LIMIT: 18000,        // Soft limit locale anti-burst prima del limite Gmail reale
     GMAIL_LIST_MAX_PAGES: 20,             // Limite pagine Gmail list per bootstrap label cache
     GMAIL_LIST_MAX_MESSAGES: 2000,        // Limite messaggi Gmail list per bootstrap label cache
+    GMAIL_LABEL_LOOKBACK_DAYS: 0,          // 0 = nessuna finestra temporale nel pre-caricamento label
     BATCH_CHECKPOINT_TTL_MS: 10 * 60 * 1000, // Scadenza checkpoint resume (10 minuti)
+    BATCH_CHECKPOINT_MAX_RETRIES: 3,       // Tentativi di ripresa prima di marcare i residui in Errore
+    BATCH_CHECKPOINT_MAX_THREADS: 150,     // Limite thread salvati nel checkpoint per restare sotto quota Properties
 
     // === Alias noti (anti-loop) ===
     // In produzione preferire Script Properties.KNOWN_ALIASES
     // Formati accettati: JSON array o lista separata da virgola/newline/punto e virgola.
+    BOT_EMAIL: 'YOUR_SENDING_ALIAS@example.com',
     KNOWN_ALIASES: ['YOUR_SENDING_ALIAS@example.com'],
 
     // === Knowledge Base ===

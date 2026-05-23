@@ -2417,7 +2417,7 @@ var GmailService = class GmailService {
             .replace(/[\u2713\u2714]/g, '[OK]')
             .replace(/[\u274C\u2716\u2717]/g, '[X]')
             .replace(/[\u26A0]/g, '[!]')
-            .replace(/[\uD83D\uDCE7]/g, '[Email]')
+            .replace(/\uD83D\uDCE7/g, '[Email]')
             .replace(/[\u201C\u201D]/g, '"')
             .replace(/[\u2018\u2019]/g, "'");
 

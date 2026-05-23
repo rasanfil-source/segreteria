@@ -83,6 +83,13 @@ console.log('--- Test _htmlToPlainText limita rimozione script/style patologici 
   assert(text.includes('Prima') && text.includes('Dopo'), 'il testo esterno a script/style lunghi deve restare disponibile');
 }
 
+console.log('--- Test _htmlToPlainText converte emoji email una sola volta ---');
+{
+  const service = new GmailService();
+  const text = service._htmlToPlainText('📧 Messaggio ricevuto');
+  assert(text === '[Email] Messaggio ricevuto', 'emoji email deve diventare un solo token plain-text');
+}
+
 console.log('--- Test addLabelToMessage non degrada a label thread-level ---');
 {
   const service = Object.create(GmailService.prototype);

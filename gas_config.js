@@ -147,9 +147,13 @@ var CONFIG = {
   GMAIL_DAILY_CALL_LIMIT: 18000,       // Soft limit locale anti-burst prima del limite Gmail reale
   GMAIL_LIST_MAX_PAGES: 20,            // Limite pagine Gmail list per bootstrap label cache
   GMAIL_LIST_MAX_MESSAGES: 2000,       // Limite messaggi Gmail list per bootstrap label cache
+  GMAIL_LABEL_LOOKBACK_DAYS: 0,         // 0 = nessuna finestra temporale nel pre-caricamento label
   BATCH_CHECKPOINT_TTL_MS: 10 * 60 * 1000, // Scadenza checkpoint resume (10 minuti)
+  BATCH_CHECKPOINT_MAX_RETRIES: 3,      // Tentativi di ripresa prima di marcare i residui in Errore
+  BATCH_CHECKPOINT_MAX_THREADS: 150,    // Limite thread salvati nel checkpoint per restare sotto quota Properties
 
   // === Alias noti (anti-loop: il bot riconosce sé stesso anche quando invia da alias) ===
+  get BOT_EMAIL() { return _getScriptProperty('BOT_EMAIL'); },
   KNOWN_ALIASES: _getScriptPropertyStringArray('KNOWN_ALIASES', ['info@parrocchiasanteugenio.it']),
 
   // === Knowledge Base ===
@@ -404,6 +408,12 @@ function validateConfig() {
   checkRange('SAFETY_VALVE_THRESHOLD', CONFIG.SAFETY_VALVE_THRESHOLD, 0.5, 0.99);
   checkType('SENDER_THROTTLE_WINDOW_SECONDS', CONFIG.SENDER_THROTTLE_WINDOW_SECONDS, 'number');
   checkRange('SENDER_THROTTLE_WINDOW_SECONDS', CONFIG.SENDER_THROTTLE_WINDOW_SECONDS, 0, 86400);
+  checkType('GMAIL_LABEL_LOOKBACK_DAYS', CONFIG.GMAIL_LABEL_LOOKBACK_DAYS, 'number');
+  checkRange('GMAIL_LABEL_LOOKBACK_DAYS', CONFIG.GMAIL_LABEL_LOOKBACK_DAYS, 0, 3650);
+  checkType('BATCH_CHECKPOINT_MAX_RETRIES', CONFIG.BATCH_CHECKPOINT_MAX_RETRIES, 'number');
+  checkRange('BATCH_CHECKPOINT_MAX_RETRIES', CONFIG.BATCH_CHECKPOINT_MAX_RETRIES, 1, 20);
+  checkType('BATCH_CHECKPOINT_MAX_THREADS', CONFIG.BATCH_CHECKPOINT_MAX_THREADS, 'number');
+  checkRange('BATCH_CHECKPOINT_MAX_THREADS', CONFIG.BATCH_CHECKPOINT_MAX_THREADS, 1, 150);
   checkType('LABEL_NAME', CONFIG.LABEL_NAME, 'string');
   checkType('ERROR_LABEL_NAME', CONFIG.ERROR_LABEL_NAME, 'string');
   checkType('VALIDATION_ERROR_LABEL', CONFIG.VALIDATION_ERROR_LABEL, 'string');
