@@ -1167,8 +1167,14 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       }
 
       // Leggi dati attuali
-      const currentRpm = JSON.parse(this.props.getProperty('rpm_window') || '[]');
-      const currentTpm = JSON.parse(this.props.getProperty('tpm_window') || '[]');
+      const rawRpm = this.props.getProperty('rpm_window');
+      const rawTpm = this.props.getProperty('tpm_window');
+      let parsedRpm = [];
+      let parsedTpm = [];
+      try { parsedRpm = JSON.parse(rawRpm || '[]'); } catch (_) {}
+      try { parsedTpm = JSON.parse(rawTpm || '[]'); } catch (_) {}
+      const currentRpm = Array.isArray(parsedRpm) ? parsedRpm : [];
+      const currentTpm = Array.isArray(parsedTpm) ? parsedTpm : [];
 
       // Merge WAL con dati esistenti (evita duplicati per timestamp)
       const mergedRpm = this._mergeWindowData(currentRpm, wal.rpm || []);
@@ -1418,14 +1424,14 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       const cachedWindow = Array.isArray(this.cache[cacheKey]) ? this.cache[cacheKey] : [];
       return cachedWindow
         .filter(e => e.modelKey === modelKey && e.released !== true && (now - e.timestamp < 60000))
-        .reduce((sum, e) => sum + (e.tokens || 0), 0);
+        .reduce((sum, e) => sum + (Number(e.tokens) || 0), 0);
     }
 
     // Servizio proprietà di fallback
     const windowData = this._readWindowFromProperties(windowType);
     return windowData
       .filter(e => e.modelKey === modelKey && e.released !== true && (now - e.timestamp < 60000))
-      .reduce((sum, e) => sum + (e.tokens || 0), 0);
+      .reduce((sum, e) => sum + (Number(e.tokens) || 0), 0);
   }
 
   // ================================================================

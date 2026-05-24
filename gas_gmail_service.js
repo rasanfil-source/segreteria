@@ -115,14 +115,18 @@ var GmailService = class GmailService {
             : null;
         let lockAcquired = false;
 
-        try {
-            if (lock) {
-                try {
-                    lockAcquired = lock.tryLock(5000);
-                } catch (lockError) {
-                    console.warn(`⚠️ Impossibile acquisire lock flush contatore API: ${lockError.message}`);
-                }
+        if (lock) {
+            try {
+                lockAcquired = lock.tryLock(5000);
+            } catch (lockError) {
+                console.warn(`⚠️ Impossibile acquisire lock flush contatore API: ${lockError.message}`);
             }
+            if (!lockAcquired) {
+                return;
+            }
+        }
+
+        try {
 
             // Carichiamo il valore corrente dalla cache (con fallback su ScriptProperties)
             const raw = this._scriptCache.get(key);
@@ -411,6 +415,7 @@ var GmailService = class GmailService {
       if (!labelId) {
         throw new Error(`Impossibile determinare labelId per "${labelName}"`);
       }
+      this._incrementGmailCallCounterOrThrow_('messages.batchModify');
       Gmail.Users.Messages.batchModify({
         ids: validIds,
         addLabelIds: [labelId],

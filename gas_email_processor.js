@@ -634,7 +634,7 @@ var EmailProcessor = class EmailProcessor {
         
         if (aggregatedBody) {
           messageDetails.body = aggregatedBody;
-          console.log(`     Burst rilevato: accorpati contestualmente ${externalUnread.length} messaggi precedenti con timestamp`);
+          console.log(`     Burst rilevato: accorpati contestualmente ${burstMessages.length} messaggi precedenti con timestamp`);
         }
       }
 
@@ -740,7 +740,11 @@ var EmailProcessor = class EmailProcessor {
         /oof|all|dr|rn|nri|auto/i.test(xAutoResponseSuppress)
       ) {
         console.log('   ⊖ Saltato: risposta automatica (header SMTP)');
-        markHandledUnread();
+        try {
+          markHandledUnread();
+        } catch (markErr) {
+          threadLogger.warn('markHandledUnread fallita (out_of_office): ' + markErr.message);
+        }
         result.status = 'filtered';
         result.reason = 'out_of_office';
         return result;
@@ -758,7 +762,11 @@ var EmailProcessor = class EmailProcessor {
       const oooBody = (messageDetails.body || '').substring(0, 2000);
       if (outOfOfficePatterns.some(p => p.test(`${oooSubject} ${oooBody}`))) {
         console.log('   ⊖ Saltato: risposta automatica out-of-office (testo)');
-        markHandledUnread();
+        try {
+          markHandledUnread();
+        } catch (markErr) {
+          threadLogger.warn('markHandledUnread fallita (out_of_office): ' + markErr.message);
+        }
         result.status = 'filtered';
         result.reason = 'out_of_office';
         return result;
@@ -3720,6 +3728,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     if (!text || typeof text !== 'string') return false;
 
     const timeExpectationPatterns = [
+      // Italiano
       /\bpensavo\b/i,
       /\bcredevo\b/i,
       /\bmi\s+era\s+stato\s+detto\b/i,
@@ -3729,7 +3738,31 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
       /\bmi\s+sembrava\b/i,
       /\bero\s+convint[oa]\b/i,
       /\bho\s+letto\b/i,
-      /\b(?:fosse|era|sia|sarà|sarebbe|iniziasse|inizia|cominciasse|comincia)\s+(?:alle\s+)?(?:ore\s+)?(?:[01]?\d|2[0-3])[:.][0-5]\d\b/i
+      /\b(?:fosse|era|sia|sarà|sarebbe|iniziasse|inizia|cominciasse|comincia)\s+(?:alle\s+)?(?:ore\s+)?(?:[01]?\d|2[0-3])[:.][0-5]\d\b/i,
+      // English
+      /\bi\s+thought\b/i,
+      /\bi\s+(?:understood|assumed|believed|expected)\b/i,
+      /\bi\s+was\s+told\b/i,
+      /\b(?:was|were|would\s+be|starts?\s+at|begins?\s+at)\s+(?:at\s+)?(?:[01]?\d|2[0-3])[:\.][0-5]\d\b/i,
+      // Español
+      /\bpensaba\b/i,
+      /\bcreía\b/i,
+      /\bme\s+(?:habían?\s+dicho|dijeron|hab[íi]an?\s+informado)\b/i,
+      /\bentend[íi]a\s+que\b/i,
+      // Français
+      /\bje\s+pensais\b/i,
+      /\bje\s+croyais\b/i,
+      /\bon\s+m['’]avait\s+dit\b/i,
+      /\bj['’]avais\s+compris\b/i,
+      // Português
+      /\bpensava\b/i,
+      /\bacreditava\b/i,
+      /\bme\s+(?:disseram|tinham\s+dito|informaram)\b/i,
+      // Deutsch
+      /\bich\s+dachte\b/i,
+      /\bich\s+glaubte\b/i,
+      /\bman\s+hatte\s+mir\s+gesagt\b/i,
+      /\bich\s+hatte\s+(?:verstanden|angenommen)\b/i
     ];
 
     return timeExpectationPatterns.some((pattern) => pattern.test(text));
@@ -3739,18 +3772,30 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     if (!response || typeof response !== 'string') return response;
 
     const language = String(detectedLanguage || 'it').toLowerCase();
-    if (language !== 'it') return response;
 
     const sourceText = `${messageDetails && messageDetails.subject ? messageDetails.subject : ''} ${messageDetails && messageDetails.body ? messageDetails.body : ''}`.toLowerCase();
     const responseLower = response.toLowerCase();
 
     // Evita duplicazione note se già presente un chiarimento orario
-    // (supporta varianti lessicali e il fallback "Nota: ...").
+    // (supporta varianti lessicali italiane e multilingua).
     const discrepancyNotePatterns = [
+      // Italiano
       /orario\s+(?:diverso|differente)\s+(?:da|rispetto\s+a)\s+(?:quanto\s+)?(?:da\s+)?lei\s+indicato/i,
       /orario\s+(?:diverso|differente)\s+da\s+quello\s+indicato/i,
       /in\s+un\s+orario\s+differente\s+da\s+quanto/i,
-      /orario\s+comunicato\s+[eè]['’]?\s+diverso/i
+      /orario\s+comunicato\s+[eè]['’]?\s+diverso/i,
+      // English
+      /meeting\s+will\s+take\s+place\s+at\s+a\s+different\s+time/i,
+      /takes?\s+place\s+at\s+a\s+different\s+time\s+than\s+what\s+you/i,
+      /note:\s+the\s+(?:meeting|event|course|class)\s+(?:starts?|begins?)\s+at\s+a\s+different/i,
+      // Español
+      /horario\s+diferente\s+(?:al|de\s+lo)\s+(?:indicado|que\s+usted\s+indicó)/i,
+      // Français
+      /heure\s+différente\s+(?:de\s+celle\s+)?que\s+vous\s+avez\s+indiquée/i,
+      // Português
+      /horário\s+diferente\s+do\s+(?:que\s+)?indicad/i,
+      // Deutsch
+      /anderen\s+(?:uhrzeit|zeit)\s+(?:als\s+)?(?:von\s+ihnen\s+)?angegeben/i
     ];
 
     if (discrepancyNotePatterns.some((pattern) => pattern.test(responseLower))) {

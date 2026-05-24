@@ -1158,7 +1158,7 @@ var MemoryService = class MemoryService {
     const now = Date.now();
     const minAllowed = new Date('2020-01-01T00:00:00Z').getTime();
     // Intervallo di validità futuro: consenti fino a 24h per compensare drift/fusi orari
-    const maxAllowed = now + 86400000;
+    const maxAllowed = now + (60 * 60 * 1000);
 
     if (parsed.getTime() < minAllowed || parsed.getTime() > maxAllowed) {
       console.warn(`⚠️ Timestamp fuori range: ${timestamp}, reset`);
