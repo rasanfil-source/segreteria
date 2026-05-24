@@ -724,7 +724,7 @@ function _getSpreadsheetModifiedTimeMs(spreadsheetId) {
   let customTs = 0;
   if (props) {
     try {
-      const customRaw = (typeof props.getProperty === 'function')
+      const customRaw = typeof props.getProperty === 'function'
         ? props.getProperty('KB_CUSTOM_MODIFIED_TIME')
         : null;
       const parsedCustomTs = customRaw ? parseInt(customRaw, 10) : NaN;
@@ -736,45 +736,8 @@ function _getSpreadsheetModifiedTimeMs(spreadsheetId) {
     }
   }
 
-  let driveModifiedMs = 0;
-
-  if (spreadsheetId) {
-    try {
-      if (typeof Drive !== 'undefined' && Drive && Drive.Files && typeof Drive.Files.get === 'function') {
-        let file = null;
-
-        try {
-          // Drive API v3
-          file = Drive.Files.get(spreadsheetId, { fields: 'modifiedTime' });
-        } catch (v3Error) {
-          // Alcuni ambienti Apps Script usano ancora semantica v2.
-          try {
-            file = Drive.Files.get(spreadsheetId, { fields: 'modifiedDate' });
-          } catch (v2FieldError) {
-            // Fallback finale per ambienti senza parametro "fields".
-            file = Drive.Files.get(spreadsheetId);
-          }
-        }
-
-        const modifiedRaw = file && (file.modifiedTime || file.modifiedDate);
-        driveModifiedMs = modifiedRaw ? Date.parse(modifiedRaw) : NaN;
-        if (isNaN(driveModifiedMs)) driveModifiedMs = 0;
-      }
-    } catch (e) {
-      console.warn('⚠️ Drive API non disponibile per modifiedTime: ' + e.message);
-    }
-  }
-
-  // Usa il timestamp più recente tra trigger onEdit/custom e Drive.
-  // Se nessun segnale reale è disponibile, restituiamo 0: usare Date.now()
-  // renderebbe la cache sempre stale e moltiplicherebbe letture Sheets inutili.
-  const finalTs = Math.max(customTs || 0, driveModifiedMs || 0);
-
-  // Non persistiamo qui il timestamp calcolato da Drive: KB_CUSTOM_MODIFIED_TIME
-  // è un segnale esplicito scritto da onEdit per le sole risorse monitorate.
-  // Scriverci il valore Drive da un polling generico confonde la provenienza del
-  // segnale e può rendere più difficile diagnosticare l'invalidazione cache.
-  return finalTs;
+  // Use only the custom timestamp from onEdit triggers.
+  return customTs || 0;
 }
 
 function _isKnowledgeBaseSheetName(sheetName, cfg) {
