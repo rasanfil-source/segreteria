@@ -806,17 +806,22 @@ Output JSON:
     const text = ` ${safeSubject} ${safeContent} `.substring(0, 3000).toLowerCase();
     const originalText = ` ${safeSubject} ${safeContent} `.substring(0, 3000);
 
-    // 1. Rilevamento potenziato Italiano istituzionale (Priorità Massima)
-    // Previene errori su richieste formali che potrebbero avere molti termini latini o esteri.
+    // 1. Rilevamento potenziato Italiano istituzionale
+    // Previene errori su richieste formali. Trasformato in boost per evitare falsi positivi su nomi propri.
     const snippet = text.substring(0, 800);
+    let itIstituzionaleScore = 0;
+    
+    // Rimosse parole come "parrocchia", "sant'eugenio", "segreteria" e "don raimondo" 
+    // perché usate universalmente dagli stranieri per riferirsi a voi.
     const itIstituzionale = [
-      'segreteria', 'parrocchia', 'sant’eugenio', 'sant\'eugenio', "sant'eugenio", 'don raimondo', 'ufficio parrocchiale',
-      'certificato di battesimo', 'nulla osta', 'la celebrazione', 'il sacramento', 'l\'eucaristia',
-      'la comunione', 'la cresima', 'il matrimonio', 'il funerale', 'la benedizione'
+      'ufficio parrocchiale', 'certificato di battesimo', 'nulla osta', 
+      'la celebrazione', 'il sacramento', 'l\'eucaristia', 'la comunione', 
+      'la cresima', 'il matrimonio', 'il funerale', 'la benedizione'
     ];
+    
     if (itIstituzionale.some(k => snippet.includes(k))) {
-      console.log(`✅ Lingua rilevata (Istituzionale): IT (Confidence: 5)`);
-      return { lang: 'it', confidence: 5, safetyGrade: 5 };
+      itIstituzionaleScore = 15; // Forte boost, ma superabile da un testo interamente in inglese
+      console.log(`   Trovati termini istituzionali italiani (+15 punti IT)`);
     }
 
     // 2. Score basato su indicatori frequenti (fallback)
@@ -947,7 +952,7 @@ Output JSON:
     const scores = {
       'en': englishScore,
       'es': spanishLexicalScore + Math.min(spanishCharScore, 2),
-      'it': countMatches(italianKeywords, text, 1),
+      'it': countMatches(italianKeywords, text, 1) + itIstituzionaleScore,
       'pt': ptUniqueScore + ptStandardScore + Math.min(portugueseCharScore, 2),
       // Supporto markers per lingue secondarie.
       'fr': countMatches(indicators.fr, text, 1.5),
