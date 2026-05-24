@@ -177,22 +177,36 @@ var ResponseValidator = class ResponseValidator {
    * @returns {Object} Risultato validazione
    */
   validateResponse(response, detectedLanguage, knowledgeBase, emailContent, emailSubject, salutationMode = 'full', attemptPerfezionamento = true, temporalContext = null) {
-    // GUARDRAIL: questo validator non deve "appiattire" la formattazione utile
-    // (liste, paragrafi, enfasi) salvo casi di sicurezza/qualità espliciti.
-    // Interventi aggressivi di normalizzazione qui possono degradare UX e leggibilità.
     const errors = [];
     const warnings = [];
     const details = {};
     let score = 1.0;
 
-    // Variabile per gestire la risposta (che potrebbe essere perfezionata)
-    let currentResponse = typeof response === 'string' ? response : (response == null ? '' : String(response));
+    // Variabile per gestire la risposta
+    let rawResponse = typeof response === 'string' ? response : (response == null ? '' : String(response));
+    let currentResponse = rawResponse;
     let wasRefined = false;
+
+    // ====================================================================
+    // ESTRAZIONE DEL TESTO FINALE DAI TAG XML (Gemini 3.x Flash)
+    // ====================================================================
+    const emailMatch = rawResponse.match(/<email>\s*([\s\S]*?)\s*<\/email>/i);
+    if (emailMatch && emailMatch[1]) {
+      currentResponse = emailMatch[1].trim();
+      console.log(`✂️ Estratto blocco <email> (${currentResponse.length} caratteri). Ignorato blocco <analisi>.`);
+    } else {
+      // Fallback: se il modello dimentica <email>, puliamo almeno il blocco <analisi>.
+      const hasAnalisi = /<analisi>[\s\S]*?<\/analisi>/i.test(currentResponse);
+      if (hasAnalisi) {
+        currentResponse = currentResponse.replace(/<analisi>[\s\S]*?<\/analisi>/i, '').trim();
+        console.log('✂️ Rimosso blocco <analisi> di fallback.');
+      }
+    }
 
     const safeDetectedLanguage = typeof detectedLanguage === 'string' && detectedLanguage.length > 0
       ? detectedLanguage
       : 'it';
-    console.log(`🔍 Validazione risposta (${currentResponse.length} caratteri, lingua=${safeDetectedLanguage})...`);
+    console.log(`🔍 Validazione risposta netta (${currentResponse.length} caratteri, lingua=${safeDetectedLanguage})...`);
 
     // --- PRIMO PASSAGGIO DI VALIDAZIONE ---
     let validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent, emailSubject, temporalContext);

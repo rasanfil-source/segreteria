@@ -142,12 +142,11 @@ var PromptEngine = class PromptEngine {
         }, {})
       : ((activeConcerns && typeof activeConcerns === 'object') ? activeConcerns : {});
 
-    let sections = [];
+    let systemSections = [];
+    let userSections = [];
     let skippedCount = 0;
 
-    // ══════════════════════════════════════════════════════════════════════
     // PRE-STIMA E BUDGETING TOKEN (Protezione Memory Growth)
-    // ══════════════════════════════════════════════════════════════════════
     const configuredMaxSafeTokens = typeof CONFIG !== 'undefined' && CONFIG.MAX_SAFE_TOKENS
       ? CONFIG.MAX_SAFE_TOKENS : 35000;
     const hardContextWindowTokens = (typeof CONFIG !== 'undefined' && Number(CONFIG.CONTEXT_WINDOW_TOKENS) > 0)
@@ -254,13 +253,17 @@ var PromptEngine = class PromptEngine {
         return;
       }
 
-      if (sections.length >= 30) {
+      if ((systemSections.length + userSections.length) >= 30) {
         console.warn(`⚠️ Limite sezioni raggiunto (30), salto sezione non critica: ${label}`);
         skippedCount++;
         return;
       }
 
-      sections.push(section);
+      if (options.isSystem) {
+        systemSections.push(section);
+      } else {
+        userSections.push(section);
+      }
       usedTokens += sectionTokens;
       usedChars += sectionChars;
     };
@@ -268,26 +271,24 @@ var PromptEngine = class PromptEngine {
     /**
      * Helper per aggiungere template condizionali
      */
-    const addTemplate = (templateName, content, label) => {
+    const addTemplate = (templateName, content, label, options = {}) => {
       if (this._shouldIncludeTemplate(templateName, promptProfile, normalizedConcerns)) {
-        addSection(content, label || templateName);
+        addSection(content, label || templateName, options);
       } else {
         skippedCount++;
       }
     };
 
-    // ══════════════════════════════════════════════════════════════════════
     // BLOCCO 1: SETUP CRITICO (Priorità Massima)
-    // ══════════════════════════════════════════════════════════════════════
 
     // 1. RUOLO SISTEMA
-    addSection(this._renderSystemRole(), 'SystemRole', { force: true });
+    addSection(this._renderSystemRole(), 'SystemRole', { force: true, isSystem: true });
 
     // 2. ISTRUZIONI LINGUA
-    addSection(this._renderLanguageInstruction(detectedLanguage), 'LanguageInstruction', { force: true });
+    addSection(this._renderLanguageInstruction(detectedLanguage), 'LanguageInstruction', { force: true, isSystem: true });
 
     // 3. REGOLARE NON RISPOSTA
-    addSection(this._renderNoReplyRules(), 'NoReplyRules');
+    addSection(this._renderNoReplyRules(), 'NoReplyRules', { isSystem: true });
 
     // 4. KNOWLEDGE BASE (già troncata se necessario)
     addSection(this._renderKnowledgeBase(workingKnowledgeBase), 'KnowledgeBase');
@@ -302,9 +303,7 @@ var PromptEngine = class PromptEngine {
       }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
     // BLOCCO 2: CONTESTO E CONTINUITÀ
-    // ══════════════════════════════════════════════════════════════════════
 
     // 6. CONTESTO MEMORIA
     addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
@@ -335,9 +334,7 @@ var PromptEngine = class PromptEngine {
     addSection(this._renderCategoryHint(category), 'CategoryHint');
     addSection(this._renderSponsorGuidancePolicy(sponsorGuidancePolicy), 'SponsorGuidancePolicy');
 
-    // ══════════════════════════════════════════════════════════════════════
     // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)
-    // ══════════════════════════════════════════════════════════════════════
     // Normalizzazione: alcuni flussi passano requestType come stringa
     let requestTypeObj;
     if (typeof options.requestType === 'string') {
@@ -365,23 +362,13 @@ var PromptEngine = class PromptEngine {
 
     // 13. AI_CORE_LITE: solo se componente pastorale
     if ((requestTypeObj.needsDiscernment || requestTypeObj.needsDoctrine) && aiCoreLiteText) {
-      const liteSection = `
-══════════════════════════════════════════════════════════════════════
-📋 PRINCIPI PASTORALI FONDAMENTALI (AI_CORE_LITE)
-══════════════════════════════════════════════════════════════════════
-${aiCoreLiteText}
-══════════════════════════════════════════════════════════════════════\n`;
+      const liteSection = `## 📋 PRINCIPI PASTORALI FONDAMENTALI (AI_CORE_LITE)\n${aiCoreLiteText}\n`;
       addSection(liteSection, 'AICoreLite');
     }
 
     // 14. AI_CORE esteso: solo se discernimento
     if (requestTypeObj.needsDiscernment && aiCoreText) {
-      const coreSection = `
-══════════════════════════════════════════════════════════════════════
-🧭 PRINCIPI PASTORALI ESTESI (AI_CORE) - Accompagnamento Personale
-══════════════════════════════════════════════════════════════════════
-${aiCoreText}
-══════════════════════════════════════════════════════════════════════\n`;
+      const coreSection = `## 🧭 PRINCIPI PASTORALI ESTESI (AI_CORE) - Accompagnamento Personale\n${aiCoreText}\n`;
       addSection(coreSection, 'AICore');
     }
 
@@ -401,12 +388,7 @@ ${aiCoreText}
       } else {
         const canFallbackDoctrine = allowDoctrineFallback && !aiCoreLiteText && !aiCoreText;
         if (doctrineBaseText && canFallbackDoctrine) {
-          const doctrineSection = `
-══════════════════════════════════════════════════════════════════════
-📖 BASE DOTTRINALE (Dottrina) - Fallback Completo
-══════════════════════════════════════════════════════════════════════
-${doctrineBaseText}
-══════════════════════════════════════════════════════════════════════\n`;
+          const doctrineSection = `## 📖 BASE DOTTRINALE (Dottrina) - Fallback Completo\n${doctrineBaseText}\n`;
           addSection(doctrineSection, 'DoctrineFallback');
         } else if (doctrineBaseText && !canFallbackDoctrine) {
           console.warn('ℹ️ Fallback dottrinale completo evitato: AI_CORE presente (riduzione rischio bloat).');
@@ -429,17 +411,15 @@ ${doctrineBaseText}
     }
 
     // 19. CONTRATTO QUALITÀ RISPOSTA (sempre incluso)
-    addSection(this._renderResponseQualityContract(), 'ResponseQualityContract', { force: true });
+    addSection(this._renderResponseQualityContract(), 'ResponseQualityContract', { force: true, isSystem: true });
 
-    // ══════════════════════════════════════════════════════════════════════
     // BLOCCO 3: LINEE GUIDA E TEMPLATE
-    // ══════════════════════════════════════════════════════════════════════
 
     // 20. LINEE GUIDA (Filtrabili per profilo)
-    addTemplate('FormattingGuidelinesTemplate', this._renderFormattingGuidelines(), 'FormattingGuidelines');
+    addTemplate('FormattingGuidelinesTemplate', this._renderFormattingGuidelines(), 'FormattingGuidelines', { isSystem: true });
 
     // 21. STRUTTURA RISPOSTA
-    addSection(this._renderResponseStructure(category, subIntents), 'ResponseStructure');
+    addSection(this._renderResponseStructure(category, subIntents), 'ResponseStructure', { isSystem: true });
 
     // 22. TEMPLATE SPECIALI (Sbattezzo ecc.)
     const normalizedTopic = String(topic || '').toLowerCase();
@@ -450,134 +430,139 @@ ${doctrineBaseText}
       requestTypeObj.type === 'formal';
 
     if (normalizedTopic.includes('sbattezzo') || isFormalRequest) {
-      addSection(this._renderSbattezzoTemplate(senderName, detectedLanguage), 'SbattezzoTemplate');
+      addSection(this._renderSbattezzoTemplate(senderName, detectedLanguage), 'SbattezzoTemplate', { isSystem: true });
     }
 
     // 23. LINEE GUIDA TONO UMANO
-    addTemplate('HumanToneGuidelinesTemplate', this._renderHumanToneGuidelines(), 'HumanToneGuidelines');
+    addTemplate('HumanToneGuidelinesTemplate', this._renderHumanToneGuidelines(), 'HumanToneGuidelines', { isSystem: true });
 
     // 24. ESEMPI
-    addTemplate('ExamplesTemplate', this._renderExamples(category), 'Examples');
+    addTemplate('ExamplesTemplate', this._renderExamples(category), 'Examples', { isSystem: true });
 
     // 25. REGOLE FINALI
-    addSection(this._renderResponseGuidelines(detectedLanguage, currentSeason, salutation, closing, salutationMode), 'ResponseGuidelines');
+    addSection(this._renderResponseGuidelines(detectedLanguage, currentSeason, salutation, closing, salutationMode), 'ResponseGuidelines', { isSystem: true });
 
     if (!normalizedTopic.includes('sbattezzo') && !isFormalRequest) {
       // 26. CASI SPECIALI
-      addTemplate('SpecialCasesTemplate', this._renderSpecialCases(), 'SpecialCases');
+      addTemplate('SpecialCasesTemplate', this._renderSpecialCases(), 'SpecialCases', { isSystem: true });
     }
 
-    // ══════════════════════════════════════════════════════════════════════
     // BLOCCO 4: RINFORZO FINALE
-    // ══════════════════════════════════════════════════════════════════════
 
     // 27. REMINDER ERRORI CRITICI
-    addSection(this._renderCriticalErrorsReminder(), 'CriticalErrorsReminder');
+    addSection(this._renderCriticalErrorsReminder(), 'CriticalErrorsReminder', { isSystem: true });
 
     // 28. CHECKLIST CONTESTUALE
-    addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode), 'ContextualChecklist');
+    addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode), 'ContextualChecklist', { isSystem: true });
 
     // 29. ISTRUZIONE FINALE
-    addSection("**Genera SOLO il testo finale dell'email, senza note interne, spiegazioni del processo o contenuti non richiesti:**", 'FinalInstruction', { force: true });
+    addSection(this._renderFinalInstruction(), 'FinalInstruction', { force: true, isSystem: true });
 
-    // Componi prompt finale tramite concatenazione efficiente
-    const prompt = sections.join('\n\n');
-    if (prompt.length > MAX_SAFE_PROMPT_CHARS) {
-      console.warn(`⚠️ Prompt oltre soglia caratteri (${prompt.length}), tronco a ${MAX_SAFE_PROMPT_CHARS}`);
-      return prompt.slice(0, Math.max(0, MAX_SAFE_PROMPT_CHARS - 1)).trimEnd() + '…';
+    // Componi prompt finale separando le istruzioni di sistema dai dati utente
+    const systemInstructionStr = systemSections.join('\n\n');
+    let userPromptStr = userSections.join('\n\n');
+
+    const totalLength = systemInstructionStr.length + userPromptStr.length;
+    if (totalLength > MAX_SAFE_PROMPT_CHARS) {
+      console.warn(`⚠️ Prompt oltre soglia caratteri (${totalLength}), tronco lo user prompt.`);
+      const allowedUserLength = Math.max(0, MAX_SAFE_PROMPT_CHARS - systemInstructionStr.length);
+      userPromptStr = userPromptStr.slice(0, Math.max(0, allowedUserLength - 1)).trimEnd() + '…';
     }
-    const finalTokens = this.estimateTokens(prompt);
+
+    const finalTokens = this.estimateTokens(systemInstructionStr + '\n' + userPromptStr);
     if (finalTokens > hardContextWindowTokens) {
       console.warn(`⚠️ Prompt oltre context window (${finalTokens}/${hardContextWindowTokens} token stimati). Ridurre cronologia/KB.`);
     }
 
-    console.log(`📝 Prompt generato: ${prompt.length} caratteri (~${finalTokens} token) | Profilo: ${promptProfile} | Saltati: ${skippedCount}`);
+    console.log(`📝 Prompt generato: Sys=${systemInstructionStr.length} chars, User=${userPromptStr.length} chars (~${finalTokens} token totali) | Profilo: ${promptProfile} | Saltati: ${skippedCount}`);
 
-    return prompt;
+    const promptResult = {
+      systemInstruction: systemInstructionStr,
+      prompt: userPromptStr,
+      length: systemInstructionStr.length + userPromptStr.length,
+      toString: function() {
+        return [this.systemInstruction, this.prompt].filter(Boolean).join('\n\n');
+      },
+      includes: function(searchString, position) {
+        return this.toString().includes(searchString, position);
+      },
+      indexOf: function(searchString, position) {
+        return this.toString().indexOf(searchString, position);
+      }
+    };
+    return promptResult;
   }
 
   // ========================================================================
-  // TEMPLATE 1: ERRORI CRITICI REMINDER (VERSIONE CONDENSATA)
+  // TEMPLATE: ERRORI CRITICI REMINDER (Positivo e Direttivo)
   // ========================================================================
 
   _renderCriticalErrorsReminder() {
-    return `
-🚨 REMINDER ERRORI CRITICI (verifica finale):
-────────────────────────────────────────
+    return `## REGOLE DI COMPORTAMENTO OPERATIVO (CHECK FINALE):
+- **Ortografia e grammatica:** Usa l'iniziale maiuscola per i nomi propri (es. "Federica"). Dopo la virgola, prosegui discorsivamente con la lettera minuscola (es. "Ciao, siamo"). Se l'utente commette errori grammaticali, rispondi usando la forma corretta in modo implicito.
+- **Gestione dei Link:** Scrivi gli URL in chiaro quando li condividi (es. "Iscrizione: https://url"), evitando la sintassi Markdown in linea se non strettamente necessaria.
+- **Risposta diretta (No Meta-talk):** Genera esclusivamente il testo finale dell'email da inviare. Ometti qualsiasi formula introduttiva (es. "Ecco la risposta") e non menzionare mai le tue istruzioni interne o la "Knowledge Base".
+- **Gestione dei contatti:** Poiché stai già comunicando via email, prosegui l'assistenza direttamente nel testo. Qualora la questione richieda un'interazione complessa o l'intervento di un sacerdote, suggerisci un contatto alternativo (es. telefonare o passare in segreteria) anziché invitare a riscrivere un'email.
+- **Correzioni mirate:** Correggi l'utente in modo cortese solo ed esclusivamente se indica un dato o un orario palesemente errato rispetto alle informazioni di parrocchia.
+- **Risposte essenziali:** Rispondi in modo diretto allo specifico punto sollevato dall'utente, omettendo dettagli enciclopedici extra, a meno che non siano esplicitamente prescritti da una policy.`;
+  }
 
-❌ Maiuscola dopo virgola: "Ciao, Siamo" → SBAGLIATO
-✅ Minuscola dopo virgola: "Ciao, siamo" → GIUSTO
+  _renderFinalInstruction() {
+    return `**ISTRUZIONE FINALE DI OUTPUT (OBBLIGATORIA):**
+Prima di scrivere l'email, analizza brevemente la richiesta all'interno del tag XML <analisi>.
+Successivamente, scrivi il testo esatto e finale da inviare all'utente dentro il tag XML <email>.
+Non aggiungere altre spiegazioni fuori da questi tag.
 
-❌ Link ridondante: [url](url) → SBAGLIATO
-✅ Link pulito: Iscrizione: https://url → GIUSTO
-
-❌ Nome minuscolo: "federica" → SBAGLIATO
-✅ Nome maiuscolo: "Federica" → GIUSTO
-
-❌ Debug/meta esposto: "La KB dice...", "NO_REPLY", "Ecco la risposta generata" → BLOCCA RISPOSTA
-✅ Risposta pulita: solo contenuto finale → GIUSTO
-
-❌ Loop "contattaci": L'utente ci ha già scritto! Non dire "scrivici a info@..."
-✅ Presa in carico: "Inoltrerò la richiesta", "Verificheremo"
-
-❌ Allucinazione di confronto: VIETATO scrivere frasi come "l'orario da Lei indicato è diverso" se l'utente NON ha esplicitamente scritto un orario nel suo messaggio. Non confondere una richiesta generica (es. "a maggio") con un dato errato.
-✅ Correzione cortese: SE E SOLO SE l'utente indica un orario o una data palesemente sbagliati (es. "vengo alla messa delle 17" ma è alle 18), correggilo con cortesia (es. "Le ricordiamo gentilmente che l'orario corretto è...").
-❌ Imitare errori utente grammaticali: "la canale", "i orari" → correggi implicitamente, senza segnalarlo
-✅ Se riprendi un termine dell'utente, assicurati prima che sia grammaticalmente corretto
-
-❌ Risposta enciclopedica: VIETATO. Rispondi solo al punto chiesto; eccezioni solo se una POLICY esplicita le autorizza.
-
-────────────────────────────────────────`;
+Formato obbligatorio:
+<analisi>
+(Breve ragionamento interno: intento dell'utente, vincoli di policy e dati applicabili)
+</analisi>
+<email>
+Testo finale dell'email.
+</email>`;
   }
 
   // ========================================================================
-  // TEMPLATE 1.5: CHECKLIST CONTESTUALE
+  // TEMPLATE: CHECKLIST CONTESTUALE (Positiva e Direttiva)
   // ========================================================================
 
   _renderContextualChecklist(detectedLanguage, territoryContext, salutationMode) {
     const rules = [];
 
-    // Regole universali
-    rules.push('- Non aggiungere orari se non richiesti.');
-    rules.push('- Non aggiungere link se non richiesti.');
-    rules.push('- Non aggiungere requisiti, recapiti o procedure se non richiesti o autorizzati da una POLICY esplicita.');
-    rules.push('- Non ripetere informazioni già fornite nel thread.');
-    rules.push('- Non chiedere dati che l\'utente ha già scritto.');
-    rules.push('- Non trasformare una consegna documenti/dati in una richiesta informativa.');
-    rules.push('- Non scambiare dati anagrafici forniti nel corpo email (nome, data di nascita) per un invio di documentazione. Se non ci sono allegati fisici, non confermare MAI la \'ricezione della documentazione\'.');
-    rules.push('- Non esporre ragionamento interno o riferimenti alle fonti (es. "nella nostra base dati", "la KB dice...", "devo correggere...").');
+    // Regole universali positive
+    rules.push('- **Essenzialità:** Fornisci orari, link, requisiti e procedure unicamente se necessari per rispondere alla domanda o se esplicitamente richiesti.');
+    rules.push('- **Efficienza del thread:** Dai per acquisite le informazioni che l\'utente ha già fornito nel thread o i passaggi che ha già completato (es. se menziona di avere già un documento, procedi direttamente al passo successivo).');
+    rules.push('- **Consegna documenti:** Conferma la "ricezione della documentazione" esclusivamente in presenza di allegati effettivi. Se l\'utente inserisce solo dati anagrafici nel testo, conferma di aver preso nota dei dati.');
+    rules.push('- **Ricevuta semplice:** Se l\'utente invia un documento senza fare domande, ringrazia e conferma la ricezione in modo conciso, senza aggiungere passaggi extra.');
+    rules.push('- **Identità:** Comunica immedesimandoti nel ruolo di segreteria parrocchiale verso l\'utente, senza mai esporre il tuo ragionamento o le fonti utilizzate.');
 
     // Regole lingua-specifiche
     if (detectedLanguage === 'it') {
-      rules.push('- Usa minuscola dopo virgola (es. "Ciao, siamo", non "Ciao, Siamo").');
-      rules.push('- Scrivi i nomi propri con iniziale maiuscola (es. "Federica", non "federica").');
-      rules.push('- Correggi implicitamente gli errori grammaticali dell\'utente; non copiarli.');
+      rules.push('- **Standard linguistico:** Usa un italiano corretto, formale e rispettoso (uso formale del "Lei").');
     } else if (detectedLanguage === 'en') {
-      rules.push('- Write the entire response in English; no Italian words.');
+      rules.push('- **Language consistency:** Write the entire response exclusively in English.');
     } else if (detectedLanguage === 'es') {
-      rules.push('- Escribe toda la respuesta en español; sin palabras italianas.');
+      rules.push('- **Coherencia de idioma:** Escribe toda la respuesta exclusivamente en español.');
+    } else if (detectedLanguage === 'fr') {
+      rules.push('- **Cohérence de la langue:** Rédigez l\'intégralité de la réponse exclusivement en français.');
+    } else if (detectedLanguage === 'de') {
+      rules.push('- **Sprachkonsistenz:** Verfassen Sie die gesamte Antwort ausschließlich auf Deutsch.');
+    } else if (detectedLanguage === 'pt') {
+      rules.push('- **Consistência de idioma:** Escreva toda a resposta exclusivamente em português.');
     }
 
     // Regole territorio (se rilevante)
     if (territoryContext && String(territoryContext).includes('RIENTRA')) {
-      rules.push('- Per il territorio, dai risposta SI/NO usando esattamente i dati della verifica; non scrivere solo "verificheremo".');
+      rules.push('- **Risposta sul territorio:** Comunica in modo esplicito (SÌ/NO) l\'esito della verifica territoriale basandoti sui dati forniti in input, confermando subito lo status all\'utente.');
     }
 
-    // Regole saluto
+    // Regole saluto (continuità)
     if (salutationMode === 'none_or_continuity' || salutationMode === 'session') {
-      rules.push('- Conversazione in corso: non usare saluti rituali come "Buongiorno".');
+      rules.push('- **Stile conversazionale:** Entra direttamente nel merito della risposta, omettendo saluti rituali formali iniziali, poiché la conversazione è già avviata e continua in stile chat.');
     }
 
-    // Regole anti-ridondanza
-    rules.push('- Se l\'utente ha detto "Ho già X", non fornire X di nuovo.');
-    rules.push('- Formato link: "Descrizione: https://url", non "[url](url)".');
-
-    return `
-══════════════════════════════════════════════════════════════════════
-REGOLE ASSOLUTE - VIOLAZIONE = RISPOSTA INVALIDA
-══════════════════════════════════════════════════════════════════════
-${rules.join('\n')}
-══════════════════════════════════════════════════════════════════════`;
+    return `## CHECKLIST CONTESTUALE DI RISPOSTA
+${rules.join('\n')}`;
   }
 
   // ========================================================================
@@ -725,17 +710,12 @@ ${tono}
 ${note}`;
     }).join('\n\n');
 
-    return `
-══════════════════════════════════════════════════════════════════════
-📖 RIFERIMENTI DOTTRINALI & DIRETTIVE (${selected.length} elementi)
-(Selezionati per rilevanza e coerenza di tono)
-══════════════════════════════════════════════════════════════════════
+    return `## 📖 RIFERIMENTI DOTTRINALI & DIRETTIVE (${selected.length} elementi)
+*(Selezionati per rilevanza e coerenza di tono)*
+
 ${directives}
-══════════════════════════════════════════════════════════════════════
-⚠️ IMPORTANTE: Questi riferimenti dottrinali sono stati selezionati come
-pertinenti alla richiesta. Usali per orientare la risposta, ma rispondi
-sempre in modo concreto alla domanda posta.
-══════════════════════════════════════════════════════════════════════`;
+
+⚠️ IMPORTANTE: Questi riferimenti dottrinali sono stati selezionati come pertinenti. Usali per orientare la risposta, ma rispondi sempre in modo concreto alla domanda posta.`;
   }
 
   // ========================================================================
@@ -743,15 +723,12 @@ sempre in modo concreto alla domanda posta.
   // ========================================================================
 
   _renderContinuityHumanFocus() {
-    return `══════════════════════════════════════════════════════════════════════
-🧭 CONTINUITÀ, UMANITÀ E FOCUS (LINEE GUIDA ESSENZIALI)
-══════════════════════════════════════════════════════════════════════
+    return `## 🧭 CONTINUITÀ, UMANITÀ E FOCUS (LINEE GUIDA ESSENZIALI)
 1) CONTINUITÀ: Se emerge che l'utente ha già ricevuto una risposta su questo tema, evita di ripetere informazioni identiche. Usa al massimo 1 frase di continuità (es. "Riprendo volentieri da quanto detto..."), poi vai al punto.
 2) UMANITÀ MISURATA: Usa una frase empatica SOLO se il messaggio mostra un chiaro segnale emotivo o pastorale. Altrimenti rispondi in modo diretto e sobrio.
 3) FOCUS: Rispondi prima al tema principale (topic). Aggiungi solo informazioni secondarie se strettamente utili. Se bastano poche righe, fermati lì.
 4) COERENZA LINGUISTICA: Mantieni la stessa lingua e livello di formalità dell'email ricevuta.
-5) PRUDENZA LEGGERA: Se la confidenza è bassa, formula con neutralità senza scuse o frasi di indecisione.
-══════════════════════════════════════════════════════════════════════`;
+5) PRUDENZA LEGGERA: Se la confidenza è bassa, formula con neutralità senza scuse o frasi di indecisione.`;
   }
 
   // ========================================================================
@@ -789,277 +766,124 @@ Quindi:
   }
 
   // ========================================================================
-  // TEMPLATE 4: ISTRUZIONI LINGUA
+  // TEMPLATE: ISTRUZIONI LINGUA (Pulito e Diretto)
   // ========================================================================
 
   _renderLanguageInstruction(lang) {
     const safeLang = (lang && typeof lang === 'string') ? lang.toLowerCase() : 'it';
 
     const instructions = {
-      'it': "Rispondi in italiano, la lingua dell'email ricevuta.",
-      'en': `══════════════════════════════════════════════════════════════════════
-🚨🚨🚨 CRITICAL LANGUAGE REQUIREMENT - ENGLISH 🚨🚨🚨
-══════════════════════════════════════════════════════════════════════
-
+      'it': "## LINGUA DI RISPOSTA\nRispondi in italiano, la lingua dell'email ricevuta.",
+      'en': `## CRITICAL LANGUAGE REQUIREMENT: ENGLISH
 The incoming email is written in ENGLISH.
-
-YOU MUST:
-✅ Write your ENTIRE response in ENGLISH
-✅ Use English greetings: "Good morning," "Good afternoon," "Good evening,"
-✅ Use English closings: "Kind regards," "Best regards,"
-✅ Maintain a formal, courteous register throughout
-✅ Translate any Italian information into English
-
-YOU MUST NOT:
-❌ Use ANY Italian words (no "Buongiorno", "Cordiali saluti", etc.)
-❌ Mix languages
-
-This is MANDATORY. The sender speaks English and will not understand Italian.
-══════════════════════════════════════════════════════════════════════`,
-      'es': `══════════════════════════════════════════════════════════════════════
-🚨🚨🚨 REQUISITO CRÍTICO DE IDIOMA - ESPAÑOL 🚨🚨🚨
-══════════════════════════════════════════════════════════════════════
-
+- Write your ENTIRE response in ENGLISH.
+- Use English greetings and closings ("Good morning," "Kind regards,").
+- Maintain a formal, courteous register throughout.
+- Translate any Italian information into English.
+- DO NOT use ANY Italian words. This is MANDATORY.`,
+      'es': `## REQUISITO CRÍTICO DE IDIOMA: ESPAÑOL
 El correo recibido está escrito en ESPAÑOL.
-
-DEBES:
-✅ Escribir TODA tu respuesta en ESPAÑOL
-✅ Usar saludos españoles: "Buenos días," "Buenas tardes,"
-✅ Usar despedidas españolas: "Cordiales saludos," "Un saludo,"
-✅ Mantener un registro formal; utilizar "usted" y evitar "tú"
-
-NO DEBES:
-❌ Usar NINGUNA palabra italiana
-❌ Mezclar idiomas
-
-Esto es OBLIGATORIO. El remitente habla español y no entenderá italiano.
-══════════════════════════════════════════════════════════════════════`,
-      'pt': `══════════════════════════════════════════════════════════════════════
-🚨🚨🚨 REQUISITO CRÍTICO DE IDIOMA - PORTUGUÊS 🚨🚨🚨
-══════════════════════════════════════════════════════════════════════
-
+- Escribe TODA tu respuesta en ESPAÑOL.
+- Usar saludos y despedidas españolas ("Buenos días," "Cordiales saludos,").
+- Mantener un registro formal; utilizar "usted" y evitar "tú".
+- NO usar NINGUNA palabra italiana. Esto es OBLIGATORIO.`,
+      'pt': `## REQUISITO CRÍTICO DE IDIOMA: PORTUGUÊS
 O email recebido está escrito em PORTUGUÊS.
-
-DEVE:
-✅ Escrever TODA a resposta em PORTUGUÊS
-✅ Usar saudações portuguesas: "Bom dia," "Boa tarde," "Boa noite,"
-✅ Usar despedidas portuguesas: "Com os melhores cumprimentos," "Atenciosamente,"
-✅ Manter um registo formal e cordial
-
-NÃO DEVE:
-❌ Usar palavras italianas
-❌ Misturar idiomas
-
-Isto é OBRIGATÓRIO. O remetente pode não entender italiano.
-══════════════════════════════════════════════════════════════════════`
+- Escrever TODA a resposta em PORTUGUÊS.
+- Usar saudações e despedidas portuguesas ("Bom dia," "Com os melhores cumprimentos,").
+- Manter um registo formal e cordial.
+- NÃO usar palavras italianas. Isto é OBRIGATÓRIO.`
     };
 
     if (!instructions[safeLang]) {
-      return `══════════════════════════════════════════════════════════════════════
-🚨🚨🚨 CRITICAL LANGUAGE REQUIREMENT 🚨🚨🚨
-══════════════════════════════════════════════════════════════════════
-
+      return `## CRITICAL LANGUAGE REQUIREMENT
 The incoming email is written in language code: "${safeLang.toUpperCase()}"
-
-YOU MUST:
-✅ Write your ENTIRE response in THE SAME LANGUAGE as the incoming email
-✅ Use appropriate greetings and closings for that language
-✅ Maintain a formal, courteous register in that language
-✅ Translate any Italian information into the sender's language
-
-YOU MUST NOT:
-❌ Use Italian words (no "Buongiorno", "Cordiali saluti", etc.)
-❌ Mix languages
-
-This is MANDATORY. The sender may not understand Italian.
-══════════════════════════════════════════════════════════════════════`;
+- Write your ENTIRE response in THE SAME LANGUAGE as the incoming email.
+- Use appropriate greetings and closings for that language.
+- DO NOT use Italian words or mix languages. This is MANDATORY.`;
     }
 
     return instructions[safeLang];
   }
 
   // ========================================================================
-  // TEMPLATE 5: CONTESTO MEMORIA
+  // TEMPLATE: MEMORIA E CONTINUITÀ
   // ========================================================================
 
   _renderMemoryContext(memoryContext) {
     if (!memoryContext || Object.keys(memoryContext).length === 0) return null;
 
     let sections = [];
-
-    if (memoryContext.language) {
-      sections.push(`• LINGUA STABILITA: ${memoryContext.language.toUpperCase()}`);
-    }
-
-    if (memoryContext.memorySummary) {
-      sections.push('• RIASSUNTO CONVERSAZIONE:');
-      sections.push(memoryContext.memorySummary);
-    }
+    if (memoryContext.language) sections.push(`- **Lingua stabilita:** ${memoryContext.language.toUpperCase()}`);
+    if (memoryContext.memorySummary) sections.push(`- **Riassunto:** ${memoryContext.memorySummary}`);
 
     if (memoryContext.providedInfo && memoryContext.providedInfo.length > 0) {
-      const infoList = [];
-      const questionedTopics = [];
-      const acknowledgedTopics = [];
-      const needsExpansionTopics = [];
-
+      const infoList = [], questioned = [], acknowledged = [], needsExp = [];
       memoryContext.providedInfo.forEach(item => {
         const topic = (typeof item === 'object') ? item.topic : item;
         const reaction = (typeof item === 'object') ? item.userReaction || item.reaction : 'unknown';
-
-        if (reaction === 'questioned') {
-          questionedTopics.push(topic);
-        } else if (reaction === 'acknowledged') {
-          acknowledgedTopics.push(topic);
-        } else if (reaction === 'needs_expansion') {
-          needsExpansionTopics.push(topic);
-        } else {
-          infoList.push(topic);
-        }
+        if (reaction === 'questioned') questioned.push(topic);
+        else if (reaction === 'acknowledged') acknowledged.push(topic);
+        else if (reaction === 'needs_expansion') needsExp.push(topic);
+        else infoList.push(topic);
       });
 
-      if (infoList.length > 0) {
-        sections.push(`• INFORMAZIONI GIÀ FORNITE: ${infoList.join(', ')}`);
-        sections.push('⚠️ NON RIPETERE queste informazioni se non richieste esplicitamente.');
-      }
-
-      if (acknowledgedTopics.length > 0) {
-        sections.push(`✅ UTENTE HA CAPITO: ${acknowledgedTopics.join(', ')}`);
-        sections.push('🚫 NON RIPETERE ASSOLUTAMENTE queste informazioni. Dai per scontato che le sappiano.');
-      }
-
-      if (questionedTopics.length > 0) {
-        sections.push(`❓ UTENTE NON HA CAPITO: ${questionedTopics.join(', ')}`);
-        sections.push('⚡ URGENTE: Spiega questi punti di nuovo MA con parole diverse, più semplici e chiare. Usa esempi.');
-      }
-
-      if (needsExpansionTopics.length > 0) {
-        sections.push(`🧩 UTENTE CHIEDE PIÙ DETTAGLI: ${needsExpansionTopics.join(', ')}`);
-        sections.push('➕ Fornisci dettagli aggiuntivi e passaggi pratici, mantenendo il tono formale (Lei).');
-      }
+      if (infoList.length > 0) sections.push(`- **Info già fornite:** ${infoList.join(', ')} (Non ripetere a meno che non chiesto).`);
+      if (acknowledged.length > 0) sections.push(`- **L'utente ha già capito:** ${acknowledged.join(', ')} (NON ripetere assolutamente).`);
+      if (questioned.length > 0) sections.push(`- **L'utente non ha capito:** ${questioned.join(', ')} (Spiega di nuovo con parole semplici).`);
+      if (needsExp.length > 0) sections.push(`- **Richiesta dettagli su:** ${needsExp.join(', ')} (Fornisci passaggi pratici aggiuntivi).`);
     }
 
     if (sections.length === 0) return null;
 
-    return `══════════════════════════════════════════════════════════════════════
-🧠 CONTESTO MEMORIA (CONVERSAZIONE IN CORSO)
-══════════════════════════════════════════════════════════════════════
-${sections.join('\n')}
-══════════════════════════════════════════════════════════════════════`;
+    return `## CONTESTO MEMORIA (CONVERSAZIONE IN CORSO)
+${sections.join('\n')}`;
   }
 
   // ========================================================================
-  // TEMPLATE 6: CONTINUITÀ CONVERSAZIONALE
+  // TEMPLATE: CONTINUITÀ CONVERSAZIONALE
   // ========================================================================
 
   _renderConversationContinuity(salutationMode) {
-    if (!salutationMode || salutationMode === 'full') {
-      return null;
-    }
+    if (!salutationMode || salutationMode === 'full') return null;
 
     if (salutationMode === 'session') {
-      return `══════════════════════════════════════════════════════════════════════
-🧠 CONTINUITÀ CONVERSAZIONALE - REGOLA VINCOLANTE
-══════════════════════════════════════════════════════════════════════
-
-📌 MODALITÀ SALUTO: SESSIONE CONVERSAZIONALE (chat rapida)
-
-La conversazione è in corso e ravvicinata nel tempo.
-
-REGOLE OBBLIGATORIE:
-✅ NON usare saluti rituali o formule introduttive
-✅ Rispondi in modo DIRETTO e più SECCO del normale
-✅ Usa frasi brevi, concrete e orientate alla richiesta
-✅ Evita preamboli o ripetizioni
-
-ESEMPI DI APERTURA CORRETTA:
-• "Ricevuto."
-• "Grazie per la precisazione."
-• "In merito a quanto chiede:"
-
-══════════════════════════════════════════════════════════════════════`;
+      return `## CONTINUITÀ CONVERSAZIONALE (SESSIONE CHAT)
+- NON usare saluti rituali introduttivi. La conversazione è ravvicinata.
+- Rispondi in modo diretto (es. "Ricevuto.", "In merito a quanto chiede:").`;
     }
 
     if (salutationMode === 'none_or_continuity') {
-      return `══════════════════════════════════════════════════════════════════════
-🧠 CONTINUITÀ CONVERSAZIONALE - REGOLA VINCOLANTE
-══════════════════════════════════════════════════════════════════════
-
-📌 MODALITÀ SALUTO: FOLLOW-UP RECENTE (conversazione in corso)
-
-La conversazione è già avviata. Questa NON è la prima interazione.
-
-REGOLE OBBLIGATORIE:
-✅ NON usare saluti rituali completi (Buongiorno, Buon Natale, ecc.)
-✅ NON ripetere saluti festivi già usati nel thread
-✅ Inizia DIRETTAMENTE dal contenuto OPPURE usa una frase di continuità
-
-FRASI DI CONTINUITÀ CORRETTE:
-• "Grazie per il messaggio."
-• "Ecco le informazioni richieste."
-• "Riguardo alla sua domanda..."
-• "In merito a quanto ci chiede..."
-
-⚠️ DIVIETO: Ripetere lo stesso saluto è percepito come MECCANICO e non umano.
-
-══════════════════════════════════════════════════════════════════════`;
+      return `## CONTINUITÀ CONVERSAZIONALE (FOLLOW-UP)
+- NON usare saluti rituali completi (es. Buongiorno).
+- Inizia direttamente o usa frasi di collegamento (es. "Grazie per il messaggio", "Riguardo alla sua domanda").`;
     }
 
     if (salutationMode === 'soft') {
-      return `══════════════════════════════════════════════════════════════════════
-🧠 CONTINUITÀ CONVERSAZIONALE - REGOLA VINCOLANTE
-══════════════════════════════════════════════════════════════════════
-
-📌 MODALITÀ SALUTO: RIPRESA CONVERSAZIONE (dopo una pausa)
-
-REGOLE:
-✅ Usa un saluto SOFT, non il rituale standard
-✅ NON usare "Buongiorno/Buonasera" come se fosse il primo contatto
-
-SALUTI SOFT CORRETTI:
-• "Ci fa piacere risentirla."
-• "Grazie per averci ricontattato."
-• "Bentornato/a."
-
-══════════════════════════════════════════════════════════════════════`;
+      return `## CONTINUITÀ CONVERSAZIONALE (RIPRESA)
+- Usa un saluto "soft" (es. "Bentornato/a", "Ci fa piacere risentirla"). NON usare il saluto rituale standard.`;
     }
 
     return null;
   }
 
   // ========================================================================
-  // TEMPLATE 7: GESTIONE RITARDO RISPOSTA
+  // TEMPLATE: TEMPO E SCUSE
   // ========================================================================
 
   _renderResponseDelay(responseDelay, detectedLanguage = 'it') {
-    if (!responseDelay || !responseDelay.shouldApologize) {
-      return null;
-    }
-
+    if (!responseDelay || !responseDelay.shouldApologize) return null;
     const apologyByLanguage = {
       it: 'Ci scusiamo per il ritardo con cui rispondiamo.',
       en: 'We apologize for the delay in responding.',
       es: 'Pedimos disculpas por la demora en nuestra respuesta.',
-      fr: 'Nous vous prions de nous excuser pour le retard de notre réponse.',
+      fr: 'Nous vous prions de nous excuser pour le retard.',
       de: 'Wir entschuldigen uns für die verspätete Antwort.',
       pt: 'Pedimos desculpas pelo atraso na nossa resposta.'
     };
-
-    const apologyLine = apologyByLanguage[detectedLanguage] || apologyByLanguage.it;
-
-    return `══════════════════════════════════════════════════════════════════════
-⏳ RISPOSTA IN RITARDO - REGOLA VINCOLANTE
-══════════════════════════════════════════════════════════════════════
-
-Il messaggio è arrivato da alcuni giorni.
-
-REGOLE OBBLIGATORIE:
-✅ Apri la risposta con una breve frase di scuse per il ritardo
-✅ Mantieni il resto della risposta diretto e professionale
-✅ Non attribuire colpe o dettagli tecnici (niente "spam", "problemi tecnici")
-
-ESEMPIO DI APERTURA:
-• "${apologyLine}"
-══════════════════════════════════════════════════════════════════════`;
+    return `## RISPOSTA IN RITARDO
+- Apri la tua email con una breve frase di scuse: "${apologyByLanguage[detectedLanguage] || apologyByLanguage.it}"
+- Non inventare motivazioni tecniche, sii solo formale e vai al punto.`;
   }
 
   // ========================================================================
@@ -1128,62 +952,19 @@ Non mostrare mai entrambi i set di orari.`;
       dateObj = new Date(currentDate);
     }
     const humanDate = (() => {
-      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-      const localeByLanguage = { it: 'it-IT', en: 'en-GB', es: 'es-ES', pt: 'pt-PT' };
-      const locale = localeByLanguage[detectedLanguage] || localeByLanguage.it;
-
       try {
-        const tz = (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function')
-          ? Session.getScriptTimeZone()
-          : 'Europe/Rome';
-        return new Intl.DateTimeFormat(locale, { ...options, timeZone: tz }).format(dateObj);
-      } catch (e) {
-        return currentDate;
-      }
+        const tz = (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function') ? Session.getScriptTimeZone() : 'Europe/Rome';
+        return new Intl.DateTimeFormat('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: tz }).format(dateObj);
+      } catch (e) { return currentDate; }
     })();
 
-    const messageDateLine = messageDate
-      ? `\n📨 DATA DI RICEZIONE/INVIO EMAIL: ${messageDate} (usa questa data per interpretare "oggi", "domani" e "ieri" scritti dall'utente)`
-      : '';
-
-    const timeLine = currentTime
-      ? `\n⏰ ORA ATTUALE LOCALE: ${currentTime} (Roma, Italia)`
-      : '';
-    const isContinuitySalutation =
-      salutationMode === 'session' ||
-      salutationMode === 'none_or_continuity' ||
-      salutationMode === 'soft';
-    const salutationGuardLine = isContinuitySalutation
-      ? '\n   • Poiché la conversazione è già in corso e il saluto formale è stato omesso, NON inventare saluti iniziali come "Buongiorno", "Buonasera" o "Salve": inizia direttamente con il contenuto.'
-      : '';
-
-    return `══════════════════════════════════════════════════════════════════════
-🗓️ DATA ODIERNA: ${currentDate} (${humanDate})${messageDateLine}${timeLine}${salutationGuardLine}
-══════════════════════════════════════════════════════════════════════
-
-⚠️ REGOLE TEMPORALI E DI FORMATO CRITICHE - PENSA COME UN UMANO:
-
-1. **ORDINE CRONOLOGICO OBBLIGATORIO**
-   • Presenta SEMPRE gli eventi futuri dal più vicino al più lontano
-   • NON seguire l'ordine della knowledge base se non è cronologico
-
-2. **NON usare etichette che confondono**
-   • Se la KB dice "primo corso: ottobre" e "secondo corso: marzo"
-     NON ripetere queste etichette
-   • Usa: "Il prossimo corso disponibile...", "Il corso successivo..."
-
-3. **QUALIFICA TEMPORALE PRIMA DI RISPONDERE**
-   Prima di dire se un evento, corso o celebrazione è futuro, in corso, concluso o già avvenuto, confronta la sua data con la DATA ODIERNA.
-   • Se la data è successiva alla DATA ODIERNA, presentalo come futuro o programmato.
-   • Se la data è precedente alla DATA ODIERNA, presentalo come già avvenuto.
-   • Se la data non è chiara o non è confrontabile, non dedurre che l'evento sia già passato o già concluso.
-   • Applica questa regola anche quando la knowledge base usa formulazioni statiche o riferite all'anno pastorale.
-
-4. **Anno pastorale vs anno solare**
-   • L'anno pastorale va da settembre ad agosto
-   • "Quest'anno" per eventi parrocchiali = anno pastorale corrente
-
-══════════════════════════════════════════════════════════════════════`;
+    return `## DATA ODIERNA E CONTESTO TEMPORALE
+- **Oggi è:** ${currentDate} (${humanDate})
+${messageDate ? `- **Data ricezione/invio email utente:** ${messageDate}\n` : ''}${currentTime ? `- **Ora locale attuale:** ${currentTime}\n` : ''}
+**Regole Temporali:**
+1. Ordina sempre gli eventi futuri cronologicamente.
+2. Prima di descrivere un evento (corso, celebrazione) come "futuro" o "passato", confrontalo rigidamente con la data odierna.
+3. Attento all'anno pastorale (settembre-agosto) vs anno solare.`;
   }
 
   // ========================================================================
@@ -1219,50 +1000,15 @@ ${hints[effectiveCategory]}` : null;
   }
 
   // ========================================================================
-  // TEMPLATE 14: LINEE GUIDA FORMATTAZIONE
+  // TEMPLATE: LINEE GUIDA FORMATTAZIONE
   // ========================================================================
 
   _renderFormattingGuidelines() {
-    return `══════════════════════════════════════════════════════════════════════
-✨ FORMATTAZIONE ELEGANTE E USO ICONE
-══════════════════════════════════════════════════════════════════════
-
-🎨 QUANDO USARE FORMATTAZIONE MARKDOWN:
-
-1. **Elenchi di 3+ elementi** → Usa elenchi puntati con icone
-2. **Orari multipli** → Tabella strutturata con icone
-3. **Informazioni importanti** → Grassetto per evidenziare
-4. **Sezioni distinte** → Intestazioni H3 (###) con icona
-5. **Domande con risposta articolata** → Mantieni titoli, icone e sezioni chiare
-
-📋 ICONE CONSIGLIATE PER CATEGORIA:
-
-**ORARI E DATE:**
-• 🗓️ Date specifiche | ⏰ Orari | 🕒 Orari Messe
-
-**LUOGHI E CONTATTI:**
-• 📍 Indirizzo / Luogo | 📞 Telefono | 📧 Email
-
-**DOCUMENTI E REQUISITI:**
-• 📄 Documenti | ✅ Requisiti soddisfatti | ⚠️ Attenzione
-
-**ATTIVITÀ E SACRAMENTI:**
-• ⛪ Chiesa / Parrocchia | ✝️ Sacramenti | 📖 Catechesi | 🙏 Preghiera
-
-⚠️ REGOLE IMPORTANTI:
-
-1. **NON esagerare con le icone** - Usa 1 icona per categoria
-2. **Usa Markdown quando migliora la leggibilità**
-3. **Mantieni coerenza** - Stessa icona per stesso tipo info
-4. **Risposte articolate** - Se la domanda richiede più passaggi, date, requisiti o alternative, usa titoli e icone
-5. **Risposte sobrie** - Se è solo una ricevuta documento, una conferma breve o un ringraziamento, non creare titoli/icone
-
-💡 QUANDO NON USARE FORMATTAZIONE AVANZATA:
-❌ Risposte brevissime (1-2 frasi)
-❌ Semplici conferme
-❌ Ringraziamenti
-
-══════════════════════════════════════════════════════════════════════`;
+    return `## FORMATTAZIONE ED EVIDENZIAZIONE
+- **Uso Liste:** Utilizza elenchi puntati con emoji contestuali SOLO se devi elencare 3 o più elementi (es. requisiti, documenti).
+- **Orari e Date:** Mettili in grassetto per facilitare la lettura. Usa emoji sobrie (🗓️, ⏰, 📍).
+- **Titoli:** Usa titoli Markdown (###) se la risposta contiene più argomenti o step nettamente separati.
+- **Risposte brevi:** Se la risposta richiede solo 1-2 frasi (es. conferma di ricezione), non utilizzare formattazione, emoji o titoli.`;
   }
 
   // ========================================================================
@@ -1475,54 +1221,15 @@ ${attachmentsContext || ''}`;
   }
 
   // ========================================================================
-  // TEMPLATE 20: LINEE GUIDA TONO UMANO
+  // TEMPLATE: TONO UMANO E LINEE GUIDA RISPOSTA
   // ========================================================================
 
   _renderHumanToneGuidelines() {
-    return `══════════════════════════════════════════════════════════════════════
-🎬 LINEE GUIDA PER TONO UMANO E NATURALE
-══════════════════════════════════════════════════════════════════════
-
-1. **VOCE DI SEGRETERIA:**
-   • Usa la prima persona plurale quando serve ("abbiamo ricevuto", "verificheremo").
-   • In italiano usa sempre il "Lei".
-   • Evita frasi troppo personali o enfatiche se il messaggio è pratico.
-
-2. **GARBO SENZA RIEMPITIVI:**
-   • Una breve frase cortese basta; non aggiungere cordialità generica se non serve.
-   • "Restiamo a disposizione" va usato solo quando apre davvero a un chiarimento utile.
-   • Non chiudere ogni conferma con offerte di aiuto non richieste.
-
-3. **EMPATIA SITUAZIONALE:**
-   • Lutto, disagio, urgenza o situazione pastorale: riconosci con delicatezza prima dell'informazione pratica.
-   • Richieste tecniche, documenti, iscrizioni: tono gentile e concreto, senza commenti emotivi artificiali.
-   • Reclami: riconosci il disagio e passa a una soluzione o presa in carico.
-
-4. **CONCISIONE INTELLIGENTE:**
-   • Info complete rispetto alla domanda, senza ripetizioni.
-   • Se il mittente chiede una conferma, non trasformarla in spiegazione.
-   • Se il mittente chiede un dettaglio, non allegare tutto il programma.
-
-5. **STRUTTURA RESPIRABILE:**
-   • Paragrafi brevi (2-3 frasi max)
-   • Spazi bianchi tra concetti diversi
-   • Elenchi puntati per info multiple
-
-6. **PERSONALIZZAZIONE:**
-   • Se è una RISPOSTA (Re:), sii più diretto e conciso
-   • Se è PRIMA INTERAZIONE, sii più completo
-   • Se conosci il NOME, usalo nel saluto
-   • Usa SEMPRE il nome dalla firma nel testo dell'email, se presente.
-   • Il nome nell'header "Da:" identifica l'account, non necessariamente chi scrive.
-   • Mostra ascolto attivo integrando l'informazione, non ripetendola: se scrive "vengo con un'amica", rispondi direttamente per due persone.
-   • NON chiedere informazioni che l'utente ha appena scritto.
-
-7. **CONSEGNA DATI (SENZA DOMANDA ESPLICITA):**
-   • Se il mittente invia dati personali/organizzativi (es. date emissione documenti, numeri documento, scadenze) per una pratica o evento, trattalo come invio dati.
-   • Conferma la ricezione e la presa in carico; non promettere registrazioni definitive se serve una verifica.
-   • NON chiedere "qual è la richiesta?" se il contesto è già chiaro dall'oggetto/corpo (es. Cammino di Santiago, iscrizione, pratica in corso).
-
-══════════════════════════════════════════════════════════════════════`;
+    return `## TONO DI VOCE E STILE RELAZIONALE
+- **Identità:** Sei la segreteria parrocchiale. Usa la prima persona plurale ("abbiamo ricevuto", "siamo a disposizione").
+- **Empatia situazionale:** Riconosci delicatamente lutti, urgenze o disagi prima di passare alle informazioni pratiche.
+- **Sobrietà:** Sii cordiale ma concreto. Non aggiungere "Siamo a disposizione" se stai già chiudendo la comunicazione di un mero invio documenti.
+- **Personalizzazione:** Usa il nome dell'utente nel saluto se disponibile nel corpo o firma dell'email. Mostra ascolto attivo: se l'utente scrive "vengo con mia moglie", rispondi indicando procedure per due persone.`;
   }
 
   // ========================================================================
@@ -1534,9 +1241,7 @@ ${attachmentsContext || ''}`;
       return null;
     }
 
-    return `══════════════════════════════════════════════════════════════════════
-📚 ESEMPI CON FORMATTAZIONE CORRETTA
-══════════════════════════════════════════════════════════════════════
+    return `## 📚 ESEMPI CON FORMATTAZIONE CORRETTA
 
 **ESEMPIO 1 - CAMMINO DI SANTIAGO (con link corretti):**
 
@@ -1571,9 +1276,7 @@ Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
 ✅ ESEMPIO CORRETTO (senza formattazione):
 "Buongiorno, la catechesi inizia domenica 21 settembre alle ore 10:00."
 
-→ Info singola, breve, chiara = no formattazione necessaria.
-
-══════════════════════════════════════════════════════════════════════`;
+→ Info singola, breve, chiara = no formattazione necessaria.`;
   }
 
   // ========================================================================
@@ -1801,9 +1504,7 @@ ${languageReminder}`;
 • **Impegni lavorativi:** Se impossibilitato → offri programmi flessibili.
 • **Filtro temporale:** "a giugno" → rispondi SOLO con info di giugno.
 
-══════════════════════════════════════════════════════════════════════
-⚠️ SITUAZIONI CANONICAMENTE COMPLESSE - RICHIESTA PRUDENZA
-══════════════════════════════════════════════════════════════════════
+### ⚠️ SITUAZIONI CANONICAMENTE COMPLESSE
 
 Se l'email menziona uno di questi elementi:
 • **Divorziato/a** o **separato/a** che vuole sposarsi
@@ -1823,58 +1524,17 @@ Esempio di risposta CORRETTA per persona divorziata:
 "Comprendiamo la delicatezza della sua situazione. Per poter valutare insieme
 il suo caso specifico, le consigliamo di parlare direttamente con un sacerdote.
 Può contattarci per fissare un appuntamento: Tel. [numero in KB].
-Restiamo a disposizione."
-
-══════════════════════════════════════════════════════════════════════`;
+Restiamo a disposizione."`;
   }
 
   // ========================================================================
-  // TEMPLATE 24: TEMPLATE SBATTEZZO
+  // TEMPLATE: SBATTEZZO (Casi formali)
   // ========================================================================
 
   _renderSbattezzoTemplate(senderName, detectedLanguage = 'it') {
-    const sanitizedName = (senderName || 'Utente')
-      .replace(/[<>]/g, '')
-      .substring(0, 50)
-      .trim() || 'Utente';
-
-    if (String(detectedLanguage || '').toLowerCase().substring(0, 2) !== 'it') {
-      return `══════════════════════════════════════════════════════════════════════
-🚨 MANDATORY TEMPLATE: FORMAL REQUEST — REMOVAL FROM PARISH RECORDS 🚨
-══════════════════════════════════════════════════════════════════════
-
-USE EXACTLY THIS STRUCTURE AND TONE. DO NOT ADD ANYTHING ELSE.
-
-Dear ${sanitizedName},
-
-We confirm receipt of your request.
-
-As a first step, this parish will verify its records to ascertain whether your Baptism was celebrated here.
-
-* If the Baptism is recorded in this parish, we will promptly forward your request to the Diocesan Ordinary, attaching the Baptism certificate. The Diocesan Curia will contact you for a personal meeting to clarify the canonical consequences of the decision expressed. If your will remains confirmed, the Ordinary will issue the appropriate Decree and this parish will make the annotation in the Baptism register.
-
-* If the Baptism is not found in this parish's records, we will inform you that we cannot proceed further here and will indicate the parish to contact.
-
-Once the verification is complete, we will inform you of the outcome.
-
-Please note that the Church does not "erase" the historical fact of the sacrament (which remains an event that occurred), but formally records the will not to belong to the Catholic Church anymore.
-
-Kind regards,
-Parish Secretariat of Sant'Eugenio
-
-⚠️ CRITICAL RULES:
-1. Do NOT invite the person to call.
-2. Do NOT invite the person to make an appointment at the parish office (the Curia will do this).
-3. Do NOT add pastoral or theological comments beyond what is written above.
-4. Keep a strictly institutional tone.
-══════════════════════════════════════════════════════════════════════`;
-    }
-
-    return `══════════════════════════════════════════════════════════════════════
-🚨 TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI (SBATTEZZO) 🚨
-══════════════════════════════════════════════════════════════════════
-
-USA ESATTAMENTE QUESTA STRUTTURA E QUESTO TONO. NON AGGIUNGERE ALTRO.
+    const sanitizedName = (senderName || 'Utente').replace(/[<>]/g, '').substring(0, 50).trim() || 'Utente';
+    return `## TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI (SBATTEZZO)
+USA ESATTAMENTE QUESTA STRUTTURA. NON AGGIUNGERE ALTRO.
 
 Gentile ${sanitizedName},
 
@@ -1893,12 +1553,7 @@ Ci preme ricordarle che la Chiesa non "cancella" il dato storico del sacramento 
 Cordiali saluti,
 Segreteria Parrocchia Sant'Eugenio
 
-⚠️ REGOLE CRITICHE:
-1. NON invitare a telefonare.
-2. NON invitare a fissare un appuntamento in segreteria (sarà la Curia a farlo).
-3. NON aggiungere commenti pastorali o teologici oltre a quanto scritto sopra.
-4. Mantieni rigorosamente la terza persona o il "noi" istituzionale.
-══════════════════════════════════════════════════════════════════════`;
+**Regole di output:** NON invitare a telefonare o fissare appuntamenti, mantieni il testo istituzionale, usa il tag <email> come prescritto.`;
   }
 
   // ========================================================================
@@ -1914,12 +1569,8 @@ Segreteria Parrocchia Sant'Eugenio
     const safeAiCoreLiteText = this._normalizePromptTextInput(aiCoreLiteText, '');
     if (!safeAiCoreLiteText) return 0;
 
-    const liteSection = `
-══════════════════════════════════════════════════════════════════════
-📋 PRINCIPI PASTORALI FONDAMENTALI (AI_CORE_LITE)
-══════════════════════════════════════════════════════════════════════
+    const liteSection = `## 📋 PRINCIPI PASTORALI FONDAMENTALI (AI_CORE_LITE)
 ${safeAiCoreLiteText}
-══════════════════════════════════════════════════════════════════════
 `;
     return liteSection.length;
   }

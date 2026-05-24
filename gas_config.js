@@ -221,7 +221,7 @@ var CONFIG = {
   // === Modelli Gemini (configurazione centralizzata) ===
   // Aggiornato: Maggio 2026
   // Policy operativa:
-  // - Risposta finale: Gemini 2.5 Flash (qualita)
+  // - Risposta finale: Gemini 3.5 Flash (qualità)
   // - Task rapidi/ausiliari: Gemini 3.1 Flash-Lite (categoria, lingua AI, semantica, scarti)
   // Fonte quote operative: verificare i limiti effettivi nel progetto AI Studio.
   // Le quote effettive possono variare per progetto: se AI Studio mostra limiti inferiori,

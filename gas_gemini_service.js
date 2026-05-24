@@ -104,14 +104,36 @@ var GeminiService = class GeminiService {
     return fallbackName || this.modelName || 'gemini-3.5-flash';
   }
 
+  _normalizePromptPayload_(promptData) {
+    if (promptData && typeof promptData === 'object') {
+      const userPrompt = promptData.prompt != null ? String(promptData.prompt) : '';
+      const systemInstruction = promptData.systemInstruction != null
+        ? String(promptData.systemInstruction)
+        : '';
+      return {
+        userPrompt: userPrompt,
+        systemInstruction: systemInstruction,
+        combinedText: [systemInstruction, userPrompt].filter(Boolean).join('\n\n')
+      };
+    }
+
+    const userPrompt = promptData == null ? '' : String(promptData);
+    return {
+      userPrompt: userPrompt,
+      systemInstruction: '',
+      combinedText: userPrompt
+    };
+  }
+
   _estimateTokens(text, attachments = []) {
-    return estimateTokenCount(text, attachments);
+    const promptPayload = this._normalizePromptPayload_(text);
+    return estimateTokenCount(promptPayload.combinedText, attachments);
   }
 
   /**
    * Genera risposta con modello specifico
-   * @param {string} prompt - Prompt completo
-   * @param {string} modelName - Nome modello API (es. 'gemini-2.5-flash')
+   * @param {string|Object} prompt - Prompt completo oppure {systemInstruction, prompt}
+   * @param {string} modelName - Nome modello API (es. 'gemini-3.5-flash')
    * @param {string} apiKeyOverride - Chiave API opzionale (per strategia multi-key)
    * @param {Array<Blob>} attachments - Array di Blob (immagini/PDF) da inviare
    * @returns {string|null} Testo generato
@@ -121,8 +143,11 @@ var GeminiService = class GeminiService {
     const activeKey = apiKeyOverride || this.primaryKey;
     const url = this._buildGenerateUrl(modelName);
     const maxTokens = this.config.MAX_OUTPUT_TOKENS ?? 6000;
+    const promptPayload = this._normalizePromptPayload_(prompt);
+    const userPromptText = promptPayload.userPrompt;
+    const systemInstructionText = promptPayload.systemInstruction;
 
-    console.log(`🤖 Chiamata ${modelName} (prompt: ${prompt.length} caratteri)...`);
+    console.log(`🤖 Chiamata ${modelName} (prompt utente: ${userPromptText.length} car., system: ${systemInstructionText.length} car.)...`);
 
     const requestParts = [];
     if (attachments && attachments.length > 0) {
@@ -148,25 +173,33 @@ var GeminiService = class GeminiService {
         }
       });
     }
-    requestParts.push({ text: prompt });
+    requestParts.push({ text: userPromptText });
+
+    const payloadObj = {
+      contents: [{ role: 'user', parts: requestParts }],
+      generationConfig: {
+        maxOutputTokens: maxTokens
+      },
+      safetySettings: [
+        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
+      ]
+    };
+
+    if (systemInstructionText) {
+      payloadObj.systemInstruction = {
+        parts: [{ text: systemInstructionText }]
+      };
+    }
 
     let response;
     try {
       response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
         method: 'POST',
         contentType: 'application/json',
-        payload: JSON.stringify({
-          contents: [{ role: 'user', parts: requestParts }],
-          generationConfig: {
-            maxOutputTokens: maxTokens
-          },
-          safetySettings: [
-            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
-            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
-            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
-          ]
-        }),
+        payload: JSON.stringify(payloadObj),
         muteHttpExceptions: true
       });
     } catch (error) {

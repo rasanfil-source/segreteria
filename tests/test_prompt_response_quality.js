@@ -63,13 +63,13 @@ const formattingPrompt = engine.buildPrompt({
 });
 
 assert(
-  formattingPrompt.includes('✨ FORMATTAZIONE ELEGANTE E USO ICONE'),
-  'il prompt deve mantenere la formattazione elegante con icone'
+  formattingPrompt.includes('FORMATTAZIONE ED EVIDENZIAZIONE'),
+  'il prompt deve mantenere le linee guida di formattazione'
 );
 assert(
-  formattingPrompt.includes('Domande con risposta articolata') &&
-    formattingPrompt.includes('usa titoli e icone'),
-  'il prompt deve preservare titoli e icone per risposte articolate'
+  formattingPrompt.includes('Utilizza elenchi puntati con emoji contestuali') &&
+    formattingPrompt.includes('Usa titoli Markdown (###)'),
+  'il prompt deve preservare titoli e liste per risposte articolate'
 );
 
 console.log('--- Test prompt: consegna documentale non diventa richiesta requisiti ---');
@@ -105,7 +105,8 @@ assert(
   'il prompt deve evitare citazioni OCR non necessarie'
 );
 assert(
-  attachmentPrompt.includes('Se il mittente chiede una conferma, non trasformarla in spiegazione'),
+  attachmentPrompt.includes('Rispondi alla richiesta effettiva, non al tema generale') &&
+    attachmentPrompt.includes('Se bastano 1-3 frasi, fermati'),
   'il prompt deve preservare la congruenza della risposta'
 );
 
@@ -143,14 +144,14 @@ const temporalPrompt = engine.buildPrompt({
 });
 
 assert(
-  temporalPrompt.includes('DATA DI RICEZIONE/INVIO EMAIL: 2026-05-07'),
+  temporalPrompt.includes('Data ricezione/invio email utente:** 2026-05-07'),
   'il prompt deve includere la data originale del messaggio per oggi/domani/ieri dell\'utente'
 );
 assert(
-  temporalPrompt.includes('Prima di dire se un evento, corso o celebrazione è futuro') &&
-    temporalPrompt.includes('Se la data è successiva alla DATA ODIERNA') &&
-    temporalPrompt.includes('non dedurre che l\'evento sia già passato'),
-  'il prompt deve formulare l\'obiettivo di confronto temporale senza dipendere da singole frasi tipizzate'
+  temporalPrompt.includes('Prima di descrivere un evento') &&
+    temporalPrompt.includes('confrontalo rigidamente con la data odierna') &&
+    temporalPrompt.includes('anno pastorale'),
+  'il prompt deve formulare l\'obiettivo di confronto temporale'
 );
 
 console.log('--- Test prompt: orario locale e guardrail anti saluto in continuità ---');
@@ -168,12 +169,13 @@ const temporalGuardPrompt = engine.buildPrompt({
 });
 
 assert(
-  temporalGuardPrompt.includes('⏰ ORA ATTUALE LOCALE: 23:23 (Roma, Italia)'),
+  temporalGuardPrompt.includes('Ora locale attuale:** 23:23'),
   'il prompt deve includere l’orario locale corrente'
 );
 assert(
-  temporalGuardPrompt.includes('NON inventare saluti iniziali come "Buongiorno", "Buonasera" o "Salve"'),
-  'il prompt deve vietare saluti inventati quando il saluto architetturale è omesso'
+  temporalGuardPrompt.includes('Stile conversazionale') &&
+    temporalGuardPrompt.includes('omettendo saluti rituali formali iniziali'),
+  'il prompt deve guidare lo stile di continuità quando il saluto architetturale è omesso'
 );
 
 console.log('✅ Test qualità prompt risposta passati');

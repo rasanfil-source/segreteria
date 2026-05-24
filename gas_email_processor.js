@@ -1673,6 +1673,8 @@ ${addressLines.join('\n\n')}
         return result;
       }
 
+      response = this._extractEmailXmlBlock_(response);
+
       if (response.trim() === 'NO_REPLY') {
         console.log('   ⊖ AI ha restituito NO_REPLY');
         markHandledUnread();
@@ -1779,6 +1781,8 @@ ${addressLines.join('\n\n')}
           }
 
           if (!retryResponse) break;
+
+          retryResponse = this._extractEmailXmlBlock_(retryResponse);
 
           const preparedRetryResponse = this._prepareOutboundResponse(
             retryResponse,
@@ -3153,6 +3157,17 @@ ${addressLines.join('\n\n')}
     return safeText;
   }
 
+  _extractEmailXmlBlock_(responseText) {
+    const safeText = typeof responseText === 'string'
+      ? responseText
+      : (responseText == null ? '' : String(responseText));
+    const match = safeText.match(/<email>\s*([\s\S]*?)\s*<\/email>/i);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+    return safeText;
+  }
+
   _addErrorLabel(target) {
     if (target && typeof target.getThread === 'function' && typeof target.getId === 'function') {
       this.gmailService.addLabelToMessage(target.getId(), this.config.errorLabelName);
@@ -3433,7 +3448,7 @@ ${addressLines.join('\n\n')}
    * Costruisce un prompt correttivo "chirurgico" basato sugli errori di validazione.
    */
   _buildCorrectionPrompt(originalPrompt, failedResponse, validationResult, language, salutationMode) {
-    const safePrompt = typeof originalPrompt === 'string' ? originalPrompt : (originalPrompt == null ? '' : String(originalPrompt));
+    const safePrompt = this._normalizePromptForRetry_(originalPrompt);
     const safeResponse = typeof failedResponse === 'string' ? failedResponse : (failedResponse == null ? '' : String(failedResponse));
     const details = validationResult && validationResult.details ? validationResult.details : {};
     const flags = this._classifyValidationForRetry(validationResult, language);
@@ -3578,6 +3593,21 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     }
 
     return `${head}${marker}`;
+  }
+
+  _normalizePromptForRetry_(prompt) {
+    if (typeof prompt === 'string') return prompt;
+    if (prompt && typeof prompt === 'object') {
+      const parts = [];
+      if (prompt.systemInstruction) {
+        parts.push(`### ISTRUZIONI DI SISTEMA ###\n${String(prompt.systemInstruction)}`);
+      }
+      if (prompt.prompt) {
+        parts.push(`### DATI E CONTESTO UTENTE ###\n${String(prompt.prompt)}`);
+      }
+      if (parts.length > 0) return parts.join('\n\n');
+    }
+    return prompt == null ? '' : String(prompt);
   }
 
   // Costruisce un sommario incrementale delle risposte inviate al thread
