@@ -178,7 +178,10 @@ var GeminiService = class GeminiService {
     const payloadObj = {
       contents: [{ role: 'user', parts: requestParts }],
       generationConfig: {
-        maxOutputTokens: maxTokens
+        maxOutputTokens: maxTokens,
+        temperature: 0.25,
+        topK: 40,
+        topP: 0.95
       },
       safetySettings: [
         { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
@@ -465,6 +468,9 @@ Output JSON:
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         generationConfig: {
           maxOutputTokens: 1024,
+          temperature: 0.25,
+          topK: 40,
+          topP: 0.95,
           responseMimeType: 'application/json'
         },
         safetySettings: [

@@ -1241,13 +1241,15 @@ ${attachmentsContext || ''}`;
       return null;
     }
 
-    return `## 📚 ESEMPI CON FORMATTAZIONE CORRETTA
+    return `## ESEMPI DI RISPOSTA CORRETTA (Uso dei tag XML)
 
-**ESEMPIO 1 - CAMMINO DI SANTIAGO (con link corretti):**
-
-✅ VERSIONE CORRETTA:
-~~~markdown
-Buonasera, siamo lieti di fornirle le informazioni sul pellegrinaggio.
+**ESEMPIO 1 - CAMMINO DI SANTIAGO:**
+<analisi>
+L'utente chiede informazioni generali sul pellegrinaggio. Ci sono più di 3 elementi, quindi userò un elenco puntato e il grassetto per le date, come da linee guida di formattazione.
+</analisi>
+<email>
+Gentile utente,
+siamo lieti di fornirle le informazioni sul pellegrinaggio.
 
 ### 🚶 Cammino di Santiago 2026
 
@@ -1255,28 +1257,26 @@ Buonasera, siamo lieti di fornirle le informazioni sul pellegrinaggio.
 **📍 Percorso:** Tui (Portogallo) → Santiago (Spagna)
 
 **🔗 Iscrizioni e Info:**
-• Iscrizione online: https://tinyurl.com/santiago26
-• Programma dettagliato: https://tinyurl.com/cammino26
+Può trovare il programma completo e iscriversi direttamente a questo link: https://parrocchiasanteugenio.it/santiago
 
-Restiamo a disposizione per qualsiasi chiarimento.
-
+Restiamo a disposizione per ulteriori necessità.
 Cordiali saluti,
 Segreteria Parrocchia Sant'Eugenio
-~~~
+</email>
 
-❌ VERSIONE SBAGLIATA (DA EVITARE):
-~~~markdown
-Buonasera, Siamo lieti di fornirle... ← ERRORE: maiuscola dopo virgola
+**ESEMPIO 2 - SITUAZIONE PASTORALE DELICATA:**
+<analisi>
+L'utente, convivente, chiede del matrimonio. Non devo elencare le pratiche standard, ma usare empatia e invitare a un colloquio con il sacerdote senza dare giudizi.
+</analisi>
+<email>
+Gentile utente,
+comprendiamo la delicatezza della sua situazione. Per poter valutare insieme il suo caso specifico e accompagnarla in questo percorso, le consigliamo di parlare direttamente con un sacerdote.
 
-• Iscrizione: [tinyurl.com/santiago26](https://tinyurl.com/santiago26) ← ERRORE: URL ripetuto
-~~~
+Può contattarci al numero 06.123456 per fissare un appuntamento in segreteria.
 
-**QUANDO NON FORMATTARE:**
-
-✅ ESEMPIO CORRETTO (senza formattazione):
-"Buongiorno, la catechesi inizia domenica 21 settembre alle ore 10:00."
-
-→ Info singola, breve, chiara = no formattazione necessaria.`;
+Un cordiale saluto,
+Segreteria Parrocchia Sant'Eugenio
+</email>`;
   }
 
   // ========================================================================

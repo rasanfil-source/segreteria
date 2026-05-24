@@ -27,7 +27,7 @@
         "doctrinal"
       ],
       "promptMustInclude": [
-        "REGOLE ASSOLUTE - VIOLAZIONE = RISPOSTA INVALIDA"
+        "REGOLE DI COMPORTAMENTO OPERATIVO"
       ],
       "promptMustNotInclude": [],
       "responseMustNotInclude": [
@@ -69,7 +69,7 @@
         "doctrinal"
       ],
       "promptMustInclude": [
-        "REGOLE ASSOLUTE - VIOLAZIONE = RISPOSTA INVALIDA"
+        "REGOLE DI COMPORTAMENTO OPERATIVO"
       ],
       "promptMustNotInclude": [],
       "responseMustNotInclude": [
@@ -107,7 +107,7 @@
         "doctrinal"
       ],
       "promptMustInclude": [
-        "REGOLE ASSOLUTE - VIOLAZIONE = RISPOSTA INVALIDA",
+        "REGOLE DI COMPORTAMENTO OPERATIVO",
         "territorio"
       ],
       "promptMustNotInclude": [],
@@ -146,7 +146,7 @@
         "doctrinal"
       ],
       "promptMustInclude": [
-        "REGOLE ASSOLUTE - VIOLAZIONE = RISPOSTA INVALIDA"
+        "REGOLE DI COMPORTAMENTO OPERATIVO"
       ],
       "promptMustNotInclude": [],
       "responseMustNotInclude": [
@@ -184,7 +184,7 @@
         "doctrinal"
       ],
       "promptMustInclude": [
-        "REGOLE ASSOLUTE - VIOLAZIONE = RISPOSTA INVALIDA"
+        "REGOLE DI COMPORTAMENTO OPERATIVO"
       ],
       "promptMustNotInclude": [],
       "responseMustNotInclude": [
@@ -222,7 +222,7 @@
         "doctrinal"
       ],
       "promptMustInclude": [
-        "REGOLE ASSOLUTE - VIOLAZIONE = RISPOSTA INVALIDA"
+        "REGOLE DI COMPORTAMENTO OPERATIVO"
       ],
       "promptMustNotInclude": [],
       "responseMustNotInclude": [
@@ -263,7 +263,7 @@
         "doctrinal"
       ],
       "promptMustInclude": [
-        "REGOLE ASSOLUTE - VIOLAZIONE = RISPOSTA INVALIDA"
+        "REGOLE DI COMPORTAMENTO OPERATIVO"
       ],
       "promptMustNotInclude": [
         "📚 ESEMPI CON FORMATTAZIONE CORRETTA"
@@ -303,7 +303,7 @@
         "doctrinal"
       ],
       "promptMustInclude": [
-        "REGOLE ASSOLUTE - VIOLAZIONE = RISPOSTA INVALIDA"
+        "REGOLE DI COMPORTAMENTO OPERATIVO"
       ],
       "promptMustNotInclude": [],
       "responseMustNotInclude": [
@@ -346,7 +346,7 @@
         "doctrinal"
       ],
       "promptMustInclude": [
-        "REGOLE ASSOLUTE - VIOLAZIONE = RISPOSTA INVALIDA"
+        "REGOLE DI COMPORTAMENTO OPERATIVO"
       ],
       "promptMustNotInclude": [
         "📚 ESEMPI CON FORMATTAZIONE CORRETTA"
