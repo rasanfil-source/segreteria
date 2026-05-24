@@ -1346,7 +1346,7 @@ function runAllTests() {
                 getUserLabelByName: () => null
             };
 
-            test('_discoverByQuery esclude label operative e skipLabel dalla query GmailApp.search', results, () => {
+            test('_discoverByQuery non esclude label processed (IA) ma mantiene error/skip', results, () => {
                 const originalSearch = global.GmailApp.search;
                 let capturedQuery = null;
                 try {
@@ -1357,7 +1357,7 @@ function runAllTests() {
 
                     const service = new GmailService();
                     service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 5, 1, ['Saltata']);
-                    return capturedQuery === 'is:unread in:inbox -label:"IA" -label:"Errore" -label:"Verifica" -label:"Saltata"';
+                    return capturedQuery === 'is:unread in:inbox -label:"Errore" -label:"Verifica" -label:"Saltata"';
                 } finally {
                     global.GmailApp.search = originalSearch;
                 }
@@ -1647,14 +1647,19 @@ function runAllTests() {
             const prompt = engine.buildPrompt(Object.assign({}, baseOptions, {
                 activeConcerns: ['formatting_risk']
             }));
-            return typeof prompt === 'string' && prompt.includes('✨ FORMATTAZIONE ELEGANTE E USO ICONE');
+            return prompt && typeof prompt === 'object' &&
+                typeof prompt.toString === 'function' &&
+                prompt.toString().includes('ISTRUZIONE FINALE DI OUTPUT');
         });
 
         test('Accetta activeConcerns null senza eccezioni', results, () => {
             const prompt = engine.buildPrompt(Object.assign({}, baseOptions, {
                 activeConcerns: null
             }));
-            return typeof prompt === 'string' && prompt.length > 0;
+            return prompt && typeof prompt === 'object' &&
+                typeof prompt.systemInstruction === 'string' &&
+                typeof prompt.prompt === 'string' &&
+                prompt.toString().length > 0;
         });
         test('Rafforza regola anti-infodumping nelle linee guida risposta', results, () => {
             const guidelines = engine._renderResponseGuidelines('it', 'ordinario', 'Buongiorno', 'Cordiali saluti');

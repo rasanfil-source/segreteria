@@ -16,68 +16,59 @@ const gasMainPath = path.join(__dirname, '..', 'gas_main.js');
 const code = fs.readFileSync(gasMainPath, 'utf8');
 vm.runInThisContext(code, { filename: gasMainPath });
 
-console.log('--- Test _getSpreadsheetModifiedTimeMs compatibilità v2/v3 ---');
+console.log('--- Test _getSpreadsheetModifiedTimeMs ignora Drive modifiedTime ---');
 
-(function testDriveV3() {
-  let calledWith = null;
+(function testDriveIsNotPolled() {
+  let driveCalled = false;
   global.Drive = {
     Files: {
-      get: (_id, options) => {
-        calledWith = options && options.fields;
-        if (calledWith !== 'modifiedTime') {
-          throw new Error('Campo inatteso');
-        }
-        return { modifiedTime: '2026-03-30T20:00:00.000Z' };
+      get: () => {
+        driveCalled = true;
+        throw new Error('Drive non deve essere interrogato per invalidare la cache KB');
       }
     }
   };
 
-  const result = _getSpreadsheetModifiedTimeMs('sheet-id-v3');
-  assert(calledWith === 'modifiedTime', 'deve interrogare modifiedTime in v3');
-  assert(result === Date.parse('2026-03-30T20:00:00.000Z'), 'deve convertire modifiedTime in ms');
-})();
-
-(function testDriveV2Fallback() {
-  const calls = [];
-  global.Drive = {
-    Files: {
-      get: (_id, options) => {
-        calls.push(options && options.fields);
-        if (options.fields === 'modifiedTime') {
-          throw new Error('Invalid field selection modifiedTime');
-        }
-        if (options.fields === 'modifiedDate') {
-          return { modifiedDate: '2026-03-30T21:00:00.000Z' };
-        }
-        throw new Error('Campo non gestito');
-      }
-    }
-  };
-
-  const result = _getSpreadsheetModifiedTimeMs('sheet-id-v2');
-  assert(calls.length === 2, 'deve tentare fallback da modifiedTime a modifiedDate');
-  assert(calls[0] === 'modifiedTime' && calls[1] === 'modifiedDate', 'ordine fallback non corretto');
-  assert(result === Date.parse('2026-03-30T21:00:00.000Z'), 'deve leggere modifiedDate nel fallback v2');
-})();
-
-(function testDrivePollingDoesNotOverwriteCustomModifiedTime() {
-  const writes = [];
   global.PropertiesService = {
     getScriptProperties: () => ({
-      getProperty: () => null,
-      setProperty: (key, value) => writes.push([key, value])
+      getProperty: () => null
     })
   };
-  global.Drive = {
-    Files: {
-      get: () => ({ modifiedTime: '2026-03-30T22:00:00.000Z' })
-    }
-  };
 
-  const result = _getSpreadsheetModifiedTimeMs('sheet-id-drive-only');
-  assert(result === Date.parse('2026-03-30T22:00:00.000Z'), 'deve restituire il timestamp Drive se più recente/disponibile');
-  assert(writes.length === 0, 'non deve sovrascrivere KB_CUSTOM_MODIFIED_TIME durante il polling Drive');
+  const result = _getSpreadsheetModifiedTimeMs('sheet-id-drive-ignored');
+  assert(result === 0, 'senza timestamp custom deve restituire 0 e lasciare agire il TTL cache');
+  assert(driveCalled === false, 'non deve interrogare Drive modifiedTime');
+
   delete global.PropertiesService;
 })();
 
-console.log('✅ Test compatibilità Drive API passati');
+(function testCustomModifiedTimeWins() {
+  let driveCalled = false;
+  const customTs = Date.parse('2026-03-30T22:00:00.000Z');
+
+  global.Drive = {
+    Files: {
+      get: () => {
+        driveCalled = true;
+        return { modifiedTime: '2026-03-31T22:00:00.000Z' };
+      }
+    }
+  };
+
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: (key) => key === 'KB_CUSTOM_MODIFIED_TIME' ? String(customTs) : null,
+      setProperty: () => {
+        throw new Error('polling cache non deve scrivere KB_CUSTOM_MODIFIED_TIME');
+      }
+    })
+  };
+
+  const result = _getSpreadsheetModifiedTimeMs('sheet-id-custom-only');
+  assert(result === customTs, 'deve usare solo KB_CUSTOM_MODIFIED_TIME come invalidazione mirata');
+  assert(driveCalled === false, 'non deve confrontare il timestamp custom con Drive modifiedTime');
+
+  delete global.PropertiesService;
+})();
+
+console.log('✅ Test policy cache Drive ignorato passati');

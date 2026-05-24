@@ -148,7 +148,8 @@ console.log('--- Test _discoverByQuery: non esclude label IA a livello thread --
   try {
     const serviceQuery = new GmailService();
     serviceQuery._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, []);
-    assert(!capturedQuery.includes('-label:IA'), 'query discovery non deve escludere label IA a livello thread');
+    assert(!capturedQuery.includes('-label:IA'), 'query discovery non deve escludere label IA non quotata');
+    assert(!capturedQuery.includes('-label:"IA"'), 'query discovery non deve escludere label IA quotata');
   } finally {
     global.GmailApp = originalGmailApp;
   }

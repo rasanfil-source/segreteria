@@ -406,7 +406,11 @@ var GmailService = class GmailService {
 
     try {
       const label = this.getOrCreateLabel(labelName);
-      const labelId = label.getId();
+      const labelId = this._getOptionalLabelIdByName(labelName)
+        || (label && typeof label.getId === 'function' ? label.getId() : null);
+      if (!labelId) {
+        throw new Error(`Impossibile determinare labelId per "${labelName}"`);
+      }
       Gmail.Users.Messages.batchModify({
         ids: validIds,
         addLabelIds: [labelId],
@@ -766,7 +770,9 @@ var GmailService = class GmailService {
      */
     _discoverByQuery(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null) {
         const skipLabels = Array.isArray(skipLabel) ? skipLabel.filter(Boolean) : [skipLabel].filter(Boolean);
-        const allExcludedLabels = [labelName, errorLabel, validationLabel, ...skipLabels].filter(Boolean);
+        // Non escludere labelName (es. IA): Gmail query può valutare label a livello thread
+        // e nascondere nuovi follow-up non letti in thread già processati.
+        const allExcludedLabels = [errorLabel, validationLabel, ...skipLabels].filter(Boolean);
         let query = `is:unread in:inbox`;
         allExcludedLabels.forEach(skipName => {
             const sq = this._formatLabelQueryValue(skipName);

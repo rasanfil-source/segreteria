@@ -34,10 +34,11 @@ var PromptEngine = class PromptEngine {
    * Stima token (approx 4 char/token per l'italiano/inglese)
    */
   estimateTokens(text) {
+    const normalizedText = this._normalizePromptTextInput(text, '');
     // Delega alla funzione centralizzata in gas_main.js (DRY)
     return typeof estimateTokenCount === 'function' 
-      ? estimateTokenCount(text) 
-      : Math.ceil((text || '').length / 4);
+      ? estimateTokenCount(normalizedText) 
+      : Math.ceil((normalizedText || '').length / 4);
   }
 
   /**

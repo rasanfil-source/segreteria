@@ -736,7 +736,22 @@ function _getSpreadsheetModifiedTimeMs(spreadsheetId) {
     }
   }
 
-  // Use only the custom timestamp from onEdit triggers.
+  // SCELTA TECNICA INTENZIONALE: non usare Drive.Files.get(...modifiedTime...).
+  //
+  // Motivo:
+  //   Il modifiedTime Drive dello spreadsheet cambia a ogni scrittura sul file,
+  //   non solo quando cambiano le risorse di prompt/KB. In questo progetto lo
+  //   stesso spreadsheet può contenere anche dati operativi o memoria conversazionale:
+  //   quelle scritture non devono invalidare la cache della knowledge base.
+  //
+  // Semantica desiderata:
+  //   - reload immediato solo quando onEdit tocca fogli/range di risorsa e aggiorna
+  //     KB_CUSTOM_MODIFIED_TIME;
+  //   - altrimenti reload naturale tramite TTL CacheService (6 ore).
+  //
+  // Nota manutenzione:
+  //   Reintrodurre Drive modifiedTime qui farebbe ricaricare la KB dopo modifiche
+  //   non pertinenti, aumentando latenza/quote e annullando il beneficio della cache.
   return customTs || 0;
 }
 
