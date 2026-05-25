@@ -610,6 +610,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         if (selection.reason === 'model_not_found_in_config') {
           throw new Error('CONFIG_ERROR: ' + (selection.message || selection.reason));
         }
+        if (selection.reason === 'lock_timeout' || selection.reason === 'rate_limiter_lock_timeout') {
+          throw new Error('TEMPORARY_LOCK_TIMEOUT: Impossibile selezionare il modello per elevata concorrenza.');
+        }
         throw new Error('QUOTA_EXHAUSTED: ' + selection.reason);
       }
 

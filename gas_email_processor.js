@@ -338,16 +338,26 @@ var EmailProcessor = class EmailProcessor {
       }
 
       if (!myEmail) {
-        const adminEmailProperty = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
-          ? PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL')
-          : '';
+        let adminEmailProperty = '';
+        try {
+          if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+            adminEmailProperty = PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL') || '';
+          }
+        } catch (propertyError) {
+          threadLogger.warn(`Impossibile leggere ADMIN_EMAIL da ScriptProperties: ${propertyError.message}`);
+        }
         const adminEmailConfig = (typeof CONFIG !== 'undefined' && CONFIG.LOGGING && CONFIG.LOGGING.ADMIN_EMAIL)
           ? CONFIG.LOGGING.ADMIN_EMAIL
           : '';
         const adminEmail = adminEmailProperty || adminEmailConfig || '';
-        const botEmailProperty = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
-          ? PropertiesService.getScriptProperties().getProperty('BOT_EMAIL')
-          : '';
+        let botEmailProperty = '';
+        try {
+          if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+            botEmailProperty = PropertiesService.getScriptProperties().getProperty('BOT_EMAIL') || '';
+          }
+        } catch (propertyError) {
+          threadLogger.warn(`Impossibile leggere BOT_EMAIL da ScriptProperties: ${propertyError.message}`);
+        }
         const botEmailConfig = (typeof CONFIG !== 'undefined' && CONFIG.BOT_EMAIL) ? CONFIG.BOT_EMAIL : '';
 
         myEmail = botEmailProperty || botEmailConfig || adminEmail || '';
