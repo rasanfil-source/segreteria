@@ -577,14 +577,21 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       try {
         const startTime = Date.now();
         // Esecuzione diretta senza controlli quota
-        const result = this._safeExecuteRequestFn_(requestFn, options.modelNameOverride || 'gemini-3.5-flash');
+        const backupModelName = options.modelNameOverride || 'gemini-3.5-flash';
+        const result = this._safeExecuteRequestFn_(requestFn, backupModelName);
         const duration = Date.now() - startTime;
+        const resolvedModelKey = this._resolveModelKey_(options.modelKeyOverride || backupModelName);
+        let counters = { rpd: 0, tokens: 0 };
+        if (resolvedModelKey) {
+          counters = this._incrementCountersAtomic(resolvedModelKey, options.estimatedTokens || 0);
+        }
 
         return {
           success: true,
           result: result,
-          modelUsed: options.modelNameOverride || 'backup-model',
-          quotaUsed: { rpd: 0, rpm: 0 }, // Statistiche fittizie per non sporcare contatori
+          modelUsed: backupModelName,
+          // Tracciamo almeno i consumi giornalieri anche in bypass per mantenere coerenza locale/remota.
+          quotaUsed: { rpd: counters.rpd || 0, rpm: 1 },
           duration: duration
         };
       } catch (e) {
@@ -1118,9 +1125,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     let lockAcquired = !!alreadyLocked;
     if (!alreadyLocked) {
       lock = LockService.getScriptLock();
-      lockAcquired = lock.tryLock(5000);
+      lockAcquired = lock.tryLock(15000);
       if (!lockAcquired) {
-        console.warn('⚠️ Sincronizzazione storage ritardata: impossibile acquisire lock entro 5s');
+        console.warn('⚠️ Sincronizzazione storage ritardata: impossibile acquisire lock entro 15s (recovery rinviato)');
         return;
       }
     }

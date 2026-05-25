@@ -3684,6 +3684,11 @@ function markdownToHtml(text) {
     if (text === null || typeof text === 'undefined') return '';
     const inputText = (typeof text === 'string') ? text : String(text);
     const normalizedInputText = inputText.replace(/\r\n?/g, '\n');
+    const MAX_MARKDOWN_INPUT = 250000;
+    if (normalizedInputText.length > MAX_MARKDOWN_INPUT) {
+        console.warn(`⚠️ markdownToHtml input troppo grande (${normalizedInputText.length}): applico fallback safe.`);
+        return escapeHtml(normalizedInputText.slice(0, MAX_MARKDOWN_INPUT)).replace(/\n/g, '<br>');
+    }
 
     const generatePlaceholderNonce = () => {
         if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.getUuid === 'function') {
@@ -3755,6 +3760,11 @@ function markdownToHtml(text) {
     };
 
     // 1. Proteggi code blocks (prima dell'escape globale)
+    const fenceCount = (normalizedInputText.match(/```/g) || []).length;
+    if (fenceCount % 2 !== 0) {
+        // Fail-safe: testo malformato con fence non bilanciati, evita parsing markdown profondo.
+        return escapeHtml(normalizedInputText).replace(/\n/g, '<br>');
+    }
     const codeBlocks = [];
     let html = normalizedInputText.replace(/```[\s\S]*?```/g, (match) => {
         const sanitized = escapeHtml(match.replace(/```/g, '').trim());

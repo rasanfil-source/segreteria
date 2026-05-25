@@ -1056,11 +1056,13 @@ function _readResourceCachePayload(cache) {
 function _writeResourceCachePayload(cache, payload) {
   if (!cache) return;
 
-  // ⚠️ Prima invalidiamo sempre: evita mix V2-inline + multipart stale dopo downgrade/upgrade.
-  _invalidateResourceCacheStorage(cache);
-
   if (payload.length <= RESOURCE_CACHE_MAX_PART_SIZE) {
+    // Scrittura inline: prevale sempre sul multipart.
     cache.put(RESOURCE_CACHE_KEY_V2, payload, RESOURCE_CACHE_TTL_SECONDS);
+    // Pulizia best-effort dell'indice multipart (i chunk vecchi, se presenti, sono ignorati dal reader V2).
+    try {
+      if (typeof cache.remove === 'function') cache.remove(RESOURCE_CACHE_PARTS_KEY);
+    } catch (_) {}
     return;
   }
 
@@ -1076,6 +1078,11 @@ function _writeResourceCachePayload(cache, payload) {
     values[`${RESOURCE_CACHE_PART_PREFIX}${idx}`] = part;
   });
   values[RESOURCE_CACHE_PARTS_KEY] = String(parts.length);
+
+  // Evita mismatch tra vecchio inline e nuovo multipart.
+  try {
+    if (typeof cache.remove === 'function') cache.remove(RESOURCE_CACHE_KEY_V2);
+  } catch (_) {}
 
   cache.putAll(values, RESOURCE_CACHE_TTL_SECONDS);
   console.warn(`⚠️ Cache risorse salvata in modalità multipart (${parts.length} chunk).`);
