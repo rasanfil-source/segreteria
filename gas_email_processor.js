@@ -1669,12 +1669,12 @@ ${addressLines.join('\n\n')}
           }
 
           const isLastPlan = attemptStrategy[attemptStrategy.length - 1] === plan;
-          if (errorClass.type === 'QUOTA_EXCEEDED' && isLastPlan) {
-            console.warn("🧯 QUOTA_EXCEEDED sull'ultima strategia: nessuna strategia residua, uscita anticipata.");
+          if ((errorClass.type === 'RETRYABLE' || errorClass.type === 'QUOTA_EXHAUSTED') && isLastPlan && String(err).toLowerCase().includes('quota')) {
+            console.warn("🧯 QUOTA_EXHAUSTED sull'ultima strategia: nessuna strategia residua, uscita anticipata.");
             break;
           }
 
-          if (['NETWORK', 'TIMEOUT', 'QUOTA_EXCEEDED', 'INVALID_RESPONSE', 'UNKNOWN'].includes(errorClass.type)) {
+          if (['RETRYABLE', 'QUOTA_EXHAUSTED', 'NETWORK', 'TIMEOUT', 'QUOTA_EXCEEDED', 'INVALID_RESPONSE', 'UNKNOWN'].includes(errorClass.type)) {
             console.warn(`↪️ Errore ${errorClass.type}, provo la strategia successiva.`);
             continue;
           }
