@@ -35,7 +35,11 @@ var GeminiService = class GeminiService {
     // Chiave di Riserva (opzionale)
     const propBackupKey = this.props.getProperty('GEMINI_API_KEY_BACKUP');
     this.backupKey = options.backupKey || ((propBackupKey && propBackupKey.length > 20) ? propBackupKey : null);
-    this.isPrimaryExhausted = false;
+    this._cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
+      ? CacheService.getScriptCache()
+      : null;
+    this._primaryExhaustedCacheKey = 'gemini_primary_exhausted';
+    this.isPrimaryExhausted = this._cache ? (this._cache.get(this._primaryExhaustedCacheKey) === 'true') : false;
 
     // Alias accessibile per i moduli che usano la proprietà apiKey
     this.apiKey = this.primaryKey;
@@ -217,6 +221,9 @@ var GeminiService = class GeminiService {
     // senza consumare riprovare inutili sulla stessa chiave.
     if (responseCode === 429 && activeKey === this.primaryKey && this.backupKey) {
       this.isPrimaryExhausted = true;
+      if (this._cache) {
+        this._cache.put(this._primaryExhaustedCacheKey, 'true', 21599);
+      }
       throw new Error('PRIMARY_QUOTA_EXHAUSTED');
     }
 

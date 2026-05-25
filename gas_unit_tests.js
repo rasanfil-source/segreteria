@@ -10,6 +10,7 @@ if (typeof global === 'undefined') {
 if (typeof process !== 'undefined' && typeof require !== 'undefined') {
     var fs = require('fs');
     var vm = require('vm');
+    var crypto = require('crypto');
 
     var loadedScripts = new Set();
     global.loadScript = function (path) {
@@ -48,8 +49,12 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
                 return d.toISOString();
             },
             sleep: () => { },
-            computeDigest: () => [0, 1, 2, 3],
-            DigestAlgorithm: { MD5: 'MD5' },
+            computeDigest: (algorithm, data) => {
+                const algMap = { MD5: 'md5', SHA_256: 'sha256' };
+                const nodeAlgorithm = algMap[algorithm] || 'sha256';
+                return Array.from(crypto.createHash(nodeAlgorithm).update(String(data)).digest());
+            },
+            DigestAlgorithm: { MD5: 'MD5', SHA_256: 'SHA_256' },
             getUuid: () => 'test-uuid-' + Math.random().toString(36).substring(2, 9),
             base64Encode: (data) => Buffer.from(data).toString('base64'),
             Charset: { UTF_8: 'utf-8' },
@@ -183,7 +188,7 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
     // Caricamento script core
     [
         'gas_logger.js',
-        'gas_config.example.js',
+        (fs.existsSync('gas_config.js') ? 'gas_config.js' : 'gas_config.example.js'),
         'gas_error_types.js',
         'gas_rate_limiter.js',
         'gas_memory_service.js',
@@ -331,7 +336,7 @@ function runAllTests() {
             const limiter = new GeminiRateLimiter();
             const wal = { timestamp: Date.now(), rpm: [{ timestamp: Date.now(), modelKey: 'flash' }], tpm: [] };
             limiter.props.setProperty('rate_limit_wal', JSON.stringify(wal));
-            limiter._recoverFromStorage();
+            limiter._recoverFromWAL();
             return limiter.cache.rpmWindow.length > 0;
         });
         test('Google Search Grounding incrementa senza ReferenceError sul lock', results, () => {

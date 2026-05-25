@@ -350,10 +350,10 @@ var EmailProcessor = class EmailProcessor {
           : '';
         const botEmailConfig = (typeof CONFIG !== 'undefined' && CONFIG.BOT_EMAIL) ? CONFIG.BOT_EMAIL : '';
 
-        myEmail = botEmailProperty || botEmailConfig || '';
+        myEmail = botEmailProperty || botEmailConfig || adminEmail || '';
 
         if (myEmail) {
-          threadLogger.warn(`Session email non disponibile: uso fallback bot email anti-loop (${myEmail})`);
+          threadLogger.warn(`Session email non disponibile: uso fallback configurato anti-loop (${myEmail})`);
         }
       }
 
@@ -705,15 +705,40 @@ var EmailProcessor = class EmailProcessor {
         ? CONFIG.SENDER_THROTTLE_WINDOW_SECONDS
         : 60;
       const senderThrottleKey = `sender_throttle_${safeSenderEmail || 'unknown'}`;
-      if (scriptCache && scriptCache.get(senderThrottleKey)) {
-        console.log(`   ⊘ Saltato: burst cross-thread rilevato per ${safeSenderEmail || 'mittente sconosciuto'}`);
-        this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
-        result.status = 'filtered';
-        result.reason = 'cross_thread_burst';
-        return result;
-      }
       if (scriptCache && safeSenderEmail) {
-        scriptCache.put(senderThrottleKey, '1', senderThrottleWindowSeconds);
+        let senderThrottleAlreadySet = false;
+        const senderThrottleLock = LockService.getScriptLock();
+        let senderThrottleLockAcquired = false;
+        try {
+          senderThrottleLockAcquired = senderThrottleLock.tryLock(500);
+          if (senderThrottleLockAcquired) {
+            senderThrottleAlreadySet = Boolean(scriptCache.get(senderThrottleKey));
+            if (!senderThrottleAlreadySet) {
+              scriptCache.put(senderThrottleKey, '1', senderThrottleWindowSeconds);
+            }
+          } else {
+            // Fallback best-effort: in assenza lock evitiamo di bloccare il flusso.
+            senderThrottleAlreadySet = Boolean(scriptCache.get(senderThrottleKey));
+            if (!senderThrottleAlreadySet) {
+              scriptCache.put(senderThrottleKey, '1', senderThrottleWindowSeconds);
+            }
+            threadLogger.warn('Sender throttle lock non acquisito, applicazione in modalità best-effort');
+          }
+        } finally {
+          if (senderThrottleLockAcquired && senderThrottleLock && typeof senderThrottleLock.releaseLock === 'function') {
+            try {
+              senderThrottleLock.releaseLock();
+            } catch (_) {}
+          }
+        }
+
+        if (senderThrottleAlreadySet) {
+          console.log(`   ⊘ Saltato: burst cross-thread rilevato per ${safeSenderEmail || 'mittente sconosciuto'}`);
+          this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
+          result.status = 'filtered';
+          result.reason = 'cross_thread_burst';
+          return result;
+        }
       }
 
       // ====================================================================
@@ -1372,7 +1397,11 @@ ${addressLines.join('\n\n')}
                 if (attachmentData.blobs.length >= maxAttachmentFiles) break;
               } catch (attError) {
                 let messageId = 'unknown';
-                try { messageId = externalUnread[i] && externalUnread[i].getId ? externalUnread[i].getId() : 'unknown'; } catch (_) {}
+                try {
+                  messageId = externalUnread[i] && externalUnread[i].getId ? externalUnread[i].getId() : 'unknown';
+                } catch (idError) {
+                  threadLogger.debug(`Impossibile recuperare ID messaggio durante errore allegati: ${idError.message}`);
+                }
                 console.warn(`   ⚠️ Errore critico estrazione allegati nel messaggio ${messageId}: ${attError.message}`);
                 attachmentData.skipped.push({ reason: 'extraction_crash', error: attError.message });
               }
@@ -1721,7 +1750,7 @@ ${addressLines.join('\n\n')}
       let retryAttempted = false;
       let shouldLabelForReview = false;
 
-      if (this.config.validationEnabled) {
+      if (this.config.validationEnabled && !shouldForcePrudentDocResponse && !forceReceiptOnlyForSubmission && !hasRiskyUnknownReceived) {
         const fullValidationKB = [
           enrichedKnowledgeBase,
           routedAiCoreLite,
@@ -2198,7 +2227,12 @@ ${addressLines.join('\n\n')}
         if (Array.isArray(options.threadIds) && options.threadIds.length > 0) {
           threads = options.threadIds
             .map((id) => {
-              try { return GmailApp.getThreadById(id); } catch (_) { return null; }
+              try {
+                return GmailApp.getThreadById(id);
+              } catch (getErr) {
+                runLogger.debug(`Thread ${id} non recuperabile da checkpoint: ${getErr.message}`);
+                return null;
+              }
             })
             .filter(Boolean);
           runLogger.info(`Ripresa batch con ${threads.length}/${options.threadIds.length} thread da checkpoint`);
@@ -3042,8 +3076,8 @@ ${addressLines.join('\n\n')}
 
     if (!this.gmailService || typeof this.gmailService.addLabelToMessage !== 'function') return;
 
-    // Se skipLabelName è configurato (anche come stringa vuota per disabilitare), procedi.
-    if (labelName !== undefined && labelName !== null) {
+    // Stringa vuota = disabilitazione consapevole del labeling skip (falsy); null/undefined = guard difensivo.
+    if (labelName) {
       console.log(`   🏷️ Etichettatura messaggi come saltati (${labelName})...`);
       (messages || []).forEach(message => {
         if (!message) return;

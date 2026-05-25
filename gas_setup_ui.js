@@ -189,7 +189,11 @@ function setupControlloSheet(ss) {
   sheet.getRange('E12').setValue('domini').setFontWeight('bold').setBackground('#F97316').setHorizontalAlignment('center');
   sheet.getRange('F12').setValue('parole').setFontWeight('bold').setBackground('#F97316').setHorizontalAlignment('center');
 
-  sheet.getRange('B4').setValue(Session.getScriptTimeZone() || 'Europe/Rome');
+  sheet.getRange('B4').setValue(
+    (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function')
+      ? Session.getScriptTimeZone()
+      : 'Europe/Rome'
+  );
   sheet.getRange('B4').setHorizontalAlignment('center');
 
   // Layout generale

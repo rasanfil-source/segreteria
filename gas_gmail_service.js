@@ -110,41 +110,52 @@ var GmailService = class GmailService {
     _flushGmailCallCounter_(key, opName = 'batch') {
         if (!this._scriptCache) return;
 
-        // Il counter Gmail e un limite soft anti-burst: deve restare disponibile
-        // anche quando lo ScriptLock globale e gia occupato dalla pipeline.
-        const raw = this._scriptCache.get(key);
-        let current = 0;
-        if (raw !== null) {
-            current = Number.parseInt(raw, 10) || 0;
-        } else if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
-            try {
-                const props = PropertiesService.getScriptProperties();
-                current = Number.parseInt(props.getProperty(key) || '0', 10) || 0;
-            } catch (e) {
-                console.warn(`⚠️ Impossibile leggere backup counter da ScriptProperties (${key}): ${e.message}`);
+        const lock = (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function')
+            ? LockService.getScriptLock()
+            : null;
+        if (lock && !lock.tryLock(5000)) {
+            console.warn(`⚠️ Impossibile acquisire lock contatore Gmail (${opName})`);
+            return;
+        }
+        try {
+            // Il counter Gmail e un limite soft anti-burst: deve restare disponibile
+            // anche quando lo ScriptLock globale e gia occupato dalla pipeline.
+            const raw = this._scriptCache.get(key);
+            let current = 0;
+            if (raw !== null) {
+                current = Number.parseInt(raw, 10) || 0;
+            } else if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+                try {
+                    const props = PropertiesService.getScriptProperties();
+                    current = Number.parseInt(props.getProperty(key) || '0', 10) || 0;
+                } catch (e) {
+                    console.warn(`⚠️ Impossibile leggere backup counter da ScriptProperties (${key}): ${e.message}`);
+                }
             }
-        }
 
-        const total = current + this._pendingGmailCallCount;
-        this._lastGmailCallCount = total;
-        this._pendingGmailCallCount = 0;
+            const total = current + this._pendingGmailCallCount;
+            this._lastGmailCallCount = total;
+            this._pendingGmailCallCount = 0;
 
-        // Aggiorniamo la cache (TTL 21599 = ~6 ore)
-        this._scriptCache.put(key, String(total), 21599);
+            // Aggiorniamo la cache (TTL 21599 = ~6 ore)
+            this._scriptCache.put(key, String(total), 21599);
 
-        // Allineamento periodico del counter su storage persistente.
-        if (total % 10 === 0 && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
-            try {
-                PropertiesService.getScriptProperties().setProperty(key, String(total));
-            } catch (e) {}
-        }
+            // Allineamento periodico del counter su storage persistente.
+            if (total % 10 === 0 && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+                try {
+                    PropertiesService.getScriptProperties().setProperty(key, String(total));
+                } catch (e) {}
+            }
 
-        if (total >= this._gmailDailyCounterWarnAt && total < this._gmailDailyCallLimit) {
-            console.warn(`⚠️ Gmail API call counter alto: ${total}/${this._gmailDailyCallLimit} (${opName})`);
-        }
+            if (total >= this._gmailDailyCounterWarnAt && total < this._gmailDailyCallLimit) {
+                console.warn(`⚠️ Gmail API call counter alto: ${total}/${this._gmailDailyCallLimit} (${opName})`);
+            }
 
-        if (total >= this._gmailDailyCallLimit) {
-            throw new Error(`GMAIL_DAILY_CALL_LIMIT_REACHED (${total}/${this._gmailDailyCallLimit})`);
+            if (total >= this._gmailDailyCallLimit) {
+                throw new Error(`GMAIL_DAILY_CALL_LIMIT_REACHED (${total}/${this._gmailDailyCallLimit})`);
+            }
+        } finally {
+            if (lock) lock.releaseLock();
         }
     }
 
@@ -1386,7 +1397,26 @@ var GmailService = class GmailService {
             }
 
             const rawMimeType = (attachment.getContentType() || '').toLowerCase();
-            const mimeType = rawMimeType.split(';')[0].trim();
+            let mimeType = rawMimeType.split(';')[0].trim();
+
+            // Correzione MIME basata su estensione — specchio di extractAttachmentContext.
+            // Client come Outlook o moduli web inviano file Office come application/octet-stream.
+            if (!this._officeMimeMap[mimeType] &&
+                (mimeType === 'application/octet-stream' || mimeType.startsWith('application/x-'))) {
+                const ext = (name.split('.').pop() || '').toLowerCase();
+                const extMap = {
+                    doc: 'application/msword',
+                    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    xls: 'application/vnd.ms-excel',
+                    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    ppt: 'application/vnd.ms-powerpoint',
+                    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                    odt: 'application/vnd.oasis.opendocument.text',
+                    ods: 'application/vnd.oasis.opendocument.spreadsheet',
+                    odp: 'application/vnd.oasis.opendocument.presentation'
+                };
+                if (extMap[ext]) mimeType = extMap[ext];
+            }
 
             const supportedVisualImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
             const isSupportedVisualImage = supportedVisualImageTypes.includes(mimeType);
