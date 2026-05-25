@@ -2549,7 +2549,7 @@ ${addressLines.join('\n\n')}
     return 60000;
   }
 
-  _storeBatchCheckpointAndScheduleContinuation_(threads, startIndex, remainingTimeMs) {
+  _storeBatchCheckpointAndScheduleContinuation_(threads, startIndex, delayMs) {
     try {
       const props = (typeof PropertiesService !== 'undefined' &&
         PropertiesService &&
@@ -2609,7 +2609,7 @@ ${addressLines.join('\n\n')}
         runId: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         createdAt: new Date().toISOString(),
         startIndex: startIndex,
-        remainingTimeMs: remainingTimeMs,
+        remainingTimeMs: delayMs,
         pendingCount: pendingThreadIds.length,
         pendingThreadIds: storedPendingThreadIds,
         depth: nextDepth,
@@ -2626,7 +2626,7 @@ ${addressLines.join('\n\n')}
       if (canManageTriggers) {
         const existing = ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'resumeEmailBatchFromCheckpoint');
 
-        if (remainingTimeMs === -1) {
+        if (delayMs === -1) {
           existing.forEach((trigger) => {
             try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
           });
@@ -2635,10 +2635,13 @@ ${addressLines.join('\n\n')}
           console.log(`⏸️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger pianificato tra ~18h (quota giornaliera Gmail esaurita).`);
         } else {
           try {
-            ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(60 * 1000).create();
+            const safeDelayMs = Number.isFinite(delayMs) && delayMs > 0
+              ? Math.max(1000, Math.floor(delayMs))
+              : (60 * 1000);
+            ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(safeDelayMs).create();
             // Non eliminiamo trigger preesistenti qui per evitare race tra run concorrenti
             // che condividono l'handler ma possono avere checkpoint differenti.
-            console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger pianificato.`);
+            console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger pianificato tra ${(safeDelayMs / 1000).toFixed(0)}s.`);
           } catch (triggerError) {
             console.error(`❌ Impossibile creare trigger di ripresa batch; trigger preesistenti preservati: ${triggerError.message}`);
           }
