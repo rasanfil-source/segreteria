@@ -291,7 +291,9 @@ var GeminiService = class GeminiService {
     const generatedText = parts.map(p => p.text || '').join('').trim();
 
     if (!generatedText) {
-      throw new Error('Gemini ha restituito testo vuoto');
+      const emptyErr = new Error('Gemini ha restituito testo vuoto');
+      emptyErr.isTransient = true;
+      throw emptyErr;
     }
 
     console.log(`✓ Generati ${generatedText.length} caratteri (da ${parts.length} parti)`);

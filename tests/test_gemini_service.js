@@ -59,6 +59,40 @@ console.log('--- Test _classifyError: quota primaria non ritenta sulla stessa ch
   assert(allKeys.retryable === false, 'QUOTA_EXHAUSTED_ALL_KEYS non deve essere retryable localmente');
 }
 
+console.log('--- Test classifyError: testo vuoto Gemini è retryable ---');
+{
+  const emptyErr = new Error('Gemini ha restituito testo vuoto');
+  emptyErr.isTransient = true;
+  const classified = classifyError(emptyErr);
+
+  assert(classified.retryable === true, 'errore testo vuoto marcato transient deve essere retryable');
+  assert(classified.type === ErrorTypes.NETWORK, 'errore transient deve essere classificato come NETWORK');
+}
+
+console.log('--- Test _generateWithModel: testo vuoto marca isTransient ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = null;
+  service.config = { MAX_OUTPUT_TOKENS: 128 };
+  service._buildGenerateUrl = () => 'https://example.test/generate';
+  service._normalizePromptPayload_ = (prompt) => ({ userPrompt: String(prompt), systemInstruction: '' });
+  service.fetchFn = () => ({
+    getResponseCode: () => 200,
+    getContentText: () => JSON.stringify({
+      candidates: [{ content: { parts: [{ text: '   ' }] } }]
+    })
+  });
+
+  try {
+    service._generateWithModel('ciao', 'gemini-test');
+    assert(false, 'testo vuoto deve lanciare errore');
+  } catch (error) {
+    assert(error.message.includes('testo vuoto'), 'errore deve descrivere il testo vuoto');
+    assert(error.isTransient === true, 'errore testo vuoto deve essere marcato isTransient');
+  }
+}
+
 
 
 console.log('--- Test _withRetry: segnale switch chiave non consuma retry locali ---');

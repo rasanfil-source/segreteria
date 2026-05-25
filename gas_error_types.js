@@ -39,6 +39,10 @@ function classifyError(error) {
     }
     const message = rawMessage.toLowerCase();
 
+    if (error && typeof error === 'object' && error.isTransient === true) {
+        return { type: ErrorTypes.NETWORK, retryable: true, message: rawMessage };
+    }
+
     if (message.includes('rate_limiter_lock_timeout')) {
         return { type: ErrorTypes.NETWORK, retryable: true, message: rawMessage };
     }
@@ -85,6 +89,8 @@ function classifyError(error) {
     if (message.includes('timeout') || message.includes('deadline exceeded') ||
         message.includes('econnreset') || message.includes('econnaborted') ||
         message.includes('request timed out') ||
+        message.includes('testo vuoto') ||
+        message.includes('empty text') ||
         /\b408\b/.test(message)) {
         return { type: ErrorTypes.TIMEOUT, retryable: true, message: rawMessage };
     }

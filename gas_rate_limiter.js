@@ -684,11 +684,19 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         }
 
         // Uso la classificazione centralizzata (difensiva in caso di runtime modulare)
-        const classifiedError = typeof classifyError === 'function' ? classifyError(error) : { type: 'UNKNOWN', retryable: false, message: errorMsg };
+        let classifiedError = typeof classifyError === 'function' ? classifyError(error) : { type: 'UNKNOWN', retryable: false, message: errorMsg };
+        const normalizedErrorMsg = String(errorMsg || '').toLowerCase();
+        if (!classifiedError.retryable && (
+          error.isTransient === true ||
+          normalizedErrorMsg.indexOf('testo vuoto') !== -1 ||
+          normalizedErrorMsg.indexOf('empty text') !== -1
+        )) {
+          classifiedError = { type: 'NETWORK', retryable: true, message: errorMsg };
+        }
 
         if (classifiedError.retryable) {
 
-          console.warn(`⚠️ Limite quota/rete (${classifiedError.type}) al tentativo ${attempt + 1}: ${classifiedError.message}`);
+          console.warn(`⚠️ Errore transitorio o quota (${classifiedError.type}) al tentativo ${attempt + 1}: ${classifiedError.message}`);
 
           if (attempt < maxRetries - 1) {
             const backoffDelay = Math.min(
@@ -720,7 +728,15 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       raw = requestFn(modelName);
     } catch (e) {
       if (e && e._nonRetryable) throw e;
-      throw new Error(`requestFn exception (${modelName}): ${e.message}`);
+      const wrapped = new Error(`requestFn exception (${modelName}): ${e && e.message ? e.message : e}`);
+      if (e && typeof e === 'object') {
+        Object.keys(e).forEach((key) => {
+          if (key !== 'message' && key !== 'name' && key !== 'stack') {
+            wrapped[key] = e[key];
+          }
+        });
+      }
+      throw wrapped;
     }
 
     if (raw === null || raw === undefined) {

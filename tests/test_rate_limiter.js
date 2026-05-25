@@ -130,6 +130,69 @@ console.log('--- Test _getCandidateModels: task policy generation vs quick/langu
   assert(limiter._getCandidateModels('newsletter_summary')[0] === 'flash-lite', 'newsletter_summary deve ereditare quick_check');
 }
 
+console.log('--- Test _safeExecuteRequestFn_: preserva isTransient nel wrapping ---');
+{
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  const original = new Error('Gemini ha restituito testo vuoto');
+  original.isTransient = true;
+  original.retryAfterMs = 250;
+
+  try {
+    limiter._safeExecuteRequestFn_(() => { throw original; }, 'gemini-test');
+    assert(false, 'requestFn transient deve rilanciare errore wrappato');
+  } catch (wrapped) {
+    assert(wrapped.message.includes('requestFn exception (gemini-test)'), 'il wrapper deve includere il modello');
+    assert(wrapped.isTransient === true, 'il wrapper deve preservare isTransient');
+    assert(wrapped.retryAfterMs === 250, 'il wrapper deve preservare metadati custom');
+  }
+}
+
+console.log('--- Test executeRequest: ritenta testo vuoto transitorio sullo stesso modello ---');
+{
+  const originalUtilities = global.Utilities;
+  global.Utilities = {
+    sleep: () => {}
+  };
+
+  try {
+    const propsData = new Map([['rpd_flash', '0']]);
+    const limiter = Object.create(GeminiRateLimiter.prototype);
+    limiter.defaultMaxRetries = 2;
+    limiter.backoffBase = 1;
+    limiter.backoffMultiplier = 2;
+    limiter.maxBackoff = 1;
+    limiter.props = {
+      getProperty: (key) => propsData.has(key) ? propsData.get(key) : null
+    };
+    limiter._selectAndReserveModel = () => ({
+      available: true,
+      modelKey: 'flash',
+      model: { name: 'gemini-test' },
+      shouldThrottle: null,
+      reservationId: 'res-transient'
+    });
+    limiter._releaseReservation = () => {};
+    limiter._trackRequest = () => {};
+    limiter._getRequestsInWindow = () => 0;
+
+    let calls = 0;
+    const result = limiter.executeRequest('generation', () => {
+      calls++;
+      if (calls === 1) {
+        const err = new Error('Gemini ha restituito testo vuoto');
+        err.isTransient = true;
+        throw err;
+      }
+      return 'ok';
+    }, { maxRetries: 2, estimatedTokens: 10 });
+
+    assert(calls === 2, 'errore transient testo vuoto deve attivare il secondo tentativo');
+    assert(result.success === true && result.result === 'ok', 'il secondo tentativo deve completare la richiesta');
+  } finally {
+    global.Utilities = originalUtilities;
+  }
+}
+
 
 console.log('--- Test sorgente rate limiter: nessun mojibake nei log operativi ---');
 {
