@@ -558,7 +558,7 @@ var ResponseValidator = class ResponseValidator {
         // Placeholder acronimici devono comparire in maiuscolo.
         if (normalized === normalized.toUpperCase()) {
           const escapedUpper = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const upperRx = new RegExp(`(?:^|[^\\wÀ-ÿ])${escapedUpper}(?=$|[^\\wÀ-ÿ])`, 'i');
+          const upperRx = new RegExp(`(?:^|[^\\wÀ-ÿ])${escapedUpper}(?=$|[^\\wÀ-ÿ])`);
           return upperRx.test(response);
         }
         const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
