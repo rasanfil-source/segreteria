@@ -2541,7 +2541,7 @@ ${addressLines.join('\n\n')}
 
     const remaining = Number(remainingTimeMs);
     if (Number.isFinite(remaining) && remaining > 0) {
-      return remaining;
+      return Math.max(60000, remaining);
     }
 
     // Quota non chiaramente giornaliera: pianifica una ripresa breve invece di
@@ -2557,7 +2557,8 @@ ${addressLines.join('\n\n')}
         ? PropertiesService.getScriptProperties()
         : null;
       if (!props || typeof props.setProperty !== 'function') {
-        throw new Error('PropertiesService non disponibile o adapter senza setProperty');
+        console.error('❌ PropertiesService non disponibile: checkpoint non salvabile, trigger NON schedulato.');
+        return;
       }
       let currentDepth = 0;
       let previousCheckpoint = null;
@@ -2981,7 +2982,10 @@ ${addressLines.join('\n\n')}
     } else {
       month = new Date().getMonth() + 1;
     }
-    return (month >= 6 && month <= 9) ? 'estivo' : 'invernale';
+    if (month >= 3 && month <= 5) return 'primaverile';
+    if (month >= 6 && month <= 9) return 'estivo';
+    if (month >= 10 && month <= 11) return 'autunnale';
+    return 'invernale';
   }
 
   _getOcrLowConfidenceNote(languageCode) {

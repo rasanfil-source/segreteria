@@ -1399,14 +1399,15 @@ function _loadAdvancedConfig(ss) {
         return;
       }
 
+      startDate.setHours(12, 0, 0, 0);
+      endDate.setHours(12, 0, 0, 0);
+
       if (endDate < startDate) {
-        console.warn(`⚠️ Data fine precedente a data inizio: ${startDate.toLocaleDateString()} > ${endDate.toLocaleDateString()}`);
+        console.warn(`⚠️ Data fine precedente a data inizio dopo normalizzazione: ${startDate.toLocaleDateString()} > ${endDate.toLocaleDateString()}`);
         return;
       }
 
-      startDate.setHours(12, 0, 0, 0);
-      endDate.setHours(12, 0, 0, 0);
-      config.vacationPeriods.push({ start: startDate, end: endDate });
+      config.vacationPeriods.push({ start: new Date(startDate), end: new Date(endDate) });
     });
 
     // Sospensione: supporta sia il layout single-sheet corrente
