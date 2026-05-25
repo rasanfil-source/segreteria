@@ -3606,11 +3606,12 @@ ${addressLines.join('\n\n')}
     const maxSafeTokens = (typeof CONFIG !== 'undefined' && Number.isFinite(CONFIG.MAX_SAFE_TOKENS))
       ? CONFIG.MAX_SAFE_TOKENS
       : 35000;
-    // Riserva spazio per blocco correzioni + risposta precedente (stima: 4 char/token).
+    // Riserva spazio per blocco correzioni + risposta precedente (stima conservativa it: ~3.6 char/token).
     const correctionBlockPreview =
       `\n\nCORREZIONE RICHIESTA\n${correctionInstructions.join('\n\n')}\n${failedSnippet}`;
     const reservedTokens = 2500 + Math.ceil(correctionBlockPreview.length / 4);
-    const maxPromptChars = Math.max(2000, Math.floor((maxSafeTokens - reservedTokens) * 4));
+    const CHARS_PER_TOKEN_IT = 3.6;
+    const maxPromptChars = Math.max(2000, Math.floor((maxSafeTokens - reservedTokens) * CHARS_PER_TOKEN_IT));
     const promptForRetry = this._trimPromptForRetry_(safePrompt, maxPromptChars);
 
     return `### ISTRUZIONI DI BASE ###

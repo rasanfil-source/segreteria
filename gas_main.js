@@ -1420,7 +1420,8 @@ function _loadAdvancedConfig(ss) {
       // Fallback retrocompatibile: A10:D16 ordinato Lun..Dom => getDay JS 1..6,0.
       const labeledDay = _weekdayIndexFromLabel(r[0]);
       const legacyLabeledDay = _weekdayIndexFromLabel(r[1]);
-      const day = (labeledDay !== null) ? labeledDay : ((legacyLabeledDay !== null) ? legacyLabeledDay : ((i + 1) % 7));
+      const fallbackDay = i < 6 ? (i + 1) : 0; // i=0→Lun=1 ... i=6→Dom=0
+      const day = (labeledDay !== null) ? labeledDay : ((legacyLabeledDay !== null) ? legacyLabeledDay : fallbackDay);
       const startHour = extracted.startHour;
       const endHour = extracted.endHour;
       if (startHour == null || endHour == null) return;
@@ -1472,7 +1473,7 @@ function _loadAdvancedConfig(ss) {
     // Filtri anti-spam (layout single-sheet: E13:F)
     const lastDataRow = sheet.getLastRow();
     const filterStartRow = 13;
-    const filterRows = lastDataRow >= filterStartRow ? (lastDataRow - filterStartRow + 1) : 0;
+    const filterRows = Math.max(0, lastDataRow - filterStartRow + 1);
     if (filterRows > 0) {
       const filters = sheet.getRange(filterStartRow, 5, filterRows, 2).getValues();
       filters.forEach(row => {

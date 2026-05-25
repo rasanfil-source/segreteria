@@ -431,18 +431,10 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       return { available: false, reason: 'model_not_found_in_config', message: `Modello '${modelKey}' non trovato in GEMINI_MODELS` };
     }
 
-    // Controllo RPD (aggregato per nome modello fisico condiviso)
-    const physicalModelName = model.name;
-    let rpdUsed = 0;
-    let rpmUsed = 0;
-    let tpmUsed = 0;
-    for (const key of Object.keys(this.models)) {
-      if (this.models[key].name === physicalModelName) {
-        rpdUsed += parseInt(this.props.getProperty(`rpd_${key}`) || '0', 10) || 0;
-        rpmUsed += this._getRequestsInWindow('rpm', key);
-        tpmUsed += this._getTokensInWindow('tpm', key);
-      }
-    }
+    // Controllo quote per modelKey logico (evita over-count tra alias fisici)
+    const rpdUsed = parseInt(this.props.getProperty(`rpd_${modelKey}`) || '0', 10) || 0;
+    const rpmUsed = this._getRequestsInWindow('rpm', modelKey);
+    const tpmUsed = this._getTokensInWindow('tpm', modelKey);
     const rpdLeft = model.rpd - rpdUsed;
 
     if (rpdLeft <= 0) {
@@ -960,9 +952,13 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       this._refreshCache();
     }
 
-    // Aggiungi una cache
+    // Aggiungi in cache garantendo nonce univoco (chiave dedup merge)
     const cacheKey = windowType + 'Window';
-    this.cache[cacheKey].push(entry);
+    const safeEntry = Object.assign({}, entry || {});
+    if (typeof safeEntry.nonce === 'undefined' || safeEntry.nonce === null || safeEntry.nonce === '') {
+      safeEntry.nonce = `${now}-${Math.floor(Math.random() * 1e9)}`;
+    }
+    this.cache[cacheKey].push(safeEntry);
 
     // Pulisci vecchie entry (>60 secondi)
     this.cache[cacheKey] = this.cache[cacheKey].filter(e => now - e.timestamp < 60000);

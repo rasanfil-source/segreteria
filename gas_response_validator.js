@@ -558,11 +558,11 @@ var ResponseValidator = class ResponseValidator {
         // Placeholder acronimici devono comparire in maiuscolo.
         if (normalized === normalized.toUpperCase()) {
           const escapedUpper = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const upperRx = new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escapedUpper}(?=$|[^\\p{L}\\p{N}_])`, 'u');
+          const upperRx = new RegExp(`(?:^|[^\\wÀ-ÿ])${escapedUpper}(?=$|[^\\wÀ-ÿ])`, 'i');
           return upperRx.test(response);
         }
         const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const rx = new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'iu');
+        const rx = new RegExp(`(?:^|[^\\wÀ-ÿ])${escaped}(?=$|[^\\wÀ-ÿ])`, 'i');
         return rx.test(response);
       }
 
@@ -1770,6 +1770,9 @@ Rispondi SOLO con questo JSON (senza markdown):
     try {
       if (typeof parseGeminiJsonLenient === 'function') {
         const parsed = parseGeminiJsonLenient(apiResponse);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('JSON semantico vuoto o non-oggetto');
+        }
         return this._normalizeSemanticPayload(parsed);
       }
 
@@ -1779,6 +1782,9 @@ Rispondi SOLO con questo JSON (senza markdown):
         .trim();
 
       const parsed = JSON.parse(cleaned);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('JSON semantico vuoto o non-oggetto');
+      }
       return this._normalizeSemanticPayload(parsed);
     } catch (error) {
       console.error(`❌ Errore nel parse della risposta semantica: ${error.message}`);
