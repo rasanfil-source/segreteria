@@ -1704,6 +1704,15 @@ ${addressLines.join('\n\n')}
         detectedLanguage
       );
 
+      // Guardrail: blocca saluti confidenziali non giustificati.
+      // Il flag /m abbina solo inizio riga, evitando falsi positivi nel corpo.
+      // Lascia intatto "Dear" (standard formale EN) e "Cher" (formale FR).
+      if (/^it/i.test(detectedLanguage || 'it')) {
+        response = response.replace(/^(Caro|Cara|Carissimo|Carissima)\b/gm, 'Gentile');
+      } else if (/^pt/i.test(detectedLanguage || '')) {
+        response = response.replace(/^(Caro|Cara)\b/gm, 'Prezado');
+      }
+
       // ====================================================================
       // PASSO 9: VALIDAZIONE + RETRY INTELLIGENTE
       // ====================================================================
@@ -3771,8 +3780,6 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
   _addTimeDiscrepancyNoteIfNeeded(response, messageDetails, detectedLanguage) {
     if (!response || typeof response !== 'string') return response;
 
-    const language = String(detectedLanguage || 'it').toLowerCase();
-
     const sourceText = `${messageDetails && messageDetails.subject ? messageDetails.subject : ''} ${messageDetails && messageDetails.body ? messageDetails.body : ''}`.toLowerCase();
     const responseLower = response.toLowerCase();
 
@@ -3843,7 +3850,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
       de: "\n\nHinweis: Wir informieren Sie, dass das Treffen zu einer anderen Zeit stattfinden wird, als von Ihnen angegeben."
     };
 
-    const lang = (detectedLanguage || 'it').toLowerCase().split('-')[0];
+    const lang = String(detectedLanguage || 'it').toLowerCase().split('-')[0];
     const footer = notes[lang] || notes.it;
     
     return `${response.trim()}${footer}`;

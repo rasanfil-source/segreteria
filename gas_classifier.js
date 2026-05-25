@@ -439,7 +439,11 @@ var Classifier = class Classifier {
     } catch (e) {
       // Runtime legacy senza normalize: proseguiamo con la normalizzazione disponibile.
     }
-    normalized = normalized.replace(/[^\p{L}\p{N}\s]/gu, '');
+    try {
+      normalized = normalized.replace(/[^\p{L}\p{N}\s]/gu, '');
+    } catch (e) {
+      normalized = normalized.replace(/[^\w\sÀ-ÖØ-öø-ÿ]/g, '');
+    }
 
     if (this.greetingOnlyPatterns.some(pattern => pattern.test(normalized))) {
       return true;
@@ -455,7 +459,12 @@ var Classifier = class Classifier {
     if (!text) return true;
 
     const normalized = text.toLowerCase().trim();
-    const cleaned = normalized.replace(/[^\p{L}\p{N}\s:]/gu, '');
+    let cleaned;
+    try {
+      cleaned = normalized.replace(/[^\p{L}\p{N}\s:]/gu, '');
+    } catch (e) {
+      cleaned = normalized.replace(/[^\w\sÀ-ÖØ-öø-ÿ:]/g, '');
+    }
     const words = cleaned.split(/\s+/).filter(Boolean);
 
     if (words.length === 0) return true;

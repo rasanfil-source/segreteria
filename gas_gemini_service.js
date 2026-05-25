@@ -1175,12 +1175,14 @@ Testo:
           greeting = 'Feliz domingo,';
         } else if (hour >= 5 && hour < 13) {
           greeting = 'Buenos días,';
+        } else if (hour >= 13 && hour < 19) {
+          greeting = 'Buenas tardes,';
         } else {
           greeting = 'Buenas tardes,';
         }
       } else if (language === 'pt') {
         if (isNightTime) {
-          greeting = `Caro(a) ${senderName},`;
+          greeting = `Prezado(a) ${senderName},`;
         } else if (day === 0) {
           greeting = 'Feliz domingo,';
         } else if (hour >= 5 && hour < 12) {
