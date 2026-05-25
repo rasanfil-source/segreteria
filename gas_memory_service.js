@@ -1023,7 +1023,7 @@ var MemoryService = class MemoryService {
       const token = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       const guardTimeoutMs = Math.max(1, Math.min(1000, this._getLockTuning_().globalGuardTimeoutMs || 500));
 
-      while ((Date.now() - startedAt) <= acquireBudgetMs) {
+      while ((Date.now() - startedAt) < acquireBudgetMs) {
         const guardLock = LockService.getScriptLock();
         let guardAcquired = false;
 

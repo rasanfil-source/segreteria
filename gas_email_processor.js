@@ -2100,7 +2100,7 @@ ${addressLines.join('\n\n')}
    * @param {boolean} skipExecutionLock - Evita il lock batch quando il chiamante gestisce l'orchestrazione
    * @param {boolean} locksAlreadyCovered - Se true, processThread evita lock interni già coperti da lock esterno
    */
-  processUnreadEmails(knowledgeBase, doctrineBase = '', skipExecutionLock = false, locksAlreadyCovered = skipExecutionLock, options = {}) {
+  processUnreadEmails(knowledgeBase, doctrineBase = '', skipExecutionLock = false, locksAlreadyCovered = !skipExecutionLock, options = {}) {
     // Inizializzazione di _startTime per la precisione dei calcoli.
     // anche se l'istanza viene riutilizzata in trigger successivi.
     this._startTime = Date.now();
