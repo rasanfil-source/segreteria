@@ -3603,7 +3603,7 @@ ${addressLines.join('\n\n')}
     const maxSafeTokens = (typeof CONFIG !== 'undefined' && Number.isFinite(CONFIG.MAX_SAFE_TOKENS))
       ? CONFIG.MAX_SAFE_TOKENS
       : 35000;
-    // Riserva spazio per blocco correzioni + risposta precedente (stima conservativa it: ~3.6 char/token).
+    // Riserva spazio per il blocco di rifinitura testuale + risposta precedente (stima conservativa it: ~3.6 char/token).
     const correctionBlockPreview =
       `\n\nCORREZIONE RICHIESTA\n${correctionInstructions.join('\n\n')}\n${failedSnippet}`;
     const reservedTokens = 2500 + Math.ceil(correctionBlockPreview.length / 4);
@@ -4147,7 +4147,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
         if (props && typeof props.setProperty === 'function' && streak % 10 === 0) props.setProperty(key, streak.toString());
       } else {
         streak = 0;
-        // Usa put a "0" invece di remove() per aggirare bug di implementazione 
+        // Usa put a "0" invece di remove() per mantenere semantica idempotente nella lettura dello stato 
         // in polyfill/mock usati in ambienti di test (props.removeProperty non è una funzione)
         if (cache) cache.put(key, "0", 21600);
         if (props && typeof props.setProperty === 'function') props.setProperty(key, "0");
