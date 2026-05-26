@@ -536,6 +536,64 @@ function createExternalBurstThread(id, count) {
   return createThread({ id: `t-${id}`, messages });
 }
 
+function buildValidationFlowProcessor({ validationResult, generationText = 'Risposta base', onGenerate = null, labels = [] } = {}) {
+  return new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Richiesta informazioni',
+        body: 'Vorrei sapere gli orari.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: (id, label) => labels.push({ id, label }),
+      addLabelToThread: (_thread, label) => labels.push({ id: 'thread', label }),
+      removeLabelFromMessage: () => {},
+      removeLabelFromThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'info', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      backupKey: 'backup-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'orari' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: (...args) => {
+        if (typeof onGenerate === 'function') onGenerate(...args);
+        return { success: true, text: generationText };
+      }
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    validator: {
+      validateResponse: () => validationResult || { isValid: true, warnings: [], score: 1, details: {}, fixedResponse: null }
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: () => 'PROMPT'
+    }
+  });
+}
+
 function buildProcessorForGenerationFailure(errorTypeToThrow) {
   if (typeof cacheStore !== 'undefined' && cacheStore && typeof cacheStore.clear === 'function') {
     cacheStore.clear();
@@ -833,6 +891,112 @@ console.log('--- Test processThread: burst con allegato nel primo messaggio atti
 }
 
 
+console.log('--- Test processThread: maxFiles globale conta allegati testuali nel burst ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalDocumentConsistency = global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED;
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = false;
+  global.CONFIG.ATTACHMENT_CONTEXT = { enabled: true, maxFiles: 1, maxTotalChars: 0 };
+
+  const attachmentCalls = [];
+  const firstMsg = {
+    getId: () => 'm-burst-maxfiles-1',
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-10T10:00:00Z'),
+    getSubject: () => 'Prima nota',
+    getPlainBody: () => 'Allego una nota.',
+    getAttachments: () => [{ getName: () => 'prima.txt' }]
+  };
+  const candidateMsg = {
+    getId: () => 'm-burst-maxfiles-2',
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-10T10:01:00Z'),
+    getSubject: () => 'Seconda nota',
+    getPlainBody: () => 'Allego anche questa.',
+    getAttachments: () => [{ getName: () => 'seconda.txt' }]
+  };
+  const thread = createThread({ id: 't-burst-maxfiles', messages: [firstMsg, candidateMsg] });
+
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Seconda nota',
+        body: 'Allego anche questa.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      getProcessableAttachments: (message, options) => {
+        attachmentCalls.push({ id: message.getId(), maxFiles: options.maxFiles });
+        return {
+          blobs: [],
+          textContext: `Contesto allegato ${message.getId()}`,
+          skipped: [],
+          items: [{ name: `${message.getId()}.txt`, attachmentRole: 'informational' }]
+        };
+      },
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'document_submission', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      backupKey: 'backup-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'documentazione ricevuta' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta con contesto allegato' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: () => 'PROMPT'
+    }
+  });
+  processor._deriveAttachmentIntentContext_ = () => ({
+    intent: 'document_submission',
+    hasQuestions: false,
+    allowBodyQuestions: false,
+    categoryHintSource: 'document_submission',
+    detectedDocTypes: { sponsor: false }
+  });
+
+  const result = processor.processThread(thread, 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'il burst con limite allegati deve completarsi');
+  assert(attachmentCalls.length === 1, `maxFiles=1 deve fermare l'aggregazione dopo un allegato testuale (chiamate: ${attachmentCalls.length})`);
+  assert(attachmentCalls[0].id === 'm-burst-maxfiles-2', 'deve dare priorità al messaggio candidato più recente');
+  assert(attachmentCalls[0].maxFiles === 1, 'deve passare il limite residuo corretto al GmailService');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = originalDocumentConsistency;
+  global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+}
+
+
 console.log('--- Test processThread: submission receipt-only non chiama Gemini generation ---');
 {
   const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
@@ -994,6 +1158,69 @@ console.log('--- Test processThread: valida e invia esattamente il testo outboun
   assert(result.status === 'replied', 'il branch replied con validazione attiva non deve lanciare errori post-send');
   assert(validatedText === 'Risposta base\n[prepared-marker]', `il validator deve ricevere il testo outbound preparato, ottenuto "${validatedText}"`);
   assert(sentText === validatedText, 'il testo inviato deve coincidere esattamente con quello validato');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+}
+
+
+console.log('--- Test processThread: INTELLIGENT_RETRY.maxRetries=0 disabilita retry ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalRetryConfig = global.CONFIG.INTELLIGENT_RETRY;
+  global.CONFIG.VALIDATION_ENABLED = true;
+  global.CONFIG.INTELLIGENT_RETRY = {
+    enabled: true,
+    maxRetries: 0,
+    minScoreToTrigger: 0,
+    onlyForErrors: ['thinking_leak']
+  };
+
+  let generationCalls = 0;
+  const processor = buildValidationFlowProcessor({
+    validationResult: {
+      isValid: false,
+      warnings: [],
+      errors: ['ragionamento esposto'],
+      score: 0.2,
+      details: { exposedReasoning: { score: 0, errors: ['leak'] } }
+    },
+    onGenerate: () => { generationCalls++; }
+  });
+
+  const result = processor.processThread(createExternalThread('retry-zero'), 'kb valida', '', new Set(), true);
+  assert(result.status === 'validation_failed', 'risposta non valida deve fermarsi in validazione');
+  assert(generationCalls === 1, `maxRetries=0 non deve effettuare chiamate Gemini extra (chiamate: ${generationCalls})`);
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.CONFIG.INTELLIGENT_RETRY = originalRetryConfig;
+}
+
+
+console.log('--- Test processThread: validationWarningThreshold=0 rispetta zero esplicito ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  global.CONFIG.VALIDATION_ENABLED = true;
+
+  const labels = [];
+  const processor = buildValidationFlowProcessor({
+    labels,
+    validationResult: {
+      isValid: true,
+      warnings: ['warning non bloccante'],
+      errors: [],
+      score: 0.4,
+      details: {},
+      fixedResponse: null
+    }
+  });
+  processor.config.validationWarningThreshold = 0;
+
+  const result = processor.processThread(createExternalThread('warning-threshold-zero'), 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'warning con soglia zero deve comunque inviare');
+  assert(
+    !labels.some((entry) => entry.label === CONFIG.VALIDATION_ERROR_LABEL),
+    'validationWarningThreshold=0 non deve applicare label Verifica per warning sopra soglia zero'
+  );
 
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
 }

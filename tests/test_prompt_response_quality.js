@@ -178,4 +178,34 @@ assert(
   'il prompt deve guidare lo stile di continuità quando il saluto architetturale è omesso'
 );
 
+console.log('--- Test prompt: maxCharsWhenKbTruncated=0 omette testo allegati quando KB è troncata ---');
+{
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+  const originalMaxSafeTokens = global.CONFIG.MAX_SAFE_TOKENS;
+  global.CONFIG.ATTACHMENT_CONTEXT = { maxCharsWhenKbTruncated: 0 };
+  global.CONFIG.MAX_SAFE_TOKENS = 3000;
+
+  try {
+    const zeroAttachmentPrompt = engine.buildPrompt({
+      emailSubject: 'Documento',
+      emailContent: 'Buongiorno, allego il documento.',
+      knowledgeBase: 'Informazioni KB molto lunghe. '.repeat(500),
+      attachmentsContext: 'OCR_ZERO_LIMIT_SHOULD_NOT_APPEAR '.repeat(20),
+      detectedLanguage: 'it',
+      promptProfile: 'lite',
+      salutationMode: 'full',
+      salutation: 'Buongiorno,',
+      closing: 'Cordiali saluti,'
+    });
+
+    assert(
+      !zeroAttachmentPrompt.includes('OCR_ZERO_LIMIT_SHOULD_NOT_APPEAR'),
+      'maxCharsWhenKbTruncated=0 deve rimuovere il testo OCR quando la KB è troncata'
+    );
+  } finally {
+    global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+    global.CONFIG.MAX_SAFE_TOKENS = originalMaxSafeTokens;
+  }
+}
+
 console.log('✅ Test qualità prompt risposta passati');

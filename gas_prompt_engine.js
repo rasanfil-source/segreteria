@@ -224,8 +224,13 @@ var PromptEngine = class PromptEngine {
       const attachmentSettings = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT)
         ? CONFIG.ATTACHMENT_CONTEXT
         : {};
-      const attachmentLimit = attachmentSettings.maxCharsWhenKbTruncated || 1500;
-      if (workingAttachmentsContext.length > attachmentLimit) {
+      const parsedAttachmentLimit = Number(attachmentSettings.maxCharsWhenKbTruncated);
+      const attachmentLimit = Number.isFinite(parsedAttachmentLimit) && parsedAttachmentLimit >= 0
+        ? parsedAttachmentLimit
+        : 1500;
+      if (attachmentLimit === 0) {
+        workingAttachmentsContext = '';
+      } else if (workingAttachmentsContext.length > attachmentLimit) {
         console.warn(`⚠️ KB troncata: riduco allegati da ${workingAttachmentsContext.length} a ${attachmentLimit} chars`);
         workingAttachmentsContext = workingAttachmentsContext.slice(0, Math.max(0, attachmentLimit - 1)).trim() + '…';
       }

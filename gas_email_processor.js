@@ -1409,17 +1409,31 @@ ${addressLines.join('\n\n')}
               (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT) ? CONFIG.ATTACHMENT_CONTEXT : {}
             );
             const maxAttachmentFiles = Math.max(1, parseInt(attachmentSettings.maxFiles, 10) || 3);
-            let attachmentData = { blobs: [], textContext: '', skipped: [], items: [] };
+            const parsedMaxTotalChars = parseInt(attachmentSettings.maxTotalChars, 10);
+            const maxTextChars = Number.isFinite(parsedMaxTotalChars) && parsedMaxTotalChars >= 0
+              ? parsedMaxTotalChars
+              : 9000;
+            let attachmentData = { blobs: [], textContext: '', skipped: [], items: [], processedCount: 0 };
+            const getReportedProcessedCount = (data) => {
+              const reported = Number(data && data.processedCount);
+              return Number.isFinite(reported) && reported >= 0 ? reported : null;
+            };
+            const inferProcessedAttachmentCount = (data) => Math.max(
+              Array.isArray(data && data.items) ? data.items.length : 0,
+              Array.isArray(data && data.blobs) ? data.blobs.length : 0
+            );
+            const countProcessedAttachments = () => attachmentData.processedCount || 0;
             // Aggrega allegati dai non letti esterni più recenti, non solo dal candidato.
             // Evita perdita di contesto quando l'utente invia allegati in messaggi precedenti.
             for (let i = externalUnread.length - 1; i >= 0; i--) {
               try {
-                const remainingFiles = maxAttachmentFiles - attachmentData.blobs.length;
+                const remainingFiles = maxAttachmentFiles - countProcessedAttachments();
                 if (remainingFiles <= 0) break;
 
                 const usedChars = (attachmentData.textContext || '').length;
-                const maxTextChars = parseInt(attachmentSettings.maxTotalChars, 10) || 9000;
-                const safeMaxChars = Math.max(0, maxTextChars - usedChars);
+                const safeMaxChars = maxTextChars > 0
+                  ? Math.max(0, maxTextChars - usedChars)
+                  : 0;
                 const msgData = this.gmailService.getProcessableAttachments(externalUnread[i], {
                   maxFiles: remainingFiles,
                   maxTotalChars: safeMaxChars,
@@ -1427,8 +1441,12 @@ ${addressLines.join('\n\n')}
                 });
                 if (Array.isArray(msgData.blobs)) attachmentData.blobs.push(...msgData.blobs);
                 if (msgData.textContext) {
-                  const remainingChars = Math.max(0, maxTextChars - (attachmentData.textContext || '').length);
-                  if (remainingChars > 0) {
+                  if (maxTextChars > 0) {
+                    const remainingChars = Math.max(0, maxTextChars - (attachmentData.textContext || '').length);
+                    if (remainingChars <= 0) {
+                      attachmentData.skipped.push({ reason: 'max_total_chars' });
+                      continue;
+                    }
                     const boundedText = msgData.textContext.length > remainingChars
                       ? msgData.textContext.substring(0, remainingChars)
                       : msgData.textContext;
@@ -1437,12 +1455,16 @@ ${addressLines.join('\n\n')}
                       attachmentData.skipped.push({ reason: 'max_total_chars', kept: boundedText.length });
                     }
                   } else {
-                    attachmentData.skipped.push({ reason: 'max_total_chars' });
+                    attachmentData.textContext += msgData.textContext;
                   }
                 }
                 if (Array.isArray(msgData.skipped)) attachmentData.skipped.push(...msgData.skipped);
                 if (Array.isArray(msgData.items)) attachmentData.items.push(...msgData.items);
-                if (attachmentData.blobs.length >= maxAttachmentFiles) break;
+                const reportedCount = getReportedProcessedCount(msgData);
+                attachmentData.processedCount += reportedCount !== null
+                  ? reportedCount
+                  : inferProcessedAttachmentCount(msgData);
+                if (countProcessedAttachments() >= maxAttachmentFiles) break;
               } catch (attError) {
                 let messageId = 'unknown';
                 try {
@@ -1828,7 +1850,10 @@ ${addressLines.join('\n\n')}
 
         const retryConfig = (typeof CONFIG !== 'undefined' && CONFIG.INTELLIGENT_RETRY) ? CONFIG.INTELLIGENT_RETRY : null;
         const retryEnabled = retryConfig && retryConfig.enabled !== false;
-        const maxRetries = retryEnabled ? Math.max(0, parseInt(retryConfig.maxRetries, 10) || 1) : 0;
+        const parsedMaxRetries = retryConfig ? parseInt(retryConfig.maxRetries, 10) : NaN;
+        const maxRetries = retryEnabled
+          ? (Number.isFinite(parsedMaxRetries) && parsedMaxRetries >= 0 ? parsedMaxRetries : 1)
+          : 0;
 
         let retryCount = 0;
         while (!validation.isValid && retryEnabled && retryCount < maxRetries && !this._isNearDeadline(this.config.maxExecutionTimeMs)) {
@@ -1937,7 +1962,10 @@ ${addressLines.join('\n\n')}
           return result;
         }
 
-        const warningThreshold = this.config.validationWarningThreshold || 0.90;
+        const configuredWarningThreshold = Number(this.config.validationWarningThreshold);
+        const warningThreshold = Number.isFinite(configuredWarningThreshold)
+          ? Math.max(0, Math.min(1, configuredWarningThreshold))
+          : 0.90;
         shouldLabelForReview =
           validation.warnings && validation.warnings.length > 0 && validation.score < warningThreshold;
 
@@ -1989,10 +2017,16 @@ ${addressLines.join('\n\n')}
 
         // Pulisci le etichette dello stato precedente in caso di risposta positiva
         try {
-          this.gmailService.removeLabelFromThread(thread, this.config.errorLabelName);
+          if (this.gmailService && typeof this.gmailService.removeLabelFromThread === 'function') {
+            this.gmailService.removeLabelFromThread(thread, this.config.errorLabelName);
+          }
           if (!shouldLabelForReview) {
-            this.gmailService.removeLabelFromThread(thread, this.config.validationErrorLabel);
-            this.gmailService.removeLabelFromMessage(candidate.getId(), this.config.validationErrorLabel);
+            if (this.gmailService && typeof this.gmailService.removeLabelFromThread === 'function') {
+              this.gmailService.removeLabelFromThread(thread, this.config.validationErrorLabel);
+            }
+            if (this.gmailService && typeof this.gmailService.removeLabelFromMessage === 'function') {
+              this.gmailService.removeLabelFromMessage(candidate.getId(), this.config.validationErrorLabel);
+            }
           }
         } catch (cleanupError) {
           console.warn(`⚠️ Cleanup label stato precedente fallito: ${cleanupError.message}`);

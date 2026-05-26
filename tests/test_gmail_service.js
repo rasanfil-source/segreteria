@@ -308,6 +308,73 @@ console.log('--- Test getProcessableAttachments: MIME con parametri deve essere 
   assert(!out.skipped.some((s) => s.reason === 'unsupported_type'), 'MIME parametrizzati validi non devono risultare unsupported_type');
 }
 
+console.log('--- Test getProcessableAttachments: limiti testo a zero significano nessun limite ---');
+{
+  const longText = 'Riga allegato '.repeat(400);
+  const textBlob = {
+    getName: () => 'note.txt',
+    getSize: () => 1024,
+    getContentType: () => 'text/plain',
+    getDataAsString: () => longText
+  };
+  const message = {
+    getAttachments: () => [textBlob]
+  };
+
+  const out = service.getProcessableAttachments(message, { maxCharsPerFile: 0, maxTotalChars: 0 });
+
+  assert(out.textContext.includes(longText), 'maxCharsPerFile=0 e maxTotalChars=0 non devono troncare il testo');
+  assert(!out.skipped.some((s) => s.reason === 'text_truncated' || s.reason === 'max_total_chars'), 'zero non deve produrre skip di troncamento');
+  assert(out.processedCount === 1, 'deve riportare il numero di allegati processati');
+}
+
+console.log('--- Test extractAttachmentContext: limiti testo a zero significano nessun limite ---');
+{
+  const ocrService = new GmailService();
+  ocrService._cleanupOrphanedOcrFilesIfNeeded = () => {};
+  const longText = 'Contenuto OCR allegato '.repeat(400);
+  const textBlob = {
+    getName: () => 'documento.txt',
+    getSize: () => 1024,
+    getContentType: () => 'text/plain',
+    getDataAsString: () => longText
+  };
+  const message = {
+    getAttachments: () => [textBlob]
+  };
+
+  const out = ocrService.extractAttachmentContext(message, { maxCharsPerFile: 0, maxTotalChars: 0 });
+
+  assert(out.text.includes(longText.trim()), 'maxCharsPerFile=0 e maxTotalChars=0 non devono svuotare/troncare extractAttachmentContext');
+  assert(!out.skipped.some((s) => s.reason === 'empty_after_clip' || s.reason === 'total_limit'), 'zero non deve produrre skip da limite testo OCR');
+}
+
+console.log('--- Test extractAttachmentContext: soglia OCR zero resta zero ---');
+{
+  const ocrService = new GmailService();
+  ocrService._cleanupOrphanedOcrFilesIfNeeded = () => {};
+  ocrService._extractOcrTextFromAttachment = () => 'Testo OCR leggibile con dati sufficienti per il contesto parrocchiale.';
+  ocrService._estimateOcrConfidence = () => 0.4;
+  ocrService._isMeaningfulOCR = () => true;
+  const imageBlob = {
+    getName: () => 'documento.png',
+    getSize: () => 12000,
+    getContentType: () => 'image/png'
+  };
+  const message = {
+    getAttachments: () => [imageBlob]
+  };
+
+  const out = ocrService.extractAttachmentContext(message, {
+    ocrConfidenceWarningThreshold: 0,
+    maxCharsPerFile: 500,
+    maxTotalChars: 1000
+  });
+
+  assert(out.ocrConfidence === 0.4, 'il test deve esercitare una confidenza OCR bassa ma valida');
+  assert(out.ocrConfidenceLow === false, 'ocrConfidenceWarningThreshold=0 non deve ricadere al default 0.8');
+}
+
 console.log('--- Test _isMeaningfulOCR: CF/IBAN dentro testo OCR completo ---');
 {
   const ocrService = new GmailService();

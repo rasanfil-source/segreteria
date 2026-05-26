@@ -1130,6 +1130,14 @@ var GmailService = class GmailService {
         }, defaults, options);
 
         settings.ocrLanguage = this._resolveOcrLanguage(options.detectedLanguage || settings.ocrLanguage || 'it');
+        const parseNonNegativeLimit = (value, fallback) => {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+        };
+        const maxFiles = Math.floor(parseNonNegativeLimit(settings.maxFiles, 3));
+        const maxCharsPerFile = Math.floor(parseNonNegativeLimit(settings.maxCharsPerFile, 3000));
+        const maxTotalChars = Math.floor(parseNonNegativeLimit(settings.maxTotalChars, 9000));
+        const ocrConfidenceWarningThreshold = parseNonNegativeLimit(settings.ocrConfidenceWarningThreshold, 0.8);
 
         if (!settings.enabled) {
             return { text: '', items: [], skipped: [], ocrConfidence: null, ocrConfidenceLow: false };
@@ -1162,7 +1170,7 @@ var GmailService = class GmailService {
             }
 
             const attachmentName = attachment.getName ? attachment.getName() : 'allegato';
-            if (items.length >= settings.maxFiles) {
+            if (items.length >= maxFiles) {
                 skipped.push({ name: attachmentName, reason: 'max_files' });
                 continue;
             }
@@ -1244,7 +1252,7 @@ var GmailService = class GmailService {
                 }
             }
 
-            let perFileLimit = settings.maxCharsPerFile;
+            let perFileLimit = maxCharsPerFile;
             if (isPdf && settings.pdfMaxPages && settings.pdfCharsPerPage) {
                 const estimatedPages = Math.ceil(normalized.length / settings.pdfCharsPerPage);
                 if (estimatedPages > settings.pdfMaxPages) {
@@ -1255,20 +1263,24 @@ var GmailService = class GmailService {
                 }
             }
 
-            let clipped = normalized.slice(0, perFileLimit).trim();
+            let clipped = perFileLimit > 0
+                ? normalized.slice(0, perFileLimit).trim()
+                : normalized.trim();
             if (!clipped) {
                 skipped.push({ name: attachmentName, reason: 'empty_after_clip' });
                 continue;
             }
 
-            const remaining = settings.maxTotalChars - totalChars;
-            if (remaining <= 0) {
-                skipped.push({ name: attachmentName, reason: 'total_limit' });
-                break;
-            }
+            if (maxTotalChars > 0) {
+                const remaining = maxTotalChars - totalChars;
+                if (remaining <= 0) {
+                    skipped.push({ name: attachmentName, reason: 'total_limit' });
+                    break;
+                }
 
-            if (clipped.length > remaining) {
-                clipped = clipped.slice(0, Math.max(0, remaining - 1)).trim() + '…';
+                if (clipped.length > remaining) {
+                    clipped = clipped.slice(0, Math.max(0, remaining - 1)).trim() + '…';
+                }
             }
 
             const documentType = this._detectDocumentType(attachmentName, clipped);
@@ -1323,7 +1335,7 @@ var GmailService = class GmailService {
             items: items,
             skipped: skipped,
             ocrConfidence: averageConfidence,
-            ocrConfidenceLow: averageConfidence !== null && averageConfidence < (settings.ocrConfidenceWarningThreshold || 0.8)
+            ocrConfidenceLow: averageConfidence !== null && averageConfidence < ocrConfidenceWarningThreshold
         };
     }
 
@@ -1354,11 +1366,16 @@ var GmailService = class GmailService {
             textContext: '',
             blobs: [],
             skipped: [],
-            items: []
+            items: [],
+            processedCount: 0
+        };
+        const parseNonNegativeLimit = (value, fallback) => {
+            const parsed = parseInt(value, 10);
+            return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
         };
         const maxFiles = Math.max(1, parseInt(settings.maxFiles, 10) || 3);
-        const maxCharsPerFile = Math.max(0, parseInt(settings.maxCharsPerFile, 10) || 3000);
-        const maxTotalChars = Math.max(0, parseInt(settings.maxTotalChars, 10) || 9000);
+        const maxCharsPerFile = parseNonNegativeLimit(settings.maxCharsPerFile, 3000);
+        const maxTotalChars = parseNonNegativeLimit(settings.maxTotalChars, 9000);
         let processedCount = 0;
         let totalTextChars = 0;
 
@@ -1586,6 +1603,7 @@ var GmailService = class GmailService {
             result.skipped.push({ name: name, reason: 'unsupported_type', mimeType: mimeType });
         }
 
+        result.processedCount = processedCount;
         return result;
     }
 
