@@ -54,7 +54,7 @@ var EmailProcessor = class EmailProcessor {
     this.promptEngine = options.promptEngine ||
       (typeof PromptEngine !== 'undefined'
         ? new PromptEngine()
-        : { buildPrompt: (opts) => (opts && opts.emailContent) ? opts.emailContent : '' });
+        : { buildPrompt: () => { throw new Error('CRITICO: PromptEngine assente. Sicurezza LLM compromessa.'); } });
     this.memoryService = options.memoryService ||
       (typeof MemoryService !== 'undefined'
         ? new MemoryService()
@@ -2022,12 +2022,19 @@ ${addressLines.join('\n\n')}
         memoryUpdate.memorySummary = memorySummary;
       }
 
-      this.memoryService.updateMemoryAtomic(
+      const memorySaved = this.memoryService.updateMemoryAtomic(
         threadId,
         memoryUpdate,
         topicsWithObjects.length > 0 ? topicsWithObjects : null,
         inferredReactionData
       );
+
+      if (!memorySaved) {
+        console.error('🛑 Salvataggio memoria fallito definitivamente. Nessuna etichetta IA applicata: retry nel prossimo run.');
+        result.status = 'error';
+        result.error = 'memory_persistence_failed';
+        return result;
+      }
 
       // Marca tutti i messaggi non letti esaminati nel thread:
       // evita reprocessing dei messaggi precedenti quando arrivano più email
