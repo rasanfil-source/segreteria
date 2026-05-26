@@ -646,7 +646,17 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         const duration = Date.now() - startTime;
 
         // Completa la richiesta consumando contatori giornalieri e consolidando la riserva RPM/TPM.
-        this._trackRequest(modelKey, estimatedTokens, duration, reservationId);
+        // Applica eventuale moltiplicatore prudenziale per output/thinking invisibile.
+        const accountingCfg = (typeof CONFIG !== 'undefined' && CONFIG.TOKEN_ACCOUNTING)
+          ? CONFIG.TOKEN_ACCOUNTING
+          : {};
+        const tokenMultiplier = (accountingCfg.enabled === true &&
+            Number.isFinite(accountingCfg.outputMultiplier) &&
+            accountingCfg.outputMultiplier > 0)
+          ? accountingCfg.outputMultiplier
+          : 1.0;
+        const accountedTokens = Math.max(1, Math.ceil(estimatedTokens * tokenMultiplier));
+        this._trackRequest(modelKey, accountedTokens, duration, reservationId);
 
         console.log(`✓ Successo (${duration}ms)`);
 

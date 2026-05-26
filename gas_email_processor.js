@@ -1820,8 +1820,7 @@ ${addressLines.join('\n\n')}
             const retryResult = this.geminiService.generateResponse(correctionPrompt, {
               apiKey: retryPlan.key,
               modelName: retryPlan.model,
-              skipRateLimit: retryPlan.skipRateLimit,
-              attachments: attachmentBlobs
+              skipRateLimit: retryPlan.skipRateLimit
             });
 
             if (retryResult && typeof retryResult === 'object') {
@@ -4785,6 +4784,9 @@ function computeResponseDelay({ messageDate, now = new Date(), thresholdHours = 
   }
 
   const parsedMessageDate = (typeof parseDateSafe === 'function') ? parseDateSafe(messageDate, null) : new Date(messageDate);
+  if (!parsedMessageDate || isNaN(parsedMessageDate.getTime())) {
+    return { shouldApologize: false, hours: 0, days: 0 };
+  }
   const diffMs = now.getTime() - parsedMessageDate.getTime();
 
   if (isNaN(diffMs) || diffMs < 0) {
