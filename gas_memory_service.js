@@ -212,7 +212,7 @@ var MemoryService = class MemoryService {
     try {
       const memory = this.getMemory(threadId);
       const providedInfo = Array.isArray(memory.providedInfo) ? memory.providedInfo : [];
-      return providedInfo.slice(-Math.max(1, limit));
+      return limit > 0 ? providedInfo.slice(-limit) : [];
     } catch (e) {
       console.warn(`⚠️ getRecentHistory fallito per thread ${threadId}: ${e.message}`);
       return [];

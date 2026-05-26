@@ -392,7 +392,7 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
       const messageId = (message && typeof message.getId === 'function') ? message.getId() : '';
       if (!messageId) return false;
       const ids = getTerminalLabelIds();
-      if (ids.length === 0) return false;
+      if (ids.length === 0 && terminalLabelNames.length > 0) return true; // fail-closed anti-loop
       if (!staleMetadataService || typeof staleMetadataService._getMessageMetadataWithResilience !== 'function') {
         return false;
       }

@@ -904,8 +904,7 @@ var EmailProcessor = class EmailProcessor {
 
           if (
             consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL ||
-            botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL ||
-            totalBotRepliesInThread >= Math.max(2, Math.floor(MAX_CONSECUTIVE_EXTERNAL * 1.5))
+            botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL
           ) {
             console.log(`   ⊖ Saltato: prevenzione loop email attivata (ping-pong/thread ripetitivo: interventiBot=${totalBotRepliesInThread}, consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
             markHandledUnread();

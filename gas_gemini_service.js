@@ -131,7 +131,9 @@ var GeminiService = class GeminiService {
 
   _estimateTokens(text, attachments = []) {
     const promptPayload = this._normalizePromptPayload_(text);
-    return estimateTokenCount(promptPayload.combinedText, attachments);
+    return typeof estimateTokenCount === 'function'
+      ? estimateTokenCount(promptPayload.combinedText, attachments)
+      : Math.ceil((promptPayload.combinedText || '').length / 4);
   }
 
   /**
@@ -231,7 +233,7 @@ var GeminiService = class GeminiService {
       throw new Error('PRIMARY_QUOTA_EXHAUSTED');
     }
 
-    let apiErrorMsg = responseBody.substring(0, 200);
+    let apiErrorMsg = (responseBody || '').substring(0, 200);
     try {
       const parsedObj = JSON.parse(responseBody);
       if (parsedObj && parsedObj.error && parsedObj.error.message) {

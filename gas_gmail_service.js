@@ -82,10 +82,8 @@ var GmailService = class GmailService {
             }
         }
 
-        // Ultimo fallback: approssima Pacific Standard Time (UTC-8) per evitare
-        // il reset a mezzanotte UTC, che anticipa il reset quote Gmail.
-        const pacificApprox = new Date(Date.now() - 8 * 60 * 60 * 1000);
-        return `gmail_api_calls:${pacificApprox.toISOString().slice(0, 10)}`;
+        // Ultimo fallback deterministico: UTC puro (evita offset hardcoded DST-sensitive).
+        return `gmail_api_calls:${new Date().toISOString().slice(0, 10)}`;
     }
 
     _incrementGmailCallCounterOrThrow_(opName) {
@@ -342,15 +340,7 @@ var GmailService = class GmailService {
     removeLabelFromMessage(messageId, labelName) {
         if (!labelName) return;
         const removeLabelFromNativeThread = () => {
-            const nativeMessage = GmailApp.getMessageById(messageId);
-            const thread = nativeMessage ? nativeMessage.getThread() : null;
-            const nativeLabel = GmailApp.getUserLabelByName(labelName);
-            if (thread && nativeLabel) {
-                thread.removeLabel(nativeLabel);
-                console.warn(`⚠️ Fallback thread-level: rimossa label '${labelName}' per msg ${messageId}`);
-                return true;
-            }
-            return false;
+            throw new Error("Fallback a livello thread disabilitato per preservare la granularità del triage message-level.");
         };
 
         try {
@@ -393,12 +383,14 @@ var GmailService = class GmailService {
       if (!labelId) {
         throw new Error(`Impossibile determinare labelId per "${labelName}"`);
       }
-      this._incrementGmailCallCounterOrThrow_('messages.batchModify');
-      Gmail.Users.Messages.batchModify({
-        ids: validIds,
-        addLabelIds: [labelId],
-        removeLabelIds: []
-      }, 'me');
+      for (let i = 0; i < validIds.length; i += 1000) {
+        this._incrementGmailCallCounterOrThrow_('messages.batchModify');
+        Gmail.Users.Messages.batchModify({
+          ids: validIds.slice(i, i + 1000),
+          addLabelIds: [labelId],
+          removeLabelIds: []
+        }, 'me');
+      }
       console.log(`✓ Aggiunta label '${labelName}' a ${validIds.length} messaggi (batch)`);
     } catch (e) {
       console.warn(`⚠️ batchAddLabelToMessages fallito (${labelName}): ${e.message}`);

@@ -53,7 +53,7 @@ var PromptEngine = class PromptEngine {
       const serialized = JSON.stringify(value);
       return typeof serialized === 'string' ? serialized : String(value);
     } catch (e) {
-      return String(value);
+      return "[Dati complessi o non serializzabili omessi per sicurezza]";
     }
   }
 
