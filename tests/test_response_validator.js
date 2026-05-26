@@ -34,10 +34,10 @@ assert(
 
 console.log('--- Test _checkForbiddenContent (frase incertezza) ---');
 const uncertainResult = validator._checkForbiddenContent('Non sono sicuro di poter confermare.');
-assert(uncertainResult.score <= 0.5, 'frase di incertezza deve ridurre fortemente score');
+assert(uncertainResult.score === 1.0, 'frase prudente non deve ridurre score');
 assert(
-  uncertainResult.errors.some((e) => e.includes('frasi di incertezza')),
-  'deve segnalare frasi di incertezza'
+  uncertainResult.warnings.some((w) => w.includes('Tono prudente rilevato')),
+  'deve segnalare warning prudenziale'
 );
 
 console.log('--- Test _checkForbiddenContent (todo minuscolo non placeholder) ---');

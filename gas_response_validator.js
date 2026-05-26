@@ -44,17 +44,17 @@ var ResponseValidator = class ResponseValidator {
       'non posso rispondere',
       'mi dispiace ma non',
       'scusa ma non',
-      'purtroppo non posso',
-      'non sono sicuro',
-      'non sono sicura',
-      'suppongo',
-      'immagino'
+      'purtroppo non posso'
     ];
 
     // Frasi di incertezza legittima (soft-warning, NO riduzione score)
     // In contesto pastorale, espressioni come "potrebbe essere" o "probabilmente"
     // sono spesso appropriate e non devono bloccare la risposta.
     this.softWarningPhrases = [
+      'non sono sicuro',
+      'non sono sicura',
+      'suppongo',
+      'immagino',
       'potrebbe essere',
       'probabilmente',
       'forse'
@@ -351,6 +351,7 @@ var ResponseValidator = class ResponseValidator {
     // === CONTROLLO 4: Contenuto vietato ===
     const contentResult = this._checkForbiddenContent(response);
     errors.push(...contentResult.errors);
+    warnings.push(...contentResult.warnings);
     details.content = contentResult;
     score *= contentResult.score;
 
@@ -527,6 +528,7 @@ var ResponseValidator = class ResponseValidator {
    */
   _checkForbiddenContent(response) {
     const errors = [];
+    const warnings = [];
     let score = 1.0;
 
     const responseLower = response.toLowerCase();
@@ -543,6 +545,16 @@ var ResponseValidator = class ResponseValidator {
     if (foundForbidden.length > 0) {
       errors.push(`Contiene frasi di incertezza: ${foundForbidden.slice(0, 2).join(', ')}`);
       score *= 0.50;
+    }
+
+    const foundSoftWarnings = this.softWarningPhrases.filter((phrase) => {
+      if (!phrase || !phrase.trim()) return false;
+      const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const rx = new RegExp(`(?:^|\\s)${escaped}(?:\\s|$|[.,!?;:])`, 'i');
+      return rx.test(responseLower);
+    });
+    if (foundSoftWarnings.length > 0) {
+      warnings.push(`Tono prudente rilevato: ${foundSoftWarnings.slice(0, 2).join(', ')}`);
     }
 
     // Rilevamento placeholder intelligente
@@ -611,7 +623,7 @@ var ResponseValidator = class ResponseValidator {
       score = 0.0;
     }
 
-    return { score, errors, foundForbidden, foundPlaceholders };
+    return { score, errors, warnings, foundForbidden, foundSoftWarnings, foundPlaceholders };
   }
 
   /**
