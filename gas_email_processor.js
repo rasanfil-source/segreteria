@@ -19,7 +19,8 @@
 var TECHNICAL_CONTEXT_ROUTING_CATEGORIES = new Set(['technical', 'appointment', 'quotation', 'information']);
 
 function shouldSkipByLanguageMode_(detectedLanguage, languageMode) {
-  const lang = String(detectedLanguage || '').trim().toLowerCase();
+  const rawLang = String(detectedLanguage || '').trim().toLowerCase();
+  const lang = rawLang.split(/[-_]/)[0];
   const mode = String(languageMode || '').trim().toLowerCase();
   return mode === 'foreign_only' && lang === 'it';
 }
@@ -4324,6 +4325,18 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     if (lang === 'en') {
       return `${greeting}\n\nWe have received your attachment. Before proceeding, the parish office will verify the submitted documentation.\n\n${closing}\nParish Office`;
     }
+    if (lang === 'es') {
+      return `${greeting}\n\nHemos recibido el archivo adjunto. Antes de proceder, la secretaría parroquial verificará la documentación enviada.\n\n${closing}\nSecretaría Parroquial`;
+    }
+    if (lang === 'fr') {
+      return `${greeting}\n\nNous avons bien reçu votre pièce jointe. Avant de poursuivre, le secrétariat paroissial vérifiera la documentation envoyée.\n\n${closing}\nSecrétariat paroissial`;
+    }
+    if (lang === 'pt') {
+      return `${greeting}\n\nRecebemos o seu anexo. Antes de prosseguir, a secretaria paroquial verificará a documentação enviada.\n\n${closing}\nSecretaria Paroquial`;
+    }
+    if (lang === 'de') {
+      return `${greeting}\n\nWir haben Ihren Anhang erhalten. Bevor wir fortfahren, prüft das Pfarrbüro die eingereichten Unterlagen.\n\n${closing}\nPfarrbüro`;
+    }
     return `${greeting}\n\nAbbiamo ricevuto la documentazione allegata. Prima di procedere, la segreteria verificherà la documentazione inviata.\n\n${closing}\nSegreteria Parrocchia Sant'Eugenio`;
   }
 
@@ -4622,6 +4635,42 @@ Provvederemo a prenderne visione quanto prima.
 ${closing}
 Segreteria Parrocchia Sant'Eugenio`;
     }
+    if (normalizedLang === 'es') {
+      return `${greeting}
+
+Confirmamos la recepción de la documentación enviada.
+La revisaremos lo antes possibile.
+
+${closing}
+Secretaría Parroquial`;
+    }
+    if (normalizedLang === 'fr') {
+      return `${greeting}
+
+Nous confirmons la réception de la documentation envoyée.
+Nous l'examinerons dès que possible.
+
+${closing}
+Secrétariat paroissial`;
+    }
+    if (normalizedLang === 'pt') {
+      return `${greeting}
+
+Confirmamos a receção da documentação enviada.
+Iremos analisá-la assim que possível.
+
+${closing}
+Secretaria Paroquial`;
+    }
+    if (normalizedLang === 'de') {
+      return `${greeting}
+
+Wir bestätigen den Eingang der zugesandten Unterlagen.
+Wir werden sie so bald wie möglich prüfen.
+
+${closing}
+Pfarrbüro`;
+    }
     return `${greeting}
 
 We confirm the receipt of the documentation you sent.
@@ -4633,8 +4682,8 @@ Parish Secretariat of Sant'Eugenio`;
 
 
   _normalizeBypassResponseLanguage_(lang = 'it') {
-    const normalized = String(lang || 'it').substring(0, 2).toLowerCase();
-    return normalized === 'en' ? 'en' : 'it';
+    const normalized = String(lang || 'it').trim().toLowerCase().split(/[-_]/)[0];
+    return ['it', 'en', 'es', 'fr', 'pt', 'de'].includes(normalized) ? normalized : 'it';
   }
 
   _getAdaptiveBypassGreetingAndClosing_(lang = 'it') {
