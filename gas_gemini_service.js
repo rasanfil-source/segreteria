@@ -222,7 +222,11 @@ var GeminiService = class GeminiService {
     if (responseCode === 429 && activeKey === this.primaryKey && this.backupKey) {
       this.isPrimaryExhausted = true;
       if (this._cache) {
-        this._cache.put(this._primaryExhaustedCacheKey, 'true', 21599);
+        try {
+          this._cache.put(this._primaryExhaustedCacheKey, 'true', 21599);
+        } catch (cacheErr) {
+          this.logger.warn(`Impossibile salvare stato quota primary in cache: ${cacheErr.message}`);
+        }
       }
       throw new Error('PRIMARY_QUOTA_EXHAUSTED');
     }
