@@ -299,18 +299,10 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       // America/Los_Angeles gestisce automaticamente DST (PST/PDT)
       const pacificDate = Utilities.formatDate(now, 'America/Los_Angeles', 'yyyy-MM-dd');
 
-      const month = now.getMonth();
-      if (month === 2 || month === 10) {
-        const hour = parseInt(Utilities.formatDate(now, 'America/Los_Angeles', 'HH'), 10);
-        if (hour >= 0 && hour <= 3) {
-          console.warn(`⚠️ Possibile transizione DST in corso, ora Pacific: ${hour}`);
-        }
-      }
-
       return pacificDate;
     } catch (error) {
       console.error(`❌ Errore getPacificDate: ${error.message}`);
-      return Utilities.formatDate(now, 'UTC', 'yyyy-MM-dd');
+      return Utilities.formatDate(now, 'America/Los_Angeles', 'yyyy-MM-dd');
     }
   }
 
@@ -1000,8 +992,10 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     this.cache[cacheKey] = this.cache[cacheKey].filter(e => now - e.timestamp < 60000);
 
     // Limita dimensioni array per rispettare limiti PropertiesService (~9kb)
-    while (JSON.stringify(this.cache[cacheKey]).length > 8000 && this.cache[cacheKey].length > 0) {
-      this.cache[cacheKey].shift();
+    const serializedWindow = JSON.stringify(this.cache[cacheKey]);
+    if (serializedWindow.length > 8000 && this.cache[cacheKey].length > 0) {
+      const keep = Math.max(1, Math.floor(this.cache[cacheKey].length * 0.7));
+      this.cache[cacheKey] = this.cache[cacheKey].slice(-keep);
     }
 
     // GAS è runtime effimero: persiste subito per non perdere stato RPM/TPM tra esecuzioni.
@@ -1095,12 +1089,14 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     const lock = LockService.getScriptLock();
-    // Timeout ridotto a 10s per evitare blocchi infiniti in console.
-    const lockAcquired = lock.tryLock(10000);
-
+    let lockAcquired = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      lockAcquired = lock.tryLock(8000);
+      if (lockAcquired) break;
+      Utilities.sleep(200 * Math.pow(2, attempt));
+    }
     if (!lockAcquired) {
-      console.warn('\u26A0\uFE0F Impossibile acquisire lock per salvataggio cache entro 10s. Dati mantenuti in memoria.');
-      return;
+      throw new Error('Impossibile acquisire lock per salvataggio cache.');
     }
 
     try {

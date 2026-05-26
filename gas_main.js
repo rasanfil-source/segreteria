@@ -111,7 +111,7 @@ function calculateEaster(year) {
  * @returns {number} Numero stimato di token (min 1)
  */
 function estimateTokenCount(text, attachments = []) {
-  if (!text && (!attachments || attachments.length === 0)) return 0;
+  if (!text && (!attachments || attachments.length === 0)) return 1;
 
   let tokens = 0;
   if (text && typeof text === 'string') {
@@ -133,7 +133,9 @@ function estimateTokenCount(text, attachments = []) {
 
     attachments.forEach((blob) => {
       try {
-        const mimeType = ((blob && typeof blob.getContentType === 'function') ? blob.getContentType() : '').toLowerCase();
+        const mimeType = (blob && typeof blob.getContentType === 'function')
+          ? String(blob.getContentType() || '').toLowerCase()
+          : '';
         if (mimeType.includes('image/')) {
           tokens += tokenImage;
         } else if (mimeType.includes('pdf')) {
@@ -142,7 +144,7 @@ function estimateTokenCount(text, attachments = []) {
           tokens += tokenDefault;
         }
       } catch (e) {
-        tokens += tokenImage;
+        tokens += tokenDefault;
       }
     });
   }
@@ -1006,8 +1008,7 @@ function _splitCachePayload(payload, maxChars) {
     }
 
     if (length <= 0) {
-      start += 1;
-      continue;
+      throw new Error('Impossibile spezzare il payload in chunk validi.');
     }
 
     parts.push(chunk);
@@ -1644,6 +1645,7 @@ function deleteTriggersByHandler_(handlerName) {
  * La funzione associata (weeklyMemoryCleanup) deve esistere nel progetto.
  */
 function setupWeeklyCleanupTrigger() {
+  deleteTriggersByHandler_('cleanupOldMemory');
   deleteTriggersByHandler_('weeklyMemoryCleanup');
   ScriptApp.newTrigger('weeklyMemoryCleanup')
     .timeBased()
@@ -1835,7 +1837,14 @@ function _readBatchCheckpoint_() {
     const raw = PropertiesService.getScriptProperties().getProperty('EMAIL_BATCH_CHECKPOINT');
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
+    if (!parsed || typeof parsed !== 'object') {
+      _clearBatchCheckpoint_();
+      return null;
+    }
+    if (!Array.isArray(parsed.pendingThreadIds) || parsed.pendingThreadIds.length === 0) {
+      _clearBatchCheckpoint_();
+      return null;
+    }
     const ttlMs = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.BATCH_CHECKPOINT_TTL_MS)))
       ? Number(CONFIG.BATCH_CHECKPOINT_TTL_MS)
       : (10 * 60 * 1000);
@@ -1859,6 +1868,7 @@ function _readBatchCheckpoint_() {
 
     return parsed;
   } catch (_) {
+    _clearBatchCheckpoint_();
     return null;
   }
 }
@@ -2079,11 +2089,9 @@ function parseDateSafe(input, fallback = null, explicitTimeZone = null) {
   }
   if (input === null || input === undefined || input === '') return fallback;
 
-  const parsed = new Date(input);
-  if (!Number.isNaN(parsed.getTime())) return parsed;
-
   if (typeof input === 'string') {
-    const match = String(input).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const trimmed = String(input).trim();
+    const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (match) {
       const tz = explicitTimeZone ||
         (typeof Session !== 'undefined' && Session &&
@@ -2101,6 +2109,9 @@ function parseDateSafe(input, fallback = null, explicitTimeZone = null) {
       }
     }
   }
+
+  const parsed = new Date(input);
+  if (!Number.isNaN(parsed.getTime())) return parsed;
 
   return fallback;
 }
