@@ -1398,7 +1398,7 @@ var ResponseValidator = class ResponseValidator {
       if (timeSlot === correctTimeSlot) continue; // Salta la fascia corretta
 
       for (const greeting of greetings) {
-        const regex = new RegExp(`^(\\s*[\\*#]*\\s*)(${greeting})\\b`, 'i');
+        const regex = new RegExp(`^(\\s*[\\*#]*\\s*)(${this._escapeRegex(greeting)})\\b`, 'i');
         const match = firstPart.match(regex);
 
         if (match) {

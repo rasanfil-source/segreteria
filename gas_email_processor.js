@@ -132,6 +132,111 @@ var EmailProcessor = class EmailProcessor {
     return this._scriptTimeZone;
   }
 
+  _acquireThreadLock(threadId, skipLock, threadLogger) {
+    const scriptCache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
+      ? CacheService.getScriptCache()
+      : null;
+    const threadLockKey = `thread_lock_${threadId}`;
+
+    if (!scriptCache || typeof LockService === 'undefined' || !LockService || typeof LockService.getScriptLock !== 'function') {
+      if (threadLogger && typeof threadLogger.warn === 'function') {
+        threadLogger.warn('Lock service/cache non disponibili: procedo senza lock');
+      }
+      return { ok: true, acquired: false, cache: scriptCache, key: threadLockKey, value: null };
+    }
+
+    const configuredTtl = (typeof CONFIG !== 'undefined' && Number(CONFIG.CACHE_LOCK_TTL))
+      ? Number(CONFIG.CACHE_LOCK_TTL)
+      : 310;
+    const ttlSeconds = Math.max(1, Math.min(configuredTtl, 21600));
+    const lockTtlMs = ttlSeconds * 1000;
+    const value = (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.getUuid === 'function')
+      ? `${Date.now()}_${Utilities.getUuid()}`
+      : `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const scriptLock = LockService.getScriptLock();
+    let scriptLockAcquired = false;
+
+    try {
+      if (skipLock) {
+        if (threadLogger && typeof threadLogger.debug === 'function') {
+          threadLogger.debug('Mutex globale saltato (lock esecuzione già posseduto dal chiamante)');
+        }
+      } else {
+        const threadLockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
+          ? CONFIG.EXECUTION_LOCK_WAIT_MS
+          : 1000;
+        scriptLockAcquired = scriptLock.tryLock(threadLockWaitMs);
+        if (!scriptLockAcquired) {
+          if (threadLogger && typeof threadLogger.warn === 'function') {
+            threadLogger.warn(`Impossibile acquisire lock globale per thread ${threadId} (timeout ${threadLockWaitMs}ms), salto`);
+          }
+          return { ok: false, reason: 'global_lock_unavailable' };
+        }
+      }
+
+      const existingLock = scriptCache.get(threadLockKey);
+      if (existingLock) {
+        const existingTimestamp = Number(String(existingLock).split('_')[0]);
+        const isStale = !isNaN(existingTimestamp) && (Date.now() - existingTimestamp) > lockTtlMs;
+
+        if (isStale) {
+          if (threadLogger && typeof threadLogger.warn === 'function') {
+            threadLogger.warn('Lock stale rilevato, sovrascrittura lock');
+          }
+        } else {
+          if (threadLogger && typeof threadLogger.warn === 'function') {
+            threadLogger.warn('Thread lockato da altro processo, salto');
+          }
+          return { ok: false, reason: 'thread_locked' };
+        }
+      }
+
+      scriptCache.put(threadLockKey, value, ttlSeconds);
+      if (scriptCache.get(threadLockKey) !== value) {
+        return { ok: false, reason: 'thread_lock_collision' };
+      }
+
+      if (threadLogger && typeof threadLogger.debug === 'function') {
+        threadLogger.debug('Lock acquisito');
+      }
+      return { ok: true, acquired: true, cache: scriptCache, key: threadLockKey, value: value };
+    } catch (e) {
+      if (threadLogger && typeof threadLogger.warn === 'function') {
+        threadLogger.warn(`Errore acquisizione lock thread: ${e.message}`);
+      }
+      return { ok: false, reason: 'lock_acquisition_failed', error: e };
+    } finally {
+      if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
+        try {
+          scriptLock.releaseLock();
+        } catch (_) { }
+      }
+    }
+  }
+
+  _releaseThreadLock(lockCtx, threadLogger) {
+    if (!lockCtx || !lockCtx.acquired || !lockCtx.cache || !lockCtx.key) return;
+    try {
+      const currentLockValue = lockCtx.cache.get(lockCtx.key);
+      if (currentLockValue === lockCtx.value) {
+        lockCtx.cache.remove(lockCtx.key);
+        if (threadLogger && typeof threadLogger.debug === 'function') {
+          threadLogger.debug('Lock rilasciato');
+        }
+      } else if (currentLockValue) {
+        if (threadLogger && typeof threadLogger.warn === 'function') {
+          threadLogger.warn('Rilascio lock saltato (lock scaduto o di altro processo)');
+        }
+      } else if (threadLogger && typeof threadLogger.debug === 'function') {
+        threadLogger.debug('Lock già scaduto naturalmente');
+      }
+    } catch (e) {
+      if (threadLogger && typeof threadLogger.warn === 'function') {
+        threadLogger.warn(`Errore rilascio lock: ${e.message}`);
+      }
+    }
+  }
+
 
   /**
    * Elabora il singolo thread (analisi, categorizzazione, generazione risposta, invio)
@@ -203,77 +308,13 @@ var EmailProcessor = class EmailProcessor {
     // ACQUISIZIONE LOCK (LIVELLO-THREAD) - Previene condizioni di conflitto
     // ====================================================================
 
-    let lockAcquired = false;
-    const scriptCache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
-      ? CacheService.getScriptCache()
-      : null;
-    const threadLockKey = `thread_lock_${threadId}`;
-    let lockValue = null;
-
-    if (!scriptCache || typeof LockService === 'undefined' || !LockService || typeof LockService.getScriptLock !== 'function') {
-      threadLogger.warn('Lock service/cache non disponibili: procedo senza lock');
-    } else {
-      const configuredTtl = (typeof CONFIG !== 'undefined' && Number(CONFIG.CACHE_LOCK_TTL))
-        ? Number(CONFIG.CACHE_LOCK_TTL)
-        : 310; // Valore di fallback superiore al tempo massimo di esecuzione GAS
-
-      // Rispetta il limite massimo di CacheService (6 ore)
-      const ttlSeconds = Math.max(1, Math.min(configuredTtl, 21600));
-      const lockTtlMs = ttlSeconds * 1000;
-
-      // Generazione identificativo univoco per il lock current thread
-      if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.getUuid === 'function') {
-        lockValue = `${Date.now()}_${Utilities.getUuid()}`;
-      } else {
-        const entropy = Math.random().toString(36).substring(2, 8);
-        lockValue = `${Date.now()}_${entropy}`;
-      }
-
-      const scriptLock = LockService.getScriptLock();
-      let scriptLockAcquired = false;
-      try {
-        if (skipLock) {
-          threadLogger.debug('Mutex globale saltato (lock esecuzione già posseduto dal chiamante)');
-        } else {
-          const threadLockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
-            ? CONFIG.EXECUTION_LOCK_WAIT_MS : 1000;
-          if (!scriptLock.tryLock(threadLockWaitMs)) {
-            threadLogger.warn(`Impossibile acquisire lock globale per thread ${threadId} (timeout ${threadLockWaitMs}ms), salto`);
-            restoreServiceLoggers();
-            return { status: 'skipped', reason: 'global_lock_unavailable' };
-          }
-          scriptLockAcquired = true;
-        }
-
-        const existingLock = scriptCache.get(threadLockKey);
-        if (existingLock) {
-          const existingTimestamp = Number(String(existingLock).split('_')[0]);
-          const isStale = !isNaN(existingTimestamp) && (Date.now() - existingTimestamp) > lockTtlMs;
-
-          if (isStale) {
-            threadLogger.warn('Lock stale rilevato, sovrascrittura lock');
-          } else {
-            threadLogger.warn('Thread lockato da altro processo, salto');
-            restoreServiceLoggers();
-            return { status: 'skipped', reason: 'thread_locked' };
-          }
-        }
-
-        scriptCache.put(threadLockKey, lockValue, ttlSeconds);
-        lockAcquired = true;
-        threadLogger.debug('Lock acquisito');
-      } catch (e) {
-        threadLogger.warn(`Errore acquisizione lock thread: ${e.message}`);
-        // Il mutex globale protegge solo la sezione critica CacheService; il lock thread resta nel token cache.
-        restoreServiceLoggers();
+    let lockCtx = this._acquireThreadLock(threadId, skipLock, threadLogger);
+    if (!lockCtx.ok) {
+      restoreServiceLoggers();
+      if (lockCtx.reason === 'lock_acquisition_failed') {
         return { status: 'error', error: 'Lock acquisition failed' };
-      } finally {
-        if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
-          try {
-            scriptLock.releaseLock();
-          } catch (_) { }
-        }
       }
+      return { status: 'skipped', reason: lockCtx.reason };
     }
 
     const result = {
@@ -704,22 +745,23 @@ var EmailProcessor = class EmailProcessor {
         ? CONFIG.SENDER_THROTTLE_WINDOW_SECONDS
         : 60;
       const senderThrottleKey = `sender_throttle_${safeSenderEmail || 'unknown'}`;
-      if (scriptCache && safeSenderEmail) {
+      const senderThrottleCache = lockCtx && lockCtx.cache ? lockCtx.cache : null;
+      if (senderThrottleCache && safeSenderEmail && typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function') {
         let senderThrottleAlreadySet = false;
         const senderThrottleLock = LockService.getScriptLock();
         let senderThrottleLockAcquired = false;
         try {
           senderThrottleLockAcquired = senderThrottleLock.tryLock(500);
           if (senderThrottleLockAcquired) {
-            senderThrottleAlreadySet = Boolean(scriptCache.get(senderThrottleKey));
+            senderThrottleAlreadySet = Boolean(senderThrottleCache.get(senderThrottleKey));
             if (!senderThrottleAlreadySet) {
-              scriptCache.put(senderThrottleKey, '1', senderThrottleWindowSeconds);
+              senderThrottleCache.put(senderThrottleKey, '1', senderThrottleWindowSeconds);
             }
           } else {
             // Fallback best-effort: in assenza lock evitiamo di bloccare il flusso.
-            senderThrottleAlreadySet = Boolean(scriptCache.get(senderThrottleKey));
+            senderThrottleAlreadySet = Boolean(senderThrottleCache.get(senderThrottleKey));
             if (!senderThrottleAlreadySet) {
-              scriptCache.put(senderThrottleKey, '1', senderThrottleWindowSeconds);
+              senderThrottleCache.put(senderThrottleKey, '1', senderThrottleWindowSeconds);
             }
             threadLogger.warn('Sender throttle lock non acquisito, applicazione in modalità best-effort');
           }
@@ -1033,16 +1075,23 @@ var EmailProcessor = class EmailProcessor {
       // Quick check superato con shouldRespond=true: marca i secondari ora.
       if (languageMode !== 'foreign_only') {
         const externalIds = new Set(externalUnread.map(m => m.getId()));
+        const candidateDate = messageDetails && messageDetails.date instanceof Date
+          ? messageDetails.date
+          : (candidate && typeof candidate.getDate === 'function' ? candidate.getDate() : null);
+        const candidateTs = candidateDate instanceof Date ? candidateDate.getTime() : 0;
         unlabeledUnread.forEach(message => {
-          if (message.getId() !== candidate.getId()) {
-            if (externalIds.has(message.getId())) {
-              // Non etichettare ancora i messaggi esterni secondari: se generazione,
-              // validazione o invio falliscono, devono restare eleggibili per retry.
-              return;
-            } else {
+          if (!message || message.getId() === candidate.getId()) return;
+          if (externalIds.has(message.getId())) {
+            const msgDate = (typeof message.getDate === 'function') ? message.getDate() : null;
+            const msgTs = msgDate instanceof Date ? msgDate.getTime() : 0;
+            // Fissa il candidato del burst: i messaggi esterni precedenti al candidato
+            // sono considerati inclusi nel contesto della risposta corrente.
+            if (msgTs && candidateTs && msgTs < candidateTs) {
               this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
             }
+            return;
           }
+          this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
         });
       } else {
         console.log('   🌐 Modalità "Solo straniere": non pre-marco i non letti secondari');
@@ -2022,18 +2071,19 @@ ${addressLines.join('\n\n')}
         memoryUpdate.memorySummary = memorySummary;
       }
 
-      const memorySaved = this.memoryService.updateMemoryAtomic(
-        threadId,
-        memoryUpdate,
-        topicsWithObjects.length > 0 ? topicsWithObjects : null,
-        inferredReactionData
-      );
+      try {
+        const memorySaved = this.memoryService.updateMemoryAtomic(
+          threadId,
+          memoryUpdate,
+          topicsWithObjects.length > 0 ? topicsWithObjects : null,
+          inferredReactionData
+        );
 
-      if (!memorySaved) {
-        console.error('🛑 Salvataggio memoria fallito definitivamente. Nessuna etichetta IA applicata: retry nel prossimo run.');
-        result.status = 'error';
-        result.error = 'memory_persistence_failed';
-        return result;
+        if (!memorySaved) {
+          threadLogger.warn('Persistenza memoria non confermata, ma risposta già gestita');
+        }
+      } catch (memoryError) {
+        threadLogger.warn(`Persistenza memoria fallita, ma risposta già gestita: ${memoryError.message}`);
       }
 
       // Marca tutti i messaggi non letti esaminati nel thread:
@@ -2079,22 +2129,7 @@ ${addressLines.join('\n\n')}
 
     } finally {
       restoreServiceLoggers();
-      if (lockAcquired && scriptCache && threadLockKey) {
-        try {
-          const currentLockValue = scriptCache.get(threadLockKey);
-          // Rilasciamo SOLO se il lock è inequivocabilmente il nostro.
-          if (currentLockValue === lockValue) {
-            scriptCache.remove(threadLockKey);
-            threadLogger.debug('Lock rilasciato');
-          } else if (currentLockValue) {
-            threadLogger.warn('Rilascio lock saltato (lock scaduto o di altro processo)');
-          } else {
-            threadLogger.debug('Lock già scaduto naturalmente');
-          }
-        } catch (e) {
-          threadLogger.warn(`Errore rilascio lock: ${e.message}`);
-        }
-      }
+      this._releaseThreadLock(lockCtx, threadLogger);
     }
   }
 
@@ -2841,6 +2876,7 @@ ${addressLines.join('\n\n')}
     }
 
     const sendingKey = `sending_${messageId}`;
+    const startedKey = `sendstarted_${messageId}`;
     const sentKey = `sent_${messageId}`;
     const scriptLock = (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function')
       ? LockService.getScriptLock()
@@ -2867,8 +2903,16 @@ ${addressLines.join('\n\n')}
         }
         return { ok: false, reason: 'in_flight' };
       }
+      if (cache.get(startedKey)) {
+        if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
+          try { scriptLock.releaseLock(); } catch (_) { }
+        }
+        return { ok: false, reason: 'send_recently_started' };
+      }
 
-      cache.put(sendingKey, String(Date.now()), 300); // 5 minuti
+      const nowTs = String(Date.now());
+      cache.put(sendingKey, nowTs, 300); // 5 minuti
+      cache.put(startedKey, nowTs, 900); // 15 minuti: finestra anti-duplicato per errori ambigui
       if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
         try { scriptLock.releaseLock(); } catch (_) { }
       }
@@ -2891,6 +2935,7 @@ ${addressLines.join('\n\n')}
     try {
       cache.put(`sent_${messageId}`, String(Date.now()), 21599);
       cache.remove(`sending_${messageId}`);
+      cache.remove(`sendstarted_${messageId}`);
     } catch (e) {
       console.warn(`  Impossibile committare la transazione in cache per ${messageId}: ${e.message}`);
     } finally {
@@ -2908,6 +2953,8 @@ ${addressLines.join('\n\n')}
     if (!cache) return;
     try {
       cache.remove(`sending_${messageId}`);
+      // Non rimuovere sendstarted_: se l'invio ha avuto esito ambiguo,
+      // preserviamo una finestra breve anti-duplicato.
     } catch (e) {
       console.warn(`  Impossibile eseguire il rollback della transazione in cache per ${messageId}: ${e.message}`);
     } finally {
@@ -3025,12 +3072,7 @@ ${addressLines.join('\n\n')}
     // Se siamo ancora in modalità "Solo straniere", un messaggio già marcato con
     // punto medio ('·') resta in attesa: verrà promosso a IA solo quando si torna
     // a "Tutte le lingue" e viene effettivamente lavorato.
-    if (this._getLanguageProcessingMode_() === 'foreign_only' && skippedMessageIds && skippedMessageIds.has(messageId)) {
-      console.log(`   ⛔ Preservata label '${this.config.skipLabelName}' su ${messageId} (foreign_only, cache): non promuovo a IA`);
-      return;
-    }
-
-    if (this._getLanguageProcessingMode_() === 'foreign_only' && this._shouldPreserveSkipLabelInForeignOnly_(messageId)) {
+    if (this._shouldBlockPromotionToIAInForeignOnly_(messageId, skippedMessageIds)) {
       console.log(`   ⛔ Preservata label '${this.config.skipLabelName}' su ${messageId} (foreign_only): non promuovo a IA`);
       return;
     }
@@ -3050,6 +3092,12 @@ ${addressLines.join('\n\n')}
     if (labeledMessageIds && typeof labeledMessageIds.add === 'function') {
       labeledMessageIds.add(messageId);
     }
+  }
+
+  _shouldBlockPromotionToIAInForeignOnly_(messageId, skippedMessageIds = null) {
+    if (this._getLanguageProcessingMode_() !== 'foreign_only') return false;
+    if (skippedMessageIds instanceof Set && skippedMessageIds.has(messageId)) return true;
+    return this._shouldPreserveSkipLabelInForeignOnly_(messageId);
   }
 
   _shouldPreserveSkipLabelInForeignOnly_(messageId) {

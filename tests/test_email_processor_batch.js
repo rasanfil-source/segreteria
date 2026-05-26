@@ -504,6 +504,20 @@ console.log('--- Test _beginSendTransaction: conserva errore originale se releas
   }
 }
 
+console.log('--- Test _beginSendTransaction: sendstarted recente blocca reinvio ---');
+{
+  cacheStore.clear();
+  const processor = new EmailProcessor({ gmailService: {} });
+
+  cacheStore.set('sendstarted_m-recent', String(Date.now()));
+  const txn = processor._beginSendTransaction('m-recent', true);
+
+  assert(txn.ok === false, 'sendstarted recente deve bloccare una nuova transazione');
+  assert(txn.reason === 'send_recently_started', `reason attesa send_recently_started, ottenuta ${txn.reason}`);
+  assert(!cacheStore.get('sending_m-recent'), 'non deve impostare sending se sendstarted è già presente');
+  cacheStore.clear();
+}
+
 function createExternalThread(id) {
   const msg = createMessage({ id: `m-${id}`, unread: true, from: 'utente@example.com' });
   return createThread({ id: `t-${id}`, messages: [msg] });
@@ -1586,6 +1600,79 @@ console.log('--- Test processThread: timeout invio promuove idempotenza a sent -
     global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
     global.ErrorTypes = originalErrorTypes;
     global.classifyError = originalClassifyError;
+    cacheStore.clear();
+  }
+}
+
+console.log('--- Test processThread: errore memoria post-invio resta non bloccante ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const labels = [];
+  let sendCalls = 0;
+  let memoryCalls = 0;
+
+  cacheStore.clear();
+  global.CONFIG.VALIDATION_ENABLED = false;
+
+  try {
+    const processor = new EmailProcessor({
+      gmailService: {
+        _extractEmailAddress: (raw) => raw,
+        extractMessageDetails: () => ({
+          subject: 'Richiesta informazioni',
+          body: 'Vorrei sapere gli orari.',
+          senderEmail: 'utente@example.com',
+          senderName: 'Utente Test',
+          date: new Date(),
+          headers: {},
+          isNewsletter: false,
+          rfc2822MessageId: null,
+          existingReferences: null
+        }),
+        addLabelToMessage: (id, label) => labels.push({ id, label }),
+        removeLabelFromMessage: () => {},
+        removeLabelFromThread: () => {},
+        getThreadHistory: () => '',
+        prepareOutboundText: (text) => text,
+        sendHtmlReply: () => { sendCalls += 1; }
+      },
+      classifier: {
+        classifyEmail: () => ({ shouldReply: true, category: 'info', subIntents: {}, confidence: 0.9 })
+      },
+      geminiService: {
+        primaryKey: 'primary-key',
+        shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'orari' } }),
+        detectEmailLanguage: () => ({ lang: 'it' }),
+        getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+        getAdaptiveClosing: () => 'Cordiali saluti',
+        generateResponse: () => ({ success: true, text: 'Risposta base' })
+      },
+      requestClassifier: {
+        classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+      },
+      memoryService: {
+        getMemory: () => ({}),
+        getRecentHistory: () => [],
+        updateMemoryAtomic: () => {
+          memoryCalls += 1;
+          throw new Error('memory fail');
+        }
+      },
+      territoryValidator: {
+        validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+      },
+      promptEngine: {
+        buildPrompt: () => 'PROMPT'
+      }
+    });
+
+    const result = processor.processThread(createExternalThread('memory-fail'), 'kb valida', '', new Set(), true);
+    assert(result.status === 'replied', `errore memoria post-invio non deve trasformare il thread in error, ottenuto ${result.status}`);
+    assert(sendCalls === 1, 'la risposta deve essere stata inviata una sola volta');
+    assert(memoryCalls === 1, 'la memoria deve essere tentata una volta');
+    assert(labels.some(entry => entry.id === 'm-memory-fail' && entry.label === 'IA'), 'dopo invio riuscito il messaggio deve essere marcato IA');
+  } finally {
+    global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
     cacheStore.clear();
   }
 }

@@ -623,6 +623,33 @@ console.log('--- Test processThread: foreign_only non aggiunge skip a messaggi g
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }
 
+console.log('--- Test _markMessageAsProcessed: foreign_only preserva skip e non promuove a IA ---');
+{
+  const labels = [];
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  global.GLOBAL_CACHE.languageMode = 'foreign_only';
+
+  const processor = new EmailProcessor({
+    gmailService: {
+      _getOptionalLabelIdByName: (labelName) => labelName === CONFIG.SKIP_LABEL_NAME ? 'label-skip' : null,
+      _getMessageMetadataWithResilience: () => ({ labelIds: ['label-skip'] }),
+      addLabelToMessage: (id, label) => labels.push({ id, label }),
+      removeLabelFromMessage: (id, label) => labels.push({ id, label, removed: true })
+    }
+  });
+
+  processor._markMessageAsProcessed(
+    createMessage('m-skip-preserved', 'Utente <utente@example.org>', 'Italiano', 'Messaggio già saltato'),
+    new Set(),
+    new Set()
+  );
+
+  assert(!labels.some((entry) => entry.label === CONFIG.LABEL_NAME), 'foreign_only non deve promuovere a IA un messaggio con skip live');
+  assert(!labels.some((entry) => entry.removed), 'foreign_only non deve rimuovere la label skip preservata');
+
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
 console.log('--- Test processThread: cache miss rispetta label terminali da metadata ---');
 {
   const labels = [];
