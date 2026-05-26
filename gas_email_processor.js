@@ -4796,7 +4796,7 @@ function computeResponseDelay({ messageDate, now = new Date(), thresholdHours = 
 // ====================================================================
 
 /**
- * Alias dell'entry point principale processEmailsMain() (gas_main.js).
+ * Alias del punto d'ingresso principale processEmailsMain() (gas_main.js).
  * Mantenuta per compatibilità con trigger preesistenti.
  */
 function processUnreadEmailsMain() {

@@ -37,7 +37,7 @@ var AppLogger = class AppLogger {
   _log(level, message, data = {}) {
     if (LogLevel[level] < this.minLevel) return;
 
-    // Guardia null: il default `= {}` copre solo `undefined`, non `null`.
+    // Guardia su null: il valore predefinito `= {}` copre solo `undefined`, non `null`.
     const safeData = (data !== null && data !== undefined && typeof data === 'object') ? data : {};
     const mergedData = { ...this.baseMeta, ...safeData };
 

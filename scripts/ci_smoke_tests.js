@@ -30,7 +30,7 @@ const MIN_EXPECTED_TESTS = 40;
 
 const loadedScripts = new Set();
 
-// Helper calculateEaster (necessario per gas_gemini_service.js)
+// Funzione di supporto calculateEaster (necessaria per gas_gemini_service.js)
 global.calculateEaster = function (year) {
     const a = year % 19;
     const b = Math.floor(year / 100);
@@ -1363,7 +1363,7 @@ function testMainEncapsulatesExecutionLockSuccessfully() {
         const consoleNoise = withCapturedConsoleNoise({
             warn: [/Esecuzione già in corso o lock bloccato/]
         }, () => {
-            // Intenzionale: il test deve verificare il vero entry point triggerabile del progetto.
+            // Intenzionale: il test deve verificare il vero punto d'ingresso triggerabile del progetto.
             processEmailsMain();
         });
         const leaked = Object.prototype.hasOwnProperty.call(global, 'hasExecutionLock');
@@ -2354,7 +2354,7 @@ function testSanitizeUrlIPv6() {
 function testMarkdownToHtmlXss() {
     loadScript('gas_gmail_service.js');
 
-    // Script injection nel testo deve essere escaped
+    // L'iniezione di script nel testo deve essere sottoposta a escape
     const result = markdownToHtml('Ciao <script>alert(1)</script> mondo');
     assert(!result.includes('<script>'), `markdownToHtml NON deve contenere tag script, ottenuto snippet: ${result.substring(0, 200)}`);
 
