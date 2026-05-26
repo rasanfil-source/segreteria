@@ -1,29 +1,10 @@
-# Changelog
+# Note Prodotto
 
-Modifiche significative a questo progetto saranno documentate in questo file.
+Questo documento descrive le principali scelte progettuali correnti del sistema in forma statica, senza storico incrementale.
 
-Il formato è basato su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/),
-e questo progetto aderisce a [Semantic Versioning](https://semver.org/lang/it/).
+## Scelte tecniche correnti
 
----
-
-## [Unreleased]
-
-### Added
-
-- Aggiunta la nuova label di sistema `·` per marcare i messaggi italiani saltati intenzionalmente quando la modalità lingua è `foreign_only`.
-
-### Changed
-
-- In modalità `foreign_only`, le email italiane saltate nei rami a confidenza alta vengono ora marcate con la label di skip invece di rientrare all'infinito nella discovery.
-- La discovery Gmail esclude dinamicamente la label di skip sia in modalità `query` sia in modalità `metadata`, mantenendo coerente il comportamento tra i due percorsi.
-- Quando un messaggio torna processabile e viene marcato con `IA`, la label `·` viene rimossa automaticamente per evitare residui visivi in Gmail.
-
-### Fixed
-
-- Risolta l'ambiguità operativa tra log applicativi e vista conversazione di Gmail: un thread può mostrare una label storica, ma i messaggi italiani saltati in `foreign_only` hanno ora una marcatura dedicata e verificabile.
-- Ridotto il rischio di loop sui thread con più messaggi non letti, applicando la label di skip a tutti i messaggi non letti non ancora etichettati del thread nei rami lingua sicuri.
-
-## [1.0.0] - Rilascio Iniziale
-
-- Rilascio iniziale del sistema.
+- La modalità `foreign_only` usa una label di skip dedicata (`·`) per rendere espliciti i messaggi italiani esclusi intenzionalmente dal flusso automatico.
+- I percorsi di discovery Gmail (`query` e `metadata`) applicano in modo coerente l'esclusione della label di skip.
+- Quando un messaggio rientra nel flusso processabile e riceve `IA`, la label `·` viene rimossa automaticamente per mantenere la vista Gmail pulita e allineata allo stato operativo.
+- In thread con più messaggi non letti, la marcatura di skip viene applicata in modo uniforme ai messaggi non ancora etichettati nei rami lingua sicuri, così da mantenere tracciabilità operativa.

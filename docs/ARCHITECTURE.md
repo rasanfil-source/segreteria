@@ -254,7 +254,7 @@ if (checkValue !== lockValue) return; // Race detected
 - Trigger every 5 mins → possible overlap
 - Same thread could be processed twice
 - Lock guarantees atomic processing
-- v2.2.0+: Defensive lock release (handling orphaned or expired locks)
+- Defensive lock release (handling orphaned or expired locks)
 
 #### 2. Anti-Loop Detection
 ```javascript

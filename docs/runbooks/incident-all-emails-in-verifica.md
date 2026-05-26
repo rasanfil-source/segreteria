@@ -220,7 +220,7 @@ For emails already in "Verifica":
 
 ## 📞 Escalation
 
-If problem persists after all fixes:
+If problem persists after all planned interventions:
 
 1. Document most frequent error patterns
 2. Export 5 example problematic emails (anonymized)

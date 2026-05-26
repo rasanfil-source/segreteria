@@ -220,7 +220,7 @@ function reviewConfiguration() {
 ## 📝 Sezione 5: Documentazione
 
 **Checklist:**
-- [ ] Aggiornato CHANGELOG se modifiche nel mese
+- [ ] Aggiornate note tecniche sulle scelte architetturali correnti
 - [ ] Documentati incident significativi
 - [ ] Aggiornata KB con nuove FAQ ricorrenti
 - [ ] Note per prossimo mese annotate

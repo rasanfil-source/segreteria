@@ -220,7 +220,7 @@ function reviewConfiguration() {
 ## 📝 Section 5: Documentation
 
 **Checklist:**
-- [ ] Maintained CHANGELOG if any changes
+- [ ] Updated technical notes to reflect current architectural choices
 - [ ] Documented significant incidents
 - [ ] Verified KB with new recurring FAQs
 - [ ] Notes for next month annotated
