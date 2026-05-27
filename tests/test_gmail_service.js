@@ -350,6 +350,79 @@ console.log('--- Test discovery: skipLabel esclude i messaggi marcati come ignor
   assert(normalizedSkipLabels.length === 1 && normalizedSkipLabels[0] === CONFIG.SKIP_LABEL_NAME, 'skipLabel deve ignorare stringhe vuote/spazi e trimare i nomi validi');
 }
 
+console.log('--- Test discovery metadata: label terminale message-level esclude il messaggio ---');
+{
+  const serviceInheritedLabel = new GmailService();
+  serviceInheritedLabel._listMessagesWithResilience = () => ({
+    messages: [{ id: 'm-inherited-label', threadId: 't-inherited-label' }],
+    nextPageToken: null
+  });
+  serviceInheritedLabel._getOptionalLabelIdByName = (labelName) => {
+    if (labelName === 'IA') return 'label-ia';
+    return null;
+  };
+  serviceInheritedLabel._getMessageMetadataWithResilience = () => ({
+    labelIds: ['INBOX', 'UNREAD', 'label-ia']
+  });
+
+  global.GmailApp = {
+    getThreadById: (threadId) => ({ getId: () => threadId }),
+    search: () => []
+  };
+
+  const inheritedResult = serviceInheritedLabel._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 10, 1);
+  assert(inheritedResult.threads.length === 0, 'label IA a livello messaggio deve chiudere il messaggio anche se resta unread');
+}
+
+console.log('--- Test metadata fallback unread: limita scansione ai messaggi recenti ---');
+{
+  const serviceBoundedThread = new GmailService();
+  serviceBoundedThread._metadataFallbackMaxPerThread = 3;
+  const metadataCalls = [];
+  const messages = Array.from({ length: 8 }, (_, index) => ({
+    getId: () => `m-thread-${index}`,
+    isUnread: () => false,
+    getDate: () => new Date('2026-04-01T10:00:00Z')
+  }));
+  serviceBoundedThread._getMessageMetadataWithResilience = (messageId) => {
+    metadataCalls.push(messageId);
+    return { labelIds: messageId === 'm-thread-7' ? ['INBOX', 'UNREAD'] : ['INBOX'] };
+  };
+
+  const unread = serviceBoundedThread._filterUnreadMessagesForDiscovery_(messages);
+  assert(metadataCalls.length === 3, 'metadata unread fallback deve controllare solo gli ultimi N messaggi del thread');
+  assert(metadataCalls[0] === 'm-thread-5' && metadataCalls[2] === 'm-thread-7', 'metadata unread fallback deve partire dalla coda recente del thread');
+  assert(unread.length === 1 && unread[0].getId() === 'm-thread-7', 'metadata unread fallback deve recuperare il non letto recente');
+}
+
+console.log('--- Test discovery metadata: limite massimo messages.get per run ---');
+{
+  const serviceBoundedDiscovery = new GmailService();
+  serviceBoundedDiscovery._metadataDiscoveryMaxGets = 2;
+  const metadataCalls = [];
+  serviceBoundedDiscovery._listMessagesWithResilience = () => ({
+    messages: [
+      { id: 'm-bound-1', threadId: 't-bound-1' },
+      { id: 'm-bound-2', threadId: 't-bound-2' },
+      { id: 'm-bound-3', threadId: 't-bound-3' }
+    ],
+    nextPageToken: null
+  });
+  serviceBoundedDiscovery._getOptionalLabelIdByName = () => null;
+  serviceBoundedDiscovery._getMessageMetadataWithResilience = (messageId) => {
+    metadataCalls.push(messageId);
+    return { labelIds: ['INBOX', 'UNREAD'] };
+  };
+  global.GmailApp = {
+    getThreadById: (threadId) => ({ getId: () => threadId }),
+    search: () => []
+  };
+
+  const boundedResult = serviceBoundedDiscovery._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 10, 1);
+  assert(metadataCalls.length === 2, 'metadata discovery deve rispettare il limite esplicito di messages.get');
+  assert(boundedResult.threads.length === 2, 'metadata discovery deve restituire i thread già raccolti quando raggiunge il limite');
+}
+
 console.log('--- Test getMessageIdsWithLabel: fallback data senza Utilities.formatDate/Session ---');
 {
   const serviceWithLookback = new GmailService();

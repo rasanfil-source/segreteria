@@ -522,6 +522,18 @@ var EmailProcessor = class EmailProcessor {
         });
       }
 
+      // Build set of our own addresses (primary + aliases) per filtro early-stage
+      const ownAddresses = new Set();
+      if (myEmail) ownAddresses.add(this._normalizeEmailAddress_(myEmail));
+      gmailAliases.forEach(alias => {
+        if (alias) ownAddresses.add(this._normalizeEmailAddress_(alias));
+      });
+      const knownAliasesArray = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES))
+        ? CONFIG.KNOWN_ALIASES : [];
+      knownAliasesArray.forEach(alias => {
+        if (alias) ownAddresses.add(this._normalizeEmailAddress_(alias));
+      });
+
       const unlabeledUnread = unreadMessages.filter(message => {
         const messageId = message.getId();
         if (effectiveLabeledIds.has(messageId)) return false;
@@ -543,18 +555,6 @@ var EmailProcessor = class EmailProcessor {
           }
         }
         return true;
-      });
-
-      // Build set of our own addresses (primary + aliases) per filtro early-stage
-      const ownAddresses = new Set();
-      if (myEmail) ownAddresses.add(this._normalizeEmailAddress_(myEmail));
-      gmailAliases.forEach(alias => {
-        if (alias) ownAddresses.add(this._normalizeEmailAddress_(alias));
-      });
-      const knownAliasesArray = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES))
-        ? CONFIG.KNOWN_ALIASES : [];
-      knownAliasesArray.forEach(alias => {
-        if (alias) ownAddresses.add(this._normalizeEmailAddress_(alias));
       });
 
       externalUnread = unlabeledUnread.filter(message => {
@@ -3375,7 +3375,10 @@ ${addressLines.join('\n\n')}
     const nativeUnreadIds = new Set(nativeUnread
       .map(message => (message && typeof message.getId === 'function') ? message.getId() : '')
       .filter(Boolean));
-    const metadataUnread = sourceMessages.filter(message => {
+    const metadataSource = (this.gmailService && typeof this.gmailService._getMetadataFallbackThreadCandidates_ === 'function')
+      ? this.gmailService._getMetadataFallbackThreadCandidates_(sourceMessages)
+      : sourceMessages;
+    const metadataUnread = metadataSource.filter(message => {
       try {
         if (!message || typeof message.getId !== 'function') return false;
         const messageId = message.getId();
@@ -3396,7 +3399,6 @@ ${addressLines.join('\n\n')}
 
     return nativeUnread.concat(metadataUnread);
   }
-
 
   // Supporto per skippedMessageIds.
   // per evitare ri-discovery inutile di thread già valutati in modalità foreign_only.

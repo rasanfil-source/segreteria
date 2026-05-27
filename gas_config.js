@@ -145,6 +145,8 @@ var CONFIG = {
   CACHE_RACE_SLEEP_MS: 200,             // Attesa anti-race condition
   DEBUG: false,                        // Abilita log verbose (console.log); in produzione tenerlo false
   GMAIL_DAILY_CALL_LIMIT: 18000,       // Soft limit locale anti-burst prima del limite Gmail reale
+  GMAIL_METADATA_FALLBACK_MAX_PER_THREAD: 25, // Max messages.get recenti per thread quando GmailApp.isUnread è incoerente
+  GMAIL_METADATA_DISCOVERY_MAX_GETS: 120, // Max messages.get per run di fallback discovery message-level
   GMAIL_LIST_MAX_PAGES: 20,            // Limite pagine Gmail list per bootstrap label cache
   GMAIL_LIST_MAX_MESSAGES: 2000,       // Limite messaggi Gmail list per bootstrap label cache
   GMAIL_LABEL_LOOKBACK_DAYS: 0,         // 0 = nessuna finestra temporale nel pre-caricamento label

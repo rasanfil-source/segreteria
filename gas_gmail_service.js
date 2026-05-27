@@ -25,6 +25,12 @@ var GmailService = class GmailService {
             ? Number(CONFIG.GMAIL_DAILY_CALL_LIMIT)
             : 18000;
         this._gmailDailyCounterWarnAt = Math.floor(this._gmailDailyCallLimit * 0.9);
+        this._metadataFallbackMaxPerThread = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.GMAIL_METADATA_FALLBACK_MAX_PER_THREAD)))
+            ? Math.max(1, Math.floor(Number(CONFIG.GMAIL_METADATA_FALLBACK_MAX_PER_THREAD)))
+            : 25;
+        this._metadataDiscoveryMaxGets = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.GMAIL_METADATA_DISCOVERY_MAX_GETS)))
+            ? Math.max(1, Math.floor(Number(CONFIG.GMAIL_METADATA_DISCOVERY_MAX_GETS)))
+            : 120;
 
         // Mappa MIME types Office → tipo Google Workspace per conversione nativa
         this._officeMimeMap = {
@@ -607,8 +613,8 @@ var GmailService = class GmailService {
      * Recupera i thread con almeno un messaggio non letto e non ancora etichettato.
      *
      * Modalità supportate:
-     * - 'query'   : default operativo, più economica e coerente con la label a livello messaggio
-     * - 'metadata': fallback prudente/manuale (list INBOX/UNREAD + get minimal per labelIds)
+     * - 'metadata': default operativo, message-level (list INBOX/UNREAD + get minimal per labelIds)
+     * - 'query'   : compatibilità legacy basata su GmailApp.search a livello thread
      *
      * @param {string} labelName            - Label applicata ai messaggi già elaborati (es. 'IA')
      * @param {string} errorLabel           - Label dei thread in errore (es. 'Errore')
@@ -625,14 +631,14 @@ var GmailService = class GmailService {
         const discoveryOptions = (options && typeof options === 'object') ? options : {};
         const mode = (typeof CONFIG !== 'undefined' && CONFIG.MESSAGE_DISCOVERY_MODE)
             ? CONFIG.MESSAGE_DISCOVERY_MODE
-            : 'query';
+            : 'metadata';
 
         const safeMessageBuffer = this._safePositiveInt(messageBuffer, 150, 1, 500);
         const safeTargetThreads = this._safePositiveInt(targetThreads, 50, 1);
         const safeMaxPages = this._safePositiveInt(maxPages, 3, 1);
 
-        if (mode === 'metadata') {
-            return this._discoverByMetadata(
+        if (mode === 'query') {
+            return this._discoverByQuery(
                 labelName,
                 errorLabel,
                 validationLabel,
@@ -644,7 +650,7 @@ var GmailService = class GmailService {
             ).threads;
         }
 
-        return this._discoverByQuery(
+        return this._discoverByMetadata(
             labelName,
             errorLabel,
             validationLabel,
@@ -657,7 +663,8 @@ var GmailService = class GmailService {
     }
 
     /**
-     * Fallback prudente/manuale che verifica le label sul singolo messaggio via metadata.
+     * Discovery message-level: lista solo messaggi INBOX/UNREAD e scarta quelli già
+     * chiusi da label terminali applicate al singolo messaggio.
      */
     _discoverByMetadata(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null, options = {}) {
         const processedLabelId = this._getOptionalLabelIdByName(labelName);
@@ -675,10 +682,13 @@ var GmailService = class GmailService {
         const threads = [];
         let pageToken;
         let page = 0;
+        let metadataGets = 0;
+        let metadataLimitReached = false;
+        const maxMetadataGets = this._getMetadataDiscoveryGetLimit_(safeMessageBuffer, safeMaxPages, options);
 
         try {
             do {
-                if (page >= safeMaxPages || seenThreadIds.size >= safeTargetThreads) break;
+                if (page >= safeMaxPages || seenThreadIds.size >= safeTargetThreads || metadataLimitReached) break;
 
                 const params = { labelIds: ['INBOX', 'UNREAD'], maxResults: safeMessageBuffer };
                 if (pageToken) params.pageToken = pageToken;
@@ -698,7 +708,12 @@ var GmailService = class GmailService {
 
                 for (const msg of messages) {
                     if (!msg || !msg.id || !msg.threadId || seenThreadIds.has(msg.threadId) || unavailableThreadIds.has(msg.threadId)) continue;
+                    if (metadataGets >= maxMetadataGets) {
+                        metadataLimitReached = true;
+                        break;
+                    }
 
+                    metadataGets++;
                     const metadata = this._getMessageMetadataWithResilience(msg.id, { format: 'minimal' });
                     if (!metadata) {
                         console.warn(`⚠️ Gmail.Users.Messages.get risposta vuota per msg ${msg.id}: skip`);
@@ -743,6 +758,10 @@ var GmailService = class GmailService {
                 }
 
                 console.log(`📬 [metadata] Pagina ${page}: ${addedInPage} thread aggiunto/i dopo filtro label`);
+                if (metadataLimitReached) {
+                    console.warn(`⚠️ [metadata] Limite fallback metadata raggiunto (${metadataGets}/${maxMetadataGets} messages.get); proseguo con i thread già raccolti.`);
+                    break;
+                }
                 pageToken = response ? response.nextPageToken : null;
             } while (pageToken);
 
@@ -894,7 +913,8 @@ var GmailService = class GmailService {
             return nativeUnread;
         }
 
-        const metadataUnread = sourceMessages.filter(message => {
+        const metadataCandidates = this._getMetadataFallbackThreadCandidates_(sourceMessages, options);
+        const metadataUnread = metadataCandidates.filter(message => {
             try {
                 if (!message || typeof message.getId !== 'function') return false;
                 const messageId = message.getId();
@@ -913,6 +933,28 @@ var GmailService = class GmailService {
         }
 
         return metadataUnread;
+    }
+
+    _getMetadataFallbackThreadScanLimit_(options = {}) {
+        if (options && Number.isFinite(Number(options.metadataFallbackMaxPerThread))) {
+            return Math.max(1, Math.floor(Number(options.metadataFallbackMaxPerThread)));
+        }
+        return Math.max(1, Math.floor(Number(this._metadataFallbackMaxPerThread || 25)));
+    }
+
+    _getMetadataFallbackThreadCandidates_(messages, options = {}) {
+        const sourceMessages = Array.isArray(messages) ? messages : [];
+        const limit = this._getMetadataFallbackThreadScanLimit_(options);
+        if (sourceMessages.length <= limit) return sourceMessages;
+        return sourceMessages.slice(sourceMessages.length - limit);
+    }
+
+    _getMetadataDiscoveryGetLimit_(safeMessageBuffer, safeMaxPages, options = {}) {
+        const pageBound = Math.max(1, Math.floor(Number(safeMessageBuffer || 1) * Number(safeMaxPages || 1)));
+        const configuredLimit = (options && Number.isFinite(Number(options.metadataDiscoveryMaxGets)))
+            ? Number(options.metadataDiscoveryMaxGets)
+            : Number(this._metadataDiscoveryMaxGets || 120);
+        return Math.max(1, Math.min(pageBound, Math.floor(configuredLimit)));
     }
 
     _normalizeSkipLabels_(skipLabel) {
