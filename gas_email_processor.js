@@ -512,6 +512,10 @@ var EmailProcessor = class EmailProcessor {
               ? this.gmailService._getOptionalLabelIdByName(entry.name)
               : null;
             if (!labelId) return;
+            const isUserLabelId = typeof this.gmailService._isUserLabelId_ === 'function'
+              ? this.gmailService._isUserLabelId_(labelId)
+              : (typeof labelId === 'string' && !/^(INBOX|UNREAD|STARRED|SENT|DRAFT|SPAM|TRASH|IMPORTANT|CHAT|CATEGORY_.+)$/i.test(labelId.trim()));
+            if (!isUserLabelId) return;
             metadataTerminalLabelIds.push(labelId);
             if (entry.type === 'skip') {
               metadataSkipLabelIds.add(labelId);

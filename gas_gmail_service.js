@@ -674,7 +674,12 @@ var GmailService = class GmailService {
         const skipLabelIds = skipLabels
             .map(label => this._getOptionalLabelIdByName(label))
             .filter(Boolean);
-        const excludedLabelIds = new Set([processedLabelId, errorLabelId, validationLabelId, ...skipLabelIds].filter(Boolean));
+        const excludedLabelIds = new Set(this._filterUserLabelIds_([
+            processedLabelId,
+            errorLabelId,
+            validationLabelId,
+            ...skipLabelIds
+        ]));
 
         const seenThreadIds = new Set();
         const unavailableThreadIds = new Set();
@@ -953,6 +958,17 @@ var GmailService = class GmailService {
         return Math.max(1, Math.min(pageBound, Math.floor(configuredLimit)));
     }
 
+    _isUserLabelId_(labelId) {
+        if (typeof labelId !== 'string' || !labelId.trim()) return false;
+        const normalized = labelId.trim().toUpperCase();
+        return !/^(INBOX|UNREAD|STARRED|SENT|DRAFT|SPAM|TRASH|IMPORTANT|CHAT|CATEGORY_.+)$/.test(normalized);
+    }
+
+    _filterUserLabelIds_(labelIds) {
+        const source = Array.isArray(labelIds) ? labelIds : [];
+        return source.filter(labelId => this._isUserLabelId_(labelId));
+    }
+
     _getFiniteOptionNumber_(options, key) {
         if (!options || typeof options !== 'object') return null;
         const rawValue = options[key];
@@ -1003,8 +1019,11 @@ var GmailService = class GmailService {
             try {
                 const cachedId = this._scriptCache.get(cacheKey);
                 if (cachedId && cachedId !== '1') {
-                    this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: cachedId, ts: now });
-                    return cachedId;
+                    if (/^Label_/i.test(cachedId)) {
+                        this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: cachedId, ts: now });
+                        return cachedId;
+                    }
+                    this._scriptCache.remove(cacheKey);
                 }
             } catch (_) { }
         }

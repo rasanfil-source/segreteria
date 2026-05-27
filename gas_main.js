@@ -376,9 +376,15 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
         staleMetadataService = staleMetadataService || new GmailService();
       }
       if (staleMetadataService && typeof staleMetadataService._getOptionalLabelIdByName === 'function') {
-        terminalLabelIds = terminalLabelNames
+        const resolvedTerminalLabelIds = terminalLabelNames
           .map(label => staleMetadataService._getOptionalLabelIdByName(label))
           .filter(Boolean);
+        terminalLabelIds = (typeof staleMetadataService._filterUserLabelIds_ === 'function')
+          ? staleMetadataService._filterUserLabelIds_(resolvedTerminalLabelIds)
+          : resolvedTerminalLabelIds.filter(labelId => (
+            typeof labelId === 'string' &&
+            !/^(INBOX|UNREAD|STARRED|SENT|DRAFT|SPAM|TRASH|IMPORTANT|CHAT|CATEGORY_.+)$/i.test(labelId.trim())
+          ));
       }
     } catch (labelError) {
       console.warn(`⚠️ hasStaleUnreadThreads: impossibile risolvere label terminali (${labelError.message})`);

@@ -399,6 +399,31 @@ console.log('--- Test discovery metadata: staleOnlyMs null non attiva filtro sta
   assert(nullStaleResult.threads[0].getId() === 't-worker', 'metadata mode deve includere il thread eleggibile');
 }
 
+console.log('--- Test discovery metadata: cache label di sistema non esclude unread ---');
+{
+  const serviceBadCache = new GmailService();
+  serviceBadCache._listMessagesWithResilience = () => ({
+    messages: [{ id: 'm-bad-cache', threadId: 't-bad-cache' }],
+    nextPageToken: null
+  });
+  serviceBadCache._getOptionalLabelIdByName = (labelName) => {
+    if (labelName === 'IA') return 'UNREAD';
+    return null;
+  };
+  serviceBadCache._getMessageMetadataWithResilience = () => ({
+    labelIds: ['INBOX', 'UNREAD', 'IMPORTANT', 'CATEGORY_PERSONAL']
+  });
+
+  global.GmailApp = {
+    getThreadById: (threadId) => ({ getId: () => threadId }),
+    search: () => []
+  };
+
+  const badCacheResult = serviceBadCache._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 10, 1);
+  assert(badCacheResult.threads.length === 1, 'label di sistema cache-ata per errore non deve chiudere i messaggi non letti');
+  assert(badCacheResult.threads[0].getId() === 't-bad-cache', 'metadata mode deve includere il thread con sole label Gmail di sistema');
+}
+
 console.log('--- Test metadata fallback unread: limita scansione ai messaggi recenti ---');
 {
   const serviceBoundedThread = new GmailService();
@@ -763,6 +788,46 @@ console.log('--- Test _getOptionalLabelIdByName: Advanced Gmail conta labels.lis
     delete global.Gmail.Users.Labels;
   } else {
     global.Gmail.Users.Labels = originalLabels;
+  }
+}
+
+console.log('--- Test _getOptionalLabelIdByName: scarta ID sistema da cache persistente ---');
+{
+  const originalGmail = global.Gmail;
+  const originalCacheService = global.CacheService;
+  let removedKey = null;
+  let labelListCalled = false;
+
+  global.CacheService = {
+    getScriptCache: () => ({
+      get: () => 'UNREAD',
+      put: () => {},
+      remove: (key) => { removedKey = key; }
+    })
+  };
+  global.Gmail = {
+    Users: {
+      Labels: {
+        list: () => {
+          labelListCalled = true;
+          return { labels: [{ id: 'Label_123', name: 'IA' }] };
+        }
+      },
+      Messages: {
+        list: () => ({ messages: [] }),
+        get: () => ({})
+      }
+    }
+  };
+
+  try {
+    const serviceWithDirtyPersistentCache = new GmailService();
+    assert(serviceWithDirtyPersistentCache._getOptionalLabelIdByName('IA') === 'Label_123', 'cache persistente con ID sistema deve essere ignorata');
+    assert(labelListCalled, 'dopo cache sporca deve interrogare Gmail.Users.Labels.list');
+    assert(removedKey === 'gmail_label_exists:IA', 'cache persistente sporca deve essere rimossa');
+  } finally {
+    global.Gmail = originalGmail;
+    global.CacheService = originalCacheService;
   }
 }
 
