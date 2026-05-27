@@ -85,6 +85,27 @@ console.log('--- Test _normalizeTextContent serializza oggetti KB strutturati --
   assert(normalizedCircular.includes('Catechismo') && normalizedCircular.includes('[Circular]'), 'gli oggetti circolari devono avere fallback controllato');
 }
 
+console.log('--- Test unread fallback: metadata UNREAD/INBOX se isUnread è stale ---');
+{
+  const msg = createMessage({ id: 'm-stale-unread-cache', unread: false, from: 'utente@example.com' });
+  const thread = createThread({ id: 't-stale-unread-cache', messages: [msg] });
+  const processor = new EmailProcessor({
+    gmailService: {
+      _getMessageMetadataWithResilience: (messageId) => ({
+        id: messageId,
+        labelIds: ['INBOX', 'UNREAD']
+      })
+    }
+  });
+
+  const unread = processor._getUnreadMessagesForProcessing_([msg], { warn: () => {} });
+  assert(unread.length === 1 && unread[0].getId() === 'm-stale-unread-cache', 'fallback metadata deve recuperare il messaggio unread');
+  assert(
+    processor._hasUnreadMessagesToProcess(thread, new Set(), new Set()) === true,
+    '_hasUnreadMessagesToProcess deve usare il fallback metadata'
+  );
+}
+
 
 console.log('--- Test processThread: already_labeled_no_new_unread ---');
 {

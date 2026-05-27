@@ -187,6 +187,87 @@ console.log('--- Test _discoverByQuery: staleOnlyMs esclude thread solo recenti 
   }
 }
 
+console.log('--- Test _discoverByQuery: fallback metadata su cache unread incoerente ---');
+{
+  const originalGmailApp = global.GmailApp;
+  const staleMessage = {
+    isUnread: () => false,
+    getId: () => 'm-metadata-unread',
+    getDate: () => new Date('2026-05-10T08:00:00Z')
+  };
+  const staleThread = {
+    getId: () => 't-metadata-unread',
+    getMessages: () => [staleMessage]
+  };
+  let refreshCalled = 0;
+
+  global.GmailApp = {
+    refreshThread: () => {
+      refreshCalled++;
+    },
+    search: () => [staleThread]
+  };
+
+  try {
+    const serviceQuery = new GmailService();
+    serviceQuery._getMessageMetadataWithResilience = (messageId) => ({
+      id: messageId,
+      labelIds: ['INBOX', 'UNREAD']
+    });
+    const result = serviceQuery._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, []);
+    assert(refreshCalled === 1, 'query discovery deve rinfrescare il thread prima di leggere isUnread');
+    assert(result.threads.length === 1, 'metadata fallback deve recuperare thread con label UNREAD/INBOX');
+    assert(result.messageIds.has('m-metadata-unread'), 'metadata fallback deve registrare il messaggio unread recuperato');
+  } finally {
+    global.GmailApp = originalGmailApp;
+  }
+}
+
+console.log('--- Test _discoverByQuery: fallback automatico a metadata discovery ---');
+{
+  const originalGmailApp = global.GmailApp;
+  const queryThread = {
+    getId: () => 't-query-empty',
+    getMessages: () => [{
+      isUnread: () => false,
+      getId: () => 'm-query-empty',
+      getDate: () => new Date('2026-05-10T08:00:00Z')
+    }]
+  };
+  const metadataThread = {
+    getId: () => 't-metadata-fallback',
+    getMessages: () => [{
+      isUnread: () => false,
+      getId: () => 'm-metadata-fallback',
+      getDate: () => new Date('2026-05-10T08:00:00Z')
+    }]
+  };
+
+  global.GmailApp = {
+    refreshThread: () => {},
+    search: () => [queryThread],
+    getThreadById: (threadId) => threadId === 't-metadata-fallback' ? metadataThread : null
+  };
+
+  try {
+    const serviceQuery = new GmailService();
+    serviceQuery._listMessagesWithResilience = () => ({
+      messages: [{ id: 'm-metadata-fallback', threadId: 't-metadata-fallback' }],
+      nextPageToken: null
+    });
+    serviceQuery._getOptionalLabelIdByName = () => null;
+    serviceQuery._getMessageMetadataWithResilience = (messageId) => ({
+      id: messageId,
+      labelIds: messageId === 'm-metadata-fallback' ? ['INBOX', 'UNREAD'] : ['INBOX']
+    });
+    const result = serviceQuery._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, []);
+    assert(result.threads.length === 1, 'query discovery deve cadere su metadata discovery se i candidati query sono incoerenti');
+    assert(result.threads[0].getId() === 't-metadata-fallback', 'fallback metadata deve restituire il thread recuperato da Messages.list');
+  } finally {
+    global.GmailApp = originalGmailApp;
+  }
+}
+
 const service = new GmailService();
 
 console.log('--- Test _stripHtmlTags: pattern lineare su tag malformati ---');

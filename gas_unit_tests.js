@@ -1478,6 +1478,9 @@ function runAllTests() {
                 };
 
                 const service = new GmailService();
+                service._getMessageMetadataWithResilience = (messageId) => ({
+                    labelIds: messageId === 'msg-read' ? ['INBOX'] : ['INBOX', 'UNREAD']
+                });
                 const result = service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 2, 3);
                 return Array.isArray(result.threads)
                     && result.threads.length === 2

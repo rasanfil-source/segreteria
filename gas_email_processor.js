@@ -428,8 +428,9 @@ var EmailProcessor = class EmailProcessor {
     try {
       // Raccogli informazioni su thread e messaggi
       // Ottieni ultimo messaggio NON LETTO nel thread
+      this._refreshThreadBeforeUnreadRead_(thread, threadId, threadLogger);
       const messages = thread.getMessages();
-      const unreadMessages = messages.filter(m => m.isUnread());
+      const unreadMessages = this._getUnreadMessagesForProcessing_(messages, threadLogger);
 
       // Risoluzione indirizzo email principale e alias configurati
       let myEmail = '';
@@ -3340,13 +3341,71 @@ ${addressLines.join('\n\n')}
     return Math.max(0, budgetMs - elapsed);
   }
 
+  _refreshThreadBeforeUnreadRead_(thread, threadId = '', logger = null) {
+    try {
+      if (this.gmailService && typeof this.gmailService._refreshThreadForUnreadDiscovery_ === 'function') {
+        this.gmailService._refreshThreadForUnreadDiscovery_(thread, threadId);
+        return;
+      }
+      if (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.refreshThread === 'function') {
+        GmailApp.refreshThread(thread);
+        return;
+      }
+      if (thread && typeof thread.refresh === 'function') {
+        thread.refresh();
+      }
+    } catch (refreshError) {
+      const targetLogger = logger && typeof logger.warn === 'function' ? logger : console;
+      const idPart = threadId ? ` ${threadId}` : '';
+      targetLogger.warn(`⚠️ Refresh thread${idPart} fallito prima della lettura unread: ${refreshError.message}`);
+    }
+  }
+
+  _getUnreadMessagesForProcessing_(messages, logger = null) {
+    const sourceMessages = Array.isArray(messages) ? messages : [];
+    const nativeUnread = sourceMessages.filter(message => (
+      message && typeof message.isUnread === 'function' && message.isUnread()
+    ));
+
+    if (!this.gmailService || typeof this.gmailService._getMessageMetadataWithResilience !== 'function') {
+      return nativeUnread;
+    }
+
+    const targetLogger = logger && typeof logger.warn === 'function' ? logger : console;
+    const nativeUnreadIds = new Set(nativeUnread
+      .map(message => (message && typeof message.getId === 'function') ? message.getId() : '')
+      .filter(Boolean));
+    const metadataUnread = sourceMessages.filter(message => {
+      try {
+        if (!message || typeof message.getId !== 'function') return false;
+        const messageId = message.getId();
+        if (!messageId) return false;
+        if (nativeUnreadIds.has(messageId)) return false;
+        const metadata = this.gmailService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
+        const labelIds = metadata && Array.isArray(metadata.labelIds) ? metadata.labelIds : [];
+        return labelIds.includes('UNREAD') && labelIds.includes('INBOX');
+      } catch (metadataError) {
+        targetLogger.warn(`⚠️ Fallback metadata unread fallito: ${metadataError.message}`);
+        return false;
+      }
+    });
+
+    if (metadataUnread.length > 0) {
+      targetLogger.warn(`⚠️ Recuperati ${metadataUnread.length} messaggi UNREAD via metadata dopo cache GmailApp incoerente.`);
+    }
+
+    return nativeUnread.concat(metadataUnread);
+  }
+
 
   // Supporto per skippedMessageIds.
   // per evitare ri-discovery inutile di thread già valutati in modalità foreign_only.
   _hasUnreadMessagesToProcess(thread, labeledMessageIds, skippedMessageIds) {
     try {
+      const threadId = thread && typeof thread.getId === 'function' ? thread.getId() : '';
+      this._refreshThreadBeforeUnreadRead_(thread, threadId, this.logger);
       const messages = thread.getMessages() || [];
-      const unreadMessages = messages.filter(m => m.isUnread());
+      const unreadMessages = this._getUnreadMessagesForProcessing_(messages, this.logger);
 
       // Nessun non letto: non c'è lavoro da fare.
       if (unreadMessages.length === 0) {

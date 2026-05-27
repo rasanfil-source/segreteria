@@ -797,6 +797,7 @@ var GmailService = class GmailService {
             }
             console.log(`📬 [query] GmailApp.search ha trovato ${nativeThreads.length} thread candidati (pool=${discoveryPool})`);
 
+            let skippedNoUnread = 0;
             for (const thread of nativeThreads) {
                 if (!thread) continue;
                 const threadId = thread.getId();
@@ -804,6 +805,7 @@ var GmailService = class GmailService {
 
                 // Verifichiamo che ci sia almeno un messaggio non letto nel thread
                 // (GmailApp.search(is:unread) garantisce questo ma facciamo un check veloce)
+                this._refreshThreadForUnreadDiscovery_(thread, threadId);
                 const messages = thread.getMessages();
                 const unreadMessages = this._filterUnreadMessagesForDiscovery_(messages, options);
                 
@@ -812,12 +814,38 @@ var GmailService = class GmailService {
                     threads.push(thread);
                     // Registriamo il primo messaggio non letto come riferimento
                     seenMessageIds.add(unreadMessages[0].getId());
+                } else {
+                    skippedNoUnread++;
                 }
 
                 if (threads.length >= safeTargetThreads) break;
             }
 
-            console.log(`📬 [query] Trovati ${threads.length} thread da elaborare`);
+            if (threads.length === 0 && nativeThreads.length > 0 && !(options && options.disableMetadataFallback)) {
+                console.warn(`⚠️ Query discovery: ${nativeThreads.length} thread candidati ma nessun unread eleggibile; provo fallback metadata message-level.`);
+                try {
+                    const metadataFallback = this._discoverByMetadata(
+                        labelName,
+                        errorLabel,
+                        validationLabel,
+                        safeMessageBuffer,
+                        safeTargetThreads,
+                        safeMaxPages,
+                        skipLabel,
+                        Object.assign({}, options, { disableMetadataFallback: true })
+                    );
+                    if (metadataFallback && Array.isArray(metadataFallback.threads) && metadataFallback.threads.length > 0) {
+                        return metadataFallback;
+                    }
+                } catch (fallbackError) {
+                    console.warn(`⚠️ Fallback metadata discovery non riuscito: ${fallbackError.message}`);
+                }
+            }
+
+            const skippedSuffix = skippedNoUnread > 0
+                ? ` (scartati senza unread eleggibili: ${skippedNoUnread})`
+                : '';
+            console.log(`📬 [query] Trovati ${threads.length} thread da elaborare${skippedSuffix}`);
             return {
                 threads: threads,
                 threadIds: seenThreadIds,
@@ -829,20 +857,62 @@ var GmailService = class GmailService {
         }
     }
 
+    _refreshThreadForUnreadDiscovery_(thread, threadId = '') {
+        try {
+            if (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.refreshThread === 'function') {
+                GmailApp.refreshThread(thread);
+                return;
+            }
+            if (thread && typeof thread.refresh === 'function') {
+                thread.refresh();
+            }
+        } catch (refreshError) {
+            const idPart = threadId ? ` ${threadId}` : '';
+            console.warn(`⚠️ Refresh thread${idPart} fallito prima del check unread: ${refreshError.message}`);
+        }
+    }
+
     _filterUnreadMessagesForDiscovery_(messages, options = {}) {
         const sourceMessages = Array.isArray(messages) ? messages : [];
         const staleOnlyMs = options && Number.isFinite(Number(options.staleOnlyMs))
             ? Number(options.staleOnlyMs)
             : null;
 
-        return sourceMessages.filter(message => {
-            if (!message || typeof message.isUnread !== 'function' || !message.isUnread()) return false;
+        const matchesStaleWindow = (message) => {
             if (!Number.isFinite(staleOnlyMs)) return true;
-
             const msgDate = (typeof message.getDate === 'function') ? message.getDate() : null;
             const msgTime = msgDate && typeof msgDate.getTime === 'function' ? msgDate.getTime() : NaN;
             return Number.isFinite(msgTime) && msgTime <= staleOnlyMs;
+        };
+
+        const nativeUnread = sourceMessages.filter(message => {
+            if (!message || typeof message.isUnread !== 'function' || !message.isUnread()) return false;
+            return matchesStaleWindow(message);
         });
+
+        if (nativeUnread.length > 0 || typeof this._getMessageMetadataWithResilience !== 'function') {
+            return nativeUnread;
+        }
+
+        const metadataUnread = sourceMessages.filter(message => {
+            try {
+                if (!message || typeof message.getId !== 'function') return false;
+                const messageId = message.getId();
+                if (!messageId) return false;
+                const metadata = this._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
+                const labelIds = metadata && Array.isArray(metadata.labelIds) ? metadata.labelIds : [];
+                return labelIds.includes('UNREAD') && labelIds.includes('INBOX') && matchesStaleWindow(message);
+            } catch (metadataError) {
+                console.warn(`⚠️ Discovery metadata unread fallback fallito: ${metadataError.message}`);
+                return false;
+            }
+        });
+
+        if (metadataUnread.length > 0) {
+            console.warn(`⚠️ Discovery: recuperati ${metadataUnread.length} messaggi UNREAD via metadata dopo cache GmailApp incoerente.`);
+        }
+
+        return metadataUnread;
     }
 
     _normalizeSkipLabels_(skipLabel) {
