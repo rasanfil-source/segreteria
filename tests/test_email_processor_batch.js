@@ -203,6 +203,28 @@ console.log('--- Test processUnreadEmails: passa staleOnlyMs alla discovery Gmai
   );
 }
 
+console.log('--- Test _trackEmptyInboxStreak: cache unavailable resetta valore logico su inbox non vuota ---');
+{
+  const originalCacheService = global.CacheService;
+  const originalPropertiesService = global.PropertiesService;
+  global.CacheService = {
+    getScriptCache: () => ({
+      get: () => '7',
+      put: () => { throw new Error('cache unavailable'); }
+    })
+  };
+  global.PropertiesService = undefined;
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    const streak = processor._trackEmptyInboxStreak(false);
+    assert(streak === 0, `inbox non vuota deve azzerare lo streak logico anche se la cache fallisce, ottenuto ${streak}`);
+  } finally {
+    global.CacheService = originalCacheService;
+    global.PropertiesService = originalPropertiesService;
+  }
+}
+
 console.log('--- Test processThread: non rilascia ScriptLock se tryLock fallisce ---');
 {
   const originalLockService = global.LockService;
@@ -2101,6 +2123,45 @@ console.log('--- Test checkpoint retryCount: incrementa solo sullo stesso pendin
     assert(parsed.depth === 1, `depth dopo avanzamento attesa 1, ottenuta ${parsed.depth}`);
     assert(parsed.pendingThreadIds.length === 1 && parsed.pendingThreadIds[0] === 't301', 'checkpoint avanzato non deve essere cancellato anche se la depth precedente era 5');
   } finally {
+    global.PropertiesService = originalPropertiesService;
+    global.ScriptApp = originalScriptApp;
+  }
+}
+
+console.log('--- Test checkpoint retryCount: pendingCount evita falsi same-checkpoint su lista troncata ---');
+{
+  const props = new Map();
+  const originalPropertiesService = global.PropertiesService;
+  const originalScriptApp = global.ScriptApp;
+  const originalMaxCheckpointThreads = global.CONFIG.BATCH_CHECKPOINT_MAX_THREADS;
+  global.CONFIG.BATCH_CHECKPOINT_MAX_THREADS = 2;
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      setProperty: (k, v) => props.set(k, v),
+      getProperty: (k) => props.get(k) || '',
+      deleteProperty: (k) => props.delete(k)
+    })
+  };
+  global.ScriptApp = undefined;
+
+  try {
+    const processor = new EmailProcessor({ gmailService: { getUnprocessedUnreadThreads: () => [] } });
+    const makeThread = (id) => ({ getId: () => id });
+    const fullQueue = ['t400', 't401', 't402', 't403'].map(makeThread);
+    const shorterSamePrefix = ['t400', 't401', 't402'].map(makeThread);
+
+    processor._storeBatchCheckpointAndScheduleContinuation_(fullQueue, 0, 25000);
+    processor._storeBatchCheckpointAndScheduleContinuation_(shorterSamePrefix, 0, 25000);
+
+    const parsed = JSON.parse(props.get('EMAIL_BATCH_CHECKPOINT'));
+    assert(parsed.retryCount === 1, `retryCount deve resettare se cambia pendingCount oltre la lista troncata, ottenuto ${parsed.retryCount}`);
+    assert(parsed.depth === 1, `depth deve resettare se cambia pendingCount oltre la lista troncata, ottenuta ${parsed.depth}`);
+  } finally {
+    if (typeof originalMaxCheckpointThreads === 'undefined') {
+      delete global.CONFIG.BATCH_CHECKPOINT_MAX_THREADS;
+    } else {
+      global.CONFIG.BATCH_CHECKPOINT_MAX_THREADS = originalMaxCheckpointThreads;
+    }
     global.PropertiesService = originalPropertiesService;
     global.ScriptApp = originalScriptApp;
   }

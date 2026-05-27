@@ -476,18 +476,21 @@ Output JSON:
     let response;
     let responseCode;
     let fetchError = null;
+    const generationConfig = {
+      maxOutputTokens: 1024,
+      temperature: 0.25,
+      topK: 40,
+      topP: 0.95
+    };
+    if (!String(modelName || '').toLowerCase().includes('lite')) {
+      generationConfig.responseMimeType = 'application/json';
+    }
     const requestPayload = {
       method: 'POST',
       contentType: 'application/json',
       payload: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          maxOutputTokens: 1024,
-          temperature: 0.25,
-          topK: 40,
-          topP: 0.95,
-          responseMimeType: 'application/json'
-        },
+        generationConfig: generationConfig,
         safetySettings: [
           { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
           { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },

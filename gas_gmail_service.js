@@ -621,7 +621,7 @@ var GmailService = class GmailService {
      * @returns {GmailThread[]}             - Thread unici, già istanziati, con almeno un messaggio da elaborare
      */
     getUnprocessedUnreadThreads(labelName, errorLabel, validationLabel, messageBuffer = 150, targetThreads = 50, maxPages = 3, skipLabel = null, options = {}) {
-        const skipLabels = Array.isArray(skipLabel) ? skipLabel.filter(Boolean) : [skipLabel].filter(Boolean);
+        const skipLabels = this._normalizeSkipLabels_(skipLabel);
         const discoveryOptions = (options && typeof options === 'object') ? options : {};
         const mode = (typeof CONFIG !== 'undefined' && CONFIG.MESSAGE_DISCOVERY_MODE)
             ? CONFIG.MESSAGE_DISCOVERY_MODE
@@ -663,7 +663,7 @@ var GmailService = class GmailService {
         const processedLabelId = this._getOptionalLabelIdByName(labelName);
         const errorLabelId = this._getOptionalLabelIdByName(errorLabel);
         const validationLabelId = this._getOptionalLabelIdByName(validationLabel);
-        const skipLabels = Array.isArray(skipLabel) ? skipLabel.filter(Boolean) : [skipLabel].filter(Boolean);
+        const skipLabels = this._normalizeSkipLabels_(skipLabel);
         const skipLabelIds = skipLabels
             .map(label => this._getOptionalLabelIdByName(label))
             .filter(Boolean);
@@ -762,7 +762,7 @@ var GmailService = class GmailService {
      * Default operativo: variante più economica che usa la query testuale di Gmail.
      */
     _discoverByQuery(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null, options = {}) {
-        const skipLabels = Array.isArray(skipLabel) ? skipLabel.filter(Boolean) : [skipLabel].filter(Boolean);
+        const skipLabels = this._normalizeSkipLabels_(skipLabel);
         // Non escludere labelName (es. IA): Gmail query può valutare label a livello thread
         // e nascondere nuovi follow-up non letti in thread già processati.
         const allExcludedLabels = [errorLabel, validationLabel, ...skipLabels].filter(Boolean);
@@ -851,6 +851,13 @@ var GmailService = class GmailService {
             const msgTime = msgDate && typeof msgDate.getTime === 'function' ? msgDate.getTime() : NaN;
             return Number.isFinite(msgTime) && msgTime <= staleOnlyMs;
         });
+    }
+
+    _normalizeSkipLabels_(skipLabel) {
+        const source = Array.isArray(skipLabel) ? skipLabel : [skipLabel];
+        return source
+            .filter(label => typeof label === 'string' && label.trim().length > 0)
+            .map(label => label.trim());
     }
 
 
@@ -2149,13 +2156,12 @@ var GmailService = class GmailService {
         } finally {
             if (fileId) {
                 try {
-                    if (typeof Drive.Files.trash === 'function') {
-                        Drive.Files.trash(fileId);
+                    if (typeof Drive.Files.remove === 'function') {
+                        Drive.Files.remove(fileId);
                     } else if (typeof Drive.Files.delete === 'function') {
                         Drive.Files.delete(fileId);
-                    } else if (typeof Drive.Files.remove === 'function') {
-                        // Fallback legacy (potrebbe non supportare signature a 1 argomento)
-                        Drive.Files.remove(fileId);
+                    } else if (typeof Drive.Files.trash === 'function') {
+                        Drive.Files.trash(fileId);
                     }
                     this._forgetTemporaryDriveFile_(fileId);
                 } catch (e) {

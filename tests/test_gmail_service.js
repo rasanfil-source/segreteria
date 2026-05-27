@@ -265,6 +265,9 @@ console.log('--- Test discovery: skipLabel esclude i messaggi marcati come ignor
   };
   serviceWithSkip._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, CONFIG.SKIP_LABEL_NAME);
   assert(capturedQuery.includes(`-label:"${CONFIG.SKIP_LABEL_NAME}"`), 'query mode deve escludere la skipLabel dalla query Gmail');
+
+  const normalizedSkipLabels = serviceWithSkip._normalizeSkipLabels_(['', '  ', ` ${CONFIG.SKIP_LABEL_NAME} `, null]);
+  assert(normalizedSkipLabels.length === 1 && normalizedSkipLabels[0] === CONFIG.SKIP_LABEL_NAME, 'skipLabel deve ignorare stringhe vuote/spazi e trimare i nomi validi');
 }
 
 console.log('--- Test getMessageIdsWithLabel: fallback data senza Utilities.formatDate/Session ---');
@@ -406,6 +409,43 @@ console.log('--- Test extractAttachmentContext: soglia OCR zero resta zero ---')
 
   assert(out.ocrConfidence === 0.4, 'il test deve esercitare una confidenza OCR bassa ma valida');
   assert(out.ocrConfidenceLow === false, 'ocrConfidenceWarningThreshold=0 non deve ricadere al default 0.8');
+}
+
+console.log('--- Test _extractOcrTextFromAttachment: cleanup preferisce delete definitivo a trash ---');
+{
+  const originalDrive = global.Drive;
+  const originalDocumentApp = global.DocumentApp;
+  const cleanupCalls = [];
+
+  global.Drive = {
+    Files: {
+      create: () => ({ id: 'ocr-temp-1', mimeType: 'application/vnd.google-apps.document' }),
+      remove: (id) => cleanupCalls.push(`remove:${id}`),
+      delete: (id) => cleanupCalls.push(`delete:${id}`),
+      trash: (id) => cleanupCalls.push(`trash:${id}`)
+    }
+  };
+  global.DocumentApp = {
+    openById: () => ({
+      getBody: () => ({ getText: () => 'Testo OCR valido estratto dal documento temporaneo.' })
+    })
+  };
+
+  try {
+    const ocrCleanupService = new GmailService();
+    ocrCleanupService._rememberTemporaryDriveFile_ = () => {};
+    ocrCleanupService._forgetTemporaryDriveFile_ = () => {};
+    const text = ocrCleanupService._extractOcrTextFromAttachment({
+      copyBlob: () => ({ getContentType: () => 'application/pdf' }),
+      getName: () => 'documento.pdf'
+    }, { ocrLanguage: 'it' });
+
+    assert(text.includes('Testo OCR valido'), 'OCR deve restituire il testo estratto');
+    assert(cleanupCalls.length === 1 && cleanupCalls[0] === 'remove:ocr-temp-1', 'cleanup OCR deve preferire remove/delete definitivo prima di trash');
+  } finally {
+    global.Drive = originalDrive;
+    global.DocumentApp = originalDocumentApp;
+  }
 }
 
 console.log('--- Test _isMeaningfulOCR: CF/IBAN dentro testo OCR completo ---');

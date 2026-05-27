@@ -210,5 +210,60 @@ console.log('--- Test model policy: quick_check non rate-limited usa lite, non M
   assert(service.getModelNameForTask('generation') === 'gemini-3.5-flash', 'generation deve risolvere il modello qualita');
 }
 
+console.log('--- Test quickCheck generationConfig: responseMimeType escluso per modelli lite ---');
+{
+  const makeService = () => {
+    const service = Object.create(GeminiService.prototype);
+    service.primaryKey = 'primary-key';
+    service.backupKey = null;
+    service._buildGenerateUrl = (modelName) => `https://example.test/${modelName}:generateContent`;
+    service._resolveLanguage = (_candidate, fallback) => fallback || 'it';
+    return service;
+  };
+
+  let litePayload = null;
+  const liteService = makeService();
+  liteService.fetchFn = (_url, payload) => {
+    litePayload = JSON.parse(payload.payload);
+    return {
+      getResponseCode: () => 200,
+      getContentText: () => JSON.stringify({
+        candidates: [{ content: { parts: [{ text: '{"reply_needed":true,"language":"it","category":"TECHNICAL","topic":"info","confidence":0.9,"reason":"ok"}' }] } }]
+      })
+    };
+  };
+
+  const liteOut = liteService._quickCheckWithModel(
+    'Vorrei informazioni',
+    'Info',
+    'gemini-3.1-flash-lite',
+    { lang: 'it', confidence: 5, safetyGrade: 5 }
+  );
+
+  assert(liteOut.shouldRespond === true, 'quick check lite deve restare funzionante');
+  assert(!Object.prototype.hasOwnProperty.call(litePayload.generationConfig, 'responseMimeType'), 'i modelli lite non devono ricevere responseMimeType');
+
+  let flashPayload = null;
+  const flashService = makeService();
+  flashService.fetchFn = (_url, payload) => {
+    flashPayload = JSON.parse(payload.payload);
+    return {
+      getResponseCode: () => 200,
+      getContentText: () => JSON.stringify({
+        candidates: [{ content: { parts: [{ text: '{"reply_needed":true,"language":"it","category":"TECHNICAL","topic":"info","confidence":0.9,"reason":"ok"}' }] } }]
+      })
+    };
+  };
+
+  flashService._quickCheckWithModel(
+    'Vorrei informazioni',
+    'Info',
+    'gemini-3.5-flash',
+    { lang: 'it', confidence: 5, safetyGrade: 5 }
+  );
+
+  assert(flashPayload.generationConfig.responseMimeType === 'application/json', 'i modelli non-lite devono mantenere responseMimeType JSON');
+}
+
 
 console.log('✅ Test bilanciamento JSON Gemini passati');

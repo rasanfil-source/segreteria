@@ -2675,8 +2675,10 @@ ${addressLines.join('\n\n')}
       const previousPendingThreadIds = previousCheckpoint && Array.isArray(previousCheckpoint.pendingThreadIds)
         ? previousCheckpoint.pendingThreadIds
         : [];
+      const previousPendingCount = Number(previousCheckpoint && previousCheckpoint.pendingCount);
       const isSameCheckpoint = storedPendingThreadIds.length === previousPendingThreadIds.length &&
-        storedPendingThreadIds.every((id, idx) => id === previousPendingThreadIds[idx]);
+        storedPendingThreadIds.every((id, idx) => id === previousPendingThreadIds[idx]) &&
+        (!Number.isFinite(previousPendingCount) || previousPendingCount === pendingThreadIds.length);
       const previousRetryCount = Number(previousCheckpoint && previousCheckpoint.retryCount);
       const retryCount = isSameCheckpoint && Number.isFinite(previousRetryCount)
         ? previousRetryCount + 1
@@ -4260,7 +4262,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
       return streak;
     } catch (e) {
       console.warn(`⚠️ CacheService temporaneamente indisponibile per metrica empty inbox: ${e.message}`);
-      return Number.isFinite(streak) ? streak : 0;
+      return isEmpty ? (Number.isFinite(streak) ? streak : 0) : 0;
     }
   }
 
