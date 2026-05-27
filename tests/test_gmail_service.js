@@ -134,7 +134,7 @@ console.log('--- Test Gmail counter fallback usa data Pacific Time ---');
   }
 }
 
-console.log('--- Test _discoverByQuery: non esclude label IA a livello thread ---');
+console.log('--- Test _discoverByQuery: non esclude label a livello thread ---');
 {
   const originalGmailApp = global.GmailApp;
   let capturedQuery = '';
@@ -147,9 +147,8 @@ console.log('--- Test _discoverByQuery: non esclude label IA a livello thread --
 
   try {
     const serviceQuery = new GmailService();
-    serviceQuery._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, []);
-    assert(!capturedQuery.includes('-label:IA'), 'query discovery non deve escludere label IA non quotata');
-    assert(!capturedQuery.includes('-label:"IA"'), 'query discovery non deve escludere label IA quotata');
+    serviceQuery._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, CONFIG.SKIP_LABEL_NAME);
+    assert(capturedQuery === 'is:unread in:inbox', 'query discovery non deve escludere label a livello thread');
   } finally {
     global.GmailApp = originalGmailApp;
   }
@@ -264,7 +263,7 @@ console.log('--- Test discovery: skipLabel esclude i messaggi marcati come ignor
     return [];
   };
   serviceWithSkip._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, CONFIG.SKIP_LABEL_NAME);
-  assert(capturedQuery.includes(`-label:"${CONFIG.SKIP_LABEL_NAME}"`), 'query mode deve escludere la skipLabel dalla query Gmail');
+  assert(capturedQuery === 'is:unread in:inbox', 'query mode non deve escludere la skipLabel dalla query Gmail');
 
   const normalizedSkipLabels = serviceWithSkip._normalizeSkipLabels_(['', '  ', ` ${CONFIG.SKIP_LABEL_NAME} `, null]);
   assert(normalizedSkipLabels.length === 1 && normalizedSkipLabels[0] === CONFIG.SKIP_LABEL_NAME, 'skipLabel deve ignorare stringhe vuote/spazi e trimare i nomi validi');

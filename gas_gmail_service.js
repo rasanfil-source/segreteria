@@ -762,15 +762,11 @@ var GmailService = class GmailService {
      * Default operativo: variante più economica che usa la query testuale di Gmail.
      */
     _discoverByQuery(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null, options = {}) {
-        const skipLabels = this._normalizeSkipLabels_(skipLabel);
-        // Non escludere labelName (es. IA): Gmail query può valutare label a livello thread
-        // e nascondere nuovi follow-up non letti in thread già processati.
-        const allExcludedLabels = [errorLabel, validationLabel, ...skipLabels].filter(Boolean);
+        // Non escludere label nella query Gmail: l'operatore -label: viene valutato
+        // a livello thread e può nascondere nuovi follow-up non letti quando un vecchio
+        // messaggio dello stesso thread è già marcato IA/Errore/Verifica/skip.
+        // Il filtro deterministico sul singolo messaggio resta in EmailProcessor.
         let query = `is:unread in:inbox`;
-        allExcludedLabels.forEach(skipName => {
-            const sq = this._formatLabelQueryValue(skipName);
-            if (sq !== '""') query += ` -label:${sq}`;
-        });
 
         const threads = [];
         const seenThreadIds = new Set();
@@ -779,13 +775,9 @@ var GmailService = class GmailService {
         try {
             // Utilizzo di GmailApp.search nativo per efficienza (batch recupero thread già pronti)
             // Invece di iterare sui singoli messaggi via API avanzata + getThreadById.
-            // safeMessageBuffer e safeMaxPages non paginano direttamente GmailApp.search,
-            // ma dimensionano il pool massimo di candidati esaminabili prima del filtro thread-level.
-            const DISCOVERY_POOL_MULTIPLIER = 3;
-            const discoveryPool = Math.min(500, Math.max(
-                safeTargetThreads,
-                Math.min(safeMessageBuffer * safeMaxPages, safeTargetThreads * DISCOVERY_POOL_MULTIPLIER)
-            ));
+            // safeMessageBuffer e safeMaxPages non paginano direttamente GmailApp.search:
+            // dimensionano la profondita' del pool da cui estrarre candidati non letti.
+            const discoveryPool = Math.min(500, Math.max(safeTargetThreads, safeMessageBuffer * safeMaxPages));
             let searchResult = [];
             try {
                 searchResult = GmailApp.search(query, 0, discoveryPool);
@@ -803,7 +795,7 @@ var GmailService = class GmailService {
             if (!Array.isArray(searchResult)) {
                 console.warn('⚠️ GmailApp.search non ha restituito un array; considero 0 thread da elaborare.');
             }
-            console.log(`📬 [query] GmailApp.search ha trovato ${nativeThreads.length} thread candidati`);
+            console.log(`📬 [query] GmailApp.search ha trovato ${nativeThreads.length} thread candidati (pool=${discoveryPool})`);
 
             for (const thread of nativeThreads) {
                 if (!thread) continue;

@@ -1351,7 +1351,7 @@ function runAllTests() {
                 getUserLabelByName: () => null
             };
 
-            test('_discoverByQuery non esclude label processed (IA) ma mantiene error/skip', results, () => {
+            test('_discoverByQuery non esclude label a livello thread', results, () => {
                 const originalSearch = global.GmailApp.search;
                 let capturedQuery = null;
                 try {
@@ -1362,7 +1362,7 @@ function runAllTests() {
 
                     const service = new GmailService();
                     service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 5, 1, ['Saltata']);
-                    return capturedQuery === 'is:unread in:inbox -label:"Errore" -label:"Verifica" -label:"Saltata"';
+                    return capturedQuery === 'is:unread in:inbox';
                 } finally {
                     global.GmailApp.search = originalSearch;
                 }
@@ -1483,7 +1483,7 @@ function runAllTests() {
                     && result.threads.length === 2
                     && result.threads[0].getId() === 't-unread-1'
                     && result.threads[1].getId() === 't-unread-2'
-                    && requestedMax === 6;
+                    && requestedMax === 30;
             });
 
             test('Discovery metadata continua sulle pagine successive se getThreadById restituisce null', results, () => {
