@@ -424,6 +424,52 @@ console.log('--- Test discovery metadata: cache label di sistema non esclude unr
   assert(badCacheResult.threads[0].getId() === 't-bad-cache', 'metadata mode deve includere il thread con sole label Gmail di sistema');
 }
 
+console.log('--- Test discovery metadata: blacklist RAM evita messages.get per candidato ---');
+{
+  const serviceRamBlacklist = new GmailService();
+  const terminalBlacklist = new Set();
+  const skipBlacklist = new Set();
+  let preloadCalls = 0;
+  let metadataCalls = 0;
+  serviceRamBlacklist._listMessagesWithResilience = () => ({
+    messages: [
+      { id: 'm-ia', threadId: 't-ia' },
+      { id: 'm-skip', threadId: 't-skip' },
+      { id: 'm-clean', threadId: 't-clean' }
+    ],
+    nextPageToken: null
+  });
+  serviceRamBlacklist._getOptionalLabelIdByName = (labelName) => {
+    if (labelName === 'IA') return 'Label_IA';
+    if (labelName === CONFIG.SKIP_LABEL_NAME) return 'Label_SKIP';
+    return null;
+  };
+  serviceRamBlacklist._getMessageMetadataWithResilience = () => {
+    metadataCalls++;
+    throw new Error('messages.get non deve servire con blacklist RAM');
+  };
+
+  global.GmailApp = {
+    getThreadById: (threadId) => ({ getId: () => threadId }),
+    search: () => []
+  };
+
+  const ramResult = serviceRamBlacklist._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 10, 1, CONFIG.SKIP_LABEL_NAME, {
+    blacklistMessageIds: terminalBlacklist,
+    skipBlacklistMessageIds: skipBlacklist,
+    preloadBlacklistMessageIds: () => {
+      preloadCalls++;
+      terminalBlacklist.add('m-ia');
+      skipBlacklist.add('m-skip');
+    }
+  });
+
+  assert(preloadCalls === 1, 'la blacklist RAM deve essere caricata una sola volta');
+  assert(metadataCalls === 0, 'con blacklist RAM non deve chiamare messages.get per ogni candidato');
+  assert(ramResult.threads.length === 1, 'deve restare solo il messaggio pulito');
+  assert(ramResult.threads[0].getId() === 't-clean', 'deve includere il thread non presente in blacklist');
+}
+
 console.log('--- Test metadata fallback unread: limita scansione ai messaggi recenti ---');
 {
   const serviceBoundedThread = new GmailService();

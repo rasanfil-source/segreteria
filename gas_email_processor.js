@@ -2388,6 +2388,71 @@ ${addressLines.join('\n\n')}
       // - in "Solo straniere" escludiamo '·' perché identifica email italiane già rinviate;
       // - in "Tutte le lingue" non lo escludiamo, così quelle email tornano lavorabili.
       const labelsDaIgnorare = languageMode === 'foreign_only' ? [this.config.skipLabelName] : [];
+      let labeledMessageIds = new Set();
+      let skippedMessageIds = new Set();
+      let messageLabelCachesPreloaded = false;
+      const canPreloadMessageLabelCaches = this.gmailService && typeof this.gmailService.getMessageIdsWithLabel === 'function';
+      const addIdsToSet = (targetSet, ids) => {
+        if (!(targetSet instanceof Set)) return;
+        if (ids instanceof Set) {
+          ids.forEach((id) => targetSet.add(id));
+          return;
+        }
+        if (Array.isArray(ids)) {
+          ids.forEach((id) => targetSet.add(id));
+        }
+      };
+      const preloadMessageLabelCaches = () => {
+        if (messageLabelCachesPreloaded) return;
+        if (!canPreloadMessageLabelCaches) {
+          runLogger.warn('gmailService.getMessageIdsWithLabel non disponibile: continuo senza cache label pre-caricata.');
+          messageLabelCachesPreloaded = true;
+          return;
+        }
+
+        try {
+          addIdsToSet(
+            labeledMessageIds,
+            this.gmailService.getMessageIdsWithLabel(this.config.labelName, true, { onlyUnread: true })
+          );
+        } catch (e) {
+          runLogger.error(`Impossibile pre-caricare gli ID etichettati (${e.message}). Interrompo il batch per evitare risposte duplicate.`);
+          throw e;
+        }
+
+        // Include anche i messaggi unread già marcati come Errore/Verifica:
+        // evitiamo retry infiniti del singolo messaggio, ma senza oscurare l'intero thread.
+        try {
+          addIdsToSet(
+            labeledMessageIds,
+            this.gmailService.getMessageIdsWithLabel(this.config.errorLabelName, true, { onlyUnread: true })
+          );
+          addIdsToSet(
+            labeledMessageIds,
+            this.gmailService.getMessageIdsWithLabel(this.config.validationErrorLabel, true, { onlyUnread: true })
+          );
+        } catch (e) {
+          runLogger.warn(`Impossibile pre-caricare ID error/validation (${e.message}). Continuo con sola cache IA.`);
+        }
+
+        // Pre-caricamento degli ID dei messaggi con etichetta skip (·)
+        // per evitare ri-discovery di thread già valutati in foreign_only.
+        if (languageMode === 'foreign_only') {
+          try {
+            addIdsToSet(
+              skippedMessageIds,
+              this.gmailService.getMessageIdsWithLabel(this.config.skipLabelName, true, { onlyUnread: true })
+            );
+            if (skippedMessageIds.size > 0) {
+              console.log(`   🌐 Pre-caricati ${skippedMessageIds.size} ID messaggi skip (·) per fast-skip`);
+            }
+          } catch (e) {
+            console.warn(`⚠️ Impossibile pre-caricare gli ID skip (${e.message}). Continuo senza cache skip.`);
+          }
+        }
+
+        messageLabelCachesPreloaded = true;
+      };
 
       let threads;
       try {
@@ -2414,6 +2479,11 @@ ${addressLines.join('\n\n')}
           const staleOnlyMs = this._getFiniteOptionNumber_(options, 'staleOnlyMs');
           if (Number.isFinite(staleOnlyMs)) {
             discoveryOptions.staleOnlyMs = staleOnlyMs;
+          }
+          if (canPreloadMessageLabelCaches) {
+            discoveryOptions.blacklistMessageIds = labeledMessageIds;
+            discoveryOptions.skipBlacklistMessageIds = skippedMessageIds;
+            discoveryOptions.preloadBlacklistMessageIds = preloadMessageLabelCaches;
           }
 
           threads = this.gmailService.getUnprocessedUnreadThreads(
@@ -2461,51 +2531,11 @@ ${addressLines.join('\n\n')}
       this._trackEmptyInboxStreak(false);
       runLogger.info(`Trovati ${threads.length} thread da elaborare`);
 
-      let labeledMessageIds = new Set();
-      if (this.gmailService && typeof this.gmailService.getMessageIdsWithLabel === 'function') {
+      if (!messageLabelCachesPreloaded) {
         try {
-          labeledMessageIds = this.gmailService.getMessageIdsWithLabel(this.config.labelName, true, { onlyUnread: true });
+          preloadMessageLabelCaches();
         } catch (e) {
-          runLogger.error(`Impossibile pre-caricare gli ID etichettati (${e.message}). Interrompo il batch per evitare risposte duplicate.`);
           return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'label_cache_failed' };
-        }
-      } else {
-        runLogger.warn('gmailService.getMessageIdsWithLabel non disponibile: continuo senza cache label pre-caricata.');
-      }
-
-      if (!(labeledMessageIds instanceof Set)) {
-        if (Array.isArray(labeledMessageIds)) {
-          labeledMessageIds = new Set(labeledMessageIds);
-        } else {
-          labeledMessageIds = new Set();
-        }
-      }
-
-      // Include anche i messaggi unread già marcati come Errore/Verifica:
-      // evitiamo retry infiniti del singolo messaggio, ma senza oscurare l'intero thread.
-      if (this.gmailService && typeof this.gmailService.getMessageIdsWithLabel === 'function') {
-        try {
-          const errorIds = this.gmailService.getMessageIdsWithLabel(this.config.errorLabelName, true, { onlyUnread: true });
-          const validationIds = this.gmailService.getMessageIdsWithLabel(this.config.validationErrorLabel, true, { onlyUnread: true });
-          (errorIds || []).forEach((id) => labeledMessageIds.add(id));
-          (validationIds || []).forEach((id) => labeledMessageIds.add(id));
-        } catch (e) {
-          runLogger.warn(`Impossibile pre-caricare ID error/validation (${e.message}). Continuo con sola cache IA.`);
-        }
-      }
-
-      // Pre-caricamento degli ID dei messaggi con etichetta skip (·)
-      // per evitare ri-discovery di thread già valutati in foreign_only.
-      let skippedMessageIds = new Set();
-      if (languageMode === 'foreign_only' && this.gmailService && typeof this.gmailService.getMessageIdsWithLabel === 'function') {
-        try {
-          const skipIds = this.gmailService.getMessageIdsWithLabel(this.config.skipLabelName, true, { onlyUnread: true });
-          skippedMessageIds = (skipIds instanceof Set) ? skipIds : new Set(skipIds || []);
-          if (skippedMessageIds.size > 0) {
-            console.log(`   🌐 Pre-caricati ${skippedMessageIds.size} ID messaggi skip (·) per fast-skip`);
-          }
-        } catch (e) {
-          console.warn(`⚠️ Impossibile pre-caricare gli ID skip (${e.message}). Continuo senza cache skip.`);
         }
       }
 

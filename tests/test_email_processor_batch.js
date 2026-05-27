@@ -244,6 +244,70 @@ console.log('--- Test processUnreadEmails: staleOnlyMs null non viene propagato 
   );
 }
 
+console.log('--- Test processUnreadEmails: inbox vuota non pre-carica blacklist label ---');
+{
+  let capturedDiscoveryOptions = null;
+  let labelCalls = 0;
+  const processor = new EmailProcessor({
+    gmailService: {
+      getUnprocessedUnreadThreads: function () {
+        capturedDiscoveryOptions = arguments[7];
+        return [];
+      },
+      getMessageIdsWithLabel: () => {
+        labelCalls++;
+        return new Set();
+      }
+    }
+  });
+
+  const stats = processor.processUnreadEmails('kb', '', true);
+  assert(stats.total === 0, 'batch senza thread deve restare vuoto');
+  assert(labelCalls === 0, 'non deve pre-caricare label se la discovery non trova candidati');
+  assert(capturedDiscoveryOptions.blacklistMessageIds instanceof Set, 'deve passare il Set blacklist alla discovery');
+  assert(typeof capturedDiscoveryOptions.preloadBlacklistMessageIds === 'function', 'deve passare loader lazy alla discovery');
+}
+
+console.log('--- Test processUnreadEmails: discovery carica blacklist RAM una sola volta ---');
+{
+  const thread = createThread({ id: 't-clean', messages: [createMessage({ id: 'm-clean', unread: true })] });
+  const labelCalls = [];
+  let capturedDiscoveryOptions = null;
+  let seenLabeledIds = null;
+  const processor = new EmailProcessor({
+    gmailService: {
+      getUnprocessedUnreadThreads: function () {
+        capturedDiscoveryOptions = arguments[7];
+        capturedDiscoveryOptions.preloadBlacklistMessageIds();
+        return [thread];
+      },
+      getMessageIdsWithLabel: (labelName) => {
+        labelCalls.push(labelName);
+        if (labelName === global.CONFIG.LABEL_NAME) return ['m-ia'];
+        if (labelName === global.CONFIG.ERROR_LABEL_NAME) return new Set(['m-error']);
+        if (labelName === global.CONFIG.VALIDATION_ERROR_LABEL) return ['m-validation'];
+        return [];
+      }
+    }
+  });
+
+  processor._hasUnreadMessagesToProcess = (_thread, labeledMessageIds) => {
+    seenLabeledIds = labeledMessageIds;
+    return false;
+  };
+  processor._isNearDeadline = () => false;
+  processor._getRemainingTimeMs = () => 60000;
+  processor.processThread = () => { throw new Error('processThread non deve essere chiamato nel fast-skip'); };
+
+  const stats = processor.processUnreadEmails('kb', '', true);
+  assert(stats.total === 1, 'deve analizzare il thread restituito dalla discovery');
+  assert(labelCalls.length === 3, 'deve caricare IA/Errore/Verifica una sola volta complessiva');
+  assert(capturedDiscoveryOptions.blacklistMessageIds === seenLabeledIds, 'deve riusare lo stesso Set blacklist nel fast-skip');
+  assert(seenLabeledIds.has('m-ia'), 'blacklist deve includere IA');
+  assert(seenLabeledIds.has('m-error'), 'blacklist deve includere Errore');
+  assert(seenLabeledIds.has('m-validation'), 'blacklist deve includere Verifica');
+}
+
 console.log('--- Test _trackEmptyInboxStreak: cache unavailable resetta valore logico su inbox non vuota ---');
 {
   const originalCacheService = global.CacheService;

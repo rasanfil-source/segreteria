@@ -613,7 +613,8 @@ var GmailService = class GmailService {
      * Recupera i thread con almeno un messaggio non letto e non ancora etichettato.
      *
      * Modalità supportate:
-     * - 'metadata': default operativo, message-level (list INBOX/UNREAD + get minimal per labelIds)
+     * - 'metadata': default operativo, message-level (list INBOX/UNREAD + blacklist ID in RAM,
+     *               con get minimal solo come fallback se la blacklist non è stata fornita)
      * - 'query'   : compatibilità legacy basata su GmailApp.search a livello thread
      *
      * @param {string} labelName            - Label applicata ai messaggi già elaborati (es. 'IA')
@@ -667,6 +668,7 @@ var GmailService = class GmailService {
      * chiusi da label terminali applicate al singolo messaggio.
      */
     _discoverByMetadata(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null, options = {}) {
+        const discoveryOptions = (options && typeof options === 'object') ? options : {};
         const processedLabelId = this._getOptionalLabelIdByName(labelName);
         const errorLabelId = this._getOptionalLabelIdByName(errorLabel);
         const validationLabelId = this._getOptionalLabelIdByName(validationLabel);
@@ -680,6 +682,16 @@ var GmailService = class GmailService {
             validationLabelId,
             ...skipLabelIds
         ]));
+        const blacklistMessageIds = (discoveryOptions.blacklistMessageIds instanceof Set)
+            ? discoveryOptions.blacklistMessageIds
+            : null;
+        const skipBlacklistMessageIds = (discoveryOptions.skipBlacklistMessageIds instanceof Set)
+            ? discoveryOptions.skipBlacklistMessageIds
+            : null;
+        const hasRamBlacklist = blacklistMessageIds instanceof Set;
+        const preloadBlacklist = typeof discoveryOptions.preloadBlacklistMessageIds === 'function'
+            ? discoveryOptions.preloadBlacklistMessageIds
+            : null;
 
         const seenThreadIds = new Set();
         const unavailableThreadIds = new Set();
@@ -689,7 +701,15 @@ var GmailService = class GmailService {
         let page = 0;
         let metadataGets = 0;
         let metadataLimitReached = false;
-        const maxMetadataGets = this._getMetadataDiscoveryGetLimit_(safeMessageBuffer, safeMaxPages, options);
+        let blacklistPreloadAttempted = false;
+        const maxMetadataGets = this._getMetadataDiscoveryGetLimit_(safeMessageBuffer, safeMaxPages, discoveryOptions);
+        const ensureRamBlacklistLoaded = () => {
+            if (!hasRamBlacklist || !preloadBlacklist || blacklistPreloadAttempted) return;
+            blacklistPreloadAttempted = true;
+            preloadBlacklist();
+            discoveryOptions.blacklistPreloaded = true;
+            console.log(`📬 [metadata] Blacklist RAM caricata: ${blacklistMessageIds.size} terminali, ${skipBlacklistMessageIds ? skipBlacklistMessageIds.size : 0} skip`);
+        };
 
         try {
             do {
@@ -710,24 +730,36 @@ var GmailService = class GmailService {
                 const messages = (response && response.messages) || [];
                 let addedInPage = 0;
                 console.log(`📬 [metadata] Pagina ${page}: ${messages.length} messaggi candidati INBOX/UNREAD`);
+                if (messages.length > 0) {
+                    ensureRamBlacklistLoaded();
+                }
 
                 for (const msg of messages) {
                     if (!msg || !msg.id || !msg.threadId || seenThreadIds.has(msg.threadId) || unavailableThreadIds.has(msg.threadId)) continue;
-                    if (metadataGets >= maxMetadataGets) {
-                        metadataLimitReached = true;
-                        break;
-                    }
+                    if (blacklistMessageIds && blacklistMessageIds.has(msg.id)) continue;
+                    if (skipBlacklistMessageIds && skipBlacklistMessageIds.has(msg.id)) continue;
 
-                    metadataGets++;
-                    const metadata = this._getMessageMetadataWithResilience(msg.id, { format: 'minimal' });
-                    if (!metadata) {
-                        console.warn(`⚠️ Gmail.Users.Messages.get risposta vuota per msg ${msg.id}: skip`);
-                        continue;
-                    }
+                    const shouldCheckLabelsViaMetadata =
+                        discoveryOptions.forceMetadataLabelCheck === true ||
+                        !hasRamBlacklist ||
+                        (excludedLabelIds.size > 0 && !discoveryOptions.blacklistPreloaded && !blacklistPreloadAttempted);
+                    if (shouldCheckLabelsViaMetadata) {
+                        if (metadataGets >= maxMetadataGets) {
+                            metadataLimitReached = true;
+                            break;
+                        }
 
-                    const msgLabelIds = new Set(metadata.labelIds || []);
-                    const isExcluded = [...excludedLabelIds].some(id => msgLabelIds.has(id));
-                    if (isExcluded) continue;
+                        metadataGets++;
+                        const metadata = this._getMessageMetadataWithResilience(msg.id, { format: 'minimal' });
+                        if (!metadata) {
+                            console.warn(`⚠️ Gmail.Users.Messages.get risposta vuota per msg ${msg.id}: skip`);
+                            continue;
+                        }
+
+                        const msgLabelIds = new Set(metadata.labelIds || []);
+                        const isExcluded = [...excludedLabelIds].some(id => msgLabelIds.has(id));
+                        if (isExcluded) continue;
+                    }
 
                     let thread = null;
                     try {
