@@ -1541,7 +1541,7 @@ function runAllTests() {
     });
 
     testGroup('GmailService - Fallback label resiliente', results, () => {
-        test('removeLabelFromMessage usa fallback a livello thread se API Avanzata fallisce', results, () => {
+        test('removeLabelFromMessage non usa fallback a livello thread se API Avanzata fallisce per preservare granularità message-level', results, () => {
             const originalGmail = global.Gmail;
             const originalGmailApp = global.GmailApp;
             let threadFallbackCalled = false;
@@ -1565,7 +1565,7 @@ function runAllTests() {
                 service._getOptionalLabelIdByName = () => 'label_id_123';
                 service._incrementGmailCallCounterOrThrow_ = () => { };
                 service.removeLabelFromMessage('msg-123', 'LabelTest');
-                return threadFallbackCalled === true;
+                return threadFallbackCalled === false;
             } finally {
                 global.Gmail = originalGmail;
                 global.GmailApp = originalGmailApp;

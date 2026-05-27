@@ -1616,7 +1616,7 @@ function testExtractOfficeTextRetriesDrivePropagation() {
     }
 }
 
-function testRemoveLabelFromMessageFallsBackToThread() {
+function testRemoveLabelFromMessageDoesNotFallbackToThread() {
     loadScript('gas_gmail_service.js');
 
     const originalGmail = global.Gmail;
@@ -1640,12 +1640,12 @@ function testRemoveLabelFromMessageFallsBackToThread() {
 
     try {
         const consoleNoise = withCapturedConsoleNoise({
-            warn: [/removeLabelFromMessage fallito/, /Fallback thread-level/]
+            warn: [/removeLabelFromMessage fallito/, /Fallback thread-level removeLabel fallito/]
         }, () => {
             service.removeLabelFromMessage('msg-1', 'IA');
         });
-        assert(fallbackCalled === true, 'Il fallback thread-level deve rimuovere la label nativa');
-        assert(consoleNoise.warn.some(msg => msg.includes('Fallback thread-level')), 'Il fallback deve essere tracciato nei warning');
+        assert(fallbackCalled === false, 'Il fallback thread-level non deve essere eseguito per preservare la granularità message-level');
+        assert(consoleNoise.warn.some(msg => msg.includes('Fallback thread-level removeLabel fallito')), 'Il log deve segnalare la disattivazione del fallback');
     } finally {
         global.Gmail = originalGmail;
         global.GmailApp = originalGmailApp;
@@ -3323,7 +3323,7 @@ function main() {
         ['markdownToHtml: query params senza double-escape', testMarkdownLinkQueryParamsNotDoubleEscaped],
         ['markdownToHtml: evita nesting p/ul invalido', testMarkdownListParagraphNesting],
         ['gmail labels: errori non-label vengono propagati', testAddLabelToThreadPropagatesNonLabelErrors],
-        ['gmail labels: remove message fallback thread-level', testRemoveLabelFromMessageFallsBackToThread],
+        ['gmail labels: remove message does not fallback thread-level', testRemoveLabelFromMessageDoesNotFallbackToThread],
         ['gmail list: empty response fallback', testListMessagesWithResilienceHandlesEmptyResponseError],
         ['gmail list: fallback robusto opzioni paginazione invalide', testGetMessageIdsWithLabelInvalidPaginationOptions],
         ['gmail extract: usa solo main reply senza storico', testExtractMessageDetailsUsesMainReplyOnly],

@@ -266,6 +266,7 @@ var MemoryService = class MemoryService {
         // 3. Rileggi dati freschi dallo Sheet
         const existingRow = this._findRowByThreadId(threadId);
         const now = this._validateAndNormalizeTimestamp(new Date().toISOString());
+        const shouldIncrementMessageCount = options.incrementMessageCount === true || newData._incrementMessageCount === true;
 
         if (existingRow) {
           const existingData = this._rowToObject(existingRow.values);
@@ -282,7 +283,6 @@ var MemoryService = class MemoryService {
           // Merge: esistente + nuovi dati
           const mergedData = Object.assign({}, existingData, dataToUpdate);
           mergedData.lastUpdated = now;
-          const shouldIncrementMessageCount = options.incrementMessageCount !== false;
           mergedData.messageCount = shouldIncrementMessageCount
             ? (existingData.messageCount || 0) + 1
             : (existingData.messageCount || 0);
@@ -306,7 +306,7 @@ var MemoryService = class MemoryService {
           const insertData = Object.assign({}, dataToUpdate);
           insertData.threadId = threadId;
           insertData.lastUpdated = now;
-          insertData.messageCount = options.incrementMessageCount === false ? 0 : 1;
+          insertData.messageCount = shouldIncrementMessageCount ? 1 : 0;
           insertData.version = 1;
 
           this._withSheetWriteLock(() => {
@@ -463,7 +463,10 @@ var MemoryService = class MemoryService {
 
           const mergedData = Object.assign({}, existingData, dataToUpdate);
           mergedData.lastUpdated = now;
-          mergedData.messageCount = (existingData.messageCount || 0) + 1;
+          const shouldIncrementMessageCount = rawData._incrementMessageCount === true;
+          mergedData.messageCount = shouldIncrementMessageCount
+            ? (existingData.messageCount || 0) + 1
+            : (existingData.messageCount || 0);
           mergedData.version = currentVersion + 1;
 
           if (providedTopics && providedTopics.length > 0) {
@@ -517,7 +520,8 @@ var MemoryService = class MemoryService {
           const insertData = Object.assign({}, dataToUpdate);
           insertData.threadId = threadId;
           insertData.lastUpdated = now;
-          insertData.messageCount = 1;
+          const shouldIncrementMessageCount = rawData._incrementMessageCount === true;
+          insertData.messageCount = shouldIncrementMessageCount ? 1 : 0;
           insertData.version = 1;
 
           if (providedTopics && providedTopics.length > 0) {

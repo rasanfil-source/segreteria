@@ -2097,7 +2097,8 @@ ${addressLines.join('\n\n')}
 
       const memoryUpdate = {
         language: detectedLanguage,
-        category: classification.category || requestTypeName
+        category: classification.category || requestTypeName,
+        _incrementMessageCount: true
       };
 
       if (memorySummary) {

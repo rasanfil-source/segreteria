@@ -166,13 +166,15 @@ var PromptEngine = class PromptEngine {
       ? CONFIG.KB_TOKEN_BUDGET_RATIO
       : 0.5;
 
+    let kbCharsLimit;
     if (OVERHEAD_TOKENS >= MAX_SAFE_TOKENS) {
       console.warn(`⚠️ PromptEngine: overhead (${OVERHEAD_TOKENS} token) >= budget totale (${MAX_SAFE_TOKENS}). KB ridotta al minimo operativo.`);
+      kbCharsLimit = 1500 * 4;
+    } else {
+      const ocrTokens = this.estimateTokens(attachmentsContext || '');
+      const availableForKB = Math.max(1500, ((MAX_SAFE_TOKENS - OVERHEAD_TOKENS - ocrTokens) * KB_BUDGET_RATIO));
+      kbCharsLimit = Math.round(availableForKB * 4);
     }
-
-    const ocrTokens = this.estimateTokens(attachmentsContext || '');
-    const availableForKB = Math.max(1500, ((MAX_SAFE_TOKENS - OVERHEAD_TOKENS - ocrTokens) * KB_BUDGET_RATIO));
-    const kbCharsLimit = Math.round(availableForKB * 4);
 
     const aiCoreLiteText = this._normalizePromptTextInput(aiCoreLite, '');
     const aiCoreText = this._normalizePromptTextInput(aiCore, '');
