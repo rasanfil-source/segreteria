@@ -2165,6 +2165,7 @@ console.log('--- Test processThread: timeout invio promuove idempotenza a sent -
   const originalClassifyError = global.classifyError;
   let committed = false;
   let rolledBack = false;
+  const labels = [];
 
   cacheStore.clear();
   global.CONFIG.VALIDATION_ENABLED = false;
@@ -2196,7 +2197,7 @@ console.log('--- Test processThread: timeout invio promuove idempotenza a sent -
           rfc2822MessageId: null,
           existingReferences: null
         }),
-        addLabelToMessage: () => {},
+        addLabelToMessage: (id, label) => labels.push({ id, label }),
         addLabelToThread: () => {},
         getThreadHistory: () => '',
         prepareOutboundText: (text) => text,
@@ -2236,6 +2237,7 @@ console.log('--- Test processThread: timeout invio promuove idempotenza a sent -
     assert(result.errorClass === 'NETWORK', `timeout invio deve essere classificato come NETWORK retryable, ottenuto ${result.errorClass}`);
     assert(committed === true, 'timeout/network deve promuovere la transazione a sent');
     assert(rolledBack === false, 'timeout/network non deve rimuovere il marker di invio');
+    assert(labels.some(entry => entry.id === 'm-send-timeout' && entry.label === 'IA'), 'timeout/network ambiguo deve marcare il messaggio IA per evitare replay duplicati');
   } finally {
     global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
     global.ErrorTypes = originalErrorTypes;

@@ -2983,22 +2983,12 @@ function testLoadAdvancedConfigStrictSuspensionHours() {
     console.log('--- Test: Load Advanced Config strict suspension parsing ---');
     loadScript('gas_main.js');
 
-    const sheet = {
+    const buildSheet = (suspensionRows) => ({
         getRange: (...args) => {
             if (args.length === 1 && args[0] === 'B2') return { getValue: () => 'ACCESO' };
             if (args.length === 1 && args[0] === 'B5:E7') return { getValues: () => [[null, null, null, null], [null, null, null, null], [null, null, null, null]] };
             if (args.length === 1 && args[0] === 'A10:D16') {
-                return {
-                    getValues: () => [
-                        ['Lun', '08', '', '12'],
-                        ['Mar', '08x', '', '12'],
-                        ['Mer', '22', '', '24'],
-                        ['Gio', '18', '', '18'],
-                        ['Ven', null, '', null],
-                        ['Sab', ' 9 ', '', '17'],
-                        ['Dom', '07', '', '09']
-                    ]
-                };
+                return { getValues: () => suspensionRows };
             }
             if (args.length === 4 && args[0] === 11 && args[1] === 5) {
                 const rows = args[2];
@@ -3007,18 +2997,74 @@ function testLoadAdvancedConfigStrictSuspensionHours() {
             throw new Error(`Range non atteso: ${args.join(',')}`);
         },
         getLastRow: () => 11
-    };
+    });
 
-    const ss = { getSheetByName: (name) => (name === 'Controllo' ? sheet : null) };
+    const ss = { getSheetByName: (name) => (name === 'Controllo' ? buildSheet([
+        ['Lun', '08', '', '12'],
+        ['Mar', null, '', null],
+        ['Mer', null, '', null],
+        ['Gio', null, '', null],
+        ['Ven', null, '', null],
+        ['Sab', ' 9 ', '', '17'],
+        ['Dom', '07', '', '09']
+    ]) : null) };
     const cfg = _loadAdvancedConfig(ss);
 
     assert(Array.isArray(cfg.suspensionRules[1]), 'Lunedì deve includere la fascia oraria valida 08-12');
     assert(cfg.suspensionRules[1][0][0] === 8 && cfg.suspensionRules[1][0][1] === 12, 'Fascia lunedì non parsata correttamente');
     assert(cfg.suspensionRules[6][0][0] === 9 && cfg.suspensionRules[6][0][1] === 17, 'Valori con spazi devono essere normalizzati (9-17)');
     assert(cfg.suspensionRules[0][0][0] === 7 && cfg.suspensionRules[0][0][1] === 9, 'Domenica valida deve essere mantenuta (7-9)');
-    assert(cfg.suspensionRules[2] == null, 'Valori parzialmente numerici (es. 08x) devono essere scartati');
-    assert(cfg.suspensionRules[3] == null, 'Ore fuori range (es. 24) devono essere scartate');
-    assert(cfg.suspensionRules[4] == null, 'Fasce invertite o nulle (18-18) devono essere scartate');
+    assert(cfg.suspensionRules[2] == null, 'Righe completamente vuote devono essere interpretate come nessuna fascia configurata');
+
+    const invalidCases = [
+        {
+            rows: [
+                ['Lun', '08', '', '12'],
+                ['Mar', '08x', '', '12'],
+                ['Mer', null, '', null],
+                ['Gio', null, '', null],
+                ['Ven', null, '', null],
+                ['Sab', ' 9 ', '', '17'],
+                ['Dom', '07', '', '09']
+            ],
+            expected: 'riga 11',
+            message: 'Valori parzialmente numerici (es. 08x) devono bloccare il parsing'
+        },
+        {
+            rows: [
+                ['Lun', '08', '', '12'],
+                ['Mar', null, '', null],
+                ['Mer', '22', '', '24'],
+                ['Gio', null, '', null],
+                ['Ven', null, '', null],
+                ['Sab', ' 9 ', '', '17'],
+                ['Dom', '07', '', '09']
+            ],
+            expected: 'riga 12',
+            message: 'Ore fuori range (es. 24) devono bloccare il parsing'
+        },
+        {
+            rows: [
+                ['Lun', '08', '', '12'],
+                ['Mar', null, '', null],
+                ['Mer', null, '', null],
+                ['Gio', '18', '', '18'],
+                ['Ven', null, '', null],
+                ['Sab', ' 9 ', '', '17'],
+                ['Dom', '07', '', '09']
+            ],
+            expected: 'riga 13',
+            message: 'Fasce con inizio e fine uguali devono bloccare il parsing'
+        }
+    ];
+
+    invalidCases.forEach((testCase) => {
+        assertThrows(
+            () => _loadAdvancedConfig({ getSheetByName: (name) => (name === 'Controllo' ? buildSheet(testCase.rows) : null) }),
+            testCase.expected,
+            testCase.message
+        );
+    });
 }
 
 function testLoadAdvancedConfigLegacySuspensionLayoutCompatibility() {

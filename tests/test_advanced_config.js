@@ -9,6 +9,19 @@ function assert(condition, message) {
   }
 }
 
+function assertThrows(fn, expectedPattern, message) {
+  try {
+    fn();
+  } catch (error) {
+    const text = error && error.message ? error.message : String(error);
+    if (!expectedPattern || expectedPattern.test(text)) return;
+    console.error(`❌ ${message}. Errore inatteso: ${text}`);
+    process.exit(1);
+  }
+  console.error(`❌ ${message}. Nessun errore lanciato.`);
+  process.exit(1);
+}
+
 global.CONFIG = {
   IGNORE_DOMAINS: ['Static.com', 'mailchimp.com'],
   IGNORE_KEYWORDS: ['newsletter', 'unsubscribe']
@@ -167,7 +180,43 @@ assert(reorderedAdv.suspensionRules[0][0][0] === 9 && reorderedAdv.suspensionRul
 assert(reorderedAdv.suspensionRules[1][0][0] === 8 && reorderedAdv.suspensionRules[1][0][1] === 10, 'Lunedì in seconda riga deve restare day=1');
 console.log('✅ Test mapping etichette sospensione passato');
 
-console.log('--- Test _loadAdvancedConfig strict suspension fallback ---');
+console.log('--- Test _loadAdvancedConfig rifiuta riga sospensione parziale ---');
+global.CONFIG.STRICT_SUSPENSION_CONFIG = false;
+const partialInvalidSpreadsheet = {
+  getSheetByName: (name) => {
+    if (name !== 'Controllo') return null;
+    return {
+      getRange: (a1) => {
+        if (a1 === 'B2') return { getValue: () => 'ACCESO' };
+        if (a1 === 'F2') return { getDisplayValue: () => 'Tutte le lingue', getValue: () => 'Tutte le lingue' };
+        if (a1 === 'B5:E7') return { getValues: () => [[], [], []] };
+        if (a1 === 'A10:D16') {
+          return {
+            getValues: () => [
+              ['Lunedì', 8, '', ''],
+              ['Martedì', '', '', ''],
+              ['Mercoledì', '', '', ''],
+              ['Giovedì', '', '', ''],
+              ['Venerdì', '', '', ''],
+              ['Sabato', '', '', ''],
+              ['Domenica', '', '', '']
+            ]
+          };
+        }
+        throw new Error(`Range non gestito nel fake partial sheet: ${a1}`);
+      },
+      getLastRow: () => 12
+    };
+  }
+};
+assertThrows(
+  () => _loadAdvancedConfig(partialInvalidSpreadsheet),
+  /Configurazione oraria non valida.*riga 10/,
+  'una fascia oraria parziale deve bloccare il parsing invece di creare fallback/zombie'
+);
+console.log('✅ Test riga sospensione parziale passato');
+
+console.log('--- Test _loadAdvancedConfig strict suspension no silent fallback ---');
 global.CONFIG.STRICT_SUSPENSION_CONFIG = true;
 const strictSpreadsheet = {
   getSheetByName: (name) => {
@@ -184,6 +233,9 @@ const strictSpreadsheet = {
     };
   }
 };
-const strictAdv = _loadAdvancedConfig(strictSpreadsheet);
-assert(strictAdv.suspensionRules === null, 'con STRICT_SUSPENSION_CONFIG=true e nessuna fascia valida, suspensionRules deve essere null (fallback statico)');
-console.log('✅ Test strict suspension fallback passato');
+assertThrows(
+  () => _loadAdvancedConfig(strictSpreadsheet),
+  /senza fasce sospensione valide/,
+  'con STRICT_SUSPENSION_CONFIG=true e nessuna fascia valida deve fallire senza fallback statico'
+);
+console.log('✅ Test strict suspension no silent fallback passato');

@@ -406,6 +406,12 @@ var EmailProcessor = class EmailProcessor {
     let replySent = false;
     let externalUnread = [];
     let markHandledUnread = () => {};
+    let handledUnreadMarked = false;
+    const markHandledUnreadOnce = () => {
+      if (handledUnreadMarked) return;
+      markHandledUnread();
+      handledUnreadMarked = true;
+    };
     const markFailureForCurrentBurst = (labelType, reviewContext = {}) => {
       const targets = (externalUnread && externalUnread.length > 0)
         ? externalUnread
@@ -2107,7 +2113,7 @@ ${addressLines.join('\n\n')}
       if (!sendTxn.ok) {
         console.warn(`   ⊖ Invio saltato per idempotenza (${sendTxn.reason})`);
         if (sendTxn.reason === 'already_sent') {
-          markHandledUnread();
+          markHandledUnreadOnce();
           result.status = 'skipped';
           result.reason = 'already_sent_recently';
         } else {
@@ -2122,46 +2128,22 @@ ${addressLines.join('\n\n')}
         this.gmailService.sendHtmlReply(candidate, response, messageDetails);
         this._commitSendTransaction(candidate.getId(), sendTxn);
         replySent = true;
-
-        // Pulisci le etichette dello stato precedente in caso di risposta positiva
-        try {
-          if (this.gmailService && typeof this.gmailService.removeLabelFromThread === 'function') {
-            this.gmailService.removeLabelFromThread(thread, this.config.errorLabelName);
-          }
-          if (!shouldLabelForReview) {
-            if (this.gmailService && typeof this.gmailService.removeLabelFromThread === 'function') {
-              this.gmailService.removeLabelFromThread(thread, this.config.validationErrorLabel);
-            }
-            if (this.gmailService && typeof this.gmailService.removeLabelFromMessage === 'function') {
-              this.gmailService.removeLabelFromMessage(candidate.getId(), this.config.validationErrorLabel);
-            }
-          }
-        } catch (cleanupError) {
-          console.warn(`⚠️ Cleanup label stato precedente fallito: ${cleanupError.message}`);
-        }
-
-        // Etichettatura non critica: non deve compromettere lo step successivo (memoria).
-        try {
-          if (shouldLabelForReview || shouldForcePrudentDocResponse) {
-            this._addValidationErrorLabel(candidate, {
-              reason: shouldForcePrudentDocResponse ? 'document_consistency_prudent_response' : 'validation_warning',
-              validation: validation,
-              subject: messageDetails.subject
-            });
-          }
-        } catch (labelErr) {
-          console.warn(`⚠️ Label di verifica non applicata (non bloccante): ${labelErr.message}`);
-        }
       } catch (e) {
         const errorMessage = e && e.message ? e.message : String(e);
         const classifiedSendError = this._classifyError(e);
-        if (classifiedSendError.type !== 'NETWORK' && classifiedSendError.type !== 'TIMEOUT') {
+        const ambiguousSendOutcome = classifiedSendError.type === 'NETWORK' || classifiedSendError.type === 'TIMEOUT';
+        if (!ambiguousSendOutcome) {
           this._rollbackSendTransaction(candidate.getId(), sendTxn);
         } else {
           // Gmail può aver accettato il messaggio prima che il client riceva un
           // timeout/errore di rete: promuoviamo l'idempotency marker a `sent`
           // per evitare un replay automatico alla ripresa del batch.
           this._commitSendTransaction(candidate.getId(), sendTxn);
+          try {
+            markHandledUnreadOnce();
+          } catch (markError) {
+            threadLogger.warn(`Errore label dopo invio ambiguo silenziato: ${markError.message}`);
+          }
         }
         console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
 
@@ -2172,6 +2154,8 @@ ${addressLines.join('\n\n')}
           } catch (markError) {
             console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
           }
+        } else if (ambiguousSendOutcome) {
+          console.warn(`   ↻ Errore invio ambiguo (${classifiedSendError.type}) - idempotenza promossa e messaggio marcato IA`);
         } else {
           console.warn(`   ↻ Errore invio retryable (${classifiedSendError.type}) - nessuna marcatura permanente`);
         }
@@ -2180,6 +2164,41 @@ ${addressLines.join('\n\n')}
         result.error = `gmail_send_failed: ${errorMessage}`;
         result.errorClass = classifiedSendError.type;
         return result;
+      }
+
+      // Chiude il burst subito dopo l'invio confermato: memoria, cleanup e label
+      // di revisione sono post-processing e non devono lasciare il messaggio
+      // riprocessabile in caso di errore successivo.
+      markHandledUnreadOnce();
+
+      // Pulisci le etichette dello stato precedente in caso di risposta positiva
+      try {
+        if (this.gmailService && typeof this.gmailService.removeLabelFromThread === 'function') {
+          this.gmailService.removeLabelFromThread(thread, this.config.errorLabelName);
+        }
+        if (!shouldLabelForReview) {
+          if (this.gmailService && typeof this.gmailService.removeLabelFromThread === 'function') {
+            this.gmailService.removeLabelFromThread(thread, this.config.validationErrorLabel);
+          }
+          if (this.gmailService && typeof this.gmailService.removeLabelFromMessage === 'function') {
+            this.gmailService.removeLabelFromMessage(candidate.getId(), this.config.validationErrorLabel);
+          }
+        }
+      } catch (cleanupError) {
+        console.warn(`⚠️ Cleanup label stato precedente fallito: ${cleanupError.message}`);
+      }
+
+      // Etichettatura non critica: non deve compromettere lo step successivo (memoria).
+      try {
+        if (shouldLabelForReview || shouldForcePrudentDocResponse) {
+          this._addValidationErrorLabel(candidate, {
+            reason: shouldForcePrudentDocResponse ? 'document_consistency_prudent_response' : 'validation_warning',
+            validation: validation,
+            subject: messageDetails.subject
+          });
+        }
+      } catch (labelErr) {
+        console.warn(`⚠️ Label di verifica non applicata (non bloccante): ${labelErr.message}`);
       }
 
       // ====================================================================
@@ -2232,7 +2251,7 @@ ${addressLines.join('\n\n')}
       // Marca tutti i messaggi non letti esaminati nel thread:
       // evita reprocessing dei messaggi precedenti quando arrivano più email
       // ravvicinate prima dell'esecuzione del trigger.
-      markHandledUnread();
+      markHandledUnreadOnce();
       result.status = 'replied';
       result.durationMs = Date.now() - startTime;
       threadLogger.info(`Thread processato in ${result.durationMs}ms`, { duration: result.durationMs });
@@ -2244,7 +2263,7 @@ ${addressLines.join('\n\n')}
       if (replySent) {
         threadLogger.warn('Errore post-invio: thread non etichettato come errore perché la risposta è stata già inviata');
         try {
-          markHandledUnread();
+          markHandledUnreadOnce();
         } catch (markError) {
           threadLogger.warn(`Errore label post-invio silenziato: ${markError.message}`);
         }

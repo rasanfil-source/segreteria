@@ -68,15 +68,22 @@ var ALWAYS_OPERATING_DAYS = [
 ];
 
 // ====================================================================
-// Configurazione statica degli orari di sospensione (Fallback).
-// Garantisce il funzionamento del sistema anche in assenza di configurazione esterna.
-const SUSPENSION_HOURS = {
+// Configurazione statica degli orari di sospensione (fallback solo se il foglio
+// Controllo non è disponibile). L'oggetto è congelato per evitare mutazioni
+// accidentali in runtime/test.
+function _deepFreezeObject_(value) {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  Object.keys(value).forEach((key) => _deepFreezeObject_(value[key]));
+  return Object.freeze(value);
+}
+
+const SUSPENSION_HOURS = _deepFreezeObject_({
   1: [[8, 20]],    // Lunedì: 8–20
   2: [[8, 14]],    // Martedì: 8–14
   3: [[8, 17]],    // Mercoledì: 8–17
   4: [[8, 14]],    // Giovedì: 8–14
   5: [[8, 17]]     // Venerdì: 8–17
-};
+});
 
 /**
  * Calcola la Domenica di Pasqua per un dato anno (calendario occidentale/gregoriano)
@@ -309,7 +316,8 @@ function isInSuspensionTime(checkDate = new Date()) {
 
   // 2. ORARI UFFICIO (Sistema SOSPESO)
   // Utilizza i dati caricati dal foglio Controllo in (A10:D16/B10:E16) durante il loadResources
-  // Se non presenti, usa il fallback definito via codice in SUSPENSION_HOURS
+  // Se il foglio Controllo è assente, usa il fallback definito via codice in SUSPENSION_HOURS.
+  // Se il foglio è presente ma invalido, _loadAdvancedConfig fallisce: niente default silenziosi.
   // loaded è il discriminante autoritativo: se la cache è caricata, prevalgono le regole da foglio.
   // Semantica payload:
   //   - null: foglio 'Controllo' assente → fallback sicuro su SUSPENSION_HOURS.
@@ -1052,8 +1060,7 @@ function _readResourceCachePayload(cache) {
   const chunks = cache.getAll(keys);
   const missing = keys.find(k => !chunks[k]);
   if (missing) {
-    console.warn(`⚠️ Cache multipart incompleta (${missing}), invalido payload e forzo reload.`);
-    _invalidateResourceCacheStorage(cache);
+    console.warn(`⚠️ Cache multipart incompleta (${missing}), forzo reload senza invalidare chiavi concorrenti.`);
     return null;
   }
 
@@ -1064,25 +1071,13 @@ function _writeResourceCachePayload(cache, payload) {
   if (!cache) return;
 
   if (payload.length <= RESOURCE_CACHE_MAX_PART_SIZE) {
-    // Scrittura inline: prevale sempre sul multipart.
-    // Se prima esisteva un payload multipart, rimuoviamo anche i vecchi chunk
-    // per non lasciare quota CacheService occupata fino alla scadenza naturale.
+    // Scrittura inline: prevale sempre sul multipart perché il reader consulta
+    // RESOURCE_CACHE_KEY_V2 prima dell'indice chunk. Non rimuoviamo qui i chunk
+    // stale: in un ambiente multi-trigger una rimozione pre/post write potrebbe
+    // cancellare un multipart appena scritto da un'altra esecuzione.
     try {
-      const oldCountRaw = (typeof cache.get === 'function')
-        ? cache.get(RESOURCE_CACHE_PARTS_KEY)
-        : null;
-      const oldCount = parseInt(oldCountRaw || '0', 10);
-      const staleKeys = [RESOURCE_CACHE_PARTS_KEY];
-      if (Number.isFinite(oldCount) && oldCount > 0) {
-        for (let i = 0; i < oldCount; i++) {
-          staleKeys.push(`${RESOURCE_CACHE_PART_PREFIX}${i}`);
-        }
-      }
-
-      if (typeof cache.removeAll === 'function') {
-        cache.removeAll(staleKeys);
-      } else if (typeof cache.remove === 'function') {
-        staleKeys.forEach((key) => cache.remove(key));
+      if (typeof cache.remove === 'function') {
+        cache.remove(RESOURCE_CACHE_KEY_V1);
       }
     } catch (_) {}
 
@@ -1103,12 +1098,16 @@ function _writeResourceCachePayload(cache, payload) {
   });
   values[RESOURCE_CACHE_PARTS_KEY] = String(parts.length);
 
-  // Evita mismatch tra vecchio inline e nuovo multipart.
-  try {
-    if (typeof cache.remove === 'function') cache.remove(RESOURCE_CACHE_KEY_V2);
-  } catch (_) {}
-
+  // Scriviamo prima il nuovo multipart e rimuoviamo l'inline solo dopo: così
+  // un errore a metà write lascia al reader un payload precedente valido invece
+  // di una cache vuota/incompleta.
   cache.putAll(values, RESOURCE_CACHE_TTL_SECONDS);
+  try {
+    if (typeof cache.remove === 'function') {
+      cache.remove(RESOURCE_CACHE_KEY_V2);
+      cache.remove(RESOURCE_CACHE_KEY_V1);
+    }
+  } catch (_) {}
   console.warn(`⚠️ Cache risorse salvata in modalità multipart (${parts.length} chunk).`);
 }
 
@@ -1316,6 +1315,19 @@ function _isWeekdayCellLabel(value) {
   return _weekdayIndexFromLabel(value) !== null;
 }
 
+function _isBlankSuspensionCell_(value) {
+  if (value == null) return true;
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === '' || normalized === '-' || normalized === '—' || normalized === 'null' || normalized === 'undefined';
+}
+
+function _getSuspensionHourInputCells_(row) {
+  const cells = Array.isArray(row) ? row : [];
+  if (_isWeekdayCellLabel(cells[0])) return [cells[1], cells[3]];
+  if (_isWeekdayCellLabel(cells[1])) return [cells[2], cells[3]];
+  return cells.filter((cell) => !_isWeekdayCellLabel(cell));
+}
+
 function _extractSuspensionHoursFromRow(row) {
   const cells = Array.isArray(row) ? row : [];
 
@@ -1455,10 +1467,14 @@ function _loadAdvancedConfig(ss) {
       const day = (labeledDay !== null) ? labeledDay : ((legacyLabeledDay !== null) ? legacyLabeledDay : fallbackDay);
       const startHour = extracted.startHour;
       const endHour = extracted.endHour;
-      if (startHour == null || endHour == null) return;
+      const hourInputCells = _getSuspensionHourInputCells_(r);
+      const hasAnyHourInput = hourInputCells.some((cell) => !_isBlankSuspensionCell_(cell));
+      if (startHour == null && endHour == null && !hasAnyHourInput) return;
+      if (startHour == null || endHour == null) {
+        throw new Error(`Configurazione oraria non valida nel foglio Controllo alla riga ${i + 10}: servono ora inizio e fine valide.`);
+      }
       if (startHour === endHour) {
-        console.warn(`⚠️ Fascia sospensione non valida per giorno ${day}: ora inizio e fine coincidono (${startHour}). Riga ignorata.`);
-        return;
+        throw new Error(`Configurazione oraria non valida nel foglio Controllo alla riga ${i + 10}: ora inizio e fine coincidono (${startHour}).`);
       }
 
       if (!config.suspensionRules[day]) {
@@ -1493,9 +1509,7 @@ function _loadAdvancedConfig(ss) {
     if (Object.keys(config.suspensionRules).length === 0) {
       const strictSuspensionConfig = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.STRICT_SUSPENSION_CONFIG === true);
       if (strictSuspensionConfig) {
-        // null = fallback sicuro a SUSPENSION_HOURS in isInSuspensionTime
-        config.suspensionRules = null;
-        console.warn("⚠️ Foglio 'Controllo' presente ma senza fasce valide: STRICT_SUSPENSION_CONFIG=true, applico fallback orari statici.");
+        throw new Error("Foglio 'Controllo' presente ma senza fasce sospensione valide: STRICT_SUSPENSION_CONFIG=true impedisce il fallback statico silenzioso.");
       } else {
         console.warn("⚠️ Foglio 'Controllo' presente ma senza fasce sospensione valide: sistema operativo 24/7 finché non vengono configurate regole.");
       }
