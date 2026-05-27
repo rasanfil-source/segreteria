@@ -374,6 +374,31 @@ console.log('--- Test discovery metadata: label terminale message-level esclude 
   assert(inheritedResult.threads.length === 0, 'label IA a livello messaggio deve chiudere il messaggio anche se resta unread');
 }
 
+console.log('--- Test discovery metadata: staleOnlyMs null non attiva filtro stale ---');
+{
+  const serviceNullStale = new GmailService();
+  serviceNullStale._listMessagesWithResilience = () => ({
+    messages: [{ id: 'm-worker', threadId: 't-worker' }],
+    nextPageToken: null
+  });
+  serviceNullStale._getOptionalLabelIdByName = () => null;
+  serviceNullStale._getMessageMetadataWithResilience = () => ({
+    labelIds: ['INBOX', 'UNREAD', 'IMPORTANT', 'CATEGORY_PERSONAL']
+  });
+
+  global.GmailApp = {
+    getThreadById: (threadId) => ({
+      getId: () => threadId,
+      getMessages: () => []
+    }),
+    search: () => []
+  };
+
+  const nullStaleResult = serviceNullStale._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 10, 1, [], { staleOnlyMs: null });
+  assert(nullStaleResult.threads.length === 1, 'staleOnlyMs null non deve scartare un messaggio INBOX/UNREAD pulito');
+  assert(nullStaleResult.threads[0].getId() === 't-worker', 'metadata mode deve includere il thread eleggibile');
+}
+
 console.log('--- Test metadata fallback unread: limita scansione ai messaggi recenti ---');
 {
   const serviceBoundedThread = new GmailService();

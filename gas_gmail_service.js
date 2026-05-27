@@ -736,9 +736,7 @@ var GmailService = class GmailService {
                         continue;
                     }
 
-                    const staleOnlyMs = options && Number.isFinite(Number(options.staleOnlyMs))
-                        ? Number(options.staleOnlyMs)
-                        : null;
+                    const staleOnlyMs = this._getFiniteOptionNumber_(options, 'staleOnlyMs');
                     if (Number.isFinite(staleOnlyMs)) {
                         let unreadMessages = [];
                         try {
@@ -893,9 +891,7 @@ var GmailService = class GmailService {
 
     _filterUnreadMessagesForDiscovery_(messages, options = {}) {
         const sourceMessages = Array.isArray(messages) ? messages : [];
-        const staleOnlyMs = options && Number.isFinite(Number(options.staleOnlyMs))
-            ? Number(options.staleOnlyMs)
-            : null;
+        const staleOnlyMs = this._getFiniteOptionNumber_(options, 'staleOnlyMs');
 
         const matchesStaleWindow = (message) => {
             if (!Number.isFinite(staleOnlyMs)) return true;
@@ -955,6 +951,14 @@ var GmailService = class GmailService {
             ? Number(options.metadataDiscoveryMaxGets)
             : Number(this._metadataDiscoveryMaxGets || 120);
         return Math.max(1, Math.min(pageBound, Math.floor(configuredLimit)));
+    }
+
+    _getFiniteOptionNumber_(options, key) {
+        if (!options || typeof options !== 'object') return null;
+        const rawValue = options[key];
+        if (rawValue === null || rawValue === undefined || rawValue === '') return null;
+        const value = Number(rawValue);
+        return Number.isFinite(value) ? value : null;
     }
 
     _normalizeSkipLabels_(skipLabel) {

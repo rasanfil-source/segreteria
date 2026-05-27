@@ -572,12 +572,12 @@ var EmailProcessor = class EmailProcessor {
         return !ownAddresses.has(this._normalizeEmailAddress_(senderEmail));
       });
 
-      if (options && Number.isFinite(Number(options.staleOnlyMs))) {
-        const staleThresholdMs = Number(options.staleOnlyMs);
+      const staleOnlyMs = this._getFiniteOptionNumber_(options, 'staleOnlyMs');
+      if (Number.isFinite(staleOnlyMs)) {
         const hasRecentExternalUnread = externalUnread.some(message => {
           const msgDate = (message && typeof message.getDate === 'function') ? message.getDate() : null;
           const messageTs = (msgDate && typeof msgDate.getTime === 'function') ? msgDate.getTime() : NaN;
-          return Number.isFinite(messageTs) && messageTs > staleThresholdMs;
+          return Number.isFinite(messageTs) && messageTs > staleOnlyMs;
         });
 
         if (hasRecentExternalUnread) {
@@ -607,7 +607,7 @@ var EmailProcessor = class EmailProcessor {
             const isOwnMessage = senderEmail && ownAddresses.has(this._normalizeEmailAddress_(senderEmail));
             if (isOwnMessage) {
               internalUnread.push(message);
-            } else if (options && Number.isFinite(Number(options.staleOnlyMs))) {
+            } else if (Number.isFinite(staleOnlyMs)) {
               console.log(`   ℹ️ Stale-only: preservo messaggio esterno recente ${message.getId()} per il ciclo normale`);
             }
           }
@@ -634,7 +634,7 @@ var EmailProcessor = class EmailProcessor {
       if (externalUnread.length === 0) {
         threadLogger.info('Saltato: nessun nuovo messaggio esterno non letto');
         // In modalità stale-only i messaggi recenti devono restare eleggibili per il ciclo normale.
-        const isStaleOnlyRun = options && Number.isFinite(Number(options.staleOnlyMs));
+        const isStaleOnlyRun = Number.isFinite(staleOnlyMs);
         if (!isStaleOnlyRun) {
           // Messaggi interni (nostri/alias): sono già gestiti, ma non sono rinvii per lingua.
           // Per questo usiamo IA come chiusura tecnica e non il punto medio ('·').
@@ -2406,6 +2406,12 @@ ${addressLines.join('\n\n')}
             Math.max(getEffectiveMaxEmailsPerRun() * DISCOVERY_POOL_MULTIPLIER, 20)
           );
   
+          const discoveryOptions = {};
+          const staleOnlyMs = this._getFiniteOptionNumber_(options, 'staleOnlyMs');
+          if (Number.isFinite(staleOnlyMs)) {
+            discoveryOptions.staleOnlyMs = staleOnlyMs;
+          }
+
           threads = this.gmailService.getUnprocessedUnreadThreads(
             this.config.labelName,
             this.config.errorLabelName,
@@ -2414,11 +2420,7 @@ ${addressLines.join('\n\n')}
             discoveryPoolSize,
             3,
             labelsDaIgnorare,
-            {
-              staleOnlyMs: options && Number.isFinite(Number(options.staleOnlyMs))
-                ? Number(options.staleOnlyMs)
-                : null
-            }
+            discoveryOptions
           );
         }
       } catch (e) {
@@ -2985,6 +2987,14 @@ ${addressLines.join('\n\n')}
     }
 
     return `${local}@${domain}`;
+  }
+
+  _getFiniteOptionNumber_(options, key) {
+    if (!options || typeof options !== 'object') return null;
+    const rawValue = options[key];
+    if (rawValue === null || rawValue === undefined || rawValue === '') return null;
+    const value = Number(rawValue);
+    return Number.isFinite(value) ? value : null;
   }
 
   _shouldTryOcr(body, subject, hasAttachments = false) {

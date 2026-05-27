@@ -224,6 +224,26 @@ console.log('--- Test processUnreadEmails: passa staleOnlyMs alla discovery Gmai
   );
 }
 
+console.log('--- Test processUnreadEmails: staleOnlyMs null non viene propagato ---');
+{
+  let capturedDiscoveryOptions = null;
+  const processor = new EmailProcessor({
+    gmailService: {
+      getUnprocessedUnreadThreads: function () {
+        capturedDiscoveryOptions = arguments[7];
+        return [];
+      }
+    }
+  });
+
+  const stats = processor.processUnreadEmails('kb', '', true, false, { staleOnlyMs: null });
+  assert(stats.total === 0, 'batch normale senza thread deve restare vuoto');
+  assert(
+    capturedDiscoveryOptions && !Object.prototype.hasOwnProperty.call(capturedDiscoveryOptions, 'staleOnlyMs'),
+    'staleOnlyMs null non deve diventare staleOnlyMs=0 nella discovery Gmail'
+  );
+}
+
 console.log('--- Test _trackEmptyInboxStreak: cache unavailable resetta valore logico su inbox non vuota ---');
 {
   const originalCacheService = global.CacheService;
