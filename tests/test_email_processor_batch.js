@@ -258,6 +258,87 @@ console.log('--- Test processThread: non rilascia ScriptLock se tryLock fallisce
   }
 }
 
+console.log('--- Test thread lock: PropertiesService blocca un cache miss concorrente ---');
+{
+  const originalPropertiesService = global.PropertiesService;
+  const originalLockService = global.LockService;
+  cacheStore.clear();
+  const props = new Map();
+  props.set('thread_lock_t-prop', `${Date.now()}_other`);
+  let releaseCalled = false;
+
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: (k) => props.get(k) || '',
+      setProperty: (k, v) => props.set(k, v),
+      deleteProperty: (k) => props.delete(k)
+    })
+  };
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => true,
+      releaseLock: () => {
+        releaseCalled = true;
+      }
+    })
+  };
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    const res = processor._acquireThreadLock('t-prop', false, global.createLogger());
+    assert(res.ok === false && res.reason === 'thread_locked', 'lock persistente fresco deve bloccare anche se CacheService non vede la chiave');
+    assert(cacheStore.get('thread_lock_t-prop') == null, 'non deve scrivere un nuovo lock cache quando quello persistente è già attivo');
+    assert(releaseCalled === true, 'deve rilasciare lo ScriptLock breve dopo il controllo atomico');
+  } finally {
+    global.PropertiesService = originalPropertiesService;
+    global.LockService = originalLockService;
+    cacheStore.clear();
+  }
+}
+
+console.log('--- Test thread lock: release rimuove cache e PropertiesService solo se combaciano ---');
+{
+  const originalLockService = global.LockService;
+  const props = new Map();
+  const key = 'thread_lock_t-release';
+  const value = `${Date.now()}_mine`;
+  const propsApi = {
+    getProperty: (k) => props.get(k) || '',
+    setProperty: (k, v) => props.set(k, v),
+    deleteProperty: (k) => props.delete(k)
+  };
+  cacheStore.clear();
+  props.set(key, value);
+  cacheStore.set(key, value);
+  let releaseCalled = false;
+
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => true,
+      releaseLock: () => {
+        releaseCalled = true;
+      }
+    })
+  };
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    processor._releaseThreadLock({
+      acquired: true,
+      cache: global.CacheService.getScriptCache(),
+      properties: propsApi,
+      key,
+      value
+    }, global.createLogger());
+    assert(!props.has(key), 'release deve eliminare il lock persistente proprio');
+    assert(!cacheStore.has(key), 'release deve eliminare il lock cache proprio');
+    assert(releaseCalled === true, 'release deve liberare lo ScriptLock breve se lo acquisisce');
+  } finally {
+    global.LockService = originalLockService;
+    cacheStore.clear();
+  }
+}
+
 console.log('--- Test processUnreadEmails: stop preventivo per tempo insufficiente ---');
 {
   const threadA = createThread({ id: 'ta', messages: [createMessage({ id: 'ma', unread: true })] });
@@ -2081,6 +2162,72 @@ console.log('--- Test checkpoint trigger: preserva trigger esistenti se create f
     processor._storeBatchCheckpointAndScheduleContinuation_([{ getId: () => 't200' }], 0, 25000);
     assert(props.has('EMAIL_BATCH_CHECKPOINT'), 'il checkpoint deve essere salvato anche se il trigger nuovo fallisce');
     assert(deleteCalls === 0, 'i trigger esistenti non devono essere eliminati se create fallisce');
+  } finally {
+    global.PropertiesService = originalPropertiesService;
+    global.ScriptApp = originalScriptApp;
+  }
+}
+
+console.log('--- Test checkpoint trigger: elimina trigger di ripresa vecchi dopo create riuscito ---');
+{
+  const props = new Map();
+  const existingResumeTrigger = { id: 'old-resume', getHandlerFunction: () => 'resumeEmailBatchFromCheckpoint' };
+  const otherTrigger = { id: 'other', getHandlerFunction: () => 'dailyMain' };
+  const createdTrigger = { id: 'new-resume', getHandlerFunction: () => 'resumeEmailBatchFromCheckpoint' };
+  const deleted = [];
+  const originalPropertiesService = global.PropertiesService;
+  const originalScriptApp = global.ScriptApp;
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      setProperty: (k, v) => props.set(k, v),
+      getProperty: (k) => props.get(k) || '',
+      deleteProperty: (k) => props.delete(k)
+    })
+  };
+  global.ScriptApp = {
+    getProjectTriggers: () => [existingResumeTrigger, otherTrigger],
+    deleteTrigger: (trigger) => { deleted.push(trigger.id); },
+    newTrigger: () => ({
+      timeBased: () => ({
+        after: () => ({ create: () => createdTrigger })
+      })
+    })
+  };
+  try {
+    const processor = new EmailProcessor({ gmailService: { getUnprocessedUnreadThreads: () => [] } });
+    processor._storeBatchCheckpointAndScheduleContinuation_([{ getId: () => 't201' }], 0, 25000);
+    assert(deleted.includes('old-resume'), 'deve eliminare il trigger di ripresa preesistente dopo aver creato quello nuovo');
+    assert(!deleted.includes('other'), 'non deve eliminare trigger di altri handler');
+    assert(!deleted.includes('new-resume'), 'non deve eliminare il trigger appena creato');
+  } finally {
+    global.PropertiesService = originalPropertiesService;
+    global.ScriptApp = originalScriptApp;
+  }
+}
+
+console.log('--- Test checkpoint clear: elimina checkpoint e trigger di ripresa orfani ---');
+{
+  const props = new Map([['EMAIL_BATCH_CHECKPOINT', '{"version":2}']]);
+  const existingResumeTrigger = { id: 'old-resume-clear', getHandlerFunction: () => 'resumeEmailBatchFromCheckpoint' };
+  const otherTrigger = { id: 'other-clear', getHandlerFunction: () => 'dailyMain' };
+  const deleted = [];
+  const originalPropertiesService = global.PropertiesService;
+  const originalScriptApp = global.ScriptApp;
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: (k) => props.get(k) || '',
+      deleteProperty: (k) => props.delete(k)
+    })
+  };
+  global.ScriptApp = {
+    getProjectTriggers: () => [existingResumeTrigger, otherTrigger],
+    deleteTrigger: (trigger) => { deleted.push(trigger.id); }
+  };
+  try {
+    const processor = new EmailProcessor({ gmailService: { getUnprocessedUnreadThreads: () => [] } });
+    processor._clearBatchCheckpoint_('test');
+    assert(!props.has('EMAIL_BATCH_CHECKPOINT'), 'clear deve rimuovere il payload checkpoint');
+    assert(deleted.length === 1 && deleted[0] === 'old-resume-clear', 'clear deve eliminare solo i trigger di ripresa batch');
   } finally {
     global.PropertiesService = originalPropertiesService;
     global.ScriptApp = originalScriptApp;

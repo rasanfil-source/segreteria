@@ -136,13 +136,20 @@ var EmailProcessor = class EmailProcessor {
     const scriptCache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
       ? CacheService.getScriptCache()
       : null;
+    const scriptProps = (typeof PropertiesService !== 'undefined' &&
+      PropertiesService &&
+      typeof PropertiesService.getScriptProperties === 'function')
+      ? PropertiesService.getScriptProperties()
+      : null;
+    const canReadPersistentLock = !!(scriptProps && typeof scriptProps.getProperty === 'function');
+    const canWritePersistentLock = !!(canReadPersistentLock && typeof scriptProps.setProperty === 'function');
     const threadLockKey = `thread_lock_${threadId}`;
 
-    if (!scriptCache || typeof LockService === 'undefined' || !LockService || typeof LockService.getScriptLock !== 'function') {
+    if ((!scriptCache && !canWritePersistentLock) || typeof LockService === 'undefined' || !LockService || typeof LockService.getScriptLock !== 'function') {
       if (threadLogger && typeof threadLogger.warn === 'function') {
         threadLogger.warn('Lock service/cache non disponibili: procedo senza lock');
       }
-      return { ok: true, acquired: false, cache: scriptCache, key: threadLockKey, value: null };
+      return { ok: true, acquired: false, cache: scriptCache, properties: scriptProps, key: threadLockKey, value: null };
     }
 
     const configuredTtl = (typeof CONFIG !== 'undefined' && Number(CONFIG.CACHE_LOCK_TTL))
@@ -155,6 +162,35 @@ var EmailProcessor = class EmailProcessor {
       : `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const scriptLock = LockService.getScriptLock();
     let scriptLockAcquired = false;
+    const isStaleLock = (lockValue) => {
+      if (!lockValue) return false;
+      const existingTimestamp = Number(String(lockValue).split('_')[0]);
+      return Number.isFinite(existingTimestamp) && (Date.now() - existingTimestamp) > lockTtlMs;
+    };
+    const readExistingLocks = () => {
+      const locks = [];
+      if (canReadPersistentLock) {
+        try {
+          const persistentLock = scriptProps.getProperty(threadLockKey);
+          if (persistentLock) locks.push({ source: 'properties', value: persistentLock });
+        } catch (e) {
+          if (threadLogger && typeof threadLogger.warn === 'function') {
+            threadLogger.warn(`Lettura lock persistente fallita: ${e.message}`);
+          }
+        }
+      }
+      if (scriptCache && typeof scriptCache.get === 'function') {
+        try {
+          const cachedLock = scriptCache.get(threadLockKey);
+          if (cachedLock) locks.push({ source: 'cache', value: cachedLock });
+        } catch (e) {
+          if (threadLogger && typeof threadLogger.warn === 'function') {
+            threadLogger.warn(`Lettura lock cache fallita: ${e.message}`);
+          }
+        }
+      }
+      return locks;
+    };
 
     try {
       if (skipLock) {
@@ -174,32 +210,53 @@ var EmailProcessor = class EmailProcessor {
         }
       }
 
-      const existingLock = scriptCache.get(threadLockKey);
-      if (existingLock) {
-        const existingTimestamp = Number(String(existingLock).split('_')[0]);
-        const isStale = !isNaN(existingTimestamp) && (Date.now() - existingTimestamp) > lockTtlMs;
+      const existingLocks = readExistingLocks();
+      const activeLock = existingLocks.find(lock => !isStaleLock(lock.value));
+      if (activeLock) {
+        if (threadLogger && typeof threadLogger.warn === 'function') {
+          threadLogger.warn('Thread lockato da altro processo, salto');
+        }
+        return { ok: false, reason: 'thread_locked' };
+      }
+      if (existingLocks.length > 0 && threadLogger && typeof threadLogger.warn === 'function') {
+        threadLogger.warn('Lock stale rilevato, sovrascrittura lock');
+      }
 
-        if (isStale) {
-          if (threadLogger && typeof threadLogger.warn === 'function') {
-            threadLogger.warn('Lock stale rilevato, sovrascrittura lock');
-          }
-        } else {
-          if (threadLogger && typeof threadLogger.warn === 'function') {
-            threadLogger.warn('Thread lockato da altro processo, salto');
-          }
-          return { ok: false, reason: 'thread_locked' };
+      let lockWritten = false;
+      const writeErrors = [];
+      if (canWritePersistentLock) {
+        try {
+          scriptProps.setProperty(threadLockKey, value);
+          lockWritten = true;
+        } catch (e) {
+          writeErrors.push(e);
         }
       }
 
-      scriptCache.put(threadLockKey, value, ttlSeconds);
-      if (scriptCache.get(threadLockKey) !== value) {
+      if (scriptCache && typeof scriptCache.put === 'function') {
+        try {
+          scriptCache.put(threadLockKey, value, ttlSeconds);
+          lockWritten = true;
+        } catch (e) {
+          writeErrors.push(e);
+        }
+      }
+
+      if (!lockWritten) {
+        throw writeErrors[0] || new Error('Nessun backend lock scrivibile');
+      }
+
+      const persistentVerified = !canWritePersistentLock || scriptProps.getProperty(threadLockKey) === value;
+      const cacheVerified = !(scriptCache && typeof scriptCache.get === 'function' && !canWritePersistentLock) ||
+        scriptCache.get(threadLockKey) === value;
+      if (!persistentVerified || !cacheVerified) {
         return { ok: false, reason: 'thread_lock_collision' };
       }
 
       if (threadLogger && typeof threadLogger.debug === 'function') {
         threadLogger.debug('Lock acquisito');
       }
-      return { ok: true, acquired: true, cache: scriptCache, key: threadLockKey, value: value };
+      return { ok: true, acquired: true, cache: scriptCache, properties: scriptProps, key: threadLockKey, value: value };
     } catch (e) {
       if (threadLogger && typeof threadLogger.warn === 'function') {
         threadLogger.warn(`Errore acquisizione lock thread: ${e.message}`);
@@ -215,24 +272,68 @@ var EmailProcessor = class EmailProcessor {
   }
 
   _releaseThreadLock(lockCtx, threadLogger) {
-    if (!lockCtx || !lockCtx.acquired || !lockCtx.cache || !lockCtx.key) return;
+    if (!lockCtx || !lockCtx.acquired || !lockCtx.key) return;
+    let scriptLock = null;
+    let scriptLockAcquired = false;
     try {
-      const currentLockValue = lockCtx.cache.get(lockCtx.key);
-      if (currentLockValue === lockCtx.value) {
-        lockCtx.cache.remove(lockCtx.key);
+      if (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function') {
+        scriptLock = LockService.getScriptLock();
+        if (scriptLock && typeof scriptLock.tryLock === 'function') {
+          scriptLockAcquired = scriptLock.tryLock(500);
+        }
+      }
+    } catch (_) { }
+
+    try {
+      let removed = false;
+      let sawForeignLock = false;
+      let sawNoLock = false;
+      if (lockCtx.properties &&
+        typeof lockCtx.properties.getProperty === 'function' &&
+        typeof lockCtx.properties.deleteProperty === 'function') {
+        const currentPersistentLockValue = lockCtx.properties.getProperty(lockCtx.key);
+        if (currentPersistentLockValue === lockCtx.value) {
+          lockCtx.properties.deleteProperty(lockCtx.key);
+          removed = true;
+        } else if (currentPersistentLockValue) {
+          sawForeignLock = true;
+        } else {
+          sawNoLock = true;
+        }
+      }
+
+      if (lockCtx.cache && typeof lockCtx.cache.get === 'function' && typeof lockCtx.cache.remove === 'function') {
+        const currentLockValue = lockCtx.cache.get(lockCtx.key);
+        if (currentLockValue === lockCtx.value) {
+          lockCtx.cache.remove(lockCtx.key);
+          removed = true;
+        } else if (currentLockValue) {
+          sawForeignLock = true;
+        } else {
+          sawNoLock = true;
+        }
+      }
+
+      if (removed) {
         if (threadLogger && typeof threadLogger.debug === 'function') {
           threadLogger.debug('Lock rilasciato');
         }
-      } else if (currentLockValue) {
+      } else if (sawForeignLock) {
         if (threadLogger && typeof threadLogger.warn === 'function') {
           threadLogger.warn('Rilascio lock saltato (lock scaduto o di altro processo)');
         }
-      } else if (threadLogger && typeof threadLogger.debug === 'function') {
+      } else if (sawNoLock && threadLogger && typeof threadLogger.debug === 'function') {
         threadLogger.debug('Lock già scaduto naturalmente');
       }
     } catch (e) {
       if (threadLogger && typeof threadLogger.warn === 'function') {
         threadLogger.warn(`Errore rilascio lock: ${e.message}`);
+      }
+    } finally {
+      if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
+        try {
+          scriptLock.releaseLock();
+        } catch (_) { }
       }
     }
   }
@@ -2605,11 +2706,51 @@ ${addressLines.join('\n\n')}
         : null;
       if (props && typeof props.deleteProperty === 'function') {
         props.deleteProperty('EMAIL_BATCH_CHECKPOINT');
-        console.log(`🧹 Checkpoint batch ripulito (${reason || 'batch completato'}).`);
       }
+      this._deleteResumeBatchTriggers_(this._getResumeBatchTriggers_());
+      console.log(`🧹 Checkpoint batch ripulito (${reason || 'batch completato'}).`);
     } catch (e) {
       console.warn(`⚠️ Errore pulizia checkpoint batch: ${e.message}`);
     }
+  }
+
+  _getResumeBatchTriggers_() {
+    if (typeof ScriptApp === 'undefined' ||
+      !ScriptApp ||
+      typeof ScriptApp.getProjectTriggers !== 'function') {
+      return [];
+    }
+    try {
+      return ScriptApp.getProjectTriggers().filter(trigger => {
+        try {
+          return trigger &&
+            typeof trigger.getHandlerFunction === 'function' &&
+            trigger.getHandlerFunction() === 'resumeEmailBatchFromCheckpoint';
+        } catch (_) {
+          return false;
+        }
+      });
+    } catch (e) {
+      console.warn(`⚠️ Lettura trigger ripresa batch fallita: ${e.message}`);
+      return [];
+    }
+  }
+
+  _deleteResumeBatchTriggers_(triggers, keepTrigger) {
+    if (typeof ScriptApp === 'undefined' ||
+      !ScriptApp ||
+      typeof ScriptApp.deleteTrigger !== 'function') {
+      return 0;
+    }
+    let deleted = 0;
+    (Array.isArray(triggers) ? triggers : this._getResumeBatchTriggers_()).forEach(trigger => {
+      if (!trigger || (keepTrigger && trigger === keepTrigger)) return;
+      try {
+        ScriptApp.deleteTrigger(trigger);
+        deleted++;
+      } catch (_) { }
+    });
+    return deleted;
   }
 
   _getQuotaCheckpointDelayMs_(result, remainingTimeMs) {
@@ -2716,23 +2857,24 @@ ${addressLines.join('\n\n')}
         typeof ScriptApp.newTrigger === 'function');
 
       if (canManageTriggers) {
-        const existing = ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'resumeEmailBatchFromCheckpoint');
+        const existing = this._getResumeBatchTriggers_();
 
         if (delayMs === -1) {
-          existing.forEach((trigger) => {
-            try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
-          });
-          const conservativeResumeMs = 18 * 60 * 60 * 1000;
-          ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(conservativeResumeMs).create();
-          console.log(`⏸️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger pianificato tra ~18h (quota giornaliera Gmail esaurita).`);
+          try {
+            const conservativeResumeMs = 18 * 60 * 60 * 1000;
+            const createdTrigger = ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(conservativeResumeMs).create();
+            this._deleteResumeBatchTriggers_(existing, createdTrigger);
+            console.log(`⏸️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger pianificato tra ~18h (quota giornaliera Gmail esaurita).`);
+          } catch (triggerError) {
+            console.error(`❌ Impossibile creare trigger di ripresa batch; trigger preesistenti preservati: ${triggerError.message}`);
+          }
         } else {
           try {
             const safeDelayMs = Number.isFinite(delayMs) && delayMs > 0
               ? Math.max(1000, Math.floor(delayMs))
               : (60 * 1000);
-            ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(safeDelayMs).create();
-            // Non eliminiamo trigger preesistenti qui per evitare race tra run concorrenti
-            // che condividono l'handler ma possono avere checkpoint differenti.
+            const createdTrigger = ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(safeDelayMs).create();
+            this._deleteResumeBatchTriggers_(existing, createdTrigger);
             console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger pianificato tra ${(safeDelayMs / 1000).toFixed(0)}s.`);
           } catch (triggerError) {
             console.error(`❌ Impossibile creare trigger di ripresa batch; trigger preesistenti preservati: ${triggerError.message}`);
@@ -4870,7 +5012,7 @@ function computeSalutationMode({ isReply = false, memoryExists = false, lastUpda
 
   // 2️⃣ Conversazione attiva (qui isReply è necessariamente true)
   if (!lastUpdated) {
-    return 'none_or_continuity';
+    return 'full';
   }
 
   const parsedLastUpdated = (typeof parseDateSafe === 'function') ? parseDateSafe(lastUpdated, null) : new Date(lastUpdated);

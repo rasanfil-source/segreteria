@@ -681,9 +681,9 @@ function testComputeSalutationMode() {
     const first = computeSalutationMode({ isReply: false, messageCount: 1, memoryExists: false, lastUpdated: null });
     assert(first === 'full', `Primo messaggio: atteso "full", ottenuto "${first}"`);
 
-    // Reply con memoria senza timestamp → continuità (fallback conservativo)
+    // Reply con memoria senza timestamp → full (fallback conservativo)
     const reply = computeSalutationMode({ isReply: true, messageCount: 2, memoryExists: true, lastUpdated: null });
-    assert(reply === 'none_or_continuity', `Reply senza timestamp: atteso "none_or_continuity", ottenuto "${reply}"`);
+    assert(reply === 'full', `Reply senza timestamp: atteso "full", ottenuto "${reply}"`);
 
     // Reply dopo 5 giorni → full (nuovo contatto, > 72h)
     const fiveDaysAgo = new Date(NOW.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString();
