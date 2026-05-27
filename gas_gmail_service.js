@@ -617,10 +617,12 @@ var GmailService = class GmailService {
      * @param {number} [targetThreads=50]   - Numero di thread unici da raccogliere prima di fermarsi
      * @param {number} [maxPages=3]         - Limite pagine di paginazione per evitare loop
      * @param {string|string[]|null} [skipLabel=null]- Label dei messaggi da ignorare dinamicamente (es. '·')
+     * @param {object} [options={}]          - Opzioni discovery (es. staleOnlyMs)
      * @returns {GmailThread[]}             - Thread unici, già istanziati, con almeno un messaggio da elaborare
      */
-    getUnprocessedUnreadThreads(labelName, errorLabel, validationLabel, messageBuffer = 150, targetThreads = 50, maxPages = 3, skipLabel = null) {
+    getUnprocessedUnreadThreads(labelName, errorLabel, validationLabel, messageBuffer = 150, targetThreads = 50, maxPages = 3, skipLabel = null, options = {}) {
         const skipLabels = Array.isArray(skipLabel) ? skipLabel.filter(Boolean) : [skipLabel].filter(Boolean);
+        const discoveryOptions = (options && typeof options === 'object') ? options : {};
         const mode = (typeof CONFIG !== 'undefined' && CONFIG.MESSAGE_DISCOVERY_MODE)
             ? CONFIG.MESSAGE_DISCOVERY_MODE
             : 'query';
@@ -637,7 +639,8 @@ var GmailService = class GmailService {
                 safeMessageBuffer,
                 safeTargetThreads,
                 safeMaxPages,
-                skipLabels
+                skipLabels,
+                discoveryOptions
             ).threads;
         }
 
@@ -648,14 +651,15 @@ var GmailService = class GmailService {
             safeMessageBuffer,
             safeTargetThreads,
             safeMaxPages,
-            skipLabels
+            skipLabels,
+            discoveryOptions
         ).threads;
     }
 
     /**
      * Fallback prudente/manuale che verifica le label sul singolo messaggio via metadata.
      */
-    _discoverByMetadata(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null) {
+    _discoverByMetadata(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null, options = {}) {
         const processedLabelId = this._getOptionalLabelIdByName(labelName);
         const errorLabelId = this._getOptionalLabelIdByName(errorLabel);
         const validationLabelId = this._getOptionalLabelIdByName(validationLabel);
@@ -717,6 +721,20 @@ var GmailService = class GmailService {
                         continue;
                     }
 
+                    const staleOnlyMs = options && Number.isFinite(Number(options.staleOnlyMs))
+                        ? Number(options.staleOnlyMs)
+                        : null;
+                    if (Number.isFinite(staleOnlyMs)) {
+                        let unreadMessages = [];
+                        try {
+                            unreadMessages = this._filterUnreadMessagesForDiscovery_(thread.getMessages(), options);
+                        } catch (messagesError) {
+                            console.warn(`⚠️ Errore lettura messaggi thread ${msg.threadId}: ${messagesError.message}`);
+                            continue;
+                        }
+                        if (unreadMessages.length === 0) continue;
+                    }
+
                     seenThreadIds.add(msg.threadId);
                     seenMessageIds.add(msg.id);
                     threads.push(thread);
@@ -743,7 +761,7 @@ var GmailService = class GmailService {
     /**
      * Default operativo: variante più economica che usa la query testuale di Gmail.
      */
-    _discoverByQuery(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null) {
+    _discoverByQuery(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null, options = {}) {
         const skipLabels = Array.isArray(skipLabel) ? skipLabel.filter(Boolean) : [skipLabel].filter(Boolean);
         // Non escludere labelName (es. IA): Gmail query può valutare label a livello thread
         // e nascondere nuovi follow-up non letti in thread già processati.
@@ -795,7 +813,7 @@ var GmailService = class GmailService {
                 // Verifichiamo che ci sia almeno un messaggio non letto nel thread
                 // (GmailApp.search(is:unread) garantisce questo ma facciamo un check veloce)
                 const messages = thread.getMessages();
-                const unreadMessages = messages.filter(m => m.isUnread());
+                const unreadMessages = this._filterUnreadMessagesForDiscovery_(messages, options);
                 
                 if (unreadMessages.length > 0) {
                     seenThreadIds.add(threadId);
@@ -817,6 +835,22 @@ var GmailService = class GmailService {
             console.error(`❌ _discoverByQuery fallito: ${e.message}`);
             throw e;
         }
+    }
+
+    _filterUnreadMessagesForDiscovery_(messages, options = {}) {
+        const sourceMessages = Array.isArray(messages) ? messages : [];
+        const staleOnlyMs = options && Number.isFinite(Number(options.staleOnlyMs))
+            ? Number(options.staleOnlyMs)
+            : null;
+
+        return sourceMessages.filter(message => {
+            if (!message || typeof message.isUnread !== 'function' || !message.isUnread()) return false;
+            if (!Number.isFinite(staleOnlyMs)) return true;
+
+            const msgDate = (typeof message.getDate === 'function') ? message.getDate() : null;
+            const msgTime = msgDate && typeof msgDate.getTime === 'function' ? msgDate.getTime() : NaN;
+            return Number.isFinite(msgTime) && msgTime <= staleOnlyMs;
+        });
     }
 
 

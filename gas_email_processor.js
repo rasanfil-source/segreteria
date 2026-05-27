@@ -513,17 +513,12 @@ var EmailProcessor = class EmailProcessor {
       // - IA chiude i messaggi già gestiti tecnicamente (esterni filtrati, interni/nostri).
       // - '·' indica solo una email italiana rimandata perché siamo in modalità foreign_only.
       // Tenere separate queste due funzioni evita che il punto medio compaia in modalità "Tutte le lingue".
-      markHandledUnread = (markOptions = {}) => {
-        const preserveExternalSecondaries = !!markOptions.preserveExternalSecondaries;
-        const candidateId = candidate && typeof candidate.getId === 'function' ? candidate.getId() : null;
+      markHandledUnread = () => {
         const externalIds = new Set(externalUnread.map(m => m.getId()));
         const internalUnread = [];
         unlabeledUnread.forEach(message => {
           const messageId = message.getId();
           if (externalIds.has(messageId)) {
-            if (preserveExternalSecondaries && candidateId && messageId !== candidateId) {
-              return;
-            }
             this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
           } else {
             const rawFrom = (message && typeof message.getFrom === 'function') ? (message.getFrom() || '') : '';
@@ -1023,8 +1018,12 @@ var EmailProcessor = class EmailProcessor {
         const quickErrorMessage = quickError && quickError.message ? quickError.message : String(quickError);
         const isSystemic = quickErrorClass.type === 'SYSTEM_ERROR' || quickErrorClass.type === 'CONFIG_ERROR' || quickErrorClass.type === 'INVALID_API_KEY' || /\b(401|403|404)\b/.test(quickErrorMessage);
         if (!quickErrorClass.retryable && !isSystemic) {
-          console.warn(`   ⚠️ Gemini quick check fallito: ${quickErrorMessage}. Applico etichetta errore per evitare loop.`);
-          this._addErrorLabel(candidate || thread);
+          console.warn(`   ⚠️ Gemini quick check fallito: ${quickErrorMessage}. Applico etichetta errore al burst corrente per evitare loop.`);
+          try {
+            markFailureForCurrentBurst('error');
+          } catch (markError) {
+            threadLogger.warn(`Errore label quick-check silenziato: ${markError.message}`);
+          }
         } else {
           console.warn(`   ↻ Gemini quick check fallito con errore retryable o di sistema (${quickErrorClass.type}): ${quickErrorMessage}. Nessuna label permanente.`);
         }
@@ -1035,8 +1034,12 @@ var EmailProcessor = class EmailProcessor {
       }
 
       if (!quickCheck || typeof quickCheck !== 'object') {
-        console.warn('   ⚠️ Gemini quick check ha restituito una risposta vuota/non valida: applico etichetta errore per evitare loop.');
-        this._addErrorLabel(candidate || thread);
+        console.warn('   ⚠️ Gemini quick check ha restituito una risposta vuota/non valida: applico etichetta errore al burst corrente per evitare loop.');
+        try {
+          markFailureForCurrentBurst('error');
+        } catch (markError) {
+          threadLogger.warn(`Errore label quick-check non valido silenziato: ${markError.message}`);
+        }
         result.status = 'error';
         result.error = 'quick_check_failed';
         return result;
@@ -1060,15 +1063,20 @@ var EmailProcessor = class EmailProcessor {
       if (!quickCheck.shouldRespond) {
         console.log(`   ⊖ Gemini quick check: nessuna risposta necessaria (${quickCheck.reason})`);
         if (quickCheck.reason === 'quick_check_failed') {
-          console.warn('   ⚠️ Gemini quick check fallito: applico etichetta errore per evitare retry infiniti.');
-          this._addErrorLabel(candidate || thread);
+          console.warn('   ⚠️ Gemini quick check fallito: applico etichetta errore al burst corrente per evitare retry infiniti.');
+          try {
+            markFailureForCurrentBurst('error');
+          } catch (markError) {
+            threadLogger.warn(`Errore label quick-check failed silenziato: ${markError.message}`);
+          }
           result.status = 'error';
           result.error = 'quick_check_failed';
           return result;
         }
-        // Quick check valuta solo il candidato: marca quello filtrato,
-        // ma lascia gli esterni secondari eleggibili per il prossimo trigger.
-        markHandledUnread({ preserveExternalSecondaries: true });
+        // Il quick check riceve il corpo accorpato del burst quando esistono piu'
+        // messaggi ravvicinati: se decide NO_REPLY, chiudiamo l'intero blocco
+        // per evitare rielaborazioni retrograde dei messaggi precedenti.
+        markHandledUnread();
         result.status = 'filtered';
         return result;
       }
@@ -2326,7 +2334,12 @@ ${addressLines.join('\n\n')}
             this.config.searchPageSize || 150,
             discoveryPoolSize,
             3,
-            labelsDaIgnorare
+            labelsDaIgnorare,
+            {
+              staleOnlyMs: options && Number.isFinite(Number(options.staleOnlyMs))
+                ? Number(options.staleOnlyMs)
+                : null
+            }
           );
         }
       } catch (e) {

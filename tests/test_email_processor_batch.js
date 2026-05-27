@@ -182,6 +182,27 @@ console.log('--- Test processThread: stale-only salta thread con follow-up ester
   assert(marked.length === 0, 'non deve marcare messaggi preservati per il ciclo normale');
 }
 
+console.log('--- Test processUnreadEmails: passa staleOnlyMs alla discovery Gmail ---');
+{
+  let capturedDiscoveryOptions = null;
+  const processor = new EmailProcessor({
+    gmailService: {
+      getUnprocessedUnreadThreads: function () {
+        capturedDiscoveryOptions = arguments[7];
+        return [];
+      }
+    }
+  });
+
+  const threshold = new Date('2026-05-09T00:00:00Z').getTime();
+  const stats = processor.processUnreadEmails('kb', '', true, false, { staleOnlyMs: threshold });
+  assert(stats.total === 0, 'batch stale-only senza thread deve restare vuoto');
+  assert(
+    capturedDiscoveryOptions && capturedDiscoveryOptions.staleOnlyMs === threshold,
+    'staleOnlyMs deve essere propagato a getUnprocessedUnreadThreads'
+  );
+}
+
 console.log('--- Test processThread: non rilascia ScriptLock se tryLock fallisce ---');
 {
   const originalLockService = global.LockService;

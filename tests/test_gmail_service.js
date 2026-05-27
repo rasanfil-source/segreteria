@@ -155,6 +155,39 @@ console.log('--- Test _discoverByQuery: non esclude label IA a livello thread --
   }
 }
 
+console.log('--- Test _discoverByQuery: staleOnlyMs esclude thread solo recenti ---');
+{
+  const originalGmailApp = global.GmailApp;
+  const staleDate = new Date('2026-05-10T08:00:00Z');
+  const recentDate = new Date('2026-05-11T08:00:00Z');
+  const threshold = new Date('2026-05-10T12:00:00Z').getTime();
+
+  const makeThread = (id, date) => ({
+    getId: () => id,
+    getMessages: () => [{
+      isUnread: () => true,
+      getId: () => `m-${id}`,
+      getDate: () => date
+    }]
+  });
+
+  global.GmailApp = {
+    search: () => [
+      makeThread('recent-only', recentDate),
+      makeThread('stale-only', staleDate)
+    ]
+  };
+
+  try {
+    const serviceQuery = new GmailService();
+    const result = serviceQuery._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, [], { staleOnlyMs: threshold });
+    assert(result.threads.length === 1, 'staleOnlyMs deve mantenere solo i thread con unread stale');
+    assert(result.threads[0].getId() === 'stale-only', 'deve includere il thread stale');
+  } finally {
+    global.GmailApp = originalGmailApp;
+  }
+}
+
 const service = new GmailService();
 
 console.log('--- Test _stripHtmlTags: pattern lineare su tag malformati ---');

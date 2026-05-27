@@ -228,7 +228,7 @@ console.log('--- Test processThread: alias Gmail recognized as unread internal -
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }
 
-console.log('--- Test processThread: quick check filtrato preserva secondari esterni ---');
+console.log('--- Test processThread: quick check filtrato marca tutto il burst esterno ---');
 {
   const originalSession = global.Session;
   const originalGmailApp = global.GmailApp;
@@ -280,7 +280,7 @@ console.log('--- Test processThread: quick check filtrato preserva secondari est
   const result = processorQuickFiltered.processThread(thread, '', [], new Set(), true);
   assert(result.status === 'filtered', 'quick check shouldRespond=false deve filtrare il candidato');
   assert(labeled.includes('m-candidate'), 'deve marcare il candidato filtrato per evitare retry infinito');
-  assert(!labeled.includes('m-secondary'), 'deve preservare il secondario esterno per un trigger successivo');
+  assert(labeled.includes('m-secondary'), 'deve marcare anche il secondario gia incluso nel burst valutato');
 
   global.Session = originalSession;
   global.GmailApp = originalGmailApp;
