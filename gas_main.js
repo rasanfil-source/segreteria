@@ -1065,11 +1065,28 @@ function _writeResourceCachePayload(cache, payload) {
 
   if (payload.length <= RESOURCE_CACHE_MAX_PART_SIZE) {
     // Scrittura inline: prevale sempre sul multipart.
-    cache.put(RESOURCE_CACHE_KEY_V2, payload, RESOURCE_CACHE_TTL_SECONDS);
-    // Pulizia best-effort dell'indice multipart (i chunk vecchi, se presenti, sono ignorati dal reader V2).
+    // Se prima esisteva un payload multipart, rimuoviamo anche i vecchi chunk
+    // per non lasciare quota CacheService occupata fino alla scadenza naturale.
     try {
-      if (typeof cache.remove === 'function') cache.remove(RESOURCE_CACHE_PARTS_KEY);
+      const oldCountRaw = (typeof cache.get === 'function')
+        ? cache.get(RESOURCE_CACHE_PARTS_KEY)
+        : null;
+      const oldCount = parseInt(oldCountRaw || '0', 10);
+      const staleKeys = [RESOURCE_CACHE_PARTS_KEY];
+      if (Number.isFinite(oldCount) && oldCount > 0) {
+        for (let i = 0; i < oldCount; i++) {
+          staleKeys.push(`${RESOURCE_CACHE_PART_PREFIX}${i}`);
+        }
+      }
+
+      if (typeof cache.removeAll === 'function') {
+        cache.removeAll(staleKeys);
+      } else if (typeof cache.remove === 'function') {
+        staleKeys.forEach((key) => cache.remove(key));
+      }
     } catch (_) {}
+
+    cache.put(RESOURCE_CACHE_KEY_V2, payload, RESOURCE_CACHE_TTL_SECONDS);
     return;
   }
 

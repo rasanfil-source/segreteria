@@ -1993,6 +1993,22 @@ ${addressLines.join('\n\n')}
           if (!retryResponse) break;
 
           retryResponse = this._extractEmailXmlBlock_(retryResponse);
+          retryResponse = this._addTimeDiscrepancyNoteIfNeeded(
+            retryResponse,
+            { ...messageDetails, body: messageDetails.body || '' },
+            detectedLanguage
+          );
+          retryResponse = this._sanitizeUnrequestedSponsorGuidance_(
+            retryResponse,
+            messageDetails.subject,
+            messageDetails.body,
+            detectedLanguage
+          );
+          if (/^it/i.test(detectedLanguage || 'it')) {
+            retryResponse = retryResponse.replace(/^(Caro|Cara|Carissimo|Carissima)\b/gm, 'Gentile');
+          } else if (/^pt/i.test(detectedLanguage || '')) {
+            retryResponse = retryResponse.replace(/^(Caro|Cara)\b/gm, 'Prezado');
+          }
 
           const preparedRetryResponse = this._prepareOutboundResponse(
             retryResponse,

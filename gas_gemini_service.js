@@ -45,7 +45,6 @@ var GeminiService = class GeminiService {
     this.apiKey = this.primaryKey;
 
     this.modelName = this.config.MODEL_NAME || 'gemini-3.5-flash';
-    this.baseUrl = this._buildGenerateUrl(this.modelName);
 
     if (!this.primaryKey || this.primaryKey.length < 20 || /YOUR_[A-Z0-9_]+_HERE/.test(this.primaryKey)) {
       throw new Error('GEMINI_API_KEY non configurata correttamente (usa Script Properties, non placeholder)');

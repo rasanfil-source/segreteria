@@ -1503,6 +1503,111 @@ console.log('--- Test processThread: INTELLIGENT_RETRY.maxRetries=0 disabilita r
   global.CONFIG.INTELLIGENT_RETRY = originalRetryConfig;
 }
 
+console.log('--- Test processThread: retry intelligente conserva nota oraria contestuale ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalRetryConfig = global.CONFIG.INTELLIGENT_RETRY;
+  global.CONFIG.VALIDATION_ENABLED = true;
+  global.CONFIG.INTELLIGENT_RETRY = {
+    enabled: true,
+    maxRetries: 1,
+    minScoreToTrigger: 0,
+    onlyForErrors: ['placeholder']
+  };
+
+  let generationCalls = 0;
+  const validatedTexts = [];
+  let sentText = null;
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Richiesta incontro',
+        body: 'Pensavo che l\'incontro fosse alle 10:00.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      removeLabelFromMessage: () => {},
+      removeLabelFromThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: (_candidate, responseText) => {
+        sentText = responseText;
+      }
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'info', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      backupKey: null,
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'incontro' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => {
+        generationCalls++;
+        return {
+          success: true,
+          text: generationCalls === 1
+            ? 'Risposta con XXX'
+            : 'L\'incontro è alle 11:00.'
+        };
+      }
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    validator: {
+      validateResponse: (text) => {
+        validatedTexts.push(text);
+        if (validatedTexts.length === 1) {
+          return {
+            isValid: false,
+            warnings: [],
+            errors: ['placeholder presente'],
+            score: 0.9,
+            details: { content: { foundPlaceholders: ['XXX'] } },
+            fixedResponse: null
+          };
+        }
+        return { isValid: true, warnings: [], errors: [], score: 1, details: {}, fixedResponse: null };
+      }
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: () => 'PROMPT'
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('retry-time-note'), 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'retry valido deve arrivare a replied');
+  assert(generationCalls === 2, `deve fare una generazione iniziale e un retry, chiamate=${generationCalls}`);
+  assert(validatedTexts.length === 2, 'deve validare risposta iniziale e retry');
+  assert(
+    validatedTexts[1].includes('orario diverso rispetto a quanto da Lei indicato'),
+    'il retry deve ricevere la stessa nota oraria della prima risposta'
+  );
+  assert(sentText === validatedTexts[1], 'il testo inviato deve coincidere con il retry validato');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.CONFIG.INTELLIGENT_RETRY = originalRetryConfig;
+}
+
 
 console.log('--- Test processThread: validationWarningThreshold=0 rispetta zero esplicito ---');
 {

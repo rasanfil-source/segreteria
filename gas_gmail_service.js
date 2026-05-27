@@ -722,6 +722,9 @@ var GmailService = class GmailService {
                 try {
                     response = this._listMessagesWithResilience(params);
                 } catch (listError) {
+                    if (listError && String(listError.message || '').includes('GMAIL_DAILY_CALL_LIMIT_REACHED')) {
+                        throw listError;
+                    }
                     console.error(`❌ [metadata] Interruzione discovery per list non recuperabile: ${listError.message}`);
                     break;
                 }

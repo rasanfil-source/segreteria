@@ -470,6 +470,27 @@ console.log('--- Test discovery metadata: blacklist RAM evita messages.get per c
   assert(ramResult.threads[0].getId() === 't-clean', 'deve includere il thread non presente in blacklist');
 }
 
+console.log('--- Test discovery metadata: quota Gmail viene propagata al batch ---');
+{
+  const serviceQuota = new GmailService();
+  serviceQuota._getOptionalLabelIdByName = () => null;
+  serviceQuota._listMessagesWithResilience = () => {
+    throw new Error('GMAIL_DAILY_CALL_LIMIT_REACHED (18000/18000)');
+  };
+
+  let thrown = null;
+  try {
+    serviceQuota._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 10, 1);
+  } catch (error) {
+    thrown = error;
+  }
+
+  assert(
+    thrown && String(thrown.message || '').includes('GMAIL_DAILY_CALL_LIMIT_REACHED'),
+    'la discovery metadata deve rilanciare GMAIL_DAILY_CALL_LIMIT_REACHED'
+  );
+}
+
 console.log('--- Test metadata fallback unread: limita scansione ai messaggi recenti ---');
 {
   const serviceBoundedThread = new GmailService();

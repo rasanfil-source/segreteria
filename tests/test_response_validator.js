@@ -108,6 +108,40 @@ assert(
   'deve segnalare ragionamento esposto critico'
 );
 
+console.log('--- Test validateResponse: estrae solo blocco <email> e ignora <analisi> ---');
+{
+  const xmlResult = validator.validateResponse(
+    '<analisi>Rivedendo la knowledge base, questo testo non deve essere validato.</analisi><email>Gentile utente, la ringraziamo per averci scritto. Cordiali saluti.</email>',
+    'it',
+    'La parrocchia risponde alle richieste degli utenti.',
+    'Vorrei informazioni.',
+    'Richiesta informazioni',
+    'full',
+    false
+  );
+
+  assert(xmlResult.isValid === true, 'il blocco <analisi> non deve causare thinking leak se <email> è presente');
+  assert(
+    xmlResult.metadata.responseLength === 'Gentile utente, la ringraziamo per averci scritto. Cordiali saluti.'.length,
+    'la risposta validata deve essere solo il contenuto del tag <email>'
+  );
+}
+
+console.log('--- Test validateResponse: fallback rimuove blocco <analisi> senza <email> ---');
+{
+  const fallbackResult = validator.validateResponse(
+    '<analisi>Rivedendo la knowledge base, questo testo va rimosso.</analisi>Gentile utente, la ringraziamo per averci scritto. Cordiali saluti.',
+    'it',
+    'La parrocchia risponde alle richieste degli utenti.',
+    'Vorrei informazioni.',
+    'Richiesta informazioni',
+    'full',
+    false
+  );
+
+  assert(fallbackResult.isValid === true, 'il fallback deve rimuovere <analisi> prima dei controlli anti reasoning leak');
+}
+
 console.log('--- Test _checkSignature (none_or_continuity) ---');
 const signatureResult = validator._checkSignature('Messaggio follow-up senza firma', 'none_or_continuity');
 assert(signatureResult.score === 1.0, 'in none_or_continuity la firma non deve penalizzare');

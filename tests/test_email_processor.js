@@ -216,6 +216,55 @@ console.log('--- Test _markMessageAsProcessed: rimuove skip label se supportato 
   assert(labeledIds.has('m-cleanup'), 'deve aggiungere il messageId al set dei già etichettati');
 }
 
+console.log('--- Test error/review labels: message-level con notifica review unica ---');
+{
+  const calls = [];
+  const processorLabels = new EmailProcessor({
+    gmailService: {
+      addLabelToMessage: (id, label) => calls.push({ type: 'message', id, label }),
+      addLabelToThread: (_thread, label) => calls.push({ type: 'thread', label })
+    }
+  });
+  processorLabels._notifyValidationReview_ = (target, context) => {
+    calls.push({ type: 'notify', id: target.getId ? target.getId() : 'thread', reason: context.reason });
+  };
+
+  const messageTarget = {
+    getId: () => 'm-label',
+    getThread: () => ({ getId: () => 't-label' })
+  };
+  processorLabels._addErrorLabel(messageTarget);
+  processorLabels._addValidationErrorLabel(messageTarget, { reason: 'review' });
+
+  assert(calls.some((call) => call.type === 'message' && call.id === 'm-label' && call.label === CONFIG.ERROR_LABEL_NAME), 'Errore deve essere applicata al messaggio');
+  assert(calls.some((call) => call.type === 'message' && call.id === 'm-label' && call.label === CONFIG.VALIDATION_ERROR_LABEL), 'Verifica deve essere applicata al messaggio');
+  assert(!calls.some((call) => call.type === 'thread'), 'il target messaggio non deve cadere nel ramo thread-level');
+  assert(calls.filter((call) => call.type === 'notify').length === 1, 'Verifica message-level deve inviare una sola notifica review');
+}
+
+console.log('--- Test error/review labels: fallback thread-level con notifica review unica ---');
+{
+  const calls = [];
+  const processorLabels = new EmailProcessor({
+    gmailService: {
+      addLabelToMessage: (id, label) => calls.push({ type: 'message', id, label }),
+      addLabelToThread: (_thread, label) => calls.push({ type: 'thread', label })
+    }
+  });
+  processorLabels._notifyValidationReview_ = (_target, context) => {
+    calls.push({ type: 'notify', reason: context.reason });
+  };
+
+  const threadTarget = { getId: () => 't-label' };
+  processorLabels._addErrorLabel(threadTarget);
+  processorLabels._addValidationErrorLabel(threadTarget, { reason: 'review' });
+
+  assert(calls.some((call) => call.type === 'thread' && call.label === CONFIG.ERROR_LABEL_NAME), 'Errore deve cadere sul thread se il target non è un messaggio');
+  assert(calls.some((call) => call.type === 'thread' && call.label === CONFIG.VALIDATION_ERROR_LABEL), 'Verifica deve cadere sul thread se il target non è un messaggio');
+  assert(!calls.some((call) => call.type === 'message'), 'il target thread non deve usare addLabelToMessage');
+  assert(calls.filter((call) => call.type === 'notify').length === 1, 'Verifica thread-level deve inviare una sola notifica review');
+}
+
 console.log('--- Test processThread: alias Gmail recognized as unread internal ---');
 {
   const originalSession = global.Session;
