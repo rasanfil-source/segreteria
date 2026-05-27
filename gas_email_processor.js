@@ -132,7 +132,7 @@ var EmailProcessor = class EmailProcessor {
     return this._scriptTimeZone;
   }
 
-  _acquireThreadLock(threadId, skipLock, threadLogger) {
+  _acquireThreadLock(threadId, skipLock = false, threadLogger = null) {
     const scriptCache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
       ? CacheService.getScriptCache()
       : null;
@@ -141,55 +141,46 @@ var EmailProcessor = class EmailProcessor {
       typeof PropertiesService.getScriptProperties === 'function')
       ? PropertiesService.getScriptProperties()
       : null;
-    const canReadPersistentLock = !!(scriptProps && typeof scriptProps.getProperty === 'function');
-    const canWritePersistentLock = !!(canReadPersistentLock && typeof scriptProps.setProperty === 'function');
+    const hasCache = !!(scriptCache &&
+      typeof scriptCache.get === 'function' &&
+      typeof scriptCache.put === 'function');
+    const hasProps = !!(scriptProps &&
+      typeof scriptProps.getProperty === 'function' &&
+      typeof scriptProps.setProperty === 'function');
     const threadLockKey = `thread_lock_${threadId}`;
 
-    if ((!scriptCache && !canWritePersistentLock) || typeof LockService === 'undefined' || !LockService || typeof LockService.getScriptLock !== 'function') {
+    if (!hasCache && !hasProps) {
       if (threadLogger && typeof threadLogger.warn === 'function') {
-        threadLogger.warn('Lock service/cache non disponibili: procedo senza lock');
+        threadLogger.warn('Backend storage (Cache/Properties) non disponibili per lock logico');
       }
-      return { ok: true, acquired: false, cache: scriptCache, properties: scriptProps, key: threadLockKey, value: null };
+      return { ok: false, reason: 'no_storage_backend_available' };
     }
 
     const configuredTtl = (typeof CONFIG !== 'undefined' && Number(CONFIG.CACHE_LOCK_TTL))
       ? Number(CONFIG.CACHE_LOCK_TTL)
-      : 310;
+      : 600;
     const ttlSeconds = Math.max(1, Math.min(configuredTtl, 21600));
     const lockTtlMs = ttlSeconds * 1000;
-    const value = (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.getUuid === 'function')
-      ? `${Date.now()}_${Utilities.getUuid()}`
-      : `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    const scriptLock = LockService.getScriptLock();
+    const value = Date.now().toString();
+    const scriptLock = (!skipLock &&
+      typeof LockService !== 'undefined' &&
+      LockService &&
+      typeof LockService.getScriptLock === 'function')
+      ? LockService.getScriptLock()
+      : null;
+
+    if (!skipLock && !scriptLock) {
+      if (threadLogger && typeof threadLogger.warn === 'function') {
+        threadLogger.warn('LockService globale non disponibile, impossibile garantire atomicità');
+      }
+      return { ok: false, reason: 'global_lock_unavailable' };
+    }
+
     let scriptLockAcquired = false;
     const isStaleLock = (lockValue) => {
       if (!lockValue) return false;
-      const existingTimestamp = Number(String(lockValue).split('_')[0]);
-      return Number.isFinite(existingTimestamp) && (Date.now() - existingTimestamp) > lockTtlMs;
-    };
-    const readExistingLocks = () => {
-      const locks = [];
-      if (canReadPersistentLock) {
-        try {
-          const persistentLock = scriptProps.getProperty(threadLockKey);
-          if (persistentLock) locks.push({ source: 'properties', value: persistentLock });
-        } catch (e) {
-          if (threadLogger && typeof threadLogger.warn === 'function') {
-            threadLogger.warn(`Lettura lock persistente fallita: ${e.message}`);
-          }
-        }
-      }
-      if (scriptCache && typeof scriptCache.get === 'function') {
-        try {
-          const cachedLock = scriptCache.get(threadLockKey);
-          if (cachedLock) locks.push({ source: 'cache', value: cachedLock });
-        } catch (e) {
-          if (threadLogger && typeof threadLogger.warn === 'function') {
-            threadLogger.warn(`Lettura lock cache fallita: ${e.message}`);
-          }
-        }
-      }
-      return locks;
+      const existingTimestamp = Number.parseInt(String(lockValue), 10);
+      return !Number.isFinite(existingTimestamp) || (Date.now() - existingTimestamp) > lockTtlMs;
     };
 
     try {
@@ -210,53 +201,45 @@ var EmailProcessor = class EmailProcessor {
         }
       }
 
-      const existingLocks = readExistingLocks();
-      const activeLock = existingLocks.find(lock => !isStaleLock(lock.value));
-      if (activeLock) {
+      const existingPropLock = hasProps ? scriptProps.getProperty(threadLockKey) : null;
+      const existingCacheLock = hasCache ? scriptCache.get(threadLockKey) : null;
+
+      if ((existingPropLock && !isStaleLock(existingPropLock)) ||
+        (existingCacheLock && !isStaleLock(existingCacheLock))) {
         if (threadLogger && typeof threadLogger.warn === 'function') {
-          threadLogger.warn('Thread lockato da altro processo, salto');
+          threadLogger.warn('Thread logicamente lockato da altro processo (in cache/props), salto');
         }
         return { ok: false, reason: 'thread_locked' };
       }
-      if (existingLocks.length > 0 && threadLogger && typeof threadLogger.warn === 'function') {
+      if ((existingPropLock || existingCacheLock) && threadLogger && typeof threadLogger.warn === 'function') {
         threadLogger.warn('Lock stale rilevato, sovrascrittura lock');
       }
 
-      let lockWritten = false;
-      const writeErrors = [];
-      if (canWritePersistentLock) {
-        try {
-          scriptProps.setProperty(threadLockKey, value);
-          lockWritten = true;
-        } catch (e) {
-          writeErrors.push(e);
-        }
+      if (hasProps) {
+        scriptProps.setProperty(threadLockKey, value);
       }
-
-      if (scriptCache && typeof scriptCache.put === 'function') {
+      if (hasCache) {
         try {
           scriptCache.put(threadLockKey, value, ttlSeconds);
-          lockWritten = true;
         } catch (e) {
-          writeErrors.push(e);
+          if (!hasProps) {
+            throw e;
+          }
         }
-      }
-
-      if (!lockWritten) {
-        throw writeErrors[0] || new Error('Nessun backend lock scrivibile');
-      }
-
-      const persistentVerified = !canWritePersistentLock || scriptProps.getProperty(threadLockKey) === value;
-      const cacheVerified = !(scriptCache && typeof scriptCache.get === 'function' && !canWritePersistentLock) ||
-        scriptCache.get(threadLockKey) === value;
-      if (!persistentVerified || !cacheVerified) {
-        return { ok: false, reason: 'thread_lock_collision' };
       }
 
       if (threadLogger && typeof threadLogger.debug === 'function') {
-        threadLogger.debug('Lock acquisito');
+        threadLogger.debug('Lock logico di thread acquisito con successo');
       }
-      return { ok: true, acquired: true, cache: scriptCache, properties: scriptProps, key: threadLockKey, value: value };
+      return {
+        ok: true,
+        acquired: true,
+        cache: scriptCache,
+        properties: scriptProps,
+        key: threadLockKey,
+        value: value,
+        lockCovered: !!skipLock
+      };
     } catch (e) {
       if (threadLogger && typeof threadLogger.warn === 'function') {
         threadLogger.warn(`Errore acquisizione lock thread: ${e.message}`);
@@ -276,7 +259,10 @@ var EmailProcessor = class EmailProcessor {
     let scriptLock = null;
     let scriptLockAcquired = false;
     try {
-      if (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function') {
+      if (!lockCtx.lockCovered &&
+        typeof LockService !== 'undefined' &&
+        LockService &&
+        typeof LockService.getScriptLock === 'function') {
         scriptLock = LockService.getScriptLock();
         if (scriptLock && typeof scriptLock.tryLock === 'function') {
           scriptLockAcquired = scriptLock.tryLock(500);
@@ -285,9 +271,14 @@ var EmailProcessor = class EmailProcessor {
     } catch (_) { }
 
     try {
+      if (!lockCtx.lockCovered && !scriptLockAcquired) {
+        if (threadLogger && typeof threadLogger.warn === 'function') {
+          threadLogger.warn('Mutex globale non acquisito per rilascio, salto il clean-up per evitare race condition al bordo TTL');
+        }
+        return;
+      }
+
       let removed = false;
-      let sawForeignLock = false;
-      let sawNoLock = false;
       if (lockCtx.properties &&
         typeof lockCtx.properties.getProperty === 'function' &&
         typeof lockCtx.properties.deleteProperty === 'function') {
@@ -295,10 +286,6 @@ var EmailProcessor = class EmailProcessor {
         if (currentPersistentLockValue === lockCtx.value) {
           lockCtx.properties.deleteProperty(lockCtx.key);
           removed = true;
-        } else if (currentPersistentLockValue) {
-          sawForeignLock = true;
-        } else {
-          sawNoLock = true;
         }
       }
 
@@ -307,27 +294,17 @@ var EmailProcessor = class EmailProcessor {
         if (currentLockValue === lockCtx.value) {
           lockCtx.cache.remove(lockCtx.key);
           removed = true;
-        } else if (currentLockValue) {
-          sawForeignLock = true;
-        } else {
-          sawNoLock = true;
         }
       }
 
-      if (removed) {
-        if (threadLogger && typeof threadLogger.debug === 'function') {
-          threadLogger.debug('Lock rilasciato');
-        }
-      } else if (sawForeignLock) {
-        if (threadLogger && typeof threadLogger.warn === 'function') {
-          threadLogger.warn('Rilascio lock saltato (lock scaduto o di altro processo)');
-        }
-      } else if (sawNoLock && threadLogger && typeof threadLogger.debug === 'function') {
-        threadLogger.debug('Lock già scaduto naturalmente');
+      if (removed && threadLogger && typeof threadLogger.debug === 'function') {
+        threadLogger.debug('Lock logico rilasciato correttamente');
+      } else if (!removed && threadLogger && typeof threadLogger.warn === 'function') {
+        threadLogger.warn('Rilascio lock logico saltato (già scaduto o sovrascritto)');
       }
     } catch (e) {
       if (threadLogger && typeof threadLogger.warn === 'function') {
-        threadLogger.warn(`Errore rilascio lock: ${e.message}`);
+        threadLogger.warn(`Errore in rilascio lock: ${e.message}`);
       }
     } finally {
       if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {

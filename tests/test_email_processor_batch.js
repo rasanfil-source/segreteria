@@ -339,6 +339,85 @@ console.log('--- Test thread lock: release rimuove cache e PropertiesService sol
   }
 }
 
+console.log('--- Test thread lock: skipLock salta solo lo ScriptLock ma mantiene token logico ---');
+{
+  const originalPropertiesService = global.PropertiesService;
+  const originalLockService = global.LockService;
+  const props = new Map();
+  let tryLockCalls = 0;
+  cacheStore.clear();
+
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: (k) => props.get(k) || '',
+      setProperty: (k, v) => props.set(k, v),
+      deleteProperty: (k) => props.delete(k)
+    })
+  };
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => {
+        tryLockCalls++;
+        return true;
+      },
+      releaseLock: () => {}
+    })
+  };
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    const ctx = processor._acquireThreadLock('t-skip', true, global.createLogger());
+    assert(ctx.ok === true && ctx.acquired === true, 'skipLock deve comunque creare il lock logico di thread');
+    assert(ctx.lockCovered === true, 'ctx deve indicare che il mutex globale è già coperto dal chiamante');
+    assert(tryLockCalls === 0, 'skipLock non deve riacquisire lo ScriptLock');
+    assert(props.get('thread_lock_t-skip') === ctx.value, 'deve scrivere il token in PropertiesService');
+    assert(cacheStore.get('thread_lock_t-skip') === ctx.value, 'deve scrivere il token in CacheService');
+
+    processor._releaseThreadLock(ctx, global.createLogger());
+    assert(!props.has('thread_lock_t-skip'), 'release coperta dal chiamante deve pulire PropertiesService');
+    assert(!cacheStore.has('thread_lock_t-skip'), 'release coperta dal chiamante deve pulire CacheService');
+    assert(tryLockCalls === 0, 'release coperta dal chiamante non deve riacquisire lo ScriptLock');
+  } finally {
+    global.PropertiesService = originalPropertiesService;
+    global.LockService = originalLockService;
+    cacheStore.clear();
+  }
+}
+
+console.log('--- Test thread lock: senza backend storage fallisce chiuso ---');
+{
+  const originalCacheService = global.CacheService;
+  const originalPropertiesService = global.PropertiesService;
+  global.CacheService = undefined;
+  global.PropertiesService = undefined;
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    const res = processor._acquireThreadLock('t-no-storage', false, global.createLogger());
+    assert(res.ok === false && res.reason === 'no_storage_backend_available', 'senza Cache/Properties deve fallire chiuso');
+  } finally {
+    global.CacheService = originalCacheService;
+    global.PropertiesService = originalPropertiesService;
+  }
+}
+
+console.log('--- Test thread lock: senza LockService fallisce chiuso se non coperto ---');
+{
+  const originalLockService = global.LockService;
+  global.LockService = undefined;
+  cacheStore.clear();
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    const res = processor._acquireThreadLock('t-no-lock-service', false, global.createLogger());
+    assert(res.ok === false && res.reason === 'global_lock_unavailable', 'senza LockService e senza skipLock deve fallire chiuso');
+    assert(!cacheStore.has('thread_lock_t-no-lock-service'), 'non deve scrivere token senza mutex globale');
+  } finally {
+    global.LockService = originalLockService;
+    cacheStore.clear();
+  }
+}
+
 console.log('--- Test processUnreadEmails: stop preventivo per tempo insufficiente ---');
 {
   const threadA = createThread({ id: 'ta', messages: [createMessage({ id: 'ma', unread: true })] });

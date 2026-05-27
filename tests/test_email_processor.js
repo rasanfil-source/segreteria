@@ -19,6 +19,29 @@ global.PromptEngine = class {};
 global.MemoryService = class {};
 global.TerritoryValidator = class {};
 
+const cacheStore = new Map();
+const propsStore = new Map();
+global.CacheService = {
+  getScriptCache: () => ({
+    get: (key) => cacheStore.get(key),
+    put: (key, val) => cacheStore.set(key, val),
+    remove: (key) => cacheStore.delete(key)
+  })
+};
+global.PropertiesService = {
+  getScriptProperties: () => ({
+    getProperty: (key) => propsStore.get(key) || '',
+    setProperty: (key, val) => propsStore.set(key, val),
+    deleteProperty: (key) => propsStore.delete(key)
+  })
+};
+global.LockService = {
+  getScriptLock: () => ({
+    tryLock: () => true,
+    releaseLock: () => {}
+  })
+};
+
 global.CONFIG = {
   LABEL_NAME: 'IA',
   ERROR_LABEL_NAME: 'Errore',
@@ -40,6 +63,13 @@ global.GLOBAL_CACHE = {
 const gasEmailProcessorPath = path.join(__dirname, '..', 'gas_email_processor.js');
 const gasEmailProcessorCode = fs.readFileSync(gasEmailProcessorPath, 'utf8');
 vm.runInThisContext(gasEmailProcessorCode, { filename: gasEmailProcessorPath });
+
+const originalProcessThread = EmailProcessor.prototype.processThread;
+EmailProcessor.prototype.processThread = function(...args) {
+  cacheStore.clear();
+  propsStore.clear();
+  return originalProcessThread.apply(this, args);
+};
 
 const processor = new EmailProcessor();
 
