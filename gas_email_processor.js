@@ -878,6 +878,7 @@ var EmailProcessor = class EmailProcessor {
         let consecutiveExternal = 0;
         let botRepliesCount = 0;
         let totalBotRepliesInThread = 0;
+        const maxBotRepliesInLongThread = Math.max(2, Math.floor(MAX_THREAD_LENGTH / 2));
 
         // Percorriamo una finestra degli ultimi MAX_THREAD_LENGTH messaggi a ritroso
         // per contare sequenze esterne e densità di risposte del bot.
@@ -904,9 +905,10 @@ var EmailProcessor = class EmailProcessor {
 
           if (
             consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL ||
-            botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL
+            botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL ||
+            (messages.length > MAX_THREAD_LENGTH && totalBotRepliesInThread >= maxBotRepliesInLongThread)
           ) {
-            console.log(`   ⊖ Saltato: prevenzione loop email attivata (ping-pong/thread ripetitivo: interventiBot=${totalBotRepliesInThread}, consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
+            console.log(`   ⊖ Saltato: prevenzione loop email attivata (ping-pong/thread ripetitivo: interventiBot=${totalBotRepliesInThread}, sogliaBot=${maxBotRepliesInLongThread}, consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
             markHandledUnread();
             result.status = 'filtered';
             result.reason = 'email_loop_detected';
