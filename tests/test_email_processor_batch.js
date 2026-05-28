@@ -1503,6 +1503,94 @@ console.log('--- Test processThread: submission receipt-only non chiama Gemini g
   global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
 }
 
+console.log('--- Test processThread: follow-up senza allegati non usa receipt-only documentale ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalDocumentConsistency = global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED;
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = true;
+  global.CONFIG.ATTACHMENT_CONTEXT = { enabled: true, maxFiles: 3 };
+
+  let generationCalls = 0;
+  let sentText = '';
+  let capturedPromptOptions = null;
+  const msg = {
+    getId: () => 'm-followup-no-attachments',
+    isUnread: () => true,
+    getFrom: () => 'Evagrio Santacroce <utente@example.com>',
+    getDate: () => new Date('2026-05-29T10:00:00Z'),
+    getSubject: () => 'Re: Vestiti Caritas',
+    getPlainBody: () => 'Vi ringrazio per le risposte. Mi dispiace però che non abbiate risposto alla domanda sull\'opportunità dell\'opera di misericordia corporale di vestire gli ignudi. Ditemi cosa ne pensate, per favore. Nel thread precedente avevo citato anche il modulo Cresima per fare da padrino.',
+    getAttachments: () => []
+  };
+  const thread = createThread({ id: 't-followup-no-attachments', messages: [msg] });
+
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Re: Vestiti Caritas',
+        body: msg.getPlainBody(),
+        senderEmail: 'utente@example.com',
+        senderName: 'Evagrio Santacroce',
+        date: new Date('2026-05-29T10:00:00Z'),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: (_candidate, responseText) => { sentText = responseText; }
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      backupKey: 'backup-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'opera di misericordia', category: 'pastoral', confidence: 0.9 } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => {
+        generationCalls++;
+        return { success: true, text: 'Grazie per la precisazione. È certamente un servizio prezioso e coerente con l’opera di misericordia corporale indicata.' };
+      }
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'pastoral', dimensions: { pastoral: 0.8, technical: 0.2 }, needsDiscernment: true, needsDoctrine: false })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        capturedPromptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  const result = processor.processThread(thread, 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'il follow-up pastorale deve essere processato');
+  assert(generationCalls === 1, 'senza allegati fisici non deve scattare il bypass receipt-only');
+  assert(!/ricezione della documentazione/i.test(sentText), `risposta documentale inattesa: ${sentText}`);
+  assert(capturedPromptOptions && capturedPromptOptions.attachmentIntentContext === null, 'il prompt non deve ricevere un contesto di consegna documentale senza allegati');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = originalDocumentConsistency;
+  global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+}
+
 
 console.log('--- Test processThread: valida e invia esattamente il testo outbound preparato ---');
 {

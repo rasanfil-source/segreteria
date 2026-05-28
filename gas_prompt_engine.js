@@ -1173,12 +1173,16 @@ REGOLA DI USCITA:
 
   _renderAttachmentContext(attachmentsContext, attachmentIntentContext = null) {
     if (!attachmentsContext && !attachmentIntentContext) return '';
-    const isSubmission = attachmentIntentContext && (
+    const hasPhysicalAttachments = Boolean(attachmentIntentContext && attachmentIntentContext.hasPhysicalAttachments);
+    const isConfirmedSubmission = attachmentIntentContext && (
       attachmentIntentContext.intent === 'document_submission' ||
-      attachmentIntentContext.intent === 'document_submission_with_question' ||
+      attachmentIntentContext.intent === 'document_submission_with_question'
+    );
+    const isSuspectedSubmission = attachmentIntentContext && (
       attachmentIntentContext.intent === 'suspected_submission' ||
       attachmentIntentContext.intent === 'suspected_submission_with_question'
     );
+    const isSubmission = isConfirmedSubmission || (isSuspectedSubmission && hasPhysicalAttachments);
     const hasExplicitBodyQuestion = attachmentIntentContext && (
       attachmentIntentContext.hasQuestions ||
       attachmentIntentContext.intent === 'document_submission_with_question' ||

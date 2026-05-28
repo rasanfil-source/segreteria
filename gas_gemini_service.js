@@ -1143,6 +1143,7 @@ Testo:
  * Supporta calendario liturgico completo
  */
   getAdaptiveGreeting(senderName, language = 'it') {
+    const safeSenderName = this._sanitizeSenderNameForGreeting_(senderName, language);
     const now = new Date();
     let hour = now.getHours();
     let day = now.getDay(); // 0 = Domenica
@@ -1173,7 +1174,7 @@ Testo:
 
       if (language === 'it') {
         if (isNightTime) {
-          greeting = `Gentile ${senderName}, `;
+          greeting = `Gentile ${safeSenderName}, `;
         } else if (day === 0) {
           greeting = 'Buona domenica.';
         } else if (hour >= 5 && hour < 13) {
@@ -1197,7 +1198,7 @@ Testo:
         }
       } else if (language === 'es') {
         if (isNightTime) {
-          greeting = `Estimado / a ${senderName}, `;
+          greeting = `Estimado / a ${safeSenderName}, `;
         } else if (day === 0) {
           greeting = 'Feliz domingo,';
         } else if (hour >= 5 && hour < 13) {
@@ -1209,7 +1210,7 @@ Testo:
         }
       } else if (language === 'pt') {
         if (isNightTime) {
-          greeting = `Prezado(a) ${senderName},`;
+          greeting = `Prezado(a) ${safeSenderName},`;
         } else if (day === 0) {
           greeting = 'Feliz domingo,';
         } else if (hour >= 5 && hour < 12) {
@@ -1263,6 +1264,15 @@ Testo:
     }
 
     return { greeting, closing };
+  }
+
+  _sanitizeSenderNameForGreeting_(senderName, language = 'it') {
+    const fallback = String(language || '').toLowerCase().startsWith('it') ? 'utente' : 'parishioner';
+    const raw = String(senderName || '').replace(/[<>\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!raw || /^(fallbacksendername|undefined|null|\[nome\]|\[name\])$/i.test(raw)) {
+      return fallback;
+    }
+    return raw.substring(0, 50);
   }
 
   // ========================================================================

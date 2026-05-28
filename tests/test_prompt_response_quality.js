@@ -110,6 +110,30 @@ assert(
   'il prompt deve preservare la congruenza della risposta'
 );
 
+console.log('--- Test prompt: sospetta consegna senza allegati non diventa ricezione documenti ---');
+const noAttachmentFollowupPrompt = engine.buildPrompt({
+  emailSubject: 'Re: Richiesta informazioni',
+  emailContent: 'Mi dispiace, ma non avete risposto alla mia domanda sull\'opportunità di vestire gli ignudi. Cosa ne pensate?',
+  knowledgeBase: 'Caritas: servizio di raccolta indumenti e aiuto alle persone senza fissa dimora.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  salutationMode: 'none_or_continuity',
+  salutation: '',
+  closing: 'Cordiali saluti,',
+  attachmentsContext: "ATTENZIONE: L'utente NON ha inviato allegati fisici.",
+  attachmentIntentContext: {
+    intent: 'suspected_submission',
+    responseDirective: 'Confermare la ricezione della documentazione allegata.',
+    hasPhysicalAttachments: false
+  }
+});
+
+assert(
+  !noAttachmentFollowupPrompt.includes('ALLEGATO = DOCUMENTAZIONE CONSEGNATA') &&
+    !noAttachmentFollowupPrompt.includes('Risposta predefinita: ringrazia e conferma la ricezione'),
+  'una consegna solo sospetta senza allegati non deve attivare il guardrail di ricezione documentale'
+);
+
 console.log('--- Test prompt: Cresima prerequisito per padrino autorizza guidance mirata ---');
 const prerequisitePrompt = engine.buildPrompt({
   emailSubject: 'Cresima per fare da padrino',

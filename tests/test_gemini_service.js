@@ -84,6 +84,29 @@ console.log('--- Test classifyError: testo vuoto Gemini è retryable ---');
   assert(classified.type === ErrorTypes.NETWORK, 'errore transient deve essere classificato come NETWORK');
 }
 
+console.log('--- Test getAdaptiveGreeting: non espone placeholder tecnici come nome ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service._getSpecialDayGreeting = () => null;
+  const previousUtilities = global.Utilities;
+  global.Utilities = {
+    formatDate: (_date, _tz, pattern) => {
+      if (pattern === 'H') return '1';
+      if (pattern === 'm') return '0';
+      if (pattern === 'u') return '1';
+      return '';
+    }
+  };
+
+  try {
+    const adaptive = service.getAdaptiveGreeting('fallbackSenderName', 'it');
+    assert(!adaptive.greeting.includes('fallbackSenderName'), 'il placeholder tecnico non deve comparire nel saluto');
+    assert(adaptive.greeting.includes('utente'), 'il placeholder deve essere sostituito da un fallback umano');
+  } finally {
+    global.Utilities = previousUtilities;
+  }
+}
+
 console.log('--- Test _generateWithModel: testo vuoto marca isTransient ---');
 {
   const service = Object.create(GeminiService.prototype);

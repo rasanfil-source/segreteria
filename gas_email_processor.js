@@ -1519,6 +1519,7 @@ ${addressLines.join('\n\n')}
       let textFromAttachments = '';
       let attachmentSkipped = [];
       let attachmentItems = [];
+      let physicalAttachmentsDetected = false;
 
 
       if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
@@ -1540,6 +1541,7 @@ ${addressLines.join('\n\n')}
             console.warn(`⚠️ Impossibile leggere allegati per pre-check: ${e.message}`);
             attachmentPreCheckFailed = true;
           }
+          physicalAttachmentsDetected = Boolean(hasAttachments);
 
           if (!hasAttachments && !attachmentPreCheckFailed) {
             attachmentSkipped.push({ reason: 'no_attachments' });
@@ -1630,6 +1632,12 @@ ${addressLines.join('\n\n')}
             textFromAttachments = attachmentData.textContext || '';
             attachmentSkipped = attachmentData.skipped || [];
             attachmentItems = attachmentData.items || [];
+            physicalAttachmentsDetected = Boolean(
+              physicalAttachmentsDetected ||
+              countProcessedAttachments() > 0 ||
+              attachmentBlobs.length > 0 ||
+              attachmentItems.length > 0
+            );
             const postOcrAttachmentIntentContext = this._deriveAttachmentIntentContext_(
               messageDetails.body,
               messageDetails.subject,
@@ -1691,6 +1699,16 @@ ${addressLines.join('\n\n')}
 
         }
       }
+
+      const attachmentIntentName = String((attachmentIntentContext && attachmentIntentContext.intent) || '').toLowerCase();
+      if (!physicalAttachmentsDetected && /submission/i.test(attachmentIntentName)) {
+        console.log('   📎 Guardrail allegati: nessun allegato fisico rilevato → disattivo contesto di consegna documentale');
+        attachmentIntentContext = null;
+        if (/^(document_submission|suspected_submission)/i.test(String(categoryHintSource || ''))) {
+          categoryHintSource = (requestTypeName && requestTypeName !== 'technical') ? requestTypeName : null;
+        }
+      }
+
       // ====================================================================
       // CONTEXT ROUTING post-OCR (definitivo)
       // ====================================================================
@@ -1729,7 +1747,9 @@ ${addressLines.join('\n\n')}
         sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),
         requestType: requestType,
         attachmentsContext: attachmentBlobs.length > 0 ? textFromAttachments : "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa.",
-        attachmentIntentContext: attachmentIntentContext,
+        attachmentIntentContext: attachmentIntentContext
+          ? Object.assign({}, attachmentIntentContext, { hasPhysicalAttachments: physicalAttachmentsDetected })
+          : null,
         aiCoreLite: routedAiCoreLite,
         aiCore: routedAiCore,
         doctrineBase: routedDoctrine,
@@ -1745,6 +1765,7 @@ ${addressLines.join('\n\n')}
         )
         : null;
       const isDocumentDeliveryContext = Boolean(
+        physicalAttachmentsDetected &&
         attachmentIntentContext &&
         /submission/i.test(String(attachmentIntentContext.intent || ''))
       );
@@ -5134,14 +5155,21 @@ Parish Secretariat of Sant'Eugenio`;
 
   _getAdaptiveBypassGreetingAndClosing_(lang = 'it') {
     const normalized = this._normalizeBypassResponseLanguage_(lang);
+    const fallback = normalized === 'en'
+      ? { greeting: 'Good day,', closing: 'Kind regards,' }
+      : { greeting: 'Buongiorno.', closing: 'Cordiali saluti,' };
+
     if (this.geminiService && typeof this.geminiService.getAdaptiveGreeting === 'function') {
       try {
         const fallbackSenderName = normalized === 'it' ? 'utente' : 'parishioner';
         const adaptive = this.geminiService.getAdaptiveGreeting(fallbackSenderName, normalized) || {};
-        if (adaptive.greeting && adaptive.closing) {
+        const greeting = String(adaptive.greeting || '').trim();
+        const closing = String(adaptive.closing || '').trim();
+        const leaksPlaceholder = /fallbackSenderName|\bundefined\b|\bnull\b|\[nome\]|\[name\]/i.test(`${greeting} ${closing}`);
+        if (greeting && closing && !leaksPlaceholder) {
           return {
-            greeting: String(adaptive.greeting).trim(),
-            closing: String(adaptive.closing).trim()
+            greeting: greeting,
+            closing: closing
           };
         }
       } catch (e) {
@@ -5149,9 +5177,6 @@ Parish Secretariat of Sant'Eugenio`;
       }
     }
 
-    const fallback = normalized === 'en'
-      ? { greeting: 'Good day,', closing: 'Kind regards,' }
-      : { greeting: 'Buongiorno.', closing: 'Cordiali saluti,' };
     return fallback;
   }
 
