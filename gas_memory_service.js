@@ -154,25 +154,29 @@ var MemoryService = class MemoryService {
     if (!this._initialized || !threadId) {
       return { providedInfo: [] };
     }
+    const normalizedThreadId = String(threadId).trim();
+    if (!normalizedThreadId) {
+      return { providedInfo: [] };
+    }
 
     // Verifica cache
-    const cacheKey = `memory_${threadId}`;
+    const cacheKey = `memory_${normalizedThreadId}`;
     const cached = this._getFromCache(cacheKey);
     if (cached) {
-      console.log(`🧠 Memory hit (cache) per thread ${threadId}`);
+      console.log(`🧠 Memory hit (cache) per thread ${normalizedThreadId}`);
       return cached;
     }
 
     try {
       // Trova riga per threadId
-      const row = this._findRowByThreadId(threadId);
+      const row = this._findRowByThreadId(normalizedThreadId);
 
       if (row) {
         const data = this._rowToObject(row.values);
         if (!Array.isArray(data.providedInfo)) {
           data.providedInfo = [];
         }
-        console.log(`🧠 Memory hit per thread ${threadId} (Lingua: ${data.language})`);
+        console.log(`🧠 Memory hit per thread ${normalizedThreadId} (Lingua: ${data.language})`);
 
         // Memorizza in cache
         this._setCache(cacheKey, data);
@@ -227,6 +231,8 @@ var MemoryService = class MemoryService {
     if (!this._initialized || !threadId || !newData || typeof newData !== 'object') {
       return;
     }
+    const normalizedThreadId = String(threadId).trim();
+    if (!normalizedThreadId) return;
 
     // Filtra campi interni
     const dataToUpdate = {};
@@ -238,7 +244,7 @@ var MemoryService = class MemoryService {
 
     const MAX_RETRIES = this._getLockTuning_().maxRetries;
     // Sharding basato su hash del threadId per ridurre la contention
-    const lockKey = this._getShardedLockKey(threadId);
+    const lockKey = this._getShardedLockKey(normalizedThreadId);
 
     // Stato locale OCC: aggiorniamo la expectedVersion ad ogni conflitto
     // per evitare retry inutili con versione ormai obsoleta.
@@ -264,7 +270,7 @@ var MemoryService = class MemoryService {
         globalLockAcquired = true;
 
         // 3. Rileggi dati freschi dallo Sheet
-        const existingRow = this._findRowByThreadId(threadId);
+        const existingRow = this._findRowByThreadId(normalizedThreadId);
         const now = this._validateAndNormalizeTimestamp(new Date().toISOString());
         const shouldIncrementMessageCount = options.incrementMessageCount === true || newData._incrementMessageCount === true;
 
@@ -274,8 +280,8 @@ var MemoryService = class MemoryService {
 
           // Verifica controllo concorrenza ottimistico
           if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
-            this._invalidateCache(`memory_${threadId}`);
-            console.warn(`🔒 Version mismatch thread ${threadId}: atteso ${expectedVersion}, ottenuto ${currentVersion} - ritento con versione aggiornata`);
+            this._invalidateCache(`memory_${normalizedThreadId}`);
+            console.warn(`🔒 Version mismatch thread ${normalizedThreadId}: atteso ${expectedVersion}, ottenuto ${currentVersion} - ritento con versione aggiornata`);
             expectedVersion = currentVersion;
             throw new Error('VERSION_MISMATCH');
           }
@@ -304,7 +310,7 @@ var MemoryService = class MemoryService {
         } else {
           // Nuova riga
           const insertData = Object.assign({}, dataToUpdate);
-          insertData.threadId = threadId;
+          insertData.threadId = normalizedThreadId;
           insertData.lastUpdated = now;
           insertData.messageCount = shouldIncrementMessageCount ? 1 : 0;
           insertData.version = 1;
@@ -316,13 +322,13 @@ var MemoryService = class MemoryService {
         }
 
         // Invalida cache locale
-        this._invalidateCache(`memory_${threadId}`);
+        this._invalidateCache(`memory_${normalizedThreadId}`);
         return; // Successo
 
       } catch (error) {
         if (error.message === 'VERSION_MISMATCH') {
           console.warn(`⚠️ Conflitto concorrenza, retry... (Tentativo ${attempt + 1})`);
-          this._invalidateCache(`memory_${threadId}`);
+          this._invalidateCache(`memory_${normalizedThreadId}`);
         } else {
           console.warn(`Aggiornamento memoria fallito (Tentativo ${attempt + 1}): ${error.message}`);
         }
@@ -386,6 +392,8 @@ var MemoryService = class MemoryService {
     if (!this._initialized || !threadId) {
       return false;
     }
+    const normalizedThreadId = String(threadId).trim();
+    if (!normalizedThreadId) return false;
     const rawData = (newData && typeof newData === 'object') ? newData : {};
 
     // Filtra campi interni (_*) per evitare persistenza accidentale su Sheets
@@ -408,7 +416,7 @@ var MemoryService = class MemoryService {
       return false;
     }
 
-    const lockKey = this._getShardedLockKey(threadId);
+    const lockKey = this._getShardedLockKey(normalizedThreadId);
 
     // Prova max 3 volte
     let expectedVersion = rawData._expectedVersion;
@@ -426,13 +434,13 @@ var MemoryService = class MemoryService {
           if (!lockAcquired) {
             if (i === 2) {
               const failure = {
-                threadId,
+                threadId: normalizedThreadId,
                 cause: 'LOCK_TIMEOUT',
                 message: `Lock sharded non acquisito dopo 3 tentativi (${lockKey})`,
                 at: new Date().toISOString()
               };
               this._lastUpdateMemoryAtomicFailure = failure;
-              console.error(`❌ CRITICO: updateMemoryAtomic lock timeout per thread ${threadId}: ${failure.message}`);
+              console.error(`❌ CRITICO: updateMemoryAtomic lock timeout per thread ${normalizedThreadId}: ${failure.message}`);
               return false;
             }
             if (i < 2) {
@@ -447,7 +455,7 @@ var MemoryService = class MemoryService {
           globalLockAcquired = true;
 
         // --- SEZIONE CRITICA ---
-        const existingRow = this._findRowByThreadId(threadId);
+        const existingRow = this._findRowByThreadId(normalizedThreadId);
         const now = this._validateAndNormalizeTimestamp(new Date().toISOString());
 
         if (existingRow) {
@@ -518,7 +526,7 @@ var MemoryService = class MemoryService {
             console.log(`🧠 Memoria aggiornata atomicamente per thread ${threadId} (v${mergedData.version})`);
         } else {
           const insertData = Object.assign({}, dataToUpdate);
-          insertData.threadId = threadId;
+          insertData.threadId = normalizedThreadId;
           insertData.lastUpdated = now;
           const shouldIncrementMessageCount = rawData._incrementMessageCount === true;
           insertData.messageCount = shouldIncrementMessageCount ? 1 : 0;
@@ -534,7 +542,7 @@ var MemoryService = class MemoryService {
           console.log(`🧠 Memoria creata atomicamente per thread ${threadId} (v1)`);
         }
 
-        this._invalidateCache(`memory_${threadId}`);
+        this._invalidateCache(`memory_${normalizedThreadId}`);
         this._lastUpdateMemoryAtomicFailure = null;
         return true;
         // --- FINE SEZIONE CRITICA ---
@@ -542,7 +550,7 @@ var MemoryService = class MemoryService {
         } catch (error) {
           lastAtomicError = error;
           console.warn(`⚠️ Errore aggiornamento atomico (tentativo ${i + 1}): ${error.message}`);
-          this._invalidateCache(`memory_${threadId}`);
+          this._invalidateCache(`memory_${normalizedThreadId}`);
           if (i < 2) {
             this._sleepLockBackoff_(i);
           }
@@ -562,7 +570,7 @@ var MemoryService = class MemoryService {
       : 'WRITE_ERROR';
     const failureMessage = lastAtomicError ? lastAtomicError.message : 'Loop Timeout dopo 3 retry';
     this._lastUpdateMemoryAtomicFailure = {
-      threadId,
+      threadId: normalizedThreadId,
       cause: failureCause,
       message: failureMessage,
       at: new Date().toISOString()
@@ -734,7 +742,8 @@ var MemoryService = class MemoryService {
    */
   _findRowByThreadId(threadId) {
     if (!this._sheet) return null;
-    const normalizedThreadId = String(threadId);
+    const normalizedThreadId = String(threadId).trim();
+    if (!normalizedThreadId) return null;
     // getLastRow() restituisce l'ultima riga effettiva con dati.
     // getMaxRows() includerebbe migliaia di righe vuote, rallentando la ricerca TextFinder.
     const maxRows = this._sheet.getLastRow();
@@ -766,7 +775,7 @@ var MemoryService = class MemoryService {
         }
 
         // Doppio controllo per sicurezza
-        if (String(rowValues[0]) === normalizedThreadId) {
+        if (String(rowValues[0]).trim() === normalizedThreadId) {
           return {
             rowIndex: rowIndex,
             values: rowValues
@@ -774,6 +783,27 @@ var MemoryService = class MemoryService {
         }
       }
     }
+
+    try {
+      const idValues = this._sheet.getRange(2, 1, maxRows - 1, 1).getValues();
+      for (let i = 0; i < idValues.length; i++) {
+        if (String(idValues[i] && idValues[i][0]).trim() !== normalizedThreadId) continue;
+        const rowIndex = i + 2;
+        const expectedCols = this._getColumnCount();
+        const availableCols = Math.max(1, Math.min(expectedCols, this._sheet.getLastColumn()));
+        const rowValues = this._sheet.getRange(rowIndex, 1, 1, availableCols).getValues()[0];
+        while (rowValues.length < expectedCols) {
+          rowValues.push('');
+        }
+        return {
+          rowIndex: rowIndex,
+          values: rowValues
+        };
+      }
+    } catch (scanError) {
+      console.warn(`⚠️ Fallback lookup memoria fallito per thread ${normalizedThreadId}: ${scanError.message}`);
+    }
+
     return null;
   }
 

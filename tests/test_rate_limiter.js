@@ -98,6 +98,38 @@ console.log('--- Test trackAuxiliaryRequest: supporta lock già acquisito ---');
   assert(propsData.get('tokens_flash') === '123', 'la chiamata ausiliaria deve tracciare i token stimati');
 }
 
+console.log('--- Test _incrementCountersAtomic: lock timeout non incrementa senza protezione ---');
+{
+  const originalLockService = global.LockService;
+  const propsData = new Map([
+    ['rpd_flash', '4'],
+    ['tokens_flash', '100']
+  ]);
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  limiter.props = {
+    getProperty: (key) => propsData.has(key) ? propsData.get(key) : null,
+    setProperty: (key, value) => propsData.set(key, String(value))
+  };
+  limiter._getPacificDate = () => '2026-05-12';
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => false,
+      releaseLock: () => {}
+    })
+  };
+
+  try {
+    limiter._incrementCountersAtomic('flash', 25);
+    assert(false, 'lock timeout deve bloccare il tracciamento quota');
+  } catch (error) {
+    assert(String(error.message).includes('QUOTA_TRACKING_FAILED'), 'errore lock timeout deve essere esplicito');
+    assert(propsData.get('rpd_flash') === '4', 'RPD non deve essere mutato senza lock');
+    assert(propsData.get('tokens_flash') === '100', 'token non devono essere mutati senza lock');
+  } finally {
+    global.LockService = originalLockService;
+  }
+}
+
 console.log('--- Test model policy: preserva 3.5 Flash e normalizza solo storici ---');
 {
   const limiter = Object.create(GeminiRateLimiter.prototype);

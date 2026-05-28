@@ -577,7 +577,7 @@ function testResponseValidatorStreetNumberDoesNotWhitelistInventedTime() {
     );
 
     assert(
-        result.warnings.some((w) => w.includes('Orari non in KB: 10:00')),
+        result.errors.some((e) => e.includes('Orari non in KB: 10:00')),
         'numero civico 10 non deve sdoganare 10:00 come orario presente nel messaggio originale'
     );
     assert(

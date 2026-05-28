@@ -61,7 +61,7 @@ console.log('--- Test orari Sheets 1899 ignorano offset storici LMT ---');
   };
 
   assert(_formatDateForKnowledgeText(sheetTime) === '14:30', 'serializzazione KB deve usare getHours/getMinutes su date Sheets 1899');
-  assert(_parseStrictHour(sheetTime) === 14, 'fasce sospensione devono usare getHours su date Sheets 1899');
+  assert(_parseStrictHour(sheetTime) === 14.5, 'fasce sospensione devono usare getHours/getMinutes su date Sheets 1899');
 
   if (typeof originalFormatDate === 'undefined') {
     delete global.Utilities.formatDate;

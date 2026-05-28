@@ -29,15 +29,17 @@ console.log('--- Test _parseStrictHour (frazioni da Sheets) ---');
 assertEqual(_parseStrictHour(0), 0, '0 deve essere ora 0');
 assertEqual(_parseStrictHour(8 / 24), 8, '08:00 deve essere ora 8');
 assertEqual(_parseStrictHour(23 / 24), 23, '23:00 deve essere ora 23');
-assertEqual(_parseStrictHour(23.5 / 24), 23, '23:30 non deve mai diventare 24');
-assertEqual(_parseStrictHour(23.99 / 24), 23, '23:xx deve restare ora 23');
+assertEqual(_parseStrictHour(23.5 / 24), 23.5, '23:30 deve conservare i minuti');
+assertEqual(_parseStrictHour(23.99 / 24), 23 + (59 / 60), '23:xx deve restare sotto 24 conservando i minuti');
 assertEqual(_parseStrictHour(1), 1, 'intero 1 deve restare ora 1');
 assertEqual(_parseStrictHour(24), null, '24 intero deve essere invalido');
-assertEqual(_parseStrictHour('09:30'), 9, 'stringa HH:MM valida');
-assertEqual(_parseStrictHour('23:59'), 23, 'stringa 23:59 valida');
+assertEqual(_parseStrictHour('09:30'), 9.5, 'stringa HH:MM deve conservare i minuti');
+assertEqual(_parseStrictHour('23:59'), 23 + (59 / 60), 'stringa 23:59 valida');
 assertEqual(_parseStrictHour('25:00'), null, 'stringa HH:MM non valida');
 const testDate = new Date(1899, 11, 30, 14, 0, 0); // 30 Dec 1899, 14:00 local
 assertEqual(_parseStrictHour(testDate), 14, 'Date orario nativo Sheets valida');
+const testDateWithMinutes = new Date(1899, 11, 30, 14, 30, 0); // 30 Dec 1899, 14:30 local
+assertEqual(_parseStrictHour(testDateWithMinutes), 14.5, 'Date orario nativo Sheets deve conservare i minuti');
 assertEqual(_parseStrictHour(new Date('invalid')), null, 'Date invalida deve essere null');
 
 console.log('--- Test _extractSuspensionHoursFromRow (layout corrente/legacy) ---');
@@ -58,6 +60,28 @@ assertDeepEqual(
   { startHour: 10, endHour: 18 },
   'fallback deve prendere le prime due ore valide'
 );
+
+console.log('--- Test isInSuspensionTime rispetta minuti nelle fasce ---');
+{
+  const originalLoaded = global.GLOBAL_CACHE.loaded;
+  const originalSuspensionRules = global.GLOBAL_CACHE.suspensionRules;
+  const originalVacationPeriods = global.GLOBAL_CACHE.vacationPeriods;
+
+  global.GLOBAL_CACHE.loaded = true;
+  global.GLOBAL_CACHE.vacationPeriods = [];
+  global.GLOBAL_CACHE.suspensionRules = {
+    1: [[12.75, 15]]
+  };
+
+  assertEqual(isInSuspensionTime(new Date(2026, 4, 4, 12, 44, 0)), false, '12:44 deve restare fuori dalla sospensione 12:45-15:00');
+  assertEqual(isInSuspensionTime(new Date(2026, 4, 4, 12, 45, 0)), true, '12:45 deve entrare nella sospensione');
+  assertEqual(isInSuspensionTime(new Date(2026, 4, 4, 14, 59, 0)), true, '14:59 deve essere ancora sospeso');
+  assertEqual(isInSuspensionTime(new Date(2026, 4, 4, 15, 0, 0)), false, '15:00 deve uscire dalla sospensione');
+
+  global.GLOBAL_CACHE.loaded = originalLoaded;
+  global.GLOBAL_CACHE.suspensionRules = originalSuspensionRules;
+  global.GLOBAL_CACHE.vacationPeriods = originalVacationPeriods;
+}
 
 console.log('--- Test hasStaleUnreadThreads (label terminali a livello messaggio) ---');
 {
@@ -136,6 +160,49 @@ console.log('--- Test hasStaleUnreadThreads (label terminali a livello messaggio
     hasStaleUnreadThreads(12, 25, 7),
     true,
     'messaggio stale senza label terminali deve bypassare la sospensione'
+  );
+
+  global.CONFIG = originalConfig;
+  global.GmailApp = originalGmailApp;
+  global.GmailService = originalGmailService;
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
+console.log('--- Test hasStaleUnreadThreads fail-open se lookup label non disponibile ---');
+{
+  const originalConfig = global.CONFIG;
+  const originalGmailApp = global.GmailApp;
+  const originalGmailService = global.GmailService;
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  const oldDate = new Date(Date.now() - (13 * 60 * 60 * 1000));
+
+  global.CONFIG = {
+    LABEL_NAME: 'IA',
+    ERROR_LABEL_NAME: 'Errore',
+    VALIDATION_ERROR_LABEL: 'Verifica',
+    SKIP_LABEL_NAME: '·'
+  };
+  global.GLOBAL_CACHE.languageMode = 'all';
+
+  global.GmailService = class GmailService {
+    _getOptionalLabelIdByName() {
+      throw new Error('label lookup unavailable');
+    }
+  };
+
+  const staleMessage = {
+    getId: () => 'm-stale-label-lookup-fail',
+    getDate: () => oldDate,
+    isUnread: () => true
+  };
+  global.GmailApp = {
+    search: () => [{ getMessages: () => [staleMessage] }]
+  };
+
+  assertEqual(
+    hasStaleUnreadThreads(12, 25, 7),
+    true,
+    'il detector stale deve restare fail-open quando le label terminali non sono risolvibili'
   );
 
   global.CONFIG = originalConfig;

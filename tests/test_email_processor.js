@@ -366,6 +366,69 @@ console.log('--- Test processThread: quick check filtrato marca tutto il burst e
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }
 
+console.log('--- Test processThread: burst stesso mittente ordinato per data ---');
+{
+  const originalSession = global.Session;
+  const originalGmailApp = global.GmailApp;
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  let capturedBody = '';
+
+  global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
+  };
+  global.GmailApp = {
+    getAliases: () => []
+  };
+  global.GLOBAL_CACHE.languageMode = 'all';
+
+  const processorOrderedBurst = new EmailProcessor({
+    geminiService: {
+      detectEmailLanguage: () => ({ lang: 'it', safetyGrade: 5 }),
+      shouldRespondToEmail: (body) => {
+        capturedBody = body;
+        return { shouldRespond: false, reason: 'ack' };
+      }
+    },
+    classifier: {
+      _extractMainContent: (body) => body,
+      classifyEmail: () => ({ shouldReply: true, reason: 'candidate' })
+    },
+    gmailService: {
+      getMessageIdsWithLabel: () => new Set(),
+      _extractEmailAddress: extractEmailAddress,
+      extractMessageDetails: (message) => ({
+        subject: message.getSubject(),
+        body: message.getPlainBody(),
+        senderEmail: extractEmailAddress(message.getFrom()),
+        senderName: 'Utente',
+        headers: {},
+        isNewsletter: false,
+        date: message.getDate()
+      }),
+      addLabelToMessage: () => {}
+    }
+  });
+
+  const thread = {
+    getId: () => 'thread-ordered-burst',
+    getLabels: () => [],
+    getMessages: () => [
+      createMessage('m-second', 'Utente <utente@example.org>', 'Seconda', 'Secondo messaggio', new Date('2026-04-01T10:05:00Z')),
+      createMessage('m-first', 'Utente <utente@example.org>', 'Prima', 'Primo messaggio', new Date('2026-04-01T10:00:00Z')),
+      createMessage('m-candidate', 'Utente <utente@example.org>', 'Terza', 'Terzo messaggio', new Date('2026-04-01T10:10:00Z'))
+    ]
+  };
+
+  const result = processorOrderedBurst.processThread(thread, '', [], new Set(), true);
+  assert(result.status === 'filtered', 'quick check deve filtrare il burst di test');
+  assert(capturedBody.indexOf('Primo messaggio') < capturedBody.indexOf('Secondo messaggio'), 'il primo messaggio cronologico deve precedere il secondo');
+  assert(capturedBody.indexOf('Secondo messaggio') < capturedBody.indexOf('Terzo messaggio'), 'il candidato finale deve restare dopo i messaggi precedenti');
+
+  global.Session = originalSession;
+  global.GmailApp = originalGmailApp;
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
 console.log('--- Test processThread: burst multi-mittente preserva mittenti non aggregati ---');
 {
   const originalSession = global.Session;

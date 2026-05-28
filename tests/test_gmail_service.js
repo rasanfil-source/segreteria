@@ -90,6 +90,13 @@ console.log('--- Test _htmlToPlainText converte emoji email una sola volta ---')
   assert(text === '[Email] Messaggio ricevuto', 'emoji email deve diventare un solo token plain-text');
 }
 
+console.log('--- Test _htmlToPlainText conserva href degli anchor ---');
+{
+  const service = new GmailService();
+  const text = service._htmlToPlainText('I documenti sono qui: <a href="https://drive.google.com/xyz">Link</a>');
+  assert(text.includes('Link (https://drive.google.com/xyz)'), 'href degli anchor deve restare disponibile nel testo plain');
+}
+
 console.log('--- Test addLabelToMessage non degrada a label thread-level ---');
 {
   const service = Object.create(GmailService.prototype);

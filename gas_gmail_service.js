@@ -2656,6 +2656,16 @@ var GmailService = class GmailService {
         text = text.replace(/<br\s*\/?\s*>/gi, '\n');
         text = text.replace(/<\/p\s*>/gi, '\n\n');
         text = text.replace(/<\/div\s*>/gi, '\n');
+        text = text.replace(/<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi, (_match, _quote, href, label) => {
+            const cleanHref = String(href || '').trim();
+            const cleanLabel = String(label || '')
+                .replace(/<\/?(?:[a-z]+[1-6]?)(?:\s+[^>]*)?>/gi, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            if (!cleanHref) return cleanLabel;
+            if (!cleanLabel || cleanLabel === cleanHref) return cleanHref;
+            return `${cleanLabel} (${cleanHref})`;
+        });
 
         // Evita di rimuovere espressioni testuali tipo "A < B > C" trattando solo tag HTML plausibili
         text = text.replace(/<\/?(?:[a-z]+[1-6]?)(?:\s+[^>]*)?>/gi, ' ');

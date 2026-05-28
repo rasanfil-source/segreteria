@@ -395,6 +395,42 @@ function runAllTests() {
                 return false;
             }
         });
+        test('_findRowByThreadId recupera righe con whitespace nel threadId', results, () => {
+            const dirtyRow = [' test-thread-dirty ', 'it', 'info', '', '[]', '2026-05-28T10:00:00.000Z', 1, 2, ''];
+            const localService = Object.create(MemoryService.prototype);
+            localService._getColumnCount = () => 9;
+            const makeFinder = () => {
+                const finder = {
+                    matchEntireCell: () => finder,
+                    matchCase: () => finder,
+                    matchFormulaText: () => finder,
+                    findNext: () => null
+                };
+                return finder;
+            };
+            localService._sheet = {
+                getLastRow: () => 2,
+                getLastColumn: () => 9,
+                getRange: (row, _col, numRows, numCols) => {
+                    if (row === 2 && numRows === 1 && numCols === 1) {
+                        return {
+                            createTextFinder: () => makeFinder(),
+                            getValues: () => [[dirtyRow[0]]]
+                        };
+                    }
+                    if (row === 2 && numRows === 1) {
+                        return { getValues: () => [dirtyRow.slice()] };
+                    }
+                    return {
+                        createTextFinder: () => makeFinder(),
+                        getValues: () => [[dirtyRow[0]]]
+                    };
+                }
+            };
+
+            const found = localService._findRowByThreadId('test-thread-dirty');
+            return found && found.rowIndex === 2 && String(found.values[0]).trim() === 'test-thread-dirty';
+        });
     });
 
     // 3. TerritoryValidator

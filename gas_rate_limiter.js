@@ -807,32 +807,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const gotLock = alreadyLocked || lock.tryLock(10000);
 
     if (!gotLock) {
-      console.warn(`⚠️ Lock timeout RPD/Token per ${modelKey}: tento incremento non protetto`);
-      const rpdKey = 'rpd_' + modelKey;
-      const rpdDateKey = 'rpd_date_' + modelKey;
-      const tokensKey = 'tokens_' + modelKey;
-      try {
-        const todayPacific = this._getPacificDate();
-        const lastRpdDate = this.props.getProperty(rpdDateKey) || '';
-        let currentRpd = parseInt(this.props.getProperty(rpdKey) || '0', 10) || 0;
-        let currentTokens = parseInt(this.props.getProperty(tokensKey) || '0', 10) || 0;
-        if (lastRpdDate !== todayPacific) {
-          currentRpd = 0;
-          currentTokens = 0;
-          this.props.setProperty(rpdDateKey, todayPacific);
-        }
-        const nextRpd = currentRpd + 1;
-        const nextTokens = currentTokens + (tokensUsed || 0);
-        this.props.setProperty(rpdKey, String(nextRpd));
-        this.props.setProperty(tokensKey, String(nextTokens));
-        return { rpd: nextRpd, tokens: nextTokens };
-      } catch (e) {
-        console.error(`❌ Incremento RPD/Token non protetto fallito per ${modelKey}: ${e.message}`);
-        return {
-          rpd: parseInt(this.props.getProperty(rpdKey) || '0', 10) || 0,
-          tokens: parseInt(this.props.getProperty(tokensKey) || '0', 10) || 0
-        };
-      }
+      console.warn(`⚠️ Lock timeout RPD/Token per ${modelKey}: quota non tracciata`);
+      throw new Error(`QUOTA_TRACKING_FAILED: impossibile acquisire lock RPD/Token per ${modelKey}`);
     }
 
     try {

@@ -760,6 +760,12 @@ var EmailProcessor = class EmailProcessor {
             ? this.gmailService._extractEmailAddress(rawFrom)
             : rawFrom;
           return this._normalizeEmailAddress_(sender || '') === candidateSenderEmail;
+        }).sort((a, b) => {
+          const timeOf = (message) => {
+            const date = message && typeof message.getDate === 'function' ? message.getDate() : null;
+            return date instanceof Date && !isNaN(date.getTime()) ? date.getTime() : 0;
+          };
+          return timeOf(a) - timeOf(b);
         });
         setResponseContextMessages(burstMessages);
         const aggregatedBody = burstMessages.map((message) => {

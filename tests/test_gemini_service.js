@@ -47,6 +47,15 @@ console.log('--- Test _quoteUnquotedJsonKeysSafely: non corrompe virgole e pseud
   assert(parsed.category === 'TECHNICAL', 'category deve restare leggibile');
 }
 
+console.log('--- Test parseGeminiJsonLenient: virgole finali solo fuori dalle stringhe ---');
+{
+  const raw = '{"reply_needed":true,"reason":"Ciao,}","category":"TECHNICAL",}';
+  const parsed = parseGeminiJsonLenient(raw);
+
+  assert(parsed.reason === 'Ciao,}', 'virgola dentro stringa prima di graffa non deve essere rimossa');
+  assert(parsed.category === 'TECHNICAL', 'virgola finale strutturale deve essere corretta');
+}
+
 console.log('--- Test _classifyError: quota primaria non ritenta sulla stessa chiave ---');
 {
   const service = Object.create(GeminiService.prototype);

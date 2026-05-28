@@ -1768,7 +1768,7 @@ function parseGeminiJsonLenient(text) {
 
   // 5) Normalizzazione della notazione: quoting rigoroso chiavi e pulizia code strutturali
   const safeFixed = _quoteUnquotedJsonKeysSafely(cleaned);
-  const withoutTrailingCommas = safeFixed.replace(/,\s*([\]}])/g, '$1');
+  const withoutTrailingCommas = _removeTrailingCommasOutsideStrings_(safeFixed);
 
   try {
     return JSON.parse(withoutTrailingCommas);
@@ -1781,6 +1781,47 @@ function parseGeminiJsonLenient(text) {
     }
     throw new Error(`L'architettura di conformità JSON non ha potuto validare l'output stringente: ${e.message}`);
   }
+}
+
+function _removeTrailingCommasOutsideStrings_(text) {
+  let output = '';
+  let inString = false;
+  let escape = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      output += ch;
+      if (escape) {
+        escape = false;
+      } else if (ch === '\\') {
+        escape = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      output += ch;
+      continue;
+    }
+
+    if (ch === ',') {
+      let j = i + 1;
+      while (j < text.length && /\s/.test(text[j])) j++;
+      if (j < text.length && (text[j] === '}' || text[j] === ']')) {
+        i = j - 1;
+        continue;
+      }
+    }
+
+    output += ch;
+  }
+
+  return output;
 }
 
 /**

@@ -203,13 +203,29 @@ const streetNumberResult = validator._checkHallucinations(
   'Abito in Via Roma 10, vorrei informazioni.'
 );
 assert(
-  streetNumberResult.warnings.some((w) => w.includes('Orari non in KB: 10:00')),
+  streetNumberResult.errors.some((e) => e.includes('Orari non in KB: 10:00')),
   'numero civico 10 non deve sdoganare 10:00 come orario presente nel messaggio originale'
 );
 assert(
   Array.isArray(streetNumberResult.hallucinations.times) &&
   streetNumberResult.hallucinations.times.includes('10:00'),
   '10:00 deve essere registrato tra gli orari inventati'
+);
+
+console.log('--- Test validateResponse: orario inventato è bloccante ---');
+const inventedTimeValidation = validator.validateResponse(
+  'Gentile utente, la Santa Messa è alle 10:00. Cordiali saluti.',
+  'it',
+  'Orari disponibili: 09:00 e 11:00.',
+  'Vorrei sapere gli orari delle messe.',
+  'Richiesta orari',
+  'full',
+  false
+);
+assert(inventedTimeValidation.isValid === false, 'un orario non presente in KB o nel messaggio originale deve bloccare la risposta');
+assert(
+  inventedTimeValidation.errors.some((e) => e.includes('Orari non in KB: 10:00')),
+  'la validazione deve esporre l orario inventato come errore'
 );
 
 console.log('--- Test hallucination: ora solo numerica in KB deve validare 10:00 ---');

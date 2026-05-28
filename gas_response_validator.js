@@ -737,8 +737,8 @@ var ResponseValidator = class ResponseValidator {
     const inventedTimes = [...responseTimes].filter(t => !kbTimes.has(t) && !originalTimes.has(t));
 
     if (inventedTimes.length > 0) {
-      warnings.push(`Orari non in KB: ${inventedTimes.join(', ')}`);
-      score *= 0.85;
+      errors.push(`Orari non in KB: ${inventedTimes.join(', ')}`);
+      score *= 0.50;
       hallucinations.times = inventedTimes;
     }
 
