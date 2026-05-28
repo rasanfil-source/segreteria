@@ -114,41 +114,61 @@ var GmailService = class GmailService {
     _flushGmailCallCounter_(key, opName = 'batch') {
         if (!this._scriptCache) return;
 
-        // Il counter Gmail e un limite soft anti-burst: deve restare disponibile
-        // anche quando lo ScriptLock globale e gia occupato dalla pipeline.
-        const raw = this._scriptCache.get(key);
-        let current = 0;
-        if (raw !== null) {
-            current = Number.parseInt(raw, 10) || 0;
-        } else if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
-            try {
-                const props = PropertiesService.getScriptProperties();
-                current = Number.parseInt(props.getProperty(key) || '0', 10) || 0;
-            } catch (e) {
-                console.warn(`⚠️ Impossibile leggere backup counter da ScriptProperties (${key}): ${e.message}`);
+        const lockCovered = this._gmailCounterLockCovered === true;
+        const lock = (!lockCovered &&
+            typeof LockService !== 'undefined' &&
+            LockService &&
+            typeof LockService.getScriptLock === 'function')
+            ? LockService.getScriptLock()
+            : null;
+        let lockAcquired = false;
+
+        try {
+            if (lock && typeof lock.tryLock === 'function') {
+                lockAcquired = lock.tryLock(2000);
+                if (!lockAcquired) {
+                    throw new Error('GMAIL_COUNTER_LOCK_UNAVAILABLE');
+                }
             }
-        }
 
-        const total = current + this._pendingGmailCallCount;
-        this._lastGmailCallCount = total;
-        this._pendingGmailCallCount = 0;
+            const raw = this._scriptCache.get(key);
+            let current = 0;
+            if (raw !== null) {
+                current = Number.parseInt(raw, 10) || 0;
+            } else if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+                try {
+                    const props = PropertiesService.getScriptProperties();
+                    current = Number.parseInt(props.getProperty(key) || '0', 10) || 0;
+                } catch (e) {
+                    console.warn(`⚠️ Impossibile leggere backup counter da ScriptProperties (${key}): ${e.message}`);
+                }
+            }
 
-        // Aggiorniamo la cache (TTL 21599 = ~6 ore)
-        this._scriptCache.put(key, String(total), 21599);
+            const total = current + this._pendingGmailCallCount;
+            this._lastGmailCallCount = total;
+            this._pendingGmailCallCount = 0;
 
-        // Allineamento periodico del counter su storage persistente.
-        if (total % 10 === 0 && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
-            try {
-                PropertiesService.getScriptProperties().setProperty(key, String(total));
-            } catch (e) {}
-        }
+            // Aggiorniamo la cache (TTL 21599 = ~6 ore)
+            this._scriptCache.put(key, String(total), 21599);
 
-        if (total >= this._gmailDailyCounterWarnAt && total < this._gmailDailyCallLimit) {
-            console.warn(`⚠️ Gmail API call counter alto: ${total}/${this._gmailDailyCallLimit} (${opName})`);
-        }
+            // Allineamento periodico del counter su storage persistente.
+            if (total % 10 === 0 && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+                try {
+                    PropertiesService.getScriptProperties().setProperty(key, String(total));
+                } catch (e) {}
+            }
 
-        if (total >= this._gmailDailyCallLimit) {
-            throw new Error(`GMAIL_DAILY_CALL_LIMIT_REACHED (${total}/${this._gmailDailyCallLimit})`);
+            if (total >= this._gmailDailyCounterWarnAt && total < this._gmailDailyCallLimit) {
+                console.warn(`⚠️ Gmail API call counter alto: ${total}/${this._gmailDailyCallLimit} (${opName})`);
+            }
+
+            if (total >= this._gmailDailyCallLimit) {
+                throw new Error(`GMAIL_DAILY_CALL_LIMIT_REACHED (${total}/${this._gmailDailyCallLimit})`);
+            }
+        } finally {
+            if (lockAcquired && lock && typeof lock.releaseLock === 'function') {
+                lock.releaseLock();
+            }
         }
     }
 
@@ -1035,14 +1055,23 @@ var GmailService = class GmailService {
         }
 
         const cacheKey = this._getLabelCacheKey_(raw);
-        const cachedEntry = this._labelCache.get(raw);
         const now = Date.now();
+        const hasGmailUsersList = (
+            typeof Gmail !== 'undefined' &&
+            Gmail &&
+            Gmail.Users &&
+            Gmail.Users.Labels &&
+            typeof Gmail.Users.Labels.list === 'function'
+        );
+        const cachedEntry = this._labelCache.get(raw);
         if (cachedEntry && (now - cachedEntry.ts) < this._cacheTTL) {
-            if (cachedEntry.labelId !== undefined) return cachedEntry.labelId;
+            if (typeof cachedEntry.labelId === 'string' && this._isUserLabelId_(cachedEntry.labelId)) return cachedEntry.labelId;
             if (cachedEntry.label && typeof cachedEntry.label.getId === 'function') {
-                return cachedEntry.label.getId();
+                const labelObjectId = cachedEntry.label.getId();
+                if (this._isUserLabelId_(labelObjectId)) return labelObjectId;
             }
-            return null;
+            if (cachedEntry.labelId === null && !hasGmailUsersList) return null;
+            if (!hasGmailUsersList && Object.prototype.hasOwnProperty.call(cachedEntry, 'existsInGmailApp')) return null;
         }
 
         if (this._scriptCache) {
@@ -1060,14 +1089,7 @@ var GmailService = class GmailService {
 
         // Fallback robusto: in ambienti dove Gmail.Users non è disponibile (es. test locali
         // o deployment senza servizio avanzato), usiamo GmailApp per verificare l'esistenza
-        // della label e cache-iamo comunque il risultato (anche negativo).
-        const hasGmailUsersList = (
-            typeof Gmail !== 'undefined' &&
-            Gmail &&
-            Gmail.Users &&
-            Gmail.Users.Labels &&
-            typeof Gmail.Users.Labels.list === 'function'
-        );
+        // della label e cache-iamo in memoria solo per questa modalità senza ID Advanced API.
         if (!hasGmailUsersList) {
             try {
                 // GmailApp.getUserLabelByName restituisce un GmailLabel utilizzabile con GmailApp,
@@ -1101,7 +1123,17 @@ var GmailService = class GmailService {
             });
             
             const matched = apiLabels.find(l => l && l.name === raw);
-            return matched ? matched.id : null;
+            if (matched && this._isUserLabelId_(matched.id)) {
+                this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: matched.id, ts: now });
+                if (this._scriptCache) {
+                    try {
+                        this._scriptCache.put(cacheKey, matched.id, this._cacheTtlSeconds);
+                    } catch (_) { }
+                }
+                return matched.id;
+            }
+            this._labelCache.delete(raw);
+            return null;
         } catch (e) {
             console.warn(`⚠️ _getOptionalLabelIdByName fallito per ${raw}, non metto in cache: ${e.message}`);
             return null;

@@ -38,10 +38,38 @@ vm.runInThisContext(code, { filename: gasMainPath });
 console.log('--- Test estrazione ferie layout variabili B5:E7 ---');
 const compactVacationRow = _extractVacationPeriodFromControlRow_([new Date('2026-07-01'), new Date('2026-07-10'), '', '']);
 const extendedVacationRow = _extractVacationPeriodFromControlRow_([new Date('2026-09-01'), '', '', new Date('2026-09-10')]);
+const invalidVacationRow = _extractVacationPeriodFromControlRow_(['nota ferie', '', '', '']);
 assert(_parseDateValue(compactVacationRow.start).getTime() === new Date(2026, 6, 1).getTime(), 'layout B-C deve mantenere inizio in B');
 assert(_parseDateValue(compactVacationRow.end).getTime() === new Date(2026, 6, 10).getTime(), 'layout B-C deve leggere fine in C');
 assert(_parseDateValue(extendedVacationRow.end).getTime() === new Date(2026, 8, 10).getTime(), 'layout B-E deve leggere fine in E se C/D sono vuote');
+assert(invalidVacationRow.end === null, 'riga ferie senza data fine valida deve restituire end null, non undefined');
 console.log('✅ Test estrazione ferie layout variabili passati');
+
+console.log('--- Test orari Sheets 1899 ignorano offset storici LMT ---');
+{
+  const originalFormatDate = global.Utilities.formatDate;
+  const originalSession = global.Session;
+  const sheetTime = new Date(1899, 11, 30, 14, 30, 0, 0);
+
+  global.Session = {
+    getScriptTimeZone: () => 'Europe/Rome'
+  };
+  global.Utilities.formatDate = (_date, _tz, pattern) => {
+    if (pattern === 'HH:mm') return '14:19';
+    if (pattern === 'H') return '13';
+    return '1899-12-30';
+  };
+
+  assert(_formatDateForKnowledgeText(sheetTime) === '14:30', 'serializzazione KB deve usare getHours/getMinutes su date Sheets 1899');
+  assert(_parseStrictHour(sheetTime) === 14, 'fasce sospensione devono usare getHours su date Sheets 1899');
+
+  if (typeof originalFormatDate === 'undefined') {
+    delete global.Utilities.formatDate;
+  } else {
+    global.Utilities.formatDate = originalFormatDate;
+  }
+  global.Session = originalSession;
+}
 
 function fakeRange(row, column, lastRow = row, lastColumn = column) {
   return {

@@ -405,6 +405,32 @@ var EmailProcessor = class EmailProcessor {
     let candidate = null;
     let replySent = false;
     let externalUnread = [];
+    let responseContextMessageIds = new Set();
+    let responseContextMessages = [];
+    const setResponseContextMessages = (messagesForResponse) => {
+      const source = Array.isArray(messagesForResponse) ? messagesForResponse : [];
+      responseContextMessageIds = new Set();
+      responseContextMessages = [];
+      source.forEach((message) => {
+        if (!message || typeof message.getId !== 'function') return;
+        const messageId = message.getId();
+        if (!messageId || responseContextMessageIds.has(messageId)) return;
+        responseContextMessageIds.add(messageId);
+        responseContextMessages.push(message);
+      });
+      if (candidate && typeof candidate.getId === 'function') {
+        const candidateId = candidate.getId();
+        if (candidateId && !responseContextMessageIds.has(candidateId)) {
+          responseContextMessageIds.add(candidateId);
+          responseContextMessages.push(candidate);
+        }
+      }
+    };
+    const isInResponseContext = (message) => (
+      message &&
+      typeof message.getId === 'function' &&
+      responseContextMessageIds.has(message.getId())
+    );
     let markHandledUnread = () => {};
     let handledUnreadMarked = false;
     const markHandledUnreadOnce = () => {
@@ -413,8 +439,8 @@ var EmailProcessor = class EmailProcessor {
       handledUnreadMarked = true;
     };
     const markFailureForCurrentBurst = (labelType, reviewContext = {}) => {
-      const targets = (externalUnread && externalUnread.length > 0)
-        ? externalUnread
+      const targets = (responseContextMessages && responseContextMessages.length > 0)
+        ? responseContextMessages
         : (candidate ? [candidate] : []);
 
       if (targets.length === 0) {
@@ -608,7 +634,9 @@ var EmailProcessor = class EmailProcessor {
         unlabeledUnread.forEach(message => {
           const messageId = message.getId();
           if (externalIds.has(messageId)) {
-            this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
+            if (isInResponseContext(message)) {
+              this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
+            }
           } else {
             const rawFrom = (message && typeof message.getFrom === 'function') ? (message.getFrom() || '') : '';
             const senderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
@@ -661,6 +689,7 @@ var EmailProcessor = class EmailProcessor {
       // La discovery resta deliberatamente a livello messaggio: l'eventuale presenza
       // di materiale IA nello stesso thread NON deve nascondere nuovi follow-up non letti.
       candidate = externalUnread[externalUnread.length - 1];
+      setResponseContextMessages([candidate]);
 
       // ====================================================================
       // STEP 0: CONTROLLO ULTIMO MITTENTE (Anti-Loop & Ownership)
@@ -732,6 +761,7 @@ var EmailProcessor = class EmailProcessor {
             : rawFrom;
           return this._normalizeEmailAddress_(sender || '') === candidateSenderEmail;
         });
+        setResponseContextMessages(burstMessages);
         const aggregatedBody = burstMessages.map((message) => {
           const details = (message.getId() === candidateId
             ? messageDetails
@@ -1173,18 +1203,12 @@ var EmailProcessor = class EmailProcessor {
       // Quick check superato con shouldRespond=true: marca i secondari ora.
       if (languageMode !== 'foreign_only') {
         const externalIds = new Set(externalUnread.map(m => m.getId()));
-        const candidateDate = messageDetails && messageDetails.date instanceof Date
-          ? messageDetails.date
-          : (candidate && typeof candidate.getDate === 'function' ? candidate.getDate() : null);
-        const candidateTs = candidateDate instanceof Date ? candidateDate.getTime() : 0;
         unlabeledUnread.forEach(message => {
           if (!message || message.getId() === candidate.getId()) return;
           if (externalIds.has(message.getId())) {
-            const msgDate = (typeof message.getDate === 'function') ? message.getDate() : null;
-            const msgTs = msgDate instanceof Date ? msgDate.getTime() : 0;
-            // Fissa il candidato del burst: i messaggi esterni precedenti al candidato
-            // sono considerati inclusi nel contesto della risposta corrente.
-            if (msgTs && candidateTs && msgTs < candidateTs) {
+            // Marca solo i messaggi esterni realmente inclusi nel payload corrente.
+            // Messaggi di altri mittenti nello stesso thread restano eleggibili.
+            if (isInResponseContext(message)) {
               this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
             }
             return;
@@ -1477,10 +1501,13 @@ ${addressLines.join('\n\n')}
           attachmentSkipped.push({ reason: 'near_deadline' });
           console.warn('   ⏳ Allegati multimodali saltati: tempo residuo insufficiente.');
         } else {
+          const attachmentSourceMessages = (responseContextMessages && responseContextMessages.length > 0)
+            ? responseContextMessages
+            : [candidate].filter(Boolean);
           let hasAttachments = false;
           let attachmentPreCheckFailed = false;
           try {
-            hasAttachments = externalUnread.some((message) => {
+            hasAttachments = attachmentSourceMessages.some((message) => {
               const attachments = message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
               return attachments.length > 0;
             });
@@ -1521,9 +1548,9 @@ ${addressLines.join('\n\n')}
               Array.isArray(data && data.blobs) ? data.blobs.length : 0
             );
             const countProcessedAttachments = () => attachmentData.processedCount || 0;
-            // Aggrega allegati dai non letti esterni più recenti, non solo dal candidato.
+            // Aggrega allegati dai messaggi esterni inclusi nel contesto corrente, non solo dal candidato.
             // Evita perdita di contesto quando l'utente invia allegati in messaggi precedenti.
-            for (let i = externalUnread.length - 1; i >= 0; i--) {
+            for (let i = attachmentSourceMessages.length - 1; i >= 0; i--) {
               try {
                 const remainingFiles = maxAttachmentFiles - countProcessedAttachments();
                 if (remainingFiles <= 0) break;
@@ -1532,7 +1559,7 @@ ${addressLines.join('\n\n')}
                 const safeMaxChars = maxTextChars > 0
                   ? Math.max(0, maxTextChars - usedChars)
                   : 0;
-                const msgData = this.gmailService.getProcessableAttachments(externalUnread[i], {
+                const msgData = this.gmailService.getProcessableAttachments(attachmentSourceMessages[i], {
                   maxFiles: remainingFiles,
                   maxTotalChars: safeMaxChars,
                   shouldContinue: () => !this._isNearDeadline(this.config.maxExecutionTimeMs)
@@ -1566,7 +1593,7 @@ ${addressLines.join('\n\n')}
               } catch (attError) {
                 let messageId = 'unknown';
                 try {
-                  messageId = externalUnread[i] && externalUnread[i].getId ? externalUnread[i].getId() : 'unknown';
+                  messageId = attachmentSourceMessages[i] && attachmentSourceMessages[i].getId ? attachmentSourceMessages[i].getId() : 'unknown';
                 } catch (idError) {
                   threadLogger.debug(`Impossibile recuperare ID messaggio durante errore allegati: ${idError.message}`);
                 }
@@ -2341,6 +2368,9 @@ ${addressLines.join('\n\n')}
       ? LockService.getScriptLock()
       : null;
     let lockAcquiredHere = false;
+    const previousGmailCounterLockCovered = this.gmailService
+      ? this.gmailService._gmailCounterLockCovered
+      : undefined;
     let deferredBatchCheckpoint = null;
     const deferBatchCheckpoint = (threadsToResume, startIndex, remainingTimeMs) => {
       deferredBatchCheckpoint = {
@@ -2369,6 +2399,9 @@ ${addressLines.join('\n\n')}
           return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'lock_service_error' };
         }
         lockAcquiredHere = true;
+        if (this.gmailService) {
+          this.gmailService._gmailCounterLockCovered = true;
+        }
       }
     }
 
@@ -2728,6 +2761,13 @@ ${addressLines.join('\n\n')}
 
     } finally {
       restoreRunServiceLoggers();
+      if (this.gmailService) {
+        if (typeof previousGmailCounterLockCovered === 'undefined') {
+          delete this.gmailService._gmailCounterLockCovered;
+        } else {
+          this.gmailService._gmailCounterLockCovered = previousGmailCounterLockCovered;
+        }
+      }
       if (lockAcquiredHere) {
         try {
           executionLock.releaseLock();
@@ -3128,6 +3168,13 @@ ${addressLines.join('\n\n')}
     const sendingKey = `sending_${messageId}`;
     const startedKey = `sendstarted_${messageId}`;
     const sentKey = `sent_${messageId}`;
+    const sendingTtlSeconds = 300;
+    const startedTtlSeconds = 900;
+    const isStaleMarker = (markerValue, ttlMs) => {
+      if (!markerValue) return false;
+      const existingTimestamp = Number.parseInt(String(markerValue), 10);
+      return !Number.isFinite(existingTimestamp) || (Date.now() - existingTimestamp) > ttlMs;
+    };
     const scriptLock = (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function')
       ? LockService.getScriptLock()
       : null;
@@ -3147,22 +3194,31 @@ ${addressLines.join('\n\n')}
         }
         return { ok: false, reason: 'already_sent' };
       }
-      if (cache.get(sendingKey)) {
+      const sendingMarker = cache.get(sendingKey);
+      if (sendingMarker && !isStaleMarker(sendingMarker, sendingTtlSeconds * 1000)) {
         if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
           try { scriptLock.releaseLock(); } catch (_) { }
         }
         return { ok: false, reason: 'in_flight' };
       }
-      if (cache.get(startedKey)) {
+      if (sendingMarker) {
+        console.warn(`⚠️ Marker invio stale rilevato per ${messageId}, sovrascrivo sendingKey`);
+      }
+
+      const startedMarker = cache.get(startedKey);
+      if (startedMarker && !isStaleMarker(startedMarker, startedTtlSeconds * 1000)) {
         if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
           try { scriptLock.releaseLock(); } catch (_) { }
         }
         return { ok: false, reason: 'send_recently_started' };
       }
+      if (startedMarker) {
+        console.warn(`⚠️ Marker sendstarted stale rilevato per ${messageId}, consento nuovo tentativo`);
+      }
 
       const nowTs = String(Date.now());
-      cache.put(sendingKey, nowTs, 300); // 5 minuti
-      cache.put(startedKey, nowTs, 900); // 15 minuti: finestra anti-duplicato per errori ambigui
+      cache.put(sendingKey, nowTs, sendingTtlSeconds); // 5 minuti
+      cache.put(startedKey, nowTs, startedTtlSeconds); // 15 minuti: finestra anti-duplicato per errori ambigui
       if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
         try { scriptLock.releaseLock(); } catch (_) { }
       }

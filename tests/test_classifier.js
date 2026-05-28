@@ -37,3 +37,24 @@ console.log('--- Test Classifier: normalizzazione Unicode conserva lettere non A
   assert(classifier._isTrivialReplyBody('Re: Łódź') === true, 'le lettere Unicode devono restare token valide in risposte banali');
   assert(classifier._isGreetingOnly('Buongiorno!') === true, 'la normalizzazione Unicode deve mantenere il riconoscimento dei saluti');
 }
+
+console.log('--- Test Classifier: documenti informativi non diventano consegna documentale ---');
+{
+  const classifier = new Classifier();
+  const infoResult = classifier.classifyEmail(
+    'Documenti matrimonio',
+    'Vorrei sapere quali documenti di matrimonio devo preparare per la pratica.',
+    false
+  );
+  assert(infoResult.category !== 'document_submission', 'documento di senza verbo di invio non deve suggerire document_submission');
+
+  const genericCertificateCategory = classifier._categorizeContent('Vorrei informazioni sul certificato storico.');
+  assert(genericCertificateCategory !== 'sacrament', 'certificato generico non deve forzare la categoria sacrament');
+
+  const submissionResult = classifier.classifyEmail(
+    'Certificato battesimo',
+    'Buongiorno, in allegato invio il certificato di battesimo richiesto.',
+    false
+  );
+  assert(submissionResult.category === 'document_submission', 'invio esplicito in allegato deve restare document_submission');
+}

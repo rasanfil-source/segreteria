@@ -9,7 +9,7 @@ function _getScriptProperty(key) {
   if (!_SCRIPT_PROPERTIES) {
     _SCRIPT_PROPERTIES = PropertiesService.getScriptProperties();
   }
-  if (!(key in _CACHED_PROPS)) {
+  if (!Object.prototype.hasOwnProperty.call(_CACHED_PROPS, key)) {
     _CACHED_PROPS[key] = _SCRIPT_PROPERTIES.getProperty(key);
   }
   return _CACHED_PROPS[key];

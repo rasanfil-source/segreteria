@@ -366,6 +366,67 @@ console.log('--- Test processThread: quick check filtrato marca tutto il burst e
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }
 
+console.log('--- Test processThread: burst multi-mittente preserva mittenti non aggregati ---');
+{
+  const originalSession = global.Session;
+  const originalGmailApp = global.GmailApp;
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  const labeled = [];
+
+  global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
+  };
+  global.GmailApp = {
+    getAliases: () => []
+  };
+  global.GLOBAL_CACHE.languageMode = 'all';
+
+  const processorMultiSenderBurst = new EmailProcessor({
+    geminiService: {
+      detectEmailLanguage: () => ({ lang: 'it', safetyGrade: 5 }),
+      shouldRespondToEmail: () => ({ shouldRespond: false, reason: 'ack' })
+    },
+    classifier: {
+      _extractMainContent: (body) => body,
+      classifyEmail: () => ({ shouldReply: true, reason: 'candidate' })
+    },
+    gmailService: {
+      getMessageIdsWithLabel: () => new Set(),
+      _extractEmailAddress: extractEmailAddress,
+      extractMessageDetails: (message) => ({
+        subject: message.getSubject(),
+        body: message.getPlainBody(),
+        senderEmail: extractEmailAddress(message.getFrom()),
+        senderName: 'Utente',
+        headers: {},
+        isNewsletter: false,
+        date: message.getDate()
+      }),
+      addLabelToMessage: (id) => labeled.push(id)
+    }
+  });
+
+  const thread = {
+    getId: () => 'thread-multi-sender-burst',
+    getLabels: () => [],
+    getMessages: () => [
+      createMessage('m-other-sender', 'Altro <altro@example.org>', 'Domanda separata', 'Vorrei informazioni sugli orari.', new Date('2026-04-01T09:00:00Z')),
+      createMessage('m-same-sender', 'Utente <utente@example.org>', 'Prima domanda', 'Vorrei informazioni sulla catechesi.', new Date('2026-04-01T10:00:00Z')),
+      createMessage('m-candidate', 'Utente <utente@example.org>', 'Re: Prima domanda', 'Grazie', new Date('2026-04-01T10:05:00Z'))
+    ]
+  };
+
+  const result = processorMultiSenderBurst.processThread(thread, '', [], new Set(), true);
+  assert(result.status === 'filtered', 'quick check shouldRespond=false deve filtrare il candidato');
+  assert(labeled.includes('m-candidate'), 'deve marcare il candidato filtrato');
+  assert(labeled.includes('m-same-sender'), 'deve marcare il messaggio dello stesso mittente incluso nel burst');
+  assert(!labeled.includes('m-other-sender'), 'non deve marcare messaggi di altri mittenti non inclusi nel payload');
+
+  global.Session = originalSession;
+  global.GmailApp = originalGmailApp;
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
 console.log('--- Test processThread: foreign_only marca skip label sui non letti italiani ---');
 {
   const originalSession = global.Session;

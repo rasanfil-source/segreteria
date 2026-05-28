@@ -868,6 +868,43 @@ console.log('--- Test _getOptionalLabelIdByName: fallback GmailApp non usa getNa
   global.Gmail = originalGmail;
 }
 
+console.log('--- Test _getOptionalLabelIdByName: null fallback non oscura Advanced Gmail ---');
+{
+  const originalGmail = global.Gmail;
+  const originalGmailApp = global.GmailApp;
+  let labelsListCalls = 0;
+
+  global.Gmail = undefined;
+  global.GmailApp = {
+    getUserLabelByName: () => null
+  };
+
+  const serviceWithTransientNull = new GmailService();
+  serviceWithTransientNull._cacheTTL = 60 * 1000;
+  const first = serviceWithTransientNull._getOptionalLabelIdByName('Verifica');
+
+  global.Gmail = {
+    Users: {
+      Labels: {
+        list: () => {
+          labelsListCalls += 1;
+          return { labels: [{ id: 'Label_789', name: 'Verifica' }] };
+        }
+      }
+    }
+  };
+  serviceWithTransientNull._incrementGmailCallCounterOrThrow_ = () => {};
+
+  const second = serviceWithTransientNull._getOptionalLabelIdByName('Verifica');
+
+  assert(first === null, 'fallback senza Advanced API deve restituire null');
+  assert(second === 'Label_789', 'il null fallback in cache non deve bloccare il lookup Advanced successivo');
+  assert(labelsListCalls === 1, 'Advanced Gmail deve essere interrogato dopo disponibilita Labels.list');
+
+  global.Gmail = originalGmail;
+  global.GmailApp = originalGmailApp;
+}
+
 console.log('--- Test _getOptionalLabelIdByName: Advanced Gmail conta labels.list e popola cache bulk ---');
 
 {
@@ -1406,19 +1443,26 @@ console.log('--- Test sendHtmlReply: fallback nativo usa from alias stabile ---'
 
 console.log('✅ Test extractMessageDetails robustezza passati');
 
-console.log('--- Test Gmail counter: non usa ScriptLock per ogni chiamata e accorpa incrementi ---');
+console.log('--- Test Gmail counter: usa ScriptLock sul flush e accorpa incrementi ---');
 {
   const originalLockService = global.LockService;
   const originalPropertiesService = global.PropertiesService;
   let storedValue = null;
   let cacheGets = 0;
   let cachePuts = 0;
+  let tryLockCalls = 0;
+  let releaseLockCalls = 0;
 
   try {
     global.LockService = {
       getScriptLock: () => ({
-        tryLock: () => { throw new Error('lock contention'); },
-        releaseLock: () => { throw new Error('release non atteso'); }
+        tryLock: () => {
+          tryLockCalls += 1;
+          return true;
+        },
+        releaseLock: () => {
+          releaseLockCalls += 1;
+        }
       })
     };
     delete global.PropertiesService;
@@ -1444,9 +1488,40 @@ console.log('--- Test Gmail counter: non usa ScriptLock per ogni chiamata e acco
 
     assert(storedValue === '42', 'counter Gmail deve persistere subito la baseline iniziale');
     assert(cacheGets === 1 && cachePuts === 1, 'counter Gmail deve accorpare in memoria gli incrementi successivi alla baseline');
+    assert(tryLockCalls === 1 && releaseLockCalls === 1, 'il flush del counter deve essere protetto da ScriptLock');
   } finally {
     global.LockService = originalLockService;
     global.PropertiesService = originalPropertiesService;
+  }
+}
+
+console.log('--- Test Gmail counter: lock coperto dal batch evita riacquisizione ---');
+{
+  const originalLockService = global.LockService;
+  let storedValue = null;
+
+  try {
+    global.LockService = {
+      getScriptLock: () => ({
+        tryLock: () => { throw new Error('lock non atteso quando coperto dal batch'); },
+        releaseLock: () => { throw new Error('release non atteso quando coperto dal batch'); }
+      })
+    };
+
+    const counterService = new GmailService();
+    counterService._gmailCounterLockCovered = true;
+    counterService._scriptCache = {
+      get: () => storedValue || '10',
+      put: (_key, value) => { storedValue = value; }
+    };
+    counterService._gmailDailyCallLimit = 100;
+    counterService._gmailDailyCounterWarnAt = 90;
+
+    counterService._incrementGmailCallCounterOrThrow_('messages.get');
+
+    assert(storedValue === '11', 'counter Gmail deve aggiornarsi senza riacquisire lock se il batch lo copre già');
+  } finally {
+    global.LockService = originalLockService;
   }
 }
 

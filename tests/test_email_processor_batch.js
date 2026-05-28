@@ -826,6 +826,28 @@ console.log('--- Test _beginSendTransaction: sendstarted recente blocca reinvio 
   cacheStore.clear();
 }
 
+console.log('--- Test _beginSendTransaction: marker stale non blocca reinvio ---');
+{
+  cacheStore.clear();
+  const processor = new EmailProcessor({ gmailService: {} });
+
+  const staleSendingValue = String(Date.now() - 301000);
+  cacheStore.set('sending_m-stale-sending', staleSendingValue);
+  const sendingTxn = processor._beginSendTransaction('m-stale-sending', true);
+
+  assert(sendingTxn.ok === true, 'sending stale deve consentire una nuova transazione');
+  assert(cacheStore.get('sending_m-stale-sending') !== staleSendingValue, 'sending stale deve essere sovrascritto');
+
+  cacheStore.clear();
+  const staleStartedValue = String(Date.now() - 901000);
+  cacheStore.set('sendstarted_m-stale-started', staleStartedValue);
+  const startedTxn = processor._beginSendTransaction('m-stale-started', true);
+
+  assert(startedTxn.ok === true, 'sendstarted stale deve consentire una nuova transazione');
+  assert(cacheStore.get('sendstarted_m-stale-started') !== staleStartedValue, 'sendstarted stale deve essere sovrascritto');
+  cacheStore.clear();
+}
+
 function createExternalThread(id) {
   const msg = createMessage({ id: `m-${id}`, unread: true, from: 'utente@example.com' });
   return createThread({ id: `t-${id}`, messages: [msg] });

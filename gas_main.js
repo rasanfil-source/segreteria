@@ -1229,27 +1229,8 @@ function _parseSheetToStructured(data) {
 
 function _parseStrictHour(value) {
   // Google Sheets può restituire gli orari nativi come Date (es. 30 Dec 1899 14:00:00)
-  // Coerenza timezone con _formatDateForKnowledgeText: usare script TZ quando possibile.
+  // Usa i componenti nativi: Utilities.formatDate su date 1899 può applicare offset storici LMT.
   if (value instanceof Date && !isNaN(value.getTime())) {
-    if (
-      typeof Utilities !== 'undefined' &&
-      Utilities &&
-      typeof Utilities.formatDate === 'function'
-    ) {
-      const scriptTz =
-        typeof Session !== 'undefined' &&
-          Session &&
-          typeof Session.getScriptTimeZone === 'function'
-          ? Session.getScriptTimeZone()
-          : 'Europe/Rome';
-      const hourStr = Utilities.formatDate(value, scriptTz, 'H');
-      const hourFromDate = parseInt(hourStr, 10);
-      if (Number.isInteger(hourFromDate) && hourFromDate >= 0 && hourFromDate <= 23) {
-        return hourFromDate;
-      }
-      return null;
-    }
-    // Fallback per ambienti non-GAS (es. test Node.js)
     const hourFromDate = value.getHours();
     if (
       Number.isInteger(hourFromDate) && hourFromDate >= 0 && hourFromDate <= 23
@@ -1441,7 +1422,8 @@ function _loadAdvancedConfig(ss) {
       const startDate = _parseDateValue(row.start);
       const endDate = _parseDateValue(row.end);
 
-      if (!startDate || !endDate) {
+      if (!(startDate instanceof Date) || Number.isNaN(startDate.getTime()) ||
+          !(endDate instanceof Date) || Number.isNaN(endDate.getTime())) {
         console.warn(`⚠️ Formato data non valido: ${row.start} - ${row.end}`);
         return;
       }
@@ -2046,12 +2028,11 @@ function _formatDateForKnowledgeText(date) {
   // Google Sheets archivia i valori "solo orario" come Date con anno 1899.
   // In KB preferiamo serializzare solo l'orario (HH:mm), non una data fittizia.
   if (date.getFullYear() < 1901) {
-    const tz = resolveScriptTz();
-    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
-      return Utilities.formatDate(date, tz, 'HH:mm');
-    }
-    const parts = _extractDatePartsForTimeZone(date, tz);
-    return `${parts.hour}:${parts.minute}`;
+    // Evita Utilities.formatDate: sulle date 1899 può applicare offset storici
+    // LMT (Local Mean Time) e spostare l'orario di alcuni minuti.
+    const h = String(date.getHours()).padStart(2, '0');
+    const m = String(date.getMinutes()).padStart(2, '0');
+    return `${h}:${m}`;
   }
 
 
@@ -2174,7 +2155,7 @@ function _extractVacationPeriodFromControlRow_(row) {
   const start = row[0];
   const startDate = _parseDateValue(start);
   const endCandidates = [row[2], row[1], row[3]];
-  const end = endCandidates.find(value => _parseDateValue(value) !== null) ?? row[2];
+  const end = endCandidates.find(value => _parseDateValue(value) !== null) ?? null;
 
   if (!startDate) {
     return { start, end };

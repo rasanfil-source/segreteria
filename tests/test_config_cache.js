@@ -49,6 +49,11 @@ assert(getCounts.get('SPREADSHEET_ID') === 1, 'SPREADSHEET_ID deve essere letto 
 assert(CONFIG.METRICS_SHEET_ID === 'metrics-1', 'il getter METRICS_SHEET_ID deve usare _getScriptProperty');
 assert(getCounts.get('METRICS_SHEET_ID') === 1, 'METRICS_SHEET_ID deve essere letto una sola volta');
 
+assert(_getScriptProperty('MISSING_OPTIONAL') === null, 'una property assente deve restituire null');
+backingProps.set('MISSING_OPTIONAL', 'late-value');
+assert(_getScriptProperty('MISSING_OPTIONAL') === null, 'il null iniziale deve restare cached e non rileggere la property');
+assert(getCounts.get('MISSING_OPTIONAL') === 1, 'la property assente deve essere letta una sola volta');
+
 assert(CONFIG.MAX_SAFE_PROMPT_CHARS === 100000, 'MAX_SAFE_PROMPT_CHARS deve avere un fallback esplicito');
 assert(CONFIG.MAX_PROVIDED_INFO_JSON_CHARS === 45000, 'MAX_PROVIDED_INFO_JSON_CHARS deve avere un fallback esplicito');
 assert(CONFIG.MODEL_NAME === 'gemini-3.5-flash', 'MODEL_NAME deve puntare al modello qualita per le risposte');

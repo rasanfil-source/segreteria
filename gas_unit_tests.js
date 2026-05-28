@@ -257,13 +257,16 @@ function runAllTests() {
     testGroup('Regressioni - Precedenza operatori e configurazione', results, () => {
         test('_getScriptProperty memorizza in cache anche con chiave assente inizialmente', results, () => {
             let propertyReads = 0;
+            const backingValues = {};
             const context = {
                 console,
                 PropertiesService: {
                     getScriptProperties: () => ({
                         getProperty: (key) => {
                             propertyReads += 1;
-                            return `${key}-value`;
+                            return Object.prototype.hasOwnProperty.call(backingValues, key)
+                                ? backingValues[key]
+                                : null;
                         }
                     })
                 }
@@ -274,8 +277,9 @@ function runAllTests() {
             propertyReads = 0;
 
             const first = context._getScriptProperty('CACHE_REGRESSION_KEY');
+            backingValues.CACHE_REGRESSION_KEY = 'late-value';
             const second = context._getScriptProperty('CACHE_REGRESSION_KEY');
-            return first === 'CACHE_REGRESSION_KEY-value'
+            return first === null
                 && second === first
                 && propertyReads === 1;
         });

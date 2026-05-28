@@ -44,7 +44,7 @@ var Classifier = class Classifier {
       'sacrament': [
         'battesimo', 'comunione', 'cresima', 'matrimonio',
         'sacramento', 'confessione', 'prima comunione',
-        'baptism', 'communion', 'confirmation', 'marriage', 'sacrament', 'certificato', 'attestato', 'ritiro', 'consegna certificato'
+        'baptism', 'communion', 'confirmation', 'marriage', 'sacrament', 'consegna certificato'
       ],
       'collaboration': [
         'collaborare', 'volontario', 'aiutare', 'proposta',
@@ -484,7 +484,7 @@ var Classifier = class Classifier {
 
     for (const category in this.categories) {
       const keywords = this.categories[category];
-      const score = keywords.filter(kw => textLower.includes(kw)).length;
+      const score = keywords.filter(kw => this._matchesCategoryKeyword_(textLower, kw, category)).length;
       if (score > 0) {
         categoryScores[category] = score;
       }
@@ -512,6 +512,21 @@ var Classifier = class Classifier {
       }
     }
     return maxCategory;
+  }
+
+  _matchesCategoryKeyword_(textLower, keyword, category) {
+    const normalizedKeyword = String(keyword || '').toLowerCase().trim();
+    if (!normalizedKeyword) return false;
+
+    const escaped = normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const keywordRegex = new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'iu');
+    if (!keywordRegex.test(textLower)) return false;
+
+    if (category === 'document_submission' && normalizedKeyword === 'documento di') {
+      return /\b(allego|in\s+allegato|invio|trasmetto|mando|inoltro|spedisco)\b/i.test(textLower);
+    }
+
+    return true;
   }
 
   /**
@@ -544,7 +559,7 @@ var Classifier = class Classifier {
    * @returns {boolean}
    */
   _isDocumentSubmission(text) {
-    return /\b(in\s+allegato|allego|le\s+invio|vi\s+invio|trasmetto|trova\s+allegato|troverete\s+allegato|invio\s+il\s+documento|documento\s+allegato|documento\s+di|mando\s+il\s+documento|inoltro\s+il\s+documento)\b/i
+    return /\b(in\s+allegato|allego|le\s+invio|vi\s+invio|trasmetto|trova\s+allegato|troverete\s+allegato|invio\s+il\s+documento|documento\s+allegato|mando\s+il\s+documento|inoltro\s+il\s+documento)\b/i
       .test(String(text || ''));
   }
 

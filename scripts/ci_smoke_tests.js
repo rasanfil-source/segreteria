@@ -3748,6 +3748,7 @@ function testGmailCounterDoesNotUseScriptLock() {
     };
 
     const service = new context.GmailService();
+    service._gmailCounterLockCovered = true;
     service._scriptCache = {
         get: () => '41',
         put: (key, value) => { storedValue = value; }
