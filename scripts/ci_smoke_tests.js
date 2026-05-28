@@ -2511,12 +2511,65 @@ function testSanitizeUrlIPv6() {
     assert(legit !== null, 'sanitizeUrl deve permettere URL legittimi');
 }
 
+
+function testDiscoverByQueryIncludesMultiturnFollowUp() {
+    loadScript('gas_gmail_service.js');
+
+    const originalGmailApp = global.GmailApp;
+    const oldProcessedMessage = {
+        isUnread: () => false,
+        getId: () => 'm-old-ia',
+        getDate: () => new Date('2026-05-10T08:00:00Z')
+    };
+    const newFollowUpMessage = {
+        isUnread: () => true,
+        getId: () => 'm-new-followup',
+        getDate: () => new Date('2026-05-11T08:00:00Z')
+    };
+    const thread = {
+        getId: () => 't-multiturn',
+        getMessages: () => [oldProcessedMessage, newFollowUpMessage]
+    };
+    let capturedQuery = '';
+
+    try {
+        global.GmailApp = {
+            refreshThread: () => {},
+            search: (query) => {
+                capturedQuery = query || '';
+                return [thread];
+            }
+        };
+
+        const service = new GmailService();
+        const result = service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, '·');
+
+        assert(capturedQuery === 'is:unread in:inbox', 'Discovery query non deve contenere -label: thread-level');
+        assert(result.threads.length === 1, 'Il follow-up unread in thread gia processato deve restare visibile');
+        assert(result.threadIds.has('t-multiturn'), 'Il thread multi-turn deve essere registrato');
+        assert(result.messageIds.has('m-new-followup'), 'Il messaggio unread nuovo deve essere registrato');
+    } finally {
+        if (typeof originalGmailApp === 'undefined') {
+            delete global.GmailApp;
+        } else {
+            global.GmailApp = originalGmailApp;
+        }
+    }
+}
+
 function testMarkdownToHtmlXss() {
     loadScript('gas_gmail_service.js');
 
     // L'iniezione di script nel testo deve essere sottoposta a escape
     const result = markdownToHtml('Ciao <script>alert(1)</script> mondo');
     assert(!result.includes('<script>'), `markdownToHtml NON deve contenere tag script, ottenuto snippet: ${result.substring(0, 200)}`);
+    assert(result.includes('&lt;script&gt;alert(1)&lt;/script&gt;'), 'markdownToHtml deve escape-are script raw nel testo');
+
+    const edgeResult = markdownToHtml('<img src=x onerror=alert(1)> testo <b>fine</b>');
+    assert(!edgeResult.includes('<img src=x onerror=alert(1)>'), 'markdownToHtml NON deve lasciare tag raw a inizio stringa');
+    assert(!edgeResult.includes('<b>fine</b>'), 'markdownToHtml NON deve lasciare tag raw a fine stringa');
+    assert(edgeResult.includes('&lt;img src=x onerror=alert(1)&gt;'), 'markdownToHtml deve escape-are tag raw a inizio stringa');
+    assert(edgeResult.includes('&lt;b&gt;fine&lt;/b&gt;'), 'markdownToHtml deve escape-are tag raw a fine stringa');
 
     // Test bold funziona ancora
     const bold = markdownToHtml('Testo **grassetto** qui');
@@ -3525,6 +3578,7 @@ function main() {
         ['escapeHtml: neutralizza XSS', testEscapeHtml],
         ['markdownToHtml: input non stringa robusto', testMarkdownToHtmlNonStringInput],
         ['sanitizeUrl: blocca IPv6/decimale/userinfo', testSanitizeUrlIPv6],
+        ['gmail discovery: include follow-up multi-turn gia etichettato', testDiscoverByQueryIncludesMultiturnFollowUp],
         ['markdownToHtml: escape-first previene XSS', testMarkdownToHtmlXss],
         ['markdownToHtml: supporta URL con parentesi', testMarkdownLinkWithParentheses],
         ['markdownToHtml: query params senza double-escape', testMarkdownLinkQueryParamsNotDoubleEscaped],

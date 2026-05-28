@@ -154,6 +154,45 @@ console.log('--- Test _discoverByQuery: non esclude label a livello thread ---')
   }
 }
 
+console.log('--- Test _discoverByQuery: include follow-up unread in thread gia etichettato ---');
+{
+  const originalGmailApp = global.GmailApp;
+  const alreadyProcessedMessage = {
+    isUnread: () => false,
+    getId: () => 'm-old-ia',
+    getDate: () => new Date('2026-05-10T08:00:00Z')
+  };
+  const followUpMessage = {
+    isUnread: () => true,
+    getId: () => 'm-new-followup',
+    getDate: () => new Date('2026-05-11T08:00:00Z')
+  };
+  const conversationThread = {
+    getId: () => 't-multiturn',
+    getMessages: () => [alreadyProcessedMessage, followUpMessage]
+  };
+  let capturedQuery = '';
+
+  global.GmailApp = {
+    refreshThread: () => {},
+    search: (query) => {
+      capturedQuery = query || '';
+      return [conversationThread];
+    }
+  };
+
+  try {
+    const serviceQuery = new GmailService();
+    const result = serviceQuery._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, CONFIG.SKIP_LABEL_NAME);
+    assert(capturedQuery === 'is:unread in:inbox', 'query discovery deve evitare -label: per non perdere follow-up multi-turn');
+    assert(result.threads.length === 1, 'thread con vecchio messaggio gestito e nuovo unread deve essere elaborabile');
+    assert(result.threadIds.has('t-multiturn'), 'il thread multi-turn deve essere registrato');
+    assert(result.messageIds.has('m-new-followup'), 'il nuovo follow-up unread deve essere il messaggio candidato');
+  } finally {
+    global.GmailApp = originalGmailApp;
+  }
+}
+
 console.log('--- Test _discoverByQuery: staleOnlyMs esclude thread solo recenti ---');
 {
   const originalGmailApp = global.GmailApp;
