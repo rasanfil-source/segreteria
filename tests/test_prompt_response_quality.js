@@ -172,6 +172,23 @@ assert(
   'il prompt deve includere la data originale del messaggio per oggi/domani/ieri dell\'utente'
 );
 assert(
+  temporalPrompt.includes('Papa attuale:** Leone XIV') &&
+    temporalPrompt.includes('Non presentare Papa Francesco come Papa attuale'),
+  'il prompt deve includere il contesto papale aggiornato e vietare riferimenti presenti a Papa Francesco'
+);
+const kbDrivenPopePrompt = engine.buildPrompt({
+  emailSubject: 'Contesto',
+  emailContent: 'Chi è il Papa?',
+  knowledgeBase: 'Informazioni di contesto | Papa regnante | Pio XIII',
+  detectedLanguage: 'it',
+  currentDate: '2026-05-15',
+  promptProfile: 'lite'
+});
+assert(
+  kbDrivenPopePrompt.includes('Papa attuale:** Pio XIII'),
+  'il prompt deve far prevalere il Papa regnante indicato nella KB/istruzioni sui default tecnici'
+);
+assert(
   temporalPrompt.includes('Prima di descrivere un evento') &&
     temporalPrompt.includes('confrontalo rigidamente con la data odierna') &&
     temporalPrompt.includes('anno pastorale'),

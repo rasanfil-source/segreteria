@@ -259,6 +259,49 @@ assert(
   'i versetti biblici non devono essere registrati tra gli orari allucinati'
 );
 
+console.log('--- Test riferimenti papali: Papa Francesco in presente dopo 2025 è bloccante ---');
+const stalePopeResult = validator._checkCurrentPopeReferences(
+  'Papa Francesco ci invita costantemente a contrastare la cultura dello scarto.',
+  'Caritas: raccolta indumenti per persone senza fissa dimora.',
+  '',
+  { currentDate: '2026-05-29' }
+);
+assert(stalePopeResult.score === 0.0, 'Papa Francesco in presente dopo il cambio di pontificato deve essere bloccante');
+assert(
+  stalePopeResult.errors.some((e) => e.includes('Riferimento papale non aggiornato') && e.includes('Leone XIV')),
+  'l errore deve indicare il riferimento papale non aggiornato e il Papa attuale'
+);
+
+console.log('--- Test riferimenti papali: Papa regnante da KB prevale sul default ---');
+const kbCurrentPopeResult = validator._checkCurrentPopeReferences(
+  'Papa Leone XIV ci invita a pregare.',
+  'Informazioni di contesto | Papa regnante | Pio XIII',
+  '',
+  { currentDate: '2026-05-29' }
+);
+assert(kbCurrentPopeResult.score === 0.0, 'un Papa non regnante secondo la KB non deve passare come voce presente');
+assert(
+  kbCurrentPopeResult.errors.some((e) => e.includes('Leone XIV') && e.includes('Pio XIII')),
+  'l errore deve usare il Papa regnante indicato dalla KB'
+);
+
+const kbCurrentPopeAllowed = validator._checkCurrentPopeReferences(
+  'Papa Pio XIII ci invita a pregare.',
+  'Informazioni di contesto | Papa regnante | Pio XIII',
+  '',
+  { currentDate: '2026-05-29' }
+);
+assert(kbCurrentPopeAllowed.score === 1.0, 'il Papa regnante indicato dalla KB deve essere ammesso come riferimento presente');
+
+console.log('--- Test riferimenti papali: citazione storica di Papa Francesco resta ammessa ---');
+const historicalPopeResult = validator._checkCurrentPopeReferences(
+  'Il Giubileo straordinario della Misericordia fu indetto da papa Francesco.',
+  'Il Giubileo straordinario della Misericordia fu indetto da papa Francesco.',
+  '',
+  { currentDate: '2026-05-29' }
+);
+assert(historicalPopeResult.score === 1.0, 'una citazione storica al passato deve restare valida');
+
 console.log('--- Test temporal consistency: data futura non può essere presentata come passata ---');
 const temporalPastFutureResult = validator._checkTemporalConsistency(
   'La celebrazione della Cresima si è tenuta il 24 maggio 2026 alle ore 17:30.',

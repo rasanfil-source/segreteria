@@ -336,7 +336,10 @@ var PromptEngine = class PromptEngine {
     addSection(this._renderSeasonalContext(currentSeason), 'SeasonalContext');
 
     // 11. CONSAPEVOLEZZA TEMPORALE
-    addSection(this._renderTemporalAwareness(safeCurrentDate, detectedLanguage, messageDate, currentTime, salutationMode), 'TemporalAwareness');
+    const papalSourceText = [aiCoreLiteText, aiCoreText, workingKnowledgeBase, doctrineBaseText]
+      .filter(Boolean)
+      .join('\n');
+    addSection(this._renderTemporalAwareness(safeCurrentDate, detectedLanguage, messageDate, currentTime, salutationMode, papalSourceText), 'TemporalAwareness');
 
     // 12. SUGGERIMENTO CATEGORIA
     addSection(this._renderCategoryHint(category), 'CategoryHint');
@@ -952,7 +955,7 @@ Non mostrare mai entrambi i set di orari.`;
   // TEMPLATE 11: CONSAPEVOLEZZA TEMPORALE
   // ========================================================================
 
-  _renderTemporalAwareness(currentDate, detectedLanguage = 'it', messageDate = null, currentTime = null, salutationMode = 'full') {
+  _renderTemporalAwareness(currentDate, detectedLanguage = 'it', messageDate = null, currentTime = null, salutationMode = 'full', papalSourceText = '') {
     let dateObj;
     if (typeof currentDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(currentDate)) {
       const [year, month, day] = currentDate.split('-').map(Number);
@@ -966,14 +969,71 @@ Non mostrare mai entrambi i set di orari.`;
         return new Intl.DateTimeFormat('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: tz }).format(dateObj);
       } catch (e) { return currentDate; }
     })();
+    const papalContext = this._getPapalContext_(papalSourceText);
 
     return `## DATA ODIERNA E CONTESTO TEMPORALE
 - **Oggi è:** ${currentDate} (${humanDate})
-${messageDate ? `- **Data ricezione/invio email utente:** ${messageDate}\n` : ''}${currentTime ? `- **Ora locale attuale:** ${currentTime}\n` : ''}
+${messageDate ? `- **Data ricezione/invio email utente:** ${messageDate}\n` : ''}${currentTime ? `- **Ora locale attuale:** ${currentTime}\n` : ''}- **Papa attuale:** ${papalContext.currentName} (dal ${papalContext.currentSince}; inizio ministero petrino: ${papalContext.ministryStart})
 **Regole Temporali:**
 1. Ordina sempre gli eventi futuri cronologicamente.
 2. Prima di descrivere un evento (corso, celebrazione) come "futuro" o "passato", confrontalo rigidamente con la data odierna.
-3. Attento all'anno pastorale (settembre-agosto) vs anno solare.`;
+3. Attento all'anno pastorale (settembre-agosto) vs anno solare.
+4. Non presentare ${papalContext.previousName} come Papa attuale o come voce magisteriale in presente. Citalo solo per eventi o documenti storici se il dato è presente nelle informazioni di riferimento. Se non è necessario citare un Papa, evita il riferimento papale.`;
+  }
+
+  _getPapalContext_(sourceText = '') {
+    const fromSources = this._extractPapalContextFromText_(sourceText);
+    const cfg = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.PAPAL_CONTEXT)
+      ? CONFIG.PAPAL_CONTEXT
+      : {};
+    return {
+      currentName: fromSources.currentName || cfg.currentName || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_NAME) || 'Leone XIV',
+      previousName: fromSources.previousName || cfg.previousName || (typeof CONFIG !== 'undefined' && CONFIG.PREVIOUS_POPE_NAME) || 'Papa Francesco',
+      currentSince: cfg.currentSince || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_SINCE) || '2025-05-08',
+      ministryStart: cfg.ministryStart || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_MINISTRY_START) || '2025-05-18'
+    };
+  }
+
+  _extractPapalContextFromText_(sourceText = '') {
+    const text = this._normalizePromptTextInput(sourceText, '');
+    const result = {};
+    if (!text) return result;
+
+    const lines = text.split(/\r?\n/);
+    for (const rawLine of lines) {
+      const line = String(rawLine || '').trim();
+      if (!line || !/(papa|pontefice)\s+(regnante|attuale|precedente|emerito)/i.test(line)) continue;
+
+      const cells = line.split(/\t|\s*\|\s*/).map(cell => cell.trim()).filter(Boolean);
+      const currentIndex = cells.findIndex(cell => /^(?:papa|pontefice)\s+(?:regnante|attuale)$/i.test(cell));
+      if (currentIndex >= 0 && cells[currentIndex + 1]) {
+        result.currentName = this._cleanPopeName_(cells[currentIndex + 1]);
+        if (result.currentName) return result;
+      }
+
+      const previousIndex = cells.findIndex(cell => /^(?:papa|pontefice)\s+(?:precedente|emerito)$/i.test(cell));
+      if (previousIndex >= 0 && cells[previousIndex + 1]) {
+        result.previousName = this._cleanPopeName_(cells[previousIndex + 1]);
+      }
+
+      const currentInline = /\b(?:papa|pontefice)\s+(?:regnante|attuale)\s*(?:[:=\-]\s*)+(.+)$/i.exec(line);
+      if (currentInline && currentInline[1]) {
+        result.currentName = this._cleanPopeName_(currentInline[1]);
+        if (result.currentName) return result;
+      }
+    }
+
+    return result;
+  }
+
+  _cleanPopeName_(value) {
+    const cleaned = String(value || '')
+      .replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, '')
+      .replace(/^papa\s+/i, '')
+      .replace(/[.;,].*$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return /^[A-Za-zÀ-ÖØ-öø-ÿ]/.test(cleaned) ? cleaned : '';
   }
 
   // ========================================================================

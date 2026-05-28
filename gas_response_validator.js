@@ -390,6 +390,13 @@ var ResponseValidator = class ResponseValidator {
     details.temporalConsistency = temporalResult;
     score *= temporalResult.score;
 
+    // === CONTROLLO 10: riferimenti papali aggiornati ===
+    const papalResult = this._checkCurrentPopeReferences(response, knowledgeBase, originalContext, temporalContext);
+    errors.push(...papalResult.errors);
+    warnings.push(...papalResult.warnings);
+    details.currentPopeReference = papalResult;
+    score *= papalResult.score;
+
     // Determina validità
     const isValid = errors.length === 0 && score >= this.MIN_VALID_SCORE;
 
@@ -1124,6 +1131,143 @@ var ResponseValidator = class ResponseValidator {
     }
 
     return { score: 1.0, errors, warnings, violations, checkedDates: dates.length };
+  }
+
+  _checkCurrentPopeReferences(response, knowledgeBase = '', originalContext = '', temporalContext = null) {
+    const errors = [];
+    const warnings = [];
+    let score = 1.0;
+
+    const sourceText = [knowledgeBase, originalContext].filter(Boolean).join('\n');
+    const papalContext = this._getCurrentPopeContext_(sourceText);
+    const currentDate = this._resolveTemporalCurrentDate_(temporalContext) || new Date();
+    const transitionDate = this._parseDateOnly_(papalContext.currentSince);
+    if (transitionDate && currentDate && currentDate < transitionDate) {
+      return { score, errors, warnings, checked: false, reason: 'before_current_pontificate' };
+    }
+
+    const text = String(response || '');
+    const stalePopeNames = this._findStalePresentPopeReferences_(text, papalContext.currentName);
+    if (stalePopeNames.length > 0) {
+      const staleLabel = stalePopeNames.join(', ');
+      errors.push(
+        `Riferimento papale non aggiornato: ${staleLabel} è citato in presente come Papa attuale; il Papa attuale è ${papalContext.currentName}.`
+      );
+      score = 0.0;
+    } else if (
+      /\bPapa\s+Francesco\b/i.test(text) &&
+      !/\bPapa\s+Francesco\b/i.test(sourceText)
+    ) {
+      warnings.push(`Citazione di ${papalContext.previousName} non presente nelle fonti della risposta.`);
+      score *= 0.85;
+    }
+
+    return {
+      score,
+      errors,
+      warnings,
+      currentPope: papalContext.currentName,
+      previousPope: papalContext.previousName,
+      currentSince: papalContext.currentSince,
+      stalePopeNames: stalePopeNames
+    };
+  }
+
+  _getCurrentPopeContext_(sourceText = '') {
+    const fromSources = this._extractPapalContextFromText_(sourceText);
+    const cfg = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.PAPAL_CONTEXT)
+      ? CONFIG.PAPAL_CONTEXT
+      : {};
+    return {
+      currentName: fromSources.currentName || cfg.currentName || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_NAME) || 'Leone XIV',
+      previousName: fromSources.previousName || cfg.previousName || (typeof CONFIG !== 'undefined' && CONFIG.PREVIOUS_POPE_NAME) || 'Papa Francesco',
+      currentSince: cfg.currentSince || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_SINCE) || '2025-05-08'
+    };
+  }
+
+  _extractPapalContextFromText_(sourceText = '') {
+    const result = {};
+    const text = String(sourceText || '');
+    if (!text) return result;
+
+    const lines = text.split(/\r?\n/);
+    for (const rawLine of lines) {
+      const line = String(rawLine || '').trim();
+      if (!line || !/(papa|pontefice)\s+(regnante|attuale|precedente|emerito)/i.test(line)) continue;
+
+      const cells = line.split(/\t|\s*\|\s*/).map(cell => cell.trim()).filter(Boolean);
+      const currentIndex = cells.findIndex(cell => /^(?:papa|pontefice)\s+(?:regnante|attuale)$/i.test(cell));
+      if (currentIndex >= 0 && cells[currentIndex + 1]) {
+        result.currentName = this._cleanPopeName_(cells[currentIndex + 1]);
+        if (result.currentName) return result;
+      }
+
+      const previousIndex = cells.findIndex(cell => /^(?:papa|pontefice)\s+(?:precedente|emerito)$/i.test(cell));
+      if (previousIndex >= 0 && cells[previousIndex + 1]) {
+        result.previousName = this._cleanPopeName_(cells[previousIndex + 1]);
+      }
+
+      const currentInline = /\b(?:papa|pontefice)\s+(?:regnante|attuale)\s*(?:[:=\-]\s*)+(.+)$/i.exec(line);
+      if (currentInline && currentInline[1]) {
+        result.currentName = this._cleanPopeName_(currentInline[1]);
+        if (result.currentName) return result;
+      }
+    }
+
+    return result;
+  }
+
+  _findStalePresentPopeReferences_(responseText, currentPopeName) {
+    const text = String(responseText || '');
+    const staleNames = [];
+    const addName = (rawName) => {
+      const name = this._cleanPopeName_(rawName);
+      if (!name || this._samePopeName_(name, currentPopeName)) return;
+      if (!staleNames.some(existing => this._samePopeName_(existing, name))) {
+        staleNames.push(name);
+      }
+    };
+
+    const verbs = '(?:invita|ricorda|esorta|chiede|incoraggia|sollecita|insegna|sottolinea|richiama)';
+    const popeNamePattern = "[A-ZÀ-ÖØ-Ý][\\wÀ-ÖØ-öø-ÿ'’.-]*(?:\\s+[A-Z0-9IVXLCDMÀ-ÖØ-Ý][\\wÀ-ÖØ-öø-ÿ'’.-]*){0,4}";
+    const titleThenVerb = new RegExp(
+      '\\b(?:Papa|Pontefice|Santo\\s+Padre)\\s+(' + popeNamePattern + ')\\s+(?:ci\\s+)?' + verbs + '\\b',
+      'g'
+    );
+    const currentTitle = new RegExp('\\b(?:attuale\\s+(?:Papa|Pontefice)|Papa\\s+attuale)\\s+(' + popeNamePattern + ')\\b', 'g');
+    const nameIsPope = new RegExp('\\b(' + popeNamePattern + ')\\s+(?:è|e\')\\s+(?:l[\'’]?\\s*)?(?:attuale\\s+)?(?:Papa|Pontefice)\\b', 'g');
+
+    let match;
+    while ((match = titleThenVerb.exec(text)) !== null) addName(match[1]);
+    while ((match = currentTitle.exec(text)) !== null) addName(match[1]);
+    while ((match = nameIsPope.exec(text)) !== null) addName(match[1]);
+
+    return staleNames;
+  }
+
+  _cleanPopeName_(value) {
+    const verbs = '(?:invita|ricorda|esorta|chiede|incoraggia|sollecita|insegna|sottolinea|richiama)';
+    const cleaned = String(value || '')
+      .replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, '')
+      .replace(/^(?:papa|pontefice|santo\s+padre)\s+/i, '')
+      .replace(new RegExp('\\s+(?:ci\\s+)?' + verbs + '\\b.*$', 'i'), '')
+      .replace(/\s+(?:è|e')\s+(?:l['’]?\s*)?(?:attuale\s+)?(?:Papa|Pontefice).*$/i, '')
+      .replace(/[.;,].*$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return /^[A-Za-zÀ-ÖØ-öø-ÿ]/.test(cleaned) ? cleaned : '';
+  }
+
+  _samePopeName_(left, right) {
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/^(?:papa|pontefice|santo\s+padre)\s+/i, '')
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+    return normalize(left) === normalize(right);
   }
 
   _resolveTemporalCurrentDate_(temporalContext) {

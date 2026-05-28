@@ -3924,16 +3924,22 @@ ${addressLines.join('\n\n')}
       ? details.temporalConsistency.errors
       : [];
     const hasTemporal = temporalErrors.length > 0 || errorText.some(e => e.includes('incoerenza temporale'));
+    const papalErrors = (details.currentPopeReference && Array.isArray(details.currentPopeReference.errors))
+      ? details.currentPopeReference.errors
+      : [];
+    const hasPapalReference = papalErrors.length > 0 || errorText.some(e => e.includes('riferimento papale non aggiornato'));
 
     return {
       thinking_leak: hasThinkingLeak,
-      hallucination: hasHallucination,
+      hallucination: hasHallucination || hasPapalReference,
+      papal_reference: hasPapalReference,
       language: hasLanguage,
       placeholder: hasPlaceholder,
       length: hasLength,
       temporal: hasTemporal,
       lengthErrors: lengthErrors,
       temporalErrors: temporalErrors,
+      papalErrors: papalErrors,
       foundPlaceholders: foundPlaceholders,
       hallucinations: hallucinations,
       detectedLanguage: detectedLanguage
@@ -3988,7 +3994,19 @@ ${addressLines.join('\n\n')}
       );
     }
 
-    if (flags.hallucination) {
+    if (flags.papal_reference) {
+      const papalDetails = details.currentPopeReference || {};
+      const currentPope = papalDetails.currentPope || 'il Papa regnante indicato nelle istruzioni';
+      const staleNames = Array.isArray(papalDetails.stalePopeNames) && papalDetails.stalePopeNames.length > 0
+        ? papalDetails.stalePopeNames.join(', ')
+        : 'un Papa non regnante';
+      correctionInstructions.push(
+        `ERRORE CRITICO: Hai citato ${staleNames} in presente come se fosse il Papa attuale.\n` +
+        `CORREZIONE: Il Papa attuale/regnante indicato dalle istruzioni è ${currentPope}. Non usare formule tipo "Papa X ci invita/ricorda..." per un Papa non regnante. Se il riferimento papale non è indispensabile, elimina del tutto la citazione papale; se serve un riferimento storico, scrivilo esplicitamente al passato.`
+      );
+    }
+
+    if (flags.hallucination && !flags.papal_reference) {
       const items = [];
       if (Array.isArray(flags.hallucinations.emails) && flags.hallucinations.emails.length > 0) {
         items.push(`email: ${flags.hallucinations.emails.slice(0, 3).join(', ')}`);
