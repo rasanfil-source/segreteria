@@ -1114,6 +1114,89 @@ console.log('--- Test processThread: fallback generazione marca atomicamente tut
   assert(labeled.has('m-burst-generation-3'), 'deve marcare come processato il candidato del burst');
 }
 
+console.log('--- Test processThread: burst ordina per data prima dell\'aggregazione ---');
+{
+  const bodiesById = {
+    'm-burst-order-old': 'Primo messaggio: vorrei sapere gli orari.',
+    'm-burst-order-middle': 'Secondo messaggio: aggiungo che e urgente.',
+    'm-burst-order-new': 'Terzo messaggio: grazie.'
+  };
+  const oldMsg = createMessage({
+    id: 'm-burst-order-old',
+    unread: true,
+    from: 'utente@example.com',
+    date: new Date('2026-05-07T10:00:00Z')
+  });
+  const middleMsg = createMessage({
+    id: 'm-burst-order-middle',
+    unread: true,
+    from: 'utente@example.com',
+    date: new Date('2026-05-07T10:01:00Z')
+  });
+  const newMsg = createMessage({
+    id: 'm-burst-order-new',
+    unread: true,
+    from: 'utente@example.com',
+    date: new Date('2026-05-07T10:02:00Z')
+  });
+  const thread = createThread({ id: 't-burst-order', messages: [newMsg, oldMsg, middleMsg] });
+  let capturedBody = '';
+  let firstExtractedId = null;
+  const labeled = new Set();
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: (message) => {
+        if (!firstExtractedId) firstExtractedId = message.getId();
+        return {
+          subject: 'Richiesta informazioni',
+          body: bodiesById[message.getId()],
+          senderEmail: 'utente@example.com',
+          senderName: 'Utente Test',
+          date: message.getDate(),
+          headers: {},
+          isNewsletter: false
+        };
+      },
+      addLabelToMessage: (id) => labeled.add(id),
+      addLabelToThread: () => {},
+      getThreadHistory: () => ''
+    },
+    classifier: {
+      classifyEmail: (_subject, body) => {
+        capturedBody = body;
+        return { shouldReply: false, reason: 'test-stop', category: 'info', subIntents: {}, confidence: 0.9 };
+      },
+      _extractMainContent: (body) => body
+    },
+    geminiService: {
+      detectEmailLanguage: () => ({ lang: 'it' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => []
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: () => 'PROMPT'
+    }
+  });
+
+  const res = processor.processThread(thread, 'kb valida', '', labeled, true);
+  assert(res.status === 'filtered', 'il test deve fermarsi dopo la classificazione locale');
+  assert(firstExtractedId === 'm-burst-order-new', `il candidato deve essere il messaggio piu recente, ottenuto ${firstExtractedId}`);
+  const oldIndex = capturedBody.indexOf(bodiesById['m-burst-order-old']);
+  const middleIndex = capturedBody.indexOf(bodiesById['m-burst-order-middle']);
+  const newIndex = capturedBody.indexOf(bodiesById['m-burst-order-new']);
+  assert(oldIndex >= 0 && middleIndex >= 0 && newIndex >= 0, 'il body aggregato deve includere tutti i messaggi del burst');
+  assert(oldIndex < middleIndex && middleIndex < newIndex, 'il body aggregato deve essere ordinato dal piu vecchio al piu recente');
+}
+
 
 console.log('--- Test processThread: burst con allegato nel primo messaggio attiva OCR ---');
 {

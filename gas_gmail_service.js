@@ -460,8 +460,14 @@ var GmailService = class GmailService {
             }
         }
 
-        console.warn(`⚠️ Gmail.Users.Messages.get non recuperabile per msg ${messageId}: skip del messaggio (${lastError ? lastError.message : 'errore sconosciuto'})`);
-        return null;
+        const errorMessage = `Gmail.Users.Messages.get non recuperabile per msg ${messageId}: ${lastError ? lastError.message : 'errore sconosciuto'}`;
+        console.warn(`⚠️ ${errorMessage}`);
+        const err = new Error(errorMessage);
+        err.retryable = false;
+        err.operation = 'Gmail.Users.Messages.get';
+        err.messageId = messageId;
+        err.cause = lastError || null;
+        throw err;
     }
 
     _listMessagesWithResilience(params, maxAttempts = 2) {

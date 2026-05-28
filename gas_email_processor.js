@@ -593,6 +593,31 @@ var EmailProcessor = class EmailProcessor {
         return true;
       });
 
+      const getMessageSortTimestamp = (message) => {
+        try {
+          const date = message && typeof message.getDate === 'function' ? message.getDate() : null;
+          return date instanceof Date && !isNaN(date.getTime()) ? date.getTime() : 0;
+        } catch (e) {
+          return 0;
+        }
+      };
+      const getMessageSortId = (message) => {
+        try {
+          return message && typeof message.getId === 'function' ? String(message.getId() || '') : '';
+        } catch (e) {
+          return '';
+        }
+      };
+      const compareMessagesByDateAndId = (left, right) => {
+        const diff = getMessageSortTimestamp(left) - getMessageSortTimestamp(right);
+        if (diff !== 0) return diff;
+        const leftId = getMessageSortId(left);
+        const rightId = getMessageSortId(right);
+        if (leftId < rightId) return -1;
+        if (leftId > rightId) return 1;
+        return 0;
+      };
+
       externalUnread = unlabeledUnread.filter(message => {
         // Utilizza getFrom() per efficienza rispetto alla costosa extractMessageDetails()
         const rawFrom = (message.getFrom() || '');
@@ -606,7 +631,7 @@ var EmailProcessor = class EmailProcessor {
         if (!senderEmail) return true;
 
         return !ownAddresses.has(this._normalizeEmailAddress_(senderEmail));
-      });
+      }).sort(compareMessagesByDateAndId);
 
       const staleOnlyMs = this._getFiniteOptionNumber_(options, 'staleOnlyMs');
       if (Number.isFinite(staleOnlyMs)) {
@@ -760,13 +785,7 @@ var EmailProcessor = class EmailProcessor {
             ? this.gmailService._extractEmailAddress(rawFrom)
             : rawFrom;
           return this._normalizeEmailAddress_(sender || '') === candidateSenderEmail;
-        }).sort((a, b) => {
-          const timeOf = (message) => {
-            const date = message && typeof message.getDate === 'function' ? message.getDate() : null;
-            return date instanceof Date && !isNaN(date.getTime()) ? date.getTime() : 0;
-          };
-          return timeOf(a) - timeOf(b);
-        });
+        }).sort(compareMessagesByDateAndId);
         setResponseContextMessages(burstMessages);
         const aggregatedBody = burstMessages.map((message) => {
           const details = (message.getId() === candidateId

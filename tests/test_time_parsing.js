@@ -33,8 +33,14 @@ assertEqual(_parseStrictHour(23.5 / 24), 23.5, '23:30 deve conservare i minuti')
 assertEqual(_parseStrictHour(23.99 / 24), 23 + (59 / 60), '23:xx deve restare sotto 24 conservando i minuti');
 assertEqual(_parseStrictHour(1), 1, 'intero 1 deve restare ora 1');
 assertEqual(_parseStrictHour(24), null, '24 intero deve essere invalido');
+assertEqual(_parseStrictHour('00:00'), 0, '00:00 deve essere mezzanotte');
+assertEqual(_parseStrictHour('8'), 8, 'stringa ora intera deve restare valida');
+assertEqual(_parseStrictHour('8.0'), 8, 'stringa ora decimale .0 deve restare valida');
+assertEqual(_parseStrictHour('08:30'), 8.5, '08:30 deve conservare i minuti');
 assertEqual(_parseStrictHour('09:30'), 9.5, 'stringa HH:MM deve conservare i minuti');
 assertEqual(_parseStrictHour('23:59'), 23 + (59 / 60), 'stringa 23:59 valida');
+assertEqual(_parseStrictHour(`8\u202F30`), 8.5, 'spazio stretto non separabile tra ora e minuti deve essere interpretato');
+assertEqual(_parseStrictHour(`8\u00A0:\u00A030`), 8.5, 'NBSP intorno ai due punti deve essere normalizzato');
 assertEqual(_parseStrictHour('25:00'), null, 'stringa HH:MM non valida');
 const testDate = new Date(1899, 11, 30, 14, 0, 0); // 30 Dec 1899, 14:00 local
 assertEqual(_parseStrictHour(testDate), 14, 'Date orario nativo Sheets valida');
@@ -80,6 +86,62 @@ console.log('--- Test isInSuspensionTime rispetta minuti nelle fasce ---');
 
   global.GLOBAL_CACHE.loaded = originalLoaded;
   global.GLOBAL_CACHE.suspensionRules = originalSuspensionRules;
+  global.GLOBAL_CACHE.vacationPeriods = originalVacationPeriods;
+}
+
+console.log('--- Test business date parts centralizzati su Europe/Rome ---');
+{
+  const originalUtilities = global.Utilities;
+  global.Utilities = {
+    formatDate: (_date, tz, pattern) => {
+      assertEqual(tz, 'Europe/Rome', 'getBusinessDateParts deve usare il fuso business');
+      const values = {
+        yyyy: '2026',
+        M: '3',
+        d: '29',
+        H: '0',
+        m: '30',
+        u: '7'
+      };
+      return values[pattern] || '';
+    }
+  };
+
+  const parts = getBusinessDateParts(new Date('2026-03-28T23:30:00Z'));
+  assertDeepEqual(
+    parts,
+    { year: 2026, monthIndex: 2, day: 29, date: 29, hour: 0, minute: 30, isoDay: 0 },
+    'i componenti business devono provenire da Utilities.formatDate in Europe/Rome'
+  );
+
+  global.Utilities = originalUtilities;
+}
+
+console.log('--- Test ferie con date-only e confine UTC/Roma ---');
+{
+  const originalUtilities = global.Utilities;
+  const originalVacationPeriods = global.GLOBAL_CACHE.vacationPeriods;
+  global.GLOBAL_CACHE.vacationPeriods = [
+    { start: '2026-07-01', end: '2026-07-01' }
+  ];
+  global.Utilities = {
+    formatDate: (date, _tz, pattern) => {
+      const time = date.getTime();
+      const boundary = new Date('2026-06-30T22:30:00.000Z').getTime();
+      const values = time === boundary
+        ? { yyyy: '2026', M: '7', d: '1', H: '0', m: '30', u: '3' }
+        : { yyyy: '2026', M: '7', d: '1', H: '12', m: '0', u: '3' };
+      return values[pattern] || '';
+    }
+  };
+
+  assertEqual(
+    isInVacationPeriod(new Date('2026-06-30T22:30:00.000Z'), 'Europe/Rome'),
+    true,
+    'una data UTC che in Europe/Rome è 01/07 deve ricadere nelle ferie date-only 2026-07-01'
+  );
+
+  global.Utilities = originalUtilities;
   global.GLOBAL_CACHE.vacationPeriods = originalVacationPeriods;
 }
 

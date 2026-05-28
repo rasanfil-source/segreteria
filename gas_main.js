@@ -36,6 +36,7 @@ var RESOURCE_CACHE_MAX_BYTES = (typeof CONFIG !== 'undefined' && Number.isFinite
   ? Number(CONFIG.CACHE_MAX_BYTES)
   : (90 * 1024);
 var RESOURCE_CACHE_MAX_PART_SIZE = Math.max(20000, Math.floor(RESOURCE_CACHE_MAX_BYTES * 0.45)); // multipart conservativo
+var BUSINESS_TIME_ZONE = 'Europe/Rome';
 
 function _normalizeStringArraySafe_(candidate) {
   if (!Array.isArray(candidate)) return [];
@@ -107,6 +108,63 @@ function calculateEaster(year) {
   return new Date(year, month - 1, day, 12, 0, 0);
 }
 
+function getBusinessDateParts(dateObj, timeZone = BUSINESS_TIME_ZONE) {
+  const source = dateObj instanceof Date ? dateObj : new Date(dateObj);
+  if (!(source instanceof Date) || isNaN(source.getTime())) return null;
+
+  const tz = timeZone || BUSINESS_TIME_ZONE;
+  if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+    try {
+      const year = parseInt(Utilities.formatDate(source, tz, 'yyyy'), 10);
+      const monthIndex = parseInt(Utilities.formatDate(source, tz, 'M'), 10) - 1;
+      const day = parseInt(Utilities.formatDate(source, tz, 'd'), 10);
+      const hour = parseInt(Utilities.formatDate(source, tz, 'H'), 10);
+      const minute = parseInt(Utilities.formatDate(source, tz, 'm'), 10);
+      const isoDayRaw = parseInt(Utilities.formatDate(source, tz, 'u'), 10);
+      const parts = {
+        year,
+        monthIndex,
+        day,
+        date: day,
+        hour,
+        minute,
+        isoDay: (isoDayRaw >= 1 && isoDayRaw <= 7) ? (isoDayRaw % 7) : NaN
+      };
+      if (
+        Number.isFinite(parts.year) &&
+        Number.isFinite(parts.monthIndex) &&
+        Number.isFinite(parts.day) &&
+        Number.isFinite(parts.hour) &&
+        Number.isFinite(parts.minute) &&
+        Number.isFinite(parts.isoDay)
+      ) {
+        return parts;
+      }
+    } catch (e) {
+      console.warn(`⚠️ Impossibile applicare timezone business (${tz}): ${e.message}`);
+    }
+  }
+
+  return {
+    year: source.getFullYear(),
+    monthIndex: source.getMonth(),
+    day: source.getDate(),
+    date: source.getDate(),
+    hour: source.getHours(),
+    minute: source.getMinutes(),
+    isoDay: source.getDay()
+  };
+}
+
+function _formatBusinessDateKey_(parts) {
+  if (!parts) return '';
+  const y = Number(parts.year);
+  const m = Number(parts.monthIndex) + 1;
+  const d = Number(parts.day);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return '';
+  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
 /**
  * Stima il numero di token per un testo ed eventuali allegati.
  * Algoritmo centralizzato (DRY): unica sorgente di verità per tutte le stime token.
@@ -158,25 +216,26 @@ function estimateTokenCount(text, attachments = []) {
 
   return Math.max(tokens, 1);
 }
-
 /**
  * Verifica se una data ricade in uno dei periodi ferie del segretario
  */
 function isInVacationPeriod(date = new Date(), scriptTimeZone = "") {
-  const isValidDateLike = function (value) {
-    if (!value) return false;
-    if (Object.prototype.toString.call(value) === '[object Date]' && typeof value.getTime === 'function') {
-      return !isNaN(value.getTime());
-    }
-    // Supporto per date serializzate in JSON (stringhe ISO) o timestamp numerici
+  const effectiveTimeZone = scriptTimeZone || BUSINESS_TIME_ZONE;
+  const coerceCalendarDate = function (value) {
+    if (!value && value !== 0) return null;
+    const isDate = Object.prototype.toString.call(value) === '[object Date]';
+    if (isDate && !isNaN(value.getTime())) return value;
     if (typeof value === 'string' || typeof value === 'number') {
-      const d = new Date(value);
-      return !isNaN(d.getTime());
+      const parsedDateValue = _parseDateValue(value);
+      if (parsedDateValue) return parsedDateValue;
+      const parsed = new Date(value);
+      return isNaN(parsed.getTime()) ? null : parsed;
     }
-    return false;
+    return null;
   };
 
-  if (!isValidDateLike(date)) {
+  const dateSource = coerceCalendarDate(date);
+  if (!dateSource) {
     console.warn('⚠️ Data non valida passata a isInVacationPeriod');
     return false;
   }
@@ -190,42 +249,28 @@ function isInVacationPeriod(date = new Date(), scriptTimeZone = "") {
     return false;
   }
 
-  // Normalizza input a data-only nel fuso dello script per evitare slittamenti ai confini UTC.
   const formatDateOnly = function (value) {
-    const source = (value instanceof Date) ? value : new Date(value);
-    if (isNaN(source.getTime())) return '';
-
-    if (scriptTimeZone && typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
-      try {
-        return Utilities.formatDate(source, scriptTimeZone, 'yyyy-MM-dd');
-      } catch (e) {
-        console.warn(`⚠️ Impossibile applicare timezone script (${scriptTimeZone}) in isInVacationPeriod: ${e.message}`);
-      }
-    }
-
-    // Fallback locale: mantiene compatibilità anche in test/mocking senza Utilities.
-    const y = source.getFullYear();
-    const m = String(source.getMonth() + 1).padStart(2, '0');
-    const d = String(source.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    const source = coerceCalendarDate(value);
+    if (!source) return '';
+    return _formatBusinessDateKey_(getBusinessDateParts(source, effectiveTimeZone));
   };
 
-  const checkDateKey = formatDateOnly(date);
+  const checkDateKey = formatDateOnly(dateSource);
   if (!checkDateKey) return false;
 
   for (const vp of periods) {
-    if (!vp || !isValidDateLike(vp.start) || !isValidDateLike(vp.end)) {
+    if (!vp) {
       console.warn('⚠️ Periodo ferie non valido ignorato');
       continue;
     }
 
-    const start = new Date(vp.start);
-    const end = new Date(vp.end);
-    if (start > end) continue;
-
-    const startKey = formatDateOnly(start);
-    const endKey = formatDateOnly(end);
-    if (!startKey || !endKey) continue;
+    const startKey = formatDateOnly(vp.start);
+    const endKey = formatDateOnly(vp.end);
+    if (!startKey || !endKey) {
+      console.warn('⚠️ Periodo ferie non valido ignorato');
+      continue;
+    }
+    if (startKey > endKey) continue;
 
     if (checkDateKey >= startKey && checkDateKey <= endKey) return true;
   }
@@ -252,35 +297,15 @@ function _isSameCalendarDay(left, right) {
 function isInSuspensionTime(checkDate = new Date()) {
   const now = checkDate;
 
-  let year = now.getFullYear();
-  let monthIndex = now.getMonth();
-  let date = now.getDate();
-  let day = now.getDay();
-  let currentHour = now.getHours() + (now.getMinutes() / 60);
-
   // Regola di dominio: la sospensione è ancorata all'orario italiano.
-  const businessTimeZone = 'Europe/Rome';
-
-  if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
-    try {
-      year = parseInt(Utilities.formatDate(now, businessTimeZone, 'yyyy'), 10);
-      monthIndex = parseInt(Utilities.formatDate(now, businessTimeZone, 'M'), 10) - 1;
-      date = parseInt(Utilities.formatDate(now, businessTimeZone, 'd'), 10);
-      const isoDay = parseInt(Utilities.formatDate(now, businessTimeZone, 'u'), 10);
-      if (isNaN(isoDay)) {
-        console.warn(`⚠️ Giorno ISO non parsabile per timezone ${businessTimeZone}; uso getDay() locale come fallback.`);
-      } else {
-        day = isoDay % 7;
-      }
-      const businessHour = parseInt(Utilities.formatDate(now, businessTimeZone, 'H'), 10);
-      const businessMinute = parseInt(Utilities.formatDate(now, businessTimeZone, 'm'), 10);
-      if (!isNaN(businessHour) && !isNaN(businessMinute)) {
-        currentHour = businessHour + (businessMinute / 60);
-      }
-    } catch (e) {
-      console.warn(`⚠️ Impossibile applicare timezone business (${businessTimeZone}): ${e.message}`);
-    }
-  }
+  const businessTimeZone = BUSINESS_TIME_ZONE;
+  const businessParts = getBusinessDateParts(now, businessTimeZone);
+  if (!businessParts) return false;
+  const year = businessParts.year;
+  const monthIndex = businessParts.monthIndex;
+  const date = businessParts.day;
+  const day = businessParts.isoDay;
+  const currentHour = businessParts.hour + (businessParts.minute / 60);
 
   // 1. GESTIONE FESTIVI (Priorità: Sistema ATTIVO)
   for (const [hMonth, hDay] of ALWAYS_OPERATING_DAYS) {
@@ -1258,9 +1283,19 @@ function _parseStrictHour(value) {
     return null;
   }
 
-  const normalized = String(value == null ? '' : value).trim();
+  const normalized = String(value == null ? '' : value)
+    .replace(/[\u00A0\u202F]/g, ' ')
+    .trim();
 
-  const hhmm = normalized.match(/^(\d{1,2}):(\d{2})$/);
+  const decimalHour = normalized.match(/^(\d{1,2})[,.](\d)$/);
+  if (decimalHour) {
+    const hourFromDecimal = Number(decimalHour[1]);
+    const decimalPart = Number(`0.${decimalHour[2]}`);
+    if (!Number.isInteger(hourFromDecimal) || hourFromDecimal < 0 || hourFromDecimal > 23) return null;
+    return hourFromDecimal + decimalPart;
+  }
+
+  const hhmm = normalized.match(/^(\d{1,2})\s*(?::|h|H|\.|\s)\s*(\d{2})$/u);
   if (hhmm) {
     const hourFromTime = Number(hhmm[1]);
     const minuteFromTime = Number(hhmm[2]);

@@ -1469,7 +1469,7 @@ function runAllTests() {
                     && result.threads[0].id === 't-recovered';
             });
 
-            test('Metadata discovery salta il singolo messaggio con risposta vuota senza interrompere il batch', results, () => {
+            test('Metadata discovery propaga messages.get non recuperabile invece di saltare silenziosamente', results, () => {
                 let getCalls = 0;
                 global.Gmail = {
                     Users: {
@@ -1491,11 +1491,12 @@ function runAllTests() {
                 };
 
                 const service = new GmailService();
-                const threads = service._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 5, 1).threads;
-                return Array.isArray(threads)
-                    && threads.length === 1
-                    && threads[0].id === 't-good'
-                    && getCalls >= 2;
+                try {
+                    service._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 5, 1);
+                    return false;
+                } catch (error) {
+                    return String(error.message).includes('m-empty') && getCalls >= 2;
+                }
             });
 
             test('_discoverByQuery filtra thread senza non letti e rispetta safeTargetThreads', results, () => {

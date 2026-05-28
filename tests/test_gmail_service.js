@@ -1003,6 +1003,23 @@ assert(details.rfc2822MessageId === null, 'rfc2822MessageId deve essere null su 
 
 service._getMessageMetadataWithResilience = originalGetMetadata;
 
+console.log('--- Test _getMessageMetadataWithResilience: errore esplicito dopo retry esauriti ---');
+{
+  const originalGet = global.Gmail.Users.Messages.get;
+  global.Gmail.Users.Messages.get = () => null;
+
+  try {
+    service._getMessageMetadataWithResilience('m-empty-explicit', { format: 'minimal' }, 1);
+    assert(false, 'messages.get non recuperabile deve lanciare errore esplicito');
+  } catch (error) {
+    assert(String(error.message).includes('m-empty-explicit'), 'errore deve includere il messageId');
+    assert(error.retryable === false, 'errore dopo retry esauriti deve essere marcato non retryable localmente');
+    assert(error.operation === 'Gmail.Users.Messages.get', 'errore deve mantenere il nome operazione');
+  } finally {
+    global.Gmail.Users.Messages.get = originalGet;
+  }
+}
+
 console.log('--- Test extractMessageDetails: headers malformati non devono rompere parsing metadata ---');
 {
   global.Gmail.Users.Messages.get = () => ({
