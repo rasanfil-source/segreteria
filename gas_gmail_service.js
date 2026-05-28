@@ -345,16 +345,15 @@ var GmailService = class GmailService {
 
     removeLabelFromMessage(messageId, labelName) {
         if (!labelName) return;
-        const removeLabelFromNativeThread = () => {
-            throw new Error("Fallback a livello thread disabilitato per preservare la granularità del triage message-level.");
+        const logThreadLevelFallbackDisabled = (reason) => {
+            const suffix = reason ? ` (${reason})` : '';
+            console.warn(`⚠️ Fallback thread-level removeLabel disabilitato per msg ${messageId}${suffix}: preservata granularità message-level.`);
         };
 
         try {
             const labelId = this._getOptionalLabelIdByName(labelName);
             if (!labelId) {
-                try { removeLabelFromNativeThread(); } catch (fallbackError) {
-                    console.warn(`⚠️ Fallback thread-level removeLabel fallito per msg ${messageId}: ${fallbackError.message}`);
-                }
+                logThreadLevelFallbackDisabled(`label '${labelName}' non trovata`);
                 return;
             }
 
@@ -364,11 +363,7 @@ var GmailService = class GmailService {
             console.log(`✓ Rimossa label '${labelName}' dal messaggio ${messageId}`);
         } catch (e) {
             console.warn(`⚠️ removeLabelFromMessage fallito per msg ${messageId}: ${e.message}`);
-            try {
-                removeLabelFromNativeThread();
-            } catch (fallbackError) {
-                console.warn(`⚠️ Fallback thread-level removeLabel fallito per msg ${messageId}: ${fallbackError.message}`);
-            }
+            logThreadLevelFallbackDisabled(e.message);
         }
     }
 
@@ -406,7 +401,7 @@ var GmailService = class GmailService {
 
   _isLabelNotFoundError(error) {
         const message = (error && error.message) ? error.message.toLowerCase() : '';
-        return (message.includes('label') && message.includes('not found')) ||
+        return (message.includes('label') && (message.includes('not found') || message.includes('non trovato'))) ||
             message.includes('etichetta non trovata') ||
             message.includes('invalid label') ||
             (message.includes('label') && /\b404\b/.test(message));

@@ -601,11 +601,17 @@ var ResponseValidator = class ResponseValidator {
       'NOREPLY',
       'FOCUS IBAN DETECTED'
     ]);
+    const explicitPlaceholderWords = /(?:^|[\s_-])(NOME|COGNOME|DATA|ORA|ORARIO|EMAIL|MAIL|TELEFONO|CELLULARE|INDIRIZZO|IMPORTO|IBAN|LUOGO|LINK|URL|INSERIRE|INSERT|PLACEHOLDER|TODO|TBD|XXX)(?:$|[\s_-])/i;
     const bracketPlaceholders = response.match(bracketPlaceholderPattern) || [];
     if (bracketPlaceholders.length > 0) {
       const filteredBracketPlaceholders = bracketPlaceholders.filter((token) => {
         const inner = token.replace(/^\[|\]$/g, '').trim();
-        return !systemBracketTokens.has(inner);
+        if (systemBracketTokens.has(inner)) return false;
+
+        // Le parentesi quadre sono usate anche per etichette o riferimenti testuali.
+        // Blocchiamo solo token che somigliano davvero a campi da compilare,
+        // evitando falsi positivi su testo normale in maiuscolo tra parentesi.
+        return explicitPlaceholderWords.test(inner);
       });
       if (filteredBracketPlaceholders.length > 0) {
         foundPlaceholders.push(...filteredBracketPlaceholders); // nessuna nidificazione
@@ -981,13 +987,7 @@ var ResponseValidator = class ResponseValidator {
     }
 
     // Determina fascia oraria corrente (fuso orario italiano)
-    const currentHour = (
-      typeof Utilities !== 'undefined' &&
-      Utilities &&
-      typeof Utilities.formatDate === 'function'
-    )
-      ? parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'HH'), 10)
-      : new Date().getHours();
+    const currentHour = this._getCurrentHourInRome_();
     let expectedTimeSlot;
     if (currentHour >= 5 && currentHour < 13) {
       expectedTimeSlot = 'morning';
@@ -1368,13 +1368,7 @@ var ResponseValidator = class ResponseValidator {
     if (!this.greetingPatterns[language]) return text;
 
     // Determina fascia oraria corrente (fuso orario italiano)
-    const currentHour = (
-      typeof Utilities !== 'undefined' &&
-      Utilities &&
-      typeof Utilities.formatDate === 'function'
-    )
-      ? parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'HH'), 10)
-      : new Date().getHours();
+    const currentHour = this._getCurrentHourInRome_();
     let correctTimeSlot;
     if (currentHour >= 5 && currentHour < 13) {
       correctTimeSlot = 'morning';
@@ -1424,6 +1418,24 @@ var ResponseValidator = class ResponseValidator {
     }
 
     return fixedText;
+  }
+
+  _getCurrentHourInRome_() {
+    if (
+      typeof Utilities !== 'undefined' &&
+      Utilities &&
+      typeof Utilities.formatDate === 'function'
+    ) {
+      const parsedHour = parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'HH'), 10);
+      if (Number.isInteger(parsedHour) && parsedHour >= 0 && parsedHour <= 23) {
+        return parsedHour;
+      }
+    }
+
+    const fallbackHour = new Date().getHours();
+    return Number.isInteger(fallbackHour) && fallbackHour >= 0 && fallbackHour <= 23
+      ? fallbackHour
+      : 12;
   }
 
   /**

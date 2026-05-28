@@ -51,12 +51,18 @@ console.log('--- Test _classifyError: quota primaria non ritenta sulla stessa ch
 {
   const service = Object.create(GeminiService.prototype);
   const primary = service._classifyError(new Error('PRIMARY_QUOTA_EXHAUSTED'));
+  const compactPrimary = service._classifyError(new Error('PRIMARYQUOTAEXHAUSTED'));
   const allKeys = service._classifyError(new Error('QUOTA_EXHAUSTED_ALL_KEYS: Limite quota raggiunto'));
+  const compactAllKeys = service._classifyError(new Error('quotaexhaustedallkeys'));
 
   assert(primary.type === 'QUOTA_EXHAUSTED', 'PRIMARY_QUOTA_EXHAUSTED deve restare quota esaurita');
   assert(primary.retryable === false, 'PRIMARY_QUOTA_EXHAUSTED non deve essere retryable localmente');
+  assert(compactPrimary.type === 'QUOTA_EXHAUSTED', 'PRIMARYQUOTAEXHAUSTED compatto deve restare quota esaurita');
+  assert(compactPrimary.retryable === false, 'PRIMARYQUOTAEXHAUSTED compatto non deve essere retryable localmente');
   assert(allKeys.type === 'QUOTA_EXHAUSTED', 'QUOTA_EXHAUSTED_ALL_KEYS deve restare quota esaurita');
   assert(allKeys.retryable === false, 'QUOTA_EXHAUSTED_ALL_KEYS non deve essere retryable localmente');
+  assert(compactAllKeys.type === 'QUOTA_EXHAUSTED', 'quotaexhaustedallkeys compatto deve restare quota esaurita');
+  assert(compactAllKeys.retryable === false, 'quotaexhaustedallkeys compatto non deve essere retryable localmente');
 }
 
 console.log('--- Test classifyError: testo vuoto Gemini è retryable ---');

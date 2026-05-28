@@ -734,9 +734,17 @@ Output JSON:
     }
   }
 
+  _normalizeQuotaSignal_(error) {
+    return this._getErrorMessage_(error).toLowerCase().replace(/[^a-z0-9]+/g, '');
+  }
+
+  _isQuotaExhaustedSignal_(error) {
+    const compactMsg = this._normalizeQuotaSignal_(error);
+    return compactMsg.includes('primaryquotaexhausted') || compactMsg.includes('quotaexhaustedallkeys');
+  }
+
   _isKeySwitchSignal_(error) {
-    const msg = this._getErrorMessage_(error).toLowerCase();
-    return msg.includes('primary_quota_exhausted') || msg.includes('quota_exhausted_all_keys');
+    return this._isQuotaExhaustedSignal_(error);
   }
 
   /**
@@ -750,7 +758,9 @@ Output JSON:
 
     // Segnali interni di esaurimento quota: non ritentare sulla stessa chiave,
     // lascia che il chiamante passi subito alla strategia/chiave successiva.
-    if (msg.includes('primary_quota_exhausted') || msg.includes('quota_exhausted_all_keys')) {
+    // Normalizziamo separatori/case per accettare sia PRIMARY_QUOTA_EXHAUSTED
+    // sia varianti compatte come PRIMARYQUOTAEXHAUSTED.
+    if (this._isQuotaExhaustedSignal_(error)) {
       return { type: 'QUOTA_EXHAUSTED', retryable: false };
     }
 

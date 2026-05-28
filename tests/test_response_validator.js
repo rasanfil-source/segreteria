@@ -56,6 +56,24 @@ assert(
   'una risposta senza placeholder tra quadre non deve generare TypeError né errore placeholder'
 );
 
+console.log('--- Test _checkForbiddenContent (parentesi quadre testuali non placeholder) ---');
+const textualBracketResult = validator._checkForbiddenContent(
+  'Le invio il riferimento alla nota [PARROCCHIA] riportata nel documento.'
+);
+assert(
+  !textualBracketResult.errors.some((e) => e.includes('Contiene placeholder')),
+  'un riferimento testuale maiuscolo tra quadre non deve essere bloccato come placeholder'
+);
+
+console.log('--- Test _checkForbiddenContent (parentesi quadre placeholder esplicito) ---');
+const explicitBracketPlaceholderResult = validator._checkForbiddenContent(
+  'Gentile [NOME], la aspettiamo alle ore 10:00.'
+);
+assert(
+  explicitBracketPlaceholderResult.errors.some((e) => e.includes('Contiene placeholder')),
+  'un campo esplicito tra quadre deve restare bloccante'
+);
+
 console.log('--- Test _ottimizzaSalutoTemporale (saluto reale) ---');
 {
   const originalUtilities = global.Utilities;
@@ -68,6 +86,20 @@ console.log('--- Test _ottimizzaSalutoTemporale (saluto reale) ---');
       'it'
     );
     assert(saluto.startsWith('Buonasera,'), 'il saluto mattutino deve diventare serale senza accedere a gruppi inesistenti');
+  } finally {
+    global.Utilities = originalUtilities;
+  }
+}
+
+console.log('--- Test _getCurrentHourInRome_ (fallback se Utilities non numerica) ---');
+{
+  const originalUtilities = global.Utilities;
+  global.Utilities = {
+    formatDate: () => 'ora-non-valida'
+  };
+  try {
+    const hour = validator._getCurrentHourInRome_();
+    assert(Number.isInteger(hour) && hour >= 0 && hour <= 23, 'fallback ora deve restare un intero valido 0-23');
   } finally {
     global.Utilities = originalUtilities;
   }

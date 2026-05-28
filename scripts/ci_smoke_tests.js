@@ -895,6 +895,28 @@ function testUpdateMemoryAtomicReportsLockTimeoutCause() {
     assert(failure.threadId === 'thread-atomic-timeout', 'la diagnostica deve includere il threadId');
 }
 
+function testUpdateMemoryAtomicClearsPreviousFailureOnSuccess() {
+    loadScript('gas_memory_service.js');
+
+    const service = Object.create(MemoryService.prototype);
+    service._initialized = true;
+    service._lastUpdateMemoryAtomicFailure = { threadId: 'old-thread', cause: 'LOCK_TIMEOUT' };
+    service._getShardedLockKey = () => 'memory_lock_thread-ok';
+    service._getLockTuning_ = () => ({ shardedAcquireTimeoutMs: 10, backoffBaseMs: 1, backoffCapMs: 10, backoffJitterMs: 0 });
+    service._tryAcquireShardedLock = () => true;
+    service._releaseShardedLock = () => { };
+    service._findRowByThreadId = () => null;
+    service._validateAndNormalizeTimestamp = (value) => value;
+    service._withSheetWriteLock = (callback) => callback();
+    service._appendRow = () => { };
+    service._invalidateCache = () => { };
+
+    const result = service.updateMemoryAtomic('thread-ok', { language: 'it' });
+
+    assert(result === true, 'updateMemoryAtomic deve riuscire nel percorso di inserimento mockato');
+    assert(service.getLastUpdateMemoryAtomicFailure() === null, 'un successo deve azzerare la diagnostica di failure precedente');
+}
+
 function testInvalidateCacheAlsoClearsRobustCache() {
     loadScript('gas_memory_service.js');
 
@@ -1455,6 +1477,102 @@ function testMainReleasesExecutionLockBeforePipelineServices() {
     }
 }
 
+function testMainPreservesDeferredCheckpointWrittenByProcessor() {
+    loadScript('gas_main.js');
+
+    const originalGmail = global.Gmail;
+    const originalLockService = global.LockService;
+    const originalCacheService = global.CacheService;
+    const originalPropertiesService = global.PropertiesService;
+    const originalEmailProcessor = global.EmailProcessor;
+    const originalLoadResources = global.loadResources;
+    const originalIsInSuspensionTime = global.isInSuspensionTime;
+    const originalGlobalCache = global.GLOBAL_CACHE;
+    const originalConfig = global.CONFIG;
+
+    const props = new Map();
+    props.set('EMAIL_BATCH_CHECKPOINT', JSON.stringify({
+        version: 2,
+        runId: 'resume-original',
+        createdAt: new Date().toISOString(),
+        retryCount: 1,
+        pendingThreadIds: ['A', 'B', 'C']
+    }));
+
+    global.Gmail = {
+        Users: {
+            getProfile: () => ({ emailAddress: 'me@parrocchia.it' })
+        }
+    };
+    global.LockService = {
+        getScriptLock: () => ({
+            tryLock: () => true,
+            releaseLock: () => { }
+        })
+    };
+    global.CacheService = {
+        getScriptCache: () => ({
+            get: () => null,
+            put: () => { },
+            remove: () => { }
+        })
+    };
+    global.PropertiesService = {
+        getScriptProperties: () => ({
+            getProperty: (key) => props.get(key) || '',
+            setProperty: (key, value) => props.set(key, String(value)),
+            deleteProperty: (key) => props.delete(key)
+        })
+    };
+    global.GLOBAL_CACHE = {
+        loaded: true,
+        systemEnabled: true,
+        knowledgeBase: 'kb operativa',
+        doctrineBase: ''
+    };
+    global.CONFIG = {
+        BATCH_CHECKPOINT_TTL_MS: 10 * 60 * 1000,
+        BATCH_CHECKPOINT_MAX_RETRIES: 3,
+        SUSPENSION_STALE_UNREAD_HOURS: 12
+    };
+    global.loadResources = () => {
+        global.GLOBAL_CACHE.loaded = true;
+    };
+    global.isInSuspensionTime = () => false;
+    global.EmailProcessor = class {
+        processUnreadEmails(_knowledgeBase, _doctrineBase, _skipExecutionLock, _locksAlreadyCovered, options) {
+            assert(
+                options && Array.isArray(options.threadIds) && options.threadIds.join(',') === 'A,B,C',
+                `main deve passare i thread del checkpoint alla pipeline, ottenuto ${JSON.stringify(options)}`
+            );
+            props.set('EMAIL_BATCH_CHECKPOINT', JSON.stringify({
+                version: 2,
+                runId: 'resume-next',
+                createdAt: new Date().toISOString(),
+                retryCount: 1,
+                pendingThreadIds: ['B', 'C']
+            }));
+            return { total: 1, replied: 0, errors: 0 };
+        }
+    };
+
+    try {
+        global.main();
+        const stored = JSON.parse(props.get('EMAIL_BATCH_CHECKPOINT') || 'null');
+        assert(stored && stored.pendingThreadIds.join(',') === 'B,C', 'main non deve cancellare il checkpoint differito appena scritto dalla pipeline');
+    } finally {
+        global.Gmail = originalGmail;
+        global.LockService = originalLockService;
+        global.CacheService = originalCacheService;
+        global.PropertiesService = originalPropertiesService;
+        global.EmailProcessor = originalEmailProcessor;
+        global.loadResources = originalLoadResources;
+        global.isInSuspensionTime = originalIsInSuspensionTime;
+        global.GLOBAL_CACHE = originalGlobalCache;
+        global.CONFIG = originalConfig;
+    }
+}
+
 function testInferUserReactionIsResilientToEmptyTopics() {
     loadScript('gas_email_processor.js');
 
@@ -1640,16 +1758,58 @@ function testRemoveLabelFromMessageDoesNotFallbackToThread() {
 
     try {
         const consoleNoise = withCapturedConsoleNoise({
-            warn: [/removeLabelFromMessage fallito/, /Fallback thread-level removeLabel fallito/]
+            warn: [/removeLabelFromMessage fallito/, /Fallback thread-level removeLabel disabilitato/]
         }, () => {
             service.removeLabelFromMessage('msg-1', 'IA');
         });
         assert(fallbackCalled === false, 'Il fallback thread-level non deve essere eseguito per preservare la granularità message-level');
-        assert(consoleNoise.warn.some(msg => msg.includes('Fallback thread-level removeLabel fallito')), 'Il log deve segnalare la disattivazione del fallback');
+        assert(consoleNoise.warn.some(msg => msg.includes('Fallback thread-level removeLabel disabilitato')), 'Il log deve segnalare la disattivazione del fallback');
     } finally {
         global.Gmail = originalGmail;
         global.GmailApp = originalGmailApp;
     }
+}
+
+function testAddLabelToMessageRetriesItalianMissingLabelId() {
+    loadScript('gas_gmail_service.js');
+
+    const service = Object.create(GmailService.prototype);
+    let optionalLookups = 0;
+    let persistentClears = 0;
+    let inMemoryClears = 0;
+
+    service._getOptionalLabelIdByName = () => {
+        optionalLookups += 1;
+        return null;
+    };
+    service._clearPersistentLabelCache = (labelName) => {
+        if (labelName === 'IA') persistentClears += 1;
+    };
+    service.clearLabelCache = () => {
+        inMemoryClears += 1;
+    };
+    service._incrementGmailCallCounterOrThrow_ = () => {
+        throw new Error('messages.modify non deve essere chiamato senza labelId');
+    };
+
+    const consoleNoise = withCapturedConsoleNoise({
+        warn: [/addLabelToMessage fallito/, /Retry addLabelToMessage fallito/, /Skip fallback thread-level/]
+    }, () => {
+        const error = assertThrows(
+            () => service.addLabelToMessage('msg-1', 'IA'),
+            'Label ID non trovato tramite API Avanzata',
+            'addLabelToMessage deve rilanciare dopo il retry senza labelId'
+        );
+        assert(error.message.includes('Label ID non trovato'), 'Il retry deve produrre un errore labelId mancante');
+    });
+
+    assert(optionalLookups === 2, `addLabelToMessage deve tentare lookup iniziale e retry, ottenuti ${optionalLookups}`);
+    assert(persistentClears === 1, `La cache persistente label deve essere pulita una volta, ottenuto ${persistentClears}`);
+    assert(inMemoryClears === 1, `La cache label in memoria deve essere pulita una volta, ottenuto ${inMemoryClears}`);
+    assert(
+        consoleNoise.warn.some((msg) => msg.includes('retry dopo cache reset') || msg.includes('Retry addLabelToMessage fallito')),
+        'Il test deve esercitare il ramo retry dopo cache reset'
+    );
 }
 
 function testGetProcessableAttachmentsSkipsUnsupportedImagesBeforeCopyBlob() {
@@ -3334,6 +3494,7 @@ function main() {
         ['memory: lock timeout applica exponential backoff', testUpdateMemoryLockFailureUsesExponentialBackoff],
         ['memory get: usa row.values in parsing', testMemoryGetUsesRowValues],
         ['memory atomic: espone causa lock timeout', testUpdateMemoryAtomicReportsLockTimeoutCause],
+        ['memory atomic: reset failure dopo successo', testUpdateMemoryAtomicClearsPreviousFailureOnSuccess],
         ['memory invalidate: pulizia cache deterministica', testInvalidateCacheAlsoClearsRobustCache],
         ['memory: lock sharded timeout invalido usa fallback', testShardedLockInvalidTimeoutUsesFallbackBudget],
         ['memory: sheet lock non rilascia se waitLock fallisce', testSheetWriteLockDoesNotReleaseWhenWaitLockFails],
@@ -3370,6 +3531,7 @@ function main() {
         ['markdownToHtml: evita nesting p/ul invalido', testMarkdownListParagraphNesting],
         ['gmail labels: errori non-label vengono propagati', testAddLabelToThreadPropagatesNonLabelErrors],
         ['gmail labels: remove message does not fallback thread-level', testRemoveLabelFromMessageDoesNotFallbackToThread],
+        ['gmail labels: riconosce labelId italiano mancante nel message-level retry', testAddLabelToMessageRetriesItalianMissingLabelId],
         ['gmail list: empty response fallback', testListMessagesWithResilienceHandlesEmptyResponseError],
         ['gmail list: fallback robusto opzioni paginazione invalide', testGetMessageIdsWithLabelInvalidPaginationOptions],
         ['gmail extract: usa solo main reply senza storico', testExtractMessageDetailsUsesMainReplyOnly],
@@ -3379,6 +3541,7 @@ function main() {
         ['main: reset cache risorse mancanti', testLoadResourcesResetsMissingPromptSheets],
         ['main: isolamento rigoroso per hasExecutionLock', testMainEncapsulatesExecutionLockSuccessfully],
         ['main: rilascia lock prima dei servizi pipeline', testMainReleasesExecutionLockBeforePipelineServices],
+        ['main: preserva checkpoint differito in ripresa', testMainPreservesDeferredCheckpointWrittenByProcessor],
         ['main: serializzazione KB preserva colonne vuote', testSheetRowsToTextPreservesColumnAlignmentWithEmptyCells],
         ['main: serializzazione date KB stabile', testSheetRowsToTextFormatsDatesStably],
         ['main: serializzazione celle multilinea KB stabile', testSheetRowsToTextNormalizesMultilineCells],

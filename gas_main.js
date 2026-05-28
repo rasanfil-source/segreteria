@@ -516,13 +516,13 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
 
   const now = Date.now();
   const forceReload = typeof CONFIG !== 'undefined' && CONFIG.FORCE_RELOAD === true;
+  const spreadsheetId = (typeof CONFIG !== 'undefined' && CONFIG.SPREADSHEET_ID) ? CONFIG.SPREADSHEET_ID : null;
   const cacheIsFreshByTtl = !forceReload && GLOBAL_CACHE.loaded && GLOBAL_CACHE.lastLoadedAt && ((now - GLOBAL_CACHE.lastLoadedAt) < RESOURCE_CACHE_TTL_MS);
   let precomputedSheetModifiedAt = 0;
   if (forceReload) {
     console.log('↻ FORCE_RELOAD attivo: ricarico le risorse ignorando la cache TTL.');
   }
   if (cacheIsFreshByTtl) {
-    const spreadsheetId = (typeof CONFIG !== 'undefined' && CONFIG.SPREADSHEET_ID) ? CONFIG.SPREADSHEET_ID : null;
     precomputedSheetModifiedAt = _getSpreadsheetModifiedTimeMs(spreadsheetId);
     if (!precomputedSheetModifiedAt || precomputedSheetModifiedAt <= GLOBAL_CACHE.lastLoadedAt) {
       return;
@@ -543,6 +543,10 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
         console.warn('⚠️ Lock non acquisito ma cache già presente: evito reload concorrente non protetto.');
         return;
       }
+    }
+
+    if (lockAcquired && cacheIsFreshByTtl) {
+      precomputedSheetModifiedAt = _getSpreadsheetModifiedTimeMs(spreadsheetId);
     }
 
     const lockedNow = Date.now();
@@ -1816,9 +1820,10 @@ function main() {
 
     // Passaggio della dottrina strutturata e testo piatto per compatibilità con i formati di input
     const results = processor.processUnreadEmails(knowledgeBase, doctrineBase, true, false, runOptions);
-    if (checkpointData && (!results || results.reason !== 'gmail_daily_limit_reached')) {
-      _clearBatchCheckpoint_();
-    }
+    // Il ciclo di vita del checkpoint è gestito dalla pipeline batch:
+    // - batch completato: processUnreadEmails chiama _clearBatchCheckpoint_('batch completato')
+    // - batch differito: il finally di processUnreadEmails salva il nuovo checkpoint pendente
+    // Evitiamo quindi di cancellare qui un checkpoint appena riscritto durante una ripresa.
 
     if (results) {
       console.log(`📊 Batch completato: ${results.total || 0} analizzati, ${results.replied || 0} risposte, ${results.errors || 0} errori.`);

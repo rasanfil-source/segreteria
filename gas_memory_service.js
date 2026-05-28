@@ -535,6 +535,7 @@ var MemoryService = class MemoryService {
         }
 
         this._invalidateCache(`memory_${threadId}`);
+        this._lastUpdateMemoryAtomicFailure = null;
         return true;
         // --- FINE SEZIONE CRITICA ---
 
