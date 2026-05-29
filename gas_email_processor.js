@@ -161,7 +161,10 @@ var EmailProcessor = class EmailProcessor {
       : 600;
     const ttlSeconds = Math.max(1, Math.min(configuredTtl, 21600));
     const lockTtlMs = ttlSeconds * 1000;
-    const value = Date.now().toString();
+    const tokenSuffix = (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.getUuid === 'function')
+      ? Utilities.getUuid()
+      : Math.random().toString(36).slice(2);
+    const value = `${Date.now()}_${tokenSuffix}`;
     const scriptLock = (!skipLock &&
       typeof LockService !== 'undefined' &&
       LockService &&
@@ -244,6 +247,24 @@ var EmailProcessor = class EmailProcessor {
       if (threadLogger && typeof threadLogger.warn === 'function') {
         threadLogger.warn(`Errore acquisizione lock thread: ${e.message}`);
       }
+      try {
+        if (hasProps && scriptProps &&
+          typeof scriptProps.getProperty === 'function' &&
+          typeof scriptProps.deleteProperty === 'function' &&
+          scriptProps.getProperty(threadLockKey) === value) {
+          scriptProps.deleteProperty(threadLockKey);
+        }
+        if (hasCache && scriptCache &&
+          typeof scriptCache.get === 'function' &&
+          typeof scriptCache.remove === 'function' &&
+          scriptCache.get(threadLockKey) === value) {
+          scriptCache.remove(threadLockKey);
+        }
+      } catch (cleanupError) {
+        if (threadLogger && typeof threadLogger.warn === 'function') {
+          threadLogger.warn(`Cleanup lock parziale fallito: ${cleanupError.message}`);
+        }
+      }
       return { ok: false, reason: 'lock_acquisition_failed', error: e };
     } finally {
       if (scriptLockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
@@ -273,9 +294,8 @@ var EmailProcessor = class EmailProcessor {
     try {
       if (!lockCtx.lockCovered && !scriptLockAcquired) {
         if (threadLogger && typeof threadLogger.warn === 'function') {
-          threadLogger.warn('Mutex globale non acquisito per rilascio, salto il clean-up per evitare race condition al bordo TTL');
+          threadLogger.warn('Mutex globale non acquisito per rilascio: tento clean-up token-checked del lock logico');
         }
-        return;
       }
 
       let removed = false;
@@ -776,7 +796,7 @@ var EmailProcessor = class EmailProcessor {
       // CRITICO: Ricostruzione del contesto in caso di burst (più email non lette dallo stesso utente).
       // Evita che un'email finale breve (es. "Grazie") faccia scartare le vere domande precedenti.
       if (externalUnread.length > 1) {
-        const candidateSenderEmail = this._normalizeEmailAddress_(messageDetails.senderEmail || '');
+        const candidateSenderEmail = this._normalizeConversationEmailAddress_(messageDetails.senderEmail || '');
         const candidateId = candidate.getId();
         const burstMessages = externalUnread.filter((message) => {
           if (!candidateSenderEmail || !message || typeof message.getFrom !== 'function') return message && message.getId && message.getId() === candidateId;
@@ -784,7 +804,7 @@ var EmailProcessor = class EmailProcessor {
           const sender = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
             ? this.gmailService._extractEmailAddress(rawFrom)
             : rawFrom;
-          return this._normalizeEmailAddress_(sender || '') === candidateSenderEmail;
+          return this._normalizeConversationEmailAddress_(sender || '') === candidateSenderEmail;
         }).sort(compareMessagesByDateAndId);
         setResponseContextMessages(burstMessages);
         const aggregatedBody = burstMessages.map((message) => {
@@ -3141,6 +3161,16 @@ ${addressLines.join('\n\n')}
       local = local.replace(/\+.*/, '').replace(/\./g, '');
     }
 
+    return `${local}@${domain}`;
+  }
+
+  _normalizeConversationEmailAddress_(rawEmail) {
+    const normalized = this._normalizeEmailAddress_(rawEmail);
+    const atIdx = normalized.lastIndexOf('@');
+    if (atIdx <= 0) return normalized;
+
+    const local = normalized.substring(0, atIdx).replace(/\+.*/, '');
+    const domain = normalized.substring(atIdx + 1);
     return `${local}@${domain}`;
   }
 

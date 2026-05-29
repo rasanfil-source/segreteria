@@ -110,10 +110,10 @@ var CONFIG = {
   SENDER_THROTTLE_WINDOW_SECONDS: 60, // Previene burst simultanei su thread diversi dallo stesso sender
   // === DISCOVERY MODE ======================================================================
   // Modalità di scoperta messaggi non letti da elaborare.
-  // - 'query'   : default operativo con GmailApp.search('is:unread in:inbox') e filtro message-level in RAM
-  // - 'metadata': fallback prudente/manuale (list INBOX/UNREAD + get(minimal) per labelIds)
-  // Configurato su 'query' per ottimizzare l'uso della quota API in lettura
-  MESSAGE_DISCOVERY_MODE: 'query',
+  // - 'metadata': default operativo message-level (list INBOX/UNREAD + blacklist ID in RAM)
+  // - 'query'   : compatibilità legacy via GmailApp.search('is:unread in:inbox')
+  // Mantieni l'esempio allineato a gas_config.js per evitare divergenze tra test e produzione.
+  MESSAGE_DISCOVERY_MODE: 'metadata',
   // =========================================================================================
   MAX_EXECUTION_TIME_MS: 280000,    // Tempo massimo stimato per singola esecuzione GAS
   GMAIL_LABEL_CACHE_TTL: 21600000,     // 6 ore in millisecondi

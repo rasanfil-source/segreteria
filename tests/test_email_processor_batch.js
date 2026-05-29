@@ -444,6 +444,47 @@ console.log('--- Test thread lock: release rimuove cache e PropertiesService sol
   }
 }
 
+console.log('--- Test thread lock: release token-checked anche se ScriptLock è conteso ---');
+{
+  const originalLockService = global.LockService;
+  const props = new Map();
+  const key = 'thread_lock_t-release-contended';
+  const value = `${Date.now()}_mine`;
+  const propsApi = {
+    getProperty: (k) => props.get(k) || '',
+    setProperty: (k, v) => props.set(k, v),
+    deleteProperty: (k) => props.delete(k)
+  };
+  cacheStore.clear();
+  props.set(key, value);
+  cacheStore.set(key, value);
+
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => false,
+      releaseLock: () => {
+        throw new Error('release non attesa senza lock acquisito');
+      }
+    })
+  };
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    processor._releaseThreadLock({
+      acquired: true,
+      cache: global.CacheService.getScriptCache(),
+      properties: propsApi,
+      key,
+      value
+    }, global.createLogger());
+    assert(!props.has(key), 'release deve pulire PropertiesService se il token combacia anche con ScriptLock conteso');
+    assert(!cacheStore.has(key), 'release deve pulire CacheService se il token combacia anche con ScriptLock conteso');
+  } finally {
+    global.LockService = originalLockService;
+    cacheStore.clear();
+  }
+}
+
 console.log('--- Test thread lock: skipLock salta solo lo ScriptLock ma mantiene token logico ---');
 {
   const originalPropertiesService = global.PropertiesService;
@@ -521,6 +562,19 @@ console.log('--- Test thread lock: senza LockService fallisce chiuso se non cope
     global.LockService = originalLockService;
     cacheStore.clear();
   }
+}
+
+console.log('--- Test normalize conversation email: accorpa plus-tag nel burst ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  assert(
+    processor._normalizeConversationEmailAddress_('Utente <nome+modulo@example.org>') === 'nome@example.org',
+    'normalizzazione conversazione deve rimuovere +tag anche fuori da Gmail'
+  );
+  assert(
+    processor._normalizeConversationEmailAddress_('Nome.Cognome+tag@googlemail.com') === 'nomecognome@gmail.com',
+    'normalizzazione conversazione deve mantenere le regole Gmail/googlemail'
+  );
 }
 
 console.log('--- Test processUnreadEmails: stop preventivo per tempo insufficiente ---');

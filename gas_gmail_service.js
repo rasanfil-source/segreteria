@@ -803,6 +803,11 @@ var GmailService = class GmailService {
                         try {
                             unreadMessages = this._filterUnreadMessagesForDiscovery_(thread.getMessages(), options);
                         } catch (messagesError) {
+                            const messagesErrorText = String((messagesError && messagesError.message) || '');
+                            if (messagesErrorText.includes('GMAIL_DAILY_CALL_LIMIT_REACHED') ||
+                                messagesErrorText.includes('GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE')) {
+                                throw messagesError;
+                            }
                             console.warn(`⚠️ Errore lettura messaggi thread ${msg.threadId}: ${messagesError.message}`);
                             continue;
                         }
@@ -861,6 +866,20 @@ var GmailService = class GmailService {
                 searchResult = GmailApp.search(query, 0, discoveryPool);
             } catch (searchError) {
                 console.error(`❌ _discoverByQuery: GmailApp.search fallita: ${searchError.message}`);
+                const metadataFallback = this._fallbackToMetadataDiscoveryFromQuery_(
+                    labelName,
+                    errorLabel,
+                    validationLabel,
+                    safeMessageBuffer,
+                    safeTargetThreads,
+                    safeMaxPages,
+                    skipLabel,
+                    options,
+                    'GmailApp.search non disponibile'
+                );
+                if (metadataFallback) {
+                    return metadataFallback;
+                }
                 return {
                     threads: [],
                     threadIds: seenThreadIds,
@@ -900,23 +919,19 @@ var GmailService = class GmailService {
             }
 
             if (threads.length === 0 && nativeThreads.length > 0 && !(options && options.disableMetadataFallback)) {
-                console.warn(`⚠️ Query discovery: ${nativeThreads.length} thread candidati ma nessun unread eleggibile; provo fallback metadata message-level.`);
-                try {
-                    const metadataFallback = this._discoverByMetadata(
-                        labelName,
-                        errorLabel,
-                        validationLabel,
-                        safeMessageBuffer,
-                        safeTargetThreads,
-                        safeMaxPages,
-                        skipLabel,
-                        Object.assign({}, options, { disableMetadataFallback: true })
-                    );
-                    if (metadataFallback && Array.isArray(metadataFallback.threads) && metadataFallback.threads.length > 0) {
-                        return metadataFallback;
-                    }
-                } catch (fallbackError) {
-                    console.warn(`⚠️ Fallback metadata discovery non riuscito: ${fallbackError.message}`);
+                const metadataFallback = this._fallbackToMetadataDiscoveryFromQuery_(
+                    labelName,
+                    errorLabel,
+                    validationLabel,
+                    safeMessageBuffer,
+                    safeTargetThreads,
+                    safeMaxPages,
+                    skipLabel,
+                    options,
+                    `${nativeThreads.length} thread candidati ma nessun unread eleggibile`
+                );
+                if (metadataFallback) {
+                    return metadataFallback;
                 }
             }
 
@@ -933,6 +948,35 @@ var GmailService = class GmailService {
             console.error(`❌ _discoverByQuery fallito: ${e.message}`);
             throw e;
         }
+    }
+
+    _fallbackToMetadataDiscoveryFromQuery_(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null, options = {}, reason = '') {
+        if (options && options.disableMetadataFallback) return null;
+        const reasonSuffix = reason ? ` (${reason})` : '';
+        console.warn(`⚠️ Query discovery inconcludente${reasonSuffix}; provo fallback metadata message-level.`);
+        try {
+            const metadataFallback = this._discoverByMetadata(
+                labelName,
+                errorLabel,
+                validationLabel,
+                safeMessageBuffer,
+                safeTargetThreads,
+                safeMaxPages,
+                skipLabel,
+                Object.assign({}, options, { disableMetadataFallback: true })
+            );
+            if (metadataFallback && Array.isArray(metadataFallback.threads) && metadataFallback.threads.length > 0) {
+                return metadataFallback;
+            }
+        } catch (fallbackError) {
+            const fallbackMessage = String((fallbackError && fallbackError.message) || '');
+            if (fallbackMessage.includes('GMAIL_DAILY_CALL_LIMIT_REACHED') ||
+                fallbackMessage.includes('GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE')) {
+                throw fallbackError;
+            }
+            console.warn(`⚠️ Fallback metadata discovery non riuscito: ${fallbackError.message}`);
+        }
+        return null;
     }
 
     _refreshThreadForUnreadDiscovery_(thread, threadId = '') {
@@ -980,6 +1024,11 @@ var GmailService = class GmailService {
                 const labelIds = metadata && Array.isArray(metadata.labelIds) ? metadata.labelIds : [];
                 return labelIds.includes('UNREAD') && labelIds.includes('INBOX') && matchesStaleWindow(message);
             } catch (metadataError) {
+                const metadataMessage = String((metadataError && metadataError.message) || '');
+                if (metadataMessage.includes('GMAIL_DAILY_CALL_LIMIT_REACHED') ||
+                    metadataMessage.includes('GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE')) {
+                    throw metadataError;
+                }
                 console.warn(`⚠️ Discovery metadata unread fallback fallito: ${metadataError.message}`);
                 return false;
             }
@@ -2502,6 +2551,20 @@ var GmailService = class GmailService {
         }
     }
 
+    _persistTemporaryDriveQueue_(store, key, queue) {
+        if (!store || !key) return;
+        const boundedQueue = (Array.isArray(queue) ? queue : [])
+            .filter(item => item && item.id)
+            .slice(-50);
+        if (boundedQueue.length === 0) {
+            if (typeof store.deleteProperty === 'function') {
+                store.deleteProperty(key);
+            }
+        } else if (typeof store.setProperty === 'function') {
+            store.setProperty(key, JSON.stringify(boundedQueue));
+        }
+    }
+
     _deleteTemporaryDriveFile_(fileId) {
         if (!fileId || typeof Drive === 'undefined' || !Drive || !Drive.Files) return false;
 
@@ -2533,13 +2596,21 @@ var GmailService = class GmailService {
         }
         if (!Array.isArray(queue) || queue.length === 0) return;
 
+        const originalQueue = queue
+            .filter(item => item && item.id)
+            .slice(-50);
         const retained = [];
         let removed = 0;
-        for (const item of queue) {
-            if (!item || !item.id) continue;
+        for (let index = 0; index < originalQueue.length; index++) {
+            const item = originalQueue[index];
+            const persistRemovalProgress = () => {
+                const remaining = originalQueue.slice(index + 1);
+                this._persistTemporaryDriveQueue_(store, key, retained.concat(remaining));
+            };
             try {
                 if (this._deleteTemporaryDriveFile_(item.id)) {
                     removed++;
+                    persistRemovalProgress();
                 } else {
                     retained.push(item);
                 }
@@ -2547,6 +2618,7 @@ var GmailService = class GmailService {
                 const msg = String(e && e.message || '').toLowerCase();
                 if (msg.includes('not found') || msg.includes('file not found') || msg.includes('404')) {
                     removed++;
+                    persistRemovalProgress();
                 } else {
                     retained.push(item);
                     console.warn(`⚠️ Impossibile rimuovere file temporaneo Drive in coda (${item.id}): ${e.message}`);
@@ -2554,11 +2626,7 @@ var GmailService = class GmailService {
             }
         }
 
-        if (retained.length === 0) {
-            store.deleteProperty(key);
-        } else {
-            store.setProperty(key, JSON.stringify(retained.slice(-50)));
-        }
+        this._persistTemporaryDriveQueue_(store, key, retained);
 
         if (removed > 0) {
             console.log(`🧹 Cleanup Drive: rimossi ${removed} file temporanei in coda`);
@@ -2953,27 +3021,41 @@ var GmailService = class GmailService {
         const recipientFallbackEmail = this._extractEmailAddress(messageDetails.recipientEmail || '');
         const effectiveUser = safeSessionEmail('getEffectiveUser');
         const activeUser = safeSessionEmail('getActiveUser');
+        const normalizeFromAddress = (value) => {
+            const extracted = this._extractEmailAddress(value || '') || String(value || '');
+            return extracted.replace(/[\r\n]+/g, '').trim().toLowerCase();
+        };
+        const sessionFromAddresses = [effectiveUser, activeUser]
+            .map(normalizeFromAddress)
+            .filter(Boolean);
+        const aliasFromAddresses = new Set();
+        const authorizedFromAddresses = new Set(sessionFromAddresses);
 
         let stableFrom = null;
-        if (recipientFallbackEmail) {
-            const allowedFrom = [effectiveUser, activeUser]
-                .filter(Boolean)
-                .map((value) => String(value).toLowerCase());
-            try {
+        let stableFromIsAlias = false;
+        try {
+            if (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getAliases === 'function') {
                 const aliases = GmailApp.getAliases() || [];
                 aliases.forEach((alias) => {
-                    const normalized = String(alias || '').trim().toLowerCase();
-                    if (normalized) allowedFrom.push(normalized);
+                    const normalized = normalizeFromAddress(alias);
+                    if (!normalized) return;
+                    aliasFromAddresses.add(normalized);
+                    authorizedFromAddresses.add(normalized);
                 });
-            } catch (_) { }
+            }
+        } catch (_) { }
 
-            if (allowedFrom.includes(String(recipientFallbackEmail).toLowerCase())) {
+        if (recipientFallbackEmail) {
+            const recipientFromAddress = normalizeFromAddress(recipientFallbackEmail);
+            if (authorizedFromAddresses.has(recipientFromAddress)) {
                 stableFrom = recipientFallbackEmail;
+                stableFromIsAlias = aliasFromAddresses.has(recipientFromAddress);
             }
         }
 
         if (!stableFrom) {
-            stableFrom = effectiveUser || activeUser || recipientFallbackEmail || null;
+            stableFrom = effectiveUser || activeUser || null;
+            stableFromIsAlias = stableFrom ? aliasFromAddresses.has(normalizeFromAddress(stableFrom)) : false;
         }
 
         if (hasThreadingInfo) {
@@ -3133,7 +3215,7 @@ var GmailService = class GmailService {
             // Corpo minimo non vuoto per massimizzare compatibilità nel fallback nativo.
             const fallbackBody = plainText || this._stripHtmlTags(finalResponse) || 'Visualizza il contenuto HTML.';
             const fallbackOptions = { htmlBody: htmlBody };
-            if (stableFrom && stableFrom !== effectiveUser) {
+            if (stableFrom && stableFromIsAlias) {
                 fallbackOptions.from = stableFrom;
             }
             mailEntity.reply(fallbackBody, fallbackOptions);

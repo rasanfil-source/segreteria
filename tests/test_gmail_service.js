@@ -314,6 +314,42 @@ console.log('--- Test _discoverByQuery: fallback automatico a metadata discovery
   }
 }
 
+console.log('--- Test _discoverByQuery: fallback metadata se GmailApp.search fallisce ---');
+{
+  const originalGmailApp = global.GmailApp;
+  const metadataThread = {
+    getId: () => 't-search-fallback',
+    getMessages: () => [{
+      isUnread: () => true,
+      getId: () => 'm-search-fallback',
+      getDate: () => new Date('2026-05-10T08:00:00Z')
+    }]
+  };
+
+  global.GmailApp = {
+    search: () => {
+      throw new Error('search temporaneamente non disponibile');
+    },
+    getThreadById: (threadId) => threadId === 't-search-fallback' ? metadataThread : null
+  };
+
+  try {
+    const serviceQuery = new GmailService();
+    serviceQuery._listMessagesWithResilience = () => ({
+      messages: [{ id: 'm-search-fallback', threadId: 't-search-fallback' }],
+      nextPageToken: null
+    });
+    serviceQuery._getOptionalLabelIdByName = () => null;
+    serviceQuery._getMessageMetadataWithResilience = () => ({ labelIds: ['INBOX', 'UNREAD'] });
+
+    const result = serviceQuery._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, []);
+    assert(result.threads.length === 1, 'query discovery deve provare metadata se GmailApp.search fallisce');
+    assert(result.threads[0].getId() === 't-search-fallback', 'fallback metadata deve restituire il thread trovato via Messages.list');
+  } finally {
+    global.GmailApp = originalGmailApp;
+  }
+}
+
 const service = new GmailService();
 
 console.log('--- Test _stripHtmlTags: pattern lineare su tag malformati ---');
@@ -537,6 +573,47 @@ console.log('--- Test discovery metadata: quota Gmail viene propagata al batch -
   );
 }
 
+console.log('--- Test discovery metadata: quota nel fallback stale non viene silenziata ---');
+{
+  const originalGmailApp = global.GmailApp;
+  const serviceQuotaStale = new GmailService();
+  serviceQuotaStale._getOptionalLabelIdByName = () => null;
+  serviceQuotaStale._listMessagesWithResilience = () => ({
+    messages: [{ id: 'm-stale-quota', threadId: 't-stale-quota' }],
+    nextPageToken: null
+  });
+  serviceQuotaStale._getMessageMetadataWithResilience = () => {
+    throw new Error('GMAIL_DAILY_CALL_LIMIT_REACHED (18000/18000)');
+  };
+  global.GmailApp = {
+    getThreadById: () => ({
+      getId: () => 't-stale-quota',
+      getMessages: () => [{
+        getId: () => 'm-stale-quota',
+        isUnread: () => false,
+        getDate: () => new Date('2026-05-01T08:00:00Z')
+      }]
+    })
+  };
+
+  let thrown = null;
+  try {
+    serviceQuotaStale._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 10, 1, [], {
+      staleOnlyMs: new Date('2026-05-10T08:00:00Z').getTime(),
+      blacklistMessageIds: new Set()
+    });
+  } catch (error) {
+    thrown = error;
+  } finally {
+    global.GmailApp = originalGmailApp;
+  }
+
+  assert(
+    thrown && String(thrown.message || '').includes('GMAIL_DAILY_CALL_LIMIT_REACHED'),
+    'la discovery metadata staleOnly deve rilanciare GMAIL_DAILY_CALL_LIMIT_REACHED'
+  );
+}
+
 console.log('--- Test metadata fallback unread: limita scansione ai messaggi recenti ---');
 {
   const serviceBoundedThread = new GmailService();
@@ -556,6 +633,25 @@ console.log('--- Test metadata fallback unread: limita scansione ai messaggi rec
   assert(metadataCalls.length === 3, 'metadata unread fallback deve controllare solo gli ultimi N messaggi del thread');
   assert(metadataCalls[0] === 'm-thread-5' && metadataCalls[2] === 'm-thread-7', 'metadata unread fallback deve partire dalla coda recente del thread');
   assert(unread.length === 1 && unread[0].getId() === 'm-thread-7', 'metadata unread fallback deve recuperare il non letto recente');
+}
+
+console.log('--- Test metadata fallback unread: quota Gmail non viene silenziata ---');
+{
+  const serviceQuotaFallback = new GmailService();
+  serviceQuotaFallback._getMessageMetadataWithResilience = () => {
+    throw new Error('GMAIL_DAILY_CALL_LIMIT_REACHED (18000/18000)');
+  };
+  let threw = false;
+  try {
+    serviceQuotaFallback._filterUnreadMessagesForDiscovery_([{
+      getId: () => 'm-quota-fallback',
+      isUnread: () => false,
+      getDate: () => new Date('2026-05-10T08:00:00Z')
+    }]);
+  } catch (error) {
+    threw = String(error.message || '').includes('GMAIL_DAILY_CALL_LIMIT_REACHED');
+  }
+  assert(threw, 'il fallback metadata unread deve propagare gli stop di quota Gmail');
 }
 
 console.log('--- Test discovery metadata: limite massimo messages.get per run ---');
@@ -1380,6 +1476,7 @@ console.log('--- Test sendHtmlReply: From fallback usa email estratta dal To ---
   const originalUtilities = global.Utilities;
   const originalSession = global.Session;
   const originalGmail = global.Gmail;
+  const originalGmailApp = global.GmailApp;
   let rawPayload = '';
 
   try {
@@ -1395,6 +1492,9 @@ console.log('--- Test sendHtmlReply: From fallback usa email estratta dal To ---
     global.Session = {
       getEffectiveUser: () => ({ getEmail: () => '' }),
       getActiveUser: () => ({ getEmail: () => '' })
+    };
+    global.GmailApp = {
+      getAliases: () => ['parrocchia@example.org']
     };
     global.Gmail = {
       Users: {
@@ -1426,6 +1526,7 @@ console.log('--- Test sendHtmlReply: From fallback usa email estratta dal To ---
     global.Utilities = originalUtilities;
     global.Session = originalSession;
     global.Gmail = originalGmail;
+    global.GmailApp = originalGmailApp;
   }
 }
 
@@ -1459,6 +1560,41 @@ console.log('--- Test sendHtmlReply: fallback nativo usa from alias stabile ---'
 
     assert(replyOptions && replyOptions.from === 'parrocchia@example.org', 'fallback nativo deve impostare from con alias stabile autorizzato');
     assert(replyOptions && replyOptions.htmlBody, 'fallback nativo deve preservare htmlBody insieme a from');
+  } finally {
+    global.Session = originalSession;
+    global.GmailApp = originalGmailApp;
+  }
+}
+
+console.log('--- Test sendHtmlReply: fallback nativo ignora from non autorizzato ---');
+{
+  const originalSession = global.Session;
+  const originalGmailApp = global.GmailApp;
+  let replyOptions = null;
+
+  try {
+    global.Session = {
+      getEffectiveUser: () => ({ getEmail: () => '' }),
+      getActiveUser: () => ({ getEmail: () => '' })
+    };
+    global.GmailApp = {
+      getAliases: () => []
+    };
+
+    const message = {
+      getThread: () => ({ getId: () => 'thread-native-unauthorized-from' }),
+      reply: (_body, options) => { replyOptions = options || {}; }
+    };
+
+    service.sendHtmlReply(message, 'Risposta test', {
+      subject: 'Oggetto',
+      senderEmail: 'utente@example.org',
+      recipientEmail: 'Alias non configurato <nonconfigurato@example.org>',
+      recipientCc: ''
+    });
+
+    assert(replyOptions && !Object.prototype.hasOwnProperty.call(replyOptions, 'from'), 'fallback nativo non deve impostare from con alias non configurato');
+    assert(replyOptions && replyOptions.htmlBody, 'fallback nativo deve preservare htmlBody senza from non autorizzato');
   } finally {
     global.Session = originalSession;
     global.GmailApp = originalGmailApp;
@@ -1582,6 +1718,55 @@ console.log('--- Test cleanup Drive: coda persistente file temporanei ---');
 
     assert(removed.length === 1 && removed[0] === 'tmp-2', 'cleanup deve rimuovere il file temporaneo rimasto in coda');
     assert(!Object.prototype.hasOwnProperty.call(props, 'TEMP_DRIVE_FILE_QUEUE_V1'), 'la coda deve essere svuotata dopo cleanup riuscito');
+  } finally {
+    global.PropertiesService = originalPropertiesService;
+    global.Drive = originalDrive;
+  }
+}
+
+console.log('--- Test cleanup Drive: aggiorna la coda dopo ogni rimozione ---');
+{
+  const originalPropertiesService = global.PropertiesService;
+  const originalDrive = global.Drive;
+  const props = {};
+  const writes = [];
+
+  try {
+    global.PropertiesService = {
+      getScriptProperties: () => ({
+        getProperty: (key) => Object.prototype.hasOwnProperty.call(props, key) ? props[key] : null,
+        setProperty: (key, value) => {
+          props[key] = value;
+          writes.push({ key, value });
+        },
+        deleteProperty: (key) => {
+          delete props[key];
+          writes.push({ key, value: null });
+        }
+      })
+    };
+    global.Drive = {
+      Files: {
+        remove: (id) => {
+          if (id === 'tmp-2') throw new Error('errore temporaneo Drive');
+        }
+      }
+    };
+
+    const cleanupService = new GmailService();
+    props.TEMP_DRIVE_FILE_QUEUE_V1 = JSON.stringify([
+      { id: 'tmp-1', ts: 1 },
+      { id: 'tmp-2', ts: 2 }
+    ]);
+    cleanupService._cleanupQueuedTemporaryDriveFiles_();
+
+    const firstCleanupWrite = writes.find((entry) => entry.key === 'TEMP_DRIVE_FILE_QUEUE_V1');
+    const firstQueue = firstCleanupWrite && firstCleanupWrite.value
+      ? JSON.parse(firstCleanupWrite.value)
+      : [];
+    const finalQueue = JSON.parse(props.TEMP_DRIVE_FILE_QUEUE_V1);
+    assert(firstQueue.length === 1 && firstQueue[0].id === 'tmp-2', 'dopo la prima rimozione la coda persistita non deve più contenere tmp-1');
+    assert(finalQueue.length === 1 && finalQueue[0].id === 'tmp-2', 'un errore non-404 deve mantenere in coda solo il file non rimosso');
   } finally {
     global.PropertiesService = originalPropertiesService;
     global.Drive = originalDrive;
