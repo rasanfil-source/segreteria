@@ -249,4 +249,88 @@ console.log('--- Test prompt: maxCharsWhenKbTruncated=0 omette testo allegati qu
   }
 }
 
+console.log('--- Test prompt: contenuto email resta presente anche a budget sezioni esaurito ---');
+{
+  const originalMaxSafeTokens = global.CONFIG.MAX_SAFE_TOKENS;
+  const originalMaxSafePromptChars = global.CONFIG.MAX_SAFE_PROMPT_CHARS;
+  const originalPromptEngineConfig = global.CONFIG.PROMPT_ENGINE;
+  global.CONFIG.MAX_SAFE_TOKENS = 900;
+  global.CONFIG.MAX_SAFE_PROMPT_CHARS = 30000;
+  global.CONFIG.PROMPT_ENGINE = { OVERHEAD_TOKENS: 100 };
+
+  try {
+    const starvationPrompt = engine.buildPrompt({
+      emailSubject: 'Richiesta specifica',
+      emailContent: 'EMAIL_CONTEXT_SENTINEL: vorrei sapere come prenotare un certificato.',
+      knowledgeBase: 'Informazioni KB molto lunghe. '.repeat(600),
+      detectedLanguage: 'it',
+      promptProfile: 'lite',
+      salutationMode: 'full',
+      salutation: 'Buongiorno,',
+      closing: 'Cordiali saluti,'
+    });
+
+    assert(
+      starvationPrompt.prompt.includes('EMAIL_CONTEXT_SENTINEL') &&
+        starvationPrompt.prompt.includes('<user_email>') &&
+        starvationPrompt.prompt.includes('</user_email>'),
+      'il contenuto email deve restare nel prompt anche quando le sezioni opzionali saturano il budget'
+    );
+  } finally {
+    global.CONFIG.MAX_SAFE_TOKENS = originalMaxSafeTokens;
+    global.CONFIG.MAX_SAFE_PROMPT_CHARS = originalMaxSafePromptChars;
+    global.CONFIG.PROMPT_ENGINE = originalPromptEngineConfig;
+  }
+}
+
+console.log('--- Test prompt: troncamento fisico preserva recinto user_email ---');
+{
+  const originalMaxSafeTokens = global.CONFIG.MAX_SAFE_TOKENS;
+  const originalMaxSafePromptChars = global.CONFIG.MAX_SAFE_PROMPT_CHARS;
+
+  try {
+    global.CONFIG.MAX_SAFE_TOKENS = 100000;
+    global.CONFIG.MAX_SAFE_PROMPT_CHARS = 120000;
+    const baselinePrompt = engine.buildPrompt({
+      emailSubject: 'Baseline',
+      emailContent: 'Messaggio breve.',
+      knowledgeBase: 'KB breve.',
+      detectedLanguage: 'it',
+      promptProfile: 'lite'
+    });
+
+    global.CONFIG.MAX_SAFE_PROMPT_CHARS = baselinePrompt.systemInstruction.length + 750;
+    const truncatedPrompt = engine.buildPrompt({
+      emailSubject: 'Email molto lunga',
+      emailContent: 'EMAIL_TAG_SENTINEL ' + 'testo lungo '.repeat(1000),
+      knowledgeBase: 'KB_PRECEDENTE '.repeat(1000),
+      conversationHistory: 'CONVERSAZIONE_PRECEDENTE '.repeat(300),
+      detectedLanguage: 'it',
+      promptProfile: 'lite'
+    });
+
+    const openIndex = truncatedPrompt.prompt.indexOf('<user_email>');
+    const closeIndex = truncatedPrompt.prompt.indexOf('</user_email>');
+    assert(truncatedPrompt.length <= global.CONFIG.MAX_SAFE_PROMPT_CHARS, 'il prompt troncato deve rispettare il limite fisico configurato');
+    assert(truncatedPrompt.prompt.includes('EMAIL_TAG_SENTINEL'), 'il troncamento deve preservare il contenuto email prioritario');
+    assert(openIndex >= 0 && closeIndex > openIndex, 'il recinto user_email deve rimanere aperto e chiuso correttamente');
+  } finally {
+    global.CONFIG.MAX_SAFE_TOKENS = originalMaxSafeTokens;
+    global.CONFIG.MAX_SAFE_PROMPT_CHARS = originalMaxSafePromptChars;
+  }
+}
+
+console.log('--- Test prompt: riparazione tag XML chiude blocchi strutturali troncati ---');
+{
+  const repairedKb = engine._truncateUserPromptSafely_(
+    '<knowledge_base>\n' + 'dato '.repeat(100),
+    80
+  );
+  assert(repairedKb.length <= 80, 'la riparazione XML deve rispettare il limite passato');
+  assert(
+    repairedKb.includes('<knowledge_base>') && repairedKb.includes('</knowledge_base>'),
+    'un knowledge_base troncato deve essere richiuso'
+  );
+}
+
 console.log('✅ Test qualità prompt risposta passati');

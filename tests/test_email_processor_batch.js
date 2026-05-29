@@ -2578,9 +2578,29 @@ console.log('--- Test processUnreadEmails: graceful stop su GMAIL_DAILY_CALL_LIM
   assert(stats.errors === 0, 'non deve incrementare errors su stop quota locale');
 }
 
+console.log('--- Test processUnreadEmails: quota transient usa backoff breve indipendente dal tempo residuo ---');
+{
+  const processor = new EmailProcessor({
+    gmailService: {
+      getUnprocessedUnreadThreads: () => []
+    }
+  });
+  const transientDelay = processor._getQuotaCheckpointDelayMs_(
+    { errorClass: 'QUOTA_EXHAUSTED', error: 'RPM quota exceeded' },
+    300000
+  );
+  const dailyDelay = processor._getQuotaCheckpointDelayMs_(
+    { errorClass: 'QUOTA_EXHAUSTED', error: 'daily quota exhausted' },
+    300000
+  );
+  assert(transientDelay === 60000, `quota transient deve ripartire dopo 60s, ottenuto ${transientDelay}`);
+  assert(dailyDelay === -1, `quota giornaliera deve restare sospesa senza trigger, ottenuto ${dailyDelay}`);
+}
+
 console.log('--- Test processUnreadEmails: stop su errore infrastrutturale retryable ---');
 {
   let checkpointStartIndex = null;
+  let checkpointDelayMs = null;
   let processCalls = 0;
   const threads = [createExternalThread('net-1'), createExternalThread('net-2')];
   const processor = new EmailProcessor({
@@ -2594,14 +2614,45 @@ console.log('--- Test processUnreadEmails: stop su errore infrastrutturale retry
     processCalls++;
     return { status: 'error', errorClass: 'NETWORK', error: 'timeout rete' };
   };
-  processor._storeBatchCheckpointAndScheduleContinuation_ = (_threads, startIndex) => {
+  processor._storeBatchCheckpointAndScheduleContinuation_ = (_threads, startIndex, delayMs) => {
     checkpointStartIndex = startIndex;
+    checkpointDelayMs = delayMs;
   };
 
   const stats = processor.processUnreadEmails('kb', '', true);
   assert(processCalls === 1, 'errore retryable infrastrutturale deve fermare il batch al primo thread');
   assert(stats.total === 1, 'deve conteggiare solo il thread analizzato prima dello stop');
   assert(checkpointStartIndex === 0, 'checkpoint deve ripartire dal thread fallito');
+  assert(checkpointDelayMs === 60000, `errore NETWORK deve usare backoff breve 60s, ottenuto ${checkpointDelayMs}`);
+}
+
+console.log('--- Test processUnreadEmails: stop su errore config usa backoff lungo ---');
+{
+  let checkpointStartIndex = null;
+  let checkpointDelayMs = null;
+  let processCalls = 0;
+  const threads = [createExternalThread('config-1'), createExternalThread('config-2')];
+  const processor = new EmailProcessor({
+    gmailService: {
+      getUnprocessedUnreadThreads: () => threads,
+      getMessageIdsWithLabel: () => new Set()
+    }
+  });
+  processor._hasUnreadMessagesToProcess = () => true;
+  processor.processThread = () => {
+    processCalls++;
+    return { status: 'error', errorClass: 'CONFIG_ERROR', error: 'config mancante' };
+  };
+  processor._storeBatchCheckpointAndScheduleContinuation_ = (_threads, startIndex, delayMs) => {
+    checkpointStartIndex = startIndex;
+    checkpointDelayMs = delayMs;
+  };
+
+  const stats = processor.processUnreadEmails('kb', '', true);
+  assert(processCalls === 1, 'errore config deve fermare il batch al primo thread');
+  assert(stats.total === 1, 'deve conteggiare solo il thread analizzato prima dello stop config');
+  assert(checkpointStartIndex === 0, 'checkpoint config deve ripartire dal thread fallito');
+  assert(checkpointDelayMs === 300000, `errore CONFIG_ERROR deve usare backoff lungo 5 min, ottenuto ${checkpointDelayMs}`);
 }
 
 console.log('--- Test processUnreadEmails: checkpoint dopo rilascio lock batch ---');

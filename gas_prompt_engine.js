@@ -261,7 +261,7 @@ var PromptEngine = class PromptEngine {
         return;
       }
 
-      if ((systemSections.length + userSections.length) >= 30) {
+      if (!options.force && (systemSections.length + userSections.length) >= 30) {
         console.warn(`⚠️ Limite sezioni raggiunto (30), salto sezione non critica: ${label}`);
         skippedCount++;
         return;
@@ -413,7 +413,7 @@ var PromptEngine = class PromptEngine {
     }
 
     // 17. CONTENUTO EMAIL
-    addSection(this._renderEmailContent(emailContent, emailSubject, senderName, senderEmail, detectedLanguage), 'EmailContent');
+    addSection(this._renderEmailContent(emailContent, emailSubject, senderName, senderEmail, detectedLanguage), 'EmailContent', { force: true });
 
     // 18. CONTESTO ALLEGATI
     const resolvedAttachmentIntent = workingAttachmentIntent || attachmentIntentContext || null;
@@ -477,7 +477,7 @@ var PromptEngine = class PromptEngine {
     if (totalLength > MAX_SAFE_PROMPT_CHARS) {
       console.warn(`⚠️ Prompt oltre soglia caratteri (${totalLength}), tronco lo user prompt.`);
       const allowedUserLength = Math.max(0, MAX_SAFE_PROMPT_CHARS - systemInstructionStr.length);
-      userPromptStr = userPromptStr.slice(0, Math.max(0, allowedUserLength - 1)).trimEnd() + '…';
+      userPromptStr = this._truncateUserPromptSafely_(userPromptStr, allowedUserLength);
     }
 
     const finalTokens = this.estimateTokens(systemInstructionStr + '\n' + userPromptStr);
@@ -502,6 +502,98 @@ var PromptEngine = class PromptEngine {
       }
     };
     return promptResult;
+  }
+
+  _truncateUserPromptSafely_(userPromptStr, allowedUserLength) {
+    const source = this._normalizePromptTextInput(userPromptStr, '');
+    const limit = Math.floor(Number(allowedUserLength));
+    if (!source || !Number.isFinite(limit) || limit <= 0) return '';
+    if (source.length <= limit) return source;
+
+    const firstCut = this._repairPromptXmlFences_(
+      this._slicePromptWithEllipsis_(source, limit),
+      limit
+    );
+    if (firstCut.includes('<user_email>') && firstCut.includes('</user_email>')) {
+      return firstCut;
+    }
+
+    const userEmailOpen = '<user_email>';
+    const emailOpenIndex = source.indexOf(userEmailOpen);
+    if (emailOpenIndex >= 0) {
+      const emailHeaderIndex = source.lastIndexOf('**EMAIL DA RISPONDERE:**', emailOpenIndex);
+      let emailSource = source.slice(emailHeaderIndex >= 0 ? emailHeaderIndex : emailOpenIndex);
+      const openOffset = emailSource.indexOf(userEmailOpen);
+      const closingReserve = '\n</user_email>'.length + 1;
+      if (openOffset < 0 || openOffset > Math.max(0, limit - closingReserve - userEmailOpen.length)) {
+        emailSource = source.slice(emailOpenIndex);
+      }
+      return this._repairPromptXmlFences_(
+        this._slicePromptWithEllipsis_(emailSource, limit),
+        limit
+      );
+    }
+
+    return firstCut;
+  }
+
+  _slicePromptWithEllipsis_(text, maxLength) {
+    const source = this._normalizePromptTextInput(text, '');
+    const limit = Math.floor(Number(maxLength));
+    if (!source || !Number.isFinite(limit) || limit <= 0) return '';
+    if (source.length <= limit) return source;
+    if (limit === 1) return '…';
+
+    const rawCut = source.slice(0, Math.max(0, limit - 1)).trimEnd();
+    return (this._stripDanglingPromptTagFragment_(rawCut) + '…').slice(0, limit);
+  }
+
+  _repairPromptXmlFences_(text, maxLength) {
+    const limit = Math.floor(Number(maxLength));
+    let candidate = this._normalizePromptTextInput(text, '');
+    if (!candidate || !Number.isFinite(limit) || limit <= 0) return '';
+
+    const tags = ['knowledge_base', 'conversation_history', 'user_email'];
+    for (let guard = 0; guard < 5; guard++) {
+      candidate = this._stripDanglingPromptTagFragment_(candidate);
+      const pendingClosures = tags
+        .map(tag => ({
+          tag,
+          openIndex: candidate.lastIndexOf(`<${tag}>`),
+          closeIndex: candidate.lastIndexOf(`</${tag}>`)
+        }))
+        .filter(entry => entry.openIndex >= 0 && entry.closeIndex < entry.openIndex)
+        .sort((a, b) => b.openIndex - a.openIndex)
+        .map(entry => `</${entry.tag}>`);
+
+      if (pendingClosures.length === 0) {
+        return candidate.length > limit ? candidate.slice(0, limit) : candidate;
+      }
+
+      const suffix = pendingClosures.map(tag => `\n${tag}`).join('');
+      if (candidate.length + suffix.length <= limit) {
+        return candidate + suffix;
+      }
+
+      const bodyBudget = limit - suffix.length;
+      if (bodyBudget <= 0) {
+        return candidate.slice(0, limit);
+      }
+
+      const trimmed = candidate.slice(0, bodyBudget).trimEnd();
+      if (trimmed === candidate) {
+        return candidate.slice(0, limit);
+      }
+      candidate = trimmed;
+    }
+
+    return candidate.slice(0, limit);
+  }
+
+  _stripDanglingPromptTagFragment_(text) {
+    return this._normalizePromptTextInput(text, '')
+      .replace(/<\/?[A-Za-z_][A-Za-z0-9_:-]*$/, '')
+      .trimEnd();
   }
 
   // ========================================================================

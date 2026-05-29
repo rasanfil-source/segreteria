@@ -2762,7 +2762,7 @@ ${addressLines.join('\n\n')}
           deferBatchCheckpoint(
             threads,
             index,
-            this._getRemainingTimeMs(MAX_EXECUTION_TIME)
+            60000
           );
           break;
         }
@@ -2772,7 +2772,7 @@ ${addressLines.join('\n\n')}
           deferBatchCheckpoint(
             threads,
             index,
-            this._getRemainingTimeMs(MAX_EXECUTION_TIME)
+            300000
           );
           break;
         }
@@ -2908,7 +2908,7 @@ ${addressLines.join('\n\n')}
     return deleted;
   }
 
-  _getQuotaCheckpointDelayMs_(result, remainingTimeMs) {
+  _getQuotaCheckpointDelayMs_(result, _remainingTimeMs) {
     const raw = [
       result && result.errorClass,
       result && result.error,
@@ -2924,13 +2924,8 @@ ${addressLines.join('\n\n')}
       return -1;
     }
 
-    const remaining = Number(remainingTimeMs);
-    if (Number.isFinite(remaining) && remaining > 0) {
-      return Math.max(60000, remaining);
-    }
-
-    // Quota non chiaramente giornaliera: pianifica una ripresa breve invece di
-    // lasciare il checkpoint sospeso fino al prossimo trigger ordinario.
+    // Quota non chiaramente giornaliera: RPM/TPM e transient quota si resettano
+    // rapidamente. Il tempo residuo del trigger corrente non deve amplificare il backoff.
     return 60000;
   }
 
