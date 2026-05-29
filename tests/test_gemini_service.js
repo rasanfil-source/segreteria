@@ -303,5 +303,95 @@ console.log('--- Test quickCheck generationConfig: responseMimeType escluso per 
   assert(flashPayload.generationConfig.responseMimeType === 'application/json', 'i modelli non-lite devono mantenere responseMimeType JSON');
 }
 
+console.log('--- Test quickCheck: 503 non consuma chiave backup ---');
+{
+  const previousUtilities = global.Utilities;
+  global.Utilities = {
+    sleep: () => {
+      assert(false, 'errore server 503 non deve attivare sleep/fallback sulla backup key');
+    }
+  };
+
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = 'backup-key';
+  service._buildGenerateUrl = () => 'https://example.test/generate';
+  service._resolveLanguage = (_candidate, fallback) => fallback || 'it';
+  let calls = 0;
+  service.fetchFn = (url) => {
+    calls += 1;
+    assert(url.includes('primary-key'), 'il 503 deve restare sulla chiave primaria');
+    return {
+      getResponseCode: () => 503,
+      getContentText: () => JSON.stringify({ error: { message: 'server overloaded' } })
+    };
+  };
+
+  try {
+    service._quickCheckWithModel(
+      'Vorrei informazioni',
+      'Info',
+      'gemini-3.5-flash',
+      { lang: 'it', confidence: 5, safetyGrade: 5 }
+    );
+    assert(false, '503 deve essere propagato come errore server');
+  } catch (error) {
+    assert(String(error.message || '').includes('Errore server Gemini(503)'), '503 deve restare errore server retryable');
+    assert(calls === 1, '503 non deve causare una seconda chiamata con backup key');
+  } finally {
+    global.Utilities = previousUtilities;
+  }
+}
+
+console.log('--- Test quickCheck: 429 primary marca stato exhausted e passa a backup ---');
+{
+  const previousUtilities = global.Utilities;
+  global.Utilities = { sleep: () => {} };
+
+  const cache = {};
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = 'backup-key';
+  service.isPrimaryExhausted = false;
+  service._primaryExhaustedCacheKey = 'gemini_primary_exhausted';
+  service._cache = {
+    put: (key, value) => { cache[key] = value; }
+  };
+  service._buildGenerateUrl = () => 'https://example.test/generate';
+  service._resolveLanguage = (_candidate, fallback) => fallback || 'it';
+  const urls = [];
+  service.fetchFn = (url) => {
+    urls.push(url);
+    if (urls.length === 1) {
+      return {
+        getResponseCode: () => 429,
+        getContentText: () => JSON.stringify({ error: { message: 'quota exhausted' } })
+      };
+    }
+    return {
+      getResponseCode: () => 200,
+      getContentText: () => JSON.stringify({
+        candidates: [{ content: { parts: [{ text: '{"reply_needed":true,"language":"it","category":"TECHNICAL","topic":"info","confidence":0.9,"reason":"ok"}' }] } }]
+      })
+    };
+  };
+
+  try {
+    const result = service._quickCheckWithModel(
+      'Vorrei informazioni',
+      'Info',
+      'gemini-3.5-flash',
+      { lang: 'it', confidence: 5, safetyGrade: 5 }
+    );
+    assert(result.shouldRespond === true, 'quick check deve usare la risposta della backup key');
+    assert(urls.length === 2, '429 primaria deve fare un solo fallback sulla backup key');
+    assert(urls[0].includes('primary-key') && urls[1].includes('backup-key'), 'deve chiamare prima primary e poi backup');
+    assert(service.isPrimaryExhausted === true, '429 primaria nel quick check deve propagare lo stato exhausted');
+    assert(cache.gemini_primary_exhausted === 'true', '429 primaria nel quick check deve persistere lo stato exhausted in cache');
+  } finally {
+    global.Utilities = previousUtilities;
+  }
+}
+
 
 console.log('✅ Test bilanciamento JSON Gemini passati');

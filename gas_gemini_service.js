@@ -86,6 +86,20 @@ var GeminiService = class GeminiService {
     this.logger.info('GeminiService inizializzato', { modello: this.modelName });
   }
 
+  _markPrimaryExhausted_(reason = '') {
+    this.isPrimaryExhausted = true;
+    if (this._cache) {
+      try {
+        this._cache.put(this._primaryExhaustedCacheKey, 'true', 21599);
+      } catch (cacheErr) {
+        const detail = reason ? ` (${reason})` : '';
+        if (this.logger && typeof this.logger.warn === 'function') {
+          this.logger.warn(`Impossibile salvare stato quota primary in cache${detail}: ${cacheErr.message}`);
+        }
+      }
+    }
+  }
+
   getModelNameForTask(taskType, fallbackName = null) {
     const strategy = this.config && this.config.MODEL_STRATEGY
       ? this.config.MODEL_STRATEGY
@@ -221,14 +235,7 @@ var GeminiService = class GeminiService {
     // segnaliamo esplicitamente al chiamante di passare subito al fallback
     // senza consumare riprovare inutili sulla stessa chiave.
     if (responseCode === 429 && activeKey === this.primaryKey && this.backupKey) {
-      this.isPrimaryExhausted = true;
-      if (this._cache) {
-        try {
-          this._cache.put(this._primaryExhaustedCacheKey, 'true', 21599);
-        } catch (cacheErr) {
-          this.logger.warn(`Impossibile salvare stato quota primary in cache: ${cacheErr.message}`);
-        }
-      }
+      this._markPrimaryExhausted_('generateResponse');
       throw new Error('PRIMARY_QUOTA_EXHAUSTED');
     }
 
@@ -508,20 +515,20 @@ Output JSON:
       fetchError = e;
     }
 
+    const isAuthOrQuotaError = responseCode !== undefined && [401, 403, 429].includes(responseCode);
     const shouldTryBackupKey = !!this.backupKey
       && activeKey !== this.backupKey
-      && (
-        fetchError !== null
-        || (responseCode !== undefined && [401, 403, 429, 500, 502, 503, 504].includes(responseCode))
-      );
+      && isAuthOrQuotaError;
 
-    // Nota: gestiamo esplicitamente anche errori "hard" di UrlFetchApp (timeout/DNS)
-    // perché non forniscono responseCode e altrimenti salterebbero il fallback cross-key.
+    // Evita di moltiplicare retry cross-key su errori infrastrutturali Google/rete:
+    // la backup key aiuta solo per autorizzazione o quota della chiave primaria.
     if (shouldTryBackupKey) {
-      console.warn('⚠️ Chiave primaria non utilizzabile (errore rete/quota). Tentativo con chiave di riserva...');
+      console.warn(`⚠️ Chiave primaria non utilizzabile (HTTP ${responseCode}). Tentativo con chiave di riserva...`);
+      if (responseCode === 429 && activeKey === this.primaryKey) {
+        this._markPrimaryExhausted_('quick_check');
+      }
       activeKey = this.backupKey;
       try {
-        // Evita un burst immediato di due richieste quando l'errore della chiave primaria è temporaneo.
         Utilities.sleep(1500);
         response = executeFetch(activeKey);
         responseCode = response.getResponseCode();
