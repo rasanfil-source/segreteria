@@ -126,9 +126,11 @@ var MemoryService = class MemoryService {
             modified = true;
           } else if (!current) {
             // Se la colonna è vuota, impostiamo il default
-            console.log(`🔄 Impostazione header mancante colonna ${i + 1}: '${expected}'`);
-            newHeaders[i] = expected;
-            modified = true;
+            if (expected) {
+              console.log(`🔄 Impostazione header mancante colonna ${i + 1}: '${expected}'`);
+              newHeaders[i] = expected;
+              modified = true;
+            }
           } else if (i >= 7 && current !== expected) {
             // Per le ultime colonne (version, memorySummary), forziamo la coerenza
             console.log(`🔄 Correzione header colonna ${i + 1}: '${current}' -> '${expected}'`);

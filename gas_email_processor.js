@@ -4271,8 +4271,8 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
   _extractTimes(text) {
     if (!text || typeof text !== 'string') return [];
 
-    // Eliminata l'ancora di fine stringa ( |$ ) per numeri isolati: previene falsi positivi orari su cifre finali
-    const matches = text.match(/\b(?:[01]?\d|2[0-3])(?:[:.][0-5]\d)\b|\b(?:[01]?\d|2[0-3])\b(?=\s*(?:ore\b|am\b|pm\b|:))/gi) || [];
+    // Boundary Unicode: evita match dentro parole/sequenze numeriche, preservando "9:30" e "10 ore".
+    const matches = text.match(/(?<![\p{L}\p{N}_])(?:[01]?\d|2[0-3])(?:[:.][0-5]\d)(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_])(?:[01]?\d|2[0-3])(?=\s*(?:ore\b|am\b|pm\b|:))/giu) || [];
     const normalized = matches.map((time) => {
       const parts = time.replace('.', ':').split(':');
       const hh = parts[0];

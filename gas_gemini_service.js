@@ -236,7 +236,9 @@ var GeminiService = class GeminiService {
     // senza consumare riprovare inutili sulla stessa chiave.
     if (responseCode === 429 && activeKey === this.primaryKey && this.backupKey) {
       this._markPrimaryExhausted_('generateResponse');
-      throw new Error('PRIMARY_QUOTA_EXHAUSTED');
+      const quotaError = new Error('PRIMARY_QUOTA_EXHAUSTED');
+      quotaError.isTransient = true;
+      throw quotaError;
     }
 
     let apiErrorMsg = (responseBody || '').substring(0, 200);

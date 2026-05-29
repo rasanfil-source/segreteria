@@ -38,6 +38,23 @@ console.log('--- Test Classifier: normalizzazione Unicode conserva lettere non A
   assert(classifier._isGreetingOnly('Buongiorno!') === true, 'la normalizzazione Unicode deve mantenere il riconoscimento dei saluti');
 }
 
+console.log('--- Test Classifier: inline reply Unicode riapre il blocco dopo citazione ---');
+{
+  const classifier = new Classifier();
+  const extracted = classifier._extractMainContent([
+    'Il giorno lun 1 giu 2026 alle 10:00 Segreteria ha scritto:',
+    '> Vecchio messaggio quotato',
+    'Žádost nuova con lettera Unicode fuori Latin-1.',
+    '',
+    'Secondo paragrafo da conservare.'
+  ].join('\n'));
+
+  assert(
+    extracted.includes('Žádost nuova con lettera Unicode fuori Latin-1.\n\nSecondo paragrafo da conservare.'),
+    'una risposta che inizia con lettera Unicode deve chiudere il blocco citato e preservare i paragrafi'
+  );
+}
+
 console.log('--- Test Classifier: documenti informativi non diventano consegna documentale ---');
 {
   const classifier = new Classifier();

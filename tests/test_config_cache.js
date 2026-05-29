@@ -34,6 +34,16 @@ global.PropertiesService = {
 const gasConfigPath = path.join(__dirname, '..', 'gas_config.js');
 const code = fs.readFileSync(gasConfigPath, 'utf8');
 vm.runInThisContext(code, { filename: gasConfigPath });
+const exampleCode = fs.readFileSync(path.join(__dirname, '..', 'gas_config.example.js'), 'utf8');
+
+assert(
+  exampleCode.includes('Object.prototype.hasOwnProperty.call(_CACHED_PROPS, key)'),
+  'gas_config.example.js deve usare hasOwnProperty per la cache delle ScriptProperties'
+);
+assert(
+  exampleCode.includes('!Number.isFinite(value)'),
+  'gas_config.example.js deve validare NaN/Infinity nei range numerici'
+);
 
 assert(_getScriptProperty('GEMINI_API_KEY') === 'first-key', 'il primo accesso deve leggere la property reale');
 backingProps.set('GEMINI_API_KEY', 'changed-key');
@@ -80,5 +90,21 @@ assert(
   'MAX_EMAILS_PER_RUN negativo deve restare invalido'
 );
 CONFIG.MAX_EMAILS_PER_RUN = originalMaxEmailsPerRun;
+
+const originalMaxSafeTokens = CONFIG.MAX_SAFE_TOKENS;
+CONFIG.MAX_SAFE_TOKENS = NaN;
+let nanRangeValidation;
+console.error = () => {};
+try {
+  nanRangeValidation = validateConfig();
+} finally {
+  console.error = originalConsoleError;
+}
+assert(
+  nanRangeValidation.valid === false &&
+  nanRangeValidation.errors.some((error) => error.includes('MAX_SAFE_TOKENS') && error.includes('NaN')),
+  'NaN deve essere rifiutato dai controlli di range numerici'
+);
+CONFIG.MAX_SAFE_TOKENS = originalMaxSafeTokens;
 
 console.log('✅ Test _getScriptProperty cache passato');

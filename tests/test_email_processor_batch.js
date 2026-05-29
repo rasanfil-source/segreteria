@@ -85,6 +85,16 @@ console.log('--- Test _normalizeTextContent serializza oggetti KB strutturati --
   assert(normalizedCircular.includes('Catechismo') && normalizedCircular.includes('[Circular]'), 'gli oggetti circolari devono avere fallback controllato');
 }
 
+console.log('--- Test _extractTimes: boundary Unicode evita match dentro parole ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  const times = processor._extractTimes('Alle 9:30 va bene. Anche 10 ore. Ignora abc10:30, codiceé11:45 e tel33110:30.');
+  assert(times.includes('09:30'), 'deve riconoscere orari con ora a una cifra');
+  assert(times.includes('10:00'), 'deve riconoscere ore isolate se seguite da "ore"');
+  assert(!times.includes('11:45'), 'non deve estrarre orari incorporati dopo lettere accentate');
+  assert(!times.includes('10:30'), 'non deve estrarre orari incorporati in parole o sequenze numeriche');
+}
+
 console.log('--- Test unread fallback: metadata UNREAD/INBOX se isUnread è stale ---');
 {
   const msg = createMessage({ id: 'm-stale-unread-cache', unread: false, from: 'utente@example.com' });

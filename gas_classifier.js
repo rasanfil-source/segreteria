@@ -307,7 +307,7 @@ var Classifier = class Classifier {
         continue;
       }
       if (inQuoteBlock &&
-          /^[A-Za-zÀ-ÖØ-öø-ÿ0-9]/.test(stripped) &&
+          /^[\p{L}\p{N}]/u.test(stripped) &&
           !stripped.startsWith('>') &&
           !stripped.startsWith('|')) {
         inQuoteBlock = false;

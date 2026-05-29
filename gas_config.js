@@ -391,7 +391,7 @@ function validateConfig() {
 
   // Helper per validazione range
   const checkRange = (path, value, min, max) => {
-    if (typeof value === 'number' && (value < min || value > max)) {
+    if (typeof value === 'number' && (!Number.isFinite(value) || value < min || value > max)) {
       errors.push(`Errore Config: '${path}' (${value}) fuori range [${min}, ${max}]`);
     }
   };

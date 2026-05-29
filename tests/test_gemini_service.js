@@ -72,6 +72,12 @@ console.log('--- Test _classifyError: quota primaria non ritenta sulla stessa ch
   assert(allKeys.retryable === false, 'QUOTA_EXHAUSTED_ALL_KEYS non deve essere retryable localmente');
   assert(compactAllKeys.type === 'QUOTA_EXHAUSTED', 'quotaexhaustedallkeys compatto deve restare quota esaurita');
   assert(compactAllKeys.retryable === false, 'quotaexhaustedallkeys compatto non deve essere retryable localmente');
+
+  const primaryTransient = new Error('PRIMARY_QUOTA_EXHAUSTED');
+  primaryTransient.isTransient = true;
+  const centralPrimary = classifyError(primaryTransient);
+  assert(centralPrimary.type === ErrorTypes.QUOTA_EXCEEDED, 'classifyError centrale deve preservare quota anche con isTransient');
+  assert(centralPrimary.retryable === true, 'classifyError centrale deve trattare il key-switch quota come retryable a livello orchestratore');
 }
 
 console.log('--- Test classifyError: testo vuoto Gemini è retryable ---');
@@ -215,6 +221,35 @@ console.log('--- Test _generateWithModel: 429 senza backup propaga QUOTA_EXHAUST
   }
 
   assert(thrown && thrown.message.includes('QUOTA_EXHAUSTED'), '429 deve includere QUOTA_EXHAUSTED per il RateLimiter');
+}
+
+console.log('--- Test _generateWithModel: 429 primaria con backup marca segnale transient di key switch ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = 'backup-key';
+  service.config = { TEMPERATURE: 0.5, MAX_OUTPUT_TOKENS: 1000 };
+  service._buildGenerateUrl = () => 'https://generativelanguage.googleapis.com/v1beta/models/test:generateContent';
+  let markedReason = '';
+  service._markPrimaryExhausted_ = (reason) => {
+    markedReason = reason;
+    service.isPrimaryExhausted = true;
+  };
+  service.fetchFn = () => ({
+    getResponseCode: () => 429,
+    getContentText: () => JSON.stringify({ error: { message: 'rate limit primary' } })
+  });
+
+  let thrown = null;
+  try {
+    service._generateWithModel('prompt', 'gemini-test', 'primary-key', []);
+  } catch (error) {
+    thrown = error;
+  }
+
+  assert(thrown && thrown.message === 'PRIMARY_QUOTA_EXHAUSTED', '429 sulla primaria con backup deve segnalare key switch');
+  assert(thrown.isTransient === true, 'il segnale di key switch deve essere marcato transient per i wrapper esterni');
+  assert(markedReason === 'generateResponse' && service.isPrimaryExhausted === true, 'la primaria deve essere marcata esaurita');
 }
 
 // Test rimossi perché la funzionalità di context caching è stata eliminata

@@ -38,6 +38,12 @@ function classifyError(error) {
         }
     }
     const message = rawMessage.toLowerCase();
+    const compactMessage = message.replace(/[^a-z0-9]+/g, '');
+
+    if (compactMessage.includes('primaryquotaexhausted') ||
+        compactMessage.includes('quotaexhaustedallkeys')) {
+        return { type: ErrorTypes.QUOTA_EXCEEDED, retryable: true, message: rawMessage };
+    }
 
     if (error && typeof error === 'object' && error.isTransient === true) {
         return { type: ErrorTypes.NETWORK, retryable: true, message: rawMessage };

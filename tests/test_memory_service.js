@@ -69,4 +69,35 @@ console.log('--- Test MemoryService _setCache: chunk sotto limite CacheService -
   }
 }
 
+console.log('--- Test MemoryService _normalizeHeaders: riempie solo header attesi non vuoti ---');
+{
+  let writtenHeaders = null;
+  const fakeSheet = {
+    getMaxColumns: () => 9,
+    insertColumnsAfter: () => {
+      assert(false, 'non deve inserire colonne quando il foglio ha gia colonne sufficienti');
+    },
+    getRange: () => ({
+      getValues: () => [[
+        '', 'Lingua', 'categoria', 'tone',
+        'providedInfo', 'lastUpdated', 'messageCount', '', ''
+      ]],
+      setValues: (values) => {
+        writtenHeaders = values[0];
+      },
+      setFontWeight: () => {}
+    })
+  };
+
+  const memory = Object.create(MemoryService.prototype);
+  memory._sheet = fakeSheet;
+  memory._normalizeHeaders();
+
+  assert(Array.isArray(writtenHeaders), 'headers normalizzati devono essere riscritti');
+  assert(writtenHeaders[0] === 'threadId', 'header vuoto con expected non vuoto deve essere impostato');
+  assert(writtenHeaders[1] === 'language', 'alias Lingua deve essere normalizzato');
+  assert(writtenHeaders[7] === 'version', 'colonna version vuota deve essere impostata');
+  assert(writtenHeaders[8] === 'memorySummary', 'colonna memorySummary vuota deve essere impostata');
+}
+
 console.log('OK MemoryService cache chunk tests passed');
