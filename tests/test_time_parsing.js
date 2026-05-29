@@ -25,6 +25,43 @@ const gasMainPath = path.join(__dirname, '..', 'gas_main.js');
 const code = fs.readFileSync(gasMainPath, 'utf8');
 vm.runInThisContext(code, { filename: gasMainPath });
 
+console.log('--- Test estimateTokenCount: riconosce payload Gemini inlineData ---');
+{
+  const originalConfig = global.CONFIG;
+  global.CONFIG = {
+    ATTACHMENT_TOKEN_ESTIMATE: {
+      image: 258,
+      pdf: 1032,
+      defaultDoc: 1032
+    }
+  };
+
+  try {
+    assertEqual(
+      estimateTokenCount('', [{ getContentType: () => 'image/png' }]),
+      258,
+      'Blob immagine GAS deve usare stima image'
+    );
+    assertEqual(
+      estimateTokenCount('', [{ inlineData: { mimeType: 'image/jpeg', data: 'base64' } }]),
+      258,
+      'payload Gemini inlineData immagine deve usare stima image'
+    );
+    assertEqual(
+      estimateTokenCount('', [{ fileData: { mimeType: 'application/pdf', fileUri: 'gs://test.pdf' } }]),
+      1032,
+      'payload Gemini fileData PDF deve usare stima pdf'
+    );
+    assertEqual(
+      estimateTokenCount('', [{ inlineData: { data: 'base64' } }]),
+      1032,
+      'payload senza mimeType deve cadere sul defaultDoc'
+    );
+  } finally {
+    global.CONFIG = originalConfig;
+  }
+}
+
 console.log('--- Test _parseStrictHour (frazioni da Sheets) ---');
 assertEqual(_parseStrictHour(0), 0, '0 deve essere ora 0');
 assertEqual(_parseStrictHour(8 / 24), 8, '08:00 deve essere ora 8');

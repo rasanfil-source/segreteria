@@ -172,7 +172,7 @@ function _formatBusinessDateKey_(parts) {
  * Allegati: stima MIME-aware (image=258, pdf=1032, default=1032) configurabile via CONFIG.
  * 
  * @param {string} text - Testo da stimare
- * @param {Array} attachments - Array di allegati (opzionale, Blob con getContentType)
+ * @param {Array} attachments - Array di allegati (Blob GAS o parti Gemini inlineData/fileData)
  * @returns {number} Numero stimato di token (min 1)
  */
 function estimateTokenCount(text, attachments = []) {
@@ -198,9 +198,16 @@ function estimateTokenCount(text, attachments = []) {
 
     attachments.forEach((blob) => {
       try {
+        // Supporta sia Blob nativi GAS sia payload gia' normalizzati per Gemini.
         const mimeType = (blob && typeof blob.getContentType === 'function')
           ? String(blob.getContentType() || '').toLowerCase()
-          : '';
+          : (blob && blob.inlineData && blob.inlineData.mimeType)
+            ? String(blob.inlineData.mimeType || '').toLowerCase()
+            : (blob && blob.fileData && blob.fileData.mimeType)
+              ? String(blob.fileData.mimeType || '').toLowerCase()
+              : (blob && blob.mimeType)
+                ? String(blob.mimeType || '').toLowerCase()
+                : '';
         if (mimeType.includes('image/')) {
           tokens += tokenImage;
         } else if (mimeType.includes('pdf')) {
