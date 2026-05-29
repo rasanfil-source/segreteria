@@ -49,6 +49,12 @@ var CONFIG = {
 
   // === Generazione ===
   MAX_OUTPUT_TOKENS: 6000,
+  PAPAL_CONTEXT: {
+    currentName: 'Leone XIV',
+    previousName: 'Papa Francesco',
+    currentSince: '2025-05-08',
+    ministryStart: '2025-05-18'
+  },
 
   // === Validazione ===
   VALIDATION_ENABLED: true,

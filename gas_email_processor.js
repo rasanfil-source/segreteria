@@ -4706,17 +4706,6 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     const isSbattezzoDoc = /modulo sbattezzo|richiesta cancellazione|registr[oi] battesim/i.test(docScopeText);
     const isSacramentalDoc = /certificat[oa].{0,80}(battesim[oa]|cresim[ao])|battesim[oa].{0,80}uso.{0,40}matrimoni[oa]|(prima comunione|cresima ragazzi|catechismo)|cresim[ao].{0,30}adult/i.test(docScopeText);
 
-    // Rileva se ci sono evidenze (certificati) o dati pratica (moduli)
-    const hasEvidence = (Array.isArray(attachmentItems) && attachmentItems.some(item => item && item.attachmentRole === 'submitted_evidence')) || /ruolo allegato:\s*submitted_evidence/i.test(ocrText || '');
-    const hasCaseData = (Array.isArray(attachmentItems) && attachmentItems.some(item => item && item.attachmentRole === 'case_data')) || /ruolo allegato:\s*case_data/i.test(ocrText || '');
-
-
-
-
-
-
-
-
     // Se è un pre-check (senza OCR), siamo conservativi
     if (phase === 'pre_ocr') {
       const hasIdentityDataSubmission =

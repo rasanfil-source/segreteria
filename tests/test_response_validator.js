@@ -302,6 +302,42 @@ const historicalPopeResult = validator._checkCurrentPopeReferences(
 );
 assert(historicalPopeResult.score === 1.0, 'una citazione storica al passato deve restare valida');
 
+console.log('--- Test riferimenti papali: warning usa previousName dinamico da CONFIG ---');
+{
+  const originalConfig = global.CONFIG;
+  global.CONFIG = Object.assign({}, originalConfig, {
+    PAPAL_CONTEXT: {
+      currentName: 'Papa Pio XIII',
+      previousName: 'Papa Benedetto XVI',
+      currentSince: '2025-01-01'
+    }
+  });
+
+  try {
+    const dynamicPreviousResult = validator._checkCurrentPopeReferences(
+      'Il testo cita Papa Benedetto XVI senza fonte esplicita.',
+      'Caritas: raccolta indumenti per persone senza fissa dimora.',
+      '',
+      { currentDate: '2026-05-29' }
+    );
+    assert(dynamicPreviousResult.score < 1.0, 'una citazione del Papa precedente dinamico senza fonte deve produrre warning');
+    assert(
+      dynamicPreviousResult.warnings.some((w) => w.includes('Papa Benedetto XVI')),
+      'il warning deve usare il previousName configurato, non un nome hardcoded'
+    );
+
+    const dynamicPreviousAllowed = validator._checkCurrentPopeReferences(
+      'Il testo cita Papa Benedetto XVI senza fonte esplicita.',
+      'Fonte storica: Papa Benedetto XVI.',
+      '',
+      { currentDate: '2026-05-29' }
+    );
+    assert(dynamicPreviousAllowed.score === 1.0, 'la citazione del previousName configurato presente nelle fonti deve essere ammessa');
+  } finally {
+    global.CONFIG = originalConfig;
+  }
+}
+
 console.log('--- Test temporal consistency: data futura non può essere presentata come passata ---');
 const temporalPastFutureResult = validator._checkTemporalConsistency(
   'La celebrazione della Cresima si è tenuta il 24 maggio 2026 alle ore 17:30.',

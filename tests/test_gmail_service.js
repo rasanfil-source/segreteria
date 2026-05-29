@@ -1685,6 +1685,41 @@ console.log('--- Test Gmail counter: lock coperto dal batch evita riacquisizione
   }
 }
 
+console.log('--- Test Gmail counter: lock non acquisito usa errore retryable atteso dal processor ---');
+{
+  const originalLockService = global.LockService;
+
+  try {
+    global.LockService = {
+      getScriptLock: () => ({
+        tryLock: () => false,
+        releaseLock: () => { throw new Error('release non atteso senza lock'); }
+      })
+    };
+
+    const counterService = new GmailService();
+    counterService._scriptCache = {
+      get: () => '10',
+      put: () => {}
+    };
+    counterService._pendingGmailCallCount = 1;
+
+    let thrownMessage = '';
+    try {
+      counterService._flushGmailCallCounter_('gmail_api_calls:test', 'messages.get');
+    } catch (e) {
+      thrownMessage = e && e.message ? e.message : String(e);
+    }
+
+    assert(
+      thrownMessage.includes('GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE'),
+      `lock contatore Gmail deve propagare errore retryable riconosciuto, ottenuto: ${thrownMessage}`
+    );
+  } finally {
+    global.LockService = originalLockService;
+  }
+}
+
 console.log('--- Test cleanup Drive: coda persistente file temporanei ---');
 {
   const originalPropertiesService = global.PropertiesService;

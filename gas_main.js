@@ -1324,7 +1324,7 @@ function _weekdayIndexFromLabel(value) {
     .trim()
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .slice(0, 3);
 
   const dayMap = {
@@ -2197,13 +2197,8 @@ function _extractVacationPeriodFromControlRow_(row) {
   }
 
   const start = row[0];
-  const startDate = _parseDateValue(start);
   const endCandidates = [row[2], row[1], row[3]];
   const end = endCandidates.find(value => _parseDateValue(value) !== null) ?? null;
-
-  if (!startDate) {
-    return { start, end };
-  }
 
   // Preferenza esplicita: D (layout documentato), poi C (compatto), poi E (variante estesa).
   return { start, end };

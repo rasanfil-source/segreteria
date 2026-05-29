@@ -1154,12 +1154,14 @@ var ResponseValidator = class ResponseValidator {
         `Riferimento papale non aggiornato: ${staleLabel} è citato in presente come Papa attuale; il Papa attuale è ${papalContext.currentName}.`
       );
       score = 0.0;
-    } else if (
-      /\bPapa\s+Francesco\b/i.test(text) &&
-      !/\bPapa\s+Francesco\b/i.test(sourceText)
-    ) {
-      warnings.push(`Citazione di ${papalContext.previousName} non presente nelle fonti della risposta.`);
-      score *= 0.85;
+    } else if (papalContext.previousName) {
+      const escapedPrev = String(papalContext.previousName)
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const prevRx = new RegExp('\\b' + escapedPrev + '\\b', 'i');
+      if (prevRx.test(text) && !prevRx.test(sourceText)) {
+        warnings.push(`Citazione di ${papalContext.previousName} non presente nelle fonti della risposta.`);
+        score *= 0.85;
+      }
     }
 
     return {

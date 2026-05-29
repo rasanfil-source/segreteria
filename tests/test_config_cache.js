@@ -59,6 +59,8 @@ assert(CONFIG.MAX_PROVIDED_INFO_JSON_CHARS === 45000, 'MAX_PROVIDED_INFO_JSON_CH
 assert(CONFIG.MODEL_NAME === 'gemini-3.5-flash', 'MODEL_NAME deve puntare al modello qualita per le risposte');
 assert(CONFIG.MODEL_STRATEGY.generation[0] === 'flash-3.5', 'la generazione deve partire da Gemini 3.5 Flash');
 assert(CONFIG.MODEL_STRATEGY.quick_check[0] === 'flash-lite', 'quick_check/categoria/lingua devono partire dal modello lite');
+assert(CONFIG.PAPAL_CONTEXT.currentName === 'Leone XIV', 'PAPAL_CONTEXT deve essere presente anche nella config di produzione');
+assert(CONFIG.PAPAL_CONTEXT.previousName === 'Papa Francesco', 'PAPAL_CONTEXT deve definire il Papa precedente');
 
 const originalMaxEmailsPerRun = CONFIG.MAX_EMAILS_PER_RUN;
 CONFIG.MAX_EMAILS_PER_RUN = 0;

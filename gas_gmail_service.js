@@ -127,7 +127,7 @@ var GmailService = class GmailService {
             if (lock && typeof lock.tryLock === 'function') {
                 lockAcquired = lock.tryLock(2000);
                 if (!lockAcquired) {
-                    throw new Error('GMAIL_COUNTER_LOCK_UNAVAILABLE');
+                    throw new Error('GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE');
                 }
             }
 

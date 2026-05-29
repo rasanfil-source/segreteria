@@ -45,6 +45,10 @@ assert(_parseDateValue(extendedVacationRow.end).getTime() === new Date(2026, 8, 
 assert(invalidVacationRow.end === null, 'riga ferie senza data fine valida deve restituire end null, non undefined');
 console.log('✅ Test estrazione ferie layout variabili passati');
 
+console.log('--- Test label giorni: normalizzazione accenti con escape ASCII stabile ---');
+assert(_weekdayIndexFromLabel('Lunedì') === 1, 'label giorno accentata deve essere normalizzata');
+assert(code.includes('.replace(/[\\u0300-\\u036f]/g,'), 'la regex di normalizzazione accenti deve usare escape unicode ASCII-safe');
+
 console.log('--- Test orari Sheets 1899 ignorano offset storici LMT ---');
 {
   const originalFormatDate = global.Utilities.formatDate;
