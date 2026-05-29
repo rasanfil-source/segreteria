@@ -272,6 +272,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     newProps.tpm_window = JSON.stringify([]);
     newProps.rate_limit_date = todayPacific;
     this.props.setProperties(newProps);
+    this._writePersistentWindowData_('rpm', []);
+    this._writePersistentWindowData_('tpm', []);
 
     this.cache.rpmWindow = [];
     this.cache.tpmWindow = [];
@@ -967,13 +969,6 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     // Pulisci vecchie entry (>60 secondi)
     this.cache[cacheKey] = this.cache[cacheKey].filter(e => now - e.timestamp < 60000);
 
-    // Limita dimensioni array per rispettare limiti PropertiesService (~9kb)
-    const serializedWindow = JSON.stringify(this.cache[cacheKey]);
-    if (serializedWindow.length > 8000 && this.cache[cacheKey].length > 0) {
-      const keep = Math.max(1, Math.floor(this.cache[cacheKey].length * 0.7));
-      this.cache[cacheKey] = this.cache[cacheKey].slice(-keep);
-    }
-
     // GAS è runtime effimero: persiste subito per non perdere stato RPM/TPM tra esecuzioni.
     if (!skipPersist) {
       this._persistCache();
@@ -992,6 +987,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   }
 
   _readWindowFromProperties(windowType, backupKey) {
+    const chunkedWindow = this._readChunkedDataWindow(windowType, 'window');
+    if (chunkedWindow !== null) {
+      return chunkedWindow;
+    }
+
     let windowData = [];
     try {
       windowData = JSON.parse(this.props.getProperty(windowType + '_window') || '[]');
@@ -1024,24 +1024,14 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const inMemoryRpm = Array.isArray(this.cache.rpmWindow)
       ? this.cache.rpmWindow.filter(e => now - e.timestamp < 60000)
       : [];
-    let newRpm = this._mergeWindowData(freshFromPropsRpm, inMemoryRpm);
-    // Taglio di sicurezza esplicito per RPM (garantito da _mergeWindowData, ma ri-applicato come fallback)
-    while (JSON.stringify(newRpm).length > 8000 && newRpm.length > 0) {
-      newRpm.shift();
-    }
-    this.cache.rpmWindow = newRpm;
+    this.cache.rpmWindow = this._mergeWindowData(freshFromPropsRpm, inMemoryRpm);
 
     // 2. Stessa logica di merge per TPM.
     const freshFromPropsTpm = tpmFromProps.filter(e => now - e.timestamp < 60000);
     const inMemoryTpm = Array.isArray(this.cache.tpmWindow)
       ? this.cache.tpmWindow.filter(e => now - e.timestamp < 60000)
       : [];
-    let newTpm = this._mergeWindowData(freshFromPropsTpm, inMemoryTpm);
-    // Taglio di sicurezza esplicito per TPM (garantito da _mergeWindowData, ma ri-applicato come fallback)
-    while (JSON.stringify(newTpm).length > 8000 && newTpm.length > 0) {
-      newTpm.shift();
-    }
-    this.cache.tpmWindow = newTpm;
+    this.cache.tpmWindow = this._mergeWindowData(freshFromPropsTpm, inMemoryTpm);
 
     this.cache.lastCacheUpdate = now;
   }
@@ -1088,8 +1078,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     let currentRpm;
     let currentTpm;
     try {
-      currentRpm = JSON.parse(this.props.getProperty('rpm_window') || '[]');
-      currentTpm = JSON.parse(this.props.getProperty('tpm_window') || '[]');
+      currentRpm = this._readWindowFromProperties('rpm', 'rate_limit_rpm_backup');
+      currentTpm = this._readWindowFromProperties('tpm', 'rate_limit_tpm_backup');
     } catch (e) {
       currentRpm = [];
       currentTpm = [];
@@ -1102,9 +1092,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     this.cache.tpmWindow = mergedTpm;
 
     this._writeChunkedData(walTimestamp, mergedRpm, mergedTpm);
+    this._writePersistentWindowData_('rpm', mergedRpm);
+    this._writePersistentWindowData_('tpm', mergedTpm);
     this.props.setProperties({
-      rpm_window: JSON.stringify(mergedRpm),
-      tpm_window: JSON.stringify(mergedTpm),
+      rpm_window: JSON.stringify(this._compactWindowForLegacyProperty_(mergedRpm)),
+      tpm_window: JSON.stringify(this._compactWindowForLegacyProperty_(mergedTpm)),
       // Backup durevole per sopravvivere a eventuale eviction cache/flush transitori
       rate_limit_rpm_backup: JSON.stringify(mergedRpm.slice(-10)),
       rate_limit_tpm_backup: JSON.stringify(mergedTpm.slice(-10))
@@ -1171,22 +1163,22 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       }
 
       // Leggi dati attuali
-      const rawRpm = this.props.getProperty('rpm_window');
-      const rawTpm = this.props.getProperty('tpm_window');
-      let parsedRpm = [];
-      let parsedTpm = [];
-      try { parsedRpm = JSON.parse(rawRpm || '[]'); } catch (_) {}
-      try { parsedTpm = JSON.parse(rawTpm || '[]'); } catch (_) {}
-      const currentRpm = Array.isArray(parsedRpm) ? parsedRpm : [];
-      const currentTpm = Array.isArray(parsedTpm) ? parsedTpm : [];
+      const currentRpm = this._readWindowFromProperties('rpm', 'rate_limit_rpm_backup');
+      const currentTpm = this._readWindowFromProperties('tpm', 'rate_limit_tpm_backup');
 
       // Merge WAL con dati esistenti (evita duplicati per timestamp)
       const mergedRpm = this._mergeWindowData(currentRpm, wal.rpm || []);
       const mergedTpm = this._mergeWindowData(currentTpm, wal.tpm || []);
 
       // Salva dati recuperati
-      this.props.setProperty('rpm_window', JSON.stringify(mergedRpm));
-      this.props.setProperty('tpm_window', JSON.stringify(mergedTpm));
+      this._writePersistentWindowData_('rpm', mergedRpm);
+      this._writePersistentWindowData_('tpm', mergedTpm);
+      this.props.setProperties({
+        rpm_window: JSON.stringify(this._compactWindowForLegacyProperty_(mergedRpm)),
+        tpm_window: JSON.stringify(this._compactWindowForLegacyProperty_(mergedTpm)),
+        rate_limit_rpm_backup: JSON.stringify(mergedRpm.slice(-10)),
+        rate_limit_tpm_backup: JSON.stringify(mergedTpm.slice(-10))
+      });
 
       // Rimuovi la transazione WAL al ripristino ultimato
       this._cleanStorageBuffers();
@@ -1265,13 +1257,20 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     this.props.setProperties(walProps);
   }
 
-  _readChunkedDataWindow(windowType) {
-    const count = parseInt(this.props.getProperty(`rate_limit_wal_${windowType}_chunks`) || '0', 10) || 0;
+  _getChunkedWindowPrefix_(windowType, scope = 'wal') {
+    return scope === 'window'
+      ? `rate_limit_window_${windowType}`
+      : `rate_limit_wal_${windowType}`;
+  }
+
+  _readChunkedDataWindow(windowType, scope = 'wal') {
+    const prefix = this._getChunkedWindowPrefix_(windowType, scope);
+    const count = parseInt(this.props.getProperty(`${prefix}_chunks`) || '0', 10) || 0;
     if (count <= 0) return null;
 
     const merged = [];
     for (let i = 0; i < count; i++) {
-      const chunkStr = this.props.getProperty(`rate_limit_wal_${windowType}_${i}`);
+      const chunkStr = this.props.getProperty(`${prefix}_${i}`);
       if (!chunkStr) continue;
       try {
         const chunk = JSON.parse(chunkStr);
@@ -1279,14 +1278,16 @@ var GeminiRateLimiter = class GeminiRateLimiter {
           for (const entry of chunk) merged.push(entry);
         }
       } catch (e) {
-        console.warn(`⚠️ WAL chunk corrotto ignorato (rate_limit_wal_${windowType}_${i}): ${e.message}`);
+        console.warn(`⚠️ Chunk finestra rate limiter corrotto ignorato (${prefix}_${i}): ${e.message}`);
       }
     }
     return merged;
   }
 
   _chunkWindowForProperties(windowEntries) {
-    const maxChunkBytes = 8000;
+    // PropertiesService ha limite effettivo intorno a 9KB per valore.
+    // 4000 code unit UTF-16 tengono ogni chunk sotto ~8KB nominali.
+    const maxChunkBytes = 4000;
     const chunks = [];
     let currentChunk = [];
     let currentChunkBytes = 2; // []
@@ -1316,6 +1317,48 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     return chunks;
+  }
+
+  _writePersistentWindowData_(windowType, windowEntries) {
+    const prefix = this._getChunkedWindowPrefix_(windowType, 'window');
+    const chunks = this._chunkWindowForProperties(windowEntries);
+    const countKey = `${prefix}_chunks`;
+    let previousCount = 0;
+    try {
+      previousCount = parseInt(this.props.getProperty(countKey) || '0', 10) || 0;
+    } catch (_) {
+      previousCount = 0;
+    }
+
+    const payload = {};
+    payload[countKey] = String(chunks.length);
+    for (let i = 0; i < chunks.length; i++) {
+      payload[`${prefix}_${i}`] = chunks[i];
+    }
+    this.props.setProperties(payload);
+
+    if (typeof this.props.deleteProperty === 'function') {
+      for (let i = chunks.length; i < previousCount; i++) {
+        this.props.deleteProperty(`${prefix}_${i}`);
+      }
+    }
+  }
+
+  _compactWindowForLegacyProperty_(windowEntries) {
+    const source = Array.isArray(windowEntries) ? windowEntries : [];
+    const maxChars = 4000;
+    const serializedEntries = source.map(entry => JSON.stringify(entry));
+    const retained = [];
+    let totalChars = 2; // []
+
+    for (let i = serializedEntries.length - 1; i >= 0; i--) {
+      const entryChars = serializedEntries[i].length + (retained.length > 0 ? 1 : 0);
+      if (totalChars + entryChars > maxChars) break;
+      retained.unshift(source[i]);
+      totalChars += entryChars;
+    }
+
+    return retained;
   }
 
   /**
@@ -1371,32 +1414,10 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     (Array.isArray(existing) ? existing : []).forEach(ingest);
     (Array.isArray(walData) ? walData : []).forEach(ingest);
 
-    // Ordina per timestamp e limita
+    // Ordina per timestamp e preserva tutta la finestra viva: la serializzazione
+    // sicura avviene tramite chunk persistenti, non tagliando lo stato operativo.
     const sorted = Array.from(mergedByKey.values())
       .sort((a, b) => (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0));
-
-    // Limita dimensione array a max 8KB per evitare crash PropertiesService.
-    // Evita il pattern O(n²) di JSON.stringify() ad ogni iterazione.
-    const maxBytes = 8000;
-    const serializedEntries = sorted.map(entry => JSON.stringify(entry));
-    let totalBytes = 2; // []
-    for (let i = 0; i < serializedEntries.length; i++) {
-      totalBytes += serializedEntries[i].length;
-      if (i > 0) totalBytes += 1; // virgola separatrice
-    }
-
-    let start = 0;
-    while (totalBytes > maxBytes && start < serializedEntries.length) {
-      totalBytes -= serializedEntries[start].length;
-      if (start < serializedEntries.length - 1) {
-        totalBytes -= 1; // rimuove anche una virgola
-      }
-      start++;
-    }
-
-    if (start > 0) {
-      return sorted.slice(start);
-    }
 
     return sorted;
   }

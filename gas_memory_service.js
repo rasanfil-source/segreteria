@@ -1377,7 +1377,9 @@ var MemoryService = class MemoryService {
       const cache = CacheService.getScriptCache();
       const serialized = JSON.stringify(data);
       const ttl = Math.floor(this._cacheExpiry / 1000);
-      const MAX_CHUNK_SIZE = 90000;
+      // CacheService accetta valori fino a circa 100KB. String.length conta code unit UTF-16,
+      // quindi teniamo i chunk a ~90KB nominali per restare sotto il limite reale.
+      const MAX_CHUNK_SIZE = 45000;
 
       if (serialized.length > MAX_CHUNK_SIZE) {
         const chunks = Math.ceil(serialized.length / MAX_CHUNK_SIZE);

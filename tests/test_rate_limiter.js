@@ -33,6 +33,74 @@ console.log('--- Test _readChunkedDataWindow: ignora chunk WAL corrotto ---');
   assert(windowData[0].timestamp === 1 && windowData[1].timestamp === 2, 'deve preservare ordine e contenuto dei chunk validi');
 }
 
+console.log('--- Test _chunkWindowForProperties: chunk sotto limite PropertiesService ---');
+{
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  const entries = Array.from({ length: 160 }, (_, index) => ({
+    timestamp: 1700000000000 + index,
+    nonce: `1700000000000-${index}`,
+    modelKey: 'gemini-3.5-flash',
+    reserved: true
+  }));
+
+  const chunks = limiter._chunkWindowForProperties(entries);
+  const restored = chunks.flatMap(chunk => JSON.parse(chunk));
+
+  assert(chunks.length > 1, 'una finestra alta RPM deve essere divisa in più chunk');
+  assert(chunks.every(chunk => chunk.length <= 4000), 'ogni chunk deve restare entro il limite conservativo di 4000 caratteri');
+  assert(restored.length === entries.length, 'chunking deve preservare tutte le entry');
+}
+
+console.log('--- Test _mergeWindowData: non dimentica burst RPM oltre 8KB ---');
+{
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  const entries = Array.from({ length: 160 }, (_, index) => ({
+    timestamp: 1700000000000 + index,
+    nonce: `1700000000000-${index}`,
+    modelKey: 'gemini-3.5-flash',
+    reserved: true
+  }));
+
+  const merged = limiter._mergeWindowData([], entries);
+  assert(merged.length === entries.length, 'merge finestra deve preservare tutte le chiamate vive anche oltre 8KB');
+}
+
+console.log('--- Test persistenza chunkata: finestra completa e legacy compatto ---');
+{
+  const now = Date.now();
+  const entries = Array.from({ length: 160 }, (_, index) => ({
+    timestamp: now - 1000 + index,
+    nonce: `${now}-${index}`,
+    modelKey: 'gemini-3.5-flash',
+    reserved: true
+  }));
+  const propsData = new Map();
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  limiter.props = {
+    getProperty: (key) => propsData.has(key) ? propsData.get(key) : null,
+    setProperty: (key, value) => propsData.set(key, String(value)),
+    setProperties: (values) => Object.keys(values || {}).forEach((key) => propsData.set(key, String(values[key]))),
+    deleteProperty: (key) => propsData.delete(key)
+  };
+  limiter.cache = {
+    rpmWindow: entries,
+    tpmWindow: [],
+    lastCacheUpdate: 0,
+    lastPersistUpdate: 0,
+    cacheTTL: 10000
+  };
+
+  limiter._doPersistCacheWrite();
+
+  const fullRpm = limiter._readWindowFromProperties('rpm', 'rate_limit_rpm_backup');
+  const legacyRpm = JSON.parse(propsData.get('rpm_window') || '[]');
+
+  assert(fullRpm.length === entries.length, 'lettura chunkata deve ricostruire tutta la finestra RPM');
+  assert(legacyRpm.length < entries.length, 'dump legacy deve essere solo un fallback compatto');
+  assert((propsData.get('rpm_window') || '').length <= 4000, 'dump legacy rpm_window deve restare sotto il limite conservativo');
+  assert(parseInt(propsData.get('rate_limit_window_rpm_chunks') || '0', 10) > 1, 'finestra RPM completa deve essere salvata su chunk persistenti');
+}
+
 console.log('--- Test _applySafetyValve_: non aumenta MAX_EMAILS_PER_RUN già più basso ---');
 {
   const originalConfig = global.CONFIG;
