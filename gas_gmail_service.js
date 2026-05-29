@@ -736,7 +736,9 @@ var GmailService = class GmailService {
             do {
                 if (page >= safeMaxPages || seenThreadIds.size >= safeTargetThreads || metadataLimitReached) break;
 
-                const params = { labelIds: ['INBOX', 'UNREAD'], maxResults: safeMessageBuffer };
+                // q mantiene la semantica thread-level di Gmail search; labelIds resta message-level
+                // per restituire solo i singoli messaggi non letti dentro thread ancora in inbox.
+                const params = { q: 'in:inbox', labelIds: ['UNREAD'], maxResults: safeMessageBuffer };
                 if (pageToken) params.pageToken = pageToken;
 
                 let response = null;
@@ -753,7 +755,7 @@ var GmailService = class GmailService {
 
                 const messages = (response && response.messages) || [];
                 let addedInPage = 0;
-                console.log(`📬 [metadata] Pagina ${page}: ${messages.length} messaggi candidati INBOX/UNREAD`);
+                console.log(`📬 [metadata] Pagina ${page}: ${messages.length} messaggi candidati in:inbox + UNREAD`);
                 if (messages.length > 0) {
                     ensureRamBlacklistLoaded();
                 }
@@ -1022,7 +1024,8 @@ var GmailService = class GmailService {
                 if (!messageId) return false;
                 const metadata = this._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
                 const labelIds = metadata && Array.isArray(metadata.labelIds) ? metadata.labelIds : [];
-                return labelIds.includes('UNREAD') && labelIds.includes('INBOX') && matchesStaleWindow(message);
+                // INBOX può essere presente solo su un altro messaggio del thread; qui basta UNREAD.
+                return labelIds.includes('UNREAD') && matchesStaleWindow(message);
             } catch (metadataError) {
                 const metadataMessage = String((metadataError && metadataError.message) || '');
                 if (metadataMessage.includes('GMAIL_DAILY_CALL_LIMIT_REACHED') ||

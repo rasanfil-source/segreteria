@@ -1065,7 +1065,7 @@ var EmailProcessor = class EmailProcessor {
           if (
             consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL ||
             botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL ||
-            (messages.length > MAX_THREAD_LENGTH && totalBotRepliesInThread >= maxBotRepliesInLongThread)
+            (messages.length > MAX_THREAD_LENGTH && totalBotRepliesInThread > maxBotRepliesInLongThread)
           ) {
             console.log(`   ⊖ Saltato: prevenzione loop email attivata (ping-pong/thread ripetitivo: interventiBot=${totalBotRepliesInThread}, sogliaBot=${maxBotRepliesInLongThread}, consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
             markHandledUnread();
@@ -3592,7 +3592,8 @@ ${addressLines.join('\n\n')}
         if (nativeUnreadIds.has(messageId)) return false;
         const metadata = this.gmailService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
         const labelIds = metadata && Array.isArray(metadata.labelIds) ? metadata.labelIds : [];
-        return labelIds.includes('UNREAD') && labelIds.includes('INBOX');
+        // La discovery garantisce l'eleggibilità inbox a livello thread; non richiedere INBOX sul singolo messaggio.
+        return labelIds.includes('UNREAD');
       } catch (metadataError) {
         targetLogger.warn(`⚠️ Fallback metadata unread fallito: ${metadataError.message}`);
         return false;

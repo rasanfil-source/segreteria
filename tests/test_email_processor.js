@@ -675,7 +675,7 @@ console.log('--- Test processThread: alias interno interrompe la sequenza estern
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }
 
-console.log('--- Test processThread: ping-pong alternato attiva anti-loop per densità bot ---');
+console.log('--- Test processThread: ping-pong alternato non attiva anti-loop al 50% bot ---');
 {
   const originalSession = global.Session;
   const originalGmailApp = global.GmailApp;
@@ -737,10 +737,83 @@ console.log('--- Test processThread: ping-pong alternato attiva anti-loop per de
   };
 
   const result = antiLoopProcessor.processThread(thread, '', [], new Set(), true);
-  assert(result.status === 'filtered', 'il ping-pong alternato deve essere filtrato');
-  assert(result.reason === 'email_loop_detected', 'deve usare la reason anti-loop');
-  assert(classifierCalls === 0, 'il classifier non deve essere chiamato quando scatta anti-loop');
+  assert(result.status === 'filtered', 'il ping-pong alternato deve proseguire fino al classifier');
+  assert(result.reason !== 'email_loop_detected', 'una densità bot del 50% non deve essere classificata come loop');
+  assert(classifierCalls === 1, 'il classifier deve essere chiamato quando il thread alternato è sano');
   assert(labeled.includes('m-ping-pong-11'), 'il candidato finale deve essere marcato come gestito');
+
+  global.Session = originalSession;
+  global.GmailApp = originalGmailApp;
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
+console.log('--- Test processThread: densità bot oltre metà finestra attiva anti-loop ---');
+{
+  const originalSession = global.Session;
+  const originalGmailApp = global.GmailApp;
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  let classifierCalls = 0;
+  const labeled = [];
+
+  global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
+  };
+  global.GmailApp = {
+    getAliases: () => ['segreteria@example.org']
+  };
+  global.GLOBAL_CACHE.languageMode = 'all';
+
+  const antiLoopProcessor = new EmailProcessor({
+    geminiService: {
+      detectEmailLanguage: () => ({ lang: 'it', safetyGrade: 5 })
+    },
+    classifier: {
+      _extractMainContent: (body) => body,
+      classifyEmail: () => {
+        classifierCalls++;
+        return { shouldReply: false, reason: 'unit_test_stop' };
+      }
+    },
+    gmailService: {
+      getMessageIdsWithLabel: () => new Set(),
+      _extractEmailAddress: extractEmailAddress,
+      extractMessageDetails: (message) => ({
+        subject: message.getSubject(),
+        body: message.getPlainBody(),
+        senderEmail: extractEmailAddress(message.getFrom()),
+        senderName: 'Utente',
+        headers: {},
+        isNewsletter: false,
+        date: message.getDate()
+      }),
+      addLabelToMessage: (id) => labeled.push(id)
+    }
+  });
+
+  const baseDate = new Date('2026-04-01T10:00:00Z');
+  const botIndexes = new Set([0, 2, 4, 6, 7, 9, 10]);
+  const messages = Array.from({ length: 12 }, (_, index) => {
+    const isBot = botIndexes.has(index);
+    return createMessage(
+      `m-bot-density-${index}`,
+      isBot ? 'Segreteria <segreteria@example.org>' : 'Utente <utente@example.org>',
+      `Densità bot ${index}`,
+      isBot ? 'Risposta della segreteria.' : 'Messaggio di follow-up esterno.',
+      new Date(baseDate.getTime() + index * 60000)
+    );
+  });
+
+  const thread = {
+    getId: () => 'thread-anti-loop-density',
+    getLabels: () => [],
+    getMessages: () => messages
+  };
+
+  const result = antiLoopProcessor.processThread(thread, '', [], new Set(), true);
+  assert(result.status === 'filtered', 'il thread con densità bot anomala deve essere filtrato');
+  assert(result.reason === 'email_loop_detected', 'deve usare la reason anti-loop quando i bot superano metà finestra');
+  assert(classifierCalls === 0, 'il classifier non deve essere chiamato quando scatta anti-loop');
+  assert(labeled.includes('m-bot-density-11'), 'il candidato finale deve essere marcato come gestito');
 
   global.Session = originalSession;
   global.GmailApp = originalGmailApp;

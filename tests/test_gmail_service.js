@@ -393,6 +393,45 @@ const queryResult = service._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10,
 assert(queryResult.threads.length === 1, 'query mode deve includere thread valido restituito da GmailApp.search');
 assert(queryResult.threads[0].getId() === 't-ok', 'query mode deve includere thread valido');
 
+console.log('--- Test discovery metadata: query inbox thread-level con filtro UNREAD message-level ---');
+{
+  const serviceInboxQuery = new GmailService();
+  let capturedParams = null;
+  let metadataCalls = 0;
+  serviceInboxQuery._getOptionalLabelIdByName = () => null;
+  serviceInboxQuery._listMessagesWithResilience = (params) => {
+    capturedParams = params;
+    return {
+      messages: [{ id: 'm-new-unread', threadId: 't-inbox-thread' }],
+      nextPageToken: null
+    };
+  };
+  serviceInboxQuery._getMessageMetadataWithResilience = () => {
+    metadataCalls++;
+    return { labelIds: ['UNREAD'] };
+  };
+
+  global.GmailApp = {
+    getThreadById: (threadId) => ({ getId: () => threadId }),
+    search: () => []
+  };
+
+  const inboxQueryResult = serviceInboxQuery._discoverByMetadata('IA', 'Errore', 'Verifica', 10, 10, 1, [], {
+    blacklistMessageIds: new Set(),
+    skipBlacklistMessageIds: new Set(),
+    preloadBlacklistMessageIds: () => {}
+  });
+  assert(capturedParams && capturedParams.q === 'in:inbox', 'metadata discovery deve vincolare inbox tramite query testuale');
+  assert(
+    Array.isArray(capturedParams.labelIds) &&
+      capturedParams.labelIds.length === 1 &&
+      capturedParams.labelIds[0] === 'UNREAD',
+    'metadata discovery deve usare solo UNREAD come filtro label message-level'
+  );
+  assert(metadataCalls === 0, 'con blacklist RAM non deve richiedere metadata per validare INBOX message-level');
+  assert(inboxQueryResult.threads.length === 1, 'deve includere il thread con nuovo unread anche se il messaggio non espone INBOX nei metadata');
+}
+
 console.log('--- Test discovery: skipLabel esclude i messaggi marcati come ignorati ---');
 {
   const serviceWithSkip = new GmailService();
@@ -633,6 +672,20 @@ console.log('--- Test metadata fallback unread: limita scansione ai messaggi rec
   assert(metadataCalls.length === 3, 'metadata unread fallback deve controllare solo gli ultimi N messaggi del thread');
   assert(metadataCalls[0] === 'm-thread-5' && metadataCalls[2] === 'm-thread-7', 'metadata unread fallback deve partire dalla coda recente del thread');
   assert(unread.length === 1 && unread[0].getId() === 'm-thread-7', 'metadata unread fallback deve recuperare il non letto recente');
+}
+
+console.log('--- Test metadata fallback unread: UNREAD basta anche senza INBOX message-level ---');
+{
+  const serviceUnreadWithoutInbox = new GmailService();
+  const message = {
+    getId: () => 'm-unread-no-inbox',
+    isUnread: () => false,
+    getDate: () => new Date('2026-05-10T08:00:00Z')
+  };
+  serviceUnreadWithoutInbox._getMessageMetadataWithResilience = () => ({ labelIds: ['UNREAD'] });
+
+  const unread = serviceUnreadWithoutInbox._filterUnreadMessagesForDiscovery_([message]);
+  assert(unread.length === 1 && unread[0].getId() === 'm-unread-no-inbox', 'fallback metadata deve accettare UNREAD senza richiedere INBOX sul singolo messaggio');
 }
 
 console.log('--- Test metadata fallback unread: quota Gmail non viene silenziata ---');

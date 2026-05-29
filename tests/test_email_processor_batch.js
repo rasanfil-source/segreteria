@@ -95,7 +95,7 @@ console.log('--- Test _extractTimes: boundary Unicode evita match dentro parole 
   assert(!times.includes('10:30'), 'non deve estrarre orari incorporati in parole o sequenze numeriche');
 }
 
-console.log('--- Test unread fallback: metadata UNREAD/INBOX se isUnread è stale ---');
+console.log('--- Test unread fallback: metadata UNREAD anche senza INBOX message-level se isUnread è stale ---');
 {
   const msg = createMessage({ id: 'm-stale-unread-cache', unread: false, from: 'utente@example.com' });
   const thread = createThread({ id: 't-stale-unread-cache', messages: [msg] });
@@ -103,7 +103,7 @@ console.log('--- Test unread fallback: metadata UNREAD/INBOX se isUnread è stal
     gmailService: {
       _getMessageMetadataWithResilience: (messageId) => ({
         id: messageId,
-        labelIds: ['INBOX', 'UNREAD']
+        labelIds: ['UNREAD']
       })
     }
   });
