@@ -747,7 +747,42 @@ var EmailProcessor = class EmailProcessor {
       // La discovery resta deliberatamente a livello messaggio: l'eventuale presenza
       // di materiale IA nello stesso thread NON deve nascondere nuovi follow-up non letti.
       candidate = externalUnread[externalUnread.length - 1];
-      setResponseContextMessages([candidate]);
+
+      // CRITICO: il contesto del burst deve essere disponibile prima degli
+      // early-exit di STEP 0. markHandledUnread() agisce solo sui messaggi in
+      // responseContextMessages: se lo popoliamo dopo STEP 0, filtri come
+      // last_speaker_is_me o email_loop_detected marcano solo il candidato finale.
+      const buildBurstMessagesForCandidate = (candidateMessage, fallbackSenderEmail = '') => {
+        if (!candidateMessage || typeof candidateMessage.getId !== 'function') return [];
+
+        const candidateRawFrom = (candidateMessage && typeof candidateMessage.getFrom === 'function')
+          ? (candidateMessage.getFrom() || '')
+          : '';
+        const candidateSenderEmail = this._normalizeConversationEmailAddress_(
+          fallbackSenderEmail || (
+            this.gmailService && typeof this.gmailService._extractEmailAddress === 'function'
+              ? this.gmailService._extractEmailAddress(candidateRawFrom)
+              : candidateRawFrom
+          ) || ''
+        );
+        const candidateId = candidateMessage.getId();
+
+        if (externalUnread.length <= 1 || !candidateSenderEmail) {
+          return [candidateMessage];
+        }
+
+        return externalUnread.filter((message) => {
+          if (!message || typeof message.getFrom !== 'function') {
+            return message && typeof message.getId === 'function' && message.getId() === candidateId;
+          }
+          const rawFrom = message.getFrom() || '';
+          const sender = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
+            ? this.gmailService._extractEmailAddress(rawFrom)
+            : rawFrom;
+          return this._normalizeConversationEmailAddress_(sender || '') === candidateSenderEmail;
+        }).sort(compareMessagesByDateAndId);
+      };
+      setResponseContextMessages(buildBurstMessagesForCandidate(candidate));
 
       // ====================================================================
       // STEP 0: CONTROLLO ULTIMO MITTENTE (Anti-Loop & Ownership)
@@ -809,17 +844,14 @@ var EmailProcessor = class EmailProcessor {
       // CRITICO: Ricostruzione del contesto in caso di burst (più email non lette dallo stesso utente).
       // Evita che un'email finale breve (es. "Grazie") faccia scartare le vere domande precedenti.
       if (externalUnread.length > 1) {
-        const candidateSenderEmail = this._normalizeConversationEmailAddress_(messageDetails.senderEmail || '');
+        // Manteniamo il burst già anticipato prima di STEP 0. Se l'estrazione
+        // leggera del mittente non era riuscita, riproviamo ora con senderEmail
+        // ottenuto da extractMessageDetails(candidate).
+        if (responseContextMessages.length <= 1 && messageDetails.senderEmail) {
+          setResponseContextMessages(buildBurstMessagesForCandidate(candidate, messageDetails.senderEmail));
+        }
         const candidateId = candidate.getId();
-        const burstMessages = externalUnread.filter((message) => {
-          if (!candidateSenderEmail || !message || typeof message.getFrom !== 'function') return message && message.getId && message.getId() === candidateId;
-          const rawFrom = message.getFrom() || '';
-          const sender = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
-            ? this.gmailService._extractEmailAddress(rawFrom)
-            : rawFrom;
-          return this._normalizeConversationEmailAddress_(sender || '') === candidateSenderEmail;
-        }).sort(compareMessagesByDateAndId);
-        setResponseContextMessages(burstMessages);
+        const burstMessages = responseContextMessages;
         const aggregatedBody = burstMessages.map((message) => {
           const details = (message.getId() === candidateId
             ? messageDetails

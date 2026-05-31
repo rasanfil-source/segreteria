@@ -307,6 +307,56 @@ console.log('--- Test processThread: alias Gmail recognized as unread internal -
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }
 
+console.log('--- Test processThread: last speaker early-exit marca tutto il burst esterno ---');
+{
+  const originalSession = global.Session;
+  const originalGmailApp = global.GmailApp;
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  let extractDetailsCalls = 0;
+  const labeled = [];
+
+  global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
+  };
+  global.GmailApp = {
+    getAliases: () => ['segreteria@example.org']
+  };
+  global.GLOBAL_CACHE.languageMode = 'all';
+
+  const lastSpeakerProcessor = new EmailProcessor({
+    gmailService: {
+      getMessageIdsWithLabel: () => new Set(),
+      _extractEmailAddress: extractEmailAddress,
+      extractMessageDetails: () => {
+        extractDetailsCalls++;
+        return {};
+      },
+      addLabelToMessage: (id) => labeled.push(id)
+    }
+  });
+
+  const thread = {
+    getId: () => 'thread-last-speaker-burst',
+    getLabels: () => [],
+    getMessages: () => [
+      createMessage('m-last-speaker-first', 'Utente <utente@example.org>', 'Prima domanda', 'Vorrei informazioni.'),
+      createMessage('m-last-speaker-second', 'Utente <utente@example.org>', 'Seconda domanda', 'Aggiungo un allegato.'),
+      createMessage('m-last-speaker-us', 'Segreteria <segreteria@example.org>', 'Re: Seconda domanda', 'Risposta interna.', new Date('2026-04-01T10:10:00Z'), false)
+    ]
+  };
+
+  const result = lastSpeakerProcessor.processThread(thread, '', [], new Set(), true);
+  assert(result.status === 'skipped', 'last_speaker_is_me deve saltare il thread prima dello STEP 1');
+  assert(result.reason === 'last_speaker_is_me', 'deve usare la reason last_speaker_is_me');
+  assert(extractDetailsCalls === 0, 'non deve estrarre dettagli quando scatta last_speaker_is_me');
+  assert(labeled.includes('m-last-speaker-first'), 'deve marcare il primo messaggio del burst esterno');
+  assert(labeled.includes('m-last-speaker-second'), 'deve marcare il secondo messaggio del burst esterno');
+
+  global.Session = originalSession;
+  global.GmailApp = originalGmailApp;
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
 console.log('--- Test processThread: quick check filtrato marca tutto il burst esterno ---');
 {
   const originalSession = global.Session;
@@ -814,6 +864,77 @@ console.log('--- Test processThread: densità bot oltre metà finestra attiva an
   assert(result.reason === 'email_loop_detected', 'deve usare la reason anti-loop quando i bot superano metà finestra');
   assert(classifierCalls === 0, 'il classifier non deve essere chiamato quando scatta anti-loop');
   assert(labeled.includes('m-bot-density-11'), 'il candidato finale deve essere marcato come gestito');
+
+  global.Session = originalSession;
+  global.GmailApp = originalGmailApp;
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
+console.log('--- Test processThread: anti-loop early-exit marca tutto il burst esterno ---');
+{
+  const originalSession = global.Session;
+  const originalGmailApp = global.GmailApp;
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  let classifierCalls = 0;
+  const labeled = [];
+
+  global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
+  };
+  global.GmailApp = {
+    getAliases: () => ['segreteria@example.org']
+  };
+  global.GLOBAL_CACHE.languageMode = 'all';
+
+  const antiLoopBurstProcessor = new EmailProcessor({
+    geminiService: {
+      detectEmailLanguage: () => ({ lang: 'it', safetyGrade: 5 })
+    },
+    classifier: {
+      _extractMainContent: (body) => body,
+      classifyEmail: () => {
+        classifierCalls++;
+        return { shouldReply: false, reason: 'unit_test_stop' };
+      }
+    },
+    gmailService: {
+      getMessageIdsWithLabel: () => new Set(),
+      _extractEmailAddress: extractEmailAddress,
+      extractMessageDetails: (message) => ({
+        subject: message.getSubject(),
+        body: message.getPlainBody(),
+        senderEmail: extractEmailAddress(message.getFrom()),
+        senderName: 'Utente',
+        headers: {},
+        isNewsletter: false,
+        date: message.getDate()
+      }),
+      addLabelToMessage: (id) => labeled.push(id)
+    }
+  });
+
+  const baseDate = new Date('2026-04-01T10:00:00Z');
+  const messages = Array.from({ length: 5 }, (_, index) => createMessage(
+    `m-loop-burst-${index}`,
+    'Utente <utente@example.org>',
+    `Follow-up ${index}`,
+    `Messaggio esterno ${index}`,
+    new Date(baseDate.getTime() + index * 60000)
+  ));
+
+  const thread = {
+    getId: () => 'thread-anti-loop-burst',
+    getLabels: () => [],
+    getMessages: () => messages
+  };
+
+  const result = antiLoopBurstProcessor.processThread(thread, '', [], new Set(), true);
+  assert(result.status === 'filtered', 'il burst esterno deve essere filtrato dall anti-loop');
+  assert(result.reason === 'email_loop_detected', 'deve scattare l anti-loop prima dello STEP 1');
+  assert(classifierCalls === 0, 'il classifier non deve essere chiamato quando scatta un early-exit anti-loop');
+  messages.forEach((message) => {
+    assert(labeled.includes(message.getId()), `deve marcare tutto il burst, incluso ${message.getId()}`);
+  });
 
   global.Session = originalSession;
   global.GmailApp = originalGmailApp;
