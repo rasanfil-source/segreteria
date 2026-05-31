@@ -298,11 +298,10 @@ var MemoryService = class MemoryService {
 
           // Cap preventivo lunghezza JSON providedInfo (B5)
           if (mergedData.providedInfo && Array.isArray(mergedData.providedInfo)) {
-            const serialized = JSON.stringify(mergedData.providedInfo);
-            if (serialized.length > 40000) {
-              console.warn(`🧠 Memoria: providedInfo troppo grande (${serialized.length} chars), riduco ulteriormente`);
-              mergedData.providedInfo = mergedData.providedInfo.slice(-25);
-            }
+            mergedData.providedInfo = this._shrinkProvidedInfoToCaps(
+              mergedData.providedInfo,
+              'updateMemory'
+            );
           }
 
           this._withSheetWriteLock(() => {
@@ -515,11 +514,10 @@ var MemoryService = class MemoryService {
 
             // Cap preventivo lunghezza JSON providedInfo (B5)
             if (mergedData.providedInfo && Array.isArray(mergedData.providedInfo)) {
-              const serialized = JSON.stringify(mergedData.providedInfo);
-              if (serialized.length > 40000) {
-                console.warn(`🧠 Memoria: providedInfo troppo grande (${serialized.length} chars), riduco ulteriormente`);
-                mergedData.providedInfo = mergedData.providedInfo.slice(-25);
-              }
+              mergedData.providedInfo = this._shrinkProvidedInfoToCaps(
+                mergedData.providedInfo,
+                'updateMemoryAtomic'
+              );
             }
 
             this._withSheetWriteLock(() => {
@@ -629,11 +627,11 @@ var MemoryService = class MemoryService {
           const normalizedTopics = this._normalizeProvidedTopics(topics);
           let mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
 
-          const maxTopics = (typeof CONFIG !== 'undefined' && CONFIG.MAX_PROVIDED_TOPICS) || 50;
-          if (mergedTopics.length > maxTopics) {
-            console.log(`🧠 Memoria: Trim providedInfo da ${mergedTopics.length} a ${maxTopics} topic`);
-            mergedTopics = mergedTopics.slice(-maxTopics);
+          const caps = this._getProvidedInfoCaps();
+          if (mergedTopics.length > caps.maxTopics) {
+            console.log(`🧠 Memoria: Trim providedInfo da ${mergedTopics.length} a ${caps.maxTopics} topic`);
           }
+          mergedTopics = this._shrinkProvidedInfoToCaps(mergedTopics, 'addProvidedInfoTopics');
 
           const currentVersion = existingData.version || 0;
           existingData.providedInfo = mergedTopics;
@@ -847,6 +845,102 @@ var MemoryService = class MemoryService {
     }
   }
 
+  _getProvidedInfoCaps() {
+    const configuredMaxChars = (typeof CONFIG !== 'undefined' && Number(CONFIG.MAX_PROVIDED_INFO_JSON_CHARS) > 0)
+      ? Number(CONFIG.MAX_PROVIDED_INFO_JSON_CHARS)
+      : 45000;
+    const configuredMaxTopics = (typeof CONFIG !== 'undefined' && Number(CONFIG.MAX_PROVIDED_TOPICS) > 0)
+      ? Number(CONFIG.MAX_PROVIDED_TOPICS)
+      : 50;
+
+    return {
+      maxChars: configuredMaxChars,
+      maxTopics: configuredMaxTopics
+    };
+  }
+
+  _truncateProvidedTopicMetadataValue(key, value) {
+    if (value === undefined || value === null) return value;
+
+    const limitByKey = {
+      excerpt: 500,
+      matchedPhrase: 200
+    };
+    const defaultStringLimit = 1000;
+
+    if (typeof value === 'string') {
+      const limit = limitByKey[key] || defaultStringLimit;
+      return value.slice(0, limit);
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') return value;
+    if (Object.prototype.toString.call(value) === '[object Date]') {
+      return this._validateAndNormalizeTimestamp(value.toISOString());
+    }
+    if (Array.isArray(value)) {
+      return value.slice(0, 10).map((item) => this._truncateProvidedTopicMetadataValue(key, item));
+    }
+    if (typeof value === 'object') {
+      const normalized = {};
+      Object.keys(value).slice(0, 20).forEach((childKey) => {
+        const childValue = this._truncateProvidedTopicMetadataValue(childKey, value[childKey]);
+        if (childValue !== undefined) normalized[childKey] = childValue;
+      });
+      return normalized;
+    }
+
+    return String(value).slice(0, defaultStringLimit);
+  }
+
+  _normalizeProvidedTopicContext(context) {
+    if (!context) return null;
+    return this._truncateProvidedTopicMetadataValue('context', context);
+  }
+
+  _minimalProvidedInfoTopic(topic) {
+    return {
+      topic: String(topic && topic.topic ? topic.topic : '').slice(0, 120),
+      userReaction: (topic && topic.userReaction) || 'unknown',
+      timestamp: (topic && topic.timestamp) || this._validateAndNormalizeTimestamp(new Date().toISOString())
+    };
+  }
+
+  _shrinkProvidedInfoToCaps(providedInfo, sourceLabel) {
+    const caps = this._getProvidedInfoCaps();
+    let topics = Array.isArray(providedInfo) ? this._normalizeProvidedTopics(providedInfo) : [];
+
+    if (topics.length > caps.maxTopics) {
+      console.warn(`🧠 ${sourceLabel}: providedInfo ha ${topics.length} topic; trim a ${caps.maxTopics}`);
+      topics = topics.slice(-caps.maxTopics);
+    }
+
+    let serialized = JSON.stringify(topics);
+
+    // Stima lineare: taglio proporzionale per ridurre serializzazioni iterative.
+    if (topics.length > 0 && serialized.length > caps.maxChars) {
+      const avgBytesPerEntry = Math.ceil(serialized.length / topics.length);
+      const targetCount = Math.max(1, Math.floor(caps.maxChars / Math.max(1, avgBytesPerEntry)));
+      topics = topics.slice(-targetCount);
+      serialized = JSON.stringify(topics);
+
+      while (topics.length > 1 && serialized.length > caps.maxChars) {
+        topics.shift();
+        serialized = JSON.stringify(topics);
+      }
+    }
+
+    if (topics.length === 1 && serialized.length > caps.maxChars) {
+      topics = [this._minimalProvidedInfoTopic(topics[0])];
+      serialized = JSON.stringify(topics);
+    }
+
+    if (serialized.length > caps.maxChars) {
+      console.warn(`⚠️ ${sourceLabel}: providedInfo eccede ${caps.maxChars} caratteri anche dopo il trim; salvo array vuoto`);
+      return [];
+    }
+
+    return topics;
+  }
+
   /**
    * Normalizza i topic forniti in formato oggetto.
    */
@@ -875,11 +969,13 @@ var MemoryService = class MemoryService {
             context: topic.context || null,
             timestamp: this._validateAndNormalizeTimestamp(topic.timestamp || new Date().toISOString())
           };
-          // Preserva eventuali metadati aggiuntivi (es. lastInteraction)
-          // per evitare perdite durante cicli di normalizzazione + merge.
+          // Preserva eventuali metadati aggiuntivi (es. lastInteraction), ma
+          // limita campi potenzialmente molto grandi per non saturare la cella Sheet.
+          normalized.context = this._normalizeProvidedTopicContext(topic.context || null);
           Object.keys(topic).forEach((key) => {
             if (['topic', 'userReaction', 'reaction', 'context', 'timestamp'].includes(key)) return;
-            normalized[key] = topic[key];
+            const value = this._truncateProvidedTopicMetadataValue(key, topic[key]);
+            if (value !== undefined) normalized[key] = value;
           });
           return normalized;
         }
@@ -977,23 +1073,15 @@ var MemoryService = class MemoryService {
         const existingData = this._rowToObject(existingRow.values);
         const existingTopics = this._normalizeProvidedTopics(Array.isArray(existingData.providedInfo) ? existingData.providedInfo : []);
         const normalizedTopics = this._normalizeProvidedTopics(providedInfo);
-        const maxTopics = typeof CONFIG !== 'undefined' ? (CONFIG.MAX_PROVIDED_TOPICS || 50) : 50;
-
         let mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
-        if (mergedTopics.length > maxTopics) {
-          mergedTopics = mergedTopics.slice(-maxTopics);
-        }
+        mergedTopics = this._shrinkProvidedInfoToCaps(
+          mergedTopics,
+          '_updateProvidedInfoWithoutIncrement'
+        );
 
         existingData.providedInfo = mergedTopics;
         existingData.lastUpdated = this._validateAndNormalizeTimestamp(new Date().toISOString());
         existingData.version = (existingData.version || 0) + 1;
-
-        // Cap preventivo lunghezza JSON (B5)
-        const serialized = JSON.stringify(existingData.providedInfo);
-        if (serialized.length > 40000) {
-          console.warn(`🧠 Memoria: providedInfo in reazione troppo grande (${serialized.length} chars), riduco`);
-          existingData.providedInfo = existingData.providedInfo.slice(-25);
-        }
 
         this._withSheetWriteLock(() => {
           this._updateRow(existingRow.rowIndex, existingData);
@@ -1293,37 +1381,11 @@ var MemoryService = class MemoryService {
   }
 
   _serializeProvidedInfoForSheet(providedInfo) {
-    const maxChars = (typeof CONFIG !== 'undefined' && Number(CONFIG.MAX_PROVIDED_INFO_JSON_CHARS) > 0)
-      ? Number(CONFIG.MAX_PROVIDED_INFO_JSON_CHARS)
-      : 45000;
-    let topics = Array.isArray(providedInfo) ? providedInfo.slice() : [];
-    let serialized = JSON.stringify(topics);
-
-    // Troncamento rapido per evitare loop O(n²) su storici lunghi.
-    if (serialized.length > maxChars && topics.length > 25) {
-      topics = topics.slice(-25);
-      serialized = JSON.stringify(topics);
-    }
-
-    // Stima lineare: taglio proporzionale per ridurre serializzazioni iterative.
-    if (topics.length > 0 && serialized.length > maxChars) {
-      const avgBytesPerEntry = Math.ceil(serialized.length / topics.length);
-      const targetCount = Math.max(1, Math.floor(maxChars / Math.max(1, avgBytesPerEntry)));
-      topics = topics.slice(-targetCount);
-      serialized = JSON.stringify(topics);
-
-      while (topics.length > 1 && serialized.length > maxChars) {
-        topics.shift();
-        serialized = JSON.stringify(topics);
-      }
-    }
-
-    if (serialized.length > maxChars) {
-      console.warn(`⚠️ providedInfo eccede ${maxChars} caratteri: salvo array vuoto`);
-      return '[]';
-    }
-
-    return serialized;
+    const topics = this._shrinkProvidedInfoToCaps(
+      Array.isArray(providedInfo) ? providedInfo.slice() : [],
+      '_serializeProvidedInfoForSheet'
+    );
+    return JSON.stringify(topics);
   }
 
   // ========================================================================

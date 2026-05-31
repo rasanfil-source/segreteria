@@ -885,14 +885,17 @@ var ResponseValidator = class ResponseValidator {
         if (word !== 'La') {
           continue;
         }
+      }
 
-        // "La" è ambigua: può essere pronome formale (ok) o articolo (da segnalare).
-        // Se seguito da un verbo comune, trattalo come eccezione; altrimenti lascia passare i controlli.
-        const afterMatchPosLa = match.index + match[0].length;
-        const textAfterLa = response.substring(afterMatchPosLa);
-        const nextWordMatch = textAfterLa.match(/^\s+([a-zàèéìòù']+)/);
+      // "La" e "Le" sono ambigue: possono essere pronomi formali (ok)
+      // oppure articoli/complementi comuni (da segnalare). Esentiamo solo i casi
+      // seguiti da verbi tipici della corrispondenza formale.
+      if (expectedLanguage === 'it' && (word === 'La' || word === 'Le')) {
+        const afterMatchPosCourtesy = match.index + match[0].length;
+        const textAfterCourtesy = response.substring(afterMatchPosCourtesy);
+        const nextWordMatch = textAfterCourtesy.match(/^\s+([a-zàèéìòù']+)/);
         const nextWord = nextWordMatch ? nextWordMatch[1].toLowerCase() : '';
-        const likelyFormalPronoun = /^(informo|ringrazio|avviso|aggiorno|contatto|invito|prego|saluto|ascolto|rassicuro|confermo|ricordo|attendo)$/.test(nextWord);
+        const likelyFormalPronoun = /^(informo|informeremo|ringrazio|ringraziamo|avviso|avvisiamo|aggiorno|aggiorniamo|contatto|contatteremo|invito|invitiamo|prego|preghiamo|saluto|salutiamo|ascolto|ascoltiamo|rassicuro|rassicuriamo|confermo|confermiamo|comunico|comunichiamo|scrivo|scriviamo|ricordo|ricordiamo|attendo|attendiamo|chiedo|chiediamo|allego|alleghiamo|inoltro|inoltriamo)$/.test(nextWord);
 
         if (likelyFormalPronoun) {
           continue;

@@ -111,4 +111,62 @@ console.log('--- Test MemoryService _normalizeHeaders: riempie solo header attes
   assert(writtenHeaders[8] === 'memorySummary', 'colonna memorySummary vuota deve essere impostata');
 }
 
+
+console.log('--- Test MemoryService providedInfo caps: usa config e non svuota topic singolo enorme ---');
+{
+  const originalConfig = global.CONFIG;
+  global.CONFIG = {
+    MAX_PROVIDED_INFO_JSON_CHARS: 220,
+    MAX_PROVIDED_TOPICS: 3
+  };
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    const oversized = [{
+      topic: 'topic da conservare anche se i metadati sono enormi',
+      userReaction: 'positive',
+      timestamp: '2025-01-01T00:00:00.000Z',
+      excerpt: 'x'.repeat(5000),
+      context: {
+        matchedPhrase: 'y'.repeat(1000),
+        excerpt: 'z'.repeat(5000)
+      }
+    }];
+
+    const serialized = memory._serializeProvidedInfoForSheet(oversized);
+    const parsed = JSON.parse(serialized);
+
+    assert(serialized.length <= global.CONFIG.MAX_PROVIDED_INFO_JSON_CHARS, 'serialized providedInfo deve rispettare MAX_PROVIDED_INFO_JSON_CHARS');
+    assert(parsed.length === 1, 'un topic singolo enorme deve essere ridotto, non sostituito con array vuoto');
+    assert(parsed[0].topic.startsWith('topic da conservare'), 'il topic minimo deve conservare il nome topic');
+    assert(parsed[0].userReaction === 'positive', 'il topic minimo deve conservare userReaction');
+  } finally {
+    global.CONFIG = originalConfig;
+  }
+}
+
+console.log('--- Test MemoryService providedInfo caps: taglia a MAX_PROVIDED_TOPICS configurato ---');
+{
+  const originalConfig = global.CONFIG;
+  global.CONFIG = {
+    MAX_PROVIDED_INFO_JSON_CHARS: 45000,
+    MAX_PROVIDED_TOPICS: 2
+  };
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    const serialized = memory._serializeProvidedInfoForSheet([
+      { topic: 'uno', timestamp: '2025-01-01T00:00:00.000Z' },
+      { topic: 'due', timestamp: '2025-01-01T00:00:00.000Z' },
+      { topic: 'tre', timestamp: '2025-01-01T00:00:00.000Z' }
+    ]);
+    const parsed = JSON.parse(serialized);
+
+    assert(parsed.length === 2, 'providedInfo deve usare MAX_PROVIDED_TOPICS configurato');
+    assert(parsed[0].topic === 'due' && parsed[1].topic === 'tre', 'il trim deve conservare i topic più recenti');
+  } finally {
+    global.CONFIG = originalConfig;
+  }
+}
+
 console.log('OK MemoryService cache chunk tests passed');

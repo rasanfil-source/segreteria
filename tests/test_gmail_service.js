@@ -1932,4 +1932,40 @@ console.log('--- Test extractMessageDetails normalizza chiavi header preservando
   assert(details.isNewsletter === true, 'Auto-Replied deve continuare a essere rilevato in modo case-insensitive');
 }
 
+console.log('--- Test _getLabelCacheKey_: fallback senza Utilities digest per label lunghe ---');
+{
+  const originalUtilities = global.Utilities;
+  global.Utilities = { getUuid: () => 'uuid-test', sleep: () => {} };
+  try {
+    const service = new GmailService();
+    const longLabel = 'Label/'.repeat(50);
+    const key = service._getLabelCacheKey_(longLabel);
+    assert(key.startsWith('gmail_label_exists:'), 'la chiave cache deve mantenere il prefisso atteso');
+    assert(key.length <= 250, 'la chiave cache fallback deve rispettare il limite CacheService');
+    assert(!key.includes(longLabel), 'la chiave cache fallback non deve includere la label lunga intera');
+  } finally {
+    global.Utilities = originalUtilities;
+  }
+}
+
+console.log('--- Test batchAddLabelToMessages: non usa GmailLabel.getId come ID Advanced API ---');
+{
+  const originalGmail = global.Gmail;
+  const service = Object.create(GmailService.prototype);
+  let batchCalled = false;
+  const fallbackMessages = [];
+  service.getOrCreateLabel = () => ({ getId: () => 'gmailapp-id-non-api' });
+  service._getOptionalLabelIdByName = () => null;
+  service._incrementGmailCallCounterOrThrow_ = () => {};
+  service.addLabelToMessage = (id, labelName) => fallbackMessages.push({ id, labelName });
+  global.Gmail = { Users: { Messages: { batchModify: () => { batchCalled = true; } } } };
+  try {
+    service.batchAddLabelToMessages(['m-1', 'm-2'], 'IA');
+    assert(batchCalled === false, 'batchModify non deve ricevere ID da GmailLabel.getId');
+    assert(fallbackMessages.length === 2, 'deve degradare al percorso message-level singolo quando manca labelId API');
+  } finally {
+    global.Gmail = originalGmail;
+  }
+}
+
 console.log('✅ Tutti i test di GmailService sono passati');

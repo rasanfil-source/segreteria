@@ -375,6 +375,18 @@ console.log('--- Test _checkCapitalAfterComma: rileva maiuscole latine accentate
   );
 }
 
+console.log('--- Test _checkCapitalAfterComma: pronomi di cortesia italiani dopo virgola ---');
+{
+  const courtesyLa = validator._checkCapitalAfterComma('Gentile Mario, La informo che la pratica è pronta.', 'it');
+  assert(!courtesyLa.violations.includes('La'), 'La pronome di cortesia seguito da verbo formale non deve essere segnalato');
+
+  const courtesyLe = validator._checkCapitalAfterComma('Gentile Mario, Le comunico gli orari aggiornati.', 'it');
+  assert(!courtesyLe.violations.includes('Le'), 'Le pronome di cortesia seguito da verbo formale non deve essere segnalato');
+
+  const articleLa = validator._checkCapitalAfterComma('Ciao, La messa è alle 10.', 'it');
+  assert(articleLa.violations.includes('La'), 'La articolo dopo virgola deve restare segnalato');
+}
+
 console.log('--- Test SemanticValidator: motivo thinking leak non mascherato da hallucination valida ---');
 {
   const semanticValidator = new ResponseValidator();

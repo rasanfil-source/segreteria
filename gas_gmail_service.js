@@ -181,8 +181,33 @@ var GmailService = class GmailService {
         if (normalizedLabelName.length <= 220) {
             return `gmail_label_exists:${normalizedLabelName}`;
         }
-        const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, normalizedLabelName);
-        const hash = Utilities.base64EncodeWebSafe(digest).slice(0, 32);
+
+        let hash = null;
+        if (typeof Utilities !== 'undefined' && Utilities &&
+            typeof Utilities.computeDigest === 'function' &&
+            typeof Utilities.base64EncodeWebSafe === 'function' &&
+            Utilities.DigestAlgorithm && Utilities.DigestAlgorithm.SHA_256) {
+            try {
+                const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, normalizedLabelName);
+                hash = Utilities.base64EncodeWebSafe(digest).slice(0, 32);
+            } catch (e) {
+                console.warn(`⚠️ Hash CacheService non disponibile per label lunga: ${e.message}`);
+            }
+        }
+
+        if (!hash) {
+            // Fallback deterministico per test locali/runtime degradati senza Utilities digest.
+            // Mantiene la chiave sotto il limite CacheService (250 caratteri) senza usare la
+            // label intera; l'hash FNV-1a riduce il rischio di collisione rispetto ai soli slice.
+            let fnv = 2166136261;
+            for (let i = 0; i < normalizedLabelName.length; i++) {
+                fnv ^= normalizedLabelName.charCodeAt(i);
+                fnv = Math.imul(fnv, 16777619);
+            }
+            const compactHash = (fnv >>> 0).toString(36);
+            hash = `${normalizedLabelName.length}:${compactHash}:${normalizedLabelName.slice(0, 24)}:${normalizedLabelName.slice(-24)}`;
+        }
+
         return `gmail_label_exists:${hash}`;
     }
 
@@ -342,6 +367,7 @@ var GmailService = class GmailService {
                 this._clearPersistentLabelCache(labelName);
                 this.clearLabelCache();
                 try {
+                    this._ensureLabelExistsForMessageRetry_(labelName);
                     const labelIdFromCache = this._getOptionalLabelIdByName(labelName);
                     const labelId = labelIdFromCache || null;
                     if (!labelId) throw new Error("Label ID non trovato tramite API Avanzata");
@@ -383,7 +409,34 @@ var GmailService = class GmailService {
             console.log(`✓ Rimossa label '${labelName}' dal messaggio ${messageId}`);
         } catch (e) {
             console.warn(`⚠️ removeLabelFromMessage fallito per msg ${messageId}: ${e.message}`);
+            if (this._isLabelNotFoundError(e)) {
+                this._clearPersistentLabelCache(labelName);
+                this.clearLabelCache();
+                try {
+                    this._ensureLabelExistsForMessageRetry_(labelName);
+                    const retryLabelId = this._getOptionalLabelIdByName(labelName);
+                    if (!retryLabelId) throw new Error('Label ID non trovato tramite API Avanzata');
+                    this._incrementGmailCallCounterOrThrow_('messages.modify:removeLabel:retry');
+                    const retryPayload = { removeLabelIds: [retryLabelId] };
+                    Gmail.Users.Messages.modify(retryPayload, 'me', messageId);
+                    console.log(`✓ Rimossa label '${labelName}' dal messaggio ${messageId} (retry dopo cache reset)`);
+                    return;
+                } catch (retryError) {
+                    console.warn(`⚠️ Retry removeLabelFromMessage fallito per msg ${messageId}: ${retryError.message}`);
+                    logThreadLevelFallbackDisabled(`retry fallito: ${retryError.message}`);
+                    return;
+                }
+            }
             logThreadLevelFallbackDisabled(e.message);
+        }
+    }
+
+    _ensureLabelExistsForMessageRetry_(labelName) {
+        if (!labelName || typeof this.getOrCreateLabel !== 'function') return;
+        try {
+            this.getOrCreateLabel(labelName);
+        } catch (e) {
+            console.warn(`⚠️ Riallineamento label '${labelName}' prima del retry fallito: ${e.message}`);
         }
     }
 
@@ -398,11 +451,10 @@ var GmailService = class GmailService {
     if (validIds.length === 0) return;
 
     try {
-      const label = this.getOrCreateLabel(labelName);
-      const labelId = this._getOptionalLabelIdByName(labelName)
-        || (label && typeof label.getId === 'function' ? label.getId() : null);
+      this.getOrCreateLabel(labelName);
+      const labelId = this._getOptionalLabelIdByName(labelName);
       if (!labelId) {
-        throw new Error(`Impossibile determinare labelId per "${labelName}"`);
+        throw new Error(`Label Gmail API ID non disponibile per "${labelName}"`);
       }
       for (let i = 0; i < validIds.length; i += 1000) {
         this._incrementGmailCallCounterOrThrow_('messages.batchModify');
