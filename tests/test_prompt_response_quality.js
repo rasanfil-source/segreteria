@@ -223,15 +223,18 @@ console.log('--- Test prompt: maxCharsWhenKbTruncated=0 omette testo allegati qu
 {
   const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
   const originalMaxSafeTokens = global.CONFIG.MAX_SAFE_TOKENS;
+  const originalPromptEngineConfig = global.CONFIG.PROMPT_ENGINE;
   global.CONFIG.ATTACHMENT_CONTEXT = { maxCharsWhenKbTruncated: 0 };
-  global.CONFIG.MAX_SAFE_TOKENS = 3000;
+  global.CONFIG.MAX_SAFE_TOKENS = 10000;
+  global.CONFIG.PROMPT_ENGINE = { OVERHEAD_TOKENS: 1000 };
 
   try {
+    const recoverableKb = 'KB_RECOVERY_START ' + 'Informazioni KB molto lunghe. '.repeat(320) + 'KB_RECOVERY_END';
     const zeroAttachmentPrompt = engine.buildPrompt({
       emailSubject: 'Documento',
       emailContent: 'Buongiorno, allego il documento.',
-      knowledgeBase: 'Informazioni KB molto lunghe. '.repeat(500),
-      attachmentsContext: 'OCR_ZERO_LIMIT_SHOULD_NOT_APPEAR '.repeat(20),
+      knowledgeBase: recoverableKb,
+      attachmentsContext: 'OCR_ZERO_LIMIT_SHOULD_NOT_APPEAR '.repeat(900),
       detectedLanguage: 'it',
       promptProfile: 'lite',
       salutationMode: 'full',
@@ -243,9 +246,14 @@ console.log('--- Test prompt: maxCharsWhenKbTruncated=0 omette testo allegati qu
       !zeroAttachmentPrompt.includes('OCR_ZERO_LIMIT_SHOULD_NOT_APPEAR'),
       'maxCharsWhenKbTruncated=0 deve rimuovere il testo OCR quando la KB è troncata'
     );
+    assert(
+      zeroAttachmentPrompt.includes('KB_RECOVERY_END'),
+      'il budget liberato dagli allegati ridotti deve essere recuperato per espandere la KB'
+    );
   } finally {
     global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
     global.CONFIG.MAX_SAFE_TOKENS = originalMaxSafeTokens;
+    global.CONFIG.PROMPT_ENGINE = originalPromptEngineConfig;
   }
 }
 
@@ -318,6 +326,26 @@ console.log('--- Test prompt: troncamento fisico preserva recinto user_email ---
     global.CONFIG.MAX_SAFE_TOKENS = originalMaxSafeTokens;
     global.CONFIG.MAX_SAFE_PROMPT_CHARS = originalMaxSafePromptChars;
   }
+}
+
+console.log('--- Test prompt: dottrina heavy esclude righe generiche senza match ---');
+{
+  const genericDoctrine = engine._renderSelectiveDoctrine(
+    { type: 'doctrinal', needsDoctrine: true, dimensions: { doctrinal: 1 } },
+    '',
+    'Buongiorno, vorrei informazioni sugli orari della segreteria.',
+    'Orari segreteria',
+    'heavy',
+    {},
+    [
+      {
+        Categoria: 'generica',
+        'Sotto-tema': 'nota generica amministrativa',
+        'Principio dottrinale': 'Non pertinente alla richiesta.'
+      }
+    ]
+  );
+  assert(genericDoctrine === null, 'il profilo heavy non deve includere righe dottrinali generiche senza match testuale o categorico');
 }
 
 console.log('--- Test prompt: riparazione tag XML chiude blocchi strutturali troncati ---');

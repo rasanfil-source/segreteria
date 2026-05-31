@@ -183,7 +183,8 @@ var PromptEngine = class PromptEngine {
       ? doctrineStructured
       : (Array.isArray(options.doctrineDB) ? options.doctrineDB : []);
 
-    let workingKnowledgeBase = this._normalizePromptTextInput(knowledgeBase, '');
+    const originalKnowledgeBase = this._normalizePromptTextInput(knowledgeBase, '');
+    let workingKnowledgeBase = originalKnowledgeBase;
     let kbWasTruncated = false;
 
     const shouldReserveAiCoreLiteOverhead = (() => {
@@ -208,11 +209,11 @@ var PromptEngine = class PromptEngine {
       ? this._estimateAiCoreLiteSectionChars(aiCoreLiteText)
       : 0;
     const kbSectionOverhead = this._estimateKbSectionOverheadChars();
-    const rawEffectiveKbCharsLimit = kbCharsLimit - aiCoreLiteSectionOverhead - kbSectionOverhead;
+    let rawEffectiveKbCharsLimit = kbCharsLimit - aiCoreLiteSectionOverhead - kbSectionOverhead;
     if (rawEffectiveKbCharsLimit < 0) {
       console.warn(`⚠️ PromptEngine: overhead sezioni (${aiCoreLiteSectionOverhead + kbSectionOverhead} chars) supera il budget KB (${kbCharsLimit}). Forzo limite minimo operativo.`);
     }
-    const effectiveKbCharsLimit = Math.max(500, rawEffectiveKbCharsLimit);
+    let effectiveKbCharsLimit = Math.max(500, rawEffectiveKbCharsLimit);
 
     if (workingKnowledgeBase && workingKnowledgeBase.length > effectiveKbCharsLimit) {
       console.warn(`⚠️ KB eccede il budget (${workingKnowledgeBase.length} chars), tronco a ${effectiveKbCharsLimit} (budget netto)`);
@@ -235,6 +236,22 @@ var PromptEngine = class PromptEngine {
       } else if (workingAttachmentsContext.length > attachmentLimit) {
         console.warn(`⚠️ KB troncata: riduco allegati da ${workingAttachmentsContext.length} a ${attachmentLimit} chars`);
         workingAttachmentsContext = workingAttachmentsContext.slice(0, Math.max(0, attachmentLimit - 1)).trim() + '…';
+      }
+
+      const reducedOcrTokens = this.estimateTokens(workingAttachmentsContext || '');
+      const revisedKbCharsLimit = Math.round(
+        Math.max(1500, ((MAX_SAFE_TOKENS - OVERHEAD_TOKENS - reducedOcrTokens) * KB_BUDGET_RATIO)) * 4
+      );
+      const revisedRawEffectiveKbCharsLimit = revisedKbCharsLimit - aiCoreLiteSectionOverhead - kbSectionOverhead;
+      const revisedEffectiveKbCharsLimit = Math.max(500, revisedRawEffectiveKbCharsLimit);
+
+      if (revisedEffectiveKbCharsLimit > effectiveKbCharsLimit && originalKnowledgeBase) {
+        console.warn(`ℹ️ KB troncata: recupero budget dopo riduzione allegati (${effectiveKbCharsLimit} -> ${revisedEffectiveKbCharsLimit} chars)`);
+        effectiveKbCharsLimit = revisedEffectiveKbCharsLimit;
+        workingKnowledgeBase = originalKnowledgeBase.length > effectiveKbCharsLimit
+          ? this._truncateKbSemantically(originalKnowledgeBase, effectiveKbCharsLimit)
+          : originalKnowledgeBase;
+        kbWasTruncated = originalKnowledgeBase.length > effectiveKbCharsLimit;
       }
     }
 
@@ -782,7 +799,7 @@ ${rules.join('\n')}`;
 
     candidates.sort((a, b) => b.score - a.score);
 
-    let threshold = (promptProfile === 'lite') ? 5.0 : (promptProfile === 'standard') ? 3.0 : 1.0;
+    let threshold = (promptProfile === 'lite') ? 5.0 : (promptProfile === 'standard') ? 3.0 : 1.5;
 
     const selected = candidates.filter(c => c.score >= threshold).slice(0, MAX_ROWS);
 
@@ -1798,11 +1815,16 @@ ${safeAiCoreLiteText}
     }
 
     const fallbackMarker = ' ...[omesso]';
-    const suffix = roomForMarker >= fallbackMarker.length
-      ? fallbackMarker
-      : '…'.repeat(Math.max(0, roomForMarker));
+    if (roomForMarker >= fallbackMarker.length) {
+      return (truncatedContent + fallbackMarker).slice(0, budgetChars);
+    }
 
-    return (truncatedContent + suffix).slice(0, budgetChars);
+    const shortMarker = '\n[...]';
+    const markerToUse = budgetChars >= shortMarker.length
+      ? shortMarker
+      : '…'.repeat(budgetChars);
+    const contentChars = Math.max(0, budgetChars - markerToUse.length);
+    return truncatedContent.slice(0, contentChars) + markerToUse;
   }
 }
 

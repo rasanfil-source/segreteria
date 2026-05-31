@@ -72,4 +72,10 @@ assert(
   'Il taglio del primo paragrafo deve includere un indicatore di troncamento'
 );
 
+console.log('--- Test KB semantic truncation marks ultra-tight cuts ---');
+const tinyTruncated = engine._truncateKbSemantically(singleHugeParagraph, 1);
+
+assert(tinyTruncated.length <= 1, `La KB ultra-stretta supera il limite: ${tinyTruncated.length} > 1`);
+assert(tinyTruncated === '…', 'Anche con budget minimo deve restare un indicatore di troncamento');
+
 console.log('✅ Test KB truncation passati');
