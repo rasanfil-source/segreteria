@@ -35,7 +35,9 @@ var RESOURCE_CACHE_PART_PREFIX = `${RESOURCE_CACHE_KEY_V2}:part:`;
 var RESOURCE_CACHE_MAX_BYTES = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.CACHE_MAX_BYTES)))
   ? Number(CONFIG.CACHE_MAX_BYTES)
   : (90 * 1024);
-var RESOURCE_CACHE_MAX_PART_SIZE = Math.max(20000, Math.floor(RESOURCE_CACHE_MAX_BYTES * 0.45)); // multipart conservativo
+// CacheService limita per byte, mentre JS ragiona in code unit UTF-16.
+// Usiamo un limite caratteri prudente per tenere inline/chunk sotto 100KB anche con testo multibyte.
+var RESOURCE_CACHE_MAX_PART_SIZE = Math.max(10000, Math.floor((RESOURCE_CACHE_MAX_BYTES / 2) * 0.45));
 var BUSINESS_TIME_ZONE = 'Europe/Rome';
 
 function _normalizeStringArraySafe_(candidate) {
@@ -104,8 +106,8 @@ function calculateEaster(year) {
   const m = Math.floor((a + 11 * h + 22 * l) / 451);
   const month = Math.floor((h + l - 7 * m + 114) / 31);
   const day = ((h + l - 7 * m + 114) % 31) + 1;
-  // Usa mezzogiorno locale per evitare slittamenti di data in conversioni timezone/DST
-  return new Date(year, month - 1, day, 12, 0, 0);
+  // Usa mezzogiorno UTC per evitare slittamenti legati al fuso runtime/script.
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
 }
 
 function getBusinessDateParts(dateObj, timeZone = BUSINESS_TIME_ZONE) {
@@ -1014,7 +1016,7 @@ function _deserializeResourceCache(serializedPayload) {
 }
 
 function _splitCachePayload(payload, maxChars) {
-  // Nota: maxChars è una stima iniziale conservativa passata come RESOURCE_CACHE_MAX_PART_SIZE (45000).
+  // Nota: maxChars è una stima iniziale conservativa passata come RESOURCE_CACHE_MAX_PART_SIZE.
   // CacheService ha un limite fisico di 100KB (102400 byte) per entry.
   const ABSOLUTE_BYTE_LIMIT = 100000; // Un po' meno di 100KB per sicurezza overhead chiave.
   const parts = [];

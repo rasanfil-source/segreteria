@@ -137,6 +137,28 @@ console.log('--- Test _generateWithModel: testo vuoto marca isTransient ---');
   }
 }
 
+console.log('--- Test _generateWithModel: 5xx marca errore transitorio ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = null;
+  service.config = { MAX_OUTPUT_TOKENS: 128 };
+  service._buildGenerateUrl = () => 'https://example.test/generate';
+  service._normalizePromptPayload_ = (prompt) => ({ userPrompt: String(prompt), systemInstruction: '' });
+  service.fetchFn = () => ({
+    getResponseCode: () => 503,
+    getContentText: () => JSON.stringify({ error: { message: 'Service unavailable' } })
+  });
+
+  try {
+    service._generateWithModel('ciao', 'gemini-test');
+    assert(false, '5xx deve lanciare errore');
+  } catch (error) {
+    assert(error.message.includes('Errore server temporaneo'), 'errore 5xx deve descrivere server temporaneo');
+    assert(error.isTransient === true, 'errore 5xx deve essere marcato isTransient');
+  }
+}
+
 console.log('--- Test _resolveLanguage: localLang nullo non genera codice nu ---');
 {
   const service = Object.create(GeminiService.prototype);

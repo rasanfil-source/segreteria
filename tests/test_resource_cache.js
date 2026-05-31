@@ -21,6 +21,12 @@ const gasMainPath = path.join(__dirname, '..', 'gas_main.js');
 const code = fs.readFileSync(gasMainPath, 'utf8');
 vm.runInThisContext(code, { filename: gasMainPath });
 
+console.log('--- Test calculateEaster: usa mezzogiorno UTC stabile ---');
+{
+  const easter2026 = calculateEaster(2026);
+  assert(easter2026.toISOString() === '2026-04-05T12:00:00.000Z', 'Pasqua 2026 deve restare stabile a mezzogiorno UTC');
+}
+
 function createCache() {
   const store = new Map();
   return {
@@ -79,6 +85,30 @@ console.log('--- Test resource cache: multipart incompleto non invalida cache co
 
   assert(_readResourceCachePayload(cache) === null, 'multipart incompleto deve forzare reload');
   assert(removed.length === 0, 'reader non deve invalidare chiavi multipart durante una possibile write concorrente');
+}
+
+console.log('--- Test resource cache: payload multibyte non viene scritto inline oltre 100KB ---');
+{
+  const cache = createCache();
+  cache.put = (key, value) => {
+    const bytes = Buffer.from(String(value), 'utf8').length;
+    assert(bytes <= 100000, `cache.put non deve ricevere payload oltre limite byte, ottenuto ${bytes}`);
+    cache.store.set(key, String(value));
+  };
+  cache.putAll = (values) => {
+    Object.entries(values || {}).forEach(([key, value]) => {
+      const bytes = Buffer.from(String(value), 'utf8').length;
+      assert(bytes <= 100000, `cache.putAll non deve ricevere chunk oltre limite byte, ottenuto ${bytes}`);
+      cache.store.set(key, String(value));
+    });
+  };
+
+  const multibytePayload = '€'.repeat(40000);
+  _writeResourceCachePayload(cache, multibytePayload);
+
+  assert(cache.get(RESOURCE_CACHE_KEY_V2) === null, 'payload multibyte grande deve usare multipart, non inline');
+  assert(parseInt(cache.get(RESOURCE_CACHE_PARTS_KEY) || '0', 10) >= 2, 'payload multibyte deve essere diviso in chunk sicuri');
+  assert(_readResourceCachePayload(cache) === multibytePayload, 'multipart multibyte deve ricostruire il payload originale');
 }
 
 console.log('✅ Test resource cache passati');

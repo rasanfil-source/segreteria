@@ -568,11 +568,11 @@ console.log('--- Test thread lock: lockAlreadyCovered salta solo lo ScriptLock m
     assert(ctx.ok === true && ctx.acquired === true, 'lockAlreadyCovered deve comunque creare il lock logico di thread');
     assert(ctx.lockCovered === true, 'ctx deve indicare che il mutex globale è già coperto dal chiamante');
     assert(tryLockCalls === 0, 'lockAlreadyCovered non deve riacquisire lo ScriptLock');
-    assert(props.get('thread_lock_t-skip') === ctx.value, 'deve scrivere il token in PropertiesService');
+    assert(!props.has('thread_lock_t-skip'), 'con CacheService disponibile non deve consumare quota PropertiesService');
     assert(cacheStore.get('thread_lock_t-skip') === ctx.value, 'deve scrivere il token in CacheService');
 
     processor._releaseThreadLock(ctx, global.createLogger());
-    assert(!props.has('thread_lock_t-skip'), 'release coperta dal chiamante deve pulire PropertiesService');
+    assert(!props.has('thread_lock_t-skip'), 'release coperta dal chiamante non deve toccare PropertiesService non usato');
     assert(!cacheStore.has('thread_lock_t-skip'), 'release coperta dal chiamante deve pulire CacheService');
     assert(tryLockCalls === 0, 'release coperta dal chiamante non deve riacquisire lo ScriptLock');
   } finally {
@@ -617,9 +617,57 @@ console.log('--- Test thread lock: skipLock senza copertura acquisisce ScriptLoc
     assert(ctx.lockCovered === false, 'ctx non deve indicare copertura esterna se manca lockAlreadyCovered');
     assert(tryLockCalls === 1, 'skipLock non coperto deve acquisire lo ScriptLock per check-and-set atomico');
     assert(releaseCalls === 1, 'lo ScriptLock acquisito internamente deve essere rilasciato dopo il check-and-set');
-    assert(props.get('thread_lock_t-skip-uncovered') === ctx.value, 'deve scrivere il token in PropertiesService');
+    assert(!props.has('thread_lock_t-skip-uncovered'), 'con CacheService disponibile non deve scrivere token in PropertiesService');
     assert(cacheStore.get('thread_lock_t-skip-uncovered') === ctx.value, 'deve scrivere il token in CacheService');
   } finally {
+    global.PropertiesService = originalPropertiesService;
+    global.LockService = originalLockService;
+    cacheStore.clear();
+  }
+}
+
+console.log('--- Test thread lock: usa PropertiesService solo se CacheService fallisce ---');
+{
+  const originalCacheService = global.CacheService;
+  const originalPropertiesService = global.PropertiesService;
+  const originalLockService = global.LockService;
+  const props = new Map();
+  let cachePutAttempts = 0;
+
+  global.CacheService = {
+    getScriptCache: () => ({
+      get: () => null,
+      put: () => {
+        cachePutAttempts++;
+        throw new Error('cache quota temporanea');
+      },
+      remove: () => {}
+    })
+  };
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: (k) => props.get(k) || '',
+      setProperty: (k, v) => props.set(k, v),
+      deleteProperty: (k) => props.delete(k)
+    })
+  };
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => true,
+      releaseLock: () => {}
+    })
+  };
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    const ctx = processor._acquireThreadLock('t-cache-fail', false, global.createLogger());
+    assert(ctx.ok === true && ctx.acquired === true, 'deve acquisire lock via PropertiesService se CacheService fallisce');
+    assert(cachePutAttempts === 1, 'deve tentare prima CacheService');
+    assert(props.get('thread_lock_t-cache-fail') === ctx.value, 'fallback deve scrivere il token in PropertiesService');
+    processor._releaseThreadLock(ctx, global.createLogger());
+    assert(!props.has('thread_lock_t-cache-fail'), 'release deve pulire il fallback PropertiesService');
+  } finally {
+    global.CacheService = originalCacheService;
     global.PropertiesService = originalPropertiesService;
     global.LockService = originalLockService;
     cacheStore.clear();
@@ -1554,6 +1602,99 @@ console.log('--- Test processThread: maxFiles globale conta allegati testuali ne
   assert(attachmentCalls.length === 1, `maxFiles=1 deve fermare l'aggregazione dopo un allegato testuale (chiamate: ${attachmentCalls.length})`);
   assert(attachmentCalls[0].id === 'm-burst-maxfiles-2', 'deve dare priorità al messaggio candidato più recente');
   assert(attachmentCalls[0].maxFiles === 1, 'deve passare il limite residuo corretto al GmailService');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = originalDocumentConsistency;
+  global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+}
+
+
+console.log('--- Test processThread: salta download allegati se sizeEstimate messaggio è troppo alto ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalDocumentConsistency = global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED;
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = false;
+  global.CONFIG.ATTACHMENT_CONTEXT = {
+    enabled: true,
+    maxFiles: 3,
+    maxMessageBytesForAttachmentDownload: 1024
+  };
+
+  let getAttachmentsCalled = false;
+  let getProcessableCalled = false;
+  const message = {
+    getId: () => 'm-huge-attachment-payload',
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-10T10:00:00Z'),
+    getSubject: () => 'Documento pesante',
+    getPlainBody: () => 'Allego.',
+    getAttachments: () => {
+      getAttachmentsCalled = true;
+      throw new Error('getAttachments non deve essere chiamato per payload enorme');
+    }
+  };
+  const thread = createThread({ id: 't-huge-attachment-payload', messages: [message] });
+
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      _getMessageMetadataWithResilience: () => ({ sizeEstimate: 50 * 1024 * 1024, labelIds: ['UNREAD'] }),
+      extractMessageDetails: () => ({
+        subject: 'Documento pesante',
+        body: 'Allego.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      getProcessableAttachments: () => {
+        getProcessableCalled = true;
+        return { blobs: [], textContext: '', skipped: [], items: [] };
+      },
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      backupKey: 'backup-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'documento pesante' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta senza scaricare allegato enorme' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: () => 'PROMPT'
+    }
+  });
+
+  const result = processor.processThread(thread, 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'il messaggio grande deve proseguire senza crash allegati');
+  assert(getAttachmentsCalled === false, 'non deve scaricare allegati in RAM se sizeEstimate supera soglia');
+  assert(getProcessableCalled === false, 'non deve invocare getProcessableAttachments su payload enorme');
 
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
   global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = originalDocumentConsistency;

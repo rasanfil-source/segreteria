@@ -256,7 +256,9 @@ var GeminiService = class GeminiService {
       if (responseCode === 429) {
         throw new Error(`QUOTA_EXHAUSTED: Quota o rate limit superato (429): ${apiErrorMsg}`);
       }
-      throw new Error(`Errore server temporaneo (${responseCode}): ${apiErrorMsg}`);
+      const transientError = new Error(`Errore server temporaneo (${responseCode}): ${apiErrorMsg}`);
+      transientError.isTransient = true;
+      throw transientError;
     }
 
     if (responseCode === 400) {

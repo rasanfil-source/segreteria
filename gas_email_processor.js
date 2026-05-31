@@ -172,6 +172,39 @@ var EmailProcessor = class EmailProcessor {
     return removed;
   }
 
+  _getAttachmentDownloadLimitBytes_(attachmentSettings) {
+    const configured = attachmentSettings && Number(attachmentSettings.maxMessageBytesForAttachmentDownload);
+    return Number.isFinite(configured) && configured > 0
+      ? configured
+      : 25 * 1024 * 1024;
+  }
+
+  _getMessageSizeEstimateForAttachmentDownload_(message, threadLogger) {
+    if (!message || !this.gmailService ||
+      typeof this.gmailService._getMessageMetadataWithResilience !== 'function') {
+      return null;
+    }
+
+    let messageId = '';
+    try {
+      messageId = (typeof message.getId === 'function') ? message.getId() : '';
+    } catch (_) {
+      messageId = '';
+    }
+    if (!messageId) return null;
+
+    try {
+      const metadata = this.gmailService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
+      const sizeEstimate = Number(metadata && metadata.sizeEstimate);
+      return Number.isFinite(sizeEstimate) && sizeEstimate >= 0 ? sizeEstimate : null;
+    } catch (e) {
+      if (threadLogger && typeof threadLogger.warn === 'function') {
+        threadLogger.warn(`Impossibile stimare dimensione messaggio ${messageId}: ${e.message}`);
+      }
+      return null;
+    }
+  }
+
   _acquireThreadLock(threadId, skipLock = false, threadLogger = null, options = {}) {
     const scriptCache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
       ? CacheService.getScriptCache()
@@ -278,17 +311,21 @@ var EmailProcessor = class EmailProcessor {
         threadLogger.warn('Lock stale rilevato, sovrascrittura lock');
       }
 
-      if (hasProps) {
-        scriptProps.setProperty(threadLockKey, value);
-      }
+      let propLockWritten = false;
+      let cacheLockWritten = false;
       if (hasCache) {
         try {
           scriptCache.put(threadLockKey, value, ttlSeconds);
+          cacheLockWritten = true;
         } catch (e) {
           if (!hasProps) {
             throw e;
           }
         }
+      }
+      if (!cacheLockWritten && hasProps) {
+        scriptProps.setProperty(threadLockKey, value);
+        propLockWritten = true;
       }
 
       if (threadLogger && typeof threadLogger.debug === 'function') {
@@ -297,8 +334,8 @@ var EmailProcessor = class EmailProcessor {
       return {
         ok: true,
         acquired: true,
-        cache: scriptCache,
-        properties: scriptProps,
+        cache: cacheLockWritten ? scriptCache : null,
+        properties: propLockWritten ? scriptProps : null,
         key: threadLockKey,
         value: value,
         lockCovered: lockAlreadyCovered
@@ -1647,6 +1684,11 @@ ${addressLines.join('\n\n')}
           attachmentSkipped.push({ reason: 'near_deadline' });
           console.warn('   ⏳ Allegati multimodali saltati: tempo residuo insufficiente.');
         } else {
+          const attachmentSettings = Object.assign(
+            { maxFiles: 3 },
+            (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT) ? CONFIG.ATTACHMENT_CONTEXT : {}
+          );
+          const maxAttachmentMessageBytes = this._getAttachmentDownloadLimitBytes_(attachmentSettings);
           const attachmentSourceMessages = (responseContextMessages && responseContextMessages.length > 0)
             ? responseContextMessages
             : [candidate].filter(Boolean);
@@ -1654,6 +1696,21 @@ ${addressLines.join('\n\n')}
           let attachmentPreCheckFailed = false;
           try {
             hasAttachments = attachmentSourceMessages.some((message) => {
+              const sizeEstimate = this._getMessageSizeEstimateForAttachmentDownload_(message, threadLogger);
+              if (Number.isFinite(sizeEstimate) && sizeEstimate > maxAttachmentMessageBytes) {
+                let messageId = 'unknown';
+                try {
+                  messageId = message && typeof message.getId === 'function' ? message.getId() : 'unknown';
+                } catch (_) {}
+                attachmentSkipped.push({
+                  messageId: messageId,
+                  reason: 'message_too_large_for_attachment_download',
+                  sizeEstimate: sizeEstimate,
+                  maxBytes: maxAttachmentMessageBytes
+                });
+                console.warn(`   📎 Allegati saltati per ${messageId}: messaggio troppo grande (${sizeEstimate}/${maxAttachmentMessageBytes} byte)`);
+                return false;
+              }
               const attachments = message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
               return attachments.length > 0;
             });
@@ -1676,10 +1733,6 @@ ${addressLines.join('\n\n')}
               console.log('   📎 Body corto: elaborazione allegati forzata');
             }
             console.log('   📎 Elaborazione allegati multimodale (Vision)...');
-            const attachmentSettings = Object.assign(
-              { maxFiles: 3 },
-              (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT) ? CONFIG.ATTACHMENT_CONTEXT : {}
-            );
             const maxAttachmentFiles = Math.max(1, parseInt(attachmentSettings.maxFiles, 10) || 3);
             const parsedMaxTotalChars = parseInt(attachmentSettings.maxTotalChars, 10);
             const maxTextChars = Number.isFinite(parsedMaxTotalChars) && parsedMaxTotalChars >= 0
@@ -1701,6 +1754,22 @@ ${addressLines.join('\n\n')}
               try {
                 const remainingFiles = maxAttachmentFiles - countProcessedAttachments();
                 if (remainingFiles <= 0) break;
+
+                const sizeEstimate = this._getMessageSizeEstimateForAttachmentDownload_(attachmentSourceMessages[i], threadLogger);
+                if (Number.isFinite(sizeEstimate) && sizeEstimate > maxAttachmentMessageBytes) {
+                  let messageId = 'unknown';
+                  try {
+                    messageId = attachmentSourceMessages[i] && attachmentSourceMessages[i].getId ? attachmentSourceMessages[i].getId() : 'unknown';
+                  } catch (_) {}
+                  attachmentData.skipped.push({
+                    messageId: messageId,
+                    reason: 'message_too_large_for_attachment_download',
+                    sizeEstimate: sizeEstimate,
+                    maxBytes: maxAttachmentMessageBytes
+                  });
+                  console.warn(`   📎 Elaborazione allegati saltata per ${messageId}: messaggio troppo grande (${sizeEstimate}/${maxAttachmentMessageBytes} byte)`);
+                  continue;
+                }
 
                 const usedChars = (attachmentData.textContext || '').length;
                 const safeMaxChars = maxTextChars > 0
