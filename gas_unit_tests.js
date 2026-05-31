@@ -379,6 +379,11 @@ function runAllTests() {
             const normalized = service._validateAndNormalizeTimestamp('Wed, 01 Jan 2025 10:00:00 GMT');
             return normalized === '2025-01-01T10:00:00.000Z';
         });
+        test('Accetta timestamp futuri entro 24h per drift/fusi orari', results, () => {
+            const futureWithinDrift = new Date(Date.now() + (2 * 60 * 60 * 1000)).toISOString();
+            const normalized = service._validateAndNormalizeTimestamp(futureWithinDrift);
+            return normalized === futureWithinDrift;
+        });
         test('Lock gestion con threadId', results, () => {
             service.updateMemory('test-thread-id', { language: 'it' });
             return true;
@@ -1287,6 +1292,10 @@ function runAllTests() {
         test('Segnala "La" articolo dopo virgola (non pronome formale)', results, () => {
             const cap = validator._checkCapitalAfterComma('Ciao, La messa è alle 10.', 'it');
             return Array.isArray(cap.violations) && cap.violations.includes('La');
+        });
+        test('Rileva maiuscole latine accentate dopo virgola', results, () => {
+            const cap = validator._checkCapitalAfterComma('Hola, Él responderá pronto.', 'es');
+            return Array.isArray(cap.violations) && cap.violations.includes('Él');
         });
         test('Rileva inconsistenza lingua (ES invece di IT)', results, () => {
             const spanishText = "Hola, gracias por contactarnos. Saludos estimables.";

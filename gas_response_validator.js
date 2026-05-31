@@ -258,7 +258,12 @@ var ResponseValidator = class ResponseValidator {
         console.warn('❌ Il validatore semantico ha rilevato problemi non catturati da regex');
         validationResult.isValid = false;
         validationResult.score = Math.min(validationResult.score, semanticConfidence);
-        const semanticReason = semHalluc.reason || semThinking.reason || 'Validazione semantica fallita senza motivo esplicito';
+        let semanticReason = 'Validazione semantica fallita senza motivo esplicito';
+        if (!semHalluc.isValid) {
+          semanticReason = semHalluc.reason || semanticReason;
+        } else if (!semThinking.isValid) {
+          semanticReason = semThinking.reason || semanticReason;
+        }
         validationResult.errors.push(`Semantica: ${semanticReason}`);
       }
 
@@ -833,7 +838,7 @@ var ResponseValidator = class ResponseValidator {
     // Parole spagnole
     const spanishForbiddenCaps = [
       'Estamos', 'Somos', 'Estaremos', 'Seremos',
-      'El', 'Los', 'Las', 'Una', 'Por', 'En', 'De', 'Pero', 'Que'
+      'El', 'Él', 'Los', 'Las', 'Una', 'Por', 'En', 'De', 'Pero', 'Que'
     ];
 
     // Parole portoghesi
@@ -868,7 +873,7 @@ var ResponseValidator = class ResponseValidator {
 
     // Regex mirata ai token alfabetici semplici dopo virgola: evita falsi positivi su forme elise (es. Un'altra).
     // Nota: mantenuta intenzionalmente conservativa perché questa regola genera warning stilistici, non errori bloccanti.
-    const pattern = /,\s+([A-ZÀÈÉÌÒÙ][a-zàèéìòù]*)/g;
+    const pattern = /,\s+([A-Z\u00C0-\u00D6\u00D8-\u00DE][a-z\u00DF-\u00F6\u00F8-\u00FF]*)/g;
     let match;
     const violations = [];
 
@@ -898,7 +903,7 @@ var ResponseValidator = class ResponseValidator {
       // probabilmente sono nomi propri (es. "Maria Isabella", "Gian Luca")
       const afterMatchPos = match.index + match[0].length;
       const textAfter = response.substring(afterMatchPos);
-      if (textAfter.match(/^\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]+/)) {
+      if (textAfter.match(/^\s+[A-Z\u00C0-\u00D6\u00D8-\u00DE][a-z\u00DF-\u00F6\u00F8-\u00FF]+/)) {
         continue; // Salta: probabile nome doppio
       }
 

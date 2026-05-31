@@ -366,6 +366,52 @@ const temporalFutureConclusionResult = validator._checkTemporalConsistency(
 );
 assert(temporalFutureConclusionResult.score === 1.0, 'una conclusione futura espressa al presente non deve essere bloccata');
 
+console.log('--- Test _checkCapitalAfterComma: rileva maiuscole latine accentate ---');
+{
+  const accentedCap = validator._checkCapitalAfterComma('Hola, Él responderá pronto.', 'es');
+  assert(
+    Array.isArray(accentedCap.violations) && accentedCap.violations.includes('Él'),
+    'la regex deve catturare token maiuscoli accentati dopo virgola'
+  );
+}
+
+console.log('--- Test SemanticValidator: motivo thinking leak non mascherato da hallucination valida ---');
+{
+  const semanticValidator = new ResponseValidator();
+  semanticValidator.semanticValidator = {
+    shouldRun: () => true,
+    validateHallucinations: () => ({
+      isValid: true,
+      confidence: 0.95,
+      reason: 'Tutti gli orari sono presenti nella KB'
+    }),
+    validateThinkingLeak: () => ({
+      isValid: false,
+      confidence: 0.42,
+      reason: 'Ragionamento esposto rilevato'
+    })
+  };
+
+  const result = semanticValidator.validateResponse(
+    'Gentile utente, la segreteria risponderà alla richiesta con le informazioni disponibili.',
+    'it',
+    'Informazioni disponibili.',
+    'Vorrei informazioni.',
+    'Richiesta informazioni',
+    'full',
+    false
+  );
+
+  assert(
+    result.errors.some((error) => error.includes('Ragionamento esposto rilevato')),
+    'il motivo semantico deve provenire dal controllo che ha fallito'
+  );
+  assert(
+    !result.errors.some((error) => error.includes('Tutti gli orari sono presenti nella KB')),
+    'il motivo di successo hallucination non deve mascherare il thinking leak'
+  );
+}
+
 console.log('--- Test SemanticValidator: fallback lazy senza GeminiService/CacheService ---');
 {
   const originalConfig = global.CONFIG;

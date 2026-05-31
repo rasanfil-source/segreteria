@@ -69,6 +69,17 @@ console.log('--- Test MemoryService _setCache: chunk sotto limite CacheService -
   }
 }
 
+console.log('--- Test MemoryService _validateAndNormalizeTimestamp: accetta futuro entro 24h ---');
+{
+  const memory = Object.create(MemoryService.prototype);
+  const futureWithinDrift = new Date(Date.now() + (2 * 60 * 60 * 1000)).toISOString();
+  const normalized = memory._validateAndNormalizeTimestamp(futureWithinDrift);
+  assert(
+    normalized === futureWithinDrift,
+    'un timestamp a +2h deve restare valido per tollerare drift/fusi orari entro 24h'
+  );
+}
+
 console.log('--- Test MemoryService _normalizeHeaders: riempie solo header attesi non vuoti ---');
 {
   let writtenHeaders = null;
