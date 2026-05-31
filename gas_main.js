@@ -548,6 +548,9 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
 
   const now = Date.now();
   const forceReload = typeof CONFIG !== 'undefined' && CONFIG.FORCE_RELOAD === true;
+  if (forceReload && typeof _clearScriptPropertyCache === 'function') {
+    _clearScriptPropertyCache();
+  }
   const spreadsheetId = (typeof CONFIG !== 'undefined' && CONFIG.SPREADSHEET_ID) ? CONFIG.SPREADSHEET_ID : null;
   const cacheIsFreshByTtl = !forceReload && GLOBAL_CACHE.loaded && GLOBAL_CACHE.lastLoadedAt && ((now - GLOBAL_CACHE.lastLoadedAt) < RESOURCE_CACHE_TTL_MS);
   let precomputedSheetModifiedAt = 0;
@@ -1216,6 +1219,10 @@ function clearKnowledgeCache() {
   GLOBAL_CACHE.aiCoreLite = '';
   GLOBAL_CACHE.aiCore = '';
   GLOBAL_CACHE.doctrineStructured = [];
+
+  if (typeof _clearScriptPropertyCache === 'function') {
+    _clearScriptPropertyCache();
+  }
 
   // Invalida anche la cache di sistema (CacheService)
   try {

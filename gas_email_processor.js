@@ -109,8 +109,9 @@ var EmailProcessor = class EmailProcessor {
     });
 
     // Timestamp run corrente (usato da _isNearDeadline/_getRemainingTimeMs).
-    // Viene poi resettato all'avvio di ogni batch in processUnreadEmails.
-    this._startTime = Date.now();
+    // Viene impostato all'avvio di ogni run, evitando state stale se
+    // l'istanza viene riutilizzata dal container V8 tra esecuzioni distinte.
+    this._startTime = null;
   }
 
   /**
@@ -132,7 +133,7 @@ var EmailProcessor = class EmailProcessor {
     return this._scriptTimeZone;
   }
 
-  _acquireThreadLock(threadId, skipLock = false, threadLogger = null) {
+  _acquireThreadLock(threadId, skipLock = false, threadLogger = null, options = {}) {
     const scriptCache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
       ? CacheService.getScriptCache()
       : null;
@@ -165,14 +166,16 @@ var EmailProcessor = class EmailProcessor {
       ? Utilities.getUuid()
       : Math.random().toString(36).slice(2);
     const value = `${Date.now()}_${tokenSuffix}`;
-    const scriptLock = (!skipLock &&
+    const lockAlreadyCovered = !!(options && options.lockAlreadyCovered);
+    const shouldAcquirePhysicalLock = !lockAlreadyCovered;
+    const scriptLock = (shouldAcquirePhysicalLock &&
       typeof LockService !== 'undefined' &&
       LockService &&
       typeof LockService.getScriptLock === 'function')
       ? LockService.getScriptLock()
       : null;
 
-    if (!skipLock && !scriptLock) {
+    if (shouldAcquirePhysicalLock && !scriptLock && !skipLock) {
       if (threadLogger && typeof threadLogger.warn === 'function') {
         threadLogger.warn('LockService globale non disponibile, impossibile garantire atomicità');
       }
@@ -187,7 +190,7 @@ var EmailProcessor = class EmailProcessor {
     };
 
     try {
-      if (skipLock) {
+      if (lockAlreadyCovered) {
         if (threadLogger && typeof threadLogger.debug === 'function') {
           threadLogger.debug('Mutex globale saltato (lock esecuzione già posseduto dal chiamante)');
         }
@@ -195,8 +198,14 @@ var EmailProcessor = class EmailProcessor {
         const threadLockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
           ? CONFIG.EXECUTION_LOCK_WAIT_MS
           : 1000;
-        scriptLockAcquired = scriptLock.tryLock(threadLockWaitMs);
-        if (!scriptLockAcquired) {
+        if (!scriptLock || typeof scriptLock.tryLock !== 'function') {
+          if (threadLogger && typeof threadLogger.warn === 'function') {
+            threadLogger.warn('LockService globale non disponibile: procedo in modalità compatibilità senza garanzia di atomicità fisica');
+          }
+        } else {
+          scriptLockAcquired = scriptLock.tryLock(threadLockWaitMs);
+        }
+        if (scriptLock && !scriptLockAcquired) {
           if (threadLogger && typeof threadLogger.warn === 'function') {
             threadLogger.warn(`Impossibile acquisire lock globale per thread ${threadId} (timeout ${threadLockWaitMs}ms), salto`);
           }
@@ -241,7 +250,7 @@ var EmailProcessor = class EmailProcessor {
         properties: scriptProps,
         key: threadLockKey,
         value: value,
-        lockCovered: !!skipLock
+        lockCovered: lockAlreadyCovered
       };
     } catch (e) {
       if (threadLogger && typeof threadLogger.warn === 'function') {
@@ -395,7 +404,9 @@ var EmailProcessor = class EmailProcessor {
     }
     // Garantisce che _isNearDeadline() funzioni anche se processThread
     // è invocato direttamente (test, debug) senza passare per processUnreadEmails.
-    if (!this._startTime) {
+    const startTimeAgeMs = startTime - Number(this._startTime || 0);
+    const staleStartThresholdMs = Math.max(0, this.config.maxExecutionTimeMs - this.config.minRemainingTimeMs);
+    if (!this._startTime || startTimeAgeMs < 0 || startTimeAgeMs > staleStartThresholdMs) {
       this._startTime = startTime;
     }
     const normalizedKnowledgeBase = this._normalizeTextContent(knowledgeBase);
@@ -406,7 +417,9 @@ var EmailProcessor = class EmailProcessor {
     // ACQUISIZIONE LOCK (LIVELLO-THREAD) - Previene condizioni di conflitto
     // ====================================================================
 
-    let lockCtx = this._acquireThreadLock(threadId, skipLock, threadLogger);
+    let lockCtx = this._acquireThreadLock(threadId, skipLock, threadLogger, {
+      lockAlreadyCovered: !!(options && options.lockAlreadyCovered)
+    });
     if (!lockCtx.ok) {
       restoreServiceLoggers();
       if (lockCtx.reason === 'lock_acquisition_failed') {
@@ -2729,7 +2742,7 @@ ${addressLines.join('\n\n')}
           labeledMessageIds,
           threadLockAlreadyCovered,
           skippedMessageIds,
-          { ...options, logger: runLogger }
+          { ...options, logger: runLogger, lockAlreadyCovered: threadLockAlreadyCovered }
         );
         stats.total++;
 

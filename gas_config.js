@@ -5,14 +5,26 @@
 
 var _SCRIPT_PROPERTIES = null;
 var _CACHED_PROPS = {};
-function _getScriptProperty(key) {
+function _getScriptProperty(key, forceRefresh = false) {
   if (!_SCRIPT_PROPERTIES) {
     _SCRIPT_PROPERTIES = PropertiesService.getScriptProperties();
   }
-  if (!Object.prototype.hasOwnProperty.call(_CACHED_PROPS, key)) {
+  if (forceRefresh || !Object.prototype.hasOwnProperty.call(_CACHED_PROPS, key)) {
     _CACHED_PROPS[key] = _SCRIPT_PROPERTIES.getProperty(key);
   }
   return _CACHED_PROPS[key];
+}
+
+function _clearScriptPropertyCache(keys) {
+  if (!keys) {
+    _CACHED_PROPS = {};
+    _SCRIPT_PROPERTIES = null;
+    return;
+  }
+  const keyList = Array.isArray(keys) ? keys : [keys];
+  keyList.forEach(key => {
+    delete _CACHED_PROPS[key];
+  });
 }
 
 function _getScriptPropertyStringArray(key, fallback) {

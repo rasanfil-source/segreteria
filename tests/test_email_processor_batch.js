@@ -495,7 +495,7 @@ console.log('--- Test thread lock: release token-checked anche se ScriptLock è 
   }
 }
 
-console.log('--- Test thread lock: skipLock salta solo lo ScriptLock ma mantiene token logico ---');
+console.log('--- Test thread lock: lockAlreadyCovered salta solo lo ScriptLock ma mantiene token logico ---');
 {
   const originalPropertiesService = global.PropertiesService;
   const originalLockService = global.LockService;
@@ -522,10 +522,10 @@ console.log('--- Test thread lock: skipLock salta solo lo ScriptLock ma mantiene
 
   try {
     const processor = new EmailProcessor({ gmailService: {} });
-    const ctx = processor._acquireThreadLock('t-skip', true, global.createLogger());
-    assert(ctx.ok === true && ctx.acquired === true, 'skipLock deve comunque creare il lock logico di thread');
+    const ctx = processor._acquireThreadLock('t-skip', true, global.createLogger(), { lockAlreadyCovered: true });
+    assert(ctx.ok === true && ctx.acquired === true, 'lockAlreadyCovered deve comunque creare il lock logico di thread');
     assert(ctx.lockCovered === true, 'ctx deve indicare che il mutex globale è già coperto dal chiamante');
-    assert(tryLockCalls === 0, 'skipLock non deve riacquisire lo ScriptLock');
+    assert(tryLockCalls === 0, 'lockAlreadyCovered non deve riacquisire lo ScriptLock');
     assert(props.get('thread_lock_t-skip') === ctx.value, 'deve scrivere il token in PropertiesService');
     assert(cacheStore.get('thread_lock_t-skip') === ctx.value, 'deve scrivere il token in CacheService');
 
@@ -539,6 +539,51 @@ console.log('--- Test thread lock: skipLock salta solo lo ScriptLock ma mantiene
     cacheStore.clear();
   }
 }
+
+console.log('--- Test thread lock: skipLock senza copertura acquisisce ScriptLock per atomicità ---');
+{
+  const originalPropertiesService = global.PropertiesService;
+  const originalLockService = global.LockService;
+  const props = new Map();
+  let tryLockCalls = 0;
+  let releaseCalls = 0;
+  cacheStore.clear();
+
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: (k) => props.get(k) || '',
+      setProperty: (k, v) => props.set(k, v),
+      deleteProperty: (k) => props.delete(k)
+    })
+  };
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => {
+        tryLockCalls++;
+        return true;
+      },
+      releaseLock: () => {
+        releaseCalls++;
+      }
+    })
+  };
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    const ctx = processor._acquireThreadLock('t-skip-uncovered', true, global.createLogger());
+    assert(ctx.ok === true && ctx.acquired === true, 'skipLock non coperto deve comunque creare il lock logico di thread');
+    assert(ctx.lockCovered === false, 'ctx non deve indicare copertura esterna se manca lockAlreadyCovered');
+    assert(tryLockCalls === 1, 'skipLock non coperto deve acquisire lo ScriptLock per check-and-set atomico');
+    assert(releaseCalls === 1, 'lo ScriptLock acquisito internamente deve essere rilasciato dopo il check-and-set');
+    assert(props.get('thread_lock_t-skip-uncovered') === ctx.value, 'deve scrivere il token in PropertiesService');
+    assert(cacheStore.get('thread_lock_t-skip-uncovered') === ctx.value, 'deve scrivere il token in CacheService');
+  } finally {
+    global.PropertiesService = originalPropertiesService;
+    global.LockService = originalLockService;
+    cacheStore.clear();
+  }
+}
+
 
 console.log('--- Test thread lock: senza backend storage fallisce chiuso ---');
 {
