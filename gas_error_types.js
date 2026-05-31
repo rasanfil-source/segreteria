@@ -53,6 +53,10 @@ function classifyError(error) {
         return { type: ErrorTypes.NETWORK, retryable: true, message: rawMessage };
     }
 
+    if (message.includes('config_error')) {
+        return { type: ErrorTypes.CONFIG_ERROR, retryable: false, message: rawMessage };
+    }
+
     if (message.includes('gmail_daily_call_limit_reached') ||
         message.includes('daily call limit') ||
         message.includes('service invoked too many times')) {

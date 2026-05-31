@@ -116,6 +116,68 @@ console.log('--- Test addLabelToMessage non degrada a label thread-level ---');
   assert(!fallbackCalled, 'addLabelToMessage non deve applicare fallback a livello thread');
 }
 
+console.log('--- Test _getOptionalLabelIdByName cachea label assenti anche via Advanced API ---');
+{
+  const originalGmail = global.Gmail;
+  let listCalls = 0;
+  global.Gmail = {
+    Users: {
+      Labels: {
+        list: () => {
+          listCalls += 1;
+          return { labels: [{ id: 'Label_existing', name: 'Esistente' }] };
+        }
+      },
+      Messages: originalGmail.Users.Messages
+    }
+  };
+
+  try {
+    const service = new GmailService();
+    service._scriptCache = null;
+    service._incrementGmailCallCounterOrThrow_ = () => {};
+    assert(service._getOptionalLabelIdByName('·') === null, 'la prima risoluzione di label assente deve restituire null');
+    assert(service._getOptionalLabelIdByName('·') === null, 'la seconda risoluzione deve usare il marker null in cache');
+    assert(listCalls === 1, 'la label assente deve evitare chiamate Labels.list ripetute entro il TTL');
+  } finally {
+    global.Gmail = originalGmail;
+  }
+}
+
+console.log('--- Test Gmail counter: lock conteso non blocca chiamata API legittima ---');
+{
+  const originalLockService = global.LockService;
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => false,
+      releaseLock: () => {
+        assert(false, 'non deve rilasciare un lock mai acquisito');
+      }
+    })
+  };
+
+  try {
+    const service = Object.create(GmailService.prototype);
+    service._scriptCache = {
+      get: () => '10',
+      put: () => {
+        assert(false, 'non deve scrivere il counter senza lock');
+      }
+    };
+    service._gmailDailyCallLimit = 100;
+    service._gmailDailyCounterWarnAt = 90;
+    service._pendingGmailCallCount = 0;
+    service._lastGmailCallCount = 10;
+
+    service._incrementGmailCallCounterOrThrow_('messages.get');
+
+    assert(service._pendingGmailCallCount === 1, 'flush rinviato deve preservare il pending counter');
+    assert(service._lastGmailCallCount === 10, 'last counter non deve avanzare senza flush atomico');
+  } finally {
+    global.LockService = originalLockService;
+  }
+}
+
 
 console.log('--- Test discovery: errore getThreadById non deve bloccare il batch ---');
 console.log('--- Test fixPunctuation preserva newline dopo virgola ---');
@@ -1738,7 +1800,7 @@ console.log('--- Test Gmail counter: lock coperto dal batch evita riacquisizione
   }
 }
 
-console.log('--- Test Gmail counter: lock non acquisito usa errore retryable atteso dal processor ---');
+console.log('--- Test Gmail counter: lock non acquisito rinvia flush senza abortire ---');
 {
   const originalLockService = global.LockService;
 
@@ -1751,11 +1813,14 @@ console.log('--- Test Gmail counter: lock non acquisito usa errore retryable att
     };
 
     const counterService = new GmailService();
+    let putCalled = false;
     counterService._scriptCache = {
       get: () => '10',
-      put: () => {}
+      put: () => { putCalled = true; }
     };
     counterService._pendingGmailCallCount = 1;
+    counterService._lastGmailCallCount = 10;
+    counterService._gmailDailyCallLimit = 100;
 
     let thrownMessage = '';
     try {
@@ -1764,10 +1829,9 @@ console.log('--- Test Gmail counter: lock non acquisito usa errore retryable att
       thrownMessage = e && e.message ? e.message : String(e);
     }
 
-    assert(
-      thrownMessage.includes('GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE'),
-      `lock contatore Gmail deve propagare errore retryable riconosciuto, ottenuto: ${thrownMessage}`
-    );
+    assert(thrownMessage === '', `lock contatore Gmail non deve abortire la chiamata, ottenuto: ${thrownMessage}`);
+    assert(counterService._pendingGmailCallCount === 1, 'pending count deve restare da flushare più tardi');
+    assert(putCalled === false, 'non deve aggiornare cache senza lock');
   } finally {
     global.LockService = originalLockService;
   }

@@ -111,6 +111,60 @@ console.log('--- Test MemoryService _normalizeHeaders: riempie solo header attes
   assert(writtenHeaders[8] === 'memorySummary', 'colonna memorySummary vuota deve essere impostata');
 }
 
+console.log('--- Test MemoryService updateMemory: retry OCC fonde providedInfo concorrente ---');
+{
+  const originalLockService = global.LockService;
+  global.LockService = {
+    getScriptLock: () => ({
+      waitLock: () => {},
+      releaseLock: () => {}
+    })
+  };
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    memory._initialized = true;
+    memory._getLockTuning_ = () => ({ maxRetries: 2, shardedAcquireTimeoutMs: 1 });
+    memory._getShardedLockKey = () => 'lock-thread-occ';
+    memory._tryAcquireShardedLock = () => true;
+    memory._releaseShardedLock = () => {};
+    memory._sleepLockBackoff_ = () => {};
+    memory._invalidateCache = () => {};
+    memory._withSheetWriteLock = (fn) => fn();
+
+    let saved = null;
+    memory._updateRow = (rowIndex, data) => {
+      saved = { rowIndex, data };
+    };
+    memory._findRowByThreadId = () => ({
+      rowIndex: 2,
+      values: [
+        'thread-occ',
+        'it',
+        'info',
+        'standard',
+        JSON.stringify([{ topic: 'concorrente', userReaction: 'acknowledged', timestamp: '2026-05-01T00:00:00.000Z' }]),
+        '2026-05-01T00:00:00.000Z',
+        1,
+        2,
+        ''
+      ]
+    });
+
+    memory.updateMemory('thread-occ', {
+      _expectedVersion: 1,
+      providedInfo: [{ topic: 'nuovo', userReaction: 'unknown', timestamp: '2026-05-01T00:00:00.000Z' }]
+    });
+
+    const topics = saved && saved.data && Array.isArray(saved.data.providedInfo)
+      ? saved.data.providedInfo.map(item => item.topic).sort()
+      : [];
+    assert(topics.join(',') === 'concorrente,nuovo', 'retry OCC deve preservare topic concorrenti e nuovi');
+  } finally {
+    global.LockService = originalLockService;
+  }
+}
+
 
 console.log('--- Test MemoryService providedInfo caps: usa config e non svuota topic singolo enorme ---');
 {

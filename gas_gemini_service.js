@@ -1119,7 +1119,7 @@ Testo:
     if (!geminiLang) return localLang || 'it';
 
     const normalizedGemini = String(geminiLang).toLowerCase().substring(0, 2);
-    const normalizedLocal = String(localLang).toLowerCase().substring(0, 2);
+    const normalizedLocal = localLang ? String(localLang).toLowerCase().substring(0, 2) : 'it';
 
     // 1. Se coincidono, massima sicurezza
     if (normalizedGemini === normalizedLocal) return normalizedGemini;

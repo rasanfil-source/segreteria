@@ -621,6 +621,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       const model = selection.model;
       const shouldThrottle = selection.shouldThrottle;
       const reservationId = selection.reservationId;
+      let requestStartTime = Date.now();
 
       // 1.2 Throttling
       if (shouldThrottle && shouldThrottle.needed) {
@@ -629,7 +630,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       }
 
       try {
-        const startTime = Date.now();
+        requestStartTime = Date.now();
 
         console.log(`🚀 Tentativo richiesta ${attempt + 1}/${maxRetries}`);
         console.log(`   Modello: ${model.name}, Task: ${taskType}`);
@@ -637,7 +638,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         // CHIAMATA SINCRONA (nessuna attesa)
         const result = this._safeExecuteRequestFn_(requestFn, model.name);
 
-        const duration = Date.now() - startTime;
+        const duration = Date.now() - requestStartTime;
 
         // Completa la richiesta consumando contatori giornalieri e consolidando la riserva RPM/TPM.
         // Applica eventuale moltiplicatore prudenziale per output/thinking invisibile.
@@ -671,22 +672,6 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         lastError = error;
         const errorMsg = error.message || '';
 
-        // Rilascia la riserva corrente prima di eventuali retry o abort,
-        // così non blocchiamo artificialmente la capacità minuto.
-        try {
-          if (reservationId) {
-            this._releaseReservation(modelKey, reservationId);
-          }
-        } catch (releaseError) {
-          console.warn(`⚠️ Rilascio reservation fallito (${modelKey}/${reservationId}): ${releaseError.message}`);
-        }
-
-        // Interrompi immediatamente se la quota è esaurita su TUTTE le chiavi
-        if (errorMsg.indexOf('PRIMARY_QUOTA_EXHAUSTED') !== -1 || errorMsg.indexOf('QUOTA_EXHAUSTED_ALL_KEYS') !== -1) {
-          console.error('❌ Quota API completamente esaurita su tutte le chiavi. Interruzione retry immediata.');
-          throw error;
-        }
-
         // Uso la classificazione centralizzata (difensiva in caso di runtime modulare)
         let classifiedError = typeof classifyError === 'function' ? classifyError(error) : { type: 'UNKNOWN', retryable: false, message: errorMsg };
         const normalizedErrorMsg = String(errorMsg || '').toLowerCase();
@@ -696,6 +681,28 @@ var GeminiRateLimiter = class GeminiRateLimiter {
           normalizedErrorMsg.indexOf('empty text') !== -1
         )) {
           classifiedError = { type: 'NETWORK', retryable: true, message: errorMsg };
+        }
+
+        const shouldConsumeMinuteReservation = classifiedError.retryable ||
+          errorMsg.indexOf('PRIMARY_QUOTA_EXHAUSTED') !== -1 ||
+          errorMsg.indexOf('QUOTA_EXHAUSTED_ALL_KEYS') !== -1;
+
+        try {
+          if (reservationId) {
+            if (shouldConsumeMinuteReservation) {
+              this._finalizeReservation(modelKey, reservationId, Date.now() - requestStartTime);
+            } else {
+              this._releaseReservation(modelKey, reservationId);
+            }
+          }
+        } catch (reservationError) {
+          console.warn(`⚠️ Aggiornamento reservation fallito (${modelKey}/${reservationId}): ${reservationError.message}`);
+        }
+
+        // Interrompi immediatamente se la quota è esaurita su TUTTE le chiavi
+        if (errorMsg.indexOf('PRIMARY_QUOTA_EXHAUSTED') !== -1 || errorMsg.indexOf('QUOTA_EXHAUSTED_ALL_KEYS') !== -1) {
+          console.error('❌ Quota API completamente esaurita su tutte le chiavi. Interruzione retry immediata.');
+          throw error;
         }
 
         if (classifiedError.retryable) {

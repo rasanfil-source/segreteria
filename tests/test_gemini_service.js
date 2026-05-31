@@ -137,6 +137,13 @@ console.log('--- Test _generateWithModel: testo vuoto marca isTransient ---');
   }
 }
 
+console.log('--- Test _resolveLanguage: localLang nullo non genera codice nu ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  const resolved = service._resolveLanguage('en', null, 5);
+  assert(resolved === 'it', 'localLang nullo con alta sicurezza locale deve usare fallback it, non nu');
+}
+
 
 
 console.log('--- Test _withRetry: segnale switch chiave non consuma retry locali ---');

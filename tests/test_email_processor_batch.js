@@ -44,7 +44,8 @@ global.CONFIG = {
   VALIDATION_ERROR_LABEL: 'Verifica',
   SEARCH_PAGE_SIZE: 20,
   MAX_EMAILS_PER_RUN: 3,
-  MIN_REMAINING_TIME_MS: 5000
+  MIN_REMAINING_TIME_MS: 5000,
+  KNOWN_ALIASES: ['bot@example.com']
 };
 
 const cacheStore = new Map();
@@ -404,6 +405,47 @@ console.log('--- Test thread lock: PropertiesService blocca un cache miss concor
     assert(res.ok === false && res.reason === 'thread_locked', 'lock persistente fresco deve bloccare anche se CacheService non vede la chiave');
     assert(cacheStore.get('thread_lock_t-prop') == null, 'non deve scrivere un nuovo lock cache quando quello persistente è già attivo');
     assert(releaseCalled === true, 'deve rilasciare lo ScriptLock breve dopo il controllo atomico');
+  } finally {
+    global.PropertiesService = originalPropertiesService;
+    global.LockService = originalLockService;
+    cacheStore.clear();
+  }
+}
+
+console.log('--- Test thread lock: cleanup rimuove lock stale da PropertiesService ---');
+{
+  const originalPropertiesService = global.PropertiesService;
+  const originalLockService = global.LockService;
+  cacheStore.clear();
+  const props = new Map();
+  props.set('thread_lock_stale-a', `${Date.now() - 700000}_old`);
+  props.set('thread_lock_fresh-b', `${Date.now()}_fresh`);
+  let releaseCalled = false;
+
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: (k) => props.get(k) || '',
+      getProperties: () => Object.fromEntries(props.entries()),
+      setProperty: (k, v) => props.set(k, v),
+      deleteProperty: (k) => props.delete(k)
+    })
+  };
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => true,
+      releaseLock: () => {
+        releaseCalled = true;
+      }
+    })
+  };
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    const res = processor._acquireThreadLock('new-thread', false, global.createLogger());
+    assert(res.ok === true, 'deve acquisire il lock richiesto');
+    assert(!props.has('thread_lock_stale-a'), 'deve eliminare i lock persistenti stale');
+    assert(props.has('thread_lock_fresh-b'), 'non deve eliminare lock persistenti freschi');
+    assert(releaseCalled === true, 'deve rilasciare lo ScriptLock dopo cleanup/acquisizione');
   } finally {
     global.PropertiesService = originalPropertiesService;
     global.LockService = originalLockService;

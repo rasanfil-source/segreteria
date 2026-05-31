@@ -133,6 +133,45 @@ var EmailProcessor = class EmailProcessor {
     return this._scriptTimeZone;
   }
 
+  _cleanupStaleThreadLocks_(scriptProps, lockTtlMs, threadLogger) {
+    if (!scriptProps ||
+      typeof scriptProps.getProperties !== 'function' ||
+      typeof scriptProps.deleteProperty !== 'function') {
+      return 0;
+    }
+
+    const now = Date.now();
+    const cleanupIntervalMs = (typeof CONFIG !== 'undefined' && Number(CONFIG.THREAD_LOCK_CLEANUP_INTERVAL_MS))
+      ? Math.max(60000, Number(CONFIG.THREAD_LOCK_CLEANUP_INTERVAL_MS))
+      : 5 * 60 * 1000;
+    if (Number.isFinite(this._lastThreadLockCleanupMs) &&
+      (now - this._lastThreadLockCleanupMs) < cleanupIntervalMs) {
+      return 0;
+    }
+
+    this._lastThreadLockCleanupMs = now;
+    let removed = 0;
+    try {
+      const props = scriptProps.getProperties() || {};
+      Object.keys(props).forEach((key) => {
+        if (String(key).indexOf('thread_lock_') !== 0) return;
+        const existingTimestamp = Number.parseInt(String(props[key] || ''), 10);
+        const isStale = !Number.isFinite(existingTimestamp) || (now - existingTimestamp) > lockTtlMs;
+        if (!isStale) return;
+        scriptProps.deleteProperty(key);
+        removed++;
+      });
+    } catch (cleanupError) {
+      if (threadLogger && typeof threadLogger.warn === 'function') {
+        threadLogger.warn(`Cleanup lock stale fallito: ${cleanupError.message}`);
+      }
+    }
+    if (removed > 0 && threadLogger && typeof threadLogger.warn === 'function') {
+      threadLogger.warn(`Cleanup lock stale PropertiesService: rimossi ${removed} lock`);
+    }
+    return removed;
+  }
+
   _acquireThreadLock(threadId, skipLock = false, threadLogger = null, options = {}) {
     const scriptCache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
       ? CacheService.getScriptCache()
@@ -213,15 +252,27 @@ var EmailProcessor = class EmailProcessor {
         }
       }
 
+      if (hasProps) {
+        this._cleanupStaleThreadLocks_(scriptProps, lockTtlMs, threadLogger);
+      }
+
       const existingPropLock = hasProps ? scriptProps.getProperty(threadLockKey) : null;
       const existingCacheLock = hasCache ? scriptCache.get(threadLockKey) : null;
+      const propLockIsStale = existingPropLock && isStaleLock(existingPropLock);
+      const cacheLockIsStale = existingCacheLock && isStaleLock(existingCacheLock);
 
-      if ((existingPropLock && !isStaleLock(existingPropLock)) ||
-        (existingCacheLock && !isStaleLock(existingCacheLock))) {
+      if ((existingPropLock && !propLockIsStale) ||
+        (existingCacheLock && !cacheLockIsStale)) {
         if (threadLogger && typeof threadLogger.warn === 'function') {
           threadLogger.warn('Thread logicamente lockato da altro processo (in cache/props), salto');
         }
         return { ok: false, reason: 'thread_locked' };
+      }
+      if (propLockIsStale && hasProps && typeof scriptProps.deleteProperty === 'function') {
+        scriptProps.deleteProperty(threadLockKey);
+      }
+      if (cacheLockIsStale && hasCache && typeof scriptCache.remove === 'function') {
+        scriptCache.remove(threadLockKey);
       }
       if ((existingPropLock || existingCacheLock) && threadLogger && typeof threadLogger.warn === 'function') {
         threadLogger.warn('Lock stale rilevato, sovrascrittura lock');
@@ -602,6 +653,9 @@ var EmailProcessor = class EmailProcessor {
       knownAliasesArray.forEach(alias => {
         if (alias) ownAddresses.add(this._normalizeEmailAddress_(alias));
       });
+      if (ownAddresses.size === 0) {
+        throw new Error('CONFIG_ERROR: impossibile determinare identità bot/alias; elaborazione interrotta per evitare loop automatici');
+      }
 
       const unlabeledUnread = unreadMessages.filter(message => {
         const messageId = message.getId();
@@ -1021,7 +1075,8 @@ var EmailProcessor = class EmailProcessor {
       }
 
       const outOfOfficePatterns = [
-        /\b(out of office|away from office|fuori ufficio|assente)\b/i,
+        /\b(out of office|away from office|fuori ufficio)\b/i,
+        /\b(sono\s+assente|sarò\s+assente|resterò\s+assente|sar[oò]\s+fuori)\b/i,
         /\b(automatic reply|risposta automatica)\b/i,
         /\breturn(ing)? on\b/i,
         /\b(thank you for your message|mailbox monitored periodically|messaggio ricevuto)\b/i
@@ -3533,13 +3588,18 @@ ${addressLines.join('\n\n')}
     // preserviamo lo stato skip per evitare promozioni accidentali.
     if (!skipLabelId) return true;
 
-    const metadata = this.gmailService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
+    try {
+      const metadata = this.gmailService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
 
-    // Fail-closed: in caso di errore/risposta non valida preserviamo lo stato skip.
-    // Evita promozioni accidentali a IA dovute a guasti transitori Gmail API.
-    if (!metadata || !Array.isArray(metadata.labelIds)) return true;
+      // Fail-closed: in caso di errore/risposta non valida preserviamo lo stato skip.
+      // Evita promozioni accidentali a IA dovute a guasti transitori Gmail API.
+      if (!metadata || !Array.isArray(metadata.labelIds)) return true;
 
-    return metadata.labelIds.includes(skipLabelId);
+      return metadata.labelIds.includes(skipLabelId);
+    } catch (e) {
+      console.warn(`⚠️ _shouldPreserveSkipLabelInForeignOnly_: metadata non recuperabili per ${messageId}, fail-closed: ${e.message}`);
+      return true;
+    }
   }
 
   // Tracciamento ID saltati per ottimizzare il batch.
@@ -4651,6 +4711,9 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
 
     if (msg.includes('gmail_counter_lock_not_acquired_retryable')) {
       return mkResult('NETWORK', true, rawMessage);
+    }
+    if (msg.includes('config_error')) {
+      return mkResult('CONFIG_ERROR', false, rawMessage);
     }
     if (msg.includes('gmail_daily_call_limit_reached') ||
         msg.includes('daily call limit') ||

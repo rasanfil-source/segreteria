@@ -59,6 +59,12 @@ global.GLOBAL_CACHE = {
   ignoreDomains: ['mailchimp.com'],
   ignoreKeywords: ['newsletter']
 };
+global.Session = {
+  getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
+};
+global.GmailApp = {
+  getAliases: () => []
+};
 
 const gasEmailProcessorPath = path.join(__dirname, '..', 'gas_email_processor.js');
 const gasEmailProcessorCode = fs.readFileSync(gasEmailProcessorPath, 'utf8');
@@ -410,6 +416,66 @@ console.log('--- Test processThread: quick check filtrato marca tutto il burst e
   assert(result.status === 'filtered', 'quick check shouldRespond=false deve filtrare il candidato');
   assert(labeled.includes('m-candidate'), 'deve marcare il candidato filtrato per evitare retry infinito');
   assert(labeled.includes('m-secondary'), 'deve marcare anche il secondario gia incluso nel burst valutato');
+
+  global.Session = originalSession;
+  global.GmailApp = originalGmailApp;
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
+console.log('--- Test processThread: non filtra come OOO una richiesta pastorale con assente ---');
+{
+  const originalSession = global.Session;
+  const originalGmailApp = global.GmailApp;
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  let quickCheckCalled = false;
+
+  global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
+  };
+  global.GmailApp = {
+    getAliases: () => []
+  };
+  global.GLOBAL_CACHE.languageMode = 'all';
+
+  const processorPastoralAbsence = new EmailProcessor({
+    geminiService: {
+      detectEmailLanguage: () => ({ lang: 'it', safetyGrade: 5 }),
+      shouldRespondToEmail: () => {
+        quickCheckCalled = true;
+        return { shouldRespond: false, reason: 'ack' };
+      }
+    },
+    classifier: {
+      _extractMainContent: (body) => body,
+      classifyEmail: () => ({ shouldReply: true, reason: 'candidate' })
+    },
+    gmailService: {
+      getMessageIdsWithLabel: () => new Set(),
+      _extractEmailAddress: extractEmailAddress,
+      extractMessageDetails: (message) => ({
+        subject: message.getSubject(),
+        body: message.getPlainBody(),
+        senderEmail: extractEmailAddress(message.getFrom()),
+        senderName: 'Utente',
+        headers: {},
+        isNewsletter: false,
+        date: message.getDate()
+      }),
+      addLabelToMessage: () => {}
+    }
+  });
+
+  const thread = {
+    getId: () => 'thread-assente-pastorale',
+    getLabels: () => [],
+    getMessages: () => [
+      createMessage('m-assente-pastorale', 'Utente <utente@example.org>', 'Richiesta appuntamento', 'Don Raimondo è assente oggi, quando posso trovarlo?')
+    ]
+  };
+
+  const result = processorPastoralAbsence.processThread(thread, '', [], new Set(), true);
+  assert(result.reason !== 'out_of_office', 'la parola assente senza contesto auto-risposta non deve attivare OOO');
+  assert(quickCheckCalled, 'la richiesta con assente deve arrivare al quick check invece di essere filtrata silenziosamente');
 
   global.Session = originalSession;
   global.GmailApp = originalGmailApp;
@@ -1115,6 +1181,26 @@ console.log('--- Test _markMessageAsProcessed: foreign_only preserva skip e non 
 
   assert(!labels.some((entry) => entry.label === CONFIG.LABEL_NAME), 'foreign_only non deve promuovere a IA un messaggio con skip live');
   assert(!labels.some((entry) => entry.removed), 'foreign_only non deve rimuovere la label skip preservata');
+
+  global.GLOBAL_CACHE.languageMode = originalLanguageMode;
+}
+
+console.log('--- Test _shouldPreserveSkipLabelInForeignOnly_: metadata error fail-closed ---');
+{
+  const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
+  global.GLOBAL_CACHE.languageMode = 'foreign_only';
+
+  const processor = new EmailProcessor({
+    gmailService: {
+      _getOptionalLabelIdByName: (labelName) => labelName === CONFIG.SKIP_LABEL_NAME ? 'label-skip' : null,
+      _getMessageMetadataWithResilience: () => { throw new Error('quota transitoria'); }
+    }
+  });
+
+  assert(
+    processor._shouldPreserveSkipLabelInForeignOnly_('m-skip-metadata-error') === true,
+    'errori metadata in foreign_only devono preservare skip fail-closed senza propagare'
+  );
 
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }

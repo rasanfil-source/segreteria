@@ -5,14 +5,25 @@
 
 var _SCRIPT_PROPERTIES = null;
 var _CACHED_PROPS = {};
+var _SCRIPT_PROPERTY_CACHE_TTL_MS = 60 * 1000;
 function _getScriptProperty(key, forceRefresh = false) {
   if (!_SCRIPT_PROPERTIES) {
     _SCRIPT_PROPERTIES = PropertiesService.getScriptProperties();
   }
-  if (forceRefresh || !Object.prototype.hasOwnProperty.call(_CACHED_PROPS, key)) {
-    _CACHED_PROPS[key] = _SCRIPT_PROPERTIES.getProperty(key);
+  const now = Date.now();
+  const cached = _CACHED_PROPS[key];
+  const hasFreshCachedValue = cached &&
+    typeof cached === 'object' &&
+    Object.prototype.hasOwnProperty.call(cached, 'value') &&
+    Number.isFinite(cached.ts) &&
+    (now - cached.ts) <= _SCRIPT_PROPERTY_CACHE_TTL_MS;
+  if (forceRefresh || !hasFreshCachedValue) {
+    _CACHED_PROPS[key] = {
+      value: _SCRIPT_PROPERTIES.getProperty(key),
+      ts: now
+    };
   }
-  return _CACHED_PROPS[key];
+  return _CACHED_PROPS[key].value;
 }
 
 function _clearScriptPropertyCache(keys) {

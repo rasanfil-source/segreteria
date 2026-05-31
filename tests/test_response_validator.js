@@ -105,6 +105,15 @@ console.log('--- Test _getCurrentHourInRome_ (fallback se Utilities non numerica
   }
 }
 
+console.log('--- Test _checkLanguage conserva testo dopo gmail_quote chiuso ---');
+{
+  const result = validator._checkLanguage(
+    'Intro <div class="gmail_quote">thank regards dear</div> Gentile parrocchia, grazie e cordiali saluti.',
+    'it'
+  );
+  assert(result.markerScores.it >= 4, 'il testo successivo a gmail_quote non deve essere troncato');
+}
+
 console.log('--- Test _ottimizzaCapitalAfterComma (maiuscole, nomi propri e apostrofi) ---');
 {
   const fixedCaps = validator._ottimizzaCapitalAfterComma(

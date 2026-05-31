@@ -251,6 +251,7 @@ var MemoryService = class MemoryService {
     // Stato locale OCC: aggiorniamo la expectedVersion ad ogni conflitto
     // per evitare retry inutili con versione ormai obsoleta.
     let expectedVersion = newData._expectedVersion;
+    let sawVersionMismatch = false;
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       let shardedLockOwned = false;
@@ -290,6 +291,13 @@ var MemoryService = class MemoryService {
 
           // Merge: esistente + nuovi dati
           const mergedData = Object.assign({}, existingData, dataToUpdate);
+          if (sawVersionMismatch &&
+            Array.isArray(existingData.providedInfo) &&
+            Array.isArray(dataToUpdate.providedInfo)) {
+            const existingTopics = this._normalizeProvidedTopics(existingData.providedInfo);
+            const incomingTopics = this._normalizeProvidedTopics(dataToUpdate.providedInfo);
+            mergedData.providedInfo = this._mergeProvidedTopics(existingTopics, incomingTopics);
+          }
           mergedData.lastUpdated = now;
           mergedData.messageCount = shouldIncrementMessageCount
             ? (existingData.messageCount || 0) + 1
@@ -328,6 +336,7 @@ var MemoryService = class MemoryService {
 
       } catch (error) {
         if (error.message === 'VERSION_MISMATCH') {
+          sawVersionMismatch = true;
           console.warn(`⚠️ Conflitto concorrenza, retry... (Tentativo ${attempt + 1})`);
           this._invalidateCache(`memory_${normalizedThreadId}`);
         } else {

@@ -457,7 +457,7 @@ var ResponseValidator = class ResponseValidator {
     // influenzi la rilevazione della lingua della risposta attuale.
     const cleanResponse = response
       .replace(/<blockquote[^>]*>[\s\S]*?<\/blockquote>/gi, '')
-      .replace(/<div\s+class=["']gmail_quote["'][^>]*>[\s\S]*$/gi, '');
+      .replace(/<div\s+class=["'][^"']*\bgmail_quote\b[^"']*["'][^>]*>[\s\S]*?<\/div>/gi, '');
 
     const responseLower = cleanResponse.toLowerCase();
 

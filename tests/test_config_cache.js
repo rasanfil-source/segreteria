@@ -37,8 +37,8 @@ vm.runInThisContext(code, { filename: gasConfigPath });
 const exampleCode = fs.readFileSync(path.join(__dirname, '..', 'gas_config.example.js'), 'utf8');
 
 assert(
-  exampleCode.includes('Object.prototype.hasOwnProperty.call(_CACHED_PROPS, key)'),
-  'gas_config.example.js deve usare hasOwnProperty per la cache delle ScriptProperties'
+  exampleCode.includes('_SCRIPT_PROPERTY_CACHE_TTL_MS'),
+  'gas_config.example.js deve usare un TTL per la cache delle ScriptProperties'
 );
 assert(
   exampleCode.includes('!Number.isFinite(value)'),
@@ -63,6 +63,21 @@ assert(_getScriptProperty('MISSING_OPTIONAL') === null, 'una property assente de
 backingProps.set('MISSING_OPTIONAL', 'late-value');
 assert(_getScriptProperty('MISSING_OPTIONAL') === null, 'il null iniziale deve restare cached e non rileggere la property');
 assert(getCounts.get('MISSING_OPTIONAL') === 1, 'la property assente deve essere letta una sola volta');
+
+const originalDateNow = Date.now;
+let fakeNow = 1000000;
+Date.now = () => fakeNow;
+try {
+  _clearScriptPropertyCache('GEMINI_API_KEY');
+  backingProps.set('GEMINI_API_KEY', 'ttl-key-1');
+  assert(_getScriptProperty('GEMINI_API_KEY') === 'ttl-key-1', 'cache TTL: primo accesso legge il valore corrente');
+  backingProps.set('GEMINI_API_KEY', 'ttl-key-2');
+  assert(_getScriptProperty('GEMINI_API_KEY') === 'ttl-key-1', 'cache TTL: prima della scadenza resta cached');
+  fakeNow += 60001;
+  assert(_getScriptProperty('GEMINI_API_KEY') === 'ttl-key-2', 'cache TTL: dopo scadenza rilegge ScriptProperties');
+} finally {
+  Date.now = originalDateNow;
+}
 
 assert(CONFIG.MAX_SAFE_PROMPT_CHARS === 100000, 'MAX_SAFE_PROMPT_CHARS deve avere un fallback esplicito');
 assert(CONFIG.MAX_PROVIDED_INFO_JSON_CHARS === 45000, 'MAX_PROVIDED_INFO_JSON_CHARS deve avere un fallback esplicito');

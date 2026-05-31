@@ -127,7 +127,12 @@ var GmailService = class GmailService {
             if (lock && typeof lock.tryLock === 'function') {
                 lockAcquired = lock.tryLock(2000);
                 if (!lockAcquired) {
-                    throw new Error('GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE');
+                    const projected = (this._lastGmailCallCount || 0) + this._pendingGmailCallCount;
+                    if (this._lastGmailCallCount !== null && projected >= this._gmailDailyCallLimit) {
+                        throw new Error(`GMAIL_DAILY_CALL_LIMIT_REACHED (${projected}/${this._gmailDailyCallLimit})`);
+                    }
+                    console.warn('GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE: flush rinviato, procedo best-effort');
+                    return;
                 }
             }
 
@@ -1180,7 +1185,7 @@ var GmailService = class GmailService {
                 const labelObjectId = cachedEntry.label.getId();
                 if (this._isUserLabelId_(labelObjectId)) return labelObjectId;
             }
-            if (cachedEntry.labelId === null && !hasGmailUsersList) return null;
+            if (cachedEntry.labelId === null && (!hasGmailUsersList || cachedEntry.missingInAdvancedApi === true)) return null;
             if (!hasGmailUsersList && Object.prototype.hasOwnProperty.call(cachedEntry, 'existsInGmailApp')) return null;
         }
 
@@ -1242,7 +1247,7 @@ var GmailService = class GmailService {
                 }
                 return matched.id;
             }
-            this._labelCache.delete(raw);
+            this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: null, missingInAdvancedApi: true, ts: now });
             return null;
         } catch (e) {
             console.warn(`⚠️ _getOptionalLabelIdByName fallito per ${raw}, non metto in cache: ${e.message}`);

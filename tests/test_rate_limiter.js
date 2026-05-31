@@ -271,7 +271,10 @@ console.log('--- Test executeRequest: ritenta testo vuoto transitorio sullo stes
       shouldThrottle: null,
       reservationId: 'res-transient'
     });
-    limiter._releaseReservation = () => {};
+    let released = 0;
+    let finalized = 0;
+    limiter._releaseReservation = () => { released++; };
+    limiter._finalizeReservation = () => { finalized++; };
     limiter._trackRequest = () => {};
     limiter._getRequestsInWindow = () => 0;
 
@@ -287,6 +290,7 @@ console.log('--- Test executeRequest: ritenta testo vuoto transitorio sullo stes
     }, { maxRetries: 2, estimatedTokens: 10 });
 
     assert(calls === 2, 'errore transient testo vuoto deve attivare il secondo tentativo');
+    assert(finalized === 1 && released === 0, 'errore transient deve consumare la reservation minuto invece di rilasciarla');
     assert(result.success === true && result.result === 'ok', 'il secondo tentativo deve completare la richiesta');
   } finally {
     global.Utilities = originalUtilities;
