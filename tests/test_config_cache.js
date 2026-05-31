@@ -107,4 +107,20 @@ assert(
 );
 CONFIG.MAX_SAFE_TOKENS = originalMaxSafeTokens;
 
+const originalKbHallucinationRiskThreshold = CONFIG.KB_HALLUCINATION_RISK_THRESHOLD;
+CONFIG.KB_HALLUCINATION_RISK_THRESHOLD = 0;
+let kbThresholdValidation;
+console.error = () => {};
+try {
+  kbThresholdValidation = validateConfig();
+} finally {
+  console.error = originalConsoleError;
+}
+assert(
+  kbThresholdValidation.valid === false &&
+  kbThresholdValidation.errors.some((error) => error.includes('KB_HALLUCINATION_RISK_THRESHOLD')),
+  'KB_HALLUCINATION_RISK_THRESHOLD fuori range deve essere rifiutato'
+);
+CONFIG.KB_HALLUCINATION_RISK_THRESHOLD = originalKbHallucinationRiskThreshold;
+
 console.log('✅ Test _getScriptProperty cache passato');

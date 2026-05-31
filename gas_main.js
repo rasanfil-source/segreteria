@@ -690,7 +690,10 @@ function _loadResourcesInternal(knownSheetModifiedAt) {
   newCacheData.aiCoreLite = '';
   if (aiCoreLiteSheet) {
     withSheetsRetry(() => {
-      newCacheData.aiCoreLite = _sheetRowsToText(aiCoreLiteSheet.getDataRange().getValues());
+      const aiCoreLiteData = aiCoreLiteSheet.getDataRange().getValues();
+      const aiCoreLiteHealthReport = _logKnowledgeBaseHealthReport(aiCoreLiteData, cfg.AI_CORE_LITE_SHEET);
+      const aiCoreLiteRowsForText = aiCoreLiteHealthReport.skippedHeader ? aiCoreLiteData.slice(1) : aiCoreLiteData;
+      newCacheData.aiCoreLite = _sheetRowsToText(aiCoreLiteRowsForText);
     }, 'Lettura AI_CORE_LITE');
   }
 
@@ -698,7 +701,9 @@ function _loadResourcesInternal(knownSheetModifiedAt) {
   if (aiCoreSheet) {
     withSheetsRetry(() => {
       const aiCoreData = aiCoreSheet.getDataRange().getValues();
-      newCacheData.aiCore = _sheetRowsToText(aiCoreData);
+      const aiCoreHealthReport = _logKnowledgeBaseHealthReport(aiCoreData, cfg.AI_CORE_SHEET);
+      const aiCoreRowsForText = aiCoreHealthReport.skippedHeader ? aiCoreData.slice(1) : aiCoreData;
+      newCacheData.aiCore = _sheetRowsToText(aiCoreRowsForText);
     }, 'Lettura AI_CORE');
   } else {
     newCacheData.aiCore = '';
@@ -913,7 +918,13 @@ function _analyzeKnowledgeBaseRows(rows, sheetName) {
   const firstRow = Array.isArray(safeRows[0]) ? safeRows[0] : [safeRows[0]];
   const firstCol = normalize(firstRow[0]);
   const secondCol = normalize(firstRow[1]);
-  const looksLikeHeader = (firstCol === 'categoria' || firstCol === 'category') && (secondCol === 'informazione' || secondCol === 'informazioni' || secondCol === 'info' || secondCol === 'information');
+  const headerFirstColumns = ['categoria', 'category', 'principio', 'principle', 'tema', 'topic'];
+  const headerSecondColumns = [
+    'informazione', 'informazioni', 'info', 'information',
+    'istruzione', 'instruction', 'spiegazione', 'explanation',
+    'dettaglio', 'dettagli', 'detail', 'details'
+  ];
+  const looksLikeHeader = headerFirstColumns.includes(firstCol) && headerSecondColumns.includes(secondCol);
 
   const seenCategoryInfo = {};
   const startIndex = looksLikeHeader ? 1 : 0;
@@ -1134,16 +1145,17 @@ function _writeResourceCachePayload(cache, payload) {
   });
   values[RESOURCE_CACHE_PARTS_KEY] = String(parts.length);
 
-  // Scriviamo prima il nuovo multipart e rimuoviamo l'inline solo dopo: così
-  // un errore a metà write lascia al reader un payload precedente valido invece
-  // di una cache vuota/incompleta.
-  cache.putAll(values, RESOURCE_CACHE_TTL_SECONDS);
+  // Il reader consulta prima le chiavi inline: rimuoverle prima della scrittura
+  // multipart evita una finestra in cui una lettura concorrente preferisce il
+  // payload inline stale rispetto ai chunk appena pubblicati.
   try {
     if (typeof cache.remove === 'function') {
       cache.remove(RESOURCE_CACHE_KEY_V2);
       cache.remove(RESOURCE_CACHE_KEY_V1);
     }
   } catch (_) {}
+
+  cache.putAll(values, RESOURCE_CACHE_TTL_SECONDS);
   console.warn(`⚠️ Cache risorse salvata in modalità multipart (${parts.length} chunk).`);
 }
 
