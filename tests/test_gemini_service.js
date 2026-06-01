@@ -113,6 +113,15 @@ console.log('--- Test getAdaptiveGreeting: non espone placeholder tecnici come n
   }
 }
 
+console.log('--- Test getAdaptiveGreeting: lingua non preconfigurata non forza chiusura italiana ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service._getSpecialDayGreeting = () => null;
+  const adaptive = service.getAdaptiveGreeting('Jan', 'pl');
+  assert(adaptive.greeting === 'Good day,', 'fallback saluto deve restare neutro e traducibile dal prompt');
+  assert(adaptive.closing === 'Kind regards,', 'fallback chiusura non deve essere italiana per lingue non preconfigurate');
+}
+
 console.log('--- Test _generateWithModel: testo vuoto marca isTransient ---');
 {
   const service = Object.create(GeminiService.prototype);

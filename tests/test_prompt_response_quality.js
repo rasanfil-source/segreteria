@@ -227,6 +227,30 @@ assert(
   'il prompt non deve piu dichiarare assolutamente il periodo estivo dal mese corrente'
 );
 
+console.log('--- Test prompt: lingue non preconfigurate traducono saluto e chiusura ---');
+const unknownLanguagePrompt = engine.buildPrompt({
+  emailSubject: 'Godziny mszy',
+  emailContent: 'Dzień dobry, o której jest msza?',
+  knowledgeBase: 'Messe feriali: 7:25, 13:15, 19:00.',
+  detectedLanguage: 'pl',
+  promptProfile: 'lite',
+  salutationMode: 'full',
+  salutation: 'Good day,',
+  closing: 'Kind regards,'
+});
+
+assert(
+  unknownLanguagePrompt.includes('TARGET LANGUAGE PL') &&
+    unknownLanguagePrompt.includes('Translate/localize the greeting') &&
+    unknownLanguagePrompt.includes('Closing translated naturally into language PL'),
+  'per lingue non preconfigurate il prompt deve chiedere saluto e chiusura nella lingua target'
+);
+assert(
+  !unknownLanguagePrompt.includes("Inizia l'email ESATTAMENTE") &&
+    !unknownLanguagePrompt.includes('Rispondi in italiano'),
+  'lingue non preconfigurate non devono cadere nel template italiano'
+);
+
 console.log('--- Test prompt: orario locale e guardrail anti saluto in continuità ---');
 const temporalGuardPrompt = engine.buildPrompt({
   emailSubject: 'Invio documenti',

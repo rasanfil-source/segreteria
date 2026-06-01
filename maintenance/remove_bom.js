@@ -12,7 +12,8 @@ if (!fs.existsSync(FULL_PATH)) {
 // Legge come buffer per vedere i byte grezzi
 let buffer = fs.readFileSync(FULL_PATH);
 
-console.log("First 3 bytes:", buffer[0].toString(16), buffer[1].toString(16), buffer[2].toString(16));
+const firstBytes = Array.from(buffer.subarray(0, 3)).map(byte => byte.toString(16));
+console.log("First bytes:", firstBytes.length ? firstBytes.join(' ') : '(empty file)');
 
 // Controllo per UTF-8 BOM: EF BB BF
 if (buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
@@ -33,15 +34,15 @@ if (buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
     // Forse non è un BOM ma un carattere spazzatura?
     // Controllo se il primo carattere non è ASCII standard
     const text = buffer.toString('utf8');
-    if (text.charCodeAt(0) === 65279) { // 0xFEFF
+    if (text && text.charCodeAt(0) === 65279) { // 0xFEFF
         console.log("Zero Width No-Break Space detected (BOM char) at index 0. Removing...");
         fs.writeFileSync(FULL_PATH, text.substring(1), 'utf8');
     } else {
         console.log("No standard BOM bytes found.");
         // Se node -c fallisce su \uFEFF, forse è letteralmente la stringa "\uFEFF"?
-        if (text.startsWith('\\uFEFF')) {
-            console.log("Found literal string '\\uFEFF'. Removing...");
-            fs.writeFileSync(FULL_PATH, text.replace(/^\\uFEFF/, ''), 'utf8');
+        if (text && text.startsWith('\\uFEFF')) {
+            console.log("Found leading literal string '\\uFEFF'. Removing...");
+            fs.writeFileSync(FULL_PATH, text.substring('\\uFEFF'.length), 'utf8');
         }
     }
 }

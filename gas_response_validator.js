@@ -1386,9 +1386,9 @@ var ResponseValidator = class ResponseValidator {
       addDate(parseInt(match[1], 10), parseInt(match[2], 10), parseInt(match[3], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length));
     }
 
-    const numeric = /\b([0-2]?\d|3[01])[\/.-](0?[1-9]|1[0-2])[\/.-](20\d{2})\b/g;
+    const numeric = /\b([0-2]?\d|3[01])([\/.-])(0?[1-9]|1[0-2])\2(20\d{2})\b/g;
     while ((match = numeric.exec(normalized)) !== null) {
-      addDate(parseInt(match[3], 10), parseInt(match[2], 10), parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length));
+      addDate(parseInt(match[4], 10), parseInt(match[3], 10), parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length));
     }
 
     const dayMonthYear = /\b([0-2]?\d|3[01])(?:°|º|\.)?\s+(?:di\s+|de\s+|del\s+|d['’]\s*)?([a-z]{3,15})\.?\s+(20\d{2})\b/g;

@@ -64,6 +64,33 @@ backingProps.set('MISSING_OPTIONAL', 'late-value');
 assert(_getScriptProperty('MISSING_OPTIONAL') === null, 'il null iniziale deve restare cached e non rileggere la property');
 assert(getCounts.get('MISSING_OPTIONAL') === 1, 'la property assente deve essere letta una sola volta');
 
+console.log('--- Test _getScriptPropertyStringArray: separatori strutturati preservano virgole interne ---');
+_clearScriptPropertyCache(['CUSTOM_COMMA_LIST', 'CUSTOM_STRUCTURED_LIST', 'CUSTOM_JSON_LIST']);
+backingProps.set('CUSTOM_COMMA_LIST', 'uno@example.com,due@example.com');
+assert(
+  JSON.stringify(_getScriptPropertyStringArray('CUSTOM_COMMA_LIST', [])) === JSON.stringify(['uno@example.com', 'due@example.com']),
+  'senza separatori strutturati la virgola deve restare separatore semplice'
+);
+
+backingProps.set('CUSTOM_STRUCTURED_LIST', 'uno@example.com\r\nDisplay, Name <due@example.com>;tre@example.com');
+assert(
+  JSON.stringify(_getScriptPropertyStringArray('CUSTOM_STRUCTURED_LIST', [])) === JSON.stringify([
+    'uno@example.com',
+    'Display, Name <due@example.com>',
+    'tre@example.com'
+  ]),
+  'con newline/punto e virgola le virgole interne agli elementi devono essere preservate'
+);
+
+backingProps.set('CUSTOM_JSON_LIST', JSON.stringify([' Display, Name <json@example.com> ', '', 'altro@example.com']));
+assert(
+  JSON.stringify(_getScriptPropertyStringArray('CUSTOM_JSON_LIST', [])) === JSON.stringify([
+    'Display, Name <json@example.com>',
+    'altro@example.com'
+  ]),
+  'la lista JSON deve restare la forma più precisa e filtrare valori vuoti'
+);
+
 const originalDateNow = Date.now;
 let fakeNow = 1000000;
 Date.now = () => fakeNow;

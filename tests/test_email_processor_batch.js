@@ -3215,4 +3215,99 @@ console.log('--- Test checkpoint retryCount: pendingCount evita falsi same-check
   }
 }
 
+console.log('--- Test processThread: cross_thread_burst usa stato dilata senza marcare IA ---');
+{
+  const originalSenderThrottle = global.CONFIG.SENDER_THROTTLE_WINDOW_SECONDS;
+  global.CONFIG.SENDER_THROTTLE_WINDOW_SECONDS = 60;
+  cacheStore.clear();
+
+  const labels = [];
+  const msg = createMessage({ id: 'm-dilata', unread: true, from: 'Utente <utente@example.com>' });
+  const thread = createThread({ id: 't-dilata', messages: [msg] });
+  cacheStore.set('sender_throttle_utente@example.com', '1');
+
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => String(raw || '').match(/<([^>]+)>/)?.[1] || raw,
+      extractMessageDetails: () => ({
+        subject: 'Richiesta informazioni',
+        body: 'Vorrei sapere gli orari.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente',
+        date: new Date('2026-05-07T10:00:00Z'),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: (id, label) => labels.push({ id, label }),
+      removeLabelFromMessage: (id, label) => labels.push({ id, label, removed: true })
+    }
+  });
+
+  const result = processor.processThread(thread, 'kb', '', new Set(), true, new Set());
+  assert(result.status === 'dilata', `burst cross-thread deve restituire dilata, ottenuto ${result.status}`);
+  assert(result.reason === 'cross_thread_burst', 'dilata deve mantenere reason cross_thread_burst');
+  assert(labels.length === 0, 'dilata non deve applicare label IA o rimuovere skip sul messaggio rinviato');
+
+  if (typeof originalSenderThrottle === 'undefined') {
+    delete global.CONFIG.SENDER_THROTTLE_WINDOW_SECONDS;
+  } else {
+    global.CONFIG.SENDER_THROTTLE_WINDOW_SECONDS = originalSenderThrottle;
+  }
+  cacheStore.clear();
+}
+
+console.log('--- Test processUnreadEmails: dilata salva checkpoint senza consumare MAX_EMAILS_PER_RUN ---');
+{
+  const originalPropertiesService = global.PropertiesService;
+  const originalScriptApp = global.ScriptApp;
+  const originalMax = global.CONFIG.MAX_EMAILS_PER_RUN;
+  const originalSenderThrottle = global.CONFIG.SENDER_THROTTLE_WINDOW_SECONDS;
+  const props = new Map();
+  global.CONFIG.MAX_EMAILS_PER_RUN = 1;
+  global.CONFIG.SENDER_THROTTLE_WINDOW_SECONDS = 2;
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      setProperty: (k, v) => props.set(k, v),
+      getProperty: (k) => props.get(k) || '',
+      deleteProperty: (k) => props.delete(k)
+    })
+  };
+  global.ScriptApp = undefined;
+
+  try {
+    const threads = [createExternalThread('dilata-retry'), createExternalThread('after-dilata')];
+    const calls = [];
+    const processor = new EmailProcessor({
+      gmailService: { getUnprocessedUnreadThreads: () => threads }
+    });
+    processor._hasUnreadMessagesToProcess = () => true;
+    processor._isNearDeadline = () => false;
+    processor._getRemainingTimeMs = () => 60000;
+    processor.processThread = (thread) => {
+      calls.push(thread.getId());
+      return { status: 'dilata', reason: 'cross_thread_burst' };
+    };
+
+    const stats = processor.processUnreadEmails('kb', '', true);
+    const checkpoint = JSON.parse(props.get('EMAIL_BATCH_CHECKPOINT'));
+    assert(calls.length === 1, 'dilata deve interrompere il batch e non passare ai thread successivi');
+    assert(stats.dilata === 1, `stats.dilata deve essere 1, ottenuto ${stats.dilata}`);
+    assert(stats.filtered === 0, 'dilata non deve essere conteggiato come filtered');
+    assert(checkpoint.startIndex === 0, `checkpoint deve ripartire dal thread dilatato, ottenuto ${checkpoint.startIndex}`);
+    assert(checkpoint.pendingThreadIds[0] === 't-dilata-retry', 'checkpoint deve includere come primo residuo il thread dilatato');
+    assert(checkpoint.remainingTimeMs === 7000, `delay dilata deve essere finestra + 5s, ottenuto ${checkpoint.remainingTimeMs}`);
+  } finally {
+    global.CONFIG.MAX_EMAILS_PER_RUN = originalMax;
+    if (typeof originalSenderThrottle === 'undefined') {
+      delete global.CONFIG.SENDER_THROTTLE_WINDOW_SECONDS;
+    } else {
+      global.CONFIG.SENDER_THROTTLE_WINDOW_SECONDS = originalSenderThrottle;
+    }
+    global.PropertiesService = originalPropertiesService;
+    global.ScriptApp = originalScriptApp;
+  }
+}
+
 console.log('✅ Test batch EmailProcessor passati');

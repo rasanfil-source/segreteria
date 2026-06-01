@@ -28,7 +28,10 @@ global.CONFIG = {
 };
 
 global.Utilities = {
-  sleep: () => {}
+  sleep: () => {},
+  newBlob: (value) => ({
+    getBytes: () => Buffer.from(String(value || ''), 'utf8')
+  })
 };
 
 const gasMainPath = path.join(__dirname, '..', 'gas_main.js');
@@ -37,13 +40,25 @@ vm.runInThisContext(code, { filename: gasMainPath });
 
 console.log('--- Test estrazione ferie layout variabili B5:E7 ---');
 const compactVacationRow = _extractVacationPeriodFromControlRow_([new Date('2026-07-01'), new Date('2026-07-10'), '', '']);
+const shiftedVacationRow = _extractVacationPeriodFromControlRow_(['', new Date('2026-07-01'), new Date('2026-07-10'), '']);
+const shiftedExtendedVacationRow = _extractVacationPeriodFromControlRow_(['', new Date('2026-07-01'), '', new Date('2026-07-10')]);
 const extendedVacationRow = _extractVacationPeriodFromControlRow_([new Date('2026-09-01'), '', '', new Date('2026-09-10')]);
 const invalidVacationRow = _extractVacationPeriodFromControlRow_(['nota ferie', '', '', '']);
 assert(_parseDateValue(compactVacationRow.start).getTime() === new Date(2026, 6, 1).getTime(), 'layout B-C deve mantenere inizio in B');
 assert(_parseDateValue(compactVacationRow.end).getTime() === new Date(2026, 6, 10).getTime(), 'layout B-C deve leggere fine in C');
+assert(_parseDateValue(shiftedVacationRow.start).getTime() === new Date(2026, 6, 1).getTime(), 'layout C-D deve accettare inizio in C se B è vuota');
+assert(_parseDateValue(shiftedVacationRow.end).getTime() === new Date(2026, 6, 10).getTime(), 'layout C-D deve leggere fine in D');
+assert(_parseDateValue(shiftedExtendedVacationRow.end).getTime() === new Date(2026, 6, 10).getTime(), 'layout C-E deve leggere fine in E senza riusare C come fine');
 assert(_parseDateValue(extendedVacationRow.end).getTime() === new Date(2026, 8, 10).getTime(), 'layout B-E deve leggere fine in E se C/D sono vuote');
 assert(invalidVacationRow.end === null, 'riga ferie senza data fine valida deve restituire end null, non undefined');
 console.log('✅ Test estrazione ferie layout variabili passati');
+
+console.log('--- Test cache split: chunk nullo fallisce prima di usare indici negativi ---');
+assertThrows(
+  () => _splitCachePayload('payload', 0),
+  /chunk validi/,
+  'maxChars=0 deve fallire con errore esplicito'
+);
 
 console.log('--- Test label giorni: normalizzazione accenti con escape ASCII stabile ---');
 assert(_weekdayIndexFromLabel('Lunedì') === 1, 'label giorno accentata deve essere normalizzata');

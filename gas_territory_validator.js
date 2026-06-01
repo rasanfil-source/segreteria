@@ -301,10 +301,8 @@ var TerritoryValidator = class TerritoryValidator {
         // Range esplicitamente ristretto per conservare accentate evitando simboli matematici (es. ×, ÷).
         normalized = normalized.replace(/-/g, ' ');
         normalized = normalized.replace(/[^a-z0-9\s'\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF]/g, '');
-        normalized = normalized.replace(/\s+/g, ' ');
 
-        // Pulizia finale degli spazi per garantire coerenza con il database
-        // e rimozione di eventuali prefissi "via" ridondanti se già presenti
+        // Pulizia finale degli spazi per garantire coerenza con il database.
         normalized = normalized.replace(/\s+/g, ' ').trim();
 
         return normalized;

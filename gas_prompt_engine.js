@@ -1674,7 +1674,7 @@ Segreteria Parrocchia Sant'Eugenio
    • Keine italienischen Woerter verwenden
    • Deutsch fuer alles verwenden: Anrede, Inhalt, Abschluss`;
 
-    } else {
+    } else if (lang === 'it') {
       formatSection = isContinuity
         ? `1. **CONVERSAZIONE IN CORSO — NESSUN SALUTO RITUALE:**
    • NON aprire con un saluto formale — la conversazione è già avviata.
@@ -1703,6 +1703,39 @@ Segreteria Parrocchia Sant'Eugenio
    • REGOLA ANTI-INFODUMP: con una sola domanda specifica, limita il corpo a massimo 4 frasi brevi; aggiungi dettagli extra solo se richiesti esplicitamente`;
 
       languageReminder = `4. **Lingua:** Rispondi in italiano`;
+    } else {
+      const targetLanguageCode = String(lang || 'unknown').toUpperCase();
+      formatSection = isContinuity
+        ? `1. **ONGOING CONVERSATION - TARGET LANGUAGE ${targetLanguageCode}:**
+   • Do NOT open with a ritual greeting — the conversation is already in progress.
+   • Begin directly with the content or a brief linking phrase in the target language.
+
+2. **Response Format (TARGET LANGUAGE ${targetLanguageCode} REQUIRED):**
+   [Direct continuation — no greeting]
+   [Concise and relevant body - ✅ USE FORMATTING IF APPROPRIATE]
+   [Closing translated naturally into language ${targetLanguageCode}, equivalent to: "${closing}"]
+   [Parish office signature translated naturally into language ${targetLanguageCode}]`
+        : `1. **GREETING IN TARGET LANGUAGE REQUIRED:**
+   • Start with a natural formal greeting in language ${targetLanguageCode}, equivalent in tone and meaning to: "${salutation}"
+   • Translate/localize the greeting; do NOT output an Italian or English placeholder unless it is natural in that language.
+
+2. **Response Format (TARGET LANGUAGE ${targetLanguageCode} REQUIRED):**
+   [Natural formal greeting in language ${targetLanguageCode}]
+   [Concise and relevant body - ✅ USE FORMATTING IF APPROPRIATE]
+   [Closing translated naturally into language ${targetLanguageCode}, equivalent to: "${closing}"]
+   [Parish office signature translated naturally into language ${targetLanguageCode}]`;
+
+      contentSection = `3. **Content:**
+   • Answer ONLY what is asked
+   • Use ONLY information from the knowledge base
+   • ✅ Format elegantly if 3+ elements/times
+   • Follow-up (Re:): be more direct and concise
+   • ANTI-INFODUMP RULE: keep the body to max 4 short sentences when the user asks one specific question; add extra details only if explicitly requested`;
+
+      languageReminder = `4. **LANGUAGE: ⚠️ RESPOND ONLY IN LANGUAGE ${targetLanguageCode}**
+   • Translate all parish information into the target language
+   • Use a natural greeting, closing, and signature in language ${targetLanguageCode}
+   • Do NOT mix Italian or English into the final email unless the original request explicitly uses a proper name/title`;
     }
 
     return `**LINEE GUIDA RISPOSTA:**

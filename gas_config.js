@@ -53,14 +53,18 @@ function _getScriptPropertyStringArray(key, fallback) {
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed.map(value => String(value || '').trim()).filter(Boolean);
+      return parsed
+        .map(value => String(value || '').trim())
+        .filter(Boolean);
     }
   } catch (e) {
-    // Non JSON: accettiamo lista separata da virgola, punto e virgola o newline.
+    // Non JSON: accettiamo liste separate da virgola, punto e virgola o newline.
   }
 
-  return String(raw)
-    .split(/[,\n;]/)
+  const normalized = String(raw).replace(/\r\n?/g, '\n');
+  const hasStructuredSeparators = /[\n;]/.test(normalized);
+  return normalized
+    .split(hasStructuredSeparators ? /[\n;]/ : /,/)
     .map(value => value.trim())
     .filter(Boolean);
 }

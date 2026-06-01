@@ -171,6 +171,20 @@ function createMessage(id, from, subject, plainBody, date = new Date('2026-04-01
   };
 }
 
+console.log('--- Test _markMessagesAsSkipped: dry-run con label disabilitata non registra skip ---');
+{
+  const dryRunProcessor = new EmailProcessor();
+  dryRunProcessor.config.dryRun = true;
+  dryRunProcessor.config.skipLabelName = '';
+  const skipped = new Set();
+  dryRunProcessor._markMessagesAsSkipped(
+    [createMessage('m-dry-empty-label', 'Utente <utente@example.org>', 'Info', 'Testo')],
+    '',
+    skipped
+  );
+  assert(skipped.size === 0, 'in dry-run con label skip vuota non deve aggiornare skippedMessageIds');
+}
+
 console.log('--- Test _shouldIgnoreEmail (dominio blacklist) ---');
 assert(
   processor._shouldIgnoreEmail({
@@ -542,6 +556,11 @@ console.log('--- Test processThread: non filtra come OOO una richiesta pastorale
   global.GmailApp = originalGmailApp;
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }
+
+console.log('--- Test lingua: codice troppo corto non sovrascrive fallback valido ---');
+assert(processor._normalizeLanguageCode_('en-US', 'it') === 'en', 'codici tipo en-US devono essere normalizzati a due lettere');
+assert(processor._normalizeLanguageCode_('e', 'it') === 'it', 'codici di una sola lettera devono usare fallback');
+assert(processor._normalizeLanguageCode_('', '') === '', 'fallback vuoto resta vuoto per quick-check non affidabile');
 
 console.log('--- Test processThread: burst stesso mittente ordinato per data ---');
 {

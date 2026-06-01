@@ -13,6 +13,27 @@ const gasRateLimiterPath = path.join(__dirname, '..', 'gas_rate_limiter.js');
 const gasRateLimiterCode = fs.readFileSync(gasRateLimiterPath, 'utf8');
 vm.runInThisContext(gasRateLimiterCode, { filename: gasRateLimiterPath });
 
+console.log('--- Test _getPacificDate: fallback non richiama timezone rotto ---');
+{
+  const originalUtilities = global.Utilities;
+  global.Utilities = {
+    formatDate: (_date, timezone) => {
+      if (timezone === 'America/Los_Angeles') {
+        throw new Error('timezone unavailable');
+      }
+      throw new Error(`timezone inatteso: ${timezone}`);
+    }
+  };
+
+  try {
+    const limiter = Object.create(GeminiRateLimiter.prototype);
+    const pacificDate = limiter._getPacificDate();
+    assert(/^\d{4}-\d{2}-\d{2}$/.test(pacificDate), 'fallback Pacific deve restituire una data ISO');
+  } finally {
+    global.Utilities = originalUtilities;
+  }
+}
+
 console.log('--- Test _readChunkedDataWindow: ignora chunk WAL corrotto ---');
 {
   const propsData = new Map([

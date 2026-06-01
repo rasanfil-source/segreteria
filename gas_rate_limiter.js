@@ -304,7 +304,12 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       return pacificDate;
     } catch (error) {
       console.error(`❌ Errore getPacificDate: ${error.message}`);
-      return Utilities.formatDate(now, 'America/Los_Angeles', 'yyyy-MM-dd');
+      // Fallback conservativo se il timezone IANA non è disponibile: PST fisso (UTC-8).
+      const fallbackPacific = new Date(now.getTime() - (8 * 60 * 60 * 1000));
+      const year = fallbackPacific.getUTCFullYear();
+      const month = String(fallbackPacific.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(fallbackPacific.getUTCDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     }
   }
 

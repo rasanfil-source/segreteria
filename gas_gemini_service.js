@@ -1271,7 +1271,8 @@ Testo:
     } else if (language === 'de') {
       closing = 'Freundliche Grüße,';
     } else {
-      closing = 'Cordiali saluti,';
+      // Lingue non preconfigurate: il prompt traduce/localizza questa chiusura nella lingua target.
+      closing = 'Kind regards,';
     }
 
     return { greeting, closing };

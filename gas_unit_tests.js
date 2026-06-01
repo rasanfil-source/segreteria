@@ -1021,7 +1021,7 @@ function runAllTests() {
                         extractEmailAddress: function (from) { return from; },
                         extractMessageDetails: function () {
                             return {
-                                senderEmail: 'user@example.com',
+                                senderEmail: 'fallback-user@example.com',
                                 senderName: 'User',
                                 subject: 'Richiesta informazioni',
                                 body: 'Vorrei sapere gli orari.',
@@ -1061,7 +1061,7 @@ function runAllTests() {
                         return [{
                             getId: function () { return 'msg-fallback-memory'; },
                             isUnread: function () { return true; },
-                            getFrom: function () { return 'user@example.com'; },
+                            getFrom: function () { return 'fallback-user@example.com'; },
                             getDate: function () { return new Date(); },
                             getSubject: function () { return 'Richiesta informazioni'; }
                         }];

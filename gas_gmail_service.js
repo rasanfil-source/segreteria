@@ -3353,7 +3353,7 @@ var GmailService = class GmailService {
     /**
      * Prepara il testo per l'invio applicando sanificazione, sostituzioni e correzioni.
      */
-    prepareOutboundText(responseText, messageDetails, languageCode) {
+    prepareOutboundText(responseText, messageDetails, _languageCode) {
         let finalResponse = this._sanitizeHeaders(responseText);
         if (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE.replacements) {
             finalResponse = this.applyReplacements(finalResponse, GLOBAL_CACHE.replacements);

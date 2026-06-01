@@ -987,8 +987,8 @@ var EmailProcessor = class EmailProcessor {
         ) || {})
         : { lang: 'it' };
       
-      // Estraiamo solo i primi 2 caratteri per gestire formati come "it-IT" o "en-US"
-      let detectedLanguage = (languageDetection.lang || 'it').toLowerCase().substring(0, 2);
+      // Estraiamo solo codici ISO a 2 lettere per gestire formati come "it-IT" o "en-US".
+      let detectedLanguage = this._normalizeLanguageCode_(languageDetection.lang, 'it');
       if (bodyForLanguageDetection !== (messageDetails.body || '')) {
         console.log('   ✂️ Lingua: uso corpo pulito (senza firma/citazioni) per ridurre falsi positivi');
       }
@@ -1069,9 +1069,8 @@ var EmailProcessor = class EmailProcessor {
         }
 
         if (senderThrottleAlreadySet) {
-          console.log(`   ⊘ Saltato: burst cross-thread rilevato per ${safeSenderEmail || 'mittente sconosciuto'}`);
-          markHandledUnread();
-          result.status = 'filtered';
+          console.log(`   ⏳ Dilata: burst cross-thread rilevato per ${safeSenderEmail || 'mittente sconosciuto'}; riprovo in un batch successivo`);
+          result.status = 'dilata';
           result.reason = 'cross_thread_burst';
           return result;
         }
@@ -1347,8 +1346,9 @@ var EmailProcessor = class EmailProcessor {
       }
 
       // Se Gemini Quick Check ha rilevato una lingua diversa con maggiore precisione, aggiorniamo
-      if (quickCheck.language && quickCheck.language.substring(0, 2).toLowerCase() !== detectedLanguage) {
-        detectedLanguage = quickCheck.language.substring(0, 2).toLowerCase();
+      const quickCheckLanguage = this._normalizeLanguageCode_(quickCheck.language, '');
+      if (quickCheckLanguage && quickCheckLanguage !== detectedLanguage) {
+        detectedLanguage = quickCheckLanguage;
         console.log(`   🌐 Lingua (aggiornata da AI): ${detectedLanguage.toUpperCase()}`);
       }
 
@@ -2862,7 +2862,8 @@ ${addressLines.join('\n\n')}
         skipped_locked: 0,
         skipped_processed: 0,
         skipped_internal: 0,
-        skipped_loop: 0
+        skipped_loop: 0,
+        dilata: 0
       };
 
       this._startTime = Date.now();
@@ -2955,6 +2956,17 @@ ${addressLines.join('\n\n')}
           break;
         }
 
+        if (result && result.status === 'dilata') {
+          const senderThrottleWindowSeconds = (typeof CONFIG !== 'undefined' && Number(CONFIG.SENDER_THROTTLE_WINDOW_SECONDS) > 0)
+            ? Number(CONFIG.SENDER_THROTTLE_WINDOW_SECONDS)
+            : 60;
+          const dilataDelayMs = Math.max(1000, Math.floor(senderThrottleWindowSeconds * 1000) + 5000);
+          stats.dilata++;
+          runLogger.info(`Thread ${index + 1}/${threads.length} - Dilata: ${result.reason || 'rinvio temporaneo'}`);
+          deferBatchCheckpoint(threads, index, dilataDelayMs);
+          break;
+        }
+
         // Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI
         const isEffectiveWork = (
           result.status === 'replied' ||
@@ -2993,6 +3005,7 @@ ${addressLines.join('\n\n')}
         total: stats.total,
         replied: stats.replied,
         filtered: stats.filtered,
+        dilata: stats.dilata,
         errors: stats.errors,
         duration: Date.now() - this._startTime
       });
@@ -3850,6 +3863,13 @@ ${addressLines.join('\n\n')}
     return normalized === 'foreign_only' ? 'foreign_only' : 'all';
   }
 
+  _normalizeLanguageCode_(language, fallback = 'it') {
+    const raw = String(language || '').trim().toLowerCase();
+    const code = raw.substring(0, 2);
+    if (/^[a-z]{2}$/.test(code)) return code;
+    return String(fallback || '').trim().toLowerCase();
+  }
+
 
 
   _markMessageAsProcessed(message, labeledMessageIds = null, skippedMessageIds = null) {
@@ -3918,6 +3938,7 @@ ${addressLines.join('\n\n')}
   _markMessagesAsSkipped(messages, labelName = this.config.skipLabelName, skippedMessageIds = null) {
     if (this.config.dryRun) {
       this.logger.info(`   🔴 DRY RUN - Label skip '${labelName}' non aggiunta (simulazione)`);
+      if (!labelName) return;
       (messages || []).forEach(message => {
         if (!message) return;
         const msgId = message.getId();

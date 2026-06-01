@@ -583,7 +583,10 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
     }
 
     if (lockAcquired && cacheIsFreshByTtl) {
-      precomputedSheetModifiedAt = _getSpreadsheetModifiedTimeMs(spreadsheetId);
+      const freshSheetModifiedAt = _getSpreadsheetModifiedTimeMs(spreadsheetId);
+      if (freshSheetModifiedAt) {
+        precomputedSheetModifiedAt = Math.max(precomputedSheetModifiedAt || 0, freshSheetModifiedAt);
+      }
     }
 
     const lockedNow = Date.now();
@@ -1064,6 +1067,10 @@ function _splitCachePayload(payload, maxChars) {
       chunk = bestChunk;
     }
 
+    if (length <= 0) {
+      throw new Error('Impossibile spezzare il payload in chunk validi.');
+    }
+
     // Evita split nel mezzo di surrogate pair UTF-16
     if (start + length < payload.length) {
       const lastCode = payload.charCodeAt(start + length - 1);
@@ -1071,10 +1078,6 @@ function _splitCachePayload(payload, maxChars) {
         length -= 1;
         chunk = payload.substring(start, start + length);
       }
-    }
-
-    if (length <= 0) {
-      throw new Error('Impossibile spezzare il payload in chunk validi.');
     }
 
     parts.push(chunk);
@@ -2207,8 +2210,8 @@ function parseDateSafe(input, fallback = null, explicitTimeZone = null) {
 /**
  * Estrae un periodo ferie da una riga del layout Controllo B5:E7.
  * Il layout documentato usa B=inizio e D=fine, ma alcuni fogli reali
- * possono avere la fine in C (layout compatto) o E. Per evitare falsi
- * periodi invalidi, usa la prima coppia di date valide trovata sulla riga.
+ * possono avere la fine in C (layout compatto), l'inizio in C o la fine in E.
+ * Per evitare falsi periodi invalidi, usa la prima coppia di date valide trovata sulla riga.
  * @param {Array<*>} row - Riga letta da B:E.
  * @returns {{start: *, end: *}} Valori originali di inizio/fine da convertire a valle.
  */
@@ -2217,11 +2220,16 @@ function _extractVacationPeriodFromControlRow_(row) {
     return { start: null, end: null };
   }
 
-  const start = row[0];
-  const endCandidates = [row[2], row[1], row[3]];
+  const row0IsStart = _parseDateValue(row[0]) !== null;
+  const shiftedStartHasEnd = _parseDateValue(row[1]) !== null
+    && (_parseDateValue(row[2]) !== null || _parseDateValue(row[3]) !== null);
+  const start = row0IsStart ? row[0] : (shiftedStartHasEnd ? row[1] : null);
+  const endCandidates = row0IsStart
+    ? [row[2], row[1], row[3]]
+    : [row[2], row[3]];
   const end = endCandidates.find(value => _parseDateValue(value) !== null) ?? null;
 
-  // Preferenza esplicita: D (layout documentato), poi C (compatto), poi E (variante estesa).
+  // Preferenza esplicita fine: D (documentato), poi C (compatto), poi E (variante estesa).
   return { start, end };
 }
 

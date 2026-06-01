@@ -24,6 +24,20 @@ vm.runInThisContext(code, { filename: gasValidatorPath });
 
 const validator = new ResponseValidator();
 
+console.log('--- Test _extractExplicitDates_: separatori numerici coerenti ---');
+{
+  const mixedDates = validator._extractExplicitDates_('Appuntamento 01/02-2026', new Date(2026, 0, 1));
+  const strictDates = validator._extractExplicitDates_('Appuntamento 01/02/2026', new Date(2026, 0, 1));
+  assert(mixedDates.length === 0, 'date con separatori misti non devono essere accettate');
+  assert(
+    strictDates.length === 1 &&
+      strictDates[0].date.getFullYear() === 2026 &&
+      strictDates[0].date.getMonth() === 1 &&
+      strictDates[0].date.getDate() === 1,
+    'date numeriche con separatore coerente devono restare valide'
+  );
+}
+
 console.log('--- Test _checkForbiddenContent (placeholder) ---');
 const placeholderResult = validator._checkForbiddenContent('Gentile utente, XXX Cordiali saluti.');
 assert(placeholderResult.score === 0.0, 'placeholder deve portare score a 0');
