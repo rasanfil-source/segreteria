@@ -1910,6 +1910,14 @@ ${addressLines.join('\n\n')}
       } else {
         console.log('   🧭 Context routing: richiesta non tecnica o sensibile → mantengo moduli completi.');
       }
+      const businessDate = this._getBusinessDateString();
+      const scheduleContext = this._resolveScheduleContext(
+        `${messageDetails.subject || ''}\n${messageDetails.body || ''}`,
+        enrichedKnowledgeBase,
+        businessDate,
+        detectedLanguage
+      );
+
       const promptOptions = {
         emailContent: messageDetails.body,
         emailSubject: messageDetails.subject,
@@ -1920,10 +1928,11 @@ ${addressLines.join('\n\n')}
         category: categoryHintSource,
         topic: quickCheck.classification ? quickCheck.classification.topic : '',
         detectedLanguage: detectedLanguage,
-        currentSeason: this._getCurrentSeason(),
-        currentDate: this._getBusinessDateString(),
+        currentSeason: scheduleContext.season,
+        currentDate: businessDate,
         currentTime: this._getBusinessTimeString(),
         messageDate: this._getBusinessDateString(messageDetails.date),
+        scheduleContext: scheduleContext,
         salutation: greeting,
         closing: closing,
         subIntents: classification.subIntents || {},
@@ -3573,17 +3582,251 @@ ${addressLines.join('\n\n')}
     }
   }
 
-  _getCurrentSeason() {
-    let month;
-    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
-      month = parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'M'), 10);
-    } else {
-      month = new Date().getMonth() + 1;
+  _getCurrentSeason(referenceDate = new Date(), knowledgeBaseText = '') {
+    return this._resolveScheduleContext('', knowledgeBaseText, referenceDate, 'it').season;
+  }
+
+  _resolveScheduleContext(requestText = '', knowledgeBaseText = '', currentDateInput = new Date(), language = 'it') {
+    const currentDate = this._coerceBusinessDateOnly_(currentDateInput) || this._coerceBusinessDateOnly_(new Date());
+    const requestedDateInfo = this._resolveRequestedScheduleDate_(requestText, currentDate, language);
+    const targetDate = requestedDateInfo.date || currentDate;
+    const summerRange = this._extractSummerScheduleRange_(knowledgeBaseText, targetDate.getFullYear()) ||
+      this._getFormulaSummerScheduleRange_(targetDate.getFullYear());
+    const season = this._isDateWithinInclusive_(targetDate, summerRange.start, summerRange.end)
+      ? 'estivo'
+      : 'invernale';
+
+    return {
+      season: season,
+      currentDate: this._formatDateOnlyIso_(currentDate),
+      targetDate: this._formatDateOnlyIso_(targetDate),
+      targetDateText: this._formatItalianDateLabel_(targetDate),
+      isExplicitTarget: requestedDateInfo.isExplicit,
+      targetSource: requestedDateInfo.source,
+      summerRangeText: summerRange.text,
+      summerStartDate: this._formatDateOnlyIso_(summerRange.start),
+      summerEndDate: this._formatDateOnlyIso_(summerRange.end),
+      source: summerRange.source
+    };
+  }
+
+  _resolveRequestedScheduleDate_(text = '', currentDate = new Date(), language = 'it') {
+    const normalizedText = String(text || '').toLowerCase();
+    const current = this._coerceBusinessDateOnly_(currentDate) || new Date();
+
+    if (/(?<![a-zA-ZÀ-ÿ])dopodomani(?![a-zA-ZÀ-ÿ])/i.test(normalizedText)) {
+      return {
+        date: this._addDaysToDateOnly_(current, 2),
+        isExplicit: true,
+        source: 'relative:dopodomani'
+      };
     }
-    if (month >= 3 && month <= 5) return 'primaverile';
-    if (month >= 6 && month <= 9) return 'estivo';
-    if (month >= 10 && month <= 11) return 'autunnale';
-    return 'invernale';
+
+    if (/(?<![a-zA-ZÀ-ÿ])domani(?![a-zA-ZÀ-ÿ])/i.test(normalizedText)) {
+      return {
+        date: this._addDaysToDateOnly_(current, 1),
+        isExplicit: true,
+        source: 'relative:domani'
+      };
+    }
+
+    if (/(?<![a-zA-ZÀ-ÿ])oggi(?![a-zA-ZÀ-ÿ])/i.test(normalizedText)) {
+      return {
+        date: current,
+        isExplicit: true,
+        source: 'relative:oggi'
+      };
+    }
+
+    const explicitDate = this._extractExplicitDateFromText_(normalizedText, current.getFullYear());
+    if (explicitDate) {
+      return {
+        date: explicitDate.date,
+        isExplicit: true,
+        source: explicitDate.source
+      };
+    }
+
+    return {
+      date: current,
+      isExplicit: false,
+      source: 'current_date'
+    };
+  }
+
+  _extractExplicitDateFromText_(text, defaultYear) {
+    const monthMap = this._getItalianMonthMap_();
+    const monthNames = Object.keys(monthMap).join('|');
+    const textualPattern = new RegExp(`(?<!\\d)(\\d{1,2})\\s+(${monthNames})(?:\\s+(\\d{4}))?(?!\\d)`, 'i');
+    const textualMatch = String(text || '').match(textualPattern);
+    if (textualMatch) {
+      const day = parseInt(textualMatch[1], 10);
+      const month = monthMap[textualMatch[2]];
+      const year = textualMatch[3] ? parseInt(textualMatch[3], 10) : defaultYear;
+      const date = this._makeValidDateOnly_(year, month, day);
+      if (date) {
+        return { date: date, source: 'explicit:textual' };
+      }
+    }
+
+    const numericMatch = String(text || '').match(/\b(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?\b/);
+    if (numericMatch) {
+      const day = parseInt(numericMatch[1], 10);
+      const month = parseInt(numericMatch[2], 10);
+      let year = numericMatch[3] ? parseInt(numericMatch[3], 10) : defaultYear;
+      if (year < 100) year += 2000;
+      const date = this._makeValidDateOnly_(year, month, day);
+      if (date) {
+        return { date: date, source: 'explicit:numeric' };
+      }
+    }
+
+    return null;
+  }
+
+  _extractSummerScheduleRange_(knowledgeBaseText = '', year) {
+    const text = String(knowledgeBaseText || '');
+    if (!text.trim()) return null;
+
+    const lines = text.split(/\r?\n/);
+    const preferredLines = lines.filter(line => /periodo\s+estiv/i.test(line));
+    const candidates = preferredLines.length > 0 ? preferredLines : lines;
+
+    for (const line of candidates) {
+      const parsed = this._parseItalianDateRange_(line, year);
+      if (parsed) return parsed;
+    }
+
+    return null;
+  }
+
+  _parseItalianDateRange_(text, year) {
+    const monthMap = this._getItalianMonthMap_();
+    const monthNames = Object.keys(monthMap).join('|');
+    const pattern = new RegExp(`\\b(?:dal|da)\\s+(\\d{1,2})\\s+(${monthNames})\\s+(?:al|a)\\s+(\\d{1,2})\\s+(${monthNames})\\b`, 'i');
+    const match = String(text || '').toLowerCase().match(pattern);
+    if (!match) return null;
+
+    const start = this._makeValidDateOnly_(year, monthMap[match[2]], parseInt(match[1], 10));
+    const end = this._makeValidDateOnly_(year, monthMap[match[4]], parseInt(match[3], 10));
+    if (!start || !end) return null;
+
+    return {
+      start: start,
+      end: end,
+      text: `Dal ${parseInt(match[1], 10)} ${match[2]} al ${parseInt(match[3], 10)} ${match[4]}`,
+      source: 'knowledge_base'
+    };
+  }
+
+  _getFormulaSummerScheduleRange_(year) {
+    console.warn('⚠️ Periodo estivo non trovato in KB: uso formula tecnica annuale equivalente.');
+    const june26 = this._makeValidDateOnly_(year, 6, 26);
+    const startSunday = this._addDaysToDateOnly_(june26, 8 - this._getSheetsWeekday_(june26));
+    const start = this._addDaysToDateOnly_(startSunday, 1);
+
+    const august30 = this._makeValidDateOnly_(year, 8, 30);
+    const end = this._addDaysToDateOnly_(august30, (8 - this._getSheetsWeekday_(august30)) % 7);
+
+    return {
+      start: start,
+      end: end,
+      text: `Dal ${this._formatItalianDateLabelNoYear_(start)} al ${this._formatItalianDateLabelNoYear_(end)}`,
+      source: 'fallback_formula'
+    };
+  }
+
+  _getItalianMonthMap_() {
+    return {
+      gennaio: 1,
+      febbraio: 2,
+      marzo: 3,
+      aprile: 4,
+      maggio: 5,
+      giugno: 6,
+      luglio: 7,
+      agosto: 8,
+      settembre: 9,
+      ottobre: 10,
+      novembre: 11,
+      dicembre: 12
+    };
+  }
+
+  _coerceBusinessDateOnly_(input) {
+    if (typeof input === 'string') {
+      const direct = input.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (direct) {
+        return this._makeValidDateOnly_(
+          parseInt(direct[1], 10),
+          parseInt(direct[2], 10),
+          parseInt(direct[3], 10)
+        );
+      }
+    }
+
+    const parsed = input instanceof Date ? input : new Date(input);
+    if (!(parsed instanceof Date) || isNaN(parsed.getTime())) return null;
+
+    const iso = this._getBusinessDateString(parsed);
+    const match = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) {
+      return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 12, 0, 0, 0);
+    }
+
+    return this._makeValidDateOnly_(
+      parseInt(match[1], 10),
+      parseInt(match[2], 10),
+      parseInt(match[3], 10)
+    );
+  }
+
+  _makeValidDateOnly_(year, month, day) {
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+    const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+    return date;
+  }
+
+  _addDaysToDateOnly_(date, days) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days, 12, 0, 0, 0);
+  }
+
+  _isDateWithinInclusive_(date, start, end) {
+    const value = this._dateOnlyEpochDay_(date);
+    return value >= this._dateOnlyEpochDay_(start) && value <= this._dateOnlyEpochDay_(end);
+  }
+
+  _dateOnlyEpochDay_(date) {
+    return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000);
+  }
+
+  _formatDateOnlyIso_(date) {
+    const year = String(date.getFullYear());
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  _formatItalianDateLabel_(date) {
+    const months = [
+      'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
+      'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'
+    ];
+    return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+  }
+
+  _formatItalianDateLabelNoYear_(date) {
+    const months = [
+      'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
+      'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'
+    ];
+    return `${date.getDate()} ${months[date.getMonth()]}`;
+  }
+
+  _getSheetsWeekday_(date) {
+    // Google Sheets WEEKDAY(date) default: domenica=1, lunedi=2, ..., sabato=7.
+    return date.getDay() + 1;
   }
 
   _getOcrLowConfidenceNote(languageCode) {
@@ -4854,7 +5097,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     const monthPatterns = {
       // Nota: \b è ASCII-only; i lookaround Unicode evitano falsi negativi
       // sulle parole con accento finale (lunedì, martedì, ecc.).
-      'it': /(?<![a-zA-ZÀ-ÿ])(oggi|domani|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?![a-zA-ZÀ-ÿ])/i,
+      'it': /(?<![a-zA-ZÀ-ÿ])(oggi|domani|dopodomani|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?![a-zA-ZÀ-ÿ])/i,
       'en': /(?<![a-zA-Z])(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december)(?![a-zA-Z])/i,
       'es': /(?<![a-zA-ZÀ-ÿ])(hoy|ma[nñ]ana|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?![a-zA-ZÀ-ÿ])/i,
       'pt': /(?<![a-zA-ZÀ-ÿ])(hoje|amanh[aã]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo|janeiro|fevereiro|mar\u00E7o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?![a-zA-ZÀ-ÿ])/i,

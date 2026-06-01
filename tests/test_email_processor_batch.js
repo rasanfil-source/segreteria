@@ -2241,6 +2241,80 @@ console.log('--- Test prompt options: messageDate usa la data del messaggio orig
   assert(/^\d{2}:\d{2}$/.test(promptOptions.currentTime), `currentTime deve essere passato in formato HH:mm, ottenuto ${promptOptions && promptOptions.currentTime}`);
 }
 
+console.log('--- Test prompt options: scheduleContext usa data target e periodo KB ---');
+{
+  const originalUtilities = global.Utilities;
+  global.Utilities = {
+    formatDate: (_date, _tz, pattern) => {
+      if (pattern === 'yyyy-MM-dd') return '2026-06-01';
+      if (pattern === 'HH:mm') return '10:00';
+      return '2026-06-01';
+    }
+  };
+
+  let promptOptions = null;
+  try {
+    const processor = new EmailProcessor({
+      gmailService: {
+        _extractEmailAddress: (raw) => raw,
+        extractMessageDetails: () => ({
+          subject: 'Orari Messe',
+          body: 'A che orari verra celebrata la messa dopodomani?',
+          senderEmail: 'utente@example.com',
+          senderName: 'Utente Test',
+          date: new Date('2026-06-01T08:00:00Z'),
+          headers: {},
+          isNewsletter: false,
+          rfc2822MessageId: null,
+          existingReferences: null
+        }),
+        addLabelToMessage: () => {},
+        addLabelToThread: () => {},
+        getThreadHistory: () => '',
+        prepareOutboundText: (text) => text,
+        sendHtmlReply: () => {}
+      },
+      classifier: {
+        classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 })
+      },
+      geminiService: {
+        primaryKey: 'primary-key',
+        shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'information', topic: 'orari messe' } }),
+        detectEmailLanguage: () => ({ lang: 'it' }),
+        getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+        getAdaptiveClosing: () => 'Cordiali saluti',
+        generateResponse: () => ({ success: true, text: 'Risposta orari' })
+      },
+      requestClassifier: {
+        classify: () => ({ type: 'information', dimensions: { pastoral: 0.0 } })
+      },
+      memoryService: {
+        getMemory: () => ({}),
+        getRecentHistory: () => [],
+        updateMemoryAtomic: () => true
+      },
+      territoryValidator: {
+        validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+      },
+      promptEngine: {
+        buildPrompt: (options) => {
+          promptOptions = options;
+          return 'PROMPT';
+        }
+      }
+    });
+
+    const kb = 'Orari Basilica | Periodo estivo | Dal 29 giugno al 30 agosto\nOrari Messe | Messe feriali invernali | 7:25, 13:15, 19:00\nOrari Messe | Messe feriali estivi | 7:25, 19:00';
+    const result = processor.processThread(createExternalThread('schedule-context'), kb, '', new Set(), true);
+    assert(result.status === 'replied', 'il thread orari deve completarsi');
+    assert(promptOptions.currentSeason === 'invernale', `currentSeason deve seguire la data target, ottenuto ${promptOptions && promptOptions.currentSeason}`);
+    assert(promptOptions.scheduleContext.targetDate === '2026-06-03', `targetDate attesa 2026-06-03, ottenuta ${promptOptions && promptOptions.scheduleContext && promptOptions.scheduleContext.targetDate}`);
+    assert(promptOptions.scheduleContext.season === 'invernale', 'scheduleContext deve restare invernale il 3 giugno');
+  } finally {
+    global.Utilities = originalUtilities;
+  }
+}
+
 console.log('--- Test context routing: categoria tecnica usa set condiviso e disattiva dottrina ---');
 {
   const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;

@@ -94,6 +94,67 @@ console.log('--- Test constructor: preserva requestClassifier iniettato ---');
   );
 }
 
+console.log('--- Test periodo orari: usa la KB e la data richiesta ---');
+{
+  const scheduleKb = 'Orari Basilica | Periodo estivo | Dal 29 giugno al 30 agosto';
+
+  const juneFirstPlusTwo = processor._resolveScheduleContext(
+    'A che orari verra celebrata la messa dopodomani?',
+    scheduleKb,
+    '2026-06-01',
+    'it'
+  );
+  assert(
+    juneFirstPlusTwo.targetDate === '2026-06-03' && juneFirstPlusTwo.season === 'invernale',
+    `1 giugno + dopodomani deve restare invernale, ottenuto ${juneFirstPlusTwo.targetDate}/${juneFirstPlusTwo.season}`
+  );
+
+  const juneTwentyEightTomorrow = processor._resolveScheduleContext(
+    'A che orari verra celebrata la messa domani?',
+    scheduleKb,
+    '2026-06-28',
+    'it'
+  );
+  assert(
+    juneTwentyEightTomorrow.targetDate === '2026-06-29' && juneTwentyEightTomorrow.season === 'estivo',
+    `28 giugno + domani deve entrare in estivo, ottenuto ${juneTwentyEightTomorrow.targetDate}/${juneTwentyEightTomorrow.season}`
+  );
+
+  assert(
+    processor._resolveScheduleContext('Orari Messe', scheduleKb, '2026-06-29', 'it').season === 'estivo',
+    '29 giugno deve essere incluso nel periodo estivo'
+  );
+  assert(
+    processor._resolveScheduleContext('Orari Messe', scheduleKb, '2026-08-31', 'it').season === 'invernale',
+    '31 agosto deve essere fuori dal periodo estivo'
+  );
+  assert(
+    processor._resolveScheduleContext('Messa del 3 giugno', scheduleKb, '2026-06-01', 'it').targetDate === '2026-06-03',
+    'le date esplicite tipo 3 giugno devono diventare data target'
+  );
+  const formulaFallback2027 = processor._resolveScheduleContext(
+    'Orari Messe',
+    '',
+    '2027-06-28',
+    'it'
+  );
+  assert(
+    formulaFallback2027.source === 'fallback_formula' &&
+      formulaFallback2027.summerStartDate === '2027-06-28' &&
+      formulaFallback2027.summerEndDate === '2027-09-05' &&
+      formulaFallback2027.season === 'estivo',
+    `fallback formula 2027 atteso 2027-06-28/2027-09-05, ottenuto ${formulaFallback2027.summerStartDate}/${formulaFallback2027.summerEndDate}/${formulaFallback2027.season}`
+  );
+  assert(
+    processor._resolveScheduleContext('Orari Messe', '', '2027-06-27', 'it').season === 'invernale',
+    'il fallback formula deve restare invernale prima del lunedi calcolato per il 2027'
+  );
+  assert(
+    processor._detectTemporalMentions('Vorrei sapere gli orari della messa dopodomani', 'it') === true,
+    'dopodomani deve attivare il rischio temporale'
+  );
+}
+
 function extractEmailAddress(fromField) {
   const match = String(fromField || '').match(/<([^>]+)>/) || String(fromField || '').match(/([^\s<]+@[^\s>]+)/);
   return match ? match[1] : '';

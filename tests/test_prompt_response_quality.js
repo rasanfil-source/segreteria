@@ -195,6 +195,38 @@ assert(
   'il prompt deve formulare l\'obiettivo di confronto temporale'
 );
 
+console.log('--- Test prompt: orari usano data richiesta e periodo KB ---');
+const schedulePrompt = engine.buildPrompt({
+  emailSubject: 'Orari Messe',
+  emailContent: 'A che orari verra celebrata la messa dopodomani?',
+  knowledgeBase: 'Orari Basilica | Periodo estivo | Dal 29 giugno al 30 agosto\nOrari Messe | Messe feriali invernali | 7:25, 13:15, 19:00\nOrari Messe | Messe feriali estivi | 7:25, 19:00',
+  detectedLanguage: 'it',
+  currentDate: '2026-06-01',
+  currentSeason: 'estivo',
+  scheduleContext: {
+    season: 'invernale',
+    currentDate: '2026-06-01',
+    targetDate: '2026-06-03',
+    targetDateText: '3 giugno 2026',
+    isExplicitTarget: true,
+    targetSource: 'relative:dopodomani',
+    summerRangeText: 'Dal 29 giugno al 30 agosto',
+    source: 'knowledge_base'
+  },
+  promptProfile: 'lite'
+});
+
+assert(
+  schedulePrompt.includes('Data di riferimento per gli orari: 3 giugno 2026') &&
+    schedulePrompt.includes('Periodo applicabile: INVERNALE') &&
+    schedulePrompt.includes('Mostra SOLO orari del periodo applicabile alla data richiesta (invernale, 3 giugno 2026)'),
+  'il prompt deve far prevalere il periodo KB calcolato sulla data richiesta'
+);
+assert(
+  !schedulePrompt.includes('Siamo nel periodo ESTIVO'),
+  'il prompt non deve piu dichiarare assolutamente il periodo estivo dal mese corrente'
+);
+
 console.log('--- Test prompt: orario locale e guardrail anti saluto in continuità ---');
 const temporalGuardPrompt = engine.buildPrompt({
   emailSubject: 'Invio documenti',

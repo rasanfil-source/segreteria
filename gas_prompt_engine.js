@@ -113,6 +113,7 @@ var PromptEngine = class PromptEngine {
       currentDate = null,
       currentTime = null,
       messageDate = null,
+      scheduleContext = null,
       salutation = 'Buongiorno.',
       closing = 'Cordiali saluti,',
       subIntents = {},
@@ -132,6 +133,7 @@ var PromptEngine = class PromptEngine {
         ? Utilities.formatDate(new Date(), 'Europe/Rome', 'yyyy-MM-dd')
         : new Date().toISOString().slice(0, 10)
     );
+    const resolvedScheduleContext = this._normalizeScheduleContext_(scheduleContext, currentSeason, safeCurrentDate);
 
     // Compatibilità input: alcuni flussi legacy passano i concern come array di chiavi.
     const normalizedConcerns = Array.isArray(activeConcerns)
@@ -350,7 +352,7 @@ var PromptEngine = class PromptEngine {
     }
 
     // 10. CONTESTO STAGIONALE
-    addSection(this._renderSeasonalContext(currentSeason), 'SeasonalContext');
+    addSection(this._renderSeasonalContext(resolvedScheduleContext), 'SeasonalContext');
 
     // 11. CONSAPEVOLEZZA TEMPORALE
     const papalSourceText = [aiCoreLiteText, aiCoreText, workingKnowledgeBase, doctrineBaseText]
@@ -468,7 +470,7 @@ var PromptEngine = class PromptEngine {
     addTemplate('ExamplesTemplate', this._renderExamples(category), 'Examples', { isSystem: true });
 
     // 25. REGOLE FINALI
-    addSection(this._renderResponseGuidelines(detectedLanguage, currentSeason, salutation, closing, salutationMode), 'ResponseGuidelines', { isSystem: true });
+    addSection(this._renderResponseGuidelines(detectedLanguage, resolvedScheduleContext, salutation, closing, salutationMode), 'ResponseGuidelines', { isSystem: true });
 
     if (!normalizedTopic.includes('sbattezzo') && !isFormalRequest) {
       // 26. CASI SPECIALI
@@ -1054,10 +1056,44 @@ Devi dare la risposta SÌ/NO adesso, basandoti ESCLUSIVAMENTE sui dati qui sopra
   // TEMPLATE 10: CONTESTO STAGIONALE
   // ========================================================================
 
-  _renderSeasonalContext(currentSeason) {
+  _normalizeScheduleContext_(scheduleContext, currentSeason = 'invernale', currentDate = '') {
+    const context = (scheduleContext && typeof scheduleContext === 'object') ? scheduleContext : {};
+    const season = String(context.season || currentSeason || 'invernale').toLowerCase();
+    const targetDate = context.targetDate || currentDate || '';
+    return {
+      season: season,
+      currentDate: context.currentDate || currentDate || '',
+      targetDate: targetDate,
+      targetDateText: context.targetDateText || targetDate,
+      isExplicitTarget: context.isExplicitTarget === true,
+      targetSource: context.targetSource || 'current_date',
+      summerRangeText: context.summerRangeText || '',
+      summerStartDate: context.summerStartDate || '',
+      summerEndDate: context.summerEndDate || '',
+      source: context.source || 'legacy_currentSeason'
+    };
+  }
+
+  _renderSeasonalContext(scheduleContext) {
+    const context = (scheduleContext && typeof scheduleContext === 'object')
+      ? scheduleContext
+      : this._normalizeScheduleContext_(null, scheduleContext || 'invernale', '');
+    const season = String(context.season || 'invernale').toLowerCase();
+    const targetLabel = context.targetDateText || context.targetDate || 'data corrente';
+    const sourceLabel = context.source === 'knowledge_base'
+      ? 'Knowledge Base'
+      : (context.source === 'fallback_formula' ? 'formula tecnica annuale' : 'contesto runtime');
+    const summerLine = context.summerRangeText
+      ? `Periodo estivo di riferimento (${sourceLabel}): ${context.summerRangeText}.`
+      : `Periodo estivo di riferimento: non disponibile in KB; usa il contesto runtime.`;
+
     return `**ORARI STAGIONALI:**
-IMPORTANTE: Siamo nel periodo ${currentSeason.toUpperCase()}. Usa SOLO gli orari ${currentSeason}.
-Non mostrare mai entrambi i set di orari.`;
+IMPORTANTE: usa gli orari del periodo applicabile alla data richiesta, non dedurre il periodo dal solo mese solare.
+Data di riferimento per gli orari: ${targetLabel}.
+Periodo applicabile: ${season.toUpperCase()}.
+${summerLine}
+Usa SOLO gli orari ${season}. Non mostrare mai entrambi i set di orari.
+Se l'utente chiede quando inizia o finisce il periodo estivo, rispondi con il periodo di riferimento indicato dalla KB.`;
   }
 
   // ========================================================================
@@ -1465,7 +1501,13 @@ Segreteria Parrocchia Sant'Eugenio
   // TEMPLATE 22: LINEE GUIDA RISPOSTA
   // ========================================================================
 
-  _renderResponseGuidelines(lang, season, salutation, closing, salutationMode) {
+  _renderResponseGuidelines(lang, scheduleContext, salutation, closing, salutationMode) {
+    const season = (scheduleContext && typeof scheduleContext === 'object')
+      ? String(scheduleContext.season || 'invernale').toLowerCase()
+      : String(scheduleContext || 'invernale').toLowerCase();
+    const scheduleTarget = (scheduleContext && typeof scheduleContext === 'object')
+      ? (scheduleContext.targetDateText || scheduleContext.targetDate || '')
+      : '';
     let formatSection, contentSection, languageReminder;
     const isContinuity =
       salutationMode === 'session' ||
@@ -1669,7 +1711,7 @@ ${formatSection}
 
 ${contentSection}
 
-5. **Orari:** Mostra SOLO orari del periodo corrente (${season})
+5. **Orari:** Mostra SOLO orari del periodo applicabile alla data richiesta (${season}${scheduleTarget ? `, ${scheduleTarget}` : ''})
 
 ${languageReminder}`;
   }
