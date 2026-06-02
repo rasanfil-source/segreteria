@@ -649,12 +649,6 @@ var EmailProcessor = class EmailProcessor {
         : new Set();
       const metadataTerminalLabelIds = [];
       const metadataSkipLabelIds = new Set();
-      if (!(effectiveLabeledIds instanceof Set)) {
-        throw new TypeError('effectiveLabeledIds must be a Set');
-      }
-      if (!(metadataSkipLabelIds instanceof Set)) {
-        throw new TypeError('metadataSkipLabelIds must be a Set');
-      }
       if (this.gmailService && typeof this.gmailService._getOptionalLabelIdByName === 'function') {
         const terminalLabels = [
           { name: this.config.labelName, type: 'processed' },
@@ -2711,9 +2705,7 @@ ${addressLines.join('\n\n')}
       let messageLabelCachesPreloaded = false;
       const canPreloadMessageLabelCaches = this.gmailService && typeof this.gmailService.getMessageIdsWithLabel === 'function';
       const addIdsToSet = (targetSet, ids) => {
-        if (!(targetSet instanceof Set)) {
-          throw new TypeError('targetSet must be a Set');
-        }
+        if (!(targetSet instanceof Set)) return;
         if (ids instanceof Set) {
           ids.forEach((id) => targetSet.add(id));
           return;
