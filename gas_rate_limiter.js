@@ -1379,9 +1379,30 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   _mergeWindowData(existing, walData) {
     const toKey = (entry) => {
       const ts = entry && typeof entry.timestamp !== 'undefined' ? entry.timestamp : 'na';
-      const nonce = entry && typeof entry.nonce !== 'undefined' ? entry.nonce : 'na';
       const model = entry && entry.modelKey ? entry.modelKey : 'na';
-      return `${ts}|${nonce}|${model}`;
+      const hasNonce = entry && typeof entry.nonce !== 'undefined' && entry.nonce !== null && entry.nonce !== '';
+      const nonce = hasNonce ? entry.nonce : null;
+      if (hasNonce) {
+        return `nonce|${ts}|${nonce}|${model}`;
+      }
+
+      // Entry legacy o corrotte possono non avere nonce: usare solo timestamp+model
+      // collasserebbe richieste valide nello stesso millisecondo. Per queste entry
+      // deduplichiamo sul payload operativo, preservando eventi distinti per token
+      // o stato lifecycle senza perdere compatibilità con i vecchi salvataggi.
+      const legacyParts = [
+        'legacy',
+        ts,
+        model,
+        entry && typeof entry.tokens !== 'undefined' ? entry.tokens : 'na',
+        entry && entry.reserved === true ? 'reserved' : 'not_reserved',
+        entry && entry.completed === true ? 'completed' : 'not_completed',
+        entry && entry.released === true ? 'released' : 'not_released',
+        entry && typeof entry.completedAt !== 'undefined' ? entry.completedAt : 'na',
+        entry && typeof entry.releasedAt !== 'undefined' ? entry.releasedAt : 'na',
+        entry && typeof entry.duration !== 'undefined' ? entry.duration : 'na'
+      ];
+      return legacyParts.join('|');
     };
 
     const lifecycleRank = (entry) => {

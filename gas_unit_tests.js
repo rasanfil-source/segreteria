@@ -343,6 +343,20 @@ function runAllTests() {
             limiter._recoverFromWAL();
             return limiter.cache.rpmWindow.length > 0;
         });
+        test('Il merge preserva entry legacy senza nonce ma con payload distinti', results, () => {
+            const limiter = new GeminiRateLimiter();
+            const timestamp = Date.now();
+            const merged = limiter._mergeWindowData(
+                [{ timestamp, modelKey: 'flash', tokens: 10 }],
+                [
+                    { timestamp, modelKey: 'flash', tokens: 20 },
+                    { timestamp, modelKey: 'flash', tokens: 10 }
+                ]
+            );
+            return merged.length === 2 &&
+                merged.some(entry => entry.tokens === 10) &&
+                merged.some(entry => entry.tokens === 20);
+        });
         test('Google Search Grounding incrementa senza ReferenceError sul lock', results, () => {
             const limiter = new GeminiRateLimiter();
             limiter.props.deleteProperty('grounding_google_search_date');
@@ -399,6 +413,45 @@ function runAllTests() {
             } catch (e) {
                 return false;
             }
+        });
+        test('_updateProvidedInfoWithoutIncrement invalida cache dopo write senza incrementare messageCount', results, () => {
+            const localService = Object.create(MemoryService.prototype);
+            localService._initialized = true;
+            localService._cache = { 'memory_thread-reaction': { data: { stale: true }, timestamp: Date.now() } };
+            localService._getShardedLockKey = MemoryService.prototype._getShardedLockKey;
+            localService._getLockTuning_ = () => ({ maxRetries: 1, shardedAcquireTimeoutMs: 1 });
+            localService._tryAcquireShardedLock = () => true;
+            localService._releaseShardedLock = () => { };
+            localService._sleepLockBackoff_ = () => { };
+            localService._withSheetWriteLock = (fn) => fn();
+            localService._findRowByThreadId = () => ({
+                rowIndex: 2,
+                values: ['thread-reaction', 'it', '', '', JSON.stringify([{ topic: 'orari', detail: '9-12' }]), '2026-01-01T00:00:00.000Z', 7, 3, '']
+            });
+            localService._rowToObject = MemoryService.prototype._rowToObject;
+            localService._normalizeProvidedTopics = MemoryService.prototype._normalizeProvidedTopics;
+            localService._mergeProvidedTopics = MemoryService.prototype._mergeProvidedTopics;
+            localService._shrinkProvidedInfoToCaps = (topics) => topics;
+            localService._validateAndNormalizeTimestamp = MemoryService.prototype._validateAndNormalizeTimestamp;
+
+            let updatedData = null;
+            let invalidatedKey = null;
+            localService._updateRow = (_rowIndex, data) => { updatedData = data; };
+            localService._invalidateCache = (key) => { invalidatedKey = key; delete localService._cache[key]; };
+
+            localService._updateProvidedInfoWithoutIncrement('thread-reaction', [{
+                topic: 'orari',
+                detail: '9-12',
+                userReaction: 'positive'
+            }]);
+
+            return updatedData &&
+                updatedData.messageCount === 7 &&
+                updatedData.version === 4 &&
+                Array.isArray(updatedData.providedInfo) &&
+                updatedData.providedInfo[0].userReaction === 'positive' &&
+                invalidatedKey === 'memory_thread-reaction' &&
+                !localService._cache['memory_thread-reaction'];
         });
         test('_findRowByThreadId recupera righe con whitespace nel threadId', results, () => {
             const dirtyRow = [' test-thread-dirty ', 'it', 'info', '', '[]', '2026-05-28T10:00:00.000Z', 1, 2, ''];
