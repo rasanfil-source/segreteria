@@ -166,6 +166,46 @@ console.log('--- Test MemoryService updateMemory: retry OCC fonde providedInfo c
 }
 
 
+
+console.log('--- Test MemoryService updateMemory: invalida cache prima e dopo write ---');
+{
+  const originalLockService = global.LockService;
+  global.LockService = {
+    getScriptLock: () => ({
+      waitLock: () => {},
+      releaseLock: () => {}
+    })
+  };
+
+  try {
+    const events = [];
+    const memory = Object.create(MemoryService.prototype);
+    memory._initialized = true;
+    memory._getLockTuning_ = () => ({ maxRetries: 1, shardedAcquireTimeoutMs: 1 });
+    memory._getShardedLockKey = () => 'lock-thread-cache';
+    memory._tryAcquireShardedLock = () => true;
+    memory._releaseShardedLock = () => {};
+    memory._sleepLockBackoff_ = () => {};
+    memory._validateAndNormalizeTimestamp = (value) => value;
+    memory._invalidateCache = (key) => events.push(`invalidate:${key}`);
+    memory._withSheetWriteLock = (fn) => fn();
+    memory._findRowByThreadId = () => ({
+      rowIndex: 2,
+      values: ['thread-cache', 'it', '', '', '[]', '2026-05-01T00:00:00.000Z', 0, 1, '']
+    });
+    memory._updateRow = () => events.push('write');
+
+    memory.updateMemory('thread-cache', { language: 'en' });
+
+    assert(events[0] === 'invalidate:memory_thread-cache', 'cache deve essere invalidata prima della write su sheet');
+    assert(events[1] === 'write', 'write deve avvenire dopo invalidazione preventiva');
+    assert(events[2] === 'invalidate:memory_thread-cache', 'cache deve essere invalidata anche dopo write riuscita');
+  } finally {
+    global.LockService = originalLockService;
+  }
+}
+
+
 console.log('--- Test MemoryService providedInfo caps: usa config e non svuota topic singolo enorme ---');
 {
   const originalConfig = global.CONFIG;

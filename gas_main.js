@@ -1781,6 +1781,7 @@ function main() {
   const batchLockKey = _getExecutionBatchLockKey_();
   let hasExecutionLock = false;
   let hasBatchLock = false;
+  let batchLockOwner = null;
   const releaseExecutionLock = () => {
     if (hasExecutionLock && executionLock) {
       try {
@@ -1813,6 +1814,7 @@ function main() {
       }
       // TTL allineato al budget esecuzione (280 s) + margine sicurezza
       scriptCache.put(batchLockKey, lockOwner, 300);
+      batchLockOwner = lockOwner;
       hasBatchLock = true;
     }
 
@@ -1896,9 +1898,14 @@ function main() {
     }
   } finally {
     if (scriptCache && hasBatchLock) {
-      try { 
-        scriptCache.remove(batchLockKey); 
-        console.log(`✓ Batch lock rimosso (${batchLockKey})`);
+      try {
+        const currentOwner = scriptCache.get(batchLockKey);
+        if (currentOwner && currentOwner === batchLockOwner) {
+          scriptCache.remove(batchLockKey);
+          console.log(`✓ Batch lock rimosso (${batchLockKey})`);
+        } else {
+          console.warn(`⚠️ Batch lock non rimosso (${batchLockKey}): ownership cambiata o lock scaduto.`);
+        }
       } catch (_) { }
     }
     releaseExecutionLock();
@@ -2024,9 +2031,25 @@ function _acquireCheckpointResumeLock_(runId) {
       : null;
     if (!cache) return true;
     const key = `checkpoint_resume_lock_${String(runId || 'unknown')}`;
-    if (cache.get(key)) return false;
-    cache.put(key, '1', 120);
-    return true;
+    const lock = (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function')
+      ? LockService.getScriptLock()
+      : null;
+    let lockAcquired = false;
+    try {
+      if (lock && typeof lock.tryLock === 'function') {
+        lockAcquired = lock.tryLock(2000);
+        if (!lockAcquired) return false;
+      }
+      if (cache.get(key)) return false;
+      cache.put(key, '1', 120);
+      return true;
+    } finally {
+      if (lockAcquired && lock && typeof lock.releaseLock === 'function') {
+        try {
+          lock.releaseLock();
+        } catch (_) { }
+      }
+    }
   } catch (_) {
     return true;
   }

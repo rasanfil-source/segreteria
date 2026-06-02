@@ -319,6 +319,39 @@ console.log('--- Test executeRequest: ritenta testo vuoto transitorio sullo stes
 }
 
 
+
+console.log('--- Test reservation lifecycle: release/finalize idempotenti e monotoni ---');
+{
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  limiter.cache = {
+    rpmWindow: [{ timestamp: 1, nonce: 'res-ok', modelKey: 'flash', reserved: true, completed: false }],
+    tpmWindow: [{ timestamp: 1, nonce: 'res-ok', modelKey: 'flash', tokens: 10, reserved: true, completed: false }]
+  };
+  limiter._refreshCache = () => {};
+  limiter._persistCache = () => {};
+  limiter._withRateLimitLock_ = (fn) => ({ ok: true, result: fn() });
+
+  limiter._finalizeReservation('flash', 'res-ok', 123);
+  limiter._releaseReservation('flash', 'res-ok');
+
+  assert(limiter.cache.rpmWindow[0].completed === true, 'reservation finalizzata deve restare completed');
+  assert(limiter.cache.rpmWindow[0].released !== true, 'release tardivo non deve escludere una richiesta completata dalla finestra RPM');
+  assert(limiter.cache.tpmWindow[0].released !== true, 'release tardivo non deve escludere una richiesta completata dalla finestra TPM');
+
+  limiter.cache = {
+    rpmWindow: [{ timestamp: 2, nonce: 'res-cancel', modelKey: 'flash', reserved: true, completed: false }],
+    tpmWindow: [{ timestamp: 2, nonce: 'res-cancel', modelKey: 'flash', tokens: 10, reserved: true, completed: false }]
+  };
+
+  limiter._releaseReservation('flash', 'res-cancel');
+  limiter._finalizeReservation('flash', 'res-cancel', 456);
+
+  assert(limiter.cache.rpmWindow[0].released === true, 'reservation rilasciata deve restare released');
+  assert(limiter.cache.rpmWindow[0].completed !== true, 'finalize tardivo non deve riattivare reservation rilasciata');
+  assert(limiter.cache.tpmWindow[0].completed !== true, 'finalize tardivo non deve riattivare token reservation rilasciata');
+}
+
+
 console.log('--- Test sorgente rate limiter: nessun mojibake nei log operativi ---');
 {
   const mojibakePattern = /(?:Ã.|â.|ð.|ï.)/;

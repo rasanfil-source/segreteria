@@ -312,6 +312,7 @@ var MemoryService = class MemoryService {
             );
           }
 
+          this._invalidateCache(`memory_${normalizedThreadId}`);
           this._withSheetWriteLock(() => {
             this._updateRow(existingRow.rowIndex, mergedData);
           }, true);
@@ -324,6 +325,7 @@ var MemoryService = class MemoryService {
           insertData.messageCount = shouldIncrementMessageCount ? 1 : 0;
           insertData.version = 1;
 
+          this._invalidateCache(`memory_${normalizedThreadId}`);
           this._withSheetWriteLock(() => {
             this._appendRow(insertData);
           }, true);
@@ -529,6 +531,7 @@ var MemoryService = class MemoryService {
               );
             }
 
+            this._invalidateCache(`memory_${normalizedThreadId}`);
             this._withSheetWriteLock(() => {
               this._updateRow(existingRow.rowIndex, mergedData);
             }, true);
@@ -545,6 +548,7 @@ var MemoryService = class MemoryService {
             insertData.providedInfo = this._normalizeProvidedTopics(providedTopics);
           }
 
+          this._invalidateCache(`memory_${normalizedThreadId}`);
           this._withSheetWriteLock(() => {
             this._appendRow(insertData);
           }, true);

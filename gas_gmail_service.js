@@ -172,7 +172,11 @@ var GmailService = class GmailService {
             }
         } finally {
             if (lockAcquired && lock && typeof lock.releaseLock === 'function') {
-                lock.releaseLock();
+                try {
+                    lock.releaseLock();
+                } catch (e) {
+                    console.warn(`⚠️ flushGmailCallCounter releaseLock fallito: ${e.message}`);
+                }
             }
         }
     }
@@ -348,7 +352,11 @@ var GmailService = class GmailService {
                 const label = this.getOrCreateLabel(labelName);
                 thread.removeLabel(label);
                 console.log(`✓ Rimossa label '${labelName}' dal thread (retry dopo cache reset)`);
+                return;
             }
+
+            // Non nascondere errori non correlati alla cache etichette (permessi, quota, thread invalido...)
+            throw e;
         }
     }
 

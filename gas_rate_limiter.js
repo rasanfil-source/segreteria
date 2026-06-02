@@ -1640,17 +1640,28 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
   _finalizeReservation(modelKey, reservationId, duration) {
     this._mutateReservation(modelKey, reservationId, function (entry) {
+      // Una reservation già rilasciata rappresenta una chiamata non eseguita:
+      // un finalize tardivo/doppio non deve reintrodurla nelle finestre minuto.
+      if (entry.released === true) return true;
+      if (entry.completed !== true) {
+        entry.completedAt = Date.now();
+      }
       entry.completed = true;
-      entry.completedAt = Date.now();
-      entry.duration = duration || 0;
+      entry.duration = duration || entry.duration || 0;
       return true;
     });
   }
 
   _releaseReservation(modelKey, reservationId) {
     this._mutateReservation(modelKey, reservationId, function (entry) {
+      // Idempotenza: se la chiamata è già stata contabilizzata come completata,
+      // un release successivo (es. errore post-finalize nei contatori) non deve
+      // trasformare una richiesta reale in una reservation esclusa dai limiti RPM/TPM.
+      if (entry.completed === true) return true;
+      if (entry.released !== true) {
+        entry.releasedAt = Date.now();
+      }
       entry.released = true;
-      entry.releasedAt = Date.now();
       return true;
     });
   }
