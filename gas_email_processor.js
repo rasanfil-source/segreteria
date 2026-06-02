@@ -3250,7 +3250,7 @@ ${addressLines.join('\n\n')}
       .filter(Boolean);
 
     const atIndex = email.lastIndexOf('@');
-    const localPart = atIndex >= 0 ? email.substring(0, atIndex) : email;
+    const localPart = atIndex >= 0 ? email.substring(0, atIndex) : '';
     const senderDomain = atIndex >= 0 ? email.substring(atIndex + 1) : '';
 
     if (ignoreDomains.some(domain => {

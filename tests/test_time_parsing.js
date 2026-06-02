@@ -126,6 +126,16 @@ console.log('--- Test isInSuspensionTime rispetta minuti nelle fasce ---');
   global.GLOBAL_CACHE.vacationPeriods = originalVacationPeriods;
 }
 
+console.log('--- Test _parseDateValue: rifiuta fallback Date.parse ambiguo ---');
+{
+  assertEqual(_parseDateValue('2026/05/15'), null, 'formato non esplicitamente supportato deve essere rifiutato');
+  assertEqual(_parseDateValue('May 15 2026'), null, 'Date.parse testuale engine-dependent deve essere rifiutato');
+  const parsedItalian = _parseDateValue('15/05/2026');
+  assertEqual(parsedItalian && parsedItalian.getFullYear(), 2026, 'formato italiano deve restare supportato');
+  assertEqual(parsedItalian && parsedItalian.getMonth(), 4, 'formato italiano deve leggere correttamente il mese');
+  assertEqual(parsedItalian && parsedItalian.getDate(), 15, 'formato italiano deve leggere correttamente il giorno');
+}
+
 console.log('--- Test business date parts centralizzati su Europe/Rome ---');
 {
   const originalUtilities = global.Utilities;

@@ -303,7 +303,12 @@ var GeminiService = class GeminiService {
     }
 
     // Estrazione contenuto robusta
-    const parts = candidate.content?.parts || [];
+    const parts = candidate.content?.parts;
+    if (!Array.isArray(parts) || parts.length === 0) {
+      const emptyPartsErr = new Error('Gemini ha restituito parti vuote o assenti');
+      emptyPartsErr.isTransient = true;
+      throw emptyPartsErr;
+    }
     const generatedText = parts.map(p => p.text || '').join('').trim();
 
     if (!generatedText) {

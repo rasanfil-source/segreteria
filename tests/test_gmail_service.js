@@ -295,6 +295,33 @@ console.log('--- Test _discoverByQuery: staleOnlyMs esclude thread solo recenti 
   }
 }
 
+console.log('--- Test _discoverByQuery: registra thread scartati senza unread ---');
+{
+  const originalGmailApp = global.GmailApp;
+  const noUnreadThread = {
+    getId: () => 't-no-unread',
+    getMessages: () => [{
+      isUnread: () => false,
+      getId: () => 'm-read',
+      getDate: () => new Date('2026-05-11T08:00:00Z')
+    }]
+  };
+
+  global.GmailApp = {
+    refreshThread: () => {},
+    search: () => [noUnreadThread]
+  };
+
+  try {
+    const serviceQuery = new GmailService();
+    const result = serviceQuery._discoverByQuery('IA', 'Errore', 'Verifica', 10, 10, 1, [], { disableMetadataFallback: true });
+    assert(result.threads.length === 0, 'thread senza unread eleggibili non deve essere elaborato');
+    assert(result.threadIds.has('t-no-unread'), 'thread scartato deve essere registrato tra i visti');
+  } finally {
+    global.GmailApp = originalGmailApp;
+  }
+}
+
 console.log('--- Test _discoverByQuery: fallback metadata su cache unread incoerente ---');
 {
   const originalGmailApp = global.GmailApp;

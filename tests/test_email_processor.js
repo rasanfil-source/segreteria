@@ -232,6 +232,15 @@ assert(
   'deve ignorare email con keyword blacklist'
 );
 
+
+console.log('--- Test _shouldIgnoreEmail (sender senza @ non diventa bot username) ---');
+{
+  assert(
+    processor._shouldIgnoreEmail({ senderEmail: 'newsletter', subject: 'Info', body: 'Ciao' }) === false,
+    'mittente non email senza @ non deve essere confrontato come local-part bot'
+  );
+}
+
 console.log('--- Test _shouldIgnoreEmail (email valida) ---');
 assert(
   processor._shouldIgnoreEmail({

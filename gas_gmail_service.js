@@ -971,6 +971,7 @@ var GmailService = class GmailService {
                     // Registriamo il primo messaggio non letto come riferimento
                     seenMessageIds.add(unreadMessages[0].getId());
                 } else {
+                    seenThreadIds.add(threadId);
                     skippedNoUnread++;
                 }
 

@@ -168,6 +168,31 @@ console.log('--- Test _generateWithModel: testo vuoto marca isTransient ---');
   }
 }
 
+
+console.log('--- Test _generateWithModel: parts assenti marca isTransient ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = null;
+  service.config = { MAX_OUTPUT_TOKENS: 128 };
+  service._buildGenerateUrl = () => 'https://example.test/generate';
+  service._normalizePromptPayload_ = (prompt) => ({ userPrompt: String(prompt), systemInstruction: '' });
+  service.fetchFn = () => ({
+    getResponseCode: () => 200,
+    getContentText: () => JSON.stringify({
+      candidates: [{ content: {} }]
+    })
+  });
+
+  try {
+    service._generateWithModel('ciao', 'gemini-test');
+    assert(false, 'parts assenti devono lanciare errore');
+  } catch (error) {
+    assert(error.message.includes('parti vuote o assenti'), 'errore deve descrivere parts assenti');
+    assert(error.isTransient === true, 'errore parts assenti deve essere marcato isTransient');
+  }
+}
+
 console.log('--- Test _generateWithModel: 5xx marca errore transitorio ---');
 {
   const service = Object.create(GeminiService.prototype);

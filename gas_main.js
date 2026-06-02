@@ -2307,10 +2307,6 @@ function _parseDateValue(value) {
     return null;
   }
 
-  const fallback = new Date(trimmed);
-  if (!isNaN(fallback.getTime())) {
-    return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
-  }
 
   return null;
 }
