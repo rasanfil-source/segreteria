@@ -318,6 +318,51 @@ console.log('--- Test executeRequest: ritenta testo vuoto transitorio sullo stes
   }
 }
 
+console.log('--- Test executeRequest bypass: traccia forceModel invece del nome fisico ---');
+{
+  const originalLockService = global.LockService;
+  const propsData = new Map();
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  limiter.models = {
+    'flash-3.5-backup': { name: 'gemini-3.5-flash', rpm: 2000, tpm: 2000000, rpd: 3500 },
+    'flash-lite': { name: 'gemini-3.1-flash-lite', rpm: 2000, tpm: 2000000, rpd: 3500 }
+  };
+  limiter.props = {
+    getProperty: (key) => propsData.has(key) ? propsData.get(key) : null,
+    setProperty: (key, value) => propsData.set(key, String(value))
+  };
+  limiter._getPacificDate = () => '2026-05-12';
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => true,
+      releaseLock: () => {}
+    })
+  };
+
+  try {
+    const result = limiter.executeRequest(
+      'generation',
+      (modelName) => {
+        assert(modelName === 'gemini-3.5-flash', 'il bypass deve chiamare il nome modello fisico richiesto');
+        return 'ok';
+      },
+      {
+        skipRateLimit: true,
+        forceModel: 'flash-3.5-backup',
+        modelNameOverride: 'gemini-3.5-flash',
+        estimatedTokens: 42
+      }
+    );
+
+    assert(result.success === true && result.modelUsed === 'gemini-3.5-flash', 'il bypass deve completare la richiesta col modello fisico');
+    assert(propsData.get('rpd_flash-3.5-backup') === '1', 'il bypass deve tracciare RPD sul model key forzato');
+    assert(propsData.get('tokens_flash-3.5-backup') === '42', 'il bypass deve tracciare token sul model key forzato');
+    assert(!propsData.has('rpd_flash-lite'), 'il bypass non deve cadere su un modello risolto dal solo nome fisico');
+  } finally {
+    global.LockService = originalLockService;
+  }
+}
+
 
 
 console.log('--- Test reservation lifecycle: release/finalize idempotenti e monotoni ---');

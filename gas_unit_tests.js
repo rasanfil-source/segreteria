@@ -711,8 +711,7 @@ function runAllTests() {
             };
             const processor = new EmailProcessor({
                 gmailService: {
-                    // La cache vuota è trattata come assente: forniamo fallback neutro
-                    getMessageIdsWithLabel: () => [],
+                    getMessageIdsWithLabel: () => new Set(),
                     extractMessageDetails: (m) => ({
                         senderEmail: 'user@external.com',
                         senderName: 'Utente',

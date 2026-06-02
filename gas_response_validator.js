@@ -1180,7 +1180,7 @@ var ResponseValidator = class ResponseValidator {
     } else if (papalContext.previousName) {
       const escapedPrev = String(papalContext.previousName)
         .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const prevRx = new RegExp('\\b' + escapedPrev + '\\b', 'i');
+      const prevRx = new RegExp('(?:^|[^\\p{L}\\p{N}_])' + escapedPrev + '(?=$|[^\\p{L}\\p{N}_])', 'iu');
       if (prevRx.test(text) && !prevRx.test(sourceText)) {
         warnings.push(`Citazione di ${papalContext.previousName} non presente nelle fonti della risposta.`);
         score *= 0.85;
@@ -1254,7 +1254,7 @@ var ResponseValidator = class ResponseValidator {
     };
 
     const verbs = '(?:invita|ricorda|esorta|chiede|incoraggia|sollecita|insegna|sottolinea|richiama)';
-    const popeNamePattern = "[A-ZÀ-ÖØ-Ý][\\wÀ-ÖØ-öø-ÿ'’.-]*(?:\\s+[A-Z0-9IVXLCDMÀ-ÖØ-Ý][\\wÀ-ÖØ-öø-ÿ'’.-]*){0,4}";
+    const popeNamePattern = "[A-ZÀ-ÖØ-Ý][A-Za-z0-9À-ÖØ-öø-ÿ'’.-]*(?:\\s+[A-Z0-9IVXLCDMÀ-ÖØ-Ý][A-Za-z0-9À-ÖØ-öø-ÿ'’.-]*){0,4}";
     const titleThenVerb = new RegExp(
       '\\b(?:Papa|Pontefice|Santo\\s+Padre)\\s+(' + popeNamePattern + ')\\s+(?:ci\\s+)?' + verbs + '\\b',
       'g'

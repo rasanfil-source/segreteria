@@ -5790,6 +5790,11 @@ function computeResponseDelay({ messageDate, now = new Date(), thresholdHours = 
   };
 }
 
+// Compatibilità: rende la funzione disponibile anche in runtime che usano moduli/isolamento
+if (typeof globalThis !== 'undefined' && typeof globalThis.computeResponseDelay !== 'function') {
+  globalThis.computeResponseDelay = computeResponseDelay;
+}
+
 // ====================================================================
 // ENTRY POINT PRINCIPALE
 // ====================================================================

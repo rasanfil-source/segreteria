@@ -579,7 +579,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         const backupModelName = options.modelNameOverride || 'gemini-3.5-flash';
         const result = this._safeExecuteRequestFn_(requestFn, backupModelName);
         const duration = Date.now() - startTime;
-        const resolvedModelKey = this._resolveModelKey_(options.modelKeyOverride || backupModelName);
+        const resolvedModelKey = this._resolveModelKey_(options.forceModel || options.modelKeyOverride || backupModelName);
         let counters = { rpd: 0, tokens: 0 };
         if (resolvedModelKey) {
           counters = this._incrementCountersAtomic(resolvedModelKey, options.estimatedTokens || 0);

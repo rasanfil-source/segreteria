@@ -981,7 +981,7 @@ Output JSON:
 
     const ptUniqueScore = countMatches(portugueseUniqueKeywords, text, 2);
     const ptStandardScoreRaw = countMatches(portugueseStandardKeywords, text, 1);
-    const portugueseStrongMarkers = /(?:^|[^\p{L}\p{N}_])(não|voc[êe]s?|estou|obrigad[oa]|orçamento|viatura|portagens|agradecemos|cumprimentos|paróquia|igreja|atenciosamente)(?=$|[^\p{L}\p{N}_])/iu;
+    const portugueseStrongMarkers = /(?:^|[^\p{L}\p{N}_])(n[ãa]o|voc[êe]s?|estou|obrigad[oa]|or[cç]amento|viatura|portagens|agradecemos|cumprimentos|par[oó]quia|igreja|atenciosamente)(?=$|[^\p{L}\p{N}_])/iu;
     const hasPortugueseStrongSignal =
       ptUniqueScore >= 2 ||
       portugueseCharScore >= 2 ||

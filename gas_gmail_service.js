@@ -3574,7 +3574,7 @@ var GmailService = class GmailService {
             } else if (currentLine === headerPrefix) {
                 // Piega immediatamente dopo il nome del campo quando si trova la prima parola codificata
                 // supererebbe la lunghezza della prima riga consigliata RFC 2822.
-                foldedLines.push(headerPrefix.trimEnd());
+                foldedLines.push(headerPrefix);
                 currentLine = ' ' + word; // Continuation line
             } else {
                 foldedLines.push(currentLine);

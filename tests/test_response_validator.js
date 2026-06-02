@@ -361,6 +361,41 @@ console.log('--- Test riferimenti papali: warning usa previousName dinamico da C
   }
 }
 
+console.log('--- Test riferimenti papali: previousName accentato usa confini Unicode ---');
+{
+  const originalConfig = global.CONFIG;
+  global.CONFIG = Object.assign({}, originalConfig, {
+    PAPAL_CONTEXT: {
+      currentName: 'Papa Pio XIII',
+      previousName: 'Papa André',
+      currentSince: '2025-01-01'
+    }
+  });
+
+  try {
+    const accentedPreviousResult = validator._checkCurrentPopeReferences(
+      'Il testo cita Papa André senza fonte esplicita.',
+      'Caritas: raccolta indumenti per persone senza fissa dimora.',
+      '',
+      { currentDate: '2026-05-29' }
+    );
+    assert(accentedPreviousResult.score < 1.0, 'un previousName con finale accentata deve essere riconosciuto senza \\b ASCII');
+  } finally {
+    global.CONFIG = originalConfig;
+  }
+}
+
+console.log('--- Test riferimenti papali: underscore non crea falso nome papale ---');
+{
+  const underscoredCurrent = validator._checkCurrentPopeReferences(
+    'Leone_XIV è Papa nel testo tecnico ricevuto.',
+    'Informazioni di contesto | Papa regnante | Leone XIV',
+    '',
+    { currentDate: '2026-05-29' }
+  );
+  assert(underscoredCurrent.score === 1.0, 'sequenze con underscore non devono essere catturate come nomi papali naturali');
+}
+
 console.log('--- Test temporal consistency: data futura non può essere presentata come passata ---');
 const temporalPastFutureResult = validator._checkTemporalConsistency(
   'La celebrazione della Cresima si è tenuta il 24 maggio 2026 alle ore 17:30.',
