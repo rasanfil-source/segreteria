@@ -1217,7 +1217,7 @@ Testo:
         } else if (hour >= 13 && hour < 19) {
           greeting = 'Buenas tardes,';
         } else {
-          greeting = 'Buenas tardes,';
+          greeting = 'Buenas noches,';
         }
       } else if (language === 'pt') {
         if (isNightTime) {

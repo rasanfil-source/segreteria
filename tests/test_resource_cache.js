@@ -111,4 +111,42 @@ console.log('--- Test resource cache: payload multibyte non viene scritto inline
   assert(_readResourceCachePayload(cache) === multibytePayload, 'multipart multibyte deve ricostruire il payload originale');
 }
 
+console.log('--- Test loadResources: tryLock usa EXECUTION_LOCK_WAIT_MS configurato ---');
+{
+  const previousLockService = global.LockService;
+  const previousConfig = global.CONFIG;
+  const originalGetSpreadsheetModifiedTimeMs = _getSpreadsheetModifiedTimeMs;
+  const originalLoadResourcesInternal = _loadResourcesInternal;
+  let observedWaitMs = null;
+
+  global.CONFIG = { EXECUTION_LOCK_WAIT_MS: 1234, SPREADSHEET_ID: 'sheet-test' };
+  GLOBAL_CACHE.loaded = true;
+  GLOBAL_CACHE.lastLoadedAt = 1000;
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: (waitMs) => {
+        observedWaitMs = waitMs;
+        return false;
+      },
+      releaseLock: () => {}
+    })
+  };
+  _getSpreadsheetModifiedTimeMs = () => 2000;
+  _loadResourcesInternal = () => {
+    assert(false, 'loadResources non deve ricaricare se il lock non viene acquisito');
+  };
+
+  try {
+    loadResources(true, false);
+    assert(observedWaitMs === 1234, 'loadResources deve passare al lock il timeout configurato');
+  } finally {
+    global.LockService = previousLockService;
+    global.CONFIG = previousConfig;
+    _getSpreadsheetModifiedTimeMs = originalGetSpreadsheetModifiedTimeMs;
+    _loadResourcesInternal = originalLoadResourcesInternal;
+    GLOBAL_CACHE.loaded = false;
+    GLOBAL_CACHE.lastLoadedAt = 0;
+  }
+}
+
 console.log('✅ Test resource cache passati');

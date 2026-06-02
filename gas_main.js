@@ -572,7 +572,10 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
 
   try {
     if (acquireLock) {
-      lockAcquired = lock.tryLock(10000);
+      const lockWaitMs = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.EXECUTION_LOCK_WAIT_MS)))
+        ? Number(CONFIG.EXECUTION_LOCK_WAIT_MS)
+        : 10000;
+      lockAcquired = lock.tryLock(lockWaitMs);
       if (!lockAcquired) {
         if (!GLOBAL_CACHE.loaded) {
           throw new Error('Impossibile acquisire lock per caricamento risorse.');

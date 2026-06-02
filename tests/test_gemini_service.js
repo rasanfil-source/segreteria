@@ -113,6 +113,28 @@ console.log('--- Test getAdaptiveGreeting: non espone placeholder tecnici come n
   }
 }
 
+console.log('--- Test getAdaptiveGreeting: sera spagnola usa Buenas noches ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service._getSpecialDayGreeting = () => null;
+  const previousUtilities = global.Utilities;
+  global.Utilities = {
+    formatDate: (_date, _tz, pattern) => {
+      if (pattern === 'H') return '20';
+      if (pattern === 'm') return '0';
+      if (pattern === 'u') return '1';
+      return '';
+    }
+  };
+
+  try {
+    const adaptive = service.getAdaptiveGreeting('Carlos', 'es');
+    assert(adaptive.greeting === 'Buenas noches,', 'il saluto spagnolo serale deve essere Buenas noches');
+  } finally {
+    global.Utilities = previousUtilities;
+  }
+}
+
 console.log('--- Test getAdaptiveGreeting: lingua non preconfigurata non forza chiusura italiana ---');
 {
   const service = Object.create(GeminiService.prototype);
