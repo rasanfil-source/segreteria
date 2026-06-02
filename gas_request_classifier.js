@@ -212,9 +212,20 @@ var RequestTypeClassifier = class RequestTypeClassifier {
       // Boost dimensionale basato su Gemini (alternativa a categoria)
       const categoryMap = {
         'technical': 'technical',
+        'information': 'technical',
         'appointment': 'technical',
+        'quotation': 'technical',
+        'certificates': 'technical',
+        'certificate': 'technical',
+        'document_submission': 'technical',
+        'document_submission_with_question': 'technical',
+        'sacrament': 'pastoral',
+        'baptism': 'pastoral',
+        'marriage': 'pastoral',
+        'funeral': 'pastoral',
         'pastoral': 'pastoral',
         'doctrinal': 'doctrinal',
+        'doctrine': 'doctrinal',
         'formal': 'formal',
         'sbattezzo': 'formal'
       };

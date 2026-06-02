@@ -2349,7 +2349,9 @@ ${addressLines.join('\n\n')}
 
         const configuredWarningThreshold = Number(this.config.validationWarningThreshold);
         const warningThreshold = Number.isFinite(configuredWarningThreshold)
-          ? Math.max(0, Math.min(1, configuredWarningThreshold))
+          ? ((typeof normalizeValidationScore === 'function')
+            ? normalizeValidationScore(configuredWarningThreshold)
+            : Math.max(0, Math.min(1, configuredWarningThreshold > 1 ? configuredWarningThreshold / 100 : configuredWarningThreshold)))
           : 0.90;
         shouldLabelForReview =
           validation.warnings && validation.warnings.length > 0 && validation.score < warningThreshold;
@@ -4421,9 +4423,12 @@ ${addressLines.join('\n\n')}
     const hasAllowed = allowed.some(key => flags[key]);
     if (!hasAllowed) return false;
 
-    const minScore = (typeof cfg.minScoreToTrigger === 'number')
+    const configuredMinScore = (typeof cfg.minScoreToTrigger === 'number')
       ? cfg.minScoreToTrigger
       : ((typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_MIN_SCORE === 'number') ? CONFIG.VALIDATION_MIN_SCORE : 0.6);
+    const minScore = (typeof normalizeValidationScore === 'function')
+      ? normalizeValidationScore(configuredMinScore)
+      : Math.max(0, Math.min(1, configuredMinScore > 1 ? configuredMinScore / 100 : configuredMinScore));
 
     const critical = flags.thinking_leak || flags.hallucination || flags.temporal;
     

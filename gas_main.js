@@ -1762,6 +1762,10 @@ function processEmailsMain() {
 function main() {
   console.log('🚀 Avvio pipeline principale');
 
+  if (typeof validateConfigOrThrow === 'function') {
+    validateConfigOrThrow();
+  }
+
   // Jitter: previene collisioni esatte al millisecondo in caso di trigger sovrapposti
   Utilities.sleep(Math.floor(Math.random() * 1000));
 

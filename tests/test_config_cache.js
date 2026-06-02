@@ -133,6 +133,26 @@ assert(
 );
 CONFIG.MAX_EMAILS_PER_RUN = originalMaxEmailsPerRun;
 
+const originalValidationMinScore = CONFIG.VALIDATION_MIN_SCORE;
+const originalValidationWarningThreshold = CONFIG.VALIDATION_WARNING_THRESHOLD;
+CONFIG.VALIDATION_MIN_SCORE = 60;
+CONFIG.VALIDATION_WARNING_THRESHOLD = 90;
+assert(validateConfig().valid === true, 'score di validazione percentuali 60/90 devono essere accettati dalla config');
+assert(validateConfigOrThrow().valid === true, 'validateConfigOrThrow deve restituire il risultato valido');
+CONFIG.VALIDATION_MIN_SCORE = 101;
+let thrownConfigError = null;
+console.error = () => {};
+try {
+  validateConfigOrThrow();
+} catch (error) {
+  thrownConfigError = error;
+} finally {
+  console.error = originalConsoleError;
+}
+assert(thrownConfigError && String(thrownConfigError.message || '').includes('Configurazione non valida'), 'validateConfigOrThrow deve fallire su score fuori range');
+CONFIG.VALIDATION_MIN_SCORE = originalValidationMinScore;
+CONFIG.VALIDATION_WARNING_THRESHOLD = originalValidationWarningThreshold;
+
 const originalMaxSafeTokens = CONFIG.MAX_SAFE_TOKENS;
 CONFIG.MAX_SAFE_TOKENS = NaN;
 let nanRangeValidation;

@@ -11,6 +11,19 @@
  * ✅ Verifica integrità dati (email, telefoni, orari)
  * ✅ Rilevamento leak di processo (thinking leak)
  */
+
+/**
+ * Normalizza qualsiasi score di validazione sul dominio canonico 0.0-1.0.
+ * Accetta per compatibilità sia valori normalizzati (0.6) sia percentuali (60).
+ */
+function normalizeValidationScore(score) {
+  if (score === null || typeof score === 'undefined') return 0;
+  const n = Number(score);
+  if (!Number.isFinite(n)) return 0;
+  const normalized = n > 1 ? n / 100 : n;
+  return Math.max(0, Math.min(1, normalized));
+}
+
 const ITALIAN_FORBIDDEN_CAPS = [
   'Siamo', 'Restiamo', 'Sono', 'È', 'Era', 'Sarà',
   'Ho', 'Hai', 'Ha', 'Abbiamo', 'Avete', 'Hanno',
@@ -28,9 +41,10 @@ var ResponseValidator = class ResponseValidator {
 
     // Ottieni config - fallback a default se CONFIG non definito
     // Soglia minima accettabile
-    this.MIN_VALID_SCORE = typeof CONFIG !== 'undefined' && CONFIG
+    const configuredMinScore = typeof CONFIG !== 'undefined' && CONFIG
       ? (CONFIG.VALIDATION_MIN_SCORE ?? 0.6)
       : 0.6;
+    this.MIN_VALID_SCORE = normalizeValidationScore(configuredMinScore || 0.6);
 
     // Soglie lunghezza
     this.MIN_LENGTH_CHARS = 25;
@@ -402,10 +416,11 @@ var ResponseValidator = class ResponseValidator {
     details.currentPopeReference = papalResult;
     score *= papalResult.score;
 
-    // Determina validità
-    const isValid = errors.length === 0 && score >= this.MIN_VALID_SCORE;
+    // Determina validità usando sempre lo score canonico 0.0-1.0.
+    const normalizedScore = normalizeValidationScore(score);
+    const isValid = errors.length === 0 && normalizedScore >= this.MIN_VALID_SCORE;
 
-    return { isValid, score, errors, warnings, details };
+    return { isValid, score: normalizedScore, errors, warnings, details };
   }
 
   // ========================================================================
@@ -1713,7 +1728,7 @@ var SemanticValidator = class SemanticValidator {
       : {};
 
     this.enabled = semanticConfig.enabled === true;
-    this.activationThreshold = semanticConfig.activationThreshold ?? 0.9;
+    this.activationThreshold = normalizeValidationScore(semanticConfig.activationThreshold ?? 0.9);
     this.cacheEnabled = semanticConfig.cacheEnabled !== false;
     this.cacheTTL = semanticConfig.cacheTTL ?? 300;
     this.taskType = semanticConfig.taskType || 'semantic';
@@ -1734,7 +1749,7 @@ var SemanticValidator = class SemanticValidator {
   }
 
   shouldRun(validationScore) {
-    return this.enabled && validationScore < this.activationThreshold;
+    return this.enabled && normalizeValidationScore(validationScore) < this.activationThreshold;
   }
 
   /**
@@ -1989,11 +2004,11 @@ Rispondi SOLO con questo JSON (senza markdown):
       ? payload.isValid
       : !(hasThinkingLeak || hasHallucinations);
     const rawConfidence = Number(payload.confidence);
-    const confidence = Number.isFinite(rawConfidence) ? rawConfidence : 0.5;
+    const confidence = Number.isFinite(rawConfidence) ? normalizeValidationScore(rawConfidence) : 0.5;
 
     return {
       isValid: normalizedIsValid,
-      confidence: Math.max(0, Math.min(confidence, 1.0)),
+      confidence: confidence,
       details: hallucinations || examples || {},
       reason: payload.reason || 'Nessuna motivazione fornita'
     };

@@ -461,9 +461,9 @@ function validateConfig() {
   // Validation Logic
   checkType('VALIDATION_ENABLED', CONFIG.VALIDATION_ENABLED, 'boolean');
   checkType('VALIDATION_MIN_SCORE', CONFIG.VALIDATION_MIN_SCORE, 'number');
-  checkRange('VALIDATION_MIN_SCORE', CONFIG.VALIDATION_MIN_SCORE, 0.0, 1.0);
+  checkRange('VALIDATION_MIN_SCORE', CONFIG.VALIDATION_MIN_SCORE, 0.0, 100.0);
   checkType('VALIDATION_WARNING_THRESHOLD', CONFIG.VALIDATION_WARNING_THRESHOLD, 'number');
-  checkRange('VALIDATION_WARNING_THRESHOLD', CONFIG.VALIDATION_WARNING_THRESHOLD, 0.0, 1.0);
+  checkRange('VALIDATION_WARNING_THRESHOLD', CONFIG.VALIDATION_WARNING_THRESHOLD, 0.0, 100.0);
 
   // Riprova Logica
   if (!CONFIG.INTELLIGENT_RETRY || typeof CONFIG.INTELLIGENT_RETRY !== 'object') {
@@ -513,6 +513,20 @@ function validateConfig() {
     valid: errors.length === 0,
     errors: errors
   };
+}
+
+
+/**
+ * Versione fail-fast della validazione configurazione da usare negli entrypoint.
+ * Gli score possono essere espressi come 0.6 oppure 60: la normalizzazione runtime
+ * avviene tramite normalizeValidationScore().
+ */
+function validateConfigOrThrow() {
+  const result = validateConfig();
+  if (!result.valid) {
+    throw new Error('Configurazione non valida: ' + result.errors.join('; '));
+  }
+  return result;
 }
 
 /**
