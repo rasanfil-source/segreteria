@@ -532,8 +532,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         currentCap >= stored;
 
       if (canReapplyStored && stored < currentCap) {
-        console.warn(`🚨 Safety Valve (persistita): MAX_EMAILS_PER_RUN → ${stored}`);
-        CONFIG.MAX_EMAILS_PER_RUN = stored;
+        console.warn(`🚨 Safety Valve (persistita rilevata): raccomando MAX_EMAILS_PER_RUN → ${stored}`);
       }
       return;
     }
@@ -543,7 +542,6 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const reduced = Math.max(1, Math.floor(currentCap / 2));
     if (reduced < currentCap) {
       console.warn(`🚨 Safety Valve attiva: MAX_EMAILS_PER_RUN ${currentCap} → ${reduced}`);
-      CONFIG.MAX_EMAILS_PER_RUN = reduced;
       this.props.setProperty(dateKey, todayPacific);
       this.props.setProperty(valueKey, String(reduced));
       this.props.setProperty(originalKey, String(currentCap));

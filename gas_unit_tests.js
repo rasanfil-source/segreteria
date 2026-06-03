@@ -467,22 +467,29 @@ function runAllTests() {
     // 4. EmailProcessor
     testGroup('EmailProcessor - Topic Detection', results, () => {
         const processor = new EmailProcessor();
-        test('_getCachedTimeZone cachea il fuso orario dello script', results, () => {
+        test('_getCachedTimeZone usa BUSINESS_TIME_ZONE senza dipendere da Session', results, () => {
             const previousSession = global.Session;
+            const previousBusinessTimeZone = global.BUSINESS_TIME_ZONE;
             let calls = 0;
             try {
+                global.BUSINESS_TIME_ZONE = 'Europe/Rome';
                 global.Session = Object.assign({}, previousSession, {
                     getScriptTimeZone: () => {
                         calls++;
-                        return 'Europe/Rome';
+                        return 'America/New_York';
                     }
                 });
                 const localProcessor = new EmailProcessor();
                 return localProcessor._getCachedTimeZone() === 'Europe/Rome'
                     && localProcessor._getCachedTimeZone() === 'Europe/Rome'
-                    && calls === 1;
+                    && calls === 0;
             } finally {
                 global.Session = previousSession;
+                if (typeof previousBusinessTimeZone === 'undefined') {
+                    delete global.BUSINESS_TIME_ZONE;
+                } else {
+                    global.BUSINESS_TIME_ZONE = previousBusinessTimeZone;
+                }
             }
         });
         test('_detectTemporalMentions rileva giorni italiani accentati', results, () => {

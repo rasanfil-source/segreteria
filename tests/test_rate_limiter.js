@@ -163,7 +163,27 @@ console.log('--- Test _applySafetyValve_: riapplica throttling se cap configurat
 
   limiter._applySafetyValve_();
 
-  assert(global.CONFIG.MAX_EMAILS_PER_RUN === 3, 'safety valve persistita deve riapplicare il valore ridotto anche se il cap manuale supera quello originale');
+  assert(global.CONFIG.MAX_EMAILS_PER_RUN === 8, "safety valve persistita non deve mutare CONFIG: il throttling viene letto dall'EmailProcessor");
+  global.CONFIG = originalConfig;
+}
+
+console.log('--- Test _applySafetyValve_: non muta CONFIG congelato ---');
+{
+  const originalConfig = global.CONFIG;
+  global.CONFIG = Object.freeze({ MAX_EMAILS_PER_RUN: 8 });
+  const propsData = new Map();
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  limiter.props = {
+    getProperty: (key) => propsData.has(key) ? propsData.get(key) : null,
+    setProperty: (key, value) => propsData.set(key, value)
+  };
+  limiter._getPacificDate = () => '2026-05-10';
+
+  limiter._applySafetyValve_();
+
+  assert(global.CONFIG.MAX_EMAILS_PER_RUN === 8, 'CONFIG congelato deve rimanere invariato');
+  assert(propsData.get('safety_valve_last_date') === '2026-05-10', 'safety valve deve persistere la data');
+  assert(propsData.get('safety_valve_reduced_value') === '4', 'safety valve deve persistere il valore ridotto');
   global.CONFIG = originalConfig;
 }
 

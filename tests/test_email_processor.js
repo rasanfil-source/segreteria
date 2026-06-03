@@ -79,6 +79,55 @@ EmailProcessor.prototype.processThread = function(...args) {
 
 const processor = new EmailProcessor();
 
+
+console.log('--- Test timezone: usa BUSINESS_TIME_ZONE senza chiamare Session.getScriptTimeZone ---');
+{
+  const originalBusinessTimeZone = global.BUSINESS_TIME_ZONE;
+  const originalSession = global.Session;
+  global.BUSINESS_TIME_ZONE = 'Europe/Rome';
+  let sessionTimeZoneCalled = false;
+  global.Session = {
+    getEffectiveUser: () => ({ getEmail: () => 'info@example.org' }),
+    getScriptTimeZone: () => {
+      sessionTimeZoneCalled = true;
+      return 'America/New_York';
+    }
+  };
+
+  const timezoneProcessor = new EmailProcessor();
+  assert(timezoneProcessor._getCachedTimeZone() === 'Europe/Rome', 'deve usare BUSINESS_TIME_ZONE come sorgente autorevole');
+  assert(sessionTimeZoneCalled === false, 'non deve chiamare Session.getScriptTimeZone');
+
+  global.Session = originalSession;
+  if (typeof originalBusinessTimeZone === 'undefined') {
+    delete global.BUSINESS_TIME_ZONE;
+  } else {
+    global.BUSINESS_TIME_ZONE = originalBusinessTimeZone;
+  }
+}
+
+console.log('--- Test safety valve: EmailProcessor legge il throttle persistito senza mutare CONFIG ---');
+{
+  const originalConfig = global.CONFIG;
+  const originalUtilities = global.Utilities;
+  global.CONFIG = Object.freeze(Object.assign({}, originalConfig, { MAX_EMAILS_PER_RUN: 8 }));
+  global.Utilities = { formatDate: () => '2026-05-10' };
+  const processorWithValve = new EmailProcessor({
+    props: {
+      getProperty: (key) => ({
+        safety_valve_last_date: '2026-05-10',
+        safety_valve_reduced_value: '3'
+      })[key] || null
+    }
+  });
+
+  assert(processorWithValve._getSafetyValveReducedLimit_(8) === 3, 'deve leggere il valore safety valve persistito');
+  assert(global.CONFIG.MAX_EMAILS_PER_RUN === 8, 'non deve mutare CONFIG anche se congelato');
+
+  global.CONFIG = originalConfig;
+  global.Utilities = originalUtilities;
+}
+
 console.log('--- Test constructor: preserva requestClassifier iniettato ---');
 {
   const injectedRequestClassifier = {

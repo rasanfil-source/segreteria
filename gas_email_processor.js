@@ -50,6 +50,11 @@ var EmailProcessor = class EmailProcessor {
         });
     this.validator = options.validator || new ResponseValidator();
     this.gmailService = options.gmailService || new GmailService();
+    this.props = options.props ||
+      ((typeof PropertiesService !== 'undefined' && PropertiesService &&
+        typeof PropertiesService.getScriptProperties === 'function')
+        ? PropertiesService.getScriptProperties()
+        : { getProperty: () => null });
     this._scriptTimeZone = null;
     this.promptEngine = options.promptEngine ||
       (typeof PromptEngine !== 'undefined'
@@ -115,22 +120,42 @@ var EmailProcessor = class EmailProcessor {
   }
 
   /**
-   * Restituisce il fuso orario dello script con caching locale per ridurre
-   * le chiamate a Session.getScriptTimeZone() durante l'elaborazione del batch.
+   * Restituisce il fuso orario business con caching locale.
+   * La sorgente autorevole è BUSINESS_TIME_ZONE (gas_main.js); Session può
+   * divergere dal fuso operativo e non deve influenzare i timestamp business.
    */
   _getCachedTimeZone() {
     if (!this._scriptTimeZone) {
-      try {
-        this._scriptTimeZone =
-          (typeof Session !== 'undefined' && Session &&
-            typeof Session.getScriptTimeZone === 'function')
-            ? Session.getScriptTimeZone()
-            : 'Europe/Rome';
-      } catch (e) {
-        this._scriptTimeZone = 'Europe/Rome';
-      }
+      this._scriptTimeZone = (typeof BUSINESS_TIME_ZONE !== 'undefined')
+        ? BUSINESS_TIME_ZONE
+        : 'Europe/Rome';
     }
     return this._scriptTimeZone;
+  }
+
+  _getPacificDateForSafetyValve_() {
+    const now = new Date();
+    if (typeof Utilities !== 'undefined' && Utilities &&
+        typeof Utilities.formatDate === 'function') {
+      try {
+        return Utilities.formatDate(now, 'America/Los_Angeles', 'yyyy-MM-dd');
+      } catch (_) {
+        // Fallback UTC sotto.
+      }
+    }
+    return now.toISOString().split('T')[0];
+  }
+
+  _getSafetyValveReducedLimit_(configuredLimit) {
+    if (!this.props || typeof this.props.getProperty !== 'function') return null;
+    if (!Number.isFinite(configuredLimit) || configuredLimit <= 1) return null;
+
+    const valveDate = this.props.getProperty('safety_valve_last_date');
+    if (valveDate !== this._getPacificDateForSafetyValve_()) return null;
+
+    const reduced = parseInt(this.props.getProperty('safety_valve_reduced_value') || '0', 10);
+    if (!Number.isFinite(reduced) || reduced <= 0 || reduced >= configuredLimit) return null;
+    return reduced;
   }
 
   _cleanupStaleThreadLocks_(scriptProps, lockTtlMs, threadLogger) {
@@ -2671,7 +2696,12 @@ ${addressLines.join('\n\n')}
         const dynamicLimit = (typeof CONFIG !== 'undefined') ? parseInt(CONFIG.MAX_EMAILS_PER_RUN, 10) : NaN;
         const fallbackLimit = parseInt(this.config.maxEmailsPerRun, 10);
         const resolved = Number.isNaN(dynamicLimit) ? fallbackLimit : dynamicLimit;
-        const sanitized = Number.isNaN(resolved) ? 10 : resolved;
+        const safetyValveLimit = this._getSafetyValveReducedLimit_(resolved);
+        const effectiveResolved = safetyValveLimit === null ? resolved : safetyValveLimit;
+        if (safetyValveLimit !== null) {
+          runLogger.warn(`🚨 Safety Valve persistita: MAX_EMAILS_PER_RUN effettivo ${resolved} → ${safetyValveLimit}.`);
+        }
+        const sanitized = Number.isNaN(effectiveResolved) ? 10 : effectiveResolved;
         const bounded = Math.max(0, Math.min(50, sanitized));
         if (bounded !== sanitized) {
           runLogger.warn(`⚠️ MAX_EMAILS_PER_RUN fuori range (${sanitized}), normalizzato a ${bounded}.`);
@@ -3542,11 +3572,7 @@ ${addressLines.join('\n\n')}
     if (typeof Utilities !== 'undefined' && Utilities &&
         typeof Utilities.formatDate === 'function') {
       try {
-        const tz = (typeof Session !== 'undefined' && Session &&
-                    typeof Session.getScriptTimeZone === 'function')
-          ? Session.getScriptTimeZone()
-          : 'Europe/Rome';
-        return Utilities.formatDate(parsedDate, tz, 'HH:mm');
+        return Utilities.formatDate(parsedDate, this._getCachedTimeZone(), 'HH:mm');
       } catch (_) {
         // Fallback sotto
       }
@@ -3574,11 +3600,7 @@ ${addressLines.join('\n\n')}
     if (typeof Utilities !== 'undefined' && Utilities &&
         typeof Utilities.formatDate === 'function') {
       try {
-        const tz = (typeof Session !== 'undefined' && Session &&
-                    typeof Session.getScriptTimeZone === 'function')
-          ? Session.getScriptTimeZone()
-          : 'Europe/Rome';
-        return Utilities.formatDate(parsedDate, tz, 'yyyy-MM-dd');
+        return Utilities.formatDate(parsedDate, this._getCachedTimeZone(), 'yyyy-MM-dd');
       } catch (_) {
         // Fallback sotto
       }

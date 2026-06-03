@@ -100,6 +100,20 @@ var GeminiService = class GeminiService {
     }
   }
 
+  _isPrimaryKeyFallbackHttpError_(responseCode, responseBody = '') {
+    if ([401, 403, 429].includes(responseCode)) return true;
+    if (responseCode !== 400) return false;
+
+    const bodyLower = String(responseBody || '').toLowerCase();
+    return bodyLower.includes('api_key_invalid') ||
+      bodyLower.includes('api key not valid') ||
+      bodyLower.includes('invalid api key') ||
+      bodyLower.includes('billing') ||
+      bodyLower.includes('permission') ||
+      bodyLower.includes('disabled') ||
+      bodyLower.includes('not enabled');
+  }
+
   getModelNameForTask(taskType, fallbackName = null) {
     const strategy = this.config && this.config.MODEL_STRATEGY
       ? this.config.MODEL_STRATEGY
@@ -231,10 +245,11 @@ var GeminiService = class GeminiService {
     const responseCode = response.getResponseCode();
     const responseBody = response.getContentText();
 
-    // Se la primaria risponde 429 e abbiamo una chiave di riserva,
-    // segnaliamo esplicitamente al chiamante di passare subito al fallback
-    // senza consumare riprovare inutili sulla stessa chiave.
-    if (responseCode === 429 && activeKey === this.primaryKey && this.backupKey) {
+    // Se la primaria risponde con quota/permessi/key/billing non utilizzabili e
+    // abbiamo una chiave di riserva, segnaliamo al chiamante di passare subito
+    // al fallback senza consumare retry inutili sulla stessa chiave.
+    if (this._isPrimaryKeyFallbackHttpError_(responseCode, responseBody) &&
+        activeKey === this.primaryKey && this.backupKey) {
       this._markPrimaryExhausted_('generateResponse');
       const quotaError = new Error('PRIMARY_QUOTA_EXHAUSTED');
       quotaError.isTransient = true;
@@ -524,7 +539,11 @@ Output JSON:
       fetchError = e;
     }
 
-    const isAuthOrQuotaError = responseCode !== undefined && [401, 403, 429].includes(responseCode);
+    const primaryResponseBody = (typeof response !== 'undefined' && response && typeof response.getContentText === 'function')
+      ? response.getContentText()
+      : '';
+    const isAuthOrQuotaError = responseCode !== undefined &&
+      this._isPrimaryKeyFallbackHttpError_(responseCode, primaryResponseBody);
     const shouldTryBackupKey = !!this.backupKey
       && activeKey !== this.backupKey
       && isAuthOrQuotaError;
@@ -533,7 +552,7 @@ Output JSON:
     // la backup key aiuta solo per autorizzazione o quota della chiave primaria.
     if (shouldTryBackupKey) {
       console.warn(`⚠️ Chiave primaria non utilizzabile (HTTP ${responseCode}). Tentativo con chiave di riserva...`);
-      if (responseCode === 429 && activeKey === this.primaryKey) {
+      if (activeKey === this.primaryKey) {
         this._markPrimaryExhausted_('quick_check');
       }
       activeKey = this.backupKey;

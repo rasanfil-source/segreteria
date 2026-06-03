@@ -337,6 +337,36 @@ console.log('--- Test _generateWithModel: 429 primaria con backup marca segnale 
   assert(markedReason === 'generateResponse' && service.isPrimaryExhausted === true, 'la primaria deve essere marcata esaurita');
 }
 
+
+console.log('--- Test _generateWithModel: 403 primaria con backup marca segnale transient di key switch ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = 'backup-key';
+  service.config = { TEMPERATURE: 0.5, MAX_OUTPUT_TOKENS: 1000 };
+  service._buildGenerateUrl = () => 'https://generativelanguage.googleapis.com/v1beta/models/test:generateContent';
+  let markedReason = '';
+  service._markPrimaryExhausted_ = (reason) => {
+    markedReason = reason;
+    service.isPrimaryExhausted = true;
+  };
+  service.fetchFn = () => ({
+    getResponseCode: () => 403,
+    getContentText: () => JSON.stringify({ error: { message: 'billing disabled' } })
+  });
+
+  let thrown = null;
+  try {
+    service._generateWithModel('prompt', 'gemini-test', 'primary-key', []);
+  } catch (error) {
+    thrown = error;
+  }
+
+  assert(thrown && thrown.message === 'PRIMARY_QUOTA_EXHAUSTED', '403 sulla primaria con backup deve segnalare key switch');
+  assert(thrown.isTransient === true, 'il segnale di key switch su 403 deve essere transient');
+  assert(markedReason === 'generateResponse' && service.isPrimaryExhausted === true, 'la primaria deve essere marcata non utilizzabile su 403');
+}
+
 // Test rimossi perché la funzionalità di context caching è stata eliminata
 
 console.log('--- Test model policy: quick_check non rate-limited usa lite, non MODEL_NAME qualita ---');
@@ -513,5 +543,52 @@ console.log('--- Test quickCheck: 429 primary marca stato exhausted e passa a ba
   }
 }
 
+
+
+console.log('--- Test quickCheck: 400 API key invalid primaria passa a backup ---');
+{
+  const previousUtilities = global.Utilities;
+  global.Utilities = { sleep: () => {} };
+
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = 'backup-key';
+  service.isPrimaryExhausted = false;
+  service._primaryExhaustedCacheKey = 'gemini_primary_exhausted';
+  service._cache = { put: () => {} };
+  service._buildGenerateUrl = () => 'https://example.test/generate';
+  service._resolveLanguage = (_candidate, fallback) => fallback || 'it';
+  const urls = [];
+  service.fetchFn = (url) => {
+    urls.push(url);
+    if (urls.length === 1) {
+      return {
+        getResponseCode: () => 400,
+        getContentText: () => JSON.stringify({ error: { message: 'API key not valid. Please pass a valid API key.' } })
+      };
+    }
+    return {
+      getResponseCode: () => 200,
+      getContentText: () => JSON.stringify({
+        candidates: [{ content: { parts: [{ text: '{"reply_needed":true,"language":"it","category":"TECHNICAL","topic":"info","confidence":0.9,"reason":"ok"}' }] } }]
+      })
+    };
+  };
+
+  try {
+    const result = service._quickCheckWithModel(
+      'Vorrei informazioni',
+      'Info',
+      'gemini-3.5-flash',
+      { lang: 'it', confidence: 5, safetyGrade: 5 }
+    );
+    assert(result.shouldRespond === true, 'quick check deve usare backup key su 400 API key invalid');
+    assert(urls.length === 2, '400 API key invalid primaria deve fare fallback una sola volta');
+    assert(urls[0].includes('primary-key') && urls[1].includes('backup-key'), 'deve provare prima primary e poi backup');
+    assert(service.isPrimaryExhausted === true, '400 key invalid deve marcare la primary non utilizzabile');
+  } finally {
+    global.Utilities = previousUtilities;
+  }
+}
 
 console.log('✅ Test bilanciamento JSON Gemini passati');
