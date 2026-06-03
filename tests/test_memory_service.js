@@ -80,6 +80,17 @@ console.log('--- Test MemoryService _validateAndNormalizeTimestamp: accetta futu
   );
 }
 
+console.log('--- Test MemoryService _validateAndNormalizeTimestamp: resetta futuro oltre 24h ---');
+{
+  const memory = Object.create(MemoryService.prototype);
+  const futureBeyondDrift = new Date(Date.now() + (25 * 60 * 60 * 1000)).toISOString();
+  const normalized = memory._validateAndNormalizeTimestamp(futureBeyondDrift);
+  assert(
+    normalized !== futureBeyondDrift,
+    'un timestamp a +25h deve essere considerato fuori range e normalizzato'
+  );
+}
+
 console.log('--- Test MemoryService _normalizeHeaders: riempie solo header attesi non vuoti ---');
 {
   let writtenHeaders = null;

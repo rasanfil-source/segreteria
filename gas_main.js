@@ -2026,6 +2026,30 @@ function _clearBatchCheckpoint_() {
   try {
     PropertiesService.getScriptProperties().deleteProperty('EMAIL_BATCH_CHECKPOINT');
   } catch (_) { }
+
+  try {
+    if (
+      typeof ScriptApp === 'undefined' ||
+      !ScriptApp ||
+      typeof ScriptApp.getProjectTriggers !== 'function' ||
+      typeof ScriptApp.deleteTrigger !== 'function'
+    ) {
+      return;
+    }
+
+    const triggers = ScriptApp.getProjectTriggers() || [];
+    triggers.forEach(trigger => {
+      try {
+        if (
+          trigger &&
+          typeof trigger.getHandlerFunction === 'function' &&
+          trigger.getHandlerFunction() === 'resumeEmailBatchFromCheckpoint'
+        ) {
+          ScriptApp.deleteTrigger(trigger);
+        }
+      } catch (_) { }
+    });
+  } catch (_) { }
 }
 
 function _acquireCheckpointResumeLock_(runId) {

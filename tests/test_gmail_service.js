@@ -441,6 +441,20 @@ console.log('--- Test _discoverByQuery: fallback metadata se GmailApp.search fal
 
 const service = new GmailService();
 
+console.log('--- Test sendReply: dettagli opzionali non causano crash post-invio ---');
+{
+  const sendReplyService = Object.create(GmailService.prototype);
+  let receivedDetails = null;
+  sendReplyService.sendHtmlReply = (_thread, _replyText, details) => {
+    receivedDetails = details;
+  };
+
+  const ok = sendReplyService.sendReply({ getId: () => 'thread-send-reply' }, 'Risposta senza dettagli');
+
+  assert(ok === true, 'sendReply deve restituire true anche senza messageDetails');
+  assert(receivedDetails && typeof receivedDetails === 'object', 'sendReply deve passare un oggetto dettagli fallback');
+}
+
 console.log('--- Test _stripHtmlTags: pattern lineare su tag malformati ---');
 {
   const malformedHtml = '<div' + ' '.repeat(20000) + 'testo senza chiusura';

@@ -3033,15 +3033,17 @@ var GmailService = class GmailService {
     // INVIO RISPOSTA
     // ========================================================================
 
-    sendReply(thread, replyText, messageDetails) {
+    sendReply(thread, replyText, messageDetails = {}) {
+        const details = (messageDetails && typeof messageDetails === 'object') ? messageDetails : {};
         const gmailThread = typeof thread === 'string' ?
             GmailApp.getThreadById(thread) : thread;
 
-        this.sendHtmlReply(gmailThread, replyText, messageDetails || {});
+        this.sendHtmlReply(gmailThread, replyText, details);
 
-        console.log(`✓ Risposta inviata a ${messageDetails.senderEmail}`);
+        const recipientForLog = details.senderEmail || 'destinatario non disponibile';
+        console.log(`✓ Risposta inviata a ${recipientForLog}`);
 
-        if (messageDetails.hasReplyTo) {
+        if (details.hasReplyTo) {
             console.log("   📧 Risposta inviata all'indirizzo Reply-To");
         }
 

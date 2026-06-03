@@ -36,6 +36,55 @@ const code = fs.readFileSync(gasConfigPath, 'utf8');
 vm.runInThisContext(code, { filename: gasConfigPath });
 const exampleCode = fs.readFileSync(path.join(__dirname, '..', 'gas_config.example.js'), 'utf8');
 
+function loadExampleConfig() {
+  const sandbox = {
+    console,
+    Date,
+    Math,
+    Number,
+    String,
+    Boolean,
+    Array,
+    Object,
+    JSON,
+    RegExp,
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperty: () => null
+      })
+    },
+    ScriptApp: {
+      getScriptId: () => 'example-script'
+    }
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(exampleCode, sandbox, { filename: path.join(__dirname, '..', 'gas_config.example.js') });
+  return sandbox.CONFIG;
+}
+
+function collectConfigPaths(value, prefix = '', paths = []) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    if (prefix) paths.push(prefix);
+    return paths;
+  }
+
+  Object.keys(value).forEach((key) => {
+    const nextPath = prefix ? `${prefix}.${key}` : key;
+    paths.push(nextPath);
+
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    const child = descriptor && Object.prototype.hasOwnProperty.call(descriptor, 'value')
+      ? descriptor.value
+      : undefined;
+
+    if (child && typeof child === 'object' && !Array.isArray(child)) {
+      collectConfigPaths(child, nextPath, paths);
+    }
+  });
+
+  return paths;
+}
+
 assert(
   exampleCode.includes('_SCRIPT_PROPERTY_CACHE_TTL_MS'),
   'gas_config.example.js deve usare un TTL per la cache delle ScriptProperties'
@@ -43,6 +92,19 @@ assert(
 assert(
   exampleCode.includes('!Number.isFinite(value)'),
   'gas_config.example.js deve validare NaN/Infinity nei range numerici'
+);
+
+const productionConfigPaths = new Set(collectConfigPaths(CONFIG));
+const exampleConfigPaths = new Set(collectConfigPaths(loadExampleConfig()));
+const missingInExample = [...productionConfigPaths].filter((pathName) => !exampleConfigPaths.has(pathName)).sort();
+const extraInExample = [...exampleConfigPaths].filter((pathName) => !productionConfigPaths.has(pathName)).sort();
+assert(
+  missingInExample.length === 0,
+  `gas_config.example.js manca chiavi presenti in gas_config.js: ${missingInExample.join(', ')}`
+);
+assert(
+  extraInExample.length === 0,
+  `gas_config.example.js contiene chiavi non presenti in gas_config.js: ${extraInExample.join(', ')}`
 );
 
 assert(_getScriptProperty('GEMINI_API_KEY') === 'first-key', 'il primo accesso deve leggere la property reale');

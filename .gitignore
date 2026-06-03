@@ -4,6 +4,7 @@ gas_config.js
 # Credenziali e configurazione clasp/GAS
 .clasp.json
 .clasprc.json
+scripts/deploy_gas.local.json
 
 # appsscript.json è necessario per clasp, ma attento se lo pubblichi
 # appsscript.json 
