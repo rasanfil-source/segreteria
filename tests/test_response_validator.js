@@ -128,6 +128,35 @@ console.log('--- Test _checkLanguage conserva testo dopo gmail_quote chiuso ---'
   assert(result.markerScores.it >= 4, 'il testo successivo a gmail_quote non deve essere troncato');
 }
 
+console.log('--- Test _checkLanguage declassa IT/EN misto ma blocca EN pieno ---');
+{
+  const localValidator = new ResponseValidator();
+  localValidator.languageMarkers = {
+    it: ['grazie', 'cordiali', 'saluti', 'gentile', 'parrocchia'],
+    en: ['thank', 'regards', 'dear', 'parish', 'mass', 'church', 'would', 'could']
+  };
+
+  const mixedResult = localValidator._checkLanguage(
+    'Gentile, thank you for your email to the parish. Kind regards.',
+    'it'
+  );
+  assert(mixedResult.errors.length === 0, 'IT/EN misto con segnale italiano non deve essere bloccante');
+  assert(
+    mixedResult.warnings.some((w) => w.includes('Possibile lingua mista IT/EN')),
+    'IT/EN misto deve restare visibile come warning'
+  );
+  assert(mixedResult.score === 0.85, `IT/EN misto deve degradare a 0.85, ottenuto ${mixedResult.score}`);
+
+  const englishResult = localValidator._checkLanguage(
+    'Dear parish, thank you for your email. Could you confirm the mass schedule? Kind regards.',
+    'it'
+  );
+  assert(
+    englishResult.errors.some((e) => e.includes('Lingua non corrispondente')),
+    'una risposta interamente EN a target IT deve restare bloccante'
+  );
+}
+
 console.log('--- Test _ottimizzaCapitalAfterComma (maiuscole, nomi propri e apostrofi) ---');
 {
   const fixedCaps = validator._ottimizzaCapitalAfterComma(

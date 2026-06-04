@@ -3258,6 +3258,40 @@ console.log('--- Test processThread: cross_thread_burst usa stato dilata senza m
   cacheStore.clear();
 }
 
+console.log('--- Test processThread: near deadline prima della generazione usa dilata ---');
+{
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+  const labels = [];
+  let generated = false;
+
+  global.CONFIG.ATTACHMENT_CONTEXT = { enabled: false };
+
+  try {
+    const processor = buildValidationFlowProcessor({
+      labels,
+      onGenerate: () => { generated = true; }
+    });
+    processor._isNearDeadline = () => true;
+
+    const result = processor.processThread(
+      createExternalThread('near-deadline-generation'),
+      'kb valida',
+      '',
+      new Set(),
+      true
+    );
+
+    assert(result.status === 'dilata', `near deadline deve restituire dilata, ottenuto ${result.status}`);
+    assert(result.reason === 'near_deadline_before_generation', 'near deadline deve mantenere reason specifica');
+    assert(result.retryDelayMs === 60000, `near deadline deve indicare retryDelayMs 60000, ottenuto ${result.retryDelayMs}`);
+    assert(generated === false, 'near deadline non deve chiamare Gemini generateResponse');
+    assert(labels.length === 0, 'near deadline non deve applicare label IA o Verifica al messaggio rinviato');
+  } finally {
+    global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+    cacheStore.clear();
+  }
+}
+
 console.log('--- Test processUnreadEmails: dilata salva checkpoint senza consumare MAX_EMAILS_PER_RUN ---');
 {
   const originalPropertiesService = global.PropertiesService;
@@ -3305,6 +3339,43 @@ console.log('--- Test processUnreadEmails: dilata salva checkpoint senza consuma
     } else {
       global.CONFIG.SENDER_THROTTLE_WINDOW_SECONDS = originalSenderThrottle;
     }
+    global.PropertiesService = originalPropertiesService;
+    global.ScriptApp = originalScriptApp;
+  }
+}
+
+console.log('--- Test processUnreadEmails: dilata rispetta retryDelayMs esplicito ---');
+{
+  const originalPropertiesService = global.PropertiesService;
+  const originalScriptApp = global.ScriptApp;
+  const props = new Map();
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      setProperty: (k, v) => props.set(k, v),
+      getProperty: (k) => props.get(k) || '',
+      deleteProperty: (k) => props.delete(k)
+    })
+  };
+  global.ScriptApp = undefined;
+
+  try {
+    const threads = [createExternalThread('dilata-explicit-delay')];
+    const processor = new EmailProcessor({
+      gmailService: { getUnprocessedUnreadThreads: () => threads }
+    });
+    processor._hasUnreadMessagesToProcess = () => true;
+    processor._isNearDeadline = () => false;
+    processor._getRemainingTimeMs = () => 60000;
+    processor.processThread = () => ({
+      status: 'dilata',
+      reason: 'near_deadline_before_generation',
+      retryDelayMs: 12000
+    });
+
+    processor.processUnreadEmails('kb', '', true);
+    const checkpoint = JSON.parse(props.get('EMAIL_BATCH_CHECKPOINT'));
+    assert(checkpoint.remainingTimeMs === 12000, `retryDelayMs esplicito deve guidare il checkpoint, ottenuto ${checkpoint.remainingTimeMs}`);
+  } finally {
     global.PropertiesService = originalPropertiesService;
     global.ScriptApp = originalScriptApp;
   }

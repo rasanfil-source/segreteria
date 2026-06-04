@@ -137,7 +137,14 @@ console.log('--- Test loadResources: tryLock usa EXECUTION_LOCK_WAIT_MS configur
   };
 
   try {
-    loadResources(true, false);
+    let threw = false;
+    try {
+      loadResources(true, false);
+    } catch (e) {
+      threw = true;
+      assert(String(e.message).includes('Impossibile acquisire lock'), `Errore inatteso: ${e.message}`);
+    }
+    assert(threw, 'loadResources avrebbe dovuto lanciare un errore per lock non acquisito');
     assert(observedWaitMs === 1234, 'loadResources deve passare al lock il timeout configurato');
   } finally {
     global.LockService = previousLockService;

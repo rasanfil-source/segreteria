@@ -126,6 +126,41 @@ console.log('--- Test isInSuspensionTime rispetta minuti nelle fasce ---');
   global.GLOBAL_CACHE.vacationPeriods = originalVacationPeriods;
 }
 
+console.log('--- Test isInSuspensionTime valida payload suspensionRules della cache caricata ---');
+{
+  const originalLoaded = global.GLOBAL_CACHE.loaded;
+  const originalSuspensionRules = global.GLOBAL_CACHE.suspensionRules;
+  const originalVacationPeriods = global.GLOBAL_CACHE.vacationPeriods;
+
+  try {
+    global.GLOBAL_CACHE.loaded = true;
+    global.GLOBAL_CACHE.vacationPeriods = [];
+    global.GLOBAL_CACHE.suspensionRules = null;
+    assertEqual(
+      isInSuspensionTime(new Date(2026, 4, 4, 9, 0, 0)),
+      true,
+      'null deve indicare foglio Controllo assente e usare SUSPENSION_HOURS'
+    );
+
+    global.GLOBAL_CACHE.suspensionRules = undefined;
+    let thrown = null;
+    try {
+      isInSuspensionTime(new Date(2026, 4, 4, 9, 0, 0));
+    } catch (e) {
+      thrown = e;
+    }
+    assertEqual(
+      Boolean(thrown && String(thrown.message || thrown).includes('suspensionRules non valido')),
+      true,
+      'cache caricata con suspensionRules indefinito deve fallire invece di usare fallback silenzioso'
+    );
+  } finally {
+    global.GLOBAL_CACHE.loaded = originalLoaded;
+    global.GLOBAL_CACHE.suspensionRules = originalSuspensionRules;
+    global.GLOBAL_CACHE.vacationPeriods = originalVacationPeriods;
+  }
+}
+
 console.log('--- Test _parseDateValue: rifiuta fallback Date.parse ambiguo ---');
 {
   assertEqual(_parseDateValue('2026/05/15'), null, 'formato non esplicitamente supportato deve essere rifiutato');

@@ -357,15 +357,25 @@ function isInSuspensionTime(checkDate = new Date()) {
   //   - null: foglio 'Controllo' assente → fallback sicuro su SUSPENSION_HOURS.
   //   - {}: foglio presente ma senza fasce configurate → nessuna sospensione.
   //   - {1:[...], ...}: fasce orarie lette dal foglio.
-  const sheetRulesLoaded = (
+  const cacheLoaded = (
     typeof GLOBAL_CACHE !== 'undefined'
     && GLOBAL_CACHE.loaded
   );
-  const rules = sheetRulesLoaded
-    ? (GLOBAL_CACHE.suspensionRules !== null && GLOBAL_CACHE.suspensionRules !== undefined
-      ? GLOBAL_CACHE.suspensionRules
-      : SUSPENSION_HOURS)
-    : SUSPENSION_HOURS;
+  let rules = SUSPENSION_HOURS;
+  if (cacheLoaded) {
+    const loadedRules = GLOBAL_CACHE.suspensionRules;
+    if (loadedRules === null) {
+      rules = SUSPENSION_HOURS;
+    } else if (
+      loadedRules &&
+      typeof loadedRules === 'object' &&
+      !Array.isArray(loadedRules)
+    ) {
+      rules = loadedRules;
+    } else {
+      throw new Error('GLOBAL_CACHE.suspensionRules non valido dopo loadResources.');
+    }
+  }
 
   if (rules[day]) {
     for (const [startH, endH] of rules[day]) {
@@ -577,8 +587,13 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
         : 10000;
       lockAcquired = lock.tryLock(lockWaitMs);
       if (!lockAcquired) {
-        if (!GLOBAL_CACHE.loaded) {
-          throw new Error('Impossibile acquisire lock per caricamento risorse.');
+        const refreshRequired = Boolean(
+          forceReload ||
+          !cacheIsFreshByTtl ||
+          (precomputedSheetModifiedAt && precomputedSheetModifiedAt > GLOBAL_CACHE.lastLoadedAt)
+        );
+        if (!GLOBAL_CACHE.loaded || refreshRequired) {
+          throw new Error('Impossibile acquisire lock per refresh risorse richiesto.');
         }
         console.warn('⚠️ Lock non acquisito ma cache già presente: evito reload concorrente non protetto.');
         return;
@@ -1118,6 +1133,15 @@ function _readResourceCachePayload(cache) {
   const chunks = cache.getAll(keys);
   const missing = keys.find(k => !chunks[k]);
   if (missing) {
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.sleep === 'function') {
+      Utilities.sleep(250);
+      const retryChunks = cache.getAll(keys);
+      const retryMissing = keys.find(k => !retryChunks[k]);
+      if (!retryMissing) {
+        console.warn('↻ Cache multipart completata dopo breve attesa: uso payload ricostruito.');
+        return keys.map(k => retryChunks[k]).join('');
+      }
+    }
     console.warn(`⚠️ Cache multipart incompleta (${missing}), forzo reload senza invalidare chiavi concorrenti.`);
     return null;
   }
@@ -1825,17 +1849,9 @@ function main() {
     // 2. Caricamento Risorse (Config, KB, Blacklist)
     withSheetsRetry(() => loadResources(false, true), 'loadResources(main)');
 
-    // Self-healing: se la cache risulta ancora non caricata dopo un reset manuale
-    // o uno stato transitorio, forziamo una seconda inizializzazione.
     if (!GLOBAL_CACHE.loaded) {
-      console.warn('⚠️ GLOBAL_CACHE.loaded=false dopo loadResources(main). Tento auto-ripristino cache.');
-      clearKnowledgeCache();
-      withSheetsRetry(() => loadResources(false, true), 'loadResources(main,retry)');
-    }
-
-    if (!GLOBAL_CACHE.loaded) {
-      console.error('💥 Risorse non caricate correttamente anche dopo auto-ripristino cache. Interruzione preventiva.');
-      return;
+      console.error('💥 GLOBAL_CACHE non caricata dopo loadResources(main).');
+      throw new Error('Inizializzazione risorse fallita');
     }
 
     // 3. Controllo Stato Sistema

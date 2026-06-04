@@ -2020,8 +2020,9 @@ ${addressLines.join('\n\n')}
 
       if (this._isNearDeadline(this.config.maxExecutionTimeMs)) {
         console.warn('⏳ Tempo residuo insufficiente prima della generazione AI: rimando il thread al prossimo turno.');
-        result.status = 'skipped';
+        result.status = 'dilata';
         result.reason = 'near_deadline_before_generation';
+        result.retryDelayMs = 60000;
         return result;
       }
 
@@ -2132,16 +2133,41 @@ ${addressLines.join('\n\n')}
             break;
           }
 
-          const isLastPlan = attemptStrategy[attemptStrategy.length - 1] === plan;
-          if ((errorClass.type === 'RETRYABLE' || errorClass.type === 'QUOTA_EXHAUSTED') && isLastPlan && String(err).toLowerCase().includes('quota')) {
-            console.warn("🧯 QUOTA_EXHAUSTED sull'ultima strategia: nessuna strategia residua, uscita anticipata.");
-            break;
-          }
+          const planIndex = attemptStrategy.indexOf(plan);
+          const hasNextPlan = planIndex >= 0 && planIndex < attemptStrategy.length - 1;
+          const rawGenerationError = String(err && err.message ? err.message : err).toLowerCase();
+          const isQuotaLike = (
+            errorClass.type === 'QUOTA_EXHAUSTED' ||
+            errorClass.type === 'QUOTA_EXCEEDED' ||
+            rawGenerationError.includes('quota')
+          );
+          const canTryNextPlan = hasNextPlan && (
+            isQuotaLike ||
+            ['RETRYABLE', 'NETWORK', 'TIMEOUT', 'INVALID_RESPONSE', 'UNKNOWN'].includes(errorClass.type)
+          );
 
-          if (['RETRYABLE', 'QUOTA_EXHAUSTED', 'NETWORK', 'TIMEOUT', 'QUOTA_EXCEEDED', 'INVALID_RESPONSE', 'UNKNOWN'].includes(errorClass.type)) {
+          if (canTryNextPlan) {
             console.warn(`↪️ Errore ${errorClass.type}, provo la strategia successiva.`);
             continue;
           }
+
+          if (isQuotaLike) {
+            console.warn('🧯 Errore quota sull\'ultima strategia: nessuna strategia residua, uscita anticipata.');
+            break;
+          }
+
+          if (['CONFIG_ERROR', 'SYSTEM_ERROR', 'DATA'].includes(errorClass.type)) {
+            console.error(`🛑 Errore ${errorClass.type} non recuperabile da fallback modello, interrompo generazione.`);
+            break;
+          }
+
+          if (errorClass.type === 'INVALID_API_KEY') {
+            console.error('🛑 API key non valida: interrompo generazione per evitare tentativi non utili.');
+            break;
+          }
+
+          console.warn(`🛑 Nessuna strategia residua utile per errore ${errorClass.type}, interrompo generazione.`);
+          break;
         }
       }
       }
@@ -2992,7 +3018,10 @@ ${addressLines.join('\n\n')}
           const senderThrottleWindowSeconds = (typeof CONFIG !== 'undefined' && Number(CONFIG.SENDER_THROTTLE_WINDOW_SECONDS) > 0)
             ? Number(CONFIG.SENDER_THROTTLE_WINDOW_SECONDS)
             : 60;
-          const dilataDelayMs = Math.max(1000, Math.floor(senderThrottleWindowSeconds * 1000) + 5000);
+          const configuredRetryDelayMs = Number(result.retryDelayMs);
+          const dilataDelayMs = Number.isFinite(configuredRetryDelayMs) && configuredRetryDelayMs > 0
+            ? Math.max(1000, Math.floor(configuredRetryDelayMs))
+            : Math.max(1000, Math.floor(senderThrottleWindowSeconds * 1000) + 5000);
           stats.dilata++;
           runLogger.info(`Thread ${index + 1}/${threads.length} - Dilata: ${result.reason || 'rinvio temporaneo'}`);
           deferBatchCheckpoint(threads, index, dilataDelayMs);

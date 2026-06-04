@@ -501,7 +501,15 @@ var ResponseValidator = class ResponseValidator {
 
     // Verifica corrispondenza
     if (detectedLang !== expectedLanguage) {
-      if (markerScores[detectedLang] >= 3 && markerScores[expectedLanguage] < 2) {
+      const isItalianEnglishMixedSignal = (
+        expectedLanguage === 'it' &&
+        detectedLang === 'en' &&
+        (markerScores[expectedLanguage] || 0) > 0
+      );
+      if (isItalianEnglishMixedSignal) {
+        warnings.push('Possibile lingua mista IT/EN');
+        score = Math.min(score, 0.85);
+      } else if (markerScores[detectedLang] >= 3 && markerScores[expectedLanguage] < 2) {
         errors.push(
           `Lingua non corrispondente: attesa ${expectedLanguage.toUpperCase()}, ` +
           `rilevata ${detectedLang.toUpperCase()}`
@@ -1089,7 +1097,7 @@ var ResponseValidator = class ResponseValidator {
         `Saluto incongruente: "${detectedGreeting}" usato alle ore ${currentHour}:00 ` +
         `(dovrebbe essere ${timeSlotNames[expectedTimeSlot]})`
       );
-      score *= 0.95; // Penalità lieve (errore di cortesia, non sostanziale)
+      score *= 0.97; // Penalità minima (errore di cortesia, non sostanziale)
 
       return {
         score,
