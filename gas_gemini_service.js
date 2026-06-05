@@ -792,92 +792,9 @@ var GeminiService = class GeminiService {
    * @returns {Object} Risultato controllo rapido
    */
   _quickCheckWithModel(emailContent, emailSubject, modelName, precomputedDetection = null, intentContext = null) {
-    const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
-    const safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
-    const detection = precomputedDetection || this.detectEmailLanguage(safeContent, safeSubject);
-    const hasSubmissionContext = intentContext && (
-      intentContext.intent === 'suspected_submission' ||
-      intentContext.intent === 'suspected_submission_with_question' ||
-      intentContext.intent === 'document_submission' ||
-      intentContext.intent === 'document_submission_with_question'
-    );
-    const shouldClassifySponsorGuidance = !!(intentContext && intentContext.sponsorGuidanceCheck === true);
-    const quickIntentGuardrail = hasSubmissionContext ? `
-CONTESTO STRUTTURALE ALLEGATI:
-- Il testo del mittente contiene segnali di consegna documentale ("in allegato", "allego", "le invio", ecc.).
-- Eventuali parole provenienti da allegati/OCR come "padrino", "madrina", "cresima", "idoneità", "requisiti" NON devono essere interpretate come richiesta informativa.
-- Se ci sono domande esplicite nel corpo email, rispondi a quelle; altrimenti classifica come consegna documentazione.
-- Una consegna documentale da parte di un fedele/utente richiede risposta di cortesia: reply_needed deve essere TRUE, salvo spam/newsletter/autorisposta.
-- Topic consigliato se non ci sono domande esplicite: "documentazione ricevuta".
-- Non trasformare una consegna di certificato in una richiesta sui requisiti del padrino/madrina.
-` : '';
-    const sponsorGuidanceTask = shouldClassifySponsorGuidance ? `
-7. Determina needs_sponsor_guidance (boolean):
-   - TRUE solo se nella risposta conviene inserire le condizioni per il ruolo ecclesiale di padrino/madrina/godparent.
-   - Considera equivalenti sacramentali: padrino/madrina (it/es), godparent/godfather/godmother o sponsor sacramentale (en), parrain/marraine (fr), padrinho/madrinha (pt), Pate/Patin/Firmpate/Firmpatin (de).
-   - TRUE se il mittente vuole assumere quel ruolo sacramentale e non ha ancora la Cresima/Confirmation, oppure chiede esplicitamente requisiti, condizioni o idoneità per quel ruolo.
-   - FALSE in tutti gli altri casi.
-   - FALSE se il mittente sta consegnando documenti propri o del proprio padrino/madrina per ricevere un sacramento.
-   - FALSE se "padrino" o "madrina" indica solo l'accompagnatore sacramentale del mittente.
-   - In italiano, "sponsor" NON significa padrino/madrina: se indica pubblicità, finanziamento o magliette, rispondi FALSE.
-   - "Testimone" di matrimonio NON è padrino/madrina e NON richiede Cresima: rispondi FALSE.
-   - In inglese, "sponsor" vale solo se il contesto è chiaramente sacramentale (Confirmation/Baptism/Catholic godparent); altrimenti FALSE.
-   - FALSE se il mittente chiede solo logistica, date, orari, luogo o conferma di ricezione documenti.
-` : '';
-    const sponsorGuidanceJsonField = shouldClassifySponsorGuidance
-      ? `,
-  "needs_sponsor_guidance": boolean`
-      : '';
-    const prompt = `Analizza questa email.
-Rispondi ESCLUSIVAMENTE con un oggetto JSON valido e completo.
-NON usare blocchi markdown e NON aggiungere testo extra prima o dopo il JSON.
-
-Email:
-Oggetto: ${safeSubject}
-Testo: ${safeContent.substring(0, 800)}
-${quickIntentGuardrail}
-
-COMPITI:
-1. Decidi se richiede risposta (reply_needed):
- - TRUE se l'utente pone domande, esprime dubbi o fornisce informazioni nuove/utili (appuntamenti, dati, modifiche).
- - FALSE se è solo un ringraziamento finale (es: \"Grazie mille\", \"Perfetto grazie\", \"Ricevuto\") senza nuove domande o info.
- - FALSE se è newsletter, spam o messaggi di sistema.
- - IMPORTANTE: Se l'utente chiede qualcosa già detto, rispondi TRUE ma con riferimento cordiale alla risposta precedente.
-
-2. Rileva la lingua (language) - codice ISO 639-1 (es: "it", "en", "es", "fr", "de")
-3. Classifica la richiesta (category):
-   - "TECHNICAL": orari, documenti, info pratiche, iscrizioni
-   - "PASTORAL": richieste di aiuto, situazioni personali, lutto
-   - "DOCTRINAL": dubbi di fede, domande teologiche
-   - "FORMAL": richieste di sbattezzo, cancellazione registri, apostasia
-   - "MIXED": mix di tecnica e pastorale
-4. Fornisci punteggi continui (0.0-1.0) per ogni dimensione:
-   - technical, pastoral, doctrinal, formal
-5. Estrai l'argomento principale (topic) in ITALIANO (usando termini coerenti con la richiesta)
-6. Fornisci un breve ragionamento (reason)
-${sponsorGuidanceTask}
-
-⚠️ REGOLA CRITICA "SBATTEZZO":
-Se l'utente esprime la volontà di non essere più cristiano, essere cancellato dai registri o "sbattezzarsi":
-- Classifica SEMPRE come "FORMAL"
-- Topic: "sbattezzo"
-- NON classificarlo come "PASTORAL" anche se c'è un tono emotivo.
-
-Output JSON:
-{
-  "reply_needed": boolean,
-  "language": "string (codice ISO 639-1)",
-  "category": "TECHNICAL" | "PASTORAL" | "DOCTRINAL" | "FORMAL" | "MIXED",
-  "dimensions": {
-    "technical": number (0.0-1.0),
-    "pastoral": number (0.0-1.0),
-    "doctrinal": number (0.0-1.0),
-    "formal": number (0.0-1.0)
-  },
-  "topic": "string",
-  "confidence": number (0.0-1.0),
-  "reason": "string"${sponsorGuidanceJsonField}
-}`;
+    const promptContext = EmailQuickCheckPolicy.buildPrompt(emailContent, emailSubject, intentContext);
+    const detection = precomputedDetection || this.detectEmailLanguage(promptContext.safeContent, promptContext.safeSubject);
+    const prompt = promptContext.prompt;
 
     const url = this._buildGenerateUrl(modelName);
 
@@ -957,108 +874,10 @@ Output JSON:
       throw new Error(`Errore API: ${responseCode}`);
     }
 
-    // Risultato default in caso di errori
-    const defaultResult = {
-      shouldRespond: false, // Failsafe conservativo: evita risposte massive in caso di errore
-      language: detection.lang,
-      reason: 'quick_check_failed',
-      classification: {
-        category: 'TECHNICAL',
-        topic: 'unknown',
-        confidence: 0.0
-      }
-    };
-
-    let result;
-    try {
-      result = JSON.parse(response.getContentText());
-    } catch (parseError) {
-      console.warn(`⚠️ JSON non valido nel controllo rapido Gemini: ${parseError.message}`);
-      return defaultResult;
-    }
-
-    if (!result || typeof result !== 'object' || !result.candidates || !result.candidates[0]) {
-      console.error('❌ Nessun candidato nella risposta Controllo Rapido Gemini');
-      return defaultResult;
-    }
-
-    const candidate = result.candidates[0];
-
-    if (candidate.finishReason && ['SAFETY', 'RECITATION', 'OTHER', 'BLOCKLIST'].includes(candidate.finishReason)) {
-      console.warn(`⚠️ Controllo rapido bloccato: ${candidate.finishReason}`);
-      return defaultResult;
-    }
-
-    // Estrazione contenuto robusta
-    const parts = candidate.content?.parts || [];
-    const textResponse = parts.map(p => p.text || '').join('').trim();
-
-    console.log('=========================================');
-    console.log('🤖 RAW GEMINI CLASSIFIER JSON:');
-    console.log(textResponse);
-    console.log('=========================================');
-
-    if (!textResponse) {
-      console.error('❌ Risposta non valida: testo vuoto');
-      return defaultResult;
-    }
-
-    // Parsing JSON con gestione errori
-    let data;
-    try {
-      data = parseGeminiJsonLenient(textResponse);
-    } catch (parseError) {
-      console.warn(`⚠️ parseGeminiJsonLenient fallito: ${parseError.message}`);
-      return defaultResult;
-    }
-    if (!data || typeof data !== 'object') {
-      console.warn('⚠️ Decisione quick check non è un oggetto JSON valido');
-      return defaultResult;
-    }
-
-    // Normalizzazione sicura booleano
-    const replyNeeded = data.reply_needed;
-    const normalizedReplyNeeded = (typeof replyNeeded === 'string')
-      ? replyNeeded.toLowerCase()
-      : replyNeeded;
-    // Fail-open: rispondi in assenza del flag o in caso di formato inatteso.
-    // L'unico caso "non rispondere" è un false esplicito.
-    const shouldRespond = !(normalizedReplyNeeded === false || normalizedReplyNeeded === 'false');
-
-    const isDocumentSubmissionIntent = intentContext && (
-      intentContext.intent === 'suspected_submission' ||
-      intentContext.intent === 'suspected_submission_with_question' ||
-      intentContext.intent === 'document_submission' ||
-      intentContext.intent === 'document_submission_with_question'
-    );
-
-    const finalShouldRespond = isDocumentSubmissionIntent ? true : shouldRespond;
-
-    const safeDimensions = (data.dimensions && typeof data.dimensions === 'object')
-      ? data.dimensions
-      : null;
-    const safeConfidence = Number.isFinite(data.confidence) ? data.confidence : 0.8;
-    const rawSponsorGuidance = data.needs_sponsor_guidance;
-    const normalizedSponsorGuidance = (typeof rawSponsorGuidance === 'string')
-      ? rawSponsorGuidance.trim().toLowerCase()
-      : rawSponsorGuidance;
-    const needsSponsorGuidance = (normalizedSponsorGuidance === true || normalizedSponsorGuidance === 'true')
-      ? true
-      : ((normalizedSponsorGuidance === false || normalizedSponsorGuidance === 'false') ? false : undefined);
-
-    return {
-      // Fail-open deliberato: shouldRespond=false solo con rifiuto esplicito.
-      shouldRespond: finalShouldRespond,
-      language: this._resolveLanguage(data.language, detection.lang, detection.safetyGrade),
-      reason: data.reason || 'quick_check',
-      classification: {
-        category: data.category || 'TECHNICAL',
-        topic: data.topic || '',
-        confidence: safeConfidence,
-        dimensions: safeDimensions
-      },
-      needs_sponsor_guidance: needsSponsorGuidance
-    };
+    return EmailQuickCheckPolicy.normalizeApiResponse(response.getContentText(), detection, intentContext, {
+      resolveLanguage: (candidateLanguage, fallbackLanguage, safetyGrade) =>
+        this._resolveLanguage(candidateLanguage, fallbackLanguage, safetyGrade)
+    });
   }
 
 

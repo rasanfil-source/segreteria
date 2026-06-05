@@ -164,6 +164,61 @@ console.log('--- Test Gemini task profiles: generation e quick_check hanno confi
   assert(quickFlashConfig.responseMimeType === 'application/json', 'quick_check non-lite deve richiedere JSON MIME');
 }
 
+console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documentale e guidance sponsor solo se richiesti ---');
+{
+  const plainPrompt = EmailQuickCheckPolicy.buildPrompt('Vorrei informazioni sugli orari', 'Info', null);
+  const policyPrompt = EmailQuickCheckPolicy.buildPrompt(
+    'Allego il certificato della madrina',
+    'Documentazione',
+    { intent: 'document_submission', sponsorGuidanceCheck: true }
+  );
+
+  assert(!plainPrompt.prompt.includes('CONTESTO STRUTTURALE ALLEGATI'), 'prompt ordinario non deve includere guardrail documentale');
+  assert(!plainPrompt.prompt.includes('"needs_sponsor_guidance": boolean'), 'prompt ordinario non deve chiedere needs_sponsor_guidance');
+  assert(policyPrompt.prompt.includes('CONTESTO STRUTTURALE ALLEGATI'), 'submission documentale deve includere guardrail dedicato');
+  assert(policyPrompt.prompt.includes('"needs_sponsor_guidance": boolean'), 'precheck sponsor deve richiedere il campo JSON dedicato');
+  assert(policyPrompt.safeSubject === 'Documentazione', 'policy deve normalizzare e preservare il subject sicuro');
+  assert(policyPrompt.safeContent.includes('certificato'), 'policy deve normalizzare e preservare il contenuto sicuro');
+}
+
+console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza risposta su submission documentale ---');
+{
+  const responseBody = JSON.stringify({
+    candidates: [{
+      content: {
+        parts: [{
+          text: JSON.stringify({
+            reply_needed: false,
+            language: 'en',
+            category: 'TECHNICAL',
+            dimensions: { technical: 1, pastoral: 0, doctrinal: 0, formal: 0 },
+            topic: 'documentazione ricevuta',
+            confidence: 0.7,
+            reason: 'consegna documentazione',
+            needs_sponsor_guidance: 'false'
+          })
+        }]
+      }
+    }]
+  });
+
+  const result = EmailQuickCheckPolicy.normalizeApiResponse(
+    responseBody,
+    { lang: 'it', confidence: 5, safetyGrade: 5 },
+    { intent: 'document_submission' },
+    { resolveLanguage: (candidate, fallback, grade) => `${candidate}/${fallback}/${grade}` }
+  );
+
+  assert(result.shouldRespond === true, 'submission documentale deve forzare risposta anche se Gemini dice false');
+  assert(result.language === 'en/it/5', 'policy deve delegare la risoluzione lingua alla funzione iniettata');
+  assert(result.classification.topic === 'documentazione ricevuta', 'topic del quick-check deve essere preservato');
+  assert(result.needs_sponsor_guidance === false, 'needs_sponsor_guidance stringa false deve diventare boolean false');
+
+  const fallback = EmailQuickCheckPolicy.normalizeApiResponse('non json', { lang: 'es' }, null);
+  assert(fallback.shouldRespond === false, 'JSON invalido deve restituire default failsafe');
+  assert(fallback.language === 'es', 'default failsafe deve preservare lingua locale');
+}
+
 console.log('--- Test _generateWithModel: il client generico preserva prompt strutturato e profilo generation ---');
 {
   const service = Object.create(GeminiService.prototype);
