@@ -188,6 +188,44 @@ console.log('--- Test pre-AI rules: context, decision e action restano dichiarat
   assert(languageDecision && languageDecision.ruleId === 'foreign-only-subject-italian-precheck', 'pre-check lingua deve mappare alla regola dedicata');
   assert(skipCall && skipCall.labelName === '·' && skipCall.messages[0] === 'msg-1', 'pre-check lingua deve applicare label skip ai target esterni');
   assert(languageResult.reason === 'italian_skipped_foreign_only_precheck', 'pre-check lingua deve preservare la reason storica');
+
+  const submissionState = { forceReceiptOnlyForSubmission: false };
+  const submissionContext = ruleProcessor._createRuleContext_({
+    phase: 'post_ocr_policy',
+    state: submissionState,
+    isDocumentSubmission: true,
+    hasSubmissionQuestions: false,
+    isSponsorSubmission: false,
+    shouldProvideEligibilityGuidance: false
+  });
+  const submissionDecision = ruleProcessor._evaluateEmailPolicyRules_(submissionContext);
+  assert(submissionDecision && submissionDecision.ruleId === 'document-submission-response-policy', 'submission documentale deve mappare alla policy receipt-only');
+  assert(
+    ruleProcessor._applyPreAiRuleDecision_(submissionDecision, submissionContext, { status: 'unknown' }) === false,
+    'la policy receipt-only non deve fermare la pipeline'
+  );
+  assert(submissionState.forceReceiptOnlyForSubmission === true, 'submission senza domande deve forzare sola ricevuta');
+
+  const routingState = {
+    routedAiCore: 'AI_CORE',
+    routedDoctrine: 'DOTTRINA',
+    routedDoctrineStructured: [{ id: 'd1' }]
+  };
+  const routingContext = ruleProcessor._createRuleContext_({
+    phase: 'context_routing',
+    state: routingState,
+    isTechnicalOnly: true
+  });
+  const routingDecision = ruleProcessor._evaluateEmailPolicyRules_(routingContext);
+  assert(routingDecision && routingDecision.ruleId === 'technical-context-routing', 'routing tecnico deve mappare alla regola dedicata');
+  ruleProcessor._applyPreAiRuleDecision_(routingDecision, routingContext, { status: 'unknown' });
+  assert(
+    routingState.routedAiCore === '' &&
+      routingState.routedDoctrine === '' &&
+      Array.isArray(routingState.routedDoctrineStructured) &&
+      routingState.routedDoctrineStructured.length === 0,
+    'routing tecnico deve disattivare i moduli dottrinali pesanti'
+  );
 }
 
 console.log('--- Test periodo orari: usa la KB e la data richiesta ---');

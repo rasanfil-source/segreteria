@@ -150,6 +150,10 @@ var EmailProcessor = class EmailProcessor {
   }
 
   _evaluatePreAiRules_(context = {}) {
+    return this._evaluateEmailPolicyRules_(context);
+  }
+
+  _evaluateEmailPolicyRules_(context = {}) {
     const rules = [
       {
         id: 'last-speaker-is-us',
@@ -252,6 +256,60 @@ var EmailProcessor = class EmailProcessor {
           logs: (ctx) => [`   ⊖ Filtrato dal classifier: ${ctx.classifierReason || ''}`],
           gmailActions: [{ type: 'markHandledUnread' }]
         }
+      },
+      {
+        id: 'document-submission-response-policy',
+        phase: 'post_ocr_policy',
+        when: (ctx) => ctx.isDocumentSubmission === true,
+        do: {
+          stop: false,
+          state: {
+            forceReceiptOnlyForSubmission: (ctx) => {
+              if (ctx.isSponsorSubmission) {
+                return ctx.hasSubmissionQuestions ? false : !ctx.shouldProvideEligibilityGuidance;
+              }
+              return !ctx.hasSubmissionQuestions;
+            }
+          },
+          logs: (ctx) => {
+            const lines = [];
+            if (!ctx.hasSubmissionQuestions) {
+              lines.push('   📎 Guardrail submission: nessuna domanda esplicita → risposta solo conferma ricezione');
+            }
+            if (ctx.isSponsorSubmission) {
+              const forceReceiptOnly = ctx.hasSubmissionQuestions ? false : !ctx.shouldProvideEligibilityGuidance;
+              if (forceReceiptOnly) {
+                lines.push('   📎 Guardrail sponsor submission: consegna documentale → risposta solo conferma ricezione');
+              } else if (ctx.hasSubmissionQuestions) {
+                lines.push('   📎 Guardrail sponsor submission: domanda nel corpo → risposta alla domanda + conferma ricezione');
+              }
+            }
+            return lines;
+          }
+        }
+      },
+      {
+        id: 'technical-context-routing',
+        phase: 'context_routing',
+        when: (ctx) => ctx.isTechnicalOnly === true,
+        do: {
+          stop: false,
+          state: {
+            routedAiCore: '',
+            routedDoctrine: '',
+            routedDoctrineStructured: []
+          },
+          logs: ['   🧭 Context routing: richiesta tecnica → disattivo moduli dottrinali pesanti.']
+        }
+      },
+      {
+        id: 'full-context-routing',
+        phase: 'context_routing',
+        when: () => true,
+        do: {
+          stop: false,
+          logs: ['   🧭 Context routing: richiesta non tecnica o sensibile → mantengo moduli completi.']
+        }
       }
     ];
 
@@ -275,6 +333,7 @@ var EmailProcessor = class EmailProcessor {
 
     const actions = context.actions || {};
     const targets = context.gmailTargets || {};
+    const state = context.state || null;
     const gmailActions = Array.isArray(decision.gmailActions) ? decision.gmailActions : [];
     gmailActions.forEach((action) => {
       if (!action || !action.type) return;
@@ -305,6 +364,13 @@ var EmailProcessor = class EmailProcessor {
       }
     });
 
+    if (state && decision.state && typeof decision.state === 'object') {
+      Object.keys(decision.state).forEach((key) => {
+        const value = decision.state[key];
+        state[key] = (typeof value === 'function') ? value(context) : value;
+      });
+    }
+
     if (result) {
       if (Object.prototype.hasOwnProperty.call(decision, 'status')) {
         result.status = decision.status;
@@ -317,7 +383,7 @@ var EmailProcessor = class EmailProcessor {
       }
     }
 
-    return true;
+    return decision.stop !== false;
   }
 
   _getPacificDateForSafetyValve_() {
@@ -2100,31 +2166,35 @@ ${addressLines.join('\n\n')}
 
             if (attachmentIntentContext && /submission/i.test(String(attachmentIntentContext.intent || ''))) {
               const hasSubmissionQuestions = Boolean(attachmentIntentContext.hasQuestions);
-              if (!hasSubmissionQuestions) {
-                forceReceiptOnlyForSubmission = true;
-                console.log('   📎 Guardrail submission: nessuna domanda esplicita → risposta solo conferma ricezione');
-              }
-
               const sponsorSubmission = Boolean(
                 (attachmentIntentContext.detectedDocTypes && attachmentIntentContext.detectedDocTypes.sponsor) ||
                 /sponsor|padrin|madrin|idoneit/i.test(String(attachmentIntentContext.intent || '')) ||
                 /sponsor|padrin|madrin|idoneit/i.test(`${messageDetails.subject || ''} ${messageDetails.body || ''}`)
               );
+              let shouldProvideEligibilityGuidance = false;
               if (sponsorSubmission) {
-                const shouldProvideEligibilityGuidance = this._shouldProvideEligibilityGuidance_(
+                shouldProvideEligibilityGuidance = this._shouldProvideEligibilityGuidance_(
                   messageDetails.subject,
                   messageDetails.body,
                   attachmentIntentContext,
                   quickCheck.needs_sponsor_guidance,
                   detectedLanguage
                 );
-                forceReceiptOnlyForSubmission = hasSubmissionQuestions ? false : !shouldProvideEligibilityGuidance;
-                if (forceReceiptOnlyForSubmission) {
-                  console.log('   📎 Guardrail sponsor submission: consegna documentale → risposta solo conferma ricezione');
-                } else if (hasSubmissionQuestions) {
-                  console.log('   📎 Guardrail sponsor submission: domanda nel corpo → risposta alla domanda + conferma ricezione');
-                }
               }
+              const submissionPolicyState = {
+                forceReceiptOnlyForSubmission: forceReceiptOnlyForSubmission
+              };
+              const submissionPolicyContext = buildRuleContext({
+                phase: 'post_ocr_policy',
+                state: submissionPolicyState,
+                isDocumentSubmission: true,
+                hasSubmissionQuestions: hasSubmissionQuestions,
+                isSponsorSubmission: sponsorSubmission,
+                shouldProvideEligibilityGuidance: shouldProvideEligibilityGuidance
+              });
+              const submissionPolicyDecision = this._evaluatePreAiRules_(submissionPolicyContext);
+              this._applyPreAiRuleDecision_(submissionPolicyDecision, submissionPolicyContext, result);
+              forceReceiptOnlyForSubmission = submissionPolicyState.forceReceiptOnlyForSubmission;
             }
 
             if (attachmentBlobs.length > 0) {
@@ -2158,14 +2228,23 @@ ${addressLines.join('\n\n')}
       // CONTEXT ROUTING post-OCR (definitivo)
       // ====================================================================
       const isTechnicalOnly = TECHNICAL_CONTEXT_ROUTING_CATEGORIES.has(categoryHintSource) && !hasPastoralConcern;
-      if (isTechnicalOnly) {
-        routedAiCore = '';
-        routedDoctrine = '';
-        routedDoctrineStructured = [];
-        console.log('   🧭 Context routing: richiesta tecnica → disattivo moduli dottrinali pesanti.');
-      } else {
-        console.log('   🧭 Context routing: richiesta non tecnica o sensibile → mantengo moduli completi.');
-      }
+      const routingState = {
+        routedAiCore: routedAiCore,
+        routedDoctrine: routedDoctrine,
+        routedDoctrineStructured: routedDoctrineStructured
+      };
+      const routingContext = buildRuleContext({
+        phase: 'context_routing',
+        state: routingState,
+        categoryHintSource: categoryHintSource,
+        hasPastoralConcern: hasPastoralConcern,
+        isTechnicalOnly: isTechnicalOnly
+      });
+      const routingDecision = this._evaluatePreAiRules_(routingContext);
+      this._applyPreAiRuleDecision_(routingDecision, routingContext, result);
+      routedAiCore = routingState.routedAiCore;
+      routedDoctrine = routingState.routedDoctrine;
+      routedDoctrineStructured = routingState.routedDoctrineStructured;
       const businessDate = this._getBusinessDateString();
       const scheduleContext = this._resolveScheduleContext(
         `${messageDetails.subject || ''}\n${messageDetails.body || ''}`,
