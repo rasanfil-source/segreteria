@@ -144,6 +144,56 @@ console.log('--- Test getAdaptiveGreeting: lingua non preconfigurata non forza c
   assert(adaptive.closing === 'Kind regards,', 'fallback chiusura non deve essere italiana per lingue non preconfigurate');
 }
 
+console.log('--- Test Gemini task profiles: generation e quick_check hanno configurazioni separate ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = null;
+  service.config = { MAX_OUTPUT_TOKENS: 321 };
+  service.fetchFn = () => null;
+  service._buildGenerateUrl = () => 'https://example.test/generate';
+
+  const generationConfig = service._buildGeminiGenerationConfig_('generation', 'gemini-3.5-flash');
+  const quickLiteConfig = service._buildGeminiGenerationConfig_('quick_check', 'gemini-3.1-flash-lite');
+  const quickFlashConfig = service._buildGeminiGenerationConfig_('quick_check', 'gemini-3.5-flash');
+
+  assert(generationConfig.maxOutputTokens === 321, 'generation deve usare MAX_OUTPUT_TOKENS configurato');
+  assert(generationConfig.temperature === 0.25, 'generation deve mantenere temperatura stabile');
+  assert(quickLiteConfig.maxOutputTokens === 1024, 'quick_check deve avere budget token dedicato');
+  assert(!Object.prototype.hasOwnProperty.call(quickLiteConfig, 'responseMimeType'), 'quick_check lite non deve forzare JSON MIME');
+  assert(quickFlashConfig.responseMimeType === 'application/json', 'quick_check non-lite deve richiedere JSON MIME');
+}
+
+console.log('--- Test _generateWithModel: il client generico preserva prompt strutturato e profilo generation ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = null;
+  service.config = { MAX_OUTPUT_TOKENS: 128 };
+  service._buildGenerateUrl = () => 'https://example.test/generate';
+  let capturedPayload = null;
+  service.fetchFn = (_url, request) => {
+    capturedPayload = JSON.parse(request.payload);
+    return {
+      getResponseCode: () => 200,
+      getContentText: () => JSON.stringify({
+        candidates: [{ content: { parts: [{ text: 'Risposta ok' }] } }]
+      })
+    };
+  };
+
+  const text = service._generateWithModel(
+    { systemInstruction: 'Istruzioni di sistema', prompt: 'Prompt utente' },
+    'gemini-test'
+  );
+
+  assert(text === 'Risposta ok', 'deve restituire il testo estratto dal client generico');
+  assert(capturedPayload.systemInstruction.parts[0].text === 'Istruzioni di sistema', 'systemInstruction deve restare nel payload dedicato');
+  assert(capturedPayload.contents[0].parts[0].text === 'Prompt utente', 'prompt utente deve restare nei contents');
+  assert(capturedPayload.generationConfig.maxOutputTokens === 128, 'profilo generation deve rispettare MAX_OUTPUT_TOKENS');
+  assert(Array.isArray(capturedPayload.safetySettings) && capturedPayload.safetySettings.length === 4, 'safety settings devono essere centralizzati nel payload');
+}
+
 console.log('--- Test _generateWithModel: testo vuoto marca isTransient ---');
 {
   const service = Object.create(GeminiService.prototype);

@@ -10,6 +10,525 @@
  * - Rate Limiter integrato con gestione quota
  */
 
+var GEMINI_DEFAULT_SAFETY_SETTINGS = [
+  { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+  { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+  { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
+];
+
+var GEMINI_TASK_PROFILES = {
+  generation: {
+    maxOutputTokensConfigKey: 'MAX_OUTPUT_TOKENS',
+    defaultMaxOutputTokens: 6000,
+    temperature: 0.25,
+    topK: 40,
+    topP: 0.95
+  },
+  quick_check: {
+    defaultMaxOutputTokens: 1024,
+    temperature: 0.25,
+    topK: 40,
+    topP: 0.95,
+    responseMimeType: 'application/json',
+    omitResponseMimeTypeForModelIncludes: 'lite'
+  },
+  connection_test: {
+    defaultMaxOutputTokens: 10,
+    temperature: 0.1
+  }
+};
+
+var GeminiContentClient = class GeminiContentClient {
+  constructor(options = {}) {
+    this.config = options.config || {};
+    this.fetchFn = options.fetchFn;
+    this.primaryKey = options.primaryKey;
+    this.backupKey = options.backupKey || null;
+    this.buildGenerateUrl = options.buildGenerateUrl;
+    this.markPrimaryExhausted = options.markPrimaryExhausted || (() => {});
+    this.isPrimaryKeyFallbackHttpError = options.isPrimaryKeyFallbackHttpError || (() => false);
+    this.normalizePromptPayload = options.normalizePromptPayload || GeminiContentClient.normalizePromptPayload;
+  }
+
+  static normalizePromptPayload(promptData) {
+    if (promptData && typeof promptData === 'object') {
+      const userPrompt = promptData.prompt != null ? String(promptData.prompt) : '';
+      const systemInstruction = promptData.systemInstruction != null
+        ? String(promptData.systemInstruction)
+        : '';
+      return {
+        userPrompt: userPrompt,
+        systemInstruction: systemInstruction,
+        combinedText: [systemInstruction, userPrompt].filter(Boolean).join('\n\n')
+      };
+    }
+
+    const userPrompt = promptData == null ? '' : String(promptData);
+    return {
+      userPrompt: userPrompt,
+      systemInstruction: '',
+      combinedText: userPrompt
+    };
+  }
+
+  getTaskProfile(taskType) {
+    return GEMINI_TASK_PROFILES[taskType] || GEMINI_TASK_PROFILES.generation;
+  }
+
+  buildGenerationConfig(taskType, modelName, overrides = {}) {
+    const profile = this.getTaskProfile(taskType);
+    const config = {};
+    const hasOverride = (key) => Object.prototype.hasOwnProperty.call(overrides, key);
+    const maxOutputTokens = hasOverride('maxOutputTokens')
+      ? overrides.maxOutputTokens
+      : (profile.maxOutputTokensConfigKey && this.config && this.config[profile.maxOutputTokensConfigKey] != null
+        ? this.config[profile.maxOutputTokensConfigKey]
+        : profile.defaultMaxOutputTokens);
+
+    if (maxOutputTokens != null) config.maxOutputTokens = maxOutputTokens;
+    if (hasOverride('temperature') || profile.temperature != null) {
+      config.temperature = hasOverride('temperature') ? overrides.temperature : profile.temperature;
+    }
+    if (hasOverride('topK') || profile.topK != null) {
+      config.topK = hasOverride('topK') ? overrides.topK : profile.topK;
+    }
+    if (hasOverride('topP') || profile.topP != null) {
+      config.topP = hasOverride('topP') ? overrides.topP : profile.topP;
+    }
+
+    const responseMimeType = hasOverride('responseMimeType')
+      ? overrides.responseMimeType
+      : profile.responseMimeType;
+    const omitNeedle = profile.omitResponseMimeTypeForModelIncludes;
+    const shouldOmitResponseMimeType = !!(
+      responseMimeType &&
+      omitNeedle &&
+      String(modelName || '').toLowerCase().includes(String(omitNeedle).toLowerCase())
+    );
+    if (responseMimeType && !shouldOmitResponseMimeType) {
+      config.responseMimeType = responseMimeType;
+    }
+
+    return config;
+  }
+
+  getSafetySettings() {
+    return GEMINI_DEFAULT_SAFETY_SETTINGS.map((item) => Object.assign({}, item));
+  }
+
+  buildRequestParts(userPromptText, attachments = []) {
+    const requestParts = [];
+    if (attachments && attachments.length > 0) {
+      attachments.forEach((blob) => {
+        try {
+          if (blob && blob.inlineData && blob.inlineData.data) {
+            requestParts.push(blob);
+            return;
+          }
+          const mimeType = blob && typeof blob.getContentType === 'function' ? blob.getContentType() : '';
+          if (!mimeType) {
+            console.warn('Allegato ignorato: contentType mancante o non valido');
+            return;
+          }
+          requestParts.push({
+            inlineData: {
+              mimeType: mimeType,
+              data: Utilities.base64Encode(blob.getBytes())
+            }
+          });
+        } catch (e) {
+          console.warn(`Impossibile encodare l'allegato: ${e.message}`);
+        }
+      });
+    }
+    requestParts.push({ text: userPromptText });
+    return requestParts;
+  }
+
+  buildGenerateContentPayload(request = {}) {
+    const taskType = request.taskType || 'generation';
+    const promptPayload = request.promptPayload || this.normalizePromptPayload(request.prompt);
+    const userPromptText = promptPayload.userPrompt;
+    const systemInstructionText = promptPayload.systemInstruction;
+    const requestParts = request.parts || this.buildRequestParts(userPromptText, request.attachments || []);
+    const payloadObj = {
+      contents: [{ role: 'user', parts: requestParts }],
+      generationConfig: request.generationConfig || this.buildGenerationConfig(taskType, request.modelName, request.generationConfigOverrides || {}),
+      safetySettings: request.safetySettings || this.getSafetySettings()
+    };
+
+    if (systemInstructionText) {
+      payloadObj.systemInstruction = {
+        parts: [{ text: systemInstructionText }]
+      };
+    }
+
+    return {
+      payloadObj: payloadObj,
+      promptPayload: promptPayload,
+      requestParts: requestParts
+    };
+  }
+
+  fetchGenerateContent(request = {}) {
+    const activeKey = request.apiKey || this.primaryKey;
+    const built = this.buildGenerateContentPayload(request);
+    const url = this.buildGenerateUrl(request.modelName);
+    let response;
+
+    try {
+      response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
+        method: 'POST',
+        contentType: 'application/json',
+        payload: JSON.stringify(built.payloadObj),
+        muteHttpExceptions: true
+      });
+    } catch (error) {
+      const prefix = request.networkErrorPrefix || 'Errore rete/timeout durante chiamata Gemini';
+      throw new Error(`${prefix}: ${error.message}`);
+    }
+
+    const responseCode = response.getResponseCode();
+    const responseBody = response.getContentText();
+
+    if (request.primaryFallbackSignalReason &&
+        this.isPrimaryKeyFallbackHttpError(responseCode, responseBody) &&
+        activeKey === this.primaryKey && this.backupKey) {
+      this.markPrimaryExhausted(request.primaryFallbackSignalReason);
+      const quotaError = new Error('PRIMARY_QUOTA_EXHAUSTED');
+      quotaError.isTransient = true;
+      throw quotaError;
+    }
+
+    return {
+      response: response,
+      responseCode: responseCode,
+      responseBody: responseBody,
+      payloadObj: built.payloadObj,
+      promptPayload: built.promptPayload,
+      requestParts: built.requestParts,
+      activeKey: activeKey
+    };
+  }
+
+  extractApiErrorMessage(responseBody) {
+    let apiErrorMsg = (responseBody || '').substring(0, 200);
+    try {
+      const parsedObj = JSON.parse(responseBody);
+      if (parsedObj && parsedObj.error && parsedObj.error.message) {
+        apiErrorMsg = parsedObj.error.message;
+      }
+    } catch (e) {
+      // Manteniamo fallback al body raw troncato.
+    }
+    return apiErrorMsg;
+  }
+
+  assertTextGenerationHttpOk(apiResponse) {
+    const responseCode = apiResponse.responseCode;
+    const responseBody = apiResponse.responseBody;
+    const apiErrorMsg = this.extractApiErrorMessage(responseBody);
+
+    if ([429, 500, 502, 503, 504].includes(responseCode)) {
+      if (responseCode === 429) {
+        throw new Error(`QUOTA_EXHAUSTED: Quota o rate limit superato (429): ${apiErrorMsg}`);
+      }
+      const transientError = new Error(`Errore server temporaneo (${responseCode}): ${apiErrorMsg}`);
+      transientError.isTransient = true;
+      throw transientError;
+    }
+
+    if (responseCode === 400) {
+      const bodyLower = responseBody.toLowerCase();
+      const isTokenLimit = bodyLower.includes('token') && (bodyLower.includes('limit') || bodyLower.includes('exceed'));
+      if (isTokenLimit) {
+        throw new Error('Errore contenuto: prompt supera il limite token del modello.');
+      }
+      throw new Error(`Errore API 400: ${apiErrorMsg}`);
+    }
+
+    if (responseCode === 403) {
+      throw new Error(`Errore API 403: ${apiErrorMsg}`);
+    }
+
+    if (responseCode !== 200) {
+      throw new Error(`Errore API ${responseCode}: ${apiErrorMsg}`);
+    }
+  }
+
+  parseJsonResponse(responseBody) {
+    try {
+      return JSON.parse(responseBody);
+    } catch (error) {
+      throw new Error(`Risposta Gemini non JSON valida: ${error.message}`);
+    }
+  }
+
+  extractCandidateText(result) {
+    if (!result.candidates || !result.candidates[0]) {
+      const blockReason = result.promptFeedback && result.promptFeedback.blockReason
+        ? result.promptFeedback.blockReason
+        : null;
+      if (blockReason) {
+        throw new Error(`Risposta bloccata da Gemini (promptFeedback): ${blockReason}`);
+      }
+      throw new Error('Risposta Gemini non valida: nessun candidato');
+    }
+
+    const candidate = result.candidates[0];
+
+    if (candidate.finishReason && ['SAFETY', 'RECITATION', 'OTHER', 'BLOCKLIST'].includes(candidate.finishReason)) {
+      throw new Error(`Risposta bloccata da Gemini: ${candidate.finishReason}`);
+    }
+
+    const parts = candidate.content?.parts;
+    if (!Array.isArray(parts) || parts.length === 0) {
+      const emptyPartsErr = new Error('Gemini ha restituito parti vuote o assenti');
+      emptyPartsErr.isTransient = true;
+      throw emptyPartsErr;
+    }
+    const generatedText = parts.map(p => p.text || '').join('').trim();
+
+    if (!generatedText) {
+      const emptyErr = new Error('Gemini ha restituito testo vuoto');
+      emptyErr.isTransient = true;
+      throw emptyErr;
+    }
+
+    return {
+      text: generatedText,
+      partsCount: parts.length
+    };
+  }
+
+  generateText(request = {}) {
+    const apiResponse = this.fetchGenerateContent(request);
+    this.assertTextGenerationHttpOk(apiResponse);
+    const result = this.parseJsonResponse(apiResponse.responseBody);
+    return this.extractCandidateText(result);
+  }
+};
+
+var EmailQuickCheckPolicy = class EmailQuickCheckPolicy {
+  static isDocumentSubmissionIntent(intentContext) {
+    return !!(intentContext && (
+      intentContext.intent === 'suspected_submission' ||
+      intentContext.intent === 'suspected_submission_with_question' ||
+      intentContext.intent === 'document_submission' ||
+      intentContext.intent === 'document_submission_with_question'
+    ));
+  }
+
+  static shouldClassifySponsorGuidance(intentContext) {
+    return !!(intentContext && intentContext.sponsorGuidanceCheck === true);
+  }
+
+  static buildPrompt(emailContent, emailSubject, intentContext = null) {
+    const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
+    const safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
+    const hasSubmissionContext = EmailQuickCheckPolicy.isDocumentSubmissionIntent(intentContext);
+    const shouldClassifySponsorGuidance = EmailQuickCheckPolicy.shouldClassifySponsorGuidance(intentContext);
+    const quickIntentGuardrail = hasSubmissionContext ? `
+CONTESTO STRUTTURALE ALLEGATI:
+- Il testo del mittente contiene segnali di consegna documentale ("in allegato", "allego", "le invio", ecc.).
+- Eventuali parole provenienti da allegati/OCR come "padrino", "madrina", "cresima", "idoneità", "requisiti" NON devono essere interpretate come richiesta informativa.
+- Se ci sono domande esplicite nel corpo email, rispondi a quelle; altrimenti classifica come consegna documentazione.
+- Una consegna documentale da parte di un fedele/utente richiede risposta di cortesia: reply_needed deve essere TRUE, salvo spam/newsletter/autorisposta.
+- Topic consigliato se non ci sono domande esplicite: "documentazione ricevuta".
+- Non trasformare una consegna di certificato in una richiesta sui requisiti del padrino/madrina.
+` : '';
+    const sponsorGuidanceTask = shouldClassifySponsorGuidance ? `
+7. Determina needs_sponsor_guidance (boolean):
+   - TRUE solo se nella risposta conviene inserire le condizioni per il ruolo ecclesiale di padrino/madrina/godparent.
+   - Considera equivalenti sacramentali: padrino/madrina (it/es), godparent/godfather/godmother o sponsor sacramentale (en), parrain/marraine (fr), padrinho/madrinha (pt), Pate/Patin/Firmpate/Firmpatin (de).
+   - TRUE se il mittente vuole assumere quel ruolo sacramentale e non ha ancora la Cresima/Confirmation, oppure chiede esplicitamente requisiti, condizioni o idoneità per quel ruolo.
+   - FALSE in tutti gli altri casi.
+   - FALSE se il mittente sta consegnando documenti propri o del proprio padrino/madrina per ricevere un sacramento.
+   - FALSE se "padrino" o "madrina" indica solo l'accompagnatore sacramentale del mittente.
+   - In italiano, "sponsor" NON significa padrino/madrina: se indica pubblicità, finanziamento o magliette, rispondi FALSE.
+   - "Testimone" di matrimonio NON è padrino/madrina e NON richiede Cresima: rispondi FALSE.
+   - In inglese, "sponsor" vale solo se il contesto è chiaramente sacramentale (Confirmation/Baptism/Catholic godparent); altrimenti FALSE.
+   - FALSE se il mittente chiede solo logistica, date, orari, luogo o conferma di ricezione documenti.
+` : '';
+    const sponsorGuidanceJsonField = shouldClassifySponsorGuidance
+      ? `,
+  "needs_sponsor_guidance": boolean`
+      : '';
+    const prompt = `Analizza questa email.
+Rispondi ESCLUSIVAMENTE con un oggetto JSON valido e completo.
+NON usare blocchi markdown e NON aggiungere testo extra prima o dopo il JSON.
+
+Email:
+Oggetto: ${safeSubject}
+Testo: ${safeContent.substring(0, 800)}
+${quickIntentGuardrail}
+
+COMPITI:
+1. Decidi se richiede risposta (reply_needed):
+ - TRUE se l'utente pone domande, esprime dubbi o fornisce informazioni nuove/utili (appuntamenti, dati, modifiche).
+ - FALSE se è solo un ringraziamento finale (es: \"Grazie mille\", \"Perfetto grazie\", \"Ricevuto\") senza nuove domande o info.
+ - FALSE se è newsletter, spam o messaggi di sistema.
+ - IMPORTANTE: Se l'utente chiede qualcosa già detto, rispondi TRUE ma con riferimento cordiale alla risposta precedente.
+
+2. Rileva la lingua (language) - codice ISO 639-1 (es: "it", "en", "es", "fr", "de")
+3. Classifica la richiesta (category):
+   - "TECHNICAL": orari, documenti, info pratiche, iscrizioni
+   - "PASTORAL": richieste di aiuto, situazioni personali, lutto
+   - "DOCTRINAL": dubbi di fede, domande teologiche
+   - "FORMAL": richieste di sbattezzo, cancellazione registri, apostasia
+   - "MIXED": mix di tecnica e pastorale
+4. Fornisci punteggi continui (0.0-1.0) per ogni dimensione:
+   - technical, pastoral, doctrinal, formal
+5. Estrai l'argomento principale (topic) in ITALIANO (usando termini coerenti con la richiesta)
+6. Fornisci un breve ragionamento (reason)
+${sponsorGuidanceTask}
+
+⚠️ REGOLA CRITICA "SBATTEZZO":
+Se l'utente esprime la volontà di non essere più cristiano, essere cancellato dai registri o "sbattezzarsi":
+- Classifica SEMPRE come "FORMAL"
+- Topic: "sbattezzo"
+- NON classificarlo come "PASTORAL" anche se c'è un tono emotivo.
+
+Output JSON:
+{
+  "reply_needed": boolean,
+  "language": "string (codice ISO 639-1)",
+  "category": "TECHNICAL" | "PASTORAL" | "DOCTRINAL" | "FORMAL" | "MIXED",
+  "dimensions": {
+    "technical": number (0.0-1.0),
+    "pastoral": number (0.0-1.0),
+    "doctrinal": number (0.0-1.0),
+    "formal": number (0.0-1.0)
+  },
+  "topic": "string",
+  "confidence": number (0.0-1.0),
+  "reason": "string"${sponsorGuidanceJsonField}
+}`;
+
+    return {
+      prompt: prompt,
+      safeSubject: safeSubject,
+      safeContent: safeContent,
+      hasSubmissionContext: hasSubmissionContext,
+      shouldClassifySponsorGuidance: shouldClassifySponsorGuidance
+    };
+  }
+
+  static defaultResult(detection) {
+    const safeDetection = detection || {};
+    return {
+      shouldRespond: false,
+      language: safeDetection.lang,
+      reason: 'quick_check_failed',
+      classification: {
+        category: 'TECHNICAL',
+        topic: 'unknown',
+        confidence: 0.0
+      }
+    };
+  }
+
+  static normalizeApiResponse(responseBody, detection, intentContext = null, options = {}) {
+    const defaultResult = EmailQuickCheckPolicy.defaultResult(detection);
+    const resolveLanguage = typeof options.resolveLanguage === 'function'
+      ? options.resolveLanguage
+      : ((candidate, fallback) => candidate || fallback || 'it');
+
+    let result;
+    try {
+      result = JSON.parse(responseBody);
+    } catch (parseError) {
+      console.warn(`⚠️ JSON non valido nel controllo rapido Gemini: ${parseError.message}`);
+      return defaultResult;
+    }
+
+    if (!result || typeof result !== 'object' || !result.candidates || !result.candidates[0]) {
+      console.error('❌ Nessun candidato nella risposta Controllo Rapido Gemini');
+      return defaultResult;
+    }
+
+    const candidate = result.candidates[0];
+
+    if (candidate.finishReason && ['SAFETY', 'RECITATION', 'OTHER', 'BLOCKLIST'].includes(candidate.finishReason)) {
+      console.warn(`⚠️ Controllo rapido bloccato: ${candidate.finishReason}`);
+      return defaultResult;
+    }
+
+    const parts = candidate.content?.parts || [];
+    const textResponse = parts.map(p => p.text || '').join('').trim();
+
+    console.log('=========================================');
+    console.log('🤖 RAW GEMINI CLASSIFIER JSON:');
+    console.log(textResponse);
+    console.log('=========================================');
+
+    if (!textResponse) {
+      console.error('❌ Risposta non valida: testo vuoto');
+      return defaultResult;
+    }
+
+    let data;
+    try {
+      data = parseGeminiJsonLenient(textResponse);
+    } catch (parseError) {
+      console.warn(`⚠️ parseGeminiJsonLenient fallito: ${parseError.message}`);
+      return defaultResult;
+    }
+
+    return EmailQuickCheckPolicy.normalizeDecisionData(data, detection, intentContext, {
+      resolveLanguage: resolveLanguage,
+      defaultResult: defaultResult
+    });
+  }
+
+  static normalizeDecisionData(data, detection, intentContext = null, options = {}) {
+    const defaultResult = options.defaultResult || EmailQuickCheckPolicy.defaultResult(detection);
+    const safeDetection = detection || {};
+    const resolveLanguage = typeof options.resolveLanguage === 'function'
+      ? options.resolveLanguage
+      : ((candidate, fallback) => candidate || fallback || 'it');
+
+    if (!data || typeof data !== 'object') {
+      console.warn('⚠️ Decisione quick check non è un oggetto JSON valido');
+      return defaultResult;
+    }
+
+    const replyNeeded = data.reply_needed;
+    const normalizedReplyNeeded = (typeof replyNeeded === 'string')
+      ? replyNeeded.toLowerCase()
+      : replyNeeded;
+    const shouldRespond = !(normalizedReplyNeeded === false || normalizedReplyNeeded === 'false');
+    const finalShouldRespond = EmailQuickCheckPolicy.isDocumentSubmissionIntent(intentContext)
+      ? true
+      : shouldRespond;
+    const safeDimensions = (data.dimensions && typeof data.dimensions === 'object')
+      ? data.dimensions
+      : null;
+    const safeConfidence = Number.isFinite(data.confidence) ? data.confidence : 0.8;
+    const rawSponsorGuidance = data.needs_sponsor_guidance;
+    const normalizedSponsorGuidance = (typeof rawSponsorGuidance === 'string')
+      ? rawSponsorGuidance.trim().toLowerCase()
+      : rawSponsorGuidance;
+    const needsSponsorGuidance = (normalizedSponsorGuidance === true || normalizedSponsorGuidance === 'true')
+      ? true
+      : ((normalizedSponsorGuidance === false || normalizedSponsorGuidance === 'false') ? false : undefined);
+
+    return {
+      shouldRespond: finalShouldRespond,
+      language: resolveLanguage(data.language, safeDetection.lang, safeDetection.safetyGrade),
+      reason: data.reason || 'quick_check',
+      classification: {
+        category: data.category || 'TECHNICAL',
+        topic: data.topic || '',
+        confidence: safeConfidence,
+        dimensions: safeDimensions
+      },
+      needs_sponsor_guidance: needsSponsorGuidance
+    };
+  }
+};
+
 var GeminiService = class GeminiService {
   constructor(options = {}) {
     const sharedConfig = (typeof CONFIG !== 'undefined') ? CONFIG : {};
@@ -136,24 +655,7 @@ var GeminiService = class GeminiService {
   }
 
   _normalizePromptPayload_(promptData) {
-    if (promptData && typeof promptData === 'object') {
-      const userPrompt = promptData.prompt != null ? String(promptData.prompt) : '';
-      const systemInstruction = promptData.systemInstruction != null
-        ? String(promptData.systemInstruction)
-        : '';
-      return {
-        userPrompt: userPrompt,
-        systemInstruction: systemInstruction,
-        combinedText: [systemInstruction, userPrompt].filter(Boolean).join('\n\n')
-      };
-    }
-
-    const userPrompt = promptData == null ? '' : String(promptData);
-    return {
-      userPrompt: userPrompt,
-      systemInstruction: '',
-      combinedText: userPrompt
-    };
+    return GeminiContentClient.normalizePromptPayload(promptData);
   }
 
   _estimateTokens(text, attachments = []) {
@@ -161,6 +663,28 @@ var GeminiService = class GeminiService {
     return typeof estimateTokenCount === 'function'
       ? estimateTokenCount(promptPayload.combinedText, attachments)
       : Math.ceil((promptPayload.combinedText || '').length / 4);
+  }
+
+  _createGeminiContentClient_() {
+    return new GeminiContentClient({
+      config: this.config || {},
+      fetchFn: this.fetchFn,
+      primaryKey: this.primaryKey,
+      backupKey: this.backupKey,
+      buildGenerateUrl: (modelName) => this._buildGenerateUrl(modelName),
+      markPrimaryExhausted: (reason) => this._markPrimaryExhausted_(reason),
+      isPrimaryKeyFallbackHttpError: (responseCode, responseBody) =>
+        this._isPrimaryKeyFallbackHttpError_(responseCode, responseBody),
+      normalizePromptPayload: (promptData) => this._normalizePromptPayload_(promptData)
+    });
+  }
+
+  _buildGeminiGenerationConfig_(taskType, modelName, overrides = {}) {
+    return this._createGeminiContentClient_().buildGenerationConfig(taskType, modelName, overrides);
+  }
+
+  _getGeminiSafetySettings_() {
+    return this._createGeminiContentClient_().getSafetySettings();
   }
 
   /**
@@ -172,167 +696,25 @@ var GeminiService = class GeminiService {
    * @returns {string|null} Testo generato
    */
   _generateWithModel(prompt, modelName, apiKeyOverride = null, attachments = []) {
-    // Usa chiave override se fornita, altrimenti chiave primaria
-    const activeKey = apiKeyOverride || this.primaryKey;
-    const url = this._buildGenerateUrl(modelName);
-    const maxTokens = this.config.MAX_OUTPUT_TOKENS ?? 6000;
+    const client = this._createGeminiContentClient_();
     const promptPayload = this._normalizePromptPayload_(prompt);
     const userPromptText = promptPayload.userPrompt;
     const systemInstructionText = promptPayload.systemInstruction;
 
     console.log(`🤖 Chiamata ${modelName} (prompt utente: ${userPromptText.length} car., system: ${systemInstructionText.length} car.)...`);
 
-    const requestParts = [];
-    if (attachments && attachments.length > 0) {
-      attachments.forEach((blob) => {
-        try {
-          if (blob && blob.inlineData && blob.inlineData.data) {
-            requestParts.push(blob);
-            return;
-          }
-          const mimeType = blob && typeof blob.getContentType === 'function' ? blob.getContentType() : '';
-          if (!mimeType) {
-            console.warn('Allegato ignorato: contentType mancante o non valido');
-            return;
-          }
-          requestParts.push({
-            inlineData: {
-              mimeType: mimeType,
-              data: Utilities.base64Encode(blob.getBytes())
-            }
-          });
-        } catch (e) {
-          console.warn(`Impossibile encodare l'allegato: ${e.message}`);
-        }
-      });
-    }
-    requestParts.push({ text: userPromptText });
+    const generated = client.generateText({
+      taskType: 'generation',
+      prompt: prompt,
+      promptPayload: promptPayload,
+      modelName: modelName,
+      apiKey: apiKeyOverride || this.primaryKey,
+      attachments: attachments,
+      primaryFallbackSignalReason: 'generateResponse'
+    });
+    const generatedText = generated.text;
 
-    const payloadObj = {
-      contents: [{ role: 'user', parts: requestParts }],
-      generationConfig: {
-        maxOutputTokens: maxTokens,
-        temperature: 0.25,
-        topK: 40,
-        topP: 0.95
-      },
-      safetySettings: [
-        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
-        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
-        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
-      ]
-    };
-
-    if (systemInstructionText) {
-      payloadObj.systemInstruction = {
-        parts: [{ text: systemInstructionText }]
-      };
-    }
-
-    let response;
-    try {
-      response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
-        method: 'POST',
-        contentType: 'application/json',
-        payload: JSON.stringify(payloadObj),
-        muteHttpExceptions: true
-      });
-    } catch (error) {
-      throw new Error(`Errore rete/timeout durante chiamata Gemini: ${error.message}`);
-    }
-
-    const responseCode = response.getResponseCode();
-    const responseBody = response.getContentText();
-
-    // Se la primaria risponde con quota/permessi/key/billing non utilizzabili e
-    // abbiamo una chiave di riserva, segnaliamo al chiamante di passare subito
-    // al fallback senza consumare retry inutili sulla stessa chiave.
-    if (this._isPrimaryKeyFallbackHttpError_(responseCode, responseBody) &&
-        activeKey === this.primaryKey && this.backupKey) {
-      this._markPrimaryExhausted_('generateResponse');
-      const quotaError = new Error('PRIMARY_QUOTA_EXHAUSTED');
-      quotaError.isTransient = true;
-      throw quotaError;
-    }
-
-    let apiErrorMsg = (responseBody || '').substring(0, 200);
-    try {
-      const parsedObj = JSON.parse(responseBody);
-      if (parsedObj && parsedObj.error && parsedObj.error.message) {
-        apiErrorMsg = parsedObj.error.message;
-      }
-    } catch (e) {
-      // Manteniamo fallback al body raw troncato.
-    }
-
-    // Separazione errori di rete/quota vs contenuto con semplici if
-    if ([429, 500, 502, 503, 504].includes(responseCode)) {
-      if (responseCode === 429) {
-        throw new Error(`QUOTA_EXHAUSTED: Quota o rate limit superato (429): ${apiErrorMsg}`);
-      }
-      const transientError = new Error(`Errore server temporaneo (${responseCode}): ${apiErrorMsg}`);
-      transientError.isTransient = true;
-      throw transientError;
-    }
-
-    if (responseCode === 400) {
-      const bodyLower = responseBody.toLowerCase();
-      const isTokenLimit = bodyLower.includes('token') && (bodyLower.includes('limit') || bodyLower.includes('exceed'));
-      if (isTokenLimit) {
-        throw new Error('Errore contenuto: prompt supera il limite token del modello.');
-      }
-      throw new Error(`Errore API 400: ${apiErrorMsg}`);
-    }
-
-    if (responseCode === 403) {
-      throw new Error(`Errore API 403: ${apiErrorMsg}`);
-    }
-
-    if (responseCode !== 200) {
-      throw new Error(`Errore API ${responseCode}: ${apiErrorMsg}`);
-    }
-
-    let result;
-    try {
-      result = JSON.parse(responseBody);
-    } catch (error) {
-      throw new Error(`Risposta Gemini non JSON valida: ${error.message}`);
-    }
-
-    if (!result.candidates || !result.candidates[0]) {
-      const blockReason = result.promptFeedback && result.promptFeedback.blockReason
-        ? result.promptFeedback.blockReason
-        : null;
-      if (blockReason) {
-        throw new Error(`Risposta bloccata da Gemini (promptFeedback): ${blockReason}`);
-      }
-      throw new Error('Risposta Gemini non valida: nessun candidato');
-    }
-
-    const candidate = result.candidates[0];
-
-    // Controllo blocco safety
-    if (candidate.finishReason && ['SAFETY', 'RECITATION', 'OTHER', 'BLOCKLIST'].includes(candidate.finishReason)) {
-      throw new Error(`Risposta bloccata da Gemini: ${candidate.finishReason}`);
-    }
-
-    // Estrazione contenuto robusta
-    const parts = candidate.content?.parts;
-    if (!Array.isArray(parts) || parts.length === 0) {
-      const emptyPartsErr = new Error('Gemini ha restituito parti vuote o assenti');
-      emptyPartsErr.isTransient = true;
-      throw emptyPartsErr;
-    }
-    const generatedText = parts.map(p => p.text || '').join('').trim();
-
-    if (!generatedText) {
-      const emptyErr = new Error('Gemini ha restituito testo vuoto');
-      emptyErr.isTransient = true;
-      throw emptyErr;
-    }
-
-    console.log(`✓ Generati ${generatedText.length} caratteri (da ${parts.length} parti)`);
+    console.log(`✓ Generati ${generatedText.length} caratteri (da ${generated.partsCount} parti)`);
     return generatedText;
   }
 
@@ -506,28 +888,16 @@ Output JSON:
     let response;
     let responseCode;
     let fetchError = null;
-    const generationConfig = {
-      maxOutputTokens: 1024,
-      temperature: 0.25,
-      topK: 40,
-      topP: 0.95
-    };
-    if (!String(modelName || '').toLowerCase().includes('lite')) {
-      generationConfig.responseMimeType = 'application/json';
-    }
+    const client = this._createGeminiContentClient_();
+    const builtPayload = client.buildGenerateContentPayload({
+      taskType: 'quick_check',
+      prompt: prompt,
+      modelName: modelName
+    });
     const requestPayload = {
       method: 'POST',
       contentType: 'application/json',
-      payload: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: generationConfig,
-        safetySettings: [
-          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
-          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
-          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
-        ]
-      }),
+      payload: JSON.stringify(builtPayload.payloadObj),
       muteHttpExceptions: true
     };
     const executeFetch = (apiKey) => this.fetchFn(`${url}?key=${encodeURIComponent(apiKey)}`, requestPayload);
