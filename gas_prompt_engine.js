@@ -168,12 +168,22 @@ var PromptEngine = class PromptEngine {
       ? CONFIG.KB_TOKEN_BUDGET_RATIO
       : 0.5;
 
+    let workingAttachmentsContext = this._normalizePromptTextInput(attachmentsContext, '');
+    let workingAttachmentIntent = options.attachmentIntentContext || null;
+    const attachmentPayloadBudgetRatio = this._resolveAttachmentPayloadBudgetRatio_(KB_BUDGET_RATIO);
+    const attachmentPayloadSafeLimit = Math.floor(MAX_SAFE_PROMPT_CHARS * attachmentPayloadBudgetRatio);
+    const attachmentPayloadGuard = this._truncateAttachmentPayloadSafely_(workingAttachmentsContext, attachmentPayloadSafeLimit);
+    workingAttachmentsContext = attachmentPayloadGuard.text;
+    if (attachmentPayloadGuard.truncated) {
+      console.warn(`⚠️ Allegati eccedono il budget prompt (${attachmentPayloadGuard.originalLength} chars), tronco a ${attachmentPayloadGuard.limit} chars`);
+    }
+
     let kbCharsLimit;
     if (OVERHEAD_TOKENS >= MAX_SAFE_TOKENS) {
       console.warn(`⚠️ PromptEngine: overhead (${OVERHEAD_TOKENS} token) >= budget totale (${MAX_SAFE_TOKENS}). KB ridotta al minimo operativo.`);
       kbCharsLimit = 1500 * 4;
     } else {
-      const ocrTokens = this.estimateTokens(attachmentsContext || '');
+      const ocrTokens = this.estimateTokens(workingAttachmentsContext || '');
       const availableForKB = Math.max(1500, ((MAX_SAFE_TOKENS - OVERHEAD_TOKENS - ocrTokens) * KB_BUDGET_RATIO));
       kbCharsLimit = Math.round(availableForKB * 4);
     }
@@ -223,8 +233,6 @@ var PromptEngine = class PromptEngine {
       kbWasTruncated = true;
     }
 
-    let workingAttachmentsContext = this._normalizePromptTextInput(attachmentsContext, '');
-    let workingAttachmentIntent = options.attachmentIntentContext || null;
     if (kbWasTruncated && workingAttachmentsContext) {
       const attachmentSettings = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT)
         ? CONFIG.ATTACHMENT_CONTEXT
@@ -613,6 +621,71 @@ var PromptEngine = class PromptEngine {
     return this._normalizePromptTextInput(text, '')
       .replace(/<\/?[A-Za-z_][A-Za-z0-9_:-]*$/, '')
       .trimEnd();
+  }
+
+  _stripDanglingHtmlEntityFragment_(text) {
+    return this._normalizePromptTextInput(text, '')
+      .replace(/&(?:#[0-9]{0,7}|#x[0-9a-fA-F]{0,6}|[A-Za-z][A-Za-z0-9]{0,31})?$/i, '')
+      .trimEnd();
+  }
+
+  _sliceTextSafely_(text, maxLength) {
+    const source = this._normalizePromptTextInput(text, '');
+    const limit = Math.floor(Number(maxLength));
+    if (!source || !Number.isFinite(limit) || limit <= 0) return '';
+    if (source.length <= limit) return source;
+
+    let sliced = source.slice(0, limit);
+    const lastCodeUnit = sliced.charCodeAt(sliced.length - 1);
+    if (lastCodeUnit >= 0xD800 && lastCodeUnit <= 0xDBFF) {
+      sliced = sliced.slice(0, -1);
+    }
+    return sliced;
+  }
+
+  _resolveAttachmentPayloadBudgetRatio_(fallbackRatio) {
+    const settings = (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT)
+      ? CONFIG.ATTACHMENT_CONTEXT
+      : {};
+    const configured = Number(settings.promptBudgetRatio);
+    const fallback = Number(fallbackRatio);
+    const ratio = Number.isFinite(configured) && configured > 0
+      ? configured
+      : (Number.isFinite(fallback) && fallback > 0 ? fallback : 0.5);
+    return Math.min(1, Math.max(0.05, ratio));
+  }
+
+  _truncateAttachmentPayloadSafely_(rawText, maxChars) {
+    const source = this._normalizePromptTextInput(rawText, '');
+    const limit = Math.floor(Number(maxChars));
+    const result = {
+      text: source,
+      truncated: false,
+      originalLength: source.length,
+      limit: Number.isFinite(limit) ? Math.max(0, limit) : 0
+    };
+
+    if (!source || !Number.isFinite(limit) || limit <= 0 || source.length <= limit) {
+      if (source && Number.isFinite(limit) && limit <= 0) {
+        result.text = '';
+        result.truncated = true;
+      }
+      return result;
+    }
+
+    const warning = `\n\n[ATTENZIONE: testo degli allegati troncato per limite di sicurezza del prompt (${source.length} caratteri originali; limite ${limit}). Usa solo le informazioni visibili; non dedurre dal contenuto omesso.]`;
+    if (limit <= warning.length + 16) {
+      result.text = this._sliceTextSafely_(warning.trim(), limit);
+      result.truncated = true;
+      return result;
+    }
+
+    const contentLimit = limit - warning.length;
+    let safeHead = this._sliceTextSafely_(source, contentLimit).trimEnd();
+    safeHead = this._stripDanglingHtmlEntityFragment_(this._stripDanglingPromptTagFragment_(safeHead));
+    result.text = this._sliceTextSafely_(safeHead + warning, limit);
+    result.truncated = true;
+    return result;
   }
 
   // ========================================================================

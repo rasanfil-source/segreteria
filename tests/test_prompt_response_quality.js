@@ -384,6 +384,37 @@ console.log('--- Test prompt: troncamento fisico preserva recinto user_email ---
   }
 }
 
+console.log('--- Test prompt: payload allegati troppo lungo viene troncato con avviso ---');
+{
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+
+  try {
+    global.CONFIG.ATTACHMENT_CONTEXT = { promptBudgetRatio: 0.05 };
+    const guardedPrompt = engine.buildPrompt({
+      emailSubject: 'Documento allegato',
+      emailContent: 'Buongiorno, allego il documento.',
+      knowledgeBase: 'La segreteria conferma la ricezione dei documenti.',
+      attachmentsContext: 'OCR_ATTACHMENT_HEAD ' + 'contenuto allegato '.repeat(900) + ' OCR_ATTACHMENT_TAIL_SENTINEL',
+      detectedLanguage: 'it',
+      promptProfile: 'lite',
+      salutationMode: 'full',
+      salutation: 'Buongiorno,',
+      closing: 'Cordiali saluti,'
+    });
+
+    assert(
+      guardedPrompt.includes('ATTENZIONE: testo degli allegati troncato'),
+      'il prompt deve avvisare il modello quando il testo allegati viene ridotto'
+    );
+    assert(
+      !guardedPrompt.includes('OCR_ATTACHMENT_TAIL_SENTINEL'),
+      'il testo oltre il budget allegati non deve entrare nel prompt'
+    );
+  } finally {
+    global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+  }
+}
+
 console.log('--- Test prompt: dottrina heavy esclude righe generiche senza match ---');
 {
   const genericDoctrine = engine._renderSelectiveDoctrine(

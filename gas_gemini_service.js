@@ -778,8 +778,21 @@ Output JSON:
     return compactMsg.includes('primaryquotaexhausted') || compactMsg.includes('quotaexhaustedallkeys');
   }
 
+  _isPrimaryKeySwitchSignal_(error) {
+    return this._normalizeQuotaSignal_(error).includes('primaryquotaexhausted');
+  }
+
   _isKeySwitchSignal_(error) {
     return this._isQuotaExhaustedSignal_(error);
+  }
+
+  _canFailoverToBackupKey_(error, activeKey) {
+    return !!(
+      this.backupKey &&
+      activeKey === this.primaryKey &&
+      this.backupKey !== activeKey &&
+      this._isPrimaryKeySwitchSignal_(error)
+    );
   }
 
   /**
@@ -1610,10 +1623,24 @@ Testo:
    * @returns {Object} { success: boolean, text: string, error?: string, modelUsed?: string }
    */
   generateResponse(prompt, options = {}) {
-    const targetKey = options.apiKey || this.primaryKey;
+    const requestedKey = options.apiKey || this.primaryKey;
     const targetModel = options.modelName || this.modelName;
-    const skipRateLimit = options.skipRateLimit || false;
+    const startsOnBackupKey = !!(
+      this.backupKey &&
+      requestedKey === this.primaryKey &&
+      this.isPrimaryExhausted === true
+    );
+    const targetKey = startsOnBackupKey ? this.backupKey : requestedKey;
+    const skipRateLimit = !!(
+      options.skipRateLimit ||
+      startsOnBackupKey ||
+      (this.backupKey && targetKey === this.backupKey && targetKey !== this.primaryKey)
+    );
     const attachments = options.attachments || [];
+
+    if (startsOnBackupKey) {
+      console.warn('↪️ Chiave primaria già marcata esaurita: generazione instradata sulla chiave di riserva.');
+    }
 
     // Pre-elaborazione Base64 per evitare ripetizione I/O e allocazioni pesanti durante i retry.
     const preEncodedAttachments = attachments.map(blob => {
@@ -1632,6 +1659,25 @@ Testo:
         return null;
       }
     }).filter(Boolean);
+    const runDirectGeneration = (apiKey, contextLabel) => {
+      const text = this._withRetry(
+        () => this._generateWithModel(prompt, targetModel, apiKey, preEncodedAttachments),
+        contextLabel
+      );
+      return {
+        success: !!text,
+        text: text,
+        modelUsed: targetModel,
+        error: text ? null : 'Risposta vuota o errore'
+      };
+    };
+    const runBackupFailover = (error, contextLabel) => {
+      if (!this._canFailoverToBackupKey_(error, targetKey)) {
+        return null;
+      }
+      console.warn(`↪️ ${contextLabel}: primaria non utilizzabile, failover immediato su chiave di riserva.`);
+      return runDirectGeneration(this.backupKey, 'Generazione risposta (Failover Chiave di Riserva)');
+    };
     const forceModelKey = this.useRateLimiter && this.rateLimiter && this.rateLimiter.models
       ? Object.keys(this.rateLimiter.models).find((key) =>
           key === targetModel || this.rateLimiter.models[key].name === targetModel
@@ -1663,6 +1709,10 @@ Testo:
         const rejectReason = (result && result.reason) ? result.reason : 'Rate limit interno';
         throw new Error(`Rate Limiter ha rifiutato la richiesta: ${rejectReason}`);
       } catch (error) {
+        const backupResult = runBackupFailover(error, 'RateLimiter generazione');
+        if (backupResult) {
+          return backupResult;
+        }
         if (error.message && error.message.includes('QUOTA_EXHAUSTED')) {
           console.warn('⚠️ Quota primaria esaurita (intercettato da RateLimiter)');
           throw error; // Rilancia per gestione strategia nel Processor
@@ -1680,25 +1730,26 @@ Testo:
     // ====================================================================
     if (skipRateLimit) {
       console.log(`⏩ Chiamata diretta (bypass RateLimiter) con ${targetModel}`);
-      const text = this._withRetry(
-        () => this._generateWithModel(prompt, targetModel, targetKey, preEncodedAttachments),
-        'Generazione diretta (Chiave di Riserva)'
-      );
-      // `success` è coerente con la presenza di testo generato (nessuna inversione logica).
-      return { success: !!text, text: text, modelUsed: targetModel };
+      try {
+        return runDirectGeneration(targetKey, 'Generazione diretta (Chiave di Riserva)');
+      } catch (error) {
+        const backupResult = runBackupFailover(error, 'Generazione diretta');
+        if (backupResult) {
+          return backupResult;
+        }
+        throw error;
+      }
     }
 
-    const result = this._withRetry(
-      () => this._generateWithModel(prompt, targetModel, targetKey, preEncodedAttachments),
-      'Generazione risposta'
-    );
-
-    return {
-      success: !!result,
-      text: result,
-      modelUsed: targetModel,
-      error: result ? null : 'Risposta vuota o errore'
-    };
+    try {
+      return runDirectGeneration(targetKey, 'Generazione risposta');
+    } catch (error) {
+      const backupResult = runBackupFailover(error, 'Generazione risposta');
+      if (backupResult) {
+        return backupResult;
+      }
+      throw error;
+    }
   }
 
 

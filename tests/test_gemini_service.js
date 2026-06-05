@@ -367,6 +367,45 @@ console.log('--- Test _generateWithModel: 403 primaria con backup marca segnale 
   assert(markedReason === 'generateResponse' && service.isPrimaryExhausted === true, 'la primaria deve essere marcata non utilizzabile su 403');
 }
 
+console.log('--- Test generateResponse: 429 primaria fa failover sincrono su backup ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = 'backup-key';
+  service.isPrimaryExhausted = false;
+  service.useRateLimiter = false;
+  service.config = { MAX_OUTPUT_TOKENS: 128 };
+  service.maxRetries = 2;
+  service.retryDelay = 1;
+  service.backoffFactor = 2;
+  service.maxBackoffMs = 10;
+  service.retryJitterMs = 0;
+  const urls = [];
+  service.fetchFn = (url) => {
+    urls.push(url);
+    if (urls.length === 1) {
+      return {
+        getResponseCode: () => 429,
+        getContentText: () => JSON.stringify({ error: { message: 'rate limit primary' } })
+      };
+    }
+    return {
+      getResponseCode: () => 200,
+      getContentText: () => JSON.stringify({
+        candidates: [{ content: { parts: [{ text: 'Risposta backup' }] } }]
+      })
+    };
+  };
+
+  const result = service.generateResponse('prompt', { modelName: 'gemini-test' });
+
+  assert(result && result.success === true, 'generateResponse deve riuscire con la backup key');
+  assert(result.text === 'Risposta backup', 'deve restituire il testo generato dalla backup key');
+  assert(urls.length === 2, 'deve eseguire primary e poi backup nello stesso ciclo');
+  assert(urls[0].includes('primary-key') && urls[1].includes('backup-key'), 'ordine chiavi atteso primary -> backup');
+  assert(service.isPrimaryExhausted === true, 'la primary deve restare marcata esaurita dopo il failover');
+}
+
 // Test rimossi perché la funzionalità di context caching è stata eliminata
 
 console.log('--- Test model policy: quick_check non rate-limited usa lite, non MODEL_NAME qualita ---');
