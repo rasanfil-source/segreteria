@@ -6,6 +6,8 @@
 
 var _SCRIPT_PROPERTIES = null;
 var _CACHED_PROPS = {};
+// Cache solo intra-esecuzione: riduce letture ripetute a PropertiesService
+// durante la stessa run GAS; non e' pensata come persistenza fra trigger.
 var _SCRIPT_PROPERTY_CACHE_TTL_MS = 60 * 1000;
 function _getScriptProperty(key, forceRefresh = false) {
   if (!_SCRIPT_PROPERTIES) {

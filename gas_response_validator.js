@@ -1939,7 +1939,9 @@ Rispondi SOLO con questo JSON (senza markdown):
       this.geminiService = new GeminiService();
     }
 
-    const estimatedTokens = estimateTokenCount(prompt);
+    const estimatedTokens = (typeof estimateTokenCount === 'function')
+      ? estimateTokenCount(prompt)
+      : Math.max(1, Math.ceil(String(prompt || '').length / 4));
 
     if (this.geminiService.useRateLimiter && this.geminiService.rateLimiter) {
       const result = this.geminiService.rateLimiter.executeRequest(

@@ -561,6 +561,46 @@ console.log('--- Test SemanticValidator: fallback lazy senza GeminiService/Cache
   }
 }
 
+console.log('--- Test SemanticValidator: fallback token se estimateTokenCount non caricato ---');
+{
+  const originalEstimateTokenCount = global.estimateTokenCount;
+  try {
+    delete global.estimateTokenCount;
+  } catch (e) {
+    global.estimateTokenCount = undefined;
+  }
+
+  try {
+    let capturedEstimatedTokens = null;
+    const semantic = Object.create(SemanticValidator.prototype);
+    semantic.taskType = 'semantic';
+    semantic.maxRetries = 1;
+    semantic.geminiService = {
+      useRateLimiter: true,
+      rateLimiter: {
+        executeRequest: (_taskType, _requestFn, options) => {
+          capturedEstimatedTokens = options.estimatedTokens;
+          return { success: true, result: '{"isValid":true}', modelUsed: 'fallback-model' };
+        }
+      }
+    };
+
+    const result = semantic._generateSemantic('testo breve');
+    assert(result === '{"isValid":true}', 'SemanticValidator deve completare anche senza estimateTokenCount globale');
+    assert(capturedEstimatedTokens > 0, 'il fallback deve passare una stima token positiva al RateLimiter');
+  } finally {
+    if (typeof originalEstimateTokenCount === 'undefined') {
+      try {
+        delete global.estimateTokenCount;
+      } catch (e) {
+        global.estimateTokenCount = undefined;
+      }
+    } else {
+      global.estimateTokenCount = originalEstimateTokenCount;
+    }
+  }
+}
+
 console.log('--- Test SemanticValidator: hallucinations senza isValid diventano invalidanti ---');
 {
   const semantic = Object.create(SemanticValidator.prototype);
