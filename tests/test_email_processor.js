@@ -143,6 +143,53 @@ console.log('--- Test constructor: preserva requestClassifier iniettato ---');
   );
 }
 
+console.log('--- Test pre-AI rules: context, decision e action restano dichiarativi ---');
+{
+  const ruleProcessor = new EmailProcessor();
+  let handledUnread = false;
+  const lastSpeakerResult = { status: 'unknown' };
+  const lastSpeakerContext = ruleProcessor._createRuleContext_({
+    phase: 'pre_extract',
+    lastSpeakerIsUs: true,
+    actions: {
+      markHandledUnread: () => { handledUnread = true; }
+    }
+  });
+  const lastSpeakerDecision = ruleProcessor._evaluatePreAiRules_(lastSpeakerContext);
+  assert(lastSpeakerDecision && lastSpeakerDecision.ruleId === 'last-speaker-is-us', 'last speaker deve mappare alla regola dedicata');
+  assert(
+    ruleProcessor._applyPreAiRuleDecision_(lastSpeakerDecision, lastSpeakerContext, lastSpeakerResult) === true,
+    'la decisione last speaker deve essere applicabile'
+  );
+  assert(handledUnread === true, 'la action last speaker deve marcare gli unread gestiti');
+  assert(
+    lastSpeakerResult.status === 'skipped' && lastSpeakerResult.reason === 'last_speaker_is_me',
+    'la action last speaker deve preservare status/reason storici'
+  );
+
+  let skipCall = null;
+  const languageContext = ruleProcessor._createRuleContext_({
+    phase: 'pre_extract',
+    foreignOnlySubjectItalianPrecheck: true,
+    subject: 'Appuntamento',
+    skipLabelName: '·',
+    actions: {
+      markSkipped: (messages, labelName) => {
+        skipCall = { messages, labelName };
+      }
+    },
+    gmailTargets: {
+      externalUnread: ['msg-1']
+    }
+  });
+  const languageDecision = ruleProcessor._evaluatePreAiRules_(languageContext);
+  const languageResult = { status: 'unknown' };
+  ruleProcessor._applyPreAiRuleDecision_(languageDecision, languageContext, languageResult);
+  assert(languageDecision && languageDecision.ruleId === 'foreign-only-subject-italian-precheck', 'pre-check lingua deve mappare alla regola dedicata');
+  assert(skipCall && skipCall.labelName === '·' && skipCall.messages[0] === 'msg-1', 'pre-check lingua deve applicare label skip ai target esterni');
+  assert(languageResult.reason === 'italian_skipped_foreign_only_precheck', 'pre-check lingua deve preservare la reason storica');
+}
+
 console.log('--- Test periodo orari: usa la KB e la data richiesta ---');
 {
   const scheduleKb = 'Orari Basilica | Periodo estivo | Dal 29 giugno al 30 agosto';

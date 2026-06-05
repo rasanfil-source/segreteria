@@ -133,6 +133,193 @@ var EmailProcessor = class EmailProcessor {
     return this._scriptTimeZone;
   }
 
+  _createRuleContext_(overrides = {}) {
+    const base = {
+      phase: '',
+      threadId: '',
+      languageMode: 'all',
+      detectedLanguage: '',
+      candidate: null,
+      externalUnread: [],
+      unlabeledUnread: [],
+      skipLabelName: this.config ? this.config.skipLabelName : '·',
+      actions: {},
+      gmailTargets: {}
+    };
+    return Object.assign(base, overrides || {});
+  }
+
+  _evaluatePreAiRules_(context = {}) {
+    const rules = [
+      {
+        id: 'last-speaker-is-us',
+        phase: 'pre_extract',
+        when: (ctx) => ctx.lastSpeakerIsUs === true,
+        do: {
+          status: 'skipped',
+          reason: 'last_speaker_is_me',
+          logs: ['   ⊖ Saltato: l\'ultimo messaggio del thread è nostro (bot o segreteria). Ignoro messaggi precedenti riaperti come non letti.'],
+          gmailActions: [{ type: 'markHandledUnread' }]
+        }
+      },
+      {
+        id: 'foreign-only-subject-italian-precheck',
+        phase: 'pre_extract',
+        when: (ctx) => ctx.foreignOnlySubjectItalianPrecheck === true,
+        do: {
+          status: 'skipped',
+          reason: 'italian_skipped_foreign_only_precheck',
+          logs: (ctx) => [`   ⊖ Pre-check locale: italiano rilevato nel solo oggetto ("${String(ctx.subject || '').substring(0, 20)}...") → skip anticipato`],
+          gmailActions: [{ type: 'markSkipped', target: 'externalUnread', labelName: 'skip' }]
+        }
+      },
+      {
+        id: 'newsletter-header',
+        phase: 'post_extract_pre_ai',
+        when: (ctx) => ctx.isNewsletter === true,
+        do: {
+          status: 'filtered',
+          reason: 'newsletter_header',
+          logs: (ctx) => {
+            const lines = [];
+            if (ctx.languageMode === 'foreign_only') {
+              lines.push('   ℹ️ Newsletter in foreign_only: arrivata qui perché NON intercettata dal gate lingua italiana iniziale');
+            }
+            lines.push('   ⊖ Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
+            return lines;
+          },
+          gmailActions: [{ type: 'markProcessedMessages', target: 'newsletterMessagesToMark' }]
+        }
+      },
+      {
+        id: 'out-of-office',
+        phase: 'post_extract_pre_ai',
+        when: (ctx) => ctx.isAutoReplyHeader === true || ctx.isOutOfOfficeText === true,
+        do: {
+          status: 'filtered',
+          reason: 'out_of_office',
+          logs: (ctx) => [
+            ctx.isAutoReplyHeader
+              ? '   ⊖ Saltato: risposta automatica (header SMTP)'
+              : '   ⊖ Saltato: risposta automatica out-of-office (testo)'
+          ],
+          gmailActions: [{
+            type: 'markHandledUnread',
+            safe: true,
+            warnPrefix: 'markHandledUnread fallita (out_of_office): '
+          }]
+        }
+      },
+      {
+        id: 'short-closure-reply',
+        phase: 'post_extract_pre_ai',
+        when: (ctx) => ctx.isShortClosureReply === true,
+        do: {
+          status: 'filtered',
+          reason: 'short_closure_reply',
+          logs: ['   ⊖ Saltato: risposta breve di chiusura (grazie/ok/perfetto)'],
+          gmailActions: [{ type: 'markHandledUnread' }]
+        }
+      },
+      {
+        id: 'no-reply-sender',
+        phase: 'post_extract_pre_ai',
+        when: (ctx) => ctx.isNoReplySender === true,
+        do: {
+          status: 'filtered',
+          reason: 'no_reply_sender',
+          logs: ['   ⊖ Saltato: mittente rilevato come casella automatica o no-reply'],
+          gmailActions: [{ type: 'markHandledUnread' }]
+        }
+      },
+      {
+        id: 'ignore-rules',
+        phase: 'post_extract_pre_ai',
+        when: (ctx) => ctx.shouldIgnoreEmail === true,
+        do: {
+          status: 'filtered',
+          reason: 'ignore_rules',
+          logs: ['   ⊖ Filtrato: domain/keyword ignore'],
+          gmailActions: [{ type: 'markHandledUnread' }]
+        }
+      },
+      {
+        id: 'local-classifier-no-reply',
+        phase: 'post_extract_pre_ai',
+        when: (ctx) => ctx.classifierShouldReply === false,
+        do: {
+          status: 'filtered',
+          logs: (ctx) => [`   ⊖ Filtrato dal classifier: ${ctx.classifierReason || ''}`],
+          gmailActions: [{ type: 'markHandledUnread' }]
+        }
+      }
+    ];
+
+    const phase = String(context.phase || '');
+    for (const rule of rules) {
+      if (rule.phase !== phase) continue;
+      if (!rule.when(context)) continue;
+      return Object.assign({ ruleId: rule.id, stop: true }, rule.do);
+    }
+    return null;
+  }
+
+  _applyPreAiRuleDecision_(decision, context = {}, result = null) {
+    if (!decision) return false;
+
+    const rawLogs = (typeof decision.logs === 'function')
+      ? decision.logs(context)
+      : decision.logs;
+    const logs = Array.isArray(rawLogs) ? rawLogs : (rawLogs ? [rawLogs] : []);
+    logs.filter(Boolean).forEach((line) => console.log(line));
+
+    const actions = context.actions || {};
+    const targets = context.gmailTargets || {};
+    const gmailActions = Array.isArray(decision.gmailActions) ? decision.gmailActions : [];
+    gmailActions.forEach((action) => {
+      if (!action || !action.type) return;
+
+      if (action.type === 'markHandledUnread' && typeof actions.markHandledUnread === 'function') {
+        if (action.safe) {
+          try {
+            actions.markHandledUnread();
+          } catch (markErr) {
+            const warnPrefix = action.warnPrefix || 'markHandledUnread fallita: ';
+            const warn = typeof actions.warn === 'function' ? actions.warn : console.warn;
+            warn(warnPrefix + markErr.message);
+          }
+        } else {
+          actions.markHandledUnread();
+        }
+        return;
+      }
+
+      if (action.type === 'markSkipped' && typeof actions.markSkipped === 'function') {
+        const labelName = action.labelName === 'skip' ? context.skipLabelName : action.labelName;
+        actions.markSkipped(targets[action.target] || [], labelName);
+        return;
+      }
+
+      if (action.type === 'markProcessedMessages' && typeof actions.markProcessedMessages === 'function') {
+        actions.markProcessedMessages(targets[action.target] || []);
+      }
+    });
+
+    if (result) {
+      if (Object.prototype.hasOwnProperty.call(decision, 'status')) {
+        result.status = decision.status;
+      }
+      if (Object.prototype.hasOwnProperty.call(decision, 'reason')) {
+        result.reason = decision.reason;
+      }
+      if (Object.prototype.hasOwnProperty.call(decision, 'retryDelayMs')) {
+        result.retryDelayMs = decision.retryDelayMs;
+      }
+    }
+
+    return true;
+  }
+
   _getPacificDateForSafetyValve_() {
     const now = new Date();
     if (typeof Utilities !== 'undefined' && Utilities &&
@@ -900,6 +1087,35 @@ var EmailProcessor = class EmailProcessor {
       };
       setResponseContextMessages(buildBurstMessagesForCandidate(candidate));
 
+      const ruleActions = {
+        markHandledUnread: () => markHandledUnread(),
+        markSkipped: (messagesToSkip, labelName) => this._markMessagesAsSkipped(messagesToSkip, labelName, skippedMessageIds),
+        markProcessedMessages: (messagesToProcess) => {
+          (messagesToProcess || []).forEach((message) => this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds));
+        },
+        warn: (message) => threadLogger.warn(message)
+      };
+      const buildRuleContext = (overrides = {}) => {
+        const gmailTargets = Object.assign({
+          externalUnread: externalUnread,
+          unlabeledUnread: unlabeledUnread
+        }, overrides.gmailTargets || {});
+        const actions = Object.assign({}, ruleActions, overrides.actions || {});
+        const merged = Object.assign({
+          threadId: threadId,
+          languageMode: languageMode,
+          candidate: candidate,
+          externalUnread: externalUnread,
+          unlabeledUnread: unlabeledUnread,
+          skipLabelName: this.config.skipLabelName,
+          actions: actions,
+          gmailTargets: gmailTargets
+        }, overrides);
+        merged.actions = actions;
+        merged.gmailTargets = gmailTargets;
+        return this._createRuleContext_(merged);
+      };
+
       // ====================================================================
       // STEP 0: CONTROLLO ULTIMO MITTENTE (Anti-Loop & Ownership)
       // Thread usato solo come contesto conversazionale e per capire chi ha parlato per ultimo.
@@ -914,13 +1130,11 @@ var EmailProcessor = class EmailProcessor {
         : '';
       const lastSpeakerIsUs = Boolean(lastSenderEmail) && ownAddresses.has(lastSenderEmail);
 
-      if (lastSpeakerIsUs) {
-        console.log('   ⊖ Saltato: l\'ultimo messaggio del thread è nostro (bot o segreteria). Ignoro messaggi precedenti riaperti come non letti.');
-        // Segniamo i non letti correnti come processati per evitare loop su thread
-        // dove l'ultimo intervento è interno ma restano flag "unread" su messaggi precedenti.
-        markHandledUnread();
-        result.status = 'skipped';
-        result.reason = 'last_speaker_is_me';
+      const lastSpeakerDecision = this._evaluatePreAiRules_(buildRuleContext({
+        phase: 'pre_extract',
+        lastSpeakerIsUs: lastSpeakerIsUs
+      }));
+      if (this._applyPreAiRuleDecision_(lastSpeakerDecision, buildRuleContext({ phase: 'pre_extract' }), result)) {
         return result;
       }
 
@@ -941,11 +1155,15 @@ var EmailProcessor = class EmailProcessor {
           // gli, le, un, uno, una, su, tra, fra) che causano falsi positivi su lingue straniere.
           const italianPattern = /(?:^|[^\p{L}\p{N}_])(appuntamento|fissare|prenotare|disponibilit[àa]|orari[oa]?|incontro|prenotazione|informazioni|chiedere|sapere|vorrei|come\s+faccio|requisiti|battesimo|cresima|confessione|grazie|salve|buongiorno|buonasera|preventivo|parrocchia|segreteria|messa|messe)(?=$|[^\p{L}\p{N}_])/iu;
           
-          if (italianPattern.test(subjectOnly)) {
-            console.log(`   ⊖ Pre-check locale: italiano rilevato nel solo oggetto ("${subjectOnly.substring(0, 20)}...") → skip anticipato`);
-            this._markMessagesAsSkipped(externalUnread, this.config.skipLabelName, skippedMessageIds);
-            result.status = 'skipped';
-            result.reason = 'italian_skipped_foreign_only_precheck';
+          const languagePrecheckDecision = this._evaluatePreAiRules_(buildRuleContext({
+            phase: 'pre_extract',
+            subject: subjectOnly,
+            foreignOnlySubjectItalianPrecheck: italianPattern.test(subjectOnly)
+          }));
+          if (this._applyPreAiRuleDecision_(languagePrecheckDecision, buildRuleContext({
+            phase: 'pre_extract',
+            subject: subjectOnly
+          }), result)) {
             return result;
           }
         }
@@ -1032,27 +1250,26 @@ var EmailProcessor = class EmailProcessor {
         return result;
       }
 
-      if (messageDetails.isNewsletter) {
-        if (languageMode === 'foreign_only') {
-          console.log('   ℹ️ Newsletter in foreign_only: arrivata qui perché NON intercettata dal gate lingua italiana iniziale');
-        }
-        console.log('   ⊖ Saltato: rilevata newsletter (List-Unsubscribe/Precedence)');
-        // Le newsletter sono filtrate in modo definitivo: usiamo IA for non riprenderle
-        // nei run successivi. Il punto medio ('·') non si usa qui perché non è un
-        // rinvio temporaneo dovuto alla modalità "Solo straniere".
-        let messagesToMark = (unlabeledUnread && unlabeledUnread.length > 0) ? unlabeledUnread : [candidate];
-        // Evita di "demotare" messaggi già IA quando il fallback usa candidate.
-        messagesToMark = (messagesToMark || []).filter((message) => {
-          if (!message || typeof message.getId !== 'function') return false;
-          const messageId = message.getId();
-          return !(labeledMessageIds instanceof Set && labeledMessageIds.has(messageId));
-        });
-
-        if (messagesToMark.length > 0) {
-          messagesToMark.forEach((message) => this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds));
-        }
-        result.status = 'filtered';
-        result.reason = 'newsletter_header';
+      // Le newsletter sono filtrate in modo definitivo: usiamo IA per non riprenderle
+      // nei run successivi. Il punto medio ('·') non si usa qui perché non è un
+      // rinvio temporaneo dovuto alla modalità "Solo straniere".
+      let newsletterMessagesToMark = (unlabeledUnread && unlabeledUnread.length > 0) ? unlabeledUnread : [candidate];
+      // Evita di "demotare" messaggi già IA quando il fallback usa candidate.
+      newsletterMessagesToMark = (newsletterMessagesToMark || []).filter((message) => {
+        if (!message || typeof message.getId !== 'function') return false;
+        const messageId = message.getId();
+        return !(labeledMessageIds instanceof Set && labeledMessageIds.has(messageId));
+      });
+      const newsletterDecision = this._evaluatePreAiRules_(buildRuleContext({
+        phase: 'post_extract_pre_ai',
+        isNewsletter: messageDetails.isNewsletter,
+        gmailTargets: { newsletterMessagesToMark: newsletterMessagesToMark }
+      }));
+      if (this._applyPreAiRuleDecision_(newsletterDecision, buildRuleContext({
+        phase: 'post_extract_pre_ai',
+        isNewsletter: messageDetails.isNewsletter,
+        gmailTargets: { newsletterMessagesToMark: newsletterMessagesToMark }
+      }), result)) {
         return result;
       }
 
@@ -1118,20 +1335,20 @@ var EmailProcessor = class EmailProcessor {
       const xAutoReply = getHeader('x-autoreply');
       const xAutoResponseSuppress = getHeader('x-auto-response-suppress');
 
-      if (
+      const isAutoReplyHeader = (
         /auto-replied|auto-generated/i.test(autoSubmitted) ||
         /bulk|auto_reply/i.test(precedence) ||
         /auto-reply|autoreply/i.test(xAutoReply) ||
         /oof|all|dr|rn|nri|auto/i.test(xAutoResponseSuppress)
-      ) {
-        console.log('   ⊖ Saltato: risposta automatica (header SMTP)');
-        try {
-          markHandledUnread();
-        } catch (markErr) {
-          threadLogger.warn('markHandledUnread fallita (out_of_office): ' + markErr.message);
-        }
-        result.status = 'filtered';
-        result.reason = 'out_of_office';
+      );
+      const autoReplyHeaderDecision = this._evaluatePreAiRules_(buildRuleContext({
+        phase: 'post_extract_pre_ai',
+        isAutoReplyHeader: isAutoReplyHeader
+      }));
+      if (this._applyPreAiRuleDecision_(autoReplyHeaderDecision, buildRuleContext({
+        phase: 'post_extract_pre_ai',
+        isAutoReplyHeader: isAutoReplyHeader
+      }), result)) {
         return result;
       }
 
@@ -1146,19 +1363,20 @@ var EmailProcessor = class EmailProcessor {
       const oooSubject = messageDetails.subject || '';
       // Trunca a 2000 char per prevenire Regex Timeout su mega-thread
       const oooBody = (messageDetails.body || '').substring(0, 2000);
-      if (outOfOfficePatterns.some(p => p.test(`${oooSubject} ${oooBody}`))) {
-        console.log('   ⊖ Saltato: risposta automatica out-of-office (testo)');
-        try {
-          markHandledUnread();
-        } catch (markErr) {
-          threadLogger.warn('markHandledUnread fallita (out_of_office): ' + markErr.message);
-        }
-        result.status = 'filtered';
-        result.reason = 'out_of_office';
+      const isOutOfOfficeText = outOfOfficePatterns.some(p => p.test(`${oooSubject} ${oooBody}`));
+      const outOfOfficeTextDecision = this._evaluatePreAiRules_(buildRuleContext({
+        phase: 'post_extract_pre_ai',
+        isOutOfOfficeText: isOutOfOfficeText
+      }));
+      if (this._applyPreAiRuleDecision_(outOfOfficeTextDecision, buildRuleContext({
+        phase: 'post_extract_pre_ai',
+        isOutOfOfficeText: isOutOfOfficeText
+      }), result)) {
         return result;
       }
 
       const candidateIndex = messages.findIndex(msg => msg.getId() === candidate.getId());
+      let shortClosureReplyDetected = false;
       if (candidateIndex > 0 && messages[candidateIndex - 1]) {
         const previousMessage = messages[candidateIndex - 1];
         const previousSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
@@ -1178,13 +1396,17 @@ var EmailProcessor = class EmailProcessor {
         const isShortClosureReply = candidateWords.length > 0 && candidateWords.length <= 4 &&
           hasThanksCue && !hasQuestionSignal;
 
-        if (previousIsUs && arrivedSoonAfterUs && isShortClosureReply) {
-          console.log('   ⊖ Saltato: risposta breve di chiusura (grazie/ok/perfetto)');
-          markHandledUnread();
-          result.status = 'filtered';
-          result.reason = 'short_closure_reply';
-          return result;
-        }
+        shortClosureReplyDetected = Boolean(previousIsUs && arrivedSoonAfterUs && isShortClosureReply);
+      }
+      const shortClosureDecision = this._evaluatePreAiRules_(buildRuleContext({
+        phase: 'post_extract_pre_ai',
+        isShortClosureReply: shortClosureReplyDetected
+      }));
+      if (this._applyPreAiRuleDecision_(shortClosureDecision, buildRuleContext({
+        phase: 'post_extract_pre_ai',
+        isShortClosureReply: shortClosureReplyDetected
+      }), result)) {
+        return result;
       }
 
       // ====================================================================
@@ -1259,25 +1481,29 @@ var EmailProcessor = class EmailProcessor {
         : (messageDetails.senderEmail || '');
       const senderInfo = `${originalSenderEmail} ${messageDetails.senderName}`.toLowerCase();
       const autoPattern = /no-reply|do-not-reply|noreply|daemon|postmaster|bounce|mailer/i;
-      if (autoPattern.test(senderInfo) && !messageDetails.hasReplyTo) {
-        console.log('   ⊖ Saltato: mittente rilevato come casella automatica o no-reply');
-        // Elaborato (filtrato): applichiamo IA per chiudere il processo
-        markHandledUnread();
-        result.status = 'filtered';
-        result.reason = 'no_reply_sender';
+      const noReplyDecision = this._evaluatePreAiRules_(buildRuleContext({
+        phase: 'post_extract_pre_ai',
+        isNoReplySender: autoPattern.test(senderInfo) && !messageDetails.hasReplyTo
+      }));
+      if (this._applyPreAiRuleDecision_(noReplyDecision, buildRuleContext({
+        phase: 'post_extract_pre_ai',
+        isNoReplySender: autoPattern.test(senderInfo) && !messageDetails.hasReplyTo
+      }), result)) {
         return result;
       }
 
       // ====================================================================
       // STEP 1: FILTRO - Domini/parole chiave ignorati
       // ====================================================================
-      if (this._shouldIgnoreEmail(messageDetails)) {
-        console.log('   ⊖ Filtrato: domain/keyword ignore');
-        // Elaborato (filtrato): applichiamo IA per chiudere il processo
-        markHandledUnread();
-
-        result.status = 'filtered';
-        result.reason = 'ignore_rules';
+      const shouldIgnoreEmail = this._shouldIgnoreEmail(messageDetails);
+      const ignoreDecision = this._evaluatePreAiRules_(buildRuleContext({
+        phase: 'post_extract_pre_ai',
+        shouldIgnoreEmail: shouldIgnoreEmail
+      }));
+      if (this._applyPreAiRuleDecision_(ignoreDecision, buildRuleContext({
+        phase: 'post_extract_pre_ai',
+        shouldIgnoreEmail: shouldIgnoreEmail
+      }), result)) {
         return result;
       }
 
@@ -1296,11 +1522,16 @@ var EmailProcessor = class EmailProcessor {
         isReplyBySubject
       );
 
-      if (!classification.shouldReply) {
-        console.log(`   ⊖ Filtrato dal classifier: ${classification.reason}`);
-        // Elaborato (filtrato): applichiamo IA per chiudere il processo
-        markHandledUnread();
-        result.status = 'filtered';
+      const classifierDecision = this._evaluatePreAiRules_(buildRuleContext({
+        phase: 'post_extract_pre_ai',
+        classifierShouldReply: classification.shouldReply,
+        classifierReason: classification.reason
+      }));
+      if (this._applyPreAiRuleDecision_(classifierDecision, buildRuleContext({
+        phase: 'post_extract_pre_ai',
+        classifierShouldReply: classification.shouldReply,
+        classifierReason: classification.reason
+      }), result)) {
         return result;
       }
 
