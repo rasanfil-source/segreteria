@@ -542,6 +542,55 @@ console.log('--- Test model policy: quick_check non rate-limited usa lite, non M
   assert(service.getModelNameForTask('generation') === 'gemini-3.5-flash', 'generation deve risolvere il modello qualita');
 }
 
+console.log('--- Test generation strategies: rispetta configurazione e backup key ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = 'backup-key';
+  service.isPrimaryExhausted = false;
+  service.config = {
+    MODEL_STRATEGY: {
+      generation: ['custom_b', 'custom_a', 'custom-backup']
+    },
+    GEMINI_MODELS: {
+      custom_b: { name: 'model-b' },
+      custom_a: { name: 'model-a' },
+      'custom-backup': { name: 'model-backup' }
+    }
+  };
+
+  const plan = service.buildGenerationStrategies();
+
+  assert(plan.fallbackModelName === 'model-b', 'fallbackModelName deve usare il primo modello configurato valido');
+  assert(plan.configuredGenerationStrategy.join('|') === 'custom_b|custom_a|custom-backup', 'deve conservare la strategia configurata');
+  assert(plan.attemptStrategy.map(item => item.model).join('|') === 'model-b|model-a|model-backup', 'deve rispettare ordine MODEL_STRATEGY.generation');
+  assert(plan.attemptStrategy[0].key === 'primary-key' && plan.attemptStrategy[1].key === 'primary-key', 'strategie non-backup devono usare primary key');
+  assert(plan.attemptStrategy[2].key === 'backup-key', 'strategie backup devono usare backup key');
+  assert(plan.attemptStrategy[0].skipRateLimit === false && plan.attemptStrategy[2].skipRateLimit === true, 'solo backup deve saltare il RateLimiter');
+}
+
+console.log('--- Test generation strategies: salta primary esaurita ma mantiene fallback model ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = 'backup-key';
+  service.isPrimaryExhausted = true;
+  service.config = {
+    MODEL_STRATEGY: {
+      generation: ['flash-3.5', 'flash-lite', 'flash-3.5-lite-backup']
+    },
+    GEMINI_MODELS: {}
+  };
+
+  const plan = service.buildGenerationStrategies();
+
+  assert(plan.fallbackModelName === 'gemini-3.5-flash', 'fallbackModelName deve restare il primo modello valido anche se la primary e esaurita');
+  assert(plan.attemptStrategy.length === 1, 'con primary esaurita deve restare solo la strategia backup');
+  assert(plan.attemptStrategy[0].name === 'Generation-3-flash-3.5-lite-backup-BackupKey', 'deve mantenere indice e nome della strategia originale');
+  assert(plan.attemptStrategy[0].model === 'gemini-3.1-flash-lite', 'backup lite deve usare il modello default atteso');
+  assert(plan.attemptStrategy[0].usesBackupKey === true && plan.attemptStrategy[0].skipRateLimit === true, 'backup deve essere segnata come tale');
+}
+
 console.log('--- Test quickCheck generationConfig: responseMimeType escluso per modelli lite ---');
 {
   const makeService = () => {

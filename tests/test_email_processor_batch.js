@@ -48,6 +48,15 @@ global.CONFIG = {
   KNOWN_ALIASES: ['bot@example.com']
 };
 
+const gasGeminiServicePath = path.join(__dirname, '..', 'gas_gemini_service.js');
+const geminiServiceContext = { console };
+vm.createContext(geminiServiceContext);
+vm.runInContext(fs.readFileSync(gasGeminiServicePath, 'utf8'), geminiServiceContext, { filename: gasGeminiServicePath });
+global.GeminiService.prototype._getDefaultGenerationModelNames_ =
+  geminiServiceContext.GeminiService.prototype._getDefaultGenerationModelNames_;
+global.GeminiService.prototype.buildGenerationStrategies =
+  geminiServiceContext.GeminiService.prototype.buildGenerationStrategies;
+
 const cacheStore = new Map();
 global.CacheService = {
   getScriptCache: () => ({

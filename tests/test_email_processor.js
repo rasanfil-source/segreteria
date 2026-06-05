@@ -146,6 +146,11 @@ console.log('--- Test constructor: preserva requestClassifier iniettato ---');
 console.log('--- Test pre-AI rules: context, decision e action restano dichiarativi ---');
 {
   const ruleProcessor = new EmailProcessor();
+  const emptyContext = ruleProcessor._createRuleContext_();
+  assert(emptyContext.actions && typeof emptyContext.actions === 'object', 'RuleContext deve esporre actions anche se vuoto');
+  assert(emptyContext.gmailTargets && typeof emptyContext.gmailTargets === 'object', 'RuleContext deve esporre gmailTargets anche se vuoto');
+  assert(emptyContext.state && typeof emptyContext.state === 'object', 'RuleContext deve esporre state anche se vuoto');
+
   let handledUnread = false;
   const lastSpeakerResult = { status: 'unknown' };
   const lastSpeakerContext = ruleProcessor._createRuleContext_({

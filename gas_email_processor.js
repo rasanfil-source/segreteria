@@ -133,6 +133,33 @@ var EmailProcessor = class EmailProcessor {
     return this._scriptTimeZone;
   }
 
+  _buildGenerationStrategies_(geminiService, options = {}) {
+    if (geminiService && typeof geminiService.buildGenerationStrategies === 'function') {
+      return geminiService.buildGenerationStrategies(options);
+    }
+
+    if (
+      typeof GeminiService !== 'undefined' &&
+      GeminiService &&
+      GeminiService.prototype &&
+      typeof GeminiService.prototype.buildGenerationStrategies === 'function'
+    ) {
+      const strategyAdapter = Object.create(GeminiService.prototype);
+      strategyAdapter.config = (typeof CONFIG !== 'undefined') ? CONFIG : {};
+      strategyAdapter.primaryKey = geminiService ? geminiService.primaryKey : null;
+      strategyAdapter.backupKey = geminiService ? geminiService.backupKey : null;
+      strategyAdapter.isPrimaryExhausted = !!(geminiService && geminiService.isPrimaryExhausted);
+      return strategyAdapter.buildGenerationStrategies(options);
+    }
+
+    return {
+      attemptStrategy: [],
+      strategies: [],
+      fallbackModelName: 'gemini-3.5-flash',
+      configuredGenerationStrategy: []
+    };
+  }
+
   _createRuleContext_(overrides = {}) {
     const base = {
       phase: '',
@@ -144,7 +171,8 @@ var EmailProcessor = class EmailProcessor {
       unlabeledUnread: [],
       skipLabelName: this.config ? this.config.skipLabelName : '·',
       actions: {},
-      gmailTargets: {}
+      gmailTargets: {},
+      state: {}
     };
     return Object.assign(base, overrides || {});
   }
@@ -2336,53 +2364,13 @@ ${addressLines.join('\n\n')}
         return result;
       }
 
-      const geminiModels = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_MODELS) ? CONFIG.GEMINI_MODELS : {};
-      const defaultGenerationStrategy = ['flash-3.5', 'flash-3.5-backup', 'flash-lite', 'flash-3.5-lite-backup'];
-      const defaultGenerationModelNames = {
-        'flash-3.5': 'gemini-3.5-flash',
-        'flash-3.5-backup': 'gemini-3.5-flash',
-        'flash-3.5-lite': 'gemini-3.1-flash-lite',
-        'flash-lite': 'gemini-3.1-flash-lite',
-        'flash-3': 'gemini-3-flash-preview',
-        'flash-3-backup': 'gemini-3-flash-preview',
-        'flash-3.5-lite-backup': 'gemini-3.1-flash-lite'
-      };
-      const configuredGenerationStrategy = (
-        typeof CONFIG !== 'undefined' &&
-        CONFIG.MODEL_STRATEGY &&
-        Array.isArray(CONFIG.MODEL_STRATEGY.generation) &&
-        CONFIG.MODEL_STRATEGY.generation.length > 0
-      ) ? CONFIG.MODEL_STRATEGY.generation : defaultGenerationStrategy;
-      const fallbackModelName = configuredGenerationStrategy
-        .map(modelKey => (geminiModels[modelKey] && geminiModels[modelKey].name) || defaultGenerationModelNames[modelKey])
-        .find(Boolean) || 'gemini-3.5-flash';
-
-      const attemptStrategy = configuredGenerationStrategy
-        .map((modelKey, index) => {
-          const modelDef = geminiModels[modelKey];
-          const modelName = (modelDef && modelDef.name) || defaultGenerationModelNames[modelKey];
-          if (!modelName) {
-            console.warn(`⚠️ Strategia generazione ignora modello non configurato: ${modelKey}`);
-            return null;
-          }
-
-          const usesBackupKey = /backup/i.test(modelKey);
-          if (!usesBackupKey && this.geminiService && this.geminiService.isPrimaryExhausted) {
-            return null;
-          }
-
-          const apiKey = usesBackupKey ? this.geminiService.backupKey : this.geminiService.primaryKey;
-          if (!apiKey) return null;
-
-          return {
-            name: `Generation-${index + 1}-${modelKey}${usesBackupKey ? '-BackupKey' : '-PrimaryKey'}`,
-            key: apiKey,
-            model: modelName,
-            usesBackupKey: usesBackupKey,
-            skipRateLimit: usesBackupKey
-          };
-        })
-        .filter(Boolean);
+      const generationPlan = this._buildGenerationStrategies_(this.geminiService, {
+        warn: (message) => console.warn(message)
+      });
+      const attemptStrategy = Array.isArray(generationPlan.attemptStrategy)
+        ? generationPlan.attemptStrategy
+        : [];
+      const fallbackModelName = generationPlan.fallbackModelName || 'gemini-3.5-flash';
 
       if (shouldForcePrudentDocResponse) {
         response = this._buildPrudentDocumentMismatchResponse_(detectedLanguage);

@@ -654,6 +654,73 @@ var GeminiService = class GeminiService {
     return fallbackName || this.modelName || 'gemini-3.5-flash';
   }
 
+  _getDefaultGenerationModelNames_() {
+    return {
+      'flash-3.5': 'gemini-3.5-flash',
+      'flash-3.5-backup': 'gemini-3.5-flash',
+      'flash-3.5-lite': 'gemini-3.1-flash-lite',
+      'flash-lite': 'gemini-3.1-flash-lite',
+      'flash-3': 'gemini-3-flash-preview',
+      'flash-3-backup': 'gemini-3-flash-preview',
+      'flash-3.5-lite-backup': 'gemini-3.1-flash-lite'
+    };
+  }
+
+  buildGenerationStrategies(options = {}) {
+    const strategy = this.config && this.config.MODEL_STRATEGY
+      ? this.config.MODEL_STRATEGY
+      : {};
+    const models = this.config && this.config.GEMINI_MODELS
+      ? this.config.GEMINI_MODELS
+      : {};
+    const defaultGenerationStrategy = ['flash-3.5', 'flash-3.5-backup', 'flash-lite', 'flash-3.5-lite-backup'];
+    const defaultGenerationModelNames = this._getDefaultGenerationModelNames_();
+    const configuredGenerationStrategy = Array.isArray(strategy.generation) && strategy.generation.length > 0
+      ? strategy.generation
+      : defaultGenerationStrategy;
+    const warn = typeof options.warn === 'function'
+      ? options.warn
+      : (message) => console.warn(message);
+    const skipExhaustedPrimary = options.skipExhaustedPrimary !== false;
+    const fallbackModelName = configuredGenerationStrategy
+      .map(modelKey => (models[modelKey] && models[modelKey].name) || defaultGenerationModelNames[modelKey])
+      .find(Boolean) || 'gemini-3.5-flash';
+
+    const attemptStrategy = configuredGenerationStrategy
+      .map((modelKey, index) => {
+        const modelDef = models[modelKey];
+        const modelName = (modelDef && modelDef.name) || defaultGenerationModelNames[modelKey];
+        if (!modelName) {
+          warn(`⚠️ Strategia generazione ignora modello non configurato: ${modelKey}`);
+          return null;
+        }
+
+        const usesBackupKey = /backup/i.test(modelKey);
+        if (skipExhaustedPrimary && !usesBackupKey && this.isPrimaryExhausted) {
+          return null;
+        }
+
+        const apiKey = usesBackupKey ? this.backupKey : this.primaryKey;
+        if (!apiKey) return null;
+
+        return {
+          name: `Generation-${index + 1}-${modelKey}${usesBackupKey ? '-BackupKey' : '-PrimaryKey'}`,
+          key: apiKey,
+          model: modelName,
+          usesBackupKey: usesBackupKey,
+          skipRateLimit: usesBackupKey
+        };
+      })
+      .filter(Boolean);
+
+    return {
+      attemptStrategy: attemptStrategy,
+      strategies: attemptStrategy,
+      fallbackModelName: fallbackModelName,
+      configuredGenerationStrategy: configuredGenerationStrategy.slice()
+    };
+  }
+
   _normalizePromptPayload_(promptData) {
     return GeminiContentClient.normalizePromptPayload(promptData);
   }
