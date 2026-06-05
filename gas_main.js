@@ -1955,8 +1955,15 @@ function resumeEmailBatchFromCheckpoint() {
 }
 
 function _readBatchCheckpoint_() {
+  let raw = '';
   try {
-    const raw = PropertiesService.getScriptProperties().getProperty('EMAIL_BATCH_CHECKPOINT');
+    raw = PropertiesService.getScriptProperties().getProperty('EMAIL_BATCH_CHECKPOINT');
+  } catch (e) {
+    console.warn(`readBatchCheckpoint: errore lettura PropertiesService, checkpoint preservato per sicurezza (${e.message})`);
+    return null;
+  }
+
+  try {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') {
@@ -1989,7 +1996,8 @@ function _readBatchCheckpoint_() {
     }
 
     return parsed;
-  } catch (_) {
+  } catch (e) {
+    console.warn(`readBatchCheckpoint: checkpoint non valido, pulizia payload (${e.message})`);
     _clearBatchCheckpoint_();
     return null;
   }

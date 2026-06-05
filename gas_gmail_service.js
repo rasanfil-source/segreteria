@@ -634,6 +634,12 @@ var GmailService = class GmailService {
                 1
             );
             const pageSize = this._safePositiveInt(options.pageSize, 500, 50, 500);
+            const maxRuntimeMs = this._safePositiveInt(
+                options.maxRuntimeMs,
+                ((typeof CONFIG !== 'undefined' && CONFIG.GMAIL_LIST_MAX_RUNTIME_MS) || 50000),
+                1,
+                120000
+            );
 
             const unreadOnly = options.onlyUnread === true;
             // Query composita: inbox opzionale + filtro unread opzionale + finestra temporale opzionale
@@ -643,10 +649,15 @@ var GmailService = class GmailService {
             if (useWindowDays > 0) queryParts.push(`after:${this._getNDaysAgo(useWindowDays)}`);
             const query = queryParts.join(' ').trim();
             let pageCount = 0;
+            const paginationStartedAtMs = Date.now();
 
             do {
                 if (pageCount >= maxPages || messageIds.size >= maxMessages) {
                     console.warn(`⚠️ Interruzione list label '${labelName}': limite raggiunto (pages=${pageCount}/${maxPages}, messages=${messageIds.size}/${maxMessages})`);
+                    break;
+                }
+                if ((Date.now() - paginationStartedAtMs) > maxRuntimeMs) {
+                    console.warn(`⚠️ Interruzione list label '${labelName}': timeout paginazione dopo ${pageCount} pagina/e (${maxRuntimeMs}ms)`);
                     break;
                 }
 

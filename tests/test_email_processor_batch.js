@@ -2916,6 +2916,11 @@ console.log('--- Test processUnreadEmails: quota transient usa backoff breve ind
   );
   assert(transientDelay === 60000, `quota transient deve ripartire dopo 60s, ottenuto ${transientDelay}`);
   assert(dailyDelay === -1, `quota giornaliera deve restare sospesa senza trigger, ottenuto ${dailyDelay}`);
+  const undefinedSentinelDelay = processor._getQuotaCheckpointDelayMs_(
+    { errorClass: 'undefined', error: '', reason: '' },
+    300000
+  );
+  assert(undefinedSentinelDelay === 60000, `sentinella undefined non deve simulare quota giornaliera, ottenuto ${undefinedSentinelDelay}`);
 }
 
 console.log('--- Test processUnreadEmails: stop su errore infrastrutturale retryable ---');

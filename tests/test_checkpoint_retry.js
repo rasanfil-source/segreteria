@@ -70,4 +70,28 @@ assert(accepted && accepted.runId === 'retry-ok', 'checkpoint sotto soglia deve 
 assert(props.has('EMAIL_BATCH_CHECKPOINT'), 'checkpoint sotto soglia non deve essere cancellato');
 assert(labeledThreadIds.length === 0, 'checkpoint sotto soglia non deve applicare label Errore');
 
+console.log('--- Test _readBatchCheckpoint_: preserva checkpoint se PropertiesService non legge ---');
+{
+  const originalPropertiesService = global.PropertiesService;
+  let deleteCalled = false;
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: () => {
+        throw new Error('servizio temporaneamente non disponibile');
+      },
+      deleteProperty: () => {
+        deleteCalled = true;
+      }
+    })
+  };
+
+  try {
+    const unavailable = _readBatchCheckpoint_();
+    assert(unavailable === null, 'lettura non disponibile deve restituire null');
+    assert(deleteCalled === false, 'lettura non disponibile non deve cancellare il checkpoint');
+  } finally {
+    global.PropertiesService = originalPropertiesService;
+  }
+}
+
 console.log('✅ Test checkpoint main passati');

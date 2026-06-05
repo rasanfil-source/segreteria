@@ -239,6 +239,38 @@ console.log('--- Test _incrementCountersAtomic: lock timeout non incrementa senz
   }
 }
 
+console.log('--- Test _incrementCountersAtomic: reset giorno e token in scrittura aggregata ---');
+{
+  const propsData = new Map([
+    ['rpd_date_flash', '2026-05-11'],
+    ['rpd_flash', '8'],
+    ['tokens_flash', '9999']
+  ]);
+  const setPropertiesCalls = [];
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  limiter.props = {
+    getProperty: (key) => propsData.has(key) ? propsData.get(key) : null,
+    setProperty: (key, value) => propsData.set(key, String(value)),
+    setProperties: (values) => {
+      setPropertiesCalls.push(Object.assign({}, values));
+      Object.keys(values || {}).forEach((key) => propsData.set(key, String(values[key])));
+    }
+  };
+  limiter._getPacificDate = () => '2026-05-12';
+
+  const counters = limiter._incrementCountersAtomic('flash', 25, true);
+
+  assert(counters.rpd === 1, 'nuovo giorno deve ripartire da RPD 1');
+  assert(counters.tokens === 25, 'nuovo giorno deve ripartire dai token della richiesta corrente');
+  assert(propsData.get('rpd_date_flash') === '2026-05-12', 'data RPD deve essere aggiornata al giorno corrente');
+  assert(propsData.get('rpd_flash') === '1', 'RPD persistente deve essere resettato e incrementato');
+  assert(propsData.get('tokens_flash') === '25', 'token persistenti devono essere resettati e incrementati');
+  assert(setPropertiesCalls.length === 1, 'reset e incremento devono avvenire in una sola scrittura aggregata');
+  assert(setPropertiesCalls[0].rpd_date_flash === '2026-05-12', 'scrittura aggregata deve includere la data');
+  assert(setPropertiesCalls[0].rpd_flash === '1', 'scrittura aggregata deve includere RPD finale');
+  assert(setPropertiesCalls[0].tokens_flash === '25', 'scrittura aggregata deve includere token finali');
+}
+
 console.log('--- Test model policy: preserva 3.5 Flash e normalizza solo storici ---');
 {
   const limiter = Object.create(GeminiRateLimiter.prototype);

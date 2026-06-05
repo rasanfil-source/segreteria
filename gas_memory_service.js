@@ -1248,10 +1248,31 @@ var MemoryService = class MemoryService {
     try {
       const cache = CacheService.getScriptCache();
       const token = this._heldShardLocks ? this._heldShardLocks[key] : null;
-      if (token && cache.get(key) === token) {
-        cache.remove(key);
+      if (!token) return;
+
+      const guardTimeoutMs = Math.max(1, Math.min(1000, this._getLockTuning_().globalGuardTimeoutMs || 500));
+      const guardLock = LockService.getScriptLock();
+      let guardAcquired = false;
+      try {
+        guardAcquired = guardLock.tryLock(guardTimeoutMs);
+        if (!guardAcquired) {
+          console.warn(`⚠️ Timeout guard lock durante rilascio lock sharded '${key}': rilascio demandato al TTL cache`);
+          return;
+        }
+
+        if (cache.get(key) === token) {
+          cache.remove(key);
+        }
+        if (this._heldShardLocks) delete this._heldShardLocks[key];
+      } finally {
+        if (guardAcquired) {
+          try {
+            guardLock.releaseLock();
+          } catch (releaseError) {
+            console.warn(`⚠️ Errore rilascio guard lock sharded: ${releaseError.message}`);
+          }
+        }
       }
-      if (this._heldShardLocks) delete this._heldShardLocks[key];
     } catch (e) {
       console.warn(`⚠️ Errore rilascio lock sharded '${key}': ${e.message}`);
     }

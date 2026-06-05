@@ -302,4 +302,85 @@ console.log('--- Test MemoryService providedInfo caps: taglia a MAX_PROVIDED_TOP
   }
 }
 
+console.log('--- Test MemoryService _releaseShardedLock: usa guard lock per check+remove ---');
+{
+  const originalCacheService = global.CacheService;
+  const originalLockService = global.LockService;
+  const events = [];
+  const cacheStore = new Map([['lock-thread', 'token-owned']]);
+
+  global.CacheService = {
+    getScriptCache: () => ({
+      get: (key) => {
+        events.push(`get:${key}`);
+        return cacheStore.get(key) || null;
+      },
+      remove: (key) => {
+        events.push(`remove:${key}`);
+        cacheStore.delete(key);
+      }
+    })
+  };
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => {
+        events.push('tryLock');
+        return true;
+      },
+      releaseLock: () => events.push('releaseLock')
+    })
+  };
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    memory._heldShardLocks = { 'lock-thread': 'token-owned' };
+    memory._getLockTuning_ = () => ({ globalGuardTimeoutMs: 10 });
+
+    memory._releaseShardedLock('lock-thread');
+
+    assert(!cacheStore.has('lock-thread'), 'lock cache posseduto deve essere rimosso');
+    assert(!memory._heldShardLocks['lock-thread'], 'token locale deve essere dimenticato dopo release riuscita');
+    assert(events.join(',') === 'tryLock,get:lock-thread,remove:lock-thread,releaseLock', `ordine guard lock inatteso: ${events.join(',')}`);
+  } finally {
+    global.CacheService = originalCacheService;
+    global.LockService = originalLockService;
+  }
+}
+
+console.log('--- Test MemoryService _releaseShardedLock: non rimuove lock altrui ---');
+{
+  const originalCacheService = global.CacheService;
+  const originalLockService = global.LockService;
+  const cacheStore = new Map([['lock-thread', 'token-other']]);
+
+  global.CacheService = {
+    getScriptCache: () => ({
+      get: (key) => cacheStore.get(key) || null,
+      remove: () => {
+        assert(false, 'non deve rimuovere un token diverso dal proprio');
+      }
+    })
+  };
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => true,
+      releaseLock: () => {}
+    })
+  };
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    memory._heldShardLocks = { 'lock-thread': 'token-owned' };
+    memory._getLockTuning_ = () => ({ globalGuardTimeoutMs: 10 });
+
+    memory._releaseShardedLock('lock-thread');
+
+    assert(cacheStore.get('lock-thread') === 'token-other', 'token altrui deve restare in cache');
+    assert(!memory._heldShardLocks['lock-thread'], 'token locale stale deve essere dimenticato');
+  } finally {
+    global.CacheService = originalCacheService;
+    global.LockService = originalLockService;
+  }
+}
+
 console.log('OK MemoryService cache chunk tests passed');

@@ -173,6 +173,7 @@ var CONFIG = {
   GMAIL_METADATA_DISCOVERY_MAX_GETS: 120, // Max messages.get per run di fallback discovery message-level
   GMAIL_LIST_MAX_PAGES: 20,            // Limite pagine Gmail list per bootstrap label cache
   GMAIL_LIST_MAX_MESSAGES: 2000,       // Limite messaggi Gmail list per bootstrap label cache
+  GMAIL_LIST_MAX_RUNTIME_MS: 50000,     // Budget tempo bootstrap label cache per evitare timeout GAS
   GMAIL_LABEL_LOOKBACK_DAYS: 0,         // 0 = nessuna finestra temporale nel pre-caricamento label
   BATCH_CHECKPOINT_TTL_MS: 10 * 60 * 1000, // Scadenza checkpoint resume (10 minuti)
   BATCH_CHECKPOINT_MAX_RETRIES: 3,      // Tentativi di ripresa prima di marcare i residui in Errore
@@ -456,6 +457,8 @@ function validateConfig() {
   checkRange('OCR_ORPHAN_MAX_AGE_HOURS', CONFIG.OCR_ORPHAN_MAX_AGE_HOURS, 1, 24);
   checkType('OCR_CLEANUP_MAX_RUNTIME_MS', CONFIG.OCR_CLEANUP_MAX_RUNTIME_MS, 'number');
   checkRange('OCR_CLEANUP_MAX_RUNTIME_MS', CONFIG.OCR_CLEANUP_MAX_RUNTIME_MS, 1000, 30000);
+  checkType('GMAIL_LIST_MAX_RUNTIME_MS', CONFIG.GMAIL_LIST_MAX_RUNTIME_MS, 'number');
+  checkRange('GMAIL_LIST_MAX_RUNTIME_MS', CONFIG.GMAIL_LIST_MAX_RUNTIME_MS, 1000, 120000);
   checkType('MAX_PROVIDED_TOPICS', CONFIG.MAX_PROVIDED_TOPICS, 'number');
   checkType('KB_HALLUCINATION_RISK_THRESHOLD', CONFIG.KB_HALLUCINATION_RISK_THRESHOLD, 'number');
   checkRange('KB_HALLUCINATION_RISK_THRESHOLD', CONFIG.KB_HALLUCINATION_RISK_THRESHOLD, 100, 100000);

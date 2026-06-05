@@ -356,7 +356,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     const candidates = this._getCandidateModels(taskType);
-    for (var i = 0; i < candidates.length; i++) {
+    for (let i = 0; i < candidates.length; i++) {
       const modelKey = candidates[i];
       const result = this._validateModelAvailability(modelKey, estimatedTokens);
       if (result.available) {
@@ -831,16 +831,18 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       const lastRpdDate = this.props.getProperty(rpdDateKey) || '';
       let currentRpd = parseInt(this.props.getProperty(rpdKey) || '0', 10) || 0;
       let currentTokens = parseInt(this.props.getProperty(tokensKey) || '0', 10) || 0;
+      const updates = {};
       if (lastRpdDate !== todayPacific) {
         currentRpd = 0;
         currentTokens = 0;
-        this.props.setProperty(rpdDateKey, todayPacific);
+        updates[rpdDateKey] = todayPacific;
       }
       const nextRpd = currentRpd + 1;
       const nextTokens = currentTokens + (tokensUsed || 0);
 
-      this.props.setProperty(rpdKey, String(nextRpd));
-      this.props.setProperty(tokensKey, String(nextTokens));
+      updates[rpdKey] = String(nextRpd);
+      updates[tokensKey] = String(nextTokens);
+      this._setRateCounterProperties_(updates);
 
       return { rpd: nextRpd, tokens: nextTokens };
     } finally {
@@ -848,6 +850,22 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         lock.releaseLock();
       }
     }
+  }
+
+  _setRateCounterProperties_(values) {
+    const normalized = {};
+    Object.keys(values || {}).forEach((key) => {
+      normalized[key] = String(values[key]);
+    });
+
+    if (this.props && typeof this.props.setProperties === 'function') {
+      this.props.setProperties(normalized);
+      return;
+    }
+
+    Object.keys(normalized).forEach((key) => {
+      this.props.setProperty(key, normalized[key]);
+    });
   }
 
   /**

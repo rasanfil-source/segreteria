@@ -3463,7 +3463,10 @@ ${addressLines.join('\n\n')}
       result && result.errorClass,
       result && result.error,
       result && result.reason
-    ].filter(Boolean).join(' ').toLowerCase();
+    ]
+      .filter(value => typeof value === 'string' && value.trim() && value.trim().toLowerCase() !== 'undefined')
+      .join(' ')
+      .toLowerCase();
 
     const looksDailyQuota =
       raw.includes('daily') ||

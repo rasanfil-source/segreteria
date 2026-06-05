@@ -865,6 +865,41 @@ console.log('--- Test getMessageIdsWithLabel: fallback data senza Utilities.form
   delete global.CONFIG.GMAIL_LABEL_LOOKBACK_DAYS;
 }
 
+console.log('--- Test getMessageIdsWithLabel: interrompe paginazione su budget tempo ---');
+{
+  const serviceWithTimeout = new GmailService();
+  const originalDateNow = Date.now;
+  let nowMs = 0;
+  let listCalls = 0;
+  const seenPageTokens = [];
+
+  Date.now = () => nowMs;
+  serviceWithTimeout._getOptionalLabelIdByName = () => 'label-ia';
+  serviceWithTimeout._listMessagesWithResilience = (params) => {
+    listCalls += 1;
+    seenPageTokens.push(params.pageToken || '');
+    nowMs += 10;
+    return {
+      messages: [{ id: `m-timeout-${listCalls}` }],
+      nextPageToken: `page-${listCalls + 1}`
+    };
+  };
+
+  try {
+    const ids = serviceWithTimeout.getMessageIdsWithLabel('IA', true, {
+      maxPages: 10,
+      maxMessages: 10,
+      maxRuntimeMs: 5
+    });
+    assert(listCalls === 1, `paginazione deve fermarsi prima della seconda pagina, chiamate=${listCalls}`);
+    assert(ids.has('m-timeout-1'), 'deve conservare gli ID già raccolti prima del timeout');
+    assert(!ids.has('m-timeout-2'), 'non deve leggere pagine oltre il budget tempo');
+    assert(seenPageTokens.join(',') === '', `non deve usare pageToken oltre il timeout, ottenuto ${seenPageTokens.join(',')}`);
+  } finally {
+    Date.now = originalDateNow;
+  }
+}
+
 console.log('--- Test getProcessableAttachments: ramo .xlsx come contesto testuale ---');
 {
   const xlsxBlob = {
