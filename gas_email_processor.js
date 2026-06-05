@@ -361,7 +361,7 @@ var EmailProcessor = class EmailProcessor {
 
     const actions = context.actions || {};
     const targets = context.gmailTargets || {};
-    const state = context.state || null;
+    const state = context.state || (context.state = {});
     const gmailActions = Array.isArray(decision.gmailActions) ? decision.gmailActions : [];
     gmailActions.forEach((action) => {
       if (!action || !action.type) return;
@@ -392,7 +392,7 @@ var EmailProcessor = class EmailProcessor {
       }
     });
 
-    if (state && decision.state && typeof decision.state === 'object') {
+    if (decision.state && typeof decision.state === 'object') {
       Object.keys(decision.state).forEach((key) => {
         const value = decision.state[key];
         state[key] = (typeof value === 'function') ? value(context) : value;

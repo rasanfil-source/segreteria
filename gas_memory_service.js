@@ -828,8 +828,11 @@ var MemoryService = class MemoryService {
    */
   _withSheetWriteLock(writeOperation, alreadyLocked = false) {
     if (alreadyLocked) {
-      writeOperation();
-      SpreadsheetApp.flush();
+      try {
+        writeOperation();
+      } finally {
+        SpreadsheetApp.flush();
+      }
       return;
     }
 

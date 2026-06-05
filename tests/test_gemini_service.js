@@ -249,6 +249,23 @@ console.log('--- Test _generateWithModel: il client generico preserva prompt str
   assert(Array.isArray(capturedPayload.safetySettings) && capturedPayload.safetySettings.length === 4, 'safety settings devono essere centralizzati nel payload');
 }
 
+console.log('--- Test GeminiContentClient: allegato grande non chiama getBytes ---');
+{
+  const client = new GeminiContentClient({});
+  let getBytesCalled = false;
+  const parts = client.buildRequestParts('Prompt utente', [{
+    getContentType: () => 'application/pdf',
+    getSize: () => (10 * 1024 * 1024) + 1,
+    getBytes: () => {
+      getBytesCalled = true;
+      return [];
+    }
+  }]);
+
+  assert(getBytesCalled === false, 'allegato oltre soglia deve essere scartato prima di getBytes');
+  assert(parts.length === 1 && parts[0].text === 'Prompt utente', 'il prompt testuale deve restare presente anche se l allegato viene scartato');
+}
+
 console.log('--- Test _generateWithModel: testo vuoto marca isTransient ---');
 {
   const service = Object.create(GeminiService.prototype);

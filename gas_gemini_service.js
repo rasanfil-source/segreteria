@@ -39,6 +39,8 @@ var GEMINI_TASK_PROFILES = {
   }
 };
 
+var GEMINI_MAX_INLINE_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
 var GeminiContentClient = class GeminiContentClient {
   constructor(options = {}) {
     this.config = options.config || {};
@@ -131,10 +133,22 @@ var GeminiContentClient = class GeminiContentClient {
             console.warn('Allegato ignorato: contentType mancante o non valido');
             return;
           }
+          if (typeof blob.getSize === 'function') {
+            const size = Number(blob.getSize());
+            if (Number.isFinite(size) && size > GEMINI_MAX_INLINE_ATTACHMENT_BYTES) {
+              console.warn(`Allegato ignorato (OOM protection): dimensione superiore ai 10MB (${mimeType})`);
+              return;
+            }
+          }
+          const bytes = blob.getBytes();
+          if (bytes && bytes.length > GEMINI_MAX_INLINE_ATTACHMENT_BYTES) {
+            console.warn(`Allegato ignorato (OOM protection): dimensione superiore ai 10MB (${mimeType})`);
+            return;
+          }
           requestParts.push({
             inlineData: {
               mimeType: mimeType,
-              data: Utilities.base64Encode(blob.getBytes())
+              data: Utilities.base64Encode(bytes)
             }
           });
         } catch (e) {

@@ -387,7 +387,7 @@ var PromptEngine = class PromptEngine {
       const hasDoctrine = Object.prototype.hasOwnProperty.call(sourceRequestType, 'needsDoctrine');
       const type = sourceRequestType.type || 'technical';
       requestTypeObj = Object.assign(
-        { needsDiscernment: false, needsDoctrine: false, type: 'technical' },
+        { needsDiscernment: false, needsDoctrine: false, type: type },
         sourceRequestType
       );
       if (!hasDiscernment) {

@@ -216,6 +216,34 @@ console.log('--- Test MemoryService updateMemory: invalida cache prima e dopo wr
   }
 }
 
+console.log('--- Test MemoryService _withSheetWriteLock: flush anche se write fallisce con lock gia acquisito ---');
+{
+  const originalSpreadsheetApp = global.SpreadsheetApp;
+  let flushCalled = false;
+  global.SpreadsheetApp = {
+    flush: () => {
+      flushCalled = true;
+    }
+  };
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    let thrown = null;
+    try {
+      memory._withSheetWriteLock(() => {
+        throw new Error('write boom');
+      }, true);
+    } catch (error) {
+      thrown = error;
+    }
+
+    assert(thrown && thrown.message === 'write boom', 'errore della write deve propagarsi');
+    assert(flushCalled === true, 'SpreadsheetApp.flush deve essere eseguito anche se la write fallisce');
+  } finally {
+    global.SpreadsheetApp = originalSpreadsheetApp;
+  }
+}
+
 
 console.log('--- Test MemoryService providedInfo caps: usa config e non svuota topic singolo enorme ---');
 {

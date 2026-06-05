@@ -211,6 +211,20 @@ console.log('--- Test pre-AI rules: context, decision e action restano dichiarat
   );
   assert(submissionState.forceReceiptOnlyForSubmission === true, 'submission senza domande deve forzare sola ricevuta');
 
+  const implicitStateContext = {
+    phase: 'post_ocr_policy',
+    isDocumentSubmission: true,
+    hasSubmissionQuestions: false,
+    isSponsorSubmission: false,
+    shouldProvideEligibilityGuidance: false
+  };
+  const implicitStateDecision = ruleProcessor._evaluateEmailPolicyRules_(implicitStateContext);
+  ruleProcessor._applyPreAiRuleDecision_(implicitStateDecision, implicitStateContext, { status: 'unknown' });
+  assert(
+    implicitStateContext.state && implicitStateContext.state.forceReceiptOnlyForSubmission === true,
+    'state assente deve essere creato e mutato dalla policy'
+  );
+
   const routingState = {
     routedAiCore: 'AI_CORE',
     routedDoctrine: 'DOTTRINA',

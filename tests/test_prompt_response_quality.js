@@ -49,6 +49,28 @@ assert(
   'il prompt deve vietare informazioni non richieste'
 );
 
+console.log('--- Test prompt: requestType non plain preserva type derivato ---');
+const inheritedFormalRequestType = Object.create({ type: 'formal' });
+inheritedFormalRequestType.needsDiscernment = false;
+inheritedFormalRequestType.needsDoctrine = false;
+const inheritedFormalPrompt = engine.buildPrompt({
+  emailSubject: 'Richiesta pratica',
+  emailContent: 'Buongiorno, vorrei informazioni sulla procedura.',
+  knowledgeBase: 'Informazioni di segreteria disponibili.',
+  detectedLanguage: 'it',
+  requestType: inheritedFormalRequestType,
+  category: 'technical',
+  topic: 'procedura segreteria',
+  salutationMode: 'full',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,'
+});
+
+assert(
+  inheritedFormalPrompt.includes('TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI'),
+  'requestType con type ereditato/formale deve attivare il ramo formale'
+);
+
 console.log('--- Test prompt: formattazione articolata preservata ---');
 const formattingPrompt = engine.buildPrompt({
   emailSubject: 'Informazioni catechismo',

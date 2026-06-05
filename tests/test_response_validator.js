@@ -157,6 +157,28 @@ console.log('--- Test _checkLanguage declassa IT/EN misto ma blocca EN pieno ---
   );
 }
 
+console.log('--- Test _checkLanguage: marker accentati con confini non ASCII ---');
+{
+  const localValidator = new ResponseValidator();
+  localValidator.languageMarkers = {
+    it: ['parrocchia'],
+    pt: ['par\u00f3quia'],
+    de: ['gr\u00fc\u00dfe']
+  };
+
+  const portugueseResult = localValidator._checkLanguage(
+    'Ol\u00e1, a par\u00f3quia confirma o recebimento.',
+    'it'
+  );
+  assert(portugueseResult.markerScores.pt === 1, 'marker portoghese accentato deve essere rilevato');
+
+  const germanResult = localValidator._checkLanguage(
+    'Vielen Dank, gr\u00fc\u00dfe an die Gemeinde.',
+    'it'
+  );
+  assert(germanResult.markerScores.de === 1, 'marker tedesco accentato deve essere rilevato');
+}
+
 console.log('--- Test _ottimizzaCapitalAfterComma (maiuscole, nomi propri e apostrofi) ---');
 {
   const fixedCaps = validator._ottimizzaCapitalAfterComma(
