@@ -1067,6 +1067,11 @@ Devi dare la risposta SÌ/NO adesso, basandoti ESCLUSIVAMENTE sui dati qui sopra
       targetDateText: context.targetDateText || targetDate,
       isExplicitTarget: context.isExplicitTarget === true,
       targetSource: context.targetSource || 'current_date',
+      targetDateIsPast: context.targetDateIsPast === true,
+      mentionedDateInCurrentYear: context.mentionedDateInCurrentYear || '',
+      mentionedDateInCurrentYearIsPast: context.mentionedDateInCurrentYearIsPast === true,
+      temporalIntent: context.temporalIntent || 'unspecified',
+      yearInference: context.yearInference || 'none',
       summerRangeText: context.summerRangeText || '',
       summerStartDate: context.summerStartDate || '',
       summerEndDate: context.summerEndDate || '',
@@ -1086,6 +1091,14 @@ Devi dare la risposta SÌ/NO adesso, basandoti ESCLUSIVAMENTE sui dati qui sopra
     const summerLine = context.summerRangeText
       ? `Periodo estivo di riferimento (${sourceLabel}): ${context.summerRangeText}.`
       : `Periodo estivo di riferimento: non disponibile in KB; usa il contesto runtime.`;
+    const nextYearInferenceWarning = context.yearInference === 'next_year_from_future_intent'
+      ? `
+⚠️ DATA SENZA ANNO NORMALIZZATA: la data citata, calcolata nell'anno corrente (${context.mentionedDateInCurrentYear || 'non disponibile'}), è già trascorsa; poiché la richiesta usa indicatori futuri, la data di riferimento è stata spostata alla prossima ricorrenza: ${targetLabel}.`
+      : '';
+    const pastDateWarning = (context.targetDateIsPast && context.isExplicitTarget)
+      ? `
+⚠️ DATA GIÀ TRASCORSA: la data richiesta (${targetLabel}) è già passata rispetto alla data odierna. Non presentarla come futura; se l'ambiguità resta alta, chiedi conferma dell'anno.`
+      : '';
 
     return `**ORARI STAGIONALI:**
 IMPORTANTE: usa gli orari del periodo applicabile alla data richiesta, non dedurre il periodo dal solo mese solare.
@@ -1093,7 +1106,7 @@ Data di riferimento per gli orari: ${targetLabel}.
 Periodo applicabile: ${season.toUpperCase()}.
 ${summerLine}
 Usa SOLO gli orari ${season}. Non mostrare mai entrambi i set di orari.
-Se l'utente chiede quando inizia o finisce il periodo estivo, rispondi con il periodo di riferimento indicato dalla KB.`;
+Se l'utente chiede quando inizia o finisce il periodo estivo, rispondi con il periodo di riferimento indicato dalla KB.${nextYearInferenceWarning}${pastDateWarning}`;
   }
 
   // ========================================================================
@@ -1123,7 +1136,8 @@ ${messageDate ? `- **Data ricezione/invio email utente:** ${messageDate}\n` : ''
 1. Ordina sempre gli eventi futuri cronologicamente.
 2. Prima di descrivere un evento (corso, celebrazione) come "futuro" o "passato", confrontalo rigidamente con la data odierna.
 3. Attento all'anno pastorale (settembre-agosto) vs anno solare.
-4. Non presentare ${papalContext.previousName} come Papa attuale o come voce magisteriale in presente. Citalo solo per eventi o documenti storici se il dato è presente nelle informazioni di riferimento. Se non è necessario citare un Papa, evita il riferimento papale.`;
+4. Non presentare ${papalContext.previousName} come Papa attuale o come voce magisteriale in presente. Citalo solo per eventi o documenti storici se il dato è presente nelle informazioni di riferimento. Se non è necessario citare un Papa, evita il riferimento papale.
+5. **Date senza anno esplicito**: quando l'utente cita una data come "il 15 agosto", "a Natale" o "la domenica delle Palme" senza specificare l'anno, confronta sempre quella data con la DATA ODIERNA (${currentDate}) e con gli indizi linguistici. Se la data è già trascorsa nell'anno corrente e il testo usa un futuro chiaro (es. "saranno", "ci saranno", "si terrà"), interpreta con prudenza la richiesta come riferita alla prossima ricorrenza/anno seguente; se gli indizi sono deboli o contraddittori, chiedi conferma dell'anno. Non presentare mai come futura una data già trascorsa nell'anno corrente senza esplicitare l'interpretazione adottata.`;
   }
 
   _getPapalContext_(sourceText = '') {

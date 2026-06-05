@@ -417,4 +417,38 @@ console.log('--- Test prompt: riparazione tag XML chiude blocchi strutturali tro
   );
 }
 
+console.log('--- Test prompt: avviso per date senza anno già passate e normalizzate al futuro ---');
+const yearlessTemporalPrompt = engine.buildPrompt({
+  emailSubject: 'Orari Messe',
+  emailContent: 'Buongiorno, a che ora saranno le messe il 15 agosto?',
+  knowledgeBase: 'Orari Basilica | Periodo estivo | Dal 29 giugno al 30 agosto\nMesse estive: 9:00 e 19:00.',
+  detectedLanguage: 'it',
+  currentDate: '2026-09-10',
+  promptProfile: 'standard',
+  salutationMode: 'full',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  scheduleContext: {
+    season: 'estivo',
+    currentDate: '2026-09-10',
+    targetDate: '2027-08-15',
+    targetDateText: '15 agosto 2027',
+    isExplicitTarget: true,
+    targetSource: 'explicit:textual:year_inferred_next',
+    targetDateIsPast: false,
+    mentionedDateInCurrentYear: '2026-08-15',
+    mentionedDateInCurrentYearIsPast: true,
+    temporalIntent: 'future',
+    yearInference: 'next_year_from_future_intent',
+    summerRangeText: 'Dal 29 giugno al 30 agosto',
+    source: 'knowledge_base'
+  }
+});
+assert(
+  yearlessTemporalPrompt.includes('DATA SENZA ANNO NORMALIZZATA') &&
+    yearlessTemporalPrompt.includes('15 agosto 2027') &&
+    yearlessTemporalPrompt.includes('Date senza anno esplicito'),
+  'il prompt deve esplicitare la normalizzazione temporale delle date senza anno'
+);
+
 console.log('✅ Test qualità prompt risposta passati');

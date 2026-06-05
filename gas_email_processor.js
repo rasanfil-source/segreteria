@@ -3661,6 +3661,12 @@ ${addressLines.join('\n\n')}
     const season = this._isDateWithinInclusive_(targetDate, summerRange.start, summerRange.end)
       ? 'estivo'
       : 'invernale';
+    const currentEpochDay = this._dateOnlyEpochDay_(currentDate);
+    const targetDateIsPast = requestedDateInfo.isExplicit &&
+      this._dateOnlyEpochDay_(targetDate) < currentEpochDay;
+    const mentionedDateInCurrentYearIsPast = requestedDateInfo.originalInferredDate
+      ? this._dateOnlyEpochDay_(requestedDateInfo.originalInferredDate) < currentEpochDay
+      : false;
 
     return {
       season: season,
@@ -3669,6 +3675,13 @@ ${addressLines.join('\n\n')}
       targetDateText: this._formatItalianDateLabel_(targetDate),
       isExplicitTarget: requestedDateInfo.isExplicit,
       targetSource: requestedDateInfo.source,
+      targetDateIsPast: targetDateIsPast,
+      mentionedDateInCurrentYear: requestedDateInfo.originalInferredDate
+        ? this._formatDateOnlyIso_(requestedDateInfo.originalInferredDate)
+        : '',
+      mentionedDateInCurrentYearIsPast: mentionedDateInCurrentYearIsPast,
+      temporalIntent: requestedDateInfo.temporalIntent || 'unspecified',
+      yearInference: requestedDateInfo.yearInference || 'none',
       summerRangeText: summerRange.text,
       summerStartDate: this._formatDateOnlyIso_(summerRange.start),
       summerEndDate: this._formatDateOnlyIso_(summerRange.end),
@@ -3706,10 +3719,15 @@ ${addressLines.join('\n\n')}
 
     const explicitDate = this._extractExplicitDateFromText_(normalizedText, current.getFullYear());
     if (explicitDate) {
+      const normalizedExplicitDate = this._normalizeExplicitDateForTemporalIntent_(explicitDate, normalizedText, current);
       return {
-        date: explicitDate.date,
+        date: normalizedExplicitDate.date,
         isExplicit: true,
-        source: explicitDate.source
+        source: normalizedExplicitDate.source,
+        hasExplicitYear: explicitDate.hasExplicitYear === true,
+        originalInferredDate: normalizedExplicitDate.originalInferredDate || explicitDate.date,
+        temporalIntent: normalizedExplicitDate.temporalIntent,
+        yearInference: normalizedExplicitDate.yearInference
       };
     }
 
@@ -3731,7 +3749,11 @@ ${addressLines.join('\n\n')}
       const year = textualMatch[3] ? parseInt(textualMatch[3], 10) : defaultYear;
       const date = this._makeValidDateOnly_(year, month, day);
       if (date) {
-        return { date: date, source: 'explicit:textual' };
+        return {
+          date: date,
+          source: 'explicit:textual',
+          hasExplicitYear: Boolean(textualMatch[3])
+        };
       }
     }
 
@@ -3743,11 +3765,79 @@ ${addressLines.join('\n\n')}
       if (year < 100) year += 2000;
       const date = this._makeValidDateOnly_(year, month, day);
       if (date) {
-        return { date: date, source: 'explicit:numeric' };
+        return {
+          date: date,
+          source: 'explicit:numeric',
+          hasExplicitYear: Boolean(numericMatch[3])
+        };
       }
     }
 
     return null;
+  }
+
+  _normalizeExplicitDateForTemporalIntent_(explicitDate, text = '', currentDate = new Date()) {
+    const date = explicitDate && explicitDate.date;
+    if (!(date instanceof Date) || isNaN(date.getTime())) {
+      return {
+        date: date,
+        source: explicitDate ? explicitDate.source : 'explicit:invalid',
+        temporalIntent: 'unspecified',
+        yearInference: 'none'
+      };
+    }
+
+    const temporalIntent = this._detectYearlessDateTemporalIntent_(text);
+    if (explicitDate.hasExplicitYear === true) {
+      return {
+        date: date,
+        source: explicitDate.source,
+        originalInferredDate: date,
+        temporalIntent: temporalIntent,
+        yearInference: 'explicit_year'
+      };
+    }
+
+    const current = this._coerceBusinessDateOnly_(currentDate) || new Date();
+    const comparison = this._dateOnlyEpochDay_(date) - this._dateOnlyEpochDay_(current);
+    if (comparison < 0 && temporalIntent === 'future') {
+      return {
+        date: this._makeValidDateOnly_(date.getFullYear() + 1, date.getMonth() + 1, date.getDate()),
+        source: `${explicitDate.source}:year_inferred_next`,
+        originalInferredDate: date,
+        temporalIntent: temporalIntent,
+        yearInference: 'next_year_from_future_intent'
+      };
+    }
+
+    if (comparison > 0 && temporalIntent === 'past') {
+      return {
+        date: this._makeValidDateOnly_(date.getFullYear() - 1, date.getMonth() + 1, date.getDate()),
+        source: `${explicitDate.source}:year_inferred_previous`,
+        originalInferredDate: date,
+        temporalIntent: temporalIntent,
+        yearInference: 'previous_year_from_past_intent'
+      };
+    }
+
+    return {
+      date: date,
+      source: explicitDate.source,
+      originalInferredDate: date,
+      temporalIntent: temporalIntent,
+      yearInference: comparison < 0 ? 'current_year_past_ambiguous' : 'current_year'
+    };
+  }
+
+  _detectYearlessDateTemporalIntent_(text = '') {
+    const normalized = String(text || '').toLowerCase();
+    const futurePattern = /\b(sar(?:à|a|anno)|ci\s+sar(?:à|a|anno)|avr(?:à|a|anno)|farete|celebrerete|terr(?:à|a|anno)|quando\s+(?:sar|avr|terr)|prossim[oaie]|ventura|futura|futuro|domani|dopodomani)\b/i;
+    if (futurePattern.test(normalized)) return 'future';
+
+    const pastPattern = /\b(sono\s+state|erano|c['’]?erano|si\s+(?:è|e)\s+(?:tenuta|tenuto|svolta|svolto)|avete\s+(?:celebrato|fatto)|passat[oaie]|scors[oaie])\b/i;
+    if (pastPattern.test(normalized)) return 'past';
+
+    return 'unspecified';
   }
 
   _extractSummerScheduleRange_(knowledgeBaseText = '', year) {

@@ -181,6 +181,30 @@ console.log('--- Test periodo orari: usa la KB e la data richiesta ---');
     processor._resolveScheduleContext('Messa del 3 giugno', scheduleKb, '2026-06-01', 'it').targetDate === '2026-06-03',
     'le date esplicite tipo 3 giugno devono diventare data target'
   );
+  const futureYearlessPastInCurrentYear = processor._resolveScheduleContext(
+    'A che ora saranno le messe il 15 agosto?',
+    scheduleKb,
+    '2026-09-10',
+    'it'
+  );
+  assert(
+    futureYearlessPastInCurrentYear.targetDate === '2027-08-15' &&
+      futureYearlessPastInCurrentYear.yearInference === 'next_year_from_future_intent' &&
+      futureYearlessPastInCurrentYear.mentionedDateInCurrentYear === '2026-08-15',
+    `data senza anno con futuro deve puntare alla prossima ricorrenza, ottenuto ${futureYearlessPastInCurrentYear.targetDate}/${futureYearlessPastInCurrentYear.yearInference}`
+  );
+  const ambiguousYearlessPast = processor._resolveScheduleContext(
+    'Orari messe del 15 agosto',
+    scheduleKb,
+    '2026-09-10',
+    'it'
+  );
+  assert(
+    ambiguousYearlessPast.targetDate === '2026-08-15' &&
+      ambiguousYearlessPast.targetDateIsPast === true &&
+      ambiguousYearlessPast.yearInference === 'current_year_past_ambiguous',
+    `data senza anno ambigua deve restare nell'anno corrente ma marcata passata, ottenuto ${ambiguousYearlessPast.targetDate}/${ambiguousYearlessPast.targetDateIsPast}/${ambiguousYearlessPast.yearInference}`
+  );
   const formulaFallback2027 = processor._resolveScheduleContext(
     'Orari Messe',
     '',
