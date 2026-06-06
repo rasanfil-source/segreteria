@@ -90,4 +90,19 @@ const prompt = processor._buildCorrectionPrompt('Original Prompt', 'Failed Respo
 assert(prompt.includes('ERRORE CRITICO: Hai incluso il tuo ragionamento interno'), 'Prompt should contain thinking leak correction');
 assert(prompt.includes('Failed Response'), 'Prompt should include previous response snippet');
 
+const shortValidation = {
+    isValid: false,
+    score: 0.8,
+    errors: ['risposta troppo corta'],
+    details: { length: { errors: ['troppo corta'] } }
+};
+const defaultModePrompt = processor._buildCorrectionPrompt('Original Prompt', 'Short Response', shortValidation, 'it');
+assert(defaultModePrompt.includes('Includi saluto e firma.'), 'Undefined salutationMode should use explicit full-mode default');
+
+const continuityPrompt = processor._buildCorrectionPrompt('Original Prompt', 'Short Response', shortValidation, 'it', 'none_or_continuity');
+assert(
+    continuityPrompt.includes('NON includere saluti formali o firme'),
+    'Continuity salutationMode should not ask for saluto/firma in retry'
+);
+
 console.log('✅ All intelligent retry logic tests passed!');

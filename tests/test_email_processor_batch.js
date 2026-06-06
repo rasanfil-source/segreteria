@@ -980,6 +980,36 @@ console.log('--- Test _beginSendTransaction: skipLock evita riacquisizione Scrip
 }
 
 
+console.log('--- Test _beginSendTransaction: messageId assente blocca invio ---');
+{
+  cacheStore.clear();
+  const processor = new EmailProcessor({ gmailService: {} });
+  const txn = processor._beginSendTransaction(null, true);
+
+  assert(txn.ok === false, 'messageId assente deve bloccare la transazione di invio');
+  assert(txn.reason === 'missing_message_id', `reason attesa missing_message_id, ottenuta ${txn.reason}`);
+  assert(cacheStore.size === 0, 'non deve impostare marker cache senza messageId');
+}
+
+
+console.log('--- Test _beginSendTransaction: CacheService assente blocca invio ---');
+{
+  const originalCacheService = global.CacheService;
+  global.CacheService = undefined;
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    const txn = processor._beginSendTransaction('m-no-cache', true);
+
+    assert(txn.ok === false, 'CacheService assente deve bloccare la transazione di invio');
+    assert(txn.reason === 'cache_unavailable', `reason attesa cache_unavailable, ottenuta ${txn.reason}`);
+  } finally {
+    global.CacheService = originalCacheService;
+    cacheStore.clear();
+  }
+}
+
+
 console.log('--- Test _beginSendTransaction: conserva errore originale se releaseLock fallisce ---');
 {
   const originalLockService = global.LockService;

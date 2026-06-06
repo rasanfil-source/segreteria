@@ -3778,15 +3778,16 @@ ${addressLines.join('\n\n')}
   // una riacquisizione non reentrant ma mantiene comunque le chiavi cache.
   _beginSendTransaction(messageId, skipLock = false) {
     if (!messageId) {
-      console.warn('⚠️ Idempotenza non applicabile: messageId assente. Rischio di duplicazione.');
-      return { ok: true, reason: 'missing_message_id' };
+      console.warn('⚠️ Idempotenza non applicabile: messageId assente. Invio bloccato per evitare duplicazioni.');
+      return { ok: false, reason: 'missing_message_id' };
     }
     const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
       ? CacheService.getScriptCache()
       : null;
 
     if (!cache) {
-      return { ok: true, reason: 'cache_unavailable' };
+      console.warn('⚠️ CacheService non disponibile: invio bloccato per garantire idempotenza.');
+      return { ok: false, reason: 'cache_unavailable' };
     }
 
     const sendingKey = `sending_${messageId}`;
@@ -4895,7 +4896,8 @@ ${addressLines.join('\n\n')}
 
     const correctionInstructions = [];
     const langNames = { it: 'italiano', en: 'inglese', es: 'spagnolo', fr: 'francese', de: 'tedesco', pt: 'portoghese' };
-    const shouldIncludeSignature = salutationMode !== 'none_or_continuity' && salutationMode !== 'session';
+    const effectiveSalutationMode = salutationMode || 'full';
+    const shouldIncludeSignature = effectiveSalutationMode !== 'none_or_continuity' && effectiveSalutationMode !== 'session';
 
     if (flags.thinking_leak) {
       correctionInstructions.push(

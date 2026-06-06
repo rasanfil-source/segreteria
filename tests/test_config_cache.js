@@ -18,12 +18,16 @@ const backingProps = new Map([
 ]);
 const getCounts = new Map();
 let getScriptPropertiesCalls = 0;
+let throwOnKey = null;
 
 global.PropertiesService = {
   getScriptProperties: () => {
     getScriptPropertiesCalls++;
     return {
       getProperty: (key) => {
+        if (key === throwOnKey) {
+          throw new Error(`forced getProperty failure: ${key}`);
+        }
         getCounts.set(key, (getCounts.get(key) || 0) + 1);
         return backingProps.has(key) ? backingProps.get(key) : null;
       }
@@ -167,6 +171,25 @@ try {
 } finally {
   Date.now = originalDateNow;
 }
+
+_clearScriptPropertyCache('GEMINI_API_KEY');
+backingProps.set('GEMINI_API_KEY', 'force-key-1');
+assert(_getScriptProperty('GEMINI_API_KEY') === 'force-key-1', 'forceRefresh: primo accesso popola la cache');
+backingProps.set('GEMINI_API_KEY', 'force-key-2');
+throwOnKey = 'GEMINI_API_KEY';
+let forcedRefreshError = null;
+try {
+  _getScriptProperty('GEMINI_API_KEY', true);
+} catch (error) {
+  forcedRefreshError = error;
+} finally {
+  throwOnKey = null;
+}
+assert(forcedRefreshError, 'forceRefresh: errore PropertiesService deve propagarsi');
+assert(
+  _getScriptProperty('GEMINI_API_KEY') === 'force-key-2',
+  'forceRefresh fallito deve invalidare lo stale cached e rileggere al tentativo successivo'
+);
 
 assert(CONFIG.MAX_SAFE_PROMPT_CHARS === 100000, 'MAX_SAFE_PROMPT_CHARS deve avere un fallback esplicito');
 assert(CONFIG.MAX_PROVIDED_INFO_JSON_CHARS === 45000, 'MAX_PROVIDED_INFO_JSON_CHARS deve avere un fallback esplicito');

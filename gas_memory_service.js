@@ -379,12 +379,24 @@ var MemoryService = class MemoryService {
     console.log(`🧹 Invalidazione preventiva cache per thread ${threadId} pre-lettura di allineamento`);
     this._invalidateCache(`memory_${threadId}`);
 
-    // Scelta intenzionale: qui NON usiamo updateMemoryAtomic.
-    // Motivo: updateMemoryRobust persiste solo campi memoria (senza topic),
-    // e updateMemory garantisce già lock + retry + coerenza cache con costo minore.
-    // Se servono topic o coerenza multi-entità, usare updateMemoryAtomic nei callsite dedicati.
+    // Se un chiamante passa topic insieme ai dati robusti, non scartarli:
+    // l'operazione atomica è il solo percorso che fonde correttamente providedInfo.
+    const robustProvidedTopics = data.providedTopics;
+    const hasRobustTopics = !!(robustProvidedTopics && (
+      (Array.isArray(robustProvidedTopics) && robustProvidedTopics.length > 0) ||
+      (typeof robustProvidedTopics === 'string' && robustProvidedTopics.trim().length > 0)
+    ));
+
     // Se fallisce anche dopo i retry, qui non rilanciamo: la memoria è best-effort.
     try {
+      if (hasRobustTopics) {
+        const dataToUpdate = Object.assign({}, data);
+        const inferredReactionData = dataToUpdate.inferredReactionData || null;
+        delete dataToUpdate.providedTopics;
+        delete dataToUpdate.inferredReactionData;
+        return this.updateMemoryAtomic(threadId, dataToUpdate, robustProvidedTopics, inferredReactionData);
+      }
+
       this.updateMemory(threadId, data);
     } catch (e) {
       console.error(`❌ updateMemoryRobust: persistenza memoria fallita per thread ${threadId}: ${e.message}`);

@@ -249,6 +249,25 @@ console.log('--- Test _generateWithModel: il client generico preserva prompt str
   assert(Array.isArray(capturedPayload.safetySettings) && capturedPayload.safetySettings.length === 4, 'safety settings devono essere centralizzati nel payload');
 }
 
+console.log('--- Test grounding counter: GeminiService delega al RateLimiter se disponibile ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  let delegatedCount = 0;
+  service.useRateLimiter = true;
+  service.rateLimiter = {
+    reserveGoogleSearchGroundingQueries: (count) => {
+      delegatedCount += count;
+      return { used: count };
+    }
+  };
+  service.config = { GEMINI_FREE_TIER_NOTES: { groundingSharedRpd: 10 } };
+
+  const stats = service._incrementGroundingCounterLocal_(3);
+
+  assert(delegatedCount === 3, 'il counter grounding locale deve delegare al RateLimiter');
+  assert(stats && stats.used === 3, 'deve restituire il risultato del RateLimiter');
+}
+
 console.log('--- Test GeminiContentClient: allegato grande non chiama getBytes ---');
 {
   const client = new GeminiContentClient({});

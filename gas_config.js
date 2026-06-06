@@ -19,6 +19,9 @@ function _getScriptProperty(key, forceRefresh = false) {
     Object.prototype.hasOwnProperty.call(cached, 'value') &&
     Number.isFinite(cached.ts) &&
     (now - cached.ts) <= _SCRIPT_PROPERTY_CACHE_TTL_MS;
+  if (forceRefresh) {
+    delete _CACHED_PROPS[key];
+  }
   if (forceRefresh || !hasFreshCachedValue) {
     _CACHED_PROPS[key] = {
       value: _SCRIPT_PROPERTIES.getProperty(key),

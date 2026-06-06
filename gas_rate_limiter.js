@@ -420,7 +420,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     try {
       return { ok: true, result: fn() };
     } finally {
-      lock.releaseLock();
+      try {
+        lock.releaseLock();
+      } catch (releaseError) {
+        console.warn(`⚠️ Errore rilascio lock ${lockDescription}: ${releaseError.message}`);
+      }
     }
   }
 

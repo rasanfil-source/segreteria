@@ -416,6 +416,34 @@ console.log('--- Test executeRequest bypass: traccia forceModel invece del nome 
 }
 
 
+console.log('--- Test _withRateLimitLock_: releaseLock fallito non maschera il risultato ---');
+{
+  const originalLockService = global.LockService;
+  let releaseCalls = 0;
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => true,
+      releaseLock: () => {
+        releaseCalls++;
+        throw new Error('release failure');
+      }
+    })
+  };
+
+  try {
+    const limiter = Object.create(GeminiRateLimiter.prototype);
+    const lockResult = limiter._withRateLimitLock_(() => ({ available: true, reservationId: 'res-ok' }), {
+      lockDescription: 'test release failure'
+    });
+
+    assert(lockResult.ok === true, 'releaseLock fallito non deve trasformare il risultato in errore');
+    assert(lockResult.result.reservationId === 'res-ok', 'il risultato della callback deve essere preservato');
+    assert(releaseCalls === 1, 'deve comunque tentare il rilascio del lock');
+  } finally {
+    global.LockService = originalLockService;
+  }
+}
+
 
 console.log('--- Test reservation lifecycle: release/finalize idempotenti e monotoni ---');
 {

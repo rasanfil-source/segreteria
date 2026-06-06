@@ -216,6 +216,38 @@ console.log('--- Test MemoryService updateMemory: invalida cache prima e dopo wr
   }
 }
 
+console.log('--- Test MemoryService updateMemoryRobust: providedTopics usa percorso atomico ---');
+{
+  const memory = Object.create(MemoryService.prototype);
+  const events = [];
+  let atomicArgs = null;
+  let updateMemoryCalled = false;
+  memory._invalidateCache = (key) => events.push(`invalidate:${key}`);
+  memory.updateMemory = () => {
+    updateMemoryCalled = true;
+  };
+  memory.updateMemoryAtomic = (threadId, data, providedTopics, inferredReactionData) => {
+    atomicArgs = { threadId, data, providedTopics, inferredReactionData };
+    return true;
+  };
+
+  const result = memory.updateMemoryRobust('thread-robust', {
+    language: 'it',
+    providedTopics: ['orari messe'],
+    inferredReactionData: { reaction: 'positive' }
+  });
+
+  assert(result === true, 'updateMemoryRobust deve restituire l esito del percorso atomico');
+  assert(updateMemoryCalled === false, 'con providedTopics non deve usare updateMemory semplice');
+  assert(events[0] === 'invalidate:memory_thread-robust', 'deve comunque invalidare preventivamente la cache');
+  assert(atomicArgs.threadId === 'thread-robust', 'threadId deve essere propagato');
+  assert(atomicArgs.data.language === 'it', 'dati memoria ordinari devono essere propagati');
+  assert(!Object.prototype.hasOwnProperty.call(atomicArgs.data, 'providedTopics'), 'providedTopics non deve essere persistito come campo dati');
+  assert(!Object.prototype.hasOwnProperty.call(atomicArgs.data, 'inferredReactionData'), 'inferredReactionData non deve essere persistito come campo dati');
+  assert(atomicArgs.providedTopics[0] === 'orari messe', 'topic deve essere passato a updateMemoryAtomic');
+  assert(atomicArgs.inferredReactionData.reaction === 'positive', 'reaction data deve essere passato a updateMemoryAtomic');
+}
+
 console.log('--- Test MemoryService _withSheetWriteLock: flush anche se write fallisce con lock gia acquisito ---');
 {
   const originalSpreadsheetApp = global.SpreadsheetApp;

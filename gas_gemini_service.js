@@ -802,6 +802,14 @@ var GeminiService = class GeminiService {
   _incrementGroundingCounterLocal_(count) {
     const increment = Math.max(0, parseInt(count || 0, 10) || 0);
     if (increment <= 0) return;
+    if (
+      this.useRateLimiter &&
+      this.rateLimiter &&
+      typeof this.rateLimiter.reserveGoogleSearchGroundingQueries === 'function'
+    ) {
+      return this.rateLimiter.reserveGoogleSearchGroundingQueries(increment);
+    }
+
     const notes = (this.config && this.config.GEMINI_FREE_TIER_NOTES) ? this.config.GEMINI_FREE_TIER_NOTES : {};
     const limit = Number(notes.groundingSharedRpd) > 0 ? Number(notes.groundingSharedRpd) : 1500;
     const lock = LockService.getScriptLock();
