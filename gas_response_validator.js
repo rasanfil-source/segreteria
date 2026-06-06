@@ -24,7 +24,7 @@ function normalizeValidationScore(score) {
   return Math.max(0, Math.min(1, normalized));
 }
 
-const ITALIAN_FORBIDDEN_CAPS = [
+var ITALIAN_FORBIDDEN_CAPS = [
   'Siamo', 'Restiamo', 'Sono', 'È', 'Era', 'Sarà',
   'Ho', 'Hai', 'Ha', 'Abbiamo', 'Avete', 'Hanno',
   'Vorrei', 'Vorremmo', 'Volevamo', 'Desideriamo', 'Informiamo',

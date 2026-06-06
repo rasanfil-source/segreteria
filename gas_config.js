@@ -152,6 +152,7 @@ var CONFIG = {
     enabled: true,                   // Includi testo allegati (PDF, immagini, Word, Excel, PowerPoint) nel prompt
     maxFiles: 3,                     // Numero massimo di allegati da processare
     maxBytesPerFile: 3 * 1024 * 1024,// 3 MB per file
+    maxMessageBytesForAttachmentDownload: 25 * 1024 * 1024, // Pre-check: non scaricare allegati se il messaggio supera 25 MB
     maxCharsPerFile: 3000,           // Limite testo per singolo allegato
     maxTotalChars: 9000,             // Limite totale testo allegati
     ocrLanguage: 'it',               // Lingua OCR (Drive Advanced API)

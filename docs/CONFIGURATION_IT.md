@@ -62,6 +62,7 @@ Questa funzionalità estrae il testo da allegati PDF e immagini utilizzando l'OC
 | `enabled` | `true` | Abilita/disabilita l'elaborazione OCR degli allegati |
 | `maxFiles` | `3` | Numero massimo di allegati da processare per email |
 | `maxBytesPerFile` | `3MB` | Dimensione massima per allegato |
+| `maxMessageBytesForAttachmentDownload` | `25MB` | Dimensione massima stimata del messaggio prima di scaricare gli allegati |
 | `maxCharsPerFile` | `3000` | Caratteri massimi estratti per file |
 | `maxTotalChars` | `9000` | Caratteri totali massimi da tutti gli allegati |
 | `ocrLanguage` | `'it'` | Codice lingua OCR (può essere sovrascritto dinamicamente con lingua email rilevata) |

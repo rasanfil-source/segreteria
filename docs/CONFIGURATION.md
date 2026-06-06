@@ -62,6 +62,7 @@ This feature extracts text from PDF and image attachments using Google Drive's b
 | `enabled` | `true` | Enable/disable attachment OCR processing |
 | `maxFiles` | `3` | Maximum number of attachments to process per email |
 | `maxBytesPerFile` | `3MB` | Maximum file size per attachment |
+| `maxMessageBytesForAttachmentDownload` | `25MB` | Maximum estimated message size before downloading attachments |
 | `maxCharsPerFile` | `3000` | Maximum characters extracted per file |
 | `maxTotalChars` | `9000` | Maximum total characters from all attachments |
 | `ocrLanguage` | `'it'` | OCR language code (can be dynamically overridden by detected email language) |
