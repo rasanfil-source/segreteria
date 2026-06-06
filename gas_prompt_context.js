@@ -154,7 +154,7 @@ var PromptContext = class PromptContext {
                 (i.conversation?.messageCount ?? 0) > 1,
 
             identity_consistency:
-                (i.email?.isReply === false) ||
+                (i.email?.isReply === false) &&
                 i.requestType?.type !== 'technical',
 
             response_scope_control:

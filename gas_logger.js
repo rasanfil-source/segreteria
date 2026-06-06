@@ -141,51 +141,74 @@ Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
         ? Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, signature)).substring(0, 16)
         : signature.substring(0, 64);
       const errorKey = `last_error_notification_${hash}`;
-      const alreadyNotified = cache ? cache.get(errorKey) : '';
-      const now = Date.now();
       const fallbackCooldownMs = 3600 * 1000;
-      let throttleState = {};
       const propKey = 'ERROR_THROTTLE_STATE';
-      if (scriptProperties) {
-        try {
-          throttleState = JSON.parse(scriptProperties.getProperty(propKey) || '{}');
-        } catch (_) {
-          throttleState = {};
-        }
-      }
-      const fallbackTs = throttleState[hash];
-      const fallbackActive = Number.isFinite(Number(fallbackTs))
-        && ((now - Number(fallbackTs)) < fallbackCooldownMs);
-      if (!alreadyNotified && !fallbackActive) {
-        // Scrittura preventiva per ridurre la finestra di race tra esecuzioni concorrenti.
-        // Il successivo valore 'sent' è idempotente e prolunga il cooldown in caso di invio riuscito.
-        if (cache) {
-          cache.put(errorKey, 'pending', 60);
-        }
-        let sent = false;
-        try {
-          MailApp.sendEmail(adminEmail, subject, body);
-          sent = true;
-        } catch (mailError) {
-          try {
-            GmailApp.sendEmail(adminEmail, subject, body);
-            sent = true;
-          } catch (gmailError) {
-            console.error('Impossibile inviare notifica errore:', gmailError.message);
+
+      const lock = (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function')
+        ? LockService.getScriptLock()
+        : null;
+      let lockAcquired = false;
+
+      try {
+        if (lock && typeof lock.tryLock === 'function') {
+          lockAcquired = lock.tryLock(2000);
+          if (!lockAcquired) {
+            console.warn('Notifica errore saltata: lock throttle non disponibile');
+            return;
           }
         }
-        if (sent && cache) {
-          cache.put(errorKey, 'sent', 3600);
+
+        const alreadyNotified = cache ? cache.get(errorKey) : '';
+        const now = Date.now();
+        let throttleState = {};
+        if (scriptProperties) {
+          try {
+            throttleState = JSON.parse(scriptProperties.getProperty(propKey) || '{}');
+          } catch (_) {
+            throttleState = {};
+          }
         }
-        if (sent && scriptProperties) {
-          const cleanedState = { [hash]: now };
-          Object.keys(throttleState).forEach((key) => {
-            const ts = Number(throttleState[key]);
-            if (Number.isFinite(ts) && (now - ts) < fallbackCooldownMs) {
-              cleanedState[key] = ts;
+        const fallbackTs = throttleState[hash];
+        const fallbackActive = Number.isFinite(Number(fallbackTs))
+          && ((now - Number(fallbackTs)) < fallbackCooldownMs);
+        if (!alreadyNotified && !fallbackActive) {
+          // Il lock rende atomico check+mark+send e impedisce duplicati tra esecuzioni concorrenti.
+          if (cache) {
+            cache.put(errorKey, 'pending', 60);
+          }
+          let sent = false;
+          try {
+            MailApp.sendEmail(adminEmail, subject, body);
+            sent = true;
+          } catch (mailError) {
+            try {
+              GmailApp.sendEmail(adminEmail, subject, body);
+              sent = true;
+            } catch (gmailError) {
+              console.error('Impossibile inviare notifica errore:', gmailError.message);
             }
-          });
-          scriptProperties.setProperty(propKey, JSON.stringify(cleanedState));
+          }
+          if (sent && cache) {
+            cache.put(errorKey, 'sent', 3600);
+          }
+          if (sent && scriptProperties) {
+            const cleanedState = { [hash]: now };
+            Object.keys(throttleState).forEach((key) => {
+              const ts = Number(throttleState[key]);
+              if (Number.isFinite(ts) && (now - ts) < fallbackCooldownMs) {
+                cleanedState[key] = ts;
+              }
+            });
+            scriptProperties.setProperty(propKey, JSON.stringify(cleanedState));
+          }
+        }
+      } finally {
+        if (lockAcquired && lock && typeof lock.releaseLock === 'function') {
+          try {
+            lock.releaseLock();
+          } catch (releaseError) {
+            console.warn('Rilascio lock notifica errore fallito:', releaseError.message);
+          }
         }
       }
     } catch (e) {
