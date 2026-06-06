@@ -314,6 +314,22 @@ assert(
   'la validazione deve esporre l orario inventato come errore'
 );
 
+console.log('--- Test hallucination: cellulare italiano compatto inventato è bloccante ---');
+const inventedMobileResult = validator._checkHallucinations(
+  'Può contattarci al 3331234567.',
+  'Contatti disponibili: 06 12345678.',
+  'Vorrei informazioni sugli orari.'
+);
+assert(
+  inventedMobileResult.errors.some((e) => e.includes('Numeri telefono non in KB: 3331234567')),
+  'un cellulare italiano compatto non presente in KB deve essere segnalato'
+);
+assert(
+  Array.isArray(inventedMobileResult.hallucinations.phones) &&
+  inventedMobileResult.hallucinations.phones.includes('3331234567'),
+  'il cellulare inventato deve essere registrato tra le hallucination telefoniche'
+);
+
 console.log('--- Test hallucination: ora solo numerica in KB deve validare 10:00 ---');
 const hourOnlyKbResult = validator._checkHallucinations(
   'La messa è alle 10:00.',

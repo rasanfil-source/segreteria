@@ -1172,9 +1172,10 @@ var GeminiService = class GeminiService {
       'la cresima', 'il matrimonio', 'il funerale', 'la benedizione'
     ];
     
-    if (itIstituzionale.some(k => snippet.includes(k))) {
-      itIstituzionaleScore = 15; // Forte boost, ma superabile da un testo interamente in inglese
-      console.log(`   Trovati termini istituzionali italiani (+15 punti IT)`);
+    const itIstituzionaleMatches = itIstituzionale.filter(k => snippet.includes(k)).length;
+    if (itIstituzionaleMatches > 0) {
+      itIstituzionaleScore = Math.min(15, itIstituzionaleMatches * 5);
+      console.log(`   Trovati ${itIstituzionaleMatches} termini istituzionali italiani (+${itIstituzionaleScore} punti IT)`);
     }
 
     // 2. Score basato su indicatori frequenti (fallback)

@@ -48,6 +48,14 @@ assert(
   litePrompt.includes('Soglia massima di informazioni aggiuntive non richieste: ZERO'),
   'il prompt deve vietare informazioni non richieste'
 );
+assert(
+  litePrompt.includes('<email>') && litePrompt.includes('</email>'),
+  'il contratto finale deve richiedere il tag email'
+);
+assert(
+  !litePrompt.includes('<analisi>') && !litePrompt.includes('</analisi>'),
+  'il contratto finale non deve richiedere il tag analisi'
+);
 
 console.log('--- Test prompt: requestType non plain preserva type derivato ---');
 const inheritedFormalRequestType = Object.create({ type: 'formal' });

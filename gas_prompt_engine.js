@@ -704,14 +704,10 @@ var PromptEngine = class PromptEngine {
 
   _renderFinalInstruction() {
     return `**ISTRUZIONE FINALE DI OUTPUT (OBBLIGATORIA):**
-Prima di scrivere l'email, analizza brevemente la richiesta all'interno del tag XML <analisi>.
-Successivamente, scrivi il testo esatto e finale da inviare all'utente dentro il tag XML <email>.
-Non aggiungere altre spiegazioni fuori da questi tag.
+Scrivi esclusivamente il testo esatto e finale da inviare all'utente dentro il tag XML <email>.
+Non aggiungere analisi, spiegazioni, note di lavoro o testo fuori da questo tag.
 
 Formato obbligatorio:
-<analisi>
-(Breve ragionamento interno: intento dell'utente, vincoli di policy e dati applicabili)
-</analisi>
 <email>
 Testo finale dell'email.
 </email>`;
@@ -1546,12 +1542,9 @@ ${attachmentsContext || ''}`;
       return null;
     }
 
-    return `## ESEMPI DI RISPOSTA CORRETTA (Uso dei tag XML)
+    return `## ESEMPI DI RISPOSTA CORRETTA (Uso del tag XML <email>)
 
 **ESEMPIO 1 - CAMMINO DI SANTIAGO:**
-<analisi>
-L'utente chiede informazioni generali sul pellegrinaggio. Ci sono più di 3 elementi, quindi userò un elenco puntato e il grassetto per le date, come da linee guida di formattazione.
-</analisi>
 <email>
 Gentile utente,
 siamo lieti di fornirle le informazioni sul pellegrinaggio.
@@ -1570,9 +1563,6 @@ Segreteria Parrocchia Sant'Eugenio
 </email>
 
 **ESEMPIO 2 - SITUAZIONE PASTORALE DELICATA:**
-<analisi>
-L'utente, convivente, chiede del matrimonio. Non devo elencare le pratiche standard, ma usare empatia e invitare a un colloquio con il sacerdote senza dare giudizi.
-</analisi>
 <email>
 Gentile utente,
 comprendiamo la delicatezza della sua situazione. Per poter valutare insieme il suo caso specifico e accompagnarla in questo percorso, le consigliamo di parlare direttamente con un sacerdote.

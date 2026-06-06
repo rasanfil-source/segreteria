@@ -14,6 +14,10 @@ const code = fs.readFileSync(territoryPath, 'utf8');
 vm.runInThisContext(code, { filename: territoryPath });
 
 const validator = new TerritoryValidator();
+assert(
+  Array.isArray(validator._abbreviationRegexes) && validator._abbreviationRegexes.length > 0,
+  'le abbreviazioni devono essere precompilate nel costruttore'
+);
 
 console.log('--- Test TerritoryValidator: Piazza della Marina accetta solo il range 24-35 ---');
 const withinMin = validator.verifyAddress('Piazza della Marina', 24);
@@ -35,5 +39,11 @@ assert(missingCivic.inParish === null, 'senza civico la copertura di Piazza dell
 assert(missingCivic.needsCivic === true, 'senza civico Piazza della Marina deve richiedere il civico');
 assert(missingCivic.reason.includes('24-35'), 'il messaggio deve indicare chiaramente il range 24-35');
 assert(missingCivic.details === 'range_civic_required', 'deve usare il dettaglio dedicato ai range');
+
+const abbreviatedStreet = validator.normalizeStreetName('via g.vincenzo gravina');
+assert(
+  abbreviatedStreet === 'via giovanni vincenzo gravina',
+  `normalizzazione abbreviazioni invariata attesa, ottenuto ${abbreviatedStreet}`
+);
 
 console.log('✅ Test TerritoryValidator OK');

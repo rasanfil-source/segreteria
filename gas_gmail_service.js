@@ -1584,7 +1584,7 @@ var GmailService = class GmailService {
                 ocrText = attachment.getDataAsString() || '';
                 ocrConfidence = 1.0;
             } else if (isOffice) {
-                ocrText = this._extractOfficeText(attachment, this._officeMimeMap[contentType], settings);
+                ocrText = this._extractOfficeText(attachment, this._officeMimeMap[contentType], settings, contentType);
                 ocrConfidence = ocrText ? 1.0 : 0; // Conversione diretta, non ottica
                 if (!ocrText || ocrText.replace(/\s+/g, ' ').trim().length < 30) {
                     skipped.push({ name: attachmentName, reason: 'office_empty', ocrConfidence: 0 });
@@ -1877,7 +1877,7 @@ var GmailService = class GmailService {
                 try {
                     const googleMimeType = this._officeMimeMap[mimeType]
                         || 'application/vnd.google-apps.spreadsheet';
-                    const extracted = this._extractOfficeText(attachment, googleMimeType, settings) || '';
+                    const extracted = this._extractOfficeText(attachment, googleMimeType, settings, mimeType) || '';
 
                     if (!extracted.trim()) {
                         result.skipped.push({ name: name, reason: 'office_empty' });
@@ -1942,7 +1942,7 @@ var GmailService = class GmailService {
                 }
                 try {
                     console.log(`   🔄 Conversione al volo in PDF per: ${name}`);
-                    const convertedPdf = this._convertOfficeToPdf(attachment);
+                    const convertedPdf = this._convertOfficeToPdf(attachment, mimeType);
                     if (convertedPdf) {
                         convertedPdf.setName(`${name}.pdf`);
                         result.blobs.push(convertedPdf);
@@ -1970,7 +1970,7 @@ var GmailService = class GmailService {
      * @param {Blob} attachmentBlob
      * @returns {Blob}
      */
-    _convertOfficeToPdf(attachmentBlob) {
+    _convertOfficeToPdf(attachmentBlob, correctedMimeType = null) {
         if (typeof Drive === 'undefined' || !Drive.Files) {
             throw new Error('Drive Advanced Service non abilitato. Attivare il servizio Drive nel progetto Apps Script.');
         }
@@ -1987,7 +1987,7 @@ var GmailService = class GmailService {
             }
             // getContentType() può includere parametri (es. "; charset=UTF-8"):
             // per la lookup in _officeMimeMap usiamo il mime base normalizzato.
-            const originalMimeFull = attachmentBlob.getContentType() || '';
+            const originalMimeFull = correctedMimeType || attachmentBlob.getContentType() || '';
             const originalMime = originalMimeFull.split(';')[0].trim().toLowerCase();
             let googleMime = (this._officeMimeMap && this._officeMimeMap[originalMime]) ? this._officeMimeMap[originalMime] : null;
             if (!googleMime) {
@@ -2247,7 +2247,7 @@ var GmailService = class GmailService {
      * @param {object} settings - Impostazioni pipeline
      * @returns {string} Testo estratto (vuoto se fallisce)
      */
-    _extractOfficeText(attachment, googleMimeType, settings) {
+    _extractOfficeText(attachment, googleMimeType, settings, correctedMimeType = null) {
         let fileId = null;
         const startedAt = Date.now();
         const maxOfficeExtractionMs = (settings && typeof settings.maxOfficeExtractionMs === 'number')
@@ -2271,7 +2271,7 @@ var GmailService = class GmailService {
             const fileName = attachment.getName() || 'allegato';
 
             // Caricamento con conversione nel formato Google Workspace corrispondente
-            const originalMimeFull = blob.getContentType() || '';
+            const originalMimeFull = correctedMimeType || blob.getContentType() || '';
             const originalMime = originalMimeFull.split(';')[0].trim().toLowerCase();
             if (typeof Drive.Files.insert === 'function') {
                 const resource = {

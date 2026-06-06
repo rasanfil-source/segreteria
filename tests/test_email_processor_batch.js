@@ -1315,6 +1315,55 @@ console.log('--- Test processThread: fallback default diversifica tier modello -
   assert(labeled.has('m-default-tier-diversification'), 'deve marcare il messaggio candidato come processato');
 }
 
+console.log('--- Test processThread: INVALID_API_KEY primaria prova backup key ---');
+{
+  const originalErrorTypes = global.ErrorTypes;
+  const originalClassifyError = global.classifyError;
+  const labels = [];
+  const generationCalls = [];
+
+  global.ErrorTypes = {
+    INVALID_API_KEY: 'INVALID_API_KEY',
+    QUOTA_EXCEEDED: 'QUOTA_EXCEEDED',
+    TIMEOUT: 'TIMEOUT',
+    NETWORK: 'NETWORK',
+    INVALID_RESPONSE: 'INVALID_RESPONSE'
+  };
+  global.classifyError = (err) => {
+    const message = err && err.message ? err.message : String(err);
+    if (/401|403|api key/i.test(message)) {
+      return { type: global.ErrorTypes.INVALID_API_KEY, retryable: false, message };
+    }
+    return { type: 'UNKNOWN', retryable: false, message };
+  };
+
+  try {
+    const processor = buildValidationFlowProcessor({
+      labels: labels,
+      onGenerate: (_prompt, options) => {
+        generationCalls.push({ modelName: options.modelName, key: options.apiKey, skipRateLimit: options.skipRateLimit });
+        if (options.apiKey === 'primary-key') {
+          throw new Error('403 API key disabled');
+        }
+      },
+      generationText: 'Risposta da backup'
+    });
+
+    const result = processor.processThread(createExternalThread('invalid-key-backup'), 'kb valida', '', new Set(), true);
+    assert(result.status === 'replied', `INVALID_API_KEY primaria deve usare backup e completare, ottenuto ${result.status}`);
+    assert(generationCalls.length >= 2, `deve tentare almeno primaria e backup, chiamate=${generationCalls.length}`);
+    assert(generationCalls[0].key === 'primary-key', 'il primo tentativo deve usare la primary key');
+    assert(
+      generationCalls.some(call => call.key === 'backup-key' && call.skipRateLimit === true),
+      'deve tentare una strategia con backup key e bypass RateLimiter'
+    );
+  } finally {
+    global.ErrorTypes = originalErrorTypes;
+    global.classifyError = originalClassifyError;
+    cacheStore.clear();
+  }
+}
+
 console.log('--- Test processThread: primaria esaurita salta fallback su primary key ---');
 {
   const { processor, calls } = buildProcessorForGenerationFailure('UNKNOWN');

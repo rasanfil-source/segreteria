@@ -947,6 +947,72 @@ console.log('--- Test getProcessableAttachments: MIME con parametri deve essere 
   assert(!out.skipped.some((s) => s.reason === 'unsupported_type'), 'MIME parametrizzati validi non devono risultare unsupported_type');
 }
 
+console.log('--- Test extractAttachmentContext: Office octet-stream passa MIME corretto a Drive ---');
+{
+  const originalExtractOfficeText = service._extractOfficeText;
+  let correctedMimeSeen = null;
+  const docxBlobAsOctet = {
+    getName: () => 'lettera.docx',
+    getSize: () => 1024,
+    getContentType: () => 'application/octet-stream',
+    copyBlob: () => docxBlobAsOctet
+  };
+  const message = {
+    getAttachments: () => [docxBlobAsOctet]
+  };
+
+  service._extractOfficeText = (_attachment, _googleMimeType, _settings, correctedMimeType) => {
+    correctedMimeSeen = correctedMimeType;
+    return 'Testo estratto da documento Word valido';
+  };
+
+  try {
+    const out = service.extractAttachmentContext(message, { maxCharsPerFile: 500, maxTotalChars: 1000 });
+    assert(out.text.includes('documento Word valido'), 'docx octet-stream deve essere estratto come testo Office');
+    assert(
+      correctedMimeSeen === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      `MIME corretto atteso per docx, ottenuto ${correctedMimeSeen}`
+    );
+  } finally {
+    service._extractOfficeText = originalExtractOfficeText;
+  }
+}
+
+console.log('--- Test getProcessableAttachments: conversione Office octet-stream usa MIME corretto ---');
+{
+  const originalConvertOfficeToPdf = service._convertOfficeToPdf;
+  let correctedMimeSeen = null;
+  const convertedPdf = {
+    setName: () => convertedPdf
+  };
+  const docxBlobAsOctet = {
+    getName: () => 'relazione.docx',
+    getSize: () => 1024,
+    getContentType: () => 'application/octet-stream',
+    copyBlob: () => docxBlobAsOctet
+  };
+  const message = {
+    getAttachments: () => [docxBlobAsOctet]
+  };
+
+  service._convertOfficeToPdf = (_attachment, correctedMimeType) => {
+    correctedMimeSeen = correctedMimeType;
+    return convertedPdf;
+  };
+
+  try {
+    const out = service.getProcessableAttachments(message, { maxCharsPerFile: 500, maxTotalChars: 1000, maxFiles: 5 });
+    assert(out.blobs.length === 1, 'docx octet-stream deve essere convertito in PDF visuale');
+    assert(
+      correctedMimeSeen === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      `MIME corretto atteso per conversione docx, ottenuto ${correctedMimeSeen}`
+    );
+    assert(out.skipped.length === 0, 'docx octet-stream convertito non deve finire tra skipped');
+  } finally {
+    service._convertOfficeToPdf = originalConvertOfficeToPdf;
+  }
+}
+
 console.log('--- Test getProcessableAttachments: limiti testo a zero significano nessun limite ---');
 {
   const longText = 'Riga allegato '.repeat(400);

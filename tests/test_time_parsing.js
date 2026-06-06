@@ -140,26 +140,36 @@ console.log('--- Test isInSuspensionTime normalizza componenti orarie numeriche 
       1: [[12.75, 13]]
     };
 
-    getBusinessDateParts = () => ({
-      year: 2026,
-      monthIndex: 4,
-      day: 4,
-      date: 4,
-      hour: '12',
-      minute: '45',
-      isoDay: 1
-    });
+    getBusinessDateParts = (dateObj, timeZone) => {
+      if (dateObj instanceof Date && dateObj.getFullYear() === 2026 && dateObj.getMonth() === 4 && dateObj.getDate() === 4) {
+        return {
+          year: 2026,
+          monthIndex: 4,
+          day: 4,
+          date: 4,
+          hour: '12',
+          minute: '45',
+          isoDay: 1
+        };
+      }
+      return originalGetBusinessDateParts(dateObj, timeZone);
+    };
     assertEqual(isInSuspensionTime(new Date(2026, 4, 4, 12, 45, 0)), true, 'componenti orarie stringa 12:45 devono entrare nella sospensione');
 
-    getBusinessDateParts = () => ({
-      year: 2026,
-      monthIndex: 4,
-      day: 4,
-      date: 4,
-      hour: '12',
-      minute: '44',
-      isoDay: 1
-    });
+    getBusinessDateParts = (dateObj, timeZone) => {
+      if (dateObj instanceof Date && dateObj.getFullYear() === 2026 && dateObj.getMonth() === 4 && dateObj.getDate() === 4) {
+        return {
+          year: 2026,
+          monthIndex: 4,
+          day: 4,
+          date: 4,
+          hour: '12',
+          minute: '44',
+          isoDay: 1
+        };
+      }
+      return originalGetBusinessDateParts(dateObj, timeZone);
+    };
     assertEqual(isInSuspensionTime(new Date(2026, 4, 4, 12, 44, 0)), false, 'componenti orarie stringa 12:44 devono restare fuori dalla sospensione');
   } finally {
     getBusinessDateParts = originalGetBusinessDateParts;
@@ -249,6 +259,52 @@ console.log('--- Test business date parts centralizzati su Europe/Rome ---');
   );
 
   global.Utilities = originalUtilities;
+}
+
+console.log('--- Test isInSuspensionTime confronta festivita mobili in business timezone ---');
+{
+  const originalUtilities = global.Utilities;
+  const originalLoaded = global.GLOBAL_CACHE.loaded;
+  const originalSuspensionRules = global.GLOBAL_CACHE.suspensionRules;
+  const originalVacationPeriods = global.GLOBAL_CACHE.vacationPeriods;
+  const formattedInstants = [];
+
+  try {
+    global.GLOBAL_CACHE.loaded = true;
+    global.GLOBAL_CACHE.suspensionRules = null;
+    global.GLOBAL_CACHE.vacationPeriods = [];
+    global.Utilities = {
+      formatDate: (date, tz, pattern) => {
+        assertEqual(tz, 'Europe/Rome', 'festivita mobili devono usare il fuso business');
+        formattedInstants.push(date.toISOString());
+        const iso = date.toISOString();
+        const byDay = iso.startsWith('2026-04-04')
+          ? { yyyy: '2026', M: '4', d: '4', H: '12', m: '0', u: '6' }
+          : iso.startsWith('2026-04-05')
+            ? { yyyy: '2026', M: '4', d: '5', H: '12', m: '0', u: '7' }
+            : iso.startsWith('2026-04-06')
+              ? { yyyy: '2026', M: '4', d: '6', H: '10', m: '0', u: '1' }
+              : { yyyy: '2026', M: '4', d: '7', H: '10', m: '0', u: '2' };
+        return byDay[pattern] || '';
+      }
+    };
+
+    assertEqual(
+      isInSuspensionTime(new Date('2026-04-06T08:00:00.000Z')),
+      false,
+      'Pasquetta deve restare operativa anche dentro una fascia oraria sospesa'
+    );
+    assertEqual(
+      formattedInstants.includes('2026-04-05T12:00:00.000Z'),
+      true,
+      'il confronto deve normalizzare anche Pasqua via business timezone'
+    );
+  } finally {
+    global.Utilities = originalUtilities;
+    global.GLOBAL_CACHE.loaded = originalLoaded;
+    global.GLOBAL_CACHE.suspensionRules = originalSuspensionRules;
+    global.GLOBAL_CACHE.vacationPeriods = originalVacationPeriods;
+  }
 }
 
 console.log('--- Test guard Date: input non-Date non validi sono respinti ---');

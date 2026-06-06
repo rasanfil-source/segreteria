@@ -324,27 +324,24 @@ function isInSuspensionTime(checkDate = new Date()) {
 
   // Domenica di Pasqua, Pasquetta, Sabato Santo
   const easter = calculateEaster(year);
-  const normalizedNow = new Date(year, monthIndex, date, 12, 0, 0);
-  if (_isSameCalendarDay(normalizedNow, easter)) return false;
+  const normalizedNowKey = _formatBusinessDateKey_({ year, monthIndex, day: date });
+  const movableFeastKey = (offsetDays) => {
+    const feastDate = new Date(easter.getTime());
+    feastDate.setUTCDate(easter.getUTCDate() + offsetDays);
+    return _formatBusinessDateKey_(getBusinessDateParts(feastDate, businessTimeZone));
+  };
+  if (normalizedNowKey && normalizedNowKey === movableFeastKey(0)) return false;
 
   // Nota manutenzione: base su "easter" è intenzionale per leggibilità semantica.
-  const pasquetta = new Date(easter);
-  pasquetta.setDate(easter.getDate() + 1);
-  if (_isSameCalendarDay(normalizedNow, pasquetta)) return false;
+  if (normalizedNowKey && normalizedNowKey === movableFeastKey(1)) return false;
 
-  const holySaturday = new Date(easter);
-  holySaturday.setDate(easter.getDate() - 1);
-  if (_isSameCalendarDay(normalizedNow, holySaturday)) return false;
+  if (normalizedNowKey && normalizedNowKey === movableFeastKey(-1)) return false;
 
   // Pentecoste (Pasqua + 49 giorni)
-  const pentecost = new Date(easter);
-  pentecost.setDate(easter.getDate() + 49);
-  if (_isSameCalendarDay(normalizedNow, pentecost)) return false;
+  if (normalizedNowKey && normalizedNowKey === movableFeastKey(49)) return false;
 
   // Corpus Domini (Pasqua + 63 giorni: domenica successiva alla SS. Trinità, prassi italiana)
-  const corpusDomini = new Date(easter);
-  corpusDomini.setDate(easter.getDate() + 63);
-  if (_isSameCalendarDay(normalizedNow, corpusDomini)) return false;
+  if (normalizedNowKey && normalizedNowKey === movableFeastKey(63)) return false;
 
   // Ferie Segretario (Sheet)
   if (isInVacationPeriod(now, businessTimeZone)) return false;

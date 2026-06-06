@@ -144,6 +144,17 @@ console.log('--- Test getAdaptiveGreeting: lingua non preconfigurata non forza c
   assert(adaptive.closing === 'Kind regards,', 'fallback chiusura non deve essere italiana per lingue non preconfigurate');
 }
 
+console.log('--- Test detectEmailLanguage: singolo termine istituzionale IT non domina testo inglese ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  const result = service.detectEmailLanguage(
+    'Hello, thank you for the information. I would like to know how your parish handles la celebrazione. Kind regards.',
+    'Information request'
+  );
+
+  assert(result.lang === 'en', `Atteso EN con un solo termine istituzionale italiano, ottenuto ${result.lang}`);
+}
+
 console.log('--- Test Gemini task profiles: generation e quick_check hanno configurazioni separate ---');
 {
   const service = Object.create(GeminiService.prototype);

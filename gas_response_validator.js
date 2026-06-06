@@ -802,7 +802,7 @@ var ResponseValidator = class ResponseValidator {
     // === Controllo numeri telefono ===
     // Pattern selettivo: richiede prefisso internazionale o separatori standard
     // Esclude pattern data (GG/MM/AAAA) e orari common
-    const phonePattern = /(?:(?:\+\d{1,3}[\s.-])?\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]\d{3,4}(?!\d))|(?:\+?39)?0\d{7,9}\b/g;
+    const phonePattern = /(?:(?:\+\d{1,3}[\s.-])?\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]\d{3,4}(?!\d))|(?:\+?39)?(?:0\d{7,9}|3\d{8,9})\b/g;
     const responsePhonesRaw = response.match(phonePattern) || [];
     const kbPhonesRaw = safeKnowledgeBase.match(phonePattern) || [];
 

@@ -12,6 +12,7 @@ var TerritoryValidator = class TerritoryValidator {
         // Pre-compila le regex per riuso (ottimizzazione performance)
         this._addressPatterns = this._buildAddressPatterns();
         this._streetOnlyPattern = this._buildStreetOnlyPattern();
+        this._abbreviationRegexes = this._buildAbbreviationRegexes_();
 
         // Database territorio parrocchiale
         this.territory = {
@@ -82,6 +83,20 @@ var TerritoryValidator = class TerritoryValidator {
 
         // Espone le regole come Map mutabile per accesso diretto nei test
         this.rules = new Map(Object.entries(this.territory));
+    }
+
+    _buildAbbreviationRegexes_() {
+        return Object.entries({
+            '(?:\\bs\\.\\s*|\\bs\\s+)': 'san ',
+            '(?:\\bg\\.\\s*)': 'giovanni ',
+            '(?:\\bl\\.\\s*|\\bl\\s+)': 'largo ',
+            '(?:^\\s*v\\.\\s*|^\\s*v\\s+)(?!ia)': 'via ',
+            '(?:\\bc\\.\\s*|\\bc\\s+)': 'corso ',
+            '(?:\\bl\\.?\\s*tevere\\b)': 'lungotevere '
+        }).map(([pattern, replacement]) => ({
+            regex: new RegExp(pattern, 'gi'),
+            replacement: replacement
+        }));
     }
 
     /**
@@ -283,17 +298,8 @@ var TerritoryValidator = class TerritoryValidator {
             .trim();
 
         // Espandi abbreviazioni comuni italiane
-        const abbreviations = {
-            '(?:\\bs\\.\\s*|\\bs\\s+)': 'san ',
-            '(?:\\bg\\.\\s*)': 'giovanni ',
-            '(?:\\bl\\.\\s*|\\bl\\s+)': 'largo ',
-            '(?:^\\s*v\\.\\s*|^\\s*v\\s+)(?!ia)': 'via ',
-            '(?:\\bc\\.\\s*|\\bc\\s+)': 'corso ',
-            '(?:\\bl\\.?\\s*tevere\\b)': 'lungotevere '
-        };
-
-        for (const [pattern, replacement] of Object.entries(abbreviations)) {
-            const regex = new RegExp(pattern, 'gi');
+        for (const { regex, replacement } of this._abbreviationRegexes) {
+            regex.lastIndex = 0;
             normalized = normalized.replace(regex, replacement);
         }
 

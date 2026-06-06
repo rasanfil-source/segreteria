@@ -2420,10 +2420,10 @@ ${addressLines.join('\n\n')}
           const errorClass = this._classifyError(err);
           console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass.type}]`);
 
-          if (errorClass.type === 'FATAL') {
+          if (errorClass.type === 'FATAL' || errorClass.type === 'INVALID_API_KEY') {
             // Se la chiave corrente è invalida/non autorizzata (401/403),
             // prova la strategia successiva: una chiave/modello di backup può essere ancora valido.
-            if (/401|403|unauthorized|forbidden|permission_denied/i.test(String(err && err.message ? err.message : err))) {
+            if (/401|403|unauthorized|forbidden|permission_denied|api[_\s-]?key/i.test(String(err && err.message ? err.message : err))) {
               console.warn('↪️ Errore di autenticazione/permessi rilevato, provo la strategia successiva.');
               continue;
             }
@@ -2456,11 +2456,6 @@ ${addressLines.join('\n\n')}
 
           if (['CONFIG_ERROR', 'SYSTEM_ERROR', 'DATA'].includes(errorClass.type)) {
             console.error(`🛑 Errore ${errorClass.type} non recuperabile da fallback modello, interrompo generazione.`);
-            break;
-          }
-
-          if (errorClass.type === 'INVALID_API_KEY') {
-            console.error('🛑 API key non valida: interrompo generazione per evitare tentativi non utili.');
             break;
           }
 
