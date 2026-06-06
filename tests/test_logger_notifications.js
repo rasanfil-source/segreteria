@@ -107,18 +107,51 @@ global.CacheService = {
   })
 };
 sends = 0;
+let sentSubject = '';
+let sentBody = '';
 global.MailApp = {
-  sendEmail: () => {
+  sendEmail: (_to, subject, body) => {
     sends += 1;
+    sentSubject = subject;
+    sentBody = body;
   }
 };
 const lockStateSend = makeLock(true);
-createLogger('LoggerTest').error('Errore nuovo', { errorClass: 'Fresh' });
+createLogger('LoggerTest').error('Errore nuovo per utente persona@example.test', {
+  errorClass: 'Fresh',
+  emailBody: 'Testo email sensibile da non inoltrare',
+  ocrText: 'IBAN IT60X0542811101000000123456'
+});
 
 assert(sends === 1, 'deve inviare una sola email per errore nuovo');
 assert(puts.some((p) => p.value === 'pending' && p.ttl === 60), 'deve marcare pending prima dell invio');
 assert(puts.some((p) => p.value === 'sent' && p.ttl === 3600), 'deve marcare sent dopo invio riuscito');
 assert(lockStateSend.released === 1, 'deve rilasciare il lock dopo l invio');
+assert(!sentSubject.includes('persona@example.test'), 'il subject deve redigere indirizzi email');
+assert(!sentBody.includes('persona@example.test'), 'il body deve redigere indirizzi email nel messaggio');
+assert(!sentBody.includes('Testo email sensibile'), 'il body non deve includere payload email arbitrario');
+assert(!sentBody.includes('IT60X0542811101000000123456'), 'il body non deve includere IBAN/OCR grezzi');
+assert(sentBody.includes('Fresh'), 'il body deve mantenere metadati tecnici utili');
+
+console.log('--- Test logger: destinatario risolto da Script Properties ---');
+const propsWithAdmin = installBaseGlobals();
+global.CONFIG.LOGGING.ADMIN_EMAIL = '';
+propsWithAdmin.ADMIN_EMAIL = 'admin-from-props@example.test';
+global.CacheService = {
+  getScriptCache: () => ({
+    get: () => '',
+    put: () => {}
+  })
+};
+sends = 0;
+global.MailApp = {
+  sendEmail: () => {
+    sends += 1;
+  }
+};
+makeLock(true);
+createLogger('LoggerTest').error('Errore con destinatario property', { errorClass: 'FromProperty' });
+assert(sends === 1, 'deve inviare usando ADMIN_EMAIL dalle Script Properties anche se CONFIG.LOGGING.ADMIN_EMAIL e vuoto');
 
 console.log('--- Test logger: lock non disponibile evita invio concorrente ---');
 installBaseGlobals();

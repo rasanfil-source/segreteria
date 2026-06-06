@@ -96,7 +96,7 @@ var CONFIG = {
     enabled: true,
     cooldownSeconds: 3600,
     recipientProperty: 'VALIDATION_REVIEW_EMAIL',
-    email: 'rasanfil@gmail.com'
+    get email() { return _getScriptProperty('VALIDATION_REVIEW_EMAIL') || ''; }
   },
   SEMANTIC_VALIDATION: {
     enabled: true,
@@ -250,7 +250,7 @@ var CONFIG = {
     LEVEL: 'INFO',                     // DEBUG, INFO, WARN, ERROR
     STRUCTURED: true,                  // Log in formato JSON
     SEND_ERROR_NOTIFICATIONS: true,    // Invia email per errori critici
-    ADMIN_EMAIL: 'rasanfil@gmail.com'  // Email admin per notifiche
+    get ADMIN_EMAIL() { return _getScriptProperty('ADMIN_EMAIL') || ''; }  // Email admin per notifiche
   },
 
   // === Metriche Giornaliere ===

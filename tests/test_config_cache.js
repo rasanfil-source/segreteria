@@ -14,7 +14,9 @@ console.log('--- Test _getScriptProperty: primo accesso e cache ---');
 const backingProps = new Map([
   ['GEMINI_API_KEY', 'first-key'],
   ['SPREADSHEET_ID', 'sheet-1'],
-  ['METRICS_SHEET_ID', 'metrics-1']
+  ['METRICS_SHEET_ID', 'metrics-1'],
+  ['ADMIN_EMAIL', 'admin@example.test'],
+  ['VALIDATION_REVIEW_EMAIL', 'review@example.test']
 ]);
 const getCounts = new Map();
 let getScriptPropertiesCalls = 0;
@@ -97,6 +99,10 @@ assert(
   exampleCode.includes('!Number.isFinite(value)'),
   'gas_config.example.js deve validare NaN/Infinity nei range numerici'
 );
+assert(
+  !/rasanfil@/i.test(code) && !/rasanfil@/i.test(exampleCode),
+  'gli indirizzi email reali non devono essere hardcoded nei file di config'
+);
 
 const productionConfigPaths = new Set(collectConfigPaths(CONFIG));
 const exampleConfigPaths = new Set(collectConfigPaths(loadExampleConfig()));
@@ -124,6 +130,8 @@ assert(getCounts.get('SPREADSHEET_ID') === 1, 'SPREADSHEET_ID deve essere letto 
 
 assert(CONFIG.METRICS_SHEET_ID === 'metrics-1', 'il getter METRICS_SHEET_ID deve usare _getScriptProperty');
 assert(getCounts.get('METRICS_SHEET_ID') === 1, 'METRICS_SHEET_ID deve essere letto una sola volta');
+assert(CONFIG.LOGGING.ADMIN_EMAIL === 'admin@example.test', 'ADMIN_EMAIL deve arrivare da Script Properties');
+assert(CONFIG.VALIDATION_REVIEW_ALERTS.email === 'review@example.test', 'VALIDATION_REVIEW_EMAIL deve arrivare da Script Properties');
 
 assert(_getScriptProperty('MISSING_OPTIONAL') === null, 'una property assente deve restituire null');
 backingProps.set('MISSING_OPTIONAL', 'late-value');

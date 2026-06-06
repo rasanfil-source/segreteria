@@ -99,13 +99,35 @@ var AppLogger = class AppLogger {
     this._log('ERROR', message, data);
   }
 
+  _notificationText(value, maxLength = 500) {
+    const text = String(value === null || value === undefined ? '' : value)
+      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email redatta]')
+      .replace(/\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b/gi, '[iban redatto]');
+    return text.length > maxLength ? `${text.substring(0, maxLength)}... [troncato]` : text;
+  }
+
+  _buildErrorNotificationDetails(logEntry) {
+    const data = (logEntry && logEntry.data && typeof logEntry.data === 'object') ? logEntry.data : {};
+    const details = {
+      timestamp: logEntry && logEntry.timestamp,
+      level: logEntry && logEntry.level,
+      context: logEntry && logEntry.context,
+      message: this._notificationText(logEntry && logEntry.message, 500)
+    };
+    ['runId', 'errorClass', 'errorCode', 'status', 'reason'].forEach((key) => {
+      if (data[key] !== undefined && data[key] !== null && data[key] !== '') {
+        details[key] = this._notificationText(data[key], 200);
+      }
+    });
+    return JSON.stringify(details, null, 2);
+  }
+
   /**
  * Invia notifica via email all'amministratore
  */
   _sendErrorNotification(logEntry) {
     try {
       const loggingConfig = (this.config && this.config.LOGGING) ? this.config.LOGGING : {};
-      if (!loggingConfig.ADMIN_EMAIL) return;
 
       const scriptProperties = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
         ? PropertiesService.getScriptProperties()
@@ -116,16 +138,17 @@ var AppLogger = class AppLogger {
       const adminEmail = adminEmailProperty || loggingConfig.ADMIN_EMAIL || '';
       if (!adminEmail || adminEmail.includes('[') || adminEmail.includes('YOUR_')) return;
 
-      const subject = `[${this.config.PROJECT_NAME || 'GAS_BOT'}] Avviso Errore: ${logEntry.message}`;
+      const safeMessage = this._notificationText(logEntry.message, 160);
+      const subject = `[${this.config.PROJECT_NAME || 'GAS_BOT'}] Avviso Errore: ${safeMessage}`;
       const body = `
 Errore nel sistema autoresponder:
 
 Timestamp: ${logEntry.timestamp}
 Context: ${logEntry.context}
-Message: ${logEntry.message}
+Message: ${safeMessage}
 
-Dettagli:
-${JSON.stringify(logEntry, null, 2)}
+Dettagli redatti:
+${this._buildErrorNotificationDetails(logEntry)}
 
 ---
 Sistema: ${this.config.PROJECT_NAME || 'GAS_BOT'}

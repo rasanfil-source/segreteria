@@ -570,8 +570,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
     // ═══════════════════════════════════════════════════════════════════
     // BYPASS PER CHIAVE DI RISERVA
-    // Se stiamo usando una chiave esterna, NON dobbiamo tracciare i consumi
-    // sul Rate Limiter locale per non inquinare le statistiche della chiave principale
+    // Salta selezione/throttling della chiave principale, ma contabilizza i consumi
+    // sul modello risolto per il backup per mantenere statistiche locali coerenti.
     // ═══════════════════════════════════════════════════════════════════
     if (options.skipRateLimit) {
       console.warn('\u23E9 RateLimiter BYPASSED (Chiave di Riserva in uso)');

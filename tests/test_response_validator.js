@@ -61,6 +61,18 @@ assert(
   '"todo" minuscolo non deve essere rilevato come placeholder TODO'
 );
 
+console.log('--- Test _checkForbiddenContent (ellissi non placeholder) ---');
+const ellipsisResult = validator._checkForbiddenContent('La risposta puo continuare... la ricontattiamo appena possibile.');
+assert(
+  !ellipsisResult.errors.some((e) => e.includes('Contiene placeholder')),
+  'i puntini di sospensione nel testo naturale non devono essere trattati come placeholder'
+);
+const bracketEllipsisResult = validator._checkForbiddenContent('Gentile [...], la aspettiamo alle ore 10:00.');
+assert(
+  bracketEllipsisResult.errors.some((e) => e.includes('Contiene placeholder')),
+  'il placeholder [...] deve restare bloccante'
+);
+
 console.log('--- Test _checkForbiddenContent (nessun placeholder quadro) ---');
 const noBracketPlaceholderResult = validator._checkForbiddenContent(
   'Gentile signora, le confermo che la Santa Messa festiva è celebrata ogni domenica alle ore 10:00.'

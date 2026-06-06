@@ -9,9 +9,9 @@ Usa `gas_config.example.js` come template nel repository e crea il file locale `
 
 ### Impostazioni API
 - **GEMINI_API_KEY**: La tua chiave API Gemini (salvata nelle Proprietà dello Script).
-- **MODEL_NAME**: Modello predefinito per la generazione qualità (attuale `gemini-2.5-flash`).
+- **MODEL_NAME**: Modello predefinito per la generazione qualità (attuale `gemini-3.5-flash`).
 - **GEMINI_CONTEXT_CACHE**: Di default è disabilitata per Free Tier. Abilitala solo se AI Studio mostra `cachedContents` disponibile per il progetto; se l'endpoint non è disponibile, il servizio degrada a `generateContent` diretto.
-- **GEMINI_FREE_TIER_NOTES**: Profilo quote locale per i task rapidi su Gemini 3.1 Flash-Lite; per la generazione qualità il sistema parte da Gemini 2.5 Flash. Verifica sempre i limiti effettivi in AI Studio.
+- **GEMINI_FREE_TIER_NOTES**: Profilo quote locale per i task rapidi su Gemini 3.1 Flash-Lite; per la generazione qualità il sistema parte da Gemini 3.5 Flash. Verifica sempre i limiti effettivi in AI Studio.
 
 ### Gmail e Processamento
 - **LABEL_NAME**: `IA` (Email processate con successo).
@@ -19,7 +19,7 @@ Usa `gas_config.example.js` come template nel repository e crea il file locale `
 - **VALIDATION_ERROR_LABEL**: `Verifica` (Richiede revisione umana).
 - **SKIP_LABEL_NAME**: `·` (Email italiane saltate quando è attiva la modalità `foreign_only`).
 - **MAX_EMAILS_PER_RUN**: `2` (Numero massimo di email per esecuzione per evitare timeout). Impostalo a `0` per sospendere temporaneamente l'elaborazione senza fare discovery Gmail.
-- **MESSAGE_DISCOVERY_MODE**: `query` (Discovery message-level con query Gmail; `metadata` è il fallback prudente/manuale).
+- **MESSAGE_DISCOVERY_MODE**: `metadata` (Discovery message-level predefinita via list/get metadata Gmail; `query` resta il fallback legacy).
 
 ### Knowledge Base (Google Sheets)
 - **SPREADSHEET_ID**: ID del tuo foglio Google (salvato nelle Proprietà dello Script).
@@ -37,16 +37,18 @@ Usa `gas_config.example.js` come template nel repository e crea il file locale `
 
 ### Configurazione Modelli Gemini
 Il sistema usa una strategia per selezionare i modelli:
-1. **flash-2.5**: Percorso principale per generare risposte finali di qualità.
-2. **flash-2.5-backup**: Stesso modello qualità su chiave di riserva.
-3. **flash-lite / flash-3.1-lite**: Controlli rapidi, categoria, lingua AI, controlli semantici e scarti newsletter.
-4. **flash-3.1-lite-backup**: Fallback lite su chiave di riserva.
+1. **flash-3.5**: Percorso principale per generare risposte finali di qualità.
+2. **flash-3.5-backup**: Stesso modello qualità su chiave di riserva.
+3. **flash-lite / flash-3.5-lite**: Controlli rapidi, categoria, lingua AI, controlli semantici e scarti newsletter.
+4. **flash-3.5-lite-backup**: Fallback lite su chiave di riserva.
 
 ## Proprietà dello Script
 Questi valori devono essere impostati in **Impostazioni Progetto > Proprietà dello Script**:
 - `GEMINI_API_KEY`
 - `SPREADSHEET_ID`
 - `METRICS_SHEET_ID` (Opzionale, per statistiche giornaliere)
+- `ADMIN_EMAIL` (Opzionale, notifiche errori critici)
+- `VALIDATION_REVIEW_EMAIL` (Opzionale, alert di validazione per revisione umana)
 
 ## OCR Allegati (`ATTACHMENT_CONTEXT`)
 

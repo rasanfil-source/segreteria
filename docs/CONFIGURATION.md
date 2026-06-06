@@ -9,9 +9,9 @@ Use `gas_config.example.js` as template in repository and create your local `gas
 
 ### API Settings
 - **GEMINI_API_KEY**: Your Google Gemini API Key (stored in Script Properties).
-- **MODEL_NAME**: Default quality-generation model (currently `gemini-2.5-flash`).
+- **MODEL_NAME**: Default quality-generation model (currently `gemini-3.5-flash`).
 - **GEMINI_CONTEXT_CACHE**: Disabled by default for Free Tier. Enable it only if AI Studio shows `cachedContents` available for the project; if the endpoint is unavailable, the service falls back to direct `generateContent`.
-- **GEMINI_FREE_TIER_NOTES**: Local quota profile for fast auxiliary tasks on Gemini 3.1 Flash-Lite; quality generation starts from Gemini 2.5 Flash. Always verify effective limits in AI Studio.
+- **GEMINI_FREE_TIER_NOTES**: Local quota profile for fast auxiliary tasks on Gemini 3.1 Flash-Lite; quality generation starts from Gemini 3.5 Flash. Always verify effective limits in AI Studio.
 
 ### Gmail & Processing
 - **LABEL_NAME**: `IA` (Processed emails)
@@ -19,7 +19,7 @@ Use `gas_config.example.js` as template in repository and create your local `gas
 - **VALIDATION_ERROR_LABEL**: `Verifica` (Needs human review)
 - **SKIP_LABEL_NAME**: `·` (Italian emails skipped when `foreign_only` mode is active)
 - **MAX_EMAILS_PER_RUN**: `2` (Limits execution batch size to prevent timeouts). Set it to `0` to temporarily suspend processing without running Gmail discovery.
-- **MESSAGE_DISCOVERY_MODE**: `query` (Message-level discovery through Gmail queries; `metadata` is the conservative/manual fallback).
+- **MESSAGE_DISCOVERY_MODE**: `metadata` (Default message-level discovery via Gmail list/get metadata; `query` remains the legacy fallback).
 
 ### Knowledge Base (Google Sheets)
 - **SPREADSHEET_ID**: ID of your Google Sheet (stored in Script Properties).
@@ -37,16 +37,18 @@ Use `gas_config.example.js` as template in repository and create your local `gas
 
 ### Gemini Models Configuration
 The system uses a strategy to select models:
-1. **flash-2.5**: Primary path for final quality responses.
-2. **flash-2.5-backup**: Same quality model on the backup key.
-3. **flash-lite / flash-3.1-lite**: Quick checks, category, AI language, semantic checks, and newsletter discard summaries.
-4. **flash-3.1-lite-backup**: Lite fallback on the backup key.
+1. **flash-3.5**: Primary path for final quality responses.
+2. **flash-3.5-backup**: Same quality model on the backup key.
+3. **flash-lite / flash-3.5-lite**: Quick checks, category, AI language, semantic checks, and newsletter discard summaries.
+4. **flash-3.5-lite-backup**: Lite fallback on the backup key.
 
 ## Script Properties
 These values must be set in **Project Settings > Script Properties**:
 - `GEMINI_API_KEY`
 - `SPREADSHEET_ID`
 - `METRICS_SHEET_ID` (Optional, for daily stats)
+- `ADMIN_EMAIL` (Optional, critical error notifications)
+- `VALIDATION_REVIEW_EMAIL` (Optional, human-review validation alerts)
 
 ## Attachment OCR (`ATTACHMENT_CONTEXT`)
 
