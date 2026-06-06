@@ -122,7 +122,7 @@ console.log('--- Test MemoryService _normalizeHeaders: riempie solo header attes
   assert(writtenHeaders[8] === 'memorySummary', 'colonna memorySummary vuota deve essere impostata');
 }
 
-console.log('--- Test MemoryService updateMemory: retry OCC fonde providedInfo concorrente ---');
+console.log('--- Test MemoryService updateMemory: VERSION_MISMATCH abortisce senza merge obsoleto ---');
 {
   const originalLockService = global.LockService;
   global.LockService = {
@@ -162,15 +162,62 @@ console.log('--- Test MemoryService updateMemory: retry OCC fonde providedInfo c
       ]
     });
 
-    memory.updateMemory('thread-occ', {
-      _expectedVersion: 1,
-      providedInfo: [{ topic: 'nuovo', userReaction: 'unknown', timestamp: '2026-05-01T00:00:00.000Z' }]
+    let thrown = null;
+    try {
+      memory.updateMemory('thread-occ', {
+        _expectedVersion: 1,
+        providedInfo: [{ topic: 'nuovo', userReaction: 'unknown', timestamp: '2026-05-01T00:00:00.000Z' }]
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    assert(thrown && thrown.message === 'VERSION_MISMATCH', 'OCC esplicito deve propagare VERSION_MISMATCH');
+    assert(saved === null, 'OCC mismatch non deve scrivere un merge su dati obsoleti');
+  } finally {
+    global.LockService = originalLockService;
+  }
+}
+
+console.log('--- Test MemoryService updateMemoryAtomic: VERSION_MISMATCH non ritenta con versione aggiornata ---');
+{
+  const originalLockService = global.LockService;
+  global.LockService = {
+    getScriptLock: () => ({
+      waitLock: () => {},
+      releaseLock: () => {}
+    })
+  };
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    memory._initialized = true;
+    memory._getLockTuning_ = () => ({ shardedAcquireTimeoutMs: 1 });
+    memory._getShardedLockKey = () => 'lock-thread-atomic-occ';
+    memory._tryAcquireShardedLock = () => true;
+    memory._releaseShardedLock = () => {};
+    memory._sleepLockBackoff_ = () => {};
+    memory._invalidateCache = () => {};
+    memory._withSheetWriteLock = (fn) => fn();
+    memory._updateRow = () => {
+      throw new Error('non deve scrivere su VERSION_MISMATCH');
+    };
+    memory._findRowByThreadId = () => ({
+      rowIndex: 2,
+      values: ['thread-atomic-occ', 'it', 'info', 'standard', '[]', '2026-05-01T00:00:00.000Z', 1, 3, '']
     });
 
-    const topics = saved && saved.data && Array.isArray(saved.data.providedInfo)
-      ? saved.data.providedInfo.map(item => item.topic).sort()
-      : [];
-    assert(topics.join(',') === 'concorrente,nuovo', 'retry OCC deve preservare topic concorrenti e nuovi');
+    let lockAttempts = 0;
+    memory._tryAcquireShardedLock = () => {
+      lockAttempts += 1;
+      return true;
+    };
+
+    const ok = memory.updateMemoryAtomic('thread-atomic-occ', { _expectedVersion: 2, language: 'en' }, ['nuovo']);
+
+    assert(ok === false, 'updateMemoryAtomic deve fallire in modo controllato su VERSION_MISMATCH');
+    assert(lockAttempts === 1, 'VERSION_MISMATCH non deve ritentare con una versione aggiornata internamente');
+    assert(memory._lastUpdateMemoryAtomicFailure && memory._lastUpdateMemoryAtomicFailure.cause === 'VERSION_MISMATCH', 'deve registrare causa VERSION_MISMATCH');
   } finally {
     global.LockService = originalLockService;
   }

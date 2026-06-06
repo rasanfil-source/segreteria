@@ -192,6 +192,13 @@ assert(adv.validationReviewEmail === 'review@parrocchia.it', 'deve leggere valid
 
 console.log('✅ Test advanced config parsing passati');
 
+console.log('--- Test _loadAdvancedConfig senza foglio Controllo mantiene payload completo ---');
+{
+  const noControlAdv = _loadAdvancedConfig({ getSheetByName: () => null });
+  assert(noControlAdv.suspensionRules === null, 'foglio Controllo assente deve usare null per attivare fallback statico');
+  assert(noControlAdv.validationReviewEmail === '', 'validationReviewEmail deve essere inizializzato anche senza foglio Controllo');
+}
+
 console.log('--- Test _loadAdvancedConfig usa etichetta giorno, non solo posizione riga ---');
 function createReorderedSuspensionSheet() {
   const ranges = {

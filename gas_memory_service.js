@@ -248,10 +248,9 @@ var MemoryService = class MemoryService {
     // Sharding basato su hash del threadId per ridurre la contention
     const lockKey = this._getShardedLockKey(normalizedThreadId);
 
-    // Stato locale OCC: aggiorniamo la expectedVersion ad ogni conflitto
-    // per evitare retry inutili con versione ormai obsoleta.
+    // OCC stretto: se il chiamante fornisce una versione attesa, il DAL non
+    // deve autorisolvere il conflitto con una versione più recente.
     let expectedVersion = newData._expectedVersion;
-    let sawVersionMismatch = false;
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       let shardedLockOwned = false;
@@ -284,20 +283,12 @@ var MemoryService = class MemoryService {
           // Verifica controllo concorrenza ottimistico
           if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
             this._invalidateCache(`memory_${normalizedThreadId}`);
-            console.warn(`🔒 Version mismatch thread ${normalizedThreadId}: atteso ${expectedVersion}, ottenuto ${currentVersion} - ritento con versione aggiornata`);
-            expectedVersion = currentVersion;
+            console.warn(`🔒 Version mismatch thread ${normalizedThreadId}: atteso ${expectedVersion}, ottenuto ${currentVersion} - abortisco (OCC violation)`);
             throw new Error('VERSION_MISMATCH');
           }
 
           // Merge: esistente + nuovi dati
           const mergedData = Object.assign({}, existingData, dataToUpdate);
-          if (sawVersionMismatch &&
-            Array.isArray(existingData.providedInfo) &&
-            Array.isArray(dataToUpdate.providedInfo)) {
-            const existingTopics = this._normalizeProvidedTopics(existingData.providedInfo);
-            const incomingTopics = this._normalizeProvidedTopics(dataToUpdate.providedInfo);
-            mergedData.providedInfo = this._mergeProvidedTopics(existingTopics, incomingTopics);
-          }
           mergedData.lastUpdated = now;
           mergedData.messageCount = shouldIncrementMessageCount
             ? (existingData.messageCount || 0) + 1
@@ -338,9 +329,9 @@ var MemoryService = class MemoryService {
 
       } catch (error) {
         if (error.message === 'VERSION_MISMATCH') {
-          sawVersionMismatch = true;
-          console.warn(`⚠️ Conflitto concorrenza, retry... (Tentativo ${attempt + 1})`);
+          console.warn(`⚠️ Conflitto concorrenza OCC, aggiornamento abortito (Tentativo ${attempt + 1})`);
           this._invalidateCache(`memory_${normalizedThreadId}`);
+          throw error;
         } else {
           console.warn(`Aggiornamento memoria fallito (Tentativo ${attempt + 1}): ${error.message}`);
         }
@@ -488,8 +479,7 @@ var MemoryService = class MemoryService {
 
           // Controllo concorrenza ottimistico opzionale
           if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
-            console.warn(`🔒 Version mismatch atomico thread ${threadId}: atteso ${expectedVersion}, ottenuto ${currentVersion}`);
-            expectedVersion = currentVersion;
+            console.warn(`🔒 Version mismatch atomico thread ${threadId}: atteso ${expectedVersion}, ottenuto ${currentVersion} - abortisco (OCC violation)`);
             throw new Error('VERSION_MISMATCH');
           }
 
@@ -576,6 +566,9 @@ var MemoryService = class MemoryService {
           lastAtomicError = error;
           console.warn(`⚠️ Errore aggiornamento atomico (tentativo ${i + 1}): ${error.message}`);
           this._invalidateCache(`memory_${normalizedThreadId}`);
+          if (error.message === 'VERSION_MISMATCH') {
+            break;
+          }
           if (i < 2) {
             this._sleepLockBackoff_(i);
           }

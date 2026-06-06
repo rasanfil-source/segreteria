@@ -1225,8 +1225,8 @@ function testUpdateProvidedInfoWithoutIncrementRetriesShardedLock() {
     assert(updateCalls === 1, `La scrittura deve avvenire dopo retry riuscito, ottenute ${updateCalls}`);
 }
 
-function testUpdateMemoryRetryOnVersionMismatch() {
-    console.log('--- Test: updateMemory ritenta su VERSION_MISMATCH ---');
+function testUpdateMemoryAbortsOnVersionMismatch() {
+    console.log('--- Test: updateMemory abortisce su VERSION_MISMATCH ---');
     loadScript('gas_memory_service.js');
 
     const service = Object.create(MemoryService.prototype);
@@ -1257,12 +1257,16 @@ function testUpdateMemoryRetryOnVersionMismatch() {
     service._withSheetWriteLock = (op) => op();
     service._invalidateCache = () => { };
 
+    let thrown = null;
     try {
         service.updateMemory('thread-occ', { language: 'en', _expectedVersion: 9 });
-    } catch (e) { }
+    } catch (e) {
+        thrown = e;
+    }
 
-    assert(findCalls >= 2, `updateMemory deve rileggere lo Sheet dopo un mismatch di versione, chiamate: ${findCalls}`);
-    assert(updateCalls === 1, 'updateMemory deve completare la scrittura dopo aver allineato la versione');
+    assert(thrown && thrown.message === 'VERSION_MISMATCH', 'updateMemory deve propagare VERSION_MISMATCH');
+    assert(findCalls === 1, `updateMemory non deve rileggere lo Sheet dopo mismatch OCC, chiamate: ${findCalls}`);
+    assert(updateCalls === 0, 'updateMemory non deve scrivere dopo VERSION_MISMATCH');
 }
 
 function testHasUnreadMessagesFallbackIncludesTerminalLabels() {
@@ -3557,7 +3561,7 @@ function main() {
         ['memory reaction: gestione dinamica topic vuoti', testInferUserReactionIsResilientToEmptyTopics],
         ['memory reaction: normalizzazione topic coerente', testInferUserReactionNormalizesTopicKeys],
         ['memory: merge providedInfo normalizza topic equivalenti', testMemoryMergeProvidedTopicsNormalizesTopicKeys],
-        ['memory: ritenta su VERSION_MISMATCH', testUpdateMemoryRetryOnVersionMismatch],
+        ['memory: abortisce su VERSION_MISMATCH', testUpdateMemoryAbortsOnVersionMismatch],
         ['rate limiter: persistenza rigorosa transazionale bloccata senza lock', testRateLimiterPersistenceRequiresTransactionalLock],
         ['rate limiter: reservation lifecycle senza doppio conteggio', testRateLimiterReservationLifecycleDoesNotDuplicateOrLeak],
         ['rate limiter: select alreadyLocked ricarica finestre persistenti', testRateLimiterAlreadyLockedSelectRefreshesWindows],

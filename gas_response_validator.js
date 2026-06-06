@@ -691,6 +691,8 @@ var ResponseValidator = class ResponseValidator {
 
     // Helper normalizzazione orari
     const normalizeTime = (t) => {
+      t = String(t ?? '');
+
       // Escludi pattern che potrebbero essere URL o nomi file
       if (/[a-z]{2,}\.\d{1,2}\.[a-z]{2,}/i.test(t)) return t;
       if (/\/([\w-]+\.\d{1,2}\.\w+)$/i.test(t)) return t;
@@ -1189,7 +1191,14 @@ var ResponseValidator = class ResponseValidator {
       const escapedPrev = String(papalContext.previousName)
         .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const prevRx = new RegExp('(?:^|[^\\p{L}\\p{N}_])' + escapedPrev + '(?=$|[^\\p{L}\\p{N}_])', 'iu');
-      if (prevRx.test(text) && !prevRx.test(sourceText)) {
+      const presentVerbPattern = "(?:è|e'|invita|ricorda|esorta|chiede|sottolinea|incoraggia|sollecita|insegna|richiama)";
+      const presentVerbBoundary = '(?:^|[^\\p{L}\\p{N}_])' + presentVerbPattern + '(?=$|[^\\p{L}\\p{N}_])';
+      const prevPresentRx = new RegExp(
+        '(?:^|[^\\p{L}\\p{N}_])' + escapedPrev + '(?:(?![.!?]).){0,80}' + presentVerbBoundary
+        + '|' + presentVerbBoundary + '(?:(?![.!?]).){0,80}(?:^|[^\\p{L}\\p{N}_])' + escapedPrev + '(?=$|[^\\p{L}\\p{N}_])',
+        'isu'
+      );
+      if (prevRx.test(text) && !prevRx.test(sourceText) && prevPresentRx.test(text)) {
         warnings.push(`Citazione di ${papalContext.previousName} non presente nelle fonti della risposta.`);
         score *= 0.85;
       }

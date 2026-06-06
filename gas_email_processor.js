@@ -629,7 +629,7 @@ var EmailProcessor = class EmailProcessor {
           }
         }
       }
-      if (!cacheLockWritten && hasProps) {
+      if (hasProps) {
         scriptProps.setProperty(threadLockKey, value);
         propLockWritten = true;
       }

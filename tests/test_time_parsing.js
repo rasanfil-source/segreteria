@@ -126,6 +126,49 @@ console.log('--- Test isInSuspensionTime rispetta minuti nelle fasce ---');
   global.GLOBAL_CACHE.vacationPeriods = originalVacationPeriods;
 }
 
+console.log('--- Test isInSuspensionTime normalizza componenti orarie numeriche ---');
+{
+  const originalGetBusinessDateParts = getBusinessDateParts;
+  const originalLoaded = global.GLOBAL_CACHE.loaded;
+  const originalSuspensionRules = global.GLOBAL_CACHE.suspensionRules;
+  const originalVacationPeriods = global.GLOBAL_CACHE.vacationPeriods;
+
+  try {
+    global.GLOBAL_CACHE.loaded = true;
+    global.GLOBAL_CACHE.vacationPeriods = [];
+    global.GLOBAL_CACHE.suspensionRules = {
+      1: [[12.75, 13]]
+    };
+
+    getBusinessDateParts = () => ({
+      year: 2026,
+      monthIndex: 4,
+      day: 4,
+      date: 4,
+      hour: '12',
+      minute: '45',
+      isoDay: 1
+    });
+    assertEqual(isInSuspensionTime(new Date(2026, 4, 4, 12, 45, 0)), true, 'componenti orarie stringa 12:45 devono entrare nella sospensione');
+
+    getBusinessDateParts = () => ({
+      year: 2026,
+      monthIndex: 4,
+      day: 4,
+      date: 4,
+      hour: '12',
+      minute: '44',
+      isoDay: 1
+    });
+    assertEqual(isInSuspensionTime(new Date(2026, 4, 4, 12, 44, 0)), false, 'componenti orarie stringa 12:44 devono restare fuori dalla sospensione');
+  } finally {
+    getBusinessDateParts = originalGetBusinessDateParts;
+    global.GLOBAL_CACHE.loaded = originalLoaded;
+    global.GLOBAL_CACHE.suspensionRules = originalSuspensionRules;
+    global.GLOBAL_CACHE.vacationPeriods = originalVacationPeriods;
+  }
+}
+
 console.log('--- Test isInSuspensionTime valida payload suspensionRules della cache caricata ---');
 {
   const originalLoaded = global.GLOBAL_CACHE.loaded;
@@ -165,10 +208,19 @@ console.log('--- Test _parseDateValue: rifiuta fallback Date.parse ambiguo ---')
 {
   assertEqual(_parseDateValue('2026/05/15'), null, 'formato non esplicitamente supportato deve essere rifiutato');
   assertEqual(_parseDateValue('May 15 2026'), null, 'Date.parse testuale engine-dependent deve essere rifiutato');
+  assertEqual(_parseDateValue('2026-02-30T10:00:00Z'), null, 'ISO datetime con data impossibile deve essere rifiutato');
+  assertEqual(_parseDateValue('2026-06-06T10:15:00Z') instanceof Date, true, 'ISO datetime esplicito con timezone deve restare supportato');
   const parsedItalian = _parseDateValue('15/05/2026');
   assertEqual(parsedItalian && parsedItalian.getFullYear(), 2026, 'formato italiano deve restare supportato');
   assertEqual(parsedItalian && parsedItalian.getMonth(), 4, 'formato italiano deve leggere correttamente il mese');
   assertEqual(parsedItalian && parsedItalian.getDate(), 15, 'formato italiano deve leggere correttamente il giorno');
+}
+
+console.log('--- Test parseDateSafe: blank string usa fallback senza perdere 0 esplicito ---');
+{
+  const fallback = new Date(2026, 0, 1, 12, 0, 0);
+  assertEqual(parseDateSafe('   ', fallback), fallback, 'stringa vuota o whitespace deve usare fallback');
+  assertEqual(parseDateSafe(0, fallback).getTime(), 0, 'input numerico 0 deve restare una data esplicita valida');
 }
 
 console.log('--- Test business date parts centralizzati su Europe/Rome ---');
@@ -197,6 +249,20 @@ console.log('--- Test business date parts centralizzati su Europe/Rome ---');
   );
 
   global.Utilities = originalUtilities;
+}
+
+console.log('--- Test guard Date: input non-Date non validi sono respinti ---');
+{
+  assertEqual(getBusinessDateParts('non una data'), null, 'getBusinessDateParts deve respingere stringhe non convertibili in Date');
+  assertEqual(getBusinessDateParts(null), null, 'getBusinessDateParts deve respingere input null senza convertirlo in epoch 1970');
+  assertEqual(getBusinessDateParts(undefined), null, 'getBusinessDateParts deve respingere input undefined senza convertirlo in oggi');
+  assertEqual(getBusinessDateParts(''), null, 'getBusinessDateParts deve respingere stringhe vuote senza convertirle in epoch 1970');
+  assertEqual(getBusinessDateParts('May 15 2026'), null, 'getBusinessDateParts deve respingere stringhe testuali parseabili dal runtime');
+  assertEqual(getBusinessDateParts('2026/05/15'), null, 'getBusinessDateParts deve respingere formati non supportati esplicitamente');
+  assertEqual(getBusinessDateParts('2026-06-06T10:00:00Z') !== null, true, 'getBusinessDateParts deve accettare stringhe data ISO valide');
+  assertEqual(_isSameCalendarDay('2026-05-04', new Date(2026, 4, 4)), false, '_isSameCalendarDay deve respingere input sinistro non-Date');
+  assertEqual(_isSameCalendarDay(new Date(2026, 4, 4), '2026-05-04'), false, '_isSameCalendarDay deve respingere input destro non-Date');
+  assertEqual(_isSameCalendarDay(new Date('invalid'), new Date(2026, 4, 4)), false, '_isSameCalendarDay deve respingere Date invalide');
 }
 
 console.log('--- Test ferie con date-only e confine UTC/Roma ---');

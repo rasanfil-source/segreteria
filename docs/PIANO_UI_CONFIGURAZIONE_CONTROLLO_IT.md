@@ -2,8 +2,8 @@
 
 ## Assunzioni dichiarate
 - Il foglio principale resta `Controllo` e continua ad essere il punto di accesso per la segreteria.
-- Il backend è Google Apps Script (GAS) e leggerà **solo Named Ranges** (mai coordinate hardcoded), così le celle possono essere spostate/accorpate senza rompere il codice.
-- `B10:D16` in `Controllo` viene riservato agli orari settimanali (giorno, dalle, alle), come richiesto.
+- Il backend è Google Apps Script (GAS) e, nel codice reale attuale, legge coordinate esplicite del foglio `Controllo`: `B2`, `F2`, `B5:E7`, `A10:D16`, `E13:F` e `A19`.
+- `A10:D16` in `Controllo` è il layout corrente degli orari settimanali: `A` giorno, `B` dalle, `D` alle. Il layout legacy `B10:D16` resta compatibile.
 - Le assenze possono essere multiple e sovrapposte; la logica considera “segretario non in servizio” se **esiste almeno un record attivo oggi**.
 
 ---
@@ -32,13 +32,15 @@ Righe consigliate:
 - `Oggi:` data odierna
 - `Fascia oraria attuale:` es. `08:00–14:00` oppure `Nessuna`
 
-### Sezione C — Sospensione per giorno (vincolo B10:D16)
-**Posizione obbligatoria:** `B10:D16`
+### Sezione C — Sospensione per giorno (layout reale `A10:D16`)
+**Posizione letta dal codice:** `A10:D16`
 
 - Colonne:
-  - `B`: Giorno (`Lunedì` ... `Domenica`)
-  - `C`: Dalle (ora)
+  - `A`: Giorno (`Lunedì` ... `Domenica`)
+  - `B`: Dalle (ora)
+  - `C`: Colonna libera/compatibilità
   - `D`: Alle (ora)
+- Compatibilità legacy: se il giorno è in `B`, il codice accetta `B=giorno`, `C=dalle`, `D=alle`.
 - Riga fissa 7 giorni, ordinamento naturale settimana.
 - Descrizione sotto titolo: “Fuori da questa fascia il sistema è sospeso (salvo override).”
 
@@ -64,16 +66,16 @@ Righe consigliate:
 | `sum_today_reason` | Controllo | `Controllo!F7` | testo | formula + codice |
 | `sum_today_date` | Controllo | `Controllo!F8` | data | formula + utente |
 | `sum_today_slot` | Controllo | `Controllo!F9` | testo/orario | formula + codice |
-| `tbl_week_schedule` | Controllo | `Controllo!B10:D16` | tabella (giorno, ora, ora) | codice + utente |
-| `tbl_week_days` | Controllo | `Controllo!B10:B16` | testo | formula + codice |
-| `tbl_week_from` | Controllo | `Controllo!C10:C16` | ora | codice + utente |
+| `tbl_week_schedule` | Controllo | `Controllo!A10:D16` | tabella (giorno, ora, compatibilità, ora) | codice + utente |
+| `tbl_week_days` | Controllo | `Controllo!A10:A16` | testo | formula + codice |
+| `tbl_week_from` | Controllo | `Controllo!B10:B16` | ora | codice + utente |
 | `tbl_week_to` | Controllo | `Controllo!D10:D16` | ora | codice + utente |
 | `tbl_absences` | Assenze | `Assenze!A2:G` | tabella normalizzata | codice + utente |
 | `lst_ignore_domains` | Filtri | `Filtri!A2:A` | lista testo (dominio) | codice + utente |
 | `lst_ignore_keywords` | Filtri | `Filtri!C2:C` | lista testo (keyword) | codice + utente |
 | `cfg_timezone` | Controllo | `Controllo!B4` | testo (`Europe/Rome`) | codice |
-| `cfg_holidays_mode` | Controllo | `Controllo!B5` | boolean/testo (`Considera Festivi`) | codice + utente |
-| `cfg_vacation_start_date` | Controllo | `Controllo!B5` | alias di `cfg_holidays_mode` (stessa cella) | codice |
+| `tbl_vacations` | Controllo | `Controllo!B5:E7` | periodi ferie/assenze | codice + utente |
+| `cfg_validation_review_email` | Controllo | `Controllo!A19` | email revisione validazione | codice + utente |
 
 ---
 
@@ -98,11 +100,12 @@ Righe consigliate:
 **Formula colonna `attiva_oggi` (G2):**
 `=SE(O(C2="";D2="");FALSE;E(OGGI()>=C2;OGGI()<=D2))`
 
-### 3.2 Sospensioni per giorno (`Controllo!B10:D16`)
+### 3.2 Sospensioni per giorno (`Controllo!A10:D16`)
 
 Schema fisso:
-- `B10:B16`: Lunedì ... Domenica (bloccato/protetto)
-- `C10:C16`: ora inizio servizio
+- `A10:A16`: Lunedì ... Domenica (bloccato/protetto)
+- `B10:B16`: ora inizio servizio
+- `C10:C16`: non usata nel layout corrente; resta disponibile per compatibilità legacy
 - `D10:D16`: ora fine servizio
 
 Esempio:
@@ -205,34 +208,34 @@ Esempio:
 
 ---
 
-## 7) Strategia di migrazione (compatibilità B2/B6/C9)
+## 7) Strategia di migrazione futura (compatibilità con il codice attuale)
 
 ### Fase 0 — Preparazione (no rotture)
 1. Crea fogli nuovi `Assenze` e `Filtri`.
-2. Crea Named Ranges chiave (`cfg_system_master`, `tbl_week_schedule`, `tbl_absences`, `lst_ignore_domains`, `lst_ignore_keywords`).
-3. Mantieni lettura legacy di `B2`, `B6`, `C9` nel codice.
+2. Puoi creare Named Ranges chiave (`cfg_system_master`, `tbl_week_schedule`, `tbl_absences`, `lst_ignore_domains`, `lst_ignore_keywords`) come preparazione, ma il codice attuale non li legge ancora.
+3. Mantieni le coordinate lette oggi dal codice (`B2`, `F2`, `B5:E7`, `A10:D16`, `E13:F`, `A19`) finché non viene implementato un adapter dedicato.
 
 ### Fase 1 — Doppia scrittura / doppia lettura temporanea
 1. Copia dati storici:
    - vecchie assenze → `Assenze!A2:G`
    - domini/parole dal riquadro a destra → `Filtri!A2:A` e `Filtri!C2:C`
-2. Implementa adapter nel codice:
+2. Roadmap adapter nel codice:
    - prima prova Named Ranges
-   - fallback a celle legacy (`B2/B6/C9`) se range assenti o vuoti
+   - fallback alle coordinate correnti se range assenti o vuoti
 
 ### Fase 2 — Attivazione nuova logica
-1. Sposta orari in `Controllo!B10:D16` (se non già lì).
+1. Sposta orari nel layout corrente `Controllo!A10:D16` (se non già lì). Il layout legacy `B10:D16` resta accettato dal codice.
 2. Calcola `RIASSUNTO` da tabelle nuove.
 3. Evidenzia in `Controllo` un avviso: “Modalità nuova configurazione attiva”.
 
 ### Fase 3 — Decommissioning legacy
-1. Dopo 2–4 settimane senza errori, rimuovi fallback hardcoded (`B6/C9`).
-2. Conserva `B2` come alias del master switch (può restare definitivo).
+1. Dopo 2–4 settimane senza errori, rimuovi fallback hardcoded solo se il codice è stato migrato ai Named Ranges.
+2. Conserva `B2` come alias del master switch (può restare definitivo) oppure mappalo a `cfg_system_master`.
 3. Blocca/archivia vecchi blocchi non più usati.
 
 ### Named Ranges da creare subito (priorità alta)
 1. `cfg_system_master` → `Controllo!B2`
-2. `tbl_week_schedule` → `Controllo!B10:D16`
+2. `tbl_week_schedule` → `Controllo!A10:D16`
 3. `tbl_absences` → `Assenze!A2:G`
 4. `lst_ignore_domains` → `Filtri!A2:A`
 5. `lst_ignore_keywords` → `Filtri!C2:C`
@@ -245,6 +248,6 @@ Esempio:
 Se vuoi un layout più “premium” con celle unite (titoli, box, badge), usa questa regola:
 - **celle unite solo in aree decorative/informative**;
 - **mai nelle tabelle lette dal codice** (`tbl_*`, `lst_*`), che devono restare normalizzate;
-- il codice legge solo Named Ranges, non coordinate singole.
+- oggi il codice legge coordinate singole; se in futuro verrà migrato ai Named Ranges, questi dovranno puntare a celle non unite e a tabelle normalizzate.
 
 In questo modo hai grafica accattivante **e** affidabilità enterprise.

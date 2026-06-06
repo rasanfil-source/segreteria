@@ -462,6 +462,47 @@ console.log('--- Test thread lock: cleanup rimuove lock stale da PropertiesServi
   }
 }
 
+console.log('--- Test thread lock: scrive sempre lock logico su cache e PropertiesService ---');
+{
+  const originalPropertiesService = global.PropertiesService;
+  const originalLockService = global.LockService;
+  cacheStore.clear();
+  const props = new Map();
+
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: (k) => props.get(k) || '',
+      getProperties: () => Object.fromEntries(props.entries()),
+      setProperty: (k, v) => props.set(k, v),
+      deleteProperty: (k) => props.delete(k)
+    })
+  };
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => true,
+      releaseLock: () => {}
+    })
+  };
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    const res = processor._acquireThreadLock('t-durable', false, global.createLogger());
+    const key = 'thread_lock_t-durable';
+    assert(res.ok === true, 'deve acquisire il lock quando entrambi gli storage sono disponibili');
+    assert(cacheStore.has(key), 'deve scrivere il lock volatile in CacheService');
+    assert(props.has(key), 'deve scrivere anche il lock persistente in PropertiesService');
+    assert(res.cache && res.properties, 'il contesto release deve contenere entrambi gli storage');
+
+    processor._releaseThreadLock(res, global.createLogger());
+    assert(!cacheStore.has(key), 'release deve rimuovere il lock cache');
+    assert(!props.has(key), 'release deve rimuovere il lock persistente');
+  } finally {
+    global.PropertiesService = originalPropertiesService;
+    global.LockService = originalLockService;
+    cacheStore.clear();
+  }
+}
+
 console.log('--- Test thread lock: release rimuove cache e PropertiesService solo se combaciano ---');
 {
   const originalLockService = global.LockService;
@@ -577,11 +618,11 @@ console.log('--- Test thread lock: lockAlreadyCovered salta solo lo ScriptLock m
     assert(ctx.ok === true && ctx.acquired === true, 'lockAlreadyCovered deve comunque creare il lock logico di thread');
     assert(ctx.lockCovered === true, 'ctx deve indicare che il mutex globale è già coperto dal chiamante');
     assert(tryLockCalls === 0, 'lockAlreadyCovered non deve riacquisire lo ScriptLock');
-    assert(!props.has('thread_lock_t-skip'), 'con CacheService disponibile non deve consumare quota PropertiesService');
+    assert(props.get('thread_lock_t-skip') === ctx.value, 'deve scrivere il token anche in PropertiesService per durabilità');
     assert(cacheStore.get('thread_lock_t-skip') === ctx.value, 'deve scrivere il token in CacheService');
 
     processor._releaseThreadLock(ctx, global.createLogger());
-    assert(!props.has('thread_lock_t-skip'), 'release coperta dal chiamante non deve toccare PropertiesService non usato');
+    assert(!props.has('thread_lock_t-skip'), 'release coperta dal chiamante deve pulire PropertiesService');
     assert(!cacheStore.has('thread_lock_t-skip'), 'release coperta dal chiamante deve pulire CacheService');
     assert(tryLockCalls === 0, 'release coperta dal chiamante non deve riacquisire lo ScriptLock');
   } finally {
@@ -626,7 +667,7 @@ console.log('--- Test thread lock: skipLock senza copertura acquisisce ScriptLoc
     assert(ctx.lockCovered === false, 'ctx non deve indicare copertura esterna se manca lockAlreadyCovered');
     assert(tryLockCalls === 1, 'skipLock non coperto deve acquisire lo ScriptLock per check-and-set atomico');
     assert(releaseCalls === 1, 'lo ScriptLock acquisito internamente deve essere rilasciato dopo il check-and-set');
-    assert(!props.has('thread_lock_t-skip-uncovered'), 'con CacheService disponibile non deve scrivere token in PropertiesService');
+    assert(props.get('thread_lock_t-skip-uncovered') === ctx.value, 'deve scrivere il token anche in PropertiesService per durabilità');
     assert(cacheStore.get('thread_lock_t-skip-uncovered') === ctx.value, 'deve scrivere il token in CacheService');
   } finally {
     global.PropertiesService = originalPropertiesService;
@@ -635,7 +676,7 @@ console.log('--- Test thread lock: skipLock senza copertura acquisisce ScriptLoc
   }
 }
 
-console.log('--- Test thread lock: usa PropertiesService solo se CacheService fallisce ---');
+console.log('--- Test thread lock: usa PropertiesService anche se CacheService fallisce ---');
 {
   const originalCacheService = global.CacheService;
   const originalPropertiesService = global.PropertiesService;

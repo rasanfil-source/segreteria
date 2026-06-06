@@ -388,13 +388,22 @@ console.log('--- Test riferimenti papali: warning usa previousName dinamico da C
   });
 
   try {
-    const dynamicPreviousResult = validator._checkCurrentPopeReferences(
+    const dynamicPreviousNeutral = validator._checkCurrentPopeReferences(
       'Il testo cita Papa Benedetto XVI senza fonte esplicita.',
       'Caritas: raccolta indumenti per persone senza fissa dimora.',
       '',
       { currentDate: '2026-05-29' }
     );
-    assert(dynamicPreviousResult.score < 1.0, 'una citazione del Papa precedente dinamico senza fonte deve produrre warning');
+    assert(dynamicPreviousNeutral.score === 1.0, 'una citazione neutra del Papa precedente dinamico senza fonte non deve produrre warning');
+    assert(dynamicPreviousNeutral.warnings.length === 0, 'una citazione neutra del Papa precedente non deve essere rumorosa');
+
+    const dynamicPreviousResult = validator._checkCurrentPopeReferences(
+      'Papa Benedetto XVI, in questa risposta, ricorda la cura dei poveri.',
+      'Caritas: raccolta indumenti per persone senza fissa dimora.',
+      '',
+      { currentDate: '2026-05-29' }
+    );
+    assert(dynamicPreviousResult.score < 1.0, 'una citazione al presente del Papa precedente dinamico senza fonte deve produrre warning');
     assert(
       dynamicPreviousResult.warnings.some((w) => w.includes('Papa Benedetto XVI')),
       'il warning deve usare il previousName configurato, non un nome hardcoded'
@@ -425,7 +434,7 @@ console.log('--- Test riferimenti papali: previousName accentato usa confini Uni
 
   try {
     const accentedPreviousResult = validator._checkCurrentPopeReferences(
-      'Il testo cita Papa André senza fonte esplicita.',
+      'Papa André, oggi, ricorda la cura dei poveri.',
       'Caritas: raccolta indumenti per persone senza fissa dimora.',
       '',
       { currentDate: '2026-05-29' }

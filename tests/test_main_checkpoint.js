@@ -48,6 +48,44 @@ console.log('--- Test _clearBatchCheckpoint_: elimina checkpoint e trigger resum
   assert(deleted.length === 1 && deleted[0] === 'resume-old', 'deve eliminare solo i trigger globali di resume batch');
 }
 
+console.log('--- Test main: EXECUTION_LOCK_WAIT_MS=0 resta valore valido ---');
+{
+  const originalConfig = sandbox.CONFIG;
+  const originalGmail = sandbox.Gmail;
+  const originalUtilities = sandbox.Utilities;
+  const originalLockService = sandbox.LockService;
+  let observedWaitMs = null;
+
+  sandbox.CONFIG = { EXECUTION_LOCK_WAIT_MS: 0 };
+  sandbox.Gmail = {
+    Users: {
+      getProfile: () => ({ emailAddress: 'me@parrocchia.it' })
+    }
+  };
+  sandbox.Utilities = { sleep: () => {} };
+  sandbox.LockService = {
+    getScriptLock: () => ({
+      tryLock: (waitMs) => {
+        observedWaitMs = waitMs;
+        return false;
+      },
+      releaseLock: () => {
+        assert(false, 'releaseLock non deve essere chiamato se tryLock fallisce');
+      }
+    })
+  };
+
+  try {
+    sandbox.main();
+    assert(observedWaitMs === 0, `main deve passare 0 a tryLock quando configurato, ottenuto ${observedWaitMs}`);
+  } finally {
+    sandbox.CONFIG = originalConfig;
+    sandbox.Gmail = originalGmail;
+    sandbox.Utilities = originalUtilities;
+    sandbox.LockService = originalLockService;
+  }
+}
+
 console.log('--- Test main: risorse non caricate falliscono senza auto-ripristino ---');
 {
   const originalGmail = sandbox.Gmail;

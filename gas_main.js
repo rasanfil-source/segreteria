@@ -45,6 +45,10 @@ function _normalizeStringArraySafe_(candidate) {
   return Array.from(new Set(candidate.map(v => String(v == null ? '' : v).trim().toLowerCase()).filter(Boolean)));
 }
 
+function _isValidDateObject_(value) {
+  return Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime());
+}
+
 // ====================================================================
 // FESTIVITÀ E SOSPENSIONE
 // ====================================================================
@@ -111,8 +115,9 @@ function calculateEaster(year) {
 }
 
 function getBusinessDateParts(dateObj, timeZone = BUSINESS_TIME_ZONE) {
-  const source = dateObj instanceof Date ? dateObj : new Date(dateObj);
-  if (!(source instanceof Date) || isNaN(source.getTime())) return null;
+  if (dateObj === null || dateObj === undefined || dateObj === '') return null;
+  const source = _isValidDateObject_(dateObj) ? dateObj : _parseDateValue(dateObj);
+  if (!_isValidDateObject_(source)) return null;
 
   const tz = timeZone || BUSINESS_TIME_ZONE;
   if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
@@ -232,13 +237,9 @@ function isInVacationPeriod(date = new Date(), scriptTimeZone = "") {
   const effectiveTimeZone = scriptTimeZone || BUSINESS_TIME_ZONE;
   const coerceCalendarDate = function (value) {
     if (!value && value !== 0) return null;
-    const isDate = Object.prototype.toString.call(value) === '[object Date]';
-    if (isDate && !isNaN(value.getTime())) return value;
+    if (_isValidDateObject_(value)) return value;
     if (typeof value === 'string' || typeof value === 'number') {
-      const parsedDateValue = _parseDateValue(value);
-      if (parsedDateValue) return parsedDateValue;
-      const parsed = new Date(value);
-      return isNaN(parsed.getTime()) ? null : parsed;
+      return _parseDateValue(value);
     }
     return null;
   };
@@ -314,7 +315,7 @@ function isInSuspensionTime(checkDate = new Date()) {
   const monthIndex = businessParts.monthIndex;
   const date = businessParts.day;
   const day = businessParts.isoDay;
-  const currentHour = businessParts.hour + (businessParts.minute / 60);
+  const currentHour = Number(businessParts.hour) + (Number(businessParts.minute || 0) / 60);
 
   // 1. GESTIONE FESTIVI (Priorità: Sistema ATTIVO)
   for (const [hMonth, hDay] of ALWAYS_OPERATING_DAYS) {
@@ -349,7 +350,7 @@ function isInSuspensionTime(checkDate = new Date()) {
   if (isInVacationPeriod(now, businessTimeZone)) return false;
 
   // 2. ORARI UFFICIO (Sistema SOSPESO)
-  // Utilizza i dati caricati dal foglio Controllo in (A10:D16/B10:E16) durante il loadResources
+  // Utilizza i dati caricati dal foglio Controllo in A10:D16 (compatibile anche con legacy B10:D16) durante il loadResources.
   // Se il foglio Controllo è assente, usa il fallback definito via codice in SUSPENSION_HOURS.
   // Se il foglio è presente ma invalido, _loadAdvancedConfig fallisce: niente default silenziosi.
   // loaded è il discriminante autoritativo: se la cache è caricata, prevalgono le regole da foglio.
@@ -1442,12 +1443,20 @@ function _extractSuspensionHoursFromRow(row) {
 }
 
 function _loadAdvancedConfig(ss) {
-  const config = { systemEnabled: true, languageMode: 'all', vacationPeriods: [], suspensionRules: {}, ignoreDomains: [], ignoreKeywords: [] };
+  const config = {
+    systemEnabled: true,
+    languageMode: 'all',
+    vacationPeriods: [],
+    suspensionRules: {},
+    ignoreDomains: [],
+    ignoreKeywords: [],
+    validationReviewEmail: ''
+  };
   const sheet = ss.getSheetByName('Controllo');
   if (!sheet) {
     // null = sheet assente (distinto da {}: sheet presente ma nessuna regola impostata)
     // isInSuspensionTime utilizzerà SUSPENSION_HOURS come fallback sicuro.
-    config.suspensionRules = null;
+    config.suspensionRules = null; // Semantica: foglio assente => fallback statico.
     const staticDomains = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_DOMAINS))
       ? CONFIG.IGNORE_DOMAINS
       : [];
@@ -1587,7 +1596,7 @@ function _loadAdvancedConfig(ss) {
       // Ignora errori su A19
     }
 
-    if (Object.keys(config.suspensionRules).length === 0) {
+    if (!config.suspensionRules || Object.keys(config.suspensionRules).length === 0) {
       const strictSuspensionConfig = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.STRICT_SUSPENSION_CONFIG === true);
       if (strictSuspensionConfig) {
         throw new Error("Foglio 'Controllo' presente ma senza fasce sospensione valide: STRICT_SUSPENSION_CONFIG=true impedisce il fallback statico silenzioso.");
@@ -1824,8 +1833,9 @@ function main() {
 
   try {
     // 1. Sincronizzazione Esecuzione (Prevenzione concurrency)
-    const mainLockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
-      ? CONFIG.EXECUTION_LOCK_WAIT_MS : 1000;
+    const mainLockWaitMs = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.EXECUTION_LOCK_WAIT_MS)))
+      ? Number(CONFIG.EXECUTION_LOCK_WAIT_MS)
+      : 1000;
     hasExecutionLock = executionLock.tryLock(mainLockWaitMs);
     if (!hasExecutionLock) {
       // Nota progettuale: evitiamo di accodare trigger aggiuntivi qui per non creare
@@ -2253,10 +2263,11 @@ function _extractDatePartsForTimeZone(date, timeZone) {
 }
 
 function parseDateSafe(input, fallback = null, explicitTimeZone = null) {
-  if (input instanceof Date) {
+  if (_isValidDateObject_(input)) {
     return Number.isNaN(input.getTime()) ? fallback : new Date(input.getTime());
   }
-  if (input === null || input === undefined || input === '') return fallback;
+  if (input === null || input === undefined) return fallback;
+  if (typeof input === 'string' && input.trim() === '') return fallback;
 
   if (typeof input === 'string') {
     const trimmed = String(input).trim();
@@ -2298,14 +2309,17 @@ function _extractVacationPeriodFromControlRow_(row) {
     return { start: null, end: null };
   }
 
-  const row0IsStart = _parseDateValue(row[0]) !== null;
-  const shiftedStartHasEnd = _parseDateValue(row[1]) !== null
-    && (_parseDateValue(row[2]) !== null || _parseDateValue(row[3]) !== null);
+  const parsed0 = _parseDateValue(row[0]);
+  const parsed1 = _parseDateValue(row[1]);
+  const parsed2 = _parseDateValue(row[2]);
+  const parsed3 = _parseDateValue(row[3]);
+  const row0IsStart = parsed0 !== null;
+  const shiftedStartHasEnd = parsed1 !== null && (parsed2 !== null || parsed3 !== null);
   const start = row0IsStart ? row[0] : (shiftedStartHasEnd ? row[1] : null);
   const endCandidates = row0IsStart
-    ? [row[2], row[1], row[3]]
-    : [row[2], row[3]];
-  const end = endCandidates.find(value => _parseDateValue(value) !== null) ?? null;
+    ? [{ raw: row[2], parsed: parsed2 }, { raw: row[1], parsed: parsed1 }, { raw: row[3], parsed: parsed3 }]
+    : [{ raw: row[2], parsed: parsed2 }, { raw: row[3], parsed: parsed3 }];
+  const end = (endCandidates.find(item => item.parsed !== null) || {}).raw ?? null;
 
   // Preferenza esplicita fine: D (documentato), poi C (compatto), poi E (variante estesa).
   return { start, end };
@@ -2318,7 +2332,7 @@ function _extractVacationPeriodFromControlRow_(row) {
  * @returns {Date|null} Date valida o null se non interpretabile
  */
 function _parseDateValue(value) {
-  if (value instanceof Date && !isNaN(value.getTime())) {
+  if (_isValidDateObject_(value)) {
     return new Date(value.getFullYear(), value.getMonth(), value.getDate());
   }
 
@@ -2380,6 +2394,37 @@ function _parseDateValue(value) {
       return parsed;
     }
     return null;
+  }
+
+  const isoDateTimeMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?(Z|[+-]\d{2}:\d{2})$/);
+  if (isoDateTimeMatch) {
+    const year = parseInt(isoDateTimeMatch[1], 10);
+    const month = parseInt(isoDateTimeMatch[2], 10);
+    const day = parseInt(isoDateTimeMatch[3], 10);
+    const hour = parseInt(isoDateTimeMatch[4], 10);
+    const minute = parseInt(isoDateTimeMatch[5], 10);
+    const second = isoDateTimeMatch[6] ? parseInt(isoDateTimeMatch[6], 10) : 0;
+    const dateOnly = new Date(year, month - 1, day);
+    const offset = isoDateTimeMatch[8];
+    const offsetMatch = offset === 'Z' ? null : offset.match(/^([+-])(\d{2}):(\d{2})$/);
+    const offsetHour = offsetMatch ? parseInt(offsetMatch[2], 10) : 0;
+    const offsetMinute = offsetMatch ? parseInt(offsetMatch[3], 10) : 0;
+    const datePartsAreValid =
+      dateOnly.getFullYear() === year &&
+      dateOnly.getMonth() === month - 1 &&
+      dateOnly.getDate() === day;
+    if (
+      !datePartsAreValid ||
+      hour > 23 ||
+      minute > 59 ||
+      second > 59 ||
+      offsetHour > 23 ||
+      offsetMinute > 59
+    ) {
+      return null;
+    }
+    const parsed = new Date(trimmed);
+    return isNaN(parsed.getTime()) ? null : parsed;
   }
 
 

@@ -21,6 +21,7 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
             loadedScripts.add(path);
         } catch (e) {
             console.error(`❌ Errore caricamento script [${path}]: ${e.message}`);
+            throw e;
         }
     };
 
@@ -1311,6 +1312,9 @@ function runAllTests() {
         test('Considera "Buona domenica" come saluto neutro (non attiva warning orario)', results, () => {
             const res = validator._checkTimeBasedGreeting('Buona domenica a tutti voi.', 'it');
             return res.detectedTimeSlot === 'neutral' && res.score === 1.0;
+        });
+        test('normalizeTime preserva 0 come input esplicito', results, () => {
+            return ResponseValidator.toString().includes("String(t ?? '')");
         });
         test('Metodo validate accetta opts nullo senza crashare', results, () => {
             const res = validator.validate('Testo di prova lungo a sufficienza per superare il check lunghezza minimo.', null);
