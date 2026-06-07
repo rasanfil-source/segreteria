@@ -34,6 +34,16 @@ assert(belowRange.rule === 'fuori range tutti', 'Piazza della Marina 23 deve ind
 const aboveRange = validator.verifyAddress('Piazza della Marina', 36);
 assert(aboveRange.inTerritory === false, 'Piazza della Marina 36 deve essere fuori territorio');
 
+console.log('--- Test TerritoryValidator: tutti [null, null] fallisce chiuso ---');
+validator.rules.set('via test invalida', { tutti: [null, null] });
+const invalidRange = validator.verifyAddress('Via Test Invalida', 10);
+assert(invalidRange.inTerritory === false, 'range tutti [null, null] non deve accettare qualunque civico');
+assert(invalidRange.rule === 'invalid_tutti_range', 'range tutti [null, null] deve indicare configurazione invalida');
+
+const invalidStreetOnly = validator.verifyStreetWithoutCivic('Via Test Invalida');
+assert(invalidStreetOnly.inParish === false, 'via con range invalido non deve risultare in parrocchia senza civico');
+assert(invalidStreetOnly.details === 'invalid_tutti_range', 'via con range invalido deve esporre dettaglio dedicato');
+
 const missingCivic = validator.verifyStreetWithoutCivic('Piazza della Marina');
 assert(missingCivic.inParish === null, 'senza civico la copertura di Piazza della Marina deve restare indeterminata');
 assert(missingCivic.needsCivic === true, 'senza civico Piazza della Marina deve richiedere il civico');

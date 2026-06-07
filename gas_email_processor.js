@@ -1829,18 +1829,19 @@ var EmailProcessor = class EmailProcessor {
       const memoryMessageCount = Number.isFinite(Number(memoryContext.messageCount))
         ? Number(memoryContext.messageCount)
         : 0;
+      const processingTimestamp = new Date();
 
       const salutationMode = computeSalutationMode({
         isReply: isReplyBySubject || messages.length > 1,
         memoryExists: !!memoryContext.lastUpdated,
         lastUpdated: memoryContext.lastUpdated || null,
-        now: new Date()
+        now: processingTimestamp
       });
       console.log(`   📊 Modalità saluto: ${salutationMode}`);
 
       const responseDelay = computeResponseDelay({
         messageDate: messageDetails.date,
-        now: new Date()
+        now: processingTimestamp
       });
       if (responseDelay.shouldApologize) {
         console.log(`   🕐 Ritardo risposta: ${responseDelay.days} giorni`);
@@ -2279,15 +2280,20 @@ ${addressLines.join('\n\n')}
       routedAiCore = routingState.routedAiCore;
       routedDoctrine = routingState.routedDoctrine;
       routedDoctrineStructured = routingState.routedDoctrineStructured;
-      const businessDate = this._getBusinessDateString();
+      const runtimeContext = this._buildRuntimeContext_(
+        messageDetails,
+        processingTimestamp,
+        [routedAiCoreLite, routedAiCore, enrichedKnowledgeBase, routedDoctrine].filter(Boolean).join('\n')
+      );
       const scheduleContext = this._resolveScheduleContext(
         `${messageDetails.subject || ''}\n${messageDetails.body || ''}`,
         enrichedKnowledgeBase,
-        businessDate,
+        runtimeContext.temporal.currentDate,
         detectedLanguage
       );
 
       const promptOptions = {
+        runtimeContext: runtimeContext,
         emailContent: messageDetails.body,
         emailSubject: messageDetails.subject,
         knowledgeBase: enrichedKnowledgeBase,
@@ -2298,9 +2304,9 @@ ${addressLines.join('\n\n')}
         topic: quickCheck.classification ? quickCheck.classification.topic : '',
         detectedLanguage: detectedLanguage,
         currentSeason: scheduleContext.season,
-        currentDate: businessDate,
-        currentTime: this._getBusinessTimeString(),
-        messageDate: this._getBusinessDateString(messageDetails.date),
+        currentDate: runtimeContext.temporal.currentDate,
+        currentTime: runtimeContext.temporal.currentTime,
+        messageDate: runtimeContext.temporal.messageDate,
         scheduleContext: scheduleContext,
         salutation: greeting,
         closing: closing,
@@ -2546,11 +2552,6 @@ ${addressLines.join('\n\n')}
           routedAiCore,
           routedDoctrine
         ].filter(Boolean).join('\n\n');
-        const validationTemporalContext = {
-          currentDate: this._getBusinessDateString(),
-          messageDate: this._getBusinessDateString(messageDetails.date)
-        };
-
         validation = this.validator.validateResponse(
           finalResponse,
           detectedLanguage,
@@ -2559,7 +2560,7 @@ ${addressLines.join('\n\n')}
           messageDetails.subject,
           salutationMode,
           true,
-          validationTemporalContext
+          runtimeContext
         );
 
         if (validation.fixedResponse) {
@@ -2588,7 +2589,8 @@ ${addressLines.join('\n\n')}
             finalResponse,
             validation,
             detectedLanguage,
-            salutationMode
+            salutationMode,
+            runtimeContext
           );
 
           const retryPlan = strategyUsedPlan || attemptStrategy.find(p => p && p.key) || {
@@ -2651,7 +2653,7 @@ ${addressLines.join('\n\n')}
             messageDetails.subject,
             salutationMode,
             true,
-            validationTemporalContext
+            runtimeContext
           );
 
           if (retryValidation.isValid) {
@@ -3957,6 +3959,66 @@ ${addressLines.join('\n\n')}
     }
   }
 
+  _buildRuntimeContext_(messageDetails = {}, processingTimestamp = new Date(), papalSourceText = '') {
+    const processingDate = processingTimestamp instanceof Date && !isNaN(processingTimestamp.getTime())
+      ? new Date(processingTimestamp.getTime())
+      : new Date();
+    const rawMessageDate = messageDetails && messageDetails.date;
+    const messageDate = rawMessageDate instanceof Date && !isNaN(rawMessageDate.getTime())
+      ? new Date(rawMessageDate.getTime())
+      : processingDate;
+    const ageMs = Math.max(0, processingDate.getTime() - messageDate.getTime());
+    const ageHours = ageMs / (1000 * 60 * 60);
+    const daysAgo = Math.floor(ageHours / 24);
+
+    const temporal = Object.freeze({
+      timeZone: this._getCachedTimeZone ? this._getCachedTimeZone() : 'Europe/Rome',
+      processingTimestampIso: processingDate.toISOString(),
+      processingEpochMs: processingDate.getTime(),
+      currentDate: this._getBusinessDateString(processingDate),
+      currentTime: this._getBusinessTimeString(processingDate),
+      messageDate: this._getBusinessDateString(messageDate),
+      messageTimestampIso: messageDate.toISOString(),
+      messageEpochMs: messageDate.getTime(),
+      ageHours: ageHours,
+      daysAgo: daysAgo,
+      isOldMessage: daysAgo >= 1
+    });
+
+    const papal = Object.freeze(this._buildPapalRuntimeContext_(papalSourceText));
+    const runtimeContext = {
+      temporal: temporal,
+      papal: papal
+    };
+
+    return Object.freeze(runtimeContext);
+  }
+
+  _buildPapalRuntimeContext_(sourceText = '') {
+    const cfg = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.PAPAL_CONTEXT)
+      ? CONFIG.PAPAL_CONTEXT
+      : {};
+    let fromPromptEngine = {};
+    if (
+      this.promptEngine &&
+      typeof this.promptEngine._getPapalContext_ === 'function'
+    ) {
+      try {
+        fromPromptEngine = this.promptEngine._getPapalContext_(sourceText) || {};
+      } catch (_) {
+        fromPromptEngine = {};
+      }
+    }
+
+    return {
+      currentName: fromPromptEngine.currentName || cfg.currentName || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_NAME) || 'Leone XIV',
+      previousName: fromPromptEngine.previousName || cfg.previousName || (typeof CONFIG !== 'undefined' && CONFIG.PREVIOUS_POPE_NAME) || 'Papa Francesco',
+      currentSince: fromPromptEngine.currentSince || cfg.currentSince || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_SINCE) || '2025-05-08',
+      ministryStart: fromPromptEngine.ministryStart || cfg.ministryStart || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_MINISTRY_START) || '2025-05-18',
+      source: sourceText ? 'knowledge_context' : 'config'
+    };
+  }
+
   _getCurrentSeason(referenceDate = new Date(), knowledgeBaseText = '') {
     return this._resolveScheduleContext('', knowledgeBaseText, referenceDate, 'it').season;
   }
@@ -4895,7 +4957,7 @@ ${addressLines.join('\n\n')}
   /**
    * Costruisce un prompt correttivo "chirurgico" basato sugli errori di validazione.
    */
-  _buildCorrectionPrompt(originalPrompt, failedResponse, validationResult, language, salutationMode) {
+  _buildCorrectionPrompt(originalPrompt, failedResponse, validationResult, language, salutationMode, runtimeContext = null) {
     const safePrompt = this._normalizePromptForRetry_(originalPrompt);
     const safeResponse = typeof failedResponse === 'string' ? failedResponse : (failedResponse == null ? '' : String(failedResponse));
     const details = validationResult && validationResult.details ? validationResult.details : {};
@@ -5016,9 +5078,11 @@ ${addressLines.join('\n\n')}
     const CHARS_PER_TOKEN_IT = 3.6;
     const maxPromptChars = Math.max(2000, Math.floor((maxSafeTokens - reservedTokens) * CHARS_PER_TOKEN_IT));
     const promptForRetry = this._trimPromptForRetry_(safePrompt, maxPromptChars);
+    const runtimeReminder = this._renderRuntimeContextForCorrection_(runtimeContext);
 
     return `### ISTRUZIONI DI BASE ###
 ${promptForRetry}
+${runtimeReminder}
 
 ### ATTENZIONE: CORREZIONE CRITICA RICHIESTA ###
 La tua generazione precedente conteneva errori che DEVI correggere:
@@ -5030,6 +5094,39 @@ ${failedSnippet}
 ### AZIONE ###
 Genera la nuova risposta correggendo i problemi indicati.
 Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
+  }
+
+  _renderRuntimeContextForCorrection_(runtimeContext = null) {
+    if (!runtimeContext || typeof runtimeContext !== 'object') return '';
+    const temporal = runtimeContext.temporal && typeof runtimeContext.temporal === 'object'
+      ? runtimeContext.temporal
+      : {};
+    const papal = runtimeContext.papal && typeof runtimeContext.papal === 'object'
+      ? runtimeContext.papal
+      : {};
+    const lines = [];
+
+    if (temporal.currentDate) {
+      lines.push(`- currentDate risposta: ${temporal.currentDate}`);
+    }
+    if (temporal.currentTime) {
+      lines.push(`- currentTime risposta: ${temporal.currentTime}`);
+    }
+    if (temporal.messageDate) {
+      lines.push(`- messageDate email originale: ${temporal.messageDate}`);
+    }
+    if (Number.isFinite(Number(temporal.daysAgo)) && Number(temporal.daysAgo) > 0) {
+      lines.push(`- eta email originale: ${temporal.daysAgo} giorni`);
+    }
+    if (papal.currentName) {
+      lines.push(`- Papa attuale/regnante: ${papal.currentName}`);
+    }
+    if (papal.previousName) {
+      lines.push(`- Papa precedente/non regnante: ${papal.previousName}`);
+    }
+    if (lines.length === 0) return '';
+
+    return `\n\n### RUNTIME CONTEXT IMMUTATO PER IL RETRY ###\n${lines.join('\n')}\nUsa currentDate per decidere passato/presente/futuro nella risposta; usa messageDate solo per interpretare riferimenti relativi scritti dall'utente.`;
   }
 
   _trimPromptForRetry_(prompt, maxChars) {

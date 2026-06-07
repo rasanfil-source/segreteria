@@ -244,6 +244,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         }
       } else {
         console.warn('⚠️ Impossibile acquisire lock per reset quota, salto controllo');
+        this._syncQuotaStateAfterResetLockMiss_();
       }
     } catch (e) {
       console.error(`❌ Errore durante lock inizializzazione quota: ${e.message}`);
@@ -256,6 +257,24 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         }
       }
     }
+  }
+
+  _syncQuotaStateAfterResetLockMiss_() {
+    try {
+      this._ensureWindowCache();
+      const pacificDate = this._getPacificDate();
+      const storedDate = this.props.getProperty('rate_limit_date');
+      if (storedDate === pacificDate) {
+        console.log('✓ Reset quota già persistito da un altro trigger concorrente, riallineo cache locale');
+        this._refreshCache();
+        return true;
+      }
+
+      this.cache.lastCacheUpdate = 0;
+    } catch (e) {
+      console.warn(`⚠️ Riallineamento quota dopo lock mancato fallito: ${e.message}`);
+    }
+    return false;
   }
 
   _resetDailyCounters() {
@@ -435,7 +454,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     // Controllo quote per modelKey logico (evita over-count tra alias fisici)
-    const rpdUsed = parseInt(this.props.getProperty(`rpd_${modelKey}`) || '0', 10) || 0;
+    const todayPacific = this._getPacificDate();
+    const rpdDate = this.props.getProperty(`rpd_date_${modelKey}`) || '';
+    const rpdUsed = rpdDate === todayPacific
+      ? (parseInt(this.props.getProperty(`rpd_${modelKey}`) || '0', 10) || 0)
+      : 0;
     const rpmUsed = this._getRequestsInWindow('rpm', modelKey);
     const tpmUsed = this._getTokensInWindow('tpm', modelKey);
     const rpdLeft = model.rpd - rpdUsed;

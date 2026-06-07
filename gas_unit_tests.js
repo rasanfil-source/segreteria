@@ -39,14 +39,33 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
         };
     }
     if (typeof global.Utilities === 'undefined') {
+        const formatDateParts = (date, tz) => {
+            const d = new Date(date);
+            const timeZone = tz || 'UTC';
+            const parts = new Intl.DateTimeFormat('en-GB', {
+                timeZone,
+                hourCycle: 'h23',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            }).formatToParts(d);
+            return parts.reduce((acc, part) => {
+                if (part.type !== 'literal') acc[part.type] = part.value;
+                return acc;
+            }, {});
+        };
         global.Utilities = {
             formatDate: (date, tz, fmt) => {
                 const d = new Date(date);
-                if (fmt === 'yyyy-MM-dd') return d.toISOString().slice(0, 10);
-                if (fmt === 'H') return String(d.getUTCHours());
-                if (fmt === 'm') return String(d.getUTCMinutes());
-                if (fmt === 's') return String(d.getUTCSeconds());
-                if (fmt === 'HH:mm') return d.toISOString().slice(11, 16);
+                const parts = formatDateParts(d, tz);
+                if (fmt === 'yyyy-MM-dd') return `${parts.year}-${parts.month}-${parts.day}`;
+                if (fmt === 'H') return String(Number(parts.hour));
+                if (fmt === 'm') return String(Number(parts.minute));
+                if (fmt === 's') return String(Number(parts.second));
+                if (fmt === 'HH:mm') return `${parts.hour}:${parts.minute}`;
                 return d.toISOString();
             },
             sleep: () => { },
@@ -174,7 +193,9 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
 
     if (typeof global.GmailApp === 'undefined') {
         global.GmailApp = {
-            getAliases: () => ['bot@example.com'],
+            getAliases: () => Array.isArray(global.__GMAIL_ALIASES__)
+                ? global.__GMAIL_ALIASES__.slice()
+                : ['bot@example.com'],
             getThreadById: () => null
         };
     }
@@ -301,6 +322,29 @@ function runAllTests() {
                 return result && typeof result.score === 'number' && Array.isArray(result.warnings);
             } finally {
                 Utilities = previousUtilities;
+            }
+        });
+        test('Mock Utilities.formatDate rispetta il fuso Europe/Rome', results, () => {
+            const winterHour = Utilities.formatDate(new Date('2026-01-01T22:30:05Z'), 'Europe/Rome', 'H');
+            const winterTime = Utilities.formatDate(new Date('2026-01-01T22:30:05Z'), 'Europe/Rome', 'HH:mm');
+            const nextRomeDay = Utilities.formatDate(new Date('2026-01-01T23:30:00Z'), 'Europe/Rome', 'yyyy-MM-dd');
+            return winterHour === '23' && winterTime === '23:30' && nextRomeDay === '2026-01-02';
+        });
+        test('Mock GmailApp.getAliases supporta piu alias configurabili', results, () => {
+            const hadAliases = Object.prototype.hasOwnProperty.call(global, '__GMAIL_ALIASES__');
+            const previousAliases = global.__GMAIL_ALIASES__;
+            try {
+                global.__GMAIL_ALIASES__ = ['bot@example.com', 'segreteria@example.com'];
+                const aliases = GmailApp.getAliases();
+                return Array.isArray(aliases) &&
+                    aliases.includes('bot@example.com') &&
+                    aliases.includes('segreteria@example.com');
+            } finally {
+                if (hadAliases) {
+                    global.__GMAIL_ALIASES__ = previousAliases;
+                } else {
+                    delete global.__GMAIL_ALIASES__;
+                }
             }
         });
 
@@ -1316,9 +1360,54 @@ function runAllTests() {
         test('normalizeTime preserva 0 come input esplicito', results, () => {
             return ResponseValidator.toString().includes("String(t ?? '')");
         });
+        test('normalizeTime converte solo pattern orari con punto completi', results, () => {
+            const source = ResponseValidator.toString();
+            return source.includes("replace(/^(\\d{1,2})\\.(\\d{2})$/") &&
+                !source.includes("replace(/(\\d)\\.(\\d)/g");
+        });
         test('Metodo validate accetta opts nullo senza crashare', results, () => {
             const res = validator.validate('Testo di prova lungo a sufficienza per superare il check lunghezza minimo.', null);
             return res && typeof res.isValid === 'boolean';
+        });
+        test("Riferimento relativo dell'email originale non resta futuro quando ormai passato", results, () => {
+            const runtimeContext = {
+                temporal: {
+                    currentDate: '2026-06-07',
+                    currentTime: '14:27',
+                    messageDate: '2026-06-01',
+                    processingEpochMs: new Date('2026-06-07T12:27:00Z').getTime(),
+                    messageEpochMs: new Date('2026-06-01T08:00:00Z').getTime(),
+                    timeZone: 'Europe/Rome'
+                },
+                papal: {
+                    currentName: 'Leone XIV',
+                    previousName: 'Papa Francesco',
+                    currentSince: '2025-05-08'
+                }
+            };
+            const result = validator._checkOriginalDateQualification(
+                'Confermiamo che ci vediamo domani per il corso.',
+                'Ci vediamo domani per il corso.',
+                runtimeContext,
+                'it'
+            );
+            return result && result.score === 0.0 &&
+                Array.isArray(result.violations) &&
+                result.violations.length > 0;
+        });
+        test('checkTemporalConsistency intercetta data futura descritta come gia conclusa', results, () => {
+            const runtimeContext = {
+                temporal: {
+                    currentDate: '2026-06-07',
+                    currentTime: '14:27',
+                    messageDate: '2026-06-07',
+                    timeZone: 'Europe/Rome'
+                }
+            };
+            const result = validator._checkTemporalConsistency("L'incontro del 10 giugno 2026 si è già svolto.", 'it', runtimeContext);
+            return result && result.score === 0.0 &&
+                Array.isArray(result.violations) &&
+                result.violations.length > 0;
         });
     });
 
@@ -1718,6 +1807,14 @@ function runAllTests() {
             return prompt && typeof prompt === 'object' &&
                 typeof prompt.toString === 'function' &&
                 prompt.toString().includes('ISTRUZIONE FINALE DI OUTPUT');
+        });
+        test('Accetta activeConcerns come array di oggetti key/value', results, () => {
+            const prompt = engine.buildPrompt(Object.assign({}, baseOptions, {
+                category: 'information',
+                activeConcerns: [{ key: 'formatting_risk', value: true }]
+            }));
+            return prompt && typeof prompt.toString === 'function' &&
+                prompt.toString().includes('ESEMPI DI RISPOSTA CORRETTA');
         });
 
         test('Accetta activeConcerns null senza eccezioni', results, () => {

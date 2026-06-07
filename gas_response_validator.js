@@ -229,7 +229,7 @@ var ResponseValidator = class ResponseValidator {
     if (!validationResult.isValid && attemptPerfezionamento) {
       console.log('✨ Tentativo perfezionamento automatico...');
 
-      const perfezionamentoResult = this._perfezionamentoAutomatico(currentResponse, validationResult.errors, safeDetectedLanguage);
+      const perfezionamentoResult = this._perfezionamentoAutomatico(currentResponse, validationResult.errors, safeDetectedLanguage, temporalContext);
 
       if (perfezionamentoResult.fixed) {
         console.log('   ✨ Risposta perfezionata (migliorata qualità o rimozione allucinazioni)');
@@ -397,7 +397,7 @@ var ResponseValidator = class ResponseValidator {
     score *= reasoningResult.score;
 
     // === CONTROLLO 8: Saluto temporalmente incongruente ===
-    const greetingResult = this._checkTimeBasedGreeting(response, detectedLanguage);
+    const greetingResult = this._checkTimeBasedGreeting(response, detectedLanguage, temporalContext);
     warnings.push(...greetingResult.warnings);
     details.greeting = greetingResult;
     score *= greetingResult.score;
@@ -415,6 +415,13 @@ var ResponseValidator = class ResponseValidator {
     warnings.push(...papalResult.warnings);
     details.currentPopeReference = papalResult;
     score *= papalResult.score;
+
+    // === CONTROLLO 11: data originale email vs qualificazione nella risposta ===
+    const originalDateResult = this._checkOriginalDateQualification(response, originalContext, temporalContext, detectedLanguage);
+    errors.push(...originalDateResult.errors);
+    warnings.push(...originalDateResult.warnings);
+    details.originalDateQualification = originalDateResult;
+    score *= originalDateResult.score;
 
     // Determina validità usando sempre lo score canonico 0.0-1.0.
     const normalizedScore = normalizeValidationScore(score);
@@ -699,7 +706,7 @@ var ResponseValidator = class ResponseValidator {
 
       // Sostituzione mirata dei separatori orari.
       // di corrompere pattern come "10.5" o nomi file.
-      t = t.replace(/(\d)\.(\d)/g, '$1:$2');
+      t = t.replace(/^(\d{1,2})\.(\d{2})$/, '$1:$2');
       if (/^\d{1,2}$/.test(t)) {
         const hour = parseInt(t, 10);
         if (!isNaN(hour) && hour >= 0 && hour <= 23) {
@@ -1017,7 +1024,7 @@ var ResponseValidator = class ResponseValidator {
    * Controllo 8: Saluto temporalmente incongruente
    * Rileva se il saluto nella risposta è appropriato per l'orario corrente
    */
-  _checkTimeBasedGreeting(response, language) {
+  _checkTimeBasedGreeting(response, language, temporalContext = null) {
     const warnings = [];
     let score = 1.0;
 
@@ -1027,7 +1034,7 @@ var ResponseValidator = class ResponseValidator {
     }
 
     // Determina fascia oraria corrente (fuso orario italiano)
-    const currentHour = this._getCurrentHourInRome_();
+    const currentHour = this._resolveTemporalCurrentHour_(temporalContext);
     let expectedTimeSlot;
     if (currentHour >= 5 && currentHour < 13) {
       expectedTimeSlot = 'morning';
@@ -1135,7 +1142,16 @@ var ResponseValidator = class ResponseValidator {
       return { score: 1.0, errors, warnings, violations: [], skipped: true };
     }
 
-    const dates = this._extractExplicitDates_(response, currentDate);
+    const dates = this._extractTemporalReferences_(response, temporalContext, 'response')
+      .filter(ref => ref && ref.normalizedDate)
+      .map(ref => ({
+        date: ref.normalizedDate,
+        index: ref.index,
+        length: ref.length,
+        text: ref.text,
+        type: ref.type,
+        anchorRole: ref.anchorRole
+      }));
     if (!dates.length) {
       return { score: 1.0, errors, warnings, violations: [], checkedDates: 0 };
     }
@@ -1166,13 +1182,86 @@ var ResponseValidator = class ResponseValidator {
     return { score: 1.0, errors, warnings, violations, checkedDates: dates.length };
   }
 
+  _checkOriginalDateQualification(response, originalContext = '', temporalContext = null, detectedLanguage = 'it') {
+    const errors = [];
+    const warnings = [];
+    const runtimeContext = this._normalizeRuntimeContext_(temporalContext);
+    const currentDate = this._resolveTemporalCurrentDate_(runtimeContext);
+    const messageDate = this._resolveTemporalMessageDate_(runtimeContext);
+
+    if (!currentDate || !messageDate || this._dateOnlyOrdinal_(messageDate) === this._dateOnlyOrdinal_(currentDate)) {
+      return { score: 1.0, errors, warnings, checked: false, reason: 'no_original_current_delta' };
+    }
+
+    const userRefs = this._extractTemporalReferences_(originalContext, runtimeContext, 'user')
+      .filter(ref => ref && ref.normalizedDate);
+    if (userRefs.length === 0) {
+      return { score: 1.0, errors, warnings, checked: true, userReferences: 0, violations: [] };
+    }
+
+    const responseRefs = this._extractTemporalReferences_(response, runtimeContext, 'response')
+      .filter(ref => ref && ref.normalizedDate);
+    const currentOrdinal = this._dateOnlyOrdinal_(currentDate);
+    const violations = [];
+
+    userRefs.forEach(userRef => {
+      const userRefOrdinal = this._dateOnlyOrdinal_(userRef.normalizedDate);
+      if (userRefOrdinal >= currentOrdinal) return;
+
+      const matchingResponseRefs = responseRefs.filter(responseRef => {
+        const sameText = this._stripDiacritics_(responseRef.text).toLowerCase() === this._stripDiacritics_(userRef.text).toLowerCase();
+        const sameResolvedDate = this._dateOnlyOrdinal_(responseRef.normalizedDate) === userRefOrdinal;
+        return sameText || sameResolvedDate;
+      });
+
+      matchingResponseRefs.forEach(responseRef => {
+        const windowText = this._extractTemporalWindow_(response, responseRef.index, responseRef.length);
+        const responseDateIsFuture = this._dateOnlyOrdinal_(responseRef.normalizedDate) > currentOrdinal;
+        if (responseDateIsFuture || this._hasFutureTemporalQualification_(windowText, detectedLanguage)) {
+          violations.push({
+            text: responseRef.text,
+            originalDate: this._formatDateOnly_(userRef.normalizedDate),
+            responseDate: this._formatDateOnly_(responseRef.normalizedDate),
+            context: windowText.replace(/\s+/g, ' ').trim().substring(0, 180)
+          });
+        }
+      });
+    });
+
+    if (violations.length > 0) {
+      errors.push(
+        `Discrepanza temporale: un riferimento dell'email originale (${violations[0].text}, ${violations[0].originalDate}) risulta gia passato rispetto alla data odierna, ma la risposta lo qualifica ancora come futuro.`
+      );
+      return {
+        score: 0.0,
+        errors,
+        warnings,
+        checked: true,
+        userReferences: userRefs.length,
+        responseReferences: responseRefs.length,
+        violations
+      };
+    }
+
+    return {
+      score: 1.0,
+      errors,
+      warnings,
+      checked: true,
+      userReferences: userRefs.length,
+      responseReferences: responseRefs.length,
+      violations
+    };
+  }
+
   _checkCurrentPopeReferences(response, knowledgeBase = '', originalContext = '', temporalContext = null) {
     const errors = [];
     const warnings = [];
     let score = 1.0;
 
     const sourceText = [knowledgeBase, originalContext].filter(Boolean).join('\n');
-    const papalContext = this._getCurrentPopeContext_(sourceText);
+    const runtimeContext = this._normalizeRuntimeContext_(temporalContext);
+    const papalContext = this._getCurrentPopeContext_(sourceText, runtimeContext.papal);
     const currentDate = this._resolveTemporalCurrentDate_(temporalContext) || new Date();
     const transitionDate = this._parseDateOnly_(papalContext.currentSince);
     if (transitionDate && currentDate && currentDate < transitionDate) {
@@ -1215,15 +1304,18 @@ var ResponseValidator = class ResponseValidator {
     };
   }
 
-  _getCurrentPopeContext_(sourceText = '') {
+  _getCurrentPopeContext_(sourceText = '', runtimePapalContext = null) {
     const fromSources = this._extractPapalContextFromText_(sourceText);
     const cfg = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.PAPAL_CONTEXT)
       ? CONFIG.PAPAL_CONTEXT
       : {};
+    const runtimePapal = (runtimePapalContext && typeof runtimePapalContext === 'object')
+      ? runtimePapalContext
+      : {};
     return {
-      currentName: fromSources.currentName || cfg.currentName || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_NAME) || 'Leone XIV',
-      previousName: fromSources.previousName || cfg.previousName || (typeof CONFIG !== 'undefined' && CONFIG.PREVIOUS_POPE_NAME) || 'Papa Francesco',
-      currentSince: cfg.currentSince || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_SINCE) || '2025-05-08'
+      currentName: fromSources.currentName || runtimePapal.currentName || cfg.currentName || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_NAME) || 'Leone XIV',
+      previousName: fromSources.previousName || runtimePapal.previousName || cfg.previousName || (typeof CONFIG !== 'undefined' && CONFIG.PREVIOUS_POPE_NAME) || 'Papa Francesco',
+      currentSince: runtimePapal.currentSince || cfg.currentSince || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_SINCE) || '2025-05-08'
     };
   }
 
@@ -1312,12 +1404,58 @@ var ResponseValidator = class ResponseValidator {
     return normalize(left) === normalize(right);
   }
 
+  _normalizeRuntimeContext_(temporalContext) {
+    const isRuntimeContext = temporalContext &&
+      typeof temporalContext === 'object' &&
+      temporalContext.temporal &&
+      typeof temporalContext.temporal === 'object';
+    const temporal = isRuntimeContext ? temporalContext.temporal : (temporalContext || {});
+    const papal = isRuntimeContext && temporalContext.papal && typeof temporalContext.papal === 'object'
+      ? temporalContext.papal
+      : {};
+
+    if (temporalContext instanceof Date || typeof temporalContext === 'string') {
+      return {
+        temporal: {
+          currentDate: temporalContext,
+          currentTime: null,
+          messageDate: null,
+          processingEpochMs: null,
+          messageEpochMs: null
+        },
+        papal: {}
+      };
+    }
+
+    return {
+      temporal: {
+        currentDate: temporal.currentDate || temporal.today || null,
+        currentTime: temporal.currentTime || null,
+        messageDate: temporal.messageDate || null,
+        processingEpochMs: Number.isFinite(Number(temporal.processingEpochMs)) ? Number(temporal.processingEpochMs) : null,
+        messageEpochMs: Number.isFinite(Number(temporal.messageEpochMs)) ? Number(temporal.messageEpochMs) : null,
+        timeZone: temporal.timeZone || 'Europe/Rome',
+        daysAgo: Number.isFinite(Number(temporal.daysAgo)) ? Number(temporal.daysAgo) : null,
+        isOldMessage: temporal.isOldMessage === true
+      },
+      papal: papal
+    };
+  }
+
   _resolveTemporalCurrentDate_(temporalContext) {
     let value = null;
     if (temporalContext instanceof Date || typeof temporalContext === 'string') {
       value = temporalContext;
     } else if (temporalContext && typeof temporalContext === 'object') {
-      value = temporalContext.currentDate || temporalContext.today || temporalContext.messageDate || null;
+      const runtimeContext = this._normalizeRuntimeContext_(temporalContext);
+      value = runtimeContext.temporal.currentDate || null;
+      if (!value && Number.isFinite(Number(runtimeContext.temporal.processingEpochMs))) {
+        const dateFromEpoch = this._parseEpochDateOnlyInTimeZone_(
+          runtimeContext.temporal.processingEpochMs,
+          runtimeContext.temporal.timeZone || 'Europe/Rome'
+        );
+        if (dateFromEpoch) return dateFromEpoch;
+      }
     }
 
     if (!value) {
@@ -1332,6 +1470,75 @@ var ResponseValidator = class ResponseValidator {
     }
 
     return this._parseDateOnly_(value);
+  }
+
+  _resolveTemporalMessageDate_(temporalContext) {
+    const runtimeContext = this._normalizeRuntimeContext_(temporalContext);
+    const temporal = runtimeContext.temporal || {};
+    if (Number.isFinite(Number(temporal.messageEpochMs))) {
+      const dateFromEpoch = this._parseEpochDateOnlyInTimeZone_(
+        temporal.messageEpochMs,
+        temporal.timeZone || 'Europe/Rome'
+      );
+      if (dateFromEpoch) return dateFromEpoch;
+    }
+    return temporal.messageDate ? this._parseDateOnly_(temporal.messageDate) : null;
+  }
+
+  _parseEpochDateOnlyInTimeZone_(epochMs, timeZone = 'Europe/Rome') {
+    const numericEpoch = Number(epochMs);
+    if (!Number.isFinite(numericEpoch)) return null;
+    const date = new Date(numericEpoch);
+    if (isNaN(date.getTime())) return null;
+
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+      try {
+        const formatted = Utilities.formatDate(date, timeZone || 'Europe/Rome', 'yyyy-MM-dd');
+        const parsed = this._parseDateOnly_(formatted);
+        if (parsed) return parsed;
+      } catch (_) {
+        // Fallback Intl sotto.
+      }
+    }
+
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timeZone || 'Europe/Rome',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).formatToParts(date);
+      const partMap = parts.reduce((acc, part) => {
+        if (part && part.type !== 'literal') acc[part.type] = part.value;
+        return acc;
+      }, {});
+      const formatted = partMap.year && partMap.month && partMap.day
+        ? `${partMap.year}-${partMap.month}-${partMap.day}`
+        : '';
+      const parsed = this._parseDateOnly_(formatted);
+      if (parsed) return parsed;
+    } catch (_) {
+      // Fallback finale sotto.
+    }
+
+    return this._parseDateOnly_(date);
+  }
+
+  _resolveTemporalCurrentHour_(temporalContext = null) {
+    const runtimeContext = this._normalizeRuntimeContext_(temporalContext);
+    const rawTime = runtimeContext && runtimeContext.temporal
+      ? runtimeContext.temporal.currentTime
+      : null;
+    const match = typeof rawTime === 'string'
+      ? rawTime.match(/^(\d{1,2})(?::(\d{2}))?$/)
+      : null;
+    if (match) {
+      const parsedHour = parseInt(match[1], 10);
+      if (Number.isInteger(parsedHour) && parsedHour >= 0 && parsedHour <= 23) {
+        return parsedHour;
+      }
+    }
+    return this._getCurrentHourInRome_();
   }
 
   _parseDateOnly_(value) {
@@ -1357,6 +1564,13 @@ var ResponseValidator = class ResponseValidator {
     const date = new Date(year, month - 1, day, 12, 0, 0);
     if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
     return date;
+  }
+
+  _addDaysToDateOnly_(date, days) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return null;
+    const copy = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
+    copy.setDate(copy.getDate() + days);
+    return new Date(copy.getFullYear(), copy.getMonth(), copy.getDate(), 12, 0, 0);
   }
 
   _dateOnlyOrdinal_(date) {
@@ -1395,6 +1609,62 @@ var ResponseValidator = class ResponseValidator {
     };
   }
 
+  _extractTemporalReferences_(text, temporalContext = null, role = 'response') {
+    const source = String(text || '');
+    if (!source) return [];
+
+    const runtimeContext = this._normalizeRuntimeContext_(temporalContext);
+    const currentDate = this._resolveTemporalCurrentDate_(runtimeContext) || this._parseDateOnly_(new Date());
+    const messageDate = this._resolveTemporalMessageDate_(runtimeContext);
+    const anchorDate = role === 'user'
+      ? (messageDate || currentDate)
+      : currentDate;
+    const anchorRole = role === 'user' && messageDate ? 'messageDate' : 'currentDate';
+    const references = [];
+
+    this._extractExplicitDates_(source, anchorDate).forEach(item => {
+      references.push({
+        type: item.hasExplicitYear === false ? 'date_without_year' : 'explicit_date',
+        text: item.text,
+        index: item.index,
+        length: item.length,
+        normalizedDate: item.date,
+        anchorDate: anchorDate,
+        anchorRole: anchorRole,
+        sourceRole: role,
+        confidence: item.hasExplicitYear === false ? 0.75 : 0.95,
+        temporalIntent: item.hasExplicitYear === false ? 'ambiguous_year' : 'explicit'
+      });
+    });
+
+    const normalized = this._stripDiacritics_(source).toLowerCase();
+    const relativePatterns = [
+      { pattern: /(?<![a-zA-Z])dopodomani(?![a-zA-Z])/g, days: 2, type: 'relative_point', intent: 'future' },
+      { pattern: /(?<![a-zA-Z])domani(?![a-zA-Z])/g, days: 1, type: 'relative_point', intent: 'future' },
+      { pattern: /(?<![a-zA-Z])oggi(?![a-zA-Z])/g, days: 0, type: 'relative_point', intent: 'present' },
+      { pattern: /(?<![a-zA-Z])ieri(?![a-zA-Z])/g, days: -1, type: 'relative_point', intent: 'past' }
+    ];
+    relativePatterns.forEach(definition => {
+      let match;
+      while ((match = definition.pattern.exec(normalized)) !== null) {
+        references.push({
+          type: definition.type,
+          text: source.substring(match.index, match.index + match[0].length),
+          index: match.index,
+          length: match[0].length,
+          normalizedDate: this._addDaysToDateOnly_(anchorDate, definition.days),
+          anchorDate: anchorDate,
+          anchorRole: anchorRole,
+          sourceRole: role,
+          confidence: 0.85,
+          temporalIntent: definition.intent
+        });
+      }
+    });
+
+    return references.sort((a, b) => a.index - b.index);
+  }
+
   _extractExplicitDates_(text, referenceDate) {
     const source = String(text || '');
     const normalized = this._stripDiacritics_(source).toLowerCase();
@@ -1403,36 +1673,39 @@ var ResponseValidator = class ResponseValidator {
     const seen = new Set();
     const referenceYear = referenceDate ? referenceDate.getFullYear() : new Date().getFullYear();
 
-    const addDate = (year, month, day, index, length, textValue) => {
+    const addDate = (year, month, day, index, length, textValue, meta = {}) => {
       const date = this._makeDateOnly_(year, month, day);
       if (!date || index < 0) return;
       const key = `${index}:${this._formatDateOnly_(date)}`;
       if (seen.has(key)) return;
       seen.add(key);
-      dates.push({ date, index, length, text: textValue || source.substring(index, index + length) });
+      dates.push(Object.assign(
+        { date, index, length, text: textValue || source.substring(index, index + length) },
+        meta
+      ));
     };
 
     let match;
     const iso = /\b(20\d{2})-(0?[1-9]|1[0-2])-([0-2]?\d|3[01])\b/g;
     while ((match = iso.exec(normalized)) !== null) {
-      addDate(parseInt(match[1], 10), parseInt(match[2], 10), parseInt(match[3], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length));
+      addDate(parseInt(match[1], 10), parseInt(match[2], 10), parseInt(match[3], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length), { hasExplicitYear: true });
     }
 
     const numeric = /\b([0-2]?\d|3[01])([\/.-])(0?[1-9]|1[0-2])\2(20\d{2})\b/g;
     while ((match = numeric.exec(normalized)) !== null) {
-      addDate(parseInt(match[4], 10), parseInt(match[3], 10), parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length));
+      addDate(parseInt(match[4], 10), parseInt(match[3], 10), parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length), { hasExplicitYear: true });
     }
 
     const dayMonthYear = /\b([0-2]?\d|3[01])(?:°|º|\.)?\s+(?:di\s+|de\s+|del\s+|d['’]\s*)?([a-z]{3,15})\.?\s+(20\d{2})\b/g;
     while ((match = dayMonthYear.exec(normalized)) !== null) {
       const month = monthMap[match[2]];
-      if (month) addDate(parseInt(match[3], 10), month, parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length));
+      if (month) addDate(parseInt(match[3], 10), month, parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length), { hasExplicitYear: true });
     }
 
     const monthDayYear = /\b([a-z]{3,15})\.?\s+([0-2]?\d|3[01])(?:st|nd|rd|th)?[,]?\s+(20\d{2})\b/g;
     while ((match = monthDayYear.exec(normalized)) !== null) {
       const month = monthMap[match[1]];
-      if (month) addDate(parseInt(match[3], 10), month, parseInt(match[2], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length));
+      if (month) addDate(parseInt(match[3], 10), month, parseInt(match[2], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length), { hasExplicitYear: true });
     }
 
     const dayMonth = /\b([0-2]?\d|3[01])(?:°|º|\.)?\s+(?:di\s+|de\s+|del\s+|d['’]\s*)?([a-z]{3,15})\.?\b/g;
@@ -1440,7 +1713,7 @@ var ResponseValidator = class ResponseValidator {
       const trailing = normalized.substring(match.index + match[0].length, match.index + match[0].length + 8);
       const month = monthMap[match[2]];
       if (month && !/\s*20\d{2}/.test(trailing)) {
-        addDate(referenceYear, month, parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length));
+        addDate(referenceYear, month, parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length), { hasExplicitYear: false });
       }
     }
 
@@ -1486,6 +1759,23 @@ var ResponseValidator = class ResponseValidator {
     return patterns.some(pattern => pattern.test(source));
   }
 
+  _hasFutureTemporalQualification_(text, detectedLanguage) {
+    const source = this._stripDiacritics_(String(text || '').toLowerCase());
+    const patterns = [
+      /\b(?:si\s+)?(?:terra|svolgera|celebrera|concludera|iniziera|avra\s+luogo)\b/i,
+      /\b(?:e|resta)\s+(?:in\s+programma|previst[oa]|programmato|programmata)\b/i,
+      /\b(?:potra|potrete|puo|puoi|possiamo)\s+(?:passare|venire|partecipare|presentarsi|presentarvi)\b/i,
+      /\b(?:will|is|are)\s+(?:take place|be held|be celebrated|begin|start|end)\b/i,
+      /\b(?:is|are)\s+(?:scheduled|planned)\b/i,
+      /\b(?:se\s+)?(?:celebrara|realizara|tendra|llevara\s+a\s+cabo)\b/i,
+      /\b(?:sera|estara)\s+(?:previsto|programado)\b/i,
+      /\b(?:sera|est)\s+(?:prevu|programme)\b/i,
+      /\b(?:findet|wird)\s+(?:stattfinden|statt|beginnen|enden)\b/i
+    ];
+
+    return patterns.some(pattern => pattern.test(source));
+  }
+
   // ========================================================================
   // METODI DI RAFFINAMENTO AUTOMATICO (QUALITY ENHANCEMENT)
   // ========================================================================
@@ -1493,7 +1783,7 @@ var ResponseValidator = class ResponseValidator {
   /**
    * Tenta di correggere automaticamente gli errori rilevati
    */
-  _perfezionamentoAutomatico(response, errors, language) {
+  _perfezionamentoAutomatico(response, errors, language, temporalContext = null) {
     let textPerfezionato = response;
     let modified = false;
 
@@ -1524,7 +1814,7 @@ var ResponseValidator = class ResponseValidator {
 
     // 3. Perfezionamento Saluto temporalmente incongruente
     if (!errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('placeholder'))) {
-      applicaOttimizzazione('Saluto', (currentText) => this._ottimizzaSalutoTemporale(currentText, language));
+      applicaOttimizzazione('Saluto', (currentText) => this._ottimizzaSalutoTemporale(currentText, language, temporalContext));
     }
 
     return { fixed: modified, text: textPerfezionato };
@@ -1550,11 +1840,11 @@ var ResponseValidator = class ResponseValidator {
    * Corregge saluto temporalmente incongruente
    * Es. "Buongiorno" alle 20:00 → "Buonasera"
    */
-  _ottimizzaSalutoTemporale(text, language) {
+  _ottimizzaSalutoTemporale(text, language, temporalContext = null) {
     if (!this.greetingPatterns[language]) return text;
 
     // Determina fascia oraria corrente (fuso orario italiano)
-    const currentHour = this._getCurrentHourInRome_();
+    const currentHour = this._resolveTemporalCurrentHour_(temporalContext);
     let correctTimeSlot;
     if (currentHour >= 5 && currentHour < 13) {
       correctTimeSlot = 'morning';
@@ -1607,21 +1897,37 @@ var ResponseValidator = class ResponseValidator {
   }
 
   _getCurrentHourInRome_() {
-    if (
-      typeof Utilities !== 'undefined' &&
-      Utilities &&
-      typeof Utilities.formatDate === 'function'
-    ) {
-      const parsedHour = parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'HH'), 10);
-      if (Number.isInteger(parsedHour) && parsedHour >= 0 && parsedHour <= 23) {
-        return parsedHour;
+    try {
+      if (
+        typeof Utilities !== 'undefined' &&
+        Utilities &&
+        typeof Utilities.formatDate === 'function'
+      ) {
+        const parsedHour = parseInt(Utilities.formatDate(new Date(), 'Europe/Rome', 'HH'), 10);
+        if (Number.isInteger(parsedHour) && parsedHour >= 0 && parsedHour <= 23) {
+          return parsedHour;
+        }
       }
+    } catch (_) {
+      // Fallback sotto: resta comunque timezone-aware su Europe/Rome.
     }
 
-    const fallbackHour = new Date().getHours();
-    return Number.isInteger(fallbackHour) && fallbackHour >= 0 && fallbackHour <= 23
-      ? fallbackHour
-      : 12;
+    try {
+      const parts = new Intl.DateTimeFormat('it-IT', {
+        timeZone: 'Europe/Rome',
+        hour: 'numeric',
+        hour12: false
+      }).formatToParts(new Date());
+      const hourPart = parts.find(part => part && part.type === 'hour');
+      const fallbackHour = hourPart ? parseInt(hourPart.value, 10) : NaN;
+      if (Number.isInteger(fallbackHour) && fallbackHour >= 0 && fallbackHour <= 23) {
+        return fallbackHour;
+      }
+    } catch (_) {
+      // Fallback neutro finale.
+    }
+
+    return 12;
   }
 
   /**

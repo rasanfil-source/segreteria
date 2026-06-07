@@ -250,8 +250,8 @@ function createNamedRanges(ss, warningsCollector) {
     { name: 'sum_today_slot', range: "'Controllo'!F10" },
     { name: 'tbl_week_schedule', range: "'Controllo'!B10:D16" }, // Schedule da B10 a D16
     { name: 'tbl_absences', range: "'Controllo'!A5:D7" }, // Assenze da A5 a D7
-    { name: 'lst_ignore_domains', range: "'Controllo'!E13:E" },
-    { name: 'lst_ignore_keywords', range: "'Controllo'!F13:F" }
+    { name: 'lst_ignore_domains', range: "'Controllo'!E13:E120" },
+    { name: 'lst_ignore_keywords', range: "'Controllo'!F13:F120" }
   ];
 
   const documentLock = LockService.getDocumentLock();

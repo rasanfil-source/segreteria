@@ -128,18 +128,41 @@ var PromptEngine = class PromptEngine {
       sponsorGuidancePolicy = 'default'
     } = options;
 
-    const safeCurrentDate = currentDate || (
+    const runtimeContext = (options && options.runtimeContext && typeof options.runtimeContext === 'object')
+      ? options.runtimeContext
+      : {};
+    const temporalContext = runtimeContext.temporal && typeof runtimeContext.temporal === 'object'
+      ? runtimeContext.temporal
+      : {};
+    const papalRuntimeContext = runtimeContext.papal && typeof runtimeContext.papal === 'object'
+      ? runtimeContext.papal
+      : null;
+    const safeCurrentDate = temporalContext.currentDate || currentDate || (
       (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function')
         ? Utilities.formatDate(new Date(), 'Europe/Rome', 'yyyy-MM-dd')
         : new Date().toISOString().slice(0, 10)
     );
+    const safeMessageDate = temporalContext.messageDate || messageDate || null;
+    const safeCurrentTime = temporalContext.currentTime || currentTime || null;
+    const safeTemporalContext = Object.freeze(Object.assign({}, temporalContext, {
+      currentDate: safeCurrentDate,
+      messageDate: safeMessageDate,
+      currentTime: safeCurrentTime
+    }));
     const resolvedScheduleContext = this._normalizeScheduleContext_(scheduleContext, currentSeason, safeCurrentDate);
 
     // Compatibilità input: alcuni flussi legacy passano i concern come array di chiavi.
     const normalizedConcerns = Array.isArray(activeConcerns)
-      ? activeConcerns.reduce((acc, concernKey) => {
-          if (typeof concernKey === 'string' && concernKey) {
-            acc[concernKey] = true;
+      ? activeConcerns.reduce((acc, concern) => {
+          if (typeof concern === 'string' && concern) {
+            acc[concern] = true;
+          } else if (concern && typeof concern === 'object') {
+            const concernKey = concern.key || concern.name || concern.id;
+            if (typeof concernKey === 'string' && concernKey) {
+              acc[concernKey] = Object.prototype.hasOwnProperty.call(concern, 'value')
+                ? !!concern.value
+                : true;
+            }
           }
           return acc;
         }, {})
@@ -366,7 +389,7 @@ var PromptEngine = class PromptEngine {
     const papalSourceText = [aiCoreLiteText, aiCoreText, workingKnowledgeBase, doctrineBaseText]
       .filter(Boolean)
       .join('\n');
-    addSection(this._renderTemporalAwareness(safeCurrentDate, detectedLanguage, messageDate, currentTime, salutationMode, papalSourceText), 'TemporalAwareness');
+    addSection(this._renderTemporalAwareness(safeTemporalContext, detectedLanguage, salutationMode, papalSourceText, papalRuntimeContext), 'TemporalAwareness');
 
     // 12. SUGGERIMENTO CATEGORIA
     addSection(this._renderCategoryHint(category), 'CategoryHint');
@@ -1182,7 +1205,34 @@ Se l'utente chiede quando inizia o finisce il periodo estivo, rispondi con il pe
   // TEMPLATE 11: CONSAPEVOLEZZA TEMPORALE
   // ========================================================================
 
-  _renderTemporalAwareness(currentDate, detectedLanguage = 'it', messageDate = null, currentTime = null, salutationMode = 'full', papalSourceText = '') {
+  _renderTemporalAwareness(currentDateOrContext, detectedLanguage = 'it', messageDateOrSalutationMode = null, currentTimeOrPapalSourceText = null, salutationModeOrPapalContext = 'full', papalSourceTextLegacy = '', papalRuntimeContextLegacy = null) {
+    let currentDate;
+    let messageDate;
+    let currentTime;
+    let salutationMode;
+    let papalSourceText;
+    let papalRuntimeContext;
+    let temporalContext = {};
+
+    if (currentDateOrContext && typeof currentDateOrContext === 'object' && !(currentDateOrContext instanceof Date)) {
+      temporalContext = currentDateOrContext;
+      currentDate = temporalContext.currentDate;
+      messageDate = temporalContext.messageDate || null;
+      currentTime = temporalContext.currentTime || null;
+      salutationMode = messageDateOrSalutationMode || 'full';
+      papalSourceText = currentTimeOrPapalSourceText || '';
+      papalRuntimeContext = salutationModeOrPapalContext || null;
+    } else {
+      currentDate = currentDateOrContext;
+      messageDate = messageDateOrSalutationMode;
+      currentTime = currentTimeOrPapalSourceText;
+      salutationMode = salutationModeOrPapalContext || 'full';
+      papalSourceText = papalSourceTextLegacy || '';
+      papalRuntimeContext = papalRuntimeContextLegacy || null;
+    }
+
+    if (!currentDate) return '';
+
     let dateObj;
     if (typeof currentDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(currentDate)) {
       const [year, month, day] = currentDate.split('-').map(Number);
@@ -1192,33 +1242,42 @@ Se l'utente chiede quando inizia o finisce il periodo estivo, rispondi con il pe
     }
     const humanDate = (() => {
       try {
-        const tz = (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function') ? Session.getScriptTimeZone() : 'Europe/Rome';
+        const tz = temporalContext.timeZone || 'Europe/Rome';
         return new Intl.DateTimeFormat('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: tz }).format(dateObj);
       } catch (e) { return currentDate; }
     })();
-    const papalContext = this._getPapalContext_(papalSourceText);
+    const papalContext = this._getPapalContext_(papalSourceText, papalRuntimeContext);
+    const oldMessageWarning = temporalContext && temporalContext.isOldMessage && Number.isFinite(Number(temporalContext.daysAgo))
+      ? `\n- **Discrepanza temporale:** l'email originale e stata scritta ${temporalContext.daysAgo} giorni fa. I relativi dell'utente possono quindi indicare date gia passate rispetto a oggi.`
+      : '';
 
     return `## DATA ODIERNA E CONTESTO TEMPORALE
+- **Data di riferimento per la risposta (currentDate):** ${currentDate} (${humanDate})
 - **Oggi è:** ${currentDate} (${humanDate})
-${messageDate ? `- **Data ricezione/invio email utente:** ${messageDate}\n` : ''}${currentTime ? `- **Ora locale attuale:** ${currentTime}\n` : ''}- **Papa attuale:** ${papalContext.currentName} (dal ${papalContext.currentSince}; inizio ministero petrino: ${papalContext.ministryStart})
+${messageDate ? `- **Data ricezione/invio email utente:** ${messageDate}\n- **Data originale email (messageDate):** ${messageDate}\n` : ''}${currentTime ? `- **Ora locale attuale:** ${currentTime}\n` : ''}- **Papa attuale:** ${papalContext.currentName} (dal ${papalContext.currentSince}; inizio ministero petrino: ${papalContext.ministryStart})${oldMessageWarning}
 **Regole Temporali:**
-1. Ordina sempre gli eventi futuri cronologicamente.
-2. Prima di descrivere un evento (corso, celebrazione) come "futuro" o "passato", confrontalo rigidamente con la data odierna.
-3. Attento all'anno pastorale (settembre-agosto) vs anno solare.
-4. Non presentare ${papalContext.previousName} come Papa attuale o come voce magisteriale in presente. Citalo solo per eventi o documenti storici se il dato è presente nelle informazioni di riferimento. Se non è necessario citare un Papa, evita il riferimento papale.
-5. **Date senza anno esplicito**: quando l'utente cita una data come "il 15 agosto", "a Natale" o "la domenica delle Palme" senza specificare l'anno, confronta sempre quella data con la DATA ODIERNA (${currentDate}) e con gli indizi linguistici. Se la data è già trascorsa nell'anno corrente e il testo usa un futuro chiaro (es. "saranno", "ci saranno", "si terrà"), interpreta con prudenza la richiesta come riferita alla prossima ricorrenza/anno seguente; se gli indizi sono deboli o contraddittori, chiedi conferma dell'anno. Non presentare mai come futura una data già trascorsa nell'anno corrente senza esplicitare l'interpretazione adottata.`;
+1. Usa currentDate (${currentDate}) come unica data di riferimento per decidere se nella risposta un evento e passato, presente o futuro.
+2. Usa messageDate${messageDate ? ` (${messageDate})` : ''} solo per interpretare relativi scritti dall'utente nell'email originale, come "oggi", "domani", "ieri", "sabato prossimo".
+3. Prima di descrivere un evento (corso, celebrazione) come "futuro" o "passato", confrontalo rigidamente con la data odierna.
+4. Ordina sempre gli eventi futuri cronologicamente.
+5. Attento all'anno pastorale (settembre-agosto) vs anno solare.
+6. Non presentare ${papalContext.previousName} come Papa attuale o come voce magisteriale in presente. Citalo solo per eventi o documenti storici se il dato è presente nelle informazioni di riferimento. Se non è necessario citare un Papa, evita il riferimento papale.
+7. **Date senza anno esplicito**: quando l'utente cita una data come "il 15 agosto", "a Natale" o "la domenica delle Palme" senza specificare l'anno, confronta sempre quella data con la DATA ODIERNA (${currentDate}) e con gli indizi linguistici. Se la data è già trascorsa nell'anno corrente e il testo usa un futuro chiaro (es. "saranno", "ci saranno", "si terrà"), interpreta con prudenza la richiesta come riferita alla prossima ricorrenza/anno seguente; se gli indizi sono deboli o contraddittori, chiedi conferma dell'anno. Non presentare mai come futura una data già trascorsa nell'anno corrente senza esplicitare l'interpretazione adottata.`;
   }
 
-  _getPapalContext_(sourceText = '') {
+  _getPapalContext_(sourceText = '', runtimePapalContext = null) {
     const fromSources = this._extractPapalContextFromText_(sourceText);
     const cfg = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.PAPAL_CONTEXT)
       ? CONFIG.PAPAL_CONTEXT
       : {};
+    const runtimePapal = (runtimePapalContext && typeof runtimePapalContext === 'object')
+      ? runtimePapalContext
+      : {};
     return {
-      currentName: fromSources.currentName || cfg.currentName || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_NAME) || 'Leone XIV',
-      previousName: fromSources.previousName || cfg.previousName || (typeof CONFIG !== 'undefined' && CONFIG.PREVIOUS_POPE_NAME) || 'Papa Francesco',
-      currentSince: cfg.currentSince || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_SINCE) || '2025-05-08',
-      ministryStart: cfg.ministryStart || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_MINISTRY_START) || '2025-05-18'
+      currentName: fromSources.currentName || runtimePapal.currentName || cfg.currentName || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_NAME) || 'Leone XIV',
+      previousName: fromSources.previousName || runtimePapal.previousName || cfg.previousName || (typeof CONFIG !== 'undefined' && CONFIG.PREVIOUS_POPE_NAME) || 'Papa Francesco',
+      currentSince: runtimePapal.currentSince || cfg.currentSince || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_SINCE) || '2025-05-08',
+      ministryStart: runtimePapal.ministryStart || cfg.ministryStart || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_MINISTRY_START) || '2025-05-18'
     };
   }
 

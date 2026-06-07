@@ -289,6 +289,13 @@ var MemoryService = class MemoryService {
 
           // Merge: esistente + nuovi dati
           const mergedData = Object.assign({}, existingData, dataToUpdate);
+          if (Object.prototype.hasOwnProperty.call(dataToUpdate, 'providedInfo')) {
+            const existingTopics = this._normalizeProvidedTopics(
+              Array.isArray(existingData.providedInfo) ? existingData.providedInfo : []
+            );
+            const incomingTopics = this._normalizeProvidedTopics(dataToUpdate.providedInfo);
+            mergedData.providedInfo = this._mergeProvidedTopics(existingTopics, incomingTopics);
+          }
           mergedData.lastUpdated = now;
           mergedData.messageCount = shouldIncrementMessageCount
             ? (existingData.messageCount || 0) + 1

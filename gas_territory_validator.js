@@ -510,8 +510,8 @@ var TerritoryValidator = class TerritoryValidator {
         if (Array.isArray(rules.tutti)) {
             const [min, max] = rules.tutti;
             if (min === null && max === null) {
-                console.warn(`\u26A0 Range invalido [null, null] per ${matchedKey}, trattato come "tutti"`);
-                return { inTerritory: true, matchedKey: matchedKey, rule: 'tutti (default)' };
+                console.warn(`\u26A0 Range invalido [null, null] per ${matchedKey}: configurazione non accettata`);
+                return { inTerritory: false, matchedKey: matchedKey, rule: 'invalid_tutti_range', needsReview: false };
             }
             const minValue = (min == null || !Number.isFinite(Number(min))) ? 0 : Number(min);
             const maxValue = (max == null || !Number.isFinite(Number(max))) ? Infinity : Number(max);
@@ -599,6 +599,14 @@ var TerritoryValidator = class TerritoryValidator {
 
         if (Array.isArray(rules.tutti)) {
             const [min, max] = rules.tutti;
+            if (min === null && max === null) {
+                return {
+                    inParish: false,
+                    needsCivic: false,
+                    reason: `'${street}' ha una configurazione territorio invalida: range tutti [null, null]`,
+                    details: 'invalid_tutti_range'
+                };
+            }
             return {
                 inParish: null,
                 needsCivic: true,

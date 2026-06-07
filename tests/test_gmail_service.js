@@ -1942,6 +1942,49 @@ console.log('--- Test Gmail counter: lock coperto dal batch evita riacquisizione
   }
 }
 
+console.log('--- Test Gmail counter: persistenza usa delta e non solo modulo 10 ---');
+{
+  const originalLockService = global.LockService;
+  const originalPropertiesService = global.PropertiesService;
+  const propsData = new Map();
+  let storedValue = '0';
+
+  try {
+    global.LockService = {
+      getScriptLock: () => ({
+        tryLock: () => true,
+        releaseLock: () => {}
+      })
+    };
+    global.PropertiesService = {
+      getScriptProperties: () => ({
+        getProperty: (key) => propsData.has(key) ? propsData.get(key) : null,
+        setProperty: (key, value) => propsData.set(key, String(value))
+      })
+    };
+
+    const counterService = new GmailService();
+    counterService._scriptCache = {
+      get: () => storedValue,
+      put: (_key, value) => { storedValue = value; }
+    };
+    counterService._gmailDailyCallLimit = 100;
+    counterService._gmailDailyCounterWarnAt = 90;
+
+    counterService._pendingGmailCallCount = 5;
+    counterService._flushGmailCallCounter_('gmail_api_calls:test', 'messages.get');
+    assert(propsData.get('gmail_api_calls:test') === undefined, 'delta sotto soglia non deve scrivere subito su PropertiesService');
+
+    counterService._pendingGmailCallCount = 7;
+    counterService._flushGmailCallCounter_('gmail_api_calls:test', 'messages.get');
+    assert(storedValue === '12', 'cache counter deve arrivare a 12');
+    assert(propsData.get('gmail_api_calls:test') === '12', 'delta cumulato oltre 10 deve persistere anche se total % 10 !== 0');
+  } finally {
+    global.LockService = originalLockService;
+    global.PropertiesService = originalPropertiesService;
+  }
+}
+
 console.log('--- Test Gmail counter: lock non acquisito rinvia flush senza abortire ---');
 {
   const originalLockService = global.LockService;

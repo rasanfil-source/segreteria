@@ -247,6 +247,44 @@ assert(
   'il prompt deve formulare l\'obiettivo di confronto temporale'
 );
 
+console.log('--- Test prompt: runtimeContext gerarchico prevale sui campi legacy ---');
+const runtimeContextPrompt = engine.buildPrompt({
+  emailSubject: 'Appuntamento',
+  emailContent: 'Domani posso passare?',
+  knowledgeBase: 'Segreteria aperta dal lunedì al venerdì.',
+  detectedLanguage: 'it',
+  currentDate: '1999-01-01',
+  messageDate: '1999-01-01',
+  currentTime: '00:00',
+  runtimeContext: {
+    temporal: {
+      currentDate: '2026-05-15',
+      currentTime: '10:30',
+      messageDate: '2026-05-07',
+      daysAgo: 8,
+      isOldMessage: true,
+      timeZone: 'Europe/Rome'
+    },
+    papal: {
+      currentName: 'Pio XIII',
+      previousName: 'Papa Francesco',
+      currentSince: '2026-01-01',
+      ministryStart: '2026-01-08'
+    }
+  },
+  promptProfile: 'lite'
+});
+assert(
+  runtimeContextPrompt.includes('Data di riferimento per la risposta (currentDate):** 2026-05-15') &&
+    runtimeContextPrompt.includes('Data originale email (messageDate):** 2026-05-07') &&
+    runtimeContextPrompt.includes('email originale e stata scritta 8 giorni fa'),
+  'il prompt deve distinguere currentDate e messageDate dal runtimeContext'
+);
+assert(
+  runtimeContextPrompt.includes('Papa attuale:** Pio XIII'),
+  'il prompt deve usare il contesto papale del runtimeContext quando presente'
+);
+
 console.log('--- Test prompt: orari usano data richiesta e periodo KB ---');
 const schedulePrompt = engine.buildPrompt({
   emailSubject: 'Orari Messe',

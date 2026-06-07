@@ -56,6 +56,8 @@ var GmailService = class GmailService {
         // Counter batched per ridurre I/O
         this._pendingGmailCallCount = 0;
         this._lastGmailCallCount = null;
+        this._lastPersistedGmailCallCount = 0;
+        this._lastPersistedGmailCounterKey = null;
     }
 
     _getGmailCounterDateKey_() {
@@ -138,12 +140,15 @@ var GmailService = class GmailService {
 
             const raw = this._scriptCache.get(key);
             let current = 0;
+            let props = null;
             if (raw !== null) {
                 current = Number.parseInt(raw, 10) || 0;
             } else if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
                 try {
-                    const props = PropertiesService.getScriptProperties();
+                    props = PropertiesService.getScriptProperties();
                     current = Number.parseInt(props.getProperty(key) || '0', 10) || 0;
+                    this._lastPersistedGmailCounterKey = key;
+                    this._lastPersistedGmailCallCount = current;
                 } catch (e) {
                     console.warn(`⚠️ Impossibile leggere backup counter da ScriptProperties (${key}): ${e.message}`);
                 }
@@ -157,9 +162,16 @@ var GmailService = class GmailService {
             this._scriptCache.put(key, String(total), 21599);
 
             // Allineamento periodico del counter su storage persistente.
-            if (total % 10 === 0 && typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+            const propertiesAvailable = typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function';
+            const lastPersisted = this._lastPersistedGmailCounterKey === key
+                ? (Number(this._lastPersistedGmailCallCount) || 0)
+                : 0;
+            if (propertiesAvailable && (total - lastPersisted >= 10 || total >= this._gmailDailyCallLimit)) {
                 try {
-                    PropertiesService.getScriptProperties().setProperty(key, String(total));
+                    if (!props) props = PropertiesService.getScriptProperties();
+                    props.setProperty(key, String(total));
+                    this._lastPersistedGmailCounterKey = key;
+                    this._lastPersistedGmailCallCount = total;
                 } catch (e) {}
             }
 

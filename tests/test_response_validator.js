@@ -120,12 +120,39 @@ console.log('--- Test _ottimizzaSalutoTemporale (saluto reale) ---');
 console.log('--- Test _getCurrentHourInRome_ (fallback se Utilities non numerica) ---');
 {
   const originalUtilities = global.Utilities;
+  const originalDateTimeFormat = global.Intl.DateTimeFormat;
+  let seenTimeZone = '';
   global.Utilities = {
     formatDate: () => 'ora-non-valida'
   };
+  global.Intl.DateTimeFormat = function (_locale, options) {
+    seenTimeZone = options && options.timeZone;
+    return {
+      formatToParts: () => [{ type: 'hour', value: '22' }]
+    };
+  };
   try {
     const hour = validator._getCurrentHourInRome_();
-    assert(Number.isInteger(hour) && hour >= 0 && hour <= 23, 'fallback ora deve restare un intero valido 0-23');
+    assert(hour === 22, `fallback ora deve usare Intl timezone-aware, ottenuto ${hour}`);
+    assert(seenTimeZone === 'Europe/Rome', 'fallback Intl deve usare Europe/Rome');
+  } finally {
+    global.Utilities = originalUtilities;
+    global.Intl.DateTimeFormat = originalDateTimeFormat;
+  }
+}
+
+console.log('--- Test _resolveTemporalCurrentDate_: messageDate non diventa currentDate ---');
+{
+  const originalUtilities = global.Utilities;
+  global.Utilities = {
+    formatDate: () => '2026-05-15'
+  };
+  try {
+    const resolved = validator._resolveTemporalCurrentDate_({ messageDate: '2026-05-07' });
+    assert(
+      validator._formatDateOnly_(resolved) === '2026-05-15',
+      `currentDate deve usare oggi/fallback, non messageDate: ${validator._formatDateOnly_(resolved)}`
+    );
   } finally {
     global.Utilities = originalUtilities;
   }
@@ -511,6 +538,73 @@ const temporalFutureConclusionResult = validator._checkTemporalConsistency(
   { currentDate: '2026-05-15' }
 );
 assert(temporalFutureConclusionResult.score === 1.0, 'una conclusione futura espressa al presente non deve essere bloccata');
+
+console.log('--- Test temporal references: relativi utente ancorati a messageDate ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-05-15',
+      currentTime: '10:00',
+      messageDate: '2026-05-07',
+      processingEpochMs: new Date('2026-05-15T08:00:00Z').getTime(),
+      messageEpochMs: new Date('2026-05-07T08:00:00Z').getTime()
+    }
+  };
+  const refs = validator._extractTemporalReferences_('Domani posso passare?', runtimeContext, 'user');
+  const tomorrowRef = refs.find(ref => /domani/i.test(ref.text));
+  assert(tomorrowRef && validator._formatDateOnly_(tomorrowRef.normalizedDate) === '2026-05-08', 'domani nel testo utente deve ancorarsi a messageDate');
+  assert(tomorrowRef.anchorRole === 'messageDate', 'il riferimento utente deve dichiarare anchorRole=messageDate');
+}
+
+console.log('--- Test temporal references: relativi ancorati agli epoch del runtimeContext ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentTime: '10:00',
+      processingEpochMs: new Date('2026-05-15T08:00:00Z').getTime(),
+      messageEpochMs: new Date('2026-05-07T08:00:00Z').getTime(),
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const userRefs = validator._extractTemporalReferences_('Domani posso passare?', runtimeContext, 'user');
+  const responseRefs = validator._extractTemporalReferences_('Domani può passare.', runtimeContext, 'response');
+  const userTomorrow = userRefs.find(ref => /domani/i.test(ref.text));
+  const responseTomorrow = responseRefs.find(ref => /domani/i.test(ref.text));
+  assert(
+    userTomorrow && validator._formatDateOnly_(userTomorrow.normalizedDate) === '2026-05-08',
+    'domani utente deve derivare da messageEpochMs anche senza messageDate'
+  );
+  assert(
+    responseTomorrow && validator._formatDateOnly_(responseTomorrow.normalizedDate) === '2026-05-16',
+    'domani risposta deve derivare da processingEpochMs anche senza currentDate'
+  );
+}
+
+console.log('--- Test original date qualification: domani vecchio non resta futuro ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-05-15',
+      currentTime: '10:00',
+      messageDate: '2026-05-07',
+      processingEpochMs: new Date('2026-05-15T08:00:00Z').getTime(),
+      messageEpochMs: new Date('2026-05-07T08:00:00Z').getTime(),
+      daysAgo: 8,
+      isOldMessage: true
+    }
+  };
+  const result = validator._checkOriginalDateQualification(
+    'Domani può passare in segreteria.',
+    'Domani posso passare in segreteria?',
+    runtimeContext,
+    'it'
+  );
+  assert(result.score === 0.0, 'un domani scritto otto giorni fa non deve essere riqualificato come futuro nella risposta');
+  assert(
+    result.errors.some((e) => e.includes('Discrepanza temporale')),
+    'deve segnalare discrepanza temporale dedicata'
+  );
+}
 
 console.log('--- Test _checkCapitalAfterComma: rileva maiuscole latine accentate ---');
 {

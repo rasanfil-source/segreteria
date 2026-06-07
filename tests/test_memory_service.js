@@ -179,6 +179,68 @@ console.log('--- Test MemoryService updateMemory: VERSION_MISMATCH abortisce sen
   }
 }
 
+console.log('--- Test MemoryService updateMemory: fonde providedInfo senza perdere storico ---');
+{
+  const originalLockService = global.LockService;
+  global.LockService = {
+    getScriptLock: () => ({
+      waitLock: () => {},
+      releaseLock: () => {}
+    })
+  };
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    memory._initialized = true;
+    memory._getLockTuning_ = () => ({ maxRetries: 1, shardedAcquireTimeoutMs: 1 });
+    memory._getShardedLockKey = () => 'lock-thread-merge';
+    memory._tryAcquireShardedLock = () => true;
+    memory._releaseShardedLock = () => {};
+    memory._sleepLockBackoff_ = () => {};
+    memory._invalidateCache = () => {};
+    memory._withSheetWriteLock = (fn) => fn();
+
+    let saved = null;
+    memory._updateRow = (rowIndex, data) => {
+      saved = { rowIndex, data };
+    };
+    memory._findRowByThreadId = () => ({
+      rowIndex: 2,
+      values: [
+        'thread-merge',
+        'it',
+        'info',
+        'standard',
+        JSON.stringify([
+          { topic: 'Catechismo', userReaction: 'acknowledged', timestamp: '2026-05-01T00:00:00.000Z' },
+          { topic: 'Orari segreteria', userReaction: 'unknown', timestamp: '2026-05-02T00:00:00.000Z' }
+        ]),
+        '2026-05-02T00:00:00.000Z',
+        2,
+        3,
+        ''
+      ]
+    });
+
+    memory.updateMemory('thread-merge', {
+      providedInfo: [
+        { topic: ' catechismo ', userReaction: 'unknown', timestamp: '2026-05-03T00:00:00.000Z' },
+        { topic: 'Battesimo', userReaction: 'unknown', timestamp: '2026-05-03T00:00:00.000Z' }
+      ]
+    });
+
+    const topics = saved && saved.data && saved.data.providedInfo;
+    assert(Array.isArray(topics), 'providedInfo salvato deve restare un array');
+    assert(topics.length === 3, `providedInfo deve conservare storico e nuovo topic, ottenuti ${topics.length}`);
+    assert(topics.some(item => item.topic === 'Orari segreteria'), 'topic storico non duplicato deve restare presente');
+    const catechismo = topics.find(item => String(item.topic || '').trim().toLowerCase() === 'catechismo');
+    assert(catechismo && catechismo.userReaction === 'acknowledged', 'dedup topic deve preservare reazione storica se incoming e unknown');
+    assert(topics.some(item => item.topic === 'Battesimo'), 'nuovo topic deve essere aggiunto');
+  } finally {
+    global.LockService = originalLockService;
+  }
+}
+
 console.log('--- Test MemoryService updateMemoryAtomic: VERSION_MISMATCH non ritenta con versione aggiornata ---');
 {
   const originalLockService = global.LockService;

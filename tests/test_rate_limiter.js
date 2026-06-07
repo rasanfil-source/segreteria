@@ -288,6 +288,80 @@ console.log('--- Test _incrementCountersAtomic: reset giorno e token in scrittur
   assert(setPropertiesCalls[0].tokens_flash === '25', 'scrittura aggregata deve includere token finali');
 }
 
+console.log('--- Test _initializeCounters: lock mancato riallinea cache se reset gia persistito ---');
+{
+  const originalLockService = global.LockService;
+  const originalUtilities = global.Utilities;
+  const now = Date.now();
+  const propsData = new Map([
+    ['rate_limit_date', '2026-05-12'],
+    ['rpm_window', JSON.stringify([{ timestamp: now, modelKey: 'flash', nonce: 'rpm-current' }])],
+    ['tpm_window', JSON.stringify([{ timestamp: now, modelKey: 'flash', nonce: 'tpm-current', tokens: 10 }])]
+  ]);
+
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  limiter.cache = {
+    rpmWindow: [],
+    tpmWindow: [],
+    lastCacheUpdate: 0,
+    lastPersistUpdate: 0,
+    cacheTTL: 10000
+  };
+  limiter.props = {
+    getProperty: (key) => propsData.has(key) ? propsData.get(key) : null
+  };
+  limiter._getPacificDate = () => '2026-05-12';
+
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => false,
+      releaseLock: () => {}
+    })
+  };
+  global.Utilities = {
+    sleep: () => {}
+  };
+
+  try {
+    limiter._initializeCounters();
+    assert(limiter.cache.rpmWindow.length === 1, 'lock miss con reset gia persistito deve rileggere RPM da storage');
+    assert(limiter.cache.tpmWindow.length === 1, 'lock miss con reset gia persistito deve rileggere TPM da storage');
+  } finally {
+    global.LockService = originalLockService;
+    global.Utilities = originalUtilities;
+  }
+}
+
+console.log('--- Test _validateModelAvailability: RPD stale non blocca nuovo giorno ---');
+{
+  const propsData = new Map([
+    ['rpd_date_flash', '2026-05-11'],
+    ['rpd_flash', '10'],
+    ['tokens_flash', '5000']
+  ]);
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  limiter.models = {
+    flash: { name: 'gemini-test', rpm: 10, tpm: 10000, rpd: 10 }
+  };
+  limiter.cache = {
+    rpmWindow: [],
+    tpmWindow: [],
+    lastCacheUpdate: Date.now(),
+    lastPersistUpdate: 0,
+    cacheTTL: 10000
+  };
+  limiter.safetyMargin = { rpm: 0.8, tpm: 0.8, rpd: 0.8 };
+  limiter.throttleDelays = { rpm: 250, tpm: 1000, rpd: 15000 };
+  limiter.props = {
+    getProperty: (key) => propsData.has(key) ? propsData.get(key) : null
+  };
+  limiter._getPacificDate = () => '2026-05-12';
+
+  const result = limiter._validateModelAvailability('flash', 100);
+  assert(result.available === true, 'RPD della giornata precedente non deve esaurire il modello nel nuovo giorno');
+  assert(result.quotaLeft.rpd === 10, 'quota RPD disponibile deve ripartire dal limite giornaliero');
+}
+
 console.log('--- Test model policy: preserva 3.5 Flash e normalizza solo storici ---');
 {
   const limiter = Object.create(GeminiRateLimiter.prototype);

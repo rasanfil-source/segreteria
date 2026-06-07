@@ -2163,6 +2163,9 @@ console.log('--- Test processThread: retry intelligente conserva nota oraria con
 
   let generationCalls = 0;
   const validatedTexts = [];
+  const validationRuntimeContexts = [];
+  const generatedPrompts = [];
+  let promptRuntimeContext = null;
   let sentText = null;
   const processor = new EmailProcessor({
     gmailService: {
@@ -2198,8 +2201,9 @@ console.log('--- Test processThread: retry intelligente conserva nota oraria con
       detectEmailLanguage: () => ({ lang: 'it' }),
       getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',
-      generateResponse: () => {
+      generateResponse: (prompt) => {
         generationCalls++;
+        generatedPrompts.push(prompt);
         return {
           success: true,
           text: generationCalls === 1
@@ -2212,8 +2216,9 @@ console.log('--- Test processThread: retry intelligente conserva nota oraria con
       classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
     },
     validator: {
-      validateResponse: (text) => {
+      validateResponse: function (text) {
         validatedTexts.push(text);
+        validationRuntimeContexts.push(arguments[7]);
         if (validatedTexts.length === 1) {
           return {
             isValid: false,
@@ -2236,7 +2241,10 @@ console.log('--- Test processThread: retry intelligente conserva nota oraria con
       validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
     },
     promptEngine: {
-      buildPrompt: () => 'PROMPT'
+      buildPrompt: (options) => {
+        promptRuntimeContext = options.runtimeContext;
+        return 'PROMPT';
+      }
     }
   });
 
@@ -2244,6 +2252,13 @@ console.log('--- Test processThread: retry intelligente conserva nota oraria con
   assert(result.status === 'replied', 'retry valido deve arrivare a replied');
   assert(generationCalls === 2, `deve fare una generazione iniziale e un retry, chiamate=${generationCalls}`);
   assert(validatedTexts.length === 2, 'deve validare risposta iniziale e retry');
+  assert(validationRuntimeContexts.length === 2, 'deve passare il runtimeContext a entrambe le validazioni');
+  assert(validationRuntimeContexts[0] === promptRuntimeContext, 'prima validazione deve usare il runtimeContext del prompt');
+  assert(validationRuntimeContexts[1] === promptRuntimeContext, 'retry validation deve riusare lo stesso runtimeContext del prompt');
+  assert(
+    generatedPrompts[1] && generatedPrompts[1].includes('RUNTIME CONTEXT IMMUTATO PER IL RETRY'),
+    'il prompt di retry deve includere il runtimeContext immutato'
+  );
   assert(
     validatedTexts[1].includes('orario diverso rispetto a quanto da Lei indicato'),
     'il retry deve ricevere la stessa nota oraria della prima risposta'
@@ -2346,6 +2361,9 @@ console.log('--- Test anti-noreply: Reply-To valido esenta form web legittima --
 console.log('--- Test prompt options: messageDate usa la data del messaggio originale ---');
 {
   let promptOptions = null;
+  let validationRuntimeContext = null;
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  global.CONFIG.VALIDATION_ENABLED = true;
   const processor = new EmailProcessor({
     gmailService: {
       _extractEmailAddress: (raw) => raw,
@@ -2388,6 +2406,12 @@ console.log('--- Test prompt options: messageDate usa la data del messaggio orig
     territoryValidator: {
       validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
     },
+    validator: {
+      validateResponse: function () {
+        validationRuntimeContext = arguments[7];
+        return { isValid: true, score: 1.0, errors: [], warnings: [], details: {}, fixedResponse: null };
+      }
+    },
     promptEngine: {
       buildPrompt: (options) => {
         promptOptions = options;
@@ -2397,9 +2421,17 @@ console.log('--- Test prompt options: messageDate usa la data del messaggio orig
   });
 
   const result = processor.processThread(createExternalThread('message-date'), 'kb valida', '', new Set(), true);
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
   assert(result.status === 'replied', 'il thread con data messaggio deve completarsi');
   assert(promptOptions.messageDate === '2026-05-07', `messageDate deve derivare dalla data originale, ottenuto ${promptOptions && promptOptions.messageDate}`);
   assert(/^\d{2}:\d{2}$/.test(promptOptions.currentTime), `currentTime deve essere passato in formato HH:mm, ottenuto ${promptOptions && promptOptions.currentTime}`);
+  assert(promptOptions.runtimeContext && promptOptions.runtimeContext.temporal, 'promptOptions deve includere runtimeContext.temporal');
+  assert(Object.isFrozen(promptOptions.runtimeContext), 'runtimeContext root deve essere congelato');
+  assert(Object.isFrozen(promptOptions.runtimeContext.temporal), 'runtimeContext.temporal deve essere congelato');
+  assert(Object.isFrozen(promptOptions.runtimeContext.papal), 'runtimeContext.papal deve essere congelato');
+  assert(promptOptions.runtimeContext.temporal.currentDate === promptOptions.currentDate, 'currentDate legacy deve derivare dal runtimeContext');
+  assert(promptOptions.runtimeContext.temporal.messageDate === '2026-05-07', 'runtimeContext.temporal.messageDate deve derivare dalla data originale');
+  assert(validationRuntimeContext === promptOptions.runtimeContext, 'validator deve ricevere lo stesso runtimeContext passato al prompt');
 }
 
 console.log('--- Test prompt options: scheduleContext usa data target e periodo KB ---');
