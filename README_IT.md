@@ -27,6 +27,7 @@
 *   **Resilienza Operativa**: Sistema di monitoraggio delle quote integrato per una continuità di servizio costante.
 *   **Raffinamento Validazione**: Controlli qualitativi estesi per una precisione millimetrica nell'interazione.
 *   **Prompt Engine Modulare**: Assemblaggio dinamico del contesto per massimizzare la pertinenza di ogni risposta.
+*   **Coscienza Temporale**: Distingue la data originale dell'email dalla data di risposta, così relativi come "oggi", "domani" e "la prossima settimana" vengono interpretati correttamente.
 *   **Smart RAG (Dottrina)**: Integrazione profonda con il magistero e le direttive parrocchiali.
 > ℹ️ **Nota operativa**: il blocco Dottrina è caricato in cache ma viene incluso nel prompt solo quando il classifier rileva una necessità dottrinale (`needsDoctrine`) o un topic pertinente. È normale che, in casistiche reali, le email dottrinali siano una minoranza.
 *   **Eccellenza Linguistica**: Gestione raffinata di grammatica e stili formali (es. nomi sacri).
@@ -309,7 +310,9 @@ Ogni risposta viene **validata automaticamente** prima dell'invio:
 3. ✅ Assenza di "allucinazioni" (dati inventati)
 4. ✅ Tono professionale ma caloroso
 5. ✅ Firma presente
-6. ✅ Nessuna informazione sensibile esposta
+6. ✅ Date e riferimenti temporali coerenti con il momento della risposta
+7. ✅ Saluto coerente con l'ora corrente
+8. ✅ Nessuna informazione sensibile esposta
 
 **Se una sola validazione fallisce:** Email etichettata "Verifica" per controllo umano.
 

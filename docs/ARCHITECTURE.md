@@ -131,6 +131,7 @@ Email Arrives
 │  ├─ Conversational memory (topics already provided)     │
 │  ├─ Territory check (if address in email)               │
 │  ├─ OCR Analysis (PDF/Images)                           │
+│  ├─ RuntimeContext (temporal + papal)                   │
 │  ├─ Salutation mode (full/soft/none_or_continuity/session) │
 │  └─ Dynamic prompt context (profile + concerns)         │
 └──────────────┬──────────────────────────────────────────┘
@@ -141,6 +142,7 @@ Email Arrives
 │  - Modular prompt sections (count varies by profile)     │
 │  - Dynamic filtering based on profile (lite/std/heavy)   │
 │  - Token budget management (120k operational cap)       │
+│  - TemporalAwareness: currentDate + messageDate         │
 │  - Semantic truncation if KB too large                  │
 └──────────────┬──────────────────────────────────────────┘
                │
@@ -163,7 +165,7 @@ Email Arrives
                │
                v
 ┌──────────────────────────────────────────────────────────┐
-│  RESPONSE VALIDATION (7 Checks)                          │
+│  RESPONSE VALIDATION (11 Checks)                         │
 │  1. Length (25-3000 chars)                              │
 │  2. Consistent language (IT/EN/ES)                      │
 │  3. Signature present (optional on follow-up)           │
@@ -171,6 +173,10 @@ Email Arrives
 │  5. No hallucinations (email/tel/hours not in KB)       │
 │  6. No uppercase after comma (grammar IT)               │
 │  7. No thinking leak (exposed reasoning)                │
+│  8. Greeting consistent with currentTime                │
+│  9. Temporal consistency for dates/events               │
+│ 10. Current pope references                             │
+│ 11. Original email date vs response qualification        │
 │  → Score 0-1.0, min threshold 0.6                       │
 └──────────────┬──────────────────────────────────────────┘
                │
@@ -303,6 +309,41 @@ computeSalutationMode({
 - If last message 48h-4d ago → `soft`
 - If >4 days or first contact → `full`
 
+#### 4. Temporal and Papal RuntimeContext
+
+While processing a thread, `EmailProcessor` builds a single immutable `runtimeContext` shared by prompt construction, validation, and retry/correction flows. The context is split into two branches:
+
+```javascript
+runtimeContext = {
+  temporal: {
+    currentDate,              // response reference date
+    currentTime,              // local time for greeting and tone
+    messageDate,              // original email date, when available
+    processingTimestamp,      // processing timestamp
+    processingEpochMs,
+    messageEpochMs,
+    timeZone,                 // default Europe/Rome
+    daysAgo,
+    isOldMessage,
+    messageDateAvailable,
+    messageDateSource         // gmail_message_date | processing_fallback
+  },
+  papal: {
+    currentName,
+    previousName,
+    currentSince
+  }
+}
+```
+
+**Operational rules:**
+- `currentDate` governs what the response may treat as past, present, or future.
+- `messageDate` interprets relative expressions written by the user in the original email (`today`, `tomorrow`, `next Monday`, `next week`).
+- The `user` role uses `messageDate` as its primary anchor; the `response` role uses `currentDate`.
+- If `currentDate` is missing but `messageDate` is available, response parsing uses `messageDateFallback` before falling back to the system clock.
+- Clock fallback is marked as `systemFallback` and produces low-confidence references.
+- Time-based greetings use `currentTime`, not the date or time of the original email.
+
 ---
 
 ### RequestTypeClassifier.gs - "Dimensional" Classification (Next Gen)
@@ -396,7 +437,7 @@ classify(subject, body, externalHint) {
 8. ResponseDelay           (CONDITIONAL - if late response)
 9. ContinuityHumanFocus    (CONDITIONAL - emotional/repetition focus)
 10. SeasonalContext        (ALWAYS - winter/summer)
-11. TemporalAwareness      (ALWAYS - current date)
+11. TemporalAwareness      (ALWAYS - currentDate, currentTime, messageDate)
 12. CategoryHint           (CONDITIONAL - if category detected)
 13. AICoreLite             (CONDITIONAL - pastoral needs)
 14. AICore                 (CONDITIONAL - discernment)
@@ -437,6 +478,15 @@ const profile = computeProfile({
 - **Lite** → Skip: Examples, Formatting, HumanTone, SpecialCases
 - **Standard** → Skip: Examples (if no formatting_risk)
 - **Heavy** → Include everything
+
+**Temporal Awareness:**
+The prompt receives the normalized `runtimeContext.temporal` branch. The temporal section explicitly separates:
+- **response reference date** (`currentDate`): used to classify generated content as past, present, or future;
+- **current local time** (`currentTime`): used for greetings and opening formulas;
+- **original email date** (`messageDate`): used to interpret relative expressions written by the user at send time;
+- **original-date availability** (`messageDateAvailable`): prevents a reconstructed fallback date from being presented as the original Gmail date.
+
+Operational example: if an email sent on June 1 says "see you tomorrow" and is processed on June 7, the prompt interprets "tomorrow" as June 2 but evaluates the response against June 7.
 
 **Token Management:**
 ```javascript
@@ -620,7 +670,7 @@ GEMINI_API_KEY_BACKUP = 'your-backup-key'; // Optional
 
 ---
 
-### ResponseValidator.gs - 7-Layer Validation
+### ResponseValidator.gs - 11-Layer Validation
 
 **Layer 1: Length Check**
 ```javascript
@@ -712,6 +762,52 @@ thinkingPatterns = [
 
 // If found → score = 0.0 (total block)
 ```
+
+**Layer 8: Time-Based Greeting Consistency**
+```javascript
+// Uses runtimeContext.temporal.currentTime
+// Example: 20:30 → evening greeting expected
+// messageDate does not affect the response greeting
+```
+
+**Layer 9: Temporal Consistency for Dates and Events**
+```javascript
+// Extracts typed temporal references from the response:
+// explicit_date, date_without_year, relative_point,
+// weekday_relative, relative_interval, relative_offset,
+// ambiguous_relative
+
+// Blocks:
+// - future date described as already happened/concluded
+// - past date described as future/scheduled
+```
+
+**Layer 10: Current Pope References**
+```javascript
+// Uses runtimeContext.papal as the downstream source of truth
+// Checks present-tense references to the current Pope
+// and flags unsupported present references to the previous Pope
+```
+
+**Layer 11: Original Email Date vs Response Qualification**
+```javascript
+// Compares original-email relatives anchored to messageDate
+// with response relatives anchored to currentDate.
+
+// Blocking examples:
+// - old email: "today" repeated as a current possibility
+// - old email: "tomorrow" repeated as future
+// - "next week" requalified as still future
+```
+
+**Typed Temporal Parser:**
+- Point relatives (`today`, `tomorrow`, `yesterday`, `the day after tomorrow`) produce a normalized date.
+- Qualified weekdays (`next Monday`, `last Monday`) produce a date and preserve direction/weekday metadata.
+- Intervals (`this week`, `next week`, `last month`) remain intervals with `normalizedRange.start/end`.
+- Offsets (`in 3 days`, `in two weeks`) produce a normalized date and preserve amount/unit metadata.
+- Vague references (`Monday` without qualifier, `in the next few days`) remain ambiguous and are not converted into invented dates.
+- Interval comparison uses the anchor: if the anchor falls inside the range it does not force a direction; if the interval is past it compares on the end date; if future it compares on the start date.
+- Original-email to response linking avoids pure lexical matching for directional relatives: it compares type, direction, and metadata to prevent misleading textual matches.
 
 **Final Scoring:**
 ```javascript

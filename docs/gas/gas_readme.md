@@ -270,8 +270,15 @@ Il trigger verrà impostato per eseguire `main()` ogni X minuti (configurabile).
 - Lingua e tono
 - Knowledge Base
 - Storico conversazione
+- Contesto temporale runtime (`currentDate`, `currentTime`, `messageDate`)
 - Istruzioni specifiche
 - Validazione formato
+
+**Coscienza temporale nel prompt**:
+- `currentDate` è la data di riferimento della risposta.
+- `currentTime` governa saluti e formule temporali.
+- `messageDate` interpreta i relativi presenti nell'email originale.
+- `messageDateAvailable` distingue una data Gmail reale da un fallback di elaborazione.
 
 ### ResponseValidator.gs
 **Responsabilità**: Validazione risposte
@@ -283,8 +290,22 @@ Il trigger verrà impostato per eseguire `main()` ogni X minuti (configurabile).
 - ✓ Lingua corretta
 - ✓ Coerenza con richiesta
 - ✓ Tono professionale
+- ✓ Saluto coerente con l'ora corrente
+- ✓ Coerenza temporale di date, relativi e intervalli
+- ✓ Qualificazione corretta della data originale dell'email
+- ✓ Riferimenti papali correnti
 
 **Scoring**: 0.0-1.0, soglia minima consigliata 0.6 (`VALIDATION_MIN_SCORE`)
+
+**Riferimenti temporali supportati**:
+- date esplicite e date senza anno;
+- relativi puntuali (`oggi`, `domani`, `ieri`, `dopodomani`);
+- weekday qualificati (`lunedì prossimo`, `scorso lunedì`);
+- intervalli (`questa settimana`, `la prossima settimana`, `il mese scorso`);
+- offset (`fra 3 giorni`, `tra due settimane`);
+- riferimenti ambigui mantenuti come ambigui quando non è sicuro normalizzarli.
+
+Il parser usa `messageDate` per i riferimenti dell'utente e `currentDate` per quelli della risposta. Se `currentDate` manca, `messageDate` viene usata come fallback stabile prima del clock di sistema.
 
 ### MemoryService.gs
 **Responsabilità**: Memoria conversazionale
@@ -307,13 +328,14 @@ Il trigger verrà impostato per eseguire `main()` ogni X minuti (configurabile).
 5. Classificazione richiesta
 6. Caricamento KB
 7. Recupero storico
-8. Composizione prompt
-9. Verifica rate limits
-10. Generazione risposta
-11. Validazione
-12. Invio risposta
-13. Applicazione label
-14. Salvataggio memoria
+8. Costruzione `runtimeContext` temporale/papale
+9. Composizione prompt
+10. Verifica rate limits
+11. Generazione risposta
+12. Validazione
+13. Invio risposta
+14. Applicazione label
+15. Salvataggio memoria
 
 ---
 

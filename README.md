@@ -26,6 +26,7 @@
 *   **Operational Resilience**: Integrated quota monitoring system for constant service continuity.
 *   **Validation Refinement**: Extended qualitative controls for millimeter precision in interaction.
 *   **Modular Prompt Engine**: Dynamic context assembly to maximize the relevance of each response.
+*   **Temporal Awareness**: Separates the original email date from the response date, so relatives like "today", "tomorrow", and "next week" are interpreted correctly.
 *   **Smart RAG (Doctrine)**: Deep integration with the magisterium and parish directives.
 *   **Linguistic Excellence**: Refined management of grammar and formal styles (e.g., sacred names).
 *   **Multi-Dimensional Analysis**: Understanding the emotional load and complexity of requests.
@@ -298,7 +299,9 @@ Every response is **automatically validated** before sending:
 3. ✅ Absence of "hallucinations" (invented data)
 4. ✅ Professional but warm tone
 5. ✅ Signature present
-6. ✅ No sensitive information exposed
+6. ✅ Dates and temporal references consistent with response time
+7. ✅ Greeting consistent with current local time
+8. ✅ No sensitive information exposed
 
 **If a single validation fails:** Email labeled "Verifica" for human check.
 
