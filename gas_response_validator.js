@@ -1142,31 +1142,39 @@ var ResponseValidator = class ResponseValidator {
       return { score: 1.0, errors, warnings, violations: [], skipped: true };
     }
 
-    const dates = this._extractTemporalReferences_(response, temporalContext, 'response')
-      .filter(ref => ref && ref.normalizedDate)
-      .map(ref => ({
-        date: ref.normalizedDate,
-        index: ref.index,
-        length: ref.length,
-        text: ref.text,
-        type: ref.type,
-        anchorRole: ref.anchorRole
-      }));
-    if (!dates.length) {
+    const temporalRefs = this._extractTemporalReferences_(response, temporalContext, 'response');
+    if (!temporalRefs.length) {
       return { score: 1.0, errors, warnings, violations: [], checkedDates: 0 };
     }
 
     const todayOrdinal = this._dateOnlyOrdinal_(currentDate);
     const violations = [];
 
-    dates.forEach((item) => {
-      if (!item || !item.date || this._dateOnlyOrdinal_(item.date) <= todayOrdinal) return;
+    temporalRefs.forEach((item) => {
+      const compareDate = this._getTemporalReferenceCompareDate_(item);
+      if (!compareDate) return;
 
+      const compareOrdinal = this._dateOnlyOrdinal_(compareDate);
+      if (!Number.isFinite(compareOrdinal) || compareOrdinal === todayOrdinal) return;
       const windowText = this._extractTemporalWindow_(response, item.index, item.length);
-      if (this._hasPastTemporalQualification_(windowText, detectedLanguage)) {
+      const isFutureReference = compareOrdinal > todayOrdinal;
+      const isPastReference = compareOrdinal < todayOrdinal;
+      if (isFutureReference && this._hasPastTemporalQualification_(windowText, detectedLanguage)) {
         violations.push({
           dateText: item.text,
-          date: this._formatDateOnly_(item.date),
+          date: this._formatDateOnly_(compareDate),
+          type: item.type || 'explicit_date',
+          direction: 'future_as_past',
+          anchorRole: item.anchorRole || null,
+          context: windowText.replace(/\s+/g, ' ').trim().substring(0, 180)
+        });
+      } else if (isPastReference && this._hasFutureTemporalQualification_(windowText, detectedLanguage)) {
+        violations.push({
+          dateText: item.text,
+          date: this._formatDateOnly_(compareDate),
+          type: item.type || 'explicit_date',
+          direction: 'past_as_future',
+          anchorRole: item.anchorRole || null,
           context: windowText.replace(/\s+/g, ' ').trim().substring(0, 180)
         });
       }
@@ -1174,12 +1182,12 @@ var ResponseValidator = class ResponseValidator {
 
     if (violations.length > 0) {
       errors.push(
-        `Incoerenza temporale: una data futura (${violations[0].dateText}) è presentata come evento già passato o concluso.`
+        `Incoerenza temporale: il riferimento "${violations[0].dateText}" è qualificato con una direzione temporale incompatibile con la data corrente.`
       );
-      return { score: 0.0, errors, warnings, violations, checkedDates: dates.length };
+      return { score: 0.0, errors, warnings, violations, checkedDates: temporalRefs.length };
     }
 
-    return { score: 1.0, errors, warnings, violations, checkedDates: dates.length };
+    return { score: 1.0, errors, warnings, violations, checkedDates: temporalRefs.length };
   }
 
   _checkOriginalDateQualification(response, originalContext = '', temporalContext = null, detectedLanguage = 'it') {
@@ -1193,35 +1201,47 @@ var ResponseValidator = class ResponseValidator {
       return { score: 1.0, errors, warnings, checked: false, reason: 'no_original_current_delta' };
     }
 
+    const withCompareDate = (ref) => {
+      const compareDate = this._getTemporalReferenceCompareDate_(ref);
+      return compareDate ? Object.assign({}, ref, { compareDate }) : null;
+    };
     const userRefs = this._extractTemporalReferences_(originalContext, runtimeContext, 'user')
-      .filter(ref => ref && ref.normalizedDate);
+      .map(withCompareDate)
+      .filter(Boolean);
     if (userRefs.length === 0) {
       return { score: 1.0, errors, warnings, checked: true, userReferences: 0, violations: [] };
     }
 
     const responseRefs = this._extractTemporalReferences_(response, runtimeContext, 'response')
-      .filter(ref => ref && ref.normalizedDate);
+      .map(withCompareDate)
+      .filter(Boolean);
     const currentOrdinal = this._dateOnlyOrdinal_(currentDate);
     const violations = [];
 
     userRefs.forEach(userRef => {
-      const userRefOrdinal = this._dateOnlyOrdinal_(userRef.normalizedDate);
+      const userRefOrdinal = this._dateOnlyOrdinal_(userRef.compareDate);
       if (userRefOrdinal >= currentOrdinal) return;
 
       const matchingResponseRefs = responseRefs.filter(responseRef => {
         const sameText = this._stripDiacritics_(responseRef.text).toLowerCase() === this._stripDiacritics_(userRef.text).toLowerCase();
-        const sameResolvedDate = this._dateOnlyOrdinal_(responseRef.normalizedDate) === userRefOrdinal;
-        return sameText || sameResolvedDate;
+        const sameResolvedDate = this._dateOnlyOrdinal_(responseRef.compareDate) === userRefOrdinal;
+        const sameRelativeWeekday = userRef.type === 'weekday_relative' &&
+          responseRef.type === 'weekday_relative' &&
+          Number.isFinite(Number(userRef.meta && userRef.meta.weekday)) &&
+          Number(userRef.meta.weekday) === Number(responseRef.meta && responseRef.meta.weekday);
+        return sameText || sameResolvedDate || sameRelativeWeekday;
       });
 
       matchingResponseRefs.forEach(responseRef => {
         const windowText = this._extractTemporalWindow_(response, responseRef.index, responseRef.length);
-        const responseDateIsFuture = this._dateOnlyOrdinal_(responseRef.normalizedDate) > currentOrdinal;
+        const responseDateIsFuture = this._dateOnlyOrdinal_(responseRef.compareDate) > currentOrdinal;
         if (responseDateIsFuture || this._hasFutureTemporalQualification_(windowText, detectedLanguage)) {
           violations.push({
             text: responseRef.text,
-            originalDate: this._formatDateOnly_(userRef.normalizedDate),
-            responseDate: this._formatDateOnly_(responseRef.normalizedDate),
+            originalDate: this._formatDateOnly_(userRef.compareDate),
+            responseDate: this._formatDateOnly_(responseRef.compareDate),
+            originalType: userRef.type || null,
+            responseType: responseRef.type || null,
             context: windowText.replace(/\s+/g, ' ').trim().substring(0, 180)
           });
         }
@@ -1413,6 +1433,7 @@ var ResponseValidator = class ResponseValidator {
     const papal = isRuntimeContext && temporalContext.papal && typeof temporalContext.papal === 'object'
       ? temporalContext.papal
       : {};
+    const normalizeEpoch = (value) => this._hasFiniteTemporalNumber_(value) ? Number(value) : null;
 
     if (temporalContext instanceof Date || typeof temporalContext === 'string') {
       return {
@@ -1432,14 +1453,19 @@ var ResponseValidator = class ResponseValidator {
         currentDate: temporal.currentDate || temporal.today || null,
         currentTime: temporal.currentTime || null,
         messageDate: temporal.messageDate || null,
-        processingEpochMs: Number.isFinite(Number(temporal.processingEpochMs)) ? Number(temporal.processingEpochMs) : null,
-        messageEpochMs: Number.isFinite(Number(temporal.messageEpochMs)) ? Number(temporal.messageEpochMs) : null,
+        processingEpochMs: normalizeEpoch(temporal.processingEpochMs),
+        messageEpochMs: normalizeEpoch(temporal.messageEpochMs),
         timeZone: temporal.timeZone || 'Europe/Rome',
         daysAgo: Number.isFinite(Number(temporal.daysAgo)) ? Number(temporal.daysAgo) : null,
         isOldMessage: temporal.isOldMessage === true
       },
       papal: papal
     };
+  }
+
+  _hasFiniteTemporalNumber_(value) {
+    if (value === null || typeof value === 'undefined' || value === '') return false;
+    return Number.isFinite(Number(value));
   }
 
   _resolveTemporalCurrentDate_(temporalContext) {
@@ -1449,7 +1475,7 @@ var ResponseValidator = class ResponseValidator {
     } else if (temporalContext && typeof temporalContext === 'object') {
       const runtimeContext = this._normalizeRuntimeContext_(temporalContext);
       value = runtimeContext.temporal.currentDate || null;
-      if (!value && Number.isFinite(Number(runtimeContext.temporal.processingEpochMs))) {
+      if (!value && this._hasFiniteTemporalNumber_(runtimeContext.temporal.processingEpochMs)) {
         const dateFromEpoch = this._parseEpochDateOnlyInTimeZone_(
           runtimeContext.temporal.processingEpochMs,
           runtimeContext.temporal.timeZone || 'Europe/Rome'
@@ -1475,7 +1501,7 @@ var ResponseValidator = class ResponseValidator {
   _resolveTemporalMessageDate_(temporalContext) {
     const runtimeContext = this._normalizeRuntimeContext_(temporalContext);
     const temporal = runtimeContext.temporal || {};
-    if (Number.isFinite(Number(temporal.messageEpochMs))) {
+    if (this._hasFiniteTemporalNumber_(temporal.messageEpochMs)) {
       const dateFromEpoch = this._parseEpochDateOnlyInTimeZone_(
         temporal.messageEpochMs,
         temporal.timeZone || 'Europe/Rome'
@@ -1584,6 +1610,123 @@ var ResponseValidator = class ResponseValidator {
     return `${year}-${month}-${day}`;
   }
 
+  _addMonthsToDateOnly_(date, months) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return null;
+    const targetMonthIndex = date.getMonth() + months;
+    const targetYear = date.getFullYear() + Math.floor(targetMonthIndex / 12);
+    const normalizedMonthIndex = ((targetMonthIndex % 12) + 12) % 12;
+    const lastDay = new Date(targetYear, normalizedMonthIndex + 1, 0, 12, 0, 0).getDate();
+    const targetDay = Math.min(date.getDate(), lastDay);
+    return new Date(targetYear, normalizedMonthIndex, targetDay, 12, 0, 0);
+  }
+
+  _startOfWeekDateOnly_(date) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return null;
+    const current = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
+    const mondayOffset = (current.getDay() + 6) % 7;
+    return this._addDaysToDateOnly_(current, -mondayOffset);
+  }
+
+  _getTemporalParsingPolicy_() {
+    const cfg = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.TEMPORAL_PARSING)
+      ? CONFIG.TEMPORAL_PARSING
+      : {};
+    return {
+      nextWeekdayPolicy: cfg.nextWeekdayPolicy || cfg.next_weekday_policy || 'upcoming'
+    };
+  }
+
+  _getTemporalReferenceCompareDate_(ref) {
+    if (!ref) return null;
+    const isValidDate = (value) => value instanceof Date && !isNaN(value.getTime());
+    if (isValidDate(ref.date)) return ref.date;
+    if (isValidDate(ref.normalizedDate)) return ref.normalizedDate;
+
+    const range = ref.normalizedRange || {};
+    const start = isValidDate(range.start) ? range.start : null;
+    const end = isValidDate(range.end) ? range.end : null;
+    if (!start) return null;
+    if (!end) return start;
+
+    const anchorDate = isValidDate(ref.anchorDate) ? ref.anchorDate : null;
+    if (!anchorDate) return start;
+
+    const startOrdinal = this._dateOnlyOrdinal_(start);
+    const endOrdinal = this._dateOnlyOrdinal_(end);
+    const anchorOrdinal = this._dateOnlyOrdinal_(anchorDate);
+    if (![startOrdinal, endOrdinal, anchorOrdinal].every(Number.isFinite)) return start;
+
+    if (anchorOrdinal >= startOrdinal && anchorOrdinal <= endOrdinal) {
+      return null;
+    }
+    if (anchorOrdinal > endOrdinal) return end;
+    return start;
+  }
+
+  _resolveTemporalAnchor_(runtimeContext, role = 'response') {
+    const normalizedContext = this._normalizeRuntimeContext_(runtimeContext);
+    const temporal = normalizedContext.temporal || {};
+    const timeZone = temporal.timeZone || 'Europe/Rome';
+    const currentDate = temporal.currentDate
+      ? this._parseDateOnly_(temporal.currentDate)
+      : (this._hasFiniteTemporalNumber_(temporal.processingEpochMs)
+        ? this._parseEpochDateOnlyInTimeZone_(temporal.processingEpochMs, timeZone)
+        : null);
+    const messageDate = temporal.messageDate
+      ? this._parseDateOnly_(temporal.messageDate)
+      : (this._hasFiniteTemporalNumber_(temporal.messageEpochMs)
+        ? this._parseEpochDateOnlyInTimeZone_(temporal.messageEpochMs, timeZone)
+        : null);
+
+    if (role === 'user' && messageDate) {
+      return { date: messageDate, anchorRole: 'messageDate', sourceRole: role, timeZone, isFallback: false };
+    }
+    if (currentDate) {
+      return { date: currentDate, anchorRole: 'currentDate', sourceRole: role, timeZone, isFallback: false };
+    }
+    if (role === 'user' && messageDate) {
+      return { date: messageDate, anchorRole: 'messageDate', sourceRole: role, timeZone, isFallback: false };
+    }
+
+    const fallbackDate = this._parseDateOnly_(new Date());
+    return {
+      date: fallbackDate,
+      anchorRole: 'systemFallback',
+      sourceRole: role,
+      timeZone,
+      isFallback: true,
+      diagnostic: 'temporal_anchor_missing_runtime_context'
+    };
+  }
+
+  _makeTemporalReference_(type, source, match, anchor, fields = {}) {
+    const index = Number(match && match.index);
+    const rawLength = Array.isArray(match)
+      ? (match[0] && match[0].length)
+      : (match && match.length);
+    const length = Number(rawLength || (match && match[0] && match[0].length));
+    if (!Number.isFinite(index) || !Number.isFinite(length) || length <= 0) return null;
+    const baseConfidence = Number.isFinite(Number(fields.confidence)) ? Number(fields.confidence) : 0.75;
+    const confidence = anchor && anchor.isFallback ? Math.min(baseConfidence, 0.35) : baseConfidence;
+    return Object.assign({
+      type,
+      text: fields.text || (match && match.text) || String(source || '').substring(index, index + length),
+      index,
+      length,
+      normalizedDate: fields.normalizedDate || null,
+      normalizedRange: fields.normalizedRange || null,
+      anchorDate: anchor ? anchor.date : null,
+      anchorRole: anchor ? anchor.anchorRole : null,
+      sourceRole: anchor ? anchor.sourceRole : null,
+      anchorIsFallback: Boolean(anchor && anchor.isFallback),
+      anchorDiagnostic: anchor && anchor.diagnostic ? anchor.diagnostic : null,
+      confidence,
+      temporalIntent: fields.temporalIntent || null,
+      granularity: fields.granularity || null,
+      meta: fields.meta || {}
+    }, fields, { confidence });
+  }
+
   _stripDiacritics_(value) {
     try {
       return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -1614,55 +1757,347 @@ var ResponseValidator = class ResponseValidator {
     if (!source) return [];
 
     const runtimeContext = this._normalizeRuntimeContext_(temporalContext);
-    const currentDate = this._resolveTemporalCurrentDate_(runtimeContext) || this._parseDateOnly_(new Date());
-    const messageDate = this._resolveTemporalMessageDate_(runtimeContext);
-    const anchorDate = role === 'user'
-      ? (messageDate || currentDate)
-      : currentDate;
-    const anchorRole = role === 'user' && messageDate ? 'messageDate' : 'currentDate';
-    const references = [];
-
-    this._extractExplicitDates_(source, anchorDate).forEach(item => {
-      references.push({
-        type: item.hasExplicitYear === false ? 'date_without_year' : 'explicit_date',
-        text: item.text,
-        index: item.index,
-        length: item.length,
-        normalizedDate: item.date,
-        anchorDate: anchorDate,
-        anchorRole: anchorRole,
-        sourceRole: role,
-        confidence: item.hasExplicitYear === false ? 0.75 : 0.95,
-        temporalIntent: item.hasExplicitYear === false ? 'ambiguous_year' : 'explicit'
-      });
-    });
-
+    const anchor = this._resolveTemporalAnchor_(runtimeContext, role);
+    if (!anchor || !anchor.date) return [];
     const normalized = this._stripDiacritics_(source).toLowerCase();
-    const relativePatterns = [
-      { pattern: /(?<![a-zA-Z])dopodomani(?![a-zA-Z])/g, days: 2, type: 'relative_point', intent: 'future' },
-      { pattern: /(?<![a-zA-Z])domani(?![a-zA-Z])/g, days: 1, type: 'relative_point', intent: 'future' },
-      { pattern: /(?<![a-zA-Z])oggi(?![a-zA-Z])/g, days: 0, type: 'relative_point', intent: 'present' },
-      { pattern: /(?<![a-zA-Z])ieri(?![a-zA-Z])/g, days: -1, type: 'relative_point', intent: 'past' }
+
+    const references = [
+      ...this._extractExplicitDatesLegacyAdapter_(source, anchor),
+      ...this._extractRelativePointReferences_(source, normalized, anchor),
+      ...this._extractWeekdayRelativeReferences_(source, normalized, anchor),
+      ...this._extractRelativeIntervalReferences_(source, normalized, anchor),
+      ...this._extractRelativeOffsetReferences_(source, normalized, anchor),
+      ...this._extractAmbiguousRelativeReferences_(source, normalized, anchor)
     ];
+
+    return this._dedupeTemporalReferenceSpans_(references);
+  }
+
+  _extractExplicitDatesLegacyAdapter_(source, anchor) {
+    return this._extractExplicitDates_(source, anchor.date)
+      .map(item => this._makeTemporalReference_(
+        item.hasExplicitYear === false ? 'date_without_year' : 'explicit_date',
+        source,
+        item,
+        anchor,
+        {
+          text: item.text,
+          normalizedDate: item.date,
+          confidence: item.hasExplicitYear === false ? 0.75 : 0.95,
+          temporalIntent: item.hasExplicitYear === false ? 'ambiguous_year' : 'explicit',
+          granularity: 'day'
+        }
+      ))
+      .filter(Boolean);
+  }
+
+  _extractRelativePointReferences_(source, normalized, anchor) {
+    const references = [];
+    const relativePatterns = [
+      { pattern: /(?<![a-zA-Z])dopodomani(?![a-zA-Z])/g, days: 2, intent: 'future' },
+      { pattern: /(?<![a-zA-Z])domani(?![a-zA-Z])/g, days: 1, intent: 'future' },
+      { pattern: /(?<![a-zA-Z])oggi(?![a-zA-Z])/g, days: 0, intent: 'present' },
+      { pattern: /(?<![a-zA-Z])ieri(?![a-zA-Z])/g, days: -1, intent: 'past' }
+    ];
+
     relativePatterns.forEach(definition => {
       let match;
       while ((match = definition.pattern.exec(normalized)) !== null) {
-        references.push({
-          type: definition.type,
-          text: source.substring(match.index, match.index + match[0].length),
-          index: match.index,
-          length: match[0].length,
-          normalizedDate: this._addDaysToDateOnly_(anchorDate, definition.days),
-          anchorDate: anchorDate,
-          anchorRole: anchorRole,
-          sourceRole: role,
+        references.push(this._makeTemporalReference_('relative_point', source, match, anchor, {
+          normalizedDate: this._addDaysToDateOnly_(anchor.date, definition.days),
           confidence: 0.85,
-          temporalIntent: definition.intent
-        });
+          temporalIntent: definition.intent,
+          granularity: 'day',
+          meta: {
+            direction: definition.intent,
+            amount: definition.days,
+            unit: 'days'
+          }
+        }));
       }
     });
 
-    return references.sort((a, b) => a.index - b.index);
+    return references.filter(Boolean);
+  }
+
+  _weekdayNameMap_() {
+    return {
+      lunedi: 1,
+      martedi: 2,
+      mercoledi: 3,
+      giovedi: 4,
+      venerdi: 5,
+      sabato: 6,
+      domenica: 0
+    };
+  }
+
+  _weekdayAlternation_() {
+    return 'lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica';
+  }
+
+  _resolveWeekdayDate_(anchorDate, weekdayNumber, direction) {
+    if (!(anchorDate instanceof Date) || isNaN(anchorDate.getTime())) return null;
+    const currentWeekday = anchorDate.getDay();
+    const normalizedDirection = String(direction || '').toLowerCase();
+
+    if (normalizedDirection === 'current_week') {
+      const weekStart = this._startOfWeekDateOnly_(anchorDate);
+      return this._addDaysToDateOnly_(weekStart, weekdayNumber === 0 ? 6 : weekdayNumber - 1);
+    }
+
+    if (normalizedDirection === 'next_week' || normalizedDirection === 'next_week_strict') {
+      const policy = this._getTemporalParsingPolicy_().nextWeekdayPolicy;
+      if (policy === 'strict_next_week' || normalizedDirection === 'next_week_strict') {
+        const nextWeekStart = this._addDaysToDateOnly_(this._startOfWeekDateOnly_(anchorDate), 7);
+        return this._addDaysToDateOnly_(nextWeekStart, weekdayNumber === 0 ? 6 : weekdayNumber - 1);
+      }
+      let delta = (weekdayNumber - currentWeekday + 7) % 7;
+      if (delta === 0) delta = 7;
+      return this._addDaysToDateOnly_(anchorDate, delta);
+    }
+
+    if (normalizedDirection === 'previous_week') {
+      let delta = (currentWeekday - weekdayNumber + 7) % 7;
+      if (delta === 0) delta = 7;
+      return this._addDaysToDateOnly_(anchorDate, -delta);
+    }
+
+    return null;
+  }
+
+  _extractWeekdayRelativeReferences_(source, normalized, anchor) {
+    const references = [];
+    const weekdays = this._weekdayNameMap_();
+    const weekdayAlternation = this._weekdayAlternation_();
+    const addWeekdayRef = (match, weekdayText, direction, textValue) => {
+      const weekdayNumber = weekdays[String(weekdayText || '').toLowerCase()];
+      if (!Number.isFinite(weekdayNumber)) return;
+      const normalizedDate = this._resolveWeekdayDate_(anchor.date, weekdayNumber, direction);
+      if (!normalizedDate) return;
+      references.push(this._makeTemporalReference_('weekday_relative', source, match, anchor, {
+        text: textValue || source.substring(match.index, match.index + match[0].length),
+        normalizedDate: normalizedDate,
+        confidence: direction === 'current_week' ? 0.75 : 0.88,
+        temporalIntent: direction === 'previous_week' ? 'past' : 'future',
+        granularity: 'day',
+        meta: {
+          direction: direction === 'previous_week' ? 'past' : 'future',
+          weekday: weekdayNumber
+        }
+      }));
+    };
+
+    const compositePatterns = [
+      new RegExp('\\b(?:il\\s+|la\\s+)?(' + weekdayAlternation + ')\\s+(?:della|nella|di)\\s+(prossima|scorsa|questa)\\s+settimana\\b', 'g'),
+      new RegExp('\\b(?:il\\s+|la\\s+)?(' + weekdayAlternation + ')\\s+(?:della|nella|di)\\s+settimana\\s+(prossima|scorsa)\\b', 'g')
+    ];
+    compositePatterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(normalized)) !== null) {
+        const qualifier = match[2];
+        const direction = qualifier === 'scorsa'
+          ? 'previous_week'
+          : (qualifier === 'questa' ? 'current_week' : 'next_week_strict');
+        addWeekdayRef(match, match[1], direction);
+      }
+    });
+
+    const suffixPattern = new RegExp('\\b(?:il\\s+|la\\s+)?(' + weekdayAlternation + ')\\s+(prossimo|prossima|scorso|scorsa)\\b', 'g');
+    let match;
+    while ((match = suffixPattern.exec(normalized)) !== null) {
+      const direction = /^scors/.test(match[2]) ? 'previous_week' : 'next_week';
+      addWeekdayRef(match, match[1], direction);
+    }
+
+    const prefixPattern = new RegExp('\\b(?:il\\s+|la\\s+)?(prossimo|prossima|scorso|scorsa)\\s+(' + weekdayAlternation + ')\\b', 'g');
+    while ((match = prefixPattern.exec(normalized)) !== null) {
+      const direction = /^scors/.test(match[1]) ? 'previous_week' : 'next_week';
+      addWeekdayRef(match, match[2], direction);
+    }
+
+    return references;
+  }
+
+  _extractRelativeIntervalReferences_(source, normalized, anchor) {
+    const references = [];
+    const addIntervalRef = (match, unit, offset) => {
+      let start = null;
+      let end = null;
+      if (unit === 'week') {
+        start = this._addDaysToDateOnly_(this._startOfWeekDateOnly_(anchor.date), offset * 7);
+        end = this._addDaysToDateOnly_(start, 6);
+      } else if (unit === 'month') {
+        start = new Date(anchor.date.getFullYear(), anchor.date.getMonth() + offset, 1, 12, 0, 0);
+        end = new Date(start.getFullYear(), start.getMonth() + 1, 0, 12, 0, 0);
+      }
+      if (!start || !end) return;
+      references.push(this._makeTemporalReference_('relative_interval', source, match, anchor, {
+        normalizedRange: { start, end },
+        confidence: 0.82,
+        temporalIntent: offset < 0 ? 'past' : (offset > 0 ? 'future' : 'present'),
+        granularity: unit,
+        meta: {
+          direction: offset < 0 ? 'past' : (offset > 0 ? 'future' : 'current'),
+          amount: Math.abs(offset),
+          unit: unit + 's'
+        }
+      }));
+    };
+
+    const weekPattern = /\b(?:la\s+)?(?:prossima\s+settimana|settimana\s+prossima|scorsa\s+settimana|settimana\s+scorsa|questa\s+settimana|settimana\s+corrente)\b/g;
+    let match;
+    while ((match = weekPattern.exec(normalized)) !== null) {
+      const value = match[0];
+      const offset = /scorsa/.test(value) ? -1 : (/prossima/.test(value) ? 1 : 0);
+      addIntervalRef(match, 'week', offset);
+    }
+
+    const monthPattern = /\b(?:il\s+)?(?:prossimo\s+mese|mese\s+prossimo|scorso\s+mese|mese\s+scorso|questo\s+mese|mese\s+corrente)\b/g;
+    while ((match = monthPattern.exec(normalized)) !== null) {
+      const value = match[0];
+      const offset = /scorso/.test(value) ? -1 : (/prossimo/.test(value) ? 1 : 0);
+      addIntervalRef(match, 'month', offset);
+    }
+
+    return references;
+  }
+
+  _textToNumber_(text) {
+    const normalized = this._stripDiacritics_(String(text || '').toLowerCase()).trim();
+    const map = {
+      un: 1, uno: 1, una: 1,
+      due: 2, tre: 3, quattro: 4, cinque: 5,
+      sei: 6, sette: 7, otto: 8, nove: 9, dieci: 10,
+      undici: 11, dodici: 12, tredici: 13, quattordici: 14,
+      quindici: 15, sedici: 16, diciassette: 17, diciotto: 18,
+      diciannove: 19, venti: 20, trenta: 30
+    };
+    if (Object.prototype.hasOwnProperty.call(map, normalized)) return map[normalized];
+    const parsed = parseInt(normalized, 10);
+    return isNaN(parsed) ? NaN : parsed;
+  }
+
+  _extractRelativeOffsetReferences_(source, normalized, anchor) {
+    const references = [];
+    const rx = /\b(?:tra|fra|in)\s+(\d+|un|uno|una|due|tre|quattro|cinque|sei|sette|otto|nove|dieci|undici|dodici|tredici|quattordici|quindici|sedici|diciassette|diciotto|diciannove|venti|trenta)\s+(giorn[io]|settiman[ae]|mes[ei])\b/g;
+    let match;
+    while ((match = rx.exec(normalized)) !== null) {
+      const amount = this._textToNumber_(match[1]);
+      if (!Number.isFinite(amount) || amount <= 0) continue;
+      const unitText = match[2];
+      const unit = /^giorn/.test(unitText) ? 'days' : (/^settiman/.test(unitText) ? 'weeks' : 'months');
+      const normalizedDate = unit === 'months'
+        ? this._addMonthsToDateOnly_(anchor.date, amount)
+        : this._addDaysToDateOnly_(anchor.date, amount * (unit === 'weeks' ? 7 : 1));
+      if (!normalizedDate) continue;
+      references.push(this._makeTemporalReference_('relative_offset', source, match, anchor, {
+        normalizedDate: normalizedDate,
+        confidence: 0.86,
+        temporalIntent: 'future',
+        granularity: unit === 'days' ? 'day' : (unit === 'weeks' ? 'week' : 'month'),
+        meta: {
+          direction: 'future',
+          amount: amount,
+          unit: unit
+        }
+      }));
+    }
+    return references.filter(Boolean);
+  }
+
+  _extractAmbiguousRelativeReferences_(source, normalized, anchor) {
+    const references = [];
+    const weekdayAlternation = this._weekdayAlternation_();
+    const weekdays = this._weekdayNameMap_();
+    const weekdayPattern = new RegExp('\\b(?:il\\s+|la\\s+)?(' + weekdayAlternation + ')\\b', 'g');
+    let match;
+    while ((match = weekdayPattern.exec(normalized)) !== null) {
+      const weekdayNumber = weekdays[String(match[1] || '').toLowerCase()];
+      references.push(this._makeTemporalReference_('ambiguous_relative', source, match, anchor, {
+        confidence: 0.42,
+        temporalIntent: 'ambiguous',
+        granularity: 'day',
+        meta: {
+          direction: 'ambiguous',
+          unit: 'day',
+          weekday: weekdayNumber
+        }
+      }));
+    }
+
+    const fuzzyPatterns = [
+      { pattern: /\bnei\s+prossimi\s+giorni\b/g, intent: 'future', granularity: 'day', meta: { direction: 'future', unit: 'days' } },
+      { pattern: /\b(?:a\s+breve|quanto\s+prima)\b/g, intent: 'future', granularity: null, meta: { direction: 'future', unit: 'unspecified' } },
+      { pattern: /\b(?:la\s+)?settimana\b/g, intent: 'ambiguous', granularity: 'week', meta: { direction: 'ambiguous', unit: 'weeks' } }
+    ];
+    fuzzyPatterns.forEach(definition => {
+      let fuzzyMatch;
+      while ((fuzzyMatch = definition.pattern.exec(normalized)) !== null) {
+        references.push(this._makeTemporalReference_('ambiguous_relative', source, fuzzyMatch, anchor, {
+          confidence: 0.4,
+          temporalIntent: definition.intent,
+          granularity: definition.granularity,
+          meta: definition.meta
+        }));
+      }
+    });
+
+    return references.filter(Boolean);
+  }
+
+  _dedupeTemporalReferenceSpans_(references) {
+    const candidates = (Array.isArray(references) ? references : [])
+      .filter(ref => ref && Number.isFinite(ref.index) && Number.isFinite(ref.length) && ref.length > 0);
+    const priority = {
+      explicit_date: 70,
+      date_without_year: 65,
+      weekday_relative: 60,
+      relative_interval: 50,
+      relative_offset: 40,
+      relative_point: 30,
+      ambiguous_relative: 10
+    };
+    const exactBySpan = new Map();
+    candidates
+      .slice()
+      .sort((a, b) => {
+        const pa = priority[a.type] || 0;
+        const pb = priority[b.type] || 0;
+        if (pb !== pa) return pb - pa;
+        if (b.length !== a.length) return b.length - a.length;
+        const ca = Number(a.confidence) || 0;
+        const cb = Number(b.confidence) || 0;
+        if (cb !== ca) return cb - ca;
+        return a.index - b.index;
+      })
+      .forEach(ref => {
+        const key = `${ref.index}:${ref.length}`;
+        if (!exactBySpan.has(key)) exactBySpan.set(key, ref);
+      });
+
+    const accepted = [];
+
+    Array.from(exactBySpan.values())
+      .sort((a, b) => {
+        if (b.length !== a.length) return b.length - a.length;
+        const pa = priority[a.type] || 0;
+        const pb = priority[b.type] || 0;
+        if (pb !== pa) return pb - pa;
+        return a.index - b.index;
+      })
+      .forEach(ref => {
+        const start = ref.index;
+        const end = ref.index + ref.length;
+        const overlaps = accepted.some(existing => {
+          const existingStart = existing.index;
+          const existingEnd = existing.index + existing.length;
+          return start < existingEnd && end > existingStart;
+        });
+        if (!overlaps) accepted.push(ref);
+      });
+
+    return accepted.sort((a, b) => a.index - b.index);
   }
 
   _extractExplicitDates_(text, referenceDate) {
@@ -1671,7 +2106,9 @@ var ResponseValidator = class ResponseValidator {
     const monthMap = this._monthNameMap_();
     const dates = [];
     const seen = new Set();
-    const referenceYear = referenceDate ? referenceDate.getFullYear() : new Date().getFullYear();
+    const referenceYear = referenceDate instanceof Date && !isNaN(referenceDate.getTime())
+      ? referenceDate.getFullYear()
+      : null;
 
     const addDate = (year, month, day, index, length, textValue, meta = {}) => {
       const date = this._makeDateOnly_(year, month, day);
@@ -1712,7 +2149,7 @@ var ResponseValidator = class ResponseValidator {
     while ((match = dayMonth.exec(normalized)) !== null) {
       const trailing = normalized.substring(match.index + match[0].length, match.index + match[0].length + 8);
       const month = monthMap[match[2]];
-      if (month && !/\s*20\d{2}/.test(trailing)) {
+      if (month && referenceYear && !/\s*20\d{2}/.test(trailing)) {
         addDate(referenceYear, month, parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length), { hasExplicitYear: false });
       }
     }

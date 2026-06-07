@@ -1395,6 +1395,69 @@ function runAllTests() {
                 Array.isArray(result.violations) &&
                 result.violations.length > 0;
         });
+        test('Email scritta lunedì interpreta domani come martedì', results, () => {
+            const runtimeContext = {
+                temporal: {
+                    currentDate: '2026-06-07',
+                    currentTime: '14:00',
+                    messageDate: '2026-06-01',
+                    processingEpochMs: new Date('2026-06-07T12:00:00Z').getTime(),
+                    messageEpochMs: new Date('2026-06-01T08:00:00Z').getTime(),
+                    timeZone: 'Europe/Rome'
+                }
+            };
+            const refs = validator._extractTemporalReferences_('Ci vediamo domani.', runtimeContext, 'user');
+            const tomorrowRef = refs.find(ref => /domani/i.test(ref.text));
+            return tomorrowRef &&
+                tomorrowRef.anchorRole === 'messageDate' &&
+                validator._formatDateOnly_(tomorrowRef.normalizedDate) === '2026-06-02';
+        });
+        test('OriginalDateQualification intercetta oggi vecchio ripetuto come futuro operativo', results, () => {
+            const runtimeContext = {
+                temporal: {
+                    currentDate: '2026-06-07',
+                    currentTime: '11:30',
+                    messageDate: '2026-06-01',
+                    processingEpochMs: new Date('2026-06-07T09:30:00Z').getTime(),
+                    messageEpochMs: new Date('2026-06-01T08:00:00Z').getTime(),
+                    daysAgo: 6,
+                    isOldMessage: true,
+                    timeZone: 'Europe/Rome'
+                }
+            };
+            const result = validator._checkOriginalDateQualification(
+                'Oggi può passare in segreteria.',
+                'Oggi posso passare in segreteria?',
+                runtimeContext,
+                'it'
+            );
+            return result && result.score === 0.0 &&
+                Array.isArray(result.violations) &&
+                result.violations.some(v => v.originalDate === '2026-06-01' && v.responseDate === '2026-06-07');
+        });
+        test('OriginalDateQualification intercetta lunedì scorso trasformato in prossimo lunedì', results, () => {
+            const runtimeContext = {
+                temporal: {
+                    currentDate: '2026-06-21',
+                    currentTime: '10:00',
+                    messageDate: '2026-06-14',
+                    processingEpochMs: new Date('2026-06-21T08:00:00Z').getTime(),
+                    messageEpochMs: new Date('2026-06-14T08:00:00Z').getTime(),
+                    daysAgo: 7,
+                    isOldMessage: true,
+                    timeZone: 'Europe/Rome'
+                }
+            };
+            const result = validator._checkOriginalDateQualification(
+                'Prossimo lunedì può passare in segreteria.',
+                'Lunedì scorso posso passare in segreteria?',
+                runtimeContext,
+                'it'
+            );
+            return result && result.score === 0.0 &&
+                Array.isArray(result.violations) &&
+                result.violations.some(v => v.originalType === 'weekday_relative' && v.responseType === 'weekday_relative');
+        });
         test('checkTemporalConsistency intercetta data futura descritta come già conclusa', results, () => {
             const runtimeContext = {
                 temporal: {
@@ -1408,6 +1471,149 @@ function runAllTests() {
             return result && result.score === 0.0 &&
                 Array.isArray(result.violations) &&
                 result.violations.length > 0;
+        });
+        test('extractTemporalReferences risolve sabato prossimo con anchor differenziato', results, () => {
+            const runtimeContext = {
+                temporal: {
+                    currentDate: '2026-06-07',
+                    messageDate: '2026-06-01',
+                    processingEpochMs: new Date('2026-06-07T12:00:00Z').getTime(),
+                    messageEpochMs: new Date('2026-06-01T08:00:00Z').getTime(),
+                    timeZone: 'Europe/Rome'
+                }
+            };
+            const userRefs = validator._extractTemporalReferences_('Sabato prossimo passo.', runtimeContext, 'user');
+            const responseRefs = validator._extractTemporalReferences_('Sabato prossimo può passare.', runtimeContext, 'response');
+            const userSaturday = userRefs.find(ref => ref.type === 'weekday_relative');
+            const responseSaturday = responseRefs.find(ref => ref.type === 'weekday_relative');
+            return userSaturday && responseSaturday &&
+                validator._formatDateOnly_(userSaturday.normalizedDate) === '2026-06-06' &&
+                validator._formatDateOnly_(responseSaturday.normalizedDate) === '2026-06-13';
+        });
+        test('checkTemporalConsistency intercetta intervallo futuro descritto come già svolto', results, () => {
+            const result = validator._checkTemporalConsistency(
+                'La riunione della prossima settimana si è già svolta.',
+                'it',
+                { currentDate: '2026-06-01' }
+            );
+            return result && result.score === 0.0 &&
+                Array.isArray(result.violations) &&
+                result.violations.some(v => v.type === 'relative_interval');
+        });
+        test('checkTemporalConsistency intercetta data passata descritta come futura', results, () => {
+            const result = validator._checkTemporalConsistency(
+                'La riunione del 6 giugno 2026 si terrà alle 18.',
+                'it',
+                { currentDate: '2026-06-07' }
+            );
+            return result && result.score === 0.0 &&
+                Array.isArray(result.violations) &&
+                result.violations.some(v => v.direction === 'past_as_future');
+        });
+        test('checkTemporalConsistency non trasforma questa settimana in passato', results, () => {
+            const result = validator._checkTemporalConsistency(
+                'Questa settimana si terrà il corso.',
+                'it',
+                { currentDate: '2026-06-03' }
+            );
+            return result && result.score === 1.0;
+        });
+        test('Date esplicite uguali restano uguali con anchor diverso', results, () => {
+            const runtimeContext = {
+                temporal: {
+                    currentDate: '2026-06-07',
+                    currentTime: '16:00',
+                    messageDate: '2026-06-01',
+                    processingEpochMs: new Date('2026-06-07T14:00:00Z').getTime(),
+                    messageEpochMs: new Date('2026-06-01T08:00:00Z').getTime(),
+                    timeZone: 'Europe/Rome'
+                }
+            };
+            const userDate = validator._extractTemporalReferences_('Appuntamento del 2 giugno 2026.', runtimeContext, 'user')
+                .find(ref => ref.type === 'explicit_date');
+            const responseDate = validator._extractTemporalReferences_('Appuntamento del 2 giugno 2026.', runtimeContext, 'response')
+                .find(ref => ref.type === 'explicit_date');
+            const result = validator._checkOriginalDateQualification(
+                "L'appuntamento del 2 giugno 2026 si è svolto regolarmente.",
+                'Appuntamento del 2 giugno 2026.',
+                runtimeContext,
+                'it'
+            );
+            return userDate && responseDate &&
+                userDate.anchorRole === 'messageDate' &&
+                responseDate.anchorRole === 'currentDate' &&
+                validator._formatDateOnly_(userDate.normalizedDate) === '2026-06-02' &&
+                validator._formatDateOnly_(responseDate.normalizedDate) === '2026-06-02' &&
+                result && result.score === 1.0;
+        });
+        test('Intervallo relativo attraversa mese e anno', results, () => {
+            const runtimeContext = {
+                temporal: {
+                    currentDate: '2026-12-27',
+                    messageDate: '2026-12-27',
+                    timeZone: 'Europe/Rome'
+                }
+            };
+            const refs = validator._extractTemporalReferences_('La prossima settimana ci sarà il corso.', runtimeContext, 'response');
+            const weekRef = refs.find(ref => ref.type === 'relative_interval');
+            const result = validator._checkTemporalConsistency(
+                'La prossima settimana si è già svolto il corso.',
+                'it',
+                runtimeContext
+            );
+            return weekRef &&
+                validator._formatDateOnly_(weekRef.normalizedRange.start) === '2026-12-28' &&
+                validator._formatDateOnly_(weekRef.normalizedRange.end) === '2027-01-03' &&
+                result && result.score === 0.0;
+        });
+        test('OriginalDateQualification include intervalli relativi vecchi', results, () => {
+            const runtimeContext = {
+                temporal: {
+                    currentDate: '2026-06-21',
+                    currentTime: '10:00',
+                    messageDate: '2026-06-01',
+                    processingEpochMs: new Date('2026-06-21T08:00:00Z').getTime(),
+                    messageEpochMs: new Date('2026-06-01T08:00:00Z').getTime(),
+                    daysAgo: 20,
+                    isOldMessage: true,
+                    timeZone: 'Europe/Rome'
+                }
+            };
+            const result = validator._checkOriginalDateQualification(
+                'Confermiamo che ci vediamo la prossima settimana per il corso.',
+                'Ci vediamo la prossima settimana per il corso.',
+                runtimeContext,
+                'it'
+            );
+            return result && result.score === 0.0 &&
+                Array.isArray(result.violations) &&
+                result.violations.some(v => v.originalType === 'relative_interval' && v.responseType === 'relative_interval');
+        });
+        test('extractTemporalReferences conserva ambigui senza data inventata', results, () => {
+            const refs = validator._extractTemporalReferences_(
+                'Lunedì passo nei prossimi giorni.',
+                { currentDate: '2026-06-01', messageDate: '2026-06-01' },
+                'response'
+            );
+            const ambiguousRefs = refs.filter(ref => ref.type === 'ambiguous_relative');
+            return ambiguousRefs.length >= 2 &&
+                ambiguousRefs.every(ref => !ref.normalizedDate && !ref.normalizedRange);
+        });
+        test('Saluto usa currentTime e non messageDate', results, () => {
+            const runtimeContext = {
+                temporal: {
+                    currentDate: '2026-06-07',
+                    currentTime: '20:30',
+                    messageDate: '2026-06-01',
+                    timeZone: 'Europe/Rome'
+                }
+            };
+            const wrongGreeting = validator._checkTimeBasedGreeting('Buongiorno, le confermiamo la disponibilità.', 'it', runtimeContext);
+            const correctGreeting = validator._checkTimeBasedGreeting('Buonasera, le confermiamo la disponibilità.', 'it', runtimeContext);
+            return wrongGreeting && wrongGreeting.score < 1.0 &&
+                wrongGreeting.expectedTimeSlot === 'evening' &&
+                correctGreeting && correctGreeting.score === 1.0 &&
+                correctGreeting.expectedTimeSlot === 'evening';
         });
     });
 

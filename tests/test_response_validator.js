@@ -579,6 +579,28 @@ console.log('--- Test temporal references: relativi utente ancorati a messageDat
   assert(tomorrowRef.anchorRole === 'messageDate', 'il riferimento utente deve dichiarare anchorRole=messageDate');
 }
 
+console.log('--- Test temporal references: email scritta lunedì interpreta domani come martedì ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-06-07',
+      currentTime: '14:00',
+      messageDate: '2026-06-01',
+      processingEpochMs: new Date('2026-06-07T12:00:00Z').getTime(),
+      messageEpochMs: new Date('2026-06-01T08:00:00Z').getTime(),
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const refs = validator._extractTemporalReferences_('Ci vediamo domani.', runtimeContext, 'user');
+  const tomorrowRef = refs.find(ref => /domani/i.test(ref.text));
+  assert(
+    tomorrowRef &&
+      tomorrowRef.anchorRole === 'messageDate' &&
+      validator._formatDateOnly_(tomorrowRef.normalizedDate) === '2026-06-02',
+    'domani scritto lunedì 2026-06-01 deve risolversi a martedì 2026-06-02'
+  );
+}
+
 console.log('--- Test temporal references: relativi ancorati agli epoch del runtimeContext ---');
 {
   const runtimeContext = {
@@ -601,6 +623,286 @@ console.log('--- Test temporal references: relativi ancorati agli epoch del runt
     responseTomorrow && validator._formatDateOnly_(responseTomorrow.normalizedDate) === '2026-05-16',
     'domani risposta deve derivare da processingEpochMs anche senza currentDate'
   );
+}
+
+console.log('--- Test temporal references: weekday prossimo usa anchor per ruolo ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-06-07',
+      currentTime: '14:00',
+      messageDate: '2026-06-01',
+      processingEpochMs: new Date('2026-06-07T12:00:00Z').getTime(),
+      messageEpochMs: new Date('2026-06-01T08:00:00Z').getTime(),
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const userRefs = validator._extractTemporalReferences_('Ci vediamo sabato prossimo.', runtimeContext, 'user');
+  const responseRefs = validator._extractTemporalReferences_('Ci vediamo sabato prossimo.', runtimeContext, 'response');
+  const userSaturday = userRefs.find(ref => ref.type === 'weekday_relative');
+  const responseSaturday = responseRefs.find(ref => ref.type === 'weekday_relative');
+  assert(
+    userSaturday && validator._formatDateOnly_(userSaturday.normalizedDate) === '2026-06-06',
+    'sabato prossimo nel testo utente deve usare messageDate come anchor'
+  );
+  assert(
+    responseSaturday && validator._formatDateOnly_(responseSaturday.normalizedDate) === '2026-06-13',
+    'sabato prossimo nella risposta deve usare currentDate come anchor'
+  );
+}
+
+console.log('--- Test temporal references: weekday relativo supporta ordine aggettivo/nome ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-06-01',
+      messageDate: '2026-06-01',
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const nextPrefix = validator._extractTemporalReferences_('Prossimo sabato posso passare.', runtimeContext, 'response')
+    .find(ref => ref.type === 'weekday_relative');
+  const nextMonday = validator._extractTemporalReferences_('Lunedì prossimo posso passare.', runtimeContext, 'response')
+    .find(ref => ref.type === 'weekday_relative');
+  assert(
+    nextPrefix && validator._formatDateOnly_(nextPrefix.normalizedDate) === '2026-06-06',
+    'prossimo sabato deve essere riconosciuto come sabato prossimo futuro'
+  );
+  assert(
+    nextMonday && validator._formatDateOnly_(nextMonday.normalizedDate) === '2026-06-08',
+    'lunedì prossimo con anchor lunedì deve riferirsi al lunedì successivo'
+  );
+}
+
+console.log('--- Test temporal references: weekday scorso supporta entrambi gli ordini ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-06-07',
+      messageDate: '2026-06-07',
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const suffix = validator._extractTemporalReferences_('Lunedì scorso abbiamo inviato il documento.', runtimeContext, 'response')
+    .find(ref => ref.type === 'weekday_relative');
+  const prefix = validator._extractTemporalReferences_('Scorso lunedì abbiamo inviato il documento.', runtimeContext, 'response')
+    .find(ref => ref.type === 'weekday_relative');
+  assert(
+    suffix && prefix &&
+      validator._formatDateOnly_(suffix.normalizedDate) === '2026-06-01' &&
+      validator._formatDateOnly_(prefix.normalizedDate) === '2026-06-01',
+    'lunedì scorso e scorso lunedì devono risolversi alla stessa data passata'
+  );
+}
+
+console.log('--- Test temporal references: overlap privilegia match composto più lungo ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-06-01',
+      messageDate: '2026-06-01',
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const refs = validator._extractTemporalReferences_('Il sabato della prossima settimana ci sarà il corso.', runtimeContext, 'response');
+  assert(refs.length === 1, 'il match composto deve scartare il sotto-match prossima settimana');
+  assert(refs[0].type === 'weekday_relative', 'il match composto deve restare un weekday relativo');
+  assert(
+    validator._formatDateOnly_(refs[0].normalizedDate) === '2026-06-13',
+    'sabato della prossima settimana deve risolversi al sabato della settimana successiva'
+  );
+}
+
+console.log('--- Test temporal references: intervallo settimana non diventa data puntuale ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-06-01',
+      messageDate: '2026-06-01',
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const refs = validator._extractTemporalReferences_('La prossima settimana ci sentiamo.', runtimeContext, 'response');
+  const variantRefs = validator._extractTemporalReferences_('La settimana prossima ci sentiamo.', runtimeContext, 'response');
+  const weekRef = refs.find(ref => ref.type === 'relative_interval');
+  const variantWeekRef = variantRefs.find(ref => ref.type === 'relative_interval');
+  assert(weekRef && !weekRef.normalizedDate, 'la prossima settimana deve produrre un intervallo, non una data puntuale');
+  assert(
+    validator._formatDateOnly_(weekRef.normalizedRange.start) === '2026-06-08' &&
+      validator._formatDateOnly_(weekRef.normalizedRange.end) === '2026-06-14',
+    'la prossima settimana deve coprire lunedì-domenica della settimana seguente'
+  );
+  assert(
+    variantWeekRef &&
+      validator._formatDateOnly_(variantWeekRef.normalizedRange.start) === '2026-06-08' &&
+      validator._formatDateOnly_(variantWeekRef.normalizedRange.end) === '2026-06-14',
+    'la settimana prossima deve essere equivalente alla prossima settimana'
+  );
+}
+
+console.log('--- Test temporal references: offset con numero a lettere usa anchor assoluto ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-06-07',
+      currentTime: '14:00',
+      messageDate: '2026-06-01',
+      processingEpochMs: new Date('2026-06-07T12:00:00Z').getTime(),
+      messageEpochMs: new Date('2026-06-01T08:00:00Z').getTime(),
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const userRefs = validator._extractTemporalReferences_('Passo fra due settimane.', runtimeContext, 'user');
+  const offsetRef = userRefs.find(ref => ref.type === 'relative_offset');
+  assert(offsetRef && offsetRef.meta.amount === 2 && offsetRef.meta.unit === 'weeks', 'fra due settimane deve normalizzare due come numero');
+  assert(
+    validator._formatDateOnly_(offsetRef.normalizedDate) === '2026-06-15',
+    'fra due settimane nel testo utente deve usare messageDate come anchor'
+  );
+}
+
+console.log('--- Test temporal references: ambigui non vengono normalizzati aggressivamente ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-06-01',
+      messageDate: '2026-06-01',
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const refs = validator._extractTemporalReferences_('Lunedì passo nei prossimi giorni.', runtimeContext, 'response');
+  const ambiguousWeekday = refs.find(ref => ref.type === 'ambiguous_relative' && /Lunedì/i.test(ref.text));
+  const fuzzyFuture = refs.find(ref => ref.type === 'ambiguous_relative' && /prossimi giorni/i.test(ref.text));
+  assert(
+    ambiguousWeekday && !ambiguousWeekday.normalizedDate && !ambiguousWeekday.normalizedRange,
+    'lunedì senza qualificatore deve restare ambiguo'
+  );
+  assert(
+    fuzzyFuture && !fuzzyFuture.normalizedDate && !fuzzyFuture.normalizedRange && fuzzyFuture.meta.direction === 'future',
+    'nei prossimi giorni deve restare ambiguo senza range arbitrario'
+  );
+}
+
+console.log('--- Test temporal references: fallback anchor è marcato come diagnostico ---');
+{
+  const refs = validator._extractTemporalReferences_('Domani posso passare?', {}, 'response');
+  const tomorrow = refs.find(ref => ref.type === 'relative_point');
+  assert(
+    tomorrow && tomorrow.anchorIsFallback === true && tomorrow.anchorRole === 'systemFallback' && tomorrow.confidence <= 0.35,
+    'senza runtimeContext il parser deve marcare esplicitamente il fallback al clock'
+  );
+}
+
+console.log('--- Test temporal consistency: intervallo futuro qualificato come passato è bloccante ---');
+{
+  const result = validator._checkTemporalConsistency(
+    'La riunione della prossima settimana si è già svolta.',
+    'it',
+    { currentDate: '2026-06-01' }
+  );
+  assert(result.score === 0.0, 'un intervallo futuro descritto come già svolto deve bloccare la risposta');
+  assert(
+    result.violations.some((violation) => violation.type === 'relative_interval'),
+    'la violazione deve preservare il tipo relative_interval'
+  );
+}
+
+console.log('--- Test temporal consistency: data passata qualificata come futura è bloccante ---');
+{
+  const result = validator._checkTemporalConsistency(
+    'La riunione del 6 giugno 2026 si terrà alle 18.',
+    'it',
+    { currentDate: '2026-06-07' }
+  );
+  assert(result.score === 0.0, 'una data passata presentata come futura deve bloccare la risposta');
+  assert(
+    result.violations.some((violation) => violation.direction === 'past_as_future'),
+    'la violazione deve indicare past_as_future'
+  );
+}
+
+console.log('--- Test temporal consistency: intervallo corrente non usa inizio range come passato ---');
+{
+  const result = validator._checkTemporalConsistency(
+    'Questa settimana si terrà il corso.',
+    'it',
+    { currentDate: '2026-06-03' }
+  );
+  assert(result.score === 1.0, 'un intervallo che contiene la data corrente non deve essere trattato come passato');
+}
+
+console.log('--- Test temporal consistency: intervallo attraversa mese e anno ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-12-27',
+      messageDate: '2026-12-27',
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const refs = validator._extractTemporalReferences_('La prossima settimana ci sarà il corso.', runtimeContext, 'response');
+  const weekRef = refs.find(ref => ref.type === 'relative_interval');
+  assert(
+    weekRef &&
+      validator._formatDateOnly_(weekRef.normalizedRange.start) === '2026-12-28' &&
+      validator._formatDateOnly_(weekRef.normalizedRange.end) === '2027-01-03',
+    'la prossima settimana a fine anno deve attraversare correttamente 2026/2027'
+  );
+  const result = validator._checkTemporalConsistency(
+    'La prossima settimana si è già svolto il corso.',
+    'it',
+    runtimeContext
+  );
+  assert(result.score === 0.0, 'un intervallo futuro cross-year qualificato come passato deve restare bloccante');
+}
+
+console.log('--- Test temporal references: intervallo passato confronta sulla fine range ---');
+{
+  const refs = validator._extractTemporalReferences_(
+    'La settimana scorsa si è concluso il corso.',
+    { currentDate: '2026-06-10' },
+    'response'
+  );
+  const intervalRef = refs.find(ref => ref.type === 'relative_interval');
+  const compareDate = validator._getTemporalReferenceCompareDate_(intervalRef);
+  assert(
+    compareDate && validator._formatDateOnly_(compareDate) === '2026-06-07',
+    'un intervallo interamente passato deve confrontare sulla data finale'
+  );
+}
+
+console.log('--- Test temporal references: date esplicite uguali restano uguali con anchor diverso ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-06-07',
+      currentTime: '16:00',
+      messageDate: '2026-06-01',
+      processingEpochMs: new Date('2026-06-07T14:00:00Z').getTime(),
+      messageEpochMs: new Date('2026-06-01T08:00:00Z').getTime(),
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const userDate = validator._extractTemporalReferences_('Appuntamento del 2 giugno 2026.', runtimeContext, 'user')
+    .find(ref => ref.type === 'explicit_date');
+  const responseDate = validator._extractTemporalReferences_('Appuntamento del 2 giugno 2026.', runtimeContext, 'response')
+    .find(ref => ref.type === 'explicit_date');
+  assert(
+    userDate &&
+      responseDate &&
+      userDate.anchorRole === 'messageDate' &&
+      responseDate.anchorRole === 'currentDate' &&
+      validator._formatDateOnly_(userDate.normalizedDate) === '2026-06-02' &&
+      validator._formatDateOnly_(responseDate.normalizedDate) === '2026-06-02',
+    'una data esplicita completa deve restare stabile anche con anchor diversi'
+  );
+  const result = validator._checkOriginalDateQualification(
+    "L'appuntamento del 2 giugno 2026 si è svolto regolarmente.",
+    'Appuntamento del 2 giugno 2026.',
+    runtimeContext,
+    'it'
+  );
+  assert(result.score === 1.0, 'la stessa data esplicita passata, qualificata come passata, non deve creare discrepanza');
 }
 
 console.log('--- Test original date qualification: domani vecchio non resta futuro ---');
@@ -626,6 +928,109 @@ console.log('--- Test original date qualification: domani vecchio non resta futu
   assert(
     result.errors.some((e) => e.includes('Discrepanza temporale')),
     'deve segnalare discrepanza temporale dedicata'
+  );
+}
+
+console.log('--- Test original date qualification: oggi vecchio non resta futuro nella risposta ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-06-07',
+      currentTime: '11:30',
+      messageDate: '2026-06-01',
+      processingEpochMs: new Date('2026-06-07T09:30:00Z').getTime(),
+      messageEpochMs: new Date('2026-06-01T08:00:00Z').getTime(),
+      daysAgo: 6,
+      isOldMessage: true,
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const result = validator._checkOriginalDateQualification(
+    'Oggi può passare in segreteria.',
+    'Oggi posso passare in segreteria?',
+    runtimeContext,
+    'it'
+  );
+  assert(result.score === 0.0, 'oggi scritto in una email vecchia non deve essere ripetuto come futuro/presente operativo');
+  assert(
+    result.violations.some((violation) => violation.originalDate === '2026-06-01' && violation.responseDate === '2026-06-07'),
+    'la violazione deve mostrare la distanza tra oggi originale e oggi della risposta'
+  );
+}
+
+console.log('--- Test original date qualification: intervallo vecchio non resta futuro ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-06-21',
+      currentTime: '10:00',
+      messageDate: '2026-06-01',
+      processingEpochMs: new Date('2026-06-21T08:00:00Z').getTime(),
+      messageEpochMs: new Date('2026-06-01T08:00:00Z').getTime(),
+      daysAgo: 20,
+      isOldMessage: true,
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const result = validator._checkOriginalDateQualification(
+    'Confermiamo che ci vediamo la prossima settimana per il corso.',
+    'Ci vediamo la prossima settimana per il corso.',
+    runtimeContext,
+    'it'
+  );
+  assert(result.score === 0.0, 'un intervallo relativo scritto in un email vecchia non deve restare futuro nella risposta');
+  assert(
+    result.violations.some((violation) => violation.originalType === 'relative_interval' && violation.responseType === 'relative_interval'),
+    'il controllo deve includere riferimenti intervallari'
+  );
+}
+
+console.log('--- Test original date qualification: lunedì scorso non diventa prossimo lunedì ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-06-21',
+      currentTime: '10:00',
+      messageDate: '2026-06-14',
+      processingEpochMs: new Date('2026-06-21T08:00:00Z').getTime(),
+      messageEpochMs: new Date('2026-06-14T08:00:00Z').getTime(),
+      daysAgo: 7,
+      isOldMessage: true,
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const result = validator._checkOriginalDateQualification(
+    'Prossimo lunedì può passare in segreteria.',
+    'Lunedì scorso posso passare in segreteria?',
+    runtimeContext,
+    'it'
+  );
+  assert(result.score === 0.0, 'un weekday passato non deve essere trasformato nello stesso weekday futuro');
+  assert(
+    result.violations.some((violation) => violation.originalType === 'weekday_relative' && violation.responseType === 'weekday_relative'),
+    'la discrepanza deve essere agganciata ai weekday relativi'
+  );
+}
+
+console.log('--- Test temporal greeting: saluto usa currentTime e non messageDate ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-06-07',
+      currentTime: '20:30',
+      messageDate: '2026-06-01',
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const wrongGreeting = validator._checkTimeBasedGreeting('Buongiorno, le confermiamo la disponibilità.', 'it', runtimeContext);
+  const correctGreeting = validator._checkTimeBasedGreeting('Buonasera, le confermiamo la disponibilità.', 'it', runtimeContext);
+  assert(
+    wrongGreeting.score < 1.0 && wrongGreeting.expectedTimeSlot === 'evening',
+    'alle 20:30 correnti il saluto mattutino deve essere incongruente anche se messageDate è vecchia'
+  );
+  assert(
+    correctGreeting.score === 1.0 && correctGreeting.expectedTimeSlot === 'evening',
+    'alle 20:30 correnti il saluto serale deve passare'
   );
 }
 
