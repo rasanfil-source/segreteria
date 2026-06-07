@@ -1230,7 +1230,7 @@ var ResponseValidator = class ResponseValidator {
 
     if (violations.length > 0) {
       errors.push(
-        `Discrepanza temporale: un riferimento dell'email originale (${violations[0].text}, ${violations[0].originalDate}) risulta gia passato rispetto alla data odierna, ma la risposta lo qualifica ancora come futuro.`
+        `Discrepanza temporale: un riferimento dell'email originale (${violations[0].text}, ${violations[0].originalDate}) risulta già passato rispetto alla data odierna, ma la risposta lo qualifica ancora come futuro.`
       );
       return {
         score: 0.0,
@@ -1313,8 +1313,8 @@ var ResponseValidator = class ResponseValidator {
       ? runtimePapalContext
       : {};
     return {
-      currentName: fromSources.currentName || runtimePapal.currentName || cfg.currentName || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_NAME) || 'Leone XIV',
-      previousName: fromSources.previousName || runtimePapal.previousName || cfg.previousName || (typeof CONFIG !== 'undefined' && CONFIG.PREVIOUS_POPE_NAME) || 'Papa Francesco',
+      currentName: runtimePapal.currentName || fromSources.currentName || cfg.currentName || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_NAME) || 'Leone XIV',
+      previousName: runtimePapal.previousName || fromSources.previousName || cfg.previousName || (typeof CONFIG !== 'undefined' && CONFIG.PREVIOUS_POPE_NAME) || 'Papa Francesco',
       currentSince: runtimePapal.currentSince || cfg.currentSince || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_SINCE) || '2025-05-08'
     };
   }

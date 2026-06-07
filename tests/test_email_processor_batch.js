@@ -2431,7 +2431,33 @@ console.log('--- Test prompt options: messageDate usa la data del messaggio orig
   assert(Object.isFrozen(promptOptions.runtimeContext.papal), 'runtimeContext.papal deve essere congelato');
   assert(promptOptions.runtimeContext.temporal.currentDate === promptOptions.currentDate, 'currentDate legacy deve derivare dal runtimeContext');
   assert(promptOptions.runtimeContext.temporal.messageDate === '2026-05-07', 'runtimeContext.temporal.messageDate deve derivare dalla data originale');
+  assert(promptOptions.runtimeContext.temporal.messageDateAvailable === true, 'runtimeContext deve dichiarare disponibile la data originale valida');
+  assert(promptOptions.runtimeContext.temporal.messageDateSource === 'gmail_message_date', 'runtimeContext deve tracciare la sorgente Gmail della data originale');
   assert(validationRuntimeContext === promptOptions.runtimeContext, 'validator deve ricevere lo stesso runtimeContext passato al prompt');
+}
+
+console.log('--- Test runtimeContext: messageDate fallback esplicito quando la data Gmail non è valida ---');
+{
+  const processor = new EmailProcessor({
+    gmailService: {},
+    promptEngine: {
+      _getPapalContext_: () => ({
+        currentName: 'Pio XIII',
+        previousName: 'Papa Francesco',
+        currentSince: '2026-01-01',
+        ministryStart: '2026-01-08'
+      })
+    }
+  });
+  const runtimeContext = processor._buildRuntimeContext_(
+    { date: new Date('invalid') },
+    new Date('2026-05-15T08:00:00Z'),
+    ''
+  );
+  assert(runtimeContext.temporal.messageDateAvailable === false, 'data Gmail invalida deve essere marcata come non disponibile');
+  assert(runtimeContext.temporal.messageDateSource === 'processing_fallback', 'data Gmail invalida deve usare sorgente processing_fallback');
+  assert(runtimeContext.temporal.messageDate === runtimeContext.temporal.currentDate, 'fallback messageDate deve coincidere con currentDate di processing');
+  assert(Object.isFrozen(runtimeContext.temporal), 'temporal fallback context deve restare congelato');
 }
 
 console.log('--- Test prompt options: scheduleContext usa data target e periodo KB ---');

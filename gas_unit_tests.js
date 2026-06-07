@@ -1395,7 +1395,7 @@ function runAllTests() {
                 Array.isArray(result.violations) &&
                 result.violations.length > 0;
         });
-        test('checkTemporalConsistency intercetta data futura descritta come gia conclusa', results, () => {
+        test('checkTemporalConsistency intercetta data futura descritta come già conclusa', results, () => {
             const runtimeContext = {
                 temporal: {
                     currentDate: '2026-06-07',

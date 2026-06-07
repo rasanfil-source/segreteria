@@ -251,7 +251,7 @@ console.log('--- Test prompt: runtimeContext gerarchico prevale sui campi legacy
 const runtimeContextPrompt = engine.buildPrompt({
   emailSubject: 'Appuntamento',
   emailContent: 'Domani posso passare?',
-  knowledgeBase: 'Segreteria aperta dal lunedì al venerdì.',
+  knowledgeBase: 'Segreteria aperta dal lunedì al venerdì.\nInformazioni di contesto | Papa regnante | Leone XIV',
   detectedLanguage: 'it',
   currentDate: '1999-01-01',
   messageDate: '1999-01-01',
@@ -277,12 +277,43 @@ const runtimeContextPrompt = engine.buildPrompt({
 assert(
   runtimeContextPrompt.includes('Data di riferimento per la risposta (currentDate):** 2026-05-15') &&
     runtimeContextPrompt.includes('Data originale email (messageDate):** 2026-05-07') &&
-    runtimeContextPrompt.includes('email originale e stata scritta 8 giorni fa'),
+    runtimeContextPrompt.includes('email originale è stata scritta 8 giorni fa'),
   'il prompt deve distinguere currentDate e messageDate dal runtimeContext'
 );
 assert(
   runtimeContextPrompt.includes('Papa attuale:** Pio XIII'),
-  'il prompt deve usare il contesto papale del runtimeContext quando presente'
+  'il prompt deve usare il contesto papale del runtimeContext quando presente, anche se la KB contiene un valore diverso'
+);
+
+console.log('--- Test prompt: messageDate fallback non è presentata come data originale ---');
+const fallbackMessageDatePrompt = engine.buildPrompt({
+  emailSubject: 'Appuntamento',
+  emailContent: 'Domani posso passare?',
+  knowledgeBase: 'Segreteria aperta dal lunedì al venerdì.',
+  detectedLanguage: 'it',
+  runtimeContext: {
+    temporal: {
+      currentDate: '2026-05-15',
+      currentTime: '10:30',
+      messageDate: '2026-05-15',
+      messageDateAvailable: false,
+      messageDateSource: 'processing_fallback',
+      timeZone: 'Europe/Rome'
+    },
+    papal: {
+      currentName: 'Pio XIII',
+      previousName: 'Papa Francesco',
+      currentSince: '2026-01-01',
+      ministryStart: '2026-01-08'
+    }
+  },
+  promptProfile: 'lite'
+});
+assert(
+  fallbackMessageDatePrompt.includes('Data email originale:** non disponibile') &&
+    fallbackMessageDatePrompt.includes('fallback tecnico per i calcoli: 2026-05-15') &&
+    !fallbackMessageDatePrompt.includes('Data originale email (messageDate):** 2026-05-15'),
+  'il prompt non deve chiamare data originale una messageDate ricostruita per fallback'
 );
 
 console.log('--- Test prompt: orari usano data richiesta e periodo KB ---');

@@ -1247,17 +1247,29 @@ Se l'utente chiede quando inizia o finisce il periodo estivo, rispondi con il pe
       } catch (e) { return currentDate; }
     })();
     const papalContext = this._getPapalContext_(papalSourceText, papalRuntimeContext);
+    const messageDateIsFallback = temporalContext &&
+      (temporalContext.messageDateAvailable === false || temporalContext.messageDateSource === 'processing_fallback');
+    const messageDateLines = messageDate
+      ? (messageDateIsFallback
+        ? `- **Data email originale:** non disponibile; fallback tecnico per i calcoli: ${messageDate}\n`
+        : `- **Data ricezione/invio email utente:** ${messageDate}\n- **Data originale email (messageDate):** ${messageDate}\n`)
+      : '';
+    const messageDateRuleTarget = messageDate
+      ? (messageDateIsFallback
+        ? `messageDate (${messageDate}) solo come fallback tecnico quando la data originale dell'email non è disponibile`
+        : `messageDate (${messageDate})`)
+      : 'messageDate';
     const oldMessageWarning = temporalContext && temporalContext.isOldMessage && Number.isFinite(Number(temporalContext.daysAgo))
-      ? `\n- **Discrepanza temporale:** l'email originale e stata scritta ${temporalContext.daysAgo} giorni fa. I relativi dell'utente possono quindi indicare date gia passate rispetto a oggi.`
+      ? `\n- **Discrepanza temporale:** l'email originale è stata scritta ${temporalContext.daysAgo} giorni fa. I relativi dell'utente possono quindi indicare date già passate rispetto a oggi.`
       : '';
 
     return `## DATA ODIERNA E CONTESTO TEMPORALE
 - **Data di riferimento per la risposta (currentDate):** ${currentDate} (${humanDate})
 - **Oggi è:** ${currentDate} (${humanDate})
-${messageDate ? `- **Data ricezione/invio email utente:** ${messageDate}\n- **Data originale email (messageDate):** ${messageDate}\n` : ''}${currentTime ? `- **Ora locale attuale:** ${currentTime}\n` : ''}- **Papa attuale:** ${papalContext.currentName} (dal ${papalContext.currentSince}; inizio ministero petrino: ${papalContext.ministryStart})${oldMessageWarning}
+${messageDateLines}${currentTime ? `- **Ora locale attuale:** ${currentTime}\n` : ''}- **Papa attuale:** ${papalContext.currentName} (dal ${papalContext.currentSince}; inizio ministero petrino: ${papalContext.ministryStart})${oldMessageWarning}
 **Regole Temporali:**
-1. Usa currentDate (${currentDate}) come unica data di riferimento per decidere se nella risposta un evento e passato, presente o futuro.
-2. Usa messageDate${messageDate ? ` (${messageDate})` : ''} solo per interpretare relativi scritti dall'utente nell'email originale, come "oggi", "domani", "ieri", "sabato prossimo".
+1. Usa currentDate (${currentDate}) come unica data di riferimento per decidere se nella risposta un evento è passato, presente o futuro.
+2. Usa ${messageDateRuleTarget} solo per interpretare relativi scritti dall'utente nell'email originale, come "oggi", "domani", "ieri", "sabato prossimo".
 3. Prima di descrivere un evento (corso, celebrazione) come "futuro" o "passato", confrontalo rigidamente con la data odierna.
 4. Ordina sempre gli eventi futuri cronologicamente.
 5. Attento all'anno pastorale (settembre-agosto) vs anno solare.
@@ -1274,8 +1286,8 @@ ${messageDate ? `- **Data ricezione/invio email utente:** ${messageDate}\n- **Da
       ? runtimePapalContext
       : {};
     return {
-      currentName: fromSources.currentName || runtimePapal.currentName || cfg.currentName || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_NAME) || 'Leone XIV',
-      previousName: fromSources.previousName || runtimePapal.previousName || cfg.previousName || (typeof CONFIG !== 'undefined' && CONFIG.PREVIOUS_POPE_NAME) || 'Papa Francesco',
+      currentName: runtimePapal.currentName || fromSources.currentName || cfg.currentName || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_NAME) || 'Leone XIV',
+      previousName: runtimePapal.previousName || fromSources.previousName || cfg.previousName || (typeof CONFIG !== 'undefined' && CONFIG.PREVIOUS_POPE_NAME) || 'Papa Francesco',
       currentSince: runtimePapal.currentSince || cfg.currentSince || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_SINCE) || '2025-05-08',
       ministryStart: runtimePapal.ministryStart || cfg.ministryStart || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_MINISTRY_START) || '2025-05-18'
     };

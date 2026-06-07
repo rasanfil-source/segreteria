@@ -3947,16 +3947,24 @@ ${addressLines.join('\n\n')}
     }
 
     try {
-      return new Intl.DateTimeFormat('en-CA', {
+      const parts = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Europe/Rome',
         year: 'numeric',
         month: '2-digit',
         day: '2-digit'
-      }).format(parsedDate);
+      }).formatToParts(parsedDate);
+      const byType = {};
+      parts.forEach(part => {
+        if (part && part.type) byType[part.type] = part.value;
+      });
+      if (byType.year && byType.month && byType.day) {
+        return `${byType.year}-${byType.month}-${byType.day}`;
+      }
     } catch (_) {
-      // Fallback minimale quando Intl/timeZone non è disponibile.
-      return parsedDate.toISOString().split('T')[0];
+      // Fallback minimale sotto quando Intl/timeZone non è disponibile.
     }
+
+    return parsedDate.toISOString().split('T')[0];
   }
 
   _buildRuntimeContext_(messageDetails = {}, processingTimestamp = new Date(), papalSourceText = '') {
@@ -3964,7 +3972,8 @@ ${addressLines.join('\n\n')}
       ? new Date(processingTimestamp.getTime())
       : new Date();
     const rawMessageDate = messageDetails && messageDetails.date;
-    const messageDate = rawMessageDate instanceof Date && !isNaN(rawMessageDate.getTime())
+    const rawMessageDateValid = rawMessageDate instanceof Date && !isNaN(rawMessageDate.getTime());
+    const messageDate = rawMessageDateValid
       ? new Date(rawMessageDate.getTime())
       : processingDate;
     const ageMs = Math.max(0, processingDate.getTime() - messageDate.getTime());
@@ -3978,6 +3987,8 @@ ${addressLines.join('\n\n')}
       currentDate: this._getBusinessDateString(processingDate),
       currentTime: this._getBusinessTimeString(processingDate),
       messageDate: this._getBusinessDateString(messageDate),
+      messageDateAvailable: rawMessageDateValid,
+      messageDateSource: rawMessageDateValid ? 'gmail_message_date' : 'processing_fallback',
       messageTimestampIso: messageDate.toISOString(),
       messageEpochMs: messageDate.getTime(),
       ageHours: ageHours,

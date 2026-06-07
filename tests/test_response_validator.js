@@ -422,6 +422,29 @@ const kbCurrentPopeAllowed = validator._checkCurrentPopeReferences(
 );
 assert(kbCurrentPopeAllowed.score === 1.0, 'il Papa regnante indicato dalla KB deve essere ammesso come riferimento presente');
 
+console.log('--- Test riferimenti papali: runtimeContext prevale sulla KB downstream ---');
+{
+  const runtimePapalResult = validator._checkCurrentPopeReferences(
+    'Papa Leone XIV ci invita a pregare.',
+    'Informazioni di contesto | Papa regnante | Leone XIV',
+    '',
+    {
+      temporal: { currentDate: '2026-05-29' },
+      papal: {
+        currentName: 'Papa Pio XIII',
+        previousName: 'Papa Francesco',
+        currentSince: '2026-01-01'
+      }
+    }
+  );
+  assert(runtimePapalResult.score === 0.0, 'il validator deve fidarsi del runtimeContext papal prima della KB ricontrollata downstream');
+  assert(runtimePapalResult.currentPope === 'Papa Pio XIII', 'il Papa corrente validato deve venire dal runtimeContext');
+  assert(
+    runtimePapalResult.errors.some((e) => e.includes('Leone XIV') && e.includes('Papa Pio XIII')),
+    'l errore deve mostrare la precedenza del runtimeContext'
+  );
+}
+
 console.log('--- Test riferimenti papali: citazione storica di Papa Francesco resta ammessa ---');
 const historicalPopeResult = validator._checkCurrentPopeReferences(
   'Il Giubileo straordinario della Misericordia fu indetto da papa Francesco.',
