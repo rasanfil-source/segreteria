@@ -793,6 +793,23 @@ console.log('--- Test temporal references: fallback anchor è marcato come diagn
   );
 }
 
+console.log('--- Test temporal references: response senza currentDate usa messageDate prima del clock ---');
+{
+  const refs = validator._extractTemporalReferences_(
+    'Domani posso passare?',
+    { messageDate: '2026-06-01', timeZone: 'Europe/Rome' },
+    'response'
+  );
+  const tomorrow = refs.find(ref => ref.type === 'relative_point');
+  assert(
+    tomorrow &&
+      tomorrow.anchorRole === 'messageDateFallback' &&
+      tomorrow.anchorIsFallback === false &&
+      validator._formatDateOnly_(tomorrow.normalizedDate) === '2026-06-02',
+    'senza currentDate la risposta deve usare messageDate come fallback stabile prima del clock'
+  );
+}
+
 console.log('--- Test temporal consistency: intervallo futuro qualificato come passato è bloccante ---');
 {
   const result = validator._checkTemporalConsistency(
@@ -985,7 +1002,34 @@ console.log('--- Test original date qualification: intervallo vecchio non resta 
   );
 }
 
-console.log('--- Test original date qualification: lunedì scorso non diventa prossimo lunedì ---');
+console.log('--- Test original date qualification: weekday futuro ripetuto non resta futuro se email vecchia ---');
+{
+  const runtimeContext = {
+    temporal: {
+      currentDate: '2026-06-21',
+      currentTime: '10:00',
+      messageDate: '2026-06-14',
+      processingEpochMs: new Date('2026-06-21T08:00:00Z').getTime(),
+      messageEpochMs: new Date('2026-06-14T08:00:00Z').getTime(),
+      daysAgo: 7,
+      isOldMessage: true,
+      timeZone: 'Europe/Rome'
+    }
+  };
+  const result = validator._checkOriginalDateQualification(
+    'Prossimo lunedì può passare in segreteria.',
+    'Lunedì prossimo posso passare in segreteria?',
+    runtimeContext,
+    'it'
+  );
+  assert(result.score === 0.0, 'un weekday futuro scritto in una email vecchia non deve restare futuro se ripetuto');
+  assert(
+    result.violations.some((violation) => violation.originalType === 'weekday_relative' && violation.responseType === 'weekday_relative'),
+    'il match deve agganciare weekday relativi con stessa direzione'
+  );
+}
+
+console.log('--- Test original date qualification: weekday con direzione opposta non viene collegato solo per nome giorno ---');
 {
   const runtimeContext = {
     temporal: {
@@ -1005,10 +1049,10 @@ console.log('--- Test original date qualification: lunedì scorso non diventa pr
     runtimeContext,
     'it'
   );
-  assert(result.score === 0.0, 'un weekday passato non deve essere trasformato nello stesso weekday futuro');
+  assert(result.score === 1.0, 'un weekday passato e uno futuro non devono essere collegati solo perché sono entrambi lunedì');
   assert(
-    result.violations.some((violation) => violation.originalType === 'weekday_relative' && violation.responseType === 'weekday_relative'),
-    'la discrepanza deve essere agganciata ai weekday relativi'
+    Array.isArray(result.violations) && result.violations.length === 0,
+    'il controllo deve evitare una violazione lessicale fittizia su direzioni opposte'
   );
 }
 

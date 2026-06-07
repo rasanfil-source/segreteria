@@ -1217,19 +1217,57 @@ var ResponseValidator = class ResponseValidator {
       .filter(Boolean);
     const currentOrdinal = this._dateOnlyOrdinal_(currentDate);
     const violations = [];
+    const directionalRelatives = new Set(['relative_point', 'weekday_relative', 'relative_interval', 'relative_offset']);
+    const getMetaValue = (ref, key) => {
+      const meta = ref && ref.meta && typeof ref.meta === 'object' ? ref.meta : {};
+      return Object.prototype.hasOwnProperty.call(meta, key) ? meta[key] : null;
+    };
+    const sameMetaString = (left, right, key) => String(getMetaValue(left, key) ?? '') === String(getMetaValue(right, key) ?? '');
+    const sameMetaNumber = (left, right, key) => {
+      const leftRaw = getMetaValue(left, key);
+      const rightRaw = getMetaValue(right, key);
+      if (leftRaw === null || rightRaw === null || leftRaw === '' || rightRaw === '') return false;
+      const leftValue = Number(leftRaw);
+      const rightValue = Number(rightRaw);
+      return Number.isFinite(leftValue) && Number.isFinite(rightValue) && leftValue === rightValue;
+    };
+    const sameDirectionalRelative = (userRef, responseRef) => {
+      if (!userRef || !responseRef || userRef.type !== responseRef.type || !directionalRelatives.has(userRef.type)) {
+        return false;
+      }
+      if (userRef.type === 'weekday_relative') {
+        return sameMetaNumber(userRef, responseRef, 'weekday') &&
+          sameMetaString(userRef, responseRef, 'direction');
+      }
+      if (userRef.type === 'relative_point') {
+        return sameMetaNumber(userRef, responseRef, 'amount') &&
+          sameMetaString(userRef, responseRef, 'unit') &&
+          sameMetaString(userRef, responseRef, 'direction');
+      }
+      if (userRef.type === 'relative_interval') {
+        return sameMetaNumber(userRef, responseRef, 'amount') &&
+          sameMetaString(userRef, responseRef, 'unit') &&
+          sameMetaString(userRef, responseRef, 'direction') &&
+          String(userRef.granularity || '') === String(responseRef.granularity || '');
+      }
+      if (userRef.type === 'relative_offset') {
+        return sameMetaNumber(userRef, responseRef, 'amount') &&
+          sameMetaString(userRef, responseRef, 'unit') &&
+          sameMetaString(userRef, responseRef, 'direction');
+      }
+      return false;
+    };
 
     userRefs.forEach(userRef => {
       const userRefOrdinal = this._dateOnlyOrdinal_(userRef.compareDate);
       if (userRefOrdinal >= currentOrdinal) return;
 
       const matchingResponseRefs = responseRefs.filter(responseRef => {
-        const sameText = this._stripDiacritics_(responseRef.text).toLowerCase() === this._stripDiacritics_(userRef.text).toLowerCase();
+        const isDirectional = directionalRelatives.has(userRef.type) || directionalRelatives.has(responseRef.type);
+        const sameText = !isDirectional &&
+          this._stripDiacritics_(responseRef.text).toLowerCase() === this._stripDiacritics_(userRef.text).toLowerCase();
         const sameResolvedDate = this._dateOnlyOrdinal_(responseRef.compareDate) === userRefOrdinal;
-        const sameRelativeWeekday = userRef.type === 'weekday_relative' &&
-          responseRef.type === 'weekday_relative' &&
-          Number.isFinite(Number(userRef.meta && userRef.meta.weekday)) &&
-          Number(userRef.meta.weekday) === Number(responseRef.meta && responseRef.meta.weekday);
-        return sameText || sameResolvedDate || sameRelativeWeekday;
+        return sameText || sameResolvedDate || sameDirectionalRelative(userRef, responseRef);
       });
 
       matchingResponseRefs.forEach(responseRef => {
@@ -1684,8 +1722,8 @@ var ResponseValidator = class ResponseValidator {
     if (currentDate) {
       return { date: currentDate, anchorRole: 'currentDate', sourceRole: role, timeZone, isFallback: false };
     }
-    if (role === 'user' && messageDate) {
-      return { date: messageDate, anchorRole: 'messageDate', sourceRole: role, timeZone, isFallback: false };
+    if (messageDate) {
+      return { date: messageDate, anchorRole: 'messageDateFallback', sourceRole: role, timeZone, isFallback: false };
     }
 
     const fallbackDate = this._parseDateOnly_(new Date());

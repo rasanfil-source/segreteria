@@ -1412,6 +1412,18 @@ function runAllTests() {
                 tomorrowRef.anchorRole === 'messageDate' &&
                 validator._formatDateOnly_(tomorrowRef.normalizedDate) === '2026-06-02';
         });
+        test('Response senza currentDate usa messageDate prima del clock', results, () => {
+            const refs = validator._extractTemporalReferences_(
+                'Domani posso passare?',
+                { messageDate: '2026-06-01', timeZone: 'Europe/Rome' },
+                'response'
+            );
+            const tomorrowRef = refs.find(ref => ref.type === 'relative_point');
+            return tomorrowRef &&
+                tomorrowRef.anchorRole === 'messageDateFallback' &&
+                tomorrowRef.anchorIsFallback === false &&
+                validator._formatDateOnly_(tomorrowRef.normalizedDate) === '2026-06-02';
+        });
         test('OriginalDateQualification intercetta oggi vecchio ripetuto come futuro operativo', results, () => {
             const runtimeContext = {
                 temporal: {
@@ -1435,7 +1447,30 @@ function runAllTests() {
                 Array.isArray(result.violations) &&
                 result.violations.some(v => v.originalDate === '2026-06-01' && v.responseDate === '2026-06-07');
         });
-        test('OriginalDateQualification intercetta lunedì scorso trasformato in prossimo lunedì', results, () => {
+        test('OriginalDateQualification intercetta weekday futuro vecchio ripetuto come futuro', results, () => {
+            const runtimeContext = {
+                temporal: {
+                    currentDate: '2026-06-21',
+                    currentTime: '10:00',
+                    messageDate: '2026-06-14',
+                    processingEpochMs: new Date('2026-06-21T08:00:00Z').getTime(),
+                    messageEpochMs: new Date('2026-06-14T08:00:00Z').getTime(),
+                    daysAgo: 7,
+                    isOldMessage: true,
+                    timeZone: 'Europe/Rome'
+                }
+            };
+            const result = validator._checkOriginalDateQualification(
+                'Prossimo lunedì può passare in segreteria.',
+                'Lunedì prossimo posso passare in segreteria?',
+                runtimeContext,
+                'it'
+            );
+            return result && result.score === 0.0 &&
+                Array.isArray(result.violations) &&
+                result.violations.some(v => v.originalType === 'weekday_relative' && v.responseType === 'weekday_relative');
+        });
+        test('OriginalDateQualification non collega weekday con direzione opposta solo per nome giorno', results, () => {
             const runtimeContext = {
                 temporal: {
                     currentDate: '2026-06-21',
@@ -1454,9 +1489,9 @@ function runAllTests() {
                 runtimeContext,
                 'it'
             );
-            return result && result.score === 0.0 &&
+            return result && result.score === 1.0 &&
                 Array.isArray(result.violations) &&
-                result.violations.some(v => v.originalType === 'weekday_relative' && v.responseType === 'weekday_relative');
+                result.violations.length === 0;
         });
         test('checkTemporalConsistency intercetta data futura descritta come già conclusa', results, () => {
             const runtimeContext = {
