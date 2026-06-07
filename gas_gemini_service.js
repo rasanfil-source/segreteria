@@ -956,7 +956,9 @@ var GeminiService = class GeminiService {
       throw new Error('QUOTA_EXHAUSTED_ALL_KEYS: Limite quota raggiunto su tutte le chiavi disponibili (429)');
     }
     if ([500, 502, 503, 504].includes(responseCode)) {
-      throw new Error(`Errore server Gemini(${responseCode})`);
+      const transientError = new Error(`Errore server Gemini(${responseCode})`);
+      transientError.isTransient = true;
+      throw transientError;
     }
 
     if (responseCode !== 200) {

@@ -95,6 +95,18 @@ console.log('--- Test _normalizeTextContent serializza oggetti KB strutturati --
   assert(normalizedCircular.includes('Catechismo') && normalizedCircular.includes('[Circular]'), 'gli oggetti circolari devono avere fallback controllato');
 }
 
+console.log('--- Test constructor: validationWarningThreshold percentuale normalizzata ---');
+{
+  const originalThreshold = global.CONFIG.VALIDATION_WARNING_THRESHOLD;
+  global.CONFIG.VALIDATION_WARNING_THRESHOLD = 90;
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    assert(processor.config.validationWarningThreshold === 0.9, `threshold percentuale 90 deve diventare 0.9, ottenuto ${processor.config.validationWarningThreshold}`);
+  } finally {
+    global.CONFIG.VALIDATION_WARNING_THRESHOLD = originalThreshold;
+  }
+}
+
 console.log('--- Test _extractTimes: boundary Unicode evita match dentro parole ---');
 {
   const processor = new EmailProcessor({ gmailService: {} });
@@ -1046,6 +1058,26 @@ console.log('--- Test _beginSendTransaction: CacheService assente blocca invio -
     assert(txn.reason === 'cache_unavailable', `reason attesa cache_unavailable, ottenuta ${txn.reason}`);
   } finally {
     global.CacheService = originalCacheService;
+    cacheStore.clear();
+  }
+}
+
+console.log('--- Test _beginSendTransaction: LockService assente blocca invio se non coperto ---');
+{
+  const originalLockService = global.LockService;
+  global.LockService = undefined;
+  cacheStore.clear();
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    const txn = processor._beginSendTransaction('m-no-send-lock', false);
+
+    assert(txn.ok === false, 'LockService assente deve bloccare la transazione di invio senza skipLock');
+    assert(txn.reason === 'send_lock_unavailable', `reason attesa send_lock_unavailable, ottenuta ${txn.reason}`);
+    assert(!cacheStore.get('sending_m-no-send-lock'), 'non deve impostare marker sending senza mutex fisico');
+    assert(!cacheStore.get('sendstarted_m-no-send-lock'), 'non deve impostare marker sendstarted senza mutex fisico');
+  } finally {
+    global.LockService = originalLockService;
     cacheStore.clear();
   }
 }

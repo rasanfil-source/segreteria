@@ -1419,8 +1419,9 @@ ${conversationHistory}
   // ========================================================================
 
   _renderEmailContent(emailContent, emailSubject, senderName, senderEmail, detectedLanguage) {
+    const safeSenderName = this._sanitizeSenderNameForPrompt_(senderName, detectedLanguage);
     return `**EMAIL DA RISPONDERE:**
-Da: ${senderEmail} (${senderName})
+Da: ${senderEmail} (${safeSenderName})
 Oggetto: ${emailSubject}
 Lingua: ${detectedLanguage.toUpperCase()}
 
@@ -1866,7 +1867,7 @@ Restiamo a disposizione."`;
   // ========================================================================
 
   _renderSbattezzoTemplate(senderName, detectedLanguage = 'it') {
-    const sanitizedName = (senderName || 'Utente').replace(/[<>]/g, '').substring(0, 50).trim() || 'Utente';
+    const sanitizedName = this._sanitizeSenderNameForPrompt_(senderName, detectedLanguage);
     return `## TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI (SBATTEZZO)
 USA ESATTAMENTE QUESTA STRUTTURA. NON AGGIUNGERE ALTRO.
 
@@ -1888,6 +1889,25 @@ Cordiali saluti,
 Segreteria Parrocchia Sant'Eugenio
 
 **Regole di output:** NON invitare a telefonare o fissare appuntamenti, mantieni il testo istituzionale, usa il tag <email> come prescritto.`;
+  }
+
+  _sanitizeSenderNameForPrompt_(senderName, detectedLanguage = 'it') {
+    const fallback = String(detectedLanguage || '').toLowerCase().startsWith('it') ? 'Utente' : 'Parishioner';
+    const raw = String(senderName || '')
+      .replace(/[\u0000-\u001F\u007F<>\r\n\t]+/g, ' ')
+      .replace(/[`*_#~>|{}\[\]\\:";=]+/g, ' ')
+      .replace(/-{3,}/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!raw || /^(fallbacksendername|undefined|null|\[nome\]|\[name\])$/i.test(raw)) {
+      return fallback;
+    }
+    if (/\b(nuove\s+istruzioni|istruzioni|instructions?|ignore|ignora|system\s+prompt|developer|assistant)\b/i.test(raw)) {
+      return fallback;
+    }
+
+    return raw.substring(0, 50).trim() || fallback;
   }
 
   // ========================================================================

@@ -86,6 +86,23 @@ console.log('--- Test _mergeWindowData: non dimentica burst RPM oltre 8KB ---');
   assert(merged.length === entries.length, 'merge finestra deve preservare tutte le chiamate vive anche oltre 8KB');
 }
 
+console.log('--- Test _mergeWindowData: tie-break deterministico su timestamp uguale ---');
+{
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  const entries = [
+    { timestamp: 1700000000000, nonce: 'b', modelKey: 'gemini-3.5-flash', reserved: true },
+    { timestamp: 1700000000000, nonce: 'a', modelKey: 'gemini-3.5-flash', reserved: true },
+    { timestamp: 1700000000000, nonce: 'z', modelKey: 'gemini-3.1-flash-lite', reserved: true }
+  ];
+
+  const merged = limiter._mergeWindowData([], entries);
+  assert(
+    merged.map(entry => `${entry.modelKey}:${entry.nonce}`).join('|') ===
+      'gemini-3.1-flash-lite:z|gemini-3.5-flash:a|gemini-3.5-flash:b',
+    'merge deve ordinare in modo deterministico a parità di timestamp'
+  );
+}
+
 console.log('--- Test persistenza chunkata: finestra completa e legacy compatto ---');
 {
   const now = Date.now();

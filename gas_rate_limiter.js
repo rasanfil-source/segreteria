@@ -1431,6 +1431,13 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       }
       return lifecycleTime(candidate) >= lifecycleTime(current);
     };
+    const compareString = (left, right) => {
+      const a = String(left || '');
+      const b = String(right || '');
+      if (a < b) return -1;
+      if (a > b) return 1;
+      return 0;
+    };
 
     const mergedByKey = new Map();
     const ingest = (entry) => {
@@ -1449,7 +1456,15 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     // Ordina per timestamp e preserva tutta la finestra viva: la serializzazione
     // sicura avviene tramite chunk persistenti, non tagliando lo stato operativo.
     const sorted = Array.from(mergedByKey.values())
-      .sort((a, b) => (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0));
+      .sort((a, b) => {
+        const timestampDiff = (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0);
+        if (timestampDiff !== 0) return timestampDiff;
+        const modelDiff = compareString(a.modelKey, b.modelKey);
+        if (modelDiff !== 0) return modelDiff;
+        const nonceDiff = compareString(a.nonce, b.nonce);
+        if (nonceDiff !== 0) return nonceDiff;
+        return lifecycleTime(a) - lifecycleTime(b);
+      });
 
     return sorted;
   }

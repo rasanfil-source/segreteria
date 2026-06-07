@@ -1996,8 +1996,10 @@ function _readBatchCheckpoint_() {
       : 3;
     const retryCount = Number(parsed.retryCount || 0);
     if (Number.isFinite(retryCount) && retryCount >= maxCheckpointRetries) {
-      console.warn(`Checkpoint abbandonato dopo ${retryCount} tentativi falliti.`);
-      _labelBatchCheckpointThreadsAsError_(parsed);
+      console.warn(
+        `Checkpoint abbandonato dopo ${retryCount} riprese consecutive; ` +
+        'non applico label Errore perché retryCount può indicare rinvii retryable.'
+      );
       _clearBatchCheckpoint_();
       return null;
     }

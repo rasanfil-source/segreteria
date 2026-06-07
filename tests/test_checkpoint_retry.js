@@ -43,7 +43,7 @@ const gasMainPath = path.join(__dirname, '..', 'gas_main.js');
 const code = fs.readFileSync(gasMainPath, 'utf8');
 vm.runInThisContext(code, { filename: gasMainPath });
 
-console.log('--- Test _readBatchCheckpoint_: abbandona dopo max retry e label Errore ---');
+console.log('--- Test _readBatchCheckpoint_: abbandona dopo max retry senza label Errore ---');
 props.set('EMAIL_BATCH_CHECKPOINT', JSON.stringify({
   version: 2,
   runId: 'retry-loop',
@@ -54,7 +54,7 @@ props.set('EMAIL_BATCH_CHECKPOINT', JSON.stringify({
 const abandoned = _readBatchCheckpoint_();
 assert(abandoned === null, 'checkpoint oltre soglia deve essere abbandonato');
 assert(!props.has('EMAIL_BATCH_CHECKPOINT'), 'checkpoint abbandonato deve essere cancellato');
-assert(labeledThreadIds.join(',') === 't400,t401', `thread pendenti attesi label Errore, ottenuto ${labeledThreadIds.join(',')}`);
+assert(labeledThreadIds.length === 0, `checkpoint abbandonato per retryCount non deve applicare label Errore, ottenuto ${labeledThreadIds.join(',')}`);
 
 console.log('--- Test _readBatchCheckpoint_: accetta checkpoint sotto soglia ---');
 labeledThreadIds = [];

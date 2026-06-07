@@ -88,9 +88,15 @@ var EmailProcessor = class EmailProcessor {
       validationErrorLabel: typeof CONFIG !== 'undefined' ? CONFIG.VALIDATION_ERROR_LABEL : 'Verifica',
       skipLabelName: (typeof CONFIG !== 'undefined' && Object.prototype.hasOwnProperty.call(CONFIG, 'SKIP_LABEL_NAME')) ? CONFIG.SKIP_LABEL_NAME : '·',
       maxHistoryMessages: (typeof CONFIG !== 'undefined' && typeof CONFIG.MAX_HISTORY_MESSAGES === 'number') ? CONFIG.MAX_HISTORY_MESSAGES : 10,
-      validationWarningThreshold: typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_WARNING_THRESHOLD === 'number'
-        ? CONFIG.VALIDATION_WARNING_THRESHOLD
-        : 0.9,
+      validationWarningThreshold: (() => {
+        const configuredThreshold = (typeof CONFIG !== 'undefined' && typeof CONFIG.VALIDATION_WARNING_THRESHOLD === 'number')
+          ? CONFIG.VALIDATION_WARNING_THRESHOLD
+          : 0.9;
+        if (typeof normalizeValidationScore === 'function') {
+          return normalizeValidationScore(configuredThreshold);
+        }
+        return Math.max(0, Math.min(1, configuredThreshold > 1 ? configuredThreshold / 100 : configuredThreshold));
+      })(),
       validationReviewAlerts: typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_REVIEW_ALERTS
         ? CONFIG.VALIDATION_REVIEW_ALERTS
         : { enabled: true, cooldownSeconds: 3600, recipientProperty: 'VALIDATION_REVIEW_EMAIL' },
@@ -3798,11 +3804,17 @@ ${addressLines.join('\n\n')}
     const scriptLock = (typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function')
       ? LockService.getScriptLock()
       : null;
+    const sendLockWaitMs = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.SEND_TRANSACTION_LOCK_WAIT_MS)))
+      ? Math.max(0, Number(CONFIG.SEND_TRANSACTION_LOCK_WAIT_MS))
+      : 2000;
     let lockAcquired = false;
 
     try {
-      if (!skipLock && scriptLock && typeof scriptLock.tryLock === 'function') {
-        lockAcquired = scriptLock.tryLock(500);
+      if (!skipLock) {
+        if (!scriptLock || typeof scriptLock.tryLock !== 'function') {
+          return { ok: false, reason: 'send_lock_unavailable' };
+        }
+        lockAcquired = scriptLock.tryLock(sendLockWaitMs);
         if (!lockAcquired) {
           return { ok: false, reason: 'send_lock_unavailable' };
         }

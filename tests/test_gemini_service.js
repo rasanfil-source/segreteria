@@ -727,6 +727,7 @@ console.log('--- Test quickCheck: 503 non consuma chiave backup ---');
     assert(false, '503 deve essere propagato come errore server');
   } catch (error) {
     assert(String(error.message || '').includes('Errore server Gemini(503)'), '503 deve restare errore server retryable');
+    assert(error.isTransient === true, '503 quick check deve essere marcato transitorio per i wrapper di retry');
     assert(calls === 1, '503 non deve causare una seconda chiamata con backup key');
   } finally {
     global.Utilities = previousUtilities;
