@@ -1034,7 +1034,44 @@ var ResponseValidator = class ResponseValidator {
     }
 
     // Determina fascia oraria corrente (fuso orario italiano)
+    const hasExplicitTemporalContext = temporalContext &&
+      typeof temporalContext === 'object' &&
+      !(temporalContext instanceof Date);
+    const runtimeContext = hasExplicitTemporalContext
+      ? this._normalizeRuntimeContext_(temporalContext)
+      : null;
+    const rawCurrentTime = runtimeContext && runtimeContext.temporal
+      ? runtimeContext.temporal.currentTime
+      : null;
+    const hasCurrentTime = typeof rawCurrentTime === 'string' && rawCurrentTime.trim() !== '';
+    const hasValidCurrentTime = hasCurrentTime &&
+      /^(?:[01]?\d|2[0-3])(?::[0-5]\d)?$/.test(rawCurrentTime.trim());
+    if (hasExplicitTemporalContext && !hasValidCurrentTime) {
+      warnings.push(hasCurrentTime ? 'invalid currentTime' : 'missing currentTime');
+      return {
+        score,
+        warnings,
+        message: 'Valutazione saluto saltata per contesto temporale insufficiente',
+        detectedGreeting: null,
+        expectedTimeSlot: null,
+        currentHour: null,
+        skipped: true
+      };
+    }
+
     const currentHour = this._resolveTemporalCurrentHour_(temporalContext);
+    if (!Number.isInteger(currentHour) || currentHour < 0 || currentHour > 23) {
+      warnings.push('invalid currentHour');
+      return {
+        score,
+        warnings,
+        message: 'Valutazione saluto saltata per contesto temporale insufficiente',
+        detectedGreeting: null,
+        expectedTimeSlot: null,
+        currentHour: null,
+        skipped: true
+      };
+    }
     let expectedTimeSlot;
     if (currentHour >= 5 && currentHour < 13) {
       expectedTimeSlot = 'morning';
@@ -1139,12 +1176,12 @@ var ResponseValidator = class ResponseValidator {
     const warnings = [];
     const currentDate = this._resolveTemporalCurrentDate_(temporalContext);
     if (!currentDate) {
-      return { score: 1.0, errors, warnings, violations: [], skipped: true };
+      return { score: 1.0, errors, warnings, violations: [], checkedDates: 0, skipped: true };
     }
 
     const temporalRefs = this._extractTemporalReferences_(response, temporalContext, 'response');
     if (!temporalRefs.length) {
-      return { score: 1.0, errors, warnings, violations: [], checkedDates: 0 };
+      return { score: 1.0, errors, warnings, violations: [], checkedDates: 0, skipped: false };
     }
 
     const todayOrdinal = this._dateOnlyOrdinal_(currentDate);
@@ -1184,10 +1221,10 @@ var ResponseValidator = class ResponseValidator {
       errors.push(
         `Incoerenza temporale: il riferimento "${violations[0].dateText}" è qualificato con una direzione temporale incompatibile con la data corrente.`
       );
-      return { score: 0.0, errors, warnings, violations, checkedDates: temporalRefs.length };
+      return { score: 0.0, errors, warnings, violations, checkedDates: temporalRefs.length, skipped: false };
     }
 
-    return { score: 1.0, errors, warnings, violations, checkedDates: temporalRefs.length };
+    return { score: 1.0, errors, warnings, violations, checkedDates: temporalRefs.length, skipped: false };
   }
 
   _checkOriginalDateQualification(response, originalContext = '', temporalContext = null, detectedLanguage = 'it') {
@@ -1320,7 +1357,9 @@ var ResponseValidator = class ResponseValidator {
     const sourceText = [knowledgeBase, originalContext].filter(Boolean).join('\n');
     const runtimeContext = this._normalizeRuntimeContext_(temporalContext);
     const papalContext = this._getCurrentPopeContext_(sourceText, runtimeContext.papal);
-    const currentDate = this._resolveTemporalCurrentDate_(temporalContext) || new Date();
+    const currentDate = this._resolveTemporalCurrentDate_(temporalContext) ||
+      this._parseEpochDateOnlyInTimeZone_(Date.now(), 'Europe/Rome') ||
+      new Date();
     const transitionDate = this._parseDateOnly_(papalContext.currentSince);
     if (transitionDate && currentDate && currentDate < transitionDate) {
       return { score, errors, warnings, checked: false, reason: 'before_current_pontificate' };
@@ -1363,17 +1402,24 @@ var ResponseValidator = class ResponseValidator {
   }
 
   _getCurrentPopeContext_(sourceText = '', runtimePapalContext = null) {
+    const hasConfig = typeof CONFIG !== 'undefined' && CONFIG;
     const fromSources = this._extractPapalContextFromText_(sourceText);
-    const cfg = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.PAPAL_CONTEXT)
+    const cfg = (hasConfig && CONFIG.PAPAL_CONTEXT)
       ? CONFIG.PAPAL_CONTEXT
       : {};
     const runtimePapal = (runtimePapalContext && typeof runtimePapalContext === 'object')
       ? runtimePapalContext
       : {};
+    const pick = (...values) => {
+      for (const value of values) {
+        if (value !== null && typeof value !== 'undefined' && String(value).trim() !== '') return value;
+      }
+      return '';
+    };
     return {
-      currentName: runtimePapal.currentName || fromSources.currentName || cfg.currentName || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_NAME) || 'Leone XIV',
-      previousName: runtimePapal.previousName || fromSources.previousName || cfg.previousName || (typeof CONFIG !== 'undefined' && CONFIG.PREVIOUS_POPE_NAME) || 'Papa Francesco',
-      currentSince: runtimePapal.currentSince || cfg.currentSince || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_SINCE) || '2025-05-08'
+      currentName: pick(runtimePapal.currentName, fromSources.currentName, cfg.currentName, hasConfig ? CONFIG.CURRENT_POPE_NAME : null, 'Leone XIV'),
+      previousName: pick(runtimePapal.previousName, fromSources.previousName, cfg.previousName, hasConfig ? CONFIG.PREVIOUS_POPE_NAME : null, 'Papa Francesco'),
+      currentSince: pick(runtimePapal.currentSince, fromSources.currentSince, cfg.currentSince, hasConfig ? CONFIG.CURRENT_POPE_SINCE : null, '2025-05-08')
     };
   }
 
@@ -1529,6 +1575,10 @@ var ResponseValidator = class ResponseValidator {
         } catch (_) {
           value = null;
         }
+      }
+      if (!value) {
+        const romeDate = this._parseEpochDateOnlyInTimeZone_(Date.now(), 'Europe/Rome');
+        if (romeDate) return romeDate;
       }
       if (!value) value = new Date();
     }
@@ -1726,7 +1776,8 @@ var ResponseValidator = class ResponseValidator {
       return { date: messageDate, anchorRole: 'messageDateFallback', sourceRole: role, timeZone, isFallback: false };
     }
 
-    const fallbackDate = this._parseDateOnly_(new Date());
+    const fallbackDate = this._parseEpochDateOnlyInTimeZone_(Date.now(), timeZone) ||
+      this._parseDateOnly_(new Date());
     return {
       date: fallbackDate,
       anchorRole: 'systemFallback',

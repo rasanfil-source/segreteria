@@ -4015,7 +4015,8 @@ ${addressLines.join('\n\n')}
   }
 
   _buildPapalRuntimeContext_(sourceText = '') {
-    const cfg = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.PAPAL_CONTEXT)
+    const hasConfig = typeof CONFIG !== 'undefined' && CONFIG;
+    const cfg = (hasConfig && CONFIG.PAPAL_CONTEXT)
       ? CONFIG.PAPAL_CONTEXT
       : {};
     let fromPromptEngine = {};
@@ -4029,12 +4030,21 @@ ${addressLines.join('\n\n')}
         fromPromptEngine = {};
       }
     }
+    const pick = (...values) => {
+      for (const value of values) {
+        if (value !== null && typeof value !== 'undefined' && String(value).trim() !== '') return value;
+      }
+      return '';
+    };
+    const legacyMinistryStart = hasConfig
+      ? pick(CONFIG.CURRENT_POPE_MINISTRY_START, CONFIG.CURRENTPOPEMINISTRYSTART)
+      : null;
 
     return {
-      currentName: fromPromptEngine.currentName || cfg.currentName || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_NAME) || 'Leone XIV',
-      previousName: fromPromptEngine.previousName || cfg.previousName || (typeof CONFIG !== 'undefined' && CONFIG.PREVIOUS_POPE_NAME) || 'Papa Francesco',
-      currentSince: fromPromptEngine.currentSince || cfg.currentSince || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_SINCE) || '2025-05-08',
-      ministryStart: fromPromptEngine.ministryStart || cfg.ministryStart || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_MINISTRY_START) || '2025-05-18',
+      currentName: pick(fromPromptEngine.currentName, cfg.currentName, hasConfig ? CONFIG.CURRENT_POPE_NAME : null, 'Leone XIV'),
+      previousName: pick(fromPromptEngine.previousName, cfg.previousName, hasConfig ? CONFIG.PREVIOUS_POPE_NAME : null, 'Papa Francesco'),
+      currentSince: pick(fromPromptEngine.currentSince, cfg.currentSince, hasConfig ? CONFIG.CURRENT_POPE_SINCE : null, '2025-05-08'),
+      ministryStart: pick(fromPromptEngine.ministryStart, cfg.ministryStart, legacyMinistryStart, '2025-05-18'),
       source: sourceText ? 'knowledge_context' : 'config'
     };
   }
@@ -4271,7 +4281,8 @@ ${addressLines.join('\n\n')}
   _getFormulaSummerScheduleRange_(year) {
     console.warn('⚠️ Periodo estivo non trovato in KB: uso formula tecnica annuale equivalente.');
     const june26 = this._makeValidDateOnly_(year, 6, 26);
-    const startSunday = this._addDaysToDateOnly_(june26, 8 - this._getSheetsWeekday_(june26));
+    const daysToNextSunday = (8 - this._getSheetsWeekday_(june26)) % 7;
+    const startSunday = this._addDaysToDateOnly_(june26, daysToNextSunday);
     const start = this._addDaysToDateOnly_(startSunday, 1);
 
     const august30 = this._makeValidDateOnly_(year, 8, 30);

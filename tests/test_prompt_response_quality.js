@@ -57,6 +57,42 @@ assert(
   'il contratto finale non deve richiedere il tag analisi'
 );
 
+console.log('--- Test prompt: contesto papale con inizio ministero non renderizza undefined ---');
+{
+  const originalConfig = global.CONFIG;
+  global.CONFIG = Object.assign({}, originalConfig, {
+    PAPAL_CONTEXT: {
+      currentName: 'Leone XIV',
+      previousName: 'Papa Francesco',
+      currentSince: '2025-05-08'
+    },
+    CURRENT_POPE_MINISTRY_START: '2025-05-18'
+  });
+  try {
+    const temporalPrompt = engine._renderTemporalAwareness(
+      {
+        currentDate: '2026-06-08',
+        messageDate: '2026-06-08',
+        currentTime: '10:00',
+        timeZone: 'Europe/Rome'
+      },
+      'it',
+      'full',
+      '',
+      null
+    );
+    assert(
+      temporalPrompt.includes('Papa attuale') &&
+        temporalPrompt.includes('Leone XIV dal 2025-05-08') &&
+        temporalPrompt.includes('inizio ministero petrino: 2025-05-18'),
+      'il prompt deve qualificare Papa attuale, data elezione e inizio ministero petrino'
+    );
+    assert(!temporalPrompt.includes('undefined'), 'il prompt temporale non deve contenere undefined');
+  } finally {
+    global.CONFIG = originalConfig;
+  }
+}
+
 console.log('--- Test prompt: requestType non plain preserva type derivato ---');
 const inheritedFormalRequestType = Object.create({ type: 'formal' });
 inheritedFormalRequestType.needsDiscernment = false;

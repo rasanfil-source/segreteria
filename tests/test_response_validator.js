@@ -158,6 +158,39 @@ console.log('--- Test _resolveTemporalCurrentDate_: messageDate non diventa curr
   }
 }
 
+console.log('--- Test _resolveTemporalCurrentDate_: fallback Intl resta timezone-aware su Roma ---');
+{
+  const originalUtilities = global.Utilities;
+  const originalDateTimeFormat = global.Intl.DateTimeFormat;
+  let seenTimeZone = null;
+  global.Utilities = {
+    formatDate: () => { throw new Error('timezone unavailable'); }
+  };
+  global.Intl.DateTimeFormat = function(_locale, options) {
+    seenTimeZone = options && options.timeZone;
+    return {
+      formatToParts: () => [
+        { type: 'year', value: '2026' },
+        { type: 'literal', value: '-' },
+        { type: 'month', value: '06' },
+        { type: 'literal', value: '-' },
+        { type: 'day', value: '08' }
+      ]
+    };
+  };
+  try {
+    const resolved = validator._resolveTemporalCurrentDate_(null);
+    assert(
+      validator._formatDateOnly_(resolved) === '2026-06-08',
+      `fallback currentDate deve usare Intl Europe/Rome, ottenuto ${validator._formatDateOnly_(resolved)}`
+    );
+    assert(seenTimeZone === 'Europe/Rome', 'fallback Intl della data corrente deve usare Europe/Rome');
+  } finally {
+    global.Utilities = originalUtilities;
+    global.Intl.DateTimeFormat = originalDateTimeFormat;
+  }
+}
+
 console.log('--- Test _checkLanguage conserva testo dopo gmail_quote chiuso ---');
 {
   const result = validator._checkLanguage(
@@ -545,6 +578,11 @@ assert(
   temporalPastFutureResult.errors.some((e) => e.includes('Incoerenza temporale')),
   'deve segnalare incoerenza temporale'
 );
+assert(
+  temporalPastFutureResult.checkedDates > 0,
+  'il ramo con violazioni deve restituire checkedDates valorizzato'
+);
+assert(temporalPastFutureResult.skipped === false, 'il ramo con violazioni deve dichiarare skipped=false');
 
 console.log('--- Test temporal consistency: data futura programmata passa ---');
 const temporalFutureOkResult = validator._checkTemporalConsistency(
@@ -553,6 +591,7 @@ const temporalFutureOkResult = validator._checkTemporalConsistency(
   { currentDate: '2026-05-15' }
 );
 assert(temporalFutureOkResult.score === 1.0, 'una data futura presentata come programmata deve passare');
+assert(temporalFutureOkResult.skipped === false, 'il ramo sano deve dichiarare skipped=false');
 
 console.log('--- Test temporal consistency: conclusione futura non è scambiata per passato ---');
 const temporalFutureConclusionResult = validator._checkTemporalConsistency(
@@ -785,12 +824,40 @@ console.log('--- Test temporal references: ambigui non vengono normalizzati aggr
 
 console.log('--- Test temporal references: fallback anchor è marcato come diagnostico ---');
 {
-  const refs = validator._extractTemporalReferences_('Domani posso passare?', {}, 'response');
-  const tomorrow = refs.find(ref => ref.type === 'relative_point');
-  assert(
-    tomorrow && tomorrow.anchorIsFallback === true && tomorrow.anchorRole === 'systemFallback' && tomorrow.confidence <= 0.35,
-    'senza runtimeContext il parser deve marcare esplicitamente il fallback al clock'
-  );
+  const originalUtilities = global.Utilities;
+  const originalDateTimeFormat = global.Intl.DateTimeFormat;
+  let seenTimeZone = null;
+  global.Utilities = {
+    formatDate: () => { throw new Error('timezone unavailable'); }
+  };
+  global.Intl.DateTimeFormat = function(_locale, options) {
+    seenTimeZone = options && options.timeZone;
+    return {
+      formatToParts: () => [
+        { type: 'year', value: '2026' },
+        { type: 'literal', value: '-' },
+        { type: 'month', value: '06' },
+        { type: 'literal', value: '-' },
+        { type: 'day', value: '08' }
+      ]
+    };
+  };
+  try {
+    const refs = validator._extractTemporalReferences_('Domani posso passare?', {}, 'response');
+    const tomorrow = refs.find(ref => ref.type === 'relative_point');
+    assert(
+      tomorrow && tomorrow.anchorIsFallback === true && tomorrow.anchorRole === 'systemFallback' && tomorrow.confidence <= 0.35,
+      'senza runtimeContext il parser deve marcare esplicitamente il fallback al clock'
+    );
+    assert(seenTimeZone === 'Europe/Rome', 'il fallback anchor deve restare normalizzato su Europe/Rome');
+    assert(
+      validator._formatDateOnly_(tomorrow.normalizedDate) === '2026-06-09',
+      'il relativo su fallback deve usare la data Roma normalizzata'
+    );
+  } finally {
+    global.Utilities = originalUtilities;
+    global.Intl.DateTimeFormat = originalDateTimeFormat;
+  }
 }
 
 console.log('--- Test temporal references: response senza currentDate usa messageDate prima del clock ---');
@@ -1106,6 +1173,32 @@ console.log('--- Test temporal greeting: saluto usa currentTime e non messageDat
   assert(
     correctGreeting.score === 1.0 && correctGreeting.expectedTimeSlot === 'evening',
     'alle 20:30 correnti il saluto serale deve passare'
+  );
+}
+
+console.log('--- Test temporal greeting: currentTime mancante o invalido salta la verifica ---');
+{
+  const missingTime = validator._checkTimeBasedGreeting(
+    'Buongiorno, le confermiamo la disponibilità.',
+    'it',
+    { temporal: { currentDate: '2026-06-07', messageDate: '2026-06-07', timeZone: 'Europe/Rome' } }
+  );
+  assert(
+    missingTime.skipped === true &&
+      missingTime.score === 1.0 &&
+      missingTime.warnings.includes('missing currentTime'),
+    'senza currentTime esplicito il controllo saluto deve degradare in modo diagnostico'
+  );
+  const invalidTime = validator._checkTimeBasedGreeting(
+    'Buongiorno, le confermiamo la disponibilità.',
+    'it',
+    { temporal: { currentDate: '2026-06-07', currentTime: 'sera', messageDate: '2026-06-07', timeZone: 'Europe/Rome' } }
+  );
+  assert(
+    invalidTime.skipped === true &&
+      invalidTime.score === 1.0 &&
+      invalidTime.warnings.includes('invalid currentTime'),
+    'con currentTime invalido il controllo saluto deve essere saltato senza usare il clock reale'
   );
 }
 

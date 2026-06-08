@@ -1263,10 +1263,14 @@ Se l'utente chiede quando inizia o finisce il periodo estivo, rispondi con il pe
       ? `\n- **Discrepanza temporale:** l'email originale è stata scritta ${temporalContext.daysAgo} giorni fa. I relativi dell'utente possono quindi indicare date già passate rispetto a oggi.`
       : '';
 
+    const ministryStartLine = papalContext.ministryStart
+      ? ` (inizio ministero petrino: ${papalContext.ministryStart})`
+      : '';
+
     return `## DATA ODIERNA E CONTESTO TEMPORALE
 - **Data di riferimento per la risposta (currentDate):** ${currentDate} (${humanDate})
 - **Oggi è:** ${currentDate} (${humanDate})
-${messageDateLines}${currentTime ? `- **Ora locale attuale:** ${currentTime}\n` : ''}- **Papa attuale:** ${papalContext.currentName} (dal ${papalContext.currentSince}; inizio ministero petrino: ${papalContext.ministryStart})${oldMessageWarning}
+${messageDateLines}${currentTime ? `- **Ora locale attuale:** ${currentTime}\n` : ''}- **Papa attuale:** ${papalContext.currentName} dal ${papalContext.currentSince}${ministryStartLine}${oldMessageWarning}
 **Regole Temporali:**
 1. Usa currentDate (${currentDate}) come unica data di riferimento per decidere se nella risposta un evento è passato, presente o futuro.
 2. Usa ${messageDateRuleTarget} solo per interpretare relativi scritti dall'utente nell'email originale, come "oggi", "domani", "ieri", "sabato prossimo".
@@ -1278,18 +1282,28 @@ ${messageDateLines}${currentTime ? `- **Ora locale attuale:** ${currentTime}\n` 
   }
 
   _getPapalContext_(sourceText = '', runtimePapalContext = null) {
+    const hasConfig = typeof CONFIG !== 'undefined' && CONFIG;
     const fromSources = this._extractPapalContextFromText_(sourceText);
-    const cfg = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.PAPAL_CONTEXT)
+    const cfg = (hasConfig && CONFIG.PAPAL_CONTEXT)
       ? CONFIG.PAPAL_CONTEXT
       : {};
     const runtimePapal = (runtimePapalContext && typeof runtimePapalContext === 'object')
       ? runtimePapalContext
       : {};
+    const pick = (...values) => {
+      for (const value of values) {
+        if (value !== null && typeof value !== 'undefined' && String(value).trim() !== '') return value;
+      }
+      return '';
+    };
+    const legacyMinistryStart = hasConfig
+      ? pick(CONFIG.CURRENT_POPE_MINISTRY_START, CONFIG.CURRENTPOPEMINISTRYSTART)
+      : null;
     return {
-      currentName: runtimePapal.currentName || fromSources.currentName || cfg.currentName || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_NAME) || 'Leone XIV',
-      previousName: runtimePapal.previousName || fromSources.previousName || cfg.previousName || (typeof CONFIG !== 'undefined' && CONFIG.PREVIOUS_POPE_NAME) || 'Papa Francesco',
-      currentSince: runtimePapal.currentSince || cfg.currentSince || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_SINCE) || '2025-05-08',
-      ministryStart: runtimePapal.ministryStart || cfg.ministryStart || (typeof CONFIG !== 'undefined' && CONFIG.CURRENT_POPE_MINISTRY_START) || '2025-05-18'
+      currentName: pick(runtimePapal.currentName, fromSources.currentName, cfg.currentName, hasConfig ? CONFIG.CURRENT_POPE_NAME : null, 'Leone XIV'),
+      previousName: pick(runtimePapal.previousName, fromSources.previousName, cfg.previousName, hasConfig ? CONFIG.PREVIOUS_POPE_NAME : null, 'Papa Francesco'),
+      currentSince: pick(runtimePapal.currentSince, fromSources.currentSince, cfg.currentSince, hasConfig ? CONFIG.CURRENT_POPE_SINCE : null, '2025-05-08'),
+      ministryStart: pick(runtimePapal.ministryStart, fromSources.ministryStart, cfg.ministryStart, legacyMinistryStart, '2025-05-18')
     };
   }
 

@@ -300,6 +300,17 @@ console.log('--- Test periodo orari: usa la KB e la data richiesta ---');
     processor._resolveScheduleContext('Messa del 3 giugno', scheduleKb, '2026-06-01', 'it').targetDate === '2026-06-03',
     'le date esplicite tipo 3 giugno devono diventare data target'
   );
+  const sameDayYearlessDate = processor._resolveScheduleContext(
+    'A che ora saranno le messe il 15 agosto?',
+    scheduleKb,
+    '2026-08-15',
+    'it'
+  );
+  assert(
+    sameDayYearlessDate.targetDate === '2026-08-15' &&
+      sameDayYearlessDate.yearInference === 'current_year',
+    `data senza anno citata nel giorno stesso deve restare current_year, ottenuto ${sameDayYearlessDate.targetDate}/${sameDayYearlessDate.yearInference}`
+  );
   const futureYearlessPastInCurrentYear = processor._resolveScheduleContext(
     'A che ora saranno le messe il 15 agosto?',
     scheduleKb,
@@ -349,6 +360,22 @@ console.log('--- Test periodo orari: usa la KB e la data richiesta ---');
       formulaFallback2027.summerEndDate === '2027-09-05' &&
       formulaFallback2027.season === 'estivo',
     `fallback formula 2027 atteso 2027-06-28/2027-09-05, ottenuto ${formulaFallback2027.summerStartDate}/${formulaFallback2027.summerEndDate}/${formulaFallback2027.season}`
+  );
+  const formulaFallback2022 = processor._resolveScheduleContext(
+    'Orari Messe',
+    '',
+    '2022-06-27',
+    'it'
+  );
+  assert(
+    formulaFallback2022.source === 'fallback_formula' &&
+      formulaFallback2022.summerStartDate === '2022-06-27' &&
+      formulaFallback2022.season === 'estivo',
+    `fallback formula con 26 giugno domenica deve iniziare il 27 giugno, ottenuto ${formulaFallback2022.summerStartDate}/${formulaFallback2022.season}`
+  );
+  assert(
+    processor._resolveScheduleContext('Orari Messe', '', '2022-06-26', 'it').season === 'invernale',
+    'se il 26 giugno cade di domenica, il periodo estivo deve partire dal lunedi successivo'
   );
   assert(
     processor._resolveScheduleContext('Orari Messe', '', '2027-06-27', 'it').season === 'invernale',

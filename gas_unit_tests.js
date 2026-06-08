@@ -1357,6 +1357,24 @@ function runAllTests() {
             const res = validator._checkTimeBasedGreeting('Buona domenica a tutti voi.', 'it');
             return res.detectedTimeSlot === 'neutral' && res.score === 1.0;
         });
+        test('Saluto temporale salta verifica se currentTime esplicito manca o è invalido', results, () => {
+            const missingTime = validator._checkTimeBasedGreeting(
+                'Buongiorno, le confermiamo la disponibilità.',
+                'it',
+                { temporal: { currentDate: '2026-06-07', messageDate: '2026-06-07', timeZone: 'Europe/Rome' } }
+            );
+            const invalidTime = validator._checkTimeBasedGreeting(
+                'Buongiorno, le confermiamo la disponibilità.',
+                'it',
+                { temporal: { currentDate: '2026-06-07', currentTime: 'sera', messageDate: '2026-06-07', timeZone: 'Europe/Rome' } }
+            );
+            return missingTime && missingTime.skipped === true &&
+                missingTime.score === 1.0 &&
+                missingTime.warnings.includes('missing currentTime') &&
+                invalidTime && invalidTime.skipped === true &&
+                invalidTime.score === 1.0 &&
+                invalidTime.warnings.includes('invalid currentTime');
+        });
         test('normalizeTime preserva 0 come input esplicito', results, () => {
             return ResponseValidator.toString().includes("String(t ?? '')");
         });
@@ -1423,6 +1441,66 @@ function runAllTests() {
                 tomorrowRef.anchorRole === 'messageDateFallback' &&
                 tomorrowRef.anchorIsFallback === false &&
                 validator._formatDateOnly_(tomorrowRef.normalizedDate) === '2026-06-02';
+        });
+        test('Fallback anchor parser usa Europe/Rome prima del clock locale', results, () => {
+            const originalUtilities = global.Utilities;
+            const originalDateTimeFormat = global.Intl.DateTimeFormat;
+            let seenTimeZone = null;
+            try {
+                global.Utilities = {
+                    formatDate: () => { throw new Error('timezone unavailable'); }
+                };
+                global.Intl.DateTimeFormat = function (_locale, options) {
+                    seenTimeZone = options && options.timeZone;
+                    return {
+                        formatToParts: () => [
+                            { type: 'year', value: '2026' },
+                            { type: 'literal', value: '-' },
+                            { type: 'month', value: '06' },
+                            { type: 'literal', value: '-' },
+                            { type: 'day', value: '08' }
+                        ]
+                    };
+                };
+                const refs = validator._extractTemporalReferences_('Domani posso passare?', {}, 'response');
+                const tomorrowRef = refs.find(ref => ref.type === 'relative_point');
+                return seenTimeZone === 'Europe/Rome' &&
+                    tomorrowRef &&
+                    tomorrowRef.anchorRole === 'systemFallback' &&
+                    tomorrowRef.anchorIsFallback === true &&
+                    validator._formatDateOnly_(tomorrowRef.normalizedDate) === '2026-06-09';
+            } finally {
+                global.Utilities = originalUtilities;
+                global.Intl.DateTimeFormat = originalDateTimeFormat;
+            }
+        });
+        test('_resolveTemporalCurrentDate fallback Intl usa Europe/Rome', results, () => {
+            const originalUtilities = global.Utilities;
+            const originalDateTimeFormat = global.Intl.DateTimeFormat;
+            let seenTimeZone = null;
+            try {
+                global.Utilities = {
+                    formatDate: () => { throw new Error('timezone unavailable'); }
+                };
+                global.Intl.DateTimeFormat = function (_locale, options) {
+                    seenTimeZone = options && options.timeZone;
+                    return {
+                        formatToParts: () => [
+                            { type: 'year', value: '2026' },
+                            { type: 'literal', value: '-' },
+                            { type: 'month', value: '06' },
+                            { type: 'literal', value: '-' },
+                            { type: 'day', value: '08' }
+                        ]
+                    };
+                };
+                const resolved = validator._resolveTemporalCurrentDate_(null);
+                return seenTimeZone === 'Europe/Rome' &&
+                    validator._formatDateOnly_(resolved) === '2026-06-08';
+            } finally {
+                global.Utilities = originalUtilities;
+                global.Intl.DateTimeFormat = originalDateTimeFormat;
+            }
         });
         test('OriginalDateQualification intercetta oggi vecchio ripetuto come futuro operativo', results, () => {
             const runtimeContext = {
@@ -1505,7 +1583,9 @@ function runAllTests() {
             const result = validator._checkTemporalConsistency("L'incontro del 10 giugno 2026 si è già svolto.", 'it', runtimeContext);
             return result && result.score === 0.0 &&
                 Array.isArray(result.violations) &&
-                result.violations.length > 0;
+                result.violations.length > 0 &&
+                result.checkedDates > 0 &&
+                result.skipped === false;
         });
         test('extractTemporalReferences risolve sabato prossimo con anchor differenziato', results, () => {
             const runtimeContext = {
@@ -1694,6 +1774,36 @@ function runAllTests() {
                 global.Utilities = originalUtilities;
                 global.Intl = originalIntl;
             }
+        });
+        test('Data senza anno nel giorno stesso resta current_year', results, () => {
+            const processor = new EmailProcessor({});
+            const context = processor._resolveScheduleContext(
+                'A che ora saranno le messe il 15 agosto?',
+                '',
+                '2026-08-15',
+                'it'
+            );
+            return context.targetDate === '2026-08-15' &&
+                context.yearInference === 'current_year';
+        });
+        test('Fallback periodo estivo gestisce 26 giugno domenica', results, () => {
+            const processor = new EmailProcessor({});
+            const context = processor._resolveScheduleContext(
+                'Orari Messe',
+                '',
+                '2022-06-27',
+                'it'
+            );
+            const previousDay = processor._resolveScheduleContext(
+                'Orari Messe',
+                '',
+                '2022-06-26',
+                'it'
+            );
+            return context.source === 'fallback_formula' &&
+                context.summerStartDate === '2022-06-27' &&
+                context.season === 'estivo' &&
+                previousDay.season === 'invernale';
         });
     });
 
@@ -2102,6 +2212,36 @@ function runAllTests() {
                 typeof prompt.systemInstruction === 'string' &&
                 typeof prompt.prompt === 'string' &&
                 prompt.toString().length > 0;
+        });
+        test('Contesto temporale papale renderizza inizio ministero senza undefined', results, () => {
+            const originalConfig = global.CONFIG;
+            try {
+                global.CONFIG = Object.assign({}, originalConfig, {
+                    PAPAL_CONTEXT: {
+                        currentName: 'Leone XIV',
+                        previousName: 'Papa Francesco',
+                        currentSince: '2025-05-08'
+                    },
+                    CURRENT_POPE_MINISTRY_START: '2025-05-18'
+                });
+                const prompt = engine._renderTemporalAwareness(
+                    {
+                        currentDate: '2026-06-08',
+                        messageDate: '2026-06-08',
+                        currentTime: '10:00',
+                        timeZone: 'Europe/Rome'
+                    },
+                    'it',
+                    'full',
+                    '',
+                    null
+                );
+                return prompt.includes('Leone XIV dal 2025-05-08') &&
+                    prompt.includes('inizio ministero petrino: 2025-05-18') &&
+                    !prompt.includes('undefined');
+            } finally {
+                global.CONFIG = originalConfig;
+            }
         });
         test('Rafforza regola anti-infodumping nelle linee guida risposta', results, () => {
             const guidelines = engine._renderResponseGuidelines('it', 'ordinario', 'Buongiorno', 'Cordiali saluti');
