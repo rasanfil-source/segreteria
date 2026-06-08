@@ -80,6 +80,106 @@ EmailProcessor.prototype.processThread = function(...args) {
 const processor = new EmailProcessor();
 
 
+console.log('--- Test business date/time: fallback estremo resta su Europe/Rome ---');
+{
+  const originalUtilities = global.Utilities;
+  const originalDateTimeFormat = global.Intl.DateTimeFormat;
+  const originalGetHours = Date.prototype.getHours;
+  const originalGetFullYear = Date.prototype.getFullYear;
+  const originalGetMonth = Date.prototype.getMonth;
+  const originalGetDate = Date.prototype.getDate;
+  global.Utilities = {
+    formatDate: () => { throw new Error('Utilities unavailable'); }
+  };
+  global.Intl.DateTimeFormat = function() {
+    throw new Error('Intl unavailable');
+  };
+  Date.prototype.getHours = Date.prototype.getUTCHours;
+  Date.prototype.getFullYear = Date.prototype.getUTCFullYear;
+  Date.prototype.getMonth = Date.prototype.getUTCMonth;
+  Date.prototype.getDate = Date.prototype.getUTCDate;
+  try {
+    const summerMidnightRome = new Date('2026-06-07T22:15:00Z');
+    assert(
+      processor._getBusinessTimeString(summerMidnightRome) === '00:15' &&
+        processor._getBusinessDateString(summerMidnightRome) === '2026-06-08',
+      `fallback Roma estivo deve convertire UTC->CEST, ottenuto ${processor._getBusinessDateString(summerMidnightRome)} ${processor._getBusinessTimeString(summerMidnightRome)}`
+    );
+    const winterMidnightRome = new Date('2026-01-01T23:30:00Z');
+    assert(
+      processor._getBusinessTimeString(winterMidnightRome) === '00:30' &&
+        processor._getBusinessDateString(winterMidnightRome) === '2026-01-02',
+      `fallback Roma invernale deve convertire UTC->CET, ottenuto ${processor._getBusinessDateString(winterMidnightRome)} ${processor._getBusinessTimeString(winterMidnightRome)}`
+    );
+  } finally {
+    global.Utilities = originalUtilities;
+    global.Intl.DateTimeFormat = originalDateTimeFormat;
+    Date.prototype.getHours = originalGetHours;
+    Date.prototype.getFullYear = originalGetFullYear;
+    Date.prototype.getMonth = originalGetMonth;
+    Date.prototype.getDate = originalGetDate;
+  }
+}
+
+console.log('--- Test runtimeContext: fallback messageDate non implica email vecchia ---');
+{
+  const fallbackRuntime = processor._buildRuntimeContext_(
+    { date: new Date('invalid') },
+    new Date('2026-06-08T10:00:00Z'),
+    ''
+  );
+  assert(
+    fallbackRuntime.temporal.messageDateAvailable === false &&
+      fallbackRuntime.temporal.messageDateSource === 'processing_fallback' &&
+      fallbackRuntime.temporal.isOldMessage === false,
+    `fallback messageDate deve restare esplicito senza fingere email vecchia, ottenuto ${fallbackRuntime.temporal.messageDateSource}/${fallbackRuntime.temporal.isOldMessage}`
+  );
+
+  const oldRuntime = processor._buildRuntimeContext_(
+    { date: new Date('2026-06-01T10:00:00Z') },
+    new Date('2026-06-08T10:00:00Z'),
+    ''
+  );
+  assert(
+    oldRuntime.temporal.messageDateAvailable === true &&
+      oldRuntime.temporal.daysAgo === 7 &&
+      oldRuntime.temporal.isOldMessage === true,
+    `data Gmail valida vecchia deve restare marcata come old, ottenuto ${oldRuntime.temporal.daysAgo}/${oldRuntime.temporal.isOldMessage}`
+  );
+}
+
+console.log('--- Test correction prompt: fallback papale esplicito ---');
+{
+  const prompt = processor._renderRuntimeContextForCorrection_({
+    temporal: {
+      currentDate: '2026-06-08',
+      currentTime: '10:00',
+      messageDate: '2026-06-08'
+    },
+    papal: {}
+  }, 'it', 'full');
+  assert(
+    prompt.includes('Papa attuale/regnante: Leone XIV') &&
+      prompt.includes('Papa precedente/non regnante: Papa Francesco') &&
+      prompt.includes('non presentare Papa Francesco come Papa attuale'),
+    'il prompt correttivo deve nominare esplicitamente Papa attuale e precedente anche con runtime papal parziale'
+  );
+}
+
+console.log('--- Test memory summary: usa referenceDate stabile ---');
+{
+  const summary = processor._buildMemorySummary({
+    existingSummary: '',
+    responseText: 'Buongiorno. Le confermiamo che le Messe domenicali sono alle 9:00 e alle 11:00. Cordiali saluti.',
+    providedTopics: ['orari messe'],
+    referenceDate: new Date('2026-01-02T12:00:00Z')
+  });
+  assert(
+    summary && summary.includes('[2026-01-02]'),
+    `memory summary deve usare referenceDate invece del clock corrente, ottenuto ${summary}`
+  );
+}
+
 console.log('--- Test salutation mode: timestamp invalido/futuro resta safe e diagnostico ---');
 {
   const originalParseDateSafe = global.parseDateSafe;
@@ -389,6 +489,13 @@ console.log('--- Test periodo orari: usa la KB e la data richiesta ---');
   assert(
     processor._resolveScheduleContext('Messa del 3 giugno', scheduleKb, '2026-06-01', 'it').targetDate === '2026-06-03',
     'le date esplicite tipo 3 giugno devono diventare data target'
+  );
+  const crossYearRange = processor._parseItalianDateRange_('Periodo natalizio: dal 15 dicembre al 6 gennaio', 2026);
+  assert(
+    crossYearRange &&
+      processor._formatDateOnlyIso_(crossYearRange.start) === '2026-12-15' &&
+      processor._formatDateOnlyIso_(crossYearRange.end) === '2027-01-06',
+    `range dicembre-gennaio deve attraversare l'anno, ottenuto ${crossYearRange ? `${processor._formatDateOnlyIso_(crossYearRange.start)}/${processor._formatDateOnlyIso_(crossYearRange.end)}` : 'null'}`
   );
   assert(
     processor._coerceBusinessDateOnly_(null) === null &&

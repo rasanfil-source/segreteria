@@ -1167,6 +1167,10 @@ Devi dare la risposta SÌ/NO adesso, basandoti ESCLUSIVAMENTE sui dati qui sopra
       summerRangeText: context.summerRangeText || '',
       summerStartDate: context.summerStartDate || '',
       summerEndDate: context.summerEndDate || '',
+      requestAnchorSource: context.requestAnchorSource || '',
+      messageDateAvailable: context.messageDateAvailable !== false,
+      requestAnchorDateIsFallback: context.requestAnchorDateIsFallback === true,
+      targetDateFallbackReason: context.targetDateFallbackReason || '',
       source: context.source || 'legacy_currentSeason'
     };
   }
@@ -1180,6 +1184,9 @@ Devi dare la risposta SÌ/NO adesso, basandoti ESCLUSIVAMENTE sui dati qui sopra
     const sourceLabel = context.source === 'knowledge_base'
       ? 'Knowledge Base'
       : (context.source === 'fallback_formula' ? 'formula tecnica annuale' : 'contesto runtime');
+    const dateCaveat = context.requestAnchorDateIsFallback && context.isExplicitTarget
+      ? ' (stima tecnica: data originale email non disponibile)'
+      : '';
     const summerLine = context.summerRangeText
       ? `Periodo estivo di riferimento (${sourceLabel}): ${context.summerRangeText}.`
       : `Periodo estivo di riferimento: non disponibile in KB; usa il contesto runtime.`;
@@ -1192,9 +1199,9 @@ Devi dare la risposta SÌ/NO adesso, basandoti ESCLUSIVAMENTE sui dati qui sopra
 ⚠️ DATA GIÀ TRASCORSA: la data richiesta (${targetLabel}) è già passata rispetto alla data odierna. Non presentarla come futura; se l'ambiguità resta alta, chiedi conferma dell'anno.`
       : '';
 
-    return `**ORARI STAGIONALI:**
+return `**ORARI STAGIONALI:**
 IMPORTANTE: usa gli orari del periodo applicabile alla data richiesta, non dedurre il periodo dal solo mese solare.
-Data di riferimento per gli orari: ${targetLabel}.
+Data di riferimento per gli orari: ${targetLabel}${dateCaveat}.
 Periodo applicabile: ${season.toUpperCase()}.
 ${summerLine}
 Usa SOLO gli orari ${season}. Non mostrare mai entrambi i set di orari.
@@ -1256,7 +1263,7 @@ Se l'utente chiede quando inizia o finisce il periodo estivo, rispondi con il pe
       : '';
     const messageDateRuleTarget = messageDate
       ? (messageDateIsFallback
-        ? `messageDate (${messageDate}) solo come fallback tecnico quando la data originale dell'email non è disponibile`
+        ? `messageDate (${messageDate}) come stima tecnica: la data reale dell'email non è disponibile, quindi i relativi temporali dell'utente (oggi/domani/sabato prossimo) non possono essere risolti in date assolute affidabili; evita di calcolare date precise da essi`
         : `messageDate (${messageDate})`)
       : 'messageDate';
     const oldMessageWarning = temporalContext && temporalContext.isOldMessage && Number.isFinite(Number(temporalContext.daysAgo))

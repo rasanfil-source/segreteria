@@ -93,6 +93,45 @@ console.log('--- Test prompt: contesto papale con inizio ministero non renderizz
   }
 }
 
+console.log('--- Test prompt: contesto stagionale segnala data email fallback ---');
+{
+  const seasonalPrompt = engine._renderSeasonalContext({
+    season: 'estivo',
+    targetDateText: '9 giugno 2026',
+    isExplicitTarget: true,
+    requestAnchorDateIsFallback: true,
+    summerRangeText: 'Dal 29 giugno al 30 agosto',
+    source: 'knowledge_base'
+  });
+  assert(
+    seasonalPrompt.includes('stima tecnica: data originale email non disponibile'),
+    'il contesto stagionale deve segnalare quando la data target deriva da fallback tecnico'
+  );
+}
+
+console.log('--- Test prompt: messageDate fallback non risolve relativi utente con certezza ---');
+{
+  const temporalFallbackPrompt = engine._renderTemporalAwareness(
+    {
+      currentDate: '2026-06-08',
+      messageDate: '2026-06-08',
+      messageDateAvailable: false,
+      messageDateSource: 'processing_fallback',
+      currentTime: '10:00',
+      timeZone: 'Europe/Rome'
+    },
+    'it',
+    'full',
+    '',
+    null
+  );
+  assert(
+    temporalFallbackPrompt.includes('non possono essere risolti in date assolute affidabili') &&
+      temporalFallbackPrompt.includes('evita di calcolare date precise'),
+    'la regola temporale deve rendere prudente l uso dei relativi quando messageDate e fallback'
+  );
+}
+
 console.log('--- Test prompt: requestType non plain preserva type derivato ---');
 const inheritedFormalRequestType = Object.create({ type: 'formal' });
 inheritedFormalRequestType.needsDiscernment = false;

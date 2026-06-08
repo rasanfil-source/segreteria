@@ -2860,13 +2860,14 @@ ${addressLines.join('\n\n')}
         topic: topic,
         userReaction: 'unknown',
         context: null,
-        timestamp: new Date().toISOString()
+        timestamp: processingTimestamp.toISOString()
       }));
 
       const memorySummary = this._buildMemorySummary({
         existingSummary: memoryContext.memorySummary || '',
         responseText: response,
-        providedTopics: providedTopics
+        providedTopics: providedTopics,
+        referenceDate: processingTimestamp
       });
 
       const inferredReactionData = (memoryContext.providedInfo && memoryContext.providedInfo.length > 0)
@@ -3951,9 +3952,7 @@ ${addressLines.join('\n\n')}
         hour12: false
       }).format(parsedDate);
     } catch (_) {
-      const h = String(parsedDate.getHours()).padStart(2, '0');
-      const m = String(parsedDate.getMinutes()).padStart(2, '0');
-      return `${h}:${m}`;
+      return this._formatRomeTimeFallback_(parsedDate);
     }
   }
 
@@ -3994,10 +3993,42 @@ ${addressLines.join('\n\n')}
 
   _formatLocalDateOnly_(date = new Date()) {
     const safeDate = date instanceof Date && !isNaN(date.getTime()) ? date : new Date();
-    const year = String(safeDate.getFullYear());
-    const month = String(safeDate.getMonth() + 1).padStart(2, '0');
-    const day = String(safeDate.getDate()).padStart(2, '0');
+    return this._formatRomeDateFallback_(safeDate);
+  }
+
+  _formatRomeTimeFallback_(date = new Date()) {
+    const romeDate = this._shiftUtcToRomeWallClockFallback_(date);
+    const hour = String(romeDate.getUTCHours()).padStart(2, '0');
+    const minute = String(romeDate.getUTCMinutes()).padStart(2, '0');
+    return `${hour}:${minute}`;
+  }
+
+  _formatRomeDateFallback_(date = new Date()) {
+    const romeDate = this._shiftUtcToRomeWallClockFallback_(date);
+    const year = String(romeDate.getUTCFullYear());
+    const month = String(romeDate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(romeDate.getUTCDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  _shiftUtcToRomeWallClockFallback_(date = new Date()) {
+    const safeDate = date instanceof Date && !isNaN(date.getTime()) ? date : new Date();
+    return new Date(safeDate.getTime() + this._getRomeOffsetMinutesFallback_(safeDate) * 60000);
+  }
+
+  _getRomeOffsetMinutesFallback_(date = new Date()) {
+    const safeDate = date instanceof Date && !isNaN(date.getTime()) ? date : new Date();
+    const year = safeDate.getUTCFullYear();
+    const dstStart = this._lastSundayUtc_(year, 2, 31, 1);
+    const dstEnd = this._lastSundayUtc_(year, 9, 31, 1);
+    const time = safeDate.getTime();
+    return time >= dstStart.getTime() && time < dstEnd.getTime() ? 120 : 60;
+  }
+
+  _lastSundayUtc_(year, monthIndex, dayOfMonth, hour = 0) {
+    const date = new Date(Date.UTC(year, monthIndex, dayOfMonth, hour, 0, 0));
+    date.setUTCDate(date.getUTCDate() - date.getUTCDay());
+    return date;
   }
 
   _buildRuntimeContext_(messageDetails = {}, processingTimestamp = new Date(), papalSourceText = '') {
@@ -4026,7 +4057,7 @@ ${addressLines.join('\n\n')}
       messageEpochMs: messageDate.getTime(),
       ageHours: ageHours,
       daysAgo: daysAgo,
-      isOldMessage: daysAgo >= 1
+      isOldMessage: rawMessageDateValid && daysAgo >= 1
     });
 
     const papal = Object.freeze(this._buildPapalRuntimeContext_(papalSourceText));
@@ -4324,8 +4355,11 @@ ${addressLines.join('\n\n')}
     const match = String(text || '').toLowerCase().match(pattern);
     if (!match) return null;
 
-    const start = this._makeValidDateOnly_(year, monthMap[match[2]], parseInt(match[1], 10));
-    const end = this._makeValidDateOnly_(year, monthMap[match[4]], parseInt(match[3], 10));
+    const startMonth = monthMap[match[2]];
+    const endMonth = monthMap[match[4]];
+    const start = this._makeValidDateOnly_(year, startMonth, parseInt(match[1], 10));
+    const endYear = endMonth < startMonth ? year + 1 : year;
+    const end = this._makeValidDateOnly_(endYear, endMonth, parseInt(match[3], 10));
     if (!start || !end) return null;
 
     return {
@@ -5210,6 +5244,20 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     const papal = runtimeContext.papal && typeof runtimeContext.papal === 'object'
       ? runtimeContext.papal
       : {};
+    const hasConfig = typeof CONFIG !== 'undefined' && CONFIG;
+    const papalConfig = hasConfig && CONFIG.PAPAL_CONTEXT ? CONFIG.PAPAL_CONTEXT : {};
+    const pick = (...values) => {
+      for (const value of values) {
+        if (value !== null && typeof value !== 'undefined' && String(value).trim() !== '') return value;
+      }
+      return '';
+    };
+    const currentPope = pick(papal.currentName, papalConfig.currentName, hasConfig ? CONFIG.CURRENT_POPE_NAME : null, 'Leone XIV');
+    const previousPope = pick(papal.previousName, papalConfig.previousName, hasConfig ? CONFIG.PREVIOUS_POPE_NAME : null, 'Papa Francesco');
+    const papalForPrompt = Object.assign({}, papal, {
+      currentName: currentPope,
+      previousName: previousPope
+    });
     const lines = [];
 
     if (temporal.currentDate) {
@@ -5230,11 +5278,11 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     if (temporal.isOldMessage) {
       lines.push('- ATTENZIONE: email vecchia; i relativi dell\'utente restano ancorati a messageDate.');
     }
-    if (papal.currentName) {
-      lines.push(`- Papa attuale/regnante: ${papal.currentName}`);
+    if (currentPope) {
+      lines.push(`- Papa attuale/regnante: ${currentPope}`);
     }
-    if (papal.previousName) {
-      lines.push(`- Papa precedente/non regnante: ${papal.previousName}`);
+    if (previousPope) {
+      lines.push(`- Papa precedente/non regnante: ${previousPope}`);
     }
     if (papal.ministryStart) {
       lines.push(`- Inizio ministero Papa attuale: ${papal.ministryStart}`);
@@ -5259,7 +5307,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
           detectedLanguage,
           salutationMode || 'full',
           papalSourceText,
-          papal
+          papalForPrompt
         ) || '';
       } catch (_) {
         temporalAwareness = '';
@@ -5270,7 +5318,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
       `Regola 1: usa currentDate (${temporal.currentDate || '?'}) come unica data di riferimento per decidere se nella risposta un evento e passato, presente o futuro.`,
       `Regola 2: usa messageDate (${temporal.messageDate || '?'}) solo per interpretare riferimenti relativi scritti dall'utente nell'email originale, come oggi, domani, ieri o sabato prossimo.`,
       `Regola 3: se messageDate non era disponibile ed e indicato un fallback tecnico, non presentare l'anno inferito come certo: chiedi conferma quando l'anno e ambiguo.`,
-      `Regola 4: non presentare ${papal.previousName || 'il Papa precedente'} come Papa attuale o voce magisteriale in presente.`
+      `Regola 4: non presentare ${previousPope || 'il Papa precedente'} come Papa attuale o voce magisteriale in presente.`
     ].join('\n');
 
     const rulesBlock = temporalAwareness
@@ -5321,7 +5369,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
   }
 
   // Costruisce un sommario incrementale delle risposte inviate al thread
-  _buildMemorySummary({ existingSummary, responseText, providedTopics }) {
+  _buildMemorySummary({ existingSummary, responseText, providedTopics, referenceDate = null }) {
     const maxChars = 2000;
     const maxBullets = 5;
 
@@ -5374,7 +5422,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
       line => line.replace(/^•?\s*\[\d{4}-\d{2}-\d{2}\]\s*/, '').trim().toLowerCase() === cleanBullet
     );
     if (summarySentence && !isDuplicate) {
-      const newBullet = `• [${this._getBusinessDateString()}] ${summarySentence}`;
+      const newBullet = `• [${this._getBusinessDateString(referenceDate || new Date())}] ${summarySentence}`;
       summaryLines.push(newBullet);
     }
 

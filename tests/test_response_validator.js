@@ -117,6 +117,27 @@ console.log('--- Test _ottimizzaSalutoTemporale (saluto reale) ---');
   }
 }
 
+console.log('--- Test _ottimizzaSalutoTemporale: currentTime runtime prevale sul clock ---');
+{
+  const originalUtilities = global.Utilities;
+  global.Utilities = {
+    formatDate: () => '20'
+  };
+  try {
+    const saluto = validator._ottimizzaSalutoTemporale(
+      'Buonasera, le confermo gli orari della parrocchia.',
+      'it',
+      { temporal: { currentTime: '09:30' } }
+    );
+    assert(
+      saluto.startsWith('Buongiorno,'),
+      'il saluto deve usare temporal.currentTime quando fornito, non il clock corrente'
+    );
+  } finally {
+    global.Utilities = originalUtilities;
+  }
+}
+
 console.log('--- Test _getCurrentHourInRome_ (fallback se Utilities non numerica) ---');
 {
   const originalUtilities = global.Utilities;
@@ -763,8 +784,10 @@ console.log('--- Test temporal references: intervallo settimana non diventa data
   };
   const refs = validator._extractTemporalReferences_('La prossima settimana ci sentiamo.', runtimeContext, 'response');
   const variantRefs = validator._extractTemporalReferences_('La settimana prossima ci sentiamo.', runtimeContext, 'response');
+  const currentRefs = validator._extractTemporalReferences_('Questa settimana ci sentiamo.', runtimeContext, 'response');
   const weekRef = refs.find(ref => ref.type === 'relative_interval');
   const variantWeekRef = variantRefs.find(ref => ref.type === 'relative_interval');
+  const currentWeekRef = currentRefs.find(ref => ref.type === 'relative_interval');
   assert(weekRef && !weekRef.normalizedDate, 'la prossima settimana deve produrre un intervallo, non una data puntuale');
   assert(
     validator._formatDateOnly_(weekRef.normalizedRange.start) === '2026-06-08' &&
@@ -776,6 +799,12 @@ console.log('--- Test temporal references: intervallo settimana non diventa data
       validator._formatDateOnly_(variantWeekRef.normalizedRange.start) === '2026-06-08' &&
       validator._formatDateOnly_(variantWeekRef.normalizedRange.end) === '2026-06-14',
     'la settimana prossima deve essere equivalente alla prossima settimana'
+  );
+  assert(
+    currentWeekRef &&
+      validator._formatDateOnly_(currentWeekRef.normalizedRange.start) === '2026-06-01' &&
+      validator._formatDateOnly_(currentWeekRef.normalizedRange.end) === '2026-06-07',
+    'questa settimana deve essere riconosciuta come intervallo corrente'
   );
 }
 
