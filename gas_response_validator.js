@@ -2217,6 +2217,9 @@ var ResponseValidator = class ResponseValidator {
     const source = this._stripDiacritics_(String(text || '').toLowerCase());
     const patterns = [
       /\bsi\s+e\s+(?:gia\s+)?(?:tenut|svolt|celebrat|conclus|terminat|chius)\w*/i,
+      /\bsi\s+sono\s+(?:gia\s+)?(?:tenut|svolt|celebrat|conclus|terminat|chius)\w*/i,
+      /\bc[''’]?er(?:a|ano)\b/i,
+      /\b(?:e|sono)\s+(?:gia\s+)?(?:stat[eoia]\s+)?(?:tenut|svolt|celebrat|conclus|terminat)\w*/i,
       /\b(?:e|risulta|resta)\s+gia\s+(?:conclus|terminat|svolt|tenut|passat)\w*/i,
       /\b(?:ha|hanno)\s+(?:gia\s+)?(?:avuto luogo|concluso|terminato)\b/i,
       /\b(?:was|were)\s+(?:already\s+)?(?:held|celebrated|concluded|completed)\b/i,
@@ -2237,14 +2240,20 @@ var ResponseValidator = class ResponseValidator {
   _hasFutureTemporalQualification_(text, detectedLanguage) {
     const source = this._stripDiacritics_(String(text || '').toLowerCase());
     const patterns = [
-      /\b(?:si\s+)?(?:terra|svolgera|celebrera|concludera|iniziera|avra\s+luogo)\b/i,
+      /\b(?:ci\s+)?sar(?:a|anno)\b/i,
+      /\b(?:si\s+)?terr(?:a|anno)\b/i,
+      /\b(?:si\s+)?svolger(?:a|anno)\b/i,
+      /\b(?:si\s+)?celebrer(?:a|anno)\b/i,
+      /\b(?:si\s+)?concluder(?:a|anno)\b/i,
+      /\b(?:si\s+)?inizier(?:a|anno)\b/i,
+      /\bavr(?:a|anno)\s+luogo\b/i,
       /\b(?:e|resta)\s+(?:in\s+programma|previst[oa]|programmato|programmata)\b/i,
-      /\b(?:potra|potrete|puo|puoi|possiamo)\s+(?:passare|venire|partecipare|presentarsi|presentarvi)\b/i,
+      /\b(?:potr(?:a|anno)|potrete|puo|puoi|possiamo)\s+(?:passare|venire|partecipare|presentarsi|presentarvi)\b/i,
       /\b(?:will|is|are)\s+(?:take place|be held|be celebrated|begin|start|end)\b/i,
       /\b(?:is|are)\s+(?:scheduled|planned)\b/i,
       /\b(?:se\s+)?(?:celebrara|realizara|tendra|llevara\s+a\s+cabo)\b/i,
       /\b(?:sera|estara)\s+(?:previsto|programado)\b/i,
-      /\b(?:sera|est)\s+(?:prevu|programme)\b/i,
+      /\b(?:(?:sera|est)\s+(?:prevu|programme|prevue|programmee)|aur(?:a|ont)\s+lieu|se\s+tiendr(?:a|ont))\b/i,
       /\b(?:findet|wird)\s+(?:stattfinden|statt|beginnen|enden)\b/i
     ];
 

@@ -1187,7 +1187,7 @@ Devi dare la risposta SÌ/NO adesso, basandoti ESCLUSIVAMENTE sui dati qui sopra
       ? `
 ⚠️ DATA SENZA ANNO NORMALIZZATA: la data citata, calcolata nell'anno corrente (${context.mentionedDateInCurrentYear || 'non disponibile'}), è già trascorsa; poiché la richiesta usa indicatori futuri, la data di riferimento è stata spostata alla prossima ricorrenza: ${targetLabel}.`
       : '';
-    const pastDateWarning = (context.targetDateIsPast && context.isExplicitTarget)
+    const pastDateWarning = (!nextYearInferenceWarning && context.targetDateIsPast && context.isExplicitTarget)
       ? `
 ⚠️ DATA GIÀ TRASCORSA: la data richiesta (${targetLabel}) è già passata rispetto alla data odierna. Non presentarla come futura; se l'ambiguità resta alta, chiedi conferma dell'anno.`
       : '';

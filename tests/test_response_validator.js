@@ -838,6 +838,37 @@ console.log('--- Test temporal consistency: data passata qualificata come futura
   );
 }
 
+console.log('--- Test temporal consistency: forme future italiane comuni sono bloccanti su date passate ---');
+{
+  const samples = [
+    'Il 6 giugno 2026 ci saranno le messe alle 18.',
+    'Il 6 giugno 2026 si terranno le celebrazioni alle 18.',
+    'Il 6 giugno 2026 gli incontri avranno luogo in oratorio.'
+  ];
+  samples.forEach((sample) => {
+    const result = validator._checkTemporalConsistency(sample, 'it', { currentDate: '2026-06-07' });
+    assert(
+      result.score === 0.0 &&
+        result.violations.some((violation) => violation.direction === 'past_as_future'),
+      `deve bloccare la forma futura italiana: ${sample}`
+    );
+  });
+}
+
+console.log('--- Test temporal consistency: passato prossimo plurale italiano e bloccante su date future ---');
+{
+  const result = validator._checkTemporalConsistency(
+    'Le celebrazioni del 10 giugno 2026 si sono svolte alle 18.',
+    'it',
+    { currentDate: '2026-06-07' }
+  );
+  assert(result.score === 0.0, 'una data futura qualificata con passato prossimo plurale deve bloccare la risposta');
+  assert(
+    result.violations.some((violation) => violation.direction === 'future_as_past'),
+    'la violazione deve indicare future_as_past'
+  );
+}
+
 console.log('--- Test temporal consistency: intervallo corrente non usa inizio range come passato ---');
 {
   const result = validator._checkTemporalConsistency(

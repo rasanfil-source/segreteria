@@ -1545,6 +1545,29 @@ function runAllTests() {
                 Array.isArray(result.violations) &&
                 result.violations.some(v => v.direction === 'past_as_future');
         });
+        test('checkTemporalConsistency intercetta forme future italiane comuni su date passate', results, () => {
+            const samples = [
+                'Il 6 giugno 2026 ci saranno le messe alle 18.',
+                'Il 6 giugno 2026 si terranno le celebrazioni alle 18.',
+                'Il 6 giugno 2026 gli incontri avranno luogo in oratorio.'
+            ];
+            return samples.every(sample => {
+                const result = validator._checkTemporalConsistency(sample, 'it', { currentDate: '2026-06-07' });
+                return result && result.score === 0.0 &&
+                    Array.isArray(result.violations) &&
+                    result.violations.some(v => v.direction === 'past_as_future');
+            });
+        });
+        test('checkTemporalConsistency intercetta passato prossimo plurale su date future', results, () => {
+            const result = validator._checkTemporalConsistency(
+                'Le celebrazioni del 10 giugno 2026 si sono svolte alle 18.',
+                'it',
+                { currentDate: '2026-06-07' }
+            );
+            return result && result.score === 0.0 &&
+                Array.isArray(result.violations) &&
+                result.violations.some(v => v.direction === 'future_as_past');
+        });
         test('checkTemporalConsistency non trasforma questa settimana in passato', results, () => {
             const result = validator._checkTemporalConsistency(
                 'Questa settimana si terrà il corso.',
