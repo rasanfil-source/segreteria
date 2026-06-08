@@ -49,6 +49,11 @@ assert(
   'il prompt deve vietare informazioni non richieste'
 );
 assert(
+  litePrompt.includes('Se l\'utente chiede se può passare/venire in segreteria') &&
+    litePrompt.includes('la prima frase deve rispondere sì/no'),
+  'il contratto qualità deve proteggere la risposta primaria alle richieste di passaggio'
+);
+assert(
   litePrompt.includes('<email>') && litePrompt.includes('</email>'),
   'il contratto finale deve richiedere il tag email'
 );
@@ -318,7 +323,9 @@ assert(
 assert(
   temporalPrompt.includes('Prima di descrivere un evento') &&
     temporalPrompt.includes('confrontalo rigidamente con la data odierna') &&
-    temporalPrompt.includes('anno pastorale'),
+    temporalPrompt.includes('anno pastorale') &&
+    temporalPrompt.includes('Correzione giorno/data morbida') &&
+    temporalPrompt.includes('Desideriamo segnalarLe'),
   'il prompt deve formulare l\'obiettivo di confronto temporale'
 );
 

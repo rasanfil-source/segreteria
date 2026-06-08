@@ -479,6 +479,10 @@ var Classifier = class Classifier {
    * Categorizza contenuto (suggerimento per Gemini)
    */
   _categorizeContent(text) {
+    if (this._isOfficeVisitLogisticsRequest(text)) {
+      return 'appointment';
+    }
+
     const textLower = text.toLowerCase();
     const categoryScores = {};
 
@@ -561,6 +565,18 @@ var Classifier = class Classifier {
   _isDocumentSubmission(text) {
     return /\b(in\s+allegato|allego|le\s+invio|vi\s+invio|trasmetto|trova\s+allegato|troverete\s+allegato|invio\s+il\s+documento|documento\s+allegato|mando\s+il\s+documento|inoltro\s+il\s+documento)\b/i
       .test(String(text || ''));
+  }
+
+  /**
+   * Rileva domande operative in cui l'azione richiesta è passare/venire in
+   * segreteria; eventuali sacramenti o documenti citati sono l'oggetto della
+   * visita, non la categoria primaria della risposta.
+   */
+  _isOfficeVisitLogisticsRequest(text) {
+    const safeText = String(text || '');
+    return /\b(?:posso|possiamo|potrei|potremmo|vorrei|vorremmo)\s+(?:passare|venire|presentarmi|presentarci)\b/i.test(safeText) ||
+      /\b(?:passo|passiamo|vengo|veniamo)\s+(?:oggi|domani|dopodomani|lunedi|lunedì|martedi|martedì|mercoledi|mercoledì|giovedi|giovedì|venerdi|venerdì|sabato|domenica)\b/i.test(safeText) ||
+      /\b(?:passare|venire|presentarmi|presentarci)\s+(?:oggi|domani|dopodomani|in\s+segreteria|presso\s+la\s+segreteria)\b/i.test(safeText);
   }
 
   /**

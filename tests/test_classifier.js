@@ -68,6 +68,16 @@ console.log('--- Test Classifier: documenti informativi non diventano consegna d
   const genericCertificateCategory = classifier._categorizeContent('Vorrei informazioni sul certificato storico.');
   assert(genericCertificateCategory !== 'sacrament', 'certificato generico non deve forzare la categoria sacrament');
 
+  const visitCertificateResult = classifier.classifyEmail(
+    'Certificato di battesimo',
+    'Buongiorno, posso passare domani in segreteria per un certificato di battesimo?',
+    false
+  );
+  assert(
+    visitCertificateResult.category === 'appointment',
+    'una richiesta di passaggio in segreteria deve restare logistica anche se cita il battesimo'
+  );
+
   const submissionResult = classifier.classifyEmail(
     'Certificato battesimo',
     'Buongiorno, in allegato invio il certificato di battesimo richiesto.',

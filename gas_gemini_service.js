@@ -338,11 +338,38 @@ var EmailQuickCheckPolicy = class EmailQuickCheckPolicy {
     return !!(intentContext && intentContext.sponsorGuidanceCheck === true);
   }
 
+  static isOfficeVisitLogisticsRequest(emailSubject, emailContent) {
+    const text = `${emailSubject || ''} ${emailContent || ''}`;
+    return /\b(?:posso|possiamo|potrei|potremmo|vorrei|vorremmo)\s+(?:passare|venire|presentarmi|presentarci)\b/i.test(text) ||
+      /\b(?:passo|passiamo|vengo|veniamo)\s+(?:oggi|domani|dopodomani|lunedi|lunedì|martedi|martedì|mercoledi|mercoledì|giovedi|giovedì|venerdi|venerdì|sabato|domenica)\b/i.test(text) ||
+      /\b(?:passare|venire|presentarmi|presentarci)\s+(?:oggi|domani|dopodomani|in\s+segreteria|presso\s+la\s+segreteria)\b/i.test(text);
+  }
+
+  static applyOfficeVisitLogisticsOverride(result, emailSubject, emailContent) {
+    if (!EmailQuickCheckPolicy.isOfficeVisitLogisticsRequest(emailSubject, emailContent)) {
+      return result;
+    }
+
+    const normalized = result && typeof result === 'object' ? result : {};
+    const classification = normalized.classification && typeof normalized.classification === 'object'
+      ? Object.assign({}, normalized.classification)
+      : {};
+
+    classification.category = 'TECHNICAL';
+    classification.topic = classification.topic && !/battesimo|sacramento|certificato/i.test(String(classification.topic))
+      ? classification.topic
+      : 'passaggio in segreteria';
+    classification.confidence = Math.max(Number(classification.confidence) || 0, 0.8);
+
+    return Object.assign({}, normalized, { classification });
+  }
+
   static buildPrompt(emailContent, emailSubject, intentContext = null) {
     const safeSubject = typeof emailSubject === 'string' ? emailSubject : (emailSubject == null ? '' : String(emailSubject));
     const safeContent = typeof emailContent === 'string' ? emailContent : (emailContent == null ? '' : String(emailContent));
     const hasSubmissionContext = EmailQuickCheckPolicy.isDocumentSubmissionIntent(intentContext);
     const shouldClassifySponsorGuidance = EmailQuickCheckPolicy.shouldClassifySponsorGuidance(intentContext);
+    const hasOfficeVisitLogistics = EmailQuickCheckPolicy.isOfficeVisitLogisticsRequest(safeSubject, safeContent);
     const quickIntentGuardrail = hasSubmissionContext ? `
 CONTESTO STRUTTURALE ALLEGATI:
 - Il testo del mittente contiene segnali di consegna documentale ("in allegato", "allego", "le invio", ecc.).
@@ -351,6 +378,12 @@ CONTESTO STRUTTURALE ALLEGATI:
 - Una consegna documentale da parte di un fedele/utente richiede risposta di cortesia: reply_needed deve essere TRUE, salvo spam/newsletter/autorisposta.
 - Topic consigliato se non ci sono domande esplicite: "documentazione ricevuta".
 - Non trasformare una consegna di certificato in una richiesta sui requisiti del padrino/madrina.
+` : '';
+    const visitLogisticsGuardrail = hasOfficeVisitLogistics ? `
+CONTESTO LOGISTICO VISITA:
+- La domanda principale è se l'utente può passare/venire in segreteria.
+- Classifica come category "TECHNICAL" e topic "passaggio in segreteria".
+- Il sacramento o documento citato è l'oggetto della visita, non una richiesta primaria di requisiti o procedura sacramentale.
 ` : '';
     const sponsorGuidanceTask = shouldClassifySponsorGuidance ? `
 7. Determina needs_sponsor_guidance (boolean):
@@ -377,6 +410,7 @@ Email:
 Oggetto: ${safeSubject}
 Testo: ${safeContent.substring(0, 800)}
 ${quickIntentGuardrail}
+${visitLogisticsGuardrail}
 
 COMPITI:
 1. Decidi se richiede risposta (reply_needed):
@@ -425,6 +459,7 @@ Output JSON:
       safeSubject: safeSubject,
       safeContent: safeContent,
       hasSubmissionContext: hasSubmissionContext,
+      hasOfficeVisitLogistics: hasOfficeVisitLogistics,
       shouldClassifySponsorGuidance: shouldClassifySponsorGuidance
     };
   }
@@ -490,10 +525,15 @@ Output JSON:
       return defaultResult;
     }
 
-    return EmailQuickCheckPolicy.normalizeDecisionData(data, detection, intentContext, {
+    const normalized = EmailQuickCheckPolicy.normalizeDecisionData(data, detection, intentContext, {
       resolveLanguage: resolveLanguage,
       defaultResult: defaultResult
     });
+    return EmailQuickCheckPolicy.applyOfficeVisitLogisticsOverride(
+      normalized,
+      options.emailSubject,
+      options.emailContent
+    );
   }
 
   static normalizeDecisionData(data, detection, intentContext = null, options = {}) {
@@ -967,7 +1007,9 @@ var GeminiService = class GeminiService {
 
     return EmailQuickCheckPolicy.normalizeApiResponse(response.getContentText(), detection, intentContext, {
       resolveLanguage: (candidateLanguage, fallbackLanguage, safetyGrade) =>
-        this._resolveLanguage(candidateLanguage, fallbackLanguage, safetyGrade)
+        this._resolveLanguage(candidateLanguage, fallbackLanguage, safetyGrade),
+      emailSubject: emailSubject,
+      emailContent: emailContent
     });
   }
 

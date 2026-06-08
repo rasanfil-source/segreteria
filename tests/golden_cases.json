@@ -42,6 +42,51 @@
     }
   },
   {
+    "id": "golden-001b-soft-date-weekday-correction",
+    "input": {
+      "subject": "Messa domenicale 10 agosto",
+      "body": "Buongiorno, sarò in città il 10 agosto e vorrei partecipare alla messa domenicale. A che ora è?",
+      "language": "it",
+      "senderName": "Utente Test",
+      "promptProfile": "standard",
+      "knowledgeBase": "Calendario 2026: il 10 agosto 2026 sarà lunedì; la domenica più vicina sarà il 9 agosto 2026. Orari Basilica | Periodo estivo | Dal 29 giugno al 30 agosto. Messe feriali estive: 07:25 e 19:00. Messe domenicali estive: 09:30, 11:00, 12:15 e 19:00.",
+      "territoryContext": null,
+      "now": "2026-06-08T22:38:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1,
+      "lastUpdated": null
+    },
+    "candidateResponse": "Buonasera. Il 10 agosto 2026 sarà lunedì: in quella data, nel periodo estivo, le Messe feriali saranno alle 07:25 e alle 19:00. Se invece intendeva la domenica più vicina, il 9 agosto 2026, le Messe domenicali saranno alle 09:30, 11:00, 12:15 e 19:00. Cordiali saluti.",
+    "expected": {
+      "salutationMode": "full",
+      "requestTypeIn": [
+        "technical"
+      ],
+      "promptMustInclude": [
+        "Correzione giorno/data morbida",
+        "domenica più vicina"
+      ],
+      "promptMustNotInclude": [],
+      "responseMustInclude": [
+        "Il 10 agosto 2026 sarà lunedì",
+        "Se invece intendeva la domenica più vicina",
+        "07:25",
+        "09:30",
+        "12:15"
+      ],
+      "responseMustNotInclude": [
+        "Desideriamo segnalarLe",
+        "Occorre precisare",
+        "Le facciamo presente"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
+    }
+  },
+  {
     "id": "golden-002",
     "input": {
       "subject": "Urgent funeral info",
@@ -113,6 +158,49 @@
       "promptMustNotInclude": [],
       "responseMustNotInclude": [
         "\\[.*\\]\\(.*\\)"
+      ],
+      "maxPromptChars": 120000,
+      "minValidatorScore": 0.15
+    }
+  },
+  {
+    "id": "golden-003b-office-visit-certificate",
+    "input": {
+      "subject": "Certificato di battesimo",
+      "body": "Buongiorno, posso passare domani in segreteria per un certificato di battesimo?",
+      "language": "it",
+      "senderName": "Utente Test",
+      "promptProfile": "standard",
+      "knowledgeBase": "Ufficio parrocchiale aperto dal lunedì al venerdì, dalle ore 8:00 alle ore 12:00. Certificati di battesimo: possono essere ritirati in segreteria o richiesti via email fornendo le generalità del battezzato e i dati utili alla ricerca.",
+      "territoryContext": null,
+      "now": "2026-06-08T22:33:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1,
+      "lastUpdated": null
+    },
+    "candidateResponse": "Sì, può passare domani in segreteria dalle ore 8:00 alle ore 12:00. Se le fosse più comodo, possiamo fornirle il certificato anche via email: in tal caso ci occorrono le generalità del battezzato e i dati utili alla ricerca.",
+    "expected": {
+      "salutationMode": "full",
+      "requestTypeIn": [
+        "technical"
+      ],
+      "promptMustInclude": [
+        "Se l'utente chiede se può passare/venire in segreteria"
+      ],
+      "promptMustNotInclude": [],
+      "responseMustInclude": [
+        "^Sì",
+        "8:00",
+        "12:00",
+        "via email",
+        "generalità"
+      ],
+      "responseMustNotInclude": [
+        "^Per poter procedere",
+        "^Le chiediamo"
       ],
       "maxPromptChars": 120000,
       "minValidatorScore": 0.15

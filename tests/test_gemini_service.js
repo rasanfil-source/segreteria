@@ -178,6 +178,11 @@ console.log('--- Test Gemini task profiles: generation e quick_check hanno confi
 console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documentale e guidance sponsor solo se richiesti ---');
 {
   const plainPrompt = EmailQuickCheckPolicy.buildPrompt('Vorrei informazioni sugli orari', 'Info', null);
+  const visitPrompt = EmailQuickCheckPolicy.buildPrompt(
+    'Buongiorno, posso passare domani in segreteria per un certificato di battesimo?',
+    'Certificato di battesimo',
+    null
+  );
   const policyPrompt = EmailQuickCheckPolicy.buildPrompt(
     'Allego il certificato della madrina',
     'Documentazione',
@@ -186,6 +191,9 @@ console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documental
 
   assert(!plainPrompt.prompt.includes('CONTESTO STRUTTURALE ALLEGATI'), 'prompt ordinario non deve includere guardrail documentale');
   assert(!plainPrompt.prompt.includes('"needs_sponsor_guidance": boolean'), 'prompt ordinario non deve chiedere needs_sponsor_guidance');
+  assert(visitPrompt.prompt.includes('CONTESTO LOGISTICO VISITA'), 'richiesta di passaggio deve includere guardrail logistico');
+  assert(visitPrompt.prompt.includes('category "TECHNICAL"'), 'guardrail logistico deve forzare category TECHNICAL');
+  assert(visitPrompt.hasOfficeVisitLogistics === true, 'policy deve esporre il flag logistico');
   assert(policyPrompt.prompt.includes('CONTESTO STRUTTURALE ALLEGATI'), 'submission documentale deve includere guardrail dedicato');
   assert(policyPrompt.prompt.includes('"needs_sponsor_guidance": boolean'), 'precheck sponsor deve richiedere il campo JSON dedicato');
   assert(policyPrompt.safeSubject === 'Documentazione', 'policy deve normalizzare e preservare il subject sicuro');
@@ -224,6 +232,35 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
   assert(result.language === 'en/it/5', 'policy deve delegare la risoluzione lingua alla funzione iniettata');
   assert(result.classification.topic === 'documentazione ricevuta', 'topic del quick-check deve essere preservato');
   assert(result.needs_sponsor_guidance === false, 'needs_sponsor_guidance stringa false deve diventare boolean false');
+
+  const logisticsResponseBody = JSON.stringify({
+    candidates: [{
+      content: {
+        parts: [{
+          text: JSON.stringify({
+            reply_needed: true,
+            language: 'it',
+            category: 'SACRAMENT',
+            dimensions: { technical: 0.4, pastoral: 0.7, doctrinal: 0, formal: 0 },
+            topic: 'certificato di battesimo',
+            confidence: 0.7,
+            reason: 'cita battesimo'
+          })
+        }]
+      }
+    }]
+  });
+  const logisticsResult = EmailQuickCheckPolicy.normalizeApiResponse(
+    logisticsResponseBody,
+    { lang: 'it', confidence: 5, safetyGrade: 5 },
+    null,
+    {
+      emailSubject: 'Certificato di battesimo',
+      emailContent: 'Buongiorno, posso passare domani in segreteria per un certificato di battesimo?'
+    }
+  );
+  assert(logisticsResult.classification.category === 'TECHNICAL', 'richiesta di passaggio deve correggere category sacramentale in TECHNICAL');
+  assert(logisticsResult.classification.topic === 'passaggio in segreteria', 'topic sacramentale deve diventare logistico');
 
   const fallback = EmailQuickCheckPolicy.normalizeApiResponse('non json', { lang: 'es' }, null);
   assert(fallback.shouldRespond === false, 'JSON invalido deve restituire default failsafe');
