@@ -273,6 +273,21 @@ console.log('--- Test periodo orari: usa la KB e la data richiesta ---');
     `28 giugno + domani deve entrare in estivo, ottenuto ${juneTwentyEightTomorrow.targetDate}/${juneTwentyEightTomorrow.season}`
   );
 
+  const delayedProcessingTomorrow = processor._resolveScheduleContext(
+    'A che orari verra celebrata la messa domani?',
+    scheduleKb,
+    '2026-06-26',
+    'it',
+    '2026-06-30'
+  );
+  assert(
+    delayedProcessingTomorrow.targetDate === '2026-06-27' &&
+      delayedProcessingTomorrow.currentDate === '2026-06-30' &&
+      delayedProcessingTomorrow.requestAnchorDate === '2026-06-26' &&
+      delayedProcessingTomorrow.targetDateIsPast === true,
+    `domani deve ancorarsi alla data messaggio e risultare passato al processing, ottenuto ${delayedProcessingTomorrow.targetDate}/${delayedProcessingTomorrow.currentDate}/${delayedProcessingTomorrow.targetDateIsPast}`
+  );
+
   assert(
     processor._resolveScheduleContext('Orari Messe', scheduleKb, '2026-06-29', 'it').season === 'estivo',
     '29 giugno deve essere incluso nel periodo estivo'
@@ -296,6 +311,19 @@ console.log('--- Test periodo orari: usa la KB e la data richiesta ---');
       futureYearlessPastInCurrentYear.yearInference === 'next_year_from_future_intent' &&
       futureYearlessPastInCurrentYear.mentionedDateInCurrentYear === '2026-08-15',
     `data senza anno con futuro deve puntare alla prossima ricorrenza, ottenuto ${futureYearlessPastInCurrentYear.targetDate}/${futureYearlessPastInCurrentYear.yearInference}`
+  );
+  const delayedYearlessFuture = processor._resolveScheduleContext(
+    'A che ora saranno le messe il 15 agosto?',
+    scheduleKb,
+    '2026-08-14',
+    'it',
+    '2026-09-10'
+  );
+  assert(
+    delayedYearlessFuture.targetDate === '2026-08-15' &&
+      delayedYearlessFuture.yearInference === 'current_year' &&
+      delayedYearlessFuture.targetDateIsPast === true,
+    `data senza anno deve usare messageDate come ancora e currentDate solo per passato/futuro, ottenuto ${delayedYearlessFuture.targetDate}/${delayedYearlessFuture.yearInference}/${delayedYearlessFuture.targetDateIsPast}`
   );
   const ambiguousYearlessPast = processor._resolveScheduleContext(
     'Orari messe del 15 agosto',

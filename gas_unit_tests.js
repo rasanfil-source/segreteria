@@ -1682,6 +1682,19 @@ function runAllTests() {
             const currentYear = new Date().getFullYear().toString();
             return dateStr && dateStr.includes(currentYear) && !dateStr.includes('1970');
         });
+        test('_getBusinessDateString fallback senza Utilities/Intl usa getter locali', results, () => {
+            const originalUtilities = global.Utilities;
+            const originalIntl = global.Intl;
+            try {
+                global.Utilities = undefined;
+                global.Intl = { DateTimeFormat: function () { throw new Error('Intl unavailable'); } };
+                const processor = new EmailProcessor({});
+                return processor._getBusinessDateString(new Date(2026, 5, 2, 0, 30, 0)) === '2026-06-02';
+            } finally {
+                global.Utilities = originalUtilities;
+                global.Intl = originalIntl;
+            }
+        });
     });
 
     // 7. Gemini JSON parser recovery

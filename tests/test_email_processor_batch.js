@@ -2534,6 +2534,84 @@ console.log('--- Test prompt options: scheduleContext usa data target e periodo 
   }
 }
 
+console.log('--- Test prompt options: scheduleContext ancora relativi alla data messaggio ---');
+{
+  const originalUtilities = global.Utilities;
+  global.Utilities = {
+    formatDate: (date, _tz, pattern) => {
+      if (pattern === 'HH:mm') return '10:00';
+      const iso = date instanceof Date && !isNaN(date.getTime()) ? date.toISOString() : '';
+      if (iso.startsWith('2026-06-26')) return '2026-06-26';
+      return '2026-06-30';
+    }
+  };
+
+  let promptOptions = null;
+  try {
+    const processor = new EmailProcessor({
+      gmailService: {
+        _extractEmailAddress: (raw) => raw,
+        extractMessageDetails: () => ({
+          subject: 'Orari Messe',
+          body: 'A che orari verra celebrata la messa domani?',
+          senderEmail: 'utente@example.com',
+          senderName: 'Utente Test',
+          date: new Date('2026-06-26T08:00:00Z'),
+          headers: {},
+          isNewsletter: false,
+          rfc2822MessageId: null,
+          existingReferences: null
+        }),
+        addLabelToMessage: () => {},
+        addLabelToThread: () => {},
+        getThreadHistory: () => '',
+        prepareOutboundText: (text) => text,
+        sendHtmlReply: () => {}
+      },
+      classifier: {
+        classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 })
+      },
+      geminiService: {
+        primaryKey: 'primary-key',
+        shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'information', topic: 'orari messe' } }),
+        detectEmailLanguage: () => ({ lang: 'it' }),
+        getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+        getAdaptiveClosing: () => 'Cordiali saluti',
+        generateResponse: () => ({ success: true, text: 'Risposta orari' })
+      },
+      requestClassifier: {
+        classify: () => ({ type: 'information', dimensions: { pastoral: 0.0 } })
+      },
+      memoryService: {
+        getMemory: () => ({}),
+        getRecentHistory: () => [],
+        updateMemoryAtomic: () => true
+      },
+      territoryValidator: {
+        validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+      },
+      promptEngine: {
+        buildPrompt: (options) => {
+          promptOptions = options;
+          return 'PROMPT';
+        }
+      }
+    });
+
+    const kb = 'Orari Basilica | Periodo estivo | Dal 29 giugno al 30 agosto\nOrari Messe | Messe feriali invernali | 7:25, 13:15, 19:00\nOrari Messe | Messe feriali estivi | 7:25, 19:00';
+    const result = processor.processThread(createExternalThread('schedule-context-delayed'), kb, '', new Set(), true);
+    assert(result.status === 'replied', 'il thread orari differito deve completarsi');
+    assert(promptOptions.currentDate === '2026-06-30', `currentDate attesa 2026-06-30, ottenuta ${promptOptions && promptOptions.currentDate}`);
+    assert(promptOptions.messageDate === '2026-06-26', `messageDate attesa 2026-06-26, ottenuta ${promptOptions && promptOptions.messageDate}`);
+    assert(promptOptions.scheduleContext.targetDate === '2026-06-27', `domani deve risolversi dalla messageDate, ottenuto ${promptOptions && promptOptions.scheduleContext && promptOptions.scheduleContext.targetDate}`);
+    assert(promptOptions.scheduleContext.currentDate === '2026-06-30', 'scheduleContext.currentDate deve restare la data di risposta');
+    assert(promptOptions.scheduleContext.requestAnchorDate === '2026-06-26', 'scheduleContext deve tracciare la data ancora del messaggio');
+    assert(promptOptions.scheduleContext.targetDateIsPast === true, 'il target ricavato dalla messageDate deve risultare passato al processing');
+  } finally {
+    global.Utilities = originalUtilities;
+  }
+}
+
 console.log('--- Test context routing: categoria tecnica usa set condiviso e disattiva dottrina ---');
 {
   const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;

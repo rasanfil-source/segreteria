@@ -2288,8 +2288,9 @@ ${addressLines.join('\n\n')}
       const scheduleContext = this._resolveScheduleContext(
         `${messageDetails.subject || ''}\n${messageDetails.body || ''}`,
         enrichedKnowledgeBase,
-        runtimeContext.temporal.currentDate,
-        detectedLanguage
+        runtimeContext.temporal.messageDate || runtimeContext.temporal.currentDate,
+        detectedLanguage,
+        runtimeContext.temporal.currentDate
       );
 
       const promptOptions = {
@@ -3935,7 +3936,7 @@ ${addressLines.join('\n\n')}
   _getBusinessDateString(date = new Date()) {
     const safeDateInput = date || Date.now();
     const parsedDate = new Date(safeDateInput);
-    if (isNaN(parsedDate.getTime())) return new Date().toISOString().split('T')[0];
+    if (isNaN(parsedDate.getTime())) return this._formatLocalDateOnly_(new Date());
 
     if (typeof Utilities !== 'undefined' && Utilities &&
         typeof Utilities.formatDate === 'function') {
@@ -3964,7 +3965,15 @@ ${addressLines.join('\n\n')}
       // Fallback minimale sotto quando Intl/timeZone non è disponibile.
     }
 
-    return parsedDate.toISOString().split('T')[0];
+    return this._formatLocalDateOnly_(parsedDate);
+  }
+
+  _formatLocalDateOnly_(date = new Date()) {
+    const safeDate = date instanceof Date && !isNaN(date.getTime()) ? date : new Date();
+    const year = String(safeDate.getFullYear());
+    const month = String(safeDate.getMonth() + 1).padStart(2, '0');
+    const day = String(safeDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   _buildRuntimeContext_(messageDetails = {}, processingTimestamp = new Date(), papalSourceText = '') {
@@ -4034,16 +4043,17 @@ ${addressLines.join('\n\n')}
     return this._resolveScheduleContext('', knowledgeBaseText, referenceDate, 'it').season;
   }
 
-  _resolveScheduleContext(requestText = '', knowledgeBaseText = '', currentDateInput = new Date(), language = 'it') {
-    const currentDate = this._coerceBusinessDateOnly_(currentDateInput) || this._coerceBusinessDateOnly_(new Date());
-    const requestedDateInfo = this._resolveRequestedScheduleDate_(requestText, currentDate, language);
-    const targetDate = requestedDateInfo.date || currentDate;
+  _resolveScheduleContext(requestText = '', knowledgeBaseText = '', currentDateInput = new Date(), language = 'it', responseDateInput = null) {
+    const requestAnchorDate = this._coerceBusinessDateOnly_(currentDateInput) || this._coerceBusinessDateOnly_(new Date());
+    const responseDate = this._coerceBusinessDateOnly_(responseDateInput || currentDateInput) || requestAnchorDate;
+    const requestedDateInfo = this._resolveRequestedScheduleDate_(requestText, requestAnchorDate, language);
+    const targetDate = requestedDateInfo.isExplicit ? (requestedDateInfo.date || requestAnchorDate) : responseDate;
     const summerRange = this._extractSummerScheduleRange_(knowledgeBaseText, targetDate.getFullYear()) ||
       this._getFormulaSummerScheduleRange_(targetDate.getFullYear());
     const season = this._isDateWithinInclusive_(targetDate, summerRange.start, summerRange.end)
       ? 'estivo'
       : 'invernale';
-    const currentEpochDay = this._dateOnlyEpochDay_(currentDate);
+    const currentEpochDay = this._dateOnlyEpochDay_(responseDate);
     const targetDateIsPast = requestedDateInfo.isExplicit &&
       this._dateOnlyEpochDay_(targetDate) < currentEpochDay;
     const mentionedDateInCurrentYearIsPast = requestedDateInfo.originalInferredDate
@@ -4052,7 +4062,8 @@ ${addressLines.join('\n\n')}
 
     return {
       season: season,
-      currentDate: this._formatDateOnlyIso_(currentDate),
+      currentDate: this._formatDateOnlyIso_(responseDate),
+      requestAnchorDate: this._formatDateOnlyIso_(requestAnchorDate),
       targetDate: this._formatDateOnlyIso_(targetDate),
       targetDateText: this._formatItalianDateLabel_(targetDate),
       isExplicitTarget: requestedDateInfo.isExplicit,
