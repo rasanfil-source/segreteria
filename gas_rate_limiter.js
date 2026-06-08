@@ -323,6 +323,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       return pacificDate;
     } catch (error) {
       console.error(`❌ Errore getPacificDate: ${error.message}`);
+      const intlPacific = this._formatPacificDateWithIntl_(now);
+      if (intlPacific) return intlPacific;
       // Fallback conservativo se il timezone IANA non è disponibile: PST fisso (UTC-8).
       const fallbackPacific = new Date(now.getTime() - (8 * 60 * 60 * 1000));
       const year = fallbackPacific.getUTCFullYear();
@@ -330,6 +332,30 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       const day = String(fallbackPacific.getUTCDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     }
+  }
+
+  _formatPacificDateWithIntl_(date = new Date()) {
+    if (typeof Intl === 'undefined' || !Intl || typeof Intl.DateTimeFormat !== 'function') {
+      return null;
+    }
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Los_Angeles',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).formatToParts(date);
+      const byType = {};
+      parts.forEach(part => {
+        if (part && part.type) byType[part.type] = part.value;
+      });
+      if (byType.year && byType.month && byType.day) {
+        return `${byType.year}-${byType.month}-${byType.day}`;
+      }
+    } catch (_) {
+      // Ultimo fallback nel chiamante.
+    }
+    return null;
   }
 
   // ================================================================

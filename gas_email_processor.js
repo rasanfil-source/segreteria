@@ -427,10 +427,34 @@ var EmailProcessor = class EmailProcessor {
       try {
         return Utilities.formatDate(now, 'America/Los_Angeles', 'yyyy-MM-dd');
       } catch (_) {
-        // Fallback UTC sotto.
+        // Fallback Intl sotto.
       }
     }
-    return now.toISOString().split('T')[0];
+    return this._formatPacificDateWithIntl_(now) || now.toISOString().split('T')[0];
+  }
+
+  _formatPacificDateWithIntl_(date = new Date()) {
+    if (typeof Intl === 'undefined' || !Intl || typeof Intl.DateTimeFormat !== 'function') {
+      return null;
+    }
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Los_Angeles',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).formatToParts(date);
+      const byType = {};
+      parts.forEach(part => {
+        if (part && part.type) byType[part.type] = part.value;
+      });
+      if (byType.year && byType.month && byType.day) {
+        return `${byType.year}-${byType.month}-${byType.day}`;
+      }
+    } catch (_) {
+      // Ultimo fallback gestito dal chiamante.
+    }
+    return null;
   }
 
   _getSafetyValveReducedLimit_(configuredLimit) {
@@ -2288,7 +2312,7 @@ ${addressLines.join('\n\n')}
       const scheduleContext = this._resolveScheduleContext(
         `${messageDetails.subject || ''}\n${messageDetails.body || ''}`,
         enrichedKnowledgeBase,
-        runtimeContext.temporal.messageDate || runtimeContext.temporal.currentDate,
+        runtimeContext.temporal,
         detectedLanguage,
         runtimeContext.temporal.currentDate
       );
@@ -4054,10 +4078,34 @@ ${addressLines.join('\n\n')}
   }
 
   _resolveScheduleContext(requestText = '', knowledgeBaseText = '', currentDateInput = new Date(), language = 'it', responseDateInput = null) {
-    const requestAnchorDate = this._coerceBusinessDateOnly_(currentDateInput) || this._coerceBusinessDateOnly_(new Date());
-    const responseDate = this._coerceBusinessDateOnly_(responseDateInput || currentDateInput) || requestAnchorDate;
+    const temporalInput = currentDateInput && typeof currentDateInput === 'object' && !(currentDateInput instanceof Date)
+      ? currentDateInput
+      : null;
+    const requestAnchorInput = temporalInput
+      ? (temporalInput.messageDate || temporalInput.currentDate || new Date())
+      : currentDateInput;
+    const responseDateInputResolved = responseDateInput || (temporalInput ? temporalInput.currentDate : currentDateInput);
+    const requestAnchorDate = this._coerceBusinessDateOnly_(requestAnchorInput) || this._coerceBusinessDateOnly_(new Date());
+    const responseDate = this._coerceBusinessDateOnly_(responseDateInputResolved) || requestAnchorDate;
+    const requestAnchorSource = temporalInput
+      ? (temporalInput.messageDateSource || (temporalInput.messageDateAvailable === false ? 'processing_fallback' : 'runtime_temporal'))
+      : 'argument';
+    const messageDateAvailable = temporalInput
+      ? temporalInput.messageDateAvailable !== false
+      : true;
     const requestedDateInfo = this._resolveRequestedScheduleDate_(requestText, requestAnchorDate, language);
-    const targetDate = requestedDateInfo.isExplicit ? (requestedDateInfo.date || requestAnchorDate) : responseDate;
+    const resolvedRequestDate = requestedDateInfo.isExplicit &&
+      requestedDateInfo.date instanceof Date &&
+      !isNaN(requestedDateInfo.date.getTime())
+      ? requestedDateInfo.date
+      : null;
+    if (requestedDateInfo.isExplicit && !resolvedRequestDate) {
+      console.warn('⚠️ _resolveScheduleContext: data richiesta esplicita non risolta, fallback a requestAnchorDate');
+    }
+    const targetDate = resolvedRequestDate || (requestedDateInfo.isExplicit ? requestAnchorDate : responseDate);
+    const targetDateFallbackReason = requestedDateInfo.isExplicit && !resolvedRequestDate
+      ? 'invalid_requested_date'
+      : '';
     const summerRange = this._extractSummerScheduleRange_(knowledgeBaseText, targetDate.getFullYear()) ||
       this._getFormulaSummerScheduleRange_(targetDate.getFullYear());
     const season = this._isDateWithinInclusive_(targetDate, summerRange.start, summerRange.end)
@@ -4074,10 +4122,14 @@ ${addressLines.join('\n\n')}
       season: season,
       currentDate: this._formatDateOnlyIso_(responseDate),
       requestAnchorDate: this._formatDateOnlyIso_(requestAnchorDate),
+      requestAnchorSource: requestAnchorSource,
+      messageDateAvailable: messageDateAvailable,
+      requestAnchorDateIsFallback: messageDateAvailable === false,
       targetDate: this._formatDateOnlyIso_(targetDate),
       targetDateText: this._formatItalianDateLabel_(targetDate),
       isExplicitTarget: requestedDateInfo.isExplicit,
       targetSource: requestedDateInfo.source,
+      targetDateFallbackReason: targetDateFallbackReason,
       targetDateIsPast: targetDateIsPast,
       mentionedDateInCurrentYear: requestedDateInfo.originalInferredDate
         ? this._formatDateOnlyIso_(requestedDateInfo.originalInferredDate)
@@ -4160,18 +4212,18 @@ ${addressLines.join('\n\n')}
       }
     }
 
-    const numericMatch = String(text || '').match(/\b(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?\b/);
+    const numericMatch = String(text || '').match(/\b(\d{1,2})([\/.-])(\d{1,2})(?:\2(\d{2,4}))?(?![\/.-]\d)\b/);
     if (numericMatch) {
       const day = parseInt(numericMatch[1], 10);
-      const month = parseInt(numericMatch[2], 10);
-      let year = numericMatch[3] ? parseInt(numericMatch[3], 10) : defaultYear;
+      const month = parseInt(numericMatch[3], 10);
+      let year = numericMatch[4] ? parseInt(numericMatch[4], 10) : defaultYear;
       if (year < 100) year += 2000;
       const date = this._makeValidDateOnly_(year, month, day);
       if (date) {
         return {
           date: date,
           source: 'explicit:numeric',
-          hasExplicitYear: Boolean(numericMatch[3])
+          hasExplicitYear: Boolean(numericMatch[4])
         };
       }
     }
@@ -4204,22 +4256,28 @@ ${addressLines.join('\n\n')}
     const current = this._coerceBusinessDateOnly_(currentDate) || new Date();
     const comparison = this._dateOnlyEpochDay_(date) - this._dateOnlyEpochDay_(current);
     if (comparison < 0 && temporalIntent === 'future') {
+      const nextDate = this._findValidSameMonthDayInYearDirection_(date, 1);
       return {
-        date: this._makeValidDateOnly_(date.getFullYear() + 1, date.getMonth() + 1, date.getDate()),
+        date: nextDate,
         source: `${explicitDate.source}:year_inferred_next`,
         originalInferredDate: date,
         temporalIntent: temporalIntent,
-        yearInference: 'next_year_from_future_intent'
+        yearInference: nextDate && nextDate.getFullYear() === date.getFullYear() + 1
+          ? 'next_year_from_future_intent'
+          : 'next_valid_year_from_future_intent'
       };
     }
 
     if (comparison > 0 && temporalIntent === 'past') {
+      const previousDate = this._findValidSameMonthDayInYearDirection_(date, -1);
       return {
-        date: this._makeValidDateOnly_(date.getFullYear() - 1, date.getMonth() + 1, date.getDate()),
+        date: previousDate,
         source: `${explicitDate.source}:year_inferred_previous`,
         originalInferredDate: date,
         temporalIntent: temporalIntent,
-        yearInference: 'previous_year_from_past_intent'
+        yearInference: previousDate && previousDate.getFullYear() === date.getFullYear() - 1
+          ? 'previous_year_from_past_intent'
+          : 'previous_valid_year_from_past_intent'
       };
     }
 
@@ -4314,6 +4372,9 @@ ${addressLines.join('\n\n')}
   }
 
   _coerceBusinessDateOnly_(input) {
+    if (input === null || typeof input === 'undefined') return null;
+    if (typeof input === 'string' && input.trim() === '') return null;
+
     if (typeof input === 'string') {
       const direct = input.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (direct) {
@@ -4346,6 +4407,18 @@ ${addressLines.join('\n\n')}
     const date = new Date(year, month - 1, day, 12, 0, 0, 0);
     if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
     return date;
+  }
+
+  _findValidSameMonthDayInYearDirection_(date, direction) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return null;
+    const step = direction >= 0 ? 1 : -1;
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    for (let offset = 1; offset <= 8; offset++) {
+      const candidate = this._makeValidDateOnly_(date.getFullYear() + (step * offset), month, day);
+      if (candidate) return candidate;
+    }
+    return null;
   }
 
   _addDaysToDateOnly_(date, days) {
@@ -5111,7 +5184,7 @@ ${addressLines.join('\n\n')}
     const CHARS_PER_TOKEN_IT = 3.6;
     const maxPromptChars = Math.max(2000, Math.floor((maxSafeTokens - reservedTokens) * CHARS_PER_TOKEN_IT));
     const promptForRetry = this._trimPromptForRetry_(safePrompt, maxPromptChars);
-    const runtimeReminder = this._renderRuntimeContextForCorrection_(runtimeContext);
+    const runtimeReminder = this._renderRuntimeContextForCorrection_(runtimeContext, language, salutationMode);
 
     return `### ISTRUZIONI DI BASE ###
 ${promptForRetry}
@@ -5129,7 +5202,7 @@ Genera la nuova risposta correggendo i problemi indicati.
 Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
   }
 
-  _renderRuntimeContextForCorrection_(runtimeContext = null) {
+  _renderRuntimeContextForCorrection_(runtimeContext = null, detectedLanguage = 'it', salutationMode = 'full') {
     if (!runtimeContext || typeof runtimeContext !== 'object') return '';
     const temporal = runtimeContext.temporal && typeof runtimeContext.temporal === 'object'
       ? runtimeContext.temporal
@@ -5148,8 +5221,14 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     if (temporal.messageDate) {
       lines.push(`- messageDate email originale: ${temporal.messageDate}`);
     }
+    if (temporal.messageDateSource) {
+      lines.push(`- sorgente messageDate: ${temporal.messageDateSource}`);
+    }
     if (Number.isFinite(Number(temporal.daysAgo)) && Number(temporal.daysAgo) > 0) {
       lines.push(`- eta email originale: ${temporal.daysAgo} giorni`);
+    }
+    if (temporal.isOldMessage) {
+      lines.push('- ATTENZIONE: email vecchia; i relativi dell\'utente restano ancorati a messageDate.');
     }
     if (papal.currentName) {
       lines.push(`- Papa attuale/regnante: ${papal.currentName}`);
@@ -5157,9 +5236,48 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     if (papal.previousName) {
       lines.push(`- Papa precedente/non regnante: ${papal.previousName}`);
     }
+    if (papal.ministryStart) {
+      lines.push(`- Inizio ministero Papa attuale: ${papal.ministryStart}`);
+    }
     if (lines.length === 0) return '';
 
-    return `\n\n### RUNTIME CONTEXT IMMUTATO PER IL RETRY ###\n${lines.join('\n')}\nUsa currentDate per decidere passato/presente/futuro nella risposta; usa messageDate solo per interpretare riferimenti relativi scritti dall'utente.`;
+    let temporalAwareness = '';
+    if (
+      this.promptEngine &&
+      typeof this.promptEngine._renderTemporalAwareness === 'function' &&
+      temporal.currentDate
+    ) {
+      try {
+        const papalSourceText = [
+          papal.currentName,
+          papal.previousName,
+          papal.currentSince,
+          papal.ministryStart
+        ].filter(Boolean).join('\n');
+        temporalAwareness = this.promptEngine._renderTemporalAwareness(
+          temporal,
+          detectedLanguage,
+          salutationMode || 'full',
+          papalSourceText,
+          papal
+        ) || '';
+      } catch (_) {
+        temporalAwareness = '';
+      }
+    }
+
+    const fallbackRules = [
+      `Regola 1: usa currentDate (${temporal.currentDate || '?'}) come unica data di riferimento per decidere se nella risposta un evento e passato, presente o futuro.`,
+      `Regola 2: usa messageDate (${temporal.messageDate || '?'}) solo per interpretare riferimenti relativi scritti dall'utente nell'email originale, come oggi, domani, ieri o sabato prossimo.`,
+      `Regola 3: se messageDate non era disponibile ed e indicato un fallback tecnico, non presentare l'anno inferito come certo: chiedi conferma quando l'anno e ambiguo.`,
+      `Regola 4: non presentare ${papal.previousName || 'il Papa precedente'} come Papa attuale o voce magisteriale in presente.`
+    ].join('\n');
+
+    const rulesBlock = temporalAwareness
+      ? `\n\n### REGOLE TEMPORALI COMPLETE PER IL RETRY ###\n${temporalAwareness}`
+      : `\n${fallbackRules}`;
+
+    return `\n\n### RUNTIME CONTEXT IMMUTATO PER IL RETRY ###\n${lines.join('\n')}${rulesBlock}`;
   }
 
   _trimPromptForRetry_(prompt, maxChars) {
@@ -5407,10 +5525,9 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     let minDelta = Infinity;
     for (const ut of userTimes) {
       for (const rt of responseTimes) {
-        const utMin = toMinutes(ut);
-        const rtMin = toMinutes(rt);
-        if (!Number.isFinite(utMin) || !Number.isFinite(rtMin)) continue;
-        minDelta = Math.min(minDelta, Math.abs(utMin - rtMin));
+        const delta = this._timeDistanceMinutesCircular_(toMinutes(ut), toMinutes(rt));
+        if (!Number.isFinite(delta)) continue;
+        minDelta = Math.min(minDelta, delta);
       }
     }
 
@@ -5429,6 +5546,13 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     const footer = notes[lang] || notes.it;
     
     return `${response.trim()}${footer}`;
+  }
+
+  _timeDistanceMinutesCircular_(leftMinutes, rightMinutes) {
+    if (!Number.isFinite(leftMinutes) || !Number.isFinite(rightMinutes)) return NaN;
+    const dayMinutes = 24 * 60;
+    const rawDelta = Math.abs(leftMinutes - rightMinutes) % dayMinutes;
+    return Math.min(rawDelta, dayMinutes - rawDelta);
   }
 
   /**
@@ -6299,7 +6423,7 @@ function computeSalutationMode({ isReply = false, memoryExists = false, lastUpda
   }
 
   const parsedLastUpdated = (typeof parseDateSafe === 'function') ? parseDateSafe(lastUpdated, null) : new Date(lastUpdated);
-  if (isNaN(parsedLastUpdated.getTime())) {
+  if (!parsedLastUpdated || isNaN(parsedLastUpdated.getTime())) {
     return 'full';
   }
 
@@ -6308,7 +6432,7 @@ function computeSalutationMode({ isReply = false, memoryExists = false, lastUpda
   const hoursSinceLast = timeSinceLastMs / (1000 * 60 * 60);
 
   if (isNaN(hoursSinceLast) || hoursSinceLast < 0) {
-    console.warn('⚠️ Timestamp futuro o invalido');
+    console.warn(`⚠️ computeSalutationMode: timestamp futuro o invalido (lastUpdated=${lastUpdated}, delta=${Math.round(timeSinceLastMs / 1000)}s)`);
     return 'full';
   }
 

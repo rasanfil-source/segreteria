@@ -80,6 +80,84 @@ EmailProcessor.prototype.processThread = function(...args) {
 const processor = new EmailProcessor();
 
 
+console.log('--- Test salutation mode: timestamp invalido/futuro resta safe e diagnostico ---');
+{
+  const originalParseDateSafe = global.parseDateSafe;
+  global.parseDateSafe = () => null;
+  try {
+    assert(
+      computeSalutationMode({ isReply: true, memoryExists: true, lastUpdated: 'not-a-date', now: new Date('2026-06-01T10:00:00Z') }) === 'full',
+      'lastUpdated invalido con parseDateSafe null deve tornare full senza eccezioni'
+    );
+  } finally {
+    if (typeof originalParseDateSafe === 'undefined') {
+      delete global.parseDateSafe;
+    } else {
+      global.parseDateSafe = originalParseDateSafe;
+    }
+  }
+
+  const originalWarn = console.warn;
+  let warning = '';
+  console.warn = (message) => {
+    warning = String(message || '');
+  };
+  try {
+    const mode = computeSalutationMode({
+      isReply: true,
+      memoryExists: true,
+      lastUpdated: new Date('2026-06-01T10:05:00Z'),
+      now: new Date('2026-06-01T10:00:00Z')
+    });
+    assert(
+      mode === 'full' &&
+        warning.includes('computeSalutationMode') &&
+        warning.includes('delta=-300s'),
+      `timestamp futuro deve loggare diagnostica utile, ottenuto ${mode}/${warning}`
+    );
+  } finally {
+    console.warn = originalWarn;
+  }
+}
+
+
+console.log('--- Test safety valve: fallback Pacific usa Intl America/Los_Angeles ---');
+{
+  const originalUtilities = global.Utilities;
+  const originalIntl = global.Intl;
+  let receivedTimeZone = '';
+  global.Utilities = {
+    formatDate: () => {
+      throw new Error('timezone unavailable');
+    }
+  };
+  global.Intl = {
+    DateTimeFormat: function (_locale, options) {
+      receivedTimeZone = options && options.timeZone;
+      return {
+        formatToParts: () => [
+          { type: 'month', value: '01' },
+          { type: 'day', value: '02' },
+          { type: 'year', value: '2026' }
+        ]
+      };
+    }
+  };
+
+  try {
+    const safetyProcessor = new EmailProcessor();
+    const safetyDate = safetyProcessor._getPacificDateForSafetyValve_();
+    assert(
+      safetyDate === '2026-01-02' && receivedTimeZone === 'America/Los_Angeles',
+      `fallback safety valve deve usare America/Los_Angeles via Intl, ottenuto ${safetyDate}/${receivedTimeZone}`
+    );
+  } finally {
+    global.Utilities = originalUtilities;
+    global.Intl = originalIntl;
+  }
+}
+
+
 console.log('--- Test timezone: usa BUSINESS_TIME_ZONE senza chiamare Session.getScriptTimeZone ---');
 {
   const originalBusinessTimeZone = global.BUSINESS_TIME_ZONE;
@@ -126,6 +204,18 @@ console.log('--- Test safety valve: EmailProcessor legge il throttle persistito 
 
   global.CONFIG = originalConfig;
   global.Utilities = originalUtilities;
+}
+
+console.log('--- Test time discrepancy: delta orario circolare cross-midnight ---');
+{
+  assert(
+    processor._timeDistanceMinutesCircular_(23 * 60 + 30, 30) === 60,
+    '23:30 e 00:30 devono distare 60 minuti nel delta circolare'
+  );
+  assert(
+    processor._timeDistanceMinutesCircular_(16 * 60 + 30, 17 * 60) === 30,
+    'delta circolare deve preservare distanze ordinarie nello stesso giorno'
+  );
 }
 
 console.log('--- Test constructor: preserva requestClassifier iniettato ---');
@@ -300,6 +390,45 @@ console.log('--- Test periodo orari: usa la KB e la data richiesta ---');
     processor._resolveScheduleContext('Messa del 3 giugno', scheduleKb, '2026-06-01', 'it').targetDate === '2026-06-03',
     'le date esplicite tipo 3 giugno devono diventare data target'
   );
+  assert(
+    processor._coerceBusinessDateOnly_(null) === null &&
+      processor._coerceBusinessDateOnly_('') === null,
+    'input data null/vuoto non deve diventare epoch 1970'
+  );
+  const nullDateContext = processor._resolveScheduleContext(
+    'Orari Messe',
+    scheduleKb,
+    null,
+    'it',
+    null
+  );
+  assert(
+    nullDateContext.currentDate !== '1970-01-01' &&
+      nullDateContext.requestAnchorDate !== '1970-01-01',
+    `schedule context con date nulle non deve cadere su 1970, ottenuto ${nullDateContext.currentDate}/${nullDateContext.requestAnchorDate}`
+  );
+  const mixedSeparatorDate = processor._resolveScheduleContext(
+    'Messa 01/02-2026',
+    scheduleKb,
+    '2026-01-01',
+    'it'
+  );
+  assert(
+    mixedSeparatorDate.isExplicitTarget === false &&
+      mixedSeparatorDate.targetDate === '2026-01-01',
+    `date con separatori misti devono essere ignorate dal processor, ottenuto ${mixedSeparatorDate.targetDate}/${mixedSeparatorDate.isExplicitTarget}`
+  );
+  const coherentSeparatorDate = processor._resolveScheduleContext(
+    'Messa 01-02-2026',
+    scheduleKb,
+    '2026-01-01',
+    'it'
+  );
+  assert(
+    coherentSeparatorDate.isExplicitTarget === true &&
+      coherentSeparatorDate.targetDate === '2026-02-01',
+    `date numeriche con separatore coerente devono restare valide, ottenuto ${coherentSeparatorDate.targetDate}/${coherentSeparatorDate.isExplicitTarget}`
+  );
   const sameDayYearlessDate = processor._resolveScheduleContext(
     'A che ora saranno le messe il 15 agosto?',
     scheduleKb,
@@ -335,6 +464,53 @@ console.log('--- Test periodo orari: usa la KB e la data richiesta ---');
       delayedYearlessFuture.yearInference === 'current_year' &&
       delayedYearlessFuture.targetDateIsPast === true,
     `data senza anno deve usare messageDate come ancora e currentDate solo per passato/futuro, ottenuto ${delayedYearlessFuture.targetDate}/${delayedYearlessFuture.yearInference}/${delayedYearlessFuture.targetDateIsPast}`
+  );
+  const structuredTemporalCrossYear = processor._resolveScheduleContext(
+    'A che ora saranno le messe il 15 agosto?',
+    scheduleKb,
+    {
+      currentDate: '2027-01-02',
+      messageDate: '2026-12-31',
+      messageDateAvailable: true,
+      messageDateSource: 'gmail_message_date'
+    },
+    'it',
+    '2027-01-02'
+  );
+  assert(
+    structuredTemporalCrossYear.targetDate === '2027-08-15' &&
+      structuredTemporalCrossYear.currentDate === '2027-01-02' &&
+      structuredTemporalCrossYear.requestAnchorDate === '2026-12-31' &&
+      structuredTemporalCrossYear.requestAnchorSource === 'gmail_message_date',
+    `contesto temporale strutturato deve distinguere messageDate/currentDate, ottenuto ${structuredTemporalCrossYear.targetDate}/${structuredTemporalCrossYear.currentDate}/${structuredTemporalCrossYear.requestAnchorDate}/${structuredTemporalCrossYear.requestAnchorSource}`
+  );
+  const fallbackTemporalContext = processor._resolveScheduleContext(
+    'A che ora saranno le messe il 15 agosto?',
+    scheduleKb,
+    {
+      currentDate: '2027-01-02',
+      messageDate: '2027-01-02',
+      messageDateAvailable: false,
+      messageDateSource: 'processing_fallback'
+    },
+    'it'
+  );
+  assert(
+    fallbackTemporalContext.requestAnchorDateIsFallback === true &&
+      fallbackTemporalContext.messageDateAvailable === false &&
+      fallbackTemporalContext.requestAnchorSource === 'processing_fallback',
+    `fallback messageDate deve essere marcato nei metadati schedule, ottenuto ${fallbackTemporalContext.requestAnchorDateIsFallback}/${fallbackTemporalContext.messageDateAvailable}/${fallbackTemporalContext.requestAnchorSource}`
+  );
+  const leapDayFuture = processor._resolveScheduleContext(
+    'Quando saranno le messe il 29 febbraio?',
+    scheduleKb,
+    '2024-03-01',
+    'it'
+  );
+  assert(
+    leapDayFuture.targetDate === '2028-02-29' &&
+      leapDayFuture.yearInference === 'next_valid_year_from_future_intent',
+    `29 febbraio con intento futuro deve puntare al prossimo anno valido, ottenuto ${leapDayFuture.targetDate}/${leapDayFuture.yearInference}`
   );
   const ambiguousYearlessPast = processor._resolveScheduleContext(
     'Orari messe del 15 agosto',

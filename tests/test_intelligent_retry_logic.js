@@ -105,4 +105,40 @@ assert(
     'Continuity salutationMode should not ask for saluto/firma in retry'
 );
 
+const temporalValidation = {
+    isValid: false,
+    score: 0.4,
+    errors: ['Incoerenza temporale'],
+    details: { temporalConsistency: { errors: ['Incoerenza temporale'] } }
+};
+const temporalRuntimePrompt = processor._buildCorrectionPrompt(
+    'Original Prompt',
+    'Il corso del 10 giugno 2026 si è già svolto.',
+    temporalValidation,
+    'it',
+    'full',
+    {
+        temporal: {
+            currentDate: '2026-06-07',
+            currentTime: '20:30',
+            messageDate: '2026-06-01',
+            messageDateSource: 'gmail_message_date',
+            daysAgo: 6,
+            isOldMessage: true
+        },
+        papal: {
+            currentName: 'Papa Leone XIV',
+            previousName: 'Papa Francesco',
+            ministryStart: '2025-05-18'
+        }
+    }
+);
+assert(
+    temporalRuntimePrompt.includes('Regola 1: usa currentDate (2026-06-07)') &&
+      temporalRuntimePrompt.includes('Regola 2: usa messageDate (2026-06-01)') &&
+      temporalRuntimePrompt.includes('email vecchia') &&
+      temporalRuntimePrompt.includes('Inizio ministero Papa attuale: 2025-05-18'),
+    'Temporal retry prompt should include explicit currentDate/messageDate/papal retry rules'
+);
+
 console.log('✅ All intelligent retry logic tests passed!');

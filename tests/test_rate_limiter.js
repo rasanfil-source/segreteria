@@ -34,6 +34,42 @@ console.log('--- Test _getPacificDate: fallback non richiama timezone rotto ---'
   }
 }
 
+console.log('--- Test _getPacificDate: fallback Intl preserva timezone Pacific ---');
+{
+  const originalUtilities = global.Utilities;
+  const originalIntl = global.Intl;
+  let receivedTimeZone = '';
+  global.Utilities = {
+    formatDate: () => {
+      throw new Error('timezone unavailable');
+    }
+  };
+  global.Intl = {
+    DateTimeFormat: function (_locale, options) {
+      receivedTimeZone = options && options.timeZone;
+      return {
+        formatToParts: () => [
+          { type: 'month', value: '12' },
+          { type: 'day', value: '31' },
+          { type: 'year', value: '2026' }
+        ]
+      };
+    }
+  };
+
+  try {
+    const limiter = Object.create(GeminiRateLimiter.prototype);
+    const pacificDate = limiter._getPacificDate();
+    assert(
+      pacificDate === '2026-12-31' && receivedTimeZone === 'America/Los_Angeles',
+      `fallback Intl deve usare America/Los_Angeles, ottenuto ${pacificDate}/${receivedTimeZone}`
+    );
+  } finally {
+    global.Utilities = originalUtilities;
+    global.Intl = originalIntl;
+  }
+}
+
 console.log('--- Test _readChunkedDataWindow: ignora chunk WAL corrotto ---');
 {
   const propsData = new Map([
