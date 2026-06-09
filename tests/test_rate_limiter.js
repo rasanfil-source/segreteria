@@ -543,6 +543,50 @@ console.log('--- Test executeRequest bypass: traccia forceModel invece del nome 
 }
 
 
+console.log('--- Test executeRequest: usa usageMetadata reale quando disponibile ---');
+{
+  const originalUtilities = global.Utilities;
+  global.Utilities = {
+    sleep: () => {}
+  };
+
+  try {
+    const propsData = new Map([['rpd_flash', '3']]);
+    const limiter = Object.create(GeminiRateLimiter.prototype);
+    limiter.defaultMaxRetries = 1;
+    limiter.props = {
+      getProperty: (key) => propsData.has(key) ? propsData.get(key) : null
+    };
+    limiter._selectAndReserveModel = () => ({
+      available: true,
+      modelKey: 'flash',
+      model: { name: 'gemini-test' },
+      shouldThrottle: null,
+      reservationId: 'res-usage'
+    });
+    limiter._getRequestsInWindow = () => 1;
+
+    let trackedTokens = 0;
+    limiter._trackRequest = (_modelKey, tokensUsed) => {
+      trackedTokens = tokensUsed;
+    };
+
+    const result = limiter.executeRequest('generation', () => ({
+      __rateLimiterEnvelope: true,
+      result: 'ok',
+      usageMetadata: { totalTokenCount: 77, promptTokenCount: 50, candidatesTokenCount: 27 }
+    }), { maxRetries: 1, estimatedTokens: 10 });
+
+    assert(result.success === true && result.result === 'ok', 'envelope deve essere spacchettato nel risultato applicativo');
+    assert(trackedTokens === 77, 'usageMetadata.totalTokenCount deve prevalere sulla stima');
+    assert(result.actualTokens === 77, 'executeRequest deve esporre i token reali');
+    assert(result.quotaUsed.tokens === 77, 'quotaUsed deve riportare i token contabilizzati');
+  } finally {
+    global.Utilities = originalUtilities;
+  }
+}
+
+
 console.log('--- Test _withRateLimitLock_: releaseLock fallito non maschera il risultato ---');
 {
   const originalLockService = global.LockService;
@@ -583,12 +627,15 @@ console.log('--- Test reservation lifecycle: release/finalize idempotenti e mono
   limiter._persistCache = () => {};
   limiter._withRateLimitLock_ = (fn) => ({ ok: true, result: fn() });
 
-  limiter._finalizeReservation('flash', 'res-ok', 123);
+  limiter._finalizeReservation('flash', 'res-ok', 123, 77);
   limiter._releaseReservation('flash', 'res-ok');
 
   assert(limiter.cache.rpmWindow[0].completed === true, 'reservation finalizzata deve restare completed');
   assert(limiter.cache.rpmWindow[0].released !== true, 'release tardivo non deve escludere una richiesta completata dalla finestra RPM');
   assert(limiter.cache.tpmWindow[0].released !== true, 'release tardivo non deve escludere una richiesta completata dalla finestra TPM');
+  assert(limiter.cache.tpmWindow[0].tokens === 77, 'reservation TPM deve essere riallineata ai token reali');
+  assert(limiter.cache.tpmWindow[0].estimatedTokens === 10, 'reservation TPM deve conservare la stima originale per diagnostica');
+  assert(limiter.cache.tpmWindow[0].actualTokens === 77, 'reservation TPM deve esporre i token reali');
 
   limiter.cache = {
     rpmWindow: [{ timestamp: 2, nonce: 'res-cancel', modelKey: 'flash', reserved: true, completed: false }],

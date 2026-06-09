@@ -279,6 +279,27 @@ var GeminiContentClient = class GeminiContentClient {
     }
   }
 
+  static normalizeUsageMetadata(usageMetadata) {
+    if (!usageMetadata || typeof usageMetadata !== 'object') return null;
+
+    const normalized = {};
+    [
+      'promptTokenCount',
+      'candidatesTokenCount',
+      'totalTokenCount',
+      'cachedContentTokenCount',
+      'thoughtsTokenCount',
+      'toolUsePromptTokenCount'
+    ].forEach((key) => {
+      const value = Number(usageMetadata[key]);
+      if (Number.isFinite(value) && value >= 0) {
+        normalized[key] = value;
+      }
+    });
+
+    return Object.keys(normalized).length > 0 ? normalized : null;
+  }
+
   extractCandidateText(result) {
     if (!result.candidates || !result.candidates[0]) {
       const blockReason = result.promptFeedback && result.promptFeedback.blockReason
@@ -312,7 +333,8 @@ var GeminiContentClient = class GeminiContentClient {
 
     return {
       text: generatedText,
-      partsCount: parts.length
+      partsCount: parts.length,
+      usageMetadata: GeminiContentClient.normalizeUsageMetadata(result.usageMetadata)
     };
   }
 
@@ -909,15 +931,7 @@ var GeminiService = class GeminiService {
     return this._createGeminiContentClient_().getSafetySettings();
   }
 
-  /**
-   * Genera risposta con modello specifico
-   * @param {string|Object} prompt - Prompt completo oppure {systemInstruction, prompt}
-   * @param {string} modelName - Nome modello API (es. 'gemini-3.5-flash')
-   * @param {string} apiKeyOverride - Chiave API opzionale (per strategia multi-key)
-   * @param {Array<Blob>} attachments - Array di Blob (immagini/PDF) da inviare
-   * @returns {string|null} Testo generato
-   */
-  _generateWithModel(prompt, modelName, apiKeyOverride = null, attachments = []) {
+  _generateWithModelResult_(prompt, modelName, apiKeyOverride = null, attachments = []) {
     const client = this._createGeminiContentClient_();
     const promptPayload = this._normalizePromptPayload_(prompt);
     const userPromptText = promptPayload.userPrompt;
@@ -937,7 +951,37 @@ var GeminiService = class GeminiService {
     const generatedText = generated.text;
 
     console.log(`✓ Generati ${generatedText.length} caratteri (da ${generated.partsCount} parti)`);
-    return generatedText;
+    return generated;
+  }
+
+  /**
+   * Genera risposta con modello specifico
+   * @param {string|Object} prompt - Prompt completo oppure {systemInstruction, prompt}
+   * @param {string} modelName - Nome modello API (es. 'gemini-3.5-flash')
+   * @param {string} apiKeyOverride - Chiave API opzionale (per strategia multi-key)
+   * @param {Array<Blob>} attachments - Array di Blob (immagini/PDF) da inviare
+   * @returns {string|null} Testo generato
+   */
+  _generateWithModel(prompt, modelName, apiKeyOverride = null, attachments = []) {
+    const generated = this._generateWithModelResult_(prompt, modelName, apiKeyOverride, attachments);
+    return generated.text;
+  }
+
+  _generateWithModelEnvelope_(prompt, modelName, apiKeyOverride = null, attachments = []) {
+    const generated = this._generateWithModelResult_(prompt, modelName, apiKeyOverride, attachments);
+    const usageMetadata = generated.usageMetadata || null;
+    const actualTokens = usageMetadata && Number.isFinite(Number(usageMetadata.totalTokenCount))
+      ? Number(usageMetadata.totalTokenCount)
+      : null;
+
+    return {
+      __rateLimiterEnvelope: true,
+      result: generated.text,
+      text: generated.text,
+      usageMetadata: usageMetadata,
+      actualTokens: actualTokens,
+      partsCount: generated.partsCount
+    };
   }
 
   _incrementGroundingCounterLocal_(count) {
@@ -2117,7 +2161,7 @@ Testo:
 
         const result = this.rateLimiter.executeRequest(
           'generation',
-          (modelName) => this._generateWithModel(prompt, modelName, targetKey, preEncodedAttachments),
+          (modelName) => this._generateWithModelEnvelope_(prompt, modelName, targetKey, preEncodedAttachments),
           {
             estimatedTokens: estimatedTokens,
             forceModel: forceModelKey,
@@ -2126,7 +2170,8 @@ Testo:
         );
 
         if (result.success) {
-          console.log(`✅ Generato via Rate Limiter (modello: ${result.modelUsed}, token: ~${estimatedTokens})`);
+          const tokenLabel = result.actualTokens ? String(result.actualTokens) : `~${estimatedTokens}`;
+          console.log(`✅ Generato via Rate Limiter (modello: ${result.modelUsed}, token: ${tokenLabel})`);
           return { success: true, text: result.result, modelUsed: result.modelUsed };
         }
 

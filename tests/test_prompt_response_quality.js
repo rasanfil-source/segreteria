@@ -61,6 +61,38 @@ assert(
   !litePrompt.includes('<analisi>') && !litePrompt.includes('</analisi>'),
   'il contratto finale non deve richiedere il tag analisi'
 );
+assert(
+  litePrompt.includes('firma esplicita con un nome personale diverso') &&
+    litePrompt.includes('usa il nome presente nella firma/body'),
+  'la regola del saluto obbligatorio deve consentire il nome firmato nel body'
+);
+
+console.log('--- Test prompt: firma nel body prevale sul nome account mittente ---');
+{
+  const identityPrompt = engine.buildPrompt({
+    emailSubject: 'Richiesta informazioni',
+    emailContent: 'Buongiorno, vorrei informazioni.\n\nCordiali saluti,\nPico Pallino',
+    knowledgeBase: 'Informazioni di segreteria disponibili.',
+    detectedLanguage: 'it',
+    promptProfile: 'standard',
+    senderName: 'PROPRIETARIO_EMAIL',
+    senderEmail: 'account@example.org',
+    salutationMode: 'full',
+    salutation: 'Buongiorno, PROPRIETARIO_EMAIL,',
+    closing: 'Cordiali saluti,'
+  });
+
+  assert(
+    identityPrompt.includes('Se nel corpo dell\'email l\'utente si firma esplicitamente con un nome diverso') &&
+      identityPrompt.includes('usa sempre il nome presente nella firma/body') &&
+      identityPrompt.includes('il nome account può essere solo l\'intestatario della casella'),
+    'il prompt deve esplicitare che la firma nel body prevale sul nome account mittente'
+  );
+  assert(
+    identityPrompt.includes('mantieni la stessa forma di saluto ma usa il nome presente nella firma/body'),
+    'la regola di formato deve permettere di correggere il nome nel saluto obbligatorio'
+  );
+}
 
 console.log('--- Test prompt: contesto papale con inizio ministero non renderizza undefined ---');
 {

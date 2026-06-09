@@ -293,7 +293,12 @@ console.log('--- Test _generateWithModel: il client generico preserva prompt str
     return {
       getResponseCode: () => 200,
       getContentText: () => JSON.stringify({
-        candidates: [{ content: { parts: [{ text: 'Risposta ok' }] } }]
+        candidates: [{ content: { parts: [{ text: 'Risposta ok' }] } }],
+        usageMetadata: {
+          promptTokenCount: 11,
+          candidatesTokenCount: 5,
+          totalTokenCount: 16
+        }
       })
     };
   };
@@ -308,6 +313,12 @@ console.log('--- Test _generateWithModel: il client generico preserva prompt str
   assert(capturedPayload.contents[0].parts[0].text === 'Prompt utente', 'prompt utente deve restare nei contents');
   assert(capturedPayload.generationConfig.maxOutputTokens === 128, 'profilo generation deve rispettare MAX_OUTPUT_TOKENS');
   assert(Array.isArray(capturedPayload.safetySettings) && capturedPayload.safetySettings.length === 4, 'safety settings devono essere centralizzati nel payload');
+
+  const envelope = service._generateWithModelEnvelope_('Prompt utente', 'gemini-test');
+  assert(envelope.__rateLimiterEnvelope === true, 'envelope deve essere marcato esplicitamente per il RateLimiter');
+  assert(envelope.result === 'Risposta ok', 'envelope deve preservare il testo generato');
+  assert(envelope.actualTokens === 16, 'envelope deve estrarre usageMetadata.totalTokenCount');
+  assert(envelope.usageMetadata.promptTokenCount === 11, 'envelope deve preservare usageMetadata normalizzato');
 }
 
 console.log('--- Test grounding counter: GeminiService delega al RateLimiter se disponibile ---');

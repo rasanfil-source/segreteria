@@ -1656,7 +1656,7 @@ ${attachmentsContext || ''}`;
 - **Identità:** Sei la segreteria parrocchiale. Usa la prima persona plurale ("abbiamo ricevuto", "siamo a disposizione").
 - **Empatia situazionale:** Riconosci delicatamente lutti, urgenze o disagi prima di passare alle informazioni pratiche.
 - **Sobrietà:** Sii cordiale ma concreto. Non aggiungere "Siamo a disposizione" se stai già chiudendo la comunicazione di un mero invio documenti.
-- **Personalizzazione:** Usa il nome dell'utente nel saluto se disponibile nel corpo o firma dell'email. Mostra ascolto attivo: se l'utente scrive "vengo con mia moglie", rispondi indicando procedure per due persone.`;
+- **Personalizzazione:** Usa il nome dell'utente nel saluto se disponibile nel corpo o firma dell'email. Se nel corpo dell'email l'utente si firma esplicitamente con un nome diverso rispetto al nome dell'account mittente indicato in "Da:", usa sempre il nome presente nella firma/body per formulare il saluto iniziale: il nome account può essere solo l'intestatario della casella. Mostra ascolto attivo: se l'utente scrive "vengo con mia moglie", rispondi indicando procedure per due persone.`;
   }
 
   // ========================================================================
@@ -1730,7 +1730,7 @@ Segreteria Parrocchia Sant'Eugenio
    Parish Secretariat of Sant'Eugenio`
         : `1. **MANDATORY GREETING:**
    • You MUST start the email with EXACTLY: "${salutation}"
-   • Do NOT change this greeting based on the user's email.
+   • Do NOT change this greeting, except when the email body contains an explicit signature with a different personal name: then keep the same greeting form but use the signature/body name.
 
 2. **Response Format (ENGLISH REQUIRED):**
    ${salutation}
@@ -1762,7 +1762,7 @@ Segreteria Parrocchia Sant'Eugenio
    Secretaría Parroquia Sant'Eugenio`
         : `1. **SALUDO OBLIGATORIO:**
    • Debes comenzar el correo EXACTAMENTE con: "${salutation}"
-   • NO cambies este saludo.
+   • NO cambies este saludo, salvo que el cuerpo del correo contenga una firma explícita con un nombre personal diferente: en ese caso, mantén la misma forma de saludo pero usa el nombre de la firma/cuerpo.
 
 2. **Formato de respuesta (ESPAÑOL REQUERIDO):**
    ${salutation}
@@ -1794,7 +1794,7 @@ Segreteria Parrocchia Sant'Eugenio
    Secretaria Paróquia Sant'Eugenio`
         : `1. **SAUDAÇÃO OBRIGATÓRIA:**
    • Deves começar o email EXATAMENTE com: "${salutation}"
-   • NÃO alteres esta saudação.
+   • NÃO alteres esta saudação, exceto se o corpo do email contiver uma assinatura explícita com um nome pessoal diferente: nesse caso, mantém a mesma forma de saudação mas usa o nome da assinatura/corpo.
 
 2. **Formato da resposta (PORTUGUÊS REQUERIDO):**
    ${salutation}
@@ -1826,7 +1826,7 @@ Segreteria Parrocchia Sant'Eugenio
    Secrétariat Paroisse Sant'Eugenio`
         : `1. **SALUTATION OBLIGATOIRE :**
    • Commence l'email EXACTEMENT par : "${salutation}"
-   • Ne modifie PAS cette salutation.
+   • Ne modifie PAS cette salutation, sauf si le corps de l'email contient une signature explicite avec un autre nom personnel : dans ce cas, garde la même forme de salutation mais utilise le nom de la signature/du corps.
 
 2. **Format de réponse (FRANÇAIS OBLIGATOIRE) :**
    ${salutation}
@@ -1858,7 +1858,7 @@ Segreteria Parrocchia Sant'Eugenio
    Pfarrsekretariat Sant'Eugenio`
         : `1. **VERPFLICHTENDE ANREDE:**
    • Beginne die E-Mail EXAKT mit: "${salutation}"
-   • Diese Anrede darf NICHT geaendert werden.
+   • Diese Anrede darf NICHT geaendert werden, ausser wenn der E-Mail-Text eine ausdrueckliche Signatur mit einem anderen Personennamen enthaelt: dann dieselbe Anredeform beibehalten, aber den Namen aus Signatur/Text verwenden.
 
 2. **Antwortformat (DEUTSCH ERFORDERLICH):**
    ${salutation}
@@ -1890,7 +1890,7 @@ Segreteria Parrocchia Sant'Eugenio
    Segreteria Parrocchia Sant'Eugenio`
         : `1. **SALUTO OBBLIGATORIO:**
    • Inizia l'email ESATTAMENTE con: "${salutation}"
-   • NON cambiare questo saluto.
+   • NON cambiare questo saluto, salvo il caso in cui il corpo dell'email contenga una firma esplicita con un nome personale diverso: in quel caso mantieni la stessa forma di saluto ma usa il nome presente nella firma/body.
 
 2. **Formato risposta:**
    ${salutation}

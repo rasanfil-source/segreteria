@@ -139,6 +139,22 @@ var EmailProcessor = class EmailProcessor {
     return this._scriptTimeZone;
   }
 
+  _formatBurstMessageDate_(dateValue) {
+    if (!(dateValue instanceof Date) || isNaN(dateValue.getTime())) {
+      return 'data non disponibile';
+    }
+
+    if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
+      try {
+        return Utilities.formatDate(dateValue, this._getCachedTimeZone(), 'dd/MM/yyyy HH:mm');
+      } catch (e) {
+        // Fallback ISO sotto.
+      }
+    }
+
+    return dateValue.toISOString().slice(0, 16).replace('T', ' ');
+  }
+
   _buildGenerationStrategies_(geminiService, options = {}) {
     if (geminiService && typeof geminiService.buildGenerationStrategies === 'function') {
       return geminiService.buildGenerationStrategies(options);
@@ -1314,20 +1330,7 @@ var EmailProcessor = class EmailProcessor {
           const details = (message.getId() === candidateId
             ? messageDetails
             : this.gmailService.extractMessageDetails(message)) || {};
-          const messageDate = (() => {
-            if (!(details.date instanceof Date)) return 'data non disponibile';
-            if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
-              try {
-
-
-
-                return Utilities.formatDate(details.date, this._getCachedTimeZone(), 'dd/MM/yyyy HH:mm');
-              } catch (e) {
-                // ripiego sotto
-              }
-            }
-            return details.date.toISOString().slice(0, 16).replace('T', ' ');
-          })();
+          const messageDate = this._formatBurstMessageDate_(details.date);
           const bodyPart = details && typeof details.body === 'string' && details.body.trim()
             ? details.body.trim()
             : null;

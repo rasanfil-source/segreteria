@@ -628,20 +628,24 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         const startTime = Date.now();
         // Esecuzione diretta senza controlli quota
         const backupModelName = options.modelNameOverride || 'gemini-3.5-flash';
-        const result = this._safeExecuteRequestFn_(requestFn, backupModelName);
+        const requestResult = this._safeExecuteRequestFn_(requestFn, backupModelName);
+        const normalizedResult = this._normalizeRequestResultEnvelope_(requestResult);
+        const accountedTokens = this._resolveAccountedTokens_(normalizedResult, options.estimatedTokens || 0);
         const duration = Date.now() - startTime;
         const resolvedModelKey = this._resolveModelKey_(options.forceModel || options.modelKeyOverride || backupModelName);
         let counters = { rpd: 0, tokens: 0 };
         if (resolvedModelKey) {
-          counters = this._incrementCountersAtomic(resolvedModelKey, options.estimatedTokens || 0);
+          counters = this._incrementCountersAtomic(resolvedModelKey, accountedTokens);
         }
 
         return {
           success: true,
-          result: result,
+          result: normalizedResult.result,
           modelUsed: backupModelName,
+          actualTokens: normalizedResult.actualTokens,
+          usageMetadata: normalizedResult.usageMetadata,
           // Tracciamo almeno i consumi giornalieri anche in bypass per mantenere coerenza locale/remota.
-          quotaUsed: { rpd: counters.rpd || 0, rpm: 1 },
+          quotaUsed: { rpd: counters.rpd || 0, rpm: 1, tokens: accountedTokens },
           duration: duration
         };
       } catch (e) {
@@ -692,35 +696,32 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         console.log(`   Modello: ${model.name}, Task: ${taskType}`);
 
         // CHIAMATA SINCRONA (nessuna attesa)
-        const result = this._safeExecuteRequestFn_(requestFn, model.name);
+        const requestResult = this._safeExecuteRequestFn_(requestFn, model.name);
+        const normalizedResult = this._normalizeRequestResultEnvelope_(requestResult);
 
         const duration = Date.now() - requestStartTime;
 
         // Completa la richiesta consumando contatori giornalieri e consolidando la riserva RPM/TPM.
-        // Applica eventuale moltiplicatore prudenziale per output/thinking invisibile.
-        const accountingCfg = (typeof CONFIG !== 'undefined' && CONFIG.TOKEN_ACCOUNTING)
-          ? CONFIG.TOKEN_ACCOUNTING
-          : {};
-        const tokenMultiplier = (accountingCfg.enabled === true &&
-            Number.isFinite(accountingCfg.outputMultiplier) &&
-            accountingCfg.outputMultiplier > 0)
-          ? accountingCfg.outputMultiplier
-          : 1.0;
-        const accountedTokens = Math.max(1, Math.ceil(estimatedTokens * tokenMultiplier));
+        // Se Gemini restituisce usageMetadata.totalTokenCount, usiamo il consumo reale;
+        // altrimenti manteniamo la stima prudenziale precedente.
+        const accountedTokens = this._resolveAccountedTokens_(normalizedResult, estimatedTokens);
         this._trackRequest(modelKey, accountedTokens, duration, reservationId);
 
         console.log(`✓ Successo (${duration}ms)`);
 
         return {
           success: true,
-          result: result,
+          result: normalizedResult.result,
           modelUsed: model.name,
           modelKey: modelKey,
           reservationId: reservationId,
           duration: duration,
+          actualTokens: normalizedResult.actualTokens,
+          usageMetadata: normalizedResult.usageMetadata,
           quotaUsed: {
             rpd: parseInt(this.props.getProperty(`rpd_${modelKey}`) || '0', 10) || 0,
-            rpm: this._getRequestsInWindow('rpm', modelKey)
+            rpm: this._getRequestsInWindow('rpm', modelKey),
+            tokens: accountedTokens
           }
         };
 
@@ -815,6 +816,52 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     return raw;
   }
 
+  _normalizeRequestResultEnvelope_(raw) {
+    if (!raw || typeof raw !== 'object' || raw.__rateLimiterEnvelope !== true) {
+      return {
+        result: raw,
+        actualTokens: null,
+        usageMetadata: null
+      };
+    }
+
+    const usageMetadata = raw.usageMetadata && typeof raw.usageMetadata === 'object'
+      ? raw.usageMetadata
+      : null;
+    const tokenCandidates = [
+      raw.actualTokens,
+      raw.totalTokenCount,
+      usageMetadata && usageMetadata.totalTokenCount
+    ];
+    const actualTokens = tokenCandidates
+      .map(value => Number(value))
+      .find(value => Number.isFinite(value) && value > 0) || null;
+
+    return {
+      result: Object.prototype.hasOwnProperty.call(raw, 'result') ? raw.result : raw.text,
+      actualTokens: actualTokens,
+      usageMetadata: usageMetadata
+    };
+  }
+
+  _resolveAccountedTokens_(normalizedResult, estimatedTokens) {
+    const actualTokens = normalizedResult && Number(normalizedResult.actualTokens);
+    if (Number.isFinite(actualTokens) && actualTokens > 0) {
+      return Math.max(1, Math.ceil(actualTokens));
+    }
+
+    const accountingCfg = (typeof CONFIG !== 'undefined' && CONFIG.TOKEN_ACCOUNTING)
+      ? CONFIG.TOKEN_ACCOUNTING
+      : {};
+    const tokenMultiplier = (accountingCfg.enabled === true &&
+        Number.isFinite(accountingCfg.outputMultiplier) &&
+        accountingCfg.outputMultiplier > 0)
+      ? accountingCfg.outputMultiplier
+      : 1.0;
+    const safeEstimatedTokens = Number.isFinite(Number(estimatedTokens)) ? Number(estimatedTokens) : 0;
+    return Math.max(1, Math.ceil(safeEstimatedTokens * tokenMultiplier));
+  }
+
   // ================================================================
   // TRACCIAMENTO con cache
   // ================================================================
@@ -827,7 +874,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     // aggiungere una seconda entry minuto: aggiorniamo solo i contatori giornalieri
     // e marchiamo la reservation come completata per dedup/diagnostica.
     if (reservationId) {
-      this._finalizeReservation(modelKey, reservationId, duration);
+      this._finalizeReservation(modelKey, reservationId, duration, tokensUsed);
     }
 
     // 1-2. Contatori RPD/Tokens con incremento atomico (evita race condition)
@@ -1722,7 +1769,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     return reservationId;
   }
 
-  _finalizeReservation(modelKey, reservationId, duration) {
+  _finalizeReservation(modelKey, reservationId, duration, tokensUsed) {
+    const normalizedTokens = Number(tokensUsed);
     this._mutateReservation(modelKey, reservationId, function (entry) {
       // Una reservation già rilasciata rappresenta una chiamata non eseguita:
       // un finalize tardivo/doppio non deve reintrodurla nelle finestre minuto.
@@ -1732,6 +1780,14 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       }
       entry.completed = true;
       entry.duration = duration || entry.duration || 0;
+      if (Number.isFinite(normalizedTokens) && normalizedTokens > 0 &&
+          Object.prototype.hasOwnProperty.call(entry, 'tokens')) {
+        if (!Object.prototype.hasOwnProperty.call(entry, 'estimatedTokens')) {
+          entry.estimatedTokens = entry.tokens;
+        }
+        entry.tokens = Math.max(1, Math.ceil(normalizedTokens));
+        entry.actualTokens = entry.tokens;
+      }
       return true;
     });
   }
