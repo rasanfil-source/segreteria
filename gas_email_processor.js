@@ -1762,6 +1762,18 @@ var EmailProcessor = class EmailProcessor {
         return result;
       }
 
+      const physicalPresenceConstraint = this._resolvePhysicalPresenceConstraint_(
+        quickCheck.physical_presence_constraint,
+        messageDetails.subject,
+        messageDetails.body
+      );
+      if (physicalPresenceConstraint && physicalPresenceConstraint.has_constraint) {
+        console.log(
+          `   Vincolo presenza fisica rilevato (${physicalPresenceConstraint.type}, ` +
+          `policy=${physicalPresenceConstraint.visit_policy}, source=${physicalPresenceConstraint.source})`
+        );
+      }
+
       // Quick check superato con shouldRespond=true: marca i secondari ora.
       if (languageMode !== 'foreign_only') {
         const externalIds = new Set(externalUnread.map(m => m.getId()));
@@ -1982,7 +1994,8 @@ ${addressLines.join('\n\n')}
             mentionsDates: this._detectTemporalMentions(messageDetails.body, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(messageDetails.body),
             mentionsTimes: /\d{1,2}[:.]\d{2}/.test(messageDetails.body)
           },
-          salutationMode: salutationMode
+          salutationMode: salutationMode,
+          physicalPresenceConstraint: physicalPresenceConstraint
         });
         promptProfile = promptContext.profile;
         activeConcerns = promptContext.concerns;
@@ -2304,11 +2317,14 @@ ${addressLines.join('\n\n')}
       routedAiCore = routingState.routedAiCore;
       routedDoctrine = routingState.routedDoctrine;
       routedDoctrineStructured = routingState.routedDoctrineStructured;
-      const runtimeContext = this._buildRuntimeContext_(
+      const baseRuntimeContext = this._buildRuntimeContext_(
         messageDetails,
         processingTimestamp,
         [routedAiCoreLite, routedAiCore, enrichedKnowledgeBase, routedDoctrine].filter(Boolean).join('\n')
       );
+      const runtimeContext = Object.freeze(Object.assign({}, baseRuntimeContext, {
+        physicalPresenceConstraint: physicalPresenceConstraint || null
+      }));
       const scheduleContext = this._resolveScheduleContext(
         `${messageDetails.subject || ''}\n${messageDetails.body || ''}`,
         enrichedKnowledgeBase,
@@ -2342,6 +2358,7 @@ ${addressLines.join('\n\n')}
         promptProfile: promptProfile,
         activeConcerns: activeConcerns,
         territoryContext: territoryContext,
+        physicalPresenceConstraint: physicalPresenceConstraint,
         sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),
         requestType: requestType,
         attachmentsContext: attachmentBlobs.length > 0 ? textFromAttachments : "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa.",
@@ -5046,6 +5063,10 @@ ${addressLines.join('\n\n')}
       ? details.currentPopeReference.errors
       : [];
     const hasPapalReference = papalErrors.length > 0 || errorText.some(e => e.includes('riferimento papale non aggiornato'));
+    const physicalPresenceErrors = (details.physicalPresenceConstraint && Array.isArray(details.physicalPresenceConstraint.errors))
+      ? details.physicalPresenceConstraint.errors
+      : [];
+    const hasPhysicalPresence = physicalPresenceErrors.length > 0 || errorText.some(e => e.includes('vincolo presenza fisica'));
 
     return {
       thinking_leak: hasThinkingLeak,
@@ -5055,8 +5076,10 @@ ${addressLines.join('\n\n')}
       placeholder: hasPlaceholder,
       length: hasLength,
       temporal: hasTemporal,
+      physical_presence: hasPhysicalPresence,
       lengthErrors: lengthErrors,
       temporalErrors: temporalErrors,
+      physicalPresenceErrors: physicalPresenceErrors,
       papalErrors: papalErrors,
       foundPlaceholders: foundPlaceholders,
       hallucinations: hallucinations,
@@ -5070,7 +5093,7 @@ ${addressLines.join('\n\n')}
     const flags = this._classifyValidationForRetry(validationResult, detectedLanguage);
     const allowed = (Array.isArray(cfg.onlyForErrors) && cfg.onlyForErrors.length > 0)
       ? cfg.onlyForErrors
-      : ['thinking_leak', 'hallucination', 'language', 'placeholder', 'length', 'temporal'];
+      : ['thinking_leak', 'hallucination', 'language', 'placeholder', 'length', 'temporal', 'physical_presence'];
 
     const hasAllowed = allowed.some(key => flags[key]);
     if (!hasAllowed) return false;
@@ -5082,7 +5105,7 @@ ${addressLines.join('\n\n')}
       ? normalizeValidationScore(configuredMinScore)
       : Math.max(0, Math.min(1, configuredMinScore > 1 ? configuredMinScore / 100 : configuredMinScore));
 
-    const critical = flags.thinking_leak || flags.hallucination || flags.temporal;
+    const critical = flags.thinking_leak || flags.hallucination || flags.temporal || flags.physical_presence;
     
 
 
@@ -5170,6 +5193,13 @@ ${addressLines.join('\n\n')}
       correctionInstructions.push(
         'ERRORE CRITICO: Hai qualificato temporalmente in modo errato un evento, corso o celebrazione.\n' +
         'CORREZIONE: Confronta ogni data esplicita con la DATA ODIERNA presente nel prompt: se la data è futura, presentala come programmata o futura; se è passata, presentala come già avvenuta; se non è chiara, non dedurre che sia conclusa.'
+      );
+    }
+
+    if (flags.physical_presence) {
+      correctionInstructions.push(
+        'ERRORE CRITICO: Il mittente ha manifestato un vincolo a raggiungere fisicamente la parrocchia, ma la risposta lo invita a venire/passare di persona come opzione ordinaria.\n' +
+        'CORREZIONE: Rimuovi l\'invito diretto alla presenza fisica. Privilegia telefono/email. Se e solo se utile, usa una formula condizionale come "qualora le fosse possibile" o "se avesse occasione di trovarsi a Roma".'
       );
     }
 
@@ -5868,6 +5898,173 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
       console.warn(`⚠️ CacheService temporaneamente indisponibile per metrica empty inbox: ${e.message}`);
       return isEmpty ? (Number.isFinite(streak) ? streak : 0) : 0;
     }
+  }
+
+  _parseBooleanSignal_(value) {
+    if (value === true || value === false) return value;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true' || normalized === 'yes' || normalized === 'si') return true;
+      if (normalized === 'false' || normalized === 'no') return false;
+    }
+    return undefined;
+  }
+
+  _normalizePhysicalPresenceConstraint_(constraint, source) {
+    const raw = constraint && typeof constraint === 'object' ? constraint : null;
+    if (!raw) return null;
+
+    const allowedTypes = {
+      geographic_distance: true,
+      health: true,
+      mobility: true,
+      caregiving: true,
+      legal_restriction: true,
+      temporary_unavailability: true,
+      remote_request: true,
+      other: true,
+      none: true
+    };
+    const allowedPolicies = {
+      avoid_invitation: true,
+      conditional_only: true,
+      visit_ok: true,
+      unknown: true
+    };
+    const hasConstraintRaw = Object.prototype.hasOwnProperty.call(raw, 'has_constraint')
+      ? raw.has_constraint
+      : raw.is_remote;
+    const hasConstraint = this._parseBooleanSignal_(hasConstraintRaw);
+    const confidence = Number(raw.confidence);
+    const safeConfidence = Number.isFinite(confidence)
+      ? Math.max(0, Math.min(1, confidence))
+      : (hasConstraint ? 0.75 : 0);
+    const typeRaw = String(raw.type || '').trim().toLowerCase();
+    const type = hasConstraint
+      ? (allowedTypes[typeRaw] && typeRaw !== 'none' ? typeRaw : 'other')
+      : 'none';
+    const policyRaw = String(raw.visit_policy || '').trim().toLowerCase();
+    const visitPolicy = allowedPolicies[policyRaw]
+      ? policyRaw
+      : (hasConstraint ? 'conditional_only' : 'unknown');
+
+    return {
+      has_constraint: hasConstraint === true,
+      type: type,
+      confidence: safeConfidence,
+      evidence: raw.evidence ? String(raw.evidence).substring(0, 180) : '',
+      reason: raw.reason ? String(raw.reason).substring(0, 180) : '',
+      visit_policy: visitPolicy,
+      source: source || raw.source || 'unknown'
+    };
+  }
+
+  _resolvePhysicalPresenceConstraint_(quickConstraint, subject, body) {
+    const normalizedQuick = this._normalizePhysicalPresenceConstraint_(quickConstraint, 'quick_check');
+    if (
+      normalizedQuick &&
+      normalizedQuick.has_constraint &&
+      normalizedQuick.confidence >= 0.65
+    ) {
+      return normalizedQuick;
+    }
+
+    const fallback = this._detectPhysicalPresenceConstraint_(subject, body);
+    if (fallback) return fallback;
+
+    return normalizedQuick || {
+      has_constraint: false,
+      type: 'none',
+      confidence: 0,
+      evidence: '',
+      reason: '',
+      visit_policy: 'unknown',
+      source: 'default'
+    };
+  }
+
+  _detectPhysicalPresenceConstraint_(subject, body) {
+    const original = `${subject || ''} ${body || ''}`;
+    const text = original
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, ' ');
+    const compact = text.replace(/\s+/g, ' ').trim();
+    if (!compact) return null;
+
+    const explicitVisitIntent = /\b(?:posso|possiamo|potrei|potremmo|vorrei|vorremmo)\s+(?:passare|venire|presentarmi|presentarci|recarmi|recarci)\b/.test(compact) ||
+      /\b(?:passo|passiamo|vengo|veniamo)\s+(?:oggi|domani|dopodomani|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica)\b/.test(compact);
+    const explicitCannotAttend = /\bnon\s+(?:posso|possiamo|riesco|riusciamo|riuscirei|riusciremmo|potrei|potremmo)\s+(?:venire|passare|recarmi|recarci|raggiungervi|spostarmi|spostarci|essere\s+presente|presentarmi|presentarci)\b/.test(compact);
+    if (explicitVisitIntent && !explicitCannotAttend) return null;
+
+    const rules = [
+      {
+        type: 'geographic_distance',
+        confidence: 0.78,
+        reason: 'lives_or_works_far_from_rome',
+        pattern: /\b(?:vivo|abito|lavoro|risiedo|mi\s+trovo|sono)\s+(?:a|in|all[' ]?)\s+(?!roma\b)(?:germania|francia|spagna|inghilterra|gran\s+bretagna|regno\s+unito|uk|usa|stati\s+uniti|canada|australia|svizzera|austria|belgio|olanda|paesi\s+bassi|portogallo|irlanda|darmstadt|berlino|monaco|amburgo|colonia|francoforte|stoccarda|milano|torino|napoli|firenze|bologna|venezia|palermo|catania|bari|genova)\b/
+      },
+      {
+        type: 'geographic_distance',
+        confidence: 0.82,
+        reason: 'abroad_or_far_from_rome',
+        pattern: /\b(?:all[' ]?estero|fuori\s+roma|fuori\s+da\s+roma|lontano\s+da\s+roma|non\s+(?:sono|vivo|abito)\s+(?:a|di)\s+roma)\b/
+      },
+      {
+        type: 'remote_request',
+        confidence: 0.72,
+        reason: 'remote_request',
+        pattern: /\b(?:a\s+distanza|da\s+remoto|online|videochiamata|videocall)\b/
+      },
+      {
+        type: 'health',
+        confidence: 0.78,
+        reason: 'health_or_hospital_constraint',
+        pattern: /\b(?:ricoverat[oaie]?|ospedale|degenza|malat[oaie]?|convalescen[zt]a|allettat[oaie]?|terapia|operazione|intervento|invalid[oaie]?)\b/
+      },
+      {
+        type: 'mobility',
+        confidence: 0.72,
+        reason: 'mobility_constraint',
+        pattern: /\b(?:mobilita\s+ridotta|difficolt[ae]\s+(?:a\s+)?(?:muovermi|muoversi|spostarmi|spostarsi)|sedia\s+a\s+rotelle|deambulare|anzian[oa]\s+e\s+non\s+(?:riesco|posso))\b/
+      },
+      {
+        type: 'caregiving',
+        confidence: 0.7,
+        reason: 'caregiving_or_baby_constraint',
+        pattern: /\b(?:allatt|neonat[oa]|bimbo\s+piccolo|bambino\s+piccolo|non\s+posso\s+lasciare|assisto\s+(?:mia|mio|un|una)|caregiver)\b/
+      },
+      {
+        type: 'legal_restriction',
+        confidence: 0.86,
+        reason: 'legal_restriction',
+        pattern: /\b(?:arresti\s+domiciliari|detenzione\s+domiciliare|misura\s+cautelare|obbligo\s+di\s+dimora|detenut[oa]|carcere)\b/
+      },
+      {
+        type: 'temporary_unavailability',
+        confidence: 0.75,
+        reason: 'cannot_attend',
+        pattern: /\bnon\s+(?:posso|possiamo|riesco|riusciamo|riuscirei|riusciremmo|potrei|potremmo)\s+(?:venire|passare|recarmi|recarci|raggiungervi|spostarmi|spostarci|essere\s+presente|presentarmi|presentarci)\b/
+      }
+    ];
+
+    for (const rule of rules) {
+      if (rule.pattern.test(compact)) {
+        return {
+          has_constraint: true,
+          type: rule.type,
+          confidence: rule.confidence,
+          evidence: '',
+          reason: rule.reason,
+          visit_policy: rule.type === 'legal_restriction' || rule.type === 'health'
+            ? 'avoid_invitation'
+            : 'conditional_only',
+          source: 'local_fallback'
+        };
+      }
+    }
+
+    return null;
   }
 
   _detectTemporalMentions(text, language) {

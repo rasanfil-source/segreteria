@@ -1297,6 +1297,7 @@ function buildProcessorForGenerationFailure(errorTypeToThrow) {
       buildPrompt: () => 'PROMPT'
     }
   });
+  processor._isNearDeadline = () => false;
 
   return { processor, calls };
 }

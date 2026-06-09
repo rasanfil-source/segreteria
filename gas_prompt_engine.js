@@ -123,6 +123,7 @@ var PromptEngine = class PromptEngine {
       salutationMode = 'full',
       responseDelay = null,
       territoryContext = null,
+      physicalPresenceConstraint = null,
       attachmentsContext = '',
       attachmentIntentContext = null,
       sponsorGuidancePolicy = 'default'
@@ -394,6 +395,7 @@ var PromptEngine = class PromptEngine {
     // 12. SUGGERIMENTO CATEGORIA
     addSection(this._renderCategoryHint(category), 'CategoryHint');
     addSection(this._renderSponsorGuidancePolicy(sponsorGuidancePolicy), 'SponsorGuidancePolicy');
+    addSection(this._renderPhysicalPresenceConstraintGuideline(physicalPresenceConstraint), 'PhysicalPresenceConstraint');
 
     // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)
     // Normalizzazione: alcuni flussi passano requestType come stringa
@@ -514,7 +516,7 @@ var PromptEngine = class PromptEngine {
     addSection(this._renderCriticalErrorsReminder(), 'CriticalErrorsReminder', { isSystem: true });
 
     // 28. CHECKLIST CONTESTUALE
-    addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode), 'ContextualChecklist', { isSystem: true });
+    addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode, normalizedConcerns), 'ContextualChecklist', { isSystem: true });
 
     // 29. ISTRUZIONE FINALE
     addSection(this._renderFinalInstruction(), 'FinalInstruction', { force: true, isSystem: true });
@@ -740,7 +742,7 @@ Testo finale dell'email.
   // TEMPLATE: CHECKLIST CONTESTUALE (Positiva e Direttiva)
   // ========================================================================
 
-  _renderContextualChecklist(detectedLanguage, territoryContext, salutationMode) {
+  _renderContextualChecklist(detectedLanguage, territoryContext, salutationMode, activeConcerns = {}) {
     const rules = [];
 
     // Regole universali positive
@@ -773,6 +775,10 @@ Testo finale dell'email.
     // Regole saluto (continuità)
     if (salutationMode === 'none_or_continuity' || salutationMode === 'session') {
       rules.push('- **Stile conversazionale:** Entra direttamente nel merito della risposta, omettendo saluti rituali formali iniziali, poiché la conversazione è già avviata e continua in stile chat.');
+    }
+
+    if (activeConcerns && activeConcerns.physical_presence_constraint) {
+      rules.push('- **Presenza fisica:** il mittente ha manifestato un vincolo a raggiungere la parrocchia; privilegia telefono/email e menziona una visita solo in forma condizionale o se proceduralmente inevitabile.');
     }
 
     return `## CHECKLIST CONTESTUALE DI RISPOSTA
@@ -1493,6 +1499,31 @@ ISTRUZIONI:
 6. Non parlare di "discernimento pastorale", "valutare il caso specifico" o "necessità di valutazione" solo perché il mittente chiede la Cresima per fare da padrino/madrina: è una casistica ordinaria prevista. Invita a parlare con un sacerdote solo se emergono situazioni personali complesse non risolvibili dalla segreteria.`;
     }
     return null;
+  }
+
+  _renderPhysicalPresenceConstraintGuideline(constraint) {
+    if (!constraint || !constraint.has_constraint) return null;
+
+    const type = String(constraint.type || 'other');
+    const policy = String(constraint.visit_policy || 'conditional_only');
+    const evidence = constraint.evidence ? `\nSegnale rilevato: ${constraint.evidence}` : '';
+    const intro = policy === 'avoid_invitation'
+      ? 'Il mittente ha indicato un vincolo significativo che rende inopportuno proporre una presenza fisica.'
+      : 'Il mittente ha indicato un vincolo che rende difficile o non ordinario raggiungere fisicamente la parrocchia.';
+
+    return `**POLICY PRESENZA FISICA - VINCOLO DI RAGGIUNGIBILITA (OBBLIGATORIA):**
+${intro}
+Tipo vincolo: ${type}. Policy visita: ${policy}.${evidence}
+
+REGOLE VINCOLANTI:
+- Non proporre "venga in segreteria", "passi in parrocchia", "ci venga a trovare" come opzione ordinaria o primaria.
+- Privilegiare canali a distanza: telefono, risposta email, eventuale valutazione telefonica con la segreteria o con un sacerdote se necessario.
+- Se la presenza fisica fosse utile ma non indispensabile, formularla solo in modo condizionale e rispettoso: "qualora le fosse possibile", "se avesse occasione di trovarsi a Roma", "nel caso in cui potesse passare".
+- Se la policy e' "avoid_invitation", evitare del tutto inviti a presenza fisica salvo obbligo sacramentale/procedurale esplicito e inevitabile.
+- Non nominare in modo crudo o stigmatizzante il vincolo personale del mittente: usare formule come "considerata la sua situazione" solo se serve.
+
+Formula corretta: "Per qualsiasi chiarimento puo' contattarci telefonicamente o rispondere a questa email. Qualora le fosse possibile passare da Roma, saremo lieti di incontrarla anche di persona."
+Formula da evitare: "Puo' venire in segreteria dal lunedi al venerdi dalle 8:00 alle 12:00."`;
   }
 
   // ========================================================================

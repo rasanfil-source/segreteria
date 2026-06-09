@@ -191,6 +191,8 @@ console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documental
 
   assert(!plainPrompt.prompt.includes('CONTESTO STRUTTURALE ALLEGATI'), 'prompt ordinario non deve includere guardrail documentale');
   assert(!plainPrompt.prompt.includes('"needs_sponsor_guidance": boolean'), 'prompt ordinario non deve chiedere needs_sponsor_guidance');
+  assert(plainPrompt.prompt.includes('"physical_presence_constraint"'), 'prompt ordinario deve chiedere il vincolo di presenza fisica');
+  assert(plainPrompt.prompt.includes('"legal_restriction"'), 'prompt quick-check deve coprire limitazioni legali alla presenza fisica');
   assert(visitPrompt.prompt.includes('CONTESTO LOGISTICO VISITA'), 'richiesta di passaggio deve includere guardrail logistico');
   assert(visitPrompt.prompt.includes('category "TECHNICAL"'), 'guardrail logistico deve forzare category TECHNICAL');
   assert(visitPrompt.hasOfficeVisitLogistics === true, 'policy deve esporre il flag logistico');
@@ -214,6 +216,14 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
             topic: 'documentazione ricevuta',
             confidence: 0.7,
             reason: 'consegna documentazione',
+            physical_presence_constraint: {
+              has_constraint: 'true',
+              type: 'geographic_distance',
+              confidence: 0.9,
+              evidence: 'vivo a Darmstadt in Germania',
+              reason: 'vive lontano da Roma',
+              visit_policy: 'conditional_only'
+            },
             needs_sponsor_guidance: 'false'
           })
         }]
@@ -232,6 +242,9 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
   assert(result.language === 'en/it/5', 'policy deve delegare la risoluzione lingua alla funzione iniettata');
   assert(result.classification.topic === 'documentazione ricevuta', 'topic del quick-check deve essere preservato');
   assert(result.needs_sponsor_guidance === false, 'needs_sponsor_guidance stringa false deve diventare boolean false');
+  assert(result.physical_presence_constraint.has_constraint === true, 'vincolo presenza fisica stringa true deve diventare boolean true');
+  assert(result.physical_presence_constraint.type === 'geographic_distance', 'tipo vincolo presenza fisica deve essere preservato');
+  assert(result.physical_presence_constraint.visit_policy === 'conditional_only', 'policy visita condizionale deve essere preservata');
 
   const logisticsResponseBody = JSON.stringify({
     candidates: [{

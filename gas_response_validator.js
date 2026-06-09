@@ -424,6 +424,12 @@ var ResponseValidator = class ResponseValidator {
     score *= originalDateResult.score;
 
     // Determina validità usando sempre lo score canonico 0.0-1.0.
+    const physicalPresenceResult = this._checkPhysicalPresenceConstraint(response, temporalContext);
+    errors.push(...physicalPresenceResult.errors);
+    warnings.push(...physicalPresenceResult.warnings);
+    details.physicalPresenceConstraint = physicalPresenceResult;
+    score *= physicalPresenceResult.score;
+
     const normalizedScore = normalizeValidationScore(score);
     const isValid = errors.length === 0 && normalizedScore >= this.MIN_VALID_SCORE;
 
@@ -1346,6 +1352,81 @@ var ResponseValidator = class ResponseValidator {
       userReferences: userRefs.length,
       responseReferences: responseRefs.length,
       violations
+    };
+  }
+
+  _checkPhysicalPresenceConstraint(response, temporalContext = null) {
+    const constraint = temporalContext && (
+      temporalContext.physicalPresenceConstraint ||
+      temporalContext.physical_presence_constraint
+    );
+    if (!constraint || constraint.has_constraint !== true) {
+      return {
+        errors: [],
+        warnings: [],
+        score: 1.0,
+        active: false,
+        violations: []
+      };
+    }
+
+    const source = this._stripDiacritics_(String(response || '').toLowerCase());
+    const invitationPatterns = [
+      /\b(?:puo|potra|puoi|potete|potrete)\s+(?:venire|passare|recarsi|presentarsi)\b[^.\n]{0,120}\b(?:segreteria|parrocchia|di\s+persona|persona)\b/i,
+      /\b(?:venga|passi|si\s+rechi|si\s+presenti)\b[^.\n]{0,120}\b(?:segreteria|parrocchia|di\s+persona|persona)\b/i,
+      /\b(?:venire|passare|recarsi|presentarsi)\b[^.\n]{0,80}\b(?:in|presso|alla)\s+(?:segreteria|parrocchia)\b/i,
+      /\b(?:venire|passare)\s+a\s+trovarci\b/i
+    ];
+    const conditionalPatterns = [
+      /\bqualora\b/i,
+      /\bnel\s+caso\s+in\s+cui\b/i,
+      /\bnel\s+caso\b/i,
+      /\bse\s+(?:le|vi|ti)?\s*(?:fosse|sara|capitasse|capiti|dovesse|riuscisse|fossero|capitasse)\b/i,
+      /\bse\s+(?:ha|avete|avesse|aveste)\s+occasione\b/i,
+      /\bse\s+(?:si|vi)\s+trovasse\b/i,
+      /\bquando\s+(?:le|vi)?\s*(?:fosse|sara)\s+possibile\b/i
+    ];
+    const sentencePattern = /[^.\n!?]*?(?:segreteria|parrocchia|di\s+persona|trovarci)[^.\n!?]*/gi;
+    const violations = [];
+    let match;
+
+    while ((match = sentencePattern.exec(source)) !== null) {
+      const sentence = match[0] || '';
+      const hasInvitation = invitationPatterns.some(pattern => pattern.test(sentence));
+      if (!hasInvitation) continue;
+      const isConditional = conditionalPatterns.some(pattern => pattern.test(sentence));
+      if (!isConditional) {
+        violations.push(sentence.trim().substring(0, 220));
+      }
+    }
+
+    if (violations.length === 0 && invitationPatterns.some(pattern => pattern.test(source))) {
+      const isConditional = conditionalPatterns.some(pattern => pattern.test(source));
+      if (!isConditional) {
+        violations.push('invito diretto alla presenza fisica');
+      }
+    }
+
+    if (violations.length === 0) {
+      return {
+        errors: [],
+        warnings: [],
+        score: 1.0,
+        active: true,
+        violations: []
+      };
+    }
+
+    return {
+      errors: ['Vincolo presenza fisica: la risposta invita il mittente a venire/passare di persona senza formula condizionale.'],
+      warnings: [],
+      score: 0.0,
+      active: true,
+      violations: violations,
+      constraint: {
+        type: constraint.type || 'other',
+        visit_policy: constraint.visit_policy || 'conditional_only'
+      }
     };
   }
 

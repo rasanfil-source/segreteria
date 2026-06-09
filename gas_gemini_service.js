@@ -338,6 +338,77 @@ var EmailQuickCheckPolicy = class EmailQuickCheckPolicy {
     return !!(intentContext && intentContext.sponsorGuidanceCheck === true);
   }
 
+  static normalizeBoolean(value) {
+    if (value === true || value === false) return value;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true' || normalized === 'yes' || normalized === 'si') return true;
+      if (normalized === 'false' || normalized === 'no') return false;
+    }
+    return undefined;
+  }
+
+  static normalizePhysicalPresenceConstraint(data) {
+    const raw = data && typeof data === 'object' ? data.physical_presence_constraint : null;
+    if (!raw || typeof raw !== 'object') {
+      return {
+        has_constraint: false,
+        type: 'none',
+        confidence: 0,
+        evidence: '',
+        reason: '',
+        visit_policy: 'unknown',
+        source: 'quick_check'
+      };
+    }
+
+    const allowedTypes = {
+      geographic_distance: true,
+      health: true,
+      mobility: true,
+      caregiving: true,
+      legal_restriction: true,
+      temporary_unavailability: true,
+      remote_request: true,
+      other: true,
+      none: true
+    };
+    const allowedPolicies = {
+      avoid_invitation: true,
+      conditional_only: true,
+      visit_ok: true,
+      unknown: true
+    };
+
+    const normalizedHasConstraint = EmailQuickCheckPolicy.normalizeBoolean(
+      Object.prototype.hasOwnProperty.call(raw, 'has_constraint')
+        ? raw.has_constraint
+        : raw.is_remote
+    );
+    const confidence = Number(raw.confidence);
+    const safeConfidence = Number.isFinite(confidence)
+      ? Math.max(0, Math.min(1, confidence))
+      : (normalizedHasConstraint ? 0.75 : 0);
+    const rawType = String(raw.type || '').trim().toLowerCase();
+    const type = normalizedHasConstraint
+      ? (allowedTypes[rawType] && rawType !== 'none' ? rawType : 'other')
+      : 'none';
+    const rawPolicy = String(raw.visit_policy || '').trim().toLowerCase();
+    const visitPolicy = allowedPolicies[rawPolicy]
+      ? rawPolicy
+      : (normalizedHasConstraint ? 'conditional_only' : 'unknown');
+
+    return {
+      has_constraint: normalizedHasConstraint === true,
+      type: type,
+      confidence: safeConfidence,
+      evidence: raw.evidence ? String(raw.evidence).substring(0, 180) : '',
+      reason: raw.reason ? String(raw.reason).substring(0, 180) : '',
+      visit_policy: visitPolicy,
+      source: 'quick_check'
+    };
+  }
+
   static isOfficeVisitLogisticsRequest(emailSubject, emailContent) {
     const text = `${emailSubject || ''} ${emailContent || ''}`;
     return /\b(?:posso|possiamo|potrei|potremmo|vorrei|vorremmo)\s+(?:passare|venire|presentarmi|presentarci)\b/i.test(text) ||
@@ -386,7 +457,7 @@ CONTESTO LOGISTICO VISITA:
 - Il sacramento o documento citato è l'oggetto della visita, non una richiesta primaria di requisiti o procedura sacramentale.
 ` : '';
     const sponsorGuidanceTask = shouldClassifySponsorGuidance ? `
-7. Determina needs_sponsor_guidance (boolean):
+8. Determina needs_sponsor_guidance (boolean):
    - TRUE solo se nella risposta conviene inserire le condizioni per il ruolo ecclesiale di padrino/madrina/godparent.
    - Considera equivalenti sacramentali: padrino/madrina (it/es), godparent/godfather/godmother o sponsor sacramentale (en), parrain/marraine (fr), padrinho/madrinha (pt), Pate/Patin/Firmpate/Firmpatin (de).
    - TRUE se il mittente vuole assumere quel ruolo sacramentale e non ha ancora la Cresima/Confirmation, oppure chiede esplicitamente requisiti, condizioni o idoneità per quel ruolo.
@@ -430,6 +501,17 @@ COMPITI:
    - technical, pastoral, doctrinal, formal
 5. Estrai l'argomento principale (topic) in ITALIANO (usando termini coerenti con la richiesta)
 6. Fornisci un breve ragionamento (reason)
+7. Determina physical_presence_constraint:
+   - Rileva se il mittente manifesta che raggiungere fisicamente la parrocchia/segreteria e' difficile, impossibile o non ragionevole.
+   - TRUE se vive/lavora lontano da Roma, e' all'estero, chiede percorsi a distanza, dice che non puo' venire, e' ricoverato/malato/convalescente, anziano con difficolta' di movimento, caregiver con vincoli familiari forti, deve allattare o ha neonati, e' agli arresti domiciliari o ha limitazioni legali.
+   - FALSE se il mittente chiede esplicitamente di passare/venire, propone una visita, oppure non fornisce alcun vincolo personale.
+   - Non considerare vincolo un luogo citato solo come riferimento non personale.
+   - type deve essere uno tra: "geographic_distance", "health", "mobility", "caregiving", "legal_restriction", "temporary_unavailability", "remote_request", "other", "none".
+   - visit_policy deve essere:
+     "conditional_only" quando la presenza fisica puo' essere menzionata solo con formule come "qualora le fosse possibile" o "se avesse occasione di trovarsi a Roma";
+     "avoid_invitation" quando e' meglio non proporre affatto la visita fisica;
+     "visit_ok" quando l'invito/presenza in segreteria e' appropriato;
+     "unknown" se non e' chiaro.
 ${sponsorGuidanceTask}
 
 ⚠️ REGOLA CRITICA "SBATTEZZO":
@@ -451,7 +533,15 @@ Output JSON:
   },
   "topic": "string",
   "confidence": number (0.0-1.0),
-  "reason": "string"${sponsorGuidanceJsonField}
+  "reason": "string",
+  "physical_presence_constraint": {
+    "has_constraint": boolean,
+    "type": "geographic_distance" | "health" | "mobility" | "caregiving" | "legal_restriction" | "temporary_unavailability" | "remote_request" | "other" | "none",
+    "confidence": number (0.0-1.0),
+    "evidence": "short quote or paraphrase",
+    "reason": "string",
+    "visit_policy": "avoid_invitation" | "conditional_only" | "visit_ok" | "unknown"
+  }${sponsorGuidanceJsonField}
 }`;
 
     return {
@@ -474,6 +564,15 @@ Output JSON:
         category: 'TECHNICAL',
         topic: 'unknown',
         confidence: 0.0
+      },
+      physical_presence_constraint: {
+        has_constraint: false,
+        type: 'none',
+        confidence: 0,
+        evidence: '',
+        reason: '',
+        visit_policy: 'unknown',
+        source: 'quick_check'
       }
     };
   }
@@ -567,6 +666,7 @@ Output JSON:
     const needsSponsorGuidance = (normalizedSponsorGuidance === true || normalizedSponsorGuidance === 'true')
       ? true
       : ((normalizedSponsorGuidance === false || normalizedSponsorGuidance === 'false') ? false : undefined);
+    const physicalPresenceConstraint = EmailQuickCheckPolicy.normalizePhysicalPresenceConstraint(data);
 
     return {
       shouldRespond: finalShouldRespond,
@@ -578,6 +678,7 @@ Output JSON:
         confidence: safeConfidence,
         dimensions: safeDimensions
       },
+      physical_presence_constraint: physicalPresenceConstraint,
       needs_sponsor_guidance: needsSponsorGuidance
     };
   }

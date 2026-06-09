@@ -162,7 +162,10 @@ var PromptContext = class PromptContext {
                 (i.classification?.confidence ?? 1) < 0.7,
 
             salutation_control:
-                i.salutationMode && i.salutationMode !== 'full'
+                i.salutationMode && i.salutationMode !== 'full',
+
+            physical_presence_constraint:
+                !!(i.physicalPresenceConstraint && i.physicalPresenceConstraint.has_constraint)
         };
     }
 
