@@ -1357,7 +1357,7 @@ function runAllTests() {
             const res = validator._checkTimeBasedGreeting('Buona domenica a tutti voi.', 'it');
             return res.detectedTimeSlot === 'neutral' && res.score === 1.0;
         });
-        test('Saluto temporale salta verifica se currentTime esplicito manca o è invalido', results, () => {
+        test('Saluto temporale usa fallback se currentTime manca e salta se è invalido', results, () => {
             const missingTime = validator._checkTimeBasedGreeting(
                 'Buongiorno, le confermiamo la disponibilità.',
                 'it',
@@ -1368,9 +1368,11 @@ function runAllTests() {
                 'it',
                 { temporal: { currentDate: '2026-06-07', currentTime: 'sera', messageDate: '2026-06-07', timeZone: 'Europe/Rome' } }
             );
-            return missingTime && missingTime.skipped === true &&
-                missingTime.score === 1.0 &&
-                missingTime.warnings.includes('missing currentTime') &&
+            return missingTime && missingTime.skipped !== true &&
+                Number.isInteger(missingTime.currentHour) &&
+                missingTime.currentHour >= 0 &&
+                missingTime.currentHour <= 23 &&
+                !missingTime.warnings.includes('missing currentTime') &&
                 invalidTime && invalidTime.skipped === true &&
                 invalidTime.score === 1.0 &&
                 invalidTime.warnings.includes('invalid currentTime');

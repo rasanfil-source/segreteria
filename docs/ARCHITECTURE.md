@@ -453,8 +453,9 @@ classify(subject, body, externalHint) {
 24. ResponseGuidelines     (ALWAYS)
 25. SpecialCases           (FILTERABLE - no on lite profile)
 26. CriticalErrorsReminder (ALWAYS - anti-error reinforcement)
-27. ContextualChecklist    (ALWAYS - final verification)
-28. FinalInstruction       (ALWAYS - generate response)
+27. CompletenessDirective  (FILTERABLE - no on lite profile; coverage of explicit/implicit questions)
+28. ContextualChecklist    (ALWAYS - final verification)
+29. FinalInstruction       (ALWAYS - generate response)
 ```
 
 **Prompt Profiling:**

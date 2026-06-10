@@ -20,7 +20,8 @@ var PromptEngine = class PromptEngine {
       'ExamplesTemplate',
       'FormattingGuidelinesTemplate',
       'HumanToneGuidelinesTemplate',
-      'SpecialCasesTemplate'
+      'SpecialCasesTemplate',
+      'CompletenessDirectiveTemplate'
     ];
 
     this.STANDARD_SKIP_TEMPLATES = [
@@ -91,7 +92,7 @@ var PromptEngine = class PromptEngine {
    * 1. Setup critico (Ruolo, Lingua, NoReply, KB, Territorio) - Priorità alta
    * 2. Contesto (Memoria, Continuità, Cronologia, Email)
    * 3. Linee guida (Formattazione, Tono, Esempi)
-   * 4. Rinforzo finale (Errori critici, Checklist)
+   * 4. Rinforzo finale (Errori critici, Completezza, Checklist)
    */
   buildPrompt(options = {}) {
     const {
@@ -515,10 +516,13 @@ var PromptEngine = class PromptEngine {
     // 27. REMINDER ERRORI CRITICI
     addSection(this._renderCriticalErrorsReminder(), 'CriticalErrorsReminder', { isSystem: true });
 
-    // 28. CHECKLIST CONTESTUALE
+    // 28. DIRETTIVA DI COMPLETEZZA
+    addTemplate('CompletenessDirectiveTemplate', this._renderCompletenessDirective(), 'CompletenessDirective', { isSystem: true });
+
+    // 29. CHECKLIST CONTESTUALE
     addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode, normalizedConcerns), 'ContextualChecklist', { isSystem: true });
 
-    // 29. ISTRUZIONE FINALE
+    // 30. ISTRUZIONE FINALE
     addSection(this._renderFinalInstruction(), 'FinalInstruction', { force: true, isSystem: true });
 
     // Componi prompt finale separando le istruzioni di sistema dai dati utente
@@ -727,6 +731,14 @@ var PromptEngine = class PromptEngine {
 - **Risposte essenziali:** Rispondi in modo diretto allo specifico punto sollevato dall'utente, omettendo dettagli enciclopedici extra, a meno che non siano esplicitamente prescritti da una policy.`;
   }
 
+  _renderCompletenessDirective() {
+    return `## DIRETTIVA DI COMPLETEZZA:
+- Analizza l'email dell'utente e individua tutte le domande poste, sia esplicite sia implicite.
+- Considera dubbi da coprire anche riferimenti a date/orari, barriere architettoniche o accessibilità, validità dei documenti, requisiti, costi, tempi e passaggi operativi.
+- La risposta deve affrontare singolarmente ogni dubbio realmente sollevato, senza lasciarne uno implicito o sottinteso.
+- Completezza non significa infodump: aggiungi solo informazioni richieste o strettamente necessarie per rispondere a quei dubbi, evitando temi non richiesti.`;
+  }
+
   _renderFinalInstruction() {
     return `**ISTRUZIONE FINALE DI OUTPUT (OBBLIGATORIA):**
 Scrivi esclusivamente il testo esatto e finale da inviare all'utente dentro il tag XML <email>.
@@ -747,6 +759,7 @@ Testo finale dell'email.
 
     // Regole universali positive
     rules.push('- **Essenzialità:** Fornisci orari, link, requisiti e procedure unicamente se necessari per rispondere alla domanda o se esplicitamente richiesti.');
+    rules.push('- **Completezza domande:** Prima di chiudere, verifica di aver risposto a tutte e sole le domande o i dubbi realmente sollevati dall\'utente, espliciti o impliciti.');
     rules.push('- **Efficienza del thread:** Dai per acquisite le informazioni che l\'utente ha già fornito nel thread o i passaggi che ha già completato (es. se menziona di avere già un documento, procedi direttamente al passo successivo).');
     rules.push('- **Consegna documenti:** Conferma la "ricezione della documentazione" esclusivamente in presenza di allegati effettivi. Se l\'utente inserisce solo dati anagrafici nel testo, conferma di aver preso nota dei dati.');
     rules.push('- **Ricevuta semplice:** Se l\'utente invia un documento senza fare domande, ringrazia e conferma la ricezione in modo conciso, senza aggiungere passaggi extra.');
@@ -1356,7 +1369,8 @@ ${messageDateLines}${currentTime ? `- **Ora locale attuale:** ${currentTime}\n` 
   _cleanPopeName_(value) {
     const cleaned = String(value || '')
       .replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, '')
-      .replace(/^papa\s+/i, '')
+      .replace(/^(?:papa|pontefice|santo\s+padre)\s+/i, '')
+      .replace(/\s*\|.*$/g, '')
       .replace(/[.;,].*$/g, '')
       .replace(/\s+/g, ' ')
       .trim();

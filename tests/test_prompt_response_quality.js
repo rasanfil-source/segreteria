@@ -66,6 +66,11 @@ assert(
     litePrompt.includes('usa il nome presente nella firma/body'),
   'la regola del saluto obbligatorio deve consentire il nome firmato nel body'
 );
+assert(
+  litePrompt.includes('Completezza domande') &&
+    !litePrompt.includes('DIRETTIVA DI COMPLETEZZA'),
+  'il profilo lite deve mantenere la regola sintetica senza la direttiva estesa'
+);
 
 console.log('--- Test prompt: firma nel body prevale sul nome account mittente ---');
 {
@@ -91,6 +96,11 @@ console.log('--- Test prompt: firma nel body prevale sul nome account mittente -
   assert(
     identityPrompt.includes('mantieni la stessa forma di saluto ma usa il nome presente nella firma/body'),
     'la regola di formato deve permettere di correggere il nome nel saluto obbligatorio'
+  );
+  assert(
+    identityPrompt.includes('DIRETTIVA DI COMPLETEZZA') &&
+      identityPrompt.includes('Completezza non significa infodump'),
+    'il profilo standard deve includere la direttiva estesa di completezza'
   );
 }
 
@@ -351,6 +361,19 @@ const kbDrivenPopePrompt = engine.buildPrompt({
 assert(
   kbDrivenPopePrompt.includes('Papa attuale:** Pio XIII'),
   'il prompt deve far prevalere il Papa regnante indicato nella KB/istruzioni sui default tecnici'
+);
+const prefixedPopePrompt = engine.buildPrompt({
+  emailSubject: 'Contesto',
+  emailContent: 'Chi è il Papa?',
+  knowledgeBase: 'Papa regnante: Pontefice Leone XIV | dato tabellare',
+  detectedLanguage: 'it',
+  currentDate: '2026-05-15',
+  promptProfile: 'lite'
+});
+assert(
+  prefixedPopePrompt.includes('Papa attuale:** Leone XIV') &&
+    !prefixedPopePrompt.includes('Papa attuale:** Pontefice Leone XIV |'),
+  'il prompt deve normalizzare "Pontefice Leone XIV" e rimuovere suffissi tabellari'
 );
 assert(
   temporalPrompt.includes('Prima di descrivere un evento') &&

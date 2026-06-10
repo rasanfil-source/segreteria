@@ -13,6 +13,7 @@
     "expected": {
       "promptMustInclude": [
         "CHECKLIST CONTESTUALE DI RISPOSTA",
+        "DIRETTIVA DI COMPLETEZZA",
         "INFORMAZIONI DI RIFERIMENTO"
       ],
       "promptMustNotInclude": [
@@ -38,7 +39,8 @@
     "candidateResponse": "Rivedendo la knowledge base, devo correggere la risposta. Cordiali saluti, Segreteria Parrocchia Sant'Eugenio",
     "expected": {
       "promptMustInclude": [
-        "CHECKLIST CONTESTUALE DI RISPOSTA"
+        "CHECKLIST CONTESTUALE DI RISPOSTA",
+        "DIRETTIVA DI COMPLETEZZA"
       ],
       "maxPromptChars": 15000,
       "validator": {

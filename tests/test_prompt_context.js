@@ -48,4 +48,20 @@ assert(
   'una nuova richiesta non tecnica deve attivare identity_consistency'
 );
 
+console.log('--- Test PromptContext: multi_question per email con più dubbi operativi ---');
+const multiQuestion = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Battesimo',
+    body: 'Vorrei sapere quali documenti servono? Ci sono costi e date disponibili?'
+  },
+  requestType: { type: 'technical' },
+  classification: { confidence: 1, category: 'information' }
+});
+assert(
+  multiQuestion.concerns.multi_question === true,
+  'due domande operative devono attivare multi_question'
+);
+
 console.log('✅ Test PromptContext OK');

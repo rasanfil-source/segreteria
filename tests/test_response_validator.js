@@ -1205,7 +1205,7 @@ console.log('--- Test temporal greeting: saluto usa currentTime e non messageDat
   );
 }
 
-console.log('--- Test temporal greeting: currentTime mancante o invalido salta la verifica ---');
+console.log('--- Test temporal greeting: currentTime mancante usa fallback, invalido salta la verifica ---');
 {
   const missingTime = validator._checkTimeBasedGreeting(
     'Buongiorno, le confermiamo la disponibilità.',
@@ -1213,10 +1213,12 @@ console.log('--- Test temporal greeting: currentTime mancante o invalido salta l
     { temporal: { currentDate: '2026-06-07', messageDate: '2026-06-07', timeZone: 'Europe/Rome' } }
   );
   assert(
-    missingTime.skipped === true &&
-      missingTime.score === 1.0 &&
-      missingTime.warnings.includes('missing currentTime'),
-    'senza currentTime esplicito il controllo saluto deve degradare in modo diagnostico'
+    missingTime.skipped !== true &&
+      Number.isInteger(missingTime.currentHour) &&
+      missingTime.currentHour >= 0 &&
+      missingTime.currentHour <= 23 &&
+      !missingTime.warnings.includes('missing currentTime'),
+    'senza currentTime esplicito il controllo saluto deve usare il fallback del clock di sistema'
   );
   const invalidTime = validator._checkTimeBasedGreeting(
     'Buongiorno, le confermiamo la disponibilità.',
@@ -1229,6 +1231,12 @@ console.log('--- Test temporal greeting: currentTime mancante o invalido salta l
       invalidTime.warnings.includes('invalid currentTime'),
     'con currentTime invalido il controllo saluto deve essere saltato senza usare il clock reale'
   );
+}
+
+console.log('--- Test riferimenti papali: cleanup rimuove titolo e suffisso tabellare ---');
+{
+  const cleaned = validator._cleanPopeName_('Pontefice Leone XIV | aggiornato al 2026');
+  assert(cleaned === 'Leone XIV', 'il cleanup deve rimuovere titolo pontefice e suffisso dopo pipe');
 }
 
 console.log('--- Test _checkCapitalAfterComma: rileva maiuscole latine accentate ---');

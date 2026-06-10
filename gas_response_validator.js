@@ -1052,8 +1052,8 @@ var ResponseValidator = class ResponseValidator {
     const hasCurrentTime = typeof rawCurrentTime === 'string' && rawCurrentTime.trim() !== '';
     const hasValidCurrentTime = hasCurrentTime &&
       /^(?:[01]?\d|2[0-3])(?::[0-5]\d)?$/.test(rawCurrentTime.trim());
-    if (hasExplicitTemporalContext && !hasValidCurrentTime) {
-      warnings.push(hasCurrentTime ? 'invalid currentTime' : 'missing currentTime');
+    if (hasExplicitTemporalContext && hasCurrentTime && !hasValidCurrentTime) {
+      warnings.push('invalid currentTime');
       return {
         score,
         warnings,
@@ -1571,6 +1571,7 @@ var ResponseValidator = class ResponseValidator {
       .replace(/^(?:papa|pontefice|santo\s+padre)\s+/i, '')
       .replace(new RegExp('\\s+(?:ci\\s+)?' + verbs + '\\b.*$', 'i'), '')
       .replace(/\s+(?:è|e')\s+(?:l['’]?\s*)?(?:attuale\s+)?(?:Papa|Pontefice).*$/i, '')
+      .replace(/\s*\|.*$/g, '')
       .replace(/[.;,].*$/g, '')
       .replace(/\s+/g, ' ')
       .trim();

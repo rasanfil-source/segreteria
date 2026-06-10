@@ -161,12 +161,35 @@ var PromptContext = class PromptContext {
                 i.email?.isReply ||
                 (i.classification?.confidence ?? 1) < 0.7,
 
+            multi_question:
+                this._detectMultiQuestion(i.email?.body, i.email?.subject),
+
             salutation_control:
                 i.salutationMode && i.salutationMode !== 'full',
 
             physical_presence_constraint:
                 !!(i.physicalPresenceConstraint && i.physicalPresenceConstraint.has_constraint)
         };
+    }
+
+    _detectMultiQuestion(body, subject) {
+        const text = [subject, body].filter(Boolean).join('\n').toLowerCase();
+        if (!text.trim()) return false;
+
+        const questionMarks = (text.match(/\?/g) || []).length;
+        const questionOpeners = (text.match(/\b(?:quando|dove|come|quanto|quanti|quale|quali|chi|posso|possiamo|potrei|potremmo|vorrei|vorremmo|serve|servono|occorre|occorrono|bisogna|devo|dobbiamo|si\s+puo|si\s+può)\b/g) || []).length;
+        const topicSignals = [
+            /\b(?:orari?|date?|giorni?|appuntament[oi])\b/g,
+            /\b(?:document[oi]|certificat[oi]|modul[oi]|validit[aà])\b/g,
+            /\b(?:requisit[oi]|procedur[ae]|iscrizion[ei]|tempistiche?)\b/g,
+            /\b(?:accessibilit[aà]|barriere|scale|ascensore|disabil[ei]|carrozzina)\b/g,
+            /\b(?:costi?|offert[ae]|quota|pagamento)\b/g
+        ].reduce((count, rx) => count + ((text.match(rx) || []).length > 0 ? 1 : 0), 0);
+
+        return questionMarks >= 2 ||
+            questionOpeners >= 3 ||
+            (questionMarks >= 1 && topicSignals >= 2) ||
+            (questionOpeners >= 1 && topicSignals >= 3);
     }
 
     _computeProfile() {
