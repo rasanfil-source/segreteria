@@ -737,6 +737,15 @@ function runAllTests() {
             const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it');
             return adjusted === response;
         });
+        test('Non aggiunge nota se la risposta nega info evento e cita solo orari di ritiro', results, () => {
+            const response = "Buonasera Marco.\n\nIn merito alla riunione a cui fa riferimento, non abbiamo informazioni in proposito.\n\nPer quanto riguarda il certificato di battesimo di Sua figlia, per poterlo produrre abbiamo bisogno che ci comunichi le sue generalità. Una volta pronto il documento, la avviseremo; Sua cugina potrà certamente passare a ritirarlo al Suo posto dal lunedì al venerdì, dalle 8:00 alle 12:00.\n\nCordiali saluti.";
+            const messageDetails = {
+                subject: 'Riunione e certificato',
+                body: "Salve, avevo capito che la riunione iniziasse alle 9:30, ma forse comincia un'ora dopo. Vorrei sapere se giovedì prossimo posso passare a ritirare il certificato. Non posso venire di mattina, ma mia cugina potrebbe farmi la cortesia."
+            };
+            const adjusted = processor._addTimeDiscrepancyNoteIfNeeded(response, messageDetails, 'it');
+            return adjusted === response;
+        });
         test('Usa formulazione generica per discrepanza oraria', results, () => {
             const response = "Buonasera.\n\nL'incontro inizierà alle ore 16:30.\n\nCordiali saluti.";
             const messageDetails = { subject: 'Incontro', body: 'Io avevo capito 20:00.' };

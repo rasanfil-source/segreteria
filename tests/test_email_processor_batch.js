@@ -474,6 +474,32 @@ console.log('--- Test thread lock: cleanup rimuove lock stale da PropertiesServi
   }
 }
 
+console.log('--- Test thread lock: cleanup stale non cancella un lock riscritto dopo lo snapshot ---');
+{
+  const props = new Map();
+  const staleKey = 'thread_lock_stale-race';
+  const staleValue = `${Date.now() - 700000}_old`;
+  const freshValue = `${Date.now()}_fresh`;
+  props.set(staleKey, staleValue);
+
+  const propsApi = {
+    getProperties: () => Object.fromEntries(props.entries()),
+    getProperty: (k) => {
+      if (k === staleKey && props.get(k) === staleValue) {
+        props.set(k, freshValue);
+      }
+      return props.get(k) || '';
+    },
+    deleteProperty: (k) => props.delete(k)
+  };
+
+  const processor = new EmailProcessor({ gmailService: {} });
+  processor._lastThreadLockCleanupMs = 0;
+  const removed = processor._cleanupStaleThreadLocks_(propsApi, 600000, global.createLogger());
+  assert(removed === 0, 'cleanup non deve contare una rimozione se il valore è cambiato');
+  assert(props.get(staleKey) === freshValue, 'cleanup non deve cancellare un lock fresco riscritto dopo lo snapshot');
+}
+
 console.log('--- Test thread lock: scrive sempre lock logico su cache e PropertiesService ---');
 {
   const originalPropertiesService = global.PropertiesService;
@@ -558,7 +584,7 @@ console.log('--- Test thread lock: release rimuove cache e PropertiesService sol
   }
 }
 
-console.log('--- Test thread lock: release token-checked anche se ScriptLock è conteso ---');
+console.log('--- Test thread lock: release non cancella senza ScriptLock se il mutex è conteso ---');
 {
   const originalLockService = global.LockService;
   const props = new Map();
@@ -591,8 +617,8 @@ console.log('--- Test thread lock: release token-checked anche se ScriptLock è 
       key,
       value
     }, global.createLogger());
-    assert(!props.has(key), 'release deve pulire PropertiesService se il token combacia anche con ScriptLock conteso');
-    assert(!cacheStore.has(key), 'release deve pulire CacheService se il token combacia anche con ScriptLock conteso');
+    assert(props.get(key) === value, 'release deve lasciare PropertiesService al TTL se lo ScriptLock è conteso');
+    assert(cacheStore.get(key) === value, 'release deve lasciare CacheService al TTL se lo ScriptLock è conteso');
   } finally {
     global.LockService = originalLockService;
     cacheStore.clear();

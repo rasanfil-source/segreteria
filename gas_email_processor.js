@@ -488,6 +488,7 @@ var EmailProcessor = class EmailProcessor {
   _cleanupStaleThreadLocks_(scriptProps, lockTtlMs, threadLogger) {
     if (!scriptProps ||
       typeof scriptProps.getProperties !== 'function' ||
+      typeof scriptProps.getProperty !== 'function' ||
       typeof scriptProps.deleteProperty !== 'function') {
       return 0;
     }
@@ -507,9 +508,11 @@ var EmailProcessor = class EmailProcessor {
       const props = scriptProps.getProperties() || {};
       Object.keys(props).forEach((key) => {
         if (String(key).indexOf('thread_lock_') !== 0) return;
-        const existingTimestamp = Number.parseInt(String(props[key] || ''), 10);
+        const snapshotValue = props[key];
+        const existingTimestamp = Number.parseInt(String(snapshotValue || ''), 10);
         const isStale = !Number.isFinite(existingTimestamp) || (now - existingTimestamp) > lockTtlMs;
         if (!isStale) return;
+        if (scriptProps.getProperty(key) !== snapshotValue) return;
         scriptProps.deleteProperty(key);
         removed++;
       });
@@ -743,8 +746,9 @@ var EmailProcessor = class EmailProcessor {
     try {
       if (!lockCtx.lockCovered && !scriptLockAcquired) {
         if (threadLogger && typeof threadLogger.warn === 'function') {
-          threadLogger.warn('Mutex globale non acquisito per rilascio: tento clean-up token-checked del lock logico');
+          threadLogger.warn('Mutex globale non acquisito per rilascio: lock logico lasciato al TTL per evitare cancellazioni concorrenti');
         }
+        return;
       }
 
       let removed = false;
@@ -5551,6 +5555,40 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     return timeExpectationPatterns.some((pattern) => pattern.test(text));
   }
 
+  _extractEventScheduleTimesForDiscrepancy_(response) {
+    if (!response || typeof response !== 'string') return [];
+
+    const sentences = response.match(/[^.!?\n]+(?:[.!?]+|$)/g) || [response];
+    const eventSchedulePatterns = [
+      /(?:^|[^\p{L}\p{N}_])(?:inizia|iniziano|inizier[àa]|inizieranno|comincia|cominciano|comincer[àa]|cominceranno|parte|partono|partir[àa]|partiranno)(?=$|[^\p{L}\p{N}_])/iu,
+      /(?:^|[^\p{L}\p{N}_])(?:si\s+)?(?:tiene|terr[àa]|terranno|svolge|svolger[àa]|svolgeranno)(?=$|[^\p{L}\p{N}_])/iu,
+      /(?:^|[^\p{L}\p{N}_])(?:avr[àa]|avranno)\s+luogo(?=$|[^\p{L}\p{N}_])/iu,
+      /(?:^|[^\p{L}\p{N}_])(?:is|are|will\s+be)\s+(?:held|scheduled|planned)(?=$|[^\p{L}\p{N}_])/iu,
+      /(?:^|[^\p{L}\p{N}_])(?:starts?|begins?|takes?\s+place)(?=$|[^\p{L}\p{N}_])/iu,
+      /(?:^|[^\p{L}\p{N}_])(?:empieza|empiezan|comienza|comienzan|ser[áa]|ser[aá]n)(?=$|[^\p{L}\p{N}_])/iu,
+      /(?:^|[^\p{L}\p{N}_])(?:commence|commencer[ao]nt|aura\s+lieu|auront\s+lieu|se\s+tiendra|se\s+tiendront)(?=$|[^\p{L}\p{N}_])/iu,
+      /(?:^|[^\p{L}\p{N}_])(?:começa|começam|ter[áa]|ter[aã]o\s+lugar)(?=$|[^\p{L}\p{N}_])/iu,
+      /(?:^|[^\p{L}\p{N}_])(?:beginnt|beginnen|findet|finden)\s+statt(?=$|[^\p{L}\p{N}_])/iu
+    ];
+    const eventNounPattern = /\b(?:incontro|riunione|corso|lezione|messa|messe|celebrazione|appuntamento|catechesi|ritiro|evento|meeting|course|class|event|appointment|reuni[oó]n|curso|rencontre|réunion|cours|treffen|kurs)\b/i;
+    const directEventTimePattern = /(?:^|[^\p{L}\p{N}_])(?:è|e'|sar[àa]|sono|saranno|is|are|will\s+be|ser[áa]|sera|ser[aã]o|est[áa]|ist|sind)(?=$|[^\p{L}\p{N}_])[^.!?\n]{0,80}(?:^|[^\p{L}\p{N}_])(?:alle?|ore|at|a\s+las|às|à|um)\s+(?:[01]?\d|2[0-3])(?:[:.][0-5]\d)?(?=$|[^\p{L}\p{N}_])/iu;
+
+    const scheduledTimes = [];
+    sentences.forEach((sentence) => {
+      const text = String(sentence || '').trim();
+      if (!text) return;
+      const hasScheduleVerb = eventSchedulePatterns.some((pattern) => pattern.test(text));
+      const hasDirectEventTime = eventNounPattern.test(text) && directEventTimePattern.test(text);
+      if (!hasScheduleVerb && !hasDirectEventTime) return;
+
+      this._extractTimes(text).forEach((time) => {
+        if (!scheduledTimes.includes(time)) scheduledTimes.push(time);
+      });
+    });
+
+    return scheduledTimes;
+  }
+
   _addTimeDiscrepancyNoteIfNeeded(response, messageDetails, detectedLanguage) {
     if (!response || typeof response !== 'string') return response;
 
@@ -5587,7 +5625,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
     if (!this._hasExplicitTimeExpectation(sourceText)) return response;
 
     const userTimes = this._extractTimes(sourceText);
-    const responseTimes = this._extractTimes(response);
+    const responseTimes = this._extractEventScheduleTimesForDiscrepancy_(response);
 
     if (userTimes.length === 0 || responseTimes.length === 0) return response;
 
