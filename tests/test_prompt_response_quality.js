@@ -118,6 +118,15 @@ console.log('--- Test prompt: contatto pregresso protegge da risposta standard -
     detectedLanguage: 'it',
     promptProfile: 'standard',
     salutationMode: 'full',
+    requestType: { type: 'doctrinal', needsDoctrine: true, needsDiscernment: false },
+    doctrineBase: 'DOTTRINA_FALLBACK_SENTINEL: testo completo da non inserire in presenza di contatto pregresso.',
+    doctrineStructured: [
+      {
+        Categoria: 'matrimoni',
+        'Sotto-tema': 'matrimonio rinnovo promesse anniversario',
+        'Principio dottrinale': 'DOTTRINA_PROMESSE_SENTINEL: la liturgia non prevede la ripetizione verbale delle promesse.'
+      }
+    ],
     subIntents: {
       prior_oral_communication: {
         detected: true,
@@ -140,6 +149,15 @@ console.log('--- Test prompt: contatto pregresso protegge da risposta standard -
   assert(
     priorContactPrompt.systemInstruction.includes('Le dispiacerebbe indicarci un riferimento, se lo ricorda?'),
     'se manca il referente, il prompt deve chiedere un riferimento con formula leggera'
+  );
+  assert(
+    priorContactPrompt.systemInstruction.includes('Divieto assoluto di fornire spiegazioni canoniche, liturgiche o dottrinali'),
+    'la policy deve vietare spiegazioni dottrinali sui dettagli gia legati al contatto pregresso'
+  );
+  assert(
+    !priorContactPrompt.includes('DOTTRINA_PROMESSE_SENTINEL') &&
+      !priorContactPrompt.includes('DOTTRINA_FALLBACK_SENTINEL'),
+    'il contatto pregresso deve sopprimere dottrina selettiva e fallback dottrinale'
   );
 }
 

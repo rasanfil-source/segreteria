@@ -367,6 +367,7 @@ var PromptEngine = class PromptEngine {
     const priorCommunicationContext = this._normalizePriorCommunicationContext_(
       priorOralCommunication || (subIntents && subIntents.prior_oral_communication)
     );
+    const hasPriorCommunication = Boolean(priorCommunicationContext && priorCommunicationContext.detected);
     if (priorCommunicationContext && priorCommunicationContext.detected) {
       addSection(this._renderPriorCommunicationPolicy(priorCommunicationContext), 'PriorCommunicationPolicy', { force: true, isSystem: true });
     }
@@ -445,7 +446,7 @@ var PromptEngine = class PromptEngine {
     }
 
     // 15. ARRICCHIMENTO DOTTRINALE (Selettivo)
-    if (requestTypeObj.needsDoctrine) {
+    if (requestTypeObj.needsDoctrine && !hasPriorCommunication) {
       const selectiveDoctrine = this._renderSelectiveDoctrine(
         requestTypeObj,
         topic,
@@ -466,6 +467,8 @@ var PromptEngine = class PromptEngine {
           console.warn('ℹ️ Fallback dottrinale completo evitato: AI_CORE presente (riduzione rischio bloat).');
         }
       }
+    } else if (requestTypeObj.needsDoctrine && hasPriorCommunication) {
+      console.warn('ℹ️ Dottrina selettiva soppressa: contatto pregresso rilevato, priorità alla presa in carico.');
     }
 
     // 16. CRONOLOGIA CONVERSAZIONE
@@ -1232,10 +1235,11 @@ ${referentLine}
 REGOLE VINCOLANTI:
 1. Non trattare questa email come una richiesta nuova e isolata.
 2. Non confermare, negare o ridiscutere la fattibilità di dettagli già collegati al contatto pregresso se non sono esplicitamente risolti dai dati certi disponibili nel prompt.
-3. Per gli aspetti legati a celebrazioni, liturgia, sacramenti, appuntamenti o accordi organizzativi già avviati, usa una presa in carico prudente: ringrazia per il riepilogo, prendi nota e dì che i dettagli saranno trasmessi alla persona coinvolta o competente.
-4. Evita formule standard che possono contraddire il contatto già avvenuto, ad esempio "è necessario rivolgersi a un sacerdote" o "occorre prendere un appuntamento", quando l'utente sta chiaramente dando seguito a una conversazione precedente.
-5. Puoi rispondere normalmente solo alle domande autonome e informative che non modificano l'accordo pregresso, ad esempio orari di segreteria, recapiti, come inviare dati mancanti o informazioni pratiche già presenti nella knowledge base.
-6. Se il referente non è indicato e la risposta dipende dal seguito della conversazione, chiedi in modo leggero: "Per assicurarci che il Suo messaggio arrivi direttamente alla persona con cui ha già avuto modo di parlare, Le dispiacerebbe indicarci un riferimento, se lo ricorda?"`;
+3. Divieto assoluto di fornire spiegazioni canoniche, liturgiche o dottrinali su come si svolgerà l'evento o su cosa sia ammesso/non ammesso, anche se l'utente fa una domanda diretta: questi dettagli vanno rimessi alla persona già coinvolta o competente.
+4. Per gli aspetti legati a celebrazioni, liturgia, sacramenti, appuntamenti o accordi organizzativi già avviati, usa una presa in carico prudente: ringrazia per il riepilogo, prendi nota e dì che i dettagli saranno trasmessi alla persona coinvolta o competente.
+5. Evita formule standard che possono contraddire il contatto già avvenuto, ad esempio "è necessario rivolgersi a un sacerdote" o "occorre prendere un appuntamento", quando l'utente sta chiaramente dando seguito a una conversazione precedente.
+6. Puoi rispondere normalmente solo alle domande autonome e informative che non modificano l'accordo pregresso, ad esempio orari di segreteria, recapiti, come inviare dati mancanti o informazioni pratiche già presenti nella knowledge base.
+7. Se il referente non è indicato e la risposta dipende dal seguito della conversazione, chiedi in modo leggero: "Per assicurarci che il Suo messaggio arrivi direttamente alla persona con cui ha già avuto modo di parlare, Le dispiacerebbe indicarci un riferimento, se lo ricorda?"`;
   }
 
   // ========================================================================
