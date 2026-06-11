@@ -1625,6 +1625,8 @@ ISTRUZIONI:
       ? 'Il mittente ha indicato un vincolo significativo che rende inopportuno proporre una presenza fisica.'
       : 'Il mittente ha indicato un vincolo che rende difficile o non ordinario raggiungere fisicamente la parrocchia.';
 
+    const sponsorEligibilityRule = `- ECCEZIONE CANONICA - IDONEITÀ PADRINO/MADRINA: se la richiesta riguarda il certificato/attestazione di idoneità per fare da padrino o madrina, questa regola prevale sulla gestione digitale dei documenti. Non inventare deleghe, autocertificazioni sufficienti o invio automatico via email: è un'assunzione personale di impegno ecclesiale e non è delegabile. Se il mittente dichiara di non potersi muovere, spiega con garbo che occorre contattare telefonicamente un sacerdote o la segreteria per trovare una soluzione pastorale concreta. Non scrivere "venga in segreteria", non indicare orari di apertura e non presentare il ritiro/invio del certificato come già risolto.`;
+
     const digitalRule = policy === 'avoid_invitation'
       ? `- GESTIONE DIGITALE (OBBLIGATORIA): Se l'utente chiede l'invio di un documento via email (es. certificato PDF) o ha espresso rifiuto esplicito di venire di persona, conferma la gestione digitale (es. "verificheremo e glielo invieremo via email") e OMETTI COMPLETAMENTE: orari di apertura al pubblico, riferimenti al ritiro in sede, qualsiasi invito fisico anche in forma condizionale. La risposta non deve contenere nemmeno "qualora potesse passare".`
       : `- GESTIONE DIGITALE: Se l'utente chiede l'invio di un documento via email (es. certificato PDF), conferma la gestione digitale e ometti gli orari di apertura fisica. Menziona la presenza in sede solo se strettamente necessario e in forma condizionale.`;
@@ -1646,6 +1648,7 @@ REGOLE VINCOLANTI:
 - Se la presenza fisica fosse utile ma non indispensabile, formularla solo in modo condizionale e rispettoso: "qualora le fosse possibile", "se avesse occasione di trovarsi a Roma", "nel caso in cui potesse passare".
 - Se la policy e' "avoid_invitation", evitare del tutto inviti a presenza fisica salvo obbligo sacramentale/procedurale esplicito e inevitabile.
 - Non nominare in modo crudo o stigmatizzante il vincolo personale del mittente: usare formule come "considerata la sua situazione" solo se serve.
+${sponsorEligibilityRule}
 ${digitalRule}
 
 ${formule}`;

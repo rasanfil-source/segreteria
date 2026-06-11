@@ -135,6 +135,17 @@ console.log('--- Test physical presence constraint: PromptEngine guideline ---')
       !guideline.includes('Qualora le fosse possibile passare da Roma'),
     'avoid_invitation must not show the Rome visit formula as correct'
   );
+  assert(
+    guideline.includes('ECCEZIONE CANONICA - IDONEITÀ PADRINO/MADRINA') &&
+      guideline.includes('questa regola prevale sulla gestione digitale dei documenti') &&
+      guideline.includes('non è delegabile'),
+    'sponsor eligibility must override generic digital document handling'
+  );
+  assert(
+    guideline.includes('contattare telefonicamente un sacerdote') &&
+      guideline.includes('Non scrivere "venga in segreteria"'),
+    'sponsor eligibility with physical constraint must route to phone pastoral contact without direct visit wording'
+  );
 }
 
 console.log('--- Test physical presence constraint: PromptEngine keeps conditional Rome visit for distance ---');

@@ -190,6 +190,36 @@ console.log('--- Test prompt: avoid_invitation e PDF non propone presenza fisica
   );
 }
 
+console.log('--- Test prompt: idoneità padrino con vincolo fisico non inventa deleghe ---');
+{
+  const sponsorConstraintPrompt = engine.buildPrompt({
+    emailSubject: 'Idoneità padrino',
+    emailContent: 'Sono in sedia a rotelle e non posso venire di persona. Mi mandate via email il certificato di idoneità per fare da padrino?',
+    knowledgeBase: 'Richiesta certificato idoneità padrino/madrina: è necessario presentarsi personalmente in parrocchia durante gli orari di apertura per dichiarare di essere in condizioni di assumere questo impegno.',
+    detectedLanguage: 'it',
+    promptProfile: 'standard',
+    salutationMode: 'full',
+    physicalPresenceConstraint: {
+      has_constraint: true,
+      type: 'health',
+      visit_policy: 'avoid_invitation',
+      evidence: 'sono in sedia a rotelle e non posso venire di persona'
+    }
+  });
+
+  assert(
+    sponsorConstraintPrompt.includes('ECCEZIONE CANONICA - IDONEITÀ PADRINO/MADRINA') &&
+      sponsorConstraintPrompt.includes('questa regola prevale sulla gestione digitale dei documenti'),
+    'il prompt deve far prevalere l’idoneità padrino sulla gestione digitale generica'
+  );
+  assert(
+    sponsorConstraintPrompt.includes('non è delegabile') &&
+      sponsorConstraintPrompt.includes('contattare telefonicamente un sacerdote') &&
+      sponsorConstraintPrompt.includes('non presentare il ritiro/invio del certificato come già risolto'),
+    'il prompt deve evitare deleghe/email inventate e proporre contatto telefonico pastorale'
+  );
+}
+
 console.log('--- Test prompt: contesto papale con inizio ministero non renderizza undefined ---');
 {
   const originalConfig = global.CONFIG;
