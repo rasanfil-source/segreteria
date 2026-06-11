@@ -491,7 +491,7 @@ var PromptEngine = class PromptEngine {
     // BLOCCO 3: LINEE GUIDA E TEMPLATE
 
     // 20. LINEE GUIDA (Filtrabili per profilo)
-    addTemplate('FormattingGuidelinesTemplate', this._renderFormattingGuidelines(), 'FormattingGuidelines', { isSystem: true });
+    addTemplate('FormattingGuidelinesTemplate', this._renderFormattingGuidelines(subIntents, category), 'FormattingGuidelines', { isSystem: true });
 
     // 21. STRUTTURA RISPOSTA
     addSection(this._renderResponseStructure(category, subIntents), 'ResponseStructure', { isSystem: true });
@@ -1492,12 +1492,24 @@ ${hints[effectiveCategory]}` : null;
   // TEMPLATE: LINEE GUIDA FORMATTAZIONE
   // ========================================================================
 
-  _renderFormattingGuidelines() {
+  _renderFormattingGuidelines(subIntents = {}, category = null) {
+    const normalizedCategory = String(category || '').toLowerCase();
+    const isSensitiveContext = Boolean(
+      (subIntents && (subIntents.bereavement || subIntents.emotional_distress)) ||
+      normalizedCategory === 'emotional_support'
+    );
+    const sensitiveOverride = isSensitiveContext
+      ? `
+- **CONTESTO SENSIBILE - REGOLA ASSOLUTA:** Questa email riguarda un lutto o un disagio personale. Questa regola sovrascrive tutte le altre regole di formattazione: è vietato usare emoji, icone, simboli decorativi, titoli Markdown o elenchi puntati decorativi in qualsiasi punto della risposta, anche se i punti da trattare sono più di 3. Rispondi esclusivamente in prosa continua, sobria e non sovrastrutturata, come una lettera scritta a mano.`
+      : '';
+
     return `## FORMATTAZIONE ED EVIDENZIAZIONE
+${sensitiveOverride}
 - **Uso Liste:** Utilizza elenchi puntati con emoji contestuali SOLO se devi elencare 3 o più elementi (es. requisiti, documenti).
 - **Orari e Date:** Mettili in grassetto per facilitare la lettura. Usa emoji sobrie (🗓️, ⏰, 📍).
 - **Titoli:** Usa titoli Markdown (###) se la risposta contiene più argomenti o step nettamente separati.
-- **Risposte brevi:** Se la risposta richiede solo 1-2 frasi (es. conferma di ricezione), non utilizzare formattazione, emoji o titoli.`;
+- **Risposte brevi:** Se la risposta richiede solo 1-2 frasi (es. conferma di ricezione), non utilizzare formattazione, emoji o titoli.
+- **Mirroring del registro:** Se l'email ricevuta è scritta in prosa semplice e senza formattazione, calibra la risposta allo stesso livello di struttura. Non aggiungere titoli o liste dove l'utente non li ha usati.`;
   }
 
   // ========================================================================
@@ -1516,8 +1528,10 @@ ${hints[effectiveCategory]}` : null;
     } else if (subIntents && subIntents.bereavement) {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (LUTTO):**
 1. Esprimi vicinanza sincera
-2. Fornisci informazioni pratiche con discrezione
-3. Offri disponibilità umana`;
+2. Fornisci informazioni pratiche con discrezione, in prosa, una dopo l'altra - senza elenchi puntati, emoji o icone
+3. Offri disponibilità umana
+
+⚠️ FORMATO OBBLIGATORIO: Solo testo in prosa. Nessuna lista, nessuna emoji, nessun titolo Markdown, nessuna icona. Anche se le domande sono 4 o più, rispondi in modo fluente e umano, non come un modulo compilato.`;
     } else if (category === 'sacrament') {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (SACRAMENTO):**
 1. Accogli con calore la richiesta

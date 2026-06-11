@@ -332,6 +332,41 @@ assert(
   'il prompt deve preservare titoli e liste per risposte articolate'
 );
 
+console.log('--- Test prompt: lutto vieta emoji, icone e liste decorative ---');
+const bereavementPrompt = engine.buildPrompt({
+  emailSubject: 'Messa in ricordo',
+  emailContent: [
+    'Salve, mio padre frequentava la vostra parrocchia ed è venuto a mancare ieri.',
+    'Vorrei organizzare una messa in suo ricordo.',
+    'Vivo fuori regione e non posso venire di persona.',
+    'C\'è modo di concordare tutto via email? Potete trasmettere la messa via Zoom o mandarmi una preghiera scritta? Fatemi sapere i costi.'
+  ].join(' '),
+  knowledgeBase: 'Messe in suffragio: offerta libera. Non usiamo Zoom; talvolta diretta YouTube da verificare. La segreteria può concordare dettagli via email.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  salutationMode: 'full',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  subIntents: { bereavement: true },
+  category: 'information'
+});
+
+assert(
+  bereavementPrompt.includes('CONTESTO SENSIBILE - REGOLA ASSOLUTA') &&
+    bereavementPrompt.includes('è vietato usare emoji, icone, simboli decorativi') &&
+    bereavementPrompt.includes('Rispondi esclusivamente in prosa continua'),
+  'il prompt deve attivare un override sobrio nei contesti di lutto'
+);
+assert(
+  bereavementPrompt.includes('FORMATO OBBLIGATORIO: Solo testo in prosa') &&
+    bereavementPrompt.includes('Anche se le domande sono 4 o più'),
+  'la struttura lutto deve vietare liste/emoji anche con molte domande'
+);
+assert(
+  bereavementPrompt.includes('Mirroring del registro'),
+  'il prompt deve chiedere di specchiare il registro semplice dell\'utente'
+);
+
 console.log('--- Test prompt: consegna documentale non diventa richiesta requisiti ---');
 const attachmentPrompt = engine.buildPrompt({
   emailSubject: 'Invio idoneità padrino',
