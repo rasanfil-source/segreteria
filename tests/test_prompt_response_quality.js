@@ -366,6 +366,22 @@ assert(
   bereavementPrompt.includes('Mirroring del registro'),
   'il prompt deve chiedere di specchiare il registro semplice dell\'utente'
 );
+assert(
+  bereavementPrompt.includes('DEFINIZIONE PRECISA DI "DISCERNIMENTO PASTORALE"') &&
+    bereavementPrompt.includes('Il contesto emotivo NON trasforma una richiesta pratica in una questione pastorale'),
+  'il ruolo sistema deve restringere il discernimento pastorale nei contesti emotivi'
+);
+assert(
+  bereavementPrompt.includes('ECCEZIONE - RICHIESTE PRATICHE O DEVOZIONALI NON IN KB') &&
+    bereavementPrompt.includes('saremo lieti di inviarle un testo di preghiera rispondendo a questa email'),
+  'la KB deve permettere presa in carico per richieste devozionali semplici non presenti'
+);
+assert(
+  bereavementPrompt.includes('GHIGLIOTTINA DEL DISCERNIMENTO') &&
+    bereavementPrompt.includes('Un testo di preghiera da leggere a casa') &&
+    bereavementPrompt.includes('Non usare MAI "discernimento pastorale"'),
+  'la struttura lutto deve prevenire il deferral pastorale improprio su richieste pratiche'
+);
 
 console.log('--- Test prompt: consegna documentale non diventa richiesta requisiti ---');
 const attachmentPrompt = engine.buildPrompt({
