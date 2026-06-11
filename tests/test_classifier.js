@@ -85,3 +85,36 @@ console.log('--- Test Classifier: documenti informativi non diventano consegna d
   );
   assert(submissionResult.category === 'document_submission', 'invio esplicito in allegato deve restare document_submission');
 }
+
+console.log('--- Test Classifier: contatto telefonico pregresso diventa sub-intent ---');
+{
+  const classifier = new Classifier();
+  const result = classifier.classifyEmail(
+    'Rinnovo voti matrimoniali',
+    [
+      'Gentili,',
+      'è stato un piacere avere un primo riscontro telefonico con voi questa mattina.',
+      'Vi scrivo per confermare la possibilità di celebrare il rinnovo dei voti matrimoniali.',
+      'Vorrei quindi chiedervi conferma della possibilità di procedere.'
+    ].join('\n'),
+    false
+  );
+  const prior = result.subIntents && result.subIntents.prior_oral_communication;
+
+  assert(prior && prior.detected === true, 'il riscontro telefonico deve essere rilevato');
+  assert(prior.strength === 'strong', 'riscontro telefonico deve essere un segnale forte');
+  assert(
+    Array.isArray(prior.signals) && prior.signals.some(signal => /riscontro\s+telefonico/i.test(signal)),
+    'il sub-intent deve conservare il segnale rilevato'
+  );
+
+  const neutralResult = classifier.classifyEmail(
+    'Informazioni',
+    'Buongiorno, resto in attesa di un vostro gentile riscontro.',
+    false
+  );
+  assert(
+    !(neutralResult.subIntents && neutralResult.subIntents.prior_oral_communication),
+    'una formula generica di attesa non deve simulare un contatto pregresso'
+  );
+}

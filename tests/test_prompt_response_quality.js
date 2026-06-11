@@ -104,6 +104,45 @@ console.log('--- Test prompt: firma nel body prevale sul nome account mittente -
   );
 }
 
+console.log('--- Test prompt: contatto pregresso protegge da risposta standard ---');
+{
+  const priorContactPrompt = engine.buildPrompt({
+    emailSubject: 'Rinnovo voti matrimoniali',
+    emailContent: [
+      'Gentili,',
+      'è stato un piacere avere un primo riscontro telefonico con voi questa mattina.',
+      'Vi scrivo per confermare la possibilità di celebrare il rinnovo dei voti matrimoniali.',
+      'Vorrei capire se sarà possibile rinnovare verbalmente le promesse.'
+    ].join('\n'),
+    knowledgeBase: 'Messe domenicali: ore 11:00.',
+    detectedLanguage: 'it',
+    promptProfile: 'standard',
+    salutationMode: 'full',
+    subIntents: {
+      prior_oral_communication: {
+        detected: true,
+        strength: 'strong',
+        mentioned_contact: null,
+        signals: ['riscontro telefonico']
+      }
+    }
+  });
+
+  assert(
+    priorContactPrompt.systemInstruction.includes('POLICY CONTATTO PREGRESSO TELEFONICO/PERSONALE'),
+    'il prompt deve includere la policy di contatto pregresso nel systemInstruction'
+  );
+  assert(
+    priorContactPrompt.systemInstruction.includes('Non trattare questa email come una richiesta nuova e isolata') &&
+      priorContactPrompt.systemInstruction.includes('non modificano l\'accordo pregresso'),
+    'la policy deve impedire di azzerare il contesto e consentire solo risposte autonome'
+  );
+  assert(
+    priorContactPrompt.systemInstruction.includes('Le dispiacerebbe indicarci un riferimento, se lo ricorda?'),
+    'se manca il referente, il prompt deve chiedere un riferimento con formula leggera'
+  );
+}
+
 console.log('--- Test prompt: contesto papale con inizio ministero non renderizza undefined ---');
 {
   const originalConfig = global.CONFIG;

@@ -138,12 +138,15 @@ var Classifier = class Classifier {
     const mainContent = this._extractMainContent(safeBody);
     console.log(`      Contenuto principale: ${mainContent.length} caratteri`);
 
+    const fullText = `${safeSubject} ${mainContent}`;
+    const contextualSubIntents = this._detectSubIntents(fullText);
+
     if (this._isDocumentSubmission(mainContent)) {
       return {
         shouldReply: true,
         reason: 'document_submission_detected',
         category: 'document_submission',
-        subIntents: {},
+        subIntents: contextualSubIntents,
         confidence: 0.95
       };
     }
@@ -157,7 +160,7 @@ var Classifier = class Classifier {
           shouldReply: true,
           reason: 'needs_ai_analysis',
           category: null,
-          subIntents: {},
+          subIntents: contextualSubIntents,
           confidence: 0.8
         };
       }
@@ -203,21 +206,20 @@ var Classifier = class Classifier {
     }
 
     // PRIORITÀ LEGALE/PRIVACY: richieste formali (es. sbattezzo/apostasia)
-    const fullText = `${safeSubject} ${mainContent}`;
     if (/\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|cancellazione\s+(?:dal|dai|dei)\s+registr/i.test(fullText)) {
       console.log('      ⚠️ Richiesta formale rilevata (sbattezzo/apostasia)');
       return {
         shouldReply: true,
         reason: 'formal_request_detected',
         category: 'formal',
-        subIntents: {},
+        subIntents: contextualSubIntents,
         confidence: 1.0
       };
     }
 
     // TUTTO IL RESTO: Passa a Gemini
     const category = this._categorizeContent(fullText);
-    const subIntents = this._detectSubIntents(fullText);
+    const subIntents = contextualSubIntents;
 
     console.log('      ✓ Passa a Gemini per analisi intelligente');
     if (category) {
@@ -552,7 +554,98 @@ var Classifier = class Classifier {
       }
     }
 
+    const priorOralCommunication = this._detectPriorOralCommunication(text);
+    if (priorOralCommunication.detected) {
+      detected.prior_oral_communication = priorOralCommunication;
+    }
+
     return detected;
+  }
+
+  /**
+   * Rileva contatti telefonici o personali gia avvenuti, senza assumere che
+   * ogni dettaglio sia gia stato approvato.
+   */
+  _detectPriorOralCommunication(text) {
+    const source = String(text || '');
+    const normalized = source.replace(/\s+/g, ' ').trim();
+    if (!normalized) {
+      return {
+        detected: false,
+        strength: 'none',
+        mentioned_contact: null,
+        signals: []
+      };
+    }
+
+    const strongPatterns = [
+      /\briscontro\s+telefonico\b/i,
+      /\bcontatto\s+telefonico\b/i,
+      /\bcolloquio\s+telefonico\b/i,
+      /\btelefonata\s+(?:intercorsa|avuta|di|del|della|con)\b/i,
+      /\b(?:ci|vi|mi)\s+siamo\s+sentit[ie]\b/i,
+      /\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\b/i,
+      /\bcome\s+(?:gia\s+|già\s+)?(?:concordato|anticipato|accennato)\b/i,
+      /\bcome\s+da\s+(?:accordi|telefonata|colloquio|incontro)\b/i,
+      /\bcome\s+ci\s+siamo\s+detti\b/i,
+      /\ba\s+(?:seguito|conferma)\s+di\s+quanto\s+(?:discusso|detto|concordato)\b/i,
+      /\ba\s+seguito\s+del(?:\s+nostro)?\s+(?:colloquio|incontro|appuntamento)\b/i,
+      /\bdopo\s+il(?:\s+nostro)?\s+(?:colloquio|incontro|appuntamento)\b/i
+    ];
+
+    const weakPatterns = [
+      /\bcome\s+(?:le|vi)\s+accennavo\b/i,
+      /\bcome\s+(?:gia\s+|già\s+)?anticipato\b/i,
+      /\briassumo\s+quanto\s+(?:detto|concordato)\b/i,
+      /\bvi\s+scrivo\s+per\s+confermare\s+quanto\b/i,
+      /\ble\s+scrivo\s+per\s+confermare\s+quanto\b/i
+    ];
+
+    const strongSignals = this._collectPriorCommunicationSignals_(normalized, strongPatterns);
+    const weakSignals = strongSignals.length > 0
+      ? []
+      : this._collectPriorCommunicationSignals_(normalized, weakPatterns);
+    const signals = strongSignals.length > 0 ? strongSignals : weakSignals;
+
+    return {
+      detected: signals.length > 0,
+      strength: strongSignals.length > 0 ? 'strong' : (weakSignals.length > 0 ? 'weak' : 'none'),
+      mentioned_contact: this._extractPriorCommunicationContact_(normalized),
+      signals: signals.slice(0, 4)
+    };
+  }
+
+  _collectPriorCommunicationSignals_(text, patterns) {
+    const signals = [];
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match && match[0]) {
+        signals.push(match[0].trim());
+      }
+    }
+    return signals;
+  }
+
+  _extractPriorCommunicationContact_(text) {
+    const safeText = String(text || '');
+    const contactPatterns = [
+      /\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\s+((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)\s+[A-Za-zÀ-ÿ' -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)\b/i,
+      /\b(?:mi|ci)\s+sono\s+sentit[oaie]\s+con\s+((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)\s+[A-Za-zÀ-ÿ' -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)\b/i,
+      /\b(?:referente|riferimento|contatto)\s*[:\-]\s*((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)?\s*[A-Za-zÀ-ÿ' -]{2,45})\b/i
+    ];
+
+    for (const pattern of contactPatterns) {
+      const match = safeText.match(pattern);
+      if (match && match[1]) {
+        return match[1]
+          .replace(/\s+/g, ' ')
+          .replace(/[.,;:!?]+$/g, '')
+          .trim()
+          .slice(0, 80);
+      }
+    }
+
+    return null;
   }
 
   /**

@@ -127,7 +127,8 @@ var PromptEngine = class PromptEngine {
       physicalPresenceConstraint = null,
       attachmentsContext = '',
       attachmentIntentContext = null,
-      sponsorGuidancePolicy = 'default'
+      sponsorGuidancePolicy = 'default',
+      priorOralCommunication = null
     } = options;
 
     const runtimeContext = (options && options.runtimeContext && typeof options.runtimeContext === 'object')
@@ -361,6 +362,13 @@ var PromptEngine = class PromptEngine {
       } else {
         console.warn('⚠️ Territory context presente ma sezione vuota: verificare i dati in input o la renderizzazione.');
       }
+    }
+
+    const priorCommunicationContext = this._normalizePriorCommunicationContext_(
+      priorOralCommunication || (subIntents && subIntents.prior_oral_communication)
+    );
+    if (priorCommunicationContext && priorCommunicationContext.detected) {
+      addSection(this._renderPriorCommunicationPolicy(priorCommunicationContext), 'PriorCommunicationPolicy', { force: true, isSystem: true });
     }
 
     // BLOCCO 2: CONTESTO E CONTINUITÀ
@@ -1161,6 +1169,73 @@ ${territoryContext}
 
 SE LO SCRIVI, IL TUO COMPITO È FALLITO.
 Devi dare la risposta SÌ/NO adesso, basandoti ESCLUSIVAMENTE sui dati qui sopra.`;
+  }
+
+  // ========================================================================
+  // TEMPLATE 9b: CONTATTO PREGRESSO CROSS-CHANNEL
+  // ========================================================================
+
+  _normalizePriorCommunicationContext_(priorCommunication) {
+    if (!priorCommunication) return null;
+
+    if (priorCommunication === true) {
+      return {
+        detected: true,
+        strength: 'weak',
+        mentioned_contact: null,
+        signals: []
+      };
+    }
+
+    if (typeof priorCommunication !== 'object') return null;
+
+    const signals = Array.isArray(priorCommunication.signals)
+      ? priorCommunication.signals
+          .map(signal => this._normalizePromptTextInput(signal, '').trim())
+          .filter(Boolean)
+          .slice(0, 4)
+      : [];
+
+    const mentionedContact = this._normalizePromptTextInput(
+      priorCommunication.mentioned_contact || priorCommunication.mentionedContact || '',
+      ''
+    ).replace(/\s+/g, ' ').trim();
+
+    return {
+      detected: priorCommunication.detected !== false,
+      strength: priorCommunication.strength === 'strong' ? 'strong' : (priorCommunication.strength === 'weak' ? 'weak' : 'unknown'),
+      mentioned_contact: mentionedContact || null,
+      signals: signals
+    };
+  }
+
+  _renderPriorCommunicationPolicy(priorCommunication) {
+    const context = this._normalizePriorCommunicationContext_(priorCommunication);
+    if (!context || !context.detected) return null;
+
+    const strengthLine = context.strength === 'strong'
+      ? 'Il segnale di contatto pregresso è forte: tratta la mail come riepilogo/integrazione di una conversazione già avvenuta.'
+      : 'Il segnale di contatto pregresso è possibile ma non completo: agisci con prudenza e non azzerare il contesto operativo.';
+    const signalsLine = context.signals.length > 0
+      ? `Segnali rilevati: ${context.signals.map(signal => `"${signal}"`).join(', ')}.`
+      : '';
+    const referentLine = context.mentioned_contact
+      ? `Referente indicato o deducibile: "${context.mentioned_contact}". Se rispondi, puoi dire che il messaggio verrà trasmesso a questo referente/alla persona competente.`
+      : 'Referente non indicato: se serve per non disperdere il seguito, chiedi con garbo se il mittente ricorda o conosce il nome della persona con cui ha già parlato.';
+
+    return `**POLICY CONTATTO PREGRESSO TELEFONICO/PERSONALE (PRIORITÀ ALTA):**
+L'email contiene segnali che il mittente ha già avuto un contatto telefonico o personale con la parrocchia.
+${strengthLine}
+${signalsLine}
+${referentLine}
+
+REGOLE VINCOLANTI:
+1. Non trattare questa email come una richiesta nuova e isolata.
+2. Non confermare, negare o ridiscutere la fattibilità di dettagli già collegati al contatto pregresso se non sono esplicitamente risolti dai dati certi disponibili nel prompt.
+3. Per gli aspetti legati a celebrazioni, liturgia, sacramenti, appuntamenti o accordi organizzativi già avviati, usa una presa in carico prudente: ringrazia per il riepilogo, prendi nota e dì che i dettagli saranno trasmessi alla persona coinvolta o competente.
+4. Evita formule standard che possono contraddire il contatto già avvenuto, ad esempio "è necessario rivolgersi a un sacerdote" o "occorre prendere un appuntamento", quando l'utente sta chiaramente dando seguito a una conversazione precedente.
+5. Puoi rispondere normalmente solo alle domande autonome e informative che non modificano l'accordo pregresso, ad esempio orari di segreteria, recapiti, come inviare dati mancanti o informazioni pratiche già presenti nella knowledge base.
+6. Se il referente non è indicato e la risposta dipende dal seguito della conversazione, chiedi in modo leggero: "Per assicurarci che il Suo messaggio arrivi direttamente alla persona con cui ha già avuto modo di parlare, Le dispiacerebbe indicarci un riferimento, se lo ricorda?"`;
   }
 
   // ========================================================================
