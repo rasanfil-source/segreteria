@@ -1604,6 +1604,17 @@ ISTRUZIONI:
       ? 'Il mittente ha indicato un vincolo significativo che rende inopportuno proporre una presenza fisica.'
       : 'Il mittente ha indicato un vincolo che rende difficile o non ordinario raggiungere fisicamente la parrocchia.';
 
+    const digitalRule = policy === 'avoid_invitation'
+      ? `- GESTIONE DIGITALE (OBBLIGATORIA): Se l'utente chiede l'invio di un documento via email (es. certificato PDF) o ha espresso rifiuto esplicito di venire di persona, conferma la gestione digitale (es. "verificheremo e glielo invieremo via email") e OMETTI COMPLETAMENTE: orari di apertura al pubblico, riferimenti al ritiro in sede, qualsiasi invito fisico anche in forma condizionale. La risposta non deve contenere nemmeno "qualora potesse passare".`
+      : `- GESTIONE DIGITALE: Se l'utente chiede l'invio di un documento via email (es. certificato PDF), conferma la gestione digitale e ometti gli orari di apertura fisica. Menziona la presenza in sede solo se strettamente necessario e in forma condizionale.`;
+
+    const formule = policy === 'avoid_invitation'
+      ? `✅ Formula corretta: "Verificheremo i nostri registri e, non appena il documento sarà disponibile, glielo invieremo via email in formato PDF."
+⛔ Formula da evitare: "Puo' venire in segreteria dal lunedi al venerdi dalle 8:00 alle 12:00."
+⛔ Formula da evitare anche con vincolo avoid_invitation: "Qualora le fosse possibile passare..."`
+      : `✅ Formula corretta: "Per qualsiasi chiarimento puo' contattarci telefonicamente o rispondere a questa email. Qualora le fosse possibile passare da Roma, saremo lieti di incontrarla anche di persona."
+⛔ Formula da evitare: "Puo' venire in segreteria dal lunedi al venerdi dalle 8:00 alle 12:00."`;
+
     return `**POLICY PRESENZA FISICA - VINCOLO DI RAGGIUNGIBILITA (OBBLIGATORIA):**
 ${intro}
 Tipo vincolo: ${type}. Policy visita: ${policy}.${evidence}
@@ -1614,9 +1625,9 @@ REGOLE VINCOLANTI:
 - Se la presenza fisica fosse utile ma non indispensabile, formularla solo in modo condizionale e rispettoso: "qualora le fosse possibile", "se avesse occasione di trovarsi a Roma", "nel caso in cui potesse passare".
 - Se la policy e' "avoid_invitation", evitare del tutto inviti a presenza fisica salvo obbligo sacramentale/procedurale esplicito e inevitabile.
 - Non nominare in modo crudo o stigmatizzante il vincolo personale del mittente: usare formule come "considerata la sua situazione" solo se serve.
+${digitalRule}
 
-Formula corretta: "Per qualsiasi chiarimento puo' contattarci telefonicamente o rispondere a questa email. Qualora le fosse possibile passare da Roma, saremo lieti di incontrarla anche di persona."
-Formula da evitare: "Puo' venire in segreteria dal lunedi al venerdi dalle 8:00 alle 12:00."`;
+${formule}`;
   }
 
   // ========================================================================

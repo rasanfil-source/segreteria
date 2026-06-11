@@ -120,6 +120,42 @@ console.log('--- Test physical presence constraint: PromptEngine guideline ---')
   assert(guideline.includes('POLICY PRESENZA FISICA'), 'prompt must include the dedicated policy');
   assert(guideline.includes('Non proporre'), 'prompt must forbid ordinary direct visit invitations');
   assert(guideline.includes('avoid_invitation'), 'prompt must preserve the visit policy');
+  assert(
+    guideline.includes('GESTIONE DIGITALE (OBBLIGATORIA)') &&
+      guideline.includes('OMETTI COMPLETAMENTE: orari di apertura al pubblico'),
+    'avoid_invitation must force digital handling and omit office hours'
+  );
+  assert(
+    guideline.includes('Verificheremo i nostri registri') &&
+      guideline.includes('glielo invieremo via email in formato PDF'),
+    'avoid_invitation must show a digital-only correct formula'
+  );
+  assert(
+    guideline.includes('Formula da evitare anche con vincolo avoid_invitation') &&
+      !guideline.includes('Qualora le fosse possibile passare da Roma'),
+    'avoid_invitation must not show the Rome visit formula as correct'
+  );
+}
+
+console.log('--- Test physical presence constraint: PromptEngine keeps conditional Rome visit for distance ---');
+{
+  const engine = Object.create(PromptEngine.prototype);
+  const guideline = engine._renderPhysicalPresenceConstraintGuideline({
+    has_constraint: true,
+    type: 'geographic_distance',
+    visit_policy: 'conditional_only',
+    evidence: 'vivo fuori Roma'
+  });
+
+  assert(guideline.includes('GESTIONE DIGITALE: Se l\'utente chiede l\'invio di un documento via email'), 'conditional policy must still mention digital handling');
+  assert(
+    guideline.includes('Qualora le fosse possibile passare da Roma'),
+    'conditional policy must preserve the respectful Rome visit formula'
+  );
+  assert(
+    !guideline.includes('GESTIONE DIGITALE (OBBLIGATORIA)'),
+    'conditional policy must not use the avoid_invitation digital-only rule'
+  );
 }
 
 console.log('--- Test physical presence constraint: validator blocks direct invitation ---');

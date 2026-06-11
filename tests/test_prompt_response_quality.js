@@ -161,6 +161,35 @@ console.log('--- Test prompt: contatto pregresso protegge da risposta standard -
   );
 }
 
+console.log('--- Test prompt: avoid_invitation e PDF non propone presenza fisica ---');
+{
+  const digitalOnlyPrompt = engine.buildPrompt({
+    emailSubject: '',
+    emailContent: 'Non ho nessunissima intenzione di fare la fila in segreteria. Me lo mandate via email in PDF entro stasera?',
+    knowledgeBase: 'I certificati di battesimo possono essere richiesti via email fornendo generalità e dati utili alla ricerca.',
+    detectedLanguage: 'it',
+    promptProfile: 'standard',
+    salutationMode: 'full',
+    physicalPresenceConstraint: {
+      has_constraint: true,
+      type: 'user_refusal',
+      visit_policy: 'avoid_invitation',
+      evidence: 'non ho nessunissima intenzione di fare la fila'
+    }
+  });
+
+  assert(
+    digitalOnlyPrompt.includes('GESTIONE DIGITALE (OBBLIGATORIA)') &&
+      digitalOnlyPrompt.includes('Verificheremo i nostri registri') &&
+      digitalOnlyPrompt.includes('OMETTI COMPLETAMENTE: orari di apertura al pubblico'),
+    'con avoid_invitation e richiesta PDF il prompt deve favorire una gestione solo digitale'
+  );
+  assert(
+    !digitalOnlyPrompt.includes('Formula corretta: "Per qualsiasi chiarimento puo\' contattarci telefonicamente o rispondere a questa email. Qualora le fosse possibile passare da Roma'),
+    'con avoid_invitation il prompt non deve presentare il passaggio da Roma come formula corretta'
+  );
+}
+
 console.log('--- Test prompt: contesto papale con inizio ministero non renderizza undefined ---');
 {
   const originalConfig = global.CONFIG;
