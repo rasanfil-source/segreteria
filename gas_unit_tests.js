@@ -2256,7 +2256,17 @@ function runAllTests() {
         });
         test('Rafforza regola anti-infodumping nelle linee guida risposta', results, () => {
             const guidelines = engine._renderResponseGuidelines('it', 'ordinario', 'Buongiorno', 'Cordiali saluti');
-            return guidelines.includes('REGOLA ANTI-INFODUMP') && guidelines.includes('massimo 4 frasi brevi');
+            return guidelines.includes('REGOLA ANTI-INFODUMP') && guidelines.includes('ogni frase deve guadagnarsi il suo posto');
+        });
+        test('Profilo lite mantiene il tono umano e la formattazione sensibile nel lutto', results, () => {
+            const prompt = engine.buildPrompt(Object.assign({}, baseOptions, {
+                promptProfile: 'lite',
+                subIntents: { bereavement: true },
+                category: 'information'
+            })).toString();
+            return prompt.includes('TONO DI VOCE E STILE RELAZIONALE') &&
+                prompt.includes('CONTESTO SENSIBILE E GERARCHIA') &&
+                prompt.includes('come una lettera scritta a mano');
         });
     });
 

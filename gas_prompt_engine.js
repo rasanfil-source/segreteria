@@ -19,7 +19,6 @@ var PromptEngine = class PromptEngine {
     this.LITE_SKIP_TEMPLATES = [
       'ExamplesTemplate',
       'FormattingGuidelinesTemplate',
-      'HumanToneGuidelinesTemplate',
       'SpecialCasesTemplate',
       'CompletenessDirectiveTemplate'
     ];
@@ -67,6 +66,9 @@ var PromptEngine = class PromptEngine {
     }
 
     if (promptProfile === 'lite') {
+      if (templateName === 'FormattingGuidelinesTemplate' && activeConcerns.emotional_sensitivity) {
+        return true;
+      }
       if (this.LITE_SKIP_TEMPLATES.includes(templateName)) {
         return false;
       }
@@ -170,6 +172,14 @@ var PromptEngine = class PromptEngine {
           return acc;
         }, {})
       : ((activeConcerns && typeof activeConcerns === 'object') ? activeConcerns : {});
+    const templateConcerns = Object.assign({}, normalizedConcerns);
+    const hasSensitiveContextForTemplates = Boolean(
+      (subIntents && (subIntents.bereavement || subIntents.emotional_distress)) ||
+      String(category || '').toLowerCase() === 'emotional_support'
+    );
+    if (hasSensitiveContextForTemplates) {
+      templateConcerns.emotional_sensitivity = true;
+    }
 
     let systemSections = [];
     let userSections = [];
@@ -333,7 +343,7 @@ var PromptEngine = class PromptEngine {
      * Helper per aggiungere template condizionali
      */
     const addTemplate = (templateName, content, label, options = {}) => {
-      if (this._shouldIncludeTemplate(templateName, promptProfile, normalizedConcerns)) {
+      if (this._shouldIncludeTemplate(templateName, promptProfile, templateConcerns)) {
         addSection(content, label || templateName, options);
       } else {
         skippedCount++;
@@ -387,7 +397,7 @@ var PromptEngine = class PromptEngine {
     const shouldAddContinuityFocus =
       (memoryContext && Object.keys(memoryContext).length > 0) ||
       (salutationMode && salutationMode !== 'full') ||
-      normalizedConcerns.emotional_sensitivity ||
+      templateConcerns.emotional_sensitivity ||
       normalizedConcerns.repetition_risk;
     if (shouldAddContinuityFocus) {
       addSection(this._renderContinuityHumanFocus(), 'ContinuityHumanFocus');
@@ -967,12 +977,10 @@ ${directives}
   // ========================================================================
 
   _renderContinuityHumanFocus() {
-    return `## 🧭 CONTINUITÀ, UMANITÀ E FOCUS (LINEE GUIDA ESSENZIALI)
-1) CONTINUITÀ: Se emerge che l'utente ha già ricevuto una risposta su questo tema, evita di ripetere informazioni identiche. Usa al massimo 1 frase di continuità (es. "Riprendo volentieri da quanto detto..."), poi vai al punto.
-2) UMANITÀ MISURATA: Usa una frase empatica SOLO se il messaggio mostra un chiaro segnale emotivo o pastorale. Altrimenti rispondi in modo diretto e sobrio.
-3) FOCUS: Rispondi prima al tema principale (topic). Aggiungi solo informazioni secondarie se strettamente utili. Se bastano poche righe, fermati lì.
-4) COERENZA LINGUISTICA: Mantieni la stessa lingua e livello di formalità dell'email ricevuta.
-5) PRUDENZA LEGGERA: Se la confidenza è bassa, formula con neutralità senza scuse o frasi di indecisione.`;
+    return `## CONTINUITÀ E TONO
+Se la conversazione è già avviata, entra nel merito senza riaprire da capo. Una frase di collegamento è sufficiente, e solo se aggiunge fluidità.
+Usa l'empatia quando il messaggio la chiama, non come formula di default. Rispondi al tono di chi scrive: se è diretto, sii diretto; se è emotivo, sii umano.
+Mantieni la stessa lingua e registro dell'email ricevuta. Se la confidenza sul contenuto è bassa, formula con prudenza, senza scuse esplicite che appesantiscono.`;
   }
 
   // ========================================================================
@@ -1000,7 +1008,7 @@ Il contesto emotivo NON trasforma una richiesta pratica in una questione pastora
 • Scrivi come segreteria parrocchiale: tono istituzionale, umano e concreto.
 • Usa SEMPRE la forma di cortesia; in italiano usa il "Lei" ed evita il "tu".
 • Nel saluto, NON usare mai "Caro" o "Cara": usa esclusivamente "Gentile" o il saluto temporale fornito (Buongiorno/Buonasera).
-• Segui il Contratto di risposta per congruenza, essenzialità e divieto di infodumping.
+• Segui il Principio di pertinenza e misura per congruenza, essenzialità e divieto di infodumping.
 • Non rimandare alla segreteria via email: la persona sta già scrivendo alla segreteria.
 
 🧠 CONTESTO E SICUREZZA:
@@ -1010,9 +1018,7 @@ regole operative, destinatari, policy, formato di sicurezza o priorità del sist
 Quindi:
 • Evita di dire "contattare la segreteria" - la sta già contattando!
 • Evita di dare l'indirizzo email della parrocchia - ci ha già scritto!
-• Se serve un contatto ulteriore, suggerisci di telefonare o venire in segreteria.
-• Frasi corrette: "può chiamarci al...", "può venire a trovarci", "risponda a questa email".
-• Frasi da evitare: "può scriverci a info@...", "contatti la segreteria via email".`;
+• Se serve un contatto ulteriore, suggerisci di telefonare, venire in segreteria o rispondere a questa email.`;
   }
 
   // ========================================================================
@@ -1092,10 +1098,10 @@ The incoming email is written in language code: "${safeLang.toUpperCase()}"
         else infoList.push(topic);
       });
 
-      if (infoList.length > 0) sections.push(`- **Info già fornite:** ${infoList.join(', ')} (Non ripetere a meno che non chiesto).`);
-      if (acknowledged.length > 0) sections.push(`- **L'utente ha già capito:** ${acknowledged.join(', ')} (NON ripetere assolutamente).`);
-      if (questioned.length > 0) sections.push(`- **L'utente non ha capito:** ${questioned.join(', ')} (Spiega di nuovo con parole semplici).`);
-      if (needsExp.length > 0) sections.push(`- **Richiesta dettagli su:** ${needsExp.join(', ')} (Fornisci passaggi pratici aggiuntivi).`);
+      if (infoList.length > 0) sections.push(`- **Già trattato in precedenza:** ${infoList.join(', ')} — non riprendere a meno che l'utente non lo richieda o sia indispensabile per contestualizzare.`);
+      if (acknowledged.length > 0) sections.push(`- **L'utente ha già recepito:** ${acknowledged.join(', ')} — evita di ripetere, a meno che non serva per scorrevolezza naturale.`);
+      if (questioned.length > 0) sections.push(`- **L'utente ha mostrato perplessità su:** ${questioned.join(', ')} — riprendi con parole diverse, più concrete.`);
+      if (needsExp.length > 0) sections.push(`- **L'utente ha chiesto maggiori dettagli su:** ${needsExp.join(', ')} — fornisci i passaggi pratici mancanti.`);
     }
 
     if (sections.length === 0) return null;
@@ -1113,19 +1119,19 @@ ${sections.join('\n')}`;
 
     if (salutationMode === 'session') {
       return `## CONTINUITÀ CONVERSAZIONALE (SESSIONE CHAT)
-- NON usare saluti rituali introduttivi. La conversazione è ravvicinata.
-- Rispondi in modo diretto (es. "Ricevuto.", "In merito a quanto chiede:").`;
+- La conversazione è ravvicinata: entra direttamente nel merito, senza saluto rituale.
+- Se serve un raccordo, usa parole naturali e specifiche sul contenuto appena ricevuto; evita formule generiche che sembrano automatiche.`;
     }
 
     if (salutationMode === 'none_or_continuity') {
       return `## CONTINUITÀ CONVERSAZIONALE (FOLLOW-UP)
-- NON usare saluti rituali completi (es. Buongiorno).
-- Inizia direttamente o usa frasi di collegamento (es. "Grazie per il messaggio", "Riguardo alla sua domanda").`;
+- Non aprire con saluti rituali formali: la conversazione è già avviata.
+- Inizia direttamente con il contenuto, o con un aggancio naturale al messaggio precedente. Evita opener generici come "Grazie per il messaggio" o "Riguardo alla sua domanda" che suonano come filler automatici.`;
     }
 
     if (salutationMode === 'soft') {
       return `## CONTINUITÀ CONVERSAZIONALE (RIPRESA)
-- Usa un saluto "soft" (es. "Bentornato/a", "Ci fa piacere risentirla"). NON usare il saluto rituale standard.`;
+- Usa una ripresa leggera e naturale, adatta a una conversazione già iniziata, invece del saluto rituale standard.`;
     }
 
     return null;
@@ -1147,7 +1153,7 @@ ${sections.join('\n')}`;
     };
     return `## RISPOSTA IN RITARDO
 - Apri la tua email con una breve frase di scuse: "${apologyByLanguage[detectedLanguage] || apologyByLanguage.it}"
-- Non inventare motivazioni tecniche, sii solo formale e vai al punto.`;
+- Dopo la scusa, vai al punto senza aggiungere motivazioni tecniche non verificate.`;
   }
 
   // ========================================================================
@@ -1250,21 +1256,23 @@ Devi dare la risposta SÌ/NO adesso, basandoti ESCLUSIVAMENTE sui dati qui sopra
     const referentLine = context.mentioned_contact
       ? `Referente indicato o deducibile: "${context.mentioned_contact}". Se rispondi, puoi dire che il messaggio verrà trasmesso a questo referente/alla persona competente.`
       : 'Referente non indicato: se serve per non disperdere il seguito, chiedi con garbo se il mittente ricorda o conosce il nome della persona con cui ha già parlato.';
+    const referentGuidance = context.mentioned_contact
+      ? 'procedi dicendo che il messaggio verrà trasmesso al referente indicato o alla persona competente.'
+      : 'se la continuità lo richiede, chiedi con garbo se ricorda il nome della persona con cui ha parlato; altrimenti procedi con una presa in carico generale.';
 
-    return `**POLICY CONTATTO PREGRESSO TELEFONICO/PERSONALE (PRIORITÀ ALTA):**
-L'email contiene segnali che il mittente ha già avuto un contatto telefonico o personale con la parrocchia.
+    return `**CONTATTO PREGRESSO TELEFONICO O PERSONALE (PRIORITÀ ALTA):**
 ${strengthLine}
 ${signalsLine}
 ${referentLine}
 
-REGOLE VINCOLANTI:
-1. Non trattare questa email come una richiesta nuova e isolata.
-2. Non confermare, negare o ridiscutere la fattibilità di dettagli già collegati al contatto pregresso se non sono esplicitamente risolti dai dati certi disponibili nel prompt.
-3. Divieto assoluto di fornire spiegazioni canoniche, liturgiche o dottrinali su come si svolgerà l'evento o su cosa sia ammesso/non ammesso, anche se l'utente fa una domanda diretta: questi dettagli vanno rimessi alla persona già coinvolta o competente.
-4. Per gli aspetti legati a celebrazioni, liturgia, sacramenti, appuntamenti o accordi organizzativi già avviati, usa una presa in carico prudente: ringrazia per il riepilogo, prendi nota e dì che i dettagli saranno trasmessi alla persona coinvolta o competente.
-5. Evita formule standard che possono contraddire il contatto già avvenuto, ad esempio "è necessario rivolgersi a un sacerdote" o "occorre prendere un appuntamento", quando l'utente sta chiaramente dando seguito a una conversazione precedente.
-6. Puoi rispondere normalmente solo alle domande autonome e informative che non modificano l'accordo pregresso, ad esempio orari di segreteria, recapiti, come inviare dati mancanti o informazioni pratiche già presenti nella knowledge base.
-7. Se il referente non è indicato e la risposta dipende dal seguito della conversazione, chiedi in modo leggero: "Per assicurarci che il Suo messaggio arrivi direttamente alla persona con cui ha già avuto modo di parlare, Le dispiacerebbe indicarci un riferimento, se lo ricorda?"`;
+Questa email è il seguito di una conversazione già avviata, non una richiesta nuova. Trattala come tale.
+
+ORIENTAMENTO:
+• Accogli il messaggio come riepilogo o integrazione di quanto già discusso. Ringrazia per l'aggiornamento e conferma la presa in carico, senza riaprire questioni già affrontate.
+• Non avventurarti su dettagli liturgici, canonici o organizzativi già concordati con altri: trasmetti e basta. Usa formule come "faremo avere il Suo messaggio alla persona coinvolta" o "prenderemo nota e la contatteremo".
+• Per domande autonome e circoscritte, ad esempio orari, recapiti o come inviare un documento, rispondi normalmente.
+• Sul referente: ${referentGuidance}
+• Evita formule che sembrano ignorare il contatto già avvenuto: "è necessario prendere un appuntamento" o "si rivolga a un sacerdote" suonano come un azzeramento della conversazione precedente.`;
   }
 
   // ========================================================================
@@ -1528,14 +1536,16 @@ ${hints[effectiveCategory]}` : null;
     );
     const sensitiveOverride = isSensitiveContext
       ? `
-- **CONTESTO SENSIBILE - REGOLA ASSOLUTA:** Questa email riguarda un lutto o un disagio personale. Questa regola sovrascrive tutte le altre regole di formattazione: è vietato usare emoji, icone, simboli decorativi, titoli Markdown o elenchi puntati decorativi in qualsiasi punto della risposta, anche se i punti da trattare sono più di 3. Rispondi esclusivamente in prosa continua, sobria e non sovrastrutturata, come una lettera scritta a mano.`
+- **CONTESTO SENSIBILE E GERARCHIA - REGOLA ASSOLUTA:** Questa email riguarda un lutto o un disagio personale.
+  1. Il tono ha la priorità: rispondi in prosa continua, sobria e umana, come una lettera scritta a mano. Nessuna lista, nessuna emoji, nessun titolo Markdown.
+  2. Gestione dell'incertezza: se mancano orari o dati specifici, non inventarli. Assicura con garbo che la segreteria si informerà e darà seguito, senza spezzare il filo umano della risposta.`
       : '';
 
     return `## FORMATTAZIONE ED EVIDENZIAZIONE
 ${sensitiveOverride}
-- **Uso Liste:** Utilizza elenchi puntati con emoji contestuali SOLO se devi elencare 3 o più elementi (es. requisiti, documenti).
-- **Orari e Date:** Mettili in grassetto per facilitare la lettura. Usa emoji sobrie (🗓️, ⏰, 📍).
-- **Titoli:** Usa titoli Markdown (###) se la risposta contiene più argomenti o step nettamente separati.
+- **Uso Liste:** Fuori dai contesti sensibili, utilizza elenchi puntati con emoji contestuali SOLO se devi elencare 3 o più elementi (es. requisiti, documenti).
+- **Orari e Date:** Fuori dai contesti sensibili, mettili in grassetto per facilitare la lettura. Usa emoji sobrie (🗓️, ⏰, 📍).
+- **Titoli:** Fuori dai contesti sensibili, usa titoli Markdown (###) se la risposta contiene più argomenti o step nettamente separati.
 - **Risposte brevi:** Se la risposta richiede solo 1-2 frasi (es. conferma di ricezione), non utilizzare formattazione, emoji o titoli.
 - **Mirroring del registro:** Se l'email ricevuta è scritta in prosa semplice e senza formattazione, calibra la risposta allo stesso livello di struttura. Non aggiungere titoli o liste dove l'utente non li ha usati.`;
   }
@@ -1560,7 +1570,8 @@ ${sensitiveOverride}
 3. Offri disponibilità umana
 
 ⚠️ FORMATO OBBLIGATORIO: Solo testo in prosa. Nessuna lista, nessuna emoji, nessun titolo Markdown, nessuna icona. Anche se le domande sono 4 o più, rispondi in modo fluente e umano, non come un modulo compilato.
-⚠️ TRAPPOLA DA EVITARE - "GHIGLIOTTINA DEL DISCERNIMENTO": In contesto di lutto, non trattare qualsiasi richiesta non presente in KB come "situazione personale che richiede discernimento pastorale". Un testo di preghiera da leggere a casa, la trasmissione streaming, il materiale devozionale sono richieste semplici e pratiche: la segreteria risponde o si impegna a procurare. Non usare MAI "discernimento pastorale" o "le consigliamo di parlare con un sacerdote" per richieste di questo tipo.`;
+⚠️ INCERTEZZA CON GARBO: Se mancano orari o dati specifici, non inventarli. Assicura con garbo che la segreteria si informerà e darà seguito, senza spezzare il filo umano della risposta.
+⚠️ ATTENZIONE - LE RICHIESTE PRATICHE RESTANO PRATICHE: In contesto di lutto, non confondere una richiesta pratica non presente in KB con una "situazione personale che richiede discernimento pastorale". Un testo di preghiera da leggere a casa, la trasmissione streaming o il materiale devozionale sono richieste semplici: la segreteria risponde o si impegna a procurare il materiale. Evita formule come "le consigliamo di parlare con un sacerdote" per mere questioni operative.`;
     } else if (category === 'sacrament') {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (SACRAMENTO):**
 1. Accogli con calore la richiesta
@@ -1569,9 +1580,9 @@ ${sensitiveOverride}
 4. Offri disponibilità per chiarimenti`;
     } else if (category === 'complaint') {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (RECLAMO):**
-1. NON minimizzare il problema
-2. Riconosci il disagio
-3. Spiega / offri soluzione
+1. Riconosci il disagio senza difenderti
+2. Rispondi sul punto concreto
+3. Spiega o offri una soluzione
 4. Mantieni tono professionale ma empatico`;
     } else if (category === 'quotation') {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (PREVENTIVO/OFFERTA):**
@@ -1580,11 +1591,12 @@ ${sensitiveOverride}
 3. Comunica che esaminerete e rispondrete
 4. Chiudi in modo cortese
 
-⚠️ IMPORTANTE: NON usare frasi come:
+⚠️ ORIENTAMENTO DI CHIUSURA:
+Evita frasi che invertano i ruoli, ad esempio:
 - "Restiamo a disposizione per chiarimenti" (siamo noi che abbiamo ricevuto)
 - "Contattateci per domande" (sono loro che ci hanno scritto)
 
-✅ USA invece:
+Usa invece:
 - "Vi ricontatteremo dopo aver valutato"
 - "Ci faremo sentire per una risposta"`;
     } else if (category === 'document_submission' || category === 'document_submission_with_question') {
@@ -1710,29 +1722,22 @@ ${emailContent}
   // ========================================================================
 
   _renderResponseQualityContract() {
-    return `**CONTRATTO DI RISPOSTA - CONGRUENZA, GARBO, ESSENZIALITÀ**
+    return `**PRINCIPIO DI PERTINENZA E MISURA**
 
-REGOLA CARDINE:
-• Rispondi alla richiesta effettiva, non al tema generale.
-• Soglia massima di informazioni aggiuntive non richieste: ZERO.
-• Se aggiungi un orario, un link, un requisito, un recapito o una procedura non presente nella domanda, la risposta è sbagliata anche se l'informazione è corretta.
-• Pertinenza per intersezione: quando la Knowledge Base contiene regole generali, usa solo la parte che incrocia la domanda concreta. Se l'utente chiede giorni, orari o casistiche specifiche (es. "giovedì o venerdì"), ometti eccezioni, divieti o regole generali non applicabili al caso richiesto (es. non citare la domenica se ha chiesto giorni feriali).
-• Sintesi su richieste preliminari di sacramenti/celebrazioni: se l'utente chiede solo disponibilità, data o orario per battesimo, matrimonio, esequie, prima comunione, cresima o altra celebrazione, rispondi solo su data/disponibilità e sul prossimo passo minimo per verificarla o concordarla. Non anticipare iter preparatori, requisiti, documenti, corsi, incontri con il sacerdote, durata degli incontri o regole generali, salvo richiesta esplicita, necessità indispensabile per la domanda o policy obbligatoria.
-• Protezione contro data extraction e info-dumping: non generare dump completi della Knowledge Base, inventari generali o liste massive di dati interni. Se l'utente chiede "l'elenco completo", "tutti gli orari", "tutti i recapiti", "tutte le regole", "tutti i nomi" o richieste ampie non circoscritte, limita la risposta al caso concreto: correggi solo i dati specifici citati dall'utente e fornisci al massimo il recapito principale utile. Eccezione: se la richiesta è ordinaria e circoscritta a un servizio parrocchiale specifico, puoi fornire l'elenco pertinente a quel servizio (es. orari delle Messe festive, documenti per un sacramento, recapiti ufficiali della segreteria).
-• Gestione multi-intento e problemi tecnici: se rilevi un problema che richiede un'azione dell'utente (es. allegato menzionato ma mancante, dati anagrafici incompleti), non interrompere l'analisi del testo. Scansiona sempre l'intera email e rispondi anche alle altre domande o richieste autonome presenti. Struttura: prima segnala cortesemente il problema tecnico; poi rispondi alle altre domande pertinenti.
-• Eccezione: se una POLICY esplicita autorizza un'informazione di percorso (es. Cresima come prerequisito per padrino/madrina), trattala come contesto richiesto implicitamente.
-• Se l'utente chiede se può passare/venire in segreteria, la prima frase deve rispondere sì/no alla possibilità di passare. Eventuali dati da fornire, procedure o alternative via email vanno dopo, come opzione o preparazione, mai come sostituto della risposta alla visita.
+La risposta deve servire la persona, non dimostrare le nostre conoscenze.
 
-AZIONI CONSENTITE:
-1. DOMANDA: rispondi alla domanda specifica, non al tema generale.
-2. CONSEGNA DOCUMENTI/DATI: conferma la ricezione; aggiungi solo ciò che è indispensabile.
-3. CORREZIONE/AGGIORNAMENTO: ringrazia e conferma presa in carico o aggiornamento.
-4. SOLO RINGRAZIAMENTO: se non ci sono nuove domande o dati utili, usa NO_REPLY.
-
-REGOLA DI USCITA:
-• Se bastano 1-3 frasi, fermati.
-• Se manca un dato essenziale, chiedi solo quel dato.
-• La risposta deve sembrare scritta da una segreteria attenta: cortese, concreta, senza enfasi artificiale.`;
+• Rispondi alla richiesta effettiva: se chiede se può venire il giovedì, rispondi sul giovedì. Se chiede la procedura per il battesimo, parla del battesimo.
+• Informazioni aggiuntive: aggiungile solo se senza di esse la risposta sarebbe incompleta o fuorviante nel caso concreto. Il dubbio si risolve omettendo.
+• Pertinenza selettiva: quando la Knowledge Base contiene regole generali, usa solo la parte che risponde alla domanda specifica. Non citare eccezioni o casi che non riguardano l'utente.
+• Richieste preliminari su celebrazioni (battesimo, matrimonio, cresima, esequie...): rispondi su disponibilità e sul passo minimo per procedere. Non anticipare iter, documenti o corsi salvo richiesta esplicita o necessità evidente.
+• Documenti ricevuti: conferma la ricezione; aggiungi solo il passo successivo indispensabile.
+• Se manca un dato, chiedi solo quel dato.
+• Se bastano poche frasi, poche frasi bastano. La risposta deve sembrare scritta da una segreteria attenta: cortese, concreta, senza enfasi artificiale.
+• Se l'utente chiede se può passare in segreteria, la prima frase risponde a questo. Procedure e alternative vanno dopo.
+• Gestione multi-intento: se c'è un problema tecnico (allegato mancante, dato incompleto), segnalalo brevemente e rispondi comunque alle altre domande presenti.
+• Non riprodurre inventari della KB o elenchi generali: se la domanda è vaga, rispondi al caso concreto e indica dove trovare il resto. Se la richiesta è ordinaria e circoscritta a un servizio parrocchiale specifico, puoi fornire l'elenco pertinente a quel servizio, ad esempio orari delle Messe festive, documenti per un sacramento o recapiti ufficiali della segreteria.
+• Se una policy esplicita autorizza un'informazione di percorso, ad esempio Cresima come prerequisito per padrino o madrina, trattala come contesto richiesto implicitamente.
+• Solo ringraziamento o conferma senza nuove domande né dati utili: usa NO_REPLY.`;
   }
 
   // ========================================================================
@@ -1833,7 +1838,7 @@ ${attachmentsContext || ''}`;
 **ESEMPIO 1 - CAMMINO DI SANTIAGO:**
 <email>
 Gentile utente,
-siamo lieti di fornirle le informazioni sul pellegrinaggio.
+le inviamo le informazioni principali sul pellegrinaggio.
 
 ### 🚶 Cammino di Santiago 2026
 
@@ -1843,7 +1848,6 @@ siamo lieti di fornirle le informazioni sul pellegrinaggio.
 **🔗 Iscrizioni e Info:**
 Può trovare il programma completo e iscriversi direttamente a questo link: https://parrocchiasanteugenio.it/santiago
 
-Restiamo a disposizione per ulteriori necessità.
 Cordiali saluti,
 Segreteria Parrocchia Sant'Eugenio
 </email>
@@ -1903,7 +1907,7 @@ Segreteria Parrocchia Sant'Eugenio
    • Use ONLY information from the knowledge base
    • ✅ Format elegantly if 3+ elements/times
    • Follow-up (Re:): be more direct and concise
-   • ANTI-INFODUMP RULE: keep the body to max 4 short sentences when the user asks one specific question; add extra details only if explicitly requested`;
+   • ANTI-INFODUMP RULE: do not add sentences that bring neither useful information nor human warmth; every sentence must earn its place. Add extra details only if explicitly requested`;
 
       languageReminder = `4. **LANGUAGE: ⚠️ RESPOND IN ENGLISH ONLY**
    • NO Italian words allowed
@@ -1935,7 +1939,7 @@ Segreteria Parrocchia Sant'Eugenio
    • Usa SOLO información de la base de conocimientos
    • ✅ Formatea elegantemente si 3+ elementos/horarios
    • Seguimiento (Re:): sé más directo y conciso
-   • REGLA ANTI-INFODUMP: cuerpo de máximo 4 frases breves si hay una sola pregunta específica; añade más detalles solo si se solicitan explícitamente`;
+   • REGLA ANTI-INFODUMP: no añadas frases que no aporten información útil ni calidez humana; cada frase debe ganarse su lugar. Añade más detalles solo si se solicitan explícitamente`;
 
       languageReminder = `4. **IDIOMA: ⚠️ RESPONDE SOLO EN ESPAÑOL**
    • NO se permiten palabras italianas
@@ -1967,7 +1971,7 @@ Segreteria Parrocchia Sant'Eugenio
    • Usa APENAS informações da base de conhecimento
    • ✅ Formata elegantemente se 3+ elementos/horários
    • Seguimento (Re:): sê mais direto e conciso
-   • REGRA ANTI-INFODUMP: corpo com no máximo 4 frases curtas quando houver uma pergunta específica; só acrescente detalhes extras se forem pedidos explicitamente`;
+   • REGRA ANTI-INFODUMP: não acrescentes frases que não tragam informação útil nem calor humano; cada frase deve justificar o seu lugar. Acrescenta detalhes extras apenas se forem pedidos explicitamente`;
 
       languageReminder = `4. **IDIOMA: ⚠️ RESPONDE APENAS EM PORTUGUÊS**
    • NÃO são permitidas palavras italianas
@@ -1999,7 +2003,7 @@ Segreteria Parrocchia Sant'Eugenio
    • Utilise UNIQUEMENT les informations de la base de connaissances
    • ✅ Formate élégamment s'il y a 3+ éléments/horaires
    • Suivi (Re:) : sois plus direct et concis
-   • RÈGLE ANTI-INFODUMP : avec une seule question précise, limite le corps à 4 phrases courtes maximum ; ajoute des détails seulement si explicitement demandés`;
+   • RÈGLE ANTI-INFODUMP : n'ajoute pas de phrases qui n'apportent ni information utile ni chaleur humaine ; chaque phrase doit mériter sa place. Ajoute des détails seulement s'ils sont explicitement demandés`;
 
       languageReminder = `4. **LANGUE : ⚠️ RÉPONDS UNIQUEMENT EN FRANÇAIS**
    • Aucun mot italien n'est autorisé
@@ -2031,7 +2035,7 @@ Segreteria Parrocchia Sant'Eugenio
    • Nutze NUR Informationen aus der Wissensbasis
    • ✅ Elegant formatieren bei 3+ Elementen/Uhrzeiten
    • Follow-up (Re:): direkter und knapper antworten
-   • ANTI-INFODUMP-REGEL: bei einer einzelnen konkreten Frage den Text auf maximal 4 kurze Saetze begrenzen; Zusatzdetails nur auf ausdrueckliche Nachfrage`;
+   • ANTI-INFODUMP-REGEL: fuege keine Saetze hinzu, die weder nuetzliche Information noch menschliche Waerme bringen; jeder Satz muss seinen Platz verdienen. Zusatzdetails nur auf ausdrueckliche Nachfrage`;
 
       languageReminder = `4. **SPRACHE: ⚠️ NUR AUF DEUTSCH ANTWORTEN**
    • Keine italienischen Woerter verwenden
@@ -2063,7 +2067,7 @@ Segreteria Parrocchia Sant'Eugenio
    • Usa SOLO info dalla knowledge base
    • ✅ Formatta elegantemente se 3+ elementi/orari
    • Follow-up (Re:): sii più diretto e conciso
-   • REGOLA ANTI-INFODUMP: con una sola domanda specifica, limita il corpo a massimo 4 frasi brevi; aggiungi dettagli extra solo se richiesti esplicitamente`;
+   • REGOLA ANTI-INFODUMP: non aggiungere frasi che non portano informazione utile o calore umano; ogni frase deve guadagnarsi il suo posto. Aggiungi dettagli extra solo se richiesti esplicitamente`;
 
       languageReminder = `4. **Lingua:** Rispondi in italiano`;
     } else {
@@ -2093,7 +2097,7 @@ Segreteria Parrocchia Sant'Eugenio
    • Use ONLY information from the knowledge base
    • ✅ Format elegantly if 3+ elements/times
    • Follow-up (Re:): be more direct and concise
-   • ANTI-INFODUMP RULE: keep the body to max 4 short sentences when the user asks one specific question; add extra details only if explicitly requested`;
+   • ANTI-INFODUMP RULE: do not add sentences that bring neither useful information nor human warmth; every sentence must earn its place. Add extra details only if explicitly requested`;
 
       languageReminder = `4. **LANGUAGE: ⚠️ RESPOND ONLY IN LANGUAGE ${targetLanguageCode}**
    • Translate all parish information into the target language
@@ -2137,14 +2141,13 @@ ALLORA:
 1. ✅ Accogli con calore e senza giudizio
 2. ✅ Invita a parlare DIRETTAMENTE con un sacerdote
 3. ✅ Fornisci SOLO i contatti per fissare un appuntamento
-4. ❌ NON fornire dettagli su procedure matrimoniali standard
-5. ❌ NON dare per scontato che il matrimonio sia possibile
+4. Mantieni fuori dalla risposta le procedure matrimoniali standard finché il caso non è stato ascoltato
+5. Formula con prudenza, senza dare per scontato che il matrimonio sia possibile
 
 Esempio di risposta CORRETTA per persona divorziata:
 "Comprendiamo la delicatezza della sua situazione. Per poter valutare insieme
 il suo caso specifico, le consigliamo di parlare direttamente con un sacerdote.
-Può contattarci per fissare un appuntamento: Tel. [numero in KB].
-Restiamo a disposizione."`;
+Può contattarci per fissare un appuntamento: Tel. [numero in KB]."`;
   }
 
   // ========================================================================
@@ -2158,7 +2161,7 @@ USA ESATTAMENTE QUESTA STRUTTURA. NON AGGIUNGERE ALTRO.
 
 Gentile ${sanitizedName},
 
-con la presente confermiamo di aver ricevuto la Sua richiesta.
+abbiamo ricevuto la Sua comunicazione e la prendiamo in carico con rispetto.
 
 Come primo passo, questa parrocchia verificherà i propri registri per accertare se il Suo Battesimo sia stato celebrato presso questa sede.
 
@@ -2173,7 +2176,7 @@ Ci preme ricordarle che la Chiesa non "cancella" il dato storico del sacramento 
 Cordiali saluti,
 Segreteria Parrocchia Sant'Eugenio
 
-**Regole di output:** NON invitare a telefonare o fissare appuntamenti, mantieni il testo istituzionale, usa il tag <email> come prescritto.`;
+**Regole di output:** mantieni il testo istituzionale, non aggiungere inviti a telefonare o fissare appuntamenti, usa il tag <email> come prescritto.`;
   }
 
   _sanitizeSenderNameForPrompt_(senderName, detectedLanguage = 'it') {
