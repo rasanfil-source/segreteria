@@ -427,6 +427,18 @@ assert(
   'non deve registrare 10:00 tra gli orari allucinati quando la KB contiene "ore 10"'
 );
 
+console.log('--- Test hallucination: ore 24 in KB autorizza 24:00 ---');
+const midnightHourKbResult = validator._checkHallucinations(
+  'La Messa della notte di Natale è alle 24:00.',
+  'Natale: la Messa della notte è celebrata alle ore 24.',
+  'Vorrei sapere l orario della Messa di Natale.'
+);
+assert(midnightHourKbResult.score === 1.0, 'una KB con "ore 24" deve autorizzare una risposta con 24:00');
+assert(
+  !midnightHourKbResult.hallucinations.times || midnightHourKbResult.hallucinations.times.length === 0,
+  '24:00 non deve essere registrato tra gli orari allucinati quando la KB contiene "ore 24"'
+);
+
 console.log('--- Test hallucination: versetti biblici paolini/cattolici non sono orari inventati ---');
 const bibleVerseResult = validator._checkHallucinations(
   'Per il gruppo biblico leggeremo Rm 9,20, 1Cor 13.4, Ef 2,10 e 2Pt 1,10.',
@@ -1411,6 +1423,21 @@ console.log('--- Test SemanticValidator: hallucinations senza isValid diventano 
   assert(normalized.isValid === false, 'hallucinations non vuote devono rendere il payload non valido');
   assert(normalized.confidence === 0, 'confidence 0 deve essere preservata e non sostituita con default');
   assert(Array.isArray(normalized.details.times), 'i dettagli hallucinations devono essere preservati');
+}
+
+console.log('--- Test SemanticValidator: prompt hallucination non tronca KB a 2000 caratteri ---');
+{
+  const semantic = Object.create(SemanticValidator.prototype);
+  const lateKbFact = 'NATALE_SENTINEL: Messa della notte alle ore 24.';
+  const longKnowledgeBase = 'Intro KB. ' + 'x'.repeat(2500) + lateKbFact + ' ' + 'y'.repeat(500);
+  const prompt = semantic._buildHallucinationPrompt(
+    'La Messa della notte di Natale è alle 24:00.',
+    longKnowledgeBase,
+    'Vorrei sapere gli orari di Natale.'
+  );
+
+  assert(prompt.includes(lateKbFact), 'il prompt semantico deve includere dati KB oltre i vecchi 2000 caratteri');
+  assert(!prompt.includes('[TRUNCATED]'), 'una KB sotto 30000 caratteri non deve essere troncata');
 }
 
 

@@ -716,7 +716,7 @@ var ResponseValidator = class ResponseValidator {
       t = t.replace(/^(\d{1,2})\.(\d{2})$/, '$1:$2');
       if (/^\d{1,2}$/.test(t)) {
         const hour = parseInt(t, 10);
-        if (!isNaN(hour) && hour >= 0 && hour <= 23) {
+        if (!isNaN(hour) && hour >= 0 && hour <= 24) {
           return `${hour.toString().padStart(2, '0')}:00`;
         }
       }
@@ -2805,8 +2805,8 @@ var SemanticValidator = class SemanticValidator {
   // ========================================================================
 
   _buildHallucinationPrompt(response, knowledgeBase, emailContent) {
-    const kbTruncated = knowledgeBase && knowledgeBase.length > 2000
-      ? knowledgeBase.substring(0, 2000) + '...[TRUNCATED]'
+    const kbTruncated = knowledgeBase && knowledgeBase.length > 30000
+      ? knowledgeBase.substring(0, 30000) + '...[TRUNCATED]'
       : knowledgeBase;
     const emailTruncated = emailContent && emailContent.length > 2000
       ? emailContent.substring(0, 2000) + '...[TRUNCATED]'

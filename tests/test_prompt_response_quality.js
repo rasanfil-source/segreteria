@@ -55,6 +55,21 @@ assert(
   'il contratto qualità deve imporre la sintesi sui soli casi richiesti'
 );
 assert(
+  litePrompt.includes('Sintesi su richieste preliminari di sacramenti/celebrazioni') &&
+    litePrompt.includes('battesimo, matrimonio, esequie') &&
+    litePrompt.includes('Non anticipare iter preparatori') &&
+    litePrompt.includes('incontri con il sacerdote'),
+  'il contratto qualità deve evitare infodump preliminari sui sacramenti'
+);
+assert(
+  litePrompt.includes('Protezione contro data extraction e info-dumping') &&
+    litePrompt.includes('dump completi della Knowledge Base') &&
+    litePrompt.includes('liste massive di dati interni') &&
+    litePrompt.includes('correggi solo i dati specifici citati') &&
+    litePrompt.includes('richiesta è ordinaria e circoscritta'),
+  'il contratto qualità deve bloccare dump massivi senza impedire richieste parrocchiali circoscritte'
+);
+assert(
   litePrompt.includes('Gestione multi-intento e problemi tecnici') &&
     litePrompt.includes('allegato menzionato ma mancante') &&
     litePrompt.includes('dati anagrafici incompleti') &&
@@ -95,6 +110,27 @@ assert(
   litePrompt.includes('Completezza domande') &&
     !litePrompt.includes('DIRETTIVA DI COMPLETEZZA'),
   'il profilo lite deve mantenere la regola sintetica senza la direttiva estesa'
+);
+
+console.log('--- Test prompt: fuori territorio resta accogliente e utile ---');
+const outOfTerritoryPrompt = engine.buildPrompt({
+  emailSubject: 'Territorio parrocchiale',
+  emailContent: 'Buongiorno,\nmi sono trasferita da poco a Roma e vorrei sapere se rientro nella circoscrizione della parrocchia di Sant\'Eugenio. Abito in via Barnaba Oriani.\nGrazie,\nSofia Conti',
+  knowledgeBase: 'La Basilica accoglie fedeli e visitatori per le Sante Messe e le attività aperte a tutti.',
+  detectedLanguage: 'it',
+  promptProfile: 'lite',
+  salutationMode: 'full',
+  salutation: 'Buonasera Sofia,',
+  closing: 'Cordiali saluti,',
+  territoryContext: 'ESITO VERIFICA: NON RIENTRA nel territorio della parrocchia di Sant\'Eugenio.\nIndirizzo verificato: via Barnaba Oriani.'
+});
+assert(
+  outOfTerritoryPrompt.includes('SE LEGGI "NON RIENTRA" -> Devi dire NO') &&
+    outOfTerritoryPrompt.includes('NON fermarti a un rifiuto secco') &&
+    outOfTerritoryPrompt.includes('Diocesi di Roma') &&
+    outOfTerritoryPrompt.includes('benvenuta nella Basilica') &&
+    outOfTerritoryPrompt.includes('non far intendere che pratiche territoriali'),
+  'il prompt deve accompagnare il fuori territorio con aiuto pratico e accoglienza'
 );
 
 console.log('--- Test prompt: firma nel body prevale sul nome account mittente ---');
@@ -532,6 +568,25 @@ assert(
 assert(
   !missingAttachmentQuestionPrompt.includes('ALLEGATO = DOCUMENTAZIONE CONSEGNATA'),
   'l allegato mancante non deve essere trattato come documentazione ricevuta'
+);
+
+console.log('--- Test prompt: battesimo con sola disponibilità data non diventa iter sacramentale ---');
+const baptismDateOnlyPrompt = engine.buildPrompt({
+  emailSubject: 'Battesimo',
+  emailContent: 'Buongiorno,\n\nvorremmo fissare il battesimo di nostra figlia per domenica 15 luglio.\n\nÈ disponibile la parrocchia in quella data?\n\nGrazie,\nAntonio e Silvia Luca',
+  knowledgeBase: 'Battesimi: si celebrano preferibilmente il sabato sera o la domenica durante la Santa Messa. Prima del battesimo è previsto un incontro di preparazione di circa un ora insieme al sacerdote nei giorni precedenti. Per verificare una data occorre concordarla con la segreteria.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  salutationMode: 'full',
+  salutation: 'Buonasera, gentili Antonio e Silvia,',
+  closing: 'Cordiali saluti,',
+  category: 'sacrament'
+});
+assert(
+  baptismDateOnlyPrompt.includes('Sintesi su richieste preliminari di sacramenti/celebrazioni') &&
+    baptismDateOnlyPrompt.includes('rispondi solo su data/disponibilità') &&
+    baptismDateOnlyPrompt.includes('Non anticipare iter preparatori'),
+  'il prompt deve bloccare il volantino sacramentale quando la domanda riguarda solo la data'
 );
 
 console.log('--- Test prompt: Cresima prerequisito per padrino autorizza guidance mirata ---');
