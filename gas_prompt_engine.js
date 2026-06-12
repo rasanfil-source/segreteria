@@ -1042,7 +1042,21 @@ O email recebido está escrito em PORTUGUÊS.
 - Escrever TODA a resposta em PORTUGUÊS.
 - Usar saudações e despedidas portuguesas ("Bom dia," "Com os melhores cumprimentos,").
 - Manter um registo formal e cordial.
-- NÃO usar palavras italianas. Isto é OBRIGATÓRIO.`
+- NÃO usar palavras italianas. Isto é OBRIGATÓRIO.`,
+      'fr': `## EXIGENCE CRITIQUE DE LANGUE : FRANÇAIS
+L'e-mail reçu est rédigé en FRANÇAIS.
+- Rédigez l'INTÉGRALITÉ de votre réponse en FRANÇAIS.
+- Utilisez des formules de politesse françaises ("Bonjour," "Cordialement,").
+- Maintenez un registre formel avec le vouvoiement.
+- Traduisez toutes les informations en français.
+- N'utilisez AUCUN mot italien. C'est OBLIGATOIRE.`,
+      'de': `## KRITISCHE SPRACHANFORDERUNG: DEUTSCH
+Die eingegangene E-Mail ist auf DEUTSCH verfasst.
+- Verfassen Sie Ihre GESAMTE Antwort auf DEUTSCH.
+- Verwenden Sie deutsche Anrede- und Grußformeln ("Guten Morgen," "Mit freundlichen Grüßen,").
+- Halten Sie einen formellen, höflichen Ton ein; verwenden Sie "Sie".
+- Übersetzen Sie alle Informationen ins Deutsche.
+- Verwenden Sie KEIN einziges italienisches Wort. Das ist VERPFLICHTEND.`
     };
 
     if (!instructions[safeLang]) {
@@ -1431,30 +1445,33 @@ ${messageDateLines}${currentTime ? `- **Ora locale attuale:** ${currentTime}\n` 
 
       const cells = line.split(/\t|\s*\|\s*/).map(cell => cell.trim()).filter(Boolean);
       const currentIndex = cells.findIndex(cell => /^(?:papa|pontefice)\s+(?:regnante|attuale)$/i.test(cell));
-      if (currentIndex >= 0 && cells[currentIndex + 1]) {
+      if (!result.currentName && currentIndex >= 0 && cells[currentIndex + 1]) {
         result.currentName = this._cleanPopeName_(cells[currentIndex + 1]);
-        if (result.currentName) return result;
       }
 
       const previousIndex = cells.findIndex(cell => /^(?:papa|pontefice)\s+(?:precedente|emerito)$/i.test(cell));
-      if (previousIndex >= 0 && cells[previousIndex + 1]) {
+      if (!result.previousName && previousIndex >= 0 && cells[previousIndex + 1]) {
         result.previousName = this._cleanPopeName_(cells[previousIndex + 1]);
       }
 
       const currentInline = /\b(?:papa|pontefice)\s+(?:regnante|attuale)\s*(?:[:=\-]\s*)+(.+)$/i.exec(line);
-      if (currentInline && currentInline[1]) {
+      if (!result.currentName && currentInline && currentInline[1]) {
         result.currentName = this._cleanPopeName_(currentInline[1]);
-        if (result.currentName) return result;
       }
+
+      if (result.currentName && result.previousName) return result;
     }
 
     return result;
   }
 
   _cleanPopeName_(value) {
+    const verbs = '(?:invita|ricorda|esorta|chiede|incoraggia|sollecita|insegna|sottolinea|richiama)';
     const cleaned = String(value || '')
       .replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, '')
       .replace(/^(?:papa|pontefice|santo\s+padre)\s+/i, '')
+      .replace(new RegExp('\\s+(?:ci\\s+)?' + verbs + '\\b.*$', 'i'), '')
+      .replace(/\s+(?:è|e')\s+(?:l['’]?\s*)?(?:attuale\s+)?(?:Papa|Pontefice).*$/i, '')
       .replace(/\s*\|.*$/g, '')
       .replace(/[.;,].*$/g, '')
       .replace(/\s+/g, ' ')
@@ -1694,6 +1711,7 @@ REGOLA CARDINE:
 • Rispondi alla richiesta effettiva, non al tema generale.
 • Soglia massima di informazioni aggiuntive non richieste: ZERO.
 • Se aggiungi un orario, un link, un requisito, un recapito o una procedura non presente nella domanda, la risposta è sbagliata anche se l'informazione è corretta.
+• Pertinenza per intersezione: quando la Knowledge Base contiene regole generali, usa solo la parte che incrocia la domanda concreta. Se l'utente chiede giorni, orari o casistiche specifiche (es. "giovedì o venerdì"), ometti eccezioni, divieti o regole generali non applicabili al caso richiesto (es. non citare la domenica se ha chiesto giorni feriali).
 • Eccezione: se una POLICY esplicita autorizza un'informazione di percorso (es. Cresima come prerequisito per padrino/madrina), trattala come contesto richiesto implicitamente.
 • Se l'utente chiede se può passare/venire in segreteria, la prima frase deve rispondere sì/no alla possibilità di passare. Eventuali dati da fornire, procedure o alternative via email vanno dopo, come opzione o preparazione, mai come sostituto della risposta alla visita.
 

@@ -1338,7 +1338,7 @@ function runAllTests() {
     testGroup('ResponseValidator - Quality', results, () => {
         const validator = new ResponseValidator();
         test('Controlla e censura eventuali inferenze esposte di estrazione del LLM', results, () => {
-            const res = validator.validateResponse("Rivedendo la knowledge base, ecco la risposta.", 'it', "...", "...", "...", "full");
+            const res = validator.validateResponse("Rivedendo la knowledge base, ecco la risposta.", 'it', "...", "...", "...", "full", false);
             return res.details.exposedReasoning.score === 0.0;
         });
         test('Rileva placeholder "XXX"', results, () => {

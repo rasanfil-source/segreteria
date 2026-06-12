@@ -1239,6 +1239,40 @@ console.log('--- Test riferimenti papali: cleanup rimuove titolo e suffisso tabe
   assert(cleaned === 'Leone XIV', 'il cleanup deve rimuovere titolo pontefice e suffisso dopo pipe');
 }
 
+console.log('--- Test riferimenti papali: riga tabellare conserva Papa attuale e precedente ---');
+{
+  const extracted = validator._extractPapalContextFromText_(
+    'Informazioni di contesto | Papa regnante | Leone XIV | Papa precedente | Francesco'
+  );
+  assert(extracted.currentName === 'Leone XIV', 'la riga tabellare deve estrarre il Papa regnante');
+  assert(extracted.previousName === 'Francesco', 'la stessa riga tabellare deve estrarre anche il Papa precedente');
+}
+
+console.log('--- Test riferimenti papali: ministryStart disponibile nel validator ---');
+{
+  const context = validator._getCurrentPopeContext_('', {
+    currentName: 'Papa Pio XIII',
+    previousName: 'Papa Leone XIV',
+    currentSince: '2026-01-01',
+    ministryStart: '2026-01-08'
+  });
+  assert(context.ministryStart === '2026-01-08', 'il contesto papale del validator deve includere ministryStart');
+}
+
+console.log('--- Test perfezionamento automatico: rimuove thinking leak critico ---');
+{
+  const refined = validator._perfezionamentoAutomatico(
+    'Consultando la knowledge base, le confermiamo che la segreteria è aperta domani. Cordiali saluti.',
+    ['RAGIONAMENTO ESPOSTO CRITICO: "Regex Match: consultando la knowledge base..."'],
+    'it'
+  );
+  assert(refined.fixed === true, 'il thinking leak critico deve attivare un perfezionamento automatico');
+  assert(
+    !/consultando la knowledge base/i.test(refined.text),
+    'il perfezionamento deve rimuovere il prefisso di ragionamento esposto'
+  );
+}
+
 console.log('--- Test _checkCapitalAfterComma: rileva maiuscole latine accentate ---');
 {
   const accentedCap = validator._checkCapitalAfterComma('Hola, Él responderá pronto.', 'es');

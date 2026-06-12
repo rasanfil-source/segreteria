@@ -49,6 +49,12 @@ assert(
   'il prompt deve vietare informazioni non richieste'
 );
 assert(
+  litePrompt.includes('Pertinenza per intersezione') &&
+    litePrompt.includes('giovedì o venerdì') &&
+    litePrompt.includes('non citare la domenica'),
+  'il contratto qualità deve imporre la sintesi sui soli casi richiesti'
+);
+assert(
   litePrompt.includes('Se l\'utente chiede se può passare/venire in segreteria') &&
     litePrompt.includes('la prima frase deve rispondere sì/no'),
   'il contratto qualità deve proteggere la risposta primaria alle richieste di passaggio'
@@ -60,6 +66,18 @@ assert(
 assert(
   !litePrompt.includes('<analisi>') && !litePrompt.includes('</analisi>'),
   'il contratto finale non deve richiedere il tag analisi'
+);
+const frenchLanguageInstruction = engine._renderLanguageInstruction('fr');
+const germanLanguageInstruction = engine._renderLanguageInstruction('de');
+assert(
+  frenchLanguageInstruction.includes('FRANÇAIS') &&
+    !frenchLanguageInstruction.includes('language code'),
+  'il prompt deve avere istruzioni lingua dedicate per il francese'
+);
+assert(
+  germanLanguageInstruction.includes('DEUTSCH') &&
+    !germanLanguageInstruction.includes('language code'),
+  'il prompt deve avere istruzioni lingua dedicate per il tedesco'
 );
 assert(
   litePrompt.includes('firma esplicita con un nome personale diverso') &&
@@ -541,6 +559,23 @@ assert(
   prefixedPopePrompt.includes('Papa attuale:** Leone XIV') &&
     !prefixedPopePrompt.includes('Papa attuale:** Pontefice Leone XIV |'),
   'il prompt deve normalizzare "Pontefice Leone XIV" e rimuovere suffissi tabellari'
+);
+const tabularPapalPrompt = engine.buildPrompt({
+  emailSubject: 'Contesto',
+  emailContent: 'Chi era il Papa precedente?',
+  knowledgeBase: 'Informazioni di contesto | Papa regnante | Pio XIII | Papa precedente | Benedetto XVI',
+  detectedLanguage: 'it',
+  currentDate: '2026-05-15',
+  promptProfile: 'lite'
+});
+assert(
+  tabularPapalPrompt.includes('Papa attuale:** Pio XIII') &&
+    tabularPapalPrompt.includes('Non presentare Benedetto XVI come Papa attuale'),
+  'il prompt deve leggere Papa regnante e precedente dalla stessa riga tabellare'
+);
+assert(
+  engine._cleanPopeName_('Leone XIV invita i fedeli') === 'Leone XIV',
+  'il cleanup del PromptEngine deve rimuovere i suffissi verbali dal nome del Papa'
 );
 assert(
   temporalPrompt.includes('Prima di descrivere un evento') &&

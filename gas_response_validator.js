@@ -229,7 +229,8 @@ var ResponseValidator = class ResponseValidator {
     if (!validationResult.isValid && attemptPerfezionamento) {
       console.log('✨ Tentativo perfezionamento automatico...');
 
-      const perfezionamentoResult = this._perfezionamentoAutomatico(currentResponse, validationResult.errors, safeDetectedLanguage, temporalContext);
+      const refinementIssues = validationResult.errors.concat(validationResult.warnings || []);
+      const perfezionamentoResult = this._perfezionamentoAutomatico(currentResponse, refinementIssues, safeDetectedLanguage, temporalContext);
 
       if (perfezionamentoResult.fixed) {
         console.log('   ✨ Risposta perfezionata (migliorata qualità o rimozione allucinazioni)');
@@ -1457,13 +1458,17 @@ var ResponseValidator = class ResponseValidator {
     } else if (papalContext.previousName) {
       const escapedPrev = String(papalContext.previousName)
         .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const prevRx = new RegExp('(?:^|[^\\p{L}\\p{N}_])' + escapedPrev + '(?=$|[^\\p{L}\\p{N}_])', 'iu');
+      const nonWordBoundary = '[^A-Za-z0-9À-ÖØ-öø-ÿ_]';
+      const leftBoundary = '(?:^|' + nonWordBoundary + ')';
+      const rightBoundary = '(?=$|' + nonWordBoundary + ')';
+      const prevRx = new RegExp(leftBoundary + escapedPrev + rightBoundary, 'i');
       const presentVerbPattern = "(?:è|e'|invita|ricorda|esorta|chiede|sottolinea|incoraggia|sollecita|insegna|richiama)";
-      const presentVerbBoundary = '(?:^|[^\\p{L}\\p{N}_])' + presentVerbPattern + '(?=$|[^\\p{L}\\p{N}_])';
+      const presentVerbBoundary = leftBoundary + presentVerbPattern + rightBoundary;
+      const sameSentenceWindow = '[^.!?\\r\\n]{0,80}';
       const prevPresentRx = new RegExp(
-        '(?:^|[^\\p{L}\\p{N}_])' + escapedPrev + '(?:(?![.!?]).){0,80}' + presentVerbBoundary
-        + '|' + presentVerbBoundary + '(?:(?![.!?]).){0,80}(?:^|[^\\p{L}\\p{N}_])' + escapedPrev + '(?=$|[^\\p{L}\\p{N}_])',
-        'isu'
+        leftBoundary + escapedPrev + sameSentenceWindow + presentVerbBoundary
+        + '|' + presentVerbBoundary + sameSentenceWindow + leftBoundary + escapedPrev + rightBoundary,
+        'i'
       );
       if (prevRx.test(text) && !prevRx.test(sourceText) && prevPresentRx.test(text)) {
         warnings.push(`Citazione di ${papalContext.previousName} non presente nelle fonti della risposta.`);
@@ -1478,6 +1483,7 @@ var ResponseValidator = class ResponseValidator {
       currentPope: papalContext.currentName,
       previousPope: papalContext.previousName,
       currentSince: papalContext.currentSince,
+      ministryStart: papalContext.ministryStart,
       stalePopeNames: stalePopeNames
     };
   }
@@ -1497,10 +1503,14 @@ var ResponseValidator = class ResponseValidator {
       }
       return '';
     };
+    const legacyMinistryStart = hasConfig
+      ? pick(CONFIG.CURRENT_POPE_MINISTRY_START, CONFIG.CURRENTPOPEMINISTRYSTART)
+      : null;
     return {
       currentName: pick(runtimePapal.currentName, fromSources.currentName, cfg.currentName, hasConfig ? CONFIG.CURRENT_POPE_NAME : null, 'Leone XIV'),
       previousName: pick(runtimePapal.previousName, fromSources.previousName, cfg.previousName, hasConfig ? CONFIG.PREVIOUS_POPE_NAME : null, 'Papa Francesco'),
-      currentSince: pick(runtimePapal.currentSince, fromSources.currentSince, cfg.currentSince, hasConfig ? CONFIG.CURRENT_POPE_SINCE : null, '2025-05-08')
+      currentSince: pick(runtimePapal.currentSince, fromSources.currentSince, cfg.currentSince, hasConfig ? CONFIG.CURRENT_POPE_SINCE : null, '2025-05-08'),
+      ministryStart: pick(runtimePapal.ministryStart, fromSources.ministryStart, cfg.ministryStart, legacyMinistryStart, '2025-05-18')
     };
   }
 
@@ -1516,21 +1526,21 @@ var ResponseValidator = class ResponseValidator {
 
       const cells = line.split(/\t|\s*\|\s*/).map(cell => cell.trim()).filter(Boolean);
       const currentIndex = cells.findIndex(cell => /^(?:papa|pontefice)\s+(?:regnante|attuale)$/i.test(cell));
-      if (currentIndex >= 0 && cells[currentIndex + 1]) {
+      if (!result.currentName && currentIndex >= 0 && cells[currentIndex + 1]) {
         result.currentName = this._cleanPopeName_(cells[currentIndex + 1]);
-        if (result.currentName) return result;
       }
 
       const previousIndex = cells.findIndex(cell => /^(?:papa|pontefice)\s+(?:precedente|emerito)$/i.test(cell));
-      if (previousIndex >= 0 && cells[previousIndex + 1]) {
+      if (!result.previousName && previousIndex >= 0 && cells[previousIndex + 1]) {
         result.previousName = this._cleanPopeName_(cells[previousIndex + 1]);
       }
 
       const currentInline = /\b(?:papa|pontefice)\s+(?:regnante|attuale)\s*(?:[:=\-]\s*)+(.+)$/i.exec(line);
-      if (currentInline && currentInline[1]) {
+      if (!result.currentName && currentInline && currentInline[1]) {
         result.currentName = this._cleanPopeName_(currentInline[1]);
-        if (result.currentName) return result;
       }
+
+      if (result.currentName && result.previousName) return result;
     }
 
     return result;
@@ -2422,15 +2432,22 @@ var ResponseValidator = class ResponseValidator {
     // Cerca [url](url) o [url](url...) e semplifica
     applicaOttimizzazione('Link', (currentText) => this._ottimizzaLinkDuplicati(currentText));
 
+    const hasThinkingLeak = errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('meta-commento'));
+    const hasPlaceholder = errors.some(e => e.includes('placeholder'));
+
+    if (hasThinkingLeak) {
+      applicaOttimizzazione('ThinkingLeak', (currentText) => this._rimuoviThinkingLeak(currentText));
+    }
+
     // 2. Perfezionamento Maiuscole dopo virgola
     // Applicabile solo se non è un errore di Thinking Leak (che richiede rigenerazione)
     // e se non ci sono placeholder
-    if (!errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('placeholder'))) {
+    if (!hasThinkingLeak && !hasPlaceholder) {
       applicaOttimizzazione('Maiuscole', (currentText) => this._ottimizzaCapitalAfterComma(currentText, language));
     }
 
     // 3. Perfezionamento Saluto temporalmente incongruente
-    if (!errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('placeholder'))) {
+    if (!hasThinkingLeak && !hasPlaceholder) {
       applicaOttimizzazione('Saluto', (currentText) => this._ottimizzaSalutoTemporale(currentText, language, temporalContext));
     }
 
