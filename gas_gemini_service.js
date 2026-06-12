@@ -479,7 +479,7 @@ CONTESTO LOGISTICO VISITA:
 - Il sacramento o documento citato è l'oggetto della visita, non una richiesta primaria di requisiti o procedura sacramentale.
 ` : '';
     const sponsorGuidanceTask = shouldClassifySponsorGuidance ? `
-8. Determina needs_sponsor_guidance (boolean):
+9. Determina needs_sponsor_guidance (boolean):
    - TRUE solo se nella risposta conviene inserire le condizioni per il ruolo ecclesiale di padrino/madrina/godparent.
    - Considera equivalenti sacramentali: padrino/madrina (it/es), godparent/godfather/godmother o sponsor sacramentale (en), parrain/marraine (fr), padrinho/madrinha (pt), Pate/Patin/Firmpate/Firmpatin (de).
    - TRUE se il mittente vuole assumere quel ruolo sacramentale e non ha ancora la Cresima/Confirmation, oppure chiede esplicitamente requisiti, condizioni o idoneità per quel ruolo.
@@ -534,6 +534,14 @@ COMPITI:
      "avoid_invitation" quando e' meglio non proporre affatto la visita fisica;
      "visit_ok" quando l'invito/presenza in segreteria e' appropriato;
      "unknown" se non e' chiaro.
+8. Determina relational_posture basandoti ESCLUSIVAMENTE su marcatori linguistici osservabili, non su stati psicologici:
+   - "urgent": solleciti, "urgente", richiesta di risposta rapida, ripetizioni o pressione temporale.
+   - "hesitant": "mi scusi", "forse", "non vorrei disturbare", molte mitigazioni o incertezza formulata.
+   - "complaint": reclami, recriminazioni, disservizi segnalati, "non capisco perche", punteggiatura forte.
+   - "personal": condivisione esplicita di fatti personali delicati o vissuti intimi.
+   - "open": tono collaborativo, fiducioso, ringraziamenti anticipati o disponibilita' al dialogo.
+   - "direct": testo essenziale, operativo, senza marcatori relazionali forti (DEFAULT).
+   - Fornisci anche relational_posture_confidence (0.0-1.0). Usa valori >= 0.70 solo quando i marcatori linguistici sono espliciti e chiaramente osservabili; altrimenti scegli "direct".
 ${sponsorGuidanceTask}
 
 ⚠️ REGOLA CRITICA "SBATTEZZO":
@@ -556,6 +564,8 @@ Output JSON:
   "topic": "string",
   "confidence": number (0.0-1.0),
   "reason": "string",
+  "relational_posture": "urgent" | "hesitant" | "complaint" | "personal" | "open" | "direct",
+  "relational_posture_confidence": number (0.0-1.0),
   "physical_presence_constraint": {
     "has_constraint": boolean,
     "type": "geographic_distance" | "health" | "mobility" | "caregiving" | "legal_restriction" | "temporary_unavailability" | "remote_request" | "other" | "none",
@@ -595,7 +605,9 @@ Output JSON:
         reason: '',
         visit_policy: 'unknown',
         source: 'quick_check'
-      }
+      },
+      relational_posture: 'direct',
+      relational_posture_confidence: 0
     };
   }
 
@@ -689,6 +701,11 @@ Output JSON:
       ? true
       : ((normalizedSponsorGuidance === false || normalizedSponsorGuidance === 'false') ? false : undefined);
     const physicalPresenceConstraint = EmailQuickCheckPolicy.normalizePhysicalPresenceConstraint(data);
+    const relationalPostureConfidence = EmailQuickCheckPolicy.normalizeRelationalPostureConfidence(data.relational_posture_confidence);
+    const relationalPosture = EmailQuickCheckPolicy.normalizeRelationalPosture(
+      data.relational_posture,
+      relationalPostureConfidence
+    );
 
     return {
       shouldRespond: finalShouldRespond,
@@ -701,8 +718,55 @@ Output JSON:
         dimensions: safeDimensions
       },
       physical_presence_constraint: physicalPresenceConstraint,
+      relational_posture: relationalPosture,
+      relational_posture_confidence: relationalPostureConfidence,
       needs_sponsor_guidance: needsSponsorGuidance
     };
+  }
+
+  static normalizeRelationalPosture(value, confidence = 0) {
+    const normalized = String(value || '').trim().toLowerCase();
+    const aliases = {
+      frustrated: 'complaint',
+      frustration: 'complaint',
+      angry: 'complaint',
+      upset: 'complaint'
+    };
+    const canonical = aliases[normalized] || normalized;
+    const allowed = {
+      urgent: true,
+      hesitant: true,
+      complaint: true,
+      personal: true,
+      open: true,
+      direct: true
+    };
+    if (!allowed[canonical] || canonical === 'direct') return 'direct';
+    return EmailQuickCheckPolicy.isRelationalPostureConfidenceSufficient(confidence)
+      ? canonical
+      : 'direct';
+  }
+
+  static normalizeRelationalPostureConfidence(value) {
+    const confidence = Number(value);
+    return Number.isFinite(confidence)
+      ? Math.max(0, Math.min(1, confidence))
+      : 0;
+  }
+
+  static getRelationalPostureConfidenceThreshold() {
+    const configured = (typeof CONFIG !== 'undefined' && CONFIG)
+      ? Number(CONFIG.RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD)
+      : NaN;
+    if (Number.isFinite(configured)) {
+      return Math.max(0, Math.min(1, configured));
+    }
+    return 0.70;
+  }
+
+  static isRelationalPostureConfidenceSufficient(confidence) {
+    return EmailQuickCheckPolicy.normalizeRelationalPostureConfidence(confidence) >=
+      EmailQuickCheckPolicy.getRelationalPostureConfidenceThreshold();
   }
 };
 

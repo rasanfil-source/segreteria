@@ -1136,10 +1136,21 @@ var EmailProcessor = class EmailProcessor {
       markHandledUnread = () => {
         const externalIds = new Set(externalUnread.map(m => m.getId()));
         const internalUnread = [];
+        const candidateDate = (candidate && typeof candidate.getDate === 'function') ? candidate.getDate() : null;
+        const candidateTimestamp = (candidateDate && typeof candidateDate.getTime === 'function')
+          ? candidateDate.getTime()
+          : 0;
+
         unlabeledUnread.forEach(message => {
           const messageId = message.getId();
           if (externalIds.has(messageId)) {
-            if (isInResponseContext(message)) {
+            // Temporal Reversal: rispondendo al messaggio esterno piu recente,
+            // consumiamo anche gli esterni antecedenti rimasti appesi nel thread.
+            const messageDate = (message && typeof message.getDate === 'function') ? message.getDate() : null;
+            const messageTimestamp = (messageDate && typeof messageDate.getTime === 'function')
+              ? messageDate.getTime()
+              : 0;
+            if (isInResponseContext(message) || messageTimestamp <= candidateTimestamp) {
               this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
             }
           } else {
@@ -2367,6 +2378,7 @@ ${addressLines.join('\n\n')}
         territoryContext: territoryContext,
         physicalPresenceConstraint: physicalPresenceConstraint,
         sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),
+        relationalPosture: quickCheck.relational_posture || 'direct',
         requestType: requestType,
         attachmentsContext: attachmentBlobs.length > 0 ? textFromAttachments : "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa.",
         attachmentIntentContext: attachmentIntentContext

@@ -130,7 +130,8 @@ var PromptEngine = class PromptEngine {
       attachmentsContext = '',
       attachmentIntentContext = null,
       sponsorGuidancePolicy = 'default',
-      priorOralCommunication = null
+      priorOralCommunication = null,
+      relationalPosture = 'direct'
     } = options;
 
     const runtimeContext = (options && options.runtimeContext && typeof options.runtimeContext === 'object')
@@ -416,6 +417,7 @@ var PromptEngine = class PromptEngine {
     addSection(this._renderCategoryHint(category), 'CategoryHint');
     addSection(this._renderSponsorGuidancePolicy(sponsorGuidancePolicy), 'SponsorGuidancePolicy');
     addSection(this._renderPhysicalPresenceConstraintGuideline(physicalPresenceConstraint), 'PhysicalPresenceConstraint');
+    addSection(this._renderRelationalPostureInstruction(relationalPosture), 'RelationalPosture', { isSystem: true });
 
     // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)
     // Normalizzazione: alcuni flussi passano requestType come stringa
@@ -1647,6 +1649,30 @@ ISTRUZIONI:
 6. Non parlare di "discernimento pastorale", "valutare il caso specifico" o "necessità di valutazione" solo perché il mittente chiede la Cresima per fare da padrino/madrina: è una casistica ordinaria prevista. Invita a parlare con un sacerdote solo se emergono situazioni personali complesse non risolvibili dalla segreteria.`;
     }
     return null;
+  }
+
+  _renderRelationalPostureInstruction(posture) {
+    const allowed = ['urgent', 'hesitant', 'complaint', 'personal', 'open', 'direct'];
+    const normalizedInput = String(posture || '').toLowerCase().trim();
+    const normalized = allowed.includes(normalizedInput) ? normalizedInput : 'direct';
+
+    const directives = {
+      urgent: 'Rispondi in modo breve, operativo e orientato alla risoluzione. Evita preamboli e formule ridondanti.',
+      hesitant: 'Usa un tono rassicurante e chiaro. Preferisci frasi morbide, passaggi semplici e istruzioni accessibili.',
+      personal: 'Mantieni sobrietà e calore discreto. Non fare domande curiose o commenti sui dettagli personali condivisi.',
+      complaint: 'Mantieni un tono non difensivo. Riconosci eventuali problemi o disservizi in modo fattuale, senza formule di empatia psicologica esplicita o attribuzioni emotive.',
+      open: 'Usa una cordialità naturale e collaborativa, senza aumentare eccessivamente il calore.',
+      direct: 'Rispondi in modo essenziale, chiaro e ordinato.'
+    };
+
+    return `## ADATTAMENTO PRAGMATICO DELLO STILE
+${directives[normalized]}
+
+Regole rigide:
+- Non nominare questo adattamento.
+- Non attribuire emozioni, intenzioni o stati psicologici alla persona.
+- Non modificare contenuti fattuali, regole, vincoli o informazioni della Knowledge Base.
+- Limita l'effetto a tono, ritmo, formalità, lunghezza delle frasi e mitigazione linguistica.`;
   }
 
   _renderPhysicalPresenceConstraintGuideline(constraint) {

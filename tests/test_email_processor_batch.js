@@ -2416,7 +2416,7 @@ console.log('--- Test prompt options: messageDate usa la data del messaggio orig
     },
     geminiService: {
       primaryKey: 'primary-key',
-      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'information', topic: 'appuntamento' } }),
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', relational_posture: 'complaint', classification: { category: 'information', topic: 'appuntamento' } }),
       detectEmailLanguage: () => ({ lang: 'it' }),
       getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',
@@ -2460,6 +2460,7 @@ console.log('--- Test prompt options: messageDate usa la data del messaggio orig
   assert(promptOptions.runtimeContext.temporal.messageDate === '2026-05-07', 'runtimeContext.temporal.messageDate deve derivare dalla data originale');
   assert(promptOptions.runtimeContext.temporal.messageDateAvailable === true, 'runtimeContext deve dichiarare disponibile la data originale valida');
   assert(promptOptions.runtimeContext.temporal.messageDateSource === 'gmail_message_date', 'runtimeContext deve tracciare la sorgente Gmail della data originale');
+  assert(promptOptions.relationalPosture === 'complaint', 'promptOptions deve ricevere la relationalPosture dal quick-check');
   assert(validationRuntimeContext === promptOptions.runtimeContext, 'validator deve ricevere lo stesso runtimeContext passato al prompt');
 }
 

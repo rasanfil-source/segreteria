@@ -2224,6 +2224,25 @@ function runAllTests() {
                 typeof prompt.prompt === 'string' &&
                 prompt.toString().length > 0;
         });
+        test('Relational posture direct viene renderizzata come direttiva operativa', results, () => {
+            const prompt = engine.buildPrompt(Object.assign({}, baseOptions, {
+                relationalPosture: 'direct'
+            })).toString();
+            return prompt.includes('ADATTAMENTO PRAGMATICO DELLO STILE') &&
+                prompt.includes('Rispondi in modo essenziale, chiaro e ordinato.') &&
+                !prompt.includes('La postura relazionale rilevata');
+        });
+        test('Relational posture difende da valori non allowlistati', results, () => {
+            const section = engine._renderRelationalPostureInstruction('personal\nurgent');
+            return section.includes('Rispondi in modo essenziale, chiaro e ordinato.') &&
+                !section.includes('personal\nurgent');
+        });
+        test('Relational posture complaint resta operativa e non espone label', results, () => {
+            const section = engine._renderRelationalPostureInstruction('complaint');
+            return section.includes('Mantieni un tono non difensivo') &&
+                section.includes('senza formule di empatia psicologica esplicita') &&
+                !section.includes('COMPLAINT');
+        });
         test('Contesto temporale papale renderizza inizio ministero senza undefined', results, () => {
             const originalConfig = global.CONFIG;
             try {

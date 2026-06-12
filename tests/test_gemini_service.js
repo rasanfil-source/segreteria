@@ -192,6 +192,9 @@ console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documental
   assert(!plainPrompt.prompt.includes('CONTESTO STRUTTURALE ALLEGATI'), 'prompt ordinario non deve includere guardrail documentale');
   assert(!plainPrompt.prompt.includes('"needs_sponsor_guidance": boolean'), 'prompt ordinario non deve chiedere needs_sponsor_guidance');
   assert(plainPrompt.prompt.includes('"physical_presence_constraint"'), 'prompt ordinario deve chiedere il vincolo di presenza fisica');
+  assert(plainPrompt.prompt.includes('"relational_posture"'), 'prompt ordinario deve chiedere la postura relazionale');
+  assert(plainPrompt.prompt.includes('"relational_posture_confidence"'), 'prompt ordinario deve chiedere la confidenza della postura relazionale');
+  assert(plainPrompt.prompt.includes('"complaint"'), 'prompt quick-check deve usare complaint come label osservabile');
   assert(plainPrompt.prompt.includes('"legal_restriction"'), 'prompt quick-check deve coprire limitazioni legali alla presenza fisica');
   assert(visitPrompt.prompt.includes('CONTESTO LOGISTICO VISITA'), 'richiesta di passaggio deve includere guardrail logistico');
   assert(visitPrompt.prompt.includes('category "TECHNICAL"'), 'guardrail logistico deve forzare category TECHNICAL');
@@ -216,6 +219,8 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
             topic: 'documentazione ricevuta',
             confidence: 0.7,
             reason: 'consegna documentazione',
+            relational_posture: 'frustrated',
+            relational_posture_confidence: 0.91,
             physical_presence_constraint: {
               has_constraint: 'true',
               type: 'geographic_distance',
@@ -241,6 +246,8 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
   assert(result.shouldRespond === true, 'submission documentale deve forzare risposta anche se Gemini dice false');
   assert(result.language === 'en/it/5', 'policy deve delegare la risoluzione lingua alla funzione iniettata');
   assert(result.classification.topic === 'documentazione ricevuta', 'topic del quick-check deve essere preservato');
+  assert(result.relational_posture === 'complaint', 'relational_posture legacy frustrated deve normalizzarsi a complaint');
+  assert(result.relational_posture_confidence === 0.91, 'relational_posture_confidence alta deve essere preservata');
   assert(result.needs_sponsor_guidance === false, 'needs_sponsor_guidance stringa false deve diventare boolean false');
   assert(result.physical_presence_constraint.has_constraint === true, 'vincolo presenza fisica stringa true deve diventare boolean true');
   assert(result.physical_presence_constraint.type === 'geographic_distance', 'tipo vincolo presenza fisica deve essere preservato');
@@ -278,6 +285,21 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
   const fallback = EmailQuickCheckPolicy.normalizeApiResponse('non json', { lang: 'es' }, null);
   assert(fallback.shouldRespond === false, 'JSON invalido deve restituire default failsafe');
   assert(fallback.language === 'es', 'default failsafe deve preservare lingua locale');
+  assert(fallback.relational_posture === 'direct', 'default failsafe deve usare postura direct');
+  assert(fallback.relational_posture_confidence === 0, 'default failsafe deve azzerare la confidenza postura');
+
+  const lowConfidence = EmailQuickCheckPolicy.normalizeDecisionData({
+    reply_needed: true,
+    language: 'it',
+    category: 'TECHNICAL',
+    topic: 'sollecito',
+    confidence: 0.8,
+    reason: 'sollecito ambiguo',
+    relational_posture: 'urgent',
+    relational_posture_confidence: 0.4
+  }, { lang: 'it' });
+  assert(lowConfidence.relational_posture === 'direct', 'postura sotto soglia deve fare fallback a direct');
+  assert(lowConfidence.relational_posture_confidence === 0.4, 'la confidenza sotto soglia resta tracciata');
 }
 
 console.log('--- Test _generateWithModel: il client generico preserva prompt strutturato e profilo generation ---');

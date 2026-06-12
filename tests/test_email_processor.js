@@ -1149,12 +1149,13 @@ console.log('--- Test processThread: burst stesso mittente ordinato per data ---
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }
 
-console.log('--- Test processThread: burst multi-mittente preserva mittenti non aggregati ---');
+console.log('--- Test processThread: burst multi-mittente consuma la coda temporale ---');
 {
   const originalSession = global.Session;
   const originalGmailApp = global.GmailApp;
   const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
   const labeled = [];
+  let capturedBody = '';
 
   global.Session = {
     getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
@@ -1167,7 +1168,10 @@ console.log('--- Test processThread: burst multi-mittente preserva mittenti non 
   const processorMultiSenderBurst = new EmailProcessor({
     geminiService: {
       detectEmailLanguage: () => ({ lang: 'it', safetyGrade: 5 }),
-      shouldRespondToEmail: () => ({ shouldRespond: false, reason: 'ack' })
+      shouldRespondToEmail: (body) => {
+        capturedBody = body;
+        return { shouldRespond: false, reason: 'ack' };
+      }
     },
     classifier: {
       _extractMainContent: (body) => body,
@@ -1201,9 +1205,10 @@ console.log('--- Test processThread: burst multi-mittente preserva mittenti non 
 
   const result = processorMultiSenderBurst.processThread(thread, '', [], new Set(), true);
   assert(result.status === 'filtered', 'quick check shouldRespond=false deve filtrare il candidato');
+  assert(!capturedBody.includes('Vorrei informazioni sugli orari.'), 'il burst di risposta non deve aggregare mittenti diversi');
   assert(labeled.includes('m-candidate'), 'deve marcare il candidato filtrato');
   assert(labeled.includes('m-same-sender'), 'deve marcare il messaggio dello stesso mittente incluso nel burst');
-  assert(!labeled.includes('m-other-sender'), 'non deve marcare messaggi di altri mittenti non inclusi nel payload');
+  assert(labeled.includes('m-other-sender'), 'deve marcare anche messaggi esterni antecedenti di altri mittenti');
 
   global.Session = originalSession;
   global.GmailApp = originalGmailApp;
