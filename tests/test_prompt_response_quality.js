@@ -55,6 +55,13 @@ assert(
   'il contratto qualità deve imporre la sintesi sui soli casi richiesti'
 );
 assert(
+  litePrompt.includes('Gestione multi-intento e problemi tecnici') &&
+    litePrompt.includes('allegato menzionato ma mancante') &&
+    litePrompt.includes('dati anagrafici incompleti') &&
+    litePrompt.includes('rispondi anche alle altre domande'),
+  'il contratto qualità deve impedire early exit su problemi tecnici'
+);
+assert(
   litePrompt.includes('Se l\'utente chiede se può passare/venire in segreteria') &&
     litePrompt.includes('la prima frase deve rispondere sì/no'),
   'il contratto qualità deve proteggere la risposta primaria alle richieste di passaggio'
@@ -491,6 +498,40 @@ assert(
   !noAttachmentFollowupPrompt.includes('ALLEGATO = DOCUMENTAZIONE CONSEGNATA') &&
     !noAttachmentFollowupPrompt.includes('Risposta predefinita: ringrazia e conferma la ricezione'),
   'una consegna solo sospetta senza allegati non deve attivare il guardrail di ricezione documentale'
+);
+assert(
+  noAttachmentFollowupPrompt.includes('ALLEGATO DICHIARATO MA NON RICEVUTO') &&
+    noAttachmentFollowupPrompt.includes('rispondi comunque alla domanda'),
+  'se manca un allegato dichiarato il prompt deve comunque preservare la risposta alla domanda testuale'
+);
+
+console.log('--- Test prompt: allegato mancante non oscura domanda autonoma sui documenti ---');
+const missingAttachmentQuestionPrompt = engine.buildPrompt({
+  emailSubject: 'Documentazione matrimonio',
+  emailContent: 'Buongiorno,\n\ninvio in allegato la documentazione. Volevo chiederLe: manca ancora il certificato di battesimo del padrino, o va bene così?\n\nGrazie,\nClaudia',
+  knowledgeBase: 'Per il padrino può essere richiesto il certificato di battesimo o un attestato di idoneità secondo la pratica indicata dalla segreteria.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  salutationMode: 'full',
+  salutation: 'Buonasera Claudia,',
+  closing: 'Cordiali saluti,',
+  attachmentsContext: "ATTENZIONE: L'utente NON ha inviato allegati fisici.",
+  attachmentIntentContext: {
+    intent: 'suspected_submission_with_question',
+    responseDirective: 'Segnalare che non risultano allegati fisici.',
+    hasPhysicalAttachments: false,
+    hasQuestions: true
+  }
+});
+assert(
+  missingAttachmentQuestionPrompt.includes('ALLEGATO DICHIARATO MA NON RICEVUTO') &&
+    missingAttachmentQuestionPrompt.includes('Non trattare l\'allegato mancante come motivo per ignorare la domanda testuale') &&
+    missingAttachmentQuestionPrompt.includes('verifica finale della documentazione richiederà l\'allegato'),
+  'il prompt deve chiedere rinvio allegato senza perdere la domanda autonoma'
+);
+assert(
+  !missingAttachmentQuestionPrompt.includes('ALLEGATO = DOCUMENTAZIONE CONSEGNATA'),
+  'l allegato mancante non deve essere trattato come documentazione ricevuta'
 );
 
 console.log('--- Test prompt: Cresima prerequisito per padrino autorizza guidance mirata ---');
