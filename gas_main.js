@@ -152,6 +152,39 @@ function getBusinessDateParts(dateObj, timeZone = BUSINESS_TIME_ZONE) {
     }
   }
 
+  if (typeof _extractDatePartsForTimeZone === 'function') {
+    try {
+      const intlParts = _extractDatePartsForTimeZone(source, tz);
+      const year = parseInt(intlParts.year, 10);
+      const monthIndex = parseInt(intlParts.month, 10) - 1;
+      const day = parseInt(intlParts.day, 10);
+      const hour = parseInt(intlParts.hour, 10);
+      const minute = parseInt(intlParts.minute, 10);
+      const isoDay = new Date(Date.UTC(year, monthIndex, day, 12, 0, 0)).getUTCDay();
+      const parts = {
+        year,
+        monthIndex,
+        day,
+        date: day,
+        hour,
+        minute,
+        isoDay
+      };
+      if (
+        Number.isFinite(parts.year) &&
+        Number.isFinite(parts.monthIndex) &&
+        Number.isFinite(parts.day) &&
+        Number.isFinite(parts.hour) &&
+        Number.isFinite(parts.minute) &&
+        Number.isFinite(parts.isoDay)
+      ) {
+        return parts;
+      }
+    } catch (e) {
+      console.warn(`⚠️ Fallback Intl timezone business non disponibile (${tz}): ${e.message}`);
+    }
+  }
+
   return {
     year: source.getFullYear(),
     monthIndex: source.getMonth(),

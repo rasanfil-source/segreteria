@@ -2197,6 +2197,33 @@ console.log('--- Test _getLabelCacheKey_: fallback senza Utilities digest per la
   }
 }
 
+console.log('--- Test _getLabelCacheKey_: digest usa charset UTF-8 per label multibyte ---');
+{
+  const originalUtilities = global.Utilities;
+  let capturedCharset = null;
+  global.Utilities = {
+    getUuid: () => 'uuid-test',
+    sleep: () => {},
+    Charset: { UTF_8: 'UTF-8' },
+    DigestAlgorithm: { SHA_256: 'SHA_256' },
+    computeDigest: (_algorithm, value, charset) => {
+      assert(String(value).includes('Verità'), 'la label multibyte deve arrivare al digest');
+      capturedCharset = charset;
+      return [1, 2, 3, 4];
+    },
+    base64EncodeWebSafe: () => 'digest-websafe'
+  };
+  try {
+    const service = new GmailService();
+    const longLabel = 'Qualità/Verità/'.repeat(30);
+    const key = service._getLabelCacheKey_(longLabel);
+    assert(capturedCharset === 'UTF-8', 'computeDigest deve ricevere Utilities.Charset.UTF_8');
+    assert(key === 'gmail_label_exists:digest-websafe', 'la chiave cache deve usare il digest websafe');
+  } finally {
+    global.Utilities = originalUtilities;
+  }
+}
+
 console.log('--- Test batchAddLabelToMessages: non usa GmailLabel.getId come ID Advanced API ---');
 {
   const originalGmail = global.Gmail;

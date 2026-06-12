@@ -261,6 +261,22 @@ console.log('--- Test business date parts centralizzati su Europe/Rome ---');
   global.Utilities = originalUtilities;
 }
 
+console.log('--- Test business date parts usa Intl Europe/Rome se Utilities non disponibile ---');
+{
+  const originalUtilities = global.Utilities;
+  global.Utilities = {};
+  try {
+    const parts = getBusinessDateParts(new Date('2026-03-28T23:30:00Z'));
+    assertDeepEqual(
+      parts,
+      { year: 2026, monthIndex: 2, day: 29, date: 29, hour: 0, minute: 30, isoDay: 0 },
+      'il fallback senza Utilities deve restare timezone-aware su Europe/Rome'
+    );
+  } finally {
+    global.Utilities = originalUtilities;
+  }
+}
+
 console.log('--- Test isInSuspensionTime confronta festivita mobili in business timezone ---');
 {
   const originalUtilities = global.Utilities;

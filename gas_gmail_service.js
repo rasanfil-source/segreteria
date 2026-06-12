@@ -209,7 +209,9 @@ var GmailService = class GmailService {
             typeof Utilities.base64EncodeWebSafe === 'function' &&
             Utilities.DigestAlgorithm && Utilities.DigestAlgorithm.SHA_256) {
             try {
-                const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, normalizedLabelName);
+                const digest = (Utilities.Charset && Utilities.Charset.UTF_8)
+                    ? Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, normalizedLabelName, Utilities.Charset.UTF_8)
+                    : Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, normalizedLabelName);
                 hash = Utilities.base64EncodeWebSafe(digest).slice(0, 32);
             } catch (e) {
                 console.warn(`⚠️ Hash CacheService non disponibile per label lunga: ${e.message}`);
