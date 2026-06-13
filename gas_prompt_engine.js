@@ -1660,41 +1660,33 @@ ISTRUZIONI:
    */
   renderRelationalPosture(posture) {
     const instructions = {
-      direct: [
-        '- Tono: diretto, formale, istituzionale.',
-        '- NON aggiungere commenti emotivi o frasi di rassicurazione non richieste.',
-        '- NON usare frasi come "non si preoccupi", "non si vergogni", "splendida occasione".',
-        '- Rispondi ai fatti con fatti. La cordialità si esprime nella chiarezza, non nell\'empatia verbosa.',
-      ],
-      warm: [
-        '- Tono: caldo ma sobrio. Una sola frase di accoglienza nell\'apertura.',
-        '- Evita la sovra-empatia: non ripetere la stessa nota accogliente più di una volta.',
-        '- Il calore si manifesta nella disponibilità pratica, non nelle esclamazioni.',
-      ],
       hesitant: [
-        '- L\'utente mostra incertezza o imbarazzo. Usa UNA frase di normalizzazione, breve.',
-        '- Poi procedi immediatamente con le informazioni pratiche richieste.',
-        '- Non elaborare ulteriormente sul tema emotivo: la normalizzazione è implicita nell\'aiuto concreto.',
+        '- Fornisci le informazioni pratiche richieste in modo procedurale e immediato.',
+        '- Non aggiungere commenti o rassicurazioni non esplicitamente richieste.',
       ],
-      formal: [
-        '- Tono: strettamente formale e istituzionale.',
-        '- Nessuna frase emotiva o personale. Solo informazioni e procedure.',
-        '- Usa il Lei con registro burocratico-ecclesiastico standard.',
+      urgent: [
+        '- Struttura la risposta andando dritto alla soluzione operativa senza preamboli.',
       ],
+      complaint: [
+        '- Mantieni un registro strettamente fattuale, oggettivo e orientato alla risoluzione.',
+      ],
+      personal: [
+        '- Usa un registro sobrio. Scrivi in prosa continua omettendo elenchi puntati o enfasi visiva.',
+      ],
+      open: [
+        '- Usa un registro informativo e struttura il testo per la massima chiarezza e leggibilità.',
+      ],
+      direct: [
+        '- Tono istituzionale. Rispondi ai fatti esclusivamente con i fatti.',
+      ]
     };
 
     const lines = instructions[posture] ?? instructions['direct'];
 
     return [
-      '=== POSTURA RELAZIONALE (OVERRIDE TONO — VINCOLANTE) ===',
-      `Postura rilevata: ${posture.toUpperCase()}`,
-      'Queste istruzioni sul tono PREVALGONO su qualsiasi altra indicazione nel prompt.',
-      '',
+      '=== LINEE GUIDA PRAGMATICHE ===',
       ...lines,
-      '',
-      'DIVIETO ASSOLUTO: Non modificare questa postura in base alla categoria della richiesta.',
-      'Se la categoria è PASTORAL ma la postura è DIRECT, rimani DIRECT.',
-      '=== FINE POSTURA RELAZIONALE ===',
+      '==============================='
     ].join('\n');
   }
 
