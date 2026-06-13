@@ -374,6 +374,49 @@ function runAllTests() {
         });
     });
 
+    testGroup('RequestTypeClassifier - Guardrail operativo sacramenti', results, () => {
+        test('Cresima per fare da padrino resta tecnica anche se il quick-check sovrastima il pastorale', results, () => {
+            const classifier = new RequestTypeClassifier();
+            const result = classifier.classify(
+                'iNFORMAZIONI (sCUSATE IL DISTURBO)',
+                [
+                    'Buongiorno, scusate il disturbo.',
+                    'Avrei bisogno della Cresima per poter fare da padrino.',
+                    'Non so bene da dove iniziare e vorrei informazioni sul corso e sui requisiti.'
+                ].join('\n'),
+                {
+                    category: 'MIXED',
+                    confidence: 0.95,
+                    dimensions: { technical: 0.6, pastoral: 0.8, doctrinal: 0.4, formal: 0.1 }
+                }
+            );
+
+            return result.type === 'technical' &&
+                result.needsDiscernment === false &&
+                result.needsDoctrine === false &&
+                result.dimensions.pastoral <= 0.3 &&
+                result.dimensions.doctrinal <= 0.3 &&
+                result.safetyFlags.includes('procedural_sacrament_pastoral_downgrade');
+        });
+
+        test('Situazione personale concreta su padrino non viene declassata a tecnica', results, () => {
+            const classifier = new RequestTypeClassifier();
+            const result = classifier.classify(
+                'Cresima e padrino',
+                'Sono divorziato e risposato civilmente. Vorrei capire se posso fare da padrino e come muovermi per la Cresima.',
+                {
+                    category: 'MIXED',
+                    confidence: 0.95,
+                    dimensions: { technical: 0.6, pastoral: 0.8, doctrinal: 0.2, formal: 0.1 }
+                }
+            );
+
+            return result.type === 'pastoral' &&
+                result.needsDiscernment === true &&
+                !result.safetyFlags.includes('procedural_sacrament_pastoral_downgrade');
+        });
+    });
+
     // 1. RateLimiter
     testGroup('RateLimiter - Persistenza Transazionale', results, () => {
         test('Il gestore della persistenza pulisce i registri dopo sincronizzazione riuscita', results, () => {

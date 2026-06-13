@@ -45,11 +45,15 @@ var RequestTypeClassifier = class RequestTypeClassifier {
       { pattern: /\bcome funziona\b/i, weight: 2 },
       { pattern: /\bqual è la procedura\b/i, weight: 2 },
       { pattern: /\bche documenti?\b/i, weight: 2 },
+      { pattern: /\binformazion[ei]\b/i, weight: 1 },
+      { pattern: /\brequisit[oi]\b/i, weight: 2 },
+      { pattern: /\bcorso\b/i, weight: 1 },
 
       // Riferimenti a ruoli formali (peso 1-2)
       { pattern: /\bpadrino\b/i, weight: 1 },
       { pattern: /\bmadrina\b/i, weight: 1 },
       { pattern: /\btestimone\b/i, weight: 1 },
+      { pattern: /\bcresima\b/i, weight: 1 },
       { pattern: /\bcertificato\b/i, weight: 2 },
       { pattern: /\bdocument\w+\b/i, weight: 1 },
       { pattern: /\bmodulo\b/i, weight: 1 },
@@ -198,6 +202,7 @@ var RequestTypeClassifier = class RequestTypeClassifier {
 
     // 3. Logica Ibrida (Integrazione Gemini se disponibile)
     let source = 'regex';
+    const classificationGuards = [];
     const externalDims = this._extractExternalDimensions(externalHint);
     const externalConfidence = this._normalizeConfidence(externalHint && externalHint.confidence);
     const hasExternalHint = Boolean(
@@ -238,6 +243,16 @@ var RequestTypeClassifier = class RequestTypeClassifier {
         dimensions[mappedDim] = Math.max(dimensions[mappedDim], 0.8); // Trust Gemini
         source = 'hybrid';
       }
+    }
+
+    if (this._shouldDowngradeProceduralSacramentPastoral_(text, technicalResult, pastoralResult, dimensions)) {
+      dimensions = Object.assign({}, dimensions, {
+        technical: Math.max(dimensions.technical || 0, 0.7),
+        pastoral: Math.min(dimensions.pastoral || 0, 0.2),
+        doctrinal: Math.min(dimensions.doctrinal || 0, 0.3)
+      });
+      classificationGuards.push('procedural_sacrament_pastoral_downgrade');
+      source = source === 'regex' ? 'regex_guarded' : 'hybrid_guarded';
     }
 
     // 4. Determinazione Tipo Primario (Compatibilità Base)
@@ -283,6 +298,7 @@ var RequestTypeClassifier = class RequestTypeClassifier {
       textLength: text.length,
       hasExternalHint
     });
+    classificationGuards.forEach(flag => safetyFlags.push(flag));
 
     // Downgrade conservativo: evita etichette forti con segnali deboli
     if (confidence < 0.35 && requestType !== 'formal' && !hasExternalHint) {
@@ -382,6 +398,24 @@ var RequestTypeClassifier = class RequestTypeClassifier {
     }
 
     return { score: total, matched: matched, matchCount: matchCount };
+  }
+
+  _shouldDowngradeProceduralSacramentPastoral_(text, technicalResult, pastoralResult, dimensions) {
+    if (!text || !dimensions) return false;
+
+    const technicalScore = Number(dimensions.technical) || 0;
+    const pastoralScore = Number(dimensions.pastoral) || 0;
+    const localTechnicalScore = (technicalResult && Number(technicalResult.score)) || 0;
+    const localPastoralScore = (pastoralResult && Number(pastoralResult.score)) || 0;
+
+    if (pastoralScore < 0.6 || technicalScore < 0.4) return false;
+    if (localTechnicalScore < 2 || localPastoralScore > 0) return false;
+
+    const hasConfirmationTopic = /\b(?:cresima|confermazione|confirmation)\b/i.test(text);
+    const hasProceduralMarker = /\b(?:padrin[oa]|madrina|sponsor|adult[ioa]?|corso|iscrizion[ei]|requisit[oi]|date?|incontr[io]|modulo|informazion[ei]|come\s+(?:posso|fare|funziona))\b/i.test(text);
+    const hasConcretePersonalCase = /\b(?:divorziat[oa]|separat[oa]|risposat[oa]|convivent[ei]|lutto|malattia|mort[oa]|decesso|funeral[ei]?|sbattezzo|apostasia)\b/i.test(text);
+
+    return hasConfirmationTopic && hasProceduralMarker && !hasConcretePersonalCase;
   }
 
   /**

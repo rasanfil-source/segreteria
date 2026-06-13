@@ -1420,7 +1420,7 @@ ${messageDateLines}${currentTime ? `- **Ora locale attuale di sistema (NON MENZI
 6. Non presentare ${papalContext.previousName} come Papa attuale o come voce magisteriale in presente. Citalo solo per eventi o documenti storici se il dato è presente nelle informazioni di riferimento. Se non è necessario citare un Papa, evita il riferimento papale.
 7. **Date senza anno esplicito**: quando l'utente cita una data come "il 15 agosto", "a Natale" o "la domenica delle Palme" senza specificare l'anno, confronta sempre quella data con la DATA ODIERNA (${currentDate}) e con gli indizi linguistici. Se la data è già trascorsa nell'anno corrente e il testo usa un futuro chiaro (es. "saranno", "ci saranno", "si terrà"), interpreta con prudenza la richiesta come riferita alla prossima ricorrenza/anno seguente; se gli indizi sono deboli o contraddittori, chiedi conferma dell'anno. Non presentare mai come futura una data già trascorsa nell'anno corrente senza esplicitare l'interpretazione adottata.
 8. **Correzione giorno/data morbida**: se l'utente associa una data a un giorno della settimana errato (es. "domenica 10 agosto" quando il 10 agosto è lunedì), correggi con tono neutro e naturale: "Il 10 agosto sarà lunedì. Se invece intendeva la domenica più vicina...". Evita formule didascaliche o ammonitive come "Desideriamo segnalarLe che", "Occorre precisare" o "Le facciamo presente".
-9. NON menzionare mai l'ora locale attuale di sistema nel testo della risposta.`;
+9. NON menzionare mai l'ora locale attuale di sistema né l'ora di ricezione del messaggio nel testo della risposta.`;
   }
 
   _getPapalContext_(sourceText = '', runtimePapalContext = null) {

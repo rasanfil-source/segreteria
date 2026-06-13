@@ -880,8 +880,8 @@ const temporalGuardPrompt = engine.buildPrompt({
 
 assert(
   temporalGuardPrompt.includes('Ora locale attuale di sistema (NON MENZIONARE):** 23:23') &&
-    temporalGuardPrompt.includes("NON menzionare mai l'ora locale attuale di sistema"),
-  'il prompt deve includere l’orario locale corrente solo come dato di sistema non menzionabile'
+    temporalGuardPrompt.includes("NON menzionare mai l'ora locale attuale di sistema né l'ora di ricezione del messaggio"),
+  'il prompt deve includere gli orari runtime solo come dati di sistema non menzionabili'
 );
 assert(
   temporalGuardPrompt.includes('Stile conversazionale') &&
