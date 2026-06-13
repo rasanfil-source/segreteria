@@ -6559,7 +6559,7 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
       // Rimuovi solo righe esplicitamente relative ai requisiti per padrino/madrina.
       // Termini generici come "divorzio" o "convivenza" possono essere legittimi
       // in risposte matrimoniali o pastorali e non vanno filtrati da soli.
-      if (/\b(requisit[oi].*\b(padrin[oa]?|madrin[ao]?)|idoneit[aà].*\b(padrin[oa]?|madrin[ao]?)|fare da (padrin[oa]|madrin[ao]))\b/i.test(line)) {
+      if (/\b(requisit[oi]|condizion[ei]|necessari[oae]|idoneit[aà])\b.{0,60}\b(padrin[oa]?|madrin[ao]?|sponsor)\b|\b(padrin[oa]?|madrin[ao]?|sponsor)\b.{0,60}\b(requisit[oi]|condizion[ei]|necessari[oae]|idoneit[aà])\b/i.test(line)) {
         return;
       }
       filtered.push(line);

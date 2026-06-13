@@ -768,6 +768,27 @@ function runAllTests() {
             );
             return cleaned === response;
         });
+        test('Sanitizer rimuove requisiti sponsor anche con ordine invertito e sinonimi', results, () => {
+            const response = [
+                'Abbiamo ricevuto i documenti.',
+                'Il padrino deve rispettare alcune condizioni previste.',
+                'È necessario che lo sponsor abbia ricevuto i sacramenti.',
+                'I requisiti per la madrina includono la Cresima.',
+                'La convivenza e il divorzio richiedono un discernimento pastorale specifico.',
+                'Cordiali saluti.'
+            ].join('\n');
+            const cleaned = processor._sanitizeUnrequestedSponsorGuidance_(
+                response,
+                'Documenti Cresima',
+                'Mio fratello sarà padrino. Invio il certificato richiesto.'
+            );
+            return cleaned.includes('Abbiamo ricevuto i documenti.') &&
+                cleaned.includes('convivenza e il divorzio') &&
+                cleaned.includes('Cordiali saluti.') &&
+                !cleaned.includes('padrino deve rispettare') &&
+                !cleaned.includes('necessario che lo sponsor') &&
+                !cleaned.includes('requisiti per la madrina');
+        });
         test('Aggiunge nota differenza orario in modo generico (non solo cresima)', results, () => {
             const response = 'Buonasera.\n\nIl prossimo corso prematrimoniale inizierà alle ore 16:30.\n\nCordiali saluti.';
             const messageDetails = { subject: 'Corso prematrimoniale', body: 'Pensavo iniziasse alle 17:00.' };
