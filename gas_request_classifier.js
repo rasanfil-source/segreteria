@@ -160,7 +160,7 @@ var RequestTypeClassifier = class RequestTypeClassifier {
 
   /**
    * Classifica la richiesta email
-   * Restituisce dimensioni continue, complessità e tono suggerito.
+   * Restituisce dimensioni continue, complessità e flag di attivazione KB.
    */
   classify(subject, body, externalHint = null) {
     // Configurazione del livello di logging per il monitoraggio delle inferenze.
@@ -319,13 +319,6 @@ var RequestTypeClassifier = class RequestTypeClassifier {
     if (dimensions.pastoral > 0.7) emotionalLoad = 'High';
     else if (dimensions.pastoral > 0.4) emotionalLoad = 'Medium';
 
-    // Tono Suggerito
-    let suggestedTone = 'Professionale';
-    if (dimensions.pastoral > dimensions.technical) suggestedTone = 'Empatico e Accogliente';
-    else if (dimensions.formal > 0.5) suggestedTone = 'Istituzionale e Neutro';
-    else if (dimensions.doctrinal > 0.5) suggestedTone = 'Istruttivo e Chiaro';
-    else if (complexity === 'High') suggestedTone = 'Strutturato e Dettagliato';
-
     // Indicatori di necessità
     const needsDiscernment = dimensions.pastoral > 0.3 || requestType === 'mixed';
     const needsDoctrine = dimensions.doctrinal > 0.3 || (dimensions.doctrinal > 0 && requestType !== 'technical');
@@ -336,7 +329,6 @@ var RequestTypeClassifier = class RequestTypeClassifier {
       dimensions: dimensions, // Nuova metrica
       complexity: complexity,
       emotionalLoad: emotionalLoad,
-      suggestedTone: suggestedTone,
 
       technicalScore: dimensions.technical, // Normalizzati
       pastoralScore: dimensions.pastoral,
@@ -358,7 +350,7 @@ var RequestTypeClassifier = class RequestTypeClassifier {
       ]
     };
 
-    console.log(`   📊 Classificazione: ${requestType.toUpperCase()} (Tono: ${suggestedTone})`);
+    console.log(`   📊 Classificazione: ${requestType.toUpperCase()} (Emozione: ${emotionalLoad}, Complessità: ${complexity})`);
     console.log(`      Dims: T=${dimensions.technical.toFixed(2)} P=${dimensions.pastoral.toFixed(2)} D=${dimensions.doctrinal.toFixed(2)} F=${dimensions.formal.toFixed(2)}`);
     console.log(`      Emotion=${emotionalLoad}, Complex=${complexity}`);
 

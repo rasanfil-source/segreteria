@@ -2300,10 +2300,18 @@ function runAllTests() {
             return section.includes('=== LINEE GUIDA PRAGMATICHE ===') &&
                 section.includes('- Tono istituzionale. Rispondi ai fatti esclusivamente con i fatti.');
         });
-        test('Relational posture formal resta operativa ed espone label', results, () => {
-            const section = engine.renderRelationalPosture('formal');
+        test('Relational posture personal espone istruzioni pastorali sobrie', results, () => {
+            const section = engine.renderRelationalPosture('personal');
             return section.includes('=== LINEE GUIDA PRAGMATICHE ===') &&
-                section.includes('- Tono istituzionale. Rispondi ai fatti esclusivamente con i fatti.');
+                section.includes('Il mittente ha condiviso qualcosa di personale o delicato') &&
+                section.includes('Non amplificare o parafrasare il vissuto del mittente') &&
+                section.includes('rimani vicino a ciò che è stato scritto esplicitamente');
+        });
+        test('Relational posture open resta distinta da direct', results, () => {
+            const section = engine.renderRelationalPosture('open');
+            return section.includes('calda e propositiva') &&
+                section.includes('registro leggermente più personale') &&
+                !section.includes('Rispondi ai fatti esclusivamente con i fatti.');
         });
         test('Contesto temporale papale renderizza inizio ministero senza undefined', results, () => {
             const originalConfig = global.CONFIG;

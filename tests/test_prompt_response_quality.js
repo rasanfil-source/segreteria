@@ -391,6 +391,31 @@ assert(
   'il template formale deve neutralizzare nomi mittente con istruzioni/pattern markdown'
 );
 
+console.log('--- Test prompt: template sbattezzo silenzia postura relazionale rilevata ---');
+const formalPosturePrompt = engine.buildPrompt({
+  emailSubject: 'Sbattezzo',
+  emailContent: 'Sto vivendo un momento molto personale, ma desidero procedere con lo sbattezzo.',
+  knowledgeBase: 'Richieste di sbattezzo: procedura formale.',
+  aiCoreLite: 'AI_CORE_LITE_FORMAL_SHOULD_NOT_APPEAR',
+  detectedLanguage: 'it',
+  requestType: { type: 'formal' },
+  senderName: 'Mario Rossi',
+  category: 'formal',
+  topic: 'sbattezzo',
+  salutationMode: 'full',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  relationalPosture: 'personal'
+});
+
+assert(
+  formalPosturePrompt.includes('TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI') &&
+  formalPosturePrompt.includes('- Tono istituzionale. Rispondi ai fatti esclusivamente con i fatti.') &&
+  !formalPosturePrompt.includes('Il mittente ha condiviso qualcosa di personale o delicato') &&
+  !formalPosturePrompt.includes('AI_CORE_LITE_FORMAL_SHOULD_NOT_APPEAR'),
+  'nel flusso sbattezzo la postura rilevata e la KB pastorale forzata devono cedere al template formale'
+);
+
 console.log('--- Test prompt: formattazione articolata preservata ---');
 const formattingPrompt = engine.buildPrompt({
   emailSubject: 'Informazioni catechismo',
@@ -632,13 +657,13 @@ const emotionalSupportHint = engine._renderCategoryHint('emotional_support');
 
 assert(
   hesitantSponsorPrompt.includes('=== LINEE GUIDA PRAGMATICHE ===') &&
-  hesitantSponsorPrompt.includes('Fornisci le informazioni pratiche richieste in modo procedurale e immediato.') &&
-  hesitantSponsorPrompt.includes('Non aggiungere commenti o rassicurazioni non esplicitamente richieste.'),
-  'la postura hesitant deve includere le istruzioni pratiche procedurali'
+  hesitantSponsorPrompt.includes('accoglila come legittima') &&
+  hesitantSponsorPrompt.includes('senza aggiungere commenti sulla natura della domanda') &&
+  hesitantSponsorPrompt.includes('attribuire stati d\'animo non esplicitati'),
+  'la postura hesitant deve legittimare la richiesta senza inventare imbarazzo o rassicurazioni'
 );
 assert(
   !hesitantSponsorPrompt.includes('rassicurante') &&
-  !hesitantSponsorPrompt.includes("stati d'animo") &&
   !hesitantSponsorPrompt.includes('bisogni emotivi') &&
   !hesitantSponsorPrompt.includes('emozioni, intenzioni') &&
   !hesitantSponsorPrompt.includes('provare imbarazzo') &&
@@ -647,7 +672,8 @@ assert(
 );
 assert(
   urgentCertificatePrompt.includes('=== LINEE GUIDA PRAGMATICHE ===') &&
-  urgentCertificatePrompt.includes('Mantieni un registro strettamente fattuale, oggettivo e orientato alla risoluzione.') &&
+  urgentCertificatePrompt.includes('mantieni un registro strettamente fattuale e orientato alla risoluzione') &&
+  urgentCertificatePrompt.includes('indica il passo concreto successivo') &&
   !urgentCertificatePrompt.includes('STRUTTURA RISPOSTA RACCOMANDATA (SITUAZIONE EMOTIVA)') &&
   !urgentCertificatePrompt.includes('Comprendiamo il suo disappunto') &&
   !urgentCertificatePrompt.includes('Riconosci il disagio') &&
@@ -663,6 +689,35 @@ assert(
   !emotionalSupportHint.includes('empatico e umano') &&
   !emotionalSupportHint.includes('meccanicità robotica'),
   'il category hint emotional_support deve restare sobrio e operativo'
+);
+
+const personalTechnicalPrompt = engine.buildPrompt({
+  emailSubject: 'Messa da requiem',
+  emailContent: 'Abbiamo perso nostro figlio. Vorrei sapere gli orari delle messe da requiem.',
+  knowledgeBase: 'Messe da requiem: contattare la segreteria per concordare data e orario.',
+  aiCoreLite: 'AI_CORE_LITE_PERSONAL_SENTINEL',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  salutationMode: 'full',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  relationalPosture: 'personal'
+});
+const openPostureSection = engine.renderRelationalPosture('open');
+const directPostureSection = engine.renderRelationalPosture('direct');
+
+assert(
+  personalTechnicalPrompt.includes('Il mittente ha condiviso qualcosa di personale o delicato') &&
+  personalTechnicalPrompt.includes('AI_CORE_LITE_PERSONAL_SENTINEL'),
+  'la postura personal deve attivare almeno AI_CORE_LITE anche se la richiesta è tecnica'
+);
+assert(
+  openPostureSection.includes('calda e propositiva') &&
+  openPostureSection.includes('registro leggermente più personale') &&
+  !openPostureSection.includes('Rispondi ai fatti esclusivamente con i fatti.') &&
+  directPostureSection.includes('Rispondi ai fatti esclusivamente con i fatti.'),
+  'la postura open deve essere semanticamente distinta da direct'
 );
 
 console.log('--- Test prompt: data messaggio originale presente per riferimenti relativi ---');

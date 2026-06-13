@@ -495,6 +495,7 @@ CONTESTO LOGISTICO VISITA:
       ? `,
   "needs_sponsor_guidance": boolean`
       : '';
+    const relationalPostureConfidenceThreshold = EmailQuickCheckPolicy.getRelationalPostureConfidenceThreshold().toFixed(2);
     const prompt = `Analizza questa email.
 Rispondi ESCLUSIVAMENTE con un oggetto JSON valido e completo.
 NON usare blocchi markdown e NON aggiungere testo extra prima o dopo il JSON.
@@ -541,7 +542,9 @@ COMPITI:
    - "personal": condivisione esplicita di fatti personali delicati o vissuti intimi.
    - "open": tono collaborativo, fiducioso, ringraziamenti anticipati o disponibilita' al dialogo.
    - "direct": testo essenziale, operativo, senza marcatori relazionali forti (DEFAULT).
-   - Fornisci anche relational_posture_confidence (0.0-1.0). Usa valori >= 0.70 solo quando i marcatori linguistici sono espliciti e chiaramente osservabili; altrimenti scegli "direct".
+   - Fornisci anche relational_posture_confidence (0.0-1.0).
+   - IMPORTANTE: il sistema accetta la postura solo se relational_posture_confidence >= ${relationalPostureConfidenceThreshold}; sotto quella soglia la postura viene ignorata e si usa "direct".
+   - Imposta un valore >= ${relationalPostureConfidenceThreshold} quando almeno un marcatore linguistico è esplicito e inequivocabile nel testo. Se i marcatori sono vaghi o assenti, imposta un valore sotto soglia e scegli "direct".
 ${sponsorGuidanceTask}
 
 ⚠️ REGOLA CRITICA "SBATTEZZO":

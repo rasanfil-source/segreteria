@@ -529,7 +529,7 @@ KB_TOKEN_BUDGET = 60000; // 50%
 // Unified Smart RAG (Dottrina + Direttive)
 // Sostituisce i vecchi metodi di retrieval separati
 // 1. Scoring basato su Topic, Keyword e Dimensioni (es. pastoral boost)
-// 2. Tono Matching: Boost per righe con tono allineato a suggestedTone
+// 2. Scoring categorico: boost per righe coerenti con le dimensioni della richiesta
 // 3. Volume Adattivo: Max righe in base a promptProfile (Lite=3, Std=5, Heavy=8)
 // 4. Output Unificato: Dottrina + Note AI + Warning in un unico blocco
 

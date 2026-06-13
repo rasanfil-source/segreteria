@@ -2468,6 +2468,74 @@ console.log('--- Test prompt options: messageDate usa la data del messaggio orig
   assert(validationRuntimeContext === promptOptions.runtimeContext, 'validator deve ricevere lo stesso runtimeContext passato al prompt');
 }
 
+console.log('--- Test prompt options: relationalPosture personal passa dal quick-check al PromptEngine ---');
+{
+  let promptOptions = null;
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Cresima adulti',
+        body: 'Ho una grande gioia nel cuore, sento che questo è un passo immenso. Vorrei ricevere la Cresima.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date('2026-05-07T10:00:00Z'),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'sacrament', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: () => ({
+        shouldRespond: true,
+        language: 'it',
+        relational_posture: 'personal',
+        relational_posture_confidence: 0.92,
+        classification: { category: 'sacrament', topic: 'cresima adulti' }
+      }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta cresima' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', needsDiscernment: false, needsDoctrine: false, dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    validator: {
+      validateResponse: () => ({ isValid: true, score: 1.0, errors: [], warnings: [], details: {}, fixedResponse: null })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        promptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('relational-posture-personal'), 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'il thread con postura personal deve completarsi');
+  assert(promptOptions && promptOptions.relationalPosture === 'personal', `relationalPosture attesa personal, ottenuta ${promptOptions && promptOptions.relationalPosture}`);
+  assert(promptOptions.requestType && promptOptions.requestType.type === 'technical', 'il test deve dimostrare che la postura resta indipendente dal requestType tecnico');
+}
+
 console.log('--- Test runtimeContext: messageDate fallback esplicito quando la data Gmail non è valida ---');
 {
   const processor = new EmailProcessor({

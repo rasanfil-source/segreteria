@@ -235,7 +235,24 @@ var PromptEngine = class PromptEngine {
     let workingKnowledgeBase = originalKnowledgeBase;
     let kbWasTruncated = false;
 
+    const relationalPosture = options.relationalPosture ?? 'direct';
+    const normalizedTopicForRouting = String(topic || '').toLowerCase();
+    const normalizedCategoryForRouting = String(category || '').toLowerCase();
+    const requestTypeForRouting = options.requestType;
+    const requestTypeNameForRouting = String(typeof requestTypeForRouting === 'string'
+      ? requestTypeForRouting
+      : (requestTypeForRouting && requestTypeForRouting.type) || '').toLowerCase();
+    const isFormalTopicForRouting =
+      normalizedTopicForRouting.includes('sbattezzo') ||
+      normalizedCategoryForRouting === 'formal' ||
+      normalizedCategoryForRouting === 'sbattezzo' ||
+      requestTypeNameForRouting === 'formal';
+    const shouldApplyPersonalDiscernment = relationalPosture === 'personal' && !isFormalTopicForRouting;
+
     const shouldReserveAiCoreLiteOverhead = (() => {
+      if (shouldApplyPersonalDiscernment) {
+        return true;
+      }
       const requestType = options.requestType;
       if (typeof requestType === 'string') {
         return requestType === 'pastoral' || requestType === 'mixed' || requestType === 'doctrinal';
@@ -395,9 +412,9 @@ var PromptEngine = class PromptEngine {
     // 8. SCUSE PER RITARDO
     addSection(this._renderResponseDelay(responseDelay, detectedLanguage), 'ResponseDelay');
 
-    const relationalPosture = options.relationalPosture ?? 'direct';
+    const effectiveRelationalPosture = isFormalTopicForRouting ? 'direct' : relationalPosture;
     addSection(
-      this.renderRelationalPosture(relationalPosture),
+      this.renderRelationalPosture(effectiveRelationalPosture),
       'RelationalPosture',
       { force: true, isSystem: true } 
     );
@@ -450,6 +467,12 @@ var PromptEngine = class PromptEngine {
       if (!hasDoctrine) {
         requestTypeObj.needsDoctrine = type === 'doctrinal';
       }
+    }
+
+    // Una condivisione personale delicata richiede almeno i principi pastorali di base.
+    if (shouldApplyPersonalDiscernment && !requestTypeObj.needsDiscernment) {
+      requestTypeObj = Object.assign({}, requestTypeObj, { needsDiscernment: true });
+      console.log('ℹ️ needsDiscernment alzato a true per postura personal');
     }
 
     // 13. AI_CORE_LITE: solo se componente pastorale
@@ -518,10 +541,11 @@ var PromptEngine = class PromptEngine {
     // 22. TEMPLATE SPECIALI (Sbattezzo ecc.)
     const normalizedTopic = String(topic || '').toLowerCase();
     const normalizedCategory = String(category || '').toLowerCase();
+    const normalizedRequestType = String(requestTypeObj.type || '').toLowerCase();
     const isFormalRequest =
       normalizedCategory === 'formal' ||
       normalizedCategory === 'sbattezzo' ||
-      requestTypeObj.type === 'formal';
+      normalizedRequestType === 'formal';
 
     if (normalizedTopic.includes('sbattezzo') || isFormalRequest) {
       addSection(this._renderSbattezzoTemplate(senderName, detectedLanguage), 'SbattezzoTemplate', { isSystem: true });
@@ -834,7 +858,7 @@ ${rules.join('\n')}`;
 
   /**
    * Recupero selettivo UNIFICATO (Dottrina + Direttive)
-   * Integra logica dimensionale, tono consigliato e volume adattivo
+   * Integra logica dimensionale e volume adattivo
    */
   _renderSelectiveDoctrine(requestType, topic, emailContent, emailSubject, promptProfile, subIntents, doctrineDB) {
     if (!Array.isArray(doctrineDB) || doctrineDB.length === 0) {
@@ -843,8 +867,6 @@ ${rules.join('\n')}`;
     }
 
     let dimWeights = {};
-    let suggestedTone = '';
-
     if (typeof requestType === 'object' && requestType.dimensions) {
       dimWeights = {
         'sacrament': 1.0,
@@ -852,7 +874,6 @@ ${rules.join('\n')}`;
         'doctrinal': requestType.dimensions.doctrinal ?? 0.5,
         'technical': requestType.dimensions.technical ?? 0.5
       };
-      suggestedTone = (requestType.suggestedTone || '').toLowerCase();
     } else {
       const typeStr = (typeof requestType === 'string' ? requestType : requestType.type) || 'technical';
       const isPastoral = typeStr === 'pastoral';
@@ -919,7 +940,6 @@ ${rules.join('\n')}`;
       let score = 0;
       if (!row) return { row: {}, score: -1 };
       const sottotema = String(row['Sotto-tema'] || '').toLowerCase();
-      const rowTone = String(row['Tono consigliato'] || '').toLowerCase().trim();
       const rowCat = String(row.Categoria || '');
 
       if (topicLower && sottotema.includes(topicLower)) score += 10;
@@ -930,10 +950,6 @@ ${rules.join('\n')}`;
 
       const catWeight = getCatWeight(rowCat);
       score = (score * (1 + catWeight)) + (catWeight * 2);
-
-      if (suggestedTone && rowTone && suggestedTone.includes(rowTone.split(' ')[0])) {
-        score += 2;
-      }
 
       if (sottotema.length < 5) score -= 5;
 
@@ -1655,26 +1671,36 @@ ISTRUZIONI:
 
   /**
    * Renderizza la sezione POSTURA RELAZIONALE.
-   * @param {'direct'|'warm'|'hesitant'|'formal'} posture
+   * @param {'direct'|'urgent'|'hesitant'|'complaint'|'personal'|'open'} posture
    * @returns {string}
    */
   renderRelationalPosture(posture) {
     const instructions = {
       hesitant: [
-        '- Fornisci le informazioni pratiche richieste in modo procedurale e immediato.',
-        '- Non aggiungere commenti o rassicurazioni non esplicitamente richieste.',
+        '- Il mittente si è scusato o ha minimizzato la propria richiesta: accoglila come legittima, senza sottolinearne la semplicità.',
+        '- Fornisci le informazioni pratiche in modo diretto e sobrio, senza aggiungere commenti sulla natura della domanda.',
+        '- Evita formule che possano confermare l\'imbarazzo o attribuire stati d\'animo non esplicitati.',
       ],
       urgent: [
-        '- Struttura la risposta andando dritto alla soluzione operativa senza preamboli.',
+        '- Il mittente ha segnalato urgenza o pressione temporale: vai dritto alla soluzione operativa, senza preamboli o formule di cortesia prolungate.',
+        '- Se l\'urgenza dipende da una data imminente, mettila in evidenza nella struttura della risposta.',
       ],
       complaint: [
-        '- Mantieni un registro strettamente fattuale, oggettivo e orientato alla risoluzione.',
+        '- Il mittente esprime insoddisfazione o segnala un disservizio: mantieni un registro strettamente fattuale e orientato alla risoluzione.',
+        '- Non minimizzare il problema, non difenderti, non scusarti in modo generico. Riconosci il fatto e indica il passo concreto successivo.',
+        '- Evita formule consolatorie astratte; usa verbi di azione come "verificheremo" o "provvederemo".',
       ],
       personal: [
-        '- Usa un registro sobrio. Scrivi in prosa continua omettendo elenchi puntati o enfasi visiva.',
+        '- Il mittente ha condiviso qualcosa di personale o delicato: lutto, malattia, difficoltà familiare o una situazione intima.',
+        '- Scrivi in prosa continua: niente elenchi puntati, niente grassetti, niente strutture che diano un tono burocratico.',
+        '- Riconosci brevemente la dimensione umana con una frase sobria prima di entrare nelle informazioni pratiche. Non amplificare o parafrasare il vissuto del mittente.',
+        '- Evita formule che attribuiscono stati d\'animo ("capisco quanto sia difficile", "deve essere molto doloroso"): rimani vicino a ciò che è stato scritto esplicitamente.',
+        '- Se la richiesta pratica è minima, dedica più spazio alla presa in carico umana; se la richiesta è complessa, bilancia le due dimensioni.',
       ],
       open: [
-        '- Usa un registro informativo e struttura il testo per la massima chiarezza e leggibilità.',
+        '- Il mittente si è mostrato collaborativo e disponibile: rispecchia questo tono con una risposta calda e propositiva.',
+        '- Puoi usare una frase di raccordo che valorizzi la disponibilità espressa, senza essere ridondante.',
+        '- Struttura la risposta per chiarezza, ma lascia spazio a un registro leggermente più personale rispetto al default istituzionale.',
       ],
       direct: [
         '- Tono istituzionale. Rispondi ai fatti esclusivamente con i fatti.',

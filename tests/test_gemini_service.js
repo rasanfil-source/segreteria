@@ -194,6 +194,8 @@ console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documental
   assert(plainPrompt.prompt.includes('"physical_presence_constraint"'), 'prompt ordinario deve chiedere il vincolo di presenza fisica');
   assert(plainPrompt.prompt.includes('"relational_posture"'), 'prompt ordinario deve chiedere la postura relazionale');
   assert(plainPrompt.prompt.includes('"relational_posture_confidence"'), 'prompt ordinario deve chiedere la confidenza della postura relazionale');
+  assert(plainPrompt.prompt.includes('relational_posture_confidence >= 0.70'), 'prompt quick-check deve comunicare la soglia operativa default della postura');
+  assert(plainPrompt.prompt.includes('sotto quella soglia la postura viene ignorata'), 'prompt quick-check deve spiegare il fallback sotto soglia');
   assert(plainPrompt.prompt.includes('"complaint"'), 'prompt quick-check deve usare complaint come label osservabile');
   assert(plainPrompt.prompt.includes('"legal_restriction"'), 'prompt quick-check deve coprire limitazioni legali alla presenza fisica');
   assert(visitPrompt.prompt.includes('CONTESTO LOGISTICO VISITA'), 'richiesta di passaggio deve includere guardrail logistico');
@@ -203,6 +205,23 @@ console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documental
   assert(policyPrompt.prompt.includes('"needs_sponsor_guidance": boolean'), 'precheck sponsor deve richiedere il campo JSON dedicato');
   assert(policyPrompt.safeSubject === 'Documentazione', 'policy deve normalizzare e preservare il subject sicuro');
   assert(policyPrompt.safeContent.includes('certificato'), 'policy deve normalizzare e preservare il contenuto sicuro');
+}
+
+console.log('--- Test EmailQuickCheckPolicy: soglia postura relazionale configurabile nel prompt ---');
+{
+  const previousConfig = global.CONFIG;
+  global.CONFIG = Object.assign({}, previousConfig || {}, {
+    RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD: 0.65
+  });
+  try {
+    const thresholdPrompt = EmailQuickCheckPolicy.buildPrompt('Mi scusi, avrei una domanda', 'Info', null);
+    assert(
+      thresholdPrompt.prompt.includes('relational_posture_confidence >= 0.65'),
+      'prompt quick-check deve usare la soglia configurata per la postura relazionale'
+    );
+  } finally {
+    global.CONFIG = previousConfig;
+  }
 }
 
 console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza risposta su submission documentale ---');
