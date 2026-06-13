@@ -981,7 +981,7 @@ ${directives}
   _renderContinuityHumanFocus() {
     return `## CONTINUITÀ E TONO
 Se la conversazione è già avviata, entra nel merito senza riaprire da capo. Una frase di collegamento è sufficiente, e solo se aggiunge fluidità.
-Usa l'empatia quando il messaggio la chiama, non come formula di default. Rispondi al tono di chi scrive: se è diretto, sii diretto; se è emotivo, sii umano.
+Mantieni un registro aderente al testo ricevuto: se è diretto, sii diretto; se è delicato, resta sobrio e concreto, senza attribuire stati d'animo.
 Mantieni la stessa lingua e registro dell'email ricevuta. Se la confidenza sul contenuto è bassa, formula con prudenza, senza scuse esplicite che appesantiscono.`;
   }
 
@@ -1506,8 +1506,8 @@ ${messageDateLines}${currentTime ? `- **Ora locale attuale:** ${currentTime}\n` 
       'information': '📌 Richiesta INFORMAZIONI: rispondi basandoti sulla knowledge base. ✅ USA FORMATTAZIONE se 3+ orari/elementi.',
       'sacrament': '📌 Email su SACRAMENTI: fornisci info dettagliate. ✅ USA FORMATTAZIONE per requisiti/date.',
       'collaboration': '📌 Proposta COLLABORAZIONE: ringrazia e spiega come procedere.',
-      'complaint': '📌 Possibile RECLAMO: rispondi con empatia e professionalità.',
-      'emotional_support': '📌 Supporto PASTORALE: massima delicatezza e sobrietà, limitandoti ai fatti e alle soluzioni operative.',
+      'complaint': '📌 Possibile RECLAMO: rispondi in modo fattuale, ordinato e risolutivo.',
+      'emotional_support': '📌 Supporto PASTORALE: rispondi con massima delicatezza e sobrietà, limitandoti ai fatti e alle soluzioni operative disponibili.',
       'quotation': '📌 PREVENTIVO/OFFERTA RICEVUTA: Ringrazia, conferma ricezione, comunica che esaminerai e risponderai. ⚠️ NON dire "restiamo a disposizione per chiarimenti" - siamo noi i destinatari!'
     };
 
@@ -1579,7 +1579,7 @@ ${sensitiveOverride}
 1. Riconosci eventuali problemi o disservizi in modo fattuale, senza attribuire stati emotivi
 2. Rispondi sul punto concreto
 3. Spiega o offri una soluzione
-4. Mantieni tono professionale ma empatico`;
+4. Mantieni tono professionale, sobrio e orientato alla soluzione`;
     } else if (category === 'quotation') {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (PREVENTIVO/OFFERTA):**
 1. Ringrazia per l'invio del preventivo/offerta
