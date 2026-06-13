@@ -681,11 +681,11 @@ ${sep}
   _getSimpleHint(requestType) {
     const sep = this._getSep();
     if (requestType === 'technical') {
-      return `\n🎯 TIPO RICHIESTA: TECNICA\n${sep}\nRispondi in modo diretto ed essenziale.\n${sep}\n`;
+      return `\n🎯 TIPO RICHIESTA: TECNICA\n${sep}\nSegui le linee guida pragmatiche per il tono.\n${sep}\n`;
     } else if (requestType === 'pastoral') {
-      return `\n🎯 TIPO RICHIESTA: PASTORALE\n${sep}\nRispondi con calore e spirito di accoglienza.\n${sep}\n`;
+      return `\n🎯 TIPO RICHIESTA: PASTORALE\n${sep}\nSegui le linee guida pragmatiche per il tono.\n${sep}\n`;
     }
-    return `\n🎯 TIPO RICHIESTA: GENERALE\n${sep}\nFornisci una risposta equilibrata e chiara.\n${sep}\n`;
+    return `\n🎯 TIPO RICHIESTA: GENERALE\n${sep}\nSegui le linee guida pragmatiche per il tono.\n${sep}\n`;
   }
 }
 
