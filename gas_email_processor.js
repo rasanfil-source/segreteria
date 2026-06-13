@@ -5367,7 +5367,8 @@ Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
       `Regola 1: usa currentDate (${temporal.currentDate || '?'}) come unica data di riferimento per decidere se nella risposta un evento e passato, presente o futuro.`,
       `Regola 2: usa messageDate (${temporal.messageDate || '?'}) solo per interpretare riferimenti relativi scritti dall'utente nell'email originale, come oggi, domani, ieri o sabato prossimo.`,
       `Regola 3: se messageDate non era disponibile ed e indicato un fallback tecnico, non presentare l'anno inferito come certo: chiedi conferma quando l'anno e ambiguo.`,
-      `Regola 4: non presentare ${previousPope || 'il Papa precedente'} come Papa attuale o voce magisteriale in presente.`
+      `Regola 4: non presentare ${previousPope || 'il Papa precedente'} come Papa attuale o voce magisteriale in presente.`,
+      `Regola 5: NON citare mai l'ora corrente di sistema (${temporal.currentTime || '?'}) nel testo della risposta.`
     ].join('\n');
 
     const rulesBlock = temporalAwareness

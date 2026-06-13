@@ -379,6 +379,23 @@ assert(
   '10:00 deve essere registrato tra gli orari inventati'
 );
 
+console.log('--- Test hallucination: currentTime runtime non viene trattato come orario inventato ---');
+const currentTimeWhitelistResult = validator._checkHallucinations(
+  'Sono le 10:00. La segreteria le risponderà appena possibile.',
+  'Orari disponibili: 09:00 e 11:00.',
+  'Vorrei sapere gli orari delle messe.',
+  { temporal: { currentDate: '2026-06-08', currentTime: '10:00', messageDate: '2026-06-08' } }
+);
+assert(
+  !currentTimeWhitelistResult.errors.some((e) => e.includes('Orari non in KB: 10:00')),
+  'currentTime runtime deve essere whitelist tecnica per il controllo hallucination'
+);
+assert(
+  !currentTimeWhitelistResult.hallucinations.times ||
+    !currentTimeWhitelistResult.hallucinations.times.includes('10:00'),
+  'currentTime runtime non deve essere registrato tra gli orari inventati'
+);
+
 console.log('--- Test validateResponse: orario inventato è bloccante ---');
 const inventedTimeValidation = validator.validateResponse(
   'Gentile utente, la Santa Messa è alle 10:00. Cordiali saluti.',

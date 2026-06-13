@@ -2287,6 +2287,10 @@ console.log('--- Test processThread: retry intelligente conserva nota oraria con
     'il prompt di retry deve includere il runtimeContext immutato'
   );
   assert(
+    generatedPrompts[1] && generatedPrompts[1].includes("Regola 5: NON citare mai l'ora corrente di sistema"),
+    'il prompt di retry deve vietare la citazione dell ora corrente di sistema'
+  );
+  assert(
     validatedTexts[1].includes('orario diverso rispetto a quanto da Lei indicato'),
     'il retry deve ricevere la stessa nota oraria della prima risposta'
   );

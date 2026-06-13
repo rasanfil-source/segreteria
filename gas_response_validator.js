@@ -377,7 +377,7 @@ var ResponseValidator = class ResponseValidator {
 
     // === CONTROLLO 5: Allucinazioni ===
     const originalContext = [emailSubject, originalMessage].filter(Boolean).join('\n').trim();
-    const hallucResult = this._checkHallucinations(response, knowledgeBase, originalContext);
+    const hallucResult = this._checkHallucinations(response, knowledgeBase, originalContext, temporalContext);
     errors.push(...hallucResult.errors);
     warnings.push(...hallucResult.warnings);
     details.hallucinations = hallucResult;
@@ -684,7 +684,7 @@ var ResponseValidator = class ResponseValidator {
   /**
    * Controllo 5: Allucinazioni (dati inventati non in KB)
    */
-  _checkHallucinations(response, knowledgeBase, originalMessage = '') {
+  _checkHallucinations(response, knowledgeBase, originalMessage = '', temporalContext = null) {
     const errors = [];
     const warnings = [];
     let score = 1.0;
@@ -781,6 +781,13 @@ var ResponseValidator = class ResponseValidator {
     collectContextualHours(response, responseTimesRaw);
     collectContextualHours(safeKnowledgeBase, kbTimesRaw);
     collectContextualHours(originalMessage || '', originalTimesRaw);
+    const runtimeContext = this._normalizeRuntimeContext_(temporalContext);
+    const runtimeCurrentTime = runtimeContext && runtimeContext.temporal
+      ? runtimeContext.temporal.currentTime
+      : null;
+    if (runtimeCurrentTime) {
+      originalTimesRaw.push(runtimeCurrentTime);
+    }
 
     const responseTimes = new Set(responseTimesRaw.map(normalizeTime));
     const kbTimes = new Set(kbTimesRaw.map(normalizeTime));
