@@ -624,7 +624,7 @@ const urgentCertificatePrompt = engine.buildPrompt({
   salutationMode: 'full',
   salutation: 'Buongiorno,',
   closing: 'Cordiali saluti,',
-  category: 'information',
+  category: 'complaint',
   subIntents: { emotional_distress: true },
   relationalPosture: 'complaint'
 });
@@ -644,14 +644,22 @@ assert(
 );
 assert(
   urgentCertificatePrompt.includes('senza formule di empatia psicologica esplicita o attribuzioni emotive') &&
+  urgentCertificatePrompt.includes('rispondi in modo fattuale, ordinato e risolutivo') &&
+  urgentCertificatePrompt.includes('Riconosci eventuali problemi o disservizi in modo fattuale, senza attribuire stati emotivi') &&
+  urgentCertificatePrompt.includes('Mantieni tono professionale, sobrio e orientato alla soluzione') &&
+  urgentCertificatePrompt.includes("senza attribuire stati d'animo") &&
   !urgentCertificatePrompt.includes('STRUTTURA RISPOSTA RACCOMANDATA (SITUAZIONE EMOTIVA)') &&
   !urgentCertificatePrompt.includes('Comprendiamo il suo disappunto') &&
-  !urgentCertificatePrompt.includes('Riconosci il disagio'),
+  !urgentCertificatePrompt.includes('Riconosci il disagio') &&
+  !urgentCertificatePrompt.includes("Usa l'empatia quando il messaggio la chiama") &&
+  !urgentCertificatePrompt.includes('se è emotivo, sii umano') &&
+  !urgentCertificatePrompt.includes('rispondi con empatia e professionalità') &&
+  !urgentCertificatePrompt.includes('tono professionale ma empatico'),
   'emotional_distress con postura complaint deve cadere nel flusso normale senza struttura emotiva hardcoded'
 );
 assert(
   emotionalSupportHint.includes('massima delicatezza e sobrietà') &&
-  emotionalSupportHint.includes('soluzioni operative') &&
+  emotionalSupportHint.includes('soluzioni operative disponibili') &&
   !emotionalSupportHint.includes('empatico e umano') &&
   !emotionalSupportHint.includes('meccanicità robotica'),
   'il category hint emotional_support deve restare sobrio e operativo'
