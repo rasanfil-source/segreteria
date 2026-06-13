@@ -631,13 +631,16 @@ const urgentCertificatePrompt = engine.buildPrompt({
 const emotionalSupportHint = engine._renderCategoryHint('emotional_support');
 
 assert(
-  hesitantSponsorPrompt.includes('Adatta solo il livello testuale') &&
-  hesitantSponsorPrompt.includes("Non attribuire stati d'animo") &&
-  hesitantSponsorPrompt.includes('Non attribuire emozioni, intenzioni o stati psicologici alla persona.'),
-  'la postura hesitant deve restare sul livello testuale e vietare attribuzioni emotive'
+  hesitantSponsorPrompt.includes('Usa frasi brevi, passaggi chiari e un tono pratico.') &&
+  hesitantSponsorPrompt.includes('Rispondi direttamente con informazioni, opzioni e prossime azioni.') &&
+  hesitantSponsorPrompt.includes('Mantieni il testo aderente a richieste, fatti, vincoli e prossime azioni.'),
+  'la postura hesitant deve restare pratica e orientata alle azioni successive'
 );
 assert(
   !hesitantSponsorPrompt.includes('rassicurante') &&
+  !hesitantSponsorPrompt.includes("stati d'animo") &&
+  !hesitantSponsorPrompt.includes('bisogni emotivi') &&
+  !hesitantSponsorPrompt.includes('emozioni, intenzioni') &&
   !hesitantSponsorPrompt.includes('provare imbarazzo') &&
   !hesitantSponsorPrompt.includes("non c'è alcun motivo"),
   'la postura hesitant non deve suggerire rassicurazioni o stati emotivi presunti'

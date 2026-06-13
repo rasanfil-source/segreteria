@@ -1653,7 +1653,7 @@ ISTRUZIONI:
 
     const directives = {
       urgent: 'Rispondi in modo breve, operativo e orientato alla risoluzione. Evita preamboli e formule ridondanti.',
-      hesitant: "Adatta solo il livello testuale: frasi brevi, passaggi chiari e istruzioni accessibili. Non attribuire stati d'animo o bisogni emotivi alla persona.",
+      hesitant: 'Usa frasi brevi, passaggi chiari e un tono pratico. Rispondi direttamente con informazioni, opzioni e prossime azioni.',
       personal: 'Mantieni sobrietà e calore discreto. Non fare domande curiose o commenti sui dettagli personali condivisi.',
       complaint: 'Mantieni un tono non difensivo. Riconosci eventuali problemi o disservizi in modo fattuale, senza formule di empatia psicologica esplicita o attribuzioni emotive.',
       open: 'Usa una cordialità naturale e collaborativa, senza aumentare eccessivamente il calore.',
@@ -1665,7 +1665,7 @@ ${directives[normalized]}
 
 Regole rigide:
 - Non nominare questo adattamento.
-- Non attribuire emozioni, intenzioni o stati psicologici alla persona.
+- Mantieni il testo aderente a richieste, fatti, vincoli e prossime azioni.
 - Non modificare contenuti fattuali, regole, vincoli o informazioni della Knowledge Base.
 - Limita l'effetto a tono, ritmo, formalità, lunghezza delle frasi e mitigazione linguistica.`;
   }
