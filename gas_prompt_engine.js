@@ -242,11 +242,17 @@ var PromptEngine = class PromptEngine {
     const requestTypeNameForRouting = String(typeof requestTypeForRouting === 'string'
       ? requestTypeForRouting
       : (requestTypeForRouting && requestTypeForRouting.type) || '').toLowerCase();
+    const requestTypeIsSbattezzoForRouting = Boolean(
+      requestTypeForRouting &&
+      typeof requestTypeForRouting === 'object' &&
+      requestTypeForRouting.isSbattezzo === true
+    );
     const isFormalTopicForRouting =
       normalizedTopicForRouting.includes('sbattezzo') ||
       normalizedCategoryForRouting === 'formal' ||
       normalizedCategoryForRouting === 'sbattezzo' ||
-      requestTypeNameForRouting === 'formal';
+      requestTypeNameForRouting === 'formal' ||
+      requestTypeIsSbattezzoForRouting;
     const shouldApplyPersonalDiscernment = relationalPosture === 'personal' && !isFormalTopicForRouting;
 
     const shouldReserveAiCoreLiteOverhead = (() => {
@@ -545,7 +551,8 @@ var PromptEngine = class PromptEngine {
     const isFormalRequest =
       normalizedCategory === 'formal' ||
       normalizedCategory === 'sbattezzo' ||
-      normalizedRequestType === 'formal';
+      normalizedRequestType === 'formal' ||
+      requestTypeObj.isSbattezzo === true;
 
     if (normalizedTopic.includes('sbattezzo') || isFormalRequest) {
       addSection(this._renderSbattezzoTemplate(senderName, detectedLanguage), 'SbattezzoTemplate', { isSystem: true });

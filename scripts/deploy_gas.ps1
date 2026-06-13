@@ -46,7 +46,7 @@ function Write-ClaspJson($scriptId) {
 }
 
 function Invoke-ClaspPush($environmentName) {
-    npx clasp push -f
+    clasp.cmd push -f
     if ($LASTEXITCODE -ne 0) {
         throw "clasp push failed for $environmentName (exit code $LASTEXITCODE)"
     }

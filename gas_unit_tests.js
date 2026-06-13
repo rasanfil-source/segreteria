@@ -2313,6 +2313,49 @@ function runAllTests() {
                 section.includes('registro leggermente più personale') &&
                 !section.includes('Rispondi ai fatti esclusivamente con i fatti.');
         });
+        test('Relational posture hesitant non conferma imbarazzo', results, () => {
+            const section = engine.renderRelationalPosture('hesitant');
+            return section.includes('accoglila come legittima') &&
+                section.includes('attribuire stati d\'animo non esplicitati') &&
+                !section.includes('nessun problema') &&
+                !section.includes('si figuri');
+        });
+        test('Relational posture urgent privilegia soluzione operativa', results, () => {
+            const section = engine.renderRelationalPosture('urgent');
+            return section.includes('urgenza o pressione temporale') &&
+                section.includes('vai dritto alla soluzione operativa') &&
+                section.includes('data imminente');
+        });
+        test('Relational posture complaint prescrive verbi di azione', results, () => {
+            const section = engine.renderRelationalPosture('complaint');
+            return section.includes('fattuale') &&
+                section.includes('non difenderti') &&
+                section.includes('Evita formule consolatorie') &&
+                section.includes('verificheremo') &&
+                section.includes('provvederemo');
+        });
+        test('Postura personal su requestType technical attiva AI_CORE_LITE', results, () => {
+            const prompt = engine.buildPrompt(Object.assign({}, baseOptions, {
+                relationalPosture: 'personal',
+                requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+                aiCoreLite: 'PRINCIPI_LITE_PLACEHOLDER'
+            })).toString();
+            return prompt.includes('PRINCIPI PASTORALI FONDAMENTALI (AI_CORE_LITE)') &&
+                prompt.includes('PRINCIPI_LITE_PLACEHOLDER');
+        });
+        test('requestType.isSbattezzo silenzia postura personal e attiva template formale', results, () => {
+            const prompt = engine.buildPrompt(Object.assign({}, baseOptions, {
+                relationalPosture: 'personal',
+                requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false, isSbattezzo: true },
+                category: 'technical',
+                topic: 'procedura',
+                aiCoreLite: 'AI_CORE_LITE_FORMAL_SHOULD_NOT_APPEAR'
+            })).toString();
+            return prompt.includes('TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI') &&
+                prompt.includes('- Tono istituzionale. Rispondi ai fatti esclusivamente con i fatti.') &&
+                !prompt.includes('Il mittente ha condiviso qualcosa di personale o delicato') &&
+                !prompt.includes('AI_CORE_LITE_FORMAL_SHOULD_NOT_APPEAR');
+        });
         test('Contesto temporale papale renderizza inizio ministero senza undefined', results, () => {
             const originalConfig = global.CONFIG;
             try {
