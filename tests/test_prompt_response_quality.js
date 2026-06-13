@@ -658,6 +658,7 @@ const emotionalSupportHint = engine._renderCategoryHint('emotional_support');
 assert(
   hesitantSponsorPrompt.includes('=== LINEE GUIDA PRAGMATICHE ===') &&
   hesitantSponsorPrompt.includes('accoglila come legittima') &&
+  hesitantSponsorPrompt.includes('la chiarezza è già un atto di rispetto') &&
   hesitantSponsorPrompt.includes('senza aggiungere commenti sulla natura della domanda') &&
   hesitantSponsorPrompt.includes('attribuire stati d\'animo non esplicitati'),
   'la postura hesitant deve legittimare la richiesta senza inventare imbarazzo o rassicurazioni'
@@ -715,6 +716,7 @@ assert(
 assert(
   openPostureSection.includes('calda e propositiva') &&
   openPostureSection.includes('registro leggermente più personale') &&
+  openPostureSection.includes('Evita di amplificare il tono positivo oltre il necessario') &&
   !openPostureSection.includes('Rispondi ai fatti esclusivamente con i fatti.') &&
   directPostureSection.includes('Rispondi ai fatti esclusivamente con i fatti.'),
   'la postura open deve essere semanticamente distinta da direct'

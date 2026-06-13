@@ -2359,11 +2359,13 @@ function runAllTests() {
             const section = engine.renderRelationalPosture('open');
             return section.includes('calda e propositiva') &&
                 section.includes('registro leggermente più personale') &&
+                section.includes('Evita di amplificare il tono positivo oltre il necessario') &&
                 !section.includes('Rispondi ai fatti esclusivamente con i fatti.');
         });
         test('Relational posture hesitant non conferma imbarazzo', results, () => {
             const section = engine.renderRelationalPosture('hesitant');
             return section.includes('accoglila come legittima') &&
+                section.includes('la chiarezza è già un atto di rispetto') &&
                 section.includes('attribuire stati d\'animo non esplicitati') &&
                 !section.includes('nessun problema') &&
                 !section.includes('si figuri');

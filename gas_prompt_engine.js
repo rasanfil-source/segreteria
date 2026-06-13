@@ -1685,6 +1685,7 @@ ISTRUZIONI:
     const instructions = {
       hesitant: [
         '- Il mittente si è scusato o ha minimizzato la propria richiesta: accoglila come legittima, senza sottolinearne la semplicità.',
+        '- Rispondi in modo diretto e sobrio: la chiarezza è già un atto di rispetto verso chi teme di disturbare.',
         '- Fornisci le informazioni pratiche in modo diretto e sobrio, senza aggiungere commenti sulla natura della domanda.',
         '- Evita formule che possano confermare l\'imbarazzo o attribuire stati d\'animo non esplicitati.',
       ],
@@ -1708,6 +1709,7 @@ ISTRUZIONI:
         '- Il mittente si è mostrato collaborativo e disponibile: rispecchia questo tono con una risposta calda e propositiva.',
         '- Puoi usare una frase di raccordo che valorizzi la disponibilità espressa, senza essere ridondante.',
         '- Struttura la risposta per chiarezza, ma lascia spazio a un registro leggermente più personale rispetto al default istituzionale.',
+        '- Evita di amplificare il tono positivo oltre il necessario: una risposta chiara e concreta è già una risposta calorosa.',
       ],
       direct: [
         '- Tono istituzionale. Rispondi ai fatti esclusivamente con i fatti.',
