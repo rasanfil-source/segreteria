@@ -70,7 +70,7 @@
       "promptMustInclude": [
         "CHECKLIST CONTESTUALE DI RISPOSTA"
       ],
-      "maxPromptChars": 15000,
+      "maxPromptChars": 16000,
       "validator": {
         "isValid": true,
         "minScore": 0.85

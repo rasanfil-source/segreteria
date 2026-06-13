@@ -631,10 +631,11 @@ const urgentCertificatePrompt = engine.buildPrompt({
 const emotionalSupportHint = engine._renderCategoryHint('emotional_support');
 
 assert(
-  hesitantSponsorPrompt.includes('Usa frasi brevi, passaggi chiari e un tono pratico.') &&
-  hesitantSponsorPrompt.includes('Rispondi direttamente con informazioni, opzioni e prossime azioni.') &&
-  hesitantSponsorPrompt.includes('Mantieni il testo aderente a richieste, fatti, vincoli e prossime azioni.'),
-  'la postura hesitant deve restare pratica e orientata alle azioni successive'
+  hesitantSponsorPrompt.includes('=== POSTURA RELAZIONALE (OVERRIDE TONO — VINCOLANTE) ===') &&
+  hesitantSponsorPrompt.includes('Postura rilevata: HESITANT') &&
+  hesitantSponsorPrompt.includes("L'utente mostra incertezza o imbarazzo. Usa UNA frase di normalizzazione, breve.") &&
+  hesitantSponsorPrompt.includes("Poi procedi immediatamente con le informazioni pratiche richieste."),
+  'la postura hesitant deve includere le nuove istruzioni di normalizzazione'
 );
 assert(
   !hesitantSponsorPrompt.includes('rassicurante') &&
@@ -646,11 +647,10 @@ assert(
   'la postura hesitant non deve suggerire rassicurazioni o stati emotivi presunti'
 );
 assert(
-  urgentCertificatePrompt.includes('senza formule di empatia psicologica esplicita o attribuzioni emotive') &&
-  urgentCertificatePrompt.includes('rispondi in modo fattuale, ordinato e risolutivo') &&
-  urgentCertificatePrompt.includes('Riconosci eventuali problemi o disservizi in modo fattuale, senza attribuire stati emotivi') &&
-  urgentCertificatePrompt.includes('Mantieni tono professionale, sobrio e orientato alla soluzione') &&
-  urgentCertificatePrompt.includes("senza attribuire stati d'animo") &&
+  urgentCertificatePrompt.includes('=== POSTURA RELAZIONALE (OVERRIDE TONO — VINCOLANTE) ===') &&
+  urgentCertificatePrompt.includes('Postura rilevata: COMPLAINT') &&
+  urgentCertificatePrompt.includes('Tono: diretto, formale, istituzionale.') &&
+  urgentCertificatePrompt.includes('Rispondi ai fatti con fatti.') &&
   !urgentCertificatePrompt.includes('STRUTTURA RISPOSTA RACCOMANDATA (SITUAZIONE EMOTIVA)') &&
   !urgentCertificatePrompt.includes('Comprendiamo il suo disappunto') &&
   !urgentCertificatePrompt.includes('Riconosci il disagio') &&
@@ -658,7 +658,7 @@ assert(
   !urgentCertificatePrompt.includes('se è emotivo, sii umano') &&
   !urgentCertificatePrompt.includes('rispondi con empatia e professionalità') &&
   !urgentCertificatePrompt.includes('tono professionale ma empatico'),
-  'emotional_distress con postura complaint deve cadere nel flusso normale senza struttura emotiva hardcoded'
+  'emotional_distress con postura complaint deve cadere nel flusso normale senza struttura emotiva ed usare direct'
 );
 assert(
   emotionalSupportHint.includes('massima delicatezza e sobrietà') &&

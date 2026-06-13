@@ -130,8 +130,7 @@ var PromptEngine = class PromptEngine {
       attachmentsContext = '',
       attachmentIntentContext = null,
       sponsorGuidancePolicy = 'default',
-      priorOralCommunication = null,
-      relationalPosture = 'direct'
+      priorOralCommunication = null
     } = options;
 
     const runtimeContext = (options && options.runtimeContext && typeof options.runtimeContext === 'object')
@@ -386,6 +385,8 @@ var PromptEngine = class PromptEngine {
     // BLOCCO 2: CONTESTO E CONTINUITÀ
 
     // 6. CONTESTO MEMORIA
+
+    // 6. CONTESTO MEMORIA
     addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
 
     // 7. CONTINUITÀ CONVERSAZIONALE
@@ -393,6 +394,13 @@ var PromptEngine = class PromptEngine {
 
     // 8. SCUSE PER RITARDO
     addSection(this._renderResponseDelay(responseDelay, detectedLanguage), 'ResponseDelay');
+
+    const relationalPosture = options.relationalPosture ?? 'direct';
+    addSection(
+      this.renderRelationalPosture(relationalPosture),
+      'RelationalPosture',
+      { force: true, isSystem: true } 
+    );
 
     // 9. FOCUS UMANO (Condizionale)
     const shouldAddContinuityFocus =
@@ -417,7 +425,6 @@ var PromptEngine = class PromptEngine {
     addSection(this._renderCategoryHint(category), 'CategoryHint');
     addSection(this._renderSponsorGuidancePolicy(sponsorGuidancePolicy), 'SponsorGuidancePolicy');
     addSection(this._renderPhysicalPresenceConstraintGuideline(physicalPresenceConstraint), 'PhysicalPresenceConstraint');
-    addSection(this._renderRelationalPostureInstruction(relationalPosture), 'RelationalPosture', { isSystem: true });
 
     // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)
     // Normalizzazione: alcuni flussi passano requestType come stringa
@@ -1646,28 +1653,49 @@ ISTRUZIONI:
     return null;
   }
 
-  _renderRelationalPostureInstruction(posture) {
-    const allowed = ['urgent', 'hesitant', 'complaint', 'personal', 'open', 'direct'];
-    const normalizedInput = String(posture || '').toLowerCase().trim();
-    const normalized = allowed.includes(normalizedInput) ? normalizedInput : 'direct';
-
-    const directives = {
-      urgent: 'Rispondi in modo breve, operativo e orientato alla risoluzione. Evita preamboli e formule ridondanti.',
-      hesitant: 'Usa frasi brevi, passaggi chiari e un tono pratico. Rispondi direttamente con informazioni, opzioni e prossime azioni.',
-      personal: 'Mantieni sobrietà e calore discreto. Non fare domande curiose o commenti sui dettagli personali condivisi.',
-      complaint: 'Mantieni un tono non difensivo. Riconosci eventuali problemi o disservizi in modo fattuale, senza formule di empatia psicologica esplicita o attribuzioni emotive.',
-      open: 'Usa una cordialità naturale e collaborativa, senza aumentare eccessivamente il calore.',
-      direct: 'Rispondi in modo essenziale, chiaro e ordinato.'
+  /**
+   * Renderizza la sezione POSTURA RELAZIONALE.
+   * @param {'direct'|'warm'|'hesitant'|'formal'} posture
+   * @returns {string}
+   */
+  renderRelationalPosture(posture) {
+    const instructions = {
+      direct: [
+        '- Tono: diretto, formale, istituzionale.',
+        '- NON aggiungere commenti emotivi o frasi di rassicurazione non richieste.',
+        '- NON usare frasi come "non si preoccupi", "non si vergogni", "splendida occasione".',
+        '- Rispondi ai fatti con fatti. La cordialità si esprime nella chiarezza, non nell\'empatia verbosa.',
+      ],
+      warm: [
+        '- Tono: caldo ma sobrio. Una sola frase di accoglienza nell\'apertura.',
+        '- Evita la sovra-empatia: non ripetere la stessa nota accogliente più di una volta.',
+        '- Il calore si manifesta nella disponibilità pratica, non nelle esclamazioni.',
+      ],
+      hesitant: [
+        '- L\'utente mostra incertezza o imbarazzo. Usa UNA frase di normalizzazione, breve.',
+        '- Poi procedi immediatamente con le informazioni pratiche richieste.',
+        '- Non elaborare ulteriormente sul tema emotivo: la normalizzazione è implicita nell\'aiuto concreto.',
+      ],
+      formal: [
+        '- Tono: strettamente formale e istituzionale.',
+        '- Nessuna frase emotiva o personale. Solo informazioni e procedure.',
+        '- Usa il Lei con registro burocratico-ecclesiastico standard.',
+      ],
     };
 
-    return `## ADATTAMENTO PRAGMATICO DELLO STILE
-${directives[normalized]}
+    const lines = instructions[posture] ?? instructions['direct'];
 
-Regole rigide:
-- Non nominare questo adattamento.
-- Mantieni il testo aderente a richieste, fatti, vincoli e prossime azioni.
-- Non modificare contenuti fattuali, regole, vincoli o informazioni della Knowledge Base.
-- Limita l'effetto a tono, ritmo, formalità, lunghezza delle frasi e mitigazione linguistica.`;
+    return [
+      '=== POSTURA RELAZIONALE (OVERRIDE TONO — VINCOLANTE) ===',
+      `Postura rilevata: ${posture.toUpperCase()}`,
+      'Queste istruzioni sul tono PREVALGONO su qualsiasi altra indicazione nel prompt.',
+      '',
+      ...lines,
+      '',
+      'DIVIETO ASSOLUTO: Non modificare questa postura in base alla categoria della richiesta.',
+      'Se la categoria è PASTORAL ma la postura è DIRECT, rimani DIRECT.',
+      '=== FINE POSTURA RELAZIONALE ===',
+    ].join('\n');
   }
 
   _renderPhysicalPresenceConstraintGuideline(constraint) {

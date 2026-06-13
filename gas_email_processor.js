@@ -2378,7 +2378,7 @@ ${addressLines.join('\n\n')}
         territoryContext: territoryContext,
         physicalPresenceConstraint: physicalPresenceConstraint,
         sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),
-        relationalPosture: quickCheck.relational_posture || 'direct',
+        relationalPosture:  quickCheck?.relational_posture ?? 'direct',
         requestType: requestType,
         attachmentsContext: attachmentBlobs.length > 0 ? textFromAttachments : "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa.",
         attachmentIntentContext: attachmentIntentContext

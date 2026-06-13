@@ -613,14 +613,6 @@ var RequestTypeClassifier = class RequestTypeClassifier {
     const isSbattezzo = !!typeInfo.isSbattezzo;
     const sep = this._getSep();
 
-    // Determina l'istruzione sul tono
-    let toneInstruction = '';
-    if (reqType === 'pastoral' || reqType === 'mixed') {
-      toneInstruction = `USA un tono ACCOGLIENTE e PERSONALE.`;
-    } else {
-      toneInstruction = `USA un tono CHIARO, PROFESSIONALE e DIRETTO.`;
-    }
-
     // Costruisce l'hint specifico
     if (isSbattezzo) {
       return `
@@ -632,8 +624,6 @@ Linee guida specifiche per lo sbattezzo:
 - Conferma che la volontà sarà rispettata
 - Mantieni un tono neutro e rispettoso della libertà di coscienza
 ${sep}
-${toneInstruction}
-${sep}
 📖 REGOLA DOTTRINALE (GAS-02):
 Questa è una richiesta di natura amministrativa/canonica.
 Fornisci informazioni sulla procedura senza giudizio o moralizzazione.
@@ -643,47 +633,26 @@ ${sep}
     }
 
     if (reqType === 'technical') {
-      return `
-🎯 TIPO RICHIESTA RILEVATO: TECNICA
-${sep}
+      return `TIPO RICHIESTA RILEVATO: TECNICA
+---
 Linee guida per la risposta:
-- Rispondi in modo CHIARO e BREVE
-- Fornisci l'informazione richiesta direttamente
-- Non eccedere in empatia o moralizzazione
-- Evita lunghe introduzioni emotive
-${sep}
-${toneInstruction}
-${sep}
-📖 REGOLA DOTTRINALE (GAS-02):
-Se il contenuto richiesto è dottrinale o canonico generale
-e NON coinvolge una situazione personale o discernimento,
-SPIEGA direttamente l'insegnamento della Chiesa.
-NON rimandare al sacerdote per domande informative.
-Il rinvio è riservato SOLO ai casi di discernimento personale.
-${sep}
-`;
+- Questa richiesta ha componente tecnica/procedurale: attiva la KB informativa e procedurale
+- Il TONO è determinato esclusivamente dalla relationalPosture ricevuta dal motore postural
+---
+[Postura relazionale: vedi sezione RELATIONAL_POSTURE nel prompt di sistema]
+---`;
     }
 
     if (reqType === 'pastoral') {
-      return `
-🎯 TIPO RICHIESTA RILEVATO: PASTORALE
-${sep}
+      return `TIPO RICHIESTA RILEVATO: PASTORALE
+---
 Linee guida per la risposta:
-- Rispondi in modo ACCOGLIENTE e PERSONALE
-- Riconosci la situazione / sentimento espresso
-- Accompagna la persona, non giudicare
-- Non fermarti solo alla norma
-- Invita al dialogo personale se opportuno
-${sep}
-${toneInstruction}
-${sep}
-📖 REGOLA DOTTRINALE (GAS-02):
-Qui è richiesto ASCOLTO e ACCOMPAGNAMENTO.
-Usa la dottrina come orientamento, non come clava.
-Se la situazione richiede un discernimento profondo
-o un colloquio sacramentale, invita a contattare il parroco.
-${sep}
-`;
+- Questa richiesta ha componente pastorale: attiva i riferimenti dottrinali sacramentali
+- Recupera dalla KB i nodi relativi a: sacramenti, accompagnamento, situazioni di vita
+- Il TONO è determinato esclusivamente dalla relationalPosture ricevuta dal motore postural
+---
+[Postura relazionale: vedi sezione RELATIONAL_POSTURE nel prompt di sistema]
+---`;
     }
 
     // Default per mixed o altro
@@ -695,8 +664,6 @@ Linee guida per la risposta:
 - Non fermarti alla sola regola
 - Non scivolare nel permissivismo
 - Bilancia informazione e accoglienza
-${sep}
-${toneInstruction}
 ${sep}
 📖 REGOLA DOTTRINALE (GAS-02):
 Questa è una richiesta di SPIEGAZIONE dottrinale generale.

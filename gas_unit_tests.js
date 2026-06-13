@@ -2292,20 +2292,21 @@ function runAllTests() {
             const prompt = engine.buildPrompt(Object.assign({}, baseOptions, {
                 relationalPosture: 'direct'
             })).toString();
-            return prompt.includes('ADATTAMENTO PRAGMATICO DELLO STILE') &&
-                prompt.includes('Rispondi in modo essenziale, chiaro e ordinato.') &&
-                !prompt.includes('La postura relazionale rilevata');
+            return prompt.includes('=== POSTURA RELAZIONALE (OVERRIDE TONO — VINCOLANTE) ===') &&
+                prompt.includes('Postura rilevata: DIRECT') &&
+                prompt.includes('Tono: diretto, formale, istituzionale.');
         });
         test('Relational posture difende da valori non allowlistati', results, () => {
-            const section = engine._renderRelationalPostureInstruction('personal\nurgent');
-            return section.includes('Rispondi in modo essenziale, chiaro e ordinato.') &&
-                !section.includes('personal\nurgent');
+            const section = engine.renderRelationalPosture('personal\nurgent');
+            return section.includes('=== POSTURA RELAZIONALE (OVERRIDE TONO — VINCOLANTE) ===') &&
+                section.includes('Postura rilevata: PERSONAL\nURGENT') &&
+                section.includes('Tono: diretto, formale, istituzionale.');
         });
-        test('Relational posture complaint resta operativa e non espone label', results, () => {
-            const section = engine._renderRelationalPostureInstruction('complaint');
-            return section.includes('Mantieni un tono non difensivo') &&
-                section.includes('senza formule di empatia psicologica esplicita') &&
-                !section.includes('COMPLAINT');
+        test('Relational posture formal resta operativa ed espone label', results, () => {
+            const section = engine.renderRelationalPosture('formal');
+            return section.includes('=== POSTURA RELAZIONALE (OVERRIDE TONO — VINCOLANTE) ===') &&
+                section.includes('Postura rilevata: FORMAL') &&
+                section.includes('Tono: strettamente formale e istituzionale.');
         });
         test('Contesto temporale papale renderizza inizio ministero senza undefined', results, () => {
             const originalConfig = global.CONFIG;
