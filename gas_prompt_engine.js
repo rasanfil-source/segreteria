@@ -1576,7 +1576,7 @@ ${sensitiveOverride}
 4. Offri disponibilità per chiarimenti`;
     } else if (category === 'complaint') {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (RECLAMO):**
-1. Riconosci il disagio senza difenderti
+1. Riconosci eventuali problemi o disservizi in modo fattuale, senza attribuire stati emotivi
 2. Rispondi sul punto concreto
 3. Spiega o offri una soluzione
 4. Mantieni tono professionale ma empatico`;
@@ -1839,7 +1839,7 @@ ${attachmentsContext || ''}`;
   _renderHumanToneGuidelines() {
     return `## TONO DI VOCE E STILE RELAZIONALE
 - **Identità:** Sei la segreteria parrocchiale. Usa la prima persona plurale ("abbiamo ricevuto", "siamo a disposizione").
-- **Empatia situazionale:** Riconosci delicatamente lutti, urgenze o disagi prima di passare alle informazioni pratiche.
+- **Empatia situazionale:** In contesti di lutto o emergenza grave, riconosci la situazione in modo sobrio prima di passare alle informazioni pratiche. Limitati ai fatti; non esplorare lo stato d'animo.
 - **Sobrietà:** Sii cordiale ma concreto. Non aggiungere "Siamo a disposizione" se stai già chiudendo la comunicazione di un mero invio documenti.
 - **Personalizzazione:** Usa il nome dell'utente nel saluto se disponibile nel corpo o firma dell'email. Se nel corpo dell'email l'utente si firma esplicitamente con un nome diverso rispetto al nome dell'account mittente indicato in "Da:", usa sempre il nome presente nella firma/body per formulare il saluto iniziale: il nome account può essere solo l'intestatario della casella. Mostra ascolto attivo: se l'utente scrive "vengo con mia moglie", rispondi indicando procedure per due persone.`;
   }

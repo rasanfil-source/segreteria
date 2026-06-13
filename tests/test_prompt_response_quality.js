@@ -16,7 +16,7 @@ global.CONFIG = {
   PROMPT_ENGINE: { OVERHEAD_TOKENS: 1000 }
 };
 
-global.createLogger = () => ({ info: () => {}, warn: () => {}, debug: () => {}, error: () => {} });
+global.createLogger = () => ({ info: () => { }, warn: () => { }, debug: () => { }, error: () => { } });
 global.estimateTokenCount = (text) => Math.ceil(String(text || '').length / 4);
 global.Utilities = {
   formatDate: () => '2026-03-24'
@@ -50,27 +50,27 @@ assert(
 );
 assert(
   litePrompt.includes('Pertinenza selettiva') &&
-    litePrompt.includes('se chiede se può venire il giovedì'),
+  litePrompt.includes('se chiede se può venire il giovedì'),
   'il contratto qualità deve imporre la sintesi sui soli casi richiesti'
 );
 assert(
   litePrompt.includes('Richieste preliminari su celebrazioni') &&
-    litePrompt.includes('Non anticipare iter, documenti o corsi'),
+  litePrompt.includes('Non anticipare iter, documenti o corsi'),
   'il contratto qualità deve evitare infodump preliminari sui sacramenti'
 );
 assert(
   litePrompt.includes('Non riprodurre inventari della KB o elenchi generali') &&
-    litePrompt.includes('richiesta è ordinaria e circoscritta'),
+  litePrompt.includes('richiesta è ordinaria e circoscritta'),
   'il contratto qualità deve bloccare dump massivi senza impedire richieste parrocchiali circoscritte'
 );
 assert(
   litePrompt.includes('Gestione multi-intento') &&
-    litePrompt.includes('rispondi comunque alle altre domande'),
+  litePrompt.includes('rispondi comunque alle altre domande'),
   'il contratto qualità deve impedire early exit su problemi tecnici'
 );
 assert(
   litePrompt.includes('Se l\'utente chiede se può passare in segreteria') &&
-    litePrompt.includes('la prima frase risponde a questo'),
+  litePrompt.includes('la prima frase risponde a questo'),
   'il contratto qualità deve proteggere la risposta primaria alle richieste di passaggio'
 );
 assert(
@@ -85,22 +85,22 @@ const frenchLanguageInstruction = engine._renderLanguageInstruction('fr');
 const germanLanguageInstruction = engine._renderLanguageInstruction('de');
 assert(
   frenchLanguageInstruction.includes('FRANÇAIS') &&
-    !frenchLanguageInstruction.includes('language code'),
+  !frenchLanguageInstruction.includes('language code'),
   'il prompt deve avere istruzioni lingua dedicate per il francese'
 );
 assert(
   germanLanguageInstruction.includes('DEUTSCH') &&
-    !germanLanguageInstruction.includes('language code'),
+  !germanLanguageInstruction.includes('language code'),
   'il prompt deve avere istruzioni lingua dedicate per il tedesco'
 );
 assert(
   litePrompt.includes('firma esplicita con un nome personale diverso') &&
-    litePrompt.includes('usa il nome presente nella firma/body'),
+  litePrompt.includes('usa il nome presente nella firma/body'),
   'la regola del saluto obbligatorio deve consentire il nome firmato nel body'
 );
 assert(
   litePrompt.includes('Completezza domande') &&
-    !litePrompt.includes('DIRETTIVA DI COMPLETEZZA'),
+  !litePrompt.includes('DIRETTIVA DI COMPLETEZZA'),
   'il profilo lite deve mantenere la regola sintetica senza la direttiva estesa'
 );
 
@@ -118,10 +118,10 @@ const outOfTerritoryPrompt = engine.buildPrompt({
 });
 assert(
   outOfTerritoryPrompt.includes('SE LEGGI "NON RIENTRA" -> Devi dire NO') &&
-    outOfTerritoryPrompt.includes('NON fermarti a un rifiuto secco') &&
-    outOfTerritoryPrompt.includes('Diocesi di Roma') &&
-    outOfTerritoryPrompt.includes('benvenuta nella Basilica') &&
-    outOfTerritoryPrompt.includes('non far intendere che pratiche territoriali'),
+  outOfTerritoryPrompt.includes('NON fermarti a un rifiuto secco') &&
+  outOfTerritoryPrompt.includes('Diocesi di Roma') &&
+  outOfTerritoryPrompt.includes('benvenuta nella Basilica') &&
+  outOfTerritoryPrompt.includes('non far intendere che pratiche territoriali'),
   'il prompt deve accompagnare il fuori territorio con aiuto pratico e accoglienza'
 );
 
@@ -142,8 +142,8 @@ console.log('--- Test prompt: firma nel body prevale sul nome account mittente -
 
   assert(
     identityPrompt.includes('Se nel corpo dell\'email l\'utente si firma esplicitamente con un nome diverso') &&
-      identityPrompt.includes('usa sempre il nome presente nella firma/body') &&
-      identityPrompt.includes('il nome account può essere solo l\'intestatario della casella'),
+    identityPrompt.includes('usa sempre il nome presente nella firma/body') &&
+    identityPrompt.includes('il nome account può essere solo l\'intestatario della casella'),
     'il prompt deve esplicitare che la firma nel body prevale sul nome account mittente'
   );
   assert(
@@ -152,7 +152,7 @@ console.log('--- Test prompt: firma nel body prevale sul nome account mittente -
   );
   assert(
     identityPrompt.includes('DIRETTIVA DI COMPLETEZZA') &&
-      identityPrompt.includes('Completezza non significa infodump'),
+    identityPrompt.includes('Completezza non significa infodump'),
     'il profilo standard deve includere la direttiva estesa di completezza'
   );
 }
@@ -208,7 +208,7 @@ console.log('--- Test prompt: contatto pregresso protegge da risposta standard -
   );
   assert(
     !priorContactPrompt.includes('DOTTRINA_PROMESSE_SENTINEL') &&
-      !priorContactPrompt.includes('DOTTRINA_FALLBACK_SENTINEL'),
+    !priorContactPrompt.includes('DOTTRINA_FALLBACK_SENTINEL'),
     'il contatto pregresso deve sopprimere dottrina selettiva e fallback dottrinale'
   );
 }
@@ -232,8 +232,8 @@ console.log('--- Test prompt: avoid_invitation e PDF non propone presenza fisica
 
   assert(
     digitalOnlyPrompt.includes('GESTIONE DIGITALE (OBBLIGATORIA)') &&
-      digitalOnlyPrompt.includes('Verificheremo i nostri registri') &&
-      digitalOnlyPrompt.includes('OMETTI COMPLETAMENTE: orari di apertura al pubblico'),
+    digitalOnlyPrompt.includes('Verificheremo i nostri registri') &&
+    digitalOnlyPrompt.includes('OMETTI COMPLETAMENTE: orari di apertura al pubblico'),
     'con avoid_invitation e richiesta PDF il prompt deve favorire una gestione solo digitale'
   );
   assert(
@@ -261,13 +261,13 @@ console.log('--- Test prompt: idoneità padrino con vincolo fisico non inventa d
 
   assert(
     sponsorConstraintPrompt.includes('ECCEZIONE CANONICA - IDONEITÀ PADRINO/MADRINA') &&
-      sponsorConstraintPrompt.includes('questa regola prevale sulla gestione digitale dei documenti'),
+    sponsorConstraintPrompt.includes('questa regola prevale sulla gestione digitale dei documenti'),
     'il prompt deve far prevalere l’idoneità padrino sulla gestione digitale generica'
   );
   assert(
     sponsorConstraintPrompt.includes('non è delegabile') &&
-      sponsorConstraintPrompt.includes('contattare telefonicamente un sacerdote') &&
-      sponsorConstraintPrompt.includes('non presentare il ritiro/invio del certificato come già risolto'),
+    sponsorConstraintPrompt.includes('contattare telefonicamente un sacerdote') &&
+    sponsorConstraintPrompt.includes('non presentare il ritiro/invio del certificato come già risolto'),
     'il prompt deve evitare deleghe/email inventate e proporre contatto telefonico pastorale'
   );
 }
@@ -298,8 +298,8 @@ console.log('--- Test prompt: contesto papale con inizio ministero non renderizz
     );
     assert(
       temporalPrompt.includes('Papa attuale') &&
-        temporalPrompt.includes('Leone XIV dal 2025-05-08') &&
-        temporalPrompt.includes('inizio ministero petrino: 2025-05-18'),
+      temporalPrompt.includes('Leone XIV dal 2025-05-08') &&
+      temporalPrompt.includes('inizio ministero petrino: 2025-05-18'),
       'il prompt deve qualificare Papa attuale, data elezione e inizio ministero petrino'
     );
     assert(!temporalPrompt.includes('undefined'), 'il prompt temporale non deve contenere undefined');
@@ -342,7 +342,7 @@ console.log('--- Test prompt: messageDate fallback non risolve relativi utente c
   );
   assert(
     temporalFallbackPrompt.includes('non possono essere risolti in date assolute affidabili') &&
-      temporalFallbackPrompt.includes('evita di calcolare date precise'),
+    temporalFallbackPrompt.includes('evita di calcolare date precise'),
     'la regola temporale deve rendere prudente l uso dei relativi quando messageDate e fallback'
   );
 }
@@ -386,8 +386,8 @@ const suspiciousFormalPrompt = engine.buildPrompt({
 
 assert(
   suspiciousFormalPrompt.includes('Gentile Utente,') &&
-    !suspiciousFormalPrompt.includes('NUOVE ISTRUZIONI') &&
-    !suspiciousFormalPrompt.includes('### NUOVE'),
+  !suspiciousFormalPrompt.includes('NUOVE ISTRUZIONI') &&
+  !suspiciousFormalPrompt.includes('### NUOVE'),
   'il template formale deve neutralizzare nomi mittente con istruzioni/pattern markdown'
 );
 
@@ -410,7 +410,7 @@ assert(
 );
 assert(
   formattingPrompt.includes('utilizza elenchi puntati con emoji contestuali') &&
-    formattingPrompt.includes('usa titoli Markdown (###)'),
+  formattingPrompt.includes('usa titoli Markdown (###)'),
   'il prompt deve preservare titoli e liste per risposte articolate'
 );
 
@@ -435,13 +435,13 @@ const bereavementPrompt = engine.buildPrompt({
 
 assert(
   bereavementPrompt.includes('CONTESTO SENSIBILE E GERARCHIA - REGOLA ASSOLUTA') &&
-    bereavementPrompt.includes('Nessuna lista, nessuna emoji, nessun titolo Markdown') &&
-    bereavementPrompt.includes('rispondi in prosa continua, sobria e umana'),
+  bereavementPrompt.includes('Nessuna lista, nessuna emoji, nessun titolo Markdown') &&
+  bereavementPrompt.includes('rispondi in prosa continua, sobria e umana'),
   'il prompt deve attivare un override sobrio nei contesti di lutto'
 );
 assert(
   bereavementPrompt.includes('FORMATO OBBLIGATORIO: Solo testo in prosa') &&
-    bereavementPrompt.includes('Anche se le domande sono 4 o più'),
+  bereavementPrompt.includes('Anche se le domande sono 4 o più'),
   'la struttura lutto deve vietare liste/emoji anche con molte domande'
 );
 assert(
@@ -450,18 +450,18 @@ assert(
 );
 assert(
   bereavementPrompt.includes('DEFINIZIONE PRECISA DI "DISCERNIMENTO PASTORALE"') &&
-    bereavementPrompt.includes('Il contesto emotivo NON trasforma una richiesta pratica in una questione pastorale'),
+  bereavementPrompt.includes('Il contesto emotivo NON trasforma una richiesta pratica in una questione pastorale'),
   'il ruolo sistema deve restringere il discernimento pastorale nei contesti emotivi'
 );
 assert(
   bereavementPrompt.includes('ECCEZIONE - RICHIESTE PRATICHE O DEVOZIONALI NON IN KB') &&
-    bereavementPrompt.includes('saremo lieti di inviarle un testo di preghiera rispondendo a questa email'),
+  bereavementPrompt.includes('saremo lieti di inviarle un testo di preghiera rispondendo a questa email'),
   'la KB deve permettere presa in carico per richieste devozionali semplici non presenti'
 );
 assert(
   bereavementPrompt.includes('ATTENZIONE - LE RICHIESTE PRATICHE RESTANO PRATICHE') &&
-    bereavementPrompt.includes('Un testo di preghiera da leggere a casa') &&
-    bereavementPrompt.includes('Evita formule come "le consigliamo di parlare con un sacerdote" per mere questioni operative'),
+  bereavementPrompt.includes('Un testo di preghiera da leggere a casa') &&
+  bereavementPrompt.includes('Evita formule come "le consigliamo di parlare con un sacerdote" per mere questioni operative'),
   'la struttura lutto deve prevenire il deferral pastorale improprio su richieste pratiche'
 );
 
@@ -485,8 +485,8 @@ const attachmentPrompt = engine.buildPrompt({
 
 assert(
   attachmentPrompt.includes('STOP') &&
-    attachmentPrompt.includes('ALLEGATO = DOCUMENTAZIONE CONSEGNATA') &&
-    attachmentPrompt.includes('Risposta predefinita: ringrazia e conferma la ricezione'),
+  attachmentPrompt.includes('ALLEGATO = DOCUMENTAZIONE CONSEGNATA') &&
+  attachmentPrompt.includes('Risposta predefinita: ringrazia e conferma la ricezione'),
   'il prompt deve indicare una risposta predefinita di ricezione'
 );
 assert(
@@ -499,7 +499,7 @@ assert(
 );
 assert(
   attachmentPrompt.includes('Rispondi alla richiesta effettiva') &&
-    attachmentPrompt.includes('Se bastano poche frasi, poche frasi bastano'),
+  attachmentPrompt.includes('Se bastano poche frasi, poche frasi bastano'),
   'il prompt deve preservare la congruenza della risposta'
 );
 
@@ -523,12 +523,12 @@ const noAttachmentFollowupPrompt = engine.buildPrompt({
 
 assert(
   !noAttachmentFollowupPrompt.includes('ALLEGATO = DOCUMENTAZIONE CONSEGNATA') &&
-    !noAttachmentFollowupPrompt.includes('Risposta predefinita: ringrazia e conferma la ricezione'),
+  !noAttachmentFollowupPrompt.includes('Risposta predefinita: ringrazia e conferma la ricezione'),
   'una consegna solo sospetta senza allegati non deve attivare il guardrail di ricezione documentale'
 );
 assert(
   noAttachmentFollowupPrompt.includes('ALLEGATO DICHIARATO MA NON RICEVUTO') &&
-    noAttachmentFollowupPrompt.includes('rispondi comunque alla domanda'),
+  noAttachmentFollowupPrompt.includes('rispondi comunque alla domanda'),
   'se manca un allegato dichiarato il prompt deve comunque preservare la risposta alla domanda testuale'
 );
 
@@ -552,8 +552,8 @@ const missingAttachmentQuestionPrompt = engine.buildPrompt({
 });
 assert(
   missingAttachmentQuestionPrompt.includes('ALLEGATO DICHIARATO MA NON RICEVUTO') &&
-    missingAttachmentQuestionPrompt.includes('Non trattare l\'allegato mancante come motivo per ignorare la domanda testuale') &&
-    missingAttachmentQuestionPrompt.includes('verifica finale della documentazione richiederà l\'allegato'),
+  missingAttachmentQuestionPrompt.includes('Non trattare l\'allegato mancante come motivo per ignorare la domanda testuale') &&
+  missingAttachmentQuestionPrompt.includes('verifica finale della documentazione richiederà l\'allegato'),
   'il prompt deve chiedere rinvio allegato senza perdere la domanda autonoma'
 );
 assert(
@@ -575,7 +575,7 @@ const baptismDateOnlyPrompt = engine.buildPrompt({
 });
 assert(
   baptismDateOnlyPrompt.includes('Richieste preliminari su celebrazioni') &&
-    baptismDateOnlyPrompt.includes('Non anticipare iter, documenti o corsi'),
+  baptismDateOnlyPrompt.includes('Non anticipare iter, documenti o corsi'),
   'il prompt deve bloccare il volantino sacramentale quando la domanda riguarda solo la data'
 );
 
@@ -594,10 +594,10 @@ const prerequisitePrompt = engine.buildPrompt({
 
 assert(
   prerequisitePrompt.includes('PREREQUISITO CRESIMA') &&
-    prerequisitePrompt.includes('avere almeno 16 anni') &&
-    prerequisitePrompt.includes('non essere il genitore del battezzando') &&
-    prerequisitePrompt.includes('Non parlare di "discernimento pastorale"') &&
-    prerequisitePrompt.includes('casistica ordinaria prevista'),
+  prerequisitePrompt.includes('avere almeno 16 anni') &&
+  prerequisitePrompt.includes('non essere il genitore del battezzando') &&
+  prerequisitePrompt.includes('Non parlare di "discernimento pastorale"') &&
+  prerequisitePrompt.includes('casistica ordinaria prevista'),
   'il prompt deve autorizzare le condizioni padrino quando la Cresima è prerequisito implicito'
 );
 
@@ -632,28 +632,28 @@ const emotionalSupportHint = engine._renderCategoryHint('emotional_support');
 
 assert(
   hesitantSponsorPrompt.includes('Adatta solo il livello testuale') &&
-    hesitantSponsorPrompt.includes("Non attribuire stati d'animo") &&
-    hesitantSponsorPrompt.includes('Non attribuire emozioni, intenzioni o stati psicologici alla persona.'),
+  hesitantSponsorPrompt.includes("Non attribuire stati d'animo") &&
+  hesitantSponsorPrompt.includes('Non attribuire emozioni, intenzioni o stati psicologici alla persona.'),
   'la postura hesitant deve restare sul livello testuale e vietare attribuzioni emotive'
 );
 assert(
   !hesitantSponsorPrompt.includes('rassicurante') &&
-    !hesitantSponsorPrompt.includes('provare imbarazzo') &&
-    !hesitantSponsorPrompt.includes("non c'è alcun motivo"),
+  !hesitantSponsorPrompt.includes('provare imbarazzo') &&
+  !hesitantSponsorPrompt.includes("non c'è alcun motivo"),
   'la postura hesitant non deve suggerire rassicurazioni o stati emotivi presunti'
 );
 assert(
   urgentCertificatePrompt.includes('senza formule di empatia psicologica esplicita o attribuzioni emotive') &&
-    !urgentCertificatePrompt.includes('STRUTTURA RISPOSTA RACCOMANDATA (SITUAZIONE EMOTIVA)') &&
-    !urgentCertificatePrompt.includes('Comprendiamo il suo disappunto') &&
-    !urgentCertificatePrompt.includes('Riconosci il disagio'),
+  !urgentCertificatePrompt.includes('STRUTTURA RISPOSTA RACCOMANDATA (SITUAZIONE EMOTIVA)') &&
+  !urgentCertificatePrompt.includes('Comprendiamo il suo disappunto') &&
+  !urgentCertificatePrompt.includes('Riconosci il disagio'),
   'emotional_distress con postura complaint deve cadere nel flusso normale senza struttura emotiva hardcoded'
 );
 assert(
   emotionalSupportHint.includes('massima delicatezza e sobrietà') &&
-    emotionalSupportHint.includes('soluzioni operative') &&
-    !emotionalSupportHint.includes('empatico e umano') &&
-    !emotionalSupportHint.includes('meccanicità robotica'),
+  emotionalSupportHint.includes('soluzioni operative') &&
+  !emotionalSupportHint.includes('empatico e umano') &&
+  !emotionalSupportHint.includes('meccanicità robotica'),
   'il category hint emotional_support deve restare sobrio e operativo'
 );
 
@@ -674,7 +674,7 @@ assert(
 );
 assert(
   temporalPrompt.includes('Papa attuale:** Leone XIV') &&
-    temporalPrompt.includes('Non presentare Papa Francesco come Papa attuale'),
+  temporalPrompt.includes('Non presentare Papa Francesco come Papa attuale'),
   'il prompt deve includere il contesto papale aggiornato e vietare riferimenti presenti a Papa Francesco'
 );
 const kbDrivenPopePrompt = engine.buildPrompt({
@@ -699,7 +699,7 @@ const prefixedPopePrompt = engine.buildPrompt({
 });
 assert(
   prefixedPopePrompt.includes('Papa attuale:** Leone XIV') &&
-    !prefixedPopePrompt.includes('Papa attuale:** Pontefice Leone XIV |'),
+  !prefixedPopePrompt.includes('Papa attuale:** Pontefice Leone XIV |'),
   'il prompt deve normalizzare "Pontefice Leone XIV" e rimuovere suffissi tabellari'
 );
 const tabularPapalPrompt = engine.buildPrompt({
@@ -712,7 +712,7 @@ const tabularPapalPrompt = engine.buildPrompt({
 });
 assert(
   tabularPapalPrompt.includes('Papa attuale:** Pio XIII') &&
-    tabularPapalPrompt.includes('Non presentare Benedetto XVI come Papa attuale'),
+  tabularPapalPrompt.includes('Non presentare Benedetto XVI come Papa attuale'),
   'il prompt deve leggere Papa regnante e precedente dalla stessa riga tabellare'
 );
 assert(
@@ -721,10 +721,10 @@ assert(
 );
 assert(
   temporalPrompt.includes('Prima di descrivere un evento') &&
-    temporalPrompt.includes('confrontalo rigidamente con la data odierna') &&
-    temporalPrompt.includes('anno pastorale') &&
-    temporalPrompt.includes('Correzione giorno/data morbida') &&
-    temporalPrompt.includes('Desideriamo segnalarLe'),
+  temporalPrompt.includes('confrontalo rigidamente con la data odierna') &&
+  temporalPrompt.includes('anno pastorale') &&
+  temporalPrompt.includes('Correzione giorno/data morbida') &&
+  temporalPrompt.includes('Desideriamo segnalarLe'),
   'il prompt deve formulare l\'obiettivo di confronto temporale'
 );
 
@@ -757,8 +757,8 @@ const runtimeContextPrompt = engine.buildPrompt({
 });
 assert(
   runtimeContextPrompt.includes('Data di riferimento per la risposta (currentDate):** 2026-05-15') &&
-    runtimeContextPrompt.includes('Data originale email (messageDate):** 2026-05-07') &&
-    runtimeContextPrompt.includes('email originale è stata scritta 8 giorni fa'),
+  runtimeContextPrompt.includes('Data originale email (messageDate):** 2026-05-07') &&
+  runtimeContextPrompt.includes('email originale è stata scritta 8 giorni fa'),
   'il prompt deve distinguere currentDate e messageDate dal runtimeContext'
 );
 assert(
@@ -792,8 +792,8 @@ const fallbackMessageDatePrompt = engine.buildPrompt({
 });
 assert(
   fallbackMessageDatePrompt.includes('Data email originale:** non disponibile') &&
-    fallbackMessageDatePrompt.includes('fallback tecnico per i calcoli: 2026-05-15') &&
-    !fallbackMessageDatePrompt.includes('Data originale email (messageDate):** 2026-05-15'),
+  fallbackMessageDatePrompt.includes('fallback tecnico per i calcoli: 2026-05-15') &&
+  !fallbackMessageDatePrompt.includes('Data originale email (messageDate):** 2026-05-15'),
   'il prompt non deve chiamare data originale una messageDate ricostruita per fallback'
 );
 
@@ -820,8 +820,8 @@ const schedulePrompt = engine.buildPrompt({
 
 assert(
   schedulePrompt.includes('Data di riferimento per gli orari: 3 giugno 2026') &&
-    schedulePrompt.includes('Periodo applicabile: INVERNALE') &&
-    schedulePrompt.includes('Mostra SOLO orari del periodo applicabile alla data richiesta (invernale, 3 giugno 2026)'),
+  schedulePrompt.includes('Periodo applicabile: INVERNALE') &&
+  schedulePrompt.includes('Mostra SOLO orari del periodo applicabile alla data richiesta (invernale, 3 giugno 2026)'),
   'il prompt deve far prevalere il periodo KB calcolato sulla data richiesta'
 );
 assert(
@@ -843,13 +843,13 @@ const unknownLanguagePrompt = engine.buildPrompt({
 
 assert(
   unknownLanguagePrompt.includes('TARGET LANGUAGE PL') &&
-    unknownLanguagePrompt.includes('Translate/localize the greeting') &&
-    unknownLanguagePrompt.includes('Closing translated naturally into language PL'),
+  unknownLanguagePrompt.includes('Translate/localize the greeting') &&
+  unknownLanguagePrompt.includes('Closing translated naturally into language PL'),
   'per lingue non preconfigurate il prompt deve chiedere saluto e chiusura nella lingua target'
 );
 assert(
   !unknownLanguagePrompt.includes("Inizia l'email ESATTAMENTE") &&
-    !unknownLanguagePrompt.includes('Rispondi in italiano'),
+  !unknownLanguagePrompt.includes('Rispondi in italiano'),
   'lingue non preconfigurate non devono cadere nel template italiano'
 );
 
@@ -873,7 +873,7 @@ assert(
 );
 assert(
   temporalGuardPrompt.includes('Stile conversazionale') &&
-    temporalGuardPrompt.includes('omettendo saluti rituali formali iniziali'),
+  temporalGuardPrompt.includes('omettendo saluti rituali formali iniziali'),
   'il prompt deve guidare lo stile di continuità quando il saluto architetturale è omesso'
 );
 
@@ -938,8 +938,8 @@ console.log('--- Test prompt: contenuto email resta presente anche a budget sezi
 
     assert(
       starvationPrompt.prompt.includes('EMAIL_CONTEXT_SENTINEL') &&
-        starvationPrompt.prompt.includes('<user_email>') &&
-        starvationPrompt.prompt.includes('</user_email>'),
+      starvationPrompt.prompt.includes('<user_email>') &&
+      starvationPrompt.prompt.includes('</user_email>'),
       'il contenuto email deve restare nel prompt anche quando le sezioni opzionali saturano il budget'
     );
   } finally {
@@ -1079,8 +1079,8 @@ const yearlessTemporalPrompt = engine.buildPrompt({
 });
 assert(
   yearlessTemporalPrompt.includes('DATA SENZA ANNO NORMALIZZATA') &&
-    yearlessTemporalPrompt.includes('15 agosto 2027') &&
-    yearlessTemporalPrompt.includes('Date senza anno esplicito'),
+  yearlessTemporalPrompt.includes('15 agosto 2027') &&
+  yearlessTemporalPrompt.includes('Date senza anno esplicito'),
   'il prompt deve esplicitare la normalizzazione temporale delle date senza anno'
 );
 
