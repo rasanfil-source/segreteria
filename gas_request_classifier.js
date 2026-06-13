@@ -636,10 +636,8 @@ ${sep}
       return `TIPO RICHIESTA RILEVATO: TECNICA
 ---
 Linee guida per la risposta:
-- Questa richiesta ha componente tecnica/procedurale: attiva la KB informativa e procedurale
-- Il TONO è determinato esclusivamente dalla relationalPosture ricevuta dal motore postural
----
-[Postura relazionale: vedi sezione RELATIONAL_POSTURE nel prompt di sistema]
+- Questa richiesta ha componente tecnica/procedurale: attiva la KB informativa e procedurale.
+- IL TONO DEVE ESSERE DETTATO ESCLUSIVAMENTE DALLE LINEE GUIDA PRAGMATICHE (Relational Posture).
 ---`;
     }
 
@@ -647,11 +645,9 @@ Linee guida per la risposta:
       return `TIPO RICHIESTA RILEVATO: PASTORALE
 ---
 Linee guida per la risposta:
-- Questa richiesta ha componente pastorale: attiva i riferimenti dottrinali sacramentali
-- Recupera dalla KB i nodi relativi a: sacramenti, accompagnamento, situazioni di vita
-- Il TONO è determinato esclusivamente dalla relationalPosture ricevuta dal motore postural
----
-[Postura relazionale: vedi sezione RELATIONAL_POSTURE nel prompt di sistema]
+- Questa richiesta ha componente pastorale: attiva i riferimenti dottrinali sacramentali.
+- Recupera dalla KB i nodi relativi a: sacramenti, accompagnamento, situazioni di vita.
+- IL TONO DEVE ESSERE DETTATO ESCLUSIVAMENTE DALLE LINEE GUIDA PRAGMATICHE (Relational Posture).
 ---`;
     }
 
@@ -660,10 +656,9 @@ Linee guida per la risposta:
 🎯 TIPO RICHIESTA RILEVATO: MISTA / DOTTRINALE
 ${sep}
 Linee guida per la risposta:
-- Rispondi TECNICAMENTE (chiarezza) ma con TONO pastorale
-- Non fermarti alla sola regola
-- Non scivolare nel permissivismo
-- Bilancia informazione e accoglienza
+- Questa richiesta richiede sia rigore tecnico che attenzione dottrinale.
+- Attiva i riferimenti della Knowledge Base per fornire informazioni precise.
+- IL TONO DEVE ESSERE DETTATO ESCLUSIVAMENTE DALLE LINEE GUIDA PRAGMATICHE (Relational Posture).
 ${sep}
 📖 REGOLA DOTTRINALE (GAS-02):
 Questa è una richiesta di SPIEGAZIONE dottrinale generale.

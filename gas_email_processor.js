@@ -146,13 +146,13 @@ var EmailProcessor = class EmailProcessor {
 
     if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.formatDate === 'function') {
       try {
-        return Utilities.formatDate(dateValue, this._getCachedTimeZone(), 'dd/MM/yyyy HH:mm');
+        return Utilities.formatDate(dateValue, this._getCachedTimeZone(), 'dd/MM/yyyy');
       } catch (e) {
         // Fallback ISO sotto.
       }
     }
 
-    return dateValue.toISOString().slice(0, 16).replace('T', ' ');
+    return dateValue.toISOString().slice(0, 10);
   }
 
   _buildGenerationStrategies_(geminiService, options = {}) {

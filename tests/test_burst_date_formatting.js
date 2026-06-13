@@ -37,7 +37,7 @@ console.log('--- Test burst aggregation date formatting: fallback ISO valido ---
     const processor = Object.create(EmailProcessor.prototype);
     const formatted = processor._formatBurstMessageDate_(new Date('2026-06-09T18:31:00.000Z'));
 
-    assert(formatted === '2026-06-09 18:31', `fallback ISO inatteso: ${formatted}`);
+    assert(formatted === '2026-06-09', `fallback ISO inatteso: ${formatted}`);
   } finally {
     global.Utilities = originalUtilities;
   }
