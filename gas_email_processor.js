@@ -2333,6 +2333,8 @@ ${addressLines.join('\n\n')}
       const routingDecision = this._evaluatePreAiRules_(routingContext);
       this._applyPreAiRuleDecision_(routingDecision, routingContext, result);
       routedAiCore = routingState.routedAiCore;
+      const pastoralFirewall = "\n\n⚠️ DIVIETO DI DEROGA (CROSS-CONTAMINATION): I principi pastorali non possono MAI modificare, derogare o rendere flessibili le procedure, le date o i requisiti tecnici indicati nella Knowledge Base. Non inventare percorsi personalizzati o eccezioni.";
+      if (routedAiCore) routedAiCore += pastoralFirewall;
       routedDoctrine = routingState.routedDoctrine;
       routedDoctrineStructured = routingState.routedDoctrineStructured;
       const baseRuntimeContext = this._buildRuntimeContext_(
@@ -5183,7 +5185,7 @@ ${addressLines.join('\n\n')}
       }
       const itemsStr = items.length > 0
         ? `Rimuovi o verifica: ${items.join(' | ')}`
-        : 'Rimuovi qualsiasi dato (orario, telefono, email, URL) non presente nelle informazioni fornite.';
+        : 'Rimuovi qualsiasi dato (orario, telefono, email, URL) o procedura inventata (es. eccezioni, programmi personalizzati) non presente nelle informazioni fornite.';
       correctionInstructions.push(
         'ERRORE CRITICO: Hai inventato informazioni non presenti nelle informazioni disponibili.\n' +
         `CORREZIONE: ${itemsStr}\n` +

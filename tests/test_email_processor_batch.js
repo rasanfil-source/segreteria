@@ -2842,7 +2842,7 @@ console.log('--- Test context routing: memoria pastorale impedisce amnesia su fo
   assert(result.status === 'replied', 'il follow-up tecnico con memoria pastorale deve completarsi');
   assert(promptOptions.category === 'information', `categoria tecnica attesa information, ottenuta ${promptOptions && promptOptions.category}`);
   assert(promptOptions.doctrineBase === 'dottrina completa', 'la memoria pastorale deve impedire la disattivazione della dottrina');
-  assert(promptOptions.aiCore === 'core pesante', 'la memoria pastorale deve mantenere attivo anche AI core pesante');
+  assert(promptOptions.aiCore.startsWith('core pesante'), 'la memoria pastorale deve mantenere attivo anche AI core pesante');
 
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
   global.GLOBAL_CACHE = originalGlobalCache;
@@ -2929,7 +2929,7 @@ console.log('--- Test context routing: OCR sacramentale riattiva dottrina dopo c
   assert(result.status === 'replied', 'la domanda con certificato sacramentale OCR deve completarsi');
   assert(promptOptions.category === 'sacrament', `categoria post-OCR attesa sacrament, ottenuta ${promptOptions && promptOptions.category}`);
   assert(promptOptions.doctrineBase === 'dottrina completa', 'la dottrina deve restare attiva dopo routing post-OCR sacramentale');
-  assert(promptOptions.aiCore === 'core pesante', 'AI core pesante deve restare attivo dopo routing post-OCR sacramentale');
+  assert(promptOptions.aiCore.startsWith('core pesante'), 'AI core pesante deve restare attivo dopo routing post-OCR sacramentale');
 
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
   global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
