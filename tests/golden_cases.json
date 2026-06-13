@@ -188,7 +188,7 @@
         "technical"
       ],
       "promptMustInclude": [
-        "Se l'utente chiede se può passare/venire in segreteria"
+        "Se l'utente chiede se può passare in segreteria"
       ],
       "promptMustNotInclude": [],
       "responseMustInclude": [

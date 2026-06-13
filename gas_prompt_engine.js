@@ -1507,7 +1507,7 @@ ${messageDateLines}${currentTime ? `- **Ora locale attuale:** ${currentTime}\n` 
       'sacrament': '📌 Email su SACRAMENTI: fornisci info dettagliate. ✅ USA FORMATTAZIONE per requisiti/date.',
       'collaboration': '📌 Proposta COLLABORAZIONE: ringrazia e spiega come procedere.',
       'complaint': '📌 Possibile RECLAMO: rispondi con empatia e professionalità.',
-      'emotional_support': '📌 Supporto PASTORALE: usa un tono estremamente delicato, empatico e umano, privo di ogni meccanicità robotica.',
+      'emotional_support': '📌 Supporto PASTORALE: massima delicatezza e sobrietà, limitandoti ai fatti e alle soluzioni operative.',
       'quotation': '📌 PREVENTIVO/OFFERTA RICEVUTA: Ringrazia, conferma ricezione, comunica che esaminerai e risponderai. ⚠️ NON dire "restiamo a disposizione per chiarimenti" - siamo noi i destinatari!'
     };
 
@@ -1559,13 +1559,7 @@ ${sensitiveOverride}
   _renderResponseStructure(category, subIntents) {
     let hint = null;
 
-    if (subIntents && subIntents.emotional_distress) {
-      hint = `**STRUTTURA RISPOSTA RACCOMANDATA (SITUAZIONE EMOTIVA):**
-1. Riconosci il disagio ("Comprendiamo il suo disappunto...")
-2. Rispondi con empatia, non difensivamente
-3. Offri soluzione concreta
-4. Invita al dialogo`;
-    } else if (subIntents && subIntents.bereavement) {
+    if (subIntents && subIntents.bereavement) {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (LUTTO):**
 1. Esprimi vicinanza sincera
 2. Fornisci informazioni pratiche con discrezione, in prosa, una dopo l'altra - senza elenchi puntati, emoji o icone
@@ -1658,7 +1652,7 @@ ISTRUZIONI:
 
     const directives = {
       urgent: 'Rispondi in modo breve, operativo e orientato alla risoluzione. Evita preamboli e formule ridondanti.',
-      hesitant: 'Usa un tono rassicurante e chiaro. Preferisci frasi morbide, passaggi semplici e istruzioni accessibili.',
+      hesitant: "Adatta solo il livello testuale: frasi brevi, passaggi chiari e istruzioni accessibili. Non attribuire stati d'animo o bisogni emotivi alla persona.",
       personal: 'Mantieni sobrietà e calore discreto. Non fare domande curiose o commenti sui dettagli personali condivisi.',
       complaint: 'Mantieni un tono non difensivo. Riconosci eventuali problemi o disservizi in modo fattuale, senza formule di empatia psicologica esplicita o attribuzioni emotive.',
       open: 'Usa una cordialità naturale e collaborativa, senza aumentare eccessivamente il calore.',

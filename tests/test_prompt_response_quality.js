@@ -41,44 +41,36 @@ const litePrompt = engine.buildPrompt({
 });
 
 assert(
-  litePrompt.includes('CONTRATTO DI RISPOSTA - CONGRUENZA, GARBO, ESSENZIALITÀ'),
+  litePrompt.includes('PRINCIPIO DI PERTINENZA E MISURA'),
   'il contratto qualità deve essere incluso anche nel profilo lite'
 );
 assert(
-  litePrompt.includes('Soglia massima di informazioni aggiuntive non richieste: ZERO'),
+  litePrompt.includes('Informazioni aggiuntive: aggiungile solo se senza di esse'),
   'il prompt deve vietare informazioni non richieste'
 );
 assert(
-  litePrompt.includes('Pertinenza per intersezione') &&
-    litePrompt.includes('giovedì o venerdì') &&
-    litePrompt.includes('non citare la domenica'),
+  litePrompt.includes('Pertinenza selettiva') &&
+    litePrompt.includes('se chiede se può venire il giovedì'),
   'il contratto qualità deve imporre la sintesi sui soli casi richiesti'
 );
 assert(
-  litePrompt.includes('Sintesi su richieste preliminari di sacramenti/celebrazioni') &&
-    litePrompt.includes('battesimo, matrimonio, esequie') &&
-    litePrompt.includes('Non anticipare iter preparatori') &&
-    litePrompt.includes('incontri con il sacerdote'),
+  litePrompt.includes('Richieste preliminari su celebrazioni') &&
+    litePrompt.includes('Non anticipare iter, documenti o corsi'),
   'il contratto qualità deve evitare infodump preliminari sui sacramenti'
 );
 assert(
-  litePrompt.includes('Protezione contro data extraction e info-dumping') &&
-    litePrompt.includes('dump completi della Knowledge Base') &&
-    litePrompt.includes('liste massive di dati interni') &&
-    litePrompt.includes('correggi solo i dati specifici citati') &&
+  litePrompt.includes('Non riprodurre inventari della KB o elenchi generali') &&
     litePrompt.includes('richiesta è ordinaria e circoscritta'),
   'il contratto qualità deve bloccare dump massivi senza impedire richieste parrocchiali circoscritte'
 );
 assert(
-  litePrompt.includes('Gestione multi-intento e problemi tecnici') &&
-    litePrompt.includes('allegato menzionato ma mancante') &&
-    litePrompt.includes('dati anagrafici incompleti') &&
-    litePrompt.includes('rispondi anche alle altre domande'),
+  litePrompt.includes('Gestione multi-intento') &&
+    litePrompt.includes('rispondi comunque alle altre domande'),
   'il contratto qualità deve impedire early exit su problemi tecnici'
 );
 assert(
-  litePrompt.includes('Se l\'utente chiede se può passare/venire in segreteria') &&
-    litePrompt.includes('la prima frase deve rispondere sì/no'),
+  litePrompt.includes('Se l\'utente chiede se può passare in segreteria') &&
+    litePrompt.includes('la prima frase risponde a questo'),
   'il contratto qualità deve proteggere la risposta primaria alle richieste di passaggio'
 );
 assert(
@@ -199,20 +191,19 @@ console.log('--- Test prompt: contatto pregresso protegge da risposta standard -
   });
 
   assert(
-    priorContactPrompt.systemInstruction.includes('POLICY CONTATTO PREGRESSO TELEFONICO/PERSONALE'),
+    priorContactPrompt.systemInstruction.includes('CONTATTO PREGRESSO TELEFONICO O PERSONALE'),
     'il prompt deve includere la policy di contatto pregresso nel systemInstruction'
   );
   assert(
-    priorContactPrompt.systemInstruction.includes('Non trattare questa email come una richiesta nuova e isolata') &&
-      priorContactPrompt.systemInstruction.includes('non modificano l\'accordo pregresso'),
+    priorContactPrompt.systemInstruction.includes('Questa email è il seguito di una conversazione già avviata, non una richiesta nuova'),
     'la policy deve impedire di azzerare il contesto e consentire solo risposte autonome'
   );
   assert(
-    priorContactPrompt.systemInstruction.includes('Le dispiacerebbe indicarci un riferimento, se lo ricorda?'),
+    priorContactPrompt.systemInstruction.includes('non disperdere il seguito, chiedi con garbo se il mittente ricorda o conosce il nome della persona'),
     'se manca il referente, il prompt deve chiedere un riferimento con formula leggera'
   );
   assert(
-    priorContactPrompt.systemInstruction.includes('Divieto assoluto di fornire spiegazioni canoniche, liturgiche o dottrinali'),
+    priorContactPrompt.systemInstruction.includes('Non avventurarti su dettagli liturgici, canonici o organizzativi già concordati con altri: trasmetti e basta'),
     'la policy deve vietare spiegazioni dottrinali sui dettagli gia legati al contatto pregresso'
   );
   assert(
@@ -418,8 +409,8 @@ assert(
   'il prompt deve mantenere le linee guida di formattazione'
 );
 assert(
-  formattingPrompt.includes('Utilizza elenchi puntati con emoji contestuali') &&
-    formattingPrompt.includes('Usa titoli Markdown (###)'),
+  formattingPrompt.includes('utilizza elenchi puntati con emoji contestuali') &&
+    formattingPrompt.includes('usa titoli Markdown (###)'),
   'il prompt deve preservare titoli e liste per risposte articolate'
 );
 
@@ -443,9 +434,9 @@ const bereavementPrompt = engine.buildPrompt({
 });
 
 assert(
-  bereavementPrompt.includes('CONTESTO SENSIBILE - REGOLA ASSOLUTA') &&
-    bereavementPrompt.includes('è vietato usare emoji, icone, simboli decorativi') &&
-    bereavementPrompt.includes('Rispondi esclusivamente in prosa continua'),
+  bereavementPrompt.includes('CONTESTO SENSIBILE E GERARCHIA - REGOLA ASSOLUTA') &&
+    bereavementPrompt.includes('Nessuna lista, nessuna emoji, nessun titolo Markdown') &&
+    bereavementPrompt.includes('rispondi in prosa continua, sobria e umana'),
   'il prompt deve attivare un override sobrio nei contesti di lutto'
 );
 assert(
@@ -468,9 +459,9 @@ assert(
   'la KB deve permettere presa in carico per richieste devozionali semplici non presenti'
 );
 assert(
-  bereavementPrompt.includes('GHIGLIOTTINA DEL DISCERNIMENTO') &&
+  bereavementPrompt.includes('ATTENZIONE - LE RICHIESTE PRATICHE RESTANO PRATICHE') &&
     bereavementPrompt.includes('Un testo di preghiera da leggere a casa') &&
-    bereavementPrompt.includes('Non usare MAI "discernimento pastorale"'),
+    bereavementPrompt.includes('Evita formule come "le consigliamo di parlare con un sacerdote" per mere questioni operative'),
   'la struttura lutto deve prevenire il deferral pastorale improprio su richieste pratiche'
 );
 
@@ -507,8 +498,8 @@ assert(
   'il prompt deve evitare citazioni OCR non necessarie'
 );
 assert(
-  attachmentPrompt.includes('Rispondi alla richiesta effettiva, non al tema generale') &&
-    attachmentPrompt.includes('Se bastano 1-3 frasi, fermati'),
+  attachmentPrompt.includes('Rispondi alla richiesta effettiva') &&
+    attachmentPrompt.includes('Se bastano poche frasi, poche frasi bastano'),
   'il prompt deve preservare la congruenza della risposta'
 );
 
@@ -583,9 +574,8 @@ const baptismDateOnlyPrompt = engine.buildPrompt({
   category: 'sacrament'
 });
 assert(
-  baptismDateOnlyPrompt.includes('Sintesi su richieste preliminari di sacramenti/celebrazioni') &&
-    baptismDateOnlyPrompt.includes('rispondi solo su data/disponibilità') &&
-    baptismDateOnlyPrompt.includes('Non anticipare iter preparatori'),
+  baptismDateOnlyPrompt.includes('Richieste preliminari su celebrazioni') &&
+    baptismDateOnlyPrompt.includes('Non anticipare iter, documenti o corsi'),
   'il prompt deve bloccare il volantino sacramentale quando la domanda riguarda solo la data'
 );
 
@@ -609,6 +599,62 @@ assert(
     prerequisitePrompt.includes('Non parlare di "discernimento pastorale"') &&
     prerequisitePrompt.includes('casistica ordinaria prevista'),
   'il prompt deve autorizzare le condizioni padrino quando la Cresima è prerequisito implicito'
+);
+
+console.log('--- Test prompt: posture delicate non producono attribuzioni emotive ---');
+const hesitantSponsorPrompt = engine.buildPrompt({
+  emailSubject: 'Cresima per fare da padrino',
+  emailContent: 'Buongiorno, forse avrei bisogno della Cresima per poter fare da padrino. Non so bene da dove iniziare.',
+  knowledgeBase: 'Cresima adulti: percorso dedicato in parrocchia.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  salutationMode: 'full',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  category: 'sacrament',
+  relationalPosture: 'hesitant',
+  sponsorGuidancePolicy: 'cresima_prerequisite_for_sponsor_role'
+});
+const urgentCertificatePrompt = engine.buildPrompt({
+  emailSubject: 'Certificato di battesimo urgente',
+  emailContent: 'Ho bisogno del certificato di battesimo entro oggi. Ho gia scritto e nessuno mi ha risposto.',
+  knowledgeBase: 'I certificati di battesimo possono essere richiesti via email fornendo nome, cognome, data di nascita e dati utili alla ricerca.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  salutationMode: 'full',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  category: 'information',
+  subIntents: { emotional_distress: true },
+  relationalPosture: 'complaint'
+});
+const emotionalSupportHint = engine._renderCategoryHint('emotional_support');
+
+assert(
+  hesitantSponsorPrompt.includes('Adatta solo il livello testuale') &&
+    hesitantSponsorPrompt.includes("Non attribuire stati d'animo") &&
+    hesitantSponsorPrompt.includes('Non attribuire emozioni, intenzioni o stati psicologici alla persona.'),
+  'la postura hesitant deve restare sul livello testuale e vietare attribuzioni emotive'
+);
+assert(
+  !hesitantSponsorPrompt.includes('rassicurante') &&
+    !hesitantSponsorPrompt.includes('provare imbarazzo') &&
+    !hesitantSponsorPrompt.includes("non c'è alcun motivo"),
+  'la postura hesitant non deve suggerire rassicurazioni o stati emotivi presunti'
+);
+assert(
+  urgentCertificatePrompt.includes('senza formule di empatia psicologica esplicita o attribuzioni emotive') &&
+    !urgentCertificatePrompt.includes('STRUTTURA RISPOSTA RACCOMANDATA (SITUAZIONE EMOTIVA)') &&
+    !urgentCertificatePrompt.includes('Comprendiamo il suo disappunto') &&
+    !urgentCertificatePrompt.includes('Riconosci il disagio'),
+  'emotional_distress con postura complaint deve cadere nel flusso normale senza struttura emotiva hardcoded'
+);
+assert(
+  emotionalSupportHint.includes('massima delicatezza e sobrietà') &&
+    emotionalSupportHint.includes('soluzioni operative') &&
+    !emotionalSupportHint.includes('empatico e umano') &&
+    !emotionalSupportHint.includes('meccanicità robotica'),
+  'il category hint emotional_support deve restare sobrio e operativo'
 );
 
 console.log('--- Test prompt: data messaggio originale presente per riferimenti relativi ---');
