@@ -379,21 +379,53 @@ assert(
   '10:00 deve essere registrato tra gli orari inventati'
 );
 
-console.log('--- Test hallucination: currentTime runtime non viene trattato come orario inventato ---');
-const currentTimeWhitelistResult = validator._checkHallucinations(
+console.log('--- Test hallucination: currentTime runtime viene bloccato come orario tecnico, non come orario inventato ---');
+const currentTimeTechnicalLeakResult = validator._checkHallucinations(
   'Sono le 10:00. La segreteria le risponderà appena possibile.',
   'Orari disponibili: 09:00 e 11:00.',
   'Vorrei sapere gli orari delle messe.',
   { temporal: { currentDate: '2026-06-08', currentTime: '10:00', messageDate: '2026-06-08' } }
 );
 assert(
-  !currentTimeWhitelistResult.errors.some((e) => e.includes('Orari non in KB: 10:00')),
-  'currentTime runtime deve essere whitelist tecnica per il controllo hallucination'
+  currentTimeTechnicalLeakResult.errors.some((e) => e.includes('Orari tecnici da non citare: 10:00')),
+  'currentTime runtime citato nella risposta deve essere bloccato come leak tecnico'
 );
 assert(
-  !currentTimeWhitelistResult.hallucinations.times ||
-    !currentTimeWhitelistResult.hallucinations.times.includes('10:00'),
-  'currentTime runtime non deve essere registrato tra gli orari inventati'
+  !currentTimeTechnicalLeakResult.errors.some((e) => e.includes('Orari non in KB: 10:00')),
+  'currentTime runtime non deve essere duplicato come orario inventato generico'
+);
+assert(
+  Array.isArray(currentTimeTechnicalLeakResult.hallucinations.technicalTimes) &&
+    currentTimeTechnicalLeakResult.hallucinations.technicalTimes.includes('10:00'),
+  'currentTime runtime deve essere registrato tra gli orari tecnici vietati'
+);
+
+console.log('--- Test hallucination: messageTime runtime viene bloccato come orario tecnico ---');
+const messageTimeTechnicalLeakResult = validator._checkHallucinations(
+  'Abbiamo ricevuto la sua email alle 10:45 e le rispondiamo ora.',
+  'Orari disponibili: 09:00 e 11:00.',
+  'Vorrei informazioni sul percorso per adulti.',
+  { temporal: { currentDate: '2026-06-08', currentTime: '15:30', messageDate: '2026-06-08', messageTime: '10:45' } }
+);
+assert(
+  messageTimeTechnicalLeakResult.errors.some((e) => e.includes('Orari tecnici da non citare: 10:45')),
+  'messageTime runtime citato nella risposta deve essere bloccato come leak tecnico'
+);
+assert(
+  !messageTimeTechnicalLeakResult.errors.some((e) => e.includes('Orari non in KB: 10:45')),
+  'messageTime runtime non deve finire nel bucket generico Orari non in KB'
+);
+
+console.log('--- Test hallucination: orario uguale al runtime resta valido se presente in KB ---');
+const runtimeTimeAlsoInKbResult = validator._checkHallucinations(
+  'Il corso inizia alle 10:45.',
+  'Corso adulti: sabato alle 10:45.',
+  'Vorrei informazioni sul corso.',
+  { temporal: { currentDate: '2026-06-08', currentTime: '10:45', messageDate: '2026-06-08', messageTime: '08:15' } }
+);
+assert(
+  runtimeTimeAlsoInKbResult.score === 1.0,
+  'un orario uguale al runtime non deve essere bloccato se e presente in KB'
 );
 
 console.log('--- Test validateResponse: orario inventato è bloccante ---');

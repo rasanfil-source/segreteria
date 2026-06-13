@@ -318,7 +318,7 @@ var ResponseValidator = class ResponseValidator {
    * Alias per la firma ad oggetto (supporta chiamata con parametri nominali).
    * Evita rotture quando il chiamante usa validator.validate(response, { ...opts }).
    * @param {string} response
-   * @param {{language?: string, knowledgeBase?: string, emailContent?: string, body?: string, emailSubject?: string, subject?: string, salutationMode?: string, currentDate?: string, messageDate?: string, temporalContext?: Object}} opts
+   * @param {{language?: string, knowledgeBase?: string, emailContent?: string, body?: string, emailSubject?: string, subject?: string, salutationMode?: string, currentDate?: string, currentTime?: string, messageDate?: string, messageTime?: string, temporalContext?: Object}} opts
    * @returns {Object}
    */
   validate(response, opts) {
@@ -333,7 +333,9 @@ var ResponseValidator = class ResponseValidator {
       true,
       safeOpts.temporalContext || {
         currentDate: safeOpts.currentDate || null,
-        messageDate: safeOpts.messageDate || null
+        currentTime: safeOpts.currentTime || null,
+        messageDate: safeOpts.messageDate || null,
+        messageTime: safeOpts.messageTime || null
       }
     );
   }
@@ -781,18 +783,28 @@ var ResponseValidator = class ResponseValidator {
     collectContextualHours(response, responseTimesRaw);
     collectContextualHours(safeKnowledgeBase, kbTimesRaw);
     collectContextualHours(originalMessage || '', originalTimesRaw);
-    const runtimeContext = this._normalizeRuntimeContext_(temporalContext);
-    const runtimeCurrentTime = runtimeContext && runtimeContext.temporal
-      ? runtimeContext.temporal.currentTime
-      : null;
-    if (runtimeCurrentTime) {
-      originalTimesRaw.push(runtimeCurrentTime);
-    }
-
     const responseTimes = new Set(responseTimesRaw.map(normalizeTime));
     const kbTimes = new Set(kbTimesRaw.map(normalizeTime));
     const originalTimes = new Set(originalTimesRaw.map(normalizeTime));
-    const inventedTimes = [...responseTimes].filter(t => !kbTimes.has(t) && !originalTimes.has(t));
+    const runtimeContext = this._normalizeRuntimeContext_(temporalContext);
+    const runtimeTemporal = runtimeContext && runtimeContext.temporal ? runtimeContext.temporal : {};
+    const technicalRuntimeTimes = new Set(
+      [runtimeTemporal.currentTime, runtimeTemporal.messageTime]
+        .filter(value => typeof value === 'string' && value.trim() !== '')
+        .map(normalizeTime)
+    );
+    const technicalTimeLeaks = [...responseTimes].filter(t =>
+      technicalRuntimeTimes.has(t) && !kbTimes.has(t) && !originalTimes.has(t)
+    );
+    const inventedTimes = [...responseTimes].filter(t =>
+      !technicalTimeLeaks.includes(t) && !kbTimes.has(t) && !originalTimes.has(t)
+    );
+
+    if (technicalTimeLeaks.length > 0) {
+      errors.push(`Orari tecnici da non citare: ${technicalTimeLeaks.join(', ')}`);
+      score *= 0.50;
+      hallucinations.technicalTimes = technicalTimeLeaks;
+    }
 
     if (inventedTimes.length > 0) {
       errors.push(`Orari non in KB: ${inventedTimes.join(', ')}`);
@@ -1621,11 +1633,12 @@ var ResponseValidator = class ResponseValidator {
     if (temporalContext instanceof Date || typeof temporalContext === 'string') {
       return {
         temporal: {
-          currentDate: temporalContext,
-          currentTime: null,
-          messageDate: null,
-          processingEpochMs: null,
-          messageEpochMs: null
+        currentDate: temporalContext,
+        currentTime: null,
+        messageDate: null,
+        messageTime: null,
+        processingEpochMs: null,
+        messageEpochMs: null
         },
         papal: {}
       };
@@ -1636,6 +1649,7 @@ var ResponseValidator = class ResponseValidator {
         currentDate: temporal.currentDate || temporal.today || null,
         currentTime: temporal.currentTime || null,
         messageDate: temporal.messageDate || null,
+        messageTime: temporal.messageTime || null,
         processingEpochMs: normalizeEpoch(temporal.processingEpochMs),
         messageEpochMs: normalizeEpoch(temporal.messageEpochMs),
         timeZone: temporal.timeZone || 'Europe/Rome',

@@ -610,6 +610,22 @@ function runAllTests() {
             const noAsk = processor._isTerritoryRequest('Iscrizione cresima', 'Abito in via Antonio Gramsci.');
             return ask === true && noAsk === false;
         });
+        test('Verifica territorio riconosce appartenenza parrocchiale, rientro e circoscrizione', results, () => {
+            const fromTopic = processor._isTerritoryRequest(
+                '',
+                'Abito in via Barnaba Oriani.',
+                { topic: 'Verifica appartenenza parrocchiale' }
+            );
+            const fromText = processor._isTerritoryRequest(
+                '',
+                "Vorrei sapere se rientro nella circoscrizione della parrocchia di Sant'Eugenio. Abito in via Barnaba Oriani."
+            );
+            const negative = processor._isTerritoryRequest(
+                'Gruppo giovani',
+                'Vorrei informazioni sul gruppo giovani della parrocchia.'
+            );
+            return fromTopic === true && fromText === true && negative === false;
+        });
         test('Rileva Cresima come prerequisito implicito per padrino', results, () => {
             const policy = processor._deriveSponsorGuidancePolicy_(
                 'Cresima per fare da padrino',
@@ -1457,6 +1473,38 @@ function runAllTests() {
             const source = ResponseValidator.toString();
             return source.includes("replace(/^(\\d{1,2})\\.(\\d{2})$/") &&
                 !source.includes("replace(/(\\d)\\.(\\d)/g");
+        });
+        test('CurrentTime runtime citato e leak tecnico, non orario inventato generico', results, () => {
+            const result = validator._checkHallucinations(
+                'Sono le 10:00. La segreteria le rispondera appena possibile.',
+                'Orari disponibili: 09:00 e 11:00.',
+                'Vorrei sapere gli orari delle messe.',
+                { temporal: { currentDate: '2026-06-08', currentTime: '10:00', messageDate: '2026-06-08' } }
+            );
+            return result.errors.some(e => e.includes('Orari tecnici da non citare: 10:00')) &&
+                !result.errors.some(e => e.includes('Orari non in KB: 10:00')) &&
+                result.hallucinations &&
+                Array.isArray(result.hallucinations.technicalTimes) &&
+                result.hallucinations.technicalTimes.includes('10:00');
+        });
+        test('MessageTime runtime citato e leak tecnico, non orario inventato generico', results, () => {
+            const result = validator._checkHallucinations(
+                'Abbiamo ricevuto la sua email alle 10:45 e le rispondiamo ora.',
+                'Orari disponibili: 09:00 e 11:00.',
+                'Vorrei informazioni sul percorso per adulti.',
+                { temporal: { currentDate: '2026-06-08', currentTime: '15:30', messageDate: '2026-06-08', messageTime: '10:45' } }
+            );
+            return result.errors.some(e => e.includes('Orari tecnici da non citare: 10:45')) &&
+                !result.errors.some(e => e.includes('Orari non in KB: 10:45'));
+        });
+        test('Orario uguale al runtime resta valido se presente in KB', results, () => {
+            const result = validator._checkHallucinations(
+                'Il corso inizia alle 10:45.',
+                'Corso adulti: sabato alle 10:45.',
+                'Vorrei informazioni sul corso.',
+                { temporal: { currentDate: '2026-06-08', currentTime: '10:45', messageDate: '2026-06-08', messageTime: '08:15' } }
+            );
+            return result.score === 1.0;
         });
         test('Metodo validate accetta opts nullo senza crashare', results, () => {
             const res = validator.validate('Testo di prova lungo a sufficienza per superare il check lunghezza minimo.', null);

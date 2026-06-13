@@ -16,7 +16,7 @@
  * - Memory tracking
  */
 
-var TECHNICAL_CONTEXT_ROUTING_CATEGORIES = new Set(['technical', 'appointment', 'quotation', 'information']);
+var TECHNICAL_CONTEXT_ROUTING_CATEGORIES = new Set(['technical', 'appointment', 'quotation', 'information', 'document_submission', 'document_request']);
 
 function shouldSkipByLanguageMode_(detectedLanguage, languageMode) {
   const rawLang = String(detectedLanguage || '').trim().toLowerCase();
@@ -2314,10 +2314,22 @@ ${addressLines.join('\n\n')}
         }
       }
 
+      const certRequestText = `${messageDetails.subject || ''} ${messageDetails.body || ''}`;
+      const hasCertificateSacramentalReference = /\bcertificat[ioa]\b[\s\S]{0,60}\b(battesim[oa]|cresim[ao]|matrimoni[oa]|morte)\b/i.test(certRequestText);
+      const hasCertificateRequestCue = /\b(richiesta|richied(?:o|ere|iamo|erei|erebbe|ete)|vorrei|desidero|serve|servirebbe|bisogno|ottenere|rilasci(?:o|are|ate)|mandar(?:mi|ci)|inviar(?:mi|ci))\b/i.test(certRequestText);
+      const isCertRequest = hasCertificateSacramentalReference && hasCertificateRequestCue;
+      if (isCertRequest && categoryHintSource !== 'document_submission') {
+        categoryHintSource = 'document_request';
+      }
+
       // ====================================================================
       // CONTEXT ROUTING post-OCR (definitivo)
       // ====================================================================
-      const isTechnicalOnly = TECHNICAL_CONTEXT_ROUTING_CATEGORIES.has(categoryHintSource) && !hasPastoralConcern;
+      const isTechnicalOnly = TECHNICAL_CONTEXT_ROUTING_CATEGORIES.has(categoryHintSource) && (
+        !hasPastoralConcern ||
+        categoryHintSource === 'document_request' ||
+        categoryHintSource === 'document_submission'
+      );
       const routingState = {
         routedAiCore: routedAiCore,
         routedDoctrine: routedDoctrine,
@@ -2337,6 +2349,12 @@ ${addressLines.join('\n\n')}
       if (routedAiCore) routedAiCore += pastoralFirewall;
       routedDoctrine = routingState.routedDoctrine;
       routedDoctrineStructured = routingState.routedDoctrineStructured;
+
+      if (isCertRequest) {
+        routedAiCoreLite = (routedAiCoreLite ? routedAiCoreLite + '\n\n' : '') +
+          "REGOLA TASSATIVA SUI CERTIFICATI: Specifica sempre che il certificato deve essere richiesto ESCLUSIVAMENTE alla parrocchia in cui e stato CELEBRATO il sacramento. Chiedi i dati dell'utente SOLO precisando 'se il sacramento e stato celebrato presso la nostra parrocchia'.";
+      }
+
       const baseRuntimeContext = this._buildRuntimeContext_(
         messageDetails,
         processingTimestamp,
@@ -4089,6 +4107,7 @@ ${addressLines.join('\n\n')}
       currentDate: this._getBusinessDateString(processingDate),
       currentTime: this._getBusinessTimeString(processingDate),
       messageDate: this._getBusinessDateString(messageDate),
+      messageTime: rawMessageDateValid ? this._getBusinessTimeString(messageDate) : null,
       messageDateAvailable: rawMessageDateValid,
       messageDateSource: rawMessageDateValid ? 'gmail_message_date' : 'processing_fallback',
       messageTimestampIso: messageDate.toISOString(),
@@ -5043,9 +5062,14 @@ ${addressLines.join('\n\n')}
     let hasHallucination = (
       (Array.isArray(hallucinations.emails) && hallucinations.emails.length > 0) ||
       (Array.isArray(hallucinations.phones) && hallucinations.phones.length > 0) ||
-      (Array.isArray(hallucinations.times) && hallucinations.times.length > 0)
+      (Array.isArray(hallucinations.times) && hallucinations.times.length > 0) ||
+      (Array.isArray(hallucinations.technicalTimes) && hallucinations.technicalTimes.length > 0)
     );
-    if (!hasHallucination && errorText.some(e => e.includes('non in kb') || e.includes('allucin'))) {
+    if (!hasHallucination && errorText.some(e =>
+      e.includes('non in kb') ||
+      e.includes('allucin') ||
+      e.includes('orari tecnici da non citare')
+    )) {
       hasHallucination = true;
     }
 
@@ -5183,12 +5207,18 @@ ${addressLines.join('\n\n')}
       if (Array.isArray(flags.hallucinations.times) && flags.hallucinations.times.length > 0) {
         items.push(`orari: ${flags.hallucinations.times.slice(0, 3).join(', ')}`);
       }
+      if (Array.isArray(flags.hallucinations.technicalTimes) && flags.hallucinations.technicalTimes.length > 0) {
+        items.push(`orari tecnici da eliminare: ${flags.hallucinations.technicalTimes.slice(0, 3).join(', ')}`);
+      }
+      const technicalTimeInstruction = Array.isArray(flags.hallucinations.technicalTimes) && flags.hallucinations.technicalTimes.length > 0
+        ? '\nNon sostituire questi orari con altri orari: elimina del tutto il riferimento all\'ora tecnica di sistema o di ricezione.'
+        : '';
       const itemsStr = items.length > 0
         ? `Rimuovi o verifica: ${items.join(' | ')}`
         : 'Rimuovi qualsiasi dato (orario, telefono, email, URL) o procedura inventata (es. eccezioni, programmi personalizzati) non presente nelle informazioni fornite.';
       correctionInstructions.push(
         'ERRORE CRITICO: Hai inventato informazioni non presenti nelle informazioni disponibili.\n' +
-        `CORREZIONE: ${itemsStr}\n` +
+        `CORREZIONE: ${itemsStr}${technicalTimeInstruction}\n` +
         'Se non conosci un dato, invita cortesemente a contattare la segreteria.'
       );
     }
@@ -5315,10 +5345,13 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
       lines.push(`- currentDate risposta: ${temporal.currentDate}`);
     }
     if (temporal.currentTime) {
-      lines.push(`- currentTime risposta: ${temporal.currentTime}`);
+      lines.push(`- currentTime risposta (NON MENZIONARE): ${temporal.currentTime}`);
     }
     if (temporal.messageDate) {
       lines.push(`- messageDate email originale: ${temporal.messageDate}`);
+    }
+    if (temporal.messageTime) {
+      lines.push(`- messageTime email originale (NON MENZIONARE): ${temporal.messageTime}`);
     }
     if (temporal.messageDateSource) {
       lines.push(`- sorgente messageDate: ${temporal.messageDateSource}`);
@@ -5370,7 +5403,7 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
       `Regola 2: usa messageDate (${temporal.messageDate || '?'}) solo per interpretare riferimenti relativi scritti dall'utente nell'email originale, come oggi, domani, ieri o sabato prossimo.`,
       `Regola 3: se messageDate non era disponibile ed e indicato un fallback tecnico, non presentare l'anno inferito come certo: chiedi conferma quando l'anno e ambiguo.`,
       `Regola 4: non presentare ${previousPope || 'il Papa precedente'} come Papa attuale o voce magisteriale in presente.`,
-      `Regola 5: NON citare mai l'ora corrente di sistema (${temporal.currentTime || '?'}) nel testo della risposta.`
+      `Regola 5: NON citare mai l'ora corrente di sistema (${temporal.currentTime || '?'}) né l'ora di ricezione del messaggio (${temporal.messageTime || '?'}) nel testo della risposta.`
     ].join('\n');
 
     const rulesBlock = temporalAwareness
@@ -5496,16 +5529,17 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
   _isTerritoryRequest(subject, body, classification = {}, requestType = null) {
     const text = `${subject || ''} ${body || ''}`.toLowerCase();
     const topic = String(classification && classification.topic ? classification.topic : '').toLowerCase();
-    if (topic.includes('territor') || topic.includes('parrocchia di residenza') || topic.includes('competenza parrocchiale')) return true;
+    if (topic.includes('territor') || topic.includes('parrocchia di residenza') || topic.includes('competenza parrocchiale') || topic.includes('appartenenza')) return true;
 
     const explicitPatterns = [
       /\bterritorio\b/i,
       /\bparrocchia\s+di\s+residenza\b/i,
-      /\brientra\b/i,
-      /\bnon\s+rientra\b/i,
+      /\brientr[aio]\b/i,
+      /\bnon\s+rientr[aio]\b/i,
       /\bcompetenza\s+parrocchiale\b/i,
       /\bquale\s+parrocchia\b/i,
-      /\bfuori\s+territorio\b/i
+      /\bfuori\s+territorio\b/i,
+      /\bcircoscrizione\b/i
     ];
 
     return explicitPatterns.some((pattern) => pattern.test(text));

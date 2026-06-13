@@ -131,6 +131,7 @@ console.log('--- Test runtimeContext: fallback messageDate non implica email vec
   assert(
     fallbackRuntime.temporal.messageDateAvailable === false &&
       fallbackRuntime.temporal.messageDateSource === 'processing_fallback' &&
+      fallbackRuntime.temporal.messageTime === null &&
       fallbackRuntime.temporal.isOldMessage === false,
     `fallback messageDate deve restare esplicito senza fingere email vecchia, ottenuto ${fallbackRuntime.temporal.messageDateSource}/${fallbackRuntime.temporal.isOldMessage}`
   );
@@ -142,6 +143,7 @@ console.log('--- Test runtimeContext: fallback messageDate non implica email vec
   );
   assert(
     oldRuntime.temporal.messageDateAvailable === true &&
+      oldRuntime.temporal.messageTime === '12:00' &&
       oldRuntime.temporal.daysAgo === 7 &&
       oldRuntime.temporal.isOldMessage === true,
     `data Gmail valida vecchia deve restare marcata come old, ottenuto ${oldRuntime.temporal.daysAgo}/${oldRuntime.temporal.isOldMessage}`

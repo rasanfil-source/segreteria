@@ -2462,10 +2462,97 @@ console.log('--- Test prompt options: messageDate usa la data del messaggio orig
   assert(Object.isFrozen(promptOptions.runtimeContext.papal), 'runtimeContext.papal deve essere congelato');
   assert(promptOptions.runtimeContext.temporal.currentDate === promptOptions.currentDate, 'currentDate legacy deve derivare dal runtimeContext');
   assert(promptOptions.runtimeContext.temporal.messageDate === '2026-05-07', 'runtimeContext.temporal.messageDate deve derivare dalla data originale');
+  assert(promptOptions.runtimeContext.temporal.messageTime === '12:00', `runtimeContext.temporal.messageTime deve derivare dall'ora originale in timezone business, ottenuto ${promptOptions.runtimeContext.temporal.messageTime}`);
   assert(promptOptions.runtimeContext.temporal.messageDateAvailable === true, 'runtimeContext deve dichiarare disponibile la data originale valida');
   assert(promptOptions.runtimeContext.temporal.messageDateSource === 'gmail_message_date', 'runtimeContext deve tracciare la sorgente Gmail della data originale');
   assert(promptOptions.relationalPosture === 'complaint', 'promptOptions deve ricevere la relationalPosture dal quick-check');
   assert(validationRuntimeContext === promptOptions.runtimeContext, 'validator deve ricevere lo stesso runtimeContext passato al prompt');
+}
+
+console.log('--- Test processThread: topic appartenenza parrocchiale attiva verifica territorio ---');
+{
+  let territoryCalls = 0;
+  let promptOptions = null;
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Verifica appartenenza parrocchiale',
+        body: "Buongiorno, vorrei sapere se rientro nella circoscrizione della parrocchia di Sant'Eugenio. Abito in via Barnaba Oriani.",
+        senderEmail: 'sofia@example.com',
+        senderName: 'Sofia Conti',
+        date: new Date('2026-06-13T20:17:00Z'),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: () => ({
+        shouldRespond: true,
+        language: 'it',
+        relational_posture: 'direct',
+        classification: {
+          category: 'technical',
+          topic: 'Verifica appartenenza parrocchiale'
+        }
+      }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta territorio' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      analyzeEmailForAddress: function () {
+        territoryCalls += 1;
+        return {
+          addressFound: true,
+          addresses: [{
+            street: 'via Barnaba Oriani',
+            civic: null,
+            verification: {
+              needsCivic: false,
+              inParish: true,
+              reason: 'Via riconosciuta nel territorio parrocchiale.'
+            }
+          }]
+        };
+      }
+    },
+    validator: {
+      validateResponse: () => ({ isValid: true, score: 1.0, errors: [], warnings: [], details: {}, fixedResponse: null })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        promptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('territory-membership'), 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'la richiesta di appartenenza parrocchiale deve completarsi');
+  assert(territoryCalls === 1, `territoryValidator deve essere chiamato una volta, chiamate=${territoryCalls}`);
+  assert(promptOptions && promptOptions.territoryContext && promptOptions.territoryContext.includes('RIENTRA'), 'il prompt deve ricevere il contesto territoriale verificato');
+  assert(promptOptions.territoryContext.includes('via Barnaba Oriani'), 'il contesto territoriale deve includere la via rilevata');
 }
 
 console.log('--- Test prompt options: relationalPosture personal passa dal quick-check al PromptEngine ---');
@@ -2557,6 +2644,7 @@ console.log('--- Test runtimeContext: messageDate fallback esplicito quando la d
   assert(runtimeContext.temporal.messageDateAvailable === false, 'data Gmail invalida deve essere marcata come non disponibile');
   assert(runtimeContext.temporal.messageDateSource === 'processing_fallback', 'data Gmail invalida deve usare sorgente processing_fallback');
   assert(runtimeContext.temporal.messageDate === runtimeContext.temporal.currentDate, 'fallback messageDate deve coincidere con currentDate di processing');
+  assert(runtimeContext.temporal.messageTime === null, 'fallback messageDate non deve inventare una messageTime originale');
   assert(Object.isFrozen(runtimeContext.temporal), 'temporal fallback context deve restare congelato');
 }
 
@@ -2778,6 +2866,97 @@ console.log('--- Test context routing: categoria tecnica usa set condiviso e dis
 
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
   global.GLOBAL_CACHE = originalGlobalCache;
+}
+
+
+console.log('--- Test context routing: document_request certificato resta tecnico anche con concern sacramentale ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalGlobalCache = global.GLOBAL_CACHE;
+  const originalCreatePromptContext = global.createPromptContext;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.GLOBAL_CACHE = { aiCoreLite: 'core lite', aiCore: 'core pesante' };
+  global.createPromptContext = () => ({
+    profile: 'standard',
+    concerns: { sacrament: true, doctrine: true }
+  });
+
+  let promptOptions = null;
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Richiesta certificato di battesimo',
+        body: 'Buongiorno, vorrei richiedere il certificato di battesimo di mia figlia. Quali dati servono?',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date('2026-06-13T10:00:00Z'),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'sacrament', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: () => ({
+        shouldRespond: true,
+        language: 'it',
+        relational_posture: 'direct',
+        classification: {
+          category: 'sacrament',
+          topic: 'Richiesta certificato di battesimo'
+        }
+      }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta certificato' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.8 }, needsDiscernment: true, needsDoctrine: true })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        promptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('document-request-routing'), 'kb valida', 'dottrina completa', new Set(), true);
+  assert(result.status === 'replied', 'la richiesta certificato deve completarsi');
+  assert(promptOptions.category === 'document_request', `categoria attesa document_request, ottenuta ${promptOptions && promptOptions.category}`);
+  assert(promptOptions.aiCore === '', 'document_request deve spegnere AI core pesante anche con concern sacramentale');
+  assert(promptOptions.doctrineBase === '', 'document_request deve spegnere dottrina pesante anche con concern sacramentale');
+  assert(
+    promptOptions.aiCoreLite && promptOptions.aiCoreLite.includes('REGOLA TASSATIVA SUI CERTIFICATI'),
+    'document_request deve iniettare la regola tassativa certificati in aiCoreLite'
+  );
+  assert(
+    promptOptions.aiCoreLite.includes('se il sacramento e stato celebrato presso la nostra parrocchia'),
+    'la regola certificati deve vincolare la richiesta dati alla celebrazione presso la parrocchia'
+  );
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.GLOBAL_CACHE = originalGlobalCache;
+  global.createPromptContext = originalCreatePromptContext;
 }
 
 
