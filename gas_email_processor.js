@@ -5282,7 +5282,7 @@ ${failedSnippet}
 
 ### AZIONE ###
 Genera la nuova risposta correggendo i problemi indicati.
-Rispondi SOLO con il testo della nuova email, senza spiegazioni o commenti.`;
+Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'interno del tag XML <email>...</email>, senza aggiungere spiegazioni, commenti o ragionamenti interni.`;
   }
 
   _renderRuntimeContextForCorrection_(runtimeContext = null, detectedLanguage = 'it', salutationMode = 'full') {
