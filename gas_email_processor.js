@@ -166,7 +166,35 @@ var EmailProcessor = class EmailProcessor {
       GeminiService.prototype &&
       typeof GeminiService.prototype.buildGenerationStrategies === 'function'
     ) {
-      const strategyAdapter = Object.create(GeminiService.prototype);
+      const config = (typeof CONFIG !== 'undefined') ? CONFIG : {};
+      const primaryKey = geminiService ? geminiService.primaryKey : null;
+      const backupKey = geminiService ? geminiService.backupKey : null;
+      let strategyAdapter = null;
+      try {
+        strategyAdapter = new GeminiService({
+          config: config,
+          logger: this.logger,
+          primaryKey: primaryKey || config.GEMINI_API_KEY || '',
+          backupKey: backupKey || null,
+          props: {
+            getProperty: (key) => {
+              if (key === 'GEMINI_API_KEY') return primaryKey || config.GEMINI_API_KEY || '';
+              if (key === 'GEMINI_API_KEY_BACKUP') return backupKey || '';
+              return '';
+            }
+          }
+        });
+      } catch (e) {
+        if (this.logger && typeof this.logger.warn === 'function') {
+          this.logger.warn(`Fallback strategie Gemini non inizializzabile: ${e.message}`);
+        }
+        return {
+          attemptStrategy: [],
+          strategies: [],
+          fallbackModelName: 'gemini-3.5-flash',
+          configuredGenerationStrategy: []
+        };
+      }
       strategyAdapter.config = (typeof CONFIG !== 'undefined') ? CONFIG : {};
       strategyAdapter.primaryKey = geminiService ? geminiService.primaryKey : null;
       strategyAdapter.backupKey = geminiService ? geminiService.backupKey : null;
@@ -598,9 +626,6 @@ var EmailProcessor = class EmailProcessor {
           threadLogger.warn('Thread logicamente lockato da altro processo (CacheService), salto');
         }
         return { ok: false, reason: 'thread_locked' };
-      }
-      if (cacheLockIsStale && typeof scriptCache.remove === 'function') {
-        scriptCache.remove(threadLockKey);
       }
       if (existingCacheLock && threadLogger && typeof threadLogger.warn === 'function') {
         threadLogger.warn('Lock stale rilevato, sovrascrittura lock');
@@ -3895,8 +3920,6 @@ ${addressLines.join('\n\n')}
 
     try {
       cache.put(`sent_${messageId}`, String(Date.now()), 21599);
-      cache.remove(`sending_${messageId}`);
-      cache.remove(`sendstarted_${messageId}`);
     } catch (e) {
       console.warn(`  Impossibile committare la transazione in cache per ${messageId}: ${e.message}`);
     } finally {

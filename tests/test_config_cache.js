@@ -145,7 +145,7 @@ assert(CONFIG.VALIDATION_REVIEW_ALERTS.email === 'review@example.test', 'VALIDAT
 assert(_getScriptProperty('MISSING_OPTIONAL') === null, 'una property assente deve restituire null');
 backingProps.set('MISSING_OPTIONAL', 'late-value');
 assert(_getScriptProperty('MISSING_OPTIONAL') === null, 'il null iniziale deve restare cached e non rileggere la property');
-assert(getCounts.get('MISSING_OPTIONAL') === 1, 'la property assente deve essere letta una sola volta');
+assert(!getCounts.has('MISSING_OPTIONAL'), 'la property assente non deve causare fallback getProperty dopo getProperties');
 
 console.log('--- Test _getScriptPropertyStringArray: separatori strutturati preservano virgole interne ---');
 _clearScriptPropertyCache(['CUSTOM_COMMA_LIST', 'CUSTOM_STRUCTURED_LIST', 'CUSTOM_JSON_LIST']);

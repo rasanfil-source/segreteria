@@ -1060,6 +1060,21 @@ console.log('--- Test _beginSendTransaction: marker stale non blocca reinvio ---
   cacheStore.clear();
 }
 
+console.log('--- Test _commitSendTransaction: preserva marker in-flight fino a TTL naturale ---');
+{
+  cacheStore.clear();
+  const processor = new EmailProcessor({ gmailService: {} });
+
+  cacheStore.set('sending_m-commit-preserve', 'sending-marker');
+  cacheStore.set('sendstarted_m-commit-preserve', 'started-marker');
+  processor._commitSendTransaction('m-commit-preserve');
+
+  assert(cacheStore.get('sent_m-commit-preserve'), 'commit deve impostare il marker sent');
+  assert(cacheStore.get('sending_m-commit-preserve') === 'sending-marker', 'commit deve preservare sending fino a scadenza naturale');
+  assert(cacheStore.get('sendstarted_m-commit-preserve') === 'started-marker', 'commit deve preservare sendstarted fino a scadenza naturale');
+  cacheStore.clear();
+}
+
 function createExternalThread(id) {
   const msg = createMessage({ id: `m-${id}`, unread: true, from: 'utente@example.com' });
   return createThread({ id: `t-${id}`, messages: [msg] });

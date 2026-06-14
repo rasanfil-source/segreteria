@@ -10,7 +10,8 @@ var _CACHED_PROPS = {};
 // durante la stessa run GAS; non e' pensata come persistenza fra trigger.
 var _SCRIPT_PROPERTY_CACHE_TTL_MS = 60 * 1000;
 function _refreshScriptPropertyCache_(requestedKey, now) {
-  const allProps = (typeof _SCRIPT_PROPERTIES.getProperties === 'function')
+  const hasGetProperties = typeof _SCRIPT_PROPERTIES.getProperties === 'function';
+  const allProps = hasGetProperties
     ? (_SCRIPT_PROPERTIES.getProperties() || {})
     : {};
   _CACHED_PROPS = {};
@@ -22,7 +23,7 @@ function _refreshScriptPropertyCache_(requestedKey, now) {
   });
   if (!Object.prototype.hasOwnProperty.call(_CACHED_PROPS, requestedKey)) {
     _CACHED_PROPS[requestedKey] = {
-      value: (typeof _SCRIPT_PROPERTIES.getProperty === 'function')
+      value: (!hasGetProperties && typeof _SCRIPT_PROPERTIES.getProperty === 'function')
         ? _SCRIPT_PROPERTIES.getProperty(requestedKey)
         : null,
       ts: now
