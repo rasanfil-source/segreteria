@@ -57,6 +57,39 @@ var PromptEngine = class PromptEngine {
     }
   }
 
+  _escapeReservedPromptTags_(text, tagNames) {
+    const safeText = this._normalizePromptTextInput(text, '');
+    if (!safeText) return '';
+
+    const tags = Array.isArray(tagNames) && tagNames.length > 0
+      ? tagNames
+      : this._getReservedPromptTags_();
+    return tags.reduce((acc, tagName) => {
+      const escapedTagName = String(tagName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (!escapedTagName) return acc;
+      const tagPattern = new RegExp(`<\\s*\\/?\\s*${escapedTagName}\\b[^>]*>`, 'gi');
+      return acc.replace(tagPattern, `[tag riservato ${tagName} neutralizzato]`);
+    }, safeText);
+  }
+
+  _getReservedPromptTags_() {
+    return [
+      'user_email',
+      'conversation_history',
+      'knowledge_base',
+      'email',
+      'analysis',
+      'analisi'
+    ];
+  }
+
+  _sanitizePromptHeaderField_(value) {
+    return this._escapeReservedPromptTags_(value)
+      .replace(/[\r\n]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   _normalizeSystemDirectives_(directives) {
     const source = Array.isArray(directives)
       ? directives
@@ -423,7 +456,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     if (territoryContext) {
       const territorySection = this._renderTerritoryVerification(territoryContext);
       if (territorySection) {
-        addSection(territorySection, 'TerritoryVerification');
+        addSection(territorySection, 'TerritoryVerification', { force: true, isSystem: true });
       } else {
         console.warn('⚠️ Territory context presente ma sezione vuota: verificare i dati in input o la renderizzazione.');
       }
@@ -1811,10 +1844,11 @@ ${formule}`;
   // ========================================================================
 
   _renderConversationHistory(conversationHistory) {
+    const safeConversationHistory = this._escapeReservedPromptTags_(conversationHistory);
     return `**CRONOLOGIA CONVERSAZIONE:**
 Messaggi precedenti per contesto. Non ripetere info già fornite.
 <conversation_history>
-${conversationHistory}
+${safeConversationHistory}
 </conversation_history>`;
   }
 
@@ -1824,14 +1858,17 @@ ${conversationHistory}
 
   _renderEmailContent(emailContent, emailSubject, senderName, senderEmail, detectedLanguage) {
     const safeSenderName = this._sanitizeSenderNameForPrompt_(senderName, detectedLanguage);
+    const safeSenderEmail = this._sanitizePromptHeaderField_(senderEmail);
+    const safeEmailSubject = this._sanitizePromptHeaderField_(emailSubject);
+    const safeEmailContent = this._escapeReservedPromptTags_(emailContent);
     return `**EMAIL DA RISPONDERE:**
-Da: ${senderEmail} (${safeSenderName})
-Oggetto: ${emailSubject}
+Da: ${safeSenderEmail} (${safeSenderName})
+Oggetto: ${safeEmailSubject}
 Lingua: ${detectedLanguage.toUpperCase()}
 
 Contenuto:
 <user_email>
-${emailContent}
+${safeEmailContent}
 </user_email>`;
   }
 
@@ -1864,6 +1901,7 @@ La risposta deve servire la persona, non dimostrare le nostre conoscenze.
 
   _renderAttachmentContext(attachmentsContext, attachmentIntentContext = null) {
     if (!attachmentsContext && !attachmentIntentContext) return '';
+    const safeAttachmentsContext = this._escapeReservedPromptTags_(attachmentsContext);
     const hasPhysicalAttachments = Boolean(attachmentIntentContext && attachmentIntentContext.hasPhysicalAttachments);
     const isConfirmedSubmission = attachmentIntentContext && (
       attachmentIntentContext.intent === 'document_submission' ||
@@ -1906,7 +1944,7 @@ Se l'allegato è un modulo/certificato/documento personale:
 - non ripetere per esteso dati sensibili (codice fiscale, numero documento, telefono, email): usa forma mascherata;
 - non fare valutazioni legali su documento identità/passaporto/tessera sanitaria.
 - non citare il contenuto OCR nel testo finale se basta una conferma di ricezione.
-${attachmentsContext || ''}`;
+${safeAttachmentsContext || ''}`;
   }
 
   // ========================================================================
