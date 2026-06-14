@@ -108,7 +108,7 @@ console.log('--- Test prompt: fuori territorio resta accogliente e utile ---');
 const outOfTerritoryPrompt = engine.buildPrompt({
   emailSubject: 'Territorio parrocchiale',
   emailContent: 'Buongiorno,\nmi sono trasferita da poco a Roma e vorrei sapere se rientro nella circoscrizione della parrocchia di Sant\'Eugenio. Abito in via Barnaba Oriani.\nGrazie,\nSofia Conti',
-  knowledgeBase: 'La Basilica accoglie fedeli e visitatori per le Sante Messe e le attività aperte a tutti.',
+  knowledgeBase: 'La Basilica accoglie fedeli e visitatori per le Sante Messe e le iniziative della vita parrocchiale.',
   detectedLanguage: 'it',
   promptProfile: 'lite',
   salutationMode: 'full',
@@ -122,7 +122,9 @@ assert(
   outOfTerritoryPrompt.includes('NON fermarti a un rifiuto secco') &&
   outOfTerritoryPrompt.includes('SE LEGGI "Nessun indirizzo rilevato"') &&
   outOfTerritoryPrompt.includes('Diocesi di Roma') &&
-  outOfTerritoryPrompt.includes('benvenuta nella Basilica') &&
+  outOfTerritoryPrompt.includes('sempre la benvenuta nella nostra Basilica') &&
+  outOfTerritoryPrompt.includes('attività della vita parrocchiale') &&
+  !outOfTerritoryPrompt.includes('attività aperte a tutti') &&
   outOfTerritoryPrompt.includes('non far intendere che pratiche territoriali'),
   'il prompt deve accompagnare il fuori territorio con aiuto pratico e accoglienza'
 );

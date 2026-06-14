@@ -1224,7 +1224,7 @@ ${territoryContext}
 5. SE LEGGI "NON RIENTRA" -> Significa certezza assoluta che la via è fuori. NON dire MAI "non abbiamo informazioni". NON fermarti a un rifiuto secco. Dopo il NO:
    - se l'utente dice di essersi trasferito da poco, aggiungi una breve formula di benvenuto;
    - suggerisci di verificare la parrocchia di appartenenza tramite la Diocesi di Roma, senza inventare URL o strumenti non presenti in KB;
-   - aggiungi che la persona resta benvenuta nella Basilica per le Sante Messe e le attività aperte a tutti;
+   - aggiungi che la persona resta sempre la benvenuta nella nostra Basilica per le Sante Messe e le altre attività della vita parrocchiale;
    - non far intendere che pratiche territoriali o sacramentali possano essere gestite automaticamente fuori territorio.
 6. SE LEGGI "Nessun indirizzo rilevato" -> NON dire "non abbiamo informazioni". Devi chiedere all'utente di indicare via ed eventuale civico in modo completo, senza sostituire la verifica automatica con un generico invito a telefonare.
 
