@@ -1925,6 +1925,7 @@ var EmailProcessor = class EmailProcessor {
         quickCheck?.classification || {}, // Usa classificazione Gemini evitando errori se null.
         requestType
       );
+      const quickCheckTerritoryCandidates = this._extractQuickCheckTerritoryCandidates_(quickCheck);
 
       let territoryResult = { addressFound: false };
       if (territoryRequested && this.territoryValidator) {
@@ -1935,8 +1936,7 @@ var EmailProcessor = class EmailProcessor {
             messageDetails.subject
           ) || { addressFound: false };
           if (!territoryResult.addressFound) {
-            const aiTerritoryCandidates = this._extractQuickCheckTerritoryCandidates_(quickCheck);
-            territoryResult = this._analyzeAiTerritoryCandidates_(aiTerritoryCandidates) || territoryResult;
+            territoryResult = this._analyzeAiTerritoryCandidates_(quickCheckTerritoryCandidates) || territoryResult;
           }
         } catch (territoryError) {
           console.warn(`⚠️ Verifica territorio fallita: ${territoryError.message}`);
@@ -1986,6 +1986,17 @@ ${addressLines.join('\n\n')}
       // ====================================================================
       let promptProfile = 'standard';
       let activeConcerns = {};
+      const memoryProvidedInfo = Array.isArray(memoryContext.providedInfo)
+        ? memoryContext.providedInfo
+        : [];
+      const memoryTopics = memoryProvidedInfo
+        .map((item) => {
+          if (!item) return '';
+          if (typeof item === 'string') return item;
+          return item.topic || item.title || item.category || item.summary || item.detail || '';
+        })
+        .filter(Boolean)
+        .slice(0, 12);
       if (typeof createPromptContext === 'function') {
         const promptContext = createPromptContext({
           email: {
@@ -2002,8 +2013,11 @@ ${addressLines.join('\n\n')}
           requestType: requestType,
           memory: {
             exists: Object.keys(memoryContext).length > 0,
-            providedInfoCount: (memoryContext.providedInfo || []).length,
-            lastUpdated: memoryContext.lastUpdated || null
+            providedInfoCount: memoryProvidedInfo.length,
+            lastUpdated: memoryContext.lastUpdated || null,
+            category: memoryContext.category || null,
+            memorySummary: memoryContext.memorySummary || '',
+            topics: memoryTopics
           },
           conversation: { messageCount: memoryMessageCount },
           territory: { addressFound: territoryResult.addressFound },
@@ -2079,6 +2093,7 @@ ${addressLines.join('\n\n')}
         concernFlags.canonLaw ||
         concernFlags.sacrament ||
         concernFlags.formalComplaint ||
+        concernFlags.longitudinal_sensitivity ||
         hasMemoryPastoralContext
       );
 
@@ -2356,6 +2371,12 @@ ${addressLines.join('\n\n')}
       if (routedAiCore) systemDirectives.push(pastoralFirewall);
       routedDoctrine = routingState.routedDoctrine;
       routedDoctrineStructured = routingState.routedDoctrineStructured;
+
+      if (!territoryRequested && quickCheckTerritoryCandidates.length > 0) {
+        systemDirectives.push(
+          "Il messaggio contiene un possibile riferimento di luogo o indirizzo, ma non è stata richiesta una verifica territoriale esplicita: non dedurre competenza parrocchiale senza verifica."
+        );
+      }
 
       if (isCertRequest) {
         systemDirectives.push("REGOLA TASSATIVA SUI CERTIFICATI: Specifica sempre che il certificato deve essere richiesto ESCLUSIVAMENTE alla parrocchia in cui e stato CELEBRATO il sacramento. Chiedi i dati dell'utente SOLO precisando 'se il sacramento e stato celebrato presso la nostra parrocchia'.");

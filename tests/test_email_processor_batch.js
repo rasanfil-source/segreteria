@@ -2564,6 +2564,87 @@ console.log('--- Test processThread: topic appartenenza parrocchiale attiva veri
   assert(promptOptions.territoryContext.includes('via Barnaba Oriani'), 'il contesto territoriale deve includere la via rilevata');
 }
 
+console.log('--- Test processThread: indirizzo passivo non autorizza deduzione territoriale ---');
+{
+  let territoryCalls = 0;
+  let promptOptions = null;
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Informazioni catechismo',
+        body: 'Buongiorno, abitiamo in via Antonio Gramsci 12 e vorremmo sapere gli orari del catechismo.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date('2026-06-13T20:17:00Z'),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: () => ({
+        shouldRespond: true,
+        language: 'it',
+        relational_posture: 'direct',
+        territory_address_candidates: ['via Antonio Gramsci 12'],
+        classification: {
+          category: 'technical',
+          topic: 'orari catechismo',
+          territory_address_candidates: ['via Antonio Gramsci 12']
+        }
+      }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta catechismo' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      analyzeEmailForAddress: function () {
+        territoryCalls += 1;
+        return { addressFound: false };
+      }
+    },
+    validator: {
+      validateResponse: () => ({ isValid: true, score: 1.0, errors: [], warnings: [], details: {}, fixedResponse: null })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        promptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('passive-territory'), 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'la richiesta con indirizzo passivo deve completarsi');
+  assert(territoryCalls === 0, `indirizzo passivo non deve chiamare il validatore territoriale, chiamate=${territoryCalls}`);
+  assert(promptOptions.territoryContext === null, 'senza richiesta esplicita non deve comparire territoryContext verificato');
+  assert(
+    Array.isArray(promptOptions.systemDirectives) &&
+      promptOptions.systemDirectives.some(directive => String(directive).includes('non dedurre competenza parrocchiale senza verifica')),
+    'indirizzo passivo deve aggiungere una direttiva prudenziale tra le systemDirectives'
+  );
+}
+
 console.log('--- Test prompt options: relationalPosture personal passa dal quick-check al PromptEngine ---');
 {
   let promptOptions = null;
@@ -3107,6 +3188,95 @@ console.log('--- Test context routing: memoria pastorale impedisce amnesia su fo
 
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
   global.GLOBAL_CACHE = originalGlobalCache;
+}
+
+console.log('--- Test context routing: memoria semantica sensibile impedisce amnesia su follow-up tecnico ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalGlobalCache = global.GLOBAL_CACHE;
+  const originalCreatePromptContext = global.createPromptContext;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.GLOBAL_CACHE = { aiCoreLite: 'core lite', aiCore: 'core pesante' };
+
+  let promptOptions = null;
+  let promptContextInput = null;
+  global.createPromptContext = (input) => {
+    promptContextInput = input;
+    return {
+      profile: 'heavy',
+      concerns: { longitudinal_sensitivity: true }
+    };
+  };
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Re: appuntamento',
+        body: 'A che ora è l’incontro?',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'information', topic: 'orario incontro' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta incontro' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({
+        category: 'information',
+        lastUpdated: '2026-05-10T10:00:00Z',
+        memorySummary: 'Scambio precedente su lutto familiare',
+        providedInfo: [
+          { topic: 'esequie' },
+          { topic: 'accompagnamento famiglia' }
+        ]
+      }),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        promptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('memory-sensitive-summary'), 'kb valida', 'dottrina completa', new Set(), true);
+  assert(result.status === 'replied', 'il follow-up tecnico con memoria sensibile deve completarsi');
+  assert(promptContextInput.memory.memorySummary.includes('lutto'), 'EmailProcessor deve passare memorySummary al PromptContext');
+  assert(promptContextInput.memory.topics.includes('esequie'), 'EmailProcessor deve passare i topic semantici della memoria al PromptContext');
+  assert(promptOptions.activeConcerns.longitudinal_sensitivity === true, 'la memoria semantica deve arrivare come concern longitudinale');
+  assert(promptOptions.promptProfile === 'heavy', 'la memoria semantica sensibile deve alzare il profilo prompt');
+  assert(promptOptions.doctrineBase === 'dottrina completa', 'la memoria semantica sensibile deve impedire la disattivazione della dottrina');
+  assert(promptOptions.aiCore.startsWith('core pesante'), 'la memoria semantica sensibile deve mantenere attivo AI core pesante');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.GLOBAL_CACHE = originalGlobalCache;
+  global.createPromptContext = originalCreatePromptContext;
 }
 
 

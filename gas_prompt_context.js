@@ -121,6 +121,15 @@ var PromptContext = class PromptContext {
         const configuredThreshold = (typeof CONFIG !== 'undefined' && Number.isFinite(CONFIG.KB_HALLUCINATION_RISK_THRESHOLD))
             ? CONFIG.KB_HALLUCINATION_RISK_THRESHOLD
             : 8000;
+        const memoryTopics = Array.isArray(i.memory?.topics)
+            ? i.memory.topics.join(' ')
+            : '';
+        const memoryText = [
+            i.memory?.category,
+            i.memory?.memorySummary,
+            memoryTopics
+        ].filter(Boolean).join(' ').toLowerCase();
+        const longitudinalSensitivity = /\b(lutto|decesso|malattia|funerale|esequie|defunt[oaie]|sbattezzo|apostasia|divorzio|divorziat[oaie]|separazione|separat[oaie]|vedov[oaie])\b/.test(memoryText);
 
         return {
             language_safety:
@@ -147,7 +156,12 @@ var PromptContext = class PromptContext {
             emotional_sensitivity:
                 i.requestType?.type === 'pastoral' ||
                 i.classification?.subIntents?.emotional_distress ||
-                i.classification?.subIntents?.bereavement,
+                i.classification?.subIntents?.bereavement ||
+                i.subIntents?.emotional_distress ||
+                i.subIntents?.bereavement,
+
+            longitudinal_sensitivity:
+                longitudinalSensitivity,
 
             repetition_risk:
                 i.memory?.exists ||
@@ -198,7 +212,7 @@ var PromptContext = class PromptContext {
         const isFormal = !!(requestType && (requestType.type === 'formal' || requestType.formalScore > 0.6));
         const isDoctrinal = !!(requestType && (requestType.type === 'doctrinal' || requestType.doctrineScore > 0.6));
 
-        if (c.discernment_risk || c.emotional_sensitivity || isFormal || isDoctrinal) {
+        if (c.discernment_risk || c.emotional_sensitivity || c.longitudinal_sensitivity || isFormal || isDoctrinal) {
             return 'heavy';
         }
 

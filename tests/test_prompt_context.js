@@ -64,4 +64,102 @@ assert(
   'due domande operative devono attivare multi_question'
 );
 
+console.log('--- Test PromptContext: emotional_sensitivity legge subIntents flat ---');
+const flatBereavement = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Messa in suffragio',
+    body: 'Vorrei chiedere una Messa per mio padre defunto.'
+  },
+  requestType: { type: 'technical' },
+  classification: { confidence: 1, category: 'information' },
+  subIntents: { bereavement: true }
+});
+assert(
+  flatBereavement.concerns.emotional_sensitivity === true,
+  'subIntents.bereavement flat deve attivare emotional_sensitivity'
+);
+assert(
+  flatBereavement.profile === 'heavy',
+  'lutto da subIntent flat deve alzare il profilo prompt a heavy'
+);
+
+const flatDistress = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Richiesta',
+    body: 'Sto attraversando un momento difficile e vorrei parlare con qualcuno.'
+  },
+  requestType: { type: 'technical' },
+  classification: { confidence: 1, category: 'information' },
+  subIntents: { emotional_distress: true }
+});
+assert(
+  flatDistress.concerns.emotional_sensitivity === true,
+  'subIntents.emotional_distress flat deve attivare emotional_sensitivity'
+);
+
+console.log('--- Test PromptContext: memoria semantica sensibile alza il profilo ---');
+const sensitiveMemory = createPromptContext({
+  email: {
+    isReply: true,
+    detectedLanguage: 'it',
+    subject: 'Orario incontro',
+    body: 'A che ora ci vediamo?'
+  },
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  classification: { confidence: 1, category: 'information' },
+  memory: {
+    exists: true,
+    providedInfoCount: 2,
+    lastUpdated: '2026-06-01T10:00:00.000Z',
+    category: 'information',
+    memorySummary: 'Scambio precedente su lutto familiare',
+    topics: ['esequie', 'accompagnamento famiglia']
+  }
+});
+assert(
+  sensitiveMemory.concerns.longitudinal_sensitivity === true,
+  'la memoria semantica sensibile deve attivare longitudinal_sensitivity'
+);
+assert(
+  sensitiveMemory.profile === 'heavy',
+  'la memoria semantica sensibile deve alzare il profilo a heavy'
+);
+
+console.log('--- Test PromptContext: memoria sensibile riconosce forme flesse ---');
+[
+  'utente separato',
+  'persona separata',
+  'padre divorziato',
+  'madre divorziata',
+  'signore vedovo',
+  'signora vedova',
+  'coniugi separati',
+  'fedeli divorziate'
+].forEach((memorySummary) => {
+  const ctx = createPromptContext({
+    email: {
+      isReply: true,
+      detectedLanguage: 'it',
+      subject: 'Informazioni',
+      body: 'Grazie, vorrei sapere l’orario.'
+    },
+    requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+    classification: { confidence: 1, category: 'technical' },
+    memory: {
+      exists: true,
+      providedInfoCount: 1,
+      memorySummary,
+      topics: []
+    }
+  });
+  assert(
+    ctx.concerns.longitudinal_sensitivity === true,
+    `memoria "${memorySummary}" deve attivare longitudinal_sensitivity`
+  );
+});
+
 console.log('✅ Test PromptContext OK');
