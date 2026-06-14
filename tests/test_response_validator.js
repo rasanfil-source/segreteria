@@ -1392,6 +1392,40 @@ console.log('--- Test SemanticValidator: motivo thinking leak non mascherato da 
   );
 }
 
+console.log('--- Test territory consistency: NON RIENTRA non puo diventare rientra ---');
+{
+  const result = validator.validateResponse(
+    'Gentile utente, sì, Via Barnaba Oriani rientra nel territorio della parrocchia.',
+    'it',
+    'Informazioni territoriali disponibili.',
+    'Abito in via Barnaba Oriani, rientro nel territorio?',
+    'Territorio',
+    'full',
+    false,
+    {
+      temporal: { currentDate: '2026-06-08', currentTime: '10:00', messageDate: '2026-06-08' },
+      territoryContext: 'ESITO VERIFICA: NON RIENTRA nel territorio della parrocchia di Sant Eugenio.\nIndirizzo verificato: via Barnaba Oriani.'
+    }
+  );
+
+  assert(result.isValid === false, 'una risposta che ribalta NON RIENTRA deve fallire');
+  assert(
+    result.errors.some((error) => error.includes('Coerenza territorio')),
+    'il validator deve segnalare la contraddizione territoriale'
+  );
+}
+
+console.log('--- Test territory consistency: RIENTRA non puo diventare non rientra ---');
+{
+  const result = validator._checkTerritoryConsistency(
+    'Gentile utente, l indirizzo non rientra nel territorio parrocchiale.',
+    { territoryContext: 'ESITO VERIFICA: RIENTRA nel territorio parrocchiale.' }
+  );
+
+  assert(result.score === 0.0, 'una risposta che nega RIENTRA deve essere bloccata');
+  assert(result.expected === 'inside', 'il validator deve distinguere RIENTRA da NON RIENTRA');
+}
+
 console.log('--- Test SemanticValidator: fallback lazy senza GeminiService/CacheService ---');
 {
   const originalConfig = global.CONFIG;

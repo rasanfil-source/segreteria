@@ -2072,6 +2072,8 @@ ${addressLines.join('\n\n')}
         memoryCategory.includes(category)
       );
       const hasPastoralConcern = Boolean(
+        concernFlags.emotional_sensitivity ||
+        concernFlags.discernment_risk ||
         concernFlags.doctrine ||
         concernFlags.sensitive ||
         concernFlags.canonLaw ||
@@ -2349,14 +2351,14 @@ ${addressLines.join('\n\n')}
       const routingDecision = this._evaluatePreAiRules_(routingContext);
       this._applyPreAiRuleDecision_(routingDecision, routingContext, result);
       routedAiCore = routingState.routedAiCore;
-      const pastoralFirewall = "\n\n⚠️ DIVIETO DI DEROGA (CROSS-CONTAMINATION): I principi pastorali non possono MAI modificare, derogare o rendere flessibili le procedure, le date o i requisiti tecnici indicati nella Knowledge Base. Non inventare percorsi personalizzati o eccezioni.";
-      if (routedAiCore) routedAiCore += pastoralFirewall;
+      const systemDirectives = [];
+      const pastoralFirewall = "DIVIETO DI DEROGA (CROSS-CONTAMINATION): I principi pastorali non possono MAI modificare, derogare o rendere flessibili le procedure, le date o i requisiti tecnici indicati nella Knowledge Base. Non inventare percorsi personalizzati o eccezioni.";
+      if (routedAiCore) systemDirectives.push(pastoralFirewall);
       routedDoctrine = routingState.routedDoctrine;
       routedDoctrineStructured = routingState.routedDoctrineStructured;
 
       if (isCertRequest) {
-        routedAiCoreLite = (routedAiCoreLite ? routedAiCoreLite + '\n\n' : '') +
-          "REGOLA TASSATIVA SUI CERTIFICATI: Specifica sempre che il certificato deve essere richiesto ESCLUSIVAMENTE alla parrocchia in cui e stato CELEBRATO il sacramento. Chiedi i dati dell'utente SOLO precisando 'se il sacramento e stato celebrato presso la nostra parrocchia'.";
+        systemDirectives.push("REGOLA TASSATIVA SUI CERTIFICATI: Specifica sempre che il certificato deve essere richiesto ESCLUSIVAMENTE alla parrocchia in cui e stato CELEBRATO il sacramento. Chiedi i dati dell'utente SOLO precisando 'se il sacramento e stato celebrato presso la nostra parrocchia'.");
       }
 
       const baseRuntimeContext = this._buildRuntimeContext_(
@@ -2365,7 +2367,8 @@ ${addressLines.join('\n\n')}
         [routedAiCoreLite, routedAiCore, enrichedKnowledgeBase, routedDoctrine].filter(Boolean).join('\n')
       );
       const runtimeContext = Object.freeze(Object.assign({}, baseRuntimeContext, {
-        physicalPresenceConstraint: physicalPresenceConstraint || null
+        physicalPresenceConstraint: physicalPresenceConstraint || null,
+        territoryContext: territoryContext || null
       }));
       const scheduleContext = this._resolveScheduleContext(
         `${messageDetails.subject || ''}\n${messageDetails.body || ''}`,
@@ -2404,10 +2407,11 @@ ${addressLines.join('\n\n')}
         sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),
         relationalPosture:  quickCheck?.relational_posture ?? 'direct',
         requestType: requestType,
-        attachmentsContext: attachmentBlobs.length > 0 ? textFromAttachments : "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa.",
+        attachmentsContext: physicalAttachmentsDetected ? textFromAttachments : "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa.",
         attachmentIntentContext: attachmentIntentContext
           ? Object.assign({}, attachmentIntentContext, { hasPhysicalAttachments: physicalAttachmentsDetected })
           : null,
+        systemDirectives: systemDirectives,
         aiCoreLite: routedAiCoreLite,
         aiCore: routedAiCore,
         doctrineBase: routedDoctrine,
@@ -6828,8 +6832,8 @@ function computeSalutationMode({ isReply = false, memoryExists = false, lastUpda
     return 'full';
   }
 
-  const parsedLastUpdated = (typeof parseDateSafe === 'function') ? parseDateSafe(lastUpdated, null) : new Date(lastUpdated);
-  if (!parsedLastUpdated || isNaN(parsedLastUpdated.getTime())) {
+  const parsedLastUpdated = parseDateForEmailTiming_(lastUpdated);
+  if (!parsedLastUpdated) {
     return 'full';
   }
 
@@ -6881,8 +6885,8 @@ function computeResponseDelay({ messageDate, now = new Date(), thresholdHours = 
     return { shouldApologize: false, hours: 0, days: 0 };
   }
 
-  const parsedMessageDate = (typeof parseDateSafe === 'function') ? parseDateSafe(messageDate, null) : new Date(messageDate);
-  if (!parsedMessageDate || isNaN(parsedMessageDate.getTime())) {
+  const parsedMessageDate = parseDateForEmailTiming_(messageDate);
+  if (!parsedMessageDate) {
     return { shouldApologize: false, hours: 0, days: 0 };
   }
   const diffMs = now.getTime() - parsedMessageDate.getTime();
@@ -6899,6 +6903,17 @@ function computeResponseDelay({ messageDate, now = new Date(), thresholdHours = 
     hours: Math.round(hours),
     days: days
   };
+}
+
+function parseDateForEmailTiming_(value) {
+  try {
+    const parsed = (typeof parseDateSafe === 'function')
+      ? parseDateSafe(value, null)
+      : new Date(value);
+    return (parsed instanceof Date && !isNaN(parsed.getTime())) ? parsed : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 // Compatibilità: rende la funzione disponibile anche in runtime che usano moduli/isolamento

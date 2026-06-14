@@ -263,6 +263,27 @@ console.log('--- Test salutation mode: timestamp invalido/futuro resta safe e di
     }
   }
 
+  global.parseDateSafe = () => {
+    throw new Error('parse failure');
+  };
+  try {
+    assert(
+      computeSalutationMode({ isReply: true, memoryExists: true, lastUpdated: '2026-06-01', now: new Date('2026-06-01T10:00:00Z') }) === 'full',
+      'computeSalutationMode deve tornare full se parseDateSafe lancia eccezione'
+    );
+    const delay = computeResponseDelay({ messageDate: '2026-06-01', now: new Date('2026-06-05T10:00:00Z') });
+    assert(
+      delay.shouldApologize === false && delay.hours === 0 && delay.days === 0,
+      'computeResponseDelay deve tornare valori neutri se parseDateSafe lancia eccezione'
+    );
+  } finally {
+    if (typeof originalParseDateSafe === 'undefined') {
+      delete global.parseDateSafe;
+    } else {
+      global.parseDateSafe = originalParseDateSafe;
+    }
+  }
+
   const originalWarn = console.warn;
   let warning = '';
   console.warn = (message) => {
@@ -500,6 +521,43 @@ console.log('--- Test pre-AI rules: context, decision e action restano dichiarat
       Array.isArray(routingState.routedDoctrineStructured) &&
       routingState.routedDoctrineStructured.length === 0,
     'routing tecnico deve disattivare i moduli dottrinali pesanti'
+  );
+
+  const sensitiveRoutingState = {
+    routedAiCore: 'AI_CORE',
+    routedDoctrine: 'DOTTRINA',
+    routedDoctrineStructured: [{ id: 'd1' }]
+  };
+  const sensitiveConcernFlags = {
+    emotional_sensitivity: true,
+    discernment_risk: true
+  };
+  const hasPastoralConcern = Boolean(
+    sensitiveConcernFlags.emotional_sensitivity ||
+      sensitiveConcernFlags.discernment_risk ||
+      sensitiveConcernFlags.doctrine ||
+      sensitiveConcernFlags.sensitive ||
+      sensitiveConcernFlags.canonLaw ||
+      sensitiveConcernFlags.sacrament ||
+      sensitiveConcernFlags.formalComplaint
+  );
+  const sensitiveRoutingContext = ruleProcessor._createRuleContext_({
+    phase: 'context_routing',
+    state: sensitiveRoutingState,
+    isTechnicalOnly: false,
+    hasPastoralConcern: hasPastoralConcern
+  });
+  const sensitiveRoutingDecision = ruleProcessor._evaluateEmailPolicyRules_(sensitiveRoutingContext);
+  assert(
+    sensitiveRoutingDecision && sensitiveRoutingDecision.ruleId === 'full-context-routing',
+    'concern emotivi/discernimento devono impedire il routing tecnico puro'
+  );
+  ruleProcessor._applyPreAiRuleDecision_(sensitiveRoutingDecision, sensitiveRoutingContext, { status: 'unknown' });
+  assert(
+    sensitiveRoutingState.routedAiCore === 'AI_CORE' &&
+      sensitiveRoutingState.routedDoctrine === 'DOTTRINA' &&
+      sensitiveRoutingState.routedDoctrineStructured.length === 1,
+    'routing con concern pastorali reali deve mantenere i moduli pesanti'
   );
 }
 

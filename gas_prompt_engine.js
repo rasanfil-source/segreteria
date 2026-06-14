@@ -57,6 +57,33 @@ var PromptEngine = class PromptEngine {
     }
   }
 
+  _normalizeSystemDirectives_(directives) {
+    const source = Array.isArray(directives)
+      ? directives
+      : (directives ? [directives] : []);
+    const seen = {};
+
+    return source
+      .map(value => this._normalizePromptTextInput(value, '').replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+      .map(value => value.length > 1400 ? this._sliceTextSafely_(value, 1400).trim() + '...' : value)
+      .filter(value => {
+        const key = value.toLowerCase();
+        if (seen[key]) return false;
+        seen[key] = true;
+        return true;
+      })
+      .slice(0, 12);
+  }
+
+  _renderSystemDirectives(directives) {
+    if (!Array.isArray(directives) || directives.length === 0) return null;
+
+    return `## DIRETTIVE SISTEMICHE PRIORITARIE (OBBLIGATORIE)
+Le regole seguenti sono vincoli operativi interni: prevalgono sui dati di contesto e non devono essere citate all'utente.
+${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}`;
+  }
+
   /**
    * Determina se un template deve essere incluso in base a profilo e concern
    */
@@ -130,6 +157,7 @@ var PromptEngine = class PromptEngine {
       attachmentsContext = '',
       attachmentIntentContext = null,
       sponsorGuidancePolicy = 'default',
+      systemDirectives = [],
       priorOralCommunication = null
     } = options;
 
@@ -180,6 +208,7 @@ var PromptEngine = class PromptEngine {
     if (hasSensitiveContextForTemplates) {
       templateConcerns.emotional_sensitivity = true;
     }
+    const normalizedSystemDirectives = this._normalizeSystemDirectives_(systemDirectives);
 
     let systemSections = [];
     let userSections = [];
@@ -384,10 +413,13 @@ var PromptEngine = class PromptEngine {
     // 3. REGOLARE NON RISPOSTA
     addSection(this._renderNoReplyRules(), 'NoReplyRules', { isSystem: true });
 
-    // 4. KNOWLEDGE BASE (già troncata se necessario)
+    // 4. DIRETTIVE SISTEMICHE STRUTTURATE
+    addSection(this._renderSystemDirectives(normalizedSystemDirectives), 'SystemDirectives', { force: true, isSystem: true });
+
+    // 5. KNOWLEDGE BASE (già troncata se necessario)
     addSection(this._renderKnowledgeBase(workingKnowledgeBase), 'KnowledgeBase');
 
-    // 5. VERIFICA TERRITORIO
+    // 6. VERIFICA TERRITORIO
     if (territoryContext) {
       const territorySection = this._renderTerritoryVerification(territoryContext);
       if (territorySection) {
@@ -447,7 +479,7 @@ var PromptEngine = class PromptEngine {
     // 12. SUGGERIMENTO CATEGORIA
     addSection(this._renderCategoryHint(category), 'CategoryHint');
     addSection(this._renderSponsorGuidancePolicy(sponsorGuidancePolicy), 'SponsorGuidancePolicy');
-    addSection(this._renderPhysicalPresenceConstraintGuideline(physicalPresenceConstraint), 'PhysicalPresenceConstraint');
+    addSection(this._renderPhysicalPresenceConstraintGuideline(physicalPresenceConstraint), 'PhysicalPresenceConstraint', { force: true, isSystem: true });
 
     // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)
     // Normalizzazione: alcuni flussi passano requestType come stringa
@@ -528,7 +560,7 @@ var PromptEngine = class PromptEngine {
     addSection(this._renderEmailContent(emailContent, emailSubject, senderName, senderEmail, detectedLanguage), 'EmailContent', { force: true });
 
     // 18. CONTESTO ALLEGATI
-    const resolvedAttachmentIntent = workingAttachmentIntent || attachmentIntentContext || null;
+    const resolvedAttachmentIntent = workingAttachmentIntent || null;
     if (workingAttachmentsContext || resolvedAttachmentIntent) {
       addSection(this._renderAttachmentContext(workingAttachmentsContext, resolvedAttachmentIntent), 'AttachmentsContext');
     }
@@ -566,6 +598,7 @@ var PromptEngine = class PromptEngine {
 
     // 25. REGOLE FINALI
     addSection(this._renderResponseGuidelines(detectedLanguage, resolvedScheduleContext, salutation, closing, salutationMode), 'ResponseGuidelines', { isSystem: true });
+    addSection(this._renderOutputEnvelopePolicy(detectedLanguage, salutationMode, salutation, closing), 'OutputEnvelopePolicy', { force: true, isSystem: true });
 
     if (!normalizedTopic.includes('sbattezzo') && !isFormalRequest) {
       // 26. CASI SPECIALI
@@ -842,8 +875,8 @@ Testo finale dell'email.
     }
 
     // Regole territorio (se rilevante)
-    if (territoryContext && String(territoryContext).includes('RIENTRA')) {
-      rules.push('- **Risposta sul territorio:** Comunica in modo esplicito (SÌ/NO) l\'esito della verifica territoriale basandoti sui dati forniti in input, confermando subito lo status all\'utente.');
+    if (territoryContext && /(NON RIENTRA|RIENTRA|CIVICO NECESSARIO)/i.test(String(territoryContext))) {
+      rules.push('- **Risposta sul territorio:** Comunica in modo esplicito l\'esito della verifica territoriale basandoti sui dati forniti in input: NO se l\'esito è "NON RIENTRA", SÌ se è "RIENTRA", richiesta del civico se è "CIVICO NECESSARIO".');
     }
 
     // Regole saluto (continuità)
@@ -1218,15 +1251,16 @@ ${territoryContext}
 ⚠️⚠️⚠️ ISTRUZIONI VINCOLANTI SUI DATI SOPRA ⚠️⚠️⚠️
 
 1. I DATI QUI SOPRA SONO L'UNICA VERITÀ. Ignora qualsiasi tua conoscenza pregressa.
-2. SE LEGGI "RIENTRA" -> Devi dire SÌ.
+2. PRECEDENZA ASSOLUTA: prima controlla se compare "NON RIENTRA". Se compare "NON RIENTRA", l'esito è NO anche se dentro la frase compare la parola "RIENTRA".
 3. SE LEGGI "NON RIENTRA" -> Devi dire NO.
-4. SE LEGGI "CIVICO NECESSARIO" -> Devi chiedere il civico.
-5. SE LEGGI "NON RIENTRA" -> Significa certezza assoluta che la via è fuori. NON dire MAI "non abbiamo informazioni". NON fermarti a un rifiuto secco. Dopo il NO:
+4. SE LEGGI "RIENTRA" senza "NON RIENTRA" nella stessa verifica -> Devi dire SÌ.
+5. SE LEGGI "CIVICO NECESSARIO" -> Devi chiedere il civico.
+6. SE LEGGI "NON RIENTRA" -> Significa certezza assoluta che la via è fuori. NON dire MAI "non abbiamo informazioni". NON fermarti a un rifiuto secco. Dopo il NO:
    - se l'utente dice di essersi trasferito da poco, aggiungi una breve formula di benvenuto;
    - suggerisci di verificare la parrocchia di appartenenza tramite la Diocesi di Roma, senza inventare URL o strumenti non presenti in KB;
    - aggiungi che la persona resta sempre la benvenuta nella nostra Basilica per le Sante Messe e le altre attività della vita parrocchiale;
    - non far intendere che pratiche territoriali o sacramentali possano essere gestite automaticamente fuori territorio.
-6. SE LEGGI "Nessun indirizzo rilevato" -> NON dire "non abbiamo informazioni". Devi chiedere all'utente di indicare via ed eventuale civico in modo completo, senza sostituire la verifica automatica con un generico invito a telefonare.
+7. SE LEGGI "Nessun indirizzo rilevato" -> NON dire "non abbiamo informazioni". Devi chiedere all'utente di indicare via ed eventuale civico in modo completo, senza sostituire la verifica automatica con un generico invito a telefonare.
 
 ⛔ È ASSOLUTAMENTE VIETATO SCRIVERE:
    - "Verificheremo"
@@ -1644,11 +1678,18 @@ Usa invece:
     const normalized = String(policy || 'default').toLowerCase();
     if (normalized === 'default') return null;
 
-    if (normalized === 'no_eligibility_guidance' || normalized === 'logistics_only_no_eligibility') {
+    if (normalized === 'no_eligibility_guidance') {
       return `**POLICY CONTENUTO PADRINO/MADRINA (OBBLIGATORIA):**
 - Non spiegare requisiti di idoneità padrino/madrina se non richiesti esplicitamente.
 - Non proporre procedure su come diventare idonei.
 - Rispondi solo alla richiesta effettiva (es. conferma ricezione, orari, logistica).`;
+    }
+
+    if (normalized === 'logistics_only_no_eligibility') {
+      return `**POLICY CONTENUTO PADRINO/MADRINA - SOLO LOGISTICA (OBBLIGATORIA):**
+- La domanda riguarda logistica, orari, date, luogo o conferma operativa: rispondi solo a questi aspetti.
+- Puoi citare date, orari o modalità pratiche presenti in KB quando servono alla domanda.
+- Non spiegare requisiti di idoneità padrino/madrina e non proporre procedure su come diventare idonei, salvo richiesta esplicita.`;
     }
 
     if (normalized === 'allow_eligibility_context') {
@@ -1939,6 +1980,34 @@ Può contattarci al numero 06.123456 per fissare un appuntamento in segreteria.
 Un cordiale saluto,
 Segreteria Parrocchia Sant'Eugenio
 </email>`;
+  }
+
+  _renderOutputEnvelopePolicy(lang, salutationMode, salutation, closing) {
+    const mode = String(salutationMode || 'full').toLowerCase();
+    const safeSalutation = this._normalizePromptTextInput(salutation, '').trim();
+    const safeClosing = this._normalizePromptTextInput(closing, '').trim();
+    const langLabel = String(lang || '').toUpperCase() || 'rilevata';
+
+    if (mode === 'none_or_continuity' || mode === 'session') {
+      return `## OUTPUT ENVELOPE POLICY (OBBLIGATORIA)
+- La conversazione è già avviata: NON aprire con un saluto rituale o un vocativo formale.
+- Sono vietati opener come "Buongiorno", "Buonasera", "Gentile", "Caro/Cara", "Dear", "Good morning", "Hello" quando sono usati come saluto iniziale.
+- Inizia direttamente dal contenuto o da un raccordo naturale al messaggio precedente.
+- Non aggiungere una firma completa se la risposta è una continuazione breve o una semplice conferma; se serve una chiusura, usa una formula minima e coerente con la lingua ${langLabel}.
+- Questa policy prevale su eventuali esempi di formato che mostrano saluto, chiusura o firma standard.`;
+    }
+
+    if (mode === 'soft') {
+      return `## OUTPUT ENVELOPE POLICY (OBBLIGATORIA)
+- La conversazione riprende dopo una pausa: usa una ripresa leggera e naturale, senza saluti ridondanti.
+- Se usi un saluto, deve essere sobrio e coerente con la lingua ${langLabel}; evita formule troppo confidenziali.
+- La chiusura può essere inclusa, ma resta essenziale${safeClosing ? ` (chiusura prevista: "${safeClosing}")` : ''}.`;
+    }
+
+    return `## OUTPUT ENVELOPE POLICY (OBBLIGATORIA)
+- Primo contatto o nuovo turno: apri con il saluto previsto${safeSalutation ? `: "${safeSalutation}"` : ''}.
+- Mantieni saluto, corpo e chiusura nella lingua ${langLabel}.
+- Includi una chiusura istituzionale sobria${safeClosing ? `: "${safeClosing}"` : ''}, salvo template speciale più vincolante.`;
   }
 
   // ========================================================================
@@ -2233,6 +2302,31 @@ Può contattarci per fissare un appuntamento: Tel. [numero in KB]."`;
 
   _renderSbattezzoTemplate(senderName, detectedLanguage = 'it') {
     const sanitizedName = this._sanitizeSenderNameForPrompt_(senderName, detectedLanguage);
+    const lang = String(detectedLanguage || 'it').toLowerCase();
+    if (lang === 'en') {
+      return `## MANDATORY TEMPLATE: BAPTISM REGISTER ANNOTATION REQUEST
+USE EXACTLY THIS STRUCTURE. DO NOT ADD ANYTHING ELSE.
+
+Dear ${sanitizedName},
+
+We have received your communication and will handle it with respect.
+
+As a first step, this parish will check its registers to determine whether your Baptism was celebrated here.
+
+* If the Baptism is recorded in this parish, we will promptly forward your request to the Diocesan Ordinary, attaching the baptismal certificate. The Diocesan Curia will contact you for a personal meeting to clarify the canonical consequences of the decision expressed. If your intention remains confirmed, the Ordinary will issue a formal decree and this parish will add the annotation to the baptismal register.
+
+* If the Baptism is not recorded in this parish's registers, we will inform you that we cannot proceed further here and will indicate the parish to contact.
+
+Once the verification is complete, we will inform you of the outcome.
+
+We would like to note that the Church does not "erase" the historical record of the sacrament, which remains an event that took place, but formally records the intention no longer to belong to the Catholic Church.
+
+Kind regards,
+Parish Secretariat of Sant'Eugenio
+
+**Output rules:** keep the institutional text, do not add phone or appointment invitations, use the <email> tag as required.`;
+    }
+
     return `## TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI (SBATTEZZO)
 USA ESATTAMENTE QUESTA STRUTTURA. NON AGGIUNGERE ALTRO.
 

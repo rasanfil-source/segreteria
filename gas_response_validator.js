@@ -433,6 +433,13 @@ var ResponseValidator = class ResponseValidator {
     details.physicalPresenceConstraint = physicalPresenceResult;
     score *= physicalPresenceResult.score;
 
+    // === CONTROLLO 12: coerenza esito territorio ===
+    const territoryResult = this._checkTerritoryConsistency(response, temporalContext);
+    errors.push(...territoryResult.errors);
+    warnings.push(...territoryResult.warnings);
+    details.territoryConsistency = territoryResult;
+    score *= territoryResult.score;
+
     const normalizedScore = normalizeValidationScore(score);
     const isValid = errors.length === 0 && normalizedScore >= this.MIN_VALID_SCORE;
 
@@ -1447,6 +1454,69 @@ var ResponseValidator = class ResponseValidator {
         type: constraint.type || 'other',
         visit_policy: constraint.visit_policy || 'conditional_only'
       }
+    };
+  }
+
+  _checkTerritoryConsistency(response, temporalContext = null) {
+    const context = temporalContext && (
+      temporalContext.territoryContext ||
+      temporalContext.territory_context ||
+      (temporalContext.territory && temporalContext.territory.context)
+    );
+    if (!context) {
+      return { errors: [], warnings: [], score: 1.0, active: false, expected: null, violations: [] };
+    }
+
+    const sourceContext = this._stripDiacritics_(String(context || '').toLowerCase());
+    let expected = null;
+    if (/\bnon\s+rientra\b/.test(sourceContext)) {
+      expected = 'outside';
+    } else if (/\bcivico\s+necessario\b/.test(sourceContext)) {
+      expected = 'needs_civic';
+    } else if (/\brientra\b/.test(sourceContext)) {
+      expected = 'inside';
+    }
+
+    if (!expected) {
+      return { errors: [], warnings: [], score: 1.0, active: false, expected: null, violations: [] };
+    }
+
+    const text = this._stripDiacritics_(String(response || '').toLowerCase());
+    const saysInside = [
+      /\bsi[,:\s]+[^.\n!?]{0,120}\brientra\b/,
+      /\brientra\s+(?:nel|nella|in)\s+(?:territorio|parrocchia|competenza)/,
+      /\bfa\s+parte\s+(?:del|della)\s+(?:territorio|parrocchia|competenza)/,
+      /\be\s+(?:nel|nella|in)\s+(?:nostro|nostra)\s+(?:territorio|parrocchia|competenza)/
+    ].some(pattern => pattern.test(text));
+    const saysOutside = [
+      /\bnon\s+rientra\b/,
+      /\bfuori\s+(?:dal\s+)?territorio\b/,
+      /\bnon\s+fa\s+parte\s+(?:del|della)\s+(?:territorio|parrocchia|competenza)/,
+      /\bnon\s+e\s+(?:nel|nella|in)\s+(?:nostro|nostra)\s+(?:territorio|parrocchia|competenza)/
+    ].some(pattern => pattern.test(text));
+    const asksCivic = /\b(?:indicare|comunicare|specificare|inviare|serve|necessario|necessita|abbiamo bisogno)[^.\n!?]{0,120}\b(?:civico|numero)\b/.test(text) ||
+      /\b(?:civico|numero)\b[^.\n!?]{0,120}\b(?:necessario|mancante|serve|indicare|comunicare|specificare)\b/.test(text);
+
+    const violations = [];
+    if (expected === 'outside' && saysInside) {
+      violations.push('la risposta afferma che l indirizzo rientra, ma il contesto certificato dice NON RIENTRA');
+    } else if (expected === 'inside' && saysOutside) {
+      violations.push('la risposta afferma che l indirizzo non rientra, ma il contesto certificato dice RIENTRA');
+    } else if (expected === 'needs_civic' && (saysInside || saysOutside) && !asksCivic) {
+      violations.push('la risposta dà un esito territoriale senza chiedere il civico richiesto');
+    }
+
+    if (violations.length === 0) {
+      return { errors: [], warnings: [], score: 1.0, active: true, expected, violations: [] };
+    }
+
+    return {
+      errors: ['Coerenza territorio: la risposta contraddice l esito della verifica territoriale automatica.'],
+      warnings: [],
+      score: 0.0,
+      active: true,
+      expected,
+      violations
     };
   }
 

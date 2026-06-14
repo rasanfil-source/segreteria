@@ -1595,6 +1595,7 @@ console.log('--- Test processThread: burst con allegato nel primo messaggio atti
   global.CONFIG.ATTACHMENT_CONTEXT = { enabled: true, maxFiles: 3 };
 
   const attachmentCalls = [];
+  let capturedPromptOptions = null;
   const firstMsg = {
     getId: () => 'm-burst-attachment-1',
     isUnread: () => true,
@@ -1670,7 +1671,10 @@ console.log('--- Test processThread: burst con allegato nel primo messaggio atti
       validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
     },
     promptEngine: {
-      buildPrompt: () => 'PROMPT'
+      buildPrompt: (options) => {
+        capturedPromptOptions = options;
+        return 'PROMPT';
+      }
     }
   });
   processor._deriveAttachmentIntentContext_ = () => ({
@@ -1684,6 +1688,11 @@ console.log('--- Test processThread: burst con allegato nel primo messaggio atti
   const result = processor.processThread(thread, 'kb valida', '', new Set(), true);
   assert(result.status === 'replied', 'il burst con allegato precedente deve essere processato');
   assert(attachmentCalls.includes('m-burst-attachment-1'), 'deve elaborare gli allegati del primo messaggio del burst, non solo del candidato');
+  assert(
+    capturedPromptOptions &&
+      capturedPromptOptions.attachmentsContext.includes('Certificato allegato nel primo messaggio del burst.'),
+    'il prompt deve ricevere il testo estratto anche quando attachmentBlobs e vuoto ma attachmentItems contiene file'
+  );
 
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
   global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = originalDocumentConsistency;
@@ -2946,11 +2955,16 @@ console.log('--- Test context routing: document_request certificato resta tecnic
   assert(promptOptions.aiCore === '', 'document_request deve spegnere AI core pesante anche con concern sacramentale');
   assert(promptOptions.doctrineBase === '', 'document_request deve spegnere dottrina pesante anche con concern sacramentale');
   assert(
-    promptOptions.aiCoreLite && promptOptions.aiCoreLite.includes('REGOLA TASSATIVA SUI CERTIFICATI'),
-    'document_request deve iniettare la regola tassativa certificati in aiCoreLite'
+    !String(promptOptions.aiCoreLite || '').includes('REGOLA TASSATIVA SUI CERTIFICATI'),
+    'document_request non deve mescolare la regola tassativa certificati dentro aiCoreLite'
   );
   assert(
-    promptOptions.aiCoreLite.includes('se il sacramento e stato celebrato presso la nostra parrocchia'),
+    Array.isArray(promptOptions.systemDirectives) &&
+      promptOptions.systemDirectives.some(directive => String(directive).includes('REGOLA TASSATIVA SUI CERTIFICATI')),
+    'document_request deve iniettare la regola tassativa certificati tra le systemDirectives'
+  );
+  assert(
+    promptOptions.systemDirectives.some(directive => String(directive).includes('se il sacramento e stato celebrato presso la nostra parrocchia')),
     'la regola certificati deve vincolare la richiesta dati alla celebrazione presso la parrocchia'
   );
 

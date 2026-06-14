@@ -118,6 +118,8 @@ const outOfTerritoryPrompt = engine.buildPrompt({
 });
 assert(
   outOfTerritoryPrompt.includes('SE LEGGI "NON RIENTRA" -> Devi dire NO') &&
+  outOfTerritoryPrompt.includes('prima controlla se compare "NON RIENTRA"') &&
+  outOfTerritoryPrompt.includes('anche se dentro la frase compare la parola "RIENTRA"') &&
   outOfTerritoryPrompt.includes('NON dire MAI "non abbiamo informazioni"') &&
   outOfTerritoryPrompt.includes('NON fermarti a un rifiuto secco') &&
   outOfTerritoryPrompt.includes('SE LEGGI "Nessun indirizzo rilevato"') &&
@@ -217,6 +219,38 @@ console.log('--- Test prompt: contatto pregresso protegge da risposta standard -
   );
 }
 
+console.log('--- Test prompt: systemDirectives restano nel systemInstruction ---');
+{
+  const directivePrompt = engine.buildPrompt({
+    emailSubject: 'Richiesta informazioni',
+    emailContent: 'Buongiorno, vorrei alcune informazioni.',
+    knowledgeBase: 'Informazioni disponibili.',
+    detectedLanguage: 'it',
+    promptProfile: 'standard',
+    salutationMode: 'full',
+    salutation: 'Buongiorno,',
+    closing: 'Cordiali saluti,',
+    systemDirectives: [
+      'DIRETTIVA_SENTINEL: regola operativa interna prioritaria.',
+      'DIRETTIVA_SENTINEL: regola operativa interna prioritaria.'
+    ]
+  });
+
+  assert(
+    directivePrompt.systemInstruction.includes('DIRETTIVE SISTEMICHE PRIORITARIE') &&
+      directivePrompt.systemInstruction.includes('DIRETTIVA_SENTINEL'),
+    'le direttive sistemiche devono essere renderizzate nel systemInstruction'
+  );
+  assert(
+    !directivePrompt.prompt.includes('DIRETTIVA_SENTINEL'),
+    'le direttive sistemiche non devono finire nel prompt utente/KB'
+  );
+  assert(
+    directivePrompt.systemInstruction.indexOf('DIRETTIVA_SENTINEL') === directivePrompt.systemInstruction.lastIndexOf('DIRETTIVA_SENTINEL'),
+    'le direttive sistemiche duplicate devono essere deduplicate'
+  );
+}
+
 console.log('--- Test prompt: avoid_invitation e PDF non propone presenza fisica ---');
 {
   const digitalOnlyPrompt = engine.buildPrompt({
@@ -239,6 +273,11 @@ console.log('--- Test prompt: avoid_invitation e PDF non propone presenza fisica
     digitalOnlyPrompt.includes('Verificheremo i nostri registri') &&
     digitalOnlyPrompt.includes('OMETTI COMPLETAMENTE: orari di apertura al pubblico'),
     'con avoid_invitation e richiesta PDF il prompt deve favorire una gestione solo digitale'
+  );
+  assert(
+    digitalOnlyPrompt.systemInstruction.includes('POLICY PRESENZA FISICA') &&
+      !digitalOnlyPrompt.prompt.includes('POLICY PRESENZA FISICA'),
+    'la policy presenza fisica deve essere un vincolo system-level, non contesto utente'
   );
   assert(
     !digitalOnlyPrompt.includes('Formula corretta: "Per qualsiasi chiarimento puo\' contattarci telefonicamente o rispondere a questa email. Qualora le fosse possibile passare da Roma'),
@@ -418,6 +457,30 @@ assert(
   !formalPosturePrompt.includes('Il mittente ha condiviso qualcosa di personale o delicato') &&
   !formalPosturePrompt.includes('AI_CORE_LITE_FORMAL_SHOULD_NOT_APPEAR'),
   'nel flusso sbattezzo la postura rilevata e la KB pastorale forzata devono cedere al template formale'
+);
+
+console.log('--- Test prompt: template sbattezzo in inglese segue lingua rilevata ---');
+const englishFormalPrompt = engine.buildPrompt({
+  emailSubject: 'Baptism record annotation',
+  emailContent: 'Good morning, I would like to request an annotation in the baptism register.',
+  knowledgeBase: 'Formal requests concerning baptism register annotations.',
+  detectedLanguage: 'en',
+  requestType: { type: 'formal' },
+  senderName: 'John Smith',
+  category: 'formal',
+  topic: 'sbattezzo',
+  salutationMode: 'full',
+  salutation: 'Good morning,',
+  closing: 'Kind regards,'
+});
+
+assert(
+  englishFormalPrompt.includes('MANDATORY TEMPLATE: BAPTISM REGISTER ANNOTATION REQUEST') &&
+    englishFormalPrompt.includes('Dear John Smith,') &&
+    englishFormalPrompt.includes('Kind regards,') &&
+    !englishFormalPrompt.includes('Gentile John Smith,') &&
+    !englishFormalPrompt.includes('Cordiali saluti,'),
+  'il template sbattezzo deve rispettare la lingua inglese rilevata'
 );
 
 console.log('--- Test prompt: formattazione articolata preservata ---');
@@ -628,6 +691,42 @@ assert(
   prerequisitePrompt.includes('Non parlare di "discernimento pastorale"') &&
   prerequisitePrompt.includes('casistica ordinaria prevista'),
   'il prompt deve autorizzare le condizioni padrino quando la Cresima è prerequisito implicito'
+);
+
+console.log('--- Test prompt: policy padrino logistica resta distinta da no eligibility generica ---');
+const noEligibilityPrompt = engine.buildPrompt({
+  emailSubject: 'Informazioni padrino',
+  emailContent: 'Buongiorno, posso avere informazioni?',
+  knowledgeBase: 'Informazioni generali.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  salutationMode: 'full',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  sponsorGuidancePolicy: 'no_eligibility_guidance'
+});
+const logisticsOnlyPrompt = engine.buildPrompt({
+  emailSubject: 'Orario incontro padrini',
+  emailContent: 'Buongiorno, a che ora e l incontro per i padrini?',
+  knowledgeBase: 'Incontro padrini: domenica ore 16:00.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  salutationMode: 'full',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  sponsorGuidancePolicy: 'logistics_only_no_eligibility'
+});
+
+assert(
+  noEligibilityPrompt.includes('POLICY CONTENUTO PADRINO/MADRINA (OBBLIGATORIA)') &&
+    !noEligibilityPrompt.includes('SOLO LOGISTICA'),
+  'la policy no_eligibility_guidance deve restare generica'
+);
+assert(
+  logisticsOnlyPrompt.includes('POLICY CONTENUTO PADRINO/MADRINA - SOLO LOGISTICA') &&
+    logisticsOnlyPrompt.includes('Puoi citare date, orari o modalità pratiche presenti in KB') &&
+    !logisticsOnlyPrompt.includes('Rispondi solo alla richiesta effettiva senza aprire il tema padrino/madrina'),
+  'la policy logistics_only_no_eligibility deve avere testo distinto e autorizzare la logistica'
 );
 
 console.log('--- Test prompt: posture delicate non producono attribuzioni emotive ---');
@@ -945,6 +1044,12 @@ assert(
   temporalGuardPrompt.includes('Stile conversazionale') &&
   temporalGuardPrompt.includes('omettendo saluti rituali formali iniziali'),
   'il prompt deve guidare lo stile di continuità quando il saluto architetturale è omesso'
+);
+assert(
+  temporalGuardPrompt.systemInstruction.includes('OUTPUT ENVELOPE POLICY') &&
+    temporalGuardPrompt.systemInstruction.includes('Sono vietati opener come "Buongiorno"') &&
+    temporalGuardPrompt.systemInstruction.includes('Questa policy prevale'),
+  'il prompt deve avere un vincolo system-level negativo contro saluti ricreati in continuità'
 );
 
 console.log('--- Test prompt: maxCharsWhenKbTruncated=0 omette testo allegati quando KB è troncata ---');
