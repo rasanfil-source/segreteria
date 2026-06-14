@@ -1061,6 +1061,47 @@ assert(
   'lingue non preconfigurate non devono cadere nel template italiano'
 );
 
+console.log('--- Test prompt: direttive comportamentali del blocco centrale sono system-level ---');
+const behavioralSystemPrompt = engine.buildPrompt({
+  emailSubject: 'Re: Orario incontro padrini',
+  emailContent: 'Grazie, potete ricordarmi a che ora è l incontro?',
+  knowledgeBase: 'Incontro padrini: domenica ore 16:00.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  currentDate: '2026-05-15',
+  currentTime: '11:15',
+  salutationMode: 'none_or_continuity',
+  responseDelay: { shouldApologize: true, days: 6, hours: 144 },
+  category: 'complaint',
+  sponsorGuidancePolicy: 'logistics_only_no_eligibility',
+  memoryContext: { memorySummary: 'MEMORY_CONTEXT_SENTINEL' },
+  requestType: { type: 'pastoral', needsDiscernment: true, needsDoctrine: false },
+  aiCoreLite: 'AI_CORE_LITE_USER_BUCKET_SENTINEL',
+  aiCore: 'AI_CORE_USER_BUCKET_SENTINEL'
+});
+
+assert(
+    behavioralSystemPrompt.systemInstruction.includes('CONTINUITÀ CONVERSAZIONALE') &&
+    behavioralSystemPrompt.systemInstruction.includes('RISPOSTA IN RITARDO') &&
+    behavioralSystemPrompt.systemInstruction.includes('CONTINUITÀ E TONO') &&
+    behavioralSystemPrompt.systemInstruction.includes('DATA ODIERNA E CONTESTO TEMPORALE') &&
+    behavioralSystemPrompt.systemInstruction.includes('CATEGORIA IDENTIFICATA') &&
+    behavioralSystemPrompt.systemInstruction.includes('POLICY CONTENUTO PADRINO/MADRINA - SOLO LOGISTICA'),
+  'continuita, ritardo, focus, tempo, categoria e policy sponsor devono stare nel systemInstruction'
+);
+assert(
+  !behavioralSystemPrompt.prompt.includes('CONTINUITÀ CONVERSAZIONALE') &&
+    !behavioralSystemPrompt.prompt.includes('RISPOSTA IN RITARDO') &&
+    !behavioralSystemPrompt.prompt.includes('POLICY CONTENUTO PADRINO/MADRINA - SOLO LOGISTICA'),
+  'le direttive comportamentali promosse non devono restare nello user prompt'
+);
+assert(
+  behavioralSystemPrompt.prompt.includes('MEMORY_CONTEXT_SENTINEL') &&
+    behavioralSystemPrompt.prompt.includes('AI_CORE_LITE_USER_BUCKET_SENTINEL') &&
+    behavioralSystemPrompt.prompt.includes('AI_CORE_USER_BUCKET_SENTINEL'),
+  'memoria e contenuti AI core lunghi restano nello user prompt, non migrati in blocco'
+);
+
 console.log('--- Test prompt: orario locale e guardrail anti saluto in continuità ---');
 const temporalGuardPrompt = engine.buildPrompt({
   emailSubject: 'Invio documenti',

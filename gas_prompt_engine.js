@@ -478,10 +478,10 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
 
     // 7. CONTINUITÀ CONVERSAZIONALE
-    addSection(this._renderConversationContinuity(salutationMode), 'ConversationContinuity');
+    addSection(this._renderConversationContinuity(salutationMode), 'ConversationContinuity', { isSystem: true });
 
     // 8. SCUSE PER RITARDO
-    addSection(this._renderResponseDelay(responseDelay, detectedLanguage), 'ResponseDelay');
+    addSection(this._renderResponseDelay(responseDelay, detectedLanguage), 'ResponseDelay', { isSystem: true });
 
     const effectiveRelationalPosture = isFormalTopicForRouting ? 'direct' : relationalPosture;
     addSection(
@@ -497,7 +497,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       templateConcerns.emotional_sensitivity ||
       normalizedConcerns.repetition_risk;
     if (shouldAddContinuityFocus) {
-      addSection(this._renderContinuityHumanFocus(), 'ContinuityHumanFocus');
+      addSection(this._renderContinuityHumanFocus(), 'ContinuityHumanFocus', { isSystem: true });
     }
 
     // 10. CONTESTO STAGIONALE
@@ -507,11 +507,11 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     const papalSourceText = [aiCoreLiteText, aiCoreText, workingKnowledgeBase, doctrineBaseText]
       .filter(Boolean)
       .join('\n');
-    addSection(this._renderTemporalAwareness(safeTemporalContext, detectedLanguage, salutationMode, papalSourceText, papalRuntimeContext), 'TemporalAwareness');
+    addSection(this._renderTemporalAwareness(safeTemporalContext, detectedLanguage, salutationMode, papalSourceText, papalRuntimeContext), 'TemporalAwareness', { isSystem: true });
 
     // 12. SUGGERIMENTO CATEGORIA
-    addSection(this._renderCategoryHint(category), 'CategoryHint');
-    addSection(this._renderSponsorGuidancePolicy(sponsorGuidancePolicy), 'SponsorGuidancePolicy');
+    addSection(this._renderCategoryHint(category), 'CategoryHint', { isSystem: true });
+    addSection(this._renderSponsorGuidancePolicy(sponsorGuidancePolicy), 'SponsorGuidancePolicy', { isSystem: true });
     addSection(this._renderPhysicalPresenceConstraintGuideline(physicalPresenceConstraint), 'PhysicalPresenceConstraint', { force: true, isSystem: true });
 
     // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)
