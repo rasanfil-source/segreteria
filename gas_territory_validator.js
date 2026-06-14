@@ -140,6 +140,17 @@ var TerritoryValidator = class TerritoryValidator {
         return null;
     }
 
+    _areEquivalentStreetTypes(inputType, dbType) {
+        if (inputType === dbType) return true;
+
+        const groups = [
+            ['via', 'viale'],
+            ['piazza', 'piazzale', 'largo']
+        ];
+
+        return groups.some(group => group.includes(inputType) && group.includes(dbType));
+    }
+
     _buildAddressPatterns() {
         const streetType = this._streetTypePatternSource;
         // Nome via tollerante:
@@ -238,8 +249,8 @@ var TerritoryValidator = class TerritoryValidator {
         for (const [dbKey, dbRules] of this.rules.entries()) {
             const dbTokens = dbKey.split(' ');
 
-            // Evita conflitti tra tipologie diverse (es. "via" vs "viale")
-            if (inputTokens[0] !== dbTokens[0]) continue;
+            // Evita conflitti tra tipologie diverse, tollerando scambi comuni.
+            if (!this._areEquivalentStreetTypes(inputTokens[0], dbTokens[0])) continue;
 
             // Filtra tokens corti inessenziali dall'input (es. "di", "la", "del") per il conto degli extra
             const significantInputTokens = inputTokens.filter(t => t.length > 2 || dbTokens.includes(t));

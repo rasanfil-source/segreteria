@@ -247,6 +247,27 @@ function testTerritoryAbbreviations() {
     assert(extracted[0].fullCivic !== extracted[1].fullCivic, 'fullCivic deve distinguere suffissi diversi');
 }
 
+function testTerritoryEquivalentStreetTypes() {
+    loadScript('gas_territory_validator.js');
+
+    const validator = new TerritoryValidator();
+
+    const matched = validator.findTerritoryMatch('via Bruno Buozzi');
+    assert(
+        matched && matched.key === 'viale bruno buozzi',
+        'findTerritoryMatch deve tollerare via/viale per Bruno Buozzi'
+    );
+
+    const withCivic = validator.verifyAddress('via Bruno Buozzi', 110, '110');
+    assert(withCivic.inTerritory === true, 'via Bruno Buozzi 110 deve rientrare come viale Bruno Buozzi');
+    assert(withCivic.matchedKey === 'viale bruno buozzi', 'il match deve usare la chiave viale bruno buozzi');
+
+    const withoutCivic = validator.verifyStreetWithoutCivic('via Bruno Buozzi');
+    assert(withoutCivic.inParish === null, 'via Bruno Buozzi senza civico deve restare indeterminata');
+    assert(withoutCivic.needsCivic === true, 'via Bruno Buozzi senza civico deve chiedere il civico');
+    assert(withoutCivic.details === 'civic_required', 'via/viale Buozzi senza civico deve usare civic_required');
+}
+
 function testCivicNormalization() {
     loadScript('gas_territory_validator.js');
 
@@ -3519,6 +3540,7 @@ function main() {
     const tests = [
         // Territory Validator
         ['territory abbreviations', testTerritoryAbbreviations],
+        ['territory equivalent street types', testTerritoryEquivalentStreetTypes],
         ['civic normalization (normalizeCivic)', testCivicNormalization],
         ['civic deduplication (10A vs 10B)', testCivicDeduplicationExplicit],
         ['civic extraction with slash/dash suffix', testAddressExtractionWithSlashAndDashSuffix],

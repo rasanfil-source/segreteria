@@ -57,6 +57,19 @@ assert(sentenceAnalysis.addressFound === true, 'l analisi deve rilevare la via a
 assert(sentenceAnalysis.addresses[0].street === 'via Bartolo Oriani', `indirizzo naturale tagliato male: ${sentenceAnalysis.addresses[0].street}`);
 assert(sentenceAnalysis.addresses[0].verification.details === 'fuori_territorio', 'via naturale assente dal DB deve produrre fuori_territorio');
 
+console.log('--- Test TerritoryValidator: via/viale Bruno Buozzi sono tipologie affini ---');
+const buozziMatch = validator.findTerritoryMatch('via Bruno Buozzi');
+assert(buozziMatch && buozziMatch.key === 'viale bruno buozzi', 'via Bruno Buozzi deve risolvere viale Bruno Buozzi');
+
+const buozziWithCivic = validator.verifyAddress('via Bruno Buozzi', 110, '110');
+assert(buozziWithCivic.inTerritory === true, 'via Bruno Buozzi 110 deve rientrare come viale Bruno Buozzi pari >= 90');
+assert(buozziWithCivic.matchedKey === 'viale bruno buozzi', 'il match deve puntare alla chiave viale bruno buozzi');
+
+const buozziWithoutCivic = validator.verifyStreetWithoutCivic('via Bruno Buozzi');
+assert(buozziWithoutCivic.inParish === null, 'via Bruno Buozzi senza civico deve restare indeterminata per copertura parziale');
+assert(buozziWithoutCivic.needsCivic === true, 'via Bruno Buozzi senza civico deve chiedere il civico');
+assert(buozziWithoutCivic.details === 'civic_required', 'via/viale Buozzi senza civico deve usare civic_required');
+
 console.log('--- Test TerritoryValidator: tutti [null, null] fallisce chiuso ---');
 validator.rules.set('via test invalida', { tutti: [null, null] });
 const invalidRange = validator.verifyAddress('Via Test Invalida', 10);
