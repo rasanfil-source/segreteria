@@ -34,6 +34,17 @@ assert(belowRange.rule === 'fuori range tutti', 'Piazza della Marina 23 deve ind
 const aboveRange = validator.verifyAddress('Piazza della Marina', 36);
 assert(aboveRange.inTerritory === false, 'Piazza della Marina 36 deve essere fuori territorio');
 
+console.log('--- Test TerritoryValidator: via assente produce fuori_territorio assertivo ---');
+const missingAddress = validator.verifyAddress('Via Bartolo Oriani', 10);
+assert(missingAddress.inTerritory === false, 'Via Bartolo Oriani 10 deve essere fuori territorio se non presente nelle regole');
+assert(missingAddress.rule === 'fuori_territorio', 'via assente con civico deve usare fuori_territorio, non uno stato nullo');
+assert(missingAddress.needsReview === false, 'via assente non deve richiedere revisione civico');
+
+const missingStreetOnly = validator.verifyStreetWithoutCivic('Via Bartolo Oriani');
+assert(missingStreetOnly.inParish === false, 'Via Bartolo Oriani senza civico deve essere fuori territorio se non presente nelle regole');
+assert(missingStreetOnly.needsCivic === false, 'via assente non deve chiedere il civico');
+assert(missingStreetOnly.details === 'fuori_territorio', 'via assente senza civico deve usare fuori_territorio, non street_not_found');
+
 console.log('--- Test TerritoryValidator: tutti [null, null] fallisce chiuso ---');
 validator.rules.set('via test invalida', { tutti: [null, null] });
 const invalidRange = validator.verifyAddress('Via Test Invalida', 10);

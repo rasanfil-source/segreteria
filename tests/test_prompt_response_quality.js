@@ -118,6 +118,7 @@ const outOfTerritoryPrompt = engine.buildPrompt({
 });
 assert(
   outOfTerritoryPrompt.includes('SE LEGGI "NON RIENTRA" -> Devi dire NO') &&
+  outOfTerritoryPrompt.includes('NON dire MAI "non abbiamo informazioni"') &&
   outOfTerritoryPrompt.includes('NON fermarti a un rifiuto secco') &&
   outOfTerritoryPrompt.includes('Diocesi di Roma') &&
   outOfTerritoryPrompt.includes('benvenuta nella Basilica') &&

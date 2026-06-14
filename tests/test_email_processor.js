@@ -79,6 +79,39 @@ EmailProcessor.prototype.processThread = function(...args) {
 
 const processor = new EmailProcessor();
 
+console.log('--- Test _isTerritoryRequest: confini parrocchiali attiva verifica territorio ---');
+assert(
+  processor._isTerritoryRequest(
+    'Confini parrocchiali',
+    'Buongiorno, vorrei sapere se via Bartolo Oriani fa parte della vostra parrocchia.',
+    { topic: 'informazioni generiche' }
+  ) === true,
+  'confini parrocchiali/fa parte della parrocchia deve attivare la verifica territorio'
+);
+assert(
+  processor._isTerritoryRequest(
+    'Appartenenza',
+    'Vorrei verificare l\'appartenenza parrocchiale di via Bartolo Oriani.',
+    { topic: 'informazioni generiche' }
+  ) === true,
+  'appartenenza parrocchiale deve attivare la verifica territorio anche senza topic Gemini'
+);
+assert(
+  processor._isTerritoryRequest(
+    'Catechismo',
+    'Mio figlio fa parte del gruppo cresima?',
+    { topic: 'catechismo' }
+  ) === false,
+  'fa parte senza contesto territoriale non deve attivare la verifica territorio'
+);
+assert(
+  processor._isTerritoryRequest(
+    'Informazioni',
+    'Buongiorno, avrei una domanda su via Bartolo Oriani.',
+    { topic: 'indirizzo generico', is_territory_request: true }
+  ) === true,
+  'il flag AI is_territory_request deve attivare la verifica territorio anche senza keyword locali'
+);
 
 console.log('--- Test business date/time: fallback estremo resta su Europe/Rome ---');
 {

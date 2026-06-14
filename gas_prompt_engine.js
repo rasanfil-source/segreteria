@@ -1221,7 +1221,7 @@ ${territoryContext}
 2. SE LEGGI "RIENTRA" -> Devi dire SÌ.
 3. SE LEGGI "NON RIENTRA" -> Devi dire NO.
 4. SE LEGGI "CIVICO NECESSARIO" -> Devi chiedere il civico.
-5. SE LEGGI "NON RIENTRA" -> NON fermarti a un rifiuto secco. Dopo il NO:
+5. SE LEGGI "NON RIENTRA" -> Significa certezza assoluta che la via è fuori. NON dire MAI "non abbiamo informazioni". NON fermarti a un rifiuto secco. Dopo il NO:
    - se l'utente dice di essersi trasferito da poco, aggiungi una breve formula di benvenuto;
    - suggerisci di verificare la parrocchia di appartenenza tramite la Diocesi di Roma, senza inventare URL o strumenti non presenti in KB;
    - aggiungi che la persona resta benvenuta nella Basilica per le Sante Messe e le attività aperte a tutti;

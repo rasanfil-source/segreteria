@@ -5529,7 +5529,23 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
   _isTerritoryRequest(subject, body, classification = {}, requestType = null) {
     const text = `${subject || ''} ${body || ''}`.toLowerCase();
     const topic = String(classification && classification.topic ? classification.topic : '').toLowerCase();
-    if (topic.includes('territor') || topic.includes('parrocchia di residenza') || topic.includes('competenza parrocchiale') || topic.includes('appartenenza')) return true;
+    const aiTerritoryFlag = classification && (
+      classification.isTerritoryRequest === true ||
+      classification.is_territory_request === true ||
+      classification.territory_request === true ||
+      String(classification.isTerritoryRequest || '').toLowerCase() === 'true' ||
+      String(classification.is_territory_request || '').toLowerCase() === 'true' ||
+      String(classification.territory_request || '').toLowerCase() === 'true'
+    );
+    if (aiTerritoryFlag) return true;
+
+    if (
+      topic.includes('territor') ||
+      topic.includes('confini parrocchiali') ||
+      topic.includes('parrocchia di residenza') ||
+      topic.includes('competenza parrocchiale') ||
+      topic.includes('appartenenza')
+    ) return true;
 
     const explicitPatterns = [
       /\bterritorio\b/i,
@@ -5539,7 +5555,10 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
       /\bcompetenza\s+parrocchiale\b/i,
       /\bquale\s+parrocchia\b/i,
       /\bfuori\s+territorio\b/i,
-      /\bcircoscrizione\b/i
+      /\bcircoscrizione\b/i,
+      /\bconfini\s+(?:parrocchiali|della\s+parrocchia|di\s+parrocchia)\b/i,
+      /\bfa\s+parte\b[\s\S]{0,80}\b(?:parrocchia|territorio|confini|zona)\b/i,
+      /\bappartenenza\b/i
     ];
 
     return explicitPatterns.some((pattern) => pattern.test(text));

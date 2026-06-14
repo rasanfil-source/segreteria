@@ -494,7 +494,7 @@ var TerritoryValidator = class TerritoryValidator {
 
         if (!match) {
             console.log(`❌ Via '${street}' non trovata nel territorio parrocchiale`);
-            return { inTerritory: false, matchedKey: null, rule: null };
+            return { inTerritory: false, matchedKey: null, rule: 'fuori_territorio', needsReview: false };
         }
 
         const rules = match.rules;
@@ -582,7 +582,7 @@ var TerritoryValidator = class TerritoryValidator {
                 inParish: false,
                 needsCivic: false,
                 reason: `'${street}' non è nel territorio della nostra parrocchia`,
-                details: 'street_not_found'
+                details: 'fuori_territorio'
             };
         }
 
