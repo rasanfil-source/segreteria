@@ -20,12 +20,20 @@ const backingProps = new Map([
 ]);
 const getCounts = new Map();
 let getScriptPropertiesCalls = 0;
+let getPropertiesCalls = 0;
 let throwOnKey = null;
 
 global.PropertiesService = {
   getScriptProperties: () => {
     getScriptPropertiesCalls++;
     return {
+      getProperties: () => {
+        getPropertiesCalls++;
+        if (throwOnKey) {
+          throw new Error(`forced getProperties failure: ${throwOnKey}`);
+        }
+        return Object.fromEntries(backingProps.entries());
+      },
       getProperty: (key) => {
         if (key === throwOnKey) {
           throw new Error(`forced getProperty failure: ${key}`);
@@ -120,16 +128,17 @@ assert(
 assert(_getScriptProperty('GEMINI_API_KEY') === 'first-key', 'il primo accesso deve leggere la property reale');
 backingProps.set('GEMINI_API_KEY', 'changed-key');
 assert(_getScriptProperty('GEMINI_API_KEY') === 'first-key', 'il secondo accesso deve riusare il valore in cache');
-assert(getCounts.get('GEMINI_API_KEY') === 1, 'getProperty deve essere chiamato una sola volta per chiave cached');
+assert(!getCounts.has('GEMINI_API_KEY'), 'getProperty non deve essere chiamato per chiavi disponibili nel bulk getProperties');
+assert(getPropertiesCalls === 1, 'getProperties deve essere chiamato una sola volta per popolare la cache bulk');
 assert(getScriptPropertiesCalls === 1, 'getScriptProperties deve essere inizializzato una sola volta');
 
 assert(CONFIG.SPREADSHEET_ID === 'sheet-1', 'il getter SPREADSHEET_ID deve usare _getScriptProperty');
 backingProps.set('SPREADSHEET_ID', 'sheet-2');
 assert(CONFIG.SPREADSHEET_ID === 'sheet-1', 'il getter SPREADSHEET_ID deve mantenere il valore cached');
-assert(getCounts.get('SPREADSHEET_ID') === 1, 'SPREADSHEET_ID deve essere letto una sola volta');
+assert(!getCounts.has('SPREADSHEET_ID'), 'SPREADSHEET_ID deve arrivare dal bulk getProperties');
 
 assert(CONFIG.METRICS_SHEET_ID === 'metrics-1', 'il getter METRICS_SHEET_ID deve usare _getScriptProperty');
-assert(getCounts.get('METRICS_SHEET_ID') === 1, 'METRICS_SHEET_ID deve essere letto una sola volta');
+assert(!getCounts.has('METRICS_SHEET_ID'), 'METRICS_SHEET_ID deve arrivare dal bulk getProperties');
 assert(CONFIG.LOGGING.ADMIN_EMAIL === 'admin@example.test', 'ADMIN_EMAIL deve arrivare da Script Properties');
 assert(CONFIG.VALIDATION_REVIEW_ALERTS.email === 'review@example.test', 'VALIDATION_REVIEW_EMAIL deve arrivare da Script Properties');
 
@@ -193,7 +202,7 @@ try {
 } finally {
   throwOnKey = null;
 }
-assert(forcedRefreshError, 'forceRefresh: errore PropertiesService deve propagarsi');
+assert(forcedRefreshError, 'forceRefresh: errore PropertiesService bulk deve propagarsi');
 assert(
   _getScriptProperty('GEMINI_API_KEY') === 'force-key-2',
   'forceRefresh fallito deve invalidare lo stale cached e rileggere al tentativo successivo'

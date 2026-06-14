@@ -485,48 +485,6 @@ var EmailProcessor = class EmailProcessor {
     return reduced;
   }
 
-  _cleanupStaleThreadLocks_(scriptProps, lockTtlMs, threadLogger) {
-    if (!scriptProps ||
-      typeof scriptProps.getProperties !== 'function' ||
-      typeof scriptProps.getProperty !== 'function' ||
-      typeof scriptProps.deleteProperty !== 'function') {
-      return 0;
-    }
-
-    const now = Date.now();
-    const cleanupIntervalMs = (typeof CONFIG !== 'undefined' && Number(CONFIG.THREAD_LOCK_CLEANUP_INTERVAL_MS))
-      ? Math.max(60000, Number(CONFIG.THREAD_LOCK_CLEANUP_INTERVAL_MS))
-      : 5 * 60 * 1000;
-    if (Number.isFinite(this._lastThreadLockCleanupMs) &&
-      (now - this._lastThreadLockCleanupMs) < cleanupIntervalMs) {
-      return 0;
-    }
-
-    this._lastThreadLockCleanupMs = now;
-    let removed = 0;
-    try {
-      const props = scriptProps.getProperties() || {};
-      Object.keys(props).forEach((key) => {
-        if (String(key).indexOf('thread_lock_') !== 0) return;
-        const snapshotValue = props[key];
-        const existingTimestamp = Number.parseInt(String(snapshotValue || ''), 10);
-        const isStale = !Number.isFinite(existingTimestamp) || (now - existingTimestamp) > lockTtlMs;
-        if (!isStale) return;
-        if (scriptProps.getProperty(key) !== snapshotValue) return;
-        scriptProps.deleteProperty(key);
-        removed++;
-      });
-    } catch (cleanupError) {
-      if (threadLogger && typeof threadLogger.warn === 'function') {
-        threadLogger.warn(`Cleanup lock stale fallito: ${cleanupError.message}`);
-      }
-    }
-    if (removed > 0 && threadLogger && typeof threadLogger.warn === 'function') {
-      threadLogger.warn(`Cleanup lock stale PropertiesService: rimossi ${removed} lock`);
-    }
-    return removed;
-  }
-
   _getAttachmentDownloadLimitBytes_(attachmentSettings) {
     const configured = attachmentSettings && Number(attachmentSettings.maxMessageBytesForAttachmentDownload);
     return Number.isFinite(configured) && configured > 0
@@ -564,24 +522,16 @@ var EmailProcessor = class EmailProcessor {
     const scriptCache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
       ? CacheService.getScriptCache()
       : null;
-    const scriptProps = (typeof PropertiesService !== 'undefined' &&
-      PropertiesService &&
-      typeof PropertiesService.getScriptProperties === 'function')
-      ? PropertiesService.getScriptProperties()
-      : null;
     const hasCache = !!(scriptCache &&
       typeof scriptCache.get === 'function' &&
       typeof scriptCache.put === 'function');
-    const hasProps = !!(scriptProps &&
-      typeof scriptProps.getProperty === 'function' &&
-      typeof scriptProps.setProperty === 'function');
     const threadLockKey = `thread_lock_${threadId}`;
 
-    if (!hasCache && !hasProps) {
+    if (!hasCache) {
       if (threadLogger && typeof threadLogger.warn === 'function') {
-        threadLogger.warn('Backend storage (Cache/Properties) non disponibili per lock logico');
+        threadLogger.warn('CacheService non disponibile per lock logico di thread');
       }
-      return { ok: false, reason: 'no_storage_backend_available' };
+      return { ok: false, reason: 'cache_unavailable' };
     }
 
     const configuredTtl = (typeof CONFIG !== 'undefined' && Number(CONFIG.CACHE_LOCK_TTL))
@@ -640,48 +590,25 @@ var EmailProcessor = class EmailProcessor {
         }
       }
 
-      if (hasProps) {
-        this._cleanupStaleThreadLocks_(scriptProps, lockTtlMs, threadLogger);
-      }
-
-      const existingPropLock = hasProps ? scriptProps.getProperty(threadLockKey) : null;
-      const existingCacheLock = hasCache ? scriptCache.get(threadLockKey) : null;
-      const propLockIsStale = existingPropLock && isStaleLock(existingPropLock);
+      const existingCacheLock = scriptCache.get(threadLockKey);
       const cacheLockIsStale = existingCacheLock && isStaleLock(existingCacheLock);
 
-      if ((existingPropLock && !propLockIsStale) ||
-        (existingCacheLock && !cacheLockIsStale)) {
+      if (existingCacheLock && !cacheLockIsStale) {
         if (threadLogger && typeof threadLogger.warn === 'function') {
-          threadLogger.warn('Thread logicamente lockato da altro processo (in cache/props), salto');
+          threadLogger.warn('Thread logicamente lockato da altro processo (CacheService), salto');
         }
         return { ok: false, reason: 'thread_locked' };
       }
-      if (propLockIsStale && hasProps && typeof scriptProps.deleteProperty === 'function') {
-        scriptProps.deleteProperty(threadLockKey);
-      }
-      if (cacheLockIsStale && hasCache && typeof scriptCache.remove === 'function') {
+      if (cacheLockIsStale && typeof scriptCache.remove === 'function') {
         scriptCache.remove(threadLockKey);
       }
-      if ((existingPropLock || existingCacheLock) && threadLogger && typeof threadLogger.warn === 'function') {
+      if (existingCacheLock && threadLogger && typeof threadLogger.warn === 'function') {
         threadLogger.warn('Lock stale rilevato, sovrascrittura lock');
       }
 
-      let propLockWritten = false;
       let cacheLockWritten = false;
-      if (hasCache) {
-        try {
-          scriptCache.put(threadLockKey, value, ttlSeconds);
-          cacheLockWritten = true;
-        } catch (e) {
-          if (!hasProps) {
-            throw e;
-          }
-        }
-      }
-      if (hasProps) {
-        scriptProps.setProperty(threadLockKey, value);
-        propLockWritten = true;
-      }
+      scriptCache.put(threadLockKey, value, ttlSeconds);
+      cacheLockWritten = true;
 
       if (threadLogger && typeof threadLogger.debug === 'function') {
         threadLogger.debug('Lock logico di thread acquisito con successo');
@@ -690,7 +617,6 @@ var EmailProcessor = class EmailProcessor {
         ok: true,
         acquired: true,
         cache: cacheLockWritten ? scriptCache : null,
-        properties: propLockWritten ? scriptProps : null,
         key: threadLockKey,
         value: value,
         lockCovered: lockAlreadyCovered
@@ -700,13 +626,7 @@ var EmailProcessor = class EmailProcessor {
         threadLogger.warn(`Errore acquisizione lock thread: ${e.message}`);
       }
       try {
-        if (hasProps && scriptProps &&
-          typeof scriptProps.getProperty === 'function' &&
-          typeof scriptProps.deleteProperty === 'function' &&
-          scriptProps.getProperty(threadLockKey) === value) {
-          scriptProps.deleteProperty(threadLockKey);
-        }
-        if (hasCache && scriptCache &&
+        if (scriptCache &&
           typeof scriptCache.get === 'function' &&
           typeof scriptCache.remove === 'function' &&
           scriptCache.get(threadLockKey) === value) {
@@ -752,16 +672,6 @@ var EmailProcessor = class EmailProcessor {
       }
 
       let removed = false;
-      if (lockCtx.properties &&
-        typeof lockCtx.properties.getProperty === 'function' &&
-        typeof lockCtx.properties.deleteProperty === 'function') {
-        const currentPersistentLockValue = lockCtx.properties.getProperty(lockCtx.key);
-        if (currentPersistentLockValue === lockCtx.value) {
-          lockCtx.properties.deleteProperty(lockCtx.key);
-          removed = true;
-        }
-      }
-
       if (lockCtx.cache && typeof lockCtx.cache.get === 'function' && typeof lockCtx.cache.remove === 'function') {
         const currentLockValue = lockCtx.cache.get(lockCtx.key);
         if (currentLockValue === lockCtx.value) {
@@ -1370,10 +1280,10 @@ var EmailProcessor = class EmailProcessor {
           bodyForLanguageDetection || messageDetails.body || '',
           messageDetails.subject
         ) || {})
-        : { lang: 'it' };
+        : { lang: 'unknown' };
       
       // Estraiamo solo codici ISO a 2 lettere per gestire formati come "it-IT" o "en-US".
-      let detectedLanguage = this._normalizeLanguageCode_(languageDetection.lang, 'it');
+      let detectedLanguage = this._normalizeLanguageCode_(languageDetection.lang, 'unknown');
       if (bodyForLanguageDetection !== (messageDetails.body || '')) {
         console.log('   ✂️ Lingua: uso corpo pulito (senza firma/citazioni) per ridurre falsi positivi');
       }

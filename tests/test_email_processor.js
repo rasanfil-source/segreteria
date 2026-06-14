@@ -926,6 +926,10 @@ assert(
   shouldSkipByLanguageMode_('en', 'foreign_only') === false,
   'in foreign_only non deve saltare email straniere'
 );
+assert(
+  shouldSkipByLanguageMode_('unknown', 'foreign_only') === false,
+  'in foreign_only non deve saltare lingua non determinata'
+);
 
 console.log('--- Test _markMessageAsProcessed: rimuove skip label se supportato ---');
 {
