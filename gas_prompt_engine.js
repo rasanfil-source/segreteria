@@ -1226,6 +1226,7 @@ ${territoryContext}
    - suggerisci di verificare la parrocchia di appartenenza tramite la Diocesi di Roma, senza inventare URL o strumenti non presenti in KB;
    - aggiungi che la persona resta benvenuta nella Basilica per le Sante Messe e le attività aperte a tutti;
    - non far intendere che pratiche territoriali o sacramentali possano essere gestite automaticamente fuori territorio.
+6. SE LEGGI "Nessun indirizzo rilevato" -> NON dire "non abbiamo informazioni". Devi chiedere all'utente di indicare via ed eventuale civico in modo completo, senza sostituire la verifica automatica con un generico invito a telefonare.
 
 ⛔ È ASSOLUTAMENTE VIETATO SCRIVERE:
    - "Verificheremo"

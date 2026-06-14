@@ -112,6 +112,37 @@ assert(
   ) === true,
   'il flag AI is_territory_request deve attivare la verifica territorio anche senza keyword locali'
 );
+{
+  const territoryCandidateProcessor = new EmailProcessor({
+    territoryValidator: {
+      analyzeEmailForAddress: (content) => {
+        if (content === 'via Bartolo Oriani') {
+          return {
+            addressFound: true,
+            addresses: [{
+              street: 'via Bartolo Oriani',
+              civic: null,
+              verification: {
+                inParish: false,
+                needsCivic: false,
+                reason: "'via Bartolo Oriani' non è nel territorio della nostra parrocchia",
+                details: 'fuori_territorio'
+              }
+            }]
+          };
+        }
+        return { addressFound: false };
+      }
+    }
+  });
+  const candidates = territoryCandidateProcessor._extractQuickCheckTerritoryCandidates_({
+    territory_address_candidates: ['via Bartolo Oriani', 'via Bartolo Oriani', 'Bartolo Oriani']
+  });
+  assert(candidates.length === 1 && candidates[0] === 'via Bartolo Oriani', 'il processor deve estrarre candidati AI validi con tipo strada');
+  const candidateResult = territoryCandidateProcessor._analyzeAiTerritoryCandidates_(candidates);
+  assert(candidateResult.addressFound === true, 'il processor deve usare i candidati AI come fallback di analisi territorio');
+  assert(candidateResult.addresses[0].verification.details === 'fuori_territorio', 'il fallback AI deve preservare fuori_territorio');
+}
 
 console.log('--- Test business date/time: fallback estremo resta su Europe/Rome ---');
 {

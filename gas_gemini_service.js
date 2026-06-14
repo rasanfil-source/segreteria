@@ -431,6 +431,28 @@ var EmailQuickCheckPolicy = class EmailQuickCheckPolicy {
     };
   }
 
+  static normalizeTerritoryAddressCandidates(value) {
+    if (!Array.isArray(value)) return [];
+
+    const seen = {};
+    const normalized = [];
+    value.forEach((candidate) => {
+      if (candidate == null) return;
+      const text = String(candidate)
+        .replace(/\s+/g, ' ')
+        .replace(/[=<>]/g, '')
+        .trim()
+        .substring(0, 120);
+      if (!text) return;
+      const key = text.toLowerCase();
+      if (seen[key]) return;
+      seen[key] = true;
+      normalized.push(text);
+    });
+
+    return normalized.slice(0, 3);
+  }
+
   static isOfficeVisitLogisticsRequest(emailSubject, emailContent) {
     const text = `${emailSubject || ''} ${emailContent || ''}`;
     return /\b(?:posso|possiamo|potrei|potremmo|vorrei|vorremmo)\s+(?:passare|venire|presentarmi|presentarci)\b/i.test(text) ||
@@ -479,7 +501,7 @@ CONTESTO LOGISTICO VISITA:
 - Il sacramento o documento citato è l'oggetto della visita, non una richiesta primaria di requisiti o procedura sacramentale.
 ` : '';
     const sponsorGuidanceTask = shouldClassifySponsorGuidance ? `
-10. Determina needs_sponsor_guidance (boolean):
+11. Determina needs_sponsor_guidance (boolean):
    - TRUE solo se nella risposta conviene inserire le condizioni per il ruolo ecclesiale di padrino/madrina/godparent.
    - Considera equivalenti sacramentali: padrino/madrina (it/es), godparent/godfather/godmother o sponsor sacramentale (en), parrain/marraine (fr), padrinho/madrinha (pt), Pate/Patin/Firmpate/Firmpatin (de).
    - TRUE se il mittente vuole assumere quel ruolo sacramentale e non ha ancora la Cresima/Confirmation, oppure chiede esplicitamente requisiti, condizioni o idoneità per quel ruolo.
@@ -527,8 +549,13 @@ COMPITI:
    - TRUE se il mittente chiede se una via, un indirizzo, un civico o una zona rientra nel territorio/nei confini della parrocchia, nella competenza territoriale, nella parrocchia di residenza o nella parrocchia di appartenenza.
    - TRUE anche se usa formulazioni indirette come "fa parte della vostra parrocchia", "confini parrocchiali", "competenza parrocchiale/territoriale", "a quale parrocchia appartengo", "rientro da voi".
    - FALSE per richieste generiche su attività, gruppi, sacramenti, orari o documenti che non chiedono la competenza territoriale di un indirizzo.
-7. Fornisci un breve ragionamento (reason)
-8. Determina physical_presence_constraint:
+7. Estrai territory_address_candidates:
+   - Array di massimo 3 stringhe con gli indirizzi/vie/civici da verificare territorialmente.
+   - Riporta la via esattamente, includendo il tipo strada se presente o chiaramente inferibile: "via Bartolo Oriani", "Piazza della Marina 24".
+   - Non includere frasi generiche, motivazioni o parole successive alla via.
+   - Se non c'è alcun indirizzo/via/zona verificabile, restituisci [].
+8. Fornisci un breve ragionamento (reason)
+9. Determina physical_presence_constraint:
    - Rileva se il mittente manifesta che raggiungere fisicamente la parrocchia/segreteria e' difficile, impossibile o non ragionevole.
    - TRUE se vive/lavora lontano da Roma, e' all'estero, chiede percorsi a distanza, dice che non puo' venire, e' ricoverato/malato/convalescente, anziano con difficolta' di movimento, caregiver con vincoli familiari forti, deve allattare o ha neonati, e' agli arresti domiciliari o ha limitazioni legali.
    - FALSE se il mittente chiede esplicitamente di passare/venire, propone una visita, oppure non fornisce alcun vincolo personale.
@@ -539,7 +566,7 @@ COMPITI:
      "avoid_invitation" quando e' meglio non proporre affatto la visita fisica;
      "visit_ok" quando l'invito/presenza in segreteria e' appropriato;
      "unknown" se non e' chiaro.
-9. Determina relational_posture basandoti ESCLUSIVAMENTE su marcatori linguistici osservabili, non su stati psicologici:
+10. Determina relational_posture basandoti ESCLUSIVAMENTE su marcatori linguistici osservabili, non su stati psicologici:
    - "urgent": solleciti, "urgente", richiesta di risposta rapida, ripetizioni o pressione temporale.
    - "hesitant": "mi scusi", "forse", "non vorrei disturbare", molte mitigazioni o incertezza formulata.
    - "complaint": reclami, recriminazioni, disservizi segnalati, "non capisco perche", punteggiatura forte.
@@ -570,6 +597,7 @@ Output JSON:
   },
   "topic": "string",
   "is_territory_request": boolean,
+  "territory_address_candidates": ["string"],
   "confidence": number (0.0-1.0),
   "reason": "string",
   "relational_posture": "urgent" | "hesitant" | "complaint" | "personal" | "open" | "direct",
@@ -605,9 +633,11 @@ Output JSON:
         topic: 'unknown',
         confidence: 0.0,
         is_territory_request: false,
-        isTerritoryRequest: false
+        isTerritoryRequest: false,
+        territory_address_candidates: []
       },
       is_territory_request: false,
+      territory_address_candidates: [],
       physical_presence_constraint: {
         has_constraint: false,
         type: 'none',
@@ -721,6 +751,7 @@ Output JSON:
       ? data.is_territory_request
       : data.territory_request;
     const isTerritoryRequest = EmailQuickCheckPolicy.normalizeBoolean(rawTerritoryRequest) === true;
+    const territoryAddressCandidates = EmailQuickCheckPolicy.normalizeTerritoryAddressCandidates(data.territory_address_candidates);
 
     return {
       shouldRespond: finalShouldRespond,
@@ -732,9 +763,11 @@ Output JSON:
         confidence: safeConfidence,
         dimensions: safeDimensions,
         is_territory_request: isTerritoryRequest,
-        isTerritoryRequest: isTerritoryRequest
+        isTerritoryRequest: isTerritoryRequest,
+        territory_address_candidates: territoryAddressCandidates
       },
       is_territory_request: isTerritoryRequest,
+      territory_address_candidates: territoryAddressCandidates,
       physical_presence_constraint: physicalPresenceConstraint,
       relational_posture: relationalPosture,
       relational_posture_confidence: relationalPostureConfidence,
@@ -2534,7 +2567,13 @@ function _extractQuickCheckFieldsFromPartialJson(text) {
   // Supporta apici interni escapati, es: "topic": "Richiesta \"info\""
   const topicMatch = text.match(/"topic"\s*:\s*"((?:\\.|[^"\\])*)"/i);
   const territoryRequestMatch = text.match(/"is_territory_request"\s*:\s*(true|false|"true"|"false")/i);
+  const territoryCandidatesMatch = text.match(/"territory_address_candidates"\s*:\s*\[([\s\S]*?)\]/i);
   const confidenceMatch = text.match(/"confidence"\s*:\s*(0(?:\.\d+)?|1(?:\.0+)?)/i);
+  const territoryAddressCandidates = territoryCandidatesMatch
+    ? (territoryCandidatesMatch[1].match(/"((?:\\.|[^"\\])*)"/g) || [])
+      .map(item => item.slice(1, -1).replace(/\\"/g, '"').trim())
+      .filter(Boolean)
+    : [];
 
   return {
     reply_needed: String(replyMatch[1]).toLowerCase().includes('true'),
@@ -2542,6 +2581,7 @@ function _extractQuickCheckFieldsFromPartialJson(text) {
     category: categoryMatch ? categoryMatch[1] : 'TECHNICAL',
     topic: topicMatch ? topicMatch[1].trim() : 'unknown',
     is_territory_request: territoryRequestMatch ? String(territoryRequestMatch[1]).toLowerCase().includes('true') : false,
+    territory_address_candidates: territoryAddressCandidates,
     confidence: (confidenceMatch && !isNaN(Number(confidenceMatch[1]))) ? Number(confidenceMatch[1]) : 0.5,
     reason: 'quick_check_partial_json_recovered'
   };

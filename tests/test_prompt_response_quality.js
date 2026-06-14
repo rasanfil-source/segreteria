@@ -120,6 +120,7 @@ assert(
   outOfTerritoryPrompt.includes('SE LEGGI "NON RIENTRA" -> Devi dire NO') &&
   outOfTerritoryPrompt.includes('NON dire MAI "non abbiamo informazioni"') &&
   outOfTerritoryPrompt.includes('NON fermarti a un rifiuto secco') &&
+  outOfTerritoryPrompt.includes('SE LEGGI "Nessun indirizzo rilevato"') &&
   outOfTerritoryPrompt.includes('Diocesi di Roma') &&
   outOfTerritoryPrompt.includes('benvenuta nella Basilica') &&
   outOfTerritoryPrompt.includes('non far intendere che pratiche territoriali'),

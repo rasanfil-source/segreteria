@@ -45,6 +45,18 @@ assert(missingStreetOnly.inParish === false, 'Via Bartolo Oriani senza civico de
 assert(missingStreetOnly.needsCivic === false, 'via assente non deve chiedere il civico');
 assert(missingStreetOnly.details === 'fuori_territorio', 'via assente senza civico deve usare fuori_territorio, non street_not_found');
 
+const streetInSentence = validator.extractStreetOnlyFromText('Buona domenica, via Bartolo Oriani fa parte della vostra parrocchia?');
+assert(Array.isArray(streetInSentence), 'la via in frase naturale deve essere rilevata');
+assert(streetInSentence[0] === 'via Bartolo Oriani', `la via deve essere tagliata prima della frase successiva, ottenuto ${streetInSentence && streetInSentence[0]}`);
+
+const sentenceAnalysis = validator.analyzeEmailForAddress(
+  'Verro ad abitare in Via Bartolo Oriani. Vorrei sapere se rientra nel territorio.',
+  'Trasferimenti'
+);
+assert(sentenceAnalysis.addressFound === true, 'l analisi deve rilevare la via anche senza civico in una frase naturale');
+assert(sentenceAnalysis.addresses[0].street === 'via Bartolo Oriani', `indirizzo naturale tagliato male: ${sentenceAnalysis.addresses[0].street}`);
+assert(sentenceAnalysis.addresses[0].verification.details === 'fuori_territorio', 'via naturale assente dal DB deve produrre fuori_territorio');
+
 console.log('--- Test TerritoryValidator: tutti [null, null] fallisce chiuso ---');
 validator.rules.set('via test invalida', { tutti: [null, null] });
 const invalidRange = validator.verifyAddress('Via Test Invalida', 10);

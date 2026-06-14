@@ -169,6 +169,23 @@ var TerritoryValidator = class TerritoryValidator {
         return new RegExp(`(${streetType})[ \\t]+(${streetName})\\b(?!\\s*(?:n\\.?\\s*|civico\\s+)?(?:\\d+|snc\\b))`, 'gi');
     }
 
+    _trimStreetOnlyCandidate(name) {
+        if (!name) return '';
+
+        let trimmed = String(name)
+            .replace(/\.(?=\s+[A-Z\u00C0-\u00DE])/g, '\n')
+            .split(/[\n\r,;:?!()[\]{}]/)[0]
+            .trim();
+
+        const stopPattern = /\b(?:vorrei|volevo|vogliamo|chiedo|chiediamo|sapere|rientra|rientri|rientro|rientriamo|rientrare|fa|fanno|parte|appartiene|apparteniamo|confini|territorio|competenza|parrocchia|parrocchiale|nostra|vostra|se|sono|siamo)\b/i;
+        const stopMatch = trimmed.match(stopPattern);
+        if (stopMatch && stopMatch.index > 0) {
+            trimmed = trimmed.substring(0, stopMatch.index).trim();
+        }
+
+        return trimmed.replace(/[.\s]+$/g, '').trim();
+    }
+
     /**
      * Cerca corrispondenza nel database territorio con fuzzy matching
      * Richiede almeno una coppia consecutiva di parole per evitare falsi positivi
@@ -457,7 +474,7 @@ var TerritoryValidator = class TerritoryValidator {
 
                 const viaType = this._normalizeStreetType(match[1]);
                 if (!viaType) continue;
-                const viaName = match[2].trim();
+                const viaName = this._trimStreetOnlyCandidate(match[2]);
 
                 if (viaName.length < 2 || viaName.length > 100) continue;
 

@@ -1934,6 +1934,10 @@ var EmailProcessor = class EmailProcessor {
             bodyForTerritory,
             messageDetails.subject
           ) || { addressFound: false };
+          if (!territoryResult.addressFound) {
+            const aiTerritoryCandidates = this._extractQuickCheckTerritoryCandidates_(quickCheck);
+            territoryResult = this._analyzeAiTerritoryCandidates_(aiTerritoryCandidates) || territoryResult;
+          }
         } catch (territoryError) {
           console.warn(`⚠️ Verifica territorio fallita: ${territoryError.message}`);
           territoryResult = { addressFound: false };
@@ -5562,6 +5566,54 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     ];
 
     return explicitPatterns.some((pattern) => pattern.test(text));
+  }
+
+  _extractQuickCheckTerritoryCandidates_(quickCheck) {
+    const candidates = [];
+    const addCandidates = (value) => {
+      if (!value) return;
+      const list = Array.isArray(value) ? value : [value];
+      list.forEach((candidate) => {
+        if (candidate == null) return;
+        const text = String(candidate)
+          .replace(/[=<>]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (!text || text.length > 120) return;
+        if (!/\b(?:via|viale|piazza|piazzale|largo|lungotevere|salita|vicolo|corso)\b/i.test(text)) return;
+        if (!candidates.some(existing => existing.toLowerCase() === text.toLowerCase())) {
+          candidates.push(text);
+        }
+      });
+    };
+
+    addCandidates(quickCheck && quickCheck.territory_address_candidates);
+    addCandidates(quickCheck && quickCheck.territory_address);
+    addCandidates(quickCheck && quickCheck.classification && quickCheck.classification.territory_address_candidates);
+    addCandidates(quickCheck && quickCheck.classification && quickCheck.classification.territory_address);
+
+    return candidates.slice(0, 3);
+  }
+
+  _analyzeAiTerritoryCandidates_(candidates) {
+    if (!this.territoryValidator || !Array.isArray(candidates) || candidates.length === 0) return null;
+
+    const addresses = [];
+    candidates.forEach((candidate) => {
+      const detected = this.territoryValidator.analyzeEmailForAddress(candidate, '') || { addressFound: false };
+      if (detected.addressFound && Array.isArray(detected.addresses)) {
+        detected.addresses.forEach((entry) => addresses.push(entry));
+      }
+    });
+
+    if (addresses.length === 0) return null;
+    return {
+      addressFound: true,
+      addresses: addresses,
+      street: addresses[0].street,
+      civic: addresses[0].civic,
+      verification: addresses[0].verification
+    };
   }
 
   _extractTimes(text) {

@@ -58,11 +58,12 @@ console.log('--- Test parseGeminiJsonLenient: virgole finali solo fuori dalle st
 
 console.log('--- Test parseGeminiJsonLenient: recupera flag territorio da JSON parziale ---');
 {
-  const raw = '{"reply_needed":true,"language":"it","category":"TECHNICAL","topic":"confini parrocchiali","is_territory_request":true,"confidence":0.8, BAD';
+  const raw = '{"reply_needed":true,"language":"it","category":"TECHNICAL","topic":"confini parrocchiali","is_territory_request":true,"territory_address_candidates":["via Bartolo Oriani"],"confidence":0.8, BAD';
   const parsed = parseGeminiJsonLenient(raw);
 
   assert(parsed.reply_needed === true, 'reply_needed deve essere recuperato dal JSON parziale');
   assert(parsed.is_territory_request === true, 'is_territory_request deve essere recuperato dal JSON parziale');
+  assert(parsed.territory_address_candidates[0] === 'via Bartolo Oriani', 'territory_address_candidates deve essere recuperato dal JSON parziale');
   assert(parsed.topic === 'confini parrocchiali', 'topic deve essere recuperato dal JSON parziale');
 }
 
@@ -203,6 +204,7 @@ console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documental
   assert(!plainPrompt.prompt.includes('"needs_sponsor_guidance": boolean'), 'prompt ordinario non deve chiedere needs_sponsor_guidance');
   assert(plainPrompt.prompt.includes('"physical_presence_constraint"'), 'prompt ordinario deve chiedere il vincolo di presenza fisica');
   assert(plainPrompt.prompt.includes('"is_territory_request": boolean'), 'prompt ordinario deve chiedere il flag richiesta territorio');
+  assert(plainPrompt.prompt.includes('"territory_address_candidates": ["string"]'), 'prompt ordinario deve chiedere gli indirizzi candidati territorio');
   assert(plainPrompt.prompt.includes('competenza territoriale'), 'prompt quick-check deve spiegare la competenza territoriale');
   assert(plainPrompt.prompt.includes('"relational_posture"'), 'prompt ordinario deve chiedere la postura relazionale');
   assert(plainPrompt.prompt.includes('"relational_posture_confidence"'), 'prompt ordinario deve chiedere la confidenza della postura relazionale');
@@ -249,6 +251,7 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
             dimensions: { technical: 1, pastoral: 0, doctrinal: 0, formal: 0 },
             topic: 'documentazione ricevuta',
             is_territory_request: 'true',
+            territory_address_candidates: ['via Bartolo Oriani', 'via Bartolo Oriani', '   '],
             confidence: 0.7,
             reason: 'consegna documentazione',
             relational_posture: 'frustrated',
@@ -281,6 +284,9 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
   assert(result.is_territory_request === true, 'is_territory_request stringa true deve diventare boolean true');
   assert(result.classification.is_territory_request === true, 'classification deve esporre is_territory_request per EmailProcessor');
   assert(result.classification.isTerritoryRequest === true, 'classification deve esporre anche alias camelCase');
+  assert(result.territory_address_candidates.length === 1, 'territory_address_candidates deve deduplicare e filtrare valori vuoti');
+  assert(result.territory_address_candidates[0] === 'via Bartolo Oriani', 'territory_address_candidates deve preservare la via');
+  assert(result.classification.territory_address_candidates[0] === 'via Bartolo Oriani', 'classification deve esporre territory_address_candidates');
   assert(result.relational_posture === 'complaint', 'relational_posture legacy frustrated deve normalizzarsi a complaint');
   assert(result.relational_posture_confidence === 0.91, 'relational_posture_confidence alta deve essere preservata');
   assert(result.needs_sponsor_guidance === false, 'needs_sponsor_guidance stringa false deve diventare boolean false');
