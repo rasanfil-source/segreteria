@@ -501,7 +501,7 @@ CONTESTO LOGISTICO VISITA:
 - Il sacramento o documento citato è l'oggetto della visita, non una richiesta primaria di requisiti o procedura sacramentale.
 ` : '';
     const sponsorGuidanceTask = shouldClassifySponsorGuidance ? `
-11. Determina needs_sponsor_guidance (boolean):
+12. Determina needs_sponsor_guidance (boolean):
    - TRUE solo se nella risposta conviene inserire le condizioni per il ruolo ecclesiale di padrino/madrina/godparent.
    - Considera equivalenti sacramentali: padrino/madrina (it/es), godparent/godfather/godmother o sponsor sacramentale (en), parrain/marraine (fr), padrinho/madrinha (pt), Pate/Patin/Firmpate/Firmpatin (de).
    - TRUE se il mittente vuole assumere quel ruolo sacramentale e non ha ancora la Cresima/Confirmation, oppure chiede esplicitamente requisiti, condizioni o idoneità per quel ruolo.
@@ -576,6 +576,13 @@ COMPITI:
    - Fornisci anche relational_posture_confidence (0.0-1.0).
    - IMPORTANTE: il sistema accetta la postura solo se relational_posture_confidence >= ${relationalPostureConfidenceThreshold}; sotto quella soglia la postura viene ignorata e si usa "direct".
    - Imposta un valore >= ${relationalPostureConfidenceThreshold} quando almeno un marcatore linguistico è esplicito e inequivocabile nel testo. Se i marcatori sono vaghi o assenti, imposta un valore sotto soglia e scegli "direct".
+11. Determina response_focus_hint:
+   - Valore ammesso: "avoid_repeating_known_requirements", "answer_only_residual_question", "provide_next_operational_step", "acknowledge_document_without_reopening_procedure", oppure null.
+   - Deve riguardare solo il thread/conversazione, non la persona.
+   - Deve aiutare la prossima risposta a evitare ripetizioni o concentrarsi sul passo operativo successivo.
+   - Deve essere null se non emerge un'indicazione utile.
+   - Non descrivere tratti, emozioni o profili del mittente.
+   - Fornisci anche response_focus_hint_confidence (0.0-1.0).
 ${sponsorGuidanceTask}
 
 ⚠️ REGOLA CRITICA "SBATTEZZO":
@@ -602,6 +609,8 @@ Output JSON:
   "reason": "string",
   "relational_posture": "urgent" | "hesitant" | "complaint" | "personal" | "open" | "direct",
   "relational_posture_confidence": number (0.0-1.0),
+  "response_focus_hint": "avoid_repeating_known_requirements" | "answer_only_residual_question" | "provide_next_operational_step" | "acknowledge_document_without_reopening_procedure" | null,
+  "response_focus_hint_confidence": number (0.0-1.0),
   "physical_presence_constraint": {
     "has_constraint": boolean,
     "type": "geographic_distance" | "health" | "mobility" | "caregiving" | "legal_restriction" | "temporary_unavailability" | "remote_request" | "other" | "none",
@@ -648,7 +657,9 @@ Output JSON:
         source: 'quick_check'
       },
       relational_posture: 'direct',
-      relational_posture_confidence: 0
+      relational_posture_confidence: 0,
+      response_focus_hint: null,
+      response_focus_hint_confidence: 0
     };
   }
 
@@ -747,6 +758,11 @@ Output JSON:
       data.relational_posture,
       relationalPostureConfidence
     );
+    const responseFocusHintConfidence = EmailQuickCheckPolicy.normalizeResponseFocusHintConfidence(data.response_focus_hint_confidence);
+    const responseFocusHint = EmailQuickCheckPolicy.normalizeResponseFocusHint(
+      data.response_focus_hint,
+      responseFocusHintConfidence
+    );
     const rawTerritoryRequest = Object.prototype.hasOwnProperty.call(data, 'is_territory_request')
       ? data.is_territory_request
       : data.territory_request;
@@ -771,6 +787,8 @@ Output JSON:
       physical_presence_constraint: physicalPresenceConstraint,
       relational_posture: relationalPosture,
       relational_posture_confidence: relationalPostureConfidence,
+      response_focus_hint: responseFocusHint,
+      response_focus_hint_confidence: responseFocusHintConfidence,
       needs_sponsor_guidance: needsSponsorGuidance
     };
   }
@@ -818,6 +836,27 @@ Output JSON:
   static isRelationalPostureConfidenceSufficient(confidence) {
     return EmailQuickCheckPolicy.normalizeRelationalPostureConfidence(confidence) >=
       EmailQuickCheckPolicy.getRelationalPostureConfidenceThreshold();
+  }
+
+  static normalizeResponseFocusHintConfidence(value) {
+    const confidence = Number(value);
+    return Number.isFinite(confidence)
+      ? Math.max(0, Math.min(1, confidence))
+      : 0;
+  }
+
+  static normalizeResponseFocusHint(value, confidence = 0) {
+    const normalized = String(value || '').trim().toLowerCase();
+    const allowed = {
+      avoid_repeating_known_requirements: true,
+      answer_only_residual_question: true,
+      provide_next_operational_step: true,
+      acknowledge_document_without_reopening_procedure: true
+    };
+    if (!allowed[normalized]) return null;
+    return EmailQuickCheckPolicy.normalizeResponseFocusHintConfidence(confidence) >= 0.65
+      ? normalized
+      : null;
   }
 };
 

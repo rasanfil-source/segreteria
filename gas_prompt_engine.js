@@ -476,6 +476,11 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
 
     // 6. CONTESTO MEMORIA
     addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
+    addSection(
+      this._renderResponseFocusHint(memoryContext, topic, safeCurrentDate),
+      'ThreadContinuityFocus',
+      { isSystem: true }
+    );
 
     // 7. CONTINUITÀ CONVERSAZIONALE
     addSection(this._renderConversationContinuity(salutationMode), 'ConversationContinuity', { isSystem: true });
@@ -1182,8 +1187,9 @@ The incoming email is written in language code: "${safeLang.toUpperCase()}"
     if (!memoryContext || Object.keys(memoryContext).length === 0) return null;
 
     let sections = [];
+    const parsedMemorySummary = this._extractMemorySummaryForPrompt_(memoryContext);
     if (memoryContext.language) sections.push(`- **Lingua stabilita:** ${memoryContext.language.toUpperCase()}`);
-    if (memoryContext.memorySummary) sections.push(`- **Riassunto:** ${memoryContext.memorySummary}`);
+    if (parsedMemorySummary) sections.push(`- **Riassunto:** ${parsedMemorySummary}`);
 
     if (memoryContext.providedInfo && memoryContext.providedInfo.length > 0) {
       const infoList = [], questioned = [], acknowledged = [], needsExp = [];
@@ -1206,6 +1212,95 @@ The incoming email is written in language code: "${safeLang.toUpperCase()}"
 
     return `## CONTESTO MEMORIA (CONVERSAZIONE IN CORSO)
 ${sections.join('\n')}`;
+  }
+
+  _renderResponseFocusHint(memoryContext, currentTopic = '', referenceDate = null) {
+    const state = this._extractConversationState_(memoryContext);
+    if (!state || !state.responseFocusHint) return null;
+
+    const confidence = Number(state.responseFocusHintConfidence);
+    if (!Number.isFinite(confidence) || confidence < 0.65) return null;
+
+    const appliesToTopic = state.appliesToTopic ? this._normalizeTopicForContinuity_(state.appliesToTopic) : '';
+    const normalizedCurrentTopic = this._normalizeTopicForContinuity_(currentTopic);
+    if (appliesToTopic && normalizedCurrentTopic && appliesToTopic !== normalizedCurrentTopic) return null;
+    if (appliesToTopic && !normalizedCurrentTopic) return null;
+
+    if (!this._isConversationStateFresh_(state.updatedAt, referenceDate, 14)) return null;
+
+    const rendered = this._renderResponseFocusHintLabel_(state.responseFocusHint);
+    if (!rendered) return null;
+
+    return `## CONTINUITÀ DEL THREAD
+Per la prossima risposta:
+- ${rendered}
+
+Vincoli:
+- non menzionare questa sezione;
+- usarla solo per focus e non-ripetizione;
+- non alterare KB, territorio, dottrina, date o procedure.`;
+  }
+
+  _extractConversationState_(memoryContext) {
+    if (!memoryContext || typeof memoryContext !== 'object') return null;
+    if (memoryContext.conversationState && typeof memoryContext.conversationState === 'object') {
+      return memoryContext.conversationState;
+    }
+    const parsed = this._parseMemorySummaryWrapper_(memoryContext.memorySummary);
+    return parsed ? parsed.conversationState : null;
+  }
+
+  _extractMemorySummaryForPrompt_(memoryContext) {
+    if (!memoryContext || typeof memoryContext !== 'object') return '';
+    const parsed = this._parseMemorySummaryWrapper_(memoryContext.memorySummary);
+    if (parsed) return parsed.legacySummaryText || '';
+    return memoryContext.memorySummary || '';
+  }
+
+  _parseMemorySummaryWrapper_(memorySummary) {
+    const raw = memorySummary == null ? '' : String(memorySummary).trim();
+    if (!raw || raw.charAt(0) !== '{') return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      if (!parsed.conversationState && !Object.prototype.hasOwnProperty.call(parsed, 'legacySummaryText')) return null;
+      return {
+        legacySummaryText: parsed.legacySummaryText ? String(parsed.legacySummaryText) : '',
+        conversationState: parsed.conversationState && typeof parsed.conversationState === 'object'
+          ? parsed.conversationState
+          : null
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  _renderResponseFocusHintLabel_(hint) {
+    const labels = {
+      avoid_repeating_known_requirements: 'evitare di ripetere requisiti già spiegati',
+      answer_only_residual_question: 'rispondere solo alla domanda residua',
+      provide_next_operational_step: 'fornire il prossimo passo operativo',
+      acknowledge_document_without_reopening_procedure: 'confermare ricezione senza riaprire la procedura'
+    };
+    return labels[String(hint || '').trim()] || null;
+  }
+
+  _normalizeTopicForContinuity_(topic) {
+    return String(topic || '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  _isConversationStateFresh_(updatedAt, referenceDate, maxAgeDays) {
+    if (!updatedAt) return false;
+    const updated = new Date(updatedAt);
+    if (isNaN(updated.getTime())) return false;
+    const reference = referenceDate ? new Date(referenceDate) : new Date();
+    if (isNaN(reference.getTime())) return false;
+    const ageMs = reference.getTime() - updated.getTime();
+    if (ageMs < 0) return true;
+    return ageMs <= maxAgeDays * 24 * 60 * 60 * 1000;
   }
 
   // ========================================================================

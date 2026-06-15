@@ -91,6 +91,76 @@ console.log('--- Test MemoryService _validateAndNormalizeTimestamp: resetta futu
   );
 }
 
+console.log('--- Test MemoryService conversationState: preserva legacySummaryText e salva solo enum validi ---');
+{
+  const memory = Object.create(MemoryService.prototype);
+  const now = '2026-06-15T10:00:00.000Z';
+  memory._validateAndNormalizeTimestamp = (value) => value || now;
+
+  const serialized = memory._serializeMemorySummaryState(
+    'Sintesi precedente',
+    'Sintesi aggiornata',
+    {
+      lastRelationalPosture: 'open',
+      currentRelationalPosture: 'open',
+      responseFocusHint: 'answer_only_residual_question',
+      responseFocusHintConfidence: 0.82,
+      appliesToTopic: 'passaggio in segreteria',
+      updatedAt: now,
+      source: 'quick_check'
+    }
+  );
+  const parsed = JSON.parse(serialized);
+  assert(parsed.legacySummaryText === 'Sintesi aggiornata', 'legacySummaryText deve preservare la sintesi testuale aggiornata');
+  assert(parsed.conversationState.currentRelationalPosture === 'open', 'currentRelationalPosture deve essere salvata come stato del thread');
+  assert(parsed.conversationState.responseFocusHint === 'answer_only_residual_question', 'responseFocusHint enum valido deve essere salvato');
+  assert(Object.keys(parsed.conversationState).length === 7, 'conversationState deve restare nello schema minimo previsto');
+
+  const preserved = memory._serializeMemorySummaryState(
+    '{"unknownShape":true}',
+    'Nuova sintesi',
+    {
+      responseFocusHint: 'provide_next_operational_step',
+      responseFocusHintConfidence: 0.9,
+      updatedAt: now,
+      source: 'quick_check'
+    }
+  );
+  assert(preserved === '{"unknownShape":true}', 'JSON non riconosciuto non deve essere modificato distruttivamente');
+
+  const unsafe = memory._serializeMemorySummaryState(
+    '',
+    'Sintesi',
+    {
+      responseFocusHint: 'utente ansioso',
+      responseFocusHintConfidence: 0.95,
+      updatedAt: now,
+      source: 'quick_check'
+    }
+  );
+  assert(JSON.parse(unsafe).conversationState.responseFocusHint === null, 'hint fuori enum non deve essere salvato');
+
+  const existingWrapped = JSON.stringify({
+    legacySummaryText: 'Sintesi vecchia',
+    conversationState: {
+      lastRelationalPosture: 'direct',
+      currentRelationalPosture: 'direct',
+      responseFocusHint: 'answer_only_residual_question',
+      responseFocusHintConfidence: 0.82,
+      appliesToTopic: 'passaggio in segreteria',
+      updatedAt: now,
+      source: 'quick_check'
+    }
+  });
+  const textOnlyUpdate = JSON.parse(memory._serializeMemorySummaryState(
+    existingWrapped,
+    'Sintesi solo testuale nuova',
+    null
+  ));
+  assert(textOnlyUpdate.legacySummaryText === 'Sintesi solo testuale nuova', 'memorySummary testuale deve aggiornare solo legacySummaryText');
+  assert(textOnlyUpdate.conversationState.responseFocusHint === 'answer_only_residual_question', 'memorySummary testuale non deve sovrascrivere conversationState');
+}
+
 console.log('--- Test MemoryService _normalizeHeaders: riempie solo header attesi non vuoti ---');
 {
   let writtenHeaders = null;

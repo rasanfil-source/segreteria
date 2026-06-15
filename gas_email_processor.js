@@ -2900,6 +2900,26 @@ ${addressLines.join('\n\n')}
         _incrementMessageCount: true
       };
 
+      const quickCheckTopic = quickCheck && quickCheck.classification
+        ? (quickCheck.classification.topic || null)
+        : null;
+      memoryUpdate.conversationStateUpdate = {
+        currentRelationalPosture: quickCheck?.relational_posture || 'direct',
+        responseFocusHint: quickCheck?.response_focus_hint || null,
+        responseFocusHintConfidence: Number(quickCheck?.response_focus_hint_confidence) || 0,
+        appliesToTopic: quickCheckTopic,
+        updatedAt: processingTimestamp.toISOString(),
+        source: 'quick_check'
+      };
+
+      if (memoryUpdate.conversationStateUpdate.responseFocusHint) {
+        console.log(
+          `   🧭 Stato thread: posture=${memoryUpdate.conversationStateUpdate.currentRelationalPosture}, ` +
+          `hint=${memoryUpdate.conversationStateUpdate.responseFocusHint}, ` +
+          `confidence=${memoryUpdate.conversationStateUpdate.responseFocusHintConfidence}, threadId=${threadId}`
+        );
+      }
+
       if (memorySummary) {
         memoryUpdate.memorySummary = memorySummary;
       }

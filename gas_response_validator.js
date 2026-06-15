@@ -108,6 +108,12 @@ var ResponseValidator = class ResponseValidator {
       '(nota interna:',
       '(note interne:',
       'come da istruzioni',
+      'la memoria indica',
+      'profilo della conversazione',
+      'la postura relazionale',
+      'secondo l’analisi interna',
+      "secondo l'analisi interna",
+      'indicazione interna',
       'non sono ancora presenti nella kb',
       'non sono ancora presenti in knowledge base',
       'le date indicate non sono nella kb',
@@ -1033,7 +1039,13 @@ var ResponseValidator = class ResponseValidator {
       const hardPatterns = [
         'rivedendo la knowledge base',
         'consultando la knowledge base',
-        'come da istruzioni'
+        'come da istruzioni',
+        'la memoria indica',
+        'profilo della conversazione',
+        'la postura relazionale',
+        'secondo l’analisi interna',
+        "secondo l'analisi interna",
+        'indicazione interna'
       ];
 
       const isRegexMatch = firstPattern.startsWith('regex match:');

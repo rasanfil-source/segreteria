@@ -236,10 +236,12 @@ var MemoryService = class MemoryService {
     const normalizedThreadId = String(threadId).trim();
     if (!normalizedThreadId) return;
 
+    const conversationStateUpdate = newData.conversationStateUpdate || null;
+
     // Filtra campi interni
     const dataToUpdate = {};
     for (const key in newData) {
-      if (!key.startsWith('_')) {
+      if (!key.startsWith('_') && key !== 'conversationStateUpdate') {
         dataToUpdate[key] = newData[key];
       }
     }
@@ -287,8 +289,22 @@ var MemoryService = class MemoryService {
             throw new Error('VERSION_MISMATCH');
           }
 
+          const hasIncomingMemorySummary = Object.prototype.hasOwnProperty.call(dataToUpdate, 'memorySummary');
+          const mergedMemorySummary = (conversationStateUpdate || hasIncomingMemorySummary)
+            ? this._serializeMemorySummaryState(
+                existingData._rawMemorySummary || existingData.memorySummary || '',
+                hasIncomingMemorySummary ? dataToUpdate.memorySummary : null,
+                conversationStateUpdate
+              )
+            : null;
+
           // Merge: esistente + nuovi dati
           const mergedData = Object.assign({}, existingData, dataToUpdate);
+          if (conversationStateUpdate || hasIncomingMemorySummary) {
+            mergedData.memorySummary = mergedMemorySummary;
+          } else if (!hasIncomingMemorySummary && existingData._rawMemorySummary) {
+            mergedData.memorySummary = existingData._rawMemorySummary;
+          }
           if (Object.prototype.hasOwnProperty.call(dataToUpdate, 'providedInfo')) {
             const existingTopics = this._normalizeProvidedTopics(
               Array.isArray(existingData.providedInfo) ? existingData.providedInfo : []
@@ -316,6 +332,14 @@ var MemoryService = class MemoryService {
           }, true);
           console.log(`🧠 Memoria aggiornata per thread ${threadId} (v${mergedData.version}, Tentativo ${attempt + 1})`);
         } else {
+          if (conversationStateUpdate) {
+            dataToUpdate.memorySummary = this._serializeMemorySummaryState(
+              '',
+              Object.prototype.hasOwnProperty.call(dataToUpdate, 'memorySummary') ? dataToUpdate.memorySummary : null,
+              conversationStateUpdate
+            );
+          }
+
           // Nuova riga
           const insertData = Object.assign({}, dataToUpdate);
           insertData.threadId = normalizedThreadId;
@@ -417,11 +441,12 @@ var MemoryService = class MemoryService {
     const normalizedThreadId = String(threadId).trim();
     if (!normalizedThreadId) return false;
     const rawData = (newData && typeof newData === 'object') ? newData : {};
+    const conversationStateUpdate = rawData.conversationStateUpdate || null;
 
     // Filtra campi interni (_*) per evitare persistenza accidentale su Sheets
     const dataToUpdate = {};
     for (const key in rawData) {
-      if (!key.startsWith('_')) {
+      if (!key.startsWith('_') && key !== 'conversationStateUpdate') {
         dataToUpdate[key] = rawData[key];
       }
     }
@@ -490,7 +515,20 @@ var MemoryService = class MemoryService {
             throw new Error('VERSION_MISMATCH');
           }
 
+          const hasIncomingMemorySummary = Object.prototype.hasOwnProperty.call(dataToUpdate, 'memorySummary');
+          const mergedMemorySummary = (conversationStateUpdate || hasIncomingMemorySummary)
+            ? this._serializeMemorySummaryState(
+                existingData._rawMemorySummary || existingData.memorySummary || '',
+                hasIncomingMemorySummary ? dataToUpdate.memorySummary : null,
+                conversationStateUpdate
+              )
+            : null;
           const mergedData = Object.assign({}, existingData, dataToUpdate);
+          if (conversationStateUpdate || hasIncomingMemorySummary) {
+            mergedData.memorySummary = mergedMemorySummary;
+          } else if (!hasIncomingMemorySummary && existingData._rawMemorySummary) {
+            mergedData.memorySummary = existingData._rawMemorySummary;
+          }
           mergedData.lastUpdated = now;
           const shouldIncrementMessageCount = rawData._incrementMessageCount === true;
           mergedData.messageCount = shouldIncrementMessageCount
@@ -546,6 +584,13 @@ var MemoryService = class MemoryService {
             }, true);
             console.log(`🧠 Memoria aggiornata atomicamente per thread ${threadId} (v${mergedData.version})`);
         } else {
+          if (conversationStateUpdate) {
+            dataToUpdate.memorySummary = this._serializeMemorySummaryState(
+              '',
+              Object.prototype.hasOwnProperty.call(dataToUpdate, 'memorySummary') ? dataToUpdate.memorySummary : null,
+              conversationStateUpdate
+            );
+          }
           const insertData = Object.assign({}, dataToUpdate);
           insertData.threadId = normalizedThreadId;
           insertData.lastUpdated = now;
@@ -612,6 +657,155 @@ var MemoryService = class MemoryService {
    */
   getLastUpdateMemoryAtomicFailure() {
     return this._lastUpdateMemoryAtomicFailure || null;
+  }
+
+  _parseMemorySummaryState(memorySummary) {
+    const raw = memorySummary == null ? '' : String(memorySummary);
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      return {
+        recognized: true,
+        raw: raw,
+        legacySummaryText: '',
+        conversationState: null
+      };
+    }
+
+    if (trimmed.charAt(0) !== '{') {
+      return {
+        recognized: true,
+        raw: raw,
+        legacySummaryText: raw,
+        conversationState: null
+      };
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      const hasConversationState = !!(parsed && typeof parsed === 'object' && parsed.conversationState && typeof parsed.conversationState === 'object');
+      const hasLegacySummaryText = !!(parsed && typeof parsed === 'object' && Object.prototype.hasOwnProperty.call(parsed, 'legacySummaryText'));
+      if (!hasConversationState && !hasLegacySummaryText) {
+        console.warn('⚠️ memorySummary JSON non riconosciuto: conservazione senza merge conversationState');
+        return {
+          recognized: false,
+          raw: raw,
+          legacySummaryText: raw,
+          conversationState: null
+        };
+      }
+      return {
+        recognized: true,
+        raw: raw,
+        legacySummaryText: parsed.legacySummaryText ? String(parsed.legacySummaryText) : '',
+        conversationState: hasConversationState ? parsed.conversationState : null
+      };
+    } catch (e) {
+      console.warn('⚠️ memorySummary JSON non parsabile: conservazione senza merge conversationState');
+      return {
+        recognized: false,
+        raw: raw,
+        legacySummaryText: raw,
+        conversationState: null
+      };
+    }
+  }
+
+  _serializeMemorySummaryState(existingSummary, incomingLegacySummary, conversationStateUpdate) {
+    const parsed = this._parseMemorySummaryState(existingSummary);
+    if (!parsed.recognized) {
+      return parsed.raw;
+    }
+
+    const legacySummaryText = incomingLegacySummary != null
+      ? String(incomingLegacySummary)
+      : (parsed.legacySummaryText || '');
+    const existingState = parsed.conversationState && typeof parsed.conversationState === 'object'
+      ? parsed.conversationState
+      : {};
+    if (!conversationStateUpdate && !parsed.conversationState) {
+      return legacySummaryText;
+    }
+    const nextState = conversationStateUpdate
+      ? this._mergeConversationState(existingState, conversationStateUpdate)
+      : existingState;
+
+    return JSON.stringify({
+      legacySummaryText: legacySummaryText,
+      conversationState: nextState
+    });
+  }
+
+  _mergeConversationState(existingState, update) {
+    const next = Object.assign({}, existingState || {});
+    const normalizedPosture = this._normalizeConversationPosture_(update && (update.currentRelationalPosture || update.lastRelationalPosture));
+    const normalizedLastPosture = this._normalizeConversationPosture_(update && update.lastRelationalPosture);
+    if (normalizedLastPosture) {
+      next.lastRelationalPosture = normalizedLastPosture;
+    }
+    if (normalizedPosture) {
+      next.currentRelationalPosture = normalizedPosture;
+      if (!normalizedLastPosture) {
+        next.lastRelationalPosture = normalizedPosture;
+      }
+    }
+
+    const confidence = this._normalizeConversationConfidence_(update && update.responseFocusHintConfidence);
+    const hint = this._normalizeConversationResponseFocusHint_(update && update.responseFocusHint);
+    if (hint && confidence >= 0.65) {
+      next.responseFocusHint = hint;
+      next.responseFocusHintConfidence = confidence;
+      next.appliesToTopic = update && update.appliesToTopic ? String(update.appliesToTopic).trim().substring(0, 120) : null;
+    } else if (!Object.prototype.hasOwnProperty.call(next, 'responseFocusHint')) {
+      next.responseFocusHint = null;
+      next.responseFocusHintConfidence = 0;
+      next.appliesToTopic = null;
+    }
+
+    next.updatedAt = this._validateAndNormalizeTimestamp(
+      update && update.updatedAt ? update.updatedAt : new Date().toISOString()
+    );
+    next.source = update && update.source === 'quick_check' ? 'quick_check' : 'quick_check';
+
+    return {
+      lastRelationalPosture: next.lastRelationalPosture || 'direct',
+      currentRelationalPosture: next.currentRelationalPosture || next.lastRelationalPosture || 'direct',
+      responseFocusHint: next.responseFocusHint || null,
+      responseFocusHintConfidence: this._normalizeConversationConfidence_(next.responseFocusHintConfidence),
+      appliesToTopic: next.appliesToTopic || null,
+      updatedAt: next.updatedAt,
+      source: next.source
+    };
+  }
+
+  _normalizeConversationPosture_(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    const allowed = {
+      urgent: true,
+      hesitant: true,
+      complaint: true,
+      personal: true,
+      open: true,
+      direct: true
+    };
+    return allowed[normalized] ? normalized : null;
+  }
+
+  _normalizeConversationResponseFocusHint_(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    const allowed = {
+      avoid_repeating_known_requirements: true,
+      answer_only_residual_question: true,
+      provide_next_operational_step: true,
+      acknowledge_document_without_reopening_procedure: true
+    };
+    return allowed[normalized] ? normalized : null;
+  }
+
+  _normalizeConversationConfidence_(value) {
+    const confidence = Number(value);
+    return Number.isFinite(confidence)
+      ? Math.max(0, Math.min(1, confidence))
+      : 0;
   }
 
   /**
@@ -1378,6 +1572,9 @@ var MemoryService = class MemoryService {
 
     const lastUpdated = this._validateAndNormalizeTimestamp(values[5]);
 
+    const rawMemorySummary = values[8] || '';
+    const parsedMemorySummary = this._parseMemorySummaryState(rawMemorySummary);
+
     return {
       threadId: values[0],
       language: values[1] || 'it',
@@ -1387,7 +1584,9 @@ var MemoryService = class MemoryService {
       lastUpdated: lastUpdated,
       messageCount: parseInt(values[6], 10) || 0,
       version: parseInt(values[7], 10) || 0,
-      memorySummary: values[8] || ''
+      memorySummary: parsedMemorySummary.recognized ? (parsedMemorySummary.legacySummaryText || '') : rawMemorySummary,
+      conversationState: parsedMemorySummary.recognized ? parsedMemorySummary.conversationState : null,
+      _rawMemorySummary: rawMemorySummary
     };
   }
 

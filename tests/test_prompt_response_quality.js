@@ -1102,6 +1102,52 @@ assert(
   'memoria e contenuti AI core lunghi restano nello user prompt, non migrati in blocco'
 );
 
+console.log('--- Test prompt: responseFocusHint renderizzato solo se topic e data sono validi ---');
+const focusHintMemoryContext = {
+  memorySummary: 'Sintesi precedente',
+  conversationState: {
+    currentRelationalPosture: 'direct',
+    lastRelationalPosture: 'direct',
+    responseFocusHint: 'answer_only_residual_question',
+    responseFocusHintConfidence: 0.82,
+    appliesToTopic: 'passaggio in segreteria',
+    updatedAt: '2026-06-10T10:00:00.000Z',
+    source: 'quick_check'
+  }
+};
+const focusHintPrompt = engine.buildPrompt({
+  emailSubject: 'Passaggio',
+  emailContent: 'Ok, ma allora quando posso passare?',
+  knowledgeBase: 'Segreteria aperta martedi.',
+  detectedLanguage: 'it',
+  topic: 'passaggio in segreteria',
+  currentDate: '2026-06-15',
+  memoryContext: focusHintMemoryContext
+});
+assert(
+  focusHintPrompt.systemInstruction.includes('## CONTINUITÀ DEL THREAD') &&
+    focusHintPrompt.systemInstruction.includes('rispondere solo alla domanda residua'),
+  'responseFocusHint valido deve essere renderizzato nel systemInstruction'
+);
+assert(
+  !focusHintPrompt.systemInstruction.includes('Indicazione interna'),
+  'responseFocusHint non deve usare la formula Indicazione interna'
+);
+
+const changedTopicPrompt = engine.buildPrompt({
+  emailSubject: 'Orari',
+  emailContent: 'Vorrei sapere gli orari della segreteria.',
+  knowledgeBase: 'Segreteria aperta martedi.',
+  detectedLanguage: 'it',
+  topic: 'orari segreteria',
+  currentDate: '2026-06-15',
+  memoryContext: focusHintMemoryContext
+});
+assert(
+  !changedTopicPrompt.systemInstruction.includes('## CONTINUITÀ DEL THREAD'),
+  'responseFocusHint non deve essere applicato se il topic cambia'
+);
+
 console.log('--- Test prompt: orario locale e guardrail anti saluto in continuità ---');
 const temporalGuardPrompt = engine.buildPrompt({
   emailSubject: 'Invio documenti',

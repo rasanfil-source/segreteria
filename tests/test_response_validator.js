@@ -307,6 +307,11 @@ assert(
   'deve segnalare ragionamento esposto critico'
 );
 
+const memoryLeakResult = validator._checkExposedReasoning(
+  "Secondo l'analisi interna, la memoria indica di rispondere solo alla domanda residua."
+);
+assert(memoryLeakResult.score === 0.0, 'leak su memoria/analisi interna deve portare score a 0');
+
 console.log('--- Test validateResponse: estrae solo blocco <email> e ignora <analisi> ---');
 {
   const xmlResult = validator.validateResponse(
