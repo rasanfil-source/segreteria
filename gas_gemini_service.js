@@ -501,7 +501,7 @@ CONTESTO LOGISTICO VISITA:
 - Il sacramento o documento citato è l'oggetto della visita, non una richiesta primaria di requisiti o procedura sacramentale.
 ` : '';
     const sponsorGuidanceTask = shouldClassifySponsorGuidance ? `
-12. Determina needs_sponsor_guidance (boolean):
+13. Determina needs_sponsor_guidance (boolean):
    - TRUE solo se nella risposta conviene inserire le condizioni per il ruolo ecclesiale di padrino/madrina/godparent.
    - Considera equivalenti sacramentali: padrino/madrina (it/es), godparent/godfather/godmother o sponsor sacramentale (en), parrain/marraine (fr), padrinho/madrinha (pt), Pate/Patin/Firmpate/Firmpatin (de).
    - TRUE se il mittente vuole assumere quel ruolo sacramentale e non ha ancora la Cresima/Confirmation, oppure chiede esplicitamente requisiti, condizioni o idoneità per quel ruolo.
@@ -583,6 +583,14 @@ COMPITI:
    - Deve essere null se non emerge un'indicazione utile.
    - Non descrivere tratti, emozioni o profili del mittente.
    - Fornisci anche response_focus_hint_confidence (0.0-1.0).
+12. Determina conversation_shift come evento locale del turno, non come stato persistente:
+   - Valori ammessi: "none", "new_question", "topic_change", "new_information", "closure".
+   - "none": si continua sullo stesso punto gia' in corso. Esempio: requisiti padrino -> altri dettagli sui requisiti.
+   - "new_question": nuova domanda, ma nello stesso tema. Esempio: requisiti padrino -> quando posso consegnare i documenti?
+   - "topic_change": cambio argomento. Esempio: battesimo -> certificato matrimonio.
+   - "new_information": l'utente non fa una domanda, ma aggiunge un fatto. Esempi: "Abito in via Flaminia 160", "Sono gia' cresimato", "Ho allegato il certificato".
+   - "closure": conversazione praticamente chiusa. Esempi: "Grazie", "Perfetto", "Ricevuto", senza nuove domande o informazioni operative.
+   - Fornisci anche conversation_shift_confidence (0.0-1.0).
 ${sponsorGuidanceTask}
 
 ⚠️ REGOLA CRITICA "SBATTEZZO":
@@ -611,6 +619,8 @@ Output JSON:
   "relational_posture_confidence": number (0.0-1.0),
   "response_focus_hint": "avoid_repeating_known_requirements" | "answer_only_residual_question" | "provide_next_operational_step" | "acknowledge_document_without_reopening_procedure" | null,
   "response_focus_hint_confidence": number (0.0-1.0),
+  "conversation_shift": "none" | "new_question" | "topic_change" | "new_information" | "closure",
+  "conversation_shift_confidence": number (0.0-1.0),
   "physical_presence_constraint": {
     "has_constraint": boolean,
     "type": "geographic_distance" | "health" | "mobility" | "caregiving" | "legal_restriction" | "temporary_unavailability" | "remote_request" | "other" | "none",
@@ -659,7 +669,9 @@ Output JSON:
       relational_posture: 'direct',
       relational_posture_confidence: 0,
       response_focus_hint: null,
-      response_focus_hint_confidence: 0
+      response_focus_hint_confidence: 0,
+      conversation_shift: 'none',
+      conversation_shift_confidence: 0
     };
   }
 
@@ -763,6 +775,11 @@ Output JSON:
       data.response_focus_hint,
       responseFocusHintConfidence
     );
+    const conversationShiftConfidence = EmailQuickCheckPolicy.normalizeConversationShiftConfidence(data.conversation_shift_confidence);
+    const conversationShift = EmailQuickCheckPolicy.normalizeConversationShift(
+      data.conversation_shift,
+      conversationShiftConfidence
+    );
     const rawTerritoryRequest = Object.prototype.hasOwnProperty.call(data, 'is_territory_request')
       ? data.is_territory_request
       : data.territory_request;
@@ -789,6 +806,8 @@ Output JSON:
       relational_posture_confidence: relationalPostureConfidence,
       response_focus_hint: responseFocusHint,
       response_focus_hint_confidence: responseFocusHintConfidence,
+      conversation_shift: conversationShift,
+      conversation_shift_confidence: conversationShiftConfidence,
       needs_sponsor_guidance: needsSponsorGuidance
     };
   }
@@ -857,6 +876,28 @@ Output JSON:
     return EmailQuickCheckPolicy.normalizeResponseFocusHintConfidence(confidence) >= 0.65
       ? normalized
       : null;
+  }
+
+  static normalizeConversationShiftConfidence(value) {
+    const confidence = Number(value);
+    return Number.isFinite(confidence)
+      ? Math.max(0, Math.min(1, confidence))
+      : 0;
+  }
+
+  static normalizeConversationShift(value, confidence = 0) {
+    const normalized = String(value || '').trim().toLowerCase();
+    const allowed = {
+      none: true,
+      new_question: true,
+      topic_change: true,
+      new_information: true,
+      closure: true
+    };
+    if (!allowed[normalized]) return 'none';
+    return EmailQuickCheckPolicy.normalizeConversationShiftConfidence(confidence) >= 0.65
+      ? normalized
+      : 'none';
   }
 };
 

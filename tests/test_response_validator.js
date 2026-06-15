@@ -312,6 +312,11 @@ const memoryLeakResult = validator._checkExposedReasoning(
 );
 assert(memoryLeakResult.score === 0.0, 'leak su memoria/analisi interna deve portare score a 0');
 
+const previousMemoryLeakResult = validator._checkExposedReasoning(
+  'Uso la memoria precedente solo se pertinente.'
+);
+assert(previousMemoryLeakResult.score === 0.0, 'leak sulla memoria precedente deve essere bloccante');
+
 console.log('--- Test validateResponse: estrae solo blocco <email> e ignora <analisi> ---');
 {
   const xmlResult = validator.validateResponse(

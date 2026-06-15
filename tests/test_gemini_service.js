@@ -210,6 +210,8 @@ console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documental
   assert(plainPrompt.prompt.includes('"relational_posture_confidence"'), 'prompt ordinario deve chiedere la confidenza della postura relazionale');
   assert(plainPrompt.prompt.includes('"response_focus_hint"'), 'prompt ordinario deve chiedere response_focus_hint');
   assert(plainPrompt.prompt.includes('"avoid_repeating_known_requirements"'), 'prompt ordinario deve limitare response_focus_hint agli enum ammessi');
+  assert(plainPrompt.prompt.includes('"conversation_shift"'), 'prompt ordinario deve chiedere conversation_shift');
+  assert(plainPrompt.prompt.includes('"topic_change"'), 'prompt ordinario deve limitare conversation_shift agli enum ammessi');
   assert(plainPrompt.prompt.includes('relational_posture_confidence >= 0.70'), 'prompt quick-check deve comunicare la soglia operativa default della postura');
   assert(plainPrompt.prompt.includes('sotto quella soglia la postura viene ignorata'), 'prompt quick-check deve spiegare il fallback sotto soglia');
   assert(plainPrompt.prompt.includes('"complaint"'), 'prompt quick-check deve usare complaint come label osservabile');
@@ -260,6 +262,8 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
             relational_posture_confidence: 0.91,
             response_focus_hint: 'acknowledge_document_without_reopening_procedure',
             response_focus_hint_confidence: 0.82,
+            conversation_shift: 'new_information',
+            conversation_shift_confidence: 0.88,
             physical_presence_constraint: {
               has_constraint: 'true',
               type: 'geographic_distance',
@@ -295,6 +299,8 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
   assert(result.relational_posture_confidence === 0.91, 'relational_posture_confidence alta deve essere preservata');
   assert(result.response_focus_hint === 'acknowledge_document_without_reopening_procedure', 'response_focus_hint enum valido con confidenza alta deve essere preservato');
   assert(result.response_focus_hint_confidence === 0.82, 'response_focus_hint_confidence alta deve essere preservata');
+  assert(result.conversation_shift === 'new_information', 'conversation_shift enum valido con confidenza alta deve essere preservato');
+  assert(result.conversation_shift_confidence === 0.88, 'conversation_shift_confidence alta deve essere preservata');
   assert(result.needs_sponsor_guidance === false, 'needs_sponsor_guidance stringa false deve diventare boolean false');
   assert(result.physical_presence_constraint.has_constraint === true, 'vincolo presenza fisica stringa true deve diventare boolean true');
   assert(result.physical_presence_constraint.type === 'geographic_distance', 'tipo vincolo presenza fisica deve essere preservato');
@@ -371,6 +377,18 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
     response_focus_hint_confidence: 0.4
   }, { lang: 'it' });
   assert(lowHintConfidence.response_focus_hint === null, 'response_focus_hint sotto soglia deve essere scartato');
+
+  const lowShiftConfidence = EmailQuickCheckPolicy.normalizeDecisionData({
+    reply_needed: true,
+    language: 'it',
+    category: 'TECHNICAL',
+    topic: 'orari',
+    confidence: 0.8,
+    reason: 'test',
+    conversation_shift: 'topic_change',
+    conversation_shift_confidence: 0.4
+  }, { lang: 'it' });
+  assert(lowShiftConfidence.conversation_shift === 'none', 'conversation_shift sotto soglia deve cadere a none');
 }
 
 console.log('--- Test _generateWithModel: il client generico preserva prompt strutturato e profilo generation ---');

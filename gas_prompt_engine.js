@@ -191,7 +191,8 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       attachmentIntentContext = null,
       sponsorGuidancePolicy = 'default',
       systemDirectives = [],
-      priorOralCommunication = null
+      priorOralCommunication = null,
+      conversationShift = null
     } = options;
 
     const runtimeContext = (options && options.runtimeContext && typeof options.runtimeContext === 'object')
@@ -476,6 +477,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
 
     // 6. CONTESTO MEMORIA
     addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
+    addSection(this._renderConversationShiftGuidance(conversationShift), 'ConversationShiftGuidance', { isSystem: true });
     addSection(
       this._renderResponseFocusHint(memoryContext, topic, safeCurrentDate),
       'ThreadContinuityFocus',
@@ -1239,6 +1241,57 @@ Vincoli:
 - non menzionare questa sezione;
 - usarla solo per focus e non-ripetizione;
 - non alterare KB, territorio, dottrina, date o procedure.`;
+  }
+
+  _renderConversationShiftGuidance(conversationShift) {
+    const normalized = this._normalizeConversationShift_(conversationShift);
+    if (!normalized || normalized.shift === 'none') return null;
+
+    if (normalized.shift === 'topic_change') {
+      return `## ATTENZIONE
+- La conversazione sembra aver cambiato argomento.
+- Usa il contesto già disponibile solo se pertinente.`;
+    }
+
+    if (normalized.shift === 'closure') {
+      return `## CONTINUITÀ DEL TURNO
+- Il messaggio sembra chiudere la conversazione.
+- Rispondi in modo molto breve, salvo nuove domande o informazioni operative.`;
+    }
+
+    if (normalized.shift === 'new_information') {
+      return `## CONTINUITÀ DEL TURNO
+- L'utente sembra aggiungere un fatto, non aprire una nuova domanda.
+- Prendi atto dell'informazione ed evita spiegazioni lunghe non richieste.`;
+    }
+
+    if (normalized.shift === 'new_question') {
+      return `## CONTINUITÀ DEL TURNO
+- L'utente pone una nuova domanda nello stesso tema.
+- Mantieni il contesto precedente e rispondi normalmente alla domanda attuale.`;
+    }
+
+    return null;
+  }
+
+  _normalizeConversationShift_(conversationShift) {
+    const source = conversationShift && typeof conversationShift === 'object'
+      ? conversationShift
+      : { shift: conversationShift };
+    const confidence = Number(source.confidence);
+    if (!Number.isFinite(confidence) || confidence < 0.65) return { shift: 'none', confidence: 0 };
+    const shift = String(source.shift || '').trim().toLowerCase();
+    const allowed = {
+      none: true,
+      new_question: true,
+      topic_change: true,
+      new_information: true,
+      closure: true
+    };
+    return {
+      shift: allowed[shift] ? shift : 'none',
+      confidence: Math.max(0, Math.min(1, confidence))
+    };
   }
 
   _extractConversationState_(memoryContext) {

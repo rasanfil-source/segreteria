@@ -1148,6 +1148,43 @@ assert(
   'responseFocusHint non deve essere applicato se il topic cambia'
 );
 
+const topicChangePrompt = engine.buildPrompt({
+  emailSubject: 'Certificato matrimonio',
+  emailContent: 'Mi serve un certificato di matrimonio.',
+  knowledgeBase: 'La segreteria rilascia certificati.',
+  detectedLanguage: 'it',
+  topic: 'certificato matrimonio',
+  currentDate: '2026-06-15',
+  memoryContext: focusHintMemoryContext,
+  conversationShift: {
+    shift: 'topic_change',
+    confidence: 0.9
+  }
+});
+assert(
+  topicChangePrompt.systemInstruction.includes('## ATTENZIONE') &&
+    topicChangePrompt.systemInstruction.includes('La conversazione sembra aver cambiato argomento.') &&
+    topicChangePrompt.systemInstruction.includes('Usa il contesto già disponibile solo se pertinente.'),
+  'topic_change deve aggiungere solo una nota breve sulla pertinenza del contesto precedente'
+);
+
+const lowConfidenceShiftPrompt = engine.buildPrompt({
+  emailSubject: 'Certificato matrimonio',
+  emailContent: 'Mi serve un certificato di matrimonio.',
+  knowledgeBase: 'La segreteria rilascia certificati.',
+  detectedLanguage: 'it',
+  topic: 'certificato matrimonio',
+  currentDate: '2026-06-15',
+  conversationShift: {
+    shift: 'topic_change',
+    confidence: 0.4
+  }
+});
+assert(
+  !lowConfidenceShiftPrompt.systemInstruction.includes('La conversazione sembra aver cambiato argomento.'),
+  'conversation_shift sotto soglia non deve produrre istruzioni di turno'
+);
+
 console.log('--- Test prompt: orario locale e guardrail anti saluto in continuità ---');
 const temporalGuardPrompt = engine.buildPrompt({
   emailSubject: 'Invio documenti',

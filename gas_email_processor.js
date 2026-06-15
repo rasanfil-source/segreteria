@@ -2362,6 +2362,10 @@ ${addressLines.join('\n\n')}
         physicalPresenceConstraint: physicalPresenceConstraint,
         sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),
         relationalPosture:  quickCheck?.relational_posture ?? 'direct',
+        conversationShift: {
+          shift: quickCheck?.conversation_shift || 'none',
+          confidence: Number(quickCheck?.conversation_shift_confidence) || 0
+        },
         requestType: requestType,
         attachmentsContext: physicalAttachmentsDetected ? textFromAttachments : "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa.",
         attachmentIntentContext: attachmentIntentContext
