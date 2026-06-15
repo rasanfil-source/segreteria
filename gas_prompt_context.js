@@ -244,6 +244,8 @@ var PromptContext = class PromptContext {
         if (c.emotional_sensitivity && hasEmotionalDistress && (hasBereavement || hasStrongCrisisSignal)) {
             return 'pastoral_crisis';
         }
+        // Longitudinal sensitivity (for example bereavement in memory) must keep
+        // the supportive register even when the current message is neutral.
         if (c.emotional_sensitivity || c.longitudinal_sensitivity || type === 'pastoral') {
             return 'pastoral_supportive';
         }
@@ -255,7 +257,8 @@ var PromptContext = class PromptContext {
 
     _computeEffectiveSalutationMode() {
         const mode = this.input.salutationMode || 'full';
-        if (mode === 'none_or_continuity' && this.concerns.emotional_sensitivity) {
+        if (mode === 'none_or_continuity' &&
+            (this.concerns.emotional_sensitivity || this.concerns.longitudinal_sensitivity)) {
             return 'soft';
         }
         return mode;

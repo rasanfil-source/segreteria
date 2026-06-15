@@ -1495,3 +1495,30 @@ assert(
   registerPrompt.includes('evita densità eccessiva'),
   'il prompt deve includere la regola user_overload'
 );
+
+console.log('--- Test PromptEngine: sensibilità longitudinale ammorbidisce postura direct ---');
+const longitudinalPosturePrompt = engine.buildPrompt({
+  emailSubject: 'Orario incontro',
+  emailContent: 'A che ora ci vediamo?',
+  knowledgeBase: 'Informazioni essenziali di segreteria.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  salutationMode: 'full',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  requestType: { type: 'technical' },
+  relationalPosture: 'direct',
+  activeConcerns: { longitudinal_sensitivity: true }
+});
+assert(
+  longitudinalPosturePrompt.includes('Il mittente ha condiviso qualcosa di personale o delicato'),
+  'la sensibilità longitudinale deve usare la postura personal anche se la richiesta corrente è direct'
+);
+assert(
+  longitudinalPosturePrompt.includes('Usa un tono accogliente, sobrio e attento alla persona.'),
+  'la sensibilità longitudinale deve allineare il registro alla postura personal'
+);
+assert(
+  longitudinalPosturePrompt.includes('## CONTINUITÀ E TONO'),
+  'la sensibilità longitudinale deve includere il focus umano di continuità'
+);

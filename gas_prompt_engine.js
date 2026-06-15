@@ -481,7 +481,17 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
     addSection(this._renderConversationShiftGuidance(conversationShift), 'ConversationShiftGuidance', { isSystem: true });
     addSection(this._renderResponseStrategy(responseStrategy), 'ResponseStrategy', { isSystem: true });
-    addSection(this._renderResponseRegister(responseRegister), 'ResponseRegister', { isSystem: true });
+    const effectiveRelationalPosture = isFormalTopicForRouting
+      ? 'direct'
+      : (normalizedConcerns.longitudinal_sensitivity && relationalPosture === 'direct'
+          ? 'personal'
+          : relationalPosture);
+    // Keep register and posture aligned when longitudinal context softens a direct reply.
+    const responseRegisterKey = String(responseRegister || 'warm_institutional').trim().toLowerCase();
+    const effectiveResponseRegister = (effectiveRelationalPosture === 'personal' && responseRegisterKey === 'warm_institutional')
+      ? 'pastoral_supportive'
+      : responseRegister;
+    addSection(this._renderResponseRegister(effectiveResponseRegister), 'ResponseRegister', { isSystem: true });
     addSection(this._renderUserOverloadGuidance(normalizedConcerns), 'UserOverloadGuidance', { isSystem: true });
     addSection(
       this._renderResponseFocusHint(memoryContext, topic, safeCurrentDate),
@@ -495,7 +505,6 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     // 8. SCUSE PER RITARDO
     addSection(this._renderResponseDelay(responseDelay, detectedLanguage), 'ResponseDelay', { isSystem: true });
 
-    const effectiveRelationalPosture = isFormalTopicForRouting ? 'direct' : relationalPosture;
     addSection(
       this.renderRelationalPosture(effectiveRelationalPosture),
       'RelationalPosture',
@@ -507,6 +516,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       (memoryContext && Object.keys(memoryContext).length > 0) ||
       (salutationMode && salutationMode !== 'full') ||
       templateConcerns.emotional_sensitivity ||
+      normalizedConcerns.longitudinal_sensitivity ||
       normalizedConcerns.repetition_risk;
     if (shouldAddContinuityFocus) {
       addSection(this._renderContinuityHumanFocus(), 'ContinuityHumanFocus', { isSystem: true });

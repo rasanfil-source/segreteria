@@ -208,6 +208,32 @@ assert(
   'follow-up emotivamente sensibile deve applicare override saluto soft'
 );
 
+const longitudinalFollowUp = createPromptContext({
+  email: {
+    isReply: true,
+    detectedLanguage: 'it',
+    subject: 'Re: informazioni',
+    body: 'Grazie, vorrei confermare l’orario.'
+  },
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  classification: { confidence: 1, category: 'information' },
+  memory: {
+    exists: true,
+    providedInfoCount: 1,
+    memorySummary: 'Scambio precedente su lutto familiare',
+    topics: ['esequie']
+  },
+  salutationMode: 'none_or_continuity'
+});
+assert(
+  longitudinalFollowUp.meta.responseRegister === 'pastoral_supportive',
+  'sensibilità longitudinale deve produrre registro pastorale di accompagnamento'
+);
+assert(
+  longitudinalFollowUp.meta.salutationMode === 'soft',
+  'follow-up longitudinalmente sensibile deve applicare override saluto soft'
+);
+
 
 const mildDistress = createPromptContext({
   email: {
