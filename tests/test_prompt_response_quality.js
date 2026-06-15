@@ -1424,3 +1424,46 @@ assert(
 );
 
 console.log('✅ Test qualità prompt risposta passati');
+
+console.log('--- Test PromptEngine: responseStrategy orienta solo il prompt corrente ---');
+{
+  const strategyPrompt = engine.buildPrompt({
+    emailSubject: 'Appuntamento',
+    emailContent: 'Quando posso passare?',
+    knowledgeBase: 'Segreteria aperta martedì.',
+    detectedLanguage: 'it',
+    responseStrategy: 'guide_next_step'
+  });
+  assert(strategyPrompt.includes('prossimo passo operativo concreto'), 'responseStrategy guide_next_step deve renderizzare istruzione operativa');
+
+  const nonePrompt = engine.buildPrompt({
+    emailSubject: 'Info',
+    emailContent: 'Vorrei informazioni',
+    knowledgeBase: 'Info base.',
+    detectedLanguage: 'it',
+    responseStrategy: 'none'
+  });
+  assert(!nonePrompt.includes('ORIENTAMENTO DELLA RISPOSTA'), 'responseStrategy none non deve renderizzare la sezione');
+
+  const invalidPrompt = engine.buildPrompt({
+    emailSubject: 'Info',
+    emailContent: 'Vorrei informazioni',
+    knowledgeBase: 'Info base.',
+    detectedLanguage: 'it',
+    responseStrategy: 'psychological_support'
+  });
+  assert(!invalidPrompt.includes('ORIENTAMENTO DELLA RISPOSTA'), 'responseStrategy non ammesso non deve renderizzare la sezione');
+}
+
+console.log('--- Test anti-persistenza: responseStrategy non entra in MemoryService o stato conversazione ---');
+{
+  const repoRoot = path.join(__dirname, '..');
+  const memorySource = fs.readFileSync(path.join(repoRoot, 'gas_memory_service.js'), 'utf8');
+  const emailProcessorSource = fs.readFileSync(path.join(repoRoot, 'gas_email_processor.js'), 'utf8');
+  assert(!/response_strategy|responseStrategy/.test(memorySource), 'MemoryService non deve contenere response_strategy/responseStrategy');
+  const conversationStateBlocks = emailProcessorSource.match(/conversationStateUpdate\s*=\s*\{[\s\S]*?\n\s*\};/g) || [];
+  assert(conversationStateBlocks.length > 0, 'deve esistere almeno un blocco conversationStateUpdate da verificare');
+  assert(conversationStateBlocks.every(block => !/responseStrategy/.test(block)), 'conversationStateUpdate non deve contenere responseStrategy');
+  const memorySummaryBlocks = emailProcessorSource.match(/memorySummary[^\n]*/g) || [];
+  assert(memorySummaryBlocks.every(line => !/responseStrategy/.test(line)), 'memorySummary non deve ricevere responseStrategy');
+}

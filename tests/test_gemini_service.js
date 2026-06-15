@@ -1005,3 +1005,54 @@ console.log('--- Test quickCheck: 400 API key invalid primaria passa a backup --
 }
 
 console.log('✅ Test bilanciamento JSON Gemini passati');
+
+console.log('--- Test EmailQuickCheckPolicy: response_strategy normalizzazione enum e soglia ---');
+{
+  const strategyCases = [
+    ['Serve il certificato originale o basta copia?', 'clarify_requirements'],
+    ['Abito fuori Roma, posso inviare tutto via mail?', 'reduce_user_effort'],
+    ['Le invio in allegato il certificato.', 'confirm_receipt'],
+    ['Quando posso passare?', 'guide_next_step'],
+    ['Vorrei sapere gli orari della segreteria.', 'provide_information'],
+    ['Sono preoccupato perché non so se posso fare da padrino.', 'offer_reassurance']
+  ];
+
+  for (const [text, expected] of strategyCases) {
+    const result = EmailQuickCheckPolicy.normalizeDecisionData({
+      reply_needed: true,
+      language: 'it',
+      category: 'TECHNICAL',
+      topic: text,
+      confidence: 0.8,
+      reason: 'test',
+      response_strategy: expected,
+      response_strategy_confidence: 0.7
+    }, { lang: 'it' });
+    assert(result.response_strategy === expected, `response_strategy valido per "${text}" deve essere preservato`);
+    assert(result.response_strategy_confidence >= 0.65, 'response_strategy_confidence valida deve essere preservata/clampata');
+  }
+
+  const unsafeStrategy = EmailQuickCheckPolicy.normalizeDecisionData({
+    reply_needed: true,
+    language: 'it',
+    category: 'TECHNICAL',
+    topic: 'test',
+    confidence: 0.8,
+    reason: 'test',
+    response_strategy: 'psychological_support',
+    response_strategy_confidence: 0.95
+  }, { lang: 'it' });
+  assert(unsafeStrategy.response_strategy === 'none', 'response_strategy fuori enum deve diventare none');
+
+  const lowStrategy = EmailQuickCheckPolicy.normalizeDecisionData({
+    reply_needed: true,
+    language: 'it',
+    category: 'TECHNICAL',
+    topic: 'test',
+    confidence: 0.8,
+    reason: 'test',
+    response_strategy: 'guide_next_step',
+    response_strategy_confidence: 0.4
+  }, { lang: 'it' });
+  assert(lowStrategy.response_strategy === 'none', 'response_strategy sotto soglia deve diventare none');
+}

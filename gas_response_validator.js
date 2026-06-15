@@ -118,7 +118,10 @@ var ResponseValidator = class ResponseValidator {
       'non sono ancora presenti nella kb',
       'non sono ancora presenti in knowledge base',
       'le date indicate non sono nella kb',
-      'queste date non sono presenti nella kb'
+      'queste date non sono presenti nella kb',
+      'orientamento della risposta',
+      'secondo la strategia',
+      'la strategia di risposta'
     ];
 
     // Pattern firma (case-insensitive) - supporta multilingua
@@ -1047,7 +1050,10 @@ var ResponseValidator = class ResponseValidator {
         'la postura relazionale',
         'secondo l’analisi interna',
         "secondo l'analisi interna",
-        'indicazione interna'
+        'indicazione interna',
+        'orientamento della risposta',
+        'secondo la strategia',
+        'la strategia di risposta'
       ];
 
       const isRegexMatch = firstPattern.startsWith('regex match:');

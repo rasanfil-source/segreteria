@@ -192,7 +192,8 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       sponsorGuidancePolicy = 'default',
       systemDirectives = [],
       priorOralCommunication = null,
-      conversationShift = null
+      conversationShift = null,
+      responseStrategy = 'none'
     } = options;
 
     const runtimeContext = (options && options.runtimeContext && typeof options.runtimeContext === 'object')
@@ -478,6 +479,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     // 6. CONTESTO MEMORIA
     addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
     addSection(this._renderConversationShiftGuidance(conversationShift), 'ConversationShiftGuidance', { isSystem: true });
+    addSection(this._renderResponseStrategy(responseStrategy), 'ResponseStrategy', { isSystem: true });
     addSection(
       this._renderResponseFocusHint(memoryContext, topic, safeCurrentDate),
       'ThreadContinuityFocus',
@@ -1241,6 +1243,30 @@ Vincoli:
 - non menzionare questa sezione;
 - usarla solo per focus e non-ripetizione;
 - non alterare KB, territorio, dottrina, date o procedure.`;
+  }
+
+  _renderResponseStrategy(responseStrategy) {
+    const strategy = String(responseStrategy || 'none').trim().toLowerCase();
+    const instructions = {
+      provide_information: 'Rispondi in modo diretto alla richiesta informativa principale.',
+      reduce_user_effort: 'Quando possibile, indica il modo più semplice per evitare passaggi inutili o doppie comunicazioni.',
+      confirm_receipt: 'Conferma ricezione in modo sobrio e non riaprire procedure non richieste.',
+      guide_next_step: 'Metti in evidenza il prossimo passo operativo concreto.',
+      offer_reassurance: 'Rispondi con tono rassicurante e sobrio, senza enfatizzare emozioni non espresse.',
+      clarify_requirements: 'Chiarisci requisiti o condizioni in modo ordinato, evitando ambiguità.'
+    };
+
+    if (!instructions[strategy]) return null;
+
+    return `## ORIENTAMENTO DELLA RISPOSTA
+Per questa risposta:
+- ${instructions[strategy]}
+
+Vincoli:
+- non nominare questa sezione;
+- non citare criteri o istruzioni interne;
+- non alterare KB, territorio, dottrina, date, orari o procedure;
+- usare solo per decidere focus, ordine e livello di dettaglio.`;
   }
 
   _renderConversationShiftGuidance(conversationShift) {

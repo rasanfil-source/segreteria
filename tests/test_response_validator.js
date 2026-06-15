@@ -1544,3 +1544,14 @@ console.log('--- Test SemanticValidator: hash include lunghezza testo ---');
 }
 
 console.log('✅ Test core ResponseValidator passati');
+
+console.log('--- Test ResponseValidator: blocca leak response_strategy nella risposta finale ---');
+{
+  const validator = Object.create(ResponseValidator.prototype);
+  validator.thinkingRegexes = [];
+  validator.thinkingPatterns = ['orientamento della risposta', 'secondo la strategia', 'la strategia di risposta'];
+  const strategyLeak = validator._checkExposedReasoning('Secondo la strategia, indico il prossimo passo.');
+  const sectionLeak = validator._checkExposedReasoning('## ORIENTAMENTO DELLA RISPOSTA\nPer questa risposta');
+  assert(strategyLeak.score === 0.0, 'deve rilevare leak su strategia di risposta');
+  assert(sectionLeak.score === 0.0, 'deve rilevare leak sulla sezione interna');
+}

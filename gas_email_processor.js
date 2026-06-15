@@ -467,7 +467,7 @@ var EmailProcessor = class EmailProcessor {
   _getPacificDateForSafetyValve_() {
     const now = new Date();
     if (typeof Utilities !== 'undefined' && Utilities &&
-        typeof Utilities.formatDate === 'function') {
+      typeof Utilities.formatDate === 'function') {
       try {
         return Utilities.formatDate(now, 'America/Los_Angeles', 'yyyy-MM-dd');
       } catch (_) {
@@ -843,7 +843,7 @@ var EmailProcessor = class EmailProcessor {
       typeof message.getId === 'function' &&
       responseContextMessageIds.has(message.getId())
     );
-    let markHandledUnread = () => {};
+    let markHandledUnread = () => { };
     let handledUnreadMarked = false;
     const markHandledUnreadOnce = () => {
       if (handledUnreadMarked) return;
@@ -1244,7 +1244,7 @@ var EmailProcessor = class EmailProcessor {
           // Escluse deliberatamente parole corte polisemiche (in, per, la, di, da, con, il, lo,
           // gli, le, un, uno, una, su, tra, fra) che causano falsi positivi su lingue straniere.
           const italianPattern = /(?:^|[^\p{L}\p{N}_])(appuntamento|fissare|prenotare|disponibilit[àa]|orari[oa]?|incontro|prenotazione|informazioni|chiedere|sapere|vorrei|come\s+faccio|requisiti|battesimo|cresima|confessione|grazie|salve|buongiorno|buonasera|preventivo|parrocchia|segreteria|messa|messe)(?=$|[^\p{L}\p{N}_])/iu;
-          
+
           const languagePrecheckDecision = this._evaluatePreAiRules_(buildRuleContext({
             phase: 'pre_extract',
             subject: subjectOnly,
@@ -1286,7 +1286,7 @@ var EmailProcessor = class EmailProcessor {
             : null;
           return bodyPart ? `--- Messaggio del ${messageDate} ---\n${bodyPart}` : null;
         }).filter(Boolean).join('\n\n');
-        
+
         if (aggregatedBody) {
           messageDetails.body = aggregatedBody;
           console.log(`     Burst rilevato: accorpati contestualmente ${burstMessages.length} messaggi precedenti con timestamp`);
@@ -1306,7 +1306,7 @@ var EmailProcessor = class EmailProcessor {
           messageDetails.subject
         ) || {})
         : { lang: 'unknown' };
-      
+
       // Estraiamo solo codici ISO a 2 lettere per gestire formati come "it-IT" o "en-US".
       let detectedLanguage = this._normalizeLanguageCode_(languageDetection.lang, 'unknown');
       if (bodyForLanguageDetection !== (messageDetails.body || '')) {
@@ -1383,7 +1383,7 @@ var EmailProcessor = class EmailProcessor {
           if (senderThrottleLockAcquired && senderThrottleLock && typeof senderThrottleLock.releaseLock === 'function') {
             try {
               senderThrottleLock.releaseLock();
-            } catch (_) {}
+            } catch (_) { }
           }
         }
 
@@ -2069,7 +2069,7 @@ ${addressLines.join('\n\n')}
                 let messageId = 'unknown';
                 try {
                   messageId = message && typeof message.getId === 'function' ? message.getId() : 'unknown';
-                } catch (_) {}
+                } catch (_) { }
                 attachmentSkipped.push({
                   messageId: messageId,
                   reason: 'message_too_large_for_attachment_download',
@@ -2128,7 +2128,7 @@ ${addressLines.join('\n\n')}
                   let messageId = 'unknown';
                   try {
                     messageId = attachmentSourceMessages[i] && attachmentSourceMessages[i].getId ? attachmentSourceMessages[i].getId() : 'unknown';
-                  } catch (_) {}
+                  } catch (_) { }
                   attachmentData.skipped.push({
                     messageId: messageId,
                     reason: 'message_too_large_for_attachment_download',
@@ -2334,6 +2334,25 @@ ${addressLines.join('\n\n')}
         runtimeContext.temporal.currentDate
       );
 
+      const allowedResponseStrategies = new Set([
+        'provide_information',
+        'reduce_user_effort',
+        'confirm_receipt',
+        'guide_next_step',
+        'offer_reassurance',
+        'clarify_requirements',
+        'none'
+      ]);
+      const rawResponseStrategy = String(quickCheck.response_strategy || 'none').trim().toLowerCase();
+      const responseStrategyConfidence = Number(quickCheck.response_strategy_confidence) || 0;
+      const responseStrategy = (
+        allowedResponseStrategies.has(rawResponseStrategy) &&
+        responseStrategyConfidence >= 0.65
+      ) ? rawResponseStrategy : 'none';
+      if (responseStrategy !== 'none') {
+        console.log(`   🧭 Response strategy: ${responseStrategy}, confidence=${responseStrategyConfidence}, threadId=${threadId}`);
+      }
+
       const promptOptions = {
         runtimeContext: runtimeContext,
         emailContent: messageDetails.body,
@@ -2361,11 +2380,12 @@ ${addressLines.join('\n\n')}
         territoryContext: territoryContext,
         physicalPresenceConstraint: physicalPresenceConstraint,
         sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),
-        relationalPosture:  quickCheck?.relational_posture ?? 'direct',
+        relationalPosture: quickCheck?.relational_posture ?? 'direct',
         conversationShift: {
           shift: quickCheck?.conversation_shift || 'none',
           confidence: Number(quickCheck?.conversation_shift_confidence) || 0
         },
+        responseStrategy: responseStrategy,
         requestType: requestType,
         attachmentsContext: physicalAttachmentsDetected ? textFromAttachments : "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa.",
         attachmentIntentContext: attachmentIntentContext
@@ -2439,91 +2459,91 @@ ${addressLines.join('\n\n')}
         console.log('✅ Risposta prudente generata per mismatch documentale');
       } else if (hasRiskyUnknownReceived || forceReceiptOnlyForSubmission) {
         response = this._buildReceiptOnlySubmissionResponse_(detectedLanguage);
-        strategyUsed = hasRiskyUnknownReceived 
+        strategyUsed = hasRiskyUnknownReceived
           ? 'DocumentConsistency-UnknownReceivedReceiptOnly'
           : 'Submission-ReceiptOnlyGuardrail';
         console.log(`✅ Risposta di sola ricezione generata (${strategyUsed})`);
       } else {
         for (const plan of attemptStrategy) {
-        if (!plan.key) continue;
-        if (!plan.usesBackupKey && this.geminiService && this.geminiService.isPrimaryExhausted) {
-          console.warn(`↪️ Strategia '${plan.name}' saltata: chiave primaria già esaurita.`);
-          continue;
-        }
-
-        try {
-          console.log(`🔄 Tentativo Generazione: ${plan.name}...`);
-
-          response = this.geminiService.generateResponse(fullPrompt, {
-            apiKey: plan.key,
-            modelName: plan.model,
-            skipRateLimit: plan.skipRateLimit,
-            attachments: attachmentBlobs
-          });
-
-          if (response && typeof response === 'object') {
-            if (!response.text && response.success) {
-              console.warn(`⚠️ Gemini ha restituito successo senza testo (${plan.name})`);
-            }
-            response = response.text;
-          }
-
-          if (response) {
-            strategyUsed = plan.name;
-            strategyUsedPlan = plan;
-            console.log(`✅ Generazione riuscita con strategia: ${plan.name}`);
-            break;
-          }
-
-        } catch (err) {
-          generationError = err;
-          if (!initialError) initialError = err;
-          const errorClass = this._classifyError(err);
-          console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass.type}]`);
-
-          if (errorClass.type === 'FATAL' || errorClass.type === 'INVALID_API_KEY') {
-            // Se la chiave corrente è invalida/non autorizzata (401/403),
-            // prova la strategia successiva: una chiave/modello di backup può essere ancora valido.
-            if (/401|403|unauthorized|forbidden|permission_denied|api[_\s-]?key/i.test(String(err && err.message ? err.message : err))) {
-              console.warn('↪️ Errore di autenticazione/permessi rilevato, provo la strategia successiva.');
-              continue;
-            }
-            console.error('🛑 Errore fatale rilevato, interrompo strategia.');
-            break;
-          }
-
-          const planIndex = attemptStrategy.indexOf(plan);
-          const hasNextPlan = planIndex >= 0 && planIndex < attemptStrategy.length - 1;
-          const rawGenerationError = String(err && err.message ? err.message : err).toLowerCase();
-          const isQuotaLike = (
-            errorClass.type === 'QUOTA_EXHAUSTED' ||
-            errorClass.type === 'QUOTA_EXCEEDED' ||
-            rawGenerationError.includes('quota')
-          );
-          const canTryNextPlan = hasNextPlan && (
-            isQuotaLike ||
-            ['RETRYABLE', 'NETWORK', 'TIMEOUT', 'INVALID_RESPONSE', 'UNKNOWN'].includes(errorClass.type)
-          );
-
-          if (canTryNextPlan) {
-            console.warn(`↪️ Errore ${errorClass.type}, provo la strategia successiva.`);
+          if (!plan.key) continue;
+          if (!plan.usesBackupKey && this.geminiService && this.geminiService.isPrimaryExhausted) {
+            console.warn(`↪️ Strategia '${plan.name}' saltata: chiave primaria già esaurita.`);
             continue;
           }
 
-          if (isQuotaLike) {
-            console.warn('🧯 Errore quota sull\'ultima strategia: nessuna strategia residua, uscita anticipata.');
+          try {
+            console.log(`🔄 Tentativo Generazione: ${plan.name}...`);
+
+            response = this.geminiService.generateResponse(fullPrompt, {
+              apiKey: plan.key,
+              modelName: plan.model,
+              skipRateLimit: plan.skipRateLimit,
+              attachments: attachmentBlobs
+            });
+
+            if (response && typeof response === 'object') {
+              if (!response.text && response.success) {
+                console.warn(`⚠️ Gemini ha restituito successo senza testo (${plan.name})`);
+              }
+              response = response.text;
+            }
+
+            if (response) {
+              strategyUsed = plan.name;
+              strategyUsedPlan = plan;
+              console.log(`✅ Generazione riuscita con strategia: ${plan.name}`);
+              break;
+            }
+
+          } catch (err) {
+            generationError = err;
+            if (!initialError) initialError = err;
+            const errorClass = this._classifyError(err);
+            console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass.type}]`);
+
+            if (errorClass.type === 'FATAL' || errorClass.type === 'INVALID_API_KEY') {
+              // Se la chiave corrente è invalida/non autorizzata (401/403),
+              // prova la strategia successiva: una chiave/modello di backup può essere ancora valido.
+              if (/401|403|unauthorized|forbidden|permission_denied|api[_\s-]?key/i.test(String(err && err.message ? err.message : err))) {
+                console.warn('↪️ Errore di autenticazione/permessi rilevato, provo la strategia successiva.');
+                continue;
+              }
+              console.error('🛑 Errore fatale rilevato, interrompo strategia.');
+              break;
+            }
+
+            const planIndex = attemptStrategy.indexOf(plan);
+            const hasNextPlan = planIndex >= 0 && planIndex < attemptStrategy.length - 1;
+            const rawGenerationError = String(err && err.message ? err.message : err).toLowerCase();
+            const isQuotaLike = (
+              errorClass.type === 'QUOTA_EXHAUSTED' ||
+              errorClass.type === 'QUOTA_EXCEEDED' ||
+              rawGenerationError.includes('quota')
+            );
+            const canTryNextPlan = hasNextPlan && (
+              isQuotaLike ||
+              ['RETRYABLE', 'NETWORK', 'TIMEOUT', 'INVALID_RESPONSE', 'UNKNOWN'].includes(errorClass.type)
+            );
+
+            if (canTryNextPlan) {
+              console.warn(`↪️ Errore ${errorClass.type}, provo la strategia successiva.`);
+              continue;
+            }
+
+            if (isQuotaLike) {
+              console.warn('🧯 Errore quota sull\'ultima strategia: nessuna strategia residua, uscita anticipata.');
+              break;
+            }
+
+            if (['CONFIG_ERROR', 'SYSTEM_ERROR', 'DATA'].includes(errorClass.type)) {
+              console.error(`🛑 Errore ${errorClass.type} non recuperabile da fallback modello, interrompo generazione.`);
+              break;
+            }
+
+            console.warn(`🛑 Nessuna strategia residua utile per errore ${errorClass.type}, interrompo generazione.`);
             break;
           }
-
-          if (['CONFIG_ERROR', 'SYSTEM_ERROR', 'DATA'].includes(errorClass.type)) {
-            console.error(`🛑 Errore ${errorClass.type} non recuperabile da fallback modello, interrompo generazione.`);
-            break;
-          }
-
-          console.warn(`🛑 Nessuna strategia residua utile per errore ${errorClass.type}, interrompo generazione.`);
-          break;
         }
-      }
       }
 
 
@@ -3052,8 +3072,8 @@ ${addressLines.join('\n\n')}
       if (!executionLock) {
         console.warn('⚠️ LockService non disponibile: procedo senza lock globale per questo batch.');
       } else {
-          const lockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
-            ? CONFIG.EXECUTION_LOCK_WAIT_MS : 1000;
+        const lockWaitMs = (typeof CONFIG !== 'undefined' && CONFIG.EXECUTION_LOCK_WAIT_MS)
+          ? CONFIG.EXECUTION_LOCK_WAIT_MS : 1000;
 
         try {
           if (!executionLock.tryLock(lockWaitMs)) {
@@ -3215,7 +3235,7 @@ ${addressLines.join('\n\n')}
             50,
             Math.max(getEffectiveMaxEmailsPerRun() * DISCOVERY_POOL_MULTIPLIER, 20)
           );
-  
+
           const discoveryOptions = {};
           const staleOnlyMs = this._getFiniteOptionNumber_(options, 'staleOnlyMs');
           if (Number.isFinite(staleOnlyMs)) {
@@ -3261,7 +3281,7 @@ ${addressLines.join('\n\n')}
         runLogger.info('Nessuna email da elaborare.');
 
         if (emptyStreak >= this.config.emptyInboxWarningThreshold &&
-            (emptyStreak === this.config.emptyInboxWarningThreshold || emptyStreak % 50 === 0)) {
+          (emptyStreak === this.config.emptyInboxWarningThreshold || emptyStreak % 50 === 0)) {
           runLogger.warn(`Inbox vuota da ${emptyStreak} esecuzioni consecutive. Verificare filtri Gmail/trigger in ingresso.`);
         }
 
@@ -3978,7 +3998,7 @@ ${addressLines.join('\n\n')}
     if (isNaN(parsedDate.getTime())) return '12:00';
 
     if (typeof Utilities !== 'undefined' && Utilities &&
-        typeof Utilities.formatDate === 'function') {
+      typeof Utilities.formatDate === 'function') {
       try {
         return Utilities.formatDate(parsedDate, this._getCachedTimeZone(), 'HH:mm');
       } catch (_) {
@@ -4004,7 +4024,7 @@ ${addressLines.join('\n\n')}
     if (isNaN(parsedDate.getTime())) return this._formatLocalDateOnly_(new Date());
 
     if (typeof Utilities !== 'undefined' && Utilities &&
-        typeof Utilities.formatDate === 'function') {
+      typeof Utilities.formatDate === 'function') {
       try {
         return Utilities.formatDate(parsedDate, this._getCachedTimeZone(), 'yyyy-MM-dd');
       } catch (_) {
@@ -5137,7 +5157,7 @@ ${addressLines.join('\n\n')}
       : Math.max(0, Math.min(1, configuredMinScore > 1 ? configuredMinScore / 100 : configuredMinScore));
 
     const critical = flags.thinking_leak || flags.hallucination || flags.temporal || flags.physical_presence;
-    
+
 
 
     // Per errori non critici, evita retry quando il punteggio è sotto soglia configurata.
@@ -5765,7 +5785,7 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
 
     const lang = String(detectedLanguage || 'it').toLowerCase().split('-')[0];
     const footer = notes[lang] || notes.it;
-    
+
     return `${response.trim()}${footer}`;
   }
 
@@ -5980,8 +6000,8 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
       return mkResult('CONFIG_ERROR', false, rawMessage);
     }
     if (msg.includes('gmail_daily_call_limit_reached') ||
-        msg.includes('daily call limit') ||
-        msg.includes('service invoked too many times')) {
+      msg.includes('daily call limit') ||
+      msg.includes('service invoked too many times')) {
       return mkResult('QUOTA_EXCEEDED', true, rawMessage);
     }
     if (msg.includes('rate_limiter_lock_timeout')) {
@@ -6000,8 +6020,8 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     if (/\b429\b/.test(msg)) return mkResult('QUOTA_EXCEEDED', true, rawMessage);
 
     if (msg.includes('timeout') || msg.includes('ECONNRESET') || msg.includes('econnreset') ||
-        msg.includes('deadline') || msg.includes('request timed out') ||
-        /\b(408|500|502|503|504)\b/.test(msg)) {
+      msg.includes('deadline') || msg.includes('request timed out') ||
+      /\b(408|500|502|503|504)\b/.test(msg)) {
       return mkResult('NETWORK', true, rawMessage);
     }
 
