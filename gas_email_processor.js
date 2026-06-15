@@ -2357,6 +2357,16 @@ ${addressLines.join('\n\n')}
         console.log(`   🧭 Response strategy: ${responseStrategy}, confidence=${responseStrategyConfidence}, threadId=${threadId}`);
       }
 
+      const rawGoalContinuity = String(quickCheck.goal_continuity || 'none').trim().toLowerCase();
+      const goalContinuityConfidence = Number(quickCheck.goal_continuity_confidence) || 0;
+      const allowedGoalContinuity = new Set(['none', 'maintain_goal_continuity', 'goal_completed']);
+      const goalContinuity = (allowedGoalContinuity.has(rawGoalContinuity) && goalContinuityConfidence >= 0.65)
+        ? rawGoalContinuity
+        : 'none';
+      if (goalContinuity !== 'none') {
+        console.log(`   🔗 Goal continuity: ${goalContinuity}, confidence=${goalContinuityConfidence}, threadId=${threadId}`);
+      }
+
       const promptOptions = {
         runtimeContext: runtimeContext,
         emailContent: messageDetails.body,
@@ -2391,6 +2401,10 @@ ${addressLines.join('\n\n')}
           confidence: Number(quickCheck?.conversation_shift_confidence) || 0
         },
         responseStrategy: responseStrategy,
+        goalContinuity: {
+          value: goalContinuity,
+          confidence: goalContinuityConfidence
+        },
         requestType: requestType,
         attachmentsContext: physicalAttachmentsDetected ? textFromAttachments : "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa.",
         attachmentIntentContext: attachmentIntentContext

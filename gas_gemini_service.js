@@ -598,13 +598,23 @@ COMPITI:
    - Non è profilo.
    - Usa solo i valori ammessi.
    - provide_information: quando la risposta deve semplicemente dare informazioni richieste.
-   - reduce_user_effort: quando l’utente sembra voler evitare passaggi inutili, viaggi, doppie consegne, telefonate o ambiguità operative.
+   - reduce_user_effort: l'utente sta cercando di completare una procedura con il minor numero possibile di passaggi, spostamenti, telefonate o interazioni aggiuntive. Esempi: chiede se può fare tutto via email, vuole sapere cosa serve prima di venire, chiede se è necessario presentarsi di persona.
    - confirm_receipt: quando la mail serve soprattutto a consegnare documenti/informazioni e va confermata ricezione.
    - guide_next_step: quando conviene indicare chiaramente il prossimo passo operativo.
    - offer_reassurance: quando la mail contiene preoccupazione, delicatezza pastorale o bisogno di essere rassicurati, senza inventare emozioni.
    - clarify_requirements: quando il punto centrale è chiarire requisiti, condizioni, documenti necessari o idoneità.
    - none: quando non emerge una strategia specifica.
    - Fornisci anche response_strategy_confidence (0.0-1.0).
+14. Determina goal_continuity:
+   - Descrive il rapporto tra il messaggio corrente e il percorso operativo già avviato nella conversazione.
+   - Non descrive la persona. Non è memoria. Non è profilo psicologico.
+   - Valori ammessi:
+     - "none": la domanda corrente è indipendente dal percorso precedente, oppure non esiste conversazione precedente visibile, oppure non è possibile determinarlo.
+     - "maintain_goal_continuity": il messaggio corrente è nuovo rispetto al precedente, ma fa parte dello stesso percorso amministrativo o informativo già avviato. Esempi: documenti → orari di consegna; requisiti → come completare la richiesta; certificato → dove spedirlo; battesimo → quando fissare l'incontro.
+     - "goal_completed": il mittente segnala che il percorso è concluso o non richiede più nulla. Esempi: "Grazie, tutto ricevuto", "Perfetto", "Va bene così", "Problema risolto".
+   - NON usare "maintain_goal_continuity" se il tema cambia in modo netto e non correlato (es. battesimo → orari Caritas).
+   - NON usare "maintain_goal_continuity" in assenza di conversazione precedente visibile nel thread.
+   - Fornisci anche goal_continuity_confidence (0.0-1.0).
 ${sponsorGuidanceTask}
 
 ⚠️ REGOLA CRITICA "SBATTEZZO":
@@ -637,6 +647,8 @@ Output JSON:
   "conversation_shift_confidence": number (0.0-1.0),
   "response_strategy": "provide_information" | "reduce_user_effort" | "confirm_receipt" | "guide_next_step" | "offer_reassurance" | "clarify_requirements" | "none",
   "response_strategy_confidence": number (0.0-1.0),
+  "goal_continuity": "none" | "maintain_goal_continuity" | "goal_completed",
+  "goal_continuity_confidence": number (0.0-1.0),
   "physical_presence_constraint": {
     "has_constraint": boolean,
     "type": "geographic_distance" | "health" | "mobility" | "caregiving" | "legal_restriction" | "temporary_unavailability" | "remote_request" | "other" | "none",
@@ -689,7 +701,9 @@ Output JSON:
       conversation_shift: 'none',
       conversation_shift_confidence: 0,
       response_strategy: 'none',
-      response_strategy_confidence: 0
+      response_strategy_confidence: 0,
+      goal_continuity: 'none',
+      goal_continuity_confidence: 0
     };
   }
 
@@ -803,6 +817,11 @@ Output JSON:
       data.response_strategy,
       responseStrategyConfidence
     );
+    const goalContinuityConfidence = EmailQuickCheckPolicy.normalizeGoalContinuityConfidence(data.goal_continuity_confidence);
+    const goalContinuity = EmailQuickCheckPolicy.normalizeGoalContinuity(
+      data.goal_continuity,
+      goalContinuityConfidence
+    );
     const rawTerritoryRequest = Object.prototype.hasOwnProperty.call(data, 'is_territory_request')
       ? data.is_territory_request
       : data.territory_request;
@@ -833,6 +852,8 @@ Output JSON:
       conversation_shift_confidence: conversationShiftConfidence,
       response_strategy: responseStrategy,
       response_strategy_confidence: responseStrategyConfidence,
+      goal_continuity: goalContinuity,
+      goal_continuity_confidence: goalContinuityConfidence,
       needs_sponsor_guidance: needsSponsorGuidance
     };
   }
@@ -945,6 +966,26 @@ Output JSON:
     };
     if (!allowed[normalized]) return 'none';
     return EmailQuickCheckPolicy.normalizeResponseStrategyConfidence(confidence) >= 0.65
+      ? normalized
+      : 'none';
+  }
+
+  static normalizeGoalContinuityConfidence(value) {
+    const confidence = Number(value);
+    return Number.isFinite(confidence)
+      ? Math.max(0, Math.min(1, confidence))
+      : 0;
+  }
+
+  static normalizeGoalContinuity(value, confidence = 0) {
+    const normalized = String(value || '').trim().toLowerCase().replace(/-/g, '_');
+    const allowed = {
+      none: true,
+      maintain_goal_continuity: true,
+      goal_completed: true
+    };
+    if (!allowed[normalized] || normalized === 'none') return 'none';
+    return EmailQuickCheckPolicy.normalizeGoalContinuityConfidence(confidence) >= 0.65
       ? normalized
       : 'none';
   }

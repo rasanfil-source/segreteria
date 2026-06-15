@@ -194,6 +194,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       priorOralCommunication = null,
       conversationShift = null,
       responseStrategy = 'none',
+      goalContinuity = null,
       responseRegister = 'warm_institutional'
     } = options;
 
@@ -480,6 +481,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     // 6. CONTESTO MEMORIA
     addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
     addSection(this._renderConversationShiftGuidance(conversationShift), 'ConversationShiftGuidance', { isSystem: true });
+    addSection(this._renderGoalContinuity(goalContinuity), 'GoalContinuity', { isSystem: true });
     addSection(this._renderResponseStrategy(responseStrategy), 'ResponseStrategy', { isSystem: true });
     const effectiveRelationalPosture = isFormalTopicForRouting
       ? 'direct'
@@ -1264,26 +1266,85 @@ Vincoli:
 
   _renderResponseStrategy(responseStrategy) {
     const strategy = String(responseStrategy || 'none').trim().toLowerCase();
-    const instructions = {
-      provide_information: 'Rispondi in modo diretto alla richiesta informativa principale.',
-      reduce_user_effort: 'Quando possibile, indica il modo più semplice per evitare passaggi inutili o doppie comunicazioni.',
-      confirm_receipt: 'Conferma ricezione in modo sobrio e non riaprire procedure non richieste.',
-      guide_next_step: 'Metti in evidenza il prossimo passo operativo concreto.',
-      offer_reassurance: 'Rispondi con tono rassicurante e sobrio, senza enfatizzare emozioni non espresse.',
-      clarify_requirements: 'Chiarisci requisiti o condizioni in modo ordinato, evitando ambiguità.'
+
+    if (!strategy || strategy === 'none') return null;
+
+    const requiresActionResolution = strategy === 'reduce_user_effort' || strategy === 'guide_next_step';
+
+    const instructionBlocks = {
+      provide_information: `Rispondi in modo diretto alla richiesta informativa principale.`,
+
+      reduce_user_effort: `Riduci il numero di passaggi necessari per l'utente.
+
+- Se conosci già il passaggio successivo ovvio: anticipalo.
+- Se esiste una modalità più semplice (email invece di presenza, modulo invece di telefonata): indicala.
+- Se una telefonata o una visita non è necessaria per completare la richiesta: non suggerirla.
+- Evita di rimandare l'utente a un contatto successivo quando la risposta è già disponibile nella KB.`,
+
+      confirm_receipt: `Conferma la ricezione in modo sobrio.
+- Non riaprire procedure non richieste.
+- Non aggiungere passaggi non domandati.`,
+
+      guide_next_step: `Indica chiaramente il prossimo passo operativo concreto.
+- Sii specifico: cosa fare, dove, con quali documenti o riferimenti.
+- Evita di elencare tutti i passaggi se ne è stato chiesto solo uno.`,
+
+      offer_reassurance: `Rispondi con tono rassicurante e sobrio.
+- Non enfatizzare emozioni non espresse.
+- Non inventare stati d'animo del mittente.`,
+
+      clarify_requirements: `Chiarisci requisiti o condizioni in modo ordinato.
+- Evita ambiguità su documenti richiesti, scadenze o condizioni di idoneità.
+- Se i requisiti sono multipli, presentali in sequenza logica.`
     };
 
-    if (!instructions[strategy]) return null;
+    const block = instructionBlocks[strategy];
+    if (!block) return null;
+
+    const actionResolutionCheck = requiresActionResolution
+      ? `\nPrima di concludere la risposta, verifica internamente:\n"La persona può agire immediatamente sulla base di ciò che sto dicendo?"\nSe la risposta è no: aggiungi il passaggio operativo successivo concreto.`
+      : '';
 
     return `## ORIENTAMENTO DELLA RISPOSTA
-Per questa risposta:
-- ${instructions[strategy]}
+${block}${actionResolutionCheck}
 
 Vincoli:
 - non nominare questa sezione;
 - non citare criteri o istruzioni interne;
 - non alterare KB, territorio, dottrina, date, orari o procedure;
 - usare solo per decidere focus, ordine e livello di dettaglio.`;
+  }
+
+  _renderGoalContinuity(goalContinuity) {
+    const normalized = goalContinuity && typeof goalContinuity === 'object'
+      ? String(goalContinuity.value || '').trim().toLowerCase()
+      : String(goalContinuity || '').trim().toLowerCase();
+
+    if (!normalized || normalized === 'none') return null;
+
+    if (normalized === 'maintain_goal_continuity') {
+      return `## CONTINUITÀ DELL'OBIETTIVO
+- Il messaggio corrente fa parte di un percorso amministrativo o informativo già avviato.
+- Rispondi alla domanda corrente.
+- Se utile e non forzato, collega brevemente la risposta al passaggio del percorso già emerso in conversazione.
+- Non riepilogare l'intera procedura: prosegui dal punto in cui si trova l'utente.
+
+Vincoli:
+- non nominare questa sezione;
+- non alterare KB, territorio, dottrina, date o procedure.`;
+    }
+
+    if (normalized === 'goal_completed') {
+      return `## CHIUSURA DEL PERCORSO
+- Il mittente sembra considerare concluso il percorso in corso.
+- Rispondi in modo breve e conclusivo.
+- Evita di riaprire procedure, aggiungere passaggi o anticipare nuovi adempimenti non richiesti.
+
+Vincoli:
+- non nominare questa sezione.`;
+    }
+
+    return null;
   }
 
   _renderConversationShiftGuidance(conversationShift) {
