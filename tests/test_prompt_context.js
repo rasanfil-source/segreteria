@@ -267,4 +267,47 @@ assert(
   'emotional_distress con segnali forti deve produrre pastoral_crisis'
 );
 
+console.log('--- Test PromptContext: residual_sensitivity per memoria storica non attiva su email emotiva ---');
+const residualTrue = createPromptContext({
+  email: {
+    isReply: true,
+    detectedLanguage: 'it',
+    subject: 'Re: informazioni',
+    body: 'Grazie, vorrei confermare l’orario.'
+  },
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  classification: { confidence: 1, category: 'information' },
+  memory: {
+    exists: true,
+    providedInfoCount: 1,
+    memorySummary: 'Scambio precedente su lutto familiare',
+    topics: ['esequie']
+  }
+});
+assert(
+  residualTrue.concerns.residual_sensitivity === true,
+  'con lutto in memoria e email non emotiva, residual_sensitivity deve essere true'
+);
+
+const residualFalse = createPromptContext({
+  email: {
+    isReply: true,
+    detectedLanguage: 'it',
+    subject: 'Re: lutto',
+    body: 'Mio padre è venuto a mancare.'
+  },
+  requestType: { type: 'pastoral' },
+  classification: { confidence: 1, category: 'information', subIntents: { bereavement: true } },
+  memory: {
+    exists: true,
+    providedInfoCount: 1,
+    memorySummary: 'Scambio precedente su lutto familiare',
+    topics: ['esequie']
+  }
+});
+assert(
+  residualFalse.concerns.residual_sensitivity === false,
+  'con lutto in memoria ma email correntemente emotiva, residual_sensitivity deve essere false'
+);
+
 console.log('✅ Test PromptContext OK');

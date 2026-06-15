@@ -187,7 +187,16 @@ var PromptContext = class PromptContext {
                 i.salutationMode && i.salutationMode !== 'full',
 
             physical_presence_constraint:
-                !!(i.physicalPresenceConstraint && i.physicalPresenceConstraint.has_constraint)
+                !!(i.physicalPresenceConstraint && i.physicalPresenceConstraint.has_constraint),
+
+            residual_sensitivity:
+                longitudinalSensitivity && !(
+                    i.requestType?.type === 'pastoral' ||
+                    i.classification?.subIntents?.emotional_distress ||
+                    i.classification?.subIntents?.bereavement ||
+                    i.subIntents?.emotional_distress ||
+                    i.subIntents?.bereavement
+                )
         };
     }
 

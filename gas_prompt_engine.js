@@ -523,6 +523,9 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     if (shouldAddContinuityFocus) {
       addSection(this._renderContinuityHumanFocus(), 'ContinuityHumanFocus', { isSystem: true });
     }
+    if (normalizedConcerns.residual_sensitivity) {
+      addSection(this._renderResidualSensitivity(), 'ResidualSensitivity', { isSystem: true });
+    }
 
     // 10. CONTESTO STAGIONALE
     addSection(this._renderSeasonalContext(resolvedScheduleContext), 'SeasonalContext');
@@ -1108,6 +1111,13 @@ ${directives}
 Se la conversazione è già avviata, entra nel merito senza riaprire da capo. Una frase di collegamento è sufficiente, e solo se aggiunge fluidità.
 Mantieni un registro aderente al testo ricevuto: se è diretto, sii diretto; se è delicato, resta sobrio e concreto, senza attribuire stati d'animo.
 Mantieni la stessa lingua e registro dell'email ricevuta. Se la confidenza sul contenuto è bassa, formula con prudenza, senza scuse esplicite che appesantiscono.`;
+  }
+
+  _renderResidualSensitivity() {
+    return `## CONTINUITÀ RELAZIONALE
+È presente una situazione personale delicata già emersa nel thread.
+Non è necessario concentrare la risposta su tale situazione.
+Mantieni tuttavia un tono leggermente più umano e attento del normale.`;
   }
 
   // ========================================================================
