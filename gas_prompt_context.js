@@ -130,6 +130,8 @@ var PromptContext = class PromptContext {
             memoryTopics
         ].filter(Boolean).join(' ').toLowerCase();
         const longitudinalSensitivity = /\b(lutto|decesso|malattia|funerale|esequie|defunt[oaie]|sbattezzo|apostasia|divorzio|divorziat[oaie]|separazione|separat[oaie]|vedov[oaie])\b/.test(memoryText);
+        const isMultiQuestion = this._detectMultiQuestion(i.email?.body, i.email?.subject);
+        const bodyLength = String(i.email?.body || '').length;
 
         return {
             language_safety:
@@ -176,7 +178,10 @@ var PromptContext = class PromptContext {
                 (i.classification?.confidence ?? 1) < 0.7,
 
             multi_question:
-                this._detectMultiQuestion(i.email?.body, i.email?.subject),
+                isMultiQuestion,
+
+            user_overload:
+                bodyLength > 600 && isMultiQuestion,
 
             salutation_control:
                 i.salutationMode && i.salutationMode !== 'full',
@@ -223,14 +228,51 @@ var PromptContext = class PromptContext {
         return 'lite';
     }
 
+    _computeResponseRegister() {
+        const c = this.concerns;
+        const requestType = this.input.requestType || {};
+        const type = String(requestType.type || '').toLowerCase();
+        const category = String(this.input.classification?.category || '').toLowerCase();
+        const isFormal = type === 'formal' || requestType.formalScore > 0.6 || category === 'formal' || category === 'sbattezzo';
+
+        const subIntents = Object.assign({}, this.input.classification?.subIntents || {}, this.input.subIntents || {});
+        const hasEmotionalDistress = !!subIntents.emotional_distress;
+        const hasBereavement = !!subIntents.bereavement;
+        const messageText = [this.input.email?.subject, this.input.email?.body].filter(Boolean).join(' ').toLowerCase();
+        const hasStrongCrisisSignal = /\b(?:crisi|disperat[oaie]?|non\s+ce\s+la\s+faccio|panico|angoscia|crollo|trauma|emergenza|suicid[ioa]|autolesionismo)\b/.test(messageText);
+
+        if (c.emotional_sensitivity && hasEmotionalDistress && (hasBereavement || hasStrongCrisisSignal)) {
+            return 'pastoral_crisis';
+        }
+        if (c.emotional_sensitivity || c.longitudinal_sensitivity || type === 'pastoral') {
+            return 'pastoral_supportive';
+        }
+        if (isFormal) {
+            return 'formal_institutional';
+        }
+        return 'warm_institutional';
+    }
+
+    _computeEffectiveSalutationMode() {
+        const mode = this.input.salutationMode || 'full';
+        if (mode === 'none_or_continuity' && this.concerns.emotional_sensitivity) {
+            return 'soft';
+        }
+        return mode;
+    }
+
     _buildMeta() {
         const active = Object.entries(this.concerns)
             .filter(([_, v]) => v)
             .map(([k]) => k);
+        const responseRegister = this._computeResponseRegister();
+        const salutationMode = this._computeEffectiveSalutationMode();
 
         return {
             profile: this.profile,
-            activeConcerns: active
+            activeConcerns: active,
+            responseRegister: responseRegister,
+            salutationMode: salutationMode
         };
     }
 }

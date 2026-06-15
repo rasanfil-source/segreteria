@@ -162,4 +162,83 @@ console.log('--- Test PromptContext: memoria sensibile riconosce forme flesse --
   );
 });
 
+console.log('--- Test PromptContext: registro sintetico, overload e override saluto emotivo ---');
+const longMultiBody = `${'Vorrei capire alcuni passaggi. '.repeat(25)} Quali documenti servono? Quando posso consegnarli? Ci sono costi?`;
+const overloaded = createPromptContext({
+  email: {
+    isReply: true,
+    detectedLanguage: 'it',
+    subject: 'Pratica lunga',
+    body: longMultiBody
+  },
+  requestType: { type: 'technical' },
+  classification: { confidence: 1, category: 'information' },
+  salutationMode: 'none_or_continuity'
+});
+assert(
+  overloaded.concerns.user_overload === true,
+  'email lunga con più domande deve attivare user_overload'
+);
+assert(
+  overloaded.meta.responseRegister === 'warm_institutional',
+  'richiesta tecnica ordinaria deve produrre registro warm_institutional'
+);
+assert(
+  overloaded.meta.salutationMode === 'none_or_continuity',
+  'senza sensibilità emotiva il saluto di continuità resta invariato'
+);
+
+const emotionalFollowUp = createPromptContext({
+  email: {
+    isReply: true,
+    detectedLanguage: 'it',
+    subject: 'Re: lutto',
+    body: 'Sono molto provata per la morte di mio padre, come posso organizzare la Messa?'
+  },
+  requestType: { type: 'pastoral' },
+  classification: { confidence: 1, category: 'information', subIntents: { bereavement: true } },
+  salutationMode: 'none_or_continuity'
+});
+assert(
+  emotionalFollowUp.meta.responseRegister === 'pastoral_supportive',
+  'sensibilità emotiva deve produrre registro pastorale di accompagnamento'
+);
+assert(
+  emotionalFollowUp.meta.salutationMode === 'soft',
+  'follow-up emotivamente sensibile deve applicare override saluto soft'
+);
+
+
+const mildDistress = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Richiesta di aiuto',
+    body: 'Sono un po’ agitata e vorrei parlare con qualcuno.'
+  },
+  requestType: { type: 'pastoral' },
+  classification: { confidence: 1, category: 'information', subIntents: { emotional_distress: true } },
+  salutationMode: 'full'
+});
+assert(
+  mildDistress.meta.responseRegister === 'pastoral_supportive',
+  'emotional_distress senza lutto o segnali forti non deve produrre pastoral_crisis'
+);
+
+const strongCrisis = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Emergenza',
+    body: 'Sono in crisi e non ce la faccio, ho bisogno di parlare con qualcuno.'
+  },
+  requestType: { type: 'pastoral' },
+  classification: { confidence: 1, category: 'information', subIntents: { emotional_distress: true } },
+  salutationMode: 'full'
+});
+assert(
+  strongCrisis.meta.responseRegister === 'pastoral_crisis',
+  'emotional_distress con segnali forti deve produrre pastoral_crisis'
+);
+
 console.log('✅ Test PromptContext OK');

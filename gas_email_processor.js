@@ -1921,6 +1921,8 @@ ${addressLines.join('\n\n')}
       // ====================================================================
       let promptProfile = 'standard';
       let activeConcerns = {};
+      let responseRegister = 'warm_institutional';
+      let effectiveSalutationMode = salutationMode;
       const memoryProvidedInfo = Array.isArray(memoryContext.providedInfo)
         ? memoryContext.providedInfo
         : [];
@@ -1970,7 +1972,9 @@ ${addressLines.join('\n\n')}
         });
         promptProfile = promptContext.profile;
         activeConcerns = promptContext.concerns;
-        console.log(`   🧠 PromptContext: profilo=${promptProfile}`);
+        responseRegister = promptContext.meta?.responseRegister || responseRegister;
+        effectiveSalutationMode = promptContext.meta?.salutationMode || effectiveSalutationMode;
+        console.log(`   🧠 PromptContext: profilo=${promptProfile}, registro=${responseRegister}`);
       }
 
       let attachmentIntentContext = preQuickAttachmentIntentContext;
@@ -2373,10 +2377,11 @@ ${addressLines.join('\n\n')}
         closing: closing,
         subIntents: classification.subIntents || {},
         memoryContext: memoryContext,
-        salutationMode: salutationMode,
+        salutationMode: effectiveSalutationMode,
         responseDelay: responseDelay,
         promptProfile: promptProfile,
         activeConcerns: activeConcerns,
+        responseRegister: responseRegister,
         territoryContext: territoryContext,
         physicalPresenceConstraint: physicalPresenceConstraint,
         sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),

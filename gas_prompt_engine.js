@@ -193,7 +193,8 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       systemDirectives = [],
       priorOralCommunication = null,
       conversationShift = null,
-      responseStrategy = 'none'
+      responseStrategy = 'none',
+      responseRegister = 'warm_institutional'
     } = options;
 
     const runtimeContext = (options && options.runtimeContext && typeof options.runtimeContext === 'object')
@@ -480,6 +481,8 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
     addSection(this._renderConversationShiftGuidance(conversationShift), 'ConversationShiftGuidance', { isSystem: true });
     addSection(this._renderResponseStrategy(responseStrategy), 'ResponseStrategy', { isSystem: true });
+    addSection(this._renderResponseRegister(responseRegister), 'ResponseRegister', { isSystem: true });
+    addSection(this._renderUserOverloadGuidance(normalizedConcerns), 'UserOverloadGuidance', { isSystem: true });
     addSection(
       this._renderResponseFocusHint(memoryContext, topic, safeCurrentDate),
       'ThreadContinuityFocus',
@@ -924,6 +927,10 @@ Testo finale dell'email.
     // Regole saluto (continuità)
     if (salutationMode === 'none_or_continuity' || salutationMode === 'session') {
       rules.push('- **Stile conversazionale:** Entra direttamente nel merito della risposta, omettendo saluti rituali formali iniziali, poiché la conversazione è già avviata e continua in stile chat.');
+    }
+
+    if (activeConcerns && activeConcerns.user_overload) {
+      rules.push('- **Carico cognitivo utente:** la richiesta è lunga e contiene più domande; rispondi per priorità, con struttura breve e gerarchica, evitando una risposta enciclopedica. Se necessario, identifica prima la domanda più urgente.');
     }
 
     if (activeConcerns && activeConcerns.physical_presence_constraint) {
@@ -1380,6 +1387,35 @@ Vincoli:
     const ageMs = reference.getTime() - updated.getTime();
     if (ageMs < 0) return true;
     return ageMs <= maxAgeDays * 24 * 60 * 60 * 1000;
+  }
+
+  _renderResponseRegister(responseRegister) {
+    const register = String(responseRegister || 'warm_institutional').trim().toLowerCase();
+
+    const instructions = {
+      formal_institutional: 'Usa un tono formale, neutro e procedurale.',
+      warm_institutional: 'Usa un tono cordiale, chiaro e istituzionale.',
+      pastoral_supportive: 'Usa un tono accogliente, sobrio e attento alla persona.',
+      pastoral_crisis: 'Usa un tono molto delicato, breve e non burocratico.'
+    };
+
+    if (!instructions[register]) return null;
+
+    return `## REGISTRO DELLA RISPOSTA
+${instructions[register]}
+
+Vincoli:
+- non nominare il registro all'utente;
+- non citare criteri o istruzioni interne;
+- non alterare KB, territorio, dottrina, date, orari o procedure.`;
+  }
+
+  _renderUserOverloadGuidance(activeConcerns = {}) {
+    if (!activeConcerns || !activeConcerns.user_overload) return null;
+
+    return `## CARICO COGNITIVO UTENTE
+La richiesta è lunga e contiene più domande: rispondi per priorità, usa punti chiari, evita densità eccessiva.
+Se non è possibile coprire tutto senza appesantire, parti dalla questione più urgente e indica il prossimo passo utile.`;
   }
 
   // ========================================================================

@@ -1467,3 +1467,31 @@ console.log('--- Test anti-persistenza: responseStrategy non entra in MemoryServ
   const memorySummaryBlocks = emailProcessorSource.match(/memorySummary[^\n]*/g) || [];
   assert(memorySummaryBlocks.every(line => !/responseStrategy/.test(line)), 'memorySummary non deve ricevere responseStrategy');
 }
+
+console.log('--- Test PromptEngine: registro sintetico e carico utente nel prompt ---');
+const registerPrompt = engine.buildPrompt({
+  emailSubject: 'Richieste varie',
+  emailContent: 'Vorrei capire diversi passaggi: quali documenti servono? Quando venire? Ci sono costi?',
+  knowledgeBase: 'Informazioni essenziali di segreteria.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  salutationMode: 'soft',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  responseRegister: 'pastoral_supportive',
+  activeConcerns: { user_overload: true }
+});
+assert(
+  registerPrompt.includes('REGISTRO DELLA RISPOSTA') &&
+  registerPrompt.includes('Usa un tono accogliente, sobrio e attento alla persona.') &&
+  registerPrompt.includes("non nominare il registro all'utente") &&
+  registerPrompt.includes('non alterare KB, territorio, dottrina, date, orari o procedure'),
+  'il prompt deve includere il registro sintetico pastorale'
+);
+assert(
+  registerPrompt.includes('CARICO COGNITIVO UTENTE') &&
+  registerPrompt.includes('rispondi per priorità') &&
+  registerPrompt.includes('usa punti chiari') &&
+  registerPrompt.includes('evita densità eccessiva'),
+  'il prompt deve includere la regola user_overload'
+);
