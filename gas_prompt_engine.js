@@ -9,6 +9,34 @@
  * - Ottimizzazione struttura prompt
  */
 
+const KNOWN_SLOTS = new Set([
+  'deceased_name',
+  'preferred_date',
+  'preferred_time',
+  'phone_number',
+  'confirmation_received',
+  'celebration_date',
+  'residence_parish',
+  'street_name',
+  'street_number',
+  'sponsor_name',
+  'baptism_date'
+]);
+
+const SLOT_LABELS = {
+  deceased_name:        'nome del defunto',
+  preferred_date:       'data preferita',
+  preferred_time:       'orario preferito',
+  phone_number:         'recapito telefonico',
+  confirmation_received:'Cresima ricevuta',
+  celebration_date:     'data della celebrazione',
+  residence_parish:     'parrocchia di residenza',
+  street_name:          'nome della via',
+  street_number:        'numero civico',
+  sponsor_name:         'nome del padrino/madrina',
+  baptism_date:         'data del battesimo'
+};
+
 var PromptEngine = class PromptEngine {
   constructor() {
     // Logger strutturato
@@ -195,7 +223,8 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       conversationShift = null,
       responseStrategy = 'none',
       goalContinuity = null,
-      responseRegister = 'warm_institutional'
+      responseRegister = 'warm_institutional',
+      newInformationProvided = []
     } = options;
 
     const runtimeContext = (options && options.runtimeContext && typeof options.runtimeContext === 'object')
@@ -482,6 +511,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
     addSection(this._renderConversationShiftGuidance(conversationShift), 'ConversationShiftGuidance', { isSystem: true });
     addSection(this._renderGoalContinuity(goalContinuity), 'GoalContinuity', { isSystem: true });
+    addSection(this._renderNewInformationProvided(newInformationProvided), 'NewInformationProvided', { isSystem: true });
     addSection(this._renderResponseStrategy(responseStrategy), 'ResponseStrategy', { isSystem: true });
     const effectiveRelationalPosture = isFormalTopicForRouting
       ? 'direct'
@@ -1356,6 +1386,21 @@ Vincoli:
     }
 
     return null;
+  }
+
+  _renderNewInformationProvided(slots) {
+    if (!Array.isArray(slots) || slots.length === 0) return null;
+    const safe = [...new Set(
+      slots
+        .map(s => String(s || '').trim().toLowerCase())
+        .filter(s => KNOWN_SLOTS.has(s))
+    )];
+    if (safe.length === 0) return null;
+    return `## INFORMAZIONE APPENA RICEVUTA
+L'utente ha appena fornito:
+${safe.map(s => `- ${SLOT_LABELS[s] || s}`).join('\n')}
+
+Non richiedere nuovamente queste informazioni.`;
   }
 
   _renderConversationShiftGuidance(conversationShift) {

@@ -615,6 +615,12 @@ COMPITI:
    - NON usare "maintain_goal_continuity" se il tema cambia in modo netto e non correlato (es. battesimo → orari Caritas).
    - NON usare "maintain_goal_continuity" in assenza di conversazione precedente visibile nel thread.
    - Fornisci anche goal_continuity_confidence (0.0-1.0).
+15. Determina new_information_provided:
+   - Lista degli slot informativi che l'utente ha esplicitamente fornito in questo messaggio.
+   - Usa SOLO i valori della whitelist: deceased_name, preferred_date, preferred_time, phone_number, confirmation_received, celebration_date, residence_parish, street_name, street_number, sponsor_name, baptism_date.
+   - Includi uno slot solo se il dato è presente in modo esplicito nel messaggio corrente.
+   - Se nessun dato utile è presente, restituisci [].
+   - Non inferire. Non dedurre da contesti impliciti.
 ${sponsorGuidanceTask}
 
 ⚠️ REGOLA CRITICA "SBATTEZZO":
@@ -649,6 +655,7 @@ Output JSON:
   "response_strategy_confidence": number (0.0-1.0),
   "goal_continuity": "none" | "maintain_goal_continuity" | "goal_completed",
   "goal_continuity_confidence": number (0.0-1.0),
+  "new_information_provided": ["string"],
   "physical_presence_constraint": {
     "has_constraint": boolean,
     "type": "geographic_distance" | "health" | "mobility" | "caregiving" | "legal_restriction" | "temporary_unavailability" | "remote_request" | "other" | "none",
@@ -703,7 +710,8 @@ Output JSON:
       response_strategy: 'none',
       response_strategy_confidence: 0,
       goal_continuity: 'none',
-      goal_continuity_confidence: 0
+      goal_continuity_confidence: 0,
+      new_information_provided: []
     };
   }
 
@@ -854,6 +862,7 @@ Output JSON:
       response_strategy_confidence: responseStrategyConfidence,
       goal_continuity: goalContinuity,
       goal_continuity_confidence: goalContinuityConfidence,
+      new_information_provided: EmailQuickCheckPolicy.normalizeNewInformationProvided(data.new_information_provided),
       needs_sponsor_guidance: needsSponsorGuidance
     };
   }
@@ -988,6 +997,15 @@ Output JSON:
     return EmailQuickCheckPolicy.normalizeGoalContinuityConfidence(confidence) >= 0.65
       ? normalized
       : 'none';
+  }
+
+  static normalizeNewInformationProvided(value) {
+    if (!Array.isArray(value)) return [];
+    return [...new Set(
+      value
+        .map(s => String(s || '').trim().toLowerCase())
+        .filter(s => s.length > 0)
+    )].slice(0, 8);
   }
 };
 

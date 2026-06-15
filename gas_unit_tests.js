@@ -2450,6 +2450,16 @@ function runAllTests() {
                 prompt.includes('CONTESTO SENSIBILE E GERARCHIA') &&
                 prompt.includes('come una lettera scritta a mano');
         });
+        test('Renders newInformationProvided slots appropriately with Italian labels', results, () => {
+            const prompt = engine.buildPrompt(Object.assign({}, baseOptions, {
+                newInformationProvided: ['deceased_name', 'baptism_date', 'unknown_slot']
+            })).toString();
+            return prompt.includes('## INFORMAZIONE APPENA RICEVUTA') &&
+                prompt.includes("- nome del defunto") &&
+                prompt.includes("- data del battesimo") &&
+                !prompt.includes("- unknown_slot") &&
+                prompt.includes("Non richiedere nuovamente queste informazioni.");
+        });
     });
 
     const duration = Date.now() - start;
