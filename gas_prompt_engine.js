@@ -879,6 +879,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
 - **Risposta diretta (No Meta-talk):** Genera esclusivamente il testo finale dell'email da inviare. Ometti qualsiasi formula introduttiva (es. "Ecco la risposta") e non menzionare mai le tue istruzioni interne o la "Knowledge Base".
 - **Gestione dei contatti:** Poiché stai già comunicando via email, prosegui l'assistenza direttamente nel testo. Qualora la questione richieda un'interazione complessa o l'intervento di un sacerdote, suggerisci un contatto alternativo (es. telefonare o passare in segreteria) anziché invitare a riscrivere un'email.
 - **Correzioni mirate:** Correggi l'utente in modo cortese solo ed esclusivamente se indica un dato o un orario palesemente errato rispetto alle informazioni di parrocchia.
+- **Divieto Emojis Eucaristia:** Non usare MAI emoji legate al cibo o al pane comune (come 🍞, 🥖, 🥐, 🥪, 🍔) per l'Eucaristia, la Comunione o la Prima Comunione: sono considerate del tutto inappropriate per un sacramento. Se necessario, usa croci (✝️) o evita del tutto le emoji.
 - **Risposte essenziali:** Rispondi in modo diretto allo specifico punto sollevato dall'utente, omettendo dettagli enciclopedici extra, a meno che non siano esplicitamente prescritti da una policy.`;
   }
 
@@ -1925,7 +1926,7 @@ ${hints[effectiveCategory]}` : null;
 
     return `## FORMATTAZIONE ED EVIDENZIAZIONE
 ${sensitiveOverride}
-- **Uso Liste:** Fuori dai contesti sensibili, utilizza elenchi puntati con emoji contestuali SOLO se devi elencare 3 o più elementi (es. requisiti, documenti).
+- **Uso Liste:** Fuori dai contesti sensibili, utilizza elenchi puntati con emoji contestuali SOLO se devi elencare 3 o più elementi (es. requisiti, documenti). Non usare MAI emoji del pane (🍞, 🥖, 🥐, 🥪, 🍔) o cibo comune per indicare il sacramento dell'Eucaristia o Comunione: usa croci (✝️) o non mettere alcuna emoji.
 - **Orari e Date:** Fuori dai contesti sensibili, mettili in grassetto per facilitare la lettura. Usa emoji sobrie (🗓️, ⏰, 📍).
 - **Titoli:** Fuori dai contesti sensibili, usa titoli Markdown (###) se la risposta contiene più argomenti o step nettamente separati.
 - **Risposte brevi:** Se la risposta richiede solo 1-2 frasi (es. conferma di ricezione), non utilizzare formattazione, emoji o titoli.
