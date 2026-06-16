@@ -55,6 +55,21 @@ var PromptEngine = class PromptEngine {
       'ExamplesTemplate'
     ];
 
+    this.REGISTER_SUPPRESS_TEMPLATES = {
+      pastoral_crisis: new Set([
+        'CompletenessDirectiveTemplate',
+        'ExamplesTemplate',
+        'SpecialCasesTemplate',
+        'FormattingGuidelinesTemplate'
+      ]),
+      pastoral_supportive: new Set([
+        'ExamplesTemplate'
+      ]),
+      formal_institutional: new Set([
+        'HumanToneGuidelinesTemplate'
+      ])
+    };
+
     this.logger.info('PromptEngine inizializzato', { templateSections: 'variabile' });
   }
 
@@ -165,19 +180,9 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       }
     }
 
-    if (responseRegister === 'pastoral_crisis') {
-      const suppress = [
-        'CompletenessDirectiveTemplate',
-        'ExamplesTemplate',
-        'SpecialCasesTemplate',
-        'FormattingGuidelinesTemplate'
-      ];
-      if (suppress.includes(templateName)) return false;
-    }
-
-    if (responseRegister === 'pastoral_supportive') {
-      if (templateName === 'ExamplesTemplate') return false;
-    }
+    const normalizedRegister = String(responseRegister || '').trim().toLowerCase();
+    const registerSuppressions = this.REGISTER_SUPPRESS_TEMPLATES[normalizedRegister];
+    if (registerSuppressions && registerSuppressions.has(templateName)) return false;
 
     return true;
   }
@@ -2207,7 +2212,8 @@ ISTRUZIONI:
       urgent: true,
       uncertain: true,
       complaint: true,
-      open: true
+      open: true,
+      none: true
     };
     return allowed[canonical] ? canonical : 'informational';
   }

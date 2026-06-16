@@ -1446,29 +1446,59 @@ assert(
 );
 
 console.log('--- Test PromptEngine: responseRegister filtra template sensibili anche in profilo heavy ---');
-assert(
-  engine._shouldIncludeTemplate('HumanToneGuidelinesTemplate', 'heavy', {}, 'pastoral_crisis') === true,
-  'pastoral_crisis deve mantenere i template non sensibili'
-);
-[
+const registerCriticalTemplates = [
+  'CompletenessDirectiveTemplate',
+  'ExamplesTemplate',
+  'SpecialCasesTemplate',
+  'FormattingGuidelinesTemplate',
+  'HumanToneGuidelinesTemplate'
+];
+const pastoralCrisisSuppressedTemplates = [
   'CompletenessDirectiveTemplate',
   'ExamplesTemplate',
   'SpecialCasesTemplate',
   'FormattingGuidelinesTemplate'
-].forEach((templateName) => {
+];
+pastoralCrisisSuppressedTemplates.forEach((templateName) => {
   assert(
     engine._shouldIncludeTemplate(templateName, 'heavy', { formatting_risk: true, emotional_sensitivity: true }, 'pastoral_crisis') === false,
-    `pastoral_crisis deve sopprimere ${templateName} anche nel profilo heavy`
+    `pastoral_crisis deve continuare a sopprimere ${templateName} anche nel profilo heavy`
   );
 });
 assert(
-  engine._shouldIncludeTemplate('ExamplesTemplate', 'heavy', { formatting_risk: true }, 'pastoral_supportive') === false,
-  'pastoral_supportive deve sopprimere ExamplesTemplate anche nel profilo heavy'
+  engine._shouldIncludeTemplate('HumanToneGuidelinesTemplate', 'heavy', {}, 'pastoral_crisis') === true,
+  'pastoral_crisis deve mantenere i template non soppressi dalla mappa'
 );
 assert(
-  engine._shouldIncludeTemplate('SpecialCasesTemplate', 'heavy', {}, 'pastoral_supportive') === true,
-  'pastoral_supportive deve lasciare invariati gli altri template'
+  engine._shouldIncludeTemplate('ExamplesTemplate', 'heavy', { formatting_risk: true }, 'pastoral_supportive') === false,
+  'pastoral_supportive deve sopprimere solo ExamplesTemplate anche nel profilo heavy'
 );
+registerCriticalTemplates
+  .filter((templateName) => templateName !== 'ExamplesTemplate')
+  .forEach((templateName) => {
+    assert(
+      engine._shouldIncludeTemplate(templateName, 'heavy', {}, 'pastoral_supportive') === true,
+      `pastoral_supportive non deve sopprimere ${templateName}`
+    );
+  });
+assert(
+  engine._shouldIncludeTemplate('HumanToneGuidelinesTemplate', 'heavy', {}, 'formal_institutional') === false,
+  'formal_institutional deve sopprimere HumanToneGuidelinesTemplate'
+);
+registerCriticalTemplates
+  .filter((templateName) => templateName !== 'HumanToneGuidelinesTemplate')
+  .forEach((templateName) => {
+    assert(
+      engine._shouldIncludeTemplate(templateName, 'heavy', { formatting_risk: true, emotional_sensitivity: true }, 'formal_institutional') === true,
+      `formal_institutional non deve sopprimere ${templateName}`
+    );
+  });
+registerCriticalTemplates.forEach((templateName) => {
+  assert(
+    engine._shouldIncludeTemplate(templateName, 'heavy', { formatting_risk: true, emotional_sensitivity: true }, 'warm_institutional') === true,
+    `warm_institutional non deve sopprimere ${templateName}`
+  );
+});
 
 console.log('✅ Test qualità prompt risposta passati');
 
@@ -1488,7 +1518,8 @@ console.log('--- Test PromptEngine: responseStrategy orienta solo il prompt corr
     emailContent: 'Vorrei informazioni',
     knowledgeBase: 'Info base.',
     detectedLanguage: 'it',
-    responseStrategy: 'none'
+    responseStrategy: 'none',
+    relationalPosture: 'none'
   });
   assert(!nonePrompt.includes('ORIENTAMENTO DELLA RISPOSTA'), 'responseStrategy none non deve renderizzare la sezione');
 
@@ -1497,7 +1528,8 @@ console.log('--- Test PromptEngine: responseStrategy orienta solo il prompt corr
     emailContent: 'Vorrei informazioni',
     knowledgeBase: 'Info base.',
     detectedLanguage: 'it',
-    responseStrategy: 'psychological_support'
+    responseStrategy: 'psychological_support',
+    relationalPosture: 'none'
   });
   assert(!invalidPrompt.includes('ORIENTAMENTO DELLA RISPOSTA'), 'responseStrategy non ammesso non deve renderizzare la sezione');
 }
