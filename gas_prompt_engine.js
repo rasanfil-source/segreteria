@@ -275,6 +275,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       templateConcerns.emotional_sensitivity = true;
     }
     const normalizedSystemDirectives = this._normalizeSystemDirectives_(systemDirectives);
+    const normalizedConversationShift = this._normalizeConversationShift_(conversationShift);
 
     let systemSections = [];
     let userSections = [];
@@ -419,6 +420,10 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       }
     }
 
+    if (kbWasTruncated) {
+      templateConcerns.hallucination_risk = true;
+    }
+
     let usedTokens = 0;
     let usedChars = 0;
 
@@ -509,7 +514,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
 
     // 6. CONTESTO MEMORIA
     addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
-    addSection(this._renderConversationShiftGuidance(conversationShift), 'ConversationShiftGuidance', { isSystem: true });
+    addSection(this._renderConversationShiftGuidance(normalizedConversationShift), 'ConversationShiftGuidance', { isSystem: true });
     addSection(this._renderGoalContinuity(goalContinuity), 'GoalContinuity', { isSystem: true });
     addSection(this._renderNewInformationProvided(newInformationProvided), 'NewInformationProvided', { isSystem: true });
     addSection(this._renderResponseStrategy(responseStrategy), 'ResponseStrategy', { isSystem: true });
@@ -701,10 +706,12 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     addSection(this._renderCriticalErrorsReminder(), 'CriticalErrorsReminder', { isSystem: true });
 
     // 28. DIRETTIVA DI COMPLETEZZA
-    addTemplate('CompletenessDirectiveTemplate', this._renderCompletenessDirective(), 'CompletenessDirective', { isSystem: true });
+    if (!normalizedConversationShift || normalizedConversationShift.shift !== 'closure') {
+      addTemplate('CompletenessDirectiveTemplate', this._renderCompletenessDirective(), 'CompletenessDirective', { isSystem: true });
+    }
 
     // 29. CHECKLIST CONTESTUALE
-    addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode, normalizedConcerns), 'ContextualChecklist', { isSystem: true });
+    addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode, templateConcerns), 'ContextualChecklist', { isSystem: true });
 
     // 30. ISTRUZIONE FINALE
     addSection(this._renderFinalInstruction(), 'FinalInstruction', { force: true, isSystem: true });
@@ -912,8 +919,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
 - **Risposta diretta (No Meta-talk):** Genera esclusivamente il testo finale dell'email da inviare. Ometti qualsiasi formula introduttiva (es. "Ecco la risposta") e non menzionare mai le tue istruzioni interne o la "Knowledge Base".
 - **Gestione dei contatti:** Poiché stai già comunicando via email, prosegui l'assistenza direttamente nel testo. Qualora la questione richieda un'interazione complessa o l'intervento di un sacerdote, suggerisci un contatto alternativo (es. telefonare o passare in segreteria) anziché invitare a riscrivere un'email.
 - **Correzioni mirate:** Correggi l'utente in modo cortese solo ed esclusivamente se indica un dato o un orario palesemente errato rispetto alle informazioni di parrocchia.
-- **Divieto Emojis Eucaristia:** Non usare MAI emoji legate al cibo o al pane comune (come 🍞, 🥖, 🥐, 🥪, 🍔) per l'Eucaristia, la Comunione o la Prima Comunione: sono considerate del tutto inappropriate per un sacramento. Se necessario, usa croci (✝️) o evita del tutto le emoji.
-- **Risposte essenziali:** Rispondi in modo diretto allo specifico punto sollevato dall'utente, omettendo dettagli enciclopedici extra, a meno che non siano esplicitamente prescritti da una policy.`;
+- **Risposte essenziali:** Rispondi in modo diretto allo specifico punto sollevato dall'utente e applica solo le policy pertinenti.`;
   }
 
   _renderCompletenessDirective() {
@@ -921,7 +927,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
 - Analizza l'email dell'utente e individua tutte le domande poste, sia esplicite sia implicite.
 - Considera dubbi da coprire anche riferimenti a date/orari, barriere architettoniche o accessibilità, validità dei documenti, requisiti, costi, tempi e passaggi operativi.
 - La risposta deve affrontare singolarmente ogni dubbio realmente sollevato, senza lasciarne uno implicito o sottinteso.
-- Completezza non significa infodump: aggiungi solo informazioni richieste o strettamente necessarie per rispondere a quei dubbi, evitando temi non richiesti.`;
+- La completezza riguarda solo i dubbi effettivamente sollevati: non cercare temi nuovi oltre il perimetro della richiesta.`;
   }
 
   _renderFinalInstruction() {
@@ -945,7 +951,7 @@ Testo finale dell'email.
     // Regole universali positive
     rules.push('- **Essenzialità:** Fornisci orari, link, requisiti e procedure unicamente se necessari per rispondere alla domanda o se esplicitamente richiesti.');
     rules.push('- **Completezza domande:** Prima di chiudere, verifica di aver risposto a tutte e sole le domande o i dubbi realmente sollevati dall\'utente, espliciti o impliciti.');
-    rules.push('- **Efficienza del thread:** Dai per acquisite le informazioni che l\'utente ha già fornito nel thread o i passaggi che ha già completato (es. se menziona di avere già un documento, procedi direttamente al passo successivo).');
+    rules.push('- **Efficienza del thread:** Usa le informazioni già presenti nel thread come contesto operativo; richiamale solo quanto basta per rendere chiaro il passo attuale.');
     rules.push('- **Consegna documenti:** Conferma la "ricezione della documentazione" esclusivamente in presenza di allegati effettivi. Se l\'utente inserisce solo dati anagrafici nel testo, conferma di aver preso nota dei dati.');
     rules.push('- **Ricevuta semplice:** Se l\'utente invia un documento senza fare domande, ringrazia e conferma la ricezione in modo conciso, senza aggiungere passaggi extra.');
     rules.push('- **Identità:** Comunica immedesimandoti nel ruolo di segreteria parrocchiale verso l\'utente, senza mai esporre il tuo ragionamento o le fonti utilizzate.');
@@ -981,6 +987,10 @@ Testo finale dell'email.
 
     if (activeConcerns && activeConcerns.physical_presence_constraint) {
       rules.push('- **Presenza fisica:** il mittente ha manifestato un vincolo a raggiungere la parrocchia; privilegia telefono/email e menziona una visita solo in forma condizionale o se proceduralmente inevitabile.');
+    }
+
+    if (activeConcerns && activeConcerns.hallucination_risk) {
+      rules.push('- **Rischio allucinazione:** usa solo dati visibili nel prompt; se la Knowledge Base risulta incompleta o troncata, non dedurre informazioni dalle sezioni omesse e dichiara con prudenza che il dato non è disponibile.');
     }
 
     return `## CHECKLIST CONTESTUALE DI RISPOSTA
@@ -1175,7 +1185,7 @@ Il contesto emotivo NON trasforma una richiesta pratica in una questione pastora
 • Scrivi come segreteria parrocchiale: tono istituzionale, umano e concreto.
 • Usa SEMPRE la forma di cortesia; in italiano usa il "Lei" ed evita il "tu".
 • Nel saluto, NON usare mai "Caro" o "Cara": usa esclusivamente "Gentile" o il saluto temporale fornito (Buongiorno/Buonasera).
-• Segui il Principio di pertinenza e misura per congruenza, essenzialità e divieto di infodumping.
+• Segui il Principio di pertinenza e misura per congruenza ed essenzialità.
 • Non rimandare alla segreteria via email: la persona sta già scrivendo alla segreteria.
 
 🧠 CONTESTO E SICUREZZA:
@@ -1416,6 +1426,9 @@ Non richiedere nuovamente queste informazioni.`;
     if (normalized.shift === 'closure') {
       return `## CONTINUITÀ DEL TURNO
 - Il messaggio sembra chiudere la conversazione.
+- Questo messaggio chiude la conversazione.
+- Sopprime la ricerca di domande implicite: rispondi solo a ciò che è presente.
+- Non aggiungere passaggi o informazioni non richieste.
 - Rispondi in modo molto breve, salvo nuove domande o informazioni operative.`;
     }
 
@@ -2211,12 +2224,18 @@ ${safeEmailContent}
   // ========================================================================
 
   _renderResponseQualityContract() {
-    return `**PRINCIPIO DI PERTINENZA E MISURA**
+    return `Tra completezza e misura, la misura ha precedenza.
+Una risposta che copre il 90% con tre frasi
+vale più di una risposta esaustiva che annacqua
+il punto centrale.
+
+**PRINCIPIO DI PERTINENZA E MISURA**
 
 La risposta deve servire la persona, non dimostrare le nostre conoscenze.
 
 • Rispondi alla richiesta effettiva: se chiede se può venire il giovedì, rispondi sul giovedì. Se chiede la procedura per il battesimo, parla del battesimo.
 • Informazioni aggiuntive: aggiungile solo se senza di esse la risposta sarebbe incompleta o fuorviante nel caso concreto. Il dubbio si risolve omettendo.
+• Anti-infodump: ogni frase deve guadagnarsi il suo posto; aggiungi dettagli extra solo se richiesti o necessari nel caso concreto.
 • Pertinenza selettiva: quando la Knowledge Base contiene regole generali, usa solo la parte che risponde alla domanda specifica. Non citare eccezioni o casi che non riguardano l'utente.
 • Richieste preliminari su celebrazioni (battesimo, matrimonio, cresima, esequie...): rispondi su disponibilità e sul passo minimo per procedere. Non anticipare iter, documenti o corsi salvo richiesta esplicita o necessità evidente.
 • Documenti ricevuti: conferma la ricezione; aggiungi solo il passo successivo indispensabile.
@@ -2425,8 +2444,7 @@ Segreteria Parrocchia Sant'Eugenio
    • Answer ONLY what is asked
    • Use ONLY information from the knowledge base
    • ✅ Format elegantly if 3+ elements/times
-   • Follow-up (Re:): be more direct and concise
-   • ANTI-INFODUMP RULE: do not add sentences that bring neither useful information nor human warmth; every sentence must earn its place. Add extra details only if explicitly requested`;
+   • Follow-up (Re:): be more direct and concise`;
 
       languageReminder = `4. **LANGUAGE: ⚠️ RESPOND IN ENGLISH ONLY**
    • NO Italian words allowed
@@ -2457,8 +2475,7 @@ Segreteria Parrocchia Sant'Eugenio
    • Responde SOLO lo que se pregunta
    • Usa SOLO información de la base de conocimientos
    • ✅ Formatea elegantemente si 3+ elementos/horarios
-   • Seguimiento (Re:): sé más directo y conciso
-   • REGLA ANTI-INFODUMP: no añadas frases que no aporten información útil ni calidez humana; cada frase debe ganarse su lugar. Añade más detalles solo si se solicitan explícitamente`;
+   • Seguimiento (Re:): sé más directo y conciso`;
 
       languageReminder = `4. **IDIOMA: ⚠️ RESPONDE SOLO EN ESPAÑOL**
    • NO se permiten palabras italianas
@@ -2489,8 +2506,7 @@ Segreteria Parrocchia Sant'Eugenio
    • Responde APENAS ao que é perguntado
    • Usa APENAS informações da base de conhecimento
    • ✅ Formata elegantemente se 3+ elementos/horários
-   • Seguimento (Re:): sê mais direto e conciso
-   • REGRA ANTI-INFODUMP: não acrescentes frases que não tragam informação útil nem calor humano; cada frase deve justificar o seu lugar. Acrescenta detalhes extras apenas se forem pedidos explicitamente`;
+   • Seguimento (Re:): sê mais direto e conciso`;
 
       languageReminder = `4. **IDIOMA: ⚠️ RESPONDE APENAS EM PORTUGUÊS**
    • NÃO são permitidas palavras italianas
@@ -2521,8 +2537,7 @@ Segreteria Parrocchia Sant'Eugenio
    • Réponds UNIQUEMENT à la question posée
    • Utilise UNIQUEMENT les informations de la base de connaissances
    • ✅ Formate élégamment s'il y a 3+ éléments/horaires
-   • Suivi (Re:) : sois plus direct et concis
-   • RÈGLE ANTI-INFODUMP : n'ajoute pas de phrases qui n'apportent ni information utile ni chaleur humaine ; chaque phrase doit mériter sa place. Ajoute des détails seulement s'ils sont explicitement demandés`;
+   • Suivi (Re:) : sois plus direct et concis`;
 
       languageReminder = `4. **LANGUE : ⚠️ RÉPONDS UNIQUEMENT EN FRANÇAIS**
    • Aucun mot italien n'est autorisé
@@ -2553,8 +2568,7 @@ Segreteria Parrocchia Sant'Eugenio
    • Antworte NUR auf das, was gefragt wurde
    • Nutze NUR Informationen aus der Wissensbasis
    • ✅ Elegant formatieren bei 3+ Elementen/Uhrzeiten
-   • Follow-up (Re:): direkter und knapper antworten
-   • ANTI-INFODUMP-REGEL: fuege keine Saetze hinzu, die weder nuetzliche Information noch menschliche Waerme bringen; jeder Satz muss seinen Platz verdienen. Zusatzdetails nur auf ausdrueckliche Nachfrage`;
+   • Follow-up (Re:): direkter und knapper antworten`;
 
       languageReminder = `4. **SPRACHE: ⚠️ NUR AUF DEUTSCH ANTWORTEN**
    • Keine italienischen Woerter verwenden
@@ -2585,8 +2599,7 @@ Segreteria Parrocchia Sant'Eugenio
    • Rispondi SOLO a ciò che è chiesto
    • Usa SOLO info dalla knowledge base
    • ✅ Formatta elegantemente se 3+ elementi/orari
-   • Follow-up (Re:): sii più diretto e conciso
-   • REGOLA ANTI-INFODUMP: non aggiungere frasi che non portano informazione utile o calore umano; ogni frase deve guadagnarsi il suo posto. Aggiungi dettagli extra solo se richiesti esplicitamente`;
+   • Follow-up (Re:): sii più diretto e conciso`;
 
       languageReminder = `4. **Lingua:** Rispondi in italiano`;
     } else {
@@ -2615,8 +2628,7 @@ Segreteria Parrocchia Sant'Eugenio
    • Answer ONLY what is asked
    • Use ONLY information from the knowledge base
    • ✅ Format elegantly if 3+ elements/times
-   • Follow-up (Re:): be more direct and concise
-   • ANTI-INFODUMP RULE: do not add sentences that bring neither useful information nor human warmth; every sentence must earn its place. Add extra details only if explicitly requested`;
+   • Follow-up (Re:): be more direct and concise`;
 
       languageReminder = `4. **LANGUAGE: ⚠️ RESPOND ONLY IN LANGUAGE ${targetLanguageCode}**
    • Translate all parish information into the target language

@@ -49,6 +49,10 @@ assert(
   'il prompt deve vietare informazioni non richieste'
 );
 assert(
+  litePrompt.includes('Anti-infodump: ogni frase deve guadagnarsi il suo posto'),
+  'il contratto qualità deve essere il punto autorevole per la regola anti-infodump'
+);
+assert(
   litePrompt.includes('Pertinenza selettiva') &&
   litePrompt.includes('se chiede se può venire il giovedì'),
   'il contratto qualità deve imporre la sintesi sui soli casi richiesti'
@@ -198,8 +202,19 @@ console.log('--- Test prompt: firma nel body prevale sul nome account mittente -
   );
   assert(
     identityPrompt.includes('DIRETTIVA DI COMPLETEZZA') &&
-    identityPrompt.includes('Completezza non significa infodump'),
+    identityPrompt.includes('La completezza riguarda solo i dubbi effettivamente sollevati'),
     'il profilo standard deve includere la direttiva estesa di completezza'
+  );
+  assert(
+    !identityPrompt.includes('REGOLA ANTI-INFODUMP') &&
+      !identityPrompt.includes('ANTI-INFODUMP RULE') &&
+      !identityPrompt.includes('Completezza non significa infodump'),
+    'le regole anti-infodump devono restare concentrate nel contratto qualità'
+  );
+  assert(
+    !identityPrompt.includes('Divieto Emojis Eucaristia') &&
+      !identityPrompt.includes('emoji legate al cibo o al pane comune'),
+    'il reminder errori critici non deve duplicare il divieto emoji pane'
   );
 }
 
