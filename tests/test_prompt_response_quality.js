@@ -592,6 +592,13 @@ assert(
   'la struttura lutto deve vietare liste/emoji anche con molte domande'
 );
 assert(
+  bereavementPrompt.includes('Apertura: se il messaggio contiene elementi specifici') &&
+  bereavementPrompt.includes('Siamo dispiaciuti per la perdita di suo padre') &&
+  bereavementPrompt.includes("la sobrietà vale più dell'empatia performativa") &&
+  !bereavementPrompt.includes('1. Esprimi vicinanza sincera'),
+  'la struttura lutto deve sostituire formule emotive meccaniche con mirroring specifico o sobrietà'
+);
+assert(
   bereavementPrompt.includes('Mirroring del registro'),
   'il prompt deve chiedere di specchiare il registro semplice dell\'utente'
 );

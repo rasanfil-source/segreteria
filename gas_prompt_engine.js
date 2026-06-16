@@ -2033,9 +2033,9 @@ ${sensitiveOverride}
 
     if (subIntents && subIntents.bereavement) {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (LUTTO):**
-1. Esprimi vicinanza sincera
-2. Fornisci informazioni pratiche con discrezione, in prosa, una dopo l'altra - senza elenchi puntati, emoji o icone
-3. Offri disponibilità umana
+Apertura: se il messaggio contiene elementi specifici — un nome, una relazione, una circostanza concreta — rispecchiali invece di usare formule universali. "Siamo dispiaciuti per la perdita di suo padre" è più umano di "comprendiamo la delicatezza del momento". Se il messaggio è vago o formale, la sobrietà vale più dell'empatia performativa: passa direttamente alle informazioni pratiche con tono misurato.
+
+Poi fornisci informazioni pratiche con discrezione, in prosa, una dopo l'altra - senza elenchi puntati, emoji o icone. Chiudi offrendo disponibilità umana.
 
 ⚠️ FORMATO OBBLIGATORIO: Solo testo in prosa. Nessuna lista, nessuna emoji, nessun titolo Markdown, nessuna icona. Anche se le domande sono 4 o più, rispondi in modo fluente e umano, non come un modulo compilato.
 ⚠️ INCERTEZZA CON GARBO: Se mancano orari o dati specifici, non inventarli. Assicura con garbo che la segreteria si informerà e darà seguito, senza spezzare il filo umano della risposta.
