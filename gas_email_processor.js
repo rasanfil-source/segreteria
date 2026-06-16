@@ -1630,12 +1630,24 @@ var EmailProcessor = class EmailProcessor {
         preQuickAttachmentIntentContext,
         detectedLanguage
       );
+      const memoryContext = this.memoryService.getMemory(threadId) || {};
+      const memoryMessageCount = Number.isFinite(Number(memoryContext.messageCount))
+        ? Number(memoryContext.messageCount)
+        : 0;
+      const hasConversationContext = Boolean(
+        messages.length > 1 ||
+        memoryMessageCount > 0 ||
+        memoryContext.exists === true ||
+        (Array.isArray(memoryContext.providedInfo) && memoryContext.providedInfo.length > 0)
+      );
+
       const quickIntentContext = Object.assign(
         {},
         preQuickAttachmentIntentContext || {},
         {
           sponsorGuidanceCheck: sponsorGuidancePrecheck === 'ask_ai',
-          sponsorGuidanceLocalDecision: sponsorGuidancePrecheck
+          sponsorGuidanceLocalDecision: sponsorGuidancePrecheck,
+          hasConversationContext: hasConversationContext
         }
       );
 
@@ -1806,8 +1818,6 @@ var EmailProcessor = class EmailProcessor {
       )
         ? this.memoryService.getRecentHistory(threadId, historyLimit)
         : [];
-      const memoryContext = this.memoryService.getMemory(threadId) || {};
-
       if (memoryContext.lastUpdated) {
         console.log(`   🧠 Memoria trovata: lang=${memoryContext.language}, topics=${(memoryContext.providedInfo || []).length}`);
       }
@@ -1815,9 +1825,6 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       // STEP 6.6: CALCOLO DINAMICO SALUTO E RITARDO
       // ====================================================================
-      const memoryMessageCount = Number.isFinite(Number(memoryContext.messageCount))
-        ? Number(memoryContext.messageCount)
-        : 0;
       const processingTimestamp = new Date();
 
       const salutationMode = computeSalutationMode({

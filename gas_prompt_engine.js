@@ -562,9 +562,9 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
 
     // 11. CONSAPEVOLEZZA TEMPORALE
     const papalSourceText = [aiCoreLiteText, aiCoreText, workingKnowledgeBase, doctrineBaseText]
-      .filter(Boolean)
-      .join('\n');
-    addSection(this._renderTemporalAwareness(safeTemporalContext, detectedLanguage, salutationMode, papalSourceText, papalRuntimeContext), 'TemporalAwareness', { isSystem: true });
+       .filter(Boolean)
+       .join('\n');
+    addSection(this._renderTemporalAwareness(safeTemporalContext, detectedLanguage, papalSourceText, papalRuntimeContext), 'TemporalAwareness', { isSystem: true });
 
     // 12. SUGGERIMENTO CATEGORIA
     addSection(this._renderCategoryHint(category), 'CategoryHint', { isSystem: true });
@@ -1780,11 +1780,10 @@ Se l'utente chiede quando inizia o finisce il periodo estivo, rispondi con il pe
   // TEMPLATE 11: CONSAPEVOLEZZA TEMPORALE
   // ========================================================================
 
-  _renderTemporalAwareness(currentDateOrContext, detectedLanguage = 'it', messageDateOrSalutationMode = null, currentTimeOrPapalSourceText = null, salutationModeOrPapalContext = 'full', papalSourceTextLegacy = '', papalRuntimeContextLegacy = null) {
+  _renderTemporalAwareness(currentDateOrContext, detectedLanguage = 'it', messageDateOrPapalSource = null, currentTimeOrPapalContext = null, legacyPapalSource = '', legacyPapalContext = null) {
     let currentDate;
     let messageDate;
     let currentTime;
-    let salutationMode;
     let papalSourceText;
     let papalRuntimeContext;
     let temporalContext = {};
@@ -1794,16 +1793,14 @@ Se l'utente chiede quando inizia o finisce il periodo estivo, rispondi con il pe
       currentDate = temporalContext.currentDate;
       messageDate = temporalContext.messageDate || null;
       currentTime = temporalContext.currentTime || null;
-      salutationMode = messageDateOrSalutationMode || 'full';
-      papalSourceText = currentTimeOrPapalSourceText || '';
-      papalRuntimeContext = salutationModeOrPapalContext || null;
+      papalSourceText = messageDateOrPapalSource || '';
+      papalRuntimeContext = currentTimeOrPapalContext || null;
     } else {
       currentDate = currentDateOrContext;
-      messageDate = messageDateOrSalutationMode;
-      currentTime = currentTimeOrPapalSourceText;
-      salutationMode = salutationModeOrPapalContext || 'full';
-      papalSourceText = papalSourceTextLegacy || '';
-      papalRuntimeContext = papalRuntimeContextLegacy || null;
+      messageDate = messageDateOrPapalSource;
+      currentTime = currentTimeOrPapalContext;
+      papalSourceText = legacyPapalSource || '';
+      papalRuntimeContext = legacyPapalContext || null;
     }
 
     if (!currentDate) return '';
@@ -2397,10 +2394,11 @@ Segreteria Parrocchia Sant'Eugenio
       ? (scheduleContext.targetDateText || scheduleContext.targetDate || '')
       : '';
     let formatSection, contentSection, languageReminder;
+    const normalizedSalutationMode = String(salutationMode || 'full').toLowerCase();
     const isContinuity =
-      salutationMode === 'session' ||
-      salutationMode === 'none_or_continuity' ||
-      salutationMode === 'soft';
+      normalizedSalutationMode === 'session' ||
+      normalizedSalutationMode === 'none_or_continuity' ||
+      normalizedSalutationMode === 'soft';
 
     if (lang === 'en') {
       formatSection = isContinuity

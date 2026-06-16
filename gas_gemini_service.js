@@ -485,6 +485,7 @@ var EmailQuickCheckPolicy = class EmailQuickCheckPolicy {
     const hasSubmissionContext = EmailQuickCheckPolicy.isDocumentSubmissionIntent(intentContext);
     const shouldClassifySponsorGuidance = EmailQuickCheckPolicy.shouldClassifySponsorGuidance(intentContext);
     const hasOfficeVisitLogistics = EmailQuickCheckPolicy.isOfficeVisitLogisticsRequest(safeSubject, safeContent);
+    const hasConversationContext = !!(intentContext && intentContext.hasConversationContext === true);
     const quickIntentGuardrail = hasSubmissionContext ? `
 CONTESTO STRUTTURALE ALLEGATI:
 - Il testo del mittente contiene segnali di consegna documentale ("in allegato", "allego", "le invio", ecc.).
@@ -512,11 +513,40 @@ CONTESTO LOGISTICO VISITA:
    - "Testimone" di matrimonio NON è padrino/madrina e NON richiede Cresima: rispondi FALSE.
    - In inglese, "sponsor" vale solo se il contesto è chiaramente sacramentale (Confirmation/Baptism/Catholic godparent); altrimenti FALSE.
    - FALSE se il mittente chiede solo logistica, date, orari, luogo o conferma di ricezione documenti.
-` : '';
+ ` : '';
     const sponsorGuidanceJsonField = shouldClassifySponsorGuidance
       ? `,
   "needs_sponsor_guidance": boolean`
       : '';
+    const conversationalTasks = hasConversationContext ? `
+11. Determina response_focus_hint:
+   - Valore ammesso: "avoid_repeating_known_requirements", "answer_only_residual_question", "provide_next_operational_step", "acknowledge_document_without_reopening_procedure", oppure null.
+   - Deve riguardare solo il thread/conversazione, non la persona.
+   - Deve aiutare la prossima risposta a evitare ripetizioni o concentrarsi sul passo operativo successivo.
+   - Deve essere null se non emerge un'indicazione utile.
+   - Non descrivere tratti, emozioni o profili del mittente.
+   - Fornisci anche response_focus_hint_confidence (0.0-1.0).
+12. Determina conversation_shift come evento locale del turno, non come stato persistente:
+    - Valori ammessi: "none", "new_question", "topic_change", "new_information", "closure".
+    - "new_information": l'utente non fa una domanda, ma aggiunge un fatto esplicito al percorso già avviato.
+    - "closure": conversazione praticamente chiusa, senza nuove domande o informazioni operative.
+    - Fornisci anche conversation_shift_confidence (0.0-1.0).
+14. Determina goal_continuity:
+   - Descrive il rapporto tra il messaggio corrente e il percorso operativo già avviato nella conversazione.
+   - Valori ammessi: "none", "maintain_goal_continuity", "goal_completed".
+   - Usa "maintain_goal_continuity" solo se il messaggio corrente fa parte dello stesso percorso amministrativo o informativo già avviato.
+   - NON usare "maintain_goal_continuity" se il tema cambia in modo netto e non correlato.
+   - Fornisci anche goal_continuity_confidence (0.0-1.0).
+15. Determina new_information_provided:
+   - Lista degli slot informativi che l'utente ha esplicitamente fornito in questo messaggio.
+   - Usa SOLO i valori della whitelist: deceased_name, preferred_date, preferred_time, phone_number, confirmation_received, celebration_date, residence_parish, street_name, street_number, sponsor_name, baptism_date.
+   - Includi uno slot solo se il dato è presente in modo esplicito nel messaggio corrente e completa un percorso già contestualizzato.
+   - Se nessun dato utile è presente, restituisci [].
+   - Non inferire. Non dedurre da contesti impliciti.
+` : `
+11. Non estrarre segnali conversazionali: questo è un primo messaggio senza contesto conversazionale.
+   - Nel JSON mantieni i campi conversazionali con default neutri: response_focus_hint=null, response_focus_hint_confidence=0, conversation_shift="none", conversation_shift_confidence=0, goal_continuity="none", goal_continuity_confidence=0, new_information_provided=[].
+`;
     const relationalPostureConfidenceThreshold = EmailQuickCheckPolicy.getRelationalPostureConfidenceThreshold().toFixed(2);
     const prompt = `Analizza questa email.
 Rispondi ESCLUSIVAMENTE con un oggetto JSON valido e completo.
@@ -576,21 +606,7 @@ COMPITI:
    - Fornisci anche relational_posture_confidence (0.0-1.0).
    - IMPORTANTE: il sistema accetta la postura solo se relational_posture_confidence >= ${relationalPostureConfidenceThreshold}; sotto quella soglia la postura viene ignorata e si usa "direct".
    - Imposta un valore >= ${relationalPostureConfidenceThreshold} quando almeno un marcatore linguistico è esplicito e inequivocabile nel testo. Se i marcatori sono vaghi o assenti, imposta un valore sotto soglia e scegli "direct".
-11. Determina response_focus_hint:
-   - Valore ammesso: "avoid_repeating_known_requirements", "answer_only_residual_question", "provide_next_operational_step", "acknowledge_document_without_reopening_procedure", oppure null.
-   - Deve riguardare solo il thread/conversazione, non la persona.
-   - Deve aiutare la prossima risposta a evitare ripetizioni o concentrarsi sul passo operativo successivo.
-   - Deve essere null se non emerge un'indicazione utile.
-   - Non descrivere tratti, emozioni o profili del mittente.
-   - Fornisci anche response_focus_hint_confidence (0.0-1.0).
-12. Determina conversation_shift come evento locale del turno, non come stato persistente:
-    - Valori ammessi: "none", "new_question", "topic_change", "new_information", "closure".
-    - "none": si continua sullo stesso punto gia' in corso. Esempio: requisiti padrino -> altri dettagli sui requisiti.
-    - "new_question": nuova domanda, ma nello stesso tema. Esempio: requisiti padrino -> quando posso consegnare i documenti?
-    - "topic_change": cambio argomento. Esempio: battesimo -> certificato matrimonio.
-    - "new_information": l'utente non fa una domanda, ma aggiunge un fatto. Esempi: "Abito in via Flaminia 160", "Sono gia' cresimato", "Ho allegato il certificato".
-    - "closure": conversazione praticamente chiusa. Esempi: "Grazie", "Perfetto", "Ricevuto", senza nuove domande o informazioni operative.
-    - Fornisci anche conversation_shift_confidence (0.0-1.0).
+${conversationalTasks}
 13. Determina response_strategy:
    - Deve indicare come conviene orientare la risposta corrente.
    - Non descrives la persona.
@@ -605,22 +621,6 @@ COMPITI:
    - clarify_requirements: quando il punto centrale è chiarire requisiti, condizioni, documenti necessari o idoneità.
    - none: quando non emerge una strategia specifica.
    - Fornisci anche response_strategy_confidence (0.0-1.0).
-14. Determina goal_continuity:
-   - Descrive il rapporto tra il messaggio corrente e il percorso operativo già avviato nella conversazione.
-   - Non descrive la persona. Non è memoria. Non è profilo psicologico.
-   - Valori ammessi:
-     - "none": la domanda corrente è indipendente dal percorso precedente, oppure non esiste conversazione precedente visibile, oppure non è possibile determinarlo.
-     - "maintain_goal_continuity": il messaggio corrente è nuovo rispetto al precedente, ma fa parte dello stesso percorso amministrativo o informativo già avviato. Esempi: documenti → orari di consegna; requisiti → come completare la richiesta; certificato → dove spedirlo; battesimo → quando fissare l'incontro.
-     - "goal_completed": il mittente segnala che il percorso è concluso o non richiede più nulla. Esempi: "Grazie, tutto ricevuto", "Perfetto", "Va bene così", "Problema risolto".
-   - NON usare "maintain_goal_continuity" se il tema cambia in modo netto e non correlato (es. battesimo → orari Caritas).
-   - NON usare "maintain_goal_continuity" in assenza di conversazione precedente visibile nel thread.
-   - Fornisci anche goal_continuity_confidence (0.0-1.0).
-15. Determina new_information_provided:
-   - Lista degli slot informativi che l'utente ha esplicitamente fornito in questo messaggio.
-   - Usa SOLO i valori della whitelist: deceased_name, preferred_date, preferred_time, phone_number, confirmation_received, celebration_date, residence_parish, street_name, street_number, sponsor_name, baptism_date.
-   - Includi uno slot solo se il dato è presente in modo esplicito nel messaggio corrente.
-   - Se nessun dato utile è presente, restituisci [].
-   - Non inferire. Non dedurre da contesti impliciti.
 ${sponsorGuidanceTask}
 
 ⚠️ REGOLA CRITICA "SBATTEZZO":
@@ -672,7 +672,8 @@ Output JSON:
       safeContent: safeContent,
       hasSubmissionContext: hasSubmissionContext,
       hasOfficeVisitLogistics: hasOfficeVisitLogistics,
-      shouldClassifySponsorGuidance: shouldClassifySponsorGuidance
+      shouldClassifySponsorGuidance: shouldClassifySponsorGuidance,
+      hasConversationContext: hasConversationContext
     };
   }
 
@@ -810,26 +811,39 @@ Output JSON:
       data.relational_posture,
       relationalPostureConfidence
     );
-    const responseFocusHintConfidence = EmailQuickCheckPolicy.normalizeResponseFocusHintConfidence(data.response_focus_hint_confidence);
-    const responseFocusHint = EmailQuickCheckPolicy.normalizeResponseFocusHint(
-      data.response_focus_hint,
-      responseFocusHintConfidence
-    );
-    const conversationShiftConfidence = EmailQuickCheckPolicy.normalizeConversationShiftConfidence(data.conversation_shift_confidence);
-    const conversationShift = EmailQuickCheckPolicy.normalizeConversationShift(
-      data.conversation_shift,
-      conversationShiftConfidence
-    );
+    const hasConversationContext = !!(intentContext && intentContext.hasConversationContext === true);
+    const responseFocusHintConfidence = hasConversationContext
+      ? EmailQuickCheckPolicy.normalizeResponseFocusHintConfidence(data.response_focus_hint_confidence)
+      : 0;
+    const responseFocusHint = hasConversationContext
+      ? EmailQuickCheckPolicy.normalizeResponseFocusHint(
+        data.response_focus_hint,
+        responseFocusHintConfidence
+      )
+      : null;
+    const conversationShiftConfidence = hasConversationContext
+      ? EmailQuickCheckPolicy.normalizeConversationShiftConfidence(data.conversation_shift_confidence)
+      : 0;
+    const conversationShift = hasConversationContext
+      ? EmailQuickCheckPolicy.normalizeConversationShift(
+        data.conversation_shift,
+        conversationShiftConfidence
+      )
+      : 'none';
     const responseStrategyConfidence = EmailQuickCheckPolicy.normalizeResponseStrategyConfidence(data.response_strategy_confidence);
     const responseStrategy = EmailQuickCheckPolicy.normalizeResponseStrategy(
       data.response_strategy,
       responseStrategyConfidence
     );
-    const goalContinuityConfidence = EmailQuickCheckPolicy.normalizeGoalContinuityConfidence(data.goal_continuity_confidence);
-    const goalContinuity = EmailQuickCheckPolicy.normalizeGoalContinuity(
-      data.goal_continuity,
-      goalContinuityConfidence
-    );
+    const goalContinuityConfidence = hasConversationContext
+      ? EmailQuickCheckPolicy.normalizeGoalContinuityConfidence(data.goal_continuity_confidence)
+      : 0;
+    const goalContinuity = hasConversationContext
+      ? EmailQuickCheckPolicy.normalizeGoalContinuity(
+        data.goal_continuity,
+        goalContinuityConfidence
+      )
+      : 'none';
     const rawTerritoryRequest = Object.prototype.hasOwnProperty.call(data, 'is_territory_request')
       ? data.is_territory_request
       : data.territory_request;
@@ -862,7 +876,9 @@ Output JSON:
       response_strategy_confidence: responseStrategyConfidence,
       goal_continuity: goalContinuity,
       goal_continuity_confidence: goalContinuityConfidence,
-      new_information_provided: EmailQuickCheckPolicy.normalizeNewInformationProvided(data.new_information_provided),
+      new_information_provided: hasConversationContext
+        ? EmailQuickCheckPolicy.normalizeNewInformationProvided(data.new_information_provided)
+        : [],
       needs_sponsor_guidance: needsSponsorGuidance
     };
   }

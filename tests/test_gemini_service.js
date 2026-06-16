@@ -188,7 +188,8 @@ console.log('--- Test Gemini task profiles: generation e quick_check hanno confi
 
 console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documentale e guidance sponsor solo se richiesti ---');
 {
-  const plainPrompt = EmailQuickCheckPolicy.buildPrompt('Vorrei informazioni sugli orari', 'Info', null);
+  const plainPrompt = EmailQuickCheckPolicy.buildPrompt('Vorrei informazioni sugli orari', 'Info', { hasConversationContext: false });
+  const threadedPrompt = EmailQuickCheckPolicy.buildPrompt('Preferirei sabato prossimo', 'Re: Messa', { hasConversationContext: true });
   const visitPrompt = EmailQuickCheckPolicy.buildPrompt(
     'Buongiorno, posso passare domani in segreteria per un certificato di battesimo?',
     'Certificato di battesimo',
@@ -208,10 +209,11 @@ console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documental
   assert(plainPrompt.prompt.includes('competenza territoriale'), 'prompt quick-check deve spiegare la competenza territoriale');
   assert(plainPrompt.prompt.includes('"relational_posture"'), 'prompt ordinario deve chiedere la postura relazionale');
   assert(plainPrompt.prompt.includes('"relational_posture_confidence"'), 'prompt ordinario deve chiedere la confidenza della postura relazionale');
-  assert(plainPrompt.prompt.includes('"response_focus_hint"'), 'prompt ordinario deve chiedere response_focus_hint');
-  assert(plainPrompt.prompt.includes('"avoid_repeating_known_requirements"'), 'prompt ordinario deve limitare response_focus_hint agli enum ammessi');
-  assert(plainPrompt.prompt.includes('"conversation_shift"'), 'prompt ordinario deve chiedere conversation_shift');
-  assert(plainPrompt.prompt.includes('"topic_change"'), 'prompt ordinario deve limitare conversation_shift agli enum ammessi');
+  assert(plainPrompt.prompt.includes('"response_focus_hint"'), 'prompt ordinario deve mantenere response_focus_hint nel JSON');
+  assert(plainPrompt.prompt.includes('Non estrarre segnali conversazionali'), 'primo messaggio deve disattivare i task conversazionali');
+  assert(!plainPrompt.prompt.includes('Determina conversation_shift'), 'primo messaggio non deve chiedere lo step conversation_shift');
+  assert(threadedPrompt.prompt.includes('"avoid_repeating_known_requirements"'), 'thread avviato deve limitare response_focus_hint agli enum ammessi');
+  assert(threadedPrompt.prompt.includes('"topic_change"'), 'thread avviato deve limitare conversation_shift agli enum ammessi');
   assert(plainPrompt.prompt.includes('relational_posture_confidence >= 0.70'), 'prompt quick-check deve comunicare la soglia operativa default della postura');
   assert(plainPrompt.prompt.includes('sotto quella soglia la postura viene ignorata'), 'prompt quick-check deve spiegare il fallback sotto soglia');
   assert(plainPrompt.prompt.includes('"complaint"'), 'prompt quick-check deve usare complaint come label osservabile');
@@ -282,7 +284,7 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
   const result = EmailQuickCheckPolicy.normalizeApiResponse(
     responseBody,
     { lang: 'it', confidence: 5, safetyGrade: 5 },
-    { intent: 'document_submission' },
+    { intent: 'document_submission', hasConversationContext: true },
     { resolveLanguage: (candidate, fallback, grade) => `${candidate}/${fallback}/${grade}` }
   );
 
@@ -305,6 +307,25 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
   assert(result.physical_presence_constraint.has_constraint === true, 'vincolo presenza fisica stringa true deve diventare boolean true');
   assert(result.physical_presence_constraint.type === 'geographic_distance', 'tipo vincolo presenza fisica deve essere preservato');
   assert(result.physical_presence_constraint.visit_policy === 'conditional_only', 'policy visita condizionale deve essere preservata');
+
+  const noContextResult = EmailQuickCheckPolicy.normalizeDecisionData({
+    reply_needed: true,
+    language: 'it',
+    category: 'TECHNICAL',
+    response_focus_hint: 'provide_next_operational_step',
+    response_focus_hint_confidence: 0.99,
+    conversation_shift: 'new_information',
+    conversation_shift_confidence: 0.99,
+    goal_continuity: 'maintain_goal_continuity',
+    goal_continuity_confidence: 0.99,
+    new_information_provided: ['preferred_date']
+  }, { lang: 'it' }, { hasConversationContext: false });
+  assert(noContextResult.response_focus_hint === null, 'senza contesto conversazionale response_focus_hint deve essere neutro');
+  assert(noContextResult.conversation_shift === 'none', 'senza contesto conversazionale conversation_shift deve essere neutro');
+  assert(noContextResult.conversation_shift_confidence === 0, 'senza contesto conversazionale conversation_shift_confidence deve essere zero');
+  assert(noContextResult.goal_continuity === 'none', 'senza contesto conversazionale goal_continuity deve essere neutro');
+  assert(noContextResult.goal_continuity_confidence === 0, 'senza contesto conversazionale goal_continuity_confidence deve essere zero');
+  assert(Array.isArray(noContextResult.new_information_provided) && noContextResult.new_information_provided.length === 0, 'senza contesto conversazionale new_information_provided deve essere vuoto');
 
   const logisticsResponseBody = JSON.stringify({
     candidates: [{
