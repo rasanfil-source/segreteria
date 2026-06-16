@@ -597,15 +597,14 @@ COMPITI:
      "visit_ok" quando l'invito/presenza in segreteria e' appropriato;
      "unknown" se non e' chiaro.
 10. Determina relational_posture basandoti ESCLUSIVAMENTE su marcatori linguistici osservabili, non su stati psicologici:
+   - "informational": richiesta informativa semplice, testo essenziale o operativo, senza marcatori relazionali forti (DEFAULT).
+   - "procedural": richiesta centrata su passaggi, documenti, iter, requisiti o prossimo step operativo.
+   - "relational": condivisione esplicita di fatti personali delicati, vissuti intimi, richiesta di ascolto o bisogno pastorale.
    - "urgent": solleciti, "urgente", richiesta di risposta rapida, ripetizioni o pressione temporale.
-   - "hesitant": "mi scusi", "forse", "non vorrei disturbare", molte mitigazioni o incertezza formulata.
-   - "complaint": reclami, recriminazioni, disservizi segnalati, "non capisco perche", punteggiatura forte.
-   - "personal": condivisione esplicita di fatti personali delicati o vissuti intimi.
-   - "open": tono collaborativo, fiducioso, ringraziamenti anticipati o disponibilita' al dialogo.
-   - "direct": testo essenziale, operativo, senza marcatori relazionali forti (DEFAULT).
+   - "uncertain": "mi scusi", "forse", "non vorrei disturbare", molte mitigazioni o incertezza formulata.
    - Fornisci anche relational_posture_confidence (0.0-1.0).
-   - IMPORTANTE: il sistema accetta la postura solo se relational_posture_confidence >= ${relationalPostureConfidenceThreshold}; sotto quella soglia la postura viene ignorata e si usa "direct".
-   - Imposta un valore >= ${relationalPostureConfidenceThreshold} quando almeno un marcatore linguistico è esplicito e inequivocabile nel testo. Se i marcatori sono vaghi o assenti, imposta un valore sotto soglia e scegli "direct".
+   - IMPORTANTE: il sistema accetta la postura solo se relational_posture_confidence >= ${relationalPostureConfidenceThreshold}; sotto quella soglia la postura viene ignorata e si usa "informational".
+   - Imposta un valore >= ${relationalPostureConfidenceThreshold} quando almeno un marcatore linguistico è esplicito e inequivocabile nel testo. Se i marcatori sono vaghi o assenti, imposta un valore sotto soglia e scegli "informational".
 ${conversationalTasks}
 13. Determina response_strategy:
    - Deve indicare come conviene orientare la risposta corrente.
@@ -886,24 +885,28 @@ Output JSON:
   static normalizeRelationalPosture(value, confidence = 0) {
     const normalized = String(value || '').trim().toLowerCase();
     const aliases = {
-      frustrated: 'complaint',
-      frustration: 'complaint',
-      angry: 'complaint',
-      upset: 'complaint'
+      direct: 'informational',
+      personal: 'relational',
+      hesitant: 'uncertain',
+      open: 'relational',
+      complaint: 'procedural',
+      frustrated: 'procedural',
+      frustration: 'procedural',
+      angry: 'procedural',
+      upset: 'procedural'
     };
     const canonical = aliases[normalized] || normalized;
     const allowed = {
+      informational: true,
+      procedural: true,
+      relational: true,
       urgent: true,
-      hesitant: true,
-      complaint: true,
-      personal: true,
-      open: true,
-      direct: true
+      uncertain: true
     };
-    if (!allowed[canonical] || canonical === 'direct') return 'direct';
+    if (!allowed[canonical] || canonical === 'informational') return 'informational';
     return EmailQuickCheckPolicy.isRelationalPostureConfidenceSufficient(confidence)
       ? canonical
-      : 'direct';
+      : 'informational';
   }
 
   static normalizeRelationalPostureConfidence(value) {

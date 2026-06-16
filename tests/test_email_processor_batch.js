@@ -2319,7 +2319,7 @@ console.log('--- Test prompt options: messageDate usa la data del messaggio orig
     },
     geminiService: {
       primaryKey: 'primary-key',
-      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', relational_posture: 'complaint', classification: { category: 'information', topic: 'appuntamento' } }),
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', relational_posture: 'procedural', classification: { category: 'information', topic: 'appuntamento' } }),
       detectEmailLanguage: () => ({ lang: 'it' }),
       getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',
@@ -2364,7 +2364,7 @@ console.log('--- Test prompt options: messageDate usa la data del messaggio orig
   assert(promptOptions.runtimeContext.temporal.messageTime === '12:00', `runtimeContext.temporal.messageTime deve derivare dall'ora originale in timezone business, ottenuto ${promptOptions.runtimeContext.temporal.messageTime}`);
   assert(promptOptions.runtimeContext.temporal.messageDateAvailable === true, 'runtimeContext deve dichiarare disponibile la data originale valida');
   assert(promptOptions.runtimeContext.temporal.messageDateSource === 'gmail_message_date', 'runtimeContext deve tracciare la sorgente Gmail della data originale');
-  assert(promptOptions.relationalPosture === 'complaint', 'promptOptions deve ricevere la relationalPosture dal quick-check');
+  assert(promptOptions.relationalPosture === 'procedural', 'promptOptions deve ricevere la relationalPosture canonica dal quick-check');
   assert(validationRuntimeContext === promptOptions.runtimeContext, 'validator deve ricevere lo stesso runtimeContext passato al prompt');
 }
 
@@ -2599,7 +2599,7 @@ console.log('--- Test prompt options: relationalPosture personal passa dal quick
 
   const result = processor.processThread(createExternalThread('relational-posture-personal'), 'kb valida', '', new Set(), true);
   assert(result.status === 'replied', 'il thread con postura personal deve completarsi');
-  assert(promptOptions && promptOptions.relationalPosture === 'personal', `relationalPosture attesa personal, ottenuta ${promptOptions && promptOptions.relationalPosture}`);
+  assert(promptOptions && promptOptions.relationalPosture === 'relational', `relationalPosture attesa relational, ottenuta ${promptOptions && promptOptions.relationalPosture}`);
   assert(promptOptions.requestType && promptOptions.requestType.type === 'technical', 'il test deve dimostrare che la postura resta indipendente dal requestType tecnico');
 }
 

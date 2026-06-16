@@ -339,7 +339,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     let workingKnowledgeBase = originalKnowledgeBase;
     let kbWasTruncated = false;
 
-    const relationalPosture = options.relationalPosture ?? 'direct';
+    const relationalPosture = this._normalizeRelationalPostureAlias(options.relationalPosture ?? 'informational');
     const normalizedTopicForRouting = String(topic || '').toLowerCase();
     const normalizedCategoryForRouting = String(category || '').toLowerCase();
     const requestTypeForRouting = options.requestType;
@@ -357,7 +357,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       normalizedCategoryForRouting === 'sbattezzo' ||
       requestTypeNameForRouting === 'formal' ||
       requestTypeIsSbattezzoForRouting;
-    const shouldApplyPersonalDiscernment = relationalPosture === 'personal' && !isFormalTopicForRouting;
+    const shouldApplyPersonalDiscernment = relationalPosture === 'relational' && !isFormalTopicForRouting;
 
     const shouldReserveAiCoreLiteOverhead = (() => {
       if (shouldApplyPersonalDiscernment) {
@@ -528,15 +528,27 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     addSection(this._renderConversationShiftGuidance(normalizedConversationShift), 'ConversationShiftGuidance', { isSystem: true });
     addSection(this._renderGoalContinuity(goalContinuity), 'GoalContinuity', { isSystem: true });
     addSection(this._renderNewInformationProvided(newInformationProvided), 'NewInformationProvided', { isSystem: true });
-    addSection(this._renderResponseStrategy(responseStrategy), 'ResponseStrategy', { isSystem: true });
     const effectiveRelationalPosture = isFormalTopicForRouting
-      ? 'direct'
-      : (normalizedConcerns.longitudinal_sensitivity && relationalPosture === 'direct'
-          ? 'personal'
+      ? 'informational'
+      : (normalizedConcerns.longitudinal_sensitivity && relationalPosture === 'informational'
+          ? 'relational'
           : relationalPosture);
+    const postureToStrategy = {
+      informational: 'provide_information',
+      procedural: 'guide_next_step',
+      relational: 'offer_reassurance',
+      urgent: 'reduce_user_effort',
+      uncertain: 'clarify_requirements'
+    };
+    const normalizedResponseStrategy = String(responseStrategy || 'none').trim().toLowerCase();
+    const inferredStrategy = postureToStrategy[effectiveRelationalPosture];
+    const effectiveResponseStrategy = (inferredStrategy && normalizedResponseStrategy === 'none')
+      ? inferredStrategy
+      : responseStrategy;
+    addSection(this._renderResponseStrategy(effectiveResponseStrategy), 'ResponseStrategy', { isSystem: true });
     // Keep register and posture aligned when longitudinal context softens a direct reply.
     const responseRegisterKey = String(responseRegister || 'warm_institutional').trim().toLowerCase();
-    const effectiveResponseRegister = (effectiveRelationalPosture === 'personal' && responseRegisterKey === 'warm_institutional')
+    const effectiveResponseRegister = (effectiveRelationalPosture === 'relational' && responseRegisterKey === 'warm_institutional')
       ? 'pastoral_supportive'
       : responseRegister;
     addSection(this._renderResponseRegister(effectiveResponseRegister), 'ResponseRegister', { isSystem: true });
@@ -613,7 +625,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     // Una condivisione personale delicata richiede almeno i principi pastorali di base.
     if (shouldApplyPersonalDiscernment && !requestTypeObj.needsDiscernment) {
       requestTypeObj = Object.assign({}, requestTypeObj, { needsDiscernment: true });
-      console.log('ℹ️ needsDiscernment alzato a true per postura personal');
+      console.log('ℹ️ needsDiscernment alzato a true per postura relational');
     }
 
     // 13. AI_CORE_LITE: solo se componente pastorale
@@ -2021,7 +2033,7 @@ ${sensitiveOverride}
 - **Orari e Date:** Fuori dai contesti sensibili, mettili in grassetto per facilitare la lettura. Usa emoji sobrie (🗓️, ⏰, 📍).
 - **Titoli:** Fuori dai contesti sensibili, usa titoli Markdown (###) se la risposta contiene più argomenti o step nettamente separati.
 - **Risposte brevi:** Se la risposta richiede solo 1-2 frasi (es. conferma di ricezione), non utilizzare formattazione, emoji o titoli.
-- **Mirroring del registro:** Se l'email ricevuta è scritta in prosa semplice e senza formattazione, calibra la risposta allo stesso livello di struttura. Non aggiungere titoli o liste dove l'utente non li ha usati.`;
+- **Mirroring del registro:** Se l'email ricevuta è scritta in prosa semplice e senza formattazione, calibra la risposta allo stesso livello di struttura. Non aggiungere titoli o liste dove l'utente non li ha usati. Specchia il registro formale/informale e il livello di vocabolario. Non specchiare l'ansia: a fronte di un messaggio caotico o agitato, rispondi con ordine e calma. Non specchiare la freddezza: a fronte di un messaggio asciutto, rispondi con efficienza, non con calore artificiale aggiunto.`;
   }
 
   // ========================================================================
@@ -2126,12 +2138,12 @@ ISTRUZIONI:
 
   /**
    * Renderizza la sezione POSTURA RELAZIONALE.
-   * @param {'direct'|'urgent'|'hesitant'|'complaint'|'personal'|'open'} posture
+   * @param {'informational'|'procedural'|'relational'|'urgent'|'uncertain'} posture
    * @returns {string}
    */
   renderRelationalPosture(posture) {
     const instructions = {
-      hesitant: [
+      uncertain: [
         '- Il mittente si è scusato o ha minimizzato la propria richiesta: accoglila come legittima, senza sottolinearne la semplicità.',
         '- Rispondi in modo diretto e sobrio: la chiarezza è già un atto di rispetto verso chi teme di disturbare.',
         '- Fornisci le informazioni pratiche in modo diretto e sobrio, senza aggiungere commenti sulla natura della domanda.',
@@ -2141,12 +2153,16 @@ ISTRUZIONI:
         '- Il mittente ha segnalato urgenza o pressione temporale: vai dritto alla soluzione operativa, senza preamboli o formule di cortesia prolungate.',
         '- Se l\'urgenza dipende da una data imminente, mettila in evidenza nella struttura della risposta.',
       ],
+      procedural: [
+        '- Il mittente chiede un percorso o un passaggio operativo: guida il prossimo step con ordine e concretezza.',
+        '- Dai priorità alla sequenza pratica, senza appesantire con preamboli relazionali non necessari.',
+      ],
       complaint: [
         '- Il mittente esprime insoddisfazione o segnala un disservizio: mantieni un registro strettamente fattuale e orientato alla risoluzione.',
         '- Non minimizzare il problema, non difenderti, non scusarti in modo generico. Riconosci il fatto e indica il passo concreto successivo.',
         '- Evita formule consolatorie astratte; usa verbi di azione come "verificheremo" o "provvederemo".',
       ],
-      personal: [
+      relational: [
         '- Il mittente ha condiviso qualcosa di personale o delicato: lutto, malattia, difficoltà familiare o una situazione intima.',
         '- Scrivi in prosa continua: niente elenchi puntati, niente grassetti, niente strutture che diano un tono burocratico.',
         '- Riconosci brevemente la dimensione umana con una frase sobria prima di entrare nelle informazioni pratiche. Non amplificare o parafrasare il vissuto del mittente.',
@@ -2159,18 +2175,41 @@ ISTRUZIONI:
         '- Struttura la risposta per chiarezza, ma lascia spazio a un registro leggermente più personale rispetto al default istituzionale.',
         '- Evita di amplificare il tono positivo oltre il necessario: una risposta chiara e concreta è già una risposta calorosa.',
       ],
-      direct: [
+      informational: [
         '- Tono istituzionale. Rispondi ai fatti esclusivamente con i fatti.',
       ]
     };
 
-    const lines = instructions[posture] ?? instructions['direct'];
+    const normalizedPosture = this._normalizeRelationalPostureAlias(posture);
+    const lines = instructions[normalizedPosture] ?? instructions['informational'];
 
     return [
       '=== LINEE GUIDA PRAGMATICHE ===',
       ...lines,
       '==============================='
     ].join('\n');
+  }
+
+  _normalizeRelationalPostureAlias(posture) {
+    const normalized = String(posture || '').trim().toLowerCase();
+    const aliases = {
+      direct: 'informational',
+      personal: 'relational',
+      open: 'open',
+      hesitant: 'uncertain',
+      complaint: 'complaint'
+    };
+    const canonical = aliases[normalized] || normalized;
+    const allowed = {
+      informational: true,
+      procedural: true,
+      relational: true,
+      urgent: true,
+      uncertain: true,
+      complaint: true,
+      open: true
+    };
+    return allowed[canonical] ? canonical : 'informational';
   }
 
   _renderPhysicalPresenceConstraintGuideline(constraint) {

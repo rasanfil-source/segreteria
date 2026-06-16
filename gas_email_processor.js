@@ -2356,10 +2356,21 @@ ${addressLines.join('\n\n')}
       ]);
       const rawResponseStrategy = String(quickCheck.response_strategy || 'none').trim().toLowerCase();
       const responseStrategyConfidence = Number(quickCheck.response_strategy_confidence) || 0;
-      const responseStrategy = (
+      const normalizedRelationalPosture = this._normalizeRelationalPostureAlias_(quickCheck.relational_posture);
+      const postureToStrategy = {
+        informational: 'provide_information',
+        procedural: 'guide_next_step',
+        relational: 'offer_reassurance',
+        urgent: 'reduce_user_effort',
+        uncertain: 'clarify_requirements'
+      };
+      const classifiedResponseStrategy = (
         allowedResponseStrategies.has(rawResponseStrategy) &&
         responseStrategyConfidence >= 0.65
       ) ? rawResponseStrategy : 'none';
+      const responseStrategy = classifiedResponseStrategy !== 'none'
+        ? classifiedResponseStrategy
+        : (postureToStrategy[normalizedRelationalPosture] || 'none');
       if (responseStrategy !== 'none') {
         console.log(`   🧭 Response strategy: ${responseStrategy}, confidence=${responseStrategyConfidence}, threadId=${threadId}`);
       }
@@ -2402,7 +2413,7 @@ ${addressLines.join('\n\n')}
         territoryContext: territoryContext,
         physicalPresenceConstraint: physicalPresenceConstraint,
         sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),
-        relationalPosture: quickCheck?.relational_posture ?? 'direct',
+        relationalPosture: this._normalizeRelationalPostureAlias_(quickCheck?.relational_posture ?? 'informational'),
         conversationShift: {
           shift: quickCheck?.conversation_shift || 'none',
           confidence: Number(quickCheck?.conversation_shift_confidence) || 0
@@ -6799,6 +6810,20 @@ Parish Secretariat of Sant'Eugenio`;
     }
 
     return fallback;
+  }
+
+  _normalizeRelationalPostureAlias_(posture) {
+    const normalized = String(posture || '').trim().toLowerCase();
+    const aliases = {
+      direct: 'informational',
+      personal: 'relational',
+      open: 'relational',
+      hesitant: 'uncertain',
+      complaint: 'procedural'
+    };
+    const canonical = aliases[normalized] || normalized;
+    const allowed = new Set(['informational', 'procedural', 'relational', 'urgent', 'uncertain']);
+    return allowed.has(canonical) ? canonical : 'informational';
   }
 
   _deriveSponsorGuidancePolicy_(subject, body, attachmentIntentContext, aiGuidanceSignal, detectedLanguage = 'it') {
