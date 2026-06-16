@@ -1511,6 +1511,35 @@ assert(
   'il prompt deve includere la regola user_overload'
 );
 
+console.log('--- Test PromptEngine: residual_sensitivity produce istruzione dedicata dopo memoria ---');
+const residualSensitivityPrompt = engine.buildPrompt({
+  emailSubject: 'Certificato',
+  emailContent: 'Buongiorno, vorrei sapere quando posso ritirare il certificato.',
+  knowledgeBase: 'La segreteria riceve su appuntamento per il ritiro dei certificati.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  salutationMode: 'full',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  requestType: { type: 'technical' },
+  memoryContext: { memorySummary: 'In una comunicazione precedente era emersa una situazione personale delicata.' },
+  activeConcerns: { residual_sensitivity: true }
+});
+const memoryIndex = residualSensitivityPrompt.indexOf('## CONTESTO MEMORIA (CONVERSAZIONE IN CORSO)');
+const residualIndex = residualSensitivityPrompt.indexOf('## CONTINUITÀ RELAZIONALE');
+const shiftIndex = residualSensitivityPrompt.indexOf('CAMBIO DI TEMA');
+assert(
+  residualSensitivityPrompt.includes('Questa persona ha condiviso in una comunicazione') &&
+  residualSensitivityPrompt.includes('Il messaggio attuale è di natura amministrativa:') &&
+  residualSensitivityPrompt.includes('senza richiamare né nominare') &&
+  residualSensitivityPrompt.includes("salvo che sia l'utente"),
+  'residual_sensitivity deve produrre il template dedicato richiesto'
+);
+assert(
+  memoryIndex !== -1 && residualIndex > memoryIndex && (shiftIndex === -1 || residualIndex < shiftIndex),
+  'ResidualSensitivity deve essere incluso subito dopo il template memoria'
+);
+
 console.log('--- Test PromptEngine: sensibilità longitudinale ammorbidisce postura direct ---');
 const longitudinalPosturePrompt = engine.buildPrompt({
   emailSubject: 'Orario incontro',

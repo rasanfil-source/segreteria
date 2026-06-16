@@ -514,6 +514,9 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
 
     // 6. CONTESTO MEMORIA
     addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
+    if (normalizedConcerns.residual_sensitivity) {
+      addSection(this._renderResidualSensitivity(), 'ResidualSensitivity');
+    }
     addSection(this._renderConversationShiftGuidance(normalizedConversationShift), 'ConversationShiftGuidance', { isSystem: true });
     addSection(this._renderGoalContinuity(goalContinuity), 'GoalContinuity', { isSystem: true });
     addSection(this._renderNewInformationProvided(newInformationProvided), 'NewInformationProvided', { isSystem: true });
@@ -557,9 +560,6 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       normalizedConcerns.repetition_risk;
     if (shouldAddContinuityFocus) {
       addSection(this._renderContinuityHumanFocus(), 'ContinuityHumanFocus', { isSystem: true });
-    }
-    if (normalizedConcerns.residual_sensitivity) {
-      addSection(this._renderResidualSensitivity(), 'ResidualSensitivity', { isSystem: true });
     }
 
     // 10. CONTESTO STAGIONALE
@@ -1155,9 +1155,14 @@ Mantieni la stessa lingua e registro dell'email ricevuta. Se la confidenza sul c
 
   _renderResidualSensitivity() {
     return `## CONTINUITÀ RELAZIONALE
-È presente una situazione personale delicata già emersa nel thread.
-Non è necessario concentrare la risposta su tale situazione.
-Mantieni tuttavia un tono leggermente più umano e attento del normale.`;
+Questa persona ha condiviso in una comunicazione
+precedente una situazione personale delicata.
+Il messaggio attuale è di natura amministrativa:
+rispondi normalmente alla domanda.
+Mantieni però una tonalità leggermente più misurata
+del consueto, senza richiamare né nominare
+la situazione precedente, salvo che sia l'utente
+a farlo esplicitamente.`;
   }
 
   // ========================================================================
