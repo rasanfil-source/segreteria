@@ -2368,9 +2368,26 @@ ${addressLines.join('\n\n')}
         allowedResponseStrategies.has(rawResponseStrategy) &&
         responseStrategyConfidence >= 0.65
       ) ? rawResponseStrategy : 'none';
+      const hasGoalContinuitySignalForResponseStrategy = Boolean(
+        quickCheck.goal_continuity &&
+        String(quickCheck.goal_continuity || 'none').trim().toLowerCase() !== 'none' &&
+        (Number(quickCheck.goal_continuity_confidence) || 0) >= 0.65
+      );
+      const hasResponseFocusHintSignalForResponseStrategy = Boolean(
+        memoryContext &&
+        memoryContext.conversationState &&
+        memoryContext.conversationState.responseFocusHint
+      );
+      const hasStrongerResponseRoutingSignal = Boolean(
+        categoryHintSource ||
+        (requestType && (typeof requestType === 'string' ? requestType : (requestType.type || requestType.isSbattezzo))) ||
+        physicalPresenceConstraint ||
+        hasGoalContinuitySignalForResponseStrategy ||
+        hasResponseFocusHintSignalForResponseStrategy
+      );
       const responseStrategy = classifiedResponseStrategy !== 'none'
         ? classifiedResponseStrategy
-        : (postureToStrategy[normalizedRelationalPosture] || 'none');
+        : (!hasStrongerResponseRoutingSignal ? (postureToStrategy[normalizedRelationalPosture] || 'none') : 'none');
       if (responseStrategy !== 'none') {
         console.log(`   🧭 Response strategy: ${responseStrategy}, confidence=${responseStrategyConfidence}, threadId=${threadId}`);
       }

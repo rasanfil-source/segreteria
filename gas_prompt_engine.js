@@ -547,7 +547,28 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     };
     const normalizedResponseStrategy = String(responseStrategy || 'none').trim().toLowerCase();
     const inferredStrategy = postureToStrategy[effectiveRelationalPosture];
-    const effectiveResponseStrategy = (inferredStrategy && normalizedResponseStrategy === 'none')
+    const hasPhysicalPresenceConstraint = Boolean(
+      physicalPresenceConstraint ||
+      (normalizedConcerns && normalizedConcerns.physical_presence_constraint)
+    );
+    const hasGoalContinuitySignal = Boolean(
+      goalContinuity &&
+      String((typeof goalContinuity === 'object' ? goalContinuity.value : goalContinuity) || 'none').trim().toLowerCase() !== 'none'
+    );
+    const hasResponseFocusHintSignal = Boolean(this._renderResponseFocusHint(memoryContext, topic, safeCurrentDate));
+    const hasStrongerResponseRoutingSignal = Boolean(
+      normalizedCategoryForRouting ||
+      requestTypeNameForRouting ||
+      requestTypeIsSbattezzoForRouting ||
+      hasPhysicalPresenceConstraint ||
+      hasGoalContinuitySignal ||
+      hasResponseFocusHintSignal
+    );
+    const effectiveResponseStrategy = (
+      inferredStrategy &&
+      normalizedResponseStrategy === 'none' &&
+      !hasStrongerResponseRoutingSignal
+    )
       ? inferredStrategy
       : responseStrategy;
     addSection(this._renderResponseStrategy(effectiveResponseStrategy), 'ResponseStrategy', { isSystem: true });

@@ -1532,6 +1532,40 @@ console.log('--- Test PromptEngine: responseStrategy orienta solo il prompt corr
     relationalPosture: 'none'
   });
   assert(!invalidPrompt.includes('ORIENTAMENTO DELLA RISPOSTA'), 'responseStrategy non ammesso non deve renderizzare la sezione');
+
+  const remotePracticalPrompt = engine.buildPrompt({
+    emailSubject: 'Passaggio in segreteria',
+    emailContent: 'Abito lontano e non posso venire di persona: posso fare via email?',
+    knowledgeBase: 'La segreteria può ricevere alcune richieste via email.',
+    detectedLanguage: 'it',
+    responseStrategy: 'none',
+    relationalPosture: 'relational',
+    activeConcerns: { physical_presence_constraint: true },
+    physicalPresenceConstraint: { has_constraint: true, type: 'geographic_distance' }
+  });
+  assert(
+    remotePracticalPrompt.includes('Presenza fisica') &&
+      remotePracticalPrompt.includes('privilegia telefono/email') &&
+      !remotePracticalPrompt.includes('Rispondi con tono rassicurante'),
+    'fallback relational postureToStrategy non deve sovrascrivere il vincolo remoto/pratico di presenza fisica'
+  );
+
+  const documentSubmissionPrompt = engine.buildPrompt({
+    emailSubject: 'Documenti',
+    emailContent: 'Invio i documenti richiesti in allegato.',
+    knowledgeBase: 'La segreteria prende in carico i documenti ricevuti.',
+    detectedLanguage: 'it',
+    responseStrategy: 'none',
+    relationalPosture: 'urgent',
+    category: 'document_submission',
+    attachmentsContext: 'Allegato: documento.pdf',
+    attachmentIntentContext: { intent: 'document_submission', hasPhysicalAttachments: true }
+  });
+  assert(
+    documentSubmissionPrompt.includes('Ricevuta semplice') &&
+      !documentSubmissionPrompt.includes('Riduci il numero di passaggi necessari'),
+    'fallback urgent postureToStrategy non deve trasformare una consegna documenti in risposta allarmata/operativa'
+  );
 }
 
 console.log('--- Test anti-persistenza: responseStrategy non entra in MemoryService o stato conversazione ---');
