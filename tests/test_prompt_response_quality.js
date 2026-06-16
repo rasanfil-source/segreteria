@@ -1523,7 +1523,10 @@ const registerPrompt = engine.buildPrompt({
 });
 assert(
   registerPrompt.includes('REGISTRO DELLA RISPOSTA') &&
-  registerPrompt.includes('Usa un tono accogliente, sobrio e attento alla persona.') &&
+  registerPrompt.includes('Usa un tono accogliente, sobrio e attento.') &&
+  registerPrompt.includes('Riconosci la situazione prima') &&
+  registerPrompt.includes('Non enfatizzare emozioni non espresse.') &&
+  registerPrompt.includes("Non anticipare stati d'animo non dichiarati.") &&
   registerPrompt.includes("non nominare il registro all'utente") &&
   registerPrompt.includes('non alterare KB, territorio, dottrina, date, orari o procedure'),
   'il prompt deve includere il registro sintetico pastorale'
@@ -1534,6 +1537,22 @@ assert(
   registerPrompt.includes('usa punti chiari') &&
   registerPrompt.includes('evita densità eccessiva'),
   'il prompt deve includere la regola user_overload'
+);
+
+const crisisRegisterPrompt = engine.buildPrompt({
+  emailSubject: 'Richiesta delicata',
+  emailContent: 'Scrivo per una situatione di lutto in famiglia.',
+  knowledgeBase: 'Informazioni essenziali di segreteria.',
+  detectedLanguage: 'it',
+  responseRegister: 'pastoral_crisis'
+});
+assert(
+  crisisRegisterPrompt.includes('Usa un tono molto delicato e non burocratico.') &&
+  crisisRegisterPrompt.includes('Tieni le frasi brevi. Non elencare.') &&
+  crisisRegisterPrompt.includes('Non usare bullet points né titoli Markdown.') &&
+  crisisRegisterPrompt.includes('Non chiudere con firma standardizzata') &&
+  crisisRegisterPrompt.includes('Se riconosci un elemento specifico'),
+  'il prompt deve includere le istruzioni operative dense per pastoral_crisis'
 );
 
 console.log('--- Test PromptEngine: residual_sensitivity produce istruzione dedicata dopo memoria ---');
@@ -1584,7 +1603,8 @@ assert(
   'la sensibilità longitudinale deve usare la postura personal anche se la richiesta corrente è direct'
 );
 assert(
-  longitudinalPosturePrompt.includes('Usa un tono accogliente, sobrio e attento alla persona.'),
+  longitudinalPosturePrompt.includes('Usa un tono accogliente, sobrio e attento.') &&
+  longitudinalPosturePrompt.includes('Riconosci la situazione prima'),
   'la sensibilità longitudinale deve allineare il registro alla postura personal'
 );
 assert(

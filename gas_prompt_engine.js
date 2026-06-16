@@ -1548,8 +1548,21 @@ Non richiedere nuovamente queste informazioni.`;
     const instructions = {
       formal_institutional: 'Usa un tono formale, neutro e procedurale.',
       warm_institutional: 'Usa un tono cordiale, chiaro e istituzionale.',
-      pastoral_supportive: 'Usa un tono accogliente, sobrio e attento alla persona.',
-      pastoral_crisis: 'Usa un tono molto delicato, breve e non burocratico.'
+      pastoral_supportive: `Usa un tono accogliente, sobrio e attento.
+- Riconosci la situazione prima
+  delle informazioni operative.
+- Non enfatizzare emozioni non espresse.
+- Non anticipare stati d'animo non dichiarati.`,
+      pastoral_crisis: `Usa un tono molto delicato e non burocratico.
+- Tieni le frasi brevi. Non elencare.
+- Non usare bullet points né titoli Markdown.
+- Non chiudere con firma standardizzata
+  se sembra automatizzata: preferisci
+  una chiusura sobria e personale.
+- Se riconosci un elemento specifico
+  nel messaggio (un nome, una relazione,
+  una circostanza), rispecchialo:
+  è più umano di qualsiasi formula.`
     };
 
     if (!instructions[register]) return null;
