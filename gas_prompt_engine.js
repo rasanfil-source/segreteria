@@ -148,16 +148,10 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
   /**
    * Determina se un template deve essere incluso in base a profilo e concern
    */
-  _shouldIncludeTemplate(templateName, promptProfile, activeConcerns = {}) {
-    if (promptProfile === 'heavy') {
-      return true; // Profilo heavy include tutto
-    }
-
+  _shouldIncludeTemplate(templateName, promptProfile, activeConcerns = {}, responseRegister = '') {
     if (promptProfile === 'lite') {
-      if (templateName === 'FormattingGuidelinesTemplate' && activeConcerns.emotional_sensitivity) {
-        return true;
-      }
-      if (this.LITE_SKIP_TEMPLATES.includes(templateName)) {
+      const keepSensitiveFormatting = templateName === 'FormattingGuidelinesTemplate' && activeConcerns.emotional_sensitivity;
+      if (!keepSensitiveFormatting && this.LITE_SKIP_TEMPLATES.includes(templateName)) {
         return false;
       }
     }
@@ -169,6 +163,20 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
           return false;
         }
       }
+    }
+
+    if (responseRegister === 'pastoral_crisis') {
+      const suppress = [
+        'CompletenessDirectiveTemplate',
+        'ExamplesTemplate',
+        'SpecialCasesTemplate',
+        'FormattingGuidelinesTemplate'
+      ];
+      if (suppress.includes(templateName)) return false;
+    }
+
+    if (responseRegister === 'pastoral_supportive') {
+      if (templateName === 'ExamplesTemplate') return false;
     }
 
     return true;
@@ -466,7 +474,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
      * Helper per aggiungere template condizionali
      */
     const addTemplate = (templateName, content, label, options = {}) => {
-      if (this._shouldIncludeTemplate(templateName, promptProfile, templateConcerns)) {
+      if (this._shouldIncludeTemplate(templateName, promptProfile, templateConcerns, responseRegister)) {
         addSection(content, label || templateName, options);
       } else {
         skippedCount++;

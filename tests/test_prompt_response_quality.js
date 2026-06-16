@@ -1438,6 +1438,31 @@ assert(
   'il prompt deve esplicitare la normalizzazione temporale delle date senza anno'
 );
 
+console.log('--- Test PromptEngine: responseRegister filtra template sensibili anche in profilo heavy ---');
+assert(
+  engine._shouldIncludeTemplate('HumanToneGuidelinesTemplate', 'heavy', {}, 'pastoral_crisis') === true,
+  'pastoral_crisis deve mantenere i template non sensibili'
+);
+[
+  'CompletenessDirectiveTemplate',
+  'ExamplesTemplate',
+  'SpecialCasesTemplate',
+  'FormattingGuidelinesTemplate'
+].forEach((templateName) => {
+  assert(
+    engine._shouldIncludeTemplate(templateName, 'heavy', { formatting_risk: true, emotional_sensitivity: true }, 'pastoral_crisis') === false,
+    `pastoral_crisis deve sopprimere ${templateName} anche nel profilo heavy`
+  );
+});
+assert(
+  engine._shouldIncludeTemplate('ExamplesTemplate', 'heavy', { formatting_risk: true }, 'pastoral_supportive') === false,
+  'pastoral_supportive deve sopprimere ExamplesTemplate anche nel profilo heavy'
+);
+assert(
+  engine._shouldIncludeTemplate('SpecialCasesTemplate', 'heavy', {}, 'pastoral_supportive') === true,
+  'pastoral_supportive deve lasciare invariati gli altri template'
+);
+
 console.log('✅ Test qualità prompt risposta passati');
 
 console.log('--- Test PromptEngine: responseStrategy orienta solo il prompt corrente ---');
