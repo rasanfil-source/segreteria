@@ -2421,6 +2421,15 @@ Segreteria Parrocchia Sant'Eugenio
 - La chiusura può essere inclusa, ma resta essenziale${safeClosing ? ` (chiusura prevista: "${safeClosing}")` : ''}.`;
     }
 
+    if (mode === 'full_warm') {
+      return `## OUTPUT ENVELOPE POLICY (OBBLIGATORIA)
+- Primo contatto con contesto sensibile.
+- Usa un saluto presente ma non protocollare:
+  preferisci "Cara/Caro [nome]" a "Gentile [nome]"
+  se il tono del messaggio lo consente.
+- Mantieni saluto e chiusura nella lingua ${langLabel}.`;
+    }
+
     return `## OUTPUT ENVELOPE POLICY (OBBLIGATORIA)
 - Primo contatto o nuovo turno: apri con il saluto previsto${safeSalutation ? `: "${safeSalutation}"` : ''}.
 - Mantieni saluto, corpo e chiusura nella lingua ${langLabel}.

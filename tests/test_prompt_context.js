@@ -250,6 +250,10 @@ assert(
   mildDistress.meta.responseRegister === 'pastoral_supportive',
   'emotional_distress senza lutto o segnali forti non deve produrre pastoral_crisis'
 );
+assert(
+  mildDistress.meta.salutationMode === 'full_warm',
+  'primo contatto pastorale di supporto deve usare saluto full_warm'
+);
 
 const strongCrisis = createPromptContext({
   email: {
@@ -265,6 +269,10 @@ const strongCrisis = createPromptContext({
 assert(
   strongCrisis.meta.responseRegister === 'pastoral_crisis',
   'emotional_distress con segnali forti deve produrre pastoral_crisis'
+);
+assert(
+  strongCrisis.meta.salutationMode === 'full_warm',
+  'primo contatto in crisi pastorale deve usare saluto full_warm'
 );
 
 console.log('--- Test PromptContext: residual_sensitivity per memoria storica non attiva su email emotiva ---');

@@ -266,9 +266,18 @@ var PromptContext = class PromptContext {
 
     _computeEffectiveSalutationMode() {
         const mode = this.input.salutationMode || 'full';
+        const register = this._computeResponseRegister();
+
         if (mode === 'none_or_continuity' &&
-            (this.concerns.emotional_sensitivity || this.concerns.longitudinal_sensitivity)) {
+            (this.concerns.emotional_sensitivity ||
+             this.concerns.longitudinal_sensitivity)) {
             return 'soft';
+        }
+        // NUOVO: primo contatto emotivo
+        if (mode === 'full' &&
+            (register === 'pastoral_crisis' ||
+             register === 'pastoral_supportive')) {
+            return 'full_warm';
         }
         return mode;
     }
