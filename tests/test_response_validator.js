@@ -454,6 +454,75 @@ assert(
   'la validazione deve esporre l orario inventato come errore'
 );
 
+console.log('--- Test hallucination: data esplicita inventata è bloccante ---');
+{
+  const inventedDateResult = validator._checkHallucinations(
+    'La celebrazione è prevista il 24 maggio 2026.',
+    'Cresima adulti: la data va concordata con la segreteria.',
+    'Vorrei informazioni sulla Cresima.',
+    { temporal: { currentDate: '2026-05-15', messageDate: '2026-05-15', timeZone: 'Europe/Rome' } }
+  );
+  assert(
+    inventedDateResult.errors.some((e) => e.includes('Date non in KB o nel messaggio originale: 2026-05-24')),
+    'una data esplicita non presente nelle fonti deve essere segnalata'
+  );
+  assert(
+    Array.isArray(inventedDateResult.hallucinations.dates) &&
+      inventedDateResult.hallucinations.dates.includes('2026-05-24'),
+    'la data inventata deve essere registrata tra le hallucination'
+  );
+}
+
+console.log('--- Test hallucination: data esplicita in KB è ammessa ---');
+{
+  const kbDateResult = validator._checkHallucinations(
+    'La celebrazione è prevista il 24 maggio 2026.',
+    'Cresima adulti: celebrazione il 24 maggio 2026.',
+    'Vorrei informazioni sulla Cresima.',
+    { temporal: { currentDate: '2026-05-15', messageDate: '2026-05-15', timeZone: 'Europe/Rome' } }
+  );
+  assert(
+    !kbDateResult.hallucinations.dates || kbDateResult.hallucinations.dates.length === 0,
+    'una data presente in KB non deve essere trattata come inventata'
+  );
+}
+
+console.log('--- Test hallucination: data derivata da relativo utente è ammessa ---');
+{
+  const derivedDateResult = validator._checkHallucinations(
+    'Può passare l\'8 maggio 2026.',
+    'Segreteria: apertura su appuntamento.',
+    'Domani posso passare?',
+    {
+      temporal: {
+        currentDate: '2026-05-15',
+        messageDate: '2026-05-07',
+        processingEpochMs: new Date('2026-05-15T08:00:00Z').getTime(),
+        messageEpochMs: new Date('2026-05-07T08:00:00Z').getTime(),
+        timeZone: 'Europe/Rome'
+      }
+    }
+  );
+  assert(
+    !derivedDateResult.hallucinations.dates || derivedDateResult.hallucinations.dates.length === 0,
+    'una data esplicitata dalla risposta ma derivata da domani dell utente deve essere ammessa'
+  );
+}
+
+console.log('--- Test hallucination: data ricorrente senza anno in KB autorizza anno esplicitato ---');
+{
+  const recurringDateResult = validator._checkHallucinations(
+    'Il 15 agosto 2026 si seguono gli orari festivi.',
+    'Il 15 agosto, solennità dell Assunzione, si seguono gli orari festivi.',
+    'Quali sono gli orari per l Assunzione?',
+    { temporal: { currentDate: '2026-09-01', messageDate: '2026-08-30', timeZone: 'Europe/Rome' } }
+  );
+  assert(
+    !recurringDateResult.hallucinations.dates || recurringDateResult.hallucinations.dates.length === 0,
+    'una data annuale senza anno in KB deve autorizzare la stessa ricorrenza con anno esplicitato'
+  );
+}
+
 console.log('--- Test hallucination: cellulare italiano compatto inventato è bloccante ---');
 const inventedMobileResult = validator._checkHallucinations(
   'Può contattarci al 3331234567.',

@@ -160,10 +160,98 @@ Le regole seguenti sono vincoli operativi interni: prevalgono sui dati di contes
 ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}`;
   }
 
+  _normalizeConcernSynthesis_(concernSynthesis) {
+    if (!concernSynthesis) return null;
+
+    if (typeof concernSynthesis === 'string') {
+      const directive = concernSynthesis.replace(/\s+/g, ' ').trim();
+      return directive
+        ? { key: 'custom', directive: this._sliceTextSafely_(directive, 900).trim(), suppress: {} }
+        : null;
+    }
+
+    if (typeof concernSynthesis !== 'object') return null;
+
+    const directive = this._normalizePromptTextInput(
+      concernSynthesis.directive || concernSynthesis.note || concernSynthesis.text,
+      ''
+    ).replace(/\s+/g, ' ').trim();
+    if (!directive) return null;
+
+    const rawKey = this._normalizePromptTextInput(concernSynthesis.key || 'custom', 'custom')
+      .replace(/[^\w.-]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 80);
+    const suppress = (concernSynthesis.suppress && typeof concernSynthesis.suppress === 'object')
+      ? concernSynthesis.suppress
+      : {};
+
+    return {
+      key: rawKey || 'custom',
+      directive: this._sliceTextSafely_(directive, 900).trim(),
+      suppress: {
+        formattingGuidelines: suppress.formattingGuidelines === true,
+        checklistHallucinationRule: suppress.checklistHallucinationRule === true,
+        userOverloadGuidance: suppress.userOverloadGuidance === true,
+        responseCalibrationGuidance: suppress.responseCalibrationGuidance === true,
+        checklistCompletenessRule: suppress.checklistCompletenessRule === true
+      }
+    };
+  }
+
+  _concernSynthesisSuppresses_(concernSynthesis, suppressionKey) {
+    return !!(
+      concernSynthesis &&
+      concernSynthesis.suppress &&
+      concernSynthesis.suppress[suppressionKey] === true
+    );
+  }
+
+  _shouldSuppressTemplateByConcernSynthesis_(templateName, promptProfile, activeConcerns, concernSynthesis) {
+    const isSensitiveHeavy = Boolean(
+      promptProfile === 'heavy' &&
+      activeConcerns &&
+      (activeConcerns.emotional_sensitivity || activeConcerns.longitudinal_sensitivity)
+    );
+
+    return isSensitiveHeavy &&
+      templateName === 'FormattingGuidelinesTemplate' &&
+      this._concernSynthesisSuppresses_(concernSynthesis, 'formattingGuidelines');
+  }
+
+  _renderConcernSynthesis(concernSynthesis, responseRegister = '') {
+    const synthesis = this._normalizeConcernSynthesis_(concernSynthesis);
+    if (!synthesis) return null;
+
+    const register = String(responseRegister || 'warm_institutional').trim().toLowerCase();
+    const registerHints = {
+      formal_institutional: 'Registro operativo: tono formale, neutro e procedurale.',
+      warm_institutional: 'Registro operativo: tono cordiale, chiaro e istituzionale.',
+      pastoral_supportive: 'Registro operativo: tono sobrio, umano e attento.',
+      pastoral_crisis: 'Registro operativo: massimo tatto, frasi brevi e nessun effetto burocratico.'
+    };
+    const registerLine = registerHints[register] || 'Registro operativo: usa il registro gia calcolato per questo messaggio.';
+
+    return `## SINTESI DEI CONCERN ATTIVI
+${synthesis.directive}
+
+${registerLine}
+
+Vincoli:
+- questa sintesi sostituisce le regole additive ridondanti sui medesimi punti;
+- non nominare concern, profili o criteri interni all'utente;
+- non alterare KB, territorio, dottrina, date, orari o procedure.`;
+  }
+
   /**
    * Determina se un template deve essere incluso in base a profilo e concern
    */
-  _shouldIncludeTemplate(templateName, promptProfile, activeConcerns = {}, responseRegister = '') {
+  _shouldIncludeTemplate(templateName, promptProfile, activeConcerns = {}, responseRegister = '', concernSynthesis = null) {
+    const normalizedConcernSynthesis = this._normalizeConcernSynthesis_(concernSynthesis);
+    if (this._shouldSuppressTemplateByConcernSynthesis_(templateName, promptProfile, activeConcerns, normalizedConcernSynthesis)) {
+      return false;
+    }
+
     if (promptProfile === 'lite') {
       const keepSensitiveFormatting = templateName === 'FormattingGuidelinesTemplate' && activeConcerns.emotional_sensitivity;
       if (!keepSensitiveFormatting && this.LITE_SKIP_TEMPLATES.includes(templateName)) {
@@ -224,6 +312,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       memoryContext = {},
       promptProfile = 'heavy',
       activeConcerns = {},
+      concernSynthesis = null,
       salutationMode = 'full',
       responseDelay = null,
       territoryContext = null,
@@ -289,6 +378,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     }
     const normalizedSystemDirectives = this._normalizeSystemDirectives_(systemDirectives);
     const normalizedConversationShift = this._normalizeConversationShift_(conversationShift);
+    const normalizedConcernSynthesis = this._normalizeConcernSynthesis_(concernSynthesis);
 
     let systemSections = [];
     let userSections = [];
@@ -344,7 +434,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     let workingKnowledgeBase = originalKnowledgeBase;
     let kbWasTruncated = false;
 
-    const relationalPosture = this._normalizeRelationalPostureAlias(options.relationalPosture ?? 'informational');
+    const relationalPosture = this._normalizeRelationalPostureAlias(options.relationalPosture ?? 'direct');
     const normalizedTopicForRouting = String(topic || '').toLowerCase();
     const normalizedCategoryForRouting = String(category || '').toLowerCase();
     const requestTypeForRouting = options.requestType;
@@ -362,7 +452,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       normalizedCategoryForRouting === 'sbattezzo' ||
       requestTypeNameForRouting === 'formal' ||
       requestTypeIsSbattezzoForRouting;
-    const shouldApplyPersonalDiscernment = relationalPosture === 'relational' && !isFormalTopicForRouting;
+    const shouldApplyPersonalDiscernment = relationalPosture === 'personal' && !isFormalTopicForRouting;
 
     const shouldReserveAiCoreLiteOverhead = (() => {
       if (shouldApplyPersonalDiscernment) {
@@ -479,7 +569,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
      * Helper per aggiungere template condizionali
      */
     const addTemplate = (templateName, content, label, options = {}) => {
-      if (this._shouldIncludeTemplate(templateName, promptProfile, templateConcerns, responseRegister)) {
+      if (this._shouldIncludeTemplate(templateName, promptProfile, templateConcerns, responseRegister, normalizedConcernSynthesis)) {
         addSection(content, label || templateName, options);
       } else {
         skippedCount++;
@@ -534,16 +624,17 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     addSection(this._renderGoalContinuity(goalContinuity), 'GoalContinuity', { isSystem: true });
     addSection(this._renderNewInformationProvided(newInformationProvided), 'NewInformationProvided', { isSystem: true });
     const effectiveRelationalPosture = isFormalTopicForRouting
-      ? 'informational'
-      : (normalizedConcerns.longitudinal_sensitivity && relationalPosture === 'informational'
-          ? 'relational'
+      ? 'direct'
+      : (normalizedConcerns.longitudinal_sensitivity && relationalPosture === 'direct'
+          ? 'personal'
           : relationalPosture);
     const postureToStrategy = {
-      informational: 'provide_information',
-      procedural: 'guide_next_step',
-      relational: 'offer_reassurance',
+      direct: 'provide_information',
+      personal: 'offer_reassurance',
+      hesitant: 'clarify_requirements',
+      complaint: 'guide_next_step',
+      open: 'provide_information',
       urgent: 'reduce_user_effort',
-      uncertain: 'clarify_requirements'
     };
     const normalizedResponseStrategy = String(responseStrategy || 'none').trim().toLowerCase();
     const inferredStrategy = postureToStrategy[effectiveRelationalPosture];
@@ -556,10 +647,21 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       String((typeof goalContinuity === 'object' ? goalContinuity.value : goalContinuity) || 'none').trim().toLowerCase() !== 'none'
     );
     const hasResponseFocusHintSignal = Boolean(this._renderResponseFocusHint(memoryContext, topic, safeCurrentDate));
+    const categoryBlocksPostureStrategy = [
+      'formal',
+      'sbattezzo',
+      'document_submission',
+      'document_submission_with_question',
+      'quotation'
+    ].includes(normalizedCategoryForRouting);
+    const requestTypeBlocksPostureStrategy = Boolean(
+      requestTypeNameForRouting === 'formal' ||
+      requestTypeNameForRouting === 'sbattezzo' ||
+      requestTypeIsSbattezzoForRouting
+    );
     const hasStrongerResponseRoutingSignal = Boolean(
-      normalizedCategoryForRouting ||
-      requestTypeNameForRouting ||
-      requestTypeIsSbattezzoForRouting ||
+      categoryBlocksPostureStrategy ||
+      requestTypeBlocksPostureStrategy ||
       hasPhysicalPresenceConstraint ||
       hasGoalContinuitySignal ||
       hasResponseFocusHintSignal
@@ -574,11 +676,17 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     addSection(this._renderResponseStrategy(effectiveResponseStrategy), 'ResponseStrategy', { isSystem: true });
     // Keep register and posture aligned when longitudinal context softens a direct reply.
     const responseRegisterKey = String(responseRegister || 'warm_institutional').trim().toLowerCase();
-    const effectiveResponseRegister = (effectiveRelationalPosture === 'relational' && responseRegisterKey === 'warm_institutional')
+    const effectiveResponseRegister = (effectiveRelationalPosture === 'personal' && responseRegisterKey === 'warm_institutional')
       ? 'pastoral_supportive'
       : responseRegister;
     addSection(this._renderResponseRegister(effectiveResponseRegister), 'ResponseRegister', { isSystem: true });
-    addSection(this._renderUserOverloadGuidance(normalizedConcerns), 'UserOverloadGuidance', { isSystem: true });
+    addSection(this._renderConcernSynthesis(normalizedConcernSynthesis, effectiveResponseRegister), 'ConcernSynthesis', { isSystem: true });
+    if (!this._concernSynthesisSuppresses_(normalizedConcernSynthesis, 'responseCalibrationGuidance')) {
+      addSection(this._renderResponseCalibrationGuidance(normalizedConcerns), 'ResponseCalibration', { isSystem: true });
+    }
+    if (!this._concernSynthesisSuppresses_(normalizedConcernSynthesis, 'userOverloadGuidance')) {
+      addSection(this._renderUserOverloadGuidance(normalizedConcerns), 'UserOverloadGuidance', { isSystem: true });
+    }
     addSection(
       this._renderResponseFocusHint(memoryContext, topic, safeCurrentDate),
       'ThreadContinuityFocus',
@@ -651,7 +759,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     // Una condivisione personale delicata richiede almeno i principi pastorali di base.
     if (shouldApplyPersonalDiscernment && !requestTypeObj.needsDiscernment) {
       requestTypeObj = Object.assign({}, requestTypeObj, { needsDiscernment: true });
-      console.log('ℹ️ needsDiscernment alzato a true per postura relational');
+      console.log('ℹ️ needsDiscernment alzato a true per postura personal');
     }
 
     // 13. AI_CORE_LITE: solo se componente pastorale
@@ -757,7 +865,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     }
 
     // 29. CHECKLIST CONTESTUALE
-    addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode, templateConcerns), 'ContextualChecklist', { isSystem: true });
+    addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode, templateConcerns, normalizedConcernSynthesis), 'ContextualChecklist', { isSystem: true });
 
     // 30. ISTRUZIONE FINALE
     addSection(this._renderFinalInstruction(), 'FinalInstruction', { force: true, isSystem: true });
@@ -991,12 +1099,15 @@ Testo finale dell'email.
   // TEMPLATE: CHECKLIST CONTESTUALE (Positiva e Direttiva)
   // ========================================================================
 
-  _renderContextualChecklist(detectedLanguage, territoryContext, salutationMode, activeConcerns = {}) {
+  _renderContextualChecklist(detectedLanguage, territoryContext, salutationMode, activeConcerns = {}, concernSynthesis = null) {
     const rules = [];
+    const normalizedConcernSynthesis = this._normalizeConcernSynthesis_(concernSynthesis);
 
     // Regole universali positive
     rules.push('- **Essenzialità:** Fornisci orari, link, requisiti e procedure unicamente se necessari per rispondere alla domanda o se esplicitamente richiesti.');
-    rules.push('- **Completezza domande:** Prima di chiudere, verifica di aver risposto a tutte e sole le domande o i dubbi realmente sollevati dall\'utente, espliciti o impliciti.');
+    if (!this._concernSynthesisSuppresses_(normalizedConcernSynthesis, 'checklistCompletenessRule')) {
+      rules.push('- **Completezza domande:** Prima di chiudere, verifica di aver risposto a tutte e sole le domande o i dubbi realmente sollevati dall\'utente, espliciti o impliciti.');
+    }
     rules.push('- **Efficienza del thread:** Usa le informazioni già presenti nel thread come contesto operativo; richiamale solo quanto basta per rendere chiaro il passo attuale.');
     rules.push('- **Consegna documenti:** Conferma la "ricezione della documentazione" esclusivamente in presenza di allegati effettivi. Se l\'utente inserisce solo dati anagrafici nel testo, conferma di aver preso nota dei dati.');
     rules.push('- **Ricevuta semplice:** Se l\'utente invia un documento senza fare domande, ringrazia e conferma la ricezione in modo conciso, senza aggiungere passaggi extra.');
@@ -1027,15 +1138,27 @@ Testo finale dell'email.
       rules.push('- **Stile conversazionale:** Entra direttamente nel merito della risposta, omettendo saluti rituali formali iniziali, poiché la conversazione è già avviata e continua in stile chat.');
     }
 
-    if (activeConcerns && activeConcerns.user_overload) {
+    if (
+      activeConcerns &&
+      activeConcerns.user_overload &&
+      !this._concernSynthesisSuppresses_(normalizedConcernSynthesis, 'userOverloadGuidance')
+    ) {
       rules.push('- **Carico cognitivo utente:** la richiesta è lunga e contiene più domande; rispondi per priorità, con struttura breve e gerarchica, evitando una risposta enciclopedica. Se necessario, identifica prima la domanda più urgente.');
+    }
+
+    if (activeConcerns && activeConcerns.identity_consistency) {
+      rules.push('- **Identità e destinatario:** per un primo contatto non tecnico, non assumere che il nome account coincida con la persona che scrive; usa il nome firmato nel corpo se presente e mantieni coerenza tra saluto, destinatario e pratica citata.');
     }
 
     if (activeConcerns && activeConcerns.physical_presence_constraint) {
       rules.push('- **Presenza fisica:** il mittente ha manifestato un vincolo a raggiungere la parrocchia; privilegia telefono/email e menziona una visita solo in forma condizionale o se proceduralmente inevitabile.');
     }
 
-    if (activeConcerns && activeConcerns.hallucination_risk) {
+    if (
+      activeConcerns &&
+      activeConcerns.hallucination_risk &&
+      !this._concernSynthesisSuppresses_(normalizedConcernSynthesis, 'checklistHallucinationRule')
+    ) {
       rules.push('- **Rischio allucinazione:** usa solo dati visibili nel prompt; se la Knowledge Base risulta incompleta o troncata, non dedurre informazioni dalle sezioni omesse e dichiara con prudenza che il dato non è disponibile.');
     }
 
@@ -1611,15 +1734,43 @@ ${instructions[register]}
 Vincoli:
 - non nominare il registro all'utente;
 - non citare criteri o istruzioni interne;
+- il registro definisce temperatura, tatto e confini della risposta; le linee pragmatiche di postura servono solo per focus, ordine e aggancio iniziale;
+- se registro, postura e template speciali sembrano divergere, prevalgono i vincoli formali, territoriali, dottrinali e il registro della risposta;
+- non alterare KB, territorio, dottrina, date, orari o procedure.`;
+  }
+
+  _renderResponseCalibrationGuidance(activeConcerns = {}) {
+    if (!activeConcerns || !activeConcerns.response_calibration) return null;
+
+    return `## ARBITRAGGIO QUALITATIVO
+Quando piu esigenze competono, scegli peso e ordine in questo modo:
+1. Intenzione effettiva e domanda attuale dell'utente.
+2. Contesto temporale, spaziale o territoriale certificato.
+3. Registro relazionale richiesto dal messaggio: tatto quando serve, sobria concretezza quando basta.
+4. Completezza proporzionata: copri tutto cio che e stato chiesto, con il minimo dettaglio sufficiente.
+5. Forma: usa struttura, liste o titoli solo se aumentano leggibilita e non irrigidiscono il tono.
+
+Controllo finale:
+- la prima frase deve rispondere o agganciarsi al punto principale;
+- elimina formule generiche se non aggiungono informazione o cura;
+- non compensare incertezza o prudenza con parole in piu.
+
+Vincoli:
+- non nominare questo controllo all'utente;
+- non esporre criteri interni;
 - non alterare KB, territorio, dottrina, date, orari o procedure.`;
   }
 
   _renderUserOverloadGuidance(activeConcerns = {}) {
     if (!activeConcerns || !activeConcerns.user_overload) return null;
 
+    const sensitiveNote = (activeConcerns.emotional_sensitivity || activeConcerns.longitudinal_sensitivity)
+      ? '\nIn contesti sensibili, non trasformare la risposta in lista: ordina la prosa in frasi brevi e ben sequenziate.'
+      : '';
+
     return `## CARICO COGNITIVO UTENTE
 La richiesta è lunga e contiene più domande: rispondi per priorità, usa punti chiari, evita densità eccessiva.
-Se non è possibile coprire tutto senza appesantire, parti dalla questione più urgente e indica il prossimo passo utile.`;
+Se non è possibile coprire tutto senza appesantire, parti dalla questione più urgente e indica il prossimo passo utile.${sensitiveNote}`;
   }
 
   // ========================================================================
@@ -2164,13 +2315,14 @@ ISTRUZIONI:
 
   /**
    * Renderizza la sezione POSTURA RELAZIONALE.
-   * @param {'informational'|'procedural'|'relational'|'urgent'|'uncertain'} posture
+   * @param {'direct'|'personal'|'hesitant'|'complaint'|'open'|'urgent'} posture
    * @returns {string}
    */
   renderRelationalPosture(posture) {
     const instructions = {
-      uncertain: [
+      hesitant: [
         '- Il mittente si è scusato o ha minimizzato la propria richiesta: accoglila come legittima, senza sottolinearne la semplicità.',
+        '- Evita formule generiche come "Non si preoccupi": preferisci "La domanda è legittima" o una formula equivalente, poi passa subito alla risposta pratica.',
         '- Rispondi in modo diretto e sobrio: la chiarezza è già un atto di rispetto verso chi teme di disturbare.',
         '- Fornisci le informazioni pratiche in modo diretto e sobrio, senza aggiungere commenti sulla natura della domanda.',
         '- Evita formule che possano confermare l\'imbarazzo o attribuire stati d\'animo non esplicitati.',
@@ -2179,16 +2331,12 @@ ISTRUZIONI:
         '- Il mittente ha segnalato urgenza o pressione temporale: vai dritto alla soluzione operativa, senza preamboli o formule di cortesia prolungate.',
         '- Se l\'urgenza dipende da una data imminente, mettila in evidenza nella struttura della risposta.',
       ],
-      procedural: [
-        '- Il mittente chiede un percorso o un passaggio operativo: guida il prossimo step con ordine e concretezza.',
-        '- Dai priorità alla sequenza pratica, senza appesantire con preamboli relazionali non necessari.',
-      ],
       complaint: [
         '- Il mittente esprime insoddisfazione o segnala un disservizio: mantieni un registro strettamente fattuale e orientato alla risoluzione.',
         '- Non minimizzare il problema, non difenderti, non scusarti in modo generico. Riconosci il fatto e indica il passo concreto successivo.',
         '- Evita formule consolatorie astratte; usa verbi di azione come "verificheremo" o "provvederemo".',
       ],
-      relational: [
+      personal: [
         '- Il mittente ha condiviso qualcosa di personale o delicato: lutto, malattia, difficoltà familiare o una situazione intima.',
         '- Scrivi in prosa continua: niente elenchi puntati, niente grassetti, niente strutture che diano un tono burocratico.',
         '- Riconosci brevemente la dimensione umana con una frase sobria prima di entrare nelle informazioni pratiche. Non amplificare o parafrasare il vissuto del mittente.',
@@ -2201,13 +2349,13 @@ ISTRUZIONI:
         '- Struttura la risposta per chiarezza, ma lascia spazio a un registro leggermente più personale rispetto al default istituzionale.',
         '- Evita di amplificare il tono positivo oltre il necessario: una risposta chiara e concreta è già una risposta calorosa.',
       ],
-      informational: [
+      direct: [
         '- Tono istituzionale. Rispondi ai fatti esclusivamente con i fatti.',
       ]
     };
 
     const normalizedPosture = this._normalizeRelationalPostureAlias(posture);
-    const lines = instructions[normalizedPosture] ?? instructions['informational'];
+    const lines = instructions[normalizedPosture] ?? instructions['direct'];
 
     return [
       '=== LINEE GUIDA PRAGMATICHE ===',
@@ -2219,24 +2367,22 @@ ISTRUZIONI:
   _normalizeRelationalPostureAlias(posture) {
     const normalized = String(posture || '').trim().toLowerCase();
     const aliases = {
-      direct: 'informational',
-      personal: 'relational',
-      open: 'open',
-      hesitant: 'uncertain',
-      complaint: 'complaint'
+      informational: 'direct',
+      procedural: 'direct',
+      relational: 'personal',
+      uncertain: 'hesitant'
     };
     const canonical = aliases[normalized] || normalized;
     const allowed = {
-      informational: true,
-      procedural: true,
-      relational: true,
-      urgent: true,
-      uncertain: true,
+      direct: true,
+      personal: true,
+      hesitant: true,
       complaint: true,
       open: true,
+      urgent: true,
       none: true
     };
-    return allowed[canonical] ? canonical : 'informational';
+    return allowed[canonical] ? canonical : 'direct';
   }
 
   _renderPhysicalPresenceConstraintGuideline(constraint) {
@@ -2328,8 +2474,10 @@ La risposta deve servire la persona, non dimostrare le nostre conoscenze.
 • Rispondi alla richiesta effettiva: se chiede se può venire il giovedì, rispondi sul giovedì. Se chiede la procedura per il battesimo, parla del battesimo.
 • Informazioni aggiuntive: aggiungile solo se senza di esse la risposta sarebbe incompleta o fuorviante nel caso concreto. Il dubbio si risolve omettendo.
 • Anti-infodump: ogni frase deve guadagnarsi il suo posto; aggiungi dettagli extra solo se richiesti o necessari nel caso concreto.
+• Calibrazione del tono: non usare calore, formalita, liste o formule pastorali come automatismi; sceglili solo quando messaggio attuale, cronologia o contesto sensibile li rendono naturali.
 • Pertinenza selettiva: quando la Knowledge Base contiene regole generali, usa solo la parte che risponde alla domanda specifica. Non citare eccezioni o casi che non riguardano l'utente.
 • Richieste preliminari su celebrazioni (battesimo, matrimonio, cresima, esequie...): rispondi su disponibilità e sul passo minimo per procedere. Non anticipare iter, documenti o corsi salvo richiesta esplicita o necessità evidente.
+• Battesimo a Roma e scelta del luogo: se il mittente chiede se può celebrare il battesimo presso la nostra parrocchia pur non appartenendo territorialmente, e la Knowledge Base conferma libertà di scelta, non rispondere come se fosse una verifica territoriale; chiarisci la possibilità e il passo minimo per concordare.
 • Documenti ricevuti: conferma la ricezione; aggiungi solo il passo successivo indispensabile.
 • Se manca un dato, chiedi solo quel dato.
 • Se bastano poche frasi, poche frasi bastano. La risposta deve sembrare scritta da una segreteria attenta: cortese, concreta, senza enfasi artificiale.
@@ -2422,6 +2570,7 @@ ${safeAttachmentsContext || ''}`;
 - **Identità:** Sei la segreteria parrocchiale. Usa la prima persona plurale ("abbiamo ricevuto", "siamo a disposizione").
 - **Empatia situazionale:** In contesti di lutto o emergenza grave, riconosci la situazione in modo sobrio prima di passare alle informazioni pratiche. Limitati ai fatti; non esplorare lo stato d'animo.
 - **Sobrietà:** Sii cordiale ma concreto. Non aggiungere "Siamo a disposizione" se stai già chiudendo la comunicazione di un mero invio documenti.
+- **Naturalezza:** Evita formule universali quando non rispecchiano il messaggio; preferisci un aggancio specifico al caso o una risposta diretta.
 - **Personalizzazione:** Usa il nome dell'utente nel saluto se disponibile nel corpo o firma dell'email. Se nel corpo dell'email l'utente si firma esplicitamente con un nome diverso rispetto al nome dell'account mittente indicato in "Da:", usa sempre il nome presente nella firma/body per formulare il saluto iniziale: il nome account può essere solo l'intestatario della casella. Mostra ascolto attivo: se l'utente scrive "vengo con mia moglie", rispondi indicando procedure per due persone.`;
   }
 

@@ -132,50 +132,92 @@ var PromptContext = class PromptContext {
         const longitudinalSensitivity = /\b(lutto|decesso|malattia|funerale|esequie|defunt[oaie]|sbattezzo|apostasia|divorzio|divorziat[oaie]|separazione|separat[oaie]|vedov[oaie])\b/.test(memoryText);
         const isMultiQuestion = this._detectMultiQuestion(i.email?.body, i.email?.subject);
         const bodyLength = String(i.email?.body || '').length;
+        const hasLanguageSafety = Boolean(
+            i.email?.detectedLanguage !== 'it' ||
+            (i.classification?.confidence ?? 1) < 0.8
+        );
+        const hasHallucinationRisk = Boolean(
+            (i.knowledgeBaseMeta?.length ?? i.knowledgeBase?.length ?? 0) > configuredThreshold ||
+            i.temporal?.mentionsDates ||
+            i.temporal?.mentionsTimes
+        );
+        const hasFormattingRisk = Boolean(
+            i.temporal?.mentionsTimes ||
+            ['information', 'sacrament'].includes(i.classification?.category)
+        );
+        const hasTemporalRisk = Boolean(
+            i.temporal?.mentionsDates ||
+            i.knowledgeBaseMeta?.containsDates
+        );
+        const hasDiscernmentRisk = Boolean(
+            i.requestType?.needsDiscernment ||
+            i.territory?.addressFound
+        );
+        const hasEmotionalSensitivity = Boolean(
+            i.requestType?.type === 'pastoral' ||
+            i.classification?.subIntents?.emotional_distress ||
+            i.classification?.subIntents?.bereavement ||
+            i.subIntents?.emotional_distress ||
+            i.subIntents?.bereavement
+        );
+        const hasRepetitionRisk = Boolean(
+            i.memory?.exists ||
+            (i.conversation?.messageCount ?? 0) > 1
+        );
+        const hasResponseScopeControl = Boolean(
+            i.email?.isReply ||
+            (i.classification?.confidence ?? 1) < 0.7
+        );
+        const hasPhysicalPresenceConstraint =
+            !!(i.physicalPresenceConstraint && i.physicalPresenceConstraint.has_constraint);
+        const calibrationSignalCount = [
+            isMultiQuestion,
+            bodyLength > 450,
+            hasLanguageSafety,
+            hasHallucinationRisk,
+            hasTemporalRisk,
+            hasDiscernmentRisk,
+            hasEmotionalSensitivity,
+            longitudinalSensitivity,
+            hasRepetitionRisk,
+            hasPhysicalPresenceConstraint
+        ].filter(Boolean).length;
+        const needsResponseCalibration =
+            isMultiQuestion ||
+            bodyLength > 450 ||
+            calibrationSignalCount >= 2;
 
         return {
             language_safety:
-                i.email?.detectedLanguage !== 'it' ||
-                (i.classification?.confidence ?? 1) < 0.8,
+                hasLanguageSafety,
 
             hallucination_risk:
-                (i.knowledgeBaseMeta?.length ?? i.knowledgeBase?.length ?? 0) > configuredThreshold ||
-                i.temporal?.mentionsDates ||
-                i.temporal?.mentionsTimes,
+                hasHallucinationRisk,
 
             formatting_risk:
-                i.temporal?.mentionsTimes ||
-                ['information', 'sacrament'].includes(i.classification?.category),
+                hasFormattingRisk,
 
             temporal_risk:
-                i.temporal?.mentionsDates ||
-                i.knowledgeBaseMeta?.containsDates,
+                hasTemporalRisk,
 
             discernment_risk:
-                i.requestType?.needsDiscernment ||
-                i.territory?.addressFound,
+                hasDiscernmentRisk,
 
             emotional_sensitivity:
-                i.requestType?.type === 'pastoral' ||
-                i.classification?.subIntents?.emotional_distress ||
-                i.classification?.subIntents?.bereavement ||
-                i.subIntents?.emotional_distress ||
-                i.subIntents?.bereavement,
+                hasEmotionalSensitivity,
 
             longitudinal_sensitivity:
                 longitudinalSensitivity,
 
             repetition_risk:
-                i.memory?.exists ||
-                (i.conversation?.messageCount ?? 0) > 1,
+                hasRepetitionRisk,
 
             identity_consistency:
                 (i.email?.isReply === false) &&
                 i.requestType?.type !== 'technical',
 
             response_scope_control:
-                i.email?.isReply ||
-                (i.classification?.confidence ?? 1) < 0.7,
+                hasResponseScopeControl,
 
             multi_question:
                 isMultiQuestion,
@@ -183,19 +225,18 @@ var PromptContext = class PromptContext {
             user_overload:
                 bodyLength > 600 && isMultiQuestion,
 
+            response_calibration:
+                needsResponseCalibration,
+
             salutation_control:
                 i.salutationMode && i.salutationMode !== 'full',
 
             physical_presence_constraint:
-                !!(i.physicalPresenceConstraint && i.physicalPresenceConstraint.has_constraint),
+                hasPhysicalPresenceConstraint,
 
             residual_sensitivity:
                 longitudinalSensitivity && !(
-                    i.requestType?.type === 'pastoral' ||
-                    i.classification?.subIntents?.emotional_distress ||
-                    i.classification?.subIntents?.bereavement ||
-                    i.subIntents?.emotional_distress ||
-                    i.subIntents?.bereavement
+                    hasEmotionalSensitivity
                 )
         };
     }
@@ -268,6 +309,11 @@ var PromptContext = class PromptContext {
         const mode = this.input.salutationMode || 'full';
         const register = this._computeResponseRegister();
 
+        if (register === 'pastoral_crisis' &&
+            (mode === 'none_or_continuity' || mode === 'session')) {
+            return 'soft';
+        }
+
         if (mode === 'none_or_continuity' &&
             (this.concerns.emotional_sensitivity ||
              this.concerns.longitudinal_sensitivity)) {
@@ -282,18 +328,83 @@ var PromptContext = class PromptContext {
         return mode;
     }
 
+    _buildConcernSynthesis(responseRegister) {
+        const c = this.concerns || {};
+        const isSensitive = Boolean(c.emotional_sensitivity || c.longitudinal_sensitivity);
+        if (this.profile !== 'heavy' || !isSensitive) {
+            return null;
+        }
+
+        let key = null;
+        const directiveParts = [];
+        const suppress = {
+            formattingGuidelines: false,
+            checklistHallucinationRule: false,
+            userOverloadGuidance: false,
+            responseCalibrationGuidance: false,
+            checklistCompletenessRule: false
+        };
+        const isCrisis = String(responseRegister || '').toLowerCase() === 'pastoral_crisis';
+
+        if (c.hallucination_risk) {
+            key = 'sensitive_precision';
+            directiveParts.push(isCrisis
+                ? 'Questo messaggio richiede massima delicatezza e precisione. Se mancano dati nella Knowledge Base o il contesto e incompleto, ammetti l\'incertezza con garbo invece di dedurre.'
+                : 'Questo messaggio richiede delicatezza e precisione. Se mancano dati nella Knowledge Base o il contesto e incompleto, ammetti l\'incertezza con garbo invece di dedurre.'
+            );
+            suppress.formattingGuidelines = true;
+            suppress.checklistHallucinationRule = true;
+        }
+
+        if (c.emotional_sensitivity && c.formatting_risk) {
+            key = key || 'sensitive_formatting';
+            directiveParts.push('Se ci sono date, orari, documenti o passaggi pratici, integrali solo quando servono alla risposta e senza trasformare il testo in elenco, tabella, titolo Markdown o formula decorativa.');
+            suppress.formattingGuidelines = true;
+        }
+
+        if (c.longitudinal_sensitivity && c.user_overload) {
+            key = key || 'longitudinal_overload';
+            directiveParts.push('La memoria segnala un contesto personale delicato: rispondi alle domande per priorita, ma in prosa breve e ben sequenziata. Non trasformare la risposta in checklist e non riaprire il vissuto se il messaggio attuale e operativo.');
+            suppress.userOverloadGuidance = true;
+        }
+
+        if (isCrisis && c.multi_question) {
+            key = 'crisis_multi_question';
+            directiveParts.push('Il messaggio contiene piu domande, ma il bisogno principale e la crisi espressa. Apri con una risposta umana, breve e concreta al punto piu urgente; poi dai solo il prossimo passo operativo indispensabile. Le domande secondarie non vanno ignorate: se appesantirebbero la risposta, rinviale con garbo a un momento successivo o al primo contatto utile.');
+            suppress.userOverloadGuidance = true;
+            suppress.responseCalibrationGuidance = true;
+            suppress.checklistCompletenessRule = true;
+        }
+
+        if (directiveParts.length === 0) {
+            return null;
+        }
+
+        const closingDirective = isCrisis
+            ? 'Mantieni frasi brevi, sobrie e umane: niente liste, titoli o formattazione decorativa.'
+            : 'Il tono resta sobrio, umano e concreto: evita liste, enfasi o formattazione decorativa se irrigidiscono la risposta.';
+
+        return {
+            key: key,
+            directive: directiveParts.concat([closingDirective]).join(' '),
+            suppress: suppress
+        };
+    }
+
     _buildMeta() {
         const active = Object.entries(this.concerns)
             .filter(([_, v]) => v)
             .map(([k]) => k);
         const responseRegister = this._computeResponseRegister();
         const salutationMode = this._computeEffectiveSalutationMode();
+        const concernSynthesis = this._buildConcernSynthesis(responseRegister);
 
         return {
             profile: this.profile,
             activeConcerns: active,
             responseRegister: responseRegister,
-            salutationMode: salutationMode
+            salutationMode: salutationMode,
+            concernSynthesis: concernSynthesis
         };
     }
 }

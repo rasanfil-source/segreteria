@@ -829,6 +829,95 @@ var ResponseValidator = class ResponseValidator {
       hallucinations.times = inventedTimes;
     }
 
+    // === Controllo date esplicite ===
+    // Gli orari erano già verificati contro KB/messaggio; applichiamo la stessa
+    // logica alle date calendario per evitare date operative inventate.
+    const resolveExplicitRuntimeAnchor = () => {
+      const temporal = runtimeTemporal || {};
+      const timeZone = temporal.timeZone || 'Europe/Rome';
+      if (temporal.currentDate) {
+        const parsedCurrent = this._parseDateOnly_(temporal.currentDate);
+        if (parsedCurrent) return parsedCurrent;
+      }
+      if (this._hasFiniteTemporalNumber_(temporal.processingEpochMs)) {
+        const parsedEpochCurrent = this._parseEpochDateOnlyInTimeZone_(temporal.processingEpochMs, timeZone);
+        if (parsedEpochCurrent) return parsedEpochCurrent;
+      }
+      if (temporal.messageDate) {
+        const parsedMessage = this._parseDateOnly_(temporal.messageDate);
+        if (parsedMessage) return parsedMessage;
+      }
+      if (this._hasFiniteTemporalNumber_(temporal.messageEpochMs)) {
+        const parsedEpochMessage = this._parseEpochDateOnlyInTimeZone_(temporal.messageEpochMs, timeZone);
+        if (parsedEpochMessage) return parsedEpochMessage;
+      }
+      return null;
+    };
+    const dateReference = resolveExplicitRuntimeAnchor();
+    const formatDateKey = (dateValue) => (
+      dateValue instanceof Date && !isNaN(dateValue.getTime())
+        ? this._formatDateOnly_(dateValue)
+        : ''
+    );
+    const formatMonthDayKey = (dateValue) => (
+      dateValue instanceof Date && !isNaN(dateValue.getTime())
+        ? `${String(dateValue.getMonth() + 1).padStart(2, '0')}-${String(dateValue.getDate()).padStart(2, '0')}`
+        : ''
+    );
+    const allowedFullDates = new Set();
+    const allowedRecurringDates = new Set();
+    const addAllowedDate = (dateValue, options = {}) => {
+      const fullKey = formatDateKey(dateValue);
+      if (fullKey) allowedFullDates.add(fullKey);
+      if (options.recurring === true) {
+        const monthDayKey = formatMonthDayKey(dateValue);
+        if (monthDayKey) allowedRecurringDates.add(monthDayKey);
+      }
+    };
+    const collectExplicitDateClaims = (text) => (
+      this._extractExplicitDates_(text || '', dateReference)
+        .map(item => ({
+          date: item.date,
+          text: item.text,
+          hasExplicitYear: item.hasExplicitYear !== false,
+          type: item.hasExplicitYear === false ? 'date_without_year' : 'explicit_date'
+        }))
+        .filter(item => item.date instanceof Date && !isNaN(item.date.getTime()))
+    );
+
+    collectExplicitDateClaims(safeKnowledgeBase).forEach(item => {
+      addAllowedDate(item.date, { recurring: item.hasExplicitYear === false });
+    });
+    collectExplicitDateClaims(originalMessage || '').forEach(item => {
+      addAllowedDate(item.date, { recurring: item.hasExplicitYear === false });
+    });
+    if (dateReference) {
+      this._extractTemporalReferences_(originalMessage || '', runtimeContext, 'user')
+        .forEach(ref => {
+          const compareDate = this._getTemporalReferenceCompareDate_(ref) || ref.normalizedDate;
+          if (!compareDate) return;
+          addAllowedDate(compareDate, { recurring: ref.type === 'date_without_year' });
+        });
+    }
+
+    const responseDateClaims = collectExplicitDateClaims(response);
+    const inventedDates = responseDateClaims.filter(item => {
+      const fullKey = formatDateKey(item.date);
+      const monthDayKey = formatMonthDayKey(item.date);
+      return fullKey &&
+        !allowedFullDates.has(fullKey) &&
+        !allowedRecurringDates.has(monthDayKey);
+    });
+
+    if (inventedDates.length > 0) {
+      const inventedDateLabels = inventedDates
+        .map(item => formatDateKey(item.date))
+        .filter(Boolean);
+      errors.push(`Date non in KB o nel messaggio originale: ${inventedDateLabels.join(', ')}`);
+      score *= 0.50;
+      hallucinations.dates = inventedDateLabels;
+    }
+
     // === Controllo email ===
     // Protezione ReDoS con limite esplicito sulla parte locale dell'email
     const emailPattern = /\b[A-Za-z0-9](?:[A-Za-z0-9._%+-]{0,64})@[A-Za-z0-9-]+\.[A-Za-z]{2,}\b/gi;

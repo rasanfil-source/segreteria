@@ -53,6 +53,11 @@ assert(
   'il contratto qualità deve essere il punto autorevole per la regola anti-infodump'
 );
 assert(
+  litePrompt.includes('Calibrazione del tono') &&
+  litePrompt.includes('non usare calore, formalita, liste o formule pastorali come automatismi'),
+  'il contratto qualita deve evitare automatismi di tono e struttura'
+);
+assert(
   litePrompt.includes('Pertinenza selettiva') &&
   litePrompt.includes('se chiede se può venire il giovedì'),
   'il contratto qualità deve imporre la sintesi sui soli casi richiesti'
@@ -823,6 +828,8 @@ const emotionalSupportHint = engine._renderCategoryHint('emotional_support');
 assert(
   hesitantSponsorPrompt.includes('=== LINEE GUIDA PRAGMATICHE ===') &&
   hesitantSponsorPrompt.includes('accoglila come legittima') &&
+  hesitantSponsorPrompt.includes('Non si preoccupi') &&
+  hesitantSponsorPrompt.includes('La domanda è legittima') &&
   hesitantSponsorPrompt.includes('la chiarezza è già un atto di rispetto') &&
   hesitantSponsorPrompt.includes('senza aggiungere commenti sulla natura della domanda') &&
   hesitantSponsorPrompt.includes('attribuire stati d\'animo non esplicitati'),
@@ -1533,13 +1540,29 @@ console.log('--- Test PromptEngine: responseStrategy orienta solo il prompt corr
   });
   assert(!invalidPrompt.includes('ORIENTAMENTO DELLA RISPOSTA'), 'responseStrategy non ammesso non deve renderizzare la sezione');
 
+  const ordinaryCategoryPosturePrompt = engine.buildPrompt({
+    emailSubject: 'Certificato',
+    emailContent: 'Scusate, forse mi sono perso: quali dati servono per richiederlo?',
+    knowledgeBase: 'Per richiedere il certificato servono nome, cognome e data di nascita.',
+    detectedLanguage: 'it',
+    responseStrategy: 'none',
+    relationalPosture: 'hesitant',
+    category: 'information',
+    requestType: { type: 'technical' }
+  });
+  assert(
+    ordinaryCategoryPosturePrompt.includes('Chiarisci requisiti o condizioni in modo ordinato') &&
+      ordinaryCategoryPosturePrompt.includes('accoglila come legittima'),
+    'category ordinaria/requestType tecnico non devono bloccare strategia e postura derivate da hesitant'
+  );
+
   const remotePracticalPrompt = engine.buildPrompt({
     emailSubject: 'Passaggio in segreteria',
     emailContent: 'Abito lontano e non posso venire di persona: posso fare via email?',
     knowledgeBase: 'La segreteria può ricevere alcune richieste via email.',
     detectedLanguage: 'it',
     responseStrategy: 'none',
-    relationalPosture: 'relational',
+    relationalPosture: 'personal',
     activeConcerns: { physical_presence_constraint: true },
     physicalPresenceConstraint: { has_constraint: true, type: 'geographic_distance' }
   });
@@ -1547,7 +1570,7 @@ console.log('--- Test PromptEngine: responseStrategy orienta solo il prompt corr
     remotePracticalPrompt.includes('Presenza fisica') &&
       remotePracticalPrompt.includes('privilegia telefono/email') &&
       !remotePracticalPrompt.includes('Rispondi con tono rassicurante'),
-    'fallback relational postureToStrategy non deve sovrascrivere il vincolo remoto/pratico di presenza fisica'
+    'fallback personal postureToStrategy non deve sovrascrivere il vincolo remoto/pratico di presenza fisica'
   );
 
   const documentSubmissionPrompt = engine.buildPrompt({
@@ -1612,6 +1635,166 @@ assert(
   'il prompt deve includere la regola user_overload'
 );
 
+const calibrationPrompt = engine.buildPrompt({
+  emailSubject: 'Richieste varie',
+  emailContent: 'Buongiorno, il 20 giugno posso passare? Quali documenti devo portare? Vorrei evitare passaggi inutili.',
+  knowledgeBase: 'La segreteria riceve su appuntamento. Sono richiesti documento e modulo.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  salutationMode: 'full',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  activeConcerns: {
+    multi_question: true,
+    temporal_risk: true,
+    response_calibration: true
+  }
+});
+assert(
+  calibrationPrompt.includes('ARBITRAGGIO QUALITATIVO') &&
+  calibrationPrompt.includes("Intenzione effettiva e domanda attuale dell'utente") &&
+  calibrationPrompt.includes('Contesto temporale, spaziale o territoriale certificato') &&
+  calibrationPrompt.includes('Completezza proporzionata') &&
+  calibrationPrompt.includes('non compensare incertezza o prudenza con parole in piu'),
+  'il prompt deve includere una gerarchia di arbitraggio quando piu esigenze competono'
+);
+
+const sensitiveOverloadPrompt = engine.buildPrompt({
+  emailSubject: 'Richieste per esequie',
+  emailContent: 'Scrivo per un lutto in famiglia. Vorrei capire vari passaggi: quando possiamo sentirci? Quali dati servono? Come procedere?',
+  knowledgeBase: 'La segreteria prende in carico le richieste per esequie.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  responseRegister: 'pastoral_supportive',
+  activeConcerns: {
+    user_overload: true,
+    emotional_sensitivity: true,
+    response_calibration: true
+  }
+});
+assert(
+  sensitiveOverloadPrompt.includes('In contesti sensibili, non trasformare la risposta in lista') &&
+  sensitiveOverloadPrompt.includes('ordina la prosa in frasi brevi e ben sequenziate'),
+  'il carico utente nei contesti sensibili deve restare umano e non burocratico'
+);
+
+const sensitivePrecisionSynthesis = {
+  key: 'sensitive_precision',
+  directive: 'Questo messaggio richiede delicatezza e precisione. Se mancano dati nella Knowledge Base, ammetti l\'incertezza con garbo invece di dedurre. Il tono resta sobrio e umano in ogni caso.',
+  suppress: {
+    formattingGuidelines: true,
+    checklistHallucinationRule: true
+  }
+};
+const additiveSensitivePrecisionPrompt = engine.buildPrompt({
+  emailSubject: 'Messa per defunto',
+  emailContent: 'Vorrei una Messa per mio padre defunto, ma non so quali orari siano disponibili.',
+  knowledgeBase: 'Informazioni essenziali di segreteria.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  responseRegister: 'pastoral_supportive',
+  activeConcerns: {
+    hallucination_risk: true,
+    emotional_sensitivity: true
+  }
+});
+assert(
+  additiveSensitivePrecisionPrompt.includes('FORMATTAZIONE ED EVIDENZIAZIONE') &&
+    additiveSensitivePrecisionPrompt.includes('Rischio allucinazione'),
+  'senza concernSynthesis il prompt mantiene le sezioni additive esistenti'
+);
+
+const synthesizedSensitivePrecisionPrompt = engine.buildPrompt({
+  emailSubject: 'Messa per defunto',
+  emailContent: 'Vorrei una Messa per mio padre defunto, ma non so quali orari siano disponibili.',
+  knowledgeBase: 'Informazioni essenziali di segreteria.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  responseRegister: 'pastoral_supportive',
+  activeConcerns: {
+    hallucination_risk: true,
+    emotional_sensitivity: true
+  },
+  concernSynthesis: sensitivePrecisionSynthesis
+});
+assert(
+  synthesizedSensitivePrecisionPrompt.includes('SINTESI DEI CONCERN ATTIVI') &&
+    synthesizedSensitivePrecisionPrompt.includes('delicatezza e precisione') &&
+    synthesizedSensitivePrecisionPrompt.includes('sostituisce le regole additive ridondanti'),
+  'il prompt deve renderizzare una direttiva sintetica per precisione sensibile'
+);
+assert(
+  !synthesizedSensitivePrecisionPrompt.includes('FORMATTAZIONE ED EVIDENZIAZIONE') &&
+    !synthesizedSensitivePrecisionPrompt.includes('Rischio allucinazione'),
+  'la sintesi deve sostituire formattazione e regola hallucination ridondanti nei profili heavy sensibili'
+);
+
+const sensitiveFormattingPrompt = engine.buildPrompt({
+  emailSubject: 'Messa di suffragio',
+  emailContent: 'Vorrei una Messa per mio padre defunto e sapere quali orari sono possibili.',
+  knowledgeBase: 'La segreteria prende nota delle intenzioni di Messa.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  responseRegister: 'pastoral_supportive',
+  activeConcerns: {
+    formatting_risk: true,
+    emotional_sensitivity: true
+  },
+  concernSynthesis: {
+    key: 'sensitive_formatting',
+    directive: 'Se ci sono date, orari, documenti o passaggi pratici, integrali solo quando servono alla risposta e senza trasformare il testo in elenco, tabella, titolo Markdown o formula decorativa.',
+    suppress: { formattingGuidelines: true }
+  }
+});
+assert(
+  sensitiveFormattingPrompt.includes('SINTESI DEI CONCERN ATTIVI') &&
+    sensitiveFormattingPrompt.includes('date, orari, documenti o passaggi pratici') &&
+    !sensitiveFormattingPrompt.includes('FORMATTAZIONE ED EVIDENZIAZIONE'),
+  'emotional_sensitivity + formatting_risk deve usare la sintesi al posto delle linee guida di formattazione'
+);
+
+const longitudinalOverloadPrompt = engine.buildPrompt({
+  emailSubject: 'Re: pratica',
+  emailContent: 'Grazie, vorrei capire tutti i passaggi: quali documenti servono? Quando posso consegnarli? Devo prendere appuntamento?',
+  knowledgeBase: 'La segreteria riceve su appuntamento e indica i documenti necessari.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  responseRegister: 'pastoral_supportive',
+  activeConcerns: {
+    longitudinal_sensitivity: true,
+    user_overload: true,
+    response_calibration: true
+  },
+  concernSynthesis: {
+    key: 'longitudinal_overload',
+    directive: 'La memoria segnala un contesto personale delicato: rispondi alle domande per priorita, ma in prosa breve e ben sequenziata. Non trasformare la risposta in checklist e non riaprire il vissuto se il messaggio attuale e operativo.',
+    suppress: { userOverloadGuidance: true }
+  }
+});
+assert(
+  longitudinalOverloadPrompt.includes('SINTESI DEI CONCERN ATTIVI') &&
+    longitudinalOverloadPrompt.includes('prosa breve e ben sequenziata') &&
+    longitudinalOverloadPrompt.includes('Completezza domande') &&
+    !longitudinalOverloadPrompt.includes('CARICO COGNITIVO UTENTE') &&
+    !longitudinalOverloadPrompt.includes('Carico cognitivo utente') &&
+    !longitudinalOverloadPrompt.includes('usa punti chiari'),
+  'longitudinal_sensitivity + user_overload deve sostituire le regole additive di overload lasciando la checklist universale'
+);
+
+const identityConsistencyPrompt = engine.buildPrompt({
+  emailSubject: 'Richiesta sacramento',
+  emailContent: 'Buongiorno, scrivo per conto di mia moglie Anna Rossi.',
+  knowledgeBase: 'La segreteria prende nota delle richieste sacramentali.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  activeConcerns: { identity_consistency: true }
+});
+assert(
+  identityConsistencyPrompt.includes('Identità e destinatario') &&
+  identityConsistencyPrompt.includes('non assumere che il nome account coincida con la persona che scrive'),
+  'identity_consistency deve produrre una regola effettiva nel prompt'
+);
+
 const crisisRegisterPrompt = engine.buildPrompt({
   emailSubject: 'Richiesta delicata',
   emailContent: 'Scrivo per una situatione di lutto in famiglia.',
@@ -1626,6 +1809,51 @@ assert(
   crisisRegisterPrompt.includes('Non chiudere con firma standardizzata') &&
   crisisRegisterPrompt.includes('Se riconosci un elemento specifico'),
   'il prompt deve includere le istruzioni operative dense per pastoral_crisis'
+);
+
+const crisisMultiQuestionPrompt = engine.buildPrompt({
+  emailSubject: 'Emergenza',
+  emailContent: 'Sono in crisi e non ce la faccio. Posso parlare con qualcuno? Quando posso venire?',
+  knowledgeBase: 'La segreteria può aiutare a fissare un contatto con un sacerdote.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  responseRegister: 'pastoral_crisis',
+  activeConcerns: {
+    emotional_sensitivity: true,
+    multi_question: true,
+    user_overload: true,
+    response_calibration: true
+  },
+  concernSynthesis: {
+    key: 'crisis_multi_question',
+    directive: 'Il messaggio contiene piu domande, ma il bisogno principale e la crisi espressa. Apri con una risposta umana, breve e concreta al punto piu urgente; poi dai solo il prossimo passo operativo indispensabile. Le domande secondarie non vanno ignorate: se appesantirebbero la risposta, rinviale con garbo a un momento successivo o al primo contatto utile.',
+    suppress: {
+      responseCalibrationGuidance: true,
+      checklistCompletenessRule: true,
+      userOverloadGuidance: true
+    }
+  }
+});
+assert(
+  crisisMultiQuestionPrompt.includes('SINTESI DEI CONCERN ATTIVI') &&
+    crisisMultiQuestionPrompt.includes('bisogno principale e la crisi espressa') &&
+    crisisMultiQuestionPrompt.includes('prossimo passo operativo indispensabile'),
+  'pastoral_crisis + multi_question deve renderizzare una sintesi prioritaria'
+);
+assert(
+  crisisMultiQuestionPrompt.includes('REGISTRO DELLA RISPOSTA') &&
+    crisisMultiQuestionPrompt.includes('Essenzialità') &&
+    crisisMultiQuestionPrompt.includes('Standard linguistico') &&
+    crisisMultiQuestionPrompt.includes('ISTRUZIONE FINALE DI OUTPUT'),
+  'la sintesi di crisi deve lasciare intatti registro, checklist essenziale, lingua e output envelope'
+);
+assert(
+  !crisisMultiQuestionPrompt.includes('ARBITRAGGIO QUALITATIVO') &&
+    !crisisMultiQuestionPrompt.includes('Completezza domande') &&
+    !crisisMultiQuestionPrompt.includes('CARICO COGNITIVO UTENTE') &&
+    !crisisMultiQuestionPrompt.includes('Carico cognitivo utente') &&
+    !crisisMultiQuestionPrompt.includes('usa punti chiari'),
+  'la sintesi di crisi deve sostituire arbitraggio, completezza additiva e overload'
 );
 
 console.log('--- Test PromptEngine: residual_sensitivity produce istruzione dedicata dopo memoria ---');

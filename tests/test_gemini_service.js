@@ -216,6 +216,8 @@ console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documental
   assert(threadedPrompt.prompt.includes('"topic_change"'), 'thread avviato deve limitare conversation_shift agli enum ammessi');
   assert(plainPrompt.prompt.includes('relational_posture_confidence >= 0.70'), 'prompt quick-check deve comunicare la soglia operativa default della postura');
   assert(plainPrompt.prompt.includes('sotto quella soglia la postura viene ignorata'), 'prompt quick-check deve spiegare il fallback sotto soglia');
+  assert(plainPrompt.prompt.includes('"direct": richiesta neutra'), 'prompt quick-check deve usare direct come default canonico');
+  assert(!plainPrompt.prompt.includes('"informational": richiesta informativa'), 'prompt quick-check non deve piu descrivere il vocabolario postura legacy');
   assert(plainPrompt.prompt.includes('"complaint"'), 'prompt quick-check deve usare complaint come label osservabile');
   assert(plainPrompt.prompt.includes('"legal_restriction"'), 'prompt quick-check deve coprire limitazioni legali alla presenza fisica');
   assert(visitPrompt.prompt.includes('CONTESTO LOGISTICO VISITA'), 'richiesta di passaggio deve includere guardrail logistico');
@@ -374,6 +376,30 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
   }, { lang: 'it' });
   assert(lowConfidence.relational_posture === 'direct', 'postura sotto soglia deve fare fallback a direct');
   assert(lowConfidence.relational_posture_confidence === 0.4, 'la confidenza sotto soglia resta tracciata');
+
+  const legacyRelationalPosture = EmailQuickCheckPolicy.normalizeDecisionData({
+    reply_needed: true,
+    language: 'it',
+    category: 'TECHNICAL',
+    topic: 'richiesta personale',
+    confidence: 0.8,
+    reason: 'test legacy',
+    relational_posture: 'relational',
+    relational_posture_confidence: 0.95
+  }, { lang: 'it' });
+  assert(legacyRelationalPosture.relational_posture === 'personal', 'legacy relational deve normalizzarsi a personal');
+
+  const legacyProceduralPosture = EmailQuickCheckPolicy.normalizeDecisionData({
+    reply_needed: true,
+    language: 'it',
+    category: 'TECHNICAL',
+    topic: 'procedura',
+    confidence: 0.8,
+    reason: 'test legacy',
+    relational_posture: 'procedural',
+    relational_posture_confidence: 0.95
+  }, { lang: 'it' });
+  assert(legacyProceduralPosture.relational_posture === 'direct', 'legacy procedural deve normalizzarsi a direct');
 
   const unsafeHint = EmailQuickCheckPolicy.normalizeDecisionData({
     reply_needed: true,

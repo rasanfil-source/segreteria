@@ -27,6 +27,10 @@ assert(
   technicalNew.concerns.identity_consistency === false,
   'una nuova richiesta tecnica non deve attivare identity_consistency'
 );
+assert(
+  technicalNew.concerns.response_calibration === false,
+  'una richiesta tecnica vuota e ordinaria non deve attivare response_calibration'
+);
 
 const nonTechnicalReply = createPromptContext({
   email: { isReply: true, detectedLanguage: 'it' },
@@ -62,6 +66,10 @@ const multiQuestion = createPromptContext({
 assert(
   multiQuestion.concerns.multi_question === true,
   'due domande operative devono attivare multi_question'
+);
+assert(
+  multiQuestion.concerns.response_calibration === true,
+  'due domande operative devono attivare response_calibration'
 );
 
 console.log('--- Test PromptContext: emotional_sensitivity legge subIntents flat ---');
@@ -101,6 +109,59 @@ assert(
   'subIntents.emotional_distress flat deve attivare emotional_sensitivity'
 );
 
+const sensitivePrecision = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Messa per defunto',
+    body: 'Vorrei chiedere una Messa per mio padre defunto, ma non so quali orari siano disponibili.'
+  },
+  requestType: { type: 'technical' },
+  classification: { confidence: 1, category: 'information' },
+  subIntents: { bereavement: true },
+  knowledgeBase: 'A'.repeat(9001)
+});
+assert(
+  sensitivePrecision.concerns.hallucination_risk === true &&
+    sensitivePrecision.concerns.emotional_sensitivity === true,
+  'KB lunga e contesto sensibile devono attivare precisione sensibile'
+);
+assert(
+  sensitivePrecision.meta.concernSynthesis &&
+    sensitivePrecision.meta.concernSynthesis.key === 'sensitive_precision' &&
+    sensitivePrecision.meta.concernSynthesis.directive.includes('delicatezza e precisione') &&
+    sensitivePrecision.meta.concernSynthesis.suppress.formattingGuidelines === true &&
+    sensitivePrecision.meta.concernSynthesis.suppress.checklistHallucinationRule === true,
+  'PromptContext deve sintetizzare hallucination_risk + emotional_sensitivity in una direttiva unica'
+);
+
+const sensitiveFormatting = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Orari per Messa di suffragio',
+    body: 'Vorrei chiedere una Messa per mio padre defunto e sapere quali orari sono possibili.'
+  },
+  requestType: { type: 'technical' },
+  classification: { confidence: 1, category: 'information' },
+  subIntents: { bereavement: true },
+  knowledgeBase: 'La segreteria prende nota delle intenzioni di Messa.'
+});
+assert(
+  sensitiveFormatting.concerns.emotional_sensitivity === true &&
+    sensitiveFormatting.concerns.formatting_risk === true &&
+    sensitiveFormatting.concerns.hallucination_risk === false,
+  'contesto emotivo con dati pratici deve attivare formattazione sensibile senza rischio allucinazione'
+);
+assert(
+  sensitiveFormatting.meta.concernSynthesis &&
+    sensitiveFormatting.meta.concernSynthesis.key === 'sensitive_formatting' &&
+    sensitiveFormatting.meta.concernSynthesis.directive.includes('date, orari, documenti o passaggi pratici') &&
+    sensitiveFormatting.meta.concernSynthesis.suppress.formattingGuidelines === true &&
+    sensitiveFormatting.meta.concernSynthesis.suppress.checklistHallucinationRule === false,
+  'PromptContext deve sintetizzare emotional_sensitivity + formatting_risk senza aggiungere regole hallucination'
+);
+
 console.log('--- Test PromptContext: memoria semantica sensibile alza il profilo ---');
 const sensitiveMemory = createPromptContext({
   email: {
@@ -127,6 +188,36 @@ assert(
 assert(
   sensitiveMemory.profile === 'heavy',
   'la memoria semantica sensibile deve alzare il profilo a heavy'
+);
+
+const longitudinalOverloadBody = `${'Vorrei capire alcuni passaggi amministrativi. '.repeat(18)} Quali documenti servono? Quando posso consegnarli? Devo prendere appuntamento?`;
+const longitudinalOverload = createPromptContext({
+  email: {
+    isReply: true,
+    detectedLanguage: 'it',
+    subject: 'Re: pratica',
+    body: longitudinalOverloadBody
+  },
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  classification: { confidence: 1, category: 'technical' },
+  memory: {
+    exists: true,
+    providedInfoCount: 1,
+    memorySummary: 'Scambio precedente su lutto familiare',
+    topics: ['esequie']
+  }
+});
+assert(
+  longitudinalOverload.concerns.longitudinal_sensitivity === true &&
+    longitudinalOverload.concerns.user_overload === true,
+  'memoria sensibile e richiesta lunga devono attivare longitudinal_sensitivity + user_overload'
+);
+assert(
+  longitudinalOverload.meta.concernSynthesis &&
+    longitudinalOverload.meta.concernSynthesis.key === 'longitudinal_overload' &&
+    longitudinalOverload.meta.concernSynthesis.directive.includes('prosa breve e ben sequenziata') &&
+    longitudinalOverload.meta.concernSynthesis.suppress.userOverloadGuidance === true,
+  'PromptContext deve sintetizzare longitudinal_sensitivity + user_overload in una direttiva unica'
 );
 
 console.log('--- Test PromptContext: memoria sensibile riconosce forme flesse ---');
@@ -178,6 +269,10 @@ const overloaded = createPromptContext({
 assert(
   overloaded.concerns.user_overload === true,
   'email lunga con più domande deve attivare user_overload'
+);
+assert(
+  overloaded.concerns.response_calibration === true,
+  'email lunga con più domande deve attivare response_calibration'
 );
 assert(
   overloaded.meta.responseRegister === 'warm_institutional',
@@ -273,6 +368,70 @@ assert(
 assert(
   strongCrisis.meta.salutationMode === 'full_warm',
   'primo contatto in crisi pastorale deve usare saluto full_warm'
+);
+
+const sessionCrisis = createPromptContext({
+  email: {
+    isReply: true,
+    detectedLanguage: 'it',
+    subject: 'Re: emergenza',
+    body: 'Sono in crisi e non ce la faccio, ho bisogno di parlare con qualcuno.'
+  },
+  requestType: { type: 'pastoral' },
+  classification: { confidence: 1, category: 'information', subIntents: { emotional_distress: true } },
+  salutationMode: 'session'
+});
+assert(
+  sessionCrisis.meta.responseRegister === 'pastoral_crisis',
+  'crisi in thread deve mantenere registro pastoral_crisis'
+);
+assert(
+  sessionCrisis.meta.salutationMode === 'soft',
+  'crisi in sessione ravvicinata deve uscire dalla modalita chat secca e usare saluto soft'
+);
+
+const crisisMultiQuestion = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Emergenza',
+    body: 'Sono in crisi e non ce la faccio. Posso parlare con qualcuno? Quando posso venire?'
+  },
+  requestType: { type: 'pastoral' },
+  classification: { confidence: 1, category: 'other', subIntents: { emotional_distress: true } },
+  salutationMode: 'full'
+});
+assert(
+  crisisMultiQuestion.concerns.multi_question === true &&
+    crisisMultiQuestion.meta.responseRegister === 'pastoral_crisis',
+  'crisi pastorale con piu domande deve attivare multi_question e pastoral_crisis'
+);
+assert(
+  crisisMultiQuestion.meta.concernSynthesis &&
+    crisisMultiQuestion.meta.concernSynthesis.key === 'crisis_multi_question' &&
+    crisisMultiQuestion.meta.concernSynthesis.directive.includes('bisogno principale e la crisi espressa') &&
+    crisisMultiQuestion.meta.concernSynthesis.suppress.responseCalibrationGuidance === true &&
+    crisisMultiQuestion.meta.concernSynthesis.suppress.checklistCompletenessRule === true &&
+    crisisMultiQuestion.meta.concernSynthesis.suppress.userOverloadGuidance === true,
+  'PromptContext deve sintetizzare pastoral_crisis + multi_question senza affidare al modello la riconciliazione'
+);
+
+const crisisSingleQuestion = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Emergenza',
+    body: 'Sono in crisi e non ce la faccio, posso parlare con qualcuno?'
+  },
+  requestType: { type: 'pastoral' },
+  classification: { confidence: 1, category: 'other', subIntents: { emotional_distress: true } },
+  salutationMode: 'full'
+});
+assert(
+  crisisSingleQuestion.meta.responseRegister === 'pastoral_crisis' &&
+    (!crisisSingleQuestion.meta.concernSynthesis ||
+      crisisSingleQuestion.meta.concernSynthesis.key !== 'crisis_multi_question'),
+  'crisi pastorale con una sola domanda non deve attivare la sintesi multi-domanda'
 );
 
 console.log('--- Test PromptContext: residual_sensitivity per memoria storica non attiva su email emotiva ---');

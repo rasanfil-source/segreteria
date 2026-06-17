@@ -926,5 +926,336 @@
       ],
       "minValidatorScore": 0.8
     }
+  },
+  {
+    "id": "golden-tone-001-cold-direct",
+    "description": "Messaggio freddo: risposta essenziale, senza calore o espansioni non richieste",
+    "input": {
+      "subject": "Certificato battesimo",
+      "body": "Serve certificato di battesimo. Dati: Marco Rossi, nato 12/03/1990. Mandare via email.",
+      "language": "it",
+      "senderName": "Utente",
+      "promptProfile": "standard",
+      "relationalPosture": "direct",
+      "responseRegister": "formal_institutional",
+      "knowledgeBase": "I certificati di battesimo possono essere richiesti via email fornendo nome, cognome, data di nascita e dati utili alla ricerca. Se il certificato \u00e8 pronto pu\u00f2 essere inviato via email in formato PDF.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1
+    },
+    "candidateResponse": "Abbiamo ricevuto i dati indicati. Verificheremo il registro e, se il certificato sar\u00e0 disponibile, lo invieremo via email in formato PDF.",
+    "expected": {
+      "requestTypeIn": [
+        "technical",
+        "mixed"
+      ],
+      "promptMustInclude": [
+        "Usa un tono formale, neutro e procedurale",
+        "Tono istituzionale. Rispondi ai fatti esclusivamente con i fatti"
+      ],
+      "responseMustInclude": [
+        "ricevuto i dati",
+        "verificheremo",
+        "via email"
+      ],
+      "responseMustNotInclude": [
+        "volentieri",
+        "La ringraziamo",
+        "Rimaniamo a disposizione",
+        "capisco",
+        "comprendiamo"
+      ],
+      "minValidatorScore": 0.1,
+      "maxPromptChars": 120000
+    }
+  },
+  {
+    "id": "golden-tone-002-anxious-sponsor",
+    "description": "Messaggio ansioso: rassicurare senza amplificare l'ansia",
+    "input": {
+      "subject": "Certificato Cresima per madrina",
+      "body": "Scusate il disturbo, forse \u00e8 una domanda stupida, ma devo fare da madrina e non so se il certificato di Cresima serve davvero. Ho paura di essere in ritardo.",
+      "language": "it",
+      "senderName": "Utente",
+      "promptProfile": "standard",
+      "relationalPosture": "hesitant",
+      "sponsorGuidancePolicy": "cresima_prerequisite_for_sponsor_role",
+      "knowledgeBase": "Per fare da padrino o madrina \u00e8 necessario aver ricevuto la Cresima. Se occorre il certificato di Cresima, va richiesto alla parrocchia in cui \u00e8 stata ricevuta la Cresima. Se la Cresima \u00e8 stata ricevuta presso la nostra parrocchia, indicare nome, cognome e data indicativa.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1
+    },
+    "candidateResponse": "La domanda \u00e8 legittima e volentieri rispondiamo: per fare da madrina \u00e8 necessario aver ricevuto la Cresima. Se le occorre il certificato, pu\u00f2 richiederlo alla parrocchia in cui \u00e8 stata cresimata. Se la Cresima \u00e8 stata ricevuta da noi, ci indichi nome, cognome e data indicativa, cos\u00ec possiamo verificare.",
+    "expected": {
+      "requestTypeIn": [
+        "technical",
+        "mixed",
+        "pastoral",
+        "doctrinal"
+      ],
+      "promptMustInclude": [
+        "accoglila come legittima",
+        "Non si preoccupi",
+        "La domanda \u00e8 legittima"
+      ],
+      "responseMustInclude": [
+        "La domanda .* legittima",
+        "volentieri rispondiamo",
+        "Cresima",
+        "parrocchia in cui"
+      ],
+      "responseMustNotInclude": [
+        "Non si preoccupi",
+        "domanda stupida",
+        "paura",
+        "essere in ritardo"
+      ],
+      "minValidatorScore": 0.1,
+      "maxPromptChars": 120000
+    }
+  },
+  {
+    "id": "golden-tone-003-bereavement-practical",
+    "description": "Lutto con richiesta pratica: riconoscere il dolore e rispondere operativamente",
+    "input": {
+      "subject": "Funerale pap\u00e0",
+      "body": "Buongiorno, \u00e8 mancato mio pap\u00e0 questa notte. Vorremmo sapere se il funerale pu\u00f2 essere celebrato sabato e chi dobbiamo chiamare.",
+      "language": "it",
+      "senderName": "Utente",
+      "promptProfile": "standard",
+      "relationalPosture": "personal",
+      "responseRegister": "pastoral_crisis",
+      "activeConcerns": {
+        "emotional_sensitivity": true
+      },
+      "knowledgeBase": "Per i funerali contattare la segreteria al numero 06-12345678. La disponibilit\u00e0 del giorno e dell'orario deve essere verificata con il sacerdote e con la segreteria.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1
+    },
+    "candidateResponse": "Vi siamo vicini per la morte di suo pap\u00e0. Per verificare la possibilit\u00e0 di celebrare il funerale sabato, contattate la segreteria allo 06-12345678: controlleremo con il sacerdote la disponibilit\u00e0 del giorno e dell'orario.",
+    "expected": {
+      "requestTypeIn": [
+        "pastoral",
+        "mixed",
+        "technical"
+      ],
+      "promptMustInclude": [
+        "Usa un tono molto delicato e non burocratico",
+        "Non usare bullet points",
+        "Riconosci brevemente la dimensione umana"
+      ],
+      "responseMustInclude": [
+        "vicini",
+        "pap",
+        "sabato",
+        "06-12345678",
+        "sacerdote"
+      ],
+      "responseMustNotInclude": [
+        "modulo",
+        "requisiti",
+        "lista",
+        "porgiamo le nostre pi\u00f9 sentite"
+      ],
+      "minValidatorScore": 0.1,
+      "maxPromptChars": 120000
+    }
+  },
+  {
+    "id": "golden-tone-004-short-followup",
+    "description": "Follow-up breve: continuit\u00e0 di thread senza saluto pieno e senza riepilogo",
+    "input": {
+      "subject": "Re: Certificato",
+      "body": "Ok, potete mandarmelo via email?",
+      "language": "it",
+      "senderName": "Utente",
+      "promptProfile": "standard",
+      "relationalPosture": "direct",
+      "knowledgeBase": "I certificati disponibili possono essere inviati via email in formato PDF.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": true,
+      "isReply": true,
+      "messageCount": 3,
+      "lastUpdated": "2026-02-15T09:50:00Z"
+    },
+    "candidateResponse": "S\u00ec, possiamo inviarlo via email in formato PDF appena sar\u00e0 disponibile.",
+    "expected": {
+      "salutationMode": "session",
+      "requestTypeIn": [
+        "technical",
+        "mixed"
+      ],
+      "promptMustInclude": [
+        "Stile conversazionale",
+        "omettendo saluti rituali formali iniziali"
+      ],
+      "responseMustInclude": [
+        "^S",
+        "via email",
+        "PDF"
+      ],
+      "responseMustNotInclude": [
+        "^Buongiorno",
+        "Gentile",
+        "Cordiali saluti",
+        "Come gi\u00e0 detto",
+        "riepilog"
+      ],
+      "minValidatorScore": 0.1,
+      "maxPromptChars": 120000
+    }
+  },
+  {
+    "id": "golden-tone-005-topic-change",
+    "description": "Cambio argomento: usare la memoria solo se pertinente e rispondere alla nuova domanda",
+    "input": {
+      "subject": "Re: Certificato",
+      "body": "Grazie. Cambiando argomento, quali sono gli orari delle messe domenicali?",
+      "language": "it",
+      "senderName": "Utente",
+      "promptProfile": "standard",
+      "relationalPosture": "open",
+      "conversationShift": {
+        "shift": "topic_change",
+        "confidence": 0.91
+      },
+      "knowledgeBase": "Orari messe domenicali: 9:00 e 11:00. I certificati di battesimo possono essere inviati via email.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": true,
+      "isReply": true,
+      "messageCount": 4,
+      "lastUpdated": "2026-02-15T09:40:00Z"
+    },
+    "candidateResponse": "Le messe domenicali sono alle 9:00 e alle 11:00.",
+    "expected": {
+      "salutationMode": "none_or_continuity",
+      "requestTypeIn": [
+        "technical",
+        "mixed"
+      ],
+      "promptMustInclude": [
+        "La conversazione sembra aver cambiato argomento",
+        "solo se pertinente"
+      ],
+      "responseMustInclude": [
+        "9:00",
+        "11:00"
+      ],
+      "responseMustNotInclude": [
+        "certificato",
+        "battesimo",
+        "via email",
+        "riprendendo"
+      ],
+      "minValidatorScore": 0.1,
+      "maxPromptChars": 120000
+    }
+  },
+  {
+    "id": "golden-tone-006-baptism-rome-place",
+    "description": "Domanda territoriale sul battesimo a Roma: non trasformare la scelta del luogo in blocco territoriale",
+    "input": {
+      "subject": "Battesimo fuori territorio",
+      "body": "Buongiorno, abitiamo in un'altra zona di Roma ma vorremmo battezzare nostro figlio presso la vostra parrocchia. \u00c8 possibile o dobbiamo rivolgerci alla parrocchia di residenza?",
+      "language": "it",
+      "senderName": "Utente",
+      "promptProfile": "standard",
+      "category": "sacrament",
+      "knowledgeBase": "Per il battesimo a Roma c'\u00e8 una certa libert\u00e0 nella scelta del luogo della celebrazione. Per verificare disponibilit\u00e0 e preparazione occorre contattare la segreteria e concordare i passaggi necessari.",
+      "now": "2026-02-15T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1
+    },
+    "candidateResponse": "S\u00ec, per il battesimo a Roma c'\u00e8 una certa libert\u00e0 nella scelta del luogo della celebrazione. Possiamo verificare la disponibilit\u00e0 e indicarvi il passo minimo per concordare: scriveteci un recapito, il periodo desiderato e i dati essenziali del bambino.",
+    "expected": {
+      "requestTypeIn": [
+        "technical",
+        "mixed",
+        "pastoral",
+        "doctrinal"
+      ],
+      "promptMustInclude": [
+        "Battesimo a Roma e scelta del luogo",
+        "non rispondere come se fosse una verifica territoriale"
+      ],
+      "responseMustInclude": [
+        "battesimo a Roma",
+        "libert",
+        "scelta del luogo",
+        "passo minimo"
+      ],
+      "responseMustNotInclude": [
+        "deve rivolgersi alla parrocchia di residenza",
+        "non rientra",
+        "fuori territorio",
+        "non possiamo"
+      ],
+      "minValidatorScore": 0.1,
+      "maxPromptChars": 120000
+    }
+  },
+  {
+    "id": "golden-tone-007-ambiguous-date",
+    "description": "Data ambigua: non trasformare una data senza anno in certezza falsa",
+    "input": {
+      "subject": "Messe del 15 agosto",
+      "body": "Buongiorno, il 15 agosto ci saranno le messe festive?",
+      "language": "it",
+      "senderName": "Utente",
+      "promptProfile": "standard",
+      "relationalPosture": "direct",
+      "currentDate": "2026-09-10",
+      "messageDate": "2026-09-10",
+      "knowledgeBase": "Il 15 agosto, solennit\u00e0 dell'Assunzione, si seguono gli orari festivi: 9:00, 11:00 e 19:00.",
+      "now": "2026-09-10T10:00:00Z"
+    },
+    "memory": {
+      "exists": false,
+      "isReply": false,
+      "messageCount": 1
+    },
+    "candidateResponse": "Il 15 agosto 2026 \u00e8 gi\u00e0 trascorso. Se si riferisce al prossimo 15 agosto, per l'Assunzione sono previsti gli orari festivi: 9:00, 11:00 e 19:00.",
+    "expected": {
+      "requestTypeIn": [
+        "technical",
+        "mixed"
+      ],
+      "promptMustInclude": [
+        "Data di riferimento per la risposta",
+        "Date senza anno esplicito",
+        "Non presentare mai come futura una data gi\u00e0 trascorsa"
+      ],
+      "responseMustInclude": [
+        "15 agosto 2026 .* gi",
+        "Se si riferisce al prossimo 15 agosto",
+        "9:00",
+        "11:00",
+        "19:00"
+      ],
+      "responseMustNotInclude": [
+        "ci saranno",
+        "senza dubbio",
+        "quest'anno"
+      ],
+      "minValidatorScore": 0.1,
+      "maxPromptChars": 120000
+    }
   }
 ]

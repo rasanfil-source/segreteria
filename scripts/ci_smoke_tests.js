@@ -2264,7 +2264,16 @@ function runGoldenCases() {
             promptProfile: testCase.input.promptProfile || 'standard',
             salutationMode,
             territoryContext: testCase.input.territoryContext || null,
-            attachmentsContext: attachmentsContext
+            attachmentsContext: attachmentsContext,
+            currentDate: testCase.input.currentDate || undefined,
+            messageDate: testCase.input.messageDate || undefined,
+            runtimeContext: testCase.input.runtimeContext || undefined,
+            activeConcerns: testCase.input.activeConcerns || undefined,
+            conversationShift: testCase.input.conversationShift || undefined,
+            relationalPosture: testCase.input.relationalPosture || undefined,
+            category: testCase.input.category || undefined,
+            sponsorGuidancePolicy: testCase.input.sponsorGuidancePolicy || undefined,
+            responseRegister: testCase.input.responseRegister || undefined
         });
 
         (testCase.expected.promptMustInclude || []).forEach((needle) => {
