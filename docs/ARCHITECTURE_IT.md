@@ -454,90 +454,168 @@ classify(subject, body, externalHint) {
 
 ---
 
-### PromptEngine.gs - Modular Composition
+### PromptContext.gs e PromptEngine.gs - Prompting runtime riscritto
 
-**Sezioni Modulari (ordine; alcune condizionali; numero variabile per profilo):**
+Il sistema di prompting è ora diviso in due responsabilità principali:
 
-```
-1. SystemRole              (SEMPRE - identità assistente)
-2. LanguageInstruction     (SEMPRE - lingua richiesta)
-3. NoReplyRules            (SEMPRE - esclusioni prima del contenuto)
-4. KnowledgeBase           (SEMPRE)
-5. TerritoryVerification   (CONDIZIONALE - se contesto territorio)
-6. MemoryContext           (CONDIZIONALE - se memoria presente)
-7. ConversationContinuity  (CONDIZIONALE - follow-up/modalità saluto)
-8. ResponseDelay           (CONDIZIONALE - risposta in ritardo)
-9. ContinuityHumanFocus    (CONDIZIONALE - focus emotivo/ripetizione)
-10. SeasonalContext        (SEMPRE - invernale/estivo)
-11. TemporalAwareness      (SEMPRE - currentDate, currentTime, messageDate)
-12. CategoryHint           (CONDIZIONALE - se category rilevata)
-13. AICoreLite             (CONDIZIONALE - richieste pastorali)
-14. AICore                 (CONDIZIONALE - discernimento)
-15. SelectiveDoctrine      (CONDIZIONALE - richieste dottrinali; fallback solo se no AI_CORE/LITE)
-16. ConversationHistory    (CONDIZIONALE - se thread>1 msg)
-17. EmailContent           (SEMPRE)
-18. AttachmentsContext     (CONDIZIONALE - OCR/allegati)
-19. FormattingGuidelines   (FILTRABILE - no su profilo lite)
-20. ResponseStructure      (SEMPRE)
-21. SbattezzoTemplate      (CONDIZIONALE - category/topic)
-22. HumanToneGuidelines    (FILTRABILE - no su profilo lite)
-23. Examples               (FILTRABILE - no su profilo lite/standard)
-24. ResponseGuidelines     (SEMPRE)
-25. SpecialCases           (FILTRABILE - no su profilo lite)
-26. CriticalErrorsReminder (SEMPRE - rinforzo anti-errori)
-27. ContextualChecklist    (SEMPRE - verifica finale)
-28. FinalInstruction       (SEMPRE - genera risposta)
-```
+- **`PromptContext`** calcola il profilo operativo, i concern attivi, il registro di risposta e la modalità di saluto a partire da email, quick-check, memoria, classificazione, territorio e tempo.
+- **`PromptEngine.buildPrompt()`** compone il payload finale in due canali separati: `systemInstruction` per istruzioni e vincoli, `prompt` utente per dati di contesto e contenuti da usare nella risposta.
 
-**Prompt Profiling:**
+#### Fonti di conoscenza e routing dei moduli
+
+La **Knowledge Base principale** resta sempre il riferimento operativo prioritario per orari, procedure, contatti, requisiti, regole parrocchiali e istruzioni pratiche. I moduli pastorali e dottrinali sono caricabili, ma vengono inseriti solo quando il routing li considera necessari:
+
+- `AI_CORE_LITE`: principi pastorali fondamentali, incluso quando serve discernimento pastorale o dottrinale di base.
+- `AI_CORE`: principi pastorali estesi, incluso per accompagnamento personale, discernimento, lutto, crisi o sensibilità relazionale.
+- Dottrina selettiva / base dottrinale: inclusa solo per richieste dottrinali o sacramentali che lo richiedono; il fallback completo è evitato se produrrebbe bloat inutile.
+- Allegati e OCR: trattati come contesto separato e ridotti prima dei dati critici se il budget è pieno.
+
+Le richieste tecniche pure mantengono un prompt più leggero: non vengono caricati blocchi pastorali o dottrinali pesanti se quick-check, classificatore locale e segnali dagli allegati non ne indicano il bisogno.
+
+#### Prima lettura: quick-check e segnali di routing
+
+Prima della risposta finale, `EmailProcessor` raccoglie oggetto, mittente, thread, lingua, corpo email, allegati e contesto conversazionale. Il quick-check Gemini restituisce segnali strutturati, tra cui:
+
+- decisione di risposta e categoria;
+- argomento e sottointenti;
+- lingua rilevata;
+- postura relazionale (`direct`, `personal`, `hesitant`, `complaint`, `open`, `urgent`, più il profilo caldo/apprezzativo normalizzato come `appreciative` quando emerge entusiasmo o gratitudine);
+- strategia di risposta suggerita;
+- vincoli di presenza fisica;
+- richiesta territoriale;
+- cambio di tema, continuità dell'obiettivo e nuove informazioni fornite dall'utente.
+
+Questa fase non genera la risposta finale: decide quale risposta chiedere a Gemini e quali guardrail applicare.
+
+#### Tempo, stagioni e ritardi
+
+Il prompt riceve un `runtimeContext.temporal` normalizzato con:
+
+- data e ora di elaborazione;
+- data e ora del messaggio Gmail;
+- età del messaggio;
+- timezone;
+- business date corrente;
+- data business del messaggio.
+
+I relativi come “oggi”, “domani e “dopodomani” vengono risolti rispetto alla data del messaggio quando la frase appartiene all'email originale, ma la risposta viene valutata rispetto alla data corrente di elaborazione. Se l'email è vecchia, può essere aggiunta una direttiva di scusa per il ritardo. La stagione operativa/liturgica viene calcolata combinando formule interne e intervalli presenti nella KB, così da evitare risposte con orari estivi/invernali sbagliati.
+
+#### Spazio, territorio e vincoli fisici
+
+Quando il messaggio chiede competenza territoriale, `TerritoryValidator` cerca e normalizza indirizzi, vie e civici, verifica se rientrano nella parrocchia e produce un blocco con esito:
+
+- rientra in parrocchia;
+- non rientra;
+- civico necessario / dati insufficienti.
+
+Se nel testo compare un indirizzo ma non c'è richiesta territoriale esplicita, il prompt aggiunge una direttiva prudenziale: non dedurre competenza parrocchiale senza verifica. I vincoli di presenza fisica hanno priorità su postura e tono: non si deve suggerire una procedura remota se la KB o il contesto richiedono presenza in segreteria/parrocchia.
+
+#### Frequenza, memoria e continuità
+
+Il sistema distingue primo contatto e risposta in thread, valuta memoria conversazionale, numero e recenza dei messaggi, cambio tema, chiusura tema e continuità dell'obiettivo. Da questi segnali deriva `salutationMode`:
+
+- `full`: saluto pieno;
+- `soft` / `full_warm`: saluto più umano in contesti delicati;
+- `none_or_continuity`: niente apertura rituale quando il thread è già avviato;
+- modalità di continuità da chat/sessione.
+
+La memoria evita ripetizioni, mantiene coerenza con informazioni già date e conserva sensibilità longitudinali: per esempio un lutto o una crisi emersi in una mail precedente continuano a influenzare tono e registro anche se il messaggio corrente è operativo.
+
+#### Profilo, concern e registro
+
+`PromptContext` calcola tre profili:
+
 ```javascript
-const profile = computeProfile({
-  email,
-  classification,
-  requestType,
-  memory,
-  conversation,
-  territory,
-  knowledgeBase,
-  temporal,
-  salutationMode
-});
-
 // Profiles: 'lite', 'standard', 'heavy'
 ```
 
-**Dynamic Filtering:**
-- **Lite** → Skip: Examples, Formatting, HumanTone, SpecialCases
-- **Standard** → Skip: Examples (se no formatting_risk)
-- **Heavy** → Include tutto
+Il profilo dipende da rischio di allucinazione, rischio temporale, formattazione, discernimento, sensibilità emotiva, memoria sensibile, ripetizione, multidomanda, sovraccarico utente, vincoli fisici e calore relazionale. In sintesi:
 
-**Temporal Awareness:**
-Il prompt riceve il ramo `runtimeContext.temporal` già normalizzato. La sezione temporale distingue esplicitamente:
-- **data di riferimento per la risposta** (`currentDate`): usata per classificare passato, presente e futuro nel testo generato;
-- **ora locale corrente** (`currentTime`): usata per saluti e formule di apertura coerenti;
-- **data originale dell'email** (`messageDate`): usata per interpretare i relativi scritti dall'utente al momento dell'invio;
-- **disponibilità della data originale** (`messageDateAvailable`): evita di presentare come "data originale email" una data ricostruita per fallback.
+- **Lite**: richieste semplici o tecniche, pochi rischi; salta esempi, formattazione estesa, tono umano esteso e casi speciali.
+- **Standard**: rischi pratici o temporali, oppure entusiasmo/gratitudine da rispecchiare senza caricare moduli pesanti.
+- **Heavy**: discernimento, formalità, dottrina, lutto, crisi, sensibilità emotiva o memoria longitudinale.
 
-Esempio operativo: se un'email del 1 giugno dice "ci vediamo domani" e viene elaborata il 7 giugno, il prompt interpreta "domani" come 2 giugno, ma valuta la risposta rispetto al 7 giugno.
+Il registro di risposta può essere:
 
-**Token Management & Retrieval Selettivo:**
+- `warm_institutional`: istituzionale caldo;
+- `formal_institutional`: formale, sobrio e procedurale;
+- `pastoral_supportive`: pastorale di supporto;
+- `pastoral_crisis`: crisi pastorale, con massima sobrietà, frasi brevi e soppressione di esempi, casi speciali e formattazione decorativa.
+
+Il profilo **entusiastico/apprezzativo** è gestito come concern di `relational_warmth`: se il quick-check rileva entusiasmo, gratitudine dettagliata o apprezzamento concreto con confidenza sufficiente, il prompt chiede di riconoscerlo con una frase breve e specifica prima delle informazioni operative, senza alterare requisiti, date o procedure.
+
+#### Postura relazionale e prevalenze
+
+La postura relazionale orienta il modo pratico della risposta:
+
+- `direct` → informazione diretta;
+- `personal` → rassicurazione e accompagnamento;
+- `hesitant` → chiarimento dei requisiti;
+- `complaint` → prossimo passo e gestione del disservizio;
+- `open` → risposta informativa ma accogliente;
+- `urgent` → riduzione dello sforzo dell'utente;
+- `appreciative` / entusiasmo → breve rispecchiamento umano.
+
+La postura viene usata solo se ha confidenza sufficiente e se non ci sono segnali più forti. Richieste formali, sbattezzo, documenti, territorio, vincoli fisici, continuità d'obiettivo e focus di memoria prevalgono sulla postura. La postura non può modificare KB, date, procedure, requisiti o vincoli di sicurezza.
+
+#### Sintesi dei concern concorrenti
+
+Quando più concern tirano in direzioni diverse, il sistema non aggiunge semplicemente altre sezioni: `PromptContext` costruisce una **sintesi unica** (`concernSynthesis`) che concentra la decisione qualitativa. Esempi:
+
+- delicatezza + precisione → ammettere incertezza con garbo, senza dedurre dati mancanti;
+- sensibilità emotiva + formattazione → integrare date/orari/documenti solo se servono, evitando liste o Markdown decorativo;
+- memoria sensibile + sovraccarico → rispondere per priorità, in prosa breve, senza riaprire il vissuto se la domanda è operativa;
+- crisi pastorale + multidomanda → aprire sul bisogno urgente, dare il prossimo passo indispensabile, rinviare con garbo le domande secondarie se appesantirebbero.
+
+La sintesi può sopprimere sezioni ridondanti come linee di formattazione, regole anti-allucinazione, guida sul carico cognitivo, calibrazione qualitativa o completezza domande. Restano sempre vincolanti KB, territorio, dottrina, lingua, output e sicurezza.
+
+#### Sezioni del prompt e separazione system/user
+
+`PromptEngine.buildPrompt()` usa un ordinamento modulare. Le istruzioni di comportamento, vincoli, registro, territorio, tempo, qualità e output finiscono in `systemInstruction`; dati, KB, cronologia, email e allegati testuali finiscono nel prompt utente.
+
+Ordine logico delle sezioni principali:
+
+```
+1. SystemRole, LanguageInstruction, NoReplyRules, SystemDirectives
+2. KnowledgeBase
+3. TerritoryVerification / PriorCommunicationPolicy
+4. MemoryContext, ResidualSensitivity, ConversationShift, GoalContinuity, NewInformationProvided
+5. ResponseStrategy, ResponseRegister, ConcernSynthesis, RelationalWarmth, calibrazione/sovraccarico
+6. ConversationContinuity, ResponseDelay, RelationalPosture, ContinuityHumanFocus
+7. SeasonalContext, TemporalAwareness, CategoryHint, SponsorGuidance, PhysicalPresenceConstraint
+8. AI_CORE_LITE, AI_CORE, Dottrina selettiva/fallback
+9. ConversationHistory, EmailContent, AttachmentsContext
+10. ResponseQualityContract, FormattingGuidelines, ResponseStructure, template speciali
+11. HumanToneGuidelines, Examples, ResponseGuidelines, OutputEnvelopePolicy, SpecialCases
+12. CriticalErrorsReminder, CompletenessDirective, ContextualChecklist, FinalInstruction
+```
+
+Il risultato è un oggetto compatibile con i flussi legacy:
+
 ```javascript
-CONTEXT_WINDOW_TOKENS = 1048576;
-MAX_SAFE_TOKENS = 120000; // cap operativo locale sotto il limite modello
-KB_TOKEN_BUDGET = 60000; // 50%
-
-// Unified Smart RAG (Dottrina + Direttive)
-// Sostituisce i vecchi metodi di retrieval separati
-// 1. Scoring basato su Topic, Keyword e Dimensioni (es. pastoral boost)
-// 2. Scoring categorico: boost per righe coerenti con le dimensioni della richiesta
-// 3. Volume Adattivo: Max righe in base a promptProfile (Lite=3, Std=5, Heavy=8)
-// 4. Output Unificato: Dottrina + Note AI + Warning in un unico blocco
-
-if (estimatedTokens > MAX_SAFE_TOKENS) {
-  // 1. Rimuovi Examples
-  // 2. Tronca KB semanticamente (preserva paragrafi completi)
+{
+  systemInstruction: '...',
+  prompt: '...',
+  length: systemInstruction.length + prompt.length,
+  toString() { return [this.systemInstruction, this.prompt].filter(Boolean).join('\n\n'); }
 }
 ```
+
+#### Budget, sicurezza e validazione
+
+Prima della chiamata a Gemini, il sistema stima token e caratteri. Se KB o allegati sono troppo lunghi, vengono troncati semanticamente preservando i dati critici. Se il budget è pieno, vengono saltate sezioni non critiche; l'email da rispondere, le istruzioni finali, lingua, output e vincoli duri restano prioritari.
+
+La risposta finale deve essere restituita solo dentro:
+
+```xml
+<email>
+...
+</email>
+```
+
+Dopo la generazione, il sistema valida lingua, lunghezza, placeholder, allucinazioni su orari/contatti, thinking leak, formato e vincoli critici. Se l'errore è correggibile, viene costruito un prompt di correzione con contesto runtime e Gemini rigenera in modo mirato.
+
+---
 
 ---
 

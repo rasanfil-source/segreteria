@@ -2873,6 +2873,7 @@ Segreteria Parrocchia Sant'Eugenio
       contentSection = `3. **Contenuto:**
    • Rispondi SOLO a ciò che è chiesto
    • Usa SOLO info dalla knowledge base
+   • REGOLA ANTI-INFODUMP: ogni frase deve guadagnarsi il suo posto.
    • ✅ Formatta elegantemente se 3+ elementi/orari
    • Follow-up (Re:): sii più diretto e conciso`;
 

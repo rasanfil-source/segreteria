@@ -155,6 +155,15 @@ var EmailProcessor = class EmailProcessor {
     return dateValue.toISOString().slice(0, 10);
   }
 
+  _escapeBurstXmlText_(text) {
+    if (typeof text !== 'string') return '';
+    return text.replace(/&/g, '&amp;')
+               .replace(/</g, '&lt;')
+               .replace(/>/g, '&gt;')
+               .replace(/"/g, '&quot;')
+               .replace(/'/g, '&#039;');
+  }
+
   _buildGenerationStrategies_(geminiService, options = {}) {
     if (geminiService && typeof geminiService.buildGenerationStrategies === 'function') {
       return geminiService.buildGenerationStrategies(options);
@@ -2062,6 +2071,7 @@ ${addressLines.join('\n\n')}
       let attachmentSkipped = [];
       let attachmentItems = [];
       let physicalAttachmentsDetected = false;
+      let attachmentPreCheckFailed = false;
 
 
       if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
@@ -2078,7 +2088,7 @@ ${addressLines.join('\n\n')}
             ? responseContextMessages
             : [candidate].filter(Boolean);
           let hasAttachments = false;
-          let attachmentPreCheckFailed = false;
+          attachmentPreCheckFailed = false;
           try {
             hasAttachments = attachmentSourceMessages.some((message) => {
               const sizeEstimate = this._getMessageSizeEstimateForAttachmentDownload_(message, threadLogger);

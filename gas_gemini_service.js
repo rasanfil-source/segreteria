@@ -887,9 +887,9 @@ Output JSON:
   static normalizeRelationalPosture(value, confidence = 0) {
     const normalized = String(value || '').trim().toLowerCase();
     const aliases = {
-      direct: 'informational',
-      personal: 'relational',
-      hesitant: 'uncertain',
+      informational: 'direct',
+      relational: 'personal',
+      procedural: 'direct',
       open: 'appreciative',
       appreciative: 'appreciative',
       grateful: 'appreciative',
@@ -899,19 +899,19 @@ Output JSON:
       frustrated: 'complaint',
       frustration: 'complaint',
       angry: 'complaint',
-      upset: 'complaint'
+      upset: 'complaint',
+      hesitant: 'uncertain'
     };
     const canonical = aliases[normalized] || normalized;
     const allowed = {
-      informational: true,
-      procedural: true,
-      relational: true,
+      direct: true,
+      personal: true,
       appreciative: true,
       complaint: true,
       urgent: true,
       uncertain: true
     };
-    if (!allowed[canonical] || canonical === 'informational') return 'direct';
+    if (!allowed[canonical] || canonical === 'direct') return 'direct';
     return EmailQuickCheckPolicy.isRelationalPostureConfidenceSufficient(confidence)
       ? canonical
       : 'direct';

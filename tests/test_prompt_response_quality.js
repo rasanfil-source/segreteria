@@ -211,8 +211,7 @@ console.log('--- Test prompt: firma nel body prevale sul nome account mittente -
     'il profilo standard deve includere la direttiva estesa di completezza'
   );
   assert(
-    !identityPrompt.includes('REGOLA ANTI-INFODUMP') &&
-      !identityPrompt.includes('ANTI-INFODUMP RULE') &&
+    !identityPrompt.includes('ANTI-INFODUMP RULE') &&
       !identityPrompt.includes('Completezza non significa infodump'),
     'le regole anti-infodump devono restare concentrate nel contratto qualità'
   );

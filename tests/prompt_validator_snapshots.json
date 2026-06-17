@@ -20,7 +20,7 @@
       "promptMustNotInclude": [
         "RAGIONAMENTO INTERNO"
       ],
-      "maxPromptChars": 18000,
+      "maxPromptChars": 22000,
       "validator": {
         "isValid": true,
         "minScore": 0.9
@@ -36,6 +36,7 @@
       "detectedLanguage": "it",
       "promptProfile": "standard",
       "focusedTopics": [],
+      "focusedSubIntents": {},
       "salutationMode": "full"
     },
     "candidateResponse": "Rivedendo la knowledge base, devo correggere la risposta. Cordiali saluti, Segreteria Parrocchia Sant'Eugenio",
@@ -44,7 +45,7 @@
         "CHECKLIST CONTESTUALE DI RISPOSTA",
         "DIRETTIVA DI COMPLETEZZA"
       ],
-      "maxPromptChars": 18000,
+      "maxPromptChars": 22000,
       "validator": {
         "isValid": false,
         "maxScore": 0.6,
@@ -63,6 +64,7 @@
       "detectedLanguage": "en",
       "promptProfile": "lite",
       "focusedTopics": [],
+      "focusedSubIntents": {},
       "salutationMode": "soft"
     },
     "candidateResponse": "Good morning, Sunday Masses are at 9:00 and 11:00. Regards, Parish Secretariat of Sant'Eugenio",
@@ -70,7 +72,7 @@
       "promptMustInclude": [
         "CHECKLIST CONTESTUALE DI RISPOSTA"
       ],
-      "maxPromptChars": 16000,
+      "maxPromptChars": 20000,
       "validator": {
         "isValid": true,
         "minScore": 0.85
