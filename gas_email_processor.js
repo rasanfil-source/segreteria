@@ -3000,7 +3000,7 @@ ${addressLines.join('\n\n')}
 
       const memoryUpdate = {
         language: detectedLanguage,
-        category: classification.category || requestTypeName,
+        category: categoryHintSource || classification.category || requestTypeName,
         _incrementMessageCount: true
       };
 
@@ -3622,7 +3622,7 @@ ${addressLines.join('\n\n')}
     }
     let deleted = 0;
     (Array.isArray(triggers) ? triggers : this._getResumeBatchTriggers_()).forEach(trigger => {
-      if (!trigger || (keepTrigger && trigger === keepTrigger)) return;
+      if (!trigger || (keepTrigger && trigger.getUniqueId() === keepTrigger.getUniqueId())) return;
       try {
         ScriptApp.deleteTrigger(trigger);
         deleted++;
@@ -4951,6 +4951,11 @@ ${addressLines.join('\n\n')}
     const match = safeText.match(/<email>\s*([\s\S]*?)\s*<\/email>/i);
     if (match && match[1]) {
       return match[1].trim();
+    }
+    // Fallback: se Gemini ha dimenticato il tag di chiusura.
+    const unclosedMatch = safeText.match(/<email>\s*([\s\S]*)/i);
+    if (unclosedMatch && unclosedMatch[1]) {
+      return unclosedMatch[1].trim();
     }
     return safeText;
   }
@@ -6730,7 +6735,7 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     const mentionsPadrinoContext = this._hasSacramentalSponsorRole_(userText, detectedLanguage);
     if (!mentionsPadrinoContext) return text;
 
-    const lines = text.split(/\n+/);
+    const lines = text.split(/\r?\n/);
     const filtered = [];
     let skippingSponsorBlock = false;
 

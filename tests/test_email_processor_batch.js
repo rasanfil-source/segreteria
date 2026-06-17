@@ -3815,9 +3815,9 @@ console.log('--- Test checkpoint trigger: preserva trigger esistenti se create f
 console.log('--- Test checkpoint trigger: elimina trigger di ripresa vecchi dopo create riuscito ---');
 {
   const props = new Map();
-  const existingResumeTrigger = { id: 'old-resume', getHandlerFunction: () => 'resumeEmailBatchFromCheckpoint' };
-  const otherTrigger = { id: 'other', getHandlerFunction: () => 'dailyMain' };
-  const createdTrigger = { id: 'new-resume', getHandlerFunction: () => 'resumeEmailBatchFromCheckpoint' };
+  const existingResumeTrigger = { id: 'old-resume', getHandlerFunction: () => 'resumeEmailBatchFromCheckpoint', getUniqueId: () => 'old-resume' };
+  const otherTrigger = { id: 'other', getHandlerFunction: () => 'dailyMain', getUniqueId: () => 'other' };
+  const createdTrigger = { id: 'new-resume', getHandlerFunction: () => 'resumeEmailBatchFromCheckpoint', getUniqueId: () => 'new-resume' };
   const deleted = [];
   const originalPropertiesService = global.PropertiesService;
   const originalScriptApp = global.ScriptApp;
@@ -3852,8 +3852,8 @@ console.log('--- Test checkpoint trigger: elimina trigger di ripresa vecchi dopo
 console.log('--- Test checkpoint clear: elimina checkpoint e trigger di ripresa orfani ---');
 {
   const props = new Map([['EMAIL_BATCH_CHECKPOINT', '{"version":2}']]);
-  const existingResumeTrigger = { id: 'old-resume-clear', getHandlerFunction: () => 'resumeEmailBatchFromCheckpoint' };
-  const otherTrigger = { id: 'other-clear', getHandlerFunction: () => 'dailyMain' };
+  const existingResumeTrigger = { id: 'old-resume-clear', getHandlerFunction: () => 'resumeEmailBatchFromCheckpoint', getUniqueId: () => 'old-resume-clear' };
+  const otherTrigger = { id: 'other-clear', getHandlerFunction: () => 'dailyMain', getUniqueId: () => 'other-clear' };
   const deleted = [];
   const originalPropertiesService = global.PropertiesService;
   const originalScriptApp = global.ScriptApp;
