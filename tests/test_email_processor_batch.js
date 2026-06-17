@@ -2609,9 +2609,13 @@ console.log('--- Test prompt options: relationalPosture personal passa dal quick
 
 console.log('--- Test prompt options: relational_warmth deriva dal quick-check Gemini, non da regex locali ---');
 {
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
   let promptOptions = null;
   let promptContextInput = null;
+  let validationSalutationMode = null;
+  let outboundText = null;
   const originalCreatePromptContext = global.createPromptContext;
+  global.CONFIG.VALIDATION_ENABLED = true;
   global.createPromptContext = (input) => {
     promptContextInput = input;
     const isWarm = input.relationalPosture === 'appreciative' && Number(input.relationalPostureConfidence) >= 0.7;
@@ -2641,7 +2645,10 @@ console.log('--- Test prompt options: relational_warmth deriva dal quick-check G
       addLabelToMessage: () => {},
       addLabelToThread: () => {},
       getThreadHistory: () => '',
-      prepareOutboundText: (text) => text,
+      prepareOutboundText: (text) => {
+        outboundText = text;
+        return text;
+      },
       sendHtmlReply: () => {}
     },
     classifier: {
@@ -2659,7 +2666,7 @@ console.log('--- Test prompt options: relational_warmth deriva dal quick-check G
       detectEmailLanguage: () => ({ lang: 'it' }),
       getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',
-      generateResponse: () => ({ success: true, text: 'Risposta' })
+      generateResponse: () => ({ success: true, text: '<email>Caro Gian Mario,\n\nRisposta</email>' })
     },
     requestClassifier: {
       classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
@@ -2673,7 +2680,10 @@ console.log('--- Test prompt options: relational_warmth deriva dal quick-check G
       validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
     },
     validator: {
-      validateResponse: () => ({ isValid: true, score: 1.0, errors: [], warnings: [], details: {}, fixedResponse: null })
+      validateResponse: (_response, _language, _kb, _body, _subject, mode) => {
+        validationSalutationMode = mode;
+        return { isValid: true, score: 1.0, errors: [], warnings: [], details: {}, fixedResponse: null };
+      }
     },
     promptEngine: {
       buildPrompt: (options) => {
@@ -2685,8 +2695,12 @@ console.log('--- Test prompt options: relational_warmth deriva dal quick-check G
 
   const result = processor.processThread(createExternalThread('relational-warmth-test'), 'kb valida', '', new Set(), true);
   global.createPromptContext = originalCreatePromptContext;
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
   assert(result.status === 'replied', 'il thread con calore relazionale deve completarsi');
   assert(promptOptions && promptOptions.relationalPosture === 'appreciative', `relationalPosture attesa appreciative, ottenuta ${promptOptions && promptOptions.relationalPosture}`);
+  assert(promptOptions && promptOptions.salutationMode === 'full_warm', `salutationMode atteso full_warm, ottenuto ${promptOptions && promptOptions.salutationMode}`);
+  assert(validationSalutationMode === 'full_warm', `la validazione deve ricevere full_warm, ottenuto ${validationSalutationMode}`);
+  assert(outboundText && outboundText.startsWith('Caro Gian Mario'), 'il guardrail italiano deve preservare Caro/Cara quando full_warm è esplicito');
   assert(promptContextInput && promptContextInput.relationalPostureConfidence === 0.95, `relationalPostureConfidence attesa 0.95, ottenuta ${promptContextInput && promptContextInput.relationalPostureConfidence}`);
   assert(promptContextInput && promptContextInput.quickCheck.relational_posture === 'appreciative', 'il promptContextInput deve contenere appreciative');
 }
@@ -3343,6 +3357,116 @@ console.log('--- Test context routing: OCR sacramentale riattiva dottrina dopo c
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
   global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
   global.GLOBAL_CACHE = originalGlobalCache;
+}
+
+console.log('--- Test PromptContext: categoria OCR post-allegati governa profilo, registro e concernSynthesis ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+  const originalGlobalCache = global.GLOBAL_CACHE;
+  const originalCreatePromptContext = global.createPromptContext;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.CONFIG.ATTACHMENT_CONTEXT = { enabled: true, maxFiles: 2 };
+  global.GLOBAL_CACHE = { aiCoreLite: 'core lite', aiCore: 'core pesante' };
+
+  let promptContextInput = null;
+  let promptOptions = null;
+  const synthesis = {
+    key: 'test_synthesis',
+    directive: 'Direttiva sintetica di test',
+    suppress: { formattingGuidelines: true }
+  };
+  global.createPromptContext = (input) => {
+    promptContextInput = input;
+    return {
+      profile: input.classification.category === 'formal' ? 'heavy' : 'lite',
+      concerns: { hallucination_risk: true, emotional_sensitivity: true },
+      meta: {
+        responseRegister: input.classification.category === 'formal' ? 'formal_institutional' : 'warm_institutional',
+        salutationMode: 'full',
+        concernSynthesis: synthesis
+      }
+    };
+  };
+
+  const msg = {
+    getId: () => 'm-post-ocr-formal',
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-10T10:00:00Z'),
+    getSubject: () => 'Modulo allegato',
+    getPlainBody: () => 'Allego il modulo.',
+    getAttachments: () => [{ getName: () => 'modulo_sbattezzo.pdf' }]
+  };
+  const thread = createThread({ id: 't-post-ocr-formal', messages: [msg] });
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Modulo allegato',
+        body: 'Allego il modulo.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      getProcessableAttachments: () => ({
+        blobs: [],
+        textContext: 'Modulo sbattezzo - richiesta cancellazione dal registro battesimo.',
+        skipped: [],
+        items: [{ name: 'modulo_sbattezzo.pdf', text: 'Modulo sbattezzo' }]
+      }),
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'information', topic: 'modulo' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta formale' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        promptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  const result = processor.processThread(thread, 'kb valida', 'dottrina completa', new Set(), true);
+  assert(result.status === 'replied', 'la submission formale OCR deve completarsi');
+  assert(promptContextInput && promptContextInput.classification.category === 'formal', `PromptContext deve ricevere categoria formal post-OCR, ottenuta ${promptContextInput && promptContextInput.classification && promptContextInput.classification.category}`);
+  assert(promptOptions && promptOptions.category === 'formal', `PromptEngine deve ricevere categoria formal, ottenuta ${promptOptions && promptOptions.category}`);
+  assert(promptOptions.promptProfile === 'heavy', 'il profilo del PromptContext post-OCR deve arrivare al PromptEngine');
+  assert(promptOptions.responseRegister === 'formal_institutional', 'il registro post-OCR deve arrivare al PromptEngine');
+  assert(promptOptions.concernSynthesis === synthesis, 'concernSynthesis deve essere trasmessa a buildPrompt');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+  global.GLOBAL_CACHE = originalGlobalCache;
+  global.createPromptContext = originalCreatePromptContext;
 }
 
 console.log('--- Test attachment intent: OCR con punti interrogativi non crea domanda ---');

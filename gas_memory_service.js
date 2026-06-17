@@ -552,23 +552,11 @@ var MemoryService = class MemoryService {
             mergedData.providedInfo = trimmedTopics;
             console.log(`🧠 Memoria: Aggiunti atomicamente topic ${JSON.stringify(normalizedTopics)}`);
           }
-          if (inferredReactionData && Array.isArray(mergedData.providedInfo) && mergedData.providedInfo.length > 0) {
-            const normalizedReactionTopics = (inferredReactionData.topics || []).map(topic => this._normalizeTopicKey(topic));
-            mergedData.providedInfo = mergedData.providedInfo.map(info => {
-              const normalizedInfoTopic = this._normalizeTopicKey(info.topic);
-              if (!normalizedReactionTopics.includes(normalizedInfoTopic)) return info;
-              return {
-                ...info,
-                userReaction: inferredReactionData.reaction,
-                context: {
-                  source: inferredReactionData.source || 'user_reply',
-                  matchedPhrase: inferredReactionData.matchedPhrase || null,
-                  excerpt: inferredReactionData.excerpt || null
-                },
-                lastInteraction: now
-              };
-            });
-          }
+          mergedData.providedInfo = this._applyInferredReactionToProvidedInfo(
+            mergedData.providedInfo,
+            inferredReactionData,
+            now
+          );
 
             // Cap preventivo lunghezza JSON providedInfo (B5)
             if (mergedData.providedInfo && Array.isArray(mergedData.providedInfo)) {
@@ -600,6 +588,11 @@ var MemoryService = class MemoryService {
 
           if (providedTopics && providedTopics.length > 0) {
             insertData.providedInfo = this._normalizeProvidedTopics(providedTopics);
+            insertData.providedInfo = this._applyInferredReactionToProvidedInfo(
+              insertData.providedInfo,
+              inferredReactionData,
+              now
+            );
           }
 
           this._invalidateCache(`memory_${normalizedThreadId}`);
@@ -1214,6 +1207,44 @@ var MemoryService = class MemoryService {
       .replace(/[_\-]+/g, ' ')
       .replace(/\s+/g, ' ')
       .replace(/ /g, '_');
+  }
+
+  _applyInferredReactionToProvidedInfo(providedInfo, inferredReactionData, now) {
+    if (!inferredReactionData || !Array.isArray(providedInfo) || providedInfo.length === 0) {
+      return providedInfo;
+    }
+
+    const reaction = inferredReactionData.reaction ? String(inferredReactionData.reaction).trim() : '';
+    const topics = Array.isArray(inferredReactionData.topics) ? inferredReactionData.topics : [];
+    if (!reaction || topics.length === 0) {
+      return providedInfo;
+    }
+
+    const targetTopics = new Set(
+      topics
+        .map(topic => this._normalizeTopicKey(topic))
+        .filter(Boolean)
+    );
+    if (targetTopics.size === 0) {
+      return providedInfo;
+    }
+
+    return providedInfo.map(info => {
+      const normalizedInfoTopic = this._normalizeTopicKey(info && info.topic);
+      if (!normalizedInfoTopic || !targetTopics.has(normalizedInfoTopic)) {
+        return info;
+      }
+
+      return Object.assign({}, info, {
+        userReaction: reaction,
+        context: {
+          source: inferredReactionData.source || 'user_reply',
+          matchedPhrase: inferredReactionData.matchedPhrase || null,
+          excerpt: inferredReactionData.excerpt || null
+        },
+        lastInteraction: now
+      });
+    });
   }
 
   /**

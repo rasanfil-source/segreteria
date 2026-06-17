@@ -286,7 +286,11 @@ var PromptContext = class PromptContext {
     _computeProfile() {
         const c = this.concerns;
         const requestType = this.input.requestType;
-        const isFormal = !!(requestType && (requestType.type === 'formal' || requestType.formalScore > 0.6));
+        const category = String(this.input.classification?.category || '').toLowerCase();
+        const isFormal = !!(
+            requestType &&
+            (requestType.type === 'formal' || requestType.formalScore > 0.6)
+        ) || category === 'formal' || category === 'sbattezzo';
         const isDoctrinal = !!(requestType && (requestType.type === 'doctrinal' || requestType.doctrineScore > 0.6));
 
         if (c.discernment_risk || c.emotional_sensitivity || c.longitudinal_sensitivity || isFormal || isDoctrinal) {

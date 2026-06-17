@@ -355,6 +355,123 @@ console.log('--- Test MemoryService updateMemoryAtomic: VERSION_MISMATCH non rit
   }
 }
 
+console.log('--- Test MemoryService updateMemoryAtomic: applica inferredReactionData su riga esistente ---');
+{
+  const originalLockService = global.LockService;
+  global.LockService = {
+    getScriptLock: () => ({
+      waitLock: () => {},
+      releaseLock: () => {}
+    })
+  };
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    const now = '2026-05-10T10:00:00.000Z';
+    memory._initialized = true;
+    memory._getLockTuning_ = () => ({ shardedAcquireTimeoutMs: 1 });
+    memory._getShardedLockKey = () => 'lock-thread-reaction-existing';
+    memory._tryAcquireShardedLock = () => true;
+    memory._releaseShardedLock = () => {};
+    memory._sleepLockBackoff_ = () => {};
+    memory._invalidateCache = () => {};
+    memory._withSheetWriteLock = (fn) => fn();
+    memory._validateAndNormalizeTimestamp = () => now;
+
+    let saved = null;
+    memory._updateRow = (rowIndex, data) => {
+      saved = { rowIndex, data };
+    };
+    memory._findRowByThreadId = () => ({
+      rowIndex: 2,
+      values: [
+        'thread-reaction-existing',
+        'it',
+        'info',
+        'standard',
+        JSON.stringify([{ topic: 'Orari messe', userReaction: 'unknown', timestamp: '2026-05-01T00:00:00.000Z' }]),
+        '2026-05-01T00:00:00.000Z',
+        1,
+        1,
+        ''
+      ]
+    });
+
+    const ok = memory.updateMemoryAtomic(
+      'thread-reaction-existing',
+      { language: 'it' },
+      ['orari_messe'],
+      {
+        reaction: 'acknowledged',
+        topics: ['orari messe'],
+        source: 'user_reply',
+        matchedPhrase: 'ho capito',
+        excerpt: 'Grazie, ho capito'
+      }
+    );
+
+    const topic = saved && saved.data.providedInfo.find(item => memory._normalizeTopicKey(item.topic) === 'orari_messe');
+    assert(ok === true, 'updateMemoryAtomic deve riuscire');
+    assert(topic && topic.userReaction === 'acknowledged', 'reaction dedotta deve essere salvata sul topic esistente');
+    assert(topic.lastInteraction === now, 'lastInteraction deve usare il timestamp della transazione atomica');
+    assert(topic.context && topic.context.matchedPhrase === 'ho capito', 'context della reaction deve essere preservato');
+  } finally {
+    global.LockService = originalLockService;
+  }
+}
+
+console.log('--- Test MemoryService updateMemoryAtomic: applica inferredReactionData su nuova riga ---');
+{
+  const originalLockService = global.LockService;
+  global.LockService = {
+    getScriptLock: () => ({
+      waitLock: () => {},
+      releaseLock: () => {}
+    })
+  };
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    const now = '2026-05-10T10:00:00.000Z';
+    memory._initialized = true;
+    memory._getLockTuning_ = () => ({ shardedAcquireTimeoutMs: 1 });
+    memory._getShardedLockKey = () => 'lock-thread-reaction-new';
+    memory._tryAcquireShardedLock = () => true;
+    memory._releaseShardedLock = () => {};
+    memory._sleepLockBackoff_ = () => {};
+    memory._invalidateCache = () => {};
+    memory._withSheetWriteLock = (fn) => fn();
+    memory._validateAndNormalizeTimestamp = () => now;
+    memory._findRowByThreadId = () => null;
+
+    let inserted = null;
+    memory._appendRow = (data) => {
+      inserted = data;
+    };
+
+    const ok = memory.updateMemoryAtomic(
+      'thread-reaction-new',
+      { language: 'it' },
+      ['orari messe'],
+      {
+        reaction: 'acknowledged',
+        topics: ['orari_messe'],
+        source: 'user_reply',
+        matchedPhrase: 'tutto chiaro',
+        excerpt: 'Grazie, tutto chiaro'
+      }
+    );
+
+    const topic = inserted && inserted.providedInfo.find(item => memory._normalizeTopicKey(item.topic) === 'orari_messe');
+    assert(ok === true, 'updateMemoryAtomic deve riuscire su nuova riga');
+    assert(topic && topic.userReaction === 'acknowledged', 'reaction dedotta non deve perdersi nella prima insert atomica');
+    assert(topic.lastInteraction === now, 'lastInteraction deve essere salvato anche sulla prima insert');
+    assert(topic.context && topic.context.excerpt === 'Grazie, tutto chiaro', 'context della reaction deve essere salvato sulla prima insert');
+  } finally {
+    global.LockService = originalLockService;
+  }
+}
+
 
 
 console.log('--- Test MemoryService updateMemory: invalida cache prima e dopo write ---');

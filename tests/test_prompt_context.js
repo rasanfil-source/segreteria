@@ -109,6 +109,27 @@ assert(
   'subIntents.emotional_distress flat deve attivare emotional_sensitivity'
 );
 
+console.log('--- Test PromptContext: categoria formale post-OCR alza profilo e registro ---');
+const postOcrFormal = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Modulo allegato',
+    body: ''
+  },
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  classification: { confidence: 1, category: 'formal' },
+  salutationMode: 'full'
+});
+assert(
+  postOcrFormal.profile === 'heavy',
+  'una categoria formale scoperta post-OCR deve usare profilo heavy anche se requestType resta tecnico'
+);
+assert(
+  postOcrFormal.meta.responseRegister === 'formal_institutional',
+  'una categoria formale scoperta post-OCR deve usare registro formal_institutional'
+);
+
 const sensitivePrecision = createPromptContext({
   email: {
     isReply: false,

@@ -1634,6 +1634,27 @@ assert(
   'il prompt deve includere la regola user_overload'
 );
 
+console.log('--- Test PromptEngine: full_warm non impone saluto standard esatto ---');
+const fullWarmPrompt = engine.buildPrompt({
+  emailSubject: 'Corso prematrimoniale',
+  emailContent: 'Grazie di cuore, siamo molto contenti di poter fare il percorso da voi.',
+  knowledgeBase: 'Il corso prematrimoniale inizia il 3 ottobre 2026.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  salutationMode: 'full_warm',
+  salutation: 'Buongiorno.',
+  closing: 'Cordiali saluti,',
+  responseRegister: 'pastoral_supportive',
+  activeConcerns: { relational_warmth: true }
+});
+assert(
+  fullWarmPrompt.includes('SALUTO CALDO MA SOBRIO') &&
+    fullWarmPrompt.includes('puoi usare "Cara/Caro [nome]"') &&
+    fullWarmPrompt.includes('Non sei vincolato al saluto standard "Buongiorno."') &&
+    !fullWarmPrompt.includes('Inizia l\'email ESATTAMENTE con: "Buongiorno."'),
+  'full_warm deve liberare il prompt dal saluto standard esatto'
+);
+
 const calibrationPrompt = engine.buildPrompt({
   emailSubject: 'Richieste varie',
   emailContent: 'Buongiorno, il 20 giugno posso passare? Quali documenti devo portare? Vorrei evitare passaggi inutili.',

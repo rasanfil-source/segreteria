@@ -2689,6 +2689,7 @@ Segreteria Parrocchia Sant'Eugenio
       : '';
     let formatSection, contentSection, languageReminder;
     const normalizedSalutationMode = String(salutationMode || 'full').toLowerCase();
+    const isFullWarm = normalizedSalutationMode === 'full_warm';
     const isContinuity =
       normalizedSalutationMode === 'session' ||
       normalizedSalutationMode === 'none_or_continuity' ||
@@ -2858,6 +2859,17 @@ Segreteria Parrocchia Sant'Eugenio
 2. **Formato risposta:**
    [Continuazione diretta — nessun saluto]
    [Corpo conciso e pertinente - ✅ USA FORMATTAZIONE SE APPROPRIATO]
+   ${closing}
+   Segreteria Parrocchia Sant'Eugenio`
+        : isFullWarm
+        ? `1. **SALUTO CALDO MA SOBRIO:**
+   • Apri con un saluto presente e personale, non protocollare.
+   • Se il nome del mittente è chiaro e il tono del messaggio lo consente, puoi usare "Cara/Caro [nome]"; altrimenti usa un saluto sobrio equivalente.
+   • Non sei vincolato al saluto standard "${salutation}".
+
+2. **Formato risposta:**
+   [Saluto caldo e sobrio]
+   [Corpo conciso, pertinente e umano - ✅ USA FORMATTAZIONE SOLO SE AIUTA]
    ${closing}
    Segreteria Parrocchia Sant'Eugenio`
         : `1. **SALUTO OBBLIGATORIO:**

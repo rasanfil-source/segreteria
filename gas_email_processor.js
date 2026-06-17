@@ -1939,6 +1939,7 @@ ${addressLines.join('\n\n')}
       let activeConcerns = {};
       let responseRegister = 'warm_institutional';
       let effectiveSalutationMode = salutationMode;
+      let concernSynthesis = null;
       const memoryProvidedInfo = Array.isArray(memoryContext.providedInfo)
         ? memoryContext.providedInfo
         : [];
@@ -1950,54 +1951,6 @@ ${addressLines.join('\n\n')}
         })
         .filter(Boolean)
         .slice(0, 12);
-      if (typeof createPromptContext === 'function') {
-        const promptContext = createPromptContext({
-          email: {
-            subject: safeSubject,
-            body: messageDetails.body,
-            isReply: isReplyBySubject || messages.length > 1,
-            detectedLanguage: detectedLanguage
-          },
-          classification: {
-            category: classification.category,
-            subIntents: classification.subIntents || {},
-            confidence: classification.confidence || 0.8
-          },
-          requestType: requestType,
-          memory: {
-            exists: Object.keys(memoryContext).length > 0,
-            providedInfoCount: memoryProvidedInfo.length,
-            lastUpdated: memoryContext.lastUpdated || null,
-            category: memoryContext.category || null,
-            memorySummary: memoryContext.memorySummary || '',
-            topics: memoryTopics
-          },
-          conversation: { messageCount: memoryMessageCount },
-          territory: { addressFound: territoryResult.addressFound },
-          knowledgeBase: enrichedKnowledgeBase,
-          knowledgeBaseMeta: {
-            length: enrichedKnowledgeBase.length,
-            containsDates: /\b(19|20)\d{2}\b/.test(enrichedKnowledgeBase)
-          },
-          temporal: {
-            mentionsDates: this._detectTemporalMentions(messageDetails.body, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(messageDetails.body),
-            mentionsTimes: /\d{1,2}[:.]\d{2}/.test(messageDetails.body)
-          },
-          salutationMode: salutationMode,
-          physicalPresenceConstraint: physicalPresenceConstraint,
-          relationalPosture: quickCheck?.relational_posture,
-          relationalPostureConfidence: quickCheck?.relational_posture_confidence,
-          quickCheck: {
-            relational_posture: quickCheck?.relational_posture,
-            relational_posture_confidence: quickCheck?.relational_posture_confidence
-          }
-        });
-        promptProfile = promptContext.profile;
-        activeConcerns = promptContext.concerns;
-        responseRegister = promptContext.meta?.responseRegister || responseRegister;
-        effectiveSalutationMode = promptContext.meta?.salutationMode || effectiveSalutationMode;
-        console.log(`   🧠 PromptContext: profilo=${promptProfile}, registro=${responseRegister}`);
-      }
 
       let attachmentIntentContext = preQuickAttachmentIntentContext;
       let forceReceiptOnlyForSubmission = false;
@@ -2035,28 +1988,6 @@ ${addressLines.join('\n\n')}
       let routedAiCore = aiCore;
       let routedDoctrine = effectiveDoctrineBase;
       let routedDoctrineStructured = doctrineStructured;
-
-      const concernFlags = activeConcerns && typeof activeConcerns === 'object'
-        ? activeConcerns
-        : {};
-      const memoryCategory = memoryContext && memoryContext.category
-        ? String(memoryContext.category).toLowerCase()
-        : '';
-      const memoryPastoralCategories = ['pastoral', 'doctrinal', 'formal', 'sacrament', 'sacramento'];
-      const hasMemoryPastoralContext = memoryPastoralCategories.some((category) =>
-        memoryCategory.includes(category)
-      );
-      const hasPastoralConcern = Boolean(
-        concernFlags.emotional_sensitivity ||
-        concernFlags.discernment_risk ||
-        concernFlags.doctrine ||
-        concernFlags.sensitive ||
-        concernFlags.canonLaw ||
-        concernFlags.sacrament ||
-        concernFlags.formalComplaint ||
-        concernFlags.longitudinal_sensitivity ||
-        hasMemoryPastoralContext
-      );
 
       // Il context routing definitivo viene eseguito dopo l'OCR degli allegati:
       // _deriveAttachmentIntentContext_ può aggiornare categoryHintSource con segnali
@@ -2305,6 +2236,94 @@ ${addressLines.join('\n\n')}
         categoryHintSource = 'document_request';
       }
 
+      // PromptContext deve vedere la categoria definitiva: gli allegati OCR
+      // possono trasformare una richiesta apparentemente tecnica in contesto
+      // formale/sacramentale e cambiare profilo, concern e registro.
+      if (typeof createPromptContext === 'function') {
+        const promptContextCategory = String(categoryHintSource || classification.category || '').toLowerCase() || null;
+        const promptContext = createPromptContext({
+          email: {
+            subject: safeSubject,
+            body: messageDetails.body,
+            isReply: isReplyBySubject || messages.length > 1,
+            detectedLanguage: detectedLanguage
+          },
+          classification: {
+            category: promptContextCategory,
+            subIntents: classification.subIntents || {},
+            confidence: classification.confidence || 0.8
+          },
+          requestType: requestType,
+          memory: {
+            exists: Object.keys(memoryContext).length > 0,
+            providedInfoCount: memoryProvidedInfo.length,
+            lastUpdated: memoryContext.lastUpdated || null,
+            category: memoryContext.category || null,
+            memorySummary: memoryContext.memorySummary || '',
+            topics: memoryTopics
+          },
+          conversation: { messageCount: memoryMessageCount },
+          territory: { addressFound: territoryResult.addressFound },
+          knowledgeBase: enrichedKnowledgeBase,
+          knowledgeBaseMeta: {
+            length: enrichedKnowledgeBase.length,
+            containsDates: /\b(19|20)\d{2}\b/.test(enrichedKnowledgeBase)
+          },
+          temporal: {
+            mentionsDates: this._detectTemporalMentions(messageDetails.body, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(messageDetails.body),
+            mentionsTimes: /\d{1,2}[:.]\d{2}/.test(messageDetails.body)
+          },
+          salutationMode: salutationMode,
+          physicalPresenceConstraint: physicalPresenceConstraint,
+          relationalPosture: quickCheck?.relational_posture,
+          relationalPostureConfidence: quickCheck?.relational_posture_confidence,
+          quickCheck: {
+            relational_posture: quickCheck?.relational_posture,
+            relational_posture_confidence: quickCheck?.relational_posture_confidence
+          }
+        });
+        promptProfile = promptContext.profile;
+        activeConcerns = promptContext.concerns;
+        responseRegister = promptContext.meta?.responseRegister || responseRegister;
+        effectiveSalutationMode = promptContext.meta?.salutationMode || effectiveSalutationMode;
+        concernSynthesis = promptContext.meta?.concernSynthesis || null;
+        const synthesisLog = concernSynthesis && concernSynthesis.key
+          ? `, sintesi=${concernSynthesis.key}`
+          : '';
+        console.log(`   🧠 PromptContext: profilo=${promptProfile}, registro=${responseRegister}${synthesisLog}`);
+      }
+
+      const effectiveSalutationModeKey = String(effectiveSalutationMode || '').trim().toLowerCase();
+      if (
+        effectiveSalutationModeKey === 'none_or_continuity' ||
+        effectiveSalutationModeKey === 'session' ||
+        effectiveSalutationModeKey === 'soft'
+      ) {
+        greeting = '';
+      }
+
+      const concernFlags = activeConcerns && typeof activeConcerns === 'object'
+        ? activeConcerns
+        : {};
+      const memoryCategory = memoryContext && memoryContext.category
+        ? String(memoryContext.category).toLowerCase()
+        : '';
+      const memoryPastoralCategories = ['pastoral', 'doctrinal', 'formal', 'sacrament', 'sacramento'];
+      const hasMemoryPastoralContext = memoryPastoralCategories.some((category) =>
+        memoryCategory.includes(category)
+      );
+      const hasPastoralConcern = Boolean(
+        concernFlags.emotional_sensitivity ||
+        concernFlags.discernment_risk ||
+        concernFlags.doctrine ||
+        concernFlags.sensitive ||
+        concernFlags.canonLaw ||
+        concernFlags.sacrament ||
+        concernFlags.formalComplaint ||
+        concernFlags.longitudinal_sensitivity ||
+        hasMemoryPastoralContext
+      );
+
       // ====================================================================
       // CONTEXT ROUTING post-OCR (definitivo)
       // ====================================================================
@@ -2443,6 +2462,7 @@ ${addressLines.join('\n\n')}
         responseDelay: responseDelay,
         promptProfile: promptProfile,
         activeConcerns: activeConcerns,
+        concernSynthesis: concernSynthesis,
         responseRegister: responseRegister,
         territoryContext: territoryContext,
         physicalPresenceConstraint: physicalPresenceConstraint,
@@ -2678,7 +2698,9 @@ ${addressLines.join('\n\n')}
       // Il flag /m abbina solo inizio riga, evitando falsi positivi nel corpo.
       // Lascia intatto "Dear" (standard formale EN) e "Cher" (formale FR).
       if (/^it/i.test(detectedLanguage || 'it')) {
-        response = response.replace(/^(Caro|Cara|Carissimo|Carissima)\b/gm, 'Gentile');
+        response = effectiveSalutationModeKey === 'full_warm'
+          ? response.replace(/^(Carissimo|Carissima)\b/gm, 'Gentile')
+          : response.replace(/^(Caro|Cara|Carissimo|Carissima)\b/gm, 'Gentile');
       } else if (/^pt/i.test(detectedLanguage || '')) {
         response = response.replace(/^(Caro|Cara)\b/gm, 'Prezado');
       }
@@ -2704,7 +2726,7 @@ ${addressLines.join('\n\n')}
           fullValidationKB,
           messageDetails.body,
           messageDetails.subject,
-          salutationMode,
+          effectiveSalutationMode,
           true,
           runtimeContext
         );
@@ -2735,7 +2757,7 @@ ${addressLines.join('\n\n')}
             finalResponse,
             validation,
             detectedLanguage,
-            salutationMode,
+            effectiveSalutationMode,
             runtimeContext
           );
 
@@ -2783,7 +2805,9 @@ ${addressLines.join('\n\n')}
             detectedLanguage
           );
           if (/^it/i.test(detectedLanguage || 'it')) {
-            retryResponse = retryResponse.replace(/^(Caro|Cara|Carissimo|Carissima)\b/gm, 'Gentile');
+            retryResponse = effectiveSalutationModeKey === 'full_warm'
+              ? retryResponse.replace(/^(Carissimo|Carissima)\b/gm, 'Gentile')
+              : retryResponse.replace(/^(Caro|Cara|Carissimo|Carissima)\b/gm, 'Gentile');
           } else if (/^pt/i.test(detectedLanguage || '')) {
             retryResponse = retryResponse.replace(/^(Caro|Cara)\b/gm, 'Prezado');
           }
@@ -2800,7 +2824,7 @@ ${addressLines.join('\n\n')}
             fullValidationKB,
             messageDetails.body,
             messageDetails.subject,
-            salutationMode,
+            effectiveSalutationMode,
             true,
             runtimeContext
           );
