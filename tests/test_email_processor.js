@@ -16,7 +16,12 @@ global.RequestTypeClassifier = class {};
 global.ResponseValidator = class {};
 global.GmailService = class {};
 global.PromptEngine = class {};
-global.MemoryService = class {};
+global.MemoryService = class {
+  getMemory() { return {}; }
+  getRecentHistory() { return []; }
+  updateMemoryAtomic() { return true; }
+  updateReaction() { return true; }
+};
 global.TerritoryValidator = class {};
 
 const cacheStore = new Map();

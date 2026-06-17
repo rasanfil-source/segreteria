@@ -2279,7 +2279,7 @@ ${addressLines.join('\n\n')}
       }
 
       const attachmentIntentName = String((attachmentIntentContext && attachmentIntentContext.intent) || '').toLowerCase();
-      if (!physicalAttachmentsDetected && /submission/i.test(attachmentIntentName)) {
+      if (!physicalAttachmentsDetected && !attachmentPreCheckFailed && /submission/i.test(attachmentIntentName)) {
         console.log('   📎 Guardrail allegati: nessun allegato fisico rilevato → disattivo contesto di consegna documentale');
         attachmentIntentContext = null;
         if (/^(document_submission|suspected_submission)/i.test(String(categoryHintSource || ''))) {
@@ -2639,6 +2639,9 @@ ${addressLines.join('\n\n')}
       }
 
       response = this._extractEmailXmlBlock_(response);
+      response = (this.validator && typeof this.validator._rimuoviThinkingLeak === 'function')
+        ? this.validator._rimuoviThinkingLeak(response)
+        : response;
 
       if (response.trim() === 'NO_REPLY') {
         console.log('   ⊖ AI ha restituito NO_REPLY');
@@ -2755,6 +2758,9 @@ ${addressLines.join('\n\n')}
           if (!retryResponse) break;
 
           retryResponse = this._extractEmailXmlBlock_(retryResponse);
+          retryResponse = (this.validator && typeof this.validator._rimuoviThinkingLeak === 'function')
+            ? this.validator._rimuoviThinkingLeak(retryResponse)
+            : retryResponse;
           retryResponse = this._addTimeDiscrepancyNoteIfNeeded(
             retryResponse,
             { ...messageDetails, body: messageDetails.body || '' },

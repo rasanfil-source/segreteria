@@ -209,7 +209,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
 
   _shouldSuppressTemplateByConcernSynthesis_(templateName, promptProfile, activeConcerns, concernSynthesis) {
     const isSensitiveHeavy = Boolean(
-      promptProfile === 'heavy' &&
+      (promptProfile === 'heavy' || promptProfile === 'standard') &&
       activeConcerns &&
       (activeConcerns.emotional_sensitivity || activeConcerns.longitudinal_sensitivity)
     );
@@ -397,8 +397,10 @@ Vincoli:
       ? Number(CONFIG.MAX_SAFE_PROMPT_CHARS)
       : 140000;
 
-    const OVERHEAD_TOKENS = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && Number(CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS) > 0)
-      ? Number(CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS) : 15000;
+    const configuredOverheadTokens = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && Number(CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS) > 0)
+      ? Number(CONFIG.PROMPT_ENGINE.OVERHEAD_TOKENS)
+      : 15000;
+    const OVERHEAD_TOKENS = Math.max(5000, configuredOverheadTokens);
     const KB_BUDGET_RATIO = (typeof CONFIG !== 'undefined' && typeof CONFIG.KB_TOKEN_BUDGET_RATIO === 'number')
       ? CONFIG.KB_TOKEN_BUDGET_RATIO
       : 0.5;
@@ -2387,7 +2389,7 @@ ISTRUZIONI:
       informational: 'direct',
       procedural: 'direct',
       relational: 'personal',
-      open: 'appreciative',
+      open: 'open',
       appreciative: 'appreciative',
       grateful: 'appreciative',
       gratitude: 'appreciative',

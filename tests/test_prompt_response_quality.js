@@ -1251,11 +1251,11 @@ console.log('--- Test prompt: maxCharsWhenKbTruncated=0 omette testo allegati qu
   const originalMaxSafeTokens = global.CONFIG.MAX_SAFE_TOKENS;
   const originalPromptEngineConfig = global.CONFIG.PROMPT_ENGINE;
   global.CONFIG.ATTACHMENT_CONTEXT = { maxCharsWhenKbTruncated: 0 };
-  global.CONFIG.MAX_SAFE_TOKENS = 10000;
-  global.CONFIG.PROMPT_ENGINE = { OVERHEAD_TOKENS: 1000 };
+  global.CONFIG.MAX_SAFE_TOKENS = 20000;
+  global.CONFIG.PROMPT_ENGINE = { OVERHEAD_TOKENS: 5000 };
 
   try {
-    const recoverableKb = 'KB_RECOVERY_START ' + 'Informazioni KB molto lunghe. '.repeat(320) + 'KB_RECOVERY_END';
+    const recoverableKb = 'KB_RECOVERY_START ' + 'Informazioni KB molto lunghe. '.repeat(800) + 'KB_RECOVERY_END';
     const zeroAttachmentPrompt = engine.buildPrompt({
       emailSubject: 'Documento',
       emailContent: 'Buongiorno, allego il documento.',
