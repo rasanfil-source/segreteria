@@ -8,10 +8,10 @@
 
 ## 📋 Asset Pianificati
 
-| File | Descrizione | Stato |
-|------|-------------|-------|
-| `architecture-overview.svg` | Diagramma C4 architettura | ✅ Creato |
-| `pipeline-flow.svg` | Sequence diagram flusso email | ✅ Creato |
+| `architecture-overview.svg` | Diagramma C4 architettura (inglese) | ✅ Creato |
+| `architecture-overview_IT.svg` | Diagramma C4 architettura (italiano) | ✅ Creato |
+| `pipeline-flow.svg` | Sequence diagram flusso email (inglese) | ✅ Creato |
+| `pipeline-flow_IT.svg` | Sequence diagram flusso email (italiano) | ✅ Creato |
 | `decision-tree-troubleshooting.svg` | Albero decisionale problemi | ✅ Creato |
 | `one-page-quickstart.pdf` | Guida A4 stampabile | ✅ Creato |
 
