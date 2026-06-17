@@ -24,7 +24,8 @@ graph TB
         Valid["✅ ResponseValidator<br/>Quality Gate"]
         Memory["💾 MemoryService<br/>State Manager"]
         Rate["⏱️ RateLimiter<br/>Quota Manager"]
-        Prompt["📝 PromptEngine<br/>Template Builder"]
+        PContext["🧠 PromptContext<br/>Profile + Concern"]
+        Prompt["📝 PromptEngine<br/>System/User Builder"]
         Territory["🗺️ TerritoryValidator<br/>Address Checker"]
     end
     
@@ -37,8 +38,11 @@ graph TB
     Proc --> Class
     Proc --> ReqClass
     Proc --> Territory
-    ReqClass --> Prompt
-    Prompt --> Gemini
+    ReqClass --> PContext
+    Territory --> PContext
+    Memory --> PContext
+    PContext --> Prompt
+    Prompt -->|systemInstruction + prompt| Gemini
     Gemini -->|Rate Check| Rate
     Rate -->|API Call| GeminiAPI
     GeminiAPI -->|Response| Gemini
@@ -257,41 +261,49 @@ graph TB
 
 ---
 
-## 7. Prompt Construction Pipeline
+## 7. Runtime Prompt Construction Pipeline
 
 ```mermaid
 graph LR
-    subgraph "Context Gathering"
-        A1["📧 Email Content"]
-        A2["💬 Thread History"]
-        A3["💾 Memory"]
-        A4["🗺️ Territory"]
-        A5["📅 Temporal"]
+    subgraph "Runtime Inputs"
+        A1["📧 Email + Subject"]
+        A2["💬 Thread + Memory"]
+        A3["🤖 Gemini Quick Check"]
+        A4["🗺️ Territory + Physical Constraints"]
+        A5["📅 Time + Season"]
+        A6["📎 Attachments/OCR"]
     end
-    
-    subgraph "Profile Selection"
-        P1["🪶 Lite<br/>< 50k tokens"]
-        P2["📦 Standard<br/>50-80k tokens"]
-        P3["🏋️ Heavy<br/>80-100k tokens"]
+
+    subgraph "PromptContext"
+        C1["Profile<br/>lite / standard / heavy"]
+        C2["Active concerns<br/>risk, memory, multi-question"]
+        C3["Register + Salutation<br/>institutional / pastoral / crisis"]
+        C4["Concern synthesis<br/>single directive for competing signals"]
+        C5["Relational warmth<br/>enthusiasm/appreciation"]
     end
-    
-    subgraph "Template Composition"
-        T["18 Modular Templates"]
+
+    subgraph "PromptEngine.buildPrompt()"
+        S1["systemInstruction<br/>rules, constraints, register, output"]
+        U1["user prompt<br/>KB, email, history, attachments"]
+        K1["Source routing<br/>KB always; AI_CORE/Doctrine if needed"]
     end
-    
-    subgraph "Optimization"
-        O1["Token Counting"]
-        O2["KB Truncation"]
-        O3["Example Removal"]
+
+    subgraph "Budget + Output"
+        B1["Token/char estimate"]
+        B2["Semantic KB/attachment truncation"]
+        B3["Skip non-critical sections"]
+        F["Gemini payload<br/>systemInstruction + contents + inlineData"]
     end
-    
-    subgraph "Output"
-        FINAL["📝 Final Prompt<br/>< 100k tokens"]
-    end
-    
-    A1 & A2 & A3 & A4 & A5 --> P1 & P2 & P3
-    P1 & P2 & P3 --> T
-    T --> O1 --> O2 --> O3 --> FINAL
+
+    A1 & A2 & A3 & A4 & A5 & A6 --> C1
+    C1 --> C2 --> C3 --> C4
+    C2 --> C5
+    C4 --> S1
+    C5 --> S1
+    A1 & A2 & A6 --> U1
+    C1 --> K1
+    K1 --> U1
+    S1 & U1 --> B1 --> B2 --> B3 --> F
 ```
 
 ---
@@ -366,10 +378,10 @@ graph TD
         SIMP["📋 SIMPLE<br/>Basic secretariat"]
     end
     
-    subgraph "KB Loading"
-        LITE["🪶 LITE<br/>Instructions only"]
-        STD["📦 STANDARD<br/>+ AI_CORE_LITE"]
-        HEAVY["🏋️ HEAVY<br/>+ AI_CORE + Doctrine"]
+    subgraph "Prompt Profile + Sources"
+        LITE["🪶 lite<br/>Operational KB"]
+        STD["📦 standard<br/>KB + guardrails/relational_warmth"]
+        HEAVY["🏋️ heavy<br/>KB + AI_CORE/Doctrine if needed"]
     end
     
     IN --> REG & GEM
@@ -379,11 +391,13 @@ graph TD
     SCORE --> TECH & PAST & DOCT & MIX & SIMP
     DIRECT --> TECH & PAST & DOCT & MIX & SIMP
     
-    TECH --> STD
+    TECH --> LITE
     PAST --> HEAVY
     DOCT --> HEAVY
     MIX --> HEAVY
     SIMP --> LITE
+    GEM --> WARM["💛 Enthusiasm/appreciation"]
+    WARM --> STD
 ```
 
 ---

@@ -47,7 +47,8 @@ GAS Autoresponder/
 ├── KnowledgeBaseService.gs     # Gestione KB
 ├── GeminiService.gs            # API Gemini
 ├── GeminiRateLimiter.gs        # Rate limiting
-├── PromptEngine.gs             # Composizione prompt
+├── PromptContext.gs            # Profilo, concern, registro e saluto runtime
+├── PromptEngine.gs             # Composizione prompt system/user
 ├── ResponseValidator.gs        # Validazione risposte
 ├── MemoryService.gs            # Memoria conversazionale
 └── EmailProcessor.gs           # Orchestratore principale
@@ -262,23 +263,33 @@ Il trigger verrà impostato per eseguire `main()` ogni X minuti (configurabile).
 - Stima token usage
 - Error handling robusto
 
+### PromptContext.gs
+**Responsabilità**: Calcolo runtime di profilo, concern, registro e saluto
+
+**Output principali**:
+- `profile`: `lite`, `standard` o `heavy`
+- `activeConcerns`: rischio temporale/allucinazione, sensibilità emotiva, memoria longitudinale, multidomanda, sovraccarico, vincoli fisici, `relational_warmth`
+- `responseRegister`: `warm_institutional`, `formal_institutional`, `pastoral_supportive`, `pastoral_crisis`
+- `salutationMode`: saluto pieno, morbido o continuità senza apertura rituale
+- `concernSynthesis`: direttiva unica quando più concern competono (es. delicatezza + precisione, crisi + multidomanda)
+
 ### PromptEngine.gs
-**Responsabilità**: Composizione prompt
+**Responsabilità**: Composizione prompt con separazione `systemInstruction` / `prompt`
 
 **Elementi prompt**:
-- System context
-- Lingua e tono
-- Knowledge Base
-- Storico conversazione
-- Contesto temporale runtime (`currentDate`, `currentTime`, `messageDate`)
-- Istruzioni specifiche
-- Validazione formato
+- Istruzioni di sistema: ruolo, lingua, no-reply rules, direttive sistemiche, territorio, tempo, registro, postura, qualità, output e checklist
+- Dati utente: Knowledge Base, memoria, cronologia, email da rispondere e allegati/OCR testuali
+- Routing fonti: Knowledge Base sempre prioritaria; `AI_CORE_LITE`, `AI_CORE` e dottrina solo se necessari
+- Postura relazionale: direct/personal/hesitant/complaint/open/urgent; entusiasmo o apprezzamento gestiti come `relational_warmth`
+- Budget: stima token/caratteri, troncamento semantico KB/allegati, salto sezioni non critiche
+- Validazione formato: output finale obbligatorio dentro `<email>...</email>`
 
 **Coscienza temporale nel prompt**:
 - `currentDate` è la data di riferimento della risposta.
 - `currentTime` governa saluti e formule temporali.
 - `messageDate` interpreta i relativi presenti nell'email originale.
 - `messageDateAvailable` distingue una data Gmail reale da un fallback di elaborazione.
+- La stagione operativa/liturgica combina formule interne e intervalli presenti nella KB.
 
 ### ResponseValidator.gs
 **Responsabilità**: Validazione risposte

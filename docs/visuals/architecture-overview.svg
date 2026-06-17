@@ -46,7 +46,7 @@
   <text x="460" y="400" text-anchor="middle" class="label">TerritoryValidator</text>
 
   <rect x="350" y="435" width="220" height="50" class="box"/>
-  <text x="460" y="465" text-anchor="middle" class="label">PromptEngine</text>
+  <text x="460" y="465" text-anchor="middle" class="label">PromptContext + PromptEngine</text>
 
   <rect x="350" y="500" width="220" height="50" class="box"/>
   <text x="460" y="530" text-anchor="middle" class="label">GeminiService</text>
