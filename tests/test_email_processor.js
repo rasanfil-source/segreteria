@@ -1213,6 +1213,7 @@ console.log('--- Test lingua: codice troppo corto non sovrascrive fallback valid
 assert(processor._normalizeLanguageCode_('en-US', 'it') === 'en', 'codici tipo en-US devono essere normalizzati a due lettere');
 assert(processor._normalizeLanguageCode_('e', 'it') === 'it', 'codici di una sola lettera devono usare fallback');
 assert(processor._normalizeLanguageCode_('', '') === '', 'fallback vuoto resta vuoto per quick-check non affidabile');
+assert(processor._normalizeLanguageCode_('', 'unknown') === 'un', 'fallback testuale generico deve essere troncato a due lettere');
 
 console.log('--- Test processThread: burst stesso mittente ordinato per data ---');
 {

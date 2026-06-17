@@ -4641,7 +4641,7 @@ ${addressLines.join('\n\n')}
     const raw = String(language || '').trim().toLowerCase();
     const code = raw.substring(0, 2);
     if (/^[a-z]{2}$/.test(code)) return code;
-    return String(fallback || '').trim().toLowerCase();
+    return String(fallback || '').trim().toLowerCase().substring(0, 2);
   }
 
 
@@ -4884,11 +4884,14 @@ ${addressLines.join('\n\n')}
     }
     if (typeof value === 'object') {
       try {
-        const cache = new Set();
-        return JSON.stringify(value, (key, val) => {
+        const ancestors = [];
+        return JSON.stringify(value, function(key, val) {
           if (typeof val === 'object' && val !== null) {
-            if (cache.has(val)) return '[Circular]';
-            cache.add(val);
+            while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
+              ancestors.pop();
+            }
+            if (ancestors.includes(val)) return '[Circular]';
+            ancestors.push(val);
           }
           return val;
         }, 2);

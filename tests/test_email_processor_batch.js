@@ -89,6 +89,10 @@ console.log('--- Test _normalizeTextContent serializza oggetti KB strutturati --
   const structured = { istruzioni: [{ categoria: 'Messe', dettaglio: 'Domenica 10:00' }] };
   const normalized = processor._normalizeTextContent(structured);
   assert(normalized.includes('Messe') && normalized.includes('Domenica 10:00'), 'gli oggetti KB devono essere serializzati senza [object Object]');
+  const shared = { dettaglio: 'Condiviso' };
+  const withSharedReference = { primo: shared, secondo: shared };
+  const normalizedSharedReference = processor._normalizeTextContent(withSharedReference);
+  assert(!normalizedSharedReference.includes('[Circular]') && (normalizedSharedReference.match(/Condiviso/g) || []).length === 2, 'i riferimenti condivisi non circolari devono essere preservati');
   const circular = { tema: 'Catechismo' };
   circular.self = circular;
   const normalizedCircular = processor._normalizeTextContent(circular);
