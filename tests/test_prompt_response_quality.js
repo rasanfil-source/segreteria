@@ -1654,6 +1654,15 @@ assert(
     !fullWarmPrompt.includes('Inizia l\'email ESATTAMENTE con: "Buongiorno."'),
   'full_warm deve liberare il prompt dal saluto standard esatto'
 );
+assert(
+  fullWarmPrompt.includes('RICONOSCIMENTO CONTESTUALE') &&
+    fullWarmPrompt.includes('elemento personale significativo direttamente pertinente') &&
+    fullWarmPrompt.includes('massimo una frase') &&
+    fullWarmPrompt.includes('se la richiesta e puramente operativa') &&
+    fullWarmPrompt.includes('passa subito alla risposta pratica') &&
+    !fullWarmPrompt.includes('CALORE RELAZIONALE OFFERTO'),
+  'relational_warmth deve produrre riconoscimento contestuale, non una regola generica di calore'
+);
 
 const calibrationPrompt = engine.buildPrompt({
   emailSubject: 'Richieste varie',

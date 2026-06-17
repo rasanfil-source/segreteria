@@ -683,7 +683,7 @@ Vincoli:
       : responseRegister;
     addSection(this._renderResponseRegister(effectiveResponseRegister), 'ResponseRegister', { isSystem: true });
     addSection(this._renderConcernSynthesis(normalizedConcernSynthesis, effectiveResponseRegister), 'ConcernSynthesis', { isSystem: true });
-    addSection(this._renderRelationalWarmthGuidance(normalizedConcerns), 'RelationalWarmthGuidance', { isSystem: true });
+    addSection(this._renderContextualRecognitionGuidance(normalizedConcerns), 'ContextualRecognition', { isSystem: true });
     if (!this._concernSynthesisSuppresses_(normalizedConcernSynthesis, 'responseCalibrationGuidance')) {
       addSection(this._renderResponseCalibrationGuidance(normalizedConcerns), 'ResponseCalibration', { isSystem: true });
     }
@@ -1764,14 +1764,22 @@ Vincoli:
 - non alterare KB, territorio, dottrina, date, orari o procedure.`;
   }
 
-  _renderRelationalWarmthGuidance(activeConcerns = {}) {
+  _renderContextualRecognitionGuidance(activeConcerns = {}) {
     if (!activeConcerns || !activeConcerns.relational_warmth) return null;
 
-    return `## CALORE RELAZIONALE OFFERTO
-L'utente ha scritto con calore e ha condiviso dettagli personali significativi (persone, luoghi, riferimenti).
-Apri riconoscendo brevemente l'entusiasmo o la gioia condivisa con una frase autentica, non formulaica.
-Non ignorare i ganci relazionali offerti: citarli anche con una parola puo rendere umana una risposta corretta.
-Le informazioni procedurali seguono, ma non aprono. Evita tabelle, emoji o formattazione decorativa nell'apertura.`;
+    return `## RICONOSCIMENTO CONTESTUALE
+Quando l'utente condivide spontaneamente un elemento personale significativo direttamente pertinente alla richiesta corrente
+(es. percorso verso il matrimonio, legame con la parrocchia, difficolta logistiche, lutto recente o altri elementi personali rilevanti),
+riconoscilo brevemente prima della risposta operativa.
+
+Vincoli:
+- massimo una frase; due solo in contesti personali molto sensibili;
+- il riconoscimento deve essere specifico e collegato al contenuto della mail;
+- non introdurre interpretazioni psicologiche;
+- non aggiungere incoraggiamenti generici;
+- non trasformare la risposta in una riflessione pastorale;
+- se la richiesta e puramente operativa e non contiene elementi personali rilevanti, ometti il riconoscimento;
+- dopo il riconoscimento, passa subito alla risposta pratica.`;
   }
 
   _renderUserOverloadGuidance(activeConcerns = {}) {
