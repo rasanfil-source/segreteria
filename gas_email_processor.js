@@ -1975,7 +1975,13 @@ ${addressLines.join('\n\n')}
             mentionsTimes: /\d{1,2}[:.]\d{2}/.test(messageDetails.body)
           },
           salutationMode: salutationMode,
-          physicalPresenceConstraint: physicalPresenceConstraint
+          physicalPresenceConstraint: physicalPresenceConstraint,
+          relationalPosture: quickCheck?.relational_posture,
+          relationalPostureConfidence: quickCheck?.relational_posture_confidence,
+          quickCheck: {
+            relational_posture: quickCheck?.relational_posture,
+            relational_posture_confidence: quickCheck?.relational_posture_confidence
+          }
         });
         promptProfile = promptContext.profile;
         activeConcerns = promptContext.concerns;
@@ -2361,6 +2367,7 @@ ${addressLines.join('\n\n')}
         informational: 'provide_information',
         procedural: 'guide_next_step',
         relational: 'offer_reassurance',
+        appreciative: 'offer_reassurance',
         urgent: 'reduce_user_effort',
         uncertain: 'clarify_requirements'
       };
@@ -6837,12 +6844,16 @@ Parish Secretariat of Sant'Eugenio`;
     const aliases = {
       direct: 'informational',
       personal: 'relational',
-      open: 'relational',
+      open: 'appreciative',
+      appreciative: 'appreciative',
+      grateful: 'appreciative',
+      gratitude: 'appreciative',
+      enthusiastic: 'appreciative',
       hesitant: 'uncertain',
       complaint: 'procedural'
     };
     const canonical = aliases[normalized] || normalized;
-    const allowed = new Set(['informational', 'procedural', 'relational', 'urgent', 'uncertain']);
+    const allowed = new Set(['informational', 'procedural', 'relational', 'appreciative', 'urgent', 'uncertain']);
     return allowed.has(canonical) ? canonical : 'informational';
   }
 

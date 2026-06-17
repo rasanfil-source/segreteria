@@ -2607,6 +2607,90 @@ console.log('--- Test prompt options: relationalPosture personal passa dal quick
   assert(promptOptions.requestType && promptOptions.requestType.type === 'technical', 'il test deve dimostrare che la postura resta indipendente dal requestType tecnico');
 }
 
+console.log('--- Test prompt options: relational_warmth deriva dal quick-check Gemini, non da regex locali ---');
+{
+  let promptOptions = null;
+  let promptContextInput = null;
+  const originalCreatePromptContext = global.createPromptContext;
+  global.createPromptContext = (input) => {
+    promptContextInput = input;
+    const isWarm = input.relationalPosture === 'appreciative' && Number(input.relationalPostureConfidence) >= 0.7;
+    return {
+      profile: isWarm ? 'standard' : 'lite',
+      concerns: { relational_warmth: isWarm },
+      meta: {
+        responseRegister: isWarm ? 'pastoral_supportive' : 'warm_institutional',
+        salutationMode: isWarm ? 'full_warm' : 'full'
+      }
+    };
+  };
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Corso prematrimoniale',
+        body: 'Sono Gian Mario Aresu. Ho appreso da don Francesco del corso. Roma è la città in cui ci siamo conosciuti. Grazie di cuore.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Gian Mario Aresu',
+        date: new Date('2026-05-07T10:00:00Z'),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'sacrament', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: () => ({
+        shouldRespond: true,
+        language: 'it',
+        relational_posture: 'appreciative',
+        relational_posture_confidence: 0.95,
+        classification: { category: 'sacrament', topic: 'corso prematrimoniale' }
+      }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    validator: {
+      validateResponse: () => ({ isValid: true, score: 1.0, errors: [], warnings: [], details: {}, fixedResponse: null })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        promptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('relational-warmth-test'), 'kb valida', '', new Set(), true);
+  global.createPromptContext = originalCreatePromptContext;
+  assert(result.status === 'replied', 'il thread con calore relazionale deve completarsi');
+  assert(promptOptions && promptOptions.relationalPosture === 'appreciative', `relationalPosture attesa appreciative, ottenuta ${promptOptions && promptOptions.relationalPosture}`);
+  assert(promptContextInput && promptContextInput.relationalPostureConfidence === 0.95, `relationalPostureConfidence attesa 0.95, ottenuta ${promptContextInput && promptContextInput.relationalPostureConfidence}`);
+  assert(promptContextInput && promptContextInput.quickCheck.relational_posture === 'appreciative', 'il promptContextInput deve contenere appreciative');
+}
+
 console.log('--- Test runtimeContext: messageDate fallback esplicito quando la data Gmail non è valida ---');
 {
   const processor = new EmailProcessor({

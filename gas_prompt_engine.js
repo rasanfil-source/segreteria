@@ -681,6 +681,7 @@ Vincoli:
       : responseRegister;
     addSection(this._renderResponseRegister(effectiveResponseRegister), 'ResponseRegister', { isSystem: true });
     addSection(this._renderConcernSynthesis(normalizedConcernSynthesis, effectiveResponseRegister), 'ConcernSynthesis', { isSystem: true });
+    addSection(this._renderRelationalWarmthGuidance(normalizedConcerns), 'RelationalWarmthGuidance', { isSystem: true });
     if (!this._concernSynthesisSuppresses_(normalizedConcernSynthesis, 'responseCalibrationGuidance')) {
       addSection(this._renderResponseCalibrationGuidance(normalizedConcerns), 'ResponseCalibration', { isSystem: true });
     }
@@ -1761,6 +1762,16 @@ Vincoli:
 - non alterare KB, territorio, dottrina, date, orari o procedure.`;
   }
 
+  _renderRelationalWarmthGuidance(activeConcerns = {}) {
+    if (!activeConcerns || !activeConcerns.relational_warmth) return null;
+
+    return `## CALORE RELAZIONALE OFFERTO
+L'utente ha scritto con calore e ha condiviso dettagli personali significativi (persone, luoghi, riferimenti).
+Apri riconoscendo brevemente l'entusiasmo o la gioia condivisa con una frase autentica, non formulaica.
+Non ignorare i ganci relazionali offerti: citarli anche con una parola puo rendere umana una risposta corretta.
+Le informazioni procedurali seguono, ma non aprono. Evita tabelle, emoji o formattazione decorativa nell'apertura.`;
+  }
+
   _renderUserOverloadGuidance(activeConcerns = {}) {
     if (!activeConcerns || !activeConcerns.user_overload) return null;
 
@@ -2343,6 +2354,12 @@ ISTRUZIONI:
         '- Evita formule che attribuiscono stati d\'animo ("capisco quanto sia difficile", "deve essere molto doloroso"): rimani vicino a ciò che è stato scritto esplicitamente.',
         '- Se la richiesta pratica è minima, dedica più spazio alla presa in carico umana; se la richiesta è complessa, bilancia le due dimensioni.',
       ],
+      appreciative: [
+        '- Il mittente esprime entusiasmo, gratitudine dettagliata o apprezzamento per persone/aspetti concreti: riconoscilo con una frase breve e specifica prima delle informazioni operative.',
+        '- Se cita un legame positivo con la parrocchia, con Roma o con una persona, puoi rispecchiarlo sobriamente senza trasformarlo in familiarità eccessiva.',
+        '- Mantieni la struttura chiara delle informazioni, ma evita un tono solo burocratico: inserisci un raccordo umano naturale e pertinente.',
+        '- Non inventare emozioni o dettagli non scritti; non amplificare il tono positivo oltre il necessario.',
+      ],
       open: [
         '- Il mittente si è mostrato collaborativo e disponibile: rispecchia questo tono con una risposta calda e propositiva.',
         '- Puoi usare una frase di raccordo che valorizzi la disponibilità espressa, senza essere ridondante.',
@@ -2370,6 +2387,11 @@ ISTRUZIONI:
       informational: 'direct',
       procedural: 'direct',
       relational: 'personal',
+      open: 'appreciative',
+      appreciative: 'appreciative',
+      grateful: 'appreciative',
+      gratitude: 'appreciative',
+      enthusiastic: 'appreciative',
       uncertain: 'hesitant'
     };
     const canonical = aliases[normalized] || normalized;
@@ -2379,6 +2401,7 @@ ISTRUZIONI:
       hesitant: true,
       complaint: true,
       open: true,
+      appreciative: true,
       urgent: true,
       none: true
     };

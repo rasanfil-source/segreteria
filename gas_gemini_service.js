@@ -599,6 +599,7 @@ COMPITI:
 10. Determina relational_posture basandoti ESCLUSIVAMENTE su marcatori linguistici osservabili, non su stati psicologici:
    - "direct": richiesta neutra, essenziale o operativa, senza marcatori relazionali forti (DEFAULT).
    - "personal": condivisione esplicita di fatti personali delicati, vissuti intimi, richiesta di ascolto o bisogno pastorale.
+   - "appreciative": entusiasmo esplicito, ringraziamenti dettagliati, apprezzamento per persone/aspetti della parrocchia o motivazioni personali positive che meritano un breve rispecchiamento.
    - "hesitant": scuse, minimizzazioni, "forse", "non vorrei disturbare", molte mitigazioni o incertezza formulata.
    - "complaint": insoddisfazione, reclamo, segnalazione di disservizio, frustrazione o tono polemico.
    - "open": tono collaborativo, disponibilita al dialogo, ringraziamento sostanziale con nuova informazione utile.
@@ -645,7 +646,7 @@ Output JSON:
   "territory_address_candidates": ["string"],
   "confidence": number (0.0-1.0),
   "reason": "string",
-  "relational_posture": "urgent" | "hesitant" | "complaint" | "personal" | "open" | "direct",
+  "relational_posture": "urgent" | "hesitant" | "complaint" | "personal" | "open" | "appreciative" | "direct",
   "relational_posture_confidence": number (0.0-1.0),
   "response_focus_hint": "avoid_repeating_known_requirements" | "answer_only_residual_question" | "provide_next_operational_step" | "acknowledge_document_without_reopening_procedure" | null,
   "response_focus_hint_confidence": number (0.0-1.0),
@@ -886,10 +887,15 @@ Output JSON:
   static normalizeRelationalPosture(value, confidence = 0) {
     const normalized = String(value || '').trim().toLowerCase();
     const aliases = {
-      informational: 'direct',
-      procedural: 'direct',
-      relational: 'personal',
-      uncertain: 'hesitant',
+      direct: 'informational',
+      personal: 'relational',
+      hesitant: 'uncertain',
+      open: 'appreciative',
+      appreciative: 'appreciative',
+      grateful: 'appreciative',
+      gratitude: 'appreciative',
+      enthusiastic: 'appreciative',
+      complaint: 'complaint',
       frustrated: 'complaint',
       frustration: 'complaint',
       angry: 'complaint',
@@ -897,14 +903,15 @@ Output JSON:
     };
     const canonical = aliases[normalized] || normalized;
     const allowed = {
-      direct: true,
-      personal: true,
-      hesitant: true,
+      informational: true,
+      procedural: true,
+      relational: true,
+      appreciative: true,
       complaint: true,
-      open: true,
       urgent: true,
+      uncertain: true
     };
-    if (!allowed[canonical] || canonical === 'direct') return 'direct';
+    if (!allowed[canonical] || canonical === 'informational') return 'direct';
     return EmailQuickCheckPolicy.isRelationalPostureConfidenceSufficient(confidence)
       ? canonical
       : 'direct';

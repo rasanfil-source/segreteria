@@ -130,8 +130,27 @@ var PromptContext = class PromptContext {
             memoryTopics
         ].filter(Boolean).join(' ').toLowerCase();
         const longitudinalSensitivity = /\b(lutto|decesso|malattia|funerale|esequie|defunt[oaie]|sbattezzo|apostasia|divorzio|divorziat[oaie]|separazione|separat[oaie]|vedov[oaie])\b/.test(memoryText);
+        const emailBodyRaw = String(i.email?.body || '');
         const isMultiQuestion = this._detectMultiQuestion(i.email?.body, i.email?.subject);
-        const bodyLength = String(i.email?.body || '').length;
+        const bodyLength = emailBodyRaw.length;
+        const relationalPostureRaw = String(
+            i.relationalPosture ||
+            i.relational?.posture ||
+            i.quickCheck?.relational_posture ||
+            ''
+        ).trim().toLowerCase();
+        const relationalPostureConfidence = Number(
+            i.relationalPostureConfidence ??
+            i.relational?.confidence ??
+            i.quickCheck?.relational_posture_confidence ??
+            0
+        );
+        const relationalThreshold = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD)))
+            ? Math.max(0, Math.min(1, Number(CONFIG.RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD)))
+            : 0.70;
+        const hasRelationalWarmth = ['appreciative', 'grateful', 'gratitude', 'enthusiastic', 'open'].includes(relationalPostureRaw) &&
+            Number.isFinite(relationalPostureConfidence) &&
+            relationalPostureConfidence >= relationalThreshold;
         const hasLanguageSafety = Boolean(
             i.email?.detectedLanguage !== 'it' ||
             (i.classification?.confidence ?? 1) < 0.8
@@ -234,6 +253,9 @@ var PromptContext = class PromptContext {
             physical_presence_constraint:
                 hasPhysicalPresenceConstraint,
 
+            relational_warmth:
+                hasRelationalWarmth,
+
             residual_sensitivity:
                 longitudinalSensitivity && !(
                     hasEmotionalSensitivity
@@ -271,7 +293,7 @@ var PromptContext = class PromptContext {
             return 'heavy';
         }
 
-        if (c.hallucination_risk || c.formatting_risk || c.temporal_risk) {
+        if (c.hallucination_risk || c.formatting_risk || c.temporal_risk || c.relational_warmth) {
             return 'standard';
         }
 
@@ -299,6 +321,9 @@ var PromptContext = class PromptContext {
         if (c.emotional_sensitivity || c.longitudinal_sensitivity || type === 'pastoral') {
             return 'pastoral_supportive';
         }
+        if (c.relational_warmth && !isFormal) {
+            return 'pastoral_supportive';
+        }
         if (isFormal) {
             return 'formal_institutional';
         }
@@ -316,7 +341,8 @@ var PromptContext = class PromptContext {
 
         if (mode === 'none_or_continuity' &&
             (this.concerns.emotional_sensitivity ||
-             this.concerns.longitudinal_sensitivity)) {
+             this.concerns.longitudinal_sensitivity ||
+             this.concerns.relational_warmth)) {
             return 'soft';
         }
         // NUOVO: primo contatto emotivo
