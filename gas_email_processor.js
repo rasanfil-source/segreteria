@@ -1652,6 +1652,7 @@ var EmailProcessor = class EmailProcessor {
         memoryContext.exists === true ||
         !!memoryContext.lastUpdated ||
         !!memoryContext.memorySummary ||
+        !!memoryContext.conversationState ||
         Object.keys(memoryContextualFlags).length > 0 ||
         (Array.isArray(memoryContext.providedInfo) && memoryContext.providedInfo.length > 0)
       );
@@ -1962,6 +1963,7 @@ ${addressLines.join('\n\n')}
       let responseRegister = 'warm_institutional';
       let effectiveSalutationMode = salutationMode;
       let concernSynthesis = null;
+      let continuityCase = null;
       const memoryProvidedInfo = Array.isArray(memoryContext.providedInfo)
         ? memoryContext.providedInfo
         : [];
@@ -2308,7 +2310,8 @@ ${addressLines.join('\n\n')}
             category: memoryContext.category || null,
             memorySummary: memoryContext.memorySummary || '',
             topics: memoryTopics,
-            contextualFlags: memoryContextualFlags
+            contextualFlags: memoryContextualFlags,
+            conversationState: memoryContext.conversationState || null
           },
           conversation: { messageCount: memoryMessageCount },
           territory: { addressFound: territoryResult.addressFound },
@@ -2335,10 +2338,14 @@ ${addressLines.join('\n\n')}
         responseRegister = promptContext.meta?.responseRegister || responseRegister;
         effectiveSalutationMode = promptContext.meta?.salutationMode || effectiveSalutationMode;
         concernSynthesis = promptContext.meta?.concernSynthesis || null;
+        continuityCase = promptContext.meta?.continuityCase || null;
         const synthesisLog = concernSynthesis && concernSynthesis.key
           ? `, sintesi=${concernSynthesis.key}`
           : '';
-        console.log(`   🧠 PromptContext: profilo=${promptProfile}, registro=${responseRegister}${synthesisLog}`);
+        const continuityLog = continuityCase && continuityCase.key
+          ? `, continuita=${continuityCase.key}`
+          : '';
+        console.log(`   🧠 PromptContext: profilo=${promptProfile}, registro=${responseRegister}${synthesisLog}${continuityLog}`);
       }
 
       const effectiveSalutationModeKey = String(effectiveSalutationMode || '').trim().toLowerCase();
@@ -2418,7 +2425,16 @@ ${addressLines.join('\n\n')}
       );
       const runtimeContext = Object.freeze(Object.assign({}, baseRuntimeContext, {
         physicalPresenceConstraint: physicalPresenceConstraint || null,
-        territoryContext: territoryContext || null
+        territoryContext: territoryContext || null,
+        validationContext: this._buildResponseValidationContext_({
+          activeConcerns: activeConcerns,
+          concernSynthesis: concernSynthesis,
+          continuityCase: continuityCase,
+          responseRegister: responseRegister,
+          promptProfile: promptProfile,
+          category: categoryHintSource || classification.category || null,
+          requestType: requestTypeName || null
+        })
       }));
       const scheduleContext = this._resolveScheduleContext(
         `${messageDetails.subject || ''}\n${messageDetails.body || ''}`,
@@ -2511,6 +2527,7 @@ ${addressLines.join('\n\n')}
         promptProfile: promptProfile,
         activeConcerns: activeConcerns,
         concernSynthesis: concernSynthesis,
+        continuityCase: continuityCase,
         responseRegister: responseRegister,
         territoryContext: territoryContext,
         physicalPresenceConstraint: physicalPresenceConstraint,
@@ -5295,6 +5312,18 @@ ${addressLines.join('\n\n')}
         ? String(details.physicalPresenceConstraint.constraint.visit_policy).toLowerCase()
         : '';
     const hasPhysicalPresence = physicalPresenceErrors.length > 0 || errorText.some(e => e.includes('vincolo presenza fisica'));
+    const sensitiveQualityErrors = (details.sensitiveContinuityQuality && Array.isArray(details.sensitiveContinuityQuality.errors))
+      ? details.sensitiveContinuityQuality.errors
+      : [];
+    const sensitiveQualityWarnings = (details.sensitiveContinuityQuality && Array.isArray(details.sensitiveContinuityQuality.warnings))
+      ? details.sensitiveContinuityQuality.warnings
+      : [];
+    const hasSensitiveQuality = sensitiveQualityErrors.length > 0 || errorText.some(e =>
+      e.includes('continuita sensibile') ||
+      e.includes('registro formale') ||
+      e.includes('qualita sensibile') ||
+      e.includes('qualita mista')
+    );
 
     return {
       thinking_leak: hasThinkingLeak,
@@ -5305,10 +5334,13 @@ ${addressLines.join('\n\n')}
       length: hasLength,
       temporal: hasTemporal,
       physical_presence: hasPhysicalPresence,
+      sensitive_quality: hasSensitiveQuality,
       lengthErrors: lengthErrors,
       temporalErrors: temporalErrors,
       physicalPresenceErrors: physicalPresenceErrors,
       physicalPresencePolicy: physicalPresencePolicy,
+      sensitiveQualityErrors: sensitiveQualityErrors,
+      sensitiveQualityWarnings: sensitiveQualityWarnings,
       papalErrors: papalErrors,
       foundPlaceholders: foundPlaceholders,
       hallucinations: hallucinations,
@@ -5322,7 +5354,7 @@ ${addressLines.join('\n\n')}
     const flags = this._classifyValidationForRetry(validationResult, detectedLanguage);
     const allowed = (Array.isArray(cfg.onlyForErrors) && cfg.onlyForErrors.length > 0)
       ? cfg.onlyForErrors
-      : ['thinking_leak', 'hallucination', 'language', 'placeholder', 'length', 'temporal', 'physical_presence'];
+      : ['thinking_leak', 'hallucination', 'language', 'placeholder', 'length', 'temporal', 'physical_presence', 'sensitive_quality'];
 
     const hasAllowed = allowed.some(key => flags[key]);
     if (!hasAllowed) return false;
@@ -5334,7 +5366,7 @@ ${addressLines.join('\n\n')}
       ? normalizeValidationScore(configuredMinScore)
       : Math.max(0, Math.min(1, configuredMinScore > 1 ? configuredMinScore / 100 : configuredMinScore));
 
-    const critical = flags.thinking_leak || flags.hallucination || flags.temporal || flags.physical_presence;
+    const critical = flags.thinking_leak || flags.hallucination || flags.temporal || flags.physical_presence || flags.sensitive_quality;
 
 
 
@@ -5441,6 +5473,16 @@ ${addressLines.join('\n\n')}
         (avoidInvitation
           ? 'CORREZIONE: Rimuovi ogni invito alla presenza fisica, anche condizionale. Privilegia esclusivamente telefono/email o presa in carico a distanza, salvo obbligo procedurale esplicito e inevitabile.'
           : 'CORREZIONE: Rimuovi l\'invito diretto alla presenza fisica. Privilegia telefono/email. Se e solo se utile, usa una formula condizionale come "qualora le fosse possibile" o "se avesse occasione di trovarsi a Roma".')
+      );
+    }
+
+    if (flags.sensitive_quality) {
+      const sensitiveIssues = (flags.sensitiveQualityErrors || []).concat(flags.sensitiveQualityWarnings || []).slice(0, 3);
+      const issueText = sensitiveIssues.length > 0 ? sensitiveIssues.join(' | ') : 'postura sensibile non coerente con il contesto';
+      correctionInstructions.push(
+        'ERRORE: La risposta non rispetta la postura sensibile calcolata dal contesto.\n' +
+        `PROBLEMA: ${issueText}\n` +
+        'CORREZIONE: Rispondi al bisogno operativo senza nominare memoria, lutto o vissuti non ripresi dall\'utente. Nei flussi formali resta procedurale e non persuasivo; nei casi pastorale-tecnici mantieni una frase umana breve e poi dai il prossimo passo concreto.'
       );
     }
 
@@ -5792,6 +5834,41 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     }
 
     return flags;
+  }
+
+  _buildResponseValidationContext_({
+    activeConcerns = {},
+    concernSynthesis = null,
+    continuityCase = null,
+    responseRegister = 'warm_institutional',
+    promptProfile = 'standard',
+    category = null,
+    requestType = null
+  } = {}) {
+    const normalizedConcerns = (activeConcerns && typeof activeConcerns === 'object')
+      ? Object.assign({}, activeConcerns)
+      : {};
+    const normalizedRegister = String(responseRegister || 'warm_institutional').trim() || 'warm_institutional';
+    const normalizedProfile = String(promptProfile || 'standard').trim() || 'standard';
+    const normalizedCategory = (category === null || typeof category === 'undefined')
+      ? null
+      : (String(category).trim() || null);
+    const rawRequestType = (requestType && typeof requestType === 'object')
+      ? requestType.type
+      : requestType;
+    const normalizedRequestType = (rawRequestType === null || typeof rawRequestType === 'undefined')
+      ? null
+      : (String(rawRequestType).trim() || null);
+
+    return {
+      activeConcerns: normalizedConcerns,
+      concernSynthesis: concernSynthesis || null,
+      continuityCase: continuityCase || null,
+      responseRegister: normalizedRegister,
+      promptProfile: normalizedProfile,
+      category: normalizedCategory,
+      requestType: normalizedRequestType
+    };
   }
 
   _isTerritoryRequest(subject, body, classification = {}, requestType = null) {

@@ -328,11 +328,29 @@ var ResponseValidator = class ResponseValidator {
    * Alias per la firma ad oggetto (supporta chiamata con parametri nominali).
    * Evita rotture quando il chiamante usa validator.validate(response, { ...opts }).
    * @param {string} response
-   * @param {{language?: string, knowledgeBase?: string, emailContent?: string, body?: string, emailSubject?: string, subject?: string, salutationMode?: string, currentDate?: string, currentTime?: string, messageDate?: string, messageTime?: string, temporalContext?: Object}} opts
+   * @param {{language?: string, knowledgeBase?: string, emailContent?: string, body?: string, emailSubject?: string, subject?: string, salutationMode?: string, currentDate?: string, currentTime?: string, messageDate?: string, messageTime?: string, temporalContext?: Object, activeConcerns?: Object, concernSynthesis?: Object, continuityCase?: Object, responseRegister?: string}} opts
    * @returns {Object}
    */
   validate(response, opts) {
     const safeOpts = opts || {};
+    const baseTemporalContext = safeOpts.temporalContext || {
+      currentDate: safeOpts.currentDate || null,
+      currentTime: safeOpts.currentTime || null,
+      messageDate: safeOpts.messageDate || null,
+      messageTime: safeOpts.messageTime || null
+    };
+    const validationContext = Object.assign(
+      {},
+      (baseTemporalContext && baseTemporalContext.validationContext && typeof baseTemporalContext.validationContext === 'object')
+        ? baseTemporalContext.validationContext
+        : {}
+    );
+    ['activeConcerns', 'concernSynthesis', 'continuityCase', 'responseRegister'].forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(safeOpts, key)) validationContext[key] = safeOpts[key];
+    });
+    const temporalContext = Object.assign({}, baseTemporalContext, {
+      validationContext: validationContext
+    });
     return this.validateResponse(
       response,
       safeOpts.language || 'it',
@@ -341,12 +359,7 @@ var ResponseValidator = class ResponseValidator {
       safeOpts.emailSubject || safeOpts.subject || '',
       safeOpts.salutationMode || 'full',
       true,
-      safeOpts.temporalContext || {
-        currentDate: safeOpts.currentDate || null,
-        currentTime: safeOpts.currentTime || null,
-        messageDate: safeOpts.messageDate || null,
-        messageTime: safeOpts.messageTime || null
-      }
+      temporalContext
     );
   }
 
@@ -449,6 +462,13 @@ var ResponseValidator = class ResponseValidator {
     warnings.push(...territoryResult.warnings);
     details.territoryConsistency = territoryResult;
     score *= territoryResult.score;
+
+    // === CONTROLLO 13: qualita pastorale/longitudinale ===
+    const sensitiveQualityResult = this._checkSensitiveContinuityQuality(response, originalContext, temporalContext);
+    errors.push(...sensitiveQualityResult.errors);
+    warnings.push(...sensitiveQualityResult.warnings);
+    details.sensitiveContinuityQuality = sensitiveQualityResult;
+    score *= sensitiveQualityResult.score;
 
     const normalizedScore = normalizeValidationScore(score);
     const isValid = errors.length === 0 && normalizedScore >= this.MIN_VALID_SCORE;
@@ -1630,6 +1650,124 @@ var ResponseValidator = class ResponseValidator {
       score: 0.0,
       active: true,
       expected,
+      violations
+    };
+  }
+
+  _extractResponseValidationContext_(temporalContext = null) {
+    const source = temporalContext && typeof temporalContext === 'object' ? temporalContext : {};
+    // Contratto stabile EmailProcessor -> ResponseValidator per consumare i segnali del prompt.
+    const nested = (source.validationContext && typeof source.validationContext === 'object')
+      ? source.validationContext
+      : ((source.responseValidation && typeof source.responseValidation === 'object') ? source.responseValidation : {});
+    const activeConcerns = this._normalizeValidationConcernMap_(
+      nested.activeConcerns || source.activeConcerns || source.active_concerns
+    );
+    return {
+      activeConcerns,
+      concernSynthesis: nested.concernSynthesis || source.concernSynthesis || null,
+      continuityCase: nested.continuityCase || source.continuityCase || null,
+      responseRegister: String(nested.responseRegister || source.responseRegister || '').trim().toLowerCase(),
+      category: String(nested.category || source.category || '').trim().toLowerCase(),
+      requestType: String(nested.requestType || source.requestType || '').trim().toLowerCase()
+    };
+  }
+
+  _normalizeValidationConcernMap_(concerns) {
+    if (!concerns) return {};
+    if (Array.isArray(concerns)) {
+      return concerns.reduce((acc, concern) => {
+        if (typeof concern === 'string' && concern.trim()) {
+          acc[concern.trim()] = true;
+        } else if (concern && typeof concern === 'object') {
+          const key = concern.key || concern.name || concern.id;
+          if (key) acc[String(key).trim()] = Object.prototype.hasOwnProperty.call(concern, 'value') ? !!concern.value : true;
+        }
+        return acc;
+      }, {});
+    }
+    if (typeof concerns !== 'object') return {};
+    return Object.keys(concerns).reduce((acc, key) => {
+      if (key && concerns[key]) acc[String(key).trim()] = true;
+      return acc;
+    }, {});
+  }
+
+  _checkSensitiveContinuityQuality(response, originalContext = '', temporalContext = null) {
+    const errors = [];
+    const warnings = [];
+    const violations = [];
+    let score = 1.0;
+
+    const context = this._extractResponseValidationContext_(temporalContext);
+    const concerns = context.activeConcerns || {};
+    const continuityCase = (context.continuityCase && typeof context.continuityCase === 'object')
+      ? context.continuityCase
+      : {};
+    const continuityKey = String(continuityCase.key || '').trim().toLowerCase();
+    const synthesisKey = context.concernSynthesis && context.concernSynthesis.key
+      ? String(context.concernSynthesis.key).trim().toLowerCase()
+      : '';
+    const isSensitiveActive = Boolean(
+      continuityKey ||
+      synthesisKey ||
+      concerns.longitudinal_sensitivity ||
+      concerns.emotional_sensitivity ||
+      concerns.pastoral_technical_blend ||
+      concerns.relational_warmth
+    );
+    if (!isSensitiveActive) {
+      return { score, errors, warnings, active: false, violations: [] };
+    }
+
+    const source = this._stripDiacritics_(String(response || '').toLowerCase());
+    const original = this._stripDiacritics_(String(originalContext || '').toLowerCase());
+    const responseRegister = context.responseRegister || '';
+    const isFormal = responseRegister === 'formal_institutional' ||
+      context.category === 'formal' ||
+      context.category === 'sbattezzo' ||
+      context.requestType === 'formal';
+
+    const bereavementPattern = /\b(?:lutto|perdita|decesso|morte|morto|morta|funerale|esequie|defunt[oaie]?|suffragio|vedov[oaie]?)\b/i;
+    const currentMentionsBereavement = bereavementPattern.test(original);
+    const responseMentionsBereavement = bereavementPattern.test(source);
+    if (continuityKey === 'bereavement_continuity' && !currentMentionsBereavement && responseMentionsBereavement) {
+      violations.push('reopened_bereavement_context');
+      errors.push('Continuita sensibile: la risposta riapre o nomina il lutto salvato in memoria anche se il messaggio attuale non lo riprende.');
+      score = Math.min(score, 0.45);
+    }
+
+    const coldOpeningPattern = /^\s*(?:(?:gentile|buongiorno|buonasera)[^,\n]{0,80},\s*)?(?:la\s+informiamo\s+che|si\s+comunica\s+che|con\s+riferimento\s+alla\s+sua\s+richiesta|in\s+merito\s+alla\s+sua\s+richiesta|la\s+richiesta\s+deve|deve\s+presentare|occorre\s+presentare|e\s+necessario\s+presentare|si\s+invita\s+a)\b/i;
+    const humanMarkerPattern = /\b(?:grazie|volentieri|con\s+piacere|comprendiamo|capisco|con\s+attenzione|restiamo\s+a\s+disposizione|siamo\s+disponibili|possiamo\s+aiutarla|sono\s+a\s+disposizione)\b/i;
+    if (!isFormal && (continuityKey || concerns.longitudinal_sensitivity || concerns.relational_warmth) &&
+        coldOpeningPattern.test(source) && !humanMarkerPattern.test(source)) {
+      violations.push('overly_procedural_sensitive_opening');
+      warnings.push('Qualita sensibile: registro iniziale troppo procedurale rispetto alla continuita o apertura relazionale attiva.');
+      score = Math.min(score, 0.85);
+    }
+
+    const formalPastoralContaminationPattern = /\b(?:ripensarci|riflettere\s+ancora|restare\s+nella\s+chiesa|preghiamo\s+per\s+lei|preghiera|cammino\s+di\s+fede|discernimento\s+spirituale|accompagnamento\s+pastorale)\b/i;
+    if (isFormal && formalPastoralContaminationPattern.test(source)) {
+      violations.push('formal_pastoral_contamination');
+      errors.push('Registro formale: la risposta introduce accompagnamento/persuasione pastorale in un flusso che deve restare procedurale.');
+      score = Math.min(score, 0.50);
+    }
+
+    const extendedPastoralPattern = /\b(?:preghiamo|preghiera|cammino\s+di\s+fede|accompagnamento\s+pastorale|colloquio\s+pastorale|parlarne\s+con\s+il\s+parroco)\b/i;
+    const operationalAnchorPattern = /\b(?:document[oi]|certificat[oi]|modul[oi]|orari?|appuntament[oi]|dati|inviare|ritirare|consegnare|procedur[ae]|passagg[io]|segreteria|email|mail)\b/i;
+    if (concerns.pastoral_technical_blend && extendedPastoralPattern.test(source) && !operationalAnchorPattern.test(source)) {
+      violations.push('blend_missing_operational_answer');
+      warnings.push('Qualita mista: la risposta sembra pastorale ma poco operativa rispetto a una richiesta pastorale-tecnica.');
+      score = Math.min(score, 0.85);
+    }
+
+    return {
+      score,
+      errors,
+      warnings,
+      active: true,
+      continuityCase: continuityKey || null,
+      responseRegister: responseRegister || null,
       violations
     };
   }

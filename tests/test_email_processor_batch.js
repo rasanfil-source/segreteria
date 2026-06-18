@@ -111,6 +111,39 @@ console.log('--- Test constructor: validationWarningThreshold percentuale normal
   }
 }
 
+console.log('--- Test validationContext: contratto stabile per validator ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  const concerns = {
+    longitudinal_sensitivity: true,
+    relational_warmth: true
+  };
+  const continuityCase = {
+    key: 'bereavement_continuity',
+    longitudinal: true,
+    relationalWarmth: false,
+    sourceSignals: ['memoryFlag:bereaved']
+  };
+  const context = processor._buildResponseValidationContext_({
+    activeConcerns: concerns,
+    concernSynthesis: { key: 'longitudinal_operational' },
+    continuityCase,
+    responseRegister: '',
+    promptProfile: '',
+    category: ' formal ',
+    requestType: { type: 'pastoral' }
+  });
+
+  concerns.longitudinal_sensitivity = false;
+  assert(context.activeConcerns.longitudinal_sensitivity === true, 'i concern devono essere copiati nel contratto di validazione');
+  assert(context.concernSynthesis.key === 'longitudinal_operational', 'concernSynthesis deve essere propagato al validator');
+  assert(context.continuityCase.key === 'bereavement_continuity', 'continuityCase deve essere propagato al validator');
+  assert(context.responseRegister === 'warm_institutional', 'registro vuoto deve usare il fallback stabile');
+  assert(context.promptProfile === 'standard', 'profilo vuoto deve usare il fallback stabile');
+  assert(context.category === 'formal', 'categoria deve essere normalizzata nel contratto');
+  assert(context.requestType === 'pastoral', 'requestType oggetto deve essere normalizzato a type');
+}
+
 console.log('--- Test _extractTimes: boundary Unicode evita match dentro parole ---');
 {
   const processor = new EmailProcessor({ gmailService: {} });
@@ -3046,6 +3079,113 @@ console.log('--- Test context routing: document_request certificato resta tecnic
   global.createPromptContext = originalCreatePromptContext;
 }
 
+console.log('--- Test quick-check: conversationState memoria abilita contesto conversazionale ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalGlobalCache = global.GLOBAL_CACHE;
+  const originalCreatePromptContext = global.createPromptContext;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.GLOBAL_CACHE = { aiCoreLite: 'core lite', aiCore: 'core pesante' };
+
+  let quickIntentContext = null;
+  let promptOptions = null;
+  let promptContextInput = null;
+  global.createPromptContext = (input) => {
+    promptContextInput = input;
+    return {
+      profile: 'standard',
+      concerns: { relational_warmth: true },
+      meta: {
+        responseRegister: 'pastoral_supportive',
+        continuityCase: {
+          key: 'relational_opening_continuity',
+          longitudinal: false,
+          relationalWarmth: true,
+          sourceSignals: ['conversationState:posture:open']
+        }
+      }
+    };
+  };
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Orario segreteria',
+        body: 'Grazie, vorrei capire a che ora posso passare.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: (body, subject, languageDetection, intentContext) => {
+        quickIntentContext = intentContext;
+        return { shouldRespond: true, language: 'it', classification: { category: 'information', topic: 'orari segreteria' } };
+      },
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta orari' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({
+        conversationState: {
+          currentRelationalPosture: 'open',
+          responseFocusHint: null,
+          responseFocusHintConfidence: 0
+        }
+      }),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        promptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('conversation-state-only'), 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'il thread con solo conversationState in memoria deve completarsi');
+  assert(quickIntentContext && quickIntentContext.hasConversationContext === true, 'conversationState deve abilitare il contesto conversazionale per la quick-check');
+  assert(
+    promptContextInput &&
+      promptContextInput.memory &&
+      promptContextInput.memory.conversationState &&
+      promptContextInput.memory.conversationState.currentRelationalPosture === 'open',
+    'EmailProcessor deve passare conversationState al PromptContext'
+  );
+  assert(
+    promptOptions.continuityCase &&
+      promptOptions.continuityCase.key === 'relational_opening_continuity',
+    'conversationState relazionale deve arrivare al PromptEngine come continuityCase'
+  );
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.GLOBAL_CACHE = originalGlobalCache;
+  global.createPromptContext = originalCreatePromptContext;
+}
+
 
 console.log('--- Test context routing: categoria quickCheck ha priorità su euristica locale ---');
 {
@@ -3196,7 +3336,22 @@ console.log('--- Test context routing: memoria semantica sensibile impedisce amn
     promptContextInput = input;
     return {
       profile: 'heavy',
-      concerns: { longitudinal_sensitivity: true }
+      concerns: { longitudinal_sensitivity: true },
+      meta: {
+        responseRegister: 'pastoral_supportive',
+        salutationMode: 'soft',
+        concernSynthesis: {
+          key: 'longitudinal_operational',
+          directive: 'La memoria segnala un lutto ancora rilevante.',
+          suppress: {}
+        },
+        continuityCase: {
+          key: 'bereavement_continuity',
+          longitudinal: true,
+          relationalWarmth: false,
+          sourceSignals: ['memoryText:bereavement']
+        }
+      }
     };
   };
   const processor = new EmailProcessor({
@@ -3262,6 +3417,7 @@ console.log('--- Test context routing: memoria semantica sensibile impedisce amn
   assert(promptContextInput.memory.memorySummary.includes('lutto'), 'EmailProcessor deve passare memorySummary al PromptContext');
   assert(promptContextInput.memory.topics.includes('esequie'), 'EmailProcessor deve passare i topic semantici della memoria al PromptContext');
   assert(promptOptions.activeConcerns.longitudinal_sensitivity === true, 'la memoria semantica deve arrivare come concern longitudinale');
+  assert(promptOptions.continuityCase && promptOptions.continuityCase.key === 'bereavement_continuity', 'EmailProcessor deve propagare continuityCase al PromptEngine');
   assert(promptOptions.promptProfile === 'heavy', 'la memoria semantica sensibile deve alzare il profilo prompt');
   assert(promptOptions.doctrineBase === 'dottrina completa', 'la memoria semantica sensibile deve impedire la disattivazione della dottrina');
   assert(promptOptions.aiCore.startsWith('core pesante'), 'la memoria semantica sensibile deve mantenere attivo AI core pesante');

@@ -141,4 +141,35 @@ assert(
     'Temporal retry prompt should include explicit currentDate/messageDate/papal retry rules'
 );
 
+const sensitiveValidation = {
+    isValid: false,
+    score: 0.45,
+    errors: ['Continuita sensibile: la risposta riapre il lutto non ripreso'],
+    details: {
+        sensitiveContinuityQuality: {
+            errors: ['Continuita sensibile: la risposta riapre il lutto non ripreso']
+        }
+    }
+};
+const sensitiveFlags = processor._classifyValidationForRetry(sensitiveValidation, 'it');
+assert(sensitiveFlags.sensitive_quality === true, 'Should classify sensitive quality validation errors');
+const shouldRetrySensitive = processor._shouldAttemptIntelligentRetry(
+    sensitiveValidation,
+    'it',
+    { ...global.CONFIG.INTELLIGENT_RETRY, onlyForErrors: ['sensitive_quality'] }
+);
+assert(shouldRetrySensitive === true, 'Should attempt retry for sensitive_quality errors');
+const sensitivePrompt = processor._buildCorrectionPrompt(
+    'Original Prompt',
+    'Ricordando il lutto, confermo l orario.',
+    sensitiveValidation,
+    'it',
+    'full'
+);
+assert(
+    sensitivePrompt.includes('postura sensibile') &&
+      sensitivePrompt.includes('senza nominare memoria, lutto o vissuti non ripresi'),
+    'Sensitive retry prompt should include posture correction guidance'
+);
+
 console.log('✅ All intelligent retry logic tests passed!');

@@ -1519,6 +1519,110 @@ console.log('--- Test territory consistency: RIENTRA non puo diventare non rient
   assert(result.expected === 'inside', 'il validator deve distinguere RIENTRA da NON RIENTRA');
 }
 
+console.log('--- Test sensitive continuity: lutto in memoria non va riaperto se non ripreso ---');
+{
+  const result = validator.validateResponse(
+    'Buongiorno,\nricordando il lutto che ha vissuto, le confermo che l incontro è previsto alle 18:00.\n\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio',
+    'it',
+    'Incontro: ore 18:00.',
+    'A che ora ci vediamo?',
+    'Re: incontro',
+    'full',
+    false,
+    {
+      temporal: { currentDate: '2026-06-08', currentTime: '10:00', messageDate: '2026-06-08' },
+      validationContext: {
+        activeConcerns: { longitudinal_sensitivity: true },
+        continuityCase: { key: 'bereavement_continuity', longitudinal: true },
+        responseRegister: 'pastoral_supportive'
+      }
+    }
+  );
+
+  assert(result.isValid === false, 'la riapertura del lutto non ripreso deve essere bloccante');
+  assert(
+    result.errors.some((error) => error.includes('Continuita sensibile')),
+    'il validator deve segnalare la continuita sensibile violata'
+  );
+}
+
+console.log('--- Test sensitive continuity: lutto citato dall utente resta citabile ---');
+{
+  const result = validator.validateResponse(
+    'Buongiorno,\nper la Messa in suffragio di suo padre defunto, le confermo che l incontro è previsto alle 18:00.\n\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio',
+    'it',
+    'Incontro: ore 18:00.',
+    'Dopo il lutto di mio padre, vorrei fissare la Messa in suffragio.',
+    'Messa in suffragio',
+    'full',
+    false,
+    {
+      temporal: { currentDate: '2026-06-08', currentTime: '10:00', messageDate: '2026-06-08' },
+      validationContext: {
+        activeConcerns: { longitudinal_sensitivity: true },
+        continuityCase: { key: 'bereavement_continuity', longitudinal: true },
+        responseRegister: 'pastoral_supportive'
+      }
+    }
+  );
+
+  assert(
+    !result.errors.some((error) => error.includes('Continuita sensibile')),
+    'se il lutto e ripreso dall utente, il validator non deve bloccarne la citazione'
+  );
+}
+
+console.log('--- Test sensitive continuity: apertura relazionale troppo burocratica produce warning ---');
+{
+  const result = validator._checkSensitiveContinuityQuality(
+    'Gentile signora, La informiamo che la richiesta deve essere presentata con il modulo previsto.',
+    'Grazie, vorrei capire quale modulo serve.',
+    {
+      validationContext: {
+        activeConcerns: { relational_warmth: true },
+        continuityCase: { key: 'relational_opening_continuity', relationalWarmth: true },
+        responseRegister: 'pastoral_supportive'
+      }
+    }
+  );
+
+  assert(result.errors.length === 0, 'il tono burocratico su apertura relazionale deve restare warning, non errore');
+  assert(
+    result.warnings.some((warning) => warning.includes('Qualita sensibile')),
+    'il validator deve rendere visibile il registro troppo procedurale'
+  );
+  assert(result.score < 1.0, 'il warning qualitativo deve ridurre moderatamente lo score');
+}
+
+console.log('--- Test sensitive continuity: registro formale blocca contaminazione pastorale ---');
+{
+  const result = validator.validateResponse(
+    'Gentile Mario,\nprima di procedere la invitiamo a riflettere ancora e a restare nella Chiesa. Per la procedura formale può inviare la richiesta firmata.\n\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio',
+    'it',
+    'Procedura formale: richiesta firmata.',
+    'Vorrei procedere con la richiesta formale.',
+    'Richiesta formale',
+    'full',
+    false,
+    {
+      temporal: { currentDate: '2026-06-08', currentTime: '10:00', messageDate: '2026-06-08' },
+      validationContext: {
+        activeConcerns: { longitudinal_sensitivity: true },
+        continuityCase: { key: 'canonical_continuity', longitudinal: true },
+        responseRegister: 'formal_institutional',
+        category: 'formal',
+        requestType: 'formal'
+      }
+    }
+  );
+
+  assert(result.isValid === false, 'la contaminazione pastorale in registro formale deve essere bloccante');
+  assert(
+    result.errors.some((error) => error.includes('Registro formale')),
+    'il validator deve segnalare la contaminazione del registro formale'
+  );
+}
+
 console.log('--- Test SemanticValidator: fallback lazy senza GeminiService/CacheService ---');
 {
   const originalConfig = global.CONFIG;

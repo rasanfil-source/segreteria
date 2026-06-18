@@ -906,6 +906,85 @@ assert(
   'pastoral_technical_blend deve caricare AI_CORE_LITE senza caricare AI_CORE esteso'
 );
 assert(
+  blendedOperationalPrompt.includes('concern:pastoral_technical_blend') &&
+    blendedOperationalPrompt.includes('concern:pastoral_technical_blend->aiCoreLite') &&
+    blendedOperationalPrompt.includes('aiCoreLite:pastoral_technical_blend'),
+  'la cornice decisionale deve mostrare che pastoral_technical_blend è stato consumato'
+);
+
+const memoryFlagObservabilityPrompt = engine.buildPrompt({
+  emailSubject: 'Certificato',
+  emailContent: 'Vorrei ricevere il certificato via email.',
+  knowledgeBase: 'I certificati possono essere richiesti via email fornendo i dati necessari.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  salutationMode: 'soft',
+  salutation: '',
+  closing: 'Cordiali saluti,',
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  memoryContext: {
+    memorySummary: 'Scambio precedente delicato.',
+    contextualFlags: {
+      remote_user: true,
+      bereaved: true,
+      ongoing_pastoral_process: true
+    }
+  },
+  physicalPresenceConstraint: {
+    has_constraint: true,
+    type: 'geographic_distance',
+    visit_policy: 'conditional_only',
+    evidence: 'vincolo remoto salvato in memoria'
+  },
+  activeConcerns: {
+    longitudinal_sensitivity: true,
+    physical_presence_constraint: true
+  },
+  continuityCase: {
+    key: 'bereavement_continuity',
+    longitudinal: true,
+    relationalWarmth: false,
+    sourceSignals: ['memoryFlag:bereaved']
+  },
+  concernSynthesis: {
+    key: 'longitudinal_operational',
+    directive: 'La memoria segnala un contesto personale delicato ancora rilevante. Rispondi concretamente con tono sobrio e umano.',
+    suppress: {}
+  }
+});
+
+assert(
+  memoryFlagObservabilityPrompt.includes('memoryFlag:remote_user') &&
+    memoryFlagObservabilityPrompt.includes('memoryFlag:remote_user->physical_presence_policy') &&
+    memoryFlagObservabilityPrompt.includes('memoryFlag:bereaved->longitudinal_sensitivity') &&
+    memoryFlagObservabilityPrompt.includes('memoryFlag:ongoing_pastoral_process->continuity_guidance') &&
+    memoryFlagObservabilityPrompt.includes('concern:longitudinal_sensitivity->continuity_guidance') &&
+    memoryFlagObservabilityPrompt.includes('concern:physical_presence_constraint->presence_policy') &&
+    memoryFlagObservabilityPrompt.includes('continuityCase:bereavement_continuity') &&
+    memoryFlagObservabilityPrompt.includes('continuityCase:bereavement_continuity->concernSynthesis'),
+  'la cornice decisionale deve mostrare consumo operativo di contextualFlags, matrice longitudinale e presenza fisica'
+);
+
+const indirectSbattezzoObservabilityPrompt = engine.buildPrompt({
+  emailSubject: 'Richiesta',
+  emailContent: 'Vorrei uscire dalla Chiesa e non essere più registrato come cattolico.',
+  knowledgeBase: 'Le richieste formali di cancellazione dai registri vengono trasmesse al Vescovado.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  requestType: { type: 'formal', isSbattezzo: true, needsDiscernment: false, needsDoctrine: false },
+  category: 'formal',
+  topic: 'sbattezzo',
+  subIntents: { possible_sbattezzo_indirect: true }
+});
+
+assert(
+  indirectSbattezzoObservabilityPrompt.includes('Caso operativo: formal_sbattezzo') &&
+    indirectSbattezzoObservabilityPrompt.includes('subIntent:possible_sbattezzo_indirect') &&
+    indirectSbattezzoObservabilityPrompt.includes('formal_routing:sbattezzo_indirect') &&
+    indirectSbattezzoObservabilityPrompt.includes('formal_register'),
+  'sbattezzo indiretto deve comparire come segnale attivo e routing formale consumato'
+);
+assert(
   openPostureSection.includes('calda e propositiva') &&
   openPostureSection.includes('registro leggermente più personale') &&
   openPostureSection.includes('Evita di amplificare il tono positivo oltre il necessario') &&

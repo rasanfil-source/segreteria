@@ -313,6 +313,7 @@ Vincoli:
       promptProfile = 'heavy',
       activeConcerns = {},
       concernSynthesis = null,
+      continuityCase = null,
       salutationMode = 'full',
       responseDelay = null,
       territoryContext = null,
@@ -693,6 +694,8 @@ Vincoli:
       promptProfile,
       activeConcerns: normalizedConcerns,
       concernSynthesis: normalizedConcernSynthesis,
+      continuityCase,
+      subIntents,
       responseRegister: effectiveResponseRegister,
       salutationMode,
       responseStrategy: effectiveResponseStrategy,
@@ -1630,14 +1633,14 @@ Non richiedere nuovamente queste informazioni.`;
     if (!decisionFrame || typeof decisionFrame !== 'object' || Array.isArray(decisionFrame)) return null;
     const normalizeList = (value) => {
       if (Array.isArray(value)) {
-        return [...new Set(value.map(item => String(item || '').trim()).filter(Boolean))].slice(0, 14);
+        return [...new Set(value.map(item => String(item || '').trim()).filter(Boolean))].slice(0, 24);
       }
       if (value && typeof value === 'object') {
         return Object.keys(value)
           .filter(key => value[key])
           .map(key => String(key || '').trim())
           .filter(Boolean)
-          .slice(0, 14);
+          .slice(0, 24);
       }
       if (typeof value === 'string' && value.trim()) return [value.trim()];
       return [];
@@ -1675,6 +1678,39 @@ Non richiedere nuovamente queste informazioni.`;
       if (concerns[key]) add(activeSignals, `concern:${key}`);
     });
 
+    const subIntentSignals = (state.subIntents && typeof state.subIntents === 'object')
+      ? state.subIntents
+      : {};
+    Object.keys(subIntentSignals).sort().forEach(key => {
+      const value = subIntentSignals[key];
+      if (value === true || (value && typeof value === 'object' && value.detected === true)) {
+        add(activeSignals, `subIntent:${key}`);
+      }
+    });
+
+    const memoryContext = (state.memoryContext && typeof state.memoryContext === 'object')
+      ? state.memoryContext
+      : {};
+    const contextualFlags = (memoryContext.contextualFlags && typeof memoryContext.contextualFlags === 'object')
+      ? memoryContext.contextualFlags
+      : {};
+    Object.keys(contextualFlags).sort().forEach(key => {
+      if (contextualFlags[key] === true) add(activeSignals, `memoryFlag:${key}`);
+    });
+
+    const continuityCase = (state.continuityCase && typeof state.continuityCase === 'object')
+      ? state.continuityCase
+      : null;
+    const continuityCaseKey = continuityCase && continuityCase.key
+      ? String(continuityCase.key).trim()
+      : '';
+    if (continuityCaseKey) {
+      add(activeSignals, `continuityCase:${continuityCaseKey}`);
+      if (Array.isArray(continuityCase.sourceSignals)) {
+        continuityCase.sourceSignals.forEach(signal => add(activeSignals, signal));
+      }
+    }
+
     const physical = state.physicalPresenceConstraint || null;
     if (physical && physical.has_constraint) {
       const policy = String(physical.visit_policy || 'conditional_only').trim().toLowerCase();
@@ -1700,6 +1736,30 @@ Non richiedere nuovamente queste informazioni.`;
       : '';
     if (synthesisKey) add(consumedSignals, `concernSynthesis:${synthesisKey}`);
     if (state.responseRegister) add(consumedSignals, `responseRegister:${state.responseRegister}`);
+    if (continuityCaseKey) {
+      add(consumedSignals, `continuityCase:${continuityCaseKey}->${synthesisKey ? 'concernSynthesis' : 'responseRegister'}`);
+      if (continuityCase.longitudinal === true) add(consumedSignals, `continuityCase:${continuityCaseKey}->longitudinal_sensitivity`);
+      if (continuityCase.relationalWarmth === true) add(consumedSignals, `continuityCase:${continuityCaseKey}->relational_warmth`);
+      add(validatorExpectations, 'continuity_posture');
+    }
+    if (concerns.emotional_sensitivity) {
+      add(consumedSignals, 'concern:emotional_sensitivity->responseRegister');
+    }
+    if (concerns.longitudinal_sensitivity) {
+      add(consumedSignals, 'concern:longitudinal_sensitivity->responseRegister');
+      add(consumedSignals, 'concern:longitudinal_sensitivity->continuity_guidance');
+    }
+    if (concerns.physical_presence_constraint) {
+      add(consumedSignals, physical && physical.has_constraint
+        ? 'concern:physical_presence_constraint->presence_policy'
+        : 'concern:physical_presence_constraint->presence_guidance');
+    }
+    if (concerns.pastoral_technical_blend) {
+      add(consumedSignals, synthesisKey === 'pastoral_technical_blend'
+        ? 'concern:pastoral_technical_blend->concernSynthesis'
+        : 'concern:pastoral_technical_blend->aiCoreLite');
+      if (state.aiCoreLiteLoaded) add(consumedSignals, 'aiCoreLite:pastoral_technical_blend');
+    }
     if (state.responseStrategy && String(state.responseStrategy).toLowerCase() !== 'none') {
       add(consumedSignals, `responseStrategy:${state.responseStrategy}`);
     }
@@ -1717,9 +1777,24 @@ Non richiedere nuovamente queste informazioni.`;
       add(activeSignals, `goal_continuity:${goalValue}`);
       add(consumedSignals, 'goal_continuity_guidance');
     }
-    if (state.memoryContext && state.memoryContext.conversationState && state.memoryContext.conversationState.responseFocusHint) {
+    if (memoryContext && memoryContext.conversationState && memoryContext.conversationState.responseFocusHint) {
       add(activeSignals, 'memory_response_focus_hint');
       add(consumedSignals, 'thread_focus_guidance');
+    }
+
+    if (contextualFlags.remote_user === true) {
+      add(consumedSignals, physical && physical.has_constraint
+        ? 'memoryFlag:remote_user->physical_presence_policy'
+        : 'memoryFlag:remote_user->physical_presence_concern');
+    }
+    if (contextualFlags.bereaved === true) {
+      add(consumedSignals, 'memoryFlag:bereaved->longitudinal_sensitivity');
+    }
+    if (contextualFlags.canonical_complexity === true) {
+      add(consumedSignals, 'memoryFlag:canonical_complexity->formal_or_longitudinal_routing');
+    }
+    if (contextualFlags.ongoing_pastoral_process === true) {
+      add(consumedSignals, 'memoryFlag:ongoing_pastoral_process->continuity_guidance');
     }
 
     const category = String(state.category || '').toLowerCase();
@@ -1728,6 +1803,9 @@ Non richiedere nuovamente queste informazioni.`;
     let caseKind = 'standard';
     if (category === 'formal' || category === 'sbattezzo' || requestTypeName === 'formal' || requestType.isSbattezzo) {
       caseKind = 'formal_sbattezzo';
+      if (subIntentSignals.possible_sbattezzo_indirect === true) {
+        add(consumedSignals, 'formal_routing:sbattezzo_indirect');
+      }
       add(validatorExpectations, 'formal_register');
     } else if (state.territoryContext) {
       caseKind = 'territory_membership';
@@ -1737,6 +1815,8 @@ Non richiedere nuovamente queste informazioni.`;
       // A concern synthesis is already the reconciled operational case; prefer it
       // over raw concern fallbacks such as longitudinal_sensitivity below.
       caseKind = synthesisKey;
+    } else if (continuityCaseKey) {
+      caseKind = continuityCaseKey;
     } else if (concerns.longitudinal_sensitivity) {
       caseKind = 'longitudinal_operational';
     } else if (concerns.emotional_sensitivity) {

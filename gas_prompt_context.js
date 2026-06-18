@@ -86,6 +86,109 @@ var PromptContext = class PromptContext {
         }, {});
     }
 
+    _deriveContinuityCase(input) {
+        const data = input && typeof input === 'object' ? input : {};
+        const memoryText = String(data.memoryText || '').toLowerCase();
+        const flags = (data.contextualFlags && typeof data.contextualFlags === 'object')
+            ? data.contextualFlags
+            : {};
+        const conversationState = (data.conversationState && typeof data.conversationState === 'object')
+            ? data.conversationState
+            : {};
+        const sourceSignals = [];
+        const addSignal = (signal) => {
+            if (signal && sourceSignals.indexOf(signal) === -1) sourceSignals.push(signal);
+        };
+        const bereavementMemoryPattern = /\b(lutto|decesso|malattia|funerale|esequie|defunt[oaie]|vedov[oaie])\b/;
+        const canonicalMemoryPattern = /\b(sbattezzo|apostasia|divorzio|divorziat[oaie]|separazione|separat[oaie])\b/;
+        const pastoralProcessMemoryPattern = /\b(accompagnamento|percorso\s+pastorale|cammino\s+pastorale|direzione\s+spirituale|colloquio\s+pastorale)\b/;
+        const memoryMentionsBereavement = bereavementMemoryPattern.test(memoryText);
+        const memoryMentionsCanonicalComplexity = canonicalMemoryPattern.test(memoryText);
+        const memoryMentionsPastoralProcess = pastoralProcessMemoryPattern.test(memoryText);
+
+        const hasBereavementMemory =
+            flags.bereaved === true ||
+            memoryMentionsBereavement;
+        if (flags.bereaved === true) addSignal('memoryFlag:bereaved');
+        if (memoryMentionsBereavement) {
+            addSignal('memoryText:bereavement');
+        }
+
+        const hasCanonicalComplexity =
+            flags.canonical_complexity === true ||
+            memoryMentionsCanonicalComplexity;
+        if (flags.canonical_complexity === true) addSignal('memoryFlag:canonical_complexity');
+        if (memoryMentionsCanonicalComplexity) {
+            addSignal('memoryText:canonical_complexity');
+        }
+
+        const hasOngoingPastoralProcess =
+            flags.ongoing_pastoral_process === true ||
+            memoryMentionsPastoralProcess;
+        if (flags.ongoing_pastoral_process === true) addSignal('memoryFlag:ongoing_pastoral_process');
+        if (memoryMentionsPastoralProcess) {
+            addSignal('memoryText:ongoing_pastoral_process');
+        }
+
+        const rememberedPosture = String(
+            conversationState.currentRelationalPosture ||
+            conversationState.lastRelationalPosture ||
+            ''
+        ).trim().toLowerCase();
+        const hasRelationalOpening = [
+            'open',
+            'appreciative',
+            'grateful',
+            'gratitude',
+            'enthusiastic',
+            'relational',
+            'personal'
+        ].includes(rememberedPosture);
+        if (hasRelationalOpening) addSignal(`conversationState:posture:${rememberedPosture}`);
+
+        let key = null;
+        if (hasBereavementMemory) {
+            key = 'bereavement_continuity';
+        } else if (hasCanonicalComplexity) {
+            key = 'canonical_continuity';
+        } else if (hasOngoingPastoralProcess) {
+            key = 'pastoral_process_continuity';
+        } else if (hasRelationalOpening) {
+            key = 'relational_opening_continuity';
+        }
+
+        if (!key) return null;
+
+        return {
+            key: key,
+            longitudinal: hasBereavementMemory || hasCanonicalComplexity || hasOngoingPastoralProcess,
+            relationalWarmth: hasRelationalOpening,
+            sourceSignals: sourceSignals.slice(0, 8)
+        };
+    }
+
+    _getContinuityCaseDirective(continuityCase, mode) {
+        const key = continuityCase && typeof continuityCase === 'object'
+            ? continuityCase.key
+            : String(continuityCase || '');
+        const overload = mode === 'overload';
+        const directives = {
+            bereavement_continuity: overload
+                ? 'La memoria segnala un lutto ancora rilevante: rispondi alle domande per priorita, in prosa breve e ben sequenziata. Non trasformare la risposta in checklist e non riaprire o nominare il lutto se il messaggio attuale resta operativo.'
+                : 'La memoria segnala un lutto ancora rilevante. Anche se il messaggio attuale e operativo, rispondi concretamente con tono sobrio e umano. Non riaprire o nominare il lutto se l\'utente non lo riprende esplicitamente.',
+            canonical_continuity: overload
+                ? 'La memoria segnala una complessita canonica o formale: ordina le informazioni per priorita, con precisione procedurale e senza irrigidire il tono. Non trasformare la risposta in accompagnamento pastorale esteso se l\'utente chiede un passaggio amministrativo.'
+                : 'La memoria segnala una complessita canonica o formale. Mantieni precisione procedurale, tono rispettoso e sobrio, senza paternalismi e senza riaprire motivazioni personali non riprese dall\'utente.',
+            pastoral_process_continuity: overload
+                ? 'La memoria segnala un percorso pastorale in corso: non ripartire da zero, rispondi al prossimo passo concreto e alleggerisci il carico ordinando le informazioni in prosa breve.'
+                : 'La memoria segnala un percorso pastorale in corso. Non ripartire da zero: riconosci implicitamente la continuita e rispondi al prossimo passo concreto, senza trasformare ogni dettaglio in nuova istruzione generale.',
+            relational_opening_continuity:
+                'La memoria di conversazione segnala apertura relazionale: valorizzala con una ripresa naturale e breve, poi passa al dato pratico. Non aggiungere enfasi pastorale se il messaggio attuale e amministrativo.'
+        };
+
+        return directives[key] || null;
+    }
+
     /**
      * Rileva segnali temporali nella KB testuale.
      * Copre anni espliciti, date locali (dd/mm o dd-mm) e orari (hh:mm).
@@ -149,11 +252,13 @@ var PromptContext = class PromptContext {
         const contextualFlags = (i.memory?.contextualFlags && typeof i.memory.contextualFlags === 'object')
             ? i.memory.contextualFlags
             : {};
-        const longitudinalSensitivity =
-            /\b(lutto|decesso|malattia|funerale|esequie|defunt[oaie]|sbattezzo|apostasia|divorzio|divorziat[oaie]|separazione|separat[oaie]|vedov[oaie])\b/.test(memoryText) ||
-            contextualFlags.bereaved === true ||
-            contextualFlags.canonical_complexity === true ||
-            contextualFlags.ongoing_pastoral_process === true;
+        const continuityCase = this._deriveContinuityCase({
+            memoryText: memoryText,
+            contextualFlags: contextualFlags,
+            conversationState: i.memory?.conversationState
+        });
+        this.input._continuityCase = continuityCase;
+        const longitudinalSensitivity = Boolean(continuityCase && continuityCase.longitudinal);
         const emailBodyRaw = String(i.email?.body || '');
         const isMultiQuestion = this._detectMultiQuestion(i.email?.body, i.email?.subject);
         const bodyLength = emailBodyRaw.length;
@@ -172,9 +277,11 @@ var PromptContext = class PromptContext {
         const relationalThreshold = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD)))
             ? Math.max(0, Math.min(1, Number(CONFIG.RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD)))
             : 0.70;
-        const hasRelationalWarmth = ['appreciative', 'grateful', 'gratitude', 'enthusiastic', 'open'].includes(relationalPostureRaw) &&
+        const currentRelationalWarmth = ['appreciative', 'grateful', 'gratitude', 'enthusiastic', 'open'].includes(relationalPostureRaw) &&
             Number.isFinite(relationalPostureConfidence) &&
             relationalPostureConfidence >= relationalThreshold;
+        const hasRelationalWarmth = currentRelationalWarmth ||
+            Boolean(continuityCase && continuityCase.relationalWarmth);
         const hasLanguageSafety = Boolean(
             i.email?.detectedLanguage !== 'it' ||
             (i.classification?.confidence ?? 1) < 0.8
@@ -379,6 +486,9 @@ var PromptContext = class PromptContext {
         if (c.emotional_sensitivity && hasEmotionalDistress && (hasBereavement || hasStrongCrisisSignal)) {
             return 'pastoral_crisis';
         }
+        if (isFormal) {
+            return 'formal_institutional';
+        }
         // Longitudinal sensitivity (for example bereavement in memory) must keep
         // the supportive register even when the current message is neutral.
         if (c.emotional_sensitivity || c.longitudinal_sensitivity || type === 'pastoral') {
@@ -386,9 +496,6 @@ var PromptContext = class PromptContext {
         }
         if (c.relational_warmth && !isFormal) {
             return 'pastoral_supportive';
-        }
-        if (isFormal) {
-            return 'formal_institutional';
         }
         return 'warm_institutional';
     }
@@ -421,10 +528,18 @@ var PromptContext = class PromptContext {
         const c = this.concerns || {};
         const isSensitive = Boolean(c.emotional_sensitivity || c.longitudinal_sensitivity);
         const isBlend = Boolean(c.pastoral_technical_blend);
+        const continuityCase = this.input && this.input._continuityCase
+            ? this.input._continuityCase
+            : null;
         const shouldBuildSensitiveSynthesis = isSensitive && this.profile === 'heavy';
         const shouldBuildLongitudinalSynthesis = Boolean(c.longitudinal_sensitivity);
         const shouldBuildBlendSynthesis = isBlend;
-        if (!shouldBuildSensitiveSynthesis && !shouldBuildLongitudinalSynthesis && !shouldBuildBlendSynthesis) {
+        const shouldBuildRelationalContinuitySynthesis = Boolean(
+            c.relational_warmth &&
+            continuityCase &&
+            continuityCase.key === 'relational_opening_continuity'
+        );
+        if (!shouldBuildSensitiveSynthesis && !shouldBuildLongitudinalSynthesis && !shouldBuildBlendSynthesis && !shouldBuildRelationalContinuitySynthesis) {
             return null;
         }
 
@@ -457,13 +572,18 @@ var PromptContext = class PromptContext {
 
         if (c.longitudinal_sensitivity && c.user_overload) {
             key = key || 'longitudinal_overload';
-            directiveParts.push('La memoria segnala un contesto personale delicato: rispondi alle domande per priorita, ma in prosa breve e ben sequenziata. Non trasformare la risposta in checklist e non riaprire il vissuto se il messaggio attuale e operativo.');
+            directiveParts.push(this._getContinuityCaseDirective(continuityCase, 'overload') || 'La memoria segnala un contesto personale delicato: rispondi alle domande per priorita, ma in prosa breve e ben sequenziata. Non trasformare la risposta in checklist e non riaprire il vissuto se il messaggio attuale e operativo.');
             suppress.userOverloadGuidance = true;
         }
 
         if (c.longitudinal_sensitivity && !c.emotional_sensitivity && directiveParts.length === 0) {
             key = 'longitudinal_operational';
-            directiveParts.push('La memoria segnala un contesto personale delicato ancora rilevante. Anche se il messaggio attuale e operativo, rispondi concretamente con tono sobrio e umano, senza freddezza procedurale. Non riaprire o nominare il contesto delicato se l\'utente non lo riprende esplicitamente.');
+            directiveParts.push(this._getContinuityCaseDirective(continuityCase, 'operational') || 'La memoria segnala un contesto personale delicato ancora rilevante. Anche se il messaggio attuale e operativo, rispondi concretamente con tono sobrio e umano, senza freddezza procedurale. Non riaprire o nominare il contesto delicato se l\'utente non lo riprende esplicitamente.');
+        }
+
+        if (c.relational_warmth && continuityCase && continuityCase.key === 'relational_opening_continuity' && directiveParts.length === 0) {
+            key = 'relational_continuity';
+            directiveParts.push(this._getContinuityCaseDirective(continuityCase, 'operational'));
         }
 
         if (c.pastoral_technical_blend && directiveParts.length === 0) {
@@ -508,7 +628,11 @@ var PromptContext = class PromptContext {
             activeConcerns: active,
             responseRegister: responseRegister,
             salutationMode: salutationMode,
-            concernSynthesis: concernSynthesis
+            concernSynthesis: concernSynthesis,
+            continuityCase: this.input._continuityCase || null,
+            longitudinalCase: (this.input._continuityCase && this.input._continuityCase.longitudinal)
+                ? this.input._continuityCase
+                : null
         };
     }
 }

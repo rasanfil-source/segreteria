@@ -137,7 +137,9 @@ var CONFIG = {
       'language',
       'placeholder',
       'length',
-      'temporal'
+      'temporal',
+      'physical_presence',
+      'sensitive_quality'
     ]
   },
 

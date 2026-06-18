@@ -283,6 +283,12 @@ assert(
     contextualBereavedMemory.profile === 'heavy',
   'memory.contextualFlags.bereaved deve attivare longitudinal_sensitivity e profilo heavy'
 );
+assert(
+  contextualBereavedMemory.meta.continuityCase &&
+    contextualBereavedMemory.meta.continuityCase.key === 'bereavement_continuity' &&
+    contextualBereavedMemory.meta.longitudinalCase.key === 'bereavement_continuity',
+  'memory.contextualFlags.bereaved deve produrre un caso longitudinale canonico'
+);
 
 const contextualRemoteMemory = createPromptContext({
   email: {
@@ -301,6 +307,61 @@ const contextualRemoteMemory = createPromptContext({
 assert(
   contextualRemoteMemory.concerns.physical_presence_constraint === true,
   'memory.contextualFlags.remote_user deve attivare physical_presence_constraint'
+);
+
+const canonicalFormalContinuity = createPromptContext({
+  email: {
+    isReply: true,
+    detectedLanguage: 'it',
+    subject: 'Richiesta formale',
+    body: 'Vorrei sapere il prossimo passaggio della procedura.'
+  },
+  requestType: { type: 'formal', needsDiscernment: false, needsDoctrine: false },
+  classification: { confidence: 1, category: 'formal' },
+  memory: {
+    exists: true,
+    contextualFlags: { canonical_complexity: true }
+  }
+});
+assert(
+  canonicalFormalContinuity.concerns.longitudinal_sensitivity === true &&
+    canonicalFormalContinuity.meta.continuityCase.key === 'canonical_continuity',
+  'canonical_complexity deve entrare nella matrice longitudinale'
+);
+assert(
+  canonicalFormalContinuity.meta.responseRegister === 'formal_institutional' &&
+    canonicalFormalContinuity.meta.concernSynthesis.directive.includes('precisione procedurale'),
+  'la continuita canonica formale deve restare procedurale senza perdere delicatezza'
+);
+
+const relationalOpeningContinuity = createPromptContext({
+  email: {
+    isReply: true,
+    detectedLanguage: 'it',
+    subject: 'Grazie',
+    body: 'Grazie, vorrei solo capire a che ora passare.'
+  },
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  classification: { confidence: 1, category: 'information' },
+  memory: {
+    exists: true,
+    conversationState: {
+      currentRelationalPosture: 'open',
+      responseFocusHint: null,
+      responseFocusHintConfidence: 0
+    }
+  }
+});
+assert(
+  relationalOpeningContinuity.concerns.relational_warmth === true &&
+    relationalOpeningContinuity.concerns.longitudinal_sensitivity === false &&
+    relationalOpeningContinuity.meta.continuityCase.key === 'relational_opening_continuity',
+  'una apertura relazionale ricordata deve cambiare postura senza diventare lutto o caso heavy'
+);
+assert(
+  relationalOpeningContinuity.profile === 'standard' &&
+    relationalOpeningContinuity.meta.concernSynthesis.key === 'relational_continuity',
+  'la continuita relazionale deve produrre una direttiva leggera e consumabile'
 );
 
 const longitudinalOverloadBody = `${'Vorrei capire alcuni passaggi amministrativi. '.repeat(18)} Quali documenti servono? Quando posso consegnarli? Devo prendere appuntamento?`;
@@ -444,7 +505,7 @@ assert(
 assert(
   longitudinalFollowUp.meta.concernSynthesis &&
     longitudinalFollowUp.meta.concernSynthesis.key === 'longitudinal_operational' &&
-    longitudinalFollowUp.meta.concernSynthesis.directive.includes('senza freddezza procedurale'),
+    longitudinalFollowUp.meta.concernSynthesis.directive.includes('lutto ancora rilevante'),
   'sensibilità longitudinale operativa deve produrre una concernSynthesis consumabile'
 );
 
