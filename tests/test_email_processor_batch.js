@@ -4248,4 +4248,40 @@ console.log('--- Test processUnreadEmails: dilata rispetta retryDelayMs esplicit
   }
 }
 
+console.log('--- Test EmailProcessor: sbattezzo indiretto e contextualFlags operativi ---');
+{
+  const processor = Object.create(EmailProcessor.prototype);
+
+  const indirect = processor._detectIndirectSbattezzoRequest_(
+    'Richiesta',
+    'Vorrei uscire dalla Chiesa e non essere più registrato come cattolico.'
+  );
+  assert(indirect.detected === true, 'sbattezzo indiretto deve essere rilevato localmente');
+
+  const physicalExit = processor._detectIndirectSbattezzoRequest_(
+    'Uscita dopo la messa',
+    'Vorrei sapere da quale porta si può uscire dalla chiesa dopo la messa.'
+  );
+  assert(physicalExit.detected === false, 'uscire dalla chiesa in contesto fisico non deve diventare sbattezzo');
+
+  const flags = processor._deriveContextualFlagsUpdate_({
+    physicalPresenceConstraint: { has_constraint: true },
+    activeConcerns: { pastoral_technical_blend: true },
+    classification: { category: 'formal', subIntents: { bereavement: true } },
+    requestType: { type: 'formal', isSbattezzo: true },
+    categoryHintSource: 'formal'
+  });
+  assert(flags.remote_user === true, 'vincolo presenza fisica deve promuovere remote_user');
+  assert(flags.bereaved === true, 'subIntent bereavement deve promuovere bereaved');
+  assert(flags.canonical_complexity === true, 'routing formale deve promuovere canonical_complexity');
+  assert(flags.ongoing_pastoral_process === true, 'pastoral_technical_blend deve promuovere ongoing_pastoral_process');
+
+  const genericEmotionalFlags = processor._deriveContextualFlagsUpdate_({
+    activeConcerns: { emotional_sensitivity: true },
+    classification: { category: 'information', subIntents: { emotional_distress: true } },
+    requestType: { type: 'technical' }
+  });
+  assert(!genericEmotionalFlags.bereaved, 'emotional_distress generico non deve essere salvato come bereaved');
+}
+
 console.log('✅ Test batch EmailProcessor passati');

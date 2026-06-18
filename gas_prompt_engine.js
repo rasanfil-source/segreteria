@@ -326,7 +326,8 @@ Vincoli:
       responseStrategy = 'none',
       goalContinuity = null,
       responseRegister = 'warm_institutional',
-      newInformationProvided = []
+      newInformationProvided = [],
+      decisionFrame = null
     } = options;
 
     const runtimeContext = (options && options.runtimeContext && typeof options.runtimeContext === 'object')
@@ -457,6 +458,9 @@ Vincoli:
     const shouldApplyPersonalDiscernment = relationalPosture === 'personal' && !isFormalTopicForRouting;
 
     const shouldReserveAiCoreLiteOverhead = (() => {
+      if (normalizedConcerns.pastoral_technical_blend) {
+        return true;
+      }
       if (shouldApplyPersonalDiscernment) {
         return true;
       }
@@ -682,6 +686,33 @@ Vincoli:
       ? 'pastoral_supportive'
       : responseRegister;
     addSection(this._renderResponseRegister(effectiveResponseRegister), 'ResponseRegister', { isSystem: true });
+    const effectiveDecisionFrame = this._normalizeDecisionFrame_(decisionFrame) || this._buildDecisionFrame_({
+      category: normalizedCategoryForRouting,
+      topic: normalizedTopicForRouting,
+      requestType: requestTypeForRouting,
+      promptProfile,
+      activeConcerns: normalizedConcerns,
+      concernSynthesis: normalizedConcernSynthesis,
+      responseRegister: effectiveResponseRegister,
+      salutationMode,
+      responseStrategy: effectiveResponseStrategy,
+      relationalPosture: effectiveRelationalPosture,
+      territoryContext,
+      physicalPresenceConstraint,
+      temporalContext: safeTemporalContext,
+      memoryContext,
+      newInformationProvided,
+      goalContinuity,
+      aiCoreLiteLoaded: !!(aiCoreLiteText && shouldReserveAiCoreLiteOverhead),
+      aiCoreLoaded: !!(aiCoreText && (
+        shouldApplyPersonalDiscernment ||
+        requestTypeNameForRouting === 'pastoral' ||
+        requestTypeNameForRouting === 'mixed' ||
+        (requestTypeForRouting && typeof requestTypeForRouting === 'object' && requestTypeForRouting.needsDiscernment === true)
+      )),
+      doctrineLoaded: !!doctrineBaseText && (requestTypeNameForRouting === 'doctrinal' || (requestTypeForRouting && requestTypeForRouting.needsDoctrine === true))
+    });
+    addSection(this._renderDecisionFrame(effectiveDecisionFrame), 'DecisionFrame', { force: true, isSystem: true });
     addSection(this._renderConcernSynthesis(normalizedConcernSynthesis, effectiveResponseRegister), 'ConcernSynthesis', { isSystem: true });
     addSection(this._renderContextualRecognitionGuidance(normalizedConcerns), 'ContextualRecognition', { isSystem: true });
     if (!this._concernSynthesisSuppresses_(normalizedConcernSynthesis, 'responseCalibrationGuidance')) {
@@ -765,8 +796,13 @@ Vincoli:
       console.log('ℹ️ needsDiscernment alzato a true per postura personal');
     }
 
-    // 13. AI_CORE_LITE: solo se componente pastorale
-    if ((requestTypeObj.needsDiscernment || requestTypeObj.needsDoctrine) && aiCoreLiteText) {
+    // 13. AI_CORE_LITE: principi base quando serve cura pastorale leggera o dottrina.
+    const shouldIncludeAiCoreLite = Boolean(
+      requestTypeObj.needsDiscernment ||
+      requestTypeObj.needsDoctrine ||
+      normalizedConcerns.pastoral_technical_blend
+    );
+    if (shouldIncludeAiCoreLite && aiCoreLiteText) {
       const liteSection = `## 📋 PRINCIPI PASTORALI FONDAMENTALI (AI_CORE_LITE)\n${aiCoreLiteText}\n`;
       addSection(liteSection, 'AICoreLite');
     }
@@ -1588,6 +1624,164 @@ L'utente ha appena fornito:
 ${safe.map(s => `- ${SLOT_LABELS[s] || s}`).join('\n')}
 
 Non richiedere nuovamente queste informazioni.`;
+  }
+
+  _normalizeDecisionFrame_(decisionFrame) {
+    if (!decisionFrame || typeof decisionFrame !== 'object' || Array.isArray(decisionFrame)) return null;
+    const normalizeList = (value) => {
+      if (Array.isArray(value)) {
+        return [...new Set(value.map(item => String(item || '').trim()).filter(Boolean))].slice(0, 14);
+      }
+      if (value && typeof value === 'object') {
+        return Object.keys(value)
+          .filter(key => value[key])
+          .map(key => String(key || '').trim())
+          .filter(Boolean)
+          .slice(0, 14);
+      }
+      if (typeof value === 'string' && value.trim()) return [value.trim()];
+      return [];
+    };
+    const moduleRouting = (decisionFrame.moduleRouting && typeof decisionFrame.moduleRouting === 'object')
+      ? Object.assign({}, decisionFrame.moduleRouting)
+      : {};
+    const normalized = {
+      caseKind: this._normalizePromptTextInput(decisionFrame.caseKind || 'standard', 'standard').trim().slice(0, 80),
+      activeSignals: normalizeList(decisionFrame.activeSignals),
+      consumedSignals: normalizeList(decisionFrame.consumedSignals),
+      validatorExpectations: normalizeList(decisionFrame.validatorExpectations),
+      moduleRouting: moduleRouting
+    };
+    const hasContent = normalized.activeSignals.length > 0 ||
+      normalized.consumedSignals.length > 0 ||
+      normalized.validatorExpectations.length > 0 ||
+      Object.keys(moduleRouting).length > 0 ||
+      normalized.caseKind !== 'standard';
+    return hasContent ? normalized : null;
+  }
+
+  _buildDecisionFrame_(state = {}) {
+    const activeSignals = [];
+    const consumedSignals = [];
+    const validatorExpectations = [];
+    const add = (target, value) => {
+      const safe = String(value || '').trim();
+      if (safe && target.indexOf(safe) === -1) target.push(safe);
+    };
+    const concerns = (state.activeConcerns && typeof state.activeConcerns === 'object')
+      ? state.activeConcerns
+      : {};
+    Object.keys(concerns).sort().forEach(key => {
+      if (concerns[key]) add(activeSignals, `concern:${key}`);
+    });
+
+    const physical = state.physicalPresenceConstraint || null;
+    if (physical && physical.has_constraint) {
+      const policy = String(physical.visit_policy || 'conditional_only').trim().toLowerCase();
+      add(activeSignals, `physical_presence:${physical.type || 'other'}:${policy}`);
+      add(consumedSignals, `physical_presence_policy:${policy}`);
+      add(validatorExpectations, `physical_presence:${policy}`);
+    }
+    if (state.territoryContext) {
+      add(activeSignals, 'territory_context');
+      add(consumedSignals, 'territory_verification_system_section');
+      add(validatorExpectations, 'territory_consistency');
+    }
+    const temporal = state.temporalContext || {};
+    if (temporal.currentDate || temporal.messageDate) {
+      add(activeSignals, 'temporal_context');
+      if (temporal.currentDate) add(consumedSignals, `currentDate:${temporal.currentDate}`);
+      if (temporal.messageDate) add(consumedSignals, `messageDate:${temporal.messageDate}`);
+    }
+    if (concerns.temporal_risk) add(validatorExpectations, 'temporal_consistency');
+
+    const synthesisKey = state.concernSynthesis && state.concernSynthesis.key
+      ? String(state.concernSynthesis.key)
+      : '';
+    if (synthesisKey) add(consumedSignals, `concernSynthesis:${synthesisKey}`);
+    if (state.responseRegister) add(consumedSignals, `responseRegister:${state.responseRegister}`);
+    if (state.responseStrategy && String(state.responseStrategy).toLowerCase() !== 'none') {
+      add(consumedSignals, `responseStrategy:${state.responseStrategy}`);
+    }
+    if (state.salutationMode && String(state.salutationMode).toLowerCase() !== 'full') {
+      add(consumedSignals, `salutationMode:${state.salutationMode}`);
+    }
+    if (Array.isArray(state.newInformationProvided) && state.newInformationProvided.length > 0) {
+      add(activeSignals, 'new_information_provided');
+      add(consumedSignals, 'new_information_acknowledged');
+    }
+    const goalValue = state.goalContinuity && typeof state.goalContinuity === 'object'
+      ? state.goalContinuity.value
+      : state.goalContinuity;
+    if (goalValue && String(goalValue).toLowerCase() !== 'none') {
+      add(activeSignals, `goal_continuity:${goalValue}`);
+      add(consumedSignals, 'goal_continuity_guidance');
+    }
+    if (state.memoryContext && state.memoryContext.conversationState && state.memoryContext.conversationState.responseFocusHint) {
+      add(activeSignals, 'memory_response_focus_hint');
+      add(consumedSignals, 'thread_focus_guidance');
+    }
+
+    const category = String(state.category || '').toLowerCase();
+    const requestType = state.requestType || {};
+    const requestTypeName = String(requestType.type || requestType || '').toLowerCase();
+    let caseKind = 'standard';
+    if (category === 'formal' || category === 'sbattezzo' || requestTypeName === 'formal' || requestType.isSbattezzo) {
+      caseKind = 'formal_sbattezzo';
+      add(validatorExpectations, 'formal_register');
+    } else if (state.territoryContext) {
+      caseKind = 'territory_membership';
+    } else if (physical && physical.has_constraint && category === 'document_request') {
+      caseKind = 'remote_document_request';
+    } else if (synthesisKey) {
+      // A concern synthesis is already the reconciled operational case; prefer it
+      // over raw concern fallbacks such as longitudinal_sensitivity below.
+      caseKind = synthesisKey;
+    } else if (concerns.longitudinal_sensitivity) {
+      caseKind = 'longitudinal_operational';
+    } else if (concerns.emotional_sensitivity) {
+      caseKind = 'sensitive_request';
+    } else if (category) {
+      caseKind = category;
+    }
+
+    return this._normalizeDecisionFrame_({
+      caseKind,
+      activeSignals,
+      consumedSignals,
+      validatorExpectations,
+      moduleRouting: {
+        aiCoreLite: !!state.aiCoreLiteLoaded,
+        aiCore: !!state.aiCoreLoaded,
+        doctrine: !!state.doctrineLoaded,
+        promptProfile: state.promptProfile || 'standard'
+      }
+    });
+  }
+
+  _renderDecisionFrame(decisionFrame) {
+    const frame = this._normalizeDecisionFrame_(decisionFrame);
+    if (!frame) return null;
+    const listLine = (label, values) => values && values.length > 0
+      ? `- ${label}: ${values.join(', ')}`
+      : null;
+    const routing = frame.moduleRouting || {};
+    const routingLine = Object.keys(routing).length > 0
+      ? `- Routing moduli: ${Object.keys(routing).map(key => `${key}=${routing[key]}`).join(', ')}`
+      : null;
+    return [
+      '## CORNICE DECISIONALE OPERATIVA',
+      `- Caso operativo: ${frame.caseKind || 'standard'}`,
+      listLine('Segnali attivi', frame.activeSignals),
+      listLine('Segnali consumati dal prompt', frame.consumedSignals),
+      listLine('Vincoli da rispettare anche in revisione', frame.validatorExpectations),
+      routingLine,
+      '',
+      'Regole:',
+      '- usa questa cornice per risolvere conflitti tra tono, procedura, tempo, luogo e memoria;',
+      '- se un segnale attivo compare qui, deve influire sulla risposta in modo operativo;',
+      '- non nominare cornice, segnali, concern, validator o routing all\'utente.'
+    ].filter(line => line !== null).join('\n');
   }
 
   _renderConversationShiftGuidance(conversationShift) {

@@ -11,6 +11,8 @@
  * F: lastUpdated (timestamp)
  * G: messageCount
  * H: version (per controllo concorrenza ottimistico)
+ * I: memorySummary
+ * J: contextualFlags (JSON object)
  * 
  * FUNZIONALITÀ:
  * - Cache locale per performance
@@ -62,11 +64,11 @@ var MemoryService = class MemoryService {
       if (!this._sheet) {
         // Crea nuovo foglio con intestazioni
         this._sheet = spreadsheet.insertSheet(this.sheetName);
-        this._sheet.getRange('A1:I1').setValues([[
+        this._sheet.getRange('A1:J1').setValues([[
           'threadId', 'language', 'category', 'tone',
-          'providedInfo', 'lastUpdated', 'messageCount', 'version', 'memorySummary'
+          'providedInfo', 'lastUpdated', 'messageCount', 'version', 'memorySummary', 'contextualFlags'
         ]]);
-        this._sheet.getRange('A1:I1').setFontWeight('bold');
+        this._sheet.getRange('A1:J1').setFontWeight('bold');
         this._sheet.setFrozenRows(1);
         console.log(`✓ Creato nuovo foglio: ${this.sheetName}`);
       } else {
@@ -90,7 +92,7 @@ var MemoryService = class MemoryService {
     try {
       const expectedHeaders = [
         'threadId', 'language', 'category', 'tone',
-        'providedInfo', 'lastUpdated', 'messageCount', 'version', 'memorySummary'
+        'providedInfo', 'lastUpdated', 'messageCount', 'version', 'memorySummary', 'contextualFlags'
       ];
       
       const maxCols = this._sheet.getMaxColumns();
@@ -132,7 +134,7 @@ var MemoryService = class MemoryService {
               modified = true;
             }
           } else if (i >= 7 && current !== expected) {
-            // Per le ultime colonne (version, memorySummary), forziamo la coerenza
+            // Per le colonne strutturali finali, forziamo la coerenza.
             console.log(`🔄 Correzione header colonna ${i + 1}: '${current}' -> '${expected}'`);
             newHeaders[i] = expected;
             modified = true;
@@ -312,6 +314,12 @@ var MemoryService = class MemoryService {
             const incomingTopics = this._normalizeProvidedTopics(dataToUpdate.providedInfo);
             mergedData.providedInfo = this._mergeProvidedTopics(existingTopics, incomingTopics);
           }
+          if (Object.prototype.hasOwnProperty.call(dataToUpdate, 'contextualFlags')) {
+            mergedData.contextualFlags = this._mergeContextualFlags_(
+              existingData.contextualFlags,
+              dataToUpdate.contextualFlags
+            );
+          }
           mergedData.lastUpdated = now;
           mergedData.messageCount = shouldIncrementMessageCount
             ? (existingData.messageCount || 0) + 1
@@ -342,6 +350,9 @@ var MemoryService = class MemoryService {
 
           // Nuova riga
           const insertData = Object.assign({}, dataToUpdate);
+          if (Object.prototype.hasOwnProperty.call(insertData, 'contextualFlags')) {
+            insertData.contextualFlags = this._normalizeContextualFlags_(insertData.contextualFlags);
+          }
           insertData.threadId = normalizedThreadId;
           insertData.lastUpdated = now;
           insertData.messageCount = shouldIncrementMessageCount ? 1 : 0;
@@ -529,6 +540,12 @@ var MemoryService = class MemoryService {
           } else if (!hasIncomingMemorySummary && existingData._rawMemorySummary) {
             mergedData.memorySummary = existingData._rawMemorySummary;
           }
+          if (Object.prototype.hasOwnProperty.call(dataToUpdate, 'contextualFlags')) {
+            mergedData.contextualFlags = this._mergeContextualFlags_(
+              existingData.contextualFlags,
+              dataToUpdate.contextualFlags
+            );
+          }
           mergedData.lastUpdated = now;
           const shouldIncrementMessageCount = rawData._incrementMessageCount === true;
           mergedData.messageCount = shouldIncrementMessageCount
@@ -580,6 +597,9 @@ var MemoryService = class MemoryService {
             );
           }
           const insertData = Object.assign({}, dataToUpdate);
+          if (Object.prototype.hasOwnProperty.call(insertData, 'contextualFlags')) {
+            insertData.contextualFlags = this._normalizeContextualFlags_(insertData.contextualFlags);
+          }
           insertData.threadId = normalizedThreadId;
           insertData.lastUpdated = now;
           const shouldIncrementMessageCount = rawData._incrementMessageCount === true;
@@ -650,6 +670,84 @@ var MemoryService = class MemoryService {
    */
   getLastUpdateMemoryAtomicFailure() {
     return this._lastUpdateMemoryAtomicFailure || null;
+  }
+
+  _normalizeContextualFlags_(value) {
+    if (!value) return {};
+
+    let source = value;
+    if (typeof source === 'string') {
+      const trimmed = source.trim();
+      if (!trimmed) return {};
+      try {
+        source = JSON.parse(trimmed);
+      } catch (e) {
+        console.warn('⚠️ contextualFlags JSON non parsabile: ignorato');
+        return {};
+      }
+    }
+
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return {};
+
+    const allowed = {
+      remote_user: true,
+      bereaved: true,
+      canonical_complexity: true,
+      ongoing_pastoral_process: true
+    };
+    const normalized = {};
+
+    Object.keys(allowed).forEach((key) => {
+      const raw = source[key];
+      if (raw === true || String(raw).toLowerCase() === 'true') {
+        normalized[key] = true;
+      }
+    });
+
+    return normalized;
+  }
+
+  _mergeContextualFlags_(existing, incoming) {
+    const merged = this._normalizeContextualFlags_(existing);
+    if (!incoming) return merged;
+
+    let source = incoming;
+    if (typeof source === 'string') {
+      const trimmed = source.trim();
+      if (!trimmed) return merged;
+      try {
+        source = JSON.parse(trimmed);
+      } catch (e) {
+        console.warn('⚠️ contextualFlags in ingresso non parsabile: merge saltato');
+        return merged;
+      }
+    }
+
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return merged;
+
+    const allowed = {
+      remote_user: true,
+      bereaved: true,
+      canonical_complexity: true,
+      ongoing_pastoral_process: true
+    };
+
+    Object.keys(source).forEach((key) => {
+      if (!allowed[key]) return;
+      const raw = source[key];
+      if (raw === false || raw === null || String(raw).toLowerCase() === 'false') {
+        delete merged[key];
+      } else if (raw === true || String(raw).toLowerCase() === 'true') {
+        merged[key] = true;
+      }
+    });
+
+    return merged;
+  }
+
+  _serializeContextualFlagsForSheet(flags) {
+    const normalized = this._normalizeContextualFlags_(flags);
+    return Object.keys(normalized).length > 0 ? JSON.stringify(normalized) : '';
   }
 
   _parseMemorySummaryState(memorySummary) {
@@ -945,7 +1043,7 @@ var MemoryService = class MemoryService {
    * Restituisce il numero di colonne da leggere
    */
   _getColumnCount() {
-    return 9; // A:threadId ... I:memorySummary
+    return 10; // A:threadId ... J:contextualFlags
   }
 
   /**
@@ -1605,6 +1703,7 @@ var MemoryService = class MemoryService {
 
     const rawMemorySummary = values[8] || '';
     const parsedMemorySummary = this._parseMemorySummaryState(rawMemorySummary);
+    const contextualFlags = this._normalizeContextualFlags_(values[9]);
 
     return {
       threadId: values[0],
@@ -1617,6 +1716,7 @@ var MemoryService = class MemoryService {
       version: parseInt(values[7], 10) || 0,
       memorySummary: parsedMemorySummary.recognized ? (parsedMemorySummary.legacySummaryText || '') : rawMemorySummary,
       conversationState: parsedMemorySummary.recognized ? parsedMemorySummary.conversationState : null,
+      contextualFlags: contextualFlags,
       _rawMemorySummary: rawMemorySummary
     };
   }
@@ -1626,8 +1726,9 @@ var MemoryService = class MemoryService {
    */
   _updateRow(rowIndex, data) {
     const providedInfoJson = this._serializeProvidedInfoForSheet(data.providedInfo || []);
+    const contextualFlagsJson = this._serializeContextualFlagsForSheet(data.contextualFlags || {});
 
-    this._sheet.getRange(rowIndex, 1, 1, 9).setValues([[
+    this._sheet.getRange(rowIndex, 1, 1, 10).setValues([[
       data.threadId,
       data.language || 'it',
       data.category || '',
@@ -1636,7 +1737,8 @@ var MemoryService = class MemoryService {
       data.lastUpdated,
       data.messageCount !== undefined ? data.messageCount : 1,
       data.version !== undefined ? data.version : 1,
-      data.memorySummary || ''
+      data.memorySummary || '',
+      contextualFlagsJson
     ]]);
   }
 
@@ -1645,6 +1747,7 @@ var MemoryService = class MemoryService {
    */
   _appendRow(data) {
     const providedInfoJson = this._serializeProvidedInfoForSheet(data.providedInfo || []);
+    const contextualFlagsJson = this._serializeContextualFlagsForSheet(data.contextualFlags || {});
 
     this._sheet.appendRow([
       data.threadId,
@@ -1655,7 +1758,8 @@ var MemoryService = class MemoryService {
       data.lastUpdated,
       data.messageCount !== undefined ? data.messageCount : 1,
       data.version !== undefined ? data.version : 1,
-      data.memorySummary || ''
+      data.memorySummary || '',
+      contextualFlagsJson
     ]);
   }
 

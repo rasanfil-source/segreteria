@@ -32,6 +32,13 @@ var PromptContext = class PromptContext {
 
     _normalizeInput(input) {
         const normalizedInput = Object.assign({}, input);
+        const classificationSubIntents = this._normalizeSubIntentMap(normalizedInput.classification?.subIntents);
+        const rootSubIntents = this._normalizeSubIntentMap(normalizedInput.subIntents);
+        normalizedInput._resolvedSubIntents = Object.assign({}, classificationSubIntents, rootSubIntents);
+
+        if (Object.keys(classificationSubIntents).length > 0 && Object.keys(rootSubIntents).length === 0) {
+            console.warn('⚠️ PromptContext: subIntents presenti in classification ma non al livello radice. Merge automatico applicato.');
+        }
 
         const incomingMeta = (normalizedInput.knowledgeBaseMeta && typeof normalizedInput.knowledgeBaseMeta === 'object')
             ? normalizedInput.knowledgeBaseMeta
@@ -68,6 +75,15 @@ var PromptContext = class PromptContext {
         }
 
         return normalizedInput;
+    }
+
+    _normalizeSubIntentMap(subIntents) {
+        if (!subIntents || typeof subIntents !== 'object') return {};
+        return Object.keys(subIntents).reduce((acc, key) => {
+            if (!key) return acc;
+            acc[String(key).trim()] = !!subIntents[key];
+            return acc;
+        }, {});
     }
 
     /**
@@ -129,7 +145,15 @@ var PromptContext = class PromptContext {
             i.memory?.memorySummary,
             memoryTopics
         ].filter(Boolean).join(' ').toLowerCase();
-        const longitudinalSensitivity = /\b(lutto|decesso|malattia|funerale|esequie|defunt[oaie]|sbattezzo|apostasia|divorzio|divorziat[oaie]|separazione|separat[oaie]|vedov[oaie])\b/.test(memoryText);
+        const resolvedSubIntents = i._resolvedSubIntents || {};
+        const contextualFlags = (i.memory?.contextualFlags && typeof i.memory.contextualFlags === 'object')
+            ? i.memory.contextualFlags
+            : {};
+        const longitudinalSensitivity =
+            /\b(lutto|decesso|malattia|funerale|esequie|defunt[oaie]|sbattezzo|apostasia|divorzio|divorziat[oaie]|separazione|separat[oaie]|vedov[oaie])\b/.test(memoryText) ||
+            contextualFlags.bereaved === true ||
+            contextualFlags.canonical_complexity === true ||
+            contextualFlags.ongoing_pastoral_process === true;
         const emailBodyRaw = String(i.email?.body || '');
         const isMultiQuestion = this._detectMultiQuestion(i.email?.body, i.email?.subject);
         const bodyLength = emailBodyRaw.length;
@@ -174,10 +198,40 @@ var PromptContext = class PromptContext {
         );
         const hasEmotionalSensitivity = Boolean(
             i.requestType?.type === 'pastoral' ||
-            i.classification?.subIntents?.emotional_distress ||
-            i.classification?.subIntents?.bereavement ||
-            i.subIntents?.emotional_distress ||
-            i.subIntents?.bereavement
+            resolvedSubIntents.emotional_distress ||
+            resolvedSubIntents.bereavement
+        );
+        const requestTypeName = String(i.requestType?.type || '').toLowerCase();
+        const classificationCategory = String(i.classification?.category || '').toLowerCase();
+        const formalRoute = Boolean(
+            requestTypeName === 'formal' ||
+            i.requestType?.isSbattezzo === true ||
+            Number(i.requestType?.formalScore) > 0.6 ||
+            classificationCategory === 'formal' ||
+            classificationCategory === 'sbattezzo'
+        );
+        const operationalTypes = [
+            '',
+            'technical',
+            'information',
+            'appointment',
+            'document_request',
+            'document_submission',
+            'document_submission_with_question',
+            'certificate',
+            'certificates'
+        ];
+        const requestLooksOperational = operationalTypes.includes(requestTypeName);
+        const categoryLooksOperational = operationalTypes.includes(classificationCategory);
+        const hasPastoralTechnicalBlend = Boolean(
+            !formalRoute &&
+            requestLooksOperational &&
+            categoryLooksOperational &&
+            (
+                resolvedSubIntents.bereavement ||
+                resolvedSubIntents.emotional_distress ||
+                resolvedSubIntents.confusion
+            )
         );
         const hasRepetitionRisk = Boolean(
             i.memory?.exists ||
@@ -188,7 +242,8 @@ var PromptContext = class PromptContext {
             (i.classification?.confidence ?? 1) < 0.7
         );
         const hasPhysicalPresenceConstraint =
-            !!(i.physicalPresenceConstraint && i.physicalPresenceConstraint.has_constraint);
+            !!(i.physicalPresenceConstraint && i.physicalPresenceConstraint.has_constraint) ||
+            contextualFlags.remote_user === true;
         const calibrationSignalCount = [
             isMultiQuestion,
             bodyLength > 450,
@@ -198,6 +253,7 @@ var PromptContext = class PromptContext {
             hasDiscernmentRisk,
             hasEmotionalSensitivity,
             longitudinalSensitivity,
+            hasPastoralTechnicalBlend,
             hasRepetitionRisk,
             hasPhysicalPresenceConstraint
         ].filter(Boolean).length;
@@ -253,6 +309,9 @@ var PromptContext = class PromptContext {
             physical_presence_constraint:
                 hasPhysicalPresenceConstraint,
 
+            pastoral_technical_blend:
+                hasPastoralTechnicalBlend,
+
             relational_warmth:
                 hasRelationalWarmth,
 
@@ -297,7 +356,7 @@ var PromptContext = class PromptContext {
             return 'heavy';
         }
 
-        if (c.hallucination_risk || c.formatting_risk || c.temporal_risk || c.relational_warmth) {
+        if (c.hallucination_risk || c.formatting_risk || c.temporal_risk || c.relational_warmth || c.pastoral_technical_blend) {
             return 'standard';
         }
 
@@ -311,7 +370,7 @@ var PromptContext = class PromptContext {
         const category = String(this.input.classification?.category || '').toLowerCase();
         const isFormal = type === 'formal' || requestType.formalScore > 0.6 || category === 'formal' || category === 'sbattezzo';
 
-        const subIntents = Object.assign({}, this.input.classification?.subIntents || {}, this.input.subIntents || {});
+        const subIntents = this.input._resolvedSubIntents || {};
         const hasEmotionalDistress = !!subIntents.emotional_distress;
         const hasBereavement = !!subIntents.bereavement;
         const messageText = [this.input.email?.subject, this.input.email?.body].filter(Boolean).join(' ').toLowerCase();
@@ -361,7 +420,11 @@ var PromptContext = class PromptContext {
     _buildConcernSynthesis(responseRegister) {
         const c = this.concerns || {};
         const isSensitive = Boolean(c.emotional_sensitivity || c.longitudinal_sensitivity);
-        if (this.profile !== 'heavy' || !isSensitive) {
+        const isBlend = Boolean(c.pastoral_technical_blend);
+        const shouldBuildSensitiveSynthesis = isSensitive && this.profile === 'heavy';
+        const shouldBuildLongitudinalSynthesis = Boolean(c.longitudinal_sensitivity);
+        const shouldBuildBlendSynthesis = isBlend;
+        if (!shouldBuildSensitiveSynthesis && !shouldBuildLongitudinalSynthesis && !shouldBuildBlendSynthesis) {
             return null;
         }
 
@@ -396,6 +459,17 @@ var PromptContext = class PromptContext {
             key = key || 'longitudinal_overload';
             directiveParts.push('La memoria segnala un contesto personale delicato: rispondi alle domande per priorita, ma in prosa breve e ben sequenziata. Non trasformare la risposta in checklist e non riaprire il vissuto se il messaggio attuale e operativo.');
             suppress.userOverloadGuidance = true;
+        }
+
+        if (c.longitudinal_sensitivity && !c.emotional_sensitivity && directiveParts.length === 0) {
+            key = 'longitudinal_operational';
+            directiveParts.push('La memoria segnala un contesto personale delicato ancora rilevante. Anche se il messaggio attuale e operativo, rispondi concretamente con tono sobrio e umano, senza freddezza procedurale. Non riaprire o nominare il contesto delicato se l\'utente non lo riprende esplicitamente.');
+        }
+
+        if (c.pastoral_technical_blend && directiveParts.length === 0) {
+            key = 'pastoral_technical_blend';
+            directiveParts.push('La richiesta resta operativa, ma contiene un segnale personale o di confusione: rispondi anzitutto al dato pratico, con una frase umana e sobria se pertinente. Non trasformare la risposta in accompagnamento pastorale esteso e non irrigidirla in burocrazia.');
+            suppress.responseCalibrationGuidance = false;
         }
 
         if (isCrisis && c.multi_question) {

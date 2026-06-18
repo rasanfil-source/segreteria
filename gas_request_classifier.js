@@ -150,6 +150,13 @@ var RequestTypeClassifier = class RequestTypeClassifier {
       { pattern: /\bapostatare\b/i, weight: 4 },
       { pattern: /\bcancellazione dal registro\b/i, weight: 4 },
       { pattern: /\bnon mi ritengo più cristiano\b/i, weight: 4 },
+      { pattern: /\buscire\s+dalla\s+chiesa\b/i, weight: 4 },
+      { pattern: /\bcancellarmi\s+dalla\s+chiesa\b/i, weight: 4 },
+      { pattern: /\bdisiscrivermi\s+dalla\s+chiesa\b/i, weight: 4 },
+      { pattern: /\brinunciare\s+al\s+battesim[oa]\b/i, weight: 4 },
+      { pattern: /\b(?:togliermi|rimuovermi|essere\s+rimosso)\s+dai\s+registr/i, weight: 4 },
+      { pattern: /\bnon\s+(?:voglio|desidero)\s+(?:piu|più)\s+essere\s+(?:cattolic[oa]|cristian[oa])\b/i, weight: 4 },
+      { pattern: /\bnon\s+essere\s+(?:piu|più)\s+registrat[oa]\s+come\s+cattolic[oa]\b/i, weight: 4 },
       { pattern: /\bnon voglio più risultare\b/i, weight: 3 },
       { pattern: /\babbandonare la fede\b/i, weight: 3 },
       { pattern: /\babbandonare la religione\b/i, weight: 3 }

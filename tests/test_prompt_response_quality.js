@@ -884,6 +884,27 @@ assert(
   personalTechnicalPrompt.includes('AI_CORE_LITE_PERSONAL_SENTINEL'),
   'la postura personal deve attivare almeno AI_CORE_LITE anche se la richiesta è tecnica'
 );
+
+const blendedOperationalPrompt = engine.buildPrompt({
+  emailSubject: 'Certificato',
+  emailContent: 'Non mi è chiaro come richiedere il certificato.',
+  knowledgeBase: 'I certificati possono essere richiesti via email fornendo i dati necessari.',
+  aiCoreLite: 'AI_CORE_LITE_BLEND_SENTINEL',
+  aiCore: 'AI_CORE_FULL_BLEND_SHOULD_NOT_APPEAR',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  salutationMode: 'full',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  activeConcerns: { pastoral_technical_blend: true }
+});
+
+assert(
+  blendedOperationalPrompt.includes('AI_CORE_LITE_BLEND_SENTINEL') &&
+    !blendedOperationalPrompt.includes('AI_CORE_FULL_BLEND_SHOULD_NOT_APPEAR'),
+  'pastoral_technical_blend deve caricare AI_CORE_LITE senza caricare AI_CORE esteso'
+);
 assert(
   openPostureSection.includes('calda e propositiva') &&
   openPostureSection.includes('registro leggermente più personale') &&
@@ -1940,4 +1961,10 @@ assert(
 assert(
   longitudinalPosturePrompt.includes('## CONTINUITÀ E TONO'),
   'la sensibilità longitudinale deve includere il focus umano di continuità'
+);
+assert(
+  longitudinalPosturePrompt.includes('CORNICE DECISIONALE OPERATIVA') &&
+    longitudinalPosturePrompt.includes('longitudinal_operational') &&
+    longitudinalPosturePrompt.includes('Segnali consumati dal prompt'),
+  'il prompt deve rendere esplicita la cornice decisionale per i casi longitudinali'
 );

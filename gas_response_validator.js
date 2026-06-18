@@ -1506,6 +1506,7 @@ var ResponseValidator = class ResponseValidator {
       };
     }
 
+    const visitPolicy = String(constraint.visit_policy || 'conditional_only').trim().toLowerCase();
     const source = this._stripDiacritics_(String(response || '').toLowerCase());
     const invitationPatterns = [
       /\b(?:puo|potra|puoi|potete|potrete)\s+(?:venire|passare|recarsi|presentarsi)\b[^.\n]{0,120}\b(?:segreteria|parrocchia|di\s+persona|persona)\b/i,
@@ -1531,15 +1532,17 @@ var ResponseValidator = class ResponseValidator {
       const hasInvitation = invitationPatterns.some(pattern => pattern.test(sentence));
       if (!hasInvitation) continue;
       const isConditional = conditionalPatterns.some(pattern => pattern.test(sentence));
-      if (!isConditional) {
+      if (visitPolicy === 'avoid_invitation' || !isConditional) {
         violations.push(sentence.trim().substring(0, 220));
       }
     }
 
     if (violations.length === 0 && invitationPatterns.some(pattern => pattern.test(source))) {
       const isConditional = conditionalPatterns.some(pattern => pattern.test(source));
-      if (!isConditional) {
-        violations.push('invito diretto alla presenza fisica');
+      if (visitPolicy === 'avoid_invitation' || !isConditional) {
+        violations.push(visitPolicy === 'avoid_invitation'
+          ? 'invito alla presenza fisica vietato da policy avoid_invitation'
+          : 'invito diretto alla presenza fisica');
       }
     }
 
@@ -1554,14 +1557,16 @@ var ResponseValidator = class ResponseValidator {
     }
 
     return {
-      errors: ['Vincolo presenza fisica: la risposta invita il mittente a venire/passare di persona senza formula condizionale.'],
+      errors: [visitPolicy === 'avoid_invitation'
+        ? 'Vincolo presenza fisica avoid_invitation: la risposta propone una presenza fisica anche se la policy richiede di evitarla del tutto.'
+        : 'Vincolo presenza fisica: la risposta invita il mittente a venire/passare di persona senza formula condizionale.'],
       warnings: [],
       score: 0.0,
       active: true,
       violations: violations,
       constraint: {
         type: constraint.type || 'other',
-        visit_policy: constraint.visit_policy || 'conditional_only'
+        visit_policy: visitPolicy
       }
     };
   }

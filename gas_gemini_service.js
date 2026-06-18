@@ -677,6 +677,7 @@ ${sponsorGuidanceTask}
 
 ⚠️ REGOLA CRITICA "SBATTEZZO":
 Se l'utente esprime la volontà di non essere più cristiano, essere cancellato dai registri o "sbattezzarsi":
+- Include formulazioni indirette come "uscire dalla Chiesa", "non voglio più essere cattolico", "cancellarmi dalla Chiesa", "rinunciare al battesimo", "togliermi dai registri".
 - Classifica SEMPRE come "FORMAL"
 - Topic: "sbattezzo"
 - NON classificarlo come "PASTORAL" anche se c'è un tono emotivo.

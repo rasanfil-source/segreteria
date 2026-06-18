@@ -109,6 +109,59 @@ assert(
   'subIntents.emotional_distress flat deve attivare emotional_sensitivity'
 );
 
+const classificationOnlyBereavement = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Messa in suffragio',
+    body: 'Vorrei chiedere una Messa per mio padre defunto.'
+  },
+  requestType: { type: 'technical' },
+  classification: {
+    confidence: 1,
+    category: 'information',
+    subIntents: { bereavement: true }
+  }
+});
+assert(
+  classificationOnlyBereavement.input._resolvedSubIntents.bereavement === true &&
+    classificationOnlyBereavement.concerns.emotional_sensitivity === true,
+  'PromptContext deve canonicalizzare classification.subIntents in _resolvedSubIntents'
+);
+assert(
+  classificationOnlyBereavement.meta.responseRegister === 'pastoral_supportive',
+  '_computeResponseRegister deve consumare i subIntents canonicalizzati'
+);
+
+const operationalConfusion = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Certificato',
+    body: 'Non mi è chiaro come richiedere il certificato.'
+  },
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  classification: {
+    confidence: 1,
+    category: 'information',
+    subIntents: { confusion: true }
+  }
+});
+assert(
+  operationalConfusion.concerns.pastoral_technical_blend === true,
+  'una richiesta operativa con confusione deve attivare pastoral_technical_blend'
+);
+assert(
+  operationalConfusion.profile === 'standard',
+  'pastoral_technical_blend leggero deve usare profilo standard, non heavy'
+);
+assert(
+  operationalConfusion.meta.concernSynthesis &&
+    operationalConfusion.meta.concernSynthesis.key === 'pastoral_technical_blend' &&
+    operationalConfusion.meta.concernSynthesis.directive.includes('rispondi anzitutto al dato pratico'),
+  'pastoral_technical_blend deve produrre una direttiva consumabile'
+);
+
 console.log('--- Test PromptContext: categoria formale post-OCR alza profilo e registro ---');
 const postOcrFormal = createPromptContext({
   email: {
@@ -209,6 +262,45 @@ assert(
 assert(
   sensitiveMemory.profile === 'heavy',
   'la memoria semantica sensibile deve alzare il profilo a heavy'
+);
+
+const contextualBereavedMemory = createPromptContext({
+  email: {
+    isReply: true,
+    detectedLanguage: 'it',
+    subject: 'Orario incontro',
+    body: 'A che ora ci vediamo?'
+  },
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  classification: { confidence: 1, category: 'information' },
+  memory: {
+    exists: true,
+    contextualFlags: { bereaved: true }
+  }
+});
+assert(
+  contextualBereavedMemory.concerns.longitudinal_sensitivity === true &&
+    contextualBereavedMemory.profile === 'heavy',
+  'memory.contextualFlags.bereaved deve attivare longitudinal_sensitivity e profilo heavy'
+);
+
+const contextualRemoteMemory = createPromptContext({
+  email: {
+    isReply: true,
+    detectedLanguage: 'it',
+    subject: 'Certificato',
+    body: 'Vorrei ricevere il certificato via email.'
+  },
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  classification: { confidence: 1, category: 'information' },
+  memory: {
+    exists: true,
+    contextualFlags: { remote_user: true }
+  }
+});
+assert(
+  contextualRemoteMemory.concerns.physical_presence_constraint === true,
+  'memory.contextualFlags.remote_user deve attivare physical_presence_constraint'
 );
 
 const longitudinalOverloadBody = `${'Vorrei capire alcuni passaggi amministrativi. '.repeat(18)} Quali documenti servono? Quando posso consegnarli? Devo prendere appuntamento?`;
@@ -348,6 +440,25 @@ assert(
 assert(
   longitudinalFollowUp.meta.salutationMode === 'soft',
   'follow-up longitudinalmente sensibile deve applicare override saluto soft'
+);
+assert(
+  longitudinalFollowUp.meta.concernSynthesis &&
+    longitudinalFollowUp.meta.concernSynthesis.key === 'longitudinal_operational' &&
+    longitudinalFollowUp.meta.concernSynthesis.directive.includes('senza freddezza procedurale'),
+  'sensibilità longitudinale operativa deve produrre una concernSynthesis consumabile'
+);
+
+const longitudinalSynthesisStandalone = Object.create(PromptContext.prototype);
+longitudinalSynthesisStandalone.concerns = {
+  longitudinal_sensitivity: true,
+  emotional_sensitivity: false
+};
+longitudinalSynthesisStandalone.profile = 'standard';
+const standaloneSynthesis = longitudinalSynthesisStandalone._buildConcernSynthesis('warm_institutional');
+assert(
+  standaloneSynthesis &&
+    standaloneSynthesis.key === 'longitudinal_operational',
+  'longitudinal_operational non deve dipendere implicitamente dal profilo heavy'
 );
 
 

@@ -118,3 +118,16 @@ console.log('--- Test Classifier: contatto telefonico pregresso diventa sub-inte
     'una formula generica di attesa non deve simulare un contatto pregresso'
   );
 }
+
+console.log('--- Test Classifier: sbattezzo indiretto resta richiesta formale ---');
+{
+  const classifier = new Classifier();
+  const result = classifier.classifyEmail(
+    'Richiesta',
+    'Vorrei uscire dalla Chiesa e non essere più registrato come cattolico.',
+    false
+  );
+
+  assert(result.category === 'formal', 'sbattezzo indiretto deve essere classificato come formal');
+  assert(result.reason === 'formal_request_detected', 'sbattezzo indiretto deve usare il percorso formale prioritario');
+}

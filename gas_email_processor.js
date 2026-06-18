@@ -1643,12 +1643,16 @@ var EmailProcessor = class EmailProcessor {
       const memoryMessageCount = Number.isFinite(Number(memoryContext.messageCount))
         ? Number(memoryContext.messageCount)
         : 0;
+      const memoryContextualFlags = (memoryContext.contextualFlags && typeof memoryContext.contextualFlags === 'object')
+        ? memoryContext.contextualFlags
+        : {};
       const hasConversationContext = Boolean(
         messages.length > 1 ||
         memoryMessageCount > 0 ||
         memoryContext.exists === true ||
         !!memoryContext.lastUpdated ||
         !!memoryContext.memorySummary ||
+        Object.keys(memoryContextualFlags).length > 0 ||
         (Array.isArray(memoryContext.providedInfo) && memoryContext.providedInfo.length > 0)
       );
       console.log(`   🧠 QuickCheck context: ${hasConversationContext ? 'thread' : 'first_message'}`);
@@ -1740,11 +1744,25 @@ var EmailProcessor = class EmailProcessor {
         return result;
       }
 
-      const physicalPresenceConstraint = this._resolvePhysicalPresenceConstraint_(
+      let physicalPresenceConstraint = this._resolvePhysicalPresenceConstraint_(
         quickCheck.physical_presence_constraint,
         messageDetails.subject,
         messageDetails.body
       );
+      if (
+        (!physicalPresenceConstraint || !physicalPresenceConstraint.has_constraint) &&
+        memoryContextualFlags.remote_user === true
+      ) {
+        physicalPresenceConstraint = {
+          has_constraint: true,
+          type: 'geographic_distance',
+          confidence: 0.7,
+          evidence: 'vincolo di distanza salvato nella memoria del thread',
+          reason: 'remote_user_contextual_flag',
+          visit_policy: 'conditional_only',
+          source: 'memory_contextual_flags'
+        };
+      }
       if (physicalPresenceConstraint && physicalPresenceConstraint.has_constraint) {
         console.log(
           `   Vincolo presenza fisica rilevato (${physicalPresenceConstraint.type}, ` +
@@ -2240,6 +2258,31 @@ ${addressLines.join('\n\n')}
         categoryHintSource = 'document_request';
       }
 
+      const indirectSbattezzo = this._detectIndirectSbattezzoRequest_(messageDetails.subject, messageDetails.body);
+      if (
+        indirectSbattezzo.detected &&
+        !/^document_submission/i.test(String(categoryHintSource || ''))
+      ) {
+        categoryHintSource = 'formal';
+        classification.category = 'formal';
+        classification.topic = 'sbattezzo';
+        classification.subIntents = Object.assign({}, classification.subIntents || {}, {
+          possible_sbattezzo_indirect: true
+        });
+        if (quickCheck && quickCheck.classification && typeof quickCheck.classification === 'object') {
+          quickCheck.classification.category = 'formal';
+          quickCheck.classification.topic = 'sbattezzo';
+        }
+        if (requestType && typeof requestType === 'object') {
+          requestType.type = 'formal';
+          requestType.isSbattezzo = true;
+          requestType.needsDiscernment = false;
+          requestType.needsDoctrine = false;
+          requestType.formalScore = Math.max(Number(requestType.formalScore) || 0, 0.85);
+        }
+        console.log(`   ⚖️ Sbattezzo indiretto rilevato (${indirectSbattezzo.reason}) → routing FORMAL`);
+      }
+
       // PromptContext deve vedere la categoria definitiva: gli allegati OCR
       // possono trasformare una richiesta apparentemente tecnica in contesto
       // formale/sacramentale e cambiare profilo, concern e registro.
@@ -2264,7 +2307,8 @@ ${addressLines.join('\n\n')}
             lastUpdated: memoryContext.lastUpdated || null,
             category: memoryContext.category || null,
             memorySummary: memoryContext.memorySummary || '',
-            topics: memoryTopics
+            topics: memoryTopics,
+            contextualFlags: memoryContextualFlags
           },
           conversation: { messageCount: memoryMessageCount },
           territory: { addressFound: territoryResult.addressFound },
@@ -3031,6 +3075,17 @@ ${addressLines.join('\n\n')}
         category: categoryHintSource || classification.category || requestTypeName,
         _incrementMessageCount: true
       };
+      const contextualFlagsUpdate = this._deriveContextualFlagsUpdate_({
+        existingFlags: memoryContextualFlags,
+        physicalPresenceConstraint: physicalPresenceConstraint,
+        activeConcerns: activeConcerns,
+        classification: classification,
+        requestType: requestType,
+        categoryHintSource: categoryHintSource
+      });
+      if (Object.keys(contextualFlagsUpdate).length > 0) {
+        memoryUpdate.contextualFlags = contextualFlagsUpdate;
+      }
 
       const quickCheckTopic = quickCheck && quickCheck.classification
         ? (quickCheck.classification.topic || null)
@@ -5234,6 +5289,11 @@ ${addressLines.join('\n\n')}
     const physicalPresenceErrors = (details.physicalPresenceConstraint && Array.isArray(details.physicalPresenceConstraint.errors))
       ? details.physicalPresenceConstraint.errors
       : [];
+    const physicalPresencePolicy = details.physicalPresenceConstraint &&
+      details.physicalPresenceConstraint.constraint &&
+      details.physicalPresenceConstraint.constraint.visit_policy
+        ? String(details.physicalPresenceConstraint.constraint.visit_policy).toLowerCase()
+        : '';
     const hasPhysicalPresence = physicalPresenceErrors.length > 0 || errorText.some(e => e.includes('vincolo presenza fisica'));
 
     return {
@@ -5248,6 +5308,7 @@ ${addressLines.join('\n\n')}
       lengthErrors: lengthErrors,
       temporalErrors: temporalErrors,
       physicalPresenceErrors: physicalPresenceErrors,
+      physicalPresencePolicy: physicalPresencePolicy,
       papalErrors: papalErrors,
       foundPlaceholders: foundPlaceholders,
       hallucinations: hallucinations,
@@ -5374,9 +5435,12 @@ ${addressLines.join('\n\n')}
     }
 
     if (flags.physical_presence) {
+      const avoidInvitation = String(flags.physicalPresencePolicy || '').toLowerCase() === 'avoid_invitation';
       correctionInstructions.push(
         'ERRORE CRITICO: Il mittente ha manifestato un vincolo a raggiungere fisicamente la parrocchia, ma la risposta lo invita a venire/passare di persona come opzione ordinaria.\n' +
-        'CORREZIONE: Rimuovi l\'invito diretto alla presenza fisica. Privilegia telefono/email. Se e solo se utile, usa una formula condizionale come "qualora le fosse possibile" o "se avesse occasione di trovarsi a Roma".'
+        (avoidInvitation
+          ? 'CORREZIONE: Rimuovi ogni invito alla presenza fisica, anche condizionale. Privilegia esclusivamente telefono/email o presa in carico a distanza, salvo obbligo procedurale esplicito e inevitabile.'
+          : 'CORREZIONE: Rimuovi l\'invito diretto alla presenza fisica. Privilegia telefono/email. Se e solo se utile, usa una formula condizionale come "qualora le fosse possibile" o "se avesse occasione di trovarsi a Roma".')
       );
     }
 
@@ -5650,6 +5714,84 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     }
 
     return summary || null;
+  }
+
+  _detectIndirectSbattezzoRequest_(subject, body) {
+    const source = `${subject || ''} ${body || ''}`.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!source) {
+      return { detected: false, reason: 'empty_text', confidence: 0 };
+    }
+
+    const physicalBuildingContext = /\b(?:messa|cerimonia|funeral[ei]|matrimoni[oa]|porta|uscita|navata|edificio|dopo\s+la\s+messa)\b/i.test(source);
+    const rules = [
+      { reason: 'explicit_sbattezzo', confidence: 0.98, pattern: /\b(?:sbattezzo|sbattezzamento|apostasia|apostatare)\b/i },
+      { reason: 'church_membership_exit', confidence: physicalBuildingContext ? 0.45 : 0.86, pattern: /\buscire\s+dalla\s+chiesa(?:\s+cattolica)?\b/i },
+      { reason: 'no_longer_catholic', confidence: 0.92, pattern: /\bnon\s+(?:voglio|desidero)\s+(?:piu|più)\s+essere\s+(?:cattolic[oa]|cristian[oa])\b/i },
+      { reason: 'no_longer_identifies', confidence: 0.9, pattern: /\bnon\s+(?:mi\s+)?(?:ritengo|sento)\s+(?:piu|più)\s+(?:cattolic[oa]|cristian[oa])\b/i },
+      { reason: 'church_unregister', confidence: 0.92, pattern: /\b(?:cancellarmi|disiscrivermi)\s+dalla\s+chiesa\b/i },
+      { reason: 'baptism_renunciation', confidence: 0.94, pattern: /\brinunciare\s+al\s+battesim[oa]\b/i },
+      { reason: 'registry_removal', confidence: 0.94, pattern: /\b(?:togliermi|rimuovermi|essere\s+rimosso)\s+dai\s+registr/i },
+      { reason: 'baptism_registry_cancellation', confidence: 0.95, pattern: /\bcancellazion[ea]\b[\s\S]{0,60}\bregistr[oi]\b[\s\S]{0,40}\bbattesim[oa]\b/i },
+      { reason: 'registered_catholic_removal', confidence: 0.94, pattern: /\bnon\s+essere\s+(?:piu|più)\s+registrat[oa]\s+come\s+cattolic[oa]\b/i },
+      { reason: 'faith_abandonment', confidence: 0.82, pattern: /\b(?:abbandonare\s+la\s+(?:fede|religione)|rinnegare\s+la\s+fede)\b/i }
+    ];
+
+    for (const rule of rules) {
+      if (!rule.pattern.test(source)) continue;
+      if (rule.confidence < 0.65) continue;
+      return {
+        detected: true,
+        reason: rule.reason,
+        confidence: rule.confidence
+      };
+    }
+
+    return { detected: false, reason: 'no_match', confidence: 0 };
+  }
+
+  _deriveContextualFlagsUpdate_({
+    existingFlags = {},
+    physicalPresenceConstraint = null,
+    activeConcerns = {},
+    classification = {},
+    requestType = {},
+    categoryHintSource = ''
+  } = {}) {
+    const flags = {};
+    const subIntents = (classification && classification.subIntents && typeof classification.subIntents === 'object')
+      ? classification.subIntents
+      : {};
+    const requestTypeName = String(
+      typeof requestType === 'string' ? requestType : ((requestType && requestType.type) || '')
+    ).toLowerCase();
+    const category = String(categoryHintSource || classification.category || '').toLowerCase();
+    const isFormal = Boolean(
+      category === 'formal' ||
+      category === 'sbattezzo' ||
+      requestTypeName === 'formal' ||
+      (requestType && typeof requestType === 'object' && requestType.isSbattezzo === true) ||
+      subIntents.possible_sbattezzo_indirect === true
+    );
+
+    if (physicalPresenceConstraint && physicalPresenceConstraint.has_constraint) {
+      flags.remote_user = true;
+    }
+    if (subIntents.bereavement === true) {
+      flags.bereaved = true;
+    }
+    if (isFormal) {
+      flags.canonical_complexity = true;
+    }
+    if (
+      requestTypeName === 'pastoral' ||
+      requestTypeName === 'mixed' ||
+      activeConcerns.pastoral_technical_blend === true ||
+      (activeConcerns.longitudinal_sensitivity === true && !isFormal)
+    ) {
+      flags.ongoing_pastoral_process = true;
+    }
+
+    return flags;
   }
 
   _isTerritoryRequest(subject, body, classification = {}, requestType = null) {

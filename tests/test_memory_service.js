@@ -164,10 +164,11 @@ console.log('--- Test MemoryService conversationState: preserva legacySummaryTex
 console.log('--- Test MemoryService _normalizeHeaders: riempie solo header attesi non vuoti ---');
 {
   let writtenHeaders = null;
+  let insertedColumns = null;
   const fakeSheet = {
     getMaxColumns: () => 9,
-    insertColumnsAfter: () => {
-      assert(false, 'non deve inserire colonne quando il foglio ha gia colonne sufficienti');
+    insertColumnsAfter: (afterColumn, howMany) => {
+      insertedColumns = { afterColumn, howMany };
     },
     getRange: () => ({
       getValues: () => [[
@@ -190,6 +191,66 @@ console.log('--- Test MemoryService _normalizeHeaders: riempie solo header attes
   assert(writtenHeaders[1] === 'language', 'alias Lingua deve essere normalizzato');
   assert(writtenHeaders[7] === 'version', 'colonna version vuota deve essere impostata');
   assert(writtenHeaders[8] === 'memorySummary', 'colonna memorySummary vuota deve essere impostata');
+  assert(writtenHeaders[9] === 'contextualFlags', 'colonna contextualFlags deve essere impostata');
+  assert(insertedColumns && insertedColumns.afterColumn === 9 && insertedColumns.howMany === 1, 'foglio legacy a 9 colonne deve essere esteso a 10');
+}
+
+console.log('--- Test MemoryService contextualFlags: parsing, merge e scrittura ---');
+{
+  const memory = Object.create(MemoryService.prototype);
+  memory._validateAndNormalizeTimestamp = (value) => value;
+  memory._shrinkProvidedInfoToCaps = (topics) => topics;
+
+  const parsed = memory._rowToObject([
+    'thread-flags',
+    'it',
+    'information',
+    'standard',
+    '[]',
+    '2026-06-01T10:00:00.000Z',
+    1,
+    2,
+    '',
+    JSON.stringify({ remote_user: true, bereaved: true, unsafe: true })
+  ]);
+  assert(parsed.contextualFlags.remote_user === true, 'remote_user deve essere letto dai contextualFlags');
+  assert(parsed.contextualFlags.bereaved === true, 'bereaved deve essere letto dai contextualFlags');
+  assert(!parsed.contextualFlags.unsafe, 'flag fuori schema non deve essere preservato');
+
+  const merged = memory._mergeContextualFlags_(
+    { remote_user: true, bereaved: true },
+    { remote_user: false, canonical_complexity: true }
+  );
+  assert(!merged.remote_user, 'false esplicito deve rimuovere un flag contestuale');
+  assert(merged.bereaved === true, 'merge deve preservare i flag esistenti non toccati');
+  assert(merged.canonical_complexity === true, 'merge deve aggiungere nuovi flag ammessi');
+
+  let rangeArgs = null;
+  let writtenValues = null;
+  memory._sheet = {
+    getRange: (row, column, rows, columns) => {
+      rangeArgs = { row, column, rows, columns };
+      return {
+        setValues: (values) => {
+          writtenValues = values[0];
+        }
+      };
+    }
+  };
+  memory._updateRow(2, {
+    threadId: 'thread-flags',
+    language: 'it',
+    category: 'information',
+    tone: 'standard',
+    providedInfo: [],
+    lastUpdated: '2026-06-01T10:00:00.000Z',
+    messageCount: 1,
+    version: 2,
+    memorySummary: '',
+    contextualFlags: { remote_user: true }
+  });
+  assert(rangeArgs.columns === 10, 'scrittura riga memoria deve usare 10 colonne');
+  assert(writtenValues[9] === JSON.stringify({ remote_user: true }), 'contextualFlags deve essere serializzato nella decima colonna');
 }
 
 console.log('--- Test MemoryService updateMemory: VERSION_MISMATCH abortisce senza merge obsoleto ---');

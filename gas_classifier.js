@@ -64,7 +64,11 @@ var Classifier = class Classifier {
       'sbattezzo': [
         'sbattezzo', 'sbattezzamento', 'apostasia', 'apostatare',
         'abbandonare la religione', 'abbandonare la fede', 'rinnegare la fede',
-        'non mi ritengo più cristiano', 'cancellazione dal registro', 'registri del battesimo'
+        'non mi ritengo più cristiano', 'cancellazione dal registro', 'registri del battesimo',
+        'uscire dalla chiesa', 'non voglio più essere cattolico', 'non voglio piu essere cattolico',
+        'cancellarmi dalla chiesa', 'disiscrivermi dalla chiesa', 'rinunciare al battesimo',
+        'togliermi dai registri', 'essere rimosso dai registri',
+        'non essere più registrato come cattolico', 'non essere piu registrato come cattolico'
       ]
     };
 
@@ -206,7 +210,7 @@ var Classifier = class Classifier {
     }
 
     // PRIORITÀ LEGALE/PRIVACY: richieste formali (es. sbattezzo/apostasia)
-    if (/\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|cancellazione\s+(?:dal|dai|dei)\s+registr/i.test(fullText)) {
+    if (this._isSbattezzoFormalRequest_(fullText)) {
       console.log('      ⚠️ Richiesta formale rilevata (sbattezzo/apostasia)');
       return {
         shouldReply: true,
@@ -560,6 +564,11 @@ var Classifier = class Classifier {
     }
 
     return detected;
+  }
+
+  _isSbattezzoFormalRequest_(text) {
+    const source = String(text || '').toLowerCase();
+    return /\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|\bapostatare\b|\babbandonare\s+la\s+(?:fede|religione)\b|\brinnegare\s+la\s+fede\b|cancellazione\s+(?:dal|dai|dei)\s+registr|registr[oi]\s+del\s+battesim[oa]|uscire\s+dalla\s+chiesa|cancellarmi\s+dalla\s+chiesa|disiscrivermi\s+dalla\s+chiesa|rinunciare\s+al\s+battesim[oa]|(?:togliermi|rimuovermi|essere\s+rimosso)\s+dai\s+registr|non\s+(?:voglio|desidero)\s+(?:piu|più)\s+essere\s+(?:cattolic[oa]|cristian[oa])|non\s+(?:mi\s+)?(?:ritengo|sento)\s+(?:piu|più)\s+(?:cattolic[oa]|cristian[oa])|non\s+essere\s+(?:piu|più)\s+registrat[oa]\s+come\s+cattolic[oa]/i.test(source);
   }
 
   /**
