@@ -5181,7 +5181,8 @@ ${addressLines.join('\n\n')}
       (Array.isArray(hallucinations.emails) && hallucinations.emails.length > 0) ||
       (Array.isArray(hallucinations.phones) && hallucinations.phones.length > 0) ||
       (Array.isArray(hallucinations.times) && hallucinations.times.length > 0) ||
-      (Array.isArray(hallucinations.technicalTimes) && hallucinations.technicalTimes.length > 0)
+      (Array.isArray(hallucinations.technicalTimes) && hallucinations.technicalTimes.length > 0) ||
+      (Array.isArray(hallucinations.dates) && hallucinations.dates.length > 0)
     );
     if (!hasHallucination && errorText.some(e =>
       e.includes('non in kb') ||
@@ -5324,6 +5325,9 @@ ${addressLines.join('\n\n')}
       }
       if (Array.isArray(flags.hallucinations.times) && flags.hallucinations.times.length > 0) {
         items.push(`orari: ${flags.hallucinations.times.slice(0, 3).join(', ')}`);
+      }
+      if (Array.isArray(flags.hallucinations.dates) && flags.hallucinations.dates.length > 0) {
+        items.push(`date: ${flags.hallucinations.dates.slice(0, 3).join(', ')}`);
       }
       if (Array.isArray(flags.hallucinations.technicalTimes) && flags.hallucinations.technicalTimes.length > 0) {
         items.push(`orari tecnici da eliminare: ${flags.hallucinations.technicalTimes.slice(0, 3).join(', ')}`);

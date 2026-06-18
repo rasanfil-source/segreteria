@@ -599,7 +599,9 @@ COMPITI:
 10. Determina relational_posture basandoti ESCLUSIVAMENTE su marcatori linguistici osservabili, non su stati psicologici:
    - "direct": richiesta neutra, essenziale o operativa, senza marcatori relazionali forti (DEFAULT).
    - "personal": condivisione esplicita di fatti personali delicati, vissuti intimi, richiesta di ascolto o bisogno pastorale.
-   - "appreciative": entusiasmo esplicito, ringraziamenti dettagliati, apprezzamento per persone/aspetti della parrocchia o motivazioni personali positive che meritano un breve rispecchiamento.
+   - "appreciative": entusiasmo esplicito, ringraziamenti non rituali, apprezzamento per persone/aspetti della parrocchia, oppure condivisione positiva di un legame personale concreto con la parrocchia, il percorso richiesto o la comunità.
+     Marcatori forti includono formule come "grazie di cuore", riferimenti positivi a un sacerdote/parrocchia/percorso spirituale, desiderio espresso di svolgere quel percorso presso questa parrocchia per un legame personale concreto, o una narrazione personale positiva direttamente collegata alla richiesta.
+     Non classificare come appreciative una semplice richiesta cortese o solo informativa.
    - "hesitant": scuse, minimizzazioni, "forse", "non vorrei disturbare", molte mitigazioni o incertezza formulata.
    - "complaint": insoddisfazione, reclamo, segnalazione di disservizio, frustrazione o tono polemico.
    - "open": tono collaborativo, disponibilita al dialogo, ringraziamento sostanziale con nuova informazione utile.
@@ -610,7 +612,7 @@ COMPITI:
 ${conversationalTasks}
 13. Determina response_strategy:
    - Deve indicare come conviene orientare la risposta corrente.
-   - Non descrives la persona.
+   - Non descrive la persona.
    - Non è memoria.
    - Non è profilo.
    - Usa solo i valori ammessi.

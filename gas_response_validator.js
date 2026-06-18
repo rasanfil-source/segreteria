@@ -2535,6 +2535,14 @@ var ResponseValidator = class ResponseValidator {
       }
     }
 
+    const numericWithoutYear = /\b([0-2]?\d|3[01])([\/.])(0?[1-9]|1[0-2])\b/g;
+    while ((match = numericWithoutYear.exec(normalized)) !== null) {
+      const trailing = normalized.substring(match.index + match[0].length, match.index + match[0].length + 6);
+      if (referenceYear && !/^[\/.-]?20\d{2}/.test(trailing)) {
+        addDate(referenceYear, parseInt(match[3], 10), parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length), { hasExplicitYear: false });
+      }
+    }
+
     return dates.sort((a, b) => a.index - b.index);
   }
 

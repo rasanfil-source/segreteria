@@ -523,6 +523,20 @@ console.log('--- Test hallucination: data ricorrente senza anno in KB autorizza 
   );
 }
 
+console.log('--- Test hallucination: date numeriche senza anno in KB autorizzano anno esplicitato ---');
+{
+  const numericRecurringDateResult = validator._checkHallucinations(
+    'Il primo turno del corso prematrimoniale si terrà il 17 ottobre 2026, il 24 ottobre 2026, il 7 novembre 2026, il 14 novembre 2026 e il 21 novembre 2026.',
+    'Corso prematrimoniale primo turno: 17/10, 24/10, 07/11, 14/11, 21/11.',
+    'Potremmo avere informazioni sul primo turno 2026/2027?',
+    { temporal: { currentDate: '2026-06-18', messageDate: '2026-06-18', timeZone: 'Europe/Rome' } }
+  );
+  assert(
+    !numericRecurringDateResult.hallucinations.dates || numericRecurringDateResult.hallucinations.dates.length === 0,
+    'date numeriche senza anno presenti in KB devono autorizzare la stessa data con anno esplicitato nella risposta'
+  );
+}
+
 console.log('--- Test hallucination: cellulare italiano compatto inventato è bloccante ---');
 const inventedMobileResult = validator._checkHallucinations(
   'Può contattarci al 3331234567.',

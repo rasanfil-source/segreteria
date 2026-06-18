@@ -215,6 +215,8 @@ console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documental
   assert(threadedPrompt.prompt.includes('"avoid_repeating_known_requirements"'), 'thread avviato deve limitare response_focus_hint agli enum ammessi');
   assert(threadedPrompt.prompt.includes('"topic_change"'), 'thread avviato deve limitare conversation_shift agli enum ammessi');
   assert(plainPrompt.prompt.includes('relational_posture_confidence >= 0.70'), 'prompt quick-check deve comunicare la soglia operativa default della postura');
+  assert(plainPrompt.prompt.includes('grazie di cuore'), 'prompt quick-check deve trattare ringraziamenti calorosi come marker appreciative');
+  assert(plainPrompt.prompt.includes('Non classificare come appreciative una semplice richiesta cortese o solo informativa'), 'prompt quick-check deve evitare appreciative per richieste solo informative');
   assert(plainPrompt.prompt.includes('sotto quella soglia la postura viene ignorata'), 'prompt quick-check deve spiegare il fallback sotto soglia');
   assert(plainPrompt.prompt.includes('"direct": richiesta neutra'), 'prompt quick-check deve usare direct come default canonico');
   assert(!plainPrompt.prompt.includes('"informational": richiesta informativa'), 'prompt quick-check non deve piu descrivere il vocabolario postura legacy');
