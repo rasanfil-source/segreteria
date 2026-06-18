@@ -174,16 +174,16 @@ var PromptContext = class PromptContext {
         const overload = mode === 'overload';
         const directives = {
             bereavement_continuity: overload
-                ? 'La memoria segnala un lutto ancora rilevante: rispondi alle domande per priorita, in prosa breve e ben sequenziata. Non trasformare la risposta in checklist e non riaprire o nominare il lutto se il messaggio attuale resta operativo.'
-                : 'La memoria segnala un lutto ancora rilevante. Anche se il messaggio attuale e operativo, rispondi concretamente con tono sobrio e umano. Non riaprire o nominare il lutto se l\'utente non lo riprende esplicitamente.',
+                ? 'La memoria segnala un lutto ancora rilevante: rispondi alle domande per priorità, in prosa breve e ben sequenziata. Non trasformare la risposta in checklist e non riaprire o nominare il lutto se il messaggio attuale resta operativo.'
+                : 'La memoria segnala un lutto ancora rilevante. Anche se il messaggio attuale è operativo, rispondi concretamente con tono sobrio e umano. Non riaprire o nominare il lutto se l’utente non lo riprende esplicitamente.',
             canonical_continuity: overload
-                ? 'La memoria segnala una complessita canonica o formale: ordina le informazioni per priorita, con precisione procedurale e senza irrigidire il tono. Non trasformare la risposta in accompagnamento pastorale esteso se l\'utente chiede un passaggio amministrativo.'
-                : 'La memoria segnala una complessita canonica o formale. Mantieni precisione procedurale, tono rispettoso e sobrio, senza paternalismi e senza riaprire motivazioni personali non riprese dall\'utente.',
+                ? 'La memoria segnala una complessità canonica o formale: ordina le informazioni per priorità, con precisione procedurale e senza irrigidire il tono. Non trasformare la risposta in accompagnamento pastorale esteso se l’utente chiede un passaggio amministrativo.'
+                : 'La memoria segnala una complessità canonica o formale. Mantieni precisione procedurale, tono rispettoso e sobrio, senza paternalismi e senza riaprire motivazioni personali non riprese dall’utente.',
             pastoral_process_continuity: overload
                 ? 'La memoria segnala un percorso pastorale in corso: non ripartire da zero, rispondi al prossimo passo concreto e alleggerisci il carico ordinando le informazioni in prosa breve.'
-                : 'La memoria segnala un percorso pastorale in corso. Non ripartire da zero: riconosci implicitamente la continuita e rispondi al prossimo passo concreto, senza trasformare ogni dettaglio in nuova istruzione generale.',
+                : 'La memoria segnala un percorso pastorale in corso. Non ripartire da zero: riconosci implicitamente la continuità e rispondi al prossimo passo concreto, senza trasformare ogni dettaglio in nuova istruzione generale.',
             relational_opening_continuity:
-                'La memoria di conversazione segnala apertura relazionale: valorizzala con una ripresa naturale e breve, poi passa al dato pratico. Non aggiungere enfasi pastorale se il messaggio attuale e amministrativo.'
+                'La memoria di conversazione segnala apertura relazionale: valorizzala con una ripresa naturale e breve, poi passa al dato pratico. Non aggiungere enfasi pastorale se il messaggio attuale è amministrativo.'
         };
 
         return directives[key] || null;
@@ -535,18 +535,18 @@ var PromptContext = class PromptContext {
         };
 
         if (mode === 'remote_operational') {
-            add('Non proporre presenza fisica salvo necessita esplicita.');
+            add('Non proporre presenza fisica salvo necessità esplicita.');
             add('Preferisci email, telefono o indicazione procedurale remota.');
         } else if (mode === 'bereavement') {
             add('Apri con tatto.');
             add('Dai solo i passaggi indispensabili.');
             add('Evita tono burocratico.');
         } else if (mode === 'sensitive_canonical') {
-            add('Mantieni neutralita, rispetto e precisione procedurale.');
+            add('Mantieni neutralità, rispetto e precisione procedurale.');
             add('Non fare pressione pastorale.');
             add('Non usare linguaggio giudicante.');
         } else if (mode === 'pastoral_longitudinal') {
-            add('Non riaprire il vissuto se l utente non lo riprende.');
+            add('Non riaprire il vissuto se l’utente non lo riprende.');
             add('Mantieni tono sobrio e umano.');
             add('Rispondi al passaggio attuale senza ripartire da zero.');
         } else if (mode === 'pastoral_operational') {
@@ -556,11 +556,11 @@ var PromptContext = class PromptContext {
         }
 
         if (c.physical_presence_constraint && mode !== 'remote_operational') {
-            add('Non proporre presenza fisica salvo necessita esplicita.');
+            add('Non proporre presenza fisica salvo necessità esplicita.');
             add('Preferisci email, telefono o indicazione procedurale remota.');
         }
         if (c.user_overload) {
-            add('Riduci il carico dell utente: priorita chiare, prosa breve e niente checklist superflue.');
+            add('Riduci il carico dell’utente: priorità chiare, prosa breve e niente checklist superflue.');
         }
 
         return constraints;
@@ -578,7 +578,7 @@ var PromptContext = class PromptContext {
         if (mode === 'bereavement') {
             return {
                 key: 'current_bereavement_tact',
-                directive: 'Il lutto e nel messaggio attuale: riconoscilo con tatto solo quanto basta, poi passa ai passaggi indispensabili.',
+                directive: 'Il lutto è nel messaggio attuale: riconoscilo con tatto solo quanto basta, poi passa ai passaggi indispensabili.',
                 sourceCase: continuityKey || null,
                 doNotReopenPastContext: false
             };
@@ -587,7 +587,7 @@ var PromptContext = class PromptContext {
         if (mode === 'pastoral_longitudinal') {
             return {
                 key: 'do_not_reopen_past_context',
-                directive: 'Non riaprire il vissuto se l utente non lo riprende; mantieni la continuita in modo implicito nel tono e nella scelta dei passaggi.',
+                directive: 'Non riaprire il vissuto se l’utente non lo riprende; mantieni la continuità in modo implicito nel tono e nella scelta dei passaggi.',
                 sourceCase: continuityKey || null,
                 doNotReopenPastContext: true
             };
@@ -605,7 +605,7 @@ var PromptContext = class PromptContext {
         if (mode === 'pastoral_operational') {
             return {
                 key: 'pastoral_signal_operational_scope',
-                directive: 'Il segnale personale orienta il tono, non amplia l oggetto della risposta: prima il dato operativo, poi eventuale cura minima.',
+                directive: 'Il segnale personale orienta il tono, non amplia l’oggetto della risposta: prima il dato operativo, poi eventuale cura minima.',
                 sourceCase: continuityKey || null,
                 doNotReopenPastContext: false
             };
@@ -614,7 +614,7 @@ var PromptContext = class PromptContext {
         if (continuityKey === 'relational_opening_continuity') {
             return {
                 key: 'relational_opening_continuity',
-                directive: 'Valorizza l apertura relazionale con una ripresa naturale e breve, poi passa al dato pratico.',
+                directive: 'Valorizza l’apertura relazionale con una ripresa naturale e breve, poi passa al dato pratico.',
                 sourceCase: continuityKey,
                 doNotReopenPastContext: false
             };
@@ -682,11 +682,11 @@ var PromptContext = class PromptContext {
         };
         const isCrisis = String(responseRegister || '').toLowerCase() === 'pastoral_crisis';
         const modeDirectives = {
-            bereavement: 'Modalita lutto: apri con tatto, rispondi con i soli passaggi indispensabili e tieni fuori tono burocratico o formule decorative.',
-            sensitive_canonical: 'Modalita canonica sensibile: resta neutro, rispettoso e preciso; non fare pressione pastorale e non usare linguaggio giudicante.',
-            remote_operational: 'Modalita remota: non proporre presenza fisica salvo necessita esplicita; preferisci email, telefono o procedura remota.',
-            pastoral_longitudinal: 'Modalita longitudinale: non riaprire il vissuto se l utente non lo riprende; mantieni tono sobrio e umano.',
-            pastoral_operational: 'Modalita pastorale-operativa: il segnale personale orienta il tono, ma la risposta deve restare centrata sul dato pratico.'
+            bereavement: 'Modalità lutto: apri con tatto, rispondi con i soli passaggi indispensabili e tieni fuori tono burocratico o formule decorative.',
+            sensitive_canonical: 'Modalità canonica sensibile: resta neutro, rispettoso e preciso; non fare pressione pastorale e non usare linguaggio giudicante.',
+            remote_operational: 'Modalità remota: non proporre presenza fisica salvo necessità esplicita; preferisci email, telefono o procedura remota.',
+            pastoral_longitudinal: 'Modalità longitudinale: non riaprire il vissuto se l’utente non lo riprende; mantieni tono sobrio e umano.',
+            pastoral_operational: 'Modalità pastorale-operativa: il segnale personale orienta il tono, ma la risposta deve restare centrata sul dato pratico.'
         };
 
         if (mode === 'sensitive_canonical') {
@@ -698,8 +698,8 @@ var PromptContext = class PromptContext {
         if (c.hallucination_risk) {
             key = key || 'sensitive_precision';
             directiveParts.push(isCrisis
-                ? 'Questo messaggio richiede massima delicatezza e precisione. Se mancano dati nella Knowledge Base o il contesto e incompleto, ammetti l\'incertezza con garbo invece di dedurre.'
-                : 'Questo messaggio richiede delicatezza e precisione. Se mancano dati nella Knowledge Base o il contesto e incompleto, ammetti l\'incertezza con garbo invece di dedurre.'
+                ? 'Questo messaggio richiede massima delicatezza e precisione. Se mancano dati nella Knowledge Base o il contesto è incompleto, ammetti l’incertezza con garbo invece di dedurre.'
+                : 'Questo messaggio richiede delicatezza e precisione. Se mancano dati nella Knowledge Base o il contesto è incompleto, ammetti l’incertezza con garbo invece di dedurre.'
             );
             suppress.formattingGuidelines = true;
             suppress.checklistHallucinationRule = true;
@@ -713,13 +713,13 @@ var PromptContext = class PromptContext {
 
         if (c.longitudinal_sensitivity && c.user_overload) {
             key = key || 'longitudinal_overload';
-            directiveParts.push(this._getContinuityCaseDirective(continuityCase, 'overload') || 'La memoria segnala un contesto personale delicato: rispondi alle domande per priorita, ma in prosa breve e ben sequenziata. Non trasformare la risposta in checklist e non riaprire il vissuto se il messaggio attuale e operativo.');
+            directiveParts.push(this._getContinuityCaseDirective(continuityCase, 'overload') || 'La memoria segnala un contesto personale delicato: rispondi alle domande per priorità, ma in prosa breve e ben sequenziata. Non trasformare la risposta in checklist e non riaprire il vissuto se il messaggio attuale è operativo.');
             suppress.userOverloadGuidance = true;
         }
 
         if (c.longitudinal_sensitivity && !c.emotional_sensitivity && directiveParts.length === 0) {
             key = 'longitudinal_operational';
-            directiveParts.push(this._getContinuityCaseDirective(continuityCase, 'operational') || 'La memoria segnala un contesto personale delicato ancora rilevante. Anche se il messaggio attuale e operativo, rispondi concretamente con tono sobrio e umano, senza freddezza procedurale. Non riaprire o nominare il contesto delicato se l\'utente non lo riprende esplicitamente.');
+            directiveParts.push(this._getContinuityCaseDirective(continuityCase, 'operational') || 'La memoria segnala un contesto personale delicato ancora rilevante. Anche se il messaggio attuale è operativo, rispondi concretamente con tono sobrio e umano, senza freddezza procedurale. Non riaprire o nominare il contesto delicato se l’utente non lo riprende esplicitamente.');
         }
 
         if (c.relational_warmth && continuityCase && continuityCase.key === 'relational_opening_continuity' && directiveParts.length === 0) {
@@ -735,7 +735,7 @@ var PromptContext = class PromptContext {
 
         if (isCrisis && c.multi_question) {
             key = 'crisis_multi_question';
-            directiveParts.push('Il messaggio contiene piu domande, ma il bisogno principale e la crisi espressa. Apri con una risposta umana, breve e concreta al punto piu urgente; poi dai solo il prossimo passo operativo indispensabile. Le domande secondarie non vanno ignorate: se appesantirebbero la risposta, rinviale con garbo a un momento successivo o al primo contatto utile.');
+            directiveParts.push('Il messaggio contiene più domande, ma il bisogno principale è la crisi espressa. Apri con una risposta umana, breve e concreta al punto più urgente; poi dai solo il prossimo passo operativo indispensabile. Le domande secondarie non vanno ignorate: se appesantirebbero la risposta, rinviale con garbo a un momento successivo o al primo contatto utile.');
             suppress.userOverloadGuidance = true;
             suppress.responseCalibrationGuidance = true;
             suppress.checklistCompletenessRule = true;

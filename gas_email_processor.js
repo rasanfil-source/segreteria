@@ -2351,9 +2351,9 @@ ${addressLines.join('\n\n')}
           ? `, sintesi=${concernSynthesis.key}`
           : '';
         const continuityLog = continuityCase && continuityCase.key
-          ? `, continuita=${continuityCase.key}`
+          ? `, continuità=${continuityCase.key}`
           : '';
-        console.log(`   🧠 PromptContext: profilo=${promptProfile}, registro=${responseRegister}, modalita=${responseMode}${synthesisLog}${continuityLog}`);
+        console.log(`   🧠 PromptContext: profilo=${promptProfile}, registro=${responseRegister}, modalità=${responseMode}${synthesisLog}${continuityLog}`);
       }
 
       const effectiveSalutationModeKey = String(effectiveSalutationMode || '').trim().toLowerCase();

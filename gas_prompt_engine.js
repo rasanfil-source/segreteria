@@ -221,9 +221,9 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
 
     const lines = [
       '## VINCOLI OPERATIVI PRIORITARI',
-      `Modalita risposta: ${mode}`,
+      `Modalità risposta: ${mode}`,
       'Regola di precedenza: questi vincoli prevalgono su esempi, stile, template e formule standard.',
-      'Non citare all utente modalita, vincoli interni o policy di continuita.'
+      'Non citare all’utente modalità, vincoli interni o policy di continuità.'
     ];
 
     if (constraints.length > 0) {
@@ -232,10 +232,10 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     }
 
     if (policy) {
-      lines.push('', 'Politica di continuita:');
+      lines.push('', 'Politica di continuità:');
       lines.push(`- ${policy.directive}`);
       if (policy.doNotReopenPastContext) {
-        lines.push('- Non riaprire il contesto passato se l utente non lo riprende esplicitamente.');
+        lines.push('- Non riaprire il contesto passato se l’utente non lo riprende esplicitamente.');
       }
     }
 

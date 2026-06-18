@@ -129,7 +129,7 @@ console.log('--- Test validationContext: contratto stabile per validator ---');
     concernSynthesis: { key: 'longitudinal_operational' },
     continuityCase,
     responseMode: 'pastoral_longitudinal',
-    operationalConstraints: ['Non riaprire il vissuto se l utente non lo riprende.'],
+    operationalConstraints: ['Non riaprire il vissuto se l’utente non lo riprende.'],
     continuityPolicy: { key: 'do_not_reopen_past_context' },
     responseRegister: '',
     promptProfile: '',
@@ -3107,7 +3107,7 @@ console.log('--- Test quick-check: conversationState memoria abilita contesto co
         operationalConstraints: [],
         continuityPolicy: {
           key: 'relational_opening_continuity',
-          directive: 'Valorizza l apertura relazionale con una ripresa naturale e breve.'
+          directive: 'Valorizza l’apertura relazionale con una ripresa naturale e breve.'
         },
         continuityCase: {
           key: 'relational_opening_continuity',
@@ -3360,12 +3360,12 @@ console.log('--- Test context routing: memoria semantica sensibile impedisce amn
         responseRegister: 'pastoral_supportive',
         salutationMode: 'soft',
         operationalConstraints: [
-          'Non riaprire il vissuto se l utente non lo riprende.',
+          'Non riaprire il vissuto se l’utente non lo riprende.',
           'Mantieni tono sobrio e umano.'
         ],
         continuityPolicy: {
           key: 'do_not_reopen_past_context',
-          directive: 'Non riaprire il vissuto se l utente non lo riprende.'
+          directive: 'Non riaprire il vissuto se l’utente non lo riprende.'
         },
         concernSynthesis: {
           key: 'longitudinal_operational',

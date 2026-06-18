@@ -99,7 +99,7 @@ assert(
 assert(
   flatBereavement.meta.operationalConstraints.includes('Apri con tatto.') &&
     flatBereavement.meta.operationalConstraints.includes('Dai solo i passaggi indispensabili.'),
-  'bereavement deve produrre vincoli operativi di tatto e brevita'
+  'bereavement deve produrre vincoli operativi di tatto e brevità'
 );
 
 const flatDistress = createPromptContext({
@@ -214,7 +214,7 @@ assert(
 assert(
   sbattezzoMode.meta.operationalConstraints.includes('Non fare pressione pastorale.') &&
     sbattezzoMode.meta.operationalConstraints.includes('Non usare linguaggio giudicante.'),
-  'sensitive_canonical deve produrre vincoli di neutralita e non pressione'
+  'sensitive_canonical deve produrre vincoli di neutralità e non pressione'
 );
 
 const sensitivePrecision = createPromptContext({
@@ -351,7 +351,7 @@ assert(
   'remote_user_sets_remote_operational'
 );
 assert(
-  contextualRemoteMemory.meta.operationalConstraints.includes('Non proporre presenza fisica salvo necessita esplicita.') &&
+  contextualRemoteMemory.meta.operationalConstraints.includes('Non proporre presenza fisica salvo necessità esplicita.') &&
     contextualRemoteMemory.meta.operationalConstraints.includes('Preferisci email, telefono o indicazione procedurale remota.'),
   'remote_operational deve produrre vincoli remoti consumabili'
 );
@@ -378,7 +378,7 @@ assert(
 assert(
   canonicalFormalContinuity.meta.responseRegister === 'formal_institutional' &&
     canonicalFormalContinuity.meta.concernSynthesis.directive.includes('precisione procedurale'),
-  'la continuita canonica formale deve restare procedurale senza perdere delicatezza'
+  'la continuità canonica formale deve restare procedurale senza perdere delicatezza'
 );
 
 const relationalOpeningContinuity = createPromptContext({
@@ -408,7 +408,7 @@ assert(
 assert(
   relationalOpeningContinuity.profile === 'standard' &&
     relationalOpeningContinuity.meta.concernSynthesis.key === 'relational_continuity',
-  'la continuita relazionale deve produrre una direttiva leggera e consumabile'
+  'la continuità relazionale deve produrre una direttiva leggera e consumabile'
 );
 
 const longitudinalOverloadBody = `${'Vorrei capire alcuni passaggi amministrativi. '.repeat(18)} Quali documenti servono? Quando posso consegnarli? Devo prendere appuntamento?`;
@@ -559,7 +559,7 @@ assert(
   longitudinalFollowUp.meta.responseMode === 'pastoral_longitudinal' &&
     longitudinalFollowUp.meta.continuityPolicy &&
     longitudinalFollowUp.meta.continuityPolicy.key === 'do_not_reopen_past_context',
-  'pastoral_longitudinal deve produrre una policy di continuita non riaprire'
+  'pastoral_longitudinal deve produrre una policy di continuità non riaprire'
 );
 
 const longitudinalSynthesisStandalone = Object.create(PromptContext.prototype);
@@ -650,12 +650,12 @@ const crisisMultiQuestion = createPromptContext({
 assert(
   crisisMultiQuestion.concerns.multi_question === true &&
     crisisMultiQuestion.meta.responseRegister === 'pastoral_crisis',
-  'crisi pastorale con piu domande deve attivare multi_question e pastoral_crisis'
+  'crisi pastorale con più domande deve attivare multi_question e pastoral_crisis'
 );
 assert(
   crisisMultiQuestion.meta.concernSynthesis &&
     crisisMultiQuestion.meta.concernSynthesis.key === 'crisis_multi_question' &&
-    crisisMultiQuestion.meta.concernSynthesis.directive.includes('bisogno principale e la crisi espressa') &&
+    crisisMultiQuestion.meta.concernSynthesis.directive.includes('bisogno principale è la crisi espressa') &&
     crisisMultiQuestion.meta.concernSynthesis.suppress.responseCalibrationGuidance === true &&
     crisisMultiQuestion.meta.concernSynthesis.suppress.checklistCompletenessRule === true &&
     crisisMultiQuestion.meta.concernSynthesis.suppress.userOverloadGuidance === true,
