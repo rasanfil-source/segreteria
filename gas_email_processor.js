@@ -1080,10 +1080,11 @@ var EmailProcessor = class EmailProcessor {
       markHandledUnread = () => {
         const externalIds = new Set(externalUnread.map(m => m.getId()));
         const internalUnread = [];
+        const isAbortAll = candidate === null;
         const candidateDate = (candidate && typeof candidate.getDate === 'function') ? candidate.getDate() : null;
         const candidateTimestamp = (candidateDate && typeof candidateDate.getTime === 'function')
           ? candidateDate.getTime()
-          : 0;
+          : (isAbortAll ? Infinity : 0);
 
         unlabeledUnread.forEach(message => {
           const messageId = message.getId();
@@ -1094,7 +1095,7 @@ var EmailProcessor = class EmailProcessor {
             const messageTimestamp = (messageDate && typeof messageDate.getTime === 'function')
               ? messageDate.getTime()
               : 0;
-            if (isInResponseContext(message) || messageTimestamp <= candidateTimestamp) {
+            if (isAbortAll || isInResponseContext(message) || messageTimestamp <= candidateTimestamp) {
               this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
             }
           } else {
