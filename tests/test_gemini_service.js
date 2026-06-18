@@ -248,6 +248,20 @@ console.log('--- Test EmailQuickCheckPolicy: soglia postura relazionale configur
   }
 }
 
+console.log('--- Test EmailQuickCheckPolicy: contratto esplicito livelli quick-check ---');
+{
+  const levels = EmailQuickCheckPolicy.getQuickCheckSchemaLevels();
+
+  assert(levels.level1_message.always === true, 'livello 1 deve essere sempre disponibile');
+  assert(levels.level1_message.fields.indexOf('response_strategy') !== -1, 'response_strategy deve restare livello 1');
+  assert(levels.level2_conversation.requiresConversationContext === true, 'livello 2 deve richiedere contesto conversazionale');
+  assert(levels.level2_conversation.fields.indexOf('conversation_shift') !== -1, 'conversation_shift deve essere livello 2');
+  assert(levels.level3_longitudinal.allowedInQuickCheck === false, 'livello 3 non deve essere ammesso nella quick-check');
+  assert(levels.level3_longitudinal.fields.indexOf('residual_sensitivity') !== -1, 'residual_sensitivity deve essere dichiarato longitudinale');
+  assert(EmailQuickCheckPolicy.hasConversationContext({ hasConversationContext: true }) === true, 'helper contesto deve accettare solo true esplicito');
+  assert(EmailQuickCheckPolicy.hasConversationContext({ hasConversationContext: 'true' }) === false, 'helper contesto non deve accettare stringhe truthy');
+}
+
 console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza risposta su submission documentale ---');
 {
   const responseBody = JSON.stringify({
@@ -330,6 +344,18 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
   assert(noContextResult.goal_continuity === 'none', 'senza contesto conversazionale goal_continuity deve essere neutro');
   assert(noContextResult.goal_continuity_confidence === 0, 'senza contesto conversazionale goal_continuity_confidence deve essere zero');
   assert(Array.isArray(noContextResult.new_information_provided) && noContextResult.new_information_provided.length === 0, 'senza contesto conversazionale new_information_provided deve essere vuoto');
+
+  const longitudinalResult = EmailQuickCheckPolicy.normalizeDecisionData({
+    reply_needed: true,
+    language: 'it',
+    category: 'PASTORAL',
+    topic: 'colloquio',
+    confidence: 0.8,
+    residual_sensitivity: 'high',
+    longitudinal_sensitivity: 'high'
+  }, { lang: 'it' }, { hasConversationContext: true });
+  assert(typeof longitudinalResult.residual_sensitivity === 'undefined', 'residual_sensitivity non deve uscire dalla quick-check');
+  assert(typeof longitudinalResult.longitudinal_sensitivity === 'undefined', 'longitudinal_sensitivity non deve uscire dalla quick-check');
 
   const logisticsResponseBody = JSON.stringify({
     candidates: [{

@@ -1647,8 +1647,12 @@ var EmailProcessor = class EmailProcessor {
         messages.length > 1 ||
         memoryMessageCount > 0 ||
         memoryContext.exists === true ||
+        !!memoryContext.lastUpdated ||
+        !!memoryContext.memorySummary ||
         (Array.isArray(memoryContext.providedInfo) && memoryContext.providedInfo.length > 0)
       );
+      console.log(`   🧠 QuickCheck context: ${hasConversationContext ? 'thread' : 'first_message'}`);
+      console.log(`   🧠 Conversational fields: ${hasConversationContext ? 'enabled' : 'neutral defaults'}`);
 
       const quickIntentContext = Object.assign(
         {},

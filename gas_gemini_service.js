@@ -347,6 +347,53 @@ var GeminiContentClient = class GeminiContentClient {
 };
 
 var EmailQuickCheckPolicy = class EmailQuickCheckPolicy {
+  static getQuickCheckSchemaLevels() {
+    return {
+      level1_message: {
+        always: true,
+        fields: [
+          'language',
+          'category',
+          'topic',
+          'relational_posture',
+          'response_strategy',
+          'physical_presence_constraint',
+          'is_territory_request',
+          'territory_address_candidates'
+        ]
+      },
+      level2_conversation: {
+        always: false,
+        requiresConversationContext: true,
+        fields: [
+          'conversation_shift',
+          'goal_continuity',
+          'response_focus_hint',
+          'new_information_provided'
+        ]
+      },
+      level3_longitudinal: {
+        always: false,
+        allowedInQuickCheck: false,
+        fields: [
+          'residual_sensitivity',
+          'longitudinal_sensitivity'
+        ]
+      }
+    };
+  }
+
+  static hasConversationContext(intentContext = null) {
+    return !!(intentContext && intentContext.hasConversationContext === true);
+  }
+
+  static stripForbiddenQuickCheckFields(data) {
+    if (!data || typeof data !== 'object') return data;
+    delete data.residual_sensitivity;
+    delete data.longitudinal_sensitivity;
+    return data;
+  }
+
   static isDocumentSubmissionIntent(intentContext) {
     return !!(intentContext && (
       intentContext.intent === 'suspected_submission' ||
@@ -485,7 +532,7 @@ var EmailQuickCheckPolicy = class EmailQuickCheckPolicy {
     const hasSubmissionContext = EmailQuickCheckPolicy.isDocumentSubmissionIntent(intentContext);
     const shouldClassifySponsorGuidance = EmailQuickCheckPolicy.shouldClassifySponsorGuidance(intentContext);
     const hasOfficeVisitLogistics = EmailQuickCheckPolicy.isOfficeVisitLogisticsRequest(safeSubject, safeContent);
-    const hasConversationContext = !!(intentContext && intentContext.hasConversationContext === true);
+    const hasConversationContext = EmailQuickCheckPolicy.hasConversationContext(intentContext);
     const quickIntentGuardrail = hasSubmissionContext ? `
 CONTESTO STRUTTURALE ALLEGATI:
 - Il testo del mittente contiene segnali di consegna documentale ("in allegato", "allego", "le invio", ecc.).
@@ -548,6 +595,8 @@ CONTESTO LOGISTICO VISITA:
    - Nel JSON mantieni i campi conversazionali con default neutri: response_focus_hint=null, response_focus_hint_confidence=0, conversation_shift="none", conversation_shift_confidence=0, goal_continuity="none", goal_continuity_confidence=0, new_information_provided=[].
 `;
     const relationalPostureConfidenceThreshold = EmailQuickCheckPolicy.getRelationalPostureConfidenceThreshold().toFixed(2);
+    // residual_sensitivity e longitudinal_sensitivity restano fuori dalla quick check:
+    // sono segnali storico-relazionali da memoria / PromptContext.
     const prompt = `Analizza questa email.
 Rispondi ESCLUSIVAMENTE con un oggetto JSON valido e completo.
 NON usare blocchi markdown e NON aggiungere testo extra prima o dopo il JSON.
@@ -789,6 +838,8 @@ Output JSON:
       return defaultResult;
     }
 
+    EmailQuickCheckPolicy.stripForbiddenQuickCheckFields(data);
+
     const replyNeeded = data.reply_needed;
     const normalizedReplyNeeded = (typeof replyNeeded === 'string')
       ? replyNeeded.toLowerCase()
@@ -814,7 +865,7 @@ Output JSON:
       data.relational_posture,
       relationalPostureConfidence
     );
-    const hasConversationContext = !!(intentContext && intentContext.hasConversationContext === true);
+    const hasConversationContext = EmailQuickCheckPolicy.hasConversationContext(intentContext);
     const responseFocusHintConfidence = hasConversationContext
       ? EmailQuickCheckPolicy.normalizeResponseFocusHintConfidence(data.response_focus_hint_confidence)
       : 0;
@@ -984,6 +1035,16 @@ Output JSON:
       : 'none';
   }
 
+  static getResponseStrategyConfidenceThreshold() {
+    const configured = (typeof CONFIG !== 'undefined' && CONFIG)
+      ? Number(CONFIG.RESPONSE_STRATEGY_CONFIDENCE_THRESHOLD)
+      : NaN;
+    if (Number.isFinite(configured)) {
+      return Math.max(0, Math.min(1, configured));
+    }
+    return 0.65;
+  }
+
   static normalizeResponseStrategyConfidence(value) {
     const confidence = Number(value);
     return Number.isFinite(confidence)
@@ -1003,7 +1064,8 @@ Output JSON:
       none: true
     };
     if (!allowed[normalized]) return 'none';
-    return EmailQuickCheckPolicy.normalizeResponseStrategyConfidence(confidence) >= 0.65
+    return EmailQuickCheckPolicy.normalizeResponseStrategyConfidence(confidence) >=
+      EmailQuickCheckPolicy.getResponseStrategyConfidenceThreshold()
       ? normalized
       : 'none';
   }
