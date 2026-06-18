@@ -9,6 +9,88 @@ function assert(condition, message) {
   }
 }
 
+function assertDoesNotMatch(text, regex, message) {
+  assert(!regex.test(String(text || '')), message);
+}
+
+function assertMatches(text, regex, message) {
+  assert(regex.test(String(text || '')), message);
+}
+
+function assertNoEmoji(text, message) {
+  // Copre emoji comuni, simboli pittografici, dingbats e variation selector.
+  const emojiRegex = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/u;
+  assertDoesNotMatch(text, emojiRegex, message || 'non deve contenere emoji');
+}
+
+function assertNoMarkdownHeadings(text, message) {
+  assertDoesNotMatch(
+    text,
+    /^\s{0,3}#{1,6}\s+\S+/m,
+    message || 'non deve contenere titoli Markdown'
+  );
+}
+
+function assertNoBulletList(text, message) {
+  assertDoesNotMatch(
+    text,
+    /^\s*[-*•]\s+\S+/m,
+    message || 'non deve contenere liste puntate'
+  );
+}
+
+function assertNoNumberedList(text, message) {
+  assertDoesNotMatch(
+    text,
+    /^\s*\d+\.\s+\S+/m,
+    message || 'non deve contenere liste numerate'
+  );
+}
+
+function assertNoPhysicalPresenceInvitation(text, message) {
+  const physicalPresenceRegex =
+    /\b(passare|venire|recarsi|presentarsi)\b.{0,80}\b(segreteria|parrocchia|ufficio|di persona|presenza)\b/i;
+
+  assertDoesNotMatch(
+    text,
+    physicalPresenceRegex,
+    message || 'non deve contenere inviti alla presenza fisica'
+  );
+}
+
+function assertNoPastoralPressure(text, message) {
+  const pressureRegex =
+    /\b(ripensarci|riflettere meglio|parlare con un sacerdote prima|discernere prima|la invitiamo a riconsiderare|restare nella Chiesa|tornare sui suoi passi)\b/i;
+
+  assertDoesNotMatch(
+    text,
+    pressureRegex,
+    message || 'non deve contenere pressione pastorale'
+  );
+}
+
+function assertNoJudgmentalLanguage(text, message) {
+  const judgmentRegex =
+    /\b(errore|sbagliato|peccato|grave|abbandonare la fede|rifiuto della fede|scelta dolorosa per la Chiesa)\b/i;
+
+  assertDoesNotMatch(
+    text,
+    judgmentRegex,
+    message || 'non deve contenere linguaggio giudicante'
+  );
+}
+
+function assertDoesNotReopenPastSensitiveContext(text, message) {
+  const reopenRegex =
+    /\b(come già ci aveva detto|come nella precedente situazione|riguardo al lutto|per la perdita|per il decesso|come nel percorso precedente|riprendendo quanto ci aveva raccontato)\b/i;
+
+  assertDoesNotMatch(
+    text,
+    reopenRegex,
+    message || 'non deve riaprire il contesto sensibile passato'
+  );
+}
+
 global.CONFIG = {
   MAX_SAFE_TOKENS: 100000,
   MAX_SAFE_PROMPT_CHARS: 120000,
@@ -1124,6 +1206,73 @@ assert(
     longitudinalModePrompt.toString().includes('Non riaprire il vissuto se l’utente non lo riprende; mantieni la continuità'),
   'prompt_finale_nominale_pastoral_longitudinal_collega_modalita_vincoli_e_direttiva'
 );
+
+console.log('--- Property tests: risposte sensibili non violano vincoli strutturali ---');
+const fullBereavementPrompt = `${bereavementPrompt.systemInstruction || ''}\n${bereavementPrompt.prompt || ''}`;
+assertMatches(
+  fullBereavementPrompt,
+  /Nessuna lista, nessuna emoji, nessun titolo Markdown/,
+  'il prompt deve contenere la regola esplicita anti-decorazione per lutto'
+);
+
+const candidateBereavementReply = `
+Buongiorno,
+siamo dispiaciuti per la perdita di suo padre. Possiamo concordare la Messa in suffragio via email; l’offerta è libera. Per la trasmissione online dobbiamo verificare la possibilità della diretta.
+Cordiali saluti,
+Segreteria Parrocchia Sant’Eugenio
+`;
+
+assertNoEmoji(candidateBereavementReply, 'una risposta di lutto non deve contenere emoji');
+assertNoMarkdownHeadings(candidateBereavementReply, 'una risposta di lutto non deve contenere titoli Markdown');
+assertNoBulletList(candidateBereavementReply, 'una risposta di lutto non deve contenere liste puntate');
+assertNoNumberedList(candidateBereavementReply, 'una risposta di lutto non deve contenere liste numerate');
+
+const remoteCandidateReply = `
+Buongiorno,
+può inviarci i dati via email e verificheremo la richiesta. Per qualsiasi chiarimento può rispondere a questa email o contattarci telefonicamente.
+Cordiali saluti,
+Segreteria Parrocchia Sant’Eugenio
+`;
+
+assertNoPhysicalPresenceInvitation(
+  remoteCandidateReply,
+  'una risposta con vincolo remoto non deve invitare a passare in segreteria'
+);
+
+const forbiddenPhysicalPhrases = [
+  'può passare in segreteria',
+  'può venire in parrocchia',
+  'si presenti in segreteria',
+  'può recarsi presso la segreteria',
+  'venga di persona'
+];
+
+forbiddenPhysicalPhrases.forEach(phrase => {
+  assert(
+    !remoteCandidateReply.toLowerCase().includes(phrase),
+    `formula vietata in contesto remoto: ${phrase}`
+  );
+});
+
+const sbattezzoCandidateReply = `
+Gentile Mario Rossi,
+abbiamo ricevuto la sua richiesta. Per procedere è necessario inviare la domanda firmata con copia di un documento di identità. Una volta ricevuta la documentazione completa, la richiesta sarà trasmessa secondo la procedura prevista.
+Cordiali saluti,
+Segreteria Parrocchia Sant’Eugenio
+`;
+
+assertNoPastoralPressure(sbattezzoCandidateReply);
+assertNoJudgmentalLanguage(sbattezzoCandidateReply);
+assertNoEmoji(sbattezzoCandidateReply);
+
+const longitudinalCandidateReply = `
+Buongiorno,
+possiamo confermare l’orario dell’incontro per le 17:30. Se preferisce, può rispondere a questa email per eventuali necessità.
+Cordiali saluti,
+Segreteria Parrocchia Sant’Eugenio
+`;
+
+assertDoesNotReopenPastSensitiveContext(longitudinalCandidateReply);
 
 assert(
   openPostureSection.includes('calda e propositiva') &&
