@@ -1087,7 +1087,7 @@ assert(
   'prompt_finale_nominale_sensitive_canonical_collega_modalita_vincoli_e_direttiva'
 );
 
-console.log('--- Test prompt finale: longitudinal_prompt_contains_do_not_reopen_past_context ---');
+console.log('--- Test prompt finale nominale: pastoral_longitudinal collega modalità, vincoli e direttiva ---');
 const longitudinalModePrompt = engine.buildPrompt({
   emailSubject: 'Re: appuntamento',
   emailContent: 'Vorrei confermare l’orario.',
@@ -1117,6 +1117,7 @@ assert(
 
 assert(
   longitudinalModePrompt.toString().includes('## VINCOLI OPERATIVI PRIORITARI') &&
+    longitudinalModePrompt.toString().includes('ISTRUZIONE FINALE DI OUTPUT') &&
     longitudinalModePrompt.toString().includes('Modalità risposta: pastoral_longitudinal') &&
     longitudinalModePrompt.toString().includes('responseMode:pastoral_longitudinal->operationalConstraints') &&
     longitudinalModePrompt.toString().includes('responseMode:pastoral_longitudinal->continuityPolicy:do_not_reopen_past_context') &&
