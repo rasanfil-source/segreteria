@@ -2453,12 +2453,15 @@ ISTRUZIONI:
     const scheduledPresenceTiming = scheduledPresenceType === 'appointment'
       ? `anche prima della data prevista per ${scheduledPresenceWithArticle}`
       : `anche prima dell'inizio ${scheduledPresenceWithPartitive}`;
+    const scheduledPresenceEventTime = scheduledPresenceType === 'appointment'
+      ? `il giorno ${scheduledPresenceWithPartitive}`
+      : `il primo giorno ${scheduledPresenceWithPartitive}`;
 
     const scheduledPresenceRule = (
       scheduledPresence.detected &&
       policy !== 'avoid_invitation'
     ) ? `
-- PRESENZA GIÀ PIANIFICATA (${scheduledPresenceLabel}): il mittente ha manifestato l'intenzione di essere fisicamente presente per un'attività parrocchiale già prevista. L'invito "qualora le fosse possibile passare da Roma" risulterebbe incoerente (verrà comunque). Sostituirlo con "${scheduledPresenceTiming}" o formula equivalente che riconosca la presenza già pianificata. Esempio corretto: "Se avesse occasione di trovarsi a Roma già nei prossimi mesi, ${scheduledPresenceTiming}, saremo felici di incontrarla di persona."`
+- PRESENZA GIÀ PIANIFICATA (${scheduledPresenceLabel}): il mittente ha manifestato l'intenzione di essere fisicamente presente per un'attività parrocchiale già prevista. Considerare già acquisita la presenza nel momento previsto (${scheduledPresenceEventTime}): non introdurre condizioni come "qualora vi fosse possibile trovarvi a Roma" per consegne, moduli o passaggi operativi da fare in quel momento. Scrivere direttamente, se pertinente: "oppure consegnarlo a mano ${scheduledPresenceEventTime}". Usare formule condizionali solo per una presenza ulteriore e precedente, specificando "${scheduledPresenceTiming}". Evitare: "qualora vi fosse possibile trovarvi a Roma, consegnarlo a mano ${scheduledPresenceEventTime}".`
       : '';
 
     return `**POLICY PRESENZA FISICA - VINCOLO DI RAGGIUNGIBILITA (OBBLIGATORIA):**
