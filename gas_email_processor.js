@@ -6244,16 +6244,22 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
 
   _resolvePhysicalPresenceConstraint_(quickConstraint, subject, body) {
     const normalizedQuick = this._normalizePhysicalPresenceConstraint_(quickConstraint, 'quick_check');
+    const scheduledPresence = this._detectScheduledPresence_(subject, body);
+
     if (
       normalizedQuick &&
       normalizedQuick.has_constraint &&
       normalizedQuick.confidence >= 0.65
     ) {
+      if (scheduledPresence) normalizedQuick.scheduled_presence = scheduledPresence;
       return normalizedQuick;
     }
 
     const fallback = this._detectPhysicalPresenceConstraint_(subject, body);
-    if (fallback) return fallback;
+    if (fallback) {
+      if (scheduledPresence) fallback.scheduled_presence = scheduledPresence;
+      return fallback;
+    }
 
     return normalizedQuick || {
       has_constraint: false,
@@ -6344,6 +6350,62 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
             : 'conditional_only',
           source: 'local_fallback'
         };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Rileva se il mittente ha già pianificato una presenza fisica in parrocchia.
+   * Deliberatamente conservativo: meglio perdere casi ambigui che trasformare
+   * una semplice menzione di corso/incontro/appuntamento in presenza prevista.
+   *
+   * @param {string} subject
+   * @param {string} body
+   * @returns {{ detected: boolean, type: string, label: string } | null}
+   */
+  _detectScheduledPresence_(subject, body) {
+    const text = `${subject || ''} ${body || ''}`
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!text) return null;
+
+    const patterns = [
+      {
+        pattern: /\b(?:vorrei|vorremmo|desidero|desideriamo|intendo|intendiamo|pensiamo|vorrei\s+informarmi\s+per|vorremmo\s+informarci\s+per|possibilita\s+di)\b.{0,80}\b(?:frequentare|partecipare\s+(?:a[l]?|a[l]?\s+un)|seguire|iscriver(?:mi|ci|si)|iscriversi\s+(?:a[l]?|al))\b.{0,80}\b(?:corso|percorso|cammino|incontri?)\b/,
+        type: 'course',
+        label: 'corso'
+      },
+      {
+        pattern: /\b(?:mi\s+sono|ci\s+siamo|sono|siamo)\s+(?:gia\s+)?iscritt[ioe]\b.{0,80}\b(?:corso|percorso|cammino|incontri?)\b/,
+        type: 'course',
+        label: 'corso'
+      },
+      {
+        pattern: /\b(?:frequenteremo|partecipero|parteciperemo|seguiremo|inizieremo)\b.{0,80}\b(?:corso|percorso|cammino|incontri?)\b/,
+        type: 'course',
+        label: 'corso'
+      },
+      {
+        pattern: /\b(?:vorrei|vorremmo|desidero|desideriamo|intendo|intendiamo|possibilita\s+di)\b.{0,80}\b(?:frequentare|partecipare|seguire|iscriver(?:mi|ci|si)|iscriversi)\b.{0,80}\b(?:battesimo|cresima)\s+(?:degli?\s+)?adulti\b/,
+        type: 'course',
+        label: 'corso'
+      },
+      {
+        pattern: /\b(?:ho|abbiamo)\s+(?:gia\s+)?(?:un\s+)?appuntament[oi]\b.{0,80}\b(?:fissato|confermato|concordato|previsto|preso)\b|\bappuntament[oi]\b.{0,80}\b(?:che\s+(?:ho|abbiamo)\s+(?:fissato|confermato|concordato|preso))\b/,
+        type: 'appointment',
+        label: 'appuntamento'
+      }
+    ];
+
+    for (const { pattern, type, label } of patterns) {
+      if (pattern.test(text)) {
+        return { detected: true, type, label };
       }
     }
 

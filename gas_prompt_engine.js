@@ -2441,6 +2441,26 @@ ISTRUZIONI:
       : `✅ Formula corretta: "Per qualsiasi chiarimento puo' contattarci telefonicamente o rispondere a questa email. Qualora le fosse possibile passare da Roma, saremo lieti di incontrarla anche di persona."
 ⛔ Formula da evitare: "Puo' venire in segreteria dal lunedi al venerdi dalle 8:00 alle 12:00."`;
 
+    const scheduledPresence = constraint.scheduled_presence || {};
+    const scheduledPresenceLabel = scheduledPresence.label || 'attività';
+    const scheduledPresenceType = String(scheduledPresence.type || '').toLowerCase();
+    const scheduledPresenceWithArticle = /^[aeiou]/i.test(scheduledPresenceLabel)
+      ? `l'${scheduledPresenceLabel}`
+      : `il ${scheduledPresenceLabel}`;
+    const scheduledPresenceWithPartitive = /^[aeiou]/i.test(scheduledPresenceLabel)
+      ? `dell'${scheduledPresenceLabel}`
+      : `del ${scheduledPresenceLabel}`;
+    const scheduledPresenceTiming = scheduledPresenceType === 'appointment'
+      ? `anche prima della data prevista per ${scheduledPresenceWithArticle}`
+      : `anche prima dell'inizio ${scheduledPresenceWithPartitive}`;
+
+    const scheduledPresenceRule = (
+      scheduledPresence.detected &&
+      policy !== 'avoid_invitation'
+    ) ? `
+- PRESENZA GIÀ PIANIFICATA (${scheduledPresenceLabel}): il mittente ha manifestato l'intenzione di essere fisicamente presente per un'attività parrocchiale già prevista. L'invito "qualora le fosse possibile passare da Roma" risulterebbe incoerente (verrà comunque). Sostituirlo con "${scheduledPresenceTiming}" o formula equivalente che riconosca la presenza già pianificata. Esempio corretto: "Se avesse occasione di trovarsi a Roma già nei prossimi mesi, ${scheduledPresenceTiming}, saremo felici di incontrarla di persona."`
+      : '';
+
     return `**POLICY PRESENZA FISICA - VINCOLO DI RAGGIUNGIBILITA (OBBLIGATORIA):**
 ${intro}
 Tipo vincolo: ${type}. Policy visita: ${policy}.${evidence}
@@ -2451,6 +2471,7 @@ REGOLE VINCOLANTI:
 - Se la presenza fisica fosse utile ma non indispensabile, formularla solo in modo condizionale e rispettoso: "qualora le fosse possibile", "se avesse occasione di trovarsi a Roma", "nel caso in cui potesse passare".
 - Se la policy e' "avoid_invitation", evitare del tutto inviti a presenza fisica salvo obbligo sacramentale/procedurale esplicito e inevitabile.
 - Non nominare in modo crudo o stigmatizzante il vincolo personale del mittente: usare formule come "considerata la sua situazione" solo se serve.
+${scheduledPresenceRule}
 ${sponsorEligibilityRule}
 ${digitalRule}
 
