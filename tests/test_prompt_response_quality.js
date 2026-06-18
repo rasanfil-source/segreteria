@@ -1043,6 +1043,15 @@ assert(
   'bereavement_prompt_contains_brevity_and_tact'
 );
 
+assert(
+  bereavementModePrompt.toString().includes('## VINCOLI OPERATIVI PRIORITARI') &&
+    bereavementModePrompt.toString().includes('Modalità risposta: bereavement') &&
+    bereavementModePrompt.toString().includes('responseMode:bereavement->operationalConstraints') &&
+    bereavementModePrompt.toString().includes('continuityPolicy:current_bereavement_tact') &&
+    bereavementModePrompt.toString().includes('Il lutto è nel messaggio attuale: riconoscilo con tatto solo quanto basta'),
+  'prompt_finale_nominale_bereavement_collega_modalita_vincoli_e_direttiva'
+);
+
 console.log('--- Test prompt finale: sbattezzo_prompt_contains_neutrality_and_no_pressure ---');
 const sbattezzoModePrompt = engine.buildPrompt({
   emailSubject: 'Richiesta formale',
@@ -1067,6 +1076,15 @@ assert(
     sbattezzoModePrompt.includes('Non fare pressione pastorale.') &&
     sbattezzoModePrompt.includes('Non usare linguaggio giudicante.'),
   'sbattezzo_prompt_contains_neutrality_and_no_pressure'
+);
+
+assert(
+  sbattezzoModePrompt.toString().includes('## VINCOLI OPERATIVI PRIORITARI') &&
+    sbattezzoModePrompt.toString().includes('Modalità risposta: sensitive_canonical') &&
+    sbattezzoModePrompt.toString().includes('responseMode:sensitive_canonical->operationalConstraints') &&
+    sbattezzoModePrompt.toString().includes('Mantieni neutralità, rispetto e precisione procedurale.') &&
+    sbattezzoModePrompt.toString().includes('Non fare pressione pastorale.'),
+  'prompt_finale_nominale_sensitive_canonical_collega_modalita_vincoli_e_direttiva'
 );
 
 console.log('--- Test prompt finale: longitudinal_prompt_contains_do_not_reopen_past_context ---');
@@ -1095,6 +1113,15 @@ assert(
     longitudinalModePrompt.includes('Politica di continuità') &&
     longitudinalModePrompt.includes('responseMode:pastoral_longitudinal->continuityPolicy:do_not_reopen_past_context'),
   'longitudinal_prompt_contains_do_not_reopen_past_context'
+);
+
+assert(
+  longitudinalModePrompt.toString().includes('## VINCOLI OPERATIVI PRIORITARI') &&
+    longitudinalModePrompt.toString().includes('Modalità risposta: pastoral_longitudinal') &&
+    longitudinalModePrompt.toString().includes('responseMode:pastoral_longitudinal->operationalConstraints') &&
+    longitudinalModePrompt.toString().includes('responseMode:pastoral_longitudinal->continuityPolicy:do_not_reopen_past_context') &&
+    longitudinalModePrompt.toString().includes('Non riaprire il vissuto se l’utente non lo riprende; mantieni la continuità'),
+  'prompt_finale_nominale_pastoral_longitudinal_collega_modalita_vincoli_e_direttiva'
 );
 
 assert(
