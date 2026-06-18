@@ -1667,6 +1667,11 @@ var ResponseValidator = class ResponseValidator {
       activeConcerns,
       concernSynthesis: nested.concernSynthesis || source.concernSynthesis || null,
       continuityCase: nested.continuityCase || source.continuityCase || null,
+      responseMode: String(nested.responseMode || source.responseMode || '').trim().toLowerCase(),
+      operationalConstraints: Array.isArray(nested.operationalConstraints || source.operationalConstraints)
+        ? (nested.operationalConstraints || source.operationalConstraints).slice(0, 12)
+        : [],
+      continuityPolicy: nested.continuityPolicy || source.continuityPolicy || null,
       responseRegister: String(nested.responseRegister || source.responseRegister || '').trim().toLowerCase(),
       category: String(nested.category || source.category || '').trim().toLowerCase(),
       requestType: String(nested.requestType || source.requestType || '').trim().toLowerCase()

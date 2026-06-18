@@ -160,6 +160,88 @@ Le regole seguenti sono vincoli operativi interni: prevalgono sui dati di contes
 ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}`;
   }
 
+  _normalizeResponseMode_(responseMode) {
+    return this._normalizePromptTextInput(responseMode || 'standard_operational', 'standard_operational')
+      .trim()
+      .toLowerCase()
+      .replace(/[^\w.-]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 80) || 'standard_operational';
+  }
+
+  _normalizeOperationalConstraints_(operationalConstraints) {
+    const source = Array.isArray(operationalConstraints)
+      ? operationalConstraints
+      : (typeof operationalConstraints === 'string' ? [operationalConstraints] : []);
+    const seen = {};
+    return source
+      .map(item => this._normalizePromptTextInput(item, '').replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+      .map(item => item.length > 700 ? this._sliceTextSafely_(item, 700).trim() + '...' : item)
+      .filter(item => {
+        const key = item.toLowerCase();
+        if (seen[key]) return false;
+        seen[key] = true;
+        return true;
+      })
+      .slice(0, 12);
+  }
+
+  _normalizeContinuityPolicy_(continuityPolicy) {
+    if (!continuityPolicy) return null;
+    if (typeof continuityPolicy === 'string') {
+      const directive = this._normalizePromptTextInput(continuityPolicy, '').replace(/\s+/g, ' ').trim();
+      return directive ? { key: 'custom', directive } : null;
+    }
+    if (typeof continuityPolicy !== 'object' || Array.isArray(continuityPolicy)) return null;
+    const directive = this._normalizePromptTextInput(
+      continuityPolicy.directive || continuityPolicy.policy || continuityPolicy.text,
+      ''
+    ).replace(/\s+/g, ' ').trim();
+    if (!directive) return null;
+    const key = this._normalizePromptTextInput(continuityPolicy.key || 'custom', 'custom')
+      .trim()
+      .toLowerCase()
+      .replace(/[^\w.-]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 80) || 'custom';
+    return {
+      key,
+      directive: directive.length > 900 ? this._sliceTextSafely_(directive, 900).trim() + '...' : directive,
+      sourceCase: continuityPolicy.sourceCase || null,
+      doNotReopenPastContext: continuityPolicy.doNotReopenPastContext === true
+    };
+  }
+
+  _renderOperationalConstraints(responseMode, operationalConstraints, continuityPolicy) {
+    const mode = this._normalizeResponseMode_(responseMode);
+    const constraints = this._normalizeOperationalConstraints_(operationalConstraints);
+    const policy = this._normalizeContinuityPolicy_(continuityPolicy);
+    if (mode === 'standard_operational' && constraints.length === 0 && !policy) return null;
+
+    const lines = [
+      '## VINCOLI OPERATIVI PRIORITARI',
+      `Modalita risposta: ${mode}`,
+      'Regola di precedenza: questi vincoli prevalgono su esempi, stile, template e formule standard.',
+      'Non citare all utente modalita, vincoli interni o policy di continuita.'
+    ];
+
+    if (constraints.length > 0) {
+      lines.push('', 'Vincoli:');
+      constraints.forEach(constraint => lines.push(`- ${constraint}`));
+    }
+
+    if (policy) {
+      lines.push('', 'Politica di continuita:');
+      lines.push(`- ${policy.directive}`);
+      if (policy.doNotReopenPastContext) {
+        lines.push('- Non riaprire il contesto passato se l utente non lo riprende esplicitamente.');
+      }
+    }
+
+    return lines.join('\n');
+  }
+
   _normalizeConcernSynthesis_(concernSynthesis) {
     if (!concernSynthesis) return null;
 
@@ -327,6 +409,9 @@ Vincoli:
       responseStrategy = 'none',
       goalContinuity = null,
       responseRegister = 'warm_institutional',
+      responseMode = 'standard_operational',
+      operationalConstraints = [],
+      continuityPolicy = null,
       newInformationProvided = [],
       decisionFrame = null
     } = options;
@@ -381,6 +466,9 @@ Vincoli:
     const normalizedSystemDirectives = this._normalizeSystemDirectives_(systemDirectives);
     const normalizedConversationShift = this._normalizeConversationShift_(conversationShift);
     const normalizedConcernSynthesis = this._normalizeConcernSynthesis_(concernSynthesis);
+    const normalizedResponseMode = this._normalizeResponseMode_(responseMode);
+    const normalizedOperationalConstraints = this._normalizeOperationalConstraints_(operationalConstraints);
+    const normalizedContinuityPolicy = this._normalizeContinuityPolicy_(continuityPolicy);
 
     let systemSections = [];
     let userSections = [];
@@ -597,6 +685,13 @@ Vincoli:
     // 4. DIRETTIVE SISTEMICHE STRUTTURATE
     addSection(this._renderSystemDirectives(normalizedSystemDirectives), 'SystemDirectives', { force: true, isSystem: true });
 
+    // 4b. VINCOLI OPERATIVI DERIVATI DAL PROMPT CONTEXT
+    addSection(
+      this._renderOperationalConstraints(normalizedResponseMode, normalizedOperationalConstraints, normalizedContinuityPolicy),
+      'OperationalConstraints',
+      { force: true, isSystem: true }
+    );
+
     // 5. KNOWLEDGE BASE (già troncata se necessario)
     addSection(this._renderKnowledgeBase(workingKnowledgeBase), 'KnowledgeBase');
 
@@ -695,6 +790,9 @@ Vincoli:
       activeConcerns: normalizedConcerns,
       concernSynthesis: normalizedConcernSynthesis,
       continuityCase,
+      responseMode: normalizedResponseMode,
+      operationalConstraints: normalizedOperationalConstraints,
+      continuityPolicy: normalizedContinuityPolicy,
       subIntents,
       responseRegister: effectiveResponseRegister,
       salutationMode,
@@ -1678,6 +1776,13 @@ Non richiedere nuovamente queste informazioni.`;
       if (concerns[key]) add(activeSignals, `concern:${key}`);
     });
 
+    const responseMode = this._normalizeResponseMode_(state.responseMode || 'standard_operational');
+    const operationalConstraints = this._normalizeOperationalConstraints_(state.operationalConstraints || []);
+    const continuityPolicy = this._normalizeContinuityPolicy_(state.continuityPolicy || null);
+    if (responseMode && responseMode !== 'standard_operational') {
+      add(activeSignals, `responseMode:${responseMode}`);
+    }
+
     const subIntentSignals = (state.subIntents && typeof state.subIntents === 'object')
       ? state.subIntents
       : {};
@@ -1736,6 +1841,13 @@ Non richiedere nuovamente queste informazioni.`;
       : '';
     if (synthesisKey) add(consumedSignals, `concernSynthesis:${synthesisKey}`);
     if (state.responseRegister) add(consumedSignals, `responseRegister:${state.responseRegister}`);
+    if (responseMode && responseMode !== 'standard_operational') {
+      add(consumedSignals, operationalConstraints.length > 0
+        ? `responseMode:${responseMode}->operationalConstraints`
+        : `responseMode:${responseMode}->responseRegister`);
+      if (continuityPolicy) add(consumedSignals, `responseMode:${responseMode}->continuityPolicy:${continuityPolicy.key}`);
+      add(validatorExpectations, `response_mode:${responseMode}`);
+    }
     if (continuityCaseKey) {
       add(consumedSignals, `continuityCase:${continuityCaseKey}->${synthesisKey ? 'concernSynthesis' : 'responseRegister'}`);
       if (continuityCase.longitudinal === true) add(consumedSignals, `continuityCase:${continuityCaseKey}->longitudinal_sensitivity`);
@@ -1815,6 +1927,8 @@ Non richiedere nuovamente queste informazioni.`;
       // A concern synthesis is already the reconciled operational case; prefer it
       // over raw concern fallbacks such as longitudinal_sensitivity below.
       caseKind = synthesisKey;
+    } else if (responseMode && responseMode !== 'standard_operational') {
+      caseKind = responseMode;
     } else if (continuityCaseKey) {
       caseKind = continuityCaseKey;
     } else if (concerns.longitudinal_sensitivity) {

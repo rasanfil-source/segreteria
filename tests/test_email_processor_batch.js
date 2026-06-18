@@ -128,6 +128,9 @@ console.log('--- Test validationContext: contratto stabile per validator ---');
     activeConcerns: concerns,
     concernSynthesis: { key: 'longitudinal_operational' },
     continuityCase,
+    responseMode: 'pastoral_longitudinal',
+    operationalConstraints: ['Non riaprire il vissuto se l utente non lo riprende.'],
+    continuityPolicy: { key: 'do_not_reopen_past_context' },
     responseRegister: '',
     promptProfile: '',
     category: ' formal ',
@@ -138,6 +141,9 @@ console.log('--- Test validationContext: contratto stabile per validator ---');
   assert(context.activeConcerns.longitudinal_sensitivity === true, 'i concern devono essere copiati nel contratto di validazione');
   assert(context.concernSynthesis.key === 'longitudinal_operational', 'concernSynthesis deve essere propagato al validator');
   assert(context.continuityCase.key === 'bereavement_continuity', 'continuityCase deve essere propagato al validator');
+  assert(context.responseMode === 'pastoral_longitudinal', 'responseMode deve essere propagato al validator');
+  assert(context.operationalConstraints.length === 1, 'operationalConstraints devono essere propagati al validator');
+  assert(context.continuityPolicy.key === 'do_not_reopen_past_context', 'continuityPolicy deve essere propagata al validator');
   assert(context.responseRegister === 'warm_institutional', 'registro vuoto deve usare il fallback stabile');
   assert(context.promptProfile === 'standard', 'profilo vuoto deve usare il fallback stabile');
   assert(context.category === 'formal', 'categoria deve essere normalizzata nel contratto');
@@ -3096,7 +3102,13 @@ console.log('--- Test quick-check: conversationState memoria abilita contesto co
       profile: 'standard',
       concerns: { relational_warmth: true },
       meta: {
+        responseMode: 'standard_operational',
         responseRegister: 'pastoral_supportive',
+        operationalConstraints: [],
+        continuityPolicy: {
+          key: 'relational_opening_continuity',
+          directive: 'Valorizza l apertura relazionale con una ripresa naturale e breve.'
+        },
         continuityCase: {
           key: 'relational_opening_continuity',
           longitudinal: false,
@@ -3179,6 +3191,12 @@ console.log('--- Test quick-check: conversationState memoria abilita contesto co
     promptOptions.continuityCase &&
       promptOptions.continuityCase.key === 'relational_opening_continuity',
     'conversationState relazionale deve arrivare al PromptEngine come continuityCase'
+  );
+  assert(
+    promptOptions.responseMode === 'standard_operational' &&
+      promptOptions.continuityPolicy &&
+      promptOptions.continuityPolicy.key === 'relational_opening_continuity',
+    'EmailProcessor deve propagare responseMode e continuityPolicy al PromptEngine'
   );
 
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
@@ -3338,8 +3356,17 @@ console.log('--- Test context routing: memoria semantica sensibile impedisce amn
       profile: 'heavy',
       concerns: { longitudinal_sensitivity: true },
       meta: {
+        responseMode: 'pastoral_longitudinal',
         responseRegister: 'pastoral_supportive',
         salutationMode: 'soft',
+        operationalConstraints: [
+          'Non riaprire il vissuto se l utente non lo riprende.',
+          'Mantieni tono sobrio e umano.'
+        ],
+        continuityPolicy: {
+          key: 'do_not_reopen_past_context',
+          directive: 'Non riaprire il vissuto se l utente non lo riprende.'
+        },
         concernSynthesis: {
           key: 'longitudinal_operational',
           directive: 'La memoria segnala un lutto ancora rilevante.',
@@ -3418,6 +3445,9 @@ console.log('--- Test context routing: memoria semantica sensibile impedisce amn
   assert(promptContextInput.memory.topics.includes('esequie'), 'EmailProcessor deve passare i topic semantici della memoria al PromptContext');
   assert(promptOptions.activeConcerns.longitudinal_sensitivity === true, 'la memoria semantica deve arrivare come concern longitudinale');
   assert(promptOptions.continuityCase && promptOptions.continuityCase.key === 'bereavement_continuity', 'EmailProcessor deve propagare continuityCase al PromptEngine');
+  assert(promptOptions.responseMode === 'pastoral_longitudinal', 'EmailProcessor deve propagare responseMode longitudinale al PromptEngine');
+  assert(Array.isArray(promptOptions.operationalConstraints) && promptOptions.operationalConstraints.length === 2, 'EmailProcessor deve propagare operationalConstraints al PromptEngine');
+  assert(promptOptions.continuityPolicy && promptOptions.continuityPolicy.key === 'do_not_reopen_past_context', 'EmailProcessor deve propagare continuityPolicy al PromptEngine');
   assert(promptOptions.promptProfile === 'heavy', 'la memoria semantica sensibile deve alzare il profilo prompt');
   assert(promptOptions.doctrineBase === 'dottrina completa', 'la memoria semantica sensibile deve impedire la disattivazione della dottrina');
   assert(promptOptions.aiCore.startsWith('core pesante'), 'la memoria semantica sensibile deve mantenere attivo AI core pesante');

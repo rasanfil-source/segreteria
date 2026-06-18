@@ -1964,6 +1964,9 @@ ${addressLines.join('\n\n')}
       let effectiveSalutationMode = salutationMode;
       let concernSynthesis = null;
       let continuityCase = null;
+      let responseMode = 'standard_operational';
+      let operationalConstraints = [];
+      let continuityPolicy = null;
       const memoryProvidedInfo = Array.isArray(memoryContext.providedInfo)
         ? memoryContext.providedInfo
         : [];
@@ -2339,13 +2342,18 @@ ${addressLines.join('\n\n')}
         effectiveSalutationMode = promptContext.meta?.salutationMode || effectiveSalutationMode;
         concernSynthesis = promptContext.meta?.concernSynthesis || null;
         continuityCase = promptContext.meta?.continuityCase || null;
+        responseMode = promptContext.meta?.responseMode || responseMode;
+        operationalConstraints = Array.isArray(promptContext.meta?.operationalConstraints)
+          ? promptContext.meta.operationalConstraints
+          : [];
+        continuityPolicy = promptContext.meta?.continuityPolicy || null;
         const synthesisLog = concernSynthesis && concernSynthesis.key
           ? `, sintesi=${concernSynthesis.key}`
           : '';
         const continuityLog = continuityCase && continuityCase.key
           ? `, continuita=${continuityCase.key}`
           : '';
-        console.log(`   🧠 PromptContext: profilo=${promptProfile}, registro=${responseRegister}${synthesisLog}${continuityLog}`);
+        console.log(`   🧠 PromptContext: profilo=${promptProfile}, registro=${responseRegister}, modalita=${responseMode}${synthesisLog}${continuityLog}`);
       }
 
       const effectiveSalutationModeKey = String(effectiveSalutationMode || '').trim().toLowerCase();
@@ -2430,6 +2438,9 @@ ${addressLines.join('\n\n')}
           activeConcerns: activeConcerns,
           concernSynthesis: concernSynthesis,
           continuityCase: continuityCase,
+          responseMode: responseMode,
+          operationalConstraints: operationalConstraints,
+          continuityPolicy: continuityPolicy,
           responseRegister: responseRegister,
           promptProfile: promptProfile,
           category: categoryHintSource || classification.category || null,
@@ -2528,6 +2539,9 @@ ${addressLines.join('\n\n')}
         activeConcerns: activeConcerns,
         concernSynthesis: concernSynthesis,
         continuityCase: continuityCase,
+        responseMode: responseMode,
+        operationalConstraints: operationalConstraints,
+        continuityPolicy: continuityPolicy,
         responseRegister: responseRegister,
         territoryContext: territoryContext,
         physicalPresenceConstraint: physicalPresenceConstraint,
@@ -5840,6 +5854,9 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     activeConcerns = {},
     concernSynthesis = null,
     continuityCase = null,
+    responseMode = 'standard_operational',
+    operationalConstraints = [],
+    continuityPolicy = null,
     responseRegister = 'warm_institutional',
     promptProfile = 'standard',
     category = null,
@@ -5859,11 +5876,18 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     const normalizedRequestType = (rawRequestType === null || typeof rawRequestType === 'undefined')
       ? null
       : (String(rawRequestType).trim() || null);
+    const normalizedResponseMode = String(responseMode || 'standard_operational').trim() || 'standard_operational';
+    const normalizedOperationalConstraints = Array.isArray(operationalConstraints)
+      ? operationalConstraints.slice(0, 12)
+      : [];
 
     return {
       activeConcerns: normalizedConcerns,
       concernSynthesis: concernSynthesis || null,
       continuityCase: continuityCase || null,
+      responseMode: normalizedResponseMode,
+      operationalConstraints: normalizedOperationalConstraints,
+      continuityPolicy: continuityPolicy || null,
       responseRegister: normalizedRegister,
       promptProfile: normalizedProfile,
       category: normalizedCategory,

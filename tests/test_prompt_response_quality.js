@@ -984,6 +984,116 @@ assert(
     indirectSbattezzoObservabilityPrompt.includes('formal_register'),
   'sbattezzo indiretto deve comparire come segnale attivo e routing formale consumato'
 );
+
+console.log('--- Test prompt: responseMode renderizza vincoli operativi prioritari ---');
+const remoteModePrompt = engine.buildPrompt({
+  emailSubject: 'Certificato',
+  emailContent: 'Vorrei ricevere il certificato via email.',
+  knowledgeBase: 'I certificati possono essere richiesti via email fornendo i dati necessari.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  responseMode: 'remote_operational',
+  operationalConstraints: [
+    'Non proporre presenza fisica salvo necessita esplicita.',
+    'Preferisci email, telefono o indicazione procedurale remota.'
+  ],
+  activeConcerns: { physical_presence_constraint: true },
+  physicalPresenceConstraint: {
+    has_constraint: true,
+    type: 'geographic_distance',
+    visit_policy: 'conditional_only'
+  }
+});
+assert(
+  remoteModePrompt.includes('## VINCOLI OPERATIVI PRIORITARI') &&
+    remoteModePrompt.includes('Modalita risposta: remote_operational') &&
+    remoteModePrompt.includes('questi vincoli prevalgono su esempi, stile, template e formule standard') &&
+    remoteModePrompt.includes('Non proporre presenza fisica salvo necessita esplicita.') &&
+    remoteModePrompt.includes('Preferisci email, telefono o indicazione procedurale remota.') &&
+    remoteModePrompt.includes('responseMode:remote_operational->operationalConstraints'),
+  'remote_user_prompt_contains_no_physical_presence_constraint'
+);
+
+const bereavementModePrompt = engine.buildPrompt({
+  emailSubject: 'Messa in suffragio',
+  emailContent: 'Vorrei chiedere una Messa per mio padre defunto.',
+  knowledgeBase: 'Le intenzioni di Messa si possono richiedere via email.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  responseMode: 'bereavement',
+  operationalConstraints: [
+    'Apri con tatto.',
+    'Dai solo i passaggi indispensabili.',
+    'Evita tono burocratico.'
+  ],
+  continuityPolicy: {
+    key: 'current_bereavement_tact',
+    directive: 'Il lutto e nel messaggio attuale: riconoscilo con tatto solo quanto basta, poi passa ai passaggi indispensabili.'
+  },
+  activeConcerns: { emotional_sensitivity: true },
+  subIntents: { bereavement: true },
+  responseRegister: 'pastoral_supportive'
+});
+assert(
+  bereavementModePrompt.includes('Modalita risposta: bereavement') &&
+    bereavementModePrompt.includes('Apri con tatto.') &&
+    bereavementModePrompt.includes('Dai solo i passaggi indispensabili.') &&
+    bereavementModePrompt.includes('Evita tono burocratico.'),
+  'bereavement_prompt_contains_brevity_and_tact'
+);
+
+const sbattezzoModePrompt = engine.buildPrompt({
+  emailSubject: 'Richiesta formale',
+  emailContent: 'Vorrei procedere con lo sbattezzo.',
+  knowledgeBase: 'Le richieste formali di sbattezzo seguono una procedura scritta.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  responseMode: 'sensitive_canonical',
+  operationalConstraints: [
+    'Mantieni neutralita, rispetto e precisione procedurale.',
+    'Non fare pressione pastorale.',
+    'Non usare linguaggio giudicante.'
+  ],
+  requestType: { type: 'formal', isSbattezzo: true, needsDiscernment: false, needsDoctrine: false },
+  category: 'formal',
+  topic: 'sbattezzo',
+  responseRegister: 'formal_institutional'
+});
+assert(
+  sbattezzoModePrompt.includes('Modalita risposta: sensitive_canonical') &&
+    sbattezzoModePrompt.includes('Mantieni neutralita, rispetto e precisione procedurale.') &&
+    sbattezzoModePrompt.includes('Non fare pressione pastorale.') &&
+    sbattezzoModePrompt.includes('Non usare linguaggio giudicante.'),
+  'sbattezzo_prompt_contains_neutrality_and_no_pressure'
+);
+
+const longitudinalModePrompt = engine.buildPrompt({
+  emailSubject: 'Re: appuntamento',
+  emailContent: 'Vorrei confermare l orario.',
+  knowledgeBase: 'Gli appuntamenti si confermano via email o telefono.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  responseMode: 'pastoral_longitudinal',
+  operationalConstraints: [
+    'Non riaprire il vissuto se l utente non lo riprende.',
+    'Mantieni tono sobrio e umano.'
+  ],
+  continuityPolicy: {
+    key: 'do_not_reopen_past_context',
+    directive: 'Non riaprire il vissuto se l utente non lo riprende; mantieni la continuita in modo implicito nel tono e nella scelta dei passaggi.',
+    doNotReopenPastContext: true
+  },
+  activeConcerns: { longitudinal_sensitivity: true },
+  responseRegister: 'pastoral_supportive'
+});
+assert(
+  longitudinalModePrompt.includes('Modalita risposta: pastoral_longitudinal') &&
+    longitudinalModePrompt.includes('Non riaprire il vissuto se l utente non lo riprende') &&
+    longitudinalModePrompt.includes('Politica di continuita') &&
+    longitudinalModePrompt.includes('responseMode:pastoral_longitudinal->continuityPolicy:do_not_reopen_past_context'),
+  'longitudinal_prompt_contains_do_not_reopen_past_context'
+);
+
 assert(
   openPostureSection.includes('calda e propositiva') &&
   openPostureSection.includes('registro leggermente più personale') &&

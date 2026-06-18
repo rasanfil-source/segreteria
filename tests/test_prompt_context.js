@@ -92,6 +92,15 @@ assert(
   flatBereavement.profile === 'heavy',
   'lutto da subIntent flat deve alzare il profilo prompt a heavy'
 );
+assert(
+  flatBereavement.meta.responseMode === 'bereavement',
+  'bereavement_sets_responseMode'
+);
+assert(
+  flatBereavement.meta.operationalConstraints.includes('Apri con tatto.') &&
+    flatBereavement.meta.operationalConstraints.includes('Dai solo i passaggi indispensabili.'),
+  'bereavement deve produrre vincoli operativi di tatto e brevita'
+);
 
 const flatDistress = createPromptContext({
   email: {
@@ -161,6 +170,10 @@ assert(
     operationalConfusion.meta.concernSynthesis.directive.includes('rispondi anzitutto al dato pratico'),
   'pastoral_technical_blend deve produrre una direttiva consumabile'
 );
+assert(
+  operationalConfusion.meta.responseMode === 'pastoral_operational',
+  'pastoral_technical_blend deve produrre responseMode pastoral_operational'
+);
 
 console.log('--- Test PromptContext: categoria formale post-OCR alza profilo e registro ---');
 const postOcrFormal = createPromptContext({
@@ -181,6 +194,27 @@ assert(
 assert(
   postOcrFormal.meta.responseRegister === 'formal_institutional',
   'una categoria formale scoperta post-OCR deve usare registro formal_institutional'
+);
+
+const sbattezzoMode = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Richiesta formale',
+    body: 'Vorrei procedere con lo sbattezzo.'
+  },
+  requestType: { type: 'formal', isSbattezzo: true, needsDiscernment: false, needsDoctrine: false },
+  classification: { confidence: 1, category: 'formal', topic: 'sbattezzo' },
+  salutationMode: 'full'
+});
+assert(
+  sbattezzoMode.meta.responseMode === 'sensitive_canonical',
+  'sbattezzo_sets_sensitive_canonical'
+);
+assert(
+  sbattezzoMode.meta.operationalConstraints.includes('Non fare pressione pastorale.') &&
+    sbattezzoMode.meta.operationalConstraints.includes('Non usare linguaggio giudicante.'),
+  'sensitive_canonical deve produrre vincoli di neutralita e non pressione'
 );
 
 const sensitivePrecision = createPromptContext({
@@ -263,6 +297,10 @@ assert(
   sensitiveMemory.profile === 'heavy',
   'la memoria semantica sensibile deve alzare il profilo a heavy'
 );
+assert(
+  sensitiveMemory.meta.responseMode === 'pastoral_longitudinal',
+  'longitudinal_memory_sets_pastoral_longitudinal'
+);
 
 const contextualBereavedMemory = createPromptContext({
   email: {
@@ -307,6 +345,15 @@ const contextualRemoteMemory = createPromptContext({
 assert(
   contextualRemoteMemory.concerns.physical_presence_constraint === true,
   'memory.contextualFlags.remote_user deve attivare physical_presence_constraint'
+);
+assert(
+  contextualRemoteMemory.meta.responseMode === 'remote_operational',
+  'remote_user_sets_remote_operational'
+);
+assert(
+  contextualRemoteMemory.meta.operationalConstraints.includes('Non proporre presenza fisica salvo necessita esplicita.') &&
+    contextualRemoteMemory.meta.operationalConstraints.includes('Preferisci email, telefono o indicazione procedurale remota.'),
+  'remote_operational deve produrre vincoli remoti consumabili'
 );
 
 const canonicalFormalContinuity = createPromptContext({
@@ -507,6 +554,12 @@ assert(
     longitudinalFollowUp.meta.concernSynthesis.key === 'longitudinal_operational' &&
     longitudinalFollowUp.meta.concernSynthesis.directive.includes('lutto ancora rilevante'),
   'sensibilità longitudinale operativa deve produrre una concernSynthesis consumabile'
+);
+assert(
+  longitudinalFollowUp.meta.responseMode === 'pastoral_longitudinal' &&
+    longitudinalFollowUp.meta.continuityPolicy &&
+    longitudinalFollowUp.meta.continuityPolicy.key === 'do_not_reopen_past_context',
+  'pastoral_longitudinal deve produrre una policy di continuita non riaprire'
 );
 
 const longitudinalSynthesisStandalone = Object.create(PromptContext.prototype);

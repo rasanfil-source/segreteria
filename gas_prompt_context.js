@@ -500,6 +500,129 @@ var PromptContext = class PromptContext {
         return 'warm_institutional';
     }
 
+    _computeResponseMode() {
+        const c = this.concerns || {};
+        const requestType = (this.input && this.input.requestType && typeof this.input.requestType === 'object')
+            ? this.input.requestType
+            : {};
+        const requestTypeName = String(requestType.type || '').trim().toLowerCase();
+        const category = String(this.input?.classification?.category || '').trim().toLowerCase();
+        const topic = String(this.input?.classification?.topic || '').trim().toLowerCase();
+        const subIntents = this.input?._resolvedSubIntents || {};
+        const isSbattezzo = Boolean(
+            requestType.isSbattezzo === true ||
+            requestTypeName === 'sbattezzo' ||
+            subIntents.possible_sbattezzo_indirect === true ||
+            category === 'sbattezzo' ||
+            topic.includes('sbattezzo')
+        );
+
+        if (isSbattezzo) return 'sensitive_canonical';
+        if (subIntents.bereavement === true) return 'bereavement';
+        if (c.longitudinal_sensitivity) return 'pastoral_longitudinal';
+        if (c.physical_presence_constraint) return 'remote_operational';
+        if (c.pastoral_technical_blend) return 'pastoral_operational';
+        return 'standard_operational';
+    }
+
+    _computeOperationalConstraints(responseMode) {
+        const mode = String(responseMode || 'standard_operational').trim().toLowerCase();
+        const c = this.concerns || {};
+        const constraints = [];
+        const add = (value) => {
+            const text = String(value || '').replace(/\s+/g, ' ').trim();
+            if (text && constraints.indexOf(text) === -1) constraints.push(text);
+        };
+
+        if (mode === 'remote_operational') {
+            add('Non proporre presenza fisica salvo necessita esplicita.');
+            add('Preferisci email, telefono o indicazione procedurale remota.');
+        } else if (mode === 'bereavement') {
+            add('Apri con tatto.');
+            add('Dai solo i passaggi indispensabili.');
+            add('Evita tono burocratico.');
+        } else if (mode === 'sensitive_canonical') {
+            add('Mantieni neutralita, rispetto e precisione procedurale.');
+            add('Non fare pressione pastorale.');
+            add('Non usare linguaggio giudicante.');
+        } else if (mode === 'pastoral_longitudinal') {
+            add('Non riaprire il vissuto se l utente non lo riprende.');
+            add('Mantieni tono sobrio e umano.');
+            add('Rispondi al passaggio attuale senza ripartire da zero.');
+        } else if (mode === 'pastoral_operational') {
+            add('Rispondi anzitutto al dato pratico richiesto.');
+            add('Usa una frase umana e sobria solo se aiuta la comprensione.');
+            add('Non trasformare la risposta in accompagnamento pastorale esteso.');
+        }
+
+        if (c.physical_presence_constraint && mode !== 'remote_operational') {
+            add('Non proporre presenza fisica salvo necessita esplicita.');
+            add('Preferisci email, telefono o indicazione procedurale remota.');
+        }
+        if (c.user_overload) {
+            add('Riduci il carico dell utente: priorita chiare, prosa breve e niente checklist superflue.');
+        }
+
+        return constraints;
+    }
+
+    _computeContinuityPolicy(responseMode) {
+        const mode = String(responseMode || 'standard_operational').trim().toLowerCase();
+        const continuityCase = this.input && this.input._continuityCase
+            ? this.input._continuityCase
+            : null;
+        const continuityKey = continuityCase && continuityCase.key
+            ? String(continuityCase.key).trim()
+            : '';
+
+        if (mode === 'bereavement') {
+            return {
+                key: 'current_bereavement_tact',
+                directive: 'Il lutto e nel messaggio attuale: riconoscilo con tatto solo quanto basta, poi passa ai passaggi indispensabili.',
+                sourceCase: continuityKey || null,
+                doNotReopenPastContext: false
+            };
+        }
+
+        if (mode === 'pastoral_longitudinal') {
+            return {
+                key: 'do_not_reopen_past_context',
+                directive: 'Non riaprire il vissuto se l utente non lo riprende; mantieni la continuita in modo implicito nel tono e nella scelta dei passaggi.',
+                sourceCase: continuityKey || null,
+                doNotReopenPastContext: true
+            };
+        }
+
+        if (mode === 'sensitive_canonical') {
+            return {
+                key: 'canonical_neutrality',
+                directive: 'Non interpretare le motivazioni personali e non aggiungere pressione pastorale: resta neutro, rispettoso e procedurale.',
+                sourceCase: continuityKey || null,
+                doNotReopenPastContext: true
+            };
+        }
+
+        if (mode === 'pastoral_operational') {
+            return {
+                key: 'pastoral_signal_operational_scope',
+                directive: 'Il segnale personale orienta il tono, non amplia l oggetto della risposta: prima il dato operativo, poi eventuale cura minima.',
+                sourceCase: continuityKey || null,
+                doNotReopenPastContext: false
+            };
+        }
+
+        if (continuityKey === 'relational_opening_continuity') {
+            return {
+                key: 'relational_opening_continuity',
+                directive: 'Valorizza l apertura relazionale con una ripresa naturale e breve, poi passa al dato pratico.',
+                sourceCase: continuityKey,
+                doNotReopenPastContext: false
+            };
+        }
+
+        return null;
+    }
+
     _computeEffectiveSalutationMode() {
         const mode = this.input.salutationMode || 'full';
         const register = this._computeResponseRegister();
@@ -524,22 +647,27 @@ var PromptContext = class PromptContext {
         return mode;
     }
 
-    _buildConcernSynthesis(responseRegister) {
+    _buildConcernSynthesis(responseRegister, responseMode, operationalConstraints) {
         const c = this.concerns || {};
         const isSensitive = Boolean(c.emotional_sensitivity || c.longitudinal_sensitivity);
         const isBlend = Boolean(c.pastoral_technical_blend);
+        const mode = String(responseMode || this._computeResponseMode()).trim().toLowerCase() || 'standard_operational';
+        const constraints = Array.isArray(operationalConstraints)
+            ? operationalConstraints
+            : this._computeOperationalConstraints(mode);
         const continuityCase = this.input && this.input._continuityCase
             ? this.input._continuityCase
             : null;
         const shouldBuildSensitiveSynthesis = isSensitive && this.profile === 'heavy';
         const shouldBuildLongitudinalSynthesis = Boolean(c.longitudinal_sensitivity);
         const shouldBuildBlendSynthesis = isBlend;
+        const shouldBuildModeSynthesis = mode !== 'standard_operational';
         const shouldBuildRelationalContinuitySynthesis = Boolean(
             c.relational_warmth &&
             continuityCase &&
             continuityCase.key === 'relational_opening_continuity'
         );
-        if (!shouldBuildSensitiveSynthesis && !shouldBuildLongitudinalSynthesis && !shouldBuildBlendSynthesis && !shouldBuildRelationalContinuitySynthesis) {
+        if (!shouldBuildSensitiveSynthesis && !shouldBuildLongitudinalSynthesis && !shouldBuildBlendSynthesis && !shouldBuildModeSynthesis && !shouldBuildRelationalContinuitySynthesis) {
             return null;
         }
 
@@ -553,9 +681,22 @@ var PromptContext = class PromptContext {
             checklistCompletenessRule: false
         };
         const isCrisis = String(responseRegister || '').toLowerCase() === 'pastoral_crisis';
+        const modeDirectives = {
+            bereavement: 'Modalita lutto: apri con tatto, rispondi con i soli passaggi indispensabili e tieni fuori tono burocratico o formule decorative.',
+            sensitive_canonical: 'Modalita canonica sensibile: resta neutro, rispettoso e preciso; non fare pressione pastorale e non usare linguaggio giudicante.',
+            remote_operational: 'Modalita remota: non proporre presenza fisica salvo necessita esplicita; preferisci email, telefono o procedura remota.',
+            pastoral_longitudinal: 'Modalita longitudinale: non riaprire il vissuto se l utente non lo riprende; mantieni tono sobrio e umano.',
+            pastoral_operational: 'Modalita pastorale-operativa: il segnale personale orienta il tono, ma la risposta deve restare centrata sul dato pratico.'
+        };
+
+        if (mode === 'sensitive_canonical') {
+            key = 'sensitive_canonical';
+            directiveParts.push(modeDirectives.sensitive_canonical);
+            suppress.formattingGuidelines = true;
+        }
 
         if (c.hallucination_risk) {
-            key = 'sensitive_precision';
+            key = key || 'sensitive_precision';
             directiveParts.push(isCrisis
                 ? 'Questo messaggio richiede massima delicatezza e precisione. Se mancano dati nella Knowledge Base o il contesto e incompleto, ammetti l\'incertezza con garbo invece di dedurre.'
                 : 'Questo messaggio richiede delicatezza e precisione. Se mancano dati nella Knowledge Base o il contesto e incompleto, ammetti l\'incertezza con garbo invece di dedurre.'
@@ -600,6 +741,15 @@ var PromptContext = class PromptContext {
             suppress.checklistCompletenessRule = true;
         }
 
+        if (mode !== 'sensitive_canonical' && modeDirectives[mode]) {
+            if (directiveParts.length === 0) key = mode === 'pastoral_longitudinal' ? 'longitudinal_operational' : mode;
+            directiveParts.push(modeDirectives[mode]);
+        }
+
+        if (constraints.length > 0 && directiveParts.length > 0) {
+            directiveParts.push(`Vincoli operativi prioritari: ${constraints.slice(0, 4).join(' ')}`);
+        }
+
         if (directiveParts.length === 0) {
             return null;
         }
@@ -611,6 +761,8 @@ var PromptContext = class PromptContext {
         return {
             key: key,
             directive: directiveParts.concat([closingDirective]).join(' '),
+            responseMode: mode,
+            operationalConstraints: constraints.slice(0, 8),
             suppress: suppress
         };
     }
@@ -621,14 +773,20 @@ var PromptContext = class PromptContext {
             .map(([k]) => k);
         const responseRegister = this._computeResponseRegister();
         const salutationMode = this._computeEffectiveSalutationMode();
-        const concernSynthesis = this._buildConcernSynthesis(responseRegister);
+        const responseMode = this._computeResponseMode();
+        const operationalConstraints = this._computeOperationalConstraints(responseMode);
+        const continuityPolicy = this._computeContinuityPolicy(responseMode);
+        const concernSynthesis = this._buildConcernSynthesis(responseRegister, responseMode, operationalConstraints);
 
         return {
             profile: this.profile,
             activeConcerns: active,
+            responseMode: responseMode,
             responseRegister: responseRegister,
             salutationMode: salutationMode,
             concernSynthesis: concernSynthesis,
+            operationalConstraints: operationalConstraints,
+            continuityPolicy: continuityPolicy,
             continuityCase: this.input._continuityCase || null,
             longitudinalCase: (this.input._continuityCase && this.input._continuityCase.longitudinal)
                 ? this.input._continuityCase
