@@ -377,6 +377,8 @@ assert(
 );
 assert(
   canonicalFormalContinuity.meta.responseRegister === 'formal_institutional' &&
+    canonicalFormalContinuity.meta.responseMode === 'formal_sensitive' &&
+    canonicalFormalContinuity.meta.continuityPolicy.key === 'formal_sensitive_continuity' &&
     canonicalFormalContinuity.meta.concernSynthesis.directive.includes('precisione procedurale'),
   'la continuità canonica formale deve restare procedurale senza perdere delicatezza'
 );
@@ -614,6 +616,72 @@ assert(
 assert(
   strongCrisis.meta.salutationMode === 'full_warm',
   'primo contatto in crisi pastorale deve usare saluto full_warm'
+);
+
+const indirectCrisis = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Richiesta di aiuto',
+    body: 'Non so piu come andare avanti. Vorrei sparire.'
+  },
+  requestType: { type: 'technical' },
+  classification: { confidence: 1, category: 'information' },
+  salutationMode: 'full'
+});
+assert(
+  indirectCrisis.concerns.emotional_sensitivity === true &&
+    indirectCrisis.meta.responseRegister === 'pastoral_crisis',
+  'segnali di crisi indiretti devono attivare pastoral_crisis anche senza subIntents Gemini'
+);
+
+const operationalEmergency = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Emergenza certificato',
+    body: 'Ho urgente bisogno del certificato di battesimo per domani.'
+  },
+  requestType: { type: 'technical' },
+  classification: { confidence: 1, category: 'information' },
+  salutationMode: 'full'
+});
+assert(
+  operationalEmergency.meta.responseRegister === 'warm_institutional',
+  'urgenza operativa senza disagio personale non deve attivare pastoral_crisis'
+);
+
+const operationalFrustration = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Modulo',
+    body: 'Non ce la faccio piu a compilare il modulo online, potete aiutarmi?'
+  },
+  requestType: { type: 'technical' },
+  classification: { confidence: 1, category: 'information' },
+  salutationMode: 'full'
+});
+assert(
+  operationalFrustration.meta.responseRegister === 'warm_institutional',
+  'frustrazione operativa colloquiale non deve attivare pastoral_crisis'
+);
+
+const personalPostureRegister = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Informazioni',
+    body: 'Vorrei capire come muovermi in questo momento personale.'
+  },
+  requestType: { type: 'technical' },
+  classification: { confidence: 1, category: 'information' },
+  relationalPosture: 'relational',
+  relationalPostureConfidence: 0.9
+});
+assert(
+  personalPostureRegister.meta.responseRegister === 'pastoral_supportive',
+  'PromptContext deve centralizzare warm_institutional -> pastoral_supportive per postura personale'
 );
 
 const sessionCrisis = createPromptContext({

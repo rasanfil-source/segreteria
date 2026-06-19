@@ -303,13 +303,16 @@ var PromptContext = class PromptContext {
             i.requestType?.needsDiscernment ||
             i.territory?.addressFound
         );
-        const hasEmotionalSensitivity = Boolean(
-            i.requestType?.type === 'pastoral' ||
-            resolvedSubIntents.emotional_distress ||
-            resolvedSubIntents.bereavement
-        );
         const requestTypeName = String(i.requestType?.type || '').toLowerCase();
         const classificationCategory = String(i.classification?.category || '').toLowerCase();
+        const crisisSignal = this._detectPastoralCrisisSignal_(i.email?.subject, i.email?.body);
+        const hasEmotionalSensitivity = Boolean(
+            i.requestType?.type === 'pastoral' ||
+            classificationCategory === 'emotional_support' ||
+            resolvedSubIntents.emotional_distress ||
+            resolvedSubIntents.bereavement ||
+            crisisSignal.strong
+        );
         const formalRoute = Boolean(
             requestTypeName === 'formal' ||
             i.requestType?.isSbattezzo === true ||
@@ -449,6 +452,33 @@ var PromptContext = class PromptContext {
             (questionOpeners >= 1 && topicSignals >= 3);
     }
 
+    _normalizeSignalText_(text) {
+        return String(text || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase();
+    }
+
+    _detectPastoralCrisisSignal_(subject, body) {
+        const text = this._normalizeSignalText_([subject, body].filter(Boolean).join(' '));
+        if (!text.trim()) {
+            return { critical: false, strong: false };
+        }
+
+        const hasCriticalSignal = Boolean(
+            /\b(?:suicid(?:io|a|armi|arsi)|autolesionismo|autolesionist[aoie]|farmi\s+del\s+male|togliermi\s+la\s+vita|farla\s+finita|la\s+faccio\s+finita|vorrei\s+morire|voglio\s+morire|non\s+voglio\s+piu\s+vivere|non\s+riesco\s+piu\s+a\s+vivere|vorrei\s+sparire|voglio\s+sparire|scomparire\s+per\s+sempre)\b/.test(text) ||
+            /\b(?:non\s+so\s+piu\s+come\s+andare\s+avanti|non\s+vedo\s+via\s+d[' ]?uscita|non\s+trovo\s+via\s+d[' ]?uscita|non\s+riesco\s+piu\s+ad?\s+andare\s+avanti)\b/.test(text)
+        );
+        const hasAcuteSignal = /\b(?:sono\s+in\s+crisi|mi\s+sento\s+disperat[oaie]?|sono\s+disperat[oaie]?|sto\s+crollando|sono\s+a\s+pezzi|attacco\s+di\s+panico|angoscia\s+fortissima|trauma|emergenza\s+personale)\b/.test(text);
+        const hasDistressSignal = /\b(?:crisi|disperat[oaie]?|crollo|panico|angoscia|trauma|non\s+ce\s+la\s+faccio)\b/.test(text);
+        const hasHelpContext = /\b(?:aiuto|aiutatemi|parlare\s+con\s+qualcuno|sacerdote|prete|parroco|colloquio|ascolto|confessione|pregare|preghiera|fede|dio)\b/.test(text);
+
+        return {
+            critical: hasCriticalSignal,
+            strong: hasCriticalSignal || hasAcuteSignal || (hasDistressSignal && hasHelpContext)
+        };
+    }
+
     _computeProfile() {
         const c = this.concerns;
         const requestType = this.input.requestType;
@@ -480,10 +510,17 @@ var PromptContext = class PromptContext {
         const subIntents = this.input._resolvedSubIntents || {};
         const hasEmotionalDistress = !!subIntents.emotional_distress;
         const hasBereavement = !!subIntents.bereavement;
-        const messageText = [this.input.email?.subject, this.input.email?.body].filter(Boolean).join(' ').toLowerCase();
-        const hasStrongCrisisSignal = /\b(?:crisi|disperat[oaie]?|non\s+ce\s+la\s+faccio|panico|angoscia|crollo|trauma|emergenza|suicid[ioa]|autolesionismo)\b/.test(messageText);
+        const crisisSignal = this._detectPastoralCrisisSignal_(this.input.email?.subject, this.input.email?.body);
+        const hasStrongCrisisSignal = crisisSignal.strong;
+        const hasPastoralCrisisContext = Boolean(
+            hasEmotionalDistress ||
+            hasBereavement ||
+            c.emotional_sensitivity ||
+            type === 'pastoral' ||
+            category === 'emotional_support'
+        );
 
-        if (c.emotional_sensitivity && hasEmotionalDistress && (hasBereavement || hasStrongCrisisSignal)) {
+        if (crisisSignal.critical || (hasStrongCrisisSignal && hasPastoralCrisisContext)) {
             return 'pastoral_crisis';
         }
         if (isFormal) {
@@ -494,7 +531,26 @@ var PromptContext = class PromptContext {
         if (c.emotional_sensitivity || c.longitudinal_sensitivity || type === 'pastoral') {
             return 'pastoral_supportive';
         }
-        if (c.relational_warmth && !isFormal) {
+        const relationalPosture = String(
+            this.input.relationalPosture ||
+            this.input.relational?.posture ||
+            this.input.quickCheck?.relational_posture ||
+            ''
+        ).trim().toLowerCase();
+        const relationalConfidence = Number(
+            this.input.relationalPostureConfidence ??
+            this.input.relational?.confidence ??
+            this.input.quickCheck?.relational_posture_confidence ??
+            0
+        );
+        const relationalThreshold = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD)))
+            ? Math.max(0, Math.min(1, Number(CONFIG.RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD)))
+            : 0.70;
+        const personalPosture = ['personal', 'relational'].includes(relationalPosture);
+        const warmPosture = ['appreciative', 'grateful', 'gratitude', 'enthusiastic', 'open'].includes(relationalPosture) &&
+            Number.isFinite(relationalConfidence) &&
+            relationalConfidence >= relationalThreshold;
+        if ((c.relational_warmth || personalPosture || warmPosture) && !isFormal) {
             return 'pastoral_supportive';
         }
         return 'warm_institutional';
@@ -509,6 +565,11 @@ var PromptContext = class PromptContext {
         const category = String(this.input?.classification?.category || '').trim().toLowerCase();
         const topic = String(this.input?.classification?.topic || '').trim().toLowerCase();
         const subIntents = this.input?._resolvedSubIntents || {};
+        const isFormal = Boolean(
+            requestTypeName === 'formal' ||
+            Number(requestType.formalScore) > 0.6 ||
+            category === 'formal'
+        );
         const isSbattezzo = Boolean(
             requestType.isSbattezzo === true ||
             requestTypeName === 'sbattezzo' ||
@@ -518,6 +579,7 @@ var PromptContext = class PromptContext {
         );
 
         if (isSbattezzo) return 'sensitive_canonical';
+        if (isFormal && (c.longitudinal_sensitivity || c.emotional_sensitivity)) return 'formal_sensitive';
         if (subIntents.bereavement === true) return 'bereavement';
         if (c.longitudinal_sensitivity) return 'pastoral_longitudinal';
         if (c.physical_presence_constraint) return 'remote_operational';
@@ -545,6 +607,10 @@ var PromptContext = class PromptContext {
             add('Mantieni neutralità, rispetto e precisione procedurale.');
             add('Non fare pressione pastorale.');
             add('Non usare linguaggio giudicante.');
+        } else if (mode === 'formal_sensitive') {
+            add('Mantieni la procedura formale come asse principale.');
+            add('Usa tono sobrio e umano, senza trasformare la risposta in accompagnamento pastorale.');
+            add('Non riaprire il contesto personale passato se l’utente non lo riprende.');
         } else if (mode === 'pastoral_longitudinal') {
             add('Non riaprire il vissuto se l’utente non lo riprende.');
             add('Mantieni tono sobrio e umano.');
@@ -597,6 +663,15 @@ var PromptContext = class PromptContext {
             return {
                 key: 'canonical_neutrality',
                 directive: 'Non interpretare le motivazioni personali e non aggiungere pressione pastorale: resta neutro, rispettoso e procedurale.',
+                sourceCase: continuityKey || null,
+                doNotReopenPastContext: true
+            };
+        }
+
+        if (mode === 'formal_sensitive') {
+            return {
+                key: 'formal_sensitive_continuity',
+                directive: 'La richiesta resta formale: mantieni precisione procedurale e tono rispettoso; non riaprire il contesto personale passato se l’utente non lo riprende.',
                 sourceCase: continuityKey || null,
                 doNotReopenPastContext: true
             };
@@ -684,6 +759,7 @@ var PromptContext = class PromptContext {
         const modeDirectives = {
             bereavement: 'Modalità lutto: apri con tatto, rispondi con i soli passaggi indispensabili e tieni fuori tono burocratico o formule decorative.',
             sensitive_canonical: 'Modalità canonica sensibile: resta neutro, rispettoso e preciso; non fare pressione pastorale e non usare linguaggio giudicante.',
+            formal_sensitive: 'Modalità formale sensibile: mantieni precisione procedurale e procedura prioritaria, ma con tono sobrio e rispettoso; non riaprire il contesto personale passato se l’utente non lo riprende.',
             remote_operational: 'Modalità remota: non proporre presenza fisica salvo necessità esplicita; preferisci email, telefono o procedura remota.',
             pastoral_longitudinal: 'Modalità longitudinale: non riaprire il vissuto se l’utente non lo riprende; mantieni tono sobrio e umano.',
             pastoral_operational: 'Modalità pastorale-operativa: il segnale personale orienta il tono, ma la risposta deve restare centrata sul dato pratico.'
@@ -693,6 +769,11 @@ var PromptContext = class PromptContext {
             key = 'sensitive_canonical';
             directiveParts.push(modeDirectives.sensitive_canonical);
             suppress.formattingGuidelines = true;
+        }
+
+        if (mode === 'formal_sensitive') {
+            key = 'formal_sensitive';
+            directiveParts.push(modeDirectives.formal_sensitive);
         }
 
         if (c.hallucination_risk) {
@@ -741,7 +822,7 @@ var PromptContext = class PromptContext {
             suppress.checklistCompletenessRule = true;
         }
 
-        if (mode !== 'sensitive_canonical' && modeDirectives[mode]) {
+        if (mode !== 'sensitive_canonical' && mode !== 'formal_sensitive' && modeDirectives[mode]) {
             if (directiveParts.length === 0) key = mode === 'pastoral_longitudinal' ? 'longitudinal_operational' : mode;
             directiveParts.push(modeDirectives[mode]);
         }

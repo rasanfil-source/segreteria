@@ -243,7 +243,11 @@ var CONFIG = {
   KB_HALLUCINATION_RISK_THRESHOLD: 8000, // Soglia chars KB oltre cui scatta hallucination_risk
   MAX_PROVIDED_INFO_JSON_CHARS: 45000, // Limite serializzazione memoria providedInfo per riga Sheet
   PROMPT_ENGINE: {
-    OVERHEAD_TOKENS: 15000             // Riserva token per istruzioni/fixed context fuori KB
+    OVERHEAD_TOKENS: 15000,            // Riserva token per istruzioni/fixed context fuori KB
+    MEMORY_CONTEXT_MAX_CHARS: 10000,   // Budget massimo per memoria sintetica nel prompt
+    CONVERSATION_HISTORY_MAX_CHARS: 16000, // Budget massimo per cronologia thread nel prompt
+    RESPONSE_FOCUS_MIN_CONFIDENCE: 0.65, // Confidenza minima per riusare focus conversazionale
+    RESPONSE_FOCUS_MAX_AGE_DAYS: 45    // Finestra massima continuità focus thread
   },
 
   // Fattore prudenziale per allineare il tracciamento TPM ai token output reali (thinking invisibile Gemini 3.5).

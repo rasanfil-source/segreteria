@@ -535,7 +535,7 @@ console.log('--- Test MemoryService updateMemoryAtomic: applica inferredReaction
 
 
 
-console.log('--- Test MemoryService updateMemory: invalida cache prima e dopo write ---');
+console.log('--- Test MemoryService updateMemory: invalida cache e aggiorna write-through dopo write ---');
 {
   const originalLockService = global.LockService;
   global.LockService = {
@@ -556,6 +556,7 @@ console.log('--- Test MemoryService updateMemory: invalida cache prima e dopo wr
     memory._sleepLockBackoff_ = () => {};
     memory._validateAndNormalizeTimestamp = (value) => value;
     memory._invalidateCache = (key) => events.push(`invalidate:${key}`);
+    memory._writeThroughMemoryCache_ = (key, data) => events.push(`cache:${key}:${data.language}`);
     memory._withSheetWriteLock = (fn) => fn();
     memory._findRowByThreadId = () => ({
       rowIndex: 2,
@@ -568,6 +569,7 @@ console.log('--- Test MemoryService updateMemory: invalida cache prima e dopo wr
     assert(events[0] === 'invalidate:memory_thread-cache', 'cache deve essere invalidata prima della write su sheet');
     assert(events[1] === 'write', 'write deve avvenire dopo invalidazione preventiva');
     assert(events[2] === 'invalidate:memory_thread-cache', 'cache deve essere invalidata anche dopo write riuscita');
+    assert(events[3] === 'cache:memory_thread-cache:en', 'cache deve essere ripopolata con il dato appena scritto');
   } finally {
     global.LockService = originalLockService;
   }

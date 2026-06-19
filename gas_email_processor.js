@@ -1831,9 +1831,10 @@ var EmailProcessor = class EmailProcessor {
         const historyMessages = messages.filter(m => m.getId() !== candidateId);
 
         if (historyMessages.length > 0) {
+          const historyLimit = this.config.maxHistoryMessages || 10;
           conversationHistory = this.gmailService.getThreadHistory(
             historyMessages,
-            10,
+            historyLimit,
             myEmail,
             gmailAliases
           );
@@ -1843,14 +1844,6 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       // STEP 6.5: CONTESTO MEMORIA
       // ====================================================================
-      // 2. Recupera cronologia recente per il contesto (max configurable)
-      const historyLimit = this.config.maxHistoryMessages || 10;
-      const history = (
-        this.memoryService &&
-        typeof this.memoryService.getRecentHistory === 'function'
-      )
-        ? this.memoryService.getRecentHistory(threadId, historyLimit)
-        : [];
       if (memoryContext.lastUpdated) {
         console.log(`   🧠 Memoria trovata: lang=${memoryContext.language}, topics=${(memoryContext.providedInfo || []).length}`);
       }

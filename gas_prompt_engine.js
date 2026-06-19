@@ -222,7 +222,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     const lines = [
       '## VINCOLI OPERATIVI PRIORITARI',
       `Modalità risposta: ${mode}`,
-      'Regola di precedenza: questi vincoli prevalgono su esempi, stile, template e formule standard.',
+      'Regola di precedenza deterministica: vincoli operativi/formali/territoriali/dottrinali > sintesi concern > registro > postura > template/esempi.',
       'Non citare all’utente modalità, vincoli interni o policy di continuità.'
     ];
 
@@ -518,6 +518,25 @@ Vincoli:
     const aiCoreLiteText = this._normalizePromptTextInput(aiCoreLite, '');
     const aiCoreText = this._normalizePromptTextInput(aiCore, '');
     const doctrineBaseText = this._normalizePromptTextInput(doctrineBase, '');
+    const promptEngineSettings = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && typeof CONFIG.PROMPT_ENGINE === 'object')
+      ? CONFIG.PROMPT_ENGINE
+      : {};
+    const memoryContextCharLimit = this._resolvePromptSectionCharBudget_(
+      promptEngineSettings.MEMORY_CONTEXT_MAX_CHARS,
+      MAX_SAFE_PROMPT_CHARS,
+      0.08,
+      1200,
+      10000
+    );
+    const conversationHistoryCharLimit = this._resolvePromptSectionCharBudget_(
+      promptEngineSettings.CONVERSATION_HISTORY_MAX_CHARS,
+      MAX_SAFE_PROMPT_CHARS,
+      0.14,
+      2000,
+      16000
+    );
+    const workingMemoryContext = this._truncateMemoryContextForPrompt_(memoryContext, memoryContextCharLimit);
+    const workingConversationHistory = this._truncateConversationHistoryForPrompt_(conversationHistory, conversationHistoryCharLimit);
     const doctrineDB = Array.isArray(doctrineStructured)
       ? doctrineStructured
       : (Array.isArray(options.doctrineDB) ? options.doctrineDB : []);
@@ -718,7 +737,7 @@ Vincoli:
     // 6. CONTESTO MEMORIA
 
     // 6. CONTESTO MEMORIA
-    addSection(this._renderMemoryContext(memoryContext), 'MemoryContext');
+    addSection(this._renderMemoryContext(workingMemoryContext), 'MemoryContext');
     if (normalizedConcerns.residual_sensitivity) {
       addSection(this._renderResidualSensitivity(), 'ResidualSensitivity');
     }
@@ -776,11 +795,7 @@ Vincoli:
       ? inferredStrategy
       : responseStrategy;
     addSection(this._renderResponseStrategy(effectiveResponseStrategy), 'ResponseStrategy', { isSystem: true });
-    // Keep register and posture aligned when longitudinal context softens a direct reply.
-    const responseRegisterKey = String(responseRegister || 'warm_institutional').trim().toLowerCase();
-    const effectiveResponseRegister = (effectiveRelationalPosture === 'personal' && responseRegisterKey === 'warm_institutional')
-      ? 'pastoral_supportive'
-      : responseRegister;
+    const effectiveResponseRegister = responseRegister;
     addSection(this._renderResponseRegister(effectiveResponseRegister), 'ResponseRegister', { isSystem: true });
     const effectiveDecisionFrame = this._normalizeDecisionFrame_(decisionFrame) || this._buildDecisionFrame_({
       category: normalizedCategoryForRouting,
@@ -941,8 +956,8 @@ Vincoli:
     }
 
     // 16. CRONOLOGIA CONVERSAZIONE
-    if (conversationHistory) {
-      addSection(this._renderConversationHistory(conversationHistory), 'ConversationHistory');
+    if (workingConversationHistory) {
+      addSection(this._renderConversationHistory(workingConversationHistory), 'ConversationHistory');
     }
 
     // 17. CONTENUTO EMAIL
@@ -1200,6 +1215,120 @@ Vincoli:
     result.text = this._sliceTextSafely_(safeHead + warning, limit);
     result.truncated = true;
     return result;
+  }
+
+  _resolvePromptSectionCharBudget_(configuredValue, totalPromptChars, ratio, minChars, maxChars) {
+    const configured = Number(configuredValue);
+    if (Number.isFinite(configured) && configured >= 0) {
+      return Math.floor(configured);
+    }
+
+    const total = Number(totalPromptChars);
+    const computed = Math.floor((Number.isFinite(total) && total > 0 ? total : 140000) * ratio);
+    return Math.max(minChars, Math.min(maxChars, computed));
+  }
+
+  _resolveNumberInRange_(configuredValue, fallback, minValue, maxValue) {
+    const value = Number(configuredValue);
+    const fallbackValue = Number(fallback);
+    const min = Number(minValue);
+    const max = Number(maxValue);
+    const candidate = Number.isFinite(value) ? value : fallbackValue;
+    const safeMin = Number.isFinite(min) ? min : Number.NEGATIVE_INFINITY;
+    const safeMax = Number.isFinite(max) ? max : Number.POSITIVE_INFINITY;
+    if (!Number.isFinite(candidate)) return safeMin;
+    return Math.max(safeMin, Math.min(safeMax, candidate));
+  }
+
+  _truncateConversationHistoryForPrompt_(conversationHistory, maxChars) {
+    const source = this._normalizePromptTextInput(conversationHistory, '');
+    const limit = Math.floor(Number(maxChars));
+    if (!source || !Number.isFinite(limit) || limit <= 0) return '';
+    if (source.length <= limit) return source;
+
+    const marker = '[CRONOLOGIA TRONCATA PER LIMITE PROMPT: mantenuti i messaggi piu recenti.]';
+    if (limit <= marker.length + 16) {
+      return this._sliceTextSafely_(marker, limit);
+    }
+
+    const contentLimit = limit - marker.length - 2;
+    const parts = source
+      .split(/\n---\s*/g)
+      .map(part => part.trim())
+      .filter(Boolean);
+
+    if (parts.length <= 1) {
+      const tail = source.slice(-contentLimit).trimStart();
+      return this._sliceTextSafely_(`${marker}\n${tail}`, limit);
+    }
+
+    const kept = [];
+    let used = 0;
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const part = parts[i];
+      const separator = kept.length > 0 ? '\n---\n' : '';
+      const nextLength = used + separator.length + part.length;
+      if (nextLength > contentLimit) {
+        if (kept.length === 0) {
+          kept.unshift(part.slice(-contentLimit).trimStart());
+        }
+        break;
+      }
+      kept.unshift(part);
+      used = nextLength;
+    }
+
+    return this._sliceTextSafely_(`${marker}\n${kept.join('\n---\n')}`, limit);
+  }
+
+  _truncateMemoryContextForPrompt_(memoryContext, maxChars) {
+    if (!memoryContext || typeof memoryContext !== 'object' || Object.keys(memoryContext).length === 0) {
+      return memoryContext;
+    }
+
+    const limit = Math.floor(Number(maxChars));
+    if (!Number.isFinite(limit) || limit <= 0) return {};
+
+    const rendered = this._renderMemoryContext(memoryContext) || '';
+    if (!rendered || rendered.length <= limit) return memoryContext;
+
+    const marker = ' [memoria ridotta per limite prompt]';
+    const sourceSummary = this._extractMemorySummaryForPrompt_(memoryContext);
+    const summaryBudget = Math.max(200, Math.floor(limit * 0.45));
+    const truncatedSummary = sourceSummary && sourceSummary.length > summaryBudget
+      ? this._sliceTextSafely_(sourceSummary, Math.max(1, summaryBudget - marker.length)).trimEnd() + marker
+      : sourceSummary;
+
+    const originalTopics = Array.isArray(memoryContext.providedInfo)
+      ? memoryContext.providedInfo
+      : [];
+    let keepTopics = originalTopics.length;
+    const tailTopics = (count) => count > 0 ? originalTopics.slice(-count) : [];
+    let candidate = Object.assign({}, memoryContext, {
+      memorySummary: truncatedSummary || memoryContext.memorySummary || '',
+      providedInfo: tailTopics(keepTopics)
+    });
+
+    let candidateRendered = this._renderMemoryContext(candidate) || '';
+    while (candidateRendered.length > limit && keepTopics > 0) {
+      keepTopics = Math.max(0, Math.floor(keepTopics * 0.7));
+      candidate = Object.assign({}, candidate, {
+        providedInfo: tailTopics(keepTopics)
+      });
+      candidateRendered = this._renderMemoryContext(candidate) || '';
+    }
+
+    if (candidateRendered.length <= limit) {
+      return candidate;
+    }
+
+    const finalSummaryBudget = Math.max(0, limit - 320);
+    return Object.assign({}, candidate, {
+      memorySummary: finalSummaryBudget > marker.length
+        ? this._sliceTextSafely_(sourceSummary || '', finalSummaryBudget - marker.length).trimEnd() + marker
+        : '',
+      providedInfo: []
+    });
   }
 
   // ========================================================================
@@ -1606,15 +1735,31 @@ ${sections.join('\n')}`;
     const state = this._extractConversationState_(memoryContext);
     if (!state || !state.responseFocusHint) return null;
 
+    const promptEngineSettings = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && typeof CONFIG.PROMPT_ENGINE === 'object')
+      ? CONFIG.PROMPT_ENGINE
+      : {};
+    const minConfidence = this._resolveNumberInRange_(
+      promptEngineSettings.RESPONSE_FOCUS_MIN_CONFIDENCE,
+      0.65,
+      0,
+      1
+    );
+    const maxAgeDays = this._resolveNumberInRange_(
+      promptEngineSettings.RESPONSE_FOCUS_MAX_AGE_DAYS,
+      14,
+      1,
+      365
+    );
+
     const confidence = Number(state.responseFocusHintConfidence);
-    if (!Number.isFinite(confidence) || confidence < 0.65) return null;
+    if (!Number.isFinite(confidence) || confidence < minConfidence) return null;
 
     const appliesToTopic = state.appliesToTopic ? this._normalizeTopicForContinuity_(state.appliesToTopic) : '';
     const normalizedCurrentTopic = this._normalizeTopicForContinuity_(currentTopic);
     if (appliesToTopic && normalizedCurrentTopic && appliesToTopic !== normalizedCurrentTopic) return null;
     if (appliesToTopic && !normalizedCurrentTopic) return null;
 
-    if (!this._isConversationStateFresh_(state.updatedAt, referenceDate, 14)) return null;
+    if (!this._isConversationStateFresh_(state.updatedAt, referenceDate, maxAgeDays)) return null;
 
     const rendered = this._renderResponseFocusHintLabel_(state.responseFocusHint);
     if (!rendered) return null;
@@ -2126,7 +2271,7 @@ Vincoli:
 - non nominare il registro all'utente;
 - non citare criteri o istruzioni interne;
 - il registro definisce temperatura, tatto e confini della risposta; le linee pragmatiche di postura servono solo per focus, ordine e aggancio iniziale;
-- se registro, postura e template speciali sembrano divergere, prevalgono i vincoli formali, territoriali, dottrinali e il registro della risposta;
+- precedenza deterministica: vincoli operativi/formali/territoriali/dottrinali > sintesi concern > registro > postura > template/esempi;
 - non alterare KB, territorio, dottrina, date, orari o procedure.`;
   }
 
@@ -2998,10 +3143,10 @@ ${safeAttachmentsContext || ''}`;
 4. Email con "no-reply"
 5. Comunicazioni politiche
 
-6. **Follow-up di SOLO ringraziamento** (tutte queste condizioni):
-   ✔ Oggetto inizia con "Re:"
-   ✔ Contiene SOLO: ringraziamenti, conferme
-   ✔ NON contiene: domande, nuove richieste
+6. **Messaggio di SOLO ringraziamento o conferma**:
+   ✔ contiene solo ringraziamenti o conferme di ricezione
+   ✔ NON contiene domande, nuove richieste, date/orari nuovi, dati utili o correzioni
+   ✔ vale anche se l'oggetto non inizia con "Re:"
 
 ⚠️ "NO_REPLY" significa che NON invierò risposta.`;
   }

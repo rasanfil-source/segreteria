@@ -280,6 +280,8 @@ var MemoryService = class MemoryService {
         const now = this._validateAndNormalizeTimestamp(new Date().toISOString());
         const shouldIncrementMessageCount = options.incrementMessageCount === true || newData._incrementMessageCount === true;
 
+        let cacheValueToStore = null;
+
         if (existingRow) {
           const existingData = this._rowToObject(existingRow.values);
           const currentVersion = existingData.version || 0;
@@ -338,6 +340,7 @@ var MemoryService = class MemoryService {
           this._withSheetWriteLock(() => {
             this._updateRow(existingRow.rowIndex, mergedData);
           }, true);
+          cacheValueToStore = mergedData;
           console.log(`🧠 Memoria aggiornata per thread ${threadId} (v${mergedData.version}, Tentativo ${attempt + 1})`);
         } else {
           if (conversationStateUpdate) {
@@ -362,11 +365,13 @@ var MemoryService = class MemoryService {
           this._withSheetWriteLock(() => {
             this._appendRow(insertData);
           }, true);
+          cacheValueToStore = insertData;
           console.log(`🧠 Memoria creata per thread ${threadId} (v1)`);
         }
 
         // Invalida cache locale
         this._invalidateCache(`memory_${normalizedThreadId}`);
+        this._writeThroughMemoryCache_(`memory_${normalizedThreadId}`, cacheValueToStore);
         return; // Successo
 
       } catch (error) {
@@ -516,6 +521,8 @@ var MemoryService = class MemoryService {
         const existingRow = this._findRowByThreadId(normalizedThreadId);
         const now = this._validateAndNormalizeTimestamp(new Date().toISOString());
 
+        let cacheValueToStore = null;
+
         if (existingRow) {
           const existingData = this._rowToObject(existingRow.values);
           const currentVersion = existingData.version || 0;
@@ -587,6 +594,7 @@ var MemoryService = class MemoryService {
             this._withSheetWriteLock(() => {
               this._updateRow(existingRow.rowIndex, mergedData);
             }, true);
+            cacheValueToStore = mergedData;
             console.log(`🧠 Memoria aggiornata atomicamente per thread ${threadId} (v${mergedData.version})`);
         } else {
           if (conversationStateUpdate) {
@@ -619,10 +627,12 @@ var MemoryService = class MemoryService {
           this._withSheetWriteLock(() => {
             this._appendRow(insertData);
           }, true);
+          cacheValueToStore = insertData;
           console.log(`🧠 Memoria creata atomicamente per thread ${threadId} (v1)`);
         }
 
         this._invalidateCache(`memory_${normalizedThreadId}`);
+        this._writeThroughMemoryCache_(`memory_${normalizedThreadId}`, cacheValueToStore);
         this._lastUpdateMemoryAtomicFailure = null;
         return true;
         // --- FINE SEZIONE CRITICA ---
@@ -1872,6 +1882,23 @@ var MemoryService = class MemoryService {
       data: data,
       timestamp: now
     };
+  }
+
+  _writeThroughMemoryCache_(key, data) {
+    if (!key || !data || typeof this._setCache !== 'function') return;
+    try {
+      if (!this._cache || typeof this._cache !== 'object') this._cache = {};
+      if (!Number.isFinite(this._opCount)) this._opCount = 0;
+      if (!Number.isFinite(this._cacheExpiry) || this._cacheExpiry <= 0) this._cacheExpiry = 5 * 60 * 1000;
+      if (!Number.isFinite(this._maxCacheSize) || this._maxCacheSize <= 0) this._maxCacheSize = 200;
+
+      const cacheData = Object.assign({}, data);
+      if (!Array.isArray(cacheData.providedInfo)) cacheData.providedInfo = [];
+      if (!cacheData.contextualFlags || typeof cacheData.contextualFlags !== 'object') cacheData.contextualFlags = {};
+      this._setCache(key, cacheData);
+    } catch (e) {
+      console.warn(`⚠️ Write-through cache memoria fallita: ${e.message}`);
+    }
   }
 
   /**
