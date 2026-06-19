@@ -500,6 +500,53 @@ var PromptContext = class PromptContext {
         return 'lite';
     }
 
+    _isToneOnlyLongitudinalFollowUp_() {
+        const c = this.concerns || {};
+        if (!c.longitudinal_sensitivity) return false;
+        if (
+            c.emotional_sensitivity ||
+            c.user_overload ||
+            c.multi_question ||
+            c.discernment_risk ||
+            c.pastoral_technical_blend ||
+            c.physical_presence_constraint
+        ) {
+            return false;
+        }
+
+        const input = this.input || {};
+        const requestType = input.requestType || {};
+        const type = String(requestType.type || '').toLowerCase();
+        const category = String(input.classification?.category || '').toLowerCase();
+        const subIntents = input._resolvedSubIntents || {};
+
+        if (
+            type === 'pastoral' ||
+            type === 'formal' ||
+            type === 'doctrinal' ||
+            requestType.isSbattezzo === true ||
+            Number(requestType.formalScore) > 0.6 ||
+            Number(requestType.doctrineScore) > 0.6 ||
+            category === 'formal' ||
+            category === 'sbattezzo' ||
+            category === 'pastoral' ||
+            category === 'emotional_support' ||
+            subIntents.emotional_distress === true ||
+            subIntents.bereavement === true
+        ) {
+            return false;
+        }
+
+        const body = this._normalizeSignalText_(input.email?.body || '');
+        if (!body) return false;
+        if (body.length > 260) return false;
+
+        const currentSensitiveSignal = /\b(?:lutto|morte|morto|morta|decesso|defunt[oaie]?|funeral[ei]|esequie|malattia|separat[oaie]?|divorziat[oaie]?|vedov[oaie]?|crisi|disperat[oaie]?|angoscia|panico|non\s+ce\s+la\s+faccio|vorrei\s+sparire|non\s+so\s+piu\s+come\s+andare\s+avanti)\b/.test(body);
+        const asksForPastoralSupport = /\b(?:aiuto|aiutatemi|parlare\s+con\s+qualcuno|sacerdote|prete|parroco|colloquio|ascolto|confessione|pregare|preghiera)\b/.test(body);
+
+        return !currentSensitiveSignal && !asksForPastoralSupport;
+    }
+
     _computeResponseRegister() {
         const c = this.concerns;
         const requestType = this.input.requestType || {};
@@ -526,9 +573,10 @@ var PromptContext = class PromptContext {
         if (isFormal) {
             return 'formal_institutional';
         }
-        // Longitudinal sensitivity (for example bereavement in memory) must keep
-        // the supportive register even when the current message is neutral.
-        if (c.emotional_sensitivity || c.longitudinal_sensitivity || type === 'pastoral') {
+        if (c.emotional_sensitivity || type === 'pastoral') {
+            return 'pastoral_supportive';
+        }
+        if (c.longitudinal_sensitivity && !this._isToneOnlyLongitudinalFollowUp_()) {
             return 'pastoral_supportive';
         }
         const relationalPosture = String(
@@ -581,7 +629,11 @@ var PromptContext = class PromptContext {
         if (isSbattezzo) return 'sensitive_canonical';
         if (isFormal && (c.longitudinal_sensitivity || c.emotional_sensitivity)) return 'formal_sensitive';
         if (subIntents.bereavement === true) return 'bereavement';
-        if (c.longitudinal_sensitivity) return 'pastoral_longitudinal';
+        if (c.longitudinal_sensitivity) {
+            return this._isToneOnlyLongitudinalFollowUp_()
+                ? 'longitudinal_tone_only'
+                : 'pastoral_longitudinal';
+        }
         if (c.physical_presence_constraint) return 'remote_operational';
         if (c.pastoral_technical_blend) return 'pastoral_operational';
         return 'standard_operational';
@@ -611,6 +663,10 @@ var PromptContext = class PromptContext {
             add('Mantieni la procedura formale come asse principale.');
             add('Usa tono sobrio e umano, senza trasformare la risposta in accompagnamento pastorale.');
             add('Non riaprire il contesto personale passato se l’utente non lo riprende.');
+        } else if (mode === 'longitudinal_tone_only') {
+            add('Non riaprire il vissuto se l’utente non lo riprende.');
+            add('Mantieni un tono istituzionale caldo e naturale, senza accompagnamento pastorale aggiuntivo.');
+            add('Rispondi solo al contenuto operativo attuale.');
         } else if (mode === 'pastoral_longitudinal') {
             add('Non riaprire il vissuto se l’utente non lo riprende.');
             add('Mantieni tono sobrio e umano.');
@@ -654,6 +710,15 @@ var PromptContext = class PromptContext {
             return {
                 key: 'do_not_reopen_past_context',
                 directive: 'Non riaprire il vissuto se l’utente non lo riprende; mantieni la continuità in modo implicito nel tono e nella scelta dei passaggi.',
+                sourceCase: continuityKey || null,
+                doNotReopenPastContext: true
+            };
+        }
+
+        if (mode === 'longitudinal_tone_only') {
+            return {
+                key: 'implicit_sensitive_continuity',
+                directive: 'La memoria resta solo un guardrail implicito: non riaprire il contesto personale passato e rispondi al dato attuale con tono istituzionale caldo.',
                 sourceCase: continuityKey || null,
                 doNotReopenPastContext: true
             };
@@ -709,7 +774,7 @@ var PromptContext = class PromptContext {
 
         if (mode === 'none_or_continuity' &&
             (this.concerns.emotional_sensitivity ||
-             this.concerns.longitudinal_sensitivity ||
+             (this.concerns.longitudinal_sensitivity && !this._isToneOnlyLongitudinalFollowUp_()) ||
              this.concerns.relational_warmth)) {
             return 'soft';
         }
@@ -799,8 +864,13 @@ var PromptContext = class PromptContext {
         }
 
         if (c.longitudinal_sensitivity && !c.emotional_sensitivity && directiveParts.length === 0) {
-            key = 'longitudinal_operational';
-            directiveParts.push(this._getContinuityCaseDirective(continuityCase, 'operational') || 'La memoria segnala un contesto personale delicato ancora rilevante. Anche se il messaggio attuale è operativo, rispondi concretamente con tono sobrio e umano, senza freddezza procedurale. Non riaprire o nominare il contesto delicato se l’utente non lo riprende esplicitamente.');
+            if (mode === 'longitudinal_tone_only') {
+                key = 'longitudinal_tone_only';
+                directiveParts.push('La memoria segnala solo una continuità implicita: non riaprire o nominare il contesto delicato se l’utente non lo riprende esplicitamente. Mantieni registro istituzionale caldo e rispondi solo al dato operativo attuale.');
+            } else {
+                key = 'longitudinal_operational';
+                directiveParts.push(this._getContinuityCaseDirective(continuityCase, 'operational') || 'La memoria segnala un contesto personale delicato ancora rilevante. Anche se il messaggio attuale è operativo, rispondi concretamente con tono sobrio e umano, senza freddezza procedurale. Non riaprire o nominare il contesto delicato se l’utente non lo riprende esplicitamente.');
+            }
         }
 
         if (c.relational_warmth && continuityCase && continuityCase.key === 'relational_opening_continuity' && directiveParts.length === 0) {

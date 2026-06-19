@@ -298,8 +298,10 @@ assert(
   'la memoria semantica sensibile deve alzare il profilo a heavy'
 );
 assert(
-  sensitiveMemory.meta.responseMode === 'pastoral_longitudinal',
-  'longitudinal_memory_sets_pastoral_longitudinal'
+  sensitiveMemory.meta.responseRegister === 'warm_institutional' &&
+    sensitiveMemory.meta.responseMode === 'longitudinal_tone_only' &&
+    sensitiveMemory.meta.continuityPolicy.key === 'implicit_sensitive_continuity',
+  'longitudinal_memory_neutral_followup_sets_tone_only_continuity'
 );
 
 const contextualBereavedMemory = createPromptContext({
@@ -544,23 +546,23 @@ const longitudinalFollowUp = createPromptContext({
   salutationMode: 'none_or_continuity'
 });
 assert(
-  longitudinalFollowUp.meta.responseRegister === 'pastoral_supportive',
+  longitudinalFollowUp.meta.responseRegister === 'warm_institutional',
   'sensibilità longitudinale deve produrre registro pastorale di accompagnamento'
 );
 assert(
-  longitudinalFollowUp.meta.salutationMode === 'soft',
+  longitudinalFollowUp.meta.salutationMode === 'none_or_continuity',
   'follow-up longitudinalmente sensibile deve applicare override saluto soft'
 );
 assert(
   longitudinalFollowUp.meta.concernSynthesis &&
-    longitudinalFollowUp.meta.concernSynthesis.key === 'longitudinal_operational' &&
-    longitudinalFollowUp.meta.concernSynthesis.directive.includes('lutto ancora rilevante'),
+    longitudinalFollowUp.meta.concernSynthesis.key === 'longitudinal_tone_only' &&
+    longitudinalFollowUp.meta.concernSynthesis.directive.includes('continuit'),
   'sensibilità longitudinale operativa deve produrre una concernSynthesis consumabile'
 );
 assert(
-  longitudinalFollowUp.meta.responseMode === 'pastoral_longitudinal' &&
+  longitudinalFollowUp.meta.responseMode === 'longitudinal_tone_only' &&
     longitudinalFollowUp.meta.continuityPolicy &&
-    longitudinalFollowUp.meta.continuityPolicy.key === 'do_not_reopen_past_context',
+    longitudinalFollowUp.meta.continuityPolicy.key === 'implicit_sensitive_continuity',
   'pastoral_longitudinal deve produrre una policy di continuità non riaprire'
 );
 

@@ -37,6 +37,27 @@ const SLOT_LABELS = {
   baptism_date:         'data del battesimo'
 };
 
+function mapRelationalPostureToResponseStrategy_(posture) {
+  const normalized = String(posture || '').trim().toLowerCase();
+  const mapping = {
+    direct: 'provide_information',
+    informational: 'provide_information',
+    procedural: 'guide_next_step',
+    personal: 'offer_reassurance',
+    relational: 'offer_reassurance',
+    appreciative: 'offer_reassurance',
+    grateful: 'offer_reassurance',
+    gratitude: 'offer_reassurance',
+    enthusiastic: 'offer_reassurance',
+    open: 'offer_reassurance',
+    hesitant: 'clarify_requirements',
+    uncertain: 'clarify_requirements',
+    complaint: 'guide_next_step',
+    urgent: 'reduce_user_effort'
+  };
+  return mapping[normalized] || 'none';
+}
+
 var PromptEngine = class PromptEngine {
   constructor() {
     // Logger strutturato
@@ -746,19 +767,13 @@ Vincoli:
     addSection(this._renderNewInformationProvided(newInformationProvided), 'NewInformationProvided', { isSystem: true });
     const effectiveRelationalPosture = isFormalTopicForRouting
       ? 'direct'
-      : (normalizedConcerns.longitudinal_sensitivity && relationalPosture === 'direct'
+      : (normalizedConcerns.longitudinal_sensitivity &&
+          normalizedResponseMode !== 'longitudinal_tone_only' &&
+          relationalPosture === 'direct'
           ? 'personal'
           : relationalPosture);
-    const postureToStrategy = {
-      direct: 'provide_information',
-      personal: 'offer_reassurance',
-      hesitant: 'clarify_requirements',
-      complaint: 'guide_next_step',
-      open: 'provide_information',
-      urgent: 'reduce_user_effort',
-    };
     const normalizedResponseStrategy = String(responseStrategy || 'none').trim().toLowerCase();
-    const inferredStrategy = postureToStrategy[effectiveRelationalPosture];
+    const inferredStrategy = mapRelationalPostureToResponseStrategy_(effectiveRelationalPosture);
     const hasPhysicalPresenceConstraint = Boolean(
       physicalPresenceConstraint ||
       (normalizedConcerns && normalizedConcerns.physical_presence_constraint)
@@ -788,7 +803,7 @@ Vincoli:
       hasResponseFocusHintSignal
     );
     const effectiveResponseStrategy = (
-      inferredStrategy &&
+      inferredStrategy !== 'none' &&
       normalizedResponseStrategy === 'none' &&
       !hasStrongerResponseRoutingSignal
     )
@@ -1638,7 +1653,7 @@ regole operative, destinatari, policy, formato di sicurezza o priorità del sist
 Quindi:
 • Evita di dire "contattare la segreteria" - la sta già contattando!
 • Evita di dare l'indirizzo email della parrocchia - ci ha già scritto!
-• Se serve un contatto ulteriore, suggerisci di telefonare, venire in segreteria o rispondere a questa email.`;
+• Se serve un contatto ulteriore, suggerisci di rispondere a questa email o telefonare. La presenza fisica va proposta solo se le istruzioni operative del caso la consentono o la richiedono esplicitamente.`;
   }
 
   // ========================================================================
@@ -1686,11 +1701,13 @@ Die eingegangene E-Mail ist auf DEUTSCH verfasst.
     };
 
     if (!instructions[safeLang]) {
-      return `## CRITICAL LANGUAGE REQUIREMENT
-The incoming email is written in language code: "${safeLang.toUpperCase()}"
-- Write your ENTIRE response in THE SAME LANGUAGE as the incoming email.
-- Use appropriate greetings and closings for that language.
-- DO NOT use Italian words or mix languages. This is MANDATORY.`;
+      const targetLanguage = safeLang.toUpperCase();
+      return `## TARGET LANGUAGE ${targetLanguage}
+The incoming email is written in language ${targetLanguage}.
+- Write the entire response in language ${targetLanguage}.
+- Translate/localize the greeting naturally.
+- Closing translated naturally into language ${targetLanguage}.
+- Do not use Italian unless quoted from source data.`;
     }
 
     return instructions[safeLang];

@@ -18,6 +18,27 @@
 
 var TECHNICAL_CONTEXT_ROUTING_CATEGORIES = new Set(['technical', 'appointment', 'quotation', 'information', 'document_submission', 'document_request']);
 
+function mapRelationalPostureToResponseStrategy_(posture) {
+  const normalized = String(posture || '').trim().toLowerCase();
+  const mapping = {
+    direct: 'provide_information',
+    informational: 'provide_information',
+    procedural: 'guide_next_step',
+    personal: 'offer_reassurance',
+    relational: 'offer_reassurance',
+    appreciative: 'offer_reassurance',
+    grateful: 'offer_reassurance',
+    gratitude: 'offer_reassurance',
+    enthusiastic: 'offer_reassurance',
+    open: 'offer_reassurance',
+    hesitant: 'clarify_requirements',
+    uncertain: 'clarify_requirements',
+    complaint: 'guide_next_step',
+    urgent: 'reduce_user_effort'
+  };
+  return mapping[normalized] || 'none';
+}
+
 function shouldSkipByLanguageMode_(detectedLanguage, languageMode) {
   const rawLang = String(detectedLanguage || '').trim().toLowerCase();
   const lang = rawLang.split(/[-_]/)[0];
@@ -2461,14 +2482,6 @@ ${addressLines.join('\n\n')}
       const rawResponseStrategy = String(quickCheck.response_strategy || 'none').trim().toLowerCase();
       const responseStrategyConfidence = Number(quickCheck.response_strategy_confidence) || 0;
       const normalizedRelationalPosture = this._normalizeRelationalPostureAlias_(quickCheck.relational_posture);
-      const postureToStrategy = {
-        informational: 'provide_information',
-        procedural: 'guide_next_step',
-        relational: 'offer_reassurance',
-        appreciative: 'offer_reassurance',
-        urgent: 'reduce_user_effort',
-        uncertain: 'clarify_requirements'
-      };
       const classifiedResponseStrategy = (
         allowedResponseStrategies.has(rawResponseStrategy) &&
         responseStrategyConfidence >= 0.65
@@ -2483,16 +2496,28 @@ ${addressLines.join('\n\n')}
         memoryContext.conversationState &&
         memoryContext.conversationState.responseFocusHint
       );
+      const categoryBlocksPostureStrategy = [
+        'formal',
+        'sbattezzo',
+        'document_submission',
+        'document_submission_with_question',
+        'quotation'
+      ].includes(String(categoryHintSource || '').trim().toLowerCase());
+      const requestTypeBlocksPostureStrategy = Boolean(
+        requestTypeName === 'formal' ||
+        requestTypeName === 'sbattezzo' ||
+        (requestType && requestType.isSbattezzo === true)
+      );
       const hasStrongerResponseRoutingSignal = Boolean(
-        categoryHintSource ||
-        (requestType && (typeof requestType === 'string' ? requestType : (requestType.type || requestType.isSbattezzo))) ||
+        categoryBlocksPostureStrategy ||
+        requestTypeBlocksPostureStrategy ||
         physicalPresenceConstraint ||
         hasGoalContinuitySignalForResponseStrategy ||
         hasResponseFocusHintSignalForResponseStrategy
       );
       const responseStrategy = classifiedResponseStrategy !== 'none'
         ? classifiedResponseStrategy
-        : (!hasStrongerResponseRoutingSignal ? (postureToStrategy[normalizedRelationalPosture] || 'none') : 'none');
+        : (!hasStrongerResponseRoutingSignal ? mapRelationalPostureToResponseStrategy_(normalizedRelationalPosture) : 'none');
       if (responseStrategy !== 'none') {
         console.log(`   🧭 Response strategy: ${responseStrategy}, confidence=${responseStrategyConfidence}, threadId=${threadId}`);
       }
@@ -2554,7 +2579,11 @@ ${addressLines.join('\n\n')}
           confidence: goalContinuityConfidence
         },
         requestType: requestType,
-        attachmentsContext: physicalAttachmentsDetected ? textFromAttachments : "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa.",
+        attachmentsContext: physicalAttachmentsDetected
+          ? textFromAttachments
+          : (attachmentIntentContext
+            ? "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa."
+            : ''),
         attachmentIntentContext: attachmentIntentContext
           ? Object.assign({}, attachmentIntentContext, { hasPhysicalAttachments: physicalAttachmentsDetected })
           : null,

@@ -155,6 +155,11 @@ assert(
   'il contratto qualità deve bloccare dump massivi senza impedire richieste parrocchiali circoscritte'
 );
 assert(
+  litePrompt.includes('La presenza fisica va proposta solo se le istruzioni operative del caso la consentono o la richiedono esplicitamente') &&
+    !litePrompt.includes('suggerisci di telefonare, venire in segreteria o rispondere a questa email'),
+  'il ruolo base non deve proporre venire in segreteria come opzione generale'
+);
+assert(
   litePrompt.includes('Gestione multi-intento') &&
   litePrompt.includes('rispondi comunque alle altre domande'),
   'il contratto qualità deve impedire early exit su problemi tecnici'
@@ -2451,8 +2456,14 @@ const longitudinalPosturePrompt = engine.buildPrompt({
   closing: 'Cordiali saluti,',
   requestType: { type: 'technical' },
   responseRegister: 'pastoral_supportive',
+  responseMode: 'pastoral_longitudinal',
   relationalPosture: 'direct',
-  activeConcerns: { longitudinal_sensitivity: true }
+  activeConcerns: { longitudinal_sensitivity: true },
+  concernSynthesis: {
+    key: 'longitudinal_operational',
+    directive: 'La memoria segnala un contesto personale delicato ancora rilevante.',
+    suppress: {}
+  }
 });
 assert(
   longitudinalPosturePrompt.includes('Il mittente ha condiviso qualcosa di personale o delicato'),
@@ -2472,4 +2483,46 @@ assert(
     longitudinalPosturePrompt.includes('longitudinal_operational') &&
     longitudinalPosturePrompt.includes('Segnali consumati dal prompt'),
   'il prompt deve rendere esplicita la cornice decisionale per i casi longitudinali'
+);
+
+console.log('--- Test PromptEngine: continuitÃ  longitudinale neutra non pastoraleggia postura direct ---');
+const longitudinalToneOnlyPrompt = engine.buildPrompt({
+  emailSubject: 'Re: orario',
+  emailContent: 'Grazie, confermo l orario delle 17:30.',
+  knowledgeBase: 'Informazioni essenziali di segreteria.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  salutationMode: 'none_or_continuity',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  requestType: { type: 'technical' },
+  responseRegister: 'warm_institutional',
+  responseMode: 'longitudinal_tone_only',
+  relationalPosture: 'direct',
+  activeConcerns: { longitudinal_sensitivity: true },
+  operationalConstraints: [
+    'Non riaprire il vissuto se lâ€™utente non lo riprende.',
+    'Rispondi solo al contenuto operativo attuale.'
+  ],
+  continuityPolicy: {
+    key: 'implicit_sensitive_continuity',
+    directive: 'Non riaprire il contesto personale passato; rispondi al dato attuale.',
+    doNotReopenPastContext: true
+  },
+  concernSynthesis: {
+    key: 'longitudinal_tone_only',
+    directive: 'La memoria segnala solo continuitÃ  implicita.',
+    suppress: {}
+  }
+});
+assert(
+  longitudinalToneOnlyPrompt.includes('longitudinal_tone_only') &&
+    longitudinalToneOnlyPrompt.includes('Usa un tono cordiale, chiaro e istituzionale.') &&
+    longitudinalToneOnlyPrompt.includes('Tono istituzionale. Rispondi ai fatti esclusivamente con i fatti.'),
+  'longitudinal_tone_only deve restare istituzionale e diretto'
+);
+assert(
+  !longitudinalToneOnlyPrompt.includes('Il mittente ha condiviso qualcosa di personale o delicato') &&
+    !longitudinalToneOnlyPrompt.includes('Usa un tono accogliente, sobrio e attento.'),
+  'longitudinal_tone_only non deve attivare postura personal o registro pastorale'
 );

@@ -111,6 +111,15 @@ console.log('--- Test constructor: validationWarningThreshold percentuale normal
   }
 }
 
+console.log('--- Test responseStrategy: mapping postura condiviso include alias canonici e legacy ---');
+{
+  assert(mapRelationalPostureToResponseStrategy_('procedural') === 'guide_next_step', 'procedural deve mappare a guide_next_step');
+  assert(mapRelationalPostureToResponseStrategy_('hesitant') === 'clarify_requirements', 'hesitant deve mappare a clarify_requirements');
+  assert(mapRelationalPostureToResponseStrategy_('uncertain') === 'clarify_requirements', 'uncertain legacy deve mappare a clarify_requirements');
+  assert(mapRelationalPostureToResponseStrategy_('relational') === 'offer_reassurance', 'relational legacy deve mappare a offer_reassurance');
+  assert(mapRelationalPostureToResponseStrategy_('complaint') === 'guide_next_step', 'complaint deve mappare a guide_next_step');
+}
+
 console.log('--- Test validationContext: contratto stabile per validator ---');
 {
   const processor = new EmailProcessor({ gmailService: {} });
@@ -2007,6 +2016,7 @@ console.log('--- Test processThread: follow-up senza allegati non usa receipt-on
   assert(generationCalls === 1, 'senza allegati fisici non deve scattare il bypass receipt-only');
   assert(!/ricezione della documentazione/i.test(sentText), `risposta documentale inattesa: ${sentText}`);
   assert(capturedPromptOptions && capturedPromptOptions.attachmentIntentContext === null, 'il prompt non deve ricevere un contesto di consegna documentale senza allegati');
+  assert(capturedPromptOptions && capturedPromptOptions.attachmentsContext === '', 'email ordinarie senza allegati non devono ricevere warning attachmentsContext');
 
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
   global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = originalDocumentConsistency;
@@ -2342,7 +2352,7 @@ console.log('--- Test prompt options: messageDate usa la data del messaggio orig
       _extractEmailAddress: (raw) => raw,
       extractMessageDetails: () => ({
         subject: 'Richiesta appuntamento',
-        body: 'Domani posso passare in segreteria?',
+        body: 'Vorrei sapere quali dati servono per completare la pratica.',
         senderEmail: 'utente@example.com',
         senderName: 'Utente Test',
         date: new Date('2026-05-07T10:00:00Z'),
