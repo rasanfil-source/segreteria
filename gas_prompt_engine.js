@@ -1395,6 +1395,7 @@ Testo finale dell'email.
     rules.push('- **Efficienza del thread:** Usa le informazioni già presenti nel thread come contesto operativo; richiamale solo quanto basta per rendere chiaro il passo attuale.');
     rules.push('- **Consegna documenti:** Conferma la "ricezione della documentazione" esclusivamente in presenza di allegati effettivi. Se l\'utente inserisce solo dati anagrafici nel testo, conferma di aver preso nota dei dati.');
     rules.push('- **Ricevuta semplice:** Se l\'utente invia un documento senza fare domande, ringrazia e conferma la ricezione in modo conciso, senza aggiungere passaggi extra.');
+    rules.push('- **Schede e moduli di iscrizione:** Quando ricevi schede o moduli di iscrizione, presenta lo stato amministrativo come azione successiva della segreteria: "procederemo alla verifica e, se tutto risulterà completo, alla registrazione nei nostri archivi".');
     rules.push('- **Identità:** Comunica immedesimandoti nel ruolo di segreteria parrocchiale verso l\'utente, senza mai esporre il tuo ragionamento o le fonti utilizzate.');
 
     // Regole lingua-specifiche
@@ -3131,6 +3132,7 @@ Azione: conferma ricezione + eventuale risposta alla domanda esplicita nel corpo
 Vietato: elencare requisiti, spiegare procedure, commentare il contenuto OCR o trasformare parole dell'allegato in una richiesta informativa.
 Non elencare i requisiti per fare da padrino/madrina, salvo domanda esplicita nel corpo email o POLICY specifica.
 Risposta predefinita: ringrazia e conferma la ricezione, senza aggiungere passi operativi.
+Formula guida per schede/moduli: "Abbiamo ricevuto la documentazione allegata. La segreteria procederà alla verifica e, se tutto risulterà completo, alla registrazione nei propri archivi."
 ${questionGuardrail}
 Se il documento è poco leggibile o incompleto, non inventare: chiedi solo il reinvio o il dato mancante essenziale.
 ${attachmentIntentContext.responseDirective || ''}

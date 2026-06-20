@@ -1642,6 +1642,122 @@ console.log('--- Test processThread: burst con allegato nel primo messaggio atti
 }
 
 
+console.log('--- Test processThread: look-back stretto salta messaggi del bot e recupera allegato esterno ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalDocumentConsistency = global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED;
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = false;
+  global.CONFIG.ATTACHMENT_CONTEXT = { enabled: true, maxFiles: 3 };
+
+  const attachmentCalls = [];
+  const firstMsg = {
+    getId: () => 'm-lookback-user-attachment',
+    isUnread: () => false,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-10T10:00:00Z'),
+    getSubject: () => 'Documento',
+    getPlainBody: () => 'Ecco il documento richiesto.',
+    getAttachments: () => [{ getName: () => 'documento.pdf' }]
+  };
+  const botMsg = {
+    getId: () => 'm-lookback-bot-reply',
+    isUnread: () => false,
+    getFrom: () => 'bot@example.com',
+    getDate: () => new Date('2026-05-10T10:01:00Z'),
+    getSubject: () => 'Re: Documento',
+    getPlainBody: () => 'Abbiamo ricevuto la documentazione.',
+    getAttachments: () => []
+  };
+  const candidateMsg = {
+    getId: () => 'm-lookback-user-reference',
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-10T10:02:00Z'),
+    getSubject: () => 'Re: Documento',
+    getPlainBody: () => 'Documento già inviato.',
+    getAttachments: () => []
+  };
+  const thread = createThread({ id: 't-lookback-bot-gap', messages: [firstMsg, botMsg, candidateMsg] });
+
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Re: Documento',
+        body: candidateMsg.getPlainBody(),
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date('2026-05-10T10:02:00Z'),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      getProcessableAttachments: (message) => {
+        attachmentCalls.push(message.getId());
+        return message.getId() === 'm-lookback-user-attachment'
+          ? {
+              blobs: [],
+              textContext: 'Documento recuperato dal messaggio esterno precedente.',
+              skipped: [],
+              items: [{ name: 'documento.pdf', text: 'Documento recuperato' }]
+            }
+          : { blobs: [], textContext: '', skipped: [], items: [] };
+      },
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'document_submission', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      backupKey: 'backup-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'documentazione ricevuta' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta con look-back allegato' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: () => 'PROMPT'
+    }
+  });
+  processor._deriveAttachmentIntentContext_ = () => ({
+    intent: 'document_submission',
+    hasQuestions: false,
+    allowBodyQuestions: false,
+    categoryHintSource: 'document_submission',
+    detectedDocTypes: { sponsor: false }
+  });
+
+  const result = processor.processThread(thread, 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'il follow-up con riferimento esplicito deve completarsi');
+  assert(attachmentCalls.includes('m-lookback-user-attachment'), 'deve saltare il messaggio del bot e recuperare l allegato esterno entro 3 passi');
+  assert(!attachmentCalls.includes('m-lookback-bot-reply'), 'non deve processare allegati da messaggi inviati dal bot');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = originalDocumentConsistency;
+  global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+}
+
+
 console.log('--- Test processThread: maxFiles globale conta allegati testuali nel burst ---');
 {
   const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
@@ -3677,6 +3793,31 @@ console.log('--- Test attachment intent: OCR con punti interrogativi non crea do
   );
   assert(context && context.hasQuestions === false, 'le domande/etichette OCR non devono impostare hasQuestions');
   assert(!/_with_question$/.test(context.intent), `intent OCR non deve terminare con _with_question, ottenuto ${context && context.intent}`);
+}
+
+console.log('--- Test document consistency: idoneita accentata e carta identita fallback ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  assert(
+    processor._detectDocumentTypeFromText_('Certificato di idoneità') === 'attestato_idoneita_padrino_madrina',
+    'idoneità accentata deve essere riconosciuta senza dipendere da \\b ASCII'
+  );
+  assert(
+    processor._detectDocumentTypeFromText_('CARTA D\'IDENTITÀ numero documento') === 'documento_identita',
+    'carta d identità deve essere riconosciuta come fallback documentale'
+  );
+  const consistency = processor._evaluateDocumentConsistency_(
+    'Certificato battesimo',
+    'Vi mando il certificato di battesimo di mio figlio Marco, allego anche una copia della mia carta d\'identità per completare la pratica.',
+    [{ name: 'certificato_battesimo.pdf' }],
+    'CERTIFICATO DI BATTESIMO - battezzato il 10 maggio'
+  );
+  assert(
+    consistency.mode === 'match' &&
+      consistency.expected === 'certificato_battesimo' &&
+      consistency.received === 'certificato_battesimo',
+    `battesimo + carta identità nel corpo non deve produrre falso mismatch: ${JSON.stringify(consistency)}`
+  );
 }
 
 console.log('--- Test sponsor sanitizer: non rimuove termini matrimoniali generici ---');

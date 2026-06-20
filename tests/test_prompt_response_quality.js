@@ -745,6 +745,11 @@ assert(
   'il prompt deve indicare una risposta predefinita di ricezione'
 );
 assert(
+  attachmentPrompt.includes('La segreteria procederà alla verifica') &&
+    attachmentPrompt.includes('registrazione nei propri archivi'),
+  'il prompt deve guidare i moduli verso verifica e registrazione futura, non gia conclusa'
+);
+assert(
   attachmentPrompt.includes('Non elencare i requisiti per fare da padrino/madrina'),
   'il prompt deve bloccare requisiti non richiesti dagli allegati'
 );

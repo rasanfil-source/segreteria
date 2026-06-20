@@ -2086,6 +2086,51 @@ ${addressLines.join('\n\n')}
             console.warn(`⚠️ Impossibile leggere allegati per pre-check: ${e.message}`);
             attachmentPreCheckFailed = true;
           }
+
+          // LOOK-BACK STRETTO: se il messaggio corrente non ha allegati propri, recuperiamo
+          // quello del messaggio immediatamente precedente SOLO se il corpo vi fa esplicito
+          // riferimento testuale (es. "come da documento già inviato", "il modulo precedente")
+          // e SOLO se quel messaggio precedente non è nostro. Nessuna scansione profonda del
+          // thread: un solo salto indietro, ancorato semanticamente, per evitare di ripescare
+          // allegati di mesi prima non più pertinenti al messaggio corrente.
+          const bodyStr = messageDetails.body || '';
+          const explicitPastReference = /\bcome\s.{0,25}\b(invi|alleg|trasmess|anticip)/i.test(bodyStr)
+            || /\b(documento|modulo|certificato|file)\b.{0,30}\b(precedente|di\s+prima|gi[aà]\s+(?:invi|alleg))/i.test(bodyStr);
+
+          if (!hasAttachments && !attachmentPreCheckFailed && messages.length > 1 && explicitPastReference) {
+            const candidateIndex = messages.findIndex((m) => m.getId() === candidate.getId());
+
+            // Finestra mobile invece di candidateIndex-1 fisso: nel flusso reale il bot
+            // risponde quasi sempre al primo invio, quindi il messaggio immediatamente
+            // precedente è spesso la NOSTRA risposta. Risaliamo saltando i nostri messaggi
+            // fino al primo messaggio esterno, con un tetto di 3 passi per restare "stretto"
+            // e non degenerare in una scansione dell'intero thread.
+            let foundValidPastMsg = null;
+            for (let j = candidateIndex - 1; j >= Math.max(0, candidateIndex - 3); j--) {
+              const pastMsgCandidate = messages[j];
+              const pastSenderRawCandidate = (pastMsgCandidate && typeof pastMsgCandidate.getFrom === 'function') ? (pastMsgCandidate.getFrom() || '') : '';
+              const pastSenderEmailCandidate = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
+                ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(pastSenderRawCandidate) || '')
+                : '';
+              const pastIsUsCandidate = Boolean(pastSenderEmailCandidate) && ownAddresses.has(pastSenderEmailCandidate);
+              if (!pastIsUsCandidate) {
+                foundValidPastMsg = pastMsgCandidate;
+                break;
+              }
+            }
+
+            if (foundValidPastMsg) {
+              const pastAttachments = foundValidPastMsg.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
+              if (pastAttachments.length > 0) {
+                console.log(`   📎 Look-back stretto: recuperato allegato dal messaggio precedente (${foundValidPastMsg.getId()}) referenziato esplicitamente nel testo.`);
+                attachmentSourceMessages.push(foundValidPastMsg);
+                hasAttachments = true;
+              }
+            } else {
+              console.log('   📎 Look-back stretto: nessun messaggio esterno trovato nel raggio di ricerca (3 passi).');
+            }
+          }
+
           physicalAttachmentsDetected = Boolean(hasAttachments);
 
           if (!hasAttachments && !attachmentPreCheckFailed) {
@@ -2654,7 +2699,7 @@ ${addressLines.join('\n\n')}
         strategyUsed = 'DocumentConsistency-PrudentResponse';
         console.log('✅ Risposta prudente generata per mismatch documentale');
       } else if (hasRiskyUnknownReceived || forceReceiptOnlyForSubmission) {
-        response = this._buildReceiptOnlySubmissionResponse_(detectedLanguage);
+        response = this._buildReceiptOnlySubmissionResponse_(detectedLanguage, categoryHintSource);
         strategyUsed = hasRiskyUnknownReceived
           ? 'DocumentConsistency-UnknownReceivedReceiptOnly'
           : 'Submission-ReceiptOnlyGuardrail';
@@ -6699,7 +6744,14 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
   _deriveAttachmentIntentContext_(body, subject, attachmentItems, ocrText, phase = 'pre_ocr') {
     const fullText = `${subject || ''} ${body || ''} ${ocrText || ''}`.toLowerCase();
     const attachmentSignalText = `${ocrText || ''} ${(Array.isArray(attachmentItems) ? attachmentItems.map((i) => (i && i.name) ? i.name : '').join(' ') : '')}`.toLowerCase();
-    const hasBodyQuestion = /\?|vorrei sapere|chiedo se|mi dica|sapere se/i.test(`${subject || ''} ${body || ''}`);
+    // Rileva domande esplicite, ma anche richieste implicite, condizionali e intenti
+    // operativi (es. "se era possibile programmare...") che non contengono "?" né
+    // le formule esatte "vorrei sapere"/"chiedo se". \w* dopo gli stem evita che il
+    // confine di parola \b finale tronchi il match su forme flesse (es. "possibile",
+    // "disponibilità").
+    const attachmentBodyQuestionText = `${subject || ''} ${body || ''}`;
+    const hasBodyQuestion = /\?|\b(?:vorrei|chiedo|mi dica|sapere|possibil\w*|possiamo|potremmo|programmare|fissare|disponibil\w*|se\s+(?:era|fosse|pu[oò]|potete))\b/i.test(attachmentBodyQuestionText)
+      || attachmentBodyQuestionText.trim().length > 300;
     // Non trattare punti interrogativi o label OCR come domande rivolte alla segreteria:
     // un form/certificato può contenere campi o diciture interrogative non intenzionali.
     const hasOcrQuestion = false;
@@ -6712,7 +6764,7 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     const isSponsorDoc = /idoneit[aà]|padrino|madrina|sponsor/i.test(docScopeText);
     const isIdentityDoc = /carta d'identit[aà]|passaporto|documento identit[aà]/i.test(docScopeText);
     const isSbattezzoDoc = /modulo sbattezzo|richiesta cancellazione|registr[oi] battesim/i.test(docScopeText);
-    const isSacramentalDoc = /certificat[oa].{0,80}(battesim[oa]|cresim[ao])|battesim[oa].{0,80}uso.{0,40}matrimoni[oa]|(prima comunione|cresima ragazzi|catechismo)|cresim[ao].{0,30}adult/i.test(docScopeText);
+    const isSacramentalDoc = /certificat[oa].{0,80}(battesim[oa]|cresim[ao])|battesim[oa].{0,80}uso.{0,40}matrimoni[oa]|(prima comunione|cresima ragazzi|catechismo|catechesi)|cresim[ao].{0,30}adult|iscrizion[ea].{0,40}(catechesi|corso|percorso)/i.test(docScopeText);
 
     // Se è un pre-check (senza OCR), siamo conservativi
     if (phase === 'pre_ocr') {
@@ -6756,7 +6808,7 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
       responseDirective = 'Ricevuto modulo per sbattezzo/apostasia. Segui protocollo FORMAL: conferma ricezione e informa che la pratica verrà inoltrata al Parroco.';
     } else if (isSacramentalDoc) {
       categoryHintSource = 'sacrament';
-      responseDirective = 'Consegna documento sacramentale rilevata. Conferma la ricezione della documentazione allegata.';
+      responseDirective = 'Consegna modulo sacramentale o di iscrizione alla catechesi rilevata. Conferma con calore la ricezione specificando chiaramente la tipologia di modulo/documento ricevuto dall\'utente.';
     }
 
     if (hasBodyQuestion || hasOcrQuestion) {
@@ -6807,8 +6859,12 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     const rules = [
       { type: 'certificato_battesimo_uso_matrimonio', pattern: /\bbattesim[oa]\b[\s\S]{0,80}\buso\b[\s\S]{0,40}\bmatrimoni[oa]\b/i },
       { type: 'certificato_battesimo_uso_matrimonio', pattern: /\b(uso matrimoniale|per matrimonio)\b/i },
-      { type: 'attestato_idoneita_padrino_madrina', pattern: /\b(attestat[oa]|certificat[oa])\b[\s\S]{0,60}\bidoneit[aà]\b/i },
-      { type: 'attestato_idoneita_padrino_madrina', pattern: /\b(idoneit[aà]|padrin[oa]|madrin[ao]|sponsor)\b/i },
+      // NOTA: \b dopo una vocale accentata (es. "idoneità") in JS non scatta mai, perché
+      // l'engine regex valuta \w in ASCII-only e tratta "à" come carattere non di parola:
+      // non c'è transizione \w/\W tra "à" e lo spazio o la fine stringa che segue. Per questo
+      // usiamo (?![a-zàèéìòù]) al posto del \b finale dove lo stem può terminare in vocale accentata.
+      { type: 'attestato_idoneita_padrino_madrina', pattern: /\b(attestat[oa]|certificat[oa])\b[\s\S]{0,60}\bidoneit[aà](?![a-zàèéìòù])/i },
+      { type: 'attestato_idoneita_padrino_madrina', pattern: /\bidoneit[aà](?![a-zàèéìòù])|\bpadrin[oa]\b|\bmadrin[ao]\b|\bsponsor\b/i },
       { type: 'certificato_battesimo', pattern: /\bcertificat[oa]\b[\s\S]{0,40}\bbattesim[oa]\b/i },
       { type: 'certificato_cresima', pattern: /\bcertificat[oa]\b[\s\S]{0,40}\bcresim[ao]\b/i },
       { type: 'scheda_iscrizione_corso_prematrimoniale', pattern: /\b(scheda|modulo)\b[\s\S]{0,40}\biscrizion[ea]\b[\s\S]{0,60}\bprematrimoniale\b/i },
@@ -6817,7 +6873,14 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
       { type: 'scheda_iscrizione_catechesi_buon_pastore', pattern: /\bbuon pastore\b/i },
       { type: 'scheda_iscrizione_pellegrinaggio', pattern: /\bpellegrinaggi[oa]\b/i },
       { type: 'modulo_sbattezzo_rinuncia_cancellazione_registri', pattern: /\b(sbattezz[oa]|apostasi[ao]|rinuncia)\b/i },
-      { type: 'modulo_sbattezzo_rinuncia_cancellazione_registri', pattern: /\bcancellazion[ea]\b[\s\S]{0,40}\bregistr[oi]\b[\s\S]{0,30}\bbattesim[oa]\b/i }
+      { type: 'modulo_sbattezzo_rinuncia_cancellazione_registri', pattern: /\bcancellazion[ea]\b[\s\S]{0,40}\bregistr[oi]\b[\s\S]{0,30}\bbattesim[oa]\b/i },
+      // Tenuta in fondo come fallback di bassa priorità: un documento d'identità è quasi
+      // sempre allegato a supporto di una richiesta più specifica (idoneità, battesimo...),
+      // mai il "soggetto" della richiesta. Se la regola fosse più in alto, un corpo email
+      // che cita sia "certificato di battesimo" sia "carta d'identità" verrebbe classificato
+      // come documento_identita anziché certificato_battesimo, generando un mismatch falso
+      // positivo per chi ha inviato il documento giusto.
+      { type: 'documento_identita', pattern: /\bcarta\s+d['’]?identit[aà](?![a-zàèéìòù])|\bpassaporto\b|\bpatente\b|\bdocumento\s+(?:di\s+)?identit[aà](?![a-zàèéìòù])|\bcodice\s+fiscale\b/i }
     ];
 
     for (const rule of rules) {
@@ -6844,7 +6907,7 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     if (lang === 'de') {
       return `${greeting}\n\nWir haben Ihren Anhang erhalten. Bevor wir fortfahren, prüft das Pfarrbüro die eingereichten Unterlagen.\n\n${closing}\nPfarrbüro`;
     }
-    return `${greeting}\n\nAbbiamo ricevuto la documentazione allegata. Prima di procedere, la segreteria verificherà la documentazione inviata.\n\n${closing}\nSegreteria Parrocchia Sant'Eugenio`;
+    return `${greeting}\n\nAbbiamo ricevuto il suo messaggio. Non vorremmo sbagliare, ma ci sembra che ci abbia inviato un documento allegato non corrispondente a quanto annunciato o richiesto. La invitiamo a verificare l'allegato e, nel caso, a reinviare il file corretto.\n\n${closing}\nSegreteria Parrocchia Sant'Eugenio`;
   }
 
   _normalizeSponsorGuidanceLanguage_(detectedLanguage) {
@@ -7130,14 +7193,20 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     return cleaned;
   }
 
-  _buildReceiptOnlySubmissionResponse_(lang = 'it') {
+  _buildReceiptOnlySubmissionResponse_(lang = 'it', categoryHintSource = null) {
     const normalizedLang = this._normalizeBypassResponseLanguage_(lang);
     const { greeting, closing } = this._getAdaptiveBypassGreetingAndClosing_(normalizedLang);
+    // Nome del documento usato solo nel testo IT, in base alla categoria già
+    // rilevata post-OCR (sacrament/formal). Il guardrail "sola ricezione" resta
+    // intatto: qui personalizziamo solo la formulazione, non la logica di decisione.
+    let docNameIT = "la documentazione allegata";
+    if (categoryHintSource === 'sacrament') docNameIT = "il modulo sacramentale/di iscrizione allegato";
+    else if (categoryHintSource === 'formal') docNameIT = "la richiesta formale allegata";
     if (normalizedLang === 'it') {
       return `${greeting}
 
-Con la presente confermiamo la ricezione della documentazione inviata.
-Provvederemo a prenderne visione quanto prima.
+Abbiamo ricevuto con successo ${docNameIT}.
+Prima di procedere o confermare l'operazione, la segreteria ne verificherà il contenuto.
 
 ${closing}
 Segreteria Parrocchia Sant'Eugenio`;
