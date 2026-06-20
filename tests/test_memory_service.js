@@ -416,6 +416,62 @@ console.log('--- Test MemoryService updateMemoryAtomic: VERSION_MISMATCH non rit
   }
 }
 
+console.log('--- Test MemoryService updateMemoryAtomic: incrementa messageCount anche con solo flag interno ---');
+{
+  const originalLockService = global.LockService;
+  global.LockService = {
+    getScriptLock: () => ({
+      waitLock: () => {},
+      releaseLock: () => {}
+    })
+  };
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    const now = '2026-05-10T10:00:00.000Z';
+    memory._initialized = true;
+    memory._getLockTuning_ = () => ({ shardedAcquireTimeoutMs: 1 });
+    memory._getShardedLockKey = () => 'lock-thread-only-increment';
+    memory._tryAcquireShardedLock = () => true;
+    memory._releaseShardedLock = () => {};
+    memory._sleepLockBackoff_ = () => {};
+    memory._invalidateCache = () => {};
+    memory._writeThroughMemoryCache_ = () => {};
+    memory._withSheetWriteLock = (fn) => fn();
+    memory._validateAndNormalizeTimestamp = () => now;
+
+    let saved = null;
+    memory._updateRow = (rowIndex, data) => {
+      saved = { rowIndex, data };
+    };
+    memory._findRowByThreadId = () => ({
+      rowIndex: 2,
+      values: ['thread-only-increment', 'it', 'info', 'standard', '[]', '2026-05-01T00:00:00.000Z', 2, 7, '']
+    });
+
+    const ok = memory.updateMemoryAtomic('thread-only-increment', { _incrementMessageCount: true });
+
+    assert(ok === true, 'updateMemoryAtomic deve accettare un update composto solo dal flag interno');
+    assert(saved && saved.data.messageCount === 3, `messageCount atteso 3, ottenuto ${saved && saved.data.messageCount}`);
+    assert(saved.data.version === 8, `version attesa 8, ottenuta ${saved.data.version}`);
+    assert(!Object.prototype.hasOwnProperty.call(saved.data, '_incrementMessageCount'), 'il flag interno non deve essere persistito');
+
+    let inserted = null;
+    memory._findRowByThreadId = () => null;
+    memory._appendRow = (data) => {
+      inserted = data;
+    };
+
+    const created = memory.updateMemoryAtomic('thread-only-increment-new', { _incrementMessageCount: true });
+
+    assert(created === true, 'updateMemoryAtomic deve creare una riga anche con solo incremento');
+    assert(inserted && inserted.messageCount === 1, `messageCount iniziale atteso 1, ottenuto ${inserted && inserted.messageCount}`);
+    assert(!Object.prototype.hasOwnProperty.call(inserted, '_incrementMessageCount'), 'il flag interno non deve essere persistito sulla insert');
+  } finally {
+    global.LockService = originalLockService;
+  }
+}
+
 console.log('--- Test MemoryService updateMemoryAtomic: applica inferredReactionData su riga esistente ---');
 {
   const originalLockService = global.LockService;
@@ -635,6 +691,50 @@ console.log('--- Test MemoryService _withSheetWriteLock: flush anche se write fa
   }
 }
 
+console.log('--- Test MemoryService _tryAcquireShardedLock: default senza sleep di verifica cache ---');
+{
+  const originalCacheService = global.CacheService;
+  const originalLockService = global.LockService;
+  const originalUtilities = global.Utilities;
+  const store = new Map();
+  const sleeps = [];
+
+  global.CacheService = {
+    getScriptCache: () => ({
+      get: (key) => store.has(key) ? store.get(key) : null,
+      put: (key, value) => store.set(key, value),
+      remove: (key) => store.delete(key)
+    })
+  };
+  global.LockService = {
+    getScriptLock: () => ({
+      tryLock: () => true,
+      releaseLock: () => {}
+    })
+  };
+  global.Utilities = {
+    sleep: (ms) => sleeps.push(ms)
+  };
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    memory._heldShardLocks = {};
+    memory._getLockTuning_ = () => ({
+      globalGuardTimeoutMs: 1,
+      cacheVerifyDelayMs: 0
+    });
+
+    const ok = memory._tryAcquireShardedLock('memory_lock_no_verify_sleep', 500);
+
+    assert(ok === true, 'lock sharded deve essere acquisito nel percorso libero');
+    assert(sleeps.length === 0, `il percorso default non deve dormire nel guard lock, sleeps: ${sleeps.join(', ')}`);
+    memory._releaseShardedLock('memory_lock_no_verify_sleep');
+  } finally {
+    global.CacheService = originalCacheService;
+    global.LockService = originalLockService;
+    global.Utilities = originalUtilities;
+  }
+}
 
 console.log('--- Test MemoryService providedInfo caps: usa config e non svuota topic singolo enorme ---');
 {

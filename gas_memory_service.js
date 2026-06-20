@@ -466,15 +466,17 @@ var MemoryService = class MemoryService {
         dataToUpdate[key] = rawData[key];
       }
     }
+    const shouldIncrementMessageCount = rawData._incrementMessageCount === true;
+    const hasConversationStateUpdate = !!conversationStateUpdate;
 
-    // Accetta anche solo topic (se newData è nullo o vuoto ma providedTopics è presente)
+    // Accetta anche operazioni atomiche composte solo da topic, incremento contatore o stato conversazionale.
     const hasData = Object.keys(dataToUpdate).length > 0;
     const hasTopics = !!(providedTopics && (
       (Array.isArray(providedTopics) && providedTopics.length > 0) ||
       (typeof providedTopics === 'string' && providedTopics.length > 0)
     ));
 
-    if (!hasData && !hasTopics) {
+    if (!hasData && !hasTopics && !shouldIncrementMessageCount && !hasConversationStateUpdate) {
       console.warn(`⚠️ updateMemoryAtomic chiamato senza dati né topic validi per thread ${threadId}`);
       return false;
     }
@@ -554,7 +556,6 @@ var MemoryService = class MemoryService {
             );
           }
           mergedData.lastUpdated = now;
-          const shouldIncrementMessageCount = rawData._incrementMessageCount === true;
           mergedData.messageCount = shouldIncrementMessageCount
             ? (existingData.messageCount || 0) + 1
             : (existingData.messageCount || 0);
@@ -610,7 +611,6 @@ var MemoryService = class MemoryService {
           }
           insertData.threadId = normalizedThreadId;
           insertData.lastUpdated = now;
-          const shouldIncrementMessageCount = rawData._incrementMessageCount === true;
           insertData.messageCount = shouldIncrementMessageCount ? 1 : 0;
           insertData.version = 1;
 
@@ -1481,7 +1481,7 @@ var MemoryService = class MemoryService {
   }
 
   /**
-   * Tenta acquisizione lock sharded (single-key su CacheService, senza lock globale).
+   * Tenta acquisizione lock sharded (single-key su CacheService, con guard globale breve).
    */
   _tryAcquireShardedLock(key, timeoutMs = 500) {
     const cache = CacheService.getScriptCache();
@@ -1507,14 +1507,19 @@ var MemoryService = class MemoryService {
         Math.ceil((acquireBudgetMs + sheetWriteTimeoutMs + 5000) / 1000)
       );
       const token = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-      const guardTimeoutMs = Math.max(1, Math.min(1000, this._getLockTuning_().globalGuardTimeoutMs || 500));
+      const lockTuning = this._getLockTuning_();
+      const guardTimeoutMs = Math.max(1, Math.min(1000, lockTuning.globalGuardTimeoutMs || 500));
+      const configuredVerifyDelayMs = Number(lockTuning.cacheVerifyDelayMs);
+      const cacheVerifyDelayMs = Number.isFinite(configuredVerifyDelayMs) && configuredVerifyDelayMs > 0
+        ? Math.min(1000, configuredVerifyDelayMs)
+        : 0;
 
       while ((Date.now() - startedAt) < acquireBudgetMs) {
         const guardLock = LockService.getScriptLock();
         let guardAcquired = false;
 
         try {
-          // CacheService non offre put-if-absent: serializziamo solo il breve check+put+verify.
+          // CacheService non offre put-if-absent: serializziamo solo il breve check+put.
           guardAcquired = guardLock.tryLock(guardTimeoutMs);
           if (!guardAcquired) {
             Utilities.sleep(50 + Math.floor(Math.random() * 80));
@@ -1523,15 +1528,15 @@ var MemoryService = class MemoryService {
 
           if (cache.get(key) == null) {
             cache.put(key, token, lockTtlSeconds);
-            // Piccola attesa per lasciare propagare il put in ambienti con latenza cache.
-            Utilities.sleep(120);
-            if (cache.get(key) === token) {
-              this._heldShardLocks[key] = token;
-              return true;
+            if (cacheVerifyDelayMs > 0) {
+              Utilities.sleep(cacheVerifyDelayMs);
+              if (cache.get(key) !== token) {
+                Utilities.sleep(50 + Math.floor(Math.random() * 80));
+                continue;
+              }
             }
-            // Race residua/propagazione anomala: non acquisire se il token non è il nostro.
-            Utilities.sleep(50 + Math.floor(Math.random() * 80));
-            continue;
+            this._heldShardLocks[key] = token;
+            return true;
           }
         } finally {
           if (guardAcquired) {
@@ -1563,6 +1568,7 @@ var MemoryService = class MemoryService {
       backoffBaseMs: Number(cfg.MEMORY_LOCK_BACKOFF_BASE_MS) > 0 ? Number(cfg.MEMORY_LOCK_BACKOFF_BASE_MS) : 200,
       backoffCapMs: Number(cfg.MEMORY_LOCK_BACKOFF_CAP_MS) > 0 ? Number(cfg.MEMORY_LOCK_BACKOFF_CAP_MS) : 10000,
       backoffJitterMs: Number(cfg.MEMORY_LOCK_BACKOFF_JITTER_MS) >= 0 ? Number(cfg.MEMORY_LOCK_BACKOFF_JITTER_MS) : 0,
+      cacheVerifyDelayMs: Number(cfg.MEMORY_LOCK_CACHE_VERIFY_DELAY_MS) > 0 ? Number(cfg.MEMORY_LOCK_CACHE_VERIFY_DELAY_MS) : 0,
       shardBuckets: Number(cfg.MEMORY_LOCK_SHARD_BUCKETS) > 1 ? Number(cfg.MEMORY_LOCK_SHARD_BUCKETS) : 1
     };
   }

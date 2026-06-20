@@ -236,6 +236,7 @@ var CONFIG = {
   MEMORY_SHEET_NAME: 'ConversationMemory',
   MAX_PROVIDED_TOPICS: 50,             // Limite massimo topic in memoria
   MEMORY_LOCK_TTL: 30,                 // Lock TTL in secondi per MemoryService (>= timeout lock Sheet)
+  MEMORY_LOCK_CACHE_VERIFY_DELAY_MS: 0, // 0 evita sleep nel guard lock; usare >0 solo se CacheService mostra propagazione lenta
   SHEET_WRITE_LOCK_TIMEOUT_MS: 10000,  // Timeout attesa ScriptLock prima di scrivere su Sheet
 
   // === Riprova con i fogli API ===

@@ -938,6 +938,48 @@ function testUpdateMemoryAtomicClearsPreviousFailureOnSuccess() {
     assert(service.getLastUpdateMemoryAtomicFailure() === null, 'un successo deve azzerare la diagnostica di failure precedente');
 }
 
+function testUpdateMemoryAtomicIncrementsMessageCountWithInternalFlagOnly() {
+    loadScript('gas_memory_service.js');
+
+    const service = Object.create(MemoryService.prototype);
+    service._initialized = true;
+    service._getShardedLockKey = () => 'memory_lock_thread-inc-only';
+    service._getLockTuning_ = () => ({ shardedAcquireTimeoutMs: 10, backoffBaseMs: 1, backoffCapMs: 10, backoffJitterMs: 0 });
+    service._tryAcquireShardedLock = () => true;
+    service._releaseShardedLock = () => { };
+    service._sleepLockBackoff_ = () => { };
+    service._invalidateCache = () => { };
+    service._writeThroughMemoryCache_ = () => { };
+    service._withSheetWriteLock = (callback) => callback();
+    service._validateAndNormalizeTimestamp = (value) => value;
+
+    let saved = null;
+    service._updateRow = (rowIndex, data) => {
+        saved = { rowIndex, data };
+    };
+    service._findRowByThreadId = () => ({
+        rowIndex: 2,
+        values: ['thread-inc-only', 'it', 'info', 'standard', '[]', '2026-05-01T00:00:00.000Z', 4, 2, '']
+    });
+
+    const updated = service.updateMemoryAtomic('thread-inc-only', { _incrementMessageCount: true });
+
+    assert(updated === true, 'updateMemoryAtomic deve accettare il solo flag _incrementMessageCount');
+    assert(saved && saved.data.messageCount === 5, `messageCount atteso 5, ottenuto ${saved && saved.data.messageCount}`);
+    assert(!Object.prototype.hasOwnProperty.call(saved.data, '_incrementMessageCount'), 'il flag interno non deve essere persistito');
+
+    let inserted = null;
+    service._findRowByThreadId = () => null;
+    service._appendRow = (data) => {
+        inserted = data;
+    };
+
+    const created = service.updateMemoryAtomic('thread-inc-only-new', { _incrementMessageCount: true });
+
+    assert(created === true, 'updateMemoryAtomic deve creare la riga con il solo incremento');
+    assert(inserted && inserted.messageCount === 1, `messageCount iniziale atteso 1, ottenuto ${inserted && inserted.messageCount}`);
+}
+
 function testInvalidateCacheAlsoClearsRobustCache() {
     loadScript('gas_memory_service.js');
 
@@ -1016,6 +1058,34 @@ function testShardedLockInvalidTimeoutUsesFallbackBudget() {
         'Il lock acquisito deve essere tracciato in _heldShardLocks'
     );
     service._releaseShardedLock('memory_lock_invalid_timeout');
+}
+
+function testShardedLockDefaultAcquisitionSkipsCacheVerifySleep() {
+    console.log('--- Test: _tryAcquireShardedLock default senza sleep di verifica cache ---');
+    loadScript('gas_memory_service.js');
+
+    const originalUtilities = global.Utilities;
+    const key = 'memory_lock_no_verify_sleep_ci';
+    const sleeps = [];
+    globalCacheStore.delete(key);
+    global.Utilities = Object.assign({}, originalUtilities, {
+        sleep: (ms) => sleeps.push(ms)
+    });
+
+    try {
+        const service = Object.create(MemoryService.prototype);
+        service._heldShardLocks = {};
+        service._getLockTuning_ = () => ({ globalGuardTimeoutMs: 1, cacheVerifyDelayMs: 0 });
+
+        const result = service._tryAcquireShardedLock(key, 500);
+
+        assert(result === true, '_tryAcquireShardedLock deve acquisire il lock libero');
+        assert(sleeps.length === 0, `il percorso libero default non deve chiamare sleep, sleeps: ${sleeps.join(', ')}`);
+        service._releaseShardedLock(key);
+    } finally {
+        global.Utilities = originalUtilities;
+        globalCacheStore.delete(key);
+    }
 }
 
 function testSheetWriteLockDoesNotReleaseWhenWaitLockFails() {
@@ -3583,8 +3653,10 @@ function main() {
         ['memory get: usa row.values in parsing', testMemoryGetUsesRowValues],
         ['memory atomic: espone causa lock timeout', testUpdateMemoryAtomicReportsLockTimeoutCause],
         ['memory atomic: reset failure dopo successo', testUpdateMemoryAtomicClearsPreviousFailureOnSuccess],
+        ['memory atomic: incrementa messageCount con solo flag interno', testUpdateMemoryAtomicIncrementsMessageCountWithInternalFlagOnly],
         ['memory invalidate: pulizia cache deterministica', testInvalidateCacheAlsoClearsRobustCache],
         ['memory: lock sharded timeout invalido usa fallback', testShardedLockInvalidTimeoutUsesFallbackBudget],
+        ['memory: lock sharded default senza sleep verify', testShardedLockDefaultAcquisitionSkipsCacheVerifySleep],
         ['memory: sheet lock non rilascia se waitLock fallisce', testSheetWriteLockDoesNotReleaseWhenWaitLockFails],
         ['memory: addProvidedInfoTopics serializza scrittura sheet', testAddProvidedInfoTopicsUsesSheetWriteLock],
         ['memory: providedInfo salta thread mancanti', testUpdateProvidedInfoWithoutIncrementSkipsMissingThread],
