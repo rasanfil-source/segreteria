@@ -210,6 +210,8 @@ console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documental
   assert(plainPrompt.prompt.includes('"relational_posture"'), 'prompt ordinario deve chiedere la postura relazionale');
   assert(plainPrompt.prompt.includes('"relational_posture_confidence"'), 'prompt ordinario deve chiedere la confidenza della postura relazionale');
   assert(plainPrompt.prompt.includes('"response_focus_hint"'), 'prompt ordinario deve mantenere response_focus_hint nel JSON');
+  assert(plainPrompt.prompt.includes('"attachment_intent"'), 'prompt ordinario deve chiedere attachment_intent nel JSON');
+  assert(plainPrompt.prompt.includes('requires_attachment_reading'), 'prompt quick-check deve spiegare requires_attachment_reading');
   assert(plainPrompt.prompt.includes('Non estrarre segnali conversazionali'), 'primo messaggio deve disattivare i task conversazionali');
   assert(!plainPrompt.prompt.includes('Determina conversation_shift'), 'primo messaggio non deve chiedere lo step conversation_shift');
   assert(threadedPrompt.prompt.includes('"avoid_repeating_known_requirements"'), 'thread avviato deve limitare response_focus_hint agli enum ammessi');
@@ -254,6 +256,7 @@ console.log('--- Test EmailQuickCheckPolicy: contratto esplicito livelli quick-c
 
   assert(levels.level1_message.always === true, 'livello 1 deve essere sempre disponibile');
   assert(levels.level1_message.fields.indexOf('response_strategy') !== -1, 'response_strategy deve restare livello 1');
+  assert(levels.level1_message.fields.indexOf('attachment_intent') !== -1, 'attachment_intent deve essere livello 1');
   assert(levels.level2_conversation.requiresConversationContext === true, 'livello 2 deve richiedere contesto conversazionale');
   assert(levels.level2_conversation.fields.indexOf('conversation_shift') !== -1, 'conversation_shift deve essere livello 2');
   assert(levels.level3_longitudinal.allowedInQuickCheck === false, 'livello 3 non deve essere ammesso nella quick-check');
@@ -284,6 +287,12 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
             response_focus_hint_confidence: 0.82,
             conversation_shift: 'new_information',
             conversation_shift_confidence: 0.88,
+            attachment_intent: {
+              mentions_attachment_or_document: 'true',
+              expected_attachment_description: 'scheda di iscrizione al cammino di Santiago',
+              requires_attachment_reading: 'true',
+              reason: 'l utente consegna una scheda allegata'
+            },
             physical_presence_constraint: {
               has_constraint: 'true',
               type: 'geographic_distance',
@@ -321,6 +330,9 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
   assert(result.response_focus_hint_confidence === 0.82, 'response_focus_hint_confidence alta deve essere preservata');
   assert(result.conversation_shift === 'new_information', 'conversation_shift enum valido con confidenza alta deve essere preservato');
   assert(result.conversation_shift_confidence === 0.88, 'conversation_shift_confidence alta deve essere preservata');
+  assert(result.attachment_intent.requires_attachment_reading === true, 'attachment_intent.requires_attachment_reading stringa true deve diventare boolean true');
+  assert(result.attachment_intent.mentions_attachment_or_document === true, 'attachment_intent.mentions_attachment_or_document deve essere true');
+  assert(result.attachment_intent.expected_attachment_description === 'scheda di iscrizione al cammino di Santiago', 'descrizione allegato atteso deve essere preservata');
   assert(result.needs_sponsor_guidance === false, 'needs_sponsor_guidance stringa false deve diventare boolean false');
   assert(result.physical_presence_constraint.has_constraint === true, 'vincolo presenza fisica stringa true deve diventare boolean true');
   assert(result.physical_presence_constraint.type === 'geographic_distance', 'tipo vincolo presenza fisica deve essere preservato');
@@ -344,6 +356,7 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
   assert(noContextResult.goal_continuity === 'none', 'senza contesto conversazionale goal_continuity deve essere neutro');
   assert(noContextResult.goal_continuity_confidence === 0, 'senza contesto conversazionale goal_continuity_confidence deve essere zero');
   assert(Array.isArray(noContextResult.new_information_provided) && noContextResult.new_information_provided.length === 0, 'senza contesto conversazionale new_information_provided deve essere vuoto');
+  assert(noContextResult.attachment_intent.requires_attachment_reading === false, 'attachment_intent mancante deve avere default false');
 
   const longitudinalResult = EmailQuickCheckPolicy.normalizeDecisionData({
     reply_needed: true,

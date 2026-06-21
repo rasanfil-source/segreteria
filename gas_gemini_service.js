@@ -357,6 +357,7 @@ var EmailQuickCheckPolicy = class EmailQuickCheckPolicy {
           'topic',
           'relational_posture',
           'response_strategy',
+          'attachment_intent',
           'physical_presence_constraint',
           'is_territory_request',
           'territory_address_candidates'
@@ -500,6 +501,23 @@ var EmailQuickCheckPolicy = class EmailQuickCheckPolicy {
     return normalized.slice(0, 3);
   }
 
+  static normalizeAttachmentIntent(value) {
+    const source = (value && typeof value === 'object') ? value : {};
+    const expectedDescription = String(source.expected_attachment_description || '').trim().slice(0, 200);
+    const reason = String(source.reason || '').trim().slice(0, 200);
+    const requiresReading = EmailQuickCheckPolicy.normalizeBoolean(source.requires_attachment_reading) === true;
+    const mentionsAttachment = EmailQuickCheckPolicy.normalizeBoolean(source.mentions_attachment_or_document) === true ||
+      requiresReading ||
+      expectedDescription.length > 0;
+
+    return {
+      mentions_attachment_or_document: mentionsAttachment,
+      expected_attachment_description: expectedDescription,
+      requires_attachment_reading: requiresReading,
+      reason: reason
+    };
+  }
+
   static isOfficeVisitLogisticsRequest(emailSubject, emailContent) {
     const text = `${emailSubject || ''} ${emailContent || ''}`;
     return /\b(?:posso|possiamo|potrei|potremmo|vorrei|vorremmo)\s+(?:passare|venire|presentarmi|presentarci)\b/i.test(text) ||
@@ -549,7 +567,7 @@ CONTESTO LOGISTICO VISITA:
 - Il sacramento o documento citato è l'oggetto della visita, non una richiesta primaria di requisiti o procedura sacramentale.
 ` : '';
     const sponsorGuidanceTask = shouldClassifySponsorGuidance ? `
-14. Determina needs_sponsor_guidance (boolean):
+17. Determina needs_sponsor_guidance (boolean):
    - TRUE solo se nella risposta conviene inserire le condizioni per il ruolo ecclesiale di padrino/madrina/godparent.
    - Considera equivalenti sacramentali: padrino/madrina (it/es), godparent/godfather/godmother o sponsor sacramentale (en), parrain/marraine (fr), padrinho/madrinha (pt), Pate/Patin/Firmpate/Firmpatin (de).
    - TRUE se il mittente vuole assumere quel ruolo sacramentale e non ha ancora la Cresima/Confirmation, oppure chiede esplicitamente requisiti, condizioni o idoneità per quel ruolo.
@@ -566,14 +584,14 @@ CONTESTO LOGISTICO VISITA:
   "needs_sponsor_guidance": boolean`
       : '';
     const conversationalTasks = hasConversationContext ? `
-11. Determina response_focus_hint:
+12. Determina response_focus_hint:
    - Valore ammesso: "avoid_repeating_known_requirements", "answer_only_residual_question", "provide_next_operational_step", "acknowledge_document_without_reopening_procedure", oppure null.
    - Deve riguardare solo il thread/conversazione, non la persona.
    - Deve aiutare la prossima risposta a evitare ripetizioni o concentrarsi sul passo operativo successivo.
    - Deve essere null se non emerge un'indicazione utile.
    - Non descrivere tratti, emozioni o profili del mittente.
    - Fornisci anche response_focus_hint_confidence (0.0-1.0).
-12. Determina conversation_shift come evento locale del turno, non come stato persistente:
+13. Determina conversation_shift come evento locale del turno, non come stato persistente:
     - Valori ammessi: "none", "new_question", "topic_change", "new_information", "closure".
     - "new_information": l'utente non fa una domanda, ma aggiunge un fatto esplicito al percorso già avviato.
     - "closure": conversazione praticamente chiusa, senza nuove domande o informazioni operative.
@@ -633,8 +651,14 @@ COMPITI:
    - Riporta la via esattamente, includendo il tipo strada se presente o chiaramente inferibile: "via Bartolo Oriani", "Piazza della Marina 24".
    - Non includere frasi generiche, motivazioni o parole successive alla via.
    - Se non c'è alcun indirizzo/via/zona verificabile, restituisci [].
-8. Fornisci un breve ragionamento (reason)
-9. Determina physical_presence_constraint:
+8. Determina attachment_intent:
+   - mentions_attachment_or_document: TRUE se il testo menziona allegati, documenti, moduli, schede, certificati, attestati, iscrizioni, file inviati o consegna documentale.
+   - expected_attachment_description: breve descrizione in italiano di ciò che l'utente dice di aver allegato o consegnato; stringa vuota se non emerge.
+   - requires_attachment_reading: TRUE se per rispondere correttamente bisogna leggere/controllare l'allegato, anche quando il corpo non contiene domande esplicite. TRUE per consegne da confermare, schede/moduli/iscrizioni da ricevere, documenti da verificare o quando la risposta dovrebbe confermare la ricezione di ciò che è allegato.
+   - reason: breve motivo osservabile.
+   - Se non ci sono allegati/documenti menzionati: tutti i boolean a FALSE e stringhe vuote.
+9. Fornisci un breve ragionamento (reason)
+10. Determina physical_presence_constraint:
    - Rileva se il mittente manifesta che raggiungere fisicamente la parrocchia/segreteria e' difficile, impossibile o non ragionevole.
    - TRUE se vive/lavora lontano da Roma, e' all'estero, chiede percorsi a distanza, dice che non puo' venire, e' ricoverato/malato/convalescente, anziano con difficolta' di movimento, caregiver con vincoli familiari forti, deve allattare o ha neonati, e' agli arresti domiciliari o ha limitazioni legali.
    - FALSE se il mittente chiede esplicitamente di passare/venire, propone una visita, oppure non fornisce alcun vincolo personale.
@@ -645,7 +669,7 @@ COMPITI:
      "avoid_invitation" quando e' meglio non proporre affatto la visita fisica;
      "visit_ok" quando l'invito/presenza in segreteria e' appropriato;
      "unknown" se non e' chiaro.
-10. Determina relational_posture basandoti ESCLUSIVAMENTE su marcatori linguistici osservabili, non su stati psicologici:
+11. Determina relational_posture basandoti ESCLUSIVAMENTE su marcatori linguistici osservabili, non su stati psicologici:
    - "direct": richiesta neutra, essenziale o operativa, senza marcatori relazionali forti (DEFAULT).
    - "personal": condivisione esplicita di fatti personali delicati, vissuti intimi, richiesta di ascolto o bisogno pastorale.
    - "appreciative": entusiasmo esplicito, ringraziamenti non rituali, apprezzamento per persone/aspetti della parrocchia, oppure condivisione positiva di un legame personale concreto con la parrocchia, il percorso richiesto o la comunità.
@@ -659,7 +683,7 @@ COMPITI:
    - IMPORTANTE: il sistema accetta la postura solo se relational_posture_confidence >= ${relationalPostureConfidenceThreshold}; sotto quella soglia la postura viene ignorata e si usa "direct".
    - Imposta un valore >= ${relationalPostureConfidenceThreshold} quando almeno un marcatore linguistico e esplicito e inequivocabile nel testo. Se i marcatori sono vaghi o assenti, imposta un valore sotto soglia e scegli "direct".
 ${conversationalTasks}
-13. Determina response_strategy:
+16. Determina response_strategy:
    - Deve indicare come conviene orientare la risposta corrente.
    - Non descrive la persona.
    - Non è memoria.
@@ -698,6 +722,12 @@ Output JSON:
   "territory_address_candidates": ["string"],
   "confidence": number (0.0-1.0),
   "reason": "string",
+  "attachment_intent": {
+    "mentions_attachment_or_document": boolean,
+    "expected_attachment_description": "string",
+    "requires_attachment_reading": boolean,
+    "reason": "string"
+  },
   "relational_posture": "urgent" | "hesitant" | "complaint" | "personal" | "open" | "appreciative" | "direct",
   "relational_posture_confidence": number (0.0-1.0),
   "response_focus_hint": "avoid_repeating_known_requirements" | "answer_only_residual_question" | "provide_next_operational_step" | "acknowledge_document_without_reopening_procedure" | null,
@@ -765,7 +795,13 @@ Output JSON:
       response_strategy_confidence: 0,
       goal_continuity: 'none',
       goal_continuity_confidence: 0,
-      new_information_provided: []
+      new_information_provided: [],
+      attachment_intent: {
+        mentions_attachment_or_document: false,
+        expected_attachment_description: '',
+        requires_attachment_reading: false,
+        reason: ''
+      }
     };
   }
 
@@ -904,6 +940,7 @@ Output JSON:
       : data.territory_request;
     const isTerritoryRequest = EmailQuickCheckPolicy.normalizeBoolean(rawTerritoryRequest) === true;
     const territoryAddressCandidates = EmailQuickCheckPolicy.normalizeTerritoryAddressCandidates(data.territory_address_candidates);
+    const attachmentIntent = EmailQuickCheckPolicy.normalizeAttachmentIntent(data.attachment_intent);
 
     return {
       shouldRespond: finalShouldRespond,
@@ -929,6 +966,7 @@ Output JSON:
       conversation_shift_confidence: conversationShiftConfidence,
       response_strategy: responseStrategy,
       response_strategy_confidence: responseStrategyConfidence,
+      attachment_intent: attachmentIntent,
       goal_continuity: goalContinuity,
       goal_continuity_confidence: goalContinuityConfidence,
       new_information_provided: hasConversationContext

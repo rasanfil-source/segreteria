@@ -1767,6 +1767,11 @@ var EmailProcessor = class EmailProcessor {
         return result;
       }
 
+      const quickAttachmentIntent = this._resolveQuickCheckAttachmentIntent_(quickCheck);
+      if (quickAttachmentIntent && quickAttachmentIntent.requires_attachment_reading) {
+        console.log(`   📎 QuickCheck attachment intent: lettura allegati richiesta se presenti (${quickAttachmentIntent.reason || 'segnale documentale'})`);
+      }
+
       let physicalPresenceConstraint = this._resolvePhysicalPresenceConstraint_(
         quickCheck.physical_presence_constraint,
         messageDetails.subject,
@@ -2136,14 +2141,25 @@ ${addressLines.join('\n\n')}
           if (!hasAttachments && !attachmentPreCheckFailed) {
             attachmentSkipped.push({ reason: 'no_attachments' });
             console.log('   📎 Elaborazione allegati saltata: nessun allegato nel messaggio candidato');
-          } else if (
-            (messageDetails.body || '').trim().length < 50 ||
-            attachmentPreCheckFailed ||
-            this._shouldTryOcr(messageDetails.body, messageDetails.subject, hasAttachments)
-          ) {
+          } else {
+            const bodyIsVeryShort = (messageDetails.body || '').trim().length < 50;
+            const quickCheckRequiresAttachmentReading = Boolean(
+              hasAttachments &&
+              quickAttachmentIntent &&
+              quickAttachmentIntent.requires_attachment_reading === true
+            );
+            const localOcrFallback = this._shouldTryOcr(messageDetails.body, messageDetails.subject, hasAttachments);
+            if (
+              bodyIsVeryShort ||
+              attachmentPreCheckFailed ||
+              quickCheckRequiresAttachmentReading ||
+              localOcrFallback
+            ) {
             // Body molto corto (<50 char) → l'allegato è probabilmente il contenuto principale
-            if ((messageDetails.body || '').trim().length < 50) {
+            if (bodyIsVeryShort) {
               console.log('   📎 Body corto: elaborazione allegati forzata');
+            } else if (quickCheckRequiresAttachmentReading) {
+              console.log(`   📎 QuickCheck attachment_intent: elaborazione allegati forzata (${quickAttachmentIntent.expected_attachment_description || quickAttachmentIntent.reason || 'documento allegato'})`);
             }
             console.log('   📎 Elaborazione allegati multimodale (Vision)...');
             const maxAttachmentFiles = Math.max(1, parseInt(attachmentSettings.maxFiles, 10) || 3);
@@ -2301,6 +2317,7 @@ ${addressLines.join('\n\n')}
             attachmentSkipped.push({ reason: 'precheck_no_ocr' });
             textFromAttachments = '[Avviso di sistema: sono presenti allegati nel thread, ma sono stati esclusi dall\'analisi automatica perché il pre-check non ha rilevato trigger OCR/multimodali rilevanti.]';
             console.log('   📎 Elaborazione allegati saltata: keyword trigger non rilevate');
+          }
           }
 
         }
@@ -2673,7 +2690,8 @@ ${addressLines.join('\n\n')}
           body: messageDetails.body,
           attachmentItems: attachmentItems,
           ocrText: textFromAttachments,
-          attachmentBlobs: attachmentBlobs
+          attachmentBlobs: attachmentBlobs,
+          expectedAttachmentDescription: quickAttachmentIntent ? quickAttachmentIntent.expected_attachment_description : ''
         })
         : null;
 
@@ -4135,6 +4153,71 @@ ${addressLines.join('\n\n')}
     if (rawValue === null || rawValue === undefined || rawValue === '') return null;
     const value = Number(rawValue);
     return Number.isFinite(value) ? value : null;
+  }
+
+  _normalizeQuickAttachmentBoolean_(value) {
+    if (value === true || value === false) return value;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (['true', 'yes', 'si', 'sì', '1'].includes(normalized)) return true;
+      if (['false', 'no', '0'].includes(normalized)) return false;
+    }
+    return false;
+  }
+
+  _resolveQuickCheckAttachmentIntent_(quickCheck = {}) {
+    const safeQuickCheck = (quickCheck && typeof quickCheck === 'object') ? quickCheck : {};
+    const explicit = safeQuickCheck.attachment_intent;
+    if (explicit && typeof explicit === 'object') {
+      const expectedDescription = String(explicit.expected_attachment_description || '').trim().slice(0, 200);
+      const requiresReading = this._normalizeQuickAttachmentBoolean_(explicit.requires_attachment_reading);
+      const mentionsAttachment = this._normalizeQuickAttachmentBoolean_(explicit.mentions_attachment_or_document) ||
+        requiresReading ||
+        expectedDescription.length > 0;
+      return {
+        mentions_attachment_or_document: mentionsAttachment,
+        expected_attachment_description: expectedDescription,
+        requires_attachment_reading: requiresReading,
+        reason: String(explicit.reason || '').trim().slice(0, 200),
+        source: 'quick_check'
+      };
+    }
+
+    const responseStrategy = String(safeQuickCheck.response_strategy || '').trim().toLowerCase();
+    const responseFocusHint = String(safeQuickCheck.response_focus_hint || '').trim().toLowerCase();
+    const newInformation = Array.isArray(safeQuickCheck.new_information_provided)
+      ? safeQuickCheck.new_information_provided.map((item) => String(item || '').trim()).filter(Boolean)
+      : [];
+    const topic = String(
+      (safeQuickCheck.classification && safeQuickCheck.classification.topic) ||
+      safeQuickCheck.topic ||
+      ''
+    ).trim();
+    const reason = String(safeQuickCheck.reason || '').trim();
+    const documentPattern = /\b(document\w*|scheda|sched[ae]|modul\w*|allegat\w*|iscrizion\w*|certificat\w*|attestat\w*|file)\b/i;
+    const newInfoDocument = newInformation.find((item) => documentPattern.test(item)) || '';
+    const topicOrReasonText = `${topic} ${reason}`;
+    const hasTopicOrReasonDocument = documentPattern.test(topicOrReasonText);
+    const inferredRequiresReading = responseStrategy === 'confirm_receipt' ||
+      responseFocusHint === 'acknowledge_document_without_reopening_procedure' ||
+      !!newInfoDocument ||
+      hasTopicOrReasonDocument;
+    const expectedDescription = (newInfoDocument || (documentPattern.test(topic) ? topic : '') || (documentPattern.test(reason) ? reason : '')).slice(0, 200);
+
+    return {
+      mentions_attachment_or_document: inferredRequiresReading,
+      expected_attachment_description: expectedDescription,
+      requires_attachment_reading: inferredRequiresReading,
+      reason: inferredRequiresReading
+        ? `fallback quick-check: ${[
+          responseStrategy === 'confirm_receipt' ? 'response_strategy=confirm_receipt' : '',
+          responseFocusHint === 'acknowledge_document_without_reopening_procedure' ? 'response_focus_hint=document_ack' : '',
+          newInfoDocument ? 'new_information_provided=document' : '',
+          hasTopicOrReasonDocument ? 'topic_or_reason=document' : ''
+        ].filter(Boolean).join(', ')}`
+        : '',
+      source: 'quick_check_fallback'
+    };
   }
 
   _shouldTryOcr(body, subject, hasAttachments = false) {
@@ -6931,11 +7014,14 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
    * @param {Array} [params.attachmentBlobs] - riservato per un futuro controllo
    *   multimodale diretto sull'immagine; non utilizzato in questa versione
    *   testuale del controllo.
+   * @param {string} [params.expectedAttachmentDescription] - descrizione attesa
+   *   emersa dal quick check Gemini.
    * @returns {{consistent: boolean, reason: string, source: string}|null}
    */
-  _evaluateAttachmentSemanticConsistency_({ subject, body, attachmentItems, ocrText } = {}) {
+  _evaluateAttachmentSemanticConsistency_({ subject, body, attachmentItems, ocrText, expectedAttachmentDescription } = {}) {
     const trimmedSubject = String(subject || '').trim();
     const trimmedBody = String(body || '').trim();
+    const expectedDescription = String(expectedAttachmentDescription || '').trim();
     const attachmentNames = Array.isArray(attachmentItems)
       ? attachmentItems.map((it) => (it && it.name) ? it.name : '').filter(Boolean).join(', ')
       : '';
@@ -6963,6 +7049,7 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
       '',
       `OGGETTO EMAIL: ${trimmedSubject.slice(0, 300)}`,
       `CORPO EMAIL: ${trimmedBody.slice(0, 1500)}`,
+      `DESCRIZIONE ATTESA DAL QUICK CHECK: ${expectedDescription ? expectedDescription.slice(0, 500) : '(non disponibile)'}`,
       '',
       `NOME/I ALLEGATO/I: ${attachmentNames || '(non disponibile)'}`,
       `TESTO ESTRATTO DALL'ALLEGATO (OCR): ${effectiveOcrText ? effectiveOcrText.slice(0, 2000) : "(nessun testo estratto, valuta solo in base al nome file se informativo)"}`

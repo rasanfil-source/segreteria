@@ -2050,6 +2050,142 @@ console.log('--- Test processThread: submission receipt-only non chiama Gemini g
   global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
 }
 
+function runQuickCheckAttachmentGateScenario({ quickCheckOverrides, threadId }) {
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalDocumentConsistency = global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED;
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = false;
+  global.CONFIG.ATTACHMENT_CONTEXT = { enabled: true, maxFiles: 3, ocrTriggerKeywords: ['iban'] };
+
+  const body = 'Trasmetto la scheda di iscrizione al cammino di Santiago compilata con tutti i dati richiesti per il percorso.';
+  const attachmentCalls = [];
+  let capturedPromptOptions = null;
+  const msg = {
+    getId: () => `${threadId}-msg`,
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-10T10:00:00Z'),
+    getSubject: () => 'Scheda cammino Santiago',
+    getPlainBody: () => body,
+    getAttachments: () => [{ getName: () => 'scheda_santiago.pdf' }]
+  };
+  const thread = createThread({ id: threadId, messages: [msg] });
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Scheda cammino Santiago',
+        body: body,
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date('2026-05-10T10:00:00Z'),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      getProcessableAttachments: (message) => {
+        attachmentCalls.push(message.getId());
+        return {
+          blobs: [],
+          textContext: 'Scheda di iscrizione al cammino di Santiago - dati del partecipante',
+          skipped: [],
+          items: [{ name: 'scheda_santiago.pdf', text: 'Scheda iscrizione Santiago' }],
+          processedCount: 1
+        };
+      },
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'document_submission', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      backupKey: 'backup-key',
+      shouldRespondToEmail: () => Object.assign({
+        shouldRespond: true,
+        language: 'it',
+        classification: { topic: 'scheda cammino Santiago', category: 'document_submission', confidence: 0.9 }
+      }, quickCheckOverrides || {}),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta con allegato letto' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        capturedPromptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  try {
+    const result = processor.processThread(thread, 'kb valida', '', new Set(), true);
+    return { result, attachmentCalls, capturedPromptOptions };
+  } finally {
+    global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+    global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = originalDocumentConsistency;
+    global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+  }
+}
+
+console.log('--- Test attachment gate: quickCheck attachment_intent forza OCR senza keyword locale ---');
+{
+  const scenario = runQuickCheckAttachmentGateScenario({
+    threadId: 't-quick-attachment-intent',
+    quickCheckOverrides: {
+      attachment_intent: {
+        mentions_attachment_or_document: true,
+        expected_attachment_description: 'scheda di iscrizione al cammino di Santiago',
+        requires_attachment_reading: true,
+        reason: 'consegna scheda allegata'
+      }
+    }
+  });
+  assert(scenario.result.status === 'replied', 'quickCheck attachment_intent deve completare il flusso');
+  assert(scenario.attachmentCalls.length === 1, 'attachment_intent.requires_attachment_reading deve forzare OCR anche senza keyword locale');
+  assert(
+    scenario.capturedPromptOptions.attachmentsContext.includes('Scheda di iscrizione al cammino di Santiago'),
+    'il prompt deve ricevere il testo OCR forzato dal quick check'
+  );
+}
+
+console.log('--- Test attachment gate: fallback quickCheck legacy forza OCR senza attachment_intent ---');
+{
+  const scenario = runQuickCheckAttachmentGateScenario({
+    threadId: 't-quick-attachment-fallback',
+    quickCheckOverrides: {
+      response_strategy: 'confirm_receipt',
+      response_focus_hint: 'acknowledge_document_without_reopening_procedure',
+      new_information_provided: ['scheda di iscrizione al cammino di Santiago'],
+      reason: 'consegna documento allegato'
+    }
+  });
+  assert(scenario.result.status === 'replied', 'fallback quickCheck deve completare il flusso');
+  assert(scenario.attachmentCalls.length === 1, 'se attachment_intent manca, i segnali legacy devono forzare OCR');
+  assert(
+    scenario.capturedPromptOptions.attachmentsContext.includes('Scheda di iscrizione al cammino di Santiago'),
+    'il fallback legacy deve portare il testo OCR nel prompt'
+  );
+}
+
 function runAttachmentConsistencyFlowScenario({
   threadId,
   subject,
@@ -4068,13 +4204,15 @@ console.log('--- Test attachment semantic consistency: JSON Gemini e fail-open -
     subject: 'Invio locandina concerto',
     body: 'In allegato invio la locandina del concerto.',
     attachmentItems: [{ name: 'programma_pellegrinaggio.pdf' }],
-    ocrText: 'Programma del pellegrinaggio parrocchiale'
+    ocrText: 'Programma del pellegrinaggio parrocchiale',
+    expectedAttachmentDescription: 'locandina del concerto'
   });
 
   assert(result && result.consistent === false, 'JSON Gemini deve produrre mismatch semantico');
   assert(result.reason === 'allegato su tema diverso', 'il motivo Gemini deve essere preservato');
   assert(result.source === 'semantic_zero_shot', 'la sorgente deve tracciare il controllo semantico');
   assert(capturedPrompt.includes('Invio locandina concerto') && capturedPrompt.includes('Programma del pellegrinaggio'), 'il prompt deve includere email e OCR');
+  assert(capturedPrompt.includes('locandina del concerto'), 'il prompt semantico deve includere la descrizione attesa dal quick check');
   assert(capturedOptions && capturedOptions.modelName === 'gemini-3.5-flash' && capturedOptions.skipRateLimit === true, 'il controllo semantico deve usare il modello leggero senza rate limit');
 
   const failOpenProcessor = new EmailProcessor({
