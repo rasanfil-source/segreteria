@@ -2787,14 +2787,16 @@ ${addressLines.join('\n\n')}
         documentDeliveryModel.isCoherent = false;
         documentDeliveryModel.blocksReceiptOnly = true;
         documentDeliveryModel.blockReason = documentMismatchReason || 'document_mismatch';
-      } else if (hasRiskyUnknownReceived && documentDeliveryModel.expectsDocument) {
-        // Un documento annunciato con allegato non classificabile non può essere
-        // trattato come conferma automatica. Non è però un mismatch provato:
-        // è un allegato ricevuto ma non verificabile con certezza.
+      } else if (hasRiskyUnknownReceived && (documentDeliveryModel.expectsDocument || isDocumentDeliveryContext)) {
+        // Un allegato non classificabile in un contesto di consegna documentale
+        // non può essere trattato come conferma automatica. Non è però un
+        // mismatch provato: è un allegato ricevuto ma non verificabile con certezza.
         documentDeliveryModel.status = 'unverified_attachment';
         documentDeliveryModel.isCoherent = false;
         documentDeliveryModel.blocksReceiptOnly = true;
-        documentDeliveryModel.blockReason = 'expected_document_with_unknown_attachment';
+        documentDeliveryModel.blockReason = documentDeliveryModel.expectsDocument
+          ? 'expected_document_with_unknown_attachment'
+          : 'submission_attachment_unknown_content';
       }
 
       const hasDocumentDeliveryIncongruent = documentDeliveryModel.status === 'incongruent';

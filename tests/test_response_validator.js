@@ -1599,6 +1599,123 @@ console.log('--- Test document mismatch template: blocca risposta senza template
   );
 }
 
+console.log('--- Test document mismatch template: unverified_attachment valido ---');
+{
+  const mismatchContext = {
+    temporal: { currentDate: '2026-06-08', currentTime: '10:00', messageDate: '2026-06-08' },
+    validationContext: {
+      documentMismatch: {
+        active: true,
+        mode: 'unverified_attachment',
+        expected: 'scheda di iscrizione al corso prematrimoniale'
+      }
+    }
+  };
+  const result = validator.validateResponse(
+    'Gentile utente,\n\nAbbiamo ricevuto l’allegato, ma non possiamo confermare con certezza che corrisponda alla scheda di iscrizione al corso prematrimoniale. La invitiamo a verificarlo e, se necessario, a reinviare il file corretto.\n\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio',
+    'it',
+    'scheda di iscrizione al corso prematrimoniale; verificare; reinviare file corretto',
+    'Vi invio la scheda di iscrizione al corso prematrimoniale.',
+    'Scheda iscrizione',
+    'full',
+    false,
+    mismatchContext
+  );
+
+  assert(result.isValid === true, 'il template unverified_attachment deve passare senza pretendere il mismatch');
+  assert(result.details.documentMismatchTemplate.mode === 'unverified_attachment', 'il validator deve conservare il mode unverified_attachment');
+  assert(result.details.documentMismatchTemplate.hasUnverifiedTemplate === true, 'il template non verificabile deve essere riconosciuto');
+}
+
+console.log('--- Test document mismatch template: unverified_attachment blocca falso mismatch ---');
+{
+  const mismatchContext = {
+    temporal: { currentDate: '2026-06-08', currentTime: '10:00', messageDate: '2026-06-08' },
+    validationContext: {
+      documentMismatch: {
+        active: true,
+        mode: 'unverified_attachment',
+        expected: 'scheda di iscrizione al corso prematrimoniale'
+      }
+    }
+  };
+  const result = validator.validateResponse(
+    'Gentile utente,\n\nL’allegato ricevuto sembra non corrispondere alla scheda di iscrizione al corso prematrimoniale. La invitiamo a verificare il file e, se necessario, a reinviare il documento corretto.\n\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio',
+    'it',
+    'scheda di iscrizione al corso prematrimoniale; verificare; reinviare file corretto',
+    'Vi invio la scheda di iscrizione al corso prematrimoniale.',
+    'Scheda iscrizione',
+    'full',
+    false,
+    mismatchContext
+  );
+
+  assert(result.isValid === false, 'unverified_attachment non deve passare con linguaggio da mismatch');
+  assert(
+    result.errors.some((error) => error.includes('Allegato non verificabile')),
+    'il validator deve segnalare il contratto non verificabile'
+  );
+}
+
+console.log('--- Test expected document missing: template valido ---');
+{
+  const missingContext = {
+    temporal: { currentDate: '2026-06-08', currentTime: '10:00', messageDate: '2026-06-08' },
+    validationContext: {
+      expectedDocumentMissing: {
+        active: true,
+        expected: 'scheda di iscrizione al corso prematrimoniale',
+        deliveryChannel: 'attachment',
+        bodyContainsUsableDocumentContent: false
+      }
+    }
+  };
+  const result = validator.validateResponse(
+    'Gentile utente,\n\nNon troviamo allegata né riportata nel testo la scheda di iscrizione al corso prematrimoniale. Può cortesemente reinviarla o inserirne i dati nel corpo del messaggio?\n\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio',
+    'it',
+    'scheda di iscrizione al corso prematrimoniale; reinviare; inserire dati nel corpo',
+    'VI INVIAMO LA SCHEDA DI ISCRIZIONE AL NOSTRO CORSO PREMATRIMONIALE',
+    'Scheda iscrizione corso prematrimoniale',
+    'full',
+    false,
+    missingContext
+  );
+
+  assert(result.isValid === true, 'il template documento mancante deve passare');
+  assert(result.details.expectedDocumentMissingTemplate.checked === true, 'il controllo documento mancante deve essere eseguito');
+}
+
+console.log('--- Test expected document missing: blocca conferma ricezione ---');
+{
+  const missingContext = {
+    temporal: { currentDate: '2026-06-08', currentTime: '10:00', messageDate: '2026-06-08' },
+    validationContext: {
+      expectedDocumentMissing: {
+        active: true,
+        expected: 'scheda di iscrizione al corso prematrimoniale',
+        deliveryChannel: 'attachment',
+        bodyContainsUsableDocumentContent: false
+      }
+    }
+  };
+  const result = validator.validateResponse(
+    'Gentile utente,\n\nAbbiamo ricevuto la documentazione e procederemo alla verifica. Se tutto risulterà completo, effettueremo la registrazione nei nostri archivi.\n\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio',
+    'it',
+    'scheda di iscrizione al corso prematrimoniale; reinviare; inserire dati nel corpo',
+    'VI INVIAMO LA SCHEDA DI ISCRIZIONE AL NOSTRO CORSO PREMATRIMONIALE',
+    'Scheda iscrizione corso prematrimoniale',
+    'full',
+    false,
+    missingContext
+  );
+
+  assert(result.isValid === false, 'documento mancante non deve confermare ricezione');
+  assert(
+    result.errors.some((error) => error.includes('Documento atteso mancante')),
+    'il validator deve segnalare la conferma indebita del documento mancante'
+  );
+}
+
 console.log('--- Test sensitive continuity: lutto in memoria non va riaperto se non ripreso ---');
 {
   const result = validator.validateResponse(

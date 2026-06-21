@@ -477,6 +477,12 @@ var ResponseValidator = class ResponseValidator {
     details.documentMismatchTemplate = documentMismatchTemplateResult;
     score *= documentMismatchTemplateResult.score;
 
+    const expectedDocumentMissingTemplateResult = this._checkExpectedDocumentMissingTemplate(response, temporalContext);
+    errors.push(...expectedDocumentMissingTemplateResult.errors);
+    warnings.push(...expectedDocumentMissingTemplateResult.warnings);
+    details.expectedDocumentMissingTemplate = expectedDocumentMissingTemplateResult;
+    score *= expectedDocumentMissingTemplateResult.score;
+
     const normalizedScore = normalizeValidationScore(score);
     const isValid = errors.length === 0 && normalizedScore >= this.MIN_VALID_SCORE;
 
@@ -1802,6 +1808,7 @@ var ResponseValidator = class ResponseValidator {
       return { score, errors, warnings, checked: false };
     }
 
+    const mode = String(mismatchContext.mode || '').trim().toLowerCase();
     const text = String(response || '');
     const forbiddenPatterns = [
       { label: 'con la dovuta prudenza/cautela', pattern: /\bcon\s+la\s+dovuta\s+(?:prudenza|cautela)\b/i },
@@ -1811,6 +1818,46 @@ var ResponseValidator = class ResponseValidator {
     const forbiddenMatches = forbiddenPatterns
       .filter((entry) => entry.pattern.test(text))
       .map((entry) => entry.label);
+
+    if (mode === 'unverified_attachment') {
+      const hasReceivedAttachment = /\babbiamo\s+ricevut[oa]\s+l[’']?\s*allegat[oa]\b/i.test(text) ||
+        /\bl[’']?\s*allegat[oa]\s+ricevut[oa]\b/i.test(text);
+      const hasCannotConfirmMatch = /\bnon\s+possiamo\s+confermare\b[\s\S]{0,180}\bcertezza\b[\s\S]{0,180}\bcorrispond\w*\b/i.test(text);
+      const hasVerifyAndResendFile = /\bverific\w*\b[\s\S]{0,220}\breinvi\w*\b[\s\S]{0,140}\bfile\s+corrett[oa]\b/i.test(text);
+      const hasUnverifiedTemplate = hasReceivedAttachment && hasCannotConfirmMatch && hasVerifyAndResendFile;
+      const hasFalseMismatchLanguage = /\bsembra\s+non\s+corrispondere\b|\bnon\s+corrisponde\b|\ballegat[oa]\s+(?:incongru[oa]|sbagliat[oa]|errat[oa])\b/i.test(text);
+
+      if (forbiddenMatches.length > 0) {
+        errors.push(`Allegato non verificabile: formula metatestuale o prudenziale non ammessa (${forbiddenMatches.join(', ')}).`);
+        score = 0.0;
+      }
+
+      if (hasFalseMismatchLanguage) {
+        errors.push('Allegato non verificabile: la risposta lo presenta come mismatch invece di restare sul template non verificabile.');
+        score = 0.0;
+      }
+
+      if (!hasUnverifiedTemplate) {
+        errors.push('Allegato non verificabile: manca il template su allegato ricevuto, impossibilita di confermare e reinvio del file corretto.');
+        score = 0.0;
+      }
+
+      return {
+        score,
+        errors,
+        warnings,
+        checked: true,
+        hasReceivedAttachment,
+        hasCannotConfirmMatch,
+        hasVerifyAndResendFile,
+        hasUnverifiedTemplate,
+        hasFalseMismatchLanguage,
+        forbiddenMatches,
+        expected: mismatchContext.expected || null,
+        mode
+      };
+    }
+
     const hasMismatchTemplate = /\bl[’']?\s*allegat[oa]\s+ricevut[oa]\b[\s\S]{0,160}\bsembra\s+non\s+corrispondere\b/i.test(text);
     const hasVerifyAndResend = /\bverific\w*\b[\s\S]{0,220}\breinvi\w*\b[\s\S]{0,120}\b(?:documento|file)\s+corrett[oa]\b/i.test(text);
 
@@ -1833,7 +1880,66 @@ var ResponseValidator = class ResponseValidator {
       hasVerifyAndResend,
       forbiddenMatches,
       expected: mismatchContext.expected || null,
-      mode: mismatchContext.mode || null
+      mode: mode || null
+    };
+  }
+
+  _checkExpectedDocumentMissingTemplate(response, temporalContext = null) {
+    const errors = [];
+    const warnings = [];
+    let score = 1.0;
+    const validationContext = temporalContext &&
+      temporalContext.validationContext &&
+      typeof temporalContext.validationContext === 'object'
+      ? temporalContext.validationContext
+      : {};
+    const missingContext = validationContext.expectedDocumentMissing &&
+      typeof validationContext.expectedDocumentMissing === 'object'
+      ? validationContext.expectedDocumentMissing
+      : null;
+
+    if (!missingContext || missingContext.active !== true) {
+      return { score, errors, warnings, checked: false };
+    }
+
+    const text = String(response || '');
+    const forbiddenReceiptPatterns = [
+      { label: 'abbiamo ricevuto la documentazione', pattern: /\babbiamo\s+ricevut[oa]\s+(?:la\s+)?documentazione\b/i },
+      { label: 'abbiamo ricevuto la scheda', pattern: /\babbiamo\s+ricevut[oa]\s+(?:la\s+)?scheda\b/i },
+      { label: 'ricevuto la scheda', pattern: /\bricevut[oa]\s+(?:la\s+)?scheda\b/i },
+      { label: "ringraziamo per l'invio della scheda", pattern: /\bringraziamo\s+per\s+l[’']?\s*invio\s+della\s+scheda\b/i },
+      { label: 'procederemo alla verifica', pattern: /\bprocederemo\s+alla\s+verifica\b/i },
+      { label: 'registrazione nei nostri archivi', pattern: /\bregistrazione\s+nei\s+nostri\s+archivi\b/i },
+      { label: 'se tutto risultera completo', pattern: /\bse\s+tutto\s+risulter[aà]\s+completo\b/i }
+    ];
+    const forbiddenReceiptMatches = forbiddenReceiptPatterns
+      .filter((entry) => entry.pattern.test(text))
+      .map((entry) => entry.label);
+    const hasMissingDocumentStatement = /\bnon\s+troviamo\s+allegat[ao]\s+n(?:e|é|è)\s+riportat[ao]\s+nel\s+testo\b/i.test(text);
+    const hasResendOrBodyRequest = /\breinvi\w*\b/i.test(text) &&
+      /\binserirne\s+i\s+dati\s+nel\s+corpo\s+del\s+messaggio\b/i.test(text);
+
+    if (forbiddenReceiptMatches.length > 0) {
+      errors.push(`Documento atteso mancante: la risposta conferma o presuppone una ricezione non disponibile (${forbiddenReceiptMatches.join(', ')}).`);
+      score = 0.0;
+    }
+
+    if (!hasMissingDocumentStatement || !hasResendOrBodyRequest) {
+      errors.push('Documento atteso mancante: manca il template su documento non allegato ne riportato nel testo, con richiesta di reinvio o inserimento dati nel corpo.');
+      score = 0.0;
+    }
+
+    return {
+      score,
+      errors,
+      warnings,
+      checked: true,
+      hasMissingDocumentStatement,
+      hasResendOrBodyRequest,
+      forbiddenReceiptMatches,
+      expected: missingContext.expected || null,
+      deliveryChannel: missingContext.deliveryChannel || null,
+      bodyContainsUsableDocumentContent: missingContext.bodyContainsUsableDocumentContent === true
     };
   }
 

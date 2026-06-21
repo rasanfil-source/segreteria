@@ -16,6 +16,7 @@ console.log('--- Test unverified_attachment: unknown_received non diventa mismat
   const hasExpectedDocumentMissing = false;
   const hasDocumentMismatch = false;
   const hasRiskyUnknownReceived = true;
+  const isDocumentDeliveryContext = true;
   const forceReceiptOnlyForSubmission = true;
 
   if (hasDocumentMismatch) {
@@ -23,11 +24,13 @@ console.log('--- Test unverified_attachment: unknown_received non diventa mismat
     documentDeliveryModel.isCoherent = false;
     documentDeliveryModel.blocksReceiptOnly = true;
     documentDeliveryModel.blockReason = 'document_mismatch';
-  } else if (hasRiskyUnknownReceived && documentDeliveryModel.expectsDocument) {
+  } else if (hasRiskyUnknownReceived && (documentDeliveryModel.expectsDocument || isDocumentDeliveryContext)) {
     documentDeliveryModel.status = 'unverified_attachment';
     documentDeliveryModel.isCoherent = false;
     documentDeliveryModel.blocksReceiptOnly = true;
-    documentDeliveryModel.blockReason = 'expected_document_with_unknown_attachment';
+    documentDeliveryModel.blockReason = documentDeliveryModel.expectsDocument
+      ? 'expected_document_with_unknown_attachment'
+      : 'submission_attachment_unknown_content';
   }
 
   const hasDocumentDeliveryIncongruent = documentDeliveryModel.status === 'incongruent';
@@ -58,6 +61,55 @@ console.log('--- Test unverified_attachment: unknown_received non diventa mismat
 
   assert(validationContext.documentMismatch.active === true, 'documentMismatch nel validation context deve restare attivo per retrocompatibilità');
   assert(validationContext.documentMismatch.mode === 'unverified_attachment', 'mode deve propagare unverified_attachment');
+}
+
+console.log('--- Test unverified_attachment: invio generico unknown blocca receipt-only ---');
+{
+  const documentDeliveryModel = {
+    expectsDocument: false,
+    status: 'received_attachment',
+    isCoherent: true,
+    blocksReceiptOnly: false,
+    blockReason: '',
+    hasAttachmentContent: true
+  };
+
+  const hasExpectedDocumentMissing = false;
+  const hasDocumentMismatch = false;
+  const hasRiskyUnknownReceived = true;
+  const isDocumentDeliveryContext = true;
+  const forceReceiptOnlyForSubmission = true;
+
+  if (hasDocumentMismatch) {
+    documentDeliveryModel.status = 'incongruent';
+    documentDeliveryModel.isCoherent = false;
+    documentDeliveryModel.blocksReceiptOnly = true;
+    documentDeliveryModel.blockReason = 'document_mismatch';
+  } else if (hasRiskyUnknownReceived && (documentDeliveryModel.expectsDocument || isDocumentDeliveryContext)) {
+    documentDeliveryModel.status = 'unverified_attachment';
+    documentDeliveryModel.isCoherent = false;
+    documentDeliveryModel.blocksReceiptOnly = true;
+    documentDeliveryModel.blockReason = documentDeliveryModel.expectsDocument
+      ? 'expected_document_with_unknown_attachment'
+      : 'submission_attachment_unknown_content';
+  }
+
+  const hasDocumentDeliveryIncongruent = documentDeliveryModel.status === 'incongruent';
+  const hasDocumentDeliveryUnverified = documentDeliveryModel.status === 'unverified_attachment';
+  const hasDocumentDeliveryBlockingIssue = Boolean(
+    hasExpectedDocumentMissing ||
+    hasDocumentMismatch ||
+    hasDocumentDeliveryIncongruent ||
+    hasDocumentDeliveryUnverified
+  );
+  const shouldUseReceiptOnly =
+    !hasDocumentDeliveryBlockingIssue &&
+    (forceReceiptOnlyForSubmission || hasRiskyUnknownReceived);
+
+  assert(documentDeliveryModel.status === 'unverified_attachment', 'unknown_received generico in contesto consegna deve diventare unverified_attachment');
+  assert(documentDeliveryModel.blockReason === 'submission_attachment_unknown_content', 'deve usare blockReason specifico per consegna generica');
+  assert(hasDocumentDeliveryBlockingIssue === true, 'unverified_attachment generico deve bloccare receipt-only');
+  assert(shouldUseReceiptOnly === false, 'receipt-only deve restare bloccato anche senza expectsDocument esplicito');
 }
 
 console.log('--- Contract test unverified_attachment: wording non accusatorio ---');
