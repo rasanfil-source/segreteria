@@ -2789,18 +2789,21 @@ ${addressLines.join('\n\n')}
         documentDeliveryModel.blockReason = documentMismatchReason || 'document_mismatch';
       } else if (hasRiskyUnknownReceived && documentDeliveryModel.expectsDocument) {
         // Un documento annunciato con allegato non classificabile non può essere
-        // trattato come conferma automatica: è il caso reale della scheda
-        // annunciata con file incongruo o non riconoscibile.
-        documentDeliveryModel.status = 'incongruent';
+        // trattato come conferma automatica. Non è però un mismatch provato:
+        // è un allegato ricevuto ma non verificabile con certezza.
+        documentDeliveryModel.status = 'unverified_attachment';
         documentDeliveryModel.isCoherent = false;
         documentDeliveryModel.blocksReceiptOnly = true;
         documentDeliveryModel.blockReason = 'expected_document_with_unknown_attachment';
       }
+
       const hasDocumentDeliveryIncongruent = documentDeliveryModel.status === 'incongruent';
+      const hasDocumentDeliveryUnverified = documentDeliveryModel.status === 'unverified_attachment';
       const hasDocumentDeliveryBlockingIssue = Boolean(
         hasExpectedDocumentMissing ||
         hasDocumentMismatch ||
-        hasDocumentDeliveryIncongruent
+        hasDocumentDeliveryIncongruent ||
+        hasDocumentDeliveryUnverified
       );
       const effectiveDocumentMismatchReason = documentMismatchReason || documentDeliveryModel.blockReason || null;
       const shouldUseReceiptOnly = !hasDocumentDeliveryBlockingIssue &&
@@ -2817,23 +2820,41 @@ ${addressLines.join('\n\n')}
         injectedMissingDocumentDirective = `DOCUMENTO ATTESO NON DISPONIBILE: Scrivi: "Non troviamo allegata né riportata nel testo ${expectedDocumentLabel}. Può cortesemente reinviarla o inserirne i dati nel corpo del messaggio?" Usa questa richiesta come contenuto principale, con saluto istituzionale.`;
         systemDirectives.unshift(injectedMissingDocumentDirective);
       }
-      if (hasDocumentMismatch || hasDocumentDeliveryIncongruent) {
-        console.warn(`   ⚠️ Mismatch documentale rilevato (${hasSemanticMismatch ? 'semantico' : (hasTaxonomyMismatch ? 'tassonomia' : 'document_delivery')}): ${effectiveDocumentMismatchReason}`);
+
+      if (hasDocumentMismatch || hasDocumentDeliveryIncongruent || hasDocumentDeliveryUnverified) {
+        console.warn(`   ⚠️ Problema documentale rilevato (${hasDocumentDeliveryUnverified ? 'non_verificabile' : (hasSemanticMismatch ? 'semantico' : (hasTaxonomyMismatch ? 'tassonomia' : 'document_delivery'))}): ${effectiveDocumentMismatchReason}`);
+
         // Il segnale deve arrivare a Gemini, non bypassarlo: iniettiamo una
         // direttiva di sistema. Se nel messaggio ci sono domande esplicite,
         // rispondiamo anche a quelle; in una consegna pura evitiamo di
         // inventare richieste operative non presenti.
-        const mismatchDirective = [
-          'Quando l’allegato non corrisponde a quanto annunciato, scrivi in modo diretto e cortese:',
-          '"L’allegato ricevuto sembra non corrispondere a [documento atteso]. La invitiamo a verificare il file e, se necessario, a reinviare il documento corretto."',
-          'Sostituisci [documento atteso] con il documento atteso quando disponibile; altrimenti usa "quanto annunciato".',
-          'Usa "sembra" per mantenere tono non accusatorio.',
-          'Non spiegare il criterio interno o il processo di verifica.'
-        ].join(' ');
-        if (attachmentIntentContext && attachmentIntentContext.hasQuestions === true) {
-          injectedMismatchDirective = `AVVISO ALLEGATO NON COERENTE: ${mismatchDirective} Documento atteso/motivo: ${effectiveDocumentMismatchReason}. Subito dopo l'avviso, rispondi comunque in modo completo e operativo alla richiesta contenuta nell'email, usando il testo del messaggio e il resto del contesto disponibile.`;
+        let directiveText = '';
+        let prefixMsg = '';
+
+        if (hasDocumentDeliveryUnverified) {
+          directiveText = [
+            'Quando il contenuto dell’allegato non è verificabile con certezza, scrivi in modo diretto e cortese:',
+            '"Abbiamo ricevuto l’allegato, ma non possiamo confermare con certezza che corrisponda a [documento atteso]. La invitiamo a verificarlo e, se necessario, a reinviare il file corretto."',
+            'Sostituisci [documento atteso] con il documento atteso quando disponibile; altrimenti usa "quanto annunciato".',
+            'Non confermare che il documento sia corretto o completo.',
+            'Non usare formule come "sembra non corrispondere", "non corrisponde", "allegato incongruo", "allegato sbagliato" o "allegato errato".'
+          ].join(' ');
+          prefixMsg = 'AVVISO ALLEGATO NON VERIFICABILE:';
         } else {
-          injectedMismatchDirective = `AVVISO ALLEGATO NON COERENTE: ${mismatchDirective} Documento atteso/motivo: ${effectiveDocumentMismatchReason}. Per una consegna senza domande, usa solo questo avviso e il saluto istituzionale.`;
+          directiveText = [
+            'Quando l’allegato non corrisponde a quanto annunciato, scrivi in modo diretto e cortese:',
+            '"L’allegato ricevuto sembra non corrispondere a [documento atteso]. La invitiamo a verificare il file e, se necessario, a reinviare il documento corretto."',
+            'Sostituisci [documento atteso] con il documento atteso quando disponibile; altrimenti usa "quanto annunciato".',
+            'Usa "sembra" per mantenere tono non accusatorio.',
+            'Non spiegare il criterio interno o il processo di verifica.'
+          ].join(' ');
+          prefixMsg = 'AVVISO ALLEGATO NON COERENTE:';
+        }
+
+        if (attachmentIntentContext && attachmentIntentContext.hasQuestions === true) {
+          injectedMismatchDirective = `${prefixMsg} ${directiveText} Documento atteso/motivo: ${effectiveDocumentMismatchReason}. Subito dopo l'avviso, rispondi comunque in modo completo e operativo alla richiesta contenuta nell'email, usando il testo del messaggio e il resto del contesto disponibile.`;
+        } else {
+          injectedMismatchDirective = `${prefixMsg} ${directiveText} Documento atteso/motivo: ${effectiveDocumentMismatchReason}. Per una consegna senza domande, usa solo questo avviso e il saluto istituzionale.`;
         }
         systemDirectives.unshift(injectedMismatchDirective);
       } else if (hasRiskyUnknownReceived) {
@@ -2852,6 +2873,7 @@ ${addressLines.join('\n\n')}
         hasPhysicalAttachment: documentDeliveryModel.hasPhysicalAttachment,
         hasAttachmentAnalyzedContent: documentDeliveryModel.hasAttachmentAnalyzedContent,
         hasUsableAttachmentText: documentDeliveryModel.hasUsableAttachmentText,
+        hasDocumentDeliveryUnverified: hasDocumentDeliveryUnverified,
         isCoherent: documentDeliveryModel.isCoherent,
         blocksReceiptOnly: documentDeliveryModel.blocksReceiptOnly,
         blockReason: documentDeliveryModel.blockReason
@@ -2862,6 +2884,7 @@ ${addressLines.join('\n\n')}
         hasTaxonomyMismatch: hasTaxonomyMismatch,
         hasSemanticMismatch: hasSemanticMismatch,
         hasDocumentMismatch: hasDocumentMismatch,
+        hasDocumentDeliveryUnverified: hasDocumentDeliveryUnverified,
         hasDocumentDeliveryBlockingIssue: hasDocumentDeliveryBlockingIssue,
         expectsDocument: expectsDocument,
         bodyContainsUsableDocumentContent: bodyContainsUsableDocumentContent,
@@ -2878,14 +2901,17 @@ ${addressLines.join('\n\n')}
         injectedMissingDocumentDirective: injectedMissingDocumentDirective,
         injectedMismatchDirective: injectedMismatchDirective
       })}`);
-      const validationRuntimeContext = (hasDocumentMismatch || hasDocumentDeliveryIncongruent || hasExpectedDocumentMissing)
+
+      const validationRuntimeContext = (hasDocumentMismatch || hasDocumentDeliveryIncongruent || hasDocumentDeliveryUnverified || hasExpectedDocumentMissing)
         ? Object.freeze(Object.assign({}, runtimeContext, {
           validationContext: Object.assign({}, runtimeContext.validationContext || {}, {
-            documentMismatch: (hasDocumentMismatch || hasDocumentDeliveryIncongruent) ? {
+            documentMismatch: (hasDocumentMismatch || hasDocumentDeliveryIncongruent || hasDocumentDeliveryUnverified) ? {
               active: true,
-              mode: hasSemanticMismatch
-                ? 'semantic'
-                : (hasTaxonomyMismatch ? 'taxonomy' : 'document_delivery'),
+              mode: hasDocumentDeliveryUnverified
+                ? 'unverified_attachment'
+                : (hasSemanticMismatch
+                  ? 'semantic'
+                  : (hasTaxonomyMismatch ? 'taxonomy' : 'document_delivery')),
               reason: effectiveDocumentMismatchReason || '',
               hasQuestions: Boolean(attachmentIntentContext && attachmentIntentContext.hasQuestions === true),
               expected: documentConsistency && documentConsistency.expected ? documentConsistency.expected : '',

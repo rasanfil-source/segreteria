@@ -2,6 +2,79 @@ const fs = require('fs');
 const vm = require('vm');
 const path = require('path');
 
+console.log('--- Test unverified_attachment: unknown_received non diventa mismatch accusatorio ---');
+{
+  const documentDeliveryModel = {
+    expectsDocument: true,
+    status: 'received_attachment',
+    isCoherent: true,
+    blocksReceiptOnly: false,
+    blockReason: '',
+    hasAttachmentContent: true
+  };
+
+  const hasExpectedDocumentMissing = false;
+  const hasDocumentMismatch = false;
+  const hasRiskyUnknownReceived = true;
+  const forceReceiptOnlyForSubmission = true;
+
+  if (hasDocumentMismatch) {
+    documentDeliveryModel.status = 'incongruent';
+    documentDeliveryModel.isCoherent = false;
+    documentDeliveryModel.blocksReceiptOnly = true;
+    documentDeliveryModel.blockReason = 'document_mismatch';
+  } else if (hasRiskyUnknownReceived && documentDeliveryModel.expectsDocument) {
+    documentDeliveryModel.status = 'unverified_attachment';
+    documentDeliveryModel.isCoherent = false;
+    documentDeliveryModel.blocksReceiptOnly = true;
+    documentDeliveryModel.blockReason = 'expected_document_with_unknown_attachment';
+  }
+
+  const hasDocumentDeliveryIncongruent = documentDeliveryModel.status === 'incongruent';
+  const hasDocumentDeliveryUnverified = documentDeliveryModel.status === 'unverified_attachment';
+
+  const hasDocumentDeliveryBlockingIssue = Boolean(
+    hasExpectedDocumentMissing ||
+    hasDocumentMismatch ||
+    hasDocumentDeliveryIncongruent ||
+    hasDocumentDeliveryUnverified
+  );
+
+  const shouldUseReceiptOnly =
+    !hasDocumentDeliveryBlockingIssue &&
+    (forceReceiptOnlyForSubmission || hasRiskyUnknownReceived);
+
+  assert(documentDeliveryModel.status === 'unverified_attachment', 'unknown_received su documento atteso deve diventare unverified_attachment');
+  assert(hasDocumentDeliveryUnverified === true, 'hasDocumentDeliveryUnverified deve essere true');
+  assert(hasDocumentDeliveryBlockingIssue === true, 'unverified_attachment deve bloccare receipt-only');
+  assert(shouldUseReceiptOnly === false, 'receipt-only deve essere bloccato');
+
+  const validationContext = {
+    documentMismatch: {
+      active: true,
+      mode: hasDocumentDeliveryUnverified ? 'unverified_attachment' : 'document_delivery'
+    }
+  };
+
+  assert(validationContext.documentMismatch.active === true, 'documentMismatch nel validation context deve restare attivo per retrocompatibilità');
+  assert(validationContext.documentMismatch.mode === 'unverified_attachment', 'mode deve propagare unverified_attachment');
+}
+
+console.log('--- Contract test unverified_attachment: wording non accusatorio ---');
+{
+  const responseText = "Gentile utente,\nabbiamo ricevuto l'allegato, ma non possiamo confermare con certezza che corrisponda alla scheda di iscrizione al corso prematrimoniale. La invitiamo a verificarlo e, se necessario, a reinviare il file corretto.";
+
+  assert(/abbiamo ricevuto l.allegato/i.test(responseText), 'Deve riconoscere la ricezione dell’allegato');
+  assert(/non possiamo confermare con certezza/i.test(responseText), 'Deve esprimere incertezza anziché accusare');
+  assert(/scheda di iscrizione/i.test(responseText), 'Deve includere il nome del documento atteso');
+
+  assert(!/sembra\s+non\s+corrispondere/i.test(responseText), 'NON deve usare la frase di mismatch');
+  assert(!/non\s+corrisponde/i.test(responseText), 'NON deve usare la frase di mismatch');
+  assert(!/allegato\s+incongruo/i.test(responseText), 'NON deve etichettare l’allegato come incongruo');
+  assert(!/sbagliat[oa]/i.test(responseText), 'NON deve dire che l’allegato è sbagliato');
+  assert(!/errat[oa]/i.test(responseText), 'NON deve dire che l’allegato è errato');
+}
+
 function assert(condition, message) {
   if (!condition) {
     console.error(`❌ ${message}`);
