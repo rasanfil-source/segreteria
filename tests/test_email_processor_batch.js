@@ -111,6 +111,41 @@ console.log('--- Test constructor: validationWarningThreshold percentuale normal
   }
 }
 
+console.log('--- Test document delivery: avviso di sistema allegati non vale come contenuto utilizzabile ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  const model = processor._buildDocumentDeliveryModel_({
+    subject: 'Scheda iscrizione',
+    body: 'Buongiorno, VI INVIAMO LA SCHEDA di iscrizione compilata.',
+    quickDocumentDelivery: {
+      expected_document: true,
+      expected_document_description: 'scheda di iscrizione al corso prematrimoniale',
+      delivery_channel: 'attachment',
+      body_contains_filled_document: false,
+      requires_file_attachment: true,
+      missing_document_if_no_attachment: true
+    },
+    quickAttachmentIntent: null,
+    physicalAttachmentsDetected: false,
+    attachmentItems: [],
+    textFromAttachments: "[Avviso di sistema: sono presenti allegati nel thread, ma sono stati esclusi dall\'analisi automatica.]"
+  });
+
+  assert(model.hasAttachmentAnalyzedContent === true, 'l avviso di sistema deve restare tracciato come testo allegati analizzato');
+  assert(model.hasUsableAttachmentText === false, 'l avviso di sistema non deve essere testo allegato utilizzabile');
+  assert(model.hasUsableAttachmentContent === false, 'senza file fisico e senza testo utile non deve esserci contenuto allegato utilizzabile');
+  assert(model.hasAttachmentContent === false, 'hasAttachmentContent non deve scattare su un solo avviso di sistema');
+  assert(model.status === 'missing', `documento annunciato senza contenuto utile deve essere missing, ottenuto ${model.status}`);
+  assert(model.blocksReceiptOnly === true, 'documento atteso missing deve bloccare il receipt-only');
+}
+
+console.log('--- Test expected document label: articolo naturale per scheda ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  const label = processor._formatExpectedDocumentLabel_('scheda di iscrizione al corso prematrimoniale');
+  assert(label === 'la scheda di iscrizione al corso prematrimoniale', `label scheda deve includere articolo femminile, ottenuto ${label}`);
+}
+
 console.log('--- Test responseStrategy: mapping postura condiviso include alias canonici e legacy ---');
 {
   assert(mapRelationalPostureToResponseStrategy_('procedural') === 'guide_next_step', 'procedural deve mappare a guide_next_step');
@@ -2565,6 +2600,7 @@ console.log('--- Test document consistency flow: Perillo incongruo con domanda g
   assert(scenario.generationCalls === 1, 'mismatch con domanda non deve usare receipt-only');
   assert(scenario.validationCalls === 1, 'mismatch con domanda deve passare in validazione');
   assert(scenario.validationRuntimeContexts[0].validationContext.documentMismatch.active === true, 'mismatch con domanda deve attivare il controllo validator documentale');
+  assert(scenario.validationRuntimeContexts[0].validationContext.documentMismatch.mode === 'semantic', 'mismatch semantico deve dichiarare mode semantic');
   assert(directive.includes('L’allegato ricevuto sembra non corrispondere'), 'direttiva con domanda deve usare il template positivo');
   assert(directive.includes('Subito dopo') && directive.includes('rispondi comunque in modo completo'), 'direttiva con domanda deve chiedere risposta operativa completa');
 }
@@ -2625,6 +2661,7 @@ console.log('--- Test document consistency flow: mismatch tassonomico classico n
   assert(scenario.generationCalls === 1, 'mismatch tassonomico non deve usare receipt-only');
   assert(scenario.validationCalls === 1, 'mismatch tassonomico deve passare in validazione');
   assert(scenario.promptOptions.documentConsistency.mode === 'mismatch', 'documentConsistency mismatch deve essere esposto nel promptOptions');
+  assert(scenario.validationRuntimeContexts[0].validationContext.documentMismatch.mode === 'taxonomy', 'mismatch tassonomico deve dichiarare mode taxonomy');
   assert((scenario.directives[0] || '').includes('Per una consegna senza domande'), 'mismatch tassonomico senza domande deve usare direttiva di sola verifica allegato');
 }
 

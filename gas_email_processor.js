@@ -2797,9 +2797,14 @@ ${addressLines.join('\n\n')}
         documentDeliveryModel.blockReason = 'expected_document_with_unknown_attachment';
       }
       const hasDocumentDeliveryIncongruent = documentDeliveryModel.status === 'incongruent';
+      const hasDocumentDeliveryBlockingIssue = Boolean(
+        hasExpectedDocumentMissing ||
+        hasDocumentMismatch ||
+        hasDocumentDeliveryIncongruent
+      );
       const effectiveDocumentMismatchReason = documentMismatchReason || documentDeliveryModel.blockReason || null;
-      const shouldUseReceiptOnly = !documentDeliveryModel.blocksReceiptOnly &&
-        (forceReceiptOnlyForSubmission || (hasRiskyUnknownReceived && !hasDocumentDeliveryIncongruent));
+      const shouldUseReceiptOnly = !hasDocumentDeliveryBlockingIssue &&
+        (forceReceiptOnlyForSubmission || hasRiskyUnknownReceived);
       const shouldSkipValidationForReceiptOnly = shouldUseReceiptOnly;
       let injectedMissingDocumentDirective = null;
       let injectedMismatchDirective = null;
@@ -2874,7 +2879,9 @@ ${addressLines.join('\n\n')}
           validationContext: Object.assign({}, runtimeContext.validationContext || {}, {
             documentMismatch: (hasDocumentMismatch || hasDocumentDeliveryIncongruent) ? {
               active: true,
-              mode: hasSemanticMismatch ? 'semantic' : 'taxonomy',
+              mode: hasSemanticMismatch
+                ? 'semantic'
+                : (hasTaxonomyMismatch ? 'taxonomy' : 'document_delivery'),
               reason: effectiveDocumentMismatchReason || '',
               hasQuestions: Boolean(attachmentIntentContext && attachmentIntentContext.hasQuestions === true),
               expected: documentConsistency && documentConsistency.expected ? documentConsistency.expected : '',
@@ -4469,12 +4476,19 @@ ${addressLines.join('\n\n')}
       (quickDocumentDelivery && quickDocumentDelivery.expected_document === true) ||
       (quickDocumentDelivery && quickDocumentDelivery.missing_document_if_no_attachment === true)
     );
-    const hasAttachmentContent = Boolean(
+    const normalizedAttachmentText = String(textFromAttachments || '').trim();
+    const hasPhysicalAttachment = Boolean(
       physicalAttachmentsDetected ||
-      (Array.isArray(attachmentItems) && attachmentItems.length > 0) ||
-      String(textFromAttachments || '').trim()
+      (Array.isArray(attachmentItems) && attachmentItems.length > 0)
     );
-    const hasDocumentContentAvailable = Boolean(hasAttachmentContent || bodyContainsUsableDocumentContent);
+    const hasAttachmentAnalyzedContent = Boolean(normalizedAttachmentText);
+    const hasUsableAttachmentText = Boolean(
+      normalizedAttachmentText &&
+      !/^\[Avviso di sistema:/i.test(normalizedAttachmentText)
+    );
+    const hasUsableAttachmentContent = Boolean(hasPhysicalAttachment || hasUsableAttachmentText);
+    const hasAttachmentContent = hasUsableAttachmentContent;
+    const hasDocumentContentAvailable = Boolean(hasUsableAttachmentContent || bodyContainsUsableDocumentContent);
     const expectedDescription = String(
       (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
       (quickAttachmentIntent && quickAttachmentIntent.expected_attachment_description) ||
@@ -4505,6 +4519,10 @@ ${addressLines.join('\n\n')}
       announcedByBody: announcedByBody,
       expectsDocument: expectsDocument,
       bodyContainsUsableDocumentContent: bodyContainsUsableDocumentContent,
+      hasPhysicalAttachment: hasPhysicalAttachment,
+      hasAttachmentAnalyzedContent: hasAttachmentAnalyzedContent,
+      hasUsableAttachmentText: hasUsableAttachmentText,
+      hasUsableAttachmentContent: hasUsableAttachmentContent,
       hasAttachmentContent: hasAttachmentContent,
       hasDocumentContentAvailable: hasDocumentContentAvailable,
       status: status,
