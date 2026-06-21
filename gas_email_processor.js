@@ -2652,15 +2652,52 @@ ${addressLines.join('\n\n')}
         attachmentIntentContext &&
         /submission/i.test(String(attachmentIntentContext.intent || ''))
       );
-      const hasDocumentMismatch = !!(documentConsistency && documentConsistency.mode === 'mismatch');
+
+      // La tassonomia locale (_evaluateDocumentConsistency_) riconosce solo
+      // documenti sacramentali/anagrafici noti: per qualunque altro allegato
+      // (video, locandine, programmi, documentazione generica) "expected"
+      // risulta sempre 'unknown' e il mismatch non può mai scattare, anche
+      // quando l'allegato è palesemente incongruo. In questo gap (e solo in
+      // questo gap, per non moltiplicare le chiamate Gemini) deleghiamo la
+      // verifica di coerenza a un controllo semantico zero-shot.
+      const needsSemanticConsistencyCheck = Boolean(
+        this.config.documentConsistencyCheckEnabled &&
+        documentConsistency &&
+        documentConsistency.mode === 'unknown_expected' &&
+        physicalAttachmentsDetected &&
+        (textFromAttachments || (Array.isArray(attachmentItems) && attachmentItems.length > 0))
+      );
+      const semanticConsistency = needsSemanticConsistencyCheck
+        ? this._evaluateAttachmentSemanticConsistency_({
+          subject: messageDetails.subject,
+          body: messageDetails.body,
+          attachmentItems: attachmentItems,
+          ocrText: textFromAttachments,
+          attachmentBlobs: attachmentBlobs
+        })
+        : null;
+
+      const hasTaxonomyMismatch = !!(documentConsistency && documentConsistency.mode === 'mismatch');
+      const hasSemanticMismatch = !!(semanticConsistency && semanticConsistency.consistent === false);
+      const hasDocumentMismatch = hasTaxonomyMismatch || hasSemanticMismatch;
+      const documentMismatchReason = hasSemanticMismatch
+        ? (semanticConsistency.reason || "contenuto dell'allegato non coerente con quanto descritto nell'email")
+        : (hasTaxonomyMismatch
+          ? `atteso ${documentConsistency.expected || 'unknown'}, ricevuto ${documentConsistency.received || 'unknown'}`
+          : null);
       const hasRiskyUnknownReceived = !!(
         documentConsistency &&
         documentConsistency.mode === 'unknown_received' &&
         isDocumentDeliveryContext
       );
-      const shouldForcePrudentDocResponse = hasDocumentMismatch;
       if (hasDocumentMismatch) {
-        console.warn(`   ⚠️ Mismatch documentale rilevato: atteso=${documentConsistency.expected || 'unknown'} ricevuto=${documentConsistency.received || 'unknown'}`);
+        console.warn(`   ⚠️ Mismatch documentale rilevato (${hasSemanticMismatch ? 'semantico' : 'tassonomia'}): ${documentMismatchReason}`);
+        // Il segnale deve arrivare a Gemini, non bypassarlo: iniettiamo una
+        // direttiva di sistema che fa generare comunque la risposta completa
+        // alla richiesta operativa, con l'avviso prudente in apertura.
+        systemDirectives.unshift(
+          `AVVISO ALLEGATO NON COERENTE: prima di rispondere alla richiesta, avvisa con tono prudente e cortese che l'allegato ricevuto potrebbe non corrispondere a quanto annunciato nell'email (motivo: ${documentMismatchReason}). Invita l'utente a verificare e, se necessario, a reinviare il file corretto. Subito dopo l'avviso, rispondi comunque in modo completo e operativo alla richiesta contenuta nell'email, usando il testo del messaggio e il resto del contesto disponibile.`
+        );
       } else if (hasRiskyUnknownReceived) {
         console.warn(`   ⚠️ Documento non classificabile in contesto sponsor: atteso=${documentConsistency.expected || 'unknown'} ricevuto=unknown`);
       }
@@ -2694,11 +2731,7 @@ ${addressLines.join('\n\n')}
         : [];
       const fallbackModelName = generationPlan.fallbackModelName || 'gemini-3.5-flash';
 
-      if (shouldForcePrudentDocResponse) {
-        response = this._buildPrudentDocumentMismatchResponse_(detectedLanguage);
-        strategyUsed = 'DocumentConsistency-PrudentResponse';
-        console.log('✅ Risposta prudente generata per mismatch documentale');
-      } else if (hasRiskyUnknownReceived || forceReceiptOnlyForSubmission) {
+      if (hasRiskyUnknownReceived || forceReceiptOnlyForSubmission) {
         response = this._buildReceiptOnlySubmissionResponse_(detectedLanguage, categoryHintSource);
         strategyUsed = hasRiskyUnknownReceived
           ? 'DocumentConsistency-UnknownReceivedReceiptOnly'
@@ -2860,7 +2893,7 @@ ${addressLines.join('\n\n')}
       let retryAttempted = false;
       let shouldLabelForReview = false;
 
-      if (this.config.validationEnabled && !shouldForcePrudentDocResponse && !forceReceiptOnlyForSubmission && !hasRiskyUnknownReceived) {
+      if (this.config.validationEnabled && !forceReceiptOnlyForSubmission && !hasRiskyUnknownReceived) {
         const fullValidationKB = [
           enrichedKnowledgeBase,
           routedAiCoreLite,
@@ -3135,9 +3168,9 @@ ${addressLines.join('\n\n')}
 
       // Etichettatura non critica: non deve compromettere lo step successivo (memoria).
       try {
-        if (shouldLabelForReview || shouldForcePrudentDocResponse) {
+        if (shouldLabelForReview || hasDocumentMismatch) {
           this._addValidationErrorLabel(candidate, {
-            reason: shouldForcePrudentDocResponse ? 'document_consistency_prudent_response' : 'validation_warning',
+            reason: hasDocumentMismatch ? 'document_consistency_prudent_response' : 'validation_warning',
             validation: validation,
             subject: messageDetails.subject
           });
@@ -6850,6 +6883,99 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
       return { mode: 'mismatch', expected: expected, received: received };
     }
     return { mode: 'match', expected: expected, received: received };
+  }
+
+  /**
+   * Validazione semantica "zero-shot" della coerenza tra il testo dell'email
+   * e il contenuto effettivo dell'allegato (via OCR), usando una chiamata
+   * leggera a Gemini.
+   *
+   * Complementa _evaluateDocumentConsistency_, che si basa su una tassonomia
+   * locale fissa (certificati di battesimo/cresima, idoneità padrino/madrina,
+   * moduli catechesi, sbattezzo, pellegrinaggio, documento d'identità...).
+   * Quella tassonomia non ha alcuna opinione su allegati generici - video,
+   * locandine, programmi, documentazione comunitaria - quindi "expected"
+   * risulta sempre 'unknown' e un'incoerenza reale non può mai emergere.
+   * Questo controllo chiude esattamente quel gap, chiedendo direttamente a
+   * Gemini se l'allegato ricevuto è tematicamente coerente con quanto
+   * l'utente descrive nell'email.
+   *
+   * Fail-open per design: se la chiamata fallisce, va in timeout o la
+   * risposta non è interpretabile, ritorna null (nessuna opinione), senza
+   * bloccare la pipeline né forzare un avviso non giustificato.
+   *
+   * @param {Object} params
+   * @param {string} params.subject
+   * @param {string} params.body
+   * @param {Array} params.attachmentItems
+   * @param {string} params.ocrText - testo estratto dall'allegato (OCR)
+   * @param {Array} [params.attachmentBlobs] - riservato per un futuro controllo
+   *   multimodale diretto sull'immagine; non utilizzato in questa versione
+   *   testuale del controllo.
+   * @returns {{consistent: boolean, reason: string, source: string}|null}
+   */
+  _evaluateAttachmentSemanticConsistency_({ subject, body, attachmentItems, ocrText } = {}) {
+    const trimmedSubject = String(subject || '').trim();
+    const trimmedBody = String(body || '').trim();
+    const attachmentNames = Array.isArray(attachmentItems)
+      ? attachmentItems.map((it) => (it && it.name) ? it.name : '').filter(Boolean).join(', ')
+      : '';
+    const rawOcrText = String(ocrText || '').trim();
+    // Il testo OCR può essere un avviso di sistema (impostato più sopra in
+    // processThread quando il pre-check ha saltato l'estrazione OCR): non è
+    // materiale reale su cui basare un giudizio di coerenza.
+    const isPlaceholderOcr = /^\[Avviso di sistema/i.test(rawOcrText);
+    const effectiveOcrText = isPlaceholderOcr ? '' : rawOcrText;
+
+    if (!trimmedSubject && !trimmedBody) return null;
+    if (!effectiveOcrText && !attachmentNames) return null;
+
+    if (!this.geminiService || typeof this.geminiService.generateResponse !== 'function') {
+      return null;
+    }
+    const apiKey = this.geminiService.primaryKey;
+    if (!apiKey) return null;
+
+    const prompt = [
+      'Rispondi SOLO con un oggetto JSON valido, senza testo aggiuntivo, senza markdown e senza spiegazioni.',
+      'Formato esatto: {"consistent": true, "reason": "breve motivo in italiano, massimo 15 parole"}',
+      '',
+      "Determina se il contenuto dell'allegato ricevuto è tematicamente coerente con ciò che l'utente descrive nella sua email. Non valutare la qualità, la forma o la completezza del documento: valuta solo se l'argomento dell'allegato corrisponde a quanto annunciato nel testo.",
+      '',
+      `OGGETTO EMAIL: ${trimmedSubject.slice(0, 300)}`,
+      `CORPO EMAIL: ${trimmedBody.slice(0, 1500)}`,
+      '',
+      `NOME/I ALLEGATO/I: ${attachmentNames || '(non disponibile)'}`,
+      `TESTO ESTRATTO DALL'ALLEGATO (OCR): ${effectiveOcrText ? effectiveOcrText.slice(0, 2000) : "(nessun testo estratto, valuta solo in base al nome file se informativo)"}`
+    ].join('\n');
+
+    try {
+      const rawResult = this.geminiService.generateResponse(prompt, {
+        apiKey: apiKey,
+        // Modello leggero per un controllo ausiliario a bassa latenza/costo:
+        // stesso fallback usato altrove in questo file per chiamate non critiche.
+        modelName: 'gemini-3.5-flash',
+        skipRateLimit: true
+      });
+
+      const rawText = (rawResult && typeof rawResult === 'object') ? rawResult.text : rawResult;
+      if (!rawText || typeof rawText !== 'string') return null;
+
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return null;
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (typeof parsed.consistent !== 'boolean') return null;
+
+      return {
+        consistent: parsed.consistent,
+        reason: String(parsed.reason || '').trim().slice(0, 200),
+        source: 'semantic_zero_shot'
+      };
+    } catch (semanticCheckError) {
+      console.warn(`   ⚠️ Verifica semantica allegato fallita (non bloccante): ${semanticCheckError.message}`);
+      return null;
+    }
   }
 
   _detectDocumentTypeFromText_(text) {

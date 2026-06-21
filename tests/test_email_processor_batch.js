@@ -3820,6 +3820,51 @@ console.log('--- Test document consistency: idoneita accentata e carta identita 
   );
 }
 
+console.log('--- Test attachment semantic consistency: JSON Gemini e fail-open ---');
+{
+  let capturedPrompt = '';
+  let capturedOptions = null;
+  const processor = new EmailProcessor({
+    gmailService: {},
+    geminiService: {
+      primaryKey: 'test-key',
+      generateResponse: (prompt, options) => {
+        capturedPrompt = prompt;
+        capturedOptions = options;
+        return '{"consistent": false, "reason": "allegato su tema diverso"}';
+      }
+    }
+  });
+
+  const result = processor._evaluateAttachmentSemanticConsistency_({
+    subject: 'Invio locandina concerto',
+    body: 'In allegato invio la locandina del concerto.',
+    attachmentItems: [{ name: 'programma_pellegrinaggio.pdf' }],
+    ocrText: 'Programma del pellegrinaggio parrocchiale'
+  });
+
+  assert(result && result.consistent === false, 'JSON Gemini deve produrre mismatch semantico');
+  assert(result.reason === 'allegato su tema diverso', 'il motivo Gemini deve essere preservato');
+  assert(result.source === 'semantic_zero_shot', 'la sorgente deve tracciare il controllo semantico');
+  assert(capturedPrompt.includes('Invio locandina concerto') && capturedPrompt.includes('Programma del pellegrinaggio'), 'il prompt deve includere email e OCR');
+  assert(capturedOptions && capturedOptions.modelName === 'gemini-3.5-flash' && capturedOptions.skipRateLimit === true, 'il controllo semantico deve usare il modello leggero senza rate limit');
+
+  const failOpenProcessor = new EmailProcessor({
+    gmailService: {},
+    geminiService: {
+      primaryKey: 'test-key',
+      generateResponse: () => 'non json'
+    }
+  });
+  const failOpen = failOpenProcessor._evaluateAttachmentSemanticConsistency_({
+    subject: 'Invio documento',
+    body: 'In allegato il documento richiesto.',
+    attachmentItems: [{ name: 'documento.pdf' }],
+    ocrText: 'Contenuto OCR'
+  });
+  assert(failOpen === null, 'risposta Gemini non interpretabile deve essere fail-open');
+}
+
 console.log('--- Test sponsor sanitizer: non rimuove termini matrimoniali generici ---');
 {
   const processor = new EmailProcessor({ gmailService: {} });
