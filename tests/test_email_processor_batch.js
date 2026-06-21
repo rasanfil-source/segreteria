@@ -2050,6 +2050,234 @@ console.log('--- Test processThread: submission receipt-only non chiama Gemini g
   global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
 }
 
+function runAttachmentConsistencyFlowScenario({
+  threadId,
+  subject,
+  body,
+  attachmentName,
+  ocrText,
+  hasQuestions,
+  semanticResponse,
+  generatedText = 'Risposta operativa generata'
+}) {
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalDocumentConsistency = global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED;
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+  global.CONFIG.VALIDATION_ENABLED = true;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = true;
+  global.CONFIG.ATTACHMENT_CONTEXT = { enabled: true, maxFiles: 3 };
+
+  let semanticCalls = 0;
+  let generationCalls = 0;
+  let validationCalls = 0;
+  let sentText = '';
+  let capturedPromptOptions = null;
+  const message = {
+    getId: () => `${threadId}-message`,
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-10T10:00:00Z'),
+    getSubject: () => subject,
+    getPlainBody: () => body,
+    getAttachments: () => [{ getName: () => attachmentName }]
+  };
+  const thread = createThread({ id: threadId, messages: [message] });
+
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: subject,
+        body: body,
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date('2026-05-10T10:00:00Z'),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      getProcessableAttachments: () => ({
+        blobs: [],
+        textContext: ocrText,
+        skipped: [],
+        items: [{ name: attachmentName, text: ocrText }],
+        processedCount: 1
+      }),
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: (_candidate, responseText) => { sentText = responseText; }
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'document_submission', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      backupKey: 'backup-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'allegato', category: 'document_submission', confidence: 0.9 } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: (prompt) => {
+        if (String(prompt || '').includes('Rispondi SOLO con un oggetto JSON valido')) {
+          semanticCalls++;
+          return semanticResponse;
+        }
+        generationCalls++;
+        return { success: true, text: generatedText };
+      }
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    validator: {
+      validateResponse: () => {
+        validationCalls++;
+        return { isValid: true, warnings: [], score: 1, details: {}, fixedResponse: null };
+      }
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        capturedPromptOptions = options;
+        return ['PROMPT'].concat(options.systemDirectives || []).join('\n');
+      }
+    }
+  });
+  processor._deriveAttachmentIntentContext_ = () => ({
+    intent: hasQuestions ? 'document_submission_with_question' : 'document_submission',
+    confidence: 0.9,
+    phase: 'post_ocr',
+    categoryHintSource: 'document_submission',
+    responseDirective: hasQuestions
+      ? 'Confermare ricezione e rispondere alla domanda esplicita.'
+      : 'Confermare la ricezione della documentazione allegata.',
+    hasQuestions: hasQuestions,
+    detectedDocTypes: {}
+  });
+
+  try {
+    const result = processor.processThread(thread, 'kb valida', '', new Set(), true);
+    return {
+      result,
+      sentText,
+      semanticCalls,
+      generationCalls,
+      validationCalls,
+      promptOptions: capturedPromptOptions,
+      directives: capturedPromptOptions ? (capturedPromptOptions.systemDirectives || []) : []
+    };
+  } finally {
+    global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+    global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = originalDocumentConsistency;
+    global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+  }
+}
+
+console.log('--- Test document consistency flow: Perillo coerente resta receipt-only ---');
+{
+  const scenario = runAttachmentConsistencyFlowScenario({
+    threadId: 't-perillo-coerente',
+    subject: 'Locandina Perillo',
+    body: 'Buongiorno, invio in allegato la locandina Perillo.',
+    attachmentName: 'locandina_perillo.pdf',
+    ocrText: 'Locandina evento Perillo - incontro parrocchiale',
+    hasQuestions: false,
+    semanticResponse: '{"consistent": true, "reason": "locandina coerente"}'
+  });
+  assert(scenario.result.status === 'replied', 'Perillo coerente deve completarsi');
+  assert(scenario.semanticCalls === 1, 'Perillo coerente deve usare il controllo semantico');
+  assert(scenario.generationCalls === 0, 'Perillo coerente senza domande deve restare receipt-only');
+  assert(scenario.validationCalls === 0, 'receipt-only coerente deve saltare la validazione');
+  assert(/ricevut|documentazione/i.test(scenario.sentText), `risposta receipt-only inattesa: ${scenario.sentText}`);
+  assert(scenario.promptOptions.documentConsistency.mode === 'unknown_expected', 'documentConsistency deve essere osservabile nel promptOptions');
+}
+
+console.log('--- Test document consistency flow: Perillo incongruo con domanda genera risposta completa ---');
+{
+  const scenario = runAttachmentConsistencyFlowScenario({
+    threadId: 't-perillo-incongruo-domanda',
+    subject: 'Locandina Perillo',
+    body: 'Buongiorno, invio in allegato la locandina Perillo. Potete dirmi se va pubblicata sul sito?',
+    attachmentName: 'programma_pellegrinaggio.pdf',
+    ocrText: 'Programma del pellegrinaggio parrocchiale',
+    hasQuestions: true,
+    semanticResponse: '{"consistent": false, "reason": "allegato su altro evento"}',
+    generatedText: 'Avviso allegato incongruo. La pubblicazione sul sito va verificata dalla segreteria.'
+  });
+  const directive = scenario.directives[0] || '';
+  assert(scenario.result.status === 'replied', 'Perillo incongruo con domanda deve completarsi');
+  assert(scenario.generationCalls === 1, 'mismatch con domanda non deve usare receipt-only');
+  assert(scenario.validationCalls === 1, 'mismatch con domanda deve passare in validazione');
+  assert(directive.includes('Subito dopo') && directive.includes('rispondi comunque in modo completo'), 'direttiva con domanda deve chiedere risposta operativa completa');
+}
+
+console.log('--- Test document consistency flow: consegna pura incongrua non usa receipt-only ---');
+{
+  const scenario = runAttachmentConsistencyFlowScenario({
+    threadId: 't-consegna-pura-incongrua',
+    subject: 'Locandina Perillo',
+    body: 'Buongiorno, invio in allegato la locandina Perillo.',
+    attachmentName: 'programma_pellegrinaggio.pdf',
+    ocrText: 'Programma del pellegrinaggio parrocchiale',
+    hasQuestions: false,
+    semanticResponse: '{"consistent": false, "reason": "allegato su altro evento"}',
+    generatedText: 'L allegato sembra non corrispondere: vi chiediamo di verificare e reinviarlo.'
+  });
+  const directive = scenario.directives[0] || '';
+  assert(scenario.result.status === 'replied', 'consegna pura incongrua deve completarsi');
+  assert(scenario.generationCalls === 1, 'mismatch puro non deve cadere nel receipt-only');
+  assert(scenario.validationCalls === 1, 'mismatch puro deve essere validato anche se sarebbe receipt-only');
+  assert(directive.includes('Non aggiungere risposte operative') && !directive.includes('Subito dopo'), 'direttiva pura deve limitarsi all avviso sull allegato');
+}
+
+console.log('--- Test document consistency flow: fallimento semantic check resta fail-open ---');
+{
+  const scenario = runAttachmentConsistencyFlowScenario({
+    threadId: 't-semantic-fail-open',
+    subject: 'Locandina Perillo',
+    body: 'Buongiorno, invio in allegato la locandina Perillo.',
+    attachmentName: 'locandina_perillo.pdf',
+    ocrText: 'Testo OCR generico',
+    hasQuestions: false,
+    semanticResponse: 'non json'
+  });
+  assert(scenario.result.status === 'replied', 'fallimento semantico deve restare fail-open');
+  assert(scenario.semanticCalls === 1, 'fallimento semantico deve aver tentato il controllo');
+  assert(scenario.generationCalls === 0, 'senza mismatch rilevato deve restare receipt-only');
+  assert(scenario.validationCalls === 0, 'receipt-only dopo fail-open deve saltare validazione');
+  assert(scenario.directives.length === 0, 'fail-open non deve iniettare direttive mismatch');
+}
+
+console.log('--- Test document consistency flow: mismatch tassonomico classico non usa receipt-only ---');
+{
+  const scenario = runAttachmentConsistencyFlowScenario({
+    threadId: 't-taxonomy-mismatch',
+    subject: 'Certificato di cresima',
+    body: 'Buongiorno, invio in allegato il certificato di cresima.',
+    attachmentName: 'certificato_battesimo.pdf',
+    ocrText: 'CERTIFICATO DI BATTESIMO - battezzato il 10 maggio',
+    hasQuestions: false,
+    semanticResponse: '{"consistent": true, "reason": "non usato"}',
+    generatedText: 'L allegato sembra non corrispondere al certificato richiesto.'
+  });
+  assert(scenario.result.status === 'replied', 'mismatch tassonomico deve completarsi');
+  assert(scenario.semanticCalls === 0, 'mismatch tassonomico non deve chiamare controllo semantico');
+  assert(scenario.generationCalls === 1, 'mismatch tassonomico non deve usare receipt-only');
+  assert(scenario.validationCalls === 1, 'mismatch tassonomico deve passare in validazione');
+  assert(scenario.promptOptions.documentConsistency.mode === 'mismatch', 'documentConsistency mismatch deve essere esposto nel promptOptions');
+  assert((scenario.directives[0] || '').includes('Non aggiungere risposte operative'), 'mismatch tassonomico senza domande deve usare direttiva di sola verifica allegato');
+}
+
 console.log('--- Test processThread: follow-up senza allegati non usa receipt-only documentale ---');
 {
   const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;

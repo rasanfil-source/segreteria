@@ -2690,17 +2690,36 @@ ${addressLines.join('\n\n')}
         documentConsistency.mode === 'unknown_received' &&
         isDocumentDeliveryContext
       );
+      const shouldSkipValidationForReceiptOnly = !hasDocumentMismatch &&
+        (forceReceiptOnlyForSubmission || hasRiskyUnknownReceived);
+      let injectedMismatchDirective = null;
       if (hasDocumentMismatch) {
         console.warn(`   ⚠️ Mismatch documentale rilevato (${hasSemanticMismatch ? 'semantico' : 'tassonomia'}): ${documentMismatchReason}`);
         // Il segnale deve arrivare a Gemini, non bypassarlo: iniettiamo una
-        // direttiva di sistema che fa generare comunque la risposta completa
-        // alla richiesta operativa, con l'avviso prudente in apertura.
-        systemDirectives.unshift(
-          `AVVISO ALLEGATO NON COERENTE: prima di rispondere alla richiesta, avvisa con tono prudente e cortese che l'allegato ricevuto potrebbe non corrispondere a quanto annunciato nell'email (motivo: ${documentMismatchReason}). Invita l'utente a verificare e, se necessario, a reinviare il file corretto. Subito dopo l'avviso, rispondi comunque in modo completo e operativo alla richiesta contenuta nell'email, usando il testo del messaggio e il resto del contesto disponibile.`
-        );
+        // direttiva di sistema. Se nel messaggio ci sono domande esplicite,
+        // rispondiamo anche a quelle; in una consegna pura evitiamo di
+        // inventare richieste operative non presenti.
+        if (attachmentIntentContext && attachmentIntentContext.hasQuestions === true) {
+          injectedMismatchDirective = `AVVISO ALLEGATO NON COERENTE: prima di rispondere alla richiesta, avvisa con tono prudente e cortese che l'allegato ricevuto potrebbe non corrispondere a quanto annunciato nell'email (motivo: ${documentMismatchReason}). Invita l'utente a verificare e, se necessario, a reinviare il file corretto. Subito dopo l'avviso, rispondi comunque in modo completo e operativo alla richiesta contenuta nell'email, usando il testo del messaggio e il resto del contesto disponibile.`;
+        } else {
+          injectedMismatchDirective = `AVVISO ALLEGATO NON COERENTE: avvisa con tono prudente e cortese che l'allegato ricevuto potrebbe non corrispondere a quanto annunciato nell'email (motivo: ${documentMismatchReason}). Invita l'utente a verificare e, se necessario, a reinviare il file corretto. Non aggiungere risposte operative o istruzioni non richieste: limitati all'avviso sull'allegato incongruo.`;
+        }
+        systemDirectives.unshift(injectedMismatchDirective);
       } else if (hasRiskyUnknownReceived) {
         console.warn(`   ⚠️ Documento non classificabile in contesto sponsor: atteso=${documentConsistency.expected || 'unknown'} ricevuto=unknown`);
       }
+      promptOptions.documentConsistency = documentConsistency;
+      console.log(`   📎 Document consistency decision: ${JSON.stringify({
+        taxonomyMode: documentConsistency ? (documentConsistency.mode || null) : null,
+        semanticConsistent: semanticConsistency ? semanticConsistency.consistent : null,
+        hasTaxonomyMismatch: hasTaxonomyMismatch,
+        hasSemanticMismatch: hasSemanticMismatch,
+        hasDocumentMismatch: hasDocumentMismatch,
+        forceReceiptOnlyForSubmission: forceReceiptOnlyForSubmission,
+        hasRiskyUnknownReceived: hasRiskyUnknownReceived,
+        shouldSkipValidationForReceiptOnly: shouldSkipValidationForReceiptOnly,
+        injectedMismatchDirective: injectedMismatchDirective
+      })}`);
 
       const prompt = this.promptEngine.buildPrompt(promptOptions);
 
@@ -2731,7 +2750,7 @@ ${addressLines.join('\n\n')}
         : [];
       const fallbackModelName = generationPlan.fallbackModelName || 'gemini-3.5-flash';
 
-      if (hasRiskyUnknownReceived || forceReceiptOnlyForSubmission) {
+      if (shouldSkipValidationForReceiptOnly) {
         response = this._buildReceiptOnlySubmissionResponse_(detectedLanguage, categoryHintSource);
         strategyUsed = hasRiskyUnknownReceived
           ? 'DocumentConsistency-UnknownReceivedReceiptOnly'
@@ -2893,7 +2912,7 @@ ${addressLines.join('\n\n')}
       let retryAttempted = false;
       let shouldLabelForReview = false;
 
-      if (this.config.validationEnabled && !forceReceiptOnlyForSubmission && !hasRiskyUnknownReceived) {
+      if (this.config.validationEnabled && !shouldSkipValidationForReceiptOnly) {
         const fullValidationKB = [
           enrichedKnowledgeBase,
           routedAiCoreLite,
