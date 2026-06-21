@@ -2372,6 +2372,32 @@ console.log('--- Test expected document missing: solo annuncio senza allegato --
   assert(!/ricevut/i.test(scenario.sentText), 'documento mancante non deve confermare ricezione');
 }
 
+console.log('--- Test expected document missing: avviso di sistema allegati non vale come documento ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  const model = processor._buildDocumentDeliveryModel_({
+    subject: 'Scheda corso prematrimoniale',
+    body: 'VI INVIAMO LA SCHEDA DI ISCRIZIONE AL NOSTRO CORSO PREMATRIMONIALE',
+    quickDocumentDelivery: {
+      expected_document: true,
+      expected_document_description: 'scheda di iscrizione al corso prematrimoniale',
+      delivery_channel: 'attachment',
+      body_contains_filled_document: false,
+      requires_file_attachment: true,
+      missing_document_if_no_attachment: true,
+      reason: 'annuncia invio scheda ma non riporta dati compilati'
+    },
+    physicalAttachmentsDetected: false,
+    attachmentItems: [],
+    textFromAttachments: '[Avviso di sistema: sono presenti allegati nel thread, ma sono stati esclusi perché già processati]'
+  });
+  assert(model.status === 'missing', 'un avviso di sistema in textFromAttachments non deve diventare received_attachment');
+  assert(model.hasUsableAttachmentText === false, 'un avviso di sistema in textFromAttachments non è testo allegato utilizzabile');
+  assert(model.hasExpectedDocumentMissing === true, 'documento atteso con solo avviso di sistema deve risultare mancante');
+  assert(model.blocksReceiptOnly === true, 'documento atteso mancante deve impostare blocksReceiptOnly true');
+}
+
+
 console.log('--- Test expected document missing: scheda compilata nel corpo vale come documento disponibile ---');
 {
   const body = [

@@ -2849,6 +2849,9 @@ ${addressLines.join('\n\n')}
         receiptOnlyDeliveryChannel: receiptOnlyDeliveryChannel,
         status: documentDeliveryModel.status,
         source: documentDeliveryModel.source,
+        hasPhysicalAttachment: documentDeliveryModel.hasPhysicalAttachment,
+        hasAttachmentAnalyzedContent: documentDeliveryModel.hasAttachmentAnalyzedContent,
+        hasUsableAttachmentText: documentDeliveryModel.hasUsableAttachmentText,
         isCoherent: documentDeliveryModel.isCoherent,
         blocksReceiptOnly: documentDeliveryModel.blocksReceiptOnly,
         blockReason: documentDeliveryModel.blockReason
@@ -2859,6 +2862,7 @@ ${addressLines.join('\n\n')}
         hasTaxonomyMismatch: hasTaxonomyMismatch,
         hasSemanticMismatch: hasSemanticMismatch,
         hasDocumentMismatch: hasDocumentMismatch,
+        hasDocumentDeliveryBlockingIssue: hasDocumentDeliveryBlockingIssue,
         expectsDocument: expectsDocument,
         bodyContainsUsableDocumentContent: bodyContainsUsableDocumentContent,
         hasDocumentContentAvailable: hasDocumentContentAvailable,
@@ -4513,6 +4517,7 @@ ${addressLines.join('\n\n')}
     }
 
     const blocksReceiptOnly = status === 'missing';
+    const hasExpectedDocumentMissing = status === 'missing';
     return {
       expectedDocumentDescription: expectedDescription,
       expectedDocumentLabel: expectedLabel,
@@ -4525,6 +4530,7 @@ ${addressLines.join('\n\n')}
       hasUsableAttachmentContent: hasUsableAttachmentContent,
       hasAttachmentContent: hasAttachmentContent,
       hasDocumentContentAvailable: hasDocumentContentAvailable,
+      hasExpectedDocumentMissing: hasExpectedDocumentMissing,
       status: status,
       source: source,
       isCoherent: status !== 'missing',
