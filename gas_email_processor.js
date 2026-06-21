@@ -2339,25 +2339,20 @@ ${addressLines.join('\n\n')}
         }
       }
 
-      const bodyContainsUsableDocumentContent = Boolean(
-        (quickDocumentDelivery && quickDocumentDelivery.body_contains_filled_document === true) ||
-        this._bodyLooksLikeFilledDocument_(messageDetails.body)
-      );
-      const expectsDocument = Boolean(
-        bodyContainsUsableDocumentContent ||
-        (quickDocumentDelivery && quickDocumentDelivery.expected_document === true) ||
-        (quickDocumentDelivery && quickDocumentDelivery.missing_document_if_no_attachment === true) ||
-        this._bodyAnnouncesDocumentDelivery_(messageDetails.body, messageDetails.subject)
-      );
-      const hasDocumentContentAvailable = Boolean(
-        physicalAttachmentsDetected ||
-        (Array.isArray(attachmentItems) && attachmentItems.length > 0) ||
-        bodyContainsUsableDocumentContent
-      );
-      const hasExpectedDocumentMissing = Boolean(expectsDocument && !hasDocumentContentAvailable);
-      const receiptOnlyDeliveryChannel = bodyContainsUsableDocumentContent && !physicalAttachmentsDetected
-        ? 'body'
-        : 'attachment';
+      const documentDeliveryModel = this._buildDocumentDeliveryModel_({
+        subject: messageDetails.subject,
+        body: messageDetails.body,
+        quickDocumentDelivery: quickDocumentDelivery,
+        quickAttachmentIntent: quickAttachmentIntent,
+        physicalAttachmentsDetected: physicalAttachmentsDetected,
+        attachmentItems: attachmentItems,
+        textFromAttachments: textFromAttachments
+      });
+      const bodyContainsUsableDocumentContent = documentDeliveryModel.bodyContainsUsableDocumentContent;
+      const expectsDocument = documentDeliveryModel.expectsDocument;
+      const hasDocumentContentAvailable = documentDeliveryModel.hasDocumentContentAvailable;
+      const hasExpectedDocumentMissing = documentDeliveryModel.status === 'missing';
+      const receiptOnlyDeliveryChannel = documentDeliveryModel.receiptOnlyDeliveryChannel;
       if (
         !forceReceiptOnlyForSubmission &&
         expectsDocument &&
@@ -2782,11 +2777,29 @@ ${addressLines.join('\n\n')}
       const hasRiskyUnknownReceived = !!(
         documentConsistency &&
         documentConsistency.mode === 'unknown_received' &&
-        isDocumentDeliveryContext
+        (isDocumentDeliveryContext || (
+          documentDeliveryModel.expectsDocument &&
+          documentDeliveryModel.hasAttachmentContent
+        ))
       );
-      const shouldUseReceiptOnly = !hasDocumentMismatch &&
-        !hasExpectedDocumentMissing &&
-        (forceReceiptOnlyForSubmission || hasRiskyUnknownReceived);
+      if (hasDocumentMismatch) {
+        documentDeliveryModel.status = 'incongruent';
+        documentDeliveryModel.isCoherent = false;
+        documentDeliveryModel.blocksReceiptOnly = true;
+        documentDeliveryModel.blockReason = documentMismatchReason || 'document_mismatch';
+      } else if (hasRiskyUnknownReceived && documentDeliveryModel.expectsDocument) {
+        // Un documento annunciato con allegato non classificabile non può essere
+        // trattato come conferma automatica: è il caso reale della scheda
+        // annunciata con file incongruo o non riconoscibile.
+        documentDeliveryModel.status = 'incongruent';
+        documentDeliveryModel.isCoherent = false;
+        documentDeliveryModel.blocksReceiptOnly = true;
+        documentDeliveryModel.blockReason = 'expected_document_with_unknown_attachment';
+      }
+      const hasDocumentDeliveryIncongruent = documentDeliveryModel.status === 'incongruent';
+      const effectiveDocumentMismatchReason = documentMismatchReason || documentDeliveryModel.blockReason || null;
+      const shouldUseReceiptOnly = !documentDeliveryModel.blocksReceiptOnly &&
+        (forceReceiptOnlyForSubmission || (hasRiskyUnknownReceived && !hasDocumentDeliveryIncongruent));
       const shouldSkipValidationForReceiptOnly = shouldUseReceiptOnly;
       let injectedMissingDocumentDirective = null;
       let injectedMismatchDirective = null;
@@ -2799,8 +2812,8 @@ ${addressLines.join('\n\n')}
         injectedMissingDocumentDirective = `DOCUMENTO ATTESO NON DISPONIBILE: Scrivi: "Non troviamo allegata né riportata nel testo ${expectedDocumentLabel}. Può cortesemente reinviarla o inserirne i dati nel corpo del messaggio?" Usa questa richiesta come contenuto principale, con saluto istituzionale.`;
         systemDirectives.unshift(injectedMissingDocumentDirective);
       }
-      if (hasDocumentMismatch) {
-        console.warn(`   ⚠️ Mismatch documentale rilevato (${hasSemanticMismatch ? 'semantico' : 'tassonomia'}): ${documentMismatchReason}`);
+      if (hasDocumentMismatch || hasDocumentDeliveryIncongruent) {
+        console.warn(`   ⚠️ Mismatch documentale rilevato (${hasSemanticMismatch ? 'semantico' : (hasTaxonomyMismatch ? 'tassonomia' : 'document_delivery')}): ${effectiveDocumentMismatchReason}`);
         // Il segnale deve arrivare a Gemini, non bypassarlo: iniettiamo una
         // direttiva di sistema. Se nel messaggio ci sono domande esplicite,
         // rispondiamo anche a quelle; in una consegna pura evitiamo di
@@ -2813,9 +2826,9 @@ ${addressLines.join('\n\n')}
           'Non spiegare il criterio interno o il processo di verifica.'
         ].join(' ');
         if (attachmentIntentContext && attachmentIntentContext.hasQuestions === true) {
-          injectedMismatchDirective = `AVVISO ALLEGATO NON COERENTE: ${mismatchDirective} Documento atteso/motivo: ${documentMismatchReason}. Subito dopo l'avviso, rispondi comunque in modo completo e operativo alla richiesta contenuta nell'email, usando il testo del messaggio e il resto del contesto disponibile.`;
+          injectedMismatchDirective = `AVVISO ALLEGATO NON COERENTE: ${mismatchDirective} Documento atteso/motivo: ${effectiveDocumentMismatchReason}. Subito dopo l'avviso, rispondi comunque in modo completo e operativo alla richiesta contenuta nell'email, usando il testo del messaggio e il resto del contesto disponibile.`;
         } else {
-          injectedMismatchDirective = `AVVISO ALLEGATO NON COERENTE: ${mismatchDirective} Documento atteso/motivo: ${documentMismatchReason}. Per una consegna senza domande, usa solo questo avviso e il saluto istituzionale.`;
+          injectedMismatchDirective = `AVVISO ALLEGATO NON COERENTE: ${mismatchDirective} Documento atteso/motivo: ${effectiveDocumentMismatchReason}. Per una consegna senza domande, usa solo questo avviso e il saluto istituzionale.`;
         }
         systemDirectives.unshift(injectedMismatchDirective);
       } else if (hasRiskyUnknownReceived) {
@@ -2828,7 +2841,12 @@ ${addressLines.join('\n\n')}
         bodyContainsUsableDocumentContent: bodyContainsUsableDocumentContent,
         hasDocumentContentAvailable: hasDocumentContentAvailable,
         hasExpectedDocumentMissing: hasExpectedDocumentMissing,
-        receiptOnlyDeliveryChannel: receiptOnlyDeliveryChannel
+        receiptOnlyDeliveryChannel: receiptOnlyDeliveryChannel,
+        status: documentDeliveryModel.status,
+        source: documentDeliveryModel.source,
+        isCoherent: documentDeliveryModel.isCoherent,
+        blocksReceiptOnly: documentDeliveryModel.blocksReceiptOnly,
+        blockReason: documentDeliveryModel.blockReason
       };
       console.log(`   📎 Document consistency decision: ${JSON.stringify({
         taxonomyMode: documentConsistency ? (documentConsistency.mode || null) : null,
@@ -2842,18 +2860,22 @@ ${addressLines.join('\n\n')}
         hasExpectedDocumentMissing: hasExpectedDocumentMissing,
         forceReceiptOnlyForSubmission: forceReceiptOnlyForSubmission,
         hasRiskyUnknownReceived: hasRiskyUnknownReceived,
+        documentDeliveryStatus: documentDeliveryModel.status,
+        documentDeliverySource: documentDeliveryModel.source,
+        documentDeliveryBlocksReceiptOnly: documentDeliveryModel.blocksReceiptOnly,
+        documentDeliveryBlockReason: documentDeliveryModel.blockReason,
         shouldUseReceiptOnly: shouldUseReceiptOnly,
         shouldSkipValidationForReceiptOnly: shouldSkipValidationForReceiptOnly,
         injectedMissingDocumentDirective: injectedMissingDocumentDirective,
         injectedMismatchDirective: injectedMismatchDirective
       })}`);
-      const validationRuntimeContext = (hasDocumentMismatch || hasExpectedDocumentMissing)
+      const validationRuntimeContext = (hasDocumentMismatch || hasDocumentDeliveryIncongruent || hasExpectedDocumentMissing)
         ? Object.freeze(Object.assign({}, runtimeContext, {
           validationContext: Object.assign({}, runtimeContext.validationContext || {}, {
-            documentMismatch: hasDocumentMismatch ? {
+            documentMismatch: (hasDocumentMismatch || hasDocumentDeliveryIncongruent) ? {
               active: true,
               mode: hasSemanticMismatch ? 'semantic' : 'taxonomy',
-              reason: documentMismatchReason || '',
+              reason: effectiveDocumentMismatchReason || '',
               hasQuestions: Boolean(attachmentIntentContext && attachmentIntentContext.hasQuestions === true),
               expected: documentConsistency && documentConsistency.expected ? documentConsistency.expected : '',
               received: documentConsistency && documentConsistency.received ? documentConsistency.received : ''
@@ -4424,6 +4446,75 @@ ${addressLines.join('\n\n')}
         ].filter(Boolean).join(', ')}`
         : '',
       source: 'quick_check_fallback'
+    };
+  }
+
+  _buildDocumentDeliveryModel_({
+    subject,
+    body,
+    quickDocumentDelivery,
+    quickAttachmentIntent,
+    physicalAttachmentsDetected,
+    attachmentItems,
+    textFromAttachments
+  } = {}) {
+    const bodyContainsUsableDocumentContent = Boolean(
+      (quickDocumentDelivery && quickDocumentDelivery.body_contains_filled_document === true) ||
+      this._bodyLooksLikeFilledDocument_(body)
+    );
+    const announcedByBody = this._bodyAnnouncesDocumentDelivery_(body, subject);
+    const expectsDocument = Boolean(
+      bodyContainsUsableDocumentContent ||
+      announcedByBody ||
+      (quickDocumentDelivery && quickDocumentDelivery.expected_document === true) ||
+      (quickDocumentDelivery && quickDocumentDelivery.missing_document_if_no_attachment === true)
+    );
+    const hasAttachmentContent = Boolean(
+      physicalAttachmentsDetected ||
+      (Array.isArray(attachmentItems) && attachmentItems.length > 0) ||
+      String(textFromAttachments || '').trim()
+    );
+    const hasDocumentContentAvailable = Boolean(hasAttachmentContent || bodyContainsUsableDocumentContent);
+    const expectedDescription = String(
+      (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
+      (quickAttachmentIntent && quickAttachmentIntent.expected_attachment_description) ||
+      ''
+    ).trim();
+    const expectedLabel = this._formatExpectedDocumentLabel_(expectedDescription);
+
+    let status = 'none';
+    let source = 'none';
+    if (expectsDocument && bodyContainsUsableDocumentContent) {
+      status = 'received_body';
+      source = 'body';
+    } else if (expectsDocument && hasAttachmentContent) {
+      status = 'received_attachment';
+      source = 'attachment';
+    } else if (expectsDocument) {
+      status = 'missing';
+      source = 'announced';
+    } else if (hasAttachmentContent) {
+      status = 'unannounced_attachment';
+      source = 'attachment';
+    }
+
+    const blocksReceiptOnly = status === 'missing';
+    return {
+      expectedDocumentDescription: expectedDescription,
+      expectedDocumentLabel: expectedLabel,
+      announcedByBody: announcedByBody,
+      expectsDocument: expectsDocument,
+      bodyContainsUsableDocumentContent: bodyContainsUsableDocumentContent,
+      hasAttachmentContent: hasAttachmentContent,
+      hasDocumentContentAvailable: hasDocumentContentAvailable,
+      status: status,
+      source: source,
+      isCoherent: status !== 'missing',
+      blocksReceiptOnly: blocksReceiptOnly,
+      blockReason: blocksReceiptOnly ? 'expected_document_missing' : '',
+      receiptOnlyDeliveryChannel: bodyContainsUsableDocumentContent && !hasAttachmentContent
+        ? 'body'
+        : 'attachment'
     };
   }
 
@@ -7357,7 +7448,7 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
       { type: 'scheda_iscrizione_catechesi_comunione_cresima_ragazzi', pattern: /\b(prima comunione|cresima ragazzi|catechismo)\b/i },
       { type: 'scheda_iscrizione_cresima_adulti', pattern: /\bcresim[ao]\b[\s\S]{0,30}\badult/i },
       { type: 'scheda_iscrizione_catechesi_buon_pastore', pattern: /\bbuon pastore\b/i },
-      { type: 'scheda_iscrizione_pellegrinaggio', pattern: /\bpellegrinaggi[oa]\b/i },
+      { type: 'scheda_iscrizione_pellegrinaggio', pattern: /\bpellegrinaggi[oa]\b|\bcammino\s+di\s+santiago\b/i },
       { type: 'modulo_sbattezzo_rinuncia_cancellazione_registri', pattern: /\b(sbattezz[oa]|apostasi[ao]|rinuncia)\b/i },
       { type: 'modulo_sbattezzo_rinuncia_cancellazione_registri', pattern: /\bcancellazion[ea]\b[\s\S]{0,40}\bregistr[oi]\b[\s\S]{0,30}\bbattesim[oa]\b/i },
       // Tenuta in fondo come fallback di bassa priorità: un documento d'identità è quasi
