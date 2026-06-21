@@ -1771,6 +1771,10 @@ var EmailProcessor = class EmailProcessor {
       if (quickAttachmentIntent && quickAttachmentIntent.requires_attachment_reading) {
         console.log(`   📎 QuickCheck attachment intent: lettura allegati richiesta se presenti (${quickAttachmentIntent.reason || 'segnale documentale'})`);
       }
+      const quickDocumentDelivery = this._resolveQuickCheckDocumentDelivery_(quickCheck);
+      if (quickDocumentDelivery && quickDocumentDelivery.expected_document) {
+        console.log(`   📎 QuickCheck document delivery: documento atteso via ${quickDocumentDelivery.delivery_channel || 'unclear'} (${quickDocumentDelivery.reason || quickDocumentDelivery.expected_document_description || 'segnale documentale'})`);
+      }
 
       let physicalPresenceConstraint = this._resolvePhysicalPresenceConstraint_(
         quickCheck.physical_presence_constraint,
@@ -2145,8 +2149,15 @@ ${addressLines.join('\n\n')}
             const bodyIsVeryShort = (messageDetails.body || '').trim().length < 50;
             const quickCheckRequiresAttachmentReading = Boolean(
               hasAttachments &&
-              quickAttachmentIntent &&
-              quickAttachmentIntent.requires_attachment_reading === true
+              (
+                (quickAttachmentIntent && quickAttachmentIntent.requires_attachment_reading === true) ||
+                (quickDocumentDelivery && quickDocumentDelivery.expected_document === true && (
+                  quickDocumentDelivery.requires_file_attachment === true ||
+                  quickDocumentDelivery.delivery_channel === 'attachment' ||
+                  quickDocumentDelivery.delivery_channel === 'both' ||
+                  quickDocumentDelivery.delivery_channel === 'unclear'
+                ))
+              )
             );
             const localOcrFallback = this._shouldTryOcr(messageDetails.body, messageDetails.subject, hasAttachments);
             if (
@@ -2159,7 +2170,12 @@ ${addressLines.join('\n\n')}
             if (bodyIsVeryShort) {
               console.log('   📎 Body corto: elaborazione allegati forzata');
             } else if (quickCheckRequiresAttachmentReading) {
-              console.log(`   📎 QuickCheck attachment_intent: elaborazione allegati forzata (${quickAttachmentIntent.expected_attachment_description || quickAttachmentIntent.reason || 'documento allegato'})`);
+              const expectedFromQuickCheck = (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
+                (quickAttachmentIntent && quickAttachmentIntent.expected_attachment_description) ||
+                (quickDocumentDelivery && quickDocumentDelivery.reason) ||
+                (quickAttachmentIntent && quickAttachmentIntent.reason) ||
+                'documento allegato';
+              console.log(`   📎 QuickCheck document_delivery: elaborazione allegati forzata (${expectedFromQuickCheck})`);
             }
             console.log('   📎 Elaborazione allegati multimodale (Vision)...');
             const maxAttachmentFiles = Math.max(1, parseInt(attachmentSettings.maxFiles, 10) || 3);
@@ -2323,8 +2339,50 @@ ${addressLines.join('\n\n')}
         }
       }
 
+      const bodyContainsUsableDocumentContent = Boolean(
+        (quickDocumentDelivery && quickDocumentDelivery.body_contains_filled_document === true) ||
+        this._bodyLooksLikeFilledDocument_(messageDetails.body)
+      );
+      const expectsDocument = Boolean(
+        bodyContainsUsableDocumentContent ||
+        (quickDocumentDelivery && quickDocumentDelivery.expected_document === true) ||
+        (quickDocumentDelivery && quickDocumentDelivery.missing_document_if_no_attachment === true) ||
+        this._bodyAnnouncesDocumentDelivery_(messageDetails.body, messageDetails.subject)
+      );
+      const hasDocumentContentAvailable = Boolean(
+        physicalAttachmentsDetected ||
+        (Array.isArray(attachmentItems) && attachmentItems.length > 0) ||
+        bodyContainsUsableDocumentContent
+      );
+      const hasExpectedDocumentMissing = Boolean(expectsDocument && !hasDocumentContentAvailable);
+      const receiptOnlyDeliveryChannel = bodyContainsUsableDocumentContent && !physicalAttachmentsDetected
+        ? 'body'
+        : 'attachment';
+      if (
+        !forceReceiptOnlyForSubmission &&
+        expectsDocument &&
+        bodyContainsUsableDocumentContent &&
+        !physicalAttachmentsDetected &&
+        !(attachmentIntentContext && attachmentIntentContext.hasQuestions === true)
+      ) {
+        console.log('   📄 Documento compilato rilevato nel corpo: abilito conferma ricezione dati senza OCR');
+        forceReceiptOnlyForSubmission = true;
+        categoryHintSource = 'document_submission';
+        classification.category = 'document_submission';
+        classification.topic = 'dati documentali ricevuti nel testo';
+        if (requestType && typeof requestType === 'object') {
+          requestType.type = 'technical';
+          requestType.needsDoctrine = false;
+          requestType.needsDiscernment = false;
+          requestType.topic = classification.topic;
+        }
+      }
+      if (hasExpectedDocumentMissing) {
+        console.warn('   ⚠️ Documento atteso ma non disponibile: nessun allegato e nessun contenuto compilato nel corpo');
+      }
+
       const attachmentIntentName = String((attachmentIntentContext && attachmentIntentContext.intent) || '').toLowerCase();
-      if (!physicalAttachmentsDetected && !attachmentPreCheckFailed && /submission/i.test(attachmentIntentName)) {
+      if (!physicalAttachmentsDetected && !attachmentPreCheckFailed && !bodyContainsUsableDocumentContent && !expectsDocument && /submission/i.test(attachmentIntentName)) {
         console.log('   📎 Guardrail allegati: nessun allegato fisico rilevato → disattivo contesto di consegna documentale');
         attachmentIntentContext = null;
         if (/^(document_submission|suspected_submission)/i.test(String(categoryHintSource || ''))) {
@@ -2643,11 +2701,19 @@ ${addressLines.join('\n\n')}
         requestType: requestType,
         attachmentsContext: physicalAttachmentsDetected
           ? textFromAttachments
-          : (attachmentIntentContext
-            ? "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa."
-            : ''),
+          : (hasExpectedDocumentMissing
+            ? "ATTENZIONE: il documento atteso non è disponibile: non risultano allegati fisici né dati compilati utilizzabili nel corpo del messaggio."
+            : (bodyContainsUsableDocumentContent
+              ? "ATTENZIONE: il documento/la scheda è riportato nel corpo del messaggio come dati compilati utilizzabili; non parlare di allegato."
+              : (attachmentIntentContext
+                ? "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa."
+                : ''))),
         attachmentIntentContext: attachmentIntentContext
-          ? Object.assign({}, attachmentIntentContext, { hasPhysicalAttachments: physicalAttachmentsDetected })
+          ? Object.assign({}, attachmentIntentContext, {
+            hasPhysicalAttachments: physicalAttachmentsDetected,
+            bodyContainsUsableDocumentContent: bodyContainsUsableDocumentContent,
+            hasExpectedDocumentMissing: hasExpectedDocumentMissing
+          })
           : null,
         systemDirectives: systemDirectives,
         aiCoreLite: routedAiCoreLite,
@@ -2677,10 +2743,19 @@ ${addressLines.join('\n\n')}
       // quando l'allegato è palesemente incongruo. In questo gap (e solo in
       // questo gap, per non moltiplicare le chiamate Gemini) deleghiamo la
       // verifica di coerenza a un controllo semantico zero-shot.
+      const hasExplicitQuickDocumentExpectation = Boolean(
+        quickDocumentDelivery &&
+        quickDocumentDelivery.source === 'quick_check' &&
+        quickDocumentDelivery.expected_document === true &&
+        quickDocumentDelivery.expected_document_description
+      );
       const needsSemanticConsistencyCheck = Boolean(
         this.config.documentConsistencyCheckEnabled &&
         documentConsistency &&
-        documentConsistency.mode === 'unknown_expected' &&
+        (
+          documentConsistency.mode === 'unknown_expected' ||
+          (hasExplicitQuickDocumentExpectation && documentConsistency.mode !== 'mismatch')
+        ) &&
         physicalAttachmentsDetected &&
         (textFromAttachments || (Array.isArray(attachmentItems) && attachmentItems.length > 0))
       );
@@ -2691,7 +2766,8 @@ ${addressLines.join('\n\n')}
           attachmentItems: attachmentItems,
           ocrText: textFromAttachments,
           attachmentBlobs: attachmentBlobs,
-          expectedAttachmentDescription: quickAttachmentIntent ? quickAttachmentIntent.expected_attachment_description : ''
+          expectedAttachmentDescription: (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
+            (quickAttachmentIntent ? quickAttachmentIntent.expected_attachment_description : '')
         })
         : null;
 
@@ -2708,36 +2784,89 @@ ${addressLines.join('\n\n')}
         documentConsistency.mode === 'unknown_received' &&
         isDocumentDeliveryContext
       );
-      const shouldSkipValidationForReceiptOnly = !hasDocumentMismatch &&
+      const shouldUseReceiptOnly = !hasDocumentMismatch &&
+        !hasExpectedDocumentMissing &&
         (forceReceiptOnlyForSubmission || hasRiskyUnknownReceived);
+      const shouldSkipValidationForReceiptOnly = shouldUseReceiptOnly;
+      let injectedMissingDocumentDirective = null;
       let injectedMismatchDirective = null;
+      if (hasExpectedDocumentMissing) {
+        const expectedDocumentLabel = this._formatExpectedDocumentLabel_(
+          (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
+          (quickAttachmentIntent && quickAttachmentIntent.expected_attachment_description) ||
+          ''
+        );
+        injectedMissingDocumentDirective = `DOCUMENTO ATTESO NON DISPONIBILE: Scrivi: "Non troviamo allegata né riportata nel testo ${expectedDocumentLabel}. Può cortesemente reinviarla o inserirne i dati nel corpo del messaggio?" Usa questa richiesta come contenuto principale, con saluto istituzionale.`;
+        systemDirectives.unshift(injectedMissingDocumentDirective);
+      }
       if (hasDocumentMismatch) {
         console.warn(`   ⚠️ Mismatch documentale rilevato (${hasSemanticMismatch ? 'semantico' : 'tassonomia'}): ${documentMismatchReason}`);
         // Il segnale deve arrivare a Gemini, non bypassarlo: iniettiamo una
         // direttiva di sistema. Se nel messaggio ci sono domande esplicite,
         // rispondiamo anche a quelle; in una consegna pura evitiamo di
         // inventare richieste operative non presenti.
+        const mismatchDirective = [
+          'Quando l’allegato non corrisponde a quanto annunciato, scrivi in modo diretto e cortese:',
+          '"L’allegato ricevuto sembra non corrispondere a [documento atteso]. La invitiamo a verificare il file e, se necessario, a reinviare il documento corretto."',
+          'Sostituisci [documento atteso] con il documento atteso quando disponibile; altrimenti usa "quanto annunciato".',
+          'Usa "sembra" per mantenere tono non accusatorio.',
+          'Non spiegare il criterio interno o il processo di verifica.'
+        ].join(' ');
         if (attachmentIntentContext && attachmentIntentContext.hasQuestions === true) {
-          injectedMismatchDirective = `AVVISO ALLEGATO NON COERENTE: prima di rispondere alla richiesta, avvisa con tono prudente e cortese che l'allegato ricevuto potrebbe non corrispondere a quanto annunciato nell'email (motivo: ${documentMismatchReason}). Invita l'utente a verificare e, se necessario, a reinviare il file corretto. Subito dopo l'avviso, rispondi comunque in modo completo e operativo alla richiesta contenuta nell'email, usando il testo del messaggio e il resto del contesto disponibile.`;
+          injectedMismatchDirective = `AVVISO ALLEGATO NON COERENTE: ${mismatchDirective} Documento atteso/motivo: ${documentMismatchReason}. Subito dopo l'avviso, rispondi comunque in modo completo e operativo alla richiesta contenuta nell'email, usando il testo del messaggio e il resto del contesto disponibile.`;
         } else {
-          injectedMismatchDirective = `AVVISO ALLEGATO NON COERENTE: avvisa con tono prudente e cortese che l'allegato ricevuto potrebbe non corrispondere a quanto annunciato nell'email (motivo: ${documentMismatchReason}). Invita l'utente a verificare e, se necessario, a reinviare il file corretto. Non aggiungere risposte operative o istruzioni non richieste: limitati all'avviso sull'allegato incongruo.`;
+          injectedMismatchDirective = `AVVISO ALLEGATO NON COERENTE: ${mismatchDirective} Documento atteso/motivo: ${documentMismatchReason}. Per una consegna senza domande, usa solo questo avviso e il saluto istituzionale.`;
         }
         systemDirectives.unshift(injectedMismatchDirective);
       } else if (hasRiskyUnknownReceived) {
         console.warn(`   ⚠️ Documento non classificabile in contesto sponsor: atteso=${documentConsistency.expected || 'unknown'} ricevuto=unknown`);
       }
       promptOptions.documentConsistency = documentConsistency;
+      promptOptions.documentDelivery = {
+        quickDocumentDelivery: quickDocumentDelivery,
+        expectsDocument: expectsDocument,
+        bodyContainsUsableDocumentContent: bodyContainsUsableDocumentContent,
+        hasDocumentContentAvailable: hasDocumentContentAvailable,
+        hasExpectedDocumentMissing: hasExpectedDocumentMissing,
+        receiptOnlyDeliveryChannel: receiptOnlyDeliveryChannel
+      };
       console.log(`   📎 Document consistency decision: ${JSON.stringify({
         taxonomyMode: documentConsistency ? (documentConsistency.mode || null) : null,
         semanticConsistent: semanticConsistency ? semanticConsistency.consistent : null,
         hasTaxonomyMismatch: hasTaxonomyMismatch,
         hasSemanticMismatch: hasSemanticMismatch,
         hasDocumentMismatch: hasDocumentMismatch,
+        expectsDocument: expectsDocument,
+        bodyContainsUsableDocumentContent: bodyContainsUsableDocumentContent,
+        hasDocumentContentAvailable: hasDocumentContentAvailable,
+        hasExpectedDocumentMissing: hasExpectedDocumentMissing,
         forceReceiptOnlyForSubmission: forceReceiptOnlyForSubmission,
         hasRiskyUnknownReceived: hasRiskyUnknownReceived,
+        shouldUseReceiptOnly: shouldUseReceiptOnly,
         shouldSkipValidationForReceiptOnly: shouldSkipValidationForReceiptOnly,
+        injectedMissingDocumentDirective: injectedMissingDocumentDirective,
         injectedMismatchDirective: injectedMismatchDirective
       })}`);
+      const validationRuntimeContext = (hasDocumentMismatch || hasExpectedDocumentMissing)
+        ? Object.freeze(Object.assign({}, runtimeContext, {
+          validationContext: Object.assign({}, runtimeContext.validationContext || {}, {
+            documentMismatch: hasDocumentMismatch ? {
+              active: true,
+              mode: hasSemanticMismatch ? 'semantic' : 'taxonomy',
+              reason: documentMismatchReason || '',
+              hasQuestions: Boolean(attachmentIntentContext && attachmentIntentContext.hasQuestions === true),
+              expected: documentConsistency && documentConsistency.expected ? documentConsistency.expected : '',
+              received: documentConsistency && documentConsistency.received ? documentConsistency.received : ''
+            } : null,
+            expectedDocumentMissing: hasExpectedDocumentMissing ? {
+              active: true,
+              expected: (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) || '',
+              deliveryChannel: quickDocumentDelivery ? quickDocumentDelivery.delivery_channel : 'unclear',
+              bodyContainsUsableDocumentContent: bodyContainsUsableDocumentContent
+            } : null
+          })
+        }))
+        : runtimeContext;
 
       const prompt = this.promptEngine.buildPrompt(promptOptions);
 
@@ -2768,8 +2897,8 @@ ${addressLines.join('\n\n')}
         : [];
       const fallbackModelName = generationPlan.fallbackModelName || 'gemini-3.5-flash';
 
-      if (shouldSkipValidationForReceiptOnly) {
-        response = this._buildReceiptOnlySubmissionResponse_(detectedLanguage, categoryHintSource);
+      if (shouldUseReceiptOnly) {
+        response = this._buildReceiptOnlySubmissionResponse_(detectedLanguage, categoryHintSource, receiptOnlyDeliveryChannel);
         strategyUsed = hasRiskyUnknownReceived
           ? 'DocumentConsistency-UnknownReceivedReceiptOnly'
           : 'Submission-ReceiptOnlyGuardrail';
@@ -2930,7 +3059,7 @@ ${addressLines.join('\n\n')}
       let retryAttempted = false;
       let shouldLabelForReview = false;
 
-      if (this.config.validationEnabled && !shouldSkipValidationForReceiptOnly) {
+      if (this.config.validationEnabled && !shouldUseReceiptOnly) {
         const fullValidationKB = [
           enrichedKnowledgeBase,
           routedAiCoreLite,
@@ -2945,7 +3074,7 @@ ${addressLines.join('\n\n')}
           messageDetails.subject,
           effectiveSalutationMode,
           true,
-          runtimeContext
+          validationRuntimeContext
         );
 
         if (validation.fixedResponse) {
@@ -2975,7 +3104,7 @@ ${addressLines.join('\n\n')}
             validation,
             detectedLanguage,
             effectiveSalutationMode,
-            runtimeContext
+            validationRuntimeContext
           );
 
           const retryPlan = strategyUsedPlan || attemptStrategy.find(p => p && p.key) || {
@@ -3043,7 +3172,7 @@ ${addressLines.join('\n\n')}
             messageDetails.subject,
             effectiveSalutationMode,
             true,
-            runtimeContext
+            validationRuntimeContext
           );
 
           if (retryValidation.isValid) {
@@ -4218,6 +4347,131 @@ ${addressLines.join('\n\n')}
         : '',
       source: 'quick_check_fallback'
     };
+  }
+
+  _resolveQuickCheckDocumentDelivery_(quickCheck = {}) {
+    const safeQuickCheck = (quickCheck && typeof quickCheck === 'object') ? quickCheck : {};
+    const explicit = safeQuickCheck.document_delivery;
+    const normalizeChannel = (value) => {
+      const normalized = String(value || '').trim().toLowerCase();
+      return ['attachment', 'body', 'both', 'unclear'].includes(normalized) ? normalized : 'unclear';
+    };
+
+    if (explicit && typeof explicit === 'object') {
+      const expectedDescription = String(explicit.expected_document_description || '').trim().slice(0, 240);
+      const bodyContainsFilled = this._normalizeQuickAttachmentBoolean_(explicit.body_contains_filled_document);
+      const requiresFileAttachment = this._normalizeQuickAttachmentBoolean_(explicit.requires_file_attachment);
+      const missingIfNoAttachment = this._normalizeQuickAttachmentBoolean_(explicit.missing_document_if_no_attachment);
+      const expectedDocument = this._normalizeQuickAttachmentBoolean_(explicit.expected_document) ||
+        expectedDescription.length > 0 ||
+        bodyContainsFilled ||
+        requiresFileAttachment ||
+        missingIfNoAttachment;
+      return {
+        expected_document: expectedDocument,
+        expected_document_description: expectedDescription,
+        delivery_channel: normalizeChannel(explicit.delivery_channel),
+        body_contains_filled_document: bodyContainsFilled,
+        requires_file_attachment: requiresFileAttachment,
+        missing_document_if_no_attachment: missingIfNoAttachment,
+        reason: String(explicit.reason || '').trim().slice(0, 240),
+        source: 'quick_check'
+      };
+    }
+
+    const responseStrategy = String(safeQuickCheck.response_strategy || '').trim().toLowerCase();
+    const responseFocusHint = String(safeQuickCheck.response_focus_hint || '').trim().toLowerCase();
+    const newInformation = Array.isArray(safeQuickCheck.new_information_provided)
+      ? safeQuickCheck.new_information_provided.map((item) => String(item || '').trim()).filter(Boolean)
+      : [];
+    const topic = String(
+      (safeQuickCheck.classification && safeQuickCheck.classification.topic) ||
+      safeQuickCheck.topic ||
+      ''
+    ).trim();
+    const reason = String(safeQuickCheck.reason || '').trim();
+    const text = `${topic} ${reason} ${newInformation.join(' ')}`;
+    const documentPattern = /\b(document\w*|scheda|sched[ae]|modul\w*|allegat\w*|iscrizion\w*|certificat\w*|attestat\w*|file|dati\s+compilat\w*)\b/i;
+    const attachmentChannelPattern = /\b(allegat\w*|file|pdf|scansion\w*)\b/i;
+    const deliveryPattern = /\b(?:alleg\w*|invi(?:o|amo|a)\b|trasmett(?:o|iamo)\b|consegn\w*|mand(?:o|iamo)\b|inoltr(?:o|iamo)\b|ecco|riport(?:o|iamo)\b|compilat[oaie])\b/i;
+    const newInfoDocument = newInformation.find((item) => documentPattern.test(item)) || '';
+    const topicReasonText = `${topic} ${reason}`;
+    const hasTopicReasonDelivery = documentPattern.test(topicReasonText) && deliveryPattern.test(topicReasonText);
+    const expectedDocument = !!newInfoDocument ||
+      hasTopicReasonDelivery ||
+      responseStrategy === 'confirm_receipt' ||
+      responseFocusHint === 'acknowledge_document_without_reopening_procedure';
+    const expectedDescription = (
+      newInfoDocument ||
+      (hasTopicReasonDelivery && documentPattern.test(topic) ? topic : '') ||
+      (hasTopicReasonDelivery && documentPattern.test(reason) ? reason : '')
+    ).slice(0, 240);
+    const requiresFileAttachment = expectedDocument && attachmentChannelPattern.test(text);
+
+    return {
+      expected_document: expectedDocument,
+      expected_document_description: expectedDescription,
+      delivery_channel: requiresFileAttachment ? 'attachment' : 'unclear',
+      body_contains_filled_document: false,
+      requires_file_attachment: requiresFileAttachment,
+      missing_document_if_no_attachment: requiresFileAttachment && expectedDocument,
+      reason: expectedDocument
+        ? `fallback quick-check: ${[
+          responseStrategy === 'confirm_receipt' ? 'response_strategy=confirm_receipt' : '',
+          responseFocusHint === 'acknowledge_document_without_reopening_procedure' ? 'response_focus_hint=document_ack' : '',
+          expectedDescription ? 'document_description' : '',
+          requiresFileAttachment ? 'attachment_channel' : ''
+        ].filter(Boolean).join(', ')}`
+        : '',
+      source: 'quick_check_fallback'
+    };
+  }
+
+  _bodyLooksLikeFilledDocument_(body) {
+    const text = String(body || '').trim();
+    if (text.length < 80) return false;
+
+    const fieldChecks = [
+      { key: 'name', pattern: /\bnome\s*[:\-]\s*\S.{1,}/i },
+      { key: 'surname', pattern: /\bcognome\s*[:\-]\s*\S.{1,}/i },
+      { key: 'name_surname', pattern: /\bnome\s+(?:e|\/)\s+cognome\s*[:\-]\s*\S.{3,}/i },
+      { key: 'phone', pattern: /\b(?:telefono|cellulare|tel\.)\s*[:\-]\s*(?:\+?\d|[0-9])/i },
+      { key: 'email', pattern: /\b(?:e-?mail|email)\s*[:\-]\s*[^\s@]+@[^\s@]+\.[^\s@]+/i },
+      { key: 'birth_date', pattern: /\bdata\s+di\s+nascita\s*[:\-]\s*\S.{1,}/i },
+      { key: 'birth_place', pattern: /\bluogo\s+di\s+nascita\s*[:\-]\s*\S.{1,}/i },
+      { key: 'address', pattern: /\bindirizzo\s*[:\-]\s*\S.{3,}/i },
+      { key: 'parish', pattern: /\bparrocchia\s*[:\-]\s*\S.{3,}/i },
+      { key: 'wedding_date', pattern: /\bdata\s+(?:del\s+)?matrimonio\s*[:\-]\s*\S.{1,}/i },
+      { key: 'groom', pattern: /\b(?:sposo|fidanzato)\s*[:\-]\s*\S.{2,}/i },
+      { key: 'bride', pattern: /\b(?:sposa|fidanzata)\s*[:\-]\s*\S.{2,}/i }
+    ];
+    const matched = {};
+    fieldChecks.forEach((entry) => {
+      if (entry.pattern.test(text)) matched[entry.key] = true;
+    });
+    const count = Object.keys(matched).length;
+    const hasIdentity = Boolean(matched.name || matched.surname || matched.name_surname || matched.groom || matched.bride);
+    const hasContact = Boolean(matched.phone || matched.email);
+    const hasEventOrAddress = Boolean(matched.birth_date || matched.birth_place || matched.address || matched.parish || matched.wedding_date);
+
+    return count >= 4 || (count >= 3 && hasIdentity && (hasContact || hasEventOrAddress));
+  }
+
+  _bodyAnnouncesDocumentDelivery_(body, subject) {
+    const text = `${subject || ''} ${body || ''}`;
+    const documentPattern = /\b(?:scheda|sched[ae]|modul\w*|document\w*|certificat\w*|attestat\w*|iscrizion\w*)\b/i;
+    const deliveryPattern = /\b(?:alleg\w*|invi(?:o|amo|a)\b|trasmett(?:o|iamo)\b|mando|mandiamo|inoltro|inoltriamo|ecco|riport(?:o|iamo)\b|compilat[oaie])\b/i;
+    return documentPattern.test(text) && deliveryPattern.test(text);
+  }
+
+  _formatExpectedDocumentLabel_(description) {
+    const raw = String(description || '').replace(/\s+/g, ' ').trim();
+    if (!raw) return 'il documento atteso';
+    if (/^(?:il|lo|la|l['’]|un|uno|una|i|gli|le)\s+/i.test(raw)) return raw;
+    if (/^sched[ae]\b/i.test(raw)) return `la ${raw}`;
+    if (/^documentazione\b/i.test(raw)) return `la ${raw}`;
+    if (/^(?:modul|document|certificat|attestat|file)\w*\b/i.test(raw)) return `il ${raw}`;
+    return raw;
   }
 
   _shouldTryOcr(body, subject, hasAttachments = false) {
@@ -7425,15 +7679,16 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     return cleaned;
   }
 
-  _buildReceiptOnlySubmissionResponse_(lang = 'it', categoryHintSource = null) {
+  _buildReceiptOnlySubmissionResponse_(lang = 'it', categoryHintSource = null, deliveryChannel = 'attachment') {
     const normalizedLang = this._normalizeBypassResponseLanguage_(lang);
     const { greeting, closing } = this._getAdaptiveBypassGreetingAndClosing_(normalizedLang);
     // Nome del documento usato solo nel testo IT, in base alla categoria già
     // rilevata post-OCR (sacrament/formal). Il guardrail "sola ricezione" resta
     // intatto: qui personalizziamo solo la formulazione, non la logica di decisione.
-    let docNameIT = "la documentazione allegata";
-    if (categoryHintSource === 'sacrament') docNameIT = "il modulo sacramentale/di iscrizione allegato";
-    else if (categoryHintSource === 'formal') docNameIT = "la richiesta formale allegata";
+    const isBodyDelivery = deliveryChannel === 'body';
+    let docNameIT = isBodyDelivery ? "i dati riportati nel messaggio" : "la documentazione allegata";
+    if (!isBodyDelivery && categoryHintSource === 'sacrament') docNameIT = "il modulo sacramentale/di iscrizione allegato";
+    else if (!isBodyDelivery && categoryHintSource === 'formal') docNameIT = "la richiesta formale allegata";
     if (normalizedLang === 'it') {
       return `${greeting}
 

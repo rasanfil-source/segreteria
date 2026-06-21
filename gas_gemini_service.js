@@ -358,6 +358,7 @@ var EmailQuickCheckPolicy = class EmailQuickCheckPolicy {
           'relational_posture',
           'response_strategy',
           'attachment_intent',
+          'document_delivery',
           'physical_presence_constraint',
           'is_territory_request',
           'territory_address_candidates'
@@ -518,6 +519,37 @@ var EmailQuickCheckPolicy = class EmailQuickCheckPolicy {
     };
   }
 
+  static normalizeDocumentDelivery(value) {
+    const source = (value && typeof value === 'object') ? value : {};
+    const allowedChannels = {
+      attachment: true,
+      body: true,
+      both: true,
+      unclear: true
+    };
+    const expectedDescription = String(source.expected_document_description || '').trim().slice(0, 240);
+    const rawChannel = String(source.delivery_channel || '').trim().toLowerCase();
+    const deliveryChannel = allowedChannels[rawChannel] ? rawChannel : 'unclear';
+    const bodyContainsFilledDocument = EmailQuickCheckPolicy.normalizeBoolean(source.body_contains_filled_document) === true;
+    const requiresFileAttachment = EmailQuickCheckPolicy.normalizeBoolean(source.requires_file_attachment) === true;
+    const missingDocumentIfNoAttachment = EmailQuickCheckPolicy.normalizeBoolean(source.missing_document_if_no_attachment) === true;
+    const expectedDocument = EmailQuickCheckPolicy.normalizeBoolean(source.expected_document) === true ||
+      expectedDescription.length > 0 ||
+      bodyContainsFilledDocument ||
+      requiresFileAttachment ||
+      missingDocumentIfNoAttachment;
+
+    return {
+      expected_document: expectedDocument,
+      expected_document_description: expectedDescription,
+      delivery_channel: deliveryChannel,
+      body_contains_filled_document: bodyContainsFilledDocument,
+      requires_file_attachment: requiresFileAttachment,
+      missing_document_if_no_attachment: missingDocumentIfNoAttachment,
+      reason: String(source.reason || '').trim().slice(0, 240)
+    };
+  }
+
   static isOfficeVisitLogisticsRequest(emailSubject, emailContent) {
     const text = `${emailSubject || ''} ${emailContent || ''}`;
     return /\b(?:posso|possiamo|potrei|potremmo|vorrei|vorremmo)\s+(?:passare|venire|presentarmi|presentarci)\b/i.test(text) ||
@@ -657,8 +689,16 @@ COMPITI:
    - requires_attachment_reading: TRUE se per rispondere correttamente bisogna leggere/controllare l'allegato, anche quando il corpo non contiene domande esplicite. TRUE per consegne da confermare, schede/moduli/iscrizioni da ricevere, documenti da verificare o quando la risposta dovrebbe confermare la ricezione di ciò che è allegato.
    - reason: breve motivo osservabile.
    - Se non ci sono allegati/documenti menzionati: tutti i boolean a FALSE e stringhe vuote.
-9. Fornisci un breve ragionamento (reason)
-10. Determina physical_presence_constraint:
+9. Determina document_delivery:
+   - expected_document: TRUE se l'utente afferma, annuncia o implica che sta consegnando/inviando una scheda, modulo, documento, certificato, iscrizione o dati documentali compilati.
+   - expected_document_description: breve descrizione in italiano del documento atteso o consegnato, es. "scheda di iscrizione al corso prematrimoniale"; stringa vuota se non emerge.
+   - delivery_channel: "attachment" se il documento dovrebbe essere in allegato/file; "body" se i dati compilati sono riportati nel testo; "both" se entrambi; "unclear" se il canale non e chiaro.
+   - body_contains_filled_document: TRUE solo se nel corpo ci sono dati compilati utilizzabili, non un semplice annuncio. Esempi forti: Nome/Cognome, Telefono, Email, Data di nascita, Luogo di nascita, Indirizzo, Parrocchia, Data matrimonio, Sposo/Sposa/Fidanzato/Fidanzata con valori.
+   - requires_file_attachment: TRUE se l'utente dichiara che il documento e allegato/file o il flusso richiede proprio un file.
+   - missing_document_if_no_attachment: TRUE solo quando dal testo risulta che il documento dovrebbe esserci come file/allegato e non sono presenti dati compilati nel corpo.
+   - reason: breve motivo osservabile.
+10. Fornisci un breve ragionamento (reason)
+11. Determina physical_presence_constraint:
    - Rileva se il mittente manifesta che raggiungere fisicamente la parrocchia/segreteria e' difficile, impossibile o non ragionevole.
    - TRUE se vive/lavora lontano da Roma, e' all'estero, chiede percorsi a distanza, dice che non puo' venire, e' ricoverato/malato/convalescente, anziano con difficolta' di movimento, caregiver con vincoli familiari forti, deve allattare o ha neonati, e' agli arresti domiciliari o ha limitazioni legali.
    - FALSE se il mittente chiede esplicitamente di passare/venire, propone una visita, oppure non fornisce alcun vincolo personale.
@@ -669,7 +709,7 @@ COMPITI:
      "avoid_invitation" quando e' meglio non proporre affatto la visita fisica;
      "visit_ok" quando l'invito/presenza in segreteria e' appropriato;
      "unknown" se non e' chiaro.
-11. Determina relational_posture basandoti ESCLUSIVAMENTE su marcatori linguistici osservabili, non su stati psicologici:
+12. Determina relational_posture basandoti ESCLUSIVAMENTE su marcatori linguistici osservabili, non su stati psicologici:
    - "direct": richiesta neutra, essenziale o operativa, senza marcatori relazionali forti (DEFAULT).
    - "personal": condivisione esplicita di fatti personali delicati, vissuti intimi, richiesta di ascolto o bisogno pastorale.
    - "appreciative": entusiasmo esplicito, ringraziamenti non rituali, apprezzamento per persone/aspetti della parrocchia, oppure condivisione positiva di un legame personale concreto con la parrocchia, il percorso richiesto o la comunità.
@@ -726,6 +766,15 @@ Output JSON:
     "mentions_attachment_or_document": boolean,
     "expected_attachment_description": "string",
     "requires_attachment_reading": boolean,
+    "reason": "string"
+  },
+  "document_delivery": {
+    "expected_document": boolean,
+    "expected_document_description": "string",
+    "delivery_channel": "attachment" | "body" | "both" | "unclear",
+    "body_contains_filled_document": boolean,
+    "requires_file_attachment": boolean,
+    "missing_document_if_no_attachment": boolean,
     "reason": "string"
   },
   "relational_posture": "urgent" | "hesitant" | "complaint" | "personal" | "open" | "appreciative" | "direct",
@@ -800,6 +849,15 @@ Output JSON:
         mentions_attachment_or_document: false,
         expected_attachment_description: '',
         requires_attachment_reading: false,
+        reason: ''
+      },
+      document_delivery: {
+        expected_document: false,
+        expected_document_description: '',
+        delivery_channel: 'unclear',
+        body_contains_filled_document: false,
+        requires_file_attachment: false,
+        missing_document_if_no_attachment: false,
         reason: ''
       }
     };
@@ -941,6 +999,7 @@ Output JSON:
     const isTerritoryRequest = EmailQuickCheckPolicy.normalizeBoolean(rawTerritoryRequest) === true;
     const territoryAddressCandidates = EmailQuickCheckPolicy.normalizeTerritoryAddressCandidates(data.territory_address_candidates);
     const attachmentIntent = EmailQuickCheckPolicy.normalizeAttachmentIntent(data.attachment_intent);
+    const documentDelivery = EmailQuickCheckPolicy.normalizeDocumentDelivery(data.document_delivery);
 
     return {
       shouldRespond: finalShouldRespond,
@@ -967,6 +1026,7 @@ Output JSON:
       response_strategy: responseStrategy,
       response_strategy_confidence: responseStrategyConfidence,
       attachment_intent: attachmentIntent,
+      document_delivery: documentDelivery,
       goal_continuity: goalContinuity,
       goal_continuity_confidence: goalContinuityConfidence,
       new_information_provided: hasConversationContext

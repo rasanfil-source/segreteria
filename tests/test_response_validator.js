@@ -1519,6 +1519,86 @@ console.log('--- Test territory consistency: RIENTRA non puo diventare non rient
   assert(result.expected === 'inside', 'il validator deve distinguere RIENTRA da NON RIENTRA');
 }
 
+console.log('--- Test document mismatch template: snapshot positivo valido ---');
+{
+  const mismatchContext = {
+    temporal: { currentDate: '2026-06-08', currentTime: '10:00', messageDate: '2026-06-08' },
+    validationContext: {
+      documentMismatch: {
+        active: true,
+        mode: 'taxonomy',
+        expected: 'certificato di cresima',
+        received: 'certificato di battesimo'
+      }
+    }
+  };
+  const result = validator.validateResponse(
+    'Gentile utente,\n\nL’allegato ricevuto sembra non corrispondere al certificato di cresima. La invitiamo a verificare il file e, se necessario, a reinviare il documento corretto.\n\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio',
+    'it',
+    'certificato di cresima; certificato di battesimo; verificare file; reinviare documento corretto',
+    'Invio in allegato il certificato di cresima.',
+    'Certificato di cresima',
+    'full',
+    false,
+    mismatchContext
+  );
+
+  assert(result.isValid === true, 'il template positivo per mismatch documentale deve passare');
+  assert(result.details.documentMismatchTemplate.checked === true, 'il controllo template documentale deve essere eseguito');
+}
+
+console.log('--- Test document mismatch template: blocca regressione prudenziale ---');
+{
+  const mismatchContext = {
+    temporal: { currentDate: '2026-06-08', currentTime: '10:00', messageDate: '2026-06-08' },
+    validationContext: {
+      documentMismatch: { active: true, mode: 'semantic', expected: 'locandina Perillo' }
+    }
+  };
+  const result = validator.validateResponse(
+    'Gentile utente,\n\nCon la dovuta prudenza, l’allegato ricevuto sembra non corrispondere alla locandina Perillo. La invitiamo a verificare il file e, se necessario, a reinviare il documento corretto.\n\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio',
+    'it',
+    'locandina Perillo; verificare file; reinviare documento corretto',
+    'Invio in allegato la locandina Perillo.',
+    'Locandina Perillo',
+    'full',
+    false,
+    mismatchContext
+  );
+
+  assert(result.isValid === false, 'la regressione prudenziale deve essere bloccata');
+  assert(
+    result.errors.some((error) => error.includes('formula metatestuale o prudenziale')),
+    'il validator deve indicare la formula prudenziale/metatestuale'
+  );
+}
+
+console.log('--- Test document mismatch template: blocca risposta senza template ---');
+{
+  const mismatchContext = {
+    temporal: { currentDate: '2026-06-08', currentTime: '10:00', messageDate: '2026-06-08' },
+    validationContext: {
+      documentMismatch: { active: true, mode: 'semantic', expected: 'locandina Perillo' }
+    }
+  };
+  const result = validator.validateResponse(
+    'Gentile utente,\n\nL’allegato potrebbe essere diverso da quello indicato. La invitiamo a controllare e a rimandarlo.\n\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio',
+    'it',
+    'locandina Perillo; verificare file; reinviare documento corretto',
+    'Invio in allegato la locandina Perillo.',
+    'Locandina Perillo',
+    'full',
+    false,
+    mismatchContext
+  );
+
+  assert(result.isValid === false, 'la risposta senza template positivo deve essere bloccata');
+  assert(
+    result.errors.some((error) => error.includes('template positivo')),
+    'il validator deve segnalare la mancanza del template positivo'
+  );
+}
+
 console.log('--- Test sensitive continuity: lutto in memoria non va riaperto se non ripreso ---');
 {
   const result = validator.validateResponse(

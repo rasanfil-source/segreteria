@@ -470,6 +470,13 @@ var ResponseValidator = class ResponseValidator {
     details.sensitiveContinuityQuality = sensitiveQualityResult;
     score *= sensitiveQualityResult.score;
 
+    // === CONTROLLO 14: snapshot risposta mismatch documentale ===
+    const documentMismatchTemplateResult = this._checkDocumentMismatchTemplate(response, temporalContext);
+    errors.push(...documentMismatchTemplateResult.errors);
+    warnings.push(...documentMismatchTemplateResult.warnings);
+    details.documentMismatchTemplate = documentMismatchTemplateResult;
+    score *= documentMismatchTemplateResult.score;
+
     const normalizedScore = normalizeValidationScore(score);
     const isValid = errors.length === 0 && normalizedScore >= this.MIN_VALID_SCORE;
 
@@ -1774,6 +1781,59 @@ var ResponseValidator = class ResponseValidator {
       continuityCase: continuityKey || null,
       responseRegister: responseRegister || null,
       violations
+    };
+  }
+
+  _checkDocumentMismatchTemplate(response, temporalContext = null) {
+    const errors = [];
+    const warnings = [];
+    let score = 1.0;
+    const validationContext = temporalContext &&
+      temporalContext.validationContext &&
+      typeof temporalContext.validationContext === 'object'
+      ? temporalContext.validationContext
+      : {};
+    const mismatchContext = validationContext.documentMismatch &&
+      typeof validationContext.documentMismatch === 'object'
+      ? validationContext.documentMismatch
+      : null;
+
+    if (!mismatchContext || mismatchContext.active !== true) {
+      return { score, errors, warnings, checked: false };
+    }
+
+    const text = String(response || '');
+    const forbiddenPatterns = [
+      { label: 'con la dovuta prudenza/cautela', pattern: /\bcon\s+la\s+dovuta\s+(?:prudenza|cautela)\b/i },
+      { label: 'prudenza/cautela esplicita', pattern: /\b(?:prudenza|cautela|prudente|cauto|cauta)\b/i },
+      { label: 'criterio interno o processo di verifica', pattern: /\b(?:criterio\s+interno|processo\s+di\s+verifica|verifica\s+interna|controllo\s+interno|analisi\s+interna)\b/i }
+    ];
+    const forbiddenMatches = forbiddenPatterns
+      .filter((entry) => entry.pattern.test(text))
+      .map((entry) => entry.label);
+    const hasMismatchTemplate = /\bl[’']?\s*allegat[oa]\s+ricevut[oa]\b[\s\S]{0,160}\bsembra\s+non\s+corrispondere\b/i.test(text);
+    const hasVerifyAndResend = /\bverific\w*\b[\s\S]{0,220}\breinvi\w*\b[\s\S]{0,120}\b(?:documento|file)\s+corrett[oa]\b/i.test(text);
+
+    if (forbiddenMatches.length > 0) {
+      errors.push(`Mismatch documentale: formula metatestuale o prudenziale non ammessa (${forbiddenMatches.join(', ')}).`);
+      score = 0.0;
+    }
+
+    if (!hasMismatchTemplate || !hasVerifyAndResend) {
+      errors.push('Mismatch documentale: manca il template positivo su allegato ricevuto, verifica file e reinvio del documento corretto.');
+      score = 0.0;
+    }
+
+    return {
+      score,
+      errors,
+      warnings,
+      checked: true,
+      hasMismatchTemplate,
+      hasVerifyAndResend,
+      forbiddenMatches,
+      expected: mismatchContext.expected || null,
+      mode: mismatchContext.mode || null
     };
   }
 

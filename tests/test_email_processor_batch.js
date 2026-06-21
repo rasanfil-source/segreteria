@@ -2186,6 +2186,213 @@ console.log('--- Test attachment gate: fallback quickCheck legacy forza OCR senz
   );
 }
 
+function runExpectedDocumentDeliveryScenario({
+  threadId,
+  subject,
+  body,
+  attachments = [],
+  quickDocumentDelivery = {},
+  ocrText = '',
+  semanticResponse = '{"consistent": true, "reason": "documento coerente"}',
+  generatedText = 'Risposta generata'
+}) {
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalDocumentConsistency = global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED;
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = true;
+  global.CONFIG.ATTACHMENT_CONTEXT = { enabled: true, maxFiles: 3, ocrTriggerKeywords: ['iban'] };
+
+  let sentText = '';
+  let capturedPromptOptions = null;
+  let attachmentCalls = 0;
+  let semanticCalls = 0;
+  let generationCalls = 0;
+  const attachmentObjects = attachments.map((name) => ({ getName: () => name }));
+  const msg = {
+    getId: () => `${threadId}-msg`,
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-10T10:00:00Z'),
+    getSubject: () => subject,
+    getPlainBody: () => body,
+    getAttachments: () => attachmentObjects
+  };
+  const thread = createThread({ id: threadId, messages: [msg] });
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: subject,
+        body: body,
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date('2026-05-10T10:00:00Z'),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      getProcessableAttachments: () => {
+        attachmentCalls++;
+        return {
+          blobs: [],
+          textContext: ocrText,
+          skipped: [],
+          items: attachments.map((name) => ({ name: name, text: ocrText })),
+          processedCount: attachments.length
+        };
+      },
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: (_candidate, responseText) => { sentText = responseText; }
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'document_submission', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      backupKey: 'backup-key',
+      shouldRespondToEmail: () => ({
+        shouldRespond: true,
+        language: 'it',
+        classification: { topic: 'scheda iscrizione corso prematrimoniale', category: 'document_submission', confidence: 0.9 },
+        document_delivery: quickDocumentDelivery
+      }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: (prompt) => {
+        if (String(prompt || '').includes('Rispondi SOLO con un oggetto JSON valido')) {
+          semanticCalls++;
+          return semanticResponse;
+        }
+        generationCalls++;
+        return { success: true, text: generatedText };
+      }
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    validator: {
+      validateResponse: () => ({ isValid: true, warnings: [], score: 1, details: {}, fixedResponse: null })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        capturedPromptOptions = options;
+        return ['PROMPT'].concat(options.systemDirectives || []).join('\n');
+      }
+    }
+  });
+
+  try {
+    const result = processor.processThread(thread, 'kb valida', '', new Set(), true);
+    return {
+      result,
+      sentText,
+      capturedPromptOptions,
+      directives: capturedPromptOptions ? (capturedPromptOptions.systemDirectives || []) : [],
+      attachmentCalls,
+      semanticCalls,
+      generationCalls
+    };
+  } finally {
+    global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+    global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = originalDocumentConsistency;
+    global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+  }
+}
+
+console.log('--- Test expected document missing: solo annuncio senza allegato ---');
+{
+  const scenario = runExpectedDocumentDeliveryScenario({
+    threadId: 't-doc-missing-annuncio',
+    subject: 'Scheda corso prematrimoniale',
+    body: 'VI INVIAMO LA SCHEDA DI ISCRIZIONE AL NOSTRO CORSO PREMATRIMONIALE',
+    quickDocumentDelivery: {
+      expected_document: true,
+      expected_document_description: 'scheda di iscrizione al corso prematrimoniale',
+      delivery_channel: 'attachment',
+      body_contains_filled_document: false,
+      requires_file_attachment: true,
+      missing_document_if_no_attachment: true,
+      reason: 'annuncia invio scheda ma non riporta dati compilati'
+    },
+    generatedText: 'Non troviamo allegata né riportata nel testo la scheda di iscrizione al corso prematrimoniale. Può cortesemente reinviarla o inserirne i dati nel corpo del messaggio?'
+  });
+  assert(scenario.result.status === 'replied', 'documento mancante deve comunque produrre risposta');
+  assert(scenario.capturedPromptOptions.documentDelivery.hasExpectedDocumentMissing === true, 'solo annuncio senza allegato deve segnare hasExpectedDocumentMissing true');
+  assert(scenario.generationCalls === 1, 'documento mancante non deve usare receipt-only');
+  assert(scenario.directives[0].includes('Non troviamo allegata né riportata nel testo la scheda di iscrizione al corso prematrimoniale'), 'direttiva documento mancante deve usare il template positivo');
+  assert(!/ricevut/i.test(scenario.sentText), 'documento mancante non deve confermare ricezione');
+}
+
+console.log('--- Test expected document missing: scheda compilata nel corpo vale come documento disponibile ---');
+{
+  const body = [
+    'Scheda di iscrizione al corso prematrimoniale',
+    'Nome: Mario',
+    'Cognome: Rossi',
+    'Telefono: 3331234567',
+    'Email: mario.rossi@example.com',
+    'Data matrimonio: 12/09/2026',
+    'Parrocchia: Sant Eugenio'
+  ].join('\n');
+  const scenario = runExpectedDocumentDeliveryScenario({
+    threadId: 't-doc-body-filled',
+    subject: 'Scheda corso prematrimoniale',
+    body: body,
+    quickDocumentDelivery: {
+      expected_document: true,
+      expected_document_description: 'scheda di iscrizione al corso prematrimoniale',
+      delivery_channel: 'body',
+      body_contains_filled_document: false,
+      requires_file_attachment: false,
+      missing_document_if_no_attachment: false,
+      reason: 'documento nel corpo'
+    }
+  });
+  assert(scenario.result.status === 'replied', 'scheda nel corpo deve completare il flusso');
+  assert(scenario.capturedPromptOptions.documentDelivery.bodyContainsUsableDocumentContent === true, 'fallback locale deve rilevare dati compilati nel body');
+  assert(scenario.capturedPromptOptions.documentDelivery.hasExpectedDocumentMissing === false, 'scheda compilata nel corpo non deve risultare mancante');
+  assert(scenario.generationCalls === 0, 'scheda compilata senza domande deve usare risposta di ricezione dati');
+  assert(/dati riportati nel messaggio/i.test(scenario.sentText), `risposta ricezione dati inattesa: ${scenario.sentText}`);
+}
+
+console.log('--- Test expected document missing: scheda annunciata con allegato prosegue OCR e semantic check ---');
+{
+  const scenario = runExpectedDocumentDeliveryScenario({
+    threadId: 't-doc-annuncio-con-allegato',
+    subject: 'Scheda corso prematrimoniale',
+    body: 'VI INVIAMO LA SCHEDA DI ISCRIZIONE AL NOSTRO CORSO PREMATRIMONIALE',
+    attachments: ['scheda_prematrimoniale.pdf'],
+    ocrText: 'Scheda di iscrizione al corso prematrimoniale - Nome Mario Rossi - Telefono 3331234567',
+    quickDocumentDelivery: {
+      expected_document: true,
+      expected_document_description: 'scheda di iscrizione al corso prematrimoniale',
+      delivery_channel: 'attachment',
+      body_contains_filled_document: false,
+      requires_file_attachment: true,
+      missing_document_if_no_attachment: true,
+      reason: 'scheda annunciata come allegato'
+    }
+  });
+  assert(scenario.result.status === 'replied', 'scheda con allegato deve completare il flusso');
+  assert(scenario.capturedPromptOptions.documentDelivery.hasExpectedDocumentMissing === false, 'allegato presente deve evitare hasExpectedDocumentMissing');
+  assert(scenario.attachmentCalls === 1, 'document_delivery deve forzare OCR anche senza keyword locale');
+  assert(scenario.semanticCalls === 1, 'scheda annunciata con allegato deve arrivare al semantic consistency check');
+}
+
 function runAttachmentConsistencyFlowScenario({
   threadId,
   subject,
@@ -2208,6 +2415,7 @@ function runAttachmentConsistencyFlowScenario({
   let validationCalls = 0;
   let sentText = '';
   let capturedPromptOptions = null;
+  const validationRuntimeContexts = [];
   const message = {
     getId: () => `${threadId}-message`,
     isUnread: () => true,
@@ -2269,8 +2477,9 @@ function runAttachmentConsistencyFlowScenario({
       classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
     },
     validator: {
-      validateResponse: () => {
+      validateResponse: function () {
         validationCalls++;
+        validationRuntimeContexts.push(arguments[7]);
         return { isValid: true, warnings: [], score: 1, details: {}, fixedResponse: null };
       }
     },
@@ -2309,6 +2518,7 @@ function runAttachmentConsistencyFlowScenario({
       semanticCalls,
       generationCalls,
       validationCalls,
+      validationRuntimeContexts,
       promptOptions: capturedPromptOptions,
       directives: capturedPromptOptions ? (capturedPromptOptions.systemDirectives || []) : []
     };
@@ -2354,6 +2564,8 @@ console.log('--- Test document consistency flow: Perillo incongruo con domanda g
   assert(scenario.result.status === 'replied', 'Perillo incongruo con domanda deve completarsi');
   assert(scenario.generationCalls === 1, 'mismatch con domanda non deve usare receipt-only');
   assert(scenario.validationCalls === 1, 'mismatch con domanda deve passare in validazione');
+  assert(scenario.validationRuntimeContexts[0].validationContext.documentMismatch.active === true, 'mismatch con domanda deve attivare il controllo validator documentale');
+  assert(directive.includes('L’allegato ricevuto sembra non corrispondere'), 'direttiva con domanda deve usare il template positivo');
   assert(directive.includes('Subito dopo') && directive.includes('rispondi comunque in modo completo'), 'direttiva con domanda deve chiedere risposta operativa completa');
 }
 
@@ -2373,7 +2585,9 @@ console.log('--- Test document consistency flow: consegna pura incongrua non usa
   assert(scenario.result.status === 'replied', 'consegna pura incongrua deve completarsi');
   assert(scenario.generationCalls === 1, 'mismatch puro non deve cadere nel receipt-only');
   assert(scenario.validationCalls === 1, 'mismatch puro deve essere validato anche se sarebbe receipt-only');
-  assert(directive.includes('Non aggiungere risposte operative') && !directive.includes('Subito dopo'), 'direttiva pura deve limitarsi all avviso sull allegato');
+  assert(directive.includes('L’allegato ricevuto sembra non corrispondere'), 'direttiva pura deve usare il template positivo');
+  assert(directive.includes('Per una consegna senza domande') && !directive.includes('Subito dopo'), 'direttiva pura deve limitarsi all avviso sull allegato');
+  assert(!/prudenza|cautela|Non aggiungere risposte operative/i.test(directive), 'direttiva primaria non deve usare vecchie formule negative o prudenziali');
 }
 
 console.log('--- Test document consistency flow: fallimento semantic check resta fail-open ---');
@@ -2411,7 +2625,7 @@ console.log('--- Test document consistency flow: mismatch tassonomico classico n
   assert(scenario.generationCalls === 1, 'mismatch tassonomico non deve usare receipt-only');
   assert(scenario.validationCalls === 1, 'mismatch tassonomico deve passare in validazione');
   assert(scenario.promptOptions.documentConsistency.mode === 'mismatch', 'documentConsistency mismatch deve essere esposto nel promptOptions');
-  assert((scenario.directives[0] || '').includes('Non aggiungere risposte operative'), 'mismatch tassonomico senza domande deve usare direttiva di sola verifica allegato');
+  assert((scenario.directives[0] || '').includes('Per una consegna senza domande'), 'mismatch tassonomico senza domande deve usare direttiva di sola verifica allegato');
 }
 
 console.log('--- Test processThread: follow-up senza allegati non usa receipt-only documentale ---');
