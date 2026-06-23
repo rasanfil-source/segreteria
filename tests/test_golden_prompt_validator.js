@@ -28,7 +28,7 @@ global.Utilities = {
   sleep: () => {}
 };
 
-['gas_prompt_engine.js', 'gas_response_validator.js'].forEach((file) => {
+['gas_response_strategy.js', 'gas_prompt_engine.js', 'gas_response_validator.js'].forEach((file) => {
   const code = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
   vm.runInThisContext(code, { filename: path.join(__dirname, '..', file) });
 });

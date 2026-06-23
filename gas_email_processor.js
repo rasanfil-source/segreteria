@@ -18,27 +18,6 @@
 
 var TECHNICAL_CONTEXT_ROUTING_CATEGORIES = new Set(['technical', 'appointment', 'quotation', 'information', 'document_submission', 'document_request']);
 
-function mapRelationalPostureToResponseStrategy_(posture) {
-  const normalized = String(posture || '').trim().toLowerCase();
-  const mapping = {
-    direct: 'provide_information',
-    informational: 'provide_information',
-    procedural: 'guide_next_step',
-    personal: 'offer_reassurance',
-    relational: 'offer_reassurance',
-    appreciative: 'offer_reassurance',
-    grateful: 'offer_reassurance',
-    gratitude: 'offer_reassurance',
-    enthusiastic: 'offer_reassurance',
-    open: 'offer_reassurance',
-    hesitant: 'clarify_requirements',
-    uncertain: 'clarify_requirements',
-    complaint: 'guide_next_step',
-    urgent: 'reduce_user_effort'
-  };
-  return mapping[normalized] || 'none';
-}
-
 function shouldSkipByLanguageMode_(detectedLanguage, languageMode) {
   const rawLang = String(detectedLanguage || '').trim().toLowerCase();
   const lang = rawLang.split(/[-_]/)[0];
@@ -1858,7 +1837,9 @@ var EmailProcessor = class EmailProcessor {
       let conversationHistory = '';
       if (messages.length > 1) {
         const candidateId = candidate.getId();
-        const historyMessages = messages.filter(m => m.getId() !== candidateId);
+        const responseContextIdsForHistory = new Set(responseContextMessageIds || []);
+        if (candidateId) responseContextIdsForHistory.add(candidateId);
+        const historyMessages = messages.filter(m => !responseContextIdsForHistory.has(m.getId()));
 
         if (historyMessages.length > 0) {
           const historyLimit = this.config.maxHistoryMessages || 10;
@@ -1907,10 +1888,9 @@ var EmailProcessor = class EmailProcessor {
         detectedLanguage
       );
 
-      // Override strutturale: nessun saluto in conversazioni attive
-      if (salutationMode === 'none_or_continuity' || salutationMode === 'session') {
-        greeting = '';
-      } else if (salutationMode === 'soft') {
+      // Override strutturale: nessun saluto rituale in continuita.
+      // In modalita soft il PromptEngine mantiene una ripresa leggera e una chiusura essenziale.
+      if (salutationMode === 'none_or_continuity' || salutationMode === 'session' || salutationMode === 'soft') {
         greeting = '';
       }
 
@@ -2606,10 +2586,22 @@ ${addressLines.join('\n\n')}
         String(quickCheck.goal_continuity || 'none').trim().toLowerCase() !== 'none' &&
         (Number(quickCheck.goal_continuity_confidence) || 0) >= 0.65
       );
+      const responseFocusHintState = memoryContext && memoryContext.conversationState
+        ? memoryContext.conversationState
+        : null;
+      const promptEngineSettings = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && typeof CONFIG.PROMPT_ENGINE === 'object')
+        ? CONFIG.PROMPT_ENGINE
+        : {};
+      const configuredResponseFocusMinConfidence = Number(promptEngineSettings.RESPONSE_FOCUS_MIN_CONFIDENCE);
+      const responseFocusMinConfidence = Number.isFinite(configuredResponseFocusMinConfidence)
+        ? Math.max(0, Math.min(1, configuredResponseFocusMinConfidence))
+        : 0.65;
+      const responseFocusHintConfidence = Number(responseFocusHintState && responseFocusHintState.responseFocusHintConfidence);
       const hasResponseFocusHintSignalForResponseStrategy = Boolean(
-        memoryContext &&
-        memoryContext.conversationState &&
-        memoryContext.conversationState.responseFocusHint
+        responseFocusHintState &&
+        responseFocusHintState.responseFocusHint &&
+        Number.isFinite(responseFocusHintConfidence) &&
+        responseFocusHintConfidence >= responseFocusMinConfidence
       );
       const categoryBlocksPostureStrategy = [
         'formal',
@@ -5375,10 +5367,19 @@ ${addressLines.join('\n\n')}
   }
 
   _normalizeLanguageCode_(language, fallback = 'it') {
-    const raw = String(language || '').trim().toLowerCase();
-    const code = raw.substring(0, 2);
-    if (/^[a-z]{2}$/.test(code)) return code;
-    return String(fallback || '').trim().toLowerCase().substring(0, 2);
+    const normalizeCandidate = (value) => {
+      const raw = String(value || '').trim().toLowerCase();
+      if (!raw) return '';
+      if (['unknown', 'undetermined', 'und', 'undefined', 'null', 'n/a', 'na'].includes(raw)) return '';
+      const code = raw.split(/[-_]/)[0].substring(0, 2);
+      return /^[a-z]{2}$/.test(code) ? code : '';
+    };
+
+    const normalized = normalizeCandidate(language);
+    if (normalized) return normalized;
+
+    if (fallback === '') return '';
+    return normalizeCandidate(fallback) || 'it';
   }
 
 
@@ -6003,8 +6004,10 @@ ${addressLines.join('\n\n')}
 
     const correctionInstructions = [];
     const langNames = { it: 'italiano', en: 'inglese', es: 'spagnolo', fr: 'francese', de: 'tedesco', pt: 'portoghese' };
-    const effectiveSalutationMode = salutationMode || 'full';
+    const effectiveSalutationMode = String(salutationMode || 'full').trim().toLowerCase() || 'full';
     const shouldIncludeSignature = effectiveSalutationMode !== 'none_or_continuity' && effectiveSalutationMode !== 'session';
+    const shouldAvoidFormalGreeting = effectiveSalutationMode === 'none_or_continuity' || effectiveSalutationMode === 'session';
+    const isSoftSalutationMode = effectiveSalutationMode === 'soft';
 
     if (flags.thinking_leak) {
       correctionInstructions.push(
@@ -6106,9 +6109,11 @@ ${addressLines.join('\n\n')}
       const tooLong = lengthErrors.some(e => e.includes('troppo lunga') || e.includes('prolissa'));
 
       if (tooShort) {
-        const signatureNote = shouldIncludeSignature
-          ? 'Includi saluto e firma.'
-          : 'NON includere saluti formali o firme: continua nel tono di conversazione già in corso.';
+        const signatureNote = shouldAvoidFormalGreeting
+          ? 'NON includere saluti formali o firme: continua nel tono di conversazione già in corso.'
+          : (isSoftSalutationMode
+            ? 'Mantieni una ripresa leggera, senza saluto rituale; includi una chiusura/firma essenziale.'
+            : (shouldIncludeSignature ? 'Includi saluto e firma.' : 'Mantieni il formato di continuità previsto.'));
         correctionInstructions.push(
           'ERRORE: La risposta è troppo breve.\n' +
           `CORREZIONE: Espandi con 2-3 frasi complete e informazioni utili. ${signatureNote}`

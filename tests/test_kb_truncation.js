@@ -16,6 +16,9 @@ global.CONFIG = {
 
 global.createLogger = () => ({ info: () => {}, warn: () => {}, debug: () => {}, error: () => {} });
 
+const responseStrategyPath = path.join(__dirname, '..', 'gas_response_strategy.js');
+vm.runInThisContext(fs.readFileSync(responseStrategyPath, 'utf8'), { filename: responseStrategyPath });
+
 const codePath = path.join(__dirname, '..', 'gas_prompt_engine.js');
 const code = fs.readFileSync(codePath, 'utf8');
 vm.runInThisContext(code, { filename: codePath });

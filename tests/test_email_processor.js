@@ -71,6 +71,9 @@ global.GmailApp = {
   getAliases: () => []
 };
 
+const gasResponseStrategyPath = path.join(__dirname, '..', 'gas_response_strategy.js');
+vm.runInThisContext(fs.readFileSync(gasResponseStrategyPath, 'utf8'), { filename: gasResponseStrategyPath });
+
 const gasEmailProcessorPath = path.join(__dirname, '..', 'gas_email_processor.js');
 const gasEmailProcessorCode = fs.readFileSync(gasEmailProcessorPath, 'utf8');
 vm.runInThisContext(gasEmailProcessorCode, { filename: gasEmailProcessorPath });
@@ -1218,7 +1221,8 @@ console.log('--- Test lingua: codice troppo corto non sovrascrive fallback valid
 assert(processor._normalizeLanguageCode_('en-US', 'it') === 'en', 'codici tipo en-US devono essere normalizzati a due lettere');
 assert(processor._normalizeLanguageCode_('e', 'it') === 'it', 'codici di una sola lettera devono usare fallback');
 assert(processor._normalizeLanguageCode_('', '') === '', 'fallback vuoto resta vuoto per quick-check non affidabile');
-assert(processor._normalizeLanguageCode_('', 'unknown') === 'un', 'fallback testuale generico deve essere troncato a due lettere');
+assert(processor._normalizeLanguageCode_('', 'unknown') === 'it', 'fallback testuale generico unknown deve usare fallback sicuro');
+assert(processor._normalizeLanguageCode_('unknown', '') === '', 'unknown dal quick-check non deve sovrascrivere la lingua corrente');
 
 console.log('--- Test processThread: burst stesso mittente ordinato per data ---');
 {

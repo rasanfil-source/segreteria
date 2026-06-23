@@ -39,6 +39,7 @@ global.CONFIG = {
 // Load dependencies
 const scriptsToLoad = [
     'gas_error_types.js',
+    'gas_response_strategy.js',
     'gas_email_processor.js'
 ];
 

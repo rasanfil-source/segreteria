@@ -204,6 +204,9 @@ global.PropertiesService = {
   getScriptProperties: () => ({ getProperty: () => '' })
 };
 
+const gasResponseStrategyPath = path.join(__dirname, '..', 'gas_response_strategy.js');
+vm.runInThisContext(fs.readFileSync(gasResponseStrategyPath, 'utf8'), { filename: gasResponseStrategyPath });
+
 const gasEmailProcessorPath = path.join(__dirname, '..', 'gas_email_processor.js');
 const code = fs.readFileSync(gasEmailProcessorPath, 'utf8');
 vm.runInThisContext(code, { filename: gasEmailProcessorPath });
@@ -1684,6 +1687,121 @@ console.log('--- Test processThread: burst ordina per data prima dell\'aggregazi
   const newIndex = capturedBody.indexOf(bodiesById['m-burst-order-new']);
   assert(oldIndex >= 0 && middleIndex >= 0 && newIndex >= 0, 'il body aggregato deve includere tutti i messaggi del burst');
   assert(oldIndex < middleIndex && middleIndex < newIndex, 'il body aggregato deve essere ordinato dal piu vecchio al piu recente');
+}
+
+console.log('--- Test processThread: conversationHistory esclude tutto il burst aggregato ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  global.CONFIG.VALIDATION_ENABLED = false;
+
+  try {
+    const bodiesById = {
+      'm-history-office': 'Risposta precedente della segreteria.',
+      'm-history-burst-old': 'Primo messaggio del burst: vorrei sapere gli orari.',
+      'm-history-burst-middle': 'Secondo messaggio del burst: aggiungo una domanda.',
+      'm-history-burst-new': 'Terzo messaggio del burst: grazie.'
+    };
+    const officeMsg = createMessage({
+      id: 'm-history-office',
+      unread: false,
+      from: 'bot@example.com',
+      date: new Date('2026-05-07T09:50:00Z')
+    });
+    const oldMsg = createMessage({
+      id: 'm-history-burst-old',
+      unread: true,
+      from: 'utente@example.com',
+      date: new Date('2026-05-07T10:00:00Z')
+    });
+    const middleMsg = createMessage({
+      id: 'm-history-burst-middle',
+      unread: true,
+      from: 'utente@example.com',
+      date: new Date('2026-05-07T10:01:00Z')
+    });
+    const candidateMsg = createMessage({
+      id: 'm-history-burst-new',
+      unread: true,
+      from: 'utente@example.com',
+      date: new Date('2026-05-07T10:02:00Z')
+    });
+    const thread = createThread({ id: 't-burst-history', messages: [officeMsg, oldMsg, middleMsg, candidateMsg] });
+    const labeled = new Set();
+    let historyIds = [];
+    let capturedPromptOptions = null;
+
+    const processor = new EmailProcessor({
+      gmailService: {
+        _extractEmailAddress: (raw) => raw,
+        extractMessageDetails: (message) => ({
+          subject: 'Richiesta informazioni',
+          body: bodiesById[message.getId()],
+          senderEmail: message.getFrom(),
+          senderName: message.getFrom() === 'bot@example.com' ? 'Segreteria' : 'Utente Test',
+          date: message.getDate(),
+          headers: {},
+          isNewsletter: false,
+          rfc2822MessageId: null,
+          existingReferences: null
+        }),
+        addLabelToMessage: (id) => labeled.add(id),
+        addLabelToThread: () => {},
+        getThreadHistory: (historyMessages) => {
+          historyIds = historyMessages.map((message) => message.getId());
+          return 'HISTORY_WITHOUT_BURST';
+        },
+        getProcessableAttachments: () => ({ blobs: [], textContext: '', skipped: [], items: [], processedCount: 0 }),
+        prepareOutboundText: (text) => text,
+        sendHtmlReply: () => {}
+      },
+      classifier: {
+        classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 }),
+        _extractMainContent: (body) => body
+      },
+      geminiService: {
+        primaryKey: 'primary-key',
+        backupKey: 'backup-key',
+        detectEmailLanguage: () => ({ lang: 'it' }),
+        shouldRespondToEmail: () => ({
+          shouldRespond: true,
+          language: 'it',
+          classification: { category: 'information', topic: 'orari', confidence: 0.9 }
+        }),
+        getAdaptiveGreeting: () => ({ greeting: 'Buongiorno,', closing: 'Cordiali saluti,' }),
+        getAdaptiveClosing: () => 'Cordiali saluti,',
+        generateResponse: () => ({ success: true, text: 'Risposta generata' })
+      },
+      requestClassifier: {
+        classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+      },
+      memoryService: {
+        getMemory: () => ({}),
+        getRecentHistory: () => [],
+        updateMemoryAtomic: () => true
+      },
+      territoryValidator: {
+        validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+      },
+      promptEngine: {
+        buildPrompt: (options) => {
+          capturedPromptOptions = options;
+          return 'PROMPT';
+        }
+      }
+    });
+
+    const result = processor.processThread(thread, 'kb valida', '', labeled, true);
+
+    assert(result.status === 'replied', `il test deve arrivare alla risposta, ottenuto ${result.status}`);
+    assert(capturedPromptOptions, 'il prompt deve essere costruito');
+    assert(capturedPromptOptions.conversationHistory === 'HISTORY_WITHOUT_BURST', 'la history mockata deve arrivare al prompt');
+    assert(historyIds.length === 1 && historyIds[0] === 'm-history-office', `la history deve escludere tutto il burst, ottenuto ${historyIds.join(',')}`);
+    assert(capturedPromptOptions.emailContent.includes(bodiesById['m-history-burst-old']), 'il body aggregato deve contenere il primo messaggio del burst');
+    assert(capturedPromptOptions.emailContent.includes(bodiesById['m-history-burst-middle']), 'il body aggregato deve contenere il messaggio intermedio del burst');
+    assert(capturedPromptOptions.emailContent.includes(bodiesById['m-history-burst-new']), 'il body aggregato deve contenere il candidato del burst');
+  } finally {
+    global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  }
 }
 
 

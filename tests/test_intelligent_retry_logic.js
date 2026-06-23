@@ -28,6 +28,7 @@ function loadScript(path) {
     vm.runInThisContext(code, { filename: path });
 }
 
+loadScript('gas_response_strategy.js');
 loadScript('gas_email_processor.js');
 
 function assert(condition, message) {
@@ -103,6 +104,14 @@ const continuityPrompt = processor._buildCorrectionPrompt('Original Prompt', 'Sh
 assert(
     continuityPrompt.includes('NON includere saluti formali o firme'),
     'Continuity salutationMode should not ask for saluto/firma in retry'
+);
+
+const softPrompt = processor._buildCorrectionPrompt('Original Prompt', 'Short Response', shortValidation, 'it', 'soft');
+assert(
+    softPrompt.includes('Mantieni una ripresa leggera') &&
+      softPrompt.includes('chiusura/firma essenziale') &&
+      !softPrompt.includes('Includi saluto e firma.'),
+    'Soft salutationMode should keep light continuation instead of asking for a full greeting'
 );
 
 const temporalValidation = {

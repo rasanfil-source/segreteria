@@ -33,6 +33,7 @@ function loadGasFile(fileName) {
   vm.runInThisContext(fs.readFileSync(filePath, 'utf8'), { filename: filePath });
 }
 
+loadGasFile('gas_response_strategy.js');
 loadGasFile('gas_email_processor.js');
 loadGasFile('gas_prompt_context.js');
 loadGasFile('gas_prompt_engine.js');

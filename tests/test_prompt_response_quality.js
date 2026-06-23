@@ -104,6 +104,9 @@ global.Utilities = {
   formatDate: () => '2026-03-24'
 };
 
+const responseStrategyPath = path.join(__dirname, '..', 'gas_response_strategy.js');
+vm.runInThisContext(fs.readFileSync(responseStrategyPath, 'utf8'), { filename: responseStrategyPath });
+
 const promptEnginePath = path.join(__dirname, '..', 'gas_prompt_engine.js');
 const code = fs.readFileSync(promptEnginePath, 'utf8');
 vm.runInThisContext(code, { filename: promptEnginePath });

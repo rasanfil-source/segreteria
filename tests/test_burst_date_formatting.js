@@ -9,6 +9,9 @@ function assert(condition, message) {
   }
 }
 
+const gasResponseStrategyPath = path.join(__dirname, '..', 'gas_response_strategy.js');
+vm.runInThisContext(fs.readFileSync(gasResponseStrategyPath, 'utf8'), { filename: gasResponseStrategyPath });
+
 const gasEmailProcessorPath = path.join(__dirname, '..', 'gas_email_processor.js');
 vm.runInThisContext(fs.readFileSync(gasEmailProcessorPath, 'utf8'), { filename: gasEmailProcessorPath });
 
