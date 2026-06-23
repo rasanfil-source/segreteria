@@ -13,12 +13,21 @@ const KNOWN_SLOTS = new Set([
   'deceased_name',
   'preferred_date',
   'preferred_time',
+  'availability_window',
   'phone_number',
+  'email_address',
   'confirmation_received',
   'celebration_date',
+  'child_name',
+  'parent_name',
+  'spouse_name',
   'residence_parish',
+  'parish_of_baptism',
   'street_name',
   'street_number',
+  'birth_place',
+  'document_type',
+  'certificate_type',
   'sponsor_name',
   'baptism_date'
 ]);
@@ -27,14 +36,58 @@ const SLOT_LABELS = {
   deceased_name:        'nome del defunto',
   preferred_date:       'data preferita',
   preferred_time:       'orario preferito',
+  availability_window:  'fascia di disponibilità',
   phone_number:         'recapito telefonico',
+  email_address:        'indirizzo email',
   confirmation_received:'Cresima ricevuta',
   celebration_date:     'data della celebrazione',
+  child_name:           'nome del bambino/ragazzo',
+  parent_name:          'nome del genitore',
+  spouse_name:          'nome del futuro coniuge',
   residence_parish:     'parrocchia di residenza',
+  parish_of_baptism:    'parrocchia del battesimo',
   street_name:          'nome della via',
   street_number:        'numero civico',
+  birth_place:          'luogo di nascita',
+  document_type:        'tipo di documento',
+  certificate_type:     'tipo di certificato',
   sponsor_name:         'nome del padrino/madrina',
   baptism_date:         'data del battesimo'
+};
+
+const SLOT_ALIASES = {
+  date: 'preferred_date',
+  requested_date: 'preferred_date',
+  appointment_date: 'preferred_date',
+  time: 'preferred_time',
+  requested_time: 'preferred_time',
+  appointment_time: 'preferred_time',
+  availability: 'availability_window',
+  available_time: 'availability_window',
+  phone: 'phone_number',
+  telephone: 'phone_number',
+  mobile: 'phone_number',
+  email: 'email_address',
+  child: 'child_name',
+  child_full_name: 'child_name',
+  son_name: 'child_name',
+  daughter_name: 'child_name',
+  parent: 'parent_name',
+  mother_name: 'parent_name',
+  father_name: 'parent_name',
+  spouse: 'spouse_name',
+  bride_name: 'spouse_name',
+  groom_name: 'spouse_name',
+  baptism_parish: 'parish_of_baptism',
+  birth_parish: 'parish_of_baptism',
+  place_of_birth: 'birth_place',
+  document: 'document_type',
+  document_name: 'document_type',
+  certificate: 'certificate_type',
+  requested_certificate: 'certificate_type',
+  godparent_name: 'sponsor_name',
+  godfather_name: 'sponsor_name',
+  godmother_name: 'sponsor_name'
 };
 
 var PromptEngine = class PromptEngine {
@@ -1072,7 +1125,20 @@ Vincoli:
     const emailOpenIndex = source.indexOf(userEmailOpen);
     if (emailOpenIndex >= 0) {
       const emailHeaderIndex = source.lastIndexOf('**EMAIL DA RISPONDERE:**', emailOpenIndex);
-      let emailSource = source.slice(emailHeaderIndex >= 0 ? emailHeaderIndex : emailOpenIndex);
+      const emailStart = emailHeaderIndex >= 0 ? emailHeaderIndex : emailOpenIndex;
+      let emailSource = source.slice(emailStart);
+      const prefixBudget = Math.max(0, limit - emailSource.length - 1);
+      if (prefixBudget > 200) {
+        const prefixSource = source.slice(0, emailStart).trimEnd();
+        const preservedPrefix = this._slicePromptTailWithEllipsis_(prefixSource, prefixBudget);
+        const progressive = this._repairPromptXmlFences_(
+          `${preservedPrefix}\n${emailSource}`.slice(0, limit),
+          limit
+        );
+        if (progressive.includes('<user_email>') && progressive.includes('</user_email>')) {
+          return progressive;
+        }
+      }
       const openOffset = emailSource.indexOf(userEmailOpen);
       const closingReserve = '\n</user_email>'.length + 1;
       if (openOffset < 0 || openOffset > Math.max(0, limit - closingReserve - userEmailOpen.length)) {
@@ -1085,6 +1151,16 @@ Vincoli:
     }
 
     return firstCut;
+  }
+
+  _slicePromptTailWithEllipsis_(text, maxLength) {
+    const source = this._normalizePromptTextInput(text, '');
+    const limit = Math.floor(Number(maxLength));
+    if (!source || !Number.isFinite(limit) || limit <= 0) return '';
+    if (source.length <= limit) return source;
+    if (limit === 1) return '…';
+
+    return ('…' + source.slice(-(limit - 1)).trimStart()).slice(-limit);
   }
 
   _slicePromptWithEllipsis_(text, maxLength) {
@@ -1756,7 +1832,8 @@ ${sections.join('\n')}`;
     if (appliesToTopic && normalizedCurrentTopic && appliesToTopic !== normalizedCurrentTopic) return null;
     if (appliesToTopic && !normalizedCurrentTopic) return null;
 
-    if (!this._isConversationStateFresh_(state.updatedAt, referenceDate, maxAgeDays)) return null;
+    const hintUpdatedAt = state.responseFocusHintUpdatedAt || state.updatedAt;
+    if (!this._isConversationStateFresh_(hintUpdatedAt, referenceDate, maxAgeDays)) return null;
 
     const rendered = this._renderResponseFocusHintLabel_(state.responseFocusHint);
     if (!rendered) return null;
@@ -1856,17 +1933,34 @@ Vincoli:
 
   _renderNewInformationProvided(slots) {
     if (!Array.isArray(slots) || slots.length === 0) return null;
+    const discarded = [];
     const safe = [...new Set(
       slots
-        .map(s => String(s || '').trim().toLowerCase())
-        .filter(s => KNOWN_SLOTS.has(s))
+        .map(s => this._canonicalizeNewInformationSlot_(s))
+        .filter(s => {
+          if (KNOWN_SLOTS.has(s)) return true;
+          if (s) discarded.push(s);
+          return false;
+        })
     )];
+    if (discarded.length > 0) {
+      console.warn(`⚠️ new_information_provided: slot non riconosciuti scartati: ${[...new Set(discarded)].join(', ')}`);
+    }
     if (safe.length === 0) return null;
     return `## INFORMAZIONE APPENA RICEVUTA
 L'utente ha appena fornito:
 ${safe.map(s => `- ${SLOT_LABELS[s] || s}`).join('\n')}
 
 Non richiedere nuovamente queste informazioni.`;
+  }
+
+  _canonicalizeNewInformationSlot_(slot) {
+    const normalized = String(slot || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_')
+      .replace(/[^a-z0-9_]/g, '');
+    return SLOT_ALIASES[normalized] || normalized;
   }
 
   _normalizeDecisionFrame_(decisionFrame) {

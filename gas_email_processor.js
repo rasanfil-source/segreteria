@@ -1502,59 +1502,48 @@ var EmailProcessor = class EmailProcessor {
       const MAX_THREAD_LENGTH = (typeof CONFIG !== 'undefined' && CONFIG.MAX_THREAD_LENGTH) ? CONFIG.MAX_THREAD_LENGTH : 8;
       const MAX_CONSECUTIVE_EXTERNAL = this.config.maxConsecutiveExternal;
 
-      const hasAnyIdentity = Boolean(normalizedMyEmail) || normalizedKnownAliases.length > 0;
-      if (hasAnyIdentity) {
-        let consecutiveExternal = 0;
-        let botRepliesCount = 0;
-        let totalBotRepliesInThread = 0;
-        const maxBotRepliesInLongThread = Math.max(2, Math.floor(MAX_THREAD_LENGTH / 2));
+      let consecutiveExternal = 0;
+      let botRepliesCount = 0;
+      let totalBotRepliesInThread = 0;
+      const maxBotRepliesInLongThread = Math.max(2, Math.floor(MAX_THREAD_LENGTH / 2));
 
-        // Percorriamo una finestra degli ultimi MAX_THREAD_LENGTH messaggi a ritroso
-        // per contare sequenze esterne e densità di risposte del bot.
-        const startIndex = Math.max(0, messages.length - MAX_THREAD_LENGTH);
-        for (let i = messages.length - 1; i >= startIndex; i--) {
-          const rawFrom = messages[i] && typeof messages[i].getFrom === 'function'
-            ? messages[i].getFrom()
-            : '';
-          const msgFrom = String(rawFrom || '');
-          const msgSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
-            ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(msgFrom) || '')
-            : this._normalizeEmailAddress_(msgFrom);
+      // Percorriamo una finestra degli ultimi MAX_THREAD_LENGTH messaggi a ritroso
+      // per contare sequenze esterne e densità di risposte del bot.
+      const startIndex = Math.max(0, messages.length - MAX_THREAD_LENGTH);
+      for (let i = messages.length - 1; i >= startIndex; i--) {
+        const rawFrom = messages[i] && typeof messages[i].getFrom === 'function'
+          ? messages[i].getFrom()
+          : '';
+        const msgFrom = String(rawFrom || '');
+        const msgSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
+          ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(msgFrom) || '')
+          : this._normalizeEmailAddress_(msgFrom);
 
-          const isUs = Boolean(msgSenderEmail) && ownAddresses.has(msgSenderEmail);
+        const isUs = Boolean(msgSenderEmail) && ownAddresses.has(msgSenderEmail);
 
-          if (isUs) {
-            botRepliesCount++;
-            totalBotRepliesInThread++;
-            consecutiveExternal = 0;
-          } else {
-            consecutiveExternal++;
-            botRepliesCount = 0;
-          }
+        if (isUs) {
+          botRepliesCount++;
+          totalBotRepliesInThread++;
+          consecutiveExternal = 0;
+        } else {
+          consecutiveExternal++;
+          botRepliesCount = 0;
+        }
 
-          if (
-            consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL ||
-            botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL ||
-            (messages.length > MAX_THREAD_LENGTH && totalBotRepliesInThread > maxBotRepliesInLongThread)
-          ) {
-            console.log(`   ⊖ Saltato: prevenzione loop email attivata (ping-pong/thread ripetitivo: interventiBot=${totalBotRepliesInThread}, sogliaBot=${maxBotRepliesInLongThread}, consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
-            markHandledUnread();
-            result.status = 'filtered';
-            result.reason = 'email_loop_detected';
-            return result;
-          }
+        if (
+          consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL ||
+          botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL ||
+          (messages.length > MAX_THREAD_LENGTH && totalBotRepliesInThread > maxBotRepliesInLongThread)
+        ) {
+          console.log(`   ⊖ Saltato: prevenzione loop email attivata (ping-pong/thread ripetitivo: interventiBot=${totalBotRepliesInThread}, sogliaBot=${maxBotRepliesInLongThread}, consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
+          markHandledUnread();
+          result.status = 'filtered';
+          result.reason = 'email_loop_detected';
+          return result;
         }
       }
 
       if (messages.length > MAX_THREAD_LENGTH) {
-        if (!hasAnyIdentity) {
-          console.warn('   ⚠️ Identità mittente non disponibile con thread lungo: blocco precauzionale anti-loop');
-          markHandledUnread();
-          result.status = 'filtered';
-          result.reason = 'anti_loop_identity_missing';
-          return result;
-        }
-
         console.warn(`   ⚠️ Thread lungo (${messages.length} messaggi) ma non loop - elaboro`);
       }
 
@@ -1666,7 +1655,10 @@ var EmailProcessor = class EmailProcessor {
         {
           sponsorGuidanceCheck: sponsorGuidancePrecheck === 'ask_ai',
           sponsorGuidanceLocalDecision: sponsorGuidancePrecheck,
-          hasConversationContext: hasConversationContext
+          hasConversationContext: hasConversationContext,
+          quickMemoryContext: hasConversationContext
+            ? this._buildQuickCheckMemoryContext_(memoryContext)
+            : null
         }
       );
 
@@ -5380,6 +5372,47 @@ ${addressLines.join('\n\n')}
 
     if (fallback === '') return '';
     return normalizeCandidate(fallback) || 'it';
+  }
+
+  _buildQuickCheckMemoryContext_(memoryContext = {}) {
+    const safeMemory = memoryContext && typeof memoryContext === 'object' ? memoryContext : {};
+    const providedInfo = Array.isArray(safeMemory.providedInfo)
+      ? safeMemory.providedInfo.slice(-5).map((item) => {
+        if (typeof item === 'string') return item.substring(0, 120);
+        if (item && typeof item === 'object') {
+          return String(item.topic || item.label || '').trim().substring(0, 120);
+        }
+        return '';
+      }).filter(Boolean)
+      : [];
+
+    const rawState = safeMemory.conversationState && typeof safeMemory.conversationState === 'object'
+      ? safeMemory.conversationState
+      : null;
+    const conversationState = rawState ? {
+      currentRelationalPosture: rawState.currentRelationalPosture || rawState.lastRelationalPosture || null,
+      responseFocusHint: rawState.responseFocusHint || null,
+      responseFocusHintConfidence: Number(rawState.responseFocusHintConfidence) || 0,
+      responseFocusHintUpdatedAt: rawState.responseFocusHintUpdatedAt || null,
+      appliesToTopic: rawState.appliesToTopic || null,
+      updatedAt: rawState.updatedAt || null
+    } : null;
+
+    const contextualFlags = {};
+    const allowedFlags = ['remote_user', 'bereaved', 'ongoing_pastoral_process', 'physical_presence_constraint'];
+    const rawFlags = safeMemory.contextualFlags && typeof safeMemory.contextualFlags === 'object'
+      ? safeMemory.contextualFlags
+      : {};
+    allowedFlags.forEach((flag) => {
+      if (rawFlags[flag] === true) contextualFlags[flag] = true;
+    });
+
+    return {
+      summary: String(safeMemory.memorySummary || '').substring(0, 500),
+      providedInfo: providedInfo,
+      conversationState: conversationState,
+      contextualFlags: contextualFlags
+    };
   }
 
 

@@ -156,11 +156,11 @@ var MemoryService = class MemoryService {
    */
   getMemory(threadId) {
     if (!this._initialized || !threadId) {
-      return { providedInfo: [] };
+      return { exists: false, providedInfo: [] };
     }
     const normalizedThreadId = String(threadId).trim();
     if (!normalizedThreadId) {
-      return { providedInfo: [] };
+      return { exists: false, providedInfo: [] };
     }
 
     // Verifica cache
@@ -168,6 +168,9 @@ var MemoryService = class MemoryService {
     const cached = this._getFromCache(cacheKey);
     if (cached) {
       console.log(`🧠 Memory hit (cache) per thread ${normalizedThreadId}`);
+      if (!Object.prototype.hasOwnProperty.call(cached, 'exists')) {
+        cached.exists = true;
+      }
       return cached;
     }
 
@@ -180,6 +183,7 @@ var MemoryService = class MemoryService {
         if (!Array.isArray(data.providedInfo)) {
           data.providedInfo = [];
         }
+        data.exists = true;
         console.log(`🧠 Memory hit per thread ${normalizedThreadId} (Lingua: ${data.language})`);
 
         // Memorizza in cache
@@ -187,12 +191,12 @@ var MemoryService = class MemoryService {
         return data;
       } else {
         console.log(`🧠 Memory miss per thread ${threadId} (Nuova conversazione)`);
-        return { providedInfo: [] };
+        return { exists: false, providedInfo: [] };
       }
 
     } catch (error) {
       console.error(`❌ Errore recupero memoria: ${error.message}`);
-      return { providedInfo: [] };
+      return { exists: false, providedInfo: [] };
     }
   }
 
@@ -252,8 +256,8 @@ var MemoryService = class MemoryService {
     // Sharding basato su hash del threadId per ridurre la contention
     const lockKey = this._getShardedLockKey(normalizedThreadId);
 
-    // OCC stretto: se il chiamante fornisce una versione attesa, il DAL non
-    // deve autorisolvere il conflitto con una versione più recente.
+    // OCC con retry: se la versione attesa è stale, rilegge la memoria fresca
+    // e tenta un nuovo merge prima di arrendersi.
     let expectedVersion = newData._expectedVersion;
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -289,7 +293,7 @@ var MemoryService = class MemoryService {
           // Verifica controllo concorrenza ottimistico
           if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
             this._invalidateCache(`memory_${normalizedThreadId}`);
-            console.warn(`🔒 Version mismatch thread ${normalizedThreadId}: atteso ${expectedVersion}, ottenuto ${currentVersion} - abortisco (OCC violation)`);
+            console.warn(`🔒 Version mismatch thread ${normalizedThreadId}: atteso ${expectedVersion}, ottenuto ${currentVersion} - rileggo e ritento`);
             throw new Error('VERSION_MISMATCH');
           }
 
@@ -376,9 +380,15 @@ var MemoryService = class MemoryService {
 
       } catch (error) {
         if (error.message === 'VERSION_MISMATCH') {
-          console.warn(`⚠️ Conflitto concorrenza OCC, aggiornamento abortito (Tentativo ${attempt + 1})`);
+          console.warn(`⚠️ Conflitto concorrenza OCC, rileggo memoria fresca (Tentativo ${attempt + 1})`);
           this._invalidateCache(`memory_${normalizedThreadId}`);
-          throw error;
+          if (attempt === MAX_RETRIES - 1) {
+            console.error(`❌ Aggiornamento memoria finale fallito: ${error.message}`);
+            throw error;
+          }
+          expectedVersion = undefined;
+          this._sleepLockBackoff_(attempt);
+          continue;
         } else {
           console.warn(`Aggiornamento memoria fallito (Tentativo ${attempt + 1}): ${error.message}`);
         }
@@ -531,7 +541,7 @@ var MemoryService = class MemoryService {
 
           // Controllo concorrenza ottimistico opzionale
           if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
-            console.warn(`🔒 Version mismatch atomico thread ${threadId}: atteso ${expectedVersion}, ottenuto ${currentVersion} - abortisco (OCC violation)`);
+            console.warn(`🔒 Version mismatch atomico thread ${threadId}: atteso ${expectedVersion}, ottenuto ${currentVersion} - rileggo e ritento`);
             throw new Error('VERSION_MISMATCH');
           }
 
@@ -642,6 +652,11 @@ var MemoryService = class MemoryService {
           console.warn(`⚠️ Errore aggiornamento atomico (tentativo ${i + 1}): ${error.message}`);
           this._invalidateCache(`memory_${normalizedThreadId}`);
           if (error.message === 'VERSION_MISMATCH') {
+            if (i < 2) {
+              expectedVersion = undefined;
+              this._sleepLockBackoff_(i);
+              continue;
+            }
             break;
           }
           if (i < 2) {
@@ -852,19 +867,29 @@ var MemoryService = class MemoryService {
 
     const confidence = this._normalizeConversationConfidence_(update && update.responseFocusHintConfidence);
     const hint = this._normalizeConversationResponseFocusHint_(update && update.responseFocusHint);
+    const normalizedUpdatedAt = this._validateAndNormalizeTimestamp(
+      update && update.updatedAt ? update.updatedAt : new Date().toISOString()
+    );
+    const hasIncomingHintField = !!(update && Object.prototype.hasOwnProperty.call(update, 'responseFocusHint'));
+
     if (hint && confidence >= 0.65) {
       next.responseFocusHint = hint;
       next.responseFocusHintConfidence = confidence;
       next.appliesToTopic = update && update.appliesToTopic ? String(update.appliesToTopic).trim().substring(0, 120) : null;
+      next.responseFocusHintUpdatedAt = normalizedUpdatedAt;
+    } else if (hasIncomingHintField) {
+      next.responseFocusHint = null;
+      next.responseFocusHintConfidence = 0;
+      next.appliesToTopic = null;
+      next.responseFocusHintUpdatedAt = null;
     } else if (!Object.prototype.hasOwnProperty.call(next, 'responseFocusHint')) {
       next.responseFocusHint = null;
       next.responseFocusHintConfidence = 0;
       next.appliesToTopic = null;
+      next.responseFocusHintUpdatedAt = null;
     }
 
-    next.updatedAt = this._validateAndNormalizeTimestamp(
-      update && update.updatedAt ? update.updatedAt : new Date().toISOString()
-    );
+    next.updatedAt = normalizedUpdatedAt;
     next.source = update && update.source === 'quick_check' ? 'quick_check' : 'quick_check';
 
     return {
@@ -873,6 +898,7 @@ var MemoryService = class MemoryService {
       responseFocusHint: next.responseFocusHint || null,
       responseFocusHintConfidence: this._normalizeConversationConfidence_(next.responseFocusHintConfidence),
       appliesToTopic: next.appliesToTopic || null,
+      responseFocusHintUpdatedAt: next.responseFocusHintUpdatedAt || null,
       updatedAt: next.updatedAt,
       source: next.source
     };
@@ -1706,13 +1732,8 @@ var MemoryService = class MemoryService {
         }) : [];
       }
     } catch (e) {
-      // Fallback per vecchi formati non JSON (se esistenti) o errori
-      providedInfo = values[4] ? [{
-        topic: String(values[4]),
-        userReaction: 'unknown',
-        context: null,
-        timestamp: new Date().toISOString()
-      }] : [];
+      console.warn(`⚠️ providedInfo JSON non valido per thread ${values[0] || '(sconosciuto)'}: ignoro la cella per sicurezza`);
+      providedInfo = [];
     }
 
     const lastUpdated = this._validateAndNormalizeTimestamp(values[5]);
@@ -1722,6 +1743,7 @@ var MemoryService = class MemoryService {
     const contextualFlags = this._normalizeContextualFlags_(values[9]);
 
     return {
+      exists: true,
       threadId: values[0],
       language: values[1] || 'it',
       category: values[2] || null,

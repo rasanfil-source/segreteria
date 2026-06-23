@@ -4167,6 +4167,9 @@ console.log('--- Test quick-check: conversationState memoria abilita contesto co
     },
     memoryService: {
       getMemory: () => ({
+        memorySummary: 'Iter precedente sugli orari della segreteria',
+        providedInfo: [{ topic: 'orari segreteria', userReaction: 'acknowledged' }],
+        contextualFlags: { remote_user: true },
         conversationState: {
           currentRelationalPosture: 'open',
           responseFocusHint: null,
@@ -4190,6 +4193,13 @@ console.log('--- Test quick-check: conversationState memoria abilita contesto co
   const result = processor.processThread(createExternalThread('conversation-state-only'), 'kb valida', '', new Set(), true);
   assert(result.status === 'replied', 'il thread con solo conversationState in memoria deve completarsi');
   assert(quickIntentContext && quickIntentContext.hasConversationContext === true, 'conversationState deve abilitare il contesto conversazionale per la quick-check');
+  assert(
+    quickIntentContext.quickMemoryContext &&
+      quickIntentContext.quickMemoryContext.summary.includes('Iter precedente') &&
+      quickIntentContext.quickMemoryContext.providedInfo.includes('orari segreteria') &&
+      quickIntentContext.quickMemoryContext.contextualFlags.remote_user === true,
+    'quick-check deve ricevere una mini-memoria sanificata quando esiste contesto conversazionale'
+  );
   assert(
     promptContextInput &&
       promptContextInput.memory &&

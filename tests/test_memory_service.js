@@ -114,7 +114,8 @@ console.log('--- Test MemoryService conversationState: preserva legacySummaryTex
   assert(parsed.legacySummaryText === 'Sintesi aggiornata', 'legacySummaryText deve preservare la sintesi testuale aggiornata');
   assert(parsed.conversationState.currentRelationalPosture === 'open', 'currentRelationalPosture deve essere salvata come stato del thread');
   assert(parsed.conversationState.responseFocusHint === 'answer_only_residual_question', 'responseFocusHint enum valido deve essere salvato');
-  assert(Object.keys(parsed.conversationState).length === 7, 'conversationState deve restare nello schema minimo previsto');
+  assert(parsed.conversationState.responseFocusHintUpdatedAt === now, 'hint valido deve salvare un timestamp dedicato');
+  assert(Object.keys(parsed.conversationState).length === 8, 'conversationState deve restare nello schema minimo previsto');
 
   const preserved = memory._serializeMemorySummaryState(
     '{"unknownShape":true}',
@@ -148,6 +149,7 @@ console.log('--- Test MemoryService conversationState: preserva legacySummaryTex
       responseFocusHint: 'answer_only_residual_question',
       responseFocusHintConfidence: 0.82,
       appliesToTopic: 'passaggio in segreteria',
+      responseFocusHintUpdatedAt: now,
       updatedAt: now,
       source: 'quick_check'
     }
@@ -159,6 +161,21 @@ console.log('--- Test MemoryService conversationState: preserva legacySummaryTex
   ));
   assert(textOnlyUpdate.legacySummaryText === 'Sintesi solo testuale nuova', 'memorySummary testuale deve aggiornare solo legacySummaryText');
   assert(textOnlyUpdate.conversationState.responseFocusHint === 'answer_only_residual_question', 'memorySummary testuale non deve sovrascrivere conversationState');
+
+  const staleCleared = JSON.parse(memory._serializeMemorySummaryState(
+    existingWrapped,
+    'Sintesi con quick-check senza hint',
+    {
+      currentRelationalPosture: 'direct',
+      responseFocusHint: null,
+      responseFocusHintConfidence: 0,
+      updatedAt: '2026-06-02T10:00:00.000Z',
+      source: 'quick_check'
+    }
+  )).conversationState;
+  assert(staleCleared.updatedAt === '2026-06-02T10:00:00.000Z', 'updatedAt generale deve aggiornarsi');
+  assert(staleCleared.responseFocusHint === null, 'quick-check senza hint valido deve cancellare il vecchio focus hint');
+  assert(staleCleared.responseFocusHintUpdatedAt === null, 'hint cancellato non deve mantenere freshness dedicata');
 }
 
 console.log('--- Test MemoryService _normalizeHeaders: riempie solo header attesi non vuoti ---');
@@ -217,6 +234,21 @@ console.log('--- Test MemoryService contextualFlags: parsing, merge e scrittura 
   assert(parsed.contextualFlags.bereaved === true, 'bereaved deve essere letto dai contextualFlags');
   assert(!parsed.contextualFlags.unsafe, 'flag fuori schema non deve essere preservato');
 
+  const corrupted = memory._rowToObject([
+    'thread-corrupt',
+    'it',
+    'information',
+    'standard',
+    '{"broken":',
+    '2026-06-01T10:00:00.000Z',
+    1,
+    2,
+    '',
+    '{}'
+  ]);
+  assert(Array.isArray(corrupted.providedInfo) && corrupted.providedInfo.length === 0, 'providedInfo JSON corrotto deve fallire chiuso');
+  assert(corrupted.exists === true, '_rowToObject su riga esistente deve impostare exists=true');
+
   const merged = memory._mergeContextualFlags_(
     { remote_user: true, bereaved: true },
     { remote_user: false, canonical_complexity: true }
@@ -253,7 +285,7 @@ console.log('--- Test MemoryService contextualFlags: parsing, merge e scrittura 
   assert(writtenValues[9] === JSON.stringify({ remote_user: true }), 'contextualFlags deve essere serializzato nella decima colonna');
 }
 
-console.log('--- Test MemoryService updateMemory: VERSION_MISMATCH abortisce senza merge obsoleto ---');
+console.log('--- Test MemoryService updateMemory: VERSION_MISMATCH ritenta con memoria fresca ---');
 {
   const originalLockService = global.LockService;
   global.LockService = {
@@ -273,25 +305,30 @@ console.log('--- Test MemoryService updateMemory: VERSION_MISMATCH abortisce sen
     memory._sleepLockBackoff_ = () => {};
     memory._invalidateCache = () => {};
     memory._withSheetWriteLock = (fn) => fn();
+    memory._writeThroughMemoryCache_ = () => {};
 
     let saved = null;
     memory._updateRow = (rowIndex, data) => {
       saved = { rowIndex, data };
     };
-    memory._findRowByThreadId = () => ({
-      rowIndex: 2,
-      values: [
-        'thread-occ',
-        'it',
-        'info',
-        'standard',
-        JSON.stringify([{ topic: 'concorrente', userReaction: 'acknowledged', timestamp: '2026-05-01T00:00:00.000Z' }]),
-        '2026-05-01T00:00:00.000Z',
-        1,
-        2,
-        ''
-      ]
-    });
+    let reads = 0;
+    memory._findRowByThreadId = () => {
+      reads += 1;
+      return {
+        rowIndex: 2,
+        values: [
+          'thread-occ',
+          'it',
+          'info',
+          'standard',
+          JSON.stringify([{ topic: 'concorrente', userReaction: 'acknowledged', timestamp: '2026-05-01T00:00:00.000Z' }]),
+          '2026-05-01T00:00:00.000Z',
+          1,
+          2,
+          ''
+        ]
+      };
+    };
 
     let thrown = null;
     try {
@@ -303,8 +340,10 @@ console.log('--- Test MemoryService updateMemory: VERSION_MISMATCH abortisce sen
       thrown = error;
     }
 
-    assert(thrown && thrown.message === 'VERSION_MISMATCH', 'OCC esplicito deve propagare VERSION_MISMATCH');
-    assert(saved === null, 'OCC mismatch non deve scrivere un merge su dati obsoleti');
+    assert(thrown === null, `OCC retry non deve propagare VERSION_MISMATCH, ottenuto ${thrown && thrown.message}`);
+    assert(reads === 2, `OCC mismatch deve ritentare rileggendo la riga, letture=${reads}`);
+    assert(saved && saved.data.version === 3, 'retry OCC deve scrivere sulla versione fresca');
+    assert(saved.data.providedInfo.length === 2, 'retry OCC deve fondere topic concorrente e nuovo');
   } finally {
     global.LockService = originalLockService;
   }
@@ -330,6 +369,7 @@ console.log('--- Test MemoryService updateMemory: fonde providedInfo senza perde
     memory._sleepLockBackoff_ = () => {};
     memory._invalidateCache = () => {};
     memory._withSheetWriteLock = (fn) => fn();
+    memory._writeThroughMemoryCache_ = () => {};
 
     let saved = null;
     memory._updateRow = (rowIndex, data) => {
@@ -372,7 +412,7 @@ console.log('--- Test MemoryService updateMemory: fonde providedInfo senza perde
   }
 }
 
-console.log('--- Test MemoryService updateMemoryAtomic: VERSION_MISMATCH non ritenta con versione aggiornata ---');
+console.log('--- Test MemoryService updateMemoryAtomic: VERSION_MISMATCH ritenta con versione aggiornata ---');
 {
   const originalLockService = global.LockService;
   global.LockService = {
@@ -392,8 +432,10 @@ console.log('--- Test MemoryService updateMemoryAtomic: VERSION_MISMATCH non rit
     memory._sleepLockBackoff_ = () => {};
     memory._invalidateCache = () => {};
     memory._withSheetWriteLock = (fn) => fn();
-    memory._updateRow = () => {
-      throw new Error('non deve scrivere su VERSION_MISMATCH');
+    memory._writeThroughMemoryCache_ = () => {};
+    let saved = null;
+    memory._updateRow = (rowIndex, data) => {
+      saved = { rowIndex, data };
     };
     memory._findRowByThreadId = () => ({
       rowIndex: 2,
@@ -408,9 +450,10 @@ console.log('--- Test MemoryService updateMemoryAtomic: VERSION_MISMATCH non rit
 
     const ok = memory.updateMemoryAtomic('thread-atomic-occ', { _expectedVersion: 2, language: 'en' }, ['nuovo']);
 
-    assert(ok === false, 'updateMemoryAtomic deve fallire in modo controllato su VERSION_MISMATCH');
-    assert(lockAttempts === 1, 'VERSION_MISMATCH non deve ritentare con una versione aggiornata internamente');
-    assert(memory._lastUpdateMemoryAtomicFailure && memory._lastUpdateMemoryAtomicFailure.cause === 'VERSION_MISMATCH', 'deve registrare causa VERSION_MISMATCH');
+    assert(ok === true, 'updateMemoryAtomic deve recuperare da VERSION_MISMATCH rileggendo la versione fresca');
+    assert(lockAttempts === 2, `VERSION_MISMATCH deve ritentare con una versione aggiornata internamente, tentativi=${lockAttempts}`);
+    assert(saved && saved.data.version === 4, 'retry atomico deve scrivere versione incrementata dalla riga fresca');
+    assert(Array.isArray(saved.data.providedInfo) && saved.data.providedInfo.some(item => item.topic === 'nuovo'), 'retry atomico deve salvare i topic in ingresso');
   } finally {
     global.LockService = originalLockService;
   }

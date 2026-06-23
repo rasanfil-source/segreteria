@@ -1848,6 +1848,27 @@ console.log('--- Test prompt: troncamento fisico preserva recinto user_email ---
   }
 }
 
+console.log('--- Test prompt: troncamento fisico degrada mantenendo cronologia recente ---');
+{
+  const rawUserPrompt = [
+    '**CRONOLOGIA CONVERSAZIONE:**',
+    '<conversation_history>',
+    'OLD_HISTORY_SENTINEL ' + 'testo remoto '.repeat(80),
+    'RECENT_HISTORY_SENTINEL: ultima risposta utile della segreteria.',
+    '</conversation_history>',
+    '**EMAIL DA RISPONDERE:**',
+    '<user_email>',
+    'EMAIL_PROGRESSIVE_SENTINEL: confermo la domanda attuale.',
+    '</user_email>'
+  ].join('\n');
+  const truncated = engine._truncateUserPromptSafely_(rawUserPrompt, 420);
+  assert(truncated.length <= 420, 'il troncamento progressivo deve rispettare il limite');
+  assert(truncated.includes('EMAIL_PROGRESSIVE_SENTINEL'), 'il troncamento progressivo deve preservare l email corrente');
+  assert(truncated.includes('RECENT_HISTORY_SENTINEL'), 'il troncamento progressivo deve preservare la coda della cronologia recente quando c e budget');
+  assert(!truncated.includes('OLD_HISTORY_SENTINEL'), 'il troncamento progressivo deve sacrificare la cronologia remota');
+  assert(truncated.includes('<user_email>') && truncated.includes('</user_email>'), 'il recinto user_email deve restare valido');
+}
+
 console.log('--- Test prompt: cronologia lunga preserva i messaggi recenti ---');
 {
   const originalMaxSafeTokens = global.CONFIG.MAX_SAFE_TOKENS;
@@ -1889,6 +1910,25 @@ console.log('--- Test prompt: cronologia lunga preserva i messaggi recenti ---')
     global.CONFIG.MAX_SAFE_PROMPT_CHARS = originalMaxSafePromptChars;
     global.CONFIG.PROMPT_ENGINE = originalPromptEngineConfig;
   }
+}
+
+console.log('--- Test PromptEngine: newInformationProvided canonicalizza slot comuni ---');
+{
+  const infoPrompt = engine.buildPrompt({
+    emailSubject: 'Dati battesimo',
+    emailContent: 'Il bambino si chiama Marco, nato a Roma. La mia email è test@example.org.',
+    knowledgeBase: 'Per il battesimo servono i dati del bambino e dei genitori.',
+    detectedLanguage: 'it',
+    promptProfile: 'lite',
+    salutationMode: 'none_or_continuity',
+    newInformationProvided: ['child-name', 'email', 'birth_place', 'slot_non_previsto']
+  });
+  assert(
+    infoPrompt.includes('nome del bambino/ragazzo') &&
+      infoPrompt.includes('indirizzo email') &&
+      infoPrompt.includes('luogo di nascita'),
+    'newInformationProvided deve accettare slot comuni e sinonimi canonicalizzati'
+  );
 }
 
 console.log('--- Test prompt: payload allegati troppo lungo viene troncato con avviso ---');

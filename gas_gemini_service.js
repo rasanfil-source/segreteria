@@ -246,7 +246,9 @@ var GeminiContentClient = class GeminiContentClient {
 
     if ([429, 500, 502, 503, 504].includes(responseCode)) {
       if (responseCode === 429) {
-        throw new Error(`QUOTA_EXHAUSTED: Quota o rate limit superato (429): ${apiErrorMsg}`);
+        const quotaError = new Error(`QUOTA_EXHAUSTED: Quota o rate limit superato (429): ${apiErrorMsg}`);
+        quotaError.isTransient = true;
+        throw quotaError;
       }
       const transientError = new Error(`Errore server temporaneo (${responseCode}): ${apiErrorMsg}`);
       transientError.isTransient = true;
@@ -387,6 +389,43 @@ var EmailQuickCheckPolicy = class EmailQuickCheckPolicy {
 
   static hasConversationContext(intentContext = null) {
     return !!(intentContext && intentContext.hasConversationContext === true);
+  }
+
+  static renderQuickMemoryContext(intentContext = null) {
+    const memory = intentContext && intentContext.quickMemoryContext && typeof intentContext.quickMemoryContext === 'object'
+      ? intentContext.quickMemoryContext
+      : null;
+    if (!memory) return '';
+
+    const lines = [];
+    const summary = String(memory.summary || '').trim().substring(0, 500);
+    if (summary) lines.push(`- Sintesi breve: ${summary}`);
+
+    const topics = Array.isArray(memory.providedInfo)
+      ? memory.providedInfo.map(item => String(item || '').trim()).filter(Boolean).slice(-5)
+      : [];
+    if (topics.length > 0) lines.push(`- Topic già emersi: ${topics.join('; ')}`);
+
+    const state = memory.conversationState && typeof memory.conversationState === 'object'
+      ? memory.conversationState
+      : null;
+    if (state) {
+      const stateParts = [];
+      if (state.currentRelationalPosture) stateParts.push(`posture=${String(state.currentRelationalPosture).substring(0, 40)}`);
+      if (state.responseFocusHint) stateParts.push(`focus=${String(state.responseFocusHint).substring(0, 80)}`);
+      if (state.goalContinuity) stateParts.push(`goal=${String(state.goalContinuity).substring(0, 60)}`);
+      if (stateParts.length > 0) lines.push(`- Stato conversazionale: ${stateParts.join(', ')}`);
+    }
+
+    const flags = memory.contextualFlags && typeof memory.contextualFlags === 'object'
+      ? Object.keys(memory.contextualFlags).filter(key => memory.contextualFlags[key] === true).slice(0, 8)
+      : [];
+    if (flags.length > 0) lines.push(`- Flag contestuali: ${flags.join(', ')}`);
+
+    if (lines.length === 0) return '';
+    return `CONTESTO MEMORIA SINTETICO (solo per valutare continuità e non-ripetizione):
+${lines.join('\n')}
+`;
   }
 
   static stripForbiddenQuickCheckFields(data) {
@@ -583,6 +622,9 @@ var EmailQuickCheckPolicy = class EmailQuickCheckPolicy {
     const shouldClassifySponsorGuidance = EmailQuickCheckPolicy.shouldClassifySponsorGuidance(intentContext);
     const hasOfficeVisitLogistics = EmailQuickCheckPolicy.isOfficeVisitLogisticsRequest(safeSubject, safeContent);
     const hasConversationContext = EmailQuickCheckPolicy.hasConversationContext(intentContext);
+    const quickMemoryContext = hasConversationContext
+      ? EmailQuickCheckPolicy.renderQuickMemoryContext(intentContext)
+      : '';
     const quickIntentGuardrail = hasSubmissionContext ? `
 CONTESTO STRUTTURALE ALLEGATI:
 - Il testo del mittente contiene segnali di consegna documentale ("in allegato", "allego", "le invio", ecc.).
@@ -636,7 +678,7 @@ CONTESTO LOGISTICO VISITA:
    - Fornisci anche goal_continuity_confidence (0.0-1.0).
 15. Determina new_information_provided:
    - Lista degli slot informativi che l'utente ha esplicitamente fornito in questo messaggio.
-   - Usa SOLO i valori della whitelist: deceased_name, preferred_date, preferred_time, phone_number, confirmation_received, celebration_date, residence_parish, street_name, street_number, sponsor_name, baptism_date.
+   - Usa SOLO i valori della whitelist: deceased_name, preferred_date, preferred_time, availability_window, phone_number, email_address, confirmation_received, celebration_date, child_name, parent_name, spouse_name, residence_parish, parish_of_baptism, street_name, street_number, birth_place, document_type, certificate_type, sponsor_name, baptism_date.
    - Includi uno slot solo se il dato è presente in modo esplicito nel messaggio corrente e completa un percorso già contestualizzato.
    - Se nessun dato utile è presente, restituisci [].
    - Non inferire. Non dedurre da contesti impliciti.
@@ -656,6 +698,7 @@ Oggetto: ${safeSubject}
 Testo: ${safeContent.substring(0, 800)}
 ${quickIntentGuardrail}
 ${visitLogisticsGuardrail}
+${quickMemoryContext}
 
 COMPITI:
 1. Decidi se richiede risposta (reply_needed):
@@ -1191,10 +1234,67 @@ Output JSON:
 
   static normalizeNewInformationProvided(value) {
     if (!Array.isArray(value)) return [];
+    const aliases = {
+      date: 'preferred_date',
+      requested_date: 'preferred_date',
+      appointment_date: 'preferred_date',
+      time: 'preferred_time',
+      requested_time: 'preferred_time',
+      appointment_time: 'preferred_time',
+      availability: 'availability_window',
+      available_time: 'availability_window',
+      phone: 'phone_number',
+      telephone: 'phone_number',
+      mobile: 'phone_number',
+      email: 'email_address',
+      child: 'child_name',
+      child_full_name: 'child_name',
+      son_name: 'child_name',
+      daughter_name: 'child_name',
+      parent: 'parent_name',
+      mother_name: 'parent_name',
+      father_name: 'parent_name',
+      spouse: 'spouse_name',
+      bride_name: 'spouse_name',
+      groom_name: 'spouse_name',
+      baptism_parish: 'parish_of_baptism',
+      birth_parish: 'parish_of_baptism',
+      place_of_birth: 'birth_place',
+      document: 'document_type',
+      document_name: 'document_type',
+      certificate: 'certificate_type',
+      requested_certificate: 'certificate_type',
+      godparent_name: 'sponsor_name',
+      godfather_name: 'sponsor_name',
+      godmother_name: 'sponsor_name'
+    };
+    const allowed = new Set([
+      'deceased_name',
+      'preferred_date',
+      'preferred_time',
+      'availability_window',
+      'phone_number',
+      'email_address',
+      'confirmation_received',
+      'celebration_date',
+      'child_name',
+      'parent_name',
+      'spouse_name',
+      'residence_parish',
+      'parish_of_baptism',
+      'street_name',
+      'street_number',
+      'birth_place',
+      'document_type',
+      'certificate_type',
+      'sponsor_name',
+      'baptism_date'
+    ]);
     return [...new Set(
       value
-        .map(s => String(s || '').trim().toLowerCase())
-        .filter(s => s.length > 0)
+        .map(s => String(s || '').trim().toLowerCase().replace(/[\s-]+/g, '_').replace(/[^a-z0-9_]/g, ''))
+        .map(s => aliases[s] || s)
+        .filter(s => allowed.has(s))
     )].slice(0, 8);
   }
 };

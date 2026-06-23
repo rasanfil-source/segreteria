@@ -735,6 +735,7 @@ console.log('--- Test _generateWithModel: 429 senza backup propaga QUOTA_EXHAUST
   }
 
   assert(thrown && thrown.message.includes('QUOTA_EXHAUSTED'), '429 deve includere QUOTA_EXHAUSTED per il RateLimiter');
+  assert(thrown.isTransient === true, '429 deve essere marcato isTransient per backoff/retry');
 }
 
 console.log('--- Test _generateWithModel: 429 primaria con backup marca segnale transient di key switch ---');
