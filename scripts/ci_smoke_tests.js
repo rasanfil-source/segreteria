@@ -142,6 +142,13 @@ global.SpreadsheetApp = {
 
 function loadScript(path) {
     if (loadedScripts.has(path)) return;
+    if (path === 'gas_prompt_engine.js') {
+        loadScript('gas_response_strategy.js');
+    }
+    if (path === 'gas_email_processor.js') {
+        loadScript('gas_response_strategy.js');
+        loadScript('gas_error_types.js');
+    }
     const code = fs.readFileSync(path, 'utf8');
     vm.runInThisContext(code, { filename: path });
     loadedScripts.add(path);
@@ -1334,7 +1341,7 @@ function testUpdateMemoryAbortsOnVersionMismatch() {
         findCalls++;
         return {
             rowIndex: 5,
-            values: ['thread-occ', 'it', 'INFO', 'standard', '[]', '2026-02-15T10:00:00Z', 2, (findCalls === 1 ? 10 : 10)]
+            values: ['thread-occ', 'it', 'INFO', 'standard', '[]', '2026-02-15T10:00:00Z', 2, (findCalls + 10)]
         };
     };
 
@@ -1356,7 +1363,7 @@ function testUpdateMemoryAbortsOnVersionMismatch() {
     }
 
     assert(thrown && thrown.message === 'VERSION_MISMATCH', 'updateMemory deve propagare VERSION_MISMATCH');
-    assert(findCalls === 1, `updateMemory non deve rileggere lo Sheet dopo mismatch OCC, chiamate: ${findCalls}`);
+    assert(findCalls === 3, `updateMemory deve rileggere lo Sheet ad ogni tentativo di OCC, chiamate: ${findCalls}`);
     assert(updateCalls === 0, 'updateMemory non deve scrivere dopo VERSION_MISMATCH');
 }
 
@@ -2207,6 +2214,8 @@ function runGoldenCases() {
 
     const scripts = [
         'gas_config.example.js',
+        'gas_error_types.js',
+        'gas_response_strategy.js',
         'gas_classifier.js',
         'gas_request_classifier.js',
         'gas_prompt_engine.js',

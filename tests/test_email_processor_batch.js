@@ -4106,6 +4106,7 @@ console.log('--- Test quick-check: conversationState memoria abilita contesto co
   let quickIntentContext = null;
   let promptOptions = null;
   let promptContextInput = null;
+  let memoryUpdateArgs = null;
   global.createPromptContext = (input) => {
     promptContextInput = input;
     return {
@@ -4177,7 +4178,10 @@ console.log('--- Test quick-check: conversationState memoria abilita contesto co
         }
       }),
       getRecentHistory: () => [],
-      updateMemoryAtomic: () => true
+      updateMemoryAtomic: (threadId, data, providedTopics, inferredReactionData) => {
+        memoryUpdateArgs = { threadId, data, providedTopics, inferredReactionData };
+        return true;
+      }
     },
     territoryValidator: {
       validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
@@ -4217,6 +4221,16 @@ console.log('--- Test quick-check: conversationState memoria abilita contesto co
       promptOptions.continuityPolicy &&
       promptOptions.continuityPolicy.key === 'relational_opening_continuity',
     'EmailProcessor deve propagare responseMode e continuityPolicy al PromptEngine'
+  );
+  assert(
+    memoryUpdateArgs &&
+      memoryUpdateArgs.data &&
+      memoryUpdateArgs.data._incrementMessageCount === true,
+    'EmailProcessor deve incrementare messageCount nel salvataggio atomico della memoria'
+  );
+  assert(
+    promptOptions.responseStrategyInferenceBlocked === true,
+    'EmailProcessor deve passare al PromptEngine il blocco inferenza responseStrategy deciso da vincoli piu forti'
   );
 
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;

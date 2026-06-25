@@ -32,6 +32,8 @@ const KNOWN_SLOTS = new Set([
   'baptism_date'
 ]);
 
+const PROMPT_FALLBACK_CHARS_PER_TOKEN = 3.2;
+
 const SLOT_LABELS = {
   deceased_name:        'nome del defunto',
   preferred_date:       'data preferita',
@@ -127,14 +129,14 @@ var PromptEngine = class PromptEngine {
   }
 
   /**
-   * Stima token (approx 4 char/token per l'italiano/inglese)
+   * Stima token con fallback conservativo allineato a estimateTokenCount.
    */
   estimateTokens(text) {
     const normalizedText = this._normalizePromptTextInput(text, '');
     // Delega alla funzione centralizzata in gas_main.js (DRY)
     return typeof estimateTokenCount === 'function' 
       ? estimateTokenCount(normalizedText) 
-      : Math.ceil((normalizedText || '').length / 4);
+      : Math.ceil((normalizedText || '').length / PROMPT_FALLBACK_CHARS_PER_TOKEN);
   }
 
   /**
@@ -164,7 +166,7 @@ var PromptEngine = class PromptEngine {
       const escapedTagName = String(tagName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       if (!escapedTagName) return acc;
       const tagPattern = new RegExp(`<\\s*\\/?\\s*${escapedTagName}\\b[^>]*>`, 'gi');
-      return acc.replace(tagPattern, `[tag riservato ${tagName} neutralizzato]`);
+      return acc.replace(tagPattern, '');
     }, safeText);
   }
 
@@ -460,6 +462,7 @@ Vincoli:
       priorOralCommunication = null,
       conversationShift = null,
       responseStrategy = 'none',
+      responseStrategyInferenceBlocked = null,
       goalContinuity = null,
       responseRegister = 'warm_institutional',
       responseMode = 'standard_operational',
@@ -827,13 +830,19 @@ Vincoli:
       requestTypeNameForRouting === 'sbattezzo' ||
       requestTypeIsSbattezzoForRouting
     );
-    const hasStrongerResponseRoutingSignal = Boolean(
-      categoryBlocksPostureStrategy ||
-      requestTypeBlocksPostureStrategy ||
-      hasPhysicalPresenceConstraint ||
-      hasGoalContinuitySignal ||
-      hasResponseFocusHintSignal
-    );
+    const processorResponseStrategyInferenceBlocked =
+      responseStrategyInferenceBlocked === true
+        ? true
+        : (responseStrategyInferenceBlocked === false ? false : null);
+    const hasStrongerResponseRoutingSignal = processorResponseStrategyInferenceBlocked !== null
+      ? processorResponseStrategyInferenceBlocked
+      : Boolean(
+          categoryBlocksPostureStrategy ||
+          requestTypeBlocksPostureStrategy ||
+          hasPhysicalPresenceConstraint ||
+          hasGoalContinuitySignal ||
+          hasResponseFocusHintSignal
+        );
     const effectiveResponseStrategy = (
       inferredStrategy !== 'none' &&
       normalizedResponseStrategy === 'none' &&

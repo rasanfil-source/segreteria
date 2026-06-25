@@ -113,6 +113,18 @@ vm.runInThisContext(code, { filename: promptEnginePath });
 
 const engine = new PromptEngine();
 
+console.log('--- Test PromptEngine: fallback token conservativo per italiano ---');
+{
+  const originalEstimateTokenCount = global.estimateTokenCount;
+  try {
+    global.estimateTokenCount = undefined;
+    const tokens = engine.estimateTokens('a'.repeat(32));
+    assert(tokens === 10, `fallback token atteso 10 con 3.2 chars/token, ottenuto ${tokens}`);
+  } finally {
+    global.estimateTokenCount = originalEstimateTokenCount;
+  }
+}
+
 console.log('--- Test prompt: contratto qualità sempre presente ---');
 const litePrompt = engine.buildPrompt({
   emailSubject: 'Orari Messe',
@@ -241,11 +253,10 @@ const historyCloseCount = (injectedBoundaryPrompt.prompt.match(/<\/conversation_
 assert(userEmailOpenCount === 1 && userEmailCloseCount === 1, 'il corpo utente non deve poter aggiungere o chiudere recinti user_email');
 assert(historyOpenCount === 1 && historyCloseCount === 1, 'la cronologia non deve poter aggiungere o chiudere recinti conversation_history');
 assert(
-  injectedBoundaryPrompt.prompt.includes('[tag riservato user_email neutralizzato]') &&
-    injectedBoundaryPrompt.prompt.includes('[tag riservato knowledge_base neutralizzato]') &&
-    injectedBoundaryPrompt.prompt.includes('[tag riservato email neutralizzato]') &&
+  !injectedBoundaryPrompt.prompt.includes('tag riservato') &&
+    !injectedBoundaryPrompt.prompt.includes('[tag riservato') &&
     !injectedBoundaryPrompt.prompt.includes('<email>testo gia pronto</email>'),
-  'i tag strutturali riservati dentro input non fidati devono essere neutralizzati'
+  'i tag strutturali riservati dentro input non fidati devono essere rimossi senza marker istruttivi'
 );
 
 console.log('--- Test prompt: fuori territorio resta accogliente e utile ---');
@@ -2131,6 +2142,23 @@ console.log('--- Test PromptEngine: responseStrategy orienta solo il prompt corr
     ordinaryCategoryPosturePrompt.includes('Chiarisci requisiti o condizioni in modo ordinato') &&
       ordinaryCategoryPosturePrompt.includes('accoglila come legittima'),
     'category ordinaria/requestType tecnico non devono bloccare strategia e postura derivate da hesitant'
+  );
+
+  const processorBlockedPosturePrompt = engine.buildPrompt({
+    emailSubject: 'Certificato',
+    emailContent: 'Scusate, forse mi sono perso: quali dati servono per richiederlo?',
+    knowledgeBase: 'Per richiedere il certificato servono nome, cognome e data di nascita.',
+    detectedLanguage: 'it',
+    responseStrategy: 'none',
+    responseStrategyInferenceBlocked: true,
+    relationalPosture: 'hesitant',
+    category: 'information',
+    requestType: { type: 'technical' }
+  });
+  assert(
+    !processorBlockedPosturePrompt.includes('ORIENTAMENTO DELLA RISPOSTA') &&
+      !processorBlockedPosturePrompt.includes('Chiarisci requisiti o condizioni in modo ordinato'),
+    'PromptEngine deve rispettare il blocco inferenza responseStrategy deciso dal processor'
   );
 
   const remotePracticalPrompt = engine.buildPrompt({

@@ -3412,7 +3412,7 @@ Rispondi SOLO con questo JSON (senza markdown):
 
     const estimatedTokens = (typeof estimateTokenCount === 'function')
       ? estimateTokenCount(prompt)
-      : Math.max(1, Math.ceil(String(prompt || '').length / 4));
+      : Math.max(1, Math.ceil(String(prompt || '').length / 3.2));
 
     if (this.geminiService.useRateLimiter && this.geminiService.rateLimiter) {
       const result = this.geminiService.rateLimiter.executeRequest(

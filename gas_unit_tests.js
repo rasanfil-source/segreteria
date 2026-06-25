@@ -15,6 +15,13 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
     var loadedScripts = new Set();
     global.loadScript = function (path) {
         if (loadedScripts.has(path)) return;
+        if (path === 'gas_prompt_engine.js') {
+            global.loadScript('gas_response_strategy.js');
+        }
+        if (path === 'gas_email_processor.js') {
+            global.loadScript('gas_response_strategy.js');
+            global.loadScript('gas_error_types.js');
+        }
         try {
             var code = fs.readFileSync(path, 'utf8');
             vm.runInThisContext(code, { filename: path });

@@ -1499,7 +1499,7 @@ var GeminiService = class GeminiService {
     const promptPayload = this._normalizePromptPayload_(text);
     return typeof estimateTokenCount === 'function'
       ? estimateTokenCount(promptPayload.combinedText, attachments)
-      : Math.ceil((promptPayload.combinedText || '').length / 4);
+      : Math.ceil((promptPayload.combinedText || '').length / 3.2);
   }
 
   _createGeminiContentClient_() {

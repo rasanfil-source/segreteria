@@ -2670,6 +2670,7 @@ ${addressLines.join('\n\n')}
           confidence: Number(quickCheck?.conversation_shift_confidence) || 0
         },
         responseStrategy: responseStrategy,
+        responseStrategyInferenceBlocked: hasStrongerResponseRoutingSignal,
         newInformationProvided: Array.isArray(quickCheck.new_information_provided)
           ? quickCheck.new_information_provided
           : [],

@@ -201,8 +201,8 @@ var MemoryService = class MemoryService {
   }
 
   /**
-   * Legge la memoria con doppio livello: Cache veloce → Sheets come fallback.
-   * Riduce la dipendenza dalla latenza di Sheets e previene la perdita di contesto.
+   * Alias storico per getMemory.
+   * getMemory gestisce gia cache locale/CacheService e fallback su Sheets.
    */
   getMemoryRobust(threadId) {
     // getMemory implementa già il multi-livello (RAM locale + CacheService).
@@ -211,15 +211,13 @@ var MemoryService = class MemoryService {
   }
  
   /**
-   * Restituisce la cronologia recente per il thread specificato.
-   * Attualmente espone i topic salvati in providedInfo; la cronologia
-   * conversazionale completa resta in GmailService.getThreadHistory.
+   * Restituisce i topic recenti salvati in providedInfo.
    *
    * @param {string} threadId
    * @param {number} [limit=10] numero massimo di entry da restituire
    * @returns {Array<{topic: string, userReaction: string}>}
    */
-  getRecentHistory(threadId, limit = 10) {
+  getRecentProvidedInfo(threadId, limit = 10) {
     if (!this._initialized || !threadId) return [];
     try {
       const memory = this.getMemory(threadId);
@@ -229,6 +227,14 @@ var MemoryService = class MemoryService {
       console.warn(`⚠️ getRecentHistory fallito per thread ${threadId}: ${e.message}`);
       return [];
     }
+  }
+
+  /**
+   * Alias legacy: non restituisce i messaggi Gmail, ma i topic providedInfo.
+   * La cronologia conversazionale completa resta in GmailService.getThreadHistory.
+   */
+  getRecentHistory(threadId, limit = 10) {
+    return this.getRecentProvidedInfo(threadId, limit);
   }
 
   /**
@@ -294,7 +300,9 @@ var MemoryService = class MemoryService {
           if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
             this._invalidateCache(`memory_${normalizedThreadId}`);
             console.warn(`🔒 Version mismatch thread ${normalizedThreadId}: atteso ${expectedVersion}, ottenuto ${currentVersion} - rileggo e ritento`);
-            throw new Error('VERSION_MISMATCH');
+            const mismatchError = new Error('VERSION_MISMATCH');
+            mismatchError.currentVersion = currentVersion;
+            throw mismatchError;
           }
 
           const hasIncomingMemorySummary = Object.prototype.hasOwnProperty.call(dataToUpdate, 'memorySummary');
@@ -386,7 +394,13 @@ var MemoryService = class MemoryService {
             console.error(`❌ Aggiornamento memoria finale fallito: ${error.message}`);
             throw error;
           }
-          expectedVersion = undefined;
+          const freshVersion = Number(error.currentVersion);
+          if (Number.isFinite(freshVersion)) {
+            expectedVersion = freshVersion;
+            console.warn(`🔒 Retry OCC thread ${normalizedThreadId} con versione osservata ${expectedVersion}`);
+          } else {
+            console.warn(`🔒 Retry OCC thread ${normalizedThreadId} senza versione osservata: mantengo expectedVersion per evitare overwrite cieco`);
+          }
           this._sleepLockBackoff_(attempt);
           continue;
         } else {
@@ -542,7 +556,9 @@ var MemoryService = class MemoryService {
           // Controllo concorrenza ottimistico opzionale
           if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
             console.warn(`🔒 Version mismatch atomico thread ${threadId}: atteso ${expectedVersion}, ottenuto ${currentVersion} - rileggo e ritento`);
-            throw new Error('VERSION_MISMATCH');
+            const mismatchError = new Error('VERSION_MISMATCH');
+            mismatchError.currentVersion = currentVersion;
+            throw mismatchError;
           }
 
           const hasIncomingMemorySummary = Object.prototype.hasOwnProperty.call(dataToUpdate, 'memorySummary');
@@ -653,7 +669,13 @@ var MemoryService = class MemoryService {
           this._invalidateCache(`memory_${normalizedThreadId}`);
           if (error.message === 'VERSION_MISMATCH') {
             if (i < 2) {
-              expectedVersion = undefined;
+              const freshVersion = Number(error.currentVersion);
+              if (Number.isFinite(freshVersion)) {
+                expectedVersion = freshVersion;
+                console.warn(`🔒 Retry OCC atomico thread ${normalizedThreadId} con versione osservata ${expectedVersion}`);
+              } else {
+                console.warn(`🔒 Retry OCC atomico thread ${normalizedThreadId} senza versione osservata: mantengo expectedVersion per evitare overwrite cieco`);
+              }
               this._sleepLockBackoff_(i);
               continue;
             }
@@ -2148,26 +2170,29 @@ var MemoryService = class MemoryService {
    * (Funzionalità avanzata per future implementazioni di auto-valutazione)
    */
   _calculateCompleteness(userQuestion, botResponse) {
+    const question = String(userQuestion || '');
+    const response = String(botResponse || '');
+
     // Estrai richieste informative
     const requests = [];
-    if (/\bquando\b/i.test(userQuestion)) requests.push('timing');
-    if (/\bdove\b/i.test(userQuestion)) requests.push('location');
-    if (/\bcome\b/i.test(userQuestion)) requests.push('procedure');
-    if (/\bquanto|costo|prezzo/i.test(userQuestion)) requests.push('cost');
-    if (/\bdocument|certificat/i.test(userQuestion)) requests.push('documents');
+    if (/\b(quando|when|what time)\b/i.test(question)) requests.push('timing');
+    if (/\b(dove|where)\b/i.test(question)) requests.push('location');
+    if (/\b(come|how)\b/i.test(question)) requests.push('procedure');
+    if (/\b(quanto|costo|prezzo|how much|cost|price|fee)\b/i.test(question)) requests.push('cost');
+    if (/\b(documenti?|documents?|certificat[oi]?|certificates?)\b/i.test(question)) requests.push('documents');
 
     if (requests.length === 0) return 1.0; // Nessuna richiesta esplicita rilevabile
 
     // Verifica copertura (euristica semplice)
     let covered = 0;
-    const respLower = botResponse.toLowerCase();
+    const respLower = response.toLowerCase();
 
     requests.forEach(req => {
       let hit = false;
-      if (req === 'timing' && /\d{1,2}[:.]\d{2}|mattina|pomeriggio|ore/i.test(respLower)) hit = true;
-      if (req === 'location' && /via|piazza|chiesa|ufficio|sacrestia/i.test(respLower)) hit = true;
-      if (req === 'procedure' && /iscri|porta|invia|compila/i.test(respLower)) hit = true;
-      if (req === 'cost' && /euro|€|gratuit|offert/i.test(respLower)) hit = true;
+      if (req === 'timing' && /\d{1,2}[:.]\d{2}|\b\d{1,2}\s*(am|pm)\b|mattina|pomeriggio|sera|ore|morning|afternoon|evening|hours?|schedule|appointment/i.test(respLower)) hit = true;
+      if (req === 'location' && /via|piazza|chiesa|ufficio|sacrestia|address|street|church|office|sacristy/i.test(respLower)) hit = true;
+      if (req === 'procedure' && /iscri|porta|invia|compila|send|submit|fill|bring|complete|register|apply/i.test(respLower)) hit = true;
+      if (req === 'cost' && /euro|€|gratuit|offert|free|donation|fee|price|cost/i.test(respLower)) hit = true;
       if (req === 'documents' && /document|certificat|nulla osta/i.test(respLower)) hit = true;
 
       if (hit) covered++;

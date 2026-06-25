@@ -298,7 +298,7 @@ console.log('--- Test MemoryService updateMemory: VERSION_MISMATCH ritenta con m
   try {
     const memory = Object.create(MemoryService.prototype);
     memory._initialized = true;
-    memory._getLockTuning_ = () => ({ maxRetries: 2, shardedAcquireTimeoutMs: 1 });
+    memory._getLockTuning_ = () => ({ maxRetries: 3, shardedAcquireTimeoutMs: 1 });
     memory._getShardedLockKey = () => 'lock-thread-occ';
     memory._tryAcquireShardedLock = () => true;
     memory._releaseShardedLock = () => {};
@@ -314,6 +314,13 @@ console.log('--- Test MemoryService updateMemory: VERSION_MISMATCH ritenta con m
     let reads = 0;
     memory._findRowByThreadId = () => {
       reads += 1;
+      const currentVersion = reads === 1 ? 2 : 3;
+      const topics = [
+        { topic: 'concorrente', userReaction: 'acknowledged', timestamp: '2026-05-01T00:00:00.000Z' }
+      ];
+      if (currentVersion >= 3) {
+        topics.push({ topic: 'secondo concorrente', userReaction: 'unknown', timestamp: '2026-05-01T00:01:00.000Z' });
+      }
       return {
         rowIndex: 2,
         values: [
@@ -321,10 +328,10 @@ console.log('--- Test MemoryService updateMemory: VERSION_MISMATCH ritenta con m
           'it',
           'info',
           'standard',
-          JSON.stringify([{ topic: 'concorrente', userReaction: 'acknowledged', timestamp: '2026-05-01T00:00:00.000Z' }]),
+          JSON.stringify(topics),
           '2026-05-01T00:00:00.000Z',
           1,
-          2,
+          currentVersion,
           ''
         ]
       };
@@ -341,9 +348,10 @@ console.log('--- Test MemoryService updateMemory: VERSION_MISMATCH ritenta con m
     }
 
     assert(thrown === null, `OCC retry non deve propagare VERSION_MISMATCH, ottenuto ${thrown && thrown.message}`);
-    assert(reads === 2, `OCC mismatch deve ritentare rileggendo la riga, letture=${reads}`);
-    assert(saved && saved.data.version === 3, 'retry OCC deve scrivere sulla versione fresca');
-    assert(saved.data.providedInfo.length === 2, 'retry OCC deve fondere topic concorrente e nuovo');
+    assert(reads === 3, `OCC mismatch deve mantenere il version check durante i retry, letture=${reads}`);
+    assert(saved && saved.data.version === 4, 'retry OCC deve scrivere sulla versione fresca');
+    assert(saved.data.providedInfo.length === 3, 'retry OCC deve fondere topic concorrenti e nuovo');
+    assert(saved.data.providedInfo.some(item => item.topic === 'secondo concorrente'), 'retry OCC non deve perdere aggiornamenti concorrenti intermedi');
   } finally {
     global.LockService = originalLockService;
   }
@@ -412,6 +420,22 @@ console.log('--- Test MemoryService updateMemory: fonde providedInfo senza perde
   }
 }
 
+console.log('--- Test MemoryService _calculateCompleteness: riconosce richieste in inglese ---');
+{
+  const memory = Object.create(MemoryService.prototype);
+  const partial = memory._calculateCompleteness(
+    'When and where can I submit the documents?',
+    'You can submit the documents at the parish office.'
+  );
+  assert(partial > 0 && partial < 1, `completezza inglese parziale attesa tra 0 e 1, ottenuta ${partial}`);
+
+  const full = memory._calculateCompleteness(
+    'When and where can I submit the documents?',
+    'You can come at 5 pm to the parish office with the documents.'
+  );
+  assert(full === 1, `completezza inglese completa attesa 1, ottenuta ${full}`);
+}
+
 console.log('--- Test MemoryService updateMemoryAtomic: VERSION_MISMATCH ritenta con versione aggiornata ---');
 {
   const originalLockService = global.LockService;
@@ -437,10 +461,18 @@ console.log('--- Test MemoryService updateMemoryAtomic: VERSION_MISMATCH ritenta
     memory._updateRow = (rowIndex, data) => {
       saved = { rowIndex, data };
     };
-    memory._findRowByThreadId = () => ({
-      rowIndex: 2,
-      values: ['thread-atomic-occ', 'it', 'info', 'standard', '[]', '2026-05-01T00:00:00.000Z', 1, 3, '']
-    });
+    let reads = 0;
+    memory._findRowByThreadId = () => {
+      reads += 1;
+      const currentVersion = reads === 1 ? 3 : 4;
+      const topics = currentVersion >= 4
+        ? [{ topic: 'concorrente atomico', userReaction: 'unknown', timestamp: '2026-05-01T00:01:00.000Z' }]
+        : [];
+      return {
+        rowIndex: 2,
+        values: ['thread-atomic-occ', 'it', 'info', 'standard', JSON.stringify(topics), '2026-05-01T00:00:00.000Z', 1, currentVersion, '']
+      };
+    };
 
     let lockAttempts = 0;
     memory._tryAcquireShardedLock = () => {
@@ -451,8 +483,9 @@ console.log('--- Test MemoryService updateMemoryAtomic: VERSION_MISMATCH ritenta
     const ok = memory.updateMemoryAtomic('thread-atomic-occ', { _expectedVersion: 2, language: 'en' }, ['nuovo']);
 
     assert(ok === true, 'updateMemoryAtomic deve recuperare da VERSION_MISMATCH rileggendo la versione fresca');
-    assert(lockAttempts === 2, `VERSION_MISMATCH deve ritentare con una versione aggiornata internamente, tentativi=${lockAttempts}`);
-    assert(saved && saved.data.version === 4, 'retry atomico deve scrivere versione incrementata dalla riga fresca');
+    assert(lockAttempts === 3, `VERSION_MISMATCH deve mantenere il version check durante i retry, tentativi=${lockAttempts}`);
+    assert(saved && saved.data.version === 5, 'retry atomico deve scrivere versione incrementata dalla riga fresca');
+    assert(saved.data.providedInfo.some(item => item.topic === 'concorrente atomico'), 'retry atomico non deve perdere topic concorrenti intermedi');
     assert(Array.isArray(saved.data.providedInfo) && saved.data.providedInfo.some(item => item.topic === 'nuovo'), 'retry atomico deve salvare i topic in ingresso');
   } finally {
     global.LockService = originalLockService;
