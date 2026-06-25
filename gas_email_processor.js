@@ -65,6 +65,7 @@ var EmailProcessor = class EmailProcessor {
         ? new MemoryService()
         : {
           getMemory: () => ({}),
+          getRecentMemoryTopics: () => [],
           getRecentHistory: () => [],
           updateMemoryAtomic: () => { },
           updateReaction: () => { }

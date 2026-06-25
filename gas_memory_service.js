@@ -168,10 +168,11 @@ var MemoryService = class MemoryService {
     const cached = this._getFromCache(cacheKey);
     if (cached) {
       console.log(`🧠 Memory hit (cache) per thread ${normalizedThreadId}`);
-      if (!Object.prototype.hasOwnProperty.call(cached, 'exists')) {
-        cached.exists = true;
+      const cachedCopy = this._cloneMemoryCacheValue_(cached);
+      if (!Object.prototype.hasOwnProperty.call(cachedCopy, 'exists')) {
+        cachedCopy.exists = true;
       }
-      return cached;
+      return cachedCopy;
     }
 
     try {
@@ -224,17 +225,24 @@ var MemoryService = class MemoryService {
       const providedInfo = Array.isArray(memory.providedInfo) ? memory.providedInfo : [];
       return limit > 0 ? providedInfo.slice(-limit) : [];
     } catch (e) {
-      console.warn(`⚠️ getRecentHistory fallito per thread ${threadId}: ${e.message}`);
+      console.warn(`⚠️ getRecentProvidedInfo fallito per thread ${threadId}: ${e.message}`);
       return [];
     }
   }
 
   /**
-   * Alias legacy: non restituisce i messaggi Gmail, ma i topic providedInfo.
+   * Restituisce SOLO i topic recenti di memoria, non la cronologia messaggi Gmail.
+   */
+  getRecentMemoryTopics(threadId, limit = 10) {
+    return this.getRecentProvidedInfo(threadId, limit);
+  }
+
+  /**
+   * Alias legacy deprecato: non restituisce i messaggi Gmail, ma i topic providedInfo.
    * La cronologia conversazionale completa resta in GmailService.getThreadHistory.
    */
   getRecentHistory(threadId, limit = 10) {
-    return this.getRecentProvidedInfo(threadId, limit);
+    return this.getRecentMemoryTopics(threadId, limit);
   }
 
   /**

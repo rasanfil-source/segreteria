@@ -96,6 +96,25 @@ console.log('--- Test MemoryService cache: getMemory restituisce copia difensiva
   assert(second.contextualFlags.remote_user === true, 'mutare contextualFlags restituito non deve corrompere la cache RAM');
 }
 
+console.log('--- Test MemoryService getRecentMemoryTopics: alias esplicito per providedInfo ---');
+{
+  const memory = Object.create(MemoryService.prototype);
+  memory._initialized = true;
+  memory.getMemory = () => ({
+    providedInfo: [
+      { topic: 'uno', userReaction: 'unknown' },
+      { topic: 'due', userReaction: 'acknowledged' },
+      { topic: 'tre', userReaction: 'unknown' }
+    ]
+  });
+
+  const explicitTopics = memory.getRecentMemoryTopics('thread-1', 2);
+  const legacyTopics = memory.getRecentHistory('thread-1', 2);
+  assert(Array.isArray(explicitTopics) && explicitTopics.length === 2, 'getRecentMemoryTopics deve limitare i topic recenti');
+  assert(explicitTopics[0].topic === 'due' && explicitTopics[1].topic === 'tre', 'getRecentMemoryTopics deve restituire gli ultimi topic');
+  assert(JSON.stringify(legacyTopics) === JSON.stringify(explicitTopics), 'getRecentHistory deve restare alias compatibile');
+}
+
 console.log('--- Test MemoryService _validateAndNormalizeTimestamp: accetta futuro entro 24h ---');
 {
   const memory = Object.create(MemoryService.prototype);

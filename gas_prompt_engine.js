@@ -843,13 +843,14 @@ Vincoli:
           hasGoalContinuitySignal ||
           hasResponseFocusHintSignal
         );
-    const effectiveResponseStrategy = (
-      inferredStrategy !== 'none' &&
-      normalizedResponseStrategy === 'none' &&
-      !hasStrongerResponseRoutingSignal
-    )
-      ? inferredStrategy
-      : responseStrategy;
+    const effectiveResponseStrategy =
+      (
+        inferredStrategy !== 'none' &&
+        normalizedResponseStrategy === 'none' &&
+        !hasStrongerResponseRoutingSignal
+      )
+        ? inferredStrategy
+        : responseStrategy;
     addSection(this._renderResponseStrategy(effectiveResponseStrategy), 'ResponseStrategy', { isSystem: true });
     const effectiveResponseRegister = responseRegister;
     addSection(this._renderResponseRegister(effectiveResponseRegister), 'ResponseRegister', { isSystem: true });

@@ -592,7 +592,7 @@ function runAllTests() {
                 && processor._detectTemporalMentions('Disponibile martedì?', 'it') === true
                 && processor._detectTemporalMentions('testolunedìfuso', 'it') === false;
         });
-        test('MemoryService.getRecentHistory restituisce gli ultimi topic salvati', results, () => {
+        test('MemoryService.getRecentMemoryTopics restituisce gli ultimi topic salvati', results, () => {
             const memory = Object.create(MemoryService.prototype);
             memory._initialized = true;
             memory.getMemory = () => ({
@@ -602,7 +602,7 @@ function runAllTests() {
                     { topic: 'tre', userReaction: 'unknown' }
                 ]
             });
-            const history = memory.getRecentHistory('thread-1', 2);
+            const history = memory.getRecentMemoryTopics('thread-1', 2);
             return Array.isArray(history)
                 && history.length === 2
                 && history[0].topic === 'due'
@@ -1158,7 +1158,7 @@ function runAllTests() {
             return processor._hasUnreadMessagesToProcess(thread, new Set()) === true;
         });
 
-        test('Fallback memoryService espone getRecentHistory e non rompe processThread', results, function () {
+        test('Fallback memoryService espone topic recenti e non rompe processThread', results, function () {
             var previousMemoryService = (typeof globalThis !== 'undefined') ? globalThis.MemoryService : undefined;
             try {
                 if (typeof globalThis !== 'undefined') globalThis.MemoryService = undefined;
@@ -1216,7 +1216,10 @@ function runAllTests() {
                 };
 
                 var out = processor.processThread(thread, 'KB', 'Doctrine', new Set(), true);
-                return out && (out.status === 'filtered' || out.status === 'skipped' || out.status === 'dryrun');
+                return typeof processor.memoryService.getRecentMemoryTopics === 'function'
+                    && typeof processor.memoryService.getRecentHistory === 'function'
+                    && out
+                    && (out.status === 'filtered' || out.status === 'skipped' || out.status === 'dryrun');
             } finally {
                 if (typeof globalThis !== 'undefined') globalThis.MemoryService = previousMemoryService;
             }
