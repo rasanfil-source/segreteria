@@ -100,6 +100,7 @@ var PromptContext = class PromptContext {
     _deriveContinuityCase(input) {
         const data = input && typeof input === 'object' ? input : {};
         const memoryText = String(data.memoryText || '').toLowerCase();
+        const hasAffirmedMemorySignal = (pattern) => this._hasAffirmedMemorySignal_(memoryText, pattern);
         const flags = (data.contextualFlags && typeof data.contextualFlags === 'object')
             ? data.contextualFlags
             : {};
@@ -113,9 +114,9 @@ var PromptContext = class PromptContext {
         const bereavementMemoryPattern = /\b(lutto|decesso|malattia|funerale|esequie|defunt[oaie]|vedov[oaie])\b/;
         const canonicalMemoryPattern = /\b(sbattezzo|apostasia|divorzio|divorziat[oaie]|separazione|separat[oaie])\b/;
         const pastoralProcessMemoryPattern = /\b(accompagnamento|percorso\s+pastorale|cammino\s+pastorale|direzione\s+spirituale|colloquio\s+pastorale)\b/;
-        const memoryMentionsBereavement = bereavementMemoryPattern.test(memoryText);
-        const memoryMentionsCanonicalComplexity = canonicalMemoryPattern.test(memoryText);
-        const memoryMentionsPastoralProcess = pastoralProcessMemoryPattern.test(memoryText);
+        const memoryMentionsBereavement = hasAffirmedMemorySignal(bereavementMemoryPattern);
+        const memoryMentionsCanonicalComplexity = hasAffirmedMemorySignal(canonicalMemoryPattern);
+        const memoryMentionsPastoralProcess = hasAffirmedMemorySignal(pastoralProcessMemoryPattern);
 
         const hasBereavementMemory =
             flags.bereaved === true ||
@@ -246,19 +247,49 @@ var PromptContext = class PromptContext {
         }
     }
 
+    _hasAffirmedMemorySignal_(memoryText, pattern) {
+        if (!memoryText || !pattern) return false;
+        const flags = pattern.flags && pattern.flags.indexOf('g') === -1 ? pattern.flags : String(pattern.flags || '').replace(/g/g, '');
+        const regex = new RegExp(pattern.source, flags);
+        const negationWindow = /(?:\bnon\b|\bnessun[oa]?\b|\bsenza\b|\bnon\s+riguarda\b|\bnon\s+si\s+tratta\s+di\b)[^.;:\n]{0,60}$/i;
+        const segments = String(memoryText).split(/[.;:\n]+/);
+        return segments.some((segment) => {
+            const match = regex.exec(segment);
+            if (!match) return false;
+            const before = segment.slice(0, match.index);
+            return !negationWindow.test(before);
+        });
+    }
+
+    _stringifyMemoryContinuityValue_(value, depth = 0) {
+        if (value == null || depth > 2) return '';
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+        if (Array.isArray(value)) return value.slice(0, 20).map((item) => this._stringifyMemoryContinuityValue_(item, depth + 1)).filter(Boolean).join(' ');
+        if (typeof value === 'object') {
+            return ['topic', 'summary', 'value', 'label', 'category', 'notes', 'providedInfo', 'details']
+                .map((key) => this._stringifyMemoryContinuityValue_(value[key], depth + 1))
+                .filter(Boolean)
+                .join(' ');
+        }
+        return '';
+    }
+
+    _buildMemoryContinuityText_(memory) {
+        const safeMemory = memory && typeof memory === 'object' ? memory : {};
+        return [
+            safeMemory.category,
+            safeMemory.memorySummary,
+            this._stringifyMemoryContinuityValue_(safeMemory.topics),
+            this._stringifyMemoryContinuityValue_(safeMemory.providedInfo)
+        ].filter(Boolean).join(' ').toLowerCase();
+    }
+
     _computeConcerns() {
         const i = this.input;
         const configuredThreshold = (typeof CONFIG !== 'undefined' && Number.isFinite(CONFIG.KB_HALLUCINATION_RISK_THRESHOLD))
             ? CONFIG.KB_HALLUCINATION_RISK_THRESHOLD
             : 8000;
-        const memoryTopics = Array.isArray(i.memory?.topics)
-            ? i.memory.topics.join(' ')
-            : '';
-        const memoryText = [
-            i.memory?.category,
-            i.memory?.memorySummary,
-            memoryTopics
-        ].filter(Boolean).join(' ').toLowerCase();
+        const memoryText = this._buildMemoryContinuityText_(i.memory);
         const resolvedSubIntents = i._resolvedSubIntents || {};
         const contextualFlags = (i.memory?.contextualFlags && typeof i.memory.contextualFlags === 'object')
             ? i.memory.contextualFlags

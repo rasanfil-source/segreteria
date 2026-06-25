@@ -327,6 +327,46 @@ assert(
   'longitudinal_memory_neutral_followup_sets_tone_only_continuity'
 );
 
+const negatedSensitiveMemory = createPromptContext({
+  email: {
+    isReply: true,
+    detectedLanguage: 'it',
+    subject: 'Orario incontro',
+    body: 'A che ora ci vediamo?'
+  },
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  classification: { confidence: 1, category: 'information' },
+  memory: {
+    exists: true,
+    memorySummary: 'Nota precedente: non riguarda un lutto; richiesta solo amministrativa.',
+    topics: ['certificati']
+  }
+});
+assert(
+  negatedSensitiveMemory.concerns.longitudinal_sensitivity === false,
+  'una memoria che nega esplicitamente il lutto non deve attivare longitudinal_sensitivity'
+);
+
+const providedInfoSensitiveMemory = createPromptContext({
+  email: {
+    isReply: true,
+    detectedLanguage: 'it',
+    subject: 'Orario incontro',
+    body: 'A che ora ci vediamo?'
+  },
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  classification: { confidence: 1, category: 'information' },
+  memory: {
+    exists: true,
+    providedInfo: [{ topic: 'esequie del familiare', userReaction: 'unknown' }]
+  }
+});
+assert(
+  providedInfoSensitiveMemory.concerns.longitudinal_sensitivity === true,
+  'PromptContext deve leggere anche providedInfo strutturato per la continuity sensibile'
+);
+
+
 const contextualBereavedMemory = createPromptContext({
   email: {
     isReply: true,

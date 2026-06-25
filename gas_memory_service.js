@@ -84,10 +84,6 @@ var MemoryService = class MemoryService {
     }
   }
 
-  /**
-   * Verifica e normalizza le intestazioni del foglio.
-   * Garantisce che tutte le colonne necessarie siano presenti e rinominate correttamente.
-   */
   _normalizeHeaders() {
     try {
       const expectedHeaders = [
@@ -109,7 +105,6 @@ var MemoryService = class MemoryService {
       const headerMap = {
         'ultima risposta': 'lastUpdated',
         'ultimo aggiornamento': 'lastUpdated',
-        'stato': 'tone', // O un'altra colonna se appropriato
         'messaggi': 'messageCount',
         'versione': 'version',
         'lingua': 'language',
@@ -133,11 +128,6 @@ var MemoryService = class MemoryService {
               newHeaders[i] = expected;
               modified = true;
             }
-          } else if (i >= 7 && current !== expected) {
-            // Per le colonne strutturali finali, forziamo la coerenza.
-            console.log(`🔄 Correzione header colonna ${i + 1}: '${current}' -> '${expected}'`);
-            newHeaders[i] = expected;
-            modified = true;
           }
         }
       }
@@ -238,11 +228,13 @@ var MemoryService = class MemoryService {
   }
 
   /**
-   * Alias legacy deprecato: non restituisce i messaggi Gmail, ma i topic providedInfo.
-   * La cronologia conversazionale completa resta in GmailService.getThreadHistory.
+   * @deprecated MemoryService non possiede la cronologia Gmail reale.
+   * Usa getRecentMemoryTopics/getRecentProvidedInfo per i topic di memoria, oppure
+   * GmailService.getThreadHistory per i messaggi conversazionali precedenti.
    */
   getRecentHistory(threadId, limit = 10) {
-    return this.getRecentMemoryTopics(threadId, limit);
+    console.warn('⚠️ MemoryService.getRecentHistory è deprecato: usa getRecentMemoryTopics() per la memoria o GmailService.getThreadHistory() per Gmail.');
+    return [];
   }
 
   /**

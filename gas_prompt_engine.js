@@ -148,8 +148,20 @@ var PromptEngine = class PromptEngine {
     if (typeof value === 'string') return value;
 
     try {
-      const serialized = JSON.stringify(value);
-      return typeof serialized === 'string' ? serialized : String(value);
+      const seen = [];
+      const serialized = JSON.stringify(value, (key, nestedValue) => {
+        if (nestedValue && typeof nestedValue === 'object') {
+          if (seen.indexOf(nestedValue) !== -1) return '[Circular]';
+          if (seen.length > 200) return '[Omitted: object too large]';
+          seen.push(nestedValue);
+        }
+        if (typeof nestedValue === 'string' && nestedValue.length > 12000) {
+          return this._sliceTextSafely_(nestedValue, 12000) + '... [troncato]';
+        }
+        return nestedValue;
+      });
+      const normalized = typeof serialized === 'string' ? serialized : String(value);
+      return normalized.length > 60000 ? this._sliceTextSafely_(normalized, 60000) + '... [troncato]' : normalized;
     } catch (e) {
       return "[Dati complessi o non serializzabili omessi per sicurezza]";
     }
@@ -177,7 +189,14 @@ var PromptEngine = class PromptEngine {
       'knowledge_base',
       'email',
       'analysis',
-      'analisi'
+      'analisi',
+      'system',
+      'instruction',
+      'instructions',
+      'developer',
+      'assistant',
+      'tool',
+      'function'
     ];
   }
 

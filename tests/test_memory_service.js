@@ -109,10 +109,10 @@ console.log('--- Test MemoryService getRecentMemoryTopics: alias esplicito per p
   });
 
   const explicitTopics = memory.getRecentMemoryTopics('thread-1', 2);
-  const legacyTopics = memory.getRecentHistory('thread-1', 2);
+  const legacyHistory = memory.getRecentHistory('thread-1', 2);
   assert(Array.isArray(explicitTopics) && explicitTopics.length === 2, 'getRecentMemoryTopics deve limitare i topic recenti');
   assert(explicitTopics[0].topic === 'due' && explicitTopics[1].topic === 'tre', 'getRecentMemoryTopics deve restituire gli ultimi topic');
-  assert(JSON.stringify(legacyTopics) === JSON.stringify(explicitTopics), 'getRecentHistory deve restare alias compatibile');
+  assert(Array.isArray(legacyHistory) && legacyHistory.length === 0, 'getRecentHistory non deve fingersi cronologia Gmail: restituisce vuoto e resta deprecato');
 }
 
 console.log('--- Test MemoryService _validateAndNormalizeTimestamp: accetta futuro entro 24h ---');
