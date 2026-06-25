@@ -934,7 +934,7 @@ Vincoli:
     // 12. SUGGERIMENTO CATEGORIA
     addSection(this._renderCategoryHint(category), 'CategoryHint', { isSystem: true });
     addSection(this._renderSponsorGuidancePolicy(sponsorGuidancePolicy), 'SponsorGuidancePolicy', { isSystem: true });
-    addSection(this._renderPhysicalPresenceConstraintGuideline(physicalPresenceConstraint), 'PhysicalPresenceConstraint', { force: true, isSystem: true });
+    addSection(this._renderPhysicalPresenceConstraintGuideline(physicalPresenceConstraint, territoryContext), 'PhysicalPresenceConstraint', { force: true, isSystem: true });
 
     // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)
     // Normalizzazione: alcuni flussi passano requestType come stringa
@@ -1082,13 +1082,24 @@ Vincoli:
     addSection(this._renderFinalInstruction(), 'FinalInstruction', { force: true, isSystem: true });
 
     // Componi prompt finale separando le istruzioni di sistema dai dati utente
-    const systemInstructionStr = systemSections.join('\n\n');
+    let systemInstructionStr = systemSections.join('\n\n');
     let userPromptStr = userSections.join('\n\n');
 
     const totalLength = systemInstructionStr.length + userPromptStr.length;
     if (totalLength > MAX_SAFE_PROMPT_CHARS) {
       console.warn(`⚠️ Prompt oltre soglia caratteri (${totalLength}), tronco lo user prompt.`);
-      const allowedUserLength = Math.max(0, MAX_SAFE_PROMPT_CHARS - systemInstructionStr.length);
+      const minimumUserPromptChars = this._resolveMinimumUserPromptChars_(
+        MAX_SAFE_PROMPT_CHARS,
+        userPromptStr.length,
+        promptEngineSettings
+      );
+      let allowedUserLength = Math.max(0, MAX_SAFE_PROMPT_CHARS - systemInstructionStr.length);
+      if (allowedUserLength < minimumUserPromptChars && systemInstructionStr.length > 0) {
+        const allowedSystemLength = Math.max(0, MAX_SAFE_PROMPT_CHARS - minimumUserPromptChars);
+        systemInstructionStr = this._truncateSystemInstructionSafely_(systemInstructionStr, allowedSystemLength);
+        allowedUserLength = Math.max(0, MAX_SAFE_PROMPT_CHARS - systemInstructionStr.length);
+        console.warn(`⚠️ PromptEngine: sistema ridotto a ${systemInstructionStr.length} chars per preservare l'email utente (${allowedUserLength} chars disponibili).`);
+      }
       userPromptStr = this._truncateUserPromptSafely_(userPromptStr, allowedUserLength);
     }
 
@@ -1160,6 +1171,49 @@ Vincoli:
     }
 
     return firstCut;
+  }
+
+  _resolveMinimumUserPromptChars_(maxSafePromptChars, userPromptLength, settings = {}) {
+    const maxChars = Math.max(0, Math.floor(Number(maxSafePromptChars) || 0));
+    const sourceLength = Math.max(0, Math.floor(Number(userPromptLength) || 0));
+    if (maxChars <= 0 || sourceLength <= 0) return 0;
+
+    const configured = Number(settings && settings.MIN_USER_PROMPT_CHARS);
+    const hardCap = Math.max(1, Math.floor(maxChars * 0.35));
+    const defaultMin = Math.min(4000, hardCap);
+    const requested = Number.isFinite(configured) && configured > 0
+      ? configured
+      : defaultMin;
+    return Math.min(sourceLength, hardCap, Math.max(1, Math.floor(requested)));
+  }
+
+  _truncateSystemInstructionSafely_(systemInstructionStr, allowedSystemLength) {
+    const source = this._normalizePromptTextInput(systemInstructionStr, '');
+    const limit = Math.floor(Number(allowedSystemLength));
+    if (!source || !Number.isFinite(limit) || limit <= 0) return '';
+    if (source.length <= limit) return source;
+
+    const marker = '\n\n[...ISTRUZIONI DI SISTEMA TRONCATE PER PRESERVARE L EMAIL UTENTE...]\n\n';
+    if (limit <= marker.length + 20) {
+      return this._slicePromptWithEllipsis_(source, limit);
+    }
+
+    const contentBudget = limit - marker.length;
+    const headBudget = Math.max(1, Math.floor(contentBudget * 0.7));
+    const tailBudget = Math.max(1, contentBudget - headBudget);
+    let head = source.slice(0, headBudget);
+    let tail = source.slice(-tailBudget);
+
+    const headBoundary = Math.max(head.lastIndexOf('\n## '), head.lastIndexOf('\n**'));
+    if (headBoundary > Math.floor(head.length * 0.5)) {
+      head = head.slice(0, headBoundary).trimEnd();
+    }
+    const tailBoundary = tail.indexOf('\n## ');
+    if (tailBoundary > 0 && tailBoundary < Math.floor(tail.length * 0.5)) {
+      tail = tail.slice(tailBoundary).trimStart();
+    }
+
+    return `${head}${marker}${tail}`.slice(0, limit);
   }
 
   _slicePromptTailWithEllipsis_(text, maxLength) {
@@ -1480,6 +1534,9 @@ Testo finale dell'email.
     // Regole territorio (se rilevante)
     if (territoryContext && /(NON RIENTRA|RIENTRA|CIVICO NECESSARIO)/i.test(String(territoryContext))) {
       rules.push('- **Risposta sul territorio:** Comunica in modo esplicito l\'esito della verifica territoriale basandoti sui dati forniti in input: NO se l\'esito è "NON RIENTRA", SÌ se è "RIENTRA", richiesta del civico se è "CIVICO NECESSARIO".');
+      if (this._isNegativeTerritoryContext_(territoryContext) && activeConcerns && activeConcerns.physical_presence_constraint) {
+        rules.push('- **Precedenza territorio/remoto:** Se l\'esito è "NON RIENTRA", il vincolo di presenza fisica non autorizza scorciatoie digitali per pratiche territoriali o sacramentali: prima comunica il NO territoriale e orienta verso la parrocchia competente.');
+      }
     }
 
     // Regole saluto (continuità)
@@ -2073,6 +2130,10 @@ Non richiedere nuovamente queste informazioni.`;
       add(consumedSignals, 'territory_verification_system_section');
       add(validatorExpectations, 'territory_consistency');
     }
+    if (physical && physical.has_constraint && this._isNegativeTerritoryContext_(state.territoryContext)) {
+      add(consumedSignals, 'territory_non_membership_overrides_remote_handling');
+      add(validatorExpectations, 'territory_overrides_physical_presence');
+    }
     const temporal = state.temporalContext || {};
     if (temporal.currentDate || temporal.messageDate) {
       add(activeSignals, 'temporal_context');
@@ -2524,6 +2585,10 @@ SE LO SCRIVI, IL TUO COMPITO È FALLITO.
 Devi dare la risposta SÌ/NO adesso, basandoti ESCLUSIVAMENTE sui dati qui sopra.`;
   }
 
+  _isNegativeTerritoryContext_(territoryContext) {
+    return /\bNON\s+RIENTRA\b/i.test(String(territoryContext || ''));
+  }
+
   // ========================================================================
   // TEMPLATE 9b: CONTATTO PREGRESSO CROSS-CHANNEL
   // ========================================================================
@@ -2685,15 +2750,15 @@ Se l'utente chiede quando inizia o finisce il periodo estivo, rispondi con il pe
       papalRuntimeContext = legacyPapalContext || null;
     }
 
-    if (!currentDate) return '';
-
-    let dateObj;
-    if (typeof currentDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(currentDate)) {
-      const [year, month, day] = currentDate.split('-').map(Number);
-      dateObj = new Date(year, month - 1, day);
-    } else {
-      dateObj = new Date(currentDate);
+    const normalizedCurrentDate = this._normalizeTemporalCurrentDateForPrompt_(currentDate);
+    if (!normalizedCurrentDate) {
+      if (currentDate) {
+        console.warn(`⚠️ currentDate non valida per TemporalAwareness: ${currentDate}`);
+      }
+      return '';
     }
+    currentDate = normalizedCurrentDate.label;
+    const dateObj = normalizedCurrentDate.dateObj;
     const humanDate = (() => {
       try {
         const tz = temporalContext.timeZone || 'Europe/Rome';
@@ -2735,6 +2800,41 @@ ${messageDateLines}${currentTime ? `- **Ora locale attuale di sistema (NON MENZI
 7. **Date senza anno esplicito**: quando l'utente cita una data come "il 15 agosto", "a Natale" o "la domenica delle Palme" senza specificare l'anno, confronta sempre quella data con la DATA ODIERNA (${currentDate}) e con gli indizi linguistici. Se la data è già trascorsa nell'anno corrente e il testo usa un futuro chiaro (es. "saranno", "ci saranno", "si terrà"), interpreta con prudenza la richiesta come riferita alla prossima ricorrenza/anno seguente; se gli indizi sono deboli o contraddittori, chiedi conferma dell'anno. Non presentare mai come futura una data già trascorsa nell'anno corrente senza esplicitare l'interpretazione adottata.
 8. **Correzione giorno/data morbida**: se l'utente associa una data a un giorno della settimana errato (es. "domenica 10 agosto" quando il 10 agosto è lunedì), correggi con tono neutro e naturale: "Il 10 agosto sarà lunedì. Se invece intendeva la domenica più vicina...". Evita formule didascaliche o ammonitive come "Desideriamo segnalarLe che", "Occorre precisare" o "Le facciamo presente".
 9. NON menzionare mai l'ora locale attuale di sistema né l'ora di ricezione del messaggio nel testo della risposta.`;
+  }
+
+  _normalizeTemporalCurrentDateForPrompt_(value) {
+    if (!value) return null;
+
+    if (value instanceof Date) {
+      if (isNaN(value.getTime())) return null;
+      return {
+        label: value.toISOString().slice(0, 10),
+        dateObj: value
+      };
+    }
+
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const [year, month, day] = value.split('-').map(Number);
+      const dateObj = new Date(year, month - 1, day);
+      if (
+        dateObj.getFullYear() !== year ||
+        dateObj.getMonth() !== month - 1 ||
+        dateObj.getDate() !== day
+      ) {
+        return null;
+      }
+      return {
+        label: value,
+        dateObj
+      };
+    }
+
+    const dateObj = new Date(value);
+    if (isNaN(dateObj.getTime())) return null;
+    return {
+      label: dateObj.toISOString().slice(0, 10),
+      dateObj
+    };
   }
 
   _getPapalContext_(sourceText = '', runtimePapalContext = null) {
@@ -3051,7 +3151,7 @@ ISTRUZIONI:
     return allowed[canonical] ? canonical : 'direct';
   }
 
-  _renderPhysicalPresenceConstraintGuideline(constraint) {
+  _renderPhysicalPresenceConstraintGuideline(constraint, territoryContext = null) {
     if (!constraint || !constraint.has_constraint) return null;
 
     const type = String(constraint.type || 'other');
@@ -3066,6 +3166,10 @@ ISTRUZIONI:
     const digitalRule = policy === 'avoid_invitation'
       ? `- GESTIONE DIGITALE (OBBLIGATORIA): Se l'utente chiede l'invio di un documento via email (es. certificato PDF) o ha espresso rifiuto esplicito di venire di persona, conferma la gestione digitale (es. "verificheremo e glielo invieremo via email") e OMETTI COMPLETAMENTE: orari di apertura al pubblico, riferimenti al ritiro in sede, qualsiasi invito fisico anche in forma condizionale. La risposta non deve contenere nemmeno "qualora potesse passare".`
       : `- GESTIONE DIGITALE: Se l'utente chiede l'invio di un documento via email (es. certificato PDF), conferma la gestione digitale e ometti gli orari di apertura fisica. Menziona la presenza in sede solo se strettamente necessario e in forma condizionale.`;
+
+    const territoryOverrideRule = this._isNegativeTerritoryContext_(territoryContext)
+      ? `- PRECEDENZA TERRITORIALE: la verifica territoriale dice "NON RIENTRA" e prevale su questa policy di gestione a distanza. Non trasformare il vincolo di presenza fisica in promessa di gestire via email/PDF pratiche territoriali o sacramentali che richiedono appartenenza territoriale; comunica prima l'esito territoriale e orienta verso la parrocchia competente, mantenendo solo accoglienza e informazioni generali consentite.`
+      : '';
 
     const formule = policy === 'avoid_invitation'
       ? `✅ Formula corretta: "Verificheremo i nostri registri e, non appena il documento sarà disponibile, glielo invieremo via email in formato PDF."
@@ -3108,6 +3212,7 @@ REGOLE VINCOLANTI:
 - Se la policy e' "avoid_invitation", evitare del tutto inviti a presenza fisica salvo obbligo sacramentale/procedurale esplicito e inevitabile.
 - Non nominare in modo crudo o stigmatizzante il vincolo personale del mittente: usare formule come "considerata la sua situazione" solo se serve.
 ${scheduledPresenceRule}
+${territoryOverrideRule}
 ${sponsorEligibilityRule}
 ${digitalRule}
 

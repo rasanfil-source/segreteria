@@ -3417,6 +3417,7 @@ ${addressLines.join('\n\n')}
       const memoryUpdate = {
         language: detectedLanguage,
         category: categoryHintSource || classification.category || requestTypeName,
+        _baseMemorySummary: memoryContext.memorySummary || '',
         _incrementMessageCount: true
       };
       const contextualFlagsUpdate = this._deriveContextualFlagsUpdate_({

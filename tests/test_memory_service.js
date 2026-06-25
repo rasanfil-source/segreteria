@@ -69,6 +69,33 @@ console.log('--- Test MemoryService _setCache: chunk sotto limite CacheService -
   }
 }
 
+console.log('--- Test MemoryService cache: getMemory restituisce copia difensiva ---');
+{
+  const memory = Object.create(MemoryService.prototype);
+  memory._initialized = true;
+  memory._cacheExpiry = 5 * 60 * 1000;
+  memory._cache = {
+    memory_thread_cache: {
+      timestamp: Date.now(),
+      data: {
+        threadId: 'thread_cache',
+        providedInfo: [{ topic: 'originale', userReaction: 'unknown' }],
+        contextualFlags: { remote_user: true }
+      }
+    }
+  };
+
+  const first = memory.getMemory('thread_cache');
+  first.providedInfo.push({ topic: 'mutazione chiamante', userReaction: 'unknown' });
+  first.contextualFlags.remote_user = false;
+  first.exists = false;
+
+  const second = memory.getMemory('thread_cache');
+  assert(second.exists === true, 'getMemory deve aggiungere exists alla copia restituita');
+  assert(second.providedInfo.length === 1, 'mutare providedInfo restituito non deve corrompere la cache RAM');
+  assert(second.contextualFlags.remote_user === true, 'mutare contextualFlags restituito non deve corrompere la cache RAM');
+}
+
 console.log('--- Test MemoryService _validateAndNormalizeTimestamp: accetta futuro entro 24h ---');
 {
   const memory = Object.create(MemoryService.prototype);
@@ -116,6 +143,23 @@ console.log('--- Test MemoryService conversationState: preserva legacySummaryTex
   assert(parsed.conversationState.responseFocusHint === 'answer_only_residual_question', 'responseFocusHint enum valido deve essere salvato');
   assert(parsed.conversationState.responseFocusHintUpdatedAt === now, 'hint valido deve salvare un timestamp dedicato');
   assert(Object.keys(parsed.conversationState).length === 8, 'conversationState deve restare nello schema minimo previsto');
+
+  const staleMerge = JSON.parse(memory._serializeMemorySummaryState(
+    '• [2026-06-15] Aggiornamento concorrente.',
+    '• [2026-06-14] Base precedente.\n• [2026-06-15] Nuova risposta locale.',
+    {
+      currentRelationalPosture: 'direct',
+      updatedAt: now,
+      source: 'quick_check'
+    },
+    '• [2026-06-14] Base precedente.'
+  ));
+  assert(
+    staleMerge.legacySummaryText.includes('Aggiornamento concorrente') &&
+      staleMerge.legacySummaryText.includes('Nuova risposta locale') &&
+      !staleMerge.legacySummaryText.includes('Base precedente'),
+    'memorySummary stale deve fondere il delta locale senza sovrascrivere l aggiornamento concorrente'
+  );
 
   const preserved = memory._serializeMemorySummaryState(
     '{"unknownShape":true}',

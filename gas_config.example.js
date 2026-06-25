@@ -224,6 +224,12 @@ var CONFIG = {
   MEMORY_SHEET_NAME: 'ConversationMemory',
   MAX_PROVIDED_TOPICS: 50,             // Limite massimo topic in memoria
   MEMORY_LOCK_TTL: 30,                 // Lock TTL in secondi per MemoryService (>= timeout lock Sheet)
+  MEMORY_LOCK_MAX_RETRIES: 3,          // Retry brevi: la memoria è best-effort e non deve consumare tutto il trigger GAS
+  MEMORY_SHARDED_LOCK_ACQUIRE_TIMEOUT_MS: 800, // Budget acquisizione lock sharded per tentativo
+  MEMORY_LOCK_GLOBAL_GUARD_TIMEOUT_MS: 150,    // Timeout guard lock CacheService
+  MEMORY_LOCK_BACKOFF_BASE_MS: 200,     // Backoff iniziale retry lock memoria
+  MEMORY_LOCK_BACKOFF_CAP_MS: 1500,     // Cap backoff per evitare timeout serverless
+  MEMORY_LOCK_BACKOFF_JITTER_MS: 120,   // Jitter anti-contesa
   MEMORY_LOCK_CACHE_VERIFY_DELAY_MS: 0, // 0 evita sleep nel guard lock; usare >0 solo se CacheService mostra propagazione lenta
   SHEET_WRITE_LOCK_TIMEOUT_MS: 10000,  // Timeout attesa ScriptLock prima di scrivere su Sheet
 
@@ -481,6 +487,18 @@ function validateConfig() {
 
   // Cache & Lock
   checkType('CACHE_LOCK_TTL', CONFIG.CACHE_LOCK_TTL, 'number');
+  checkType('MEMORY_LOCK_MAX_RETRIES', CONFIG.MEMORY_LOCK_MAX_RETRIES, 'number');
+  checkRange('MEMORY_LOCK_MAX_RETRIES', CONFIG.MEMORY_LOCK_MAX_RETRIES, 1, 10);
+  checkType('MEMORY_SHARDED_LOCK_ACQUIRE_TIMEOUT_MS', CONFIG.MEMORY_SHARDED_LOCK_ACQUIRE_TIMEOUT_MS, 'number');
+  checkRange('MEMORY_SHARDED_LOCK_ACQUIRE_TIMEOUT_MS', CONFIG.MEMORY_SHARDED_LOCK_ACQUIRE_TIMEOUT_MS, 100, 30000);
+  checkType('MEMORY_LOCK_GLOBAL_GUARD_TIMEOUT_MS', CONFIG.MEMORY_LOCK_GLOBAL_GUARD_TIMEOUT_MS, 'number');
+  checkRange('MEMORY_LOCK_GLOBAL_GUARD_TIMEOUT_MS', CONFIG.MEMORY_LOCK_GLOBAL_GUARD_TIMEOUT_MS, 1, 5000);
+  checkType('MEMORY_LOCK_BACKOFF_BASE_MS', CONFIG.MEMORY_LOCK_BACKOFF_BASE_MS, 'number');
+  checkRange('MEMORY_LOCK_BACKOFF_BASE_MS', CONFIG.MEMORY_LOCK_BACKOFF_BASE_MS, 1, 10000);
+  checkType('MEMORY_LOCK_BACKOFF_CAP_MS', CONFIG.MEMORY_LOCK_BACKOFF_CAP_MS, 'number');
+  checkRange('MEMORY_LOCK_BACKOFF_CAP_MS', CONFIG.MEMORY_LOCK_BACKOFF_CAP_MS, 1, 30000);
+  checkType('MEMORY_LOCK_BACKOFF_JITTER_MS', CONFIG.MEMORY_LOCK_BACKOFF_JITTER_MS, 'number');
+  checkRange('MEMORY_LOCK_BACKOFF_JITTER_MS', CONFIG.MEMORY_LOCK_BACKOFF_JITTER_MS, 0, 10000);
   checkType('OCR_ORPHAN_MAX_AGE_HOURS', CONFIG.OCR_ORPHAN_MAX_AGE_HOURS, 'number');
   checkRange('OCR_ORPHAN_MAX_AGE_HOURS', CONFIG.OCR_ORPHAN_MAX_AGE_HOURS, 1, 24);
   checkType('OCR_CLEANUP_MAX_RUNTIME_MS', CONFIG.OCR_CLEANUP_MAX_RUNTIME_MS, 'number');

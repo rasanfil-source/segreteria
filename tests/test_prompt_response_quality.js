@@ -558,6 +558,20 @@ console.log('--- Test prompt: messageDate fallback non risolve relativi utente c
     temporalFallbackPrompt.includes('evita di calcolare date precise'),
     'la regola temporale deve rendere prudente l uso dei relativi quando messageDate e fallback'
   );
+
+  const invalidTemporalPrompt = engine._renderTemporalAwareness(
+    {
+      currentDate: '2026-99-99',
+      messageDate: '2026-06-08',
+      currentTime: '10:00',
+      timeZone: 'Europe/Rome'
+    },
+    'it',
+    'full',
+    '',
+    null
+  );
+  assert(invalidTemporalPrompt === '', 'currentDate invalida non deve produrre una sezione temporale fuorviante');
 }
 
 console.log('--- Test prompt: requestType non plain preserva type derivato ---');
@@ -1128,6 +1142,30 @@ assert(
     remoteModePrompt.includes('Preferisci email, telefono o indicazione procedurale remota.') &&
     remoteModePrompt.includes('responseMode:remote_operational->operationalConstraints'),
   'remote_user_prompt_contains_no_physical_presence_constraint'
+);
+
+console.log('--- Test prompt: territorio NON RIENTRA prevale su gestione digitale remota ---');
+const remoteOutOfTerritoryPrompt = engine.buildPrompt({
+  emailSubject: 'Certificato',
+  emailContent: 'Non posso venire di persona, potete inviarmi tutto via email?',
+  knowledgeBase: 'Le pratiche territoriali richiedono verifica della parrocchia competente.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  category: 'document_request',
+  requestType: { type: 'technical' },
+  activeConcerns: { physical_presence_constraint: true },
+  territoryContext: 'ESITO VERIFICA: NON RIENTRA nel territorio della parrocchia di Sant Eugenio.\nIndirizzo verificato: via Barnaba Oriani.',
+  physicalPresenceConstraint: {
+    has_constraint: true,
+    type: 'geographic_distance',
+    visit_policy: 'avoid_invitation'
+  }
+});
+assert(
+  remoteOutOfTerritoryPrompt.includes('PRECEDENZA TERRITORIALE') &&
+    remoteOutOfTerritoryPrompt.includes('territory_non_membership_overrides_remote_handling') &&
+    remoteOutOfTerritoryPrompt.includes('territory_overrides_physical_presence'),
+  'territorio negativo deve esplicitamente prevalere sulla policy di gestione remota'
 );
 
 console.log('--- Test prompt finale: bereavement_prompt_contains_brevity_and_tact ---');
@@ -1856,6 +1894,43 @@ console.log('--- Test prompt: troncamento fisico preserva recinto user_email ---
   } finally {
     global.CONFIG.MAX_SAFE_TOKENS = originalMaxSafeTokens;
     global.CONFIG.MAX_SAFE_PROMPT_CHARS = originalMaxSafePromptChars;
+  }
+}
+
+console.log('--- Test prompt: sistema enorme non azzera email utente ---');
+{
+  const originalMaxSafeTokens = global.CONFIG.MAX_SAFE_TOKENS;
+  const originalMaxSafePromptChars = global.CONFIG.MAX_SAFE_PROMPT_CHARS;
+  const originalPromptEngineConfig = global.CONFIG.PROMPT_ENGINE;
+
+  try {
+    global.CONFIG.MAX_SAFE_TOKENS = 100000;
+    global.CONFIG.MAX_SAFE_PROMPT_CHARS = 6000;
+    global.CONFIG.PROMPT_ENGINE = Object.assign({}, originalPromptEngineConfig, {
+      OVERHEAD_TOKENS: 1000,
+      MIN_USER_PROMPT_CHARS: 1200
+    });
+
+    const saturatedPrompt = engine.buildPrompt({
+      emailSubject: 'Richiesta concreta',
+      emailContent: 'EMAIL_NOT_AMNESIA_SENTINEL: ho bisogno di sapere quali documenti inviare.',
+      knowledgeBase: 'KB molto lunga con regole e dettagli. '.repeat(900),
+      conversationHistory: 'Cronologia estesa. '.repeat(600),
+      detectedLanguage: 'it',
+      promptProfile: 'heavy'
+    });
+
+    assert(saturatedPrompt.length <= global.CONFIG.MAX_SAFE_PROMPT_CHARS, 'prompt con sistema troncato deve rispettare il limite fisico');
+    assert(
+      saturatedPrompt.prompt.includes('EMAIL_NOT_AMNESIA_SENTINEL') &&
+        saturatedPrompt.prompt.includes('<user_email>') &&
+        saturatedPrompt.prompt.includes('</user_email>'),
+      'anche con sistema saturo il prompt deve conservare la domanda utente'
+    );
+  } finally {
+    global.CONFIG.MAX_SAFE_TOKENS = originalMaxSafeTokens;
+    global.CONFIG.MAX_SAFE_PROMPT_CHARS = originalMaxSafePromptChars;
+    global.CONFIG.PROMPT_ENGINE = originalPromptEngineConfig;
   }
 }
 

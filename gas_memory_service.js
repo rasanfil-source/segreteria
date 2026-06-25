@@ -249,6 +249,7 @@ var MemoryService = class MemoryService {
     if (!normalizedThreadId) return;
 
     const conversationStateUpdate = newData.conversationStateUpdate || null;
+    const baseMemorySummary = newData._baseMemorySummary;
 
     // Filtra campi interni
     const dataToUpdate = {};
@@ -308,10 +309,11 @@ var MemoryService = class MemoryService {
           const hasIncomingMemorySummary = Object.prototype.hasOwnProperty.call(dataToUpdate, 'memorySummary');
           const mergedMemorySummary = (conversationStateUpdate || hasIncomingMemorySummary)
             ? this._serializeMemorySummaryState(
-                existingData._rawMemorySummary || existingData.memorySummary || '',
-                hasIncomingMemorySummary ? dataToUpdate.memorySummary : null,
-                conversationStateUpdate
-              )
+              existingData._rawMemorySummary || existingData.memorySummary || '',
+              hasIncomingMemorySummary ? dataToUpdate.memorySummary : null,
+              conversationStateUpdate,
+              baseMemorySummary
+            )
             : null;
 
           // Merge: esistente + nuovi dati
@@ -359,7 +361,8 @@ var MemoryService = class MemoryService {
             dataToUpdate.memorySummary = this._serializeMemorySummaryState(
               '',
               Object.prototype.hasOwnProperty.call(dataToUpdate, 'memorySummary') ? dataToUpdate.memorySummary : null,
-              conversationStateUpdate
+              conversationStateUpdate,
+              null
             );
           }
 
@@ -482,6 +485,7 @@ var MemoryService = class MemoryService {
     if (!normalizedThreadId) return false;
     const rawData = (newData && typeof newData === 'object') ? newData : {};
     const conversationStateUpdate = rawData.conversationStateUpdate || null;
+    const baseMemorySummary = rawData._baseMemorySummary;
 
     // Filtra campi interni (_*) per evitare persistenza accidentale su Sheets
     const dataToUpdate = {};
@@ -566,7 +570,8 @@ var MemoryService = class MemoryService {
             ? this._serializeMemorySummaryState(
                 existingData._rawMemorySummary || existingData.memorySummary || '',
                 hasIncomingMemorySummary ? dataToUpdate.memorySummary : null,
-                conversationStateUpdate
+                conversationStateUpdate,
+                baseMemorySummary
               )
             : null;
           const mergedData = Object.assign({}, existingData, dataToUpdate);
@@ -628,7 +633,8 @@ var MemoryService = class MemoryService {
             dataToUpdate.memorySummary = this._serializeMemorySummaryState(
               '',
               Object.prototype.hasOwnProperty.call(dataToUpdate, 'memorySummary') ? dataToUpdate.memorySummary : null,
-              conversationStateUpdate
+              conversationStateUpdate,
+              null
             );
           }
           const insertData = Object.assign({}, dataToUpdate);
@@ -848,15 +854,17 @@ var MemoryService = class MemoryService {
     }
   }
 
-  _serializeMemorySummaryState(existingSummary, incomingLegacySummary, conversationStateUpdate) {
+  _serializeMemorySummaryState(existingSummary, incomingLegacySummary, conversationStateUpdate, baseLegacySummary = null) {
     const parsed = this._parseMemorySummaryState(existingSummary);
     if (!parsed.recognized) {
       return parsed.raw;
     }
 
-    const legacySummaryText = incomingLegacySummary != null
-      ? String(incomingLegacySummary)
-      : (parsed.legacySummaryText || '');
+    const legacySummaryText = this._mergeMemorySummaryText_(
+      parsed.legacySummaryText || '',
+      incomingLegacySummary,
+      baseLegacySummary
+    );
     const existingState = parsed.conversationState && typeof parsed.conversationState === 'object'
       ? parsed.conversationState
       : {};
@@ -871,6 +879,86 @@ var MemoryService = class MemoryService {
       legacySummaryText: legacySummaryText,
       conversationState: nextState
     });
+  }
+
+  _mergeMemorySummaryText_(existingLegacySummary, incomingLegacySummary, baseLegacySummary = null) {
+    const existingText = existingLegacySummary == null ? '' : String(existingLegacySummary).trim();
+    if (incomingLegacySummary == null) return existingText;
+
+    const incomingText = String(incomingLegacySummary || '').trim();
+    const hasBase = baseLegacySummary != null;
+    if (!hasBase) return incomingText;
+
+    const baseText = String(baseLegacySummary || '').trim();
+    if (this._normalizeMemorySummaryForCompare_(existingText) === this._normalizeMemorySummaryForCompare_(baseText)) {
+      return incomingText;
+    }
+
+    const deltaText = this._extractMemorySummaryDelta_(incomingText, baseText);
+    if (!deltaText) return existingText;
+
+    return this._combineMemorySummaryLines_(existingText, deltaText);
+  }
+
+  _extractMemorySummaryDelta_(incomingText, baseText) {
+    if (!incomingText) return '';
+    if (!baseText) return incomingText;
+
+    if (incomingText.indexOf(baseText) === 0) {
+      return incomingText.slice(baseText.length).trim();
+    }
+
+    const baseLines = new Set(
+      String(baseText || '')
+        .split('\n')
+        .map(line => this._normalizeMemorySummaryForCompare_(line))
+        .filter(Boolean)
+    );
+    const deltaLines = String(incomingText || '')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean)
+      .filter(line => !baseLines.has(this._normalizeMemorySummaryForCompare_(line)));
+
+    return deltaLines.join('\n').trim();
+  }
+
+  _combineMemorySummaryLines_(existingText, deltaText) {
+    const maxChars = 2000;
+    const maxBullets = 5;
+    const seen = new Set();
+    const mergedLines = [];
+
+    [existingText, deltaText].forEach(block => {
+      String(block || '')
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .forEach(line => {
+          const key = this._normalizeMemorySummaryForCompare_(line);
+          if (!key || seen.has(key)) return;
+          seen.add(key);
+          mergedLines.push(line);
+        });
+    });
+
+    let summary = mergedLines.slice(-maxBullets).join('\n').trim();
+    if (summary.length > maxChars) {
+      const truncated = summary.slice(-maxChars);
+      const firstBreak = truncated.indexOf('\n');
+      const firstSpace = truncated.indexOf(' ');
+      const cutIndex = firstBreak > 0 ? firstBreak : (firstSpace > 0 ? firstSpace : 0);
+      summary = '...' + truncated.slice(cutIndex).trim();
+    }
+    return summary;
+  }
+
+  _normalizeMemorySummaryForCompare_(value) {
+    return String(value || '')
+      .replace(/^•?\s*\[\d{4}-\d{2}-\d{2}\]\s*/, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
   }
 
   _mergeConversationState(existingState, update) {
@@ -1570,7 +1658,7 @@ var MemoryService = class MemoryService {
           // CacheService non offre put-if-absent: serializziamo solo il breve check+put.
           guardAcquired = guardLock.tryLock(guardTimeoutMs);
           if (!guardAcquired) {
-            Utilities.sleep(50 + Math.floor(Math.random() * 80));
+            if (!this._sleepWithinBudget_(startedAt, acquireBudgetMs, 50 + Math.floor(Math.random() * 80))) break;
             continue;
           }
 
@@ -1579,7 +1667,7 @@ var MemoryService = class MemoryService {
             if (cacheVerifyDelayMs > 0) {
               Utilities.sleep(cacheVerifyDelayMs);
               if (cache.get(key) !== token) {
-                Utilities.sleep(50 + Math.floor(Math.random() * 80));
+                if (!this._sleepWithinBudget_(startedAt, acquireBudgetMs, 50 + Math.floor(Math.random() * 80))) break;
                 continue;
               }
             }
@@ -1596,7 +1684,7 @@ var MemoryService = class MemoryService {
           }
         }
 
-        Utilities.sleep(50 + Math.floor(Math.random() * 80));
+        if (!this._sleepWithinBudget_(startedAt, acquireBudgetMs, 50 + Math.floor(Math.random() * 80))) break;
       }
 
       console.warn(`⚠️ Timeout acquisizione lock sharded key: ${key}`);
@@ -1610,11 +1698,11 @@ var MemoryService = class MemoryService {
   _getLockTuning_() {
     const cfg = (typeof CONFIG !== 'undefined' && CONFIG) ? CONFIG : {};
     return {
-      maxRetries: Number(cfg.MEMORY_LOCK_MAX_RETRIES) > 0 ? Number(cfg.MEMORY_LOCK_MAX_RETRIES) : 5,
-      shardedAcquireTimeoutMs: Number(cfg.MEMORY_SHARDED_LOCK_ACQUIRE_TIMEOUT_MS) > 0 ? Number(cfg.MEMORY_SHARDED_LOCK_ACQUIRE_TIMEOUT_MS) : 15000,
-      globalGuardTimeoutMs: Number(cfg.MEMORY_LOCK_GLOBAL_GUARD_TIMEOUT_MS) > 0 ? Number(cfg.MEMORY_LOCK_GLOBAL_GUARD_TIMEOUT_MS) : 500,
+      maxRetries: Number(cfg.MEMORY_LOCK_MAX_RETRIES) > 0 ? Number(cfg.MEMORY_LOCK_MAX_RETRIES) : 3,
+      shardedAcquireTimeoutMs: Number(cfg.MEMORY_SHARDED_LOCK_ACQUIRE_TIMEOUT_MS) > 0 ? Number(cfg.MEMORY_SHARDED_LOCK_ACQUIRE_TIMEOUT_MS) : 800,
+      globalGuardTimeoutMs: Number(cfg.MEMORY_LOCK_GLOBAL_GUARD_TIMEOUT_MS) > 0 ? Number(cfg.MEMORY_LOCK_GLOBAL_GUARD_TIMEOUT_MS) : 150,
       backoffBaseMs: Number(cfg.MEMORY_LOCK_BACKOFF_BASE_MS) > 0 ? Number(cfg.MEMORY_LOCK_BACKOFF_BASE_MS) : 200,
-      backoffCapMs: Number(cfg.MEMORY_LOCK_BACKOFF_CAP_MS) > 0 ? Number(cfg.MEMORY_LOCK_BACKOFF_CAP_MS) : 10000,
+      backoffCapMs: Number(cfg.MEMORY_LOCK_BACKOFF_CAP_MS) > 0 ? Number(cfg.MEMORY_LOCK_BACKOFF_CAP_MS) : 1500,
       backoffJitterMs: Number(cfg.MEMORY_LOCK_BACKOFF_JITTER_MS) >= 0 ? Number(cfg.MEMORY_LOCK_BACKOFF_JITTER_MS) : 0,
       cacheVerifyDelayMs: Number(cfg.MEMORY_LOCK_CACHE_VERIFY_DELAY_MS) > 0 ? Number(cfg.MEMORY_LOCK_CACHE_VERIFY_DELAY_MS) : 0,
       shardBuckets: Number(cfg.MEMORY_LOCK_SHARD_BUCKETS) > 1 ? Number(cfg.MEMORY_LOCK_SHARD_BUCKETS) : 1
@@ -1628,6 +1716,14 @@ var MemoryService = class MemoryService {
     const jitterBudget = lockCfg.backoffJitterMs;
     const jitter = jitterBudget > 0 ? Math.floor(Math.random() * jitterBudget) : 0;
     Utilities.sleep(baseDelay + jitter);
+  }
+
+  _sleepWithinBudget_(startedAt, budgetMs, desiredMs) {
+    const remainingMs = Math.floor(Number(budgetMs) - (Date.now() - Number(startedAt)));
+    if (!Number.isFinite(remainingMs) || remainingMs <= 0) return false;
+    const sleepMs = Math.max(1, Math.min(Math.floor(Number(desiredMs) || 1), remainingMs));
+    Utilities.sleep(sleepMs);
+    return (Date.now() - Number(startedAt)) < Number(budgetMs);
   }
 
   _stableHash_(value) {
@@ -1838,7 +1934,7 @@ var MemoryService = class MemoryService {
   _getFromCache(key) {
     const cached = this._cache[key];
     if (cached && (Date.now() - cached.timestamp) < this._cacheExpiry) {
-      return cached.data;
+      return this._cloneMemoryCacheValue_(cached.data);
     }
 
     // Fast-path persistente cross-execution (CacheService)
@@ -1860,7 +1956,7 @@ var MemoryService = class MemoryService {
           parsed = JSON.parse(serialized);
         }
         this._setLocalCache(key, parsed);
-        return parsed;
+        return this._cloneMemoryCacheValue_(parsed);
       }
     } catch (e) {
       // best effort, oppure chunk parziale/scaduto
@@ -1929,9 +2025,19 @@ var MemoryService = class MemoryService {
     }
 
     this._cache[key] = {
-      data: data,
+      data: this._cloneMemoryCacheValue_(data),
       timestamp: now
     };
+  }
+
+  _cloneMemoryCacheValue_(value) {
+    if (value == null || typeof value !== 'object') return value;
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (e) {
+      if (Array.isArray(value)) return value.slice();
+      return Object.assign({}, value);
+    }
   }
 
   _writeThroughMemoryCache_(key, data) {
