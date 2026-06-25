@@ -781,6 +781,75 @@ console.log('--- Test MemoryService updateMemoryAtomic: applica inferredReaction
   }
 }
 
+console.log('--- Test MemoryService updateReaction: non reintroduce topic da cache stale ---');
+{
+  const originalLockService = global.LockService;
+  global.LockService = {
+    getScriptLock: () => ({
+      waitLock: () => {},
+      releaseLock: () => {}
+    })
+  };
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    const now = '2026-05-10T10:00:00.000Z';
+    memory._initialized = true;
+    memory._cacheExpiry = 5 * 60 * 1000;
+    memory._cache = {
+      memory_thread_reaction_stale: {
+        timestamp: Date.now(),
+        data: {
+          threadId: 'thread_reaction_stale',
+          providedInfo: [
+            { topic: 'obsolete', userReaction: 'unknown' },
+            { topic: 'attuale', userReaction: 'unknown' }
+          ]
+        }
+      }
+    };
+    memory._getLockTuning_ = () => ({ maxRetries: 1, shardedAcquireTimeoutMs: 1 });
+    memory._getShardedLockKey = () => 'lock-thread-reaction-stale';
+    memory._tryAcquireShardedLock = () => true;
+    memory._releaseShardedLock = () => {};
+    memory._sleepLockBackoff_ = () => {};
+    memory._invalidateCache = () => {};
+    memory._withSheetWriteLock = (fn) => fn();
+    memory._writeThroughMemoryCache_ = () => {};
+    memory._validateAndNormalizeTimestamp = () => now;
+
+    let saved = null;
+    memory._updateRow = (rowIndex, data) => {
+      saved = { rowIndex, data };
+    };
+    memory._findRowByThreadId = () => ({
+      rowIndex: 2,
+      values: [
+        'thread_reaction_stale',
+        'it',
+        'info',
+        'standard',
+        JSON.stringify([{ topic: 'attuale', userReaction: 'unknown', timestamp: '2026-05-01T00:00:00.000Z' }]),
+        '2026-05-01T00:00:00.000Z',
+        1,
+        1,
+        ''
+      ]
+    });
+
+    memory.updateReaction('thread_reaction_stale', 'obsolete', 'acknowledged', 'contesto');
+    assert(saved === null, 'updateReaction non deve scrivere se il topic esiste solo nella cache stale');
+
+    memory.updateReaction('thread_reaction_stale', 'attuale', 'questioned', 'contesto aggiornato');
+    assert(saved && saved.data.version === 2, 'updateReaction deve aggiornare la riga fresca se il topic esiste nello Sheet');
+    assert(saved.data.providedInfo.length === 1, 'updateReaction non deve reintrodurre topic obsoleti dalla cache');
+    assert(saved.data.providedInfo[0].topic === 'attuale', 'deve restare solo il topic fresco');
+    assert(saved.data.providedInfo[0].userReaction === 'questioned', 'deve salvare la nuova reazione');
+  } finally {
+    global.LockService = originalLockService;
+  }
+}
+
 
 
 console.log('--- Test MemoryService updateMemory: invalida cache e aggiorna write-through dopo write ---');

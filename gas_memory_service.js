@@ -1163,34 +1163,107 @@ var MemoryService = class MemoryService {
   updateReaction(threadId, topic, reaction, context = null) {
     if (!this._initialized || !threadId || !topic) return;
 
-    // Recupera memoria attuale
-    const memory = this.getMemory(threadId);
-    if (!memory || !memory.providedInfo) return;
-
-    const infos = memory.providedInfo;
-    let modified = false;
     const normalizedTargetTopic = this._normalizeTopicKey(topic);
     if (!normalizedTargetTopic) return;
 
-    // Trova e aggiorna il topic
-    const newInfos = infos.map(info => {
-      if (this._normalizeTopicKey(info.topic) === normalizedTargetTopic) {
-        modified = true;
-        // Aggiorna userReaction e context se fornito
-        return {
-          ...info,
-          userReaction: reaction,
-          context: context || info.context || null,
-          lastInteraction: new Date().toISOString()
-        };
-      }
-      return info;
-    });
+    const modified = this._updateProvidedTopicReactionWithoutIncrement(
+      threadId,
+      normalizedTargetTopic,
+      reaction,
+      context
+    );
 
     if (modified) {
-      this._updateProvidedInfoWithoutIncrement(threadId, newInfos);
       console.log(`🧠 Reazione aggiornata per topic '${topic}': ${reaction}`);
     }
+  }
+
+  _updateProvidedTopicReactionWithoutIncrement(threadId, normalizedTopic, reaction, context = null) {
+    if (!this._initialized || !threadId || !normalizedTopic) return false;
+
+    const normalizedThreadId = String(threadId).trim();
+    if (!normalizedThreadId) return false;
+
+    const lockTuning = this._getLockTuning_();
+    const maxRetries = Math.max(1, Math.min(10, Math.floor(Number(lockTuning.maxRetries) || 3)));
+    const lockKey = this._getShardedLockKey(normalizedThreadId);
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      let lockAcquired = false;
+      let globalLockAcquired = false;
+      const globalLock = LockService.getScriptLock();
+
+      try {
+        lockAcquired = this._tryAcquireShardedLock(lockKey, lockTuning.shardedAcquireTimeoutMs);
+        if (!lockAcquired) {
+          console.warn(`🔒 updateReaction: lock sharded non acquisito (tentativo ${attempt + 1})`);
+          if (attempt < maxRetries - 1) this._sleepLockBackoff_(attempt);
+          continue;
+        }
+
+        const sheetTimeout = (typeof CONFIG !== 'undefined' && CONFIG.SHEET_WRITE_LOCK_TIMEOUT_MS) || 10000;
+        globalLock.waitLock(sheetTimeout);
+        globalLockAcquired = true;
+
+        const existingRow = this._findRowByThreadId(normalizedThreadId);
+        if (!existingRow) {
+          console.warn(`⚠️ updateReaction: thread ${normalizedThreadId} non trovato, skip`);
+          return false;
+        }
+
+        const existingData = this._rowToObject(existingRow.values);
+        const existingTopics = this._normalizeProvidedTopics(
+          Array.isArray(existingData.providedInfo) ? existingData.providedInfo : []
+        );
+        let modified = false;
+        const now = this._validateAndNormalizeTimestamp(new Date().toISOString());
+        const updatedTopics = existingTopics.map((info) => {
+          const infoTopic = info && info.topic ? this._normalizeTopicKey(info.topic) : '';
+          if (infoTopic !== normalizedTopic) {
+            return info;
+          }
+          modified = true;
+          return Object.assign({}, info, {
+            userReaction: reaction,
+            context: context || info.context || null,
+            lastInteraction: now
+          });
+        });
+
+        if (!modified) {
+          return false;
+        }
+
+        existingData.providedInfo = this._shrinkProvidedInfoToCaps(
+          updatedTopics,
+          '_updateProvidedTopicReactionWithoutIncrement'
+        );
+        existingData.lastUpdated = now;
+        existingData.version = (existingData.version || 0) + 1;
+
+        this._invalidateCache(`memory_${normalizedThreadId}`);
+        this._withSheetWriteLock(() => {
+          this._updateRow(existingRow.rowIndex, existingData);
+        }, true);
+        this._writeThroughMemoryCache_(`memory_${normalizedThreadId}`, existingData);
+        return true;
+      } catch (e) {
+        console.warn(`⚠️ updateReaction fallito (tentativo ${attempt + 1}): ${e.message}`);
+        this._invalidateCache(`memory_${normalizedThreadId}`);
+        if (attempt < maxRetries - 1) {
+          this._sleepLockBackoff_(attempt);
+        }
+      } finally {
+        if (globalLockAcquired) {
+          try { globalLock.releaseLock(); } catch (e) {}
+        }
+        if (lockAcquired) {
+          this._releaseShardedLock(lockKey);
+        }
+      }
+    }
+
+    return false;
   }
 
   // ========================================================================

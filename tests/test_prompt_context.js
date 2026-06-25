@@ -142,6 +142,27 @@ assert(
   '_computeResponseRegister deve consumare i subIntents canonicalizzati'
 );
 
+const conflictingSubIntents = createPromptContext({
+  email: {
+    isReply: false,
+    detectedLanguage: 'it',
+    subject: 'Richiesta delicata',
+    body: 'Sto vivendo un momento difficile e avrei bisogno di capire come procedere.'
+  },
+  requestType: { type: 'technical' },
+  classification: {
+    confidence: 1,
+    category: 'information',
+    subIntents: { emotional_distress: true }
+  },
+  subIntents: { emotional_distress: false }
+});
+assert(
+  conflictingSubIntents.input._resolvedSubIntents.emotional_distress === true &&
+    conflictingSubIntents.concerns.emotional_sensitivity === true,
+  'subIntents sensibili in conflitto devono usare OR logico per evitare falsi negativi'
+);
+
 const operationalConfusion = createPromptContext({
   email: {
     isReply: false,
@@ -238,6 +259,7 @@ assert(
   sensitivePrecision.meta.concernSynthesis &&
     sensitivePrecision.meta.concernSynthesis.key === 'sensitive_precision' &&
     sensitivePrecision.meta.concernSynthesis.directive.includes('delicatezza e precisione') &&
+    sensitivePrecision.meta.concernSynthesis.directive.includes('emoji') &&
     sensitivePrecision.meta.concernSynthesis.suppress.formattingGuidelines === true &&
     sensitivePrecision.meta.concernSynthesis.suppress.checklistHallucinationRule === true,
   'PromptContext deve sintetizzare hallucination_risk + emotional_sensitivity in una direttiva unica'
@@ -265,6 +287,7 @@ assert(
   sensitiveFormatting.meta.concernSynthesis &&
     sensitiveFormatting.meta.concernSynthesis.key === 'sensitive_formatting' &&
     sensitiveFormatting.meta.concernSynthesis.directive.includes('date, orari, documenti o passaggi pratici') &&
+    sensitiveFormatting.meta.concernSynthesis.directive.includes('emoji') &&
     sensitiveFormatting.meta.concernSynthesis.suppress.formattingGuidelines === true &&
     sensitiveFormatting.meta.concernSynthesis.suppress.checklistHallucinationRule === false,
   'PromptContext deve sintetizzare emotional_sensitivity + formatting_risk senza aggiungere regole hallucination'
@@ -413,6 +436,32 @@ assert(
   relationalOpeningContinuity.profile === 'standard' &&
     relationalOpeningContinuity.meta.concernSynthesis.key === 'relational_continuity',
   'la continuità relazionale deve produrre una direttiva leggera e consumabile'
+);
+
+const relationalOpeningWithBereavement = createPromptContext({
+  email: {
+    isReply: true,
+    detectedLanguage: 'it',
+    subject: 'Messa in suffragio',
+    body: 'Grazie per la disponibilità. Vorrei chiedere una Messa per mio padre defunto.'
+  },
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  classification: { confidence: 1, category: 'information' },
+  subIntents: { bereavement: true },
+  memory: {
+    exists: true,
+    conversationState: {
+      currentRelationalPosture: 'open',
+      responseFocusHint: null,
+      responseFocusHintConfidence: 0
+    }
+  }
+});
+assert(
+  relationalOpeningWithBereavement.meta.continuityPolicy.key === 'current_bereavement_tact' &&
+    relationalOpeningWithBereavement.meta.continuityPolicy.relationalOpeningContinuity === true &&
+    relationalOpeningWithBereavement.meta.continuityPolicy.directive.includes('apertura relazionale'),
+  'le policy sensibili non devono perdere la continuità di apertura relazionale'
 );
 
 const longitudinalOverloadBody = `${'Vorrei capire alcuni passaggi amministrativi. '.repeat(18)} Quali documenti servono? Quando posso consegnarli? Devo prendere appuntamento?`;

@@ -34,7 +34,7 @@ var PromptContext = class PromptContext {
         const normalizedInput = Object.assign({}, input);
         const classificationSubIntents = this._normalizeSubIntentMap(normalizedInput.classification?.subIntents);
         const rootSubIntents = this._normalizeSubIntentMap(normalizedInput.subIntents);
-        normalizedInput._resolvedSubIntents = Object.assign({}, classificationSubIntents, rootSubIntents);
+        normalizedInput._resolvedSubIntents = this._mergeSubIntentMaps(classificationSubIntents, rootSubIntents);
 
         if (Object.keys(classificationSubIntents).length > 0 && Object.keys(rootSubIntents).length === 0) {
             console.warn('⚠️ PromptContext: subIntents presenti in classification ma non al livello radice. Merge automatico applicato.');
@@ -84,6 +84,17 @@ var PromptContext = class PromptContext {
             acc[String(key).trim()] = !!subIntents[key];
             return acc;
         }, {});
+    }
+
+    _mergeSubIntentMaps(primary = {}, secondary = {}) {
+        const merged = {};
+        Object.keys(primary || {}).forEach((key) => {
+            merged[key] = primary[key] === true;
+        });
+        Object.keys(secondary || {}).forEach((key) => {
+            merged[key] = merged[key] === true || secondary[key] === true;
+        });
+        return merged;
     }
 
     _deriveContinuityCase(input) {
@@ -696,59 +707,69 @@ var PromptContext = class PromptContext {
         const continuityKey = continuityCase && continuityCase.key
             ? String(continuityCase.key).trim()
             : '';
+        const withRelationalOpening = (policy) => {
+            if (!policy || continuityKey !== 'relational_opening_continuity' || policy.key === 'relational_opening_continuity') {
+                return policy;
+            }
+            return Object.assign({}, policy, {
+                sourceCase: continuityKey,
+                relationalOpeningContinuity: true,
+                directive: `${policy.directive} Se coerente con il messaggio attuale, valorizza anche l’apertura relazionale con una ripresa naturale e breve prima del dato pratico.`
+            });
+        };
 
         if (mode === 'bereavement') {
-            return {
+            return withRelationalOpening({
                 key: 'current_bereavement_tact',
                 directive: 'Il lutto è nel messaggio attuale: riconoscilo con tatto solo quanto basta, poi passa ai passaggi indispensabili.',
                 sourceCase: continuityKey || null,
                 doNotReopenPastContext: false
-            };
+            });
         }
 
         if (mode === 'pastoral_longitudinal') {
-            return {
+            return withRelationalOpening({
                 key: 'do_not_reopen_past_context',
                 directive: 'Non riaprire il vissuto se l’utente non lo riprende; mantieni la continuità in modo implicito nel tono e nella scelta dei passaggi.',
                 sourceCase: continuityKey || null,
                 doNotReopenPastContext: true
-            };
+            });
         }
 
         if (mode === 'longitudinal_tone_only') {
-            return {
+            return withRelationalOpening({
                 key: 'implicit_sensitive_continuity',
                 directive: 'La memoria resta solo un guardrail implicito: non riaprire il contesto personale passato e rispondi al dato attuale con tono istituzionale caldo.',
                 sourceCase: continuityKey || null,
                 doNotReopenPastContext: true
-            };
+            });
         }
 
         if (mode === 'sensitive_canonical') {
-            return {
+            return withRelationalOpening({
                 key: 'canonical_neutrality',
                 directive: 'Non interpretare le motivazioni personali e non aggiungere pressione pastorale: resta neutro, rispettoso e procedurale.',
                 sourceCase: continuityKey || null,
                 doNotReopenPastContext: true
-            };
+            });
         }
 
         if (mode === 'formal_sensitive') {
-            return {
+            return withRelationalOpening({
                 key: 'formal_sensitive_continuity',
                 directive: 'La richiesta resta formale: mantieni precisione procedurale e tono rispettoso; non riaprire il contesto personale passato se l’utente non lo riprende.',
                 sourceCase: continuityKey || null,
                 doNotReopenPastContext: true
-            };
+            });
         }
 
         if (mode === 'pastoral_operational') {
-            return {
+            return withRelationalOpening({
                 key: 'pastoral_signal_operational_scope',
                 directive: 'Il segnale personale orienta il tono, non amplia l’oggetto della risposta: prima il dato operativo, poi eventuale cura minima.',
                 sourceCase: continuityKey || null,
                 doNotReopenPastContext: false
-            };
+            });
         }
 
         if (continuityKey === 'relational_opening_continuity') {
@@ -906,8 +927,8 @@ var PromptContext = class PromptContext {
         }
 
         const closingDirective = isCrisis
-            ? 'Mantieni frasi brevi, sobrie e umane: niente liste, titoli o formattazione decorativa.'
-            : 'Il tono resta sobrio, umano e concreto: evita liste, enfasi o formattazione decorativa se irrigidiscono la risposta.';
+            ? 'Mantieni frasi brevi, sobrie e umane: niente liste, nessuna emoji, nessun titolo Markdown o formattazione decorativa.'
+            : 'Il tono resta sobrio, umano e concreto: evita liste, emoji, titoli Markdown, enfasi o formattazione decorativa se irrigidiscono la risposta.';
 
         return {
             key: key,

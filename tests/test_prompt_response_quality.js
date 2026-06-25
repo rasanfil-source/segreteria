@@ -2081,6 +2081,30 @@ console.log('--- Test prompt: riparazione tag XML chiude blocchi strutturali tro
   );
 }
 
+console.log('--- Test prompt: troncamento user_email non dipende dal titolo italiano esatto ---');
+{
+  const customEmailSection = [
+    '**MESSAGGIO UTENTE:**',
+    'Da: utente@example.com (Utente)',
+    'Oggetto: Informazioni',
+    'Lingua: IT',
+    '',
+    'Contenuto:',
+    '<user_email>',
+    'Vorrei informazioni '.repeat(80),
+    '</user_email>'
+  ].join('\n');
+  const truncatedUser = engine._truncateUserPromptSafely_(
+    `${'prefisso non essenziale\n'.repeat(80)}\n${customEmailSection}`,
+    420
+  );
+  assert(truncatedUser.includes('**MESSAGGIO UTENTE:**'), 'il blocco email deve includere anche un titolo rinominato');
+  assert(
+    truncatedUser.includes('<user_email>') && truncatedUser.includes('</user_email>'),
+    'il blocco user_email deve restare protetto anche senza header EMAIL DA RISPONDERE'
+  );
+}
+
 console.log('--- Test prompt: troncamento system richiude tag XML prima del marker ---');
 {
   const truncatedSystem = engine._truncateSystemInstructionSafely_(

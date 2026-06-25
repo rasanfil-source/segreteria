@@ -1145,8 +1145,7 @@ Vincoli:
     const userEmailOpen = '<user_email>';
     const emailOpenIndex = source.indexOf(userEmailOpen);
     if (emailOpenIndex >= 0) {
-      const emailHeaderIndex = source.lastIndexOf('**EMAIL DA RISPONDERE:**', emailOpenIndex);
-      const emailStart = emailHeaderIndex >= 0 ? emailHeaderIndex : emailOpenIndex;
+      const emailStart = this._findUserEmailBlockStart_(source, emailOpenIndex);
       let emailSource = source.slice(emailStart);
       const prefixBudget = Math.max(0, limit - emailSource.length - 1);
       if (prefixBudget > 200) {
@@ -1172,6 +1171,24 @@ Vincoli:
     }
 
     return firstCut;
+  }
+
+  _findUserEmailBlockStart_(source, emailOpenIndex) {
+    const text = this._normalizePromptTextInput(source, '');
+    const openIndex = Math.floor(Number(emailOpenIndex));
+    if (!text || !Number.isFinite(openIndex) || openIndex < 0) return 0;
+
+    const headingIndex = text.lastIndexOf('\n**', openIndex);
+    if (headingIndex >= 0) {
+      return headingIndex + 1;
+    }
+
+    const sectionBreakIndex = text.lastIndexOf('\n\n', openIndex);
+    if (sectionBreakIndex >= 0) {
+      return sectionBreakIndex + 2;
+    }
+
+    return openIndex;
   }
 
   _resolveMinimumUserPromptChars_(maxSafePromptChars, userPromptLength, settings = {}) {
