@@ -517,34 +517,38 @@ var MemoryService = class MemoryService {
       return false;
     }
 
+    const lockTuning = this._getLockTuning_();
+    const maxRetries = Number(lockTuning.maxRetries);
+    const MAX_RETRIES = Number.isFinite(maxRetries) && maxRetries > 0
+      ? Math.max(1, Math.floor(maxRetries))
+      : 3;
     const lockKey = this._getShardedLockKey(normalizedThreadId);
 
-    // Prova max 3 volte
     let expectedVersion = rawData._expectedVersion;
 
     let lastAtomicError = null;
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < MAX_RETRIES; i++) {
         const globalLock = LockService.getScriptLock();
         let globalLockAcquired = false;
         let lockAcquired = false;
 
         try {
           // 1. Acquisisci Lock Sharded (CacheService)
-          lockAcquired = this._tryAcquireShardedLock(lockKey, this._getLockTuning_().shardedAcquireTimeoutMs);
+          lockAcquired = this._tryAcquireShardedLock(lockKey, lockTuning.shardedAcquireTimeoutMs);
           if (!lockAcquired) {
-            if (i === 2) {
+            if (i === MAX_RETRIES - 1) {
               const failure = {
                 threadId: normalizedThreadId,
                 cause: 'LOCK_TIMEOUT',
-                message: `Lock sharded non acquisito dopo 3 tentativi (${lockKey})`,
+                message: `Lock sharded non acquisito dopo ${MAX_RETRIES} tentativi (${lockKey})`,
                 at: new Date().toISOString()
               };
               this._lastUpdateMemoryAtomicFailure = failure;
               console.error(`❌ CRITICO: updateMemoryAtomic lock timeout per thread ${normalizedThreadId}: ${failure.message}`);
               return false;
             }
-            if (i < 2) {
+            if (i < MAX_RETRIES - 1) {
               this._sleepLockBackoff_(i);
             }
             continue;
@@ -682,7 +686,7 @@ var MemoryService = class MemoryService {
           console.warn(`⚠️ Errore aggiornamento atomico (tentativo ${i + 1}): ${error.message}`);
           this._invalidateCache(`memory_${normalizedThreadId}`);
           if (error.message === 'VERSION_MISMATCH') {
-            if (i < 2) {
+            if (i < MAX_RETRIES - 1) {
               const freshVersion = Number(error.currentVersion);
               if (Number.isFinite(freshVersion)) {
                 expectedVersion = freshVersion;
@@ -695,7 +699,7 @@ var MemoryService = class MemoryService {
             }
             break;
           }
-          if (i < 2) {
+          if (i < MAX_RETRIES - 1) {
             this._sleepLockBackoff_(i);
           }
         } finally {
@@ -721,7 +725,7 @@ var MemoryService = class MemoryService {
     };
     console.error(`❌ CRITICO: updateMemoryAtomic fallito per thread ${threadId} - causa: ${failureCause} (${failureMessage}). Fallback best-effort a batch bypass.`);
     if (failureCause === 'VERSION_MISMATCH') {
-      console.error(`🔒 VERSION_MISMATCH persistente dopo 3 retry: possibile contesa alta su thread ${threadId}`);
+      console.error(`🔒 VERSION_MISMATCH persistente dopo ${MAX_RETRIES} retry: possibile contesa alta su thread ${threadId}`);
     }
     return false;
   }

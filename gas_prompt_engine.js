@@ -1214,7 +1214,10 @@ Vincoli:
       tail = tail.slice(tailBoundary).trimStart();
     }
 
-    return `${head}${marker}${tail}`.slice(0, limit);
+    const headClosures = this._getPendingPromptXmlFenceClosures_(head)
+      .map(tag => `\n${tag}`)
+      .join('');
+    return this._repairPromptXmlFences_(`${head}${headClosures}${marker}${tail}`, limit);
   }
 
   _slicePromptTailWithEllipsis_(text, maxLength) {
@@ -1243,18 +1246,9 @@ Vincoli:
     let candidate = this._normalizePromptTextInput(text, '');
     if (!candidate || !Number.isFinite(limit) || limit <= 0) return '';
 
-    const tags = ['knowledge_base', 'conversation_history', 'user_email'];
     for (let guard = 0; guard < 5; guard++) {
       candidate = this._stripDanglingPromptTagFragment_(candidate);
-      const pendingClosures = tags
-        .map(tag => ({
-          tag,
-          openIndex: candidate.lastIndexOf(`<${tag}>`),
-          closeIndex: candidate.lastIndexOf(`</${tag}>`)
-        }))
-        .filter(entry => entry.openIndex >= 0 && entry.closeIndex < entry.openIndex)
-        .sort((a, b) => b.openIndex - a.openIndex)
-        .map(entry => `</${entry.tag}>`);
+      const pendingClosures = this._getPendingPromptXmlFenceClosures_(candidate);
 
       if (pendingClosures.length === 0) {
         return candidate.length > limit ? candidate.slice(0, limit) : candidate;
@@ -1278,6 +1272,20 @@ Vincoli:
     }
 
     return candidate.slice(0, limit);
+  }
+
+  _getPendingPromptXmlFenceClosures_(text) {
+    const candidate = this._normalizePromptTextInput(text, '');
+    const tags = ['knowledge_base', 'conversation_history', 'user_email'];
+    return tags
+      .map(tag => ({
+        tag,
+        openIndex: candidate.lastIndexOf(`<${tag}>`),
+        closeIndex: candidate.lastIndexOf(`</${tag}>`)
+      }))
+      .filter(entry => entry.openIndex >= 0 && entry.closeIndex < entry.openIndex)
+      .sort((a, b) => b.openIndex - a.openIndex)
+      .map(entry => `</${entry.tag}>`);
   }
 
   _stripDanglingPromptTagFragment_(text) {

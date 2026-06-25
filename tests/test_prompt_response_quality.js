@@ -2081,6 +2081,21 @@ console.log('--- Test prompt: riparazione tag XML chiude blocchi strutturali tro
   );
 }
 
+console.log('--- Test prompt: troncamento system richiude tag XML prima del marker ---');
+{
+  const truncatedSystem = engine._truncateSystemInstructionSafely_(
+    'INTRO\n<knowledge_base>\n' + 'dato '.repeat(200) + '\n</knowledge_base>\nFINAL RULES',
+    180
+  );
+  const openIndex = truncatedSystem.indexOf('<knowledge_base>');
+  const closeIndex = truncatedSystem.indexOf('</knowledge_base>');
+  const markerIndex = truncatedSystem.indexOf('[...ISTRUZIONI DI SISTEMA TRONCATE');
+  assert(truncatedSystem.length <= 180, 'il troncamento system deve rispettare il limite passato');
+  assert(openIndex >= 0, 'il test deve includere il tag knowledge_base aperto');
+  assert(closeIndex > openIndex, 'il tag knowledge_base deve essere richiuso nel system prompt troncato');
+  assert(markerIndex < 0 || closeIndex < markerIndex, 'il tag knowledge_base deve chiudersi prima del marker di troncamento');
+}
+
 console.log('--- Test prompt: avviso per date senza anno già passate e normalizzate al futuro ---');
 const yearlessTemporalPrompt = engine.buildPrompt({
   emailSubject: 'Orari Messe',

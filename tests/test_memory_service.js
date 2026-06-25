@@ -555,6 +555,59 @@ console.log('--- Test MemoryService updateMemoryAtomic: VERSION_MISMATCH ritenta
   }
 }
 
+console.log('--- Test MemoryService updateMemoryAtomic: rispetta maxRetries configurabile ---');
+{
+  const originalLockService = global.LockService;
+  global.LockService = {
+    getScriptLock: () => ({
+      waitLock: () => {},
+      releaseLock: () => {}
+    })
+  };
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    memory._initialized = true;
+    memory._getLockTuning_ = () => ({ maxRetries: 4, shardedAcquireTimeoutMs: 1 });
+    memory._getShardedLockKey = () => 'lock-thread-atomic-retry-config';
+    memory._releaseShardedLock = () => {};
+    memory._sleepLockBackoff_ = () => {};
+    memory._invalidateCache = () => {};
+    memory._withSheetWriteLock = (fn) => fn();
+    memory._writeThroughMemoryCache_ = () => {};
+
+    let saved = null;
+    memory._updateRow = (rowIndex, data) => {
+      saved = { rowIndex, data };
+    };
+
+    const versions = [2, 3, 4, 4];
+    let reads = 0;
+    memory._findRowByThreadId = () => {
+      const version = versions[Math.min(reads, versions.length - 1)];
+      reads += 1;
+      return {
+        rowIndex: 2,
+        values: ['thread-atomic-retry-config', 'it', 'info', 'standard', '[]', '2026-05-01T00:00:00.000Z', 1, version, '']
+      };
+    };
+
+    let lockAttempts = 0;
+    memory._tryAcquireShardedLock = () => {
+      lockAttempts += 1;
+      return true;
+    };
+
+    const ok = memory.updateMemoryAtomic('thread-atomic-retry-config', { _expectedVersion: 1, language: 'en' });
+
+    assert(ok === true, 'updateMemoryAtomic deve usare il quarto tentativo quando maxRetries=4');
+    assert(lockAttempts === 4, `tentativi attesi 4, ottenuti ${lockAttempts}`);
+    assert(saved && saved.data.version === 5, 'il quarto tentativo deve scrivere partendo dalla versione fresca');
+  } finally {
+    global.LockService = originalLockService;
+  }
+}
+
 console.log('--- Test MemoryService updateMemoryAtomic: incrementa messageCount anche con solo flag interno ---');
 {
   const originalLockService = global.LockService;
