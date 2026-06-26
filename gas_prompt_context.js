@@ -389,10 +389,6 @@ var PromptContext = class PromptContext {
             i.memory?.exists ||
             (i.conversation?.messageCount ?? 0) > 1
         );
-        const hasResponseScopeControl = Boolean(
-            i.email?.isReply ||
-            (i.classification?.confidence ?? 1) < 0.7
-        );
         const hasPhysicalPresenceConstraint =
             !!(i.physicalPresenceConstraint && i.physicalPresenceConstraint.has_constraint) ||
             contextualFlags.remote_user === true;
@@ -443,9 +439,6 @@ var PromptContext = class PromptContext {
                 (i.email?.isReply === false) &&
                 i.requestType?.type !== 'technical',
 
-            response_scope_control:
-                hasResponseScopeControl,
-
             multi_question:
                 isMultiQuestion,
 
@@ -454,9 +447,6 @@ var PromptContext = class PromptContext {
 
             response_calibration:
                 needsResponseCalibration,
-
-            salutation_control:
-                i.salutationMode && i.salutationMode !== 'full',
 
             physical_presence_constraint:
                 hasPhysicalPresenceConstraint,
@@ -815,9 +805,9 @@ var PromptContext = class PromptContext {
         return null;
     }
 
-    _computeEffectiveSalutationMode() {
+    _computeEffectiveSalutationMode(responseRegister = null) {
         const mode = this.input.salutationMode || 'full';
-        const register = this._computeResponseRegister();
+        const register = responseRegister || this._computeResponseRegister();
 
         if (register === 'pastoral_crisis' &&
             (mode === 'none_or_continuity' || mode === 'session')) {
@@ -975,7 +965,7 @@ var PromptContext = class PromptContext {
             .filter(([_, v]) => v)
             .map(([k]) => k);
         const responseRegister = this._computeResponseRegister();
-        const salutationMode = this._computeEffectiveSalutationMode();
+        const salutationMode = this._computeEffectiveSalutationMode(responseRegister);
         const responseMode = this._computeResponseMode();
         const operationalConstraints = this._computeOperationalConstraints(responseMode);
         const continuityPolicy = this._computeContinuityPolicy(responseMode);

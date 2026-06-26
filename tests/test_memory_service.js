@@ -161,6 +161,7 @@ console.log('--- Test MemoryService conversationState: preserva legacySummaryTex
   assert(parsed.conversationState.currentRelationalPosture === 'open', 'currentRelationalPosture deve essere salvata come stato del thread');
   assert(parsed.conversationState.responseFocusHint === 'answer_only_residual_question', 'responseFocusHint enum valido deve essere salvato');
   assert(parsed.conversationState.responseFocusHintUpdatedAt === now, 'hint valido deve salvare un timestamp dedicato');
+  assert(parsed.conversationState.source === 'quick_check', 'conversationState deve registrare source quick_check in modo esplicito');
   assert(Object.keys(parsed.conversationState).length === 8, 'conversationState deve restare nello schema minimo previsto');
 
   const staleMerge = JSON.parse(memory._serializeMemorySummaryState(
@@ -192,17 +193,37 @@ console.log('--- Test MemoryService conversationState: preserva legacySummaryTex
   );
   assert(preserved === '{"unknownShape":true}', 'JSON non riconosciuto non deve essere modificato distruttivamente');
 
-  const unsafe = memory._serializeMemorySummaryState(
+  const originalWarn = console.warn;
+  const warnings = [];
+  console.warn = (message) => warnings.push(String(message || ''));
+  let unsafe;
+  try {
+    unsafe = memory._serializeMemorySummaryState(
+      '',
+      'Sintesi',
+      {
+        responseFocusHint: 'utente ansioso',
+        responseFocusHintConfidence: 0.95,
+        updatedAt: now,
+        source: 'quick_check'
+      }
+    );
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert(JSON.parse(unsafe).conversationState.responseFocusHint === null, 'hint fuori enum non deve essere salvato');
+  assert(warnings.some((message) => message.includes('responseFocusHint non riconosciuto')), 'hint fuori enum deve produrre warning diagnostico');
+
+  const normalizedSource = JSON.parse(memory._serializeMemorySummaryState(
     '',
     'Sintesi',
     {
-      responseFocusHint: 'utente ansioso',
-      responseFocusHintConfidence: 0.95,
+      currentRelationalPosture: 'open',
       updatedAt: now,
-      source: 'quick_check'
+      source: 'manual'
     }
-  );
-  assert(JSON.parse(unsafe).conversationState.responseFocusHint === null, 'hint fuori enum non deve essere salvato');
+  ));
+  assert(normalizedSource.conversationState.source === 'quick_check', 'source non supportate non devono propagarsi in memoria conversazionale');
 
   const existingWrapped = JSON.stringify({
     legacySummaryText: 'Sintesi vecchia',

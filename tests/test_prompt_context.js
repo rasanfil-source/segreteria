@@ -596,6 +596,42 @@ assert(
   overloaded.meta.salutationMode === 'none_or_continuity',
   'senza sensibilità emotiva il saluto di continuità resta invariato'
 );
+assert(
+  !Object.prototype.hasOwnProperty.call(overloaded.concerns, 'salutation_control') &&
+    !overloaded.meta.activeConcerns.includes('salutation_control'),
+  'salutation_control non deve comparire tra i concern attivi se non e consumato'
+);
+assert(
+  !Object.prototype.hasOwnProperty.call(overloaded.concerns, 'response_scope_control') &&
+    !overloaded.meta.activeConcerns.includes('response_scope_control'),
+  'response_scope_control non deve comparire tra i concern attivi se non e consumato'
+);
+
+console.log('--- Test PromptContext: responseRegister calcolato una sola volta in _buildMeta ---');
+{
+  const originalComputeResponseRegister = PromptContext.prototype._computeResponseRegister;
+  let registerCalls = 0;
+  try {
+    PromptContext.prototype._computeResponseRegister = function() {
+      registerCalls += 1;
+      return originalComputeResponseRegister.apply(this, arguments);
+    };
+    createPromptContext({
+      email: {
+        isReply: true,
+        detectedLanguage: 'it',
+        subject: 'Re: informazioni',
+        body: 'Grazie, vorrei confermare l’orario.'
+      },
+      requestType: { type: 'technical' },
+      classification: { confidence: 1, category: 'information' },
+      salutationMode: 'none_or_continuity'
+    });
+  } finally {
+    PromptContext.prototype._computeResponseRegister = originalComputeResponseRegister;
+  }
+  assert(registerCalls === 1, `_computeResponseRegister deve essere invocato una sola volta, chiamate: ${registerCalls}`);
+}
 
 const emotionalFollowUp = createPromptContext({
   email: {

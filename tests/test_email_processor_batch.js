@@ -3860,7 +3860,12 @@ console.log('--- Test prompt options: scheduleContext ancora relativi alla data 
     formatDate: (date, _tz, pattern) => {
       if (pattern === 'HH:mm') return '10:00';
       const iso = date instanceof Date && !isNaN(date.getTime()) ? date.toISOString() : '';
-      if (iso.startsWith('2026-06-26')) return '2026-06-26';
+      if (
+        iso.startsWith('2026-06-26T08:00:00') ||
+        iso.startsWith('2026-06-26T10:00:00') ||
+        iso.startsWith('2026-06-26T12:00:00')
+      ) return '2026-06-26';
+      if (iso.startsWith('2026-06-27')) return '2026-06-27';
       return '2026-06-30';
     }
   };
@@ -4115,6 +4120,7 @@ console.log('--- Test quick-check: conversationState memoria abilita contesto co
       meta: {
         responseMode: 'standard_operational',
         responseRegister: 'pastoral_supportive',
+        salutationMode: 'full_warm',
         operationalConstraints: [],
         continuityPolicy: {
           key: 'relational_opening_continuity',
@@ -4133,7 +4139,7 @@ console.log('--- Test quick-check: conversationState memoria abilita contesto co
     gmailService: {
       _extractEmailAddress: (raw) => raw,
       extractMessageDetails: () => ({
-        subject: 'Orario segreteria',
+        subject: 'Re: Orario segreteria',
         body: 'Grazie, vorrei capire a che ora posso passare.',
         senderEmail: 'utente@example.com',
         senderName: 'Utente Test',
@@ -4169,8 +4175,13 @@ console.log('--- Test quick-check: conversationState memoria abilita contesto co
     memoryService: {
       getMemory: () => ({
         memorySummary: 'Iter precedente sugli orari della segreteria',
+        lastUpdated: new Date().toISOString(),
         providedInfo: [{ topic: 'orari segreteria', userReaction: 'acknowledged' }],
-        contextualFlags: { remote_user: true },
+        contextualFlags: {
+          remote_user: true,
+          canonical_complexity: true,
+          physical_presence_constraint: true
+        },
         conversationState: {
           currentRelationalPosture: 'open',
           responseFocusHint: null,
@@ -4198,10 +4209,12 @@ console.log('--- Test quick-check: conversationState memoria abilita contesto co
   assert(result.status === 'replied', 'il thread con solo conversationState in memoria deve completarsi');
   assert(quickIntentContext && quickIntentContext.hasConversationContext === true, 'conversationState deve abilitare il contesto conversazionale per la quick-check');
   assert(
-    quickIntentContext.quickMemoryContext &&
+      quickIntentContext.quickMemoryContext &&
       quickIntentContext.quickMemoryContext.summary.includes('Iter precedente') &&
       quickIntentContext.quickMemoryContext.providedInfo.includes('orari segreteria') &&
-      quickIntentContext.quickMemoryContext.contextualFlags.remote_user === true,
+      quickIntentContext.quickMemoryContext.contextualFlags.remote_user === true &&
+      quickIntentContext.quickMemoryContext.contextualFlags.canonical_complexity === true &&
+      !Object.prototype.hasOwnProperty.call(quickIntentContext.quickMemoryContext.contextualFlags, 'physical_presence_constraint'),
     'quick-check deve ricevere una mini-memoria sanificata quando esiste contesto conversazionale'
   );
   assert(
@@ -4215,6 +4228,11 @@ console.log('--- Test quick-check: conversationState memoria abilita contesto co
     promptOptions.continuityCase &&
       promptOptions.continuityCase.key === 'relational_opening_continuity',
     'conversationState relazionale deve arrivare al PromptEngine come continuityCase'
+  );
+  assert(
+    promptOptions.salutation === 'Buongiorno' &&
+      promptOptions.closing === 'Cordiali saluti',
+    'una promozione PromptContext a full_warm non deve ereditare greeting/closing azzerati dalla modalità pre-contesto'
   );
   assert(
     promptOptions.responseMode === 'standard_operational' &&
@@ -4485,6 +4503,95 @@ console.log('--- Test context routing: memoria semantica sensibile impedisce amn
   assert(promptOptions.promptProfile === 'heavy', 'la memoria semantica sensibile deve alzare il profilo prompt');
   assert(promptOptions.doctrineBase === 'dottrina completa', 'la memoria semantica sensibile deve impedire la disattivazione della dottrina');
   assert(promptOptions.aiCore.startsWith('core pesante'), 'la memoria semantica sensibile deve mantenere attivo AI core pesante');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.GLOBAL_CACHE = originalGlobalCache;
+  global.createPromptContext = originalCreatePromptContext;
+}
+
+console.log('--- Test context routing: pastoral_technical_blend mantiene dottrina su categoria information ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalGlobalCache = global.GLOBAL_CACHE;
+  const originalCreatePromptContext = global.createPromptContext;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.GLOBAL_CACHE = { aiCoreLite: 'core lite', aiCore: 'core pesante' };
+
+  let promptOptions = null;
+  global.createPromptContext = () => ({
+    profile: 'heavy',
+    concerns: { pastoral_technical_blend: true },
+    meta: {
+      responseMode: 'pastoral_operational',
+      responseRegister: 'pastoral_supportive',
+      salutationMode: 'full',
+      operationalConstraints: [
+        'Rispondi anzitutto al dato pratico richiesto.'
+      ],
+      continuityPolicy: null,
+      concernSynthesis: {
+        key: 'pastoral_technical_blend',
+        directive: 'Il segnale personale orienta il tono, non amplia l’oggetto della risposta.',
+        suppress: {}
+      }
+    }
+  });
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Richiesta informazioni',
+        body: 'Sono confusa e vorrei capire come muovermi per il percorso.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'information', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { category: 'information', topic: 'percorso' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta percorso' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        promptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('pastoral-technical-blend-routing'), 'kb valida', 'dottrina completa', new Set(), true);
+  assert(result.status === 'replied', 'la categoria information con pastoral_technical_blend deve completarsi');
+  assert(promptOptions.category === 'information', `categoria attesa information, ottenuta ${promptOptions && promptOptions.category}`);
+  assert(promptOptions.activeConcerns.pastoral_technical_blend === true, 'pastoral_technical_blend deve arrivare al PromptEngine');
+  assert(promptOptions.doctrineBase === 'dottrina completa', 'pastoral_technical_blend deve impedire il taglio della dottrina');
+  assert(promptOptions.aiCore.startsWith('core pesante'), 'pastoral_technical_blend deve mantenere attivo AI core pesante');
 
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
   global.GLOBAL_CACHE = originalGlobalCache;

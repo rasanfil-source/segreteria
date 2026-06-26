@@ -449,28 +449,28 @@ var ResponseValidator = class ResponseValidator {
     details.originalDateQualification = originalDateResult;
     score *= originalDateResult.score;
 
-    // Determina validità usando sempre lo score canonico 0.0-1.0.
+    // === CONTROLLO 12: vincolo presenza fisica ===
     const physicalPresenceResult = this._checkPhysicalPresenceConstraint(response, temporalContext);
     errors.push(...physicalPresenceResult.errors);
     warnings.push(...physicalPresenceResult.warnings);
     details.physicalPresenceConstraint = physicalPresenceResult;
     score *= physicalPresenceResult.score;
 
-    // === CONTROLLO 12: coerenza esito territorio ===
+    // === CONTROLLO 13: coerenza esito territorio ===
     const territoryResult = this._checkTerritoryConsistency(response, temporalContext);
     errors.push(...territoryResult.errors);
     warnings.push(...territoryResult.warnings);
     details.territoryConsistency = territoryResult;
     score *= territoryResult.score;
 
-    // === CONTROLLO 13: qualita pastorale/longitudinale ===
+    // === CONTROLLO 14: qualita pastorale/longitudinale ===
     const sensitiveQualityResult = this._checkSensitiveContinuityQuality(response, originalContext, temporalContext);
     errors.push(...sensitiveQualityResult.errors);
     warnings.push(...sensitiveQualityResult.warnings);
     details.sensitiveContinuityQuality = sensitiveQualityResult;
     score *= sensitiveQualityResult.score;
 
-    // === CONTROLLO 14: snapshot risposta mismatch documentale ===
+    // === CONTROLLO 15: snapshot risposta mismatch documentale ===
     const documentMismatchTemplateResult = this._checkDocumentMismatchTemplate(response, temporalContext);
     errors.push(...documentMismatchTemplateResult.errors);
     warnings.push(...documentMismatchTemplateResult.warnings);
@@ -483,6 +483,7 @@ var ResponseValidator = class ResponseValidator {
     details.expectedDocumentMissingTemplate = expectedDocumentMissingTemplateResult;
     score *= expectedDocumentMissingTemplateResult.score;
 
+    // Determina validità usando sempre lo score canonico 0.0-1.0.
     const normalizedScore = normalizeValidationScore(score);
     const isValid = errors.length === 0 && normalizedScore >= this.MIN_VALID_SCORE;
 

@@ -1016,6 +1016,9 @@ function testUpdateMemoryLockFailureUsesExponentialBackoff() {
     console.log('--- Test: updateMemory applica backoff su lock timeout ---');
     loadScript('gas_memory_service.js');
 
+    const originalConfig = global.CONFIG;
+    global.CONFIG = { MEMORY_LOCK_MAX_RETRIES: 5, MEMORY_LOCK_BACKOFF_CAP_MS: 5000 };
+
     const service = Object.create(MemoryService.prototype);
     service._initialized = true;
     service._getShardedLockKey = () => 'memory_lock_thread-backoff';
@@ -1046,6 +1049,7 @@ function testUpdateMemoryLockFailureUsesExponentialBackoff() {
         );
     } finally {
         global.Utilities = originalUtilities;
+        global.CONFIG = originalConfig;
     }
 }
 

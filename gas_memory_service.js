@@ -1004,7 +1004,7 @@ var MemoryService = class MemoryService {
     }
 
     next.updatedAt = normalizedUpdatedAt;
-    next.source = update && update.source === 'quick_check' ? 'quick_check' : 'quick_check';
+    next.source = 'quick_check';
 
     return {
       lastRelationalPosture: next.lastRelationalPosture || 'direct',
@@ -1039,6 +1039,9 @@ var MemoryService = class MemoryService {
       provide_next_operational_step: true,
       acknowledge_document_without_reopening_procedure: true
     };
+    if (normalized && !allowed[normalized]) {
+      console.warn(`⚠️ responseFocusHint non riconosciuto ignorato: ${normalized}`);
+    }
     return allowed[normalized] ? normalized : null;
   }
 

@@ -1881,12 +1881,6 @@ var EmailProcessor = class EmailProcessor {
         detectedLanguage
       );
 
-      // Override strutturale: nessun saluto rituale in continuita.
-      // In modalita soft il PromptEngine mantiene una ripresa leggera e una chiusura essenziale.
-      if (salutationMode === 'none_or_continuity' || salutationMode === 'session' || salutationMode === 'soft') {
-        greeting = '';
-      }
-
       // ====================================================================
       // PASSO 7.1: VERIFICA TERRITORIO (solo quando richiesta esplicita)
       // ====================================================================
@@ -2460,12 +2454,16 @@ ${addressLines.join('\n\n')}
       }
 
       const effectiveSalutationModeKey = String(effectiveSalutationMode || '').trim().toLowerCase();
-      if (
+      const shouldSuppressRitualGreeting = (
         effectiveSalutationModeKey === 'none_or_continuity' ||
         effectiveSalutationModeKey === 'session' ||
         effectiveSalutationModeKey === 'soft'
-      ) {
+      );
+      if (shouldSuppressRitualGreeting) {
         greeting = '';
+        if (effectiveSalutationModeKey !== 'soft') {
+          closing = '';
+        }
       }
 
       const concernFlags = activeConcerns && typeof activeConcerns === 'object'
@@ -2481,12 +2479,10 @@ ${addressLines.join('\n\n')}
       const hasPastoralConcern = Boolean(
         concernFlags.emotional_sensitivity ||
         concernFlags.discernment_risk ||
-        concernFlags.doctrine ||
-        concernFlags.sensitive ||
-        concernFlags.canonLaw ||
-        concernFlags.sacrament ||
-        concernFlags.formalComplaint ||
         concernFlags.longitudinal_sensitivity ||
+        concernFlags.pastoral_technical_blend ||
+        concernFlags.relational_warmth ||
+        concernFlags.physical_presence_constraint ||
         hasMemoryPastoralContext
       );
 
@@ -5407,7 +5403,7 @@ ${addressLines.join('\n\n')}
     } : null;
 
     const contextualFlags = {};
-    const allowedFlags = ['remote_user', 'bereaved', 'ongoing_pastoral_process', 'physical_presence_constraint'];
+    const allowedFlags = ['remote_user', 'bereaved', 'canonical_complexity', 'ongoing_pastoral_process'];
     const rawFlags = safeMemory.contextualFlags && typeof safeMemory.contextualFlags === 'object'
       ? safeMemory.contextualFlags
       : {};

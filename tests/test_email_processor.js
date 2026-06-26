@@ -949,6 +949,25 @@ console.log('--- Test receipt-only response: passa senderName al saluto bypass -
   assert(!response.includes('fallbackSenderName'), 'receipt-only non deve esporre placeholder tecnici');
 }
 
+console.log('--- Test quick-check memory context: propaga canonical_complexity e rimuove flag non persistibile ---');
+{
+  const quickMemory = processor._buildQuickCheckMemoryContext_({
+    memorySummary: 'Thread formale canonico',
+    contextualFlags: {
+      remote_user: true,
+      canonical_complexity: true,
+      physical_presence_constraint: true
+    }
+  });
+
+  assert(quickMemory.contextualFlags.remote_user === true, 'quick-check deve ricevere remote_user persistito');
+  assert(quickMemory.contextualFlags.canonical_complexity === true, 'quick-check deve ricevere canonical_complexity persistito');
+  assert(
+    !Object.prototype.hasOwnProperty.call(quickMemory.contextualFlags, 'physical_presence_constraint'),
+    'quick-check non deve esporre physical_presence_constraint come flag memoria persistita'
+  );
+}
+
 console.log('--- Test modalità lingua (foreign_only) ---');
 global.GLOBAL_CACHE.languageMode = 'foreign_only';
 assert(
