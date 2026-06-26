@@ -2945,7 +2945,12 @@ ${addressLines.join('\n\n')}
       const fallbackModelName = generationPlan.fallbackModelName || 'gemini-3.5-flash';
 
       if (shouldUseReceiptOnly) {
-        response = this._buildReceiptOnlySubmissionResponse_(detectedLanguage, categoryHintSource, receiptOnlyDeliveryChannel);
+        response = this._buildReceiptOnlySubmissionResponse_(
+          detectedLanguage,
+          categoryHintSource,
+          receiptOnlyDeliveryChannel,
+          { senderName: messageDetails.senderName }
+        );
         strategyUsed = hasRiskyUnknownReceived
           ? 'DocumentConsistency-UnknownReceivedReceiptOnly'
           : 'Submission-ReceiptOnlyGuardrail';
@@ -5438,6 +5443,15 @@ ${addressLines.join('\n\n')}
       return; // Previene doppia chiamata API sullo stesso messaggio
     }
 
+    if (this.config.dryRun) {
+      const targetLogger = this.logger && typeof this.logger.info === 'function' ? this.logger : console;
+      targetLogger.info(`   🔴 DRY RUN - Label '${this.config.labelName}' non aggiunta al messaggio ${messageId} (simulazione)`);
+      if (labeledMessageIds && typeof labeledMessageIds.add === 'function') {
+        labeledMessageIds.add(messageId);
+      }
+      return;
+    }
+
     this.gmailService.addLabelToMessage(messageId, this.config.labelName);
     if (this.gmailService && typeof this.gmailService.removeLabelFromMessage === 'function') {
       // Best-effort cleanup: no-op se il messaggio non ha la label skip.
@@ -5712,6 +5726,12 @@ ${addressLines.join('\n\n')}
   }
 
   _addErrorLabel(target) {
+    if (this.config.dryRun) {
+      const targetLogger = this.logger && typeof this.logger.info === 'function' ? this.logger : console;
+      targetLogger.info(`   🔴 DRY RUN - Label errore '${this.config.errorLabelName}' non aggiunta (simulazione)`);
+      return;
+    }
+
     if (target && typeof target.getThread === 'function' && typeof target.getId === 'function') {
       this.gmailService.addLabelToMessage(target.getId(), this.config.errorLabelName);
       return;
@@ -5720,6 +5740,12 @@ ${addressLines.join('\n\n')}
   }
 
   _addValidationErrorLabel(target, reviewContext = {}) {
+    if (this.config.dryRun) {
+      const targetLogger = this.logger && typeof this.logger.info === 'function' ? this.logger : console;
+      targetLogger.info(`   🔴 DRY RUN - Label verifica '${this.config.validationErrorLabel}' non aggiunta (simulazione)`);
+      return;
+    }
+
     if (target && typeof target.getThread === 'function' && typeof target.getId === 'function') {
       this.gmailService.addLabelToMessage(target.getId(), this.config.validationErrorLabel);
       this._notifyValidationReview_(target, reviewContext);
@@ -5733,6 +5759,11 @@ ${addressLines.join('\n\n')}
     try {
       const alertConfig = this.config.validationReviewAlerts || {};
       if (alertConfig.enabled === false) return;
+
+      if (this.config.dryRun) {
+        console.log('   🔴 DRY RUN - Notifica di revisione validazione non inviata (simulazione)');
+        return;
+      }
 
       const recipient = this._getValidationReviewRecipient_(alertConfig);
       if (!recipient) return;
@@ -7863,9 +7894,10 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     return cleaned;
   }
 
-  _buildReceiptOnlySubmissionResponse_(lang = 'it', categoryHintSource = null, deliveryChannel = 'attachment') {
+  _buildReceiptOnlySubmissionResponse_(lang = 'it', categoryHintSource = null, deliveryChannel = 'attachment', options = {}) {
     const normalizedLang = this._normalizeBypassResponseLanguage_(lang);
-    const { greeting, closing } = this._getAdaptiveBypassGreetingAndClosing_(normalizedLang);
+    const senderName = options && typeof options === 'object' ? options.senderName : '';
+    const { greeting, closing } = this._getAdaptiveBypassGreetingAndClosing_(normalizedLang, senderName);
     // Nome del documento usato solo nel testo IT, in base alla categoria già
     // rilevata post-OCR (sacrament/formal). Il guardrail "sola ricezione" resta
     // intatto: qui personalizziamo solo la formulazione, non la logica di decisione.
@@ -7933,7 +7965,7 @@ Parish Secretariat of Sant'Eugenio`;
     return ['it', 'en', 'es', 'fr', 'pt', 'de'].includes(normalized) ? normalized : 'it';
   }
 
-  _getAdaptiveBypassGreetingAndClosing_(lang = 'it') {
+  _getAdaptiveBypassGreetingAndClosing_(lang = 'it', senderName = '') {
     const normalized = this._normalizeBypassResponseLanguage_(lang);
     const fallback = normalized === 'en'
       ? { greeting: 'Good day,', closing: 'Kind regards,' }
@@ -7941,7 +7973,7 @@ Parish Secretariat of Sant'Eugenio`;
 
     if (this.geminiService && typeof this.geminiService.getAdaptiveGreeting === 'function') {
       try {
-        const fallbackSenderName = normalized === 'it' ? 'utente' : 'parishioner';
+        const fallbackSenderName = senderName || (normalized === 'it' ? 'utente' : 'parishioner');
         const adaptive = this.geminiService.getAdaptiveGreeting(fallbackSenderName, normalized) || {};
         const greeting = String(adaptive.greeting || '').trim();
         const closing = String(adaptive.closing || '').trim();

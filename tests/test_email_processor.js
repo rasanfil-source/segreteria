@@ -920,6 +920,35 @@ assert(
   'non deve attivare OCR senza keyword se c’è testo'
 );
 
+console.log('--- Test receipt-only response: passa senderName al saluto bypass ---');
+{
+  const greetingCalls = [];
+  const receiptProcessor = new EmailProcessor({
+    geminiService: {
+      getAdaptiveGreeting: (senderName, language) => {
+        greetingCalls.push({ senderName, language });
+        return {
+          greeting: `Gentile ${senderName},`,
+          closing: 'Cordiali saluti,'
+        };
+      }
+    }
+  });
+
+  const response = receiptProcessor._buildReceiptOnlySubmissionResponse_(
+    'it',
+    'formal',
+    'attachment',
+    { senderName: 'Mario Rossi' }
+  );
+
+  assert(greetingCalls.length === 1, 'receipt-only deve invocare il saluto adattivo una volta');
+  assert(greetingCalls[0].senderName === 'Mario Rossi', 'receipt-only deve passare il senderName reale al saluto bypass');
+  assert(greetingCalls[0].language === 'it', 'receipt-only deve passare la lingua normalizzata al saluto bypass');
+  assert(response.startsWith('Gentile Mario Rossi,'), 'receipt-only deve usare il saluto generato con il nome del mittente');
+  assert(!response.includes('fallbackSenderName'), 'receipt-only non deve esporre placeholder tecnici');
+}
+
 console.log('--- Test modalità lingua (foreign_only) ---');
 global.GLOBAL_CACHE.languageMode = 'foreign_only';
 assert(
@@ -955,6 +984,24 @@ console.log('--- Test _markMessageAsProcessed: rimuove skip label se supportato 
   assert(applied.length === 1 && applied[0].label === 'IA', 'deve applicare la label IA al messaggio processato');
   assert(removed.length === 1 && removed[0].label === CONFIG.SKIP_LABEL_NAME, 'deve rimuovere la skip label quando il messaggio viene processato');
   assert(labeledIds.has('m-cleanup'), 'deve aggiungere il messageId al set dei già etichettati');
+}
+
+console.log('--- Test _markMessageAsProcessed: dry-run non muta Gmail ma aggiorna cache locale ---');
+{
+  const calls = [];
+  const dryRunProcessor = new EmailProcessor({
+    gmailService: {
+      addLabelToMessage: (id, label) => calls.push({ type: 'add', id, label }),
+      removeLabelFromMessage: (id, label) => calls.push({ type: 'remove', id, label })
+    }
+  });
+  dryRunProcessor.config.dryRun = true;
+
+  const labeledIds = new Set();
+  dryRunProcessor._markMessageAsProcessed(createMessage('m-dry-ia', 'Utente <utente@example.org>', 'Oggetto', 'Body'), labeledIds);
+
+  assert(calls.length === 0, 'dry-run non deve aggiungere o rimuovere label Gmail per messaggio processato');
+  assert(labeledIds.has('m-dry-ia'), 'dry-run deve aggiornare labeledMessageIds per coerenza del batch locale');
 }
 
 console.log('--- Test error/review labels: message-level con notifica review unica ---');
@@ -1004,6 +1051,77 @@ console.log('--- Test error/review labels: fallback thread-level con notifica re
   assert(calls.some((call) => call.type === 'thread' && call.label === CONFIG.VALIDATION_ERROR_LABEL), 'Verifica deve cadere sul thread se il target non è un messaggio');
   assert(!calls.some((call) => call.type === 'message'), 'il target thread non deve usare addLabelToMessage');
   assert(calls.filter((call) => call.type === 'notify').length === 1, 'Verifica thread-level deve inviare una sola notifica review');
+}
+
+console.log('--- Test error/review labels: dry-run blocca label e notifica review ---');
+{
+  const calls = [];
+  const processorLabels = new EmailProcessor({
+    gmailService: {
+      addLabelToMessage: (id, label) => calls.push({ type: 'message', id, label }),
+      addLabelToThread: (_thread, label) => calls.push({ type: 'thread', label })
+    }
+  });
+  processorLabels.config.dryRun = true;
+  processorLabels._notifyValidationReview_ = (target, context) => {
+    calls.push({ type: 'notify', id: target.getId ? target.getId() : 'thread', reason: context.reason });
+  };
+
+  const messageTarget = {
+    getId: () => 'm-dry-label',
+    getThread: () => ({ getId: () => 't-dry-label' })
+  };
+  processorLabels._addErrorLabel(messageTarget);
+  processorLabels._addValidationErrorLabel(messageTarget, { reason: 'review' });
+  processorLabels._addErrorLabel({ getId: () => 't-dry-label' });
+  processorLabels._addValidationErrorLabel({ getId: () => 't-dry-label' }, { reason: 'review' });
+
+  assert(calls.length === 0, 'dry-run non deve applicare label errore/verifica né inviare notifiche review');
+}
+
+console.log('--- Test _notifyValidationReview_: dry-run non invia email e non aggiorna throttling ---');
+{
+  const previousMailApp = global.MailApp;
+  const previousGmailApp = global.GmailApp;
+  let sent = 0;
+  let throttled = 0;
+
+  global.MailApp = {
+    sendEmail: () => { sent++; }
+  };
+  global.GmailApp = {
+    getAliases: () => [],
+    sendEmail: () => { sent++; }
+  };
+
+  try {
+    const processorNotify = new EmailProcessor();
+    processorNotify.config.dryRun = true;
+    processorNotify.config.validationReviewAlerts = {
+      enabled: true,
+      email: 'admin@example.org'
+    };
+    processorNotify._isValidationReviewAlertThrottled_ = () => {
+      throttled++;
+      return false;
+    };
+
+    processorNotify._notifyValidationReview_({
+      getId: () => 'm-dry-review',
+      getSubject: () => 'Oggetto',
+      getThread: () => ({ getId: () => 't-dry-review' })
+    }, { reason: 'dry_run_review' });
+
+    assert(sent === 0, 'dry-run non deve inviare email di revisione tramite MailApp/GmailApp');
+    assert(throttled === 0, 'dry-run non deve aggiornare stato di throttling notifica review');
+  } finally {
+    if (typeof previousMailApp === 'undefined') {
+      delete global.MailApp;
+    } else {
+      global.MailApp = previousMailApp;
+    }
+    global.GmailApp = previousGmailApp;
+  }
 }
 
 console.log('--- Test processThread: alias Gmail recognized as unread internal ---');
