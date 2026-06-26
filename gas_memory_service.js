@@ -243,10 +243,10 @@ var MemoryService = class MemoryService {
    */
   updateMemory(threadId, newData, options = {}) {
     if (!this._initialized || !threadId || !newData || typeof newData !== 'object') {
-      return;
+      return false;
     }
     const normalizedThreadId = String(threadId).trim();
-    if (!normalizedThreadId) return;
+    if (!normalizedThreadId) return false;
 
     const conversationStateUpdate = newData.conversationStateUpdate || null;
     const baseMemorySummary = newData._baseMemorySummary;
@@ -387,7 +387,7 @@ var MemoryService = class MemoryService {
         // Invalida cache locale
         this._invalidateCache(`memory_${normalizedThreadId}`);
         this._writeThroughMemoryCache_(`memory_${normalizedThreadId}`, cacheValueToStore);
-        return; // Successo
+        return true; // Successo
 
       } catch (error) {
         if (error.message === 'VERSION_MISMATCH') {
@@ -437,7 +437,7 @@ var MemoryService = class MemoryService {
    */
   updateMemoryRobust(threadId, data) {
     if (!threadId || !data || typeof data !== 'object') {
-      return;
+      return false;
     }
 
     // Invalidazione preventiva cache prima della lettura di allineamento
@@ -462,9 +462,10 @@ var MemoryService = class MemoryService {
         return this.updateMemoryAtomic(threadId, dataToUpdate, robustProvidedTopics, inferredReactionData);
       }
 
-      this.updateMemory(threadId, data);
+      return this.updateMemory(threadId, data);
     } catch (e) {
       console.error(`❌ updateMemoryRobust: persistenza memoria fallita per thread ${threadId}: ${e.message}`);
+      return false;
     }
   }
 
@@ -929,7 +930,10 @@ var MemoryService = class MemoryService {
 
   _combineMemorySummaryLines_(existingText, deltaText) {
     const maxChars = 2000;
-    const maxBullets = 5;
+    const configuredMaxBullets = (typeof CONFIG !== 'undefined' && Number(CONFIG.MEMORY_MAX_SUMMARY_BULLETS) > 0)
+      ? Number(CONFIG.MEMORY_MAX_SUMMARY_BULLETS)
+      : 5;
+    const maxBullets = Math.max(1, Math.floor(configuredMaxBullets));
     const seen = new Set();
     const mergedLines = [];
 
@@ -967,16 +971,17 @@ var MemoryService = class MemoryService {
 
   _mergeConversationState(existingState, update) {
     const next = Object.assign({}, existingState || {});
-    const normalizedPosture = this._normalizeConversationPosture_(update && (update.currentRelationalPosture || update.lastRelationalPosture));
+    const normalizedPosture = this._normalizeConversationPosture_(update && update.currentRelationalPosture);
     const normalizedLastPosture = this._normalizeConversationPosture_(update && update.lastRelationalPosture);
     if (normalizedLastPosture) {
       next.lastRelationalPosture = normalizedLastPosture;
     }
     if (normalizedPosture) {
-      next.currentRelationalPosture = normalizedPosture;
-      if (!normalizedLastPosture) {
-        next.lastRelationalPosture = normalizedPosture;
+      const previousCurrentPosture = this._normalizeConversationPosture_(next.currentRelationalPosture);
+      if (!normalizedLastPosture && previousCurrentPosture) {
+        next.lastRelationalPosture = previousCurrentPosture;
       }
+      next.currentRelationalPosture = normalizedPosture;
     }
 
     const confidence = this._normalizeConversationConfidence_(update && update.responseFocusHintConfidence);
@@ -1004,7 +1009,10 @@ var MemoryService = class MemoryService {
     }
 
     next.updatedAt = normalizedUpdatedAt;
-    next.source = 'quick_check';
+    const source = update && Object.prototype.hasOwnProperty.call(update, 'source')
+      ? String(update.source || '').trim()
+      : '';
+    next.source = source ? source.substring(0, 80) : 'unknown';
 
     return {
       lastRelationalPosture: next.lastRelationalPosture || 'direct',

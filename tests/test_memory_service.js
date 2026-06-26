@@ -223,7 +223,17 @@ console.log('--- Test MemoryService conversationState: preserva legacySummaryTex
       source: 'manual'
     }
   ));
-  assert(normalizedSource.conversationState.source === 'quick_check', 'source non supportate non devono propagarsi in memoria conversazionale');
+  assert(normalizedSource.conversationState.source === 'manual', 'source esplicite devono propagarsi in memoria conversazionale');
+
+  const fallbackSource = JSON.parse(memory._serializeMemorySummaryState(
+    '',
+    'Sintesi',
+    {
+      currentRelationalPosture: 'open',
+      updatedAt: now
+    }
+  ));
+  assert(fallbackSource.conversationState.source === 'unknown', 'source assente deve essere marcata come unknown');
 
   const existingWrapped = JSON.stringify({
     legacySummaryText: 'Sintesi vecchia',
@@ -238,6 +248,18 @@ console.log('--- Test MemoryService conversationState: preserva legacySummaryTex
       source: 'quick_check'
     }
   });
+  const postureTransition = JSON.parse(memory._serializeMemorySummaryState(
+    existingWrapped,
+    'Sintesi con cambio postura',
+    {
+      currentRelationalPosture: 'open',
+      updatedAt: now,
+      source: 'quick_check'
+    }
+  )).conversationState;
+  assert(postureTransition.currentRelationalPosture === 'open', 'nuova currentRelationalPosture deve essere salvata');
+  assert(postureTransition.lastRelationalPosture === 'direct', 'lastRelationalPosture deve conservare la postura corrente precedente');
+
   const textOnlyUpdate = JSON.parse(memory._serializeMemorySummaryState(
     existingWrapped,
     'Sintesi solo testuale nuova',
@@ -260,6 +282,32 @@ console.log('--- Test MemoryService conversationState: preserva legacySummaryTex
   assert(staleCleared.updatedAt === '2026-06-02T10:00:00.000Z', 'updatedAt generale deve aggiornarsi');
   assert(staleCleared.responseFocusHint === null, 'quick-check senza hint valido deve cancellare il vecchio focus hint');
   assert(staleCleared.responseFocusHintUpdatedAt === null, 'hint cancellato non deve mantenere freshness dedicata');
+}
+
+console.log('--- Test MemoryService memorySummary: limite bullet configurabile ---');
+{
+  const originalConfig = global.CONFIG;
+  global.CONFIG = Object.assign({}, originalConfig || {}, {
+    MEMORY_MAX_SUMMARY_BULLETS: 6
+  });
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    const combined = memory._combineMemorySummaryLines_(
+      'riga 1\nriga 2\nriga 3\nriga 4',
+      'riga 5\nriga 6'
+    );
+    assert(
+      combined.split('\n').length === 6 && combined.includes('riga 1'),
+      'MEMORY_MAX_SUMMARY_BULLETS deve permettere di conservare piu di 5 righe'
+    );
+  } finally {
+    if (typeof originalConfig === 'undefined') {
+      delete global.CONFIG;
+    } else {
+      global.CONFIG = originalConfig;
+    }
+  }
 }
 
 console.log('--- Test MemoryService _normalizeHeaders: riempie solo header attesi non vuoti ---');
@@ -485,13 +533,14 @@ console.log('--- Test MemoryService updateMemory: fonde providedInfo senza perde
       ]
     });
 
-    memory.updateMemory('thread-merge', {
+    const ok = memory.updateMemory('thread-merge', {
       providedInfo: [
         { topic: ' catechismo ', userReaction: 'unknown', timestamp: '2026-05-03T00:00:00.000Z' },
         { topic: 'Battesimo', userReaction: 'unknown', timestamp: '2026-05-03T00:00:00.000Z' }
       ]
     });
 
+    assert(ok === true, 'updateMemory deve restituire true sul percorso di successo');
     const topics = saved && saved.data && saved.data.providedInfo;
     assert(Array.isArray(topics), 'providedInfo salvato deve restare un array');
     assert(topics.length === 3, `providedInfo deve conservare storico e nuovo topic, ottenuti ${topics.length}`);
@@ -943,6 +992,21 @@ console.log('--- Test MemoryService updateMemoryRobust: providedTopics usa perco
   assert(!Object.prototype.hasOwnProperty.call(atomicArgs.data, 'inferredReactionData'), 'inferredReactionData non deve essere persistito come campo dati');
   assert(atomicArgs.providedTopics[0] === 'orari messe', 'topic deve essere passato a updateMemoryAtomic');
   assert(atomicArgs.inferredReactionData.reaction === 'positive', 'reaction data deve essere passato a updateMemoryAtomic');
+}
+
+console.log('--- Test MemoryService updateMemoryRobust: propaga esito del percorso semplice ---');
+{
+  const memory = Object.create(MemoryService.prototype);
+  let updateMemoryCalled = false;
+  memory._invalidateCache = () => {};
+  memory.updateMemory = (threadId, data) => {
+    updateMemoryCalled = threadId === 'thread-robust-simple' && data.language === 'it';
+    return true;
+  };
+
+  const result = memory.updateMemoryRobust('thread-robust-simple', { language: 'it' });
+  assert(result === true, 'updateMemoryRobust deve restituire true anche sul percorso updateMemory semplice');
+  assert(updateMemoryCalled === true, 'per dati senza providedTopics deve usare updateMemory semplice');
 }
 
 console.log('--- Test MemoryService _withSheetWriteLock: flush anche se write fallisce con lock gia acquisito ---');

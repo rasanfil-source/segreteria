@@ -1656,6 +1656,19 @@ assert(
   'responseFocusHint non deve usare la formula Indicazione interna'
 );
 
+const focusHintWithoutTopicPrompt = engine.buildPrompt({
+  emailSubject: 'Passaggio',
+  emailContent: 'Ok, ma allora quando posso passare?',
+  knowledgeBase: 'Segreteria aperta martedi.',
+  detectedLanguage: 'it',
+  currentDate: '2026-06-15',
+  memoryContext: focusHintMemoryContext
+});
+assert(
+  focusHintWithoutTopicPrompt.systemInstruction.includes('## CONTINUITÀ DEL THREAD'),
+  'responseFocusHint non deve essere scartato quando il topic corrente non e disponibile'
+);
+
 const changedTopicPrompt = engine.buildPrompt({
   emailSubject: 'Orari',
   emailContent: 'Vorrei sapere gli orari della segreteria.',
@@ -1755,6 +1768,20 @@ const lowConfidenceShiftPrompt = engine.buildPrompt({
 assert(
   !lowConfidenceShiftPrompt.systemInstruction.includes('La conversazione sembra aver cambiato argomento.'),
   'conversation_shift sotto soglia non deve produrre istruzioni di turno'
+);
+
+const stringShiftPrompt = engine.buildPrompt({
+  emailSubject: 'Re: grazie',
+  emailContent: 'Grazie, va bene cosi.',
+  knowledgeBase: 'La segreteria risponde alle richieste operative.',
+  detectedLanguage: 'it',
+  currentDate: '2026-06-15',
+  conversationShift: 'closure'
+});
+assert(
+  stringShiftPrompt.systemInstruction.includes('## CONTINUITÀ DEL TURNO') &&
+    stringShiftPrompt.systemInstruction.includes('Questo messaggio chiude la conversazione.'),
+  'conversation_shift passato come stringa deve avere confidence implicita piena'
 );
 
 console.log('--- Test prompt: orario locale e guardrail anti saluto in continuità ---');

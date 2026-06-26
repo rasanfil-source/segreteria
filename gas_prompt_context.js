@@ -571,7 +571,11 @@ var PromptContext = class PromptContext {
 
         const body = this._normalizeSignalText_(input.email?.body || '');
         if (!body) return false;
-        if (body.length > 260) return false;
+        const configuredMaxChars = (typeof CONFIG !== 'undefined' && Number(CONFIG.LONGITUDINAL_TONE_ONLY_MAX_CHARS) > 0)
+            ? Number(CONFIG.LONGITUDINAL_TONE_ONLY_MAX_CHARS)
+            : 500;
+        const maxChars = Math.max(1, Math.floor(configuredMaxChars));
+        if (body.length > maxChars) return false;
 
         const currentSensitiveSignal = /\b(?:lutto|morte|morto|morta|decesso|defunt[oaie]?|funeral[ei]|esequie|malattia|separat[oaie]?|divorziat[oaie]?|vedov[oaie]?|crisi|disperat[oaie]?|angoscia|panico|non\s+ce\s+la\s+faccio|vorrei\s+sparire|non\s+so\s+piu\s+come\s+andare\s+avanti)\b/.test(body);
         const asksForPastoralSupport = /\b(?:aiuto|aiutatemi|parlare\s+con\s+qualcuno|sacerdote|prete|parroco|colloquio|ascolto|confessione|pregare|preghiera)\b/.test(body);

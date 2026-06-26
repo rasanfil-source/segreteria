@@ -1941,7 +1941,6 @@ ${sections.join('\n')}`;
     const appliesToTopic = state.appliesToTopic ? this._normalizeTopicForContinuity_(state.appliesToTopic) : '';
     const normalizedCurrentTopic = this._normalizeTopicForContinuity_(currentTopic);
     if (appliesToTopic && normalizedCurrentTopic && appliesToTopic !== normalizedCurrentTopic) return null;
-    if (appliesToTopic && !normalizedCurrentTopic) return null;
 
     const hintUpdatedAt = state.responseFocusHintUpdatedAt || state.updatedAt;
     if (!this._isConversationStateFresh_(hintUpdatedAt, referenceDate, maxAgeDays)) return null;
@@ -2367,7 +2366,11 @@ Non richiedere nuovamente queste informazioni.`;
     const source = conversationShift && typeof conversationShift === 'object'
       ? conversationShift
       : { shift: conversationShift };
-    const confidence = Number(source.confidence);
+    const hasExplicitConfidence = source && Object.prototype.hasOwnProperty.call(source, 'confidence');
+    const hasImplicitStringShift = typeof conversationShift === 'string' && conversationShift.trim().length > 0;
+    const confidence = hasExplicitConfidence
+      ? Number(source.confidence)
+      : (hasImplicitStringShift ? 1 : NaN);
     if (!Number.isFinite(confidence) || confidence < 0.65) return { shift: 'none', confidence: 0 };
     const shift = String(source.shift || '').trim().toLowerCase();
     const allowed = {

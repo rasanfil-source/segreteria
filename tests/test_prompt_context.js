@@ -691,6 +691,50 @@ assert(
   'pastoral_longitudinal deve produrre una policy di continuità non riaprire'
 );
 
+console.log('--- Test PromptContext: longitudinal_tone_only usa soglia caratteri configurabile ---');
+{
+  const originalToneOnlyMaxChars = global.CONFIG.LONGITUDINAL_TONE_ONLY_MAX_CHARS;
+  const articulatedOperationalFollowUpBody = (
+    'Grazie per le indicazioni gia inviate. ' +
+    'Confermo l invio via email dei documenti richiesti prima dell appuntamento, mantenendo lo stesso riferimento della pratica precedente e attendendo una vostra conferma operativa. '.repeat(2)
+  ).trim();
+  assert(
+    articulatedOperationalFollowUpBody.length > 260 && articulatedOperationalFollowUpBody.length < 500,
+    'fixture follow-up deve stare tra vecchia e nuova soglia'
+  );
+
+  try {
+    global.CONFIG.LONGITUDINAL_TONE_ONLY_MAX_CHARS = 500;
+    const articulatedFollowUp = createPromptContext({
+      email: {
+        isReply: true,
+        detectedLanguage: 'it',
+        subject: 'Re: informazioni',
+        body: articulatedOperationalFollowUpBody
+      },
+      requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+      classification: { confidence: 1, category: 'information' },
+      memory: {
+        exists: true,
+        providedInfoCount: 1,
+        memorySummary: 'Scambio precedente su lutto familiare',
+        topics: ['esequie']
+      },
+      salutationMode: 'none_or_continuity'
+    });
+    assert(
+      articulatedFollowUp.meta.responseMode === 'longitudinal_tone_only',
+      'soglia configurata a 500 deve evitare escalation pastorale per follow-up operativo articolato'
+    );
+  } finally {
+    if (typeof originalToneOnlyMaxChars === 'undefined') {
+      delete global.CONFIG.LONGITUDINAL_TONE_ONLY_MAX_CHARS;
+    } else {
+      global.CONFIG.LONGITUDINAL_TONE_ONLY_MAX_CHARS = originalToneOnlyMaxChars;
+    }
+  }
+}
+
 const longitudinalSynthesisStandalone = Object.create(PromptContext.prototype);
 longitudinalSynthesisStandalone.concerns = {
   longitudinal_sensitivity: true,
