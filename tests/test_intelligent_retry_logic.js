@@ -150,6 +150,45 @@ assert(
     'Temporal retry prompt should include explicit currentDate/messageDate/papal retry rules'
 );
 
+let temporalAwarenessArgs = null;
+processor.promptEngine = {
+    _renderTemporalAwareness: function () {
+        temporalAwarenessArgs = Array.from(arguments);
+        return 'TEMPORAL_AWARENESS_SENTINEL';
+    }
+};
+const renderedRuntimeContext = processor._renderRuntimeContextForCorrection_(
+    {
+        temporal: {
+            currentDate: '2026-06-07',
+            currentTime: '20:30',
+            messageDate: '2026-06-01'
+        },
+        papal: {
+            currentName: 'Papa Leone XIV',
+            previousName: 'Papa Francesco',
+            currentSince: '2025-05-08',
+            ministryStart: '2025-05-18'
+        }
+    },
+    'it',
+    'soft'
+);
+assert(
+    Array.isArray(temporalAwarenessArgs) &&
+      temporalAwarenessArgs.length === 4 &&
+      temporalAwarenessArgs[0].currentDate === '2026-06-07' &&
+      temporalAwarenessArgs[1] === 'it' &&
+      temporalAwarenessArgs[2].includes('Papa Leone XIV') &&
+      temporalAwarenessArgs[2].includes('2025-05-08') &&
+      temporalAwarenessArgs[3].currentName === 'Papa Leone XIV',
+    'Runtime context retry should call _renderTemporalAwareness with temporal, language, papal source text and papal object only'
+);
+assert(
+    renderedRuntimeContext.includes('TEMPORAL_AWARENESS_SENTINEL'),
+    'Runtime context retry should include rendered temporal awareness'
+);
+
 const sensitiveValidation = {
     isValid: false,
     score: 0.45,

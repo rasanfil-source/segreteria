@@ -829,7 +829,7 @@ Vincoli:
     const normalizedResponseStrategy = String(responseStrategy || 'none').trim().toLowerCase();
     const inferredStrategy = mapRelationalPostureToResponseStrategy_(effectiveRelationalPosture);
     const hasPhysicalPresenceConstraint = Boolean(
-      physicalPresenceConstraint ||
+      (physicalPresenceConstraint && physicalPresenceConstraint.has_constraint) ||
       (normalizedConcerns && normalizedConcerns.physical_presence_constraint)
     );
     const hasGoalContinuitySignal = Boolean(
@@ -3176,7 +3176,7 @@ ISTRUZIONI:
     const normalized = String(posture || '').trim().toLowerCase();
     const aliases = {
       informational: 'direct',
-      procedural: 'direct',
+      procedural: 'complaint',
       relational: 'personal',
       open: 'open',
       appreciative: 'appreciative',
@@ -3359,13 +3359,13 @@ Azione: segnala con garbo che non risultano allegati e chiedi di rinviarli.
 Se nel corpo c'è una domanda autonoma, rispondi comunque alla domanda usando Knowledge Base e contesto disponibile; poi chiarisci che la verifica finale della documentazione richiederà l'allegato.
 Non trattare l'allegato mancante come motivo per ignorare la domanda testuale.` : '';
     const questionGuardrail = hasExplicitBodyQuestion
-      ? "ATTENZIONE: il corpo contiene una domanda esplicita. Rispondi SOLO a quella domanda, poi conferma ricezione dell'allegato."
+      ? "ATTENZIONE: il corpo contiene una domanda o richiesta operativa esplicita. Rispondi prima a quella richiesta senza limitarti alla ricevuta; poi conferma ricezione dell'allegato."
       : "Se non c'è una domanda esplicita nel corpo, non aggiungere informazioni operative.";
     const guardrail = isSubmission ? `
 ⛔ STOP — ALLEGATO = DOCUMENTAZIONE CONSEGNATA.
-Azione: conferma ricezione + eventuale risposta alla domanda esplicita nel corpo.
+Azione: conferma ricezione + eventuale risposta alla domanda o richiesta operativa esplicita nel corpo.
 Vietato: elencare requisiti, spiegare procedure, commentare il contenuto OCR o trasformare parole dell'allegato in una richiesta informativa.
-Non elencare i requisiti per fare da padrino/madrina, salvo domanda esplicita nel corpo email o POLICY specifica.
+Non elencare i requisiti per fare da padrino/madrina, salvo domanda/richiesta operativa esplicita nel corpo email o POLICY specifica.
 Risposta predefinita: ringrazia e conferma la ricezione, senza aggiungere passi operativi.
 Formula guida per schede/moduli: "Abbiamo ricevuto la documentazione allegata. La segreteria procederà alla verifica e, se tutto risulterà completo, alla registrazione nei propri archivi."
 ${questionGuardrail}

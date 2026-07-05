@@ -1068,6 +1068,37 @@ console.log('--- Test processUnreadEmails: filtered deve consumare MAX_EMAILS_PE
   global.CONFIG.MAX_EMAILS_PER_RUN = originalMax;
 }
 
+console.log('--- Test processUnreadEmails: skipped deve consumare MAX_EMAILS_PER_RUN ---');
+{
+  const originalMax = global.CONFIG.MAX_EMAILS_PER_RUN;
+  global.CONFIG.MAX_EMAILS_PER_RUN = 1;
+
+  const threads = [
+    createThread({ id: 't-skipped-limit', messages: [createMessage({ id: 'm-skipped-limit', unread: true })] }),
+    createThread({ id: 't-after-skip-limit', messages: [createMessage({ id: 'm-after-skip-limit', unread: true })] })
+  ];
+
+  const processor = new EmailProcessor({
+    gmailService: { getUnprocessedUnreadThreads: () => threads }
+  });
+  processor._hasUnreadMessagesToProcess = () => true;
+  processor._isNearDeadline = () => false;
+  processor._getRemainingTimeMs = () => 60000;
+
+  const calls = [];
+  processor.processThread = (thread) => {
+    calls.push(thread.getId());
+    if (thread.getId() === 't-skipped-limit') return { status: 'skipped', reason: 'last_speaker_is_me' };
+    return { status: 'replied' };
+  };
+
+  const stats = processor.processUnreadEmails('kb', '', true);
+  assert(calls.length === 1, 'thread skipped deve contribuire al limite quando il limite e 1');
+  assert(stats.replied === 0, 'con limite esaurito dopo skip non deve elaborare thread successivo');
+
+  global.CONFIG.MAX_EMAILS_PER_RUN = originalMax;
+}
+
 console.log('--- Test processUnreadEmails: lock batch locale propagato a processThread ---');
 {
   const threads = [
@@ -2029,6 +2060,117 @@ console.log('--- Test processThread: look-back stretto salta messaggi del bot e 
   assert(result.status === 'replied', 'il follow-up con riferimento esplicito deve completarsi');
   assert(attachmentCalls.includes('m-lookback-user-attachment'), 'deve saltare il messaggio del bot e recuperare l allegato esterno entro 3 passi');
   assert(!attachmentCalls.includes('m-lookback-bot-reply'), 'non deve processare allegati da messaggi inviati dal bot');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = originalDocumentConsistency;
+  global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+}
+
+console.log('--- Test processThread: budget testo allegati esaurito preserva items del messaggio ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalDocumentConsistency = global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED;
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = false;
+  global.CONFIG.ATTACHMENT_CONTEXT = { enabled: true, maxFiles: 3, maxTotalChars: 5 };
+
+  let callCount = 0;
+  let capturedPostOcrItems = null;
+  const olderMsg = {
+    getId: () => 'm-budget-items-older',
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-10T10:00:00Z'),
+    getSubject: () => 'Invio documento',
+    getPlainBody: () => 'Allego documento.',
+    getAttachments: () => [{ getName: () => 'precedente.pdf' }]
+  };
+  const candidateMsg = {
+    getId: () => 'm-budget-items-candidate',
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-10T10:01:00Z'),
+    getSubject: () => 'Altro allegato',
+    getPlainBody: () => 'Allego anche il secondo documento.',
+    getAttachments: () => [{ getName: () => 'secondo.pdf' }]
+  };
+  const thread = createThread({ id: 't-budget-items', messages: [olderMsg, candidateMsg] });
+  const blob = { getName: () => 'secondo.pdf' };
+
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Altro allegato',
+        body: 'Allego anche il secondo documento.',
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date(),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      getProcessableAttachments: () => {
+        callCount++;
+        if (callCount === 1) {
+          return { blobs: [], textContext: '12345', skipped: [], items: [], processedCount: 0 };
+        }
+        return {
+          blobs: [blob],
+          textContext: 'TESTO_OLTRE_BUDGET',
+          skipped: [],
+          items: [{ name: 'secondo.pdf', text: 'contenuto secondo' }],
+          processedCount: 1
+        };
+      },
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'document_submission', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      backupKey: 'backup-key',
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'documentazione ricevuta' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Risposta con allegato' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: () => 'PROMPT'
+    }
+  });
+  const originalDerive = processor._deriveAttachmentIntentContext_.bind(processor);
+  processor._deriveAttachmentIntentContext_ = (body, subject, attachmentItems, ocrText, phase) => {
+    if (phase === 'post_ocr') capturedPostOcrItems = Array.isArray(attachmentItems) ? attachmentItems.slice() : [];
+    return originalDerive(body, subject, attachmentItems, ocrText, phase);
+  };
+
+  const result = processor.processThread(thread, 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'il thread con budget allegati esaurito deve completarsi');
+  assert(callCount >= 2, 'il test deve elaborare due messaggi con allegati');
+  assert(
+    capturedPostOcrItems && capturedPostOcrItems.some((item) => item.name === 'secondo.pdf'),
+    'gli items del messaggio oltre budget testo devono arrivare al post-OCR'
+  );
 
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
   global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = originalDocumentConsistency;
@@ -4810,6 +4952,41 @@ console.log('--- Test attachment intent: OCR con punti interrogativi non crea do
   assert(!/_with_question$/.test(context.intent), `intent OCR non deve terminare con _with_question, ottenuto ${context && context.intent}`);
 }
 
+console.log('--- Test attachment intent: corpo descrittivo lungo non crea domanda ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  const longBody = Array(20).fill('Trasmetto la documentazione allegata per il fascicolo della pratica.').join(' ');
+  const context = processor._deriveAttachmentIntentContext_(
+    longBody,
+    'Invio documentazione',
+    [{ name: 'documentazione.pdf' }],
+    'Documento allegato alla pratica',
+    'post_ocr'
+  );
+  assert(context && context.hasQuestions === false, 'un corpo lungo ma solo descrittivo non deve attivare hasQuestions');
+  assert(!/_with_question$/.test(context.intent), `intent descrittivo lungo non deve terminare con _with_question, ottenuto ${context && context.intent}`);
+  assert(/ricezione della documentazione allegata/i.test(context.responseDirective || ''), 'la direttiva deve restare receipt-only per consegna pura');
+}
+
+console.log('--- Test attachment intent: richiesta permesso firma modulo non diventa receipt-only ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  const body = [
+    'Come da indicazioni del Vicariato, vi scrivo per chiedere il permesso affinche una vostra parrocchiana possa seguire il nostro programma di Cresima.',
+    'Se acconsentite, vi prego di firmare e timbrare il modulo allegato e di restituirmelo al piu presto.'
+  ].join(' ');
+  const context = processor._deriveAttachmentIntentContext_(
+    body,
+    'Permesso Cresima Marymount',
+    [{ name: 'modulo_autorizzazione.pdf' }],
+    'Modulo autorizzazione programma Cresima',
+    'post_ocr'
+  );
+  assert(context && context.hasQuestions === true, 'la richiesta operativa nel corpo deve attivare hasQuestions');
+  assert(/_with_question$/.test(context.intent), `intent deve terminare con _with_question, ottenuto ${context && context.intent}`);
+  assert(/non limitarsi|richiesta operativa/i.test(context.responseDirective || ''), 'la direttiva deve impedire la sola ricevuta');
+}
+
 console.log('--- Test document consistency: idoneita accentata e carta identita fallback ---');
 {
   const processor = new EmailProcessor({ gmailService: {} });
@@ -5681,6 +5858,15 @@ console.log('--- Test EmailProcessor: sbattezzo indiretto e contextualFlags oper
     requestType: { type: 'technical' }
   });
   assert(!genericEmotionalFlags.bereaved, 'emotional_distress generico non deve essere salvato come bereaved');
+
+  const preservedFlags = processor._deriveContextualFlagsUpdate_({
+    existingFlags: { remote_user: true, canonical_complexity: true },
+    activeConcerns: {},
+    classification: { category: 'information', subIntents: {} },
+    requestType: { type: 'technical' }
+  });
+  assert(preservedFlags.remote_user === true, 'remote_user storico deve essere preservato');
+  assert(preservedFlags.canonical_complexity === true, 'canonical_complexity storico deve essere preservato');
 }
 
 console.log('✅ Test batch EmailProcessor passati');

@@ -2198,14 +2198,14 @@ ${addressLines.join('\n\n')}
                     const remainingChars = Math.max(0, maxTextChars - (attachmentData.textContext || '').length);
                     if (remainingChars <= 0) {
                       attachmentData.skipped.push({ reason: 'max_total_chars' });
-                      continue;
-                    }
-                    const boundedText = msgData.textContext.length > remainingChars
-                      ? msgData.textContext.substring(0, remainingChars)
-                      : msgData.textContext;
-                    attachmentData.textContext += boundedText;
-                    if (boundedText.length < msgData.textContext.length) {
-                      attachmentData.skipped.push({ reason: 'max_total_chars', kept: boundedText.length });
+                    } else {
+                      const boundedText = msgData.textContext.length > remainingChars
+                        ? msgData.textContext.substring(0, remainingChars)
+                        : msgData.textContext;
+                      attachmentData.textContext += boundedText;
+                      if (boundedText.length < msgData.textContext.length) {
+                        attachmentData.skipped.push({ reason: 'max_total_chars', kept: boundedText.length });
+                      }
                     }
                   } else {
                     attachmentData.textContext += msgData.textContext;
@@ -3852,6 +3852,7 @@ ${addressLines.join('\n\n')}
           stats.total++;
           stats.skipped++;
           stats.skipped_processed++;
+          processedCount++;
           continue;
         }
 
@@ -3929,18 +3930,10 @@ ${addressLines.join('\n\n')}
           break;
         }
 
-        // Incrementa contatore solo se c'è stata un'azione significativa o decisione esplicita dell'AI
-        const isEffectiveWork = (
-          result.status === 'replied' ||
-          result.status === 'dry_run' ||
-          result.status === 'error' ||
-          result.status === 'validation_failed' ||
-          result.status === 'filtered'
-        );
-
-        if (isEffectiveWork) {
-          processedCount++;
-        }
+        // Vincola il numero assoluto di thread analizzati nel run, inclusi
+        // quelli scartati dopo pre-check/processThread, per evitare batch
+        // serverless lunghi su code composte quasi solo da skip.
+        processedCount++;
 
         if (result.validationFailed) {
           stats.validationFailed++;
@@ -6303,7 +6296,6 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
         temporalAwareness = this.promptEngine._renderTemporalAwareness(
           temporal,
           detectedLanguage,
-          salutationMode || 'full',
           papalSourceText,
           papalForPrompt
         ) || '';
@@ -6481,7 +6473,9 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     requestType = {},
     categoryHintSource = ''
   } = {}) {
-    const flags = {};
+    const flags = (existingFlags && typeof existingFlags === 'object')
+      ? Object.assign({}, existingFlags)
+      : {};
     const subIntents = (classification && classification.subIntents && typeof classification.subIntents === 'object')
       ? classification.subIntents
       : {};
@@ -7350,8 +7344,15 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     // confine di parola \b finale tronchi il match su forme flesse (es. "possibile",
     // "disponibilità").
     const attachmentBodyQuestionText = `${subject || ''} ${body || ''}`;
+    const hasBodyOperationalRequest = (
+      /\b(?:chiedo|richiedo|domando)\b[\s\S]{0,140}\b(?:permesso|autorizzazione|nulla\s*osta|consenso|assenso)\b/i.test(attachmentBodyQuestionText) ||
+      /\b(?:permesso|autorizzazione|nulla\s*osta|consenso|assenso)\b[\s\S]{0,180}\b(?:firmare|timbrare|restituir\w*|rinviare|inviare|inoltrare|ricevere|celebrare|seguire)\b/i.test(attachmentBodyQuestionText) ||
+      /\bse\s+acconsent\w*[\s\S]{0,120}\b(?:firmare|timbrare|restituir\w*|rinviare|inviare|inoltrare)\b/i.test(attachmentBodyQuestionText) ||
+      /\b(?:firmare|timbrare|restituir\w*|rinviare|inviare|inoltrare)\b[\s\S]{0,100}\b(?:modul\w*|document\w*|letter\w*|autorizz\w*|permesso|nulla\s*osta)\b/i.test(attachmentBodyQuestionText) ||
+      /\b(?:vi|le)\s+prego\s+di\s+(?:firmare|timbrare|restituir\w*|rinviare|inviare|inoltrare|confermare|autorizzare|approvare|rispondere)\b/i.test(attachmentBodyQuestionText)
+    );
     const hasBodyQuestion = /\?|\b(?:vorrei|chiedo|mi dica|sapere|possibil\w*|possiamo|potremmo|programmare|fissare|disponibil\w*|se\s+(?:era|fosse|pu[oò]|potete))\b/i.test(attachmentBodyQuestionText)
-      || attachmentBodyQuestionText.trim().length > 300;
+      || hasBodyOperationalRequest;
     // Non trattare punti interrogativi o label OCR come domande rivolte alla segreteria:
     // un form/certificato può contenere campi o diciture interrogative non intenzionali.
     const hasOcrQuestion = false;
@@ -7385,7 +7386,7 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
         suppressAttachmentIntentKeywords: true,
         allowBodyQuestions: hasBodyQuestion,
         responseDirective: hasBodyQuestion
-          ? `Confermare la ricezione dell'allegato. Rispondere poi alle domande esplicite.`
+          ? `Confermare la ricezione dell'allegato, ma non limitarsi alla ricevuta: rispondere alla richiesta operativa esplicita nel corpo.`
           : `Confermare la ricezione della documentazione allegata.`
       };
     }
@@ -7413,7 +7414,7 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
 
     if (hasBodyQuestion || hasOcrQuestion) {
       intent += '_with_question';
-      responseDirective = `Confermare la ricezione dell'allegato. Rispondere poi puntualmente alle domande usando la KB.`;
+      responseDirective = `Confermare la ricezione dell'allegato, poi rispondere puntualmente alla richiesta operativa contenuta nel corpo usando KB e contesto disponibili.`;
     } else {
       responseDirective = `Confermare la ricezione della documentazione allegata.`;
     }

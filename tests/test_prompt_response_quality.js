@@ -2269,6 +2269,40 @@ console.log('--- Test PromptEngine: responseStrategy orienta solo il prompt corr
   });
   assert(!invalidPrompt.includes('ORIENTAMENTO DELLA RISPOSTA'), 'responseStrategy non ammesso non deve renderizzare la sezione');
 
+  const proceduralPosturePrompt = engine.buildPrompt({
+    emailSubject: 'Segnalazione',
+    emailContent: 'Ho gia scritto e non ho ricevuto riscontro: come devo procedere?',
+    knowledgeBase: 'La segreteria verifica le pratiche pendenti e indica il passaggio successivo.',
+    detectedLanguage: 'it',
+    responseStrategy: 'none',
+    relationalPosture: 'procedural',
+    category: 'information',
+    requestType: { type: 'technical' }
+  });
+  assert(
+    proceduralPosturePrompt.includes('Il mittente esprime insoddisfazione') &&
+      proceduralPosturePrompt.includes('prossimo passo operativo concreto') &&
+      !proceduralPosturePrompt.includes('Rispondi ai fatti esclusivamente con i fatti'),
+    'procedural deve arrivare al template complaint senza perdere la strategia operativa'
+  );
+
+  const inactivePhysicalConstraintPrompt = engine.buildPrompt({
+    emailSubject: 'Grazie',
+    emailContent: 'Grazie per la disponibilita e per l aiuto ricevuto: vorrei sapere il prossimo passo.',
+    knowledgeBase: 'La segreteria indica il prossimo passaggio via email.',
+    detectedLanguage: 'it',
+    responseStrategy: 'none',
+    relationalPosture: 'appreciative',
+    category: 'information',
+    requestType: { type: 'technical' },
+    physicalPresenceConstraint: { has_constraint: false, type: 'none' }
+  });
+  assert(
+    inactivePhysicalConstraintPrompt.includes('Rispondi con tono rassicurante e sobrio') &&
+      !inactivePhysicalConstraintPrompt.includes('POLICY PRESENZA FISICA'),
+    'physicalPresenceConstraint inattivo non deve bloccare la strategia derivata dalla postura'
+  );
+
   const ordinaryCategoryPosturePrompt = engine.buildPrompt({
     emailSubject: 'Certificato',
     emailContent: 'Scusate, forse mi sono perso: quali dati servono per richiederlo?',
