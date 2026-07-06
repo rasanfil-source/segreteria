@@ -1380,11 +1380,14 @@ assertDoesNotReopenPastSensitiveContext(longitudinalCandidateReply);
 
 assert(
   openPostureSection.includes('calda e propositiva') &&
+  openPostureSection.includes('collaborativo e disponibile') &&
   openPostureSection.includes('registro leggermente più personale') &&
   openPostureSection.includes('Evita di amplificare il tono positivo oltre il necessario') &&
+  !openPostureSection.includes('gratitudine dettagliata') &&
+  !openPostureSection.includes('apprezzamento per persone/aspetti concreti') &&
   !openPostureSection.includes('Rispondi ai fatti esclusivamente con i fatti.') &&
   directPostureSection.includes('Rispondi ai fatti esclusivamente con i fatti.'),
-  'la postura open deve essere semanticamente distinta da direct'
+  'la postura open deve essere semanticamente distinta da direct e appreciative'
 );
 
 console.log('--- Test prompt: data messaggio originale presente per riferimenti relativi ---');

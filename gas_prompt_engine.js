@@ -1074,7 +1074,7 @@ Vincoli:
     addTemplate('HumanToneGuidelinesTemplate', this._renderHumanToneGuidelines(), 'HumanToneGuidelines', { isSystem: true });
 
     // 24. ESEMPI
-    addTemplate('ExamplesTemplate', this._renderExamples(category), 'Examples', { isSystem: true });
+    addTemplate('ExamplesTemplate', this._renderExamples(category, detectedLanguage), 'Examples', { isSystem: true });
 
     // 25. REGOLE FINALI
     addSection(this._renderResponseGuidelines(detectedLanguage, resolvedScheduleContext, salutation, closing, salutationMode), 'ResponseGuidelines', { isSystem: true });
@@ -3422,8 +3422,13 @@ ${safeAttachmentsContext || ''}`;
   // TEMPLATE 21: ESEMPI
   // ========================================================================
 
-  _renderExamples(category) {
+  _renderExamples(category, detectedLanguage = 'it') {
     if (!category || !['sacrament', 'information', 'appointment'].includes(category)) {
+      return null;
+    }
+
+    // Gli esempi sono scritti in italiano: per le altre lingue è più sicuro ometterli.
+    if (String(detectedLanguage || 'it').toLowerCase().split(/[-_]/)[0] !== 'it') {
       return null;
     }
 
@@ -3525,6 +3530,16 @@ Segreteria Parrocchia Sant'Eugenio
    [Concise and relevant body - ✅ USE FORMATTING IF APPROPRIATE]
    ${closing}
    Parish Secretariat of Sant'Eugenio`
+        : isFullWarm
+        ? `1. **WARM BUT SOBER GREETING:**
+   • Open with a present, personal greeting rather than a protocol one.
+   • You are NOT required to reuse the standard greeting "${salutation}" verbatim: a warmer, natural form is allowed if the tone of the message supports it.
+
+2. **Response Format (ENGLISH REQUIRED):**
+   [Warm, sober greeting]
+   [Concise, relevant and human body - ✅ USE FORMATTING ONLY IF IT HELPS]
+   ${closing}
+   Parish Secretariat of Sant'Eugenio`
         : `1. **MANDATORY GREETING:**
    • You MUST start the email with EXACTLY: "${salutation}"
    • Do NOT change this greeting, except when the email body contains an explicit signature with a different personal name: then keep the same greeting form but use the signature/body name.
@@ -3554,6 +3569,16 @@ Segreteria Parrocchia Sant'Eugenio
 2. **Formato de respuesta (ESPAÑOL REQUERIDO):**
    [Continuación directa — sin saludo]
    [Cuerpo conciso y pertinente - ✅ USA FORMATO SI ES APROPIADO]
+   ${closing}
+   Secretaría Parroquia Sant'Eugenio`
+        : isFullWarm
+        ? `1. **SALUDO CÁLIDO PERO SOBRIO:**
+   • Abre con un saludo presente y personal, no protocolario.
+   • NO estás obligado a reutilizar literalmente el saludo estándar "${salutation}": se permite una forma más cálida y natural si el tono del mensaje lo permite.
+
+2. **Formato de respuesta (ESPAÑOL REQUERIDO):**
+   [Saludo cálido y sobrio]
+   [Cuerpo conciso, pertinente y humano - ✅ USA FORMATO SOLO SI AYUDA]
    ${closing}
    Secretaría Parroquia Sant'Eugenio`
         : `1. **SALUDO OBLIGATORIO:**
@@ -3587,6 +3612,16 @@ Segreteria Parrocchia Sant'Eugenio
    [Corpo conciso e pertinente - ✅ USE FORMATAÇÃO SE APROPRIADO]
    ${closing}
    Secretaria Paróquia Sant'Eugenio`
+        : isFullWarm
+        ? `1. **SAUDAÇÃO CALOROSA MAS SÓBRIA:**
+   • Abre com uma saudação presente e pessoal, não protocolar.
+   • NÃO estás obrigado a reutilizar literalmente a saudação padrão "${salutation}": é permitida uma forma mais calorosa e natural se o tom da mensagem o permitir.
+
+2. **Formato da resposta (PORTUGUÊS REQUERIDO):**
+   [Saudação calorosa e sóbria]
+   [Corpo conciso, pertinente e humano - ✅ USE FORMATAÇÃO APENAS SE AJUDAR]
+   ${closing}
+   Secretaria Paróquia Sant'Eugenio`
         : `1. **SAUDAÇÃO OBRIGATÓRIA:**
    • Deves começar o email EXATAMENTE com: "${salutation}"
    • NÃO alteres esta saudação, exceto se o corpo do email contiver uma assinatura explícita com um nome pessoal diferente: nesse caso, mantém a mesma forma de saudação mas usa o nome da assinatura/corpo.
@@ -3618,6 +3653,16 @@ Segreteria Parrocchia Sant'Eugenio
    [Corps concis et pertinent - ✅ UTILISE LA MISE EN FORME SI UTILE]
    ${closing}
    Secrétariat Paroisse Sant'Eugenio`
+        : isFullWarm
+        ? `1. **SALUTATION CHALEUREUSE MAIS SOBRE :**
+   • Ouvre avec une salutation présente et personnelle, non protocolaire.
+   • Tu n'es PAS obligé de reprendre littéralement la salutation standard "${salutation}" : une forme plus chaleureuse et naturelle est permise si le ton du message le permet.
+
+2. **Format de réponse (FRANÇAIS OBLIGATOIRE) :**
+   [Salutation chaleureuse et sobre]
+   [Corps concis, pertinent et humain - ✅ UTILISE LA MISE EN FORME SEULEMENT SI UTILE]
+   ${closing}
+   Secrétariat Paroisse Sant'Eugenio`
         : `1. **SALUTATION OBLIGATOIRE :**
    • Commence l'email EXACTEMENT par : "${salutation}"
    • Ne modifie PAS cette salutation, sauf si le corps de l'email contient une signature explicite avec un autre nom personnel : dans ce cas, garde la même forme de salutation mais utilise le nom de la signature/du corps.
@@ -3647,6 +3692,16 @@ Segreteria Parrocchia Sant'Eugenio
 2. **Antwortformat (DEUTSCH ERFORDERLICH):**
    [Direkte Fortsetzung — ohne Anrede]
    [Praeziser, relevanter Text - ✅ FORMATIERUNG NUTZEN, WENN SINNVOLL]
+   ${closing}
+   Pfarrsekretariat Sant'Eugenio`
+        : isFullWarm
+        ? `1. **WARME, ABER SACHLICHE ANREDE:**
+   • Beginne mit einer persönlichen, aber nicht protokollarischen Anrede.
+   • Du bist NICHT verpflichtet, die Standardanrede "${salutation}" wörtlich zu übernehmen: eine wärmere, natürlichere Form ist erlaubt, wenn der Ton der Nachricht dies zulässt.
+
+2. **Antwortformat (DEUTSCH ERFORDERLICH):**
+   [Warme, sachliche Anrede]
+   [Praeziser, relevanter und menschlicher Text - ✅ FORMATIERUNG NUR NUTZEN, WENN SIE HILFT]
    ${closing}
    Pfarrsekretariat Sant'Eugenio`
         : `1. **VERPFLICHTENDE ANREDE:**
@@ -3719,6 +3774,16 @@ Segreteria Parrocchia Sant'Eugenio
 2. **Response Format (TARGET LANGUAGE ${targetLanguageCode} REQUIRED):**
    [Direct continuation — no greeting]
    [Concise and relevant body - ✅ USE FORMATTING IF APPROPRIATE]
+   [Closing translated naturally into language ${targetLanguageCode}, equivalent to: "${closing}"]
+   [Parish office signature translated naturally into language ${targetLanguageCode}]`
+        : isFullWarm
+        ? `1. **WARM BUT SOBER GREETING IN TARGET LANGUAGE ${targetLanguageCode}:**
+   • Open with a present, personal greeting rather than a protocol one.
+   • You are NOT required to reuse the standard greeting "${salutation}" verbatim: use a warmer, natural form in language ${targetLanguageCode} if the tone of the message supports it.
+
+2. **Response Format (TARGET LANGUAGE ${targetLanguageCode} REQUIRED):**
+   [Warm, sober greeting in language ${targetLanguageCode}]
+   [Concise, relevant and human body - ✅ USE FORMATTING ONLY IF IT HELPS]
    [Closing translated naturally into language ${targetLanguageCode}, equivalent to: "${closing}"]
    [Parish office signature translated naturally into language ${targetLanguageCode}]`
         : `1. **GREETING IN TARGET LANGUAGE REQUIRED:**

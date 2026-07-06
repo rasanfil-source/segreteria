@@ -164,6 +164,17 @@ console.log('--- Test MemoryService conversationState: preserva legacySummaryTex
   assert(parsed.conversationState.source === 'quick_check', 'conversationState deve registrare source quick_check in modo esplicito');
   assert(Object.keys(parsed.conversationState).length === 8, 'conversationState deve restare nello schema minimo previsto');
 
+  const appreciativeState = JSON.parse(memory._serializeMemorySummaryState(
+    '',
+    'Sintesi con ringraziamento',
+    {
+      currentRelationalPosture: 'appreciative',
+      updatedAt: now,
+      source: 'quick_check'
+    }
+  )).conversationState;
+  assert(appreciativeState.currentRelationalPosture === 'appreciative', 'la postura appreciative deve essere accettata e salvata');
+
   const staleMerge = JSON.parse(memory._serializeMemorySummaryState(
     '• [2026-06-15] Aggiornamento concorrente.',
     '• [2026-06-14] Base precedente.\n• [2026-06-15] Nuova risposta locale.',

@@ -1034,7 +1034,8 @@ var MemoryService = class MemoryService {
       complaint: true,
       personal: true,
       open: true,
-      direct: true
+      direct: true,
+      appreciative: true
     };
     return allowed[normalized] ? normalized : null;
   }

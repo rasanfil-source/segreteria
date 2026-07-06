@@ -383,6 +383,7 @@ var EmailProcessor = class EmailProcessor {
         do: {
           stop: false,
           state: {
+            routedAiCoreLite: '',
             routedAiCore: '',
             routedDoctrine: '',
             routedDoctrineStructured: []
@@ -2495,6 +2496,7 @@ ${addressLines.join('\n\n')}
         categoryHintSource === 'document_submission'
       );
       const routingState = {
+        routedAiCoreLite: routedAiCoreLite,
         routedAiCore: routedAiCore,
         routedDoctrine: routedDoctrine,
         routedDoctrineStructured: routedDoctrineStructured
@@ -2508,10 +2510,11 @@ ${addressLines.join('\n\n')}
       });
       const routingDecision = this._evaluatePreAiRules_(routingContext);
       this._applyPreAiRuleDecision_(routingDecision, routingContext, result);
+      routedAiCoreLite = routingState.routedAiCoreLite;
       routedAiCore = routingState.routedAiCore;
       const systemDirectives = [];
       const pastoralFirewall = "DIVIETO DI DEROGA (CROSS-CONTAMINATION): I principi pastorali non possono MAI modificare, derogare o rendere flessibili le procedure, le date o i requisiti tecnici indicati nella Knowledge Base. Non inventare percorsi personalizzati o eccezioni.";
-      if (routedAiCore) systemDirectives.push(pastoralFirewall);
+      if (routedAiCore || routedAiCoreLite) systemDirectives.push(pastoralFirewall);
       routedDoctrine = routingState.routedDoctrine;
       routedDoctrineStructured = routingState.routedDoctrineStructured;
 
@@ -2661,7 +2664,7 @@ ${addressLines.join('\n\n')}
         territoryContext: territoryContext,
         physicalPresenceConstraint: physicalPresenceConstraint,
         sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),
-        relationalPosture: this._normalizeRelationalPostureAlias_(quickCheck?.relational_posture ?? 'informational'),
+        relationalPosture: quickCheck?.relational_posture || 'direct',
         conversationShift: {
           shift: quickCheck?.conversation_shift || 'none',
           confidence: Number(quickCheck?.conversation_shift_confidence) || 0

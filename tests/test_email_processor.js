@@ -511,6 +511,7 @@ console.log('--- Test pre-AI rules: context, decision e action restano dichiarat
   );
 
   const routingState = {
+    routedAiCoreLite: 'AI_CORE_LITE',
     routedAiCore: 'AI_CORE',
     routedDoctrine: 'DOTTRINA',
     routedDoctrineStructured: [{ id: 'd1' }]
@@ -524,11 +525,12 @@ console.log('--- Test pre-AI rules: context, decision e action restano dichiarat
   assert(routingDecision && routingDecision.ruleId === 'technical-context-routing', 'routing tecnico deve mappare alla regola dedicata');
   ruleProcessor._applyPreAiRuleDecision_(routingDecision, routingContext, { status: 'unknown' });
   assert(
-    routingState.routedAiCore === '' &&
+    routingState.routedAiCoreLite === '' &&
+      routingState.routedAiCore === '' &&
       routingState.routedDoctrine === '' &&
       Array.isArray(routingState.routedDoctrineStructured) &&
       routingState.routedDoctrineStructured.length === 0,
-    'routing tecnico deve disattivare i moduli dottrinali pesanti'
+    'routing tecnico deve disattivare AI_CORE_LITE e i moduli dottrinali pesanti'
   );
 
   const sensitiveRoutingState = {
