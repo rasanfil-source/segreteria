@@ -1321,6 +1321,75 @@ console.log('--- Test _commitSendTransaction: preserva marker in-flight fino a T
   cacheStore.clear();
 }
 
+console.log('--- Test _beginSendTransaction: backup PropertiesService blocca reinvio dopo evaporazione cache ---');
+{
+  cacheStore.clear();
+  const props = new Map();
+  const originalPropertiesService = global.PropertiesService;
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: (k) => props.get(k) || '',
+      setProperty: (k, v) => props.set(k, v),
+      getProperties: () => Object.fromEntries(props),
+      deleteProperty: (k) => props.delete(k)
+    })
+  };
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    props.set('sent_backup_m-expired-before-commit', JSON.stringify({
+      ts: Date.now() - (2 * processor._getSendIdempotencyBackupTtlMs_()),
+      expiresAt: Date.now() - 1000
+    }));
+    processor._commitSendTransaction('m-persist-backup');
+
+    assert(cacheStore.get('sent_m-persist-backup'), 'commit deve impostare il marker sent in cache');
+    assert(props.has('sent_backup_m-persist-backup'), 'commit deve salvare il backup sent persistente');
+    assert(!props.has('sent_backup_m-expired-before-commit'), 'commit deve potare backup sent scaduti');
+
+    cacheStore.clear();
+    const txn = processor._beginSendTransaction('m-persist-backup', true);
+
+    assert(txn.ok === false, 'backup persistente deve bloccare un nuovo invio dopo cache miss');
+    assert(txn.reason === 'already_sent', `reason attesa already_sent, ottenuta ${txn.reason}`);
+    assert(cacheStore.get('sent_m-persist-backup'), 'backup persistente valido deve ripopolare la cache sent');
+  } finally {
+    global.PropertiesService = originalPropertiesService;
+    cacheStore.clear();
+  }
+}
+
+console.log('--- Test _beginSendTransaction: backup PropertiesService scaduto non blocca reinvio ---');
+{
+  cacheStore.clear();
+  const props = new Map();
+  const originalPropertiesService = global.PropertiesService;
+  global.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: (k) => props.get(k) || '',
+      setProperty: (k, v) => props.set(k, v),
+      deleteProperty: (k) => props.delete(k)
+    })
+  };
+
+  try {
+    const processor = new EmailProcessor({ gmailService: {} });
+    props.set('sent_backup_m-expired-backup', JSON.stringify({
+      ts: Date.now() - (2 * processor._getSendIdempotencyBackupTtlMs_()),
+      expiresAt: Date.now() - 1000
+    }));
+
+    const txn = processor._beginSendTransaction('m-expired-backup', true);
+
+    assert(txn.ok === true, 'backup persistente scaduto deve consentire una nuova transazione');
+    assert(!props.has('sent_backup_m-expired-backup'), 'backup scaduto deve essere ripulito da PropertiesService');
+    assert(cacheStore.get('sending_m-expired-backup'), 'nuova transazione deve impostare sending');
+  } finally {
+    global.PropertiesService = originalPropertiesService;
+    cacheStore.clear();
+  }
+}
+
 function createExternalThread(id) {
   const msg = createMessage({ id: `m-${id}`, unread: true, from: 'utente@example.com' });
   return createThread({ id: `t-${id}`, messages: [msg] });

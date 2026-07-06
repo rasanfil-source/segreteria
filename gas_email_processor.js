@@ -2684,7 +2684,7 @@ ${addressLines.join('\n\n')}
         territoryContext: territoryContext,
         physicalPresenceConstraint: physicalPresenceConstraint,
         sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),
-        relationalPosture: quickCheck?.relational_posture || 'direct',
+        relationalPosture: normalizedRelationalPosture,
         conversationShift: {
           shift: quickCheck?.conversation_shift || 'none',
           confidence: Number(quickCheck?.conversation_shift_confidence) || 0
@@ -4667,6 +4667,106 @@ ${addressLines.join('\n\n')}
   // Il lock di idempotenza invio protegge il check-then-act su cache
   // (sentKey/sendingKey). Se il chiamante possiede già lo ScriptLock, evita
   // una riacquisizione non reentrant ma mantiene comunque le chiavi cache.
+  _getSendIdempotencyBackupTtlMs_() {
+    const configured = (typeof CONFIG !== 'undefined' && CONFIG && Number.isFinite(Number(CONFIG.SEND_IDEMPOTENCY_BACKUP_TTL_MS)))
+      ? Number(CONFIG.SEND_IDEMPOTENCY_BACKUP_TTL_MS)
+      : (36 * 60 * 60 * 1000);
+    const cacheTtlMs = 21599 * 1000;
+    const maxTtlMs = 7 * 24 * 60 * 60 * 1000;
+    return Math.max(cacheTtlMs, Math.min(maxTtlMs, Math.floor(configured)));
+  }
+
+  _parseSendIdempotencyBackupValue_(rawValue) {
+    if (!rawValue) return null;
+
+    let timestamp = NaN;
+    let expiresAt = NaN;
+    try {
+      const parsed = JSON.parse(rawValue);
+      if (parsed && typeof parsed === 'object') {
+        timestamp = Number(parsed.ts);
+        expiresAt = Number(parsed.expiresAt);
+      } else {
+        timestamp = Number(parsed);
+      }
+    } catch (_) {
+      timestamp = Number.parseInt(String(rawValue), 10);
+    }
+
+    if (!Number.isFinite(timestamp)) return null;
+    return {
+      timestamp: timestamp,
+      expiresAt: Number.isFinite(expiresAt)
+        ? expiresAt
+        : timestamp + this._getSendIdempotencyBackupTtlMs_()
+    };
+  }
+
+  _readSendIdempotencyBackup_(messageId, props = null) {
+    if (!messageId || !props || typeof props.getProperty !== 'function') return null;
+    const key = `sent_backup_${messageId}`;
+    let raw = '';
+    try {
+      raw = props.getProperty(key) || '';
+    } catch (e) {
+      console.warn(`  Impossibile leggere il backup idempotenza per ${messageId}: ${e.message}`);
+      return null;
+    }
+    if (!raw) return null;
+
+    const parsedMarker = this._parseSendIdempotencyBackupValue_(raw);
+    if (!parsedMarker) {
+      if (typeof props.deleteProperty === 'function') {
+        try { props.deleteProperty(key); } catch (_) { }
+      }
+      return null;
+    }
+
+    if (Date.now() > parsedMarker.expiresAt) {
+      if (typeof props.deleteProperty === 'function') {
+        try { props.deleteProperty(key); } catch (_) { }
+      }
+      return null;
+    }
+
+    return { key: key, timestamp: parsedMarker.timestamp, expiresAt: parsedMarker.expiresAt };
+  }
+
+  _pruneExpiredSendIdempotencyBackups_(props = null, nowTs = Date.now()) {
+    if (!props || typeof props.getProperties !== 'function' || typeof props.deleteProperty !== 'function') return;
+
+    let allProps = {};
+    try {
+      allProps = props.getProperties() || {};
+    } catch (e) {
+      console.warn(`  Impossibile potare backup idempotenza scaduti: ${e.message}`);
+      return;
+    }
+
+    Object.keys(allProps).forEach((key) => {
+      if (!key || !key.startsWith('sent_backup_')) return;
+      const parsedMarker = this._parseSendIdempotencyBackupValue_(allProps[key]);
+      if (!parsedMarker || nowTs > parsedMarker.expiresAt) {
+        try { props.deleteProperty(key); } catch (_) { }
+      }
+    });
+  }
+
+  _persistSendIdempotencyBackup_(messageId, props = null) {
+    if (!messageId || !props || typeof props.setProperty !== 'function') return;
+    const nowTs = Date.now();
+    const payload = JSON.stringify({
+      ts: nowTs,
+      expiresAt: nowTs + this._getSendIdempotencyBackupTtlMs_()
+    });
+    try {
+      this._pruneExpiredSendIdempotencyBackups_(props, nowTs);
+      props.setProperty(`sent_backup_${messageId}`, payload);
+    } catch (e) {
+      console.warn(`  Impossibile salvare il backup idempotenza per ${messageId}: ${e.message}`);
+    }
+  }
+
   _beginSendTransaction(messageId, skipLock = false) {
     if (!messageId) {
       console.warn('⚠️ Idempotenza non applicabile: messageId assente. Invio bloccato per evitare duplicazioni.');
@@ -4680,6 +4780,11 @@ ${addressLines.join('\n\n')}
       console.warn('⚠️ CacheService non disponibile: invio bloccato per garantire idempotenza.');
       return { ok: false, reason: 'cache_unavailable' };
     }
+    const props = (typeof PropertiesService !== 'undefined' &&
+      PropertiesService &&
+      typeof PropertiesService.getScriptProperties === 'function')
+      ? PropertiesService.getScriptProperties()
+      : null;
 
     const sendingKey = `sending_${messageId}`;
     const startedKey = `sendstarted_${messageId}`;
@@ -4711,6 +4816,18 @@ ${addressLines.join('\n\n')}
       }
 
       if (cache.get(sentKey)) {
+        if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
+          try { scriptLock.releaseLock(); } catch (_) { }
+        }
+        return { ok: false, reason: 'already_sent' };
+      }
+      const persistedSentMarker = this._readSendIdempotencyBackup_(messageId, props);
+      if (persistedSentMarker) {
+        try {
+          cache.put(sentKey, String(persistedSentMarker.timestamp), 21599);
+        } catch (cacheRefreshError) {
+          console.warn(`  Impossibile ripristinare in cache il marker sent per ${messageId}: ${cacheRefreshError.message}`);
+        }
         if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
           try { scriptLock.releaseLock(); } catch (_) { }
         }
@@ -4758,13 +4875,22 @@ ${addressLines.join('\n\n')}
     const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
       ? CacheService.getScriptCache()
       : null;
-    if (!cache) return;
+    const props = (typeof PropertiesService !== 'undefined' &&
+      PropertiesService &&
+      typeof PropertiesService.getScriptProperties === 'function')
+      ? PropertiesService.getScriptProperties()
+      : null;
 
     try {
-      cache.put(`sent_${messageId}`, String(Date.now()), 21599);
+      if (cache) {
+        cache.put(`sent_${messageId}`, String(Date.now()), 21599);
+      } else {
+        console.warn(`  CacheService non disponibile durante commit invio per ${messageId}`);
+      }
     } catch (e) {
       console.warn(`  Impossibile committare la transazione in cache per ${messageId}: ${e.message}`);
     } finally {
+      this._persistSendIdempotencyBackup_(messageId, props);
       if (sendTxn && sendTxn.lock && typeof sendTxn.lock.releaseLock === 'function') {
         sendTxn.lock.releaseLock();
       }
@@ -6348,23 +6474,268 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
       return prompt;
     }
 
-    // Evita splice testa+coda: concatenare due metà può corrompere JSON/XML interni.
-    // Preferiamo mantenere solo l'inizio del prompt (istruzioni sistemiche) e troncare
-    // in coda con marker, allineando il più possibile a boundary di riga/sezione.
-    const marker = '\n\n[...PROMPT ORIGINALE TRONCATO PER RETRY...]';
-    const budget = Math.max(0, maxChars - marker.length);
-    let head = prompt.slice(0, budget);
+    let candidate = prompt;
+    const limit = Math.floor(maxChars);
 
-    // Allinea il taglio a un boundary strutturale vicino alla fine del budget.
-    const sectionBoundary = head.lastIndexOf('\n### ');
-    const lineBoundary = head.lastIndexOf('\n');
-    if (sectionBoundary > Math.floor(head.length * 0.6)) {
-      head = head.slice(0, sectionBoundary);
-    } else if (lineBoundary > Math.floor(head.length * 0.6)) {
-      head = head.slice(0, lineBoundary);
+    // Prima riduciamo i blocchi sacrificabili preservando i recinti XML: nei retry
+    // conta piu' mantenere istruzioni + email corrente che portare tutta la storia.
+    candidate = this._shrinkRetryPromptXmlBlock_(
+      candidate,
+      'conversation_history',
+      Math.max(600, Math.floor(limit * 0.12)),
+      {
+        keep: 'tail',
+        marker: '[...CRONOLOGIA PRECEDENTE RIDOTTA PER RETRY...]'
+      }
+    );
+    if (candidate.length <= limit) return candidate;
+
+    candidate = this._shrinkRetryPromptTextSection_(
+      candidate,
+      '**ALLEGATI (TESTO ESTRATTO):**',
+      Math.max(800, Math.floor(limit * 0.16)),
+      '[...TESTO ALLEGATI RIDOTTO PER RETRY...]'
+    );
+    if (candidate.length <= limit) return candidate;
+
+    candidate = this._shrinkRetryPromptXmlBlock_(
+      candidate,
+      'knowledge_base',
+      Math.max(1200, Math.floor(limit * 0.28)),
+      {
+        keep: 'head_tail',
+        marker: '[...INFORMAZIONI DI RIFERIMENTO RIDOTTE PER RETRY...]'
+      }
+    );
+    if (candidate.length <= limit) return candidate;
+
+    candidate = this._shrinkRetryPromptXmlBlock_(
+      candidate,
+      'user_email',
+      Math.max(800, Math.floor(limit * 0.35)),
+      {
+        keep: 'head_tail',
+        marker: '[...EMAIL ORIGINALE RIDOTTA PER RETRY...]'
+      }
+    );
+    if (candidate.length <= limit) return candidate;
+
+    return this._finalTrimRetryPrompt_(candidate, limit);
+  }
+
+  _shrinkRetryPromptXmlBlock_(prompt, tagName, maxContentChars, options = {}) {
+    const source = typeof prompt === 'string' ? prompt : '';
+    const tag = String(tagName || '').trim();
+    const limit = Math.max(0, Math.floor(Number(maxContentChars) || 0));
+    if (!source || !tag || limit <= 0) return source;
+
+    const openTag = `<${tag}>`;
+    const closeTag = `</${tag}>`;
+    const openIndex = source.indexOf(openTag);
+    if (openIndex < 0) return source;
+    const contentStart = openIndex + openTag.length;
+    const closeIndex = source.indexOf(closeTag, contentStart);
+    if (closeIndex < 0) return source;
+
+    const content = source.slice(contentStart, closeIndex);
+    if (content.length <= limit) return source;
+
+    const reduced = this._buildRetryPromptReducedContent_(
+      content,
+      limit,
+      options.marker || '[...BLOCCO RIDOTTO PER RETRY...]',
+      options.keep || 'head_tail'
+    );
+    return `${source.slice(0, contentStart)}${reduced}${source.slice(closeIndex)}`;
+  }
+
+  _shrinkRetryPromptTextSection_(prompt, heading, maxContentChars, markerText) {
+    const source = typeof prompt === 'string' ? prompt : '';
+    const title = String(heading || '');
+    const limit = Math.max(0, Math.floor(Number(maxContentChars) || 0));
+    if (!source || !title || limit <= 0) return source;
+
+    const headingIndex = source.indexOf(title);
+    if (headingIndex < 0) return source;
+    const contentStart = headingIndex + title.length;
+    const nextHeadingCandidates = ['\n**', '\n### ']
+      .map(pattern => source.indexOf(pattern, contentStart + 1))
+      .filter(index => index > contentStart);
+    const contentEnd = nextHeadingCandidates.length > 0
+      ? Math.min.apply(null, nextHeadingCandidates)
+      : source.length;
+    const content = source.slice(contentStart, contentEnd);
+    if (content.length <= limit) return source;
+
+    const reduced = this._buildRetryPromptReducedContent_(
+      content,
+      limit,
+      markerText || '[...SEZIONE RIDOTTA PER RETRY...]',
+      'head_tail'
+    );
+    return `${source.slice(0, contentStart)}${reduced}${source.slice(contentEnd)}`;
+  }
+
+  _buildRetryPromptReducedContent_(content, maxChars, markerText, keepMode) {
+    const source = typeof content === 'string' ? content : '';
+    const limit = Math.max(0, Math.floor(Number(maxChars) || 0));
+    if (!source || limit <= 0) return '';
+    if (source.length <= limit) return source;
+
+    const marker = `\n${markerText}\n`;
+    if (limit <= marker.length + 16) {
+      return this._sliceRetryPromptTextSafely_(marker.trim(), limit);
     }
 
-    return `${head}${marker}`;
+    const keepBudget = Math.max(0, limit - marker.length);
+    if (keepMode === 'tail') {
+      const tail = source.slice(-keepBudget).trimStart();
+      return this._sliceRetryPromptTextSafely_(`${marker}${tail}`, limit);
+    }
+    if (keepMode === 'head') {
+      const head = source.slice(0, keepBudget).trimEnd();
+      return this._sliceRetryPromptTextSafely_(`${head}${marker}`, limit);
+    }
+
+    const headBudget = Math.ceil(keepBudget * 0.55);
+    const tailBudget = Math.max(0, keepBudget - headBudget);
+    const head = source.slice(0, headBudget).trimEnd();
+    const tail = tailBudget > 0 ? source.slice(-tailBudget).trimStart() : '';
+    return this._sliceRetryPromptTextSafely_(`${head}${marker}${tail}`, limit);
+  }
+
+  _finalTrimRetryPrompt_(prompt, maxChars) {
+    const source = typeof prompt === 'string' ? prompt : '';
+    const limit = Math.floor(Number(maxChars));
+    if (!source || !Number.isFinite(limit) || limit <= 0) return '';
+    if (source.length <= limit) return source;
+
+    const marker = '\n\n[...PROMPT ORIGINALE RIDOTTO PER RETRY...]\n\n';
+    const userEmailOpen = '<user_email>';
+    const userEmailClose = '</user_email>';
+    const emailOpenIndex = source.indexOf(userEmailOpen);
+    const emailCloseIndex = emailOpenIndex >= 0
+      ? source.indexOf(userEmailClose, emailOpenIndex + userEmailOpen.length)
+      : -1;
+
+    if (emailOpenIndex >= 0 && emailCloseIndex > emailOpenIndex) {
+      const blockStart = this._findRetryPromptBlockStart_(source, emailOpenIndex);
+      const blockEnd = emailCloseIndex + userEmailClose.length;
+      const emailBlock = source.slice(blockStart, blockEnd);
+      const separator = marker;
+      if (emailBlock.length + separator.length < limit) {
+        const prefixBudget = limit - emailBlock.length - separator.length;
+        const prefix = this._repairRetryPromptXmlFences_(
+          this._sliceRetryPromptAtBoundary_(source.slice(0, blockStart), prefixBudget),
+          prefixBudget
+        );
+        return this._repairRetryPromptXmlFences_(`${prefix}${separator}${emailBlock}`, limit);
+      }
+    }
+
+    const budget = Math.max(0, limit - marker.length);
+    const head = this._sliceRetryPromptAtBoundary_(source, budget);
+    return this._repairRetryPromptXmlFences_(`${head}${marker}`, limit);
+  }
+
+  _findRetryPromptBlockStart_(source, blockOpenIndex) {
+    const text = typeof source === 'string' ? source : '';
+    const openIndex = Math.floor(Number(blockOpenIndex));
+    if (!text || !Number.isFinite(openIndex) || openIndex < 0) return 0;
+
+    const headingIndex = text.lastIndexOf('\n**', openIndex);
+    if (headingIndex >= 0) return headingIndex + 1;
+
+    const sectionIndex = text.lastIndexOf('\n### ', openIndex);
+    if (sectionIndex >= 0) return sectionIndex + 1;
+
+    const breakIndex = text.lastIndexOf('\n\n', openIndex);
+    if (breakIndex >= 0) return breakIndex + 2;
+
+    return openIndex;
+  }
+
+  _sliceRetryPromptAtBoundary_(text, maxChars) {
+    const source = typeof text === 'string' ? text : '';
+    const limit = Math.max(0, Math.floor(Number(maxChars) || 0));
+    if (!source || limit <= 0) return '';
+    if (source.length <= limit) return source;
+
+    let head = this._sliceRetryPromptTextSafely_(source, limit);
+    const sectionBoundary = head.lastIndexOf('\n### ');
+    const headingBoundary = head.lastIndexOf('\n**');
+    const lineBoundary = head.lastIndexOf('\n');
+    const minBoundary = Math.floor(head.length * 0.6);
+    const bestBoundary = Math.max(sectionBoundary, headingBoundary, lineBoundary);
+    if (bestBoundary > minBoundary) {
+      head = head.slice(0, bestBoundary);
+    }
+    return this._stripDanglingRetryPromptTagFragment_(head);
+  }
+
+  _repairRetryPromptXmlFences_(text, maxChars) {
+    const limit = Math.floor(Number(maxChars));
+    let candidate = typeof text === 'string' ? text : '';
+    if (!candidate || !Number.isFinite(limit) || limit <= 0) return '';
+
+    for (let guard = 0; guard < 5; guard++) {
+      candidate = this._stripDanglingRetryPromptTagFragment_(candidate);
+      const pendingClosures = this._getPendingRetryPromptXmlFenceClosures_(candidate);
+      if (pendingClosures.length === 0) {
+        return candidate.length > limit ? this._sliceRetryPromptTextSafely_(candidate, limit) : candidate;
+      }
+
+      const suffix = pendingClosures.map(tag => `\n${tag}`).join('');
+      if (candidate.length + suffix.length <= limit) {
+        return candidate + suffix;
+      }
+
+      const bodyBudget = limit - suffix.length;
+      if (bodyBudget <= 0) {
+        return this._sliceRetryPromptTextSafely_(candidate, limit);
+      }
+      const trimmed = this._sliceRetryPromptTextSafely_(candidate, bodyBudget).trimEnd();
+      if (trimmed === candidate) {
+        return this._sliceRetryPromptTextSafely_(candidate, limit);
+      }
+      candidate = trimmed;
+    }
+
+    return this._sliceRetryPromptTextSafely_(candidate, limit);
+  }
+
+  _getPendingRetryPromptXmlFenceClosures_(text) {
+    const candidate = typeof text === 'string' ? text : '';
+    const tags = ['knowledge_base', 'conversation_history', 'user_email'];
+    return tags
+      .map(tag => ({
+        tag: tag,
+        openIndex: candidate.lastIndexOf(`<${tag}>`),
+        closeIndex: candidate.lastIndexOf(`</${tag}>`)
+      }))
+      .filter(entry => entry.openIndex >= 0 && entry.closeIndex < entry.openIndex)
+      .sort((a, b) => b.openIndex - a.openIndex)
+      .map(entry => `</${entry.tag}>`);
+  }
+
+  _stripDanglingRetryPromptTagFragment_(text) {
+    return (typeof text === 'string' ? text : '')
+      .replace(/<\/?[A-Za-z_][A-Za-z0-9_:-]*$/, '')
+      .trimEnd();
+  }
+
+  _sliceRetryPromptTextSafely_(text, maxChars) {
+    const source = typeof text === 'string' ? text : '';
+    const limit = Math.max(0, Math.floor(Number(maxChars) || 0));
+    if (!source || limit <= 0) return '';
+    if (source.length <= limit) return source;
+
+    let sliced = source.slice(0, limit);
+    const lastCodeUnit = sliced.charCodeAt(sliced.length - 1);
+    if (lastCodeUnit >= 0xD800 && lastCodeUnit <= 0xDBFF) {
+      sliced = sliced.slice(0, -1);
+    }
+    return sliced;
   }
 
   _normalizePromptForRetry_(prompt) {

@@ -91,6 +91,59 @@ const prompt = processor._buildCorrectionPrompt('Original Prompt', 'Failed Respo
 assert(prompt.includes('ERRORE CRITICO: Hai incluso il tuo ragionamento interno'), 'Prompt should contain thinking leak correction');
 assert(prompt.includes('Failed Response'), 'Prompt should include previous response snippet');
 
+const structuredRetrySource = [
+    '### ISTRUZIONI DI SISTEMA ###',
+    'Regole stabili da conservare per il retry.',
+    '### DATI E CONTESTO UTENTE ###',
+    '**INFORMAZIONI DI RIFERIMENTO:**',
+    '<knowledge_base>',
+    'KB_HEAD_SENTINEL ' + 'dettaglio kb '.repeat(500) + ' KB_TAIL_SENTINEL',
+    '</knowledge_base>',
+    '**CRONOLOGIA CONVERSAZIONE:**',
+    '<conversation_history>',
+    'HISTORY_REMOTE_SENTINEL ' + 'messaggio remoto '.repeat(500) + ' HISTORY_RECENT_SENTINEL',
+    '</conversation_history>',
+    '**ALLEGATI (TESTO ESTRATTO):**',
+    'OCR_REMOTE_SENTINEL ' + 'testo allegato '.repeat(300) + ' OCR_TAIL_SENTINEL',
+    '**EMAIL DA RISPONDERE:**',
+    '<user_email>',
+    'EMAIL_RETRY_SENTINEL: vorrei sapere come procedere. ' + 'dettaglio email '.repeat(80),
+    '</user_email>'
+].join('\n');
+const trimmedRetrySource = processor._trimPromptForRetry_(structuredRetrySource, 1800);
+assert(trimmedRetrySource.length <= 1800, 'Retry trim should respect maxChars');
+assert(
+    trimmedRetrySource.includes('<user_email>') &&
+      trimmedRetrySource.includes('</user_email>') &&
+      trimmedRetrySource.includes('EMAIL_RETRY_SENTINEL'),
+    'Retry trim should preserve the current email XML block'
+);
+if (trimmedRetrySource.includes('<knowledge_base>')) {
+    const kbCloseIndex = trimmedRetrySource.indexOf('</knowledge_base>');
+    const emailOpenIndex = trimmedRetrySource.indexOf('<user_email>');
+    assert(kbCloseIndex > trimmedRetrySource.indexOf('<knowledge_base>'), 'Retry trim should close knowledge_base if it is kept');
+    assert(emailOpenIndex < 0 || kbCloseIndex < emailOpenIndex, 'Retry trim should not leave user_email inside knowledge_base');
+}
+if (trimmedRetrySource.includes('<conversation_history>')) {
+    assert(trimmedRetrySource.includes('</conversation_history>'), 'Retry trim should close conversation_history if it is kept');
+}
+assert(!trimmedRetrySource.includes('HISTORY_REMOTE_SENTINEL'), 'Retry trim should sacrifice remote history before current email');
+
+const xmlOnlyRetrySource = [
+    '### DATI E CONTESTO UTENTE ###',
+    '**INFORMAZIONI DI RIFERIMENTO:**',
+    '<knowledge_base>',
+    'XML_ONLY_SENTINEL ' + 'contenuto '.repeat(700),
+    '</knowledge_base>'
+].join('\n');
+const xmlOnlyTrimmed = processor._trimPromptForRetry_(xmlOnlyRetrySource, 500);
+assert(xmlOnlyTrimmed.length <= 500, 'XML-only retry trim should respect maxChars');
+assert(
+    !xmlOnlyTrimmed.includes('<knowledge_base>') ||
+      xmlOnlyTrimmed.indexOf('</knowledge_base>') > xmlOnlyTrimmed.indexOf('<knowledge_base>'),
+    'XML-only retry trim should not leave knowledge_base open'
+);
+
 const shortValidation = {
     isValid: false,
     score: 0.8,
