@@ -353,6 +353,9 @@ var EmailProcessor = class EmailProcessor {
           stop: false,
           state: {
             forceReceiptOnlyForSubmission: (ctx) => {
+              if (ctx.isComplexCanonicalSubmission) {
+                return false;
+              }
               if (ctx.isSponsorSubmission) {
                 return ctx.hasSubmissionQuestions ? false : !ctx.shouldProvideEligibilityGuidance;
               }
@@ -361,10 +364,12 @@ var EmailProcessor = class EmailProcessor {
           },
           logs: (ctx) => {
             const lines = [];
-            if (!ctx.hasSubmissionQuestions) {
+            if (ctx.isComplexCanonicalSubmission) {
+              lines.push('   📎 Guardrail submission: documento canonico/sacramentale con richiesta operativa → delega a Gemini');
+            } else if (!ctx.hasSubmissionQuestions) {
               lines.push('   📎 Guardrail submission: nessuna domanda esplicita → risposta solo conferma ricezione');
             }
-            if (ctx.isSponsorSubmission) {
+            if (ctx.isSponsorSubmission && !ctx.isComplexCanonicalSubmission) {
               const forceReceiptOnly = ctx.hasSubmissionQuestions ? false : !ctx.shouldProvideEligibilityGuidance;
               if (forceReceiptOnly) {
                 lines.push('   📎 Guardrail sponsor submission: consegna documentale → risposta solo conferma ricezione');
@@ -2262,6 +2267,20 @@ ${addressLines.join('\n\n')}
                 /sponsor|padrin|madrin|idoneit/i.test(String(attachmentIntentContext.intent || '')) ||
                 /sponsor|padrin|madrin|idoneit/i.test(`${messageDetails.subject || ''} ${messageDetails.body || ''}`)
               );
+              const canonicalSubmissionText = [
+                messageDetails.subject || '',
+                messageDetails.body || '',
+                Array.isArray(attachmentItems) ? attachmentItems.map((i) => (i && i.name) ? i.name : '').join(' ') : '',
+                textFromAttachments || ''
+              ].join(' ');
+              const hasSacramentalTopic =
+                /battesim|cresim|confermazion|confirmation|comunion|matrimon|sacrament/i.test(canonicalSubmissionText);
+              const hasCanonicalActionRequest =
+                /\b(?:permesso|autorizzazion\w*|nulla\s*osta|consenso|assenso|delega|firmare|firma|timbrare|timbro|restituir\w*|rinviare|approv\w*|permission|permit|authori[sz]ation|consent|sign|stamp|return|approve|approval)\b/i.test(canonicalSubmissionText);
+              const isComplexCanonicalSubmission = Boolean(
+                /sbattezz|apostasi|nullit/i.test(canonicalSubmissionText) ||
+                (hasSacramentalTopic && hasCanonicalActionRequest)
+              );
               let shouldProvideEligibilityGuidance = false;
               if (sponsorSubmission) {
                 shouldProvideEligibilityGuidance = this._shouldProvideEligibilityGuidance_(
@@ -2281,6 +2300,7 @@ ${addressLines.join('\n\n')}
                 isDocumentSubmission: true,
                 hasSubmissionQuestions: hasSubmissionQuestions,
                 isSponsorSubmission: sponsorSubmission,
+                isComplexCanonicalSubmission: isComplexCanonicalSubmission,
                 shouldProvideEligibilityGuidance: shouldProvideEligibilityGuidance
               });
               const submissionPolicyDecision = this._evaluatePreAiRules_(submissionPolicyContext);
@@ -6834,7 +6854,7 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
 
     const patterns = {
       'orari_messe': /messe?\b.*?\d{1,2}[:.]\d{2}|orari\w*\s+messe|mass\s+time|mass\s+schedule/is,
-      'contatti': /telefono|phone|email|@|segreteria|secretary/i,
+      'contatti': /(?:\b(?:telefono|cellulare|phone)\b|\btel\.?)\s*[:：]?\s*(?:\+?\d|della\s+segreteria|parrocchiale)|\b(?:email|e-mail)\b\s*[:：]\s*[^\s@]+@[^\s@]+|\b(?:contatt\w*|scriv\w*|chiam\w*|telefon\w*)\b[\s\S]{0,100}(?:\b(?:telefono|cellulare|phone)\b|\btel\.?|\b(?:email|e-mail|segreteria)\b)/i,
       'battesimo_info': /battesimo.*?documento|documento.*?battesimo|baptism|baptême|bautismo/is,
       'comunione_info': /comunione.*?catechismo|catechismo.*?comunione/is,
       'cresima_info': /cresima.*?percorso|percorso.*?cresima|confirmation|confirmación/is,
@@ -6858,7 +6878,16 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     if (!previousTopics || previousTopics.length === 0) return null;
     if (!userBody || typeof userBody !== 'string') return null;
 
-    const bodyLower = userBody.toLowerCase();
+    const bodyText = userBody.trim();
+    const bodyLower = bodyText.toLowerCase();
+    const wordMatches = bodyLower.match(/[a-zà-ÿ0-9]+/gi) || [];
+    const wordCount = wordMatches.length;
+    const hasFollowUpRequestSignal = /[?？]/.test(bodyText) ||
+      /\b(?:ma|per[oò]|tuttavia|invece|anche|ancora)\b[\s\S]{0,160}\b(?:potrebbe|pu[oò]|potete|possiamo|potremmo|vorrei|desidero|sapere|indicarmi|indicare|dirmi|dire|confermare|chiarire|spiegare|quando|dove|come|quale|quali|quanto|orario|appuntamento)\b/i.test(bodyText) ||
+      /\b(?:potrebbe|pu[oò]|potete|possiamo|potremmo|vorrei|desidero|sapere|indicarmi|dirmi|quando|dove|come|quale|quali|quanto|orario|appuntamento|prenotare|fissare)\b/i.test(bodyText) ||
+      /\bmi\s+(?:pu[oò]|potrebbe)\s+(?:indicare|dire|confermare|chiarire|spiegare|mandare|inviare)\b/i.test(bodyText);
+    const hasDocumentSubmissionSignal =
+      /\b(?:allego|in allegato|invio|inoltro|trasmetto|mando|documento|modulo|certificato|dati)\b/i.test(bodyText);
 
     // Pattern semplici di reazione
     const patterns = {
@@ -6882,24 +6911,36 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
         'potrebbe aggiungere', 'potrebbe fornire maggiori dettagli', 'maggiori dettagli',
         'più dettagli', 'approfondire', 'potrebbe spiegare meglio', 'potrebbe ampliare',
         'sarebbe possibile avere più informazioni', 'servirebbero più informazioni',
-        'potrebbe indicare i passaggi',
+        'potrebbe indicare i passaggi', 'potrebbe indicarmi', 'può indicarmi',
+        'puo indicarmi', 'mi può indicare', 'mi puo indicare', 'mi potrebbe indicare',
+        'può dirmi', 'puo dirmi', 'mi può dire', 'mi puo dire', 'mi potrebbe dire',
+        'a che ora', 'orario esatto', 'quando posso', 'dove posso', 'come posso',
+        'quali documenti', 'quale documento', 'cosa devo', 'cosa dobbiamo',
         'could you provide more details', 'more details', 'could you elaborate',
         'would it be possible to have more information', 'could you outline the steps',
+        'could you let me know', 'would you let me know', 'what time', 'when can',
+        'where can',
         'podría ampliar', 'más detalles', 'podría proporcionar más informazioni',
         'sería possibile tener más información', 'podría indicar los pasos'
       ]
     };
 
     const matchedQuestioned = patterns.questioned.find(p => bodyLower.includes(p));
-    const matchedAcknowledged = patterns.acknowledged.find(p => bodyLower.includes(p));
     const matchedExpansion = patterns.needs_expansion.find(p => bodyLower.includes(p));
+    const matchedAcknowledged = patterns.acknowledged.find(p => bodyLower.includes(p));
+    const acknowledgementIsPure = Boolean(
+      matchedAcknowledged &&
+      wordCount <= 16 &&
+      !hasFollowUpRequestSignal &&
+      !hasDocumentSubmissionSignal
+    );
 
     let inferredReaction = null;
     if (matchedQuestioned) {
       inferredReaction = { type: 'questioned', match: matchedQuestioned };
     } else if (matchedExpansion) {
       inferredReaction = { type: 'needs_expansion', match: matchedExpansion };
-    } else if (matchedAcknowledged) {
+    } else if (acknowledgementIsPure) {
       inferredReaction = { type: 'acknowledged', match: matchedAcknowledged };
     }
 
@@ -6909,8 +6950,11 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     const normalizedTopics = previousTopics
       .map(info => (typeof info === 'object' && info !== null ? info.topic : info))
       .map(topic => this._normalizeTopicKey(topic));
+    const uniqueNormalizedTopics = normalizedTopics.filter((topic, index, arr) =>
+      topic && arr.indexOf(topic) === index
+    );
 
-    const mentionedTopics = normalizedTopics.filter(topic => {
+    const mentionedTopics = uniqueNormalizedTopics.filter(topic => {
       if (!topic) return false;
       // Rimuove suffissi tecnici (es. "_info") e underscore per confrontare
       // il topic interno con il linguaggio naturale usato dall'utente.
@@ -6924,8 +6968,14 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
       // Se l'utente cita esplicitamente dei topic, applica a tutti quelli trovati
       targetTopics = mentionedTopics;
     } else {
-      // Fallback: applica all'ultimo argomento discusso
-      targetTopics = [normalizedTopics[normalizedTopics.length - 1]].filter(Boolean);
+      // Fallback prudente: usa l'ultimo topic solo quando la reazione e breve/pura
+      // oppure quando c'e un solo topic possibile in memoria.
+      const canUseLastTopicFallback = inferredReaction.type === 'acknowledged'
+        ? acknowledgementIsPure
+        : (uniqueNormalizedTopics.length === 1 && wordCount <= 16);
+      if (canUseLastTopicFallback) {
+        targetTopics = [normalizedTopics[normalizedTopics.length - 1]].filter(Boolean);
+      }
     }
 
     if (targetTopics.length === 0) return null;
