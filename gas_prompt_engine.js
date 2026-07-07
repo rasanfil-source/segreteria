@@ -495,7 +495,9 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
 
   _templateKeepReason_(templateName, promptProfile, activeConcerns = {}) {
     if (templateName === 'SpecialCasesTemplate') {
-      return 'special_cases_policy';
+      return activeConcerns && activeConcerns.canonical_complexity === true
+        ? 'canonical_complexity_policy'
+        : null;
     }
     if (templateName === 'FormattingGuidelinesTemplate' && activeConcerns.emotional_sensitivity === true) {
       return 'emotional_sensitivity';
@@ -975,13 +977,22 @@ Vincoli:
     addSection(this._renderConversationShiftGuidance(normalizedConversationShift), 'ConversationShiftGuidance', { isSystem: true });
     addSection(this._renderGoalContinuity(goalContinuity), 'GoalContinuity', { isSystem: true });
     addSection(this._renderNewInformationProvided(newInformationProvided), 'NewInformationProvided', { isSystem: true });
+    const formalTopicPreservesEmotionalPosture = templateConcerns.emotional_sensitivity && !templateConcerns.sbattezzo;
     const effectiveRelationalPosture = isFormalTopicForRouting
-      ? (templateConcerns.emotional_sensitivity && !templateConcerns.sbattezzo ? relationalPosture : 'direct')
+      ? (formalTopicPreservesEmotionalPosture ? relationalPosture : 'direct')
       : (normalizedConcerns.longitudinal_sensitivity &&
           normalizedResponseMode !== 'longitudinal_tone_only' &&
           relationalPosture === 'direct'
           ? 'personal'
           : relationalPosture);
+    if (
+      isFormalTopicForRouting &&
+      !formalTopicPreservesEmotionalPosture &&
+      (relationalPosture === 'personal' || relationalPosture === 'hesitant') &&
+      effectiveRelationalPosture === 'direct'
+    ) {
+      console.warn(`⚠️ Postura ${relationalPosture} azzerata a 'direct' per topic formale (sbattezzo/formale). Valutare se il contesto emotivo va preservato.`);
+    }
     const normalizedResponseStrategy = String(responseStrategy || 'none').trim().toLowerCase();
     const inferredStrategy = mapRelationalPostureToResponseStrategy_(effectiveRelationalPosture);
     const hasPhysicalPresenceConstraint = Boolean(
@@ -1191,6 +1202,13 @@ Vincoli:
       }
     } else if (requestTypeObj.needsDoctrine && hasPriorCommunication) {
       console.warn('ℹ️ Dottrina selettiva soppressa: contatto pregresso rilevato, priorità alla presa in carico.');
+      if (doctrineBaseText && allowDoctrineFallback) {
+        const doctrineSection = this._renderDoctrineFallback_(doctrineBaseText, { compact: true });
+        addSection(doctrineSection, 'DoctrineFallbackCompact');
+        console.warn('ℹ️ Fallback dottrinale compatto incluso: contatto pregresso con needsDoctrine=true.');
+      } else if (doctrineBaseText && !allowDoctrineFallback) {
+        console.warn('ℹ️ Fallback dottrinale disabilitato da allowDoctrineFallback=false.');
+      }
     }
 
     // 16. CRONOLOGIA CONVERSAZIONE
@@ -1262,7 +1280,7 @@ Vincoli:
     // 29. CHECKLIST CONTESTUALE
     addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode, templateConcerns, normalizedConcernSynthesis), 'ContextualChecklist', { isSystem: true });
 
-    if (!isSbattezzoRequest && hasCanonicalComplexitySignals) {
+    if (hasCanonicalComplexitySignals) {
       addSection(
         this._renderCanonicalComplexityBudgetGuardrail_(),
         'CanonicalComplexityBudgetGuardrail',
@@ -1685,7 +1703,9 @@ Vincoli:
 
     let candidateRendered = this._renderMemoryContext(candidate) || '';
     while (candidateRendered.length > limit && keepTopics > 0) {
-      keepTopics = Math.max(0, Math.floor(keepTopics * 0.7));
+      const nextKeepTopics = Math.max(0, Math.floor(keepTopics * 0.7));
+      if (nextKeepTopics >= keepTopics) break;
+      keepTopics = nextKeepTopics;
       candidate = Object.assign({}, candidate, {
         providedInfo: tailTopics(keepTopics)
       });
@@ -1773,7 +1793,10 @@ Testo finale dell'email.
     }
 
     // Regole territorio (se rilevante)
-    if (territoryContext && /(NON RIENTRA|RIENTRA|CIVICO NECESSARIO)/i.test(String(territoryContext))) {
+    const territoryString = typeof territoryContext === 'string'
+      ? territoryContext
+      : JSON.stringify(territoryContext || '');
+    if (territoryContext && /(NON RIENTRA|RIENTRA|CIVICO NECESSARIO)/i.test(territoryString)) {
       rules.push('- **Risposta sul territorio:** Comunica in modo esplicito l\'esito della verifica territoriale basandoti sui dati forniti in input: NO se l\'esito è "NON RIENTRA", SÌ se è "RIENTRA", richiesta del civico se è "CIVICO NECESSARIO".');
       if (this._isNegativeTerritoryContext_(territoryContext) && activeConcerns && activeConcerns.physical_presence_constraint) {
         rules.push('- **Precedenza territorio/remoto:** Se l\'esito è "NON RIENTRA", il vincolo di presenza fisica non autorizza scorciatoie digitali per pratiche territoriali o sacramentali: prima comunica il NO territoriale e orienta verso la parrocchia competente.');
@@ -1899,7 +1922,8 @@ ${rules.join('\n')}`;
       'cresim',
       'divorziat',
       'conviven',
-      'peccato', 'peccamin'
+      'peccato', 'peccamin',
+      'lutto', 'defunt', 'morte', 'esequi'
     ];
 
     console.log(`🔍 Retrieval Start: profilo=${promptProfile}, MAX_ROWS=${MAX_ROWS}`);

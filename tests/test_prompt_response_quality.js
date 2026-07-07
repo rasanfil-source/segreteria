@@ -384,8 +384,8 @@ console.log('--- Test prompt: contatto pregresso protegge da risposta standard -
   );
   assert(
     !priorContactPrompt.includes('DOTTRINA_PROMESSE_SENTINEL') &&
-    !priorContactPrompt.includes('DOTTRINA_FALLBACK_SENTINEL'),
-    'il contatto pregresso deve sopprimere dottrina selettiva e fallback dottrinale'
+      priorContactPrompt.includes('DOTTRINA_FALLBACK_SENTINEL'),
+    'il contatto pregresso deve sopprimere la dottrina selettiva ma conservare un fallback compatto'
   );
 }
 
@@ -2411,12 +2411,16 @@ assert(
   'emotional_sensitivity deve mantenere FormattingGuidelinesTemplate anche con registro pastoral_crisis'
 );
 assert(
-  engine._shouldIncludeTemplate('SpecialCasesTemplate', 'lite', {}, 'warm_institutional') === true,
-  'SpecialCasesTemplate deve restare disponibile anche in profilo lite'
+  engine._shouldIncludeTemplate('SpecialCasesTemplate', 'lite', {}, 'warm_institutional') === false,
+  'SpecialCasesTemplate deve essere escluso dal profilo lite senza canonical complexity'
 );
 assert(
-  engine._shouldIncludeTemplate('SpecialCasesTemplate', 'heavy', { emotional_sensitivity: true }, 'pastoral_crisis') === true,
-  'SpecialCasesTemplate deve restare disponibile anche con registro pastoral_crisis'
+  engine._shouldIncludeTemplate('SpecialCasesTemplate', 'lite', { canonical_complexity: true }, 'warm_institutional') === true,
+  'SpecialCasesTemplate deve restare disponibile in profilo lite con canonical complexity'
+);
+assert(
+  engine._shouldIncludeTemplate('SpecialCasesTemplate', 'heavy', { canonical_complexity: true, emotional_sensitivity: true }, 'pastoral_crisis') === true,
+  'SpecialCasesTemplate deve restare disponibile con canonical complexity anche con registro pastoral_crisis'
 );
 assert(
   engine._shouldIncludeTemplate('HumanToneGuidelinesTemplate', 'heavy', {}, 'pastoral_crisis') === true,
