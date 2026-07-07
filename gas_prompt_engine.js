@@ -225,6 +225,27 @@ var PromptEngine = class PromptEngine {
     return /\b(?:divorziat[oaie]?|separat[oaie]?|risposat[oaie]?|convivent[ei]|non\s+cattolic[oaie]?|matrimonio\s+precedente|precedente\s+matrimonio|annullament[oa]|nullit[aà]\s+matrimonial[ei]|sposat[oaie]?\s+civilmente|matrimonio\s+civile|divorced|separated|civilly\s+remarried|cohabiting|non[-\s]?catholic|not\s+catholic|previous\s+marriage|annulment)\b/i.test(searchableText);
   }
 
+  _hasSensitiveContextForTemplates_(subIntents = {}, category = null, topic = '') {
+    const normalizedSubIntents = (subIntents && typeof subIntents === 'object') ? subIntents : {};
+    const normalizedCategory = String(category || '').toLowerCase();
+
+    return Boolean(
+      this._hasBereavementContextForTemplates_(normalizedSubIntents, category, topic) ||
+      normalizedSubIntents.emotional_distress ||
+      normalizedCategory === 'emotional_support'
+    );
+  }
+
+  _hasBereavementContextForTemplates_(subIntents = {}, category = null, topic = '') {
+    const normalizedSubIntents = (subIntents && typeof subIntents === 'object') ? subIntents : {};
+    const searchableText = [topic, category].map(value => String(value || '').toLowerCase()).join(' ');
+
+    return Boolean(
+      normalizedSubIntents.bereavement ||
+      /\b(?:lutto|defunt[oaie]?|esequie?|funeral[ei]?|decedut[oaie]?|decesso|mancat[oaie]?|mort[oaie]?)\b/i.test(searchableText)
+    );
+  }
+
   /**
    * Stima token con fallback conservativo allineato a estimateTokenCount.
    */
@@ -474,7 +495,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
 
   _templateKeepReason_(templateName, promptProfile, activeConcerns = {}) {
     if (templateName === 'SpecialCasesTemplate') {
-      return 'canonical_complexity_policy';
+      return 'special_cases_policy';
     }
     if (templateName === 'FormattingGuidelinesTemplate' && activeConcerns.emotional_sensitivity === true) {
       return 'emotional_sensitivity';
@@ -517,6 +538,9 @@ Vincoli:
    * Determina se un template deve essere incluso in base a profilo e concern
    */
   _shouldIncludeTemplate(templateName, promptProfile, activeConcerns = {}, responseRegister = '', concernSynthesis = null) {
+    if (templateName === 'SpecialCasesTemplate' && activeConcerns && activeConcerns.sbattezzo === true) {
+      return false;
+    }
     const normalizedConcernSynthesis = this._normalizeConcernSynthesis_(concernSynthesis);
     if (this._shouldSuppressTemplateByConcernSynthesis_(templateName, promptProfile, activeConcerns, normalizedConcernSynthesis)) {
       return false;
@@ -645,10 +669,7 @@ Vincoli:
         }, {})
       : ((activeConcerns && typeof activeConcerns === 'object') ? activeConcerns : {});
     const templateConcerns = Object.assign({}, normalizedConcerns);
-    const hasSensitiveContextForTemplates = Boolean(
-      (subIntents && (subIntents.bereavement || subIntents.emotional_distress)) ||
-      String(category || '').toLowerCase() === 'emotional_support'
-    );
+    const hasSensitiveContextForTemplates = this._hasSensitiveContextForTemplates_(subIntents, category, topic);
     if (hasSensitiveContextForTemplates) {
       templateConcerns.emotional_sensitivity = true;
     }
@@ -765,6 +786,9 @@ Vincoli:
       subIntents,
       attachmentIntentContext: workingAttachmentIntent
     });
+    if (isSbattezzoRequestForRouting) {
+      templateConcerns.sbattezzo = true;
+    }
     const isFormalTopicForRouting =
       isSbattezzoRequestForRouting ||
       normalizedCategoryForRouting === 'formal' ||
@@ -773,6 +797,9 @@ Vincoli:
 
     const shouldReserveAiCoreLiteOverhead = (() => {
       if (normalizedConcerns.pastoral_technical_blend) {
+        return true;
+      }
+      if (templateConcerns.emotional_sensitivity && !templateConcerns.sbattezzo) {
         return true;
       }
       if (shouldApplyPersonalDiscernment) {
@@ -949,7 +976,7 @@ Vincoli:
     addSection(this._renderGoalContinuity(goalContinuity), 'GoalContinuity', { isSystem: true });
     addSection(this._renderNewInformationProvided(newInformationProvided), 'NewInformationProvided', { isSystem: true });
     const effectiveRelationalPosture = isFormalTopicForRouting
-      ? 'direct'
+      ? (templateConcerns.emotional_sensitivity && !templateConcerns.sbattezzo ? relationalPosture : 'direct')
       : (normalizedConcerns.longitudinal_sensitivity &&
           normalizedResponseMode !== 'longitudinal_tone_only' &&
           relationalPosture === 'direct'
@@ -1122,7 +1149,8 @@ Vincoli:
     const shouldIncludeAiCoreLite = Boolean(
       requestTypeObj.needsDiscernment ||
       requestTypeObj.needsDoctrine ||
-      normalizedConcerns.pastoral_technical_blend
+      normalizedConcerns.pastoral_technical_blend ||
+      (templateConcerns.emotional_sensitivity && !templateConcerns.sbattezzo)
     );
     if (shouldIncludeAiCoreLite && aiCoreLiteText) {
       const liteSection = `## 📋 PRINCIPI PASTORALI FONDAMENTALI (AI_CORE_LITE)\n${aiCoreLiteText}\n`;
@@ -1185,10 +1213,10 @@ Vincoli:
     // BLOCCO 3: LINEE GUIDA E TEMPLATE
 
     // 20. LINEE GUIDA (Filtrabili per profilo)
-    addTemplate('FormattingGuidelinesTemplate', this._renderFormattingGuidelines(subIntents, category), 'FormattingGuidelines', { isSystem: true });
+    addTemplate('FormattingGuidelinesTemplate', this._renderFormattingGuidelines(subIntents, category, topic), 'FormattingGuidelines', { isSystem: true });
 
     // 21. STRUTTURA RISPOSTA
-    addSection(this._renderResponseStructure(category, subIntents), 'ResponseStructure', { isSystem: true });
+    addSection(this._renderResponseStructure(category, subIntents, topic), 'ResponseStructure', { isSystem: true });
 
     // 22. TEMPLATE SPECIALI (Sbattezzo ecc.)
     const normalizedTopic = String(topic || '').toLowerCase();
@@ -1200,6 +1228,9 @@ Vincoli:
       subIntents,
       attachmentIntentContext: resolvedAttachmentIntent
     });
+    if (isSbattezzoRequest) {
+      templateConcerns.sbattezzo = true;
+    }
 
     if (isSbattezzoRequest) {
       addSection(this._renderSbattezzoTemplate(senderName, detectedLanguage), 'SbattezzoTemplate', { isSystem: true });
@@ -1215,10 +1246,8 @@ Vincoli:
     addSection(this._renderResponseGuidelines(detectedLanguage, resolvedScheduleContext, salutation, closing, salutationMode), 'ResponseGuidelines', { isSystem: true });
     addSection(this._renderOutputEnvelopePolicy(detectedLanguage, salutationMode, salutation, closing), 'OutputEnvelopePolicy', { force: true, isSystem: true });
 
-    if (!isSbattezzoRequest && !hasCanonicalComplexitySignals) {
-      // 26. CASI SPECIALI
-      addTemplate('SpecialCasesTemplate', this._renderSpecialCases(), 'SpecialCases', { isSystem: true });
-    }
+    // 26. CASI SPECIALI
+    addTemplate('SpecialCasesTemplate', this._renderSpecialCases(), 'SpecialCases', { isSystem: true });
 
     // BLOCCO 4: RINFORZO FINALE
 
@@ -1798,20 +1827,27 @@ ${rules.join('\n')}`;
       return null;
     }
 
+    const typeStr = String((typeof requestType === 'string' ? requestType : (requestType && requestType.type)) || 'technical').toLowerCase();
+    const requestDimensions = (requestType && typeof requestType === 'object' && requestType.dimensions)
+      ? requestType.dimensions
+      : null;
+    const explicitSacramentWeight = requestDimensions && Number(requestDimensions.sacrament);
+    const hasExplicitSacramentWeight = Number.isFinite(explicitSacramentWeight);
+    const fallbackSacramentWeight = typeStr.includes('sacrament') ? 1.0 : 0.4;
+
     let dimWeights = {};
-    if (typeof requestType === 'object' && requestType.dimensions) {
+    if (requestDimensions) {
       dimWeights = {
-        'sacrament': 1.0,
-        'pastoral': requestType.dimensions.pastoral ?? 0.5,
-        'doctrinal': requestType.dimensions.doctrinal ?? 0.5,
-        'technical': requestType.dimensions.technical ?? 0.5
+        'sacrament': hasExplicitSacramentWeight ? explicitSacramentWeight : fallbackSacramentWeight,
+        'pastoral': requestDimensions.pastoral ?? 0.5,
+        'doctrinal': requestDimensions.doctrinal ?? 0.5,
+        'technical': requestDimensions.technical ?? 0.5
       };
     } else {
-      const typeStr = (typeof requestType === 'string' ? requestType : requestType.type) || 'technical';
       const isPastoral = typeStr === 'pastoral';
       const isDoctrinal = typeStr === 'doctrinal';
       dimWeights = {
-        'sacrament': 1.0,
+        'sacrament': fallbackSacramentWeight,
         'pastoral': isPastoral ? 1.0 : 0.3,
         'doctrinal': isDoctrinal ? 1.0 : 0.3,
         'technical': typeStr === 'technical' ? 1.0 : 0.3
@@ -3198,12 +3234,8 @@ ${hints[effectiveCategory]}` : null;
   // TEMPLATE: LINEE GUIDA FORMATTAZIONE
   // ========================================================================
 
-  _renderFormattingGuidelines(subIntents = {}, category = null) {
-    const normalizedCategory = String(category || '').toLowerCase();
-    const isSensitiveContext = Boolean(
-      (subIntents && (subIntents.bereavement || subIntents.emotional_distress)) ||
-      normalizedCategory === 'emotional_support'
-    );
+  _renderFormattingGuidelines(subIntents = {}, category = null, topic = '') {
+    const isSensitiveContext = this._hasSensitiveContextForTemplates_(subIntents, category, topic);
     const sensitiveOverride = isSensitiveContext
       ? `
 - **CONTESTO SENSIBILE E GERARCHIA - REGOLA ASSOLUTA:** Questa email riguarda un lutto o un disagio personale.
@@ -3224,10 +3256,10 @@ ${sensitiveOverride}
   // TEMPLATE 15: STRUTTURA RISPOSTA
   // ========================================================================
 
-  _renderResponseStructure(category, subIntents) {
+  _renderResponseStructure(category, subIntents, topic = '') {
     let hint = null;
 
-    if (subIntents && subIntents.bereavement) {
+    if (this._hasBereavementContextForTemplates_(subIntents, category, topic)) {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (LUTTO):**
 Apertura: se il messaggio contiene elementi specifici — un nome, una relazione, una circostanza concreta — rispecchiali invece di usare formule universali. "Siamo dispiaciuti per la perdita di suo padre" è più umano di "comprendiamo la delicatezza del momento". Se il messaggio è vago o formale, la sobrietà vale più dell'empatia performativa: passa direttamente alle informazioni pratiche con tono misurato.
 

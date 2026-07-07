@@ -791,6 +791,27 @@ assert(
   'la struttura lutto deve prevenire il deferral pastorale improprio su richieste pratiche'
 );
 
+console.log('--- Test prompt: topic funerale attiva sensibilita senza subIntent ---');
+const topicBereavementPrompt = engine.buildPrompt({
+  emailSubject: 'Info funerale',
+  emailContent: 'Vorrei sapere quali passaggi servono.',
+  knowledgeBase: 'La segreteria verifica la disponibilita per i funerali.',
+  aiCoreLite: 'AI_CORE_LITE_BEREAVEMENT_SENTINEL',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  category: 'sacrament',
+  topic: 'funerale',
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  responseRegister: 'pastoral_crisis'
+}).toString();
+
+assert(
+  topicBereavementPrompt.includes('CONTESTO SENSIBILE E GERARCHIA - REGOLA ASSOLUTA') &&
+    topicBereavementPrompt.includes('STRUTTURA RISPOSTA RACCOMANDATA (LUTTO)') &&
+    topicBereavementPrompt.includes('AI_CORE_LITE_BEREAVEMENT_SENTINEL'),
+  'topic funerale deve attivare sensibilita, struttura lutto e AI_CORE_LITE anche senza subIntent'
+);
+
 console.log('--- Test prompt: consegna documentale non diventa richiesta requisiti ---');
 const attachmentPrompt = engine.buildPrompt({
   emailSubject: 'Invio idoneità padrino',
@@ -1314,6 +1335,25 @@ assert(
     formalSensitiveModePrompt.toString().includes('responseMode:formal_sensitive->continuityPolicy:formal_sensitive_continuity') &&
     formalSensitiveModePrompt.toString().includes('formal_register'),
   'formal_sensitive deve rendere deterministici vincoli, registro formale e continuita'
+);
+
+console.log('--- Test prompt: formale funerale preserva postura personal ---');
+const formalBereavementPosturePrompt = engine.buildPrompt({
+  emailSubject: 'Richiesta funerale',
+  emailContent: 'Vorrei sapere come procedere per la pratica.',
+  knowledgeBase: 'La segreteria indica il prossimo passaggio operativo.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  requestType: { type: 'formal', needsDiscernment: false, needsDoctrine: false },
+  category: 'formal',
+  topic: 'funerale',
+  relationalPosture: 'personal',
+  responseRegister: 'formal_institutional'
+}).toString();
+assert(
+  formalBereavementPosturePrompt.includes('Il mittente ha condiviso qualcosa di personale o delicato') &&
+    !formalBereavementPosturePrompt.includes('Rispondi ai fatti esclusivamente con i fatti'),
+  'un formale di lutto deve preservare la postura personal invece di forzare direct'
 );
 
 console.log('--- Test prompt finale nominale: pastoral_longitudinal collega modalità, vincoli e direttiva ---');
@@ -2188,6 +2228,36 @@ console.log('--- Test prompt: dottrina heavy esclude righe generiche senza match
   assert(genericDoctrine === null, 'il profilo heavy non deve includere righe dottrinali generiche senza match testuale o categorico');
 }
 
+console.log('--- Test prompt: dottrina pastorale non favorisce sacramenti generici ---');
+{
+  const pastoralDoctrine = engine._renderSelectiveDoctrine(
+    { type: 'pastoral', needsDoctrine: true },
+    'lutto',
+    'Vorrei una preghiera per un lutto in famiglia.',
+    'Preghiera per lutto',
+    'heavy',
+    {},
+    [
+      {
+        Categoria: 'sacramentale',
+        'Sotto-tema': 'registro sacramentale generico',
+        'Principio dottrinale': 'Riga sacramentale generica'
+      },
+      {
+        Categoria: 'pastorale',
+        'Sotto-tema': 'lutto e preghiera',
+        'Principio dottrinale': 'Riga pastorale lutto'
+      }
+    ]
+  );
+  assert(
+    pastoralDoctrine &&
+      pastoralDoctrine.includes('Riga pastorale lutto') &&
+      !pastoralDoctrine.includes('Riga sacramentale generica'),
+    'una richiesta pastorale non sacramentale non deve selezionare righe sacramentali generiche'
+  );
+}
+
 console.log('--- Test prompt: riparazione tag XML chiude blocchi strutturali troncati ---');
 {
   const repairedKb = engine._truncateUserPromptSafely_(
@@ -2290,7 +2360,8 @@ console.log('--- Test prompt: casi canonici complessi restano in profilo lite --
   assert(
     complexLitePrompt.includes('CASI SPECIALI') &&
       complexLitePrompt.includes('SITUAZIONI CANONICAMENTE COMPLESSE') &&
-      complexLitePrompt.includes('Divorziato/a'),
+      complexLitePrompt.includes('Divorziato/a') &&
+      complexLitePrompt.includes('Esempio di risposta CORRETTA per persona divorziata'),
     'il profilo lite non deve eliminare la guida sui casi canonicamente complessi'
   );
 }
