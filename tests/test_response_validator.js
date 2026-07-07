@@ -317,6 +317,15 @@ const previousMemoryLeakResult = validator._checkExposedReasoning(
 );
 assert(previousMemoryLeakResult.score === 0.0, 'leak sulla memoria precedente deve essere bloccante');
 
+const internalMarkerLeakResult = validator._checkExposedReasoning(
+  '## CORNICE DECISIONALE OPERATIVA\n- Segnali attivi: concern:longitudinal_sensitivity, responseMode:pastoral_longitudinal\n- Routing moduli: aiCoreLite=true'
+);
+assert(internalMarkerLeakResult.score === 0.0, 'leak di marker interni della cornice decisionale deve essere bloccante');
+assert(
+  internalMarkerLeakResult.errors.some((e) => e.includes('RAGIONAMENTO ESPOSTO CRITICO')),
+  'deve segnalare come critico il leak di responseMode/concern e sezioni interne'
+);
+
 console.log('--- Test validateResponse: estrae solo blocco <email> e ignora <analisi> ---');
 {
   const xmlResult = validator.validateResponse(

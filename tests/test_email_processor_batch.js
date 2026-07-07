@@ -3234,6 +3234,123 @@ console.log('--- Test processThread: follow-up senza allegati non usa receipt-on
   global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
 }
 
+console.log('--- Test processThread: falso document_submission senza allegati non sporca PromptContext ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalDocumentConsistency = global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED;
+  const originalAttachmentContext = global.CONFIG.ATTACHMENT_CONTEXT;
+  const originalCreatePromptContext = global.createPromptContext;
+  global.CONFIG.VALIDATION_ENABLED = false;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = false;
+  global.CONFIG.ATTACHMENT_CONTEXT = { enabled: true, maxFiles: 3 };
+
+  let promptContextInput = null;
+  let capturedPromptOptions = null;
+  global.createPromptContext = (input) => {
+    promptContextInput = input;
+    return {
+      profile: 'lite',
+      concerns: {},
+      meta: {
+        responseRegister: 'warm_institutional',
+        salutationMode: 'full'
+      }
+    };
+  };
+
+  const msg = {
+    getId: () => 'm-false-submission-no-attachments',
+    isUnread: () => true,
+    getFrom: () => 'utente@example.com',
+    getDate: () => new Date('2026-05-29T10:00:00Z'),
+    getSubject: () => 'Re: informazioni',
+    getPlainBody: () => 'Grazie per la risposta.',
+    getAttachments: () => []
+  };
+  const thread = createThread({ id: 't-false-submission-no-attachments', messages: [msg] });
+
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: (raw) => raw,
+      extractMessageDetails: () => ({
+        subject: 'Re: informazioni',
+        body: msg.getPlainBody(),
+        senderEmail: 'utente@example.com',
+        senderName: 'Utente Test',
+        date: new Date('2026-05-29T10:00:00Z'),
+        headers: {},
+        isNewsletter: false,
+        rfc2822MessageId: null,
+        existingReferences: null
+      }),
+      addLabelToMessage: () => {},
+      addLabelToThread: () => {},
+      getThreadHistory: () => '',
+      getProcessableAttachments: () => ({ blobs: [], textContext: '', skipped: [], items: [] }),
+      prepareOutboundText: (text) => text,
+      sendHtmlReply: () => {}
+    },
+    classifier: {
+      classifyEmail: () => ({ shouldReply: true, category: 'document_submission', topic: 'documentazione ricevuta', subIntents: {}, confidence: 0.9 })
+    },
+    geminiService: {
+      primaryKey: 'primary-key',
+      backupKey: 'backup-key',
+      shouldRespondToEmail: () => ({
+        shouldRespond: true,
+        language: 'it',
+        classification: { topic: 'follow-up', category: 'document_submission', confidence: 0.9 }
+      }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      generateResponse: () => ({ success: true, text: 'Grazie per la precisazione.' })
+    },
+    requestClassifier: {
+      classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 }, needsDiscernment: false, needsDoctrine: false })
+    },
+    memoryService: {
+      getMemory: () => ({}),
+      getRecentHistory: () => [],
+      updateMemoryAtomic: () => true
+    },
+    territoryValidator: {
+      validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
+    },
+    promptEngine: {
+      buildPrompt: (options) => {
+        capturedPromptOptions = options;
+        return 'PROMPT';
+      }
+    }
+  });
+  processor._deriveAttachmentIntentContext_ = () => ({
+    intent: 'document_submission',
+    hasQuestions: false,
+    allowBodyQuestions: false,
+    categoryHintSource: 'document_submission',
+    detectedDocTypes: { sponsor: false }
+  });
+
+  const result = processor.processThread(thread, 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', 'il falso document_submission senza allegati deve completarsi');
+  assert(promptContextInput, 'PromptContext deve essere costruito');
+  assert(
+    promptContextInput.classification.category !== 'document_submission',
+    `PromptContext non deve ricevere document_submission sporco, ottenuto ${promptContextInput.classification.category}`
+  );
+  assert(
+    capturedPromptOptions && capturedPromptOptions.category !== 'document_submission',
+    `PromptEngine non deve ricevere document_submission sporco, ottenuto ${capturedPromptOptions && capturedPromptOptions.category}`
+  );
+  assert(capturedPromptOptions && capturedPromptOptions.attachmentIntentContext === null, 'il prompt non deve ricevere attachmentIntentContext disattivato');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED = originalDocumentConsistency;
+  global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
+  global.createPromptContext = originalCreatePromptContext;
+}
+
 
 console.log('--- Test processThread: valida e invia esattamente il testo outbound preparato ---');
 {

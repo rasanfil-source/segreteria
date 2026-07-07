@@ -128,6 +128,103 @@ var PromptEngine = class PromptEngine {
     this.logger.info('PromptEngine inizializzato', { templateSections: 'variabile' });
   }
 
+  _attachmentIntentIndicatesSbattezzo_(attachmentIntentContext = null) {
+    if (!attachmentIntentContext || typeof attachmentIntentContext !== 'object') return false;
+
+    const detectedDocTypes = (attachmentIntentContext.detectedDocTypes && typeof attachmentIntentContext.detectedDocTypes === 'object')
+      ? attachmentIntentContext.detectedDocTypes
+      : {};
+    if (detectedDocTypes.sbattezzo === true) return true;
+
+    const searchableText = [
+      attachmentIntentContext.intent,
+      attachmentIntentContext.categoryHintSource,
+      attachmentIntentContext.responseDirective,
+      attachmentIntentContext.expectedAttachmentDescription,
+      attachmentIntentContext.expected_document_description
+    ].map(value => String(value || '').toLowerCase()).join(' ');
+
+    return /\bsbattezz|apostasi|cancellazion[ea][\s\S]{0,60}registr[oi]|registr[oi][\s\S]{0,60}battesim/.test(searchableText);
+  }
+
+  _isSbattezzoRequest_({
+    topic = '',
+    category = '',
+    requestType = null,
+    subIntents = {},
+    attachmentIntentContext = null
+  } = {}) {
+    const normalizedTopic = String(topic || '').trim().toLowerCase();
+    const normalizedCategory = String(category || '').trim().toLowerCase();
+    const requestTypeName = String(
+      typeof requestType === 'string'
+        ? requestType
+        : ((requestType && requestType.type) || '')
+    ).trim().toLowerCase();
+    const normalizedSubIntents = (subIntents && typeof subIntents === 'object') ? subIntents : {};
+
+    return Boolean(
+      normalizedTopic.includes('sbattezzo') ||
+      normalizedCategory === 'sbattezzo' ||
+      requestTypeName === 'sbattezzo' ||
+      (requestType && typeof requestType === 'object' && requestType.isSbattezzo === true) ||
+      normalizedSubIntents.possible_sbattezzo_indirect === true ||
+      this._attachmentIntentIndicatesSbattezzo_(attachmentIntentContext)
+    );
+  }
+
+  _hasCanonicalComplexitySignals_({
+    emailContent = '',
+    emailSubject = '',
+    topic = '',
+    category = '',
+    requestType = null,
+    subIntents = {},
+    memoryContext = null
+  } = {}) {
+    const normalizedSubIntents = (subIntents && typeof subIntents === 'object') ? subIntents : {};
+    if (
+      normalizedSubIntents.canonical_complexity === true ||
+      normalizedSubIntents.canonicalComplexity === true ||
+      normalizedSubIntents.irregular_marriage_case === true ||
+      normalizedSubIntents.marriage_irregular_status === true
+    ) {
+      return true;
+    }
+
+    const memoryFlags = memoryContext && typeof memoryContext === 'object'
+      ? (memoryContext.contextualFlags || memoryContext.flags || {})
+      : {};
+    if (
+      memoryFlags &&
+      typeof memoryFlags === 'object' &&
+      (memoryFlags.canonical_complexity === true || memoryFlags.canonicalComplexity === true)
+    ) {
+      return true;
+    }
+
+    const requestTypeObj = requestType && typeof requestType === 'object' ? requestType : {};
+    if (
+      requestTypeObj.canonicalComplexity === true ||
+      requestTypeObj.canonical_complexity === true ||
+      requestTypeObj.needsCanonicalDiscernment === true
+    ) {
+      return true;
+    }
+
+    const searchableText = [
+      emailSubject,
+      emailContent,
+      topic,
+      category,
+      requestTypeObj.topic,
+      requestTypeObj.category,
+      requestTypeObj.reason
+    ].map(value => String(value || '').toLowerCase()).join(' ');
+
+    return /\b(?:divorziat[oaie]?|separat[oaie]?|risposat[oaie]?|convivent[ei]|non\s+cattolic[oaie]?|matrimonio\s+precedente|precedente\s+matrimonio|annullament[oa]|nullit[aà]\s+matrimonial[ei]|sposat[oaie]?\s+civilmente|matrimonio\s+civile|divorced|separated|civilly\s+remarried|cohabiting|non[-\s]?catholic|not\s+catholic|previous\s+marriage|annulment)\b/i.test(searchableText);
+  }
+
   /**
    * Stima token con fallback conservativo allineato a estimateTokenCount.
    */
@@ -375,6 +472,23 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       this._concernSynthesisSuppresses_(concernSynthesis, 'formattingGuidelines');
   }
 
+  _templateKeepReason_(templateName, promptProfile, activeConcerns = {}) {
+    if (templateName === 'SpecialCasesTemplate') {
+      return 'canonical_complexity_policy';
+    }
+    if (templateName === 'FormattingGuidelinesTemplate' && activeConcerns.emotional_sensitivity === true) {
+      return 'emotional_sensitivity';
+    }
+    if (
+      templateName === 'ExamplesTemplate' &&
+      promptProfile === 'standard' &&
+      activeConcerns.formatting_risk === true
+    ) {
+      return 'formatting_risk';
+    }
+    return null;
+  }
+
   _renderConcernSynthesis(concernSynthesis, responseRegister = '') {
     const synthesis = this._normalizeConcernSynthesis_(concernSynthesis);
     if (!synthesis) return null;
@@ -407,10 +521,10 @@ Vincoli:
     if (this._shouldSuppressTemplateByConcernSynthesis_(templateName, promptProfile, activeConcerns, normalizedConcernSynthesis)) {
       return false;
     }
+    const keepReason = this._templateKeepReason_(templateName, promptProfile, activeConcerns);
 
     if (promptProfile === 'lite') {
-      const keepSensitiveFormatting = templateName === 'FormattingGuidelinesTemplate' && activeConcerns.emotional_sensitivity;
-      if (!keepSensitiveFormatting && this.LITE_SKIP_TEMPLATES.includes(templateName)) {
+      if (!keepReason && this.LITE_SKIP_TEMPLATES.includes(templateName)) {
         return false;
       }
     }
@@ -418,7 +532,7 @@ Vincoli:
     if (promptProfile === 'standard') {
       if (this.STANDARD_SKIP_TEMPLATES.includes(templateName)) {
         // Salta esempi a meno che formatting_risk non sia attivo
-        if (!activeConcerns.formatting_risk) {
+        if (!keepReason) {
           return false;
         }
       }
@@ -426,7 +540,7 @@ Vincoli:
 
     const normalizedRegister = String(responseRegister || '').trim().toLowerCase();
     const registerSuppressions = this.REGISTER_SUPPRESS_TEMPLATES[normalizedRegister];
-    if (registerSuppressions && registerSuppressions.has(templateName)) return false;
+    if (registerSuppressions && registerSuppressions.has(templateName) && !keepReason) return false;
 
     return true;
   }
@@ -544,6 +658,18 @@ Vincoli:
     const normalizedResponseMode = this._normalizeResponseMode_(responseMode);
     const normalizedOperationalConstraints = this._normalizeOperationalConstraints_(operationalConstraints);
     const normalizedContinuityPolicy = this._normalizeContinuityPolicy_(continuityPolicy);
+    const hasCanonicalComplexitySignals = this._hasCanonicalComplexitySignals_({
+      emailContent,
+      emailSubject,
+      topic,
+      category,
+      requestType: options.requestType,
+      subIntents,
+      memoryContext
+    });
+    if (hasCanonicalComplexitySignals) {
+      templateConcerns.canonical_complexity = true;
+    }
 
     let systemSections = [];
     let userSections = [];
@@ -632,12 +758,17 @@ Vincoli:
       typeof requestTypeForRouting === 'object' &&
       requestTypeForRouting.isSbattezzo === true
     );
+    const isSbattezzoRequestForRouting = this._isSbattezzoRequest_({
+      topic: normalizedTopicForRouting,
+      category: normalizedCategoryForRouting,
+      requestType: requestTypeForRouting,
+      subIntents,
+      attachmentIntentContext: workingAttachmentIntent
+    });
     const isFormalTopicForRouting =
-      normalizedTopicForRouting.includes('sbattezzo') ||
+      isSbattezzoRequestForRouting ||
       normalizedCategoryForRouting === 'formal' ||
-      normalizedCategoryForRouting === 'sbattezzo' ||
-      requestTypeNameForRouting === 'formal' ||
-      requestTypeIsSbattezzoForRouting;
+      requestTypeNameForRouting === 'formal';
     const shouldApplyPersonalDiscernment = relationalPosture === 'personal' && !isFormalTopicForRouting;
 
     const shouldReserveAiCoreLiteOverhead = (() => {
@@ -810,8 +941,6 @@ Vincoli:
     // BLOCCO 2: CONTESTO E CONTINUITÀ
 
     // 6. CONTESTO MEMORIA
-
-    // 6. CONTESTO MEMORIA
     addSection(this._renderMemoryContext(workingMemoryContext), 'MemoryContext');
     if (normalizedConcerns.residual_sensitivity) {
       addSection(this._renderResidualSensitivity(), 'ResidualSensitivity');
@@ -895,6 +1024,7 @@ Vincoli:
       memoryContext,
       newInformationProvided,
       goalContinuity,
+      attachmentIntentContext: workingAttachmentIntent,
       aiCoreLiteLoaded: !!(aiCoreLiteText && shouldReserveAiCoreLiteOverhead),
       aiCoreLoaded: !!(aiCoreText && (
         shouldApplyPersonalDiscernment ||
@@ -1019,12 +1149,16 @@ Vincoli:
       if (selectiveDoctrine) {
         addSection(selectiveDoctrine, 'SelectiveDoctrine');
       } else {
-        const canFallbackDoctrine = allowDoctrineFallback && !aiCoreLiteText && !aiCoreText;
-        if (doctrineBaseText && canFallbackDoctrine) {
-          const doctrineSection = `## 📖 BASE DOTTRINALE (Dottrina) - Fallback Completo\n${doctrineBaseText}\n`;
+        const shouldUseFullDoctrineFallback = allowDoctrineFallback && !aiCoreLiteText && !aiCoreText;
+        if (doctrineBaseText && shouldUseFullDoctrineFallback) {
+          const doctrineSection = this._renderDoctrineFallback_(doctrineBaseText, { compact: false });
           addSection(doctrineSection, 'DoctrineFallback');
-        } else if (doctrineBaseText && !canFallbackDoctrine) {
-          console.warn('ℹ️ Fallback dottrinale completo evitato: AI_CORE presente (riduzione rischio bloat).');
+        } else if (doctrineBaseText && allowDoctrineFallback) {
+          const doctrineSection = this._renderDoctrineFallback_(doctrineBaseText, { compact: true });
+          addSection(doctrineSection, 'DoctrineFallbackCompact');
+          console.warn('ℹ️ Fallback dottrinale compatto incluso: recupero selettivo vuoto con AI_CORE presente.');
+        } else if (doctrineBaseText && !allowDoctrineFallback) {
+          console.warn('ℹ️ Fallback dottrinale disabilitato da allowDoctrineFallback=false.');
         }
       }
     } else if (requestTypeObj.needsDoctrine && hasPriorCommunication) {
@@ -1059,14 +1193,15 @@ Vincoli:
     // 22. TEMPLATE SPECIALI (Sbattezzo ecc.)
     const normalizedTopic = String(topic || '').toLowerCase();
     const normalizedCategory = String(category || '').toLowerCase();
-    const normalizedRequestType = String(requestTypeObj.type || '').toLowerCase();
-    const isFormalRequest =
-      normalizedCategory === 'formal' ||
-      normalizedCategory === 'sbattezzo' ||
-      normalizedRequestType === 'formal' ||
-      requestTypeObj.isSbattezzo === true;
+    const isSbattezzoRequest = this._isSbattezzoRequest_({
+      topic: normalizedTopic,
+      category: normalizedCategory,
+      requestType: requestTypeObj,
+      subIntents,
+      attachmentIntentContext: resolvedAttachmentIntent
+    });
 
-    if (normalizedTopic.includes('sbattezzo') || isFormalRequest) {
+    if (isSbattezzoRequest) {
       addSection(this._renderSbattezzoTemplate(senderName, detectedLanguage), 'SbattezzoTemplate', { isSystem: true });
     }
 
@@ -1080,7 +1215,7 @@ Vincoli:
     addSection(this._renderResponseGuidelines(detectedLanguage, resolvedScheduleContext, salutation, closing, salutationMode), 'ResponseGuidelines', { isSystem: true });
     addSection(this._renderOutputEnvelopePolicy(detectedLanguage, salutationMode, salutation, closing), 'OutputEnvelopePolicy', { force: true, isSystem: true });
 
-    if (!normalizedTopic.includes('sbattezzo') && !isFormalRequest) {
+    if (!isSbattezzoRequest && !hasCanonicalComplexitySignals) {
       // 26. CASI SPECIALI
       addTemplate('SpecialCasesTemplate', this._renderSpecialCases(), 'SpecialCases', { isSystem: true });
     }
@@ -1097,6 +1232,14 @@ Vincoli:
 
     // 29. CHECKLIST CONTESTUALE
     addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode, templateConcerns, normalizedConcernSynthesis), 'ContextualChecklist', { isSystem: true });
+
+    if (!isSbattezzoRequest && hasCanonicalComplexitySignals) {
+      addSection(
+        this._renderCanonicalComplexityBudgetGuardrail_(),
+        'CanonicalComplexityBudgetGuardrail',
+        { force: true, isSystem: true }
+      );
+    }
 
     // 30. ISTRUZIONE FINALE
     addSection(this._renderFinalInstruction(), 'FinalInstruction', { force: true, isSystem: true });
@@ -1253,7 +1396,31 @@ Vincoli:
     const headClosures = this._getPendingPromptXmlFenceClosures_(head)
       .map(tag => `\n${tag}`)
       .join('');
-    return this._repairPromptXmlFences_(`${head}${headClosures}${marker}${tail}`, limit);
+    const truncated = this._repairPromptXmlFences_(`${head}${headClosures}${marker}${tail}`, limit);
+    return this._preserveCriticalSystemTail_(source, truncated, limit, marker);
+  }
+
+  _preserveCriticalSystemTail_(source, truncated, limit, marker) {
+    const original = this._normalizePromptTextInput(source, '');
+    const candidate = this._normalizePromptTextInput(truncated, '');
+    const maxLength = Math.floor(Number(limit));
+    if (!original || !Number.isFinite(maxLength) || maxLength <= 0) return candidate.slice(0, Math.max(0, maxLength));
+
+    const criticalMarker = '## CASI SPECIALI - SITUAZIONI CANONICAMENTE COMPLESSE';
+    const criticalStart = original.lastIndexOf(criticalMarker);
+    if (criticalStart < 0 || candidate.includes(criticalMarker)) {
+      return candidate.length > maxLength ? candidate.slice(0, maxLength) : candidate;
+    }
+
+    const protectedTail = original.slice(criticalStart).trimStart();
+    const separator = marker || '\n\n[...ISTRUZIONI DI SISTEMA TRONCATE...]\n\n';
+    if (protectedTail.length + separator.length + 80 > maxLength) {
+      return candidate.length > maxLength ? candidate.slice(0, maxLength) : candidate;
+    }
+
+    const headBudget = Math.max(0, maxLength - protectedTail.length - separator.length);
+    const protectedHead = this._repairPromptXmlFences_(original.slice(0, headBudget).trimEnd(), headBudget);
+    return this._repairPromptXmlFences_(`${protectedHead}${separator}${protectedTail}`, maxLength);
   }
 
   _slicePromptTailWithEllipsis_(text, maxLength) {
@@ -1762,6 +1929,34 @@ ${directives}
 ⚠️ IMPORTANTE: Questi riferimenti dottrinali sono stati selezionati come pertinenti. Usali per orientare la risposta, ma rispondi sempre in modo concreto alla domanda posta.`;
   }
 
+  _renderDoctrineFallback_(doctrineBaseText, { compact = false } = {}) {
+    const source = this._normalizePromptTextInput(doctrineBaseText, '').trim();
+    if (!source) return '';
+
+    if (!compact) {
+      return `## 📖 BASE DOTTRINALE (Dottrina) - Fallback Completo
+${source}
+`;
+    }
+
+    const promptEngineSettings = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && typeof CONFIG.PROMPT_ENGINE === 'object')
+      ? CONFIG.PROMPT_ENGINE
+      : {};
+    const configuredLimit = Number(promptEngineSettings.DOCTRINE_FALLBACK_COMPACT_CHARS);
+    const compactLimit = Number.isFinite(configuredLimit) && configuredLimit > 0
+      ? Math.max(1200, Math.floor(configuredLimit))
+      : 6000;
+    const compactText = source.length > compactLimit
+      ? this._truncateKbSemantically(source, compactLimit)
+      : source;
+
+    return `## 📖 BASE DOTTRINALE (Dottrina) - Fallback Compatto
+Il recupero dottrinale selettivo non ha trovato righe specifiche. Usa questi riferimenti minimi solo per evitare risposte dottrinali prive di base; non appesantire la risposta e non citare questa sezione.
+
+${compactText}
+`;
+  }
+
   // ========================================================================
   // TEMPLATE 2b: CONTINUITÀ + UMANITÀ + FOCUS (leggero)
   // ========================================================================
@@ -2262,12 +2457,22 @@ Non richiedere nuovamente queste informazioni.`;
     const category = String(state.category || '').toLowerCase();
     const requestType = state.requestType || {};
     const requestTypeName = String(requestType.type || requestType || '').toLowerCase();
+    const isSbattezzoRequest = this._isSbattezzoRequest_({
+      topic: state.topic,
+      category,
+      requestType,
+      subIntents: subIntentSignals,
+      attachmentIntentContext: state.attachmentIntentContext
+    });
     let caseKind = 'standard';
-    if (category === 'formal' || category === 'sbattezzo' || requestTypeName === 'formal' || requestType.isSbattezzo) {
+    if (isSbattezzoRequest) {
       caseKind = 'formal_sbattezzo';
       if (subIntentSignals.possible_sbattezzo_indirect === true) {
         add(consumedSignals, 'formal_routing:sbattezzo_indirect');
       }
+      add(validatorExpectations, 'formal_register');
+    } else if (category === 'formal' || requestTypeName === 'formal') {
+      caseKind = 'formal_request';
       add(validatorExpectations, 'formal_register');
     } else if (state.territoryContext) {
       caseKind = 'territory_membership';
@@ -3822,6 +4027,23 @@ ${languageReminder}`;
   // ========================================================================
   // TEMPLATE 23: CASI SPECIALI
   // ========================================================================
+
+  _renderCanonicalComplexityBudgetGuardrail_() {
+    return `## CASI SPECIALI - SITUAZIONI CANONICAMENTE COMPLESSE (BUDGET CRITICO)
+Se l'email menziona uno di questi elementi, questa regola prevale sulle procedure standard:
+- Divorziato/a o separato/a che vuole sposarsi in chiesa.
+- Risposato/a civilmente.
+- Convivente che chiede matrimonio.
+- Non cattolico/a che vuole sposarsi in chiesa.
+- Matrimonio precedente non annullato, annullamento o nullita matrimoniale.
+
+ALLORA:
+1. Accogli con calore, sobrietà e senza giudizio.
+2. Invita a parlare direttamente con un sacerdote.
+3. Fornisci solo il passo concreto per fissare un appuntamento o il contatto utile.
+4. Non applicare procedure matrimoniali standard finche il caso non e stato ascoltato.
+5. Non dare per scontato che il matrimonio sia possibile.`;
+  }
 
   _renderSpecialCases() {
     return `**CASI SPECIALI:**

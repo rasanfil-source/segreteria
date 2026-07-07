@@ -422,6 +422,38 @@ function runAllTests() {
                 result.needsDiscernment === true &&
                 !result.safetyFlags.includes('procedural_sacrament_pastoral_downgrade');
         });
+
+        test('FORMAL esterno generico resta formale ma non diventa sbattezzo', results, () => {
+            const classifier = new RequestTypeClassifier();
+            const result = classifier.classify(
+                'Richiesta formale certificato',
+                'Buongiorno, chiedo formalmente il rilascio di un certificato di battesimo.',
+                {
+                    category: 'FORMAL',
+                    topic: 'certificato di battesimo',
+                    confidence: 0.95,
+                    dimensions: { technical: 0.6, pastoral: 0.0, doctrinal: 0.0, formal: 0.8 }
+                }
+            );
+
+            return result.type === 'formal' && result.isSbattezzo === false;
+        });
+
+        test('FORMAL esterno con topic sbattezzo attiva isSbattezzo', results, () => {
+            const classifier = new RequestTypeClassifier();
+            const result = classifier.classify(
+                'Richiesta',
+                'Vorrei informazioni sulla procedura.',
+                {
+                    category: 'FORMAL',
+                    topic: 'sbattezzo',
+                    confidence: 0.95,
+                    dimensions: { technical: 0.2, pastoral: 0.0, doctrinal: 0.0, formal: 0.8 }
+                }
+            );
+
+            return result.type === 'formal' && result.isSbattezzo === true;
+        });
     });
 
     // 1. RateLimiter
@@ -2415,6 +2447,25 @@ function runAllTests() {
                 prompt.includes('- Tono istituzionale. Rispondi ai fatti esclusivamente con i fatti.') &&
                 !prompt.includes('Il mittente ha condiviso qualcosa di personale o delicato') &&
                 !prompt.includes('AI_CORE_LITE_FORMAL_SHOULD_NOT_APPEAR');
+        });
+        test('category formal generica non attiva template sbattezzo ne sopprime casi speciali', results, () => {
+            const prompt = engine.buildPrompt(Object.assign({}, baseOptions, {
+                category: 'formal',
+                topic: 'richiesta certificato',
+                requestType: { type: 'formal', needsDiscernment: false, needsDoctrine: false }
+            })).toString();
+            return !prompt.includes('TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI') &&
+                !prompt.includes('verificherà i propri registri per accertare se il Suo Battesimo') &&
+                prompt.includes('SITUAZIONI CANONICAMENTE COMPLESSE');
+        });
+        test('category formal con topic sbattezzo attiva template sbattezzo', results, () => {
+            const prompt = engine.buildPrompt(Object.assign({}, baseOptions, {
+                category: 'formal',
+                topic: 'sbattezzo',
+                requestType: { type: 'formal', needsDiscernment: false, needsDoctrine: false }
+            })).toString();
+            return prompt.includes('TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI') &&
+                !prompt.includes('SITUAZIONI CANONICAMENTE COMPLESSE');
         });
         test('Contesto temporale papale renderizza inizio ministero senza undefined', results, () => {
             const originalConfig = global.CONFIG;

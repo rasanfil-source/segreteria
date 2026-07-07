@@ -94,7 +94,10 @@ var ResponseValidator = class ResponseValidator {
       /\b(knowledge base|kb)\s+(dice|afferma|contiene|riporta|indica)\b/i,                       // Riferimenti KB
       /\b(rivedendo|consultando|controllando|verificando)\s+(la\s+)?(knowledge base|kb)\b/i,     // Azioni su KB
       // Range limitato e stop su punto/newline: scelta intenzionale anti-backtracking e anti-falsi positivi cross-frase.
-      /\b(ho\s+)?dedott[oaie]?\b[^.\n]{0,120}\b(knowledge base|kb)\b/i                          // Deduzioni esplicite da KB
+      /\b(ho\s+)?dedott[oaie]?\b[^.\n]{0,120}\b(knowledge base|kb)\b/i,                         // Deduzioni esplicite da KB
+      /\b(?:responseMode|continuityPolicy|concernSynthesis|memoryFlag|validatorExpectations)\s*:/i,
+      /\bconcern:[a-z0-9_:-]+\b/i,
+      /\b(?:activeSignals|consumedSignals|validatorExpectations)\b\s*[:=]/i
     ];
 
     this.thinkingPatterns = [
@@ -121,7 +124,13 @@ var ResponseValidator = class ResponseValidator {
       'queste date non sono presenti nella kb',
       'orientamento della risposta',
       'secondo la strategia',
-      'la strategia di risposta'
+      'la strategia di risposta',
+      'cornice decisionale operativa',
+      'caso operativo:',
+      'segnali attivi:',
+      'segnali consumati dal prompt',
+      'vincoli da rispettare anche in revisione',
+      'routing moduli:'
     ];
 
     // Pattern firma (case-insensitive) - supporta multilingua
@@ -1176,7 +1185,13 @@ var ResponseValidator = class ResponseValidator {
         'indicazione interna',
         'orientamento della risposta',
         'secondo la strategia',
-        'la strategia di risposta'
+        'la strategia di risposta',
+        'cornice decisionale operativa',
+        'caso operativo:',
+        'segnali attivi:',
+        'segnali consumati dal prompt',
+        'vincoli da rispettare anche in revisione',
+        'routing moduli:'
       ];
 
       const isRegexMatch = firstPattern.startsWith('regex match:');

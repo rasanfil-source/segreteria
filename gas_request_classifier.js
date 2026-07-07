@@ -216,6 +216,7 @@ var RequestTypeClassifier = class RequestTypeClassifier {
       (externalDims && externalHint && externalConfidence >= 0.6) ||
       (externalHint && externalHint.category && externalConfidence >= 0.75)
     );
+    const externalSbattezzoHint = this._externalHintIndicatesSbattezzo_(externalHint);
 
     if (externalDims && hasExternalHint) {
       dimensions = { ...dimensions, ...externalDims };
@@ -286,8 +287,10 @@ var RequestTypeClassifier = class RequestTypeClassifier {
         requestType = 'technical'; // Valore predefinito
       }
     }
+    const isSbattezzoRequest = formalResult.score >= 4 || externalSbattezzoHint;
+
     // Override prioritari (Logica critica)
-    if (formalResult.score >= 4 || dimensions.formal >= 0.8) requestType = 'formal'; // Sbattezzo prevale
+    if (isSbattezzoRequest || dimensions.formal >= 0.8) requestType = 'formal';
     if (dimensions.doctrinal >= 0.8 && dimensions.pastoral < 0.4) requestType = 'doctrinal'; // Pura dottrina
 
     // 4b. Confidenza e criteri di sicurezza (anti-falsi positivi)
@@ -348,7 +351,7 @@ var RequestTypeClassifier = class RequestTypeClassifier {
       needsDiscernment: needsDiscernment,
       needsDoctrine: needsDoctrine,
       // Usato da getRequestTypeHint() per selezionare template amministrativo.
-      isSbattezzo: formalResult.score >= 4 || dimensions.formal >= 0.8,
+      isSbattezzo: isSbattezzoRequest,
       detectedIndicators: [
         ...technicalResult.matched,
         ...pastoralResult.matched,
@@ -587,6 +590,27 @@ var RequestTypeClassifier = class RequestTypeClassifier {
     }
 
     return found ? normalized : null;
+  }
+
+  _externalHintIndicatesSbattezzo_(externalHint) {
+    if (!externalHint || typeof externalHint !== 'object') return false;
+
+    const category = String(externalHint.category || '').trim().toLowerCase();
+    if (category === 'sbattezzo') return true;
+
+    const subIntents = (externalHint.subIntents && typeof externalHint.subIntents === 'object')
+      ? externalHint.subIntents
+      : {};
+    if (subIntents.possible_sbattezzo_indirect === true) return true;
+
+    const searchableText = [
+      externalHint.topic,
+      externalHint.reason,
+      externalHint.summary,
+      externalHint.description
+    ].map(value => String(value || '').toLowerCase()).join(' ');
+
+    return /\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|\bapostatare\b|cancellazione\s+(?:dal|dai|dei)\s+registr|registr[oi]\s+del\s+battesim[oa]|uscire\s+dalla\s+chiesa|rinunciare\s+al\s+battesim[oa]/i.test(searchableText);
   }
 
   /**

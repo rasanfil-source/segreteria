@@ -2368,8 +2368,26 @@ ${addressLines.join('\n\n')}
       if (!physicalAttachmentsDetected && !attachmentPreCheckFailed && !bodyContainsUsableDocumentContent && !expectsDocument && /submission/i.test(attachmentIntentName)) {
         console.log('   📎 Guardrail allegati: nessun allegato fisico rilevato → disattivo contesto di consegna documentale');
         attachmentIntentContext = null;
+        const fallbackCategory = (requestTypeName && requestTypeName !== 'technical') ? requestTypeName : null;
         if (/^(document_submission|suspected_submission)/i.test(String(categoryHintSource || ''))) {
-          categoryHintSource = (requestTypeName && requestTypeName !== 'technical') ? requestTypeName : null;
+          categoryHintSource = fallbackCategory;
+        }
+        if (/^(document_submission|suspected_submission)/i.test(String(classification.category || ''))) {
+          classification.category = fallbackCategory;
+          if (/document|allegat|consegna/i.test(String(classification.topic || ''))) {
+            classification.topic = '';
+          }
+        }
+        if (
+          quickCheck &&
+          quickCheck.classification &&
+          typeof quickCheck.classification === 'object' &&
+          /^(document_submission|suspected_submission)/i.test(String(quickCheck.classification.category || ''))
+        ) {
+          quickCheck.classification.category = fallbackCategory;
+          if (/document|allegat|consegna/i.test(String(quickCheck.classification.topic || ''))) {
+            quickCheck.classification.topic = '';
+          }
         }
       }
 
@@ -6877,12 +6895,18 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
       typeof requestType === 'string' ? requestType : ((requestType && requestType.type) || '')
     ).toLowerCase();
     const category = String(categoryHintSource || classification.category || '').toLowerCase();
-    const isFormal = Boolean(
-      category === 'formal' ||
+    const topic = String((classification && classification.topic) || '').toLowerCase();
+    const isSbattezzo = Boolean(
+      topic.includes('sbattezzo') ||
       category === 'sbattezzo' ||
-      requestTypeName === 'formal' ||
+      requestTypeName === 'sbattezzo' ||
       (requestType && typeof requestType === 'object' && requestType.isSbattezzo === true) ||
       subIntents.possible_sbattezzo_indirect === true
+    );
+    const isFormal = Boolean(
+      isSbattezzo ||
+      category === 'formal' ||
+      requestTypeName === 'formal'
     );
 
     if (physicalPresenceConstraint && physicalPresenceConstraint.has_constraint) {

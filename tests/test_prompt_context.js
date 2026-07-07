@@ -672,11 +672,11 @@ const longitudinalFollowUp = createPromptContext({
 });
 assert(
   longitudinalFollowUp.meta.responseRegister === 'warm_institutional',
-  'sensibilità longitudinale deve produrre registro pastorale di accompagnamento'
+  'follow-up longitudinale tone-only deve mantenere registro warm_institutional'
 );
 assert(
   longitudinalFollowUp.meta.salutationMode === 'none_or_continuity',
-  'follow-up longitudinalmente sensibile deve applicare override saluto soft'
+  'follow-up longitudinale tone-only deve mantenere salutationMode none_or_continuity'
 );
 assert(
   longitudinalFollowUp.meta.concernSynthesis &&
@@ -688,7 +688,7 @@ assert(
   longitudinalFollowUp.meta.responseMode === 'longitudinal_tone_only' &&
     longitudinalFollowUp.meta.continuityPolicy &&
     longitudinalFollowUp.meta.continuityPolicy.key === 'implicit_sensitive_continuity',
-  'pastoral_longitudinal deve produrre una policy di continuità non riaprire'
+  'longitudinal_tone_only deve produrre una policy di continuità non riaprire'
 );
 
 console.log('--- Test PromptContext: longitudinal_tone_only usa soglia caratteri configurabile ---');
