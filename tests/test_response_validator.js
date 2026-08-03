@@ -221,7 +221,7 @@ console.log('--- Test _checkLanguage conserva testo dopo gmail_quote chiuso ---'
   assert(result.markerScores.it >= 4, 'il testo successivo a gmail_quote non deve essere troncato');
 }
 
-console.log('--- Test _checkLanguage declassa IT/EN misto ma blocca EN pieno ---');
+console.log('--- Test _checkLanguage blocca segmenti in una lingua diversa ---');
 {
   const localValidator = new ResponseValidator();
   localValidator.languageMarkers = {
@@ -233,12 +233,11 @@ console.log('--- Test _checkLanguage declassa IT/EN misto ma blocca EN pieno ---
     'Gentile, thank you for your email to the parish. Kind regards.',
     'it'
   );
-  assert(mixedResult.errors.length === 0, 'IT/EN misto con segnale italiano non deve essere bloccante');
   assert(
-    mixedResult.warnings.some((w) => w.includes('Possibile lingua mista IT/EN')),
-    'IT/EN misto deve restare visibile come warning'
+    mixedResult.errors.some((e) => e.includes('Lingua mista')),
+    'un segmento inglese dentro una risposta italiana deve essere bloccante'
   );
-  assert(mixedResult.score === 0.85, `IT/EN misto deve degradare a 0.85, ottenuto ${mixedResult.score}`);
+  assert(mixedResult.score < 0.30, `la lingua mista forte deve degradare nettamente lo score, ottenuto ${mixedResult.score}`);
 
   const englishResult = localValidator._checkLanguage(
     'Dear parish, thank you for your email. Could you confirm the mass schedule? Kind regards.',
@@ -247,6 +246,43 @@ console.log('--- Test _checkLanguage declassa IT/EN misto ma blocca EN pieno ---
   assert(
     englishResult.errors.some((e) => e.includes('Lingua non corrispondente')),
     'una risposta interamente EN a target IT deve restare bloccante'
+  );
+}
+
+console.log('--- Test _checkLanguage: intercetta formula italiana dentro risposta francese ---');
+{
+  const localValidator = new ResponseValidator();
+  localValidator.languageMarkers = {
+    it: ['grazie', 'cordiali', 'saluti', 'gentile', 'parrocchia', 'messa'],
+    fr: ['merci', 'cordialement', 'paroisse', 'messe', 'bonjour', 'bonsoir']
+  };
+  const result = localValidator._checkLanguage(
+    [
+      'Bonsoir,',
+      'La messe est célébrée à 19h00. Vous pouvez vous adresser à la sacristie avant la célébration.',
+      'Qualora le fosse possibile passare da Roma, saremo lieti di incontrarla anche di persona.',
+      'Cordialement.'
+    ].join('\n'),
+    'fr'
+  );
+
+  assert(
+    result.errors.some((error) => error.includes('Lingua mista') && error.includes('IT')),
+    'la frase italiana deve essere intercettata anche se la lingua prevalente è correttamente francese'
+  );
+  assert(result.foreignSegments.some((item) => item.language === 'it'), 'il segmento italiano deve restare osservabile nei dettagli');
+}
+
+console.log('--- Test _checkLanguage: blocchi italiani rilevati anche per lingua target non preconfigurata ---');
+{
+  const localValidator = new ResponseValidator();
+  const result = localValidator._checkLanguage(
+    'Uw verzoek is ontvangen.\nQualora le fosse possibile passare da Roma, saremo lieti di incontrarla anche di persona.',
+    'nl'
+  );
+  assert(
+    result.errors.some((error) => error.includes('Lingua mista') && error.includes('IT')),
+    'un blocco standard italiano deve essere bloccato anche quando la lingua target non è nella mappa principale'
   );
 }
 
@@ -1897,6 +1933,132 @@ console.log('--- Test SemanticValidator: fallback token se estimateTokenCount no
   }
 }
 
+console.log('--- Test knowledge contextualization: rileva alternativa composta trasferita dalla KB ---');
+{
+  const email = 'Lavoro come infermiera in pronto soccorso e lavoro su turni. Vorrei sapere come funziona e quando inizierà il corso.';
+  const kb = 'Per chi lavora su turni è possibile concordare un programma personalizzato o anticipare alcuni incontri.';
+  const copiedResponse = 'Riguardo alle turnazioni, è possibile concordare un programma personalizzato o anticipare alcuni incontri d’intesa con il sacerdote.';
+  const focusedResponse = 'Data la turnazione, è possibile concordare modalità di partecipazione flessibili con il sacerdote responsabile.';
+
+  const copiedRisk = validator._checkKnowledgeContextualizationRisk(copiedResponse, kb, email);
+  const focusedRisk = validator._checkKnowledgeContextualizationRisk(focusedResponse, kb, email);
+
+  assert(copiedRisk.requiresSemanticReview === true, 'il trasferimento di un ramo alternativo dalla KB deve richiedere revisione semantica');
+  assert(copiedRisk.signals.includes('compound_alternative_transferred'), 'il segnale deve identificare l’alternativa composta non posta dall’utente');
+  assert(focusedRisk.requiresSemanticReview === false, 'una sintesi contestuale senza alternativa accessoria non deve attivare la revisione');
+}
+
+console.log('--- Test knowledge contextualization: il rischio forza la validazione semantica anche con score alto ---');
+{
+  const previousSemanticValidator = validator.semanticValidator;
+  let forcedOptions = null;
+  try {
+    validator.semanticValidator = {
+      shouldRun: () => false,
+      validateHallucinations: (_response, _kb, _regex, _email, options) => {
+        forcedOptions = options;
+        return {
+          isValid: false,
+          confidence: 0.35,
+          reason: 'Pertinenza KB: alternativa accessoria non richiesta',
+          details: {
+            irrelevantDetails: [
+              { text: 'anticipare alcuni incontri', reason: 'non risponde al vincolo espresso' }
+            ]
+          }
+        };
+      },
+      validateThinkingLeak: () => ({ isValid: true, confidence: 0.99, skipped: true })
+    };
+
+    const result = validator.validateResponse(
+      'Buongiorno.\n\nÈ possibile concordare un programma personalizzato o anticipare alcuni incontri con il sacerdote.\n\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio',
+      'it',
+      'Per chi lavora su turni è possibile concordare un programma personalizzato o anticipare alcuni incontri.',
+      'Lavoro come infermiera in pronto soccorso e lavoro su turni. Vorrei informazioni sul corso.',
+      'Corso Cresima',
+      'full',
+      false
+    );
+
+    assert(forcedOptions && forcedOptions.forceRelevanceReview === true, 'il rischio lessicale deve forzare il controllo semantico di pertinenza');
+    assert(result.isValid === false, 'un dettaglio vero ma materialmente irrilevante deve bloccare la risposta');
+    assert(result.errors.some(error => error.includes('Pertinenza KB')), 'l’errore deve distinguere la pertinenza dall’allucinazione');
+  } finally {
+    validator.semanticValidator = previousSemanticValidator;
+  }
+}
+
+console.log('--- Test request purpose: procedura preliminare in richiesta operativa forza revisione ---');
+{
+  const email = 'Richiedo il certificato di battesimo in originale per uso matrimonio. Il battesimo è stato celebrato a Sant Eugenio e verrò a ritirarlo lunedì.';
+  const kb = 'Il certificato deve essere richiesto esclusivamente alla parrocchia in cui è stato celebrato il sacramento. Gli originali possono essere ritirati in segreteria.';
+  const response = 'Le ricordiamo che il certificato deve essere richiesto esclusivamente alla parrocchia in cui è stato celebrato il sacramento. Abbiamo preso nota della richiesta per il ritiro.';
+  const temporalContext = {
+    validationContext: {
+      requestPurpose: { type: 'operational_request', confidence: 0.96 }
+    }
+  };
+  const risk = validator._checkKnowledgeContextualizationRisk(response, kb, email, temporalContext);
+
+  assert(risk.requiresSemanticReview === true, 'una spiegazione preliminare in una richiesta operativa deve essere riesaminata semanticamente');
+  assert(risk.signals.includes('operational_request_kb_scope'), 'il rischio deve essere attribuito allo scopo operativo, non al solo topic');
+
+  const previousSemanticValidator = validator.semanticValidator;
+  let receivedPurpose = null;
+  try {
+    validator.semanticValidator = {
+      shouldRun: () => false,
+      validateHallucinations: (_response, _kb, _regex, _email, options) => {
+        receivedPurpose = options.requestPurpose;
+        return {
+          isValid: false,
+          confidence: 0.4,
+          reason: 'Pertinenza KB: spiegazione procedurale già soddisfatta',
+          details: { irrelevantDetails: [{ text: 'deve essere richiesto esclusivamente', reason: 'procedura già compresa' }] }
+        };
+      },
+      validateThinkingLeak: () => ({ isValid: true, confidence: 0.99, skipped: true })
+    };
+
+    const result = validator.validateResponse(
+      `Buongiorno.\n\n${response}\n\nCordiali saluti,\nSegreteria Parrocchia Sant'Eugenio`,
+      'it',
+      kb,
+      email,
+      'Certificato di battesimo',
+      'full',
+      false,
+      temporalContext
+    );
+    assert(receivedPurpose && receivedPurpose.type === 'operational_request', 'il validator semantico deve ricevere lo scopo classificato');
+    assert(result.isValid === false, 'la procedura vera ma superflua deve bloccare la risposta operativa');
+  } finally {
+    validator.semanticValidator = previousSemanticValidator;
+  }
+}
+
+console.log('--- Test SemanticValidator: dettagli KB irrilevanti senza isValid diventano invalidanti ---');
+{
+  const semantic = Object.create(SemanticValidator.prototype);
+  const normalized = semantic._normalizeSemanticPayload({
+    hallucinations: { times: [], emails: [], phones: [] },
+    irrelevantDetails: [{ text: 'anticipare alcuni incontri', reason: 'alternativa non richiesta' }],
+    confidence: 0.82,
+    reason: 'Pertinenza KB insufficiente'
+  });
+
+  assert(normalized.isValid === false, 'i dettagli materialmente irrilevanti devono rendere il payload non valido');
+  assert(Array.isArray(normalized.details.irrelevantDetails), 'i dettagli di pertinenza devono essere preservati per il retry');
+
+  const inconsistent = semantic._normalizeSemanticPayload({
+    irrelevantDetails: [{ text: 'eccezione accessoria' }],
+    isValid: true,
+    confidence: 0.9
+  });
+  assert(inconsistent.isValid === false, 'un isValid incoerente non deve neutralizzare i dettagli irrilevanti espliciti');
+}
+
 console.log('--- Test SemanticValidator: hallucinations senza isValid diventano invalidanti ---');
 {
   const semantic = Object.create(SemanticValidator.prototype);
@@ -1919,11 +2081,21 @@ console.log('--- Test SemanticValidator: prompt hallucination non tronca KB a 20
   const prompt = semantic._buildHallucinationPrompt(
     'La Messa della notte di Natale è alle 24:00.',
     longKnowledgeBase,
-    'Vorrei sapere gli orari di Natale.'
+    'Vorrei sapere gli orari di Natale.',
+    'information_request'
   );
 
   assert(prompt.includes(lateKbFact), 'il prompt semantico deve includere dati KB oltre i vecchi 2000 caratteri');
   assert(!prompt.includes('[TRUNCATED]'), 'una KB sotto 30000 caratteri non deve essere troncata');
+  assert(
+    prompt.includes('COMPITO B — PERTINENZA CONTESTUALE') &&
+      prompt.includes('unità informative separate') &&
+      prompt.includes('irrelevantDetails') &&
+      prompt.includes('informazioni che aiutano concretamente a gestire un vincolo dichiarato') &&
+      prompt.includes('Prima distingui lo scopo') &&
+      prompt.includes('Se lo scopo è operativo'),
+    'il validatore semantico deve controllare anche selezione e contestualizzazione dei fatti veri della KB'
+  );
 }
 
 

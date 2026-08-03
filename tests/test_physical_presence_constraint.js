@@ -89,6 +89,47 @@ console.log('--- Test physical presence constraint: visit intent is not a constr
   assert(result.source === 'default', 'no signal must return the default object');
 }
 
+console.log('--- Test physical presence constraint: current Rome presence overrides foreign residence distance ---');
+{
+  const processor = Object.create(EmailProcessor.prototype);
+  const result = processor._resolvePhysicalPresenceConstraint_(
+    {
+      has_constraint: true,
+      type: 'geographic_distance',
+      confidence: 0.88,
+      evidence: 'adresse de résidence à Versailles',
+      reason: 'residence abroad',
+      visit_policy: 'conditional_only'
+    },
+    'Messe mardi',
+    'Je suis en vacances à Rome avec mes enfants. Y a-t-il une messe ce mardi ?'
+  );
+
+  assert(result.has_constraint === false, 'current presence in Rome must override residence-distance routing');
+  assert(result.source === 'current_local_presence_override', 'the override source must remain observable');
+  assert(result.visit_policy === 'visit_ok', 'current local presence must not generate hypothetical Rome wording');
+}
+
+console.log('--- Test physical presence constraint: local presence does not erase independent health constraint ---');
+{
+  const processor = Object.create(EmailProcessor.prototype);
+  const result = processor._resolvePhysicalPresenceConstraint_(
+    {
+      has_constraint: true,
+      type: 'health',
+      confidence: 0.91,
+      evidence: 'mobilità temporaneamente ridotta',
+      reason: 'health constraint',
+      visit_policy: 'avoid_invitation'
+    },
+    'Informazioni',
+    'Sono già a Roma, ma sono convalescente e non posso raggiungere la parrocchia.'
+  );
+
+  assert(result.has_constraint === true, 'current local presence must not erase a separate health constraint');
+  assert(result.type === 'health', 'the independent health constraint must be preserved');
+}
+
 console.log('--- Test physical presence constraint: PromptContext concern ---');
 {
   const context = createPromptContext({
@@ -127,14 +168,14 @@ console.log('--- Test physical presence constraint: PromptEngine guideline ---')
     'avoid_invitation must force digital handling and omit office hours'
   );
   assert(
-    guideline.includes('Verificheremo i nostri registri') &&
-      guideline.includes('glielo invieremo via email in formato PDF'),
-    'avoid_invitation must show a digital-only correct formula'
+    guideline.includes('conferma la gestione digitale solo nei limiti autorizzati dalla Knowledge Base') &&
+      guideline.includes('COERENZA LINGUISTICA E PERTINENZA'),
+    'avoid_invitation must provide semantic digital guidance without a prewritten response formula'
   );
   assert(
-    guideline.includes('Formula da evitare anche con vincolo avoid_invitation') &&
+    !guideline.includes('Formula corretta:') &&
       !guideline.includes('Qualora le fosse possibile passare da Roma'),
-    'avoid_invitation must not show the Rome visit formula as correct'
+    'avoid_invitation must not expose prewritten Italian response formulas'
   );
   assert(
     guideline.includes('ECCEZIONE CANONICA - IDONEITÀ PADRINO/MADRINA') &&
@@ -149,7 +190,7 @@ console.log('--- Test physical presence constraint: PromptEngine guideline ---')
   );
 }
 
-console.log('--- Test physical presence constraint: PromptEngine keeps conditional Rome visit for distance ---');
+console.log('--- Test physical presence constraint: PromptEngine keeps conditional policy semantic and language-neutral ---');
 {
   const engine = Object.create(PromptEngine.prototype);
   const guideline = engine._renderPhysicalPresenceConstraintGuideline({
@@ -161,8 +202,11 @@ console.log('--- Test physical presence constraint: PromptEngine keeps condition
 
   assert(guideline.includes('GESTIONE DIGITALE: Se l\'utente chiede l\'invio di un documento via email'), 'conditional policy must still mention digital handling');
   assert(
-    guideline.includes('Qualora le fosse possibile passare da Roma'),
-    'conditional policy must preserve the respectful Rome visit formula'
+    guideline.includes('conditional_only') &&
+      guideline.includes('non la rende obbligatoria') &&
+      guideline.includes('esclusivamente nella lingua rilevata per la risposta') &&
+      !guideline.includes('Qualora le fosse possibile passare da Roma'),
+    'conditional policy must stay semantic, optional and language-neutral'
   );
   assert(
     !guideline.includes('GESTIONE DIGITALE (OBBLIGATORIA)'),

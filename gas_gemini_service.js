@@ -78,10 +78,16 @@ var GeminiContentClient = class GeminiContentClient {
     return GEMINI_TASK_PROFILES[taskType] || GEMINI_TASK_PROFILES.generation;
   }
 
+  usesLatestSamplingPolicy(modelName) {
+    const normalized = String(modelName || '').trim().toLowerCase();
+    return /^gemini-(?:3\.6-flash|3\.5-flash-lite)(?:$|-)/.test(normalized);
+  }
+
   buildGenerationConfig(taskType, modelName, overrides = {}) {
     const profile = this.getTaskProfile(taskType);
     const config = {};
     const hasOverride = (key) => Object.prototype.hasOwnProperty.call(overrides, key);
+    const usesLatestSamplingPolicy = this.usesLatestSamplingPolicy(modelName);
     const maxOutputTokens = hasOverride('maxOutputTokens')
       ? overrides.maxOutputTokens
       : (profile.maxOutputTokensConfigKey && this.config && this.config[profile.maxOutputTokensConfigKey] != null
@@ -89,14 +95,18 @@ var GeminiContentClient = class GeminiContentClient {
         : profile.defaultMaxOutputTokens);
 
     if (maxOutputTokens != null) config.maxOutputTokens = maxOutputTokens;
-    if (hasOverride('temperature') || profile.temperature != null) {
-      config.temperature = hasOverride('temperature') ? overrides.temperature : profile.temperature;
-    }
-    if (hasOverride('topK') || profile.topK != null) {
-      config.topK = hasOverride('topK') ? overrides.topK : profile.topK;
-    }
-    if (hasOverride('topP') || profile.topP != null) {
-      config.topP = hasOverride('topP') ? overrides.topP : profile.topP;
+    // Da Gemini 3.6 Flash / 3.5 Flash-Lite i parametri di sampling sono
+    // deprecati: non devono essere inviati nemmeno se presenti nei profili legacy.
+    if (!usesLatestSamplingPolicy) {
+      if (hasOverride('temperature') || profile.temperature != null) {
+        config.temperature = hasOverride('temperature') ? overrides.temperature : profile.temperature;
+      }
+      if (hasOverride('topK') || profile.topK != null) {
+        config.topK = hasOverride('topK') ? overrides.topK : profile.topK;
+      }
+      if (hasOverride('topP') || profile.topP != null) {
+        config.topP = hasOverride('topP') ? overrides.topP : profile.topP;
+      }
     }
 
     const responseMimeType = hasOverride('responseMimeType')
@@ -357,6 +367,7 @@ var EmailQuickCheckPolicy = class EmailQuickCheckPolicy {
           'language',
           'category',
           'topic',
+          'request_purpose',
           'relational_posture',
           'response_strategy',
           'attachment_intent',
@@ -741,14 +752,24 @@ COMPITI:
    - missing_document_if_no_attachment: TRUE solo quando dal testo risulta che il documento dovrebbe esserci come file/allegato e non sono presenti dati compilati nel corpo.
    - reason: breve motivo osservabile.
 10. Fornisci un breve ragionamento (reason)
+10b. Determina request_purpose, cioe lo SCOPO del messaggio, separandolo dall'argomento:
+   - "information_request": chiede come funziona, dove rivolgersi, quali requisiti/documenti servono o quali opzioni esistono.
+   - "operational_request": chiede alla parrocchia di eseguire o predisporre un'azione (rilasciare/preparare un documento, iscrivere, prenotare, registrare, confermare) oppure fornisce gia dati e modalita per completarla.
+   - "status_update": comunica dati, una modifica o uno stato senza chiedere spiegazioni ne una nuova azione.
+   - "acknowledgment": contiene soltanto ringraziamento o conferma di ricezione.
+   - "mixed": contiene davvero sia una richiesta operativa sia una domanda informativa ancora aperta.
+   - Non classificare come informativa una richiesta solo perche il suo argomento e un documento o una procedura.
+   - Espressioni come "richiedo", "potete preparare", "verro a ritirare" o "desidero prenotare", accompagnate dai dati necessari, indicano una richiesta operativa anche se formulate cortesemente.
+   - Fornisci anche request_purpose_confidence (0.0-1.0).
 11. Determina physical_presence_constraint:
    - Rileva se il mittente manifesta che raggiungere fisicamente la parrocchia/segreteria e' difficile, impossibile o non ragionevole.
    - TRUE se vive/lavora lontano da Roma, e' all'estero, chiede percorsi a distanza, dice che non puo' venire, e' ricoverato/malato/convalescente, anziano con difficolta' di movimento, caregiver con vincoli familiari forti, deve allattare o ha neonati, e' agli arresti domiciliari o ha limitazioni legali.
    - FALSE se il mittente chiede esplicitamente di passare/venire, propone una visita, oppure non fornisce alcun vincolo personale.
+   - FALSE per la sola residenza o il solo indirizzo lontano quando il mittente dichiara di trovarsi giÃ  a Roma, di essere in visita/vacanza a Roma o di partecipare localmente all'evento imminente. Un vincolo distinto di salute, mobilitÃ  o accessibilitÃ  resta invece valido.
    - Non considerare vincolo un luogo citato solo come riferimento non personale.
    - type deve essere uno tra: "geographic_distance", "health", "mobility", "caregiving", "legal_restriction", "temporary_unavailability", "remote_request", "other", "none".
    - visit_policy deve essere:
-     "conditional_only" quando la presenza fisica puo' essere menzionata solo con formule come "qualora le fosse possibile" o "se avesse occasione di trovarsi a Roma";
+     "conditional_only" quando la presenza fisica puo' essere menzionata solo in modo ipotetico e rispettoso, formulato nella lingua dell'email;
      "avoid_invitation" quando e' meglio non proporre affatto la visita fisica;
      "visit_ok" quando l'invito/presenza in segreteria e' appropriato;
      "unknown" se non e' chiaro.
@@ -801,6 +822,8 @@ Output JSON:
     "formal": number (0.0-1.0)
   },
   "topic": "string",
+  "request_purpose": "information_request" | "operational_request" | "status_update" | "acknowledgment" | "mixed",
+  "request_purpose_confidence": number (0.0-1.0),
   "is_territory_request": boolean,
   "territory_address_candidates": ["string"],
   "confidence": number (0.0-1.0),
@@ -879,6 +902,9 @@ Output JSON:
       },
       relational_posture: 'direct',
       relational_posture_confidence: 0,
+      request_purpose: 'unknown',
+      request_purpose_confidence: 0,
+      request_purpose_source: 'default',
       response_focus_hint: null,
       response_focus_hint_confidence: 0,
       conversation_shift: 'none',
@@ -955,7 +981,9 @@ Output JSON:
 
     const normalized = EmailQuickCheckPolicy.normalizeDecisionData(data, detection, intentContext, {
       resolveLanguage: resolveLanguage,
-      defaultResult: defaultResult
+      defaultResult: defaultResult,
+      emailSubject: options.emailSubject,
+      emailContent: options.emailContent
     });
     return EmailQuickCheckPolicy.applyOfficeVisitLogisticsOverride(
       normalized,
@@ -1027,6 +1055,12 @@ Output JSON:
       data.response_strategy,
       responseStrategyConfidence
     );
+    const requestPurposeResolution = EmailQuickCheckPolicy.resolveRequestPurpose(
+      data.request_purpose,
+      data.request_purpose_confidence,
+      options.emailSubject,
+      options.emailContent
+    );
     const goalContinuityConfidence = hasConversationContext
       ? EmailQuickCheckPolicy.normalizeGoalContinuityConfidence(data.goal_continuity_confidence)
       : 0;
@@ -1062,6 +1096,9 @@ Output JSON:
       physical_presence_constraint: physicalPresenceConstraint,
       relational_posture: relationalPosture,
       relational_posture_confidence: relationalPostureConfidence,
+      request_purpose: requestPurposeResolution.type,
+      request_purpose_confidence: requestPurposeResolution.confidence,
+      request_purpose_source: requestPurposeResolution.source,
       response_focus_hint: responseFocusHint,
       response_focus_hint_confidence: responseFocusHintConfidence,
       conversation_shift: conversationShift,
@@ -1297,6 +1334,111 @@ Output JSON:
         .filter(s => allowed.has(s))
     )].slice(0, 8);
   }
+
+  static normalizeRequestPurposeConfidence(value) {
+    const confidence = Number(value);
+    return Number.isFinite(confidence)
+      ? Math.max(0, Math.min(1, confidence))
+      : 0;
+  }
+
+  static normalizeRequestPurpose(value, confidence = 0) {
+    const normalized = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    const aliases = {
+      informational: 'information_request',
+      informational_request: 'information_request',
+      information: 'information_request',
+      operational: 'operational_request',
+      action_request: 'operational_request',
+      update: 'status_update',
+      communication: 'status_update',
+      confirmation: 'acknowledgment',
+      acknowledgement: 'acknowledgment'
+    };
+    const canonical = aliases[normalized] || normalized;
+    const allowed = new Set([
+      'information_request',
+      'operational_request',
+      'status_update',
+      'acknowledgment',
+      'mixed'
+    ]);
+    if (!allowed.has(canonical)) return 'unknown';
+    return EmailQuickCheckPolicy.normalizeRequestPurposeConfidence(confidence) >= 0.65
+      ? canonical
+      : 'unknown';
+  }
+
+  static inferRequestPurpose(emailSubject, emailContent) {
+    const rawText = `${emailSubject || ''} ${emailContent || ''}`.replace(/\s+/g, ' ').trim();
+    if (!rawText) return { type: 'unknown', confidence: 0, source: 'local_no_signal' };
+
+    const text = rawText
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    const actionPatterns = [
+      /\b(?:richiedo|richiediamo|richiedono|si\s+richiede|chiedo)\b[\s\S]{0,80}\b(?:certificat\w*|rilasc\w*|copi\w*|document\w*|iscrizion\w*|prenotazion\w*)\b/,
+      /\b(?:vorrei|desidero|intendo)\s+(?:richiedere|ottenere|prenotare|iscrivermi|ritirare)\b/,
+      /\b(?:potete|potreste|puo|puoi)\s+(?:preparare|stampare|rilasciare|prenotare|iscrivere|registrare|confermare)\b/,
+      /\b(?:verro|passero|ritirero|vengo|passo)\b[\s\S]{0,60}\b(?:ritir\w*|segreteria|parrocchia|persona)\b/,
+      /\b(?:je\s+demande|je\s+souhaite\s+demander|pourriez-vous\s+(?:preparer|delivrer|inscrire|reserver))\b/,
+      /\b(?:i\s+(?:request|would\s+like\s+to\s+(?:request|book|register))|could\s+you\s+(?:prepare|issue|book|register))\b/,
+      /\b(?:quisiera\s+(?:solicitar|reservar|inscribirme)|podrian\s+(?:preparar|expedir|reservar|inscribir))\b/,
+      /\b(?:ich\s+mochte\s+(?:beantragen|buchen|mich\s+anmelden)|konnten\s+sie\s+(?:vorbereiten|ausstellen|buchen))\b/
+    ];
+    const informationPatterns = [
+      /\b(?:come\s+(?:si\s+fa|funziona|posso)|quali\s+(?:dati|documenti|requisiti|passi)|cosa\s+(?:serve|occorre)|dove\s+(?:devo|posso)|a\s+chi\s+(?:devo|posso)|vorrei\s+(?:avere|ricevere)?\s*informazioni|chiedo\s+informazioni)\b/,
+      /\b(?:how\s+(?:do|can)|what\s+(?:documents|requirements)|where\s+(?:do|can)|i\s+would\s+like\s+information)\b/,
+      /\b(?:comment\s+(?:faire|puis-je)|quels?\s+(?:documents|conditions)|ou\s+(?:dois-je|puis-je)|je\s+voudrais\s+des\s+renseignements)\b/,
+      /\b(?:como\s+(?:puedo|se\s+hace)|que\s+(?:documentos|requisitos)|donde\s+(?:debo|puedo)|quisiera\s+informacion)\b/,
+      /\b(?:wie\s+(?:kann|funktioniert)|welche\s+(?:unterlagen|voraussetzungen)|wo\s+(?:muss|kann)|ich\s+mochte\s+informationen)\b/
+    ];
+    const updatePatterns = [
+      /\b(?:vi\s+informo|vi\s+comunico|confermo\s+che|aggiorn\w*|invio|allego|trasmetto)\b/,
+      /\b(?:i\s+am\s+writing\s+to\s+inform|i\s+confirm\s+that|attached\s+is|i\s+am\s+sending)\b/,
+      /\b(?:je\s+vous\s+informe|je\s+confirme|je\s+vous\s+envoie|ci-joint)\b/
+    ];
+    const acknowledgmentPattern = /^(?:(?:buongiorno|buonasera|salve|bonjour|hello|hola)[,!. ]*)?(?:grazie|grazie\s+mille|perfetto,?\s+grazie|merci|thank\s+you|thanks|gracias|danke)[!. ]*$/i;
+
+    const hasAction = actionPatterns.some(pattern => pattern.test(text));
+    const hasInformationQuestion = informationPatterns.some(pattern => pattern.test(text));
+    if (hasAction && hasInformationQuestion) {
+      return { type: 'mixed', confidence: 0.93, source: 'local_explicit_mixed' };
+    }
+    if (hasAction) {
+      return { type: 'operational_request', confidence: 0.96, source: 'local_explicit_action' };
+    }
+    if (hasInformationQuestion) {
+      return { type: 'information_request', confidence: 0.92, source: 'local_explicit_question' };
+    }
+    if (updatePatterns.some(pattern => pattern.test(text)) && !/[?]/.test(text)) {
+      return { type: 'status_update', confidence: 0.88, source: 'local_explicit_update' };
+    }
+    if (acknowledgmentPattern.test(text)) {
+      return { type: 'acknowledgment', confidence: 0.9, source: 'local_acknowledgment' };
+    }
+    return { type: 'unknown', confidence: 0, source: 'local_no_signal' };
+  }
+
+  static resolveRequestPurpose(value, confidence = 0, emailSubject = '', emailContent = '') {
+    const modelConfidence = EmailQuickCheckPolicy.normalizeRequestPurposeConfidence(confidence);
+    const modelType = EmailQuickCheckPolicy.normalizeRequestPurpose(value, modelConfidence);
+    const local = EmailQuickCheckPolicy.inferRequestPurpose(emailSubject, emailContent);
+
+    // Le richieste d'azione esplicite sono osservabili nel testo e prevalgono su
+    // un'eventuale etichetta informativa prodotta in base al solo argomento.
+    if (
+      local.confidence >= 0.9 &&
+      (local.type === 'operational_request' || local.type === 'mixed')
+    ) {
+      return local;
+    }
+    if (modelType !== 'unknown') {
+      return { type: modelType, confidence: modelConfidence, source: 'quick_check_model' };
+    }
+    return local;
+  }
 };
 
 var GeminiService = class GeminiService {
@@ -1333,7 +1475,7 @@ var GeminiService = class GeminiService {
     // Alias accessibile per i moduli che usano la proprietà apiKey
     this.apiKey = this.primaryKey;
 
-    this.modelName = this.config.MODEL_NAME || 'gemini-3.5-flash';
+    this.modelName = this.config.MODEL_NAME || 'gemini-3.6-flash';
 
     if (!this.primaryKey || this.primaryKey.length < 20 || /YOUR_[A-Z0-9_]+_HERE/.test(this.primaryKey)) {
       throw new Error('GEMINI_API_KEY non configurata correttamente (usa Script Properties, non placeholder)');
@@ -1421,18 +1563,17 @@ var GeminiService = class GeminiService {
       }
     }
 
-    return fallbackName || this.modelName || 'gemini-3.5-flash';
+    return fallbackName || this.modelName || 'gemini-3.6-flash';
   }
 
   _getDefaultGenerationModelNames_() {
     return {
-      'flash-3.5': 'gemini-3.5-flash',
-      'flash-3.5-backup': 'gemini-3.5-flash',
-      'flash-3.5-lite': 'gemini-3.1-flash-lite',
-      'flash-lite': 'gemini-3.1-flash-lite',
+      'flash-3.6': 'gemini-3.6-flash',
+      'flash-3.6-backup': 'gemini-3.6-flash',
+      'flash-lite': 'gemini-3.5-flash-lite',
+      'flash-lite-backup': 'gemini-3.5-flash-lite',
       'flash-3': 'gemini-3-flash-preview',
-      'flash-3-backup': 'gemini-3-flash-preview',
-      'flash-3.5-lite-backup': 'gemini-3.1-flash-lite'
+      'flash-3-backup': 'gemini-3-flash-preview'
     };
   }
 
@@ -1443,7 +1584,7 @@ var GeminiService = class GeminiService {
     const models = this.config && this.config.GEMINI_MODELS
       ? this.config.GEMINI_MODELS
       : {};
-    const defaultGenerationStrategy = ['flash-3.5', 'flash-3.5-backup', 'flash-lite', 'flash-3.5-lite-backup'];
+    const defaultGenerationStrategy = ['flash-3.6', 'flash-3.6-backup', 'flash-lite', 'flash-lite-backup'];
     const defaultGenerationModelNames = this._getDefaultGenerationModelNames_();
     const configuredGenerationStrategy = Array.isArray(strategy.generation) && strategy.generation.length > 0
       ? strategy.generation
@@ -1454,7 +1595,7 @@ var GeminiService = class GeminiService {
     const skipExhaustedPrimary = options.skipExhaustedPrimary !== false;
     const fallbackModelName = configuredGenerationStrategy
       .map(modelKey => (models[modelKey] && models[modelKey].name) || defaultGenerationModelNames[modelKey])
-      .find(Boolean) || 'gemini-3.5-flash';
+      .find(Boolean) || 'gemini-3.6-flash';
 
     const attemptStrategy = configuredGenerationStrategy
       .map((modelKey, index) => {
@@ -1550,7 +1691,7 @@ var GeminiService = class GeminiService {
   /**
    * Genera risposta con modello specifico
    * @param {string|Object} prompt - Prompt completo oppure {systemInstruction, prompt}
-   * @param {string} modelName - Nome modello API (es. 'gemini-3.5-flash')
+   * @param {string} modelName - Nome modello API (es. 'gemini-3.6-flash')
    * @param {string} apiKeyOverride - Chiave API opzionale (per strategia multi-key)
    * @param {Array<Blob>} attachments - Array di Blob (immagini/PDF) da inviare
    * @returns {string|null} Testo generato
@@ -2166,7 +2307,7 @@ NON aggiungere altro testo.
 Testo:
 "${text.substring(0, 1000)}"`;
 
-    const languageModelName = this.getModelNameForTask('language', 'gemini-3.1-flash-lite');
+    const languageModelName = this.getModelNameForTask('language', 'gemini-3.5-flash-lite');
 
     try {
       const response = this._withRetry(
@@ -2644,7 +2785,7 @@ Testo:
     // IMPLEMENTAZIONE ORIGINALE (fallback o quando Rate Limiter disabilitato)
     try {
       const safeSubject = typeof emailSubject === "string" ? emailSubject : (emailSubject == null ? "" : String(emailSubject));
-      const quickModelName = this.getModelNameForTask('quick_check', 'gemini-3.1-flash-lite');
+      const quickModelName = this.getModelNameForTask('quick_check', 'gemini-3.5-flash-lite');
       console.log(`🔍 Gemini quick check per: ${safeSubject.substring(0, 40)}...`);
       return this._withRetry(
         () => this._quickCheckWithModel(emailContent, safeSubject, quickModelName, detection, intentContext),
@@ -2840,15 +2981,13 @@ Testo:
       const testPrompt = 'Rispondi con una sola parola: OK';
 
       const url = this._buildGenerateUrl(this.modelName);
+      const generationConfig = this._buildGeminiGenerationConfig_('connection_test', this.modelName);
       const response = this.fetchFn(`${url}?key=${encodeURIComponent(this.apiKey)}`, {
         method: 'POST',
         contentType: 'application/json',
         payload: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: testPrompt }] }],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 10
-          }
+          generationConfig: generationConfig
         }),
         muteHttpExceptions: true
       });

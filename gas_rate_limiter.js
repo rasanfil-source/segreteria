@@ -28,36 +28,30 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     } else {
       // Fallback se CONFIG non disponibile
       console.warn('   \u26A0\uFE0F CONFIG.GEMINI_MODELS non trovato, uso default');
-      // Default conservativo allineato alla policy: 2.5 Flash per generazione,
-      // 3.1 Flash-Lite per task rapidi/ausiliari.
+      // Default conservativo allineato alla policy: 3.6 Flash per generazione,
+      // 3.5 Flash-Lite per task rapidi/ausiliari.
       this.models = {
-        'flash-3.5': {
-          name: 'gemini-3.5-flash',
-          rpm: 15, tpm: 1000000, rpd: 1500,
+        'flash-3.6': {
+          name: 'gemini-3.6-flash',
+          rpm: 10, tpm: 250000, rpd: 1500,
           contextWindowTokens: 1048576,
           useCases: ['generation', 'all']
         },
-        'flash-3.5-backup': {
-          name: 'gemini-3.5-flash',
-          rpm: 15, tpm: 1000000, rpd: 1500,
+        'flash-3.6-backup': {
+          name: 'gemini-3.6-flash',
+          rpm: 10, tpm: 250000, rpd: 1500,
           contextWindowTokens: 1048576,
           useCases: ['generation', 'backup']
         },
         'flash-lite': {
-          name: 'gemini-3.1-flash-lite',
-          rpm: 15, tpm: 1000000, rpd: 1500,
+          name: 'gemini-3.5-flash-lite',
+          rpm: 15, tpm: 250000, rpd: 1000,
           contextWindowTokens: 1048576,
           useCases: ['fallback', 'classification', 'quick_check', 'language', 'semantic', 'newsletter_summary']
         },
-        'flash-3.5-lite': {
-          name: 'gemini-3.1-flash-lite',
-          rpm: 15, tpm: 1000000, rpd: 1500,
-          contextWindowTokens: 1048576,
-          useCases: ['fallback', 'classification', 'quick_check', 'language', 'semantic', 'newsletter_summary']
-        },
-        'flash-3.5-lite-backup': {
-          name: 'gemini-3.1-flash-lite',
-          rpm: 15, tpm: 1000000, rpd: 1500,
+        'flash-lite-backup': {
+          name: 'gemini-3.5-flash-lite',
+          rpm: 15, tpm: 250000, rpd: 1000,
           contextWindowTokens: 1048576,
           useCases: ['fallback', 'backup', 'classification', 'quick_check', 'language', 'semantic', 'newsletter_summary']
         }
@@ -75,16 +69,16 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         'classification': ['flash-lite'],
         'language': ['flash-lite'],
         'newsletter_summary': ['flash-lite'],
-        'generation': ['flash-3.5', 'flash-3.5-backup', 'flash-lite', 'flash-3.5-lite-backup'],
-        'semantic': ['flash-lite', 'flash-3.5-lite-backup'],
-        'fallback': ['flash-lite', 'flash-3.5-lite-backup']
+        'generation': ['flash-3.6', 'flash-3.6-backup', 'flash-lite', 'flash-lite-backup'],
+        'semantic': ['flash-lite', 'flash-lite-backup'],
+        'fallback': ['flash-lite', 'flash-lite-backup']
       };
     }
 
     // Modello di default (primo nella lista generation)
     this.defaultModel = (this.strategies.generation && this.strategies.generation[0]) ||
       Object.keys(this.models)[0] ||
-      'flash-3.5';
+      'flash-3.6';
 
     // ================================================================
     // CACHE IN-MEMORY (per ridurre PropertiesService reads)
@@ -150,20 +144,22 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   _normalizeDeprecatedModelNames(models) {
     const deprecatedMap = {
       // Mappatura alias lite storici verso il profilo operativo rapido scelto.
-      'gemini-2.5-flash-lite': 'gemini-3.1-flash-lite',
-      'gemini-2.5-flash-exp': 'gemini-3.1-flash-lite',
-      'gemini-2.0-flash-exp': 'gemini-3.1-flash-lite',
-      'gemini-2.0-flash': 'gemini-3.1-flash-lite',
-      'gemini-2.0-flash-lite': 'gemini-3.1-flash-lite',
+      'gemini-2.5-flash-lite': 'gemini-3.5-flash-lite',
+      'gemini-2.5-flash-exp': 'gemini-3.5-flash-lite',
+      'gemini-2.0-flash-exp': 'gemini-3.5-flash-lite',
+      'gemini-2.0-flash': 'gemini-3.5-flash-lite',
+      'gemini-2.0-flash-lite': 'gemini-3.5-flash-lite',
+      'gemini-3.1-flash-lite': 'gemini-3.5-flash-lite',
+      'gemini-3.1-flash-lite-preview': 'gemini-3.5-flash-lite',
       // Refuso ricorrente: non esiste un modello testuale 'gemini-3.1-flash'; il full-tier è Gemini 3 Flash Preview.
       'gemini-3.1-flash': 'gemini-3-flash-preview',
-      'gemini-2.5-flash': 'gemini-3.5-flash'
+      'gemini-2.5-flash': 'gemini-3.6-flash',
+      'gemini-3.5-flash': 'gemini-3.6-flash'
     };
 
     const knownCurrentModels = [
-      'gemini-3.5-flash',
-      'gemini-3.1-flash-lite',
-      'gemini-3.1-flash-lite-preview',
+      'gemini-3.6-flash',
+      'gemini-3.5-flash-lite',
       'gemini-3-flash-preview'
     ];
 
@@ -204,7 +200,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const isLiteTask = key.includes('lite') || useCases.some(value =>
       ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary'].includes(value)
     );
-    return isLiteTask ? 'gemini-3.1-flash-lite' : 'gemini-3.5-flash';
+    return isLiteTask ? 'gemini-3.5-flash-lite' : 'gemini-3.6-flash';
   }
 
   // ================================================================
@@ -429,7 +425,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       taskStrategies
     );
 
-    return resolvedStrategies[taskType] || resolvedStrategies['fallback'] || ['flash-lite', 'flash-3.5-lite-backup'];
+    return resolvedStrategies[taskType] || resolvedStrategies['fallback'] || ['flash-lite', 'flash-lite-backup'];
   }
 
   _withRateLimitLock_(fn, options) {
@@ -627,7 +623,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       try {
         const startTime = Date.now();
         // Esecuzione diretta senza controlli quota
-        const backupModelName = options.modelNameOverride || 'gemini-3.5-flash';
+        const backupModelName = options.modelNameOverride || 'gemini-3.6-flash';
         const requestResult = this._safeExecuteRequestFn_(requestFn, backupModelName);
         const normalizedResult = this._normalizeRequestResultEnvelope_(requestResult);
         const accountedTokens = this._resolveAccountedTokens_(normalizedResult, options.estimatedTokens || 0);

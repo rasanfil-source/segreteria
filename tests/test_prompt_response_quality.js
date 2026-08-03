@@ -142,6 +142,13 @@ assert(
   'il contratto qualità deve essere incluso anche nel profilo lite'
 );
 assert(
+  litePrompt.includes('GERARCHIA OBIETTIVO-VINCOLI-DOMANDE') &&
+  litePrompt.includes('risultato concreto che l\'utente vuole ottenere') &&
+  litePrompt.includes('confronta le opzioni presenti nella Knowledge Base con l\'obiettivo e con tutti i vincoli dichiarati') &&
+  litePrompt.includes('non secondo l\'ordine delle domande nell\'email'),
+  'il contratto qualità deve subordinare domande e opzioni all\'obiettivo concreto e ai suoi vincoli'
+);
+assert(
   litePrompt.includes('Informazioni aggiuntive: aggiungile solo se senza di esse'),
   'il prompt deve vietare informazioni non richieste'
 );
@@ -156,8 +163,16 @@ assert(
 );
 assert(
   litePrompt.includes('Pertinenza selettiva') &&
-  litePrompt.includes('se chiede se può venire il giovedì'),
+  litePrompt.includes('se chiede se può venire il giovedì') &&
+  litePrompt.includes('Scomponi le frasi composte') &&
+  litePrompt.includes('altrimenti omettilo'),
   'il contratto qualità deve imporre la sintesi sui soli casi richiesti'
+);
+assert(
+  litePrompt.includes('UNITÀ INFORMATIVE, NON TESTO DA RIPRODURRE') &&
+    litePrompt.includes('Scomponi periodi e alternative in unità') &&
+    litePrompt.includes('Un ramo pertinente non autorizza gli altri'),
+  'la KB deve essere presentata come conoscenza atomica da selezionare e riformulare, non come prosa pronta'
 );
 assert(
   litePrompt.includes('Richieste preliminari su celebrazioni') &&
@@ -213,6 +228,61 @@ assert(
   litePrompt.includes('Completezza domande') &&
   !litePrompt.includes('DIRETTIVA DI COMPLETEZZA'),
   'il profilo lite deve mantenere la regola sintetica senza la direttiva estesa'
+);
+
+console.log('--- Test prompt: obiettivo con scadenza prevale su percorso non praticabile ---');
+const deadlineGoalPrompt = engine.buildPrompt({
+  emailSubject: 'Corso di preparazione alla Cresima per adulti',
+  emailContent: [
+    'Buonasera, mi chiamo Andrea Casali.',
+    'Ho necessità di ricevere la Cresima entro la metà di ottobre perché dovrò fare da padrino.',
+    'Vorrei conoscere corsi, iscrizione, documenti e date della celebrazione.'
+  ].join('\n'),
+  knowledgeBase: [
+    'Il corso parrocchiale inizia il 10 ottobre 2026 e termina il 5 dicembre 2026.',
+    'La celebrazione parrocchiale è prevista il 16 maggio 2027.',
+    'Un percorso alternativo con celebrazioni durante l\'anno è disponibile presso un\'altra chiesa; verificare direttamente date e posti.'
+  ].join('\n'),
+  detectedLanguage: 'it',
+  currentDate: '2026-08-03',
+  promptProfile: 'standard',
+  activeConcerns: {
+    multi_question: true,
+    user_overload: true,
+    response_calibration: true,
+    temporal_risk: true
+  },
+  responseStrategy: 'guide_next_step',
+  requestType: { type: 'sacrament' },
+  category: 'sacrament',
+  topic: 'cresima adulti',
+  sponsorGuidancePolicy: 'cresima_prerequisite_for_sponsor_role'
+});
+
+assert(
+  deadlineGoalPrompt.includes('comunica presto l\'incompatibilità') &&
+  deadlineGoalPrompt.includes('proponi prima l\'alternativa praticabile') &&
+  deadlineGoalPrompt.includes('non dare rilievo a un percorso inutilizzabile'),
+  'il caso con scadenza deve ricevere la gerarchia obiettivo-vincoli prima delle informazioni accessorie'
+);
+
+const genericConstrainedGoalPrompt = engine.buildPrompt({
+  emailSubject: 'Laboratorio prima della partenza',
+  emailContent: 'Devo ottenere l\'attestato prima di trasferirmi a settembre. Quali sono calendario, costi e materiali del vostro laboratorio?',
+  knowledgeBase: 'Il laboratorio locale termina a novembre. Un ente partner offre sessioni complete in agosto.',
+  detectedLanguage: 'it',
+  currentDate: '2026-08-03',
+  promptProfile: 'lite',
+  responseStrategy: 'guide_next_step',
+  requestType: { type: 'technical' },
+  category: 'information',
+  topic: 'laboratorio'
+});
+
+assert(
+  genericConstrainedGoalPrompt.includes('GERARCHIA OBIETTIVO-VINCOLI-DOMANDE') &&
+  genericConstrainedGoalPrompt.includes('proponi prima l\'alternativa praticabile'),
+  'la stessa regola deve restare generale e applicarsi anche fuori dall\'ambito sacramentale'
 );
 
 console.log('--- Test prompt: NO_REPLY per solo ringraziamento non dipende da Re ---');
@@ -482,7 +552,7 @@ console.log('--- Test prompt: avoid_invitation e PDF non propone presenza fisica
 
   assert(
     digitalOnlyPrompt.includes('GESTIONE DIGITALE (OBBLIGATORIA)') &&
-    digitalOnlyPrompt.includes('Verificheremo i nostri registri') &&
+    digitalOnlyPrompt.includes('solo nei limiti autorizzati dalla Knowledge Base') &&
     digitalOnlyPrompt.includes('OMETTI COMPLETAMENTE: orari di apertura al pubblico'),
     'con avoid_invitation e richiesta PDF il prompt deve favorire una gestione solo digitale'
   );
@@ -492,8 +562,57 @@ console.log('--- Test prompt: avoid_invitation e PDF non propone presenza fisica
     'la policy presenza fisica deve essere un vincolo system-level, non contesto utente'
   );
   assert(
-    !digitalOnlyPrompt.includes('Formula corretta: "Per qualsiasi chiarimento puo\' contattarci telefonicamente o rispondere a questa email. Qualora le fosse possibile passare da Roma'),
-    'con avoid_invitation il prompt non deve presentare il passaggio da Roma come formula corretta'
+    !digitalOnlyPrompt.includes('Formula corretta:') &&
+      !digitalOnlyPrompt.includes('Qualora le fosse possibile passare da Roma'),
+    'la policy non deve esporre formule italiane preconfezionate da copiare nella risposta'
+  );
+}
+
+console.log('--- Test prompt: risposta francese non riceve formule italiane dalla policy presenza ---');
+{
+  const frenchLocalVisitPrompt = engine.buildPrompt({
+    emailSubject: 'Messe mardi',
+    emailContent: 'Je suis en vacances à Rome avec mes enfants. Y a-t-il une messe mardi soir et mon fils peut-il la servir ?',
+    knowledgeBase: 'Messe feriale: ore 19:00. Per il servizio all’altare rivolgersi in sagrestia prima della celebrazione.',
+    detectedLanguage: 'fr',
+    promptProfile: 'standard',
+    salutationMode: 'full',
+    physicalPresenceConstraint: {
+      has_constraint: true,
+      type: 'geographic_distance',
+      visit_policy: 'conditional_only',
+      evidence: 'indirizzo di residenza estero'
+    }
+  });
+
+  assert(
+    frenchLocalVisitPrompt.includes('EXIGENCE CRITIQUE DE LANGUE') &&
+      frenchLocalVisitPrompt.includes('COERENZA LINGUISTICA E PERTINENZA') &&
+      frenchLocalVisitPrompt.includes('non la rende obbligatoria') &&
+      frenchLocalVisitPrompt.includes("l'evento imminente rende la presenza implicita") &&
+      !frenchLocalVisitPrompt.includes('Qualora le fosse possibile passare da Roma') &&
+      !frenchLocalVisitPrompt.includes('Formula corretta:'),
+    'anche con un segnale remoto errato il prompt francese non deve offrire testo italiano copiabile'
+  );
+}
+
+console.log('--- Test prompt: turni di lavoro non trasferiscono automaticamente ogni alternativa della KB ---');
+{
+  const shiftWorkPrompt = engine.buildPrompt({
+    emailSubject: 'Corso di catechesi per la Cresima',
+    emailContent: 'Lavoro come infermiera in pronto soccorso e lavoro su turni. Vorrei sapere come funziona e quando inizierà il prossimo corso.',
+    knowledgeBase: 'Per chi lavora su turni è possibile concordare un programma personalizzato o anticipare alcuni incontri. Il prossimo corso inizia il 10 ottobre 2026.',
+    detectedLanguage: 'it',
+    promptProfile: 'standard',
+    salutationMode: 'full'
+  });
+
+  assert(
+    shiftWorkPrompt.includes('UNITÀ INFORMATIVE, NON TESTO DA RIPRODURRE') &&
+      shiftWorkPrompt.includes('per ciascuna verifica quale domanda, vincolo o passo risolve') &&
+      shiftWorkPrompt.includes('Un ramo pertinente non autorizza gli altri') &&
+      shiftWorkPrompt.includes('sintetizza e riformula il resto'),
+    'il caso dei turni deve ricevere istruzioni generali di decomposizione, selezione e riformulazione della KB'
   );
 }
 
@@ -1206,6 +1325,27 @@ assert(
     remoteModePrompt.includes('Preferisci email, telefono o indicazione procedurale remota.') &&
     remoteModePrompt.includes('responseMode:remote_operational->operationalConstraints'),
   'remote_user_prompt_contains_no_physical_presence_constraint'
+);
+
+console.log('--- Test prompt: richiesta operativa non riapre la procedura informativa ---');
+const operationalCertificatePrompt = engine.buildPrompt({
+  emailSubject: 'Certificato di battesimo',
+  emailContent: 'Richiedo il certificato in originale per uso matrimonio. Verrò a ritirarlo lunedì.',
+  knowledgeBase: 'Il certificato va richiesto alla parrocchia in cui è stato celebrato il sacramento. La segreteria prepara gli originali per il ritiro.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  requestPurpose: {
+    type: 'operational_request',
+    confidence: 0.96
+  }
+});
+assert(
+  operationalCertificatePrompt.includes('## SCOPO DEL MESSAGGIO (VINCOLANTE)') &&
+    operationalCertificatePrompt.includes('Tipo: operational_request') &&
+    operationalCertificatePrompt.includes('Non riaprire istruzioni preliminari') &&
+    operationalCertificatePrompt.includes('impedimenti reali') &&
+    operationalCertificatePrompt.includes('informazioni mancanti indispensabili'),
+  'il prompt operativo deve limitare la KB a presa in carico, blocchi reali e dati indispensabili'
 );
 
 console.log('--- Test prompt: territorio NON RIENTRA prevale su gestione digitale remota ---');

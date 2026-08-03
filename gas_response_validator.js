@@ -34,6 +34,18 @@ var ITALIAN_FORBIDDEN_CAPS = [
   'Vi', 'Ti', 'Mi', 'Ci', 'Si', 'Li',
   'Ecco', 'Gentile', 'Caro', 'Cara', 'Spettabile'
 ];
+
+// Marcatori lessicali distintivi usati solo per individuare intere frasi rimaste
+// in una lingua diversa. Sono separati dai marcatori globali, che stimano invece
+// la lingua prevalente dell'intera risposta.
+var SEGMENT_LANGUAGE_MARKERS = {
+  it: ['qualora', 'fosse', 'saremo', 'lieti', 'incontrarla', 'anche', 'oppure', 'questa', 'questo', 'della', 'delle', 'degli', 'agli', 'rispondere', 'contattarci', 'potrebbe', 'potremmo', 'possibile', 'persona', 'passare'],
+  en: ['would', 'could', 'should', 'please', 'thank', 'regards', 'your', 'you', 'our', 'this', 'that', 'with', 'from', 'also', 'kindly', 'contact', 'reply'],
+  es: ['usted', 'ustedes', 'podria', 'podrian', 'gracias', 'saludos', 'atentamente', 'tambien', 'esta', 'este', 'nuestra', 'nuestro', 'puede', 'responder', 'contactarnos'],
+  fr: ['nous', 'vous', 'votre', 'vos', 'etes', 'serons', 'pourriez', 'veuillez', 'merci', 'cordialement', 'egalement', 'cette', 'avec', 'dans', 'pour', 'repondre', 'contacter'],
+  de: ['sie', 'ihnen', 'konnen', 'konnten', 'bitte', 'danke', 'grusse', 'freundlichen', 'auch', 'dieser', 'diese', 'unser', 'unsere', 'antworten', 'kontaktieren'],
+  pt: ['voce', 'voces', 'poderia', 'poderiam', 'obrigado', 'obrigada', 'atenciosamente', 'tambem', 'esta', 'este', 'nossa', 'nosso', 'pode', 'responder', 'contatar']
+};
  
 var ResponseValidator = class ResponseValidator {
   constructor() {
@@ -269,15 +281,33 @@ var ResponseValidator = class ResponseValidator {
       }
     }
 
-    // === SEMANTIC VALIDATION (solo se necessario) ===
-    if (this.semanticValidator && this.semanticValidator.shouldRun(validationResult.score)) {
-      console.log('🧠 Attivazione Semantic Validation (score sotto soglia)...');
+    // === SEMANTIC VALIDATION (score basso o rischio di trasferimento acritico dalla KB) ===
+    const knowledgeContextualization = validationResult.details.knowledgeContextualization || {};
+    const forceKnowledgeRelevanceReview = knowledgeContextualization.requiresSemanticReview === true;
+    const validationRequestPurpose = temporalContext &&
+      temporalContext.validationContext &&
+      typeof temporalContext.validationContext === 'object'
+        ? temporalContext.validationContext.requestPurpose
+        : null;
+    if (
+      this.semanticValidator &&
+      (this.semanticValidator.shouldRun(validationResult.score) || forceKnowledgeRelevanceReview)
+    ) {
+      console.log(
+        forceKnowledgeRelevanceReview
+          ? '🧠 Attivazione Semantic Validation (rischio contestualizzazione KB)...'
+          : '🧠 Attivazione Semantic Validation (score sotto soglia)...'
+      );
 
       const semHalluc = this.semanticValidator.validateHallucinations(
         currentResponse,
         knowledgeBase,
         validationResult.details.hallucinations,
-        emailContent
+        emailContent,
+        {
+          forceRelevanceReview: forceKnowledgeRelevanceReview,
+          requestPurpose: validationRequestPurpose
+        }
       );
 
       const semThinking = this.semanticValidator.validateThinkingLeak(
@@ -337,7 +367,7 @@ var ResponseValidator = class ResponseValidator {
    * Alias per la firma ad oggetto (supporta chiamata con parametri nominali).
    * Evita rotture quando il chiamante usa validator.validate(response, { ...opts }).
    * @param {string} response
-   * @param {{language?: string, knowledgeBase?: string, emailContent?: string, body?: string, emailSubject?: string, subject?: string, salutationMode?: string, currentDate?: string, currentTime?: string, messageDate?: string, messageTime?: string, temporalContext?: Object, activeConcerns?: Object, concernSynthesis?: Object, continuityCase?: Object, responseRegister?: string}} opts
+   * @param {{language?: string, knowledgeBase?: string, emailContent?: string, body?: string, emailSubject?: string, subject?: string, salutationMode?: string, currentDate?: string, currentTime?: string, messageDate?: string, messageTime?: string, temporalContext?: Object, activeConcerns?: Object, concernSynthesis?: Object, continuityCase?: Object, responseRegister?: string, requestPurpose?: Object|string}} opts
    * @returns {Object}
    */
   validate(response, opts) {
@@ -354,7 +384,7 @@ var ResponseValidator = class ResponseValidator {
         ? baseTemporalContext.validationContext
         : {}
     );
-    ['activeConcerns', 'concernSynthesis', 'continuityCase', 'responseRegister'].forEach((key) => {
+    ['activeConcerns', 'concernSynthesis', 'continuityCase', 'responseRegister', 'requestPurpose'].forEach((key) => {
       if (Object.prototype.hasOwnProperty.call(safeOpts, key)) validationContext[key] = safeOpts[key];
     });
     const temporalContext = Object.assign({}, baseTemporalContext, {
@@ -492,6 +522,17 @@ var ResponseValidator = class ResponseValidator {
     details.expectedDocumentMissingTemplate = expectedDocumentMissingTemplateResult;
     score *= expectedDocumentMissingTemplateResult.score;
 
+    // === CONTROLLO 16: rischio di riproduzione acritica della Knowledge Base ===
+    // Non decide da solo la pertinenza: instrada al validatore semantico soltanto
+    // quando rileva una copia estesa o il trasferimento di alternative non poste
+    // dall'utente, evitando euristiche bloccanti su casi legittimi.
+    details.knowledgeContextualization = this._checkKnowledgeContextualizationRisk(
+      response,
+      knowledgeBase,
+      originalContext,
+      temporalContext
+    );
+
     // Determina validità usando sempre lo score canonico 0.0-1.0.
     const normalizedScore = normalizeValidationScore(score);
     const isValid = errors.length === 0 && normalizedScore >= this.MIN_VALID_SCORE;
@@ -502,6 +543,82 @@ var ResponseValidator = class ResponseValidator {
   // ========================================================================
   // CONTROLLI DI VALIDAZIONE
   // ========================================================================
+
+  _normalizeKnowledgeUseTokens_(text) {
+    const stopWords = new Set([
+      'alla', 'alle', 'anche', 'come', 'con', 'dalla', 'delle', 'della', 'degli', 'dopo', 'essere', 'questa', 'questo',
+      'sono', 'sulla', 'sulle', 'the', 'and', 'that', 'this', 'with', 'from', 'your', 'pour', 'avec', 'dans', 'cette',
+      'vous', 'nous', 'und', 'dass', 'dies', 'eine', 'para', 'esta', 'este', 'usted', 'com', 'uma', 'voce'
+    ]);
+    const normalized = String(text || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    const tokens = normalized.match(/[a-z0-9]+/g) || [];
+    return tokens.filter(token => token.length >= 4 && !/^\d+$/.test(token) && !stopWords.has(token));
+  }
+
+  _buildKnowledgeNgrams_(tokens, size = 3) {
+    const grams = new Set();
+    for (let i = 0; i <= tokens.length - size; i++) {
+      grams.add(tokens.slice(i, i + size).join(' '));
+    }
+    return grams;
+  }
+
+  _hasAlternativeConnector_(text) {
+    return /\b(?:o|oppure|ovvero|or|alternatively|ou|oder|alternativ(?:e|amente)?|ou\s+bien)\b/i.test(String(text || ''));
+  }
+
+  _checkKnowledgeContextualizationRisk(response, knowledgeBase, originalContext = '', temporalContext = null) {
+    const result = {
+      score: 1.0,
+      errors: [],
+      warnings: [],
+      requiresSemanticReview: false,
+      signals: []
+    };
+    if (!response || !knowledgeBase) return result;
+
+    const responseTokens = this._normalizeKnowledgeUseTokens_(response);
+    const kbTokens = this._normalizeKnowledgeUseTokens_(knowledgeBase);
+    if (responseTokens.length < 6 || kbTokens.length < 6) return result;
+
+    const responseTrigrams = this._buildKnowledgeNgrams_(responseTokens, 3);
+    const kbTrigrams = this._buildKnowledgeNgrams_(kbTokens, 3);
+    let sharedTrigrams = 0;
+    responseTrigrams.forEach(gram => {
+      if (kbTrigrams.has(gram)) sharedTrigrams += 1;
+    });
+
+    const transferredAlternative =
+      this._hasAlternativeConnector_(knowledgeBase) &&
+      this._hasAlternativeConnector_(response) &&
+      !this._hasAlternativeConnector_(originalContext);
+    const copiedPassage = sharedTrigrams >= 5;
+    const validationContext = temporalContext &&
+      temporalContext.validationContext &&
+      typeof temporalContext.validationContext === 'object'
+        ? temporalContext.validationContext
+        : {};
+    const rawPurpose = validationContext.requestPurpose && typeof validationContext.requestPurpose === 'object'
+      ? validationContext.requestPurpose.type
+      : validationContext.requestPurpose;
+    const requestPurpose = String(rawPurpose || '').trim().toLowerCase();
+    const proceduralExplanation = /\b(?:deve\s+essere\s+richiest\w*|per\s+richiedere|bisogna|occorre|e\s+necessario|si\s+richiede|must\s+be\s+requested|you\s+need\s+to|has\s+to\s+be\s+requested|doit\s+etre\s+demande|il\s+faut|debe\s+solicitar|muss\s+beantragt)\b/i.test(
+      String(response || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    );
+    const operationalScopeRisk = requestPurpose === 'operational_request' && (
+      sharedTrigrams >= 2 || proceduralExplanation
+    );
+
+    if (transferredAlternative) result.signals.push('compound_alternative_transferred');
+    if (copiedPassage) result.signals.push('extended_kb_overlap');
+    if (operationalScopeRisk) result.signals.push('operational_request_kb_scope');
+    result.requiresSemanticReview = result.signals.length > 0;
+    result.sharedTrigrams = sharedTrigrams;
+    return result;
+  }
 
   /**
    * Controllo 1: Validazione lunghezza
@@ -539,6 +656,58 @@ var ResponseValidator = class ResponseValidator {
   /**
    * Controllo 2: Consistenza lingua
    */
+  _normalizeLanguageSegmentText_(text) {
+    return String(text || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[’']/g, ' ')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  _countSegmentLanguageMarkers_(text, markers) {
+    const tokens = new Set(this._normalizeLanguageSegmentText_(text).split(' ').filter(Boolean));
+    return (Array.isArray(markers) ? markers : []).reduce((count, marker) => {
+      const normalizedMarker = this._normalizeLanguageSegmentText_(marker);
+      return count + (normalizedMarker && tokens.has(normalizedMarker) ? 1 : 0);
+    }, 0);
+  }
+
+  _detectForeignLanguageSegments_(response, expectedLanguage) {
+    const expected = String(expectedLanguage || '').trim().toLowerCase();
+    const segments = String(response || '')
+      .split(/\r?\n+|[.!?;]+(?:\s+|$)/)
+      .map((segment) => segment.replace(/\s+/g, ' ').trim())
+      .filter((segment) => this._normalizeLanguageSegmentText_(segment).split(' ').filter(Boolean).length >= 4);
+    const findings = [];
+
+    segments.forEach((segment) => {
+      const scores = {};
+      Object.keys(SEGMENT_LANGUAGE_MARKERS).forEach((lang) => {
+        scores[lang] = this._countSegmentLanguageMarkers_(segment, SEGMENT_LANGUAGE_MARKERS[lang]);
+      });
+      const expectedScore = scores[expected] || 0;
+      const foreignLanguages = Object.keys(scores)
+        .filter((lang) => lang !== expected)
+        .sort((a, b) => scores[b] - scores[a]);
+      const foreignLanguage = foreignLanguages[0];
+      const foreignScore = foreignLanguage ? scores[foreignLanguage] : 0;
+
+      if (foreignLanguage && foreignScore >= 3 && foreignScore >= expectedScore + 2) {
+        findings.push({
+          language: foreignLanguage,
+          score: foreignScore,
+          expectedScore: expectedScore,
+          sample: segment.substring(0, 140)
+        });
+      }
+    });
+
+    return findings.slice(0, 3);
+  }
+
   _checkLanguage(response, expectedLanguage) {
     const errors = [];
     const warnings = [];
@@ -607,7 +776,16 @@ var ResponseValidator = class ResponseValidator {
       score *= 0.85;
     }
 
-    return { score, errors, warnings, detectedLang, markerScores };
+    const foreignSegments = this._detectForeignLanguageSegments_(cleanResponse, expectedLanguage);
+    if (foreignSegments.length > 0) {
+      const detectedSegments = Array.from(new Set(foreignSegments.map((item) => item.language.toUpperCase())));
+      errors.push(
+        `Lingua mista: rilevato almeno un segmento ${detectedSegments.join('/')} in una risposta ${String(expectedLanguage || '').toUpperCase()}.`
+      );
+      score *= 0.30;
+    }
+
+    return { score, errors, warnings, detectedLang, markerScores, foreignSegments };
   }
 
   /**
@@ -3250,7 +3428,7 @@ var SemanticValidator = class SemanticValidator {
   /**
    * Valida allucinazioni usando similitudine semantica
    */
-  validateHallucinations(response, knowledgeBase, regexResult, emailContent) {
+  validateHallucinations(response, knowledgeBase, regexResult, emailContent, options = {}) {
     if (!this.runtimeSemanticAvailable) {
       return {
         isValid: regexResult.score >= 0.6,
@@ -3260,7 +3438,8 @@ var SemanticValidator = class SemanticValidator {
       };
     }
 
-    if (!this.shouldRun(regexResult.score) && regexResult.errors.length === 0) {
+    const forceRelevanceReview = options && options.forceRelevanceReview === true;
+    if (!forceRelevanceReview && !this.shouldRun(regexResult.score) && regexResult.errors.length === 0) {
       console.log('   ⚠ Validazione semantica allucinazioni ignorata (alta confidenza base)');
       return { isValid: true, confidence: regexResult.score, skipped: true };
     }
@@ -3268,16 +3447,21 @@ var SemanticValidator = class SemanticValidator {
     console.log('   🧠 Eseguo validazione semantica allucinazioni...');
 
     try {
+      const requestPurpose = options && options.requestPurpose && typeof options.requestPurpose === 'object'
+        ? options.requestPurpose.type
+        : (options ? options.requestPurpose : '');
       const cacheMaterial = [
+        'grounding_relevance_schema_v3',
         response || '',
         knowledgeBase || '',
-        emailContent || ''
+        emailContent || '',
+        requestPurpose || ''
       ].join('\n<<SEMANTIC-HALLUCINATION-SCOPE>>\n');
       const cacheKey = this._cacheKey('halluc', cacheMaterial);
       const cached = this._readCache(cacheKey);
       if (cached) return cached;
 
-      const prompt = this._buildHallucinationPrompt(response, knowledgeBase, emailContent);
+      const prompt = this._buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose);
       const apiResponse = this._generateSemantic(prompt);
       const result = this._parseSemanticResponse(apiResponse);
       this._writeCache(cacheKey, result);
@@ -3342,7 +3526,7 @@ var SemanticValidator = class SemanticValidator {
   // COSTRUTTORI PROMPT (ottimizzati per brevità)
   // ========================================================================
 
-  _buildHallucinationPrompt(response, knowledgeBase, emailContent) {
+  _buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose = '') {
     const kbTruncated = knowledgeBase && knowledgeBase.length > 30000
       ? knowledgeBase.substring(0, 30000) + '...[TRUNCATED]'
       : knowledgeBase;
@@ -3350,7 +3534,7 @@ var SemanticValidator = class SemanticValidator {
       ? emailContent.substring(0, 2000) + '...[TRUNCATED]'
       : emailContent;
 
-    return `Sei un validatore. Verifica se la RISPOSTA contiene informazioni NON presenti nella BASE CONOSCENZA o nell'EMAIL ORIGINALE.
+    return `Sei un validatore di radicamento e pertinenza. Verifica sia se la RISPOSTA contiene informazioni non supportate, sia se usa in modo contestuale le informazioni vere della BASE CONOSCENZA.
 
 BASE CONOSCENZA (fonte verità):
 """
@@ -3362,29 +3546,40 @@ EMAIL ORIGINALE:
 ${emailTruncated || ''}
 """
 
+SCOPO DEL MESSAGGIO (se disponibile): ${String(requestPurpose || 'da inferire dall\'email')}
+
 RISPOSTA DA VALIDARE:
 """
 ${response}
 """
 
-COMPITO:
-Estrai dalla RISPOSTA:
-1. Orari menzionati (formato HH:MM)
-2. Email menzionate
-3. Numeri telefono menzionati
+COMPITO A — RADICAMENTO:
+1. Estrai orari, date, email, URL, telefoni, requisiti, procedure, eccezioni e promesse operative presenti nella RISPOSTA.
+2. Verifica che siano supportati, anche con sinonimi o varianti, dalla BASE CONOSCENZA o dall'EMAIL ORIGINALE.
 
-Per ciascuno, verifica se è presente (anche con sinonimi/varianti) nella BASE CONOSCENZA o nell'EMAIL ORIGINALE.
+COMPITO B — PERTINENZA CONTESTUALE:
+1. Prima distingui lo scopo: richiesta informativa, richiesta operativa, aggiornamento/comunicazione o messaggio misto. Poi individua obiettivo, domande e vincoli realmente espressi nell'EMAIL ORIGINALE.
+2. Considera ogni frase composta della BASE CONOSCENZA come unità informative separate: il fatto che un ramo sia pertinente non rende pertinenti anche le alternative, eccezioni o opzioni accessorie contenute nella stessa frase.
+3. Segnala in "irrelevantDetails" soltanto dettagli materialmente estranei, ridondanti o non utili al caso concreto, anche se veri e presenti nella BASE CONOSCENZA.
+4. Non segnalare dati necessari a rispondere, informazioni che aiutano concretamente a gestire un vincolo dichiarato, né il minimo prossimo passo operativo. Non confondere sintesi con omissione di una risposta richiesta.
+5. Se lo scopo è operativo e l'utente ha già presentato la richiesta o fornito i dati/passi necessari, considera irrilevanti le spiegazioni preliminari su come, dove o a chi presentarla, salvo che evidenzino un impedimento reale, un dato indispensabile mancante o rispondano a una domanda esplicita ancora aperta.
+
+La risposta è valida solo se non contiene né allucinazioni né dettagli materialmente irrilevanti.
 
 Rispondi SOLO con questo JSON (senza markdown):
 {
   "hallucinations": {
-    "times": ["10:30", "18:00"],
-    "emails": ["fake@test.com"],
-    "phones": ["1234567890"]
+    "times": [],
+    "dates": [],
+    "emails": [],
+    "phones": [],
+    "urls": [],
+    "unsupportedClaims": []
   },
+  "irrelevantDetails": [],
   "isValid": true,
   "confidence": 0.95,
-  "reason": "Tutti gli orari sono presenti nella KB con varianti simili"
+  "reason": "Radicamento e pertinenza contestuale verificati"
 }`;
   }
 
@@ -3446,8 +3641,8 @@ Rispondi SOLO con questo JSON (senza markdown):
     }
 
     const semanticModelName = typeof this.geminiService.getModelNameForTask === 'function'
-      ? this.geminiService.getModelNameForTask(this.taskType, 'gemini-3.1-flash-lite')
-      : (this.geminiService.modelName || 'gemini-3.1-flash-lite');
+      ? this.geminiService.getModelNameForTask(this.taskType, 'gemini-3.5-flash-lite')
+      : (this.geminiService.modelName || 'gemini-3.5-flash-lite');
 
     return this.geminiService._withRetry(
       () => this.geminiService._generateWithModel(prompt, semanticModelName),
@@ -3488,6 +3683,13 @@ Rispondi SOLO con questo JSON (senza markdown):
     const hallucinations = payload.hallucinations && typeof payload.hallucinations === 'object'
       ? payload.hallucinations
       : null;
+    const irrelevantDetails = Array.isArray(payload.irrelevantDetails)
+      ? payload.irrelevantDetails
+      : (
+        payload.relevance && Array.isArray(payload.relevance.irrelevantDetails)
+          ? payload.relevance.irrelevantDetails
+          : []
+      );
     const hasHallucinations = !!hallucinations && Object.values(hallucinations).some((value) => {
       if (Array.isArray(value)) return value.length > 0;
       if (value && typeof value === 'object') return Object.keys(value).length > 0;
@@ -3496,17 +3698,26 @@ Rispondi SOLO con questo JSON (senza markdown):
     const hasThinkingLeak =
       payload.thinkingLeakDetected === true ||
       examples.length > 0;
+    const hasIrrelevantDetails = irrelevantDetails.length > 0;
 
+    const inferredIsValid = !(hasThinkingLeak || hasHallucinations || hasIrrelevantDetails);
     const normalizedIsValid = (typeof payload.isValid === 'boolean')
-      ? payload.isValid
-      : !(hasThinkingLeak || hasHallucinations);
+      ? payload.isValid && inferredIsValid
+      : inferredIsValid;
     const rawConfidence = Number(payload.confidence);
     const confidence = Number.isFinite(rawConfidence) ? normalizeValidationScore(rawConfidence) : 0.5;
+
+    const normalizedDetails = hallucinations
+      ? Object.assign({}, hallucinations)
+      : {};
+    if (irrelevantDetails.length > 0) {
+      normalizedDetails.irrelevantDetails = irrelevantDetails;
+    }
 
     return {
       isValid: normalizedIsValid,
       confidence: confidence,
-      details: hallucinations || examples || {},
+      details: Object.keys(normalizedDetails).length > 0 ? normalizedDetails : (examples || {}),
       reason: payload.reason || 'Nessuna motivazione fornita'
     };
   }

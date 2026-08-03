@@ -201,7 +201,7 @@ var EmailProcessor = class EmailProcessor {
         return {
           attemptStrategy: [],
           strategies: [],
-          fallbackModelName: 'gemini-3.5-flash',
+          fallbackModelName: 'gemini-3.6-flash',
           configuredGenerationStrategy: []
         };
       }
@@ -215,7 +215,7 @@ var EmailProcessor = class EmailProcessor {
     return {
       attemptStrategy: [],
       strategies: [],
-      fallbackModelName: 'gemini-3.5-flash',
+      fallbackModelName: 'gemini-3.6-flash',
       configuredGenerationStrategy: []
     };
   }
@@ -1761,6 +1761,7 @@ var EmailProcessor = class EmailProcessor {
       );
       if (
         (!physicalPresenceConstraint || !physicalPresenceConstraint.has_constraint) &&
+        (!physicalPresenceConstraint || physicalPresenceConstraint.source !== 'current_local_presence_override') &&
         memoryContextualFlags.remote_user === true
       ) {
         physicalPresenceConstraint = {
@@ -2398,6 +2399,15 @@ ${addressLines.join('\n\n')}
       if (isCertRequest && categoryHintSource !== 'document_submission') {
         categoryHintSource = 'document_request';
       }
+      const requestPurpose = this._resolveRequestPurpose_(
+        quickCheck,
+        messageDetails.subject,
+        messageDetails.body
+      );
+      quickCheck.request_purpose = requestPurpose.type;
+      quickCheck.request_purpose_confidence = requestPurpose.confidence;
+      quickCheck.request_purpose_source = requestPurpose.source;
+      console.log(`   Scopo richiesta: ${requestPurpose.type}, confidence=${requestPurpose.confidence}, source=${requestPurpose.source}`);
 
       const indirectSbattezzo = this._detectIndirectSbattezzoRequest_(messageDetails.subject, messageDetails.body);
       if (
@@ -2469,7 +2479,9 @@ ${addressLines.join('\n\n')}
           relationalPostureConfidence: quickCheck?.relational_posture_confidence,
           quickCheck: {
             relational_posture: quickCheck?.relational_posture,
-            relational_posture_confidence: quickCheck?.relational_posture_confidence
+            relational_posture_confidence: quickCheck?.relational_posture_confidence,
+            request_purpose: requestPurpose.type,
+            request_purpose_confidence: requestPurpose.confidence
           }
         });
         promptProfile = promptContext.profile;
@@ -2562,9 +2574,8 @@ ${addressLines.join('\n\n')}
         );
       }
 
-      if (isCertRequest) {
-        systemDirectives.push("REGOLA TASSATIVA SUI CERTIFICATI: Specifica sempre che il certificato deve essere richiesto ESCLUSIVAMENTE alla parrocchia in cui e stato CELEBRATO il sacramento. Chiedi i dati dell'utente SOLO precisando 'se il sacramento e stato celebrato presso la nostra parrocchia'.");
-      }
+      const certificateDirective = this._buildCertificateSystemDirective_(isCertRequest, requestPurpose);
+      if (certificateDirective) systemDirectives.push(certificateDirective);
 
       const baseRuntimeContext = this._buildRuntimeContext_(
         messageDetails,
@@ -2584,7 +2595,8 @@ ${addressLines.join('\n\n')}
           responseRegister: responseRegister,
           promptProfile: promptProfile,
           category: categoryHintSource || classification.category || null,
-          requestType: requestTypeName || null
+          requestType: requestTypeName || null,
+          requestPurpose: requestPurpose
         })
       }));
       const scheduleContext = this._resolveScheduleContext(
@@ -2708,6 +2720,7 @@ ${addressLines.join('\n\n')}
           confidence: Number(quickCheck?.conversation_shift_confidence) || 0
         },
         responseStrategy: responseStrategy,
+        requestPurpose: requestPurpose,
         responseStrategyInferenceBlocked: hasStrongerResponseRoutingSignal,
         newInformationProvided: Array.isArray(quickCheck.new_information_provided)
           ? quickCheck.new_information_provided
@@ -2979,7 +2992,7 @@ ${addressLines.join('\n\n')}
       const attemptStrategy = Array.isArray(generationPlan.attemptStrategy)
         ? generationPlan.attemptStrategy
         : [];
-      const fallbackModelName = generationPlan.fallbackModelName || 'gemini-3.5-flash';
+      const fallbackModelName = generationPlan.fallbackModelName || 'gemini-3.6-flash';
 
       if (shouldUseReceiptOnly) {
         response = this._buildReceiptOnlySubmissionResponse_(
@@ -6115,7 +6128,19 @@ ${addressLines.join('\n\n')}
     if (semantic.thinkingLeak && semantic.thinkingLeak.isValid === false) {
       hasThinkingLeak = true;
     }
-    if (semantic.hallucinations && semantic.hallucinations.isValid === false) {
+    const semanticGrounding = semantic.hallucinations || {};
+    const semanticGroundingDetails = semanticGrounding.details && typeof semanticGrounding.details === 'object'
+      ? semanticGrounding.details
+      : {};
+    const kbRelevanceIssues = Array.isArray(semanticGroundingDetails.irrelevantDetails)
+      ? semanticGroundingDetails.irrelevantDetails
+      : [];
+    const semanticGroundingReason = String(semanticGrounding.reason || '').toLowerCase();
+    const hasKbRelevance = kbRelevanceIssues.length > 0 || (
+      semanticGrounding.isValid === false &&
+      (semanticGroundingReason.includes('pertinen') || semanticGroundingReason.includes('irrilevant'))
+    );
+    if (semanticGrounding.isValid === false && !hasKbRelevance) {
       hasHallucination = true;
     }
 
@@ -6166,6 +6191,7 @@ ${addressLines.join('\n\n')}
     return {
       thinking_leak: hasThinkingLeak,
       hallucination: hasHallucination || hasPapalReference,
+      kb_relevance: hasKbRelevance,
       papal_reference: hasPapalReference,
       language: hasLanguage,
       placeholder: hasPlaceholder,
@@ -6182,6 +6208,7 @@ ${addressLines.join('\n\n')}
       papalErrors: papalErrors,
       foundPlaceholders: foundPlaceholders,
       hallucinations: hallucinations,
+      kbRelevanceIssues: kbRelevanceIssues,
       detectedLanguage: detectedLanguage
     };
   }
@@ -6192,7 +6219,7 @@ ${addressLines.join('\n\n')}
     const flags = this._classifyValidationForRetry(validationResult, detectedLanguage);
     const allowed = (Array.isArray(cfg.onlyForErrors) && cfg.onlyForErrors.length > 0)
       ? cfg.onlyForErrors
-      : ['thinking_leak', 'hallucination', 'language', 'placeholder', 'length', 'temporal', 'physical_presence', 'sensitive_quality'];
+      : ['thinking_leak', 'hallucination', 'kb_relevance', 'language', 'placeholder', 'length', 'temporal', 'physical_presence', 'sensitive_quality'];
 
     const hasAllowed = allowed.some(key => flags[key]);
     if (!hasAllowed) return false;
@@ -6204,7 +6231,7 @@ ${addressLines.join('\n\n')}
       ? normalizeValidationScore(configuredMinScore)
       : Math.max(0, Math.min(1, configuredMinScore > 1 ? configuredMinScore / 100 : configuredMinScore));
 
-    const critical = flags.thinking_leak || flags.hallucination || flags.temporal || flags.physical_presence || flags.sensitive_quality;
+    const critical = flags.thinking_leak || flags.hallucination || flags.kb_relevance || flags.language || flags.temporal || flags.physical_presence || flags.sensitive_quality;
 
 
 
@@ -6282,11 +6309,25 @@ ${addressLines.join('\n\n')}
       );
     }
 
+    if (flags.kb_relevance) {
+      const relevanceExamples = (flags.kbRelevanceIssues || []).slice(0, 3).map(issue => {
+        if (issue && typeof issue === 'object') return issue.text || issue.reason || JSON.stringify(issue);
+        return String(issue || '');
+      }).filter(Boolean);
+      const relevanceLabel = relevanceExamples.length > 0
+        ? `Dettagli da rivalutare: ${relevanceExamples.join(' | ')}.\n`
+        : '';
+      correctionInstructions.push(
+        'ERRORE CRITICO: La risposta ha trasferito dalla Knowledge Base dettagli veri ma non pertinenti al bisogno concreto del mittente.\n' +
+        `CORREZIONE: ${relevanceLabel}Scomponi le frasi della Knowledge Base in unità informative indipendenti. Per ogni dettaglio verifica quale domanda, vincolo o prossimo passo risolve; elimina i rami accessori, le alternative non richieste e le eccezioni non applicabili. Conserva esatti dati e condizioni necessari, ma riformula la prosa invece di riprodurre il blocco sorgente.`
+      );
+    }
+
     if (flags.language) {
       const langLabel = langNames[language] || language;
       correctionInstructions.push(
         `ERRORE: La risposta non è in ${langLabel}.\n` +
-        `CORREZIONE: Riscrivi l'intera risposta in ${langLabel}. Saluto e firma devono essere in ${langLabel}.`
+        `CORREZIONE: Riscrivi l'intera risposta in ${langLabel}. Saluto, firma, formule di cortesia ed eventuali blocchi standard devono essere tutti in ${langLabel}; traduci o elimina ogni frase rimasta in un'altra lingua.`
       );
     }
 
@@ -6312,7 +6353,7 @@ ${addressLines.join('\n\n')}
         'ERRORE CRITICO: Il mittente ha manifestato un vincolo a raggiungere fisicamente la parrocchia, ma la risposta lo invita a venire/passare di persona come opzione ordinaria.\n' +
         (avoidInvitation
           ? 'CORREZIONE: Rimuovi ogni invito alla presenza fisica, anche condizionale. Privilegia esclusivamente telefono/email o presa in carico a distanza, salvo obbligo procedurale esplicito e inevitabile.'
-          : 'CORREZIONE: Rimuovi l\'invito diretto alla presenza fisica. Privilegia telefono/email. Se e solo se utile, usa una formula condizionale come "qualora le fosse possibile" o "se avesse occasione di trovarsi a Roma".')
+          : 'CORREZIONE: Rimuovi l\'invito diretto alla presenza fisica. Privilegia telefono/email. Un eventuale riferimento condizionale alla presenza va mantenuto solo se aggiunge un passaggio operativo necessario e deve essere formulato interamente nella lingua della risposta; non usarlo come chiusura di cortesia automatica.')
       );
     }
 
@@ -6930,6 +6971,56 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     return flags;
   }
 
+  _resolveRequestPurpose_(quickCheck = {}, subject = '', body = '') {
+    const source = (quickCheck && typeof quickCheck === 'object') ? quickCheck : {};
+    if (
+      typeof EmailQuickCheckPolicy !== 'undefined' &&
+      EmailQuickCheckPolicy &&
+      typeof EmailQuickCheckPolicy.resolveRequestPurpose === 'function'
+    ) {
+      return EmailQuickCheckPolicy.resolveRequestPurpose(
+        source.request_purpose,
+        source.request_purpose_confidence,
+        subject,
+        body
+      );
+    }
+
+    const allowed = new Set([
+      'information_request',
+      'operational_request',
+      'status_update',
+      'acknowledgment',
+      'mixed'
+    ]);
+    const type = String(source.request_purpose || '').trim().toLowerCase();
+    const confidence = Math.max(0, Math.min(1, Number(source.request_purpose_confidence) || 0));
+    return {
+      type: allowed.has(type) && confidence >= 0.65 ? type : 'unknown',
+      confidence: allowed.has(type) ? confidence : 0,
+      source: allowed.has(type) ? 'quick_check_model' : 'unavailable'
+    };
+  }
+
+  _buildCertificateSystemDirective_(isCertificateRequest, requestPurpose = null) {
+    if (!isCertificateRequest) return null;
+    const purpose = requestPurpose && typeof requestPurpose === 'object'
+      ? requestPurpose.type
+      : requestPurpose;
+    const type = String(purpose || 'unknown').trim().toLowerCase();
+
+    if (type === 'information_request') {
+      return "RICHIESTA INFORMATIVA SUI CERTIFICATI: spiega solo la procedura richiesta. Specifica che il certificato va richiesto alla parrocchia in cui e stato celebrato il sacramento; chiedi dati personali soltanto se servono al passo successivo e precisando che valgono per sacramenti celebrati presso la nostra parrocchia.";
+    }
+    if (type === 'operational_request') {
+      return "RICHIESTA OPERATIVA DI CERTIFICATO: l'utente sta gia chiedendo il rilascio o la preparazione del documento. Prendi in carico la richiesta e conferma soltanto i passaggi concretamente supportati dalla KB. Non riaprire con spiegazioni generiche su come o dove richiedere il certificato se il messaggio mostra che la procedura e gia stata compresa; se manca un dato indispensabile, chiedi solo quello; se emerge un impedimento reale, spiegalo in modo mirato.";
+    }
+    if (type === 'mixed') {
+      return "RICHIESTA MISTA DI CERTIFICATO: gestisci prima l'azione richiesta, poi rispondi soltanto alle domande procedurali ancora aperte. Non ripetere requisiti o indicazioni che l'utente ha gia soddisfatto nel messaggio.";
+    }
+    return "CONTESTO CERTIFICATO: determina dal testo se l'utente chiede informazioni o sta gia presentando una richiesta operativa. Non inserire automaticamente la regola generale sulla parrocchia di celebrazione: usala solo se risponde a una domanda aperta o segnala un impedimento concreto.";
+  }
+
   _buildResponseValidationContext_({
     activeConcerns = {},
     concernSynthesis = null,
@@ -6940,7 +7031,8 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     responseRegister = 'warm_institutional',
     promptProfile = 'standard',
     category = null,
-    requestType = null
+    requestType = null,
+    requestPurpose = null
   } = {}) {
     const normalizedConcerns = (activeConcerns && typeof activeConcerns === 'object')
       ? Object.assign({}, activeConcerns)
@@ -6960,6 +7052,33 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     const normalizedOperationalConstraints = Array.isArray(operationalConstraints)
       ? operationalConstraints.slice(0, 12)
       : [];
+    const rawRequestPurpose = (requestPurpose && typeof requestPurpose === 'object')
+      ? requestPurpose.type
+      : requestPurpose;
+    const allowedRequestPurposes = new Set([
+      'information_request',
+      'operational_request',
+      'status_update',
+      'acknowledgment',
+      'mixed',
+      'unknown'
+    ]);
+    const normalizedRequestPurposeType = String(rawRequestPurpose || 'unknown').trim().toLowerCase();
+    const normalizedRequestPurpose = {
+      type: allowedRequestPurposes.has(normalizedRequestPurposeType)
+        ? normalizedRequestPurposeType
+        : 'unknown',
+      confidence: Math.max(0, Math.min(1, Number(
+        requestPurpose && typeof requestPurpose === 'object'
+          ? requestPurpose.confidence
+          : 0
+      ) || 0)),
+      source: String(
+        requestPurpose && typeof requestPurpose === 'object'
+          ? (requestPurpose.source || 'unknown')
+          : 'unknown'
+      ).slice(0, 80)
+    };
 
     return {
       activeConcerns: normalizedConcerns,
@@ -6971,7 +7090,8 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
       responseRegister: normalizedRegister,
       promptProfile: normalizedProfile,
       category: normalizedCategory,
-      requestType: normalizedRequestType
+      requestType: normalizedRequestType,
+      requestPurpose: normalizedRequestPurpose
     };
   }
 
@@ -7595,15 +7715,59 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     };
   }
 
+  _detectCurrentLocalPresence_(subject, body) {
+    const text = `${subject || ''} ${body || ''}`
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[’']/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!text) return null;
+
+    const patterns = [
+      /\b(?:sono|siamo|mi\s+trovo|ci\s+troviamo)\s+(?:gia\s+|attualmente\s+)?(?:(?:in\s+vacanza|in\s+visita|di\s+passaggio)\s+)?(?:a|in)\s+roma\b/,
+      /\b(?:i\s+am|we\s+are|i\s+m|we\s+re)\s+(?:already\s+|currently\s+)?(?:(?:on\s+vacation|on\s+holiday|visiting|staying)\s+)?in\s+rome\b/,
+      /\b(?:je\s+suis|nous\s+sommes)\s+(?:deja\s+|actuellement\s+)?(?:(?:en\s+vacances|de\s+passage|en\s+sejour|en\s+visite)\s+)?a\s+rome\b/,
+      /\b(?:estoy|estamos)\s+(?:ya\s+|actualmente\s+)?(?:(?:de\s+vacaciones|de\s+visita|de\s+paso)\s+)?en\s+roma\b/,
+      /\b(?:estou|estamos)\s+(?:ja\s+|atualmente\s+)?(?:(?:de\s+ferias|de\s+visita|de\s+passagem)\s+)?em\s+roma\b/,
+      /\b(?:ich\s+bin|wir\s+sind)\s+(?:schon\s+|derzeit\s+|aktuell\s+)?(?:(?:im\s+urlaub|zu\s+besuch|auf\s+besuch)\s+)?in\s+rom\b/
+    ];
+
+    if (!patterns.some((pattern) => pattern.test(text))) return null;
+
+    return {
+      detected: true,
+      confidence: 0.95,
+      reason: 'current_presence_in_rome'
+    };
+  }
+
   _resolvePhysicalPresenceConstraint_(quickConstraint, subject, body) {
     const normalizedQuick = this._normalizePhysicalPresenceConstraint_(quickConstraint, 'quick_check');
     const scheduledPresence = this._detectScheduledPresence_(subject, body);
+    const currentLocalPresence = this._detectCurrentLocalPresence_(subject, body);
 
     if (
       normalizedQuick &&
       normalizedQuick.has_constraint &&
       normalizedQuick.confidence >= 0.65
     ) {
+      if (
+        currentLocalPresence &&
+        (normalizedQuick.type === 'geographic_distance' || normalizedQuick.type === 'remote_request')
+      ) {
+        return {
+          has_constraint: false,
+          type: 'none',
+          confidence: currentLocalPresence.confidence,
+          evidence: '',
+          reason: currentLocalPresence.reason,
+          visit_policy: 'visit_ok',
+          source: 'current_local_presence_override'
+        };
+      }
       if (scheduledPresence) normalizedQuick.scheduled_presence = scheduledPresence;
       return normalizedQuick;
     }
@@ -7974,7 +8138,7 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
         apiKey: apiKey,
         // Modello leggero per un controllo ausiliario a bassa latenza/costo:
         // stesso fallback usato altrove in questo file per chiamate non critiche.
-        modelName: 'gemini-3.5-flash',
+        modelName: 'gemini-3.5-flash-lite',
         skipRateLimit: true
       });
 

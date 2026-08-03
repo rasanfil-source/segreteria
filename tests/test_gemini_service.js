@@ -175,12 +175,25 @@ console.log('--- Test Gemini task profiles: generation e quick_check hanno confi
   service.fetchFn = () => null;
   service._buildGenerateUrl = () => 'https://example.test/generate';
 
-  const generationConfig = service._buildGeminiGenerationConfig_('generation', 'gemini-3.5-flash');
-  const quickLiteConfig = service._buildGeminiGenerationConfig_('quick_check', 'gemini-3.1-flash-lite');
+  const generationConfig = service._buildGeminiGenerationConfig_('generation', 'gemini-3.6-flash');
+  const quickLiteConfig = service._buildGeminiGenerationConfig_('quick_check', 'gemini-3.5-flash-lite');
   const quickFlashConfig = service._buildGeminiGenerationConfig_('quick_check', 'gemini-3.5-flash');
+  const legacyGenerationConfig = service._buildGeminiGenerationConfig_('generation', 'gemini-3.5-flash');
 
   assert(generationConfig.maxOutputTokens === 321, 'generation deve usare MAX_OUTPUT_TOKENS configurato');
-  assert(generationConfig.temperature === 0.25, 'generation deve mantenere temperatura stabile');
+  assert(
+    !Object.prototype.hasOwnProperty.call(generationConfig, 'temperature') &&
+      !Object.prototype.hasOwnProperty.call(generationConfig, 'topK') &&
+      !Object.prototype.hasOwnProperty.call(generationConfig, 'topP'),
+    'Gemini 3.6 Flash non deve ricevere parametri di sampling deprecati'
+  );
+  assert(
+    !Object.prototype.hasOwnProperty.call(quickLiteConfig, 'temperature') &&
+      !Object.prototype.hasOwnProperty.call(quickLiteConfig, 'topK') &&
+      !Object.prototype.hasOwnProperty.call(quickLiteConfig, 'topP'),
+    'Gemini 3.5 Flash-Lite non deve ricevere parametri di sampling deprecati'
+  );
+  assert(legacyGenerationConfig.temperature === 0.25, 'i modelli legacy devono conservare il profilo di sampling compatibile');
   assert(quickLiteConfig.maxOutputTokens === 1024, 'quick_check deve avere budget token dedicato');
   assert(!Object.prototype.hasOwnProperty.call(quickLiteConfig, 'responseMimeType'), 'quick_check lite non deve forzare JSON MIME');
   assert(quickFlashConfig.responseMimeType === 'application/json', 'quick_check non-lite deve richiedere JSON MIME');
@@ -204,10 +217,18 @@ console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documental
   assert(!plainPrompt.prompt.includes('CONTESTO STRUTTURALE ALLEGATI'), 'prompt ordinario non deve includere guardrail documentale');
   assert(!plainPrompt.prompt.includes('"needs_sponsor_guidance": boolean'), 'prompt ordinario non deve chiedere needs_sponsor_guidance');
   assert(plainPrompt.prompt.includes('"physical_presence_constraint"'), 'prompt ordinario deve chiedere il vincolo di presenza fisica');
+  assert(
+    plainPrompt.prompt.includes('dichiara di trovarsi gi') &&
+      plainPrompt.prompt.includes('Un vincolo distinto di salute') &&
+      plainPrompt.prompt.includes('resta invece valido'),
+    'quick check deve distinguere la residenza estera dalla presenza locale attuale senza cancellare altri vincoli'
+  );
   assert(plainPrompt.prompt.includes('"is_territory_request": boolean'), 'prompt ordinario deve chiedere il flag richiesta territorio');
   assert(plainPrompt.prompt.includes('"territory_address_candidates": ["string"]'), 'prompt ordinario deve chiedere gli indirizzi candidati territorio');
   assert(plainPrompt.prompt.includes('competenza territoriale'), 'prompt quick-check deve spiegare la competenza territoriale');
   assert(plainPrompt.prompt.includes('"relational_posture"'), 'prompt ordinario deve chiedere la postura relazionale');
+  assert(plainPrompt.prompt.includes('"request_purpose"'), 'prompt ordinario deve distinguere lo scopo della richiesta dal topic');
+  assert(plainPrompt.prompt.includes('Non classificare come informativa una richiesta solo perche'), 'prompt quick-check deve evitare il routing informativo basato sul solo argomento');
   assert(plainPrompt.prompt.includes('"relational_posture_confidence"'), 'prompt ordinario deve chiedere la confidenza della postura relazionale');
   assert(plainPrompt.prompt.includes('"response_focus_hint"'), 'prompt ordinario deve mantenere response_focus_hint nel JSON');
   assert(plainPrompt.prompt.includes('"attachment_intent"'), 'prompt ordinario deve chiedere attachment_intent nel JSON');
@@ -258,6 +279,7 @@ console.log('--- Test EmailQuickCheckPolicy: contratto esplicito livelli quick-c
 
   assert(levels.level1_message.always === true, 'livello 1 deve essere sempre disponibile');
   assert(levels.level1_message.fields.indexOf('response_strategy') !== -1, 'response_strategy deve restare livello 1');
+  assert(levels.level1_message.fields.indexOf('request_purpose') !== -1, 'request_purpose deve essere livello 1');
   assert(levels.level1_message.fields.indexOf('attachment_intent') !== -1, 'attachment_intent deve essere livello 1');
   assert(levels.level1_message.fields.indexOf('document_delivery') !== -1, 'document_delivery deve essere livello 1');
   assert(levels.level2_conversation.requiresConversationContext === true, 'livello 2 deve richiedere contesto conversazionale');
@@ -284,6 +306,8 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
             territory_address_candidates: ['via Bartolo Oriani', 'via Bartolo Oriani', '   '],
             confidence: 0.7,
             reason: 'consegna documentazione',
+            request_purpose: 'status_update',
+            request_purpose_confidence: 0.9,
             relational_posture: 'frustrated',
             relational_posture_confidence: 0.91,
             response_focus_hint: 'acknowledge_document_without_reopening_procedure',
@@ -337,6 +361,8 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
   assert(result.territory_address_candidates[0] === 'via Bartolo Oriani', 'territory_address_candidates deve preservare la via');
   assert(result.classification.territory_address_candidates[0] === 'via Bartolo Oriani', 'classification deve esporre territory_address_candidates');
   assert(result.relational_posture === 'complaint', 'relational_posture legacy frustrated deve normalizzarsi a complaint');
+  assert(result.request_purpose === 'status_update', 'request_purpose valido deve essere preservato');
+  assert(result.request_purpose_confidence === 0.9, 'request_purpose_confidence deve essere preservata');
   assert(result.relational_posture_confidence === 0.91, 'relational_posture_confidence alta deve essere preservata');
   assert(result.response_focus_hint === 'acknowledge_document_without_reopening_procedure', 'response_focus_hint enum valido con confidenza alta deve essere preservato');
   assert(result.response_focus_hint_confidence === 0.82, 'response_focus_hint_confidence alta deve essere preservata');
@@ -494,6 +520,39 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
     conversation_shift_confidence: 0.4
   }, { lang: 'it' });
   assert(lowShiftConfidence.conversation_shift === 'none', 'conversation_shift sotto soglia deve cadere a none');
+}
+
+console.log('--- Test request purpose: azione esplicita prevale sul topic procedurale ---');
+{
+  const operationalEmail = [
+    'Agnese Tonchei, nata il 28/02/1998, battesimo il 24/05/1998 a Sant Eugenio.',
+    'Richiedo gentilmente il certificato di battesimo in originale per uso matrimonio.',
+    'Verrò io a ritirarlo di persona lunedì 27 o martedì 28 luglio.'
+  ].join(' ');
+  const resolvedOperational = EmailQuickCheckPolicy.resolveRequestPurpose(
+    'information_request',
+    0.91,
+    'Certificato di battesimo',
+    operationalEmail
+  );
+  assert(resolvedOperational.type === 'operational_request', 'una richiesta esplicita di rilascio deve prevalere su un errato modello informativo');
+  assert(resolvedOperational.source === 'local_explicit_action', 'l override deve restare tracciabile come segnale testuale locale');
+
+  const information = EmailQuickCheckPolicy.resolveRequestPurpose(
+    'unknown',
+    0,
+    'Informazioni certificato',
+    'Quali documenti servono e dove devo richiedere il certificato di battesimo?'
+  );
+  assert(information.type === 'information_request', 'domande su requisiti e luogo devono restare informative');
+
+  const update = EmailQuickCheckPolicy.resolveRequestPurpose(
+    'unknown',
+    0,
+    'Aggiornamento',
+    'Vi informo che la data prevista è cambiata e confermo il nuovo recapito.'
+  );
+  assert(update.type === 'status_update', 'una comunicazione senza domanda deve essere classificata come aggiornamento');
 }
 
 console.log('--- Test _generateWithModel: il client generico preserva prompt strutturato e profilo generation ---');
@@ -842,15 +901,15 @@ console.log('--- Test model policy: quick_check non rate-limited usa lite, non M
 {
   const service = Object.create(GeminiService.prototype);
   service.useRateLimiter = false;
-  service.modelName = 'gemini-3.5-flash';
+  service.modelName = 'gemini-3.6-flash';
   service.config = {
     MODEL_STRATEGY: {
       quick_check: ['flash-lite'],
-      generation: ['flash-3.5']
+      generation: ['flash-3.6']
     },
     GEMINI_MODELS: {
-      'flash-3.5': { name: 'gemini-3.5-flash' },
-      'flash-lite': { name: 'gemini-3.1-flash-lite' }
+      'flash-3.6': { name: 'gemini-3.6-flash' },
+      'flash-lite': { name: 'gemini-3.5-flash-lite' }
     }
   };
   service.detectEmailLanguage = () => ({ lang: 'it', confidence: 5, safetyGrade: 5 });
@@ -863,8 +922,8 @@ console.log('--- Test model policy: quick_check non rate-limited usa lite, non M
 
   const result = service.shouldRespondToEmail('Vorrei informazioni', 'Info');
   assert(result.shouldRespond === true, 'quick_check deve restituire il risultato del modello');
-  assert(modelUsed === 'gemini-3.1-flash-lite', `quick_check deve usare lite, ottenuto ${modelUsed}`);
-  assert(service.getModelNameForTask('generation') === 'gemini-3.5-flash', 'generation deve risolvere il modello qualita');
+  assert(modelUsed === 'gemini-3.5-flash-lite', `quick_check deve usare lite, ottenuto ${modelUsed}`);
+  assert(service.getModelNameForTask('generation') === 'gemini-3.6-flash', 'generation deve risolvere il modello qualita');
 }
 
 console.log('--- Test generation strategies: rispetta configurazione e backup key ---');
@@ -902,17 +961,17 @@ console.log('--- Test generation strategies: salta primary esaurita ma mantiene 
   service.isPrimaryExhausted = true;
   service.config = {
     MODEL_STRATEGY: {
-      generation: ['flash-3.5', 'flash-lite', 'flash-3.5-lite-backup']
+      generation: ['flash-3.6', 'flash-lite', 'flash-lite-backup']
     },
     GEMINI_MODELS: {}
   };
 
   const plan = service.buildGenerationStrategies();
 
-  assert(plan.fallbackModelName === 'gemini-3.5-flash', 'fallbackModelName deve restare il primo modello valido anche se la primary e esaurita');
+  assert(plan.fallbackModelName === 'gemini-3.6-flash', 'fallbackModelName deve restare il primo modello valido anche se la primary e esaurita');
   assert(plan.attemptStrategy.length === 1, 'con primary esaurita deve restare solo la strategia backup');
-  assert(plan.attemptStrategy[0].name === 'Generation-3-flash-3.5-lite-backup-BackupKey', 'deve mantenere indice e nome della strategia originale');
-  assert(plan.attemptStrategy[0].model === 'gemini-3.1-flash-lite', 'backup lite deve usare il modello default atteso');
+  assert(plan.attemptStrategy[0].name === 'Generation-3-flash-lite-backup-BackupKey', 'deve mantenere indice e nome della strategia originale');
+  assert(plan.attemptStrategy[0].model === 'gemini-3.5-flash-lite', 'backup lite deve usare il modello default atteso');
   assert(plan.attemptStrategy[0].usesBackupKey === true && plan.attemptStrategy[0].skipRateLimit === true, 'backup deve essere segnata come tale');
 }
 

@@ -91,6 +91,35 @@ const prompt = processor._buildCorrectionPrompt('Original Prompt', 'Failed Respo
 assert(prompt.includes('ERRORE CRITICO: Hai incluso il tuo ragionamento interno'), 'Prompt should contain thinking leak correction');
 assert(prompt.includes('Failed Response'), 'Prompt should include previous response snippet');
 
+const mixedLanguageValidation = {
+    isValid: false,
+    score: 0.2,
+    errors: ['Lingua mista: rilevato almeno un segmento IT in una risposta FR.'],
+    details: {
+        language: { errors: ['Lingua mista: rilevato almeno un segmento IT in una risposta FR.'] }
+    }
+};
+assert(
+    processor._shouldAttemptIntelligentRetry(
+        mixedLanguageValidation,
+        'fr',
+        { ...global.CONFIG.INTELLIGENT_RETRY, onlyForErrors: ['language'] }
+    ) === true,
+    'Strong mixed-language errors should retry even when their score is below the ordinary threshold'
+);
+const mixedLanguagePrompt = processor._buildCorrectionPrompt(
+    'Original Prompt',
+    'Bonsoir. Qualora le fosse possibile passare da Roma.',
+    mixedLanguageValidation,
+    'fr',
+    'full'
+);
+assert(
+    mixedLanguagePrompt.includes('formule di cortesia ed eventuali blocchi standard') &&
+      mixedLanguagePrompt.includes('traduci o elimina ogni frase rimasta in un\'altra lingua'),
+    'Language retry must correct every standard block, not only greeting and signature'
+);
+
 const structuredRetrySource = [
     '### ISTRUZIONI DI SISTEMA ###',
     'Regole stabili da conservare per il retry.',
@@ -271,6 +300,51 @@ assert(
     sensitivePrompt.includes('postura sensibile') &&
       sensitivePrompt.includes('senza nominare memoria, lutto o vissuti non ripresi'),
     'Sensitive retry prompt should include posture correction guidance'
+);
+
+const kbRelevanceValidation = {
+    isValid: false,
+    score: 0.35,
+    errors: ['Semantica: Pertinenza KB: alternativa accessoria non richiesta'],
+    details: {
+        semantic: {
+            hallucinations: {
+                isValid: false,
+                confidence: 0.35,
+                reason: 'Pertinenza KB insufficiente',
+                details: {
+                    irrelevantDetails: [
+                        { text: 'anticipare alcuni incontri', reason: 'non risponde al vincolo espresso' }
+                    ]
+                }
+            }
+        }
+    }
+};
+const kbRelevanceFlags = processor._classifyValidationForRetry(kbRelevanceValidation, 'it');
+assert(kbRelevanceFlags.kb_relevance === true, 'Should classify contextual KB relevance errors separately');
+assert(kbRelevanceFlags.hallucination === false, 'A true but irrelevant KB detail should not be mislabeled as hallucination');
+assert(
+    processor._shouldAttemptIntelligentRetry(
+        kbRelevanceValidation,
+        'it',
+        { ...global.CONFIG.INTELLIGENT_RETRY, onlyForErrors: ['kb_relevance'] }
+    ) === true,
+    'Should retry critical KB relevance errors even with a low score'
+);
+const kbRelevancePrompt = processor._buildCorrectionPrompt(
+    'Original Prompt',
+    'È possibile concordare un programma personalizzato o anticipare alcuni incontri.',
+    kbRelevanceValidation,
+    'it',
+    'full'
+);
+assert(
+    kbRelevancePrompt.includes('dettagli veri ma non pertinenti') &&
+      kbRelevancePrompt.includes('unità informative indipendenti') &&
+      kbRelevancePrompt.includes('alternative non richieste') &&
+      kbRelevancePrompt.includes('anticipare alcuni incontri'),
+    'KB relevance retry should remove irrelevant branches while preserving grounded facts'
 );
 
 console.log('✅ All intelligent retry logic tests passed!');

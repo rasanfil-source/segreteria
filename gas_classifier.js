@@ -145,6 +145,18 @@ var Classifier = class Classifier {
     const fullText = `${safeSubject} ${mainContent}`;
     const contextualSubIntents = this._detectSubIntents(fullText);
 
+    // PRIORITÀ LEGALE/PRIVACY: richieste formali (es. sbattezzo/apostasia)
+    if (this._isSbattezzoFormalRequest_(fullText)) {
+      console.log('        Richiesta formale rilevata (sbattezzo/apostasia)');
+      return {
+        shouldReply: true,
+        reason: 'formal_request_detected',
+        category: 'formal',
+        subIntents: contextualSubIntents,
+        confidence: 1.0
+      };
+    }
+
     if (this._isDocumentSubmission(mainContent)) {
       return {
         shouldReply: true,
@@ -206,18 +218,6 @@ var Classifier = class Classifier {
         category: null,
         subIntents: {},
         confidence: 0.98
-      };
-    }
-
-    // PRIORITÀ LEGALE/PRIVACY: richieste formali (es. sbattezzo/apostasia)
-    if (this._isSbattezzoFormalRequest_(fullText)) {
-      console.log('      ⚠️ Richiesta formale rilevata (sbattezzo/apostasia)');
-      return {
-        shouldReply: true,
-        reason: 'formal_request_detected',
-        category: 'formal',
-        subIntents: contextualSubIntents,
-        confidence: 1.0
       };
     }
 

@@ -177,6 +177,7 @@ const gasGeminiServicePath = path.join(__dirname, '..', 'gas_gemini_service.js')
 const geminiServiceContext = { console };
 vm.createContext(geminiServiceContext);
 vm.runInContext(fs.readFileSync(gasGeminiServicePath, 'utf8'), geminiServiceContext, { filename: gasGeminiServicePath });
+global.EmailQuickCheckPolicy = geminiServiceContext.EmailQuickCheckPolicy;
 global.GeminiService.prototype._getDefaultGenerationModelNames_ =
   geminiServiceContext.GeminiService.prototype._getDefaultGenerationModelNames_;
 global.GeminiService.prototype.buildGenerationStrategies =
@@ -306,7 +307,8 @@ console.log('--- Test validationContext: contratto stabile per validator ---');
     responseRegister: '',
     promptProfile: '',
     category: ' formal ',
-    requestType: { type: 'pastoral' }
+    requestType: { type: 'pastoral' },
+    requestPurpose: { type: 'operational_request', confidence: 0.94, source: 'local_explicit_action' }
   });
 
   concerns.longitudinal_sensitivity = false;
@@ -320,6 +322,26 @@ console.log('--- Test validationContext: contratto stabile per validator ---');
   assert(context.promptProfile === 'standard', 'profilo vuoto deve usare il fallback stabile');
   assert(context.category === 'formal', 'categoria deve essere normalizzata nel contratto');
   assert(context.requestType === 'pastoral', 'requestType oggetto deve essere normalizzato a type');
+  assert(context.requestPurpose.type === 'operational_request', 'lo scopo operativo deve essere propagato al validator');
+  assert(context.requestPurpose.confidence === 0.94, 'la confidenza dello scopo deve essere preservata');
+}
+
+console.log('--- Test request purpose: EmailProcessor usa il segnale operativo esplicito ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  const purpose = processor._resolveRequestPurpose_(
+    { request_purpose: 'information_request', request_purpose_confidence: 0.9 },
+    'Certificato di battesimo',
+    'Richiedo gentilmente il certificato in originale per uso matrimonio. Verrò a ritirarlo di persona lunedì.'
+  );
+  assert(purpose.type === 'operational_request', 'la richiesta di preparazione/ritiro non deve essere trattata come domanda procedurale');
+  const operationalDirective = processor._buildCertificateSystemDirective_(true, purpose);
+  const informationalDirective = processor._buildCertificateSystemDirective_(true, { type: 'information_request' });
+  assert(operationalDirective.includes('RICHIESTA OPERATIVA DI CERTIFICATO'), 'la richiesta operativa deve usare la direttiva di presa in carico');
+  assert(operationalDirective.includes('Non riaprire con spiegazioni generiche'), 'la direttiva operativa deve vietare la riapertura della procedura già compresa');
+  assert(!operationalDirective.includes('Specifica che il certificato va richiesto'), 'la regola generale non deve essere imposta alla richiesta operativa');
+  assert(informationalDirective.includes('RICHIESTA INFORMATIVA SUI CERTIFICATI'), 'la domanda informativa deve conservare la procedura pertinente');
+  assert(informationalDirective.includes('parrocchia in cui e stato celebrato'), 'la regola della parrocchia di celebrazione resta disponibile quando risponde davvero alla domanda');
 }
 
 console.log('--- Test _extractTimes: boundary Unicode evita match dentro parole ---');
@@ -1566,7 +1588,7 @@ console.log('--- Test processThread: fallback default diversifica tier modello -
   
   const strategyCalls = calls.filter(c => typeof c === 'object');
   assert(
-    strategyCalls.map(call => call.modelName).join('|') === 'gemini-3.5-flash|gemini-3.5-flash|gemini-3.1-flash-lite|gemini-3.1-flash-lite',
+    strategyCalls.map(call => call.modelName).join('|') === 'gemini-3.6-flash|gemini-3.6-flash|gemini-3.5-flash-lite|gemini-3.5-flash-lite',
     `deve diversificare il tier fisico nel fallback default (fatto: ${strategyCalls.map(call => call.modelName).join('|')})`
   );
   assert(
@@ -1658,7 +1680,7 @@ console.log('--- Test processThread: primaria esaurita salta fallback su primary
   assert(res.status === 'error', 'con fallback esaurito deve restituire status error');
   const strategyCalls = calls.filter(c => typeof c === 'object');
   assert(
-    strategyCalls.map(call => call.modelName).join('|') === 'gemini-3.5-flash|gemini-3.5-flash|gemini-3.1-flash-lite',
+    strategyCalls.map(call => call.modelName).join('|') === 'gemini-3.6-flash|gemini-3.6-flash|gemini-3.5-flash-lite',
     `deve saltare il fallback lite su primary key esaurita (fatto: ${strategyCalls.map(call => call.modelName).join('|')})`
   );
   assert(strategyCalls[2].skipRateLimit === true, 'il fallback lite residuo deve usare la chiave di riserva');
@@ -4414,13 +4436,17 @@ console.log('--- Test context routing: document_request certificato resta tecnic
     'document_request non deve mescolare la regola tassativa certificati dentro aiCoreLite'
   );
   assert(
-    Array.isArray(promptOptions.systemDirectives) &&
-      promptOptions.systemDirectives.some(directive => String(directive).includes('REGOLA TASSATIVA SUI CERTIFICATI')),
-    'document_request deve iniettare la regola tassativa certificati tra le systemDirectives'
+    promptOptions.requestPurpose && promptOptions.requestPurpose.type === 'mixed',
+    'richiesta di rilascio con domanda residua deve essere classificata come mixed'
   );
   assert(
-    promptOptions.systemDirectives.some(directive => String(directive).includes('se il sacramento e stato celebrato presso la nostra parrocchia')),
-    'la regola certificati deve vincolare la richiesta dati alla celebrazione presso la parrocchia'
+    Array.isArray(promptOptions.systemDirectives) &&
+      promptOptions.systemDirectives.some(directive => String(directive).includes('RICHIESTA MISTA DI CERTIFICATO')),
+    'la direttiva certificati deve gestire prima l azione e poi la sola domanda aperta'
+  );
+  assert(
+    !promptOptions.systemDirectives.some(directive => String(directive).includes('Specifica sempre')),
+    'la regola procedurale non deve piu essere iniettata indiscriminatamente'
   );
 
   global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
@@ -5227,7 +5253,7 @@ console.log('--- Test attachment semantic consistency: JSON Gemini e fail-open -
   assert(result.source === 'semantic_zero_shot', 'la sorgente deve tracciare il controllo semantico');
   assert(capturedPrompt.includes('Invio locandina concerto') && capturedPrompt.includes('Programma del pellegrinaggio'), 'il prompt deve includere email e OCR');
   assert(capturedPrompt.includes('locandina del concerto'), 'il prompt semantico deve includere la descrizione attesa dal quick check');
-  assert(capturedOptions && capturedOptions.modelName === 'gemini-3.5-flash' && capturedOptions.skipRateLimit === true, 'il controllo semantico deve usare il modello leggero senza rate limit');
+  assert(capturedOptions && capturedOptions.modelName === 'gemini-3.5-flash-lite' && capturedOptions.skipRateLimit === true, 'il controllo semantico deve usare il modello leggero aggiornato senza rate limit');
 
   const failOpenProcessor = new EmailProcessor({
     gmailService: {},

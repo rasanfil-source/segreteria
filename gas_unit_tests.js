@@ -1264,6 +1264,16 @@ function runAllTests() {
             const out = classifier.classifyEmail('Richiesta preghiera', 'Mia madre ha una malattia grave, possiamo parlare con il parroco?');
             return out.shouldReply === true && out.reason !== 'out_of_office_auto_reply';
         });
+        test('Richiesta formale prevale su consegna documentale', results, () => {
+            const classifier = new Classifier();
+            const out = classifier.classifyEmail(
+                'Richiesta di sbattezzo',
+                'In allegato il modulo per la cancellazione dai registri del battesimo.'
+            );
+            return out.shouldReply === true &&
+                out.reason === 'formal_request_detected' &&
+                out.category === 'formal';
+        });
     });
 
     // 5. GeminiService
@@ -1332,7 +1342,7 @@ function runAllTests() {
                 }
             });
 
-            const out = serviceWithBackup._quickCheckWithModel('Testo richiesta', 'Oggetto', 'gemini-3.1-flash-lite');
+            const out = serviceWithBackup._quickCheckWithModel('Testo richiesta', 'Oggetto', 'gemini-3.5-flash-lite');
             return calls.length === 2
                 && calls[0].includes('primary-key-abcdefghijklmnopqrstuvwxyz')
                 && calls[1].includes('backup-key-abcdefghijklmnopqrstuvwxyz')
@@ -1371,7 +1381,7 @@ function runAllTests() {
             const out = service._quickCheckWithModel(
                 'Buongiorno, allego il certificato richiesto.',
                 'Documenti',
-                'gemini-3.1-flash-lite',
+                'gemini-3.5-flash-lite',
                 { lang: 'it', confidence: 5, safetyGrade: 5 },
                 { intent: 'document_submission' }
             );
@@ -1409,7 +1419,7 @@ function runAllTests() {
             const outWithoutSponsorCheck = serviceWithoutSponsorCheck._quickCheckWithModel(
                 'Buongiorno, a che ora apre la segreteria?',
                 'Orari',
-                'gemini-3.1-flash-lite',
+                'gemini-3.5-flash-lite',
                 { lang: 'it', confidence: 5, safetyGrade: 5 },
                 { sponsorGuidanceCheck: false }
             );
@@ -1444,7 +1454,7 @@ function runAllTests() {
             const outWithSponsorCheck = serviceWithSponsorCheck._quickCheckWithModel(
                 'Vorrei fare da madrina alla Cresima di mia nipote: potete aiutarmi?',
                 'Madrina Cresima',
-                'gemini-3.1-flash-lite',
+                'gemini-3.5-flash-lite',
                 { lang: 'it', confidence: 5, safetyGrade: 5 },
                 { sponsorGuidanceCheck: true }
             );

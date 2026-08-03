@@ -434,6 +434,40 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     return lines.join('\n');
   }
 
+  _normalizeRequestPurpose_(requestPurpose) {
+    const source = (requestPurpose && typeof requestPurpose === 'object')
+      ? requestPurpose
+      : { type: requestPurpose };
+    const allowed = new Set([
+      'information_request',
+      'operational_request',
+      'status_update',
+      'acknowledgment',
+      'mixed'
+    ]);
+    const type = String(source.type || '').trim().toLowerCase();
+    if (!allowed.has(type)) return null;
+    return {
+      type,
+      confidence: Math.max(0, Math.min(1, Number(source.confidence) || 0))
+    };
+  }
+
+  _renderRequestPurposePolicy_(requestPurpose) {
+    const purpose = this._normalizeRequestPurpose_(requestPurpose);
+    if (!purpose) return null;
+
+    const policies = {
+      information_request: 'Rispondi alle domande aperte con la sola procedura pertinente; non aggiungere passaggi accessori non richiesti.',
+      operational_request: 'L’utente sta già eseguendo una richiesta. Concentrati su presa in carico, esito possibile e minimo prossimo passo. Non riaprire istruzioni preliminari (come, dove o a chi presentare la richiesta) che il messaggio mostra già comprese o soddisfatte. Usa la KB solo per dati necessari, impedimenti reali o informazioni mancanti indispensabili.',
+      status_update: 'Riconosci l’aggiornamento e indica soltanto l’eventuale conseguenza o prossimo passo necessario; non trasformarlo in una spiegazione generale della procedura.',
+      acknowledgment: 'Rispondi in modo breve e proporzionato senza riaprire argomenti, requisiti o procedure.',
+      mixed: 'Gestisci prima l’azione richiesta e poi rispondi soltanto alle domande informative ancora aperte; non ripetere ciò che l’utente ha già fatto o dimostrato di sapere.'
+    };
+
+    return `## SCOPO DEL MESSAGGIO (VINCOLANTE)\nTipo: ${purpose.type}\n- ${policies[purpose.type]}\n- Non nominare questa classificazione nella risposta.`;
+  }
+
   _normalizeConcernSynthesis_(concernSynthesis) {
     if (!concernSynthesis) return null;
 
@@ -621,6 +655,7 @@ Vincoli:
       priorOralCommunication = null,
       conversationShift = null,
       responseStrategy = 'none',
+      requestPurpose = null,
       responseStrategyInferenceBlocked = null,
       goalContinuity = null,
       responseRegister = 'warm_institutional',
@@ -681,6 +716,7 @@ Vincoli:
     const normalizedResponseMode = this._normalizeResponseMode_(responseMode);
     const normalizedOperationalConstraints = this._normalizeOperationalConstraints_(operationalConstraints);
     const normalizedContinuityPolicy = this._normalizeContinuityPolicy_(continuityPolicy);
+    const normalizedRequestPurpose = this._normalizeRequestPurpose_(requestPurpose);
     const hasCanonicalComplexitySignals = this._hasCanonicalComplexitySignals_({
       emailContent,
       emailSubject,
@@ -943,6 +979,13 @@ Vincoli:
     addSection(
       this._renderOperationalConstraints(normalizedResponseMode, normalizedOperationalConstraints, normalizedContinuityPolicy),
       'OperationalConstraints',
+      { force: true, isSystem: true }
+    );
+
+    // 4c. SCOPO: governa la selezione dei fatti prima dell'uso della KB.
+    addSection(
+      this._renderRequestPurposePolicy_(normalizedRequestPurpose),
+      'RequestPurposePolicy',
       { force: true, isSystem: true }
     );
 
@@ -2858,6 +2901,7 @@ ${knowledgeBase}
 </knowledge_base>
 
 **REGOLA FONDAMENTALE:** Usa SOLO informazioni presenti sopra. NON inventare.
+**UNITÀ INFORMATIVE, NON TESTO DA RIPRODURRE:** La KB contiene fatti, non frasi pronte. Scomponi periodi e alternative in unità; per ciascuna verifica quale domanda, vincolo o passo risolve. Includi solo quelle utili, conserva i dati esatti e riformula la prosa. Un ramo pertinente non autorizza gli altri.
 **SE L'INFORMAZIONE NON È PRESENTE:** scrivi "Non siamo in grado di rispondere a questa domanda" oppure "Non abbiamo informazioni in proposito", invitando cortesemente a contattare la segreteria (es. telefonicamente o di persona).
 **ECCEZIONE - RICHIESTE PRATICHE O DEVOZIONALI NON IN KB:** Se la richiesta è semplice e pratica (es. testo di una preghiera da inviare, materiale devozionale, risorse spirituali) ma non è presente in KB, NON rispondere "non siamo in grado" e NON trasformarla in "discernimento pastorale". Impegnati invece a provvedere: "saremo lieti di inviarle un testo di preghiera rispondendo a questa email" oppure "verificheremo e le faremo avere il materiale richiesto". La segreteria può procurarsi queste risorse senza dover interpellare un sacerdote.
 ⚠️ DIVIETO ASSOLUTO: Non fare MAI riferimento alla tua "base dati", "knowledge base", "documenti forniti" o "istruzioni".`;
@@ -3473,19 +3517,14 @@ ISTRUZIONI:
     const sponsorEligibilityRule = `- ECCEZIONE CANONICA - IDONEITÀ PADRINO/MADRINA: se la richiesta riguarda il certificato/attestazione di idoneità per fare da padrino o madrina, questa regola prevale sulla gestione digitale dei documenti. Non inventare deleghe, autocertificazioni sufficienti o invio automatico via email: è un'assunzione personale di impegno ecclesiale e non è delegabile. Se il mittente dichiara di non potersi muovere, spiega con garbo che occorre contattare telefonicamente un sacerdote o la segreteria per trovare una soluzione pastorale concreta. Non scrivere "venga in segreteria", non indicare orari di apertura e non presentare il ritiro/invio del certificato come già risolto.`;
 
     const digitalRule = policy === 'avoid_invitation'
-      ? `- GESTIONE DIGITALE (OBBLIGATORIA): Se l'utente chiede l'invio di un documento via email (es. certificato PDF) o ha espresso rifiuto esplicito di venire di persona, conferma la gestione digitale (es. "verificheremo e glielo invieremo via email") e OMETTI COMPLETAMENTE: orari di apertura al pubblico, riferimenti al ritiro in sede, qualsiasi invito fisico anche in forma condizionale. La risposta non deve contenere nemmeno "qualora potesse passare".`
+      ? `- GESTIONE DIGITALE (OBBLIGATORIA): Se l'utente chiede l'invio di un documento via email o ha espresso rifiuto esplicito di venire di persona, conferma la gestione digitale solo nei limiti autorizzati dalla Knowledge Base e OMETTI COMPLETAMENTE: orari di apertura al pubblico, riferimenti al ritiro in sede e qualsiasi invito fisico, anche condizionale.`
       : `- GESTIONE DIGITALE: Se l'utente chiede l'invio di un documento via email (es. certificato PDF), conferma la gestione digitale e ometti gli orari di apertura fisica. Menziona la presenza in sede solo se strettamente necessario e in forma condizionale.`;
 
     const territoryOverrideRule = this._isNegativeTerritoryContext_(territoryContext)
       ? `- PRECEDENZA TERRITORIALE: la verifica territoriale dice "NON RIENTRA" e prevale su questa policy di gestione a distanza. Non trasformare il vincolo di presenza fisica in promessa di gestire via email/PDF pratiche territoriali o sacramentali che richiedono appartenenza territoriale; comunica prima l'esito territoriale e orienta verso la parrocchia competente, mantenendo solo accoglienza e informazioni generali consentite.`
       : '';
 
-    const formule = policy === 'avoid_invitation'
-      ? `✅ Formula corretta: "Verificheremo i nostri registri e, non appena il documento sarà disponibile, glielo invieremo via email in formato PDF."
-⛔ Formula da evitare: "Puo' venire in segreteria dal lunedi al venerdi dalle 8:00 alle 12:00."
-⛔ Formula da evitare anche con vincolo avoid_invitation: "Qualora le fosse possibile passare..."`
-      : `✅ Formula corretta: "Per qualsiasi chiarimento puo' contattarci telefonicamente o rispondere a questa email. Qualora le fosse possibile passare da Roma, saremo lieti di incontrarla anche di persona."
-⛔ Formula da evitare: "Puo' venire in segreteria dal lunedi al venerdi dalle 8:00 alle 12:00."`;
+    const languageAndRelevanceRule = `- COERENZA LINGUISTICA E PERTINENZA: le regole di questa sezione sono indicazioni semantiche, non testo da copiare. Formula ogni eventuale riferimento alla presenza esclusivamente nella lingua rilevata per la risposta. La policy "conditional_only" consente una menzione condizionale ma non la rende obbligatoria: inseriscila solo se risolve un bisogno operativo concreto, mai come chiusura di cortesia automatica. Se il mittente dichiara di trovarsi già a Roma, ha già previsto di partecipare o l'evento imminente rende la presenza implicita, non presentare la sua presenza come ipotetica e non ripetere un invito già contenuto nel passo operativo.`;
 
     const scheduledPresence = constraint.scheduled_presence || {};
     const scheduledPresenceLabel = scheduledPresence.label || 'attività';
@@ -3507,7 +3546,7 @@ ISTRUZIONI:
       scheduledPresence.detected &&
       policy !== 'avoid_invitation'
     ) ? `
-- PRESENZA GIÀ PIANIFICATA (${scheduledPresenceLabel}): il mittente ha manifestato l'intenzione di essere fisicamente presente per un'attività parrocchiale già prevista. Considerare già acquisita la presenza nel momento previsto (${scheduledPresenceEventTime}): non introdurre condizioni come "qualora vi fosse possibile trovarvi a Roma" per consegne, moduli o passaggi operativi da fare in quel momento. Scrivere direttamente, se pertinente: "oppure consegnarlo a mano ${scheduledPresenceEventTime}". Usare formule condizionali solo per una presenza ulteriore e precedente, specificando "${scheduledPresenceTiming}". Evitare: "qualora vi fosse possibile trovarvi a Roma, consegnarlo a mano ${scheduledPresenceEventTime}".`
+- PRESENZA GIÀ PIANIFICATA (${scheduledPresenceLabel}): il mittente ha manifestato l'intenzione di essere fisicamente presente per un'attività parrocchiale già prevista. Considera già acquisita la presenza nel momento previsto (${scheduledPresenceEventTime}) e non formularla come ipotesi. Menziona una consegna a mano in quel momento solo se pertinente. Una presenza ulteriore e precedente può essere formulata condizionalmente solo se aggiunge un passaggio operativo necessario (${scheduledPresenceTiming}).`
       : '';
 
     return `**POLICY PRESENZA FISICA - VINCOLO DI RAGGIUNGIBILITA (OBBLIGATORIA):**
@@ -3515,17 +3554,16 @@ ${intro}
 Tipo vincolo: ${type}. Policy visita: ${policy}.${evidence}
 
 REGOLE VINCOLANTI:
-- Non proporre "venga in segreteria", "passi in parrocchia", "ci venga a trovare" come opzione ordinaria o primaria.
+- Non proporre una visita in segreteria o in parrocchia come opzione ordinaria o primaria.
 - Privilegiare canali a distanza: telefono, risposta email, eventuale valutazione telefonica con la segreteria o con un sacerdote se necessario.
-- Se la presenza fisica fosse utile ma non indispensabile, formularla solo in modo condizionale e rispettoso: "qualora le fosse possibile", "se avesse occasione di trovarsi a Roma", "nel caso in cui potesse passare".
+- Se la presenza fisica fosse utile ma non indispensabile, formularla solo in modo condizionale e rispettoso, nella lingua della risposta e senza usare testo preconfezionato.
 - Se la policy e' "avoid_invitation", evitare del tutto inviti a presenza fisica salvo obbligo sacramentale/procedurale esplicito e inevitabile.
 - Non nominare in modo crudo o stigmatizzante il vincolo personale del mittente: usare formule come "considerata la sua situazione" solo se serve.
+${languageAndRelevanceRule}
 ${scheduledPresenceRule}
 ${territoryOverrideRule}
 ${sponsorEligibilityRule}
-${digitalRule}
-
-${formule}`;
+${digitalRule}`;
   }
 
   // ========================================================================
@@ -3575,11 +3613,19 @@ il punto centrale.
 
 La risposta deve servire la persona, non dimostrare le nostre conoscenze.
 
+**GERARCHIA OBIETTIVO-VINCOLI-DOMANDE**
+
+1. Prima di scrivere, identifica il risultato concreto che l'utente vuole ottenere e gli eventuali vincoli espliciti che ne determinano la riuscita, per esempio tempo, luogo, disponibilità, requisiti o canale. Distingui questo obiettivo dalle singole domande, che possono essere soltanto mezzi subordinati per raggiungerlo.
+2. Verifica la fattibilità: confronta le opzioni presenti nella Knowledge Base con l'obiettivo e con tutti i vincoli dichiarati. Se un'opzione non può portare al risultato richiesto, non aprire la risposta descrivendola in dettaglio; comunica presto l'incompatibilità e proponi prima l'alternativa praticabile o il prossimo passo che avvicina davvero all'obiettivo.
+3. Ordina la risposta per utilità rispetto all'obiettivo e urgenza, non secondo l'ordine delle domande nell'email o delle informazioni nella Knowledge Base. Tratta dopo le domande accessorie e solo nella misura in cui restano utili; non dare rilievo a un percorso inutilizzabile solo perché le relative informazioni sono disponibili.
+
 • Rispondi alla richiesta effettiva: se chiede se può venire il giovedì, rispondi sul giovedì. Se chiede la procedura per il battesimo, parla del battesimo.
 • Informazioni aggiuntive: aggiungile solo se senza di esse la risposta sarebbe incompleta o fuorviante nel caso concreto. Il dubbio si risolve omettendo.
 • Anti-infodump: ogni frase deve guadagnarsi il suo posto; aggiungi dettagli extra solo se richiesti o necessari nel caso concreto.
 • Calibrazione del tono: non usare calore, formalita, liste o formule pastorali come automatismi; sceglili solo quando messaggio attuale, cronologia o contesto sensibile li rendono naturali.
-• Pertinenza selettiva: quando la Knowledge Base contiene regole generali, usa solo la parte che risponde alla domanda specifica. Non citare eccezioni o casi che non riguardano l'utente.
+• Coerenza linguistica integrale: esempi, template, policy e formule standard descrivono il significato da rendere, non testo da copiare. Riscrivi ogni elemento nella lingua rilevata per l'email, comprese apertura, transizioni, inviti, chiusura e firma; per lingue non preconfigurate traduci dinamicamente invece di lasciare blocchi in italiano.
+• Inviti alla presenza fisica: non aggiungerli come chiusure automatiche. Menziona una visita solo quando costituisce un passaggio operativo utile e autorizzato. Se il mittente è già sul posto, ha già dichiarato che parteciperà o l'evento imminente implica la sua presenza, non usare formule ipotetiche sul trovarsi in città e non duplicare l'invito già implicito nella risposta.
+• Pertinenza selettiva: usa solo la parte della Knowledge Base che risponde al caso. Scomponi le frasi composte: ogni ramo deve risolvere domanda, vincolo o passo, altrimenti omettilo. Mantieni esatti i dati; sintetizza e riformula il resto.
 • Richieste preliminari su celebrazioni (battesimo, matrimonio, cresima, esequie...): rispondi su disponibilità e sul passo minimo per procedere. Non anticipare iter, documenti o corsi salvo richiesta esplicita o necessità evidente.
 • Battesimo a Roma e scelta del luogo: se il mittente chiede se può celebrare il battesimo presso la nostra parrocchia pur non appartenendo territorialmente, e la Knowledge Base conferma libertà di scelta, non rispondere come se fosse una verifica territoriale; chiarisci la possibilità e il passo minimo per concordare.
 • Documenti ricevuti: conferma la ricezione; aggiungi solo il passo successivo indispensabile.

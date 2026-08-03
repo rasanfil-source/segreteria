@@ -96,7 +96,7 @@ function _getScriptPropertyStringArray(key, fallback) {
 var CONFIG = {
   // === API ===
   get GEMINI_API_KEY() { return _getScriptProperty('GEMINI_API_KEY'); },
-  MODEL_NAME: 'gemini-3.5-flash',
+  MODEL_NAME: 'gemini-3.6-flash',
 
   // === Generazione ===
   MAX_OUTPUT_TOKENS: 6000,
@@ -134,6 +134,7 @@ var CONFIG = {
     onlyForErrors: [         // Tipi di errore che giustificano una chiamata LLM
       'thinking_leak',
       'hallucination',
+      'kb_relevance',
       'language',
       'placeholder',
       'length',
@@ -257,7 +258,7 @@ var CONFIG = {
 
   // === Limiti Token (Prompt Engine) ===
   CONTEXT_WINDOW_TOKENS: 1048576,      // Hard cap operativo condiviso dai modelli Flash configurati
-  MAX_SAFE_TOKENS: 120000,             // Cap operativo locale: resta sotto 1M per evitare payload GAS ingestibili
+  MAX_SAFE_TOKENS: 100000,             // Ridotto a 100k per via del nuovo limite di 250k TPM del Free Tier
   MAX_SAFE_PROMPT_CHARS: 100000,       // Limite caratteri prompt prima del troncamento di sicurezza
   KB_TOKEN_BUDGET_RATIO: 0.5,          // Budget percentuale KB rispetto a un token massimo
   KB_HALLUCINATION_RISK_THRESHOLD: 8000, // Soglia chars KB oltre cui scatta hallucination_risk
@@ -294,23 +295,23 @@ var CONFIG = {
   METRICS_SHEET_NAME: 'DailyMetrics',
 
   // === Modelli Gemini (configurazione centralizzata) ===
-  // Aggiornato: Maggio 2026
+  // Aggiornato: Luglio 2026
   // Policy operativa:
-  // - Risposta finale: Gemini 3.5 Flash (qualità)
-  // - Task rapidi/ausiliari: Gemini 3.1 Flash-Lite (categoria, lingua AI, semantica, scarti)
+  // - Risposta finale: Gemini 3.6 Flash (qualità)
+  // - Task rapidi/ausiliari: Gemini 3.5 Flash-Lite (categoria, lingua AI, semantica, scarti)
   // Fonte quote operative: verificare i limiti effettivi nel progetto AI Studio.
   // Le quote effettive possono variare per progetto: se AI Studio mostra limiti inferiori,
   // ridurre questi valori senza aumentare MAX_EMAILS_PER_RUN.
   // - Contesto massimo per prompt: 1.048.576 token
-  // - RPM: 2.000
-  // - TPM: 2.000.000
-  // - RPD: 3.500
+  // - RPM: 10-15
+  // - TPM: 250.000
+  // - RPD: 1.000-1.500
   // - Grounding Google Search: tenere disabilitato in Free Tier salvo disponibilità esplicita in AI Studio
   // - Vietato usare /countTokens: il conteggio resta locale e stimato.
   GEMINI_FREE_TIER_NOTES: {
     contextWindowTokens: 1048576,
-    rpm: 15,
-    tpm: 1000000,
+    rpm: 10,
+    tpm: 250000,
     rpd: 1500,
     ipm: null,
     groundingSharedRpd: 1500,
@@ -329,20 +330,20 @@ var CONFIG = {
 
   GEMINI_MODELS: {
     // Modello principale per la risposta finale: qualita.
-    'flash-3.5': {
-      name: 'gemini-3.5-flash',
-      rpm: 15,
-      tpm: 1000000,
+    'flash-3.6': {
+      name: 'gemini-3.6-flash',
+      rpm: 10,
+      tpm: 250000,
       rpd: 1500,
       contextWindowTokens: 1048576,
       ipm: null,
       useCases: ['generation', 'all']
     },
     // Stesso tier qualita su chiave di riserva.
-    'flash-3.5-backup': {
-      name: 'gemini-3.5-flash',
-      rpm: 15,
-      tpm: 1000000,
+    'flash-3.6-backup': {
+      name: 'gemini-3.6-flash',
+      rpm: 10,
+      tpm: 250000,
       rpd: 1500,
       contextWindowTokens: 1048576,
       ipm: null,
@@ -350,31 +351,20 @@ var CONFIG = {
     },
     // Modello rapido per categoria, lingua AI, semantica e scarti.
     'flash-lite': {
-      name: 'gemini-3.1-flash-lite',
+      name: 'gemini-3.5-flash-lite',
       rpm: 15,
-      tpm: 1000000,
-      rpd: 1500,
-      contextWindowTokens: 1048576,
-      ipm: null,
-      useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
-    },
-    // Alias esplicito compatibile per la serie 3.5 Lite; non usato nelle strategie
-    // primarie per evitare fallback ridondanti verso lo stesso modello fisico.
-    'flash-3.5-lite': {
-      name: 'gemini-3.1-flash-lite',
-      rpm: 15,
-      tpm: 1000000,
-      rpd: 1500,
+      tpm: 250000,
+      rpd: 1000,
       contextWindowTokens: 1048576,
       ipm: null,
       useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
     },
     // Backup logico Lite per chiave di riserva o fallback controllati.
-    'flash-3.5-lite-backup': {
-      name: 'gemini-3.1-flash-lite',
+    'flash-lite-backup': {
+      name: 'gemini-3.5-flash-lite',
       rpm: 15,
-      tpm: 1000000,
-      rpd: 1500,
+      tpm: 250000,
+      rpd: 1000,
       contextWindowTokens: 1048576,
       ipm: null,
       useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback', 'backup']
@@ -387,9 +377,9 @@ var CONFIG = {
     'classification': ['flash-lite'],
     'language': ['flash-lite'],
     'newsletter_summary': ['flash-lite'],
-    'generation': ['flash-3.5', 'flash-3.5-backup', 'flash-lite', 'flash-3.5-lite-backup'],
-    'semantic': ['flash-lite', 'flash-3.5-lite-backup'],
-    'fallback': ['flash-lite', 'flash-3.5-lite-backup']
+    'generation': ['flash-3.6', 'flash-3.6-backup', 'flash-lite', 'flash-lite-backup'],
+    'semantic': ['flash-lite', 'flash-lite-backup'],
+    'fallback': ['flash-lite', 'flash-lite-backup']
   },
 
   // === Liste di esclusione ===
@@ -551,10 +541,10 @@ function validateConfig() {
       errors.push("Errore Config: 'GEMINI_MODELS' è vuoto");
     }
     // Verifica esistenza modelli chiave
-    if (!CONFIG.GEMINI_MODELS['flash-3.5']) errors.push("Errore Config: Modello 'flash-3.5' mancante in GEMINI_MODELS");
-    if (!CONFIG.GEMINI_MODELS['flash-3.5-backup']) errors.push("Errore Config: Modello 'flash-3.5-backup' mancante in GEMINI_MODELS");
+    if (!CONFIG.GEMINI_MODELS['flash-3.6']) errors.push("Errore Config: Modello 'flash-3.6' mancante in GEMINI_MODELS");
+    if (!CONFIG.GEMINI_MODELS['flash-3.6-backup']) errors.push("Errore Config: Modello 'flash-3.6-backup' mancante in GEMINI_MODELS");
     if (!CONFIG.GEMINI_MODELS['flash-lite']) errors.push("Errore Config: Modello 'flash-lite' mancante in GEMINI_MODELS");
-    if (!CONFIG.GEMINI_MODELS['flash-3.5-lite-backup']) errors.push("Errore Config: Modello 'flash-3.5-lite-backup' mancante in GEMINI_MODELS");
+    if (!CONFIG.GEMINI_MODELS['flash-lite-backup']) errors.push("Errore Config: Modello 'flash-lite-backup' mancante in GEMINI_MODELS");
   }
 
   if (!CONFIG.MODEL_STRATEGY || typeof CONFIG.MODEL_STRATEGY !== 'object') {
@@ -562,8 +552,8 @@ function validateConfig() {
   } else {
     const generationStrategy = CONFIG.MODEL_STRATEGY.generation || [];
     const quickStrategy = CONFIG.MODEL_STRATEGY.quick_check || [];
-    if (!Array.isArray(generationStrategy) || generationStrategy[0] !== 'flash-3.5') {
-      errors.push("Errore Config: MODEL_STRATEGY.generation deve partire da 'flash-3.5'");
+    if (!Array.isArray(generationStrategy) || generationStrategy[0] !== 'flash-3.6') {
+      errors.push("Errore Config: MODEL_STRATEGY.generation deve partire da 'flash-3.6'");
     }
     if (!Array.isArray(quickStrategy) || quickStrategy[0] !== 'flash-lite') {
       errors.push("Errore Config: MODEL_STRATEGY.quick_check deve partire da 'flash-lite'");
