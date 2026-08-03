@@ -2315,7 +2315,7 @@ ${addressLines.join('\n\n')}
             }
 
             if (attachmentSkipped.length > 0) {
-              const skippedNames = attachmentSkipped.map((s) => s.name || s.reason).join(', ');
+            const skippedNames = attachmentSkipped.map((s) => s.name || s.reason).join(', ');
               console.log(`   📎 Allegati ignorati/non supportati: ${attachmentSkipped.length} (${skippedNames})`);
             }
           } else {
@@ -2327,6 +2327,15 @@ ${addressLines.join('\n\n')}
 
         }
       }
+
+      const certRequestText = `${messageDetails.subject || ''} ${messageDetails.body || ''}`;
+      const documentRequestWithSupportingData = this._detectDocumentRequestWithSupportingData_(
+        messageDetails.subject,
+        messageDetails.body
+      );
+      const hasCertificateSacramentalReference = /\bcertificat[ioa]\b[\s\S]{0,80}\b(battesim[oa]|cresim[ao]|matrimoni[oa]|morte)\b|\b(battesim[oa]|cresim[ao]|matrimoni[oa]|morte)\b[\s\S]{0,80}\bcertificat[ioa]\b/i.test(certRequestText);
+      const hasCertificateRequestCue = /\b(richiesta|richied(?:o|ere|iamo|erei|erebbe|ete)|vorrei|desidero|serve|servirebbe|bisogno|ottenere|rilasci(?:o|are|ate)|prepar(?:are|ate|arlo|i|o)|stamp(?:are|arlo|ate|i|o)|mandar(?:mi|ci)|inviar(?:mi|ci))\b/i.test(certRequestText);
+      const isCertRequest = documentRequestWithSupportingData.detected || (hasCertificateSacramentalReference && hasCertificateRequestCue);
 
       const documentDeliveryModel = this._buildDocumentDeliveryModel_({
         subject: messageDetails.subject,
@@ -2346,6 +2355,7 @@ ${addressLines.join('\n\n')}
         !forceReceiptOnlyForSubmission &&
         expectsDocument &&
         bodyContainsUsableDocumentContent &&
+        !isCertRequest &&
         !physicalAttachmentsDetected &&
         !(attachmentIntentContext && attachmentIntentContext.hasQuestions === true)
       ) {
@@ -2392,10 +2402,6 @@ ${addressLines.join('\n\n')}
         }
       }
 
-      const certRequestText = `${messageDetails.subject || ''} ${messageDetails.body || ''}`;
-      const hasCertificateSacramentalReference = /\bcertificat[ioa]\b[\s\S]{0,60}\b(battesim[oa]|cresim[ao]|matrimoni[oa]|morte)\b/i.test(certRequestText);
-      const hasCertificateRequestCue = /\b(richiesta|richied(?:o|ere|iamo|erei|erebbe|ete)|vorrei|desidero|serve|servirebbe|bisogno|ottenere|rilasci(?:o|are|ate)|mandar(?:mi|ci)|inviar(?:mi|ci))\b/i.test(certRequestText);
-      const isCertRequest = hasCertificateSacramentalReference && hasCertificateRequestCue;
       if (isCertRequest && categoryHintSource !== 'document_submission') {
         categoryHintSource = 'document_request';
       }
@@ -7014,12 +7020,35 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
       return "RICHIESTA INFORMATIVA SUI CERTIFICATI: spiega solo la procedura richiesta. Specifica che il certificato va richiesto alla parrocchia in cui e stato celebrato il sacramento; chiedi dati personali soltanto se servono al passo successivo e precisando che valgono per sacramenti celebrati presso la nostra parrocchia.";
     }
     if (type === 'operational_request') {
-      return "RICHIESTA OPERATIVA DI CERTIFICATO: l'utente sta gia chiedendo il rilascio o la preparazione del documento. Prendi in carico la richiesta e conferma soltanto i passaggi concretamente supportati dalla KB. Non riaprire con spiegazioni generiche su come o dove richiedere il certificato se il messaggio mostra che la procedura e gia stata compresa; se manca un dato indispensabile, chiedi solo quello; se emerge un impedimento reale, spiegalo in modo mirato.";
+      return "RICHIESTA OPERATIVA DI CERTIFICATO: l'utente sta gia chiedendo il rilascio o la preparazione del documento. Se fornisce dati anagrafici o sacramentali allo scopo di ottenere un certificato, non trattare il messaggio come semplice trasmissione di dati: individua documento richiesto, finalita, formato, modalita di consegna/ritiro ed eventuale data proposta. Conferma la ricezione della richiesta e descrivi il passo successivo concreto. Non garantire che il certificato esista o sia gia pronto prima della verifica dei registri: usa una formulazione condizionata (es. se i dati troveranno corrispondenza nei nostri archivi, prepareremo il certificato e daremo conferma). Se il mittente propone data o modalita di ritiro, non ignorarla e non confermarla automaticamente: comunica che la segreteria dara conferma dopo verifica e preparazione. Evita formule generiche come 'abbiamo ricevuto i dati', 'verificheremo il contenuto' o 'prima di procedere o confermare l operazione' quando puoi nominare chiaramente il certificato richiesto. Non riaprire con spiegazioni generiche su come o dove richiedere il certificato se le mail indicano che la procedura è chiara; se manca un dato indispensabile, chiedi solo quello; se emerge un impedimento reale, spiegalo in modo mirato.";
     }
     if (type === 'mixed') {
       return "RICHIESTA MISTA DI CERTIFICATO: gestisci prima l'azione richiesta, poi rispondi soltanto alle domande procedurali ancora aperte. Non ripetere requisiti o indicazioni che l'utente ha gia soddisfatto nel messaggio.";
     }
     return "CONTESTO CERTIFICATO: determina dal testo se l'utente chiede informazioni o sta gia presentando una richiesta operativa. Non inserire automaticamente la regola generale sulla parrocchia di celebrazione: usala solo se risponde a una domanda aperta o segnala un impedimento concreto.";
+  }
+
+  _detectDocumentRequestWithSupportingData_(subject, body) {
+    const text = `${subject || ''}\n${body || ''}`;
+    const normalized = String(text || '').toLowerCase();
+    if (!normalized.trim()) {
+      return { detected: false, reason: 'empty' };
+    }
+
+    const hasCertificate = /\bcertificat[ioa]\b/.test(normalized);
+    const hasSacramentalType = /\b(battesim[oa]|cresim[ao]|matrimoni[oa]|morte)\b/.test(normalized);
+    const hasPreparationAction = /\b(richied(?:o|ere|iamo|erei|erebbe|ete)|richiesta|chiedo|vorrei|desidero|ho bisogno|mi serve|ottenere|rilasci(?:o|are|ate)|prepar(?:are|ate|arlo|i|o)|stamp(?:are|arlo|ate|i|o))\b/.test(normalized);
+    const hasFormatOrPurpose = /\b(originale|copia\s+originale|cartace[oa]|pdf|uso\s+matrimoni[oa]|uso\s+matrimoniale|per\s+matrimoni[oa])\b/.test(normalized);
+    const hasDeliveryOrPickup = /\b(ritir(?:are|arlo|o|er[oò])|ritiro|di\s+persona|personalmente|ven(?:ire|go|ir[oò])|pass(?:are|o|er[oò])|email|e-mail|mail)\b/.test(normalized);
+    const hasArchiveData = /\b(nat[oa]\s+(?:il\s*)?\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|battezzat[oa]|battesimo\s+\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})\b/.test(normalized);
+
+    const detected = hasCertificate && hasSacramentalType && hasPreparationAction && (hasFormatOrPurpose || hasDeliveryOrPickup || hasArchiveData);
+    return {
+      detected,
+      reason: detected ? 'document_request_with_supporting_data' : 'not_detected',
+      requested_action: detected ? 'prepare_certificate' : null,
+      requires_archive_verification: detected && hasArchiveData
+    };
   }
 
   _buildResponseValidationContext_({

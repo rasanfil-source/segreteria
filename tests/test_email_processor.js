@@ -510,6 +510,14 @@ console.log('--- Test pre-AI rules: context, decision e action restano dichiarat
     'state assente deve essere creato e mutato dalla policy'
   );
 
+  const certificateRequest = ruleProcessor._detectDocumentRequestWithSupportingData_(
+    'Certificato di battesimo',
+    "Agnese Tonchei 28/02/1998\nbattesimo 24/05/1998 a sant eugenio\n\nRichiedo gentilmente certificato in copia originale. Sant'Agnese non vuole email e certificato di battesimo in copia pdf verrò io a ritirarlo di persona lunedì 27 o 28 luglio. Se gentilmente può stamparlo per uso matrimonio."
+  );
+  assert(certificateRequest.detected === true, 'richiesta certificato con dati anagrafici non deve essere trattata come mera submission');
+  assert(certificateRequest.requested_action === 'prepare_certificate', 'la richiesta deve preservare l’azione concreta di preparare il certificato');
+  assert(certificateRequest.requires_archive_verification === true, 'i dati sacramentali devono attivare verifica archivistica condizionata');
+
   const routingState = {
     routedAiCoreLite: 'AI_CORE_LITE',
     routedAiCore: 'AI_CORE',

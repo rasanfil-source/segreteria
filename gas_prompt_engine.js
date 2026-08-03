@@ -3372,6 +3372,13 @@ Usa invece:
 2. Se c'è una domanda esplicita nel corpo email, rispondi SOLO a quella.
 3. Se non ci sono domande, chiudi con cortesia: nessun passo aggiuntivo non richiesto.
 
+ECCEZIONE - DATI A SUPPORTO DI UNA RICHIESTA DI CERTIFICATO:
+- Se il mittente fornisce dati anagrafici o sacramentali per ottenere un certificato, non ridurre il messaggio a una semplice ricevuta dati.
+- Individua il certificato richiesto, la finalità, il formato, la modalità di consegna/ritiro e l'eventuale data proposta.
+- Conferma la ricezione della richiesta e descrivi il passo successivo concreto senza promettere che il certificato sia già disponibile: "se i dati troveranno corrispondenza nei registri/archivi..." è il tipo di cautela da usare.
+- Se è proposta una data o modalità di ritiro, non ignorarla e non confermarla automaticamente: indica che la segreteria darà conferma dopo verifica/preparazione.
+- Evita formule generiche come "abbiamo ricevuto i dati" o "prima di procedere/confermare l'operazione" quando puoi nominare il certificato e l'azione richiesta.
+
 ❌ ESEMPIO SBAGLIATO: "Abbiamo ricevuto il modulo. Per fare da padrino occorre..."
 ✅ ESEMPIO GIUSTO: "Abbiamo ricevuto la documentazione. Grazie."`;
     }
