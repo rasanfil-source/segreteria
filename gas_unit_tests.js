@@ -870,6 +870,86 @@ function runAllTests() {
                 !cleaned.includes('necessario che lo sponsor') &&
                 !cleaned.includes('requisiti per la madrina');
         });
+        // ---- DEADLINE SACRAMENTALE ----
+        test('Estrae deadline da richiesta Cresima con scadenza per padrino', results, () => {
+            const ctx = processor._extractSacramentalDeadlineContext_(
+                'Cresima padrino',
+                'Devo fare la Cresima entro metà ottobre per fare da padrino al battesimo di mio nipote.',
+                'it'
+            );
+            return ctx !== null &&
+                ctx.deadline === 'metà ottobre' &&
+                /cresima/i.test(ctx.target_outcome) &&
+                /padrin/i.test(ctx.purpose) &&
+                ctx.confidence >= 0.6;
+        });
+        test('Estrae deadline da battesimo previsto per settembre con Cresima mancante', results, () => {
+            const ctx = processor._extractSacramentalDeadlineContext_(
+                'Cresima',
+                'Il battesimo è previsto per settembre 2026 e mi hanno chiesto di fare da madrina, ma mi manca la Cresima.',
+                'it'
+            );
+            return ctx !== null &&
+                ctx.deadline === 'settembre 2026' &&
+                /cresima/i.test(ctx.target_outcome) &&
+                /madrina/i.test(ctx.purpose);
+        });
+        test('Non estrae deadline senza vincolo temporale', results, () => {
+            const ctx = processor._extractSacramentalDeadlineContext_(
+                'Cresima padrino',
+                'Vorrei fare la Cresima da adulto per poter fare da padrino.',
+                'it'
+            );
+            return ctx === null;
+        });
+        test('Non estrae deadline senza ruolo ecclesiale', results, () => {
+            const ctx = processor._extractSacramentalDeadlineContext_(
+                'Cresima',
+                'Vorrei fare la Cresima entro ottobre.',
+                'it'
+            );
+            return ctx === null;
+        });
+        test('Rendering deadline policy produce sezione con tripletta e regole', results, () => {
+            const engine = new PromptEngine();
+            const rendered = engine._renderSacramentalDeadlinePolicy({
+                target_outcome: 'ricevere la Cresima',
+                deadline: 'metà ottobre 2026',
+                purpose: 'poter svolgere il ruolo di padrino',
+                confidence: 0.85
+            });
+            return rendered !== null &&
+                rendered.includes('ricevere la Cresima') &&
+                rendered.includes('metà ottobre 2026') &&
+                rendered.includes('poter svolgere il ruolo di padrino') &&
+                rendered.includes('COERENZA TEMPORALE');
+        });
+        test('Rendering deadline policy ritorna null con confidence bassa', results, () => {
+            const engine = new PromptEngine();
+            const rendered = engine._renderSacramentalDeadlinePolicy({
+                target_outcome: 'ricevere la Cresima',
+                deadline: 'ottobre',
+                purpose: 'padrino',
+                confidence: 0.4
+            });
+            return rendered === null;
+        });
+        test('Rendering deadline policy ritorna null senza contesto', results, () => {
+            const engine = new PromptEngine();
+            return engine._renderSacramentalDeadlinePolicy(null) === null &&
+                engine._renderSacramentalDeadlinePolicy(undefined) === null;
+        });
+        test('Estrae deadline in inglese', results, () => {
+            const ctx = processor._extractSacramentalDeadlineContext_(
+                'Confirmation',
+                'I need to receive Confirmation by October because I have been asked to be a godfather at a baptism.',
+                'en'
+            );
+            return ctx !== null &&
+                ctx.deadline === 'October' &&
+                /confirmation/i.test(ctx.target_outcome) &&
+                /godfather/i.test(ctx.purpose);
+        });
         test('Aggiunge nota differenza orario in modo generico (non solo cresima)', results, () => {
             const response = 'Buonasera.\n\nIl prossimo corso prematrimoniale inizierà alle ore 16:30.\n\nCordiali saluti.';
             const messageDetails = { subject: 'Corso prematrimoniale', body: 'Pensavo iniziasse alle 17:00.' };

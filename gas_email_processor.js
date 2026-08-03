@@ -2714,6 +2714,7 @@ ${addressLines.join('\n\n')}
         territoryContext: territoryContext,
         physicalPresenceConstraint: physicalPresenceConstraint,
         sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),
+        sacramentalDeadlineContext: this._extractSacramentalDeadlineContext_(messageDetails.subject, messageDetails.body, detectedLanguage),
         relationalPosture: normalizedRelationalPosture,
         conversationShift: {
           shift: quickCheck?.conversation_shift || 'none',
@@ -8619,6 +8620,95 @@ Parish Secretariat of Sant'Eugenio`;
     const canonical = aliases[normalized] || normalized;
     const allowed = new Set(['informational', 'procedural', 'relational', 'appreciative', 'urgent', 'uncertain']);
     return allowed.has(canonical) ? canonical : 'informational';
+  }
+
+  // ====================================================================
+  // ESTRAZIONE VINCOLO TEMPORALE SACRAMENTALE
+  // ====================================================================
+
+  /**
+   * Estrae un vincolo temporale dominante collegato a un sacramento e a un ruolo ecclesiale.
+   * Rileva pattern come "devo fare la Cresima entro ottobre per fare da padrino".
+   *
+   * @param {string} subject - Oggetto dell'email
+   * @param {string} body - Corpo dell'email
+   * @param {string} detectedLanguage - Codice ISO lingua
+   * @returns {Object|null} Oggetto {target_outcome, deadline, purpose, confidence} o null
+   */
+  _extractSacramentalDeadlineContext_(subject, body, detectedLanguage = 'it') {
+    const text = `${subject || ''} ${body || ''}`;
+    const lang = String(detectedLanguage || 'it').toLowerCase().slice(0, 2);
+
+    // Pattern temporali: "entro [mese/data]", "prima di [mese/data]", "per [mese/data]"
+    // Copre anche forme relative come "entro metà ottobre", "prima della fine di settembre"
+    const deadlinePatterns = {
+      it: [
+        /\b(?:entro|prima\s+di|prima\s+del(?:la)?|per)\s+((?:met[aà]\s+|fine\s+(?:di\s+)?|inizio\s+(?:di\s+)?)?(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?)/i,
+        /\b(?:entro|prima\s+di|prima\s+del(?:la)?|per)\s+(?:il\s+)?(\d{1,2}\s+(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?)/i,
+        /\b(?:battesimo|cerimonia|celebrazione)\s+(?:è|e['']?|sara['']?|sarà|previsto|prevista|fissato|fissata)\s+(?:per\s+|a\s+|il\s+|in\s+)?((?:met[aà]\s+|fine\s+(?:di\s+)?|inizio\s+(?:di\s+)?)?(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?)/i,
+        /\b(?:battesimo|cerimonia|celebrazione)\s+(?:è|e['']?|sara['']?|sarà|previsto|prevista|fissato|fissata)\s+(?:per\s+|a\s+|il\s+|in\s+)?(\d{1,2}\s+(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?)/i,
+        /\b(?:il\s+giorno|la\s+data\s+del(?:la)?)\s+(\d{1,2}\s+(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?)\b/i,
+        /\briceverla\s+entro\s+((?:met[aà]\s+|fine\s+(?:di\s+)?)?(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?)/i
+      ],
+      en: [
+        /\b(?:by|before|no\s+later\s+than)\s+((?:mid[- ]?|end\s+of\s+|early\s+)?(?:january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+\d{4})?)/i,
+        /\b(?:baptism|ceremony|celebration)\s+(?:is|will\s+be)\s+(?:scheduled\s+)?(?:for|in|on)\s+((?:mid[- ]?|end\s+of\s+)?(?:january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+\d{4})?)/i
+      ]
+    };
+
+    // Sacramenti target
+    const sacramentPatterns = {
+      it: /\b(?:cresima|confermazione|prima\s+comunione|iniziazione\s+cristiana|sacrament[oi])\b/i,
+      en: /\b(?:confirmation|first\s+communion|christian\s+initiation|sacrament)\b/i
+    };
+
+    // Ruolo ecclesiale (purpose)
+    const rolePatterns = {
+      it: /\b(?:padrin[oa]|madrina|ruolo\s+(?:di\s+)?(?:padrin[oa]|madrina)|fare\s+(?:da|il|la)\s+(?:padrin[oa]|madrina))\b/i,
+      en: /\b(?:godfather|godmother|godparent|sponsor\s+(?:at|for)\s+(?:baptism|confirmation))\b/i
+    };
+
+    const langPatterns = deadlinePatterns[lang] || deadlinePatterns.it;
+    const sacramentRe = sacramentPatterns[lang] || sacramentPatterns.it;
+    const roleRe = rolePatterns[lang] || rolePatterns.it;
+
+    const hasSacrament = sacramentRe.test(text);
+    const hasRole = roleRe.test(text);
+
+    // Senza almeno sacramento E ruolo, non c'è contesto sufficiente
+    if (!hasSacrament || !hasRole) return null;
+
+    // Cerca la deadline
+    let deadlineText = null;
+    for (const pattern of langPatterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        deadlineText = match[1].trim();
+        break;
+      }
+    }
+
+    if (!deadlineText) return null;
+
+    // Determina target_outcome e purpose dalle catture
+    const sacramentMatch = text.match(sacramentRe);
+    const roleMatch = text.match(roleRe);
+    const targetOutcome = lang === 'en'
+      ? `receive ${(sacramentMatch && sacramentMatch[0]) || 'Confirmation'}`
+      : `ricevere la ${(sacramentMatch && sacramentMatch[0]) || 'Cresima'}`;
+    const purpose = lang === 'en'
+      ? `to serve as ${(roleMatch && roleMatch[0]) || 'godparent'}`
+      : `poter svolgere il ruolo di ${(roleMatch && roleMatch[0]) || 'padrino/madrina'}`;
+
+    // Confidence: alta se tutti e tre gli elementi sono espliciti
+    const confidence = 0.85;
+
+    return {
+      target_outcome: targetOutcome,
+      deadline: deadlineText,
+      purpose: purpose,
+      confidence: confidence
+    };
   }
 
   _deriveSponsorGuidancePolicy_(subject, body, attachmentIntentContext, aiGuidanceSignal, detectedLanguage = 'it') {

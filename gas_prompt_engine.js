@@ -651,6 +651,7 @@ Vincoli:
       attachmentsContext = '',
       attachmentIntentContext = null,
       sponsorGuidancePolicy = 'default',
+      sacramentalDeadlineContext = null,
       systemDirectives = [],
       priorOralCommunication = null,
       conversationShift = null,
@@ -1165,6 +1166,7 @@ Vincoli:
     // 12. SUGGERIMENTO CATEGORIA
     addSection(this._renderCategoryHint(category), 'CategoryHint', { isSystem: true });
     addSection(this._renderSponsorGuidancePolicy(sponsorGuidancePolicy), 'SponsorGuidancePolicy', { isSystem: true });
+    addSection(this._renderSacramentalDeadlinePolicy(sacramentalDeadlineContext), 'SacramentalDeadlinePolicy', { isSystem: true });
     addSection(this._renderPhysicalPresenceConstraintGuideline(physicalPresenceConstraint, territoryContext), 'PhysicalPresenceConstraint', { force: true, isSystem: true });
 
     // BLOCCO 2b: ARRICCHIMENTO KB CONDIZIONALE (AI_CORE)
@@ -3414,6 +3416,38 @@ ISTRUZIONI:
 6. Non aggiungere questa sezione se il mittente ha già scritto di soddisfare tutti i requisiti.`;
     }
     return null;
+  }
+
+  /**
+   * Renderizza la POLICY VINCOLO TEMPORALE SACRAMENTALE.
+   * Iniettata solo quando l'estrazione locale ha rilevato la tripletta
+   * target_outcome/deadline/purpose con confidence >= 0.6.
+   *
+   * @param {Object|null} context - {target_outcome, deadline, purpose, confidence}
+   * @returns {string|null}
+   */
+  _renderSacramentalDeadlinePolicy(context) {
+    if (!context || typeof context !== 'object') return null;
+    const confidence = Number(context.confidence);
+    if (!Number.isFinite(confidence) || confidence < 0.6) return null;
+    const targetOutcome = String(context.target_outcome || '').trim();
+    const deadline = String(context.deadline || '').trim();
+    const purpose = String(context.purpose || '').trim();
+    if (!targetOutcome || !deadline || !purpose) return null;
+
+    return `**POLICY VINCOLO TEMPORALE SACRAMENTALE (OBBLIGATORIA):**
+Il mittente ha indicato un vincolo temporale dominante:
+- Obiettivo: ${targetOutcome}
+- Scadenza: ${deadline}
+- Finalità: ${purpose}
+
+REGOLE DI COERENZA TEMPORALE:
+1. Ogni percorso o soluzione proposta deve essere verificata rispetto alla scadenza indicata.
+2. Se il percorso ordinario della parrocchia inizia dopo la scadenza o non può concludersi in tempo utile, NON presentarlo come soluzione praticabile per quella scadenza. Puoi menzionarlo come opzione futura, separandolo chiaramente dall'urgenza attuale.
+3. Se esiste un canale potenzialmente praticabile (percorso intensivo, corso straordinario, accordo con altra parrocchia), indicalo come pista da verificare, precisando che preparazione, documenti, disponibilità e ammissione devono essere confermati direttamente e con urgenza contattando la segreteria o un sacerdote.
+4. Non dare per certo che un percorso accelerato sia disponibile: invita a verificare la fattibilità concreta.
+5. Se nessun percorso risulta compatibile con la scadenza in base alla Knowledge Base, comunicalo con trasparenza e suggerisci di contattare telefonicamente la segreteria per esplorare soluzioni personalizzate.
+6. Non minimizzare la pressione temporale e non ignorare la scadenza nel corpo della risposta.`;
   }
 
   /**
