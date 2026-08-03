@@ -67,6 +67,22 @@ console.log('--- Test parseGeminiJsonLenient: recupera flag territorio da JSON p
   assert(parsed.topic === 'confini parrocchiali', 'topic deve essere recuperato dal JSON parziale');
 }
 
+
+console.log('--- Test EmailQuickCheckPolicy: distingue intento operativo da topic documentale/procedurale ---');
+{
+  const operational = EmailQuickCheckPolicy.inferRequestPurpose(
+    'Certificato di battesimo per matrimonio',
+    'Ho già avviato la pratica e mi serve il certificato in originale. Passerò in segreteria lunedì per ritirarlo.'
+  );
+  assert(operational.type === 'operational_request', 'richiesta documentale già avviata deve essere operativa, non informativa');
+
+  const informative = EmailQuickCheckPolicy.inferRequestPurpose(
+    'Certificato di battesimo',
+    'Vorrei informazioni: dove devo richiederlo e quali documenti servono?'
+  );
+  assert(informative.type === 'information_request', 'domanda su dove/quali documenti deve restare informativa');
+}
+
 console.log('--- Test _classifyError: quota primaria non ritenta sulla stessa chiave ---');
 {
   const service = Object.create(GeminiService.prototype);

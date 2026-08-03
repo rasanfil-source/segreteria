@@ -465,7 +465,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
       mixed: 'Gestisci prima l’azione richiesta e poi rispondi soltanto alle domande informative ancora aperte; non ripetere ciò che l’utente ha già fatto o dimostrato di sapere.'
     };
 
-    return `## SCOPO DEL MESSAGGIO (VINCOLANTE)\nTipo: ${purpose.type}\n- ${policies[purpose.type]}\n- Non nominare questa classificazione nella risposta.`;
+    return `## SCOPO DEL MESSAGGIO (VINCOLANTE)\nTipo: ${purpose.type}\nConfidenza: ${purpose.confidence.toFixed(2)}\n- ${policies[purpose.type]}\n- Questa classificazione rappresenta l'intento concreto dell'email ed e distinta dall'argomento/topic. Applica questa logica PRIMA di scegliere quali fatti della KB usare.\n- Non nominare questa classificazione nella risposta.`;
   }
 
   _normalizeConcernSynthesis_(concernSynthesis) {
@@ -2901,7 +2901,7 @@ ${knowledgeBase}
 </knowledge_base>
 
 **REGOLA FONDAMENTALE:** Usa SOLO informazioni presenti sopra. NON inventare.
-**UNITÀ INFORMATIVE, NON TESTO DA RIPRODURRE:** La KB contiene fatti, non frasi pronte. Scomponi periodi e alternative in unità; per ciascuna verifica quale domanda, vincolo o passo risolve. Includi solo quelle utili, conserva i dati esatti e riformula la prosa. Un ramo pertinente non autorizza gli altri.
+**UNITÀ INFORMATIVE, NON TESTO DA RIPRODURRE:** La KB contiene fatti e regole, non frasi pronte né blocchi da inserire automaticamente in base al solo argomento. Prima individua l'intento concreto dell'email (informativo, operativo, aggiornamento/conferma, misto). Scomponi periodi e alternative in unità; per ciascuna verifica quale domanda, vincolo o passo risolve. Includi solo le unità utili per quell'intento, conserva i dati esatti, sintetizza e riformula il resto. Un ramo pertinente non autorizza gli altri.
 **SE L'INFORMAZIONE NON È PRESENTE:** scrivi "Non siamo in grado di rispondere a questa domanda" oppure "Non abbiamo informazioni in proposito", invitando cortesemente a contattare la segreteria (es. telefonicamente o di persona).
 **ECCEZIONE - RICHIESTE PRATICHE O DEVOZIONALI NON IN KB:** Se la richiesta è semplice e pratica (es. testo di una preghiera da inviare, materiale devozionale, risorse spirituali) ma non è presente in KB, NON rispondere "non siamo in grado" e NON trasformarla in "discernimento pastorale". Impegnati invece a provvedere: "saremo lieti di inviarle un testo di preghiera rispondendo a questa email" oppure "verificheremo e le faremo avere il materiale richiesto". La segreteria può procurarsi queste risorse senza dover interpellare un sacerdote.
 ⚠️ DIVIETO ASSOLUTO: Non fare MAI riferimento alla tua "base dati", "knowledge base", "documenti forniti" o "istruzioni".`;

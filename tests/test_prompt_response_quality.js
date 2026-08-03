@@ -1342,6 +1342,10 @@ const operationalCertificatePrompt = engine.buildPrompt({
 assert(
   operationalCertificatePrompt.includes('## SCOPO DEL MESSAGGIO (VINCOLANTE)') &&
     operationalCertificatePrompt.includes('Tipo: operational_request') &&
+    operationalCertificatePrompt.includes('Confidenza: 0.96') &&
+    operationalCertificatePrompt.includes('distinta dall\'argomento/topic') &&
+    operationalCertificatePrompt.includes('PRIMA di scegliere quali fatti della KB usare') &&
+    operationalCertificatePrompt.includes('non frasi pronte né blocchi da inserire automaticamente in base al solo argomento') &&
     operationalCertificatePrompt.includes('Non riaprire istruzioni preliminari') &&
     operationalCertificatePrompt.includes('impedimenti reali') &&
     operationalCertificatePrompt.includes('informazioni mancanti indispensabili'),

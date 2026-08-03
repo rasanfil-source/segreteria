@@ -721,13 +721,22 @@ COMPITI:
 2. Rileva la lingua (language) - codice ISO 639-1 (es: "it", "en", "es", "fr", "de")
 3. Classifica la richiesta (category):
    - "TECHNICAL": orari, documenti, info pratiche, iscrizioni
+1. Decidi se richiede risposta (reply_needed):
+ - TRUE se l'utente pone domande, esprime dubbi o fornisce informazioni nuove/utili (appuntamenti, dati, modifiche).
+ - FALSE se è solo un ringraziamento finale (es: \"Grazie mille\", \"Perfetto grazie\", \"Ricevuto\") senza nuove domande o info.
+ - FALSE se è newsletter, spam o messaggi di sistema.
+ - IMPORTANTE: Se l'utente chiede qualcosa già detto, rispondi TRUE ma con riferimento cordiale alla risposta precedente.
+
+2. Rileva la lingua (language) - codice ISO 639-1 (es: "it", "en", "es", "fr", "de")
+3. Classifica la richiesta (category):
+   - "TECHNICAL": orari, documenti, info pratiche, iscrizioni
    - "PASTORAL": richieste di aiuto, situazioni personali, lutto
    - "DOCTRINAL": dubbi di fede, domande teologiche
    - "FORMAL": richieste di sbattezzo, cancellazione registri, apostasia
    - "MIXED": mix di tecnica e pastorale
 4. Fornisci punteggi continui (0.0-1.0) per ogni dimensione:
    - technical, pastoral, doctrinal, formal
-5. Estrai l'argomento principale (topic) in ITALIANO (usando termini coerenti con la richiesta)
+5. Estrai l'argomento principale (topic) in ITALIANO (usando termini coerenti con la richiesta). Il topic descrive il tema trattato, NON lo scopo operativo/comunicativo dell'email.
 6. Determina is_territory_request (boolean):
    - TRUE se il mittente chiede se una via, un indirizzo, un civico o una zona rientra nel territorio/nei confini della parrocchia, nella competenza territoriale, nella parrocchia di residenza o nella parrocchia di appartenenza.
    - TRUE anche se usa formulazioni indirette come "fa parte della vostra parrocchia", "confini parrocchiali", "competenza parrocchiale/territoriale", "a quale parrocchia appartengo", "rientro da voi".
@@ -749,17 +758,17 @@ COMPITI:
    - delivery_channel: "attachment" se il documento dovrebbe essere in allegato/file; "body" se i dati compilati sono riportati nel testo; "both" se entrambi; "unclear" se il canale non e chiaro.
    - body_contains_filled_document: TRUE solo se nel corpo ci sono dati compilati utilizzabili, non un semplice annuncio. Esempi forti: Nome/Cognome, Telefono, Email, Data di nascita, Luogo di nascita, Indirizzo, Parrocchia, Data matrimonio, Sposo/Sposa/Fidanzato/Fidanzata con valori.
    - requires_file_attachment: TRUE se l'utente dichiara che il documento e allegato/file o il flusso richiede proprio un file.
-   - missing_document_if_no_attachment: TRUE solo quando dal testo risulta che il documento dovrebbe esserci come file/allegato e non sono presenti dati compilati nel corpo.
+   - missing_document_if_no_attachment: TRUE solo quando dal testo resulta che il documento dovrebbe esserci come file/allegato e non sono presenti dati compilati nel corpo.
    - reason: breve motivo osservabile.
 10. Fornisci un breve ragionamento (reason)
-10b. Determina request_purpose, cioe lo SCOPO del messaggio, separandolo dall'argomento:
+10b. Determina request_purpose, cioe lo SCOPO concreto del messaggio, separandolo esplicitamente dall'argomento/topic e prima di qualsiasi scelta di contenuti da KB:
    - "information_request": chiede come funziona, dove rivolgersi, quali requisiti/documenti servono o quali opzioni esistono.
    - "operational_request": chiede alla parrocchia di eseguire o predisporre un'azione (rilasciare/preparare un documento, iscrivere, prenotare, registrare, confermare) oppure fornisce gia dati e modalita per completarla.
-   - "status_update": comunica dati, una modifica o uno stato senza chiedere spiegazioni ne una nuova azione.
+   - "status_update": comunica dati, conferma una scelta, segnala una modifica o fornisce informazioni senza chiedere spiegazioni generali ne una nuova azione.
    - "acknowledgment": contiene soltanto ringraziamento o conferma di ricezione.
    - "mixed": contiene davvero sia una richiesta operativa sia una domanda informativa ancora aperta.
-   - Non classificare come informativa una richiesta solo perche il suo argomento e un documento o una procedura.
-   - Espressioni come "richiedo", "potete preparare", "verro a ritirare" o "desidero prenotare", accompagnate dai dati necessari, indicano una richiesta operativa anche se formulate cortesemente.
+   - Non classificare come informativa una richiesta solo perche il suo argomento e un documento o una procedura; il criterio decisivo e cio che l'utente vuole ottenere adesso.
+   - Espressioni come "richiedo", "potete preparare", "verro a ritirare", "ho gia avviato la pratica" o "desidero prenotare", accompagnate dai dati necessari, indicano una richiesta operativa anche se formulate cortesemente.
    - Fornisci anche request_purpose_confidence (0.0-1.0).
 11. Determina physical_presence_constraint:
    - Rileva se il mittente manifesta che raggiungere fisicamente la parrocchia/segreteria e' difficile, impossibile o non ragionevole.
@@ -1379,6 +1388,8 @@ Output JSON:
       .toLowerCase();
     const actionPatterns = [
       /\b(?:richiedo|richiediamo|richiedono|si\s+richiede|chiedo)\b[\s\S]{0,80}\b(?:certificat\w*|rilasc\w*|copi\w*|document\w*|iscrizion\w*|prenotazion\w*)\b/,
+      /\b(?:mi\s+serve|ci\s+serve|avrei\s+bisogno\s+di|abbiamo\s+bisogno\s+di)\b[\s\S]{0,80}\b(?:certificat\w*|document\w*|attestat\w*|iscrizion\w*)\b/,
+      /\b(?:ho|abbiamo)\s+gia\s+(?:avviato|iniziato|presentato|compilato|consegnato|inviato)\b[\s\S]{0,100}\b(?:pratica|richiesta|modulo|domanda|document\w*|certificat\w*)\b/,
       /\b(?:vorrei|desidero|intendo)\s+(?:richiedere|ottenere|prenotare|iscrivermi|ritirare)\b/,
       /\b(?:potete|potreste|puo|puoi)\s+(?:preparare|stampare|rilasciare|prenotare|iscrivere|registrare|confermare)\b/,
       /\b(?:verro|passero|ritirero|vengo|passo)\b[\s\S]{0,60}\b(?:ritir\w*|segreteria|parrocchia|persona)\b/,
