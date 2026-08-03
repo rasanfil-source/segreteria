@@ -3161,3 +3161,26 @@ assert(
     !longitudinalToneOnlyPrompt.includes('Usa un tono accogliente, sobrio e attento.'),
   'longitudinal_tone_only non deve attivare postura personal o registro pastorale'
 );
+
+console.log('--- Test prompt: richiesta telefono contestuale non automatica ---');
+const phoneContactPrompt = engine.buildPrompt({
+  emailSubject: 'Colloquio con sacerdote',
+  emailContent: 'Buongiorno, vorrei parlare con un sacerdote per capire come affrontare una situazione familiare delicata.',
+  knowledgeBase: 'La segreteria può aiutare a fissare un colloquio con un sacerdote.',
+  detectedLanguage: 'it',
+  promptProfile: 'heavy',
+  salutationMode: 'full',
+  salutation: 'Buongiorno,',
+  closing: 'Cordiali saluti,',
+  requestType: { type: 'pastoral' },
+  responseRegister: 'warm_institutional',
+  relationalPosture: 'supportive'
+});
+assert(
+  phoneContactPrompt.includes('Non chiedere automaticamente un numero di telefono') &&
+    phoneContactPrompt.includes('se nell\'email è già presente un telefono/cellulare') &&
+    phoneContactPrompt.includes('ricontatto personale da parte di sacerdote/segreteria/responsabile') &&
+    phoneContactPrompt.includes('non richiederlo di nuovo') &&
+    phoneContactPrompt.includes('recapito mobile personale'),
+  'il prompt deve chiedere il recapito telefonico solo con valutazione contestuale'
+);
