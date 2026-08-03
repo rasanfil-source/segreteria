@@ -8323,7 +8323,8 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
         return /\bnon (sono|mi sono|ero|mi ero|ho ricevuto)\b[\s\S]{0,50}\bcresim\w*/i.test(source) ||
           /\bmi manca\b[\s\S]{0,50}\bcresim\w*/i.test(source) ||
           /\bcresim\w*[\s\S]{0,50}\b(che\s+)?mi manca\b/i.test(source) ||
-          /\b(devo|dovrei|ho bisogno|mi serve)\b[\s\S]{0,80}\b(ricevere|fare)\b[\s\S]{0,30}\bcresim\w*/i.test(source);
+          /\b(devo|dovrei|ho bisogno|ho la necessit[aà]|mi serve)\b[\s\S]{0,120}\b(ricevere|fare|completare)\b[\s\S]{0,140}\bcresim\w*/i.test(source) ||
+          /\b(completare|concludere)\b[\s\S]{0,80}\b(percorso|iniziazione cristiana)\b[\s\S]{0,80}\bcresim\w*/i.test(source);
     }
   }
 
@@ -8344,8 +8345,9 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
         return /\b(pate|patin|firmpat\w*|taufpat\w*)\b[\s\S]{0,70}\b(sein|werden|gebeten)\b/i.test(source) ||
           /\b(sein|werden|gebeten)\b[\s\S]{0,70}\b(pate|patin|firmpat\w*|taufpat\w*)\b/i.test(source);
       default:
-        return /\b(fare|diventare|essere|fungere|assumere|svolgere)\b[\s\S]{0,45}\b(da\s+|il\s+|la\s+)?(padrin\w*|madrin\w*)\b/i.test(source) ||
-          /\b(scelt[oa]|chiest[oa]|chiamat[oa]|mi hanno chiesto|mi è stato chiesto)\b[\s\S]{0,90}\b(padrin\w*|madrin\w*)\b/i.test(source);
+        return /\b(fare|faro|farò|diventare|essere|saro|sarò|fungere|assumere|svolgere|svolgero|svolgerò)(?![a-zàèéìòù])[\s\S]{0,45}\b(da\s+|il\s+|la\s+)?(padrin\w*|madrin\w*)\b/i.test(source) ||
+          /\b(scelt[oa]|chiest[oa]|chiamat[oa]|mi hanno chiesto|mi è stato chiesto)\b[\s\S]{0,90}\b(padrin\w*|madrin\w*)\b/i.test(source) ||
+          /\b(padrin\w*|madrin\w*)\b[\s\S]{0,40}\b(fare|faro|farò|essere|saro|sarò|svolgere|svolgero|svolgerò)(?![a-zàèéìòù])/i.test(source);
     }
   }
 
