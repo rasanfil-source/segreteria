@@ -655,7 +655,8 @@ CONTESTO LOGISTICO VISITA:
 17. Determina needs_sponsor_guidance (boolean):
    - TRUE solo se nella risposta conviene inserire le condizioni per il ruolo ecclesiale di padrino/madrina/godparent.
    - Considera equivalenti sacramentali: padrino/madrina (it/es), godparent/godfather/godmother o sponsor sacramentale (en), parrain/marraine (fr), padrinho/madrinha (pt), Pate/Patin/Firmpate/Firmpatin (de).
-   - TRUE se il mittente vuole assumere quel ruolo sacramentale e non ha ancora la Cresima/Confirmation, oppure chiede esplicitamente requisiti, condizioni o idoneità per quel ruolo.
+   - TRUE se il mittente collega un sacramento o un percorso di iniziazione cristiana al fatto di voler/dover assumere quel ruolo sacramentale, anche se non formula la domanda come "quali sono i requisiti?".
+   - TRUE se il mittente vuole assumere quel ruolo sacramentale e non ha ancora la Cresima/Confirmation, deve completare Prima Comunione/Cresima o l'iniziazione cristiana, oppure chiede esplicitamente requisiti, condizioni o idoneità per quel ruolo.
    - FALSE in tutti gli altri casi.
    - FALSE se il mittente sta consegnando documenti propri o del proprio padrino/madrina per ricevere un sacramento.
    - FALSE se "padrino" o "madrina" indica solo l'accompagnatore sacramentale del mittente.
