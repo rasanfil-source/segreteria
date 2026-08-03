@@ -1660,7 +1660,7 @@ var EmailProcessor = class EmailProcessor {
         {},
         preQuickAttachmentIntentContext || {},
         {
-          sponsorGuidanceCheck: sponsorGuidancePrecheck !== 'exclude',
+          sponsorGuidanceCheck: sponsorGuidancePrecheck === 'ask_ai',
           sponsorGuidanceLocalDecision: sponsorGuidancePrecheck,
           hasConversationContext: hasConversationContext,
           quickMemoryContext: hasConversationContext
@@ -8470,14 +8470,24 @@ Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'in
     const localDecision = this._classifySponsorGuidanceLocally_(subject, body, attachmentIntentContext, detectedLanguage);
 
     if (localDecision === 'exclude') return false;
-
-    const cresimaAsPrerequisiteSignals = this._detectCresimaAsPrerequisiteForSponsorRole_(text, detectedLanguage);
-    const asksEligibility = this._isExplicitSponsorEligibilityRequest_(text, detectedLanguage);
+    if (localDecision === 'none') return false;
+    // localDecision === 'ask_ai': continua alla risoluzione del segnale AI.
 
     if (aiGuidanceSignal === true) return true;
-    if (aiGuidanceSignal === false) return false;
-    if (localDecision === 'none' && !cresimaAsPrerequisiteSignals && !asksEligibility) return false;
-    // localDecision === 'ask_ai': continua alla risoluzione del segnale AI; le regex forti restano salvaguardia.
+    if (aiGuidanceSignal === false && isSubmission && !hasSubmissionQuestion) {
+      return false;
+    }
+
+    const cresimaAsPrerequisiteSignals =
+      this._detectCresimaAsPrerequisiteForSponsorRole_(
+        text,
+        detectedLanguage
+      );
+    const asksEligibility =
+      this._isExplicitSponsorEligibilityRequest_(
+        text,
+        detectedLanguage
+      );
 
     const deliverySignals = /\b(allego|in allegato|invio|inoltro|trasmetto|ecco|certificato|attestato|idoneit[aà])\b/i.test(text);
     if (deliverySignals && isSubmission && !hasSubmissionQuestion && !asksEligibility && !cresimaAsPrerequisiteSignals) {
@@ -8746,27 +8756,55 @@ Parish Secretariat of Sant'Eugenio`;
     const isSubmission = /submission/.test(intent);
     const localDecision = this._classifySponsorGuidanceLocally_(subject, body, attachmentIntentContext, detectedLanguage);
 
-    if (localDecision === 'exclude') return 'no_eligibility_guidance';
+    if (localDecision === 'exclude') {
+      return 'no_eligibility_guidance';
+    }
 
-    const asksEligibility = this._isExplicitSponsorEligibilityRequest_(text, detectedLanguage);
-    const asksLogistics = /\b(a che ora|orari|quando|arrivare|inizia|inizio|dove|luogo)\b/i.test(text);
-    const asksCresimaPath = /\b(informazioni|info|corso|percorso)\b/i.test(text) && /\b(cresima adulti?|fare la cresima)\b/i.test(text);
-    const cresimaAsPrerequisiteSignals = this._detectCresimaAsPrerequisiteForSponsorRole_(text, detectedLanguage);
+    if (localDecision === 'none') {
+      const asksLogisticsOnly =
+        /\b(a che ora|orari|quando|arrivare|inizia|inizio|dove|luogo)\b/i
+          .test(text);
+      return asksLogisticsOnly
+        ? 'logistics_only_no_eligibility'
+        : 'default';
+    }
 
     if (aiGuidanceSignal === true) {
-      if (localDecision !== 'none' || asksEligibility || cresimaAsPrerequisiteSignals || this._hasSacramentalContext_(text, detectedLanguage)) {
-        return 'cresima_prerequisite_for_sponsor_role';
-      }
+      return 'cresima_prerequisite_for_sponsor_role';
     }
-    if (aiGuidanceSignal === false) return 'no_eligibility_guidance';
-    if (cresimaAsPrerequisiteSignals) return 'cresima_prerequisite_for_sponsor_role';
-    if (localDecision === 'none') {
-      const asksLogisticsOnly = /\b(a che ora|orari|quando|arrivare|inizia|inizio|dove|luogo)\b/i.test(text);
-      return asksLogisticsOnly ? 'logistics_only_no_eligibility' : 'default';
+    if (aiGuidanceSignal === false) {
+      return 'no_eligibility_guidance';
     }
-    if (isSubmission && !asksEligibility) return 'no_eligibility_guidance';
-    if (asksLogistics && !asksEligibility) return 'logistics_only_no_eligibility';
-    if (asksCresimaPath) return 'allow_eligibility_context';
+
+    const asksEligibility =
+      this._isExplicitSponsorEligibilityRequest_(
+        text,
+        detectedLanguage
+      );
+    const asksLogistics =
+      /\b(a che ora|orari|quando|arrivare|inizia|inizio|dove|luogo)\b/i
+        .test(text);
+    const asksCresimaPath =
+      /\b(informazioni|info|corso|percorso)\b/i.test(text) &&
+      /\b(cresima adulti?|fare la cresima)\b/i.test(text);
+    const cresimaAsPrerequisiteSignals =
+      this._detectCresimaAsPrerequisiteForSponsorRole_(
+        text,
+        detectedLanguage
+      );
+
+    if (cresimaAsPrerequisiteSignals) {
+      return 'cresima_prerequisite_for_sponsor_role';
+    }
+    if (isSubmission && !asksEligibility) {
+      return 'no_eligibility_guidance';
+    }
+    if (asksLogistics && !asksEligibility) {
+      return 'logistics_only_no_eligibility';
+    }
+    if (asksCresimaPath) {
+      return 'allow_eligibility_context';
+    }
     return 'default';
   }
 }

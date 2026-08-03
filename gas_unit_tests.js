@@ -702,32 +702,6 @@ function runAllTests() {
             );
             return policy === 'cresima_prerequisite_for_sponsor_role';
         });
-        test('Rileva finalità madrina in richiesta Prima Comunione e Cresima adulti', results, () => {
-            const body = 'Mio nipote riceverà prossimamente il battesimo e gli farò da madrina. Per poter adempiere a questo compito, ho la necessità di completare il mio percorso di iniziazione cristiana ricevendo la Prima Comunione e la Cresima. Vorrei sapere se organizzate percorsi per adulti.';
-            const policy = processor._deriveSponsorGuidancePolicy_(
-                'Prima Comunione e Cresima adulti',
-                body,
-                null
-            );
-            return policy === 'cresima_prerequisite_for_sponsor_role';
-        });
-        test('Accetta segnale quick check per guidance padrino anche se la regex locale non basta', results, () => {
-            const body = 'Devo prepararmi per alcuni sacramenti e la parrocchia mi ha detto che servirà anche per un ruolo al battesimo di famiglia.';
-            const localDecision = processor._classifySponsorGuidanceLocally_(
-                'Percorso sacramenti adulti',
-                body,
-                null,
-                'it'
-            );
-            const policy = processor._deriveSponsorGuidancePolicy_(
-                'Percorso sacramenti adulti',
-                body,
-                null,
-                true,
-                'it'
-            );
-            return localDecision === 'none' && policy === 'cresima_prerequisite_for_sponsor_role';
-        });
         test('Usa AI come disambiguatore quando padrino e Cresima compaiono insieme', results, () => {
             const body = 'Mi hanno chiesto di fare da padrino il giorno 13 di settembre e non trovo un corso di preparazione alla Cresima, che mi manca, per riceverla entro settembre.';
             const localDecision = processor._classifySponsorGuidanceLocally_(
@@ -1495,7 +1469,7 @@ function runAllTests() {
                 out.classification.topic === 'documentazione ricevuta' &&
                 out.needs_sponsor_guidance === false;
         });
-        test('Quick check valuta guidance padrino di default e regex resta salvaguardia', results, () => {
+        test('Quick check chiede guidance padrino solo se il precheck regex lo richiede', results, () => {
             let promptWithoutSponsorCheck = '';
             const serviceWithoutSponsorCheck = new GeminiService({
                 fetchFn: (_url, payload) => {
@@ -1513,8 +1487,7 @@ function runAllTests() {
                                             dimensions: { technical: 1, pastoral: 0, doctrinal: 0, formal: 0 },
                                             topic: 'orari',
                                             confidence: 0.9,
-                                            reason: 'richiesta semplice',
-                                            needs_sponsor_guidance: false
+                                            reason: 'richiesta semplice'
                                         })
                                     }]
                                 }
@@ -1528,7 +1501,7 @@ function runAllTests() {
                 'Orari',
                 'gemini-3.5-flash-lite',
                 { lang: 'it', confidence: 5, safetyGrade: 5 },
-                { sponsorGuidanceCheck: true }
+                { sponsorGuidanceCheck: false }
             );
 
             let promptWithSponsorCheck = '';
@@ -1566,8 +1539,8 @@ function runAllTests() {
                 { sponsorGuidanceCheck: true }
             );
 
-            return promptWithoutSponsorCheck.includes('needs_sponsor_guidance') &&
-                outWithoutSponsorCheck.needs_sponsor_guidance === false &&
+            return !promptWithoutSponsorCheck.includes('needs_sponsor_guidance') &&
+                outWithoutSponsorCheck.needs_sponsor_guidance === undefined &&
                 promptWithSponsorCheck.includes('needs_sponsor_guidance') &&
                 outWithSponsorCheck.needs_sponsor_guidance === true;
         });
