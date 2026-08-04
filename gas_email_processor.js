@@ -3863,6 +3863,17 @@ ${addressLines.join('\n\n')}
       this._trackEmptyInboxStreak(false);
       runLogger.info(`Trovati ${threads.length} thread da elaborare`);
 
+      // FIFO: elabora prima i thread in attesa da più tempo, non i più recenti.
+      try {
+        threads = threads.slice().sort((a, b) => {
+          const dateA = (a && typeof a.getLastMessageDate === 'function') ? a.getLastMessageDate().getTime() : 0;
+          const dateB = (b && typeof b.getLastMessageDate === 'function') ? b.getLastMessageDate().getTime() : 0;
+          return dateA - dateB; // crescente = più vecchio prima
+        });
+      } catch (sortError) {
+        runLogger.warn(`⚠️ Impossibile ordinare i thread per data (${sortError.message}); mantengo l'ordine dalla discovery.`);
+      }
+
       if (!messageLabelCachesPreloaded) {
         try {
           preloadMessageLabelCaches();
