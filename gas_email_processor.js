@@ -5359,10 +5359,10 @@ ${addressLines.join('\n\n')}
 
   _detectYearlessDateTemporalIntent_(text = '') {
     const normalized = String(text || '').toLowerCase();
-    const futurePattern = /\b(sar(?:à|a|anno)|ci\s+sar(?:à|a|anno)|avr(?:à|a|anno)|farete|celebrerete|terr(?:à|a|anno)|quando\s+(?:sar|avr|terr)|prossim[oaie]|ventura|futura|futuro|domani|dopodomani)\b/i;
+    const futurePattern = /\b(sar(?:à|anno)|ci\s+sar(?:à|anno)|avr(?:à|anno)|farete|celebrerete|terr(?:à|anno)|quando\s+(?:sarà|avrà|terrà)|prossim[oaie]|ventura|futura|futuro|domani|dopodomani)\b/i;
     if (futurePattern.test(normalized)) return 'future';
 
-    const pastPattern = /\b(sono\s+state|erano|c['’]?erano|si\s+(?:è|e)\s+(?:tenuta|tenuto|svolta|svolto)|avete\s+(?:celebrato|fatto)|passat[oaie]|scors[oaie])\b/i;
+    const pastPattern = /\b(sono\s+state|erano|c[' ]?erano|si\s+(?:è|e)\s+(?:tenuta|tenuto|svolta|svolto)|avete\s+(?:celebrato|fatto)|passat[oaie]|scors[oaie])\b/i;
     if (pastPattern.test(normalized)) return 'past';
 
     return 'unspecified';
