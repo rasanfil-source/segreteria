@@ -575,7 +575,7 @@ function validateConfig() {
 
 /**
  * Versione fail-fast della validazione configurazione da usare negli entrypoint.
- * Gli score possono essere espressi como 0.6 oppure 60: la normalizzazione runtime
+ * Gli score possono essere espressi come 0.6 oppure 60: la normalizzazione runtime
  * avviene tramite normalizeValidationScore().
  */
 function validateConfigOrThrow() {
