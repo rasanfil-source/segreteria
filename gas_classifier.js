@@ -301,8 +301,6 @@ var Classifier = class Classifier {
       // Salta blocchi citati, ma consenti inline-reply dopo quote
       let isQuote = false;
       for (const marker of quoteMarkers) {
-        // Reset di sicurezza: previene la perdita di stato se gli indicatori di virgolette ottengono successivamente i flag /g o /y.
-        marker.lastIndex = 0;
         if (marker.test(stripped)) {
           isQuote = true;
           break;

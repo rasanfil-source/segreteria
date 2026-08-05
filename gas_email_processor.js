@@ -4792,11 +4792,17 @@ ${addressLines.join('\n\n')}
       return;
     }
 
+    let deletionsCount = 0;
+    const MAX_DELETIONS_PER_RUN = 20;
+
     Object.keys(allProps).forEach((key) => {
-      if (!key || !key.startsWith('sent_backup_')) return;
+      if (!key || !key.startsWith('sent_backup_') || deletionsCount >= MAX_DELETIONS_PER_RUN) return;
       const parsedMarker = this._parseSendIdempotencyBackupValue_(allProps[key]);
       if (!parsedMarker || nowTs > parsedMarker.expiresAt) {
-        try { props.deleteProperty(key); } catch (_) { }
+        try {
+          props.deleteProperty(key);
+          deletionsCount++;
+        } catch (_) { }
       }
     });
   }

@@ -33,7 +33,14 @@ function _refreshScriptPropertyCache_(requestedKey, now) {
 
 function _getScriptProperty(key, forceRefresh = false) {
   if (!_SCRIPT_PROPERTIES) {
-    _SCRIPT_PROPERTIES = PropertiesService.getScriptProperties();
+    try {
+      if (typeof PropertiesService === 'undefined' || !PropertiesService || typeof PropertiesService.getScriptProperties !== 'function') {
+        return null;
+      }
+      _SCRIPT_PROPERTIES = PropertiesService.getScriptProperties();
+    } catch (e) {
+      return null;
+    }
   }
   const now = Date.now();
   const cached = _CACHED_PROPS[key];
@@ -46,9 +53,13 @@ function _getScriptProperty(key, forceRefresh = false) {
     delete _CACHED_PROPS[key];
   }
   if (forceRefresh || !hasFreshCachedValue) {
-    _refreshScriptPropertyCache_(key, now);
+    try {
+      _refreshScriptPropertyCache_(key, now);
+    } catch (e) {
+      return null;
+    }
   }
-  return _CACHED_PROPS[key].value;
+  return _CACHED_PROPS[key] ? _CACHED_PROPS[key].value : null;
 }
 
 function _getScriptPropertyStringArray(key, fallback) {
