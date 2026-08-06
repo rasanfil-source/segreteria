@@ -6425,8 +6425,19 @@ ${addressLines.join('\n\n')}
       );
     }
 
-    const compactResponse = safeResponse.replace(/\s+/g, ' ').trim();
-    const failedSnippet = compactResponse.length > 400 ? compactResponse.substring(0, 400) + '...' : compactResponse;
+    // Preserva la struttura originale della risposta fallita: newline, elenchi e tag
+    // aiutano il retry a riconoscere errori di formato invece di appiattirli.
+    const compactResponse = safeResponse.trim();
+    const MAX_FAILED_SNIPPET_CHARS = 1800;
+    const FAILED_SNIPPET_EDGE_CHARS = 900;
+    const OMISSION_MARKER = '\n\n[...parte centrale omessa per contenere il costo token...]\n\n';
+
+    // Mantiene visibili sia l'inizio sia la fine; scatta solo se il risparmio compensa il marker.
+    const failedSnippet = compactResponse.length > (MAX_FAILED_SNIPPET_CHARS + OMISSION_MARKER.length)
+      ? compactResponse.substring(0, FAILED_SNIPPET_EDGE_CHARS) +
+        OMISSION_MARKER +
+        compactResponse.substring(compactResponse.length - FAILED_SNIPPET_EDGE_CHARS)
+      : compactResponse;
 
     const maxSafeTokens = (typeof CONFIG !== 'undefined' && Number.isFinite(CONFIG.MAX_SAFE_TOKENS))
       ? CONFIG.MAX_SAFE_TOKENS
@@ -6453,7 +6464,8 @@ ${failedSnippet}
 
 ### AZIONE ###
 Genera la nuova risposta correggendo i problemi indicati.
-Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'interno del tag XML <email>...</email>, senza aggiungere spiegazioni, commenti o ragionamenti interni.`;
+Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'interno del tag XML <email>...</email>, senza aggiungere spiegazioni, commenti o ragionamenti interni.
+La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve essere esattamente </email>.`;
   }
 
   _renderRuntimeContextForCorrection_(runtimeContext = null, detectedLanguage = 'it', salutationMode = 'full') {
