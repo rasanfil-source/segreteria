@@ -340,7 +340,7 @@ console.log('--- Test request purpose: EmailProcessor usa il segnale operativo e
   assert(operationalDirective.includes('RICHIESTA OPERATIVA DI CERTIFICATO'), 'la richiesta operativa deve usare la direttiva di presa in carico');
   assert(operationalDirective.includes('Non riaprire con spiegazioni generiche'), 'la direttiva operativa deve vietare la riapertura della procedura già compresa');
   assert(operationalDirective.includes('non trattare il messaggio come semplice trasmissione di dati'), 'la direttiva operativa deve distinguere richiesta certificato e dati di supporto');
-  assert(operationalDirective.includes('data o modalita di ritiro'), 'la direttiva operativa deve recepire proposta di ritiro senza confermarla automaticamente');
+  assert(operationalDirective.includes('data o una modalita di ritiro'), 'la direttiva operativa deve recepire proposta di ritiro senza confermarla automaticamente');
   assert(!operationalDirective.includes('Specifica che il certificato va richiesto'), 'la regola generale non deve essere imposta alla richiesta operativa');
   assert(informationalDirective.includes('RICHIESTA INFORMATIVA SUI CERTIFICATI'), 'la domanda informativa deve conservare la procedura pertinente');
   assert(informationalDirective.includes('parrocchia in cui e stato celebrato'), 'la regola della parrocchia di celebrazione resta disponibile quando risponde davvero alla domanda');
@@ -1590,7 +1590,7 @@ console.log('--- Test processThread: fallback default diversifica tier modello -
   
   const strategyCalls = calls.filter(c => typeof c === 'object');
   assert(
-    strategyCalls.map(call => call.modelName).join('|') === 'gemini-3.6-flash|gemini-3.6-flash|gemini-3.5-flash-lite|gemini-3.5-flash-lite',
+    strategyCalls.map(call => call.modelName).join('|') === 'gemini-3.7-flash|gemini-3.7-flash|gemini-3.5-flash-lite|gemini-3.5-flash-lite',
     `deve diversificare il tier fisico nel fallback default (fatto: ${strategyCalls.map(call => call.modelName).join('|')})`
   );
   assert(
@@ -1682,7 +1682,7 @@ console.log('--- Test processThread: primaria esaurita salta fallback su primary
   assert(res.status === 'error', 'con fallback esaurito deve restituire status error');
   const strategyCalls = calls.filter(c => typeof c === 'object');
   assert(
-    strategyCalls.map(call => call.modelName).join('|') === 'gemini-3.6-flash|gemini-3.6-flash|gemini-3.5-flash-lite',
+    strategyCalls.map(call => call.modelName).join('|') === 'gemini-3.7-flash|gemini-3.7-flash|gemini-3.5-flash-lite',
     `deve saltare il fallback lite su primary key esaurita (fatto: ${strategyCalls.map(call => call.modelName).join('|')})`
   );
   assert(strategyCalls[2].skipRateLimit === true, 'il fallback lite residuo deve usare la chiave di riserva');

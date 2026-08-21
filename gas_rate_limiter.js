@@ -14,7 +14,7 @@
  */
 var GeminiRateLimiter = class GeminiRateLimiter {
   constructor(options = {}) {
-    console.log('\uD83D\uDEA6 Inizializzazione GeminiRateLimiter...');
+    console.log('🚦 Inizializzazione GeminiRateLimiter...');
 
     // ================================================================
     // CONFIGURAZIONE MODELLI (Legge da CONFIG)
@@ -28,17 +28,17 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     } else {
       // Fallback se CONFIG non disponibile
       console.warn('   \u26A0\uFE0F CONFIG.GEMINI_MODELS non trovato, uso default');
-      // Default conservativo allineato alla policy: 3.6 Flash per generazione,
+      // Default conservativo allineato alla policy: 3.7 Flash per generazione,
       // 3.5 Flash-Lite per task rapidi/ausiliari.
       this.models = {
-        'flash-3.6': {
-          name: 'gemini-3.6-flash',
+        'flash-3.7': {
+          name: 'gemini-3.7-flash',
           rpm: 10, tpm: 250000, rpd: 1500,
           contextWindowTokens: 1048576,
           useCases: ['generation', 'all']
         },
-        'flash-3.6-backup': {
-          name: 'gemini-3.6-flash',
+        'flash-3.7-backup': {
+          name: 'gemini-3.7-flash',
           rpm: 10, tpm: 250000, rpd: 1500,
           contextWindowTokens: 1048576,
           useCases: ['generation', 'backup']
@@ -69,7 +69,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         'classification': ['flash-lite'],
         'language': ['flash-lite'],
         'newsletter_summary': ['flash-lite'],
-        'generation': ['flash-3.6', 'flash-3.6-backup', 'flash-lite', 'flash-lite-backup'],
+        'generation': ['flash-3.7', 'flash-3.7-backup', 'flash-lite', 'flash-lite-backup'],
         'semantic': ['flash-lite', 'flash-lite-backup'],
         'fallback': ['flash-lite', 'flash-lite-backup']
       };
@@ -78,7 +78,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     // Modello di default (primo nella lista generation)
     this.defaultModel = (this.strategies.generation && this.strategies.generation[0]) ||
       Object.keys(this.models)[0] ||
-      'flash-3.6';
+      'flash-3.7';
 
     // ================================================================
     // CACHE IN-MEMORY (per ridurre PropertiesService reads)
@@ -153,11 +153,13 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       'gemini-3.1-flash-lite-preview': 'gemini-3.5-flash-lite',
       // Refuso ricorrente: non esiste un modello testuale 'gemini-3.1-flash'; il full-tier è Gemini 3 Flash Preview.
       'gemini-3.1-flash': 'gemini-3-flash-preview',
-      'gemini-2.5-flash': 'gemini-3.6-flash',
-      'gemini-3.5-flash': 'gemini-3.6-flash'
+      'gemini-2.5-flash': 'gemini-3.7-flash',
+      'gemini-3.5-flash': 'gemini-3.7-flash',
+      'gemini-3.6-flash': 'gemini-3.7-flash'
     };
 
     const knownCurrentModels = [
+      'gemini-3.7-flash',
       'gemini-3.6-flash',
       'gemini-3.5-flash-lite',
       'gemini-3-flash-preview'
@@ -200,12 +202,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const isLiteTask = key.includes('lite') || useCases.some(value =>
       ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary'].includes(value)
     );
-    return isLiteTask ? 'gemini-3.5-flash-lite' : 'gemini-3.6-flash';
+    return isLiteTask ? 'gemini-3.5-flash-lite' : 'gemini-3.7-flash';
   }
-
-  // ================================================================
-  // INIZIALIZZAZIONE
-  // ================================================================
 
   _initializeCounters() {
     // Usa ScriptLock per sincronizzare il reset tra esecuzioni parallele
@@ -623,7 +621,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       try {
         const startTime = Date.now();
         // Esecuzione diretta senza controlli quota
-        const backupModelName = options.modelNameOverride || 'gemini-3.6-flash';
+        const backupModelName = options.modelNameOverride || 'gemini-3.7-flash';
         const requestResult = this._safeExecuteRequestFn_(requestFn, backupModelName);
         const normalizedResult = this._normalizeRequestResultEnvelope_(requestResult);
         const accountedTokens = this._resolveAccountedTokens_(normalizedResult, options.estimatedTokens || 0);

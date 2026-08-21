@@ -982,7 +982,7 @@ var ResponseValidator = class ResponseValidator {
     // Compatibilità GAS: evita lookbehind a lunghezza variabile, che in alcuni runtime V8
     // può fallire in fase di parsing. Il filtro di contesto replica le esclusioni precedenti.
     const timePattern = /\b\d{1,2}[:.]\d{2}\b(?![\/.-]\d{2,4})(?!\.[a-z])/gi;
-    const contextualHourPattern = /\b(?:alle?|ore)\s+(\d{1,2})\b/gi;
+    const contextualHourPattern = /\b(?:alle?|ore)\s+(\d{1,2})(?![:.]\d{2})\b/gi;
     const collectStandaloneTimes = (text) => {
       const found = [];
       const safeText = text || '';
@@ -2333,7 +2333,7 @@ var ResponseValidator = class ResponseValidator {
 
     return {
       temporal: {
-        currentDate: temporal.currentDate || temporal.today || null,
+        currentDate: temporal.currentDate || temporal.today || temporal.now || null,
         currentTime: temporal.currentTime || null,
         messageDate: temporal.messageDate || null,
         messageTime: temporal.messageTime || null,

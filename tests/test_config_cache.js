@@ -210,8 +210,8 @@ assert(
 
 assert(CONFIG.MAX_SAFE_PROMPT_CHARS === 100000, 'MAX_SAFE_PROMPT_CHARS deve avere un fallback esplicito');
 assert(CONFIG.MAX_PROVIDED_INFO_JSON_CHARS === 45000, 'MAX_PROVIDED_INFO_JSON_CHARS deve avere un fallback esplicito');
-assert(CONFIG.MODEL_NAME === 'gemini-3.6-flash', 'MODEL_NAME deve puntare al modello qualita aggiornato per le risposte');
-assert(CONFIG.MODEL_STRATEGY.generation[0] === 'flash-3.6', 'la generazione deve partire da Gemini 3.6 Flash');
+assert(CONFIG.MODEL_NAME === 'gemini-3.7-flash', 'MODEL_NAME deve puntare al modello qualita aggiornato per le risposte');
+assert(CONFIG.MODEL_STRATEGY.generation[0] === 'flash-3.7', 'la generazione deve partire da Gemini 3.7 Flash');
 assert(CONFIG.MODEL_STRATEGY.quick_check[0] === 'flash-lite', 'quick_check/categoria/lingua devono partire dal modello lite');
 assert(CONFIG.PAPAL_CONTEXT.currentName === 'Leone XIV', 'PAPAL_CONTEXT deve essere presente anche nella config di produzione');
 assert(CONFIG.PAPAL_CONTEXT.previousName === 'Papa Francesco', 'PAPAL_CONTEXT deve definire il Papa precedente');

@@ -191,7 +191,7 @@ console.log('--- Test Gemini task profiles: generation e quick_check hanno confi
   service.fetchFn = () => null;
   service._buildGenerateUrl = () => 'https://example.test/generate';
 
-  const generationConfig = service._buildGeminiGenerationConfig_('generation', 'gemini-3.6-flash');
+  const generationConfig = service._buildGeminiGenerationConfig_('generation', 'gemini-3.7-flash');
   const quickLiteConfig = service._buildGeminiGenerationConfig_('quick_check', 'gemini-3.5-flash-lite');
   const quickFlashConfig = service._buildGeminiGenerationConfig_('quick_check', 'gemini-3.5-flash');
   const legacyGenerationConfig = service._buildGeminiGenerationConfig_('generation', 'gemini-3.5-flash');
@@ -201,7 +201,7 @@ console.log('--- Test Gemini task profiles: generation e quick_check hanno confi
     !Object.prototype.hasOwnProperty.call(generationConfig, 'temperature') &&
       !Object.prototype.hasOwnProperty.call(generationConfig, 'topK') &&
       !Object.prototype.hasOwnProperty.call(generationConfig, 'topP'),
-    'Gemini 3.6 Flash non deve ricevere parametri di sampling deprecati'
+    'Gemini 3.7 Flash non deve ricevere parametri di sampling deprecati'
   );
   assert(
     !Object.prototype.hasOwnProperty.call(quickLiteConfig, 'temperature') &&
@@ -917,14 +917,14 @@ console.log('--- Test model policy: quick_check non rate-limited usa lite, non M
 {
   const service = Object.create(GeminiService.prototype);
   service.useRateLimiter = false;
-  service.modelName = 'gemini-3.6-flash';
+  service.modelName = 'gemini-3.7-flash';
   service.config = {
     MODEL_STRATEGY: {
       quick_check: ['flash-lite'],
-      generation: ['flash-3.6']
+      generation: ['flash-3.7']
     },
     GEMINI_MODELS: {
-      'flash-3.6': { name: 'gemini-3.6-flash' },
+      'flash-3.7': { name: 'gemini-3.7-flash' },
       'flash-lite': { name: 'gemini-3.5-flash-lite' }
     }
   };
@@ -939,7 +939,7 @@ console.log('--- Test model policy: quick_check non rate-limited usa lite, non M
   const result = service.shouldRespondToEmail('Vorrei informazioni', 'Info');
   assert(result.shouldRespond === true, 'quick_check deve restituire il risultato del modello');
   assert(modelUsed === 'gemini-3.5-flash-lite', `quick_check deve usare lite, ottenuto ${modelUsed}`);
-  assert(service.getModelNameForTask('generation') === 'gemini-3.6-flash', 'generation deve risolvere il modello qualita');
+  assert(service.getModelNameForTask('generation') === 'gemini-3.7-flash', 'generation deve risolvere il modello qualita');
 }
 
 console.log('--- Test generation strategies: rispetta configurazione e backup key ---');
@@ -977,14 +977,14 @@ console.log('--- Test generation strategies: salta primary esaurita ma mantiene 
   service.isPrimaryExhausted = true;
   service.config = {
     MODEL_STRATEGY: {
-      generation: ['flash-3.6', 'flash-lite', 'flash-lite-backup']
+      generation: ['flash-3.7', 'flash-lite', 'flash-lite-backup']
     },
     GEMINI_MODELS: {}
   };
 
   const plan = service.buildGenerationStrategies();
 
-  assert(plan.fallbackModelName === 'gemini-3.6-flash', 'fallbackModelName deve restare il primo modello valido anche se la primary e esaurita');
+  assert(plan.fallbackModelName === 'gemini-3.7-flash', 'fallbackModelName deve restare il primo modello valido anche se la primary e esaurita');
   assert(plan.attemptStrategy.length === 1, 'con primary esaurita deve restare solo la strategia backup');
   assert(plan.attemptStrategy[0].name === 'Generation-3-flash-lite-backup-BackupKey', 'deve mantenere indice e nome della strategia originale');
   assert(plan.attemptStrategy[0].model === 'gemini-3.5-flash-lite', 'backup lite deve usare il modello default atteso');

@@ -56,6 +56,7 @@ function _getScriptProperty(key, forceRefresh = false) {
     try {
       _refreshScriptPropertyCache_(key, now);
     } catch (e) {
+      if (forceRefresh) throw e;
       return null;
     }
   }
@@ -96,7 +97,7 @@ function _getScriptPropertyStringArray(key, fallback) {
 var CONFIG = {
   // === API ===
   get GEMINI_API_KEY() { return _getScriptProperty('GEMINI_API_KEY'); },
-  MODEL_NAME: 'gemini-3.6-flash',
+  MODEL_NAME: 'gemini-3.7-flash',
 
   // === Generazione ===
   MAX_OUTPUT_TOKENS: 6000,
@@ -296,7 +297,7 @@ var CONFIG = {
   // === Modelli Gemini (configurazione centralizzata) ===
   // Aggiornato: Luglio 2026
   // Policy operativa:
-  // - Risposta finale: Gemini 3.6 Flash (qualità)
+  // - Risposta finale: Gemini 3.7 Flash (qualità)
   // - Task rapidi/ausiliari: Gemini 3.5 Flash-Lite (categoria, lingua AI, semantica, scarti)
   // Fonte quote operative: verificare i limiti effettivi nel progetto AI Studio.
   // Le quote effettive possono variare per progetto: se AI Studio mostra limiti inferiori,
@@ -329,8 +330,8 @@ var CONFIG = {
 
   GEMINI_MODELS: {
     // Modello principale per la risposta finale: qualita.
-    'flash-3.6': {
-      name: 'gemini-3.6-flash',
+    'flash-3.7': {
+      name: 'gemini-3.7-flash',
       rpm: 10,
       tpm: 250000,
       rpd: 1500,
@@ -339,8 +340,8 @@ var CONFIG = {
       useCases: ['generation', 'all']
     },
     // Stesso tier qualita su chiave di riserva.
-    'flash-3.6-backup': {
-      name: 'gemini-3.6-flash',
+    'flash-3.7-backup': {
+      name: 'gemini-3.7-flash',
       rpm: 10,
       tpm: 250000,
       rpd: 1500,
@@ -376,7 +377,7 @@ var CONFIG = {
     'classification': ['flash-lite'],
     'language': ['flash-lite'],
     'newsletter_summary': ['flash-lite'],
-    'generation': ['flash-3.6', 'flash-3.6-backup', 'flash-lite', 'flash-lite-backup'],
+    'generation': ['flash-3.7', 'flash-3.7-backup', 'flash-lite', 'flash-lite-backup'],
     'semantic': ['flash-lite', 'flash-lite-backup'],
     'fallback': ['flash-lite', 'flash-lite-backup']
   },
@@ -540,8 +541,8 @@ function validateConfig() {
       errors.push("Errore Config: 'GEMINI_MODELS' è vuoto");
     }
     // Verifica esistenza modelli chiave
-    if (!CONFIG.GEMINI_MODELS['flash-3.6']) errors.push("Errore Config: Modello 'flash-3.6' mancante in GEMINI_MODELS");
-    if (!CONFIG.GEMINI_MODELS['flash-3.6-backup']) errors.push("Errore Config: Modello 'flash-3.6-backup' mancante in GEMINI_MODELS");
+    if (!CONFIG.GEMINI_MODELS['flash-3.7']) errors.push("Errore Config: Modello 'flash-3.7' mancante in GEMINI_MODELS");
+    if (!CONFIG.GEMINI_MODELS['flash-3.7-backup']) errors.push("Errore Config: Modello 'flash-3.7-backup' mancante in GEMINI_MODELS");
     if (!CONFIG.GEMINI_MODELS['flash-lite']) errors.push("Errore Config: Modello 'flash-lite' mancante in GEMINI_MODELS");
     if (!CONFIG.GEMINI_MODELS['flash-lite-backup']) errors.push("Errore Config: Modello 'flash-lite-backup' mancante in GEMINI_MODELS");
   }
@@ -551,8 +552,8 @@ function validateConfig() {
   } else {
     const generationStrategy = CONFIG.MODEL_STRATEGY.generation || [];
     const quickStrategy = CONFIG.MODEL_STRATEGY.quick_check || [];
-    if (!Array.isArray(generationStrategy) || generationStrategy[0] !== 'flash-3.6') {
-      errors.push("Errore Config: MODEL_STRATEGY.generation deve partire da 'flash-3.6'");
+    if (!Array.isArray(generationStrategy) || generationStrategy[0] !== 'flash-3.7') {
+      errors.push("Errore Config: MODEL_STRATEGY.generation deve partire da 'flash-3.7'");
     }
     if (!Array.isArray(quickStrategy) || quickStrategy[0] !== 'flash-lite') {
       errors.push("Errore Config: MODEL_STRATEGY.quick_check deve partire da 'flash-lite'");

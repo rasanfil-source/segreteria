@@ -2388,6 +2388,10 @@ function runGoldenCases() {
             assert(!matchPattern(response, pattern), `[${testCase.id}] response NON deve matchare /${pattern}/i`);
         });
 
+        const temporalContext = {
+            now: testCase.input.now ? new Date(testCase.input.now) : undefined,
+            messageDate: testCase.input.messageDate ? new Date(testCase.input.messageDate) : undefined
+        };
         const validation = validator.validateResponse(
             response,
             testCase.input.language || 'it',
@@ -2395,7 +2399,8 @@ function runGoldenCases() {
             body,
             subject,
             salutationMode,
-            false
+            false,
+            temporalContext
         );
         const minScore = typeof testCase.expected.minValidatorScore === 'number' ? testCase.expected.minValidatorScore : 0;
         assert(validation.score >= minScore, `[${testCase.id}] validator score ${validation.score} < ${minScore}`);

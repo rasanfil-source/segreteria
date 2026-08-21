@@ -3416,11 +3416,15 @@ Il mittente chiede della Cresima perché vuole o deve assumere un ruolo di padri
 
 ISTRUZIONI:
 1. Rispondi prima alla domanda esplicita (es. come fare la Cresima da adulto, requisiti, tempi).
-2. In questo caso il riferimento al ruolo di padrino/madrina è pertinente e richiesto implicitamente: aggiungi in modo naturale che la Cresima è solo una delle condizioni per tale ruolo.
-3. Spiega con formulazione sobria e non giudicante che la Cresima è una delle condizioni richieste, ma non l'unica: vanno verificati anche gli altri requisiti previsti per padrino/madrina, inclusa la situazione personale ed ecclesiale.
-4. Se utile, richiama sinteticamente le condizioni principali SOLO utilizzando quelle presenti testualmente nella voce KB "Requisiti padrini/madrine" fornita nel contesto: non introdurre requisiti aggiuntivi (es. Battesimo, Eucaristia) se non sono espressamente elencati in quella voce. Se la voce KB non è disponibile nel contesto corrente, limitati ai punti 2-3 senza elencare condizioni specifiche.
-5. Invita la persona a verificare con la parrocchia o con un sacerdote la propria situazione complessiva, senza formulare giudizi anticipati e senza chiedere dettagli personali via email.
-6. Non aggiungere questa sezione se il mittente ha già scritto di soddisfare tutti i requisiti.`;
+2. Se il ruolo di padrino/madrina è emerso o è pertinente alla domanda, aggiungi in modo naturale, non burocratico, queste condizioni:
+   - essere cattolico battezzato e cresimato;
+   - aver ricevuto l'Eucaristia;
+   - condurre una vita conforme alla fede e non trovarsi in una situazione canonicamente irregolare;
+   - avere almeno 16 anni;
+   - non essere il genitore del battezzando.
+3. Presenta queste condizioni come informazione utile al percorso, non come elenco freddo di requisiti.
+4. Non aggiungere questa sezione se il mittente ha già scritto di soddisfare tutti i requisiti.
+5. Non parlare di "discernimento pastorale": si tratta di casistica ordinaria prevista dalle norme canoniche.`;
     }
     return null;
   }

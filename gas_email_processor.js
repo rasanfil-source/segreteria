@@ -201,7 +201,7 @@ var EmailProcessor = class EmailProcessor {
         return {
           attemptStrategy: [],
           strategies: [],
-          fallbackModelName: 'gemini-3.6-flash',
+          fallbackModelName: 'gemini-3.7-flash',
           configuredGenerationStrategy: []
         };
       }
@@ -215,7 +215,7 @@ var EmailProcessor = class EmailProcessor {
     return {
       attemptStrategy: [],
       strategies: [],
-      fallbackModelName: 'gemini-3.6-flash',
+      fallbackModelName: 'gemini-3.7-flash',
       configuredGenerationStrategy: []
     };
   }
@@ -2999,7 +2999,7 @@ ${addressLines.join('\n\n')}
       const attemptStrategy = Array.isArray(generationPlan.attemptStrategy)
         ? generationPlan.attemptStrategy
         : [];
-      const fallbackModelName = generationPlan.fallbackModelName || 'gemini-3.6-flash';
+      const fallbackModelName = generationPlan.fallbackModelName || 'gemini-3.7-flash';
 
       if (shouldUseReceiptOnly) {
         response = this._buildReceiptOnlySubmissionResponse_(

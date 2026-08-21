@@ -20,7 +20,7 @@
       "promptMustNotInclude": [
         "RAGIONAMENTO INTERNO"
       ],
-      "maxPromptChars": 22000,
+      "maxPromptChars": 25000,
       "validator": {
         "isValid": true,
         "minScore": 0.9
@@ -45,7 +45,7 @@
         "CHECKLIST CONTESTUALE DI RISPOSTA",
         "DIRETTIVA DI COMPLETEZZA"
       ],
-      "maxPromptChars": 22000,
+      "maxPromptChars": 25000,
       "validator": {
         "isValid": false,
         "maxScore": 0.6,
@@ -72,7 +72,7 @@
       "promptMustInclude": [
         "CHECKLIST CONTESTUALE DI RISPOSTA"
       ],
-      "maxPromptChars": 20000,
+      "maxPromptChars": 25000,
       "validator": {
         "isValid": true,
         "minScore": 0.85

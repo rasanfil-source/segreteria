@@ -408,9 +408,9 @@ console.log('--- Test model policy: normalizza gli alias storici sui modelli GA 
     missingQuick: { useCases: ['quick_check'] }
   });
 
-  assert(normalized.quality.name === 'gemini-3.6-flash', 'il modello qualita 2.5 Flash deve essere riscritto a 3.6');
+  assert(normalized.quality.name === 'gemini-3.7-flash', 'il modello qualita 2.5 Flash deve essere riscritto a 3.7');
   assert(normalized.oldLite.name === 'gemini-3.5-flash-lite', 'i vecchi alias lite devono seguire la policy 3.5 Flash-Lite');
-  assert(normalized.missingGeneration.name === 'gemini-3.6-flash', 'fallback generation mancante deve essere 3.6 Flash');
+  assert(normalized.missingGeneration.name === 'gemini-3.7-flash', 'fallback generation mancante deve essere 3.7 Flash');
   assert(normalized.missingQuick.name === 'gemini-3.5-flash-lite', 'fallback quick_check mancante deve essere 3.5 Flash-Lite');
 }
 
@@ -418,12 +418,12 @@ console.log('--- Test _getCandidateModels: task policy generation vs quick/langu
 {
   const limiter = Object.create(GeminiRateLimiter.prototype);
   limiter.strategies = {
-    generation: ['flash-3.6', 'flash-3.6-backup', 'flash-lite'],
+    generation: ['flash-3.7', 'flash-3.7-backup', 'flash-lite'],
     quick_check: ['flash-lite'],
     fallback: ['flash-lite']
   };
 
-  assert(limiter._getCandidateModels('generation')[0] === 'flash-3.6', 'generation deve partire dal tier qualita aggiornato');
+  assert(limiter._getCandidateModels('generation')[0] === 'flash-3.7', 'generation deve partire dal tier qualita aggiornato');
   assert(limiter._getCandidateModels('quick_check')[0] === 'flash-lite', 'quick_check deve partire dal lite');
   assert(limiter._getCandidateModels('classification')[0] === 'flash-lite', 'classification deve ereditare quick_check');
   assert(limiter._getCandidateModels('language')[0] === 'flash-lite', 'language deve ereditare quick_check');
