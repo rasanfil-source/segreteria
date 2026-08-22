@@ -2201,6 +2201,22 @@ console.log('--- Test foreign_only pre-check: marca skip solo sui messaggi ester
 
 console.log('✅ Test filtri EmailProcessor passati');
 
+console.log('--- Test date relative in frase naturale e anni a due cifre ---');
+{
+  const anchor = new Date(2026, 5, 1);
+  const today = processor._resolveRequestedScheduleDate_('Possiamo incontrarci oggi in segreteria?', anchor, 'it');
+  const tomorrow = processor._resolveRequestedScheduleDate_('Ci vediamo domani dopo la Messa.', anchor, 'it');
+  const afterTomorrow = processor._resolveRequestedScheduleDate_('Passerò dopodomani con i documenti.', anchor, 'it');
+  assert(processor._formatDateOnlyIso_(today.date) === '2026-06-01', 'oggi deve essere riconosciuto dentro una frase naturale');
+  assert(processor._formatDateOnlyIso_(tomorrow.date) === '2026-06-02', 'domani deve essere riconosciuto dentro una frase naturale');
+  assert(processor._formatDateOnlyIso_(afterTomorrow.date) === '2026-06-03', 'dopodomani deve essere riconosciuto dentro una frase naturale');
+
+  const modernYear = processor._extractExplicitDateFromText_('appuntamento il 15/06/25', 2026);
+  const historicalYear = processor._extractExplicitDateFromText_('atto del 15/06/85', 2026);
+  assert(modernYear && modernYear.date.getFullYear() === 2025, 'anno 25 deve essere interpretato come 2025');
+  assert(historicalYear && historicalYear.date.getFullYear() === 1985, 'anno 85 deve essere interpretato come 1985');
+}
+
 
 console.log('--- Test _trackEmptyInboxStreak (mantiene streak se CacheService fallisce dopo lettura) ---');
 {

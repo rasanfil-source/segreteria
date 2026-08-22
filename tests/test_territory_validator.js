@@ -70,6 +70,16 @@ assert(buozziWithoutCivic.inParish === null, 'via Bruno Buozzi senza civico deve
 assert(buozziWithoutCivic.needsCivic === true, 'via Bruno Buozzi senza civico deve chiedere il civico');
 assert(buozziWithoutCivic.details === 'civic_required', 'via/viale Buozzi senza civico deve usare civic_required');
 
+console.log('--- Test TerritoryValidator: SNC non diventa civico zero ---');
+const sncAnalysis = validator.analyzeEmailForAddress(
+  'Abito in via Bruno Buozzi SNC e vorrei sapere se appartengo alla parrocchia.',
+  'Territorio'
+);
+assert(sncAnalysis.addressFound === true, 'un indirizzo SNC deve essere rilevato');
+assert(sncAnalysis.addresses[0].civic === null, 'SNC non deve essere convertito nel civico numerico zero');
+assert(sncAnalysis.addresses[0].verification.inParish === null, 'SNC su una via a copertura parziale deve richiedere verifica manuale');
+assert(sncAnalysis.addresses[0].verification.details === 'snc_manual_review', 'SNC parziale deve esporre il motivo dedicato');
+
 console.log('--- Test TerritoryValidator: tutti [null, null] fallisce chiuso ---');
 validator.rules.set('via test invalida', { tutti: [null, null] });
 const invalidRange = validator.verifyAddress('Via Test Invalida', 10);

@@ -620,6 +620,12 @@ var GmailService = class GmailService {
      * Ottiene gli ID di tutti i messaggi con una specifica etichetta
      */
     getMessageIdsWithLabel(labelName, onlyInbox = true, options = {}) {
+        const withCompleteness = (set, complete) => {
+            try {
+                Object.defineProperty(set, 'complete', { value: complete === true, configurable: true, writable: true });
+            } catch (_) { set.complete = complete === true; }
+            return set;
+        };
         try {
             const labelId = this._getOptionalLabelIdByName(labelName);
             const hasLabelId = !!labelId;
@@ -627,7 +633,7 @@ var GmailService = class GmailService {
                 // Senza ID reale la query restituisce tutti gli unread in inbox, non solo quelli etichettati.
                 // Fail-safe: evitiamo di inquinare la cache dei messaggi già etichettati.
                 console.log(`⊖ Label '${labelName}' assente: nessun messaggio da pre-caricare.`);
-                return new Set();
+                return withCompleteness(new Set(), true);
             }
 
             const messageIds = new Set();
@@ -663,14 +669,17 @@ var GmailService = class GmailService {
             if (useWindowDays > 0) queryParts.push(`after:${this._getNDaysAgo(useWindowDays)}`);
             const query = queryParts.join(' ').trim();
             let pageCount = 0;
+            let truncated = false;
             const paginationStartedAtMs = Date.now();
 
             do {
                 if (pageCount >= maxPages || messageIds.size >= maxMessages) {
+                    truncated = true;
                     console.warn(`⚠️ Interruzione list label '${labelName}': limite raggiunto (pages=${pageCount}/${maxPages}, messages=${messageIds.size}/${maxMessages})`);
                     break;
                 }
                 if ((Date.now() - paginationStartedAtMs) > maxRuntimeMs) {
+                    truncated = true;
                     console.warn(`⚠️ Interruzione list label '${labelName}': timeout paginazione dopo ${pageCount} pagina/e (${maxRuntimeMs}ms)`);
                     break;
                 }
@@ -694,16 +703,20 @@ var GmailService = class GmailService {
                             this._labelCache.delete(labelName);
                         }
                         console.warn(`⚠️ Label '${labelName}' non più esistente: cache pulita, restituisco Set vuoto.`);
-                        return new Set();
+                        return withCompleteness(new Set(), true);
                     }
                     throw listError;
                 }
                 pageCount++;
 
                 if (response.messages) {
-                    for (const m of response.messages) {
+                    for (let messageIndex = 0; messageIndex < response.messages.length; messageIndex++) {
+                        const m = response.messages[messageIndex];
                         messageIds.add(m.id);
                         if (messageIds.size >= maxMessages) {
+                            // Anche senza nextPageToken possono restare elementi non letti nella
+                            // pagina corrente: la blacklist va quindi dichiarata incompleta.
+                            truncated = messageIndex < response.messages.length - 1 || !!response.nextPageToken;
                             break;
                         }
                     }
@@ -713,7 +726,7 @@ var GmailService = class GmailService {
             } while (pageToken);
 
             console.log(`📦 Trovati ${messageIds.size} messaggi con label '${labelName}' (inbox: ${onlyInbox}, windowDays: ${useWindowDays || 'all'}, pages: ${pageCount})`);
-            return messageIds;
+            return withCompleteness(messageIds, !truncated && !pageToken);
         } catch (e) {
             console.warn(`⚠️ Impossibile ottenere messaggi con label ${labelName}: ${e.message}`);
             throw e;
@@ -858,6 +871,7 @@ var GmailService = class GmailService {
                     const shouldCheckLabelsViaMetadata =
                         discoveryOptions.forceMetadataLabelCheck === true ||
                         !hasRamBlacklist ||
+                        discoveryOptions.blacklistComplete === false ||
                         (excludedLabelIds.size > 0 && !discoveryOptions.blacklistPreloaded && !blacklistPreloadAttempted);
                     if (shouldCheckLabelsViaMetadata) {
                         if (metadataGets >= maxMetadataGets) {
@@ -3081,6 +3095,17 @@ var GmailService = class GmailService {
      */
     sendHtmlReply(resource, responseText, messageDetails) {
         const finalResponse = responseText == null ? '' : String(responseText);
+        const isAmbiguousSendError = (error) => {
+            const msg = String((error && error.message) || error || '').toLowerCase();
+            return msg.includes('timeout') ||
+                msg.includes('deadline') ||
+                msg.includes('network') ||
+                msg.includes('connection reset') ||
+                msg.includes('econnreset') ||
+                msg.includes('backend error') ||
+                msg.includes('internal error') ||
+                /\b(500|502|503|504)\b/.test(msg);
+        };
 
         const htmlBody = (typeof markdownToHtml === 'function')
             ? markdownToHtml(finalResponse)
@@ -3275,13 +3300,8 @@ var GmailService = class GmailService {
 
             } catch (apiError) {
                 apiSendError = apiError;
-                const errMsg = String((apiError && apiError.message) || '').toLowerCase();
-                if (
-                    errMsg.includes('timeout')
-                    || errMsg.includes('deadline')
-                    || /\b(503|504)\b/.test(errMsg)
-                ) {
-                    throw new Error(`Timeout API avanzata: fallback nativo bloccato (${apiError.message})`);
+                if (isAmbiguousSendError(apiError)) {
+                    throw new Error(`Esito invio Gmail API ambiguo: fallback nativo bloccato (${apiError.message})`);
                 }
                 console.warn(`⚠️ Gmail API fallita, ripiego su GmailApp: ${apiError.message}`);
             }
@@ -3318,10 +3338,16 @@ var GmailService = class GmailService {
             console.log(`✓ Risposta HTML inviata a ${messageDetails.senderEmail} (metodo alternativo nativo)`);
         } catch (error) {
             console.error(`❌ Risposta fallita: ${error.message}`);
+            if (isAmbiguousSendError(error)) {
+                throw new Error(`Esito invio GmailApp ambiguo: ulteriori fallback bloccati (${error.message})`);
+            }
             try {
                 mailEntity.reply(plainText || this._stripHtmlTags(finalResponse));
                 console.log(`✓ Risposta plain text inviata a ${messageDetails.senderEmail} (alternativa)`);
             } catch (fallbackError) {
+                if (isAmbiguousSendError(fallbackError)) {
+                    throw new Error(`Esito fallback plain text ambiguo: fallback thread bloccato (${fallbackError.message})`);
+                }
                 let threadFallbackError = null;
                 try {
                     const threadEntity = (mailEntity && typeof mailEntity.getThread === 'function')

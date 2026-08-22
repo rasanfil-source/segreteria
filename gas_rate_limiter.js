@@ -280,16 +280,10 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       newProps[`tokens_${modelKey}`] = '0';
     }
 
-    // Reset anche cache + data Pacific in un'unica scrittura atomica.
-    newProps.rpm_window = JSON.stringify([]);
-    newProps.tpm_window = JSON.stringify([]);
+    // Le finestre RPM/TPM sono rolling e non seguono il confine giornaliero RPD.
+    // Mantenerle evita un burst artificiale a cavallo della mezzanotte Pacific.
     newProps.rate_limit_date = todayPacific;
     this.props.setProperties(newProps);
-    this._writePersistentWindowData_('rpm', []);
-    this._writePersistentWindowData_('tpm', []);
-
-    this.cache.rpmWindow = [];
-    this.cache.tpmWindow = [];
     this.cache.lastCacheUpdate = 0;
     console.log('✓ Contatori giornalieri resettati');
   }
@@ -699,7 +693,23 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         // Se Gemini restituisce usageMetadata.totalTokenCount, usiamo il consumo reale;
         // altrimenti manteniamo la stima prudenziale precedente.
         const accountedTokens = this._resolveAccountedTokens_(normalizedResult, estimatedTokens);
-        this._trackRequest(modelKey, accountedTokens, duration, reservationId);
+        try {
+          this._trackRequest(modelKey, accountedTokens, duration, reservationId);
+        } catch (trackingError) {
+          // La chiamata remota e gia riuscita: non scartiamo l'output e non la
+          // ripetiamo. La reservation RPM/TPM e gia persistita e resta prudenziale;
+          // il mancato accounting RPD viene reso visibile per il recupero operativo.
+          console.warn(`⚠️ Accounting post-risposta fallito per ${modelKey}; risposta preservata: ${trackingError.message}`);
+          try {
+            if (this.props && typeof this.props.setProperty === 'function') {
+              this.props.setProperty(`quota_tracking_recovery_${modelKey}`, JSON.stringify({
+                ts: Date.now(),
+                tokens: accountedTokens,
+                error: String(trackingError.message || trackingError).substring(0, 300)
+              }));
+            }
+          } catch (_) { }
+        }
 
         console.log(`✓ Successo (${duration}ms)`);
 
@@ -872,7 +882,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     }
 
     // 1-2. Contatori RPD/Tokens con incremento atomico (evita race condition)
-    const counters = this._incrementCountersAtomic(modelKey, tokensUsed);
+    // Le richieste con reservation hanno gia consumato RPD atomicamente prima
+    // della chiamata remota; qui contabilizziamo soltanto i token effettivi.
+    const counters = this._incrementCountersAtomic(modelKey, tokensUsed, false, !reservationId);
 
     // 3. Finestra RPM (con cache) - solo per richieste non prenotate
     if (reservationId) {
@@ -907,7 +919,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   /**
    * Incrementa contatori persistenti con lock script-level.
    */
-  _incrementCountersAtomic(modelKey, tokensUsed, alreadyLocked = false) {
+  _incrementCountersAtomic(modelKey, tokensUsed, alreadyLocked = false, incrementRpd = true) {
     const lock = alreadyLocked ? null : LockService.getScriptLock();
     // Timeout ridotto per evitare hang prolungati in console sotto concorrenza
     const gotLock = alreadyLocked || lock.tryLock(10000);
@@ -931,7 +943,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         currentTokens = 0;
         updates[rpdDateKey] = todayPacific;
       }
-      const nextRpd = currentRpd + 1;
+      const nextRpd = currentRpd + (incrementRpd ? 1 : 0);
       const nextTokens = currentTokens + (tokensUsed || 0);
 
       updates[rpdKey] = String(nextRpd);
@@ -1724,6 +1736,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       }
 
       const reservationId = this._createReservationUnlocked(selection.modelKey, estimatedTokens);
+      // Prenota anche RPD sotto lo stesso ScriptLock della selezione. In questo
+      // modo due trigger non possono consumare entrambi l'ultima richiesta.
+      this._incrementCountersAtomic(selection.modelKey, 0, true, true);
       selection.reservationId = reservationId;
       return selection;
     }.bind(this), {

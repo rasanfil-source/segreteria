@@ -1451,7 +1451,7 @@ var EmailProcessor = class EmailProcessor {
         /\b(sono\s+assente|sarò\s+assente|resterò\s+assente|sar[oò]\s+fuori)\b/i,
         /\b(automatic reply|risposta automatica)\b/i,
         /\breturn(ing)? on\b/i,
-        /\b(thank you for your message|mailbox monitored periodically|messaggio ricevuto)\b/i
+        /\b(mailbox (?:is )?monitored periodically|casella (?:di posta )?(?:e )?consultata periodicamente)\b/i
       ];
 
       const oooSubject = messageDetails.subject || '';
@@ -3723,10 +3723,12 @@ ${addressLines.join('\n\n')}
       let labeledMessageIds = new Set();
       let skippedMessageIds = new Set();
       let messageLabelCachesPreloaded = false;
+      let messageLabelCachesComplete = true;
       const canPreloadMessageLabelCaches = this.gmailService && typeof this.gmailService.getMessageIdsWithLabel === 'function';
       const addIdsToSet = (targetSet, ids) => {
         if (!(targetSet instanceof Set)) return;
         if (ids instanceof Set) {
+          if (ids.complete === false) messageLabelCachesComplete = false;
           ids.forEach((id) => targetSet.add(id));
           return;
         }
@@ -3816,6 +3818,11 @@ ${addressLines.join('\n\n')}
             discoveryOptions.blacklistMessageIds = labeledMessageIds;
             discoveryOptions.skipBlacklistMessageIds = skippedMessageIds;
             discoveryOptions.preloadBlacklistMessageIds = preloadMessageLabelCaches;
+            Object.defineProperty(discoveryOptions, 'blacklistComplete', {
+              configurable: true,
+              enumerable: true,
+              get: () => messageLabelCachesComplete
+            });
           }
 
           threads = this.gmailService.getUnprocessedUnreadThreads(
@@ -3897,7 +3904,6 @@ ${addressLines.join('\n\n')}
         dilata: 0
       };
 
-      this._startTime = Date.now();
       const MAX_EXECUTION_TIME = this.config.maxExecutionTimeMs;
       let processedCount = 0;
       // Si usa la closure getEffectiveMaxEmailsPerRun definita esternamente per ottimizzare la leggibilità.
@@ -4208,10 +4214,21 @@ ${addressLines.join('\n\n')}
         return;
       }
 
+      const configuredCheckpointTtlMs = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.BATCH_CHECKPOINT_TTL_MS)))
+        ? Math.max(60000, Number(CONFIG.BATCH_CHECKPOINT_TTL_MS))
+        : (10 * 60 * 1000);
+      const scheduledDelayMs = delayMs === -1
+        ? (18 * 60 * 60 * 1000)
+        : (Number.isFinite(delayMs) && delayMs > 0 ? Math.max(1000, Math.floor(delayMs)) : 60000);
+      const createdAtMs = Date.now();
+      const notBeforeMs = createdAtMs + scheduledDelayMs;
+      const expiresAtMs = notBeforeMs + Math.max(configuredCheckpointTtlMs, 60 * 60 * 1000);
       const checkpoint = {
         version: 2,
-        runId: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        createdAt: new Date().toISOString(),
+        runId: `${createdAtMs}_${Math.random().toString(36).slice(2, 8)}`,
+        createdAt: new Date(createdAtMs).toISOString(),
+        notBefore: new Date(notBeforeMs).toISOString(),
+        expiresAt: new Date(expiresAtMs).toISOString(),
         startIndex: startIndex,
         remainingTimeMs: delayMs,
         pendingCount: pendingThreadIds.length,
@@ -4232,7 +4249,7 @@ ${addressLines.join('\n\n')}
 
         if (delayMs === -1) {
           try {
-            const conservativeResumeMs = 18 * 60 * 60 * 1000;
+            const conservativeResumeMs = scheduledDelayMs;
             const createdTrigger = ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(conservativeResumeMs).create();
             this._deleteResumeBatchTriggers_(existing, createdTrigger);
             console.log(`⏸️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger pianificato tra ~18h (quota giornaliera Gmail esaurita).`);
@@ -4241,9 +4258,7 @@ ${addressLines.join('\n\n')}
           }
         } else {
           try {
-            const safeDelayMs = Number.isFinite(delayMs) && delayMs > 0
-              ? Math.max(1000, Math.floor(delayMs))
-              : (60 * 1000);
+            const safeDelayMs = scheduledDelayMs;
             const createdTrigger = ScriptApp.newTrigger('resumeEmailBatchFromCheckpoint').timeBased().after(safeDelayMs).create();
             this._deleteResumeBatchTriggers_(existing, createdTrigger);
             console.log(`⏭️ Checkpoint batch salvato (${checkpoint.pendingCount} thread residui), trigger pianificato tra ${(safeDelayMs / 1000).toFixed(0)}s.`);
@@ -4795,8 +4810,9 @@ ${addressLines.join('\n\n')}
     let deletionsCount = 0;
     const MAX_DELETIONS_PER_RUN = 20;
 
-    Object.keys(allProps).forEach((key) => {
-      if (!key || !key.startsWith('sent_backup_') || deletionsCount >= MAX_DELETIONS_PER_RUN) return;
+    for (const key of Object.keys(allProps)) {
+      if (!key || !key.startsWith('sent_backup_')) continue;
+      if (deletionsCount >= MAX_DELETIONS_PER_RUN) break;
       const parsedMarker = this._parseSendIdempotencyBackupValue_(allProps[key]);
       if (!parsedMarker || nowTs > parsedMarker.expiresAt) {
         try {
@@ -4804,7 +4820,7 @@ ${addressLines.join('\n\n')}
           deletionsCount++;
         } catch (_) { }
       }
-    });
+    }
   }
 
   _persistSendIdempotencyBackup_(messageId, props = null) {
@@ -4960,8 +4976,9 @@ ${addressLines.join('\n\n')}
     if (!cache) return;
     try {
       cache.remove(`sending_${messageId}`);
-      // Non rimuovere sendstarted_: se l'invio ha avuto esito ambiguo,
-      // preserviamo una finestra breve anti-duplicato.
+      // Il rollback viene usato soltanto per esiti classificati non ambigui.
+      // Rimuoviamo quindi anche il marker started per consentire il retry pianificato.
+      cache.remove(`sendstarted_${messageId}`);
     } catch (e) {
       console.warn(`  Impossibile eseguire il rollback della transazione in cache per ${messageId}: ${e.message}`);
     } finally {
@@ -5290,7 +5307,7 @@ ${addressLines.join('\n\n')}
       const day = parseInt(numericMatch[1], 10);
       const month = parseInt(numericMatch[3], 10);
       let year = numericMatch[4] ? parseInt(numericMatch[4], 10) : defaultYear;
-      if (year < 100) year += 2000;
+      if (year < 100) year += (year < 50 ? 2000 : 1900);
       const date = this._makeValidDateOnly_(year, month, day);
       if (date) {
         return {
@@ -5670,10 +5687,22 @@ ${addressLines.join('\n\n')}
     if (typeof this.gmailService._getOptionalLabelIdByName !== 'function') return false;
     if (typeof this.gmailService._getMessageMetadataWithResilience !== 'function') return false;
 
+    // Se il labeling skip e disabilitato non esiste alcuno stato da preservare.
+    if (!String(this.config.skipLabelName || '').trim()) return false;
+
     const skipLabelId = this.gmailService._getOptionalLabelIdByName(this.config.skipLabelName);
-    // Fail-closed architetturale: se non recuperiamo l'ID label (quota/API/errore),
-    // preserviamo lo stato skip per evitare promozioni accidentali.
-    if (!skipLabelId) return true;
+    // Distingue una label realmente assente da un lookup Advanced API fallito.
+    if (!skipLabelId) {
+      try {
+        const nativeLabel = (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getUserLabelByName === 'function')
+          ? GmailApp.getUserLabelByName(this.config.skipLabelName)
+          : null;
+        return !!nativeLabel;
+      } catch (e) {
+        console.warn(`⚠️ Verifica esistenza label skip fallita per ${messageId}, fail-closed: ${e.message}`);
+        return true;
+      }
+    }
 
     try {
       const metadata = this.gmailService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
@@ -6004,6 +6033,7 @@ ${addressLines.join('\n\n')}
       } else if (canSendWithGmailApp) {
         GmailApp.sendEmail(recipient, subject, body);
       }
+      this._markValidationReviewAlertSent_(signature, alertConfig);
     } catch (e) {
       console.warn(`⚠️ Notifica Verifica non inviata: ${e.message}`);
     }
@@ -6066,7 +6096,6 @@ ${addressLines.join('\n\n')}
         ? CacheService.getScriptCache()
         : null;
       if (cache && cache.get(key)) return true;
-      if (cache) cache.put(key, 'sent', Math.min(cooldownSeconds, 21600));
     } catch (e) {
       // Il fallback su PropertiesService copre anche evizioni/cache non disponibili.
     }
@@ -6087,19 +6116,39 @@ ${addressLines.join('\n\n')}
       if (Number.isFinite(lastTs) && ((now - lastTs) < cooldownSeconds * 1000)) {
         return true;
       }
-      const nextState = { [hash]: now };
-      Object.keys(state).forEach((existingHash) => {
-        const ts = Number(state[existingHash]);
-        if (Number.isFinite(ts) && ((now - ts) < cooldownSeconds * 1000)) {
-          nextState[existingHash] = ts;
-        }
-      });
-      props.setProperty(stateKey, JSON.stringify(nextState));
     } catch (e) {
       return false;
     }
 
     return false;
+  }
+
+  _markValidationReviewAlertSent_(signature, alertConfig = {}) {
+    const cooldownSeconds = Math.max(60, parseInt(alertConfig.cooldownSeconds, 10) || 3600);
+    const hash = this._hashValidationReviewSignature_(signature);
+    const key = `validation_review_alert_${hash}`;
+    const now = Date.now();
+    try {
+      const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
+        ? CacheService.getScriptCache()
+        : null;
+      if (cache) cache.put(key, 'sent', Math.min(cooldownSeconds, 21600));
+    } catch (_) { }
+    try {
+      const props = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
+        ? PropertiesService.getScriptProperties()
+        : null;
+      if (!props) return;
+      const stateKey = 'VALIDATION_REVIEW_ALERT_STATE';
+      let state = {};
+      try { state = JSON.parse(props.getProperty(stateKey) || '{}'); } catch (_) { state = {}; }
+      const nextState = { [hash]: now };
+      Object.keys(state).forEach((existingHash) => {
+        const ts = Number(state[existingHash]);
+        if (Number.isFinite(ts) && ((now - ts) < cooldownSeconds * 1000)) nextState[existingHash] = ts;
+      });
+      props.setProperty(stateKey, JSON.stringify(nextState));
+    } catch (_) { }
   }
 
   _hashValidationReviewSignature_(signature) {

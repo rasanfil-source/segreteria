@@ -498,7 +498,21 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
     try {
       const date = (message && typeof message.getDate === 'function') ? message.getDate() : null;
       const timeMs = date instanceof Date ? date.getTime() : NaN;
-      const unread = Boolean(message && typeof message.isUnread === 'function' && message.isUnread());
+      let unread = Boolean(message && typeof message.isUnread === 'function' && message.isUnread());
+      if (!unread && message && typeof message.getId === 'function') {
+        try {
+          if (!staleMetadataService && typeof GmailService !== 'undefined' && GmailService) {
+            staleMetadataService = new GmailService();
+          }
+          if (staleMetadataService && typeof staleMetadataService._getMessageMetadataWithResilience === 'function') {
+            const metadata = staleMetadataService._getMessageMetadataWithResilience(message.getId(), { format: 'minimal' }, 1);
+            const labelIds = metadata && Array.isArray(metadata.labelIds) ? metadata.labelIds : [];
+            unread = labelIds.includes('UNREAD') && labelIds.includes('INBOX');
+          }
+        } catch (metadataUnreadError) {
+          console.warn(`⚠️ hasStaleUnreadThreads: fallback UNREAD metadata fallito (${metadataUnreadError.message})`);
+        }
+      }
       return unread &&
         Number.isFinite(timeMs) &&
         timeMs <= cutoffMs &&
@@ -529,6 +543,7 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
       // prima di passare al controllo dettagliato per-messaggio.
       for (const thread of threads) {
         try {
+          if (thread && typeof thread.refresh === 'function') thread.refresh();
           // Verifichiamo a livello messaggio: un thread può contenere vecchie
           // risposte già terminali e nuovi follow-up ancora elaborabili.
           const messages = thread && typeof thread.getMessages === 'function' ? thread.getMessages() : [];
@@ -1925,6 +1940,10 @@ function main() {
     const knowledgeBase = GLOBAL_CACHE.knowledgeBase || '';
     const doctrineBase = GLOBAL_CACHE.doctrineBase || '';
     const checkpointData = _readBatchCheckpoint_();
+    if (checkpointData && Number.isFinite(Date.parse(checkpointData.notBefore || '')) && Date.now() < Date.parse(checkpointData.notBefore)) {
+      console.log(`⏸️ Checkpoint batch non ancora eseguibile (notBefore=${checkpointData.notBefore}).`);
+      return;
+    }
     const runOptions = (checkpointData && Array.isArray(checkpointData.pendingThreadIds) && checkpointData.pendingThreadIds.length > 0)
       ? { threadIds: checkpointData.pendingThreadIds }
       : {};
@@ -2018,7 +2037,9 @@ function _readBatchCheckpoint_() {
       ? Number(CONFIG.BATCH_CHECKPOINT_TTL_MS)
       : (10 * 60 * 1000);
     const createdAtMs = Date.parse(parsed.createdAt || '');
-    const isFresh = Number.isFinite(createdAtMs) && ((Date.now() - createdAtMs) <= ttlMs);
+    const explicitExpiresAtMs = Date.parse(parsed.expiresAt || '');
+    const expiresAtMs = Number.isFinite(explicitExpiresAtMs) ? explicitExpiresAtMs : (createdAtMs + ttlMs);
+    const isFresh = Number.isFinite(createdAtMs) && Date.now() <= expiresAtMs;
     if (!isFresh) {
       _clearBatchCheckpoint_();
       return null;

@@ -387,8 +387,9 @@ var TerritoryValidator = class TerritoryValidator {
                     const civicRaw = match[3];
                     // Parsifica parte numerica principale per validazione range
                     let civicNum;
-                    if (/snc/i.test(civicRaw)) {
-                        civicNum = 0;
+                    const isWithoutCivicNumber = /snc/i.test(civicRaw);
+                    if (isWithoutCivicNumber) {
+                        civicNum = null;
                     } else {
                         const civicMatch = civicRaw.match(/\d+/);
                         if (!civicMatch) continue;
@@ -396,7 +397,7 @@ var TerritoryValidator = class TerritoryValidator {
                     }
 
                     // Consenti anche civico 0 (presente in alcuni catasti), range valido 0-9999
-                    if (isNaN(civicNum) || civicNum < 0 || civicNum > 9999) continue;
+                    if (!isWithoutCivicNumber && (isNaN(civicNum) || civicNum < 0 || civicNum > 9999)) continue;
 
                     // Mantieni il civico completo (es. "10A") per l'output
                     const fullCivic = TerritoryValidator.normalizeCivic(civicRaw);
@@ -662,6 +663,25 @@ var TerritoryValidator = class TerritoryValidator {
 
         // 1. Aggiungi prima gli indirizzi completi (più affidabili)
         addressesInfo.forEach(addrInfo => {
+            const isWithoutCivicNumber = /^snc$/i.test(String(addrInfo.fullCivic || '').trim());
+            if (isWithoutCivicNumber) {
+                const streetResult = this.verifyStreetWithoutCivic(addrInfo.street);
+                const verification = streetResult.inParish === null
+                    ? {
+                        inParish: null,
+                        needsCivic: false,
+                        reason: `'${addrInfo.street}' è indicata SNC e ha copertura parziale: serve verifica manuale del territorio`,
+                        details: 'snc_manual_review'
+                    }
+                    : streetResult;
+                addresses.push({
+                    street: addrInfo.street,
+                    civic: null,
+                    fullCivic: 'snc',
+                    verification: verification
+                });
+                return;
+            }
             const result = this.verifyAddress(addrInfo.street, addrInfo.civic, addrInfo.fullCivic);
             const civicLabel = addrInfo.fullCivic || addrInfo.civic;
 

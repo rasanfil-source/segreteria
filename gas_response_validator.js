@@ -754,7 +754,7 @@ var ResponseValidator = class ResponseValidator {
       if (isItalianEnglishMixedSignal) {
         warnings.push('Possibile lingua mista IT/EN');
         score = Math.min(score, 0.85);
-      } else if (markerScores[detectedLang] >= 3 && markerScores[expectedLanguage] < 2) {
+      } else if ((markerScores[detectedLang] || 0) >= 3 && (markerScores[expectedLanguage] || 0) < 2) {
         errors.push(
           `Lingua non corrispondente: attesa ${expectedLanguage.toUpperCase()}, ` +
           `rilevata ${detectedLang.toUpperCase()}`
@@ -1739,7 +1739,12 @@ var ResponseValidator = class ResponseValidator {
       /\b(?:puo|potra|puoi|potete|potrete)\s+(?:venire|passare|recarsi|presentarsi)\b[^.\n]{0,120}\b(?:segreteria|parrocchia|di\s+persona|persona)\b/i,
       /\b(?:venga|passi|si\s+rechi|si\s+presenti)\b[^.\n]{0,120}\b(?:segreteria|parrocchia|di\s+persona|persona)\b/i,
       /\b(?:venire|passare|recarsi|presentarsi)\b[^.\n]{0,80}\b(?:in|presso|alla)\s+(?:segreteria|parrocchia)\b/i,
-      /\b(?:venire|passare)\s+a\s+trovarci\b/i
+      /\b(?:venire|passare)\s+a\s+trovarci\b/i,
+      /\b(?:please\s+)?(?:come|visit|stop\s+by|go)\b[^.\n]{0,120}\b(?:parish\s+office|parish|office|in\s+person)\b/i,
+      /\b(?:puede|puedes|podra|venga|pase|acuda|venir|pasar)\b[^.\n]{0,120}\b(?:secretaria|parroquia|en\s+persona)\b/i,
+      /\b(?:pouvez|pourrez|venez|passez|venir|vous\s+rendre)\b[^.\n]{0,120}\b(?:secretariat|paroisse|en\s+personne)\b/i,
+      /\b(?:konnen|konnten|kommen|vorbeikommen|aufsuchen)\b[^.\n]{0,120}\b(?:pfarrburo|pfarrei|personlich)\b/i,
+      /\b(?:pode|podera|venha|passe|compareca|vir)\b[^.\n]{0,120}\b(?:secretaria|paroquia|pessoalmente)\b/i
     ];
     const conditionalPatterns = [
       /\bqualora\b/i,
@@ -1748,9 +1753,14 @@ var ResponseValidator = class ResponseValidator {
       /\bse\s+(?:le|vi|ti)?\s*(?:fosse|sara|capitasse|capiti|dovesse|riuscisse|fossero|capitasse)\b/i,
       /\bse\s+(?:ha|avete|avesse|aveste)\s+occasione\b/i,
       /\bse\s+(?:si|vi)\s+trovasse\b/i,
-      /\bquando\s+(?:le|vi)?\s*(?:fosse|sara)\s+possibile\b/i
+      /\bquando\s+(?:le|vi)?\s*(?:fosse|sara)\s+possibile\b/i,
+      /\b(?:if|when)\b[^.\n]{0,80}\b(?:possible|able|happen\s+to\s+be|are\s+in)\b/i,
+      /\bsi\b[^.\n]{0,80}\b(?:posible|puede|esta\s+en)\b/i,
+      /\bsi\b[^.\n]{0,80}\b(?:possible|pouvez|etes\s+a)\b/i,
+      /\b(?:falls|wenn)\b[^.\n]{0,80}\b(?:moglich|konnen|in\s+rom)\b/i,
+      /\bse\b[^.\n]{0,80}\b(?:possivel|puder|estiver\s+em)\b/i
     ];
-    const sentencePattern = /[^.\n!?]*?(?:segreteria|parrocchia|di\s+persona|trovarci)[^.\n!?]*/gi;
+    const sentencePattern = /[^.\n!?]*?(?:segreteria|parrocchia|di\s+persona|trovarci|parish|office|in\s+person|secretaria|parroquia|en\s+persona|secretariat|paroisse|en\s+personne|pfarrburo|pfarrei|personlich|paroquia|pessoalmente)[^.\n!?]*/gi;
     const violations = [];
     let match;
 
@@ -2004,6 +2014,7 @@ var ResponseValidator = class ResponseValidator {
 
     const mode = String(mismatchContext.mode || '').trim().toLowerCase();
     const text = String(response || '');
+    const hasAny = (patterns) => patterns.some(pattern => pattern.test(text));
     const forbiddenPatterns = [
       { label: 'con la dovuta prudenza/cautela', pattern: /\bcon\s+la\s+dovuta\s+(?:prudenza|cautela)\b/i },
       { label: 'prudenza/cautela esplicita', pattern: /\b(?:prudenza|cautela|prudente|cauto|cauta)\b/i },
@@ -2014,10 +2025,27 @@ var ResponseValidator = class ResponseValidator {
       .map((entry) => entry.label);
 
     if (mode === 'unverified_attachment') {
-      const hasReceivedAttachment = /\babbiamo\s+ricevut[oa]\s+l[’']?\s*allegat[oa]\b/i.test(text) ||
-        /\bl[’']?\s*allegat[oa]\s+ricevut[oa]\b/i.test(text);
-      const hasCannotConfirmMatch = /\bnon\s+possiamo\s+confermare\b[\s\S]{0,180}\bcertezza\b[\s\S]{0,180}\bcorrispond\w*\b/i.test(text);
-      const hasVerifyAndResendFile = /\bverific\w*\b[\s\S]{0,220}\breinvi\w*\b[\s\S]{0,140}\bfile\s+corrett[oa]\b/i.test(text);
+      const hasReceivedAttachment = hasAny([
+        /\babbiamo\s+ricevut[oa]\s+l[’']?\s*allegat[oa]\b/i, /\bl[’']?\s*allegat[oa]\s+ricevut[oa]\b/i,
+        /\bwe(?:'ve|\s+have)?\s+received\s+(?:the\s+)?(?:attachment|file)\b/i,
+        /\bhemos\s+recibido\s+(?:el\s+)?(?:archivo|adjunto)\b/i,
+        /\bnous\s+avons\s+recu\s+(?:la\s+)?piece\s+jointe\b/i,
+        /\bwir\s+haben\s+(?:den\s+)?anhang\s+erhalten\b/i,
+        /\brecebemos\s+(?:o\s+)?(?:anexo|arquivo)\b/i
+      ]);
+      const hasCannotConfirmMatch = hasAny([
+        /\bnon\s+possiamo\s+confermare\b[\s\S]{0,180}\bcertezza\b[\s\S]{0,180}\bcorrispond\w*\b/i,
+        /\b(?:cannot|can't|unable\s+to)\s+(?:confirm|verify)\b[\s\S]{0,200}\b(?:certain|certainty|sure|matches?|corresponds?)\b/i,
+        /\bno\s+podemos\s+(?:confirmar|verificar)\b[\s\S]{0,200}\b(?:certeza|correspond)/i,
+        /\bnous\s+ne\s+pouvons\s+pas\s+(?:confirmer|verifier)\b[\s\S]{0,200}\b(?:certitude|correspond)/i,
+        /\bwir\s+konnen\b[\s\S]{0,80}\bnicht\s+(?:bestatigen|prufen)\b[\s\S]{0,200}\b(?:sicher|ubereinstimm)/i,
+        /\bnao\s+podemos\s+(?:confirmar|verificar)\b[\s\S]{0,200}\b(?:certeza|correspond)/i
+      ]);
+      const hasVerifyAndResendFile = hasAny([
+        /\bverific\w*\b[\s\S]{0,220}\breinvi\w*\b[\s\S]{0,140}\bfile\s+corrett[oa]\b/i,
+        /\b(?:check|verify)\b[\s\S]{0,220}\b(?:resend|send\s+again)\b[\s\S]{0,140}\b(?:correct\s+)?(?:file|document)\b/i,
+        /\b(?:verifique|compruebe|verifier|prufen|verifique)\b[\s\S]{0,220}\b(?:reenvie|renvoyer|erneut\s+senden|reenvie)\b/i
+      ]);
       const hasUnverifiedTemplate = hasReceivedAttachment && hasCannotConfirmMatch && hasVerifyAndResendFile;
       const hasFalseMismatchLanguage = /\bsembra\s+non\s+corrispondere\b|\bnon\s+corrisponde\b|\ballegat[oa]\s+(?:incongru[oa]|sbagliat[oa]|errat[oa])\b/i.test(text);
 
@@ -2052,8 +2080,14 @@ var ResponseValidator = class ResponseValidator {
       };
     }
 
-    const hasMismatchTemplate = /\bl[’']?\s*allegat[oa]\s+ricevut[oa]\b[\s\S]{0,160}\bsembra\s+non\s+corrispondere\b/i.test(text);
-    const hasVerifyAndResend = /\bverific\w*\b[\s\S]{0,220}\breinvi\w*\b[\s\S]{0,120}\b(?:documento|file)\s+corrett[oa]\b/i.test(text);
+    const hasMismatchTemplate = hasAny([
+      /\bl[’']?\s*allegat[oa]\s+ricevut[oa]\b[\s\S]{0,160}\bsembra\s+non\s+corrispondere\b/i,
+      /\b(?:attachment|file)\s+(?:we\s+)?received\b[\s\S]{0,160}\b(?:does\s+not\s+seem\s+to\s+match|appears?\s+not\s+to\s+match)\b/i
+    ]);
+    const hasVerifyAndResend = hasAny([
+      /\bverific\w*\b[\s\S]{0,220}\breinvi\w*\b[\s\S]{0,120}\b(?:documento|file)\s+corrett[oa]\b/i,
+      /\b(?:check|verify)\b[\s\S]{0,220}\b(?:resend|send\s+again)\b[\s\S]{0,120}\b(?:correct\s+)?(?:document|file)\b/i
+    ]);
 
     if (forbiddenMatches.length > 0) {
       errors.push(`Mismatch documentale: formula metatestuale o prudenziale non ammessa (${forbiddenMatches.join(', ')}).`);
@@ -2097,6 +2131,7 @@ var ResponseValidator = class ResponseValidator {
     }
 
     const text = String(response || '');
+    const hasAny = (patterns) => patterns.some(pattern => pattern.test(text));
     const forbiddenReceiptPatterns = [
       { label: 'abbiamo ricevuto la documentazione', pattern: /\babbiamo\s+ricevut[oa]\s+(?:la\s+)?documentazione\b/i },
       { label: 'abbiamo ricevuto la scheda', pattern: /\babbiamo\s+ricevut[oa]\s+(?:la\s+)?scheda\b/i },
@@ -2109,9 +2144,19 @@ var ResponseValidator = class ResponseValidator {
     const forbiddenReceiptMatches = forbiddenReceiptPatterns
       .filter((entry) => entry.pattern.test(text))
       .map((entry) => entry.label);
-    const hasMissingDocumentStatement = /\bnon\s+troviamo\s+allegat[ao]\s+n(?:e|é|è)\s+riportat[ao]\s+nel\s+testo\b/i.test(text);
-    const hasResendOrBodyRequest = /\breinvi\w*\b/i.test(text) &&
-      /\binserirne\s+i\s+dati\s+nel\s+corpo\s+del\s+messaggio\b/i.test(text);
+    const hasMissingDocumentStatement = hasAny([
+      /\bnon\s+troviamo\s+allegat[ao]\s+n(?:e|é|è)\s+riportat[ao]\s+nel\s+testo\b/i,
+      /\b(?:we\s+)?(?:cannot|can't|do\s+not)\s+find\b[\s\S]{0,120}\b(?:attachment|file)\b[\s\S]{0,160}\b(?:message|body|text)\b/i,
+      /\bno\s+(?:encontramos|vemos)\b[\s\S]{0,120}\b(?:archivo|adjunto)\b/i,
+      /\bnous\s+ne\s+trouvons\b[\s\S]{0,120}\bpiece\s+jointe\b/i,
+      /\bwir\s+finden\b[\s\S]{0,80}\bkeinen\s+anhang\b/i,
+      /\bnao\s+encontramos\b[\s\S]{0,120}\b(?:anexo|arquivo)\b/i
+    ]);
+    const hasResendOrBodyRequest = hasAny([
+      /\breinvi\w*\b[\s\S]{0,180}\binserirne\s+i\s+dati\s+nel\s+corpo\s+del\s+messaggio\b/i,
+      /\b(?:resend|send\s+again)\b[\s\S]{0,200}\b(?:include|enter|paste)\b[\s\S]{0,100}\b(?:body|message|email)\b/i,
+      /\b(?:reenvie|renvoyer|erneut\s+senden)\b/i
+    ]);
 
     if (forbiddenReceiptMatches.length > 0) {
       errors.push(`Documento atteso mancante: la risposta conferma o presuppone una ricezione non disponibile (${forbiddenReceiptMatches.join(', ')}).`);

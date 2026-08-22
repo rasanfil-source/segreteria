@@ -393,8 +393,11 @@ function applyControlloInputConstraints_(sheet) {
   // Coerenza data inizio <= data fine per ogni riga 5..7
   applyFormulaValidationWithFallback_(
     sheet.getRange('D5:D7'),
-    ['=OR($B5="";$D5="";$B5<=$D5)', '=OR($B5="",$D5="",$B5<=$D5)'],
-    'La data fine deve essere uguale o successiva alla data inizio.'
+    [
+      '=OR(AND($B5="";$D5="");AND(ISNUMBER($B5);ISNUMBER($D5);$B5<=$D5))',
+      '=OR(AND($B5="",$D5=""),AND(ISNUMBER($B5),ISNUMBER($D5),$B5<=$D5))'
+    ],
+    'Inserisci due date valide; la data fine deve essere uguale o successiva alla data inizio.'
   );
 
   // Orari sospensione: B10 e D10...B16 e D16 (interi 0-23)

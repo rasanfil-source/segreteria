@@ -219,7 +219,7 @@ var GeminiContentClient = class GeminiContentClient {
     if (request.primaryFallbackSignalReason &&
         this.isPrimaryKeyFallbackHttpError(responseCode, responseBody) &&
         activeKey === this.primaryKey && this.backupKey) {
-      this.markPrimaryExhausted(request.primaryFallbackSignalReason);
+      this.markPrimaryExhausted(request.primaryFallbackSignalReason, responseCode);
       const quotaError = new Error('PRIMARY_QUOTA_EXHAUSTED');
       quotaError.isTransient = true;
       throw quotaError;
@@ -1019,7 +1019,9 @@ Output JSON:
     const normalizedReplyNeeded = (typeof replyNeeded === 'string')
       ? replyNeeded.toLowerCase()
       : replyNeeded;
-    const shouldRespond = !(normalizedReplyNeeded === false || normalizedReplyNeeded === 'false');
+    // Fail-closed: il campo e obbligatorio. Un JSON sintatticamente valido ma
+    // incompleto non deve trasformarsi in un'autorizzazione implicita a rispondere.
+    const shouldRespond = (normalizedReplyNeeded === true || normalizedReplyNeeded === 'true');
     const finalShouldRespond = EmailQuickCheckPolicy.isDocumentSubmissionIntent(intentContext)
       ? true
       : shouldRespond;
@@ -1528,11 +1530,14 @@ var GeminiService = class GeminiService {
     this.logger.info('GeminiService inizializzato', { modello: this.modelName });
   }
 
-  _markPrimaryExhausted_(reason = '') {
+  _markPrimaryExhausted_(reason = '', responseCode = null) {
     this.isPrimaryExhausted = true;
     if (this._cache) {
       try {
-        this._cache.put(this._primaryExhaustedCacheKey, 'true', 21599);
+        // 429 puo essere un semplice RPM/TPM transitorio: effettuiamo un probe
+        // della primaria dopo pochi minuti. Errori auth/config restano lunghi.
+        const ttlSeconds = Number(responseCode) === 429 ? 300 : 21599;
+        this._cache.put(this._primaryExhaustedCacheKey, 'true', ttlSeconds);
       } catch (cacheErr) {
         const detail = reason ? ` (${reason})` : '';
         if (this.logger && typeof this.logger.warn === 'function') {
@@ -1663,7 +1668,7 @@ var GeminiService = class GeminiService {
       primaryKey: this.primaryKey,
       backupKey: this.backupKey,
       buildGenerateUrl: (modelName) => this._buildGenerateUrl(modelName),
-      markPrimaryExhausted: (reason) => this._markPrimaryExhausted_(reason),
+      markPrimaryExhausted: (reason, responseCode) => this._markPrimaryExhausted_(reason, responseCode),
       isPrimaryKeyFallbackHttpError: (responseCode, responseBody) =>
         this._isPrimaryKeyFallbackHttpError_(responseCode, responseBody),
       normalizePromptPayload: (promptData) => this._normalizePromptPayload_(promptData)
@@ -1861,7 +1866,7 @@ var GeminiService = class GeminiService {
     if (shouldTryBackupKey) {
       console.warn(`⚠️ Chiave primaria non utilizzabile (HTTP ${responseCode}). Tentativo con chiave di riserva...`);
       if (activeKey === this.primaryKey) {
-        this._markPrimaryExhausted_('quick_check');
+        this._markPrimaryExhausted_('quick_check', responseCode);
       }
       activeKey = this.backupKey;
       try {
@@ -2863,10 +2868,22 @@ Testo:
       try {
         const mimeType = blob && typeof blob.getContentType === 'function' ? blob.getContentType() : '';
         if (!mimeType) return null;
+        if (blob && typeof blob.getSize === 'function') {
+          const size = Number(blob.getSize());
+          if (Number.isFinite(size) && size > GEMINI_MAX_INLINE_ATTACHMENT_BYTES) {
+            console.warn(`Allegato ignorato (OOM protection): dimensione superiore ai 10MB (${mimeType})`);
+            return null;
+          }
+        }
+        const bytes = blob.getBytes();
+        if (bytes && bytes.length > GEMINI_MAX_INLINE_ATTACHMENT_BYTES) {
+          console.warn(`Allegato ignorato (OOM protection): dimensione superiore ai 10MB (${mimeType})`);
+          return null;
+        }
         return {
           inlineData: {
             mimeType: mimeType,
-            data: Utilities.base64Encode(blob.getBytes())
+            data: Utilities.base64Encode(bytes)
           }
         };
       } catch (e) {

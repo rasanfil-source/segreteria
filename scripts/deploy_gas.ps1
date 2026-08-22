@@ -4,6 +4,7 @@ $ErrorActionPreference = "Stop"
 
 $claspJsonPath = Join-Path $PSScriptRoot "..\.clasp.json"
 $claspJsonPath = [System.IO.Path]::GetFullPath($claspJsonPath)
+$projectRoot = Split-Path -Parent $claspJsonPath
 $deployConfigPath = Join-Path $PSScriptRoot "deploy_gas.local.json"
 $hadOriginalClaspJson = Test-Path $claspJsonPath
 $backupPath = "$claspJsonPath.$([Guid]::NewGuid().ToString('N')).bak"
@@ -46,9 +47,17 @@ function Write-ClaspJson($scriptId) {
 }
 
 function Invoke-ClaspPush($environmentName) {
-    clasp.cmd push -f
-    if ($LASTEXITCODE -ne 0) {
-        throw "clasp push failed for $environmentName (exit code $LASTEXITCODE)"
+    $pushExitCode = 0
+    Push-Location -LiteralPath $projectRoot
+    try {
+        clasp.cmd push -f
+        $pushExitCode = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+    }
+    if ($pushExitCode -ne 0) {
+        throw "clasp push failed for $environmentName (exit code $pushExitCode)"
     }
 }
 
