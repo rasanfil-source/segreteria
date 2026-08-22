@@ -1989,6 +1989,50 @@ console.log('--- Test knowledge contextualization: il rischio forza la validazio
   }
 }
 
+console.log('--- Test semantic quality: supporto email per mobilita resta warning ad alto punteggio ---');
+{
+  const previousSemanticValidator = validator.semanticValidator;
+  try {
+    validator.semanticValidator = {
+      shouldRun: () => true,
+      validateHallucinations: () => ({
+        isValid: false,
+        confidence: 0.9,
+        reason: 'Pertinenza KB: suggerimento email non indispensabile',
+        details: {
+          irrelevantDetails: [
+            { text: 'può inviare la richiesta via email', reason: 'alternativa non strettamente richiesta' }
+          ]
+        }
+      }),
+      validateThinkingLeak: () => ({ isValid: true, confidence: 0.99, skipped: true })
+    };
+
+    const result = validator.validateResponse(
+      'Buongiorno.\n\nPer evitarle uno spostamento, può inviare la richiesta via email; la segreteria le risponderà con le indicazioni necessarie.\n\nCordiali saluti,\nSegreteria Parrocchia Sant\'Eugenio',
+      'it',
+      'La segreteria riceve richieste anche via email.',
+      'Sono anziano, disabile e ho difficoltà di movimento. Come posso procedere?',
+      'Richiesta informazioni',
+      'full',
+      false,
+      {
+        physicalPresenceConstraint: {
+          has_constraint: true,
+          type: 'mobility',
+          visit_policy: 'avoid_invitation'
+        }
+      }
+    );
+
+    assert(result.isValid === true, 'un suggerimento remoto fondato e coerente con il vincolo di mobilita non deve bloccare la risposta');
+    assert(result.score >= 0.85, 'l osservazione qualitativa non deve abbassare artificialmente lo score alto');
+    assert(result.warnings.some(warning => warning.includes('Semantica qualitativa')), 'il rilievo deve restare osservabile come warning');
+  } finally {
+    validator.semanticValidator = previousSemanticValidator;
+  }
+}
+
 console.log('--- Test request purpose: procedura preliminare in richiesta operativa forza revisione ---');
 {
   const email = 'Richiedo il certificato di battesimo in originale per uso matrimonio. Il battesimo è stato celebrato a Sant Eugenio e verrò a ritirarlo lunedì.';

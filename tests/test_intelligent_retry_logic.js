@@ -90,6 +90,8 @@ console.log('Testing _buildCorrectionPrompt...');
 const prompt = processor._buildCorrectionPrompt('Original Prompt', 'Failed Response', mockValidation, 'it', 'full');
 assert(prompt.includes('ERRORE CRITICO: Hai incluso il tuo ragionamento interno'), 'Prompt should contain thinking leak correction');
 assert(prompt.includes('Failed Response'), 'Prompt should include previous response snippet');
+assert(!prompt.includes('Original Prompt'), 'Il retry chirurgico non deve replicare il prompt originale completo');
+assert(prompt.length < 8000, 'Il prompt correttivo semplice deve restare leggero');
 
 const mixedLanguageValidation = {
     isValid: false,

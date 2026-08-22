@@ -317,8 +317,45 @@ var ResponseValidator = class ResponseValidator {
 
       const semanticValid = semHalluc.isValid && semThinking.isValid;
       const semanticConfidence = Math.min(semHalluc.confidence, semThinking.confidence);
+      const physicalConstraint = temporalContext && (
+        temporalContext.physicalPresenceConstraint ||
+        temporalContext.physical_presence_constraint
+      );
+      const semanticDetails = semHalluc && semHalluc.details && typeof semHalluc.details === 'object'
+        ? semHalluc.details
+        : {};
+      const irrelevantDetails = Array.isArray(semanticDetails.irrelevantDetails)
+        ? semanticDetails.irrelevantDetails
+        : [];
+      const hasGroundingHallucinations = Object.keys(semanticDetails).some(key => {
+        if (key === 'irrelevantDetails') return false;
+        const value = semanticDetails[key];
+        if (Array.isArray(value)) return value.length > 0;
+        if (value && typeof value === 'object') return Object.keys(value).length > 0;
+        return Boolean(value);
+      });
+      const constraintType = String(physicalConstraint && physicalConstraint.type || '').toLowerCase();
+      const visitPolicy = String(physicalConstraint && physicalConstraint.visit_policy || '').toLowerCase();
+      const supportsRemoteHandling = /\b(?:email|e-mail|posta\s+elettronica|telefon|online|digitale|a\s+distanza|da\s+remoto)\b/i.test(currentResponse);
+      const hasMobilityContext = physicalConstraint && physicalConstraint.has_constraint === true && (
+        ['health', 'mobility', 'geographic_distance', 'caregiving', 'temporary_unavailability', 'remote_request'].includes(constraintType) ||
+        ['avoid_invitation', 'conditional_only'].includes(visitPolicy)
+      );
+      const qualitativeMobilityObservation =
+        validationResult.isValid === true &&
+        validationResult.score >= 0.85 &&
+        semThinking.isValid === true &&
+        semHalluc.isValid === false &&
+        irrelevantDetails.length > 0 &&
+        !hasGroundingHallucinations &&
+        hasMobilityContext &&
+        supportsRemoteHandling;
 
-      if (!semanticValid) {
+      if (!semanticValid && qualitativeMobilityObservation) {
+        const qualitativeReason = semHalluc.reason || 'suggerimento operativo remoto giudicato non essenziale';
+        console.warn(`⚠️ Osservazione semantica qualitativa non bloccante in presenza di vincolo fisico: ${qualitativeReason}`);
+        validationResult.warnings.push(`Semantica qualitativa: ${qualitativeReason}`);
+      } else if (!semanticValid) {
         console.warn('❌ Il validatore semantico ha rilevato problemi non catturati da regex');
         validationResult.isValid = false;
         validationResult.score = Math.min(validationResult.score, semanticConfidence);

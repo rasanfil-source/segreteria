@@ -3166,6 +3166,8 @@ ${addressLines.join('\n\n')}
       let finalResponse = this._prepareOutboundResponse(response, messageDetails, detectedLanguage);
       let validation = null;
       let retryAttempted = false;
+      let retryInfrastructureFailure = null;
+      let retryPermanentApiFailure = null;
       let shouldLabelForReview = false;
 
       if (this.config.validationEnabled && !shouldUseReceiptOnly) {
@@ -3222,27 +3224,61 @@ ${addressLines.join('\n\n')}
             skipRateLimit: false
           };
 
-          let retryResponse = null;
-          try {
-            const retryResult = this.geminiService.generateResponse(correctionPrompt, {
-              apiKey: retryPlan.key,
-              modelName: retryPlan.model,
-              skipRateLimit: retryPlan.skipRateLimit
-            });
+          // Dopo un 503/high-demand privilegia un modello fisico differente, non
+          // un secondo tentativo identico. Le strategie con lo stesso modello
+          // restano in coda solo come ultima risorsa (per esempio su backup key).
+          const retryPlanKey = (plan) => `${String(plan && plan.key || '')}|${String(plan && plan.model || '')}`;
+          const alternativePlans = attemptStrategy.filter(plan => plan && plan.key && retryPlanKey(plan) !== retryPlanKey(retryPlan));
+          const retryPlans = [
+            retryPlan,
+            ...alternativePlans.filter(plan => String(plan.model || '') !== String(retryPlan.model || '')),
+            ...alternativePlans.filter(plan => String(plan.model || '') === String(retryPlan.model || ''))
+          ].filter((plan, index, plans) => plans.findIndex(candidatePlan => retryPlanKey(candidatePlan) === retryPlanKey(plan)) === index);
 
-            if (retryResult && typeof retryResult === 'object') {
-              if (!retryResult.text && retryResult.success) {
-                console.warn('⚠️ Retry: Gemini ha restituito successo senza testo');
+          let retryResponse = null;
+          retryInfrastructureFailure = null;
+          retryPermanentApiFailure = null;
+          for (let retryPlanIndex = 0; retryPlanIndex < retryPlans.length; retryPlanIndex++) {
+            const currentRetryPlan = retryPlans[retryPlanIndex];
+            try {
+              console.log(`   ↻ Correzione con modello: ${currentRetryPlan.model || 'default'}`);
+              const retryResult = this.geminiService.generateResponse(correctionPrompt, {
+                apiKey: currentRetryPlan.key,
+                modelName: currentRetryPlan.model,
+                skipRateLimit: currentRetryPlan.skipRateLimit
+              });
+
+              if (retryResult && typeof retryResult === 'object') {
+                if (!retryResult.text && retryResult.success) {
+                  console.warn('⚠️ Retry: Gemini ha restituito successo senza testo');
+                }
+                retryResponse = retryResult.text;
+              } else if (typeof retryResult === 'string') {
+                retryResponse = retryResult;
               }
-              retryResponse = retryResult.text;
-            } else if (typeof retryResult === 'string') {
-              retryResponse = retryResult;
+              if (retryResponse) break;
+            } catch (retryError) {
+              const retryErrorClass = this._classifyError(retryError);
+              const isTransientRetryError = retryErrorClass.retryable === true || retryError.isTransient === true;
+              console.warn(`⚠️ Retry fallito per errore API: ${retryError.message} [${retryErrorClass.type}]`);
+              if (isTransientRetryError) {
+                retryInfrastructureFailure = { error: retryError, classification: retryErrorClass };
+                const hasNextRetryPlan = retryPlanIndex < retryPlans.length - 1;
+                if (hasNextRetryPlan) {
+                  console.warn('   ↪️ Errore transitorio: provo il modello di riserva prima di rinviare il messaggio.');
+                  continue;
+                }
+              } else {
+                retryInfrastructureFailure = null;
+                retryPermanentApiFailure = { error: retryError, classification: retryErrorClass };
+              }
+              break;
             }
-          } catch (retryError) {
-            console.warn(`⚠️ Retry fallito per errore API: ${retryError.message}`);
           }
 
           if (!retryResponse) break;
+          retryInfrastructureFailure = null;
+          retryPermanentApiFailure = null;
 
           retryResponse = this._extractEmailXmlBlock_(retryResponse);
           retryResponse = (this.validator && typeof this.validator._rimuoviThinkingLeak === 'function')
@@ -3305,6 +3341,30 @@ ${addressLines.join('\n\n')}
         }
 
         if (!validation.isValid) {
+          if (retryInfrastructureFailure) {
+            const retryFailure = retryInfrastructureFailure;
+            console.warn('   ↻ Correzione non completata per indisponibilità transitoria Gemini: nessuna label terminale applicata.');
+            result.status = 'error';
+            result.reason = 'intelligent_retry_transient_failure';
+            result.error = String(retryFailure.error && retryFailure.error.message ? retryFailure.error.message : retryFailure.error);
+            result.errorClass = retryFailure.classification.type;
+            result.retryable = true;
+            result.retryDelayMs = Number(retryFailure.error && retryFailure.error.retryAfterMs) || 60000;
+            return result;
+          }
+
+          if (retryPermanentApiFailure) {
+            const retryFailure = retryPermanentApiFailure;
+            console.warn('   🛑 Correzione interrotta per errore API definitivo: applico la gestione Errore, non Verifica.');
+            markFailureForCurrentBurst('error');
+            result.status = 'error';
+            result.reason = 'intelligent_retry_permanent_api_failure';
+            result.error = String(retryFailure.error && retryFailure.error.message ? retryFailure.error.message : retryFailure.error);
+            result.errorClass = retryFailure.classification.type;
+            result.retryable = false;
+            return result;
+          }
+
           const retryNote = retryAttempted ? ' (dopo retry)' : '';
           console.warn(`   🛑 Validazione FALLITA${retryNote} (punteggio: ${validation.score.toFixed(2)})`);
 
@@ -6320,7 +6380,6 @@ ${addressLines.join('\n\n')}
    * Costruisce un prompt correttivo "chirurgico" basato sugli errori di validazione.
    */
   _buildCorrectionPrompt(originalPrompt, failedResponse, validationResult, language, salutationMode, runtimeContext = null) {
-    const safePrompt = this._normalizePromptForRetry_(originalPrompt);
     const safeResponse = typeof failedResponse === 'string' ? failedResponse : (failedResponse == null ? '' : String(failedResponse));
     const details = validationResult && validationResult.details ? validationResult.details : {};
     const flags = this._classifyValidationForRetry(validationResult, language);
@@ -6488,23 +6547,25 @@ ${addressLines.join('\n\n')}
         compactResponse.substring(compactResponse.length - FAILED_SNIPPET_EDGE_CHARS)
       : compactResponse;
 
-    const maxSafeTokens = (typeof CONFIG !== 'undefined' && Number.isFinite(CONFIG.MAX_SAFE_TOKENS))
-      ? CONFIG.MAX_SAFE_TOKENS
-      : 35000;
-    // Riserva spazio per il blocco di rifinitura testuale + risposta precedente (stima conservativa it: ~3.6 char/token).
-    const correctionBlockPreview =
-      `\n\nCORREZIONE RICHIESTA\n${correctionInstructions.join('\n\n')}\n${failedSnippet}`;
-    const reservedTokens = 2500 + Math.ceil(correctionBlockPreview.length / 4);
-    const CHARS_PER_TOKEN_IT = 3.6;
-    const maxPromptChars = Math.max(2000, Math.floor((maxSafeTokens - reservedTokens) * CHARS_PER_TOKEN_IT));
-    const promptForRetry = this._trimPromptForRetry_(safePrompt, maxPromptChars);
-    const runtimeReminder = this._renderRuntimeContextForCorrection_(runtimeContext, language, salutationMode);
+    // Il retry non replica il prompt originale (che può superare decine di
+    // migliaia di caratteri). Conserva solo il contesto strettamente necessario
+    // al tipo di errore rilevato.
+    const hasTemporalRuntime = runtimeContext && runtimeContext.temporal && typeof runtimeContext.temporal === 'object';
+    const rawRuntimeReminder = (flags.temporal || flags.papal_reference || hasTemporalRuntime)
+      ? this._renderRuntimeContextForCorrection_(runtimeContext, language, salutationMode)
+      : '';
+    const runtimeReminder = rawRuntimeReminder.length > 4000
+      ? `${rawRuntimeReminder.substring(0, 4000)}\n[...contesto runtime abbreviato...]`
+      : rawRuntimeReminder;
+    const physicalConstraint = runtimeContext && runtimeContext.physicalPresenceConstraint;
+    const physicalReminder = flags.physical_presence && physicalConstraint
+      ? `\n- Vincolo presenza: type=${physicalConstraint.type || 'other'}, visit_policy=${physicalConstraint.visit_policy || 'unknown'}.`
+      : '';
 
-    return `### ISTRUZIONI DI BASE ###
-${promptForRetry}
-${runtimeReminder}
+    return `### CORREZIONE MIRATA ###
+Lingua della risposta: ${language || 'it'}.
+Modalità saluto: ${effectiveSalutationMode}.${physicalReminder}${runtimeReminder}
 
-### ATTENZIONE: CORREZIONE CRITICA RICHIESTA ###
 La tua generazione precedente conteneva errori che DEVI correggere:
 - ${correctionInstructions.join('\n- ')}
 
@@ -7657,6 +7718,12 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     // Delega al classificatore centralizzato se disponibile
     if (typeof classifyError === 'function' && typeof ErrorTypes !== 'undefined') {
       const normalized = classifyError(error);
+      if (error && error.isTransient === true) {
+        const transientType = normalized.type === ErrorTypes.QUOTA_EXCEEDED
+          ? 'QUOTA_EXCEEDED'
+          : 'NETWORK';
+        return mkResult(transientType, true, normalized.message);
+      }
       switch (normalized.type) {
         case ErrorTypes.QUOTA_EXCEEDED:
           return mkResult('QUOTA_EXCEEDED', true, normalized.message);
@@ -7670,6 +7737,9 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
         case ErrorTypes.INVALID_RESPONSE:
           return mkResult('INVALID_RESPONSE', false, normalized.message);
         default:
+          if (error && error.isTransient === true) {
+            return mkResult('NETWORK', true, normalized.message);
+          }
           return mkResult('UNKNOWN', false, normalized.message);
       }
     }

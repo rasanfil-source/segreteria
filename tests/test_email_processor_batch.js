@@ -3604,6 +3604,83 @@ console.log('--- Test processThread: retry intelligente conserva nota oraria con
   global.CONFIG.INTELLIGENT_RETRY = originalRetryConfig;
 }
 
+console.log('--- Test processThread: retry 503 prova modello diverso e non applica label terminali ---');
+{
+  const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
+  const originalRetryConfig = global.CONFIG.INTELLIGENT_RETRY;
+  global.CONFIG.VALIDATION_ENABLED = true;
+  global.CONFIG.INTELLIGENT_RETRY = {
+    enabled: true,
+    maxRetries: 1,
+    minScoreToTrigger: 0,
+    onlyForErrors: ['placeholder']
+  };
+
+  const labels = [];
+  const attemptedModels = [];
+  let generationCalls = 0;
+  let sendCalls = 0;
+  const processor = new EmailProcessor({
+    gmailService: {
+      _extractEmailAddress: raw => raw,
+      extractMessageDetails: () => ({
+        subject: 'Richiesta informazioni', body: 'Vorrei informazioni.',
+        senderEmail: 'utente@example.com', senderName: 'Utente Test',
+        date: new Date(), headers: {}, isNewsletter: false,
+        rfc2822MessageId: null, existingReferences: null
+      }),
+      addLabelToMessage: (_id, label) => labels.push(label),
+      addLabelToThread: (_thread, label) => labels.push(label),
+      removeLabelFromMessage: () => {}, removeLabelFromThread: () => {},
+      getThreadHistory: () => '', prepareOutboundText: text => text,
+      sendHtmlReply: () => { sendCalls++; }
+    },
+    classifier: { classifyEmail: () => ({ shouldReply: true, category: 'info', subIntents: {}, confidence: 0.9 }) },
+    geminiService: {
+      primaryKey: 'primary-key', backupKey: 'backup-key', isPrimaryExhausted: false,
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'info' } }),
+      detectEmailLanguage: () => ({ lang: 'it' }),
+      getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
+      getAdaptiveClosing: () => 'Cordiali saluti',
+      buildGenerationStrategies: () => ({
+        fallbackModelName: 'gemini-reserve',
+        attemptStrategy: [
+          { name: 'primary', key: 'primary-key', model: 'gemini-main', skipRateLimit: false },
+          { name: 'reserve', key: 'primary-key', model: 'gemini-reserve', skipRateLimit: false }
+        ]
+      }),
+      generateResponse: (_prompt, options) => {
+        generationCalls++;
+        attemptedModels.push(options.modelName);
+        if (generationCalls === 1) return { success: true, text: 'Risposta con XXX' };
+        const error = new Error('Errore server Gemini(503): high demand');
+        error.isTransient = true;
+        throw error;
+      }
+    },
+    requestClassifier: { classify: () => ({ type: 'technical', dimensions: { pastoral: 0 } }) },
+    validator: {
+      validateResponse: () => ({
+        isValid: false, warnings: [], errors: ['placeholder presente'], score: 0.9,
+        details: { content: { foundPlaceholders: ['XXX'] } }, fixedResponse: null
+      })
+    },
+    memoryService: { getMemory: () => ({}), getRecentHistory: () => [], updateMemoryAtomic: () => true },
+    territoryValidator: { validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' }) },
+    promptEngine: { buildPrompt: () => 'PROMPT' }
+  });
+
+  const result = processor.processThread(createExternalThread('retry-503-no-labels'), 'kb valida', '', new Set(), true);
+  assert(result.status === 'error' && result.retryable === true, '503 nel retry deve restituire errore riprocessabile');
+  assert(result.reason === 'intelligent_retry_transient_failure', 'deve distinguere il fallimento infrastrutturale del retry');
+  assert(attemptedModels.includes('gemini-main') && attemptedModels.includes('gemini-reserve'), 'dopo il 503 deve provare il modello fisico di riserva');
+  assert(labels.length === 0, '503 transitorio non deve applicare IA, Verifica o Errore');
+  assert(sendCalls === 0, 'una risposta non validata non deve essere inviata');
+
+  global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
+  global.CONFIG.INTELLIGENT_RETRY = originalRetryConfig;
+}
+
 
 console.log('--- Test processThread: validationWarningThreshold=0 rispetta zero esplicito ---');
 {
