@@ -313,13 +313,6 @@ function runAllTests() {
                 && propertyReads === 1;
         });
 
-        test('_isSameCalendarDay rifiuta input non-Date senza eccezioni', results, () => {
-            return _isSameCalendarDay('2026-04-05', new Date(2026, 3, 5)) === false
-                && _isSameCalendarDay(new Date(2026, 3, 5), null) === false
-                && _isSameCalendarDay(new Date('invalid'), new Date(2026, 3, 5)) === false
-                && _isSameCalendarDay(new Date(2026, 3, 5), new Date(2026, 3, 5)) === true;
-        });
-
         test('ResponseValidator usa il fallback locale se Utilities.formatDate non è disponibile', results, () => {
             const previousUtilities = Utilities;
             try {

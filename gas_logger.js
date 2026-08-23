@@ -9,10 +9,6 @@ var LogLevel = {
   ERROR: 3
 };
 
-function isDebugLoggingEnabled() {
-  return !(typeof CONFIG !== 'undefined' && CONFIG && CONFIG.DEBUG === false);
-}
-
 // Nota: non usare il nome `Logger` per evitare shadowing del built-in GAS `Logger.log()`.
 var AppLogger = class AppLogger {
   constructor(context = 'System', baseMeta = {}) {
@@ -60,11 +56,11 @@ var AppLogger = class AppLogger {
 
     if (loggingConfig.STRUCTURED) {
       const structuredEntry = {
+        ...mergedData,
         timestamp: logEntry.timestamp,
         level: logEntry.level,
         context: logEntry.context,
-        message: logEntry.message,
-        ...mergedData
+        message: logEntry.message
       };
       if (level === 'ERROR') console.error(structuredEntry);
       else if (level === 'WARN') console.warn(structuredEntry);

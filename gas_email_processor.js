@@ -1781,25 +1781,6 @@ var EmailProcessor = class EmailProcessor {
         );
       }
 
-      // Quick check superato con shouldRespond=true: marca i secondari ora.
-      if (languageMode !== 'foreign_only') {
-        const externalIds = new Set(externalUnread.map(m => m.getId()));
-        unlabeledUnread.forEach(message => {
-          if (!message || message.getId() === candidate.getId()) return;
-          if (externalIds.has(message.getId())) {
-            // Marca solo i messaggi esterni realmente inclusi nel payload corrente.
-            // Messaggi di altri mittenti nello stesso thread restano eleggibili.
-            if (isInResponseContext(message)) {
-              this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
-            }
-            return;
-          }
-          this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
-        });
-      } else {
-        console.log('   🌐 Modalità "Solo straniere": non pre-marco i non letti secondari');
-      }
-
       // ====================================================================
       // STEP 4: CLASSIFICAZIONE TIPO RICHIESTA (Multi-dimensionale)
       // ====================================================================
@@ -2851,8 +2832,7 @@ ${addressLines.join('\n\n')}
         hasDocumentDeliveryUnverified
       );
       const effectiveDocumentMismatchReason = documentMismatchReason || documentDeliveryModel.blockReason || null;
-      const shouldUseReceiptOnly = !hasDocumentDeliveryBlockingIssue &&
-        (forceReceiptOnlyForSubmission || hasRiskyUnknownReceived);
+      const shouldUseReceiptOnly = !hasDocumentDeliveryBlockingIssue && forceReceiptOnlyForSubmission;
       const shouldSkipValidationForReceiptOnly = shouldUseReceiptOnly;
       let injectedMissingDocumentDirective = null;
       let injectedMismatchDirective = null;
@@ -4009,6 +3989,9 @@ ${addressLines.join('\n\n')}
           { ...options, logger: runLogger, lockAlreadyCovered: threadLockAlreadyCovered }
         );
         stats.total++;
+        if (result && result.status === 'error' && !result.validationFailed) {
+          stats.errors++;
+        }
 
         if (result && result.error && String(result.error).includes('GMAIL_DAILY_CALL_LIMIT_REACHED')) {
           runLogger.warn('⚠️ Stop batch: limite giornaliero chiamate Gmail raggiunto durante processThread.');
@@ -4088,8 +4071,6 @@ ${addressLines.join('\n\n')}
         } else if (result.status === 'filtered') {
           stats.filtered++;
           if (result.reason === 'email_loop_detected') stats.skipped_loop++;
-        } else if (result.status === 'error') {
-          stats.errors++;
         }
       }
 
@@ -4110,6 +4091,13 @@ ${addressLines.join('\n\n')}
       return stats;
 
     } finally {
+      if (this.gmailService && typeof this.gmailService.flushPendingGmailCallCounter === 'function') {
+        try {
+          this.gmailService.flushPendingGmailCallCounter('email_batch_end');
+        } catch (counterFlushError) {
+          runLogger.warn(`⚠️ Flush finale contatore Gmail non riuscito: ${counterFlushError.message}`);
+        }
+      }
       restoreRunServiceLoggers();
       if (this.gmailService) {
         if (typeof previousGmailCounterLockCovered === 'undefined') {

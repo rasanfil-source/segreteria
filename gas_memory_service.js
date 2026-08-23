@@ -375,6 +375,12 @@ var MemoryService = class MemoryService {
           insertData.lastUpdated = now;
           insertData.messageCount = shouldIncrementMessageCount ? 1 : 0;
           insertData.version = 1;
+          if (Array.isArray(insertData.providedInfo)) {
+            insertData.providedInfo = this._shrinkProvidedInfoToCaps(
+              insertData.providedInfo,
+              'updateMemory:new'
+            );
+          }
 
           this._invalidateCache(`memory_${normalizedThreadId}`);
           this._withSheetWriteLock(() => {
@@ -657,6 +663,12 @@ var MemoryService = class MemoryService {
               insertData.providedInfo,
               inferredReactionData,
               now
+            );
+          }
+          if (Array.isArray(insertData.providedInfo)) {
+            insertData.providedInfo = this._shrinkProvidedInfoToCaps(
+              insertData.providedInfo,
+              'updateMemoryAtomic:new'
             );
           }
 
@@ -2225,6 +2237,12 @@ var MemoryService = class MemoryService {
   cleanOldEntries(daysOld = 30) {
     if (!this._initialized) return 0;
 
+    const normalizedDaysOld = Number(daysOld);
+    if (!Number.isFinite(normalizedDaysOld) || !Number.isInteger(normalizedDaysOld) || normalizedDaysOld < 1) {
+      console.error(`❌ cleanOldEntries: daysOld non valido (${daysOld}); pulizia annullata per sicurezza`);
+      return 0;
+    }
+
     let deletedCount = 0;
 
     this._withSheetWriteLock(() => {
@@ -2235,7 +2253,7 @@ var MemoryService = class MemoryService {
 
         const headers = data[0];
         const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+        cutoffDate.setDate(cutoffDate.getDate() - normalizedDaysOld);
 
         const validRows = [headers];
 

@@ -1231,4 +1231,62 @@ console.log('--- Test MemoryService _releaseShardedLock: non rimuove lock altrui
   }
 }
 
+console.log('--- Test MemoryService cleanOldEntries: input invalido non scrive il foglio ---');
+{
+  const memory = Object.create(MemoryService.prototype);
+  memory._initialized = true;
+  let lockCalls = 0;
+  memory._withSheetWriteLock = () => {
+    lockCalls++;
+    throw new Error('la scrittura non deve essere raggiunta');
+  };
+
+  assert(memory.cleanOldEntries('abc') === 0, 'daysOld non numerico deve fallire chiuso');
+  assert(memory.cleanOldEntries(-1) === 0, 'daysOld negativo deve fallire chiuso');
+  assert(memory.cleanOldEntries(0) === 0, 'daysOld zero deve fallire chiuso');
+  assert(lockCalls === 0, 'input invalido non deve acquisire lock né riscrivere il foglio');
+}
+
+console.log('--- Test MemoryService nuova riga: cache e Sheet usano gli stessi cap providedInfo ---');
+{
+  const originalLockService = global.LockService;
+  const originalConfig = global.CONFIG;
+  global.CONFIG = { MAX_PROVIDED_TOPICS: 1, MAX_PROVIDED_INFO_JSON_CHARS: 45000 };
+  global.LockService = {
+    getScriptLock: () => ({ waitLock: () => {}, releaseLock: () => {} })
+  };
+
+  try {
+    const memory = Object.create(MemoryService.prototype);
+    memory._initialized = true;
+    memory._getLockTuning_ = () => ({ shardedAcquireTimeoutMs: 1 });
+    memory._getShardedLockKey = () => 'lock-thread-capped-new';
+    memory._tryAcquireShardedLock = () => true;
+    memory._releaseShardedLock = () => {};
+    memory._sleepLockBackoff_ = () => {};
+    memory._invalidateCache = () => {};
+    memory._withSheetWriteLock = (fn) => fn();
+    memory._validateAndNormalizeTimestamp = () => '2026-05-10T10:00:00.000Z';
+    memory._findRowByThreadId = () => null;
+
+    let appended = null;
+    let cached = null;
+    memory._appendRow = (data) => { appended = JSON.parse(JSON.stringify(data)); };
+    memory._writeThroughMemoryCache_ = (_key, data) => { cached = JSON.parse(JSON.stringify(data)); };
+
+    const ok = memory.updateMemoryAtomic('thread-capped-new', {}, ['uno', 'due']);
+
+    assert(ok === true, 'insert atomica con cap deve riuscire');
+    assert(appended && appended.providedInfo.length === 1, 'la riga Sheet deve rispettare MAX_PROVIDED_TOPICS=1');
+    assert(cached && cached.providedInfo.length === 1, 'la cache write-through deve rispettare MAX_PROVIDED_TOPICS=1');
+    assert(
+      JSON.stringify(cached.providedInfo) === JSON.stringify(appended.providedInfo),
+      'cache e riga persistita devono contenere gli stessi topic'
+    );
+  } finally {
+    global.LockService = originalLockService;
+    global.CONFIG = originalConfig;
+  }
+}
+
 console.log('OK MemoryService cache chunk tests passed');

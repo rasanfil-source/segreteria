@@ -5607,6 +5607,23 @@ console.log('--- Test processThread: errore memoria post-invio resta non bloccan
   }
 }
 
+console.log('--- Test processUnreadEmails: flush finale contatore Gmail anche con coda vuota ---');
+{
+  let flushCalls = 0;
+  const processor = new EmailProcessor({
+    gmailService: {
+      getUnprocessedUnreadThreads: () => [],
+      flushPendingGmailCallCounter: (opName) => {
+        flushCalls += 1;
+        assert(opName === 'email_batch_end', 'il flush deve essere identificato come fine batch');
+      }
+    }
+  });
+
+  processor.processUnreadEmails('kb', '', true);
+  assert(flushCalls === 1, 'il finally del batch deve tentare un solo flush del contatore Gmail');
+}
+
 console.log('--- Test processUnreadEmails: graceful stop su GMAIL_DAILY_CALL_LIMIT_REACHED ---');
 {
   const processor = new EmailProcessor({
@@ -5668,6 +5685,7 @@ console.log('--- Test processUnreadEmails: stop su errore infrastrutturale retry
   const stats = processor.processUnreadEmails('kb', '', true);
   assert(processCalls === 1, 'errore retryable infrastrutturale deve fermare il batch al primo thread');
   assert(stats.total === 1, 'deve conteggiare solo il thread analizzato prima dello stop');
+  assert(stats.errors === 1, 'il thread fallito deve essere conteggiato anche quando il batch si interrompe subito');
   assert(checkpointStartIndex === 0, 'checkpoint deve ripartire dal thread fallito');
   assert(checkpointDelayMs === 60000, `errore NETWORK deve usare backoff breve 60s, ottenuto ${checkpointDelayMs}`);
 }
@@ -6008,7 +6026,7 @@ console.log('--- Test processThread: near deadline prima della generazione usa d
     processor._isNearDeadline = () => true;
 
     const result = processor.processThread(
-      createExternalThread('near-deadline-generation'),
+      createExternalBurstThread('near-deadline-generation', 2),
       'kb valida',
       '',
       new Set(),
@@ -6019,7 +6037,7 @@ console.log('--- Test processThread: near deadline prima della generazione usa d
     assert(result.reason === 'near_deadline_before_generation', 'near deadline deve mantenere reason specifica');
     assert(result.retryDelayMs === 60000, `near deadline deve indicare retryDelayMs 60000, ottenuto ${result.retryDelayMs}`);
     assert(generated === false, 'near deadline non deve chiamare Gemini generateResponse');
-    assert(labels.length === 0, 'near deadline non deve applicare label IA o Verifica al messaggio rinviato');
+    assert(labels.length === 0, 'near deadline non deve applicare label IA o Verifica a nessun messaggio del burst rinviato');
   } finally {
     global.CONFIG.ATTACHMENT_CONTEXT = originalAttachmentContext;
     cacheStore.clear();

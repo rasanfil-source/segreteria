@@ -108,6 +108,14 @@ assert(
   'gas_config.example.js deve validare NaN/Infinity nei range numerici'
 );
 assert(
+  exampleCode.includes('function _clearScriptPropertyCache'),
+  'gas_config.example.js deve esporre la stessa invalidazione cache della configurazione di produzione'
+);
+assert(
+  exampleCode.includes("'physical_presence'") && exampleCode.includes("'sensitive_quality'"),
+  'gas_config.example.js deve includere tutti i tipi di retry intelligente della produzione'
+);
+assert(
   !/rasanfil@/i.test(code) && !/rasanfil@/i.test(exampleCode),
   'gli indirizzi email reali non devono essere hardcoded nei file di config'
 );
@@ -174,6 +182,24 @@ assert(
   'la lista JSON deve restare la forma più precisa e filtrare valori vuoti'
 );
 
+console.log('--- Test CONFIG.KNOWN_ALIASES: getter aggiornabile dopo invalidazione ---');
+backingProps.set('KNOWN_ALIASES', JSON.stringify(['alias-1@example.test']));
+_clearScriptPropertyCache('KNOWN_ALIASES');
+assert(
+  JSON.stringify(CONFIG.KNOWN_ALIASES) === JSON.stringify(['alias-1@example.test']),
+  'KNOWN_ALIASES deve leggere il valore corrente dalle Script Properties'
+);
+backingProps.set('KNOWN_ALIASES', JSON.stringify(['alias-2@example.test']));
+assert(
+  JSON.stringify(CONFIG.KNOWN_ALIASES) === JSON.stringify(['alias-1@example.test']),
+  'KNOWN_ALIASES deve rispettare la cache intra-esecuzione'
+);
+_clearScriptPropertyCache('KNOWN_ALIASES');
+assert(
+  JSON.stringify(CONFIG.KNOWN_ALIASES) === JSON.stringify(['alias-2@example.test']),
+  'KNOWN_ALIASES deve aggiornarsi dopo invalidazione esplicita'
+);
+
 const originalDateNow = Date.now;
 let fakeNow = 1000000;
 Date.now = () => fakeNow;
@@ -213,6 +239,10 @@ assert(CONFIG.MAX_PROVIDED_INFO_JSON_CHARS === 45000, 'MAX_PROVIDED_INFO_JSON_CH
 assert(CONFIG.MODEL_NAME === 'gemini-3.7-flash', 'MODEL_NAME deve puntare al modello qualita aggiornato per le risposte');
 assert(CONFIG.MODEL_STRATEGY.generation[0] === 'flash-3.7', 'la generazione deve partire da Gemini 3.7 Flash');
 assert(CONFIG.MODEL_STRATEGY.quick_check[0] === 'flash-lite', 'quick_check/categoria/lingua devono partire dal modello lite');
+assert(
+  CONFIG.MODEL_STRATEGY.quick_check.includes('flash-lite-backup'),
+  'quick_check deve includere la chiave backup per consentire al RateLimiter un fallback contabilizzato'
+);
 assert(CONFIG.PAPAL_CONTEXT.currentName === 'Leone XIV', 'PAPAL_CONTEXT deve essere presente anche nella config di produzione');
 assert(CONFIG.PAPAL_CONTEXT.previousName === 'Papa Francesco', 'PAPAL_CONTEXT deve definire il Papa precedente');
 

@@ -66,6 +66,30 @@ function makeLock(tryLockResult = true) {
 
 loadLogger();
 
+console.log('--- Test logger: metadati non possono sovrascrivere campi canonici ---');
+installBaseGlobals();
+global.CONFIG.LOGGING.STRUCTURED = true;
+global.CONFIG.LOGGING.SEND_ERROR_NOTIFICATIONS = false;
+let structuredEntry = null;
+const originalConsoleInfo = console.info;
+console.info = (entry) => {
+  structuredEntry = entry;
+};
+try {
+  createLogger('LoggerTest').info('Messaggio reale', {
+    timestamp: 'fake',
+    level: 'DEBUG',
+    context: 'Spoof',
+    message: 'Spoofed'
+  });
+} finally {
+  console.info = originalConsoleInfo;
+}
+assert(structuredEntry && structuredEntry.level === 'INFO', 'level canonico non deve essere sovrascritto dai metadati');
+assert(structuredEntry.context === 'LoggerTest', 'context canonico non deve essere sovrascritto dai metadati');
+assert(structuredEntry.message === 'Messaggio reale', 'message canonico non deve essere sovrascritto dai metadati');
+assert(structuredEntry.timestamp !== 'fake', 'timestamp canonico non deve essere sovrascritto dai metadati');
+
 console.log('--- Test logger: doppio controllo cache sotto lock evita invio duplicato ---');
 installBaseGlobals();
 let getCount = 0;

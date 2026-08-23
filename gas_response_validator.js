@@ -56,7 +56,7 @@ var ResponseValidator = class ResponseValidator {
     const configuredMinScore = typeof CONFIG !== 'undefined' && CONFIG
       ? (CONFIG.VALIDATION_MIN_SCORE ?? 0.6)
       : 0.6;
-    this.MIN_VALID_SCORE = normalizeValidationScore(configuredMinScore || 0.6);
+    this.MIN_VALID_SCORE = normalizeValidationScore(configuredMinScore);
 
     // Soglie lunghezza
     this.MIN_LENGTH_CHARS = 25;
@@ -1178,7 +1178,7 @@ var ResponseValidator = class ResponseValidator {
 
     // === Controllo email ===
     // Protezione ReDoS con limite esplicito sulla parte locale dell'email
-    const emailPattern = /\b[A-Za-z0-9](?:[A-Za-z0-9._%+-]{0,64})@[A-Za-z0-9-]+\.[A-Za-z]{2,}\b/gi;
+    const emailPattern = /\b[A-Za-z0-9](?:[A-Za-z0-9._%+-]{0,64})@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}\b/gi;
     const responseEmails = new Set(
       (response.match(emailPattern) || []).map(e => e.toLowerCase())
     );
@@ -3710,7 +3710,12 @@ Rispondi SOLO con questo JSON (senza markdown):
     if (this.geminiService.useRateLimiter && this.geminiService.rateLimiter) {
       const result = this.geminiService.rateLimiter.executeRequest(
         this.taskType,
-        (modelName) => this.geminiService._generateWithModel(prompt, modelName),
+        (modelName, requestContext) => {
+          const selectedApiKey = requestContext && requestContext.usesBackupKey && this.geminiService.backupKey
+            ? this.geminiService.backupKey
+            : this.geminiService.primaryKey;
+          return this.geminiService._generateWithModel(prompt, modelName, selectedApiKey);
+        },
         {
           estimatedTokens: estimatedTokens
         }

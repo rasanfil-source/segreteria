@@ -790,6 +790,35 @@ console.log('--- Test shouldRespondToEmail: preserva errore RateLimiter non quot
   }
 }
 
+console.log('--- Test shouldRespondToEmail: modelKey backup usa la chiave di riserva ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = 'backup-key';
+  service.useRateLimiter = true;
+  service.detectEmailLanguage = () => ({ lang: 'it', confidence: 5, safetyGrade: 5 });
+  let capturedApiKey = null;
+  service._quickCheckWithModel = (_content, _subject, _modelName, _detection, _intent, apiKey) => {
+    capturedApiKey = apiKey;
+    return { shouldRespond: true, language: 'it', classification: { category: 'TECHNICAL' } };
+  };
+  service.rateLimiter = {
+    executeRequest: (taskType, requestFn) => ({
+      success: true,
+      result: requestFn('gemini-3.5-flash-lite', {
+        taskType,
+        modelKey: 'flash-lite-backup',
+        usesBackupKey: true
+      }),
+      modelUsed: 'gemini-3.5-flash-lite'
+    })
+  };
+
+  const result = service.shouldRespondToEmail('Vorrei informazioni', 'Info');
+  assert(result.shouldRespond === true, 'il quick check deve completare con il modello selezionato');
+  assert(capturedApiKey === 'backup-key', 'un modelKey backup non deve eseguire il quick check con la chiave primaria');
+}
+
 console.log('--- Test _generateWithModel: 429 senza backup propaga QUOTA_EXHAUSTED ---');
 {
   const service = Object.create(GeminiService.prototype);
@@ -1138,6 +1167,44 @@ console.log('--- Test quickCheck: 429 primary marca stato exhausted e passa a ba
 }
 
 
+
+console.log('--- Test quickCheck RateLimiter: primary esaurita non esegue fallback interno fuori accounting ---');
+{
+  const service = Object.create(GeminiService.prototype);
+  service.primaryKey = 'primary-key';
+  service.backupKey = 'backup-key';
+  service.isPrimaryExhausted = false;
+  service._primaryExhaustedCacheKey = 'gemini_primary_exhausted';
+  service._cache = { put: () => {} };
+  service._buildGenerateUrl = () => 'https://example.test/generate';
+  service._resolveLanguage = (_candidate, fallback) => fallback || 'it';
+  const urls = [];
+  service.fetchFn = (url) => {
+    urls.push(url);
+    return {
+      getResponseCode: () => 429,
+      getContentText: () => JSON.stringify({ error: { message: 'quota exhausted' } })
+    };
+  };
+
+  let thrown = null;
+  try {
+    service._quickCheckWithModel(
+      'Vorrei informazioni',
+      'Info',
+      'gemini-3.5-flash',
+      { lang: 'it', confidence: 5, safetyGrade: 5 },
+      null,
+      'primary-key'
+    );
+  } catch (error) {
+    thrown = error;
+  }
+
+  assert(thrown && thrown.message === 'PRIMARY_QUOTA_EXHAUSTED', 'il quick check vincolato deve delegare lo switch chiave al RateLimiter');
+  assert(urls.length === 1 && urls[0].includes('primary-key'), 'non deve consumare la backup key dentro una reservation primary');
+  assert(service.isPrimaryExhausted === true, 'deve comunque registrare la primary come esaurita');
+}
 
 console.log('--- Test quickCheck: 400 API key invalid primaria passa a backup ---');
 {

@@ -332,9 +332,6 @@ console.log('--- Test guard Date: input non-Date non validi sono respinti ---');
   assertEqual(getBusinessDateParts('May 15 2026'), null, 'getBusinessDateParts deve respingere stringhe testuali parseabili dal runtime');
   assertEqual(getBusinessDateParts('2026/05/15'), null, 'getBusinessDateParts deve respingere formati non supportati esplicitamente');
   assertEqual(getBusinessDateParts('2026-06-06T10:00:00Z') !== null, true, 'getBusinessDateParts deve accettare stringhe data ISO valide');
-  assertEqual(_isSameCalendarDay('2026-05-04', new Date(2026, 4, 4)), false, '_isSameCalendarDay deve respingere input sinistro non-Date');
-  assertEqual(_isSameCalendarDay(new Date(2026, 4, 4), '2026-05-04'), false, '_isSameCalendarDay deve respingere input destro non-Date');
-  assertEqual(_isSameCalendarDay(new Date('invalid'), new Date(2026, 4, 4)), false, '_isSameCalendarDay deve respingere Date invalide');
 }
 
 console.log('--- Test ferie con date-only e confine UTC/Roma ---');

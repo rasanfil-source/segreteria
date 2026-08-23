@@ -1815,9 +1815,11 @@ var GeminiService = class GeminiService {
    * @param {string} emailSubject - Oggetto email
    * @param {string} modelName - Nome modello API
    * @param {Object} [precomputedDetection] - Risultato detectEmailLanguage già calcolato (evita doppia chiamata)
+   * @param {Object} [intentContext] - Segnali di intento già calcolati
+   * @param {string|null} [apiKeyOverride] - Chiave coerente con il modelKey scelto dal RateLimiter
    * @returns {Object} Risultato controllo rapido
    */
-  _quickCheckWithModel(emailContent, emailSubject, modelName, precomputedDetection = null, intentContext = null) {
+  _quickCheckWithModel(emailContent, emailSubject, modelName, precomputedDetection = null, intentContext = null, apiKeyOverride = null) {
     const promptContext = EmailQuickCheckPolicy.buildPrompt(emailContent, emailSubject, intentContext);
     const detection = precomputedDetection || this.detectEmailLanguage(promptContext.safeContent, promptContext.safeSubject);
     const prompt = promptContext.prompt;
@@ -1827,7 +1829,7 @@ var GeminiService = class GeminiService {
     console.log(`🔍 Controllo rapido via ${modelName}...`);
 
     // Gestione con tentativo su chiave primaria e fallback singolo su chiave secondaria.
-    let activeKey = this.primaryKey;
+    let activeKey = apiKeyOverride || this.primaryKey;
     let response;
     let responseCode;
     let fetchError = null;
@@ -1857,9 +1859,24 @@ var GeminiService = class GeminiService {
       : '';
     const isAuthOrQuotaError = responseCode !== undefined &&
       this._isPrimaryKeyFallbackHttpError_(responseCode, primaryResponseBody);
-    const shouldTryBackupKey = !!this.backupKey
+    const isRateLimiterKeyBound = !!apiKeyOverride;
+    const shouldTryBackupKey = !isRateLimiterKeyBound
+      && !!this.backupKey
       && activeKey !== this.backupKey
       && isAuthOrQuotaError;
+
+    if (
+      isRateLimiterKeyBound &&
+      isAuthOrQuotaError &&
+      activeKey === this.primaryKey &&
+      this.backupKey &&
+      this.backupKey !== activeKey
+    ) {
+      this._markPrimaryExhausted_('quick_check', responseCode);
+      const keySwitchError = new Error('PRIMARY_QUOTA_EXHAUSTED');
+      keySwitchError.isTransient = true;
+      throw keySwitchError;
+    }
 
     // Evita di moltiplicare retry cross-key su errori infrastrutturali Google/rete:
     // la backup key aiuta solo per autorizzazione o quota della chiave primaria.
@@ -2765,7 +2782,12 @@ Testo:
       try {
         const result = this.rateLimiter.executeRequest(
           'quick_check',
-          (modelName) => this._quickCheckWithModel(emailContent, emailSubject, modelName, detection, intentContext),
+          (modelName, requestContext) => {
+            const selectedApiKey = requestContext && requestContext.usesBackupKey && this.backupKey
+              ? this.backupKey
+              : this.primaryKey;
+            return this._quickCheckWithModel(emailContent, emailSubject, modelName, detection, intentContext, selectedApiKey);
+          },
           {
             estimatedTokens: 500
           }
@@ -2925,7 +2947,12 @@ Testo:
 
         const result = this.rateLimiter.executeRequest(
           'generation',
-          (modelName) => this._generateWithModelEnvelope_(prompt, modelName, targetKey, preEncodedAttachments),
+          (modelName, requestContext) => {
+            const selectedApiKey = requestContext && requestContext.usesBackupKey && this.backupKey
+              ? this.backupKey
+              : targetKey;
+            return this._generateWithModelEnvelope_(prompt, modelName, selectedApiKey, preEncodedAttachments);
+          },
           {
             estimatedTokens: estimatedTokens,
             forceModel: forceModelKey,

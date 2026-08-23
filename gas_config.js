@@ -123,6 +123,11 @@ var CONFIG = {
   VALIDATION_ENABLED: true,
   VALIDATION_MIN_SCORE: 0.6,
   VALIDATION_WARNING_THRESHOLD: 0.9,  // Soglia warning sotto cui aggiungere etichetta Verifica
+  RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD: 0.70,
+  RESPONSE_STRATEGY_CONFIDENCE_THRESHOLD: 0.65,
+  TEMPORAL_PARSING: {
+    nextWeekdayPolicy: 'upcoming'
+  },
   VALIDATION_REVIEW_ALERTS: {
     enabled: true,
     cooldownSeconds: 3600,
@@ -201,7 +206,6 @@ var CONFIG = {
     ibanContextChars: 300,           // Finestra +/- per testo attorno all'IBAN
     maxCharsWhenKbTruncated: 1500    // Riduzione allegati se KB è troncata
   },
-  OCR_ORPHAN_MAX_AGE_HOURS: 6,       // Età massima file OCR temporanei prima del cleanup
   OCR_CLEANUP_MAX_RUNTIME_MS: 8000,   // File di pulizia con durata limitata OCR orfani
 
   // === Token per tipo allegato (stima multimodale per budget prompt) ===
@@ -214,8 +218,6 @@ var CONFIG = {
   // === Cache e Lock ===
   CACHE_MAX_BYTES: 90 * 1024,          // Margine sotto 100KB/entry CacheService per ridurre quota exceeded
   CACHE_LOCK_TTL: 310,                 // Secondi (>= MAX_EXECUTION_TIME_MS/1000 con margine)
-  CACHE_RACE_SLEEP_MS: 200,             // Attesa anti-race condition
-  DEBUG: false,                        // Abilita log verbose (console.log); in produzione tenerlo false
   GMAIL_DAILY_CALL_LIMIT: 18000,       // Soft limit locale anti-burst prima del limite Gmail reale
   GMAIL_METADATA_FALLBACK_MAX_PER_THREAD: 25, // Max messages.get recenti per thread quando GmailApp.isUnread è incoerente
   GMAIL_METADATA_DISCOVERY_MAX_GETS: 120, // Max messages.get per run di fallback discovery message-level
@@ -224,12 +226,12 @@ var CONFIG = {
   GMAIL_LIST_MAX_RUNTIME_MS: 50000,     // Budget tempo bootstrap label cache per evitare timeout GAS
   GMAIL_LABEL_LOOKBACK_DAYS: 0,         // 0 = nessuna finestra temporale nel pre-caricamento label
   BATCH_CHECKPOINT_TTL_MS: 10 * 60 * 1000, // Scadenza checkpoint resume (10 minuti)
-  BATCH_CHECKPOINT_MAX_RETRIES: 3,      // Tentativi di ripresa prima di marcare i residui in Errore
+  BATCH_CHECKPOINT_MAX_RETRIES: 3,      // Riprese rapide sullo stesso set; poi torna al trigger periodico
   BATCH_CHECKPOINT_MAX_THREADS: 150,    // Limite thread salvati nel checkpoint per restare sotto quota Properties
 
   // === Alias noti (anti-loop: il bot riconosce sé stesso anche quando invia da alias) ===
   get BOT_EMAIL() { return _getScriptProperty('BOT_EMAIL'); },
-  KNOWN_ALIASES: _getScriptPropertyStringArray('KNOWN_ALIASES', ['info@parrocchiasanteugenio.it']),
+  get KNOWN_ALIASES() { return _getScriptPropertyStringArray('KNOWN_ALIASES', ['info@parrocchiasanteugenio.it']); },
 
   // === Knowledge Base ===
   get SPREADSHEET_ID() { return _getScriptProperty('SPREADSHEET_ID'); },
@@ -309,7 +311,7 @@ var CONFIG = {
   // === Modelli Gemini (configurazione centralizzata) ===
   // Aggiornato: Luglio 2026
   // Policy operativa:
-  // - Risposta finale: Gemini 3.6 Flash (qualità)
+  // - Risposta finale: Gemini 3.7 Flash (qualità)
   // - Task rapidi/ausiliari: Gemini 3.5 Flash-Lite (categoria, lingua AI, semantica, scarti)
   // Fonte quote operative: verificare i limiti effettivi nel progetto AI Studio.
   // Le quote effettive possono variare per progetto: se AI Studio mostra limiti inferiori,
@@ -385,10 +387,10 @@ var CONFIG = {
 
   // Strategia selezione modelli per task (ordine = priorità)
   MODEL_STRATEGY: {
-    'quick_check': ['flash-lite'],
-    'classification': ['flash-lite'],
-    'language': ['flash-lite'],
-    'newsletter_summary': ['flash-lite'],
+    'quick_check': ['flash-lite', 'flash-lite-backup'],
+    'classification': ['flash-lite', 'flash-lite-backup'],
+    'language': ['flash-lite', 'flash-lite-backup'],
+    'newsletter_summary': ['flash-lite', 'flash-lite-backup'],
     'generation': ['flash-3.7', 'flash-3.7-backup', 'flash-lite', 'flash-lite-backup'],
     'semantic': ['flash-lite', 'flash-lite-backup'],
     'fallback': ['flash-lite', 'flash-lite-backup']
@@ -515,8 +517,6 @@ function validateConfig() {
   checkRange('MEMORY_LOCK_BACKOFF_CAP_MS', CONFIG.MEMORY_LOCK_BACKOFF_CAP_MS, 1, 30000);
   checkType('MEMORY_LOCK_BACKOFF_JITTER_MS', CONFIG.MEMORY_LOCK_BACKOFF_JITTER_MS, 'number');
   checkRange('MEMORY_LOCK_BACKOFF_JITTER_MS', CONFIG.MEMORY_LOCK_BACKOFF_JITTER_MS, 0, 10000);
-  checkType('OCR_ORPHAN_MAX_AGE_HOURS', CONFIG.OCR_ORPHAN_MAX_AGE_HOURS, 'number');
-  checkRange('OCR_ORPHAN_MAX_AGE_HOURS', CONFIG.OCR_ORPHAN_MAX_AGE_HOURS, 1, 24);
   checkType('OCR_CLEANUP_MAX_RUNTIME_MS', CONFIG.OCR_CLEANUP_MAX_RUNTIME_MS, 'number');
   checkRange('OCR_CLEANUP_MAX_RUNTIME_MS', CONFIG.OCR_CLEANUP_MAX_RUNTIME_MS, 1000, 30000);
   checkType('GMAIL_LIST_MAX_RUNTIME_MS', CONFIG.GMAIL_LIST_MAX_RUNTIME_MS, 'number');
@@ -533,6 +533,15 @@ function validateConfig() {
   checkRange('VALIDATION_MIN_SCORE', CONFIG.VALIDATION_MIN_SCORE, 0.0, 100.0);
   checkType('VALIDATION_WARNING_THRESHOLD', CONFIG.VALIDATION_WARNING_THRESHOLD, 'number');
   checkRange('VALIDATION_WARNING_THRESHOLD', CONFIG.VALIDATION_WARNING_THRESHOLD, 0.0, 100.0);
+  checkType('RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD', CONFIG.RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD, 'number');
+  checkRange('RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD', CONFIG.RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD, 0.0, 1.0);
+  checkType('RESPONSE_STRATEGY_CONFIDENCE_THRESHOLD', CONFIG.RESPONSE_STRATEGY_CONFIDENCE_THRESHOLD, 'number');
+  checkRange('RESPONSE_STRATEGY_CONFIDENCE_THRESHOLD', CONFIG.RESPONSE_STRATEGY_CONFIDENCE_THRESHOLD, 0.0, 1.0);
+  if (!CONFIG.TEMPORAL_PARSING || typeof CONFIG.TEMPORAL_PARSING !== 'object') {
+    errors.push("Errore Config: 'TEMPORAL_PARSING' deve essere un oggetto");
+  } else if (!['upcoming', 'strict_next_week'].includes(CONFIG.TEMPORAL_PARSING.nextWeekdayPolicy)) {
+    errors.push("Errore Config: 'TEMPORAL_PARSING.nextWeekdayPolicy' deve essere 'upcoming' o 'strict_next_week'");
+  }
 
   // Riprova Logica
   if (!CONFIG.INTELLIGENT_RETRY || typeof CONFIG.INTELLIGENT_RETRY !== 'object') {

@@ -113,6 +113,12 @@ var GmailService = class GmailService {
         }
     }
 
+    flushPendingGmailCallCounter(opName = 'batch_end') {
+        if (!this._scriptCache || this._pendingGmailCallCount <= 0) return false;
+        this._flushGmailCallCounter_(this._getGmailCounterDateKey_(), opName);
+        return this._pendingGmailCallCount === 0;
+    }
+
     _flushGmailCallCounter_(key, opName = 'batch') {
         if (!this._scriptCache) return;
 
@@ -1298,6 +1304,21 @@ var GmailService = class GmailService {
             this._labelCache.set(raw, { ...(this._labelCache.get(raw) || {}), labelId: null, missingInAdvancedApi: true, ts: now });
             return null;
         } catch (e) {
+            const errorMessage = String(e && e.message || '');
+            const normalizedError = errorMessage.toLowerCase();
+            const isCriticalLookupFailure =
+                errorMessage.includes('GMAIL_DAILY_CALL_LIMIT_REACHED') ||
+                errorMessage.includes('GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE') ||
+                this._isRetryableGmailApiError(e) ||
+                /\b(401|403)\b/.test(normalizedError) ||
+                normalizedError.includes('unauthorized') ||
+                normalizedError.includes('forbidden') ||
+                normalizedError.includes('insufficient permission') ||
+                normalizedError.includes('invalid credential') ||
+                normalizedError.includes('access denied');
+            if (isCriticalLookupFailure) {
+                throw e;
+            }
             console.warn(`⚠️ _getOptionalLabelIdByName fallito per ${raw}, non metto in cache: ${e.message}`);
             return null;
         }
@@ -2102,52 +2123,12 @@ var GmailService = class GmailService {
             } catch (_) { }
             throw error;
         } finally {
-            if (!fileId && tempFileName && typeof Drive !== 'undefined' && Drive && Drive.Files &&
-                typeof Drive.Files.list === 'function' &&
-                (typeof Drive.Files.remove === 'function' || typeof Drive.Files.delete === 'function' || typeof Drive.Files.trash === 'function')) {
-                try {
-                    const escapedName = String(tempFileName).replace(/'/g, "\\'");
-                    const queries = [
-                        { q: `title = '${escapedName}' and 'me' in owners`, maxResults: 1 },
-                        { q: `name = '${escapedName}' and 'me' in owners`, pageSize: 1 }
-                    ];
-                    for (const query of queries) {
-                        let res = null;
-                        try {
-                            res = Drive.Files.list(query);
-                        } catch (_) {
-                            continue;
-                        }
-                        const files = res && (res.items || res.files) ? (res.items || res.files) : [];
-                        if (files.length > 0 && files[0].id) {
-                            if (typeof Drive.Files.remove === 'function') {
-                                Drive.Files.remove(files[0].id);
-                            } else if (typeof Drive.Files.delete === 'function') {
-                                Drive.Files.delete(files[0].id);
-                            } else {
-                                Drive.Files.trash(files[0].id);
-                            }
-                            break;
-                        }
-                    }
-                } catch (_) { }
-            }
+            // Se la creazione Drive fallisce prima di restituire un ID, non tentiamo
+            // cleanup per nome: una query broad potrebbe colpire un file legittimo
+            // dell'utente con lo stesso nome. Solo gli ID registrati nella coda
+            // applicativa sono candidati alla cancellazione automatica.
             if (fileId) {
-                try {
-                    if (typeof Drive.Files.remove === 'function') {
-                        Drive.Files.remove(fileId);
-                    } else if (typeof Drive.Files.delete === 'function') {
-                        Drive.Files.delete(fileId);
-                    } else if (typeof Drive.Files.trash === 'function') {
-                        Drive.Files.trash(fileId);
-                    }
-                } catch (e) {
-                    console.warn(`⚠️ Errore cancellazione file temporaneo ${fileId}: ${e.message}`);
-                } finally {
-                    // Rimuove dalla coda indipendentemente dall'esito: se la rimozione fallisce
-                    // perché il file era già eliminato, non ha senso ritentare dalla coda.
-                    this._forgetTemporaryDriveFile_(fileId);
-                }
+                this._cleanupTemporaryDriveFileById_(fileId, 'conversione Office');
             }
         }
     }
@@ -2156,115 +2137,19 @@ var GmailService = class GmailService {
 
     _cleanupOrphanedOcrFilesIfNeeded() {
         try {
-            // La coda persistente ripara i crash avvenuti dopo la creazione del file temporaneo:
-            // va drenata anche quando il cleanup orfani indicizzato per nome è ancora in throttle.
+            // Elimina esclusivamente file creati dall'app e registrati per ID.
+            // Non usare ricerche Drive per nome/prefisso: potrebbero selezionare
+            // documenti legittimi dell'utente.
             this._cleanupQueuedTemporaryDriveFiles_();
-
-            const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
-                ? CacheService.getScriptCache()
-                : null;
-
-
-            const throttleKey = 'OCR_ORPHAN_CLEANUP_LAST_RUN_V1';
-            if (cache && cache.get(throttleKey)) {
-                return;
-            }
-
-            // Backup persistente: CacheService può essere evicted prima del TTL.
-            const props = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
-                ? PropertiesService.getScriptProperties()
-                : null;
-            const propKey = 'OCR_CLEANUP_LAST_TS';
-            if (props) {
-                const lastTs = parseInt(props.getProperty(propKey) || '0', 10);
-                if ((Date.now() - lastTs) < 6 * 3600 * 1000) {
-                    return;
-                }
-            }
-
-            if (cache) {
-                cache.put(throttleKey, String(Date.now()), 21599); // max una volta ogni 6 ore (evita edge-case al limite hard)
-            }
-            if (props) {
-                try { props.setProperty(propKey, String(Date.now())); } catch (_) {}
-            }
-
-            this._cleanupOrphanedOcrFiles();
         } catch (e) {
             console.warn(`⚠️ Cleanup orfani OCR non eseguito: ${e.message}`);
         }
     }
 
     _cleanupOrphanedOcrFiles() {
-        if (typeof Drive === 'undefined' || !Drive.Files || typeof Drive.Files.list !== 'function') {
-            return;
-        }
-
-        const orphanMaxAgeHours = this._safePositiveInt((typeof CONFIG !== 'undefined' ? CONFIG.OCR_ORPHAN_MAX_AGE_HOURS : null), 1, 1, 24);
-        const cutoffIso = new Date(Date.now() - (orphanMaxAgeHours * 60 * 60 * 1000))
-            .toISOString()
-            .replace(/\.\d{3}Z$/, 'Z');
-        // Compatibilità Drive API v2/v3: cambiano nomi campo in query e shape della risposta.
-        // Manteniamo doppia strategia per evitare cleanup silenziosamente inattivo.
-        const v2Query = `(title contains 'OCR_' or title contains 'TEMP_CONV_') and 'me' in owners and trashed = false and modifiedDate < '${cutoffIso}'`;
-        const v3Query = `(name contains 'OCR_' or name contains 'TEMP_CONV_') and 'me' in owners and trashed = false and modifiedTime < '${cutoffIso}'`;
-
-        const cleanupStartedAtMs = Date.now();
-        const cleanupMaxRuntimeMs = this._safePositiveInt((typeof CONFIG !== 'undefined' ? CONFIG.OCR_CLEANUP_MAX_RUNTIME_MS : null), 8000, 1000, 30000);
-        let removed = 0;
-        let pageToken = null;
-        let stopCleanup = false;
-        do {
-            if (Date.now() - cleanupStartedAtMs > cleanupMaxRuntimeMs) {
-                console.warn(`⚠️ Cleanup OCR interrotto preventivamente dopo ${removed} rimozioni per limite tempo (${cleanupMaxRuntimeMs}ms)`);
-                break;
-            }
-            let response;
-            try {
-                response = Drive.Files.list({ q: v2Query, maxResults: 100, pageToken: pageToken });
-            } catch (e) {
-                try {
-                    response = Drive.Files.list({ q: v3Query, pageSize: 100, pageToken: pageToken });
-                } catch (v3Error) {
-                    console.warn(`⚠️ Cleanup orfani OCR non disponibile: ${v3Error.message}`);
-                    return;
-                }
-            }
-
-            const files = response && (response.items || response.files) ? (response.items || response.files) : [];
-            if (!files.length) {
-                break;
-            }
-
-            for (const file of files) {
-                if (Date.now() - cleanupStartedAtMs > cleanupMaxRuntimeMs) {
-                    console.warn(`⚠️ Cleanup OCR interrotto durante la pagina dopo ${removed} rimozioni per limite tempo (${cleanupMaxRuntimeMs}ms)`);
-                    pageToken = null;
-                    break;
-                }
-                if (!file || !file.id) continue;
-                try {
-                    if (typeof Drive.Files.remove === 'function') {
-                        Drive.Files.remove(file.id);
-                    } else if (typeof Drive.Files.delete === 'function') {
-                        Drive.Files.delete(file.id);
-                    } else if (typeof Drive.Files.trash === 'function') {
-                        Drive.Files.trash(file.id);
-                    }
-                    removed++;
-                } catch (e) {
-                    console.warn(`⚠️ Impossibile rimuovere file OCR orfano (${file.id}): ${e.message}`);
-                }
-            }
-            if (stopCleanup) {
-                break;
-            }
-            pageToken = response.nextPageToken || null;
-        } while (pageToken);
-
-        if (removed > 0) {
-            console.log(`🧹 Cleanup OCR: rimossi ${removed} file orfani`);
-        }
+        // Alias retrocompatibile: la sorgente autorevole è la coda persistente
+        // degli ID creati dall'app, non il nome visibile dei file Drive.
+        this._cleanupQueuedTemporaryDriveFiles_();
     }
 
     /**
@@ -2420,18 +2305,7 @@ var GmailService = class GmailService {
             return '';
         } finally {
             if (fileId) {
-                try {
-                    if (typeof Drive.Files.remove === 'function') {
-                        Drive.Files.remove(fileId);
-                    } else if (typeof Drive.Files.delete === 'function') {
-                        Drive.Files.delete(fileId);
-                    } else if (typeof Drive.Files.trash === 'function') {
-                        Drive.Files.trash(fileId);
-                    }
-                    this._forgetTemporaryDriveFile_(fileId);
-                } catch (e) {
-                    console.warn(`⚠️ Cleanup file Office fallito (${fileId}): ${e.message}`);
-                }
+                this._cleanupTemporaryDriveFileById_(fileId, 'estrazione Office');
             }
         }
     }
@@ -2507,18 +2381,7 @@ var GmailService = class GmailService {
             return '';
         } finally {
             if (fileId) {
-                try {
-                    if (typeof Drive.Files.remove === 'function') {
-                        Drive.Files.remove(fileId);
-                    } else if (typeof Drive.Files.delete === 'function') {
-                        Drive.Files.delete(fileId);
-                    } else if (typeof Drive.Files.trash === 'function') {
-                        Drive.Files.trash(fileId);
-                    }
-                    this._forgetTemporaryDriveFile_(fileId);
-                } catch (e) {
-                    console.warn(`⚠️ Cleanup OCR allegato fallito (${fileId}): ${e.message}`);
-                }
+                this._cleanupTemporaryDriveFileById_(fileId, 'OCR allegato');
             }
         }
     }
@@ -2691,6 +2554,31 @@ var GmailService = class GmailService {
         return false;
     }
 
+    _cleanupTemporaryDriveFileById_(fileId, contextLabel = 'file temporaneo') {
+        if (!fileId) return false;
+
+        let deletionConfirmed = false;
+        let deletionError = null;
+        try {
+            deletionConfirmed = this._deleteTemporaryDriveFile_(fileId);
+        } catch (e) {
+            const message = String(e && e.message || '').toLowerCase();
+            deletionConfirmed = message.includes('not found') || message.includes('file not found') || message.includes('404');
+            if (!deletionConfirmed) {
+                deletionError = e;
+            }
+        }
+
+        if (deletionConfirmed) {
+            this._forgetTemporaryDriveFile_(fileId);
+            return true;
+        }
+
+        const errorSuffix = deletionError ? `: ${deletionError.message}` : '';
+        console.warn(`⚠️ Cleanup ${contextLabel} non confermato (${fileId})${errorSuffix}; ID conservato in coda`);
+        return false;
+    }
+
     _cleanupQueuedTemporaryDriveFiles_() {
         const store = this._getTemporaryDriveQueueStore_();
         if (!store) return;
@@ -2707,9 +2595,21 @@ var GmailService = class GmailService {
         const originalQueue = queue
             .filter(item => item && item.id)
             .slice(-50);
+        const cleanupStartedAtMs = Date.now();
+        const cleanupMaxRuntimeMs = this._safePositiveInt(
+            (typeof CONFIG !== 'undefined' ? CONFIG.OCR_CLEANUP_MAX_RUNTIME_MS : null),
+            8000,
+            1000,
+            30000
+        );
         const retained = [];
         let removed = 0;
         for (let index = 0; index < originalQueue.length; index++) {
+            if (Date.now() - cleanupStartedAtMs > cleanupMaxRuntimeMs) {
+                retained.push(...originalQueue.slice(index));
+                console.warn(`⚠️ Cleanup Drive interrotto dopo ${removed} rimozioni per limite tempo (${cleanupMaxRuntimeMs}ms)`);
+                break;
+            }
             const item = originalQueue[index];
             const persistRemovalProgress = () => {
                 const remaining = originalQueue.slice(index + 1);
@@ -3093,7 +2993,7 @@ var GmailService = class GmailService {
     /**
      * Invia risposta come HTML con threading corretto
      */
-    sendHtmlReply(resource, responseText, messageDetails) {
+    sendHtmlReply(resource, responseText, messageDetails = {}) {
         const finalResponse = responseText == null ? '' : String(responseText);
         const isAmbiguousSendError = (error) => {
             const msg = String((error && error.message) || error || '').toLowerCase();
@@ -3295,7 +3195,7 @@ var GmailService = class GmailService {
                 }, 'me');
 
                 console.log(`✓ Risposta HTML inviata via Gmail API a ${messageDetails.senderEmail}`);
-                console.log(`   📧 Threading headers: In-Reply-To=${messageDetails.rfc2822MessageId.substring(0, 30)}...`);
+                console.log(`   📧 Threading headers: In-Reply-To=${originalMessageId ? originalMessageId.substring(0, 30) + '...' : 'assente'}`);
                 return;
 
             } catch (apiError) {

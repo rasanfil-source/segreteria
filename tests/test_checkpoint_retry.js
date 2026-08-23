@@ -52,7 +52,8 @@ props.set('EMAIL_BATCH_CHECKPOINT', JSON.stringify({
   pendingThreadIds: ['t400', 't401']
 }));
 const abandoned = _readBatchCheckpoint_();
-assert(abandoned === null, 'checkpoint oltre soglia deve essere abbandonato');
+assert(abandoned && abandoned.abandoned === true, 'checkpoint oltre soglia deve restituire un sentinel di abbandono');
+assert(abandoned.reason === 'max_retries', 'il sentinel deve distinguere il limite retry dall assenza di checkpoint');
 assert(!props.has('EMAIL_BATCH_CHECKPOINT'), 'checkpoint abbandonato deve essere cancellato');
 assert(labeledThreadIds.length === 0, `checkpoint abbandonato per retryCount non deve applicare label Errore, ottenuto ${labeledThreadIds.join(',')}`);
 

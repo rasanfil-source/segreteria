@@ -479,8 +479,10 @@ console.log('--- Test executeRequest: ritenta testo vuoto transitorio sullo stes
     limiter._getRequestsInWindow = () => 0;
 
     let calls = 0;
-    const result = limiter.executeRequest('generation', () => {
+    const requestContexts = [];
+    const result = limiter.executeRequest('generation', (_modelName, requestContext) => {
       calls++;
+      requestContexts.push(requestContext);
       if (calls === 1) {
         const err = new Error('Gemini ha restituito testo vuoto');
         err.isTransient = true;
@@ -490,8 +492,66 @@ console.log('--- Test executeRequest: ritenta testo vuoto transitorio sullo stes
     }, { maxRetries: 2, estimatedTokens: 10 });
 
     assert(calls === 2, 'errore transient testo vuoto deve attivare il secondo tentativo');
+    assert(requestContexts.every(context => context.modelKey === 'flash'), 'la callback deve ricevere il modelKey selezionato');
+    assert(requestContexts.every(context => context.usesBackupKey === false), 'il contesto deve distinguere la chiave primaria');
     assert(finalized === 1 && released === 0, 'errore transient deve consumare la reservation minuto invece di rilasciarla');
     assert(result.success === true && result.result === 'ok', 'il secondo tentativo deve completare la richiesta');
+  } finally {
+    global.Utilities = originalUtilities;
+  }
+}
+
+console.log('--- Test executeRequest: PRIMARY_QUOTA_EXHAUSTED passa al modelKey backup ---');
+{
+  const originalUtilities = global.Utilities;
+  global.Utilities = { sleep: () => {} };
+
+  try {
+    const propsData = new Map([
+      ['rpd_flash', '1'],
+      ['rpd_flash-backup', '0']
+    ]);
+    const limiter = Object.create(GeminiRateLimiter.prototype);
+    limiter.defaultMaxRetries = 2;
+    limiter.props = {
+      getProperty: (key) => propsData.has(key) ? propsData.get(key) : null
+    };
+    limiter._selectAndReserveModel = (_taskType, options) => {
+      const excluded = options.excludeModelKeys || new Set();
+      const modelKey = excluded.has('flash') ? 'flash-backup' : 'flash';
+      return {
+        available: true,
+        modelKey,
+        model: {
+          name: 'gemini-test',
+          useCases: modelKey === 'flash-backup' ? ['backup'] : []
+        },
+        shouldThrottle: null,
+        reservationId: `res-${modelKey}`
+      };
+    };
+    const finalized = [];
+    const tracked = [];
+    limiter._finalizeReservation = (modelKey) => finalized.push(modelKey);
+    limiter._releaseReservation = () => {};
+    limiter._trackRequest = (modelKey) => tracked.push(modelKey);
+    limiter._getRequestsInWindow = () => 0;
+
+    const calledKeys = [];
+    const result = limiter.executeRequest('semantic', (_modelName, requestContext) => {
+      calledKeys.push(requestContext.modelKey);
+      if (!requestContext.usesBackupKey) {
+        const error = new Error('PRIMARY_QUOTA_EXHAUSTED');
+        error.isTransient = true;
+        throw error;
+      }
+      return 'ok-backup';
+    }, { maxRetries: 2, estimatedTokens: 10 });
+
+    assert(calledKeys.join('|') === 'flash|flash-backup', 'dopo il segnale primary deve selezionare il modelKey backup');
+    assert(finalized.includes('flash'), 'il tentativo remoto fallito sulla primary deve consumare la reservation prudenziale');
+    assert(tracked.length === 1 && tracked[0] === 'flash-backup', 'la risposta riuscita deve essere contabilizzata sul backup');
+    assert(result.success === true && result.result === 'ok-backup', 'il fallback gestito dal RateLimiter deve completare la richiesta');
   } finally {
     global.Utilities = originalUtilities;
   }
@@ -521,8 +581,10 @@ console.log('--- Test executeRequest bypass: traccia forceModel invece del nome 
   try {
     const result = limiter.executeRequest(
       'generation',
-      (modelName) => {
+      (modelName, requestContext) => {
         assert(modelName === 'gemini-3.5-flash', 'il bypass deve chiamare il nome modello fisico richiesto');
+        assert(requestContext.modelKey === 'flash-3.5-backup', 'il bypass deve esporre il modelKey logico alla callback');
+        assert(requestContext.usesBackupKey === true, 'il contesto deve indicare l uso della chiave di riserva');
         return 'ok';
       },
       {

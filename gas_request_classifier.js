@@ -290,8 +290,11 @@ var RequestTypeClassifier = class RequestTypeClassifier {
     const isSbattezzoRequest = formalResult.score >= 4 || externalSbattezzoHint;
 
     // Override prioritari (Logica critica)
-    if (isSbattezzoRequest || dimensions.formal >= 0.8) requestType = 'formal';
-    if (dimensions.doctrinal >= 0.8 && dimensions.pastoral < 0.4) requestType = 'doctrinal'; // Pura dottrina
+    if (isSbattezzoRequest || dimensions.formal >= 0.8) {
+      requestType = 'formal';
+    } else if (dimensions.doctrinal >= 0.8 && dimensions.pastoral < 0.4) {
+      requestType = 'doctrinal'; // Pura dottrina, salvo flussi formali prioritari.
+    }
 
     // 4b. Confidenza e criteri di sicurezza (anti-falsi positivi)
     const confidence = this._estimateConfidence({
@@ -499,8 +502,9 @@ var RequestTypeClassifier = class RequestTypeClassifier {
    * Esempi supportati: 0.82, "0,82", "82%", 82.
    */
   _normalizeConfidence(confidenceValue) {
+    const clamp = (value) => Math.max(0, Math.min(1, value));
     if (typeof confidenceValue === 'number' && Number.isFinite(confidenceValue)) {
-      return confidenceValue > 1 ? confidenceValue / 100 : confidenceValue;
+      return clamp(confidenceValue > 1 ? confidenceValue / 100 : confidenceValue);
     }
 
     if (typeof confidenceValue !== 'string') {
@@ -515,9 +519,9 @@ var RequestTypeClassifier = class RequestTypeClassifier {
     if (!Number.isFinite(numeric)) return 0;
 
     if (hasPercent || numeric > 1) {
-      return numeric / 100;
+      return clamp(numeric / 100);
     }
-    return numeric;
+    return clamp(numeric);
   }
 
   /**

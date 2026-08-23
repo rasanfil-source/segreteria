@@ -1013,6 +1013,53 @@ console.log('--- Test getProcessableAttachments: conversione Office octet-stream
   }
 }
 
+console.log('--- Test _convertOfficeToPdf: cleanup transiente conserva ID nella coda ---');
+{
+  const originalDrive = global.Drive;
+  const originalDriveApp = global.DriveApp;
+  const originalUtilities = global.Utilities;
+  const remembered = [];
+  const forgotten = [];
+
+  try {
+    global.Drive = {
+      Files: {
+        create: () => ({
+          id: 'temp-office-retry',
+          mimeType: 'application/vnd.google-apps.document'
+        })
+      }
+    };
+    global.DriveApp = {
+      getFileById: () => ({
+        getAs: () => ({ getBytes: () => [1, 2, 3] })
+      })
+    };
+    global.Utilities = Object.assign({}, originalUtilities, { sleep: () => {} });
+
+    const conversionService = new GmailService();
+    conversionService._rememberTemporaryDriveFile_ = (id) => remembered.push(id);
+    conversionService._forgetTemporaryDriveFile_ = (id) => forgotten.push(id);
+    conversionService._deleteTemporaryDriveFile_ = () => {
+      throw new Error('Drive backend temporaneamente non disponibile');
+    };
+
+    const converted = conversionService._convertOfficeToPdf({
+      getName: () => 'documento.docx',
+      getContentType: () => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      copyBlob: () => ({})
+    });
+
+    assert(converted && converted.getBytes().length === 3, 'la conversione deve riuscire anche se il cleanup va ritentato');
+    assert(remembered.length === 1 && remembered[0] === 'temp-office-retry', 'il file temporaneo deve essere registrato prima dell export');
+    assert(forgotten.length === 0, 'un errore transiente di cancellazione deve mantenere l ID nella coda persistente');
+  } finally {
+    global.Drive = originalDrive;
+    global.DriveApp = originalDriveApp;
+    global.Utilities = originalUtilities;
+  }
+}
+
 console.log('--- Test getProcessableAttachments: limiti testo a zero significano nessun limite ---');
 {
   const longText = 'Riga allegato '.repeat(400);
@@ -1291,6 +1338,38 @@ console.log('--- Test _getOptionalLabelIdByName: Advanced Gmail conta labels.lis
     delete global.Gmail.Users.Labels;
   } else {
     global.Gmail.Users.Labels = originalLabels;
+  }
+}
+
+console.log('--- Test _getOptionalLabelIdByName: propaga limite quota locale ---');
+{
+  const originalLabels = global.Gmail.Users.Labels;
+  let labelsListCalled = false;
+
+  try {
+    global.Gmail.Users.Labels = {
+      list: () => {
+        labelsListCalled = true;
+        return { labels: [] };
+      }
+    };
+    const quotaService = new GmailService();
+    quotaService._incrementGmailCallCounterOrThrow_ = () => {
+      throw new Error('GMAIL_DAILY_CALL_LIMIT_REACHED (100/100)');
+    };
+
+    let propagated = false;
+    try {
+      quotaService._getOptionalLabelIdByName('Verifica');
+    } catch (error) {
+      propagated = /GMAIL_DAILY_CALL_LIMIT_REACHED/.test(error.message);
+    }
+
+    assert(propagated, 'il lookup label non deve trasformare il limite quota in una label assente');
+    assert(labelsListCalled === false, 'il limite locale deve interrompere il lookup prima della chiamata Gmail');
+  } finally {
+    if (typeof originalLabels === 'undefined') delete global.Gmail.Users.Labels;
+    else global.Gmail.Users.Labels = originalLabels;
   }
 }
 
@@ -1617,6 +1696,61 @@ console.log('--- Test sendHtmlReply: non duplica Re su prefissi localizzati ---'
   }
 }
 
+console.log('--- Test sendHtmlReply: Message-ID non stringa non duplica un invio riuscito ---');
+{
+  const originalUtilities = global.Utilities;
+  const originalSession = global.Session;
+  const originalGmail = global.Gmail;
+  let apiSendCalls = 0;
+  let nativeReplyCalls = 0;
+
+  try {
+    global.Utilities = Object.assign({}, originalUtilities, {
+      Charset: { UTF_8: 'utf8' },
+      base64Encode: (input) => Buffer.from(String(input || ''), 'utf8').toString('base64'),
+      base64EncodeWebSafe: (input) => Buffer.from(String(input || ''), 'utf8')
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, '')
+    });
+    global.Session = {
+      getEffectiveUser: () => ({ getEmail: () => 'parrocchia@example.org' }),
+      getActiveUser: () => ({ getEmail: () => 'parrocchia@example.org' })
+    };
+    global.Gmail = {
+      Users: {
+        Messages: {
+          send: () => { apiSendCalls += 1; }
+        }
+      }
+    };
+
+    const sendService = new GmailService();
+    sendService._incrementGmailCallCounterOrThrow_ = () => {};
+    const message = {
+      getThread: () => ({ getId: () => 'thread-numeric-message-id' }),
+      reply: () => { nativeReplyCalls += 1; }
+    };
+
+    sendService.sendHtmlReply(message, 'Risposta test', {
+      subject: 'Oggetto',
+      senderEmail: 'utente@example.org',
+      rfc2822MessageId: 12345,
+      existingReferences: '',
+      recipientEmail: 'parrocchia@example.org',
+      recipientCc: ''
+    });
+
+    assert(apiSendCalls === 1, 'l invio RAW deve essere eseguito una sola volta');
+    assert(nativeReplyCalls === 0, 'un errore di normalizzazione/log successivo non deve attivare il fallback e duplicare la risposta');
+  } finally {
+    global.Utilities = originalUtilities;
+    global.Session = originalSession;
+    global.Gmail = originalGmail;
+  }
+}
+
 console.log('--- Test sendHtmlReply: doppio fallback fallito rilancia errore ---');
 {
   const originalAddLabelToThread = service.addLabelToThread;
@@ -1912,6 +2046,25 @@ console.log('--- Test Gmail counter: usa ScriptLock sul flush e accorpa incremen
   }
 }
 
+console.log('--- Test Gmail counter: flush finale persiste il residuo sotto soglia ---');
+{
+  let storedValue = '10';
+  const counterService = new GmailService();
+  counterService._gmailCounterLockCovered = true;
+  counterService._scriptCache = {
+    get: () => storedValue,
+    put: (_key, value) => { storedValue = value; }
+  };
+  counterService._lastGmailCallCount = 10;
+  counterService._pendingGmailCallCount = 3;
+
+  const flushed = counterService.flushPendingGmailCallCounter('test_batch_end');
+
+  assert(flushed === true, 'il flush finale deve confermare l azzeramento del residuo');
+  assert(storedValue === '13', 'il residuo di chiamate sotto soglia deve essere scritto in cache a fine batch');
+  assert(counterService._pendingGmailCallCount === 0, 'il pending counter deve essere azzerato dopo il flush');
+}
+
 console.log('--- Test Gmail counter: lock coperto dal batch evita riacquisizione ---');
 {
   const originalLockService = global.LockService;
@@ -2110,29 +2263,39 @@ console.log('--- Test cleanup Drive: aggiorna la coda dopo ogni rimozione ---');
   }
 }
 
-console.log('--- Test cleanup OCR orfani: rispetta limite runtime ---');
+console.log('--- Test cleanup OCR orfani: usa solo ID registrati e rispetta il runtime ---');
 {
+  const originalPropertiesService = global.PropertiesService;
   const originalDrive = global.Drive;
   const originalConfig = global.CONFIG;
   const originalDateNow = Date.now;
+  const props = {
+    TEMP_DRIVE_FILE_QUEUE_V1: JSON.stringify([
+      { id: 'ocr-app-1', ts: 1 },
+      { id: 'ocr-app-2', ts: 2 }
+    ])
+  };
   const removed = [];
   let listCalls = 0;
-  const nowValues = [0, 0, 100, 200, 2000];
+  const nowValues = [0, 100, 2000];
 
   try {
     global.CONFIG = Object.assign({}, originalConfig, {
-      OCR_ORPHAN_MAX_AGE_HOURS: 6,
       OCR_CLEANUP_MAX_RUNTIME_MS: 1000
     });
+    global.PropertiesService = {
+      getScriptProperties: () => ({
+        getProperty: (key) => Object.prototype.hasOwnProperty.call(props, key) ? props[key] : null,
+        setProperty: (key, value) => { props[key] = value; },
+        deleteProperty: (key) => { delete props[key]; }
+      })
+    };
     Date.now = () => nowValues.length ? nowValues.shift() : 2000;
     global.Drive = {
       Files: {
         list: () => {
-          listCalls++;
-          return {
-            items: [{ id: 'ocr-1' }, { id: 'ocr-2' }],
-            nextPageToken: 'next-page'
-          };
+          listCalls += 1;
+          return { items: [{ id: 'ocr-file-utente' }] };
         },
         remove: (id) => { removed.push(id); }
       }
@@ -2141,9 +2304,12 @@ console.log('--- Test cleanup OCR orfani: rispetta limite runtime ---');
     const service = new GmailService();
     service._cleanupOrphanedOcrFiles();
 
-    assert(listCalls === 1, 'cleanup OCR deve fermarsi prima di richiedere pagine ulteriori se supera il limite runtime');
-    assert(removed.length === 1 && removed[0] === 'ocr-1', 'cleanup OCR deve interrompersi durante la pagina rispettando il limite runtime');
+    const retained = JSON.parse(props.TEMP_DRIVE_FILE_QUEUE_V1);
+    assert(listCalls === 0, 'cleanup OCR non deve cercare file per nome o prefisso su Drive');
+    assert(removed.length === 1 && removed[0] === 'ocr-app-1', 'cleanup deve rimuovere esclusivamente il primo ID registrato entro il budget');
+    assert(retained.length === 1 && retained[0].id === 'ocr-app-2', 'gli ID non processati entro il runtime devono restare in coda');
   } finally {
+    global.PropertiesService = originalPropertiesService;
     global.Drive = originalDrive;
     global.CONFIG = originalConfig;
     Date.now = originalDateNow;

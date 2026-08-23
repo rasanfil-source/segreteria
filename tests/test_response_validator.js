@@ -24,6 +24,18 @@ vm.runInThisContext(code, { filename: gasValidatorPath });
 
 const validator = new ResponseValidator();
 
+console.log('--- Test ResponseValidator: VALIDATION_MIN_SCORE=0 resta valido ---');
+{
+  const originalMinScore = CONFIG.VALIDATION_MIN_SCORE;
+  CONFIG.VALIDATION_MIN_SCORE = 0;
+  try {
+    const zeroThresholdValidator = new ResponseValidator();
+    assert(zeroThresholdValidator.MIN_VALID_SCORE === 0, 'la soglia esplicita 0 non deve ricadere sul default 0.6');
+  } finally {
+    CONFIG.VALIDATION_MIN_SCORE = originalMinScore;
+  }
+}
+
 console.log('--- Test _extractExplicitDates_: separatori numerici coerenti ---');
 {
   const mixedDates = validator._extractExplicitDates_('Appuntamento 01/02-2026', new Date(2026, 0, 1));
@@ -417,6 +429,19 @@ assert(
   !civicResult.warnings.some((w) => w.includes('Orari non in KB')),
   'non deve segnalare orari inventati nel caso civico'
 );
+
+console.log('--- Test hallucination: email con sottodominio non viene troncata ---');
+{
+  const emailResult = validator._checkHallucinations(
+    'Può scrivere a segreteria@mail.example.org.',
+    'Contatto autorizzato: segreteria@mail.example.com.',
+    ''
+  );
+  assert(
+    emailResult.errors.some((error) => error.includes('segreteria@mail.example.org')),
+    'TLD diversi su un sottodominio devono restare indirizzi distinti e quello inventato va bloccato'
+  );
+}
 
 console.log('--- Test hallucination: numero civico non deve autorizzare orario inventato ---');
 const streetNumberResult = validator._checkHallucinations(
@@ -1931,6 +1956,38 @@ console.log('--- Test SemanticValidator: fallback token se estimateTokenCount no
       global.estimateTokenCount = originalEstimateTokenCount;
     }
   }
+}
+
+console.log('--- Test SemanticValidator: modelKey backup usa la chiave di riserva ---');
+{
+  const semantic = Object.create(SemanticValidator.prototype);
+  semantic.taskType = 'semantic';
+  semantic.maxRetries = 1;
+  let capturedApiKey = null;
+  semantic.geminiService = {
+    primaryKey: 'primary-key',
+    backupKey: 'backup-key',
+    useRateLimiter: true,
+    _generateWithModel: (_prompt, _modelName, apiKey) => {
+      capturedApiKey = apiKey;
+      return '{"isValid":true}';
+    },
+    rateLimiter: {
+      executeRequest: (taskType, requestFn) => ({
+        success: true,
+        result: requestFn('gemini-3.5-flash-lite', {
+          taskType,
+          modelKey: 'flash-lite-backup',
+          usesBackupKey: true
+        }),
+        modelUsed: 'gemini-3.5-flash-lite'
+      })
+    }
+  };
+
+  const result = semantic._generateSemantic('prompt semantico');
+  assert(result === '{"isValid":true}', 'la validazione semantica deve restituire il payload del modello selezionato');
+  assert(capturedApiKey === 'backup-key', 'un modelKey backup non deve eseguire la richiesta con la chiave primaria');
 }
 
 console.log('--- Test knowledge contextualization: rileva alternativa composta trasferita dalla KB ---');

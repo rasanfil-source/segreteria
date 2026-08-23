@@ -322,19 +322,6 @@ function isInVacationPeriod(date = new Date(), scriptTimeZone = "") {
 }
 
 /**
- * Confronta due Date sul solo calendario locale.
- * Resta deliberatamente difensiva perché viene usata nella logica di sospensione.
- */
-function _isSameCalendarDay(left, right) {
-  if (!(left instanceof Date) || isNaN(left.getTime()) || !(right instanceof Date) || isNaN(right.getTime())) {
-    return false;
-  }
-  return left.getFullYear() === right.getFullYear()
-    && left.getMonth() === right.getMonth()
-    && left.getDate() === right.getDate();
-}
-
-/**
  * Verifica se il sistema dovrebbe essere SOSPESO
  */
 function isInSuspensionTime(checkDate = new Date()) {
@@ -1940,6 +1927,10 @@ function main() {
     const knowledgeBase = GLOBAL_CACHE.knowledgeBase || '';
     const doctrineBase = GLOBAL_CACHE.doctrineBase || '';
     const checkpointData = _readBatchCheckpoint_();
+    if (checkpointData && checkpointData.abandoned === true) {
+      console.log('⏸️ Checkpoint batch oltre il limite di riprese: il thread verrà rivalutato dal prossimo trigger periodico.');
+      return;
+    }
     if (checkpointData && Number.isFinite(Date.parse(checkpointData.notBefore || '')) && Date.now() < Date.parse(checkpointData.notBefore)) {
       console.log(`⏸️ Checkpoint batch non ancora eseguibile (notBefore=${checkpointData.notBefore}).`);
       return;
@@ -2000,6 +1991,10 @@ function _getExecutionBatchLockKey_() {
 
 function resumeEmailBatchFromCheckpoint() {
   const checkpoint = _readBatchCheckpoint_();
+  if (checkpoint && checkpoint.abandoned === true) {
+    console.log('ℹ️ Checkpoint batch abbandonato: nessuna ripresa immediata; attendo il trigger periodico.');
+    return;
+  }
   const raw = checkpoint ? JSON.stringify(checkpoint) : '';
   if (!raw) {
     console.log('ℹ️ Nessun checkpoint batch presente: resume skip.');
@@ -2055,7 +2050,12 @@ function _readBatchCheckpoint_() {
         'non applico label Errore perché retryCount può indicare rinvii retryable.'
       );
       _clearBatchCheckpoint_();
-      return null;
+      return {
+        abandoned: true,
+        reason: 'max_retries',
+        runId: parsed.runId || null,
+        retryCount: retryCount
+      };
     }
 
     return parsed;
@@ -2064,49 +2064,6 @@ function _readBatchCheckpoint_() {
     _clearBatchCheckpoint_();
     return null;
   }
-}
-
-function _labelBatchCheckpointThreadsAsError_(checkpoint) {
-  const pendingThreadIds = checkpoint && Array.isArray(checkpoint.pendingThreadIds)
-    ? checkpoint.pendingThreadIds
-    : [];
-  if (pendingThreadIds.length === 0) return;
-
-  const errorLabelName = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME)
-    ? CONFIG.ERROR_LABEL_NAME
-    : 'Errore';
-
-  let gmailService = null;
-  try {
-    gmailService = (typeof GmailService !== 'undefined' && GmailService) ? new GmailService() : null;
-  } catch (_) {
-    gmailService = null;
-  }
-
-  let fallbackLabel = null;
-  pendingThreadIds.forEach((threadId) => {
-    try {
-      const thread = GmailApp.getThreadById(threadId);
-      if (!thread) return;
-
-      if (gmailService && typeof gmailService.addLabelToThread === 'function') {
-        gmailService.addLabelToThread(thread, errorLabelName);
-        return;
-      }
-
-      if (!fallbackLabel && typeof GmailApp.getUserLabelByName === 'function') {
-        fallbackLabel = GmailApp.getUserLabelByName(errorLabelName);
-      }
-      if (!fallbackLabel && typeof GmailApp.createLabel === 'function') {
-        fallbackLabel = GmailApp.createLabel(errorLabelName);
-      }
-      if (fallbackLabel && typeof thread.addLabel === 'function') {
-        thread.addLabel(fallbackLabel);
-      }
-    } catch (labelError) {
-      console.warn(`⚠️ Impossibile applicare label Errore al thread checkpoint ${threadId}: ${labelError.message}`);
-    }
-  });
 }
 
 function _clearBatchCheckpoint_() {

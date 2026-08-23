@@ -353,6 +353,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   selectModel(taskType, options, alreadyLocked = false) {
     options = options || {};
     const forceModel = options.forceModel || null;
+    const excludedModelKeys = options.excludeModelKeys instanceof Set
+      ? options.excludeModelKeys
+      : new Set(Array.isArray(options.excludeModelKeys) ? options.excludeModelKeys : []);
     const estimatedTokens = options.estimatedTokens || 1000;
 
     if (alreadyLocked) {
@@ -366,7 +369,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       this._refreshCache();
       return this._selectModelUnlocked(taskType, {
         forceModel: forceModel,
-        estimatedTokens: estimatedTokens
+        estimatedTokens: estimatedTokens,
+        excludeModelKeys: excludedModelKeys
       });
     }.bind(this), {
       timeoutReason: 'rate_limiter_lock_timeout',
@@ -383,14 +387,18 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     options = options || {};
     const forceModel = options.forceModel || null;
     const estimatedTokens = options.estimatedTokens || 1000;
+    const excludedModelKeys = options.excludeModelKeys instanceof Set
+      ? options.excludeModelKeys
+      : new Set(Array.isArray(options.excludeModelKeys) ? options.excludeModelKeys : []);
 
-    if (forceModel && this.models[forceModel]) {
+    if (forceModel && this.models[forceModel] && !excludedModelKeys.has(forceModel)) {
       return this._validateModelAvailability(forceModel, estimatedTokens);
     }
 
     const candidates = this._getCandidateModels(taskType);
     for (let i = 0; i < candidates.length; i++) {
       const modelKey = candidates[i];
+      if (excludedModelKeys.has(modelKey)) continue;
       const result = this._validateModelAvailability(modelKey, estimatedTokens);
       if (result.available) {
         console.log(`✓ Selezionato: ${modelKey} per ${taskType}`);
@@ -598,7 +606,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
    * VERSIONE SINCRONA per Google Apps Script
    * 
    * @param {string} taskType - Tipo task: 'quick_check', 'generation', etc.
-   * @param {Function} requestFn - Funzione che riceve modelName ed esegue la richiesta
+   * @param {Function} requestFn - Funzione che riceve (modelName, requestContext) ed esegue la richiesta
    * @param {Object} options - {estimatedTokens, maxRetries, forceModel, skipRateLimit}
    * @returns {Object} {success, result, modelUsed, quotaUsed}
    */
@@ -616,11 +624,17 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         const startTime = Date.now();
         // Esecuzione diretta senza controlli quota
         const backupModelName = options.modelNameOverride || 'gemini-3.7-flash';
-        const requestResult = this._safeExecuteRequestFn_(requestFn, backupModelName);
+        const resolvedModelKey = this._resolveModelKey_(options.forceModel || options.modelKeyOverride || backupModelName);
+        const resolvedModel = resolvedModelKey && this.models ? this.models[resolvedModelKey] : null;
+        const requestResult = this._safeExecuteRequestFn_(requestFn, backupModelName, {
+          taskType: taskType,
+          modelKey: resolvedModelKey,
+          model: resolvedModel,
+          usesBackupKey: this._modelUsesBackupKey_(resolvedModelKey, resolvedModel)
+        });
         const normalizedResult = this._normalizeRequestResultEnvelope_(requestResult);
         const accountedTokens = this._resolveAccountedTokens_(normalizedResult, options.estimatedTokens || 0);
         const duration = Date.now() - startTime;
-        const resolvedModelKey = this._resolveModelKey_(options.forceModel || options.modelKeyOverride || backupModelName);
         let counters = { rpd: 0, tokens: 0 };
         if (resolvedModelKey) {
           counters = this._incrementCountersAtomic(resolvedModelKey, accountedTokens);
@@ -645,13 +659,15 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const estimatedTokens = options.estimatedTokens ?? 1000;
     const maxRetries = options.maxRetries ?? this.defaultMaxRetries ?? 2;
     const forceModel = options.forceModel || null;
+    const excludedModelKeys = new Set();
 
     // 1. Esecuzione con retry (sincrono)
     var lastError = null;
     for (var attempt = 0; attempt < maxRetries; attempt++) {
       const selection = this._selectAndReserveModel(taskType, {
         estimatedTokens: estimatedTokens,
-        forceModel: forceModel
+        forceModel: forceModel,
+        excludeModelKeys: excludedModelKeys
       });
 
       if (!selection.available) {
@@ -684,7 +700,12 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         console.log(`   Modello: ${model.name}, Task: ${taskType}`);
 
         // CHIAMATA SINCRONA (nessuna attesa)
-        const requestResult = this._safeExecuteRequestFn_(requestFn, model.name);
+        const requestResult = this._safeExecuteRequestFn_(requestFn, model.name, {
+          taskType: taskType,
+          modelKey: modelKey,
+          model: model,
+          usesBackupKey: this._modelUsesBackupKey_(modelKey, model)
+        });
         const normalizedResult = this._normalizeRequestResultEnvelope_(requestResult);
 
         const duration = Date.now() - requestStartTime;
@@ -760,8 +781,20 @@ var GeminiRateLimiter = class GeminiRateLimiter {
           console.warn(`⚠️ Aggiornamento reservation fallito (${modelKey}/${reservationId}): ${reservationError.message}`);
         }
 
-        // Interrompi immediatamente se la quota è esaurita su TUTTE le chiavi
-        if (errorMsg.indexOf('PRIMARY_QUOTA_EXHAUSTED') !== -1 || errorMsg.indexOf('QUOTA_EXHAUSTED_ALL_KEYS') !== -1) {
+        // Se fallisce la chiave primaria, escludiamo soltanto quel modelKey e
+        // lasciamo che il tentativo successivo selezioni il corrispondente backup.
+        if (errorMsg.indexOf('PRIMARY_QUOTA_EXHAUSTED') !== -1) {
+          excludedModelKeys.add(modelKey);
+          console.warn(`↪️ ModelKey primario non utilizzabile (${modelKey}); provo un candidato di riserva.`);
+          if (attempt < maxRetries - 1) {
+            continue;
+          }
+          throw error;
+        }
+
+        // Interrompi immediatamente solo quando il chiamante ha verificato
+        // che non resta alcuna chiave utilizzabile.
+        if (errorMsg.indexOf('QUOTA_EXHAUSTED_ALL_KEYS') !== -1) {
           console.error('❌ Quota API completamente esaurita su tutte le chiavi. Interruzione retry immediata.');
           throw error;
         }
@@ -790,14 +823,20 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     throw lastError || new Error('Richiesta fallita dopo tutti i tentativi');
   }
 
-  _safeExecuteRequestFn_(requestFn, modelName) {
+  _modelUsesBackupKey_(modelKey, model) {
+    const normalizedKey = String(modelKey || '');
+    if (/(^|[-_])backup($|[-_])/i.test(normalizedKey)) return true;
+    return !!(model && Array.isArray(model.useCases) && model.useCases.includes('backup'));
+  }
+
+  _safeExecuteRequestFn_(requestFn, modelName, requestContext = null) {
     if (typeof requestFn !== 'function') {
       throw new Error('requestFn non valido: attesa funzione');
     }
 
     let raw;
     try {
-      raw = requestFn(modelName);
+      raw = requestFn(modelName, requestContext || {});
     } catch (e) {
       if (e && e._nonRetryable) throw e;
       const wrapped = new Error(`requestFn exception (${modelName}): ${e && e.message ? e.message : e}`);
@@ -1721,6 +1760,9 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     options = options || {};
     const estimatedTokens = options.estimatedTokens ?? 1000;
     const forceModel = options.forceModel || null;
+    const excludeModelKeys = options.excludeModelKeys instanceof Set
+      ? options.excludeModelKeys
+      : new Set(Array.isArray(options.excludeModelKeys) ? options.excludeModelKeys : []);
 
     const lockResult = this._withRateLimitLock_(function () {
       this._recoverFromWAL(true);
@@ -1728,7 +1770,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
       const selection = this._selectModelUnlocked(taskType, {
         forceModel: forceModel,
-        estimatedTokens: estimatedTokens
+        estimatedTokens: estimatedTokens,
+        excludeModelKeys: excludeModelKeys
       });
 
       if (!selection.available) {
