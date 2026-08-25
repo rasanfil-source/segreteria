@@ -8162,6 +8162,9 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
         confidence: hasBodyQuestion ? 0.55 : 0.75,
         phase: 'pre_ocr',
         suppressAttachmentIntentKeywords: true,
+        // Contratto condiviso con la policy post-OCR e con il bypass receipt-only.
+        // `allowBodyQuestions` resta come alias descrittivo per i consumer legacy.
+        hasQuestions: hasBodyQuestion,
         allowBodyQuestions: hasBodyQuestion,
         responseDirective: hasBodyQuestion
           ? `Confermare la ricezione dell'allegato, ma non limitarsi alla ricevuta: rispondere alla richiesta operativa esplicita nel corpo.`

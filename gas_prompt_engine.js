@@ -3369,8 +3369,8 @@ Usa invece:
     } else if (category === 'document_submission' || category === 'document_submission_with_question') {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (DOCUMENTAZIONE RICEVUTA):**
 1. Conferma ricezione in una frase.
-2. Se c'è una domanda esplicita nel corpo email, rispondi SOLO a quella.
-3. Se non ci sono domande, chiudi con cortesia: nessun passo aggiuntivo non richiesto.
+2. Se c'è una domanda o richiesta operativa, anche formulata come desiderio o possibilità, rispondi prima a quella.
+3. Solo se non ci sono domande o richieste, chiudi con cortesia: nessun passo aggiuntivo non richiesto.
 
 ECCEZIONE - DATI A SUPPORTO DI UNA RICHIESTA DI CERTIFICATO:
 - Se il mittente fornisce dati anagrafici o sacramentali per ottenere un certificato, non ridurre il messaggio a una semplice ricevuta dati.
@@ -3701,14 +3701,17 @@ La risposta deve servire la persona, non dimostrare le nostre conoscenze.
       attachmentIntentContext.intent === 'document_submission_with_question' ||
       attachmentIntentContext.intent === 'suspected_submission_with_question'
     );
-    const missingAttachmentGuardrail = (isSuspectedSubmission && !hasPhysicalAttachments) ? `
+    const bodyContainsUsableDocumentContent = Boolean(
+      attachmentIntentContext && attachmentIntentContext.bodyContainsUsableDocumentContent === true
+    );
+    const missingAttachmentGuardrail = (isSuspectedSubmission && !hasPhysicalAttachments && !bodyContainsUsableDocumentContent) ? `
 ⚠️ ALLEGATO DICHIARATO MA NON RICEVUTO.
 Azione: segnala con garbo che non risultano allegati e chiedi di rinviarli.
 Se nel corpo c'è una domanda autonoma, rispondi comunque alla domanda usando Knowledge Base e contesto disponibile; poi chiarisci che la verifica finale della documentazione richiederà l'allegato.
 Non trattare l'allegato mancante come motivo per ignorare la domanda testuale.` : '';
     const questionGuardrail = hasExplicitBodyQuestion
       ? "ATTENZIONE: il corpo contiene una domanda o richiesta operativa esplicita. Rispondi prima a quella richiesta senza limitarti alla ricevuta; poi conferma ricezione dell'allegato."
-      : "Se non c'è una domanda esplicita nel corpo, non aggiungere informazioni operative.";
+      : "Se non c'è una domanda o richiesta operativa nel corpo, non aggiungere informazioni operative.";
     const guardrail = isSubmission ? `
 ⛔ STOP — ALLEGATO = DOCUMENTAZIONE CONSEGNATA.
 Azione: conferma ricezione + eventuale risposta alla domanda o richiesta operativa esplicita nel corpo.

@@ -2908,6 +2908,44 @@ console.log('--- Test expected document missing: scheda compilata nel corpo vale
   assert(/dati riportati nel messaggio/i.test(scenario.sentText), `risposta ricezione dati inattesa: ${scenario.sentText}`);
 }
 
+console.log('--- Test body delivery: modulo compilato con richiesta di partecipazione passa alla generazione ---');
+{
+  const body = [
+    'Abbiamo compilato il modulo online per il corso per la Cresima per adulti per Giorgio Licari',
+    'e vorrei partecipare anche io agli incontri se possibile sono Sara Ciccarella.',
+    'Abbiamo avuto il contatto tramite Gloria Gagliardi.'
+  ].join(' ');
+  const generatedText = 'Grazie per aver compilato il modulo per Giorgio. Sara, prendiamo in carico anche la sua richiesta di partecipare agli incontri e la segreteria le confermerà la possibilità e le modalità.';
+  const scenario = runExpectedDocumentDeliveryScenario({
+    threadId: 't-doc-body-participation-request',
+    subject: 'Corso Cresima adulti',
+    body: body,
+    quickDocumentDelivery: {
+      expected_document: true,
+      expected_document_description: 'modulo online per il corso Cresima adulti',
+      delivery_channel: 'body',
+      body_contains_filled_document: true,
+      requires_file_attachment: false,
+      missing_document_if_no_attachment: false,
+      reason: 'modulo compilato nel corpo con ulteriore richiesta operativa'
+    },
+    generatedText: generatedText
+  });
+
+  assert(scenario.result.status === 'replied', 'la richiesta di partecipazione deve completare il flusso');
+  assert(scenario.generationCalls === 1, 'la richiesta operativa deve impedire il bypass receipt-only');
+  assert(scenario.sentText === generatedText, `deve essere inviata la risposta generata, ottenuto: ${scenario.sentText}`);
+  assert(!/Prima di procedere o confermare l'operazione/i.test(scenario.sentText), 'non deve ricomparire il template tecnico di sola ricezione');
+  assert(
+    scenario.capturedPromptOptions && scenario.capturedPromptOptions.requestPurpose.type === 'operational_request',
+    'il prompt deve ricevere la partecipazione come richiesta operativa'
+  );
+  assert(
+    scenario.capturedPromptOptions && scenario.capturedPromptOptions.attachmentIntentContext.hasQuestions === true,
+    'il segnale operativo deve arrivare integro fino al PromptEngine'
+  );
+}
+
 console.log('--- Test expected document missing: scheda annunciata con allegato prosegue OCR e semantic check ---');
 {
   const scenario = runExpectedDocumentDeliveryScenario({
@@ -5257,6 +5295,40 @@ console.log('--- Test attachment intent: corpo descrittivo lungo non crea domand
   assert(context && context.hasQuestions === false, 'un corpo lungo ma solo descrittivo non deve attivare hasQuestions');
   assert(!/_with_question$/.test(context.intent), `intent descrittivo lungo non deve terminare con _with_question, ottenuto ${context && context.intent}`);
   assert(/ricezione della documentazione allegata/i.test(context.responseDirective || ''), 'la direttiva deve restare receipt-only per consegna pura');
+}
+
+console.log('--- Test attachment intent: modulo compilato con desiderio di partecipazione non diventa receipt-only ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  const body = [
+    'Abbiamo compilato il modulo online per il corso per la Cresima per adulti per Giorgio Licari',
+    'e vorrei partecipare anche io agli incontri se possibile sono Sara Ciccarella.',
+    'Abbiamo avuto il contatto tramite Gloria Gagliardi.'
+  ].join(' ');
+  const context = processor._deriveAttachmentIntentContext_(
+    body,
+    'Corso Cresima adulti',
+    [],
+    '',
+    'pre_ocr'
+  );
+
+  assert(context && context.intent === 'suspected_submission_with_question', `il desiderio operativo deve prevalere sulla sola consegna, ottenuto ${context && context.intent}`);
+  assert(context.hasQuestions === true, 'il pre-check deve esporre il segnale operativo col contratto hasQuestions usato dalla policy');
+
+  const policyState = { forceReceiptOnlyForSubmission: false };
+  const policyContext = processor._createRuleContext_({
+    phase: 'post_ocr_policy',
+    state: policyState,
+    isDocumentSubmission: true,
+    hasSubmissionQuestions: context.hasQuestions === true,
+    isSponsorSubmission: false,
+    isComplexCanonicalSubmission: false,
+    shouldProvideEligibilityGuidance: false
+  });
+  const decision = processor._evaluateEmailPolicyRules_(policyContext);
+  processor._applyPreAiRuleDecision_(decision, policyContext, { status: 'unknown' });
+  assert(policyState.forceReceiptOnlyForSubmission === false, 'la richiesta di partecipazione deve passare alla generazione della risposta');
 }
 
 console.log('--- Test attachment intent: richiesta permesso firma modulo non diventa receipt-only ---');

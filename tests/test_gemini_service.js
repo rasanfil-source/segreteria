@@ -569,6 +569,15 @@ console.log('--- Test request purpose: azione esplicita prevale sul topic proced
     'Vi informo che la data prevista è cambiata e confermo il nuovo recapito.'
   );
   assert(update.type === 'status_update', 'una comunicazione senza domanda deve essere classificata come aggiornamento');
+
+  const participationRequest = EmailQuickCheckPolicy.resolveRequestPurpose(
+    'status_update',
+    0.91,
+    'Corso Cresima adulti',
+    'Abbiamo compilato il modulo online per Giorgio e vorrei partecipare anche io agli incontri se possibile.'
+  );
+  assert(participationRequest.type === 'operational_request', 'un desiderio esplicito di partecipazione deve prevalere sulla consegna del modulo');
+  assert(participationRequest.source === 'local_explicit_action', 'la richiesta di partecipazione deve restare tracciabile come segnale locale');
 }
 
 console.log('--- Test _generateWithModel: il client generico preserva prompt strutturato e profilo generation ---');

@@ -1032,6 +1032,37 @@ assert(
   'l allegato mancante non deve essere trattato come documentazione ricevuta'
 );
 
+console.log('--- Test prompt: modulo nel corpo con richiesta operativa non diventa allegato mancante ---');
+const bodyFormParticipationPrompt = engine.buildPrompt({
+  emailSubject: 'Corso Cresima adulti',
+  emailContent: 'Abbiamo compilato il modulo online per Giorgio e vorrei partecipare anche io agli incontri se possibile.',
+  knowledgeBase: 'Il percorso di Cresima per adulti prevede incontri periodici; la segreteria conferma le modalità di partecipazione.',
+  detectedLanguage: 'it',
+  promptProfile: 'standard',
+  salutationMode: 'full',
+  salutation: 'Buonasera Sara,',
+  closing: 'Cordiali saluti,',
+  category: 'document_submission_with_question',
+  requestPurpose: { type: 'operational_request', confidence: 0.96 },
+  attachmentsContext: 'Il modulo è riportato nel corpo come dati compilati utilizzabili; non parlare di allegato.',
+  attachmentIntentContext: {
+    intent: 'suspected_submission_with_question',
+    responseDirective: 'Rispondere alla richiesta operativa nel corpo.',
+    hasPhysicalAttachments: false,
+    bodyContainsUsableDocumentContent: true,
+    hasQuestions: true
+  }
+});
+assert(
+  !bodyFormParticipationPrompt.includes('ALLEGATO DICHIARATO MA NON RICEVUTO'),
+  'i dati compilati nel corpo non devono generare una falsa richiesta di reinvio allegato'
+);
+assert(
+  bodyFormParticipationPrompt.includes('domanda o richiesta operativa') &&
+  bodyFormParticipationPrompt.includes('Tipo: operational_request'),
+  'il prompt deve mantenere come prioritaria la richiesta di partecipazione'
+);
+
 console.log('--- Test prompt: battesimo con sola disponibilità data non diventa iter sacramentale ---');
 const baptismDateOnlyPrompt = engine.buildPrompt({
   emailSubject: 'Battesimo',

@@ -640,9 +640,9 @@ ${lines.join('\n')}
 CONTESTO STRUTTURALE ALLEGATI:
 - Il testo del mittente contiene segnali di consegna documentale ("in allegato", "allego", "le invio", ecc.).
 - Eventuali parole provenienti da allegati/OCR come "padrino", "madrina", "cresima", "idoneità", "requisiti" NON devono essere interpretate come richiesta informativa.
-- Se ci sono domande esplicite nel corpo email, rispondi a quelle; altrimenti classifica come consegna documentazione.
+- Se nel corpo ci sono domande o richieste operative, anche formulate come desiderio o possibilità, rispondi a quelle; altrimenti classifica come consegna documentazione.
 - Una consegna documentale da parte di un fedele/utente richiede risposta di cortesia: reply_needed deve essere TRUE, salvo spam/newsletter/autorisposta.
-- Topic consigliato se non ci sono domande esplicite: "documentazione ricevuta".
+- Topic consigliato solo se non ci sono domande o richieste operative: "documentazione ricevuta".
 - Non trasformare una consegna di certificato in una richiesta sui requisiti del padrino/madrina.
 ` : '';
     const visitLogisticsGuardrail = hasOfficeVisitLogistics ? `
@@ -1392,7 +1392,7 @@ Output JSON:
       /\b(?:richiedo|richiediamo|richiedono|si\s+richiede|chiedo)\b[\s\S]{0,80}\b(?:certificat\w*|rilasc\w*|copi\w*|document\w*|iscrizion\w*|prenotazion\w*)\b/,
       /\b(?:mi\s+serve|ci\s+serve|avrei\s+bisogno\s+di|abbiamo\s+bisogno\s+di)\b[\s\S]{0,80}\b(?:certificat\w*|document\w*|attestat\w*|iscrizion\w*)\b/,
       /\b(?:ho|abbiamo)\s+gia\s+(?:avviato|iniziato|presentato|compilato|consegnato|inviato)\b[\s\S]{0,100}\b(?:pratica|richiesta|modulo|domanda|document\w*|certificat\w*)\b/,
-      /\b(?:vorrei|desidero|intendo)\s+(?:richiedere|ottenere|prenotare|iscrivermi|ritirare)\b/,
+      /\b(?:vorrei|desidero|intendo)\s+(?:richiedere|ottenere|prenotare|iscrivermi|ritirare|partecipare|frequentare|seguire)\b/,
       /\b(?:potete|potreste|puo|puoi)\s+(?:preparare|stampare|rilasciare|prenotare|iscrivere|registrare|confermare)\b/,
       /\b(?:verro|passero|ritirero|vengo|passo)\b[\s\S]{0,60}\b(?:ritir\w*|segreteria|parrocchia|persona)\b/,
       /\b(?:je\s+demande|je\s+souhaite\s+demander|pourriez-vous\s+(?:preparer|delivrer|inscrire|reserver))\b/,
