@@ -2217,6 +2217,23 @@ console.log('--- Test date relative in frase naturale e anni a due cifre ---');
   assert(historicalYear && historicalYear.date.getFullYear() === 1985, 'anno 85 deve essere interpretato come 1985');
 }
 
+console.log('--- Test vincolo sacramentale: Cresima entro dicembre per matrimonio ---');
+{
+  const deadlineContext = processor._extractSacramentalDeadlineContext_(
+    'Corso Cresima adulti',
+    [
+      'Avrei bisogno di ricevere la Cresima entro dicembre 2026,',
+      'in quanto ho intenzione di sposarmi e vorrei completare tutti i sacramenti necessari entro quest’anno.'
+    ].join(' '),
+    'it'
+  );
+
+  assert(deadlineContext !== null, 'la scadenza sacramentale non deve richiedere un riferimento a padrino o madrina');
+  assert(deadlineContext.deadline === 'dicembre 2026', `scadenza inattesa: ${deadlineContext && deadlineContext.deadline}`);
+  assert(/cresima/i.test(deadlineContext.target_outcome), 'l’obiettivo deve restare ricevere la Cresima');
+  assert(/matrimonio/i.test(deadlineContext.purpose), 'la finalità matrimoniale deve essere preservata');
+  assert(deadlineContext.confidence >= 0.8, 'sacramento, scadenza e finalità espliciti devono mantenere confidenza alta');
+}
 
 console.log('--- Test _trackEmptyInboxStreak (mantiene streak se CacheService fallisce dopo lettura) ---');
 {

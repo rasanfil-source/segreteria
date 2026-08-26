@@ -617,9 +617,25 @@ var ResponseValidator = class ResponseValidator {
     };
     if (!response || !knowledgeBase) return result;
 
+    const normalizedClaimText = String(response)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    const institutionalNegativeClaim = [
+      /\bnon\s+(?:disponiamo|offriamo|prevediamo|organizziamo|forniamo|consentiamo)\b[^.\n]{0,120}\b(?:percors\w*|programm\w*|serviz\w*|modalit\w*|tutor\w*|incontr\w*|cors\w*|opzion\w*)\b/i,
+      /\bnon\s+(?:e|sono)\s+(?:possibil\w*|disponibil\w*|previst\w*)\b[^.\n]{0,120}\b(?:seguire|concordare|organizzare|partecipare|ricevere|svolgere|anticipare|percors\w*|programm\w*|serviz\w*)\b/i,
+      /\bwe\s+(?:do\s+not|don['’]t)\s+(?:offer|provide|allow|have)\b[^.\n]{0,120}\b(?:course\w*|program\w*|service\w*|tutor\w*|meeting\w*|option\w*)\b/i
+    ].some(pattern => pattern.test(normalizedClaimText));
+    if (institutionalNegativeClaim) {
+      result.signals.push('institutional_negative_claim');
+    }
+
     const responseTokens = this._normalizeKnowledgeUseTokens_(response);
     const kbTokens = this._normalizeKnowledgeUseTokens_(knowledgeBase);
-    if (responseTokens.length < 6 || kbTokens.length < 6) return result;
+    if (responseTokens.length < 6 || kbTokens.length < 6) {
+      result.requiresSemanticReview = result.signals.length > 0;
+      return result;
+    }
 
     const responseTrigrams = this._buildKnowledgeNgrams_(responseTokens, 3);
     const kbTrigrams = this._buildKnowledgeNgrams_(kbTokens, 3);
@@ -3636,8 +3652,8 @@ ${response}
 """
 
 COMPITO A — RADICAMENTO:
-1. Estrai orari, date, email, URL, telefoni, requisiti, procedure, eccezioni e promesse operative presenti nella RISPOSTA.
-2. Verifica che siano supportati, anche con sinonimi o varianti, dalla BASE CONOSCENZA o dall'EMAIL ORIGINALE.
+1. Estrai orari, date, email, URL, telefoni, requisiti, procedure, eccezioni, promesse operative e affermazioni di disponibilità, indisponibilità, divieto o limite presenti nella RISPOSTA.
+2. Verifica che siano supportati, anche con sinonimi o varianti. Capacità e limitazioni istituzionali devono risultare dalla BASE CONOSCENZA: l'EMAIL ORIGINALE da sola non le dimostra e l'assenza di un dettaglio non autorizza una negazione, soprattutto se la base conferma una possibilità generale o equivalente.
 
 COMPITO B — PERTINENZA CONTESTUALE:
 1. Prima distingui lo scopo: richiesta informativa, richiesta operativa, aggiornamento/comunicazione o messaggio misto. Poi individua obiettivo, domande e vincoli realmente espressi nell'EMAIL ORIGINALE.

@@ -2550,7 +2550,7 @@ ${addressLines.join('\n\n')}
       routedAiCoreLite = routingState.routedAiCoreLite;
       routedAiCore = routingState.routedAiCore;
       const systemDirectives = [];
-      const pastoralFirewall = "DIVIETO DI DEROGA (CROSS-CONTAMINATION): I principi pastorali non possono MAI modificare, derogare o rendere flessibili le procedure, le date o i requisiti tecnici indicati nella Knowledge Base. Non inventare percorsi personalizzati o eccezioni.";
+      const pastoralFirewall = "DIVIETO DI DEROGA (CROSS-CONTAMINATION): I principi pastorali non possono MAI modificare, derogare o rendere flessibili le procedure, le date o i requisiti tecnici indicati nella Knowledge Base. Non introdurre percorsi personalizzati o eccezioni non autorizzati dalla Knowledge Base; quando la Knowledge Base li prevede, non negarli né restringerli con limiti non espliciti.";
       if (routedAiCore || routedAiCoreLite) systemDirectives.push(pastoralFirewall);
       routedDoctrine = routingState.routedDoctrine;
       routedDoctrineStructured = routingState.routedDoctrineStructured;
@@ -8805,8 +8805,9 @@ Parish Secretariat of Sant'Eugenio`;
   // ====================================================================
 
   /**
-   * Estrae un vincolo temporale dominante collegato a un sacramento e a un ruolo ecclesiale.
-   * Rileva pattern come "devo fare la Cresima entro ottobre per fare da padrino".
+   * Estrae un vincolo temporale dominante collegato a un sacramento.
+   * Una finalità esplicita (es. padrino/madrina o matrimonio) aumenta la confidenza,
+   * ma sacramento e scadenza sono già sufficienti per attivare la policy.
    *
    * @param {string} subject - Oggetto dell'email
    * @param {string} body - Corpo dell'email
@@ -8840,21 +8841,27 @@ Parish Secretariat of Sant'Eugenio`;
       en: /\b(?:confirmation|first\s+communion|christian\s+initiation|sacrament)\b/i
     };
 
-    // Ruolo ecclesiale (purpose)
+    // Finalità esplicite: arricchiscono il contesto, ma non sono prerequisiti.
     const rolePatterns = {
       it: /\b(?:padrin[oa]|madrina|ruolo\s+(?:di\s+)?(?:padrin[oa]|madrina)|fare\s+(?:da|il|la)\s+(?:padrin[oa]|madrina))\b/i,
       en: /\b(?:godfather|godmother|godparent|sponsor\s+(?:at|for)\s+(?:baptism|confirmation))\b/i
+    };
+    const marriagePurposePatterns = {
+      it: /\b(?:sposarmi|sposarci|sposarsi|matrimonio|nozze)\b/i,
+      en: /\b(?:get\s+married|marriage|wedding)\b/i
     };
 
     const langPatterns = deadlinePatterns[lang] || deadlinePatterns.it;
     const sacramentRe = sacramentPatterns[lang] || sacramentPatterns.it;
     const roleRe = rolePatterns[lang] || rolePatterns.it;
+    const marriagePurposeRe = marriagePurposePatterns[lang] || marriagePurposePatterns.it;
 
     const hasSacrament = sacramentRe.test(text);
     const hasRole = roleRe.test(text);
+    const hasMarriagePurpose = marriagePurposeRe.test(text);
 
-    // Senza almeno sacramento E ruolo, non c'è contesto sufficiente
-    if (!hasSacrament || !hasRole) return null;
+    // Un sacramento con una scadenza esplicita è già un vincolo dominante.
+    if (!hasSacrament) return null;
 
     // Cerca la deadline
     let deadlineText = null;
@@ -8874,12 +8881,23 @@ Parish Secretariat of Sant'Eugenio`;
     const targetOutcome = lang === 'en'
       ? `receive ${(sacramentMatch && sacramentMatch[0]) || 'Confirmation'}`
       : `ricevere la ${(sacramentMatch && sacramentMatch[0]) || 'Cresima'}`;
-    const purpose = lang === 'en'
-      ? `to serve as ${(roleMatch && roleMatch[0]) || 'godparent'}`
-      : `poter svolgere il ruolo di ${(roleMatch && roleMatch[0]) || 'padrino/madrina'}`;
+    let purpose;
+    if (hasRole) {
+      purpose = lang === 'en'
+        ? "to serve as " + ((roleMatch && roleMatch[0]) || 'godparent')
+        : "poter svolgere il ruolo di " + ((roleMatch && roleMatch[0]) || 'padrino/madrina');
+    } else if (hasMarriagePurpose) {
+      purpose = lang === 'en'
+        ? 'complete the sacraments in view of marriage'
+        : 'completare i sacramenti in vista del matrimonio';
+    } else {
+      purpose = lang === 'en'
+        ? 'meet the deadline stated by the sender'
+        : 'rispettare la scadenza indicata dal mittente';
+    }
 
-    // Confidence: alta se tutti e tre gli elementi sono espliciti
-    const confidence = 0.85;
+    // La finalità esplicita aumenta la confidenza, ma non condiziona il rilevamento.
+    const confidence = (hasRole || hasMarriagePurpose) ? 0.85 : 0.75;
 
     return {
       target_outcome: targetOutcome,

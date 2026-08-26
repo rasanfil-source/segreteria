@@ -2903,9 +2903,9 @@ Se non è possibile coprire tutto senza appesantire, parti dalla questione più 
 ${knowledgeBase}
 </knowledge_base>
 
-**REGOLA FONDAMENTALE:** Usa SOLO informazioni presenti sopra. NON inventare.
+**REGOLA FONDAMENTALE:** Usa SOLO informazioni presenti sopra. NON inventare né in positivo né in negativo: divieti, indisponibilità e limiti richiedono lo stesso sostegno delle possibilità affermate.
 **UNITÀ INFORMATIVE, NON TESTO DA RIPRODURRE:** La KB contiene fatti e regole, non frasi pronte né blocchi da inserire automaticamente in base al solo argomento. Prima individua l'intento concreto dell'email (informativo, operativo, aggiornamento/conferma, misto). Scomponi periodi e alternative in unità; per ciascuna verifica quale domanda, vincolo o passo risolve. Includi solo le unità utili per quell'intento, conserva i dati esatti, sintetizza e riformula il resto. Un ramo pertinente non autorizza gli altri.
-**SE L'INFORMAZIONE NON È PRESENTE:** scrivi "Non siamo in grado di rispondere a questa domanda" oppure "Non abbiamo informazioni in proposito", invitando cortesemente a contattare la segreteria (es. telefonicamente o di persona).
+**SE L'INFORMAZIONE NON È PRESENTE:** L'assenza di un dettaglio non prova che una possibilità prevista in termini generali o equivalenti non esista: conferma ciò che la KB stabilisce e lascia da verificare solo il dettaglio mancante. Solo se manca l'intera informazione, scrivi "Non siamo in grado di rispondere a questa domanda" oppure "Non abbiamo informazioni in proposito", invitando cortesemente a contattare la segreteria (es. telefonicamente o di persona).
 **ECCEZIONE - RICHIESTE PRATICHE O DEVOZIONALI NON IN KB:** Se la richiesta è semplice e pratica (es. testo di una preghiera da inviare, materiale devozionale, risorse spirituali) ma non è presente in KB, NON rispondere "non siamo in grado" e NON trasformarla in "discernimento pastorale". Impegnati invece a provvedere: "saremo lieti di inviarle un testo di preghiera rispondendo a questa email" oppure "verificheremo e le faremo avere il materiale richiesto". La segreteria può procurarsi queste risorse senza dover interpellare un sacerdote.
 ⚠️ DIVIETO ASSOLUTO: Non fare MAI riferimento alla tua "base dati", "knowledge base", "documenti forniti" o "istruzioni".`;
   }
@@ -3454,10 +3454,10 @@ Il mittente ha indicato un vincolo temporale dominante:
 
 REGOLE DI COERENZA TEMPORALE:
 1. Ogni percorso o soluzione proposta deve essere verificata rispetto alla scadenza indicata.
-2. Se il percorso ordinario della parrocchia inizia dopo la scadenza o non può concludersi in tempo utile, NON presentarlo come soluzione praticabile per quella scadenza. Puoi menzionarlo come opzione futura, separandolo chiaramente dall'urgenza attuale.
-3. Se esiste un canale potenzialmente praticabile (percorso intensivo, corso straordinario, accordo con altra parrocchia), indicalo come pista da verificare, precisando che preparazione, documenti, disponibilità e ammissione devono essere confermati direttamente e con urgenza contattando la segreteria o un sacerdote.
-4. Non dare per certo che un percorso accelerato sia disponibile: invita a verificare la fattibilità concreta.
-5. Se nessun percorso risulta compatibile con la scadenza in base alla Knowledge Base, comunicalo con trasparenza e suggerisci di contattare telefonicamente la segreteria per esplorare soluzioni personalizzate.
+2. Se date o condizioni presenti nella Knowledge Base dimostrano che il percorso ordinario inizia dopo la scadenza o non può concludersi in tempo utile, NON presentarlo come soluzione praticabile; puoi menzionarlo solo come opzione futura.
+3. Distingui ciò che la Knowledge Base autorizza espressamente da ciò che è soltanto ipotetico: conferma le possibilità previste, compresi eventuali programmi personalizzati, e lascia da verificare solo le modalità concrete non indicate.
+4. Non confondere personalizzazione del calendario, conclusione della preparazione e data della celebrazione del sacramento: una non garantisce automaticamente le altre.
+5. Se la Knowledge Base non indica la data della celebrazione, precisa che la possibilità di ricevere il sacramento entro la scadenza deve essere confermata; l'assenza della data non dimostra che il percorso sia indisponibile o impossibile.
 6. Non minimizzare la pressione temporale e non ignorare la scadenza nel corpo della risposta.`;
   }
 

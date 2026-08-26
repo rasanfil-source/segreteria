@@ -2005,6 +2005,33 @@ console.log('--- Test knowledge contextualization: rileva alternativa composta t
   assert(focusedRisk.requiresSemanticReview === false, 'una sintesi contestuale senza alternativa accessoria non deve attivare la revisione');
 }
 
+console.log('--- Test knowledge contextualization: negazione istituzionale forza il controllo semantico ---');
+{
+  const email = [
+    'Ho orari di lavoro variabili e avrei difficoltà a seguire giorni e orari fissi.',
+    'Ho saputo che è possibile un percorso personalizzato con un tutor.',
+    'Vorrei sapere se fosse possibile nel mio caso.'
+  ].join(' ');
+  const kb = [
+    'Possibilità di programmi personalizzati per giorno e ora diversi per esigenze lavorative.',
+    'Possibilità di concordare con il sacerdote un eventuale anticipo degli incontri.'
+  ].join('\n');
+  const unsupportedNegative = 'Non disponiamo di programmi di tutoraggio individuale completamente slegati dal calendario delle lezioni.';
+
+  const risk = validator._checkKnowledgeContextualizationRisk(unsupportedNegative, kb, email);
+  assert(risk.requiresSemanticReview === true, 'una indisponibilità istituzionale deve essere riesaminata anche con scarso overlap lessicale');
+  assert(risk.signals.includes('institutional_negative_claim'), 'il rischio deve identificare la negazione istituzionale');
+
+  const semantic = Object.create(SemanticValidator.prototype);
+  const semanticPrompt = semantic._buildHallucinationPrompt(unsupportedNegative, kb, email, 'information_request');
+  assert(
+    semanticPrompt.includes('affermazioni di disponibilità, indisponibilità, divieto o limite') &&
+      semanticPrompt.includes("l'EMAIL ORIGINALE da sola non le dimostra") &&
+      semanticPrompt.includes("l'assenza di un dettaglio non autorizza una negazione"),
+    'il validatore semantico deve applicare il radicamento anche alle affermazioni negative'
+  );
+}
+
 console.log('--- Test knowledge contextualization: il rischio forza la validazione semantica anche con score alto ---');
 {
   const previousSemanticValidator = validator.semanticValidator;

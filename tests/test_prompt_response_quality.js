@@ -266,6 +266,41 @@ assert(
   'il caso con scadenza deve ricevere la gerarchia obiettivo-vincoli prima delle informazioni accessorie'
 );
 
+console.log('--- Test prompt: programma personalizzato e scadenza matrimoniale senza negazioni inventate ---');
+const personalizedMarriageDeadlinePrompt = engine.buildPrompt({
+  emailSubject: 'Corso Cresima adulti',
+  emailContent: [
+    'Ho bisogno di ricevere la Cresima entro dicembre 2026 perché intendo sposarmi.',
+    'Per i miei orari di lavoro variabili vorrei seguire un percorso personalizzato.'
+  ].join(' '),
+  knowledgeBase: [
+    'Programmi personalizzati: possibilità di programmi per giorno e ora diversi per esigenze lavorative.',
+    'Cresima adulti: accordarsi col sacerdote per concordare eventuale anticipo degli incontri.',
+    'Il corso termina il 5 dicembre 2026; la data della celebrazione non è indicata.'
+  ].join('\n'),
+  detectedLanguage: 'it',
+  currentDate: '2026-08-25',
+  promptProfile: 'standard',
+  requestType: { type: 'sacrament' },
+  category: 'sacrament',
+  topic: 'cresima adulti',
+  sacramentalDeadlineContext: {
+    target_outcome: 'ricevere la Cresima',
+    deadline: 'dicembre 2026',
+    purpose: 'completare i sacramenti in vista del matrimonio',
+    confidence: 0.85
+  }
+});
+
+assert(
+  personalizedMarriageDeadlinePrompt.includes('NON inventare né in positivo né in negativo') &&
+    personalizedMarriageDeadlinePrompt.includes('lascia da verificare solo il dettaglio mancante') &&
+    personalizedMarriageDeadlinePrompt.includes('conferma le possibilità previste') &&
+    personalizedMarriageDeadlinePrompt.includes('conclusione della preparazione e data della celebrazione') &&
+    personalizedMarriageDeadlinePrompt.includes("l'assenza della data non dimostra che il percorso sia indisponibile o impossibile"),
+  'il prompt deve confermare la personalizzazione prevista e riservare la prudenza alla celebrazione'
+);
+
 const genericConstrainedGoalPrompt = engine.buildPrompt({
   emailSubject: 'Laboratorio prima della partenza',
   emailContent: 'Devo ottenere l\'attestato prima di trasferirmi a settembre. Quali sono calendario, costi e materiali del vostro laboratorio?',
