@@ -329,6 +329,7 @@ var Classifier = class Classifier {
     // ed evita falsi positivi all'interno di frasi di testo libero.
     const signatureLineMarkers = [
       /^cordiali\s+saluti[\s,!.-]*$/i,
+      /^cordialmente[\s,!.-]*$/i,
       /^distinti\s+saluti[\s,!.-]*$/i,
       /^in\s+fede[\s,!.-]*$/i,
       /^best\s+regards[\s,!.-]*$/i,

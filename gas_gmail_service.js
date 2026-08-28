@@ -1368,8 +1368,9 @@ var GmailService = class GmailService {
         const subject = message.getSubject();
         const sender = message.getFrom();
         const date = message.getDate();
-        let body = message.getPlainBody() || this._htmlToPlainText(message.getBody());
-        body = this.extractMainReply(body);
+        const plainBody = message.getPlainBody() || '';
+        const htmlBody = message.getBody() || '';
+        const body = this._extractCurrentMessageBody_(plainBody, htmlBody);
         const messageId = message.getId();
 
         // Estrai RFC 2822 Message-ID e header utili per filtraggio
@@ -2889,13 +2890,13 @@ var GmailService = class GmailService {
 
         let body = '';
         try {
-            body = message.getPlainBody() || this._htmlToPlainText(message.getBody() || '');
+            const plainBody = message.getPlainBody() || '';
+            const htmlBody = message.getBody() || '';
+            body = this._extractCurrentMessageBody_(plainBody, htmlBody);
         } catch (e) {
             const msg = (e && e.message) ? e.message : String(e);
             console.warn(`⚠️ _extractMessageDetailsLite: impossibile leggere body (${msg})`);
         }
-        body = this.extractMainReply(body);
-
         return {
             senderName: this.extractNameFromSender(sender),
             senderEmail: this._extractEmailAddress(sender),
@@ -2906,6 +2907,46 @@ var GmailService = class GmailService {
     // ========================================================================
     // RIMOZIONE CITAZIONI/FIRME
     // ========================================================================
+
+    /**
+     * Preferisce la porzione corrente dell'HTML quando il client mantiene nel
+     * plain text anche la citazione. In assenza di markup riconoscibile resta
+     * attivo il normale filtraggio testuale di firme e header.
+     */
+    _extractCurrentMessageBody_(plainBody, htmlBody) {
+        const plain = String(plainBody || '');
+        const html = String(htmlBody || '');
+        let source = plain || this._htmlToPlainText(html);
+
+        const quoteStart = this._findStructuredHtmlQuoteStart_(html);
+        if (quoteStart !== -1) {
+            const currentHtml = html.substring(0, quoteStart);
+            const currentPlain = this._htmlToPlainText(currentHtml);
+            if (currentPlain.trim()) source = currentPlain;
+        }
+
+        return this.extractMainReply(source);
+    }
+
+    _findStructuredHtmlQuoteStart_(htmlBody) {
+        const html = String(htmlBody || '');
+        if (!html) return -1;
+
+        const markers = [
+            /<(?:div|blockquote)\b[^>]*class\s*=\s*["'][^"']*(?:gmail_quote|gmail_attr)[^"']*["'][^>]*>/i,
+            /<blockquote\b[^>]*type\s*=\s*["']cite["'][^>]*>/i,
+            /<div\b[^>]*id\s*=\s*["']divRplyFwdMsg["'][^>]*>/i
+        ];
+
+        let earliestMatch = -1;
+        for (const marker of markers) {
+            const match = marker.exec(html);
+            if (match && (earliestMatch === -1 || match.index < earliestMatch)) {
+                earliestMatch = match.index;
+            }
+        }
+        return earliestMatch;
+    }
 
     extractMainReply(content) {
         const markers = [
@@ -2941,6 +2982,7 @@ var GmailService = class GmailService {
 
         const sigMarkers = [
             /^cordiali\s+saluti[\s,!.-]*$/im,
+            /^cordialmente[\s,!.-]*$/im,
             /^distinti\s+saluti[\s,!.-]*$/im,
             /^saluti[\s,!.-]*$/im,
             /^in\s+fede[\s,!.-]*$/im,

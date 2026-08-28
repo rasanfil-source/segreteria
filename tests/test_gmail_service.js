@@ -1402,6 +1402,46 @@ console.log('--- Test extractMainReply: tronca citazione Outlook prima del messa
   assert(!extracted.includes('in allegato trova il certificato richiesto'), 'il messaggio storico Outlook non deve contaminare il corpo corrente');
   assert(!extracted.includes('Inviato: giovedi 28 agosto'), 'gli header della citazione Outlook devono essere rimossi');
 
+  const replyWithoutQuotedHeaders = [
+    'Buongiorno,',
+    '',
+    'Vi ringrazio, confermo di leggervi!',
+    '',
+    'Tuttavia io mi sono cresimato nella chiesa di san Luigi dei Francesi nel 2008.',
+    '',
+    'Quali sono i prossimi passi per aggiornare il certificato?',
+    '',
+    'Grazie',
+    'Cordialmente',
+    '',
+    'Buongiorno Sig. Carabba,',
+    'in allegato trova il certificato richiesto.'
+  ].join('\n');
+  const extractedAtSignature = service.extractMainReply(replyWithoutQuotedHeaders);
+  assert(extractedAtSignature.includes('Quali sono i prossimi passi'), 'la domanda deve restare anche senza header della citazione');
+  assert(!extractedAtSignature.includes('in allegato trova il certificato richiesto'), 'Cordialmente deve chiudere il messaggio corrente');
+
+  const contaminatedPlainBody = replyWithoutQuotedHeaders;
+  const gmailHtml = [
+    '<div>Buongiorno,</div>',
+    '<div>Quali sono i prossimi passi per aggiornare il certificato?</div>',
+    '<div>Cordialmente</div>',
+    '<div class="gmail_quote"><div>Buongiorno Sig. Carabba,</div>',
+    '<div>in allegato trova il certificato richiesto.</div></div>'
+  ].join('');
+  const extractedFromHtml = service._extractCurrentMessageBody_(contaminatedPlainBody, gmailHtml);
+  assert(extractedFromHtml.includes('Quali sono i prossimi passi'), 'il contenuto corrente HTML deve essere preservato');
+  assert(!extractedFromHtml.includes('in allegato trova il certificato richiesto'), 'gmail_quote deve escludere il messaggio storico');
+
+  const outlookHtml = [
+    '<div>Vorrei aggiornare il certificato.</div>',
+    '<div id="divRplyFwdMsg">Da: info@example.org</div>',
+    '<div>in allegato trova il certificato richiesto.</div>'
+  ].join('');
+  const extractedFromOutlookHtml = service._extractCurrentMessageBody_('', outlookHtml);
+  assert(extractedFromOutlookHtml.includes('Vorrei aggiornare il certificato'), 'il contenuto corrente Outlook HTML deve essere preservato');
+  assert(!extractedFromOutlookHtml.includes('in allegato trova il certificato richiesto'), 'divRplyFwdMsg deve escludere il messaggio storico');
+
   const ordinaryFromLine = service.extractMainReply([
     'Per il certificato il luogo di partenza e:',
     'Da: Roma',
