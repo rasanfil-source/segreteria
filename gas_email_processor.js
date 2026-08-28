@@ -4618,17 +4618,29 @@ ${addressLines.join('\n\n')}
       this._bodyLooksLikeFilledDocument_(body)
     );
     const announcedByBody = this._bodyAnnouncesDocumentDelivery_(body, subject);
-    const expectsDocument = Boolean(
-      bodyContainsUsableDocumentContent ||
-      announcedByBody ||
-      (quickDocumentDelivery && quickDocumentDelivery.expected_document === true) ||
-      (quickDocumentDelivery && quickDocumentDelivery.missing_document_if_no_attachment === true)
-    );
-    const normalizedAttachmentText = String(textFromAttachments || '').trim();
     const hasPhysicalAttachment = Boolean(
       physicalAttachmentsDetected ||
       (Array.isArray(attachmentItems) && attachmentItems.length > 0)
     );
+    const quickExpectsDocument = Boolean(
+      quickDocumentDelivery && (
+        quickDocumentDelivery.expected_document === true ||
+        quickDocumentDelivery.missing_document_if_no_attachment === true
+      )
+    );
+    // Il quick-check è probabilistico: può confermare una consegna quando esiste
+    // una prova locale, ma da solo non può creare lo stato negativo "mancante".
+    const groundedQuickExpectation = quickExpectsDocument && Boolean(
+      announcedByBody ||
+      bodyContainsUsableDocumentContent ||
+      hasPhysicalAttachment
+    );
+    const expectsDocument = Boolean(
+      bodyContainsUsableDocumentContent ||
+      announcedByBody ||
+      groundedQuickExpectation
+    );
+    const normalizedAttachmentText = String(textFromAttachments || '').trim();
     const hasAttachmentAnalyzedContent = Boolean(normalizedAttachmentText);
     const hasUsableAttachmentText = Boolean(
       normalizedAttachmentText &&
@@ -4717,10 +4729,14 @@ ${addressLines.join('\n\n')}
   }
 
   _bodyAnnouncesDocumentDelivery_(body, subject) {
-    const text = `${subject || ''} ${body || ''}`;
+    const rawSubject = String(subject || '');
+    const bodyText = String(body || '');
+    const isReplySubject = /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]/i.test(rawSubject.trim());
+    const documentText = `${rawSubject} ${bodyText}`;
+    const deliveryText = `${isReplySubject ? '' : rawSubject} ${bodyText}`;
     const documentPattern = /\b(?:scheda|sched[ae]|modul\w*|document\w*|certificat\w*|attestat\w*|iscrizion\w*)\b/i;
     const deliveryPattern = /\b(?:alleg\w*|invi(?:o|amo|a)\b|trasmett(?:o|iamo)\b|mando|mandiamo|inoltro|inoltriamo|ecco|riport(?:o|iamo)\b|compilat[oaie])\b/i;
-    return documentPattern.test(text) && deliveryPattern.test(text);
+    return documentPattern.test(documentText) && deliveryPattern.test(deliveryText);
   }
 
   _formatExpectedDocumentLabel_(description) {
@@ -6549,10 +6565,17 @@ ${addressLines.join('\n\n')}
     const physicalReminder = flags.physical_presence && physicalConstraint
       ? `\n- Vincolo presenza: type=${physicalConstraint.type || 'other'}, visit_policy=${physicalConstraint.visit_policy || 'unknown'}.`
       : '';
+    const needsGroundingContext = flags.hallucination || flags.kb_relevance;
+    const groundingContext = needsGroundingContext
+      ? this._buildRetryGroundingContext_(originalPrompt, 10000)
+      : '';
+    const groundingReminder = groundingContext
+      ? `\n\n### FONTI DI GROUNDING PER LA CORREZIONE ###\n${groundingContext}`
+      : '';
 
     return `### CORREZIONE MIRATA ###
 Lingua della risposta: ${language || 'it'}.
-Modalità saluto: ${effectiveSalutationMode}.${physicalReminder}${runtimeReminder}
+Modalità saluto: ${effectiveSalutationMode}.${physicalReminder}${runtimeReminder}${groundingReminder}
 
 La tua generazione precedente conteneva errori che DEVI correggere:
 - ${correctionInstructions.join('\n- ')}
@@ -6564,6 +6587,44 @@ ${failedSnippet}
 Genera la nuova risposta correggendo i problemi indicati.
 Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'interno del tag XML <email>...</email>, senza aggiungere spiegazioni, commenti o ragionamenti interni.
 La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve essere esattamente </email>.`;
+  }
+
+  _buildRetryGroundingContext_(prompt, maxChars = 10000) {
+    const source = this._normalizePromptForRetry_(prompt);
+    const limit = Math.max(1000, Math.floor(Number(maxChars) || 10000));
+    if (!source) return '';
+
+    const blockSpecs = [
+      { tag: 'knowledge_base', ratio: 0.62, keep: 'head_tail' },
+      { tag: 'conversation_history', ratio: 0.14, keep: 'tail' },
+      { tag: 'user_email', ratio: 0.24, keep: 'head_tail' }
+    ];
+    const blocks = [];
+
+    for (const spec of blockSpecs) {
+      const openTag = `<${spec.tag}>`;
+      const closeTag = `</${spec.tag}>`;
+      const openIndex = source.indexOf(openTag);
+      if (openIndex < 0) continue;
+      const contentStart = openIndex + openTag.length;
+      const closeIndex = source.indexOf(closeTag, contentStart);
+      if (closeIndex < 0) continue;
+
+      const blockBudget = Math.max(300, Math.floor(limit * spec.ratio));
+      const contentBudget = Math.max(100, blockBudget - openTag.length - closeTag.length - 2);
+      const content = this._buildRetryPromptReducedContent_(
+        source.slice(contentStart, closeIndex),
+        contentBudget,
+        `[...${spec.tag.toUpperCase()} RIDOTTO PER RETRY...]`,
+        spec.keep
+      );
+      blocks.push(`${openTag}${content}${closeTag}`);
+    }
+
+    if (blocks.length === 0) {
+      return this._trimPromptForRetry_(source, limit);
+    }
+    return this._sliceRetryPromptTextSafely_(blocks.join('\n\n'), limit);
   }
 
   _renderRuntimeContextForCorrection_(runtimeContext = null, detectedLanguage = 'it', salutationMode = 'full') {
@@ -8115,6 +8176,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
 
   _deriveAttachmentIntentContext_(body, subject, attachmentItems, ocrText, phase = 'pre_ocr') {
     const fullText = `${subject || ''} ${body || ''} ${ocrText || ''}`.toLowerCase();
+    const currentBodyText = String(body || '').toLowerCase();
     const attachmentSignalText = `${ocrText || ''} ${(Array.isArray(attachmentItems) ? attachmentItems.map((i) => (i && i.name) ? i.name : '').join(' ') : '')}`.toLowerCase();
     // Rileva domande esplicite, ma anche richieste implicite, condizionali e intenti
     // operativi (es. "se era possibile programmare...") che non contengono "?" né
@@ -8151,8 +8213,10 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
         /(?:data\s+di\s+emissione|numero\s+(?:documento|passaporto|carta)|scadenza|rilasciat[oa])/.test(fullText) &&
         /(?:carta d'identit[aà]|passaporto|documento identit[aà])/.test(fullText);
       const isCamminoContext = /cammino di santiago|pellegrinaggio|iscrizion/i.test(fullText);
+      const hasDocumentMention = /\b(?:allegat\w*|document\w*|certificat\w*|modul\w*|sched[ae]|iscrizion\w*)\b/i.test(fullText);
+      const hasDeliveryCueInCurrentBody = /\b(?:in\s+allegato|alleg(?:o|hiamo|at[oaie])|vi\s+invi(?:o|amo)|trasmett(?:o|iamo)|inoltr(?:o|iamo)|mand(?:o|iamo)|ecco|(?:ho|abbiamo)\s+compilat[oaie])\b/i.test(currentBodyText);
       const isSuspectedSubmission =
-        /allegato|invio|ecco|documento|certificato|modulo/i.test(fullText) ||
+        (hasDocumentMention && hasDeliveryCueInCurrentBody) ||
         hasIdentityDataSubmission ||
         (isCamminoContext && hasIdentityDataSubmission);
       if (!isSuspectedSubmission) return null;

@@ -1373,6 +1373,51 @@ console.log('--- Test _getOptionalLabelIdByName: propaga limite quota locale ---
   }
 }
 
+console.log('--- Test extractMainReply: tronca citazione Outlook prima del messaggio storico ---');
+{
+  const service = Object.create(GmailService.prototype);
+  const replyWithOutlookQuote = [
+    'Buongiorno,',
+    '',
+    'Vi ringrazio, confermo di leggervi!',
+    '',
+    'Tuttavia io mi sono cresimato nella chiesa di san Luigi dei Francesi nel 2008.',
+    '',
+    'Quali sono i prossimi passi per aggiornare il certificato?',
+    '',
+    'Grazie',
+    'Cordialmente',
+    '',
+    'Da: info@parrocchiasanteugenio.it <info@parrocchiasanteugenio.it>',
+    'Inviato: giovedi 28 agosto 2026 08:45',
+    'A: Eugenio Carabba <egcarabba@gmail.com>',
+    'Oggetto: certificato di battesimo uso matrimonio',
+    '',
+    'Buongiorno Sig. Carabba,',
+    'in allegato trova il certificato richiesto.'
+  ].join('\n');
+
+  const extracted = service.extractMainReply(replyWithOutlookQuote);
+  assert(extracted.includes('Quali sono i prossimi passi'), 'la domanda corrente deve essere preservata');
+  assert(!extracted.includes('in allegato trova il certificato richiesto'), 'il messaggio storico Outlook non deve contaminare il corpo corrente');
+  assert(!extracted.includes('Inviato: giovedi 28 agosto'), 'gli header della citazione Outlook devono essere rimossi');
+
+  const ordinaryFromLine = service.extractMainReply([
+    'Per il certificato il luogo di partenza e:',
+    'Da: Roma',
+    'Vorrei sapere quali sono i prossimi passi.'
+  ].join('\n'));
+  assert(ordinaryFromLine.includes('Da: Roma'), 'una riga Da isolata non deve essere scambiata per una citazione Outlook');
+
+  const gmailStyleQuote = service.extractMainReply([
+    'Allego il certificato corretto.',
+    '',
+    'Il gio 27 ago 2026 alle ore 09:16 Mario Rossi <mario@example.org> ha scritto:',
+    '> Messaggio precedente'
+  ].join('\n'));
+  assert(gmailStyleQuote === 'Allego il certificato corretto.', 'la variante italiana con data e ora deve conservare solo la risposta corrente');
+}
+
 console.log('--- Test _getOptionalLabelIdByName: scarta ID sistema da cache persistente ---');
 {
   const originalGmail = global.Gmail;

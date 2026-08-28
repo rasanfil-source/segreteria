@@ -869,13 +869,17 @@ function runAllTests() {
             );
             return ctx === null;
         });
-        test('Non estrae deadline senza ruolo ecclesiale', results, () => {
+        test('Estrae deadline sacramentale anche senza ruolo ecclesiale', results, () => {
             const ctx = processor._extractSacramentalDeadlineContext_(
                 'Cresima',
                 'Vorrei fare la Cresima entro ottobre.',
                 'it'
             );
-            return ctx === null;
+            return ctx !== null &&
+                ctx.deadline === 'ottobre' &&
+                /cresima/i.test(ctx.target_outcome) &&
+                /scadenza indicata/i.test(ctx.purpose) &&
+                ctx.confidence >= 0.7;
         });
         test('Rendering deadline policy produce sezione con tripletta e regole', results, () => {
             const engine = new PromptEngine();

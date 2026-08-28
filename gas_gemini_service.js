@@ -721,15 +721,6 @@ COMPITI:
 2. Rileva la lingua (language) - codice ISO 639-1 (es: "it", "en", "es", "fr", "de")
 3. Classifica la richiesta (category):
    - "TECHNICAL": orari, documenti, info pratiche, iscrizioni
-1. Decidi se richiede risposta (reply_needed):
- - TRUE se l'utente pone domande, esprime dubbi o fornisce informazioni nuove/utili (appuntamenti, dati, modifiche).
- - FALSE se è solo un ringraziamento finale (es: \"Grazie mille\", \"Perfetto grazie\", \"Ricevuto\") senza nuove domande o info.
- - FALSE se è newsletter, spam o messaggi di sistema.
- - IMPORTANTE: Se l'utente chiede qualcosa già detto, rispondi TRUE ma con riferimento cordiale alla risposta precedente.
-
-2. Rileva la lingua (language) - codice ISO 639-1 (es: "it", "en", "es", "fr", "de")
-3. Classifica la richiesta (category):
-   - "TECHNICAL": orari, documenti, info pratiche, iscrizioni
    - "PASTORAL": richieste di aiuto, situazioni personali, lutto
    - "DOCTRINAL": dubbi di fede, domande teologiche
    - "FORMAL": richieste di sbattezzo, cancellazione registri, apostasia
@@ -1401,7 +1392,7 @@ Output JSON:
       /\b(?:ich\s+mochte\s+(?:beantragen|buchen|mich\s+anmelden)|konnten\s+sie\s+(?:vorbereiten|ausstellen|buchen))\b/
     ];
     const informationPatterns = [
-      /\b(?:come\s+(?:si\s+fa|funziona|posso)|quali\s+(?:dati|documenti|requisiti|passi)|cosa\s+(?:serve|occorre)|dove\s+(?:devo|posso)|a\s+chi\s+(?:devo|posso)|vorrei\s+(?:avere|ricevere)?\s*informazioni|chiedo\s+informazioni)\b/,
+      /\b(?:come\s+(?:si\s+fa|funziona|posso)|quali\s+(?:(?:sono|sarebbero)\s+)?(?:i\s+)?(?:prossimi\s+)?(?:dati|documenti|requisiti|passi)|cosa\s+(?:serve|occorre)|dove\s+(?:devo|posso)|a\s+chi\s+(?:devo|posso)|vorrei\s+(?:avere|ricevere)?\s*informazioni|chiedo\s+informazioni)\b/,
       /\b(?:how\s+(?:do|can)|what\s+(?:documents|requirements)|where\s+(?:do|can)|i\s+would\s+like\s+information)\b/,
       /\b(?:comment\s+(?:faire|puis-je)|quels?\s+(?:documents|conditions)|ou\s+(?:dois-je|puis-je)|je\s+voudrais\s+des\s+renseignements)\b/,
       /\b(?:como\s+(?:puedo|se\s+hace)|que\s+(?:documentos|requisitos)|donde\s+(?:debo|puedo)|quisiera\s+informacion)\b/,
@@ -1444,6 +1435,15 @@ Output JSON:
     if (
       local.confidence >= 0.9 &&
       (local.type === 'operational_request' || local.type === 'mixed')
+    ) {
+      return local;
+    }
+    // Una domanda informativa esplicita osservabile nel testo non può essere
+    // degradata a semplice ringraziamento/aggiornamento dal modello remoto.
+    if (
+      local.confidence >= 0.9 &&
+      local.type === 'information_request' &&
+      (modelType === 'acknowledgment' || modelType === 'status_update')
     ) {
       return local;
     }

@@ -81,6 +81,27 @@ console.log('--- Test EmailQuickCheckPolicy: distingue intento operativo da topi
     'Vorrei informazioni: dove devo richiederlo e quali documenti servono?'
   );
   assert(informative.type === 'information_request', 'domanda su dove/quali documenti deve restare informativa');
+
+  const nextSteps = EmailQuickCheckPolicy.inferRequestPurpose(
+    'Re: certificato di battesimo uso matrimonio',
+    'Quali sono i prossimi passi per aggiornare il certificato?'
+  );
+  assert(nextSteps.type === 'information_request', '"quali sono i prossimi passi" deve essere riconosciuta come domanda informativa');
+
+  const resolvedAgainstAcknowledgment = EmailQuickCheckPolicy.resolveRequestPurpose(
+    'acknowledgment',
+    0.99,
+    'Re: certificato di battesimo uso matrimonio',
+    'Vi ringrazio. Quali sono i prossimi passi per aggiornare il certificato?'
+  );
+  assert(resolvedAgainstAcknowledgment.type === 'information_request', 'la domanda esplicita deve prevalere sul falso acknowledgment remoto');
+}
+
+console.log('--- Test EmailQuickCheckPolicy: il prompt non duplica i compiti iniziali ---');
+{
+  const built = EmailQuickCheckPolicy.buildPrompt('Vorrei informazioni.', 'Richiesta');
+  const taskOccurrences = (built.prompt.match(/1\. Decidi se richiede risposta/g) || []).length;
+  assert(taskOccurrences === 1, `il compito reply_needed deve comparire una sola volta, ottenuto ${taskOccurrences}`);
 }
 
 console.log('--- Test _classifyError: quota primaria non ritenta sulla stessa chiave ---');

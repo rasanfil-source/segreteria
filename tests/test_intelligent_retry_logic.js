@@ -93,6 +93,43 @@ assert(prompt.includes('Failed Response'), 'Prompt should include previous respo
 assert(!prompt.includes('Original Prompt'), 'Il retry chirurgico non deve replicare il prompt originale completo');
 assert(prompt.length < 8000, 'Il prompt correttivo semplice deve restare leggero');
 
+const hallucinationValidation = {
+  isValid: false,
+  score: 0,
+  errors: ['Semantica: procedura non supportata dalla Base Conoscenza'],
+  details: {
+    semantic: {
+      hallucinations: {
+        isValid: false,
+        confidence: 0,
+        reason: 'procedura non supportata dalla Base Conoscenza',
+        details: {}
+      }
+    }
+  }
+};
+const groundedOriginalPrompt = [
+  '### ISTRUZIONI DI SISTEMA ###',
+  '**INFORMAZIONI DI RIFERIMENTO:**',
+  '<knowledge_base>',
+  'KB_GROUNDING_SENTINEL: non sono disponibili istruzioni sulla rettifica del certificato.',
+  '</knowledge_base>',
+  '**EMAIL DA RISPONDERE:**',
+  '<user_email>',
+  'EMAIL_GROUNDING_SENTINEL: Quali sono i prossimi passi per aggiornare il certificato?',
+  '</user_email>'
+].join('\n');
+const groundedRetryPrompt = processor._buildCorrectionPrompt(
+  groundedOriginalPrompt,
+  'Deve richiedere il certificato alla parrocchia di celebrazione.',
+  hallucinationValidation,
+  'it',
+  'full'
+);
+assert(groundedRetryPrompt.includes('KB_GROUNDING_SENTINEL'), 'il retry semantico deve conservare la KB necessaria alla correzione');
+assert(groundedRetryPrompt.includes('EMAIL_GROUNDING_SENTINEL'), 'il retry semantico deve conservare l email corrente');
+assert(groundedRetryPrompt.length < 16000, 'il contesto di grounding del retry deve restare limitato');
+
 const mixedLanguageValidation = {
     isValid: false,
     score: 0.2,

@@ -5297,6 +5297,64 @@ console.log('--- Test attachment intent: corpo descrittivo lungo non crea domand
   assert(/ricezione della documentazione allegata/i.test(context.responseDirective || ''), 'la direttiva deve restare receipt-only per consegna pura');
 }
 
+console.log('--- Test attachment intent: domanda su certificato in oggetto Re non e una consegna ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  const body = [
+    'Buongiorno,',
+    'Vi ringrazio, confermo di leggervi!',
+    'Tuttavia io mi sono cresimato nella chiesa di san Luigi dei Francesi nel 2008.',
+    'Quali sono i prossimi passi per aggiornare il certificato?'
+  ].join(' ');
+  const subject = 'Re: certificato di battesimo uso matrimonio';
+  const context = processor._deriveAttachmentIntentContext_(body, subject, [], '', 'pre_ocr');
+
+  assert(context === null, 'la sola menzione di certificato, anche con domanda, non deve diventare submission');
+
+  const model = processor._buildDocumentDeliveryModel_({
+    subject,
+    body,
+    quickDocumentDelivery: {
+      expected_document: true,
+      expected_document_description: 'certificato di battesimo',
+      delivery_channel: 'attachment',
+      body_contains_filled_document: false,
+      missing_document_if_no_attachment: true
+    },
+    quickAttachmentIntent: null,
+    physicalAttachmentsDetected: false,
+    attachmentItems: [],
+    textFromAttachments: ''
+  });
+
+  assert(model.expectsDocument === false, 'un expected_document del modello senza prova locale non deve essere vincolante');
+  assert(model.status === 'none', `la domanda sul certificato non deve diventare documento mancante, ottenuto ${model.status}`);
+  assert(model.hasExpectedDocumentMissing === false, 'il validator non deve ricevere expectedDocumentMissing nel follow-up');
+}
+
+console.log('--- Test document delivery: annuncio esplicito senza file resta documento mancante ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  const model = processor._buildDocumentDeliveryModel_({
+    subject: 'Invio certificato di battesimo',
+    body: 'Buongiorno, in allegato invio il certificato richiesto.',
+    quickDocumentDelivery: {
+      expected_document: true,
+      expected_document_description: 'certificato di battesimo',
+      delivery_channel: 'attachment',
+      body_contains_filled_document: false,
+      missing_document_if_no_attachment: true
+    },
+    quickAttachmentIntent: null,
+    physicalAttachmentsDetected: false,
+    attachmentItems: [],
+    textFromAttachments: ''
+  });
+
+  assert(model.announcedByBody === true, 'l annuncio esplicito deve essere corroborato localmente');
+  assert(model.status === 'missing', `un allegato davvero annunciato ma assente deve restare missing, ottenuto ${model.status}`);
+}
+
 console.log('--- Test attachment intent: modulo compilato con desiderio di partecipazione non diventa receipt-only ---');
 {
   const processor = new EmailProcessor({ gmailService: {} });

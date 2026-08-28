@@ -2911,11 +2911,12 @@ var GmailService = class GmailService {
         const markers = [
             /^On .* wrote:/m,
             /^Il giorno .* ha scritto:/m,
+            /^Il .{0,200}\s+alle(?:\s+ore)?\s+\d{1,2}[:.]\d{2}.{0,200}\s+ha scritto:/im,
             /^-{3,}.*Original Message/im,
             /^-{3,}.*Messaggio originale/im
         ];
 
-        let result = content;
+        let result = String(content || '').replace(/\r\n?/g, '\n');
         let earliestMatch = -1;
 
         for (const marker of markers) {
@@ -2927,6 +2928,15 @@ var GmailService = class GmailService {
 
         if (earliestMatch !== -1) {
             result = result.substring(0, earliestMatch);
+        }
+
+        // Outlook e alcuni client mobili riportano il messaggio precedente come
+        // blocco Da/Inviato/A/Oggetto, senza il classico "ha scritto". Un solo
+        // "Da:" non basta: tronchiamo soltanto quando il piccolo blocco contiene
+        // tutti gli header strutturali, così frasi ordinarie come "Da: Roma" restano.
+        const quotedHeaderBlockStart = this._findQuotedHeaderBlockStart_(result);
+        if (quotedHeaderBlockStart !== -1) {
+            result = result.substring(0, quotedHeaderBlockStart);
         }
 
         const sigMarkers = [
@@ -2966,6 +2976,42 @@ var GmailService = class GmailService {
         }
 
         return result.trim();
+    }
+
+    _findQuotedHeaderBlockStart_(content) {
+        const text = String(content || '').replace(/\r\n?/g, '\n');
+        if (!text) return -1;
+
+        const lines = text.split('\n');
+        const lineStarts = [];
+        let offset = 0;
+        for (const line of lines) {
+            lineStarts.push(offset);
+            offset += line.length + 1;
+        }
+
+        const fromPattern = /^(?:da|from)\s*:\s*.+/i;
+        const sentPattern = /^(?:inviato|sent|date)\s*:\s*.+/i;
+        const toPattern = /^(?:a|to)\s*:\s*.+/i;
+        const subjectPattern = /^(?:oggetto|subject)\s*:\s*.+/i;
+
+        for (let index = 0; index < lines.length; index++) {
+            if (!fromPattern.test(String(lines[index] || '').trim())) continue;
+
+            const headerWindow = lines
+                .slice(index, Math.min(lines.length, index + 8))
+                .map(line => String(line || '').trim())
+                .filter(Boolean);
+            if (
+                headerWindow.some(line => sentPattern.test(line)) &&
+                headerWindow.some(line => toPattern.test(line)) &&
+                headerWindow.some(line => subjectPattern.test(line))
+            ) {
+                return lineStarts[index];
+            }
+        }
+
+        return -1;
     }
 
     // ========================================================================
