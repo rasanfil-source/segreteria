@@ -2226,6 +2226,76 @@ console.log('--- Test SemanticValidator: prompt hallucination non tronca KB a 20
   );
 }
 
+console.log('--- Test SemanticValidator: grounding include oggetto, corpo e thread con distinzione entità-ruolo ---');
+{
+  const groundingContext = validator._buildSemanticGroundingContext_(
+    'Richiesta informazioni per celebrazione Battesimo – VERDESCA ALBERTO',
+    'Vorrei celebrare il Battesimo per mio figlio.',
+    {
+      validationContext: {
+        explicitThreadContext: 'Utente (flaminia@example.org): Il cognome corretto è Verdesca.'
+      }
+    }
+  );
+  assert(groundingContext.includes('OGGETTO DEL MESSAGGIO CORRENTE:'), 'il grounding deve etichettare esplicitamente l oggetto');
+  assert(groundingContext.includes('VERDESCA ALBERTO'), 'il nome presente nell oggetto deve raggiungere il validatore semantico');
+  assert(groundingContext.includes('CORPO DEL MESSAGGIO CORRENTE:'), 'il grounding deve includere il corpo corrente');
+  assert(groundingContext.includes('STORICO ESPLICITO DEL THREAD:'), 'il grounding deve includere lo storico esplicito disponibile');
+
+  const semantic = Object.create(SemanticValidator.prototype);
+  const prompt = semantic._buildHallucinationPrompt(
+    'La ringraziamo per la richiesta relativa ad Alberto.',
+    'La parrocchia celebra il Battesimo secondo le date indicate.',
+    groundingContext,
+    'information_request'
+  );
+  assert(prompt.includes('Un nome o cognome presente in una di queste parti può essere ripetuto'), 'il prompt deve autorizzare la ripetizione di entità presenti nell input');
+  assert(prompt.includes('non dimostra da sola che Alberto sia il figlio'), 'il prompt deve separare esistenza del nome e ruolo personale');
+  assert(prompt.includes('"entityRoleMismatches": []'), 'lo schema semantico deve distinguere i mismatch nome-ruolo');
+}
+
+console.log('--- Test ResponseValidator: propaga grounding completo e reason code semantico specifico ---');
+{
+  const previousSemanticValidator = validator.semanticValidator;
+  let receivedGrounding = '';
+  try {
+    validator.semanticValidator = {
+      shouldRun: () => true,
+      validateHallucinations: (_response, _kb, _regex, grounding) => {
+        receivedGrounding = grounding;
+        return {
+          isValid: false,
+          confidence: 0.95,
+          reason: 'Ruolo personale non dimostrato',
+          details: {
+            entityRoleMismatches: [{ entity: 'Alberto', role: 'figlio' }]
+          }
+        };
+      },
+      validateThinkingLeak: () => ({ isValid: true, confidence: 0.99, skipped: true })
+    };
+
+    const result = validator.validateResponse(
+      'Buongiorno Flaminia. La ringraziamo per averci scritto in merito al Battesimo di suo figlio. Cordiali saluti.',
+      'it',
+      'La segreteria risponde alle richieste sul Battesimo.',
+      'Vorrei celebrare il Battesimo per mio figlio.',
+      'Richiesta Battesimo – VERDESCA ALBERTO',
+      'full',
+      false,
+      { validationContext: { explicitThreadContext: 'Utente: Il cognome è Verdesca.' } }
+    );
+
+    assert(receivedGrounding.includes('Richiesta Battesimo – VERDESCA ALBERTO'), 'validateResponse deve passare anche l oggetto al controllo semantico');
+    assert(receivedGrounding.includes('Vorrei celebrare il Battesimo per mio figlio.'), 'validateResponse deve passare il corpo al controllo semantico');
+    assert(receivedGrounding.includes('Utente: Il cognome è Verdesca.'), 'validateResponse deve passare il contesto esplicito del thread');
+    assert(result.reasonCode === 'semantic_entity_role_mismatch', 'il motivo deve descrivere il mismatch entità-ruolo invece della soglia generica');
+    assert(result.score === 0.95, 'lo score semantico alto deve restare osservabile anche quando esiste un errore bloccante');
+  } finally {
+    validator.semanticValidator = previousSemanticValidator;
+  }
+}
+
 
 console.log('--- Test SemanticValidator: hash include lunghezza testo ---');
 {

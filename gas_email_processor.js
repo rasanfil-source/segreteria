@@ -2583,7 +2583,8 @@ ${addressLines.join('\n\n')}
           promptProfile: promptProfile,
           category: categoryHintSource || classification.category || null,
           requestType: requestTypeName || null,
-          requestPurpose: requestPurpose
+          requestPurpose: requestPurpose,
+          conversationHistory: conversationHistory
         })
       }));
       const scheduleContext = this._resolveScheduleContext(
@@ -3353,7 +3354,7 @@ ${addressLines.join('\n\n')}
             result.reason = 'thinking_leak';
           }
 
-          const validationReason = result.reason || 'validation_score_below_threshold';
+          const validationReason = result.reason || validation.reasonCode || 'validation_score_below_threshold';
           markFailureForCurrentBurst('validation', {
             reason: validationReason,
             validation: validation,
@@ -7250,7 +7251,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     promptProfile = 'standard',
     category = null,
     requestType = null,
-    requestPurpose = null
+    requestPurpose = null,
+    conversationHistory = ''
   } = {}) {
     const normalizedConcerns = (activeConcerns && typeof activeConcerns === 'object')
       ? Object.assign({}, activeConcerns)
@@ -7309,7 +7311,11 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       promptProfile: normalizedProfile,
       category: normalizedCategory,
       requestType: normalizedRequestType,
-      requestPurpose: normalizedRequestPurpose
+      requestPurpose: normalizedRequestPurpose,
+      // Evidenza grezza e limitata del thread: serve al validatore semantico per
+      // riconoscere dati esplicitamente presenti nei messaggi precedenti. Non è
+      // una fonte autonoma per procedure o capacità istituzionali.
+      explicitThreadContext: String(conversationHistory || '').slice(-4000)
     };
   }
 

@@ -6267,6 +6267,15 @@ console.log('--- Test EmailProcessor: sbattezzo indiretto e contextualFlags oper
 {
   const processor = Object.create(EmailProcessor.prototype);
 
+  const validationContextWithHistory = processor._buildResponseValidationContext_({
+    requestPurpose: { type: 'information_request', confidence: 0.9, source: 'test' },
+    conversationHistory: 'Utente (flaminia@example.org): Il nome corretto è Alberto.'
+  });
+  assert(
+    validationContextWithHistory.explicitThreadContext.includes('Il nome corretto è Alberto.'),
+    'il contesto di validazione deve conservare lo storico esplicito utile al grounding semantico'
+  );
+
   const indirect = processor._detectIndirectSbattezzoRequest_(
     'Richiesta',
     'Vorrei uscire dalla Chiesa e non essere più registrato come cattolico.'

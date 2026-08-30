@@ -289,6 +289,11 @@ var ResponseValidator = class ResponseValidator {
       typeof temporalContext.validationContext === 'object'
         ? temporalContext.validationContext.requestPurpose
         : null;
+    const semanticGroundingContext = this._buildSemanticGroundingContext_(
+      emailSubject,
+      emailContent,
+      temporalContext
+    );
     if (
       this.semanticValidator &&
       (this.semanticValidator.shouldRun(validationResult.score) || forceKnowledgeRelevanceReview)
@@ -303,7 +308,7 @@ var ResponseValidator = class ResponseValidator {
         currentResponse,
         knowledgeBase,
         validationResult.details.hallucinations,
-        emailContent,
+        semanticGroundingContext,
         {
           forceRelevanceReview: forceKnowledgeRelevanceReview,
           requestPurpose: validationRequestPurpose
@@ -366,6 +371,7 @@ var ResponseValidator = class ResponseValidator {
           semanticReason = semThinking.reason || semanticReason;
         }
         validationResult.errors.push(`Semantica: ${semanticReason}`);
+        validationResult.reasonCode = this._deriveSemanticFailureReasonCode_(semHalluc, semThinking);
       }
 
       validationResult.details.semantic = {
@@ -390,6 +396,7 @@ var ResponseValidator = class ResponseValidator {
       errors: validationResult.errors,
       warnings: validationResult.warnings,
       details: validationResult.details,
+      reasonCode: validationResult.reasonCode || null,
       fixedResponse: (wasRefined && validationResult.isValid) ? currentResponse : null, // Restituisci testo perfezionato SOLO se valido
       metadata: {
         responseLength: currentResponse.length,
@@ -437,6 +444,40 @@ var ResponseValidator = class ResponseValidator {
       true,
       temporalContext
     );
+  }
+
+  _buildSemanticGroundingContext_(emailSubject, emailContent, temporalContext = null) {
+    const validationContext = temporalContext &&
+      temporalContext.validationContext &&
+      typeof temporalContext.validationContext === 'object'
+        ? temporalContext.validationContext
+        : {};
+    const threadContext = String(validationContext.explicitThreadContext || '').trim();
+    const sections = [
+      `OGGETTO DEL MESSAGGIO CORRENTE:\n${String(emailSubject || '').trim()}`,
+      `CORPO DEL MESSAGGIO CORRENTE:\n${String(emailContent || '').trim()}`
+    ];
+    if (threadContext) {
+      sections.push(`STORICO ESPLICITO DEL THREAD:\n${threadContext}`);
+    }
+    return sections.join('\n\n').trim();
+  }
+
+  _deriveSemanticFailureReasonCode_(semHalluc, semThinking) {
+    if (semThinking && semThinking.isValid === false) return 'semantic_thinking_leak';
+    const details = semHalluc && semHalluc.details && typeof semHalluc.details === 'object'
+      ? semHalluc.details
+      : {};
+    if (Array.isArray(details.entityRoleMismatches) && details.entityRoleMismatches.length > 0) {
+      return 'semantic_entity_role_mismatch';
+    }
+    if (Array.isArray(details.unsupportedClaims) && details.unsupportedClaims.length > 0) {
+      return 'semantic_unsupported_claim';
+    }
+    if (Array.isArray(details.irrelevantDetails) && details.irrelevantDetails.length > 0) {
+      return 'semantic_irrelevant_detail';
+    }
+    return 'semantic_validation_failed';
   }
 
   /**
@@ -3549,7 +3590,7 @@ var SemanticValidator = class SemanticValidator {
         ? options.requestPurpose.type
         : (options ? options.requestPurpose : '');
       const cacheMaterial = [
-        'grounding_relevance_schema_v3',
+        'grounding_relevance_schema_v4',
         response || '',
         knowledgeBase || '',
         emailContent || '',
@@ -3654,6 +3695,9 @@ ${response}
 COMPITO A — RADICAMENTO:
 1. Estrai orari, date, email, URL, telefoni, requisiti, procedure, eccezioni, promesse operative e affermazioni di disponibilità, indisponibilità, divieto o limite presenti nella RISPOSTA.
 2. Verifica che siano supportati, anche con sinonimi o varianti. Capacità e limitazioni istituzionali devono risultare dalla BASE CONOSCENZA: l'EMAIL ORIGINALE da sola non le dimostra e l'assenza di un dettaglio non autorizza una negazione, soprattutto se la base conferma una possibilità generale o equivalente.
+3. Per i dati personali considera come input autorizzato l'intero blocco EMAIL ORIGINALE, compresi oggetto, corpo e storico esplicito. Un nome o cognome presente in una di queste parti può essere ripetuto e non è un'invenzione.
+4. Distingui sempre l'esistenza di un'entità dal ruolo attribuito: la presenza del nome "Alberto" autorizza a ripetere "Alberto", ma non dimostra da sola che Alberto sia il figlio, il battezzando, il padrino o un'altra persona. Inserisci in "entityRoleMismatches" soltanto le associazioni nome-ruolo che la RISPOSTA afferma senza che tale relazione risulti esplicitamente dall'input.
+5. Lo storico supporta dati personali o fatti esplicitamente dichiarati dall'utente. Una precedente risposta della segreteria non è invece una fonte autonoma per procedure, requisiti o capacità istituzionali, che devono restare radicati nella BASE CONOSCENZA.
 
 COMPITO B — PERTINENZA CONTESTUALE:
 1. Prima distingui lo scopo: richiesta informativa, richiesta operativa, aggiornamento/comunicazione o messaggio misto. Poi individua obiettivo, domande e vincoli realmente espressi nell'EMAIL ORIGINALE.
@@ -3672,7 +3716,8 @@ Rispondi SOLO con questo JSON (senza markdown):
     "emails": [],
     "phones": [],
     "urls": [],
-    "unsupportedClaims": []
+    "unsupportedClaims": [],
+    "entityRoleMismatches": []
   },
   "irrelevantDetails": [],
   "isValid": true,
