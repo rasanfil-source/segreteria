@@ -1467,7 +1467,10 @@ function buildValidationFlowProcessor({ validationResult, generationText = 'Risp
       getAdaptiveClosing: () => 'Cordiali saluti',
       generateResponse: (...args) => {
         if (typeof onGenerate === 'function') onGenerate(...args);
-        return { success: true, text: generationText };
+        const generatedText = typeof generationText === 'function'
+          ? generationText(...args)
+          : generationText;
+        return { success: true, text: generatedText };
       }
     },
     requestClassifier: {
@@ -1488,6 +1491,43 @@ function buildValidationFlowProcessor({ validationResult, generationText = 'Risp
       buildPrompt: () => 'PROMPT'
     }
   });
+}
+
+console.log('--- Test processThread: NO_REPLY non annulla reply_needed=true e usa il fallback ---');
+{
+  let generationCalls = 0;
+  const processor = buildValidationFlowProcessor({
+    generationText: () => {
+      generationCalls++;
+      return generationCalls === 1
+        ? 'NO_REPLY'
+        : 'Buongiorno. Grazie per l’aggiornamento. Cordiali saluti.';
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('unexpected-no-reply-fallback'), 'kb valida', '', new Set(), true);
+  assert(result.status === 'replied', `NO_REPLY incoerente deve usare il fallback e rispondere, ottenuto ${result.status}`);
+  assert(generationCalls === 2, `deve fermarsi al primo fallback valido, chiamate=${generationCalls}`);
+}
+
+console.log('--- Test processThread: NO_REPLY incoerente esaurito resta ritentabile e non viene marcato ---');
+{
+  let generationCalls = 0;
+  const labels = [];
+  const processor = buildValidationFlowProcessor({
+    labels: labels,
+    generationText: () => {
+      generationCalls++;
+      return '<email>NO_REPLY</email>';
+    }
+  });
+
+  const result = processor.processThread(createExternalThread('unexpected-no-reply-exhausted'), 'kb valida', '', new Set(), true);
+  assert(result.status === 'error', `fallback tutti incoerenti deve produrre errore ritentabile, ottenuto ${result.status}`);
+  assert(result.retryable === true, 'NO_REPLY incoerente esaurito deve restare ritentabile');
+  assert(result.reason === 'unexpected_no_reply_after_reply_required', `reason diagnostico inatteso: ${result.reason}`);
+  assert(generationCalls === 4, `deve provare tutte le strategie disponibili, chiamate=${generationCalls}`);
+  assert(labels.length === 0, 'non deve applicare IA, Verifica o Errore quando il messaggio deve essere ritentato');
 }
 
 function buildProcessorForGenerationFailure(errorTypeToThrow) {

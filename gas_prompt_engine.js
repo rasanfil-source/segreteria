@@ -970,10 +970,10 @@ Vincoli:
     // 2. ISTRUZIONI LINGUA
     addSection(this._renderLanguageInstruction(detectedLanguage), 'LanguageInstruction', { force: true, isSystem: true });
 
-    // 3. REGOLARE NON RISPOSTA
-    addSection(this._renderNoReplyRules(), 'NoReplyRules', { isSystem: true });
-
-    // 4. DIRETTIVE SISTEMICHE STRUTTURATE
+    // 3. DIRETTIVE SISTEMICHE STRUTTURATE
+    // La decisione se rispondere appartiene al quick check, eseguito prima di
+    // buildPrompt. Il generatore riceve soltanto messaggi gia autorizzati alla
+    // risposta e non deve poter riaprire quella decisione tramite NO_REPLY.
     addSection(this._renderSystemDirectives(normalizedSystemDirectives), 'SystemDirectives', { force: true, isSystem: true });
 
     // 4b. VINCOLI OPERATIVI DERIVATI DAL PROMPT CONTEXT
@@ -3675,8 +3675,7 @@ La risposta deve servire la persona, non dimostrare le nostre conoscenze.
 • Se l'utente chiede se può passare in segreteria, la prima frase risponde a questo. Procedure e alternative vanno dopo.
 • Gestione multi-intento: se c'è un problema tecnico (allegato mancante, dato incompleto), segnalalo brevemente e rispondi comunque alle altre domande presenti.
 • Non riprodurre inventari della KB o elenchi generali: se la domanda è vaga, rispondi al caso concreto e indica dove trovare il resto. Se la richiesta è ordinaria e circoscritta a un servizio parrocchiale specifico, puoi fornire l'elenco pertinente a quel servizio, ad esempio orari delle Messe festive, documenti per un sacramento o recapiti ufficiali della segreteria.
-• Se una policy esplicita autorizza un'informazione di percorso, ad esempio Cresima come prerequisito per padrino o madrina, trattala come contesto richiesto implicitamente.
-• Solo ringraziamento o conferma senza nuove domande né dati utili: usa NO_REPLY.`;
+• Se una policy esplicita autorizza un'informazione di percorso, ad esempio Cresima come prerequisito per padrino o madrina, trattala come contesto richiesto implicitamente.`;
   }
 
   // ========================================================================
@@ -3733,27 +3732,6 @@ Se l'allegato è un modulo/certificato/documento personale:
 - non fare valutazioni legali su documento identità/passaporto/tessera sanitaria.
 - non citare il contenuto OCR nel testo finale se basta una conferma di ricezione.
 ${safeAttachmentsContext || ''}`;
-  }
-
-  // ========================================================================
-  // MODELLO 19: REGOLA NESSUNA RISPOSTA
-  // ========================================================================
-
-  _renderNoReplyRules() {
-    return `**QUANDO NON RISPONDERE (scrivi solo "NO_REPLY"):**
-
-1. Newsletter, pubblicità, email automatiche
-2. Bollette, fatture, ricevute
-3. Condoglianze, necrologi
-4. Email con "no-reply"
-5. Comunicazioni politiche
-
-6. **Messaggio di SOLO ringraziamento o conferma**:
-   ✔ contiene solo ringraziamenti o conferme di ricezione
-   ✔ NON contiene domande, nuove richieste, date/orari nuovi, dati utili o correzioni
-   ✔ vale anche se l'oggetto non inizia con "Re:"
-
-⚠️ "NO_REPLY" significa che NON invierò risposta.`;
   }
 
   // ========================================================================

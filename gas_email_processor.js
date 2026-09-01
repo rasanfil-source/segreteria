@@ -3018,6 +3018,20 @@ ${addressLines.join('\n\n')}
               response = response.text;
             }
 
+            if (
+              this._isNoReplyToken_(response) &&
+              quickCheck &&
+              quickCheck.shouldRespond === true
+            ) {
+              console.warn(
+                `⚠️ Strategia '${plan.name}' ha restituito NO_REPLY in contrasto con reply_needed=true: provo il fallback successivo.`
+              );
+              response = null;
+              const unexpectedNoReplyError = new Error('NO_REPLY inatteso dopo decisione reply_needed=true');
+              unexpectedNoReplyError.code = 'UNEXPECTED_NO_REPLY';
+              throw unexpectedNoReplyError;
+            }
+
             if (response) {
               strategyUsed = plan.name;
               strategyUsedPlan = plan;
@@ -3088,6 +3102,10 @@ ${addressLines.join('\n\n')}
         }
         result.status = 'error';
         result.error = errorToReport ? String(errorToReport.message || errorToReport) : 'Generation strategies exhausted';
+        result.retryable = !!errorClass.retryable;
+        if (errorToReport && errorToReport.code === 'UNEXPECTED_NO_REPLY') {
+          result.reason = 'unexpected_no_reply_after_reply_required';
+        }
         if (initialError && generationError && initialError !== generationError) {
           result.error += ` (Ultimo fallback: ${String(generationError.message || generationError)})`;
         }
@@ -3109,7 +3127,7 @@ ${addressLines.join('\n\n')}
         ? this.validator._rimuoviThinkingLeak(response)
         : response;
 
-      if (response.trim() === 'NO_REPLY') {
+      if (this._isNoReplyToken_(response)) {
         console.log('   ⊖ AI ha restituito NO_REPLY');
         markHandledUnread();
         result.status = 'filtered';
@@ -7758,6 +7776,13 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       .replace(/\s+/g, ' ')
       .replace(/ /g, '_');
   }
+
+  _isNoReplyToken_(response) {
+    if (typeof response !== 'string') return false;
+    const extracted = this._extractEmailXmlBlock_(response);
+    return String(extracted || '').trim().toUpperCase() === 'NO_REPLY';
+  }
+
   /**
    * Classificazione centralizzata degli errori API
    * Determina se un errore è fatale, legato alla quota o alla rete.
@@ -7768,6 +7793,10 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     if (!error) {
       console.warn('⚠️ _classifyError chiamato con errore nullo');
       return mkResult('UNKNOWN', false, '');
+    }
+
+    if (error.code === 'UNEXPECTED_NO_REPLY') {
+      return mkResult('INVALID_RESPONSE', true, String(error.message || 'NO_REPLY inatteso'));
     }
 
     // Delega al classificatore centralizzato se disponibile

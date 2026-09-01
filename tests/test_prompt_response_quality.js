@@ -320,13 +320,20 @@ assert(
   'la stessa regola deve restare generale e applicarsi anche fuori dall\'ambito sacramentale'
 );
 
-console.log('--- Test prompt: NO_REPLY per solo ringraziamento non dipende da Re ---');
+console.log('--- Test prompt: la generazione non riapre la decisione reply_needed tramite NO_REPLY ---');
 {
-  const noReplyRules = engine._renderNoReplyRules();
+  const generationPrompt = engine.buildPrompt({
+    emailContent: 'Grazie per la disponibilità. Vi aggiorno sulla situazione.',
+    emailSubject: 'Aggiornamento',
+    detectedLanguage: 'it',
+    knowledgeBase: 'Informazioni della parrocchia.',
+    greeting: 'Buongiorno',
+    closing: 'Cordiali saluti'
+  });
   assert(
-    !noReplyRules.includes('Oggetto inizia con "Re:"') &&
-      noReplyRules.includes('vale anche se l\'oggetto non inizia con "Re:"'),
-    'la regola NO_REPLY per solo ringraziamento non deve richiedere il prefisso Re'
+    !generationPrompt.includes('NO_REPLY') &&
+      !generationPrompt.includes('QUANDO NON RISPONDERE'),
+    'il generatore deve soltanto comporre la risposta gia autorizzata dal quick check'
   );
 }
 

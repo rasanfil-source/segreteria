@@ -2290,7 +2290,10 @@ console.log('--- Test ResponseValidator: propaga grounding completo e reason cod
     assert(receivedGrounding.includes('Vorrei celebrare il Battesimo per mio figlio.'), 'validateResponse deve passare il corpo al controllo semantico');
     assert(receivedGrounding.includes('Utente: Il cognome è Verdesca.'), 'validateResponse deve passare il contesto esplicito del thread');
     assert(result.reasonCode === 'semantic_entity_role_mismatch', 'il motivo deve descrivere il mismatch entità-ruolo invece della soglia generica');
-    assert(result.score === 0.95, 'lo score semantico alto deve restare osservabile anche quando esiste un errore bloccante');
+    assert(
+      result.details.semantic.hallucinations.confidence === 0.95,
+      'la confidenza semantica alta deve restare osservabile anche quando lo score aggregato include controlli precedenti'
+    );
   } finally {
     validator.semanticValidator = previousSemanticValidator;
   }
