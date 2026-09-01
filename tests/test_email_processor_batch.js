@@ -1493,6 +1493,117 @@ function buildValidationFlowProcessor({ validationResult, generationText = 'Risp
   });
 }
 
+function createDuplicateGuardPropertyStore() {
+  const store = new Map();
+  return {
+    store: store,
+    getProperty: (key) => store.get(key) || '',
+    setProperty: (key, value) => store.set(key, String(value)),
+    deleteProperty: (key) => store.delete(key),
+    getProperties: () => Object.fromEntries(store.entries())
+  };
+}
+
+function createDuplicateGuardThread(id, { attachments = [], from = 'utente@example.com' } = {}) {
+  const message = {
+    getId: () => `m-${id}`,
+    isUnread: () => true,
+    getFrom: () => from,
+    getDate: () => new Date('2026-09-01T10:00:00Z'),
+    getAttachments: () => attachments
+  };
+  return {
+    getId: () => `t-${id}`,
+    getMessages: () => [message]
+  };
+}
+
+console.log('--- Test duplicate guard: seconda email identica viene fermata prima di memoria e AI ---');
+{
+  cacheStore.clear();
+  const props = createDuplicateGuardPropertyStore();
+  const labels = [];
+  let quickCheckCalls = 0;
+  let memoryReadCalls = 0;
+  let sendCalls = 0;
+  const processor = buildValidationFlowProcessor({ labels: labels });
+  processor.props = props;
+  processor.config.duplicateReplyGuardEnabled = true;
+  processor.config.duplicateReplyWindowSeconds = 900;
+  processor.gmailService.sendHtmlReply = () => { sendCalls++; };
+  processor.geminiService.shouldRespondToEmail = () => {
+    quickCheckCalls++;
+    return { shouldRespond: true, language: 'it', classification: { topic: 'orari' } };
+  };
+  processor.memoryService.getMemory = () => {
+    memoryReadCalls++;
+    return {};
+  };
+
+  const first = processor.processThread(createDuplicateGuardThread('duplicate-first'), 'kb valida', '', new Set(), true);
+  const second = processor.processThread(createDuplicateGuardThread('duplicate-second'), 'kb valida', '', new Set(), true);
+
+  assert(first.status === 'replied', `prima email identica deve essere risposta, ottenuto ${first.status}`);
+  assert(second.status === 'skipped', `seconda email identica deve essere soppressa, ottenuto ${second.status}`);
+  assert(second.reason === 'duplicate_already_replied', `reason duplicato inatteso: ${second.reason}`);
+  assert(second.duplicateOfMessageId === 'm-duplicate-first', 'deve indicare il messaggio già risposto');
+  assert(second.duplicateOfThreadId === 't-duplicate-first', 'deve indicare il thread già risposto');
+  assert(sendCalls === 1, `deve inviare una sola risposta, invii=${sendCalls}`);
+  assert(quickCheckCalls === 1, `il duplicato non deve raggiungere quick check, chiamate=${quickCheckCalls}`);
+  assert(memoryReadCalls === 1, `il duplicato non deve leggere la memoria, chiamate=${memoryReadCalls}`);
+  assert(labels.some((entry) => entry.id === 'm-duplicate-second' && entry.label === 'IA'), 'solo il messaggio duplicato corrente deve essere marcato IA');
+}
+
+console.log('--- Test duplicate guard: confronto conservativo, allegati esclusi e contenuti diversi distinti ---');
+{
+  const processor = new EmailProcessor({ gmailService: {} });
+  processor.config.duplicateReplyGuardEnabled = true;
+  processor.config.duplicateReplyWindowSeconds = 900;
+  const noAttachments = { getAttachments: () => [] };
+  const withAttachments = { getAttachments: () => [{ getName: () => 'documento.pdf' }] };
+  const unreadableAttachments = { getAttachments: () => { throw new Error('metadata non disponibile'); } };
+  const baseDetails = {
+    senderEmail: 'Utente+prova@gmail.com',
+    subject: 'Richiesta informazioni',
+    body: 'Buongiorno,\r\n  vorrei sapere gli orari.'
+  };
+  const equivalentDetails = {
+    senderEmail: 'utente@gmail.com',
+    subject: 'Richiesta   informazioni',
+    body: 'Buongiorno,\nvorrei sapere gli orari.'
+  };
+  const changedDetails = Object.assign({}, equivalentDetails, {
+    body: 'Buongiorno, vorrei sapere gli orari di dicembre.'
+  });
+
+  const first = processor._buildDuplicateReplyFingerprintContext_(noAttachments, baseDetails);
+  const equivalent = processor._buildDuplicateReplyFingerprintContext_(noAttachments, equivalentDetails);
+  const changed = processor._buildDuplicateReplyFingerprintContext_(noAttachments, changedDetails);
+  assert(first && equivalent && first.fingerprint === equivalent.fingerprint, 'sole differenze tecniche di spaziatura devono normalizzarsi');
+  assert(changed && first.fingerprint !== changed.fingerprint, 'una modifica del contenuto deve produrre un fingerprint diverso');
+  assert(processor._buildDuplicateReplyFingerprintContext_(withAttachments, baseDetails) === null, 'email con allegati deve restare esclusa dalla v1');
+  assert(processor._buildDuplicateReplyFingerprintContext_(unreadableAttachments, baseDetails) === null, 'errore lettura allegati deve fallire aperto');
+}
+
+console.log('--- Test duplicate guard: marker scaduto o corrotto non blocca ---');
+{
+  const props = createDuplicateGuardPropertyStore();
+  const processor = new EmailProcessor({ gmailService: {}, props: props });
+  processor.config.duplicateReplyGuardEnabled = true;
+  processor.config.duplicateReplyWindowSeconds = 900;
+  const context = processor._buildDuplicateReplyFingerprintContext_({ getAttachments: () => [] }, {
+    senderEmail: 'utente@example.com',
+    subject: 'Domanda',
+    body: 'Testo invariato'
+  });
+  const now = Date.now();
+  processor._recordConfirmedDuplicateReply_(context, 'm-old', 't-old', now - (901 * 1000));
+  assert(processor._findConfirmedDuplicateReply_(context, now).isDuplicate === false, 'marker oltre finestra non deve bloccare');
+  props.setProperty(context.propertyKey, '{marker-corrotto');
+  assert(processor._findConfirmedDuplicateReply_(context, now).isDuplicate === false, 'marker corrotto deve fallire aperto');
+  assert(!props.store.has(context.propertyKey), 'marker corrotto deve essere ripulito');
+}
+
 console.log('--- Test processThread: NO_REPLY non annulla reply_needed=true e usa il fallback ---');
 {
   let generationCalls = 0;
@@ -5623,6 +5734,7 @@ console.log('--- Test processThread: timeout invio promuove idempotenza a sent -
   const originalClassifyError = global.classifyError;
   let committed = false;
   let rolledBack = false;
+  let duplicateRecordCalls = 0;
   const labels = [];
 
   cacheStore.clear();
@@ -5689,12 +5801,14 @@ console.log('--- Test processThread: timeout invio promuove idempotenza a sent -
     });
     processor._commitSendTransaction = () => { committed = true; };
     processor._rollbackSendTransaction = () => { rolledBack = true; };
+    processor._recordConfirmedDuplicateReply_ = () => { duplicateRecordCalls++; };
 
-    const result = processor.processThread(createExternalThread('send-timeout'), 'kb valida', '', new Set(), true);
+    const result = processor.processThread(createDuplicateGuardThread('send-timeout'), 'kb valida', '', new Set(), true);
     assert(result.status === 'error', 'timeout invio deve restituire status error');
     assert(result.errorClass === 'NETWORK', `timeout invio deve essere classificato come NETWORK retryable, ottenuto ${result.errorClass}`);
     assert(committed === true, 'timeout/network deve promuovere la transazione a sent');
     assert(rolledBack === false, 'timeout/network non deve rimuovere il marker di invio');
+    assert(duplicateRecordCalls === 0, 'esito invio ambiguo non deve creare marker cross-message anti-duplicato');
     assert(labels.some(entry => entry.id === 'm-send-timeout' && entry.label === 'IA'), 'timeout/network ambiguo deve marcare il messaggio IA per evitare replay duplicati');
   } finally {
     global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;

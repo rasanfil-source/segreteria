@@ -179,6 +179,9 @@ var CONFIG = {
   EXECUTION_LOCK_WAIT_MS: 1000,      // Timeout acquisizione lock esecuzione (ms)
   SEARCH_PAGE_SIZE: 15,              // Buffer discovery per candidati message-level (≈ 5x MAX_EMAILS_PER_RUN)
   SENDER_THROTTLE_WINDOW_SECONDS: 60, // Previene burst simultanei su thread diversi dallo stesso sender
+  DUPLICATE_REPLY_GUARD_ENABLED: true, // Blocca copie identiche già risposte, prima di memoria e AI
+  DUPLICATE_REPLY_WINDOW_SECONDS: 900, // Finestra prudenziale: 15 minuti dall'invio confermato
+  DUPLICATE_REPLY_MAX_ENTRIES: 200,    // Limite marker persistenti per contenere ScriptProperties
   // === DISCOVERY MODE ======================================================================
   // Modalità di scoperta messaggi non letti da elaborare.
   // - 'metadata': default message-level (list INBOX/UNREAD + get(minimal) per labelIds)
@@ -488,6 +491,11 @@ function validateConfig() {
   checkRange('SAFETY_VALVE_THRESHOLD', CONFIG.SAFETY_VALVE_THRESHOLD, 0.5, 0.99);
   checkType('SENDER_THROTTLE_WINDOW_SECONDS', CONFIG.SENDER_THROTTLE_WINDOW_SECONDS, 'number');
   checkRange('SENDER_THROTTLE_WINDOW_SECONDS', CONFIG.SENDER_THROTTLE_WINDOW_SECONDS, 0, 86400);
+  checkType('DUPLICATE_REPLY_GUARD_ENABLED', CONFIG.DUPLICATE_REPLY_GUARD_ENABLED, 'boolean');
+  checkType('DUPLICATE_REPLY_WINDOW_SECONDS', CONFIG.DUPLICATE_REPLY_WINDOW_SECONDS, 'number');
+  checkRange('DUPLICATE_REPLY_WINDOW_SECONDS', CONFIG.DUPLICATE_REPLY_WINDOW_SECONDS, 0, 86400);
+  checkType('DUPLICATE_REPLY_MAX_ENTRIES', CONFIG.DUPLICATE_REPLY_MAX_ENTRIES, 'number');
+  checkRange('DUPLICATE_REPLY_MAX_ENTRIES', CONFIG.DUPLICATE_REPLY_MAX_ENTRIES, 1, 1000);
   checkType('GMAIL_LABEL_LOOKBACK_DAYS', CONFIG.GMAIL_LABEL_LOOKBACK_DAYS, 'number');
   checkRange('GMAIL_LABEL_LOOKBACK_DAYS', CONFIG.GMAIL_LABEL_LOOKBACK_DAYS, 0, 3650);
   checkType('BATCH_CHECKPOINT_MAX_RETRIES', CONFIG.BATCH_CHECKPOINT_MAX_RETRIES, 'number');

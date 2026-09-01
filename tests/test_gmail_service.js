@@ -97,6 +97,45 @@ console.log('--- Test _htmlToPlainText conserva href degli anchor ---');
   assert(text.includes('Link (https://drive.google.com/xyz)'), 'href degli anchor deve restare disponibile nel testo plain');
 }
 
+console.log('--- Test extractMessageDetails espone presenza allegati dai metadati senza scaricarli ---');
+{
+  const makeMessage = (id) => ({
+    getId: () => id,
+    getSubject: () => 'Documento',
+    getFrom: () => 'Utente <utente@example.com>',
+    getDate: () => new Date('2026-09-01T10:00:00Z'),
+    getPlainBody: () => 'In allegato.',
+    getBody: () => '<p>In allegato.</p>',
+    getReplyTo: () => '',
+    getTo: () => 'bot@example.com',
+    getCc: () => ''
+  });
+  const service = new GmailService();
+  service._getMessageMetadataWithResilience = (id) => ({
+    sizeEstimate: 1234,
+    payload: id === 'with-attachment'
+      ? {
+        mimeType: 'multipart/mixed',
+        headers: [{ name: 'Message-ID', value: '<with-attachment@example.com>' }],
+        parts: [
+          { mimeType: 'text/plain', filename: '', headers: [] },
+          { mimeType: 'application/pdf', filename: 'documento.pdf', headers: [] }
+        ]
+      }
+      : {
+        mimeType: 'text/plain',
+        filename: '',
+        headers: [{ name: 'Message-ID', value: '<plain@example.com>' }]
+      }
+  });
+
+  const withAttachment = service.extractMessageDetails(makeMessage('with-attachment'));
+  const withoutAttachment = service.extractMessageDetails(makeMessage('plain'));
+  assert(withAttachment.hasAttachments === true, 'filename allegato nei metadati deve impostare hasAttachments=true');
+  assert(withoutAttachment.hasAttachments === false, 'payload semplice deve impostare hasAttachments=false');
+  assert(withAttachment.sizeEstimate === 1234, 'sizeEstimate deve essere propagato dai metadati già letti');
+}
+
 console.log('--- Test addLabelToMessage non degrada a label thread-level ---');
 {
   const service = Object.create(GmailService.prototype);

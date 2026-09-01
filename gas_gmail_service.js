@@ -1378,6 +1378,8 @@ var GmailService = class GmailService {
         let existingReferences = null;
         let isNewsletter = false;
         let headersFound = false;
+        let sizeEstimate = null;
+        let hasAttachments = null;
         const headers = {};
         try {
             const rawMessage = this._getMessageMetadataWithResilience(messageId, {
@@ -1396,6 +1398,30 @@ var GmailService = class GmailService {
             });
             if (!rawMessage) {
                 throw new Error('Recupero metadati (headers) fallito: impossibile garantire il threading della conversazione');
+            }
+            const rawSizeEstimate = Number(rawMessage && rawMessage.sizeEstimate);
+            sizeEstimate = Number.isFinite(rawSizeEstimate) && rawSizeEstimate >= 0
+                ? rawSizeEstimate
+                : null;
+            const payload = rawMessage && rawMessage.payload ? rawMessage.payload : null;
+            if (payload) {
+                const payloadMimeType = String(payload.mimeType || '').toLowerCase();
+                const payloadParts = Array.isArray(payload.parts) ? payload.parts : null;
+                const partHasAttachment = (part) => {
+                    if (!part || typeof part !== 'object') return false;
+                    if (String(part.filename || '').trim()) return true;
+                    const partHeaders = Array.isArray(part.headers) ? part.headers : [];
+                    const disposition = partHeaders.find((header) =>
+                        header && String(header.name || '').toLowerCase() === 'content-disposition'
+                    );
+                    if (disposition && /\battachment\b/i.test(String(disposition.value || ''))) return true;
+                    return Array.isArray(part.parts) && part.parts.some(partHasAttachment);
+                };
+                if (!payloadMimeType.startsWith('multipart/')) {
+                    hasAttachments = Boolean(String(payload.filename || '').trim());
+                } else if (payloadParts) {
+                    hasAttachments = payloadParts.some(partHasAttachment);
+                }
             }
             if (rawMessage && rawMessage.payload && rawMessage.payload.headers) {
                 headersFound = true;
@@ -1503,7 +1529,9 @@ var GmailService = class GmailService {
             recipientCc: recipientCc,
             headers: headers,
             headersFound: headersFound,
-            isNewsletter: isNewsletter
+            isNewsletter: isNewsletter,
+            sizeEstimate: sizeEstimate,
+            hasAttachments: hasAttachments
         };
     }
 

@@ -112,7 +112,16 @@ var EmailProcessor = class EmailProcessor {
         : 50,
       documentConsistencyCheckEnabled: typeof CONFIG !== 'undefined' && typeof CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED === 'boolean'
         ? CONFIG.DOCUMENT_CONSISTENCY_CHECK_ENABLED
-        : true
+        : true,
+      duplicateReplyGuardEnabled: typeof CONFIG !== 'undefined' && typeof CONFIG.DUPLICATE_REPLY_GUARD_ENABLED === 'boolean'
+        ? CONFIG.DUPLICATE_REPLY_GUARD_ENABLED
+        : true,
+      duplicateReplyWindowSeconds: typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.DUPLICATE_REPLY_WINDOW_SECONDS))
+        ? Math.max(0, Number(CONFIG.DUPLICATE_REPLY_WINDOW_SECONDS))
+        : 900,
+      duplicateReplyMaxEntries: typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.DUPLICATE_REPLY_MAX_ENTRIES))
+        ? Math.max(1, Math.min(1000, Math.floor(Number(CONFIG.DUPLICATE_REPLY_MAX_ENTRIES))))
+        : 200
     };
 
     this.logger.info('EmailProcessor inizializzato', {
@@ -832,6 +841,7 @@ var EmailProcessor = class EmailProcessor {
 
     let candidate = null;
     let replySent = false;
+    let duplicateReplyFingerprintContext = null;
     let externalUnread = [];
     let responseContextMessageIds = new Set();
     let responseContextMessages = [];
@@ -1281,6 +1291,34 @@ var EmailProcessor = class EmailProcessor {
       const messageDetails = this.gmailService.extractMessageDetails(candidate);
       console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
       console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
+
+      // Guardia deterministica anti-duplicato: usa soltanto l'input originale
+      // del singolo messaggio e interviene prima di memoria, quick check e AI.
+      // I burst e i messaggi con allegati restano esclusi per evitare falsi positivi.
+      if (externalUnread.length === 1) {
+        duplicateReplyFingerprintContext = this._buildDuplicateReplyFingerprintContext_(candidate, messageDetails);
+        const duplicateReplyDecision = this._findConfirmedDuplicateReply_(duplicateReplyFingerprintContext);
+        if (duplicateReplyDecision.isDuplicate) {
+          const currentMessageId = candidate.getId();
+          const ageSeconds = Math.max(0, Math.floor(duplicateReplyDecision.ageMs / 1000));
+          threadLogger.info('Risposta duplicata soppressa', {
+            event: 'duplicate_already_replied',
+            currentMessageId: currentMessageId,
+            currentThreadId: threadId,
+            previousMessageId: duplicateReplyDecision.previousMessageId,
+            previousThreadId: duplicateReplyDecision.previousThreadId,
+            ageSeconds: ageSeconds
+          });
+          this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
+          result.status = 'skipped';
+          result.reason = 'duplicate_already_replied';
+          result.duplicateOfMessageId = duplicateReplyDecision.previousMessageId;
+          result.duplicateOfThreadId = duplicateReplyDecision.previousThreadId;
+          result.duplicateAgeSeconds = ageSeconds;
+          result.durationMs = Date.now() - startTime;
+          return result;
+        }
+      }
 
       // CRITICO: Ricostruzione del contesto in caso di burst (più email non lette dallo stesso utente).
       // Evita che un'email finale breve (es. "Grazie") faccia scartare le vere domande precedenti.
@@ -3439,6 +3477,11 @@ ${addressLines.join('\n\n')}
       try {
         this.gmailService.sendHtmlReply(candidate, response, messageDetails);
         this._commitSendTransaction(candidate.getId(), sendTxn);
+        this._recordConfirmedDuplicateReply_(
+          duplicateReplyFingerprintContext,
+          candidate.getId(),
+          threadId
+        );
         replySent = true;
       } catch (e) {
         const errorMessage = e && e.message ? e.message : String(e);
@@ -4814,6 +4857,194 @@ ${addressLines.join('\n\n')}
   // Il lock di idempotenza invio protegge il check-then-act su cache
   // (sentKey/sendingKey). Se il chiamante possiede già lo ScriptLock, evita
   // una riacquisizione non reentrant ma mantiene comunque le chiavi cache.
+  _normalizeDuplicateReplyText_(value) {
+    let normalized = String(value === null || value === undefined ? '' : value);
+    try {
+      normalized = normalized.normalize('NFC');
+    } catch (_) { }
+    return normalized
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      .replace(/\r\n?/g, '\n')
+      .replace(/[\t\f\v ]+/g, ' ')
+      .replace(/ *\n */g, '\n')
+      .replace(/\n+/g, '\n')
+      .trim();
+  }
+
+  _hashDuplicateReplyPayload_(payload) {
+    const input = String(payload || '');
+    if (typeof Utilities !== 'undefined' && Utilities &&
+      Utilities.DigestAlgorithm && Utilities.DigestAlgorithm.SHA_256 &&
+      typeof Utilities.computeDigest === 'function') {
+      try {
+        const charset = Utilities.Charset && Utilities.Charset.UTF_8
+          ? Utilities.Charset.UTF_8
+          : undefined;
+        const digest = charset
+          ? Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input, charset)
+          : Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input);
+        return digest.map((byte) => ((byte + 256) % 256).toString(16).padStart(2, '0')).join('');
+      } catch (e) {
+        console.warn(`  SHA-256 anti-duplicato non disponibile, uso fallback deterministico: ${e.message}`);
+      }
+    }
+
+    // Fallback soltanto per runtime senza Utilities (test locali). Quattro FNV-1a
+    // indipendenti mantengono la chiave compatta; in GAS viene sempre usato SHA-256.
+    const seeds = [0x811c9dc5, 0x9e3779b9, 0x85ebca6b, 0xc2b2ae35];
+    return seeds.map((seed, seedIndex) => {
+      let hash = seed >>> 0;
+      for (let i = 0; i < input.length; i++) {
+        hash ^= (input.charCodeAt(i) + seedIndex) & 0xffff;
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+      }
+      return hash.toString(16).padStart(8, '0');
+    }).join('');
+  }
+
+  _buildDuplicateReplyFingerprintContext_(message, messageDetails = {}) {
+    if (!this.config.duplicateReplyGuardEnabled || this.config.duplicateReplyWindowSeconds <= 0) return null;
+
+    // La v1 non confronta messaggi con allegati: lo stesso testo può accompagnare
+    // documenti diversi. In caso di errore di lettura si procede (fail-open).
+    if (!message) return null;
+    if (messageDetails.hasAttachments === true) return null;
+    const attachmentSettings = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.ATTACHMENT_CONTEXT)
+      ? CONFIG.ATTACHMENT_CONTEXT
+      : {};
+    const maxAttachmentMessageBytes = this._getAttachmentDownloadLimitBytes_(attachmentSettings);
+    let sizeEstimate = Number(messageDetails.sizeEstimate);
+    if (!Number.isFinite(sizeEstimate) || sizeEstimate < 0) {
+      sizeEstimate = this._getMessageSizeEstimateForAttachmentDownload_(message, null);
+    }
+    if (Number.isFinite(sizeEstimate) && sizeEstimate > maxAttachmentMessageBytes) return null;
+    if (messageDetails.hasAttachments !== false) {
+      if (typeof message.getAttachments !== 'function') return null;
+      try {
+        const attachments = message.getAttachments({ includeInlineImages: false, includeAttachments: true }) || [];
+        if (attachments.length > 0) return null;
+      } catch (e) {
+        console.warn(`  Guardia anti-duplicato non applicata: allegati non verificabili (${e.message})`);
+        return null;
+      }
+    }
+
+    const sender = this._normalizeConversationEmailAddress_(messageDetails.senderEmail || messageDetails.sender || '');
+    const subject = this._normalizeDuplicateReplyText_(messageDetails.subject || '');
+    const body = this._normalizeDuplicateReplyText_(messageDetails.body || '');
+    if (!sender || (!subject && !body)) return null;
+
+    const payload = [
+      'duplicate-reply-v1',
+      `${sender.length}:${sender}`,
+      `${subject.length}:${subject}`,
+      `${body.length}:${body}`
+    ].join('|');
+    const fingerprint = this._hashDuplicateReplyPayload_(payload);
+    return {
+      fingerprint: fingerprint,
+      propertyKey: `duplicate_reply_v1_${fingerprint}`
+    };
+  }
+
+  _findConfirmedDuplicateReply_(fingerprintContext, nowTs = Date.now()) {
+    const noDuplicate = { isDuplicate: false };
+    if (!fingerprintContext || !fingerprintContext.propertyKey) return noDuplicate;
+    if (!this.props || typeof this.props.getProperty !== 'function') return noDuplicate;
+
+    let rawMarker = '';
+    try {
+      rawMarker = this.props.getProperty(fingerprintContext.propertyKey) || '';
+    } catch (e) {
+      console.warn(`  Guardia anti-duplicato non disponibile in lettura: ${e.message}`);
+      return noDuplicate;
+    }
+    if (!rawMarker) return noDuplicate;
+
+    let marker = null;
+    try {
+      marker = JSON.parse(rawMarker);
+    } catch (_) { }
+    const sentAt = marker && Number(marker.sentAt);
+    const fingerprintMatches = marker && marker.fingerprint === fingerprintContext.fingerprint;
+    const ageMs = Number(nowTs) - sentAt;
+    const windowMs = this.config.duplicateReplyWindowSeconds * 1000;
+    const validMarker = fingerprintMatches && Number.isFinite(sentAt) && ageMs >= -60000 && ageMs <= windowMs;
+
+    if (!validMarker) {
+      if (typeof this.props.deleteProperty === 'function') {
+        try { this.props.deleteProperty(fingerprintContext.propertyKey); } catch (_) { }
+      }
+      return noDuplicate;
+    }
+
+    return {
+      isDuplicate: true,
+      previousMessageId: marker.messageId || null,
+      previousThreadId: marker.threadId || null,
+      sentAt: sentAt,
+      ageMs: Math.max(0, ageMs)
+    };
+  }
+
+  _pruneDuplicateReplyMarkers_(nowTs = Date.now()) {
+    if (!this.props || typeof this.props.getProperties !== 'function' ||
+      typeof this.props.deleteProperty !== 'function') return;
+
+    let allProps = {};
+    try {
+      allProps = this.props.getProperties() || {};
+    } catch (e) {
+      console.warn(`  Impossibile potare marker anti-duplicato: ${e.message}`);
+      return;
+    }
+
+    const prefix = 'duplicate_reply_v1_';
+    const windowMs = this.config.duplicateReplyWindowSeconds * 1000;
+    const active = [];
+    Object.keys(allProps).forEach((key) => {
+      if (!key.startsWith(prefix)) return;
+      let marker = null;
+      try { marker = JSON.parse(allProps[key]); } catch (_) { }
+      const sentAt = marker && Number(marker.sentAt);
+      if (!Number.isFinite(sentAt) || nowTs - sentAt > windowMs || nowTs - sentAt < -60000) {
+        try { this.props.deleteProperty(key); } catch (_) { }
+        return;
+      }
+      active.push({ key: key, sentAt: sentAt });
+    });
+
+    active.sort((a, b) => a.sentAt - b.sentAt);
+    const entriesToRemove = Math.max(0, active.length - this.config.duplicateReplyMaxEntries + 1);
+    for (let i = 0; i < entriesToRemove; i++) {
+      try { this.props.deleteProperty(active[i].key); } catch (_) { }
+    }
+  }
+
+  _recordConfirmedDuplicateReply_(fingerprintContext, messageId, threadId, nowTs = Date.now()) {
+    if (!fingerprintContext || !fingerprintContext.propertyKey || !messageId) return false;
+    if (!this.props || typeof this.props.setProperty !== 'function') {
+      console.warn('  Marker anti-duplicato non salvato: ScriptProperties non disponibile');
+      return false;
+    }
+
+    try {
+      this._pruneDuplicateReplyMarkers_(nowTs);
+      this.props.setProperty(fingerprintContext.propertyKey, JSON.stringify({
+        version: 1,
+        fingerprint: fingerprintContext.fingerprint,
+        sentAt: Number(nowTs),
+        messageId: String(messageId),
+        threadId: threadId ? String(threadId) : null
+      }));
+      return true;
+    } catch (e) {
+      // L'invio è già avvenuto: il mancato marker non deve trasformarlo in errore.
+      console.warn(`  Marker anti-duplicato non salvato dopo invio confermato: ${e.message}`);
+      return false;
+    }
+  }
+
   _getSendIdempotencyBackupTtlMs_() {
     const configured = (typeof CONFIG !== 'undefined' && CONFIG && Number.isFinite(Number(CONFIG.SEND_IDEMPOTENCY_BACKUP_TTL_MS)))
       ? Number(CONFIG.SEND_IDEMPOTENCY_BACKUP_TTL_MS)
