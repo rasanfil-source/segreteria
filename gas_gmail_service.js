@@ -797,6 +797,28 @@ var GmailService = class GmailService {
      * Discovery message-level: lista solo messaggi INBOX/UNREAD e scarta quelli già
      * chiusi da label terminali applicate al singolo messaggio.
      */
+    _readDiscoveryCursor_(mode, signature) {
+        try {
+            const props = typeof PropertiesService !== 'undefined' ? PropertiesService.getScriptProperties() : null;
+            const raw = props ? props.getProperty(`gmail_discovery_cursor_${mode}`) : null;
+            const cursor = raw ? JSON.parse(raw) : null;
+            return cursor && cursor.signature === signature && Date.now() - cursor.savedAt < 86400000
+                ? cursor : {};
+        } catch (_) { return {}; }
+    }
+
+    _writeDiscoveryCursor_(mode, signature, cursor) {
+        try {
+            if (typeof PropertiesService === 'undefined') return;
+            const props = PropertiesService.getScriptProperties();
+            props.setProperty(`gmail_discovery_cursor_${mode}`, JSON.stringify({
+                ...cursor, signature, savedAt: Date.now()
+            }));
+        } catch (error) {
+            console.warn(`Impossibile salvare avanzamento discovery: ${error.message}`);
+        }
+    }
+
     _discoverByMetadata(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null, options = {}) {
         const discoveryOptions = (options && typeof options === 'object') ? options : {};
         const processedLabelId = this._getOptionalLabelIdByName(labelName);
@@ -827,7 +849,12 @@ var GmailService = class GmailService {
         const unavailableThreadIds = new Set();
         const seenMessageIds = new Set();
         const threads = [];
-        let pageToken;
+        // Riprende anche pagine parziali: il limite metadata può essere inferiore
+        // alla dimensione pagina. Alla fine della scansione torna ai messaggi nuovi.
+        const cursorSignature = JSON.stringify([labelName, errorLabel, validationLabel, skipLabels, safeMessageBuffer,
+            Number.isFinite(this._getFiniteOptionNumber_(options, 'staleOnlyMs'))]);
+        let cursor = this._readDiscoveryCursor_('metadata', cursorSignature);
+        let pageToken = cursor.pageToken || undefined;
         let page = 0;
         let metadataGets = 0;
         let metadataLimitReached = false;
@@ -857,6 +884,9 @@ var GmailService = class GmailService {
                     if (listError && String(listError.message || '').includes('GMAIL_DAILY_CALL_LIMIT_REACHED')) {
                         throw listError;
                     }
+                    if (pageToken && /invalid.*(page|token)|page.*token.*invalid/i.test(String(listError.message || ''))) {
+                        this._writeDiscoveryCursor_('metadata', cursorSignature, {});
+                    }
                     console.error(`❌ [metadata] Interruzione discovery per list non recuperabile: ${listError.message}`);
                     break;
                 }
@@ -869,7 +899,10 @@ var GmailService = class GmailService {
                     ensureRamBlacklistLoaded();
                 }
 
-                for (const msg of messages) {
+                // Un ancoraggio per ID evita offset errati se la pagina cambia.
+                let messageIndex = cursor.afterId ? messages.findIndex(msg => msg && msg.id === cursor.afterId) + 1 : 0;
+                for (; messageIndex < messages.length; messageIndex++) {
+                    const msg = messages[messageIndex];
                     if (!msg || !msg.id || !msg.threadId || seenThreadIds.has(msg.threadId) || unavailableThreadIds.has(msg.threadId)) continue;
                     if (blacklistMessageIds && blacklistMessageIds.has(msg.id)) continue;
                     if (skipBlacklistMessageIds && skipBlacklistMessageIds.has(msg.id)) continue;
@@ -930,9 +963,16 @@ var GmailService = class GmailService {
                     seenMessageIds.add(msg.id);
                     threads.push(thread);
                     addedInPage++;
-                    if (seenThreadIds.size >= safeTargetThreads) break;
+                    if (seenThreadIds.size >= safeTargetThreads) {
+                        messageIndex++;
+                        break;
+                    }
                 }
 
+                cursor = messageIndex < messages.length
+                    ? { pageToken: pageToken || null, afterId: messageIndex > 0 ? messages[messageIndex - 1].id : null }
+                    : { pageToken: response.nextPageToken || null };
+                this._writeDiscoveryCursor_('metadata', cursorSignature, cursor);
                 console.log(`📬 [metadata] Pagina ${page}: ${addedInPage} thread aggiunto/i dopo filtro label`);
                 if (metadataLimitReached) {
                     console.warn(`⚠️ [metadata] Limite fallback metadata raggiunto (${metadataGets}/${maxMetadataGets} messages.get); proseguo con i thread già raccolti.`);
@@ -973,9 +1013,13 @@ var GmailService = class GmailService {
             // safeMessageBuffer e safeMaxPages non paginano direttamente GmailApp.search:
             // dimensionano la profondita' del pool da cui estrarre candidati non letti.
             const discoveryPool = Math.min(500, Math.max(safeTargetThreads, safeMessageBuffer * safeMaxPages));
+            const cursorSignature = JSON.stringify([labelName, errorLabel, validationLabel, skipLabel,
+                Number.isFinite(this._getFiniteOptionNumber_(options, 'staleOnlyMs'))]);
+            const cursor = this._readDiscoveryCursor_('query', cursorSignature);
+            const searchOffset = Number.isInteger(cursor.offset) && cursor.offset > 0 ? cursor.offset : 0;
             let searchResult = [];
             try {
-                searchResult = GmailApp.search(query, 0, discoveryPool);
+                searchResult = GmailApp.search(query, searchOffset, discoveryPool);
             } catch (searchError) {
                 console.error(`❌ _discoverByQuery: GmailApp.search fallita: ${searchError.message}`);
                 const metadataFallback = this._fallbackToMetadataDiscoveryFromQuery_(
@@ -1007,7 +1051,9 @@ var GmailService = class GmailService {
             console.log(`📬 [query] GmailApp.search ha trovato ${nativeThreads.length} thread candidati (pool=${discoveryPool})`);
 
             let skippedNoUnread = 0;
+            let visitedThreads = 0;
             for (const thread of nativeThreads) {
+                visitedThreads++;
                 if (!thread) continue;
                 const threadId = thread.getId();
                 if (seenThreadIds.has(threadId)) continue;
@@ -1030,6 +1076,11 @@ var GmailService = class GmailService {
 
                 if (threads.length >= safeTargetThreads) break;
             }
+
+            this._writeDiscoveryCursor_('query', cursorSignature, {
+                offset: visitedThreads === nativeThreads.length && nativeThreads.length < discoveryPool
+                    ? 0 : searchOffset + visitedThreads
+            });
 
             if (threads.length === 0 && nativeThreads.length > 0 && !(options && options.disableMetadataFallback)) {
                 const metadataFallback = this._fallbackToMetadataDiscoveryFromQuery_(
@@ -3112,10 +3163,15 @@ var GmailService = class GmailService {
     sendHtmlReply(resource, responseText, messageDetails = {}) {
         const finalResponse = responseText == null ? '' : String(responseText);
         const isAmbiguousSendError = (error) => {
+            if (typeof classifyError === 'function') {
+                const classification = classifyError(error);
+                if (classification.type === 'NETWORK' || classification.type === 'TIMEOUT') return true;
+            }
             const msg = String((error && error.message) || error || '').toLowerCase();
             return msg.includes('timeout') ||
                 msg.includes('deadline') ||
                 msg.includes('network') ||
+                msg.includes('service unavailable') ||
                 msg.includes('connection reset') ||
                 msg.includes('econnreset') ||
                 msg.includes('backend error') ||

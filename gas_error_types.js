@@ -67,6 +67,8 @@ function classifyError(error) {
     // Manteniamo priorità alla classificazione NETWORK per evitare falsi positivi QUOTA_EXCEEDED.
     if (message.includes('rete/server') || message.includes('network') ||
         message.includes('service unavailable') ||
+        message.includes('backend error') || message.includes('internal error') ||
+        message.includes('connection reset') ||
         /\b(500|502|503|504)\b/.test(message)) {
         return { type: ErrorTypes.NETWORK, retryable: true, message: rawMessage };
     }
