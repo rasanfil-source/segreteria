@@ -3611,10 +3611,7 @@ ${safeEmailContent}
   // ========================================================================
 
   _renderResponseQualityContract() {
-    return `Tra completezza e misura, la misura ha precedenza.
-Una risposta che copre il 90% con tre frasi
-vale più di una risposta esaustiva che annacqua
-il punto centrale.
+    return `La misura consiste nel risolvere i dubbi effettivamente sollevati con il minor testo necessario. Collega esplicitamente i fatti disponibili alle domande dell’utente, senza lasciargli dedurre la risposta; limita i dettagli accessori e circoscrivi ciò che resta da verificare.
 
 **PRINCIPIO DI PERTINENZA E MISURA**
 
