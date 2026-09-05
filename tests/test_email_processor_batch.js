@@ -6471,4 +6471,50 @@ console.log('--- Test EmailProcessor: sbattezzo indiretto e contextualFlags oper
   assert(preservedFlags.canonical_complexity === true, 'canonical_complexity storico deve essere preservato');
 }
 
+console.log('--- Test presenza/strategia: due turni, persistenza e numero chiamate invariato ---');
+{
+  const memoryVm = {console, CONFIG: {}};
+  vm.createContext(memoryVm);
+  for (const file of ['gas_response_strategy.js', 'gas_memory_service.js']) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), memoryVm);
+  }
+  const memory = vm.runInContext('Object.create(MemoryService.prototype)', memoryVm);
+  for (const [posture, expected] of [['urgent','reduce_user_effort'], ['hesitant','clarify_requirements'],
+    ['appreciative','offer_reassurance'], ['direct','provide_information']]) {
+    const now = new Date().toISOString();
+    let saved = {contextualFlags:{remote_user:true,bereaved:true,canonical_complexity:true},
+      conversationState:{physicalPresenceState:{version:1,constraints:[{type:'geographic_distance',status:'active',updatedAt:now}]}}};
+    const processor = buildValidationFlowProcessor();
+    const extract = processor.gmailService.extractMessageDetails;
+    let turn = 0, quickCalls = 0, generationCalls = 0, memoryWrites = 0;
+    const prompts = [];
+    processor.gmailService.extractMessageDetails = () => ({...extract(), body:turn===0?'Ora sono a Roma. Vorrei gli orari.':'Vorrei anche gli orari di sabato.'});
+    processor.geminiService.shouldRespondToEmail = () => {
+      quickCalls++;
+      return {shouldRespond:true,language:'it',classification:{topic:'orari'},relational_posture:posture,
+        physical_presence_constraint:{has_constraint:false,type:'none',confidence:0.95},response_strategy:'none'};
+    };
+    processor.geminiService.generateResponse = () => { generationCalls++; return {success:true,text:'Gli orari sono disponibili in segreteria.'}; };
+    processor.memoryService.getMemory = () => saved;
+    processor.memoryService.updateMemoryAtomic = (_id, update, topics) => {
+      memoryWrites++;
+      const summary = memory._serializeMemorySummaryState(saved._rawMemorySummary || '', update.memorySummary,
+        update.conversationStateUpdate);
+      saved = memory._rowToObject(['t','it','info','standard',JSON.stringify(topics || []),now,turn+1,turn+1,
+        summary,JSON.stringify(memory._mergeContextualFlags_(saved.contextualFlags,update.contextualFlags))]);
+      return true;
+    };
+    processor.promptEngine.buildPrompt = options => {prompts.push(options); return 'PROMPT LOCALE';};
+    for (turn=0; turn<2; turn++) {
+      const result = processor.processThread(createExternalThread(`presence-${posture}-${turn}`),'kb valida','',new Set(),true);
+      assert(result.status==='replied', `turno ${turn} ${posture}: ${result.status}`);
+    }
+    assert(quickCalls===2 && generationCalls===2, 'una classificazione e una generazione per messaggio');
+    assert(memoryWrites===2, 'entrambi i turni devono aggiornare memoria');
+    assert(prompts.every(p=>p.physicalPresenceConstraint.has_constraint===false), 'la distanza risolta non deve riapparire');
+    assert(prompts.every(p=>p.responseStrategy===expected), `${posture}: fallback atteso ${expected}`);
+    assert(saved.contextualFlags.bereaved && saved.contextualFlags.canonical_complexity, 'flag sensibili preservati');
+    assert(saved.contextualFlags.remote_user!==true, 'flag distanza rimosso dopo persistenza');
+  }
+}
 console.log('✅ Test batch EmailProcessor passati');

@@ -389,9 +389,9 @@ var PromptContext = class PromptContext {
             i.memory?.exists ||
             (i.conversation?.messageCount ?? 0) > 1
         );
-        const hasPhysicalPresenceConstraint =
-            !!(i.physicalPresenceConstraint && i.physicalPresenceConstraint.has_constraint) ||
-            contextualFlags.remote_user === true;
+        const hasPhysicalPresenceConstraint = i.physicalPresenceConstraint && i.physicalPresenceConstraint.reconciled
+            ? i.physicalPresenceConstraint.has_constraint === true
+            : !!(i.physicalPresenceConstraint && i.physicalPresenceConstraint.has_constraint) || contextualFlags.remote_user === true;
         const calibrationSignalCount = [
             isMultiQuestion,
             bodyLength > 450,

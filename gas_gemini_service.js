@@ -762,11 +762,9 @@ COMPITI:
    - Espressioni come "richiedo", "potete preparare", "verro a ritirare", "ho gia avviato la pratica" o "desidero prenotare", accompagnate dai dati necessari, indicano una richiesta operativa anche se formulate cortesemente.
    - Fornisci anche request_purpose_confidence (0.0-1.0).
 11. Determina physical_presence_constraint:
-   - Rileva se il mittente manifesta che raggiungere fisicamente la parrocchia/segreteria e' difficile, impossibile o non ragionevole.
-   - TRUE se vive/lavora lontano da Roma, e' all'estero, chiede percorsi a distanza, dice che non puo' venire, e' ricoverato/malato/convalescente, anziano con difficolta' di movimento, caregiver con vincoli familiari forti, deve allattare o ha neonati, e' agli arresti domiciliari o ha limitazioni legali.
-   - FALSE se il mittente chiede esplicitamente di passare/venire, propone una visita, oppure non fornisce alcun vincolo personale.
-   - FALSE per la sola residenza o il solo indirizzo lontano quando il mittente dichiara di trovarsi giÃ  a Roma, di essere in visita/vacanza a Roma o di partecipare localmente all'evento imminente. Un vincolo distinto di salute, mobilitÃ  o accessibilitÃ  resta invece valido.
-   - Non considerare vincolo un luogo citato solo come riferimento non personale.
+   - TRUE per impedimenti personali attuali: distanza da Roma, salute, mobilita, assistenza familiare, restrizioni legali, indisponibilita temporanea o richiesta di gestione remota.
+   - Senza nuovi elementi usa FALSE e visit_policy="unknown": il silenzio non dimostra che un vecchio impedimento sia risolto. Se dichiara disponibilita attuale, riportane l'evidenza senza dedurre guarigioni o altri cambiamenti.
+   - Essere gia a Roma supera la sola distanza, non impedimenti indipendenti di salute o mobilita. Distingui fatti attuali, disponibilita futura, ipotesi, citazioni e luoghi non riferiti al mittente.
    - type deve essere uno tra: "geographic_distance", "health", "mobility", "caregiving", "legal_restriction", "temporary_unavailability", "remote_request", "other", "none".
    - visit_policy deve essere:
      "conditional_only" quando la presenza fisica puo' essere menzionata solo in modo ipotetico e rispettoso, formulato nella lingua dell'email;

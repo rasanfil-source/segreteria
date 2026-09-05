@@ -1792,26 +1792,14 @@ var EmailProcessor = class EmailProcessor {
         console.log(`   📎 QuickCheck document delivery: documento atteso via ${quickDocumentDelivery.delivery_channel || 'unclear'} (${quickDocumentDelivery.reason || quickDocumentDelivery.expected_document_description || 'segnale documentale'})`);
       }
 
-      let physicalPresenceConstraint = this._resolvePhysicalPresenceConstraint_(
+      const processingTimestamp = new Date();
+      const physicalPresenceConstraint = this._reconcilePhysicalPresenceConstraint_(
         quickCheck.physical_presence_constraint,
         messageDetails.subject,
-        messageDetails.body
+        messageDetails.body,
+        memoryContext,
+        processingTimestamp
       );
-      if (
-        (!physicalPresenceConstraint || !physicalPresenceConstraint.has_constraint) &&
-        (!physicalPresenceConstraint || physicalPresenceConstraint.source !== 'current_local_presence_override') &&
-        memoryContextualFlags.remote_user === true
-      ) {
-        physicalPresenceConstraint = {
-          has_constraint: true,
-          type: 'geographic_distance',
-          confidence: 0.7,
-          evidence: 'vincolo di distanza salvato nella memoria del thread',
-          reason: 'remote_user_contextual_flag',
-          visit_policy: 'conditional_only',
-          source: 'memory_contextual_flags'
-        };
-      }
       if (physicalPresenceConstraint && physicalPresenceConstraint.has_constraint) {
         console.log(
           `   Vincolo presenza fisica rilevato (${physicalPresenceConstraint.type}, ` +
@@ -1881,7 +1869,6 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       // STEP 6.6: CALCOLO DINAMICO SALUTO E RITARDO
       // ====================================================================
-      const processingTimestamp = new Date();
 
       const salutationMode = computeSalutationMode({
         isReply: isReplyBySubject || messages.length > 1,
@@ -2657,19 +2644,10 @@ ${addressLines.join('\n\n')}
       const responseFocusHintState = memoryContext && memoryContext.conversationState
         ? memoryContext.conversationState
         : null;
-      const promptEngineSettings = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && typeof CONFIG.PROMPT_ENGINE === 'object')
-        ? CONFIG.PROMPT_ENGINE
-        : {};
-      const configuredResponseFocusMinConfidence = Number(promptEngineSettings.RESPONSE_FOCUS_MIN_CONFIDENCE);
-      const responseFocusMinConfidence = Number.isFinite(configuredResponseFocusMinConfidence)
-        ? Math.max(0, Math.min(1, configuredResponseFocusMinConfidence))
-        : 0.65;
-      const responseFocusHintConfidence = Number(responseFocusHintState && responseFocusHintState.responseFocusHintConfidence);
-      const hasResponseFocusHintSignalForResponseStrategy = Boolean(
-        responseFocusHintState &&
-        responseFocusHintState.responseFocusHint &&
-        Number.isFinite(responseFocusHintConfidence) &&
-        responseFocusHintConfidence >= responseFocusMinConfidence
+      const hasResponseFocusHintSignalForResponseStrategy = isResponseFocusApplicable_(
+        responseFocusHintState,
+        quickCheck.classification ? quickCheck.classification.topic : '',
+        processingTimestamp
       );
       const categoryBlocksPostureStrategy = [
         'formal',
@@ -2686,7 +2664,7 @@ ${addressLines.join('\n\n')}
       const hasStrongerResponseRoutingSignal = Boolean(
         categoryBlocksPostureStrategy ||
         requestTypeBlocksPostureStrategy ||
-        physicalPresenceConstraint ||
+        (physicalPresenceConstraint && physicalPresenceConstraint.has_constraint) ||
         hasGoalContinuitySignalForResponseStrategy ||
         hasResponseFocusHintSignalForResponseStrategy
       );
@@ -3608,6 +3586,9 @@ ${addressLines.join('\n\n')}
         updatedAt: processingTimestamp.toISOString(),
         source: 'quick_check'
       };
+      if (physicalPresenceConstraint.memoryState) {
+        memoryUpdate.conversationStateUpdate.physicalPresenceState = physicalPresenceConstraint.memoryState;
+      }
 
       if (memoryUpdate.conversationStateUpdate.responseFocusHint) {
         console.log(
@@ -5908,8 +5889,10 @@ ${addressLines.join('\n\n')}
 
   _buildQuickCheckMemoryContext_(memoryContext = {}) {
     const safeMemory = memoryContext && typeof memoryContext === 'object' ? memoryContext : {};
-    const providedInfo = Array.isArray(safeMemory.providedInfo)
-      ? safeMemory.providedInfo.slice(-5).map((item) => {
+    const orderedTopics = typeof sortProvidedTopicsByRecency_ === 'function'
+      ? sortProvidedTopicsByRecency_(safeMemory.providedInfo) : safeMemory.providedInfo;
+    const providedInfo = Array.isArray(orderedTopics)
+      ? orderedTopics.slice(-5).map((item) => {
         if (typeof item === 'string') return item.substring(0, 120);
         if (item && typeof item === 'object') {
           return String(item.topic || item.label || '').trim().substring(0, 120);
@@ -7395,7 +7378,9 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       requestTypeName === 'formal'
     );
 
-    if (physicalPresenceConstraint && physicalPresenceConstraint.has_constraint) {
+    if (physicalPresenceConstraint && physicalPresenceConstraint.reconciled) {
+      flags.remote_user = physicalPresenceConstraint.has_constraint === true;
+    } else if (physicalPresenceConstraint && physicalPresenceConstraint.has_constraint) {
       flags.remote_user = true;
     }
     if (subIntents.bereavement === true) {
@@ -8209,7 +8194,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   }
 
   _detectCurrentLocalPresence_(subject, body) {
-    const text = `${subject || ''} ${body || ''}`
+    const text = this._presenceAssertionText_(`${subject || ''}\n${body || ''}`)
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
@@ -8228,12 +8213,96 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       /\b(?:ich\s+bin|wir\s+sind)\s+(?:schon\s+|derzeit\s+|aktuell\s+)?(?:(?:im\s+urlaub|zu\s+besuch|auf\s+besuch)\s+)?in\s+rom\b/
     ];
 
-    if (!patterns.some((pattern) => pattern.test(text))) return null;
+    if (!patterns.some((pattern) => {
+      const match = text.match(pattern);
+      return match && !/\b(non|not|ne|pas|no|nao|nicht)\s*$/.test(text.slice(0, match.index));
+    })) return null;
 
     return {
       detected: true,
       confidence: 0.95,
       reason: 'current_presence_in_rome'
+    };
+  }
+
+  // Solo affermazioni attuali: citazioni e ipotesi non possono cancellare memoria.
+  _presenceAssertionText_(text) {
+    return String(text || '').split(/\r?\n/)
+      .filter(line => !/^\s*>/.test(line))
+      .join('\n').split(/(?:-{2,}\s*(?:original|messaggio)|on .{0,100}wrote:|il .{0,100}ha scritto:)/i)[0]
+      .replace(/"[^"\n]*"|“[^”\n]*”|«[^»\n]*»|'[^'\n]{3,}'/g, '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      .replace(/[^.!?;\n]*\?/g, '')
+      .replace(/\b(?:ma|but|mais|pero|mas|aber)\b/g, '\n')
+      .split(/[.!?;\n]+/)
+      .filter(clause => !/\b(se|if|si|wenn|caso|qualora|ipoteticamente|suppose|imagine|ieri|yesterday|hier|gestern|ayer|ontem|domani|tomorrow|demain|morgen|manana|amanha|mese prossimo|next month|prossima settimana|next week|ero|eravamo|was|were|etais|estaba|estava|war|dice|ha detto|scrive|said|says|disait|dijo|diz|sagt|non e vero|not true|pas vrai|no es cierto|nao e verdade|nicht wahr)\b/.test(clause))
+      .join('\n');
+  }
+
+  _reconcilePhysicalPresenceConstraint_(quick, subject, body, memory = {}, referenceDate = new Date()) {
+    const current = this._resolvePhysicalPresenceConstraint_(quick, subject, body);
+    const remembered = normalizePhysicalPresenceState_(memory.conversationState && memory.conversationState.physicalPresenceState);
+    const entries = new Map((remembered ? remembered.constraints : []).map(entry => [entry.type, {...entry}]));
+    const updatedAt = new Date(referenceDate).toISOString();
+    const set = (type, status, source, policy = 'conditional_only') => entries.set(type, {type, status, source, policy, updatedAt});
+    if (!remembered && memory.contextualFlags && memory.contextualFlags.remote_user === true) {
+      set('other', 'active', 'legacy');
+    }
+    const assertions = this._presenceAssertionText_(body);
+    const localPresence = this._detectCurrentLocalPresence_('', assertions);
+    // Ogni tipo si risolve separatamente. La disponibilità generica non prova
+    // guarigione, fine di una restrizione legale o cessazione di assistenza.
+    const resolutions = {
+      health: /\b(?:sono guarito|sono guarita|siamo guariti|i have recovered|i am recovered|je suis gueri|je suis guerie|estoy recuperado|estoy recuperada|estou recuperado|estou recuperada|ich bin wieder gesund)\b/,
+      mobility: /\b(?:non ho piu difficolta a (?:muovermi|camminare)|i no longer have (?:mobility problems|difficulty walking)|je n'ai plus de difficulte a marcher|ya no tengo dificultades para caminar|ja nao tenho dificuldade para andar|ich habe keine gehprobleme mehr)\b/,
+      legal_restriction: /\b(?:non sono piu agli arresti domiciliari|i am no longer under house arrest|je ne suis plus assigne a residence|ya no estoy bajo arresto domiciliario|ja nao estou em prisao domiciliar|ich stehe nicht mehr unter hausarrest)\b/,
+      caregiving: /\b(?:non devo piu assistere|i no longer need to care for|je ne dois plus m'occuper de|ya no tengo que cuidar|ja nao preciso cuidar|ich muss mich nicht mehr um .{1,40} kummern)\b/,
+      temporary_unavailability: /\b(?:ora posso venire|adesso posso venire|i can now come|je peux maintenant venir|ahora puedo ir|agora posso ir|ich kann jetzt kommen)\b/,
+      remote_request: /\b(?:preferisco (?:ora |adesso )?(?:venire|incontrarvi) di persona|i now prefer to come in person|je prefere maintenant venir en personne|ahora prefiero ir en persona|agora prefiro ir pessoalmente|ich mochte jetzt personlich kommen)\b/
+    };
+    const resolvedTypes = new Set();
+    if (localPresence) resolvedTypes.add('geographic_distance');
+    for (const [type, pattern] of Object.entries(resolutions)) {
+      if (assertions.split('\n').some(clause => {
+        const match = clause.match(pattern);
+        return match && !/\b(non|not|ne|pas|no|nao|nicht)\s*$/.test(clause.slice(0, match.index));
+      })) resolvedTypes.add(type);
+    }
+    // I segnali locali possono recuperare un secondo impedimento indipendente.
+    const activeAssertions = assertions.split('\n').filter(clause =>
+      !Object.values(resolutions).some(pattern => pattern.test(clause))).join('\n');
+    const localConstraints = this._detectPhysicalPresenceConstraint_('', activeAssertions, true);
+    // Una nuova affermazione di impedimento prevale su una risoluzione
+    // contraddittoria nello stesso messaggio; la residenza non nega l'arrivo.
+    for (const candidate of (Array.isArray(localConstraints) ? localConstraints : [])) {
+      if (candidate.type !== 'geographic_distance') resolvedTypes.delete(candidate.type);
+    }
+    const candidates = [...(Array.isArray(localConstraints) ? localConstraints : [])];
+    // QuickCheck classifica semanticamente; il fallback lessicale grezzo può
+    // riferirsi invece a citazioni, frasi negate o condizioni di altre persone.
+    if (current.source === 'quick_check') candidates.push(current);
+    for (const candidate of candidates) {
+      if (!candidate || !candidate.has_constraint || Number(candidate.confidence) < 0.65 || resolvedTypes.has(candidate.type)) continue;
+      const type = candidate.type || 'other';
+      set(type, 'active', 'current_message', candidate.visit_policy);
+    }
+    for (const type of resolvedTypes) {
+      // Registra anche la risoluzione geografica corrente, così il vecchio flag
+      // non torna a prevalere nei chiamanti che hanno già uno stato tipizzato.
+      if (entries.has(type) || type === 'geographic_distance') set(type, 'resolved', 'current_resolution');
+    }
+    const state = normalizePhysicalPresenceState_({version: 1, constraints: Array.from(entries.values())});
+    const active = state ? state.constraints.filter(entry => entry.status === 'active') : [];
+    const strongest = active.find(entry => entry.policy === 'avoid_invitation') || active[0];
+    return {
+      ...current,
+      has_constraint: !!strongest,
+      type: strongest ? strongest.type : 'none',
+      visit_policy: strongest ? strongest.policy : (resolvedTypes.size ? 'visit_ok' : current.visit_policy),
+      evidence: strongest && strongest.type === current.type ? current.evidence : '',
+      reason: strongest ? 'active_presence_constraint' : (resolvedTypes.size ? 'explicit_presence_resolution' : 'no_new_presence_constraint'),
+      source: 'reconciled', reconciled: true, memoryState: state,
+      confidence: strongest ? Math.max(Number(current.confidence) || 0, 0.7) : current.confidence
     };
   }
 
@@ -8249,7 +8318,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     ) {
       if (
         currentLocalPresence &&
-        (normalizedQuick.type === 'geographic_distance' || normalizedQuick.type === 'remote_request')
+        normalizedQuick.type === 'geographic_distance'
       ) {
         return {
           has_constraint: false,
@@ -8282,7 +8351,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     };
   }
 
-  _detectPhysicalPresenceConstraint_(subject, body) {
+  _detectPhysicalPresenceConstraint_(subject, body, collectAll = false) {
     const original = `${subject || ''} ${body || ''}`;
     const text = original
       .toLowerCase()
@@ -8294,7 +8363,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     const explicitVisitIntent = /\b(?:posso|possiamo|potrei|potremmo|vorrei|vorremmo)\s+(?:passare|venire|presentarmi|presentarci|recarmi|recarci)\b/.test(compact) ||
       /\b(?:passo|passiamo|vengo|veniamo)\s+(?:oggi|domani|dopodomani|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica)\b/.test(compact);
     const explicitCannotAttend = /\bnon\s+(?:posso|possiamo|riesco|riusciamo|riuscirei|riusciremmo|potrei|potremmo)\s+(?:venire|passare|recarmi|recarci|raggiungervi|spostarmi|spostarci|essere\s+presente|presentarmi|presentarci)\b/.test(compact);
-    if (explicitVisitIntent && !explicitCannotAttend) return null;
+    if (explicitVisitIntent && !explicitCannotAttend && !collectAll) return null;
 
     const rules = [
       {
@@ -8347,9 +8416,23 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       }
     ];
 
+    const matches = [];
     for (const rule of rules) {
       if (rule.pattern.test(compact)) {
-        return {
+        if (collectAll) {
+          const clauses = String(body || '').split('\n');
+          const personal = clauses.some(clause => {
+            if (!rule.pattern.test(clause)) return false;
+            if (['health', 'mobility', 'legal_restriction'].includes(rule.type)) {
+              return /\b(?:sono|siamo|ho|abbiamo|mi trovo|ci troviamo|soffro)\b/.test(clause) &&
+                !/\b(?:non|mai)\b/.test(clause);
+            }
+            if (rule.type === 'remote_request') return /\b(?:vorrei|vorremmo|preferisco|preferiamo|chiedo|chiediamo|posso|possiamo)\b/.test(clause);
+            return true;
+          });
+          if (!personal) continue;
+        }
+        const match = {
           has_constraint: true,
           type: rule.type,
           confidence: rule.confidence,
@@ -8360,10 +8443,12 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
             : 'conditional_only',
           source: 'local_fallback'
         };
+        if (!collectAll) return match;
+        matches.push(match);
       }
     }
 
-    return null;
+    return collectAll ? matches : null;
   }
 
   /**

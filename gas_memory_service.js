@@ -21,6 +21,19 @@
  * - Topic tracking (anti-ripetizione)
  * - Operazioni atomiche
  */
+// Nessuna data inventata in lettura; date oltre cinque minuti nel futuro non
+// possono trattenere indefinitamente un topic in fondo alla lista.
+function sortProvidedTopicsByRecency_(topics, nowMs = Date.now()) {
+  const timestamp = value => {
+    if (!value) return 0;
+    const time = new Date(value).getTime();
+    return Number.isFinite(time) && time <= nowMs + 300000 ? time : 0;
+  };
+  return (Array.isArray(topics) ? topics : []).map((topic, index) => ({
+    topic, index, time: Math.max(timestamp(topic && topic.timestamp), timestamp(topic && topic.lastInteraction))
+  })).sort((a, b) => a.time - b.time || a.index - b.index).map(entry => entry.topic);
+}
+
 var MemoryService = class MemoryService {
   constructor() {
     console.log('🧠 Inizializzazione MemoryService (basato su Sheet)...');
@@ -162,6 +175,7 @@ var MemoryService = class MemoryService {
       if (!Object.prototype.hasOwnProperty.call(cachedCopy, 'exists')) {
         cachedCopy.exists = true;
       }
+      cachedCopy.providedInfo = sortProvidedTopicsByRecency_(cachedCopy.providedInfo || []);
       return cachedCopy;
     }
 
@@ -213,7 +227,7 @@ var MemoryService = class MemoryService {
     try {
       const memory = this.getMemory(threadId);
       const providedInfo = Array.isArray(memory.providedInfo) ? memory.providedInfo : [];
-      return limit > 0 ? providedInfo.slice(-limit) : [];
+      return limit > 0 ? sortProvidedTopicsByRecency_(providedInfo).slice(-limit) : [];
     } catch (e) {
       console.warn(`⚠️ getRecentProvidedInfo fallito per thread ${threadId}: ${e.message}`);
       return [];
@@ -327,7 +341,7 @@ var MemoryService = class MemoryService {
             const existingTopics = this._normalizeProvidedTopics(
               Array.isArray(existingData.providedInfo) ? existingData.providedInfo : []
             );
-            const incomingTopics = this._normalizeProvidedTopics(dataToUpdate.providedInfo);
+            const incomingTopics = this._normalizeProvidedTopics(dataToUpdate.providedInfo, now);
             mergedData.providedInfo = this._mergeProvidedTopics(existingTopics, incomingTopics);
           }
           if (Object.prototype.hasOwnProperty.call(dataToUpdate, 'contextualFlags')) {
@@ -377,7 +391,7 @@ var MemoryService = class MemoryService {
           insertData.version = 1;
           if (Array.isArray(insertData.providedInfo)) {
             insertData.providedInfo = this._shrinkProvidedInfoToCaps(
-              insertData.providedInfo,
+              this._normalizeProvidedTopics(insertData.providedInfo, now),
               'updateMemory:new'
             );
           }
@@ -604,19 +618,12 @@ var MemoryService = class MemoryService {
           mergedData.version = currentVersion + 1;
 
           if (providedTopics && providedTopics.length > 0) {
-            const normalizedTopics = this._normalizeProvidedTopics(providedTopics);
+            const normalizedTopics = this._normalizeProvidedTopics(providedTopics, now);
             const existingTopics = this._normalizeProvidedTopics(existingData.providedInfo || []);
             const mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
 
-            // Limita providedInfo per evitare memory bloat
-            const maxTopics = (typeof CONFIG !== 'undefined' && CONFIG.MAX_PROVIDED_TOPICS) || 50;
-            let trimmedTopics = mergedTopics;
-            if (trimmedTopics.length > maxTopics) {
-              console.log(`🧠 Memoria: Trim providedInfo da ${trimmedTopics.length} a ${maxTopics} topic`);
-              trimmedTopics = trimmedTopics.slice(-maxTopics);
-            }
-
-            mergedData.providedInfo = trimmedTopics;
+            // Il limite viene applicato dopo le reazioni, che possono rendere recente un topic.
+            mergedData.providedInfo = mergedTopics;
             console.log(`🧠 Memoria: Aggiunti atomicamente topic ${JSON.stringify(normalizedTopics)}`);
           }
           mergedData.providedInfo = this._applyInferredReactionToProvidedInfo(
@@ -658,7 +665,7 @@ var MemoryService = class MemoryService {
           insertData.version = 1;
 
           if (providedTopics && providedTopics.length > 0) {
-            insertData.providedInfo = this._normalizeProvidedTopics(providedTopics);
+            insertData.providedInfo = this._normalizeProvidedTopics(providedTopics, now);
             insertData.providedInfo = this._applyInferredReactionToProvidedInfo(
               insertData.providedInfo,
               inferredReactionData,
@@ -1020,13 +1027,18 @@ var MemoryService = class MemoryService {
       next.responseFocusHintUpdatedAt = null;
     }
 
-    next.updatedAt = normalizedUpdatedAt;
+    const presenceOnlyUpdate = update && Object.keys(update).every(key => key === 'physicalPresenceState');
+    if (!presenceOnlyUpdate) next.updatedAt = normalizedUpdatedAt;
     const source = update && Object.prototype.hasOwnProperty.call(update, 'source')
       ? String(update.source || '').trim()
       : '';
-    next.source = source ? source.substring(0, 80) : 'unknown';
+    if (!presenceOnlyUpdate) next.source = source ? source.substring(0, 80) : 'unknown';
 
+    const presenceState = typeof mergePhysicalPresenceState_ === 'function'
+      ? mergePhysicalPresenceState_(next.physicalPresenceState, update && update.physicalPresenceState)
+      : next.physicalPresenceState;
     return {
+      ...(presenceState ? {physicalPresenceState: presenceState} : {}),
       lastRelationalPosture: next.lastRelationalPosture || 'direct',
       currentRelationalPosture: next.currentRelationalPosture || next.lastRelationalPosture || 'direct',
       responseFocusHint: next.responseFocusHint || null,
@@ -1108,7 +1120,7 @@ var MemoryService = class MemoryService {
         if (existingRow) {
           const existingData = this._rowToObject(existingRow.values);
           const existingTopics = this._normalizeProvidedTopics(existingData.providedInfo || []);
-          const normalizedTopics = this._normalizeProvidedTopics(topics);
+          const normalizedTopics = this._normalizeProvidedTopics(topics, new Date().toISOString());
           let mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
 
           const caps = this._getProvidedInfoCaps();
@@ -1460,13 +1472,14 @@ var MemoryService = class MemoryService {
     return {
       topic: String(topic && topic.topic ? topic.topic : '').slice(0, 120),
       userReaction: (topic && topic.userReaction) || 'unknown',
-      timestamp: (topic && topic.timestamp) || this._validateAndNormalizeTimestamp(new Date().toISOString())
+      timestamp: (topic && topic.timestamp) || null,
+      lastInteraction: (topic && topic.lastInteraction) || null
     };
   }
 
   _shrinkProvidedInfoToCaps(providedInfo, sourceLabel) {
     const caps = this._getProvidedInfoCaps();
-    let topics = Array.isArray(providedInfo) ? this._normalizeProvidedTopics(providedInfo) : [];
+    let topics = sortProvidedTopicsByRecency_(Array.isArray(providedInfo) ? this._normalizeProvidedTopics(providedInfo) : []);
 
     if (topics.length > caps.maxTopics) {
       console.warn(`🧠 ${sourceLabel}: providedInfo ha ${topics.length} topic; trim a ${caps.maxTopics}`);
@@ -1504,7 +1517,7 @@ var MemoryService = class MemoryService {
   /**
    * Normalizza i topic forniti in formato oggetto.
    */
-  _normalizeProvidedTopics(topics) {
+  _normalizeProvidedTopics(topics, interactionAt = null) {
     if (!topics) return [];
     if (!Array.isArray(topics)) topics = [topics];
 
@@ -1517,7 +1530,7 @@ var MemoryService = class MemoryService {
             topic: trimmed,
             userReaction: 'unknown',
             context: null,
-            timestamp: this._validateAndNormalizeTimestamp(new Date().toISOString())
+            timestamp: interactionAt
           };
         }
         if (topic && typeof topic === 'object' && typeof topic.topic === 'string') {
@@ -1527,7 +1540,7 @@ var MemoryService = class MemoryService {
             topic: trimmed,
             userReaction: topic.userReaction || topic.reaction || 'unknown',
             context: topic.context || null,
-            timestamp: this._validateAndNormalizeTimestamp(topic.timestamp || new Date().toISOString())
+            timestamp: topic.timestamp || interactionAt
           };
           // Preserva eventuali metadati aggiuntivi (es. lastInteraction), ma
           // limita campi potenzialmente molto grandi per non saturare la cella Sheet.
@@ -1622,6 +1635,8 @@ var MemoryService = class MemoryService {
         mergedMap.set(key, {
           ...previous,
           ...item,
+          timestamp: item.timestamp || previous.timestamp || null,
+          context: item.context || previous.context || null,
           userReaction: shouldPreserveReaction
             ? (previous.userReaction || incomingReaction || 'unknown')
             : incomingReaction
@@ -1629,7 +1644,7 @@ var MemoryService = class MemoryService {
       }
     });
 
-    return Array.from(mergedMap.values());
+    return sortProvidedTopicsByRecency_(Array.from(mergedMap.values()));
   }
 
   /**
@@ -1940,7 +1955,7 @@ var MemoryService = class MemoryService {
         const raw = JSON.parse(values[4]);
         // Normalizzazione dati: converte stringhe semplici in oggetti strutturati
         providedInfo = Array.isArray(raw) ? raw.map(item => {
-          if (typeof item === 'string') return { topic: item, userReaction: 'unknown', context: null, timestamp: new Date().toISOString() };
+          if (typeof item === 'string') return { topic: item, userReaction: 'unknown', context: null, timestamp: null };
           // Standardizzazione: allinea la nomenclatura senza mutare l'input originale
           const normalized = Object.assign({}, item);
           if (normalized.reaction && !normalized.userReaction) {
@@ -1967,7 +1982,7 @@ var MemoryService = class MemoryService {
       language: values[1] || 'it',
       category: values[2] || null,
       tone: values[3] || 'standard',
-      providedInfo: providedInfo,
+      providedInfo: sortProvidedTopicsByRecency_(providedInfo),
       lastUpdated: lastUpdated,
       messageCount: parseInt(values[6], 10) || 0,
       version: parseInt(values[7], 10) || 0,

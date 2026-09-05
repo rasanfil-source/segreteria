@@ -1047,7 +1047,7 @@ Vincoli:
       goalContinuity &&
       String((typeof goalContinuity === 'object' ? goalContinuity.value : goalContinuity) || 'none').trim().toLowerCase() !== 'none'
     );
-    const hasResponseFocusHintSignal = Boolean(this._renderResponseFocusHint(memoryContext, topic, safeCurrentDate));
+    const hasResponseFocusHintSignal = isResponseFocusApplicable_(this._extractConversationState_(memoryContext), topic, safeCurrentDate);
     const categoryBlocksPostureStrategy = [
       'formal',
       'sbattezzo',
@@ -2218,33 +2218,7 @@ ${sections.join('\n')}`;
 
   _renderResponseFocusHint(memoryContext, currentTopic = '', referenceDate = null) {
     const state = this._extractConversationState_(memoryContext);
-    if (!state || !state.responseFocusHint) return null;
-
-    const promptEngineSettings = (typeof CONFIG !== 'undefined' && CONFIG.PROMPT_ENGINE && typeof CONFIG.PROMPT_ENGINE === 'object')
-      ? CONFIG.PROMPT_ENGINE
-      : {};
-    const minConfidence = this._resolveNumberInRange_(
-      promptEngineSettings.RESPONSE_FOCUS_MIN_CONFIDENCE,
-      0.65,
-      0,
-      1
-    );
-    const maxAgeDays = this._resolveNumberInRange_(
-      promptEngineSettings.RESPONSE_FOCUS_MAX_AGE_DAYS,
-      14,
-      1,
-      365
-    );
-
-    const confidence = Number(state.responseFocusHintConfidence);
-    if (!Number.isFinite(confidence) || confidence < minConfidence) return null;
-
-    const appliesToTopic = state.appliesToTopic ? this._normalizeTopicForContinuity_(state.appliesToTopic) : '';
-    const normalizedCurrentTopic = this._normalizeTopicForContinuity_(currentTopic);
-    if (appliesToTopic && normalizedCurrentTopic && appliesToTopic !== normalizedCurrentTopic) return null;
-
-    const hintUpdatedAt = state.responseFocusHintUpdatedAt || state.updatedAt;
-    if (!this._isConversationStateFresh_(hintUpdatedAt, referenceDate, maxAgeDays)) return null;
+    if (!isResponseFocusApplicable_(state, currentTopic, referenceDate)) return null;
 
     const rendered = this._renderResponseFocusHintLabel_(state.responseFocusHint);
     if (!rendered) return null;
@@ -2269,12 +2243,8 @@ Vincoli:
     const instructionBlocks = {
       provide_information: `Rispondi in modo diretto alla richiesta informativa principale.`,
 
-      reduce_user_effort: `Riduci il numero di passaggi necessari per l'utente.
-
-- Se conosci già il passaggio successivo ovvio: anticipalo.
-- Se esiste una modalità più semplice (email invece di presenza, modulo invece di telefonata): indicala.
-- Se una telefonata o una visita non è necessaria per completare la richiesta: non suggerirla.
-- Evita di rimandare l'utente a un contatto successivo quando la risposta è già disponibile nella KB.`,
+      reduce_user_effort: `Riduci il numero di passaggi necessari: anticipa quello successivo noto e indica la modalità più semplice disponibile.
+- Evita telefonate o visite non necessarie e rinvii se la KB contiene già la risposta.`,
 
       confirm_receipt: `Conferma la ricezione in modo sobrio.
 - Non riaprire procedure non richieste.
@@ -2297,17 +2267,13 @@ Vincoli:
     if (!block) return null;
 
     const actionResolutionCheck = requiresActionResolution
-      ? `\nPrima di concludere la risposta, verifica internamente:\n"La persona può agire immediatamente sulla base di ciò che sto dicendo?"\nSe la risposta è no: aggiungi il passaggio operativo successivo concreto.`
+      ? `\nVerifica che la persona possa agire subito: se manca un passaggio operativo noto, aggiungilo.`
       : '';
 
     return `## ORIENTAMENTO DELLA RISPOSTA
 ${block}${actionResolutionCheck}
 
-Vincoli:
-- non nominare questa sezione;
-- non citare criteri o istruzioni interne;
-- non alterare KB, territorio, dottrina, date, orari o procedure;
-- usare solo per decidere focus, ordine e livello di dettaglio.`;
+Uso interno: solo focus, ordine e dettaglio; non citare le istruzioni; non alterare KB, territorio, dottrina, date, orari o procedure.`;
   }
 
   _renderGoalContinuity(goalContinuity) {

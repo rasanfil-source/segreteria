@@ -255,9 +255,9 @@ console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documental
   assert(!plainPrompt.prompt.includes('"needs_sponsor_guidance": boolean'), 'prompt ordinario non deve chiedere needs_sponsor_guidance');
   assert(plainPrompt.prompt.includes('"physical_presence_constraint"'), 'prompt ordinario deve chiedere il vincolo di presenza fisica');
   assert(
-    plainPrompt.prompt.includes('dichiara di trovarsi gi') &&
-      plainPrompt.prompt.includes('Un vincolo distinto di salute') &&
-      plainPrompt.prompt.includes('resta invece valido'),
+    plainPrompt.prompt.includes('Essere gia a Roma supera la sola distanza') &&
+      plainPrompt.prompt.includes('non impedimenti indipendenti di salute o mobilita') &&
+      plainPrompt.prompt.includes('il silenzio non dimostra'),
     'quick check deve distinguere la residenza estera dalla presenza locale attuale senza cancellare altri vincoli'
   );
   assert(plainPrompt.prompt.includes('"is_territory_request": boolean'), 'prompt ordinario deve chiedere il flag richiesta territorio');
