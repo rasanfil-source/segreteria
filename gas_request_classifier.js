@@ -371,15 +371,6 @@ var RequestTypeClassifier = class RequestTypeClassifier {
   }
 
   /**
-   * Interfaccia semplificata (soggetto + corpo) con ordine parametri invertito.
-   * @deprecated Preferire classify(subject, body, externalHint) per evitare ambiguità.
-   */
-  classifyRequest(bodyFirst, subjectSecond, externalHint = null) {
-    console.warn('[DEPRECATED] classifyRequest() usa l\'ordine legacy (body, subject). Preferire classify(subject, body).');
-    return this.classify(subjectSecond, bodyFirst, externalHint);
-  }
-
-  /**
    * Calcola punteggio ponderato per set di indicatori
    */
   _calculateScore(text, indicators) {

@@ -66,7 +66,6 @@ var EmailProcessor = class EmailProcessor {
         : {
           getMemory: () => ({}),
           getRecentMemoryTopics: () => [],
-          getRecentHistory: () => [],
           updateMemoryAtomic: () => { },
           updateReaction: () => { }
         });

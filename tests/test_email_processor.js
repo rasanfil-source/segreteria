@@ -18,7 +18,6 @@ global.GmailService = class {};
 global.PromptEngine = class {};
 global.MemoryService = class {
   getMemory() { return {}; }
-  getRecentHistory() { return []; }
   updateMemoryAtomic() { return true; }
   updateReaction() { return true; }
 };

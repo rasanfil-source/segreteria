@@ -1481,7 +1481,6 @@ function buildValidationFlowProcessor({ validationResult, generationText = 'Risp
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -1694,7 +1693,6 @@ function buildProcessorForGenerationFailure(errorTypeToThrow) {
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => []
     },
     territoryValidator: {
       validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
@@ -1944,7 +1942,6 @@ console.log('--- Test processThread: burst ordina per data prima dell\'aggregazi
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => []
     },
     territoryValidator: {
       validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' })
@@ -2051,7 +2048,6 @@ console.log('--- Test processThread: conversationHistory esclude tutto il burst 
       },
       memoryService: {
         getMemory: () => ({}),
-        getRecentHistory: () => [],
         updateMemoryAtomic: () => true
       },
       territoryValidator: {
@@ -2159,7 +2155,6 @@ console.log('--- Test processThread: burst con allegato nel primo messaggio atti
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -2282,7 +2277,6 @@ console.log('--- Test processThread: look-back stretto salta messaggi del bot e 
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -2392,7 +2386,6 @@ console.log('--- Test processThread: budget testo allegati esaurito preserva ite
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -2498,7 +2491,6 @@ console.log('--- Test processThread: maxFiles globale conta allegati testuali ne
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -2599,7 +2591,6 @@ console.log('--- Test processThread: salta download allegati se sizeEstimate mes
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -2687,7 +2678,6 @@ console.log('--- Test processThread: submission receipt-only non chiama Gemini g
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -2786,7 +2776,6 @@ function runQuickCheckAttachmentGateScenario({ quickCheckOverrides, threadId }) 
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -2945,7 +2934,6 @@ function runExpectedDocumentDeliveryScenario({
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -3213,7 +3201,6 @@ function runAttachmentConsistencyFlowScenario({
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -3421,7 +3408,6 @@ console.log('--- Test processThread: follow-up senza allegati non usa receipt-on
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -3524,7 +3510,6 @@ console.log('--- Test processThread: falso document_submission senza allegati no
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -3617,7 +3602,6 @@ console.log('--- Test processThread: valida e invia esattamente il testo outboun
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -3754,7 +3738,6 @@ console.log('--- Test processThread: retry intelligente conserva nota oraria con
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -3854,7 +3837,7 @@ console.log('--- Test processThread: retry 503 prova modello diverso e non appli
         details: { content: { foundPlaceholders: ['XXX'] } }, fixedResponse: null
       })
     },
-    memoryService: { getMemory: () => ({}), getRecentHistory: () => [], updateMemoryAtomic: () => true },
+    memoryService: { getMemory: () => ({}), updateMemoryAtomic: () => true },
     territoryValidator: { validateMultipleAddresses: () => ({ addressFound: false, addresses: [], summary: '' }) },
     promptEngine: { buildPrompt: () => 'PROMPT' }
   });
@@ -3943,7 +3926,6 @@ console.log('--- Test anti-noreply: Reply-To valido esenta form web legittima --
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -4001,7 +3983,6 @@ console.log('--- Test prompt options: messageDate usa la data del messaggio orig
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -4087,7 +4068,6 @@ console.log('--- Test processThread: topic appartenenza parrocchiale attiva veri
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -4175,7 +4155,6 @@ console.log('--- Test processThread: indirizzo passivo non autorizza deduzione t
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -4251,7 +4230,6 @@ console.log('--- Test prompt options: relationalPosture personal passa dal quick
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -4340,7 +4318,6 @@ console.log('--- Test prompt options: relational_warmth deriva dal quick-check G
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -4446,7 +4423,6 @@ console.log('--- Test prompt options: scheduleContext usa data target e periodo 
       },
       memoryService: {
         getMemory: () => ({}),
-        getRecentHistory: () => [],
         updateMemoryAtomic: () => true
       },
       territoryValidator: {
@@ -4526,7 +4502,6 @@ console.log('--- Test prompt options: scheduleContext ancora relativi alla data 
       },
       memoryService: {
         getMemory: () => ({}),
-        getRecentHistory: () => [],
         updateMemoryAtomic: () => true
       },
       territoryValidator: {
@@ -4598,7 +4573,6 @@ console.log('--- Test context routing: categoria tecnica usa set condiviso e dis
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -4680,7 +4654,6 @@ console.log('--- Test context routing: document_request certificato resta tecnic
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -4810,7 +4783,6 @@ console.log('--- Test quick-check: conversationState memoria abilita contesto co
           responseFocusHintConfidence: 0
         }
       }),
-      getRecentHistory: () => [],
       updateMemoryAtomic: (threadId, data, providedTopics, inferredReactionData) => {
         memoryUpdateArgs = { threadId, data, providedTopics, inferredReactionData };
         return true;
@@ -4923,7 +4895,6 @@ console.log('--- Test context routing: categoria quickCheck ha priorità su euri
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -4990,7 +4961,6 @@ console.log('--- Test context routing: memoria pastorale impedisce amnesia su fo
     },
     memoryService: {
       getMemory: () => ({ category: 'pastoral_sacrament', lastUpdated: '2026-05-10T10:00:00Z', providedInfo: [] }),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -5099,7 +5069,6 @@ console.log('--- Test context routing: memoria semantica sensibile impedisce amn
           { topic: 'accompagnamento famiglia' }
         ]
       }),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -5194,7 +5163,6 @@ console.log('--- Test context routing: pastoral_technical_blend mantiene dottrin
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -5283,7 +5251,6 @@ console.log('--- Test context routing: OCR sacramentale riattiva dottrina dopo c
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -5390,7 +5357,6 @@ console.log('--- Test PromptContext: categoria OCR post-allegati governa profilo
     },
     memoryService: {
       getMemory: () => ({}),
-      getRecentHistory: () => [],
       updateMemoryAtomic: () => true
     },
     territoryValidator: {
@@ -5704,7 +5670,6 @@ console.log('--- Test processThread: errore quota invio propaga errorClass senza
       },
       memoryService: {
         getMemory: () => ({}),
-        getRecentHistory: () => [],
         updateMemoryAtomic: () => true
       },
       territoryValidator: {
@@ -5789,7 +5754,6 @@ console.log('--- Test processThread: timeout invio promuove idempotenza a sent -
       },
       memoryService: {
         getMemory: () => ({}),
-        getRecentHistory: () => [],
         updateMemoryAtomic: () => true
       },
       territoryValidator: {
@@ -5866,7 +5830,6 @@ console.log('--- Test processThread: errore memoria post-invio resta non bloccan
       },
       memoryService: {
         getMemory: () => ({}),
-        getRecentHistory: () => [],
         updateMemoryAtomic: () => {
           memoryCalls += 1;
           throw new Error('memory fail');

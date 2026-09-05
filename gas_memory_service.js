@@ -242,16 +242,6 @@ var MemoryService = class MemoryService {
   }
 
   /**
-   * @deprecated MemoryService non possiede la cronologia Gmail reale.
-   * Usa getRecentMemoryTopics/getRecentProvidedInfo per i topic di memoria, oppure
-   * GmailService.getThreadHistory per i messaggi conversazionali precedenti.
-   */
-  getRecentHistory(threadId, limit = 10) {
-    console.warn('⚠️ MemoryService.getRecentHistory è deprecato: usa getRecentMemoryTopics() per la memoria o GmailService.getThreadHistory() per Gmail.');
-    return [];
-  }
-
-  /**
    * Aggiorna memoria per un thread (merge con esistente)
    * Usa lock granulare + retry + optimistic locking
    */

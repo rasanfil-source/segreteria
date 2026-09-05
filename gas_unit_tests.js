@@ -1326,7 +1326,6 @@ function runAllTests() {
 
                 var out = processor.processThread(thread, 'KB', 'Doctrine', new Set(), true);
                 return typeof processor.memoryService.getRecentMemoryTopics === 'function'
-                    && typeof processor.memoryService.getRecentHistory === 'function'
                     && out
                     && (out.status === 'filtered' || out.status === 'skipped' || out.status === 'dryrun');
             } finally {
