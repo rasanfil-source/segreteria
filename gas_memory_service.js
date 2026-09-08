@@ -253,6 +253,8 @@ var MemoryService = class MemoryService {
     if (!normalizedThreadId) return false;
 
     const conversationStateUpdate = newData.conversationStateUpdate || null;
+    // Base dello snapshot che ha generato l'update: resta immutabile nei retry.
+    // Cambiarla con lo stato fresco trasformerebbe il merge in una sostituzione.
     const baseMemorySummary = newData._baseMemorySummary;
 
     // Filtra campi interni
@@ -496,6 +498,7 @@ var MemoryService = class MemoryService {
     if (!normalizedThreadId) return false;
     const rawData = (newData && typeof newData === 'object') ? newData : {};
     const conversationStateUpdate = rawData.conversationStateUpdate || null;
+    // Conservare la base originale per applicare solo il delta allo stato fresco.
     const baseMemorySummary = rawData._baseMemorySummary;
 
     // Filtra campi interni (_*) per evitare persistenza accidentale su Sheets
@@ -515,7 +518,9 @@ var MemoryService = class MemoryService {
       (typeof providedTopics === 'string' && providedTopics.length > 0)
     ));
 
-    if (!hasData && !hasTopics && !shouldIncrementMessageCount && !hasConversationStateUpdate) {
+    const hasReaction = !!(inferredReactionData && inferredReactionData.reaction &&
+      Array.isArray(inferredReactionData.topics) && inferredReactionData.topics.length);
+    if (!hasData && !hasTopics && !shouldIncrementMessageCount && !hasConversationStateUpdate && !hasReaction) {
       console.warn(`⚠️ updateMemoryAtomic chiamato senza dati né topic validi per thread ${threadId}`);
       return false;
     }
@@ -1041,7 +1046,10 @@ var MemoryService = class MemoryService {
   }
 
   _normalizeConversationPosture_(value) {
-    const normalized = String(value || '').trim().toLowerCase();
+    const raw = String(value || '').trim().toLowerCase();
+    const aliases = { uncertain: 'hesitant', informational: 'direct', procedural: 'complaint',
+      relational: 'personal', grateful: 'appreciative', gratitude: 'appreciative', enthusiastic: 'appreciative' };
+    const normalized = aliases[raw] || raw;
     const allowed = {
       urgent: true,
       hesitant: true,

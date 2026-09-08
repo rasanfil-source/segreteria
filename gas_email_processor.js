@@ -1890,7 +1890,8 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
       let { greeting, closing } = this.geminiService.getAdaptiveGreeting(
         messageDetails.senderName,
-        detectedLanguage
+        detectedLanguage,
+        processingTimestamp
       );
 
       // ====================================================================
@@ -2594,6 +2595,8 @@ ${addressLines.join('\n\n')}
         [routedAiCoreLite, routedAiCore, enrichedKnowledgeBase, routedDoctrine].filter(Boolean).join('\n')
       );
       const runtimeContext = Object.freeze(Object.assign({}, baseRuntimeContext, {
+        sacramentalDeadlineContext: this._extractSacramentalDeadlineContext_(
+          messageDetails.subject, messageDetails.body, detectedLanguage, baseRuntimeContext.temporal),
         physicalPresenceConstraint: physicalPresenceConstraint || null,
         territoryContext: territoryContext || null,
         validationContext: this._buildResponseValidationContext_({
@@ -2648,23 +2651,10 @@ ${addressLines.join('\n\n')}
         quickCheck.classification ? quickCheck.classification.topic : '',
         processingTimestamp
       );
-      const categoryBlocksPostureStrategy = [
-        'formal',
-        'sbattezzo',
-        'document_submission',
-        'document_submission_with_question',
-        'quotation'
-      ].includes(String(categoryHintSource || '').trim().toLowerCase());
-      const requestTypeBlocksPostureStrategy = Boolean(
-        requestTypeName === 'formal' ||
-        requestTypeName === 'sbattezzo' ||
-        (requestType && requestType.isSbattezzo === true)
-      );
-      const hasStrongerResponseRoutingSignal = Boolean(
-        categoryBlocksPostureStrategy ||
-        requestTypeBlocksPostureStrategy ||
-        (physicalPresenceConstraint && physicalPresenceConstraint.has_constraint) ||
-        hasGoalContinuitySignalForResponseStrategy ||
+      const hasStrongerResponseRoutingSignal = hasStrongerResponseRoutingSignal_(
+        categoryHintSource, requestTypeName, requestType && requestType.isSbattezzo === true,
+        physicalPresenceConstraint && physicalPresenceConstraint.has_constraint,
+        hasGoalContinuitySignalForResponseStrategy,
         hasResponseFocusHintSignalForResponseStrategy
       );
       const responseStrategy = classifiedResponseStrategy !== 'none'
@@ -2717,7 +2707,7 @@ ${addressLines.join('\n\n')}
         territoryContext: territoryContext,
         physicalPresenceConstraint: physicalPresenceConstraint,
         sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),
-        sacramentalDeadlineContext: this._extractSacramentalDeadlineContext_(messageDetails.subject, messageDetails.body, detectedLanguage),
+        sacramentalDeadlineContext: runtimeContext.sacramentalDeadlineContext,
         relationalPosture: normalizedRelationalPosture,
         conversationShift: {
           shift: quickCheck?.conversation_shift || 'none',
@@ -7963,22 +7953,17 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
 
   /**
    * Backward-compat alias mantenuto per test/call-site legacy.
-   * Aggiorna direttamente la memoria con la reazione inferita.
+   * Usa lo stesso percorso atomico del processore, senza incrementare i messaggi.
    */
   _inferUserReaction(userBody, previousTopics, threadId) {
     const inferred = this._computeUserReaction(userBody, previousTopics);
     if (!inferred || !Array.isArray(inferred.topics) || inferred.topics.length === 0) return;
-    if (!this.memoryService || typeof this.memoryService.updateReaction !== 'function') return;
+    if (!this.memoryService || typeof this.memoryService.updateMemoryAtomic !== 'function') return;
     if (!threadId) return;
 
-    inferred.topics.forEach(topic => {
-      if (!topic) return;
-      this.memoryService.updateReaction(
-        threadId,
-        this._normalizeTopicKey(topic),
-        inferred.reaction,
-        inferred.excerpt || userBody
-      );
+    return this.memoryService.updateMemoryAtomic(threadId, {}, null, {
+      ...inferred,
+      topics: inferred.topics.filter(Boolean).map(topic => this._normalizeTopicKey(topic))
     });
   }
 
@@ -8270,7 +8255,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     // I segnali locali possono recuperare un secondo impedimento indipendente.
     const activeAssertions = assertions.split('\n').filter(clause =>
       !Object.values(resolutions).some(pattern => pattern.test(clause))).join('\n');
-    const localConstraints = this._detectPhysicalPresenceConstraint_('', activeAssertions, true);
+    const currentAssertions = [this._presenceAssertionText_(subject), activeAssertions].filter(Boolean).join('\n');
+    const localConstraints = this._detectPhysicalPresenceConstraint_('', currentAssertions, true);
     // Una nuova affermazione di impedimento prevale su una risoluzione
     // contraddittoria nello stesso messaggio; la residenza non nega l'arrivo.
     for (const candidate of (Array.isArray(localConstraints) ? localConstraints : [])) {
@@ -9228,7 +9214,7 @@ Parish Secretariat of Sant'Eugenio`;
    * @param {string} detectedLanguage - Codice ISO lingua
    * @returns {Object|null} Oggetto {target_outcome, deadline, purpose, confidence} o null
    */
-  _extractSacramentalDeadlineContext_(subject, body, detectedLanguage = 'it') {
+  _extractSacramentalDeadlineContext_(subject, body, detectedLanguage = 'it', temporalContext = null) {
     const text = `${subject || ''} ${body || ''}`;
     const lang = String(detectedLanguage || 'it').toLowerCase().slice(0, 2);
 
@@ -9316,8 +9302,42 @@ Parish Secretariat of Sant'Eugenio`;
     return {
       target_outcome: targetOutcome,
       deadline: deadlineText,
+      temporal: this._resolveSacramentalDeadlineDate_(deadlineText, temporalContext),
       purpose: purpose,
       confidence: confidence
+    };
+  }
+
+  _resolveSacramentalDeadlineDate_(text, temporalContext) {
+    const unknown = { status: 'unresolved' };
+    if (!temporalContext || temporalContext.messageDateAvailable === false) return unknown;
+    const anchor = this._coerceBusinessDateOnly_(temporalContext.messageDate);
+    const now = this._coerceBusinessDateOnly_(temporalContext.currentDate);
+    if (!anchor || !now) return unknown;
+    const months = [
+      ['gennaio', 'january'], ['febbraio', 'february'], ['marzo', 'march'], ['aprile', 'april'],
+      ['maggio', 'may'], ['giugno', 'june'], ['luglio', 'july'], ['agosto', 'august'],
+      ['settembre', 'september'], ['ottobre', 'october'], ['novembre', 'november'], ['dicembre', 'december']
+    ];
+    const normalized = String(text || '').toLowerCase();
+    const month = months.findIndex(names => names.some(name => new RegExp('\\b' + name + '\\b').test(normalized)));
+    if (month < 0) return unknown;
+    const yearMatch = normalized.match(/\b(\d{4})\b/);
+    const year = yearMatch ? Number(yearMatch[1]) : anchor.getFullYear();
+    const dayMatch = normalized.match(/^\s*(\d{1,2})\s+/);
+    const day = dayMatch ? Number(dayMatch[1]) : null;
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    if (day !== null && (day < 1 || day > lastDay)) return unknown;
+    // Mesi e parti di mese mantengono limiti prudenti, senza inventare un giorno.
+    const start = new Date(year, month, day || 1);
+    const end = new Date(year, month, day || lastDay);
+    const ordinal = date => this._dateOnlyEpochDay_(date);
+    const ambiguousYear = !yearMatch && ordinal(end) < ordinal(anchor);
+    return {
+      status: ambiguousYear ? 'ambiguous_year' : ordinal(end) < ordinal(now) ? 'past' :
+        ordinal(start) > ordinal(now) ? 'future' : 'within_interval',
+      startDate: this._formatDateOnlyIso_(start), endDate: this._formatDateOnlyIso_(end),
+      precision: day ? 'day' : 'month_bounds', yearSource: yearMatch ? 'explicit' : 'message_year'
     };
   }
 

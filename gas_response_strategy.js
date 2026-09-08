@@ -2,6 +2,13 @@
  * Shared response strategy helpers.
  */
 
+function hasStrongerResponseRoutingSignal_(category, requestType, isSbattezzo, physicalPresence, goalContinuity, responseFocus) {
+  const normalize = value => String(value || '').trim().toLowerCase();
+  return ['formal', 'sbattezzo', 'document_submission', 'document_submission_with_question', 'quotation'].includes(normalize(category)) ||
+    ['formal', 'sbattezzo'].includes(normalize(requestType)) ||
+    Boolean(isSbattezzo || physicalPresence || goalContinuity || responseFocus);
+}
+
 function mapRelationalPostureToResponseStrategy_(posture) {
   const normalized = String(posture || '').trim().toLowerCase();
   const mapping = {

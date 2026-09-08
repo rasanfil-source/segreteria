@@ -2425,9 +2425,10 @@ Testo:
  * Ottieni un saluto e chiusura adattati alla lingua, ora e giorni speciali
  * Supporta calendario liturgico completo
  */
-  getAdaptiveGreeting(senderName, language = 'it') {
+  getAdaptiveGreeting(senderName, language = 'it', referenceDate = new Date()) {
     const safeSenderName = this._sanitizeSenderNameForGreeting_(senderName, language);
-    const now = new Date();
+    const now = new Date(referenceDate);
+    if (isNaN(now.getTime())) throw new Error('Invalid greeting reference date');
     let hour = now.getHours();
     let day = now.getDay(); // 0 = Domenica
     let minutes = now.getMinutes();

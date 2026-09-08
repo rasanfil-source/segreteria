@@ -1685,8 +1685,9 @@ function testInferUserReactionIsResilientToEmptyTopics() {
     const processor = Object.create(EmailProcessor.prototype);
     const calls = [];
     processor.memoryService = {
-        updateReaction: (threadId, topic, reaction, context) => {
-            calls.push({ threadId, topic, reaction, context });
+        updateMemoryAtomic: (threadId, data, providedTopics, inferred) => {
+            assert(Object.keys(data).length === 0 && providedTopics === null, 'La reazione non deve incrementare messaggi o topic');
+            calls.push({ threadId, topic: inferred.topics[0], reaction: inferred.reaction });
         }
     };
 
@@ -1707,8 +1708,9 @@ function testInferUserReactionNormalizesTopicKeys() {
     const processor = Object.create(EmailProcessor.prototype);
     const calls = [];
     processor.memoryService = {
-        updateReaction: (threadId, topic, reaction) => {
-            calls.push({ threadId, topic, reaction });
+        updateMemoryAtomic: (threadId, data, providedTopics, inferred) => {
+            assert(Object.keys(data).length === 0 && providedTopics === null, 'La reazione non deve incrementare messaggi o topic');
+            calls.push({ threadId, topic: inferred.topics[0], reaction: inferred.reaction });
         }
     };
 

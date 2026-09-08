@@ -446,6 +446,23 @@ var ResponseValidator = class ResponseValidator {
     );
   }
 
+  _checkSacramentalDeadline(response, runtimeContext = null) {
+    const context = runtimeContext && runtimeContext.sacramentalDeadlineContext;
+    const past = context && context.temporal && context.temporal.status === 'past';
+    if (!past) return { score: 1, errors: [], checked: false };
+    // Il calcolo della scadenza usa il timestamp congelato; questo controllo
+    // richiede che una risposta operativa riconosca il termine già trascorso.
+    const acknowledgment = /\b(?:scadenza|data|termine|ottobre|novembre|dicembre|gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre)\b[^.!?\n]{0,100}\b(?:trascors[oa]|passat[oa]|scadut[oa]|superat[oa])\b|\b(?:deadline|date)\b[^.!?\n]{0,100}\b(?:passed|expired|past|elapsed)\b/i;
+    const localizedAcknowledgment = /\b(?:date|echeance|delai|fecha|plazo|data|prazo|frist|termin|datum)\b[^.!?\n]{0,100}\b(?:passee?|ecoulee?|depassee?|pasad[oa]|vencid[oa]|transcorrid[oa]|ultrapassad[oa]|abgelaufen|verstrichen|vorbei)\b/i;
+    const acknowledgesPast = String(response || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .split(/[.!?\n]+/).some(clause =>
+        (acknowledgment.test(clause) || localizedAcknowledgment.test(clause)) &&
+        !/\b(?:non|not|never|no|nao|nicht|pas|jamais)\b/i.test(clause));
+    const errors = acknowledgesPast ? [] :
+      ['Scadenza sacramentale già trascorsa: riconoscere esplicitamente che il termine originale è passato prima di proporre un percorso.'];
+    return { score: errors.length ? 0.5 : 1, errors, checked: true };
+  }
+
   _buildSemanticGroundingContext_(emailSubject, emailContent, temporalContext = null) {
     const validationContext = temporalContext &&
       temporalContext.validationContext &&
@@ -565,6 +582,11 @@ var ResponseValidator = class ResponseValidator {
     warnings.push(...originalDateResult.warnings);
     details.originalDateQualification = originalDateResult;
     score *= originalDateResult.score;
+
+    const deadlineResult = this._checkSacramentalDeadline(response, temporalContext);
+    errors.push(...deadlineResult.errors);
+    details.sacramentalDeadline = deadlineResult;
+    score *= deadlineResult.score;
 
     // === CONTROLLO 12: vincolo presenza fisica ===
     const physicalPresenceResult = this._checkPhysicalPresenceConstraint(response, temporalContext);

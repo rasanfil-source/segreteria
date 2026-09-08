@@ -1048,29 +1048,16 @@ Vincoli:
       String((typeof goalContinuity === 'object' ? goalContinuity.value : goalContinuity) || 'none').trim().toLowerCase() !== 'none'
     );
     const hasResponseFocusHintSignal = isResponseFocusApplicable_(this._extractConversationState_(memoryContext), topic, safeCurrentDate);
-    const categoryBlocksPostureStrategy = [
-      'formal',
-      'sbattezzo',
-      'document_submission',
-      'document_submission_with_question',
-      'quotation'
-    ].includes(normalizedCategoryForRouting);
-    const requestTypeBlocksPostureStrategy = Boolean(
-      requestTypeNameForRouting === 'formal' ||
-      requestTypeNameForRouting === 'sbattezzo' ||
-      requestTypeIsSbattezzoForRouting
-    );
     const processorResponseStrategyInferenceBlocked =
       responseStrategyInferenceBlocked === true
         ? true
         : (responseStrategyInferenceBlocked === false ? false : null);
     const hasStrongerResponseRoutingSignal = processorResponseStrategyInferenceBlocked !== null
       ? processorResponseStrategyInferenceBlocked
-      : Boolean(
-          categoryBlocksPostureStrategy ||
-          requestTypeBlocksPostureStrategy ||
-          hasPhysicalPresenceConstraint ||
-          hasGoalContinuitySignal ||
+      : hasStrongerResponseRoutingSignal_(
+          normalizedCategoryForRouting, requestTypeNameForRouting, requestTypeIsSbattezzoForRouting,
+          hasPhysicalPresenceConstraint,
+          hasGoalContinuitySignal,
           hasResponseFocusHintSignal
         );
     const effectiveResponseStrategy =
@@ -1323,7 +1310,7 @@ Vincoli:
     }
 
     // 29. CHECKLIST CONTESTUALE
-    addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode, templateConcerns, normalizedConcernSynthesis), 'ContextualChecklist', { isSystem: true });
+    addSection(this._renderContextualChecklist(detectedLanguage, territoryContext, salutationMode, templateConcerns, normalizedConcernSynthesis, normalizedConversationShift), 'ContextualChecklist', { isSystem: true });
 
     if (hasCanonicalComplexitySignals) {
       addSection(
@@ -1808,13 +1795,16 @@ Testo finale dell'email.
   // TEMPLATE: CHECKLIST CONTESTUALE (Positiva e Direttiva)
   // ========================================================================
 
-  _renderContextualChecklist(detectedLanguage, territoryContext, salutationMode, activeConcerns = {}, concernSynthesis = null) {
+  _renderContextualChecklist(detectedLanguage, territoryContext, salutationMode, activeConcerns = {}, concernSynthesis = null, conversationShift = null) {
     const rules = [];
     const normalizedConcernSynthesis = this._normalizeConcernSynthesis_(concernSynthesis);
 
     // Regole universali positive
     rules.push('- **Essenzialità:** Fornisci orari, link, requisiti e procedure unicamente se necessari per rispondere alla domanda o se esplicitamente richiesti.');
-    if (!this._concernSynthesisSuppresses_(normalizedConcernSynthesis, 'checklistCompletenessRule')) {
+    const shift = this._normalizeConversationShift_(conversationShift);
+    if (shift && shift.shift === 'closure') {
+      rules.push('- **Chiusura:** Rispondi solo alle eventuali domande esplicite e prendi atto della chiusura; non cercare domande implicite.');
+    } else if (!this._concernSynthesisSuppresses_(normalizedConcernSynthesis, 'checklistCompletenessRule')) {
       rules.push('- **Completezza domande:** Prima di chiudere, verifica di aver risposto a tutte e sole le domande o i dubbi realmente sollevati dall\'utente, espliciti o impliciti.');
     }
     rules.push('- **Efficienza del thread:** Usa le informazioni già presenti nel thread come contesto operativo; richiamale solo quanto basta per rendere chiaro il passo attuale.');
@@ -3412,10 +3402,21 @@ ISTRUZIONI:
     const purpose = String(context.purpose || '').trim();
     if (!targetOutcome || !deadline || !purpose) return null;
 
+    if (context.temporal && context.temporal.status === 'past') {
+      return `**POLICY VINCOLO TEMPORALE SACRAMENTALE (OBBLIGATORIA):**
+- Obiettivo: ${targetOutcome}
+- Scadenza originale: ${deadline}; limite superiore: ${context.temporal.endDate}.
+- La scadenza è già trascorsa alla data di risposta. Dillo esplicitamente nella lingua del mittente.
+- Non promettere di rispettarla e non presentare percorsi attuali come soluzioni per quella scadenza.
+- Chiedi una nuova data solo se serve per proseguire; rispondi alle altre richieste ancora pertinenti.`;
+    }
+    const uncertainty = !context.temporal || ['unresolved', 'ambiguous_year'].includes(context.temporal.status)
+      ? '\nLa data o l’anno non sono risolti: non considerarli certi e chiedi chiarimento se necessario.' : '';
+
     return `**POLICY VINCOLO TEMPORALE SACRAMENTALE (OBBLIGATORIA):**
 Il mittente ha indicato un vincolo temporale dominante:
 - Obiettivo: ${targetOutcome}
-- Scadenza: ${deadline}
+- Scadenza: ${deadline}${uncertainty}
 - Finalità: ${purpose}
 
 REGOLE DI COERENZA TEMPORALE:
@@ -3808,8 +3809,7 @@ Segreteria Parrocchia Sant'Eugenio
     const isFullWarm = normalizedSalutationMode === 'full_warm';
     const isContinuity =
       normalizedSalutationMode === 'session' ||
-      normalizedSalutationMode === 'none_or_continuity' ||
-      normalizedSalutationMode === 'soft';
+      normalizedSalutationMode === 'none_or_continuity';
 
     if (lang === 'en') {
       formatSection = isContinuity
@@ -4098,6 +4098,19 @@ Segreteria Parrocchia Sant'Eugenio
    • Translate all parish information into the target language
    • Use a natural greeting, closing, and signature in language ${targetLanguageCode}
    • Do NOT mix Italian or English into the final email unless the original request explicitly uses a proper name/title`;
+    }
+
+    if (normalizedSalutationMode === 'soft') {
+      const targetLanguageCode = String(lang || 'it').toUpperCase();
+      formatSection = `1. **SALUTO LEGGERO FACOLTATIVO:**
+   • Puoi aprire con un saluto breve e sobrio oppure entrare direttamente nel merito.
+   • Evita formule cerimoniose e non sei obbligato a ripetere il saluto standard.
+
+2. **Formato della risposta (lingua ${targetLanguageCode}):**
+   [Saluto leggero facoltativo oppure raccordo diretto, nella lingua richiesta]
+   [Corpo conciso e pertinente]
+   [Chiusura nella lingua richiesta, equivalente a: "${closing}"]
+   [Firma della segreteria parrocchiale nella lingua richiesta]`;
     }
 
     return `**LINEE GUIDA RISPOSTA:**
