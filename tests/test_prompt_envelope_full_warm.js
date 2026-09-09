@@ -29,8 +29,8 @@ assert(
   'full_warm deve segnalare primo contatto sensibile'
 );
 assert(
-  fullWarmPolicy.includes('Cara/Caro [nome]') && fullWarmPolicy.includes('Gentile [nome]'),
-  'full_warm deve preferire Cara/Caro a Gentile'
+  fullWarmPolicy.includes('NON usare mai "Caro" o "Cara"') && fullWarmPolicy.includes('Gentile [nome]'),
+  'full_warm deve vietare Caro/Cara e proporre Gentile'
 );
 assert(
   fullWarmPolicy.includes('lingua IT'),
@@ -57,5 +57,11 @@ assert(
     engine._renderExamples('information', 'en') === null,
   'gli esempi hard-coded in italiano devono essere omessi nei prompt non italiani'
 );
+
+const italianWarmGuidelines = engine._renderResponseGuidelines('it', 'invernale', 'Gentile Maria,', 'Cordiali saluti', 'full_warm');
+assert(!italianWarmGuidelines.includes('Cara/Caro'), 'le linee guida italiane non devono reintrodurre il saluto confidenziale');
+const examples = engine._renderExamples('information', 'it');
+assert(!/06\.123456|https?:\/\/|2026|27 giugno/.test(examples), 'gli esempi non devono contenere contatti, link o date inventati');
+assert(examples.includes('Non riportare segnaposto'), 'i segnaposto non devono finire nella risposta');
 
 console.log('✅ PromptEngine output envelope tests passed');

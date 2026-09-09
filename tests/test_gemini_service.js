@@ -1333,4 +1333,11 @@ console.log('--- Test EmailQuickCheckPolicy: response_strategy normalizzazione e
     response_strategy_confidence: 0.4
   }, { lang: 'it' });
   assert(lowStrategy.response_strategy === 'none', 'response_strategy sotto soglia deve diventare none');
+  const longBody = 'INIZIO ' + 'x'.repeat(7000) + ' NON POSSO VENIRE DI PERSONA';
+  const longPrompt = EmailQuickCheckPolicy.buildPrompt(longBody, 'Richiesta').prompt;
+  assert(longPrompt.includes('INIZIO ') && longPrompt.includes('NON POSSO VENIRE DI PERSONA'), 'QuickCheck deve preservare inizio e vincoli finali nelle email lunghe');
+  assert(longPrompt.includes('parte centrale omessa'), 'QuickCheck deve segnalare il contenuto omesso');
+  const mediumBody = 'x'.repeat(1000) + ' RICHIESTA CENTRALE ' + 'y'.repeat(1000);
+  assert(EmailQuickCheckPolicy.buildPrompt(mediumBody, 'Richiesta').prompt.includes(mediumBody), 'QuickCheck deve conservare integralmente le email sotto 6000 caratteri');
+  assert(GEMINI_TASK_PROFILES.quick_check.temperature < GEMINI_TASK_PROFILES.generation.temperature, 'QuickCheck deve usare sampling meno variabile della generazione');
 }

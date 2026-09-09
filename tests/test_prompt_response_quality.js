@@ -2872,10 +2872,10 @@ const fullWarmPrompt = engine.buildPrompt({
 });
 assert(
   fullWarmPrompt.includes('SALUTO CALDO MA SOBRIO') &&
-    fullWarmPrompt.includes('puoi usare "Cara/Caro [nome]"') &&
-    fullWarmPrompt.includes('Non sei vincolato al saluto standard "Buongiorno."') &&
+    fullWarmPrompt.includes('NON usare mai "Caro" o "Cara"') &&
+    fullWarmPrompt.includes('Gentile [nome]') &&
     !fullWarmPrompt.includes('Inizia l\'email ESATTAMENTE con: "Buongiorno."'),
-  'full_warm deve liberare il prompt dal saluto standard esatto'
+  'full_warm deve consentire un saluto sobrio vietando Caro/Cara'
 );
 assert(
   fullWarmPrompt.includes('RICONOSCIMENTO CONTESTUALE') &&

@@ -27,7 +27,7 @@ var GEMINI_TASK_PROFILES = {
   },
   quick_check: {
     defaultMaxOutputTokens: 1024,
-    temperature: 0.25,
+    temperature: 0.1,
     topK: 40,
     topP: 0.95,
     responseMimeType: 'application/json',
@@ -706,7 +706,7 @@ NON usare blocchi markdown e NON aggiungere testo extra prima o dopo il JSON.
 
 Email:
 Oggetto: ${safeSubject}
-Testo: ${safeContent.substring(0, 800)}
+Testo: ${safeContent.length <= 6000 ? safeContent : safeContent.substring(0, 3000) + '\n[... parte centrale omessa: non dedurne il contenuto ...]\n' + safeContent.slice(-3000)}
 ${quickIntentGuardrail}
 ${visitLogisticsGuardrail}
 ${quickMemoryContext}

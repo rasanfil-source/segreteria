@@ -3727,18 +3727,20 @@ ${safeAttachmentsContext || ''}`;
 
     return `## ESEMPI DI RISPOSTA CORRETTA (Uso del tag XML <email>)
 
-**ESEMPIO 1 - CAMMINO DI SANTIAGO:**
+Gli esempi mostrano solo la struttura: sostituisci i segnaposto esclusivamente con fatti verificati nella KB. Se il dato manca, ometti la relativa frase. Non riportare segnaposto nella risposta finale.
+
+**ESEMPIO 1 - INFORMAZIONI SU UN EVENTO:**
 <email>
 Gentile utente,
-le inviamo le informazioni principali sul pellegrinaggio.
+le inviamo le informazioni richieste.
 
-### 🚶 Cammino di Santiago 2026
+### [NOME_EVENTO_DALLA_KB]
 
-**🗓️ Date:** 27 giugno - 4 luglio 2026 (8 giorni)
-**📍 Percorso:** Tui (Portogallo) → Santiago (Spagna)
+**Date:** [DATE_DALLA_KB]
+**Luogo:** [LUOGO_DALLA_KB]
 
 **🔗 Iscrizioni e Info:**
-Può trovare il programma completo e iscriversi direttamente a questo link: https://parrocchiasanteugenio.it/santiago
+[INDICAZIONI_ISCRIZIONE_E_LINK_SOLO_SE_PRESENTI_NELLA_KB]
 
 Cordiali saluti,
 Segreteria Parrocchia Sant'Eugenio
@@ -3749,7 +3751,7 @@ Segreteria Parrocchia Sant'Eugenio
 Gentile utente,
 comprendiamo la delicatezza della sua situazione. Per poter valutare insieme il suo caso specifico e accompagnarla in questo percorso, le consigliamo di parlare direttamente con un sacerdote.
 
-Può contattarci al numero 06.123456 per fissare un appuntamento in segreteria.
+[MODALITÀ_DI_CONTATTO_SOLO_SE_PRESENTI_NELLA_KB]
 
 Un cordiale saluto,
 Segreteria Parrocchia Sant'Eugenio
@@ -3781,9 +3783,8 @@ Segreteria Parrocchia Sant'Eugenio
     if (mode === 'full_warm') {
       return `## OUTPUT ENVELOPE POLICY (OBBLIGATORIA)
 - Primo contatto con contesto sensibile.
-- Usa un saluto presente ma non protocollare:
-  preferisci "Cara/Caro [nome]" a "Gentile [nome]"
-  se il tono del messaggio lo consente.
+- Usa un saluto cordiale e sobrio: in italiano "Gentile [nome]" oppure il saluto temporale fornito (Buongiorno/Buonasera).
+- NON usare mai "Caro" o "Cara" nel saluto, neppure in contesti sensibili.
 - Mantieni saluto e chiusura nella lingua ${langLabel}.`;
     }
 
@@ -4030,8 +4031,7 @@ Segreteria Parrocchia Sant'Eugenio
         : isFullWarm
         ? `1. **SALUTO CALDO MA SOBRIO:**
    • Apri con un saluto presente e personale, non protocollare.
-   • Se il nome del mittente è chiaro e il tono del messaggio lo consente, puoi usare "Cara/Caro [nome]"; altrimenti usa un saluto sobrio equivalente.
-   • Non sei vincolato al saluto standard "${salutation}".
+   • Segui l'OUTPUT ENVELOPE POLICY per la scelta del saluto e usa il nome del mittente solo se chiaro.
 
 2. **Formato risposta:**
    [Saluto caldo e sobrio]
