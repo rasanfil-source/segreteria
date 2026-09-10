@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Audit prompting AG — Segreteria Email Parrocchiale AI</title>
+<style>
+body{font-family:Georgia,serif;max-width:820px;margin:2rem auto;padding:0 1rem;line-height:1.45;color:#222}
+h1,h2,h3{font-family:system-ui,sans-serif}
+code{background:#f4f4f4;padding:0.1em 0.35em;border-radius:3px;font-size:0.92em}
+table{border-collapse:collapse;width:100%;margin:1rem 0}
+th,td{border:1px solid #ccc;padding:0.45rem 0.6rem;text-align:left;vertical-align:top}
+th{background:#f0f0f0}
+blockquote{border-left:4px solid #888;margin:1rem 0;padding:0.2rem 1rem;color:#444}
+hr{border:none;border-top:1px solid #ddd;margin:2rem 0}
+@media print{body{max-width:none}}
+</style>
+</head>
+<body>
+<h1>Audit prompting — Segreteria Email Parrocchiale AI (progetto AG)</h1>
+
+<p><strong>Data:</strong> 2026-09-09</p>
+<p><strong>Ambito:</strong> revisione del *prompting* e della governance della risposta automatica</p>
+<p><strong>Metodo:</strong> sola lettura del codice e della documentazione in</p>
+<p><code>...\SCRIPT\GMAIL AUTOMATICA\GMAIL PARROCCHIA\Google Script\AG</code></p>
+<p><strong>Vincolo operativo:</strong> nessuna modifica al codice («si guarda ma non si tocca»)</p>
+
+<hr>
+
+<h2>1. Sintesi esecutiva</h2>
+
+<p>Il sistema è un <strong>autorisponditore pastorale-amministrativo</strong> sulla casella Gmail parrocchiale.</p>
+<p>Classifica le richieste, genera risposte con Gemini ancorate a una <strong>Knowledge Base</strong> (Google Sheets), mantiene una <strong>memoria di conversazione</strong>, valida la bozza e decide se inviare o etichettare per verifica umana (<code>IA</code> / <code>Verifica</code> / <code>Errore</code>).</p>
+
+<p><strong>Filosofia dichiarata:</strong> *Fail Pastoral, Not Technical* — meglio rinviare a un operatore umano che inventare contenuti.</p>
+
+<p><strong>Valutazione complessiva del servizio</strong> (prodotto gratuito / zero costo operativo di licenza per la parrocchia), <strong>escludendo</strong> i limiti strutturali della piattaforma Apps Script:</p>
+
+<h3>**8,5 / 10**</h3>
+
+<p>Giustificazione breve: supera nettamente una tipica autoresponder parrochiale. Combina routing intelligente, KB vincolante, memoria tipizzata, validazione multipla e suite di regressione. I punti aperti (P0) riguardano soprattutto <strong>coerenza interna del prompt</strong> e <strong>completezza del QuickCheck su email lunghe</strong>, non l’assenza di architettura.</p>
+
+<hr>
+
+<h2>2. Cosa fa il sistema (per il revisore)</h2>
+
+<p>1. Legge e filtra le email (spam, newsletter, loop, ack).</p>
+<p>2. Classifica localmente e con un <strong>QuickCheck</strong> Gemini (JSON strutturato).</p>
+<p>3. Determina il tipo di richiesta (tecnica / pastorale / mista / dottrinale).</p>
+<p>4. Costruisce un <strong>PromptContext</strong> (profilo lite / standard / heavy, registro di risposta).</p>
+<p>5. Compone il prompt in <code>PromptEngine</code> (sezioni system vs user, KB, memoria, few-shot, checklist).</p>
+<p>6. Genera la risposta (temperature moderata, safety elevata).</p>
+<p>7. <strong>Valida</strong> (lingua, firma, allucinazioni, territorio, presenza fisica, contenuto vietato, score minimo).</p>
+<p>8. Invia oppure mette in coda <code>Verifica</code>; aggiorna la memoria.</p>
+
+<p>Componenti rilevanti (solo nomi, nessuna patch):</p>
+<p><code>gas_prompt_engine.js</code>, <code>gas_prompt_context.js</code>, <code>gas_gemini_service.js</code>, <code>gas_response_validator.js</code>, <code>gas_classifier.js</code>, <code>gas_request_classifier.js</code>, <code>gas_memory_service.js</code>, <code>gas_response_strategy.js</code>, <code>gas_email_processor.js</code>.</p>
+
+<p>Documentazione di supporto già presente nel repo:</p>
+<p><code>README_IT.md</code>, <code>docs/ARCHITECTURE_IT.md</code>, <code>docs/rule_policy_layer.md</code>, <code>docs/AUDIT_PROMPT_MEMORY_*</code>, <code>docs/COLLAUDO_PROMPT_MEMORIA_*</code>, <code>docs/PROGETTO_AFFINAMENTO_*</code>, <code>docs/SECURITY_IT.md</code>, golden <code>tests/golden_cases.json</code> (~34 casi).</p>
+
+<hr>
+
+<h2>3. Punti di forza del prompting</h2>
+
+<table>
+<tr><th>Area</th><th>Perché conta</th></tr>
+<tr><td>Separazione system / user</td><td>Riduce l’influenza di istruzioni nascoste nell’email</td></tr>
+<tr><td>Input esplicitamente «non fidato»</td><td>Mitigazione prompt injection</td></tr>
+<tr><td>Profili lite / standard / heavy</td><td>Contiene costi e rumore; carica Dottrina solo se serve</td></tr>
+<tr><td>Distinzione *topic* vs *request_purpose*</td><td>Evita risposte «da manuale» su richieste operative</td></tr>
+<tr><td>Contratto KB</td><td>«Solo fatti della KB»; assenza ≠ divieto inventato</td></tr>
+<tr><td>Memoria + posture + strategia</td><td>Continuità conversazionale pastorale</td></tr>
+<tr><td>Validazione ampia + golden tests</td><td>Governance prima dell’invio</td></tr>
+<tr><td>Casi sensibili trattati</td><td>Es. sbattezzo formale, crisi, lutto</td></tr>
+</table>
+
+<hr>
+
+<h2>4. Miglioramenti consigliati (priorità audit)</h2>
+
+<blockquote>Elenco **osservativo**: non è un piano di intervento già eseguito.</blockquote>
+
+<h3>P0 — coerenza / rischio risposta errata</h3>
+
+<p>1. <strong>Conflitto saluto «Caro/Cara»</strong></p>
+<p>   In <code>gas_prompt_engine.js</code> una direttiva di ruolo lo vieta; il registro <code>full_warm</code> lo preferisce.</p>
+<p>   <strong>Azione consigliata:</strong> unificare la policy per registro di risposta.</p>
+
+<p>2. <strong>Few-shot con dati inventabili</strong></p>
+<p>   Esempi con telefono/date di fantasia (es. formato <code>06.…</code>, date Santiago) possono essere <strong>copiati</strong> dal modello, aggirando la KB.</p>
+<p>   <strong>Azione consigliata:</strong> esempi solo strutturali («formato»), senza contatti/orari reali o realistici.</p>
+
+<p>3. <strong>QuickCheck con corpo email ≤ 800 caratteri</strong></p>
+<p>   Nelle email lunghe si possono perdere vincoli, purpose e presenza.</p>
+<p>   <strong>Azione consigliata:</strong> head+tail o estratti strutturati (senza necessariamente una seconda chiamata).</p>
+
+<h3>P1 — qualità / governance del prompt</h3>
+
+<p>4. <strong>Sovrapposizione istruzioni system</strong> (strategy + register + DecisionFrame + checklist + reminder): rischio di contraddizione e diluizione dell’attenzione. Misurare footprint (<code>scripts/measure_prompt_footprint.js</code>) e fondere equivalenti.</p>
+<p>5. <strong>Allineare <code>SECURITY_IT.md</code> e pratica memoria</strong>: la doc invita a non memorizzare dati sensibili in modo permanente; in pratica la memoria può tenere flag di presenza/salute/mobilità/lutto. Allineare retention e testo di policy.</p>
+<p>6. <strong>Few-shot solo in italiano</strong>: corretto anti-leak linguistico; valutare 1–2 esempi *strutturali* EN/ES senza fatti KB.</p>
+
+<h3>P2 — raffinamento</h3>
+
+<p>7. Temperature del QuickCheck (JSON) eventualmente più bassa di quella di generazione.</p>
+<p>8. Separare nei golden assert «forma del prompt» da «qualità send-ready» (alcuni <code>minValidatorScore</code> molto bassi sono utili in regressione ma deboli come barriera prodotto).</p>
+
+<hr>
+
+<h2>5. Valutazione complessiva (criteri da servizio parrochiale gratuito)</h2>
+
+<p><strong>Non</strong> si valutano qui i limiti intrinseci di Apps Script / quote Gemini free.</p>
+<p>Si valuta il <strong>valore del servizio</strong> rispetto a: affidabilità pastorale, sicurezza delle informazioni, manutenibilità del prompting, costo zero per la comunità.</p>
+
+<table>
+<tr><th>Criterio</th><th>Giudizio</th></tr>
+<tr><td>Utilità quotidiana (orari, sacramenti, FAQ, territorio)</td><td>Alto</td></tr>
+<tr><td>Protezione da allucinazioni (KB + validator)</td><td>Buono / molto buono</td></tr>
+<tr><td>Gestione casi umani / rinvio</td><td>Buona</td></tr>
+<tr><td>Test e collaudo del prompting</td><td>Sopra la media del settore «automazioni parrochiali»</td></tr>
+<tr><td>Coerenza interna delle istruzioni di prompt</td><td>Da chiudere (P0.1–P0.2)</td></tr>
+<tr><td>Privacy / memoria sensibile</td><td>Da allineare doc ↔ pratica (P1.5)</td></tr>
+</table>
+
+<p><strong>Voto: 8,5 / 10</strong> — prodotto già produttivo e serio; con i P0 si può ragionevolmente puntare a 9+.</p>
+
+<hr>
+
+<h2>6. Rischi operativi e governance (prompt / memoria)</h2>
+
+<p>1. <strong>Memoria sensibile su Sheet</strong> — chi ha accesso al foglio vede segnali pastorali; servono retention e accesso minimi.</p>
+<p>2. <strong>Auto-invio sopra soglia validator</strong> — residuo rischio tono/edge case; monitorare coda <code>Verifica</code>.</p>
+<p>3. <strong>Qualità e aggiornamento KB</strong> — il prompt impone «solo KB»: KB incompleta ⇒ risposte incomplete o rinvii frequenti.</p>
+<p>4. <strong>Prompt injection</strong> (email/allegati) — mitigata a livello istruzioni, non azzerata.</p>
+<p>5. <strong>Overclaim GDPR</strong> se la documentazione privacy è più restrittiva della pratica di memoria.</p>
+
+<hr>
+
+<h2>7. Dichiarazione di metodo</h2>
+
+<ul>
+<li>Nessuna modifica, deploy, `clasp push`, cancellazione o editing del codice AG.</li>
+<li>Nessuna citazione di segreti da `gas_config.js` (solo riferimenti a knobs pubblici / example).</li>
+<li>Nessuna email reale inviata e nessuna chiamata Gemini di collaudo in questa revisione.</li>
+<li>Fonte: lettura repository locale AG + report di audit prompting del 2026-09-08/09.</li>
+</ul>
+
+<hr>
+
+<h2>8. Allegati utili per il revisore (nel repo, non allegati qui)</h2>
+
+<ul>
+<li>`README_IT.md`</li>
+<li>`docs/ARCHITECTURE_IT.md`</li>
+<li>`docs/rule_policy_layer.md`</li>
+<li>`docs/SECURITY_IT.md`</li>
+<li>`tests/golden_cases.json`</li>
+<li>Suite: `test_golden_prompt_validator.js`, `test_prompt_*.js`, `test_presence_memory_reconciliation.js`</li>
+</ul>
+
+<hr>
+
+<p>*Documento preparato per revisione esterna. Non costituisce parere legale GDPR; per la privacy si rimanda a valutazione giuridica dedicata.*</p>
+</body>
+</html>

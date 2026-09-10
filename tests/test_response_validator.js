@@ -2027,8 +2027,11 @@ console.log('--- Test knowledge contextualization: negazione istituzionale forza
   assert(
     semanticPrompt.includes('affermazioni di disponibilità, indisponibilità, divieto o limite') &&
       semanticPrompt.includes("l'EMAIL ORIGINALE da sola non le dimostra") &&
-      semanticPrompt.includes("l'assenza di un dettaglio non autorizza una negazione"),
-    'il validatore semantico deve applicare il radicamento anche alle affermazioni negative'
+      semanticPrompt.includes("l'assenza di un dettaglio non autorizza una negazione") &&
+      semanticPrompt.includes('conservino lo stesso grado di certezza della fonte') &&
+      semanticPrompt.includes('non supporta una conferma già concessa') &&
+      semanticPrompt.includes('garanzia del risultato entro una scadenza'),
+    'il validatore semantico deve applicare il radicamento alle affermazioni negative e preservare la modalità della fonte'
   );
 }
 

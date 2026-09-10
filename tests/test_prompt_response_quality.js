@@ -295,10 +295,15 @@ const personalizedMarriageDeadlinePrompt = engine.buildPrompt({
 assert(
   personalizedMarriageDeadlinePrompt.includes('NON inventare né in positivo né in negativo') &&
     personalizedMarriageDeadlinePrompt.includes('lascia da verificare solo il dettaglio mancante') &&
-    personalizedMarriageDeadlinePrompt.includes('conferma le possibilità previste') &&
+    personalizedMarriageDeadlinePrompt.includes('conserva il grado di certezza della fonte') &&
+    personalizedMarriageDeadlinePrompt.includes('NON proporlo né menzionarlo') &&
+    personalizedMarriageDeadlinePrompt.includes("soltanto se l'utente chiede espressamente anche delle possibilità successive") &&
+    personalizedMarriageDeadlinePrompt.includes('comunica che possono essere valutati') &&
+    personalizedMarriageDeadlinePrompt.includes('mantieni le condizioni di accordo o disponibilità indicate') &&
+    personalizedMarriageDeadlinePrompt.includes('non presentarli come già concessi') &&
     personalizedMarriageDeadlinePrompt.includes('conclusione della preparazione e data della celebrazione') &&
     personalizedMarriageDeadlinePrompt.includes("l'assenza della data non dimostra che il percorso sia indisponibile o impossibile"),
-  'il prompt deve confermare la personalizzazione prevista e riservare la prudenza alla celebrazione'
+  'il prompt deve presentare la personalizzazione come possibilità subordinata ad accordo e disponibilità, senza garantire la scadenza'
 );
 
 const genericConstrainedGoalPrompt = engine.buildPrompt({
@@ -651,10 +656,12 @@ console.log('--- Test prompt: turni di lavoro non trasferiscono automaticamente 
 
   assert(
     shiftWorkPrompt.includes('UNITÀ INFORMATIVE, NON TESTO DA RIPRODURRE') &&
+      shiftWorkPrompt.includes('una possibilità da valutare, concordare o verificare resta tale') &&
+      shiftWorkPrompt.includes('non diventa una conferma già concessa o una promessa di risultato') &&
       shiftWorkPrompt.includes('per ciascuna verifica quale domanda, vincolo o passo risolve') &&
       shiftWorkPrompt.includes('Un ramo pertinente non autorizza gli altri') &&
       shiftWorkPrompt.includes('sintetizza e riformula il resto'),
-    'il caso dei turni deve ricevere istruzioni generali di decomposizione, selezione e riformulazione della KB'
+    'il caso dei turni deve preservare la modalità della KB oltre a decomporre, selezionare e riformulare le informazioni'
   );
 }
 
@@ -1420,9 +1427,13 @@ assert(
     operationalCertificatePrompt.includes('PRIMA di scegliere quali fatti della KB usare') &&
     operationalCertificatePrompt.includes('non frasi pronte né blocchi da inserire automaticamente in base al solo argomento') &&
     operationalCertificatePrompt.includes('Non riaprire istruzioni preliminari') &&
+    operationalCertificatePrompt.includes('se questo richiede un ricontatto non ancora programmato') &&
+    operationalCertificatePrompt.includes('cercheremo di contattarla a breve') &&
+    operationalCertificatePrompt.includes('non come certezza') &&
+    operationalCertificatePrompt.includes('la ricontatteremo a breve') &&
     operationalCertificatePrompt.includes('impedimenti reali') &&
     operationalCertificatePrompt.includes('informazioni mancanti indispensabili'),
-  'il prompt operativo deve limitare la KB a presa in carico, blocchi reali e dati indispensabili'
+  'il prompt operativo deve limitare la KB a presa in carico, blocchi reali e dati indispensabili, mitigando ricontatti non programmati'
 );
 
 console.log('--- Test prompt: territorio NON RIENTRA prevale su gestione digitale remota ---');

@@ -2234,6 +2234,58 @@ console.log('--- Test vincolo sacramentale: Cresima entro dicembre per matrimoni
   assert(deadlineContext.confidence >= 0.8, 'sacramento, scadenza e finalità espliciti devono mantenere confidenza alta');
 }
 
+console.log('--- Test vincolo sacramentale: periodo approssimativo e celebrazione del giorno ---');
+{
+  const temporal = {
+    messageDate: '2026-09-10',
+    currentDate: '2026-09-10',
+    messageDateAvailable: true
+  };
+  const approximateContext = processor._extractSacramentalDeadlineContext_(
+    'Corso Cresima adulti',
+    'Avrei necessità di ricevere la Cresima perché verso la metà del mese di ottobre dovrò fare da padrino.',
+    'it',
+    temporal
+  );
+  const exactCelebrationContext = processor._extractSacramentalDeadlineContext_(
+    'Corso Cresima adulti',
+    'Vorrei prepararmi in tempo utile per la celebrazione del 17 ottobre presso San Giovanni in Laterano.',
+    'it',
+    temporal
+  );
+
+  assert(approximateContext !== null, 'verso la metà del mese deve attivare il vincolo sacramentale');
+  assert(
+    approximateContext.deadline === 'metà del mese di ottobre' &&
+      approximateContext.temporal.endDate === '2026-10-31',
+    `periodo approssimativo inatteso: ${approximateContext && approximateContext.deadline}/${approximateContext && approximateContext.temporal && approximateContext.temporal.endDate}`
+  );
+  assert(exactCelebrationContext !== null, 'celebrazione del 17 ottobre deve attivare il vincolo sacramentale');
+  assert(
+    exactCelebrationContext.deadline === '17 ottobre' &&
+      exactCelebrationContext.temporal.startDate === '2026-10-17' &&
+      exactCelebrationContext.temporal.endDate === '2026-10-17' &&
+      exactCelebrationContext.temporal.precision === 'day',
+    `giorno celebrazione inatteso: ${exactCelebrationContext && JSON.stringify(exactCelebrationContext.temporal)}`
+  );
+}
+
+console.log('--- Test requisiti padrino: non ripetere quanto già detto nel thread ---');
+{
+  const history = [
+    'Utente (Andrea): Vorrei informazioni sul corso per poter fare da padrino.',
+    '---',
+    'Segreteria: Per fare da padrino occorre essere cattolico battezzato e cresimato, aver ricevuto l’Eucaristia, avere almeno 16 anni, non essere il genitore del battezzando e condurre una vita conforme alla fede.',
+    '---'
+  ].join('\n');
+  const followUp = 'È possibile organizzare un percorso personalizzato? La Cresima mi è necessaria per poter svolgere il ruolo di padrino.';
+  const repeatedPolicy = processor._deriveSponsorGuidancePolicy_('Corso Cresima adulti', followUp, null, true, 'it', history);
+  const directQuestionPolicy = processor._deriveSponsorGuidancePolicy_('Requisiti padrino', 'Quali sono i requisiti per fare da padrino?', null, true, 'it', history);
+
+  assert(repeatedPolicy === 'no_eligibility_guidance', `i requisiti già forniti non devono essere ripetuti, ottenuto ${repeatedPolicy}`);
+  assert(directQuestionPolicy === 'cresima_prerequisite_for_sponsor_role', `una nuova domanda diretta deve poter riaprire i requisiti, ottenuto ${directQuestionPolicy}`);
+}
+
 console.log('--- Test _trackEmptyInboxStreak (mantiene streak se CacheService fallisce dopo lettura) ---');
 {
   const previousCacheService = global.CacheService;

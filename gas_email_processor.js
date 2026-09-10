@@ -2706,7 +2706,7 @@ ${addressLines.join('\n\n')}
         responseRegister: responseRegister,
         territoryContext: territoryContext,
         physicalPresenceConstraint: physicalPresenceConstraint,
-        sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage),
+        sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage, conversationHistory),
         sacramentalDeadlineContext: runtimeContext.sacramentalDeadlineContext,
         relationalPosture: normalizedRelationalPosture,
         conversationShift: {
@@ -2747,7 +2747,10 @@ ${addressLines.join('\n\n')}
         doctrineStructured: routedDoctrineStructured
       };
 
-      const documentConsistency = this.config.documentConsistencyCheckEnabled
+      // Una menzione di documenti ancora attesi non descrive necessariamente
+      // l'allegato presente: la coerenza si valuta solo su una consegna
+      // effettivamente annunciata o riportata nel corpo.
+      const documentConsistency = this.config.documentConsistencyCheckEnabled && documentDeliveryModel.expectsDocument
         ? this._evaluateDocumentConsistency_(
           messageDetails.subject,
           messageDetails.body,
@@ -2769,6 +2772,7 @@ ${addressLines.join('\n\n')}
       // questo gap, per non moltiplicare le chiamate Gemini) deleghiamo la
       // verifica di coerenza a un controllo semantico zero-shot.
       const hasExplicitQuickDocumentExpectation = Boolean(
+        documentDeliveryModel.expectsDocument &&
         quickDocumentDelivery &&
         quickDocumentDelivery.source === 'quick_check' &&
         quickDocumentDelivery.expected_document === true &&
@@ -4660,12 +4664,15 @@ ${addressLines.join('\n\n')}
         quickDocumentDelivery.missing_document_if_no_attachment === true
       )
     );
-    // Il quick-check è probabilistico: può confermare una consegna quando esiste
-    // una prova locale, ma da solo non può creare lo stato negativo "mancante".
+    const bodyRefersToPendingDocument = /\b(?:sono|siamo)\s+in\s+attesa\s+di\s+(?:ricever|ottener)|\bnon\s+(?:ho|abbiamo)\s+ancora\s+(?:ricevut|ottenut)|\bappena\s+(?:lo|la|li|le)\s+(?:ricever|otterr)/i.test(String(body || ''));
+    // Il quick-check è probabilistico: può confermare una consegna solo quando
+    // il testo locale la annuncia (o contiene già i dati compilati). La mera
+    // presenza di un file non basta quando il testo precisa che il documento
+    // citato è ancora atteso: in quel caso l'allegato presente è autonomo.
     const groundedQuickExpectation = quickExpectsDocument && Boolean(
       announcedByBody ||
       bodyContainsUsableDocumentContent ||
-      hasPhysicalAttachment
+      (hasPhysicalAttachment && !bodyRefersToPendingDocument)
     );
     const expectsDocument = Boolean(
       bodyContainsUsableDocumentContent ||
@@ -9224,8 +9231,10 @@ Parish Secretariat of Sant'Eugenio`;
       it: [
         /\b(?:entro|prima\s+di|prima\s+del(?:la)?|per)\s+((?:met[aà]\s+|fine\s+(?:di\s+)?|inizio\s+(?:di\s+)?)?(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?)/i,
         /\b(?:entro|prima\s+di|prima\s+del(?:la)?|per)\s+(?:il\s+)?(\d{1,2}\s+(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?)/i,
+        /\b(?:verso|intorno\s+a|attorno\s+a)\s+(?:la\s+|il\s+)?((?:met[aà]\s+(?:del\s+mese\s+di\s+)?|fine\s+(?:del\s+mese\s+di\s+|di\s+)?|inizio\s+(?:del\s+mese\s+di\s+|di\s+)?)?(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?)/i,
         /\b(?:battesimo|cerimonia|celebrazione)\s+(?:è|e['']?|sara['']?|sarà|previsto|prevista|fissato|fissata)\s+(?:per\s+|a\s+|il\s+|in\s+)?((?:met[aà]\s+|fine\s+(?:di\s+)?|inizio\s+(?:di\s+)?)?(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?)/i,
         /\b(?:battesimo|cerimonia|celebrazione)\s+(?:è|e['']?|sara['']?|sarà|previsto|prevista|fissato|fissata)\s+(?:per\s+|a\s+|il\s+|in\s+)?(\d{1,2}\s+(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?)/i,
+        /\b(?:battesimo|cerimonia|celebrazione)\s+del(?:la)?\s+(?:giorno\s+)?(\d{1,2}\s+(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?)/i,
         /\b(?:il\s+giorno|la\s+data\s+del(?:la)?)\s+(\d{1,2}\s+(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?)\b/i,
         /\briceverla\s+entro\s+((?:met[aà]\s+|fine\s+(?:di\s+)?)?(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?)/i
       ],
@@ -9341,11 +9350,46 @@ Parish Secretariat of Sant'Eugenio`;
     };
   }
 
-  _deriveSponsorGuidancePolicy_(subject, body, attachmentIntentContext, aiGuidanceSignal, detectedLanguage = 'it') {
+  _historyAlreadyProvidesSponsorRequirements_(conversationHistory) {
+    const secretariatBlocks = String(conversationHistory || '')
+      .split(/\n---(?:\n|$)/)
+      .filter(block => /^Segreteria:/i.test(block.trim()));
+    return secretariatBlocks.some((block) => {
+      const normalized = block.toLowerCase();
+      const signals = [
+        /battezzat[oa].{0,40}cresimat[oa]|cresimat[oa].{0,40}battezzat[oa]/i.test(normalized),
+        /eucaristia|prima comunione/i.test(normalized),
+        /almeno\s+16\s+anni/i.test(normalized),
+        /non\s+essere.{0,30}genitor/i.test(normalized),
+        /vita\s+conforme\s+alla\s+fede|situazion\w*\s+canonic\w*\s+irregolar/i.test(normalized)
+      ];
+      return signals.filter(Boolean).length >= 3;
+    });
+  }
+
+  _asksSponsorRequirementsDirectly_(text, detectedLanguage = 'it') {
+    const source = String(text || '').toLowerCase();
+    if (!this._hasSacramentalSponsorRole_(source, detectedLanguage)) return false;
+    return /\b(?:quali|cosa|che cosa|vorrei sapere|chiedo)\b[\s\S]{0,100}\b(?:requisit|condizion|idoneit)/i.test(source) ||
+      /\b(?:requisit|condizion|idoneit)[a-zàèéìòù]*\b[\s\S]{0,100}\b(?:padrin|madrin|sponsor)/i.test(source) ||
+      /\b(?:padrin|madrin|sponsor)[a-zàèéìòù]*\b[\s\S]{0,100}\b(?:requisit|condizion|idoneit)/i.test(source);
+  }
+
+  _deriveSponsorGuidancePolicy_(subject, body, attachmentIntentContext, aiGuidanceSignal, detectedLanguage = 'it', conversationHistory = '') {
     const text = `${subject || ''} ${body || ''}`.toLowerCase();
     const intent = String((attachmentIntentContext && attachmentIntentContext.intent) || '').toLowerCase();
     const isSubmission = /submission/.test(intent);
     const localDecision = this._classifySponsorGuidanceLocally_(subject, body, attachmentIntentContext, detectedLanguage);
+
+    // Non ripetere un elenco già dato dalla segreteria nel thread. Il segnale
+    // AI può riattivarlo perché collega una domanda sul corso al ruolo di
+    // padrino; si riapre il tema solo davanti a una domanda diretta sui requisiti.
+    if (
+      this._historyAlreadyProvidesSponsorRequirements_(conversationHistory) &&
+      !this._asksSponsorRequirementsDirectly_(text, detectedLanguage)
+    ) {
+      return 'no_eligibility_guidance';
+    }
 
     if (localDecision === 'exclude') {
       return 'no_eligibility_guidance';

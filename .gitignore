@@ -10,6 +10,11 @@ scripts/deploy_gas.local.json
 # appsscript.json 
 
 # File di sistema
+
+# appsscript.json è necessario per clasp, ma attento se lo pubblichi
+# appsscript.json 
+
+# File di sistema
 .DS_Store
 Thumbs.db
 
@@ -21,3 +26,5 @@ test_output.txt
 final_test_results.txt
 *_test_results.txt
 smoke_out.txt
+scratch/
+*.log

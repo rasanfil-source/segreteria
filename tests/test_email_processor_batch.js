@@ -2965,6 +2965,42 @@ function runExpectedDocumentDeliveryScenario({
   }
 }
 
+console.log('--- Test allegato distinto da documenti futuri: nessun falso mismatch ---');
+{
+  const body = [
+    'Vorrei sapere se posso completare la preparazione prima della Cresima del 17 ottobre.',
+    'Nel frattempo ho già richiesto alla mia parrocchia i certificati di Battesimo e Prima Comunione',
+    'e sono in attesa di riceverli.'
+  ].join(' ');
+  const scenario = runExpectedDocumentDeliveryScenario({
+    threadId: 't-doc-future-certs-with-registration-form',
+    subject: 'Corso Cresima adulti',
+    body: body,
+    attachments: ['modulo_iscrizione_cresima.pdf'],
+    ocrText: 'Modulo di iscrizione al corso per la Cresima degli adulti. Nome e cognome: Andrea Casali.',
+    quickDocumentDelivery: {
+      expected_document: true,
+      expected_document_description: 'certificati di Battesimo e Prima Comunione',
+      delivery_channel: 'attachment',
+      body_contains_filled_document: false,
+      requires_file_attachment: true,
+      missing_document_if_no_attachment: false,
+      reason: 'i certificati saranno consegnati quando ricevuti',
+      source: 'quick_check'
+    },
+    semanticResponse: '{"consistent": false, "reason": "il modulo non è un certificato"}',
+    generatedText: 'Abbiamo ricevuto il modulo di iscrizione. La possibilità del percorso richiesto deve essere verificata con il sacerdote.'
+  });
+
+  assert(scenario.result.status === 'replied', 'il caso reale deve completare il flusso');
+  assert(scenario.capturedPromptOptions.documentDelivery.expectsDocument === false, 'i certificati ancora attesi non devono essere associati al file presente');
+  assert(scenario.capturedPromptOptions.documentDelivery.status === 'unannounced_attachment', `il modulo deve restare un allegato autonomo, ottenuto ${scenario.capturedPromptOptions.documentDelivery.status}`);
+  assert(scenario.capturedPromptOptions.documentConsistency === null, 'senza consegna annunciata non va eseguito il confronto tassonomico atteso/ricevuto');
+  assert(scenario.semanticCalls === 0, 'la descrizione probabilistica dei certificati non deve attivare il confronto semantico');
+  assert(!scenario.directives.some((item) => /ALLEGATO NON COERENTE|ALLEGATO NON VERIFICABILE/.test(item)), 'non deve essere iniettato alcun avviso di incongruenza');
+  assert(scenario.generationCalls === 1, 'la domanda dell utente deve passare alla generazione ordinaria');
+}
+
 console.log('--- Test expected document missing: solo annuncio senza allegato ---');
 {
   const scenario = runExpectedDocumentDeliveryScenario({
