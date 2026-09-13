@@ -65,6 +65,18 @@ assert(htmlIsolated.includes('&lt;img src=x onerror=alert(1)&gt;'), 'tag HTML is
 
 console.log('--- Test _extractEmailAddress supporta caratteri RFC5322 snelli nel local-part ---');
 {
+  const url = 'https://www.parrocchiasanteugenio.it/prima-comunione/#modulo-catechesi';
+  const rendered = markdownToHtml(`Per iscriversi, compilare [questo modulo online](${url}).`);
+  assert(rendered.includes(`href="${url}"`), 'Il collegamento deve conservare l’ancora del modulo');
+  assert(rendered.includes('text-decoration:underline;'), 'Il collegamento deve essere sottolineato esplicitamente');
+  assert(rendered.includes('>questo modulo online</a>'), 'Il lettore HTML deve vedere il testo descrittivo');
+  assert(new GmailService()._htmlToPlainText(rendered).includes(`questo modulo online (${url})`),
+    'La versione solo testo deve conservare la destinazione');
+  const unsafe = markdownToHtml('[modulo](javascript:alert(1))');
+  assert(!unsafe.includes('<a '), 'Un’etichetta descrittiva non deve eludere il controllo URL');
+}
+
+{
   const service = new GmailService();
   assert(
     service._extractEmailAddress("D'Angelo <d'angelo@example.org>") === "d'angelo@example.org",

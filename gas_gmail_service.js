@@ -4302,7 +4302,7 @@ function markdownToHtml(text) {
         const token = `@@LINK_PLACEHOLDER_${links.length}_${generatePlaceholderNonce()}@@`;
         if (sanitizedUrl) {
             const hrefSafe = escapeHtmlAttr(sanitizedUrl);
-            links.push({ token: token, value: `<a href="${hrefSafe}" style="color:#351c75;">${escapedText}</a>` });
+            links.push({ token: token, value: `<a href="${hrefSafe}" style="color:#351c75;text-decoration:underline;">${escapedText}</a>` });
         } else {
             console.warn(`⚠️ URL bloccato per sicurezza: ${url}`);
             links.push({ token: token, value: escapedText });
