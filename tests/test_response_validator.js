@@ -1497,6 +1497,19 @@ console.log('--- Test perfezionamento automatico: rimuove thinking leak critico 
   );
 }
 
+console.log('--- Test thinking leak: non esporre i limiti della guida interna ---');
+{
+  const leaked = validator._checkExposedReasoning(
+    'Non abbiamo informazioni specifiche sui documenti da presentare nella nostra guida; può contattarci telefonicamente.'
+  );
+  const interlocutory = validator._checkExposedReasoning(
+    'Al momento non siamo in grado di darle una risposta precisa su questo aspetto; ce ne occuperemo e cercheremo di darle riscontro a breve.'
+  );
+
+  assert(leaked.errors.length > 0, 'il riferimento al limite della guida interna deve essere bloccante');
+  assert(interlocutory.errors.length === 0, 'la presa in carico interlocutoria non deve essere scambiata per ragionamento esposto');
+}
+
 console.log('--- Test _checkCapitalAfterComma: rileva maiuscole latine accentate ---');
 {
   const accentedCap = validator._checkCapitalAfterComma('Hola, Él responderá pronto.', 'es');

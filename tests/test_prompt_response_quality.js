@@ -260,6 +260,17 @@ const deadlineGoalPrompt = engine.buildPrompt({
 });
 
 assert(
+  litePrompt.includes('assumi come segreteria la presa in carico del passo necessario') &&
+    litePrompt.includes('senza specificare in anticipo se comporterà verifica, studio, raccolta di dati o altro') &&
+    litePrompt.includes('senza esporre limiti di guide, basi di conoscenza o fonti interne') &&
+    litePrompt.includes('senza rimandare l\'utente a ricontattare lo stesso interlocutore') &&
+    litePrompt.includes('ce ne occuperemo e cercheremo di darle riscontro a breve') &&
+    !litePrompt.includes('effettueremo una verifica') &&
+    !litePrompt.includes('invitando cortesemente a contattare la segreteria'),
+  'l’assenza di informazioni deve produrre una presa in carico interlocutoria senza prescrivere il procedimento interno né esporre la KB'
+);
+
+assert(
   deadlineGoalPrompt.includes('comunica presto l\'incompatibilità') &&
   deadlineGoalPrompt.includes('proponi prima l\'alternativa praticabile') &&
   deadlineGoalPrompt.includes('non dare rilievo a un percorso inutilizzabile'),
@@ -294,7 +305,7 @@ const personalizedMarriageDeadlinePrompt = engine.buildPrompt({
 
 assert(
   personalizedMarriageDeadlinePrompt.includes('NON inventare né in positivo né in negativo') &&
-    personalizedMarriageDeadlinePrompt.includes('lascia da verificare solo il dettaglio mancante') &&
+    personalizedMarriageDeadlinePrompt.includes('lascia da accertare solo il dettaglio mancante') &&
     personalizedMarriageDeadlinePrompt.includes('conserva il grado di certezza della fonte') &&
     personalizedMarriageDeadlinePrompt.includes('NON proporlo né menzionarlo') &&
     personalizedMarriageDeadlinePrompt.includes("soltanto se l'utente chiede espressamente anche delle possibilità successive") &&
