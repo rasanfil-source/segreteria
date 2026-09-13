@@ -113,6 +113,31 @@ vm.runInThisContext(code, { filename: promptEnginePath });
 
 const engine = new PromptEngine();
 
+console.log('--- Test certificati: procedure dalla KB, non dalla categoria ---');
+{
+  const kb = 'Per il certificato di Battesimo il rilascio richiede la verifica nei registri battesimali. La partecipazione al corso di Cresima per adulti non viene registrata.';
+  for (const category of ['document_submission', 'document_submission_with_question']) {
+    for (const document of ['certificato di Battesimo', 'certificato di partecipazione al corso di Cresima per adulti']) {
+      const prompt = engine.buildPrompt({
+        emailSubject: `Richiesta ${document}`,
+        emailContent: `Richiedo il ${document} via email. Andrea Severoni.`,
+        knowledgeBase: kb,
+        detectedLanguage: 'it',
+        promptProfile: 'heavy',
+        category,
+        salutation: 'Buongiorno,',
+        closing: 'Cordiali saluti,'
+      });
+      assertMatches(prompt, /descrivi il seguito previsto dalla KB per quel documento/, 'il seguito deve dipendere dalla procedura del documento');
+      assertMatches(prompt, /senza dedurre procedure dal solo tipo di richiesta/, 'la categoria non deve inventare procedure');
+      assertMatches(prompt, /Se la procedura manca, esprimi l'impegno a occuparsene e a dare riscontro/, 'senza procedura deve restare la presa in carico');
+      assertMatches(prompt, /rilascio richiede la verifica nei registri battesimali/, 'la procedura battesimale documentata deve restare disponibile');
+      assertMatches(prompt, /partecipazione al corso di Cresima per adulti non viene registrata/, 'il fatto relativo al corso adulti deve restare disponibile');
+      assertDoesNotMatch(prompt, /se i dati troveranno corrispondenza nei registri\/archivi|dopo verifica\/preparazione/, 'non reintrodurre una procedura universale sui certificati');
+    }
+  }
+}
+
 console.log('--- Test PromptEngine: fallback token conservativo per italiano ---');
 {
   const originalEstimateTokenCount = global.estimateTokenCount;
