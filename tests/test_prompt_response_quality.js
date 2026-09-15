@@ -284,15 +284,28 @@ const deadlineGoalPrompt = engine.buildPrompt({
   sponsorGuidancePolicy: 'cresima_prerequisite_for_sponsor_role'
 });
 
+const missingInformationRule = litePrompt.toString().match(
+  /\*\*INFORMAZIONE MANCANTE:\*\*([^\n]*)/
+)?.[1] || '';
+const fullInformationMissingInstruction = missingInformationRule.split(
+  /Se manca l'intera informazione,/i
+)[1] || '';
+
 assert(
-  litePrompt.includes('assumi come segreteria la presa in carico del passo necessario') &&
-    litePrompt.includes('senza specificare in anticipo se comporterà verifica, studio, raccolta di dati o altro') &&
-    litePrompt.includes('senza esporre limiti di guide, basi di conoscenza o fonti interne') &&
-    litePrompt.includes('senza rimandare l\'utente a ricontattare lo stesso interlocutore') &&
-    litePrompt.includes('ce ne occuperemo e cercheremo di darle riscontro a breve') &&
-    !litePrompt.includes('effettueremo una verifica') &&
-    !litePrompt.includes('invitando cortesemente a contattare la segreteria'),
-  'l’assenza di informazioni deve produrre una presa in carico interlocutoria senza prescrivere il procedimento interno né esporre la KB'
+  /assenza di un dettaglio/i.test(missingInformationRule) &&
+    /lascia da definire solo il dettaglio mancante/i.test(missingInformationRule),
+  'un dettaglio assente deve restare circoscritto senza negare ciò che la KB stabilisce'
+);
+assert(
+  /prendi in carico/i.test(fullInformationMissingInstruction) &&
+    /come segreteria/i.test(fullInformationMissingInstruction) &&
+    /successivo riscontro/i.test(fullInformationMissingInstruction),
+  'se manca l’intera informazione, la segreteria deve assumere la presa in carico e comunicare il seguito'
+);
+assert(
+  !/(?:per esempio|ad esempio|scrivi\b|["“”])/i.test(missingInformationRule) &&
+    !/(?:verific\w*|conferm\w*|acquis\w*|valut\w*|consult\w*|studi\w*|raccolt\w*)/i.test(fullInformationMissingInstruction),
+  'la presa in carico non deve contenere formule da copiare né predeterminare l’attività successiva'
 );
 
 assert(
@@ -330,7 +343,7 @@ const personalizedMarriageDeadlinePrompt = engine.buildPrompt({
 
 assert(
   personalizedMarriageDeadlinePrompt.includes('NON inventare né in positivo né in negativo') &&
-    personalizedMarriageDeadlinePrompt.includes('lascia da accertare solo il dettaglio mancante') &&
+    /lascia da (?:definire|accertare) solo il dettaglio mancante/i.test(personalizedMarriageDeadlinePrompt.toString()) &&
     personalizedMarriageDeadlinePrompt.includes('conserva il grado di certezza della fonte') &&
     personalizedMarriageDeadlinePrompt.includes('NON proporlo né menzionarlo') &&
     personalizedMarriageDeadlinePrompt.includes("soltanto se l'utente chiede espressamente anche delle possibilità successive") &&
@@ -983,10 +996,17 @@ assert(
   bereavementPrompt.includes('Il contesto emotivo NON trasforma una richiesta pratica in una questione pastorale'),
   'il ruolo sistema deve restringere il discernimento pastorale nei contesti emotivi'
 );
+const practicalMissingInformationRule = bereavementPrompt.toString().match(
+  /\*\*RICHIESTE PRATICHE O DEVOZIONALI:\*\*([^\n]*)/
+)?.[1] || '';
 assert(
-  bereavementPrompt.includes('ECCEZIONE - RICHIESTE PRATICHE O DEVOZIONALI NON IN KB') &&
-  bereavementPrompt.includes('saremo lieti di inviarle un testo di preghiera rispondendo a questa email'),
-  'la KB deve permettere presa in carico per richieste devozionali semplici non presenti'
+  /richiesta semplice e pratica/i.test(practicalMissingInformationRule) &&
+    /non è coperta dalle informazioni/i.test(practicalMissingInformationRule) &&
+    /prendila in carico/i.test(practicalMissingInformationRule) &&
+    /come segreteria/i.test(practicalMissingInformationRule) &&
+    /senza trasformarla in discernimento pastorale/i.test(practicalMissingInformationRule) &&
+    !/(?:esempio|es\.|["“”])/i.test(practicalMissingInformationRule),
+  'una richiesta pratica non coperta deve essere presa in carico senza formule da copiare né rinvii pastorali'
 );
 assert(
   bereavementPrompt.includes('ATTENZIONE - LE RICHIESTE PRATICHE RESTANO PRATICHE') &&
