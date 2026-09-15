@@ -46,6 +46,8 @@
 
 ## 🔧 Production Configuration
 
+`gas_config.js` remains tracked in the repository and is required by the workflow updating GitHub and both GAS projects. Do not untrack it or overwrite it with `gas_config.example.js`. `.claspignore` includes the operational file and excludes the example from deployment. Keep actual credentials in Script Properties. The deployment script stops if the operational file is missing; the example fallback in tests does not replace this requirement.
+
 ### 1. Optimization Parameters
 
 **In `gas_config.js`, configure:**

@@ -28,7 +28,7 @@ The system is designed to help the parish comply with the General Data Protectio
 |-----------|---------------------|-------------|
 | **Sender Email** | Used only to send the reply and verify history. | Legitimate Interest (replying to request) |
 | **Email Content** | Analyzed by Gemini AI to generate the response. **NOT** used for model training. | Legitimate Interest / Implied Consent |
-| **Sensitive Data** | The system is instructed to refer sensitive situations (health, family situations) to the priest without permanently storing them. | Special Protection (Art. 9 GDPR) |
+| **Sensitive Data** | Instructions refer sensitive situations to the priest when appropriate. Conversation memory may retain summaries and contextual flags concerning bereavement, canonical situations or personal constraints. Actual retention is described below; flags have no independent expiry. | Special Protection (Art. 9 GDPR) |
 
 ### 2. No Training on User Data
 
@@ -39,9 +39,13 @@ Google guarantees that data sent via the Gemini API (Vertex AI / Google AI Studi
 
 ### 3. Right to be Forgotten (Deletion)
 
-To guarantee the right to erasure:
-1.  **Conversational Memory**: The system includes an automatic cleanup function (`cleanupOldMemory`) that deletes old conversation data (default: 30 days).
-2.  **Manual Deletion**: It is possible to manually delete rows from the `ConversationMemory` sheet if a user requests it.
+The software provides these memory deletion mechanisms:
+1.  **Conversation memory**: `cleanupOldMemory` clears rows whose `lastUpdated` is older than 30 days. Memory updates renew that timestamp, so active conversations can retain summaries and flags for longer than 30 days. This is not an expiry measured from each fact's origin. Deletion occurs on a successful cleanup run, not exactly on day 30; verify that the scheduled trigger is installed and working.
+2.  **Anomalous dates**: for missing, unreadable or future `lastUpdated`, cleanup records first observation in a technical note on cell F (`AG_MEMORY_RETENTION_V1`). It retains the row for another 30 days from detection, then clears it on the next successful run. It does not change the interaction timestamp. A valid update resumes normal expiry; a missing or corrupt technical note restarts observation. Preserve these notes during routine maintenance.
+3.  **Cleanup scope**: clears columns A:J of expired rows and invalidates their known caches. It does not move retained rows or delete Gmail messages, sheet revision history, backups, manual notes or data outside the table. The technical note contains no message text and does not enter prompts. Personal data in manual notes requires separate handling.
+4.  **Manual deletion**: rows can be deleted from `ConversationMemory`; address relevant copies and caches as well. Manual sheet edits do not automatically invoke the software's cache invalidation.
+
+Deleting a row removes its summary, previously covered topics, flags and physical presence state together. Subsequent turns may lose continuity or repeat advice; deletion does not establish that a personal difficulty has been resolved. Cleanup does not change instructions, models or AI budgets. These are technical software properties, not certification of an installation's compliance.
 
 ---
 
@@ -63,7 +67,7 @@ See the `DEPLOYMENT.md` guide, "Production Security" section.
 The spreadsheet acts as a database and Knowledge Base.
 
 -   **Limited Access**: Share the sheet **only** with the account running the script and strictly necessary administrators (e.g., Parish Priest, Secretary).
--   **No sensitive data in KB**: Never insert names, surnames, private phone numbers, or addresses of parishioners in the `Instructions` or `ConversationMemory` sheets.
+-   **Separate KB and memory**: do not place parishioners' personal data in the shared KB (`Instructions`). `ConversationMemory` contains conversation data, potentially sensitive: restrict access, content and retention; avoid unnecessary personal details and sensitive manual notes.
 -   **Logs**: Google Sheets maintains a revision history that acts as an audit log.
 
 ### 3. Logs and Monitoring

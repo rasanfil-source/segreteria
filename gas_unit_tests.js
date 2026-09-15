@@ -302,7 +302,8 @@ function runAllTests() {
             };
 
             vm.createContext(context);
-            vm.runInContext(fs.readFileSync('gas_config.js', 'utf8'), context, { filename: 'gas_config.js' });
+            const configPath = fs.existsSync('gas_config.js') ? 'gas_config.js' : 'gas_config.example.js';
+            vm.runInContext(fs.readFileSync(configPath, 'utf8'), context, { filename: configPath });
             propertyReads = 0;
 
             const first = context._getScriptProperty('CACHE_REGRESSION_KEY');
@@ -366,7 +367,8 @@ function runAllTests() {
             };
 
             vm.createContext(context);
-            vm.runInContext(fs.readFileSync('gas_config.js', 'utf8'), context, { filename: 'gas_config.js' });
+            const configPath = fs.existsSync('gas_config.js') ? 'gas_config.js' : 'gas_config.example.js';
+            vm.runInContext(fs.readFileSync(configPath, 'utf8'), context, { filename: configPath });
 
             return context.CONFIG.GEMINI_API_KEY === propertyValues.GEMINI_API_KEY
                 && context.CONFIG.SPREADSHEET_ID === propertyValues.SPREADSHEET_ID

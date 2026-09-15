@@ -1025,6 +1025,7 @@ Vincoli:
     const effectiveRelationalPosture = isFormalTopicForRouting
       ? (formalTopicPreservesEmotionalPosture ? relationalPosture : 'direct')
       : (normalizedConcerns.longitudinal_sensitivity &&
+          templateConcerns.emotional_sensitivity &&
           normalizedResponseMode !== 'longitudinal_tone_only' &&
           relationalPosture === 'direct'
           ? 'personal'

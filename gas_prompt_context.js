@@ -186,14 +186,14 @@ var PromptContext = class PromptContext {
         const overload = mode === 'overload';
         const directives = {
             bereavement_continuity: overload
-                ? 'La memoria segnala un lutto ancora rilevante: rispondi alle domande per priorità, in prosa breve e ben sequenziata. Non trasformare la risposta in checklist e non riaprire o nominare il lutto se il messaggio attuale resta operativo.'
-                : 'La memoria segnala un lutto ancora rilevante. Anche se il messaggio attuale è operativo, rispondi concretamente con tono sobrio e umano. Non riaprire o nominare il lutto se l’utente non lo riprende esplicitamente.',
+                ? 'La memoria segnala un lutto passato: rispondi alle domande per priorità, in prosa breve e ben sequenziata. Non trasformare la risposta in checklist e non riaprire o nominare il lutto se il messaggio attuale resta operativo.'
+                : 'La memoria segnala un lutto passato. Anche se il messaggio attuale è operativo, rispondi concretamente con tono sobrio e umano. Non riaprire o nominare il lutto se l’utente non lo riprende esplicitamente.',
             canonical_continuity: overload
                 ? 'La memoria segnala una complessità canonica o formale: ordina le informazioni per priorità, con precisione procedurale e senza irrigidire il tono. Non trasformare la risposta in accompagnamento pastorale esteso se l’utente chiede un passaggio amministrativo.'
                 : 'La memoria segnala una complessità canonica o formale. Mantieni precisione procedurale, tono rispettoso e sobrio, senza paternalismi e senza riaprire motivazioni personali non riprese dall’utente.',
             pastoral_process_continuity: overload
-                ? 'La memoria segnala un percorso pastorale in corso: non ripartire da zero, rispondi al prossimo passo concreto e alleggerisci il carico ordinando le informazioni in prosa breve.'
-                : 'La memoria segnala un percorso pastorale in corso. Non ripartire da zero: riconosci implicitamente la continuità e rispondi al prossimo passo concreto, senza trasformare ogni dettaglio in nuova istruzione generale.',
+                ? 'La memoria segnala un precedente percorso pastorale: se pertinente alla richiesta attuale, non ripartire da zero. Rispondi al passo richiesto e alleggerisci il carico ordinando le informazioni in prosa breve.'
+                : 'La memoria segnala un precedente percorso pastorale. Se pertinente alla richiesta attuale, mantieni una continuità implicita; rispondi al passo richiesto senza presumere che il percorso sia ancora in corso.',
             relational_opening_continuity:
                 'La memoria di conversazione segnala apertura relazionale: valorizzala con una ripresa naturale e breve, poi passa al dato pratico. Non aggiungere enfasi pastorale se il messaggio attuale è amministrativo.'
         };
@@ -537,11 +537,7 @@ var PromptContext = class PromptContext {
         if (!c.longitudinal_sensitivity) return false;
         if (
             c.emotional_sensitivity ||
-            c.user_overload ||
-            c.multi_question ||
-            c.discernment_risk ||
-            c.pastoral_technical_blend ||
-            c.physical_presence_constraint
+            c.pastoral_technical_blend
         ) {
             return false;
         }
@@ -551,9 +547,13 @@ var PromptContext = class PromptContext {
         const type = String(requestType.type || '').toLowerCase();
         const category = String(input.classification?.category || '').toLowerCase();
         const subIntents = input._resolvedSubIntents || {};
+        const posture = String(input.relationalPosture || input.relational?.posture ||
+            input.quickCheck?.relational_posture || '').trim().toLowerCase();
 
         if (
             type === 'pastoral' ||
+            type === 'mixed' ||
+            posture === 'personal' || posture === 'relational' ||
             type === 'formal' ||
             type === 'doctrinal' ||
             requestType.isSbattezzo === true ||
@@ -569,13 +569,9 @@ var PromptContext = class PromptContext {
             return false;
         }
 
-        const body = this._normalizeSignalText_(input.email?.body || '');
+        // Lunghezza, più domande e vincoli operativi non rendono attuale il vissuto storico.
+        const body = this._normalizeSignalText_([input.email?.subject, input.email?.body].filter(Boolean).join(' '));
         if (!body) return false;
-        const configuredMaxChars = (typeof CONFIG !== 'undefined' && Number(CONFIG.LONGITUDINAL_TONE_ONLY_MAX_CHARS) > 0)
-            ? Number(CONFIG.LONGITUDINAL_TONE_ONLY_MAX_CHARS)
-            : 500;
-        const maxChars = Math.max(1, Math.floor(configuredMaxChars));
-        if (body.length > maxChars) return false;
 
         const currentSensitiveSignal = /\b(?:lutto|morte|morto|morta|decesso|defunt[oaie]?|funeral[ei]|esequie|malattia|separat[oaie]?|divorziat[oaie]?|vedov[oaie]?|crisi|disperat[oaie]?|angoscia|panico|non\s+ce\s+la\s+faccio|vorrei\s+sparire|non\s+so\s+piu\s+come\s+andare\s+avanti)\b/.test(body);
         const asksForPastoralSupport = /\b(?:aiuto|aiutatemi|parlare\s+con\s+qualcuno|sacerdote|prete|parroco|colloquio|ascolto|confessione|pregare|preghiera)\b/.test(body);

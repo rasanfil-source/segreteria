@@ -46,6 +46,8 @@
 
 ## 🔧 Configurazione Produzione
 
+`gas_config.js` resta tracciato nel repository ed è necessario al flusso di aggiornamento di GitHub e dei due progetti GAS. Non rimuoverlo dal tracciamento e non sovrascriverlo con `gas_config.example.js`. `.claspignore` include il file operativo ed esclude l'esempio dalla distribuzione. Conservare le credenziali reali nelle Script Properties. Lo script di deploy si arresta se il file operativo manca; il fallback all'esempio nei test non sostituisce questo requisito.
+
 ### 1. Ottimizzazione Parametri
 
 **In `gas_config.js`, configura:**

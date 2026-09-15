@@ -1,5 +1,5 @@
-# File di configurazione sensibili (non tracciare su git)
-gas_config.js
+# gas_config.js resta tracciato: necessario al flusso GitHub -> due progetti GAS.
+# Le credenziali reali vanno nelle Script Properties, non nel file.
 
 # Credenziali e configurazione clasp/GAS
 .clasp.json

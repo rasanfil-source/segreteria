@@ -3225,7 +3225,7 @@ assert(
   'ResidualSensitivity deve essere incluso subito dopo il template memoria'
 );
 
-console.log('--- Test PromptEngine: sensibilità longitudinale ammorbidisce postura direct ---');
+console.log('--- Test PromptEngine: memoria longitudinale non promuove postura direct ---');
 const longitudinalPosturePrompt = engine.buildPrompt({
   emailSubject: 'Orario incontro',
   emailContent: 'A che ora ci vediamo?',
@@ -3247,8 +3247,8 @@ const longitudinalPosturePrompt = engine.buildPrompt({
   }
 });
 assert(
-  longitudinalPosturePrompt.includes('Il mittente ha condiviso qualcosa di personale o delicato'),
-  'la sensibilità longitudinale deve usare la postura personal anche se la richiesta corrente è direct'
+  !longitudinalPosturePrompt.includes('Il mittente ha condiviso qualcosa di personale o delicato'),
+  'la sola memoria non deve promuovere direct a personal, anche con modalità legacy pastoral_longitudinal'
 );
 assert(
   longitudinalPosturePrompt.includes('Usa un tono accogliente, sobrio e attento.') &&

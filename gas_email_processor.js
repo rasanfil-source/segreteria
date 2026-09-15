@@ -7388,8 +7388,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     if (
       requestTypeName === 'pastoral' ||
       requestTypeName === 'mixed' ||
-      activeConcerns.pastoral_technical_blend === true ||
-      (activeConcerns.longitudinal_sensitivity === true && !isFormal)
+      activeConcerns.pastoral_technical_blend === true
     ) {
       flags.ongoing_pastoral_process = true;
     }
@@ -9194,7 +9193,7 @@ Parish Secretariat of Sant'Eugenio`;
     const aliases = {
       direct: 'informational',
       personal: 'relational',
-      open: 'appreciative',
+      open: 'open',
       appreciative: 'appreciative',
       grateful: 'appreciative',
       gratitude: 'appreciative',
@@ -9203,7 +9202,7 @@ Parish Secretariat of Sant'Eugenio`;
       complaint: 'procedural'
     };
     const canonical = aliases[normalized] || normalized;
-    const allowed = new Set(['informational', 'procedural', 'relational', 'appreciative', 'urgent', 'uncertain']);
+    const allowed = new Set(['informational', 'procedural', 'relational', 'open', 'appreciative', 'urgent', 'uncertain']);
     return allowed.has(canonical) ? canonical : 'informational';
   }
 

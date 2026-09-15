@@ -431,10 +431,10 @@ var EmailQuickCheckPolicy = class EmailQuickCheckPolicy {
     const flags = memory.contextualFlags && typeof memory.contextualFlags === 'object'
       ? Object.keys(memory.contextualFlags).filter(key => memory.contextualFlags[key] === true).slice(0, 8)
       : [];
-    if (flags.length > 0) lines.push(`- Flag contestuali: ${flags.join(', ')}`);
+    if (flags.length > 0) lines.push(`- Flag storici (non provano bisogni attuali): ${flags.join(', ')}`);
 
     if (lines.length === 0) return '';
-    return `CONTESTO MEMORIA SINTETICO (solo per valutare continuità e non-ripetizione):
+    return `CONTESTO MEMORIA SINTETICO (solo per valutare continuità e non-ripetizione; postura e subIntents sensibili vanno ricavati dal messaggio attuale):
 ${lines.join('\n')}
 `;
   }

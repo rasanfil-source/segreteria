@@ -5,6 +5,10 @@ $ErrorActionPreference = "Stop"
 $claspJsonPath = Join-Path $PSScriptRoot "..\.clasp.json"
 $claspJsonPath = [System.IO.Path]::GetFullPath($claspJsonPath)
 $projectRoot = Split-Path -Parent $claspJsonPath
+$runtimeConfigPath = Join-Path $projectRoot "gas_config.js"
+if (-not (Test-Path -LiteralPath $runtimeConfigPath -PathType Leaf)) {
+    throw "Missing local gas_config.js. Restore your private configuration or configure a copy of gas_config.example.js before deployment."
+}
 $deployConfigPath = Join-Path $PSScriptRoot "deploy_gas.local.json"
 $hadOriginalClaspJson = Test-Path $claspJsonPath
 $backupPath = "$claspJsonPath.$([Guid]::NewGuid().ToString('N')).bak"

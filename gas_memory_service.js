@@ -2264,47 +2264,71 @@ var MemoryService = class MemoryService {
         const data = range.getValues();
         if (data.length <= 1) return;
 
-        const headers = data[0];
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - normalizedDaysOld);
-
-        const validRows = [headers];
+        // La nota è metadata di manutenzione: non deve simulare un'interazione
+        // né entrare in memorySummary, nei flag o nel prompt.
+        const now = Date.now();
+        const cutoff = now - normalizedDaysOld * 86400000;
+        const notePrefix = 'AG_MEMORY_RETENTION_V1:';
+        const notes = this._sheet.getRange(1, 6, data.length, 1).getNotes();
+        const expiredRows = [];
 
         for (let i = 1; i < data.length; i++) {
+          if (data[i].slice(0, 10).every(value => value === '' || value == null)) continue;
           const rawLastUpdated = data[i][5];
-          if (!rawLastUpdated) {
-            console.warn(`⚠️ Riga memoria senza lastUpdated: preservo riga ${i + 1}`);
-            validRows.push(data[i]);
-            continue;
+          const timestamp = (rawLastUpdated instanceof Date || typeof rawLastUpdated === 'number' ||
+            (typeof rawLastUpdated === 'string' && rawLastUpdated.trim()))
+            ? new Date(rawLastUpdated).getTime() : NaN;
+          const note = String(notes[i][0] || '');
+          const lines = note.split('\n');
+          const marker = lines.find(line => line.startsWith(notePrefix));
+          const humanNote = lines.filter(line => !line.startsWith(notePrefix)).join('\n');
+          const validTimestamp = Number.isFinite(timestamp) && timestamp <= now;
+          let retentionStart = timestamp;
+          if (!validTimestamp) {
+            retentionStart = marker ? Number(marker.slice(notePrefix.length)) : NaN;
+            if (!Number.isFinite(retentionStart) || retentionStart <= 0 || retentionStart > now) {
+              this._sheet.getRange(i + 1, 6).setNote(
+                (humanNote ? humanNote + '\n' : '') + notePrefix + now
+              );
+              console.warn(`⚠️ Data memoria anomala: inizio osservazione riga ${i + 1}`);
+              continue;
+            }
+          } else if (marker) {
+            // Un aggiornamento reale supera l'anomalia; un episodio futuro
+            // avrà un nuovo periodo di osservazione.
+            this._sheet.getRange(i + 1, 6).setNote(humanNote || null);
           }
-
-          const parsedLastUpdated = new Date(rawLastUpdated);
-          if (isNaN(parsedLastUpdated.getTime())) {
-            console.warn(`⚠️ Riga memoria con lastUpdated non valido: preservo riga ${i + 1} (${rawLastUpdated})`);
-            validRows.push(data[i]);
-            continue;
-          }
-
-          if (parsedLastUpdated >= cutoffDate) {
-            validRows.push(data[i]);
-          } else {
-            deletedCount++;
-          }
+          if (retentionStart < cutoff) expiredRows.push(i);
         }
 
-        if (deletedCount > 0) {
-          const originalLastRow = this._sheet.getLastRow();
-          this._sheet.getRange(1, 1, validRows.length, headers.length).setValues(validRows);
-          const staleRows = originalLastRow - validRows.length;
-          const staleStartRow = validRows.length + 1;
-          if (staleRows > 0 && staleStartRow + staleRows - 1 <= originalLastRow) {
-            // Non eliminiamo fisicamente righe del foglio: con righe vuote intermedie,
-            // formattazioni o formule fuori tabella è più sicuro svuotare l'area stale.
-            this._sheet.getRange(staleStartRow, 1, staleRows, headers.length).clearContent();
+        // Svuota solo A:J delle righe scadute: nessuno spostamento di righe,
+        // note, formule o dati esterni alla tabella. Raggruppa righe contigue.
+        for (let pos = 0; pos < expiredRows.length;) {
+          const start = pos;
+          while (pos + 1 < expiredRows.length && expiredRows[pos + 1] === expiredRows[pos] + 1) pos++;
+          const group = expiredRows.slice(start, pos + 1);
+          try {
+            this._sheet.getRange(group[0] + 1, 1, group.length, 10).clearContent();
+            deletedCount += group.length;
+          } finally {
+            // Anche una scrittura dall'esito incerto non deve lasciare cache stale.
+            group.forEach(index => {
+              const threadId = String(data[index][0] || '').trim();
+              if (threadId) this._invalidateCache(`memory_${threadId}`);
+            });
           }
+          group.forEach(index => {
+            const oldNote = String(notes[index][0] || '');
+            if (oldNote.split('\n').some(line => line.startsWith(notePrefix))) {
+              this._sheet.getRange(index + 1, 6).setNote(
+                oldNote.split('\n').filter(line => !line.startsWith(notePrefix)).join('\n') || null
+              );
+            }
+          });
+          pos++;
         }
 
-        console.log(`🧹 Pulite ${deletedCount} voci memoria vecchie (Bulk Update)`);
+        console.log(`🧹 Pulite ${deletedCount} voci memoria vecchie`);
       } catch (error) {
         console.error(`❌ Errore pulizia voci vecchie: ${error.message}`);
       }
@@ -2319,7 +2343,8 @@ var MemoryService = class MemoryService {
    */
   cleanupOldEntries(daysOld = 30) {
     const removed = this.cleanOldEntries(daysOld);
-    const remaining = (this._initialized && this._sheet) ? Math.max(0, this._sheet.getLastRow() - 1) : 0;
+    const remaining = (this._initialized && this._sheet)
+      ? this._sheet.getDataRange().getValues().slice(1).filter(row => String(row[0] || '').trim()).length : 0;
     return { removed, remaining };
   }
 
@@ -2360,7 +2385,7 @@ var MemoryService = class MemoryService {
       const data = this._sheet.getDataRange().getValues();
       return {
         ...baseStats,
-        totalEntries: Math.max(0, data.length - 1)
+        totalEntries: data.slice(1).filter(row => String(row[0] || '').trim()).length
       };
     } catch (error) {
       console.warn(`⚠️ getStats memoria non disponibile: ${error.message}`);

@@ -691,7 +691,7 @@ assert(
   'longitudinal_tone_only deve produrre una policy di continuità non riaprire'
 );
 
-console.log('--- Test PromptContext: longitudinal_tone_only usa soglia caratteri configurabile ---');
+console.log('--- Test PromptContext: follow-up operativo articolato resta solo-tono ---');
 {
   const originalToneOnlyMaxChars = global.CONFIG.LONGITUDINAL_TONE_ONLY_MAX_CHARS;
   const articulatedOperationalFollowUpBody = (
@@ -724,7 +724,7 @@ console.log('--- Test PromptContext: longitudinal_tone_only usa soglia caratteri
     });
     assert(
       articulatedFollowUp.meta.responseMode === 'longitudinal_tone_only',
-      'soglia configurata a 500 deve evitare escalation pastorale per follow-up operativo articolato'
+      'un follow-up operativo articolato deve restare solo-tono'
     );
   } finally {
     if (typeof originalToneOnlyMaxChars === 'undefined') {

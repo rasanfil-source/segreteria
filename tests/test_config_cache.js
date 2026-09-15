@@ -45,7 +45,9 @@ global.PropertiesService = {
   }
 };
 
-const gasConfigPath = path.join(__dirname, '..', 'gas_config.js');
+const localConfigPath = path.join(__dirname, '..', 'gas_config.js');
+const gasConfigPath = fs.existsSync(localConfigPath)
+  ? localConfigPath : path.join(__dirname, '..', 'gas_config.example.js');
 const code = fs.readFileSync(gasConfigPath, 'utf8');
 vm.runInThisContext(code, { filename: gasConfigPath });
 const exampleCode = fs.readFileSync(path.join(__dirname, '..', 'gas_config.example.js'), 'utf8');
