@@ -113,6 +113,13 @@ vm.runInThisContext(code, { filename: promptEnginePath });
 
 const engine = new PromptEngine();
 
+console.log('--- Test precedenza nome firmato rispetto al nome account ---');
+{
+  const prompt = String(engine.buildPrompt({ detectedLanguage: 'it', senderName: 'Account Mario', emailContent: 'Richiedo informazioni. Firma: Anna.', knowledgeBase: '', salutation: 'Gentile Mario,', closing: '', promptProfile: 'lite' }));
+  assert(prompt.includes('firma esplicita con un nome personale diverso') && prompt.includes('usa il nome presente nella firma/body'), 'il saluto obbligatorio deve consentire il nome firmato nel body');
+  assert(prompt.includes('usa sempre il nome presente nella firma/body') || prompt.includes('usa il nome presente nella firma/body'), 'precedenza del nome firmato sul nome account');
+}
+
 console.log('--- Test certificati: procedure dalla KB, non dalla categoria ---');
 {
   const kb = 'Per il certificato di Battesimo il rilascio richiede la verifica nei registri battesimali. La partecipazione al corso di Cresima per adulti non viene registrata.';
@@ -232,23 +239,22 @@ assert(
   !litePrompt.includes('<analisi>') && !litePrompt.includes('</analisi>'),
   'il contratto finale non deve richiedere il tag analisi'
 );
-const frenchLanguageInstruction = engine._renderLanguageInstruction('fr');
-const germanLanguageInstruction = engine._renderLanguageInstruction('de');
-assert(
-  frenchLanguageInstruction.includes('FRANÇAIS') &&
-  !frenchLanguageInstruction.includes('language code'),
-  'il prompt deve avere istruzioni lingua dedicate per il francese'
-);
-assert(
-  germanLanguageInstruction.includes('DEUTSCH') &&
-  !germanLanguageInstruction.includes('language code'),
-  'il prompt deve avere istruzioni lingua dedicate per il tedesco'
-);
-assert(
-  litePrompt.includes('firma esplicita con un nome personale diverso') &&
-  litePrompt.includes('usa il nome presente nella firma/body'),
-  'la regola del saluto obbligatorio deve consentire il nome firmato nel body'
-);
+for (const lang of ['it', 'en', 'es', 'fr', 'de', 'pt']) {
+  assert(engine._renderLanguageInstruction(lang) === null, 'nessun blocco lingua duplicato: ' + lang);
+  const checklist = engine._renderContextualChecklist(lang, null, 'full');
+  assertMatches(checklist, /italiano|English|español|français|Deutsch|português/, 'la checklist mantiene la lingua');
+  assertMatches(checklist, /verifica della completezza.*solo se completa.*successiva registrazione.*azioni future della segreteria/, 'verifica e registrazione restano future e condizionate');
+  for (const mode of ['full', 'soft', 'none_or_continuity', 'full_warm']) {
+    const prompt = engine.buildPrompt({ detectedLanguage: lang, emailContent: 'Richiesta informazioni.', knowledgeBase: '', promptProfile: 'heavy', salutationMode: mode, salutation: '', closing: '' });
+    assertDoesNotMatch(prompt, /Good morning|Kind regards|Buenos días|Bom dia|Guten Morgen/, 'nessun saluto esemplificativo nel prompt operativo');
+    assertMatches(prompt, /Riscrivi ogni elemento nella lingua rilevata/, 'obbligo linguistico conservato');
+    assertDoesNotMatch(prompt, /procederemo alla verifica|Formula guida per schede|Vi ricontatteremo dopo aver valutato|Ci faremo sentire per una risposta|Comprendiamo la delicatezza della sua situazione/, 'nessuna formula universale pronta da copiare');
+  }
+}
+assertMatches(engine._renderResponseStructure('quotation', []), /darà riscontro dopo aver valutato/, 'il seguito del preventivo resta in carico alla segreteria');
+assertMatches(engine._renderSpecialCases(), /parlare DIRETTAMENTE con un sacerdote/, 'resta il rinvio per casi complessi');
+assertMatches(engine._renderSpecialCases(), /senza dare per scontato che il matrimonio sia possibile/, 'resta la prudenza canonica');
+
 assert(
   litePrompt.includes('Completezza domande') &&
   !litePrompt.includes('DIRETTIVA DI COMPLETEZZA'),
@@ -682,7 +688,7 @@ console.log('--- Test prompt: risposta francese non riceve formule italiane dall
   });
 
   assert(
-    frenchLocalVisitPrompt.includes('EXIGENCE CRITIQUE DE LANGUE') &&
+    frenchLocalVisitPrompt.includes('Rédigez l\'intégralité de la réponse exclusivement en français') &&
       frenchLocalVisitPrompt.includes('COERENZA LINGUISTICA E PERTINENZA') &&
       frenchLocalVisitPrompt.includes('non la rende obbligatoria') &&
       frenchLocalVisitPrompt.includes("l'evento imminente rende la presenza implicita") &&
@@ -981,9 +987,9 @@ assert(
   'la struttura lutto deve vietare liste/emoji anche con molte domande'
 );
 assert(
-  bereavementPrompt.includes('Apertura: se il messaggio contiene elementi specifici') &&
-  bereavementPrompt.includes('Siamo dispiaciuti per la perdita di suo padre') &&
-  bereavementPrompt.includes("la sobrietà vale più dell'empatia performativa") &&
+  bereavementPrompt.includes('Apertura: esprimi cordoglio sobrio') &&
+  bereavementPrompt.includes('persona, relazione o circostanza di perdita esplicitata nel messaggio') &&
+  bereavementPrompt.includes('Se il messaggio è vago o formale, passa direttamente alle informazioni pratiche') &&
   !bereavementPrompt.includes('1. Esprimi vicinanza sincera'),
   'la struttura lutto deve sostituire formule emotive meccaniche con mirroring specifico o sobrietà'
 );
@@ -1061,8 +1067,8 @@ assert(
   'il prompt deve indicare una risposta predefinita di ricezione'
 );
 assert(
-  attachmentPrompt.includes('La segreteria procederà alla verifica') &&
-    attachmentPrompt.includes('registrazione nei propri archivi'),
+  attachmentPrompt.includes('verifica della completezza e, solo se completa') &&
+    attachmentPrompt.includes('successiva registrazione negli archivi come azioni future della segreteria'),
   'il prompt deve guidare i moduli verso verifica e registrazione futura, non gia conclusa'
 );
 assert(
@@ -1276,8 +1282,8 @@ const emotionalSupportHint = engine._renderCategoryHint('emotional_support');
 assert(
   hesitantSponsorPrompt.includes('=== LINEE GUIDA PRAGMATICHE ===') &&
   hesitantSponsorPrompt.includes('accoglila come legittima') &&
-  hesitantSponsorPrompt.includes('Non si preoccupi') &&
-  hesitantSponsorPrompt.includes('La domanda è legittima') &&
+  hesitantSponsorPrompt.includes('Evita rassicurazioni generiche') &&
+  hesitantSponsorPrompt.includes('riconosci la legittimità della domanda') &&
   hesitantSponsorPrompt.includes('la chiarezza è già un atto di rispetto') &&
   hesitantSponsorPrompt.includes('senza aggiungere commenti sulla natura della domanda') &&
   hesitantSponsorPrompt.includes('attribuire stati d\'animo non esplicitati'),
@@ -1484,9 +1490,9 @@ assert(
     operationalCertificatePrompt.includes('non frasi pronte né blocchi da inserire automaticamente in base al solo argomento') &&
     operationalCertificatePrompt.includes('Non riaprire istruzioni preliminari') &&
     operationalCertificatePrompt.includes('se questo richiede un ricontatto non ancora programmato') &&
-    operationalCertificatePrompt.includes('cercheremo di contattarla a breve') &&
+    operationalCertificatePrompt.includes('esprimi la sollecitudine come intenzione') &&
     operationalCertificatePrompt.includes('non come certezza') &&
-    operationalCertificatePrompt.includes('la ricontatteremo a breve') &&
+    !operationalCertificatePrompt.includes('la ricontatteremo a breve') &&
     operationalCertificatePrompt.includes('impedimenti reali') &&
     operationalCertificatePrompt.includes('informazioni mancanti indispensabili'),
   'il prompt operativo deve limitare la KB a presa in carico, blocchi reali e dati indispensabili, mitigando ricontatti non programmati'
@@ -2180,7 +2186,7 @@ assert(
 );
 assert(
   temporalGuardPrompt.systemInstruction.includes('OUTPUT ENVELOPE POLICY') &&
-    temporalGuardPrompt.systemInstruction.includes('Sono vietati opener come "Buongiorno"') &&
+    temporalGuardPrompt.systemInstruction.includes('NON aprire con un saluto rituale o un vocativo formale') &&
     temporalGuardPrompt.systemInstruction.includes('Questa policy prevale'),
   'il prompt deve avere un vincolo system-level negativo contro saluti ricreati in continuità'
 );
@@ -2645,7 +2651,7 @@ console.log('--- Test prompt: casi canonici complessi restano in profilo lite --
     complexLitePrompt.includes('CASI SPECIALI') &&
       complexLitePrompt.includes('SITUAZIONI CANONICAMENTE COMPLESSE') &&
       complexLitePrompt.includes('Divorziato/a') &&
-      complexLitePrompt.includes('Esempio di risposta CORRETTA per persona divorziata'),
+      complexLitePrompt.includes('Invita a parlare DIRETTAMENTE con un sacerdote'),
     'il profilo lite non deve eliminare la guida sui casi canonicamente complessi'
   );
 }

@@ -2509,8 +2509,8 @@ function runAllTests() {
             return section.includes('fattuale') &&
                 section.includes('non difenderti') &&
                 section.includes('Evita formule consolatorie') &&
-                section.includes('verificheremo') &&
-                section.includes('provvederemo');
+                section.includes('azioni concrete di verifica o intervento') &&
+                !section.includes('"verificheremo"');
         });
         test('Postura personal su requestType technical attiva AI_CORE_LITE', results, () => {
             const prompt = engine.buildPrompt(Object.assign({}, baseOptions, {

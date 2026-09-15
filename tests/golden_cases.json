@@ -1001,8 +1001,8 @@
       ],
       "promptMustInclude": [
         "accoglila come legittima",
-        "Non si preoccupi",
-        "La domanda \u00e8 legittima"
+        "Evita rassicurazioni generiche",
+        "riconosci la legittimità della domanda"
       ],
       "responseMustInclude": [
         "La domanda .* legittima",
