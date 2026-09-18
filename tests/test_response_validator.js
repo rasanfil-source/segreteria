@@ -1682,7 +1682,7 @@ console.log('--- Test document mismatch template: blocca risposta senza template
   );
 }
 
-console.log('--- Test document mismatch template: unverified_attachment valido ---');
+console.log('--- Test document mismatch template: incertezza non giustifica reinvio ---');
 {
   const mismatchContext = {
     temporal: { currentDate: '2026-06-08', currentTime: '10:00', messageDate: '2026-06-08' },
@@ -1705,7 +1705,8 @@ console.log('--- Test document mismatch template: unverified_attachment valido -
     mismatchContext
   );
 
-  assert(result.isValid === true, 'il template unverified_attachment deve passare senza pretendere il mismatch');
+  assert(result.isValid === false, 'la sola incertezza non deve produrre una richiesta di reinvio');
+  assert(result.errors.some(error => error.includes('sola incertezza')), 'errore specifico per il reinvio immotivato');
   assert(result.details.documentMismatchTemplate.mode === 'unverified_attachment', 'il validator deve conservare il mode unverified_attachment');
   assert(result.details.documentMismatchTemplate.hasUnverifiedTemplate === true, 'il template non verificabile deve essere riconosciuto');
 }

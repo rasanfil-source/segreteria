@@ -112,20 +112,8 @@ console.log('--- Test unverified_attachment: invio generico unknown blocca recei
   assert(shouldUseReceiptOnly === false, 'receipt-only deve restare bloccato anche senza expectsDocument esplicito');
 }
 
-console.log('--- Contract test unverified_attachment: wording non accusatorio ---');
-{
-  const responseText = "Gentile utente,\nabbiamo ricevuto l'allegato, ma non possiamo confermare con certezza che corrisponda alla scheda di iscrizione al corso prematrimoniale. La invitiamo a verificarlo e, se necessario, a reinviare il file corretto.";
-
-  assert(/abbiamo ricevuto l.allegato/i.test(responseText), 'Deve riconoscere la ricezione dell’allegato');
-  assert(/non possiamo confermare con certezza/i.test(responseText), 'Deve esprimere incertezza anziché accusare');
-  assert(/scheda di iscrizione/i.test(responseText), 'Deve includere il nome del documento atteso');
-
-  assert(!/sembra\s+non\s+corrispondere/i.test(responseText), 'NON deve usare la frase di mismatch');
-  assert(!/non\s+corrisponde/i.test(responseText), 'NON deve usare la frase di mismatch');
-  assert(!/allegato\s+incongruo/i.test(responseText), 'NON deve etichettare l’allegato come incongruo');
-  assert(!/sbagliat[oa]/i.test(responseText), 'NON deve dire che l’allegato è sbagliato');
-  assert(!/errat[oa]/i.test(responseText), 'NON deve dire che l’allegato è errato');
-}
+// La vecchia formula di reinvio per sola incertezza è verificata contro il
+// validator reale in test_response_validator.js e test_attachment_followup.js.
 
 function assert(condition, message) {
   if (!condition) {
@@ -6515,5 +6503,26 @@ console.log('--- Test presenza/strategia: due turni, persistenza e numero chiama
     assert(saved.contextualFlags.bereaved && saved.contextualFlags.canonical_complexity, 'flag sensibili preservati');
     assert(saved.contextualFlags.remote_user!==true, 'flag distanza rimosso dopo persistenza');
   }
+}
+console.log('--- Test modulo corso con domanda sul luogo: richiesta conservata dopo OCR ---');
+{
+  const scenario = runExpectedDocumentDeliveryScenario({
+    threadId: 't-enrollment-location-followup',
+    subject: 'Re: Corso prematrimoniale',
+    body: 'Buonasera, la ringrazio. Le invio in allegato il modulo per l’iscrizione al corso prematrimoniale in partenza il 3 Ottobre prossimo alle ore 17:30. Dove si terrà il corso?',
+    attachments: ['Corso-di-preparazione-al-Matrimonio.pdf'],
+    ocrText: '\n\n--- File visivo inviato: Corso-di-preparazione-al-Matrimonio.pdf ---\nRuolo allegato: unknown',
+    quickDocumentDelivery: { expected_document: true, expected_document_description: 'modulo di iscrizione al corso prematrimoniale', delivery_channel: 'attachment', requires_file_attachment: true },
+    generatedText: 'Abbiamo ricevuto il modulo. La sede del corso va confermata dalla segreteria.'
+  });
+  assert(scenario.generationCalls === 1, 'la domanda richiede generazione, non sola ricevuta');
+  assert(scenario.capturedPromptOptions.attachmentIntentContext.hasQuestions === true, 'domanda sul luogo mantenuta dopo OCR');
+  assert(!scenario.capturedPromptOptions.attachmentIntentContext.categoryHintSource, 'nome effettivo non cambia categoria');
+  assert(scenario.capturedPromptOptions.emailContent.includes('Dove si terrà il corso?'), 'domanda corrente arriva al prompt');
+  assert(scenario.capturedPromptOptions.documentConsistency.mode === 'unknown_received', 'riproduce tassonomia locale del log');
+  assert(scenario.semanticCalls === 0, 'descrizione tecnica del PDF non deve essere scambiata per contenuto leggibile');
+  assert(scenario.capturedPromptOptions.documentDelivery.status === 'unverified_attachment', 'coerenza tematica non certifica validità');
+  assert(scenario.directives.some(d => d.includes('non imporre verifica o reinvio')), 'incertezza non impone reinvio');
+  assert(!scenario.directives.some(d => d.includes('La invitiamo a verificarlo')), 'template imposto nel log eliminato');
 }
 console.log('✅ Test batch EmailProcessor passati');

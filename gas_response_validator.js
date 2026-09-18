@@ -2176,10 +2176,14 @@ var ResponseValidator = class ResponseValidator {
         score = 0.0;
       }
 
-      if (!hasUnverifiedTemplate) {
-        errors.push('Allegato non verificabile: manca il template su allegato ricevuto, impossibilita di confermare e reinvio del file corretto.');
+      if (hasUnverifiedTemplate) {
+        errors.push('Allegato non verificabile: richiesta di verifica e reinvio basata sulla sola incertezza di classificazione. Confermare la ricezione e rispondere alla domanda corrente.');
         score = 0.0;
       }
+
+      // L'incertezza di classificazione non impone un avviso o un reinvio.
+      // Una ricevuta sobria con risposta alla domanda corrente è legittima;
+      // resta vietato presentare l'incertezza come documento sbagliato.
 
       return {
         score,
