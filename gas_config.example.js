@@ -180,7 +180,10 @@ var CONFIG = {
   SEARCH_PAGE_SIZE: 15,              // Buffer discovery per candidati message-level (≈ 5x MAX_EMAILS_PER_RUN)
   SENDER_THROTTLE_WINDOW_SECONDS: 60, // Previene burst simultanei su thread diversi dallo stesso sender
   DUPLICATE_REPLY_GUARD_ENABLED: true, // Blocca copie identiche già risposte, prima di memoria e AI
-  DUPLICATE_REPLY_WINDOW_SECONDS: 900, // Finestra prudenziale: 15 minuti dall'invio confermato
+  // Blocca il reinvio dello stesso testo dallo stesso mittente nel giorno
+  // successivo alla risposta. Le richieste realmente nuove cambiano il
+  // fingerprint; 15 minuti non coprivano le ritrasmissioni manuali tardive.
+  DUPLICATE_REPLY_WINDOW_SECONDS: 86400, // 24 ore dall'invio confermato
   DUPLICATE_REPLY_MAX_ENTRIES: 200,    // Limite marker persistenti per contenere ScriptProperties
   // === DISCOVERY MODE ======================================================================
   // Modalità di scoperta messaggi non letti da elaborare.

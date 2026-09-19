@@ -1505,7 +1505,7 @@ function createDuplicateGuardThread(id, { attachments = [], from = 'utente@examp
   };
 }
 
-console.log('--- Test duplicate guard: seconda email identica viene fermata prima di memoria e AI ---');
+console.log('--- Test duplicate guard: ritrasmissione identica entro 24 ore viene fermata prima di memoria e AI ---');
 {
   cacheStore.clear();
   const props = createDuplicateGuardPropertyStore();
@@ -1516,7 +1516,7 @@ console.log('--- Test duplicate guard: seconda email identica viene fermata prim
   const processor = buildValidationFlowProcessor({ labels: labels });
   processor.props = props;
   processor.config.duplicateReplyGuardEnabled = true;
-  processor.config.duplicateReplyWindowSeconds = 900;
+  processor.config.duplicateReplyWindowSeconds = 86400;
   processor.gmailService.sendHtmlReply = () => { sendCalls++; };
   processor.geminiService.shouldRespondToEmail = () => {
     quickCheckCalls++;
@@ -1528,10 +1528,18 @@ console.log('--- Test duplicate guard: seconda email identica viene fermata prim
   };
 
   const first = processor.processThread(createDuplicateGuardThread('duplicate-first'), 'kb valida', '', new Set(), true);
+  const fingerprintContext = processor._buildDuplicateReplyFingerprintContext_({ getAttachments: () => [] }, {
+    senderEmail: 'utente@example.com',
+    subject: 'Richiesta informazioni',
+    body: 'Vorrei sapere gli orari.'
+  });
+  const marker = JSON.parse(props.getProperty(fingerprintContext.propertyKey));
+  marker.sentAt -= 36 * 60 * 1000;
+  props.setProperty(fingerprintContext.propertyKey, JSON.stringify(marker));
   const second = processor.processThread(createDuplicateGuardThread('duplicate-second'), 'kb valida', '', new Set(), true);
 
   assert(first.status === 'replied', `prima email identica deve essere risposta, ottenuto ${first.status}`);
-  assert(second.status === 'skipped', `seconda email identica deve essere soppressa, ottenuto ${second.status}`);
+  assert(second.status === 'skipped', `ritrasmissione identica dopo 36 minuti deve essere soppressa, ottenuto ${second.status}`);
   assert(second.reason === 'duplicate_already_replied', `reason duplicato inatteso: ${second.reason}`);
   assert(second.duplicateOfMessageId === 'm-duplicate-first', 'deve indicare il messaggio già risposto');
   assert(second.duplicateOfThreadId === 't-duplicate-first', 'deve indicare il thread già risposto');
@@ -1572,20 +1580,20 @@ console.log('--- Test duplicate guard: confronto conservativo, allegati esclusi 
   assert(processor._buildDuplicateReplyFingerprintContext_(unreadableAttachments, baseDetails) === null, 'errore lettura allegati deve fallire aperto');
 }
 
-console.log('--- Test duplicate guard: marker scaduto o corrotto non blocca ---');
+console.log('--- Test duplicate guard: marker oltre 24 ore o corrotto non blocca ---');
 {
   const props = createDuplicateGuardPropertyStore();
   const processor = new EmailProcessor({ gmailService: {}, props: props });
   processor.config.duplicateReplyGuardEnabled = true;
-  processor.config.duplicateReplyWindowSeconds = 900;
+  processor.config.duplicateReplyWindowSeconds = 86400;
   const context = processor._buildDuplicateReplyFingerprintContext_({ getAttachments: () => [] }, {
     senderEmail: 'utente@example.com',
     subject: 'Domanda',
     body: 'Testo invariato'
   });
   const now = Date.now();
-  processor._recordConfirmedDuplicateReply_(context, 'm-old', 't-old', now - (901 * 1000));
-  assert(processor._findConfirmedDuplicateReply_(context, now).isDuplicate === false, 'marker oltre finestra non deve bloccare');
+  processor._recordConfirmedDuplicateReply_(context, 'm-old', 't-old', now - (86401 * 1000));
+  assert(processor._findConfirmedDuplicateReply_(context, now).isDuplicate === false, 'marker oltre 24 ore non deve bloccare');
   props.setProperty(context.propertyKey, '{marker-corrotto');
   assert(processor._findConfirmedDuplicateReply_(context, now).isDuplicate === false, 'marker corrotto deve fallire aperto');
   assert(!props.store.has(context.propertyKey), 'marker corrotto deve essere ripulito');

@@ -117,7 +117,7 @@ var EmailProcessor = class EmailProcessor {
         : true,
       duplicateReplyWindowSeconds: typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.DUPLICATE_REPLY_WINDOW_SECONDS))
         ? Math.max(0, Number(CONFIG.DUPLICATE_REPLY_WINDOW_SECONDS))
-        : 900,
+        : 86400,
       duplicateReplyMaxEntries: typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.DUPLICATE_REPLY_MAX_ENTRIES))
         ? Math.max(1, Math.min(1000, Math.floor(Number(CONFIG.DUPLICATE_REPLY_MAX_ENTRIES))))
         : 200
